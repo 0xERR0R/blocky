@@ -16,7 +16,7 @@ build:  ## Build binary
 	go build -v -ldflags="-w -s -X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}" -o $(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 
 test:  ## run tests
-	go test -v -cover ./...
+	go test -v -coverprofile=coverage.txt -covermode=atomic -cover ./...
 
 lint: ## run golangcli-lint checks
 	$(shell go env GOPATH)/bin/golangci-lint run
