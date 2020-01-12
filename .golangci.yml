@@ -1,0 +1,53 @@
+linters:
+    enable:
+      - govet
+      - errcheck
+      - staticcheck
+      - unused
+      - gosimple
+      - structcheck
+      - varcheck
+      - ineffassign
+      - deadcode
+      - typecheck
+      - bodyclose
+      - golint
+      - stylecheck
+      - gosec
+      - interfacer
+      - unconvert
+      - dupl
+      - goconst
+      - gocyclo
+      - gocognit
+      - gofmt
+      - goimports
+      - maligned
+      - depguard
+      - misspell
+      - lll
+      - unparam
+      - dogsled
+      - funlen
+      - gochecknoglobals
+      - gochecknoinits
+      - gocritic
+      - godox
+      - nakedret
+      - prealloc
+      - whitespace
+      - wsl
+
+    disable-all: false
+    presets:
+      - bugs
+      - unused
+    fast: false
+
+issues:
+  exclude-rules:
+    # Exclude some linters from running on tests files.
+    - path: _test\.go
+      linters:
+        - gochecknoglobals
+        - dupl

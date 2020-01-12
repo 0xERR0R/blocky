@@ -1,0 +1,5 @@
+.idea/
+*.iml
+bin/
+config.yml
+todo.txt

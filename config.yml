@@ -1,0 +1,47 @@
+upstream:
+  externalResolvers:
+   # - udp:8.8.8.8
+   # - udp:8.8.4.4
+    - tcp-tls:1.1.1.1:853
+    - tcp-tls:1.0.0.1:853
+customDNS:
+  mapping:
+    spx.duckdns.org: 192.168.178.3
+conditional:
+  mapping:
+    fritz.box: udp:192.168.178.1
+blocking:
+  blackLists:
+    ads:
+      - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
+      - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+      - https://mirror1.malwaredomains.com/files/justdomains
+      - http://sysctl.org/cameleon/hosts
+      - https://zeustracker.abuse.ch/blocklist.php?download=domainblocklist
+      - https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt
+    special:
+      - https://hosts-file.net/ad_servers.txt
+  whiteLists:
+    ads:
+      - whitelist.txt
+  clientGroupsBlock:
+    default:
+      - ads
+      - special
+    Laptop-D.fritz.box:
+      - ads
+  blockType: zeroIp
+
+clientLookup:
+  upstream: udp:192.168.178.1
+  singleNameOrder:
+    - 2
+    - 1
+  
+#queryLog:
+#  dir: /tmp
+#  perClient: true
+#  logRetentionDays: 7
+
+port: 55555
+logLevel: info
