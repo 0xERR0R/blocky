@@ -1,4 +1,4 @@
-![](https://github.com/0xERR0R/blocky/workflows/CI%20Build/badge.svg) ![](https://github.com/0xERR0R/blocky/workflows/Docker%20Image%20Release/badge.svg)
+![GitHub Workflow Status](https://img.shields.io/github/workflow/status/0xERR0R/blocky/CI%20Build?label=CI%20Build) ![GitHub Workflow Status](https://img.shields.io/github/workflow/status/0xERR0R/blocky/Release?label=Release) ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/0xERR0R/blocky) ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/0xERR0R/blocky)
 
 <p align="center">
   <img height="200" src="blocky.svg">
