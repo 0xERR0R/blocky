@@ -1,4 +1,13 @@
-![GitHub Workflow Status](https://img.shields.io/github/workflow/status/0xERR0R/blocky/CI%20Build?label=CI%20Build) ![GitHub Workflow Status](https://img.shields.io/github/workflow/status/0xERR0R/blocky/Release?label=Release) ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/0xERR0R/blocky) ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/0xERR0R/blocky)
+[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/0xERR0R/blocky/CI%20Build?label=CI%20Build "CI Build")](#)
+[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/0xERR0R/blocky/Release?label=Release "Release")](#)
+[![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/0xERR0R/blocky "Go version")](#)
+[![GitHub latest version](https://img.shields.io/github/v/release/0xERR0R/blocky "Latest version")](https://github.com/0xERR0R/blocky/releases)
+[![Docker latest version](https://img.shields.io/badge/docker-latest-blue "Latest version")](https://hub.docker.com/r/spx01/blocky)
+[![GitHub Release Date](https://img.shields.io/github/release-date/0xERR0R/blocky "Latest release date")](https://github.com/0xERR0R/blocky/releases)
+[![Codecov](https://img.shields.io/codecov/c/gh/0xERR0R/blocky "Code coverage")](#)
+[![Codacy grade](https://img.shields.io/codacy/grade/8fcd8f8420b8419c808c47af58ed9282 "Codacy grade")](#)
+
+
 
 <p align="center">
   <img height="200" src="blocky.svg">
