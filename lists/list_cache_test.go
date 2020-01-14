@@ -1,18 +1,15 @@
 package lists
 
 import (
-	"io/ioutil"
-	"net/http"
-	"net/http/httptest"
+	"blocky/helpertest"
 	"os"
 	"testing"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_NoMatch_With_Empty_List(t *testing.T) {
-	file1 := tempFile("#empty file")
+	file1 := helpertest.TempFile("#empty file")
 	defer os.Remove(file1.Name())
 
 	lists := map[string][]string{
@@ -27,13 +24,13 @@ func Test_NoMatch_With_Empty_List(t *testing.T) {
 }
 
 func Test_Match_Download_Multiple_Groups(t *testing.T) {
-	server1 := testServer("blocked1.com\nblocked1a.com")
+	server1 := helpertest.TestServer("blocked1.com\nblocked1a.com")
 	defer server1.Close()
 
-	server2 := testServer("blocked2.com")
+	server2 := helpertest.TestServer("blocked2.com")
 	defer server2.Close()
 
-	server3 := testServer("blocked3.com\nblocked1a.com")
+	server3 := helpertest.TestServer("blocked3.com\nblocked1a.com")
 	defer server3.Close()
 
 	lists := map[string][]string{
@@ -57,13 +54,13 @@ func Test_Match_Download_Multiple_Groups(t *testing.T) {
 }
 
 func Test_Match_Download_No_Group(t *testing.T) {
-	server1 := testServer("blocked1.com\nblocked1a.com")
+	server1 := helpertest.TestServer("blocked1.com\nblocked1a.com")
 	defer server1.Close()
 
-	server2 := testServer("blocked2.com")
+	server2 := helpertest.TestServer("blocked2.com")
 	defer server2.Close()
 
-	server3 := testServer("blocked3.com\nblocked1a.com")
+	server3 := helpertest.TestServer("blocked3.com\nblocked1a.com")
 	defer server3.Close()
 
 	lists := map[string][]string{
@@ -79,13 +76,13 @@ func Test_Match_Download_No_Group(t *testing.T) {
 }
 
 func Test_Match_Files_Multiple_Groups(t *testing.T) {
-	file1 := tempFile("blocked1.com\nblocked1a.com")
+	file1 := helpertest.TempFile("blocked1.com\nblocked1a.com")
 	defer os.Remove(file1.Name())
 
-	file2 := tempFile("blocked2.com")
+	file2 := helpertest.TempFile("blocked2.com")
 	defer os.Remove(file2.Name())
 
-	file3 := tempFile("blocked3.com\nblocked1a.com")
+	file3 := helpertest.TempFile("blocked3.com\nblocked1a.com")
 	defer os.Remove(file3.Name())
 
 	lists := map[string][]string{
@@ -106,27 +103,4 @@ func Test_Match_Files_Multiple_Groups(t *testing.T) {
 	found, group = sut.Match("blocked1a.com", []string{"gr2"})
 	assert.Equal(t, true, found)
 	assert.Equal(t, "gr2", group)
-}
-
-func tempFile(data string) *os.File {
-	f, err := ioutil.TempFile("", "prefix")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	_, err = f.WriteString(data)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return f
-}
-
-func testServer(data string) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		_, err := rw.Write([]byte(data))
-		if err != nil {
-			log.Fatal("can't write to buffer:", err)
-		}
-	}))
 }

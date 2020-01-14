@@ -5,6 +5,7 @@ import (
 	"blocky/util"
 	"fmt"
 	"net"
+	"sync/atomic"
 	"testing"
 
 	"github.com/miekg/dns"
@@ -58,9 +59,10 @@ func TestClientNamesFromUpstream(t *testing.T) {
 }
 
 func TestClientInfoFromUpstreamSingleNameWithOrder(t *testing.T) {
-	callCount := 0
+	var callCount int32
+
 	upstream := TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-		callCount++
+		atomic.AddInt32(&callCount, 1)
 		r, err := dns.ReverseAddr("192.168.178.25")
 		assert.NoError(t, err)
 
@@ -83,7 +85,7 @@ func TestClientInfoFromUpstreamSingleNameWithOrder(t *testing.T) {
 		Log:      logrus.NewEntry(logrus.New())}
 	_, err := sut.Resolve(request)
 
-	assert.Equal(t, 1, callCount)
+	assert.Equal(t, int32(1), callCount)
 
 	m.AssertExpectations(t)
 	assert.NoError(t, err)
@@ -95,7 +97,7 @@ func TestClientInfoFromUpstreamSingleNameWithOrder(t *testing.T) {
 	_, err = sut.Resolve(request)
 
 	// use cache -> call count 1
-	assert.Equal(t, 1, callCount)
+	assert.Equal(t, int32(1), callCount)
 
 	m.AssertExpectations(t)
 	assert.NoError(t, err)
