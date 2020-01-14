@@ -9,7 +9,7 @@ import (
 )
 
 func Test_NoMatch_With_Empty_List(t *testing.T) {
-	file1 := helpertest.TempFile("#empty file")
+	file1 := helpertest.TempFile("#empty file\n\n")
 	defer os.Remove(file1.Name())
 
 	lists := map[string][]string{
@@ -64,8 +64,9 @@ func Test_Match_Download_No_Group(t *testing.T) {
 	defer server3.Close()
 
 	lists := map[string][]string{
-		"gr1": {server1.URL, server2.URL},
-		"gr2": {server3.URL},
+		"gr1":          {server1.URL, server2.URL},
+		"gr2":          {server3.URL},
+		"withDeadLink": {"http://wrong.host.name"},
 	}
 
 	sut := NewListCache(lists)
@@ -103,4 +104,16 @@ func Test_Match_Files_Multiple_Groups(t *testing.T) {
 	found, group = sut.Match("blocked1a.com", []string{"gr2"})
 	assert.Equal(t, true, found)
 	assert.Equal(t, "gr2", group)
+}
+
+func Test_Configuration(t *testing.T) {
+	lists := map[string][]string{
+		"gr1": {"file1", "file2"},
+	}
+
+	sut := NewListCache(lists)
+
+	c := sut.Configuration()
+
+	assert.Len(t, c, 7)
 }
