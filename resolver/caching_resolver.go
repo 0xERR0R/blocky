@@ -13,8 +13,7 @@ import (
 // caches answers from dns queries with their TTL time, to avoid external resolver calls for recurrent queries
 type CachingResolver struct {
 	NextResolver
-	cacheA    *cache.Cache
-	cacheAAAA *cache.Cache
+	cachesPerType map[uint16]*cache.Cache
 }
 
 const minTTL = 250
@@ -28,27 +27,21 @@ const (
 
 func NewCachingResolver() ChainedResolver {
 	return &CachingResolver{
-		cacheA:    cache.New(15*time.Minute, 5*time.Minute),
-		cacheAAAA: cache.New(15*time.Minute, 5*time.Minute),
+		cachesPerType: map[uint16]*cache.Cache{
+			dns.TypeA:    cache.New(15*time.Minute, 5*time.Minute),
+			dns.TypeAAAA: cache.New(15*time.Minute, 5*time.Minute),
+		},
 	}
 }
 
 func (r *CachingResolver) getCache(queryType uint16) *cache.Cache {
-	switch queryType {
-	case dns.TypeA:
-		return r.cacheA
-	case dns.TypeAAAA:
-		return r.cacheAAAA
-	default:
-		log.Error("unknown type: ", queryType)
-	}
-
-	return r.cacheA
+	return r.cachesPerType[queryType]
 }
 
 func (r *CachingResolver) Configuration() (result []string) {
-	result = append(result, fmt.Sprintf("A cache items count = %d", r.cacheA.ItemCount()))
-	result = append(result, fmt.Sprintf("AAAA cache items count = %d", r.cacheAAAA.ItemCount()))
+	for t, cache := range r.cachesPerType {
+		result = append(result, fmt.Sprintf("%s cache items count = %d", dns.TypeToString[t], cache.ItemCount()))
+	}
 
 	return
 }

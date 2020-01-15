@@ -274,7 +274,7 @@ func Test_Resolve_NoBlock(t *testing.T) {
 	m.AssertExpectations(t)
 }
 
-func Test_Configuration(t *testing.T) {
+func Test_Configuration_BlockingResolver(t *testing.T) {
 	file := helpertest.TempFile("blocked1.com")
 	defer file.Close()
 

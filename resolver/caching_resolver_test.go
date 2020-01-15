@@ -115,3 +115,9 @@ func Test_Resolve_MX(t *testing.T) {
 	assert.Equal(t, "google.de.\t180\tIN\tMX\t20 alt1.aspmx.l.google.com.", resp.Res.Answer[0].String())
 	assert.Equal(t, 1, len(m.Calls))
 }
+
+func Test_Configuration_CachingResolver(t *testing.T) {
+	sut := NewCachingResolver()
+	c := sut.Configuration()
+	assert.Len(t, c, 2)
+}
