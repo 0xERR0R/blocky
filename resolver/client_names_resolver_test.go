@@ -194,6 +194,20 @@ func TestClientInfoFromUpstreamNotFound(t *testing.T) {
 	assert.Equal(t, "192.168.178.25", request.ClientNames[0])
 }
 
+func TestClientInfoWithoutIp(t *testing.T) {
+	sut := NewClientNamesResolver(config.ClientLookupConfig{Upstream: config.Upstream{Net: "tcp", Host: "host"}})
+	m := &resolverMock{}
+	m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
+	sut.Next(m)
+
+	request := &Request{ClientIP: nil,
+		Log: logrus.NewEntry(logrus.New())}
+	_, err := sut.Resolve(request)
+
+	assert.NoError(t, err)
+	assert.Len(t, request.ClientNames, 0)
+}
+
 func TestClientInfoWithoutUpstream(t *testing.T) {
 	sut := NewClientNamesResolver(config.ClientLookupConfig{})
 	m := &resolverMock{}
@@ -207,4 +221,19 @@ func TestClientInfoWithoutUpstream(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, request.ClientNames, 1)
 	assert.Equal(t, "192.168.178.25", request.ClientNames[0])
+}
+
+func Test_Configuration_ClientNamesResolver(t *testing.T) {
+	sut := NewClientNamesResolver(config.ClientLookupConfig{
+		Upstream:        config.Upstream{Net: "tcp", Host: "host"},
+		SingleNameOrder: []uint{1, 2},
+	})
+	c := sut.Configuration()
+	assert.Len(t, c, 3)
+}
+
+func Test_Configuration_ClientNamesResolver_Disabled(t *testing.T) {
+	sut := NewClientNamesResolver(config.ClientLookupConfig{})
+	c := sut.Configuration()
+	assert.Equal(t, []string{"deactivated, use only IP address"}, c)
 }

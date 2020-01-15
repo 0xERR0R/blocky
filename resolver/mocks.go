@@ -25,12 +25,6 @@ func (r *resolverMock) Resolve(req *Request) (*Response, error) {
 	return args.Get(0).(*Response), args.Error(1)
 }
 
-func TestUDPUpstreamWithResponse(response *dns.Msg) config.Upstream {
-	return TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-		return response
-	})
-}
-
 func TestUDPUpstream(fn func(request *dns.Msg) (response *dns.Msg)) config.Upstream {
 	a, err := net.ResolveUDPAddr("udp4", ":0")
 	if err != nil {

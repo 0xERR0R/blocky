@@ -256,10 +256,11 @@ func TestDnsRequest(t *testing.T) {
 	}
 }
 
-//    26106	     43273 ns/op	   12518 B/op	     137 allocs/op
 func BenchmarkServerExternalResolver(b *testing.B) {
-	msg, _ := util.NewMsgWithAnswer(fmt.Sprintf("example.com IN A 123.124.122.122"))
-	upstreamExternal := resolver.TestUDPUpstreamWithResponse(msg)
+	upstreamExternal := resolver.TestUDPUpstream(func(request *dns.Msg) (response *dns.Msg) {
+		msg, _ := util.NewMsgWithAnswer(fmt.Sprintf("example.com IN A 123.124.122.122"))
+		return msg
+	})
 
 	// create server
 	server, err := NewServer(&config.Config{

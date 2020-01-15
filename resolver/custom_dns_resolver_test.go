@@ -99,3 +99,16 @@ func Test_Resolve_Delegate_Next(t *testing.T) {
 
 	m.AssertExpectations(t)
 }
+
+func Test_Configuration_CustomDNSResolver_WithConfig(t *testing.T) {
+	sut := NewCustomDNSResolver(config.CustomDNSConfig{
+		Mapping: map[string]net.IP{"custom.domain": net.ParseIP("192.168.143.123")}})
+	c := sut.Configuration()
+	assert.Len(t, c, 1)
+}
+
+func Test_Configuration_CustomDNSResolver__Disabled(t *testing.T) {
+	sut := NewCustomDNSResolver(config.CustomDNSConfig{})
+	c := sut.Configuration()
+	assert.Equal(t, []string{"deactivated"}, c)
+}
