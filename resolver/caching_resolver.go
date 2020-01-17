@@ -7,7 +7,6 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/patrickmn/go-cache"
-	log "github.com/sirupsen/logrus"
 )
 
 // caches answers from dns queries with their TTL time, to avoid external resolver calls for recurrent queries
@@ -78,23 +77,7 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 			response, err = r.next.Resolve(request)
 
 			if err == nil {
-				var maxTTL uint32
-
-				for _, a := range response.Res.Answer {
-					// if TTL < mitTTL -> adjust the value, set minTTL
-					if a.Header().Ttl < minTTL {
-						logger.WithFields(log.Fields{
-							"TTL":     a.Header().Ttl,
-							"min_TTL": minTTL,
-						}).Debugf("ttl is < than min TTL, using min value")
-
-						a.Header().Ttl = minTTL
-					}
-
-					if maxTTL < a.Header().Ttl {
-						maxTTL = a.Header().Ttl
-					}
-				}
+				var maxTTL = adjustTTLs(response.Res.Answer)
 
 				// put value into cache
 				r.getCache(question.Qtype).Set(domain, response.Res.Answer, time.Duration(maxTTL)*time.Second)
@@ -106,6 +89,21 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 	}
 
 	return response, err
+}
+
+func adjustTTLs(answer []dns.RR) (maxTTL uint32) {
+	for _, a := range answer {
+		// if TTL < mitTTL -> adjust the value, set minTTL
+		if a.Header().Ttl < minTTL {
+			a.Header().Ttl = minTTL
+		}
+
+		if maxTTL < a.Header().Ttl {
+			maxTTL = a.Header().Ttl
+		}
+	}
+
+	return
 }
 
 func (r CachingResolver) String() string {

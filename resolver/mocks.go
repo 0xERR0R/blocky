@@ -50,12 +50,14 @@ func TestUDPUpstream(fn func(request *dns.Msg) (response *dns.Msg)) config.Upstr
 		for {
 			buffer := make([]byte, 1024)
 			n, addr, err := ln.ReadFromUDP(buffer)
+
 			if err != nil {
 				log.Fatal("error on reading from udp: ", err)
 			}
 
 			msg := new(dns.Msg)
 			err = msg.Unpack(buffer[0 : n-1])
+
 			if err != nil {
 				log.Fatal("can't deserialize message: ", err)
 			}

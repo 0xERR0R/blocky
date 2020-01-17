@@ -40,6 +40,11 @@ func (r *CustomDNSResolver) Configuration() (result []string) {
 	return
 }
 
+func isSupportedType(ip net.IP, question dns.Question) bool {
+	return (ip.To4() != nil && question.Qtype == dns.TypeA) ||
+		(strings.Contains(ip.String(), ":") && question.Qtype == dns.TypeAAAA)
+}
+
 func (r *CustomDNSResolver) Resolve(request *Request) (*Response, error) {
 	logger := withPrefix(request.Log, "custom_dns_resolver")
 
@@ -52,8 +57,7 @@ func (r *CustomDNSResolver) Resolve(request *Request) (*Response, error) {
 					response := new(dns.Msg)
 					response.SetReply(request.Req)
 
-					if (ip.To4() != nil && question.Qtype == dns.TypeA) ||
-						(strings.Contains(ip.String(), ":") && question.Qtype == dns.TypeAAAA) {
+					if isSupportedType(ip, question) {
 						rr, err := util.CreateAnswerFromQuestion(question, ip, customDNSTTL)
 
 						if err == nil {
