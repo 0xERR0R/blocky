@@ -96,10 +96,10 @@ func Test_Resolve_WithLoggingPerClient(t *testing.T) {
 		Log:         logrus.NewEntry(logrus.New())})
 	assert.NoError(t, err)
 
-	// request client2
+	// request client2, has name with spechial chars, should be escaped
 	_, err = sut.Resolve(&Request{
 		ClientIP:    net.ParseIP("192.168.178.26"),
-		ClientNames: []string{"client2"},
+		ClientNames: []string{"cl/ient2\\$%&test"},
 		Req:         util.NewMsgWithQuestion("google.de.", dns.TypeA),
 		Log:         logrus.NewEntry(logrus.New())})
 	assert.NoError(t, err)
@@ -119,11 +119,11 @@ func Test_Resolve_WithLoggingPerClient(t *testing.T) {
 	assert.Equal(t, "A (123.122.121.120)", csvLines[0][6])
 
 	// client2
-	csvLines = readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_client2.log", time.Now().Format("2006-01-02"))))
+	csvLines = readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_cl_ient2_test.log", time.Now().Format("2006-01-02"))))
 
 	assert.Len(t, csvLines, 1)
 	assert.Equal(t, "192.168.178.26", csvLines[0][1])
-	assert.Equal(t, "client2", csvLines[0][2])
+	assert.Equal(t, "cl/ient2\\$%&test", csvLines[0][2])
 	assert.Equal(t, "reason", csvLines[0][4])
 	assert.Equal(t, "A (google.de.)", csvLines[0][5])
 	assert.Equal(t, "A (123.122.121.120)", csvLines[0][6])
@@ -208,4 +208,25 @@ func readCsv(file string) [][]string {
 	}
 
 	return result
+}
+
+func Test_Configuration_QueryLoggingResolver_WithConfig(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("", "queryLoggingResolver")
+	assert.NoError(t, err)
+
+	defer os.RemoveAll(tmpDir)
+
+	sut := NewQueryLoggingResolver(config.QueryLogConfig{
+		Dir:              tmpDir,
+		PerClient:        true,
+		LogRetentionDays: 3,
+	})
+	c := sut.Configuration()
+	assert.Len(t, c, 3)
+}
+
+func Test_Configuration_QueryLoggingResolver_Disabled(t *testing.T) {
+	sut := NewQueryLoggingResolver(config.QueryLogConfig{})
+	c := sut.Configuration()
+	assert.Equal(t, []string{"deactivated"}, c)
 }

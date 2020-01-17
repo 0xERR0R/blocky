@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -150,7 +151,8 @@ func (r *QueryLoggingResolver) writeLog() {
 				clientPrefix = "ALL"
 			}
 
-			writePath := filepath.Join(r.logDir, fmt.Sprintf("%s_%s.log", dateString, clientPrefix))
+			fileName := fmt.Sprintf("%s_%s.log", dateString, escape(clientPrefix))
+			writePath := filepath.Join(r.logDir, fileName)
 
 			file, err := os.OpenFile(writePath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
 
@@ -183,6 +185,11 @@ func (r *QueryLoggingResolver) writeLog() {
 			).Infof("query resolved")
 		}
 	}
+}
+
+func escape(file string) string {
+	reg := regexp.MustCompile("[^a-zA-Z0-9-_]+")
+	return reg.ReplaceAllString(file, "_")
 }
 
 func createCsvWriter(file io.Writer) *csv.Writer {
