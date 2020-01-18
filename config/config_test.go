@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -28,6 +29,20 @@ func Test_NewConfig(t *testing.T) {
 	assert.Len(t, cfg.Blocking.BlackLists, 2)
 	assert.Len(t, cfg.Blocking.WhiteLists, 1)
 	assert.Len(t, cfg.Blocking.ClientGroupsBlock, 2)
+}
+
+func Test_NewConfig_FileDoesNotExist(t *testing.T) {
+	err := os.Chdir("../..")
+	assert.NoError(t, err)
+
+	defer func() { logrus.StandardLogger().ExitFunc = nil }()
+
+	var fatal bool
+
+	logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
+	_ = NewConfig()
+
+	assert.True(t, fatal)
 }
 
 var tests = []struct {

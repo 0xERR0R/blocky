@@ -37,3 +37,11 @@ func Test_Resolve_Best_Result(t *testing.T) {
 	fast.AssertExpectations(t)
 	slow.AssertExpectations(t)
 }
+
+func Test_Configuration_ParallelResolver(t *testing.T) {
+	sut := NewParallelBestResolver([]Resolver{&resolverMock{}, &resolverMock{}})
+
+	c := sut.Configuration()
+
+	assert.Len(t, c, 3)
+}

@@ -3,11 +3,12 @@ package config
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"reflect"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 
 	"gopkg.in/yaml.v2"
 )
