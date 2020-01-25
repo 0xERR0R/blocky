@@ -179,6 +179,7 @@ func (r *QueryLoggingResolver) writeLog() {
 			logEntry.logger.WithFields(
 				logrus.Fields{
 					"response_reason": logEntry.response.Reason,
+					"response_code":   dns.RcodeToString[logEntry.response.Res.Rcode],
 					"answer":          util.AnswerToString(logEntry.response.Res.Answer),
 					"duration_ms":     logEntry.durationMs,
 				},
