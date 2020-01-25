@@ -15,7 +15,10 @@ type CachingResolver struct {
 	cachesPerType map[uint16]*cache.Cache
 }
 
-const minTTL = 250
+const (
+	minTTL            = 250
+	cacheTimeNegative = 30 * time.Minute
+)
 
 type Type uint8
 
@@ -65,22 +68,36 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 				// calculate remaining TTL
 				remainingTTL := uint32(time.Until(expiresAt).Seconds())
 
-				resp.Answer = val.([]dns.RR)
-				for _, rr := range resp.Answer {
-					rr.Header().Ttl = remainingTTL
-				}
+				v, ok := val.([]dns.RR)
+				if ok {
+					// Answer from successful request
+					resp.Answer = v
+					for _, rr := range resp.Answer {
+						rr.Header().Ttl = remainingTTL
+					}
 
-				return &Response{Res: resp, Reason: fmt.Sprintf("CACHED (ttl %d)", remainingTTL)}, nil
+					return &Response{Res: resp, Reason: fmt.Sprintf("CACHED (ttl %d)", remainingTTL)}, nil
+				}
+				// Answer with response code != OK
+				resp.Rcode = val.(int)
+
+				return &Response{Res: resp, Reason: fmt.Sprintf("CACHED NEGATIVE (ttl %d)", remainingTTL)}, nil
 			}
 
 			logger.WithField("next_resolver", r.next).Debug("not in cache: go to next resolver")
 			response, err = r.next.Resolve(request)
 
 			if err == nil {
-				var maxTTL = adjustTTLs(response.Res.Answer)
+				answer := response.Res.Answer
 
-				// put value into cache
-				r.getCache(question.Qtype).Set(domain, response.Res.Answer, time.Duration(maxTTL)*time.Second)
+				var maxTTL = adjustTTLs(answer)
+
+				if response.Res.Rcode == dns.RcodeSuccess {
+					// put value into cache
+					r.getCache(question.Qtype).Set(domain, answer, time.Duration(maxTTL)*time.Second)
+				} else {
+					r.getCache(question.Qtype).Set(domain, response.Res.Rcode, cacheTimeNegative)
+				}
 			}
 		} else {
 			logger.Debugf("not A/AAAA: go to next %s", r.next)
