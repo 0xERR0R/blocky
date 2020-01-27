@@ -95,7 +95,8 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 				if response.Res.Rcode == dns.RcodeSuccess {
 					// put value into cache
 					r.getCache(question.Qtype).Set(domain, answer, time.Duration(maxTTL)*time.Second)
-				} else {
+				} else if response.Res.Rcode == dns.RcodeNameError {
+					// put return code if NXDOMAIN
 					r.getCache(question.Qtype).Set(domain, response.Res.Rcode, cacheTimeNegative)
 				}
 			}

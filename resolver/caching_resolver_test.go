@@ -92,6 +92,44 @@ func Test_Resolve_AAAA_WithCachingAndMinTtl(t *testing.T) {
 	m.AssertExpectations(t)
 }
 
+func Test_Resolve_A_NegativeCache(t *testing.T) {
+	sut := NewCachingResolver()
+	m := &resolverMock{}
+
+	mockResp := new(dns.Msg)
+	mockResp.Rcode = dns.RcodeNameError
+
+	m.On("Resolve", mock.Anything).Return(&Response{Res: mockResp}, nil)
+	sut.Next(m)
+
+	request := &Request{
+		Req: util.NewMsgWithQuestion("example.com.", dns.TypeAAAA),
+		Log: logrus.NewEntry(logrus.New()),
+	}
+
+	// first request
+	resp, err := sut.Resolve(request)
+	assert.NoError(t, err)
+	assert.Equal(t, dns.RcodeNameError, resp.Res.Rcode)
+	assert.Len(t, resp.Res.Answer, 0)
+	assert.Len(t, m.Calls, 1)
+
+	time.Sleep(500 * time.Millisecond)
+
+	// second request
+	resp, err = sut.Resolve(request)
+	assert.NoError(t, err)
+	assert.Equal(t, dns.RcodeNameError, resp.Res.Rcode)
+
+	// ttl is smaler
+	assert.Equal(t, "CACHED NEGATIVE (ttl 1799)", resp.Reason)
+
+	// still one call to resolver
+	assert.Len(t, m.Calls, 1)
+
+	m.AssertExpectations(t)
+}
+
 func Test_Resolve_MX(t *testing.T) {
 	sut := NewCachingResolver()
 	m := &resolverMock{}
