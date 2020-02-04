@@ -16,7 +16,7 @@ func Test_NoMatch_With_Empty_List(t *testing.T) {
 		"gr1": {file1.Name()},
 	}
 
-	sut := NewListCache(lists)
+	sut := NewListCache(lists, 0)
 
 	found, group := sut.Match("google.com", []string{"gr1"})
 	assert.Equal(t, false, found)
@@ -38,7 +38,7 @@ func Test_Match_Download_Multiple_Groups(t *testing.T) {
 		"gr2": {server3.URL},
 	}
 
-	sut := NewListCache(lists)
+	sut := NewListCache(lists, 0)
 
 	found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
 	assert.Equal(t, true, found)
@@ -69,7 +69,7 @@ func Test_Match_Download_No_Group(t *testing.T) {
 		"withDeadLink": {"http://wrong.host.name"},
 	}
 
-	sut := NewListCache(lists)
+	sut := NewListCache(lists, 0)
 
 	found, group := sut.Match("blocked1.com", []string{})
 	assert.Equal(t, false, found)
@@ -91,7 +91,7 @@ func Test_Match_Files_Multiple_Groups(t *testing.T) {
 		"gr2": {"file://" + file3.Name()},
 	}
 
-	sut := NewListCache(lists)
+	sut := NewListCache(lists, 0)
 
 	found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
 	assert.Equal(t, true, found)
@@ -111,9 +111,9 @@ func Test_Configuration(t *testing.T) {
 		"gr1": {"file1", "file2"},
 	}
 
-	sut := NewListCache(lists)
+	sut := NewListCache(lists, 0)
 
 	c := sut.Configuration()
 
-	assert.Len(t, c, 7)
+	assert.Len(t, c, 8)
 }

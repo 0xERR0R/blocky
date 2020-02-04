@@ -81,6 +81,10 @@ blocking:
     # zeroIp: 0.0.0.0 will be returned (default)
     # nxDomain: return NXDOMAIN as return code
     blockType: zeroIp
+    # optional: automaticaly list refresh period in minutes. Default: 4h.
+    # Negative value -> deactivate automaticaly refresh.
+    # 0 value -> use default
+    refreshPeriod: 1
   
 #optional: configuration of client name resolution
 clientLookup:

@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	timeout          = 30 * time.Second
-	listUpdatePeriod = 4 * time.Hour
+	timeout              = 30 * time.Second
+	defaultRefreshPeriod = 4 * time.Hour
 )
 
 type Matcher interface {
@@ -31,10 +31,17 @@ type ListCache struct {
 	groupCaches map[string][]string
 	lock        sync.RWMutex
 
-	groupToLinks map[string][]string
+	groupToLinks  map[string][]string
+	refreshPeriod time.Duration
 }
 
 func (b *ListCache) Configuration() (result []string) {
+	if b.refreshPeriod > 0 {
+		result = append(result, fmt.Sprintf("refresh period: %d minutes", b.refreshPeriod/time.Minute))
+	} else {
+		result = append(result, "refresh: disabled")
+	}
+
 	result = append(result, "group links:")
 	for group, links := range b.groupToLinks {
 		result = append(result, fmt.Sprintf("  %s:", group))
@@ -74,12 +81,18 @@ func unique(in []string) []string {
 	return list
 }
 
-func NewListCache(groupToLinks map[string][]string) *ListCache {
+func NewListCache(groupToLinks map[string][]string, refreshPeriod int) *ListCache {
 	groupCaches := make(map[string][]string)
 
+	p := time.Duration(refreshPeriod) * time.Minute
+	if refreshPeriod == 0 {
+		p = defaultRefreshPeriod
+	}
+
 	b := &ListCache{
-		groupToLinks: groupToLinks,
-		groupCaches:  groupCaches,
+		groupToLinks:  groupToLinks,
+		groupCaches:   groupCaches,
+		refreshPeriod: p,
 	}
 	b.refresh()
 
@@ -90,12 +103,14 @@ func NewListCache(groupToLinks map[string][]string) *ListCache {
 
 // triggers periodical refresh (and download) of list entries
 func periodicUpdate(cache *ListCache) {
-	ticker := time.NewTicker(listUpdatePeriod)
-	defer ticker.Stop()
+	if cache.refreshPeriod > 0 {
+		ticker := time.NewTicker(cache.refreshPeriod)
+		defer ticker.Stop()
 
-	for {
-		<-ticker.C
-		cache.refresh()
+		for {
+			<-ticker.C
+			cache.refresh()
+		}
 	}
 }
 
