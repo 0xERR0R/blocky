@@ -14,16 +14,24 @@ type Request struct {
 	Log         *logrus.Entry
 }
 
-type ResponseType uint8
+type ResponseType int
 
 const (
-	Resolved ResponseType = iota
-	Blocked
+	RESOLVED ResponseType = iota
+	CACHED
+	BLOCKED
+	CONDITIONAL
+	CUSTOMDNS
 )
+
+func (d ResponseType) String() string {
+	return [...]string{"RESOLVED", "CACHED", "BLOCKED", "CONDITIONAL", "CUSTOM DNS"}[d]
+}
 
 type Response struct {
 	Res    *dns.Msg
 	Reason string
+	rType  ResponseType
 }
 type Resolver interface {
 	Resolve(req *Request) (*Response, error)
@@ -54,4 +62,16 @@ func logger(prefix string) *logrus.Entry {
 
 func withPrefix(logger *logrus.Entry, prefix string) *logrus.Entry {
 	return logger.WithField("prefix", prefix)
+}
+
+func Chain(resolvers ...Resolver) Resolver {
+	for i, res := range resolvers {
+		if i+1 < len(resolvers) {
+			if cr, ok := res.(ChainedResolver); ok {
+				cr.Next(resolvers[i+1])
+			}
+		}
+	}
+
+	return resolvers[0]
 }

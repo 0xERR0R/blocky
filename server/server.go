@@ -45,25 +45,16 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		},
 	}
 
-	var queryResolver resolver.Resolver
-
-	clientNamesResolver := resolver.NewClientNamesResolver(cfg.ClientLookup)
-	queryLoggingResolver := resolver.NewQueryLoggingResolver(cfg.QueryLog)
-	conditionalUpstreamResolver := resolver.NewConditionalUpstreamResolver(cfg.Conditional)
-	customDNSResolver := resolver.NewCustomDNSResolver(cfg.CustomDNS)
-	blacklistResolver := resolver.NewBlockingResolver(cfg.Blocking)
-
-	cachingResolver := resolver.NewCachingResolver()
-	parallelUpstreamResolver := createParallelUpstreamResolver(cfg.Upstream.ExternalResolvers)
-
-	clientNamesResolver.Next(queryLoggingResolver)
-	queryLoggingResolver.Next(conditionalUpstreamResolver)
-	conditionalUpstreamResolver.Next(customDNSResolver)
-	customDNSResolver.Next(blacklistResolver)
-	blacklistResolver.Next(cachingResolver)
-	cachingResolver.Next(parallelUpstreamResolver)
-
-	queryResolver = clientNamesResolver
+	queryResolver := resolver.Chain(
+		resolver.NewClientNamesResolver(cfg.ClientLookup),
+		resolver.NewQueryLoggingResolver(cfg.QueryLog),
+		resolver.NewStatsResolver(),
+		resolver.NewConditionalUpstreamResolver(cfg.Conditional),
+		resolver.NewCustomDNSResolver(cfg.CustomDNS),
+		resolver.NewBlockingResolver(cfg.Blocking),
+		resolver.NewCachingResolver(),
+		createParallelUpstreamResolver(cfg.Upstream.ExternalResolvers),
+	)
 
 	server := Server{
 		udpServer:     udpServer,

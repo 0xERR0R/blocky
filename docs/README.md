@@ -136,5 +136,8 @@ services:
 Download binary file for your architecture, put it in one directory with config file. Please be aware, you must run the binary with root privileges if you want to use port 53 or 953.
 
 ### Additional information
-To print runtime configuration and statistics, you can send SIGUSR1 signal to running process:
-`kill -s USR1 <PID>` or `docker kill -s SIGUSR1 blocky` for docker setup
+To print runtime configuration / statistics, you can send signal to running process:
+* `SIGUSR1` will print current configuration
+* `SIGUSR2` prints 24h statistics
+
+Hint: `kill -s USR1 <PID>` or `docker kill -s SIGUSR1 blocky` for docker setup

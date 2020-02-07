@@ -154,7 +154,7 @@ func (r *BlockingResolver) Resolve(request *Request) (*Response, error) {
 					response.SetReply(request.Req)
 					resp, err := r.handleBlocked(question, response)
 
-					return &Response{Res: resp, Reason: fmt.Sprintf("BLOCKED (WHITELIST ONLY)")}, err
+					return &Response{Res: resp, rType: BLOCKED, Reason: fmt.Sprintf("BLOCKED (WHITELIST ONLY)")}, err
 				}
 				if blocked, group := r.matches(groupsToCheck, r.blacklistMatcher, domain); blocked {
 					logger.WithField("group", group).Debug("domain is blocked")
@@ -163,7 +163,7 @@ func (r *BlockingResolver) Resolve(request *Request) (*Response, error) {
 					response.SetReply(request.Req)
 					resp, err := r.handleBlocked(question, response)
 
-					return &Response{Res: resp, Reason: fmt.Sprintf("BLOCKED (%s)", group)}, err
+					return &Response{Res: resp, rType: BLOCKED, Reason: fmt.Sprintf("BLOCKED (%s)", group)}, err
 				}
 			}
 		}

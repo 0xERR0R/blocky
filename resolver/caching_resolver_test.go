@@ -121,8 +121,7 @@ func Test_Resolve_A_NegativeCache(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, dns.RcodeNameError, resp.Res.Rcode)
 
-	// ttl is smaler
-	assert.Equal(t, "CACHED NEGATIVE (ttl 1799)", resp.Reason)
+	assert.Equal(t, "CACHED NEGATIVE", resp.Reason)
 
 	// still one call to resolver
 	assert.Len(t, m.Calls, 1)

@@ -3,12 +3,13 @@ package util
 import (
 	"fmt"
 	"net"
+	"sort"
 	"strings"
 
 	"github.com/miekg/dns"
 )
 
-func qTypeToString() func(uint16) string {
+func QTypeToString() func(uint16) string {
 	innerMap := map[uint16]string{
 		dns.TypeA:     "A",
 		dns.TypeAAAA:  "AAAA",
@@ -46,14 +47,14 @@ func AnswerToString(answer []dns.RR) string {
 func QuestionToString(questions []dns.Question) string {
 	result := make([]string, len(questions))
 	for i, question := range questions {
-		result[i] = fmt.Sprintf("%s (%s)", qTypeToString()(question.Qtype), question.Name)
+		result[i] = fmt.Sprintf("%s (%s)", QTypeToString()(question.Qtype), question.Name)
 	}
 
 	return strings.Join(result, ", ")
 }
 
 func CreateAnswerFromQuestion(question dns.Question, ip net.IP, remainingTTL uint32) (dns.RR, error) {
-	return dns.NewRR(fmt.Sprintf("%s %d %s %s %s", question.Name, remainingTTL, "IN", qTypeToString()(question.Qtype), ip))
+	return dns.NewRR(fmt.Sprintf("%s %d %s %s %s", question.Name, remainingTTL, "IN", QTypeToString()(question.Qtype), ip))
 }
 
 func ExtractDomain(question dns.Question) string {
@@ -77,4 +78,25 @@ func NewMsgWithAnswer(answer string) (*dns.Msg, error) {
 	msg.Answer = []dns.RR{rr}
 
 	return msg, nil
+}
+
+type kv struct {
+	key   string
+	value int
+}
+
+func IterateValueSorted(in map[string]int, fn func(string, int)) {
+	ss := make([]kv, 0)
+
+	for k, v := range in {
+		ss = append(ss, kv{k, v})
+	}
+
+	sort.Slice(ss, func(i, j int) bool {
+		return ss[i].value > ss[j].value || (ss[i].value == ss[j].value && ss[i].key > ss[j].key)
+	})
+
+	for _, kv := range ss {
+		fn(kv.key, kv.value)
+	}
 }

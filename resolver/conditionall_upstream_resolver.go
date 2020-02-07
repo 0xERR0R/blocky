@@ -50,6 +50,7 @@ func (r *ConditionalUpstreamResolver) Resolve(request *Request) (*Response, erro
 					response, err := r.Resolve(request)
 					if err == nil {
 						response.Reason = "CONDITIONAL"
+						response.rType = CONDITIONAL
 					}
 
 					logger.WithFields(logrus.Fields{

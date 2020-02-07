@@ -50,7 +50,7 @@ func (r *UpstreamResolver) Resolve(request *Request) (response *Response, err er
 				"response_time_ms": rtt.Milliseconds(),
 			}).Debugf("received response from upstream")
 
-			return &Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s) in %d ms", r.upstream, rtt.Milliseconds())}, err
+			return &Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.upstream)}, err
 		}
 
 		if errNet, ok := err.(net.Error); ok && (errNet.Timeout() || errNet.Temporary()) {
