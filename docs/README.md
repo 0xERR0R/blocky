@@ -135,9 +135,16 @@ services:
 ### Run standalone
 Download binary file for your architecture, put it in one directory with config file. Please be aware, you must run the binary with root privileges if you want to use port 53 or 953.
 
-### Additional information
-To print runtime configuration / statistics, you can send signal to running process:
-* `SIGUSR1` will print current configuration
-* `SIGUSR2` prints 24h statistics
+## Additional information
 
-Hint: `kill -s USR1 <PID>` or `docker kill -s SIGUSR1 blocky` for docker setup
+### Print current configuration
+To print runtime configuration / statistics, you can send `SIGUSR1` signal to running process
+
+### Statistics
+blocky collects statistics and aggregates them hourly. If signal `SIGUSR2` is received, this will print statistics for last 24 hours:
+* Top 20 queiried domains
+* Top 20 blocked domains
+* Query count per client
+...
+
+Hint: To send a signal to a process you can use `kill -s USR1 <PID>` or `docker kill -s SIGUSR1 blocky` for docker setup
