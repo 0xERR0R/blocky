@@ -25,7 +25,7 @@ Blocky is a DNS proxy for local network written in Go with following features:
 - Logging of all DNS queries per day / per client in a text file
 - Simple configuration in a single file
 - Only one binary in docker container, low memory footprint
-- Runs fine on raspbery pi
+- Runs fine on raspberry pi
 
 ## Installation and configuration
 Create `config.yml` file with your configuration:
@@ -68,7 +68,7 @@ blocking:
     whiteLists:
       ads:
         - whitelist.txt
-    # definition: which groups should be appied for which client
+    # definition: which groups should be applied for which client
     clientGroupsBlock:
       # default will be used, if no special definition for a client name exists
       default:
@@ -81,8 +81,8 @@ blocking:
     # zeroIp: 0.0.0.0 will be returned (default)
     # nxDomain: return NXDOMAIN as return code
     blockType: zeroIp
-    # optional: automaticaly list refresh period in minutes. Default: 4h.
-    # Negative value -> deactivate automaticaly refresh.
+    # optional: automatically list refresh period in minutes. Default: 4h.
+    # Negative value -> deactivate automatically refresh.
     # 0 value -> use default
     refreshPeriod: 1
   
@@ -142,7 +142,7 @@ To print runtime configuration / statistics, you can send `SIGUSR1` signal to ru
 
 ### Statistics
 blocky collects statistics and aggregates them hourly. If signal `SIGUSR2` is received, this will print statistics for last 24 hours:
-* Top 20 queiried domains
+* Top 20 queried domains
 * Top 20 blocked domains
 * Query count per client
 ...
