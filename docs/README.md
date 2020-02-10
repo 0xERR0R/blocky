@@ -85,8 +85,21 @@ blocking:
     # Negative value -> deactivate automatically refresh.
     # 0 value -> use default
     refreshPeriod: 1
+
+# optional: configuration for caching of DNS responses
+caching:
+  # amount in minutes, how long a response must be cached (min value). 
+  # If <=0, use response's TTL, if >0 use this value, if TTL is smaller
+  # Default: 0
+  minTime: 40
+  # amount in minutes, how long a response must be cached (max value). 
+  # If <0, do not cache responses
+  # If 0, use TTL
+  # If > 0, use this value, if TTL is greater
+   # Default: 0
+  maxTime: -1
   
-#optional: configuration of client name resolution
+# optional: configuration of client name resolution
 clientLookup:
     # this DNS resolver will be used to perform reverse DNS lookup (typically local router)
     upstream: udp:192.168.178.1

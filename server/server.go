@@ -54,7 +54,7 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		resolver.NewConditionalUpstreamResolver(cfg.Conditional),
 		resolver.NewCustomDNSResolver(cfg.CustomDNS),
 		resolver.NewBlockingResolver(cfg.Blocking),
-		resolver.NewCachingResolver(),
+		resolver.NewCachingResolver(cfg.Caching),
 		createParallelUpstreamResolver(cfg.Upstream.ExternalResolvers),
 	)
 

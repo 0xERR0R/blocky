@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"blocky/config"
 	"blocky/util"
 	"fmt"
 	"time"
@@ -12,11 +13,11 @@ import (
 // caches answers from dns queries with their TTL time, to avoid external resolver calls for recurrent queries
 type CachingResolver struct {
 	NextResolver
-	cachesPerType map[uint16]*cache.Cache
+	minCacheTimeSec, maxCacheTimeSec int
+	cachesPerType                    map[uint16]*cache.Cache
 }
 
 const (
-	minTTL            = 250
 	cacheTimeNegative = 30 * time.Minute
 )
 
@@ -27,8 +28,10 @@ const (
 	AAAA
 )
 
-func NewCachingResolver() ChainedResolver {
+func NewCachingResolver(cfg config.CachingConfig) ChainedResolver {
 	return &CachingResolver{
+		minCacheTimeSec: 60 * cfg.MinCachingTime,
+		maxCacheTimeSec: 60 * cfg.MaxCachingTime,
 		cachesPerType: map[uint16]*cache.Cache{
 			dns.TypeA:    cache.New(15*time.Minute, 5*time.Minute),
 			dns.TypeAAAA: cache.New(15*time.Minute, 5*time.Minute),
@@ -41,6 +44,15 @@ func (r *CachingResolver) getCache(queryType uint16) *cache.Cache {
 }
 
 func (r *CachingResolver) Configuration() (result []string) {
+	if r.maxCacheTimeSec < 0 {
+		result = []string{"deactivated"}
+		return
+	}
+
+	result = append(result, fmt.Sprintf("minCacheTimeInSec = %d", r.minCacheTimeSec))
+
+	result = append(result, fmt.Sprintf("maxCacheTimeSec = %d", r.maxCacheTimeSec))
+
 	for t, cache := range r.cachesPerType {
 		result = append(result, fmt.Sprintf("%s cache items count = %d", dns.TypeToString[t], cache.ItemCount()))
 	}
@@ -50,6 +62,11 @@ func (r *CachingResolver) Configuration() (result []string) {
 
 func (r *CachingResolver) Resolve(request *Request) (response *Response, err error) {
 	logger := withPrefix(request.Log, "caching_resolver")
+
+	if r.maxCacheTimeSec < 0 {
+		logger.Debug("skip cache")
+		return r.next.Resolve(request)
+	}
 
 	resp := new(dns.Msg)
 	resp.SetReply(request.Req)
@@ -88,17 +105,7 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 			response, err = r.next.Resolve(request)
 
 			if err == nil {
-				answer := response.Res.Answer
-
-				var maxTTL = adjustTTLs(answer)
-
-				if response.Res.Rcode == dns.RcodeSuccess {
-					// put value into cache
-					r.getCache(question.Qtype).Set(domain, answer, time.Duration(maxTTL)*time.Second)
-				} else if response.Res.Rcode == dns.RcodeNameError {
-					// put return code if NXDOMAIN
-					r.getCache(question.Qtype).Set(domain, response.Res.Rcode, cacheTimeNegative)
-				}
+				r.putInCache(response, domain, question.Qtype)
 			}
 		} else {
 			logger.Debugf("not A/AAAA: go to next %s", r.next)
@@ -109,11 +116,31 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 	return response, err
 }
 
-func adjustTTLs(answer []dns.RR) (maxTTL uint32) {
+func (r *CachingResolver) putInCache(response *Response, domain string, qType uint16) {
+	answer := response.Res.Answer
+
+	if response.Res.Rcode == dns.RcodeSuccess {
+		// put value into cache
+		r.getCache(qType).Set(domain, answer, time.Duration(r.adjustTTLs(answer))*time.Second)
+	} else if response.Res.Rcode == dns.RcodeNameError {
+		// put return code if NXDOMAIN
+		r.getCache(qType).Set(domain, response.Res.Rcode, cacheTimeNegative)
+	}
+}
+
+func (r *CachingResolver) adjustTTLs(answer []dns.RR) (maxTTL uint32) {
 	for _, a := range answer {
 		// if TTL < mitTTL -> adjust the value, set minTTL
-		if a.Header().Ttl < minTTL {
-			a.Header().Ttl = minTTL
+		if r.minCacheTimeSec > 0 {
+			if a.Header().Ttl < uint32(r.minCacheTimeSec) {
+				a.Header().Ttl = uint32(r.minCacheTimeSec)
+			}
+		}
+
+		if r.maxCacheTimeSec > 0 {
+			if a.Header().Ttl > uint32(r.maxCacheTimeSec) {
+				a.Header().Ttl = uint32(r.maxCacheTimeSec)
+			}
 		}
 
 		if maxTTL < a.Header().Ttl {

@@ -29,7 +29,7 @@ var tests = []struct {
 		request: util.NewMsgWithQuestion("google.de.", dns.TypeA),
 		respValidator: func(t *testing.T, resp *dns.Msg) {
 			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
-			assert.Equal(t, "google.de.\t250\tIN\tA\t123.124.122.122", resp.Answer[0].String())
+			assert.Equal(t, "google.de.\t123\tIN\tA\t123.124.122.122", resp.Answer[0].String())
 		},
 	},
 	{
@@ -83,7 +83,7 @@ var tests = []struct {
 		request: util.NewMsgWithQuestion("bild.de.", dns.TypeA),
 		respValidator: func(t *testing.T, resp *dns.Msg) {
 			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
-			assert.Equal(t, "bild.de.\t250\tIN\tA\t123.124.122.122", resp.Answer[0].String())
+			assert.Equal(t, "bild.de.\t123\tIN\tA\t123.124.122.122", resp.Answer[0].String())
 		},
 	},
 	{
@@ -92,7 +92,7 @@ var tests = []struct {
 		request: util.NewMsgWithQuestion("heise.de.", dns.TypeA),
 		respValidator: func(t *testing.T, resp *dns.Msg) {
 			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
-			assert.Equal(t, "heise.de.\t250\tIN\tA\t123.124.122.122", resp.Answer[0].String())
+			assert.Equal(t, "heise.de.\t123\tIN\tA\t123.124.122.122", resp.Answer[0].String())
 		},
 	},
 	{

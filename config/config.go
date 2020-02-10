@@ -97,6 +97,7 @@ type Config struct {
 	Conditional  ConditionalUpstreamConfig `yaml:"conditional"`
 	Blocking     BlockingConfig            `yaml:"blocking"`
 	ClientLookup ClientLookupConfig        `yaml:"clientLookup"`
+	Caching      CachingConfig             `yaml:"caching"`
 	QueryLog     QueryLogConfig            `yaml:"queryLog"`
 	Port         uint16
 	LogLevel     string `yaml:"logLevel"`
@@ -125,6 +126,11 @@ type BlockingConfig struct {
 type ClientLookupConfig struct {
 	Upstream        Upstream `yaml:"upstream"`
 	SingleNameOrder []uint   `yaml:"singleNameOrder"`
+}
+
+type CachingConfig struct {
+	MinCachingTime int `yaml:"minTime"`
+	MaxCachingTime int `yaml:"maxTime"`
 }
 
 type QueryLogConfig struct {

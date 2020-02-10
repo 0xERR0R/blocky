@@ -29,6 +29,8 @@ func Test_NewConfig(t *testing.T) {
 	assert.Len(t, cfg.Blocking.BlackLists, 2)
 	assert.Len(t, cfg.Blocking.WhiteLists, 1)
 	assert.Len(t, cfg.Blocking.ClientGroupsBlock, 2)
+	assert.Equal(t, 0, cfg.Caching.MaxCachingTime)
+	assert.Equal(t, 0, cfg.Caching.MinCachingTime)
 }
 
 func Test_NewConfig_FileDoesNotExist(t *testing.T) {
