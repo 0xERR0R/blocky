@@ -5,6 +5,8 @@ import (
 	"blocky/resolver"
 	"os"
 	"os/signal"
+	"runtime"
+	"runtime/debug"
 	"syscall"
 
 	"blocky/util"
@@ -87,6 +89,28 @@ func (s *Server) printConfiguration() {
 			break
 		}
 	}
+
+	logger().Info("runtime information:")
+
+	// force garbage collector
+	runtime.GC()
+	debug.FreeOSMemory()
+
+	// gather memory stats
+	var m runtime.MemStats
+
+	runtime.ReadMemStats(&m)
+
+	logger().Infof("MEM Alloc =        %10v MB", toMB(m.Alloc))
+	logger().Infof("MEM HeapAlloc =    %10v MB", toMB(m.HeapAlloc))
+	logger().Infof("MEM Sys =          %10v MB", toMB(m.Sys))
+	logger().Infof("MEM NumGC =        %10v", m.NumGC)
+	logger().Infof("RUN NumCPU =       %10d", runtime.NumCPU())
+	logger().Infof("RUN NumGoroutine = %10d", runtime.NumGoroutine())
+}
+
+func toMB(b uint64) uint64 {
+	return b / 1024 / 1024
 }
 
 func createParallelUpstreamResolver(upstream []config.Upstream) resolver.Resolver {
