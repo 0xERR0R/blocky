@@ -35,11 +35,11 @@ func (r *ParallelBestResolver) Resolve(request *Request) (*Response, error) {
 	ch1 := make(chan struct {
 		*Response
 		error
-	})
+	}, 1)
 	ch2 := make(chan struct {
 		*Response
 		error
-	})
+	}, 1)
 
 	var err1, err2 error
 
