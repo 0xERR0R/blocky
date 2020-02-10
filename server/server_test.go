@@ -155,6 +155,16 @@ var tests = []struct {
 			assert.Equal(t, "0.0.0.0", resp.Answer[0].(*dns.A).A.String())
 		},
 	},
+	{
+		// healthcheck
+		name:           "healthcheck",
+		mockClientName: "c1",
+		request:        util.NewMsgWithQuestion("healthcheck.blocky.", dns.TypeA),
+		respValidator: func(t *testing.T, resp *dns.Msg) {
+			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
+			assert.Empty(t, resp.Answer)
+		},
+	},
 }
 
 //nolint:funlen

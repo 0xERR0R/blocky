@@ -25,7 +25,8 @@ ARG opts
 RUN env ${opts} make build
 
 # final stage
-FROM scratch
+FROM alpine
+RUN apk add --no-cache bind-tools
 COPY --from=build-env /src/bin/blocky /app/blocky
 
 # the timezone data:
@@ -34,5 +35,7 @@ COPY --from=build-env /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=build-env /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 WORKDIR /app
+
+HEALTHCHECK --interval=1m --timeout=3s CMD dig @127.0.0.1 -p 53 healthcheck.blocky +tcp || exit 1
 
 ENTRYPOINT ["/app/blocky"]

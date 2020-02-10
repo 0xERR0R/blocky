@@ -67,7 +67,9 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	server.printConfiguration()
 
 	udpHandler.HandleFunc(".", server.OnRequest)
+	udpHandler.HandleFunc("healthcheck.blocky", server.OnHealthCheck)
 	tcpHandler.HandleFunc(".", server.OnRequest)
+	tcpHandler.HandleFunc("healthcheck.blocky", server.OnHealthCheck)
 
 	return &server, nil
 }
@@ -189,6 +191,17 @@ func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
 		if err := w.WriteMsg(response.Res); err != nil {
 			logger().Error("can't write message: ", err)
 		}
+	}
+}
+
+// Handler for docker healthcheck. Just returns OK code without delegating to resolver chain
+func (s *Server) OnHealthCheck(w dns.ResponseWriter, request *dns.Msg) {
+	resp := new(dns.Msg)
+	resp.SetReply(request)
+	resp.Rcode = dns.RcodeSuccess
+
+	if err := w.WriteMsg(resp); err != nil {
+		logger().Error("can't write message: ", err)
 	}
 }
 
