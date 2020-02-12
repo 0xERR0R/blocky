@@ -1,4 +1,4 @@
-.PHONY: all clean build test lint run buildMultiArchRelease docker-build dockerManifestAndPush help
+.PHONY: all clean build test lint run buildMultiArchRelease docker-buildx-push help
 .DEFAULT_GOAL := help
 
 VERSION := $(shell git describe --always --tags)
@@ -25,23 +25,16 @@ run: build ## Build and run binary
 	./$(BIN_OUT_DIR)/$(BINARY_NAME)
 
 buildMultiArchRelease: ## builds binary for multiple archs
-	$(MAKE) build GOARCH=arm GOARM=6 BINARY_SUFFIX=_arm32v6
-	$(MAKE) build GOARCH=amd64 BINARY_SUFFIX=_amd64
+	$(MAKE) build GOARCH=arm GOARM=6 BINARY_SUFFIX=_${VERSION}_arm32v6
+	$(MAKE) build GOARCH=amd64 BINARY_SUFFIX=_${VERSION}_amd64
 
-docker-build:  ## Build multi arch docker images
-	docker build --build-arg opts="GOARCH=arm GOARM=6" --pull --tag ${DOCKER_IMAGE_NAME}:${VERSION}-arm32v6 .
-	docker build --build-arg opts="GOARCH=amd64" --pull --tag ${DOCKER_IMAGE_NAME}:${VERSION}-amd64 .
-
-dockerManifestAndPush: ## create manifest for multi arch images and push to docker hub
-	docker push ${DOCKER_IMAGE_NAME}:${VERSION}-arm32v6
-	docker push ${DOCKER_IMAGE_NAME}:${VERSION}-amd64
-
-	docker manifest create ${DOCKER_IMAGE_NAME}:${VERSION} ${DOCKER_IMAGE_NAME}:${VERSION}-amd64 ${DOCKER_IMAGE_NAME}:${VERSION}-arm32v6
-	docker manifest annotate ${DOCKER_IMAGE_NAME}:${VERSION} ${DOCKER_IMAGE_NAME}:${VERSION}-arm32v6 --os linux --arch arm
-	docker manifest push ${DOCKER_IMAGE_NAME}:${VERSION} --purge
-	docker manifest create ${DOCKER_IMAGE_NAME}:latest ${DOCKER_IMAGE_NAME}:${VERSION}-amd64 ${DOCKER_IMAGE_NAME}:${VERSION}-arm32v6
-	docker manifest annotate ${DOCKER_IMAGE_NAME}:latest ${DOCKER_IMAGE_NAME}:${VERSION}-arm32v6 --os linux --arch arm
-	docker manifest push ${DOCKER_IMAGE_NAME}:latest --purge
+docker-buildx-push:  ## Build multi arch docker images and push
+	docker buildx build \
+            --platform linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64 \
+            --tag ${DOCKER_IMAGE_NAME}:${VERSION} --push .
+	docker buildx build \
+            --platform linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64 \
+            --tag ${DOCKER_IMAGE_NAME}:latest --push . 
 
 help:  ## Shows help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'

@@ -15,7 +15,13 @@ jobs:
       uses: actions/setup-go@v1
       with:
         go-version: 1.13
-      id: go    
+      id: go
+
+    - name: Set up Docker Buildx
+      id: buildx
+      uses: crazy-max/ghaction-docker-buildx@v1
+      with:
+        version: latest      
 
     - uses: actions/checkout@v1
 
@@ -25,30 +31,16 @@ jobs:
     - name: Test
       run: make test      
     
-    - name: Build multiarch binaries
-      run: make buildMultiArchRelease
-
-    - name: Upload amd64 binary to release
-      uses: svenstaro/upload-release-action@v1-release
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: bin/blocky_amd64
-        asset_name: blocky_amd64
-        tag: ${{ github.ref }}
-        overwrite: true
-
-    - name: Upload arm32v6 binary to release
-      uses: svenstaro/upload-release-action@v1-release
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: bin/blocky_arm32v6
-        asset_name: blocky_arm32v6
-        tag: ${{ github.ref }}
-        overwrite: true
-
     - name: Build the Docker image and push
       run: |
-        mkdir -p ~/.docker && echo "{\"experimental\": \"enabled\"}" > ~/.docker/config.json
         echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
-        make docker-build
-        make dockerManifestAndPush    
+        make docker-buildx-push
+        
+    - name: Build multiarch binaries
+      run: make buildMultiArchRelease
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v1.0.0
+      with:
+        name: blocky_binaries
+        path: bin
