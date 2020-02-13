@@ -1,6 +1,7 @@
 package config
 
 import (
+	"io/ioutil"
 	"net"
 	"os"
 	"reflect"
@@ -31,6 +32,26 @@ func Test_NewConfig(t *testing.T) {
 	assert.Len(t, cfg.Blocking.ClientGroupsBlock, 2)
 	assert.Equal(t, 0, cfg.Caching.MaxCachingTime)
 	assert.Equal(t, 0, cfg.Caching.MinCachingTime)
+}
+
+func Test_NewConfig_Malformed(t *testing.T) {
+	dir, err := ioutil.TempDir("", "blocky")
+	defer os.Remove(dir)
+	assert.NoError(t, err)
+	err = os.Chdir(dir)
+	assert.NoError(t, err)
+	err = ioutil.WriteFile("config.yml", []byte("malformed_config"), 0644)
+	assert.NoError(t, err)
+
+	defer func() { logrus.StandardLogger().ExitFunc = nil }()
+
+	var fatal bool
+
+	logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
+
+	_ = NewConfig()
+
+	assert.True(t, fatal)
 }
 
 func Test_NewConfig_FileDoesNotExist(t *testing.T) {
