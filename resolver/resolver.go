@@ -24,10 +24,6 @@ const (
 	CUSTOMDNS
 )
 
-func (d ResponseType) String() string {
-	return [...]string{"RESOLVED", "CACHED", "BLOCKED", "CONDITIONAL", "CUSTOM DNS"}[d]
-}
-
 type Response struct {
 	Res    *dns.Msg
 	Reason string
