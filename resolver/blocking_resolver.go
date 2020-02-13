@@ -91,7 +91,11 @@ func determineWhitelistOnlyGroups(cfg *config.BlockingConfig) (result []string) 
 }
 
 // sets answer and/or return code for DNS response, if request should be blocked
-func (r *BlockingResolver) handleBlocked(question dns.Question, response *dns.Msg) (*dns.Msg, error) {
+func (r *BlockingResolver) handleBlocked(logger *logrus.Entry,
+	request *Request, question dns.Question, reason string) (*Response, error) {
+	response := new(dns.Msg)
+	response.SetReply(request.Req)
+
 	switch r.blockType {
 	case ZeroIP:
 		rr, err := util.CreateAnswerFromQuestion(question, typeToZeroIP[question.Qtype], BlockTTL)
@@ -105,7 +109,9 @@ func (r *BlockingResolver) handleBlocked(question dns.Question, response *dns.Ms
 		response.Rcode = dns.RcodeNameError
 	}
 
-	return response, nil
+	logger.Debugf("blocking request '%s'", reason)
+
+	return &Response{Res: response, rType: BLOCKED, Reason: reason}, nil
 }
 
 func (r *BlockingResolver) Configuration() (result []string) {
@@ -136,6 +142,7 @@ func (r *BlockingResolver) Configuration() (result []string) {
 func (r *BlockingResolver) Resolve(request *Request) (*Response, error) {
 	logger := withPrefix(request.Log, "blacklist_resolver")
 	groupsToCheck := r.groupsToCheckForClient(request)
+	whitelistOnlyAlowed := reflect.DeepEqual(groupsToCheck, r.whitelistOnlyGroups)
 
 	if len(groupsToCheck) > 0 {
 		logger.WithField("groupsToCheck", strings.Join(groupsToCheck, "; ")).Debug("checking groups for request")
@@ -143,35 +150,56 @@ func (r *BlockingResolver) Resolve(request *Request) (*Response, error) {
 		for _, question := range request.Req.Question {
 			domain := util.ExtractDomain(question)
 			logger := logger.WithField("domain", domain)
-			whitelistOnlyAlowed := reflect.DeepEqual(groupsToCheck, r.whitelistOnlyGroups)
 
 			if whitelisted, group := r.matches(groupsToCheck, r.whitelistMatcher, domain); whitelisted {
 				logger.WithField("group", group).Debugf("domain is whitelisted")
-			} else {
-				if whitelistOnlyAlowed {
-					logger.WithField("client_groups", groupsToCheck).Debug("white list only for client group(s), blocking...")
-					response := new(dns.Msg)
-					response.SetReply(request.Req)
-					resp, err := r.handleBlocked(question, response)
+				return r.next.Resolve(request)
+			}
 
-					return &Response{Res: resp, rType: BLOCKED, Reason: fmt.Sprintf("BLOCKED (WHITELIST ONLY)")}, err
-				}
-				if blocked, group := r.matches(groupsToCheck, r.blacklistMatcher, domain); blocked {
-					logger.WithField("group", group).Debug("domain is blocked")
+			if whitelistOnlyAlowed {
+				return r.handleBlocked(logger, request, question, "BLOCKED (WHITELIST ONLY85.100.115.92)")
+			}
 
-					response := new(dns.Msg)
-					response.SetReply(request.Req)
-					resp, err := r.handleBlocked(question, response)
+			if blocked, group := r.matches(groupsToCheck, r.blacklistMatcher, domain); blocked {
+				return r.handleBlocked(logger, request, question, fmt.Sprintf("BLOCKED (%s)", group))
+			}
+		}
+	}
 
-					return &Response{Res: resp, rType: BLOCKED, Reason: fmt.Sprintf("BLOCKED (%s)", group)}, err
+	respFromNext, err := r.next.Resolve(request)
+
+	if err == nil && len(groupsToCheck) > 0 && respFromNext.Res != nil {
+		for _, rr := range respFromNext.Res.Answer {
+			entryToCheck, tName := extractEntryToCheckFromResponse(rr)
+			if len(entryToCheck) > 0 {
+				logger := logger.WithField("response_entry", entryToCheck)
+
+				if whitelisted, group := r.matches(groupsToCheck, r.whitelistMatcher, entryToCheck); whitelisted {
+					logger.WithField("group", group).Debugf("%s is whitelisted", tName)
+				} else if blocked, group := r.matches(groupsToCheck, r.blacklistMatcher, entryToCheck); blocked {
+					return r.handleBlocked(logger, request, request.Req.Question[0], fmt.Sprintf("BLOCKED %s (%s)", tName, group))
 				}
 			}
 		}
 	}
 
-	logger.WithField("next_resolver", r.next).Trace("go to next resolver")
+	return respFromNext, err
+}
 
-	return r.next.Resolve(request)
+func extractEntryToCheckFromResponse(rr dns.RR) (entryToCheck string, tName string) {
+	switch v := rr.(type) {
+	case *dns.A:
+		entryToCheck = v.A.String()
+		tName = "IP"
+	case *dns.AAAA:
+		entryToCheck = strings.ToLower(v.AAAA.String())
+		tName = "IP"
+	case *dns.CNAME:
+		entryToCheck = util.ExtractDomainOnly(v.Target)
+		tName = "CNAME"
+	}
+
+	return
 }
 
 // returns groups which should be checked for client's request

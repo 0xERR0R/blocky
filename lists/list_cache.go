@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"sort"
@@ -261,7 +262,14 @@ func processFile(link string, ch chan<- []string, wg *sync.WaitGroup) {
 func processLine(line string) string {
 	parts := strings.Fields(line)
 	if len(parts) > 0 {
-		return parts[len(parts)-1]
+		host := parts[len(parts)-1]
+
+		ip := net.ParseIP(host)
+		if ip != nil {
+			return ip.String()
+		}
+
+		return strings.ToLower(host)
 	}
 
 	return ""

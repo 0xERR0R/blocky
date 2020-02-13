@@ -58,7 +58,11 @@ func CreateAnswerFromQuestion(question dns.Question, ip net.IP, remainingTTL uin
 }
 
 func ExtractDomain(question dns.Question) string {
-	return strings.TrimSuffix(strings.ToLower(question.Name), ".")
+	return ExtractDomainOnly(question.Name)
+}
+
+func ExtractDomainOnly(in string) string {
+	return strings.TrimSuffix(strings.ToLower(in), ".")
 }
 
 func NewMsgWithQuestion(question string, mType uint16) *dns.Msg {

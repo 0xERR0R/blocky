@@ -226,7 +226,7 @@ func Test_determineWhitelistOnlyGroups(t *testing.T) {
 }
 
 func Test_Resolve_Default_A_NxRecord(t *testing.T) {
-	file := helpertest.TempFile("blocked1.com")
+	file := helpertest.TempFile("BLOCKED1.com")
 	defer file.Close()
 
 	sut := NewBlockingResolver(config.BlockingConfig{
@@ -246,6 +246,133 @@ func Test_Resolve_Default_A_NxRecord(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, dns.RcodeNameError, resp.Res.Rcode)
+}
+
+func Test_Resolve_Default_BlockIP_A(t *testing.T) {
+	file := helpertest.TempFile("123.145.123.145")
+	defer file.Close()
+
+	sut := NewBlockingResolver(config.BlockingConfig{
+		BlackLists: map[string][]string{"gr1": {file.Name()}},
+		ClientGroupsBlock: map[string][]string{
+			"default": {"gr1"},
+		},
+	})
+
+	m := &resolverMock{}
+	mockResp, _ := util.NewMsgWithAnswer("example.com. 300 IN A 123.145.123.145")
+
+	m.On("Resolve", mock.Anything).Return(&Response{Res: mockResp}, nil)
+	sut.Next(m)
+
+	req := util.NewMsgWithQuestion("example.com.", dns.TypeA)
+	resp, err := sut.Resolve(&Request{
+		Req:         req,
+		ClientNames: []string{"unknown"},
+		ClientIP:    net.ParseIP("192.168.178.1"),
+		Log:         logrus.NewEntry(logrus.New()),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, dns.RcodeSuccess, resp.Res.Rcode)
+	assert.Equal(t, "example.com.	21600	IN	A	0.0.0.0", resp.Res.Answer[0].String())
+}
+
+func Test_Resolve_Default_BlockIP_AAAA(t *testing.T) {
+	file := helpertest.TempFile("2001:db8:85a3:08d3::370:7344")
+	defer file.Close()
+
+	sut := NewBlockingResolver(config.BlockingConfig{
+		BlackLists: map[string][]string{"gr1": {file.Name()}},
+		ClientGroupsBlock: map[string][]string{
+			"default": {"gr1"},
+		},
+	})
+
+	m := &resolverMock{}
+	mockResp, _ := util.NewMsgWithAnswer("example.com. 300 IN AAAA 2001:0db8:85a3:08d3::0370:7344")
+
+	m.On("Resolve", mock.Anything).Return(&Response{Res: mockResp}, nil)
+	sut.Next(m)
+
+	req := util.NewMsgWithQuestion("example.com.", dns.TypeAAAA)
+	resp, err := sut.Resolve(&Request{
+		Req:         req,
+		ClientNames: []string{"unknown"},
+		ClientIP:    net.ParseIP("192.168.178.1"),
+		Log:         logrus.NewEntry(logrus.New()),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, dns.RcodeSuccess, resp.Res.Rcode)
+	assert.Equal(t, "BLOCKED IP (gr1)", resp.Reason)
+	assert.Equal(t, "example.com.	21600	IN	AAAA	::", resp.Res.Answer[0].String())
+}
+
+func Test_Resolve_Default_BlockIP_A_With_Whitelist(t *testing.T) {
+	file := helpertest.TempFile("123.145.123.145")
+	defer file.Close()
+
+	sut := NewBlockingResolver(config.BlockingConfig{
+		BlackLists: map[string][]string{"gr1": {file.Name()}},
+		WhiteLists: map[string][]string{"gr1": {file.Name()}},
+		ClientGroupsBlock: map[string][]string{
+			"default": {"gr1"},
+		},
+	})
+
+	m := &resolverMock{}
+	mockResp, _ := util.NewMsgWithAnswer("example.com. 300 IN A 123.145.123.145")
+
+	m.On("Resolve", mock.Anything).Return(&Response{Res: mockResp}, nil)
+	sut.Next(m)
+
+	req := util.NewMsgWithQuestion("blocked1.com.", dns.TypeA)
+	_, err := sut.Resolve(&Request{
+		Req:         req,
+		ClientNames: []string{"unknown"},
+		ClientIP:    net.ParseIP("123.145.123.145"),
+		Log:         logrus.NewEntry(logrus.New()),
+	})
+	assert.NoError(t, err)
+	m.AssertExpectations(t)
+}
+
+func Test_Resolve_Default_Block_CNAME(t *testing.T) {
+	file := helpertest.TempFile("baddomain.com")
+	defer file.Close()
+
+	sut := NewBlockingResolver(config.BlockingConfig{
+		BlackLists: map[string][]string{"gr1": {file.Name()}},
+		ClientGroupsBlock: map[string][]string{
+			"default": {"gr1"},
+		},
+	})
+
+	m := &resolverMock{}
+
+	rr1, err1 := dns.NewRR("example.com 300 IN CNAME domain.com")
+	rr2, err2 := dns.NewRR("domain.com 300 IN CNAME baddomain.com")
+	rr3, err3 := dns.NewRR("baddomain.com 300 IN A 123.145.123.145")
+
+	assert.NoError(t, err1)
+	assert.NoError(t, err2)
+	assert.NoError(t, err3)
+
+	mockResp := new(dns.Msg)
+	mockResp.Answer = []dns.RR{rr1, rr2, rr3}
+
+	m.On("Resolve", mock.Anything).Return(&Response{Res: mockResp}, nil)
+	sut.Next(m)
+
+	req := util.NewMsgWithQuestion("example.com.", dns.TypeA)
+	resp, err := sut.Resolve(&Request{
+		Req:         req,
+		ClientNames: []string{"unknown"},
+		ClientIP:    net.ParseIP("192.168.178.1"),
+		Log:         logrus.NewEntry(logrus.New()),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, dns.RcodeSuccess, resp.Res.Rcode)
+	assert.Equal(t, "example.com.	21600	IN	A	0.0.0.0", resp.Res.Answer[0].String())
 }
 
 func Test_Resolve_NoBlock(t *testing.T) {

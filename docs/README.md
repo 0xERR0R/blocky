@@ -18,6 +18,7 @@ Blocky is a DNS proxy for local network written in Go with following features:
 - Blocking of DNS queries with external lists (Ad-block) with whitelisting
   - Definition of black and white lists per client group (Kids, Smart home devices etc) -> for example: you can block some domains for you Kids and allow your network camera only domains from a whitelist
   - periodical reload of external black and white lists
+  - blocking of request domain, response CNAME (deep CNAME inspection) and response IP addresses (against IP lists)
 - Caching of DNS answers for queries -> improves DNS resolution speed and reduces amount of external DNS queries
 - Custom DNS resolution for certain domain names
 - Supports UDP, TCP and TCP over TLS DNS resolvers with DNSSEC support
