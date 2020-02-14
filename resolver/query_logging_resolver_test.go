@@ -21,6 +21,17 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+func Test_New_LogDirNotExist(t *testing.T) {
+	defer func() { logrus.StandardLogger().ExitFunc = nil }()
+
+	var fatal bool
+
+	logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
+	_ = NewQueryLoggingResolver(config.QueryLogConfig{Dir: "notExists"})
+
+	assert.True(t, fatal)
+}
+
 func Test_doCleanUp(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "queryLoggingResolver")
 	defer os.RemoveAll(tmpDir)
