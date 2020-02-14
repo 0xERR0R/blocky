@@ -38,7 +38,6 @@ func Test_Resolve_Best_Result(t *testing.T) {
 	assert.Equal(t, dns.RcodeSuccess, resp.Res.Rcode)
 	assert.Equal(t, "example.com.	123	IN	A	192.168.178.44", resp.Res.Answer[0].String())
 	fast.AssertExpectations(t)
-	slow.AssertExpectations(t)
 }
 
 func Test_Resolve_One_Error(t *testing.T) {
