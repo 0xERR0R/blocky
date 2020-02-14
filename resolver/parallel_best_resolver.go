@@ -13,6 +13,11 @@ type ParallelBestResolver struct {
 	resolvers []Resolver
 }
 
+type requestResponse struct {
+	response *Response
+	err      error
+}
+
 func NewParallelBestResolver(resolvers []Resolver) Resolver {
 	return &ParallelBestResolver{resolvers: resolvers}
 }
@@ -32,80 +37,51 @@ func (r *ParallelBestResolver) Resolve(request *Request) (*Response, error) {
 	r1, r2 := r.pickRandom()
 	logger.Debugf("using %s and %s as resolver", r1, r2)
 
-	ch1 := make(chan struct {
-		*Response
-		error
-	}, 1)
-	ch2 := make(chan struct {
-		*Response
-		error
-	}, 1)
+	ch := make(chan requestResponse, 2)
 
-	var err1, err2 error
+	var collectedErrors []error
 
 	logger.WithField("resolver", r1).Debug("delegating to resolver")
 
-	go resolve(request, r1, ch1)
+	go resolve(request, r1, ch)
 
 	logger.WithField("resolver", r2).Debug("delegating to resolver")
 
-	go resolve(request, r2, ch2)
+	go resolve(request, r2, ch)
 
-	for err1 == nil || err2 == nil {
+	//nolint: gosimple
+	for len(collectedErrors) < 2 {
 		select {
-		case msg1 := <-ch1:
-			if msg1.error != nil {
-				err1 = msg1.error
-				ch1 = nil
-
-				logger.WithField("resolver", r1).Debug("resolution failed from resolver, cause: ", msg1.error)
+		case result := <-ch:
+			if result.err != nil {
+				logger.Debug("resolution failed from resolver, cause: ", result.err)
+				collectedErrors = append(collectedErrors, result.err)
 			} else {
 				logger.WithFields(logrus.Fields{
 					"resolver": r1,
-					"answer":   util.AnswerToString(msg1.Response.Res.Answer),
+					"answer":   util.AnswerToString(result.response.Res.Answer),
 				}).Debug("using response from resolver")
-				return msg1.Response, nil
-			}
-		case msg2 := <-ch2:
-			if msg2.error != nil {
-				err2 = msg2.error
-				ch2 = nil
-
-				logger.WithField("resolver", r2).Debug("resolution failed from resolver, cause: ", msg2.error)
-			} else {
-				logger.WithFields(logrus.Fields{
-					"resolver": r2,
-					"answer":   util.AnswerToString(msg2.Response.Res.Answer),
-				}).Debug("using response from resolver")
-				return msg2.Response, nil
+				return result.response, nil
 			}
 		}
 	}
 
-	return nil, fmt.Errorf("resolution was not successful, errors: '%v', '%v'", err1, err2)
+	return nil, fmt.Errorf("resolution was not successful, errors: %v", collectedErrors)
 }
 
 // pick 2 different random resolvers from the resolver pool
 func (r *ParallelBestResolver) pickRandom() (resolver1, resolver2 Resolver) {
-	resolver1 = r.resolvers[rand.Intn(len(r.resolvers))]
-	for resolver2 == resolver1 || resolver2 == nil {
-		resolver2 = r.resolvers[rand.Intn(len(r.resolvers))]
-	}
+	randomInd := rand.Perm(len(r.resolvers))
 
-	return
+	return r.resolvers[randomInd[0]], r.resolvers[randomInd[1]]
 }
 
-func resolve(req *Request, resolver Resolver, ch chan struct {
-	*Response
-	error
-}) {
-	defer close(ch)
-
+func resolve(req *Request, resolver Resolver, ch chan<- requestResponse) {
 	resp, err := resolver.Resolve(req)
-	ch <- struct {
-		*Response
-		error
-	}{resp, err}
+	ch <- requestResponse{
+		response: resp,
+		err:      err,
+	}
 }
 
 func (r ParallelBestResolver) String() string {

@@ -22,7 +22,13 @@ func (r *resolverMock) Configuration() (result []string) {
 
 func (r *resolverMock) Resolve(req *Request) (*Response, error) {
 	args := r.Called(req)
-	return args.Get(0).(*Response), args.Error(1)
+	resp, ok := args.Get(0).(*Response)
+
+	if ok {
+		return resp, args.Error((1))
+	}
+
+	return nil, args.Error(1)
 }
 
 func TestUDPUpstream(fn func(request *dns.Msg) (response *dns.Msg)) config.Upstream {
