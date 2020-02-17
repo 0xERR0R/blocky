@@ -32,6 +32,22 @@ func Test_New_LogDirNotExist(t *testing.T) {
 	assert.True(t, fatal)
 }
 
+func Test_doCleanUp_WrongDir(t *testing.T) {
+	defer func() { logrus.StandardLogger().ExitFunc = nil }()
+
+	var fatal bool
+
+	logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
+
+	sut := NewQueryLoggingResolver(config.QueryLogConfig{
+		Dir:              "wrongDir",
+		LogRetentionDays: 7,
+	})
+
+	sut.(*QueryLoggingResolver).doCleanUp()
+	assert.True(t, fatal)
+}
+
 func Test_doCleanUp(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "queryLoggingResolver")
 	defer os.RemoveAll(tmpDir)
@@ -230,10 +246,10 @@ func Test_Configuration_QueryLoggingResolver_WithConfig(t *testing.T) {
 	sut := NewQueryLoggingResolver(config.QueryLogConfig{
 		Dir:              tmpDir,
 		PerClient:        true,
-		LogRetentionDays: 3,
+		LogRetentionDays: 0,
 	})
 	c := sut.Configuration()
-	assert.Len(t, c, 3)
+	assert.Len(t, c, 4)
 }
 
 func Test_Configuration_QueryLoggingResolver_Disabled(t *testing.T) {
