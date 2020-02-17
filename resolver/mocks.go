@@ -35,7 +35,8 @@ func (r *resolverMock) Resolve(req *Request) (*Response, error) {
 	return nil, args.Error(1)
 }
 
-func TestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg)) config.Upstream {
+func TestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg),
+	reqFn ...func(w http.ResponseWriter)) config.Upstream {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("here")
 
@@ -57,6 +58,10 @@ func TestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg)) config.Upstr
 			log.Fatal("can't serialize message: ", err)
 		}
 		w.Header().Set("content-type", "application/dns-message")
+
+		for _, f := range reqFn {
+			f(w)
+		}
 		_, err = w.Write(b)
 		if err != nil {
 			log.Fatal("can't write response: ", err)
