@@ -1,10 +1,12 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -18,6 +20,7 @@ var netDefaultPort = map[string]uint16{
 	"udp":     53,
 	"tcp":     53,
 	"tcp-tls": 853,
+	"https":   443,
 }
 
 // Upstream is the definition of external DNS server
@@ -25,6 +28,7 @@ type Upstream struct {
 	Net  string
 	Host string
 	Port uint16
+	Path string
 }
 
 func (u *Upstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -33,7 +37,7 @@ func (u *Upstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	upstream, err := parseUpstream(s)
+	upstream, err := ParseUpstream(s)
 	if err != nil {
 		return err
 	}
@@ -43,34 +47,43 @@ func (u *Upstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-// parseUpstream creates new Upstream from passed string in format net:host:port
-func parseUpstream(upstream string) (result Upstream, err error) {
-	if strings.Trim(upstream, " ") == "" {
+// ParseUpstream creates new Upstream from passed string in format net:host[:port][/path]
+func ParseUpstream(upstream string) (result Upstream, err error) {
+	if strings.TrimSpace(upstream) == "" {
 		return Upstream{}, nil
 	}
 
-	parts := strings.Split(upstream, ":")
+	r := regexp.MustCompile(`(?P<Net>[^\s:]*):/?/?(?P<Host>[^\s/:]*):?(?P<Port>[^\s/:]*)?(?P<Path>/[^\s]*)?`)
 
-	if len(parts) < 2 || len(parts) > 3 {
-		err = fmt.Errorf("wrong configuration, couldn't parse input '%s', please enter net:host[:port]", upstream)
+	match := r.FindStringSubmatch(upstream)
+
+	if len(match) == 0 {
+		err = fmt.Errorf("wrong configuration, couldn't parse input '%s', please enter net:host[:port][/path]", upstream)
 		return
 	}
 
-	net := strings.TrimSpace(parts[0])
-
+	net := match[1]
 	if _, ok := netDefaultPort[net]; !ok {
 		err = fmt.Errorf("wrong configuration, couldn't parse net '%s', please user one of %s",
 			net, reflect.ValueOf(netDefaultPort).MapKeys())
 		return
 	}
 
+	host := match[2]
+	if len(host) == 0 {
+		err = errors.New("wrong configuration, host wasn't specified")
+		return
+	}
+
+	portPart := match[3]
+
+	path := match[4]
+
 	var port uint16
 
-	host := strings.TrimSpace(parts[1])
-
-	if len(parts) == 3 {
+	if len(portPart) > 0 {
 		var p int
-		p, err = strconv.Atoi(strings.TrimSpace(parts[2]))
+		p, err = strconv.Atoi(strings.TrimSpace(portPart))
 
 		if err != nil {
 			err = fmt.Errorf("can't convert port to number %v", err)
@@ -87,7 +100,7 @@ func parseUpstream(upstream string) (result Upstream, err error) {
 		port = netDefaultPort[net]
 	}
 
-	return Upstream{Net: net, Host: host, Port: port}, nil
+	return Upstream{Net: net, Host: host, Port: port, Path: path}, nil
 }
 
 // main configuration
@@ -99,8 +112,8 @@ type Config struct {
 	ClientLookup ClientLookupConfig        `yaml:"clientLookup"`
 	Caching      CachingConfig             `yaml:"caching"`
 	QueryLog     QueryLogConfig            `yaml:"queryLog"`
+	LogLevel     string                    `yaml:"logLevel"`
 	Port         uint16
-	LogLevel     string `yaml:"logLevel"`
 }
 
 type UpstreamConfig struct {

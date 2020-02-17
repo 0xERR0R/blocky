@@ -22,6 +22,7 @@ Blocky is a DNS proxy for local network written in Go with following features:
 - Caching of DNS answers for queries -> improves DNS resolution speed and reduces amount of external DNS queries
 - Custom DNS resolution for certain domain names
 - Supports UDP, TCP and TCP over TLS DNS resolvers with DNSSEC support
+- Supports DNS over HTTPS (DoH) resolvers
 - Delegates DNS query to 2 external resolver from a list of configured resolvers, uses the answer from the fastest one -> improves you privacy and resolution time
 - Logging of all DNS queries per day / per client in a text file
 - Simple configuration in a single file
@@ -33,12 +34,13 @@ Create `config.yml` file with your configuration:
 ```yml
 upstream:
     # these external DNS resolvers will be used. Blocky picks 2 random resolvers from the list for each query
-    # format for resolver: net:host:port. net could be tcp, udp or tcp-tls. If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls)
+    # format for resolver: net:host:[port][/path]. net could be tcp, udp, tcp-tls or https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))
     externalResolvers:
       - udp:8.8.8.8
       - udp:8.8.4.4
       - udp:1.1.1.1
       - tcp-tls:1.0.0.1:853
+      - https://cloudflare-dns.com/dns-query
   
 # optional: custom IP address for domain name (with all sub-domains)
 # example: query "printer.lan" or "my.printer.lan" will return 192.168.178.3

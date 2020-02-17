@@ -2,7 +2,11 @@ package resolver
 
 import (
 	"blocky/config"
+	"fmt"
+	"io/ioutil"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 
@@ -29,6 +33,42 @@ func (r *resolverMock) Resolve(req *Request) (*Response, error) {
 	}
 
 	return nil, args.Error(1)
+}
+
+func TestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg)) config.Upstream {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Printf("here")
+
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			log.Fatal("can't read request: ", err)
+		}
+
+		msg := new(dns.Msg)
+		err = msg.Unpack(body)
+		if err != nil {
+			log.Fatal("can't deserialize message: ", err)
+		}
+		response := fn(msg)
+		response.SetReply(msg)
+
+		b, err := response.Pack()
+		if err != nil {
+			log.Fatal("can't serialize message: ", err)
+		}
+		w.Header().Set("content-type", "application/dns-message")
+		_, err = w.Write(b)
+		if err != nil {
+			log.Fatal("can't write response: ", err)
+		}
+	}))
+	upstream, err := config.ParseUpstream(server.URL)
+
+	if err != nil {
+		log.Fatal("can't resolve address: ", err)
+	}
+
+	return upstream
 }
 
 func TestUDPUpstream(fn func(request *dns.Msg) (response *dns.Msg)) config.Upstream {

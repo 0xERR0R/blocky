@@ -100,9 +100,44 @@ var tests = []struct {
 		wantResult: Upstream{Net: "tcp-tls", Host: "4.4.4.4", Port: 853},
 	},
 	{
+		name:       "dohDefault",
+		args:       "https:4.4.4.4",
+		wantResult: Upstream{Net: "https", Host: "4.4.4.4", Port: 443},
+	},
+	{
+		name:       "dohWithPort",
+		args:       "https:4.4.4.4:888",
+		wantResult: Upstream{Net: "https", Host: "4.4.4.4", Port: 888},
+	},
+	{
+		name:       "dohNamed",
+		args:       "https://dns.google/dns-query",
+		wantResult: Upstream{Net: "https", Host: "dns.google", Port: 443, Path: "/dns-query"},
+	},
+	{
+		name:       "dohNamedMultiSlash",
+		args:       "https://dns.google/dns-query/a/b",
+		wantResult: Upstream{Net: "https", Host: "dns.google", Port: 443, Path: "/dns-query/a/b"},
+	},
+	{
+		name:       "dohNamedWithPort",
+		args:       "https://dns.google:888/dns-query",
+		wantResult: Upstream{Net: "https", Host: "dns.google", Port: 888, Path: "/dns-query"},
+	},
+	{
 		name:       "empty",
 		args:       "",
 		wantResult: Upstream{},
+	},
+	{
+		name:    "withoutHost",
+		args:    "tcp::53",
+		wantErr: true,
+	},
+	{
+		name:    "withoutNet",
+		args:    ":1.1.1.1:53",
+		wantErr: true,
 	},
 	{
 		name:    "negativePort",
@@ -135,7 +170,7 @@ func Test_parseUpstream(t *testing.T) {
 	for _, tt := range tests {
 		rr := tt
 		t.Run(tt.name, func(t *testing.T) {
-			gotResult, err := parseUpstream(rr.args)
+			gotResult, err := ParseUpstream(rr.args)
 			if (err != nil) != rr.wantErr {
 				t.Errorf("parseUpstream() error = %v, wantErr %v", err, rr.wantErr)
 				return
