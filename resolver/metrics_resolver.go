@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// resolver that records metrics about requests/response
+// MetricsResolver resolver that records metrics about requests/response
 type MetricsResolver struct {
 	NextResolver
 	cfg     config.PrometheusConfig
@@ -18,7 +18,7 @@ func (m MetricsResolver) handleMetrics(req *Request, resp *Response) {
 	}
 }
 
-// resolves the passed request
+// Resolve resolves the passed request
 func (m MetricsResolver) Resolve(req *Request) (*Response, error) {
 	resp, err := m.next.Resolve(req)
 
@@ -27,7 +27,7 @@ func (m MetricsResolver) Resolve(req *Request) (*Response, error) {
 	return resp, err
 }
 
-// gets the config of this resolver in a string slice
+// Configuration gets the config of this resolver in a string slice
 func (m MetricsResolver) Configuration() (result []string) {
 	result = append(result, "metrics:")
 	result = append(result, fmt.Sprintf("  Enable = %t", m.cfg.Enable))
@@ -41,7 +41,7 @@ func (m MetricsResolver) String() string {
 	return "metrics resolver"
 }
 
-// creates a new intance of the MetricsResolver type
+// NewMetricsResolver creates a new intance of the MetricsResolver type
 func NewMetricsResolver(cfg config.PrometheusConfig) MetricsResolver {
 	if cfg.Path == "" {
 		cfg.Path = "/metrics"
