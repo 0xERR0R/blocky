@@ -55,7 +55,7 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		resolver.NewCustomDNSResolver(cfg.CustomDNS),
 		resolver.NewBlockingResolver(cfg.Blocking),
 		resolver.NewCachingResolver(cfg.Caching),
-		createParallelUpstreamResolver(cfg.Upstream.ExternalResolvers),
+		resolver.NewParallelBestResolver(cfg.Upstream),
 	)
 
 	server := Server{
@@ -113,20 +113,6 @@ func (s *Server) printConfiguration() {
 
 func toMB(b uint64) uint64 {
 	return b / 1024 / 1024
-}
-
-func createParallelUpstreamResolver(upstream []config.Upstream) resolver.Resolver {
-	if len(upstream) == 1 {
-		return resolver.NewUpstreamResolver(upstream[0])
-	}
-
-	resolvers := make([]resolver.Resolver, len(upstream))
-
-	for i, u := range upstream {
-		resolvers[i] = resolver.NewUpstreamResolver(u)
-	}
-
-	return resolver.NewParallelBestResolver(resolvers)
 }
 
 func (s *Server) Start() {

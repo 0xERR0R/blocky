@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"blocky/config"
 	"blocky/util"
 	"fmt"
 	"math/rand"
@@ -18,7 +19,13 @@ type requestResponse struct {
 	err      error
 }
 
-func NewParallelBestResolver(resolvers []Resolver) Resolver {
+func NewParallelBestResolver(cfg config.UpstreamConfig) Resolver {
+	resolvers := make([]Resolver, len(cfg.ExternalResolvers))
+
+	for i, u := range cfg.ExternalResolvers {
+		resolvers[i] = NewUpstreamResolver(u)
+	}
+
 	return &ParallelBestResolver{resolvers: resolvers}
 }
 
@@ -33,6 +40,11 @@ func (r *ParallelBestResolver) Configuration() (result []string) {
 
 func (r *ParallelBestResolver) Resolve(request *Request) (*Response, error) {
 	logger := request.Log.WithField("prefix", "parallel_best_resolver")
+
+	if len(r.resolvers) == 1 {
+		logger.WithField("resolver", r.resolvers[0]).Debug("delegating to resolver")
+		return r.resolvers[0].Resolve(request)
+	}
 
 	r1, r2 := r.pickRandom()
 	logger.Debugf("using %s and %s as resolver", r1, r2)

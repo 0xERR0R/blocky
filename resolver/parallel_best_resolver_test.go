@@ -3,31 +3,31 @@ package resolver
 import (
 	"blocky/config"
 	"blocky/util"
-	"errors"
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 func Test_Resolve_Best_Result(t *testing.T) {
-	fast := &resolverMock{}
+	fast := TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
+		response, err := util.NewMsgWithAnswer("example.com 123 IN A 123.124.122.122")
 
-	mockResp, err := util.NewMsgWithAnswer("example.com. 123 IN A 192.168.178.44")
-	if err != nil {
-		t.Error(err)
-	}
+		assert.NoError(t, err)
+		return response
+	})
 
-	fast.On("Resolve", mock.Anything).Return(&Response{Res: mockResp}, nil)
+	slow := TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
+		response, err := util.NewMsgWithAnswer("example.com 123 IN A 123.124.122.123")
+		time.Sleep(50 * time.Millisecond)
 
-	slow := &resolverMock{}
-	slow.On("Resolve", mock.Anything).WaitUntil(time.After(50*time.Millisecond)).Return(&Response{Res: new(dns.Msg)}, nil)
+		assert.NoError(t, err)
+		return response
+	})
 
-	sut := NewParallelBestResolver([]Resolver{slow, fast})
+	sut := NewParallelBestResolver(config.UpstreamConfig{ExternalResolvers: []config.Upstream{fast, slow}})
 
 	resp, err := sut.Resolve(&Request{
 		Req: util.NewMsgWithQuestion("example.com.", dns.TypeA),
@@ -36,24 +36,41 @@ func Test_Resolve_Best_Result(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, dns.RcodeSuccess, resp.Res.Rcode)
-	assert.Equal(t, "example.com.	123	IN	A	192.168.178.44", resp.Res.Answer[0].String())
-	fast.AssertExpectations(t)
+	assert.Equal(t, "example.com.	123	IN	A	123.124.122.122", resp.Res.Answer[0].String())
+}
+
+func Test_Resolve_BestWithOne(t *testing.T) {
+	upstream := TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
+		response, err := util.NewMsgWithAnswer("example.com 123 IN A 123.124.122.122")
+
+		assert.NoError(t, err)
+		return response
+	})
+
+	sut := NewParallelBestResolver(config.UpstreamConfig{ExternalResolvers: []config.Upstream{upstream}})
+
+	resp, err := sut.Resolve(&Request{
+		Req: util.NewMsgWithQuestion("example.com.", dns.TypeA),
+		Log: logrus.NewEntry(logrus.New()),
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, dns.RcodeSuccess, resp.Res.Rcode)
+	assert.Equal(t, "example.com.	123	IN	A	123.124.122.122", resp.Res.Answer[0].String())
 }
 
 func Test_Resolve_One_Error(t *testing.T) {
-	withError := &resolverMock{}
+	withError := config.Upstream{Host: "wrong"}
 
-	withError.On("Resolve", mock.Anything).Return(nil, errors.New("error"))
+	slow := TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
+		response, err := util.NewMsgWithAnswer("example.com 123 IN A 123.124.122.123")
+		time.Sleep(50 * time.Millisecond)
 
-	mockResp, err := util.NewMsgWithAnswer("example.com. 123 IN A 192.168.178.44")
-	if err != nil {
-		t.Error(err)
-	}
+		assert.NoError(t, err)
+		return response
+	})
 
-	slow := &resolverMock{}
-	slow.On("Resolve", mock.Anything).WaitUntil(time.After(50*time.Millisecond)).Return(&Response{Res: mockResp}, nil)
-
-	sut := NewParallelBestResolver([]Resolver{slow, withError})
+	sut := NewParallelBestResolver(config.UpstreamConfig{ExternalResolvers: []config.Upstream{withError, slow}})
 
 	resp, err := sut.Resolve(&Request{
 		Req: util.NewMsgWithQuestion("example.com.", dns.TypeA),
@@ -62,20 +79,14 @@ func Test_Resolve_One_Error(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, dns.RcodeSuccess, resp.Res.Rcode)
-	assert.Equal(t, "example.com.	123	IN	A	192.168.178.44", resp.Res.Answer[0].String())
-	withError.AssertExpectations(t)
-	slow.AssertExpectations(t)
+	assert.Equal(t, "example.com.	123	IN	A	123.124.122.123", resp.Res.Answer[0].String())
 }
 
 func Test_Resolve_All_Error(t *testing.T) {
-	withError1 := &resolverMock{}
+	withError1 := config.Upstream{Host: "wrong"}
+	withError2 := config.Upstream{Host: "wrong"}
 
-	withError1.On("Resolve", mock.Anything).Return(nil, errors.New("error"))
-
-	withError2 := &resolverMock{}
-	withError2.On("Resolve", mock.Anything).Return(nil, errors.New("error"))
-
-	sut := NewParallelBestResolver([]Resolver{withError1, withError2})
+	sut := NewParallelBestResolver(config.UpstreamConfig{ExternalResolvers: []config.Upstream{withError1, withError2}})
 
 	resp, err := sut.Resolve(&Request{
 		Req: util.NewMsgWithQuestion("example.com.", dns.TypeA),
@@ -84,12 +95,14 @@ func Test_Resolve_All_Error(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, resp)
-	withError1.AssertExpectations(t)
-	withError2.AssertExpectations(t)
 }
 
 func Test_Configuration_ParallelResolver(t *testing.T) {
-	sut := NewParallelBestResolver([]Resolver{&resolverMock{}, &resolverMock{}})
+	sut := NewParallelBestResolver(config.UpstreamConfig{
+		ExternalResolvers: []config.Upstream{
+			{Host: "host1"},
+			{Host: "host2"},
+		}})
 
 	c := sut.Configuration()
 
@@ -97,13 +110,13 @@ func Test_Configuration_ParallelResolver(t *testing.T) {
 }
 
 func Test_PickRandom(t *testing.T) {
-	sut := NewParallelBestResolver([]Resolver{
-		NewUpstreamResolver(config.Upstream{Host: "host1"}),
-		NewUpstreamResolver(config.Upstream{Host: "host2"}),
-		NewUpstreamResolver(config.Upstream{Host: "host3"})})
+	sut := NewParallelBestResolver(config.UpstreamConfig{
+		ExternalResolvers: []config.Upstream{
+			{Host: "host1"},
+			{Host: "host2"},
+			{Host: "host3"}}})
 
 	r1, r2 := sut.(*ParallelBestResolver).pickRandom()
 
-	fmt.Println(r1)
 	assert.NotEqual(t, r1, r2)
 }

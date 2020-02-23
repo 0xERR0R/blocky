@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -266,6 +267,84 @@ func TestDnsRequest(t *testing.T) {
 	}
 }
 
+func Test_Start(t *testing.T) {
+	defer func() { logrus.StandardLogger().ExitFunc = nil }()
+
+	var fatal bool
+
+	logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
+
+	// create server
+	server, err := NewServer(&config.Config{
+		CustomDNS: config.CustomDNSConfig{
+			Mapping: map[string]net.IP{
+				"custom.lan": net.ParseIP("192.168.178.55"),
+				"lan.home":   net.ParseIP("192.168.178.56"),
+			},
+		},
+
+		Port: 55555,
+	})
+
+	assert.NoError(t, err)
+
+	// start server
+	go func() {
+		server.Start()
+	}()
+
+	defer server.Stop()
+
+	time.Sleep(100 * time.Millisecond)
+
+	server.Start()
+
+	time.Sleep(100 * time.Millisecond)
+
+	assert.True(t, fatal)
+}
+
+func Test_Stop(t *testing.T) {
+	defer func() { logrus.StandardLogger().ExitFunc = nil }()
+
+	var fatal bool
+
+	logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
+
+	// create server
+	server, err := NewServer(&config.Config{
+		CustomDNS: config.CustomDNSConfig{
+			Mapping: map[string]net.IP{
+				"custom.lan": net.ParseIP("192.168.178.55"),
+				"lan.home":   net.ParseIP("192.168.178.56"),
+			},
+		},
+
+		Port: 55555,
+	})
+
+	assert.NoError(t, err)
+
+	// start server
+	go func() {
+		server.Start()
+	}()
+
+	defer server.Stop()
+
+	time.Sleep(100 * time.Millisecond)
+
+	server.Stop()
+
+	// stop server, should be ok
+	assert.False(t, fatal)
+
+	// stop again, should raise fatal error
+	server.Stop()
+
+	assert.True(t, fatal)
+}
+
 func BenchmarkServerExternalResolver(b *testing.B) {
 	upstreamExternal := resolver.TestUDPUpstream(func(request *dns.Msg) (response *dns.Msg) {
 		msg, _ := util.NewMsgWithAnswer(fmt.Sprintf("example.com IN A 123.124.122.122"))
@@ -331,4 +410,14 @@ func requestServer(request *dns.Msg) *dns.Msg {
 	log.Fatal("could not read from connection", err)
 
 	return nil
+}
+
+func Test_ResolveClientIpUdp(t *testing.T) {
+	ip := resolveClientIP(&net.UDPAddr{IP: net.ParseIP("192.168.178.88")})
+	assert.Equal(t, net.ParseIP("192.168.178.88"), ip)
+}
+
+func Test_ResolveClientIpTcp(t *testing.T) {
+	ip := resolveClientIP(&net.TCPAddr{IP: net.ParseIP("192.168.178.88")})
+	assert.Equal(t, net.ParseIP("192.168.178.88"), ip)
 }
