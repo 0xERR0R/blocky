@@ -117,7 +117,7 @@ type Config struct {
 	Port         uint16
 }
 
-// prometheus configuration
+// PrometheusConfig contains the config values for prometheus
 type PrometheusConfig struct {
 	Enable bool   `yaml:"enable"`
 	Port   uint16 `yaml:"port"`

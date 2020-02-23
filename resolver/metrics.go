@@ -10,13 +10,13 @@ import (
 	"github.com/prometheus/common/log"
 )
 
-// interface for recording metrics about a request/response
+// Metrics is an interface for recording metrics about a request/response
 type Metrics interface {
 	RecordStats(request *Request, response *Response)
 	Start()
 }
 
-// default implementation of the Metrics interface
+// MetricsImpl is the default implementation of the Metrics interface
 type MetricsImpl struct {
 	Gatherer   prometheus.Gatherer
 	Registry   prometheus.Registerer
@@ -27,7 +27,7 @@ type MetricsImpl struct {
 	totalQuery prometheus.Counter
 }
 
-// Records stats based on the request and response
+// RecordStats records stats based on the request and response
 func (m MetricsImpl) RecordStats(request *Request, response *Response) {
 	m.totalQuery.Inc()
 
@@ -79,7 +79,7 @@ func totalQueriesMetric() prometheus.Counter {
 	)
 }
 
-// starts the metrics server and serves and http endpoint to scrape those metrics
+// Start starts the metrics server and serves and http endpoint to scrape those metrics
 func (m MetricsImpl) Start() {
 	if m.cfg.Enable {
 		go func() {
@@ -90,7 +90,7 @@ func (m MetricsImpl) Start() {
 	}
 }
 
-// creates a new instance of a Metrics interface
+// NewMetrics creates a new instance of a Metrics interface
 func NewMetrics(cfg config.PrometheusConfig) Metrics {
 	reg := prometheus.NewRegistry()
 
