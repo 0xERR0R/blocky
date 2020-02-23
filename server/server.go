@@ -47,10 +47,12 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		},
 	}
 
+	metrics := resolver.NewMetricsResolver(cfg.Prometheus)
 	queryResolver := resolver.Chain(
 		resolver.NewClientNamesResolver(cfg.ClientLookup),
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
 		resolver.NewStatsResolver(),
+		&metrics,
 		resolver.NewConditionalUpstreamResolver(cfg.Conditional),
 		resolver.NewCustomDNSResolver(cfg.CustomDNS),
 		resolver.NewBlockingResolver(cfg.Blocking),

@@ -112,8 +112,15 @@ type Config struct {
 	ClientLookup ClientLookupConfig        `yaml:"clientLookup"`
 	Caching      CachingConfig             `yaml:"caching"`
 	QueryLog     QueryLogConfig            `yaml:"queryLog"`
+	Prometheus   PrometheusConfig          `yaml:"prometheus"`
 	LogLevel     string                    `yaml:"logLevel"`
 	Port         uint16
+}
+
+type PrometheusConfig struct {
+	Enable bool   `yaml:"enable"`
+	Port   uint16 `yaml:"port"`
+	Path   string `yaml:"path"`
 }
 
 type UpstreamConfig struct {
