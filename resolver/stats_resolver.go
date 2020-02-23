@@ -73,10 +73,6 @@ func (r *StatsResolver) Configuration() (result []string) {
 	return
 }
 
-func (r StatsResolver) String() string {
-	return fmt.Sprintf("statistic resolver")
-}
-
 func (r *resolverStatRecorder) recordStats(e *statsEntry) {
 	r.aggregator.Put(r.fn(e))
 }

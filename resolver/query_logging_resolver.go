@@ -231,7 +231,3 @@ func (r *QueryLoggingResolver) Configuration() (result []string) {
 
 	return
 }
-
-func (r QueryLoggingResolver) String() string {
-	return fmt.Sprintf("query logging resolver")
-}

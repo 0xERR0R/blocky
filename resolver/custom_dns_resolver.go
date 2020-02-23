@@ -88,11 +88,7 @@ func (r *CustomDNSResolver) Resolve(request *Request) (*Response, error) {
 		}
 	}
 
-	logger.WithField("resolver", r.next).Trace("go to next resolver")
+	logger.WithField("resolver", Name(r.next)).Trace("go to next resolver")
 
 	return r.next.Resolve(request)
-}
-
-func (r CustomDNSResolver) String() string {
-	return fmt.Sprintf("custom resolver")
 }

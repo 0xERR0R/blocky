@@ -101,7 +101,7 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 				return &Response{Res: resp, rType: CACHED, Reason: "CACHED NEGATIVE"}, nil
 			}
 
-			logger.WithField("next_resolver", r.next).Debug("not in cache: go to next resolver")
+			logger.WithField("next_resolver", Name(r.next)).Debug("not in cache: go to next resolver")
 			response, err = r.next.Resolve(request)
 
 			if err == nil {
@@ -149,8 +149,4 @@ func (r *CachingResolver) adjustTTLs(answer []dns.RR) (maxTTL uint32) {
 	}
 
 	return
-}
-
-func (r CachingResolver) String() string {
-	return fmt.Sprintf("caching resolver")
 }

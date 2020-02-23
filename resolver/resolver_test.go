@@ -15,3 +15,7 @@ func Test_Chain(t *testing.T) {
 	next := c.GetNext()
 	assert.NotNil(t, next)
 }
+func Test_Name(t *testing.T) {
+	name := Name(NewBlockingResolver(config.BlockingConfig{}))
+	assert.Equal(t, "BlockingResolver", name)
+}

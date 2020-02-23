@@ -125,10 +125,6 @@ func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry
 	return result
 }
 
-func (r ClientNamesResolver) String() string {
-	return fmt.Sprintf("client names resolver")
-}
-
 // reset client name cache
 func (r *ClientNamesResolver) FlushCache() {
 	r.cache.Flush()

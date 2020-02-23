@@ -79,7 +79,7 @@ func (s *Server) printConfiguration() {
 
 	res := s.queryResolver
 	for res != nil {
-		logger().Infof("-> resolver: '%s'", res)
+		logger().Infof("-> resolver: '%s'", resolver.Name(res))
 
 		for _, c := range res.Configuration() {
 			logger().Infof("     %s", c)

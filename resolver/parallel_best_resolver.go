@@ -95,7 +95,3 @@ func resolve(req *Request, resolver Resolver, ch chan<- requestResponse) {
 		err:      err,
 	}
 }
-
-func (r ParallelBestResolver) String() string {
-	return fmt.Sprintf("parallel best resolver '%s'", r.resolvers)
-}

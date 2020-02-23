@@ -242,7 +242,3 @@ func (r *BlockingResolver) matches(groupsToCheck []string, m lists.Matcher,
 
 	return false, ""
 }
-
-func (r BlockingResolver) String() string {
-	return fmt.Sprintf("blacklist resolver")
-}

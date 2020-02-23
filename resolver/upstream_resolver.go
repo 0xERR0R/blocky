@@ -147,7 +147,3 @@ func (r *UpstreamResolver) Resolve(request *Request) (response *Response, err er
 
 	return
 }
-
-func (r UpstreamResolver) String() string {
-	return fmt.Sprintf("upstream '%s'", r.upstreamURL)
-}

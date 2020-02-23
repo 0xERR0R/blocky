@@ -1,7 +1,9 @@
 package resolver
 
 import (
+	"fmt"
 	"net"
+	"strings"
 
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
@@ -70,4 +72,8 @@ func Chain(resolvers ...Resolver) Resolver {
 	}
 
 	return resolvers[0]
+}
+
+func Name(resolver Resolver) string {
+	return strings.Split(fmt.Sprintf("%T", resolver), ".")[1]
 }

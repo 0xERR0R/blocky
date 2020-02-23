@@ -71,11 +71,7 @@ func (r *ConditionalUpstreamResolver) Resolve(request *Request) (*Response, erro
 		}
 	}
 
-	logger.WithField("next_resolver", r.next).Trace("go to next resolver")
+	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
 
 	return r.next.Resolve(request)
-}
-
-func (r ConditionalUpstreamResolver) String() string {
-	return fmt.Sprintf("conditional resolver")
 }
