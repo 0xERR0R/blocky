@@ -26,6 +26,7 @@ Blocky is a DNS proxy for local network written in Go with following features:
 - Delegates DNS query to 2 external resolver from a list of configured resolvers, uses the answer from the fastest one -> improves you privacy and resolution time
 - Logging of all DNS queries per day / per client in a text file
 - Simple configuration in a single file
+- Prometheus metrics
 - Only one binary in docker container, low memory footprint
 - Runs fine on raspberry pi
 
@@ -111,6 +112,14 @@ clientLookup:
     singleNameOrder:
       - 2
       - 1
+# optional: configuration for prometheus metrics endpoint
+prometheus:
+  # enabled if true
+  enable: true
+  # port, optional (default 4000)
+  port: 4000
+  # url path, optional (default '/metrics')
+  path: /metrics
   
 # optional: write query information (question, answer, client, duration etc) to daily csv file
 queryLog:
