@@ -166,6 +166,8 @@ func (r *QueryLoggingResolver) writeLog() {
 					logEntry.logger.WithField("file_name", writePath).Error("can't write to file", err)
 				}
 				writer.Flush()
+
+				file.Close()
 			}
 
 			halfCap := cap(r.logChan) / 2
