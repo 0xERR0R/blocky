@@ -103,6 +103,11 @@ func ParseUpstream(upstream string) (result Upstream, err error) {
 	return Upstream{Net: net, Host: host, Port: port, Path: path}, nil
 }
 
+const (
+	cfgDefaultPort           = 53
+	cfgDefaultPrometheusPath = "/metrics"
+)
+
 // main configuration
 type Config struct {
 	Upstream     UpstreamConfig            `yaml:"upstream"`
@@ -114,13 +119,13 @@ type Config struct {
 	QueryLog     QueryLogConfig            `yaml:"queryLog"`
 	Prometheus   PrometheusConfig          `yaml:"prometheus"`
 	LogLevel     string                    `yaml:"logLevel"`
-	Port         uint16
+	Port         uint16                    `yaml:"port"`
+	HTTPPort     uint16                    `yaml:"httpPort"`
 }
 
 // PrometheusConfig contains the config values for prometheus
 type PrometheusConfig struct {
 	Enable bool   `yaml:"enable"`
-	Port   uint16 `yaml:"port"`
 	Path   string `yaml:"path"`
 }
 
@@ -162,6 +167,8 @@ type QueryLogConfig struct {
 
 func NewConfig() Config {
 	cfg := Config{}
+	setDefaultValues(&cfg)
+
 	data, err := ioutil.ReadFile("config.yml")
 
 	if err != nil {
@@ -173,5 +180,13 @@ func NewConfig() Config {
 		log.Fatal("wrong file structure: ", err)
 	}
 
+	fmt.Print(cfg.Port)
+
 	return cfg
+}
+
+func setDefaultValues(cfg *Config) {
+	cfg.Port = cfgDefaultPort
+	cfg.LogLevel = "info"
+	cfg.Prometheus.Path = cfgDefaultPrometheusPath
 }

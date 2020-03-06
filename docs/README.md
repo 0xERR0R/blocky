@@ -130,9 +130,11 @@ queryLog:
     # if > 0, deletes log files which are older than ... days
     logRetentionDays: 7
   
-# Port, should be 53 (UDP and TCP)
+# optional: DNS listener port, default 53 (UDP and TCP)
 port: 53
-# Log level (one from debug, info, warn, error)
+# optional: HTTP listener port, default 0 = no http listener. If > 0, will be used for prometheus metrics, pprof, ...
+httpPort: 4000
+# optional: Log level (one from debug, info, warn, error). Default: info
 logLevel: info
 ```
 
@@ -162,6 +164,21 @@ Download binary file for your architecture, put it in one directory with config 
 
 ## Additional information
 
+### Prometheus
+Blocky can export metrics for prometheus. Example grafana dashboard definition [as JSON](blocky-grafana.json)
+![grafana-dashboard](grafana-dashboard.png)
+
+Following metrics are being exported:
+
+| name                                             |   Description                                            |
+| ------------------------------------------------ | -------------------------------------------------------- |
+| blocky_blacklist_cache / blocky_whitelist_cache  | Number of entries in blacklist/whitelist cache, partitioned by group |
+| blocky_error_total                | Counter for internal errors |
+| blocky_query_total                | Number of total queries, partitioned by client and DNS request type (A, AAAA, PTR, etc) |
+| blocky_request_duration_ms_bucket | Request duration histogram, partitioned by response type (Blocked, cached, etc)  |
+| blocky_response_total             | Number of responses, partitioned by response type (Blocked, cached, etc), DNS response code, and reason |
+
+
 ### Print current configuration
 To print runtime configuration / statistics, you can send `SIGUSR1` signal to running process
 
@@ -173,3 +190,6 @@ blocky collects statistics and aggregates them hourly. If signal `SIGUSR2` is re
 ...
 
 Hint: To send a signal to a process you can use `kill -s USR1 <PID>` or `docker kill -s SIGUSR1 blocky` for docker setup
+
+### Debug / Profiling
+If http listener is enabled, pprof endpoint (`/debug/pprof`) is enabled automatically.

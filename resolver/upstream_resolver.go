@@ -116,6 +116,10 @@ func (r *UpstreamResolver) Configuration() (result []string) {
 	return
 }
 
+func (r UpstreamResolver) String() string {
+	return fmt.Sprintf("upstream '%s'", r.upstreamURL)
+}
+
 func (r *UpstreamResolver) Resolve(request *Request) (response *Response, err error) {
 	logger := withPrefix(request.Log, "upstream_resolver")
 

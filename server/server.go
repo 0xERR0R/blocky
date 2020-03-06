@@ -2,12 +2,18 @@ package server
 
 import (
 	"blocky/config"
+	"blocky/metrics"
 	"blocky/resolver"
+	"net/http"
+
+	// nolint
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
 	"runtime/debug"
 	"syscall"
+	"time"
 
 	"blocky/util"
 	"fmt"
@@ -20,7 +26,9 @@ import (
 type Server struct {
 	udpServer     *dns.Server
 	tcpServer     *dns.Server
+	httpListener  net.Listener
 	queryResolver resolver.Resolver
+	cfg           *config.Config
 }
 
 func logger() *logrus.Entry {
@@ -35,7 +43,7 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		Net:     "udp",
 		Handler: udpHandler,
 		NotifyStartedFunc: func() {
-			logger().Infof("udp server is up and running")
+			logger().Infof("udp server is up and running on port %d", cfg.Port)
 		},
 		UDPSize: 65535}
 	tcpServer := &dns.Server{
@@ -43,16 +51,26 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		Net:     "tcp",
 		Handler: tcpHandler,
 		NotifyStartedFunc: func() {
-			logger().Infof("tcp server is up and running")
+			logger().Infof("tcp server is up and running on port %d", cfg.Port)
 		},
 	}
 
-	metrics := resolver.NewMetricsResolver(cfg.Prometheus)
+	var httpListener net.Listener
+
+	if cfg.HTTPPort > 0 {
+		var err error
+		httpListener, err = net.Listen("tcp", fmt.Sprintf(":%d", cfg.HTTPPort))
+
+		if err != nil {
+			logger().Fatalf("start http listener on port %d failed: %v", cfg.HTTPPort, err)
+		}
+	}
+
 	queryResolver := resolver.Chain(
 		resolver.NewClientNamesResolver(cfg.ClientLookup),
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
 		resolver.NewStatsResolver(),
-		&metrics,
+		resolver.NewMetricsResolver(cfg.Prometheus),
 		resolver.NewConditionalUpstreamResolver(cfg.Conditional),
 		resolver.NewCustomDNSResolver(cfg.CustomDNS),
 		resolver.NewBlockingResolver(cfg.Blocking),
@@ -64,6 +82,8 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		udpServer:     udpServer,
 		tcpServer:     tcpServer,
 		queryResolver: queryResolver,
+		cfg:           cfg,
+		httpListener:  httpListener,
 	}
 
 	server.printConfiguration()
@@ -72,6 +92,8 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	udpHandler.HandleFunc("healthcheck.blocky", server.OnHealthCheck)
 	tcpHandler.HandleFunc(".", server.OnRequest)
 	tcpHandler.HandleFunc("healthcheck.blocky", server.OnHealthCheck)
+
+	metrics.Start(cfg.Prometheus)
 
 	return &server, nil
 }
@@ -93,6 +115,9 @@ func (s *Server) printConfiguration() {
 			break
 		}
 	}
+
+	logger().Infof("- DNS listening port: %d", s.cfg.Port)
+	logger().Infof("- HTTP listening port: %d", s.cfg.HTTPPort)
 
 	logger().Info("runtime information:")
 
@@ -132,6 +157,16 @@ func (s *Server) Start() {
 		}
 	}()
 
+	go func() {
+		if s.httpListener != nil {
+			logger().Infof("http server is up and running on port %d", s.cfg.HTTPPort)
+
+			if err := http.Serve(s.httpListener, nil); err != nil {
+				logger().Fatalf("start http listener failed: %v", err)
+			}
+		}
+	}()
+
 	signals := make(chan os.Signal)
 	signal.Notify(signals, syscall.SIGUSR1)
 
@@ -160,8 +195,9 @@ func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
 
 	clientIP := resolveClientIP(w.RemoteAddr())
 	r := &resolver.Request{
-		ClientIP: clientIP,
-		Req:      request,
+		ClientIP:  clientIP,
+		Req:       request,
+		RequestTs: time.Now(),
 		Log: logrus.WithFields(logrus.Fields{
 			"question":  util.QuestionToString(request.Question),
 			"client_ip": clientIP,

@@ -15,18 +15,6 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-type metricsMock struct {
-	mock.Mock
-}
-
-func (m *metricsMock) RecordStats(request *Request, response *Response) {
-	m.Called(request, response)
-}
-
-func (m *metricsMock) Start() {
-	m.Called()
-}
-
 type resolverMock struct {
 	mock.Mock
 	NextResolver

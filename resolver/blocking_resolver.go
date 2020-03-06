@@ -62,8 +62,8 @@ type BlockingResolver struct {
 
 func NewBlockingResolver(cfg config.BlockingConfig) ChainedResolver {
 	bt := resolveBlockType(cfg)
-	blacklistMatcher := lists.NewListCache(cfg.BlackLists, cfg.RefreshPeriod)
-	whitelistMatcher := lists.NewListCache(cfg.WhiteLists, cfg.RefreshPeriod)
+	blacklistMatcher := lists.NewListCache(lists.BLACKLIST, cfg.BlackLists, cfg.RefreshPeriod)
+	whitelistMatcher := lists.NewListCache(lists.WHITELIST, cfg.WhiteLists, cfg.RefreshPeriod)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
 	return &BlockingResolver{

@@ -2,6 +2,7 @@ package lists
 
 import (
 	"blocky/helpertest"
+	"fmt"
 	"os"
 	"testing"
 
@@ -16,7 +17,7 @@ func Test_NoMatch_With_Empty_List(t *testing.T) {
 		"gr1": {file1.Name()},
 	}
 
-	sut := NewListCache(lists, 0)
+	sut := NewListCache(BLACKLIST, lists, 0)
 
 	found, group := sut.Match("google.com", []string{"gr1"})
 	assert.Equal(t, false, found)
@@ -38,7 +39,7 @@ func Test_Match_Download_Multiple_Groups(t *testing.T) {
 		"gr2": {server3.URL},
 	}
 
-	sut := NewListCache(lists, 0)
+	sut := NewListCache(BLACKLIST, lists, 0)
 
 	found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
 	assert.Equal(t, true, found)
@@ -69,7 +70,7 @@ func Test_Match_Download_No_Group(t *testing.T) {
 		"withDeadLink": {"http://wrong.host.name"},
 	}
 
-	sut := NewListCache(lists, 0)
+	sut := NewListCache(BLACKLIST, lists, 0)
 
 	found, group := sut.Match("blocked1.com", []string{})
 	assert.Equal(t, false, found)
@@ -91,7 +92,7 @@ func Test_Match_Files_Multiple_Groups(t *testing.T) {
 		"gr2": {"file://" + file3.Name()},
 	}
 
-	sut := NewListCache(lists, 0)
+	sut := NewListCache(BLACKLIST, lists, 0)
 
 	found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
 	assert.Equal(t, true, found)
@@ -106,12 +107,46 @@ func Test_Match_Files_Multiple_Groups(t *testing.T) {
 	assert.Equal(t, "gr2", group)
 }
 
+func BenchmarkRefresh(b *testing.B) {
+	count := 10000
+
+	var s string
+
+	for c := 0; c < count; c++ {
+		s = fmt.Sprintf("%sblocked%d.com\n", s, c)
+	}
+
+	file1 := helpertest.TempFile(s)
+	defer os.Remove(file1.Name())
+
+	file2 := helpertest.TempFile(s)
+	defer os.Remove(file2.Name())
+
+	lists := map[string][]string{
+		"gr1": {file1.Name(), file2.Name()},
+	}
+
+	sut := NewListCache(BLACKLIST, lists, 0)
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		sut.refresh()
+	}
+
+	found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
+	assert.Equal(b, true, found)
+	assert.Equal(b, "gr1", group)
+
+	assert.Len(b, sut.groupCaches["gr1"], count)
+}
+
 func Test_Configuration(t *testing.T) {
 	lists := map[string][]string{
 		"gr1": {"file1", "file2"},
 	}
 
-	sut := NewListCache(lists, 0)
+	sut := NewListCache(BLACKLIST, lists, 0)
 
 	c := sut.Configuration()
 

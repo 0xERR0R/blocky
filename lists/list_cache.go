@@ -1,6 +1,7 @@
 package lists
 
 import (
+	"blocky/metrics"
 	"bufio"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
 
@@ -19,6 +21,21 @@ const (
 	timeout              = 30 * time.Second
 	defaultRefreshPeriod = 4 * time.Hour
 )
+
+type ListCacheType int
+
+const (
+	BLACKLIST ListCacheType = iota
+	WHITELIST
+)
+
+func (l ListCacheType) String() string {
+	names := [...]string{
+		"blacklist",
+		"whitelist"}
+
+	return names[l]
+}
 
 type Matcher interface {
 	// matches passed domain name against cached list entries
@@ -34,6 +51,8 @@ type ListCache struct {
 
 	groupToLinks  map[string][]string
 	refreshPeriod time.Duration
+
+	counter *prometheus.GaugeVec
 }
 
 func (b *ListCache) Configuration() (result []string) {
@@ -65,24 +84,7 @@ func (b *ListCache) Configuration() (result []string) {
 	return
 }
 
-// removes duplicates
-func unique(in []string) []string {
-	keys := make(map[string]bool)
-
-	var list []string
-
-	for _, entry := range in {
-		if _, value := keys[entry]; !value {
-			keys[entry] = true
-
-			list = append(list, entry)
-		}
-	}
-
-	return list
-}
-
-func NewListCache(groupToLinks map[string][]string, refreshPeriod int) *ListCache {
+func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod int) *ListCache {
 	groupCaches := make(map[string][]string)
 
 	p := time.Duration(refreshPeriod) * time.Minute
@@ -90,10 +92,24 @@ func NewListCache(groupToLinks map[string][]string, refreshPeriod int) *ListCach
 		p = defaultRefreshPeriod
 	}
 
+	var counter *prometheus.GaugeVec
+
+	if metrics.IsEnabled() {
+		counter = prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: fmt.Sprintf("blocky_%s_cache", t),
+				Help: "Number of entries in cache",
+			}, []string{"group"},
+		)
+
+		metrics.RegisterMetric(counter)
+	}
+
 	b := &ListCache{
 		groupToLinks:  groupToLinks,
 		groupCaches:   groupCaches,
 		refreshPeriod: p,
+		counter:       counter,
 	}
 	b.refresh()
 
@@ -121,7 +137,9 @@ func logger() *logrus.Entry {
 
 // downloads and reads files with domain names and creates cache for them
 func createCacheForGroup(links []string) []string {
-	cache := make([]string, 0)
+	var cache []string
+
+	keys := make(map[string]bool)
 
 	var wg sync.WaitGroup
 
@@ -139,14 +157,18 @@ Loop:
 	for {
 		select {
 		case res := <-c:
-			cache = append(cache, res...)
+			for _, entry := range res {
+				if _, value := keys[entry]; !value {
+					keys[entry] = true
+					cache = append(cache, entry)
+				}
+			}
 		default:
 			close(c)
 			break Loop
 		}
 	}
 
-	cache = unique(cache)
 	sort.Strings(cache)
 
 	return cache
@@ -180,6 +202,10 @@ func (b *ListCache) refresh() {
 
 	for group, links := range b.groupToLinks {
 		b.groupCaches[group] = createCacheForGroup(links)
+
+		if metrics.IsEnabled() {
+			b.counter.WithLabelValues(group).Set(float64(len(b.groupCaches[group])))
+		}
 
 		logger().WithFields(logrus.Fields{
 			"group":       group,
@@ -216,7 +242,7 @@ func readFile(file string) (io.ReadCloser, error) {
 func processFile(link string, ch chan<- []string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	result := make([]string, 0)
+	var result []string
 
 	var r io.ReadCloser
 
@@ -243,6 +269,7 @@ func processFile(link string, ch chan<- []string, wg *sync.WaitGroup) {
 		// skip comments
 		if !strings.HasPrefix(line, "#") {
 			result = append(result, processLine(line))
+
 			count++
 		}
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
@@ -14,6 +15,7 @@ type Request struct {
 	ClientNames []string
 	Req         *dns.Msg
 	Log         *logrus.Entry
+	RequestTs   time.Time
 }
 
 type ResponseType int
@@ -25,6 +27,17 @@ const (
 	CONDITIONAL
 	CUSTOMDNS
 )
+
+func (r ResponseType) String() string {
+	names := [...]string{
+		"RESOLVED",
+		"CACHED",
+		"BLOCKED",
+		"CONDITIONAL",
+		"CUSTOMDNS"}
+
+	return names[r]
+}
 
 type Response struct {
 	Res    *dns.Msg

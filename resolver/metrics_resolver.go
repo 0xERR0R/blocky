@@ -2,57 +2,114 @@ package resolver
 
 import (
 	"blocky/config"
+	"blocky/metrics"
+	"blocky/util"
 	"fmt"
+	"strings"
+	"time"
+
+	"github.com/miekg/dns"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // MetricsResolver resolver that records metrics about requests/response
 type MetricsResolver struct {
 	NextResolver
-	cfg     config.PrometheusConfig
-	metrics Metrics
-}
-
-func (m MetricsResolver) handleMetrics(req *Request, resp *Response) {
-	if m.cfg.Enable {
-		m.metrics.RecordStats(req, resp)
-	}
+	cfg               config.PrometheusConfig
+	totalQueries      *prometheus.CounterVec
+	totalResponse     *prometheus.CounterVec
+	totalErrors       prometheus.Counter
+	durationHistogram *prometheus.HistogramVec
 }
 
 // Resolve resolves the passed request
-func (m MetricsResolver) Resolve(req *Request) (*Response, error) {
-	resp, err := m.next.Resolve(req)
+func (m *MetricsResolver) Resolve(request *Request) (*Response, error) {
+	response, err := m.next.Resolve(request)
 
-	m.handleMetrics(req, resp)
+	if m.cfg.Enable {
+		m.totalQueries.With(prometheus.Labels{
+			"client": strings.Join(request.ClientNames, ","),
+			"type":   util.QTypeToString()(request.Req.Question[0].Qtype)}).Inc()
 
-	return resp, err
+		if err != nil {
+			m.totalErrors.Inc()
+		} else {
+			m.totalResponse.With(prometheus.Labels{
+				"reason":        response.Reason,
+				"response_code": dns.RcodeToString[response.Res.Rcode],
+				"response_type": response.rType.String()}).Inc()
+			reqDurationMs := float64(time.Since(request.RequestTs).Milliseconds())
+			m.durationHistogram.WithLabelValues(response.rType.String()).Observe(reqDurationMs)
+		}
+	}
+
+	return response, err
 }
 
 // Configuration gets the config of this resolver in a string slice
-func (m MetricsResolver) Configuration() (result []string) {
+func (m *MetricsResolver) Configuration() (result []string) {
 	result = append(result, "metrics:")
 	result = append(result, fmt.Sprintf("  Enable = %t", m.cfg.Enable))
-	result = append(result, fmt.Sprintf("  Port   = %d", m.cfg.Port))
 	result = append(result, fmt.Sprintf("  Path   = %s", m.cfg.Path))
 
 	return
 }
 
-func (m MetricsResolver) String() string {
-	return "metrics resolver"
+// NewMetricsResolver creates a new intance of the MetricsResolver type
+func NewMetricsResolver(cfg config.PrometheusConfig) ChainedResolver {
+	durationHistogram := durationHistogram()
+	totalQueries := totalQueriesMetric()
+	totalResponse := totalResponseMetric()
+	totalErrors := totalErrorMetric()
+
+	metrics.RegisterMetric(durationHistogram)
+	metrics.RegisterMetric(totalQueries)
+	metrics.RegisterMetric(totalResponse)
+	metrics.RegisterMetric(totalErrors)
+
+	return &MetricsResolver{
+		cfg:               cfg,
+		durationHistogram: durationHistogram,
+		totalQueries:      totalQueries,
+		totalResponse:     totalResponse,
+		totalErrors:       totalErrors,
+	}
 }
 
-// NewMetricsResolver creates a new intance of the MetricsResolver type
-func NewMetricsResolver(cfg config.PrometheusConfig) MetricsResolver {
-	if cfg.Path == "" {
-		cfg.Path = "/metrics"
-	}
+func totalQueriesMetric() *prometheus.CounterVec {
+	return prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "blocky_query_total",
+			Help: "Number of total queries",
+		}, []string{"client", "type"},
+	)
+}
 
-	if cfg.Port == 0 {
-		cfg.Port = 4000
-	}
+func totalErrorMetric() prometheus.Counter {
+	return prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "blocky_error_total",
+			Help: "Number of total errors",
+		},
+	)
+}
 
-	metrics := NewMetrics(cfg)
-	metrics.Start()
+func durationHistogram() *prometheus.HistogramVec {
+	return prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "blocky_request_duration_ms",
+			Help:    "Request duration distribution",
+			Buckets: []float64{5, 10, 20, 30, 50, 75, 100, 200, 500, 1000, 2000},
+		},
+		[]string{"response_type"},
+	)
+}
 
-	return MetricsResolver{cfg: cfg, metrics: metrics}
+func totalResponseMetric() *prometheus.CounterVec {
+	return prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "blocky_response_total",
+			Help: "Number of total responses",
+		}, []string{"reason", "response_code", "response_type"},
+	)
 }
