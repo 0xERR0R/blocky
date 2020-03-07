@@ -64,6 +64,8 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		if err != nil {
 			logger().Fatalf("start http listener on port %d failed: %v", cfg.HTTPPort, err)
 		}
+
+		metrics.Start(cfg.Prometheus)
 	}
 
 	queryResolver := resolver.Chain(
@@ -92,8 +94,6 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	udpHandler.HandleFunc("healthcheck.blocky", server.OnHealthCheck)
 	tcpHandler.HandleFunc(".", server.OnRequest)
 	tcpHandler.HandleFunc("healthcheck.blocky", server.OnHealthCheck)
-
-	metrics.Start(cfg.Prometheus)
 
 	return &server, nil
 }
