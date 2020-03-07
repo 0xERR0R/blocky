@@ -1,11 +1,14 @@
 package lists
 
 import (
+	"blocky/config"
 	"blocky/helpertest"
+	"blocky/metrics"
 	"fmt"
 	"os"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,7 +28,7 @@ func Test_NoMatch_With_Empty_List(t *testing.T) {
 }
 
 func Test_Match_Download_Multiple_Groups(t *testing.T) {
-	server1 := helpertest.TestServer("blocked1.com\nblocked1a.com")
+	server1 := helpertest.TestServer("blocked1.com\nblocked1a.com\n192.168.178.55")
 	defer server1.Close()
 
 	server2 := helpertest.TestServer("blocked2.com")
@@ -75,6 +78,25 @@ func Test_Match_Download_No_Group(t *testing.T) {
 	found, group := sut.Match("blocked1.com", []string{})
 	assert.Equal(t, false, found)
 	assert.Equal(t, "", group)
+}
+
+func Test_Match_Download_WithMetrics(t *testing.T) {
+	metrics.Start(config.PrometheusConfig{Enable: true, Path: "/metrics"})
+
+	server1 := helpertest.TestServer("blocked1.com\nblocked1a.com")
+	defer server1.Close()
+
+	lists := map[string][]string{
+		"gr1": {server1.URL},
+	}
+
+	sut := NewListCache(BLACKLIST, lists, 0)
+
+	found, group := sut.Match("blocked1.com", []string{})
+	assert.Equal(t, false, found)
+	assert.Equal(t, "", group)
+
+	assert.Equal(t, float64(2), testutil.ToFloat64(sut.counter))
 }
 
 func Test_Match_Files_Multiple_Groups(t *testing.T) {
@@ -141,7 +163,7 @@ func BenchmarkRefresh(b *testing.B) {
 	assert.Len(b, sut.groupCaches["gr1"], count)
 }
 
-func Test_Configuration(t *testing.T) {
+func Test_Configuration_RefreshEnabled(t *testing.T) {
 	lists := map[string][]string{
 		"gr1": {"file1", "file2"},
 	}
@@ -151,4 +173,16 @@ func Test_Configuration(t *testing.T) {
 	c := sut.Configuration()
 
 	assert.Len(t, c, 8)
+}
+
+func Test_Configuration_RefreshDisabled(t *testing.T) {
+	lists := map[string][]string{
+		"gr1": {"file1", "file2"},
+	}
+
+	sut := NewListCache(BLACKLIST, lists, -1)
+
+	c := sut.Configuration()
+
+	assert.Equal(t, "refresh: disabled", c[0])
 }

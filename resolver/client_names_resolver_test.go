@@ -3,6 +3,7 @@ package resolver
 import (
 	"blocky/config"
 	"blocky/util"
+	"errors"
 	"fmt"
 	"net"
 	"sync/atomic"
@@ -27,7 +28,7 @@ func TestClientNamesFromUpstream(t *testing.T) {
 		return response
 	})
 
-	sut := NewClientNamesResolver(config.ClientLookupConfig{Upstream: upstream})
+	sut := NewClientNamesResolver(config.ClientLookupConfig{Upstream: upstream}).(*ClientNamesResolver)
 	m := &resolverMock{}
 	m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 	sut.Next(m)
@@ -51,6 +52,22 @@ func TestClientNamesFromUpstream(t *testing.T) {
 
 	// use cache -> call count 1
 	assert.Equal(t, 1, callCount)
+
+	m.AssertExpectations(t)
+	assert.NoError(t, err)
+	assert.Len(t, request.ClientNames, 1)
+	assert.Equal(t, "myhost", request.ClientNames[0])
+
+	// reset cache
+	sut.FlushCache()
+
+	// third request
+	request = &Request{ClientIP: net.ParseIP("192.168.178.25"),
+		Log: logrus.NewEntry(logrus.New())}
+	_, err = sut.Resolve(request)
+
+	// no cache -> call count 2
+	assert.Equal(t, 2, callCount)
 
 	m.AssertExpectations(t)
 	assert.NoError(t, err)
@@ -181,6 +198,25 @@ func TestClientInfoFromUpstreamNotFound(t *testing.T) {
 	})
 
 	sut := NewClientNamesResolver(config.ClientLookupConfig{Upstream: upstream})
+	m := &resolverMock{}
+	m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
+	sut.Next(m)
+
+	request := &Request{ClientIP: net.ParseIP("192.168.178.25"),
+		Log: logrus.NewEntry(logrus.New())}
+	_, err := sut.Resolve(request)
+
+	assert.NoError(t, err)
+	assert.Len(t, request.ClientNames, 1)
+	assert.Equal(t, "192.168.178.25", request.ClientNames[0])
+}
+
+func TestClientInfoFromUpstreamError(t *testing.T) {
+	sut := NewClientNamesResolver(config.ClientLookupConfig{}).(*ClientNamesResolver)
+	clientResolverMock := &resolverMock{}
+	clientResolverMock.On("Resolve", mock.Anything).Return(nil, errors.New("error"))
+	sut.externalResolver = clientResolverMock
+
 	m := &resolverMock{}
 	m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 	sut.Next(m)
