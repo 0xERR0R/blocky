@@ -229,7 +229,8 @@ func TestDnsRequest(t *testing.T) {
 			Upstream: upstreamClient,
 		},
 
-		Port: 55555,
+		Port:     55555,
+		HTTPPort: 4000,
 	})
 
 	assert.NoError(t, err)
