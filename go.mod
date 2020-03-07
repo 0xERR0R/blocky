@@ -1,6 +1,6 @@
 module blocky
 
-go 1.13
+go 1.14
 
 require (
 	github.com/go-openapi/strfmt v0.19.4 // indirect
