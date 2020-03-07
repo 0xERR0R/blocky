@@ -180,8 +180,6 @@ func NewConfig() Config {
 		log.Fatal("wrong file structure: ", err)
 	}
 
-	fmt.Print(cfg.Port)
-
 	return cfg
 }
 
