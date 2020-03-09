@@ -116,8 +116,6 @@ clientLookup:
 prometheus:
   # enabled if true
   enable: true
-  # port, optional (default 4000)
-  port: 4000
   # url path, optional (default '/metrics')
   path: /metrics
   
