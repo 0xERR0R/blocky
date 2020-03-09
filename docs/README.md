@@ -158,7 +158,7 @@ services:
 ```
 
 ### Run standalone
-Download binary file for your architecture, put it in one directory with config file. Please be aware, you must run the binary with root privileges if you want to use port 53 or 953.
+Download binary file for your architecture and run `./blocky --config config.yml`. Please be aware, you must run the binary with root privileges if you want to use port 53 or 953.
 
 ### Run with kubernetes (helm)
 See [this repo](https://github.com/billimek/billimek-charts/tree/master/charts/blocky) or [the helm hub site](https://hub.helm.sh/charts/billimek/blocky) for details about running blocky via helm in kubernetes.

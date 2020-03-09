@@ -165,11 +165,11 @@ type QueryLogConfig struct {
 	LogRetentionDays uint64 `yaml:"logRetentionDays"`
 }
 
-func NewConfig() Config {
+func NewConfig(path string) Config {
 	cfg := Config{}
 	setDefaultValues(&cfg)
 
-	data, err := ioutil.ReadFile("config.yml")
+	data, err := ioutil.ReadFile(path)
 
 	if err != nil {
 		log.Fatal("Can't read config file: ", err)

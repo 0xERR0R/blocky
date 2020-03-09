@@ -15,7 +15,7 @@ func Test_NewConfig(t *testing.T) {
 	err := os.Chdir("../testdata")
 	assert.NoError(t, err)
 
-	cfg := NewConfig()
+	cfg := NewConfig("config.yml")
 
 	assert.Equal(t, uint16(55555), cfg.Port)
 	assert.Len(t, cfg.Upstream.ExternalResolvers, 3)
@@ -49,7 +49,7 @@ func Test_NewConfig_Malformed(t *testing.T) {
 
 	logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
 
-	_ = NewConfig()
+	_ = NewConfig("config.yml")
 
 	assert.True(t, fatal)
 }
@@ -63,7 +63,7 @@ func Test_NewConfig_FileDoesNotExist(t *testing.T) {
 	var fatal bool
 
 	logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
-	_ = NewConfig()
+	_ = NewConfig("config.yml")
 
 	assert.True(t, fatal)
 }

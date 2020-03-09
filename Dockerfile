@@ -34,8 +34,6 @@ COPY --from=build-env /usr/share/zoneinfo /usr/share/zoneinfo
 # the tls certificates:
 COPY --from=build-env /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-WORKDIR /app
-
 HEALTHCHECK --interval=1m --timeout=3s CMD dig @127.0.0.1 -p 53 healthcheck.blocky +tcp || exit 1
 
-ENTRYPOINT ["/app/blocky"]
+ENTRYPOINT ["/app/blocky","--config","/app/config.yml"]

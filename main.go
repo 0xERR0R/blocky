@@ -3,6 +3,7 @@ package main
 import (
 	"blocky/config"
 	"blocky/server"
+	"flag"
 	"os"
 	"os/signal"
 	"syscall"
@@ -20,7 +21,10 @@ var version = "undefined"
 var buildTime = "undefined"
 
 func main() {
-	cfg := config.NewConfig()
+	configPath := flag.String("config", "./config.yml", "Path to config file.")
+	flag.Parse()
+
+	cfg := config.NewConfig(*configPath)
 	configureLog(&cfg)
 
 	printBanner()
