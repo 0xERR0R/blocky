@@ -82,7 +82,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "up{job=\"blocky\"}",
+          "expr": "sum(up{job=\"blocky\"})",
           "instant": true,
           "refId": "A"
         }
@@ -345,7 +345,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "go_memstats_sys_bytes{job=\"blocky\"}",
+          "expr": "sum(go_memstats_sys_bytes{job=\"blocky\"})/sum(up{job=\"blocky\"})",
           "instant": false,
           "refId": "A"
         }
@@ -517,7 +517,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "sum(blocky_blacklist_cache)",
+          "expr": "sum(blocky_blacklist_cache) / sum(up{job=\"blocky\"})",
           "instant": false,
           "refId": "A"
         }
@@ -603,7 +603,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "increase(blocky_error_total[24h])",
+          "expr": "sum(increase(blocky_error_total[24h]))",
           "instant": false,
           "refId": "A"
         }
@@ -958,7 +958,7 @@
       "strokeWidth": 1,
       "targets": [
         {
-          "expr": "sort_desc(blocky_blacklist_cache)",
+          "expr": "topk(1, blocky_blacklist_cache) by (group)",
           "instant": true,
           "legendFormat": "{{ group }}",
           "refId": "A"
