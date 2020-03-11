@@ -3,10 +3,15 @@ package main
 import (
 	"blocky/config"
 	"blocky/server"
+	"context"
 	"flag"
+	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
 
@@ -29,6 +34,8 @@ func main() {
 
 	printBanner()
 
+	configureHTTPClient(&cfg)
+
 	signals := make(chan os.Signal)
 	done := make(chan bool)
 
@@ -49,6 +56,34 @@ func main() {
 	}()
 
 	<-done
+}
+
+func configureHTTPClient(cfg *config.Config) {
+	if cfg.BootstrapDNS != (config.Upstream{}) {
+		if cfg.BootstrapDNS.Net == "tcp" || cfg.BootstrapDNS.Net == "udp" {
+			dns := net.JoinHostPort(cfg.BootstrapDNS.Host, fmt.Sprint(cfg.BootstrapDNS.Port))
+			log.Debugf("using %s as bootstrap dns server", dns)
+
+			r := &net.Resolver{
+				PreferGo: true,
+				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+					d := net.Dialer{
+						Timeout: time.Millisecond * time.Duration(2000),
+					}
+					return d.DialContext(ctx, cfg.BootstrapDNS.Net, dns)
+				}}
+
+			http.DefaultTransport = &http.Transport{
+				Dial: (&net.Dialer{
+					Timeout:  5 * time.Second,
+					Resolver: r,
+				}).Dial,
+				TLSHandshakeTimeout: 5 * time.Second,
+			}
+		} else {
+			log.Fatal("bootstrap dns net should be udp or tcs")
+		}
+	}
 }
 
 func configureLog(cfg *config.Config) {

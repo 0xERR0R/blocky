@@ -121,6 +121,7 @@ type Config struct {
 	LogLevel     string                    `yaml:"logLevel"`
 	Port         uint16                    `yaml:"port"`
 	HTTPPort     uint16                    `yaml:"httpPort"`
+	BootstrapDNS Upstream                  `yaml:"bootstrapDns"`
 }
 
 // PrometheusConfig contains the config values for prometheus

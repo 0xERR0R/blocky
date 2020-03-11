@@ -132,6 +132,8 @@ queryLog:
 port: 53
 # optional: HTTP listener port, default 0 = no http listener. If > 0, will be used for prometheus metrics, pprof, ...
 httpPort: 4000
+# optional: use this DNS server to resolve blacklist urls and upstream DNS servers (DOH). Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp
+bootstrapDns: tcp:1.1.1.1
 # optional: Log level (one from debug, info, warn, error). Default: info
 logLevel: info
 ```
