@@ -132,6 +132,7 @@
         "x": 3,
         "y": 0
       },
+      "hideTimeOverride": true,
       "id": 4,
       "interval": null,
       "links": [],
@@ -179,7 +180,7 @@
         }
       ],
       "thresholds": "",
-      "timeFrom": null,
+      "timeFrom": "24h",
       "timeShift": null,
       "title": "Query Count Total 24h",
       "transparent": true,
@@ -820,9 +821,9 @@
           "refId": "A"
         }
       ],
-      "timeFrom": null,
+      "timeFrom": "24h",
       "timeShift": null,
-      "title": "Response Reasons 24h",
+      "title": "Response Reasons",
       "transparent": true,
       "type": "grafana-piechart-panel",
       "valueName": "current"
@@ -845,7 +846,7 @@
         "y": 12
       },
       "id": 38,
-      "interval": null,
+      "interval": "",
       "legend": {
         "percentage": true,
         "percentageDecimals": 1,
@@ -868,9 +869,9 @@
           "refId": "A"
         }
       ],
-      "timeFrom": null,
+      "timeFrom": "24h",
       "timeShift": null,
-      "title": "Response Type 24h",
+      "title": "Response Type",
       "transparent": true,
       "type": "grafana-piechart-panel",
       "valueName": "total"
@@ -917,9 +918,9 @@
           "refId": "A"
         }
       ],
-      "timeFrom": null,
+      "timeFrom": "24h",
       "timeShift": null,
-      "title": "Query by type 24h",
+      "title": "Query by type",
       "transparent": true,
       "type": "grafana-piechart-panel",
       "valueName": "total"
@@ -1012,9 +1013,9 @@
           "refId": "A"
         }
       ],
-      "timeFrom": null,
+      "timeFrom": "24h",
       "timeShift": null,
-      "title": "Response status 24h",
+      "title": "Response status",
       "transparent": true,
       "type": "grafana-piechart-panel",
       "valueName": "current"
@@ -1062,9 +1063,9 @@
           "refId": "A"
         }
       ],
-      "timeFrom": null,
+      "timeFrom": "24h",
       "timeShift": null,
-      "title": "Query per Client 24h",
+      "title": "Query per Client",
       "transparent": true,
       "type": "grafana-piechart-panel",
       "valueName": "current"
@@ -1078,7 +1079,7 @@
     "list": []
   },
   "time": {
-    "from": "now-12h",
+    "from": "now-24h",
     "to": "now"
   },
   "timepicker": {
@@ -1098,5 +1099,5 @@
   "timezone": "",
   "title": "blocky",
   "uid": "XMTgFM_Zk",
-  "version": 24
+  "version": 28
 }
