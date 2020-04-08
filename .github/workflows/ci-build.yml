@@ -23,18 +23,18 @@ jobs:
             curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
             dep ensure
         fi
-        
+
     - name: Install golangci-lint
       run: curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b $(go env GOPATH)/bin v1.21.0
 
-    - name: Run golangci-lint
-      run: make lint
+    - name: Build
+      run: make tools build
 
     - name: Test
-      run: make test    
+      run: make test
 
-    - name: Build
-      run: make build
+    - name: Run golangci-lint
+      run: make lint
 
     - name: Docker images
       run: make docker-build

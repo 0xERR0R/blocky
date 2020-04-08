@@ -1,4 +1,4 @@
-.PHONY: all clean build test lint run buildMultiArchRelease docker-buildx-push help
+.PHONY: all tools clean build test lint run buildMultiArchRelease docker-buildx-push help
 .DEFAULT_GOAL := help
 
 VERSION := $(shell git describe --always --tags)
@@ -7,18 +7,23 @@ DOCKER_IMAGE_NAME="spx01/blocky"
 BINARY_NAME=blocky
 BIN_OUT_DIR=bin
 
+tools: ## prepare build tools
+	mkdir -p ~/.docker && echo "{\"experimental\": \"enabled\"}" > ~/.docker/config.json
+	go get github.com/swaggo/swag/cmd/swag
+
 all: test lint build ## Build binary (with tests)
 
 clean: ## cleans output directory
 	$(shell rm -rf $(BIN_OUT_DIR)/*)
 
 build:  ## Build binary
-	go build -v -ldflags="-w -s -X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}" -o $(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
+	$(shell go env GOPATH)/bin/swag init -g api/api.go
+	go build -v -ldflags="-w -s -X blocky/cmd.version=${VERSION} -X blocky/cmd.buildTime=${BUILD_TIME}" -o $(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 
 test:  ## run tests
 	go test -v -coverprofile=coverage.txt -covermode=atomic -cover ./...
 
-lint: ## run golangcli-lint checks
+lint: build ## run golangcli-lint checks
 	$(shell go env GOPATH)/bin/golangci-lint run
 
 run: build ## Build and run binary

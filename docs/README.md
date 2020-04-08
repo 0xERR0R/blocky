@@ -10,7 +10,7 @@
 
 
 <p align="center">
-  <img height="200" src="blocky.svg">
+  <img height="200" src="https://github.com/0xERR0R/blocky/blob/master/docs/blocky.svg">
 </p>
 
 # Blocky
@@ -130,7 +130,7 @@ queryLog:
   
 # optional: DNS listener port, default 53 (UDP and TCP)
 port: 53
-# optional: HTTP listener port, default 0 = no http listener. If > 0, will be used for prometheus metrics, pprof, ...
+# optional: HTTP listener port, default 0 = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, ...
 httpPort: 4000
 # optional: use this DNS server to resolve blacklist urls and upstream DNS servers (DOH). Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp
 bootstrapDns: tcp:1.1.1.1
@@ -165,11 +165,23 @@ Download binary file for your architecture and run `./blocky --config config.yml
 ### Run with kubernetes (helm)
 See [this repo](https://github.com/billimek/billimek-charts/tree/master/charts/blocky) or [the helm hub site](https://hub.helm.sh/charts/billimek/blocky) for details about running blocky via helm in kubernetes.
 
+## CLI / REST API
+If http listener is enabled, blocky provides REST API to control blocking status. Swagger documentation under `http://host:port/swagger`
+
+To run CLI, please ensure, that blocky DNS server is running, than execute `blocky help` for help or
+- `./blocky blocking enable` to enable blocking
+- `./blocky blocking disable` to disable blocking
+- `./blocky blocking disable --duration [duration]` to disable blocking for a certain amount of time (30s, 5m, 10m30s, ...)
+- `./blocky blocking status` to print current status of blocking
+
+To run this inside docker run `docker exec blocky ./blocky blocking status`
+
 ## Additional information
 
 ### Prometheus
 Blocky can export metrics for prometheus. Example grafana dashboard definition [as JSON](blocky-grafana.json)
-![grafana-dashboard](grafana-dashboard.png)
+![grafana-dashboard](grafana-dashboard.png). Please install `grafana-piechart-panel` and set [disable-sanitize-html](https://grafana.com/docs/grafana/latest/installation/configuration/#disable-sanitize-html) in config or as env to use control buttons to enable/disable the blocking status.
+
 
 Following metrics are being exported:
 

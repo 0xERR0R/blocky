@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"blocky/config"
-	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -38,8 +37,6 @@ func (r *resolverMock) Resolve(req *Request) (*Response, error) {
 func TestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg),
 	reqFn ...func(w http.ResponseWriter)) config.Upstream {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("here")
-
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			log.Fatal("can't read request: ", err)

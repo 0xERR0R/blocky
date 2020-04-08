@@ -2,8 +2,8 @@ package metrics
 
 import (
 	"blocky/config"
-	"net/http"
 
+	"github.com/go-chi/chi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -18,13 +18,13 @@ func RegisterMetric(c prometheus.Collector) {
 	_ = reg.Register(c)
 }
 
-func Start(cfg config.PrometheusConfig) {
+func Start(router *chi.Mux, cfg config.PrometheusConfig) {
 	enabled = cfg.Enable
 
 	if cfg.Enable {
 		reg.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
 		reg.MustRegister(prometheus.NewGoCollector())
-		http.Handle(cfg.Path, promhttp.InstrumentMetricHandler(reg,
+		router.Handle(cfg.Path, promhttp.InstrumentMetricHandler(reg,
 			promhttp.HandlerFor(reg, promhttp.HandlerOpts{})))
 	}
 }

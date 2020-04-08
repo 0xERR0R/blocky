@@ -4,7 +4,6 @@ import (
 	"blocky/config"
 	"blocky/util"
 	"crypto/tls"
-	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -186,7 +185,6 @@ func Test_Resolve_UpstreamTimeout(t *testing.T) {
 		counter++
 		// timeout on first x attempts
 		if counter <= attemptsWithTimeout {
-			fmt.Print("timeout")
 			time.Sleep(110 * time.Millisecond)
 		}
 		response, err := util.NewMsgWithAnswer("example.com 123 IN A 123.124.122.122")

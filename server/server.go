@@ -2,25 +2,30 @@ package server
 
 import (
 	"blocky/config"
+	"blocky/docs"
 	"blocky/metrics"
 	"blocky/resolver"
+	"blocky/web"
+	"html/template"
 	"net/http"
+	"syscall"
 
-	// nolint
-	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
 	"runtime/debug"
-	"syscall"
 	"time"
 
 	"blocky/util"
 	"fmt"
 	"net"
 
+	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
+	"github.com/go-chi/cors"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 type Server struct {
@@ -29,6 +34,7 @@ type Server struct {
 	httpListener  net.Listener
 	queryResolver resolver.Resolver
 	cfg           *config.Config
+	httpMux       *chi.Mux
 }
 
 func logger() *logrus.Entry {
@@ -57,15 +63,15 @@ func NewServer(cfg *config.Config) (*Server, error) {
 
 	var httpListener net.Listener
 
+	router := createRouter(cfg)
+
 	if cfg.HTTPPort > 0 {
 		var err error
-		httpListener, err = net.Listen("tcp", fmt.Sprintf(":%d", cfg.HTTPPort))
-
-		if err != nil {
+		if httpListener, err = net.Listen("tcp", fmt.Sprintf(":%d", cfg.HTTPPort)); err != nil {
 			logger().Fatalf("start http listener on port %d failed: %v", cfg.HTTPPort, err)
 		}
 
-		metrics.Start(cfg.Prometheus)
+		metrics.Start(router, cfg.Prometheus)
 	}
 
 	queryResolver := resolver.Chain(
@@ -75,7 +81,7 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		resolver.NewMetricsResolver(cfg.Prometheus),
 		resolver.NewConditionalUpstreamResolver(cfg.Conditional),
 		resolver.NewCustomDNSResolver(cfg.CustomDNS),
-		resolver.NewBlockingResolver(cfg.Blocking),
+		resolver.NewBlockingResolver(router, cfg.Blocking),
 		resolver.NewCachingResolver(cfg.Caching),
 		resolver.NewParallelBestResolver(cfg.Upstream),
 	)
@@ -86,16 +92,80 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		queryResolver: queryResolver,
 		cfg:           cfg,
 		httpListener:  httpListener,
+		httpMux:       router,
 	}
 
 	server.printConfiguration()
 
-	udpHandler.HandleFunc(".", server.OnRequest)
-	udpHandler.HandleFunc("healthcheck.blocky", server.OnHealthCheck)
-	tcpHandler.HandleFunc(".", server.OnRequest)
-	tcpHandler.HandleFunc("healthcheck.blocky", server.OnHealthCheck)
+	server.registerDNSHandlers(udpHandler)
+	server.registerDNSHandlers(tcpHandler)
 
 	return &server, nil
+}
+
+func (s *Server) registerDNSHandlers(handler *dns.ServeMux) {
+	handler.HandleFunc(".", s.OnRequest)
+	handler.HandleFunc("healthcheck.blocky", s.OnHealthCheck)
+}
+
+func createRouter(cfg *config.Config) *chi.Mux {
+	router := chi.NewRouter()
+
+	cors := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	})
+	router.Use(cors.Handler)
+
+	router.Mount("/debug", middleware.Profiler())
+
+	router.Get("/swagger/*", func(writer http.ResponseWriter, request *http.Request) {
+		// set swagger host with host from request
+		docs.SwaggerInfo.Host = request.Host
+		swaggerHandler := httpSwagger.Handler(
+			httpSwagger.URL(fmt.Sprintf("http://%s/swagger/doc.json", request.Host)),
+		)
+		swaggerHandler.ServeHTTP(writer, request)
+	})
+
+	router.Get("/", func(writer http.ResponseWriter, request *http.Request) {
+		t := template.New("index")
+		_, _ = t.Parse(web.IndexTmpl)
+
+		type HandlerLink struct {
+			URL   string
+			Title string
+		}
+		var links = []HandlerLink{
+			{
+				URL:   fmt.Sprintf("http://%s/swagger/", request.Host),
+				Title: "Swagger Rest API Documentation",
+			},
+			{
+				URL:   fmt.Sprintf("http://%s/debug/", request.Host),
+				Title: "Go Profiler",
+			},
+		}
+
+		if cfg.Prometheus.Enable {
+			links = append(links, HandlerLink{
+				URL:   fmt.Sprintf("http://%s%s", request.Host, cfg.Prometheus.Path),
+				Title: "Prometheus endpoint",
+			})
+		}
+
+		err := t.Execute(writer, links)
+		if err != nil {
+			logrus.Error("can't write index template: ", err)
+			writer.WriteHeader(http.StatusInternalServerError)
+		}
+	})
+
+	return router
 }
 
 func (s *Server) printConfiguration() {
@@ -161,7 +231,7 @@ func (s *Server) Start() {
 		if s.httpListener != nil {
 			logger().Infof("http server is up and running on port %d", s.cfg.HTTPPort)
 
-			if err := http.Serve(s.httpListener, nil); err != nil {
+			if err := http.Serve(s.httpListener, s.httpMux); err != nil {
 				logger().Fatalf("start http listener failed: %v", err)
 			}
 		}
@@ -197,7 +267,7 @@ func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
 	r := &resolver.Request{
 		ClientIP:  clientIP,
 		Req:       request,
-		RequestTs: time.Now(),
+		RequestTS: time.Now(),
 		Log: logrus.WithFields(logrus.Fields{
 			"question":  util.QuestionToString(request.Question),
 			"client_ip": clientIP,

@@ -348,7 +348,7 @@ func Test_Stop(t *testing.T) {
 
 func BenchmarkServerExternalResolver(b *testing.B) {
 	upstreamExternal := resolver.TestUDPUpstream(func(request *dns.Msg) (response *dns.Msg) {
-		msg, _ := util.NewMsgWithAnswer(fmt.Sprintf("example.com IN A 123.124.122.122"))
+		msg, _ := util.NewMsgWithAnswer("example.com IN A 123.124.122.122")
 		return msg
 	})
 

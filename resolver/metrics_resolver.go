@@ -38,7 +38,7 @@ func (m *MetricsResolver) Resolve(request *Request) (*Response, error) {
 				"reason":        response.Reason,
 				"response_code": dns.RcodeToString[response.Res.Rcode],
 				"response_type": response.rType.String()}).Inc()
-			reqDurationMs := float64(time.Since(request.RequestTs).Milliseconds())
+			reqDurationMs := float64(time.Since(request.RequestTS).Milliseconds())
 			m.durationHistogram.WithLabelValues(response.rType.String()).Observe(reqDurationMs)
 		}
 	}

@@ -15,7 +15,7 @@ type Request struct {
 	ClientNames []string
 	Req         *dns.Msg
 	Log         *logrus.Entry
-	RequestTs   time.Time
+	RequestTS   time.Time
 }
 
 type ResponseType int

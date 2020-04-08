@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/go-chi/chi"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -81,7 +82,7 @@ func Test_Match_Download_No_Group(t *testing.T) {
 }
 
 func Test_Match_Download_WithMetrics(t *testing.T) {
-	metrics.Start(config.PrometheusConfig{Enable: true, Path: "/metrics"})
+	metrics.Start(chi.NewRouter(), config.PrometheusConfig{Enable: true, Path: "/metrics"})
 
 	server1 := helpertest.TestServer("blocked1.com\nblocked1a.com")
 	defer server1.Close()
