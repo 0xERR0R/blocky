@@ -272,30 +272,48 @@ func (r *BlockingResolver) Configuration() (result []string) {
 	return
 }
 
+func shouldHandle(question dns.Question) bool {
+	return question.Qtype == dns.TypeA || question.Qtype == dns.TypeAAAA
+}
+
+func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
+	request *Request, logger *log.Entry) (*Response, error) {
+	logger.WithField("groupsToCheck", strings.Join(groupsToCheck, "; ")).Debug("checking groups for request")
+	whitelistOnlyAllowed := reflect.DeepEqual(groupsToCheck, r.whitelistOnlyGroups)
+
+	for _, question := range request.Req.Question {
+		if !shouldHandle(question) {
+			return r.next.Resolve(request)
+		}
+
+		domain := util.ExtractDomain(question)
+		logger := logger.WithField("domain", domain)
+
+		if whitelisted, group := r.matches(groupsToCheck, r.whitelistMatcher, domain); whitelisted {
+			logger.WithField("group", group).Debugf("domain is whitelisted")
+			return r.next.Resolve(request)
+		}
+
+		if whitelistOnlyAllowed {
+			return r.handleBlocked(logger, request, question, "BLOCKED (WHITELIST ONLY85.100.115.92)")
+		}
+
+		if blocked, group := r.matches(groupsToCheck, r.blacklistMatcher, domain); blocked {
+			return r.handleBlocked(logger, request, question, fmt.Sprintf("BLOCKED (%s)", group))
+		}
+	}
+
+	return nil, nil
+}
+
 func (r *BlockingResolver) Resolve(request *Request) (*Response, error) {
 	logger := withPrefix(request.Log, "blacklist_resolver")
 	groupsToCheck := r.groupsToCheckForClient(request)
-	whitelistOnlyAllowed := reflect.DeepEqual(groupsToCheck, r.whitelistOnlyGroups)
 
 	if r.status.enabled && len(groupsToCheck) > 0 {
-		logger.WithField("groupsToCheck", strings.Join(groupsToCheck, "; ")).Debug("checking groups for request")
-
-		for _, question := range request.Req.Question {
-			domain := util.ExtractDomain(question)
-			logger := logger.WithField("domain", domain)
-
-			if whitelisted, group := r.matches(groupsToCheck, r.whitelistMatcher, domain); whitelisted {
-				logger.WithField("group", group).Debugf("domain is whitelisted")
-				return r.next.Resolve(request)
-			}
-
-			if whitelistOnlyAllowed {
-				return r.handleBlocked(logger, request, question, "BLOCKED (WHITELIST ONLY85.100.115.92)")
-			}
-
-			if blocked, group := r.matches(groupsToCheck, r.blacklistMatcher, domain); blocked {
-				return r.handleBlocked(logger, request, question, fmt.Sprintf("BLOCKED (%s)", group))
-			}
+		resp, err := r.handleBlacklist(groupsToCheck, request, logger)
+		if resp != nil || err != nil {
+			return resp, err
 		}
 	}
 
