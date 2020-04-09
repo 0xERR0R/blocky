@@ -21,13 +21,6 @@ const (
 	cacheTimeNegative = 30 * time.Minute
 )
 
-type Type uint8
-
-const (
-	A Type = iota
-	AAAA
-)
-
 func NewCachingResolver(cfg config.CachingConfig) ChainedResolver {
 	return &CachingResolver{
 		minCacheTimeSec: 60 * cfg.MinCachingTime,
@@ -75,7 +68,7 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 		domain := util.ExtractDomain(question)
 		logger := logger.WithField("domain", domain)
 
-		// we caching only A and AAAA queries
+		// we can cache only A and AAAA queries
 		if question.Qtype == dns.TypeA || question.Qtype == dns.TypeAAAA {
 			val, expiresAt, found := r.getCache(question.Qtype).GetWithExpiration(domain)
 
