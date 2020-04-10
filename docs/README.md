@@ -194,6 +194,7 @@ Following metrics are being exported:
 | blocky_query_total                | Number of total queries, partitioned by client and DNS request type (A, AAAA, PTR, etc) |
 | blocky_request_duration_ms_bucket | Request duration histogram, partitioned by response type (Blocked, cached, etc)  |
 | blocky_response_total             | Number of responses, partitioned by response type (Blocked, cached, etc), DNS response code, and reason |
+| blocky_blocking_enabled           | 1 if blocking is enabled, 0 otherwise |
 
 
 ### Print current configuration
