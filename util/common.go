@@ -9,20 +9,6 @@ import (
 	"github.com/miekg/dns"
 )
 
-func QTypeToString() func(uint16) string {
-	innerMap := map[uint16]string{
-		dns.TypeA:     "A",
-		dns.TypeAAAA:  "AAAA",
-		dns.TypeCNAME: "CNAME",
-		dns.TypePTR:   "PTR",
-		dns.TypeMX:    "MX",
-	}
-
-	return func(key uint16) string {
-		return innerMap[key]
-	}
-}
-
 func AnswerToString(answer []dns.RR) string {
 	answers := make([]string, len(answer))
 
@@ -47,14 +33,15 @@ func AnswerToString(answer []dns.RR) string {
 func QuestionToString(questions []dns.Question) string {
 	result := make([]string, len(questions))
 	for i, question := range questions {
-		result[i] = fmt.Sprintf("%s (%s)", QTypeToString()(question.Qtype), question.Name)
+		result[i] = fmt.Sprintf("%s (%s)", dns.TypeToString[question.Qtype], question.Name)
 	}
 
 	return strings.Join(result, ", ")
 }
 
 func CreateAnswerFromQuestion(question dns.Question, ip net.IP, remainingTTL uint32) (dns.RR, error) {
-	return dns.NewRR(fmt.Sprintf("%s %d %s %s %s", question.Name, remainingTTL, "IN", QTypeToString()(question.Qtype), ip))
+	return dns.NewRR(fmt.Sprintf("%s %d %s %s %s",
+		question.Name, remainingTTL, "IN", dns.TypeToString[question.Qtype], ip))
 }
 
 func ExtractDomain(question dns.Question) string {

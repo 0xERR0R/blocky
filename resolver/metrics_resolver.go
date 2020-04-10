@@ -3,7 +3,6 @@ package resolver
 import (
 	"blocky/config"
 	"blocky/metrics"
-	"blocky/util"
 	"fmt"
 	"strings"
 	"time"
@@ -29,7 +28,7 @@ func (m *MetricsResolver) Resolve(request *Request) (*Response, error) {
 	if m.cfg.Enable {
 		m.totalQueries.With(prometheus.Labels{
 			"client": strings.Join(request.ClientNames, ","),
-			"type":   util.QTypeToString()(request.Req.Question[0].Qtype)}).Inc()
+			"type":   dns.TypeToString[request.Req.Question[0].Qtype]}).Inc()
 
 		if err != nil {
 			m.totalErrors.Inc()
@@ -37,9 +36,9 @@ func (m *MetricsResolver) Resolve(request *Request) (*Response, error) {
 			m.totalResponse.With(prometheus.Labels{
 				"reason":        response.Reason,
 				"response_code": dns.RcodeToString[response.Res.Rcode],
-				"response_type": response.rType.String()}).Inc()
+				"response_type": response.RType.String()}).Inc()
 			reqDurationMs := float64(time.Since(request.RequestTS).Milliseconds())
-			m.durationHistogram.WithLabelValues(response.rType.String()).Observe(reqDurationMs)
+			m.durationHistogram.WithLabelValues(response.RType.String()).Observe(reqDurationMs)
 		}
 	}
 

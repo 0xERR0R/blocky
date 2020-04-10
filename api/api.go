@@ -14,7 +14,26 @@ const (
 	BlockingStatusPath  = "/api/blocking/status"
 	BlockingEnablePath  = "/api/blocking/enable"
 	BlockingDisablePath = "/api/blocking/disable"
+	BlockingQueryPath   = "/api/query"
 )
+
+type QueryRequest struct {
+	// query for DNS request
+	Query string
+	// request type (A, AAAA, ...)
+	Type string
+}
+
+type QueryResult struct {
+	// blocky reason for resolution
+	Reason string `json:"reason"`
+	// response type (CACHED, BLOCKED, ...)
+	ResponseType string `json:"responseType"`
+	// actual DNS response
+	Response string `json:"response"`
+	// DNS return code (NOERROR, NXDOMAIN, ...)
+	ReturnCode string `json:"returnCode"`
+}
 
 type BlockingStatus struct {
 	// True if blocking is enabled

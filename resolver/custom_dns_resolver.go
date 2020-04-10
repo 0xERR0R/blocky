@@ -68,7 +68,7 @@ func (r *CustomDNSResolver) Resolve(request *Request) (*Response, error) {
 								"domain": domain,
 							}).Debugf("returning custom dns entry")
 
-							return &Response{Res: response, rType: CUSTOMDNS, Reason: "CUSTOM DNS"}, nil
+							return &Response{Res: response, RType: CUSTOMDNS, Reason: "CUSTOM DNS"}, nil
 						}
 
 						return nil, err
@@ -76,7 +76,7 @@ func (r *CustomDNSResolver) Resolve(request *Request) (*Response, error) {
 
 					response.Rcode = dns.RcodeNameError
 
-					return &Response{Res: response, rType: CUSTOMDNS, Reason: "CUSTOM DNS"}, nil
+					return &Response{Res: response, RType: CUSTOMDNS, Reason: "CUSTOM DNS"}, nil
 				}
 
 				if i := strings.Index(domain, "."); i >= 0 {

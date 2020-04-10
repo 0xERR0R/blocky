@@ -244,7 +244,7 @@ func (r *BlockingResolver) handleBlocked(logger *log.Entry,
 
 	logger.Debugf("blocking request '%s'", reason)
 
-	return &Response{Res: response, rType: BLOCKED, Reason: reason}, nil
+	return &Response{Res: response, RType: BLOCKED, Reason: reason}, nil
 }
 
 func (r *BlockingResolver) Configuration() (result []string) {

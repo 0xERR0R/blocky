@@ -86,12 +86,12 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 						rr.Header().Ttl = remainingTTL
 					}
 
-					return &Response{Res: resp, rType: CACHED, Reason: "CACHED"}, nil
+					return &Response{Res: resp, RType: CACHED, Reason: "CACHED"}, nil
 				}
 				// Answer with response code != OK
 				resp.Rcode = val.(int)
 
-				return &Response{Res: resp, rType: CACHED, Reason: "CACHED NEGATIVE"}, nil
+				return &Response{Res: resp, RType: CACHED, Reason: "CACHED NEGATIVE"}, nil
 			}
 
 			logger.WithField("next_resolver", Name(r.next)).Debug("not in cache: go to next resolver")

@@ -173,6 +173,8 @@ To run CLI, please ensure, that blocky DNS server is running, than execute `bloc
 - `./blocky blocking disable` to disable blocking
 - `./blocky blocking disable --duration [duration]` to disable blocking for a certain amount of time (30s, 5m, 10m30s, ...)
 - `./blocky blocking status` to print current status of blocking
+- `./blocky query <domain>` execute DNS query (A) (simple replacement for dig, useful for debug purposes)
+- `./blocky query <domain> --type <queryType>` execute DNS query with passed query type (A, AAAA, MX, ...)
 
 To run this inside docker run `docker exec blocky ./blocky blocking status`
 

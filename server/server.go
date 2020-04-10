@@ -1,13 +1,16 @@
 package server
 
 import (
+	"blocky/api"
 	"blocky/config"
 	"blocky/docs"
 	"blocky/metrics"
 	"blocky/resolver"
 	"blocky/web"
+	"encoding/json"
 	"html/template"
 	"net/http"
+	"strings"
 	"syscall"
 
 	"os"
@@ -99,6 +102,7 @@ func NewServer(cfg *config.Config) (*Server, error) {
 
 	server.registerDNSHandlers(udpHandler)
 	server.registerDNSHandlers(tcpHandler)
+	server.registerAPIEndpoints(router)
 
 	return &server, nil
 }
@@ -166,6 +170,72 @@ func createRouter(cfg *config.Config) *chi.Mux {
 	})
 
 	return router
+}
+
+// apiQuery is the http endpoint to perform a DNS query
+// @Summary Performs DNS query
+// @Description Performs DNS query
+// @Tags query
+// @Accept  json
+// @Produce  json
+// @Param query body api.QueryRequest true "query data"
+// @Success 200 {object} api.QueryResult "query was executed"
+// @Failure 400   "Wrong request format"
+// @Router /query [post]
+func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
+	var queryRequest api.QueryRequest
+	err := json.NewDecoder(req.Body).Decode(&queryRequest)
+
+	if err != nil {
+		logger().Error("can't read request: ", err)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	// validate query type
+	qType := dns.StringToType[queryRequest.Type]
+	if qType == dns.TypeNone {
+		err = fmt.Errorf("unknown query type '%s'", queryRequest.Type)
+		logger().Error(err)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	query := queryRequest.Query
+
+	// append dot
+	if !strings.HasSuffix(query, ".") {
+		query += "."
+	}
+
+	dnsRequest := util.NewMsgWithQuestion(query, qType)
+	r := createResolverRequest(nil, dnsRequest)
+
+	response, err := s.queryResolver.Resolve(r)
+
+	if err != nil {
+		logger().Error("unable to process query: ", err)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	jsonResponse, _ := json.Marshal(api.QueryResult{
+		Reason:       response.Reason,
+		ResponseType: response.RType.String(),
+		Response:     util.AnswerToString(response.Res.Answer),
+		ReturnCode:   dns.RcodeToString[response.Res.Rcode],
+	})
+	_, err = rw.Write(jsonResponse)
+
+	if err != nil {
+		logger().Error("unable to write response ", err)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
 }
 
 func (s *Server) printConfiguration() {
@@ -260,11 +330,10 @@ func (s *Server) Stop() {
 	}
 }
 
-func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
-	logger().Debug("new request")
+func createResolverRequest(remoteAddress net.Addr, request *dns.Msg) *resolver.Request {
+	clientIP := resolveClientIP(remoteAddress)
 
-	clientIP := resolveClientIP(w.RemoteAddr())
-	r := &resolver.Request{
+	return &resolver.Request{
 		ClientIP:  clientIP,
 		Req:       request,
 		RequestTS: time.Now(),
@@ -273,6 +342,12 @@ func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
 			"client_ip": clientIP,
 		}),
 	}
+}
+
+func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
+	logger().Debug("new request")
+
+	r := createResolverRequest(w.RemoteAddr(), request)
 
 	response, err := s.queryResolver.Resolve(r)
 
@@ -297,6 +372,10 @@ func (s *Server) OnHealthCheck(w dns.ResponseWriter, request *dns.Msg) {
 	if err := w.WriteMsg(resp); err != nil {
 		logger().Error("can't write message: ", err)
 	}
+}
+
+func (s *Server) registerAPIEndpoints(router *chi.Mux) {
+	router.Post(api.BlockingQueryPath, s.apiQuery)
 }
 
 func resolveClientIP(addr net.Addr) net.IP {

@@ -42,7 +42,7 @@ func (r ResponseType) String() string {
 type Response struct {
 	Res    *dns.Msg
 	Reason string
-	rType  ResponseType
+	RType  ResponseType
 }
 type Resolver interface {
 	Resolve(req *Request) (*Response, error)
