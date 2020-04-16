@@ -88,7 +88,7 @@ blocking:
     # optional: automatically list refresh period in minutes. Default: 4h.
     # Negative value -> deactivate automatically refresh.
     # 0 value -> use default
-    refreshPeriod: 1
+    refreshPeriod: 0
 
 # optional: configuration for caching of DNS responses
 caching:
