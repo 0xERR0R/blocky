@@ -197,11 +197,12 @@ func contains(domain string, cache []string) bool {
 }
 
 func (b *ListCache) refresh() {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-
 	for group, links := range b.groupToLinks {
-		b.groupCaches[group] = createCacheForGroup(links)
+		cacheForGroup := createCacheForGroup(links)
+
+		b.lock.Lock()
+		b.groupCaches[group] = cacheForGroup
+		b.lock.Unlock()
 
 		if metrics.IsEnabled() {
 			b.counter.WithLabelValues(group).Set(float64(len(b.groupCaches[group])))

@@ -154,7 +154,10 @@ func BenchmarkRefresh(b *testing.B) {
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		sut.refresh()
+		go sut.refresh()
+		found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
+		assert.Equal(b, true, found)
+		assert.Equal(b, "gr1", group)
 	}
 
 	found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
