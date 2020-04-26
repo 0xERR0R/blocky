@@ -150,6 +150,7 @@ services:
     ports:
       - "53:53/tcp"
       - "53:53/udp"
+      - "4000:4000/tcp" # Prometheus stats (if enabled).
     environment:
       - TZ=Europe/Berlin
     volumes:
