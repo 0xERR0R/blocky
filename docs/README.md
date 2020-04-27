@@ -156,8 +156,42 @@ services:
     volumes:
       # config file
       - ./config.yml:/app/config.yml
-      # write query logs in this directory. You can also use a volume
+      # write query logs in this directory. You can also use a volume.
       - ./logs:/logs
+  # The below prometheus and grafana sections are optional.  It 
+  # will setup a local instance of Prometheus and Grafana.  If 
+  # the below is enabled, make sure to enable Prometheus stats 
+  # in your blocky config.yml file and configure the Prometheus
+  # yml file to correctly pull from blocky.
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090/tcp"
+      - "9090:9090/udp"
+    volumes:
+      # config file
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      # Persistent data. You can also use a volume.
+      - ./prometheus/data:/prometheus
+    depends_on:
+      - blocky
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000/tcp"
+    volumes:
+      # config file
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
+      # Persistent data. You can also use a volume.
+      - ./grafana/data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    environment:
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel # Auto-install required piechart plugin.
 ```
 
 ### Run standalone
