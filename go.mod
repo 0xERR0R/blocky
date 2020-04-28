@@ -18,7 +18,7 @@ require (
 	github.com/onsi/ginkgo v1.11.0 // indirect
 	github.com/onsi/gomega v1.8.1 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/prometheus/client_golang v1.4.1
+	github.com/prometheus/client_golang v1.5.1
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.7
 	github.com/stretchr/testify v1.4.0
