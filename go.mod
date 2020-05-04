@@ -4,7 +4,7 @@ go 1.14
 
 require (
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
-	github.com/go-chi/chi v4.1.0+incompatible
+	github.com/go-chi/chi v4.1.1+incompatible
 	github.com/go-chi/cors v1.1.1
 	github.com/go-openapi/spec v0.19.7 // indirect
 	github.com/go-openapi/strfmt v0.19.4 // indirect
