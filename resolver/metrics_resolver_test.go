@@ -2,67 +2,68 @@ package resolver
 
 import (
 	"blocky/config"
-	"blocky/util"
 	"errors"
-	"testing"
 
 	"github.com/miekg/dns"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
-func Test_Resolve_Record_Stats(t *testing.T) {
-	cfg := config.PrometheusConfig{Enable: true}
-	resolv := NewMetricsResolver(cfg).(*MetricsResolver)
+var _ = Describe("MetricResolver", func() {
+	var (
+		sut  *MetricsResolver
+		m    *resolverMock
+		err  error
+		resp *Response
+	)
 
-	nextOne := resolverMock{}
-	nextOne.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
-	resolv.Next(&nextOne)
+	BeforeEach(func() {
+		sut = NewMetricsResolver(config.PrometheusConfig{Enable: true}).(*MetricsResolver)
+		m = &resolverMock{}
+		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
+		sut.Next(m)
+	})
 
-	req := Request{
-		Req:         util.NewMsgWithQuestion("example.com.", dns.TypeA),
-		Log:         logrus.NewEntry(logrus.New()),
-		ClientNames: []string{"client"},
-	}
+	Describe("Recording prometheus metrics", func() {
+		Context("Recording request metrics", func() {
+			When("Request will be performed", func() {
+				It("Should record metrics", func() {
+					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "", "client"))
+					Expect(err).Should(Succeed())
 
-	resp, err := resolv.Resolve(&req)
-	assert.NoError(t, err)
+					cnt, err := sut.totalQueries.GetMetricWith(prometheus.Labels{"client": "client", "type": "A"})
+					Expect(err).Should(Succeed())
 
-	cnt, err := resolv.totalQueries.GetMetricWith(prometheus.Labels{"client": "client", "type": "A"})
-	assert.NoError(t, err)
-	assert.Equal(t, float64(1), testutil.ToFloat64(cnt))
+					Expect(testutil.ToFloat64(cnt)).Should(Equal(float64(1)))
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+					m.AssertExpectations(GinkgoT())
+				})
+			})
+			When("Error occurs while request processing", func() {
+				BeforeEach(func() {
+					m = &resolverMock{}
+					m.On("Resolve", mock.Anything).Return(nil, errors.New("error"))
+					sut.Next(m)
+				})
+				It("Error should be recorded", func() {
+					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "", "client"))
+					Expect(err).Should(HaveOccurred())
 
-	assert.Equal(t, dns.RcodeSuccess, resp.Res.Rcode)
-	nextOne.AssertExpectations(t)
-}
+					Expect(testutil.ToFloat64(sut.totalErrors)).Should(Equal(float64(1)))
+				})
+			})
+		})
+	})
 
-func Test_Resolve_Record_Error(t *testing.T) {
-	cfg := config.PrometheusConfig{Enable: true}
-	resolv := NewMetricsResolver(cfg).(*MetricsResolver)
-
-	nextOne := resolverMock{}
-	nextOne.On("Resolve", mock.Anything).Return(nil, errors.New("error"))
-	resolv.Next(&nextOne)
-
-	req := Request{
-		Req:         util.NewMsgWithQuestion("example.com.", dns.TypeA),
-		Log:         logrus.NewEntry(logrus.New()),
-		ClientNames: []string{"client"},
-	}
-
-	_, err := resolv.Resolve(&req)
-	assert.Error(t, err)
-
-	assert.Equal(t, float64(1), testutil.ToFloat64(resolv.totalErrors))
-
-	nextOne.AssertExpectations(t)
-}
-
-func Test_Configuration_MetricsResolver(t *testing.T) {
-	sut := NewMetricsResolver(config.PrometheusConfig{Enable: true})
-	c := sut.Configuration()
-	assert.Len(t, c, 3)
-}
+	Describe("Configuration output", func() {
+		When("resolver is enabled", func() {
+			It("should return configuration", func() {
+				c := sut.Configuration()
+				Expect(len(c) > 1).Should(BeTrue())
+			})
+		})
+	})
+})

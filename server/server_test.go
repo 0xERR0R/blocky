@@ -1,253 +1,117 @@
 package server
 
 import (
+	"blocky/api"
 	"blocky/config"
+	. "blocky/helpertest"
 	"blocky/resolver"
 	"blocky/util"
-	"fmt"
+	"bytes"
+	"encoding/json"
 	"log"
 	"net"
-	"testing"
+	"net/http"
 	"time"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
 )
 
-var mockClientName string
+var _ = Describe("Running DNS server", func() {
+	Describe("performing DNS request with running server", func() {
+		var (
+			upstreamGoogle, upstreamFritzbox, upstreamClient config.Upstream
+			mockClientName                                   string
+			sut                                              *Server
+			err                                              error
+			resp                                             *dns.Msg
+		)
 
-// test case definition
-var tests = []struct {
-	name           string
-	request        *dns.Msg
-	mockClientName string
-	respValidator  func(*testing.T, *dns.Msg)
-}{
-	{
-		// resolve query via external dns
-		name:    "resolveWithUpstream",
-		request: util.NewMsgWithQuestion("google.de.", dns.TypeA),
-		respValidator: func(t *testing.T, resp *dns.Msg) {
-			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
-			assert.Equal(t, "google.de.\t123\tIN\tA\t123.124.122.122", resp.Answer[0].String())
-		},
-	},
-	{
-		// custom dnd entry with exact match
-		name:    "customDns",
-		request: util.NewMsgWithQuestion("custom.lan.", dns.TypeA),
-		respValidator: func(t *testing.T, resp *dns.Msg) {
-			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
-			assert.Equal(t, "custom.lan.\t3600\tIN\tA\t192.168.178.55", resp.Answer[0].String())
-		},
-	},
-	{
-		// sub domain custom dns
-		name:    "customDnsWithSubdomain",
-		request: util.NewMsgWithQuestion("host.lan.home.", dns.TypeA),
-		respValidator: func(t *testing.T, resp *dns.Msg) {
-			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
-			assert.Equal(t, "host.lan.home.\t3600\tIN\tA\t192.168.178.56", resp.Answer[0].String())
-		},
-	},
-	{
-		// delegate to special dns upstream
-		name:    "conditional",
-		request: util.NewMsgWithQuestion("host.fritz.box.", dns.TypeA),
-		respValidator: func(t *testing.T, resp *dns.Msg) {
-			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
-			assert.Equal(t, "host.fritz.box.\t3600\tIN\tA\t192.168.178.2", resp.Answer[0].String())
-		},
-	},
-	{
-		// blocking default group
-		name:    "blockDefault",
-		request: util.NewMsgWithQuestion("doubleclick.net.", dns.TypeA),
-		respValidator: func(t *testing.T, resp *dns.Msg) {
-			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
-			assert.Equal(t, "doubleclick.net.\t21600\tIN\tA\t0.0.0.0", resp.Answer[0].String())
-		},
-	},
-	{
-		// blocking default group with sub domain
-		name:    "blockDefaultWithSubdomain",
-		request: util.NewMsgWithQuestion("www.bild.de.", dns.TypeA),
-		respValidator: func(t *testing.T, resp *dns.Msg) {
-			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
-			assert.Equal(t, "www.bild.de.\t21600\tIN\tA\t0.0.0.0", resp.Answer[0].String())
-		},
-	},
-	{
-		// no blocking default group with sub domain
-		name:    "noBlockDefaultWithSubdomain",
-		request: util.NewMsgWithQuestion("bild.de.", dns.TypeA),
-		respValidator: func(t *testing.T, resp *dns.Msg) {
-			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
-			assert.Equal(t, "bild.de.\t123\tIN\tA\t123.124.122.122", resp.Answer[0].String())
-		},
-	},
-	{
-		// white and block default group
-		name:    "whiteBlackDefault",
-		request: util.NewMsgWithQuestion("heise.de.", dns.TypeA),
-		respValidator: func(t *testing.T, resp *dns.Msg) {
-			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
-			assert.Equal(t, "heise.de.\t123\tIN\tA\t123.124.122.122", resp.Answer[0].String())
-		},
-	},
-	{
-		// no block client whitelist only
-		name:           "noBlockWhitelistOnly",
-		mockClientName: "clWhitelistOnly",
-		request:        util.NewMsgWithQuestion("heise.de.", dns.TypeA),
-		respValidator: func(t *testing.T, resp *dns.Msg) {
-			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
-			assert.Equal(t, "123.124.122.122", resp.Answer[0].(*dns.A).A.String())
-		},
-	},
-	{
-		// block client whitelist only
-		name:           "blockWhitelistOnly",
-		mockClientName: "clWhitelistOnly",
-		request:        util.NewMsgWithQuestion("google.de.", dns.TypeA),
-		respValidator: func(t *testing.T, resp *dns.Msg) {
-			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
-			assert.Equal(t, "0.0.0.0", resp.Answer[0].(*dns.A).A.String())
-		},
-	},
-	{
-		// block client with 2 groups
-		name:           "block2groups1",
-		mockClientName: "clAdsAndYoutube",
-		request:        util.NewMsgWithQuestion("www.bild.de.", dns.TypeA),
-		respValidator: func(t *testing.T, resp *dns.Msg) {
-			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
-			assert.Equal(t, "0.0.0.0", resp.Answer[0].(*dns.A).A.String())
-		},
-	},
-	{
-		// block client with 2 groups
-		name:           "block2groups2",
-		mockClientName: "clAdsAndYoutube",
-		request:        util.NewMsgWithQuestion("youtube.com.", dns.TypeA),
-		respValidator: func(t *testing.T, resp *dns.Msg) {
-			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
-			assert.Equal(t, "0.0.0.0", resp.Answer[0].(*dns.A).A.String())
-		},
-	},
-	{
-		// lient with 1 group: no block if domain in other group
-		name:           "noBlockBlacklistOtherGroup",
-		mockClientName: "clYoutubeOnly",
-		request:        util.NewMsgWithQuestion("www.bild.de.", dns.TypeA),
-		respValidator: func(t *testing.T, resp *dns.Msg) {
-			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
-			assert.Equal(t, "123.124.122.122", resp.Answer[0].(*dns.A).A.String())
-		},
-	},
-	{
-		// block client with 1 group
-		name:           "blockBlacklist",
-		mockClientName: "clYoutubeOnly",
-		request:        util.NewMsgWithQuestion("youtube.com.", dns.TypeA),
-		respValidator: func(t *testing.T, resp *dns.Msg) {
-			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
-			assert.Equal(t, "0.0.0.0", resp.Answer[0].(*dns.A).A.String())
-		},
-	},
-	{
-		// healthcheck
-		name:           "healthcheck",
-		mockClientName: "c1",
-		request:        util.NewMsgWithQuestion("healthcheck.blocky.", dns.TypeA),
-		respValidator: func(t *testing.T, resp *dns.Msg) {
-			assert.Equal(t, dns.RcodeSuccess, resp.Rcode)
-			assert.Empty(t, resp.Answer)
-		},
-	},
-}
+		BeforeSuite(func() {
+			upstreamGoogle = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
+				response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 123, dns.TypeA, "123.124.122.122")
 
-//nolint:funlen
-func TestDnsRequest(t *testing.T) {
-	upstreamGoogle := resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-		response, err := util.NewMsgWithAnswer(fmt.Sprintf("%s %d %s %s %s",
-			util.ExtractDomain(request.Question[0]), 123, "IN", "A", "123.124.122.122"))
+				Expect(err).Should(Succeed())
+				return response
+			})
+			upstreamFritzbox = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
+				response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 3600, dns.TypeA, "192.168.178.2")
 
-		assert.NoError(t, err)
-		return response
-	})
-	upstreamFritzbox := resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-		response, err := util.NewMsgWithAnswer(fmt.Sprintf("%s %d %s %s %s",
-			util.ExtractDomain(request.Question[0]), 3600, "IN", "A", "192.168.178.2"))
+				Expect(err).Should(Succeed())
+				return response
+			})
 
-		assert.NoError(t, err)
-		return response
-	})
+			upstreamClient = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
+				response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 3600, dns.TypePTR, mockClientName)
 
-	upstreamClient := resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-		response, err := util.NewMsgWithAnswer(fmt.Sprintf("%s %d %s %s %s",
-			util.ExtractDomain(request.Question[0]), 3600, "IN", "PTR", mockClientName))
+				Expect(err).Should(Succeed())
+				return response
+			})
 
-		assert.NoError(t, err)
-		return response
-	})
+			// create server
+			sut, err = NewServer(&config.Config{
+				CustomDNS: config.CustomDNSConfig{
+					Mapping: map[string]net.IP{
+						"custom.lan": net.ParseIP("192.168.178.55"),
+						"lan.home":   net.ParseIP("192.168.178.56"),
+					},
+				},
+				Conditional: config.ConditionalUpstreamConfig{
+					Mapping: map[string]config.Upstream{"fritz.box": upstreamFritzbox},
+				},
+				Blocking: config.BlockingConfig{
+					BlackLists: map[string][]string{
+						"ads": {
+							"../testdata/doubleclick.net.txt",
+							"../testdata/www.bild.de.txt",
+							"../testdata/heise.de.txt"},
+						"youtube": {"../testdata/youtube.com.txt"}},
+					WhiteLists: map[string][]string{
+						"ads":       {"../testdata/heise.de.txt"},
+						"whitelist": {"../testdata/heise.de.txt"},
+					},
+					ClientGroupsBlock: map[string][]string{
+						"default":         {"ads"},
+						"clWhitelistOnly": {"whitelist"},
+						"clAdsAndYoutube": {"ads", "youtube"},
+						"clYoutubeOnly":   {"youtube"},
+					},
+				},
+				Upstream: config.UpstreamConfig{
+					ExternalResolvers: []config.Upstream{upstreamGoogle},
+				},
+				ClientLookup: config.ClientLookupConfig{
+					Upstream: upstreamClient,
+				},
 
-	// create server
-	server, err := NewServer(&config.Config{
-		CustomDNS: config.CustomDNSConfig{
-			Mapping: map[string]net.IP{
-				"custom.lan": net.ParseIP("192.168.178.55"),
-				"lan.home":   net.ParseIP("192.168.178.56"),
-			},
-		},
-		Conditional: config.ConditionalUpstreamConfig{
-			Mapping: map[string]config.Upstream{"fritz.box": upstreamFritzbox},
-		},
-		Blocking: config.BlockingConfig{
-			BlackLists: map[string][]string{
-				"ads": {
-					"../testdata/doubleclick.net.txt",
-					"../testdata/www.bild.de.txt",
-					"../testdata/heise.de.txt"},
-				"youtube": {"../testdata/youtube.com.txt"}},
-			WhiteLists: map[string][]string{
-				"ads":       {"../testdata/heise.de.txt"},
-				"whitelist": {"../testdata/heise.de.txt"},
-			},
-			ClientGroupsBlock: map[string][]string{
-				"default":         {"ads"},
-				"clWhitelistOnly": {"whitelist"},
-				"clAdsAndYoutube": {"ads", "youtube"},
-				"clYoutubeOnly":   {"youtube"},
-			},
-		},
-		Upstream: config.UpstreamConfig{
-			ExternalResolvers: []config.Upstream{upstreamGoogle},
-		},
-		ClientLookup: config.ClientLookupConfig{
-			Upstream: upstreamClient,
-		},
+				Port:     55555,
+				HTTPPort: 4000,
+				Prometheus: config.PrometheusConfig{
+					Enable: true,
+					Path:   "/metrics",
+				},
+			})
 
-		Port:     55555,
-		HTTPPort: 4000,
-	})
+			Expect(err).Should(Succeed())
 
-	assert.NoError(t, err)
+			// start server
+			go func() {
+				sut.Start()
+			}()
+			time.Sleep(100 * time.Millisecond)
+		})
 
-	// start server
-	go func() {
-		server.Start()
-	}()
+		AfterSuite(func() {
+			sut.Stop()
+		})
 
-	defer server.Stop()
-
-	time.Sleep(100 * time.Millisecond)
-
-	for _, tt := range tests {
-		tst := tt
-		t.Run(tt.name, func(t *testing.T) {
-			res := server.queryResolver
+		BeforeEach(func() {
+			mockClientName = ""
+			// reset client cache
+			res := sut.queryResolver
 			for res != nil {
 				if t, ok := res.(*resolver.ClientNamesResolver); ok {
 					t.FlushCache()
@@ -259,124 +123,305 @@ func TestDnsRequest(t *testing.T) {
 					break
 				}
 			}
-
-			mockClientName = tst.mockClientName
-			response := requestServer(tst.request)
-
-			tst.respValidator(t, response)
 		})
-	}
-}
 
-func Test_Start(t *testing.T) {
-	defer func() { logrus.StandardLogger().ExitFunc = nil }()
+		AfterEach(func() {
+			Expect(resp.Rcode).Should(Equal(dns.RcodeSuccess))
+		})
+		Context("DNS query is resolvable via external DNS", func() {
+			It("should return valid answer", func() {
+				resp = requestServer(util.NewMsgWithQuestion("google.de.", dns.TypeA))
 
-	var fatal bool
+				Expect(resp.Answer).Should(BeDNSRecord("google.de.", dns.TypeA, 123, "123.124.122.122"))
+			})
+		})
+		Context("Custom DNS entry with exact match", func() {
+			It("should return valid answer", func() {
+				resp = requestServer(util.NewMsgWithQuestion("custom.lan.", dns.TypeA))
 
-	logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
+				Expect(resp.Answer).Should(BeDNSRecord("custom.lan.", dns.TypeA, 3600, "192.168.178.55"))
+			})
+		})
+		Context("Custom DNS entry with sub domain", func() {
+			It("should return valid answer", func() {
+				resp = requestServer(util.NewMsgWithQuestion("host.lan.home.", dns.TypeA))
 
-	// create server
-	server, err := NewServer(&config.Config{
-		CustomDNS: config.CustomDNSConfig{
-			Mapping: map[string]net.IP{
-				"custom.lan": net.ParseIP("192.168.178.55"),
-				"lan.home":   net.ParseIP("192.168.178.56"),
-			},
-		},
+				Expect(resp.Answer).Should(BeDNSRecord("host.lan.home.", dns.TypeA, 3600, "192.168.178.56"))
+			})
+		})
+		Context("Conditional upstream", func() {
+			It("should resolve query via conditional upstream resolver", func() {
+				resp = requestServer(util.NewMsgWithQuestion("host.fritz.box.", dns.TypeA))
 
-		Port: 55555,
+				Expect(resp.Answer).Should(BeDNSRecord("host.fritz.box.", dns.TypeA, 3600, "192.168.178.2"))
+			})
+		})
+		Context("Blocking default group", func() {
+			It("Query should be blocked, domain is in default group", func() {
+				resp = requestServer(util.NewMsgWithQuestion("doubleclick.net.", dns.TypeA))
+
+				Expect(resp.Answer).Should(BeDNSRecord("doubleclick.net.", dns.TypeA, 21600, "0.0.0.0"))
+			})
+		})
+		Context("Blocking default group with sub domain", func() {
+			It("Query with subdomain should be blocked, domain is in default group", func() {
+				resp = requestServer(util.NewMsgWithQuestion("www.bild.de.", dns.TypeA))
+
+				Expect(resp.Answer).Should(BeDNSRecord("www.bild.de.", dns.TypeA, 21600, "0.0.0.0"))
+			})
+		})
+		Context("no blocking default group with sub domain", func() {
+			It("Query with should not be blocked, sub domain is not in blacklist", func() {
+				resp = requestServer(util.NewMsgWithQuestion("bild.de.", dns.TypeA))
+
+				Expect(resp.Answer).Should(BeDNSRecord("bild.de.", dns.TypeA, 0, "123.124.122.122"))
+			})
+		})
+		Context("domain is on white and blacklist default group", func() {
+			It("Query with should not be blocked, domain is on white and blacklist", func() {
+				resp = requestServer(util.NewMsgWithQuestion("heise.de.", dns.TypeA))
+
+				Expect(resp.Answer).Should(BeDNSRecord("heise.de.", dns.TypeA, 0, "123.124.122.122"))
+			})
+		})
+		Context("domain is on client specific white list", func() {
+			It("Query with should not be blocked, domain is on client's white list", func() {
+				mockClientName = "clWhitelistOnly"
+				resp = requestServer(util.NewMsgWithQuestion("heise.de.", dns.TypeA))
+
+				Expect(resp.Answer).Should(BeDNSRecord("heise.de.", dns.TypeA, 0, "123.124.122.122"))
+			})
+		})
+		Context("block client whitelist only", func() {
+			It("Query with should be blocked, client has only whitelist, domain is not on client's white list", func() {
+				mockClientName = "clWhitelistOnly"
+				resp = requestServer(util.NewMsgWithQuestion("google.de.", dns.TypeA))
+
+				Expect(resp.Answer).Should(BeDNSRecord("google.de.", dns.TypeA, 0, "0.0.0.0"))
+			})
+		})
+		Context("block client with 2 groups", func() {
+			It("Query with should be blocked, domain is on black list", func() {
+				mockClientName = "clAdsAndYoutube"
+				resp = requestServer(util.NewMsgWithQuestion("www.bild.de.", dns.TypeA))
+
+				Expect(resp.Answer).Should(BeDNSRecord("www.bild.de.", dns.TypeA, 0, "0.0.0.0"))
+
+				resp = requestServer(util.NewMsgWithQuestion("youtube.com.", dns.TypeA))
+
+				Expect(resp.Answer).Should(BeDNSRecord("youtube.com.", dns.TypeA, 0, "0.0.0.0"))
+			})
+		})
+		Context("client with 1 group: no block if domain in other group", func() {
+			It("Query with should not be blocked, domain is on black list in another group", func() {
+				mockClientName = "clYoutubeOnly"
+				resp = requestServer(util.NewMsgWithQuestion("www.bild.de.", dns.TypeA))
+
+				Expect(resp.Answer).Should(BeDNSRecord("www.bild.de.", dns.TypeA, 0, "123.124.122.122"))
+			})
+		})
+		Context("block client with 1 group", func() {
+			It("Query with should not  blocked, domain is on black list in client's group", func() {
+				mockClientName = "clYoutubeOnly"
+				resp = requestServer(util.NewMsgWithQuestion("youtube.com.", dns.TypeA))
+
+				Expect(resp.Answer).Should(BeDNSRecord("youtube.com.", dns.TypeA, 0, "0.0.0.0"))
+			})
+		})
+		Context("health check", func() {
+			It("Should always return dummy response", func() {
+				resp = requestServer(util.NewMsgWithQuestion("healthcheck.blocky.", dns.TypeA))
+
+				Expect(resp.Answer).Should(BeEmpty())
+			})
+		})
+
 	})
 
-	assert.NoError(t, err)
-
-	// start server
-	go func() {
-		server.Start()
-	}()
-
-	defer server.Stop()
-
-	time.Sleep(100 * time.Millisecond)
-
-	server.Start()
-
-	time.Sleep(100 * time.Millisecond)
-
-	assert.True(t, fatal)
-}
-
-func Test_Stop(t *testing.T) {
-	defer func() { logrus.StandardLogger().ExitFunc = nil }()
-
-	var fatal bool
-
-	logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
-
-	// create server
-	server, err := NewServer(&config.Config{
-		CustomDNS: config.CustomDNSConfig{
-			Mapping: map[string]net.IP{
-				"custom.lan": net.ParseIP("192.168.178.55"),
-				"lan.home":   net.ParseIP("192.168.178.56"),
-			},
-		},
-
-		Port: 55555,
+	Describe("Swagger endpoint", func() {
+		When("Swagger URL is called", func() {
+			It("should serve swagger page", func() {
+				r, err := http.Get("http://localhost:4000/swagger/")
+				Expect(err).Should(Succeed())
+				Expect(r.StatusCode).Should(Equal(http.StatusOK))
+			})
+		})
+	})
+	Describe("Prometheus endpoint", func() {
+		When("Prometheus URL is called", func() {
+			It("should return prometheus data", func() {
+				r, err := http.Get("http://localhost:4000/metrics")
+				Expect(err).Should(Succeed())
+				Expect(r.StatusCode).Should(Equal(http.StatusOK))
+			})
+		})
+	})
+	Describe("Root endpoint", func() {
+		When("Root URL is called", func() {
+			It("should return root page", func() {
+				r, err := http.Get("http://localhost:4000/")
+				Expect(err).Should(Succeed())
+				Expect(r.StatusCode).Should(Equal(http.StatusOK))
+			})
+		})
 	})
 
-	assert.NoError(t, err)
+	Describe("Query Rest API", func() {
+		When("Query API is called", func() {
+			It("Should process the query", func() {
+				req := api.QueryRequest{
+					Query: "google.de",
+					Type:  "A",
+				}
+				jsonValue, _ := json.Marshal(req)
 
-	// start server
-	go func() {
-		server.Start()
-	}()
+				resp, err := http.Post("http://localhost:4000/api/query", "application/json", bytes.NewBuffer(jsonValue))
 
-	defer server.Stop()
+				Expect(err).Should(Succeed())
+				defer resp.Body.Close()
 
-	time.Sleep(100 * time.Millisecond)
+				Expect(resp.StatusCode).Should(Equal(http.StatusOK))
 
-	server.Stop()
+				var result api.QueryResult
+				err = json.NewDecoder(resp.Body).Decode(&result)
+				Expect(err).Should(Succeed())
+				Expect(result.Response).Should(Equal("A (123.124.122.122)"))
+			})
+		})
+		When("Wrong request type is used", func() {
+			It("Should return internal error", func() {
+				req := api.QueryRequest{
+					Query: "google.de",
+					Type:  "WrongTyoe",
+				}
+				jsonValue, _ := json.Marshal(req)
 
-	// stop server, should be ok
-	assert.False(t, fatal)
+				resp, err := http.Post("http://localhost:4000/api/query", "application/json", bytes.NewBuffer(jsonValue))
 
-	// stop again, should raise fatal error
-	server.Stop()
+				Expect(err).Should(Succeed())
+				defer resp.Body.Close()
 
-	assert.True(t, fatal)
-}
+				Expect(resp.StatusCode).Should(Equal(http.StatusInternalServerError))
+			})
+		})
+		When("Request is malformed", func() {
+			It("Should return internal error", func() {
+				jsonValue := []byte("")
 
-func BenchmarkServerExternalResolver(b *testing.B) {
-	upstreamExternal := resolver.TestUDPUpstream(func(request *dns.Msg) (response *dns.Msg) {
-		msg, _ := util.NewMsgWithAnswer("example.com IN A 123.124.122.122")
-		return msg
+				resp, err := http.Post("http://localhost:4000/api/query", "application/json", bytes.NewBuffer(jsonValue))
+
+				Expect(err).Should(Succeed())
+				defer resp.Body.Close()
+
+				Expect(resp.StatusCode).Should(Equal(http.StatusInternalServerError))
+			})
+		})
 	})
 
-	// create server
-	server, err := NewServer(&config.Config{
-		Upstream: config.UpstreamConfig{
-			ExternalResolvers: []config.Upstream{upstreamExternal},
-		},
-		Port: 55555,
+	Describe("Server start", func() {
+		When("Server start is called", func() {
+			It("start was called 2 times, start should fail", func() {
+				defer func() { logrus.StandardLogger().ExitFunc = nil }()
+
+				var fatal bool
+
+				logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
+
+				// create server
+				server, err := NewServer(&config.Config{
+					CustomDNS: config.CustomDNSConfig{
+						Mapping: map[string]net.IP{
+							"custom.lan": net.ParseIP("192.168.178.55"),
+							"lan.home":   net.ParseIP("192.168.178.56"),
+						},
+					},
+
+					Port: 55556,
+				})
+
+				Expect(err).Should(Succeed())
+
+				// start server
+				go func() {
+					server.Start()
+				}()
+
+				defer server.Stop()
+
+				time.Sleep(100 * time.Millisecond)
+
+				Expect(fatal).Should(BeFalse())
+
+				// start again -> should fail
+				server.Start()
+
+				time.Sleep(100 * time.Millisecond)
+
+				Expect(fatal).Should(BeTrue())
+			})
+		})
+	})
+	Describe("Server stop", func() {
+		When("Stop is called", func() {
+			It("stop was called 2 times, start should fail", func() {
+				defer func() { logrus.StandardLogger().ExitFunc = nil }()
+
+				var fatal bool
+
+				logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
+
+				// create server
+				server, err := NewServer(&config.Config{
+					CustomDNS: config.CustomDNSConfig{
+						Mapping: map[string]net.IP{
+							"custom.lan": net.ParseIP("192.168.178.55"),
+							"lan.home":   net.ParseIP("192.168.178.56"),
+						},
+					},
+
+					Port: 55557,
+				})
+
+				Expect(err).Should(Succeed())
+
+				// start server
+				go func() {
+					server.Start()
+				}()
+
+				defer server.Stop()
+
+				time.Sleep(100 * time.Millisecond)
+
+				server.Stop()
+
+				// stop server, should be ok
+				Expect(fatal).Should(BeFalse())
+
+				// stop again, should raise fatal error
+				server.Stop()
+
+				Expect(fatal).Should(BeTrue())
+			})
+		})
 	})
 
-	assert.NoError(b, err)
-
-	// start server
-	go func() {
-		server.Start()
-	}()
-
-	defer server.Stop()
-
-	time.Sleep(100 * time.Millisecond)
-
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			_ = requestServer(util.NewMsgWithQuestion("google.de.", dns.TypeA))
-		}
+	Describe("resolve client IP", func() {
+		Context("UDP address", func() {
+			It("should correct resolve client IP", func() {
+				ip := resolveClientIP(&net.UDPAddr{IP: net.ParseIP("192.168.178.88")})
+				Expect(ip).Should(Equal(net.ParseIP("192.168.178.88")))
+			})
+		})
+		Context("TCP address", func() {
+			It("should correct resolve client IP", func() {
+				ip := resolveClientIP(&net.TCPAddr{IP: net.ParseIP("192.168.178.88")})
+				Expect(ip).Should(Equal(net.ParseIP("192.168.178.88")))
+			})
+		})
 	})
-}
+
+})
 
 func requestServer(request *dns.Msg) *dns.Msg {
 	conn, err := net.Dial("udp", ":55555")
@@ -411,14 +456,4 @@ func requestServer(request *dns.Msg) *dns.Msg {
 	log.Fatal("could not read from connection", err)
 
 	return nil
-}
-
-func Test_ResolveClientIpUdp(t *testing.T) {
-	ip := resolveClientIP(&net.UDPAddr{IP: net.ParseIP("192.168.178.88")})
-	assert.Equal(t, net.ParseIP("192.168.178.88"), ip)
-}
-
-func Test_ResolveClientIpTcp(t *testing.T) {
-	ip := resolveClientIP(&net.TCPAddr{IP: net.ParseIP("192.168.178.88")})
-	assert.Equal(t, net.ParseIP("192.168.178.88"), ip)
 }

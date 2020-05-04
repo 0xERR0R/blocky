@@ -47,10 +47,11 @@ var blockingCmd = &cobra.Command{
 	Short:   "Control status of blocking resolver",
 }
 
-func enableBlocking(cmd *cobra.Command, args []string) {
+func enableBlocking(_ *cobra.Command, _ []string) {
 	resp, err := http.Get(apiURL(api.BlockingEnablePath))
 	if err != nil {
 		log.Fatal("can't execute", err)
+		return
 	}
 	defer resp.Body.Close()
 
@@ -61,12 +62,13 @@ func enableBlocking(cmd *cobra.Command, args []string) {
 	}
 }
 
-func disableBlocking(cmd *cobra.Command, args []string) {
+func disableBlocking(cmd *cobra.Command, _ []string) {
 	duration, _ := cmd.Flags().GetDuration("duration")
 
 	resp, err := http.Get(fmt.Sprintf("%s?duration=%s", apiURL(api.BlockingDisablePath), duration))
 	if err != nil {
 		log.Fatal("can't execute", err)
+		return
 	}
 	defer resp.Body.Close()
 
@@ -77,15 +79,17 @@ func disableBlocking(cmd *cobra.Command, args []string) {
 	}
 }
 
-func statusBlocking(cmd *cobra.Command, args []string) {
+func statusBlocking(_ *cobra.Command, _ []string) {
 	resp, err := http.Get(apiURL(api.BlockingStatusPath))
 	if err != nil {
 		log.Fatal("can't execute", err)
+		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		log.Fatal("NOK: ", resp.Status)
+		return
 	}
 
 	var result api.BlockingStatus

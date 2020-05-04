@@ -2,22 +2,30 @@ package resolver
 
 import (
 	"blocky/config"
-	"testing"
 
 	"github.com/go-chi/chi"
-	"github.com/stretchr/testify/assert"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
-func Test_Chain(t *testing.T) {
-	ch := Chain(NewBlockingResolver(chi.NewRouter(),
-		config.BlockingConfig{}), NewClientNamesResolver(config.ClientLookupConfig{}))
-	c, ok := ch.(ChainedResolver)
-	assert.True(t, ok)
+var _ = Describe("Resolver", func() {
+	Describe("Creating resolver chain", func() {
+		When("A chain of resolvers will be created", func() {
+			It("should be iterable by calling 'GetNext'", func() {
+				ch := Chain(NewBlockingResolver(chi.NewRouter(),
+					config.BlockingConfig{}), NewClientNamesResolver(config.ClientLookupConfig{}))
+				c, ok := ch.(ChainedResolver)
+				Expect(ok).Should(BeTrue())
 
-	next := c.GetNext()
-	assert.NotNil(t, next)
-}
-func Test_Name(t *testing.T) {
-	name := Name(NewBlockingResolver(chi.NewRouter(), config.BlockingConfig{}))
-	assert.Equal(t, "BlockingResolver", name)
-}
+				next := c.GetNext()
+				Expect(next).ShouldNot(BeNil())
+			})
+		})
+		When("'Name' will be called", func() {
+			It("should return resolver name", func() {
+				name := Name(NewBlockingResolver(chi.NewRouter(), config.BlockingConfig{}))
+				Expect(name).Should(Equal("BlockingResolver"))
+			})
+		})
+	})
+})

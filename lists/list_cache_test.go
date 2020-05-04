@@ -2,191 +2,155 @@ package lists
 
 import (
 	"blocky/config"
-	"blocky/helpertest"
+	. "blocky/helpertest"
 	"blocky/metrics"
-	"fmt"
+
+	"net/http/httptest"
 	"os"
-	"testing"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
 	"github.com/go-chi/chi"
 	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/stretchr/testify/assert"
 )
 
-func Test_NoMatch_With_Empty_List(t *testing.T) {
-	file1 := helpertest.TempFile("#empty file\n\n")
-	defer os.Remove(file1.Name())
+var _ = Describe("ListCache", func() {
+	var (
+		emptyFile, file1, file2, file3 *os.File
+		server1, server2, server3      *httptest.Server
+	)
 
-	lists := map[string][]string{
-		"gr1": {file1.Name()},
-	}
+	BeforeEach(func() {
+		emptyFile = TempFile("#empty file\n\n")
+		server1 = TestServer("blocked1.com\nblocked1a.com\n192.168.178.55")
+		server2 = TestServer("blocked2.com")
+		server3 = TestServer("blocked3.com\nblocked1a.com")
 
-	sut := NewListCache(BLACKLIST, lists, 0)
+		file1 = TempFile("blocked1.com\nblocked1a.com")
+		file2 = TempFile("blocked2.com")
+		file3 = TempFile("blocked3.com\nblocked1a.com")
+	})
+	AfterEach(func() {
+		_ = os.Remove(emptyFile.Name())
+		_ = os.Remove(file1.Name())
+		_ = os.Remove(file2.Name())
+		_ = os.Remove(file3.Name())
+		server1.Close()
+		server2.Close()
+		server3.Close()
+	})
 
-	found, group := sut.Match("google.com", []string{"gr1"})
-	assert.Equal(t, false, found)
-	assert.Equal(t, "", group)
-}
+	Describe("List cache and matching", func() {
+		When("List is empty", func() {
+			It("should not match anything", func() {
+				lists := map[string][]string{
+					"gr1": {emptyFile.Name()},
+				}
+				sut := NewListCache(BLACKLIST, lists, 0)
 
-func Test_Match_Download_Multiple_Groups(t *testing.T) {
-	server1 := helpertest.TestServer("blocked1.com\nblocked1a.com\n192.168.178.55")
-	defer server1.Close()
+				found, group := sut.Match("google.com", []string{"gr1"})
+				Expect(found).Should(BeFalse())
+				Expect(group).Should(BeEmpty())
+			})
+		})
+		When("Configuration has 3 external urls", func() {
+			It("should download the list and match against", func() {
+				lists := map[string][]string{
+					"gr1": {server1.URL, server2.URL},
+					"gr2": {server3.URL},
+				}
 
-	server2 := helpertest.TestServer("blocked2.com")
-	defer server2.Close()
+				sut := NewListCache(BLACKLIST, lists, 0)
 
-	server3 := helpertest.TestServer("blocked3.com\nblocked1a.com")
-	defer server3.Close()
+				found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
+				Expect(found).Should(BeTrue())
+				Expect(group).Should(Equal("gr1"))
 
-	lists := map[string][]string{
-		"gr1": {server1.URL, server2.URL},
-		"gr2": {server3.URL},
-	}
+				found, group = sut.Match("blocked1a.com", []string{"gr1", "gr2"})
+				Expect(found).Should(BeTrue())
+				Expect(group).Should(Equal("gr1"))
 
-	sut := NewListCache(BLACKLIST, lists, 0)
+				found, group = sut.Match("blocked1a.com", []string{"gr2"})
+				Expect(found).Should(BeTrue())
+				Expect(group).Should(Equal("gr2"))
+			})
+			It("should not match if no groups are passed", func() {
+				lists := map[string][]string{
+					"gr1":          {server1.URL, server2.URL},
+					"gr2":          {server3.URL},
+					"withDeadLink": {"http://wrong.host.name"},
+				}
 
-	found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
-	assert.Equal(t, true, found)
-	assert.Equal(t, "gr1", group)
+				sut := NewListCache(BLACKLIST, lists, 0)
 
-	found, group = sut.Match("blocked1a.com", []string{"gr1", "gr2"})
-	assert.Equal(t, true, found)
-	assert.Equal(t, "gr1", group)
+				found, group := sut.Match("blocked1.com", []string{})
+				Expect(found).Should(BeFalse())
+				Expect(group).Should(BeEmpty())
+			})
+		})
+		When("metrics are enabled", func() {
+			It("should count elements in downloaded lists", func() {
+				metrics.Start(chi.NewRouter(), config.PrometheusConfig{Enable: true, Path: "/metrics"})
+				lists := map[string][]string{
+					"gr1": {server1.URL},
+				}
 
-	found, group = sut.Match("blocked1a.com", []string{"gr2"})
-	assert.Equal(t, true, found)
-	assert.Equal(t, "gr2", group)
-}
+				sut := NewListCache(BLACKLIST, lists, 0)
 
-func Test_Match_Download_No_Group(t *testing.T) {
-	server1 := helpertest.TestServer("blocked1.com\nblocked1a.com")
-	defer server1.Close()
+				found, group := sut.Match("blocked1.com", []string{})
+				Expect(found).Should(BeFalse())
+				Expect(group).Should(BeEmpty())
+				Expect(testutil.ToFloat64(sut.counter)).Should(Equal(float64(3)))
+			})
+		})
+		When("multiple groups are passed", func() {
+			It("should match", func() {
+				lists := map[string][]string{
+					"gr1": {file1.Name(), file2.Name()},
+					"gr2": {"file://" + file3.Name()},
+				}
 
-	server2 := helpertest.TestServer("blocked2.com")
-	defer server2.Close()
+				sut := NewListCache(BLACKLIST, lists, 0)
 
-	server3 := helpertest.TestServer("blocked3.com\nblocked1a.com")
-	defer server3.Close()
+				found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
+				Expect(found).Should(BeTrue())
+				Expect(group).Should(Equal("gr1"))
 
-	lists := map[string][]string{
-		"gr1":          {server1.URL, server2.URL},
-		"gr2":          {server3.URL},
-		"withDeadLink": {"http://wrong.host.name"},
-	}
+				found, group = sut.Match("blocked1a.com", []string{"gr1", "gr2"})
+				Expect(found).Should(BeTrue())
+				Expect(group).Should(Equal("gr1"))
 
-	sut := NewListCache(BLACKLIST, lists, 0)
+				found, group = sut.Match("blocked1a.com", []string{"gr2"})
+				Expect(found).Should(BeTrue())
+				Expect(group).Should(Equal("gr2"))
+			})
+		})
+	})
+	Describe("Configuration", func() {
+		When("refresh is enabled", func() {
+			It("should print list configuration", func() {
+				lists := map[string][]string{
+					"gr1": {"file1", "file2"},
+				}
 
-	found, group := sut.Match("blocked1.com", []string{})
-	assert.Equal(t, false, found)
-	assert.Equal(t, "", group)
-}
+				sut := NewListCache(BLACKLIST, lists, 0)
 
-func Test_Match_Download_WithMetrics(t *testing.T) {
-	metrics.Start(chi.NewRouter(), config.PrometheusConfig{Enable: true, Path: "/metrics"})
+				c := sut.Configuration()
+				Expect(c).Should(HaveLen(8))
+			})
+		})
+		When("refresh is disabled", func() {
+			It("should print 'refresh disabled'", func() {
+				lists := map[string][]string{
+					"gr1": {"file1", "file2"},
+				}
 
-	server1 := helpertest.TestServer("blocked1.com\nblocked1a.com")
-	defer server1.Close()
+				sut := NewListCache(BLACKLIST, lists, -1)
 
-	lists := map[string][]string{
-		"gr1": {server1.URL},
-	}
-
-	sut := NewListCache(BLACKLIST, lists, 0)
-
-	found, group := sut.Match("blocked1.com", []string{})
-	assert.Equal(t, false, found)
-	assert.Equal(t, "", group)
-
-	assert.Equal(t, float64(2), testutil.ToFloat64(sut.counter))
-}
-
-func Test_Match_Files_Multiple_Groups(t *testing.T) {
-	file1 := helpertest.TempFile("blocked1.com\nblocked1a.com")
-	defer os.Remove(file1.Name())
-
-	file2 := helpertest.TempFile("blocked2.com")
-	defer os.Remove(file2.Name())
-
-	file3 := helpertest.TempFile("blocked3.com\nblocked1a.com")
-	defer os.Remove(file3.Name())
-
-	lists := map[string][]string{
-		"gr1": {file1.Name(), file2.Name()},
-		"gr2": {"file://" + file3.Name()},
-	}
-
-	sut := NewListCache(BLACKLIST, lists, 0)
-
-	found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
-	assert.Equal(t, true, found)
-	assert.Equal(t, "gr1", group)
-
-	found, group = sut.Match("blocked1a.com", []string{"gr1", "gr2"})
-	assert.Equal(t, true, found)
-	assert.Equal(t, "gr1", group)
-
-	found, group = sut.Match("blocked1a.com", []string{"gr2"})
-	assert.Equal(t, true, found)
-	assert.Equal(t, "gr2", group)
-}
-
-func BenchmarkRefresh(b *testing.B) {
-	count := 10000
-
-	var s string
-
-	for c := 0; c < count; c++ {
-		s = fmt.Sprintf("%sblocked%d.com\n", s, c)
-	}
-
-	file1 := helpertest.TempFile(s)
-	defer os.Remove(file1.Name())
-
-	file2 := helpertest.TempFile(s)
-	defer os.Remove(file2.Name())
-
-	lists := map[string][]string{
-		"gr1": {file1.Name(), file2.Name()},
-	}
-
-	sut := NewListCache(BLACKLIST, lists, 0)
-
-	b.ResetTimer()
-
-	for n := 0; n < b.N; n++ {
-		go sut.refresh()
-		found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
-		assert.Equal(b, true, found)
-		assert.Equal(b, "gr1", group)
-	}
-
-	found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
-	assert.Equal(b, true, found)
-	assert.Equal(b, "gr1", group)
-
-	assert.Len(b, sut.groupCaches["gr1"], count)
-}
-
-func Test_Configuration_RefreshEnabled(t *testing.T) {
-	lists := map[string][]string{
-		"gr1": {"file1", "file2"},
-	}
-
-	sut := NewListCache(BLACKLIST, lists, 0)
-
-	c := sut.Configuration()
-
-	assert.Len(t, c, 8)
-}
-
-func Test_Configuration_RefreshDisabled(t *testing.T) {
-	lists := map[string][]string{
-		"gr1": {"file1", "file2"},
-	}
-
-	sut := NewListCache(BLACKLIST, lists, -1)
-
-	c := sut.Configuration()
-
-	assert.Equal(t, "refresh: disabled", c[0])
-}
+				c := sut.Configuration()
+				Expect(c).Should(ContainElement("refresh: disabled"))
+			})
+		})
+	})
+})

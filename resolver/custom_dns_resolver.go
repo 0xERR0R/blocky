@@ -58,20 +58,16 @@ func (r *CustomDNSResolver) Resolve(request *Request) (*Response, error) {
 					response.SetReply(request.Req)
 
 					if isSupportedType(ip, question) {
-						rr, err := util.CreateAnswerFromQuestion(question, ip, customDNSTTL)
+						rr := util.CreateAnswerFromQuestion(question, ip, customDNSTTL)
 
-						if err == nil {
-							response.Answer = append(response.Answer, rr)
+						response.Answer = append(response.Answer, rr)
 
-							logger.WithFields(logrus.Fields{
-								"answer": util.AnswerToString(response.Answer),
-								"domain": domain,
-							}).Debugf("returning custom dns entry")
+						logger.WithFields(logrus.Fields{
+							"answer": util.AnswerToString(response.Answer),
+							"domain": domain,
+						}).Debugf("returning custom dns entry")
 
-							return &Response{Res: response, RType: CUSTOMDNS, Reason: "CUSTOM DNS"}, nil
-						}
-
-						return nil, err
+						return &Response{Res: response, RType: CUSTOMDNS, Reason: "CUSTOM DNS"}, nil
 					}
 
 					response.Rcode = dns.RcodeNameError

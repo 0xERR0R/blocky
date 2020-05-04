@@ -53,8 +53,13 @@ func (r *ConditionalUpstreamResolver) Resolve(request *Request) (*Response, erro
 						response.RType = CONDITIONAL
 					}
 
+					var answer string
+					if response != nil {
+						answer = util.AnswerToString(response.Res.Answer)
+					}
+
 					logger.WithFields(logrus.Fields{
-						"answer":   util.AnswerToString(response.Res.Answer),
+						"answer":   answer,
 						"domain":   domain,
 						"upstream": r,
 					}).Debugf("received response from conditional upstream")

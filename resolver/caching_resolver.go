@@ -46,8 +46,8 @@ func (r *CachingResolver) Configuration() (result []string) {
 
 	result = append(result, fmt.Sprintf("maxCacheTimeSec = %d", r.maxCacheTimeSec))
 
-	for t, cache := range r.cachesPerType {
-		result = append(result, fmt.Sprintf("%s cache items count = %d", dns.TypeToString[t], cache.ItemCount()))
+	for t, c := range r.cachesPerType {
+		result = append(result, fmt.Sprintf("%s cache items count = %d", dns.TypeToString[t], c.ItemCount()))
 	}
 
 	return

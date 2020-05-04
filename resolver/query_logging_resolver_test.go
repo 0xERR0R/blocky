@@ -8,217 +8,243 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
-	"net"
 	"os"
 	"path/filepath"
-	"testing"
 	"time"
 
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
+
+	log "github.com/sirupsen/logrus"
 )
 
-func Test_New_LogDirNotExist(t *testing.T) {
-	defer func() { logrus.StandardLogger().ExitFunc = nil }()
+var _ = Describe("QueryLoggingResolver", func() {
+	var (
+		sut        *QueryLoggingResolver
+		sutConfig  config.QueryLogConfig
+		err        error
+		resp       *Response
+		m          *resolverMock
+		tmpDir     string
+		mockAnswer *dns.Msg
+	)
 
-	var fatal bool
-
-	logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
-	_ = NewQueryLoggingResolver(config.QueryLogConfig{Dir: "notExists"})
-
-	assert.True(t, fatal)
-}
-
-func Test_doCleanUp_WrongDir(t *testing.T) {
-	defer func() { logrus.StandardLogger().ExitFunc = nil }()
-
-	var fatal bool
-
-	logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
-
-	sut := NewQueryLoggingResolver(config.QueryLogConfig{
-		Dir:              "wrongDir",
-		LogRetentionDays: 7,
+	BeforeEach(func() {
+		mockAnswer = new(dns.Msg)
+		tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
+		Expect(err).Should(Succeed())
 	})
 
-	sut.(*QueryLoggingResolver).doCleanUp()
-	assert.True(t, fatal)
-}
-
-func Test_doCleanUp(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "queryLoggingResolver")
-	defer os.RemoveAll(tmpDir)
-	assert.NoError(t, err)
-
-	// create 2 files, 7 and 8 days old
-	dateBefore7Days := time.Now().AddDate(0, 0, -7)
-	dateBefore8Days := time.Now().AddDate(0, 0, -8)
-
-	f1, err := os.Create(filepath.Join(tmpDir, fmt.Sprintf("%s-test.log", dateBefore7Days.Format("2006-01-02"))))
-	assert.NoError(t, err)
-
-	f2, err := os.Create(filepath.Join(tmpDir, fmt.Sprintf("%s-test.log", dateBefore8Days.Format("2006-01-02"))))
-	assert.NoError(t, err)
-
-	sut := NewQueryLoggingResolver(config.QueryLogConfig{
-		Dir:              tmpDir,
-		LogRetentionDays: 7,
+	JustBeforeEach(func() {
+		sut = NewQueryLoggingResolver(sutConfig).(*QueryLoggingResolver)
+		m = &resolverMock{}
+		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer, Reason: "reason"}, nil)
+		sut.Next(m)
+	})
+	AfterEach(func() {
+		Expect(err).Should(Succeed())
+		_ = os.RemoveAll(tmpDir)
 	})
 
-	sut.(*QueryLoggingResolver).doCleanUp()
+	Describe("Process request", func() {
 
-	// file 1 exist
-	_, err = os.Stat(f1.Name())
-	assert.NoError(t, err)
+		When("Resolver has no configuration", func() {
+			BeforeEach(func() {
+				sutConfig = config.QueryLogConfig{}
+			})
+			It("should process request without query logging", func() {
+				resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
 
-	// file 2 was deleted
-	_, err = os.Stat(f2.Name())
-	assert.Error(t, err)
-	assert.True(t, os.IsNotExist(err))
-}
+				m.AssertExpectations(GinkgoT())
+				Expect(resp.RType).Should(Equal(RESOLVED))
+			})
+		})
+		When("Configuration with logging per client", func() {
+			BeforeEach(func() {
+				sutConfig = config.QueryLogConfig{
+					Dir:       tmpDir,
+					PerClient: true,
+				}
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.TypeA, "123.122.121.120")
+			})
+			It("should create a log file per client", func() {
+				By("request from client 1", func() {
+					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "192.168.178.25", "client1"))
+					Expect(err).Should(Succeed())
+				})
+				By("request from client 2, has name with special chars, should be escaped", func() {
+					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "192.168.178.26", "cl/ient2\\$%&test"))
+					Expect(err).Should(Succeed())
+				})
 
-func Test_Resolve_WithEmptyConfig(t *testing.T) {
-	sut := NewQueryLoggingResolver(config.QueryLogConfig{})
-	m := &resolverMock{}
-	resp, err := util.NewMsgWithAnswer("example.com. 300 IN A 123.122.121.120")
-	assert.NoError(t, err)
+				time.Sleep(100 * time.Millisecond)
+				m.AssertExpectations(GinkgoT())
 
-	m.On("Resolve", mock.Anything).Return(&Response{Res: resp, Reason: "reason"}, nil)
-	sut.Next(m)
+				By("check log for client1", func() {
+					csvLines := readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_client1.log", time.Now().Format("2006-01-02"))))
 
-	_, err = sut.Resolve(&Request{
-		ClientIP:    net.ParseIP("192.168.178.25"),
-		ClientNames: []string{"client1"},
-		Req:         util.NewMsgWithQuestion("google.de.", dns.TypeA),
-		Log:         logrus.NewEntry(logrus.New())})
-	assert.NoError(t, err)
-	m.AssertExpectations(t)
-}
-func Test_Resolve_WithLoggingPerClient(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "queryLoggingResolver")
-	assert.NoError(t, err)
+					Expect(csvLines).Should(HaveLen(1))
+					Expect(csvLines[0][1]).Should(Equal("192.168.178.25"))
+					Expect(csvLines[0][2]).Should(Equal("client1"))
+					Expect(csvLines[0][4]).Should(Equal("reason"))
+					Expect(csvLines[0][5]).Should(Equal("A (example.com.)"))
+					Expect(csvLines[0][6]).Should(Equal("A (123.122.121.120)"))
+				})
 
-	defer os.RemoveAll(tmpDir)
+				By("check log for client2", func() {
+					csvLines := readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_cl_ient2_test.log", time.Now().Format("2006-01-02"))))
 
-	sut := NewQueryLoggingResolver(config.QueryLogConfig{
-		Dir:       tmpDir,
-		PerClient: true,
+					Expect(csvLines).Should(HaveLen(1))
+					Expect(csvLines[0][1]).Should(Equal("192.168.178.26"))
+					Expect(csvLines[0][2]).Should(Equal("cl/ient2\\$%&test"))
+					Expect(csvLines[0][4]).Should(Equal("reason"))
+					Expect(csvLines[0][5]).Should(Equal("A (example.com.)"))
+					Expect(csvLines[0][6]).Should(Equal("A (123.122.121.120)"))
+				})
+			})
+		})
+		When("Configuration with logging in one file for all clients", func() {
+			BeforeEach(func() {
+				sutConfig = config.QueryLogConfig{
+					Dir:       tmpDir,
+					PerClient: false,
+				}
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.TypeA, "123.122.121.120")
+			})
+			It("should create one log file for all clients", func() {
+				By("request from client 1", func() {
+					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "192.168.178.25", "client1"))
+					Expect(err).Should(Succeed())
+				})
+				By("request from client 2, has name with special chars, should be escaped", func() {
+					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "192.168.178.26", "client2"))
+					Expect(err).Should(Succeed())
+				})
+
+				time.Sleep(100 * time.Millisecond)
+				m.AssertExpectations(GinkgoT())
+
+				By("check log", func() {
+					csvLines := readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02"))))
+
+					Expect(csvLines).Should(HaveLen(2))
+					// client1 -> first line
+					Expect(csvLines[0][1]).Should(Equal("192.168.178.25"))
+					Expect(csvLines[0][2]).Should(Equal("client1"))
+					Expect(csvLines[0][4]).Should(Equal("reason"))
+					Expect(csvLines[0][5]).Should(Equal("A (example.com.)"))
+					Expect(csvLines[0][6]).Should(Equal("A (123.122.121.120)"))
+
+					// client2 -> second line
+					Expect(csvLines[1][1]).Should(Equal("192.168.178.26"))
+					Expect(csvLines[1][2]).Should(Equal("client2"))
+					Expect(csvLines[1][4]).Should(Equal("reason"))
+					Expect(csvLines[1][5]).Should(Equal("A (example.com.)"))
+					Expect(csvLines[1][6]).Should(Equal("A (123.122.121.120)"))
+				})
+			})
+		})
 	})
 
-	m := &resolverMock{}
-	resp, err := util.NewMsgWithAnswer("example.com. 300 IN A 123.122.121.120")
-	assert.NoError(t, err)
+	Describe("Configuration output", func() {
+		When("resolver is enabled", func() {
+			BeforeEach(func() {
+				sutConfig = config.QueryLogConfig{
+					Dir:              tmpDir,
+					PerClient:        true,
+					LogRetentionDays: 0,
+				}
+			})
+			It("should return configuration", func() {
+				c := sut.Configuration()
+				Expect(len(c) > 1).Should(BeTrue())
+			})
+		})
 
-	m.On("Resolve", mock.Anything).Return(&Response{Res: resp, Reason: "reason"}, nil)
-	sut.Next(m)
-
-	// request client1
-	_, err = sut.Resolve(&Request{
-		ClientIP:    net.ParseIP("192.168.178.25"),
-		ClientNames: []string{"client1"},
-		Req:         util.NewMsgWithQuestion("google.de.", dns.TypeA),
-		Log:         logrus.NewEntry(logrus.New())})
-	assert.NoError(t, err)
-
-	// request client2, has name with spechial chars, should be escaped
-	_, err = sut.Resolve(&Request{
-		ClientIP:    net.ParseIP("192.168.178.26"),
-		ClientNames: []string{"cl/ient2\\$%&test"},
-		Req:         util.NewMsgWithQuestion("google.de.", dns.TypeA),
-		Log:         logrus.NewEntry(logrus.New())})
-	assert.NoError(t, err)
-
-	time.Sleep(100 * time.Millisecond)
-
-	m.AssertExpectations(t)
-
-	// client1
-	csvLines := readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_client1.log", time.Now().Format("2006-01-02"))))
-
-	assert.Len(t, csvLines, 1)
-	assert.Equal(t, "192.168.178.25", csvLines[0][1])
-	assert.Equal(t, "client1", csvLines[0][2])
-	assert.Equal(t, "reason", csvLines[0][4])
-	assert.Equal(t, "A (google.de.)", csvLines[0][5])
-	assert.Equal(t, "A (123.122.121.120)", csvLines[0][6])
-
-	// client2
-	csvLines = readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_cl_ient2_test.log", time.Now().Format("2006-01-02"))))
-
-	assert.Len(t, csvLines, 1)
-	assert.Equal(t, "192.168.178.26", csvLines[0][1])
-	assert.Equal(t, "cl/ient2\\$%&test", csvLines[0][2])
-	assert.Equal(t, "reason", csvLines[0][4])
-	assert.Equal(t, "A (google.de.)", csvLines[0][5])
-	assert.Equal(t, "A (123.122.121.120)", csvLines[0][6])
-}
-
-func Test_Resolve_WithLoggingAll(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "queryLoggingResolver")
-	assert.NoError(t, err)
-
-	defer os.RemoveAll(tmpDir)
-
-	sut := NewQueryLoggingResolver(config.QueryLogConfig{
-		Dir:       tmpDir,
-		PerClient: false,
+		When("resolver is disabled", func() {
+			BeforeEach(func() {
+				sutConfig = config.QueryLogConfig{}
+			})
+			It("should return 'disabled'", func() {
+				c := sut.Configuration()
+				Expect(c).Should(HaveLen(1))
+				Expect(c).Should(Equal([]string{"deactivated"}))
+			})
+		})
 	})
 
-	m := &resolverMock{}
-	resp, err := util.NewMsgWithAnswer("example.com. 300 IN A 123.122.121.120")
-	assert.NoError(t, err)
+	Describe("Clean up of query log directory", func() {
+		When("Log directory does not exist", func() {
 
-	m.On("Resolve", mock.Anything).Return(&Response{Res: resp, Reason: "reason"}, nil)
-	sut.Next(m)
+			It("should exit with error", func() {
+				defer func() { log.StandardLogger().ExitFunc = nil }()
 
-	// request client1
-	_, err = sut.Resolve(&Request{
-		ClientIP:    net.ParseIP("192.168.178.25"),
-		ClientNames: []string{"client1"},
-		Req:         util.NewMsgWithQuestion("google.de.", dns.TypeA),
-		Log:         logrus.NewEntry(logrus.New())})
-	assert.NoError(t, err)
+				var fatal bool
 
-	// request client2
-	_, err = sut.Resolve(&Request{
-		ClientIP:    net.ParseIP("192.168.178.26"),
-		ClientNames: []string{"client2"},
-		Req:         util.NewMsgWithQuestion("google.de.", dns.TypeA),
-		Log:         logrus.NewEntry(logrus.New())})
-	assert.NoError(t, err)
+				log.StandardLogger().ExitFunc = func(int) { fatal = true }
+				_ = NewQueryLoggingResolver(config.QueryLogConfig{Dir: "notExists"})
 
-	time.Sleep(100 * time.Millisecond)
+				Expect(fatal).Should(BeTrue())
+			})
+		})
+		When("not existing log directory is configured, log retention is enabled", func() {
+			It("should exit with error", func() {
+				defer func() { log.StandardLogger().ExitFunc = nil }()
 
-	m.AssertExpectations(t)
+				var fatal bool
 
-	csvLines := readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02"))))
-	assert.Len(t, csvLines, 2)
+				log.StandardLogger().ExitFunc = func(int) { fatal = true }
 
-	// client1 -> first line
-	assert.Equal(t, "192.168.178.25", csvLines[0][1])
-	assert.Equal(t, "client1", csvLines[0][2])
-	assert.Equal(t, "reason", csvLines[0][4])
-	assert.Equal(t, "A (google.de.)", csvLines[0][5])
-	assert.Equal(t, "A (123.122.121.120)", csvLines[0][6])
+				sut := NewQueryLoggingResolver(config.QueryLogConfig{
+					Dir:              "wrongDir",
+					LogRetentionDays: 7,
+				}).(*QueryLoggingResolver)
 
-	// client2 -> second line
-	assert.Equal(t, "192.168.178.26", csvLines[1][1])
-	assert.Equal(t, "client2", csvLines[1][2])
-	assert.Equal(t, "reason", csvLines[1][4])
-	assert.Equal(t, "A (google.de.)", csvLines[1][5])
-	assert.Equal(t, "A (123.122.121.120)", csvLines[1][6])
-}
+				sut.doCleanUp()
+				Expect(fatal).Should(BeTrue())
+			})
+		})
+		When("log directory contains old files", func() {
+			It("should remove files older than defined log retention", func() {
+
+				// create 2 files, 7 and 8 days old
+				dateBefore7Days := time.Now().AddDate(0, 0, -7)
+				dateBefore8Days := time.Now().AddDate(0, 0, -8)
+
+				f1, err := os.Create(filepath.Join(tmpDir, fmt.Sprintf("%s-test.log", dateBefore7Days.Format("2006-01-02"))))
+				Expect(err).Should(Succeed())
+
+				f2, err := os.Create(filepath.Join(tmpDir, fmt.Sprintf("%s-test.log", dateBefore8Days.Format("2006-01-02"))))
+				Expect(err).Should(Succeed())
+
+				sut := NewQueryLoggingResolver(config.QueryLogConfig{
+					Dir:              tmpDir,
+					LogRetentionDays: 7,
+				})
+
+				sut.(*QueryLoggingResolver).doCleanUp()
+
+				// file 1 exist
+				_, err = os.Stat(f1.Name())
+				Expect(err).Should(Succeed())
+
+				// file 2 was deleted
+				_, err = os.Stat(f2.Name())
+				Expect(err).Should(HaveOccurred())
+				Expect(os.IsNotExist(err)).Should(BeTrue())
+			})
+		})
+	})
+
+})
 
 func readCsv(file string) [][]string {
 	var result [][]string
 
 	csvFile, err := os.Open(file)
-	if err != nil {
-		log.Fatal("can't open file", err)
-	}
+	Expect(err).Should(Succeed())
 
 	reader := csv.NewReader(bufio.NewReader(csvFile))
 	reader.Comma = '\t'
@@ -235,25 +261,4 @@ func readCsv(file string) [][]string {
 	}
 
 	return result
-}
-
-func Test_Configuration_QueryLoggingResolver_WithConfig(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "queryLoggingResolver")
-	assert.NoError(t, err)
-
-	defer os.RemoveAll(tmpDir)
-
-	sut := NewQueryLoggingResolver(config.QueryLogConfig{
-		Dir:              tmpDir,
-		PerClient:        true,
-		LogRetentionDays: 0,
-	})
-	c := sut.Configuration()
-	assert.Len(t, c, 4)
-}
-
-func Test_Configuration_QueryLoggingResolver_Disabled(t *testing.T) {
-	sut := NewQueryLoggingResolver(config.QueryLogConfig{})
-	c := sut.Configuration()
-	assert.Equal(t, []string{"deactivated"}, c)
 }

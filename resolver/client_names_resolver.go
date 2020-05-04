@@ -88,7 +88,7 @@ func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry
 		})
 
 		if err != nil {
-			logger.Error("can't resolve client name", err)
+			logger.Error("can't resolve client name: ", err)
 			return []string{ip.String()}
 		}
 

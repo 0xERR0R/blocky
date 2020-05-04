@@ -167,7 +167,7 @@ func (r *QueryLoggingResolver) writeLog() {
 				}
 				writer.Flush()
 
-				file.Close()
+				_ = file.Close()
 			}
 
 			halfCap := cap(r.logChan) / 2

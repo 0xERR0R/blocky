@@ -115,7 +115,7 @@ func (s *Server) registerDNSHandlers(handler *dns.ServeMux) {
 func createRouter(cfg *config.Config) *chi.Mux {
 	router := chi.NewRouter()
 
-	cors := cors.New(cors.Options{
+	crs := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
@@ -123,7 +123,7 @@ func createRouter(cfg *config.Config) *chi.Mux {
 		AllowCredentials: true,
 		MaxAge:           300,
 	})
-	router.Use(cors.Handler)
+	router.Use(crs.Handler)
 
 	router.Mount("/debug", middleware.Profiler())
 

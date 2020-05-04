@@ -2,248 +2,304 @@ package resolver
 
 import (
 	"blocky/config"
+	. "blocky/helpertest"
 	"blocky/util"
-	"testing"
+
 	"time"
 
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
 )
 
-func Test_Resolve_A_WithCachingAndMinTtl(t *testing.T) {
-	sut := NewCachingResolver(config.CachingConfig{})
-	m := &resolverMock{}
-	mockResp, err := util.NewMsgWithAnswer("example.com. 300 IN A 123.122.121.120")
+var _ = Describe("CachingResolver", func() {
+	var (
+		sut        ChainedResolver
+		sutConfig  config.CachingConfig
+		m          *resolverMock
+		mockAnswer *dns.Msg
 
-	if err != nil {
-		t.Error(err)
-	}
+		err  error
+		resp *Response
+	)
 
-	m.On("Resolve", mock.Anything).Return(&Response{Res: mockResp}, nil)
-	sut.Next(m)
+	BeforeEach(func() {
+		sutConfig = config.CachingConfig{}
+		mockAnswer = new(dns.Msg)
 
-	request := &Request{
-		Req: util.NewMsgWithQuestion("example.com.", dns.TypeA),
-		Log: logrus.NewEntry(logrus.New()),
-	}
+	})
 
-	// first request
-	resp, err := sut.Resolve(request)
-	assert.NoError(t, err)
-	assert.Equal(t, dns.RcodeSuccess, resp.Res.Rcode)
-	assert.Equal(t, "example.com.	300	IN	A	123.122.121.120", resp.Res.Answer[0].String())
-	assert.Equal(t, 1, len(m.Calls))
+	AfterEach(func() {
+		Expect(err).Should(Succeed())
+	})
 
-	time.Sleep(500 * time.Millisecond)
+	JustBeforeEach(func() {
+		sut = NewCachingResolver(sutConfig)
+		m = &resolverMock{}
+		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
+		sut.Next(m)
+	})
 
-	// second request
-	resp, err = sut.Resolve(request)
-	assert.NoError(t, err)
-	assert.Equal(t, dns.RcodeSuccess, resp.Res.Rcode)
+	Describe("Caching responses", func() {
+		When("min caching time is defined", func() {
+			BeforeEach(func() {
+				sutConfig = config.CachingConfig{
+					MinCachingTime: 5,
+				}
+			})
+			Context("response TTL is bigger than defined min caching time", func() {
+				BeforeEach(func() {
+					mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 600, dns.TypeA, "123.122.121.120")
+				})
 
-	// ttl is smaler
-	assert.Equal(t, "example.com.	299	IN	A	123.122.121.120", resp.Res.Answer[0].String())
+				It("should cache response and use response's TTL", func() {
 
-	// still one call to resolver
-	assert.Equal(t, 1, len(m.Calls))
+					By("first request", func() {
+						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+						Expect(err).Should(Succeed())
+						Expect(resp.RType).Should(Equal(RESOLVED))
+						Expect(m.Calls).Should(HaveLen(1))
+						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+						Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 600, "123.122.121.120"))
+					})
 
-	m.AssertExpectations(t)
-}
+					time.Sleep(500 * time.Millisecond)
 
-func Test_Resolve_AAAA_WithCachingAndMinTtl(t *testing.T) {
-	sut := NewCachingResolver(config.CachingConfig{MinCachingTime: 4})
-	m := &resolverMock{}
+					By("second request", func() {
+						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+						Expect(err).Should(Succeed())
+						Expect(resp.RType).Should(Equal(CACHED))
+						// still one call to upstream
+						Expect(m.Calls).Should(HaveLen(1))
+						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+						// ttl is smaller
+						Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 599, "123.122.121.120"))
+					})
+				})
+			})
+			Context("response TTL is smaller than defined min caching time", func() {
+				Context("A query", func() {
+					BeforeEach(func() {
+						mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 123, dns.TypeA, "123.122.121.120")
+					})
 
-	mockResp, err := util.NewMsgWithAnswer("example.com. 123 IN AAAA 2001:0db8:85a3:08d3:1319:8a2e:0370:7344")
+					It("should cache response and use min caching time as TTL", func() {
 
-	if err != nil {
-		t.Error(err)
-	}
+						By("first request", func() {
+							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+							Expect(err).Should(Succeed())
+							Expect(resp.RType).Should(Equal(RESOLVED))
+							Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+							Expect(m.Calls).Should(HaveLen(1))
+							Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 300, "123.122.121.120"))
+						})
 
-	m.On("Resolve", mock.Anything).Return(&Response{Res: mockResp}, nil)
-	sut.Next(m)
+						time.Sleep(500 * time.Millisecond)
 
-	request := &Request{
-		Req: util.NewMsgWithQuestion("example.com.", dns.TypeAAAA),
-		Log: logrus.NewEntry(logrus.New()),
-	}
+						By("second request", func() {
+							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+							Expect(err).Should(Succeed())
+							Expect(resp.RType).Should(Equal(CACHED))
+							Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+							// still one call to upstream
+							Expect(m.Calls).Should(HaveLen(1))
+							// ttl is smaller
+							Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 299, "123.122.121.120"))
+						})
+					})
+				})
 
-	// first request
-	resp, err := sut.Resolve(request)
-	assert.NoError(t, err)
-	assert.Equal(t, dns.RcodeSuccess, resp.Res.Rcode)
-	assert.Equal(t, "example.com.	240	IN	AAAA	2001:db8:85a3:8d3:1319:8a2e:370:7344", resp.Res.Answer[0].String())
-	assert.Equal(t, 1, len(m.Calls))
+				Context("AAAA query", func() {
+					BeforeEach(func() {
+						mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 123,
+							dns.TypeAAAA, "2001:0db8:85a3:08d3:1319:8a2e:0370:7344")
+					})
 
-	time.Sleep(500 * time.Millisecond)
+					It("should cache response and use min caching time as TTL", func() {
 
-	// second request
-	resp, err = sut.Resolve(request)
-	assert.NoError(t, err)
-	assert.Equal(t, dns.RcodeSuccess, resp.Res.Rcode)
+						By("first request", func() {
+							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+							Expect(err).Should(Succeed())
+							Expect(resp.RType).Should(Equal(RESOLVED))
+							Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+							Expect(m.Calls).Should(HaveLen(1))
+							Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
+								dns.TypeAAAA, 300, "2001:db8:85a3:8d3:1319:8a2e:370:7344"))
+						})
 
-	// ttl is smaler
-	assert.Equal(t, "example.com.	239	IN	AAAA	2001:db8:85a3:8d3:1319:8a2e:370:7344", resp.Res.Answer[0].String())
+						time.Sleep(500 * time.Millisecond)
 
-	// still one call to resolver
-	assert.Equal(t, 1, len(m.Calls))
+						By("second request", func() {
+							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+							Expect(err).Should(Succeed())
+							Expect(resp.RType).Should(Equal(CACHED))
+							Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+							// still one call to upstream
+							Expect(m.Calls).Should(HaveLen(1))
+							// ttl is smaller
+							Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
+								dns.TypeAAAA, 299, "2001:db8:85a3:8d3:1319:8a2e:370:7344"))
+						})
+					})
+				})
 
-	m.AssertExpectations(t)
-}
+			})
 
-func Test_Resolve_AAAA_WithCachingAndMaxTtl(t *testing.T) {
-	sut := NewCachingResolver(config.CachingConfig{MaxCachingTime: 4})
-	m := &resolverMock{}
+		})
+		When("max caching time is defined", func() {
 
-	mockResp, err := util.NewMsgWithAnswer("example.com. 1230 IN AAAA 2001:0db8:85a3:08d3:1319:8a2e:0370:7344")
+			BeforeEach(func() {
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1230, dns.TypeAAAA, "2001:0db8:85a3:08d3:1319:8a2e:0370:7344")
+			})
+			Context("max caching time is negative -> caching is disabled", func() {
+				BeforeEach(func() {
+					sutConfig = config.CachingConfig{
+						MaxCachingTime: -1,
+					}
+				})
 
-	if err != nil {
-		t.Error(err)
-	}
+				It("Shouldn't cache any responses", func() {
+					By("first request", func() {
+						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+						Expect(err).Should(Succeed())
+						Expect(resp.RType).Should(Equal(RESOLVED))
+						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+						Expect(m.Calls).Should(HaveLen(1))
+						Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
+							dns.TypeAAAA, 1230, "2001:db8:85a3:8d3:1319:8a2e:370:7344"))
+					})
 
-	m.On("Resolve", mock.Anything).Return(&Response{Res: mockResp}, nil)
-	sut.Next(m)
+					time.Sleep(500 * time.Millisecond)
 
-	request := &Request{
-		Req: util.NewMsgWithQuestion("example.com.", dns.TypeAAAA),
-		Log: logrus.NewEntry(logrus.New()),
-	}
+					By("second request", func() {
+						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+						Expect(err).Should(Succeed())
+						Expect(resp.RType).Should(Equal(RESOLVED))
+						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+						//  one more call to upstream
+						Expect(m.Calls).Should(HaveLen(2))
+						Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
+							dns.TypeAAAA, 1230, "2001:db8:85a3:8d3:1319:8a2e:370:7344"))
+					})
+				})
+			})
 
-	// first request
-	resp, err := sut.Resolve(request)
-	assert.NoError(t, err)
-	assert.Equal(t, dns.RcodeSuccess, resp.Res.Rcode)
-	assert.Equal(t, "example.com.	240	IN	AAAA	2001:db8:85a3:8d3:1319:8a2e:370:7344", resp.Res.Answer[0].String())
-	assert.Equal(t, 1, len(m.Calls))
+			Context("max caching time is positive", func() {
+				BeforeEach(func() {
+					sutConfig = config.CachingConfig{
+						MaxCachingTime: 4,
+					}
+				})
+				It("should cache response and use max caching time as TTL if response TTL is bigger", func() {
+					By("first request", func() {
+						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+						Expect(err).Should(Succeed())
+						Expect(resp.RType).Should(Equal(RESOLVED))
+						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+						Expect(m.Calls).Should(HaveLen(1))
+						Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
+							dns.TypeAAAA, 240, "2001:db8:85a3:8d3:1319:8a2e:370:7344"))
+					})
 
-	time.Sleep(500 * time.Millisecond)
+					time.Sleep(500 * time.Millisecond)
 
-	// second request
-	resp, err = sut.Resolve(request)
-	assert.NoError(t, err)
-	assert.Equal(t, dns.RcodeSuccess, resp.Res.Rcode)
+					By("second request", func() {
+						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+						Expect(err).Should(Succeed())
+						Expect(resp.RType).Should(Equal(CACHED))
+						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+						// still one call to upstream
+						Expect(m.Calls).Should(HaveLen(1))
+						// ttl is smaller
+						Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
+							dns.TypeAAAA, 239, "2001:db8:85a3:8d3:1319:8a2e:370:7344"))
+					})
+				})
+			})
+		})
+	})
 
-	// ttl is smaler
-	assert.Equal(t, "example.com.	239	IN	AAAA	2001:db8:85a3:8d3:1319:8a2e:370:7344", resp.Res.Answer[0].String())
+	Describe("Negative cache (caching if upstream resolver returns NXDOMAIN)", func() {
+		When("Upstream resolver returns NXDOMAIN", func() {
+			BeforeEach(func() {
+				mockAnswer.Rcode = dns.RcodeNameError
+			})
 
-	// still one call to resolver
-	assert.Equal(t, 1, len(m.Calls))
+			It("response should be cached", func() {
+				By("first request", func() {
+					resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(RESOLVED))
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+					Expect(m.Calls).Should(HaveLen(1))
+				})
 
-	m.AssertExpectations(t)
-}
+				time.Sleep(500 * time.Millisecond)
 
-func Test_Resolve_AAAA_CachingDisabled(t *testing.T) {
-	sut := NewCachingResolver(config.CachingConfig{MaxCachingTime: -1})
-	m := &resolverMock{}
+				By("second request", func() {
+					resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(CACHED))
+					Expect(resp.Reason).Should(Equal("CACHED NEGATIVE"))
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+					// still one call to resolver
+					Expect(m.Calls).Should(HaveLen(1))
+				})
+			})
 
-	mockResp, err := util.NewMsgWithAnswer("example.com. 1230 IN AAAA 2001:0db8:85a3:08d3:1319:8a2e:0370:7344")
+		})
+	})
 
-	if err != nil {
-		t.Error(err)
-	}
+	Describe("Not A / AAAA queries should not be cached", func() {
+		When("MX query will be performed", func() {
+			BeforeEach(func() {
+				mockAnswer, _ = util.NewMsgWithAnswer("google.de.", 180, dns.TypeMX, "10 alt1.aspmx.l.google.com.")
+			})
+			It("Shouldn't be cached", func() {
+				By("first request", func() {
+					resp, err = sut.Resolve(newRequest("google.de.", dns.TypeMX))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(RESOLVED))
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+					Expect(m.Calls).Should(HaveLen(1))
+					Expect(resp.Res.Answer).Should(BeDNSRecord("google.de.", dns.TypeMX, 180, "alt1.aspmx.l.google.com."))
+				})
 
-	m.On("Resolve", mock.Anything).Return(&Response{Res: mockResp}, nil)
-	sut.Next(m)
+				By("second request", func() {
+					resp, err = sut.Resolve(newRequest("google.de.", dns.TypeMX))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(RESOLVED))
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+					Expect(m.Calls).Should(HaveLen(2))
+					Expect(resp.Res.Answer).Should(BeDNSRecord("google.de.", dns.TypeMX, 180, "alt1.aspmx.l.google.com."))
+				})
+			})
+		})
+	})
 
-	request := &Request{
-		Req: util.NewMsgWithQuestion("example.com.", dns.TypeAAAA),
-		Log: logrus.NewEntry(logrus.New()),
-	}
+	Describe("Configuration output", func() {
+		When("resolver is enabled", func() {
+			BeforeEach(func() {
+				sutConfig = config.CachingConfig{}
+			})
+			It("should return configuration", func() {
+				c := sut.Configuration()
+				Expect(len(c) > 1).Should(BeTrue())
+			})
+		})
 
-	// first request
-	resp, err := sut.Resolve(request)
-	assert.NoError(t, err)
-	assert.Equal(t, dns.RcodeSuccess, resp.Res.Rcode)
-	assert.Equal(t, "example.com.	1230	IN	AAAA	2001:db8:85a3:8d3:1319:8a2e:370:7344", resp.Res.Answer[0].String())
-	assert.Equal(t, 1, len(m.Calls))
-
-	time.Sleep(500 * time.Millisecond)
-
-	// second request
-	resp, err = sut.Resolve(request)
-	assert.NoError(t, err)
-	assert.Equal(t, dns.RcodeSuccess, resp.Res.Rcode)
-
-	// ttl is same
-	assert.Equal(t, "example.com.	1230	IN	AAAA	2001:db8:85a3:8d3:1319:8a2e:370:7344", resp.Res.Answer[0].String())
-
-	// resolver was called twice
-	assert.Equal(t, 2, len(m.Calls))
-
-	m.AssertExpectations(t)
-}
-
-func Test_Resolve_A_NegativeCache(t *testing.T) {
-	sut := NewCachingResolver(config.CachingConfig{})
-	m := &resolverMock{}
-
-	mockResp := new(dns.Msg)
-	mockResp.Rcode = dns.RcodeNameError
-
-	m.On("Resolve", mock.Anything).Return(&Response{Res: mockResp}, nil)
-	sut.Next(m)
-
-	request := &Request{
-		Req: util.NewMsgWithQuestion("example.com.", dns.TypeAAAA),
-		Log: logrus.NewEntry(logrus.New()),
-	}
-
-	// first request
-	resp, err := sut.Resolve(request)
-	assert.NoError(t, err)
-	assert.Equal(t, dns.RcodeNameError, resp.Res.Rcode)
-	assert.Len(t, resp.Res.Answer, 0)
-	assert.Len(t, m.Calls, 1)
-
-	time.Sleep(500 * time.Millisecond)
-
-	// second request
-	resp, err = sut.Resolve(request)
-	assert.NoError(t, err)
-	assert.Equal(t, dns.RcodeNameError, resp.Res.Rcode)
-
-	assert.Equal(t, "CACHED NEGATIVE", resp.Reason)
-
-	// still one call to resolver
-	assert.Len(t, m.Calls, 1)
-
-	m.AssertExpectations(t)
-}
-
-func Test_Resolve_MX(t *testing.T) {
-	sut := NewCachingResolver(config.CachingConfig{})
-	m := &resolverMock{}
-	mockResp, err := util.NewMsgWithAnswer("google.de.\t180\tIN\tMX\t20\talt1.aspmx.l.google.com.")
-
-	if err != nil {
-		t.Error(err)
-	}
-
-	m.On("Resolve", mock.Anything).Return(&Response{Res: mockResp}, nil)
-	sut.Next(m)
-
-	request := &Request{
-		Req: util.NewMsgWithQuestion("google.de.", dns.TypeMX),
-		Log: logrus.NewEntry(logrus.New()),
-	}
-
-	resp, err := sut.Resolve(request)
-	assert.NoError(t, err)
-	assert.Equal(t, dns.RcodeSuccess, resp.Res.Rcode)
-	assert.Equal(t, "google.de.\t180\tIN\tMX\t20 alt1.aspmx.l.google.com.", resp.Res.Answer[0].String())
-	assert.Equal(t, 1, len(m.Calls))
-}
-
-func Test_Configuration_CachingResolver(t *testing.T) {
-	sut := NewCachingResolver(config.CachingConfig{})
-	c := sut.Configuration()
-	assert.True(t, len(c) > 1)
-}
-
-func Test_Configuration_CachingResolverDisabled(t *testing.T) {
-	sut := NewCachingResolver(config.CachingConfig{MaxCachingTime: -1})
-	c := sut.Configuration()
-	assert.Equal(t, []string{"deactivated"}, c)
-}
+		When("resolver is disabled", func() {
+			BeforeEach(func() {
+				sutConfig = config.CachingConfig{
+					MaxCachingTime: -1,
+				}
+			})
+			It("should return 'disabled''", func() {
+				c := sut.Configuration()
+				Expect(c).Should(HaveLen(1))
+				Expect(c).Should(Equal([]string{"deactivated"}))
+			})
+		})
+	})
+})

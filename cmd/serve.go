@@ -22,36 +22,41 @@ func init() {
 }
 
 //nolint:gochecknoglobals
-var serveCmd = &cobra.Command{
-	Use:   "serve",
-	Args:  cobra.NoArgs,
-	Short: "start blocky DNS server (default command)",
-	Run: func(cmd *cobra.Command, args []string) {
-		printBanner()
+var (
+	serveCmd = &cobra.Command{
+		Use:   "serve",
+		Args:  cobra.NoArgs,
+		Short: "start blocky DNS server (default command)",
+		Run:   startServer,
+	}
+	done chan bool
+)
 
-		configureHTTPClient(&cfg)
+func startServer(_ *cobra.Command, _ []string) {
+	printBanner()
 
-		signals := make(chan os.Signal)
-		done := make(chan bool)
+	configureHTTPClient(&cfg)
 
-		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	signals := make(chan os.Signal)
+	done = make(chan bool)
 
-		server, err := server.NewServer(&cfg)
-		if err != nil {
-			log.Fatal("cant start server ", err)
-		}
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
-		server.Start()
+	srv, err := server.NewServer(&cfg)
+	if err != nil {
+		log.Fatal("cant start server ", err)
+	}
 
-		go func() {
-			<-signals
-			log.Infof("Terminating...")
-			server.Stop()
-			done <- true
-		}()
+	srv.Start()
 
-		<-done
-	},
+	go func() {
+		<-signals
+		log.Infof("Terminating...")
+		srv.Stop()
+		done <- true
+	}()
+
+	<-done
 }
 
 func configureHTTPClient(cfg *config.Config) {

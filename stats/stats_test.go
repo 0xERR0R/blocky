@@ -4,166 +4,175 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
-func Test_Put_ExeedsMax(t *testing.T) {
-	mockTime := "20200101_0101"
-	now = func() time.Time {
-		t, _ := time.Parse("20060102_1505", mockTime)
-		return t
-	}
-	s := NewAggregatorWithMax("test", 3)
+var _ = Describe("Config", func() {
+	var (
+		mockTime string
+	)
+	BeforeEach(func() {
+		now = func() time.Time {
+			t, _ := time.Parse("20060102_1505", mockTime)
+			return t
+		}
+	})
+	Describe("Put value into stats aggregator", func() {
+		When("Put exceeds max of 3", func() {
+			It("should return only 3 entries", func() {
+				mockTime = "20200101_0101"
+				s := NewAggregatorWithMax("test", 3)
 
-	s.Put("a2")
-	s.Put("a1")
-	s.Put("a2")
-	s.Put("a3")
-	s.Put("a1")
-	s.Put("a1")
-	s.Put("a4")
-	s.Put("a5")
-	s.Put("a2")
-	s.Put("a6")
-	s.Put("a1")
-	s.Put("a6")
-	s.Put("a1")
+				s.Put("a2")
+				s.Put("a1")
+				s.Put("a2")
+				s.Put("a3")
+				s.Put("a1")
+				s.Put("a1")
+				s.Put("a4")
+				s.Put("a5")
+				s.Put("a2")
+				s.Put("a6")
+				s.Put("a1")
+				s.Put("a6")
+				s.Put("a1")
 
-	// change hour
-	mockTime = "20200101_0201"
+				// change hour
+				mockTime = "20200101_0201"
 
-	s.Put("a1")
-	res := s.AggregateResult()
+				s.Put("a1")
+				res := s.AggregateResult()
 
-	assert.Len(t, res, 3)
-	assert.Equal(t, 5, res["a1"])
-	assert.Equal(t, 3, res["a2"])
-	assert.Equal(t, 2, res["a6"])
-}
+				Expect(res).Should(HaveLen(3))
+				Expect(res["a1"]).Should(Equal(5))
+				Expect(res["a2"]).Should(Equal(3))
+				Expect(res["a6"]).Should(Equal(2))
+			})
+		})
+		When("Put under max", func() {
+			It("should return correct value", func() {
+				mockTime = "20200105_0101"
+				s := NewAggregator("test")
 
-func Test_Put_AggregateMultipleHours(t *testing.T) {
-	mockTime := "20200102_0101"
-	now = func() time.Time {
-		t, _ := time.Parse("20060102_1505", mockTime)
-		return t
-	}
-	s := NewAggregatorWithMax("test", 3)
+				s.Put("a2")
+				s.Put("a1")
+				s.Put("a2")
+				s.Put("a3")
+				s.Put("a2")
+				s.Put("a2")
+				s.Put("a2")
 
-	s.Put("a2")
-	s.Put("a1")
-	s.Put("a2")
-	s.Put("a3")
-	s.Put("a1")
-	s.Put("a1")
-	s.Put("a4")
-	s.Put("a5")
-	s.Put("a2")
-	s.Put("a6")
-	s.Put("a1")
-	s.Put("a6")
-	s.Put("a1")
+				// change hour
+				mockTime = "20200105_0201"
 
-	// change hour
-	mockTime = "20200102_0201"
+				s.Put("a1")
 
-	s.Put("a1")
+				res := s.AggregateResult()
 
-	// change hour
-	mockTime = "20200102_0301"
+				Expect(res).Should(HaveLen(3))
+				Expect(res["a1"]).Should(Equal(1))
+				Expect(res["a2"]).Should(Equal(5))
+				Expect(res["a3"]).Should(Equal(1))
+			})
+		})
+	})
+	Describe("Aggregate multiple hours", func() {
+		When("Put is called through several hours", func() {
+			It("should aggregate result", func() {
+				mockTime = "20200102_0101"
+				s := NewAggregatorWithMax("test", 3)
 
-	s.Put("a2")
-	s.Put("a1")
+				s.Put("a2")
+				s.Put("a1")
+				s.Put("a2")
+				s.Put("a3")
+				s.Put("a1")
+				s.Put("a1")
+				s.Put("a4")
+				s.Put("a5")
+				s.Put("a2")
+				s.Put("a6")
+				s.Put("a1")
+				s.Put("a6")
+				s.Put("a1")
 
-	// change hour
-	mockTime = "20200102_0401"
+				// change hour
+				mockTime = "20200102_0201"
 
-	res := s.AggregateResult()
+				s.Put("a1")
 
-	assert.Len(t, res, 3)
-	assert.Equal(t, 7, res["a1"])
-	assert.Equal(t, 4, res["a2"])
-	assert.Equal(t, 2, res["a6"])
-}
+				// change hour
+				mockTime = "20200102_0301"
 
-func Test_Put_AggregateMultipleHoursOver24h(t *testing.T) {
-	mockTime := "20200103_0101"
-	now = func() time.Time {
-		t, _ := time.Parse("20060102_1505", mockTime)
-		return t
-	}
-	s := NewAggregatorWithMax("test", 3)
+				s.Put("a2")
+				s.Put("a1")
 
-	s.Put("a1")
-	s.Put("a2")
+				// change hour
+				mockTime = "20200102_0401"
 
-	// change hour
-	mockTime = "20200103_0201"
+				res := s.AggregateResult()
+				Expect(res).Should(HaveLen(3))
+				Expect(res["a1"]).Should(Equal(7))
+				Expect(res["a2"]).Should(Equal(4))
+				Expect(res["a6"]).Should(Equal(2))
+			})
+		})
+	})
+	Describe("Aggregate over 24h", func() {
+		When("Put is called in a time range over 24h", func() {
+			It("should aggregate only last 24h", func() {
+				mockTime = "20200103_0101"
+				s := NewAggregatorWithMax("test", 3)
 
-	s.Put("a2")
-	s.Put("a3")
+				s.Put("a1")
+				s.Put("a2")
 
-	// change hour
-	mockTime = "20200103_0301"
+				// change hour
+				mockTime = "20200103_0201"
 
-	s.Put("a3")
-	s.Put("a4")
-	s.Put("a5")
+				s.Put("a2")
+				s.Put("a3")
 
-	// change day
-	mockTime = "20200104_0101"
+				// change hour
+				mockTime = "20200103_0301"
 
-	res := s.AggregateResult()
+				s.Put("a3")
+				s.Put("a4")
+				s.Put("a5")
 
-	assert.Len(t, res, 3)
-	assert.Equal(t, 2, res["a3"])
-	assert.Equal(t, 1, res["a4"])
-	assert.Equal(t, 1, res["a5"])
-}
+				// change day
+				mockTime = "20200104_0101"
 
-func Test_Put_UnderMax(t *testing.T) {
-	mockTime := "20200105_0101"
-	now = func() time.Time {
-		t, _ := time.Parse("20060102_1505", mockTime)
-		return t
-	}
-	s := NewAggregator("test")
+				res := s.AggregateResult()
 
-	s.Put("a2")
-	s.Put("a1")
-	s.Put("a2")
-	s.Put("a3")
-	s.Put("a2")
-	s.Put("a2")
-	s.Put("a2")
+				Expect(res).Should(HaveLen(3))
+				Expect(res["a3"]).Should(Equal(2))
+				Expect(res["a4"]).Should(Equal(1))
+				Expect(res["a5"]).Should(Equal(1))
+			})
+		})
+	})
+	Describe("Empty aggregation", func() {
+		When("parameter is empty", func() {
+			It("should be ignored", func() {
+				mockTime = "20200104_0101"
+				s := NewAggregator("test")
 
-	// change hour
-	mockTime = "20200105_0201"
+				s.Put("")
+				s.Put("a1")
 
-	s.Put("a1")
+				// change hour
+				mockTime = "20200104_0201"
 
-	res := s.AggregateResult()
+				res := s.AggregateResult()
 
-	assert.Len(t, res, 3)
-	assert.Equal(t, 1, res["a1"])
-	assert.Equal(t, 5, res["a2"])
-	assert.Equal(t, 1, res["a3"])
-}
+				Expect(res).Should(HaveLen(1))
+			})
+		})
+	})
+})
 
 func Test_Put_Empty(t *testing.T) {
-	mockTime := "20200104_0101"
-	now = func() time.Time {
-		t, _ := time.Parse("20060102_1505", mockTime)
-		return t
-	}
-	s := NewAggregator("test")
 
-	s.Put("")
-	s.Put("a1")
-
-	// change hour
-	mockTime = "20200104_0201"
-
-	res := s.AggregateResult()
-
-	assert.Len(t, res, 1)
 }

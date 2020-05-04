@@ -5,271 +5,247 @@ import (
 	"blocky/util"
 	"errors"
 	"fmt"
-	"net"
-	"sync/atomic"
-	"testing"
 
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
 )
 
-func TestClientNamesFromUpstream(t *testing.T) {
-	callCount := 0
-	upstream := TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-		callCount++
-		r, err := dns.ReverseAddr("192.168.178.25")
-		assert.NoError(t, err)
+var _ = Describe("ClientResolver", func() {
+	var (
+		sut                          *ClientNamesResolver
+		sutConfig                    config.ClientLookupConfig
+		m                            *resolverMock
+		mockReverseUpstream          config.Upstream
+		mockReverseUpstreamCallCount int
+		mockReverseUpstreamAnswer    *dns.Msg
 
-		response, err := util.NewMsgWithAnswer(fmt.Sprintf("%s 300 IN PTR myhost", r))
+		err  error
+		resp *Response
+	)
 
-		assert.NoError(t, err)
-		return response
+	BeforeEach(func() {
+		mockReverseUpstreamAnswer = new(dns.Msg)
+		mockReverseUpstreamCallCount = 0
+
+		mockReverseUpstream = TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
+			mockReverseUpstreamCallCount++
+			Expect(err).Should(Succeed())
+
+			return mockReverseUpstreamAnswer
+		})
+		sutConfig = config.ClientLookupConfig{
+			Upstream: mockReverseUpstream,
+		}
+
 	})
 
-	sut := NewClientNamesResolver(config.ClientLookupConfig{Upstream: upstream}).(*ClientNamesResolver)
-	m := &resolverMock{}
-	m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
-	sut.Next(m)
+	JustBeforeEach(func() {
+		sut = NewClientNamesResolver(sutConfig).(*ClientNamesResolver)
+		m = &resolverMock{}
+		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
+		sut.Next(m)
 
-	// first request
-	request := &Request{
-		ClientIP: net.ParseIP("192.168.178.25"),
-		Log:      logrus.NewEntry(logrus.New())}
-	_, err := sut.Resolve(request)
-
-	assert.Equal(t, 1, callCount)
-
-	m.AssertExpectations(t)
-	assert.NoError(t, err)
-	assert.Equal(t, "myhost", request.ClientNames[0])
-
-	// second request
-	request = &Request{ClientIP: net.ParseIP("192.168.178.25"),
-		Log: logrus.NewEntry(logrus.New())}
-	_, err = sut.Resolve(request)
-
-	// use cache -> call count 1
-	assert.Equal(t, 1, callCount)
-
-	m.AssertExpectations(t)
-	assert.NoError(t, err)
-	assert.Len(t, request.ClientNames, 1)
-	assert.Equal(t, "myhost", request.ClientNames[0])
-
-	// reset cache
-	sut.FlushCache()
-
-	// third request
-	request = &Request{ClientIP: net.ParseIP("192.168.178.25"),
-		Log: logrus.NewEntry(logrus.New())}
-	_, err = sut.Resolve(request)
-
-	// no cache -> call count 2
-	assert.Equal(t, 2, callCount)
-
-	m.AssertExpectations(t)
-	assert.NoError(t, err)
-	assert.Len(t, request.ClientNames, 1)
-	assert.Equal(t, "myhost", request.ClientNames[0])
-}
-
-func TestClientInfoFromUpstreamSingleNameWithOrder(t *testing.T) {
-	var callCount int32
-
-	upstream := TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-		atomic.AddInt32(&callCount, 1)
-		r, err := dns.ReverseAddr("192.168.178.25")
-		assert.NoError(t, err)
-
-		response, err := util.NewMsgWithAnswer(fmt.Sprintf("%s 300 IN PTR myhost", r))
-
-		assert.NoError(t, err)
-		return response
 	})
 
-	sut := NewClientNamesResolver(config.ClientLookupConfig{
-		Upstream:        upstream,
-		SingleNameOrder: []uint{2, 1}})
-	m := &resolverMock{}
-	m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
-	sut.Next(m)
+	Describe("Resolve client name via rDNS lookup", func() {
+		AfterEach(func() {
+			// next resolver will be called
+			m.AssertExpectations(GinkgoT())
+			Expect(err).Should(Succeed())
+		})
+		Context("Without order", func() {
+			When("Client has one name", func() {
+				BeforeEach(func() {
+					r, _ := dns.ReverseAddr("192.168.178.25")
+					mockReverseUpstreamAnswer, _ = util.NewMsgWithAnswer(r, 600, dns.TypePTR, "host1")
+				})
 
-	// first request
-	request := &Request{
-		ClientIP: net.ParseIP("192.168.178.25"),
-		Log:      logrus.NewEntry(logrus.New())}
-	_, err := sut.Resolve(request)
+				It("should resolve client name", func() {
+					By("first request", func() {
+						request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
+						resp, err = sut.Resolve(request)
 
-	assert.Equal(t, int32(1), callCount)
+						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+						Expect(request.ClientNames[0]).Should(Equal("host1"))
+						Expect(mockReverseUpstreamCallCount).Should(Equal(1))
+					})
 
-	m.AssertExpectations(t)
-	assert.NoError(t, err)
-	assert.Equal(t, "myhost", request.ClientNames[0])
+					By("second request", func() {
+						request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
+						resp, err = sut.Resolve(request)
 
-	// second request
-	request = &Request{ClientIP: net.ParseIP("192.168.178.25"),
-		Log: logrus.NewEntry(logrus.New())}
-	_, err = sut.Resolve(request)
+						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+						Expect(request.ClientNames[0]).Should(Equal("host1"))
+						// use cache -> call count 1
+						Expect(mockReverseUpstreamCallCount).Should(Equal(1))
+					})
 
-	// use cache -> call count 1
-	assert.Equal(t, int32(1), callCount)
+					// reset cache
+					sut.FlushCache()
 
-	m.AssertExpectations(t)
-	assert.NoError(t, err)
-	assert.Len(t, request.ClientNames, 1)
-	assert.Equal(t, "myhost", request.ClientNames[0])
-}
+					By("third request", func() {
+						request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
+						resp, err = sut.Resolve(request)
 
-func TestClientInfoFromUpstreamMultipleNames(t *testing.T) {
-	upstream := TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-		r, err := dns.ReverseAddr("192.168.178.25")
-		assert.NoError(t, err)
+						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+						Expect(request.ClientNames[0]).Should(Equal("host1"))
+						// no cache -> call count 2
+						Expect(mockReverseUpstreamCallCount).Should(Equal(2))
+					})
 
-		rr1, err := dns.NewRR(fmt.Sprintf("%s 300 IN PTR myhost1", r))
-		assert.NoError(t, err)
-		rr2, err := dns.NewRR(fmt.Sprintf("%s 300 IN PTR myhost2", r))
-		assert.NoError(t, err)
+				})
+			})
 
-		msg := new(dns.Msg)
-		msg.Answer = []dns.RR{rr1, rr2}
+			When("Client has multiple names", func() {
+				BeforeEach(func() {
+					r, _ := dns.ReverseAddr("192.168.178.25")
+					rr1, err := dns.NewRR(fmt.Sprintf("%s 300 IN PTR myhost1", r))
+					Expect(err).Should(Succeed())
+					rr2, err := dns.NewRR(fmt.Sprintf("%s 300 IN PTR myhost2", r))
+					Expect(err).Should(Succeed())
 
-		return msg
+					mockReverseUpstreamAnswer.Answer = []dns.RR{rr1, rr2}
+				})
+
+				It("should resolve all client names", func() {
+					request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
+					resp, err = sut.Resolve(request)
+
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+					Expect(request.ClientNames).Should(HaveLen(2))
+					Expect(request.ClientNames[0]).Should(Equal("myhost1"))
+					Expect(request.ClientNames[1]).Should(Equal("myhost2"))
+					Expect(mockReverseUpstreamCallCount).Should(Equal(1))
+				})
+			})
+
+		})
+		Context("with order", func() {
+			BeforeEach(func() {
+				sutConfig = config.ClientLookupConfig{
+					Upstream:        mockReverseUpstream,
+					SingleNameOrder: []uint{2, 1}}
+			})
+			When("Client has one name", func() {
+				BeforeEach(func() {
+					r, _ := dns.ReverseAddr("192.168.178.25")
+					mockReverseUpstreamAnswer, _ = util.NewMsgWithAnswer(r, 600, dns.TypePTR, "host1")
+				})
+
+				It("should resolve client name", func() {
+					request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
+					resp, err = sut.Resolve(request)
+
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+					Expect(request.ClientNames[0]).Should(Equal("host1"))
+					Expect(mockReverseUpstreamCallCount).Should(Equal(1))
+				})
+			})
+			When("Client has multiple names", func() {
+				BeforeEach(func() {
+					r, _ := dns.ReverseAddr("192.168.178.25")
+					rr1, err := dns.NewRR(fmt.Sprintf("%s 300 IN PTR myhost1", r))
+					Expect(err).Should(Succeed())
+					rr2, err := dns.NewRR(fmt.Sprintf("%s 300 IN PTR myhost2", r))
+					Expect(err).Should(Succeed())
+
+					mockReverseUpstreamAnswer.Answer = []dns.RR{rr1, rr2}
+				})
+
+				It("should resolve the client name depending to defined order", func() {
+					request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
+					resp, err = sut.Resolve(request)
+
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+					Expect(request.ClientNames).Should(HaveLen(1))
+					Expect(request.ClientNames[0]).Should(Equal("myhost2"))
+					Expect(mockReverseUpstreamCallCount).Should(Equal(1))
+				})
+			})
+		})
+
+		When("Upstream can't resolve client name via rDNS", func() {
+			BeforeEach(func() {
+				mockReverseUpstreamAnswer.Rcode = dns.RcodeNameError
+			})
+			It("should use fallback for client name", func() {
+				request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
+				resp, err = sut.Resolve(request)
+
+				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+				Expect(request.ClientNames).Should(HaveLen(1))
+				Expect(request.ClientNames[0]).Should(Equal("192.168.178.25"))
+				Expect(mockReverseUpstreamCallCount).Should(Equal(1))
+			})
+		})
+		When("Upstream produces error", func() {
+			JustBeforeEach(func() {
+				clientResolverMock := &resolverMock{}
+				clientResolverMock.On("Resolve", mock.Anything).Return(nil, errors.New("error"))
+				sut.externalResolver = clientResolverMock
+			})
+			It("should use fallback for client name", func() {
+				request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
+				resp, err = sut.Resolve(request)
+
+				Expect(request.ClientNames).Should(HaveLen(1))
+				Expect(request.ClientNames[0]).Should(Equal("192.168.178.25"))
+				Expect(mockReverseUpstreamCallCount).Should(Equal(0))
+			})
+		})
+
+		When("Client has no IP", func() {
+			It("should resolve no names", func() {
+				request := newRequestWithClient("google.de.", dns.TypeA, "")
+				resp, err = sut.Resolve(request)
+
+				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+				Expect(request.ClientNames).Should(BeEmpty())
+				Expect(mockReverseUpstreamCallCount).Should(Equal(0))
+			})
+		})
+
+		When("No upstream is defined", func() {
+			BeforeEach(func() {
+				sutConfig = config.ClientLookupConfig{}
+			})
+			It("should use fallback for client name", func() {
+				request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
+				resp, err = sut.Resolve(request)
+
+				Expect(request.ClientNames).Should(HaveLen(1))
+				Expect(request.ClientNames[0]).Should(Equal("192.168.178.25"))
+				Expect(mockReverseUpstreamCallCount).Should(Equal(0))
+			})
+		})
 	})
 
-	sut := NewClientNamesResolver(config.ClientLookupConfig{Upstream: upstream})
-	m := &resolverMock{}
-	m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
-	sut.Next(m)
+	Describe("Configuration output", func() {
+		When("resolver is enabled", func() {
+			BeforeEach(func() {
+				sutConfig = config.ClientLookupConfig{
+					Upstream:        config.Upstream{Net: "tcp", Host: "host"},
+					SingleNameOrder: []uint{1, 2},
+				}
+			})
+			It("should return configuration", func() {
+				c := sut.Configuration()
+				Expect(len(c) > 1).Should(BeTrue())
+			})
+		})
 
-	request := &Request{
-		ClientIP: net.ParseIP("192.168.178.25"),
-		Log:      logrus.NewEntry(logrus.New())}
-	_, err := sut.Resolve(request)
-
-	m.AssertExpectations(t)
-	assert.NoError(t, err)
-	assert.Len(t, request.ClientNames, 2)
-	assert.Equal(t, "myhost1", request.ClientNames[0])
-	assert.Equal(t, "myhost2", request.ClientNames[1])
-}
-
-func TestClientInfoFromUpstreamMultipleNamesSingleNameOrder(t *testing.T) {
-	upstream := TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-		r, err := dns.ReverseAddr("192.168.178.25")
-		assert.NoError(t, err)
-
-		rr1, err := dns.NewRR(fmt.Sprintf("%s 300 IN PTR myhost1", r))
-		assert.NoError(t, err)
-		rr2, err := dns.NewRR(fmt.Sprintf("%s 300 IN PTR myhost2", r))
-		assert.NoError(t, err)
-
-		msg := new(dns.Msg)
-		msg.Answer = []dns.RR{rr1, rr2}
-
-		return msg
+		When("resolver is disabled", func() {
+			BeforeEach(func() {
+				sutConfig = config.ClientLookupConfig{}
+			})
+			It("should return 'deactivated'", func() {
+				c := sut.Configuration()
+				Expect(c).Should(HaveLen(1))
+				Expect(c).Should(Equal([]string{"deactivated, use only IP address"}))
+			})
+		})
 	})
 
-	sut := NewClientNamesResolver(config.ClientLookupConfig{
-		Upstream:        upstream,
-		SingleNameOrder: []uint{2, 1}})
-	m := &resolverMock{}
-	m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
-	sut.Next(m)
-
-	request := &Request{
-		ClientIP: net.ParseIP("192.168.178.25"),
-		Log:      logrus.NewEntry(logrus.New())}
-	_, err := sut.Resolve(request)
-
-	m.AssertExpectations(t)
-	assert.NoError(t, err)
-	assert.Len(t, request.ClientNames, 1)
-	assert.Equal(t, "myhost2", request.ClientNames[0])
-}
-
-func TestClientInfoFromUpstreamNotFound(t *testing.T) {
-	upstream := TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-		msg := new(dns.Msg)
-		msg.SetRcode(request, dns.RcodeNameError)
-
-		return msg
-	})
-
-	sut := NewClientNamesResolver(config.ClientLookupConfig{Upstream: upstream})
-	m := &resolverMock{}
-	m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
-	sut.Next(m)
-
-	request := &Request{ClientIP: net.ParseIP("192.168.178.25"),
-		Log: logrus.NewEntry(logrus.New())}
-	_, err := sut.Resolve(request)
-
-	assert.NoError(t, err)
-	assert.Len(t, request.ClientNames, 1)
-	assert.Equal(t, "192.168.178.25", request.ClientNames[0])
-}
-
-func TestClientInfoFromUpstreamError(t *testing.T) {
-	sut := NewClientNamesResolver(config.ClientLookupConfig{}).(*ClientNamesResolver)
-	clientResolverMock := &resolverMock{}
-	clientResolverMock.On("Resolve", mock.Anything).Return(nil, errors.New("error"))
-	sut.externalResolver = clientResolverMock
-
-	m := &resolverMock{}
-	m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
-	sut.Next(m)
-
-	request := &Request{ClientIP: net.ParseIP("192.168.178.25"),
-		Log: logrus.NewEntry(logrus.New())}
-	_, err := sut.Resolve(request)
-
-	assert.NoError(t, err)
-	assert.Len(t, request.ClientNames, 1)
-	assert.Equal(t, "192.168.178.25", request.ClientNames[0])
-}
-
-func TestClientInfoWithoutIp(t *testing.T) {
-	sut := NewClientNamesResolver(config.ClientLookupConfig{Upstream: config.Upstream{Net: "tcp", Host: "host"}})
-	m := &resolverMock{}
-	m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
-	sut.Next(m)
-
-	request := &Request{ClientIP: nil,
-		Log: logrus.NewEntry(logrus.New())}
-	_, err := sut.Resolve(request)
-
-	assert.NoError(t, err)
-	assert.Len(t, request.ClientNames, 0)
-}
-
-func TestClientInfoWithoutUpstream(t *testing.T) {
-	sut := NewClientNamesResolver(config.ClientLookupConfig{})
-	m := &resolverMock{}
-	m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
-	sut.Next(m)
-
-	request := &Request{ClientIP: net.ParseIP("192.168.178.25"),
-		Log: logrus.NewEntry(logrus.New())}
-	_, err := sut.Resolve(request)
-
-	assert.NoError(t, err)
-	assert.Len(t, request.ClientNames, 1)
-	assert.Equal(t, "192.168.178.25", request.ClientNames[0])
-}
-
-func Test_Configuration_ClientNamesResolver(t *testing.T) {
-	sut := NewClientNamesResolver(config.ClientLookupConfig{
-		Upstream:        config.Upstream{Net: "tcp", Host: "host"},
-		SingleNameOrder: []uint{1, 2},
-	})
-	c := sut.Configuration()
-	assert.Len(t, c, 3)
-}
-
-func Test_Configuration_ClientNamesResolver_Disabled(t *testing.T) {
-	sut := NewClientNamesResolver(config.ClientLookupConfig{})
-	c := sut.Configuration()
-	assert.Equal(t, []string{"deactivated, use only IP address"}, c)
-}
+})

@@ -62,10 +62,10 @@ func ParseUpstream(upstream string) (result Upstream, err error) {
 		return
 	}
 
-	net := match[1]
-	if _, ok := netDefaultPort[net]; !ok {
+	n := match[1]
+	if _, ok := netDefaultPort[n]; !ok {
 		err = fmt.Errorf("wrong configuration, couldn't parse net '%s', please user one of %s",
-			net, reflect.ValueOf(netDefaultPort).MapKeys())
+			n, reflect.ValueOf(netDefaultPort).MapKeys())
 		return
 	}
 
@@ -97,10 +97,10 @@ func ParseUpstream(upstream string) (result Upstream, err error) {
 
 		port = uint16(p)
 	} else {
-		port = netDefaultPort[net]
+		port = netDefaultPort[n]
 	}
 
-	return Upstream{Net: net, Host: host, Port: port, Path: path}, nil
+	return Upstream{Net: n, Host: host, Port: port, Path: path}, nil
 }
 
 const (

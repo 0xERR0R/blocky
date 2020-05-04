@@ -57,7 +57,9 @@ func TestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg),
 		w.Header().Set("content-type", "application/dns-message")
 
 		for _, f := range reqFn {
-			f(w)
+			if f != nil {
+				f(w)
+			}
 		}
 		_, err = w.Write(b)
 		if err != nil {
@@ -73,6 +75,7 @@ func TestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg),
 	return upstream
 }
 
+//nolint:funlen
 func TestUDPUpstream(fn func(request *dns.Msg) (response *dns.Msg)) config.Upstream {
 	a, err := net.ResolveUDPAddr("udp4", ":0")
 	if err != nil {
@@ -111,7 +114,18 @@ func TestUDPUpstream(fn func(request *dns.Msg) (response *dns.Msg)) config.Upstr
 			}
 
 			response := fn(msg)
+			// nil should indicate an error
+			if response == nil {
+				ln.Close()
+				return
+			}
+
+			rCode := response.Rcode
 			response.SetReply(msg)
+
+			if rCode != 0 {
+				response.Rcode = rCode
+			}
 
 			b, err := response.Pack()
 			if err != nil {

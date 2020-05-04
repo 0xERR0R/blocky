@@ -2,105 +2,107 @@ package resolver
 
 import (
 	"blocky/config"
+	. "blocky/helpertest"
 	"blocky/util"
-	"fmt"
-	"testing"
 
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
 )
 
-func setup() (sut ChainedResolver, next *resolverMock) {
-	sut = NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{
-		Mapping: map[string]config.Upstream{
-			"fritz.box": TestUDPUpstream(func(request *dns.Msg) (response *dns.Msg) {
-				response, _ = util.NewMsgWithAnswer(fmt.Sprintf("%s 123 IN A 123.124.122.122", request.Question[0].Name))
+var _ = Describe("ConditionalUpstreamResolver", func() {
+	var (
+		sut  ChainedResolver
+		m    *resolverMock
+		err  error
+		resp *Response
+	)
 
-				return response
-			}),
-			"other.box": TestUDPUpstream(func(request *dns.Msg) (response *dns.Msg) {
-				response, _ = util.NewMsgWithAnswer(fmt.Sprintf("%s 250 IN A 192.192.192.192", request.Question[0].Name))
-
-				return response
-			}),
-		},
+	AfterEach(func() {
+		Expect(err).Should(Succeed())
 	})
 
-	next = &resolverMock{}
+	BeforeEach(func() {
+		sut = NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{
+			Mapping: map[string]config.Upstream{
+				"fritz.box": TestUDPUpstream(func(request *dns.Msg) (response *dns.Msg) {
+					response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 123, dns.TypeA, "123.124.122.122")
 
-	next.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
-	sut.Next(next)
+					return response
+				}),
+				"other.box": TestUDPUpstream(func(request *dns.Msg) (response *dns.Msg) {
+					response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 250, dns.TypeA, "192.192.192.192")
 
-	return
-}
+					return response
+				}),
+			},
+		})
+		m = &resolverMock{}
+		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
+		sut.Next(m)
+	})
 
-func Test_Resolve_Conditional_Exact(t *testing.T) {
-	sut, nextResolver := setup()
-	request := &Request{
-		Req: util.NewMsgWithQuestion("fritz.box.", dns.TypeA),
-		Log: logrus.NewEntry(logrus.New()),
-	}
+	Describe("Resolve conditional DNS queries via defined DNS server", func() {
+		When("Query is exact equal defined condition in mapping", func() {
+			Context("first mapping entry", func() {
+				It("Should resolve the IP of conditional DNS", func() {
+					resp, err = sut.Resolve(newRequest("fritz.box.", dns.TypeA))
 
-	resp, err := sut.Resolve(request)
-	assert.NoError(t, err)
-	assert.Equal(t, "CONDITIONAL", resp.Reason)
-	assert.Equal(t, dns.RcodeSuccess, resp.Res.Rcode)
-	assert.Equal(t, "fritz.box.	123	IN	A	123.124.122.122", resp.Res.Answer[0].String())
-	nextResolver.AssertNotCalled(t, "Resolve", mock.Anything)
-}
+					Expect(resp.Res.Answer).Should(BeDNSRecord("fritz.box.", dns.TypeA, 123, "123.124.122.122"))
+					// no call to next resolver
+					Expect(m.Calls).Should(BeEmpty())
+					Expect(resp.RType).Should(Equal(CONDITIONAL))
+				})
+			})
+			Context("last mapping entry", func() {
+				It("Should resolve the IP of conditional DNS", func() {
+					resp, err = sut.Resolve(newRequest("other.box.", dns.TypeA))
 
-func Test_Resolve_Conditional_ExactLast(t *testing.T) {
-	sut, nextResolver := setup()
+					Expect(resp.Res.Answer).Should(BeDNSRecord("other.box.", dns.TypeA, 250, "192.192.192.192"))
+					// no call to next resolver
+					Expect(m.Calls).Should(BeEmpty())
+					Expect(resp.RType).Should(Equal(CONDITIONAL))
+				})
+			})
+		})
+		When("Query is a subdomain of defined condition in mapping", func() {
+			It("Should resolve the IP of subdomain", func() {
+				resp, err = sut.Resolve(newRequest("test.fritz.box.", dns.TypeA))
 
-	request := &Request{
-		Req: util.NewMsgWithQuestion("other.box.", dns.TypeA),
-		Log: logrus.NewEntry(logrus.New()),
-	}
+				Expect(resp.Res.Answer).Should(BeDNSRecord("test.fritz.box.", dns.TypeA, 123, "123.124.122.122"))
+				// no call to next resolver
+				Expect(m.Calls).Should(BeEmpty())
+				Expect(resp.RType).Should(Equal(CONDITIONAL))
+			})
+		})
+	})
+	Describe("Delegation to next resolver", func() {
+		When("Query doesn't match defined mapping", func() {
+			It("should delegate to next resolver", func() {
+				resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
 
-	resp, err := sut.Resolve(request)
-	assert.NoError(t, err)
-	assert.Equal(t, "CONDITIONAL", resp.Reason)
-	assert.Equal(t, "other.box.	250	IN	A	192.192.192.192", resp.Res.Answer[0].String())
-	nextResolver.AssertNotCalled(t, "Resolve", mock.Anything)
-}
+				m.AssertExpectations(GinkgoT())
+			})
+		})
+	})
 
-func Test_Resolve_Conditional_Subdomain(t *testing.T) {
-	sut, nextResolver := setup()
-
-	request := &Request{
-		Req: util.NewMsgWithQuestion("test.fritz.box.", dns.TypeA),
-		Log: logrus.NewEntry(logrus.New()),
-	}
-
-	resp, err := sut.Resolve(request)
-	assert.NoError(t, err)
-	assert.Equal(t, "test.fritz.box.	123	IN	A	123.124.122.122", resp.Res.Answer[0].String())
-	nextResolver.AssertNotCalled(t, "Resolve", mock.Anything)
-}
-
-func Test_Resolve_Conditional_Not_Match(t *testing.T) {
-	sut, nextResolver := setup()
-
-	request := &Request{
-		Req: util.NewMsgWithQuestion("example.com.", dns.TypeA),
-		Log: logrus.NewEntry(logrus.New()),
-	}
-
-	_, err := sut.Resolve(request)
-	assert.NoError(t, err)
-	nextResolver.AssertExpectations(t)
-}
-
-func Test_Configuration_ConditionalResolver_WithConfig(t *testing.T) {
-	sut, _ := setup()
-	c := sut.Configuration()
-	assert.Len(t, c, 2)
-}
-
-func Test_Configuration_ConditionalResolver_Disabled(t *testing.T) {
-	sut := NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{})
-	c := sut.Configuration()
-	assert.Equal(t, []string{"deactivated"}, c)
-}
+	Describe("Configuration output", func() {
+		When("resolver is enabled", func() {
+			It("should return configuration", func() {
+				c := sut.Configuration()
+				Expect(len(c) > 1).Should(BeTrue())
+			})
+		})
+		When("resolver is disabled", func() {
+			BeforeEach(func() {
+				sut = NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{})
+			})
+			It("should return 'disabled''", func() {
+				c := sut.Configuration()
+				Expect(c).Should(HaveLen(1))
+				Expect(c).Should(Equal([]string{"deactivated"}))
+			})
+		})
+	})
+})

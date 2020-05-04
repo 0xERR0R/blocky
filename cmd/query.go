@@ -45,12 +45,16 @@ func query(cmd *cobra.Command, args []string) {
 
 	if err != nil {
 		log.Fatal("can't execute", err)
+
+		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := ioutil.ReadAll(resp.Body)
 		log.Fatalf("NOK: %s %s", resp.Status, string(body))
+
+		return
 	}
 
 	var result api.QueryResult
@@ -58,6 +62,8 @@ func query(cmd *cobra.Command, args []string) {
 
 	if err != nil {
 		log.Fatal("can't read response: ", err)
+
+		return
 	}
 
 	log.Infof("Query result for '%s' (%s):", apiRequest.Query, apiRequest.Type)
