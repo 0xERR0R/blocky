@@ -2,19 +2,17 @@
 [![GitHub Workflow Status](https://img.shields.io/github/workflow/status/0xERR0R/blocky/Release?label=Release "Release")](#)
 [![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/0xERR0R/blocky "Go version")](#)
 [![GitHub latest version](https://img.shields.io/github/v/release/0xERR0R/blocky "Latest version")](https://github.com/0xERR0R/blocky/releases)
-[![Docker latest version](https://img.shields.io/badge/docker-latest-blue "Latest version")](https://hub.docker.com/r/spx01/blocky)
+[![Docker pulls](https://img.shields.io/docker/pulls/spx01/blocky "Latest version")](https://hub.docker.com/r/spx01/blocky)
 [![GitHub Release Date](https://img.shields.io/github/release-date/0xERR0R/blocky "Latest release date")](https://github.com/0xERR0R/blocky/releases)
 [![Codecov](https://img.shields.io/codecov/c/gh/0xERR0R/blocky "Code coverage")](https://codecov.io/gh/0xERR0R/blocky)
 [![Codacy grade](https://img.shields.io/codacy/grade/8fcd8f8420b8419c808c47af58ed9282 "Codacy grade")](#)
-
-
 
 <p align="center">
   <img height="200" src="https://github.com/0xERR0R/blocky/blob/master/docs/blocky.svg">
 </p>
 
 # Blocky
-Blocky is a DNS proxy for local network written in Go with following features:
+Blocky is a DNS proxy for the local network written in Go with following features:
 - Blocking of DNS queries with external lists (Ad-block) with whitelisting
   - Definition of black and white lists per client group (Kids, Smart home devices etc) -> for example: you can block some domains for you Kids and allow your network camera only domains from a whitelist
   - periodical reload of external black and white lists
@@ -156,46 +154,14 @@ services:
     volumes:
       # config file
       - ./config.yml:/app/config.yml
-      # write query logs in this directory. You can also use a volume.
+      # write query logs in this directory. You can also use a volume
       - ./logs:/logs
-  # The below prometheus and grafana sections are optional.  It 
-  # will setup a local instance of Prometheus and Grafana.  If 
-  # the below is enabled, make sure to enable Prometheus stats 
-  # in your blocky config.yml file and configure the Prometheus
-  # yml file to correctly pull from blocky.
-  prometheus:
-    image: prom/prometheus
-    container_name: prometheus
-    restart: unless-stopped
-    ports:
-      - "9090:9090/tcp"
-      - "9090:9090/udp"
-    volumes:
-      # config file
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      # Persistent data. You can also use a volume.
-      - ./prometheus/data:/prometheus
-    depends_on:
-      - blocky
-  grafana:
-    image: grafana/grafana
-    container_name: grafana
-    restart: unless-stopped
-    ports:
-      - "3000:3000/tcp"
-    volumes:
-      # config file
-      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
-      # Persistent data. You can also use a volume.
-      - ./grafana/data:/var/lib/grafana
-    depends_on:
-      - prometheus
-    environment:
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel # Auto-install required piechart plugin.
 ```
 
+See [Wiki - Run with docker](https://github.com/0xERR0R/blocky/wiki/Run-with-docker) for more examples and additional information.
+
 ### Run standalone
-Download binary file for your architecture and run `./blocky --config config.yml`. Please be aware, you must run the binary with root privileges if you want to use port 53 or 953.
+Download the binary file for your architecture and run `./blocky --config config.yml`. Please be aware, you must run the binary with root privileges if you want to use port 53 or 953.
 
 ### Run with kubernetes (helm)
 See [this repo](https://github.com/billimek/billimek-charts/tree/master/charts/blocky) or [the helm hub site](https://hub.helm.sh/charts/billimek/blocky) for details about running blocky via helm in kubernetes.
@@ -215,21 +181,14 @@ To run this inside docker run `docker exec blocky ./blocky blocking status`
 
 ## Additional information
 
-### Prometheus
+### Prometheus / Grafana
 Blocky can export metrics for prometheus. Example grafana dashboard definition [as JSON](blocky-grafana.json)
-![grafana-dashboard](grafana-dashboard.png). Please install `grafana-piechart-panel` and set [disable-sanitize-html](https://grafana.com/docs/grafana/latest/installation/configuration/#disable-sanitize-html) in config or as env to use control buttons to enable/disable the blocking status.
+![grafana-dashboard](grafana-dashboard.png). 
+
+See [Wiki - Prometheus / Grafana](https://github.com/0xERR0R/blocky/wiki/Prometheus---Grafana-integration) for more information.
 
 
-Following metrics are being exported:
 
-| name                                             |   Description                                            |
-| ------------------------------------------------ | -------------------------------------------------------- |
-| blocky_blacklist_cache / blocky_whitelist_cache  | Number of entries in blacklist/whitelist cache, partitioned by group |
-| blocky_error_total                | Counter for internal errors |
-| blocky_query_total                | Number of total queries, partitioned by client and DNS request type (A, AAAA, PTR, etc) |
-| blocky_request_duration_ms_bucket | Request duration histogram, partitioned by response type (Blocked, cached, etc)  |
-| blocky_response_total             | Number of responses, partitioned by response type (Blocked, cached, etc), DNS response code, and reason |
-| blocky_blocking_enabled           | 1 if blocking is enabled, 0 otherwise |
 
 
 ### Print current configuration
