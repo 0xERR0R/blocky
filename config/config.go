@@ -53,7 +53,7 @@ func ParseUpstream(upstream string) (result Upstream, err error) {
 		return Upstream{}, nil
 	}
 
-	r := regexp.MustCompile(`(?P<Net>[^\s:]*):/?/?(?P<Host>[^\s/:]*):?(?P<Port>[^\s/:]*)?(?P<Path>/[^\s]*)?`)
+	r := regexp.MustCompile(`(?P<Net>[^\s:]*):/?/?(?P<Host>(?:\[[^\]]+\])|[^\s/:]+):?(?P<Port>[^\s/:]*)?(?P<Path>/[^\s]*)?`)
 
 	match := r.FindStringSubmatch(upstream)
 
