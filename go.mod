@@ -9,7 +9,6 @@ require (
 	github.com/go-openapi/spec v0.19.7 // indirect
 	github.com/go-openapi/strfmt v0.19.4 // indirect
 	github.com/go-openapi/swag v0.19.8 // indirect
-	github.com/golang/protobuf v1.4.0 // indirect
 	github.com/jedib0t/go-pretty v4.3.0+incompatible
 	github.com/mailru/easyjson v0.7.1 // indirect
 	github.com/mattn/go-colorable v0.1.4 // indirect
