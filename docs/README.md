@@ -35,11 +35,10 @@ upstream:
     # these external DNS resolvers will be used. Blocky picks 2 random resolvers from the list for each query
     # format for resolver: net:host:[port][/path]. net could be tcp, udp, tcp-tls or https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))
     externalResolvers:
-      - udp:8.8.8.8
-      - udp:8.8.4.4
-      - udp:1.1.1.1
-      - tcp-tls:1.0.0.1:853
-      - https://cloudflare-dns.com/dns-query
+      - udp:46.182.19.48
+      - udp:80.241.218.68
+      - tcp-tls:fdns1.dismail.de:853
+      - https://dns.digitale-gesellschaft.ch/dns-query
   
 # optional: custom IP address for domain name (with all sub-domains)
 # example: query "printer.lan" or "my.printer.lan" will return 192.168.178.3
