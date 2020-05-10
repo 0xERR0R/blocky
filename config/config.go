@@ -15,6 +15,8 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const validUpstream = `(?P<Net>[^\s:]*):/?/?(?P<Host>(?:\[[^\]]+\])|[^\s/:]+):?(?P<Port>[^\s/:]*)?(?P<Path>/[^\s]*)?`
+
 // nolint:gochecknoglobals
 var netDefaultPort = map[string]uint16{
 	"udp":     53,
@@ -53,7 +55,7 @@ func ParseUpstream(upstream string) (result Upstream, err error) {
 		return Upstream{}, nil
 	}
 
-	r := regexp.MustCompile(`(?P<Net>[^\s:]*):/?/?(?P<Host>(?:\[[^\]]+\])|[^\s/:]+):?(?P<Port>[^\s/:]*)?(?P<Path>/[^\s]*)?`)
+	r := regexp.MustCompile(validUpstream)
 
 	match := r.FindStringSubmatch(upstream)
 
