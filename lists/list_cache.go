@@ -18,9 +18,11 @@ import (
 )
 
 const (
-	timeout              = 30 * time.Second
 	defaultRefreshPeriod = 4 * time.Hour
 )
+
+// nolint:gochecknoglobals
+var timeout = 30 * time.Second
 
 type ListCacheType int
 
@@ -137,7 +139,7 @@ func logger() *logrus.Entry {
 
 // downloads and reads files with domain names and creates cache for them
 func createCacheForGroup(links []string) []string {
-	var cache []string
+	cache := make([]string, 0)
 
 	keys := make(map[string]bool)
 
@@ -157,6 +159,9 @@ Loop:
 	for {
 		select {
 		case res := <-c:
+			if res == nil {
+				return nil
+			}
 			for _, entry := range res {
 				if _, value := keys[entry]; !value {
 					keys[entry] = true
@@ -200,9 +205,13 @@ func (b *ListCache) refresh() {
 	for group, links := range b.groupToLinks {
 		cacheForGroup := createCacheForGroup(links)
 
-		b.lock.Lock()
-		b.groupCaches[group] = cacheForGroup
-		b.lock.Unlock()
+		if cacheForGroup != nil {
+			b.lock.Lock()
+			b.groupCaches[group] = cacheForGroup
+			b.lock.Unlock()
+		} else {
+			logger().Warn("Populating of group cache failed, leaving items from last successful download in cache")
+		}
 
 		if metrics.IsEnabled() {
 			b.counter.WithLabelValues(group).Set(float64(len(b.groupCaches[group])))
@@ -220,16 +229,37 @@ func downloadFile(link string) (io.ReadCloser, error) {
 		Timeout: timeout,
 	}
 
+	var resp *http.Response
+
+	var err error
+
 	logger().WithField("link", link).Info("starting download")
 
-	//nolint:bodyclose
-	resp, err := client.Get(link)
+	attempt := 1
 
-	if err != nil {
-		return nil, err
+	for attempt <= 3 {
+		//nolint:bodyclose
+		if resp, err = client.Get(link); err == nil {
+			if resp.StatusCode == http.StatusOK {
+				return resp.Body, nil
+			}
+
+			resp.Body.Close()
+
+			return nil, fmt.Errorf("couldn't download url, got status code %d", resp.StatusCode)
+		}
+
+		if errNet, ok := err.(net.Error); ok && (errNet.Timeout() || errNet.Temporary()) {
+			logger().WithField("link", link).WithField("attempt",
+				attempt).Warnf("Temporary network error / Timeout occurred, retrying... %s", errNet)
+			time.Sleep(time.Second)
+			attempt++
+		} else {
+			return nil, err
+		}
 	}
 
-	return resp.Body, nil
+	return nil, err
 }
 
 func readFile(file string) (io.ReadCloser, error) {
@@ -257,6 +287,14 @@ func processFile(link string, ch chan<- []string, wg *sync.WaitGroup) {
 
 	if err != nil {
 		logger().Warn("error during file processing: ", err)
+
+		if errNet, ok := err.(net.Error); ok && (errNet.Timeout() || errNet.Temporary()) {
+			// put nil to indicate the temporary error
+			ch <- nil
+			return
+		}
+		ch <- []string{}
+
 		return
 	}
 	defer r.Close()

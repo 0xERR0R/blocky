@@ -4,6 +4,9 @@ import (
 	"blocky/config"
 	. "blocky/helpertest"
 	"blocky/metrics"
+	"net/http"
+	"sync/atomic"
+	"time"
 
 	"net/http/httptest"
 	"os"
@@ -30,6 +33,8 @@ var _ = Describe("ListCache", func() {
 		file1 = TempFile("blocked1.com\nblocked1a.com")
 		file2 = TempFile("blocked2.com")
 		file3 = TempFile("blocked3.com\nblocked1a.com")
+		timeout = 30 * time.Second
+
 	})
 	AfterEach(func() {
 		_ = os.Remove(emptyFile.Name())
@@ -52,6 +57,106 @@ var _ = Describe("ListCache", func() {
 				found, group := sut.Match("google.com", []string{"gr1"})
 				Expect(found).Should(BeFalse())
 				Expect(group).Should(BeEmpty())
+			})
+		})
+		When("If timeout occurs", func() {
+			var attempt uint64 = 1
+			It("Should perform a retry", func() {
+				// should produce a timeout on first attempt
+				s := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					a := atomic.LoadUint64(&attempt)
+					if a == 1 {
+						time.Sleep(200 * time.Millisecond)
+					} else {
+						_, err := rw.Write([]byte("blocked1.com"))
+						Expect(err).Should(Succeed())
+					}
+					atomic.AddUint64(&attempt, 1)
+				}))
+				defer s.Close()
+				lists := map[string][]string{
+					"gr1": {s.URL},
+				}
+
+				timeout = 100 * time.Millisecond
+				sut := NewListCache(BLACKLIST, lists, 0)
+				time.Sleep(time.Second)
+				found, group := sut.Match("blocked1.com", []string{"gr1"})
+				Expect(found).Should(BeTrue())
+				Expect(group).Should(Equal("gr1"))
+			})
+		})
+		When("a temporary error occurs on download", func() {
+			var attempt uint64 = 1
+			It("should not delete existing elements from group cache", func() {
+				// should produce a timeout on second attempt
+				s := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					a := atomic.LoadUint64(&attempt)
+					if a != 1 {
+						time.Sleep(200 * time.Millisecond)
+					} else {
+						_, err := rw.Write([]byte("blocked1.com"))
+						Expect(err).Should(Succeed())
+					}
+					atomic.AddUint64(&attempt, 1)
+				}))
+				defer s.Close()
+				lists := map[string][]string{
+					"gr1": {s.URL},
+				}
+
+				timeout = 100 * time.Millisecond
+				sut := NewListCache(BLACKLIST, lists, 0)
+				time.Sleep(time.Second)
+				By("Lists loaded without timeout", func() {
+					found, group := sut.Match("blocked1.com", []string{"gr1"})
+					Expect(found).Should(BeTrue())
+					Expect(group).Should(Equal("gr1"))
+				})
+
+				sut.refresh()
+
+				By("List couldn't be loaded due to timeout", func() {
+					found, group := sut.Match("blocked1.com", []string{"gr1"})
+					Expect(found).Should(BeTrue())
+					Expect(group).Should(Equal("gr1"))
+				})
+			})
+		})
+		When("error occurs on download", func() {
+			var attempt uint64 = 1
+			It("should delete existing elements from group cache", func() {
+				// should produce a 404 error on second attempt
+				s := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					a := atomic.LoadUint64(&attempt)
+					if a != 1 {
+						rw.WriteHeader(http.StatusNotFound)
+					} else {
+						_, err := rw.Write([]byte("blocked1.com"))
+						Expect(err).Should(Succeed())
+					}
+					atomic.AddUint64(&attempt, 1)
+				}))
+				defer s.Close()
+				lists := map[string][]string{
+					"gr1": {s.URL},
+				}
+
+				sut := NewListCache(BLACKLIST, lists, 0)
+				time.Sleep(time.Second)
+				By("Lists loaded without error", func() {
+					found, group := sut.Match("blocked1.com", []string{"gr1"})
+					Expect(found).Should(BeTrue())
+					Expect(group).Should(Equal("gr1"))
+				})
+
+				sut.refresh()
+				time.Sleep(time.Second)
+
+				By("List couldn't be loaded due to 404 error", func() {
+					found, _ := sut.Match("blocked1.com", []string{"gr1"})
+					Expect(found).Should(BeFalse())
+				})
 			})
 		})
 		When("Configuration has 3 external urls", func() {
@@ -131,7 +236,7 @@ var _ = Describe("ListCache", func() {
 		When("refresh is enabled", func() {
 			It("should print list configuration", func() {
 				lists := map[string][]string{
-					"gr1": {"file1", "file2"},
+					"gr1": {server1.URL, server2.URL},
 				}
 
 				sut := NewListCache(BLACKLIST, lists, 0)
