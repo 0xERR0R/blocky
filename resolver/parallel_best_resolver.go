@@ -4,14 +4,21 @@ import (
 	"blocky/config"
 	"blocky/util"
 	"fmt"
-	"math/rand"
+	"math"
+	"time"
 
+	"github.com/mroth/weightedrand"
 	"github.com/sirupsen/logrus"
 )
 
 // ParallelBestResolver delegates the DNS message to 2 upstream resolvers and returns the fastest answer
 type ParallelBestResolver struct {
-	resolvers []Resolver
+	resolvers []*upstreamResolverStatus
+}
+
+type upstreamResolverStatus struct {
+	resolver      Resolver
+	lastErrorTime time.Time
 }
 
 type requestResponse struct {
@@ -20,10 +27,13 @@ type requestResponse struct {
 }
 
 func NewParallelBestResolver(cfg config.UpstreamConfig) Resolver {
-	resolvers := make([]Resolver, len(cfg.ExternalResolvers))
+	resolvers := make([]*upstreamResolverStatus, len(cfg.ExternalResolvers))
 
 	for i, u := range cfg.ExternalResolvers {
-		resolvers[i] = NewUpstreamResolver(u)
+		resolvers[i] = &upstreamResolverStatus{
+			resolver:      NewUpstreamResolver(u),
+			lastErrorTime: time.Unix(0, 0),
+		}
 	}
 
 	return &ParallelBestResolver{resolvers: resolvers}
@@ -32,7 +42,7 @@ func NewParallelBestResolver(cfg config.UpstreamConfig) Resolver {
 func (r *ParallelBestResolver) Configuration() (result []string) {
 	result = append(result, "upstream resolvers:")
 	for _, res := range r.resolvers {
-		result = append(result, fmt.Sprintf("- %s", res))
+		result = append(result, fmt.Sprintf("- %s", res.resolver))
 	}
 
 	return
@@ -43,11 +53,11 @@ func (r *ParallelBestResolver) Resolve(request *Request) (*Response, error) {
 
 	if len(r.resolvers) == 1 {
 		logger.WithField("resolver", r.resolvers[0]).Debug("delegating to resolver")
-		return r.resolvers[0].Resolve(request)
+		return r.resolvers[0].resolver.Resolve(request)
 	}
 
 	r1, r2 := r.pickRandom()
-	logger.Debugf("using %s and %s as resolver", r1, r2)
+	logger.Debugf("using %s and %s as resolver", r1.resolver, r2.resolver)
 
 	ch := make(chan requestResponse, 2)
 
@@ -82,14 +92,44 @@ func (r *ParallelBestResolver) Resolve(request *Request) (*Response, error) {
 }
 
 // pick 2 different random resolvers from the resolver pool
-func (r *ParallelBestResolver) pickRandom() (resolver1, resolver2 Resolver) {
-	randomInd := rand.Perm(len(r.resolvers))
+func (r *ParallelBestResolver) pickRandom() (resolver1, resolver2 *upstreamResolverStatus) {
+	resolver1 = weightedRandom(r.resolvers, nil)
+	resolver2 = weightedRandom(r.resolvers, resolver1.resolver)
 
-	return r.resolvers[randomInd[0]], r.resolvers[randomInd[1]]
+	return
 }
 
-func resolve(req *Request, resolver Resolver, ch chan<- requestResponse) {
-	resp, err := resolver.Resolve(req)
+func weightedRandom(in []*upstreamResolverStatus, exclude Resolver) *upstreamResolverStatus {
+	var choices []weightedrand.Choice
+
+	for _, res := range in {
+		var weight float64 = 60
+
+		if time.Since(res.lastErrorTime) < time.Hour {
+			// reduce weight: consider last error time
+			weight = math.Max(1, weight-(60-time.Since(res.lastErrorTime).Minutes()))
+		}
+
+		if exclude != res.resolver {
+			choices = append(choices, weightedrand.Choice{
+				Item:   res,
+				Weight: uint(weight),
+			})
+		}
+	}
+
+	c := weightedrand.NewChooser(choices...)
+
+	return c.Pick().(*upstreamResolverStatus)
+}
+
+func resolve(req *Request, resolver *upstreamResolverStatus, ch chan<- requestResponse) {
+	resp, err := resolver.resolver.Resolve(req)
+
+	// update the last error time
+	if err != nil {
+		resolver.lastErrorTime = time.Now()
+	}
 	ch <- requestResponse{
 		response: resp,
 		err:      err,
