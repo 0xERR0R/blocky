@@ -273,7 +273,7 @@ func readFile(file string) (io.ReadCloser, error) {
 func processFile(link string, ch chan<- []string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	var result []string
+	result := make([]string, 0)
 
 	var r io.ReadCloser
 

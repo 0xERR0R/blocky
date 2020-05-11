@@ -102,7 +102,7 @@ var _ = Describe("ListCache", func() {
 				}))
 				defer s.Close()
 				lists := map[string][]string{
-					"gr1": {s.URL},
+					"gr1": {s.URL, emptyFile.Name()},
 				}
 
 				timeout = 100 * time.Millisecond
