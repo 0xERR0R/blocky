@@ -22,7 +22,8 @@ Blocky is a DNS proxy for the local network written in Go with following feature
 - Custom DNS resolution for certain domain names
 - Supports UDP, TCP and TCP over TLS DNS resolvers with DNSSEC support
 - Supports DNS over HTTPS (DoH) resolvers
-- Delegates DNS query to 2 external resolver from a list of configured resolvers, uses the answer from the fastest one -> improves you privacy and resolution time
+- Delegates DNS query to 2 external resolvers from a list of configured resolvers, uses the answer from the fastest one -> improves you privacy and resolution time
+  - Blocky peeks 2 random resolvers with weighted random algorithm: resolvers with error will be used less frequently
 - Logging of all DNS queries per day / per client in a text file
 - Simple configuration in a single file
 - Prometheus metrics
