@@ -115,27 +115,18 @@ func (s *Server) registerDNSHandlers(handler *dns.ServeMux) {
 func createRouter(cfg *config.Config) *chi.Mux {
 	router := chi.NewRouter()
 
-	crs := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: true,
-		MaxAge:           300,
-	})
-	router.Use(crs.Handler)
+	configureCorsHandler(router)
 
-	router.Mount("/debug", middleware.Profiler())
+	configureDebugHandler(router)
 
-	router.Get("/swagger/*", func(writer http.ResponseWriter, request *http.Request) {
-		// set swagger host with host from request
-		docs.SwaggerInfo.Host = request.Host
-		swaggerHandler := httpSwagger.Handler(
-			httpSwagger.URL(fmt.Sprintf("http://%s/swagger/doc.json", request.Host)),
-		)
-		swaggerHandler.ServeHTTP(writer, request)
-	})
+	configureSwaggerHandler(router)
 
+	configureRootHandler(cfg, router)
+
+	return router
+}
+
+func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 	router.Get("/", func(writer http.ResponseWriter, request *http.Request) {
 		t := template.New("index")
 		_, _ = t.Parse(web.IndexTmpl)
@@ -168,8 +159,37 @@ func createRouter(cfg *config.Config) *chi.Mux {
 			writer.WriteHeader(http.StatusInternalServerError)
 		}
 	})
+}
 
-	return router
+func configureSwaggerHandler(router *chi.Mux) {
+	router.Get("/swagger/*", func(writer http.ResponseWriter, request *http.Request) {
+		// set swagger host with host from request
+		docs.SwaggerInfo.Host = request.Host
+		swaggerHandler := httpSwagger.Handler(
+			httpSwagger.URL(fmt.Sprintf("http://%s/swagger/doc.json", request.Host)),
+		)
+		swaggerHandler.ServeHTTP(writer, request)
+	})
+
+	router.Get("/swagger", func(writer http.ResponseWriter, request *http.Request) {
+		http.Redirect(writer, request, "/swagger/", http.StatusMovedPermanently)
+	})
+}
+
+func configureDebugHandler(router *chi.Mux) {
+	router.Mount("/debug", middleware.Profiler())
+}
+
+func configureCorsHandler(router *chi.Mux) {
+	crs := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	})
+	router.Use(crs.Handler)
 }
 
 // apiQuery is the http endpoint to perform a DNS query
