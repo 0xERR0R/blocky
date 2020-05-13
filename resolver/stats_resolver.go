@@ -99,7 +99,7 @@ func NewStatsResolver() ChainedResolver {
 }
 
 func (r *StatsResolver) printStats() {
-	logger := logger("stats_resover")
+	logger := logger("stats_resolver")
 
 	w := logger.Writer()
 	defer w.Close()
