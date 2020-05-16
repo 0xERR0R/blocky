@@ -162,6 +162,56 @@ badcnamedomain.com`)
 			})
 		})
 
+		When("BlockType is custom IP", func() {
+			BeforeEach(func() {
+				sutConfig = config.BlockingConfig{
+					BlackLists: map[string][]string{
+						"defaultGroup": {defaultGroupFile.Name()},
+					},
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup"},
+					},
+					BlockType: "12.12.12.12, 2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+				}
+			})
+
+			It("should return ipv4 address for A query if query is blocked", func() {
+				resp, err = sut.Resolve(newRequestWithClient("blocked3.com.", dns.TypeA, "1.2.1.2", "unknown"))
+
+				Expect(resp.Reason).Should(Equal("BLOCKED (defaultGroup)"))
+				Expect(resp.Res.Answer).Should(BeDNSRecord("blocked3.com.", dns.TypeA, 21600, "12.12.12.12"))
+			})
+
+			It("should return ipv6 address for AAAAA query if query is blocked", func() {
+				resp, err = sut.Resolve(newRequestWithClient("blocked3.com.", dns.TypeAAAA, "1.2.1.2", "unknown"))
+
+				Expect(resp.Reason).Should(Equal("BLOCKED (defaultGroup)"))
+				Expect(resp.Res.Answer).Should(BeDNSRecord("blocked3.com.", dns.TypeAAAA, 21600, "2001:db8:85a3::8a2e:370:7334"))
+			})
+		})
+
+		When("BlockType is custom IP only for ipv4", func() {
+			BeforeEach(func() {
+				sutConfig = config.BlockingConfig{
+					BlackLists: map[string][]string{
+						"defaultGroup": {defaultGroupFile.Name()},
+					},
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup"},
+					},
+					BlockType: "12.12.12.12",
+				}
+			})
+
+			It("should use fallback for ipv6 and return zero ip", func() {
+				resp, err = sut.Resolve(newRequestWithClient("blocked3.com.", dns.TypeAAAA, "1.2.1.2", "unknown"))
+
+				Expect(resp.Reason).Should(Equal("BLOCKED (defaultGroup)"))
+				Expect(resp.Res.Answer).Should(BeDNSRecord("blocked3.com.", dns.TypeAAAA, 21600, "::"))
+			})
+
+		})
+
 		When("Blacklist contains IP", func() {
 			When("IP4", func() {
 				BeforeEach(func() {

@@ -21,40 +21,34 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-	BlockTTL = 6 * 60 * 60
-)
-
-type BlockType uint8
-
-const (
-	ZeroIP BlockType = iota
-	NxDomain
-)
-
-func (b BlockType) String() string {
-	return [...]string{"ZeroIP", "NxDomain"}[b]
-}
-
-// nolint:gochecknoglobals
-var typeToZeroIP = map[uint16]net.IP{
-	dns.TypeA:    net.IPv4zero,
-	dns.TypeAAAA: net.IPv6zero,
-}
-
-func resolveBlockType(cfg config.BlockingConfig) BlockType {
+func createBlockHandler(cfg config.BlockingConfig) blockHandler {
 	cfgBlockType := strings.TrimSpace(strings.ToUpper(cfg.BlockType))
 	if cfgBlockType == "" || cfgBlockType == "ZEROIP" {
-		return ZeroIP
+		return zeroIPBlockHandler{}
 	}
 
 	if cfgBlockType == "NXDOMAIN" {
-		return NxDomain
+		return nxDomainBlockHandler{}
 	}
 
-	log.Fatalf("unknown blockType, please use one of: ZeroIP, NxDomain")
+	var ips []net.IP
 
-	return ZeroIP
+	for _, part := range strings.Split(cfgBlockType, ",") {
+		if ip := net.ParseIP(strings.TrimSpace(part)); ip != nil {
+			ips = append(ips, ip)
+		}
+	}
+
+	if len(ips) > 0 {
+		return ipBlockHandler{
+			destinations:    ips,
+			fallbackHandler: zeroIPBlockHandler{},
+		}
+	}
+
+	log.Fatalf("unknown blockType, please use one of: ZeroIP, NxDomain or specify destination IP address(es)")
+
+	return zeroIPBlockHandler{}
 }
 
 type status struct {
@@ -99,14 +93,14 @@ type BlockingResolver struct {
 	NextResolver
 	blacklistMatcher    lists.Matcher
 	whitelistMatcher    lists.Matcher
-	clientGroupsBlock   map[string][]string
-	blockType           BlockType
+	cfg                 config.BlockingConfig
+	blockHandler        blockHandler
 	whitelistOnlyGroups []string
 	status              status
 }
 
 func NewBlockingResolver(router *chi.Mux, cfg config.BlockingConfig) ChainedResolver {
-	bt := resolveBlockType(cfg)
+	blockHandler := createBlockHandler(cfg)
 	blacklistMatcher := lists.NewListCache(lists.BLACKLIST, cfg.BlackLists, cfg.RefreshPeriod)
 	whitelistMatcher := lists.NewListCache(lists.WHITELIST, cfg.WhiteLists, cfg.RefreshPeriod)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
@@ -124,8 +118,8 @@ func NewBlockingResolver(router *chi.Mux, cfg config.BlockingConfig) ChainedReso
 	}
 
 	res := &BlockingResolver{
-		blockType:           bt,
-		clientGroupsBlock:   cfg.ClientGroupsBlock,
+		blockHandler:        blockHandler,
+		cfg:                 cfg,
 		blacklistMatcher:    blacklistMatcher,
 		whitelistMatcher:    whitelistMatcher,
 		whitelistOnlyGroups: whitelistOnlyGroups,
@@ -229,15 +223,7 @@ func (r *BlockingResolver) handleBlocked(logger *log.Entry,
 	response := new(dns.Msg)
 	response.SetReply(request.Req)
 
-	switch r.blockType {
-	case ZeroIP:
-		rr := util.CreateAnswerFromQuestion(question, typeToZeroIP[question.Qtype], BlockTTL)
-
-		response.Answer = append(response.Answer, rr)
-
-	case NxDomain:
-		response.Rcode = dns.RcodeNameError
-	}
+	r.blockHandler.handleBlock(question, response)
 
 	logger.Debugf("blocking request '%s'", reason)
 
@@ -245,13 +231,13 @@ func (r *BlockingResolver) handleBlocked(logger *log.Entry,
 }
 
 func (r *BlockingResolver) Configuration() (result []string) {
-	if len(r.clientGroupsBlock) > 0 {
+	if len(r.cfg.ClientGroupsBlock) > 0 {
 		result = append(result, "clientGroupsBlock")
-		for key, val := range r.clientGroupsBlock {
+		for key, val := range r.cfg.ClientGroupsBlock {
 			result = append(result, fmt.Sprintf("  %s = \"%s\"", key, strings.Join(val, ";")))
 		}
 
-		result = append(result, fmt.Sprintf("blockType = \"%s\"", r.blockType))
+		result = append(result, fmt.Sprintf("blockType = \"%s\"", r.cfg.BlockType))
 
 		result = append(result, "blacklist:")
 		for _, c := range r.blacklistMatcher.Configuration() {
@@ -354,14 +340,14 @@ func extractEntryToCheckFromResponse(rr dns.RR) (entryToCheck string, tName stri
 func (r *BlockingResolver) groupsToCheckForClient(request *Request) (groups []string) {
 	// try client names
 	for _, cName := range request.ClientNames {
-		groupsByName, found := r.clientGroupsBlock[cName]
+		groupsByName, found := r.cfg.ClientGroupsBlock[cName]
 		if found {
 			groups = append(groups, groupsByName...)
 		}
 	}
 
 	// try IP
-	groupsByIP, found := r.clientGroupsBlock[request.ClientIP.String()]
+	groupsByIP, found := r.cfg.ClientGroupsBlock[request.ClientIP.String()]
 
 	if found {
 		groups = append(groups, groupsByIP...)
@@ -370,7 +356,7 @@ func (r *BlockingResolver) groupsToCheckForClient(request *Request) (groups []st
 	if len(groups) == 0 {
 		if !found {
 			// return default
-			groups = r.clientGroupsBlock["default"]
+			groups = r.cfg.ClientGroupsBlock["default"]
 		}
 	}
 
@@ -389,4 +375,53 @@ func (r *BlockingResolver) matches(groupsToCheck []string, m lists.Matcher,
 	}
 
 	return false, ""
+}
+
+const blockTTL = 6 * 60 * 60
+
+type blockHandler interface {
+	handleBlock(question dns.Question, response *dns.Msg)
+}
+
+type zeroIPBlockHandler struct {
+}
+
+type nxDomainBlockHandler struct {
+}
+
+type ipBlockHandler struct {
+	destinations    []net.IP
+	fallbackHandler blockHandler
+}
+
+func (b zeroIPBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
+	var zeroIP net.IP
+
+	switch question.Qtype {
+	case dns.TypeAAAA:
+		zeroIP = net.IPv6zero
+	default:
+		zeroIP = net.IPv4zero
+	}
+
+	rr := util.CreateAnswerFromQuestion(question, zeroIP, blockTTL)
+
+	response.Answer = append(response.Answer, rr)
+}
+
+func (b nxDomainBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
+	response.Rcode = dns.RcodeNameError
+}
+
+func (b ipBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
+	for _, ip := range b.destinations {
+		if (question.Qtype == dns.TypeAAAA && ip.To4() == nil) || (question.Qtype == dns.TypeA && ip.To4() != nil) {
+			response.Answer = append(response.Answer, util.CreateAnswerFromQuestion(question, ip, blockTTL))
+		}
+	}
+
+	if len(response.Answer) == 0 {
+		// use fallback
+		b.fallbackHandler.handleBlock(question, response)
+	}
 }

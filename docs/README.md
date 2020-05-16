@@ -83,6 +83,7 @@ blocking:
     # which response will be sent, if query is blocked:
     # zeroIp: 0.0.0.0 will be returned (default)
     # nxDomain: return NXDOMAIN as return code
+    # comma separated list of destination IP adresses (for example: 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344). Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page.
     blockType: zeroIp
     # optional: automatically list refresh period in minutes. Default: 4h.
     # Negative value -> deactivate automatically refresh.
