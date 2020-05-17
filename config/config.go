@@ -153,8 +153,9 @@ type BlockingConfig struct {
 }
 
 type ClientLookupConfig struct {
-	Upstream        Upstream `yaml:"upstream"`
-	SingleNameOrder []uint   `yaml:"singleNameOrder"`
+	ClientnameIPMapping map[string][]net.IP `yaml:"clients"`
+	Upstream            Upstream            `yaml:"upstream"`
+	SingleNameOrder     []uint              `yaml:"singleNameOrder"`
 }
 
 type CachingConfig struct {

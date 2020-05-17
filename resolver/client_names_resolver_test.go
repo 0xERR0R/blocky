@@ -5,6 +5,7 @@ import (
 	"blocky/util"
 	"errors"
 	"fmt"
+	"net"
 
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo"
@@ -47,6 +48,48 @@ var _ = Describe("ClientResolver", func() {
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
 
+	})
+
+	Describe("Resolve client name with custom name mapping", func() {
+		BeforeEach(func() {
+			sutConfig = config.ClientLookupConfig{
+				Upstream: mockReverseUpstream,
+				ClientnameIPMapping: map[string][]net.IP{
+					"client7": {net.ParseIP("1.2.3.4"), net.ParseIP("1.2.3.5"), net.ParseIP("2a02:590:505:4700:2e4f:1503:ce74:df78")},
+					"client8": {net.ParseIP("1.2.3.5")},
+				},
+			}
+		})
+
+		It("should resolve defined name with ipv4 address", func() {
+			request := newRequestWithClient("google.de.", dns.TypeA, "1.2.3.4")
+			resp, err = sut.Resolve(request)
+
+			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+			Expect(request.ClientNames).Should(HaveLen(1))
+			Expect(request.ClientNames[0]).Should(Equal("client7"))
+			Expect(mockReverseUpstreamCallCount).Should(Equal(0))
+		})
+
+		It("should resolve defined name with ipv6 address", func() {
+			request := newRequestWithClient("google.de.", dns.TypeA, "2a02:590:505:4700:2e4f:1503:ce74:df78")
+			resp, err = sut.Resolve(request)
+
+			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+			Expect(request.ClientNames).Should(HaveLen(1))
+			Expect(request.ClientNames[0]).Should(Equal("client7"))
+			Expect(mockReverseUpstreamCallCount).Should(Equal(0))
+		})
+		It("should resolve multiple names defined names", func() {
+			request := newRequestWithClient("google.de.", dns.TypeA, "1.2.3.5")
+			resp, err = sut.Resolve(request)
+
+			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+			Expect(request.ClientNames).Should(HaveLen(2))
+			Expect(request.ClientNames[0]).Should(Equal("client7"))
+			Expect(request.ClientNames[1]).Should(Equal("client8"))
+			Expect(mockReverseUpstreamCallCount).Should(Equal(0))
+		})
 	})
 
 	Describe("Resolve client name via rDNS lookup", func() {
@@ -228,6 +271,9 @@ var _ = Describe("ClientResolver", func() {
 				sutConfig = config.ClientLookupConfig{
 					Upstream:        config.Upstream{Net: "tcp", Host: "host"},
 					SingleNameOrder: []uint{1, 2},
+					ClientnameIPMapping: map[string][]net.IP{
+						"client8": {net.ParseIP("1.2.3.5")},
+					},
 				}
 			})
 			It("should return configuration", func() {

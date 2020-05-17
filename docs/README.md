@@ -100,18 +100,22 @@ caching:
   # If <0, do not cache responses
   # If 0, use TTL
   # If > 0, use this value, if TTL is greater
-   # Default: 0
+  # Default: 0
   maxTime: -1
   
 # optional: configuration of client name resolution
 clientLookup:
-    # this DNS resolver will be used to perform reverse DNS lookup (typically local router)
-    upstream: udp:192.168.178.1
-    # optional: some routers return multiple names for client (host name and user defined name). Define which single name should be used.
-    # Example: take second name if present, if not take first name
-    singleNameOrder:
+  # optional: this DNS resolver will be used to perform reverse DNS lookup (typically local router)
+  upstream: udp:192.168.178.1
+  # optional: some routers return multiple names for client (host name and user defined name). Define which single name should be used.
+  # Example: take second name if present, if not take first name
+  singleNameOrder:
       - 2
       - 1
+  # optional: custom mapping of client name to IP addresses. Useful if reverse DNS does not work properly or just to have custom client names.
+  clients:
+    laptop:
+      - 192.168.178.29
 # optional: configuration for prometheus metrics endpoint
 prometheus:
   # enabled if true

@@ -18,6 +18,7 @@ type ClientNamesResolver struct {
 	cache            *cache.Cache
 	externalResolver Resolver
 	singleNameOrder  []uint
+	clientIPMapping  map[string][]net.IP
 	NextResolver
 }
 
@@ -31,14 +32,26 @@ func NewClientNamesResolver(cfg config.ClientLookupConfig) ChainedResolver {
 		cache:            cache.New(1*time.Hour, 1*time.Hour),
 		externalResolver: r,
 		singleNameOrder:  cfg.SingleNameOrder,
+		clientIPMapping:  cfg.ClientnameIPMapping,
 	}
 }
 
 func (r *ClientNamesResolver) Configuration() (result []string) {
-	if r.externalResolver != nil {
+	if r.externalResolver != nil || len(r.clientIPMapping) > 0 {
 		result = append(result, fmt.Sprintf("singleNameOrder = \"%v\"", r.singleNameOrder))
-		result = append(result, fmt.Sprintf("externalResolver = \"%s\"", r.externalResolver))
+		if r.externalResolver != nil {
+			result = append(result, fmt.Sprintf("externalResolver = \"%s\"", r.externalResolver))
+		}
+
 		result = append(result, fmt.Sprintf("cache item count = %d", r.cache.ItemCount()))
+
+		if len(r.clientIPMapping) > 0 {
+			result = append(result, "client IP mapping:")
+
+			for k, v := range r.clientIPMapping {
+				result = append(result, fmt.Sprintf("%s -> %s", k, v))
+			}
+		}
 	} else {
 		result = []string{"deactivated, use only IP address"}
 	}
@@ -72,8 +85,15 @@ func (r *ClientNamesResolver) getClientNames(request *Request) []string {
 	return names
 }
 
-// performs reverse DNS lookup
+// tries to resolve client name from mapping, performs reverse DNS lookup otherwise
 func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry) (result []string) {
+	// try client mapping first
+	result = r.getNameFromIPMapping(ip, result)
+
+	if len(result) > 0 {
+		return
+	}
+
 	if r.externalResolver != nil {
 		reverse, err := dns.ReverseAddr(ip.String())
 
@@ -117,9 +137,21 @@ func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry
 			result = clientNames
 		}
 
-		logger.WithField("client_names", strings.Join(result, "; ")).Debug("resolved client name(s)")
+		logger.WithField("client_names", strings.Join(result, "; ")).Debug("resolved client name(s) from external resolver")
 	} else {
 		result = []string{ip.String()}
+	}
+
+	return result
+}
+
+func (r *ClientNamesResolver) getNameFromIPMapping(ip net.IP, result []string) []string {
+	for name, ips := range r.clientIPMapping {
+		for _, i := range ips {
+			if ip.String() == i.String() {
+				result = append(result, name)
+			}
+		}
 	}
 
 	return result
