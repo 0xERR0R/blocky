@@ -42,6 +42,13 @@ jobs:
     - name: Upload results to codecov
       run: bash <(curl -s https://codecov.io/bash) -t 48d6a1a8-a66e-4f27-9cc1-a7b91c4209b2
 
+    - name: Set up Docker Buildx
+      id: buildx
+      if: github.ref == 'refs/heads/master'
+      uses: crazy-max/ghaction-docker-buildx@v1
+      with:
+        version: latest
+
     - name: Build the "development" docker image and push for master
       if: github.ref == 'refs/heads/master'
       run: |
