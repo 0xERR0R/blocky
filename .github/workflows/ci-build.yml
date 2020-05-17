@@ -41,3 +41,9 @@ jobs:
 
     - name: Upload results to codecov
       run: bash <(curl -s https://codecov.io/bash) -t 48d6a1a8-a66e-4f27-9cc1-a7b91c4209b2
+
+    - name: Build the "development" docker image and push for master
+      if: github.ref == 'refs/heads/master'
+      run: |
+        echo ${{secrets.DOCKER_PASSWORD}} | docker login -u ${{secrets.DOCKER_USERNAME}} --password-stdin
+        docker buildx build --platform linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64 --tag ${{secrets.DOCKER_USERNAME}}/blocky:development --push .
