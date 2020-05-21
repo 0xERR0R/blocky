@@ -7,10 +7,13 @@ import (
 	"blocky/resolver"
 	"blocky/util"
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -21,92 +24,96 @@ import (
 )
 
 var _ = Describe("Running DNS server", func() {
-	Describe("performing DNS request with running server", func() {
-		var (
-			upstreamGoogle, upstreamFritzbox, upstreamClient config.Upstream
-			mockClientName                                   string
-			sut                                              *Server
-			err                                              error
-			resp                                             *dns.Msg
-		)
+	var (
+		upstreamGoogle, upstreamFritzbox, upstreamClient config.Upstream
+		mockClientName                                   string
+		sut                                              *Server
+		err                                              error
+		resp                                             *dns.Msg
+	)
 
-		BeforeSuite(func() {
-			upstreamGoogle = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-				response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 123, dns.TypeA, "123.124.122.122")
-
-				Expect(err).Should(Succeed())
-				return response
-			})
-			upstreamFritzbox = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-				response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 3600, dns.TypeA, "192.168.178.2")
-
-				Expect(err).Should(Succeed())
-				return response
-			})
-
-			upstreamClient = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-				response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 3600, dns.TypePTR, mockClientName)
-
-				Expect(err).Should(Succeed())
-				return response
-			})
-
-			// create server
-			sut, err = NewServer(&config.Config{
-				CustomDNS: config.CustomDNSConfig{
-					Mapping: map[string]net.IP{
-						"custom.lan": net.ParseIP("192.168.178.55"),
-						"lan.home":   net.ParseIP("192.168.178.56"),
-					},
-				},
-				Conditional: config.ConditionalUpstreamConfig{
-					Mapping: map[string]config.Upstream{"fritz.box": upstreamFritzbox},
-				},
-				Blocking: config.BlockingConfig{
-					BlackLists: map[string][]string{
-						"ads": {
-							"../testdata/doubleclick.net.txt",
-							"../testdata/www.bild.de.txt",
-							"../testdata/heise.de.txt"},
-						"youtube": {"../testdata/youtube.com.txt"}},
-					WhiteLists: map[string][]string{
-						"ads":       {"../testdata/heise.de.txt"},
-						"whitelist": {"../testdata/heise.de.txt"},
-					},
-					ClientGroupsBlock: map[string][]string{
-						"default":         {"ads"},
-						"clWhitelistOnly": {"whitelist"},
-						"clAdsAndYoutube": {"ads", "youtube"},
-						"clYoutubeOnly":   {"youtube"},
-					},
-				},
-				Upstream: config.UpstreamConfig{
-					ExternalResolvers: []config.Upstream{upstreamGoogle},
-				},
-				ClientLookup: config.ClientLookupConfig{
-					Upstream: upstreamClient,
-				},
-
-				Port:     55555,
-				HTTPPort: 4000,
-				Prometheus: config.PrometheusConfig{
-					Enable: true,
-					Path:   "/metrics",
-				},
-			})
+	BeforeSuite(func() {
+		upstreamGoogle = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
+			if request.Question[0].Name == "error." {
+				return nil
+			}
+			response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 123, dns.TypeA, "123.124.122.122")
 
 			Expect(err).Should(Succeed())
+			return response
+		})
+		upstreamFritzbox = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
+			response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 3600, dns.TypeA, "192.168.178.2")
 
-			// start server
-			go func() {
-				sut.Start()
-			}()
-			time.Sleep(100 * time.Millisecond)
+			Expect(err).Should(Succeed())
+			return response
 		})
 
-		AfterSuite(func() {
-			sut.Stop()
+		upstreamClient = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
+			response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 3600, dns.TypePTR, mockClientName)
+
+			Expect(err).Should(Succeed())
+			return response
 		})
+
+		// create server
+		sut, err = NewServer(&config.Config{
+			CustomDNS: config.CustomDNSConfig{
+				Mapping: map[string]net.IP{
+					"custom.lan": net.ParseIP("192.168.178.55"),
+					"lan.home":   net.ParseIP("192.168.178.56"),
+				},
+			},
+			Conditional: config.ConditionalUpstreamConfig{
+				Mapping: map[string]config.Upstream{"fritz.box": upstreamFritzbox},
+			},
+			Blocking: config.BlockingConfig{
+				BlackLists: map[string][]string{
+					"ads": {
+						"../testdata/doubleclick.net.txt",
+						"../testdata/www.bild.de.txt",
+						"../testdata/heise.de.txt"},
+					"youtube": {"../testdata/youtube.com.txt"}},
+				WhiteLists: map[string][]string{
+					"ads":       {"../testdata/heise.de.txt"},
+					"whitelist": {"../testdata/heise.de.txt"},
+				},
+				ClientGroupsBlock: map[string][]string{
+					"default":         {"ads"},
+					"clWhitelistOnly": {"whitelist"},
+					"clAdsAndYoutube": {"ads", "youtube"},
+					"clYoutubeOnly":   {"youtube"},
+				},
+			},
+			Upstream: config.UpstreamConfig{
+				ExternalResolvers: []config.Upstream{upstreamGoogle},
+			},
+			ClientLookup: config.ClientLookupConfig{
+				Upstream: upstreamClient,
+			},
+
+			Port:     55555,
+			HTTPPort: 4000,
+			Prometheus: config.PrometheusConfig{
+				Enable: true,
+				Path:   "/metrics",
+			},
+		})
+
+		Expect(err).Should(Succeed())
+
+		// start server
+		go func() {
+			sut.Start()
+		}()
+		time.Sleep(100 * time.Millisecond)
+	})
+
+	AfterSuite(func() {
+		sut.Stop()
+	})
+
+	Describe("performing DNS request with running server", func() {
 
 		BeforeEach(func() {
 			mockClientName = ""
@@ -246,6 +253,13 @@ var _ = Describe("Running DNS server", func() {
 				Expect(r.StatusCode).Should(Equal(http.StatusOK))
 			})
 		})
+		When("Swagger without trailing slash is called", func() {
+			It("should redirect to swagger URL", func() {
+				r, err := http.Get("http://localhost:4000/swagger")
+				Expect(err).Should(Succeed())
+				Expect(r.StatusCode).Should(Equal(http.StatusOK))
+			})
+		})
 	})
 	Describe("Prometheus endpoint", func() {
 		When("Prometheus URL is called", func() {
@@ -292,7 +306,7 @@ var _ = Describe("Running DNS server", func() {
 			It("Should return internal error", func() {
 				req := api.QueryRequest{
 					Query: "google.de",
-					Type:  "WrongTyoe",
+					Type:  "WrongType",
 				}
 				jsonValue, _ := json.Marshal(req)
 
@@ -302,6 +316,20 @@ var _ = Describe("Running DNS server", func() {
 				defer resp.Body.Close()
 
 				Expect(resp.StatusCode).Should(Equal(http.StatusInternalServerError))
+			})
+		})
+		When("Internal error occurs", func() {
+			It("Should return internal error", func() {
+				req := api.QueryRequest{
+					Query: "error.",
+					Type:  "A",
+				}
+				jsonValue, _ := json.Marshal(req)
+
+				resp, err := http.Post("http://localhost:4000/api/query", "application/json", bytes.NewBuffer(jsonValue))
+				Expect(err).Should(Succeed())
+				Expect(resp.StatusCode).Should(Equal(http.StatusInternalServerError))
+				_ = resp.Body.Close()
 			})
 		})
 		When("Request is malformed", func() {
@@ -314,6 +342,123 @@ var _ = Describe("Running DNS server", func() {
 				defer resp.Body.Close()
 
 				Expect(resp.StatusCode).Should(Equal(http.StatusInternalServerError))
+			})
+		})
+	})
+
+	Describe("DOH endpoint", func() {
+		Context("DOH over GET (RFC 8484)", func() {
+			When("DOH get request with 'example.com' is performed", func() {
+				It("should get a valid response", func() {
+					resp, err := http.Get("http://localhost:4000/dns-query?dns=AAABAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB")
+					Expect(err).Should(Succeed())
+					defer resp.Body.Close()
+
+					Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+					rawMsg, err := ioutil.ReadAll(resp.Body)
+					Expect(err).Should(Succeed())
+
+					msg := new(dns.Msg)
+					err = msg.Unpack(rawMsg)
+					Expect(err).Should(Succeed())
+
+					Expect(msg.Answer).Should(BeDNSRecord("www.example.com.", dns.TypeA, 0, "123.124.122.122"))
+				})
+			})
+			When("Request does not contain a valid DNS message", func() {
+				It("should return 'Bad Request'", func() {
+					resp, err := http.Get("http://localhost:4000/dns-query?dns=xxxx")
+					Expect(err).Should(Succeed())
+					defer resp.Body.Close()
+
+					Expect(resp).Should(HaveHTTPStatus(http.StatusBadRequest))
+				})
+			})
+			When("Request's parameter does not contain a valid base64'", func() {
+				It("should return 'Bad Request'", func() {
+					resp, err := http.Get("http://localhost:4000/dns-query?dns=äöä")
+					Expect(err).Should(Succeed())
+					defer resp.Body.Close()
+
+					Expect(resp).Should(HaveHTTPStatus(http.StatusBadRequest))
+				})
+			})
+			When("Request does not contain a dns parameter", func() {
+				It("should return 'Bad Request'", func() {
+					resp, err := http.Get("http://localhost:4000/dns-query?test")
+					Expect(err).Should(Succeed())
+					defer resp.Body.Close()
+
+					Expect(resp).Should(HaveHTTPStatus(http.StatusBadRequest))
+				})
+			})
+			When("Request's dns parameter is too long'", func() {
+				It("should return 'URI Too Long'", func() {
+					longBase64msg := base64.StdEncoding.EncodeToString([]byte(strings.Repeat("t", 513)))
+
+					resp, err := http.Get("http://localhost:4000/dns-query?dns=" + longBase64msg)
+					Expect(err).Should(Succeed())
+					defer resp.Body.Close()
+
+					Expect(resp).Should(HaveHTTPStatus(http.StatusRequestURITooLong))
+				})
+			})
+
+		})
+		Context("DOH over POST (RFC 8484)", func() {
+			When("DOH post request with 'example.com' is performed", func() {
+				It("should get a valid response", func() {
+					msg := util.NewMsgWithQuestion("www.example.com.", dns.TypeA)
+					rawDNSMessage, err := msg.Pack()
+					Expect(err).Should(Succeed())
+
+					resp, err := http.Post("http://localhost:4000/dns-query",
+						"application/dns-message", bytes.NewReader(rawDNSMessage))
+					Expect(err).Should(Succeed())
+					defer resp.Body.Close()
+					Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+					rawMsg, err := ioutil.ReadAll(resp.Body)
+					Expect(err).Should(Succeed())
+
+					msg = new(dns.Msg)
+					err = msg.Unpack(rawMsg)
+					Expect(err).Should(Succeed())
+
+					Expect(msg.Answer).Should(BeDNSRecord("www.example.com.", dns.TypeA, 0, "123.124.122.122"))
+				})
+			})
+			When("POST payload exceeds 512 bytes", func() {
+				It("should return 'Payload Too Large'", func() {
+					largeMessage := []byte(strings.Repeat("t", 513))
+
+					resp, err := http.Post("http://localhost:4000/dns-query", "application/dns-message", bytes.NewReader(largeMessage))
+					Expect(err).Should(Succeed())
+					defer resp.Body.Close()
+
+					Expect(resp).Should(HaveHTTPStatus(http.StatusRequestEntityTooLarge))
+				})
+			})
+			When("Request has wrong type", func() {
+				It("should return 'Unsupported Media Type'", func() {
+					resp, err := http.Post("http://localhost:4000/dns-query", "application/text", bytes.NewReader([]byte("a")))
+					Expect(err).Should(Succeed())
+					defer resp.Body.Close()
+
+					Expect(resp).Should(HaveHTTPStatus(http.StatusUnsupportedMediaType))
+				})
+			})
+			When("Internal error occurs", func() {
+				It("should return 'Internal server error'", func() {
+					msg := util.NewMsgWithQuestion("error.", dns.TypeA)
+					rawDNSMessage, err := msg.Pack()
+					Expect(err).Should(Succeed())
+
+					resp, err := http.Post("http://localhost:4000/dns-query",
+						"application/dns-message", bytes.NewReader(rawDNSMessage))
+					Expect(err).Should(Succeed())
+					defer resp.Body.Close()
+					Expect(resp).Should(HaveHTTPStatus(http.StatusInternalServerError))
+				})
 			})
 		})
 	})
