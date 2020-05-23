@@ -86,8 +86,7 @@ var _ = Describe("ClientResolver", func() {
 
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 			Expect(request.ClientNames).Should(HaveLen(2))
-			Expect(request.ClientNames[0]).Should(Equal("client7"))
-			Expect(request.ClientNames[1]).Should(Equal("client8"))
+			Expect(request.ClientNames).Should(ContainElements("client7", "client8"))
 			Expect(mockReverseUpstreamCallCount).Should(Equal(0))
 		})
 	})
