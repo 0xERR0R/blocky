@@ -36,14 +36,14 @@ func (s *Server) registerAPIEndpoints(router *chi.Mux) {
 }
 
 func (s *Server) dohGetRequestHandler(rw http.ResponseWriter, req *http.Request) {
-	dns, ok := req.URL.Query()["dns"]
-	if !ok || len(dns[0]) < 1 {
+	dnsParam, ok := req.URL.Query()["dns"]
+	if !ok || len(dnsParam[0]) < 1 {
 		http.Error(rw, "dns param is missing", http.StatusBadRequest)
 
 		return
 	}
 
-	rawMsg, err := base64.StdEncoding.DecodeString(dns[0])
+	rawMsg, err := base64.StdEncoding.DecodeString(dnsParam[0])
 	if err != nil {
 		http.Error(rw, "wrong message format", http.StatusBadRequest)
 
@@ -232,18 +232,18 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 		}
 		var links = []HandlerLink{
 			{
-				URL:   fmt.Sprintf("http://%s/swagger/", request.Host),
+				URL:   "/swagger/",
 				Title: "Swagger Rest API Documentation",
 			},
 			{
-				URL:   fmt.Sprintf("http://%s/debug/", request.Host),
+				URL:   "/debug/",
 				Title: "Go Profiler",
 			},
 		}
 
 		if cfg.Prometheus.Enable {
 			links = append(links, HandlerLink{
-				URL:   fmt.Sprintf("http://%s%s", request.Host, cfg.Prometheus.Path),
+				URL:   cfg.Prometheus.Path,
 				Title: "Prometheus endpoint",
 			})
 		}
@@ -260,9 +260,13 @@ func configureSwaggerHandler(router *chi.Mux) {
 	router.Get("/swagger/*", func(writer http.ResponseWriter, request *http.Request) {
 		// set swagger host with host from request
 		docs.SwaggerInfo.Host = request.Host
-		swaggerHandler := httpSwagger.Handler(
-			httpSwagger.URL(fmt.Sprintf("http://%s/swagger/doc.json", request.Host)),
-		)
+		var url func(c *httpSwagger.Config)
+		if request.TLS == nil {
+			url = httpSwagger.URL(fmt.Sprintf("http://%s/swagger/doc.json", request.Host))
+		} else {
+			url = httpSwagger.URL(fmt.Sprintf("https://%s/swagger/doc.json", request.Host))
+		}
+		swaggerHandler := httpSwagger.Handler(url)
 		swaggerHandler.ServeHTTP(writer, request)
 	})
 

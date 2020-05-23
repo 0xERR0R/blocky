@@ -123,6 +123,9 @@ type Config struct {
 	LogLevel     string                    `yaml:"logLevel"`
 	Port         uint16                    `yaml:"port"`
 	HTTPPort     uint16                    `yaml:"httpPort"`
+	HTTPSPort    uint16                    `yaml:"httpsPort"`
+	CertFile     string                    `yaml:"httpsCertFile"`
+	KeyFile      string                    `yaml:"httpsKeyFile"`
 	BootstrapDNS Upstream                  `yaml:"bootstrapDns"`
 }
 
