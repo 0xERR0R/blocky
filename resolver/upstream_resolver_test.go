@@ -188,7 +188,7 @@ var _ = Describe("UpstreamResolver", func() {
 			It("should return error", func() {
 				_, err := sut.Resolve(newRequest("example.com.", dns.TypeA))
 				Expect(err).Should(HaveOccurred())
-				Expect(err.Error()).Should(ContainSubstring("lookup wronghost.example.com: no such host"))
+				Expect(err.Error()).Should(ContainSubstring("no such host"))
 			})
 		})
 		When("Configured DOH resolver receives wrong request", func() {

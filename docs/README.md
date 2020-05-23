@@ -20,6 +20,7 @@ Blocky is a DNS proxy for the local network written in Go with following feature
   - blocking of request domain, response CNAME (deep CNAME inspection) and response IP addresses (against IP lists)
 - Caching of DNS answers for queries -> improves DNS resolution speed and reduces amount of external DNS queries
 - Custom DNS resolution for certain domain names
+- Serves DNS over UDP, TCP and HTTPS (DNS over HTTPS, aka DoH)
 - Supports UDP, TCP and TCP over TLS DNS resolvers with DNSSEC support
 - Supports DNS over HTTPS (DoH) resolvers
 - Delegates DNS query to 2 external resolvers from a list of configured resolvers, uses the answer from the fastest one -> improves you privacy and resolution time
@@ -134,8 +135,13 @@ queryLog:
   
 # optional: DNS listener port, default 53 (UDP and TCP)
 port: 53
-# optional: HTTP listener port, default 0 = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, ...
+# optional: HTTP listener port, default 0 = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH ...
 httpPort: 4000
+# optional: HTTPS listener port, default 0 = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH...
+httpsPort: 443
+# mandatory, if https port > 0: path to cert and key file for SSL encryption
+httpsCertFile: server.crt
+httpsKeyFile: server.key
 # optional: use this DNS server to resolve blacklist urls and upstream DNS servers (DOH). Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp
 bootstrapDns: tcp:1.1.1.1
 # optional: Log level (one from debug, info, warn, error). Default: info
@@ -187,14 +193,14 @@ To run this inside docker run `docker exec blocky ./blocky blocking status`
 
 ## Additional information
 
+### HTTPS configuration (for DoH)
+See [Wiki - Configuration of HTTPS](https://github.com/0xERR0R/blocky/wiki/Configuration-of-HTTPS-for-DoH-and-Rest-API) for detailed information, how to configure HTTPS.
+
 ### Prometheus / Grafana
 Blocky can export metrics for prometheus. Example grafana dashboard definition [as JSON](blocky-grafana.json)
 ![grafana-dashboard](grafana-dashboard.png). 
 
 See [Wiki - Prometheus / Grafana](https://github.com/0xERR0R/blocky/wiki/Prometheus---Grafana-integration) for more information.
-
-
-
 
 
 ### Print current configuration
@@ -211,7 +217,3 @@ Hint: To send a signal to a process you can use `kill -s USR1 <PID>` or `docker 
 
 ### Debug / Profiling
 If http listener is enabled, pprof endpoint (`/debug/pprof`) is enabled automatically.
-
-
-## License
-[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2F0xERR0R%2Fblocky.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2F0xERR0R%2Fblocky?ref=badge_large)

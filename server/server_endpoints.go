@@ -1,0 +1,292 @@
+package server
+
+import (
+	"blocky/api"
+	"blocky/config"
+	"blocky/docs"
+	"blocky/util"
+	"blocky/web"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"html/template"
+	"io/ioutil"
+	"net"
+	"net/http"
+	"strings"
+
+	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
+	"github.com/go-chi/cors"
+	"github.com/miekg/dns"
+	"github.com/sirupsen/logrus"
+	httpSwagger "github.com/swaggo/http-swagger"
+)
+
+const (
+	dohMessageLimit = 512
+	dnsContentType  = "application/dns-message"
+)
+
+func (s *Server) registerAPIEndpoints(router *chi.Mux) {
+	router.Post(api.BlockingQueryPath, s.apiQuery)
+
+	router.Get("/dns-query", s.dohGetRequestHandler)
+	router.Post("/dns-query", s.dohPostRequestHandler)
+}
+
+func (s *Server) dohGetRequestHandler(rw http.ResponseWriter, req *http.Request) {
+	dnsParam, ok := req.URL.Query()["dns"]
+	if !ok || len(dnsParam[0]) < 1 {
+		http.Error(rw, "dns param is missing", http.StatusBadRequest)
+
+		return
+	}
+
+	rawMsg, err := base64.StdEncoding.DecodeString(dnsParam[0])
+	if err != nil {
+		http.Error(rw, "wrong message format", http.StatusBadRequest)
+
+		return
+	}
+
+	if len(rawMsg) > dohMessageLimit {
+		http.Error(rw, "URI Too Long", http.StatusRequestURITooLong)
+
+		return
+	}
+
+	s.processDohMessage(rawMsg, rw, req)
+}
+
+func (s *Server) dohPostRequestHandler(rw http.ResponseWriter, req *http.Request) {
+	contentType := req.Header.Get("Content-type")
+	if contentType != dnsContentType {
+		http.Error(rw, "unsupported content type", http.StatusUnsupportedMediaType)
+
+		return
+	}
+
+	rawMsg, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+
+		return
+	}
+
+	if len(rawMsg) > dohMessageLimit {
+		http.Error(rw, "Payload Too Large", http.StatusRequestEntityTooLarge)
+
+		return
+	}
+
+	s.processDohMessage(rawMsg, rw, req)
+}
+
+func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *http.Request) {
+	msg := new(dns.Msg)
+	err := msg.Unpack(rawMsg)
+
+	if err != nil {
+		logger().Error("can't deserialize message: ", err)
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+
+		return
+	}
+
+	r := newRequest(net.ParseIP(extractIP(req)), msg)
+
+	resResponse, err := s.queryResolver.Resolve(r)
+
+	if err != nil {
+		logger().Error("unable to process query: ", err)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	response := new(dns.Msg)
+	response.SetReply(msg)
+
+	b, err := resResponse.Res.Pack()
+	if err != nil {
+		logger().Error("can't serialize message: ", err)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+	}
+
+	rw.Header().Set("content-type", dnsContentType)
+
+	_, err = rw.Write(b)
+	if err != nil {
+		logger().Error("can't write response: ", err)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func extractIP(r *http.Request) string {
+	hostPort := r.Header.Get("X-FORWARDED-FOR")
+
+	if hostPort == "" {
+		hostPort = r.RemoteAddr
+	}
+
+	hostPort = strings.ReplaceAll(hostPort, "[", "")
+	hostPort = strings.ReplaceAll(hostPort, "]", "")
+	index := strings.LastIndex(hostPort, ":")
+
+	if index >= 0 {
+		return hostPort[:index]
+	}
+
+	return hostPort
+}
+
+// apiQuery is the http endpoint to perform a DNS query
+// @Summary Performs DNS query
+// @Description Performs DNS query
+// @Tags query
+// @Accept  json
+// @Produce  json
+// @Param query body api.QueryRequest true "query data"
+// @Success 200 {object} api.QueryResult "query was executed"
+// @Failure 400   "Wrong request format"
+// @Router /query [post]
+func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
+	var queryRequest api.QueryRequest
+	err := json.NewDecoder(req.Body).Decode(&queryRequest)
+
+	if err != nil {
+		logger().Error("can't read request: ", err)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	// validate query type
+	qType := dns.StringToType[queryRequest.Type]
+	if qType == dns.TypeNone {
+		err = fmt.Errorf("unknown query type '%s'", queryRequest.Type)
+		logger().Error(err)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	query := queryRequest.Query
+
+	// append dot
+	if !strings.HasSuffix(query, ".") {
+		query += "."
+	}
+
+	dnsRequest := util.NewMsgWithQuestion(query, qType)
+	r := createResolverRequest(nil, dnsRequest)
+
+	response, err := s.queryResolver.Resolve(r)
+
+	if err != nil {
+		logger().Error("unable to process query: ", err)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	jsonResponse, _ := json.Marshal(api.QueryResult{
+		Reason:       response.Reason,
+		ResponseType: response.RType.String(),
+		Response:     util.AnswerToString(response.Res.Answer),
+		ReturnCode:   dns.RcodeToString[response.Res.Rcode],
+	})
+	_, err = rw.Write(jsonResponse)
+
+	if err != nil {
+		logger().Error("unable to write response ", err)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+}
+
+func createRouter(cfg *config.Config) *chi.Mux {
+	router := chi.NewRouter()
+
+	configureCorsHandler(router)
+
+	configureDebugHandler(router)
+
+	configureSwaggerHandler(router)
+
+	configureRootHandler(cfg, router)
+
+	return router
+}
+
+func configureRootHandler(cfg *config.Config, router *chi.Mux) {
+	router.Get("/", func(writer http.ResponseWriter, request *http.Request) {
+		t := template.New("index")
+		_, _ = t.Parse(web.IndexTmpl)
+
+		type HandlerLink struct {
+			URL   string
+			Title string
+		}
+		var links = []HandlerLink{
+			{
+				URL:   "/swagger/",
+				Title: "Swagger Rest API Documentation",
+			},
+			{
+				URL:   "/debug/",
+				Title: "Go Profiler",
+			},
+		}
+
+		if cfg.Prometheus.Enable {
+			links = append(links, HandlerLink{
+				URL:   cfg.Prometheus.Path,
+				Title: "Prometheus endpoint",
+			})
+		}
+
+		err := t.Execute(writer, links)
+		if err != nil {
+			logrus.Error("can't write index template: ", err)
+			writer.WriteHeader(http.StatusInternalServerError)
+		}
+	})
+}
+
+func configureSwaggerHandler(router *chi.Mux) {
+	router.Get("/swagger/*", func(writer http.ResponseWriter, request *http.Request) {
+		// set swagger host with host from request
+		docs.SwaggerInfo.Host = request.Host
+		var url func(c *httpSwagger.Config)
+		if request.TLS == nil {
+			url = httpSwagger.URL(fmt.Sprintf("http://%s/swagger/doc.json", request.Host))
+		} else {
+			url = httpSwagger.URL(fmt.Sprintf("https://%s/swagger/doc.json", request.Host))
+		}
+		swaggerHandler := httpSwagger.Handler(url)
+		swaggerHandler.ServeHTTP(writer, request)
+	})
+
+	router.Get("/swagger", func(writer http.ResponseWriter, request *http.Request) {
+		http.Redirect(writer, request, "/swagger/", http.StatusMovedPermanently)
+	})
+}
+
+func configureDebugHandler(router *chi.Mux) {
+	router.Mount("/debug", middleware.Profiler())
+}
+
+func configureCorsHandler(router *chi.Mux) {
+	crs := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	})
+	router.Use(crs.Handler)
+}

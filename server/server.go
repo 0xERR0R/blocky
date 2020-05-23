@@ -1,16 +1,10 @@
 package server
 
 import (
-	"blocky/api"
 	"blocky/config"
-	"blocky/docs"
 	"blocky/metrics"
 	"blocky/resolver"
-	"blocky/web"
-	"encoding/json"
-	"html/template"
 	"net/http"
-	"strings"
 	"syscall"
 
 	"os"
@@ -24,17 +18,15 @@ import (
 	"net"
 
 	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
-	"github.com/go-chi/cors"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
-	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 type Server struct {
 	udpServer     *dns.Server
 	tcpServer     *dns.Server
 	httpListener  net.Listener
+	httpsListener net.Listener
 	queryResolver resolver.Resolver
 	cfg           *config.Config
 	httpMux       *chi.Mux
@@ -44,13 +36,11 @@ func logger() *logrus.Entry {
 	return logrus.WithField("prefix", "server")
 }
 
-func NewServer(cfg *config.Config) (*Server, error) {
-	udpHandler := dns.NewServeMux()
-	tcpHandler := dns.NewServeMux()
+func NewServer(cfg *config.Config) (server *Server, err error) {
 	udpServer := &dns.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
 		Net:     "udp",
-		Handler: udpHandler,
+		Handler: dns.NewServeMux(),
 		NotifyStartedFunc: func() {
 			logger().Infof("udp server is up and running on port %d", cfg.Port)
 		},
@@ -58,26 +48,59 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	tcpServer := &dns.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
 		Net:     "tcp",
-		Handler: tcpHandler,
+		Handler: dns.NewServeMux(),
 		NotifyStartedFunc: func() {
 			logger().Infof("tcp server is up and running on port %d", cfg.Port)
 		},
 	}
 
-	var httpListener net.Listener
+	var httpListener, httpsListener net.Listener
 
 	router := createRouter(cfg)
 
 	if cfg.HTTPPort > 0 {
-		var err error
 		if httpListener, err = net.Listen("tcp", fmt.Sprintf(":%d", cfg.HTTPPort)); err != nil {
-			logger().Fatalf("start http listener on port %d failed: %v", cfg.HTTPPort, err)
+			return nil, fmt.Errorf("start http listener on port %d failed: %v", cfg.HTTPPort, err)
 		}
 
 		metrics.Start(router, cfg.Prometheus)
 	}
 
-	queryResolver := resolver.Chain(
+	if cfg.HTTPSPort > 0 {
+		if cfg.CertFile == "" || cfg.KeyFile == "" {
+			return nil, fmt.Errorf("httpsCertFile and httpsKeyFile parameters are mandatory for HTTPS")
+		}
+
+		if httpsListener, err = net.Listen("tcp", fmt.Sprintf(":%d", cfg.HTTPSPort)); err != nil {
+			return nil, fmt.Errorf("start https listener on port %d failed: %v", cfg.HTTPSPort, err)
+		}
+
+		metrics.Start(router, cfg.Prometheus)
+	}
+
+	queryResolver := createQueryResolver(cfg, router)
+
+	server = &Server{
+		udpServer:     udpServer,
+		tcpServer:     tcpServer,
+		queryResolver: queryResolver,
+		cfg:           cfg,
+		httpListener:  httpListener,
+		httpsListener: httpsListener,
+		httpMux:       router,
+	}
+
+	server.printConfiguration()
+
+	server.registerDNSHandlers(udpServer)
+	server.registerDNSHandlers(tcpServer)
+	server.registerAPIEndpoints(router)
+
+	return server, nil
+}
+
+func createQueryResolver(cfg *config.Config, router *chi.Mux) resolver.Resolver {
+	return resolver.Chain(
 		resolver.NewClientNamesResolver(cfg.ClientLookup),
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
 		resolver.NewStatsResolver(),
@@ -88,174 +111,12 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		resolver.NewCachingResolver(cfg.Caching),
 		resolver.NewParallelBestResolver(cfg.Upstream),
 	)
-
-	server := Server{
-		udpServer:     udpServer,
-		tcpServer:     tcpServer,
-		queryResolver: queryResolver,
-		cfg:           cfg,
-		httpListener:  httpListener,
-		httpMux:       router,
-	}
-
-	server.printConfiguration()
-
-	server.registerDNSHandlers(udpHandler)
-	server.registerDNSHandlers(tcpHandler)
-	server.registerAPIEndpoints(router)
-
-	return &server, nil
 }
 
-func (s *Server) registerDNSHandlers(handler *dns.ServeMux) {
+func (s *Server) registerDNSHandlers(server *dns.Server) {
+	handler := server.Handler.(*dns.ServeMux)
 	handler.HandleFunc(".", s.OnRequest)
 	handler.HandleFunc("healthcheck.blocky", s.OnHealthCheck)
-}
-
-func createRouter(cfg *config.Config) *chi.Mux {
-	router := chi.NewRouter()
-
-	configureCorsHandler(router)
-
-	configureDebugHandler(router)
-
-	configureSwaggerHandler(router)
-
-	configureRootHandler(cfg, router)
-
-	return router
-}
-
-func configureRootHandler(cfg *config.Config, router *chi.Mux) {
-	router.Get("/", func(writer http.ResponseWriter, request *http.Request) {
-		t := template.New("index")
-		_, _ = t.Parse(web.IndexTmpl)
-
-		type HandlerLink struct {
-			URL   string
-			Title string
-		}
-		var links = []HandlerLink{
-			{
-				URL:   fmt.Sprintf("http://%s/swagger/", request.Host),
-				Title: "Swagger Rest API Documentation",
-			},
-			{
-				URL:   fmt.Sprintf("http://%s/debug/", request.Host),
-				Title: "Go Profiler",
-			},
-		}
-
-		if cfg.Prometheus.Enable {
-			links = append(links, HandlerLink{
-				URL:   fmt.Sprintf("http://%s%s", request.Host, cfg.Prometheus.Path),
-				Title: "Prometheus endpoint",
-			})
-		}
-
-		err := t.Execute(writer, links)
-		if err != nil {
-			logrus.Error("can't write index template: ", err)
-			writer.WriteHeader(http.StatusInternalServerError)
-		}
-	})
-}
-
-func configureSwaggerHandler(router *chi.Mux) {
-	router.Get("/swagger/*", func(writer http.ResponseWriter, request *http.Request) {
-		// set swagger host with host from request
-		docs.SwaggerInfo.Host = request.Host
-		swaggerHandler := httpSwagger.Handler(
-			httpSwagger.URL(fmt.Sprintf("http://%s/swagger/doc.json", request.Host)),
-		)
-		swaggerHandler.ServeHTTP(writer, request)
-	})
-
-	router.Get("/swagger", func(writer http.ResponseWriter, request *http.Request) {
-		http.Redirect(writer, request, "/swagger/", http.StatusMovedPermanently)
-	})
-}
-
-func configureDebugHandler(router *chi.Mux) {
-	router.Mount("/debug", middleware.Profiler())
-}
-
-func configureCorsHandler(router *chi.Mux) {
-	crs := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: true,
-		MaxAge:           300,
-	})
-	router.Use(crs.Handler)
-}
-
-// apiQuery is the http endpoint to perform a DNS query
-// @Summary Performs DNS query
-// @Description Performs DNS query
-// @Tags query
-// @Accept  json
-// @Produce  json
-// @Param query body api.QueryRequest true "query data"
-// @Success 200 {object} api.QueryResult "query was executed"
-// @Failure 400   "Wrong request format"
-// @Router /query [post]
-func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
-	var queryRequest api.QueryRequest
-	err := json.NewDecoder(req.Body).Decode(&queryRequest)
-
-	if err != nil {
-		logger().Error("can't read request: ", err)
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	// validate query type
-	qType := dns.StringToType[queryRequest.Type]
-	if qType == dns.TypeNone {
-		err = fmt.Errorf("unknown query type '%s'", queryRequest.Type)
-		logger().Error(err)
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	query := queryRequest.Query
-
-	// append dot
-	if !strings.HasSuffix(query, ".") {
-		query += "."
-	}
-
-	dnsRequest := util.NewMsgWithQuestion(query, qType)
-	r := createResolverRequest(nil, dnsRequest)
-
-	response, err := s.queryResolver.Resolve(r)
-
-	if err != nil {
-		logger().Error("unable to process query: ", err)
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	jsonResponse, _ := json.Marshal(api.QueryResult{
-		Reason:       response.Reason,
-		ResponseType: response.RType.String(),
-		Response:     util.AnswerToString(response.Res.Answer),
-		ReturnCode:   dns.RcodeToString[response.Res.Rcode],
-	})
-	_, err = rw.Write(jsonResponse)
-
-	if err != nil {
-		logger().Error("unable to write response ", err)
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
 }
 
 func (s *Server) printConfiguration() {
@@ -327,6 +188,16 @@ func (s *Server) Start() {
 		}
 	}()
 
+	go func() {
+		if s.httpsListener != nil {
+			logger().Infof("https server is up and running on port %d", s.cfg.HTTPSPort)
+
+			if err := http.ServeTLS(s.httpsListener, s.httpMux, s.cfg.CertFile, s.cfg.KeyFile); err != nil {
+				logger().Fatalf("start https listener failed: %v", err)
+			}
+		}
+	}()
+
 	signals := make(chan os.Signal)
 	signal.Notify(signals, syscall.SIGUSR1)
 
@@ -353,6 +224,10 @@ func (s *Server) Stop() {
 func createResolverRequest(remoteAddress net.Addr, request *dns.Msg) *resolver.Request {
 	clientIP := resolveClientIP(remoteAddress)
 
+	return newRequest(clientIP, request)
+}
+
+func newRequest(clientIP net.IP, request *dns.Msg) *resolver.Request {
 	return &resolver.Request{
 		ClientIP:  clientIP,
 		Req:       request,
@@ -383,7 +258,7 @@ func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
 	}
 }
 
-// Handler for docker healthcheck. Just returns OK code without delegating to resolver chain
+// Handler for docker health check. Just returns OK code without delegating to resolver chain
 func (s *Server) OnHealthCheck(w dns.ResponseWriter, request *dns.Msg) {
 	resp := new(dns.Msg)
 	resp.SetReply(request)
@@ -392,10 +267,6 @@ func (s *Server) OnHealthCheck(w dns.ResponseWriter, request *dns.Msg) {
 	if err := w.WriteMsg(resp); err != nil {
 		logger().Error("can't write message: ", err)
 	}
-}
-
-func (s *Server) registerAPIEndpoints(router *chi.Mux) {
-	router.Post(api.BlockingQueryPath, s.apiQuery)
 }
 
 func resolveClientIP(addr net.Addr) net.IP {

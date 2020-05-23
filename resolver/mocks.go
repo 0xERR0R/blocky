@@ -116,8 +116,8 @@ func TestUDPUpstream(fn func(request *dns.Msg) (response *dns.Msg)) config.Upstr
 			response := fn(msg)
 			// nil should indicate an error
 			if response == nil {
-				ln.Close()
-				return
+				_, _ = ln.WriteToUDP([]byte("dummy"), addr)
+				continue
 			}
 
 			rCode := response.Rcode

@@ -44,7 +44,7 @@ func startServer(_ *cobra.Command, _ []string) {
 
 	srv, err := server.NewServer(&cfg)
 	if err != nil {
-		log.Fatal("cant start server ", err)
+		log.Fatal("cant start server: ", err)
 	}
 
 	srv.Start()
