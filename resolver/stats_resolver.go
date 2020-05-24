@@ -4,9 +4,10 @@ import (
 	"blocky/stats"
 	"blocky/util"
 	"fmt"
+	"strings"
+
 	"github.com/jedib0t/go-pretty/table"
 	"github.com/miekg/dns"
-	"strings"
 )
 
 type StatsResolver struct {
