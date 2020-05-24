@@ -195,6 +195,7 @@ To run this inside docker run `docker exec blocky ./blocky blocking status`
 
 ### HTTPS configuration (for DoH)
 See [Wiki - Configuration of HTTPS](https://github.com/0xERR0R/blocky/wiki/Configuration-of-HTTPS-for-DoH-and-Rest-API) for detailed information, how to configure HTTPS.
+DoH url: https://host:port/dns-query
 
 ### Prometheus / Grafana
 Blocky can export metrics for prometheus. Example grafana dashboard definition [as JSON](blocky-grafana.json)
