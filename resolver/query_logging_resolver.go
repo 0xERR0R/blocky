@@ -15,7 +15,6 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -43,7 +42,7 @@ type queryLogEntry struct {
 }
 
 func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
-	if cfg.Dir != "" && unix.Access(cfg.Dir, unix.W_OK) != nil {
+	if _, err := os.Stat(cfg.Dir); cfg.Dir != "" && err != nil && os.IsNotExist(err) {
 		logger(queryLoggingResolverPrefix).Fatalf("query log directory '%s' does not exist or is not writable", cfg.Dir)
 	}
 

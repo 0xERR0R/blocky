@@ -4,13 +4,9 @@ import (
 	"blocky/stats"
 	"blocky/util"
 	"fmt"
-	"os"
-	"os/signal"
-	"strings"
-	"syscall"
-
 	"github.com/jedib0t/go-pretty/table"
 	"github.com/miekg/dns"
+	"strings"
 )
 
 type StatsResolver struct {
@@ -85,15 +81,7 @@ func NewStatsResolver() ChainedResolver {
 
 	go resolver.collectStats()
 
-	signals := make(chan os.Signal)
-	signal.Notify(signals, syscall.SIGUSR2)
-
-	go func() {
-		for {
-			<-signals
-			resolver.printStats()
-		}
-	}()
+	registerStatsTrigger(resolver)
 
 	return resolver
 }

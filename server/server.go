@@ -5,10 +5,6 @@ import (
 	"blocky/metrics"
 	"blocky/resolver"
 	"net/http"
-	"syscall"
-
-	"os"
-	"os/signal"
 	"runtime"
 	"runtime/debug"
 	"time"
@@ -198,15 +194,7 @@ func (s *Server) Start() {
 		}
 	}()
 
-	signals := make(chan os.Signal)
-	signal.Notify(signals, syscall.SIGUSR1)
-
-	go func() {
-		for {
-			<-signals
-			s.printConfiguration()
-		}
-	}()
+	registerPrintConfigurationTrigger(s)
 }
 
 func (s *Server) Stop() {
