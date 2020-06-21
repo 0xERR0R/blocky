@@ -79,8 +79,8 @@ var _ = Describe("UpstreamResolver", func() {
 
 				return response
 			})
-			sut := NewUpstreamResolver(upstream).(*UpstreamResolver)
-			sut.upstreamClient.(*dnsUpstreamClient).client.Timeout = 100 * time.Millisecond
+			sut := NewUpstreamResolver(upstream)
+			sut.upstreamClient.(*dnsUpstreamClient).udpClient.Timeout = 100 * time.Millisecond
 
 			It("should perform a retry with 3 attempts", func() {
 				By("2 attempts with timeout -> should resolve with third attempt", func() {
@@ -125,7 +125,7 @@ var _ = Describe("UpstreamResolver", func() {
 
 		JustBeforeEach(func() {
 			upstream = TestDOHUpstream(respFn, modifyHTTPRespFn)
-			sut = NewUpstreamResolver(upstream).(*UpstreamResolver)
+			sut = NewUpstreamResolver(upstream)
 
 			// use insecure certificates for test doh upstream
 			// nolint:gosec
@@ -183,7 +183,7 @@ var _ = Describe("UpstreamResolver", func() {
 		})
 		When("Configured DOH resolver does not respond", func() {
 			JustBeforeEach(func() {
-				sut = NewUpstreamResolver(config.Upstream{Net: "https", Host: "wronghost.example.com"}).(*UpstreamResolver)
+				sut = NewUpstreamResolver(config.Upstream{Net: "https", Host: "wronghost.example.com"})
 			})
 			It("should return error", func() {
 				_, err := sut.Resolve(newRequest("example.com.", dns.TypeA))
@@ -193,7 +193,7 @@ var _ = Describe("UpstreamResolver", func() {
 		})
 		When("Configured DOH resolver receives wrong request", func() {
 			JustBeforeEach(func() {
-				sut = NewUpstreamResolver(config.Upstream{Net: "https", Host: "host"}).(*UpstreamResolver)
+				sut = NewUpstreamResolver(config.Upstream{Net: "https", Host: "host"})
 			})
 			It("should return error", func() {
 				wrongReq := new(dns.Msg)

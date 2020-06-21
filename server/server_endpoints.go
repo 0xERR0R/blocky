@@ -4,6 +4,7 @@ import (
 	"blocky/api"
 	"blocky/config"
 	"blocky/docs"
+	"blocky/resolver"
 	"blocky/util"
 	"blocky/web"
 	"encoding/base64"
@@ -94,7 +95,7 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 		return
 	}
 
-	r := newRequest(net.ParseIP(extractIP(req)), msg)
+	r := newRequest(net.ParseIP(extractIP(req)), resolver.TCP, msg)
 
 	resResponse, err := s.queryResolver.Resolve(r)
 

@@ -11,8 +11,24 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type RequestProtocol uint8
+
+const (
+	TCP RequestProtocol = iota
+	UDP
+)
+
+func (r RequestProtocol) String() string {
+	names := [...]string{
+		"TCP",
+		"UDP"}
+
+	return names[r]
+}
+
 type Request struct {
 	ClientIP    net.IP
+	Protocol    RequestProtocol
 	ClientNames []string
 	Req         *dns.Msg
 	Log         *logrus.Entry
@@ -21,8 +37,9 @@ type Request struct {
 
 func newRequest(question string, rType uint16) *Request {
 	return &Request{
-		Req: util.NewMsgWithQuestion(question, rType),
-		Log: logrus.NewEntry(logrus.New()),
+		Req:      util.NewMsgWithQuestion(question, rType),
+		Log:      logrus.NewEntry(logrus.New()),
+		Protocol: UDP,
 	}
 }
 
@@ -33,6 +50,7 @@ func newRequestWithClient(question string, rType uint16, ip string, clientNames 
 		Req:         util.NewMsgWithQuestion(question, rType),
 		Log:         logrus.NewEntry(logrus.New()),
 		RequestTS:   time.Time{},
+		Protocol:    UDP,
 	}
 }
 

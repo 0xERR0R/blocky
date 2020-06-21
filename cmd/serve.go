@@ -61,7 +61,7 @@ func startServer(_ *cobra.Command, _ []string) {
 
 func configureHTTPClient(cfg *config.Config) {
 	if cfg.BootstrapDNS != (config.Upstream{}) {
-		if cfg.BootstrapDNS.Net == "tcp" || cfg.BootstrapDNS.Net == "udp" {
+		if cfg.BootstrapDNS.Net == config.NetTCPUDP {
 			dns := net.JoinHostPort(cfg.BootstrapDNS.Host, fmt.Sprint(cfg.BootstrapDNS.Port))
 			log.Debugf("using %s as bootstrap dns server", dns)
 
@@ -71,7 +71,7 @@ func configureHTTPClient(cfg *config.Config) {
 					d := net.Dialer{
 						Timeout: time.Millisecond * time.Duration(2000),
 					}
-					return d.DialContext(ctx, cfg.BootstrapDNS.Net, dns)
+					return d.DialContext(ctx, "udp", dns)
 				}}
 
 			http.DefaultTransport = &http.Transport{
@@ -82,7 +82,7 @@ func configureHTTPClient(cfg *config.Config) {
 				TLSHandshakeTimeout: 5 * time.Second,
 			}
 		} else {
-			log.Fatal("bootstrap dns net should be udp or tcs")
+			log.Fatal("bootstrap dns net should be tcp+udp")
 		}
 	}
 }

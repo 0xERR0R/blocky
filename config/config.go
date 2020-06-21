@@ -15,14 +15,22 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const validUpstream = `(?P<Net>[^\s:]*):/?/?(?P<Host>(?:\[[^\]]+\])|[^\s/:]+):?(?P<Port>[^\s/:]*)?(?P<Path>/[^\s]*)?`
+const (
+	validUpstream = `(?P<Host>(?:\[[^\]]+\])|[^\s/:]+):?(?P<Port>[^\s/:]*)?(?P<Path>/[^\s]*)?`
+	// deprecated
+	NetUDP = "udp"
+	// deprecated
+	NetTCP    = "tcp"
+	NetTCPUDP = "tcp+udp"
+	NetTCPTLS = "tcp-tls"
+	NetHTTPS  = "https"
+)
 
 // nolint:gochecknoglobals
 var netDefaultPort = map[string]uint16{
-	"udp":     53,
-	"tcp":     53,
-	"tcp-tls": 853,
-	"https":   443,
+	NetTCPUDP: 53,
+	NetTCPTLS: 853,
+	NetHTTPS:  443,
 }
 
 // Upstream is the definition of external DNS server
@@ -49,37 +57,40 @@ func (u *Upstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-// ParseUpstream creates new Upstream from passed string in format net:host[:port][/path]
+// ParseUpstream creates new Upstream from passed string in format [net]:host[:port][/path]
 func ParseUpstream(upstream string) (result Upstream, err error) {
 	if strings.TrimSpace(upstream) == "" {
 		return Upstream{}, nil
 	}
+
+	var n string
+
+	n, upstream = extractNet(upstream)
 
 	r := regexp.MustCompile(validUpstream)
 
 	match := r.FindStringSubmatch(upstream)
 
 	if len(match) == 0 {
-		err = fmt.Errorf("wrong configuration, couldn't parse input '%s', please enter net:host[:port][/path]", upstream)
+		err = fmt.Errorf("wrong configuration, couldn't parse input '%s', please enter [net:]host[:port][/path]", upstream)
 		return
 	}
 
-	n := match[1]
 	if _, ok := netDefaultPort[n]; !ok {
-		err = fmt.Errorf("wrong configuration, couldn't parse net '%s', please user one of %s",
+		err = fmt.Errorf("wrong configuration, couldn't parse net '%s', please use one of %s",
 			n, reflect.ValueOf(netDefaultPort).MapKeys())
 		return
 	}
 
-	host := match[2]
+	host := match[1]
 	if len(host) == 0 {
 		err = errors.New("wrong configuration, host wasn't specified")
 		return
 	}
 
-	portPart := match[3]
+	portPart := match[2]
 
-	path := match[4]
+	path := match[3]
 
 	var port uint16
 
@@ -103,6 +114,33 @@ func ParseUpstream(upstream string) (result Upstream, err error) {
 	}
 
 	return Upstream{Net: n, Host: host, Port: port, Path: path}, nil
+}
+
+func extractNet(upstream string) (string, string) {
+	if strings.HasPrefix(upstream, NetTCP+":") {
+		log.Warnf("net prefix tcp is deprecated, using tcp+udp as default fallback")
+
+		return NetTCPUDP, strings.Replace(upstream, NetTCP+":", "", 1)
+	}
+
+	if strings.HasPrefix(upstream, NetUDP+":") {
+		log.Warnf("net prefix udp is deprecated, using tcp+udp as default fallback")
+		return NetTCPUDP, strings.Replace(upstream, NetUDP+":", "", 1)
+	}
+
+	if strings.HasPrefix(upstream, NetTCPUDP+":") {
+		return NetTCPUDP, strings.Replace(upstream, NetTCPUDP+":", "", 1)
+	}
+
+	if strings.HasPrefix(upstream, NetTCPTLS+":") {
+		return NetTCPTLS, strings.Replace(upstream, NetTCPTLS+":", "", 1)
+	}
+
+	if strings.HasPrefix(upstream, NetHTTPS+":") {
+		return NetHTTPS, strings.Replace(upstream, NetHTTPS+":", "", 1)
+	}
+
+	return NetTCPUDP, upstream
 }
 
 const (

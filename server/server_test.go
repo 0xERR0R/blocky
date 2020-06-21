@@ -554,14 +554,16 @@ var _ = Describe("Running DNS server", func() {
 	Describe("resolve client IP", func() {
 		Context("UDP address", func() {
 			It("should correct resolve client IP", func() {
-				ip := resolveClientIP(&net.UDPAddr{IP: net.ParseIP("192.168.178.88")})
+				ip, protocol := resolveClientIPAndProtocol(&net.UDPAddr{IP: net.ParseIP("192.168.178.88")})
 				Expect(ip).Should(Equal(net.ParseIP("192.168.178.88")))
+				Expect(protocol).Should(Equal(resolver.UDP))
 			})
 		})
 		Context("TCP address", func() {
 			It("should correct resolve client IP", func() {
-				ip := resolveClientIP(&net.TCPAddr{IP: net.ParseIP("192.168.178.88")})
+				ip, protocol := resolveClientIPAndProtocol(&net.TCPAddr{IP: net.ParseIP("192.168.178.88")})
 				Expect(ip).Should(Equal(net.ParseIP("192.168.178.88")))
+				Expect(protocol).Should(Equal(resolver.TCP))
 			})
 		})
 	})

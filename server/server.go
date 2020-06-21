@@ -210,14 +210,15 @@ func (s *Server) Stop() {
 }
 
 func createResolverRequest(remoteAddress net.Addr, request *dns.Msg) *resolver.Request {
-	clientIP := resolveClientIP(remoteAddress)
+	clientIP, protocol := resolveClientIPAndProtocol(remoteAddress)
 
-	return newRequest(clientIP, request)
+	return newRequest(clientIP, protocol, request)
 }
 
-func newRequest(clientIP net.IP, request *dns.Msg) *resolver.Request {
+func newRequest(clientIP net.IP, protocol resolver.RequestProtocol, request *dns.Msg) *resolver.Request {
 	return &resolver.Request{
 		ClientIP:  clientIP,
+		Protocol:  protocol,
 		Req:       request,
 		RequestTS: time.Now(),
 		Log: logrus.WithFields(logrus.Fields{
@@ -257,13 +258,12 @@ func (s *Server) OnHealthCheck(w dns.ResponseWriter, request *dns.Msg) {
 	}
 }
 
-func resolveClientIP(addr net.Addr) net.IP {
-	var clientIP net.IP
+func resolveClientIPAndProtocol(addr net.Addr) (ip net.IP, protocol resolver.RequestProtocol) {
 	if t, ok := addr.(*net.UDPAddr); ok {
-		clientIP = t.IP
+		return t.IP, resolver.UDP
 	} else if t, ok := addr.(*net.TCPAddr); ok {
-		clientIP = t.IP
+		return t.IP, resolver.TCP
 	}
 
-	return clientIP
+	return nil, resolver.TCP
 }
