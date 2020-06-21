@@ -146,6 +146,8 @@ httpsKeyFile: server.key
 bootstrapDns: tcp:1.1.1.1
 # optional: Log level (one from debug, info, warn, error). Default: info
 logLevel: info
+# optional: Log format (text or json). Default: text
+logFormat: text
 ```
 
 ### Run with docker

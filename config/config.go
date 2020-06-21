@@ -148,6 +148,11 @@ const (
 	cfgDefaultPrometheusPath = "/metrics"
 )
 
+const (
+	CfgLogFormatText = "text"
+	CfgLogFormatJSON = "json"
+)
+
 // main configuration
 type Config struct {
 	Upstream     UpstreamConfig            `yaml:"upstream"`
@@ -159,6 +164,7 @@ type Config struct {
 	QueryLog     QueryLogConfig            `yaml:"queryLog"`
 	Prometheus   PrometheusConfig          `yaml:"prometheus"`
 	LogLevel     string                    `yaml:"logLevel"`
+	LogFormat    string                    `yaml:"logFormat"`
 	Port         uint16                    `yaml:"port"`
 	HTTPPort     uint16                    `yaml:"httpPort"`
 	HTTPSPort    uint16                    `yaml:"httpsPort"`
@@ -225,11 +231,16 @@ func NewConfig(path string) Config {
 		log.Fatal("wrong file structure: ", err)
 	}
 
+	if cfg.LogFormat != CfgLogFormatText && cfg.LogFormat != CfgLogFormatJSON {
+		log.Fatal("LogFormat should be 'text' or 'json'")
+	}
+
 	return cfg
 }
 
 func setDefaultValues(cfg *Config) {
 	cfg.Port = cfgDefaultPort
 	cfg.LogLevel = "info"
+	cfg.LogFormat = CfgLogFormatText
 	cfg.Prometheus.Path = cfgDefaultPrometheusPath
 }

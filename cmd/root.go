@@ -54,19 +54,25 @@ func configureLog(cfg *config.Config) {
 		log.SetLevel(level)
 	}
 
-	logFormatter := &prefixed.TextFormatter{
-		TimestampFormat:  "2006-01-02 15:04:05",
-		FullTimestamp:    true,
-		ForceFormatting:  true,
-		ForceColors:      true,
-		QuoteEmptyFields: true}
+	if cfg.LogFormat == config.CfgLogFormatText {
+		logFormatter := &prefixed.TextFormatter{
+			TimestampFormat:  "2006-01-02 15:04:05",
+			FullTimestamp:    true,
+			ForceFormatting:  true,
+			ForceColors:      true,
+			QuoteEmptyFields: true}
 
-	logFormatter.SetColorScheme(&prefixed.ColorScheme{
-		PrefixStyle:    "blue+b",
-		TimestampStyle: "white+h",
-	})
+		logFormatter.SetColorScheme(&prefixed.ColorScheme{
+			PrefixStyle:    "blue+b",
+			TimestampStyle: "white+h",
+		})
 
-	log.SetFormatter(logFormatter)
+		log.SetFormatter(logFormatter)
+	}
+
+	if cfg.LogFormat == config.CfgLogFormatJSON {
+		log.SetFormatter(&log.JSONFormatter{})
+	}
 }
 
 func initConfig() {
