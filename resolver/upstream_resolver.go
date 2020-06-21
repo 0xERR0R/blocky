@@ -182,5 +182,5 @@ func (r *UpstreamResolver) Resolve(request *Request) (response *Response, err er
 		}
 	}
 
-	return
+	return response, err
 }
