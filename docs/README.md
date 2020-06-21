@@ -67,7 +67,7 @@ blocking:
         - https://zeustracker.abuse.ch/blocklist.php?download=domainblocklist
         - https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt
       special:
-        - https://hosts-file.net/ad_servers.txt
+        - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
     # definition of whitelist groups. Attention: if the same group has black and whitelists, whitelists will be used to disable particular blacklist entries. If a group has only whitelist entries -> this means only domains from this list are allowed, all other domains will be blocked
     whiteLists:
       ads:
