@@ -32,7 +32,7 @@ Blocky is a DNS proxy for the local network written in Go with following feature
 - Runs fine on raspberry pi
 
 ## Installation and configuration
-Create `config.yml` file with your configuration:
+Create `config.yml` file with your configuration [as yml](config.yml):
 ```yml
 upstream:
     # these external DNS resolvers will be used. Blocky picks 2 random resolvers from the list for each query
