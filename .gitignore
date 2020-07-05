@@ -8,3 +8,4 @@ docs/docs.go
 config.yml
 coverage.txt
 todo.txt
+!docs/config.yml
