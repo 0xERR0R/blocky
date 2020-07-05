@@ -71,6 +71,9 @@ func (r *ClientNamesResolver) Resolve(request *Request) (*Response, error) {
 // returns names of client
 func (r *ClientNamesResolver) getClientNames(request *Request) []string {
 	ip := request.ClientIP
+	if ip == nil {
+		return []string{}
+	}
 	c, found := r.cache.Get(ip.String())
 
 	if found {
