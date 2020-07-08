@@ -131,7 +131,11 @@ func (r *dnsUpstreamClient) callExternal(msg *dns.Msg,
 		return response, rtt, err
 	}
 
-	return r.udpClient.Exchange(msg, upstreamURL)
+	if r.udpClient != nil {
+		return r.udpClient.Exchange(msg, upstreamURL)
+	}
+
+	return r.tcpClient.Exchange(msg, upstreamURL)
 }
 
 func NewUpstreamResolver(upstream config.Upstream) *UpstreamResolver {
