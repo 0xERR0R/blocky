@@ -6,7 +6,6 @@ import (
 	. "blocky/helpertest"
 	"blocky/metrics"
 	"blocky/util"
-
 	"encoding/json"
 	"net/http"
 	"os"
@@ -73,6 +72,7 @@ badcnamedomain.com`)
 	})
 
 	Describe("Blocking requests", func() {
+		var rType ResponseType
 		BeforeEach(func() {
 			sutConfig = config.BlockingConfig{
 				BlackLists: map[string][]string{
@@ -84,13 +84,15 @@ badcnamedomain.com`)
 					"client1":        {"gr1"},
 					"192.168.178.55": {"gr1"},
 					"altName":        {"gr2"},
+					"10.43.8.67/28":  {"gr1"},
 					"default":        {"defaultGroup"},
 				},
 				BlockType: "ZeroIP",
 			}
+			rType = BLOCKED
 		})
 		AfterEach(func() {
-			Expect(resp.RType).Should(Equal(BLOCKED))
+			Expect(resp.RType).Should(Equal(rType))
 		})
 
 		When("client name is defined in client groups block", func() {
@@ -109,6 +111,38 @@ badcnamedomain.com`)
 		When("Client ip is defined in client groups block", func() {
 			It("should block the query if domain is on the black list", func() {
 				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "192.168.178.55", "unknown"))
+
+				Expect(resp.Res.Answer).Should(BeDNSRecord("domain1.com.", dns.TypeA, 21600, "0.0.0.0"))
+			})
+		})
+		When("Client CIDR (10.43.8.64 - 10.43.8.79) is defined in client groups block", func() {
+			JustBeforeEach(func() {
+				rType = RESOLVED
+			})
+			It("should not block the query for 10.43.8.63 if domain is on the black list", func() {
+
+				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "10.43.8.63", "unknown"))
+
+				// was delegated to next resolver
+				m.AssertExpectations(GinkgoT())
+			})
+			It("should not block the query for 10.43.8.80 if domain is on the black list", func() {
+				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "10.43.8.80", "unknown"))
+
+				// was delegated to next resolver
+				m.AssertExpectations(GinkgoT())
+			})
+		})
+
+		When("Client CIDR (10.43.8.64 - 10.43.8.79) is defined in client groups block", func() {
+
+			It("should block the query for 10.43.8.64 if domain is on the black list", func() {
+				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "10.43.8.64", "unknown"))
+
+				Expect(resp.Res.Answer).Should(BeDNSRecord("domain1.com.", dns.TypeA, 21600, "0.0.0.0"))
+			})
+			It("should block the query for 10.43.8.79 if domain is on the black list", func() {
+				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "10.43.8.79", "unknown"))
 
 				Expect(resp.Res.Answer).Should(BeDNSRecord("domain1.com.", dns.TypeA, 21600, "0.0.0.0"))
 			})
@@ -351,6 +385,7 @@ badcnamedomain.com`)
 				resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "1.2.1.2", "unknown"))
 			})
 		})
+
 	})
 
 	Describe("Control status via API", func() {
@@ -513,4 +548,5 @@ badcnamedomain.com`)
 			})
 		})
 	})
+
 })
