@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -340,9 +341,10 @@ func extractEntryToCheckFromResponse(rr dns.RR) (entryToCheck string, tName stri
 func (r *BlockingResolver) groupsToCheckForClient(request *Request) (groups []string) {
 	// try client names
 	for _, cName := range request.ClientNames {
-		groupsByName, found := r.cfg.ClientGroupsBlock[cName]
-		if found {
-			groups = append(groups, groupsByName...)
+		for blockGroup, groupsByName := range r.cfg.ClientGroupsBlock {
+			if clientNameMatchesBlockGroup(blockGroup, cName) {
+				groups = append(groups, groupsByName...)
+			}
 		}
 	}
 
@@ -379,6 +381,11 @@ func cidrContainsIP(cidr string, ip net.IP) bool {
 	}
 
 	return ipnet.Contains(ip)
+}
+
+func clientNameMatchesBlockGroup(group string, clientName string) bool {
+	match, _ := filepath.Match(group, clientName)
+	return match
 }
 
 func (r *BlockingResolver) matches(groupsToCheck []string, m lists.Matcher,

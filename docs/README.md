@@ -78,8 +78,9 @@ blocking:
       default:
         - ads
         - special
-      # use client name or ip address or client subnet as CIDR notation
-      laptop.fritz.box:
+      # use client name (with wildcard support: * - sequence of any characters, [0-9] - range)
+      # or single ip address / client subnet as CIDR notation
+      laptop*:
         - ads
       192.168.178.1/24:
         - special
