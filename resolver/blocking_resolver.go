@@ -353,6 +353,13 @@ func (r *BlockingResolver) groupsToCheckForClient(request *Request) (groups []st
 		groups = append(groups, groupsByIP...)
 	}
 
+	// try CIDR
+	for cidr, groupsByCidr := range r.cfg.ClientGroupsBlock {
+		if cidrContainsIP(cidr, request.ClientIP) {
+			groups = append(groups, groupsByCidr...)
+		}
+	}
+
 	if len(groups) == 0 {
 		if !found {
 			// return default
@@ -362,7 +369,16 @@ func (r *BlockingResolver) groupsToCheckForClient(request *Request) (groups []st
 
 	sort.Strings(groups)
 
-	return
+	return groups
+}
+
+func cidrContainsIP(cidr string, ip net.IP) bool {
+	_, ipnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return false
+	}
+
+	return ipnet.Contains(ip)
 }
 
 func (r *BlockingResolver) matches(groupsToCheck []string, m lists.Matcher,
