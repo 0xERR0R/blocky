@@ -9,7 +9,7 @@ BIN_OUT_DIR=bin
 
 tools: ## prepare build tools
 	mkdir -p ~/.docker && echo "{\"experimental\": \"enabled\"}" > ~/.docker/config.json
-	go get github.com/swaggo/swag/cmd/swag@v1.6.5
+	go get github.com/swaggo/swag/cmd/swag@v1.6.9
 
 all: test lint build ## Build binary (with tests)
 
