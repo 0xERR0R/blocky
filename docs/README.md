@@ -6,7 +6,6 @@
 [![GitHub Release Date](https://img.shields.io/github/release-date/0xERR0R/blocky "Latest release date")](https://github.com/0xERR0R/blocky/releases)
 [![Codecov](https://img.shields.io/codecov/c/gh/0xERR0R/blocky "Code coverage")](https://codecov.io/gh/0xERR0R/blocky)
 [![Codacy grade](https://img.shields.io/codacy/grade/8fcd8f8420b8419c808c47af58ed9282 "Codacy grade")](#)
-[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2F0xERR0R%2Fblocky.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2F0xERR0R%2Fblocky?ref=badge_shield)
 
 <p align="center">
   <img height="200" src="https://github.com/0xERR0R/blocky/blob/master/docs/blocky.svg">
