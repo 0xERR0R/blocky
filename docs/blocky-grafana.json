@@ -77,11 +77,12 @@
   "gnetId": null,
   "graphTooltip": 0,
   "id": null,
-  "iteration": 1605734484695,
+  "iteration": 1605991867022,
   "links": [],
   "panels": [
     {
       "datasource": "${DS_PROMETHEUS}",
+      "description": "Enable od disable blocking",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -109,6 +110,7 @@
     {
       "cacheTimeout": null,
       "datasource": "${DS_PROMETHEUS}",
+      "description": "Is blocking enabled?",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -193,6 +195,7 @@
     {
       "cacheTimeout": null,
       "datasource": "${DS_PROMETHEUS}",
+      "description": "current service state",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -277,6 +280,7 @@
     {
       "cacheTimeout": null,
       "datasource": "${DS_PROMETHEUS}",
+      "description": "Percentage of blocked queries",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -335,7 +339,7 @@
       "pluginVersion": "7.3.1",
       "targets": [
         {
-          "expr": "sum(increase(blocky_response_total{response_type=\"BLOCKED\"}[24h])) / sum(increase(blocky_query_total[24h])) ",
+          "expr": "sum(increase(blocky_response_total{response_type=\"BLOCKED\"}[$__range])) / sum(increase(blocky_query_total[$__range])) ",
           "instant": false,
           "interval": "",
           "legendFormat": "",
@@ -344,7 +348,7 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Queries blocked 24h",
+      "title": "Queries blocked",
       "transparent": true,
       "type": "stat"
     },
@@ -419,6 +423,7 @@
     {
       "cacheTimeout": null,
       "datasource": "${DS_PROMETHEUS}",
+      "description": "Average query response time for all query types",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -476,20 +481,23 @@
       "pluginVersion": "7.3.1",
       "targets": [
         {
-          "expr": "sum(increase(blocky_request_duration_ms_sum[1h])) / sum(increase(blocky_request_duration_ms_count[1h]))",
+          "expr": "sum(increase(blocky_request_duration_ms_sum[$__range])) / sum(increase(blocky_request_duration_ms_count[$__range]))",
           "instant": false,
+          "interval": "",
+          "legendFormat": "",
           "refId": "A"
         }
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Avg response time (all queries) 1h",
+      "title": "Avg response time",
       "transparent": true,
       "type": "stat"
     },
     {
       "cacheTimeout": null,
       "datasource": "${DS_PROMETHEUS}",
+      "description": "Number of all queries. Shows the last value",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -544,14 +552,16 @@
       "pluginVersion": "7.3.1",
       "targets": [
         {
-          "expr": "ceil(sum(increase(blocky_query_total[24h]))) ",
+          "expr": "ceil(sum(increase(blocky_query_total[$__range]))) ",
           "instant": false,
+          "interval": "",
+          "legendFormat": "",
           "refId": "A"
         }
       ],
-      "timeFrom": "24h",
+      "timeFrom": null,
       "timeShift": null,
-      "title": "Query Count Total 24h",
+      "title": "Query Count Total",
       "transparent": true,
       "type": "stat"
     },
@@ -601,7 +611,7 @@
       "pluginVersion": "7.3.1",
       "targets": [
         {
-          "expr": "sum(increase(blocky_cache_hit_count[24h])) / (sum(increase(blocky_cache_hit_count[24h])) + sum(increase(blocky_cache_miss_count[24h])))",
+          "expr": "sum(increase(blocky_cache_hit_count[$__range])) / (sum(increase(blocky_cache_hit_count[$__range])) + sum(increase(blocky_cache_miss_count[$__range])))",
           "instant": false,
           "interval": "",
           "legendFormat": "",
@@ -666,6 +676,7 @@
           "expr": "sum(rate(blocky_query_total[5m])) * 60",
           "format": "time_series",
           "instant": false,
+          "interval": "",
           "legendFormat": "avg requests / min",
           "refId": "A"
         }
@@ -715,6 +726,7 @@
     {
       "cacheTimeout": null,
       "datasource": "${DS_PROMETHEUS}",
+      "description": "Number of occured errors",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -776,20 +788,23 @@
       "pluginVersion": "7.3.1",
       "targets": [
         {
-          "expr": "sum(increase(blocky_error_total[24h]))",
+          "expr": "sum(increase(blocky_error_total[$__range]))",
           "instant": false,
+          "interval": "",
+          "legendFormat": "",
           "refId": "A"
         }
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Error count 24h",
+      "title": "Error count",
       "transparent": true,
       "type": "stat"
     },
     {
       "cacheTimeout": null,
       "datasource": "${DS_PROMETHEUS}",
+      "description": "Number of blacklist entries",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -856,6 +871,7 @@
     },
     {
       "datasource": "${DS_PROMETHEUS}",
+      "description": "Number of entries in the cache. Shows the last value",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -886,7 +902,7 @@
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
-            "mean"
+            "last"
           ],
           "fields": "",
           "values": false
@@ -897,6 +913,7 @@
       "targets": [
         {
           "expr": "blocky_cache_entry_count",
+          "instant": false,
           "interval": "",
           "legendFormat": "",
           "refId": "A"
@@ -949,14 +966,15 @@
       "strokeWidth": 1,
       "targets": [
         {
-          "expr": "sort_desc(sum by (client) (ceil(increase(blocky_query_total[24h]))))",
+          "expr": "sort_desc(sum by (client) (ceil(increase(blocky_query_total[$__range]))))",
           "format": "time_series",
           "instant": true,
+          "interval": "",
           "legendFormat": "{{ client }}",
           "refId": "A"
         }
       ],
-      "timeFrom": "24h",
+      "timeFrom": null,
       "timeShift": null,
       "title": "Query per Client",
       "transparent": true,
@@ -1003,13 +1021,14 @@
       "strokeWidth": 1,
       "targets": [
         {
-          "expr": " sort_desc(sum by (response_code) (ceil(increase(blocky_response_total[24h]))))",
+          "expr": " sort_desc(sum by (response_code) (ceil(increase(blocky_response_total[$__range]))))",
           "instant": true,
+          "interval": "",
           "legendFormat": "{{response_code}}",
           "refId": "A"
         }
       ],
-      "timeFrom": "24h",
+      "timeFrom": null,
       "timeShift": null,
       "title": "Response status",
       "transparent": true,
@@ -1052,9 +1071,10 @@
       "reverseYBuckets": false,
       "targets": [
         {
-          "expr": "sum(increase(blocky_request_duration_ms_bucket{response_type=\"RESOLVED\"}[24h])) by (le)",
+          "expr": "sum(increase(blocky_request_duration_ms_bucket{response_type=\"RESOLVED\"}[$__range])) by (le)",
           "format": "heatmap",
           "instant": false,
+          "interval": "",
           "legendFormat": "{{le}}",
           "refId": "A"
         }
@@ -1126,13 +1146,14 @@
       "strokeWidth": "1",
       "targets": [
         {
-          "expr": " sort_desc(sum by (response_type) (ceil(increase(blocky_response_total[24h]))))",
+          "expr": " sort_desc(sum by (response_type) (ceil(increase(blocky_response_total[$__range]))))",
           "instant": true,
+          "interval": "",
           "legendFormat": "{{response_type}}",
           "refId": "A"
         }
       ],
-      "timeFrom": "24h",
+      "timeFrom": null,
       "timeShift": null,
       "title": "Response Type",
       "transparent": true,
@@ -1179,13 +1200,14 @@
       "strokeWidth": "1",
       "targets": [
         {
-          "expr": " sort_desc(sum by (reason) (ceil(increase(blocky_response_total[24h]))))",
+          "expr": " sort_desc(sum by (reason) (ceil(increase(blocky_response_total[$__range]))))",
           "instant": true,
+          "interval": "",
           "legendFormat": "{{reason}}",
           "refId": "A"
         }
       ],
-      "timeFrom": "24h",
+      "timeFrom": null,
       "timeShift": null,
       "title": "Response Reasons",
       "transparent": true,
@@ -1233,13 +1255,14 @@
       "strokeWidth": 1,
       "targets": [
         {
-          "expr": " sort_desc(sum by (type) (ceil(increase(blocky_query_total[24h]))))",
+          "expr": " sort_desc(sum by (type) (ceil(increase(blocky_query_total[$__range]))))",
           "instant": true,
+          "interval": "",
           "legendFormat": "{{ type }}",
           "refId": "A"
         }
       ],
-      "timeFrom": "24h",
+      "timeFrom": null,
       "timeShift": null,
       "title": "Query by type",
       "transparent": true,
@@ -1329,7 +1352,7 @@
     ]
   },
   "time": {
-    "from": "now-12h",
+    "from": "now-24h",
     "to": "now"
   },
   "timepicker": {
@@ -1349,5 +1372,5 @@
   "timezone": "",
   "title": "blocky",
   "uid": "XMTgFM_Zk",
-  "version": 4
+  "version": 8
 }
