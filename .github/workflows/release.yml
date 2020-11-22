@@ -3,44 +3,68 @@ name: Release
 on:
   push:
     tags:
-    - v*
+      - v*
 
 jobs:
   build:
- 
+
     runs-on: ubuntu-latest
- 
-    steps: 
-    - name: Set up Go 1.14
-      uses: actions/setup-go@v1
-      with:
-        go-version: 1.14
-      id: go
 
-    - name: Set up Docker Buildx
-      id: buildx
-      uses: crazy-max/ghaction-docker-buildx@v1
-      with:
-        version: latest      
+    steps:
+      - name: Set up Go 1.15
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.15
+        id: go
 
-    - uses: actions/checkout@v1
+      - name: Docker meta
+        id: docker_meta
+        uses: crazy-max/ghaction-docker-meta@v1
+        with:
+          images:
+            - spx01/blocky
+            - ghcr.io/0xerr0r/blocky
 
-    - name: Build
-      run: make tools build
+      - uses: actions/checkout@v1
 
-    - name: Test
-      run: make test      
-    
-    - name: Build the Docker image and push
-      run: |
-        echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
-        make docker-buildx-push
-        
-    - name: Build multiarch binaries
-      run: make buildMultiArchRelease
-    
-    - name: Upload artifact
-      uses: actions/upload-artifact@v1.0.0
-      with:
-        name: blocky_binaries
-        path: bin
+      - name: Build
+        run: make tools build
+
+      - name: Test
+        run: make test
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.CR_PAT }}
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.docker_meta.outputs.tags }}
+          labels: ${{ steps.docker_meta.outputs.labels }}
+
+      - name: Build multiarch binaries
+        run: make buildMultiArchRelease
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v1.0.0
+        with:
+          name: blocky_binaries
+          path: bin

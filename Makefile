@@ -1,4 +1,4 @@
-.PHONY: all tools clean build test lint run buildMultiArchRelease docker-buildx-push help
+.PHONY: all tools clean build test lint run buildMultiArchRelease help
 .DEFAULT_GOAL := help
 
 VERSION := $(shell git describe --always --tags)
@@ -34,14 +34,6 @@ buildMultiArchRelease: ## builds binary for multiple archs
 	$(MAKE) build GOOS=linux GOARCH=amd64 BINARY_SUFFIX=_${VERSION}_linux_amd64
 	$(MAKE) build GOOS=linux GOARCH=arm64 BINARY_SUFFIX=_${VERSION}_linux_arm64
 	$(MAKE) build GOOS=windows GOARCH=amd64 BINARY_SUFFIX=_${VERSION}_windows_amd64.exe
-
-docker-buildx-push:  ## Build multi arch docker images and push
-	docker buildx build \
-            --platform linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64 \
-            --tag ${DOCKER_IMAGE_NAME}:${VERSION} --push .
-	docker buildx build \
-            --platform linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64 \
-            --tag ${DOCKER_IMAGE_NAME}:latest --push . 
 
 docker-build:  ## Build docker image
 	docker build --tag ${DOCKER_IMAGE_NAME} .

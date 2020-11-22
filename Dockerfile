@@ -14,8 +14,7 @@ ENV GO111MODULE=on \
     
 WORKDIR /src
 
-COPY go.mod .
-COPY go.sum .
+COPY go.mod go.sum ./
 RUN go mod download
 
 # add source
@@ -27,6 +26,11 @@ RUN env ${opts} make build
 
 # final stage
 FROM alpine
+
+LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
+      org.opencontainers.image.url="https://github.com/0xERR0R/blocky" \
+      org.opencontainers.image.title="DNS proxy as ad-blocker for local network"
+
 RUN apk add --no-cache bind-tools
 COPY --from=build-env /src/bin/blocky /app/blocky
 
