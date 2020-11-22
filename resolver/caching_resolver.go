@@ -110,7 +110,7 @@ func (r *CachingResolver) getTotalCacheEntryNumber() int {
 	return count
 }
 
-//nolint:gocognit,gofunlen
+//nolint:gocognit,funlen
 func (r *CachingResolver) Resolve(request *Request) (response *Response, err error) {
 	logger := withPrefix(request.Log, "caching_resolver")
 
