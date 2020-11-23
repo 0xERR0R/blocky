@@ -17,12 +17,6 @@ jobs:
           go-version: 1.15
         id: go
 
-      - name: Docker meta
-        id: docker_meta
-        uses: crazy-max/ghaction-docker-meta@v1
-        with:
-          images: spx01/blocky,ghcr.io/0xerr0r/blocky
-
       - uses: actions/checkout@v1
 
       - name: Build
@@ -30,6 +24,12 @@ jobs:
 
       - name: Test
         run: make test
+
+      - name: Docker meta
+        id: docker_meta
+        uses: crazy-max/ghaction-docker-meta@v1
+        with:
+          images: spx01/blocky,ghcr.io/0xerr0r/blocky
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
