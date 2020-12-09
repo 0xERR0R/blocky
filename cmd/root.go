@@ -73,6 +73,8 @@ func configureLog(cfg *config.Config) {
 	if cfg.LogFormat == config.CfgLogFormatJSON {
 		log.SetFormatter(&log.JSONFormatter{})
 	}
+
+	log.SetOutput(os.Stdout)
 }
 
 func initConfig() {
