@@ -113,6 +113,8 @@ func ParseUpstream(upstream string) (result Upstream, err error) {
 		port = netDefaultPort[n]
 	}
 
+	host = regexp.MustCompile("[\\[\\]]").ReplaceAllString(host, "")
+
 	return Upstream{Net: n, Host: host, Port: port, Path: path}, nil
 }
 
