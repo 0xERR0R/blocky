@@ -100,7 +100,7 @@ queryLog:
   # if > 0, deletes log files which are older than ... days
   logRetentionDays: 7
 
-# optional: DNS listener port, default 53 (UDP and TCP)
+# optional: DNS listener port and bind ip address, default 53 (UDP and TCP). Example: 53, :53, 127.0.0.1:53
 port: 53
 # optional: HTTP listener port, default 0 = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH ...
 httpPort: 4000

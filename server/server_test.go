@@ -92,7 +92,7 @@ var _ = Describe("Running DNS server", func() {
 				Upstream: upstreamClient,
 			},
 
-			Port:     55555,
+			Port:     "55555",
 			HTTPPort: 4000,
 			Prometheus: config.PrometheusConfig{
 				Enable: true,
@@ -481,7 +481,7 @@ var _ = Describe("Running DNS server", func() {
 						},
 					},
 
-					Port: 55556,
+					Port: ":55556",
 				})
 
 				Expect(err).Should(Succeed())
@@ -524,7 +524,7 @@ var _ = Describe("Running DNS server", func() {
 						},
 					},
 
-					Port: 55557,
+					Port: "127.0.0.1:55557",
 				})
 
 				Expect(err).Should(Succeed())

@@ -113,7 +113,7 @@ func ParseUpstream(upstream string) (result Upstream, err error) {
 		port = netDefaultPort[n]
 	}
 
-	host = regexp.MustCompile("[\\[\\]]").ReplaceAllString(host, "")
+	host = regexp.MustCompile(`[\[\]]`).ReplaceAllString(host, "")
 
 	return Upstream{Net: n, Host: host, Port: port, Path: path}, nil
 }
@@ -146,7 +146,7 @@ func extractNet(upstream string) (string, string) {
 }
 
 const (
-	cfgDefaultPort           = 53
+	cfgDefaultPort           = "53"
 	cfgDefaultPrometheusPath = "/metrics"
 )
 
@@ -167,7 +167,7 @@ type Config struct {
 	Prometheus   PrometheusConfig          `yaml:"prometheus"`
 	LogLevel     string                    `yaml:"logLevel"`
 	LogFormat    string                    `yaml:"logFormat"`
-	Port         uint16                    `yaml:"port"`
+	Port         string                    `yaml:"port"`
 	HTTPPort     uint16                    `yaml:"httpPort"`
 	HTTPSPort    uint16                    `yaml:"httpsPort"`
 	CertFile     string                    `yaml:"httpsCertFile"`

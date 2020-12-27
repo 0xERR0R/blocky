@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"blocky/util"
@@ -32,21 +33,32 @@ func logger() *logrus.Entry {
 	return logrus.WithField("prefix", "server")
 }
 
+func getServerAddress(cfg *config.Config) string {
+	address := cfg.Port
+	if !strings.Contains(cfg.Port, ":") {
+		address = fmt.Sprintf(":%s", cfg.Port)
+	}
+
+	return address
+}
+
 func NewServer(cfg *config.Config) (server *Server, err error) {
+	address := getServerAddress(cfg)
+
 	udpServer := &dns.Server{
-		Addr:    fmt.Sprintf(":%d", cfg.Port),
+		Addr:    address,
 		Net:     "udp",
 		Handler: dns.NewServeMux(),
 		NotifyStartedFunc: func() {
-			logger().Infof("udp server is up and running on port %d", cfg.Port)
+			logger().Infof("udp server is up and running on address %s", address)
 		},
 		UDPSize: 65535}
 	tcpServer := &dns.Server{
-		Addr:    fmt.Sprintf(":%d", cfg.Port),
+		Addr:    address,
 		Net:     "tcp",
 		Handler: dns.NewServeMux(),
 		NotifyStartedFunc: func() {
-			logger().Infof("tcp server is up and running on port %d", cfg.Port)
+			logger().Infof("tcp server is up and running on address %s", address)
 		},
 	}
 
@@ -74,12 +86,10 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 		metrics.Start(router, cfg.Prometheus)
 	}
 
-	queryResolver := createQueryResolver(cfg, router)
-
 	server = &Server{
 		udpServer:     udpServer,
 		tcpServer:     tcpServer,
-		queryResolver: queryResolver,
+		queryResolver: createQueryResolver(cfg, router),
 		cfg:           cfg,
 		httpListener:  httpListener,
 		httpsListener: httpsListener,
@@ -133,7 +143,7 @@ func (s *Server) printConfiguration() {
 		}
 	}
 
-	logger().Infof("- DNS listening port: %d", s.cfg.Port)
+	logger().Infof("- DNS listening port: '%s'", s.cfg.Port)
 	logger().Infof("- HTTP listening port: %d", s.cfg.HTTPPort)
 
 	logger().Info("runtime information:")

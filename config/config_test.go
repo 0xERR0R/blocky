@@ -21,7 +21,7 @@ var _ = Describe("Config", func() {
 
 				cfg := NewConfig("config.yml")
 
-				Expect(cfg.Port).Should(Equal(uint16(55555)))
+				Expect(cfg.Port).Should(Equal("55555"))
 				Expect(cfg.Upstream.ExternalResolvers).Should(HaveLen(3))
 				Expect(cfg.Upstream.ExternalResolvers[0].Host).Should(Equal("8.8.8.8"))
 				Expect(cfg.Upstream.ExternalResolvers[1].Host).Should(Equal("8.8.4.4"))
