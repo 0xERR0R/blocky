@@ -2,7 +2,7 @@ name: Development docker build
 on:
   push:
     branches:
-      - master
+      - development
 
 jobs:
   docker:
