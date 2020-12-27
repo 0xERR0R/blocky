@@ -37,9 +37,7 @@ var _ = Describe("ParallelBestResolver", func() {
 						Expect(err).Should(Succeed())
 						return response
 					})
-					sut = NewParallelBestResolver(config.UpstreamConfig{
-						ExternalResolvers: []config.Upstream{fast, slow},
-					})
+					sut = NewParallelBestResolver([]config.Upstream{fast, slow})
 				})
 				It("Should use result from fastest one", func() {
 					request := newRequest("example.com.", dns.TypeA)
@@ -63,9 +61,7 @@ var _ = Describe("ParallelBestResolver", func() {
 						Expect(err).Should(Succeed())
 						return response
 					})
-					sut = NewParallelBestResolver(config.UpstreamConfig{
-						ExternalResolvers: []config.Upstream{withError, slow},
-					})
+					sut = NewParallelBestResolver([]config.Upstream{withError, slow})
 				})
 				It("Should use result from successful resolver", func() {
 					request := newRequest("example.com.", dns.TypeA)
@@ -83,9 +79,7 @@ var _ = Describe("ParallelBestResolver", func() {
 					withError1 := config.Upstream{Host: "wrong"}
 					withError2 := config.Upstream{Host: "wrong"}
 
-					sut = NewParallelBestResolver(config.UpstreamConfig{
-						ExternalResolvers: []config.Upstream{withError1, withError2},
-					})
+					sut = NewParallelBestResolver([]config.Upstream{withError1, withError2})
 				})
 				It("Should return error", func() {
 					request := newRequest("example.com.", dns.TypeA)
@@ -104,9 +98,7 @@ var _ = Describe("ParallelBestResolver", func() {
 					Expect(err).Should(Succeed())
 					return response
 				})
-				sut = NewParallelBestResolver(config.UpstreamConfig{
-					ExternalResolvers: []config.Upstream{fast},
-				})
+				sut = NewParallelBestResolver([]config.Upstream{fast})
 			})
 			It("Should use result from defined resolver", func() {
 				request := newRequest("example.com.", dns.TypeA)
@@ -137,9 +129,7 @@ var _ = Describe("ParallelBestResolver", func() {
 					return response
 				})
 
-				sut := NewParallelBestResolver(config.UpstreamConfig{
-					ExternalResolvers: []config.Upstream{withError1, fast1, fast2, withError2},
-				}).(*ParallelBestResolver)
+				sut := NewParallelBestResolver([]config.Upstream{withError1, fast1, fast2, withError2}).(*ParallelBestResolver)
 
 				By("all resolvers have same weight for random -> equal distribution", func() {
 					resolverCount := make(map[Resolver]int)
@@ -194,11 +184,9 @@ var _ = Describe("ParallelBestResolver", func() {
 
 	Describe("Configuration output", func() {
 		BeforeEach(func() {
-			sut = NewParallelBestResolver(config.UpstreamConfig{
-				ExternalResolvers: []config.Upstream{
-					{Host: "host1"},
-					{Host: "host2"},
-				},
+			sut = NewParallelBestResolver([]config.Upstream{
+				{Host: "host1"},
+				{Host: "host2"},
 			})
 		})
 		It("should return configuration", func() {

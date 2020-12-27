@@ -5,6 +5,7 @@ import (
 	"blocky/util"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/mroth/weightedrand"
@@ -26,10 +27,10 @@ type requestResponse struct {
 	err      error
 }
 
-func NewParallelBestResolver(cfg config.UpstreamConfig) Resolver {
-	resolvers := make([]*upstreamResolverStatus, len(cfg.ExternalResolvers))
+func NewParallelBestResolver(upstreamResolvers []config.Upstream) Resolver {
+	resolvers := make([]*upstreamResolverStatus, len(upstreamResolvers))
 
-	for i, u := range cfg.ExternalResolvers {
+	for i, u := range upstreamResolvers {
 		resolvers[i] = &upstreamResolverStatus{
 			resolver:      NewUpstreamResolver(u),
 			lastErrorTime: time.Unix(0, 0),
@@ -48,11 +49,20 @@ func (r *ParallelBestResolver) Configuration() (result []string) {
 	return
 }
 
+func (r ParallelBestResolver) String() string {
+	result := make([]string, len(r.resolvers))
+	for i, s := range r.resolvers {
+		result[i] = fmt.Sprintf("%s", s.resolver)
+	}
+
+	return fmt.Sprintf("parallel upstreams '%s'", strings.Join(result, "; "))
+}
+
 func (r *ParallelBestResolver) Resolve(request *Request) (*Response, error) {
 	logger := request.Log.WithField("prefix", "parallel_best_resolver")
 
 	if len(r.resolvers) == 1 {
-		logger.WithField("resolver", r.resolvers[0]).Debug("delegating to resolver")
+		logger.WithField("resolver", r.resolvers[0].resolver).Debug("delegating to resolver")
 		return r.resolvers[0].resolver.Resolve(request)
 	}
 
@@ -63,11 +73,11 @@ func (r *ParallelBestResolver) Resolve(request *Request) (*Response, error) {
 
 	var collectedErrors []error
 
-	logger.WithField("resolver", r1).Debug("delegating to resolver")
+	logger.WithField("resolver", r1.resolver).Debug("delegating to resolver")
 
 	go resolve(request, r1, ch)
 
-	logger.WithField("resolver", r2).Debug("delegating to resolver")
+	logger.WithField("resolver", r2.resolver).Debug("delegating to resolver")
 
 	go resolve(request, r2, ch)
 
@@ -80,7 +90,7 @@ func (r *ParallelBestResolver) Resolve(request *Request) (*Response, error) {
 				collectedErrors = append(collectedErrors, result.err)
 			} else {
 				logger.WithFields(logrus.Fields{
-					"resolver": r1,
+					"resolver": r1.resolver,
 					"answer":   util.AnswerToString(result.response.Res.Answer),
 				}).Debug("using response from resolver")
 				return result.response, nil

@@ -17,8 +17,8 @@ type ConditionalUpstreamResolver struct {
 
 func NewConditionalUpstreamResolver(cfg config.ConditionalUpstreamConfig) ChainedResolver {
 	m := make(map[string]Resolver)
-	for domain, upstream := range cfg.Mapping {
-		m[strings.ToLower(domain)] = NewUpstreamResolver(upstream)
+	for domain, upstream := range cfg.Mapping.Upstreams {
+		m[strings.ToLower(domain)] = NewParallelBestResolver(upstream)
 	}
 
 	return &ConditionalUpstreamResolver{mapping: m}

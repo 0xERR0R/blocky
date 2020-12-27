@@ -35,34 +35,35 @@ Create `config.yml` file with your configuration [as yml](config.yml):
 ```yml
 upstream:
     # these external DNS resolvers will be used. Blocky picks 2 random resolvers from the list for each query
-    # format for resolver: [net:]host:[port][/path]. net could be empty (default, shortcut for tcp+udp), tcp+udp, tcp, udp, tcp-tls or https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))
-    externalResolvers:
-      - 46.182.19.48
-      - 80.241.218.68
-      - tcp-tls:fdns1.dismail.de:853
-      - https://dns.digitale-gesellschaft.ch/dns-query
-  
+  # format for resolver: [net:]host:[port][/path]. net could be empty (default, shortcut for tcp+udp), tcp+udp, tcp, udp, tcp-tls or https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))
+  externalResolvers:
+    - 46.182.19.48
+    - 80.241.218.68
+    - tcp-tls:fdns1.dismail.de:853
+    - https://dns.digitale-gesellschaft.ch/dns-query
+
 # optional: custom IP address for domain name (with all sub-domains)
 # example: query "printer.lan" or "my.printer.lan" will return 192.168.178.3
 customDNS:
-    mapping:
-      printer.lan: 192.168.178.3
+  mapping:
+    printer.lan: 192.168.178.3
 
-# optional: definition, which DNS resolver should be used for queries to the domain (with all sub-domains).
+# optional: definition, which DNS resolver(s) should be used for queries to the domain (with all sub-domains). Multiple resolvers must be separated by comma
 # Example: Query client.fritz.box will ask DNS server 192.168.178.1. This is necessary for local network, to resolve clients by host name
 conditional:
-    mapping:
-      fritz.box: udp:192.168.178.1
-  
+  mapping:
+    fritz.box: udp:192.168.178.1
+    lan.net: udp:192.168.178.1,udp:192.168.178.2
+
 # optional: use black and white lists to block queries (for example ads, trackers, adult pages etc.)
 blocking:
-    # definition of blacklist groups. Can be external link (http/https) or local file
-    blackLists:
-      ads:
-        - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
-        - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
-        - https://mirror1.malwaredomains.com/files/justdomains
-        - http://sysctl.org/cameleon/hosts
+  # definition of blacklist groups. Can be external link (http/https) or local file
+  blackLists:
+    ads:
+      - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
+      - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+      - https://mirror1.malwaredomains.com/files/justdomains
+      - http://sysctl.org/cameleon/hosts
         - https://zeustracker.abuse.ch/blocklist.php?download=domainblocklist
         - https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt
       special:

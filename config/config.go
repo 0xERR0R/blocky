@@ -57,6 +57,34 @@ func (u *Upstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+func (c *ConditionalUpstreamMapping) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var input map[string]string
+	if err := unmarshal(&input); err != nil {
+		return err
+	}
+
+	result := make(map[string][]Upstream)
+
+	for k, v := range input {
+		var upstreams []Upstream
+
+		for _, part := range strings.Split(v, ",") {
+			upstream, err := ParseUpstream(strings.TrimSpace(part))
+			if err != nil {
+				return err
+			}
+
+			upstreams = append(upstreams, upstream)
+		}
+
+		result[k] = upstreams
+	}
+
+	c.Upstreams = result
+
+	return nil
+}
+
 // ParseUpstream creates new Upstream from passed string in format [net]:host[:port][/path]
 func ParseUpstream(upstream string) (result Upstream, err error) {
 	if strings.TrimSpace(upstream) == "" {
@@ -190,7 +218,11 @@ type CustomDNSConfig struct {
 }
 
 type ConditionalUpstreamConfig struct {
-	Mapping map[string]Upstream `yaml:"mapping"`
+	Mapping ConditionalUpstreamMapping `yaml:"mapping"`
+}
+
+type ConditionalUpstreamMapping struct {
+	Upstreams map[string][]Upstream
 }
 
 type BlockingConfig struct {

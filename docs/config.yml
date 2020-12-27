@@ -13,11 +13,12 @@ customDNS:
   mapping:
     printer.lan: 192.168.178.3
 
-# optional: definition, which DNS resolver should be used for queries to the domain (with all sub-domains).
+# optional: definition, which DNS resolver(s) should be used for queries to the domain (with all sub-domains). Multiple resolvers must be separated by comma
 # Example: Query client.fritz.box will ask DNS server 192.168.178.1. This is necessary for local network, to resolve clients by host name
 conditional:
   mapping:
     fritz.box: udp:192.168.178.1
+    lan.net: udp:192.168.178.1,udp:192.168.178.2
 
 # optional: use black and white lists to block queries (for example ads, trackers, adult pages etc.)
 blocking:

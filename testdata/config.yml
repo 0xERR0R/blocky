@@ -9,6 +9,7 @@ customDNS:
 conditional:
   mapping:
     fritz.box: udp:192.168.178.1
+    multiple.resolvers: udp:192.168.178.1,udp:192.168.178.2
 blocking:
   blackLists:
     ads:

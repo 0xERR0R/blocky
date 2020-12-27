@@ -65,7 +65,11 @@ var _ = Describe("Running DNS server", func() {
 				},
 			},
 			Conditional: config.ConditionalUpstreamConfig{
-				Mapping: map[string]config.Upstream{"fritz.box": upstreamFritzbox},
+				Mapping: config.ConditionalUpstreamMapping{
+					Upstreams: map[string][]config.Upstream{
+						"fritz.box": {upstreamFritzbox},
+					},
+				},
 			},
 			Blocking: config.BlockingConfig{
 				BlackLists: map[string][]string{

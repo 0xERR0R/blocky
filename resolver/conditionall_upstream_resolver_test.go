@@ -25,18 +25,19 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 
 	BeforeEach(func() {
 		sut = NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{
-			Mapping: map[string]config.Upstream{
-				"fritz.box": TestUDPUpstream(func(request *dns.Msg) (response *dns.Msg) {
-					response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 123, dns.TypeA, "123.124.122.122")
+			Mapping: config.ConditionalUpstreamMapping{
+				Upstreams: map[string][]config.Upstream{
+					"fritz.box": {TestUDPUpstream(func(request *dns.Msg) (response *dns.Msg) {
+						response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 123, dns.TypeA, "123.124.122.122")
 
-					return response
-				}),
-				"other.box": TestUDPUpstream(func(request *dns.Msg) (response *dns.Msg) {
-					response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 250, dns.TypeA, "192.192.192.192")
+						return response
+					})},
+					"other.box": {TestUDPUpstream(func(request *dns.Msg) (response *dns.Msg) {
+						response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 250, dns.TypeA, "192.192.192.192")
 
-					return response
-				}),
-			},
+						return response
+					})},
+				}},
 		})
 		m = &resolverMock{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)

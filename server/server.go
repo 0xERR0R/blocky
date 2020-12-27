@@ -115,7 +115,7 @@ func createQueryResolver(cfg *config.Config, router *chi.Mux) resolver.Resolver 
 		resolver.NewCustomDNSResolver(cfg.CustomDNS),
 		resolver.NewBlockingResolver(router, cfg.Blocking),
 		resolver.NewCachingResolver(cfg.Caching),
-		resolver.NewParallelBestResolver(cfg.Upstream),
+		resolver.NewParallelBestResolver(cfg.Upstream.ExternalResolvers),
 	)
 }
 
