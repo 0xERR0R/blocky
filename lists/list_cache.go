@@ -31,6 +31,32 @@ const (
 	WHITELIST
 )
 
+type stringCache map[int]string
+
+func (cache stringCache) elementCount() int {
+	count := 0
+
+	for k, v := range cache {
+		count += len(v) / k
+	}
+
+	return count
+}
+
+func (cache stringCache) contains(searchString string) bool {
+	searchLen := len(searchString)
+	searchBucketLen := len(cache[searchLen]) / searchLen
+	idx := sort.Search(searchBucketLen, func(i int) bool {
+		return cache[searchLen][i*searchLen:i*searchLen+searchLen] >= searchString
+	})
+
+	if idx < searchBucketLen {
+		return cache[searchLen][idx*searchLen:idx*searchLen+searchLen] == strings.ToLower(searchString)
+	}
+
+	return false
+}
+
 func (l ListCacheType) String() string {
 	names := [...]string{
 		"blacklist",
@@ -48,7 +74,7 @@ type Matcher interface {
 }
 
 type ListCache struct {
-	groupCaches map[string][]string
+	groupCaches map[string]stringCache
 	lock        sync.RWMutex
 
 	groupToLinks  map[string][]string
@@ -77,8 +103,8 @@ func (b *ListCache) Configuration() (result []string) {
 	var total int
 
 	for group, cache := range b.groupCaches {
-		result = append(result, fmt.Sprintf("  %s: %d entries", group, len(cache)))
-		total += len(cache)
+		result = append(result, fmt.Sprintf("  %s: %d entries", group, cache.elementCount()))
+		total += cache.elementCount()
 	}
 
 	result = append(result, fmt.Sprintf("  TOTAL: %d entries", total))
@@ -87,7 +113,7 @@ func (b *ListCache) Configuration() (result []string) {
 }
 
 func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod int) *ListCache {
-	groupCaches := make(map[string][]string)
+	groupCaches := make(map[string]stringCache)
 
 	p := time.Duration(refreshPeriod) * time.Minute
 	if refreshPeriod == 0 {
@@ -138,10 +164,10 @@ func logger() *logrus.Entry {
 }
 
 // downloads and reads files with domain names and creates cache for them
-func createCacheForGroup(links []string) []string {
-	cache := make([]string, 0)
+func createCacheForGroup(links []string) stringCache {
+	cache := make(stringCache)
 
-	keys := make(map[string]bool)
+	keys := make(map[string]struct{})
 
 	var wg sync.WaitGroup
 
@@ -155,6 +181,8 @@ func createCacheForGroup(links []string) []string {
 
 	wg.Wait()
 
+	tmp := make(map[int]*strings.Builder)
+
 Loop:
 	for {
 		select {
@@ -164,8 +192,11 @@ Loop:
 			}
 			for _, entry := range res {
 				if _, value := keys[entry]; !value {
-					keys[entry] = true
-					cache = append(cache, entry)
+					keys[entry] = struct{}{}
+					if tmp[len(entry)] == nil {
+						tmp[len(entry)] = &strings.Builder{}
+					}
+					tmp[len(entry)].WriteString(entry)
 				}
 			}
 		default:
@@ -174,7 +205,14 @@ Loop:
 		}
 	}
 
-	sort.Strings(cache)
+	for k, v := range tmp {
+		chunks := chunks(v.String(), k)
+		sort.Strings(chunks)
+
+		cache[k] = strings.Join(chunks, "")
+
+		v.Reset()
+	}
 
 	return cache
 }
@@ -184,21 +222,12 @@ func (b *ListCache) Match(domain string, groupsToCheck []string) (found bool, gr
 	defer b.lock.RUnlock()
 
 	for _, g := range groupsToCheck {
-		if contains(domain, b.groupCaches[g]) {
+		if b.groupCaches[g].contains(domain) {
 			return true, g
 		}
 	}
 
 	return false, ""
-}
-
-func contains(domain string, cache []string) bool {
-	idx := sort.SearchStrings(cache, domain)
-	if idx < len(cache) {
-		return cache[idx] == strings.ToLower(domain)
-	}
-
-	return false
 }
 
 func (b *ListCache) refresh() {
@@ -214,12 +243,12 @@ func (b *ListCache) refresh() {
 		}
 
 		if metrics.IsEnabled() {
-			b.counter.WithLabelValues(group).Set(float64(len(b.groupCaches[group])))
+			b.counter.WithLabelValues(group).Set(float64(b.groupCaches[group].elementCount()))
 		}
 
 		logger().WithFields(logrus.Fields{
 			"group":       group,
-			"total_count": len(b.groupCaches[group]),
+			"total_count": b.groupCaches[group].elementCount(),
 		}).Info("group import finished")
 	}
 }
@@ -306,8 +335,8 @@ func processFile(link string, ch chan<- []string, wg *sync.WaitGroup) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		// skip comments
-		if !strings.HasPrefix(line, "#") {
-			result = append(result, processLine(line))
+		if line := processLine(line); line != "" {
+			result = append(result, line)
 
 			count++
 		}
@@ -324,9 +353,41 @@ func processFile(link string, ch chan<- []string, wg *sync.WaitGroup) {
 	ch <- result
 }
 
+func chunks(s string, chunkSize int) []string {
+	if chunkSize >= len(s) {
+		return []string{s}
+	}
+
+	var chunks []string
+
+	chunk := make([]rune, chunkSize)
+	len := 0
+
+	for _, r := range s {
+		chunk[len] = r
+		len++
+
+		if len == chunkSize {
+			chunks = append(chunks, string(chunk))
+			len = 0
+		}
+	}
+
+	if len > 0 {
+		chunks = append(chunks, string(chunk[:len]))
+	}
+
+	return chunks
+}
+
 // return only first column (see hosts format)
 func processLine(line string) string {
+	if strings.HasPrefix(line, "#") {
+		return ""
+	}
+
 	parts := strings.Fields(line)
+
 	if len(parts) > 0 {
 		host := parts[len(parts)-1]
 
