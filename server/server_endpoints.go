@@ -3,7 +3,6 @@ package server
 import (
 	"blocky/api"
 	"blocky/config"
-	"blocky/docs"
 	"blocky/resolver"
 	"blocky/util"
 	"blocky/web"
@@ -21,7 +20,6 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
-	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 const (
@@ -215,8 +213,6 @@ func createRouter(cfg *config.Config) *chi.Mux {
 
 	configureDebugHandler(router)
 
-	configureSwaggerHandler(router)
-
 	configureRootHandler(cfg, router)
 
 	return router
@@ -233,8 +229,8 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 		}
 		var links = []HandlerLink{
 			{
-				URL:   "/swagger/",
-				Title: "Swagger Rest API Documentation",
+				URL:   "https://htmlpreview.github.io/?https://github.com/0xERR0R/blocky/blob/development/docs/swagger.html",
+				Title: "Swagger Rest API Documentation (Online @GitHub)",
 			},
 			{
 				URL:   "/debug/",
@@ -254,25 +250,6 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 			logrus.Error("can't write index template: ", err)
 			writer.WriteHeader(http.StatusInternalServerError)
 		}
-	})
-}
-
-func configureSwaggerHandler(router *chi.Mux) {
-	router.Get("/swagger/*", func(writer http.ResponseWriter, request *http.Request) {
-		// set swagger host with host from request
-		docs.SwaggerInfo.Host = request.Host
-		var url func(c *httpSwagger.Config)
-		if request.TLS == nil {
-			url = httpSwagger.URL(fmt.Sprintf("http://%s/swagger/doc.json", request.Host))
-		} else {
-			url = httpSwagger.URL(fmt.Sprintf("https://%s/swagger/doc.json", request.Host))
-		}
-		swaggerHandler := httpSwagger.Handler(url)
-		swaggerHandler.ServeHTTP(writer, request)
-	})
-
-	router.Get("/swagger", func(writer http.ResponseWriter, request *http.Request) {
-		http.Redirect(writer, request, "/swagger/", http.StatusMovedPermanently)
 	})
 }
 

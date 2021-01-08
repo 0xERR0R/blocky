@@ -2,3 +2,4 @@ bin/
 .idea
 .github
 testdata/
+node_modules/

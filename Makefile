@@ -1,4 +1,4 @@
-.PHONY: all tools clean build test lint run buildMultiArchRelease help
+.PHONY: all tools clean build swagger test lint run buildMultiArchRelease help
 .DEFAULT_GOAL := help
 
 VERSION := $(shell git describe --always --tags)
@@ -16,8 +16,13 @@ all: test lint build ## Build binary (with tests)
 clean: ## cleans output directory
 	$(shell rm -rf $(BIN_OUT_DIR)/*)
 
-build:  ## Build binary
+swagger:
+	npm install bootprint bootprint-openapi html-inline
 	$(shell go env GOPATH)/bin/swag init -g api/api.go
+	$(shell) node_modules/bootprint/bin/bootprint.js openapi docs/swagger.json /tmp/swagger/
+	$(shell) node_modules/html-inline/bin/cmd.js /tmp/swagger/index.html > docs/swagger.html
+
+build:  ## Build binary
 	go build -v -ldflags="-w -s -X blocky/cmd.version=${VERSION} -X blocky/cmd.buildTime=${BUILD_TIME}" -o $(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 
 test:  ## run tests

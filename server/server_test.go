@@ -249,22 +249,6 @@ var _ = Describe("Running DNS server", func() {
 
 	})
 
-	Describe("Swagger endpoint", func() {
-		When("Swagger URL is called", func() {
-			It("should serve swagger page", func() {
-				r, err := http.Get("http://localhost:4000/swagger/")
-				Expect(err).Should(Succeed())
-				Expect(r.StatusCode).Should(Equal(http.StatusOK))
-			})
-		})
-		When("Swagger without trailing slash is called", func() {
-			It("should redirect to swagger URL", func() {
-				r, err := http.Get("http://localhost:4000/swagger")
-				Expect(err).Should(Succeed())
-				Expect(r.StatusCode).Should(Equal(http.StatusOK))
-			})
-		})
-	})
 	Describe("Prometheus endpoint", func() {
 		When("Prometheus URL is called", func() {
 			It("should return prometheus data", func() {
