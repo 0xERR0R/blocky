@@ -22,7 +22,7 @@ const (
 )
 
 // nolint:gochecknoglobals
-var timeout = 30 * time.Second
+var timeout = 60 * time.Second
 
 type ListCacheType int
 
