@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - development
+      - fb-*
 
 jobs:
   docker:
@@ -10,6 +11,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
       - name: Set up Docker Buildx
@@ -25,11 +28,16 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Extract branch name
+        shell: bash
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        id: extract_branch
       - name: Build and push
         uses: docker/build-push-action@v2
         with:
+          context: .
           platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
           push: true
           tags: |
-            ghcr.io/0xerr0r/blocky:development
-            spx01/blocky:development
+            ghcr.io/0xerr0r/blocky:${{ steps.extract_branch.outputs.branch }}
+            spx01/blocky:${{ steps.extract_branch.outputs.branch }}

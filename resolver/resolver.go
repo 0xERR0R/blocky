@@ -35,10 +35,17 @@ type Request struct {
 	RequestTS   time.Time
 }
 
-func newRequest(question string, rType uint16) *Request {
+func newRequest(question string, rType uint16, logger ...*logrus.Entry) *Request {
+	var loggerEntry *logrus.Entry
+	if len(logger) == 1 {
+		loggerEntry = logger[0]
+	} else {
+		loggerEntry = logrus.NewEntry(logrus.New())
+	}
+
 	return &Request{
 		Req:      util.NewMsgWithQuestion(question, rType),
-		Log:      logrus.NewEntry(logrus.New()),
+		Log:      loggerEntry,
 		Protocol: UDP,
 	}
 }

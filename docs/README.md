@@ -99,14 +99,18 @@ caching:
   # amount in minutes, how long a response must be cached (min value). 
   # If <=0, use response's TTL, if >0 use this value, if TTL is smaller
   # Default: 0
-  minTime: 40
+  minTime: 5
   # amount in minutes, how long a response must be cached (max value). 
   # If <0, do not cache responses
   # If 0, use TTL
   # If > 0, use this value, if TTL is greater
   # Default: 0
   maxTime: -1
-  
+  # if true, will preload DNS results for often used queries (names queried more than 5 times in a 2 hour time window)
+  # this improves the response time for often used queries, but significantly increases external traffic
+  # default: false
+  prefetching: true
+
 # optional: configuration of client name resolution
 clientLookup:
   # optional: this DNS resolver will be used to perform reverse DNS lookup (typically local router)
@@ -114,8 +118,8 @@ clientLookup:
   # optional: some routers return multiple names for client (host name and user defined name). Define which single name should be used.
   # Example: take second name if present, if not take first name
   singleNameOrder:
-      - 2
-      - 1
+    - 2
+    - 1
   # optional: custom mapping of client name to IP addresses. Useful if reverse DNS does not work properly or just to have custom client names.
   clients:
     laptop:

@@ -240,8 +240,9 @@ type ClientLookupConfig struct {
 }
 
 type CachingConfig struct {
-	MinCachingTime int `yaml:"minTime"`
-	MaxCachingTime int `yaml:"maxTime"`
+	MinCachingTime int  `yaml:"minTime"`
+	MaxCachingTime int  `yaml:"maxTime"`
+	Prefetching    bool `yaml:"prefetching"`
 }
 
 type QueryLogConfig struct {

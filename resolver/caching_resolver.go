@@ -10,46 +10,110 @@ import (
 	"github.com/miekg/dns"
 	"github.com/patrickmn/go-cache"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 )
 
 // caches answers from dns queries with their TTL time, to avoid external resolver calls for recurrent queries
 type CachingResolver struct {
 	NextResolver
-	minCacheTimeSec, maxCacheTimeSec int
-	cachesPerType                    map[uint16]*cache.Cache
-	hitCount, missCount              prometheus.Counter
-	entryCount                       prometheus.Gauge
+	minCacheTimeSec, maxCacheTimeSec     int
+	cachesPerType                        map[uint16]*cache.Cache
+	prefetchingNameCache                 *cache.Cache
+	hitCount, missCount, prefetchCount   prometheus.Counter
+	entryCount, prefetchDomainCacheCount prometheus.Gauge
 }
 
 const (
-	cacheTimeNegative = 30 * time.Minute
+	cacheTimeNegative              = 30 * time.Minute
+	prefetchingNameCacheExpiration = 2 * time.Hour
+	prefetchingNameCountThreshold  = 5
 )
 
 func NewCachingResolver(cfg config.CachingConfig) ChainedResolver {
-	var entryCount prometheus.Gauge
+	var entryCount, prefetchDomainCount prometheus.Gauge
 
-	var hitCount, missCount prometheus.Counter
+	var hitCount, missCount, prefetchCount prometheus.Counter
 
 	if metrics.IsEnabled() {
 		entryCount = cacheEntryCount()
+		prefetchDomainCount = prefetchDomainCacheCount()
 		hitCount = cacheHitCount()
 		missCount = cacheMissCount()
+		prefetchCount = domainPrefetchCount()
 
 		metrics.RegisterMetric(entryCount)
+		metrics.RegisterMetric(prefetchDomainCount)
 		metrics.RegisterMetric(hitCount)
 		metrics.RegisterMetric(missCount)
+		metrics.RegisterMetric(prefetchCount)
 	}
 
-	return &CachingResolver{
+	domainCache := createQueryDomainNameCache(cfg)
+	c := &CachingResolver{
 		minCacheTimeSec: 60 * cfg.MinCachingTime,
 		maxCacheTimeSec: 60 * cfg.MaxCachingTime,
 		cachesPerType: map[uint16]*cache.Cache{
-			dns.TypeA:    cache.New(15*time.Minute, 5*time.Minute),
-			dns.TypeAAAA: cache.New(15*time.Minute, 5*time.Minute),
+			dns.TypeA:    createQueryResultCache(),
+			dns.TypeAAAA: createQueryResultCache(),
 		},
-		entryCount: entryCount,
-		hitCount:   hitCount,
-		missCount:  missCount,
+		prefetchingNameCache:     domainCache,
+		entryCount:               entryCount,
+		hitCount:                 hitCount,
+		missCount:                missCount,
+		prefetchCount:            prefetchCount,
+		prefetchDomainCacheCount: prefetchDomainCount,
+	}
+
+	if cfg.Prefetching {
+		configurePrefetching(c)
+	}
+
+	return c
+}
+
+func configurePrefetching(c *CachingResolver) {
+	for k, v := range c.cachesPerType {
+		qType := k
+
+		v.OnEvicted(func(domainName string, i interface{}) {
+			c.onEvicted(domainName, qType)
+		})
+	}
+}
+
+func createQueryResultCache() *cache.Cache {
+	return cache.New(15*time.Minute, 15*time.Second)
+}
+func createQueryDomainNameCache(cfg config.CachingConfig) *cache.Cache {
+	if cfg.Prefetching {
+		return cache.New(prefetchingNameCacheExpiration, time.Minute)
+	}
+
+	return nil
+}
+
+// onEvicted is called if a DNS response in the cache is expired and was removed from cache
+func (r *CachingResolver) onEvicted(domainName string, qType uint16) {
+	logger := logger("caching_resolver")
+
+	cnt, found := r.prefetchingNameCache.Get(domainName)
+
+	// check if domain was queried > threshold in the time window
+	if found && cnt.(int) > prefetchingNameCountThreshold {
+		logger.Debugf("prefetching '%s' (%s)", domainName, dns.TypeToString[qType])
+
+		req := newRequest(fmt.Sprintf("%s.", domainName), qType, logger)
+		response, err := r.next.Resolve(req)
+
+		if err == nil {
+			r.putInCache(response, domainName, qType)
+
+			if metrics.IsEnabled() {
+				r.prefetchCount.Inc()
+			}
+		} else {
+			logger.Errorf("can't prefetch '%s': %v", domainName, err)
+		}
 	}
 }
 
@@ -70,12 +134,29 @@ func cacheMissCount() prometheus.Counter {
 		},
 	)
 }
+func domainPrefetchCount() prometheus.Counter {
+	return prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "blocky_prefetch_count",
+			Help: "Prefetch counter",
+		},
+	)
+}
 
 func cacheEntryCount() prometheus.Gauge {
 	return prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "blocky_cache_entry_count",
 			Help: "Number of entries in cache",
+		},
+	)
+}
+
+func prefetchDomainCacheCount() prometheus.Gauge {
+	return prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "blocky_prefetch_domain_name_cache_count",
+			Help: "Number of entries in domain cache",
 		},
 	)
 }
@@ -93,6 +174,8 @@ func (r *CachingResolver) Configuration() (result []string) {
 	result = append(result, fmt.Sprintf("minCacheTimeInSec = %d", r.minCacheTimeSec))
 
 	result = append(result, fmt.Sprintf("maxCacheTimeSec = %d", r.maxCacheTimeSec))
+
+	result = append(result, fmt.Sprintf("prefetching = %t", r.prefetchingNameCache != nil))
 
 	for t, c := range r.cachesPerType {
 		result = append(result, fmt.Sprintf("%s cache items count = %d", dns.TypeToString[t], c.ItemCount()))
@@ -132,6 +215,8 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 
 		// we can cache only A and AAAA queries
 		if question.Qtype == dns.TypeA || question.Qtype == dns.TypeAAAA {
+			r.trackQueryDomainNameCount(domain, logger)
+
 			val, expiresAt, found := r.getCache(question.Qtype).GetWithExpiration(domain)
 
 			if found {
@@ -177,6 +262,20 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 	}
 
 	return response, err
+}
+
+func (r *CachingResolver) trackQueryDomainNameCount(domain string, logger *logrus.Entry) {
+	if r.prefetchingNameCache != nil {
+		var domainCount int
+		if x, found := r.prefetchingNameCache.Get(domain); found {
+			domainCount = x.(int)
+		}
+		domainCount++
+		r.prefetchingNameCache.SetDefault(domain, domainCount)
+		logger.Debugf("domain '%s' was requested %d times, "+
+			"total cache size: %d", domain, domainCount, r.prefetchingNameCache.ItemCount())
+		r.prefetchDomainCacheCount.Set(float64(r.prefetchingNameCache.ItemCount()))
+	}
 }
 
 func (r *CachingResolver) putInCache(response *Response, domain string, qType uint16) {
