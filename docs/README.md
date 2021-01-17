@@ -22,8 +22,10 @@ Blocky is a DNS proxy for the local network written in Go with following feature
 - Serves DNS over UDP, TCP and HTTPS (DNS over HTTPS, aka DoH)
 - Supports UDP, TCP and TCP over TLS DNS resolvers with DNSSEC support
 - Supports DNS over HTTPS (DoH) resolvers
-- Delegates DNS query to 2 external resolvers from a list of configured resolvers, uses the answer from the fastest one -> improves you privacy and resolution time
+- Delegates DNS query to 2 external resolvers from a list of configured resolvers, uses the answer from the fastest one
+  -> improves you privacy and resolution time
   - Blocky peeks 2 random resolvers with weighted random algorithm: resolvers with error will be used less frequently
+- Prefetching of often used queries
 - Logging of all DNS queries per day / per client in a text file
 - Simple configuration in a single file
 - Prometheus metrics
@@ -106,8 +108,10 @@ caching:
   # If > 0, use this value, if TTL is greater
   # Default: 0
   maxTime: -1
-  # if true, will preload DNS results for often used queries (names queried more than 5 times in a 2 hour time window)
-  # this improves the response time for often used queries, but significantly increases external traffic
+  # if true, will preload DNS results for often used queries (names queried more than 5 times in a 2 hour time window).
+  # Results in cache will be loaded again on their expire (Time-to-live).
+  # This improves the response time for often used queries, but significantly increases external traffic
+  # it is recommended to increase "minTime" to reduce the number of prefetch queries to external resolvers.
   # default: false
   prefetching: true
 
