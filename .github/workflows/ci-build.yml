@@ -28,7 +28,7 @@ jobs:
         run: curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b $(go env GOPATH)/bin v1.21.0
 
       - name: Build
-        run: make tools build
+        run: make build
 
       - name: Test
         run: make test

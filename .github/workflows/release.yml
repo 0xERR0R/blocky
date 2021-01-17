@@ -23,7 +23,7 @@ jobs:
           fetch-depth: 0
 
       - name: Build
-        run: make tools build
+        run: make build
 
       - name: Test
         run: make test

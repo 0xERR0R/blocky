@@ -1,4 +1,4 @@
-.PHONY: all tools clean build swagger test lint run buildMultiArchRelease help
+.PHONY: all clean build swagger test lint run buildMultiArchRelease help
 .DEFAULT_GOAL := help
 
 VERSION := $(shell git describe --always --tags)
@@ -7,16 +7,13 @@ DOCKER_IMAGE_NAME="spx01/blocky"
 BINARY_NAME=blocky
 BIN_OUT_DIR=bin
 
-tools: ## prepare build tools
-	mkdir -p ~/.docker && echo "{\"experimental\": \"enabled\"}" > ~/.docker/config.json
-	go get github.com/swaggo/swag/cmd/swag@v1.6.9
-
 all: test lint build ## Build binary (with tests)
 
 clean: ## cleans output directory
 	$(shell rm -rf $(BIN_OUT_DIR)/*)
 
 swagger:
+	go get github.com/swaggo/swag/cmd/swag@v1.6.9
 	npm install bootprint bootprint-openapi html-inline
 	$(shell go env GOPATH)/bin/swag init -g api/api.go
 	$(shell) node_modules/bootprint/bin/bootprint.js openapi docs/swagger.json /tmp/swagger/
