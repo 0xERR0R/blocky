@@ -25,7 +25,7 @@ RUN make tools
 RUN env ${opts} make build
 
 # final stage
-FROM alpine
+FROM alpine:3.12
 
 LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
       org.opencontainers.image.url="https://github.com/0xERR0R/blocky" \
