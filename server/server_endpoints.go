@@ -229,7 +229,7 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 		}
 		var links = []HandlerLink{
 			{
-				URL:   "https://htmlpreview.github.io/?https://github.com/0xERR0R/blocky/blob/development/docs/swagger.html",
+				URL:   "https://htmlpreview.github.io/?https://github.com/0xERR0R/blocky/blob/master/docs/swagger.html",
 				Title: "Swagger Rest API Documentation (Online @GitHub)",
 			},
 			{
