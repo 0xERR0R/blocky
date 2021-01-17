@@ -21,7 +21,6 @@ RUN go mod download
 ADD . .
 
 ARG opts
-RUN make tools
 RUN env ${opts} make build
 
 # final stage
