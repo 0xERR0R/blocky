@@ -189,7 +189,7 @@ See [Wiki - Run with docker](https://github.com/0xERR0R/blocky/wiki/Run-with-doc
 Download the binary file for your architecture and run `./blocky --config config.yml`. Please be aware, you must run the binary with root privileges if you want to use port 53 or 953.
 
 ### Run with kubernetes (helm)
-See [this repo](https://github.com/billimek/billimek-charts/tree/master/charts/blocky) or [the helm hub site](https://hub.helm.sh/charts/billimek/blocky) for details about running blocky via helm in kubernetes.
+See [this repo](https://github.com/k8s-at-home/charts/tree/master/charts/blocky) or [artifacthub](https://hub.helm.sh/charts/k8s-at-home/blocky) for details about running blocky via helm in kubernetes.
 
 ## CLI / REST API
 If http listener is enabled, blocky provides REST API to control blocking status. Swagger documentation under `http://host:port/swagger`
