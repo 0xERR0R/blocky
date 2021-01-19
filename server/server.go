@@ -45,22 +45,8 @@ func getServerAddress(cfg *config.Config) string {
 func NewServer(cfg *config.Config) (server *Server, err error) {
 	address := getServerAddress(cfg)
 
-	udpServer := &dns.Server{
-		Addr:    address,
-		Net:     "udp",
-		Handler: dns.NewServeMux(),
-		NotifyStartedFunc: func() {
-			logger().Infof("udp server is up and running on address %s", address)
-		},
-		UDPSize: 65535}
-	tcpServer := &dns.Server{
-		Addr:    address,
-		Net:     "tcp",
-		Handler: dns.NewServeMux(),
-		NotifyStartedFunc: func() {
-			logger().Infof("tcp server is up and running on address %s", address)
-		},
-	}
+	udpServer := createUDPServer(address)
+	tcpServer := createTCPServer(address)
 
 	var httpListener, httpsListener net.Listener
 
@@ -86,6 +72,8 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 		metrics.Start(router, cfg.Prometheus)
 	}
 
+	metrics.RegisterEventListeners()
+
 	server = &Server{
 		udpServer:     udpServer,
 		tcpServer:     tcpServer,
@@ -103,6 +91,32 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 	server.registerAPIEndpoints(router)
 
 	return server, nil
+}
+
+func createTCPServer(address string) *dns.Server {
+	tcpServer := &dns.Server{
+		Addr:    address,
+		Net:     "tcp",
+		Handler: dns.NewServeMux(),
+		NotifyStartedFunc: func() {
+			logger().Infof("tcp server is up and running on address %s", address)
+		},
+	}
+
+	return tcpServer
+}
+
+func createUDPServer(address string) *dns.Server {
+	udpServer := &dns.Server{
+		Addr:    address,
+		Net:     "udp",
+		Handler: dns.NewServeMux(),
+		NotifyStartedFunc: func() {
+			logger().Infof("udp server is up and running on address %s", address)
+		},
+		UDPSize: 65535}
+
+	return udpServer
 }
 
 func createQueryResolver(cfg *config.Config, router *chi.Mux) resolver.Resolver {
@@ -188,9 +202,8 @@ func (s *Server) Start() {
 		if s.httpListener != nil {
 			logger().Infof("http server is up and running on port %d", s.cfg.HTTPPort)
 
-			if err := http.Serve(s.httpListener, s.httpMux); err != nil {
-				logger().Fatalf("start http listener failed: %v", err)
-			}
+			err := http.Serve(s.httpListener, s.httpMux)
+			util.FatalOnError("start http listener failed: ", err)
 		}
 	}()
 
@@ -198,9 +211,8 @@ func (s *Server) Start() {
 		if s.httpsListener != nil {
 			logger().Infof("https server is up and running on port %d", s.cfg.HTTPSPort)
 
-			if err := http.ServeTLS(s.httpsListener, s.httpMux, s.cfg.CertFile, s.cfg.KeyFile); err != nil {
-				logger().Fatalf("start https listener failed: %v", err)
-			}
+			err := http.ServeTLS(s.httpsListener, s.httpMux, s.cfg.CertFile, s.cfg.KeyFile)
+			util.FatalOnError("start https listener failed: ", err)
 		}
 	}()
 
@@ -251,9 +263,8 @@ func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
 	} else {
 		response.Res.MsgHdr.RecursionAvailable = request.MsgHdr.RecursionDesired
 
-		if err := w.WriteMsg(response.Res); err != nil {
-			logger().Error("can't write message: ", err)
-		}
+		err := w.WriteMsg(response.Res)
+		util.LogOnError("can't write message: ", err)
 	}
 }
 
@@ -263,9 +274,8 @@ func (s *Server) OnHealthCheck(w dns.ResponseWriter, request *dns.Msg) {
 	resp.SetReply(request)
 	resp.Rcode = dns.RcodeSuccess
 
-	if err := w.WriteMsg(resp); err != nil {
-		logger().Error("can't write message: ", err)
-	}
+	err := w.WriteMsg(resp)
+	util.LogOnError("can't write message: ", err)
 }
 
 func resolveClientIPAndProtocol(addr net.Addr) (ip net.IP, protocol resolver.RequestProtocol) {

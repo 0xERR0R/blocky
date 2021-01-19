@@ -128,10 +128,7 @@ func weightedRandom(in []*upstreamResolverStatus, exclude Resolver) *upstreamRes
 		}
 	}
 
-	c, err := weightedrand.NewChooser(choices...)
-	if err != nil {
-		logrus.Fatal("can't create weighted random: ", err)
-	}
+	c, _ := weightedrand.NewChooser(choices...)
 
 	return c.Pick().(*upstreamResolverStatus)
 }

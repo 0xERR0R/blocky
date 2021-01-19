@@ -1,7 +1,7 @@
 package lists
 
 import (
-	"blocky/metrics"
+	"blocky/evt"
 	"bufio"
 	"fmt"
 	"io"
@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
 
@@ -21,15 +20,23 @@ const (
 	defaultRefreshPeriod = 4 * time.Hour
 )
 
-// nolint:gochecknoglobals
-var timeout = 60 * time.Second
-
 type ListCacheType int
 
 const (
 	BLACKLIST ListCacheType = iota
 	WHITELIST
 )
+
+func (l ListCacheType) String() string {
+	names := [...]string{
+		"blacklist",
+		"whitelist"}
+
+	return names[l]
+}
+
+// nolint:gochecknoglobals
+var timeout = 60 * time.Second
 
 type stringCache map[int]string
 
@@ -57,14 +64,6 @@ func (cache stringCache) contains(searchString string) bool {
 	return false
 }
 
-func (l ListCacheType) String() string {
-	names := [...]string{
-		"blacklist",
-		"whitelist"}
-
-	return names[l]
-}
-
 type Matcher interface {
 	// matches passed domain name against cached list entries
 	Match(domain string, groupsToCheck []string) (found bool, group string)
@@ -79,8 +78,7 @@ type ListCache struct {
 
 	groupToLinks  map[string][]string
 	refreshPeriod time.Duration
-
-	counter *prometheus.GaugeVec
+	listType      ListCacheType
 }
 
 func (b *ListCache) Configuration() (result []string) {
@@ -120,24 +118,11 @@ func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeri
 		p = defaultRefreshPeriod
 	}
 
-	var counter *prometheus.GaugeVec
-
-	if metrics.IsEnabled() {
-		counter = prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: fmt.Sprintf("blocky_%s_cache", t),
-				Help: "Number of entries in cache",
-			}, []string{"group"},
-		)
-
-		metrics.RegisterMetric(counter)
-	}
-
 	b := &ListCache{
 		groupToLinks:  groupToLinks,
 		groupCaches:   groupCaches,
 		refreshPeriod: p,
-		counter:       counter,
+		listType:      t,
 	}
 	b.refresh()
 
@@ -242,9 +227,7 @@ func (b *ListCache) refresh() {
 			logger().Warn("Populating of group cache failed, leaving items from last successful download in cache")
 		}
 
-		if metrics.IsEnabled() {
-			b.counter.WithLabelValues(group).Set(float64(b.groupCaches[group].elementCount()))
-		}
+		evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, b.groupCaches[group].elementCount())
 
 		logger().WithFields(logrus.Fields{
 			"group":       group,
@@ -273,7 +256,7 @@ func downloadFile(link string) (io.ReadCloser, error) {
 				return resp.Body, nil
 			}
 
-			resp.Body.Close()
+			_ = resp.Body.Close()
 
 			return nil, fmt.Errorf("couldn't download url, got status code %d", resp.StatusCode)
 		}

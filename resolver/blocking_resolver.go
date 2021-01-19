@@ -3,8 +3,8 @@ package resolver
 import (
 	"blocky/api"
 	"blocky/config"
+	"blocky/evt"
 	"blocky/lists"
-	"blocky/metrics"
 	"blocky/util"
 	"encoding/json"
 	"fmt"
@@ -18,7 +18,6 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/miekg/dns"
-	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -53,28 +52,25 @@ func createBlockHandler(cfg config.BlockingConfig) blockHandler {
 }
 
 type status struct {
-	enabled      bool
-	enabledGauge prometheus.Gauge
-	enableTimer  *time.Timer
-	disableEnd   time.Time
+	enabled     bool
+	enableTimer *time.Timer
+	disableEnd  time.Time
 }
 
-func (s *status) enableBlocking() {
+func (r *BlockingResolver) enableBlocking() {
+	s := r.status
 	s.enableTimer.Stop()
 	s.enabled = true
 
-	if metrics.IsEnabled() {
-		s.enabledGauge.Set(1)
-	}
+	evt.Bus().Publish(evt.BlockingEnabledEvent, true)
 }
 
-func (s *status) disableBlocking(duration time.Duration) {
+func (r *BlockingResolver) disableBlocking(duration time.Duration) {
+	s := r.status
 	s.enableTimer.Stop()
 	s.enabled = false
 
-	if metrics.IsEnabled() {
-		s.enabledGauge.Set(0)
-	}
+	evt.Bus().Publish(evt.BlockingEnabledEvent, false)
 
 	s.disableEnd = time.Now().Add(duration)
 
@@ -83,7 +79,7 @@ func (s *status) disableBlocking(duration time.Duration) {
 	} else {
 		log.Infof("disable blocking for %s", duration)
 		s.enableTimer = time.AfterFunc(duration, func() {
-			s.enableBlocking()
+			r.enableBlocking()
 			log.Info("blocking enabled again")
 		})
 	}
@@ -97,7 +93,7 @@ type BlockingResolver struct {
 	cfg                 config.BlockingConfig
 	blockHandler        blockHandler
 	whitelistOnlyGroups []string
-	status              status
+	status              *status
 }
 
 func NewBlockingResolver(router *chi.Mux, cfg config.BlockingConfig) ChainedResolver {
@@ -106,28 +102,15 @@ func NewBlockingResolver(router *chi.Mux, cfg config.BlockingConfig) ChainedReso
 	whitelistMatcher := lists.NewListCache(lists.WHITELIST, cfg.WhiteLists, cfg.RefreshPeriod)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
-	var enabledGauge prometheus.Gauge
-
-	if metrics.IsEnabled() {
-		enabledGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "blocky_blocking_enabled",
-			Help: "Blockings status",
-		})
-		enabledGauge.Set(1)
-
-		metrics.RegisterMetric(enabledGauge)
-	}
-
 	res := &BlockingResolver{
 		blockHandler:        blockHandler,
 		cfg:                 cfg,
 		blacklistMatcher:    blacklistMatcher,
 		whitelistMatcher:    whitelistMatcher,
 		whitelistOnlyGroups: whitelistOnlyGroups,
-		status: status{
-			enabledGauge: enabledGauge,
-			enabled:      true,
-			enableTimer:  time.NewTimer(0),
+		status: &status{
+			enabled:     true,
+			enableTimer: time.NewTimer(0),
 		},
 	}
 
@@ -147,7 +130,7 @@ func NewBlockingResolver(router *chi.Mux, cfg config.BlockingConfig) ChainedReso
 // @Router /blocking/enable [get]
 func (r *BlockingResolver) apiBlockingEnable(_ http.ResponseWriter, _ *http.Request) {
 	log.Info("enabling blocking...")
-	r.status.enableBlocking()
+	r.enableBlocking()
 }
 
 // apiBlockingStatus is the http endpoint to get current blocking status
@@ -169,9 +152,7 @@ func (r *BlockingResolver) apiBlockingStatus(rw http.ResponseWriter, _ *http.Req
 	})
 	_, err := rw.Write(response)
 
-	if err != nil {
-		log.Fatal("unable to write response ", err)
-	}
+	util.LogOnError("unable to write response ", err)
 }
 
 // apiBlockingDisable is the http endpoint to disable the blocking status
@@ -200,7 +181,7 @@ func (r *BlockingResolver) apiBlockingDisable(rw http.ResponseWriter, req *http.
 		}
 	}
 
-	r.status.disableBlocking(duration)
+	r.disableBlocking(duration)
 }
 
 // returns groups, which have only whitelist entries
@@ -432,7 +413,7 @@ func (b zeroIPBlockHandler) handleBlock(question dns.Question, response *dns.Msg
 	response.Answer = append(response.Answer, rr)
 }
 
-func (b nxDomainBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
+func (b nxDomainBlockHandler) handleBlock(_ dns.Question, response *dns.Msg) {
 	response.Rcode = dns.RcodeNameError
 }
 

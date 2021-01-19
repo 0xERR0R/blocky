@@ -2,14 +2,15 @@ package resolver
 
 import (
 	"blocky/config"
+	. "blocky/evt"
 	. "blocky/helpertest"
 	"blocky/util"
-
 	"time"
 
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -42,6 +43,51 @@ var _ = Describe("CachingResolver", func() {
 	})
 
 	Describe("Caching responses", func() {
+		When("prefetching is enabled", func() {
+			BeforeEach(func() {
+				sutConfig = config.CachingConfig{
+					Prefetching: true,
+				}
+			})
+
+			It("should prefetch domain if query count > threshold", func() {
+				// prepare resolver, set smaller caching times for testing
+				sut.(*CachingResolver).cachesPerType = map[uint16]*cache.Cache{
+					dns.TypeA: cache.New(15*time.Millisecond, 15*time.Millisecond),
+				}
+				configurePrefetching(sut.(*CachingResolver))
+
+				prefetchedCnt := 0
+				_ = Bus().SubscribeOnce(CachingDomainsToPrefetchCountChanged, func(cnt int) {
+					prefetchedCnt = cnt
+				})
+
+				domainPrefetched := ""
+
+				_ = Bus().SubscribeOnce(CachingDomainPrefetched, func(domain string) {
+					domainPrefetched = domain
+				})
+
+				// first request
+				_, _ = sut.Resolve(newRequest("example.com.", dns.TypeA))
+
+				// Domain is not prefetched
+				Expect(domainPrefetched).Should(Equal(""))
+
+				// Domain is in prefetched domain cache
+				Expect(prefetchedCnt).Should(Equal(1))
+
+				// now query again > threshold
+				for i := 0; i < prefetchingNameCountThreshold; i++ {
+					_, _ = sut.Resolve(newRequest("example.com.", dns.TypeA))
+
+				}
+				time.Sleep(50 * time.Millisecond)
+
+				// now is this domain prefetched
+				Expect(domainPrefetched).Should(Equal("example.com"))
+			})
+		})
 		When("min caching time is defined", func() {
 			BeforeEach(func() {
 				sutConfig = config.CachingConfig{
@@ -56,17 +102,35 @@ var _ = Describe("CachingResolver", func() {
 				It("should cache response and use response's TTL", func() {
 
 					By("first request", func() {
+						domain := ""
+						_ = Bus().SubscribeOnce(CachingResultCacheMiss, func(d string) {
+							domain = d
+						})
+
+						totalCacheCount := 0
+						_ = Bus().SubscribeOnce(CachingResultCacheChanged, func(d int) {
+							totalCacheCount = d
+						})
+
 						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
 						Expect(err).Should(Succeed())
 						Expect(resp.RType).Should(Equal(RESOLVED))
 						Expect(m.Calls).Should(HaveLen(1))
 						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 						Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 600, "123.122.121.120"))
+
+						Expect(domain).Should(Equal("example.com"))
+						Expect(totalCacheCount).Should(Equal(1))
 					})
 
 					time.Sleep(500 * time.Millisecond)
 
 					By("second request", func() {
+						domain := ""
+						_ = Bus().SubscribeOnce(CachingResultCacheHit, func(d string) {
+							domain = d
+						})
+
 						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
 						Expect(err).Should(Succeed())
 						Expect(resp.RType).Should(Equal(CACHED))
@@ -75,6 +139,8 @@ var _ = Describe("CachingResolver", func() {
 						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 						// ttl is smaller
 						Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 599, "123.122.121.120"))
+
+						Expect(domain).Should(Equal("example.com"))
 					})
 				})
 			})

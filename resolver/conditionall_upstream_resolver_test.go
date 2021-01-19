@@ -8,6 +8,7 @@ import (
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -48,7 +49,7 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 		When("Query is exact equal defined condition in mapping", func() {
 			Context("first mapping entry", func() {
 				It("Should resolve the IP of conditional DNS", func() {
-					resp, err = sut.Resolve(newRequest("fritz.box.", dns.TypeA))
+					resp, err = sut.Resolve(newRequest("fritz.box.", dns.TypeA, logrus.NewEntry(logrus.New())))
 
 					Expect(resp.Res.Answer).Should(BeDNSRecord("fritz.box.", dns.TypeA, 123, "123.124.122.122"))
 					// no call to next resolver

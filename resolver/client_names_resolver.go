@@ -100,12 +100,7 @@ func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry
 	}
 
 	if r.externalResolver != nil {
-		reverse, err := dns.ReverseAddr(ip.String())
-
-		if err != nil {
-			logger.Warnf("can't create reverse address for %s", ip.String())
-			return
-		}
+		reverse, _ := dns.ReverseAddr(ip.String())
 
 		resp, err := r.externalResolver.Resolve(&Request{
 			Req: util.NewMsgWithQuestion(reverse, dns.TypePTR),

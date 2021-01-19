@@ -88,7 +88,10 @@ func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
 	if err != nil {
 		return nil, 0, fmt.Errorf("can't perform https request: %v", err)
 	}
-	defer httpResponse.Body.Close()
+
+	defer func() {
+		util.LogOnError("cant close response body ", httpResponse.Body.Close())
+	}()
 
 	if httpResponse.StatusCode != http.StatusOK {
 		return nil, 0, fmt.Errorf("http return code should be %d, but received %d", http.StatusOK, httpResponse.StatusCode)

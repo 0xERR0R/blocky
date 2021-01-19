@@ -100,9 +100,7 @@ func (r *QueryLoggingResolver) doCleanUp() {
 					}).Info("existing log file is older than retention time and will be deleted")
 
 					err := os.Remove(filepath.Join(r.logDir, f.Name()))
-					if err != nil {
-						logger.WithField("file", f.Name()).Error("can't remove file: ", err)
-					}
+					util.LogOnErrorWithEntry(logger.WithField("file", f.Name()), "can't remove file: ", err)
 				}
 			}
 		}
@@ -155,15 +153,13 @@ func (r *QueryLoggingResolver) writeLog() {
 
 			file, err := os.OpenFile(writePath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
 
-			if err != nil {
-				logEntry.logger.WithField("file_name", writePath).Error("can't create/open file", err)
-			} else {
+			util.LogOnErrorWithEntry(logEntry.logger.WithField("file_name", writePath), "can't create/open file", err)
+
+			if err == nil {
 				writer := createCsvWriter(file)
 
 				err := writer.Write(createQueryLogRow(logEntry))
-				if err != nil {
-					logEntry.logger.WithField("file_name", writePath).Error("can't write to file", err)
-				}
+				util.LogOnErrorWithEntry(logEntry.logger.WithField("file_name", writePath), "can't write to file", err)
 				writer.Flush()
 
 				_ = file.Close()

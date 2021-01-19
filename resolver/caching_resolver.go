@@ -2,25 +2,22 @@ package resolver
 
 import (
 	"blocky/config"
-	"blocky/metrics"
+	"blocky/evt"
 	"blocky/util"
 	"fmt"
 	"time"
 
 	"github.com/miekg/dns"
 	"github.com/patrickmn/go-cache"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
 
 // caches answers from dns queries with their TTL time, to avoid external resolver calls for recurrent queries
 type CachingResolver struct {
 	NextResolver
-	minCacheTimeSec, maxCacheTimeSec     int
-	cachesPerType                        map[uint16]*cache.Cache
-	prefetchingNameCache                 *cache.Cache
-	hitCount, missCount, prefetchCount   prometheus.Counter
-	entryCount, prefetchDomainCacheCount prometheus.Gauge
+	minCacheTimeSec, maxCacheTimeSec int
+	cachesPerType                    map[uint16]*cache.Cache
+	prefetchingNameCache             *cache.Cache
 }
 
 const (
@@ -30,24 +27,6 @@ const (
 )
 
 func NewCachingResolver(cfg config.CachingConfig) ChainedResolver {
-	var entryCount, prefetchDomainCount prometheus.Gauge
-
-	var hitCount, missCount, prefetchCount prometheus.Counter
-
-	if metrics.IsEnabled() {
-		entryCount = cacheEntryCount()
-		prefetchDomainCount = prefetchDomainCacheCount()
-		hitCount = cacheHitCount()
-		missCount = cacheMissCount()
-		prefetchCount = domainPrefetchCount()
-
-		metrics.RegisterMetric(entryCount)
-		metrics.RegisterMetric(prefetchDomainCount)
-		metrics.RegisterMetric(hitCount)
-		metrics.RegisterMetric(missCount)
-		metrics.RegisterMetric(prefetchCount)
-	}
-
 	domainCache := createQueryDomainNameCache(cfg)
 	c := &CachingResolver{
 		minCacheTimeSec: 60 * cfg.MinCachingTime,
@@ -56,12 +35,7 @@ func NewCachingResolver(cfg config.CachingConfig) ChainedResolver {
 			dns.TypeA:    createQueryResultCache(),
 			dns.TypeAAAA: createQueryResultCache(),
 		},
-		prefetchingNameCache:     domainCache,
-		entryCount:               entryCount,
-		hitCount:                 hitCount,
-		missCount:                missCount,
-		prefetchCount:            prefetchCount,
-		prefetchDomainCacheCount: prefetchDomainCount,
+		prefetchingNameCache: domainCache,
 	}
 
 	if cfg.Prefetching {
@@ -108,57 +82,11 @@ func (r *CachingResolver) onEvicted(domainName string, qType uint16) {
 		if err == nil {
 			r.putInCache(response, domainName, qType)
 
-			if metrics.IsEnabled() {
-				r.prefetchCount.Inc()
-			}
-		} else {
-			logger.Errorf("can't prefetch '%s': %v", domainName, err)
+			evt.Bus().Publish(evt.CachingDomainPrefetched, domainName)
 		}
+
+		util.LogOnError(fmt.Sprintf("can't prefetch '%s' ", domainName), err)
 	}
-}
-
-func cacheHitCount() prometheus.Counter {
-	return prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "blocky_cache_hit_count",
-			Help: "Cache hit counter",
-		},
-	)
-}
-
-func cacheMissCount() prometheus.Counter {
-	return prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "blocky_cache_miss_count",
-			Help: "Cache miss counter",
-		},
-	)
-}
-func domainPrefetchCount() prometheus.Counter {
-	return prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "blocky_prefetch_count",
-			Help: "Prefetch counter",
-		},
-	)
-}
-
-func cacheEntryCount() prometheus.Gauge {
-	return prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "blocky_cache_entry_count",
-			Help: "Number of entries in cache",
-		},
-	)
-}
-
-func prefetchDomainCacheCount() prometheus.Gauge {
-	return prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "blocky_prefetch_domain_name_cache_count",
-			Help: "Number of entries in domain cache",
-		},
-	)
 }
 
 func (r *CachingResolver) getCache(queryType uint16) *cache.Cache {
@@ -197,10 +125,6 @@ func (r *CachingResolver) getTotalCacheEntryNumber() int {
 func (r *CachingResolver) Resolve(request *Request) (response *Response, err error) {
 	logger := withPrefix(request.Log, "caching_resolver")
 
-	if metrics.IsEnabled() {
-		r.entryCount.Set(float64(r.getTotalCacheEntryNumber()))
-	}
-
 	if r.maxCacheTimeSec < 0 {
 		logger.Debug("skip cache")
 		return r.next.Resolve(request)
@@ -222,9 +146,7 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 			if found {
 				logger.Debug("domain is cached")
 
-				if metrics.IsEnabled() {
-					r.hitCount.Inc()
-				}
+				evt.Bus().Publish(evt.CachingResultCacheHit, domain)
 
 				// calculate remaining TTL
 				remainingTTL := uint32(time.Until(expiresAt).Seconds())
@@ -245,9 +167,7 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 				return &Response{Res: resp, RType: CACHED, Reason: "CACHED NEGATIVE"}, nil
 			}
 
-			if metrics.IsEnabled() {
-				r.missCount.Inc()
-			}
+			evt.Bus().Publish(evt.CachingResultCacheMiss, domain)
 
 			logger.WithField("next_resolver", Name(r.next)).Debug("not in cache: go to next resolver")
 			response, err = r.next.Resolve(request)
@@ -274,7 +194,7 @@ func (r *CachingResolver) trackQueryDomainNameCount(domain string, logger *logru
 		r.prefetchingNameCache.SetDefault(domain, domainCount)
 		logger.Debugf("domain '%s' was requested %d times, "+
 			"total cache size: %d", domain, domainCount, r.prefetchingNameCache.ItemCount())
-		r.prefetchDomainCacheCount.Set(float64(r.prefetchingNameCache.ItemCount()))
+		evt.Bus().Publish(evt.CachingDomainsToPrefetchCountChanged, r.prefetchingNameCache.ItemCount())
 	}
 }
 
@@ -288,6 +208,8 @@ func (r *CachingResolver) putInCache(response *Response, domain string, qType ui
 		// put return code if NXDOMAIN
 		r.getCache(qType).Set(domain, response.Res.Rcode, cacheTimeNegative)
 	}
+
+	evt.Bus().Publish(evt.CachingResultCacheChanged, r.getTotalCacheEntryNumber())
 }
 
 func (r *CachingResolver) adjustTTLs(answer []dns.RR) (maxTTL uint32) {

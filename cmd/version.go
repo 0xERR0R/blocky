@@ -8,7 +8,11 @@ import (
 
 //nolint:gochecknoinits
 func init() {
-	rootCmd.AddCommand(&cobra.Command{
+	rootCmd.AddCommand(NewVersionCommand())
+}
+
+func NewVersionCommand() *cobra.Command {
+	return &cobra.Command{
 		Use:   "version",
 		Args:  cobra.NoArgs,
 		Short: "Print the version number of blocky",
@@ -17,5 +21,5 @@ func init() {
 			fmt.Printf("Version: %s\n", version)
 			fmt.Printf("Build time: %s\n", buildTime)
 		},
-	})
+	}
 }

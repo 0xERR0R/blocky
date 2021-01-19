@@ -117,3 +117,21 @@ func IterateValueSorted(in map[string]int, fn func(string, int)) {
 		fn(kv.key, kv.value)
 	}
 }
+
+func LogOnError(message string, err error) {
+	if err != nil {
+		log.Error(message, err)
+	}
+}
+
+func LogOnErrorWithEntry(logEntry *log.Entry, message string, err error) {
+	if err != nil {
+		logEntry.Error(message, err)
+	}
+}
+
+func FatalOnError(message string, err error) {
+	if err != nil {
+		log.Fatal(message, err)
+	}
+}

@@ -1,9 +1,8 @@
 package lists
 
 import (
-	"blocky/config"
+	"blocky/evt"
 	. "blocky/helpertest"
-	"blocky/metrics"
 	"net/http"
 	"sync/atomic"
 	"time"
@@ -13,9 +12,6 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/go-chi/chi"
-	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 var _ = Describe("ListCache", func() {
@@ -194,19 +190,24 @@ var _ = Describe("ListCache", func() {
 				Expect(group).Should(BeEmpty())
 			})
 		})
-		When("metrics are enabled", func() {
-			It("should count elements in downloaded lists", func() {
-				metrics.Start(chi.NewRouter(), config.PrometheusConfig{Enable: true, Path: "/metrics"})
+		When("List will be updated", func() {
+			It("event should be fired and contain count of elements in downloaded lists", func() {
 				lists := map[string][]string{
 					"gr1": {server1.URL},
 				}
+
+				resultCnt := 0
+
+				_ = evt.Bus().SubscribeOnce(evt.BlockingCacheGroupChanged, func(listType ListCacheType, group string, cnt int) {
+					resultCnt = cnt
+				})
 
 				sut := NewListCache(BLACKLIST, lists, 0)
 
 				found, group := sut.Match("blocked1.com", []string{})
 				Expect(found).Should(BeFalse())
 				Expect(group).Should(BeEmpty())
-				Expect(testutil.ToFloat64(sut.counter)).Should(Equal(float64(3)))
+				Expect(resultCnt).Should(Equal(3))
 			})
 		})
 		When("multiple groups are passed", func() {

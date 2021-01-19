@@ -3,8 +3,9 @@ package resolver
 import (
 	"blocky/api"
 	"blocky/config"
+	. "blocky/evt"
 	. "blocky/helpertest"
-	"blocky/metrics"
+	"blocky/lists"
 	"blocky/util"
 
 	"encoding/json"
@@ -36,7 +37,6 @@ var _ = Describe("BlockingResolver", func() {
 	)
 
 	BeforeSuite(func() {
-		metrics.Start(chi.NewRouter(), config.PrometheusConfig{Enable: true, Path: "/metrics"})
 		group1File = TempFile("DOMAIN1.com")
 		group2File = TempFile("blocked2.com")
 		defaultGroupFile = TempFile(
@@ -69,7 +69,37 @@ badcnamedomain.com`)
 
 	AfterEach(func() {
 		Expect(err).Should(Succeed())
-		Expect(resp.Res.Rcode).Should(Equal(expectedReturnCode))
+		if resp != nil {
+			Expect(resp.Res.Rcode).Should(Equal(expectedReturnCode))
+		}
+	})
+
+	Describe("Events", func() {
+		BeforeEach(func() {
+			sutConfig = config.BlockingConfig{
+				BlackLists: map[string][]string{
+					"gr1": {group1File.Name()},
+					"gr2": {group2File.Name()},
+				},
+			}
+		})
+		When("List is refreshed", func() {
+			It("event should be fired", func() {
+				groupCnt := make(map[string]int)
+				err = Bus().Subscribe(BlockingCacheGroupChanged, func(listType lists.ListCacheType, group string, cnt int) {
+					groupCnt[group] = cnt
+				})
+				Expect(err).Should(Succeed())
+
+				// recreate to trigger a reload
+				sut = NewBlockingResolver(chi.NewRouter(), sutConfig).(*BlockingResolver)
+
+				time.Sleep(time.Second)
+
+				Expect(groupCnt).Should(HaveLen(2))
+
+			})
+		})
 	})
 
 	Describe("Blocking requests", func() {
@@ -453,8 +483,14 @@ badcnamedomain.com`)
 				})
 
 				By("Calling Rest API to deactivate blocking for 0.5 sec", func() {
+					enabled := true
+					err := Bus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
+						enabled = state
+					})
 					httpCode, _ := DoGetRequest("/api/blocking/disable?duration=500ms", sut.apiBlockingDisable)
+					Expect(err).Should(Succeed())
 					Expect(httpCode).Should(Equal(http.StatusOK))
+					Expect(enabled).Should(BeFalse())
 				})
 
 				By("perform the same query again to ensure that this query will not be blocked", func() {
@@ -468,8 +504,13 @@ badcnamedomain.com`)
 				})
 
 				By("Wait 1 sec and perform the same query again, should be blocked now", func() {
+					enabled := false
+					_ = Bus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
+						enabled = state
+					})
 					// wait 1 sec
 					time.Sleep(time.Second)
+					Expect(enabled).Should(BeTrue())
 
 					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.TypeA, "1.2.1.2", "unknown"))
 					Expect(err).Should(Succeed())
