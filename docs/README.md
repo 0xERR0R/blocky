@@ -6,6 +6,7 @@
 [![GitHub Release Date](https://img.shields.io/github/release-date/0xERR0R/blocky "Latest release date")](https://github.com/0xERR0R/blocky/releases)
 [![Codecov](https://img.shields.io/codecov/c/gh/0xERR0R/blocky "Code coverage")](https://codecov.io/gh/0xERR0R/blocky)
 [![Codacy grade](https://img.shields.io/codacy/grade/8fcd8f8420b8419c808c47af58ed9282 "Codacy grade")](#)
+[![Dependabot Status](https://api.dependabot.com/badges/status?host=github&repo=0xERR0R/blocky)](https://dependabot.com)
 
 <p align="center">
   <img height="200" src="https://github.com/0xERR0R/blocky/blob/master/docs/blocky.svg">
