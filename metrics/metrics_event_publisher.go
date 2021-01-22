@@ -4,6 +4,7 @@ import (
 	"blocky/evt"
 	"blocky/lists"
 	"blocky/util"
+	"time"
 
 	"fmt"
 
@@ -53,10 +54,14 @@ func registerBlockingEventListeners() {
 
 	whitelistCnt := whitelistGauge()
 
+	lastListGroupRefresh := lastListGroupRefresh()
+
 	RegisterMetric(blacklistCnt)
 	RegisterMetric(whitelistCnt)
+	RegisterMetric(lastListGroupRefresh)
 
 	subscribe(evt.BlockingCacheGroupChanged, func(listType lists.ListCacheType, groupName string, cnt int) {
+		lastListGroupRefresh.Set(float64(time.Now().Unix()))
 		switch listType {
 		case lists.BLACKLIST:
 			blacklistCnt.WithLabelValues(groupName).Set(float64(cnt))
@@ -96,6 +101,15 @@ func whitelistGauge() *prometheus.GaugeVec {
 	)
 
 	return whitelistCnt
+}
+
+func lastListGroupRefresh() prometheus.Gauge {
+	return prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "blocky_last_list_group_refresh",
+			Help: "Timestamp of last list refresh",
+		},
+	)
 }
 
 func registerCachingEventListeners() {
@@ -149,6 +163,7 @@ func cacheMissCount() prometheus.Counter {
 		},
 	)
 }
+
 func domainPrefetchCount() prometheus.Counter {
 	return prometheus.NewCounter(
 		prometheus.CounterOpts{
