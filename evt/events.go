@@ -25,6 +25,9 @@ const (
 
 	// CachingDomainsToPrefetchCountChanged fires, if a number of domains being prefetched changed, Parameter: new count
 	CachingDomainsToPrefetchCountChanged = "caching:domainsToPrefetchCountChanged"
+
+	// ApplicationStarted fires on start of the application. Parameter: version number, build time
+	ApplicationStarted = "application:started"
 )
 
 // nolint

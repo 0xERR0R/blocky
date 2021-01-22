@@ -13,10 +13,27 @@ import (
 func RegisterEventListeners() {
 	registerBlockingEventListeners()
 	registerCachingEventListeners()
+	registerApplicationEventListeners()
 }
 
-func subscribe(topic string, fn interface{}) {
-	util.FatalOnError(fmt.Sprintf("can't subscribe topic '%s'", topic), evt.Bus().Subscribe(topic, fn))
+func registerApplicationEventListeners() {
+	v := versionNumberGauge()
+	RegisterMetric(v)
+
+	subscribe(evt.ApplicationStarted, func(version string, buildTime string) {
+		v.WithLabelValues(version, buildTime).Set(1)
+	})
+}
+
+func versionNumberGauge() *prometheus.GaugeVec {
+	blacklistCnt := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "blocky_build_info",
+			Help: "Version number and build info",
+		}, []string{"version", "build_time"},
+	)
+
+	return blacklistCnt
 }
 
 func registerBlockingEventListeners() {
@@ -157,4 +174,8 @@ func prefetchDomainCacheCount() prometheus.Gauge {
 			Help: "Number of entries in domain cache",
 		},
 	)
+}
+
+func subscribe(topic string, fn interface{}) {
+	util.FatalOnError(fmt.Sprintf("can't subscribe topic '%s'", topic), evt.Bus().Subscribe(topic, fn))
 }

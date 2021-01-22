@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"blocky/config"
+	"blocky/evt"
 	"blocky/server"
 	"context"
 	"fmt"
@@ -56,6 +57,7 @@ func startServer(_ *cobra.Command, _ []string) {
 		done <- true
 	}()
 
+	evt.Bus().Publish(evt.ApplicationStarted, version, buildTime)
 	<-done
 }
 
