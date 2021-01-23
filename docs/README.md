@@ -215,9 +215,11 @@ DoH url: https://host:port/dns-query
 
 ### Prometheus / Grafana
 Blocky can export metrics for prometheus. Example grafana dashboard definition [as JSON](blocky-grafana.json)
-![grafana-dashboard](grafana-dashboard.png). 
+or [at grafana.com](https://grafana.com/grafana/dashboards/13768)
+![grafana-dashboard](grafana-dashboard.png).
 
-See [Wiki - Prometheus / Grafana](https://github.com/0xERR0R/blocky/wiki/Prometheus---Grafana-integration) for more information.
+See [Wiki - Prometheus / Grafana](https://github.com/0xERR0R/blocky/wiki/Prometheus---Grafana-integration) for more
+information.
 
 
 ### Print current configuration
