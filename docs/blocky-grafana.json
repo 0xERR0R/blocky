@@ -77,8 +77,17 @@
   "gnetId": null,
   "graphTooltip": 0,
   "id": null,
-  "iteration": 1610829542096,
-  "links": [],
+  "iteration": 1611434666837,
+  "links": [
+    {
+      "icon": "external link",
+      "tags": [],
+      "title": "blocky @ GitHub",
+      "tooltip": "open GitHub repo",
+      "type": "link",
+      "url": "https://github.com/0xERR0R/blocky"
+    }
+  ],
   "panels": [
     {
       "cacheTimeout": null,
@@ -216,7 +225,7 @@
       "maxDataPoints": 100,
       "options": {
         "colorMode": "value",
-        "graphMode": "area",
+        "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "horizontal",
         "reduceOptions": {
@@ -272,23 +281,12 @@
       "type": "text"
     },
     {
-      "cacheTimeout": null,
       "datasource": "${DS_PROMETHEUS}",
-      "description": "Percentage of blocked queries",
+      "description": "Blocky [version](https://github.com/0xERR0R/blocky) number",
       "fieldConfig": {
         "defaults": {
           "custom": {},
-          "decimals": 2,
-          "mappings": [
-            {
-              "id": 0,
-              "op": "=",
-              "text": "N/A",
-              "type": 1,
-              "value": "null"
-            }
-          ],
-          "nullValueMode": "connected",
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -301,8 +299,7 @@
                 "value": 80
               }
             ]
-          },
-          "unit": "percentunit"
+          }
         },
         "overrides": []
       },
@@ -312,29 +309,29 @@
         "x": 0,
         "y": 3
       },
-      "id": 34,
-      "interval": null,
-      "links": [],
-      "maxDataPoints": 100,
+      "id": 55,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "horizontal",
+        "justifyMode": "center",
+        "orientation": "auto",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "",
+          "fields": "/^version$/",
           "values": false
         },
         "textMode": "auto"
       },
       "pluginVersion": "7.3.1",
+      "repeat": null,
+      "repeatDirection": "v",
       "targets": [
         {
-          "expr": "sum(increase(blocky_response_total{response_type=\"BLOCKED\"}[$__range])) / sum(increase(blocky_query_total[$__range])) ",
-          "instant": false,
+          "expr": "blocky_build_info ",
+          "format": "table",
+          "instant": true,
           "interval": "",
           "legendFormat": "",
           "refId": "A"
@@ -342,7 +339,13 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Queries blocked",
+      "title": "Version",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {}
+        }
+      ],
       "transparent": true,
       "type": "stat"
     },
@@ -559,11 +562,11 @@
     {
       "cacheTimeout": null,
       "datasource": "${DS_PROMETHEUS}",
-      "description": "Number of occured errors",
+      "description": "Percentage of blocked queries",
       "fieldConfig": {
         "defaults": {
           "custom": {},
-          "decimals": 0,
+          "decimals": 2,
           "mappings": [
             {
               "id": 0,
@@ -578,19 +581,16 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "#299c46",
+                "color": "green",
                 "value": null
               },
               {
-                "color": "rgba(237, 129, 40, 0.89)",
-                "value": 1
-              },
-              {
-                "color": "#d44a3a"
+                "color": "red",
+                "value": 80
               }
             ]
           },
-          "unit": "short"
+          "unit": "percentunit"
         },
         "overrides": []
       },
@@ -600,7 +600,7 @@
         "x": 0,
         "y": 6
       },
-      "id": 36,
+      "id": 34,
       "interval": null,
       "links": [],
       "maxDataPoints": 100,
@@ -621,7 +621,7 @@
       "pluginVersion": "7.3.1",
       "targets": [
         {
-          "expr": "sum(increase(blocky_error_total[$__range]))",
+          "expr": "sum(increase(blocky_response_total{response_type=\"BLOCKED\"}[$__range])) / sum(increase(blocky_query_total[$__range])) ",
           "instant": false,
           "interval": "",
           "legendFormat": "",
@@ -630,7 +630,7 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Error count",
+      "title": "Queries blocked",
       "transparent": true,
       "type": "stat"
     },
@@ -821,20 +821,40 @@
       "type": "stat"
     },
     {
+      "cacheTimeout": null,
       "datasource": "${DS_PROMETHEUS}",
+      "description": "Number of occured errors",
       "fieldConfig": {
         "defaults": {
           "custom": {},
-          "mappings": [],
+          "decimals": 0,
+          "mappings": [
+            {
+              "id": 0,
+              "op": "=",
+              "text": "N/A",
+              "type": 1,
+              "value": "null"
+            }
+          ],
+          "nullValueMode": "connected",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "#299c46",
                 "value": null
+              },
+              {
+                "color": "rgba(237, 129, 40, 0.89)",
+                "value": 1
+              },
+              {
+                "color": "#d44a3a"
               }
             ]
-          }
+          },
+          "unit": "short"
         },
         "overrides": []
       },
@@ -844,12 +864,15 @@
         "x": 0,
         "y": 9
       },
-      "id": 49,
+      "id": 36,
+      "interval": null,
+      "links": [],
+      "maxDataPoints": 100,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
-        "orientation": "auto",
+        "orientation": "horizontal",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -862,7 +885,8 @@
       "pluginVersion": "7.3.1",
       "targets": [
         {
-          "expr": "blocky_prefetch_domain_name_cache_count",
+          "expr": "sum(increase(blocky_error_total[$__range]))",
+          "instant": false,
           "interval": "",
           "legendFormat": "",
           "refId": "A"
@@ -870,7 +894,7 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Prefetch domain count",
+      "title": "Error count",
       "transparent": true,
       "type": "stat"
     },
@@ -987,6 +1011,118 @@
       "type": "stat"
     },
     {
+      "datasource": "${DS_PROMETHEUS}",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 6,
+        "x": 18,
+        "y": 9
+      },
+      "id": 49,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "7.3.1",
+      "targets": [
+        {
+          "expr": "blocky_prefetch_domain_name_cache_count",
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Prefetch domain count",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": "${DS_PROMETHEUS}",
+      "description": "Time since last list refresh",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 6,
+        "x": 0,
+        "y": 12
+      },
+      "id": 57,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "7.3.1",
+      "targets": [
+        {
+          "expr": "time() -blocky_last_list_group_refresh",
+          "instant": true,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Last list refresh",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
       "aliasColors": {},
       "bars": false,
       "dashLength": 10,
@@ -1005,7 +1141,7 @@
         "h": 7,
         "w": 24,
         "x": 0,
-        "y": 12
+        "y": 15
       },
       "hiddenSeries": false,
       "id": 10,
@@ -1104,7 +1240,7 @@
         "h": 7,
         "w": 24,
         "x": 0,
-        "y": 19
+        "y": 22
       },
       "hiddenSeries": false,
       "id": 52,
@@ -1210,7 +1346,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 26
+        "y": 29
       },
       "heatmap": {},
       "hideZeroBuckets": false,
@@ -1278,7 +1414,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 35
+        "y": 38
       },
       "id": 2,
       "interval": null,
@@ -1334,7 +1470,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 35
+        "y": 38
       },
       "id": 8,
       "interval": null,
@@ -1390,7 +1526,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 43
+        "y": 46
       },
       "id": 32,
       "interval": null,
@@ -1442,7 +1578,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 43
+        "y": 46
       },
       "id": 14,
       "interval": null,
@@ -1496,7 +1632,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 51
+        "y": 54
       },
       "id": 38,
       "interval": "",
@@ -1550,7 +1686,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 51
+        "y": 54
       },
       "id": 12,
       "interval": null,
@@ -1614,7 +1750,7 @@
     ]
   },
   "time": {
-    "from": "now-24h",
+    "from": "now-6h",
     "to": "now"
   },
   "timepicker": {
@@ -1633,6 +1769,6 @@
   },
   "timezone": "",
   "title": "blocky",
-  "uid": "XMTgFM_Zk",
-  "version": 8
+  "uid": "JvOqE4gRk",
+  "version": 21
 }
