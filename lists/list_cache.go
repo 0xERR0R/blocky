@@ -258,7 +258,7 @@ func downloadFile(link string) (io.ReadCloser, error) {
 
 			_ = resp.Body.Close()
 
-			return nil, fmt.Errorf("couldn't download url, got status code %d", resp.StatusCode)
+			return nil, fmt.Errorf("couldn't download url '%s', got status code %d", link, resp.StatusCode)
 		}
 
 		if errNet, ok := err.(net.Error); ok && (errNet.Timeout() || errNet.Temporary()) {
