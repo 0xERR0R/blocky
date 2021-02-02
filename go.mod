@@ -16,7 +16,7 @@ require (
 	github.com/miekg/dns v1.1.37
 	github.com/mroth/weightedrand v0.4.1
 	github.com/onsi/ginkgo v1.14.2
-	github.com/onsi/gomega v1.10.4
+	github.com/onsi/gomega v1.10.5
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/prometheus/client_golang v1.9.0
 	github.com/sirupsen/logrus v1.7.0
