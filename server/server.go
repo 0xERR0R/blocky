@@ -1,6 +1,7 @@
 package server
 
 import (
+	"blocky/api"
 	"blocky/config"
 	"blocky/metrics"
 	"blocky/resolver"
@@ -74,10 +75,11 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	metrics.RegisterEventListeners()
 
+	queryResolver := createQueryResolver(cfg)
 	server = &Server{
 		udpServer:     udpServer,
 		tcpServer:     tcpServer,
-		queryResolver: createQueryResolver(cfg, router),
+		queryResolver: queryResolver,
 		cfg:           cfg,
 		httpListener:  httpListener,
 		httpsListener: httpsListener,
@@ -90,7 +92,21 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 	server.registerDNSHandlers(tcpServer)
 	server.registerAPIEndpoints(router)
 
+	registerResolverAPIEndpoints(router, queryResolver)
+
 	return server, nil
+}
+
+func registerResolverAPIEndpoints(router chi.Router, res resolver.Resolver) {
+	for res != nil {
+		api.RegisterEndpoint(router, res)
+
+		if cr, ok := res.(resolver.ChainedResolver); ok {
+			res = cr.GetNext()
+		} else {
+			return
+		}
+	}
 }
 
 func createTCPServer(address string) *dns.Server {
@@ -119,7 +135,7 @@ func createUDPServer(address string) *dns.Server {
 	return udpServer
 }
 
-func createQueryResolver(cfg *config.Config, router *chi.Mux) resolver.Resolver {
+func createQueryResolver(cfg *config.Config) resolver.Resolver {
 	return resolver.Chain(
 		resolver.NewClientNamesResolver(cfg.ClientLookup),
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
@@ -127,7 +143,7 @@ func createQueryResolver(cfg *config.Config, router *chi.Mux) resolver.Resolver 
 		resolver.NewMetricsResolver(cfg.Prometheus),
 		resolver.NewConditionalUpstreamResolver(cfg.Conditional),
 		resolver.NewCustomDNSResolver(cfg.CustomDNS),
-		resolver.NewBlockingResolver(router, cfg.Blocking),
+		resolver.NewBlockingResolver(cfg.Blocking),
 		resolver.NewCachingResolver(cfg.Caching),
 		resolver.NewParallelBestResolver(cfg.Upstream.ExternalResolvers),
 	)

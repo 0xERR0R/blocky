@@ -1,19 +1,15 @@
 package resolver
 
 import (
-	"blocky/api"
 	"blocky/config"
 	. "blocky/evt"
 	. "blocky/helpertest"
 	"blocky/lists"
 	"blocky/util"
 
-	"encoding/json"
-	"net/http"
 	"os"
 	"time"
 
-	"github.com/go-chi/chi"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -63,7 +59,7 @@ badcnamedomain.com`)
 	JustBeforeEach(func() {
 		m = &resolverMock{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
-		sut = NewBlockingResolver(chi.NewRouter(), sutConfig).(*BlockingResolver)
+		sut = NewBlockingResolver(sutConfig).(*BlockingResolver)
 		sut.Next(m)
 	})
 
@@ -92,7 +88,7 @@ badcnamedomain.com`)
 				Expect(err).Should(Succeed())
 
 				// recreate to trigger a reload
-				sut = NewBlockingResolver(chi.NewRouter(), sutConfig).(*BlockingResolver)
+				sut = NewBlockingResolver(sutConfig).(*BlockingResolver)
 
 				time.Sleep(time.Second)
 
@@ -449,8 +445,7 @@ badcnamedomain.com`)
 				})
 
 				By("Calling Rest API to deactivate", func() {
-					httpCode, _ := DoGetRequest("/api/blocking/disable", sut.apiBlockingDisable)
-					Expect(httpCode).Should(Equal(http.StatusOK))
+					sut.DisableBlocking(0)
 				})
 
 				By("perform the same query again", func() {
@@ -463,14 +458,6 @@ badcnamedomain.com`)
 					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
 				})
 
-			})
-		})
-
-		When("Disable blocking is called with a wrong parameter", func() {
-			It("Should return http bad request as return code", func() {
-				httpCode, _ := DoGetRequest("/api/blocking/disable?duration=xyz", sut.apiBlockingDisable)
-
-				Expect(httpCode).Should(Equal(http.StatusBadRequest))
 			})
 		})
 
@@ -487,9 +474,8 @@ badcnamedomain.com`)
 					err := Bus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
 						enabled = state
 					})
-					httpCode, _ := DoGetRequest("/api/blocking/disable?duration=500ms", sut.apiBlockingDisable)
+					sut.DisableBlocking(500 * time.Millisecond)
 					Expect(err).Should(Succeed())
-					Expect(httpCode).Should(Equal(http.StatusOK))
 					Expect(enabled).Should(BeFalse())
 				})
 
@@ -522,32 +508,20 @@ badcnamedomain.com`)
 		When("Blocking status is called", func() {
 			It("should return correct status", func() {
 				By("enable blocking via API", func() {
-					httpCode, _ := DoGetRequest("/api/blocking/enable", sut.apiBlockingEnable)
-					Expect(httpCode).Should(Equal(http.StatusOK))
+					sut.EnableBlocking()
 				})
 
 				By("Query blocking status via API should return 'enabled'", func() {
-					httpCode, body := DoGetRequest("/api/blocking/status", sut.apiBlockingStatus)
-					Expect(httpCode).Should(Equal(http.StatusOK))
-					var result api.BlockingStatus
-					err := json.NewDecoder(body).Decode(&result)
-					Expect(err).Should(Succeed())
-
+					result := sut.BlockingStatus()
 					Expect(result.Enabled).Should(BeTrue())
 				})
 
 				By("disable blocking via API", func() {
-					httpCode, _ := DoGetRequest("/api/blocking/disable?duration=500ms", sut.apiBlockingDisable)
-					Expect(httpCode).Should(Equal(http.StatusOK))
+					sut.DisableBlocking(500 * time.Millisecond)
 				})
 
 				By("Query blocking status via API again should return 'disabled'", func() {
-					httpCode, body := DoGetRequest("/api/blocking/status", sut.apiBlockingStatus)
-					Expect(httpCode).Should(Equal(http.StatusOK))
-
-					var result api.BlockingStatus
-					err := json.NewDecoder(body).Decode(&result)
-					Expect(err).Should(Succeed())
+					result := sut.BlockingStatus()
 
 					Expect(result.Enabled).Should(BeFalse())
 				})
@@ -591,7 +565,7 @@ badcnamedomain.com`)
 
 				logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
 
-				_ = NewBlockingResolver(chi.NewRouter(), config.BlockingConfig{
+				_ = NewBlockingResolver(config.BlockingConfig{
 					BlockType: "wrong",
 				})
 

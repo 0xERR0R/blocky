@@ -6,17 +6,14 @@ import (
 	"blocky/evt"
 	"blocky/lists"
 	"blocky/util"
-	"encoding/json"
 	"fmt"
 	"net"
-	"net/http"
 	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi"
 	"github.com/miekg/dns"
 	log "github.com/sirupsen/logrus"
 )
@@ -57,34 +54,6 @@ type status struct {
 	disableEnd  time.Time
 }
 
-func (r *BlockingResolver) enableBlocking() {
-	s := r.status
-	s.enableTimer.Stop()
-	s.enabled = true
-
-	evt.Bus().Publish(evt.BlockingEnabledEvent, true)
-}
-
-func (r *BlockingResolver) disableBlocking(duration time.Duration) {
-	s := r.status
-	s.enableTimer.Stop()
-	s.enabled = false
-
-	evt.Bus().Publish(evt.BlockingEnabledEvent, false)
-
-	s.disableEnd = time.Now().Add(duration)
-
-	if duration == 0 {
-		log.Info("disable blocking")
-	} else {
-		log.Infof("disable blocking for %s", duration)
-		s.enableTimer = time.AfterFunc(duration, func() {
-			r.enableBlocking()
-			log.Info("blocking enabled again")
-		})
-	}
-}
-
 // checks request's question (domain name) against black and white lists
 type BlockingResolver struct {
 	NextResolver
@@ -96,7 +65,7 @@ type BlockingResolver struct {
 	status              *status
 }
 
-func NewBlockingResolver(router *chi.Mux, cfg config.BlockingConfig) ChainedResolver {
+func NewBlockingResolver(cfg config.BlockingConfig) ChainedResolver {
 	blockHandler := createBlockHandler(cfg)
 	blacklistMatcher := lists.NewListCache(lists.BLACKLIST, cfg.BlackLists, cfg.RefreshPeriod)
 	whitelistMatcher := lists.NewListCache(lists.WHITELIST, cfg.WhiteLists, cfg.RefreshPeriod)
@@ -114,74 +83,47 @@ func NewBlockingResolver(router *chi.Mux, cfg config.BlockingConfig) ChainedReso
 		},
 	}
 
-	// register API endpoints
-	router.Get(api.BlockingEnablePath, res.apiBlockingEnable)
-	router.Get(api.BlockingDisablePath, res.apiBlockingDisable)
-	router.Get(api.BlockingStatusPath, res.apiBlockingStatus)
-
 	return res
 }
 
-// apiBlockingEnable is the http endpoint to enable the blocking status
-// @Summary Enable blocking
-// @Description enable the blocking status
-// @Tags blocking
-// @Success 200   "Blocking is enabled"
-// @Router /blocking/enable [get]
-func (r *BlockingResolver) apiBlockingEnable(_ http.ResponseWriter, _ *http.Request) {
-	log.Info("enabling blocking...")
-	r.enableBlocking()
+func (r *BlockingResolver) EnableBlocking() {
+	s := r.status
+	s.enableTimer.Stop()
+	s.enabled = true
+
+	evt.Bus().Publish(evt.BlockingEnabledEvent, true)
 }
 
-// apiBlockingStatus is the http endpoint to get current blocking status
-// @Summary Blocking status
-// @Description get current blocking status
-// @Tags blocking
-// @Produce  json
-// @Success 200 {object} api.BlockingStatus "Returns current blocking status"
-// @Router /blocking/status [get]
-func (r *BlockingResolver) apiBlockingStatus(rw http.ResponseWriter, _ *http.Request) {
+func (r *BlockingResolver) DisableBlocking(duration time.Duration) {
+	s := r.status
+	s.enableTimer.Stop()
+	s.enabled = false
+
+	evt.Bus().Publish(evt.BlockingEnabledEvent, false)
+
+	s.disableEnd = time.Now().Add(duration)
+
+	if duration == 0 {
+		log.Info("disable blocking")
+	} else {
+		log.Infof("disable blocking for %s", duration)
+		s.enableTimer = time.AfterFunc(duration, func() {
+			r.EnableBlocking()
+			log.Info("blocking enabled again")
+		})
+	}
+}
+
+func (r *BlockingResolver) BlockingStatus() api.BlockingStatus {
 	var autoEnableDuration time.Duration
 	if !r.status.enabled && r.status.disableEnd.After(time.Now()) {
 		autoEnableDuration = time.Until(r.status.disableEnd)
 	}
 
-	response, _ := json.Marshal(api.BlockingStatus{
+	return api.BlockingStatus{
 		Enabled:         r.status.enabled,
 		AutoEnableInSec: uint(autoEnableDuration.Seconds()),
-	})
-	_, err := rw.Write(response)
-
-	util.LogOnError("unable to write response ", err)
-}
-
-// apiBlockingDisable is the http endpoint to disable the blocking status
-// @Summary Disable blocking
-// @Description disable the blocking status
-// @Tags blocking
-// @Param duration query string false "duration of blocking (Example: 300s, 5m, 1h, 5m30s)" Format(duration)
-// @Success 200   "Blocking is disabled"
-// @Failure 400   "Wrong duration format"
-// @Router /blocking/disable [get]
-func (r *BlockingResolver) apiBlockingDisable(rw http.ResponseWriter, req *http.Request) {
-	var (
-		duration time.Duration
-		err      error
-	)
-
-	// parse duration from query parameter
-	durationParam := req.URL.Query().Get("duration")
-	if len(durationParam) > 0 {
-		duration, err = time.ParseDuration(durationParam)
-		if err != nil {
-			log.Errorf("wrong duration format '%s'", durationParam)
-			rw.WriteHeader(http.StatusBadRequest)
-
-			return
-		}
 	}
-
-	r.disableBlocking(duration)
 }
 
 // returns groups, which have only whitelist entries
