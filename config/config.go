@@ -123,16 +123,11 @@ func ParseUpstream(upstream string) (result Upstream, err error) {
 	var port uint16
 
 	if len(portPart) > 0 {
-		var p int
-		p, err = strconv.Atoi(strings.TrimSpace(portPart))
+		var p uint64
+		p, err = strconv.ParseUint(strings.TrimSpace(portPart), 10, 16)
 
 		if err != nil {
-			err = fmt.Errorf("can't convert port to number %v", err)
-			return
-		}
-
-		if p < 1 || p > 65535 {
-			err = fmt.Errorf("invalid port %d", p)
+			err = fmt.Errorf("can't convert port to number (1 - 65535) %v", err)
 			return
 		}
 

@@ -80,7 +80,7 @@ func TestUDPUpstream(fn func(request *dns.Msg) (response *dns.Msg)) config.Upstr
 
 	ladr := ln.LocalAddr().String()
 	host := strings.Split(ladr, ":")[0]
-	p, err := strconv.Atoi(strings.Split(ladr, ":")[1])
+	p, err := strconv.ParseUint(strings.Split(ladr, ":")[1], 10, 16)
 
 	util.FatalOnError("can't convert port: ", err)
 
