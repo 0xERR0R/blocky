@@ -58,7 +58,7 @@ func (r *CustomDNSResolver) Resolve(request *Request) (*Response, error) {
 					response.SetReply(request.Req)
 
 					if isSupportedType(ip, question) {
-						rr := util.CreateAnswerFromQuestion(question, ip, customDNSTTL)
+						rr, _ := util.CreateAnswerFromQuestion(question, ip, customDNSTTL)
 
 						response.Answer = append(response.Answer, rr)
 

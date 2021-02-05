@@ -40,7 +40,7 @@ func QuestionToString(questions []dns.Question) string {
 	return strings.Join(result, ", ")
 }
 
-func CreateAnswerFromQuestion(question dns.Question, ip net.IP, remainingTTL uint32) dns.RR {
+func CreateAnswerFromQuestion(question dns.Question, ip net.IP, remainingTTL uint32) (dns.RR, error) {
 	h := dns.RR_Header{Name: question.Name, Rrtype: question.Qtype, Class: dns.ClassINET, Ttl: remainingTTL}
 
 	switch question.Qtype {
@@ -49,26 +49,19 @@ func CreateAnswerFromQuestion(question dns.Question, ip net.IP, remainingTTL uin
 		a.A = ip
 		a.Hdr = h
 
-		return a
+		return a, nil
 	case dns.TypeAAAA:
 		a := new(dns.AAAA)
 		a.AAAA = ip
 		a.Hdr = h
 
-		return a
+		return a, nil
 	}
 
 	log.Errorf("Using fallback for unsupported query type %s", dns.TypeToString[question.Qtype])
 
-	rr, err := dns.NewRR(fmt.Sprintf("%s %d %s %s %s",
+	return dns.NewRR(fmt.Sprintf("%s %d %s %s %s",
 		question.Name, remainingTTL, "IN", dns.TypeToString[question.Qtype], ip))
-
-	if err != nil {
-		log.Errorf("Can't create fallback for: %s %d %s %s %s",
-			question.Name, remainingTTL, "IN", dns.TypeToString[question.Qtype], ip)
-	}
-
-	return rr
 }
 
 func ExtractDomain(question dns.Question) string {

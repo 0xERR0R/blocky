@@ -350,7 +350,7 @@ func (b zeroIPBlockHandler) handleBlock(question dns.Question, response *dns.Msg
 		zeroIP = net.IPv4zero
 	}
 
-	rr := util.CreateAnswerFromQuestion(question, zeroIP, blockTTL)
+	rr, _ := util.CreateAnswerFromQuestion(question, zeroIP, blockTTL)
 
 	response.Answer = append(response.Answer, rr)
 }
@@ -361,8 +361,10 @@ func (b nxDomainBlockHandler) handleBlock(_ dns.Question, response *dns.Msg) {
 
 func (b ipBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
 	for _, ip := range b.destinations {
+		answer, _ := util.CreateAnswerFromQuestion(question, ip, blockTTL)
+
 		if (question.Qtype == dns.TypeAAAA && ip.To4() == nil) || (question.Qtype == dns.TypeA && ip.To4() != nil) {
-			response.Answer = append(response.Answer, util.CreateAnswerFromQuestion(question, ip, blockTTL))
+			response.Answer = append(response.Answer, answer)
 		}
 	}
 

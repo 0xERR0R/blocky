@@ -3,7 +3,6 @@ package resolver
 import (
 	"blocky/config"
 	. "blocky/helpertest"
-
 	"net"
 
 	"github.com/miekg/dns"
