@@ -24,7 +24,7 @@ func AnswerToString(answer []dns.RR) string {
 		case *dns.PTR:
 			answers[i] = fmt.Sprintf("PTR (%s)", v.Ptr)
 		default:
-			answers[i] = fmt.Sprint(record)
+			answers[i] = fmt.Sprint(record.String())
 		}
 	}
 
@@ -134,4 +134,32 @@ func FatalOnError(message string, err error) {
 	if err != nil {
 		log.Fatal(message, err)
 	}
+}
+
+// Chunks splits the string in multiple chunks
+func Chunks(s string, chunkSize int) []string {
+	if chunkSize >= len(s) {
+		return []string{s}
+	}
+
+	var chunks []string
+
+	chunk := make([]rune, chunkSize)
+	ln := 0
+
+	for _, r := range s {
+		chunk[ln] = r
+		ln++
+
+		if ln == chunkSize {
+			chunks = append(chunks, string(chunk))
+			ln = 0
+		}
+	}
+
+	if ln > 0 {
+		chunks = append(chunks, string(chunk[:ln]))
+	}
+
+	return chunks
 }

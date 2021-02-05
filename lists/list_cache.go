@@ -2,6 +2,7 @@ package lists
 
 import (
 	"blocky/evt"
+	"blocky/util"
 	"bufio"
 	"fmt"
 	"io"
@@ -191,7 +192,7 @@ Loop:
 	}
 
 	for k, v := range tmp {
-		chunks := chunks(v.String(), k)
+		chunks := util.Chunks(v.String(), k)
 		sort.Strings(chunks)
 
 		cache[k] = strings.Join(chunks, "")
@@ -334,33 +335,6 @@ func processFile(link string, ch chan<- []string, wg *sync.WaitGroup) {
 		}).Info("file imported")
 	}
 	ch <- result
-}
-
-func chunks(s string, chunkSize int) []string {
-	if chunkSize >= len(s) {
-		return []string{s}
-	}
-
-	var chunks []string
-
-	chunk := make([]rune, chunkSize)
-	len := 0
-
-	for _, r := range s {
-		chunk[len] = r
-		len++
-
-		if len == chunkSize {
-			chunks = append(chunks, string(chunk))
-			len = 0
-		}
-	}
-
-	if len > 0 {
-		chunks = append(chunks, string(chunk[:len]))
-	}
-
-	return chunks
 }
 
 // return only first column (see hosts format)
