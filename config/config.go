@@ -1,11 +1,9 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -99,22 +97,7 @@ func ParseUpstream(upstream string) (result Upstream, err error) {
 
 	match := r.FindStringSubmatch(upstream)
 
-	if len(match) == 0 {
-		err = fmt.Errorf("wrong configuration, couldn't parse input '%s', please enter [net:]host[:port][/path]", upstream)
-		return
-	}
-
-	if _, ok := netDefaultPort[n]; !ok {
-		err = fmt.Errorf("wrong configuration, couldn't parse net '%s', please use one of %s",
-			n, reflect.ValueOf(netDefaultPort).MapKeys())
-		return
-	}
-
 	host := match[1]
-	if len(host) == 0 {
-		err = errors.New("wrong configuration, host wasn't specified")
-		return
-	}
 
 	portPart := match[2]
 
