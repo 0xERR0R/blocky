@@ -25,7 +25,9 @@ var _ = Describe("Lists command", func() {
 	Describe("Call list refresh command", func() {
 		When("list refresh is executed", func() {
 			It("should print result", func() {
-				err := newRefreshCommand().Execute()
+				c := NewListsCommand()
+				c.SetArgs([]string{"refresh"})
+				err := c.Execute()
 				Expect(err).Should(Succeed())
 
 				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("OK"))
