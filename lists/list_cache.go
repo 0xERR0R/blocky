@@ -125,7 +125,7 @@ func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeri
 		refreshPeriod: p,
 		listType:      t,
 	}
-	b.refresh()
+	b.Refresh()
 
 	go periodicUpdate(b)
 
@@ -140,7 +140,7 @@ func periodicUpdate(cache *ListCache) {
 
 		for {
 			<-ticker.C
-			cache.refresh()
+			cache.Refresh()
 		}
 	}
 }
@@ -216,7 +216,7 @@ func (b *ListCache) Match(domain string, groupsToCheck []string) (found bool, gr
 	return false, ""
 }
 
-func (b *ListCache) refresh() {
+func (b *ListCache) Refresh() {
 	for group, links := range b.groupToLinks {
 		cacheForGroup := createCacheForGroup(links)
 

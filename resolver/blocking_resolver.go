@@ -57,8 +57,8 @@ type status struct {
 // checks request's question (domain name) against black and white lists
 type BlockingResolver struct {
 	NextResolver
-	blacklistMatcher    lists.Matcher
-	whitelistMatcher    lists.Matcher
+	blacklistMatcher    *lists.ListCache
+	whitelistMatcher    *lists.ListCache
 	cfg                 config.BlockingConfig
 	blockHandler        blockHandler
 	whitelistOnlyGroups []string
@@ -86,6 +86,10 @@ func NewBlockingResolver(cfg config.BlockingConfig) ChainedResolver {
 	return res
 }
 
+func (r *BlockingResolver) RefreshLists() {
+	r.blacklistMatcher.Refresh()
+	r.whitelistMatcher.Refresh()
+}
 func (r *BlockingResolver) EnableBlocking() {
 	s := r.status
 	s.enableTimer.Stop()

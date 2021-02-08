@@ -51,7 +51,7 @@ var _ = Describe("Blocking command", func() {
 				}
 			})
 			It("should print result", func() {
-				query(queryCmd, []string{"google.de"})
+				query(NewQueryCommand(), []string{"google.de"})
 
 				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("NOERROR"))
 			})
@@ -63,16 +63,25 @@ var _ = Describe("Blocking command", func() {
 				}
 			})
 			It("should end with error", func() {
-				query(queryCmd, []string{"google.de"})
+				query(NewQueryCommand(), []string{"google.de"})
 				Expect(fatal).Should(BeTrue())
 				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("NOK: 500 Internal Server Error"))
 			})
 		})
-		When("Url is wrong", func() {
+		When("Type is wrong", func() {
+			It("should end with error", func() {
 
+				command := NewQueryCommand()
+				command.SetArgs([]string{"--type", "X", "google.de"})
+				_ = command.Execute()
+				Expect(fatal).Should(BeTrue())
+				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("unknown query type 'X'"))
+			})
+		})
+		When("Url is wrong", func() {
 			It("should end with error", func() {
 				apiPort = 0
-				query(queryCmd, []string{"google.de"})
+				query(NewQueryCommand(), []string{"google.de"})
 				Expect(fatal).Should(BeTrue())
 				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("connection refused"))
 			})

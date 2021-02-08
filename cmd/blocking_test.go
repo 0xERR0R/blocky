@@ -29,14 +29,14 @@ var _ = Describe("Blocking command", func() {
 	Describe("enable blocking", func() {
 		When("Enable blocking is called via REST", func() {
 			It("should enable the blocking status", func() {
-				enableBlocking(blockingCmd, []string{})
+				enableBlocking(newBlockingCommand(), []string{})
 				Expect(loggerHook.LastEntry().Message).Should(Equal("OK"))
 			})
 		})
 		When("Wrong url is used", func() {
 			It("Should end with error", func() {
 				apiPort = 0
-				enableBlocking(blockingCmd, []string{})
+				enableBlocking(newBlockingCommand(), []string{})
 				Expect(fatal).Should(BeTrue())
 				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("connection refused"))
 			})
@@ -48,7 +48,7 @@ var _ = Describe("Blocking command", func() {
 				}
 			})
 			It("Should end with error", func() {
-				enableBlocking(blockingCmd, []string{})
+				enableBlocking(newBlockingCommand(), []string{})
 				Expect(fatal).Should(BeTrue())
 				Expect(loggerHook.LastEntry().Message).Should(Equal("NOK: 500 Internal Server Error"))
 			})
@@ -57,14 +57,14 @@ var _ = Describe("Blocking command", func() {
 	Describe("disable blocking", func() {
 		When("disable blocking is called via REST", func() {
 			It("should enable the blocking status", func() {
-				disableBlocking(blockingCmd, []string{})
+				disableBlocking(newBlockingCommand(), []string{})
 				Expect(loggerHook.LastEntry().Message).Should(Equal("OK"))
 			})
 		})
 		When("Wrong url is used", func() {
 			It("Should end with error", func() {
 				apiPort = 0
-				disableBlocking(blockingCmd, []string{})
+				disableBlocking(newBlockingCommand(), []string{})
 				Expect(fatal).Should(BeTrue())
 				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("connection refused"))
 			})
@@ -76,7 +76,7 @@ var _ = Describe("Blocking command", func() {
 				}
 			})
 			It("Should end with error", func() {
-				disableBlocking(blockingCmd, []string{})
+				disableBlocking(newBlockingCommand(), []string{})
 				Expect(fatal).Should(BeTrue())
 				Expect(loggerHook.LastEntry().Message).Should(Equal("NOK: 500 Internal Server Error"))
 			})
@@ -95,7 +95,7 @@ var _ = Describe("Blocking command", func() {
 				}
 			})
 			It("should query the blocking status", func() {
-				statusBlocking(blockingCmd, []string{})
+				statusBlocking(newBlockingCommand(), []string{})
 				Expect(loggerHook.LastEntry().Message).Should(Equal("blocking enabled"))
 			})
 		})
@@ -113,19 +113,19 @@ var _ = Describe("Blocking command", func() {
 			})
 			It("should show the blocking status with time", func() {
 				autoEnable = 5
-				statusBlocking(blockingCmd, []string{})
+				statusBlocking(newBlockingCommand(), []string{})
 				Expect(loggerHook.LastEntry().Message).Should(Equal("blocking disabled for 5 seconds"))
 			})
 			It("should show the blocking status", func() {
 				autoEnable = 0
-				statusBlocking(blockingCmd, []string{})
+				statusBlocking(newBlockingCommand(), []string{})
 				Expect(loggerHook.LastEntry().Message).Should(Equal("blocking disabled"))
 			})
 		})
 		When("Wrong url is used", func() {
 			It("Should end with error", func() {
 				apiPort = 0
-				statusBlocking(blockingCmd, []string{})
+				statusBlocking(newBlockingCommand(), []string{})
 				Expect(fatal).Should(BeTrue())
 				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("connection refused"))
 			})
@@ -137,7 +137,7 @@ var _ = Describe("Blocking command", func() {
 				}
 			})
 			It("Should end with error", func() {
-				statusBlocking(blockingCmd, []string{})
+				statusBlocking(newBlockingCommand(), []string{})
 				Expect(fatal).Should(BeTrue())
 				Expect(loggerHook.LastEntry().Message).Should(Equal("NOK: 500 Internal Server Error"))
 			})

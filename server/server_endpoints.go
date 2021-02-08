@@ -28,7 +28,7 @@ const (
 )
 
 func (s *Server) registerAPIEndpoints(router *chi.Mux) {
-	router.Post(api.BlockingQueryPath, s.apiQuery)
+	router.Post(api.PathQueryPath, s.apiQuery)
 
 	router.Get("/dns-query", s.dohGetRequestHandler)
 	router.Post("/dns-query", s.dohPostRequestHandler)

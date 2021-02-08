@@ -110,7 +110,7 @@ var _ = Describe("ListCache", func() {
 					Expect(group).Should(Equal("gr1"))
 				})
 
-				sut.refresh()
+				sut.Refresh()
 
 				By("List couldn't be loaded due to timeout", func() {
 					found, group := sut.Match("blocked1.com", []string{"gr1"})
@@ -146,7 +146,7 @@ var _ = Describe("ListCache", func() {
 					Expect(group).Should(Equal("gr1"))
 				})
 
-				sut.refresh()
+				sut.Refresh()
 				time.Sleep(time.Second)
 
 				By("List couldn't be loaded due to 404 error", func() {

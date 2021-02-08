@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"blocky/api"
+	"blocky/util"
 	"bytes"
 	"encoding/json"
 	"io/ioutil"
@@ -13,18 +14,17 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-//nolint:gochecknoinits
-func init() {
-	rootCmd.AddCommand(queryCmd)
-	queryCmd.Flags().StringP("type", "t", "A", "query type (A, AAAA, ...)")
-}
+func NewQueryCommand() *cobra.Command {
+	c := &cobra.Command{
+		Use:   "query <domain>",
+		Args:  cobra.ExactArgs(1),
+		Short: "performs DNS query",
+		Run:   query,
+	}
 
-//nolint:gochecknoglobals
-var queryCmd = &cobra.Command{
-	Use:   "query <domain>",
-	Args:  cobra.ExactArgs(1),
-	Short: "performs DNS query",
-	Run:   query,
+	c.Flags().StringP("type", "t", "A", "query type (A, AAAA, ...)")
+
+	return c
 }
 
 func query(cmd *cobra.Command, args []string) {
@@ -33,6 +33,7 @@ func query(cmd *cobra.Command, args []string) {
 
 	if qType == dns.TypeNone {
 		log.Fatalf("unknown query type '%s'", typeFlag)
+		return
 	}
 
 	apiRequest := api.QueryRequest{
@@ -41,7 +42,7 @@ func query(cmd *cobra.Command, args []string) {
 	}
 	jsonValue, _ := json.Marshal(apiRequest)
 
-	resp, err := http.Post(apiURL(api.BlockingQueryPath), "application/json", bytes.NewBuffer(jsonValue))
+	resp, err := http.Post(apiURL(api.PathQueryPath), "application/json", bytes.NewBuffer(jsonValue))
 
 	if err != nil {
 		log.Fatal("can't execute", err)
@@ -60,11 +61,7 @@ func query(cmd *cobra.Command, args []string) {
 	var result api.QueryResult
 	err = json.NewDecoder(resp.Body).Decode(&result)
 
-	if err != nil {
-		log.Fatal("can't read response: ", err)
-
-		return
-	}
+	util.FatalOnError("can't read response: ", err)
 
 	log.Infof("Query result for '%s' (%s):", apiRequest.Query, apiRequest.Type)
 	log.Infof("\treason:        %20s", result.Reason)
