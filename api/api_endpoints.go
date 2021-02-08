@@ -16,22 +16,50 @@ type BlockingControl interface {
 	BlockingStatus() BlockingStatus
 }
 
+type ListRefresher interface {
+	RefreshLists()
+}
+
 type BlockingEndpoint struct {
 	control BlockingControl
 }
 
+type ListRefreshEndpoint struct {
+	refresher ListRefresher
+}
+
 func RegisterEndpoint(router chi.Router, t interface{}) {
-	if bc, ok := t.(BlockingControl); ok {
-		registerBlockingEndpoints(router, bc)
+	if a, ok := t.(BlockingControl); ok {
+		registerBlockingEndpoints(router, a)
 	}
+
+	if a, ok := t.(ListRefresher); ok {
+		registerListRefreshEndpoints(router, a)
+	}
+}
+
+func registerListRefreshEndpoints(router chi.Router, refresher ListRefresher) {
+	l := &ListRefreshEndpoint{refresher}
+
+	router.Post(PathListsRefresh, l.apiListRefresh)
+}
+
+// apiListRefresh is the http endpoint to trigger the refresh of all lists
+// @Summary List refresh
+// @Description Refresh all lists
+// @Tags lists
+// @Success 200   "Lists were reloaded"
+// @Router /lists/refresh [post]
+func (l *ListRefreshEndpoint) apiListRefresh(_ http.ResponseWriter, _ *http.Request) {
+	l.refresher.RefreshLists()
 }
 
 func registerBlockingEndpoints(router chi.Router, control BlockingControl) {
 	s := &BlockingEndpoint{control}
 	// register API endpoints
-	router.Get(BlockingEnablePath, s.apiBlockingEnable)
-	router.Get(BlockingDisablePath, s.apiBlockingDisable)
-	router.Get(BlockingStatusPath, s.apiBlockingStatus)
+	router.Get(PathBlockingEnablePath, s.apiBlockingEnable)
+	router.Get(PathBlockingDisablePath, s.apiBlockingDisable)
+	router.Get(PathBlockingStatusPath, s.apiBlockingStatus)
 }
 
 // apiBlockingEnable is the http endpoint to enable the blocking status

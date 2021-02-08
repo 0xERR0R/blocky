@@ -11,10 +11,11 @@
 package api
 
 const (
-	BlockingStatusPath  = "/api/blocking/status"
-	BlockingEnablePath  = "/api/blocking/enable"
-	BlockingDisablePath = "/api/blocking/disable"
-	BlockingQueryPath   = "/api/query"
+	PathBlockingStatusPath  = "/api/blocking/status"
+	PathBlockingEnablePath  = "/api/blocking/enable"
+	PathBlockingDisablePath = "/api/blocking/disable"
+	PathListsRefresh        = "/api/lists/refresh"
+	PathQueryPath           = "/api/query"
 )
 
 type QueryRequest struct {
