@@ -69,35 +69,35 @@ blocking:
       - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
       - https://mirror1.malwaredomains.com/files/justdomains
       - http://sysctl.org/cameleon/hosts
-        - https://zeustracker.abuse.ch/blocklist.php?download=domainblocklist
-        - https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt
-      special:
-        - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
-    # definition of whitelist groups. Attention: if the same group has black and whitelists, whitelists will be used to disable particular blacklist entries. If a group has only whitelist entries -> this means only domains from this list are allowed, all other domains will be blocked
-    whiteLists:
-      ads:
-        - whitelist.txt
-    # definition: which groups should be applied for which client
-    clientGroupsBlock:
-      # default will be used, if no special definition for a client name exists
-      default:
-        - ads
-        - special
-      # use client name (with wildcard support: * - sequence of any characters, [0-9] - range)
-      # or single ip address / client subnet as CIDR notation
-      laptop*:
-        - ads
-      192.168.178.1/24:
-        - special
-    # which response will be sent, if query is blocked:
-    # zeroIp: 0.0.0.0 will be returned (default)
-    # nxDomain: return NXDOMAIN as return code
-    # comma separated list of destination IP adresses (for example: 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344). Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page.
-    blockType: zeroIp
-    # optional: automatically list refresh period in minutes. Default: 4h.
-    # Negative value -> deactivate automatically refresh.
-    # 0 value -> use default
-    refreshPeriod: 0
+      - https://zeustracker.abuse.ch/blocklist.php?download=domainblocklist
+      - https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt
+    special:
+      - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
+  # definition of whitelist groups. Attention: if the same group has black and whitelists, whitelists will be used to disable particular blacklist entries. If a group has only whitelist entries -> this means only domains from this list are allowed, all other domains will be blocked
+  whiteLists:
+    ads:
+      - whitelist.txt
+  # definition: which groups should be applied for which client
+  clientGroupsBlock:
+    # default will be used, if no special definition for a client name exists
+    default:
+      - ads
+      - special
+    # use client name (with wildcard support: * - sequence of any characters, [0-9] - range)
+    # or single ip address / client subnet as CIDR notation
+    laptop*:
+      - ads
+    192.168.178.1/24:
+      - special
+  # which response will be sent, if query is blocked:
+  # zeroIp: 0.0.0.0 will be returned (default)
+  # nxDomain: return NXDOMAIN as return code
+  # comma separated list of destination IP adresses (for example: 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344). Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page.
+  blockType: zeroIp
+  # optional: automatically list refresh period in minutes. Default: 4h.
+  # Negative value -> deactivate automatically refresh.
+  # 0 value -> use default
+  refreshPeriod: 0
 
 # optional: configuration for caching of DNS responses
 caching:
