@@ -59,6 +59,8 @@ conditional:
   mapping:
     fritz.box: udp:192.168.178.1
     lan.net: udp:192.168.178.1,udp:192.168.178.2
+    # for reverse DNS lookups of local devices
+    178.168.192.in-addr.arpa: udp:192.168.178.1
 
 # optional: use black and white lists to block queries (for example ads, trackers, adult pages etc.)
 blocking:
