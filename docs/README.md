@@ -191,7 +191,7 @@ services:
 See [Wiki - Run with docker](https://github.com/0xERR0R/blocky/wiki/Run-with-docker) for more examples and additional information.
 
 ### Run standalone
-Download the binary file for your architecture and run `./blocky --config config.yml`. Please be aware, you must run the binary with root privileges if you want to use port 53 or 953.
+Download the binary file for your architecture and run `./blocky --config config.yml`. Please be aware, if you want to use port 53 or 953 on Linux you should add CAP_NET_BIND_SERVICE capability to the binary or run with root privileges (running as root is not recommended).
 
 ### Run with kubernetes (helm)
 See [this repo](https://github.com/k8s-at-home/charts/tree/master/charts/blocky) or [artifacthub](https://hub.helm.sh/charts/k8s-at-home/blocky) for details about running blocky via helm in kubernetes.
