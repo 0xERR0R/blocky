@@ -64,6 +64,12 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	var httpListener, httpsListener net.Listener
 
+	if level, err := logrus.ParseLevel(cfg.LogLevel); err != nil {
+		logrus.Fatalf("invalid log level %s %v", cfg.LogLevel, err)
+	} else {
+		logrus.SetLevel(level)
+	}
+
 	router := createRouter(cfg)
 
 	if cfg.HTTPPort > 0 {
