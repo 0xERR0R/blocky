@@ -98,6 +98,7 @@ var _ = Describe("Running DNS server", func() {
 
 			Port:     "55555",
 			HTTPPort: 4000,
+			LogLevel: "info",
 			Prometheus: config.PrometheusConfig{
 				Enable: true,
 				Path:   "/metrics",
@@ -469,7 +470,8 @@ var _ = Describe("Running DNS server", func() {
 						},
 					},
 
-					Port: ":55556",
+					Port:     ":55556",
+					LogLevel: "info",
 				})
 
 				Expect(err).Should(Succeed())
@@ -512,7 +514,8 @@ var _ = Describe("Running DNS server", func() {
 						},
 					},
 
-					Port: "127.0.0.1:55557",
+					Port:     "127.0.0.1:55557",
+					LogLevel: "info",
 				})
 
 				Expect(err).Should(Succeed())
