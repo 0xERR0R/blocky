@@ -43,6 +43,14 @@ func getServerAddress(cfg *config.Config) string {
 	return address
 }
 
+func initLogging(cfg *config.Config) {
+	if level, err := logrus.ParseLevel(cfg.LogLevel); err != nil {
+		logrus.Fatalf("invalid log level %s %v", cfg.LogLevel, err)
+	} else {
+		logrus.SetLevel(level)
+	}
+}
+
 func NewServer(cfg *config.Config) (server *Server, err error) {
 	address := getServerAddress(cfg)
 
@@ -51,11 +59,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	var httpListener, httpsListener net.Listener
 
-	if level, err := logrus.ParseLevel(cfg.LogLevel); err != nil {
-		logrus.Fatalf("invalid log level %s %v", cfg.LogLevel, err)
-	} else {
-		logrus.SetLevel(level)
-	}
+	initLogging(cfg)
 
 	router := createRouter(cfg)
 
@@ -116,7 +120,7 @@ func registerResolverAPIEndpoints(router chi.Router, res resolver.Resolver) {
 }
 
 func createTCPServer(address string) *dns.Server {
-	tcpServer := &dns.Server{
+	return &dns.Server{
 		Addr:    address,
 		Net:     "tcp",
 		Handler: dns.NewServeMux(),
@@ -124,12 +128,10 @@ func createTCPServer(address string) *dns.Server {
 			logger().Infof("tcp server is up and running on address %s", address)
 		},
 	}
-
-	return tcpServer
 }
 
 func createUDPServer(address string) *dns.Server {
-	udpServer := &dns.Server{
+	return &dns.Server{
 		Addr:    address,
 		Net:     "udp",
 		Handler: dns.NewServeMux(),
@@ -137,8 +139,6 @@ func createUDPServer(address string) *dns.Server {
 			logger().Infof("udp server is up and running on address %s", address)
 		},
 		UDPSize: 65535}
-
-	return udpServer
 }
 
 func createQueryResolver(cfg *config.Config) resolver.Resolver {
