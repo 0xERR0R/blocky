@@ -1,15 +1,15 @@
 package resolver_test
 
 import (
+	"blocky/log"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/sirupsen/logrus"
 )
 
 func TestResolver(t *testing.T) {
-	logrus.SetLevel(logrus.WarnLevel)
+	log.NewLogger("Warn", "text")
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Resolver Suite")
 }

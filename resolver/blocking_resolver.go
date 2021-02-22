@@ -14,8 +14,10 @@ import (
 	"strings"
 	"time"
 
+	"blocky/log"
+
 	"github.com/miekg/dns"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 func createBlockHandler(cfg config.BlockingConfig) blockHandler {
@@ -43,7 +45,7 @@ func createBlockHandler(cfg config.BlockingConfig) blockHandler {
 		}
 	}
 
-	log.Fatalf("unknown blockType, please use one of: ZeroIP, NxDomain or specify destination IP address(es)")
+	log.Logger.Fatalf("unknown blockType, please use one of: ZeroIP, NxDomain or specify destination IP address(es)")
 
 	return zeroIPBlockHandler{}
 }
@@ -108,12 +110,12 @@ func (r *BlockingResolver) DisableBlocking(duration time.Duration) {
 	s.disableEnd = time.Now().Add(duration)
 
 	if duration == 0 {
-		log.Info("disable blocking")
+		log.Logger.Info("disable blocking")
 	} else {
-		log.Infof("disable blocking for %s", duration)
+		log.Logger.Infof("disable blocking for %s", duration)
 		s.enableTimer = time.AfterFunc(duration, func() {
 			r.EnableBlocking()
-			log.Info("blocking enabled again")
+			log.Logger.Info("blocking enabled again")
 		})
 	}
 }
@@ -146,7 +148,7 @@ func determineWhitelistOnlyGroups(cfg *config.BlockingConfig) (result []string) 
 }
 
 // sets answer and/or return code for DNS response, if request should be blocked
-func (r *BlockingResolver) handleBlocked(logger *log.Entry,
+func (r *BlockingResolver) handleBlocked(logger *logrus.Entry,
 	request *Request, question dns.Question, reason string) (*Response, error) {
 	response := new(dns.Msg)
 	response.SetReply(request.Req)
@@ -188,7 +190,7 @@ func shouldHandle(question dns.Question) bool {
 }
 
 func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
-	request *Request, logger *log.Entry) (*Response, error) {
+	request *Request, logger *logrus.Entry) (*Response, error) {
 	logger.WithField("groupsToCheck", strings.Join(groupsToCheck, "; ")).Debug("checking groups for request")
 	whitelistOnlyAllowed := reflect.DeepEqual(groupsToCheck, r.whitelistOnlyGroups)
 

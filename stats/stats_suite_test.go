@@ -1,16 +1,15 @@
 package stats
 
 import (
+	"blocky/log"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/sirupsen/logrus"
 )
 
 func TestStats(t *testing.T) {
-	logrus.SetLevel(logrus.WarnLevel)
+	log.NewLogger("Warn", "text")
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Stats Suite")
 }

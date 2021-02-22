@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
+	"blocky/log"
 
 	"gopkg.in/yaml.v2"
 )
@@ -126,13 +126,13 @@ func ParseUpstream(upstream string) (result Upstream, err error) {
 
 func extractNet(upstream string) (string, string) {
 	if strings.HasPrefix(upstream, NetTCP+":") {
-		log.Warnf("net prefix tcp is deprecated, using tcp+udp as default fallback")
+		log.Logger.Warnf("net prefix tcp is deprecated, using tcp+udp as default fallback")
 
 		return NetTCPUDP, strings.Replace(upstream, NetTCP+":", "", 1)
 	}
 
 	if strings.HasPrefix(upstream, NetUDP+":") {
-		log.Warnf("net prefix udp is deprecated, using tcp+udp as default fallback")
+		log.Logger.Warnf("net prefix udp is deprecated, using tcp+udp as default fallback")
 		return NetTCPUDP, strings.Replace(upstream, NetUDP+":", "", 1)
 	}
 
@@ -154,11 +154,6 @@ func extractNet(upstream string) (string, string) {
 const (
 	cfgDefaultPort           = "53"
 	cfgDefaultPrometheusPath = "/metrics"
-)
-
-const (
-	CfgLogFormatText = "text"
-	CfgLogFormatJSON = "json"
 )
 
 // main configuration
@@ -236,16 +231,16 @@ func NewConfig(path string) Config {
 	data, err := ioutil.ReadFile(path)
 
 	if err != nil {
-		log.Fatal("Can't read config file: ", err)
+		log.Logger.Fatal("Can't read config file: ", err)
 	}
 
 	err = yaml.UnmarshalStrict(data, &cfg)
 	if err != nil {
-		log.Fatal("wrong file structure: ", err)
+		log.Logger.Fatal("wrong file structure: ", err)
 	}
 
-	if cfg.LogFormat != CfgLogFormatText && cfg.LogFormat != CfgLogFormatJSON {
-		log.Fatal("LogFormat should be 'text' or 'json'")
+	if cfg.LogFormat != log.CfgLogFormatText && cfg.LogFormat != log.CfgLogFormatJSON {
+		log.Logger.Fatal("LogFormat should be 'text' or 'json'")
 	}
 
 	return cfg
@@ -254,6 +249,6 @@ func NewConfig(path string) Config {
 func setDefaultValues(cfg *Config) {
 	cfg.Port = cfgDefaultPort
 	cfg.LogLevel = "info"
-	cfg.LogFormat = CfgLogFormatText
+	cfg.LogFormat = log.CfgLogFormatText
 	cfg.Prometheus.Path = cfgDefaultPrometheusPath
 }

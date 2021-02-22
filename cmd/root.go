@@ -2,13 +2,11 @@ package cmd
 
 import (
 	"blocky/config"
+	"blocky/log"
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
-	prefixed "github.com/x-cray/logrus-prefixed-formatter"
-
-	log "github.com/sirupsen/logrus"
 )
 
 //nolint:gochecknoglobals
@@ -57,39 +55,9 @@ func init() {
 	cobra.OnInitialize(initConfig)
 }
 
-func configureLog(cfg *config.Config) {
-	if level, err := log.ParseLevel(cfg.LogLevel); err != nil {
-		log.Fatalf("invalid log level %s %v", cfg.LogLevel, err)
-	} else {
-		log.SetLevel(level)
-	}
-
-	if cfg.LogFormat == config.CfgLogFormatText {
-		logFormatter := &prefixed.TextFormatter{
-			TimestampFormat:  "2006-01-02 15:04:05",
-			FullTimestamp:    true,
-			ForceFormatting:  true,
-			ForceColors:      true,
-			QuoteEmptyFields: true}
-
-		logFormatter.SetColorScheme(&prefixed.ColorScheme{
-			PrefixStyle:    "blue+b",
-			TimestampStyle: "white+h",
-		})
-
-		log.SetFormatter(logFormatter)
-	}
-
-	if cfg.LogFormat == config.CfgLogFormatJSON {
-		log.SetFormatter(&log.JSONFormatter{})
-	}
-
-	log.SetOutput(os.Stdout)
-}
-
 func initConfig() {
 	cfg = config.NewConfig(configPath)
-	configureLog(&cfg)
+	log.NewLogger(cfg.LogLevel, cfg.LogFormat)
 
 	if apiPort == 0 {
 		apiPort = cfg.HTTPPort
