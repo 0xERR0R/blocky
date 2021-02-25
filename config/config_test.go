@@ -1,6 +1,7 @@
 package config
 
 import (
+	. "blocky/log"
 	"io/ioutil"
 	"net"
 	"os"
@@ -8,8 +9,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-
-	"github.com/sirupsen/logrus"
 )
 
 var _ = Describe("Config", func() {
@@ -52,11 +51,11 @@ var _ = Describe("Config", func() {
 				err = ioutil.WriteFile("config.yml", []byte("malformed_config"), 0644)
 				Expect(err).Should(Succeed())
 
-				defer func() { logrus.StandardLogger().ExitFunc = nil }()
+				defer func() { Log().ExitFunc = nil }()
 
 				var fatal bool
 
-				logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
+				Log().ExitFunc = func(int) { fatal = true }
 
 				_ = NewConfig("config.yml")
 				Expect(fatal).Should(BeTrue())
@@ -67,11 +66,11 @@ var _ = Describe("Config", func() {
 				err := os.Chdir("../..")
 				Expect(err).Should(Succeed())
 
-				defer func() { logrus.StandardLogger().ExitFunc = nil }()
+				defer func() { Log().ExitFunc = nil }()
 
 				var fatal bool
 
-				logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
+				Log().ExitFunc = func(int) { fatal = true }
 				_ = NewConfig("config.yml")
 
 				Expect(fatal).Should(BeTrue())

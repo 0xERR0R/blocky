@@ -1,7 +1,7 @@
 package config
 
 import (
-	"blocky/log"
+	. "blocky/log"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestConfig(t *testing.T) {
-	log.NewLogger("Warn", "Text")
+	ConfigureLogger("Warn", "Text")
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Config Suite")
 }

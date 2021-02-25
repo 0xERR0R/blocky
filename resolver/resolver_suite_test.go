@@ -1,7 +1,7 @@
 package resolver_test
 
 import (
-	"blocky/log"
+	. "blocky/log"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestResolver(t *testing.T) {
-	log.NewLogger("Warn", "text")
+	ConfigureLogger("Warn", "text")
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Resolver Suite")
 }

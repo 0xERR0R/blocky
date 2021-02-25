@@ -2,12 +2,11 @@ package cmd
 
 import (
 	"blocky/api"
+	"blocky/log"
 	"io/ioutil"
 	"net/http"
 
 	"github.com/spf13/cobra"
-
-	log "github.com/sirupsen/logrus"
 )
 
 func NewListsCommand() *cobra.Command {
@@ -32,7 +31,7 @@ func newRefreshCommand() *cobra.Command {
 func refreshList(_ *cobra.Command, _ []string) {
 	resp, err := http.Post(apiURL(api.PathListsRefresh), "application/json", nil)
 	if err != nil {
-		log.Fatal("can't execute", err)
+		log.Log().Fatal("can't execute", err)
 
 		return
 	}
@@ -40,10 +39,10 @@ func refreshList(_ *cobra.Command, _ []string) {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := ioutil.ReadAll(resp.Body)
-		log.Fatalf("NOK: %s %s", resp.Status, string(body))
+		log.Log().Fatalf("NOK: %s %s", resp.Status, string(body))
 
 		return
 	}
 
-	log.Info("OK")
+	log.Log().Info("OK")
 }

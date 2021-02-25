@@ -5,23 +5,35 @@ import (
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
 )
 
-var Logger *logrus.Logger
+// Logger is the global logging instance
+// nolint:gochecknoglobals
+var logger *logrus.Logger
 
 const (
 	CfgLogFormatText = "text"
 	CfgLogFormatJSON = "json"
 )
 
+// nolint:gochecknoinits
 func init() {
-	NewLogger("info", "text")
+	logger = logrus.New()
+
+	ConfigureLogger("info", "text")
 }
 
-func NewLogger(logLevel, logFormat string) {
+func Log() *logrus.Logger {
+	return logger
+}
+
+func PrefixedLog(prefix string) *logrus.Entry {
+	return logger.WithField("prefix", prefix)
+}
+
+func ConfigureLogger(logLevel, logFormat string) {
 	if len(logLevel) == 0 {
 		logLevel = "info"
 	}
 
-	logger := logrus.New()
 	if level, err := logrus.ParseLevel(logLevel); err != nil {
 		logger.Fatalf("invalid log level %s %v", logLevel, err)
 	} else {
@@ -47,6 +59,4 @@ func NewLogger(logLevel, logFormat string) {
 	if logFormat == CfgLogFormatJSON {
 		logger.SetFormatter(&logrus.JSONFormatter{})
 	}
-
-	Logger = logger
 }

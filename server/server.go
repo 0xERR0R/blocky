@@ -32,7 +32,7 @@ type Server struct {
 }
 
 func logger() *logrus.Entry {
-	return log.Logger.WithField("prefix", "server")
+	return log.PrefixedLog("server")
 }
 
 func getServerAddress(cfg *config.Config) string {
@@ -46,7 +46,8 @@ func getServerAddress(cfg *config.Config) string {
 
 func NewServer(cfg *config.Config) (server *Server, err error) {
 	address := getServerAddress(cfg)
-	log.NewLogger(cfg.LogLevel, cfg.LogFormat)
+
+	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat)
 
 	udpServer := createUDPServer(address)
 	tcpServer := createTCPServer(address)
@@ -257,7 +258,7 @@ func newRequest(clientIP net.IP, protocol resolver.RequestProtocol, request *dns
 		Protocol:  protocol,
 		Req:       request,
 		RequestTS: time.Now(),
-		Log: log.Logger.WithFields(logrus.Fields{
+		Log: log.Log().WithFields(logrus.Fields{
 			"question":  util.QuestionToString(request.Question),
 			"client_ip": clientIP,
 		}),

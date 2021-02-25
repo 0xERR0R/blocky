@@ -57,7 +57,7 @@ func init() {
 
 func initConfig() {
 	cfg = config.NewConfig(configPath)
-	log.NewLogger(cfg.LogLevel, cfg.LogFormat)
+	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat)
 
 	if apiPort == 0 {
 		apiPort = cfg.HTTPPort

@@ -18,12 +18,12 @@ import (
 func TempFile(data string) *os.File {
 	f, err := ioutil.TempFile("", "prefix")
 	if err != nil {
-		log.Logger.Fatal(err)
+		log.Log().Fatal(err)
 	}
 
 	_, err = f.WriteString(data)
 	if err != nil {
-		log.Logger.Fatal(err)
+		log.Log().Fatal(err)
 	}
 
 	return f
@@ -34,7 +34,7 @@ func TestServer(data string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		_, err := rw.Write([]byte(data))
 		if err != nil {
-			log.Logger.Fatal("can't write to buffer:", err)
+			log.Log().Fatal("can't write to buffer:", err)
 		}
 	}))
 }

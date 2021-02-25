@@ -148,7 +148,7 @@ func periodicUpdate(cache *ListCache) {
 }
 
 func logger() *logrus.Entry {
-	return log.Logger.WithField("prefix", "list_cache")
+	return log.PrefixedLog("list_cache")
 }
 
 // downloads and reads files with domain names and creates cache for them

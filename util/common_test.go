@@ -1,7 +1,7 @@
 package util
 
 import (
-	"blocky/log"
+	. "blocky/log"
 	"errors"
 	"fmt"
 	"net"
@@ -176,7 +176,7 @@ var _ = Describe("Common function tests", func() {
 			err := errors.New("test")
 			It("should log", func() {
 				hook := test.NewGlobal()
-				log.Logger.AddHook(hook)
+				Log().AddHook(hook)
 				defer hook.Reset()
 				LogOnError("message ", err)
 				Expect(hook.LastEntry().Message).Should(Equal("message test"))
@@ -187,7 +187,7 @@ var _ = Describe("Common function tests", func() {
 			err := errors.New("test")
 			It("should log", func() {
 				hook := test.NewGlobal()
-				log.Logger.AddHook(hook)
+				Log().AddHook(hook)
 				defer hook.Reset()
 				logger, hook := test.NewNullLogger()
 				entry := logrus.NewEntry(logger)
@@ -200,11 +200,11 @@ var _ = Describe("Common function tests", func() {
 			err := errors.New("test")
 			It("should log and exit", func() {
 				hook := test.NewGlobal()
-				log.Logger.AddHook(hook)
+				Log().AddHook(hook)
 				fatal := false
-				logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
+				Log().ExitFunc = func(int) { fatal = true }
 				defer func() {
-					logrus.StandardLogger().ExitFunc = nil
+					Log().ExitFunc = nil
 				}()
 				FatalOnError("message ", err)
 				Expect(hook.LastEntry().Message).Should(Equal("message test"))

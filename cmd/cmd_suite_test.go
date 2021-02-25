@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"blocky/log"
+	. "blocky/log"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -17,13 +17,13 @@ var (
 
 func TestCmd(t *testing.T) {
 	BeforeSuite(func() {
-		log.Logger.ExitFunc = func(int) { fatal = true }
+		Log().ExitFunc = func(int) { fatal = true }
 
 		loggerHook = test.NewGlobal()
-		log.Logger.AddHook(loggerHook)
+		Log().AddHook(loggerHook)
 	})
 	AfterSuite(func() {
-		log.Logger.ExitFunc = nil
+		Log().ExitFunc = nil
 		loggerHook.Reset()
 	})
 	RegisterFailHandler(Fail)

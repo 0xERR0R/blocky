@@ -45,7 +45,7 @@ func createBlockHandler(cfg config.BlockingConfig) blockHandler {
 		}
 	}
 
-	log.Logger.Fatalf("unknown blockType, please use one of: ZeroIP, NxDomain or specify destination IP address(es)")
+	log.Log().Fatalf("unknown blockType, please use one of: ZeroIP, NxDomain or specify destination IP address(es)")
 
 	return zeroIPBlockHandler{}
 }
@@ -110,12 +110,12 @@ func (r *BlockingResolver) DisableBlocking(duration time.Duration) {
 	s.disableEnd = time.Now().Add(duration)
 
 	if duration == 0 {
-		log.Logger.Info("disable blocking")
+		log.Log().Info("disable blocking")
 	} else {
-		log.Logger.Infof("disable blocking for %s", duration)
+		log.Log().Infof("disable blocking for %s", duration)
 		s.enableTimer = time.AfterFunc(duration, func() {
 			r.EnableBlocking()
-			log.Logger.Info("blocking enabled again")
+			log.Log().Info("blocking enabled again")
 		})
 	}
 }

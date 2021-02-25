@@ -60,7 +60,7 @@ func CreateAnswerFromQuestion(question dns.Question, ip net.IP, remainingTTL uin
 		return a, nil
 	}
 
-	log.Logger.Errorf("Using fallback for unsupported query type %s", dns.TypeToString[question.Qtype])
+	log.Log().Errorf("Using fallback for unsupported query type %s", dns.TypeToString[question.Qtype])
 
 	return dns.NewRR(fmt.Sprintf("%s %d %s %s %s",
 		question.Name, remainingTTL, "IN", dns.TypeToString[question.Qtype], ip))
@@ -115,7 +115,7 @@ func IterateValueSorted(in map[string]int, fn func(string, int)) {
 
 func LogOnError(message string, err error) {
 	if err != nil {
-		log.Logger.Error(message, err)
+		log.Log().Error(message, err)
 	}
 }
 
@@ -127,7 +127,7 @@ func LogOnErrorWithEntry(logEntry *logrus.Entry, message string, err error) {
 
 func FatalOnError(message string, err error) {
 	if err != nil {
-		log.Logger.Fatal(message, err)
+		log.Log().Fatal(message, err)
 	}
 }
 

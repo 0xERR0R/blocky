@@ -126,13 +126,13 @@ func ParseUpstream(upstream string) (result Upstream, err error) {
 
 func extractNet(upstream string) (string, string) {
 	if strings.HasPrefix(upstream, NetTCP+":") {
-		log.Logger.Warnf("net prefix tcp is deprecated, using tcp+udp as default fallback")
+		log.Log().Warnf("net prefix tcp is deprecated, using tcp+udp as default fallback")
 
 		return NetTCPUDP, strings.Replace(upstream, NetTCP+":", "", 1)
 	}
 
 	if strings.HasPrefix(upstream, NetUDP+":") {
-		log.Logger.Warnf("net prefix udp is deprecated, using tcp+udp as default fallback")
+		log.Log().Warnf("net prefix udp is deprecated, using tcp+udp as default fallback")
 		return NetTCPUDP, strings.Replace(upstream, NetUDP+":", "", 1)
 	}
 
@@ -231,16 +231,16 @@ func NewConfig(path string) Config {
 	data, err := ioutil.ReadFile(path)
 
 	if err != nil {
-		log.Logger.Fatal("Can't read config file: ", err)
+		log.Log().Fatal("Can't read config file: ", err)
 	}
 
 	err = yaml.UnmarshalStrict(data, &cfg)
 	if err != nil {
-		log.Logger.Fatal("wrong file structure: ", err)
+		log.Log().Fatal("wrong file structure: ", err)
 	}
 
 	if cfg.LogFormat != log.CfgLogFormatText && cfg.LogFormat != log.CfgLogFormatJSON {
-		log.Logger.Fatal("LogFormat should be 'text' or 'json'")
+		log.Log().Fatal("LogFormat should be 'text' or 'json'")
 	}
 
 	return cfg
