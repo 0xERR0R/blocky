@@ -8,10 +8,10 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"blocky/log"
+
 	"github.com/miekg/dns"
 	"github.com/spf13/cobra"
-
-	log "github.com/sirupsen/logrus"
 )
 
 func NewQueryCommand() *cobra.Command {
@@ -32,7 +32,7 @@ func query(cmd *cobra.Command, args []string) {
 	qType := dns.StringToType[typeFlag]
 
 	if qType == dns.TypeNone {
-		log.Fatalf("unknown query type '%s'", typeFlag)
+		log.Log().Fatalf("unknown query type '%s'", typeFlag)
 		return
 	}
 
@@ -45,7 +45,7 @@ func query(cmd *cobra.Command, args []string) {
 	resp, err := http.Post(apiURL(api.PathQueryPath), "application/json", bytes.NewBuffer(jsonValue))
 
 	if err != nil {
-		log.Fatal("can't execute", err)
+		log.Log().Fatal("can't execute", err)
 
 		return
 	}
@@ -53,7 +53,7 @@ func query(cmd *cobra.Command, args []string) {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := ioutil.ReadAll(resp.Body)
-		log.Fatalf("NOK: %s %s", resp.Status, string(body))
+		log.Log().Fatalf("NOK: %s %s", resp.Status, string(body))
 
 		return
 	}
@@ -63,9 +63,9 @@ func query(cmd *cobra.Command, args []string) {
 
 	util.FatalOnError("can't read response: ", err)
 
-	log.Infof("Query result for '%s' (%s):", apiRequest.Query, apiRequest.Type)
-	log.Infof("\treason:        %20s", result.Reason)
-	log.Infof("\tresponse type: %20s", result.ResponseType)
-	log.Infof("\tresponse:      %20s", result.Response)
-	log.Infof("\treturn code:   %20s", result.ReturnCode)
+	log.Log().Infof("Query result for '%s' (%s):", apiRequest.Query, apiRequest.Type)
+	log.Log().Infof("\treason:        %20s", result.Reason)
+	log.Log().Infof("\tresponse type: %20s", result.ResponseType)
+	log.Log().Infof("\tresponse:      %20s", result.Response)
+	log.Log().Infof("\treturn code:   %20s", result.ReturnCode)
 }

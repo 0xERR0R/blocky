@@ -3,6 +3,7 @@ package server
 import (
 	"blocky/api"
 	"blocky/config"
+	"blocky/log"
 	"blocky/resolver"
 	"blocky/util"
 	"blocky/web"
@@ -19,7 +20,6 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/cors"
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -247,7 +247,7 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 
 		err := t.Execute(writer, links)
 		if err != nil {
-			logrus.Error("can't write index template: ", err)
+			log.Log().Error("can't write index template: ", err)
 			writer.WriteHeader(http.StatusInternalServerError)
 		}
 	})

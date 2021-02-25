@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"net/http"
 
-	log "github.com/sirupsen/logrus"
+	"blocky/log"
+
 	"github.com/spf13/cobra"
 )
 
@@ -48,15 +49,15 @@ func newBlockingCommand() *cobra.Command {
 func enableBlocking(_ *cobra.Command, _ []string) {
 	resp, err := http.Get(apiURL(api.PathBlockingEnablePath))
 	if err != nil {
-		log.Fatal("can't execute", err)
+		log.Log().Fatal("can't execute", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		log.Info("OK")
+		log.Log().Info("OK")
 	} else {
-		log.Fatal("NOK: ", resp.Status)
+		log.Log().Fatal("NOK: ", resp.Status)
 	}
 }
 
@@ -65,28 +66,28 @@ func disableBlocking(cmd *cobra.Command, _ []string) {
 
 	resp, err := http.Get(fmt.Sprintf("%s?duration=%s", apiURL(api.PathBlockingDisablePath), duration))
 	if err != nil {
-		log.Fatal("can't execute", err)
+		log.Log().Fatal("can't execute", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		log.Info("OK")
+		log.Log().Info("OK")
 	} else {
-		log.Fatal("NOK: ", resp.Status)
+		log.Log().Fatal("NOK: ", resp.Status)
 	}
 }
 
 func statusBlocking(_ *cobra.Command, _ []string) {
 	resp, err := http.Get(apiURL(api.PathBlockingStatusPath))
 	if err != nil {
-		log.Fatal("can't execute", err)
+		log.Log().Fatal("can't execute", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Fatal("NOK: ", resp.Status)
+		log.Log().Fatal("NOK: ", resp.Status)
 		return
 	}
 
@@ -96,12 +97,12 @@ func statusBlocking(_ *cobra.Command, _ []string) {
 	util.FatalOnError("can't read response: ", err)
 
 	if result.Enabled {
-		log.Info("blocking enabled")
+		log.Log().Info("blocking enabled")
 	} else {
 		if result.AutoEnableInSec == 0 {
-			log.Info("blocking disabled")
+			log.Log().Info("blocking disabled")
 		} else {
-			log.Infof("blocking disabled for %d seconds", result.AutoEnableInSec)
+			log.Log().Infof("blocking disabled for %d seconds", result.AutoEnableInSec)
 		}
 	}
 }

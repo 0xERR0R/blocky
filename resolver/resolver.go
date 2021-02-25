@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"blocky/log"
 	"blocky/util"
 	"fmt"
 	"net"
@@ -40,7 +41,7 @@ func newRequest(question string, rType uint16, logger ...*logrus.Entry) *Request
 	if len(logger) == 1 {
 		loggerEntry = logger[0]
 	} else {
-		loggerEntry = logrus.NewEntry(logrus.New())
+		loggerEntry = logrus.NewEntry(log.Log())
 	}
 
 	return &Request{
@@ -55,7 +56,7 @@ func newRequestWithClient(question string, rType uint16, ip string, clientNames 
 		ClientIP:    net.ParseIP(ip),
 		ClientNames: clientNames,
 		Req:         util.NewMsgWithQuestion(question, rType),
-		Log:         logrus.NewEntry(logrus.New()),
+		Log:         logrus.NewEntry(log.Log()),
 		RequestTS:   time.Time{},
 		Protocol:    UDP,
 	}
@@ -111,7 +112,7 @@ func (r *NextResolver) GetNext() Resolver {
 }
 
 func logger(prefix string) *logrus.Entry {
-	return logrus.WithField("prefix", prefix)
+	return log.PrefixedLog(prefix)
 }
 
 func withPrefix(logger *logrus.Entry, prefix string) *logrus.Entry {

@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"blocky/log"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -146,7 +148,7 @@ func periodicUpdate(cache *ListCache) {
 }
 
 func logger() *logrus.Entry {
-	return logrus.WithField("prefix", "list_cache")
+	return log.PrefixedLog("list_cache")
 }
 
 // downloads and reads files with domain names and creates cache for them

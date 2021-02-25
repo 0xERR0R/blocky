@@ -1,12 +1,12 @@
 package cmd
 
 import (
+	. "blocky/log"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 )
 
@@ -17,12 +17,13 @@ var (
 
 func TestCmd(t *testing.T) {
 	BeforeSuite(func() {
-		logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
+		Log().ExitFunc = func(int) { fatal = true }
 
 		loggerHook = test.NewGlobal()
+		Log().AddHook(loggerHook)
 	})
 	AfterSuite(func() {
-		logrus.StandardLogger().ExitFunc = nil
+		Log().ExitFunc = nil
 		loggerHook.Reset()
 	})
 	RegisterFailHandler(Fail)

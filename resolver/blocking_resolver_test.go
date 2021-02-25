@@ -5,6 +5,7 @@ import (
 	. "blocky/evt"
 	. "blocky/helpertest"
 	"blocky/lists"
+	. "blocky/log"
 	"blocky/util"
 
 	"os"
@@ -13,7 +14,6 @@ import (
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -561,9 +561,9 @@ badcnamedomain.com`)
 		When("Wrong blockType is used", func() {
 			var fatal bool
 			It("should end with fatal exit", func() {
-				defer func() { logrus.StandardLogger().ExitFunc = nil }()
+				defer func() { Log().ExitFunc = nil }()
 
-				logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
+				Log().ExitFunc = func(int) { fatal = true }
 
 				_ = NewBlockingResolver(config.BlockingConfig{
 					BlockType: "wrong",

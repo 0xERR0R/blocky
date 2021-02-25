@@ -1,15 +1,15 @@
 package api_test
 
 import (
+	. "blocky/log"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/sirupsen/logrus"
 )
 
 func TestResolver(t *testing.T) {
-	logrus.SetLevel(logrus.WarnLevel)
+	ConfigureLogger("Warn", "text")
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "API Suite")
 }

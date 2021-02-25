@@ -14,7 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"blocky/log"
+
 	"github.com/spf13/cobra"
 )
 
@@ -49,7 +50,7 @@ func startServer(_ *cobra.Command, _ []string) {
 
 	go func() {
 		<-signals
-		log.Infof("Terminating...")
+		log.Log().Infof("Terminating...")
 		srv.Stop()
 		done <- true
 	}()
@@ -62,7 +63,7 @@ func configureHTTPClient(cfg *config.Config) {
 	if cfg.BootstrapDNS != (config.Upstream{}) {
 		if cfg.BootstrapDNS.Net == config.NetTCPUDP {
 			dns := net.JoinHostPort(cfg.BootstrapDNS.Host, fmt.Sprint(cfg.BootstrapDNS.Port))
-			log.Debugf("using %s as bootstrap dns server", dns)
+			log.Log().Debugf("using %s as bootstrap dns server", dns)
 
 			r := &net.Resolver{
 				PreferGo: true,
@@ -81,25 +82,25 @@ func configureHTTPClient(cfg *config.Config) {
 				TLSHandshakeTimeout: 5 * time.Second,
 			}
 		} else {
-			log.Fatal("bootstrap dns net should be tcp+udp")
+			log.Log().Fatal("bootstrap dns net should be tcp+udp")
 		}
 	}
 }
 
 func printBanner() {
-	log.Info("_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/")
-	log.Info("_/                                                              _/")
-	log.Info("_/                                                              _/")
-	log.Info("_/       _/        _/                      _/                   _/")
-	log.Info("_/      _/_/_/    _/    _/_/      _/_/_/  _/  _/    _/    _/    _/")
-	log.Info("_/     _/    _/  _/  _/    _/  _/        _/_/      _/    _/     _/")
-	log.Info("_/    _/    _/  _/  _/    _/  _/        _/  _/    _/    _/      _/")
-	log.Info("_/   _/_/_/    _/    _/_/      _/_/_/  _/    _/    _/_/_/       _/")
-	log.Info("_/                                                    _/        _/")
-	log.Info("_/                                               _/_/           _/")
-	log.Info("_/                                                              _/")
-	log.Info("_/                                                              _/")
-	log.Infof("_/  Version: %-18s Build time: %-18s  _/", version, buildTime)
-	log.Info("_/                                                              _/")
-	log.Info("_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/")
+	log.Log().Info("_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/")
+	log.Log().Info("_/                                                              _/")
+	log.Log().Info("_/                                                              _/")
+	log.Log().Info("_/       _/        _/                      _/                   _/")
+	log.Log().Info("_/      _/_/_/    _/    _/_/      _/_/_/  _/  _/    _/    _/    _/")
+	log.Log().Info("_/     _/    _/  _/  _/    _/  _/        _/_/      _/    _/     _/")
+	log.Log().Info("_/    _/    _/  _/  _/    _/  _/        _/  _/    _/    _/      _/")
+	log.Log().Info("_/   _/_/_/    _/    _/_/      _/_/_/  _/    _/    _/_/_/       _/")
+	log.Log().Info("_/                                                    _/        _/")
+	log.Log().Info("_/                                               _/_/           _/")
+	log.Log().Info("_/                                                              _/")
+	log.Log().Info("_/                                                              _/")
+	log.Log().Infof("_/  Version: %-18s Build time: %-18s  _/", version, buildTime)
+	log.Log().Info("_/                                                              _/")
+	log.Log().Info("_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/")
 }

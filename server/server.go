@@ -3,6 +3,7 @@ package server
 import (
 	"blocky/api"
 	"blocky/config"
+	"blocky/log"
 	"blocky/metrics"
 	"blocky/resolver"
 	"net/http"
@@ -31,7 +32,7 @@ type Server struct {
 }
 
 func logger() *logrus.Entry {
-	return logrus.WithField("prefix", "server")
+	return log.PrefixedLog("server")
 }
 
 func getServerAddress(cfg *config.Config) string {
@@ -43,23 +44,15 @@ func getServerAddress(cfg *config.Config) string {
 	return address
 }
 
-func initLogging(cfg *config.Config) {
-	if level, err := logrus.ParseLevel(cfg.LogLevel); err != nil {
-		logrus.Fatalf("invalid log level %s %v", cfg.LogLevel, err)
-	} else {
-		logrus.SetLevel(level)
-	}
-}
-
 func NewServer(cfg *config.Config) (server *Server, err error) {
 	address := getServerAddress(cfg)
+
+	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat)
 
 	udpServer := createUDPServer(address)
 	tcpServer := createTCPServer(address)
 
 	var httpListener, httpsListener net.Listener
-
-	initLogging(cfg)
 
 	router := createRouter(cfg)
 
@@ -265,7 +258,7 @@ func newRequest(clientIP net.IP, protocol resolver.RequestProtocol, request *dns
 		Protocol:  protocol,
 		Req:       request,
 		RequestTS: time.Now(),
-		Log: logrus.WithFields(logrus.Fields{
+		Log: log.Log().WithFields(logrus.Fields{
 			"question":  util.QuestionToString(request.Question),
 			"client_ip": clientIP,
 		}),

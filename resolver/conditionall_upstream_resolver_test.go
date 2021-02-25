@@ -3,6 +3,7 @@ package resolver
 import (
 	"blocky/config"
 	. "blocky/helpertest"
+	"blocky/log"
 	"blocky/util"
 
 	"github.com/miekg/dns"
@@ -49,7 +50,7 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 		When("Query is exact equal defined condition in mapping", func() {
 			Context("first mapping entry", func() {
 				It("Should resolve the IP of conditional DNS", func() {
-					resp, err = sut.Resolve(newRequest("fritz.box.", dns.TypeA, logrus.NewEntry(logrus.New())))
+					resp, err = sut.Resolve(newRequest("fritz.box.", dns.TypeA, logrus.NewEntry(log.Log())))
 
 					Expect(resp.Res.Answer).Should(BeDNSRecord("fritz.box.", dns.TypeA, 123, "123.124.122.122"))
 					// no call to next resolver

@@ -4,13 +4,13 @@ import (
 	"blocky/api"
 	"blocky/config"
 	. "blocky/helpertest"
+	. "blocky/log"
 	"blocky/resolver"
 	"blocky/util"
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -20,7 +20,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
 )
 
 var _ = Describe("Running DNS server", func() {
@@ -455,11 +454,11 @@ var _ = Describe("Running DNS server", func() {
 	Describe("Server start", func() {
 		When("Server start is called", func() {
 			It("start was called 2 times, start should fail", func() {
-				defer func() { logrus.StandardLogger().ExitFunc = nil }()
+				defer func() { Log().ExitFunc = nil }()
 
 				var fatal bool
 
-				logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
+				Log().ExitFunc = func(int) { fatal = true }
 
 				// create server
 				server, err := NewServer(&config.Config{
@@ -499,11 +498,11 @@ var _ = Describe("Running DNS server", func() {
 	Describe("Server stop", func() {
 		When("Stop is called", func() {
 			It("stop was called 2 times, start should fail", func() {
-				defer func() { logrus.StandardLogger().ExitFunc = nil }()
+				defer func() { Log().ExitFunc = nil }()
 
 				var fatal bool
 
-				logrus.StandardLogger().ExitFunc = func(int) { fatal = true }
+				Log().ExitFunc = func(int) { fatal = true }
 
 				// create server
 				server, err := NewServer(&config.Config{
@@ -564,18 +563,18 @@ var _ = Describe("Running DNS server", func() {
 func requestServer(request *dns.Msg) *dns.Msg {
 	conn, err := net.Dial("udp", ":55555")
 	if err != nil {
-		log.Fatal("could not connect to server: ", err)
+		Log().Fatal("could not connect to server: ", err)
 	}
 	defer conn.Close()
 
 	msg, err := request.Pack()
 	if err != nil {
-		log.Fatal("can't pack request: ", err)
+		Log().Fatal("can't pack request: ", err)
 	}
 
 	_, err = conn.Write(msg)
 	if err != nil {
-		log.Fatal("can't send request to server: ", err)
+		Log().Fatal("can't send request to server: ", err)
 	}
 
 	out := make([]byte, 1024)
@@ -585,13 +584,13 @@ func requestServer(request *dns.Msg) *dns.Msg {
 		err := response.Unpack(out)
 
 		if err != nil {
-			log.Fatal("can't unpack response: ", err)
+			Log().Fatal("can't unpack response: ", err)
 		}
 
 		return response
 	}
 
-	log.Fatal("could not read from connection", err)
+	Log().Fatal("could not read from connection", err)
 
 	return nil
 }

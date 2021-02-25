@@ -1,14 +1,15 @@
 package cmd
 
 import (
+	"blocky/log"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/sirupsen/logrus"
 )
 
 var _ = Describe("Version command", func() {
 	When("Version command is called", func() {
-		logrus.StandardLogger().ExitFunc = nil
+		log.Log().ExitFunc = nil
 		It("should execute without error", func() {
 			c := NewRootCommand()
 			c.SetArgs([]string{"help"})

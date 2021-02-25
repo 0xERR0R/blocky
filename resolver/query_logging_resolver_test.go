@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"blocky/config"
+	. "blocky/log"
 	"blocky/util"
 	"bufio"
 	"encoding/csv"
@@ -16,8 +17,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
-
-	log "github.com/sirupsen/logrus"
 )
 
 var _ = Describe("QueryLoggingResolver", func() {
@@ -179,11 +178,11 @@ var _ = Describe("QueryLoggingResolver", func() {
 		When("Log directory does not exist", func() {
 
 			It("should exit with error", func() {
-				defer func() { log.StandardLogger().ExitFunc = nil }()
+				defer func() { Log().ExitFunc = nil }()
 
 				var fatal bool
 
-				log.StandardLogger().ExitFunc = func(int) { fatal = true }
+				Log().ExitFunc = func(int) { fatal = true }
 				_ = NewQueryLoggingResolver(config.QueryLogConfig{Dir: "notExists"})
 
 				Expect(fatal).Should(BeTrue())
@@ -191,11 +190,11 @@ var _ = Describe("QueryLoggingResolver", func() {
 		})
 		When("not existing log directory is configured, log retention is enabled", func() {
 			It("should exit with error", func() {
-				defer func() { log.StandardLogger().ExitFunc = nil }()
+				defer func() { Log().ExitFunc = nil }()
 
 				var fatal bool
 
-				log.StandardLogger().ExitFunc = func(int) { fatal = true }
+				Log().ExitFunc = func(int) { fatal = true }
 
 				sut := NewQueryLoggingResolver(config.QueryLogConfig{
 					Dir:              "wrongDir",
@@ -254,7 +253,7 @@ func readCsv(file string) [][]string {
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			log.Fatal("can't read line", err)
+			Log().Fatal("can't read line", err)
 		}
 
 		result = append(result, line)
