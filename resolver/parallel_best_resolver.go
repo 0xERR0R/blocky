@@ -27,6 +27,7 @@ type requestResponse struct {
 	err      error
 }
 
+// NewParallelBestResolver creates new resolver instance
 func NewParallelBestResolver(upstreamResolvers []config.Upstream) Resolver {
 	resolvers := make([]*upstreamResolverStatus, len(upstreamResolvers))
 
@@ -40,6 +41,7 @@ func NewParallelBestResolver(upstreamResolvers []config.Upstream) Resolver {
 	return &ParallelBestResolver{resolvers: resolvers}
 }
 
+// Configuration returns current resolver configuration
 func (r *ParallelBestResolver) Configuration() (result []string) {
 	result = append(result, "upstream resolvers:")
 	for _, res := range r.resolvers {
@@ -58,6 +60,7 @@ func (r ParallelBestResolver) String() string {
 	return fmt.Sprintf("parallel upstreams '%s'", strings.Join(result, "; "))
 }
 
+// Resolver sends the query request to multiple upstream resolvers and returns the fastest result
 func (r *ParallelBestResolver) Resolve(request *Request) (*Response, error) {
 	logger := request.Log.WithField("prefix", "parallel_best_resolver")
 
