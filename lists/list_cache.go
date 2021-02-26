@@ -23,10 +23,14 @@ const (
 	defaultRefreshPeriod = 4 * time.Hour
 )
 
+// ListCacheType represents the type of a cached list
 type ListCacheType int
 
 const (
+	// BLACKLIST is a list with blocked domains / IPs
 	BLACKLIST ListCacheType = iota
+	
+	// WHITELIST is a list with whitelisted domains / IPs
 	WHITELIST
 )
 
@@ -67,14 +71,16 @@ func (cache stringCache) contains(searchString string) bool {
 	return false
 }
 
+// Matcher checks if a domain is in a list
 type Matcher interface {
-	// matches passed domain name against cached list entries
+	// Match matches passed domain name against cached list entries
 	Match(domain string, groupsToCheck []string) (found bool, group string)
 
-	// returns current configuration and stats
+	// Configuration returns current configuration and stats
 	Configuration() []string
 }
 
+// ListCache generic cache of strings divided in groups
 type ListCache struct {
 	groupCaches map[string]stringCache
 	lock        sync.RWMutex
@@ -84,6 +90,7 @@ type ListCache struct {
 	listType      ListCacheType
 }
 
+// Configuration returns current configuration and stats
 func (b *ListCache) Configuration() (result []string) {
 	if b.refreshPeriod > 0 {
 		result = append(result, fmt.Sprintf("refresh period: %d minutes", b.refreshPeriod/time.Minute))
@@ -113,6 +120,7 @@ func (b *ListCache) Configuration() (result []string) {
 	return
 }
 
+// NewListCache creates new list instance
 func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod int) *ListCache {
 	groupCaches := make(map[string]stringCache)
 
@@ -134,7 +142,7 @@ func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeri
 	return b
 }
 
-// triggers periodical refresh (and download) of list entries
+// periodicUpdate triggers periodical refresh (and download) of list entries
 func periodicUpdate(cache *ListCache) {
 	if cache.refreshPeriod > 0 {
 		ticker := time.NewTicker(cache.refreshPeriod)
@@ -218,6 +226,7 @@ func (b *ListCache) Match(domain string, groupsToCheck []string) (found bool, gr
 	return false, ""
 }
 
+// Refresh triggers the refresh of a list
 func (b *ListCache) Refresh() {
 	for group, links := range b.groupToLinks {
 		cacheForGroup := createCacheForGroup(links)
