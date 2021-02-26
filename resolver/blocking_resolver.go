@@ -56,7 +56,7 @@ type status struct {
 	disableEnd  time.Time
 }
 
-// checks request's question (domain name) against black and white lists
+// BlockingResolver checks request's question (domain name) against black and white lists
 type BlockingResolver struct {
 	NextResolver
 	blacklistMatcher    *lists.ListCache
@@ -67,6 +67,7 @@ type BlockingResolver struct {
 	status              *status
 }
 
+// NewBlockingResolver retuns a new configured instance of the resolver
 func NewBlockingResolver(cfg config.BlockingConfig) ChainedResolver {
 	blockHandler := createBlockHandler(cfg)
 	blacklistMatcher := lists.NewListCache(lists.BLACKLIST, cfg.BlackLists, cfg.RefreshPeriod)
@@ -88,10 +89,13 @@ func NewBlockingResolver(cfg config.BlockingConfig) ChainedResolver {
 	return res
 }
 
+// RefreshLists triggers the refresh of all black and white lists in the cache
 func (r *BlockingResolver) RefreshLists() {
 	r.blacklistMatcher.Refresh()
 	r.whitelistMatcher.Refresh()
 }
+
+// EnableBlocking enables the blocking agains the blacklists
 func (r *BlockingResolver) EnableBlocking() {
 	s := r.status
 	s.enableTimer.Stop()
@@ -100,6 +104,7 @@ func (r *BlockingResolver) EnableBlocking() {
 	evt.Bus().Publish(evt.BlockingEnabledEvent, true)
 }
 
+// DisableBlocking deaktivates the blocking for a particular duration (or forever if 0)
 func (r *BlockingResolver) DisableBlocking(duration time.Duration) {
 	s := r.status
 	s.enableTimer.Stop()
@@ -120,6 +125,7 @@ func (r *BlockingResolver) DisableBlocking(duration time.Duration) {
 	}
 }
 
+// BlockingStatus returns the current blocking status
 func (r *BlockingResolver) BlockingStatus() api.BlockingStatus {
 	var autoEnableDuration time.Duration
 	if !r.status.enabled && r.status.disableEnd.After(time.Now()) {
@@ -160,6 +166,7 @@ func (r *BlockingResolver) handleBlocked(logger *logrus.Entry,
 	return &Response{Res: response, RType: BLOCKED, Reason: reason}, nil
 }
 
+// Configuration returns the current resolver configuration
 func (r *BlockingResolver) Configuration() (result []string) {
 	if len(r.cfg.ClientGroupsBlock) > 0 {
 		result = append(result, "clientGroupsBlock")
@@ -219,6 +226,7 @@ func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
 	return nil, nil
 }
 
+// Resolve checks the query agains the blacklist and delegates to next resolver if domain is not blocked
 func (r *BlockingResolver) Resolve(request *Request) (*Response, error) {
 	logger := withPrefix(request.Log, "blacklist_resolver")
 	groupsToCheck := r.groupsToCheckForClient(request)

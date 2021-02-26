@@ -15,6 +15,7 @@ type ConditionalUpstreamResolver struct {
 	mapping map[string]Resolver
 }
 
+// NewConditionalUpstreamResolver returns new resolver instance
 func NewConditionalUpstreamResolver(cfg config.ConditionalUpstreamConfig) ChainedResolver {
 	m := make(map[string]Resolver)
 	for domain, upstream := range cfg.Mapping.Upstreams {
@@ -24,6 +25,7 @@ func NewConditionalUpstreamResolver(cfg config.ConditionalUpstreamConfig) Chaine
 	return &ConditionalUpstreamResolver{mapping: m}
 }
 
+// Configuration returns current configuration
 func (r *ConditionalUpstreamResolver) Configuration() (result []string) {
 	if len(r.mapping) > 0 {
 		for key, val := range r.mapping {
@@ -36,6 +38,7 @@ func (r *ConditionalUpstreamResolver) Configuration() (result []string) {
 	return
 }
 
+// Resolve uses the conditional resolver to resolve the query
 func (r *ConditionalUpstreamResolver) Resolve(request *Request) (*Response, error) {
 	logger := withPrefix(request.Log, "conditional_resolver")
 

@@ -34,6 +34,7 @@ func (r *resolverMock) Resolve(req *Request) (*Response, error) {
 	return nil, args.Error(1)
 }
 
+// TestDOHUpstream creates a mock DoH Upstream
 func TestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg),
 	reqFn ...func(w http.ResponseWriter)) config.Upstream {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -71,6 +72,7 @@ func TestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg),
 }
 
 //nolint:funlen
+// TestUdpUpstream creates a mock UDP upstream
 func TestUDPUpstream(fn func(request *dns.Msg) (response *dns.Msg)) config.Upstream {
 	a, err := net.ResolveUDPAddr("udp4", ":0")
 	util.FatalOnError("can't resolve address: ", err)

@@ -21,6 +21,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Server controls the endpoints for DNS and HTTP
 type Server struct {
 	udpServer     *dns.Server
 	tcpServer     *dns.Server
@@ -44,6 +45,7 @@ func getServerAddress(cfg *config.Config) string {
 	return address
 }
 
+// NewServer creates new server instance with passed config
 func NewServer(cfg *config.Config) (server *Server, err error) {
 	address := getServerAddress(cfg)
 
@@ -198,6 +200,7 @@ func toMB(b uint64) uint64 {
 	return b / 1024 / 1024
 }
 
+// Start starts the server
 func (s *Server) Start() {
 	logger().Info("Starting server")
 
@@ -234,6 +237,7 @@ func (s *Server) Start() {
 	registerPrintConfigurationTrigger(s)
 }
 
+// Stop stops the server
 func (s *Server) Stop() {
 	logger().Info("Stopping server")
 
@@ -265,6 +269,7 @@ func newRequest(clientIP net.IP, protocol resolver.RequestProtocol, request *dns
 	}
 }
 
+// OnRequest will be executed if a new DNS request is received
 func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
 	logger().Debug("new request")
 
@@ -283,7 +288,7 @@ func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
 	}
 }
 
-// Handler for docker health check. Just returns OK code without delegating to resolver chain
+// OnHealthCheck Handler for docker health check. Just returns OK code without delegating to resolver chain
 func (s *Server) OnHealthCheck(w dns.ResponseWriter, request *dns.Msg) {
 	resp := new(dns.Msg)
 	resp.SetReply(request)

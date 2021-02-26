@@ -41,6 +41,7 @@ type queryLogEntry struct {
 	logger     *logrus.Entry
 }
 
+// NewQueryLoggingResolver returns a new resolver instance
 func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 	if _, err := os.Stat(cfg.Dir); cfg.Dir != "" && err != nil && os.IsNotExist(err) {
 		logger(queryLoggingResolverPrefix).Fatalf("query log directory '%s' does not exist or is not writable", cfg.Dir)
@@ -107,6 +108,7 @@ func (r *QueryLoggingResolver) doCleanUp() {
 	}
 }
 
+// Resolve logs the query, duration and the result
 func (r *QueryLoggingResolver) Resolve(request *Request) (*Response, error) {
 	logger := withPrefix(request.Log, queryLoggingResolverPrefix)
 
@@ -213,6 +215,7 @@ func createQueryLogRow(logEntry *queryLogEntry) []string {
 	}
 }
 
+// Configuration returns the current resolver configuration
 func (r *QueryLoggingResolver) Configuration() (result []string) {
 	if r.logDir != "" {
 		result = append(result, fmt.Sprintf("logDir= \"%s\"", r.logDir))

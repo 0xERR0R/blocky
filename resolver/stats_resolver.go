@@ -10,6 +10,7 @@ import (
 	"github.com/miekg/dns"
 )
 
+// StatsResolver calculates query statistics
 type StatsResolver struct {
 	NextResolver
 	recorders []*resolverStatRecorder
@@ -48,6 +49,7 @@ func (r *StatsResolver) collectStats() {
 	}
 }
 
+// Resolve calculates query statistics
 func (r *StatsResolver) Resolve(request *Request) (*Response, error) {
 	resp, err := r.next.Resolve(request)
 
@@ -61,6 +63,7 @@ func (r *StatsResolver) Resolve(request *Request) (*Response, error) {
 	return resp, err
 }
 
+// Configuration returns current configuraion
 func (r *StatsResolver) Configuration() (result []string) {
 	result = append(result, "stats:")
 	for _, rec := range r.recorders {
@@ -74,6 +77,7 @@ func (r *resolverStatRecorder) recordStats(e *statsEntry) {
 	r.aggregator.Put(r.fn(e))
 }
 
+// NewStatsResolver creates new instance of the resolver
 func NewStatsResolver() ChainedResolver {
 	resolver := &StatsResolver{
 		statsChan: make(chan *statsEntry, 20),

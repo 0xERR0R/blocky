@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewListsCommand creates new command instance
 func NewListsCommand() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "lists",

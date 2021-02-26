@@ -19,6 +19,7 @@ type CustomDNSResolver struct {
 	mapping map[string]net.IP
 }
 
+// NewCustomDNSResolver creates new resolver instance
 func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
 	m := make(map[string]net.IP)
 	for url, ip := range cfg.Mapping {
@@ -28,6 +29,7 @@ func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
 	return &CustomDNSResolver{mapping: m}
 }
 
+// Configuration returns current resolver configuration
 func (r *CustomDNSResolver) Configuration() (result []string) {
 	if len(r.mapping) > 0 {
 		for key, val := range r.mapping {
@@ -45,6 +47,7 @@ func isSupportedType(ip net.IP, question dns.Question) bool {
 		(strings.Contains(ip.String(), ":") && question.Qtype == dns.TypeAAAA)
 }
 
+// Resolve uses internal mapping to resolve the query
 func (r *CustomDNSResolver) Resolve(request *Request) (*Response, error) {
 	logger := withPrefix(request.Log, "custom_dns_resolver")
 

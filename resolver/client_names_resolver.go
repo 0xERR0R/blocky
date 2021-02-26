@@ -22,6 +22,7 @@ type ClientNamesResolver struct {
 	NextResolver
 }
 
+// NewClientNamesResolver creates new resolver instance
 func NewClientNamesResolver(cfg config.ClientLookupConfig) ChainedResolver {
 	var r Resolver
 	if (config.Upstream{}) != cfg.Upstream {
@@ -36,6 +37,7 @@ func NewClientNamesResolver(cfg config.ClientLookupConfig) ChainedResolver {
 	}
 }
 
+// Configuration returns current resolver configuration
 func (r *ClientNamesResolver) Configuration() (result []string) {
 	if r.externalResolver != nil || len(r.clientIPMapping) > 0 {
 		result = append(result, fmt.Sprintf("singleNameOrder = \"%v\"", r.singleNameOrder))
@@ -59,6 +61,7 @@ func (r *ClientNamesResolver) Configuration() (result []string) {
 	return
 }
 
+// Resolve tries to resolve the client name from the ip address
 func (r *ClientNamesResolver) Resolve(request *Request) (*Response, error) {
 	clientNames := r.getClientNames(request)
 
@@ -157,7 +160,7 @@ func (r *ClientNamesResolver) getNameFromIPMapping(ip net.IP, result []string) [
 	return result
 }
 
-// reset client name cache
+// FlushCache reset client name cache
 func (r *ClientNamesResolver) FlushCache() {
 	r.cache.Flush()
 }

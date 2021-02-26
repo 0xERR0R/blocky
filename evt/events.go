@@ -33,6 +33,7 @@ const (
 // nolint
 var evtBus = EventBus.New()
 
+// Bus returns the global bus instance
 func Bus() EventBus.Bus {
 	return evtBus
 }

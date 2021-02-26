@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewVersionCommand creates new command instance
 func NewVersionCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",

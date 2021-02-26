@@ -14,7 +14,7 @@ import (
 	"github.com/onsi/gomega/types"
 )
 
-// creates temp file with passed data
+// TempFile creates temp file with passed data
 func TempFile(data string) *os.File {
 	f, err := ioutil.TempFile("", "prefix")
 	if err != nil {
@@ -29,7 +29,7 @@ func TempFile(data string) *os.File {
 	return f
 }
 
-// creates temp http server with passed data
+// TestServer creates temp http server with passed data
 func TestServer(data string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		_, err := rw.Write([]byte(data))
@@ -39,6 +39,7 @@ func TestServer(data string) *httptest.Server {
 	}))
 }
 
+// DoGetRequest performs a GET request
 func DoGetRequest(url string, fn func(w http.ResponseWriter, r *http.Request)) (code int, body *bytes.Buffer) {
 	r, _ := http.NewRequest("GET", url, nil)
 
@@ -50,6 +51,7 @@ func DoGetRequest(url string, fn func(w http.ResponseWriter, r *http.Request)) (
 	return rr.Code, rr.Body
 }
 
+// BeDNSRecord returns new dns matcher
 func BeDNSRecord(domain string, dnsType uint16, ttl uint32, answer string) types.GomegaMatcher {
 	return &dnsRecordMatcher{
 		domain:  domain,
@@ -87,6 +89,7 @@ func (matcher *dnsRecordMatcher) matchSingle(rr dns.RR) (success bool, err error
 	return false, nil
 }
 
+// Match checks the DNS record
 func (matcher *dnsRecordMatcher) Match(actual interface{}) (success bool, err error) {
 	switch i := actual.(type) {
 	case dns.RR:
@@ -98,11 +101,13 @@ func (matcher *dnsRecordMatcher) Match(actual interface{}) (success bool, err er
 	}
 }
 
+// FailureMessage generates a failure messge
 func (matcher *dnsRecordMatcher) FailureMessage(actual interface{}) (message string) {
 	return fmt.Sprintf("Expected\n\t%s\n to contain\n\t domain '%s', ttl '%d', type '%s', answer '%s'",
 		actual, matcher.domain, matcher.TTL, dns.TypeToString[matcher.dnsType], matcher.answer)
 }
 
+// NegatedFailureMessage creates negated message
 func (matcher *dnsRecordMatcher) NegatedFailureMessage(actual interface{}) (message string) {
 	return fmt.Sprintf("Expected\n\t%s\n not to contain\n\t domain '%s', ttl '%d', type '%s', answer '%s'",
 		actual, matcher.domain, matcher.TTL, dns.TypeToString[matcher.dnsType], matcher.answer)

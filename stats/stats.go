@@ -15,6 +15,7 @@ const (
 // nolint
 var now = time.Now
 
+// Aggregator cummulates hourly different results
 type Aggregator struct {
 	// hour -> ( string -> count )
 	hourResults map[string]map[string]int
@@ -25,10 +26,12 @@ type Aggregator struct {
 	stageData   map[string]int
 }
 
+// NewAggregator returns new aggregator with specified name
 func NewAggregator(name string) *Aggregator {
 	return NewAggregatorWithMax(name, defaultMaxCount)
 }
 
+// NewAggregatorWithMax returns new aggregator with max count
 func NewAggregatorWithMax(name string, maxCount uint) *Aggregator {
 	return &Aggregator{
 		Name:        name,
@@ -39,6 +42,7 @@ func NewAggregatorWithMax(name string, maxCount uint) *Aggregator {
 	}
 }
 
+// AggregateResult returns a map with aggregation result
 func (s *Aggregator) AggregateResult() map[string]int {
 	result := make(map[string]int)
 
@@ -65,6 +69,7 @@ func currentHour() string {
 	return now().Format("2006010215")
 }
 
+// Put adds a new key to the aggregation
 func (s *Aggregator) Put(key string) {
 	key = strings.TrimSpace(key)
 	if len(key) > 0 {

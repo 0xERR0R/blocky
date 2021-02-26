@@ -15,12 +15,19 @@ import (
 
 const (
 	validUpstream = `(?P<Host>(?:\[[^\]]+\])|[^\s/:]+):?(?P<Port>[^\s/:]*)?(?P<Path>/[^\s]*)?`
-	// deprecated
+	// NetUDP UDP protocol (deprecated)
 	NetUDP = "udp"
-	// deprecated
+	
+	// NetTCP TCP protocol (deprecated)
 	NetTCP    = "tcp"
+	
+	// NetTCPUDP TCP and UDP protocols
 	NetTCPUDP = "tcp+udp"
+	
+	// NetTCPTLS TCP-TLS protocol
 	NetTCPTLS = "tcp-tls"
+	
+	// NetHTTPS HTTPS protocol
 	NetHTTPS  = "https"
 )
 
@@ -39,6 +46,7 @@ type Upstream struct {
 	Path string
 }
 
+// UnmarshalYAML creates Upstream from YAML
 func (u *Upstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var s string
 	if err := unmarshal(&s); err != nil {
@@ -55,6 +63,7 @@ func (u *Upstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// UnmarshalYAML creates ConditionalUpstreamMapping from YAML
 func (c *ConditionalUpstreamMapping) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var input map[string]string
 	if err := unmarshal(&input); err != nil {
@@ -156,7 +165,7 @@ const (
 	cfgDefaultPrometheusPath = "/metrics"
 )
 
-// main configuration
+// Config main configuration
 type Config struct {
 	Upstream     UpstreamConfig            `yaml:"upstream"`
 	CustomDNS    CustomDNSConfig           `yaml:"customDNS"`
@@ -182,22 +191,27 @@ type PrometheusConfig struct {
 	Path   string `yaml:"path"`
 }
 
+// UpstreamConfig upstream server configuration
 type UpstreamConfig struct {
 	ExternalResolvers []Upstream `yaml:"externalResolvers"`
 }
 
+// CustomDNSConfig custom DNS configuration
 type CustomDNSConfig struct {
 	Mapping map[string]net.IP `yaml:"mapping"`
 }
 
+// ConditionalUpstreamConfig conditional upstream configuration
 type ConditionalUpstreamConfig struct {
 	Mapping ConditionalUpstreamMapping `yaml:"mapping"`
 }
 
+// ConditionalUpstreamMapping mapping for conditional configuration
 type ConditionalUpstreamMapping struct {
 	Upstreams map[string][]Upstream
 }
 
+// BlockingConfig configuration for query blocking
 type BlockingConfig struct {
 	BlackLists        map[string][]string `yaml:"blackLists"`
 	WhiteLists        map[string][]string `yaml:"whiteLists"`
@@ -206,24 +220,28 @@ type BlockingConfig struct {
 	RefreshPeriod     int                 `yaml:"refreshPeriod"`
 }
 
+// ClientLookupConfig configuration for the client lookup
 type ClientLookupConfig struct {
 	ClientnameIPMapping map[string][]net.IP `yaml:"clients"`
 	Upstream            Upstream            `yaml:"upstream"`
 	SingleNameOrder     []uint              `yaml:"singleNameOrder"`
 }
 
+// CachingConfig configuration for domain caching
 type CachingConfig struct {
 	MinCachingTime int  `yaml:"minTime"`
 	MaxCachingTime int  `yaml:"maxTime"`
 	Prefetching    bool `yaml:"prefetching"`
 }
 
+// QueryLogConfig configuration for the query logging
 type QueryLogConfig struct {
 	Dir              string `yaml:"dir"`
 	PerClient        bool   `yaml:"perClient"`
 	LogRetentionDays uint64 `yaml:"logRetentionDays"`
 }
 
+// NewConfig creates new config from YAML file
 func NewConfig(path string) Config {
 	cfg := Config{}
 	setDefaultValues(&cfg)
