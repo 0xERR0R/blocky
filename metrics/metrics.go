@@ -11,10 +11,12 @@ import (
 // nolint
 var reg = prometheus.NewRegistry()
 
+// RegisterMetric registers prometheus collector
 func RegisterMetric(c prometheus.Collector) {
 	_ = reg.Register(c)
 }
 
+// Start starts prometheus endpoint
 func Start(router *chi.Mux, cfg config.PrometheusConfig) {
 	if cfg.Enable {
 		_ = reg.Register(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
