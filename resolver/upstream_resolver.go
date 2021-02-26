@@ -141,6 +141,7 @@ func (r *dnsUpstreamClient) callExternal(msg *dns.Msg,
 	return r.tcpClient.Exchange(msg, upstreamURL)
 }
 
+// NewUpstreamResolver creates new resolver instance
 func NewUpstreamResolver(upstream config.Upstream) *UpstreamResolver {
 	upstreamClient, upstreamURL := createUpstreamClient(upstream)
 
@@ -150,6 +151,7 @@ func NewUpstreamResolver(upstream config.Upstream) *UpstreamResolver {
 		net:            upstream.Net}
 }
 
+// Configuration return current resolver configuration
 func (r *UpstreamResolver) Configuration() (result []string) {
 	return
 }
@@ -158,6 +160,7 @@ func (r UpstreamResolver) String() string {
 	return fmt.Sprintf("upstream '%s:%s'", r.net, r.upstreamURL)
 }
 
+// Resolve calls external resolver
 func (r *UpstreamResolver) Resolve(request *Request) (response *Response, err error) {
 	logger := withPrefix(request.Log, "upstream_resolver")
 
