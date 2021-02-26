@@ -18,7 +18,7 @@ type RequestProtocol uint8
 const (
 	// TCP is the TPC protocol
 	TCP RequestProtocol = iota
-	
+
 	// UDP is the UDP protocol
 	UDP
 )
@@ -73,16 +73,16 @@ type ResponseType int
 const (
 	// RESOLVED the response was resolved by the external upstream resolver
 	RESOLVED ResponseType = iota
-	
+
 	// CACHED the response was resolved from cache
 	CACHED
-	
+
 	// BLOCKED the query was blocked
 	BLOCKED
-	
+
 	// CONDITIONAL the query was resolved by the conditional upstream resolver
 	CONDITIONAL
-	
+
 	// CUSTOMDNS the query was resolved by a custom rule
 	CUSTOMDNS
 )
@@ -107,10 +107,10 @@ type Response struct {
 
 // Resolver generic interface for all resolvers
 type Resolver interface {
-	
+
 	// Resolve performs resolution of a DNS request
 	Resolve(req *Request) (*Response, error)
-	
+
 	// Configuration prints current resolver configuration
 	Configuration() []string
 }
@@ -118,10 +118,10 @@ type Resolver interface {
 // ChainedResolver represents a resolver, which can delegate result to the next one
 type ChainedResolver interface {
 	Resolver
-	
+
 	// Next sets the next resulver
 	Next(n Resolver)
-	
+
 	// GetNext returns the next resolver
 	GetNext() Resolver
 }

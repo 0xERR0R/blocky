@@ -29,7 +29,7 @@ type ListCacheType int
 const (
 	// BLACKLIST is a list with blocked domains / IPs
 	BLACKLIST ListCacheType = iota
-	
+
 	// WHITELIST is a list with whitelisted domains / IPs
 	WHITELIST
 )

@@ -14,19 +14,19 @@ package api
 
 const (
 	// PathBlockingStatusPath defines the REST endpoint for blocking status
-	PathBlockingStatusPath  = "/api/blocking/status"
-	
+	PathBlockingStatusPath = "/api/blocking/status"
+
 	// PathBlockingEnablePath defines the REST endpoint for blocking enable
-	PathBlockingEnablePath  = "/api/blocking/enable"
-	
+	PathBlockingEnablePath = "/api/blocking/enable"
+
 	// PathBlockingDisablePath defines the REST endpoint for blocking disable
 	PathBlockingDisablePath = "/api/blocking/disable"
-	
+
 	// PathListsRefresh defines the REST endpoint for blocking refresh
-	PathListsRefresh        = "/api/lists/refresh"
-	
+	PathListsRefresh = "/api/lists/refresh"
+
 	// PathQueryPath defines the REST endpoint for query
-	PathQueryPath           = "/api/query"
+	PathQueryPath = "/api/query"
 )
 
 // QueryRequest is a data structure for a DNS request

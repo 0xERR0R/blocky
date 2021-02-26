@@ -17,18 +17,18 @@ const (
 	validUpstream = `(?P<Host>(?:\[[^\]]+\])|[^\s/:]+):?(?P<Port>[^\s/:]*)?(?P<Path>/[^\s]*)?`
 	// NetUDP UDP protocol (deprecated)
 	NetUDP = "udp"
-	
+
 	// NetTCP TCP protocol (deprecated)
-	NetTCP    = "tcp"
-	
+	NetTCP = "tcp"
+
 	// NetTCPUDP TCP and UDP protocols
 	NetTCPUDP = "tcp+udp"
-	
+
 	// NetTCPTLS TCP-TLS protocol
 	NetTCPTLS = "tcp-tls"
-	
+
 	// NetHTTPS HTTPS protocol
-	NetHTTPS  = "https"
+	NetHTTPS = "https"
 )
 
 // nolint:gochecknoglobals

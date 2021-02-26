@@ -12,7 +12,7 @@ var logger *logrus.Logger
 const (
 	// CfgLogFormatText logging as text
 	CfgLogFormatText = "text"
-	
+
 	// CfgLogFormatJSON as JSON
 	CfgLogFormatJSON = "json"
 )
