@@ -10,24 +10,29 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// BlockingControl interface to control the blocking status
 type BlockingControl interface {
 	EnableBlocking()
 	DisableBlocking(duration time.Duration)
 	BlockingStatus() BlockingStatus
 }
 
+// ListRefresher interface to control the list refresh
 type ListRefresher interface {
 	RefreshLists()
 }
 
+// BlockingEndpoint endpoint for the blocking status control
 type BlockingEndpoint struct {
 	control BlockingControl
 }
 
+// ListRefreshEndpoint endpoint for list refresh
 type ListRefreshEndpoint struct {
 	refresher ListRefresher
 }
 
+// RegisterEndpoint registers an implementation as HTTP endpoint
 func RegisterEndpoint(router chi.Router, t interface{}) {
 	if a, ok := t.(BlockingControl); ok {
 		registerBlockingEndpoints(router, a)
