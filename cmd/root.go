@@ -35,7 +35,7 @@ Complete documentation is available at https://github.com/0xERR0R/blocky`,
 
 	c.PersistentFlags().StringVarP(&configPath, "config", "c", "./config.yml", "path to config file")
 	c.PersistentFlags().StringVar(&apiHost, "apiHost", "localhost", "host of blocky (API)")
-	c.PersistentFlags().Uint16Var(&apiPort, "apiPort", 0, "port of blocky (API)")
+	c.PersistentFlags().Uint16Var(&apiPort, "apiPort", 4000, "port of blocky (API)")
 
 	c.AddCommand(newRefreshCommand(),
 		NewQueryCommand(),
@@ -57,10 +57,10 @@ func init() {
 }
 
 func initConfig() {
-	cfg = config.NewConfig(configPath)
+	cfg = config.NewConfig(configPath, false)
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat)
 
-	if apiPort == 0 {
+	if cfg.HTTPPort != 0 {
 		apiPort = cfg.HTTPPort
 	}
 }

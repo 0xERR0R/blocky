@@ -18,7 +18,7 @@ var _ = Describe("Config", func() {
 				err := os.Chdir("../testdata")
 				Expect(err).Should(Succeed())
 
-				cfg := NewConfig("config.yml")
+				cfg := NewConfig("config.yml", true)
 
 				Expect(cfg.Port).Should(Equal("55555"))
 				Expect(cfg.Upstream.ExternalResolvers).Should(HaveLen(3))
@@ -57,12 +57,12 @@ var _ = Describe("Config", func() {
 
 				Log().ExitFunc = func(int) { fatal = true }
 
-				_ = NewConfig("config.yml")
+				_ = NewConfig("config.yml", true)
 				Expect(fatal).Should(BeTrue())
 			})
 		})
 		When("config directory does not exist", func() {
-			It("should log with fatal and exit", func() {
+			It("should log with fatal and exit if config is mandatory", func() {
 				err := os.Chdir("../..")
 				Expect(err).Should(Succeed())
 
@@ -71,9 +71,18 @@ var _ = Describe("Config", func() {
 				var fatal bool
 
 				Log().ExitFunc = func(int) { fatal = true }
-				_ = NewConfig("config.yml")
+				_ = NewConfig("config.yml", true)
 
 				Expect(fatal).Should(BeTrue())
+			})
+
+			It("should use default config if config is not mandatory", func() {
+				err := os.Chdir("../..")
+				Expect(err).Should(Succeed())
+
+				cfg := NewConfig("config.yml", false)
+
+				Expect(cfg.LogLevel).Should(Equal("info"))
 			})
 		})
 	})

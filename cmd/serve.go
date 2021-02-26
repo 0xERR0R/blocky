@@ -36,6 +36,9 @@ func newServeCommand() *cobra.Command {
 func startServer(_ *cobra.Command, _ []string) {
 	printBanner()
 
+	cfg = config.NewConfig(configPath, true)
+	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat)
+
 	configureHTTPClient(&cfg)
 
 	signals := make(chan os.Signal)

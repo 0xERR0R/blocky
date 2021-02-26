@@ -1,9 +1,11 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -242,13 +244,19 @@ type QueryLogConfig struct {
 }
 
 // NewConfig creates new config from YAML file
-func NewConfig(path string) Config {
+func NewConfig(path string, mandatory bool) Config {
 	cfg := Config{}
 	setDefaultValues(&cfg)
 
 	data, err := ioutil.ReadFile(path)
 
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) && !mandatory {
+			// config file does not exist
+			// return config with default values
+			return cfg
+		}
+
 		log.Log().Fatal("Can't read config file: ", err)
 	}
 
