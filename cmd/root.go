@@ -19,6 +19,7 @@ var (
 	apiPort    uint16
 )
 
+// NewRootCommand creates a new root cli command instance
 func NewRootCommand() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "blocky",
@@ -64,6 +65,7 @@ func initConfig() {
 	}
 }
 
+// Execute starts the command
 func Execute() {
 	if err := NewRootCommand().Execute(); err != nil {
 		fmt.Println(err)
