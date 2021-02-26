@@ -12,10 +12,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// RequestProtocol represents the server protocol
 type RequestProtocol uint8
 
 const (
+	// TCP is the TPC protocol
 	TCP RequestProtocol = iota
+	
+	// UDP is the UDP protocol
 	UDP
 )
 
@@ -27,6 +31,7 @@ func (r RequestProtocol) String() string {
 	return names[r]
 }
 
+// Request represents client's DNS request
 type Request struct {
 	ClientIP    net.IP
 	Protocol    RequestProtocol
@@ -62,13 +67,23 @@ func newRequestWithClient(question string, rType uint16, ip string, clientNames 
 	}
 }
 
+// ResponseType represents the type of the response
 type ResponseType int
 
 const (
+	// RESOLVED the response was resolved by the external upstream resolver
 	RESOLVED ResponseType = iota
+	
+	// CACHED the response was resolved from cache
 	CACHED
+	
+	// BLOCKED the query was blocked
 	BLOCKED
+	
+	// CONDITIONAL the query was resolved by the conditional upstream resolver
 	CONDITIONAL
+	
+	// CUSTOMDNS the query was resolved by a custom rule
 	CUSTOMDNS
 )
 
@@ -83,22 +98,35 @@ func (r ResponseType) String() string {
 	return names[r]
 }
 
+// Response represents the response of a DNS query
 type Response struct {
 	Res    *dns.Msg
 	Reason string
 	RType  ResponseType
 }
+
+// Resolver generic interface for all resolvers
 type Resolver interface {
+	
+	// Resolve performs resolution of a DNS request
 	Resolve(req *Request) (*Response, error)
+	
+	// Configuration prints current resolver configuration
 	Configuration() []string
 }
 
+// ChainedResolver represents a resolver, which can delegate result to the next one
 type ChainedResolver interface {
 	Resolver
+	
+	// Next sets the next resulver
 	Next(n Resolver)
+	
+	// GetNext returns the next resolver
 	GetNext() Resolver
 }
 
+// NextResolver is the base implementation of ChainedResolver
 type NextResolver struct {
 	next Resolver
 }
@@ -119,6 +147,7 @@ func withPrefix(logger *logrus.Entry, prefix string) *logrus.Entry {
 	return logger.WithField("prefix", prefix)
 }
 
+// Chain creates a chain of resolvers
 func Chain(resolvers ...Resolver) Resolver {
 	for i, res := range resolvers {
 		if i+1 < len(resolvers) {
@@ -131,6 +160,7 @@ func Chain(resolvers ...Resolver) Resolver {
 	return resolvers[0]
 }
 
+// Name returns a user-friendly name of a resolver
 func Name(resolver Resolver) string {
 	return strings.Split(fmt.Sprintf("%T", resolver), ".")[1]
 }
