@@ -10,7 +10,10 @@ import (
 var logger *logrus.Logger
 
 const (
+	// CfgLogFormatText logging as text
 	CfgLogFormatText = "text"
+	
+	// CfgLogFormatJSON as JSON
 	CfgLogFormatJSON = "json"
 )
 
@@ -21,14 +24,17 @@ func init() {
 	ConfigureLogger("info", "text")
 }
 
+// Log returns the global logger
 func Log() *logrus.Logger {
 	return logger
 }
 
+// PrefixedLog return the global logger with prefix
 func PrefixedLog(prefix string) *logrus.Entry {
 	return logger.WithField("prefix", prefix)
 }
 
+// ConfigureLogger applies configuration to the global logger
 func ConfigureLogger(logLevel, logFormat string) {
 	if len(logLevel) == 0 {
 		logLevel = "info"
