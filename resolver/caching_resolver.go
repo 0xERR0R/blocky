@@ -12,7 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// caches answers from dns queries with their TTL time, to avoid external resolver calls for recurrent queries
+// CachingResolver caches answers from dns queries with their TTL time, to avoid external resolver calls for recurrent queries
 type CachingResolver struct {
 	NextResolver
 	minCacheTimeSec, maxCacheTimeSec int
@@ -26,6 +26,7 @@ const (
 	prefetchingNameCountThreshold  = 5
 )
 
+// NewCachingResolver creates a new resolver instance
 func NewCachingResolver(cfg config.CachingConfig) ChainedResolver {
 	domainCache := createQueryDomainNameCache(cfg)
 	c := &CachingResolver{
@@ -93,6 +94,7 @@ func (r *CachingResolver) getCache(queryType uint16) *cache.Cache {
 	return r.cachesPerType[queryType]
 }
 
+// Configuration returns a current resolver configuration
 func (r *CachingResolver) Configuration() (result []string) {
 	if r.maxCacheTimeSec < 0 {
 		result = []string{"deactivated"}
@@ -122,6 +124,8 @@ func (r *CachingResolver) getTotalCacheEntryNumber() int {
 }
 
 //nolint:gocognit,funlen
+// Resolve checks if the current query result is already in the cache and returns it
+// or delegates to the next resover
 func (r *CachingResolver) Resolve(request *Request) (response *Response, err error) {
 	logger := withPrefix(request.Log, "caching_resolver")
 
