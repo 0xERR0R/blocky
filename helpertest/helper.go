@@ -99,11 +99,11 @@ func (matcher *dnsRecordMatcher) Match(actual interface{}) (success bool, err er
 }
 
 func (matcher *dnsRecordMatcher) FailureMessage(actual interface{}) (message string) {
-	return fmt.Sprintf("Expected\n\t%s\nto contain\n\tdomain '%s', ttl '%d', type '%s', answer '%s'",
+	return fmt.Sprintf("Expected\n\t%s\n to contain\n\t domain '%s', ttl '%d', type '%s', answer '%s'",
 		actual, matcher.domain, matcher.TTL, dns.TypeToString[matcher.dnsType], matcher.answer)
 }
 
 func (matcher *dnsRecordMatcher) NegatedFailureMessage(actual interface{}) (message string) {
-	return fmt.Sprintf("Expected\n\t%s\n not to contain\n\tdomain '%s', ttl '%d', type '%s', answer '%s'",
+	return fmt.Sprintf("Expected\n\t%s\n not to contain\n\t domain '%s', ttl '%d', type '%s', answer '%s'",
 		actual, matcher.domain, matcher.TTL, dns.TypeToString[matcher.dnsType], matcher.answer)
 }
