@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewQueryCommand creates new command instance
 func NewQueryCommand() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "query <domain>",
