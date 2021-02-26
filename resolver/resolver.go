@@ -119,7 +119,7 @@ type Resolver interface {
 type ChainedResolver interface {
 	Resolver
 
-	// Next sets the next resulver
+	// Next sets the next resolver
 	Next(n Resolver)
 
 	// GetNext returns the next resolver
@@ -131,10 +131,12 @@ type NextResolver struct {
 	next Resolver
 }
 
+// Next sets the next resolver
 func (r *NextResolver) Next(n Resolver) {
 	r.next = n
 }
 
+// GetNext returns the next resolver
 func (r *NextResolver) GetNext() Resolver {
 	return r.next
 }

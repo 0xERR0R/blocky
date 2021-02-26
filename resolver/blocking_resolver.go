@@ -67,7 +67,7 @@ type BlockingResolver struct {
 	status              *status
 }
 
-// NewBlockingResolver retuns a new configured instance of the resolver
+// NewBlockingResolver returns a new configured instance of the resolver
 func NewBlockingResolver(cfg config.BlockingConfig) ChainedResolver {
 	blockHandler := createBlockHandler(cfg)
 	blacklistMatcher := lists.NewListCache(lists.BLACKLIST, cfg.BlackLists, cfg.RefreshPeriod)
@@ -95,7 +95,7 @@ func (r *BlockingResolver) RefreshLists() {
 	r.whitelistMatcher.Refresh()
 }
 
-// EnableBlocking enables the blocking agains the blacklists
+// EnableBlocking enables the blocking against the blacklists
 func (r *BlockingResolver) EnableBlocking() {
 	s := r.status
 	s.enableTimer.Stop()
@@ -226,7 +226,7 @@ func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
 	return nil, nil
 }
 
-// Resolve checks the query agains the blacklist and delegates to next resolver if domain is not blocked
+// Resolve checks the query against the blacklist and delegates to next resolver if domain is not blocked
 func (r *BlockingResolver) Resolve(request *Request) (*Response, error) {
 	logger := withPrefix(request.Log, "blacklist_resolver")
 	groupsToCheck := r.groupsToCheckForClient(request)

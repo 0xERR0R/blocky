@@ -12,7 +12,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// CachingResolver caches answers from dns queries with their TTL time, to avoid external resolver calls for recurrent queries
+// CachingResolver caches answers from dns queries with their TTL time,
+// to avoid external resolver calls for recurrent queries
 type CachingResolver struct {
 	NextResolver
 	minCacheTimeSec, maxCacheTimeSec int
@@ -123,9 +124,9 @@ func (r *CachingResolver) getTotalCacheEntryNumber() int {
 	return count
 }
 
-//nolint:gocognit,funlen
 // Resolve checks if the current query result is already in the cache and returns it
-// or delegates to the next resover
+// or delegates to the next resolver
+//nolint:gocognit,funlen
 func (r *CachingResolver) Resolve(request *Request) (response *Response, err error) {
 	logger := withPrefix(request.Log, "caching_resolver")
 

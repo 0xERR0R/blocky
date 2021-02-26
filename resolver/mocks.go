@@ -71,8 +71,8 @@ func TestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg),
 	return upstream
 }
 
+// TestUDPUpstream creates a mock UDP upstream
 //nolint:funlen
-// TestUdpUpstream creates a mock UDP upstream
 func TestUDPUpstream(fn func(request *dns.Msg) (response *dns.Msg)) config.Upstream {
 	a, err := net.ResolveUDPAddr("udp4", ":0")
 	util.FatalOnError("can't resolve address: ", err)

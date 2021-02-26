@@ -213,6 +213,7 @@ Loop:
 	return cache
 }
 
+// Match matches passed domain name against cached list entries
 func (b *ListCache) Match(domain string, groupsToCheck []string) (found bool, group string) {
 	b.lock.RLock()
 	defer b.lock.RUnlock()

@@ -1,5 +1,6 @@
 package web
 
+//IndexTmpl html template for the start page
 const IndexTmpl = `<!DOCTYPE html>
 <html>
 	<head>

@@ -60,7 +60,7 @@ func (r ParallelBestResolver) String() string {
 	return fmt.Sprintf("parallel upstreams '%s'", strings.Join(result, "; "))
 }
 
-// Resolver sends the query request to multiple upstream resolvers and returns the fastest result
+// Resolve sends the query request to multiple upstream resolvers and returns the fastest result
 func (r *ParallelBestResolver) Resolve(request *Request) (*Response, error) {
 	logger := request.Log.WithField("prefix", "parallel_best_resolver")
 
