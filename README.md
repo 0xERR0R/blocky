@@ -36,7 +36,7 @@ Blocky is a DNS proxy for the local network written in Go with following feature
 - Runs fine on raspberry pi
 
 ## Installation and configuration
-Create `config.yml` file with your configuration [as yml](config.yml):
+Create `config.yml` file with your configuration [as yml](docs/config.yml):
 ```yml
 upstream:
     # these external DNS resolvers will be used. Blocky picks 2 random resolvers from the list for each query
@@ -191,7 +191,10 @@ services:
 See [Wiki - Run with docker](https://github.com/0xERR0R/blocky/wiki/Run-with-docker) for more examples and additional information.
 
 ### Run standalone
-Download the binary file for your architecture and run `./blocky --config config.yml`. Please be aware, if you want to use port 53 or 953 on Linux you should add CAP_NET_BIND_SERVICE capability to the binary or run with root privileges (running as root is not recommended).
+
+Download the binary file from [GitHub](https://github.com/0xERR0R/blocky/releases) for your architecture and
+run `./blocky --config config.yml`. Please be aware, if you want to use port 53 or 953 on Linux you should add
+CAP_NET_BIND_SERVICE capability to the binary or run with root privileges (running as root is not recommended).
 
 ### Run with kubernetes (helm)
 See [this repo](https://github.com/k8s-at-home/charts/tree/master/charts/blocky) or [artifacthub](https://hub.helm.sh/charts/k8s-at-home/blocky) for details about running blocky via helm in kubernetes.
@@ -217,9 +220,10 @@ See [Wiki - Configuration of HTTPS](https://github.com/0xERR0R/blocky/wiki/Confi
 DoH url: https://host:port/dns-query
 
 ### Prometheus / Grafana
-Blocky can export metrics for prometheus. Example grafana dashboard definition [as JSON](blocky-grafana.json)
+
+Blocky can export metrics for prometheus. Example grafana dashboard definition [as JSON](docs/blocky-grafana.json)
 or [at grafana.com](https://grafana.com/grafana/dashboards/13768)
-![grafana-dashboard](grafana-dashboard.png).
+![grafana-dashboard](docs/grafana-dashboard.png).
 
 See [Wiki - Prometheus / Grafana](https://github.com/0xERR0R/blocky/wiki/Prometheus---Grafana-integration) for more
 information.
