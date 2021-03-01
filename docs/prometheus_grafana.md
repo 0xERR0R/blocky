@@ -23,9 +23,10 @@ Following metrics will be exported:
 
 Example [Grafana](https://grafana.com/) dashboard
 definition [as JSON](https://github.com/0xERR0R/blocky/blob/master/docs/blocky-grafana.json)
+or [at grafana.com](https://grafana.com/grafana/dashboards/13768)
 ![grafana-dashboard](https://github.com/0xERR0R/blocky/raw/master/docs/grafana-dashboard.png).
 
-This dashboard shows all relevant statistics and allows to enable and disable the blocking status.
+This dashboard shows all relevant statistics and allows enabling and disabling the blocking status.
 
 ## Grafana configuration
 

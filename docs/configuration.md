@@ -284,18 +284,22 @@ see [Basic Configuration](#basic-configuration)).
 You can enable the logging of DNS queries (question, answer, client, duration etc) to a daily CSV file. This file can be
 opened in Excel or OpenOffice writer for analyse purposes.
 
-!!! warning Query file contain sensitive information. Please ensure to inform users, if you log their queries.
+!!! warning
+
+    Query file contain sensitive information. Please ensure to inform users, if you log their queries.
 
 Configuration parameters:
 
-| Parameter       | Mandatory | Default value      | Description                                       |
-| --------------- | --------- | -------------------| ------------------------------------------------- |
-| queryLog.dir    | no        |                    |  If defined, directory for writing the logs       |
-| queryLog.perClient|   no      | false          |  if true, write one file per client. Writes all queries to single file otherwise                |
-| queryLog.logRetentionDays|   no      | 0          |  if > 0, deletes log files which are older than ... days             |
+| Parameter          | Mandatory | Default value      | Description                                       |
+| ---------------    | --------- | -------------------| ------------------------------------------------- |
+| queryLog.dir       | no        |                    |  If defined, directory for writing the logs       |
+| queryLog.perClient |   no      | false              |  if true, write one file per client. Writes all queries to single file otherwise                |
+| queryLog.logRetentionDays|   no      | 0            |  if > 0, deletes log files which are older than ... days             |
 
-!!! hint Please ensure, that the log directory is writable. If you use docker, please ensure, that the directory is
-properly mounted (e.g. volume)
+!!! hint
+
+    Please ensure, that the log directory is writable. If you use docker, please ensure, that the directory is properly
+    mounted (e.g. volume)
 
 !!! example
 
@@ -305,5 +309,12 @@ properly mounted (e.g. volume)
         perClient: true
         logRetentionDays: 7
     ```
+
+## HTTPS configuration (for DoH)
+
+See [Wiki - Configuration of HTTPS](https://github.com/0xERR0R/blocky/wiki/Configuration-of-HTTPS-for-DoH-and-Rest-API)
+for detailed information, how to configure HTTPS.
+
+DoH url: `https://host:port/dns-query`
 
 --8<-- "docs/includes/abbreviations.md"
