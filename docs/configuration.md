@@ -16,8 +16,13 @@ This chapter describes all configuration options in `config.yaml`
 | logFormat       | no        | text               | Log format (text or json). |
 
 !!! example
-```yaml port: 53 httpPort: 4000 httpsPort: 443 logLevel: info
-```
+
+    ```yaml
+    port: 53
+    httpPort: 4000
+    httpsPort: 443
+    logLevel: info
+    ```
 
 ## Upstream configuration
 
@@ -30,9 +35,11 @@ following network protocols (net part of the resolver URL):
 - https (aka DoH)
 - tcp-tls (aka DoT)
 
-!!! hint You can (and should!) configure multiple DNS resolvers. Blocky picks 2 random resolvers from the list for each
-query and returns the answer from the fastest one. This improves your network speed and increases your privacy - your
-DNS traffic will be distributed over multiple providers.
+!!! hint
+
+    You can (and should!) configure multiple DNS resolvers. Blocky picks 2 random resolvers from the list for each query and
+    returns the answer from the fastest one. This improves your network speed and increases your privacy - your DNS traffic
+    will be distributed over multiple providers.
 
 Each resolver must be defined as a string in following format: `[net:]host:[port][/path]`.
 
@@ -43,13 +50,19 @@ Each resolver must be defined as a string in following format: `[net:]host:[port
 | port      | no        | number < 65535                               | 53 for udp/tcp, 853 for tcp-tls and 443 for https |
 
 !!! example
-```yaml upstream:
-externalResolvers:
-- 46.182.19.48 - 80.241.218.68 - tcp-tls:fdns1.dismail.de:853 - https://dns.digitale-gesellschaft.ch/dns-query
-```
+
+    ```yaml
+    upstream:
+      externalResolvers:
+        - 46.182.19.48
+        - 80.241.218.68
+        - tcp-tls:fdns1.dismail.de:853
+        - https://dns.digitale-gesellschaft.ch/dns-query
+    ```
 
 !!! note
-** Blocky needs at least one upstream DNS server **
+
+    ** Blocky needs at least one upstream DNS server **
 
 ## Custom DNS
 
@@ -57,10 +70,13 @@ You can define your own domain name to IP mappings. For example you can use an u
 or define a domain name for your local device on order to use a HTTPS certificate.
 
 !!! example
-```yaml customDNS:
-mapping:
-printer.lan: 192.168.178.3 otherdevice.lan: 192.168.178.15
-```
+
+    ```yaml
+    customDNS:
+      mapping:
+        printer.lan: 192.168.178.3 otherdevice.lan: 192.168.178.15
+    ```
+
 This configuration will also resolve any subdomain of the defined domain. For example a query "printer.lan" or "
 my.printer.lan" will return 192.168.178.3 as IP address.
 
@@ -71,16 +87,24 @@ is for example useful, if you want to reach devices in your local network by the
 which hostname belongs to which IP address, all DNS queries for local network should be redirected to the router.
 
 !!! example
-```yaml conditional:
-mapping:
-fritz.box: udp:192.168.178.1 lan.net: udp:192.170.1.2,udp:192.170.1.3 # for reverse DNS lookups of local devices 178.168.192.in-addr.arpa: udp:192.168.178.1
-```
+
+    ```yaml
+    conditional:
+      mapping:
+        fritz.box: udp:192.168.178.1
+        lan.net: udp:192.170.1.2,udp:192.170.1.3
+        # for reverse DNS lookups of local devices
+        178.168.192.in-addr.arpa: udp:192.168.178.1
+    ```
+
+    In this example, a DNS query "client.fritz.box" will be redirected to the router's DNS server at 192.168.178.1 and client.lan.net to 192.170.1.2 and 192.170.1.3.
+
 In this example, a DNS query "client.fritz.box" will be redirected to the router's DNS server at 192.168.178.1 and
 client.lan.net to 192.170.1.2 and 192.170.1.3.
 
 ## Client name lookup
 
-Blocky can try to resolve a user-frienly client name from the IP address. This is useful for defining of blocking
+Blocky can try to resolve a user-friendly client name from the IP address. This is useful for defining of blocking
 groups, since IP address can change dynamically. Blocky uses rDNS to retrieve client's name. To use this feature, you
 can configure a DNS server for client lookup (typically your router). You can also define client names manually per IP
 address.
@@ -91,14 +115,19 @@ Some routers return multiple names for the client (host name and user defined na
 parameter `clientLookup.singleNameOrder` you can specify, which of retrieved names should be used.
 
 !!! example
-```yaml clientLookup:
-upstream: udp:192.168.178.1 singleNameOrder:
-- 2 - 1 clients:
-laptop:
-- 192.168.178.29
-```
-Use `192.168.178.1` for rDNS lookup. Take second name if present, if not take first name. IP address `192.168.178.29` is
-mapped to `laptop` as client name.
+
+    ```yaml
+    clientLookup:
+        upstream: udp:192.168.178.1
+        singleNameOrder:
+          - 2
+          - 1
+        clients:
+          laptop:
+            - 192.168.178.29
+    ```
+
+    Use `192.168.178.1` for rDNS lookup. Take second name if present, if not take first name. IP address `192.168.178.29` is mapped to `laptop` as client name.
 
 ## Blocking and whitelisting
 
@@ -117,23 +146,27 @@ Each black or whitelist can be either a path to the local file or a URL to downl
 name.
 
 !!! example
-```yaml blocking:
-blackLists:
-ads:
-- https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
-- https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
-special:
-- https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
-whiteLists:
-ads:
-- whitelist.txt
-```
-In this example you can see 2 groups: **ads** with 2 lists and **special** with one list. One local whitelist was
-defined for the **ads** group.
 
-!!! warning If the same group has black and whitelists, whitelists will be used to disable particular blacklist entries.
-If a group has **only** whitelist entries -> this means only domains from this list are allowed, all other domains will
-be blocked
+    ```yaml
+    blocking:
+      blackLists:
+        ads:
+          - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
+          - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+        special:
+          - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
+      whiteLists:
+        ads:
+          - whitelist.txt
+    ```
+
+    In this example you can see 2 groups: **ads** with 2 lists and **special** with one list. One local whitelist was defined for the **ads** group.
+
+!!! warning
+
+    If the same group has black and whitelists, whitelists will be used to disable particular blacklist entries.
+    If a group has **only** whitelist entries -> this means only domains from this list are allowed, all other domains will
+    be blocked
 
 ### Client groups
 
@@ -147,8 +180,9 @@ You can use the client name (see [Client name lookup](#client-name-lookup)), cli
 CIDR notation.
 
 !!! example
-```yaml blocking:
 
+    ```yaml
+    blocking:
         clientGroupsBlock:
         # default will be used, if no special definition for a client name exists
         default:
@@ -162,9 +196,12 @@ CIDR notation.
           - ads
           - adult
     ```
+
     All queries from network clients, whose device name starts with `laptop`, will be filtered against the **ads** group's lists. All devices from the subnet `192.168.178.1/24` against the **special** group and `kid-laptop` against **ads** and **adult**. All other clients: **ads** and **special**.
 
-!!! tip You can use `*` as wildcard for the sequence of any character or `[0-9]` as number range
+!!! tip
+
+    You can use `*` as wildcard for the sequence of any character or `[0-9]` as number range
 
 ### Block type
 
@@ -177,9 +214,11 @@ You can configure, which response should be sent to the client, if a requested q
 | custom IPs | 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344 | comma separated list of destination IP addresses. Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page.|
 
 !!! example
-```yaml blocking:
-blockType: nxDomain
-```
+
+    ```yaml
+    blocking:
+      blockType: nxDomain
+    ```
 
 ### List refresh period
 
@@ -188,10 +227,13 @@ To keep the list cache up-to-date, blocky will periodically download and reload 
 value will deactivate automatically refresh.
 
 !!! example
-```yaml blocking:
-refreshPeriod: 60
-```
-Refresh every hour.
+
+    ```yaml
+    blocking:
+      refreshPeriod: 60
+    ```
+
+    Refresh every hour.
 
 ## Caching
 
@@ -211,9 +253,13 @@ With following parameters you can tune the caching behavior:
 | caching.prefetching     | no        | false              | if true, will preload DNS results for often used queries (names queried more than 5 times in a 2 hour time window). Results in cache will be loaded again on their expire (TTL). This improves the response time for often used queries, but significantly increases external traffic. It is recommended to increase "minTime" to reduce the number of prefetch queries to external resolvers. |
 
 !!! example
-```yaml blocking:
-minTime: 5 maxTime: 30 prefetching: true
-```
+
+    ```yaml
+    blocking:
+      minTime: 5
+      maxTime: 30
+      prefetching: true
+    ```
 
 ## Prometheus
 
@@ -226,9 +272,12 @@ see [Basic Configuration](#basic-configuration)).
 | prometheus.path |   no      | /metrics           |  URL path to the metrics endpoint                 |
 
 !!! example
-```yaml prometheus:
-enable: true path: /metrics
-```
+
+    ```yaml
+    prometheus:
+      enable: true
+      path: /metrics
+    ```
 
 ## Query logging
 
@@ -249,8 +298,12 @@ Configuration parameters:
 properly mounted (e.g. volume)
 
 !!! example
-```yaml queryLog:
-dir: /logs perClient: true logRetentionDays: 7
-```
+
+    ```yaml
+    queryLog:
+        dir: /logs
+        perClient: true
+        logRetentionDays: 7
+    ```
 
 --8<-- "docs/includes/abbreviations.md"

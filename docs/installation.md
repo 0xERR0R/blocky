@@ -20,16 +20,13 @@ upstream:
     - 80.241.218.68
     - tcp-tls:fdns1.dismail.de:853
     - https://dns.digitale-gesellschaft.ch/dns-query
-
 blocking:
   blackLists:
     ads:
       - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
-
   clientGroupsBlock:
     default:
       - ads
-
 port: 53
 httpPort: 4000
 ```
@@ -39,8 +36,10 @@ httpPort: 4000
 Download the binary file from [GitHub](https://github.com/0xERR0R/blocky/releases) for your architecture and
 run `./blocky --config config.yml`.
 
-!!! warning Please be aware, if you want to use port 53 or 953 on Linux you should add CAP_NET_BIND_SERVICE capability
-to the binary or run with root privileges (running as root is not recommended).
+!!! warning
+
+    Please be aware, if you want to use port 53 or 953 on Linux you should add CAP_NET_BIND_SERVICE capability
+    to the binary or run with root privileges (running as root is not recommended).
 
 ## Run with docker
 
@@ -87,9 +86,12 @@ docker-compose up -d
 
 ### Advanced setup
 
-Following example shows, how to run blocky in a docker container and store query logs on a SAMBA share
+Following example shows, how to run blocky in a docker container and store query logs on a SAMBA share. Local black and
+whitelists directories are mounted as volume. You can create own black or whitelists in these directories and define the
+path like '/app/whitelists/whitelist.txt' in the config file.
 
 !!! example
+
 ```yaml
 version: "2.1"
 services:
@@ -108,6 +110,9 @@ services:
       - ./config.yml:/app/config.yml
       # write query logs in this volume
       - queryLogs:/logs
+      # put your custom white and blacklists in these directories
+      - ./blacklists:/app/blacklists/
+      - ./whitelists:/app/whitelists/
 
 volumes:
   queryLogs:
