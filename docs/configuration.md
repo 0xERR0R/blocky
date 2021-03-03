@@ -114,6 +114,10 @@ address.
 Some routers return multiple names for the client (host name and user defined name). With
 parameter `clientLookup.singleNameOrder` you can specify, which of retrieved names should be used.
 
+### Custom client name mapping
+
+You can also map a particular client name to one (or more) IP (ipv4/ipv6) addresses. Parameter `clientLookup.clients` contains a map of client name and multiple IP addresses.
+
 !!! example
 
     ```yaml
