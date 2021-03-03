@@ -169,10 +169,10 @@ last 24 hours:
 
 !!! hint
 
-    To send a signal to a process you can use `kill -s USR1 <PID>` or `docker kill -s SIGUSR2 blocky` for docker setup
+    To send a signal to a process you can use `kill -s USR2 <PID>` or `docker kill -s SIGUSR2 blocky` for docker setup
 
 ### Debug / Profiling
 
-If http listener is enabled, pprof endpoint (`/debug/pprof`) is enabled automatically.
+If http listener is enabled, [pprof](https://golang.org/pkg/net/http/pprof/) endpoint (`/debug/pprof`) is enabled automatically.
 
 --8<-- "docs/includes/abbreviations.md"
