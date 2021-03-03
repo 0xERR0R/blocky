@@ -64,17 +64,21 @@ Each resolver must be defined as a string in following format: `[net:]host:[port
 
     ** Blocky needs at least one upstream DNS server **
 
+See [List of public DNS servers](additional_information.md#list-of-public-dns-servers) if you need some ideas, which
+public free DNS server you could use.
+
 ## Custom DNS
 
-You can define your own domain name to IP mappings. For example you can use an user-friendly name for a network printer
-or define a domain name for your local device on order to use a HTTPS certificate.
+You can define your own domain name to IP mappings. For example, you can use a user-friendly name for a network printer
+or define a domain name for your local device on order to use the HTTPS certificate.
 
 !!! example
 
     ```yaml
     customDNS:
       mapping:
-        printer.lan: 192.168.178.3 otherdevice.lan: 192.168.178.15
+        printer.lan: 192.168.178.3 
+        otherdevice.lan: 192.168.178.15
     ```
 
 This configuration will also resolve any subdomain of the defined domain. For example a query "printer.lan" or "
@@ -83,8 +87,8 @@ my.printer.lan" will return 192.168.178.3 as IP address.
 ## Conditional DNS resolution
 
 You can define, which DNS resolver(s) should be used for queries for the particular domain (with all sub-domains). This
-is for example useful, if you want to reach devices in your local network by the name. Since only your router know,
-which hostname belongs to which IP address, all DNS queries for local network should be redirected to the router.
+is for example useful, if you want to reach devices in your local network by the name. Since only your router know which
+hostname belongs to which IP address, all DNS queries for the local network should be redirected to the router.
 
 !!! example
 
@@ -116,7 +120,8 @@ parameter `clientLookup.singleNameOrder` you can specify, which of retrieved nam
 
 ### Custom client name mapping
 
-You can also map a particular client name to one (or more) IP (ipv4/ipv6) addresses. Parameter `clientLookup.clients` contains a map of client name and multiple IP addresses.
+You can also map a particular client name to one (or more) IP (ipv4/ipv6) addresses. Parameter `clientLookup.clients`
+contains a map of client name and multiple IP addresses.
 
 !!! example
 
@@ -140,14 +145,14 @@ trackers, adult sites). You can group several list sources together and define t
 External blacklists must be in the well-known [Hosts format](https://en.wikipedia.org/wiki/Hosts_(file)).
 
 Blocky uses [DNS sinkhole](https://en.wikipedia.org/wiki/DNS_sinkhole) approach to block a DNS query. Domain name from
-the request, IP address from the response and the CNAME record will be checked against configured blacklists.
+the request, IP address from the response, and the CNAME record will be checked against configured blacklists.
 
 To avoid overblocking, you can define or use already existing whitelists.
 
 ### Definition black and whitelists
 
-Each black or whitelist can be either a path to the local file or a URL to download. All Urls must be grouped to a group
-name.
+Each black or whitelist can be either a path to the local file, or a URL to download. All Urls must be grouped to a
+group name.
 
 !!! example
 
@@ -244,17 +249,19 @@ value will deactivate automatically refresh.
 Each DNS response has a TTL (Time-to-live) value. This value defines, how long is the record valid in seconds. The
 values are maintained by domain owners, server administrators etc. Blocky caches the answers from all resolved queries
 in own cache in order to avoid repeated requests. This reduces the DNS traffic and increases the network speed, since
-blocky can serve the result immediately from cache.
+blocky can serve the result immediately from the cache.
 
 With following parameters you can tune the caching behavior:
 
-!!! warning Wrong values can significantly increase external DNS traffic or memory consumption.
+!!! warning
+
+    Wrong values can significantly increase external DNS traffic or memory consumption.
 
 | Parameter       | Mandatory | Default value      | Description                                       |
 | --------------- | --------- | -------------------| ------------------------------------------------- |
 | caching.minTime | no        | 0 (use TTL)        | Amount in minutes, how long a response must be cached (min value). If <=0, use response's TTL, if >0 use this value, if TTL is smaller |
 | caching.maxTime | no        | 0 (use TTL)        | Amount in minutes, how long a response must be cached (max value). If <0, do not cache responses. If 0, use TTL. If > 0, use this value, if TTL is greater |
-| caching.prefetching     | no        | false              | if true, will preload DNS results for often used queries (names queried more than 5 times in a 2 hour time window). Results in cache will be loaded again on their expire (TTL). This improves the response time for often used queries, but significantly increases external traffic. It is recommended to increase "minTime" to reduce the number of prefetch queries to external resolvers. |
+| caching.prefetching     | no        | false              | if true, blocky will preload DNS results for often used queries (names queried more than 5 times in a 2 hour time window). Results in cache will be loaded again on their expire (TTL). This improves the response time for often used queries, but significantly increases external traffic. It is recommended to increase "minTime" to reduce the number of prefetch queries to external resolvers. |
 
 !!! example
 

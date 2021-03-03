@@ -21,3 +21,4 @@
 *[SSL]: Secure Sockets Layer
 *[CSV]: Comma-separated values
 *[SAMBA]: Server Message Block Protocol (Windows Network File System)
+*[DHCP]: Dynamic Host Configuration Protocol

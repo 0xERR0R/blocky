@@ -30,4 +30,5 @@ nav:
   - 'Installation': 'installation.md'
   - 'Prometheus / Grafana': 'prometheus_grafana.md'
   - 'Interfaces': 'interfaces.md'
+  - 'Network configuration': 'network_configuration.md'
   - 'Additional information': 'additional_information.md'
