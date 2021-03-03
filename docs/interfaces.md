@@ -18,7 +18,10 @@ To run the CLI, please ensure, that blocky DNS server is running, then execute `
 - `./blocky blocking status` to print current status of blocking
 - `./blocky query <domain>` execute DNS query (A) (simple replacement for dig, useful for debug purposes)
 - `./blocky query <domain> --type <queryType>` execute DNS query with passed query type (A, AAAA, MX, ...)
+- `./blocky lists refresh` reloads all white and blacklists
 
-!!! tip To run this inside docker run `docker exec blocky ./blocky blocking status`
+!!! tip 
+
+    To run this inside docker run `docker exec blocky ./blocky blocking status`
 
 --8<-- "docs/includes/abbreviations.md"
