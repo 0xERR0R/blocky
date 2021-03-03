@@ -11,8 +11,8 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
 - **Blocking** - Blocking of DNS queries with external lists (Ad-block, malware) and whitelisting
 
     * Definition of black and white lists per client group (Kids, Smart home devices etc)
-    * periodical reload of external black and white lists
-    * blocking of request domain, response CNAME (deep CNAME inspection) and response IP addresses (against IP lists)
+    * Periodical reload of external black and white lists
+    * Blocking of request domain, response CNAME (deep CNAME inspection) and response IP addresses (against IP lists)
 
 - **Advanced DNS configuration** - not just an ad-blocker
 
@@ -25,7 +25,7 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
     queries
     * Prefetching and caching of often used queries
     * Using multiple external resolver simultaneously
-    * low memory footprint
+    * Low memory footprint
 
 - **Various Protocols** - Supports modern DNS protocols
 
@@ -40,12 +40,12 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
     * Provides DoH Endpoint
     * Uses random upstream resolvers from the configuration - increases you privacy though the distribution of your DNS
     traffic over multiple provider
-    * blocky does **NOT** collect any user data, telemetry, statistics etc.
+    * Blocky does **NOT** collect any user data, telemetry, statistics etc.
 
 - **Integration** - various integration
 
-    * Prometheus metrics
-    * Prepared Grafana dashboard
+    * [Prometheus](https://prometheus.io/) metrics
+    * Prepared [Grafana](https://grafana.com/) dashboard
     * Logging of DNS queries per day / per client in CSV format - easy to analyze
     * Statistics report via CLI
     * Various REST API endpoints
