@@ -19,7 +19,7 @@ Following metrics will be exported:
 | blocky_prefetch_count | Amount of prefetched DNS responses |
 | blocky_prefetch_domain_name_cache_count | Amount of domain names being prefetched |
 
-# Grafana dashboard
+## Grafana dashboard
 
 Example [Grafana](https://grafana.com/) dashboard
 definition [as JSON](https://github.com/0xERR0R/blocky/blob/master/docs/blocky-grafana.json)
