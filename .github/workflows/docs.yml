@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - docs
+      - master
 jobs:
   deploy:
     runs-on: ubuntu-latest
