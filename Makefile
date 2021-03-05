@@ -12,12 +12,15 @@ all: test lint build ## Build binary (with tests)
 clean: ## cleans output directory
 	$(shell rm -rf $(BIN_OUT_DIR)/*)
 
-swagger:
+swagger: ## creates swagger documentation as html file
 	go get github.com/swaggo/swag/cmd/swag@v1.6.9
 	npm install bootprint bootprint-openapi html-inline
 	$(shell go env GOPATH)/bin/swag init -g api/api.go
 	$(shell) node_modules/bootprint/bin/bootprint.js openapi docs/swagger.json /tmp/swagger/
 	$(shell) node_modules/html-inline/bin/cmd.js /tmp/swagger/index.html > docs/swagger.html
+
+serve_docs: ## serves online docs
+	mkdocs serve
 
 build:  ## Build binary
 	go build -v -ldflags="-w -s -X blocky/cmd.version=${VERSION} -X blocky/cmd.buildTime=${BUILD_TIME}" -o $(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)

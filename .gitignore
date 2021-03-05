@@ -5,6 +5,7 @@ bin/
 docs/swagger.json
 docs/swagger.yaml
 docs/docs.go
+site/
 config.yml
 coverage.txt
 todo.txt

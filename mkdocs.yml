@@ -1,0 +1,34 @@
+site_name: blocky
+site_description: blocky Documentation
+theme:
+  name: material
+  palette:
+    #    scheme: slate
+    primary: teal
+    accent: teal
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/0xERR0R/blocky
+    - icon: fontawesome/brands/docker
+      link: https://hub.docker.com/r/spx01/blocky
+repo_url: https://github.com/0xERR0R/blocky
+
+markdown_extensions:
+  - abbr
+  - pymdownx.snippets
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - admonition
+
+nav:
+  - 'Welcome': 'index.md'
+  - 'Configuration': 'configuration.md'
+  - 'Installation': 'installation.md'
+  - 'Prometheus / Grafana': 'prometheus_grafana.md'
+  - 'Interfaces': 'interfaces.md'
+  - 'Network configuration': 'network_configuration.md'
+  - 'Additional information': 'additional_information.md'
