@@ -1,6 +1,7 @@
 # Configuration
 
-This chapter describes all configuration options in `config.yaml`
+This chapter describes all configuration options in `config.yaml`. You can download a reference file with all
+configuration properties as [JSON](config.yml).
 
 ## Basic configuration
 
