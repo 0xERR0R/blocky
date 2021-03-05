@@ -1,6 +1,6 @@
 linters:
-    enable:
-      - govet
+  enable:
+    - govet
       - errcheck
       - staticcheck
       - unused
@@ -27,22 +27,24 @@ linters:
       - misspell
       - lll
       - unparam
-      - dogsled
-      - funlen
-      - gochecknoglobals
-      - gochecknoinits
-      - gocritic
-      - godox
-      - nakedret
-      - prealloc
-      - whitespace
-      - wsl
+    - dogsled
+    - funlen
+    - gochecknoglobals
+    - gochecknoinits
+    - gocritic
+    - godox
+    - nakedret
+    - prealloc
+    - whitespace
+    - wsl
+  disable:
+    - noctx
 
-    disable-all: false
-    presets:
-      - bugs
-      - unused
-    fast: false
+  disable-all: false
+  presets:
+    - bugs
+    - unused
+  fast: false
 
 issues:
   exclude-rules:

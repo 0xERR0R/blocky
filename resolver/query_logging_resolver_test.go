@@ -6,6 +6,7 @@ import (
 	"blocky/util"
 	"bufio"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -250,7 +251,7 @@ func readCsv(file string) [][]string {
 
 	for {
 		line, err := reader.Read()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			Log().Fatal("can't read line", err)

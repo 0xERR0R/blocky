@@ -121,7 +121,7 @@ func ParseUpstream(upstream string) (result Upstream, err error) {
 		p, err = strconv.ParseUint(strings.TrimSpace(portPart), 10, 16)
 
 		if err != nil {
-			err = fmt.Errorf("can't convert port to number (1 - 65535) %v", err)
+			err = fmt.Errorf("can't convert port to number (1 - 65535) %w", err)
 			return
 		}
 

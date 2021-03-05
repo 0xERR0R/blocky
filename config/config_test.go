@@ -48,7 +48,7 @@ var _ = Describe("Config", func() {
 				Expect(err).Should(Succeed())
 				err = os.Chdir(dir)
 				Expect(err).Should(Succeed())
-				err = ioutil.WriteFile("config.yml", []byte("malformed_config"), 0644)
+				err = ioutil.WriteFile("config.yml", []byte("malformed_config"), 0600)
 				Expect(err).Should(Succeed())
 
 				defer func() { Log().ExitFunc = nil }()

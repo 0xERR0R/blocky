@@ -60,7 +60,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	if cfg.HTTPPort > 0 {
 		if httpListener, err = net.Listen("tcp", fmt.Sprintf(":%d", cfg.HTTPPort)); err != nil {
-			return nil, fmt.Errorf("start http listener on port %d failed: %v", cfg.HTTPPort, err)
+			return nil, fmt.Errorf("start http listener on port %d failed: %w", cfg.HTTPPort, err)
 		}
 
 		metrics.Start(router, cfg.Prometheus)
@@ -72,7 +72,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 		}
 
 		if httpsListener, err = net.Listen("tcp", fmt.Sprintf(":%d", cfg.HTTPSPort)); err != nil {
-			return nil, fmt.Errorf("start https listener on port %d failed: %v", cfg.HTTPSPort, err)
+			return nil, fmt.Errorf("start https listener on port %d failed: %w", cfg.HTTPSPort, err)
 		}
 
 		metrics.Start(router, cfg.Prometheus)

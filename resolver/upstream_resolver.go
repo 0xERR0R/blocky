@@ -74,19 +74,19 @@ func createUpstreamClient(cfg config.Upstream) (client upstreamClient, upstreamU
 }
 
 func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
-	upstreamURL string, protocol RequestProtocol) (*dns.Msg, time.Duration, error) {
+	upstreamURL string, _ RequestProtocol) (*dns.Msg, time.Duration, error) {
 	start := time.Now()
 
 	rawDNSMessage, err := msg.Pack()
 
 	if err != nil {
-		return nil, 0, fmt.Errorf("can't pack message: %v", err)
+		return nil, 0, fmt.Errorf("can't pack message: %w", err)
 	}
 
 	httpResponse, err := r.client.Post(upstreamURL, dnsContentType, bytes.NewReader(rawDNSMessage))
 
 	if err != nil {
-		return nil, 0, fmt.Errorf("can't perform https request: %v", err)
+		return nil, 0, fmt.Errorf("can't perform https request: %w", err)
 	}
 
 	defer func() {
@@ -124,8 +124,9 @@ func (r *dnsUpstreamClient) callExternal(msg *dns.Msg,
 		response, rtt, err = r.tcpClient.Exchange(msg, upstreamURL)
 		if err != nil {
 			// try UDP as fallback
-			if t, ok := err.(*net.OpError); ok {
-				if t.Op == "dial" {
+			var opErr *net.OpError
+			if errors.As(err, &opErr) {
+				if opErr.Op == "dial" {
 					return r.udpClient.Exchange(msg, upstreamURL)
 				}
 			}
@@ -184,7 +185,8 @@ func (r *UpstreamResolver) Resolve(request *Request) (response *Response, err er
 			return &Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.upstreamURL)}, err
 		}
 
-		if errNet, ok := err.(net.Error); ok && (errNet.Timeout() || errNet.Temporary()) {
+		var netErr net.Error
+		if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
 			logger.WithField("attempt", attempt).Debugf("Temporary network error / Timeout occurred, retrying...")
 			attempt++
 		} else {

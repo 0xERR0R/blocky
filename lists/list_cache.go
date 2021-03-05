@@ -4,6 +4,7 @@ import (
 	"blocky/evt"
 	"blocky/util"
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -274,9 +275,10 @@ func downloadFile(link string) (io.ReadCloser, error) {
 			return nil, fmt.Errorf("couldn't download url '%s', got status code %d", link, resp.StatusCode)
 		}
 
-		if errNet, ok := err.(net.Error); ok && (errNet.Timeout() || errNet.Temporary()) {
+		var netErr net.Error
+		if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
 			logger().WithField("link", link).WithField("attempt",
-				attempt).Warnf("Temporary network error / Timeout occurred, retrying... %s", errNet)
+				attempt).Warnf("Temporary network error / Timeout occurred, retrying... %s", netErr)
 			time.Sleep(time.Second)
 			attempt++
 		} else {
@@ -313,7 +315,8 @@ func processFile(link string, ch chan<- []string, wg *sync.WaitGroup) {
 	if err != nil {
 		logger().Warn("error during file processing: ", err)
 
-		if errNet, ok := err.(net.Error); ok && (errNet.Timeout() || errNet.Temporary()) {
+		var netErr net.Error
+		if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
 			// put nil to indicate the temporary error
 			ch <- nil
 			return
