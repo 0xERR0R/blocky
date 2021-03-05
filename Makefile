@@ -41,7 +41,7 @@ buildMultiArchRelease: ## builds binary for multiple archs
 	$(MAKE) build GOOS=windows GOARCH=amd64 BINARY_SUFFIX=_${VERSION}_windows_amd64.exe
 
 docker-build:  ## Build docker image
-	docker build --tag ${DOCKER_IMAGE_NAME} .
+	docker build --network=host --tag ${DOCKER_IMAGE_NAME} .
 
 help:  ## Shows help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
