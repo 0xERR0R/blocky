@@ -1,32 +1,32 @@
 linters:
   enable:
     - govet
-      - errcheck
-      - staticcheck
-      - unused
-      - gosimple
-      - structcheck
-      - varcheck
-      - ineffassign
-      - deadcode
-      - typecheck
-      - bodyclose
-      - golint
-      - stylecheck
-      - gosec
-      - interfacer
-      - unconvert
-      - dupl
-      - goconst
-      - gocyclo
-      - gocognit
-      - gofmt
-      - goimports
-      - maligned
-      - depguard
-      - misspell
-      - lll
-      - unparam
+    - errcheck
+    - staticcheck
+    - unused
+    - gosimple
+    - structcheck
+    - varcheck
+    - ineffassign
+    - deadcode
+    - typecheck
+    - bodyclose
+    - golint
+    - stylecheck
+    - gosec
+    - interfacer
+    - unconvert
+    - dupl
+    - goconst
+    - gocyclo
+    - gocognit
+    - gofmt
+    - goimports
+    - maligned
+    - depguard
+    - misspell
+    - lll
+    - unparam
     - dogsled
     - funlen
     - gochecknoglobals
