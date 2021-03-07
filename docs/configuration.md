@@ -71,7 +71,8 @@ public free DNS server you could use.
 ## Custom DNS
 
 You can define your own domain name to IP mappings. For example, you can use a user-friendly name for a network printer
-or define a domain name for your local device on order to use the HTTPS certificate.
+or define a domain name for your local device on order to use the HTTPS certificate. Multiple IP addresses for one
+domain must be separated by a comma.
 
 !!! example
 
@@ -79,7 +80,7 @@ or define a domain name for your local device on order to use the HTTPS certific
     customDNS:
       mapping:
         printer.lan: 192.168.178.3 
-        otherdevice.lan: 192.168.178.15
+        otherdevice.lan: 192.168.178.15,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
     ```
 
 This configuration will also resolve any subdomain of the defined domain. For example a query "printer.lan" or "

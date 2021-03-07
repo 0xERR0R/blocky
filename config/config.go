@@ -94,6 +94,35 @@ func (c *ConditionalUpstreamMapping) UnmarshalYAML(unmarshal func(interface{}) e
 	return nil
 }
 
+// UnmarshalYAML creates CustomDNSMapping from YAML
+func (c *CustomDNSMapping) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var input map[string]string
+	if err := unmarshal(&input); err != nil {
+		return err
+	}
+
+	result := make(map[string][]net.IP)
+
+	for k, v := range input {
+		var ips []net.IP
+
+		for _, part := range strings.Split(v, ",") {
+			ip := net.ParseIP(strings.TrimSpace(part))
+			if ip == nil {
+				return fmt.Errorf("invalid IP address '%s'", part)
+			}
+
+			ips = append(ips, ip)
+		}
+
+		result[k] = ips
+	}
+
+	c.HostIPs = result
+
+	return nil
+}
+
 // ParseUpstream creates new Upstream from passed string in format [net]:host[:port][/path]
 func ParseUpstream(upstream string) (result Upstream, err error) {
 	if strings.TrimSpace(upstream) == "" {
@@ -200,7 +229,12 @@ type UpstreamConfig struct {
 
 // CustomDNSConfig custom DNS configuration
 type CustomDNSConfig struct {
-	Mapping map[string]net.IP `yaml:"mapping"`
+	Mapping CustomDNSMapping `yaml:"mapping"`
+}
+
+// CustomDNSMapping mapping for the custom DNS configuration
+type CustomDNSMapping struct {
+	HostIPs map[string][]net.IP
 }
 
 // ConditionalUpstreamConfig conditional upstream configuration

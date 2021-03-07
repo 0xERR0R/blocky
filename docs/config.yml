@@ -7,13 +7,13 @@ upstream:
     - tcp-tls:fdns1.dismail.de:853
     - https://dns.digitale-gesellschaft.ch/dns-query
 
-# optional: custom IP address for domain name (with all sub-domains)
+# optional: custom IP address(es) for domain name (with all sub-domains). Multiple addresses must be separated by a comma
 # example: query "printer.lan" or "my.printer.lan" will return 192.168.178.3
 customDNS:
   mapping:
-    printer.lan: 192.168.178.3
+    printer.lan: 192.168.178.3,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
 
-# optional: definition, which DNS resolver(s) should be used for queries to the domain (with all sub-domains). Multiple resolvers must be separated by comma
+# optional: definition, which DNS resolver(s) should be used for queries to the domain (with all sub-domains). Multiple resolvers must be separated by a comma
 # Example: Query client.fritz.box will ask DNS server 192.168.178.1. This is necessary for local network, to resolve clients by host name
 conditional:
   mapping:

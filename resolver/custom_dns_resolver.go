@@ -16,14 +16,14 @@ const customDNSTTL = 60 * 60
 // CustomDNSResolver resolves passed domain name to ip address defined in domain-IP map
 type CustomDNSResolver struct {
 	NextResolver
-	mapping map[string]net.IP
+	mapping map[string][]net.IP
 }
 
 // NewCustomDNSResolver creates new resolver instance
 func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
-	m := make(map[string]net.IP)
-	for url, ip := range cfg.Mapping {
-		m[strings.ToLower(url)] = ip
+	m := make(map[string][]net.IP)
+	for url, ips := range cfg.Mapping.HostIPs {
+		m[strings.ToLower(url)] = ips
 	}
 
 	return &CustomDNSResolver{mapping: m}
@@ -52,37 +52,40 @@ func (r *CustomDNSResolver) Resolve(request *Request) (*Response, error) {
 	logger := withPrefix(request.Log, "custom_dns_resolver")
 
 	if len(r.mapping) > 0 {
-		for _, question := range request.Req.Question {
-			domain := util.ExtractDomain(question)
-			for len(domain) > 0 {
-				ip, found := r.mapping[domain]
-				if found {
-					response := new(dns.Msg)
-					response.SetReply(request.Req)
+		question := request.Req.Question[0]
+		domain := util.ExtractDomain(question)
 
+		for len(domain) > 0 {
+			ips, found := r.mapping[domain]
+			if found {
+				response := new(dns.Msg)
+				response.SetReply(request.Req)
+
+				for _, ip := range ips {
 					if isSupportedType(ip, question) {
 						rr, _ := util.CreateAnswerFromQuestion(question, ip, customDNSTTL)
-
 						response.Answer = append(response.Answer, rr)
-
-						logger.WithFields(logrus.Fields{
-							"answer": util.AnswerToString(response.Answer),
-							"domain": domain,
-						}).Debugf("returning custom dns entry")
-
-						return &Response{Res: response, RType: CUSTOMDNS, Reason: "CUSTOM DNS"}, nil
 					}
+				}
 
-					response.Rcode = dns.RcodeNameError
+				if len(response.Answer) > 0 {
+					logger.WithFields(logrus.Fields{
+						"answer": util.AnswerToString(response.Answer),
+						"domain": domain,
+					}).Debugf("returning custom dns entry")
 
 					return &Response{Res: response, RType: CUSTOMDNS, Reason: "CUSTOM DNS"}, nil
 				}
 
-				if i := strings.Index(domain, "."); i >= 0 {
-					domain = domain[i+1:]
-				} else {
-					break
-				}
+				response.Rcode = dns.RcodeNameError
+
+				return &Response{Res: response, RType: CUSTOMDNS, Reason: "CUSTOM DNS"}, nil
+			}
+
+			if i := strings.Index(domain, "."); i >= 0 {
+				domain = domain[i+1:]
+			} else {
+				break
 			}
 		}
 	}

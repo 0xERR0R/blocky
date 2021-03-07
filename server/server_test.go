@@ -58,9 +58,11 @@ var _ = Describe("Running DNS server", func() {
 		// create server
 		sut, err = NewServer(&config.Config{
 			CustomDNS: config.CustomDNSConfig{
-				Mapping: map[string]net.IP{
-					"custom.lan": net.ParseIP("192.168.178.55"),
-					"lan.home":   net.ParseIP("192.168.178.56"),
+				Mapping: config.CustomDNSMapping{
+					HostIPs: map[string][]net.IP{
+						"custom.lan": {net.ParseIP("192.168.178.55")},
+						"lan.home":   {net.ParseIP("192.168.178.56")},
+					},
 				},
 			},
 			Conditional: config.ConditionalUpstreamConfig{
@@ -463,12 +465,12 @@ var _ = Describe("Running DNS server", func() {
 				// create server
 				server, err := NewServer(&config.Config{
 					CustomDNS: config.CustomDNSConfig{
-						Mapping: map[string]net.IP{
-							"custom.lan": net.ParseIP("192.168.178.55"),
-							"lan.home":   net.ParseIP("192.168.178.56"),
-						},
-					},
-
+						Mapping: config.CustomDNSMapping{
+							HostIPs: map[string][]net.IP{
+								"custom.lan": {net.ParseIP("192.168.178.55")},
+								"lan.home":   {net.ParseIP("192.168.178.56")},
+							},
+						}},
 					Port:     ":55556",
 					LogLevel: "info",
 				})
@@ -507,11 +509,12 @@ var _ = Describe("Running DNS server", func() {
 				// create server
 				server, err := NewServer(&config.Config{
 					CustomDNS: config.CustomDNSConfig{
-						Mapping: map[string]net.IP{
-							"custom.lan": net.ParseIP("192.168.178.55"),
-							"lan.home":   net.ParseIP("192.168.178.56"),
-						},
-					},
+						Mapping: config.CustomDNSMapping{
+							HostIPs: map[string][]net.IP{
+								"custom.lan": {net.ParseIP("192.168.178.55")},
+								"lan.home":   {net.ParseIP("192.168.178.56")},
+							},
+						}},
 
 					Port:     "127.0.0.1:55557",
 					LogLevel: "info",

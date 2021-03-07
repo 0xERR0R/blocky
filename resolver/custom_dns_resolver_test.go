@@ -21,10 +21,14 @@ var _ = Describe("CustomDNSResolver", func() {
 
 	BeforeEach(func() {
 		sut = NewCustomDNSResolver(config.CustomDNSConfig{
-			Mapping: map[string]net.IP{
-				"custom.domain": net.ParseIP("192.168.143.123"),
-				"ip6.domain":    net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334"),
-			}})
+			Mapping: config.CustomDNSMapping{HostIPs: map[string][]net.IP{
+				"custom.domain": {net.ParseIP("192.168.143.123")},
+				"ip6.domain":    {net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")},
+				"multiple.ips": {
+					net.ParseIP("192.168.143.123"),
+					net.ParseIP("192.168.143.125"),
+					net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")},
+			}}})
 		m = &resolverMock{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
@@ -51,6 +55,25 @@ var _ = Describe("CustomDNSResolver", func() {
 
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 				Expect(resp.Res.Answer).Should(BeDNSRecord("ip6.domain.", dns.TypeAAAA, 3600, "2001:db8:85a3::8a2e:370:7334"))
+			})
+		})
+		When("Multiple IPs are defined for custom domain ", func() {
+			It("all IPs for the current type should be returned", func() {
+				By("IPv6 query", func() {
+					resp, err = sut.Resolve(newRequest("multiple.ips.", dns.TypeAAAA))
+
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+					Expect(resp.Res.Answer).Should(BeDNSRecord("multiple.ips.", dns.TypeAAAA, 3600, "2001:db8:85a3::8a2e:370:7334"))
+				})
+
+				By("IPv4 query", func() {
+					resp, err = sut.Resolve(newRequest("multiple.ips.", dns.TypeA))
+
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+					Expect(resp.Res.Answer).Should(HaveLen(2))
+					Expect(resp.Res.Answer[0]).Should(BeDNSRecord("multiple.ips.", dns.TypeA, 3600, "192.168.143.123"))
+					Expect(resp.Res.Answer[1]).Should(BeDNSRecord("multiple.ips.", dns.TypeA, 3600, "192.168.143.125"))
+				})
 			})
 		})
 		When("Domain mapping is defined", func() {
@@ -84,7 +107,7 @@ var _ = Describe("CustomDNSResolver", func() {
 		When("resolver is enabled", func() {
 			It("should return configuration", func() {
 				c := sut.Configuration()
-				Expect(c).Should(HaveLen(2))
+				Expect(c).Should(HaveLen(3))
 			})
 		})
 
