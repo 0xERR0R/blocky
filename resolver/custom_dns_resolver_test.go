@@ -71,8 +71,34 @@ var _ = Describe("CustomDNSResolver", func() {
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 					Expect(resp.Res.Answer).Should(HaveLen(2))
-					Expect(resp.Res.Answer[0]).Should(BeDNSRecord("multiple.ips.", dns.TypeA, 3600, "192.168.143.123"))
-					Expect(resp.Res.Answer[1]).Should(BeDNSRecord("multiple.ips.", dns.TypeA, 3600, "192.168.143.125"))
+					Expect(resp.Res.Answer).Should(ContainElements(
+						BeDNSRecord("multiple.ips.", dns.TypeA, 3600, "192.168.143.123")),
+						BeDNSRecord("multiple.ips.", dns.TypeA, 3600, "192.168.143.125"))
+				})
+			})
+		})
+		When("Reverse DNS request is received", func() {
+			It("should resolve the defined domain name", func() {
+				By("ipv4", func() {
+					resp, err = sut.Resolve(newRequest("123.143.168.192.in-addr.arpa.", dns.TypePTR))
+
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+					Expect(resp.Res.Answer).Should(HaveLen(2))
+					Expect(resp.Res.Answer).Should(ContainElements(
+						BeDNSRecord("123.143.168.192.in-addr.arpa.", dns.TypePTR, 3600, "custom.domain."),
+						BeDNSRecord("123.143.168.192.in-addr.arpa.", dns.TypePTR, 3600, "multiple.ips.")))
+				})
+
+				By("ipv6", func() {
+					resp, err = sut.Resolve(newRequest("4.3.3.7.0.7.3.0.e.2.a.8.0.0.0.0.0.0.0.0.3.a.5.8.8.b.d.0.1.0.0.2.ip6.arpa.",
+						dns.TypePTR))
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+					Expect(resp.Res.Answer).Should(HaveLen(2))
+					Expect(resp.Res.Answer).Should(ContainElements(
+						BeDNSRecord("4.3.3.7.0.7.3.0.e.2.a.8.0.0.0.0.0.0.0.0.3.a.5.8.8.b.d.0.1.0.0.2.ip6.arpa.",
+							dns.TypePTR, 3600, "ip6.domain.")),
+						BeDNSRecord("4.3.3.7.0.7.3.0.e.2.a.8.0.0.0.0.0.0.0.0.3.a.5.8.8.b.d.0.1.0.0.2.ip6.arpa.",
+							dns.TypePTR, 3600, "multiple.ips."))
 				})
 			})
 		})

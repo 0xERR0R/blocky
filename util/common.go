@@ -46,7 +46,7 @@ func QuestionToString(questions []dns.Question) string {
 
 // CreateAnswerFromQuestion creates new answer from a question
 func CreateAnswerFromQuestion(question dns.Question, ip net.IP, remainingTTL uint32) (dns.RR, error) {
-	h := dns.RR_Header{Name: question.Name, Rrtype: question.Qtype, Class: dns.ClassINET, Ttl: remainingTTL}
+	h := CreateHeader(question, remainingTTL)
 
 	switch question.Qtype {
 	case dns.TypeA:
@@ -67,6 +67,11 @@ func CreateAnswerFromQuestion(question dns.Question, ip net.IP, remainingTTL uin
 
 	return dns.NewRR(fmt.Sprintf("%s %d %s %s %s",
 		question.Name, remainingTTL, "IN", dns.TypeToString[question.Qtype], ip))
+}
+
+// CreateHeader creates DNS header for passed question
+func CreateHeader(question dns.Question, remainingTTL uint32) dns.RR_Header {
+	return dns.RR_Header{Name: question.Name, Rrtype: question.Qtype, Class: dns.ClassINET, Ttl: remainingTTL}
 }
 
 // ExtractDomain returns domain string from the question
