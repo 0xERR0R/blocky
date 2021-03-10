@@ -27,6 +27,7 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 
 	BeforeEach(func() {
 		sut = NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{
+			Rewrite: map[string]string{"example.com": "fritz.box"},
 			Mapping: config.ConditionalUpstreamMapping{
 				Upstreams: map[string][]config.Upstream{
 					"fritz.box": {TestUDPUpstream(func(request *dns.Msg) (response *dns.Msg) {
@@ -79,11 +80,27 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 				Expect(resp.RType).Should(Equal(CONDITIONAL))
 			})
 		})
+		When("rewrite mapping is defined", func() {
+			It("Should resolve the IP via defined resolver after applying the rewrite", func() {
+				resp, err = sut.Resolve(newRequest("test.example.com.", dns.TypeA))
+
+				Expect(resp.Res.Answer).Should(BeDNSRecord("test.fritz.box.", dns.TypeA, 123, "123.124.122.122"))
+				// no call to next resolver
+				Expect(m.Calls).Should(BeEmpty())
+				Expect(resp.RType).Should(Equal(CONDITIONAL))
+			})
+
+			It("Should delegate to next resolver if there is no subdomain after rewrite", func() {
+				resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+
+				m.AssertExpectations(GinkgoT())
+			})
+		})
 	})
 	Describe("Delegation to next resolver", func() {
 		When("Query doesn't match defined mapping", func() {
 			It("should delegate to next resolver", func() {
-				resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+				resp, err = sut.Resolve(newRequest("google.com.", dns.TypeA))
 
 				m.AssertExpectations(GinkgoT())
 			})

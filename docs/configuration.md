@@ -92,10 +92,16 @@ You can define, which DNS resolver(s) should be used for queries for the particu
 is for example useful, if you want to reach devices in your local network by the name. Since only your router know which
 hostname belongs to which IP address, all DNS queries for the local network should be redirected to the router.
 
+With the optional parameter `rewrite` you can replace domain part of the query with the defined part **before** the
+resolver lookup is performed.
+
 !!! example
 
     ```yaml
     conditional:
+      rewrite:
+        example.com: fritz.box
+        replace-me.com: with-this.com
       mapping:
         fritz.box: udp:192.168.178.1
         lan.net: udp:192.170.1.2,udp:192.170.1.3
@@ -103,7 +109,8 @@ hostname belongs to which IP address, all DNS queries for the local network shou
         178.168.192.in-addr.arpa: udp:192.168.178.1
     ```
 
-    In this example, a DNS query "client.fritz.box" will be redirected to the router's DNS server at 192.168.178.1 and client.lan.net to 192.170.1.2 and 192.170.1.3.
+    In this example, a DNS query "client.fritz.box" will be redirected to the router's DNS server at 192.168.178.1 and client.lan.net to 192.170.1.2 and 192.170.1.3. 
+    The query client.example.com will be rewritten to "client.fritz.box" and also redirected to the resolver at 192.168.178.1
 
 In this example, a DNS query "client.fritz.box" will be redirected to the router's DNS server at 192.168.178.1 and
 client.lan.net to 192.170.1.2 and 192.170.1.3.

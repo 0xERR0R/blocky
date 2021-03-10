@@ -239,6 +239,7 @@ type CustomDNSMapping struct {
 
 // ConditionalUpstreamConfig conditional upstream configuration
 type ConditionalUpstreamConfig struct {
+	Rewrite map[string]string          `yaml:"rewrite"`
 	Mapping ConditionalUpstreamMapping `yaml:"mapping"`
 }
 
