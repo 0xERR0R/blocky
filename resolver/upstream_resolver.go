@@ -126,7 +126,7 @@ func (r *dnsUpstreamClient) callExternal(msg *dns.Msg,
 			// try UDP as fallback
 			var opErr *net.OpError
 			if errors.As(err, &opErr) {
-				if opErr.Op == "dial" {
+				if opErr.Op == "dial" && r.udpClient != nil {
 					return r.udpClient.Exchange(msg, upstreamURL)
 				}
 			}
