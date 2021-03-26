@@ -223,11 +223,13 @@ CIDR notation.
 
 ### Block type
 
-You can configure, which response should be sent to the client, if a requested query is blocked:
+You can configure, which response should be sent to the client, if a requested query is blocked (only for A and AAAA
+queries, NXDOMAIN for other types):
 
 | blockType  | Example | Description                                                      |
 | ---------- | ------- | ---------------------------------------------------------------- |
-| **zeroIP** | zeroIP  | This is the **default** block type. Server returns 0.0.0.0 as result |
+| **zeroIP** | zeroIP  | This is the **
+default** block type. Server returns 0.0.0.0 (or :: for IPv6) as result for A and AAAA queries |
 | **nxDomain** | nxDomain | return NXDOMAIN as return code |
 | custom IPs | 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344 | comma separated list of destination IP addresses. Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page.|
 
