@@ -279,7 +279,11 @@ func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
 
 	if err != nil {
 		logger().Errorf("error on processing request: %v", err)
-		dns.HandleFailed(w, request)
+
+		m := new(dns.Msg)
+		m.SetRcode(request, dns.RcodeServerFailure)
+		err := w.WriteMsg(m)
+		util.LogOnError("can't write message: ", err)
 	} else {
 		response.Res.MsgHdr.RecursionAvailable = request.MsgHdr.RecursionDesired
 
