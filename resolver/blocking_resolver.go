@@ -192,20 +192,12 @@ func (r *BlockingResolver) Configuration() (result []string) {
 	return
 }
 
-func shouldHandle(question dns.Question) bool {
-	return question.Qtype == dns.TypeA || question.Qtype == dns.TypeAAAA
-}
-
 func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
 	request *Request, logger *logrus.Entry) (*Response, error) {
 	logger.WithField("groupsToCheck", strings.Join(groupsToCheck, "; ")).Debug("checking groups for request")
 	whitelistOnlyAllowed := reflect.DeepEqual(groupsToCheck, r.whitelistOnlyGroups)
 
 	for _, question := range request.Req.Question {
-		if !shouldHandle(question) {
-			return r.next.Resolve(request)
-		}
-
 		domain := util.ExtractDomain(question)
 		logger := logger.WithField("domain", domain)
 
@@ -360,8 +352,11 @@ func (b zeroIPBlockHandler) handleBlock(question dns.Question, response *dns.Msg
 	switch question.Qtype {
 	case dns.TypeAAAA:
 		zeroIP = net.IPv6zero
-	default:
+	case dns.TypeA:
 		zeroIP = net.IPv4zero
+	default:
+		response.Rcode = dns.RcodeNameError
+		return
 	}
 
 	rr, _ := util.CreateAnswerFromQuestion(question, zeroIP, blockTTL)

@@ -61,6 +61,7 @@ badcnamedomain.com`)
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		sut = NewBlockingResolver(sutConfig).(*BlockingResolver)
 		sut.Next(m)
+		sut.RefreshLists()
 	})
 
 	AfterEach(func() {
@@ -133,6 +134,18 @@ badcnamedomain.com`)
 				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeAAAA, "1.2.1.2", "client1"))
 
 				Expect(resp.Res.Answer).Should(BeDNSRecord("domain1.com.", dns.TypeAAAA, 21600, "::"))
+			})
+			It("should block the HTTPS query if domain is on the black list", func() {
+				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeHTTPS, "1.2.1.2", "client1"))
+
+				expectedReturnCode = dns.RcodeNameError
+				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+			})
+			It("should block the MX query if domain is on the black list", func() {
+				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeMX, "1.2.1.2", "client1"))
+
+				expectedReturnCode = dns.RcodeNameError
+				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
 			})
 		})
 
@@ -252,7 +265,7 @@ badcnamedomain.com`)
 				Expect(resp.Res.Answer).Should(BeDNSRecord("blocked3.com.", dns.TypeA, 21600, "12.12.12.12"))
 			})
 
-			It("should return ipv6 address for AAAAA query if query is blocked", func() {
+			It("should return ipv6 address for AAAA query if query is blocked", func() {
 				resp, err = sut.Resolve(newRequestWithClient("blocked3.com.", dns.TypeAAAA, "1.2.1.2", "unknown"))
 
 				Expect(resp.Reason).Should(Equal("BLOCKED (defaultGroup)"))
@@ -406,11 +419,6 @@ badcnamedomain.com`)
 		When("domain is not on the black list", func() {
 			It("should delegate to next resolver", func() {
 				resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "1.2.1.2", "unknown"))
-			})
-		})
-		When("request is not A or AAAA", func() {
-			It("should delegate to next resolver", func() {
-				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeMX, "1.2.1.2", "unknown"))
 			})
 		})
 		When("no lists defined", func() {
