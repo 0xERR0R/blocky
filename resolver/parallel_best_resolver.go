@@ -101,7 +101,8 @@ func (r *ParallelBestResolver) Resolve(request *Request) (*Response, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("resolution was not successful, errors: %v", collectedErrors)
+	return nil, fmt.Errorf("resolution was not successful, used resolvers: '%s' and '%s' errors: %v",
+		r1.resolver, r2.resolver, collectedErrors)
 }
 
 // pick 2 different random resolvers from the resolver pool
