@@ -12,8 +12,10 @@ func (r *IPv6Checker) Resolve(request *Request) (*Response, error) {
 	if r.disableAAAA && request.Req.Question[0].Qtype == dns.TypeAAAA {
 		response := new(dns.Msg)
 		response.SetRcode(request.Req, dns.RcodeSuccess)
+
 		return &Response{Res: response, RType: RESOLVED}, nil
 	}
+
 	return r.next.Resolve(request)
 }
 
@@ -23,6 +25,7 @@ func (r *IPv6Checker) Configuration() (result []string) {
 	} else {
 		result = append(result, "accept AAAA")
 	}
+
 	return
 }
 
