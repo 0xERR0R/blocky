@@ -37,6 +37,11 @@ var _ = Describe("IPv6Checker", func() {
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 			Expect(resp.Res.Answer).Should(HaveLen(1))
 		})
+		It("Configure should output 'accept'", func() {
+			c := sut.Configuration()
+			Expect(c).Should(HaveLen(1))
+			Expect(c[0]).Should(ContainSubstring("accept"))
+		})
 	})
 
 	When("Configure IPv6 disabled", func() {
@@ -49,6 +54,11 @@ var _ = Describe("IPv6Checker", func() {
 			Expect(err).Should(Succeed())
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 			Expect(resp.Res.Answer).Should(HaveLen(0))
+		})
+		It("Configure should output 'drop'", func() {
+			c := sut.Configuration()
+			Expect(c).Should(HaveLen(1))
+			Expect(c[0]).Should(ContainSubstring("drop"))
 		})
 	})
 })
