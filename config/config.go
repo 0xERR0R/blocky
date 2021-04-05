@@ -206,6 +206,7 @@ type Config struct {
 	Caching      CachingConfig             `yaml:"caching"`
 	QueryLog     QueryLogConfig            `yaml:"queryLog"`
 	Prometheus   PrometheusConfig          `yaml:"prometheus"`
+	DisableIPv6  bool                      `yaml:"disableIPv6"`
 	LogLevel     string                    `yaml:"logLevel"`
 	LogFormat    string                    `yaml:"logFormat"`
 	Port         string                    `yaml:"port"`

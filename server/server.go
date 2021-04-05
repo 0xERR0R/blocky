@@ -138,6 +138,7 @@ func createUDPServer(address string) *dns.Server {
 
 func createQueryResolver(cfg *config.Config) resolver.Resolver {
 	return resolver.Chain(
+		resolver.NewIPv6Checker(cfg.DisableIPv6),
 		resolver.NewClientNamesResolver(cfg.ClientLookup),
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
 		resolver.NewStatsResolver(),
