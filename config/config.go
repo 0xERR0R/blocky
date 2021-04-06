@@ -211,6 +211,7 @@ type Config struct {
 	Port         string                    `yaml:"port"`
 	HTTPPort     uint16                    `yaml:"httpPort"`
 	HTTPSPort    uint16                    `yaml:"httpsPort"`
+	DisableIPv6  bool                      `yaml:"disableIPv6"`
 	CertFile     string                    `yaml:"httpsCertFile"`
 	KeyFile      string                    `yaml:"httpsKeyFile"`
 	BootstrapDNS Upstream                  `yaml:"bootstrapDns"`

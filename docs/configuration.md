@@ -13,6 +13,7 @@ configuration properties as [JSON](config.yml).
 | httpsCertFile   | yes, if httpsPort > 0 |        | path to cert and key file for SSL encryption |
 | httpsKeyFile    | yes, if httpsPort > 0 |        | path to cert and key file for SSL encryption |
 | bootstrapDns    | no        |                    | use this DNS server to resolve blacklist urls and upstream DNS servers (DoH). Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp|
+| disableIPv6     | no        | false              | Drop all AAAA query if set to true
 | logLevel        | no        | info               | Log level (one from debug, info, warn, error) |
 | logFormat       | no        | text               | Log format (text or json). |
 
