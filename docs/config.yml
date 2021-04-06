@@ -119,6 +119,8 @@ httpPort: 4000
 #httpsKeyFile: server.key
 # optional: use this DNS server to resolve blacklist urls and upstream DNS servers (DOH). Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp
 bootstrapDns: tcp:1.1.1.1
+# optional: Drop all AAAA query if set to true. Default: false
+disableIPv6: false
 # optional: Log level (one from debug, info, warn, error). Default: info
 logLevel: info
 # optional: Log format (text or json). Default: text
