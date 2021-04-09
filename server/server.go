@@ -145,8 +145,8 @@ func createQueryResolver(cfg *config.Config) resolver.Resolver {
 		resolver.NewMetricsResolver(cfg.Prometheus),
 		resolver.NewCustomDNSResolver(cfg.CustomDNS),
 		resolver.NewBlockingResolver(cfg.Blocking),
-		resolver.NewConditionalUpstreamResolver(cfg.Conditional),
 		resolver.NewCachingResolver(cfg.Caching),
+		resolver.NewConditionalUpstreamResolver(cfg.Conditional),
 		resolver.NewParallelBestResolver(cfg.Upstream.ExternalResolvers),
 	)
 }
