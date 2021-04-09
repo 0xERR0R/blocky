@@ -68,6 +68,7 @@ var _ = Describe("Running DNS server", func() {
 			Conditional: config.ConditionalUpstreamConfig{
 				Mapping: config.ConditionalUpstreamMapping{
 					Upstreams: map[string][]config.Upstream{
+						"net.cn":    {upstreamClient},
 						"fritz.box": {upstreamFritzbox},
 					},
 				},
@@ -167,6 +168,13 @@ var _ = Describe("Running DNS server", func() {
 				resp = requestServer(util.NewMsgWithQuestion("host.fritz.box.", dns.TypeA))
 
 				Expect(resp.Answer).Should(BeDNSRecord("host.fritz.box.", dns.TypeA, 3600, "192.168.178.2"))
+			})
+		})
+		Context("Conditional upstream blocking", func() {
+			It("Query should be blocked, domain is in default group", func() {
+				resp = requestServer(util.NewMsgWithQuestion("doubleclick.net.cn.", dns.TypeA))
+
+				Expect(resp.Answer).Should(BeDNSRecord("doubleclick.net.cn.", dns.TypeA, 21600, "0.0.0.0"))
 			})
 		})
 		Context("Blocking default group", func() {
