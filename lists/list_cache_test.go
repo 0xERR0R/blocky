@@ -43,6 +43,19 @@ var _ = Describe("ListCache", func() {
 	})
 
 	Describe("List cache and matching", func() {
+		When("Query with empty", func() {
+			It("should not panic", func() {
+				lists := map[string][]string{
+					"gr0": {emptyFile.Name()},
+				}
+				sut := NewListCache(BLACKLIST, lists, 0)
+
+				found, group := sut.Match("", []string{"gr0"})
+				Expect(found).Should(BeFalse())
+				Expect(group).Should(BeEmpty())
+			})
+		})
+
 		When("List is empty", func() {
 			It("should not match anything", func() {
 				lists := map[string][]string{
