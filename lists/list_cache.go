@@ -60,6 +60,10 @@ func (cache stringCache) elementCount() int {
 
 func (cache stringCache) contains(searchString string) bool {
 	searchLen := len(searchString)
+	if searchLen == 0 {
+		return false
+	}
+
 	searchBucketLen := len(cache[searchLen]) / searchLen
 	idx := sort.Search(searchBucketLen, func(i int) bool {
 		return cache[searchLen][i*searchLen:i*searchLen+searchLen] >= searchString
