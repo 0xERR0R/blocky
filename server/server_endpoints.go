@@ -42,7 +42,7 @@ func (s *Server) dohGetRequestHandler(rw http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	rawMsg, err := base64.StdEncoding.DecodeString(dnsParam[0])
+	rawMsg, err := base64.RawURLEncoding.DecodeString(dnsParam[0])
 	if err != nil {
 		http.Error(rw, "wrong message format", http.StatusBadRequest)
 
