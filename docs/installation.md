@@ -125,7 +125,7 @@ volumes:
 
 ## Run with helm chart on Kubernetes
 
-See [this repo](https://github.com/k8s-at-home/charts/tree/master/charts/blocky)
+See [this repo](https://github.com/k8s-at-home/charts/tree/master/charts/stable/blocky)
 or [artifacthub](https://hub.helm.sh/charts/k8s-at-home/blocky) for details about running blocky via helm in kubernetes.
 
 --8<-- "docs/includes/abbreviations.md"
