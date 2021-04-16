@@ -313,5 +313,6 @@ func setDefaultValues(cfg *Config) {
 	cfg.Port = cfgDefaultPort
 	cfg.LogLevel = "info"
 	cfg.LogFormat = log.CfgLogFormatText
+	cfg.LogTimestamp = true
 	cfg.Prometheus.Path = cfgDefaultPrometheusPath
 }
