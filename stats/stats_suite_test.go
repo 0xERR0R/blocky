@@ -9,7 +9,7 @@ import (
 )
 
 func TestStats(t *testing.T) {
-	ConfigureLogger("Warn", "text")
+	ConfigureLogger("Warn", "text", true)
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Stats Suite")
 }
