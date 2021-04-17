@@ -16,6 +16,7 @@ configuration properties as [JSON](config.yml).
 | disableIPv6     | no        | false              | Drop all AAAA query if set to true
 | logLevel        | no        | info               | Log level (one from debug, info, warn, error) |
 | logFormat       | no        | text               | Log format (text or json). |
+| logTimestamp    | no        | true               | Log time stamps (true or false). |
 
 !!! example
 

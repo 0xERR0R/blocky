@@ -125,3 +125,5 @@ disableIPv6: false
 logLevel: info
 # optional: Log format (text or json). Default: text
 logFormat: text
+# optional: log timestamps. Default: true
+logTimestamp: true
