@@ -197,6 +197,7 @@ const (
 )
 
 // Config main configuration
+// nolint:maligned
 type Config struct {
 	Upstream     UpstreamConfig            `yaml:"upstream"`
 	CustomDNS    CustomDNSConfig           `yaml:"customDNS"`
