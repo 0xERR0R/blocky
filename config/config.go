@@ -208,6 +208,7 @@ type Config struct {
 	Prometheus   PrometheusConfig          `yaml:"prometheus"`
 	LogLevel     string                    `yaml:"logLevel"`
 	LogFormat    string                    `yaml:"logFormat"`
+	LogTimestamp bool                      `yaml:"logTimestamp"`
 	Port         string                    `yaml:"port"`
 	HTTPPort     uint16                    `yaml:"httpPort"`
 	HTTPSPort    uint16                    `yaml:"httpsPort"`
@@ -312,5 +313,6 @@ func setDefaultValues(cfg *Config) {
 	cfg.Port = cfgDefaultPort
 	cfg.LogLevel = "info"
 	cfg.LogFormat = log.CfgLogFormatText
+	cfg.LogTimestamp = true
 	cfg.Prometheus.Path = cfgDefaultPrometheusPath
 }
