@@ -1,6 +1,7 @@
 package util
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"sort"
@@ -174,4 +175,24 @@ func Chunks(s string, chunkSize int) []string {
 	}
 
 	return chunks
+}
+
+// GenerateCacheKey return cacheKey by query type/domain
+func GenerateCacheKey(qType uint16, qName string) string {
+	b := make([]byte, 2+len(qName))
+
+	binary.BigEndian.PutUint16(b, qType)
+	copy(b[2:], strings.ToLower(qName))
+
+	return string(b)
+}
+
+// ExtractCacheKey return query type/domain from cacheKey
+func ExtractCacheKey(key string) (qType uint16, qName string) {
+	b := []byte(key)
+
+	qType = binary.BigEndian.Uint16(b)
+	qName = string(b[2:])
+
+	return
 }

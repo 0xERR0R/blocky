@@ -52,9 +52,7 @@ var _ = Describe("CachingResolver", func() {
 
 			It("should prefetch domain if query count > threshold", func() {
 				// prepare resolver, set smaller caching times for testing
-				sut.(*CachingResolver).cachesPerType = map[uint16]*cache.Cache{
-					dns.TypeA: cache.New(15*time.Millisecond, 15*time.Millisecond),
-				}
+				sut.(*CachingResolver).resultCache = cache.New(15*time.Millisecond, 15*time.Millisecond)
 				configurePrefetching(sut.(*CachingResolver))
 
 				prefetchedCnt := 0
@@ -317,12 +315,12 @@ var _ = Describe("CachingResolver", func() {
 		})
 	})
 
-	Describe("Not A / AAAA queries should not be cached", func() {
+	Describe("Not A / AAAA queries should also cached", func() {
 		When("MX query will be performed", func() {
 			BeforeEach(func() {
 				mockAnswer, _ = util.NewMsgWithAnswer("google.de.", 180, dns.TypeMX, "10 alt1.aspmx.l.google.com.")
 			})
-			It("Shouldn't be cached", func() {
+			It("Should be cached", func() {
 				By("first request", func() {
 					resp, err = sut.Resolve(newRequest("google.de.", dns.TypeMX))
 					Expect(err).Should(Succeed())
@@ -335,10 +333,10 @@ var _ = Describe("CachingResolver", func() {
 				By("second request", func() {
 					resp, err = sut.Resolve(newRequest("google.de.", dns.TypeMX))
 					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(RESOLVED))
+					Expect(resp.RType).Should(Equal(CACHED))
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(m.Calls).Should(HaveLen(2))
-					Expect(resp.Res.Answer).Should(BeDNSRecord("google.de.", dns.TypeMX, 180, "alt1.aspmx.l.google.com."))
+					Expect(m.Calls).Should(HaveLen(1))
+					Expect(resp.Res.Answer).Should(BeDNSRecord("google.de.", dns.TypeMX, 179, "alt1.aspmx.l.google.com."))
 				})
 			})
 		})
