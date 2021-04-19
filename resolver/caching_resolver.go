@@ -63,7 +63,7 @@ func createQueryDomainNameCache(cfg config.CachingConfig) *cache.Cache {
 
 // onEvicted is called if a DNS response in the cache is expired and was removed from cache
 func (r *CachingResolver) onEvicted(cacheKey string) {
-	qType, _, domainName := util.ExtractCacheKey(cacheKey)
+	qType, domainName := util.ExtractCacheKey(cacheKey)
 	logger := logger("caching_resolver")
 
 	cnt, found := r.prefetchingNameCache.Get(cacheKey)
@@ -119,7 +119,7 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 
 	for _, question := range request.Req.Question {
 		domain := util.ExtractDomain(question)
-		cacheKey := util.GenerateCacheKey(question.Qtype, question.Qclass, domain)
+		cacheKey := util.GenerateCacheKey(question.Qtype, domain)
 		logger := logger.WithField("domain", domain)
 
 		r.trackQueryDomainNameCount(domain, cacheKey, logger)

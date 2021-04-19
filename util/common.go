@@ -177,24 +177,22 @@ func Chunks(s string, chunkSize int) []string {
 	return chunks
 }
 
-// GenerateCacheKey return cacheKey by query type/class/domain
-func GenerateCacheKey(qType uint16, qClass uint16, qName string) string {
-	b := make([]byte, 2+2+len(qName))
+// GenerateCacheKey return cacheKey by query type/domain
+func GenerateCacheKey(qType uint16, qName string) string {
+	b := make([]byte, 2+len(qName))
 
 	binary.BigEndian.PutUint16(b, qType)
-	binary.BigEndian.PutUint16(b[2:], qClass)
-	copy(b[4:], strings.ToLower(qName))
+	copy(b[2:], strings.ToLower(qName))
 
 	return string(b)
 }
 
-// ExtractCacheKey return query type/class/domain from cacheKey
-func ExtractCacheKey(key string) (qType uint16, qClass uint16, qName string) {
+// ExtractCacheKey return query type/domain from cacheKey
+func ExtractCacheKey(key string) (qType uint16, qName string) {
 	b := []byte(key)
 
 	qType = binary.BigEndian.Uint16(b)
-	qClass = binary.BigEndian.Uint16(b[2:])
-	qName = string(b[4:])
+	qName = string(b[2:])
 
 	return
 }

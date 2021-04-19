@@ -215,10 +215,9 @@ var _ = Describe("Common function tests", func() {
 
 	Describe("Domain cache key generate/extract", func() {
 		It("should works", func() {
-			cacheKey := GenerateCacheKey(dns.TypeA, dns.ClassINET, "example.com")
-			qType, qClass, qName := ExtractCacheKey(cacheKey)
+			cacheKey := GenerateCacheKey(dns.TypeA, "example.com")
+			qType, qName := ExtractCacheKey(cacheKey)
 			Expect(qType).Should(Equal(dns.TypeA))
-			Expect(qClass).Should(Equal(uint16(dns.ClassINET)))
 			Expect(qName).Should(Equal("example.com"))
 		})
 	})
