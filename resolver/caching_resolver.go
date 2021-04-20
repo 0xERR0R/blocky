@@ -21,6 +21,12 @@ type CachingResolver struct {
 	prefetchingNameCache             *cache.Cache
 }
 
+// cacheValue includes query answer and prefetch flag
+type cacheValue struct {
+	answer   []dns.RR
+	prefetch bool
+}
+
 const (
 	cacheTimeNegative              = 30 * time.Minute
 	prefetchingNameCacheExpiration = 2 * time.Hour
@@ -76,7 +82,7 @@ func (r *CachingResolver) onEvicted(cacheKey string) {
 		response, err := r.next.Resolve(req)
 
 		if err == nil {
-			r.putInCache(cacheKey, response)
+			r.putInCache(cacheKey, response, true)
 
 			evt.Bus().Publish(evt.CachingDomainPrefetched, domainName)
 		}
@@ -134,10 +140,15 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 			// calculate remaining TTL
 			remainingTTL := uint32(time.Until(expiresAt).Seconds())
 
-			v, ok := val.([]dns.RR)
+			v, ok := val.(cacheValue)
 			if ok {
+				if v.prefetch {
+					// Hit from prefetch cache
+					evt.Bus().Publish(evt.CachingPrefetchCacheHit, domain)
+				}
+
 				// Answer from successful request
-				resp.Answer = v
+				resp.Answer = v.answer
 				for _, rr := range resp.Answer {
 					rr.Header().Ttl = remainingTTL
 				}
@@ -156,7 +167,7 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 		response, err = r.next.Resolve(request)
 
 		if err == nil {
-			r.putInCache(cacheKey, response)
+			r.putInCache(cacheKey, response, false)
 		}
 	}
 
@@ -177,12 +188,12 @@ func (r *CachingResolver) trackQueryDomainNameCount(domain string, cacheKey stri
 	}
 }
 
-func (r *CachingResolver) putInCache(cacheKey string, response *Response) {
+func (r *CachingResolver) putInCache(cacheKey string, response *Response, prefetch bool) {
 	answer := response.Res.Answer
 
 	if response.Res.Rcode == dns.RcodeSuccess {
 		// put value into cache
-		r.resultCache.Set(cacheKey, answer, time.Duration(r.adjustTTLs(answer))*time.Second)
+		r.resultCache.Set(cacheKey, cacheValue{answer, prefetch}, time.Duration(r.adjustTTLs(answer))*time.Second)
 	} else if response.Res.Rcode == dns.RcodeNameError {
 		// put return code if NXDOMAIN
 		r.resultCache.Set(cacheKey, response.Res.Rcode, cacheTimeNegative)

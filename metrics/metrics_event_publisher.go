@@ -119,12 +119,14 @@ func registerCachingEventListeners() {
 	hitCount := cacheHitCount()
 	missCount := cacheMissCount()
 	prefetchCount := domainPrefetchCount()
+	prefetchHitCount := domainPrefetchHitCount()
 
 	RegisterMetric(entryCount)
 	RegisterMetric(prefetchDomainCount)
 	RegisterMetric(hitCount)
 	RegisterMetric(missCount)
 	RegisterMetric(prefetchCount)
+	RegisterMetric(prefetchHitCount)
 
 	subscribe(evt.CachingDomainsToPrefetchCountChanged, func(cnt int) {
 		prefetchDomainCount.Set(float64(cnt))
@@ -140,6 +142,10 @@ func registerCachingEventListeners() {
 
 	subscribe(evt.CachingDomainPrefetched, func(_ string) {
 		prefetchCount.Inc()
+	})
+
+	subscribe(evt.CachingPrefetchCacheHit, func(_ string) {
+		prefetchHitCount.Inc()
 	})
 
 	subscribe(evt.CachingResultCacheChanged, func(cnt int) {
@@ -170,6 +176,15 @@ func domainPrefetchCount() prometheus.Counter {
 		prometheus.CounterOpts{
 			Name: "blocky_prefetch_count",
 			Help: "Prefetch counter",
+		},
+	)
+}
+
+func domainPrefetchHitCount() prometheus.Counter {
+	return prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "blocky_prefetch_hit_count",
+			Help: "Prefetch hit counter",
 		},
 	)
 }
