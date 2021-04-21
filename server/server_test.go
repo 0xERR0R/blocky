@@ -92,7 +92,7 @@ var _ = Describe("Running DNS server", func() {
 				},
 			},
 			Upstream: config.UpstreamConfig{
-				ExternalResolvers: []config.Upstream{upstreamGoogle},
+				ExternalResolvers: map[string][]config.Upstream{"default": {upstreamGoogle}},
 			},
 			ClientLookup: config.ClientLookupConfig{
 				Upstream: upstreamClient,

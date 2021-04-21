@@ -227,7 +227,7 @@ type PrometheusConfig struct {
 
 // UpstreamConfig upstream server configuration
 type UpstreamConfig struct {
-	ExternalResolvers []Upstream `yaml:"externalResolvers"`
+	ExternalResolvers map[string][]Upstream `yaml:",inline"`
 }
 
 // CustomDNSConfig custom DNS configuration

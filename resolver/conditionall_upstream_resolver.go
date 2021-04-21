@@ -23,7 +23,9 @@ func NewConditionalUpstreamResolver(cfg config.ConditionalUpstreamConfig) Chaine
 	rewrite := make(map[string]string)
 
 	for domain, upstream := range cfg.Mapping.Upstreams {
-		m[strings.ToLower(domain)] = NewParallelBestResolver(upstream)
+		upstreams := make(map[string][]config.Upstream)
+		upstreams[upstreamDefaultCfgName] = upstream
+		m[strings.ToLower(domain)] = NewParallelBestResolver(upstreams)
 	}
 
 	for k, v := range cfg.Rewrite {
