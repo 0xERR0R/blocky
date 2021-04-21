@@ -52,7 +52,7 @@ var _ = Describe("CachingResolver", func() {
 
 			It("should prefetch domain if query count > threshold", func() {
 				// prepare resolver, set smaller caching times for testing
-				sut.(*CachingResolver).resultCache = cache.New(15*time.Millisecond, 15*time.Millisecond)
+				sut.(*CachingResolver).resultCache = cache.New(25*time.Millisecond, 15*time.Millisecond)
 				configurePrefetching(sut.(*CachingResolver))
 
 				prefetchedCnt := 0
@@ -60,8 +60,12 @@ var _ = Describe("CachingResolver", func() {
 					prefetchedCnt = cnt
 				})
 
-				domainPrefetched := ""
+				prefetchHitDomain := ""
+				_ = Bus().SubscribeOnce(CachingPrefetchCacheHit, func(domain string) {
+					prefetchHitDomain = domain
+				})
 
+				domainPrefetched := ""
 				_ = Bus().SubscribeOnce(CachingDomainPrefetched, func(domain string) {
 					domainPrefetched = domain
 				})
@@ -84,6 +88,10 @@ var _ = Describe("CachingResolver", func() {
 
 				// now is this domain prefetched
 				Expect(domainPrefetched).Should(Equal("example.com"))
+
+				// and it should hit from prefetch cache
+				_, _ = sut.Resolve(newRequest("example.com.", dns.TypeA))
+				Expect(prefetchHitDomain).Should(Equal("example.com"))
 			})
 		})
 		When("min caching time is defined", func() {
