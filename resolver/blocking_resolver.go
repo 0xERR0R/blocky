@@ -8,7 +8,6 @@ import (
 	"blocky/util"
 	"fmt"
 	"net"
-	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -271,7 +270,7 @@ func (r *BlockingResolver) groupsToCheckForClient(request *Request) (groups []st
 	// try client names
 	for _, cName := range request.ClientNames {
 		for blockGroup, groupsByName := range r.cfg.ClientGroupsBlock {
-			if clientNameMatchesBlockGroup(blockGroup, cName) {
+			if util.ClientNameMatchesGroupName(blockGroup, cName) {
 				groups = append(groups, groupsByName...)
 			}
 		}
@@ -286,7 +285,7 @@ func (r *BlockingResolver) groupsToCheckForClient(request *Request) (groups []st
 
 	// try CIDR
 	for cidr, groupsByCidr := range r.cfg.ClientGroupsBlock {
-		if cidrContainsIP(cidr, request.ClientIP) {
+		if util.CidrContainsIP(cidr, request.ClientIP) {
 			groups = append(groups, groupsByCidr...)
 		}
 	}
@@ -301,20 +300,6 @@ func (r *BlockingResolver) groupsToCheckForClient(request *Request) (groups []st
 	sort.Strings(groups)
 
 	return groups
-}
-
-func cidrContainsIP(cidr string, ip net.IP) bool {
-	_, ipnet, err := net.ParseCIDR(cidr)
-	if err != nil {
-		return false
-	}
-
-	return ipnet.Contains(ip)
-}
-
-func clientNameMatchesBlockGroup(group string, clientName string) bool {
-	match, _ := filepath.Match(group, clientName)
-	return match
 }
 
 func (r *BlockingResolver) matches(groupsToCheck []string, m lists.Matcher,

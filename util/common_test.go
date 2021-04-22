@@ -221,4 +221,38 @@ var _ = Describe("Common function tests", func() {
 			Expect(qName).Should(Equal("example.com"))
 		})
 	})
+
+	Describe("CIDR contains IP", func() {
+		It("should return true if CIDR (10.43.8.64 - 10.43.8.79) contains the IP", func() {
+			c := CidrContainsIP("10.43.8.67/28", net.ParseIP("10.43.8.64"))
+			Expect(c).Should(BeTrue())
+		})
+		It("should return false if CIDR (10.43.8.64 - 10.43.8.79) doesn't contain the IP", func() {
+			c := CidrContainsIP("10.43.8.67/28", net.ParseIP("10.43.8.63"))
+			Expect(c).Should(BeFalse())
+		})
+		It("should return false if CIDR is wrong", func() {
+			c := CidrContainsIP("10.43.8.67", net.ParseIP("10.43.8.63"))
+			Expect(c).Should(BeFalse())
+		})
+	})
+
+	Describe("Client name matches group name", func() {
+		It("should return true if client name matches with wildcard", func() {
+			c := ClientNameMatchesGroupName("group*", "group-test")
+			Expect(c).Should(BeTrue())
+		})
+		It("should return false if client name doesn't match with wildcard", func() {
+			c := ClientNameMatchesGroupName("group*", "abc")
+			Expect(c).Should(BeFalse())
+		})
+		It("should return true if client name matches with range wildcard", func() {
+			c := ClientNameMatchesGroupName("group[1-3]", "group1")
+			Expect(c).Should(BeTrue())
+		})
+		It("should return false if client name doesn't match with range wildcard", func() {
+			c := ClientNameMatchesGroupName("group[1-3]", "group4")
+			Expect(c).Should(BeFalse())
+		})
+	})
 })

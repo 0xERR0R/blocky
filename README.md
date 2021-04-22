@@ -30,6 +30,7 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
 
     * Custom DNS resolution for certain domain names
     * Conditional forwarding to external DNS server
+    * Upstream resolvers can be defined per client group
 
 - **Performance** - Improves speed and performance in your network
 

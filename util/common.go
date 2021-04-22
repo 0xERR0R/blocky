@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -195,4 +196,20 @@ func ExtractCacheKey(key string) (qType uint16, qName string) {
 	qName = string(b[2:])
 
 	return
+}
+
+// CidrContainsIP checks if CIDR contains a single IP
+func CidrContainsIP(cidr string, ip net.IP) bool {
+	_, ipnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return false
+	}
+
+	return ipnet.Contains(ip)
+}
+
+// ClientNameMatchesGroupName checks if a group with optional wildcards contains a client name
+func ClientNameMatchesGroupName(group string, clientName string) bool {
+	match, _ := filepath.Match(group, clientName)
+	return match
 }

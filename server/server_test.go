@@ -92,7 +92,7 @@ var _ = Describe("Running DNS server", func() {
 				},
 			},
 			Upstream: config.UpstreamConfig{
-				ExternalResolvers: []config.Upstream{upstreamGoogle},
+				ExternalResolvers: map[string][]config.Upstream{"default": {upstreamGoogle}},
 			},
 			ClientLookup: config.ClientLookupConfig{
 				Upstream: upstreamClient,
@@ -472,6 +472,9 @@ var _ = Describe("Running DNS server", func() {
 
 				// create server
 				server, err := NewServer(&config.Config{
+					Upstream: config.UpstreamConfig{
+						ExternalResolvers: map[string][]config.Upstream{
+							"default": {config.Upstream{Net: "tcp+udp", Host: "4.4.4.4", Port: 53}}}},
 					CustomDNS: config.CustomDNSConfig{
 						Mapping: config.CustomDNSMapping{
 							HostIPs: map[string][]net.IP{
@@ -516,6 +519,9 @@ var _ = Describe("Running DNS server", func() {
 
 				// create server
 				server, err := NewServer(&config.Config{
+					Upstream: config.UpstreamConfig{
+						ExternalResolvers: map[string][]config.Upstream{
+							"default": {config.Upstream{Net: "tcp+udp", Host: "4.4.4.4", Port: 53}}}},
 					CustomDNS: config.CustomDNSConfig{
 						Mapping: config.CustomDNSMapping{
 							HostIPs: map[string][]net.IP{
