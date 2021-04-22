@@ -1,6 +1,7 @@
 upstream:
   # these external DNS resolvers will be used. Blocky picks 2 random resolvers from the list for each query
   # format for resolver: [net:]host:[port][/path]. net could be empty (default, shortcut for tcp+udp), tcp+udp, tcp, udp, tcp-tls or https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))
+  # this configuration is mandatory, please define at least one external DNS resolver
   default:
     - 46.182.19.48
     - 80.241.218.68

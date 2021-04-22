@@ -36,6 +36,7 @@ type requestResponse struct {
 // NewParallelBestResolver creates new resolver instance
 func NewParallelBestResolver(upstreamResolvers map[string][]config.Upstream) Resolver {
 	s := make(map[string][]*upstreamResolverStatus)
+	logger := logger(parallelResolverLogger)
 
 	for name, res := range upstreamResolvers {
 		resolvers := make([]*upstreamResolverStatus, len(res))
@@ -47,7 +48,7 @@ func NewParallelBestResolver(upstreamResolvers map[string][]config.Upstream) Res
 		}
 
 		if _, ok := upstreamResolvers[upstreamDefaultCfgName]; !ok && name == upstreamDefaultCfgNameDeprecated {
-			logger(parallelResolverLogger).Warnf("using deprecated '%s' as default upstream resolver"+
+			logger.Warnf("using deprecated '%s' as default upstream resolver"+
 				" configuration name, please consider to change it to '%s'",
 				upstreamDefaultCfgNameDeprecated, upstreamDefaultCfgName)
 
@@ -55,6 +56,11 @@ func NewParallelBestResolver(upstreamResolvers map[string][]config.Upstream) Res
 		}
 
 		s[name] = resolvers
+	}
+
+	if len(s[upstreamDefaultCfgName]) == 0 {
+		logger.Fatalf("no external DNS resolvers configured as default upstream resolvers. "+
+			"Please configure at least one under '%s' configuration name", upstreamDefaultCfgName)
 	}
 
 	return &ParallelBestResolver{resolversPerClient: s}

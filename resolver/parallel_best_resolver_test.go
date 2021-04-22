@@ -3,6 +3,7 @@ package resolver
 import (
 	"blocky/config"
 	. "blocky/helpertest"
+	. "blocky/log"
 	"blocky/util"
 	"strings"
 	"time"
@@ -18,6 +19,18 @@ var _ = Describe("ParallelBestResolver", func() {
 		err  error
 		resp *Response
 	)
+
+	Describe("Default upstream resolvers are not defined", func() {
+		It("should fail on startup", func() {
+			defer func() { Log().ExitFunc = nil }()
+			var fatal bool
+
+			Log().ExitFunc = func(int) { fatal = true }
+
+			sut = NewParallelBestResolver(map[string][]config.Upstream{})
+			Expect(fatal).Should(BeTrue())
+		})
+	})
 
 	Describe("Resolving result from fastest upstream resolver", func() {
 		When("2 Upstream resolvers are defined", func() {
