@@ -52,16 +52,34 @@ Each resolver must be defined as a string in following format: `[net:]host:[port
 | host      | yes       | full qualified domain name or ip address     |                                                   |
 | port      | no        | number < 65535                               | 53 for udp/tcp, 853 for tcp-tls and 443 for https |
 
+Blocky needs at least the configuration of the **default** group. This group will be used as a fallback, if no client
+specific resolver configuration is available.
+
+You can use the client name (see [Client name lookup](#client-name-lookup)), client's IP address or a client subnet as
+CIDR notation.
+
+!!! tip
+
+    You can use `*` as wildcard for the sequence of any character or `[0-9]` as number range
+
 !!! example
 
     ```yaml
     upstream:
-      externalResolvers:
+      default:
         - 46.182.19.48
         - 80.241.218.68
         - tcp-tls:fdns1.dismail.de:853
         - https://dns.digitale-gesellschaft.ch/dns-query
+      laptop*:
+        - 123.123.123.123
+      10.43.8.67/28:
+        - 1.1.1.1
+        - 9.9.9.9
     ```
+    
+    Use `123.123.123.123` as single upstream DNS resolver for client laptop-home, 
+    `1.1.1.1` and `9.9.9.9` for all clients in the sub-net `10.43.8.67/28` and 4 resolvers (default) for all others clients.
 
 !!! note
 
