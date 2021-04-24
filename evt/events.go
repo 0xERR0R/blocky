@@ -17,6 +17,9 @@ const (
 	// CachingResultCacheChanged fires if a result cache was changed, Parameter: new cache size
 	CachingResultCacheChanged = "caching:resultCacheChanged"
 
+	// CachingPrefetchCacheHit fires if a query result was found in the prefetch cache, Parameter: domain name
+	CachingPrefetchCacheHit = "caching:prefetchHit"
+
 	// CachingResultCacheHit fires, if a query result was found in the cache, Parameter: domain name
 	CachingResultCacheHit = "caching:cacheHit"
 
