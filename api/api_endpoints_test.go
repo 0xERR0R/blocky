@@ -27,9 +27,9 @@ func (l *ListRefreshMock) RefreshLists() {
 func (b *BlockingControlMock) EnableBlocking() {
 	b.enabled = true
 }
-
-func (b *BlockingControlMock) DisableBlocking(_ time.Duration) {
+func (b *BlockingControlMock) DisableBlocking(_ time.Duration, disableGroups []string) error {
 	b.enabled = false
+	return nil
 }
 
 func (b *BlockingControlMock) BlockingStatus() BlockingStatus {

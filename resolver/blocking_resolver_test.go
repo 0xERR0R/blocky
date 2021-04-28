@@ -437,26 +437,34 @@ badcnamedomain.com`)
 			sutConfig = config.BlockingConfig{
 				BlackLists: map[string][]string{
 					"defaultGroup": {defaultGroupFile.Name()},
+					"group1":       {group1File.Name()},
 				},
 				ClientGroupsBlock: map[string][]string{
-					"default": {"defaultGroup"},
+					"default": {"defaultGroup", "group1"},
 				},
 				BlockType: "ZeroIP",
 			}
 		})
 		When("Disable blocking is called", func() {
 			It("no query should be blocked", func() {
-				By("Perform query to ensure that the blocking status is active", func() {
+				By("Perform query to ensure that the blocking status is active (defaultGroup)", func() {
 					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.TypeA, "1.2.1.2", "unknown"))
 					Expect(err).Should(Succeed())
 					Expect(resp.RType).Should(Equal(BLOCKED))
 				})
 
-				By("Calling Rest API to deactivate", func() {
-					sut.DisableBlocking(0)
+				By("Perform query to ensure that the blocking status is active (group1)", func() {
+					resp, err := sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "unknown"))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(BLOCKED))
 				})
 
-				By("perform the same query again", func() {
+				By("Calling Rest API to deactivate all groups", func() {
+					err := sut.DisableBlocking(0, []string{})
+					Expect(err).Should(Succeed())
+				})
+
+				By("perform the same query again (defaultGroup)", func() {
 					// now is blocking disabled, query the url again
 					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.TypeA, "1.2.1.2", "unknown"))
 					Expect(err).Should(Succeed())
@@ -466,13 +474,48 @@ badcnamedomain.com`)
 					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
 				})
 
+				By("perform the same query again (group1)", func() {
+					// now is blocking disabled, query the url again
+					resp, err := sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "unknown"))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(RESOLVED))
+
+					m.AssertExpectations(GinkgoT())
+					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 2)
+				})
+
+				By("Calling Rest API to deactivate only defaultGroup", func() {
+					err := sut.DisableBlocking(0, []string{"defaultGroup"})
+					Expect(err).Should(Succeed())
+				})
+
+				By("perform the same query again (defaultGroup)", func() {
+					// now is blocking disabled, query the url again
+					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.TypeA, "1.2.1.2", "unknown"))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(RESOLVED))
+
+					m.AssertExpectations(GinkgoT())
+					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 3)
+				})
+
+				By("Perform query to ensure that the blocking status is active (group1)", func() {
+					resp, err := sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "unknown"))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(BLOCKED))
+				})
 			})
 		})
 
-		When("Disable blocking is called with a duration parameter", func() {
+		When("Disable blocking for all groups is called with a duration parameter", func() {
 			It("No query should be blocked only for passed amount of time", func() {
-				By("Perform query to ensure that the blocking status is active", func() {
+				By("Perform query to ensure that the blocking status is active (defaultGroup)", func() {
 					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.TypeA, "1.2.1.2", "unknown"))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(BLOCKED))
+				})
+				By("Perform query to ensure that the blocking status is active (group1)", func() {
+					resp, err := sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "unknown"))
 					Expect(err).Should(Succeed())
 					Expect(resp.RType).Should(Equal(BLOCKED))
 				})
@@ -482,14 +525,85 @@ badcnamedomain.com`)
 					err := Bus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
 						enabled = state
 					})
-					sut.DisableBlocking(500 * time.Millisecond)
+					Expect(err).Should(Succeed())
+					err = sut.DisableBlocking(500*time.Millisecond, []string{})
 					Expect(err).Should(Succeed())
 					Expect(enabled).Should(BeFalse())
 				})
 
-				By("perform the same query again to ensure that this query will not be blocked", func() {
+				By("perform the same query again to ensure that this query will not be blocked (defaultGroup)", func() {
 					// now is blocking disabled, query the url again
 					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.TypeA, "1.2.1.2", "unknown"))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(RESOLVED))
+
+					m.AssertExpectations(GinkgoT())
+					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
+				})
+				By("perform the same query again to ensure that this query will not be blocked (group1)", func() {
+					// now is blocking disabled, query the url again
+					resp, err := sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "unknown"))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(RESOLVED))
+
+					m.AssertExpectations(GinkgoT())
+					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 2)
+				})
+
+				By("Wait 1 sec and perform the same query again, should be blocked now", func() {
+					enabled := false
+					_ = Bus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
+						enabled = state
+					})
+					// wait 1 sec
+					time.Sleep(time.Second)
+					Expect(enabled).Should(BeTrue())
+
+					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.TypeA, "1.2.1.2", "unknown"))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(BLOCKED))
+
+					resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "unknown"))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(BLOCKED))
+				})
+			})
+		})
+
+		When("Disable blocking for one group is called with a duration parameter", func() {
+			It("No query should be blocked only for passed amount of time", func() {
+				By("Perform query to ensure that the blocking status is active (defaultGroup)", func() {
+					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.TypeA, "1.2.1.2", "unknown"))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(BLOCKED))
+				})
+				By("Perform query to ensure that the blocking status is active (group1)", func() {
+					resp, err := sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "unknown"))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(BLOCKED))
+				})
+
+				By("Calling Rest API to deactivate blocking for one group for 0.5 sec", func() {
+					enabled := true
+					err := Bus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
+						enabled = state
+					})
+					Expect(err).Should(Succeed())
+					err = sut.DisableBlocking(500*time.Millisecond, []string{"group1"})
+					Expect(err).Should(Succeed())
+					Expect(enabled).Should(BeFalse())
+				})
+
+				By("perform the same query again to ensure that this query will not be blocked (defaultGroup)", func() {
+					// now is blocking disabled, query the url again
+					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.TypeA, "1.2.1.2", "unknown"))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(BLOCKED))
+
+				})
+				By("perform the same query again to ensure that this query will not be blocked (group1)", func() {
+					// now is blocking disabled, query the url again
+					resp, err := sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "unknown"))
 					Expect(err).Should(Succeed())
 					Expect(resp.RType).Should(Equal(RESOLVED))
 
@@ -509,7 +623,18 @@ badcnamedomain.com`)
 					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.TypeA, "1.2.1.2", "unknown"))
 					Expect(err).Should(Succeed())
 					Expect(resp.RType).Should(Equal(BLOCKED))
+
+					resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "unknown"))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(BLOCKED))
 				})
+			})
+		})
+
+		When("Disable blocking is called with wrong group name", func() {
+			It("should fail", func() {
+				err := sut.DisableBlocking(500*time.Millisecond, []string{"unknownGroupName"})
+				Expect(err).Should(HaveOccurred())
 			})
 		})
 
@@ -525,7 +650,8 @@ badcnamedomain.com`)
 				})
 
 				By("disable blocking via API", func() {
-					sut.DisableBlocking(500 * time.Millisecond)
+					err := sut.DisableBlocking(500*time.Millisecond, []string{})
+					Expect(err).Should(Succeed())
 				})
 
 				By("Query blocking status via API again should return 'disabled'", func() {

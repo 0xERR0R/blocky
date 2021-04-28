@@ -50,9 +50,12 @@ func createBlockHandler(cfg config.BlockingConfig) blockHandler {
 }
 
 type status struct {
-	enabled     bool
-	enableTimer *time.Timer
-	disableEnd  time.Time
+	// true: blocking of all groups is enabled
+	// false: blocking is disabled. Either all groups or only particular
+	enabled        bool
+	disabledGroups []string
+	enableTimer    *time.Timer
+	disableEnd     time.Time
 }
 
 // BlockingResolver checks request's question (domain name) against black and white lists
@@ -94,34 +97,69 @@ func (r *BlockingResolver) RefreshLists() {
 	r.whitelistMatcher.Refresh()
 }
 
+// nolint:prealloc
+func (r *BlockingResolver) retrieveAllBlockingGroups() []string {
+	groups := make(map[string]bool)
+
+	for group := range r.cfg.BlackLists {
+		groups[group] = true
+	}
+
+	var result []string
+	for k := range groups {
+		result = append(result, k)
+	}
+
+	result = append(result, "default")
+	sort.Strings(result)
+
+	return result
+}
+
 // EnableBlocking enables the blocking against the blacklists
 func (r *BlockingResolver) EnableBlocking() {
 	s := r.status
 	s.enableTimer.Stop()
 	s.enabled = true
+	s.disabledGroups = []string{}
 
 	evt.Bus().Publish(evt.BlockingEnabledEvent, true)
 }
 
-// DisableBlocking deaktivates the blocking for a particular duration (or forever if 0)
-func (r *BlockingResolver) DisableBlocking(duration time.Duration) {
+// DisableBlocking deactivates the blocking for a particular duration (or forever if 0).
+func (r *BlockingResolver) DisableBlocking(duration time.Duration, disableGroups []string) error {
 	s := r.status
 	s.enableTimer.Stop()
 	s.enabled = false
+	allBlockingGroups := r.retrieveAllBlockingGroups()
+
+	if len(disableGroups) == 0 {
+		s.disabledGroups = allBlockingGroups
+	} else {
+		for _, g := range disableGroups {
+			i := sort.SearchStrings(allBlockingGroups, g)
+			if !(i < len(allBlockingGroups) && allBlockingGroups[i] == g) {
+				return fmt.Errorf("group '%s' is unknown", g)
+			}
+		}
+		s.disabledGroups = disableGroups
+	}
 
 	evt.Bus().Publish(evt.BlockingEnabledEvent, false)
 
 	s.disableEnd = time.Now().Add(duration)
 
 	if duration == 0 {
-		log.Log().Info("disable blocking")
+		log.Log().Infof("disable blocking for group(s) '%s'", strings.Join(s.disabledGroups, "; "))
 	} else {
-		log.Log().Infof("disable blocking for %s", duration)
+		log.Log().Infof("disable blocking for %s for group(s) '%s'", duration, strings.Join(s.disabledGroups, "; "))
 		s.enableTimer = time.AfterFunc(duration, func() {
 			r.EnableBlocking()
 			log.Log().Info("blocking enabled again")
 		})
 	}
+
+	return nil
 }
 
 // BlockingStatus returns the current blocking status
@@ -133,6 +171,7 @@ func (r *BlockingResolver) BlockingStatus() api.BlockingStatus {
 
 	return api.BlockingStatus{
 		Enabled:         r.status.enabled,
+		DisabledGroups:  r.status.disabledGroups,
 		AutoEnableInSec: uint(autoEnableDuration.Seconds()),
 	}
 }
@@ -222,7 +261,7 @@ func (r *BlockingResolver) Resolve(request *Request) (*Response, error) {
 	logger := withPrefix(request.Log, "blacklist_resolver")
 	groupsToCheck := r.groupsToCheckForClient(request)
 
-	if r.status.enabled && len(groupsToCheck) > 0 {
+	if len(groupsToCheck) > 0 {
 		resp, err := r.handleBlacklist(groupsToCheck, request, logger)
 		if resp != nil || err != nil {
 			return resp, err
@@ -231,7 +270,7 @@ func (r *BlockingResolver) Resolve(request *Request) (*Response, error) {
 
 	respFromNext, err := r.next.Resolve(request)
 
-	if err == nil && r.status.enabled && len(groupsToCheck) > 0 && respFromNext.Res != nil {
+	if err == nil && len(groupsToCheck) > 0 && respFromNext.Res != nil {
 		for _, rr := range respFromNext.Res.Answer {
 			entryToCheck, tName := extractEntryToCheckFromResponse(rr)
 			if len(entryToCheck) > 0 {
@@ -265,8 +304,19 @@ func extractEntryToCheckFromResponse(rr dns.RR) (entryToCheck string, tName stri
 	return
 }
 
+func (r *BlockingResolver) isGroupDisabled(group string) bool {
+	for _, g := range r.status.disabledGroups {
+		if g == group {
+			return true
+		}
+	}
+
+	return false
+}
+
 // returns groups which should be checked for client's request
-func (r *BlockingResolver) groupsToCheckForClient(request *Request) (groups []string) {
+func (r *BlockingResolver) groupsToCheckForClient(request *Request) []string {
+	var groups []string
 	// try client names
 	for _, cName := range request.ClientNames {
 		for blockGroup, groupsByName := range r.cfg.ClientGroupsBlock {
@@ -291,15 +341,21 @@ func (r *BlockingResolver) groupsToCheckForClient(request *Request) (groups []st
 	}
 
 	if len(groups) == 0 {
-		if !found {
-			// return default
-			groups = r.cfg.ClientGroupsBlock["default"]
+		// return default
+		groups = r.cfg.ClientGroupsBlock["default"]
+	}
+
+	var result []string
+
+	for _, g := range groups {
+		if !r.isGroupDisabled(g) {
+			result = append(result, g)
 		}
 	}
 
-	sort.Strings(groups)
+	sort.Strings(result)
 
-	return groups
+	return result
 }
 
 func (r *BlockingResolver) matches(groupsToCheck []string, m lists.Matcher,

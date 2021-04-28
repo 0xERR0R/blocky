@@ -119,10 +119,8 @@ func (r *ParallelBestResolver) resolversForClient(request *Request) (result []*u
 	}
 
 	if len(result) == 0 {
-		if !found {
-			// return default
-			result = r.resolversPerClient[upstreamDefaultCfgName]
-		}
+		// return default
+		result = r.resolversPerClient[upstreamDefaultCfgName]
 	}
 
 	return result

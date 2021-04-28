@@ -8159,6 +8159,22 @@ Original highlight.js style (c) Ivan Sagalaev <maniac@softwaremaniacs.org>
                         <td>
                         </td>
                     </tr>
+                    <tr>
+                        <td>
+                            groups
+                        </td>
+                        <td><p>groups to disable (comma separated). If empty, disable all groups</p>
+                        </td>
+                        <td>query</td>
+                        <td>
+                            <span class="json-property-type">string</span> <span
+                                class="json-property-format">(string)</span>
+                            <span class="json-property-range" title="Value limits"></span>
+
+                        </td>
+                        <td>
+                        </td>
+                    </tr>
                     </tbody>
                 </table>
             </section>
@@ -8191,7 +8207,7 @@ Original highlight.js style (c) Ivan Sagalaev <maniac@softwaremaniacs.org>
                     <dd class="sw-response-400">
                         <div class="row">
                             <div class="col-md-12">
-                                <p>Wrong duration format</p>
+                                <p>Unknown group</p>
 
                             </div>
                         </div>
@@ -8454,6 +8470,29 @@ Original highlight.js style (c) Ivan Sagalaev <maniac@softwaremaniacs.org>
 
                         <div class="json-inner-schema">
 
+                        </div>
+                    </dd>
+                    <dt data-property-name="disabledGroups">
+                        <span class="json-property-name">disabledGroups:</span>
+
+                        <span class="json-property-type">string[]</span>
+                        <span class="json-property-range" title="Value limits"></span>
+
+                    </dt>
+                    <dd>
+                        <p>Disabled group names</p>
+
+                        <div class="json-inner-schema">
+
+                            <section class="json-schema-array-items">
+
+                                <span class="json-property-type">string</span>
+                                <span class="json-property-range" title="Value limits"></span>
+
+                                <div class="json-inner-schema">
+
+                                </div>
+                            </section>
                         </div>
                     </dd>
                     <dt data-property-name="enabled">
