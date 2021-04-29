@@ -9,9 +9,11 @@ const IndexTmpl = `<!DOCTYPE html>
 	<body>
 		<h1>blocky</h1>
 		<ul>
-		{{range .}}
+		{{range .Links}}
 			<li><a href="{{.URL}}">{{.Title}}</a></li>
 		{{end}}
 		</ul>
+
+		<p><span class="small">Version {{.Version}}</span></p> 
 		</body>
 	</html>`

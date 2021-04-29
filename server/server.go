@@ -21,6 +21,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var version = "undefined"
+
 // Server controls the endpoints for DNS and HTTP
 type Server struct {
 	udpServer     *dns.Server
