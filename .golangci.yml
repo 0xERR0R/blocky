@@ -14,7 +14,6 @@ linters:
     - golint
     - stylecheck
     - gosec
-    - interfacer
     - unconvert
     - dupl
     - goconst
@@ -22,7 +21,6 @@ linters:
     - gocognit
     - gofmt
     - goimports
-    - maligned
     - depguard
     - misspell
     - lll
@@ -37,6 +35,7 @@ linters:
     - prealloc
     - whitespace
     - wsl
+    - exportloopref
   disable:
     - noctx
 
