@@ -62,11 +62,10 @@ jobs:
           tags: ${{ steps.docker_meta.outputs.tags }}
           labels: ${{ steps.docker_meta.outputs.labels }}
 
-      - name: Build multiarch binaries
-        run: make buildMultiArchRelease
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v1.0.0
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v2
         with:
-          name: blocky_binaries
-          path: bin
+          version: latest
+          args: release --rm-dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

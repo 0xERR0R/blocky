@@ -1,4 +1,4 @@
-.PHONY: all clean build swagger test lint run buildMultiArchRelease help
+.PHONY: all clean build swagger test lint run help
 .DEFAULT_GOAL := help
 
 VERSION := $(shell git describe --always --tags)
@@ -33,12 +33,6 @@ lint: build ## run golangcli-lint checks
 
 run: build ## Build and run binary
 	./$(BIN_OUT_DIR)/$(BINARY_NAME)
-
-buildMultiArchRelease: ## builds binary for multiple archs
-	$(MAKE) build GOOS=linux GOARCH=arm GOARM=6 BINARY_SUFFIX=_${VERSION}_linux_arm32v6
-	$(MAKE) build GOOS=linux GOARCH=amd64 BINARY_SUFFIX=_${VERSION}_linux_amd64
-	$(MAKE) build GOOS=linux GOARCH=arm64 BINARY_SUFFIX=_${VERSION}_linux_arm64
-	$(MAKE) build GOOS=windows GOARCH=amd64 BINARY_SUFFIX=_${VERSION}_windows_amd64.exe
 
 docker-build:  ## Build docker image
 	docker build --network=host --tag ${DOCKER_IMAGE_NAME} .
