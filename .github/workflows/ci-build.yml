@@ -24,9 +24,6 @@ jobs:
               dep ensure
           fi
 
-      - name: Install golangci-lint
-        run: curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b $(go env GOPATH)/bin v1.32.2
-
       - name: Build
         run: make build
 
@@ -36,8 +33,8 @@ jobs:
       - name: Upload results to codecov
         run: bash <(curl -s https://codecov.io/bash) -t 48d6a1a8-a66e-4f27-9cc1-a7b91c4209b2
 
-      - name: Run golangci-lint
-        run: make lint
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v2
 
       - name: Docker images
         run: make docker-build
