@@ -7,7 +7,7 @@ configuration properties as [JSON](config.yml).
 
 | Parameter       | Mandatory | Default value      | Description                                       |
 | --------------- | --------- | -------------------| ------------------------------------------------- |
-| port            | no        | 53                 | Port to serve DNS endpoint (TCP and UDP)          |
+| port            | no        | 53                 | IP and Port to serve DNS endpoint (TCP and UDP). If you wish to specify a specific IP, you can do so such as 192.168.0.1:53  |
 | httpPort        | no        | 0                  | HTTP listener port. If > 0, will be used for prometheus metrics, pprof, REST API, DoH ... |
 | httpsPort       | no        | 0                  | HTTPS listener port. If > 0, will be used for prometheus metrics, pprof, REST API, DoH... |
 | httpsCertFile   | yes, if httpsPort > 0 |        | path to cert and key file for SSL encryption |
