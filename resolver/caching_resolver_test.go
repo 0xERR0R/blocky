@@ -1,11 +1,12 @@
 package resolver
 
 import (
+	"time"
+
 	"blocky/config"
 	. "blocky/evt"
 	. "blocky/helpertest"
 	"blocky/util"
-	"time"
 
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo"
@@ -52,8 +53,9 @@ var _ = Describe("CachingResolver", func() {
 
 			It("should prefetch domain if query count > threshold", func() {
 				// prepare resolver, set smaller caching times for testing
+				prefetchThreshold := 5
 				sut.(*CachingResolver).resultCache = cache.New(25*time.Millisecond, 15*time.Millisecond)
-				configurePrefetching(sut.(*CachingResolver))
+				configurePrefetching(sut.(*CachingResolver), 120, prefetchThreshold)
 
 				prefetchedCnt := 0
 				_ = Bus().SubscribeOnce(CachingDomainsToPrefetchCountChanged, func(cnt int) {
@@ -80,7 +82,7 @@ var _ = Describe("CachingResolver", func() {
 				Expect(prefetchedCnt).Should(Equal(1))
 
 				// now query again > threshold
-				for i := 0; i < prefetchingNameCountThreshold; i++ {
+				for i := 0; i < prefetchThreshold; i++ {
 					_, _ = sut.Resolve(newRequest("example.com.", dns.TypeA))
 
 				}

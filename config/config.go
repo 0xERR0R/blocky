@@ -269,9 +269,11 @@ type ClientLookupConfig struct {
 
 // CachingConfig configuration for domain caching
 type CachingConfig struct {
-	MinCachingTime int  `yaml:"minTime"`
-	MaxCachingTime int  `yaml:"maxTime"`
-	Prefetching    bool `yaml:"prefetching"`
+	MinCachingTime    int  `yaml:"minTime"`
+	MaxCachingTime    int  `yaml:"maxTime"`
+	Prefetching       bool `yaml:"prefetching"`
+	PrefetchExpires   int  `yaml:"prefetchExpires"`
+	PrefetchThreshold int  `yaml:"prefetchThreshold"`
 }
 
 // QueryLogConfig configuration for the query logging

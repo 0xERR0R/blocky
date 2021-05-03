@@ -1,11 +1,12 @@
 package resolver
 
 import (
+	"fmt"
+	"time"
+
 	"blocky/config"
 	"blocky/evt"
 	"blocky/util"
-	"fmt"
-	"time"
 
 	"github.com/miekg/dns"
 	"github.com/patrickmn/go-cache"
@@ -18,6 +19,8 @@ type CachingResolver struct {
 	NextResolver
 	minCacheTimeSec, maxCacheTimeSec int
 	resultCache                      *cache.Cache
+	prefetchExpires                  time.Duration
+	prefetchThreshold                int
 	prefetchingNameCache             *cache.Cache
 }
 
@@ -35,36 +38,39 @@ const (
 
 // NewCachingResolver creates a new resolver instance
 func NewCachingResolver(cfg config.CachingConfig) ChainedResolver {
-	domainCache := createQueryDomainNameCache(cfg)
 	c := &CachingResolver{
-		minCacheTimeSec:      60 * cfg.MinCachingTime,
-		maxCacheTimeSec:      60 * cfg.MaxCachingTime,
-		resultCache:          createQueryResultCache(),
-		prefetchingNameCache: domainCache,
+		minCacheTimeSec: 60 * cfg.MinCachingTime,
+		maxCacheTimeSec: 60 * cfg.MaxCachingTime,
+		resultCache:     createQueryResultCache(),
 	}
 
 	if cfg.Prefetching {
-		configurePrefetching(c)
+		configurePrefetching(c, cfg.PrefetchExpires, cfg.PrefetchThreshold)
 	}
 
 	return c
 }
 
-func configurePrefetching(c *CachingResolver) {
-	c.resultCache.OnEvicted(func(key string, i interface{}) {
-		c.onEvicted(key)
-	})
-}
-
 func createQueryResultCache() *cache.Cache {
 	return cache.New(15*time.Minute, 15*time.Second)
 }
-func createQueryDomainNameCache(cfg config.CachingConfig) *cache.Cache {
-	if cfg.Prefetching {
-		return cache.New(prefetchingNameCacheExpiration, time.Minute)
+
+func configurePrefetching(c *CachingResolver, expires int, threshold int) {
+	c.prefetchExpires = prefetchingNameCacheExpiration
+	if expires > 0 {
+		c.prefetchExpires = time.Duration(expires) * time.Minute
 	}
 
-	return nil
+	c.prefetchThreshold = prefetchingNameCountThreshold
+	if threshold > 0 {
+		c.prefetchThreshold = threshold
+	}
+
+	c.prefetchingNameCache = cache.New(c.prefetchExpires, time.Minute)
+
+	c.resultCache.OnEvicted(func(key string, i interface{}) {
+		c.onEvicted(key)
+	})
 }
 
 // onEvicted is called if a DNS response in the cache is expired and was removed from cache
@@ -75,7 +81,7 @@ func (r *CachingResolver) onEvicted(cacheKey string) {
 	cnt, found := r.prefetchingNameCache.Get(cacheKey)
 
 	// check if domain was queried > threshold in the time window
-	if found && cnt.(int) > prefetchingNameCountThreshold {
+	if found && cnt.(int) > r.prefetchThreshold {
 		logger.Debugf("prefetching '%s' (%s)", domainName, dns.TypeToString[qType])
 
 		req := newRequest(fmt.Sprintf("%s.", domainName), qType, logger)
@@ -103,6 +109,11 @@ func (r *CachingResolver) Configuration() (result []string) {
 	result = append(result, fmt.Sprintf("maxCacheTimeSec = %d", r.maxCacheTimeSec))
 
 	result = append(result, fmt.Sprintf("prefetching = %t", r.prefetchingNameCache != nil))
+
+	if r.prefetchingNameCache != nil {
+		result = append(result, fmt.Sprintf("prefetchExpires = %s", r.prefetchExpires))
+		result = append(result, fmt.Sprintf("prefetchThreshold = %d", r.prefetchThreshold))
+	}
 
 	result = append(result, fmt.Sprintf("cache items count = %d", r.resultCache.ItemCount()))
 
