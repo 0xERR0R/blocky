@@ -375,5 +375,18 @@ var _ = Describe("CachingResolver", func() {
 				Expect(c).Should(Equal([]string{"deactivated"}))
 			})
 		})
+
+		When("prefetching is enabled", func() {
+			BeforeEach(func() {
+				sutConfig = config.CachingConfig{
+					Prefetching: true,
+				}
+			})
+			It("should return configuration", func() {
+				c := sut.Configuration()
+				Expect(len(c) > 1).Should(BeTrue())
+				Expect(c).Should(ContainElement(ContainSubstring("prefetchThreshold")))
+			})
+		})
 	})
 })
