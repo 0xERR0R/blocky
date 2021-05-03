@@ -79,10 +79,16 @@ caching:
   # If > 0, use this value, if TTL is greater
   # Default: 0
   maxTime: -1
-  # if true, will preload DNS results for often used queries (names queried more than 5 times in a 2 hour time window)
+  # if true, will preload DNS results for often used queries (default: names queried more than 5 times in a 2 hour time window)
   # this improves the response time for often used queries, but significantly increases external traffic
   # default: false
   prefetching: true
+  # amount in minutes, prefetch track time window
+  # default: 120
+  prefetchExpires: 120
+  # name queries threshold for prefetch
+  # default: 5
+  prefetchThreshold: 5
 
 # optional: configuration of client name resolution
 clientLookup:
