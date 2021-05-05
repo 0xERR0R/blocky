@@ -1,5 +1,5 @@
 upstream:
-  externalResolvers:
+  default:
     - udp:8.8.8.8
     - udp:8.8.4.4
     - udp:1.1.1.1

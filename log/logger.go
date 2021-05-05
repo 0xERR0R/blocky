@@ -21,7 +21,7 @@ const (
 func init() {
 	logger = logrus.New()
 
-	ConfigureLogger("info", "text")
+	ConfigureLogger("info", "text", true)
 }
 
 // Log returns the global logger
@@ -35,7 +35,7 @@ func PrefixedLog(prefix string) *logrus.Entry {
 }
 
 // ConfigureLogger applies configuration to the global logger
-func ConfigureLogger(logLevel, logFormat string) {
+func ConfigureLogger(logLevel, logFormat string, logTimestamp bool) {
 	if len(logLevel) == 0 {
 		logLevel = "info"
 	}
@@ -52,7 +52,8 @@ func ConfigureLogger(logLevel, logFormat string) {
 			FullTimestamp:    true,
 			ForceFormatting:  true,
 			ForceColors:      true,
-			QuoteEmptyFields: true}
+			QuoteEmptyFields: true,
+			DisableTimestamp: !logTimestamp}
 
 		logFormatter.SetColorScheme(&prefixed.ColorScheme{
 			PrefixStyle:    "blue+b",

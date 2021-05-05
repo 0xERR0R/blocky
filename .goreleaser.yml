@@ -1,0 +1,51 @@
+project_name: blocky
+
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - goos:
+      - linux
+      - windows
+      - freebsd
+      - netbsd
+      - openbsd
+    goarch:
+      - amd64
+      - arm
+      - arm64
+    goarm:
+      - 6
+      - 7
+    ignore:
+      - goos: windows
+        goarch: arm
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -w -s -X blocky/cmd.version={{.Version}} -X blocky/cmd.buildTime={{time "20060102-150405"}}
+release:
+  draft: true
+archives:
+  - format_overrides:
+      - goos: windows
+        format: zip
+    replacements:
+      darwin: macOS
+      linux: Linux
+      freebsd: FreeBSD
+      openbsd: OpenBSD
+      netbsd: NetBSD
+      windows: Windows
+      386: i386
+      amd64: x86_64
+snapshot:
+  name_template: "{{ .Tag }}-{{.ShortCommit}}"
+checksum:
+  name_template: "{{ .ProjectName }}_checksums.txt"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'

@@ -7,14 +7,16 @@ configuration properties as [JSON](config.yml).
 
 | Parameter       | Mandatory | Default value      | Description                                       |
 | --------------- | --------- | -------------------| ------------------------------------------------- |
-| port            | no        | 53                 | Port to serve DNS endpoint (TCP and UDP)          |
+| port            | no        | 53                 | IP and Port to serve DNS endpoint (TCP and UDP). If you wish to specify a specific IP, you can do so such as 192.168.0.1:53  |
 | httpPort        | no        | 0                  | HTTP listener port. If > 0, will be used for prometheus metrics, pprof, REST API, DoH ... |
 | httpsPort       | no        | 0                  | HTTPS listener port. If > 0, will be used for prometheus metrics, pprof, REST API, DoH... |
 | httpsCertFile   | yes, if httpsPort > 0 |        | path to cert and key file for SSL encryption |
 | httpsKeyFile    | yes, if httpsPort > 0 |        | path to cert and key file for SSL encryption |
 | bootstrapDns    | no        |                    | use this DNS server to resolve blacklist urls and upstream DNS servers (DoH). Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp|
+| disableIPv6     | no        | false              | Drop all AAAA query if set to true
 | logLevel        | no        | info               | Log level (one from debug, info, warn, error) |
 | logFormat       | no        | text               | Log format (text or json). |
+| logTimestamp    | no        | true               | Log time stamps (true or false). |
 
 !!! example
 
@@ -50,16 +52,34 @@ Each resolver must be defined as a string in following format: `[net:]host:[port
 | host      | yes       | full qualified domain name or ip address     |                                                   |
 | port      | no        | number < 65535                               | 53 for udp/tcp, 853 for tcp-tls and 443 for https |
 
+Blocky needs at least the configuration of the **default** group. This group will be used as a fallback, if no client
+specific resolver configuration is available.
+
+You can use the client name (see [Client name lookup](#client-name-lookup)), client's IP address or a client subnet as
+CIDR notation.
+
+!!! tip
+
+    You can use `*` as wildcard for the sequence of any character or `[0-9]` as number range
+
 !!! example
 
     ```yaml
     upstream:
-      externalResolvers:
+      default:
         - 46.182.19.48
         - 80.241.218.68
         - tcp-tls:fdns1.dismail.de:853
         - https://dns.digitale-gesellschaft.ch/dns-query
+      laptop*:
+        - 123.123.123.123
+      10.43.8.67/28:
+        - 1.1.1.1
+        - 9.9.9.9
     ```
+    
+    Use `123.123.123.123` as single upstream DNS resolver for client laptop-home, 
+    `1.1.1.1` and `9.9.9.9` for all clients in the sub-net `10.43.8.67/28` and 4 resolvers (default) for all others clients.
 
 !!! note
 
@@ -223,11 +243,13 @@ CIDR notation.
 
 ### Block type
 
-You can configure, which response should be sent to the client, if a requested query is blocked:
+You can configure, which response should be sent to the client, if a requested query is blocked (only for A and AAAA
+queries, NXDOMAIN for other types):
 
 | blockType  | Example | Description                                                      |
 | ---------- | ------- | ---------------------------------------------------------------- |
-| **zeroIP** | zeroIP  | This is the **default** block type. Server returns 0.0.0.0 as result |
+| **zeroIP** | zeroIP  | This is the **
+default** block type. Server returns 0.0.0.0 (or :: for IPv6) as result for A and AAAA queries |
 | **nxDomain** | nxDomain | return NXDOMAIN as return code |
 | custom IPs | 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344 | comma separated list of destination IP addresses. Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page.|
 
@@ -270,7 +292,9 @@ With following parameters you can tune the caching behavior:
 | --------------- | --------- | -------------------| ------------------------------------------------- |
 | caching.minTime | no        | 0 (use TTL)        | Amount in minutes, how long a response must be cached (min value). If <=0, use response's TTL, if >0 use this value, if TTL is smaller |
 | caching.maxTime | no        | 0 (use TTL)        | Amount in minutes, how long a response must be cached (max value). If <0, do not cache responses. If 0, use TTL. If > 0, use this value, if TTL is greater |
-| caching.prefetching     | no        | false              | if true, blocky will preload DNS results for often used queries (names queried more than 5 times in a 2 hour time window). Results in cache will be loaded again on their expire (TTL). This improves the response time for often used queries, but significantly increases external traffic. It is recommended to increase "minTime" to reduce the number of prefetch queries to external resolvers. |
+| caching.prefetching       | no      | false              | if true, blocky will preload DNS results for often used queries (default: names queried more than 5 times in a 2 hour time window). Results in cache will be loaded again on their expire (TTL). This improves the response time for often used queries, but significantly increases external traffic. It is recommended to increase "minTime" to reduce the number of prefetch queries to external resolvers. |
+| caching.prefetchExpires   | no      | 120                | Amount in minutes, prefetch track time window
+| caching.prefetchThreshold | no      | 5                  | Name queries threshold for prefetch
 
 !!! example
 

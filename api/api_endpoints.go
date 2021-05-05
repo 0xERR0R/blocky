@@ -4,6 +4,7 @@ import (
 	"blocky/util"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -13,7 +14,7 @@ import (
 // BlockingControl interface to control the blocking status
 type BlockingControl interface {
 	EnableBlocking()
-	DisableBlocking(duration time.Duration)
+	DisableBlocking(duration time.Duration, disableGroups []string) error
 	BlockingStatus() BlockingStatus
 }
 
@@ -84,12 +85,15 @@ func (s *BlockingEndpoint) apiBlockingEnable(_ http.ResponseWriter, _ *http.Requ
 // @Description disable the blocking status
 // @Tags blocking
 // @Param duration query string false "duration of blocking (Example: 300s, 5m, 1h, 5m30s)" Format(duration)
+// @Param groups query string false "groups to disable (comma separated). If empty, disable all groups" Format(string)
 // @Success 200   "Blocking is disabled"
 // @Failure 400   "Wrong duration format"
+// @Failure 400   "Unknown group"
 // @Router /blocking/disable [get]
 func (s *BlockingEndpoint) apiBlockingDisable(rw http.ResponseWriter, req *http.Request) {
 	var (
 		duration time.Duration
+		groups   []string
 		err      error
 	)
 
@@ -105,7 +109,16 @@ func (s *BlockingEndpoint) apiBlockingDisable(rw http.ResponseWriter, req *http.
 		}
 	}
 
-	s.control.DisableBlocking(duration)
+	groupsParam := req.URL.Query().Get("groups")
+	if len(groupsParam) > 0 {
+		groups = strings.Split(groupsParam, ",")
+	}
+
+	err = s.control.DisableBlocking(duration, groups)
+	if err != nil {
+		log.Error("can't disable the blocking: ", err)
+		rw.WriteHeader(http.StatusBadRequest)
+	}
 }
 
 // apiBlockingStatus is the http endpoint to get current blocking status

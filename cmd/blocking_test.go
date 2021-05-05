@@ -106,6 +106,7 @@ var _ = Describe("Blocking command", func() {
 					response, _ := json.Marshal(api.BlockingStatus{
 						Enabled:         false,
 						AutoEnableInSec: autoEnable,
+						DisabledGroups:  []string{"abc"},
 					})
 					_, err := w.Write(response)
 					Expect(err).Should(Succeed())
@@ -114,12 +115,12 @@ var _ = Describe("Blocking command", func() {
 			It("should show the blocking status with time", func() {
 				autoEnable = 5
 				statusBlocking(newBlockingCommand(), []string{})
-				Expect(loggerHook.LastEntry().Message).Should(Equal("blocking disabled for 5 seconds"))
+				Expect(loggerHook.LastEntry().Message).Should(Equal("blocking disabled for groups: abc, for 5 seconds"))
 			})
 			It("should show the blocking status", func() {
 				autoEnable = 0
 				statusBlocking(newBlockingCommand(), []string{})
-				Expect(loggerHook.LastEntry().Message).Should(Equal("blocking disabled"))
+				Expect(loggerHook.LastEntry().Message).Should(Equal("blocking disabled for groups: abc"))
 			})
 		})
 		When("Wrong url is used", func() {

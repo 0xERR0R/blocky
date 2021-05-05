@@ -1,11 +1,12 @@
 package resolver
 
 import (
+	"time"
+
 	"blocky/config"
 	. "blocky/evt"
 	. "blocky/helpertest"
 	"blocky/util"
-	"time"
 
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo"
@@ -52,18 +53,21 @@ var _ = Describe("CachingResolver", func() {
 
 			It("should prefetch domain if query count > threshold", func() {
 				// prepare resolver, set smaller caching times for testing
-				sut.(*CachingResolver).cachesPerType = map[uint16]*cache.Cache{
-					dns.TypeA: cache.New(15*time.Millisecond, 15*time.Millisecond),
-				}
-				configurePrefetching(sut.(*CachingResolver))
+				prefetchThreshold := 5
+				sut.(*CachingResolver).resultCache = cache.New(25*time.Millisecond, 15*time.Millisecond)
+				configurePrefetching(sut.(*CachingResolver), 120, prefetchThreshold)
 
 				prefetchedCnt := 0
 				_ = Bus().SubscribeOnce(CachingDomainsToPrefetchCountChanged, func(cnt int) {
 					prefetchedCnt = cnt
 				})
 
-				domainPrefetched := ""
+				prefetchHitDomain := ""
+				_ = Bus().SubscribeOnce(CachingPrefetchCacheHit, func(domain string) {
+					prefetchHitDomain = domain
+				})
 
+				domainPrefetched := ""
 				_ = Bus().SubscribeOnce(CachingDomainPrefetched, func(domain string) {
 					domainPrefetched = domain
 				})
@@ -78,7 +82,7 @@ var _ = Describe("CachingResolver", func() {
 				Expect(prefetchedCnt).Should(Equal(1))
 
 				// now query again > threshold
-				for i := 0; i < prefetchingNameCountThreshold; i++ {
+				for i := 0; i < prefetchThreshold; i++ {
 					_, _ = sut.Resolve(newRequest("example.com.", dns.TypeA))
 
 				}
@@ -86,6 +90,10 @@ var _ = Describe("CachingResolver", func() {
 
 				// now is this domain prefetched
 				Expect(domainPrefetched).Should(Equal("example.com"))
+
+				// and it should hit from prefetch cache
+				_, _ = sut.Resolve(newRequest("example.com.", dns.TypeA))
+				Expect(prefetchHitDomain).Should(Equal("example.com"))
 			})
 		})
 		When("min caching time is defined", func() {
@@ -317,12 +325,12 @@ var _ = Describe("CachingResolver", func() {
 		})
 	})
 
-	Describe("Not A / AAAA queries should not be cached", func() {
+	Describe("Not A / AAAA queries should also cached", func() {
 		When("MX query will be performed", func() {
 			BeforeEach(func() {
 				mockAnswer, _ = util.NewMsgWithAnswer("google.de.", 180, dns.TypeMX, "10 alt1.aspmx.l.google.com.")
 			})
-			It("Shouldn't be cached", func() {
+			It("Should be cached", func() {
 				By("first request", func() {
 					resp, err = sut.Resolve(newRequest("google.de.", dns.TypeMX))
 					Expect(err).Should(Succeed())
@@ -335,10 +343,10 @@ var _ = Describe("CachingResolver", func() {
 				By("second request", func() {
 					resp, err = sut.Resolve(newRequest("google.de.", dns.TypeMX))
 					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(RESOLVED))
+					Expect(resp.RType).Should(Equal(CACHED))
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(m.Calls).Should(HaveLen(2))
-					Expect(resp.Res.Answer).Should(BeDNSRecord("google.de.", dns.TypeMX, 180, "alt1.aspmx.l.google.com."))
+					Expect(m.Calls).Should(HaveLen(1))
+					Expect(resp.Res.Answer).Should(BeDNSRecord("google.de.", dns.TypeMX, 179, "alt1.aspmx.l.google.com."))
 				})
 			})
 		})
@@ -365,6 +373,19 @@ var _ = Describe("CachingResolver", func() {
 				c := sut.Configuration()
 				Expect(c).Should(HaveLen(1))
 				Expect(c).Should(Equal([]string{"deactivated"}))
+			})
+		})
+
+		When("prefetching is enabled", func() {
+			BeforeEach(func() {
+				sutConfig = config.CachingConfig{
+					Prefetching: true,
+				}
+			})
+			It("should return configuration", func() {
+				c := sut.Configuration()
+				Expect(len(c) > 1).Should(BeTrue())
+				Expect(c).Should(ContainElement(ContainSubstring("prefetchThreshold")))
 			})
 		})
 	})

@@ -68,6 +68,7 @@ var _ = Describe("Running DNS server", func() {
 			Conditional: config.ConditionalUpstreamConfig{
 				Mapping: config.ConditionalUpstreamMapping{
 					Upstreams: map[string][]config.Upstream{
+						"net.cn":    {upstreamClient},
 						"fritz.box": {upstreamFritzbox},
 					},
 				},
@@ -91,7 +92,7 @@ var _ = Describe("Running DNS server", func() {
 				},
 			},
 			Upstream: config.UpstreamConfig{
-				ExternalResolvers: []config.Upstream{upstreamGoogle},
+				ExternalResolvers: map[string][]config.Upstream{"default": {upstreamGoogle}},
 			},
 			ClientLookup: config.ClientLookupConfig{
 				Upstream: upstreamClient,
@@ -167,6 +168,13 @@ var _ = Describe("Running DNS server", func() {
 				resp = requestServer(util.NewMsgWithQuestion("host.fritz.box.", dns.TypeA))
 
 				Expect(resp.Answer).Should(BeDNSRecord("host.fritz.box.", dns.TypeA, 3600, "192.168.178.2"))
+			})
+		})
+		Context("Conditional upstream blocking", func() {
+			It("Query should be blocked, domain is in default group", func() {
+				resp = requestServer(util.NewMsgWithQuestion("doubleclick.net.cn.", dns.TypeA))
+
+				Expect(resp.Answer).Should(BeDNSRecord("doubleclick.net.cn.", dns.TypeA, 21600, "0.0.0.0"))
 			})
 		})
 		Context("Blocking default group", func() {
@@ -464,6 +472,9 @@ var _ = Describe("Running DNS server", func() {
 
 				// create server
 				server, err := NewServer(&config.Config{
+					Upstream: config.UpstreamConfig{
+						ExternalResolvers: map[string][]config.Upstream{
+							"default": {config.Upstream{Net: "tcp+udp", Host: "4.4.4.4", Port: 53}}}},
 					CustomDNS: config.CustomDNSConfig{
 						Mapping: config.CustomDNSMapping{
 							HostIPs: map[string][]net.IP{
@@ -508,6 +519,9 @@ var _ = Describe("Running DNS server", func() {
 
 				// create server
 				server, err := NewServer(&config.Config{
+					Upstream: config.UpstreamConfig{
+						ExternalResolvers: map[string][]config.Upstream{
+							"default": {config.Upstream{Net: "tcp+udp", Host: "4.4.4.4", Port: 53}}}},
 					CustomDNS: config.CustomDNSConfig{
 						Mapping: config.CustomDNSMapping{
 							HostIPs: map[string][]net.IP{

@@ -1,11 +1,12 @@
 package resolver
 
 import (
+	"fmt"
+	"time"
+
 	"blocky/config"
 	"blocky/evt"
 	"blocky/util"
-	"fmt"
-	"time"
 
 	"github.com/miekg/dns"
 	"github.com/patrickmn/go-cache"
@@ -17,8 +18,16 @@ import (
 type CachingResolver struct {
 	NextResolver
 	minCacheTimeSec, maxCacheTimeSec int
-	cachesPerType                    map[uint16]*cache.Cache
+	resultCache                      *cache.Cache
+	prefetchExpires                  time.Duration
+	prefetchThreshold                int
 	prefetchingNameCache             *cache.Cache
+}
+
+// cacheValue includes query answer and prefetch flag
+type cacheValue struct {
+	answer   []dns.RR
+	prefetch bool
 }
 
 const (
@@ -29,70 +38,63 @@ const (
 
 // NewCachingResolver creates a new resolver instance
 func NewCachingResolver(cfg config.CachingConfig) ChainedResolver {
-	domainCache := createQueryDomainNameCache(cfg)
 	c := &CachingResolver{
 		minCacheTimeSec: 60 * cfg.MinCachingTime,
 		maxCacheTimeSec: 60 * cfg.MaxCachingTime,
-		cachesPerType: map[uint16]*cache.Cache{
-			dns.TypeA:    createQueryResultCache(),
-			dns.TypeAAAA: createQueryResultCache(),
-		},
-		prefetchingNameCache: domainCache,
+		resultCache:     createQueryResultCache(),
 	}
 
 	if cfg.Prefetching {
-		configurePrefetching(c)
+		configurePrefetching(c, cfg.PrefetchExpires, cfg.PrefetchThreshold)
 	}
 
 	return c
 }
 
-func configurePrefetching(c *CachingResolver) {
-	for k, v := range c.cachesPerType {
-		qType := k
-
-		v.OnEvicted(func(domainName string, i interface{}) {
-			c.onEvicted(domainName, qType)
-		})
-	}
-}
-
 func createQueryResultCache() *cache.Cache {
 	return cache.New(15*time.Minute, 15*time.Second)
 }
-func createQueryDomainNameCache(cfg config.CachingConfig) *cache.Cache {
-	if cfg.Prefetching {
-		return cache.New(prefetchingNameCacheExpiration, time.Minute)
+
+func configurePrefetching(c *CachingResolver, expires int, threshold int) {
+	c.prefetchExpires = prefetchingNameCacheExpiration
+	if expires > 0 {
+		c.prefetchExpires = time.Duration(expires) * time.Minute
 	}
 
-	return nil
+	c.prefetchThreshold = prefetchingNameCountThreshold
+	if threshold > 0 {
+		c.prefetchThreshold = threshold
+	}
+
+	c.prefetchingNameCache = cache.New(c.prefetchExpires, time.Minute)
+
+	c.resultCache.OnEvicted(func(key string, i interface{}) {
+		c.onEvicted(key)
+	})
 }
 
 // onEvicted is called if a DNS response in the cache is expired and was removed from cache
-func (r *CachingResolver) onEvicted(domainName string, qType uint16) {
+func (r *CachingResolver) onEvicted(cacheKey string) {
+	qType, domainName := util.ExtractCacheKey(cacheKey)
 	logger := logger("caching_resolver")
 
-	cnt, found := r.prefetchingNameCache.Get(domainName)
+	cnt, found := r.prefetchingNameCache.Get(cacheKey)
 
 	// check if domain was queried > threshold in the time window
-	if found && cnt.(int) > prefetchingNameCountThreshold {
+	if found && cnt.(int) > r.prefetchThreshold {
 		logger.Debugf("prefetching '%s' (%s)", domainName, dns.TypeToString[qType])
 
 		req := newRequest(fmt.Sprintf("%s.", domainName), qType, logger)
 		response, err := r.next.Resolve(req)
 
 		if err == nil {
-			r.putInCache(response, domainName, qType)
+			r.putInCache(cacheKey, response, true)
 
 			evt.Bus().Publish(evt.CachingDomainPrefetched, domainName)
 		}
 
 		util.LogOnError(fmt.Sprintf("can't prefetch '%s' ", domainName), err)
 	}
-}
-
-func (r *CachingResolver) getCache(queryType uint16) *cache.Cache {
-	return r.cachesPerType[queryType]
 }
 
 // Configuration returns a current resolver configuration
@@ -108,20 +110,14 @@ func (r *CachingResolver) Configuration() (result []string) {
 
 	result = append(result, fmt.Sprintf("prefetching = %t", r.prefetchingNameCache != nil))
 
-	for t, c := range r.cachesPerType {
-		result = append(result, fmt.Sprintf("%s cache items count = %d", dns.TypeToString[t], c.ItemCount()))
+	if r.prefetchingNameCache != nil {
+		result = append(result, fmt.Sprintf("prefetchExpires = %s", r.prefetchExpires))
+		result = append(result, fmt.Sprintf("prefetchThreshold = %d", r.prefetchThreshold))
 	}
+
+	result = append(result, fmt.Sprintf("cache items count = %d", r.resultCache.ItemCount()))
 
 	return
-}
-
-func (r *CachingResolver) getTotalCacheEntryNumber() int {
-	count := 0
-	for _, v := range r.cachesPerType {
-		count += v.ItemCount()
-	}
-
-	return count
 }
 
 // Resolve checks if the current query result is already in the cache and returns it
@@ -140,81 +136,81 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 
 	for _, question := range request.Req.Question {
 		domain := util.ExtractDomain(question)
+		cacheKey := util.GenerateCacheKey(question.Qtype, domain)
 		logger := logger.WithField("domain", domain)
 
-		// we can cache only A and AAAA queries
-		if question.Qtype == dns.TypeA || question.Qtype == dns.TypeAAAA {
-			r.trackQueryDomainNameCount(domain, logger)
+		r.trackQueryDomainNameCount(domain, cacheKey, logger)
 
-			val, expiresAt, found := r.getCache(question.Qtype).GetWithExpiration(domain)
+		val, expiresAt, found := r.resultCache.GetWithExpiration(cacheKey)
 
-			if found {
-				logger.Debug("domain is cached")
+		if found {
+			logger.Debug("domain is cached")
 
-				evt.Bus().Publish(evt.CachingResultCacheHit, domain)
+			evt.Bus().Publish(evt.CachingResultCacheHit, domain)
 
-				// calculate remaining TTL
-				remainingTTL := uint32(time.Until(expiresAt).Seconds())
+			// calculate remaining TTL
+			remainingTTL := uint32(time.Until(expiresAt).Seconds())
 
-				v, ok := val.([]dns.RR)
-				if ok {
-					// Answer from successful request
-					resp.Answer = v
-					for _, rr := range resp.Answer {
-						rr.Header().Ttl = remainingTTL
-					}
-
-					return &Response{Res: resp, RType: CACHED, Reason: "CACHED"}, nil
+			v, ok := val.(cacheValue)
+			if ok {
+				if v.prefetch {
+					// Hit from prefetch cache
+					evt.Bus().Publish(evt.CachingPrefetchCacheHit, domain)
 				}
-				// Answer with response code != OK
-				resp.Rcode = val.(int)
 
-				return &Response{Res: resp, RType: CACHED, Reason: "CACHED NEGATIVE"}, nil
+				// Answer from successful request
+				resp.Answer = v.answer
+				for _, rr := range resp.Answer {
+					rr.Header().Ttl = remainingTTL
+				}
+
+				return &Response{Res: resp, RType: CACHED, Reason: "CACHED"}, nil
 			}
+			// Answer with response code != OK
+			resp.Rcode = val.(int)
 
-			evt.Bus().Publish(evt.CachingResultCacheMiss, domain)
+			return &Response{Res: resp, RType: CACHED, Reason: "CACHED NEGATIVE"}, nil
+		}
 
-			logger.WithField("next_resolver", Name(r.next)).Debug("not in cache: go to next resolver")
-			response, err = r.next.Resolve(request)
+		evt.Bus().Publish(evt.CachingResultCacheMiss, domain)
 
-			if err == nil {
-				r.putInCache(response, domain, question.Qtype)
-			}
-		} else {
-			logger.Debugf("not A/AAAA: go to next %s", r.next)
-			return r.next.Resolve(request)
+		logger.WithField("next_resolver", Name(r.next)).Debug("not in cache: go to next resolver")
+		response, err = r.next.Resolve(request)
+
+		if err == nil {
+			r.putInCache(cacheKey, response, false)
 		}
 	}
 
 	return response, err
 }
 
-func (r *CachingResolver) trackQueryDomainNameCount(domain string, logger *logrus.Entry) {
+func (r *CachingResolver) trackQueryDomainNameCount(domain string, cacheKey string, logger *logrus.Entry) {
 	if r.prefetchingNameCache != nil {
 		var domainCount int
-		if x, found := r.prefetchingNameCache.Get(domain); found {
+		if x, found := r.prefetchingNameCache.Get(cacheKey); found {
 			domainCount = x.(int)
 		}
 		domainCount++
-		r.prefetchingNameCache.SetDefault(domain, domainCount)
+		r.prefetchingNameCache.SetDefault(cacheKey, domainCount)
 		logger.Debugf("domain '%s' was requested %d times, "+
 			"total cache size: %d", domain, domainCount, r.prefetchingNameCache.ItemCount())
 		evt.Bus().Publish(evt.CachingDomainsToPrefetchCountChanged, r.prefetchingNameCache.ItemCount())
 	}
 }
 
-func (r *CachingResolver) putInCache(response *Response, domain string, qType uint16) {
+func (r *CachingResolver) putInCache(cacheKey string, response *Response, prefetch bool) {
 	answer := response.Res.Answer
 
 	if response.Res.Rcode == dns.RcodeSuccess {
 		// put value into cache
-		r.getCache(qType).Set(domain, answer, time.Duration(r.adjustTTLs(answer))*time.Second)
+		r.resultCache.Set(cacheKey, cacheValue{answer, prefetch}, time.Duration(r.adjustTTLs(answer))*time.Second)
 	} else if response.Res.Rcode == dns.RcodeNameError {
 		// put return code if NXDOMAIN
-		r.getCache(qType).Set(domain, response.Res.Rcode, cacheTimeNegative)
+		r.resultCache.Set(cacheKey, response.Res.Rcode, cacheTimeNegative)
 	}
 
-	evt.Bus().Publish(evt.CachingResultCacheChanged, r.getTotalCacheEntryNumber())
+	evt.Bus().Publish(evt.CachingResultCacheChanged, r.resultCache.ItemCount())
 }
 
 func (r *CachingResolver) adjustTTLs(answer []dns.RR) (maxTTL uint32) {

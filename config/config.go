@@ -197,6 +197,7 @@ const (
 )
 
 // Config main configuration
+// nolint:maligned
 type Config struct {
 	Upstream     UpstreamConfig            `yaml:"upstream"`
 	CustomDNS    CustomDNSConfig           `yaml:"customDNS"`
@@ -208,9 +209,11 @@ type Config struct {
 	Prometheus   PrometheusConfig          `yaml:"prometheus"`
 	LogLevel     string                    `yaml:"logLevel"`
 	LogFormat    string                    `yaml:"logFormat"`
+	LogTimestamp bool                      `yaml:"logTimestamp"`
 	Port         string                    `yaml:"port"`
 	HTTPPort     uint16                    `yaml:"httpPort"`
 	HTTPSPort    uint16                    `yaml:"httpsPort"`
+	DisableIPv6  bool                      `yaml:"disableIPv6"`
 	CertFile     string                    `yaml:"httpsCertFile"`
 	KeyFile      string                    `yaml:"httpsKeyFile"`
 	BootstrapDNS Upstream                  `yaml:"bootstrapDns"`
@@ -224,7 +227,7 @@ type PrometheusConfig struct {
 
 // UpstreamConfig upstream server configuration
 type UpstreamConfig struct {
-	ExternalResolvers []Upstream `yaml:"externalResolvers"`
+	ExternalResolvers map[string][]Upstream `yaml:",inline"`
 }
 
 // CustomDNSConfig custom DNS configuration
@@ -266,9 +269,11 @@ type ClientLookupConfig struct {
 
 // CachingConfig configuration for domain caching
 type CachingConfig struct {
-	MinCachingTime int  `yaml:"minTime"`
-	MaxCachingTime int  `yaml:"maxTime"`
-	Prefetching    bool `yaml:"prefetching"`
+	MinCachingTime    int  `yaml:"minTime"`
+	MaxCachingTime    int  `yaml:"maxTime"`
+	Prefetching       bool `yaml:"prefetching"`
+	PrefetchExpires   int  `yaml:"prefetchExpires"`
+	PrefetchThreshold int  `yaml:"prefetchThreshold"`
 }
 
 // QueryLogConfig configuration for the query logging
@@ -311,5 +316,6 @@ func setDefaultValues(cfg *Config) {
 	cfg.Port = cfgDefaultPort
 	cfg.LogLevel = "info"
 	cfg.LogFormat = log.CfgLogFormatText
+	cfg.LogTimestamp = true
 	cfg.Prometheus.Path = cfgDefaultPrometheusPath
 }

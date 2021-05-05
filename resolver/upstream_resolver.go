@@ -126,7 +126,7 @@ func (r *dnsUpstreamClient) callExternal(msg *dns.Msg,
 			// try UDP as fallback
 			var opErr *net.OpError
 			if errors.As(err, &opErr) {
-				if opErr.Op == "dial" {
+				if opErr.Op == "dial" && r.udpClient != nil {
 					return r.udpClient.Exchange(msg, upstreamURL)
 				}
 			}
@@ -182,7 +182,7 @@ func (r *UpstreamResolver) Resolve(request *Request) (response *Response, err er
 				"response_time_ms": rtt.Milliseconds(),
 			}).Debugf("received response from upstream")
 
-			return &Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.upstreamURL)}, err
+			return &Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.upstreamURL)}, nil
 		}
 
 		var netErr net.Error

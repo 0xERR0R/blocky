@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"blocky/log"
 
@@ -34,6 +35,7 @@ func newBlockingCommand() *cobra.Command {
 		Run:     disableBlocking,
 	}
 	disableCommand.Flags().DurationP("duration", "d", 0, "duration in min")
+	disableCommand.Flags().StringArrayP("groups", "g", []string{}, "blocking groups to disable")
 	c.AddCommand(disableCommand)
 
 	c.AddCommand(&cobra.Command{
@@ -63,10 +65,12 @@ func enableBlocking(_ *cobra.Command, _ []string) {
 
 func disableBlocking(cmd *cobra.Command, _ []string) {
 	duration, _ := cmd.Flags().GetDuration("duration")
+	groups, _ := cmd.Flags().GetStringArray("groups")
 
-	resp, err := http.Get(fmt.Sprintf("%s?duration=%s", apiURL(api.PathBlockingDisablePath), duration))
+	resp, err := http.Get(fmt.Sprintf("%s?duration=%s&groups=%s",
+		apiURL(api.PathBlockingDisablePath), duration, strings.Join(groups, ",")))
 	if err != nil {
-		log.Log().Fatal("can't execute", err)
+		util.FatalOnError("can't execute", err)
 		return
 	}
 	defer resp.Body.Close()
@@ -74,7 +78,8 @@ func disableBlocking(cmd *cobra.Command, _ []string) {
 	if resp.StatusCode == http.StatusOK {
 		log.Log().Info("OK")
 	} else {
-		log.Log().Fatal("NOK: ", resp.Status)
+		util.FatalOnError("can't read response body", err)
+		log.Log().Fatalf("NOK: %s", resp.Status)
 	}
 }
 
@@ -100,9 +105,10 @@ func statusBlocking(_ *cobra.Command, _ []string) {
 		log.Log().Info("blocking enabled")
 	} else {
 		if result.AutoEnableInSec == 0 {
-			log.Log().Info("blocking disabled")
+			log.Log().Infof("blocking disabled for groups: %s", strings.Join(result.DisabledGroups, "; "))
 		} else {
-			log.Log().Infof("blocking disabled for %d seconds", result.AutoEnableInSec)
+			log.Log().Infof("blocking disabled for groups: %s, for %d seconds",
+				strings.Join(result.DisabledGroups, "; "), result.AutoEnableInSec)
 		}
 	}
 }

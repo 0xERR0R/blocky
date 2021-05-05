@@ -77,7 +77,7 @@
   "gnetId": null,
   "graphTooltip": 0,
   "id": null,
-  "iteration": 1611434666837,
+  "iteration": 1619292891700,
   "links": [
     {
       "icon": "external link",
@@ -748,7 +748,7 @@
       "pluginVersion": "7.3.1",
       "targets": [
         {
-          "expr": "blocky_cache_entry_count",
+          "expr": "sum(blocky_cache_entry_count)/ sum(up{job=\"blocky\"})",
           "instant": false,
           "interval": "",
           "legendFormat": "",
@@ -763,6 +763,7 @@
     },
     {
       "datasource": "${DS_PROMETHEUS}",
+      "description": "Cache Hit/Miss ratio. 100 % means, all queries could be answered from the cache, 0% - all queries must be resolved via external DNS",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -900,6 +901,7 @@
     },
     {
       "datasource": "${DS_PROMETHEUS}",
+      "description": "Amount of performed DNS queries to prefetch cached queries",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -954,6 +956,7 @@
     },
     {
       "datasource": "${DS_PROMETHEUS}",
+      "description": "Amount of prefetch queries per minute",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -1012,8 +1015,12 @@
     },
     {
       "datasource": "${DS_PROMETHEUS}",
+      "description": "How many of cached entries were prefetched automatically",
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
           "custom": {},
           "mappings": [],
           "thresholds": {
@@ -1024,7 +1031,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "unit": "percentunit"
         },
         "overrides": []
       },
@@ -1034,7 +1042,7 @@
         "x": 18,
         "y": 9
       },
-      "id": 49,
+      "id": 58,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -1042,7 +1050,7 @@
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
-            "lastNotNull"
+            "mean"
           ],
           "fields": "",
           "values": false
@@ -1052,7 +1060,8 @@
       "pluginVersion": "7.3.1",
       "targets": [
         {
-          "expr": "blocky_prefetch_domain_name_cache_count",
+          "expr": "sum(increase(blocky_prefetch_hit_count[$__range])) / (sum(increase(blocky_cache_hit_count[$__range])))",
+          "instant": false,
           "interval": "",
           "legendFormat": "",
           "refId": "A"
@@ -1060,7 +1069,7 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Prefetch domain count",
+      "title": "Prefetch Hit ratio",
       "transparent": true,
       "type": "stat"
     },
@@ -1109,7 +1118,7 @@
       "pluginVersion": "7.3.1",
       "targets": [
         {
-          "expr": "time() -blocky_last_list_group_refresh",
+          "expr": "sum(time() -blocky_last_list_group_refresh)/ sum(up{job=\"blocky\"})",
           "instant": true,
           "interval": "",
           "legendFormat": "",
@@ -1119,6 +1128,61 @@
       "timeFrom": null,
       "timeShift": null,
       "title": "Last list refresh",
+      "transparent": true,
+      "type": "stat"
+    },
+    {
+      "datasource": "${DS_PROMETHEUS}",
+      "description": "Amount of unique domains in the prefetched cache",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 6,
+        "x": 6,
+        "y": 12
+      },
+      "id": 49,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "7.3.1",
+      "targets": [
+        {
+          "expr": "sum(blocky_prefetch_domain_name_cache_count)/ sum(up{job=\"blocky\"})",
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Prefetch domain count",
       "transparent": true,
       "type": "stat"
     },
@@ -1750,7 +1814,7 @@
     ]
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-3h",
     "to": "now"
   },
   "timepicker": {
@@ -1770,5 +1834,5 @@
   "timezone": "",
   "title": "blocky",
   "uid": "JvOqE4gRk",
-  "version": 21
+  "version": 27
 }

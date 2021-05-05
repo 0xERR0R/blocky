@@ -30,7 +30,7 @@ LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
       org.opencontainers.image.url="https://github.com/0xERR0R/blocky" \
       org.opencontainers.image.title="DNS proxy as ad-blocker for local network"
 
-RUN apk add --no-cache bind-tools
+RUN apk add --no-cache bind-tools tini
 COPY --from=build-env /src/bin/blocky /app/blocky
 
 # the timezone data:
@@ -42,4 +42,5 @@ HEALTHCHECK --interval=1m --timeout=3s CMD dig @127.0.0.1 -p 53 healthcheck.bloc
 
 WORKDIR /app
 
-ENTRYPOINT ["/app/blocky","--config","/app/config.yml"]
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["/app/blocky","--config","/app/config.yml"]

@@ -1,8 +1,10 @@
 package util
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -174,4 +176,40 @@ func Chunks(s string, chunkSize int) []string {
 	}
 
 	return chunks
+}
+
+// GenerateCacheKey return cacheKey by query type/domain
+func GenerateCacheKey(qType uint16, qName string) string {
+	b := make([]byte, 2+len(qName))
+
+	binary.BigEndian.PutUint16(b, qType)
+	copy(b[2:], strings.ToLower(qName))
+
+	return string(b)
+}
+
+// ExtractCacheKey return query type/domain from cacheKey
+func ExtractCacheKey(key string) (qType uint16, qName string) {
+	b := []byte(key)
+
+	qType = binary.BigEndian.Uint16(b)
+	qName = string(b[2:])
+
+	return
+}
+
+// CidrContainsIP checks if CIDR contains a single IP
+func CidrContainsIP(cidr string, ip net.IP) bool {
+	_, ipnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return false
+	}
+
+	return ipnet.Contains(ip)
+}
+
+// ClientNameMatchesGroupName checks if a group with optional wildcards contains a client name
+func ClientNameMatchesGroupName(group string, clientName string) bool {
+	match, _ := filepath.Match(group, clientName)
+	return match
 }

@@ -37,7 +37,7 @@ func startServer(_ *cobra.Command, _ []string) {
 	printBanner()
 
 	cfg = config.NewConfig(configPath, true)
-	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat)
+	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
 	configureHTTPClient(&cfg)
 

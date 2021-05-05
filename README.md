@@ -9,7 +9,6 @@
 [![Codacy grade](https://img.shields.io/codacy/grade/8fcd8f8420b8419c808c47af58ed9282 "Codacy grade")](#)
 [![Go Report Card](https://goreportcard.com/badge/github.com/0xERR0R/blocky)](https://goreportcard.com/report/github.com/0xERR0R/blocky)
 [![Total alerts](https://img.shields.io/lgtm/alerts/g/0xERR0R/blocky.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/0xERR0R/blocky/alerts/)
-[![Dependabot Status](https://api.dependabot.com/badges/status?host=github&repo=0xERR0R/blocky)](https://dependabot.com)
 
 <p align="center">
   <img height="200" src="https://github.com/0xERR0R/blocky/blob/master/docs/blocky.svg">
@@ -31,6 +30,7 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
 
     * Custom DNS resolution for certain domain names
     * Conditional forwarding to external DNS server
+    * Upstream resolvers can be defined per client group
 
 - **Performance** - Improves speed and performance in your network
 

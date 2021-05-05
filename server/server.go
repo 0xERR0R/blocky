@@ -51,7 +51,7 @@ func getServerAddress(cfg *config.Config) string {
 func NewServer(cfg *config.Config) (server *Server, err error) {
 	address := getServerAddress(cfg)
 
-	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat)
+	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
 	udpServer := createUDPServer(address)
 	tcpServer := createTCPServer(address)
@@ -140,14 +140,15 @@ func createUDPServer(address string) *dns.Server {
 
 func createQueryResolver(cfg *config.Config) resolver.Resolver {
 	return resolver.Chain(
+		resolver.NewIPv6Checker(cfg.DisableIPv6),
 		resolver.NewClientNamesResolver(cfg.ClientLookup),
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
 		resolver.NewStatsResolver(),
 		resolver.NewMetricsResolver(cfg.Prometheus),
-		resolver.NewConditionalUpstreamResolver(cfg.Conditional),
 		resolver.NewCustomDNSResolver(cfg.CustomDNS),
 		resolver.NewBlockingResolver(cfg.Blocking),
 		resolver.NewCachingResolver(cfg.Caching),
+		resolver.NewConditionalUpstreamResolver(cfg.Conditional),
 		resolver.NewParallelBestResolver(cfg.Upstream.ExternalResolvers),
 	)
 }
@@ -281,7 +282,11 @@ func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
 
 	if err != nil {
 		logger().Errorf("error on processing request: %v", err)
-		dns.HandleFailed(w, request)
+
+		m := new(dns.Msg)
+		m.SetRcode(request, dns.RcodeServerFailure)
+		err := w.WriteMsg(m)
+		util.LogOnError("can't write message: ", err)
 	} else {
 		response.Res.MsgHdr.RecursionAvailable = request.MsgHdr.RecursionDesired
 
