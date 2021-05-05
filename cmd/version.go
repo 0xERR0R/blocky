@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"blocky/util"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -18,6 +19,6 @@ func NewVersionCommand() *cobra.Command {
 
 func printVersion(_ *cobra.Command, _ []string) {
 	fmt.Println("blocky")
-	fmt.Printf("Version: %s\n", version)
-	fmt.Printf("Build time: %s\n", buildTime)
+	fmt.Printf("Version: %s\n", util.Version)
+	fmt.Printf("Build time: %s\n", util.BuildTime)
 }

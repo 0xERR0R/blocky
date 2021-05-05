@@ -58,7 +58,7 @@ func startServer(_ *cobra.Command, _ []string) {
 		done <- true
 	}()
 
-	evt.Bus().Publish(evt.ApplicationStarted, version, buildTime)
+	evt.Bus().Publish(evt.ApplicationStarted, util.Version, util.BuildTime)
 	<-done
 }
 
@@ -103,7 +103,7 @@ func printBanner() {
 	log.Log().Info("_/                                               _/_/           _/")
 	log.Log().Info("_/                                                              _/")
 	log.Log().Info("_/                                                              _/")
-	log.Log().Infof("_/  Version: %-18s Build time: %-18s  _/", version, buildTime)
+	log.Log().Infof("_/  Version: %-18s Build time: %-18s  _/", util.Version, util.BuildTime)
 	log.Log().Info("_/                                                              _/")
 	log.Log().Info("_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/")
 }

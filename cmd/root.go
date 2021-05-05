@@ -11,8 +11,6 @@ import (
 
 //nolint:gochecknoglobals
 var (
-	version    = "undefined"
-	buildTime  = "undefined"
 	configPath string
 	cfg        config.Config
 	apiHost    string

@@ -227,7 +227,19 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 			URL   string
 			Title string
 		}
-		var links = []HandlerLink{
+
+		type PageData struct {
+			Links     []HandlerLink
+			Version   string
+			BuildTime string
+		}
+		pd := PageData{
+			Links:     nil,
+			Version:   util.Version,
+			BuildTime: util.BuildTime,
+		}
+		pd.Links = []HandlerLink{
+
 			{
 				URL:   "https://htmlpreview.github.io/?https://github.com/0xERR0R/blocky/blob/master/docs/swagger.html",
 				Title: "Swagger Rest API Documentation (Online @GitHub)",
@@ -239,13 +251,13 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 		}
 
 		if cfg.Prometheus.Enable {
-			links = append(links, HandlerLink{
+			pd.Links = append(pd.Links, HandlerLink{
 				URL:   cfg.Prometheus.Path,
 				Title: "Prometheus endpoint",
 			})
 		}
 
-		err := t.Execute(writer, links)
+		err := t.Execute(writer, pd)
 		if err != nil {
 			log.Log().Error("can't write index template: ", err)
 			writer.WriteHeader(http.StatusInternalServerError)
