@@ -14,6 +14,6 @@ const IndexTmpl = `<!DOCTYPE html>
 		{{end}}
 		</ul>
 
-		<p><span class="small">Version {{.Version}}</span></p> 
+		<p><span class="small">Version {{.Version}}   Build time {{.BuildTime}}</span></p> 
 		</body>
 	</html>`

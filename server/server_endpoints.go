@@ -229,12 +229,15 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 		}
 
 		type PageData struct {
-			Links   []HandlerLink
-			Version string
+			Links     []HandlerLink
+			Version   string
+			BuildTime string
 		}
-		var pd PageData
-		pd.Version = version
-
+		pd := PageData{
+			Links:     nil,
+			Version:   util.Version,
+			BuildTime: util.BuildTime,
+		}
 		pd.Links = []HandlerLink{
 
 			{
