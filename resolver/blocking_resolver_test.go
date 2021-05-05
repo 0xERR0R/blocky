@@ -385,7 +385,8 @@ badcnamedomain.com`)
 					Expect(resp.Reason).Should(Equal("BLOCKED (WHITELIST ONLY)"))
 				})
 			})
-			It("should block everything else except domains on the white list if multiple white list only groups are defined", func() {
+			It("should block everything else except domains on the white list "+
+				"if multiple white list only groups are defined", func() {
 				By("querying domain on the whitelist", func() {
 					resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "one-client"))
 
@@ -399,7 +400,8 @@ badcnamedomain.com`)
 					Expect(resp.Reason).Should(Equal("BLOCKED (WHITELIST ONLY)"))
 				})
 			})
-			It("should block everything else except domains on the white list if multiple white list only groups are defined", func() {
+			It("should block everything else except domains on the white list "+
+				"if multiple white list only groups are defined", func() {
 				By("querying domain on the whitelist group 1", func() {
 					resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "all-client"))
 

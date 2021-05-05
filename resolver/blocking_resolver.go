@@ -178,13 +178,15 @@ func (r *BlockingResolver) BlockingStatus() api.BlockingStatus {
 // returns groups, which have only whitelist entries
 func determineWhitelistOnlyGroups(cfg *config.BlockingConfig) (result map[string]bool) {
 	result = make(map[string]bool)
+
 	for g, links := range cfg.WhiteLists {
 		if len(links) > 0 {
 			if _, found := cfg.BlackLists[g]; !found {
-				result[g] = true 
+				result[g] = true
 			}
 		}
 	}
+
 	return
 }
 
@@ -227,14 +229,14 @@ func (r *BlockingResolver) Configuration() (result []string) {
 	return
 }
 
-
-func (r *BlockingResolver)hasWhiteListOnlyAllowed(groupsToCheck []string) bool{
+func (r *BlockingResolver) hasWhiteListOnlyAllowed(groupsToCheck []string) bool {
 	for _, group := range groupsToCheck {
-		if _, found := r.whitelistOnlyGroups[group] ; found {
+		if _, found := r.whitelistOnlyGroups[group]; found {
 			return true
 		}
 	}
-	return false 
+
+	return false
 }
 
 func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
