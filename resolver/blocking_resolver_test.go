@@ -359,13 +359,19 @@ badcnamedomain.com`)
 		When("Only whitelist is defined", func() {
 			BeforeEach(func() {
 				sutConfig = config.BlockingConfig{
-					WhiteLists: map[string][]string{"gr1": {group1File.Name()}},
+					WhiteLists: map[string][]string{
+						"gr1": {group1File.Name()},
+						"gr2": {group2File.Name()},
+					},
 					ClientGroupsBlock: map[string][]string{
-						"default": {"gr1"},
+						"default":    {"gr1"},
+						"one-client": {"gr1"},
+						"two-client": {"gr2"},
+						"all-client": {"gr1", "gr2"},
 					},
 				}
 			})
-			It("should block everything else except domains on the white list", func() {
+			It("should block everything else except domains on the white list with default group", func() {
 				By("querying domain on the whitelist", func() {
 					resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "unknown"))
 
@@ -377,6 +383,35 @@ badcnamedomain.com`)
 					resp, err = sut.Resolve(newRequestWithClient("google.com.", dns.TypeA, "1.2.1.2", "unknown"))
 					Expect(m.Calls).Should(HaveLen(1))
 					Expect(resp.Reason).Should(Equal("BLOCKED (WHITELIST ONLY)"))
+				})
+			})
+			It("should block everything else except domains on the white list "+
+				"if multiple white list only groups are defined", func() {
+				By("querying domain on the whitelist", func() {
+					resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "one-client"))
+
+					// was delegated to next resolver
+					m.AssertExpectations(GinkgoT())
+				})
+
+				By("querying another domain, which is not on the whitelist", func() {
+					resp, err = sut.Resolve(newRequestWithClient("blocked2.com.", dns.TypeA, "1.2.1.2", "one-client"))
+					Expect(m.Calls).Should(HaveLen(1))
+					Expect(resp.Reason).Should(Equal("BLOCKED (WHITELIST ONLY)"))
+				})
+			})
+			It("should block everything else except domains on the white list "+
+				"if multiple white list only groups are defined", func() {
+				By("querying domain on the whitelist group 1", func() {
+					resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "all-client"))
+
+					// was delegated to next resolver
+					m.AssertExpectations(GinkgoT())
+				})
+
+				By("querying another domain, which is in the whitelist group 1", func() {
+					resp, err = sut.Resolve(newRequestWithClient("blocked2.com.", dns.TypeA, "1.2.1.2", "all-client"))
+					Expect(m.Calls).Should(HaveLen(2))
 				})
 			})
 		})

@@ -8,7 +8,6 @@ import (
 	"blocky/util"
 	"fmt"
 	"net"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -65,7 +64,7 @@ type BlockingResolver struct {
 	whitelistMatcher    *lists.ListCache
 	cfg                 config.BlockingConfig
 	blockHandler        blockHandler
-	whitelistOnlyGroups []string
+	whitelistOnlyGroups map[string]bool
 	status              *status
 }
 
@@ -177,16 +176,16 @@ func (r *BlockingResolver) BlockingStatus() api.BlockingStatus {
 }
 
 // returns groups, which have only whitelist entries
-func determineWhitelistOnlyGroups(cfg *config.BlockingConfig) (result []string) {
+func determineWhitelistOnlyGroups(cfg *config.BlockingConfig) (result map[string]bool) {
+	result = make(map[string]bool)
+
 	for g, links := range cfg.WhiteLists {
 		if len(links) > 0 {
 			if _, found := cfg.BlackLists[g]; !found {
-				result = append(result, g)
+				result[g] = true
 			}
 		}
 	}
-
-	sort.Strings(result)
 
 	return
 }
@@ -230,10 +229,20 @@ func (r *BlockingResolver) Configuration() (result []string) {
 	return
 }
 
+func (r *BlockingResolver) hasWhiteListOnlyAllowed(groupsToCheck []string) bool {
+	for _, group := range groupsToCheck {
+		if _, found := r.whitelistOnlyGroups[group]; found {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
 	request *Request, logger *logrus.Entry) (*Response, error) {
 	logger.WithField("groupsToCheck", strings.Join(groupsToCheck, "; ")).Debug("checking groups for request")
-	whitelistOnlyAllowed := reflect.DeepEqual(groupsToCheck, r.whitelistOnlyGroups)
+	whitelistOnlyAllowed := r.hasWhiteListOnlyAllowed(groupsToCheck)
 
 	for _, question := range request.Req.Question {
 		domain := util.ExtractDomain(question)
