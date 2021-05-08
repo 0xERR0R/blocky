@@ -288,9 +288,29 @@ func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
 	} else {
 		response.Res.MsgHdr.RecursionAvailable = request.MsgHdr.RecursionDesired
 
+		// truncate if necessary
+		response.Res.Truncate(getMaxResponseSize(w.LocalAddr().Network(), request))
+
+		// enable compression
+		response.Res.Compress = true
+
 		err := w.WriteMsg(response.Res)
 		util.LogOnError("can't write message: ", err)
 	}
+}
+
+// returns EDNS upd size or if not present, 512 for UDP and 64K for TCP
+func getMaxResponseSize(network string, request *dns.Msg) int {
+	edns := request.IsEdns0()
+	if edns != nil && edns.UDPSize() > 0 {
+		return int(edns.UDPSize())
+	}
+
+	if network == "tcp" {
+		return dns.MaxMsgSize
+	}
+
+	return dns.MinMsgSize
 }
 
 // OnHealthCheck Handler for docker health check. Just returns OK code without delegating to resolver chain
