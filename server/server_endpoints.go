@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi"
@@ -56,6 +57,102 @@ func (s *Server) dohGetRequestHandler(rw http.ResponseWriter, req *http.Request)
 	}
 
 	s.processDohMessage(rawMsg, rw, req)
+}
+
+func (s *Server) dohJsonGetRequestHandler(rw http.ResponseWriter, req *http.Request) {
+	recname := req.URL.Query().Get("name")
+	rectype := req.URL.Query().Get("type")
+	if len(recname) < 1 {
+		http.Error(rw, "dns param is missing", http.StatusBadRequest)
+
+		return
+	}
+	rectypeint, err := strconv.Atoi(rectype)
+	if err != nil {
+		rectypeint = 255
+	}
+
+	type QuestionRec struct {
+		Name string `json:"name"`
+		Type int    `json:"type"`
+	}
+
+	myquestion := QuestionRec{
+		Name: recname,
+		Type: rectypeint,
+	}
+	var m dns.Msg
+	m.SetQuestion(dns.Fqdn(recname), uint16(rectypeint))
+	msg, err := m.Pack()
+	if err != nil {
+		logger().Error("Failed to pack json request", err)
+	}
+	res := s.processJSONDNSMessage(msg, rw, req)
+
+	type ResponseRecord struct {
+		AD               bool          `json:"AD"`
+		Additional       []interface{} `json:"Additional"`
+		Answer           []dns.RR
+		CD               bool        `json:"CD"`
+		Question         QuestionRec `json:"Question"`
+		RA               bool        `json:"RA"`
+		RD               bool        `json:"RD"`
+		Status           int         `json:"Status"`
+		TC               bool        `json:"TC"`
+		EdnsClientSubnet string      `json:"edns_client_subnet"`
+		Comment          string      `json:"Comment"`
+	}
+
+	status := 0
+	if res.Res.Rcode != dns.RcodeSuccess {
+		logger().Error(" *** invalid answer name %s after A query for %s\n", recname, recname)
+		status = 1
+
+	}
+
+	responsejson := ResponseRecord{
+		AD:       false,
+		CD:       false,
+		Answer:   res.Res.Answer,
+		Question: myquestion,
+		Status:   status,
+		TC:       false,
+		RD:       true,
+		RA:       true,
+	}
+
+	jsonoutbyte, err := json.Marshal(responsejson)
+	if err != nil {
+		logger().Error("Error", err)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+	} else {
+		rw.Write(jsonoutbyte)
+	}
+}
+
+func (s *Server) processJSONDNSMessage(rawMsg []byte, rw http.ResponseWriter, req *http.Request) *resolver.Response {
+	msg := new(dns.Msg)
+	err := msg.Unpack(rawMsg)
+
+	if err != nil {
+		logger().Error("can't deserialize message: ", err)
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+
+		return nil
+	}
+
+	r := newRequest(net.ParseIP(extractIP(req)), resolver.TCP, msg)
+
+	resResponse, err := s.queryResolver.Resolve(r)
+
+	if err != nil {
+		logger().Error("unable to process query: ", err)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		return resResponse
+	}
+	return resResponse
+
 }
 
 func (s *Server) dohPostRequestHandler(rw http.ResponseWriter, req *http.Request) {
