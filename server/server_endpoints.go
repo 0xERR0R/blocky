@@ -33,6 +33,7 @@ func (s *Server) registerAPIEndpoints(router *chi.Mux) {
 
 	router.Get("/dns-query", s.dohGetRequestHandler)
 	router.Post("/dns-query", s.dohPostRequestHandler)
+	router.Get("/resolve", s.dohJsonGetRequestHandler)
 }
 
 func (s *Server) dohGetRequestHandler(rw http.ResponseWriter, req *http.Request) {
