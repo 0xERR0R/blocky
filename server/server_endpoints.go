@@ -68,14 +68,14 @@ func (s *Server) dohJsonGetRequestHandler(rw http.ResponseWriter, req *http.Requ
 
 		return
 	}
-	rectypeint, err := strconv.Atoi(rectype)
+	rectypeint, err := strconv.ParseUint(rectype, 10, 16)
 	if err != nil {
 		rectypeint = 255
 	}
 
 	type QuestionRec struct {
 		Name string `json:"name"`
-		Type int    `json:"type"`
+		Type uint64 `json:"type"`
 	}
 
 	myquestion := QuestionRec{
