@@ -288,13 +288,15 @@ With following parameters you can tune the caching behavior:
 
     Wrong values can significantly increase external DNS traffic or memory consumption.
 
-| Parameter       | Mandatory | Default value      | Description                                       |
-| --------------- | --------- | -------------------| ------------------------------------------------- |
-| caching.minTime | no        | 0 (use TTL)        | Amount in minutes, how long a response must be cached (min value). If <=0, use response's TTL, if >0 use this value, if TTL is smaller |
-| caching.maxTime | no        | 0 (use TTL)        | Amount in minutes, how long a response must be cached (max value). If <0, do not cache responses. If 0, use TTL. If > 0, use this value, if TTL is greater |
-| caching.prefetching       | no      | false              | if true, blocky will preload DNS results for often used queries (default: names queried more than 5 times in a 2 hour time window). Results in cache will be loaded again on their expire (TTL). This improves the response time for often used queries, but significantly increases external traffic. It is recommended to increase "minTime" to reduce the number of prefetch queries to external resolvers. |
-| caching.prefetchExpires   | no      | 120                | Amount in minutes, prefetch track time window
-| caching.prefetchThreshold | no      | 5                  | Name queries threshold for prefetch
+| Parameter                     | Mandatory | Default value      | Description                                       |
+| ----------------------------- | --------- | -------------------| ------------------------------------------------- |
+| caching.minTime               | no        | 0 (use TTL)        | Amount in minutes, how long a response must be cached (min value). If <=0, use response's TTL, if >0 use this value, if TTL is smaller |
+| caching.maxTime               | no        | 0 (use TTL)        | Amount in minutes, how long a response must be cached (max value). If <0, do not cache responses. If 0, use TTL. If > 0, use this value, if TTL is greater |
+| caching.maxItemsCount         | no        | 0 (unlimited)      | Max number of cache entries (responses) to be kept in cache. Default (0): unlimited. Useful on systems with limited amount of RAM. |
+| caching.prefetching           | no        | false              | if true, blocky will preload DNS results for often used queries (default: names queried more than 5 times in a 2 hour time window). Results in cache will be loaded again on their expire (TTL). This improves the response time for often used queries, but significantly increases external traffic. It is recommended to increase "minTime" to reduce the number of prefetch queries to external resolvers. |
+| caching.prefetchExpires       | no        | 120                | Amount in minutes, prefetch track time window
+| caching.prefetchThreshold     | no        | 5                  | Name queries threshold for prefetch
+| caching.prefetchMaxItemsCount | no        | 0 (unlimited)      | Max number of domains to be kept in cache for prefetching. Default (0): unlimited. Useful on systems with limited amount of RAM. |
 
 !!! example
 
