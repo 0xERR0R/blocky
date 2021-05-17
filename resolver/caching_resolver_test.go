@@ -8,10 +8,10 @@ import (
 	. "blocky/helpertest"
 	"blocky/util"
 
+	"github.com/0xERR0R/go-cache"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -47,7 +47,9 @@ var _ = Describe("CachingResolver", func() {
 		When("prefetching is enabled", func() {
 			BeforeEach(func() {
 				sutConfig = config.CachingConfig{
-					Prefetching: true,
+					Prefetching:       true,
+					PrefetchExpires:   120,
+					PrefetchThreshold: 5,
 				}
 			})
 
@@ -55,7 +57,7 @@ var _ = Describe("CachingResolver", func() {
 				// prepare resolver, set smaller caching times for testing
 				prefetchThreshold := 5
 				sut.(*CachingResolver).resultCache = cache.New(25*time.Millisecond, 15*time.Millisecond)
-				configurePrefetching(sut.(*CachingResolver), 120, prefetchThreshold)
+				configurePrefetching(sut.(*CachingResolver), &sutConfig)
 
 				prefetchedCnt := 0
 				_ = Bus().SubscribeOnce(CachingDomainsToPrefetchCountChanged, func(cnt int) {

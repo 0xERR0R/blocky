@@ -79,6 +79,9 @@ caching:
   # If > 0, use this value, if TTL is greater
   # Default: 0
   maxTime: -1
+  # Max number of cache entries (responses) to be kept in cache (soft limit). Useful on systems with limited amount of RAM.
+  # Default (0): unlimited
+  maxItemsCount: 0
   # if true, will preload DNS results for often used queries (default: names queried more than 5 times in a 2 hour time window)
   # this improves the response time for often used queries, but significantly increases external traffic
   # default: false
@@ -89,6 +92,9 @@ caching:
   # name queries threshold for prefetch
   # default: 5
   prefetchThreshold: 5
+  # Max number of domains to be kept in cache for prefetching (soft limit). Useful on systems with limited amount of RAM.
+  # Default (0): unlimited
+  prefetchMaxItemsCount: 0
 
 # optional: configuration of client name resolution
 clientLookup:

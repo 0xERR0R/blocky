@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xERR0R/go-cache"
 	"github.com/miekg/dns"
-	"github.com/patrickmn/go-cache"
 	"github.com/sirupsen/logrus"
 )
 

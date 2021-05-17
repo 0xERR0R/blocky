@@ -8,8 +8,8 @@ import (
 	"blocky/evt"
 	"blocky/util"
 
+	"github.com/0xERR0R/go-cache"
 	"github.com/miekg/dns"
-	"github.com/patrickmn/go-cache"
 	"github.com/sirupsen/logrus"
 )
 
@@ -41,32 +41,32 @@ func NewCachingResolver(cfg config.CachingConfig) ChainedResolver {
 	c := &CachingResolver{
 		minCacheTimeSec: 60 * cfg.MinCachingTime,
 		maxCacheTimeSec: 60 * cfg.MaxCachingTime,
-		resultCache:     createQueryResultCache(),
+		resultCache:     createQueryResultCache(&cfg),
 	}
 
 	if cfg.Prefetching {
-		configurePrefetching(c, cfg.PrefetchExpires, cfg.PrefetchThreshold)
+		configurePrefetching(c, &cfg)
 	}
 
 	return c
 }
 
-func createQueryResultCache() *cache.Cache {
-	return cache.New(15*time.Minute, 15*time.Second)
+func createQueryResultCache(cfg *config.CachingConfig) *cache.Cache {
+	return cache.NewWithLRU(15*time.Minute, 15*time.Second, cfg.MaxItemsCount)
 }
 
-func configurePrefetching(c *CachingResolver, expires int, threshold int) {
+func configurePrefetching(c *CachingResolver, cfg *config.CachingConfig) {
 	c.prefetchExpires = prefetchingNameCacheExpiration
-	if expires > 0 {
-		c.prefetchExpires = time.Duration(expires) * time.Minute
+	if cfg.PrefetchExpires > 0 {
+		c.prefetchExpires = time.Duration(cfg.PrefetchExpires) * time.Minute
 	}
 
 	c.prefetchThreshold = prefetchingNameCountThreshold
-	if threshold > 0 {
-		c.prefetchThreshold = threshold
+	if cfg.PrefetchThreshold > 0 {
+		c.prefetchThreshold = cfg.PrefetchThreshold
 	}
 
-	c.prefetchingNameCache = cache.New(c.prefetchExpires, time.Minute)
+	c.prefetchingNameCache = cache.NewWithLRU(c.prefetchExpires, time.Minute, cfg.PrefetchMaxItemsCount)
 
 	c.resultCache.OnEvicted(func(key string, i interface{}) {
 		c.onEvicted(key)
