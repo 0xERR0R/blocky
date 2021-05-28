@@ -9,7 +9,7 @@ import (
 )
 
 func registerStatsTrigger(resolver *StatsResolver) {
-	signals := make(chan os.Signal)
+	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGUSR2)
 
 	go func() {

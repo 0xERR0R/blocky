@@ -9,7 +9,7 @@ import (
 )
 
 func registerPrintConfigurationTrigger(s *Server) {
-	signals := make(chan os.Signal)
+	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGUSR1)
 
 	go func() {
