@@ -41,8 +41,8 @@ func startServer(_ *cobra.Command, _ []string) {
 
 	configureHTTPClient(&cfg)
 
-	signals := make(chan os.Signal)
-	done = make(chan bool)
+	signals := make(chan os.Signal, 1)
+	done = make(chan bool, 1)
 
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
