@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -19,8 +20,8 @@ func RegisterMetric(c prometheus.Collector) {
 // Start starts prometheus endpoint
 func Start(router *chi.Mux, cfg config.PrometheusConfig) {
 	if cfg.Enable {
-		_ = reg.Register(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
-		_ = reg.Register(prometheus.NewGoCollector())
+		_ = reg.Register(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+		_ = reg.Register(collectors.NewGoCollector())
 		router.Handle(cfg.Path, promhttp.InstrumentMetricHandler(reg,
 			promhttp.HandlerFor(reg, promhttp.HandlerOpts{})))
 	}
