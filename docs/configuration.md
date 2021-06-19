@@ -301,7 +301,7 @@ With following parameters you can tune the caching behavior:
 !!! example
 
     ```yaml
-    blocking:
+    caching:
       minTime: 5
       maxTime: 30
       prefetching: true
