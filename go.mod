@@ -12,7 +12,7 @@ require (
 	github.com/mattn/go-colorable v0.1.4 // indirect
 	github.com/mattn/go-runewidth v0.0.8 // indirect
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
-	github.com/miekg/dns v1.1.42
+	github.com/miekg/dns v1.1.43
 	github.com/mroth/weightedrand v0.4.1
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.13.0
