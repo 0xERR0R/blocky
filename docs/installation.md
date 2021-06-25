@@ -15,7 +15,7 @@ Simple configuration file, which enables only basic features:
 
 ```yaml
 upstream:
-  externalResolvers:
+  default:
     - 46.182.19.48
     - 80.241.218.68
     - tcp-tls:fdns1.dismail.de:853
