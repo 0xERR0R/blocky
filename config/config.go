@@ -211,8 +211,8 @@ type Config struct {
 	LogFormat    string                    `yaml:"logFormat"`
 	LogTimestamp bool                      `yaml:"logTimestamp"`
 	Port         string                    `yaml:"port"`
-	HTTPPort     uint16                    `yaml:"httpPort"`
-	HTTPSPort    uint16                    `yaml:"httpsPort"`
+	HTTPPort     string                    `yaml:"httpPort"`
+	HTTPSPort    string                    `yaml:"httpsPort"`
 	DisableIPv6  bool                      `yaml:"disableIPv6"`
 	CertFile     string                    `yaml:"httpsCertFile"`
 	KeyFile      string                    `yaml:"httpsKeyFile"`
