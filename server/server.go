@@ -36,10 +36,10 @@ func logger() *logrus.Entry {
 	return log.PrefixedLog("server")
 }
 
-func getServerAddress(cfg *config.Config) string {
-	address := cfg.Port
-	if !strings.Contains(cfg.Port, ":") {
-		address = fmt.Sprintf(":%s", cfg.Port)
+func getServerAddress(addr string) string {
+	address := addr
+	if !strings.Contains(addr, ":") {
+		address = fmt.Sprintf(":%s", addr)
 	}
 
 	return address
@@ -47,7 +47,7 @@ func getServerAddress(cfg *config.Config) string {
 
 // NewServer creates new server instance with passed config
 func NewServer(cfg *config.Config) (server *Server, err error) {
-	address := getServerAddress(cfg)
+	address := getServerAddress(cfg.Port)
 
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
@@ -58,21 +58,21 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	router := createRouter(cfg)
 
-	if cfg.HTTPPort > 0 {
-		if httpListener, err = net.Listen("tcp", fmt.Sprintf(":%d", cfg.HTTPPort)); err != nil {
-			return nil, fmt.Errorf("start http listener on port %d failed: %w", cfg.HTTPPort, err)
+	if cfg.HTTPPort != "" {
+		if httpListener, err = net.Listen("tcp", getServerAddress(cfg.HTTPPort)); err != nil {
+			return nil, fmt.Errorf("start http listener on %s failed: %w", cfg.HTTPPort, err)
 		}
 
 		metrics.Start(router, cfg.Prometheus)
 	}
 
-	if cfg.HTTPSPort > 0 {
+	if cfg.HTTPSPort != "" {
 		if cfg.CertFile == "" || cfg.KeyFile == "" {
 			return nil, fmt.Errorf("httpsCertFile and httpsKeyFile parameters are mandatory for HTTPS")
 		}
 
-		if httpsListener, err = net.Listen("tcp", fmt.Sprintf(":%d", cfg.HTTPSPort)); err != nil {
-			return nil, fmt.Errorf("start https listener on port %d failed: %w", cfg.HTTPSPort, err)
+		if httpsListener, err = net.Listen("tcp", getServerAddress(cfg.HTTPSPort)); err != nil {
+			return nil, fmt.Errorf("start https listener on port %s failed: %w", cfg.HTTPSPort, err)
 		}
 
 		metrics.Start(router, cfg.Prometheus)
@@ -176,7 +176,7 @@ func (s *Server) printConfiguration() {
 	}
 
 	logger().Infof("- DNS listening port: '%s'", s.cfg.Port)
-	logger().Infof("- HTTP listening port: %d", s.cfg.HTTPPort)
+	logger().Infof("- HTTP listening on addr/port: %s", s.cfg.HTTPPort)
 
 	logger().Info("runtime information:")
 
@@ -219,7 +219,7 @@ func (s *Server) Start() {
 
 	go func() {
 		if s.httpListener != nil {
-			logger().Infof("http server is up and running on port %d", s.cfg.HTTPPort)
+			logger().Infof("http server is up and running on addr/port %s", s.cfg.HTTPPort)
 
 			err := http.Serve(s.httpListener, s.httpMux)
 			util.FatalOnError("start http listener failed: ", err)
@@ -228,7 +228,7 @@ func (s *Server) Start() {
 
 	go func() {
 		if s.httpsListener != nil {
-			logger().Infof("https server is up and running on port %d", s.cfg.HTTPSPort)
+			logger().Infof("https server is up and running on addr/port %s", s.cfg.HTTPSPort)
 
 			err := http.ServeTLS(s.httpsListener, s.httpMux, s.cfg.CertFile, s.cfg.KeyFile)
 			util.FatalOnError("start https listener failed: ", err)

@@ -5,6 +5,8 @@ import (
 	"blocky/log"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -58,8 +60,13 @@ func initConfig() {
 	cfg = config.NewConfig(configPath, false)
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
-	if cfg.HTTPPort != 0 {
-		apiPort = cfg.HTTPPort
+	if cfg.HTTPPort != "" {
+		split := strings.Split(cfg.HTTPPort, ":")
+		port, err := strconv.Atoi(split[len(split)-1])
+
+		if err == nil {
+			apiPort = uint16(port)
+		}
 	}
 }
 

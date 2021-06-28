@@ -99,7 +99,7 @@ var _ = Describe("Running DNS server", func() {
 			},
 
 			Port:     "55555",
-			HTTPPort: 4000,
+			HTTPPort: "4000",
 			LogLevel: "info",
 			Prometheus: config.PrometheusConfig{
 				Enable: true,
