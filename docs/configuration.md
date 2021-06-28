@@ -7,9 +7,9 @@ configuration properties as [JSON](config.yml).
 
 | Parameter       | Mandatory | Default value      | Description                                       |
 | --------------- | --------- | -------------------| ------------------------------------------------- |
-| port            | no        | 53                 | IP (optional) and Port to serve DNS endpoint (TCP and UDP). If you wish to specify a specific IP, you can do so such as 192.168.0.1:53  |
-| httpPort        | no        |                    | IP (optional) and HTTP listener port. If > 0, will be used for prometheus metrics, pprof, REST API, DoH ...If you wish to specify a specific IP, you can do so such as 192.168.0.1:4000 |
-| httpsPort       | no        |                    | IP (optional) and HTTPS listener port. If > 0, will be used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as 192.168.0.1:443 |
+| port            | no        | 53                 | Port and optional bind ip address to serve DNS endpoint (TCP and UDP). If you wish to specify a specific IP, you can do so such as 192.168.0.1:53. Example: 53, :53, :127.0.0.1:53  |
+| httpPort        | no        |                    | HTTP listener port and optional bind ip address . If > 0, will be used for prometheus metrics, pprof, REST API, DoH ...If you wish to specify a specific IP, you can do so such as 192.168.0.1:4000. Example: 4000, :4000, 127.0.0.1:4000 |
+| httpsPort       | no        |                    | HTTPS listener port and optional bind ip address . If > 0, will be used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as 192.168.0.1:443 |
 | httpsCertFile   | yes, if httpsPort > 0 |        | path to cert and key file for SSL encryption |
 | httpsKeyFile    | yes, if httpsPort > 0 |        | path to cert and key file for SSL encryption |
 | bootstrapDns    | no        |                    | use this DNS server to resolve blacklist urls and upstream DNS servers (DoH). Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp|
