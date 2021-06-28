@@ -127,9 +127,10 @@ queryLog:
 
 # optional: DNS listener port and bind ip address, default 53 (UDP and TCP). Example: 53, :53, 127.0.0.1:53
 port: 53
-# optional: HTTP listener port, default 0 = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH ...
+# optional: HTTP listener port and bind ip address, default empty = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH ... Example: 4000, :4000, 127.0.0.1:4000
 httpPort: 4000
-# optional: HTTPS listener port, default 0 = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH...
+# optional: HTTPS listener port and bind ip address, default empty = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH... Example: 443, :443, 127.0.0.1:443
+httpPort: 4000
 #httpsPort: 443
 # mandatory, if https port > 0: path to cert and key file for SSL encryption
 #httpsCertFile: server.crt
