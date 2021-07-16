@@ -3,6 +3,7 @@ package cmd
 import (
 	"blocky/config"
 	"blocky/log"
+	"blocky/util"
 	"fmt"
 	"os"
 	"strconv"
@@ -62,11 +63,16 @@ func initConfig() {
 
 	if cfg.HTTPPort != "" {
 		split := strings.Split(cfg.HTTPPort, ":")
-		port, err := strconv.Atoi(split[len(split)-1])
 
-		if err == nil {
-			apiPort = uint16(port)
+		var p uint64
+		p, err := strconv.ParseUint(strings.TrimSpace(split[len(split)-1]), 10, 16)
+
+		if err != nil {
+			util.FatalOnError("can't convert port to number (1 - 65535)", err)
+			return
 		}
+
+		apiPort = uint16(p)
 	}
 }
 
