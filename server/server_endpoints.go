@@ -106,6 +106,8 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 
 	response := new(dns.Msg)
 	response.SetReply(msg)
+	// enable compression
+	resResponse.Res.Compress = true
 
 	b, err := resResponse.Res.Pack()
 	if err != nil {
