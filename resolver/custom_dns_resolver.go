@@ -113,7 +113,8 @@ func (r *CustomDNSResolver) Resolve(request *Request) (*Response, error) {
 					return &Response{Res: response, RType: CUSTOMDNS, Reason: "CUSTOM DNS"}, nil
 				}
 
-				response.Rcode = dns.RcodeNameError
+				// Mapping exists for this domain, but for another type
+				// return NOERROR with empty result
 
 				return &Response{Res: response, RType: CUSTOMDNS, Reason: "CUSTOM DNS"}, nil
 			}

@@ -42,11 +42,12 @@ var _ = Describe("CustomDNSResolver", func() {
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 				Expect(resp.Res.Answer).Should(BeDNSRecord("custom.domain.", dns.TypeA, 3600, "192.168.143.123"))
 			})
-			It("ip6 query should return NXDOMAIN", func() {
+			It("ip6 query should return NOERROR and empty result", func() {
 				resp, err := sut.Resolve(newRequest("custom.domain.", dns.TypeAAAA))
 
 				Expect(err).Should(BeNil())
-				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+				Expect(resp.Res.Answer).Should(HaveLen(0))
 			})
 		})
 		When("Ip 6 mapping is defined for custom domain ", func() {
