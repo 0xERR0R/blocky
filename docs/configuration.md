@@ -223,16 +223,16 @@ CIDR notation.
     blocking:
         clientGroupsBlock:
         # default will be used, if no special definition for a client name exists
-        default:
-          - ads
-          - special
-        laptop*:
-          - ads
-        192.168.178.1/24:
-          - special
-        kid-laptop:
-          - ads
-          - adult
+          default:
+            - ads
+            - special
+          laptop*:
+            - ads
+          192.168.178.1/24:
+            - special
+          kid-laptop:
+            - ads
+            - adult
     ```
 
     All queries from network clients, whose device name starts with `laptop`, will be filtered against the **ads** group's lists. All devices from the subnet `192.168.178.1/24` against the **special** group and `kid-laptop` against **ads** and **adult**. All other clients: **ads** and **special**.
