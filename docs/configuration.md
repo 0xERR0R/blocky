@@ -32,8 +32,8 @@ configuration properties as [JSON](config.yml).
 To resolve a DNS query, blocky needs external public or private DNS resolvers. Blocky supports DNS resolvers with
 following network protocols (net part of the resolver URL):
 
-- udp (only UDP)
-- tcp (only TCP)
+- udp (only UDP) [deprecated]
+- tcp (only TCP) [deprecated]
 - tcp+udp (UDP and TCP, dependent on query type)
 - https (aka DoH)
 - tcp-tls (aka DoT)
@@ -123,10 +123,10 @@ resolver lookup is performed.
         example.com: fritz.box
         replace-me.com: with-this.com
       mapping:
-        fritz.box: udp:192.168.178.1
-        lan.net: udp:192.170.1.2,udp:192.170.1.3
+        fritz.box: 192.168.178.1
+        lan.net: 192.170.1.2,192.170.1.3
         # for reverse DNS lookups of local devices
-        178.168.192.in-addr.arpa: udp:192.168.178.1
+        178.168.192.in-addr.arpa: 192.168.178.1
     ```
 
     In this example, a DNS query "client.fritz.box" will be redirected to the router's DNS server at 192.168.178.1 and client.lan.net to 192.170.1.2 and 192.170.1.3. 
@@ -156,7 +156,7 @@ contains a map of client name and multiple IP addresses.
 
     ```yaml
     clientLookup:
-        upstream: udp:192.168.178.1
+        upstream: 192.168.178.1
         singleNameOrder:
           - 2
           - 1
