@@ -41,6 +41,70 @@ run `./blocky --config config.yml`.
     Please be aware, if you want to use port 53 or 953 on Linux you should add CAP_NET_BIND_SERVICE capability
     to the binary or run with root privileges (running as root is not recommended).
 
+## Run as systemd unit
+
+You can run `blocky` from the simple user with systemd unit service.
+
+Create user:
+```bash
+useradd blockyusr
+```
+
+Download `blocky` to `/opt/blocky` and `chown` newly created user to `blocky` folder:
+```bash
+chown -R blockyusr:blockyusr /opt/blocky/
+```
+
+Allow bind `blocky` to privileged port:
+```bash
+setcap cap_net_bind_service=ep /opt/blocky/blocky
+```
+
+Create unit file:
+```bash
+nano /etc/systemd/system/blocky.service
+```
+
+With parameters:
+```bash
+[Unit]
+Description=Blocky is a DNS proxy and ad-blocker
+ConditionPathExists=/opt/blocky
+After=local-fs.target
+
+[Service]
+user=blockyusr
+group=blockyusr
+Type=simple
+WorkingDirectory=/opt/blocky
+ExecStart=/opt/blocky/blocky --config /opt/blocky/config.yml
+Restart=on-failure
+RestartSec=10
+
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=ExecStart=/opt/blocky/blocky --config /opt/blocky/config.yml
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Reload systemctl daemon:
+```bsh
+systemctl daemon-reload
+```
+
+Enable and run service:
+```bash
+systemctl enable --now blocky
+
+```
+
+Checks the logs:
+```bash
+journalctl -xu blocky
+```
+
 ## Run with docker
 
 ### Alternative registry
