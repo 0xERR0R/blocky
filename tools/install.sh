@@ -79,6 +79,7 @@ while [[ "$#" -gt 0 ]]; do
     case $1 in
         -e|--export) _EXPORT=1; ;;
 		    -a|--auto) _AUTO=1; ;;
+		    -r|--restore-permission) _RESTORE_PERMISSIONS=1; ;;
 		    -h|--help) usage ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
@@ -359,7 +360,7 @@ export_configs() {
   fi
 
   cd /opt
-  tar -zcvf blocky_$SERVER_NAME.tar.gz $DESTINATION /etc/nginx
+  tar -zcvf blocky_$SERVER_NAME.tar.gz $_DESTINATION /etc/nginx
   mv blocky_$SERVER_NAME.tar.gz ~/
 }
 # Install blocky
@@ -440,6 +441,8 @@ if [[ "$_EXPORT" -eq "1" ]]; then
     export_configs
 elif [[ "$_AUTO" -eq "1" ]]; then
   echo "Auto install"
+elif [[ "$_RESTORE_PERMISSIONS" -eq "1" ]]; then
+    echo "Restore permissions"
 else
     init_rpm
 fi
