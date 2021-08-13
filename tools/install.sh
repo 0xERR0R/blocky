@@ -471,7 +471,7 @@ init_rpm_auto() {
   create_APP_USER_NAME
   create_systemd_config
 
-#      install_additional_software
+  install_additional_software
 
   Info "${GREEN}$ON_CHECK${NC}" "Blocky installed to $_DESTINATION. Bye.."
   self_checking
