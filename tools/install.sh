@@ -363,6 +363,7 @@ export_configs() {
   tar -zcvf blocky_$SERVER_NAME.tar.gz $_DESTINATION /etc/nginx
   mv blocky_$SERVER_NAME.tar.gz ~/
 }
+
 # Install blocky
 # ---------------------------------------------------\
 
@@ -443,6 +444,7 @@ elif [[ "$_AUTO" -eq "1" ]]; then
   echo "Auto install"
 elif [[ "$_RESTORE_PERMISSIONS" -eq "1" ]]; then
     echo "Restore permissions"
+    set_permissions
 else
     init_rpm
 fi
