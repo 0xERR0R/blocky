@@ -1,6 +1,8 @@
 #!/bin/bash
 # Install blocky to CentOS (x86_64)
 
+set -e
+
 # Envs
 # ---------------------------------------------------\
 PATH=$PATH:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin
@@ -13,26 +15,45 @@ _APP_USER_NAME="blockyusr"
 _DESTINATION=/opt/${_APP_NAME}
 _BINARY=`curl -s https://api.github.com/repos/0xERR0R/blocky/releases/latest | grep browser_download_url | grep "Linux_x86_64" | awk '{print $2}' | tr -d '\"'`
 
+SERVER_IP=$(hostname -I | cut -d' ' -f1)
+SERVER_NAME=$(hostname)
 # Output messages
 # ---------------------------------------------------\
+
+# And colors
+RED='\033[0;91m'
+GREEN='\033[0;92m'
+CYAN='\033[0;96m'
+YELLOW='\033[0;93m'
+PURPLE='\033[0;95m'
+BLUE='\033[0;94m'
+BOLD='\033[1m'
+WHiTE="\e[1;37m"
+NC='\033[0m'
+
+ON_SUCCESS="DONE"
+ON_FAIL="FAIL"
+ON_ERROR="Oops"
+ON_CHECK="✓"
+
 Info() {
-  echo -en "${1}${green}${2}${nc}\n"
+  echo -en "${1} ${GREEN}${2}${NC}\n"
 }
 
 Warn() {
-        echo -en "${1}${purple}${2}${nc}\n"
+  echo -en "${1} ${PURPLE}${2}${NC}\n"
 }
 
 Success() {
-  echo -en "${1}${green}${2}${nc}\n"
+  echo -en "${1} ${GREEN}${2}${NC}\n"
 }
 
 Error () {
-  echo -en "${1}${red}${2}${nc}\n"
+  echo -en "${1} ${RED}${2}${NC}\n"
 }
 
 Splash() {
-  echo -en "${white}${1}${nc}\n"
+  echo -en "${WHiTE} ${1}${NC}\n"
 }
 
 space() { 
@@ -42,18 +63,6 @@ space() {
 
 # Functions
 # ---------------------------------------------------\
-
-if [[ -f /usr/bin/lsof ]]; then
-
-  if lsof -Pi :53 -sTCP:LISTEN -t >/dev/null ; then
-      Warn "Another DNS is running on 53 port! Exit.."
-      exit 1
-  fi
-
-else
-  Warn "Please install lsof for checking local exist DNS server.."
-  exit 1
-fi
 
 # Yes / No confirmation
 confirm() {
@@ -72,7 +81,7 @@ confirm() {
 # Check is current user is root
 isRoot() {
   if [ $(id -u) -ne 0 ]; then
-    Error "You must be root user to continue"
+    Error $ON_ERROR "You must be root user to continue"
     exit 1
   fi
   RID=$(id -u root 2>/dev/null)
@@ -125,7 +134,7 @@ isSELinux() {
 }
 
 centos_installs() {
-  yum install lsof wget net-tools git bind-utils -y
+  yum install wget net-tools git -y
 }
 
 # Create simple user for blocky
@@ -186,39 +195,69 @@ _EOF_
 
 systemctl daemon-reload
 systemctl enable --now $_APP_NAME
+
+sleep 2
+
+if (systemctl is-active --quiet $_APP_NAME); then
+    echo -e "[${GREEN}✓${NC}] Blocky is running"
+else
+  echo -e "[${RED}✓${NC}] Blocky does not started, please check service status with command: journalctl -xe"
+fi
+
 }
 
 # Download latest blocky release from official repo
 download_blocky() {
 
   # Check destination folder
-  if [[ ! -d $_DESTINATION/blocky ]]; then
+  if [[ ! -f $_DESTINATION/blocky ]]; then
     mkdir -p $_DESTINATION/logs
     cd $_DESTINATION
     
     wget "$_BINARY"
-    tar xvf `ls ls *.tar.gz`
+    tar xvf `ls *.tar.gz`
     
   else
-    echo -e "Folder $_DESTINATION exist! Blocky already installed?"
+    Warn $ON_ERROR "Folder $_DESTINATION exist! Blocky already installed?"
 
     if confirm "Reinstall blocky? (y/n or enter)"; then
 
       if (systemctl is-active --quiet $_APP_NAME); then
         systemctl stop $_APP_NAME
-        mv $_DESTINATION $_DESTINATION_bak_$(getDate)
-        download_blocky
-        create_blocky_config
-        # TODO - Checks user already exists
-        create_APP_USER_NAME
-        create_systemd_config
+        sleep 2
       fi
 
+      local backup_folder=/opt/blocky_backup_$(getDate)
+      mkdir -p $backup_folder
+      mv $_DESTINATION $backup_folder
+      
+      mkdir -p $_DESTINATION/logs
+      cd $_DESTINATION
+
+      Info "[${GREEN}✓${NC}] - Download blocky.."
+      wget "$_BINARY"
+
+      Info "[${GREEN}✓${NC}] - Unpacking blocky.."
+      tar xvf `ls *.tar.gz` 
+      
+      Info "[${GREEN}✓${NC}] - Restore blocky config.."
+      cp $backup_folder/blocky/config.yml $_DESTINATION/
+      # TODO - Checks user already exists
+
+      Info "[${GREEN}✓${NC}] - Restart blocky.."
+      systemctl restart blocky
+      Info "[${GREEN}✓${NC}] - Done!"
+      exit 1
     else
-      Info "Ok. Bye.."
+      Info "[${GREEN}Exit${NC}] - Bye.."
       exit 1
     fi
   fi
+}
+
+set_hostname() {
+  read -p "Setup new host name: " answer
+  hostnamectl set-hostname $answer
 }
 
 # Install blocky
@@ -229,8 +268,29 @@ checkDistro
 
 if confirm "Install blocky? (y/n or enter)"; then
 
+    if ss -tulpn | grep ':53' >/dev/null; then
+      Warn $ON_ERROR "Another DNS is running on 53 port!"
+
+      if confirm "Continue? (y/n or enter)"; then
+        echo -e "[${GREEN}✓${NC}] Run blocky installer"
+
+        if (systemctl is-active --quiet systemd-resolved); then
+            systemctl disable --now systemd-resolved
+        fi
+      else
+        echo -e "[${RED}✓${NC}] Blocky installer exit. Bye."
+        exit 1
+      fi
+
+    fi
+
+    if confirm "Set hostname? (y/n or enter)"; then
+      set_hostname
+    fi
+
     Info "Run CentOS installer..."
     if [[ "$RPM" -eq "1" ]]; then
+      echo -e "[${GREEN}✓${NC}] Install CentOS packages"
       centos_installs
     fi
 
@@ -238,4 +298,29 @@ if confirm "Install blocky? (y/n or enter)"; then
     create_blocky_config
     create_APP_USER_NAME
     create_systemd_config
+else
+  Info "[${GREEN}Exit${NC}] - Bye.."
+  exit 1
 fi
+
+# if confirm "Install Cloudflared? (y/n or enter)"; then
+
+#   git clone https://github.com/m0zgen/install-cloudlared $_DESTINATION/install-cloudflared
+#   $_DESTINATION/install-cloudflared/install.sh
+
+# fi
+
+# if confirm "Install Certbot? (y/n or enter)"; then
+
+#   git clone https://github.com/m0zgen/install-certbot $_DESTINATION/install-certbot
+#   $_DESTINATION/install-certbot/install.sh
+
+# fi
+
+# if confirm "Install Nginx? (y/n or enter)"; then
+
+#   git clone https://github.com/m0zgen/install-nginx $_DESTINATION/install-nginx
+#   $_DESTINATION/install-nginx/install.sh
+
+# fi
+
