@@ -206,6 +206,34 @@ fi
 
 }
 
+install_additional_software() {
+
+  echo -e "[${GREEN}✓${NC}] - Install Cloudflared"
+  if confirm "Install Cloudflared? (y/n or enter)"; then
+
+    git clone https://github.com/m0zgen/install-cloudflared.git $_DESTINATION/install-cloudflared
+    $_DESTINATION/install-cloudflared/install.sh
+
+  fi
+
+  echo -e "[${GREEN}✓${NC}] - Install Certbot"
+  if confirm "Install Certbot? (y/n or enter)"; then
+
+    git clone https://github.com/m0zgen/install-certbot.git $_DESTINATION/install-certbot
+    $_DESTINATION/install-certbot/install.sh
+
+  fi
+
+  echo -e "[${GREEN}✓${NC}] - Install Nginx"
+  if confirm "Install Nginx? (y/n or enter)"; then
+
+    git clone https://github.com/m0zgen/install-nginx.git $_DESTINATION/install-nginx
+    $_DESTINATION/install-nginx/install.sh
+
+  fi
+
+}
+
 # Download latest blocky release from official repo
 download_blocky() {
 
@@ -220,7 +248,7 @@ download_blocky() {
   else
     Warn $ON_ERROR "Folder $_DESTINATION exist! Blocky already installed?"
 
-    if confirm "Reinstall blocky? (y/n or enter)"; then
+    if confirm "$ON_CHECK Reinstall Blocky? (y/n or enter)"; then
 
       if (systemctl is-active --quiet $_APP_NAME); then
         systemctl stop $_APP_NAME
@@ -246,7 +274,16 @@ download_blocky() {
 
       Info "[${GREEN}✓${NC}] - Restart blocky.."
       systemctl restart blocky
+
+      if confirm "$ON_CHECK Install additional software? (y/n or enter)"; then
+          install_additional_software
+      else
+        Info "[${GREEN}Exit${NC}] - Bye.."
+        exit 1
+      fi
+
       Info "[${GREEN}✓${NC}] - Done!"
+
       exit 1
     else
       Info "[${GREEN}Exit${NC}] - Bye.."
@@ -266,12 +303,18 @@ set_hostname() {
 isRoot
 checkDistro
 
-if confirm "Install blocky? (y/n or enter)"; then
+space
+Info $ON_CHECK "Blocky installer is starting..."
+if confirm "$ON_CHECK Install blocky? (y/n or enter)"; then
 
     if ss -tulpn | grep ':53' >/dev/null; then
-      Warn $ON_ERROR "Another DNS is running on 53 port!"
+      Error $ON_CHECK "Another DNS is running on 53 port!"
 
-      if confirm "Continue? (y/n or enter)"; then
+      if (systemctl is-active --quiet systemd-resolved); then
+            Warn $ON_CHECK "Systemd-resolve possible using port"
+      fi
+
+      if confirm "$ON_CHECK Continue (systemd-resolved will be disabled)? (y/n or enter)"; then
         echo -e "[${GREEN}✓${NC}] Run blocky installer"
 
         if (systemctl is-active --quiet systemd-resolved); then
@@ -284,11 +327,11 @@ if confirm "Install blocky? (y/n or enter)"; then
 
     fi
 
-    if confirm "Set hostname? (y/n or enter)"; then
+    if confirm "$ON_CHECK Set hostname? (y/n or enter)"; then
       set_hostname
     fi
 
-    Info "Run CentOS installer..."
+    Info $ON_CHECK "Run CentOS installer..."
     if [[ "$RPM" -eq "1" ]]; then
       echo -e "[${GREEN}✓${NC}] Install CentOS packages"
       centos_installs
@@ -298,29 +341,16 @@ if confirm "Install blocky? (y/n or enter)"; then
     create_blocky_config
     create_APP_USER_NAME
     create_systemd_config
+
+    if confirm "$ON_CHECK Install additional software? (y/n or enter)"; then
+        install_additional_software
+    else
+      Info "[${GREEN}Exit${NC}] - Bye.."
+      exit 1
+    fi
+
 else
   Info "[${GREEN}Exit${NC}] - Bye.."
   exit 1
 fi
-
-# if confirm "Install Cloudflared? (y/n or enter)"; then
-
-#   git clone https://github.com/m0zgen/install-cloudlared $_DESTINATION/install-cloudflared
-#   $_DESTINATION/install-cloudflared/install.sh
-
-# fi
-
-# if confirm "Install Certbot? (y/n or enter)"; then
-
-#   git clone https://github.com/m0zgen/install-certbot $_DESTINATION/install-certbot
-#   $_DESTINATION/install-certbot/install.sh
-
-# fi
-
-# if confirm "Install Nginx? (y/n or enter)"; then
-
-#   git clone https://github.com/m0zgen/install-nginx $_DESTINATION/install-nginx
-#   $_DESTINATION/install-nginx/install.sh
-
-# fi
 
