@@ -10,6 +10,7 @@ Note: All features tested and deployed on CentOS 8
 ## Features
 
 * Install from scratch to rpm/beb based distros
+* Steb-by-step installer
 * Automatically detect and download latest `blocky` release from official repo
 * Install under simple user
   * New user creation
