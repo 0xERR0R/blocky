@@ -17,6 +17,7 @@ _BINARY=`curl -s https://api.github.com/repos/0xERR0R/blocky/releases/latest | g
 
 SERVER_IP=$(hostname -I | cut -d' ' -f1)
 SERVER_NAME=$(hostname)
+
 # Output messages
 # ---------------------------------------------------\
 
@@ -60,7 +61,6 @@ space() {
   echo -e ""
 }
 
-
 # Functions
 # ---------------------------------------------------\
 
@@ -95,6 +95,19 @@ isRoot() {
   fi
 }
 
+# SELinux status
+isSELinux() {
+  if [[ "$RPM" -eq "1" ]]; then
+    selinuxenabled
+    if [ $? -ne 0 ]
+    then
+        Error "SELinux:\t\t" "DISABLED"
+    else
+        Info "SELinux:\t\t" "ENABLED"
+    fi
+  fi
+}
+
 # Checks supporting distros
 checkDistro() {
   # Checking distro
@@ -118,33 +131,32 @@ getDate() {
   date '+%d-%m-%Y_%H-%M-%S'
 }
 
-# SELinux status
-isSELinux() {
-
-  if [[ "$RPM" -eq "1" ]]; then
-    selinuxenabled
-    if [ $? -ne 0 ]
-    then
-        Error "SELinux:\t\t" "DISABLED"
-    else
-        Info "SELinux:\t\t" "ENABLED"
-    fi
-  fi
-
-}
-
+# Install core packages
 centos_installs() {
-  yum install wget net-tools git -y
+  yum install wget net-tools git yum-utils -y -q -e 0
 }
 
-# Create simple user for blocky
-create_APP_USER_NAME() {
-  useradd $_APP_USER_NAME
+# Set permissions to destibation folder
+set_permissions() {
+  Info " $ON_CHECK" "Set user $_APP_USER_NAME permissions to $_DESTINATION folder"
   chown -R $_APP_USER_NAME:$_APP_USER_NAME $_DESTINATION
   setcap cap_net_bind_service=ep $_DESTINATION/blocky
 }
 
-# Create basic blocky config
+# Create simple user for blocky
+create_APP_USER_NAME() {
+  if [[ $(getent passwd $_APP_USER_NAME) = "" ]]; then
+    useradd $_APP_USER_NAME
+    Info " $ON_CHECK" "User $_APP_USER_NAME is created"
+    set_permissions
+  else
+    Info " $ON_CHECK" "User $_APP_USER_NAME is exist"
+    Info " $ON_CHECK" "Rebuild permissions"
+    set_permissions
+  fi
+}
+
+# Create basic blocky config.yml
 create_blocky_config() {
 # Config
 # https://github.com/0xERR0R/blocky/blob/development/docs/installation.md
@@ -194,18 +206,20 @@ WantedBy=multi-user.target
 _EOF_
 
 systemctl daemon-reload
-systemctl enable --now $_APP_NAME
+systemctl enable --now $_APP_NAME >/dev/null 2>&1
+Info " $ON_CHECK" "Blocky enabled as unit service by name - $_APP_NAME"
 
 sleep 2
 
 if (systemctl is-active --quiet $_APP_NAME); then
-    echo -e "[${GREEN}✓${NC}] Blocky is running"
+    echo -e "[${GREEN}✓${NC}] - Blocky is running"
 else
   echo -e "[${RED}✓${NC}] Blocky does not started, please check service status with command: journalctl -xe"
 fi
 
 }
 
+# Install Cloudflared, Certbot, Nginx
 install_additional_software() {
 
   echo -e "[${GREEN}✓${NC}] - Install Cloudflared"
@@ -242,13 +256,13 @@ download_blocky() {
     mkdir -p $_DESTINATION/logs
     cd $_DESTINATION
     
-    wget "$_BINARY"
-    tar xvf `ls *.tar.gz`
+    wget -q "$_BINARY"
+    tar xf `ls *.tar.gz`
     
   else
-    Warn $ON_ERROR "Folder $_DESTINATION exist! Blocky already installed?"
+    Warn " $ON_CHECK" "Folder $_DESTINATION exist! Blocky already installed?"
 
-    if confirm "$ON_CHECK Reinstall Blocky? (y/n or enter)"; then
+    if confirm " $ON_CHECK Reinstall Blocky? (y/n or enter)"; then
 
       if (systemctl is-active --quiet $_APP_NAME); then
         systemctl stop $_APP_NAME
@@ -263,22 +277,26 @@ download_blocky() {
       cd $_DESTINATION
 
       Info "[${GREEN}✓${NC}] - Download blocky.."
-      wget "$_BINARY"
+      wget -q "$_BINARY"
 
       Info "[${GREEN}✓${NC}] - Unpacking blocky.."
-      tar xvf `ls *.tar.gz` 
+      tar xf `ls *.tar.gz`
       
       Info "[${GREEN}✓${NC}] - Restore blocky config.."
       cp $backup_folder/blocky/config.yml $_DESTINATION/
+
+      Info "[${GREEN}✓${NC}] - Update blocky systemd config.."
+      create_systemd_config
+
       # TODO - Checks user already exists
 
-      Info "[${GREEN}✓${NC}] - Restart blocky.."
+      Info "[${GREEN}✓${NC}] - Restarting blocky.."
       systemctl restart blocky
 
-      if confirm "$ON_CHECK Install additional software? (y/n or enter)"; then
+      if confirm " $ON_CHECK Install additional software? (y/n or enter)"; then
           install_additional_software
       else
-        Info "[${GREEN}Exit${NC}] - Bye.."
+        Info "[${GREEN}✓${NC}] - Blocky reinstalled. Bye.."
         exit 1
       fi
 
@@ -286,7 +304,7 @@ download_blocky() {
 
       exit 1
     else
-      Info "[${GREEN}Exit${NC}] - Bye.."
+      Info "[${GREEN}✓${NC}] - Reinstall declined. Please check $_DESTINATION folder. Bye.."
       exit 1
     fi
   fi
@@ -297,6 +315,21 @@ set_hostname() {
   hostnamectl set-hostname $answer
 }
 
+self_checking() {
+
+  if [[ $(getent passwd $_APP_USER_NAME) = "" ]]; then
+    Error " $ON_CHECK" "User $_APP_USER_NAME does not exist"
+  else
+    Info " $ON_CHECK" "User $_APP_USER_NAME is exist"
+  fi
+
+  if (systemctl is-active --quiet $_APP_NAME); then
+    Info " $ON_CHECK" "Service $_APP_NAME is running"
+  else
+    Error " $ON_CHECK" "Service $_APP_NAME does not running"
+  fi
+
+}
 # Install blocky
 # ---------------------------------------------------\
 
@@ -304,21 +337,25 @@ isRoot
 checkDistro
 
 space
-Info $ON_CHECK "Blocky installer is starting..."
-if confirm "$ON_CHECK Install blocky? (y/n or enter)"; then
+Info " $ON_CHECK" "Blocky installer is starting..."
+if confirm " $ON_CHECK Install blocky? (y/n or enter)"; then
 
+    # netstat -pnltu | grep -w :53 | grep -i listen | awk '{print $7}'
     if ss -tulpn | grep ':53' >/dev/null; then
-      Error $ON_CHECK "Another DNS is running on 53 port!"
+      Error " $ON_CHECK" "Another DNS is running on 53 port!"
+      PORT_USING=`ss -tulpn | grep ':53' | grep -i listen | awk '{print $7}'`
+      Info " $ON_CHECK" "Port using - $PORT_USING"
 
       if (systemctl is-active --quiet systemd-resolved); then
-            Warn $ON_CHECK "Systemd-resolve possible using port"
+            Warn " $ON_CHECK" "Systemd-resolve possible using port"
       fi
 
-      if confirm "$ON_CHECK Continue (systemd-resolved will be disabled)? (y/n or enter)"; then
-        echo -e "[${GREEN}✓${NC}] Run blocky installer"
+      if confirm " $ON_CHECK Continue (systemd-resolved will be disabled)? (y/n or enter)"; then
+        Info " $ON_CHECK" "Run Blocky installer"
 
         if (systemctl is-active --quiet systemd-resolved); then
-            systemctl disable --now systemd-resolved
+            systemctl disable --now systemd-resolved >/dev/null 2>&1
+            Info " $ON_CHECK" "Systemd-resolved disabled"
         fi
       else
         echo -e "[${RED}✓${NC}] Blocky installer exit. Bye."
@@ -327,11 +364,11 @@ if confirm "$ON_CHECK Install blocky? (y/n or enter)"; then
 
     fi
 
-    if confirm "$ON_CHECK Set hostname? (y/n or enter)"; then
+    if confirm " $ON_CHECK Set hostname? (y/n or enter)"; then
       set_hostname
     fi
 
-    Info $ON_CHECK "Run CentOS installer..."
+    Info " $ON_CHECK" "Run CentOS installer..."
     if [[ "$RPM" -eq "1" ]]; then
       echo -e "[${GREEN}✓${NC}] Install CentOS packages"
       centos_installs
@@ -342,15 +379,18 @@ if confirm "$ON_CHECK Install blocky? (y/n or enter)"; then
     create_APP_USER_NAME
     create_systemd_config
 
-    if confirm "$ON_CHECK Install additional software? (y/n or enter)"; then
+    if confirm " $ON_CHECK Install additional software? (y/n or enter)"; then
         install_additional_software
     else
-      Info "[${GREEN}Exit${NC}] - Bye.."
+      self_checking
+      Info "[${GREEN}$ON_CHECK${NC}] - Blocky installed to $_DESTINATION. Bye.."
       exit 1
     fi
 
+    self_checking
+
 else
-  Info "[${GREEN}Exit${NC}] - Bye.."
+  Info "[${GREEN}$ON_CHECK${NC}] - Bye.."
   exit 1
 fi
 
