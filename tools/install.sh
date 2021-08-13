@@ -173,6 +173,12 @@ create_APP_USER_NAME() {
   if [[ $(getent passwd $_APP_USER_NAME) = "" ]]; then
     useradd $_APP_USER_NAME
     Info "$ON_CHECK" "User $_APP_USER_NAME is created"
+
+    # Generate ssh key for sync configs between servers
+    echo "%$_APP_USER_NAME ALL=(ALL) NOPASSWD:/bin/systemctl restart $_APP_NAME,/bin/systemctl stop $_APP_NAME,/bin/systemctl start $_APP_NAME,/bin/systemctl status $_APP_NAME" > /etc/sudoers.d/blockyusr
+    su - $_APP_USER_NAME -c "yes ~/.ssh/id_rsa | ssh-keygen -q -t rsa -N '' >/dev/null"
+
+    # Set permissions for $_APP_USER_NAME to $_DESTINATION folder
     set_permissions
   else
     Info "$ON_CHECK" "User $_APP_USER_NAME is exist"
@@ -247,16 +253,27 @@ fi
 # Checking installed software and them install
 check_software() {
   echo -e "[${GREEN}✓${NC}] Install $1"
-  if confirm "Install $1? (y/n or enter)"; then
 
-    if ! type "$1" >/dev/null 2>&1; then
-      git clone https://github.com/m0zgen/$2.git $_DESTINATION/$2
-      $_DESTINATION/$2/install.sh
-    else
-      Info "$ON_CHECK" "$1 already installed"
-    fi
+  if [[ "$_AUTO" -eq "1" ]]; then
+      if ! type "$1" >/dev/null 2>&1; then
+            git clone https://github.com/m0zgen/$2.git $_DESTINATION/$2
+            $_DESTINATION/$2/install.sh
+          else
+            Info "$ON_CHECK" "$1 already installed"
+          fi
+  else
+    if confirm "Install $1? (y/n or enter)"; then
 
+        if ! type "$1" >/dev/null 2>&1; then
+          git clone https://github.com/m0zgen/$2.git $_DESTINATION/$2
+          $_DESTINATION/$2/install.sh
+        else
+          Info "$ON_CHECK" "$1 already installed"
+        fi
+
+      fi
   fi
+
 }
 
 # Install Cloudflared, Certbot, Nginx
@@ -269,6 +286,56 @@ install_additional_software() {
 }
 
 # Download latest blocky release from official repo
+download_blocky_auto() {
+
+  # Check destination folder
+  if [[ ! -f $_DESTINATION/blocky ]]; then
+    mkdir -p $_DESTINATION/logs
+    cd $_DESTINATION
+
+    wget -q "$_BINARY"
+    tar xf `ls *.tar.gz`
+
+  else
+    Warn "$ON_CHECK" "Folder $_DESTINATION exist! Blocky already installed?"
+
+    if (systemctl is-active --quiet $_APP_NAME); then
+      systemctl stop $_APP_NAME
+      sleep 2
+    fi
+
+    local backup_folder=/opt/blocky_backup_$(getDate)
+    mkdir -p $backup_folder
+    mv $_DESTINATION $backup_folder
+
+    mkdir -p $_DESTINATION/logs
+    cd $_DESTINATION
+
+    Info "${GREEN}✓${NC}" "Download blocky.."
+    wget -q "$_BINARY"
+
+    Info "${GREEN}✓${NC}" "Unpacking blocky.."
+    tar xf `ls *.tar.gz`
+
+    Info "${GREEN}✓${NC}" "Restore blocky config.."
+    cp $backup_folder/blocky/config.yml $_DESTINATION/
+
+    Info "${GREEN}✓${NC}" "Update blocky systemd config.."
+    create_systemd_config
+
+    # DONE - Checks user already exists
+
+    Info "${GREEN}✓${NC}" "Restarting blocky.."
+    systemctl restart blocky
+
+    install_additional_software
+
+    Info "${GREEN}✓${NC}" "Blocky reinstalled"
+    Info "${GREEN}✓${NC}" "Done!"
+    exit 1
+  fi
+}
+
 download_blocky() {
 
   # Check destination folder
@@ -373,6 +440,43 @@ checkDistro
 
 space
 
+init_rpm_auto() {
+  Info "$ON_CHECK" "Blocky installer is starting..."
+
+  # netstat -pnltu | grep -w :53 | grep -i listen | awk '{print $7}'
+  if ss -tulpn | grep ':53' >/dev/null; then
+    Error "$ON_CHECK" "Another DNS is running on 53 port!"
+    PORT_USING=`ss -tulpn | grep ':53' | grep -i listen | awk '{print $7}'`
+    Info "$ON_CHECK" "Port using by - $PORT_USING"
+
+    if (systemctl is-active --quiet systemd-resolved); then
+          Warn "$ON_CHECK" "Systemd-resolve possible using port"
+    fi
+
+    Info "$ON_CHECK" "Run Blocky installer"
+    if (systemctl is-active --quiet systemd-resolved); then
+        systemctl disable --now systemd-resolved >/dev/null 2>&1
+        Info "$ON_CHECK" "Systemd-resolved disabled"
+    fi
+  fi
+
+  Info "$ON_CHECK" "Run CentOS installer..."
+  if [[ "$RPM" -eq "1" ]]; then
+    echo -e "[${GREEN}✓${NC}] Install CentOS packages"
+    centos_installs
+  fi
+
+  download_blocky_auto
+  create_blocky_config
+  create_APP_USER_NAME
+  create_systemd_config
+
+#      install_additional_software
+
+  Info "${GREEN}$ON_CHECK${NC}" "Blocky installed to $_DESTINATION. Bye.."
+  self_checking
+}
+
 init_rpm() {
   Info "$ON_CHECK" "Blocky installer is starting..."
   if confirm " $ON_CHECK Install blocky? (y/n or enter)"; then
@@ -442,6 +546,7 @@ if [[ "$_EXPORT" -eq "1" ]]; then
     export_configs
 elif [[ "$_AUTO" -eq "1" ]]; then
   echo "Auto install"
+  init_rpm_auto
 elif [[ "$_RESTORE_PERMISSIONS" -eq "1" ]]; then
     echo "Restore permissions"
     set_permissions
