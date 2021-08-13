@@ -351,7 +351,16 @@ self_checking() {
 }
 
 export_configs() {
+
+  if [ -f blocky_$SERVER_NAME.tar.gz ]; then
+
+      Error "$ON_CHECK" "File exist"
+      rm blocky_$SERVER_NAME.tar.gz
+  fi
+
+  cd /opt
   tar -zcvf blocky_$SERVER_NAME.tar.gz $DESTINATION /etc/nginx
+  mv blocky_$SERVER_NAME.tar.gz ~/
 }
 # Install blocky
 # ---------------------------------------------------\
