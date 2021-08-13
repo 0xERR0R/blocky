@@ -38,19 +38,19 @@ ON_ERROR="Oops"
 ON_CHECK="✓"
 
 Info() {
-  echo -en "${1} ${GREEN}${2}${NC}\n"
+  echo -en "[${1}] ${GREEN}${2}${NC}\n"
 }
 
 Warn() {
-  echo -en "${1} ${PURPLE}${2}${NC}\n"
+  echo -en "[${1}] ${PURPLE}${2}${NC}\n"
 }
 
 Success() {
-  echo -en "${1} ${GREEN}${2}${NC}\n"
+  echo -en "[${1}] ${GREEN}${2}${NC}\n"
 }
 
 Error () {
-  echo -en "${1} ${RED}${2}${NC}\n"
+  echo -en "[${1}] ${RED}${2}${NC}\n"
 }
 
 Splash() {
@@ -138,7 +138,7 @@ centos_installs() {
 
 # Set permissions to destibation folder
 set_permissions() {
-  Info " $ON_CHECK" "Set user $_APP_USER_NAME permissions to $_DESTINATION folder"
+  Info "$ON_CHECK" "Set user $_APP_USER_NAME permissions to $_DESTINATION folder"
   chown -R $_APP_USER_NAME:$_APP_USER_NAME $_DESTINATION
   setcap cap_net_bind_service=ep $_DESTINATION/blocky
 }
@@ -147,11 +147,11 @@ set_permissions() {
 create_APP_USER_NAME() {
   if [[ $(getent passwd $_APP_USER_NAME) = "" ]]; then
     useradd $_APP_USER_NAME
-    Info " $ON_CHECK" "User $_APP_USER_NAME is created"
+    Info "$ON_CHECK" "User $_APP_USER_NAME is created"
     set_permissions
   else
-    Info " $ON_CHECK" "User $_APP_USER_NAME is exist"
-    Info " $ON_CHECK" "Rebuild permissions"
+    Info "$ON_CHECK" "User $_APP_USER_NAME is exist"
+    Info "$ON_CHECK" "Rebuild permissions"
     set_permissions
   fi
 }
@@ -207,44 +207,39 @@ _EOF_
 
 systemctl daemon-reload
 systemctl enable --now $_APP_NAME >/dev/null 2>&1
-Info " $ON_CHECK" "Blocky enabled as unit service by name - $_APP_NAME"
+Info "${GREEN}✓${NC}" "Blocky enabled as unit service by name - $_APP_NAME"
 
 sleep 2
 
 if (systemctl is-active --quiet $_APP_NAME); then
-    echo -e "[${GREEN}✓${NC}] - Blocky is running"
+    echo -e "[${GREEN}✓${NC}] Blocky is running"
 else
   echo -e "[${RED}✓${NC}] Blocky does not started, please check service status with command: journalctl -xe"
 fi
 
 }
 
+# Checking installed software and them install
+check_software() {
+  echo -e "[${GREEN}✓${NC}] Install $1"
+  if confirm "Install $1? (y/n or enter)"; then
+
+    if ! type "$1" >/dev/null 2>&1; then
+      git clone https://github.com/m0zgen/$2.git $_DESTINATION/$2
+      $_DESTINATION/$2/install.sh
+    else
+      Info "$ON_CHECK" "$1 already installed"
+    fi
+
+  fi
+}
+
 # Install Cloudflared, Certbot, Nginx
 install_additional_software() {
 
-  echo -e "[${GREEN}✓${NC}] - Install Cloudflared"
-  if confirm "Install Cloudflared? (y/n or enter)"; then
-
-    git clone https://github.com/m0zgen/install-cloudflared.git $_DESTINATION/install-cloudflared
-    $_DESTINATION/install-cloudflared/install.sh
-
-  fi
-
-  echo -e "[${GREEN}✓${NC}] - Install Certbot"
-  if confirm "Install Certbot? (y/n or enter)"; then
-
-    git clone https://github.com/m0zgen/install-certbot.git $_DESTINATION/install-certbot
-    $_DESTINATION/install-certbot/install.sh
-
-  fi
-
-  echo -e "[${GREEN}✓${NC}] - Install Nginx"
-  if confirm "Install Nginx? (y/n or enter)"; then
-
-    git clone https://github.com/m0zgen/install-nginx.git $_DESTINATION/install-nginx
-    $_DESTINATION/install-nginx/install.sh
-
-  fi
+  check_software "cloudflared" "install-cloudflared"
+  check_software "certbot" "install-certbot"
+  check_software "nginx" "install-nginx"
 
 }
 
@@ -260,7 +255,7 @@ download_blocky() {
     tar xf `ls *.tar.gz`
     
   else
-    Warn " $ON_CHECK" "Folder $_DESTINATION exist! Blocky already installed?"
+    Warn "$ON_CHECK" "Folder $_DESTINATION exist! Blocky already installed?"
 
     if confirm " $ON_CHECK Reinstall Blocky? (y/n or enter)"; then
 
@@ -276,35 +271,35 @@ download_blocky() {
       mkdir -p $_DESTINATION/logs
       cd $_DESTINATION
 
-      Info "[${GREEN}✓${NC}] - Download blocky.."
+      Info "${GREEN}✓${NC}" "Download blocky.."
       wget -q "$_BINARY"
 
-      Info "[${GREEN}✓${NC}] - Unpacking blocky.."
+      Info "${GREEN}✓${NC}" "Unpacking blocky.."
       tar xf `ls *.tar.gz`
       
-      Info "[${GREEN}✓${NC}] - Restore blocky config.."
+      Info "${GREEN}✓${NC}" "Restore blocky config.."
       cp $backup_folder/blocky/config.yml $_DESTINATION/
 
-      Info "[${GREEN}✓${NC}] - Update blocky systemd config.."
+      Info "${GREEN}✓${NC}" "Update blocky systemd config.."
       create_systemd_config
 
       # TODO - Checks user already exists
 
-      Info "[${GREEN}✓${NC}] - Restarting blocky.."
+      Info "${GREEN}✓${NC}" "Restarting blocky.."
       systemctl restart blocky
 
       if confirm " $ON_CHECK Install additional software? (y/n or enter)"; then
           install_additional_software
       else
-        Info "[${GREEN}✓${NC}] - Blocky reinstalled. Bye.."
+        Info "${GREEN}✓${NC}" "Blocky reinstalled. Bye.."
         exit 1
       fi
 
-      Info "[${GREEN}✓${NC}] - Done!"
+      Info "${GREEN}✓${NC}" "Done!"
 
       exit 1
     else
-      Info "[${GREEN}✓${NC}] - Reinstall declined. Please check $_DESTINATION folder. Bye.."
+      Info "${GREEN}✓${NC}" "Reinstall declined. Please check $_DESTINATION folder. Bye.."
       exit 1
     fi
   fi
@@ -318,15 +313,15 @@ set_hostname() {
 self_checking() {
 
   if [[ $(getent passwd $_APP_USER_NAME) = "" ]]; then
-    Error " $ON_CHECK" "User $_APP_USER_NAME does not exist"
+    Error "$ON_CHECK" "User $_APP_USER_NAME does not exist"
   else
-    Info " $ON_CHECK" "User $_APP_USER_NAME is exist"
+    Info "$ON_CHECK" "User $_APP_USER_NAME is exist"
   fi
 
   if (systemctl is-active --quiet $_APP_NAME); then
-    Info " $ON_CHECK" "Service $_APP_NAME is running"
+    Info "$ON_CHECK" "Service $_APP_NAME is running"
   else
-    Error " $ON_CHECK" "Service $_APP_NAME does not running"
+    Error "$ON_CHECK" "Service $_APP_NAME does not running"
   fi
 
 }
@@ -337,25 +332,27 @@ isRoot
 checkDistro
 
 space
-Info " $ON_CHECK" "Blocky installer is starting..."
+Info "$ON_CHECK" "Blocky installer is starting..."
 if confirm " $ON_CHECK Install blocky? (y/n or enter)"; then
 
     # netstat -pnltu | grep -w :53 | grep -i listen | awk '{print $7}'
     if ss -tulpn | grep ':53' >/dev/null; then
-      Error " $ON_CHECK" "Another DNS is running on 53 port!"
+      Error "$ON_CHECK" "Another DNS is running on 53 port!"
       PORT_USING=`ss -tulpn | grep ':53' | grep -i listen | awk '{print $7}'`
-      Info " $ON_CHECK" "Port using - $PORT_USING"
+      Info "$ON_CHECK" "Port using by - $PORT_USING"
 
       if (systemctl is-active --quiet systemd-resolved); then
-            Warn " $ON_CHECK" "Systemd-resolve possible using port"
+            Warn "$ON_CHECK" "Systemd-resolve possible using port"
       fi
 
-      if confirm " $ON_CHECK Continue (systemd-resolved will be disabled)? (y/n or enter)"; then
-        Info " $ON_CHECK" "Run Blocky installer"
+      if confirm " $ON_CHECK Continue? (y/n or enter)"; then
+        Info "$ON_CHECK" "Run Blocky installer"
 
         if (systemctl is-active --quiet systemd-resolved); then
+          if confirm " $ON_CHECK Disable systemd-resolved? (y/n or enter)"; then
             systemctl disable --now systemd-resolved >/dev/null 2>&1
-            Info " $ON_CHECK" "Systemd-resolved disabled"
+            Info "$ON_CHECK" "Systemd-resolved disabled"
+          fi
         fi
       else
         echo -e "[${RED}✓${NC}] Blocky installer exit. Bye."
@@ -368,7 +365,7 @@ if confirm " $ON_CHECK Install blocky? (y/n or enter)"; then
       set_hostname
     fi
 
-    Info " $ON_CHECK" "Run CentOS installer..."
+    Info "$ON_CHECK" "Run CentOS installer..."
     if [[ "$RPM" -eq "1" ]]; then
       echo -e "[${GREEN}✓${NC}] Install CentOS packages"
       centos_installs
@@ -383,7 +380,7 @@ if confirm " $ON_CHECK Install blocky? (y/n or enter)"; then
         install_additional_software
     else
       self_checking
-      Info "[${GREEN}$ON_CHECK${NC}] - Blocky installed to $_DESTINATION. Bye.."
+      Info "${GREEN}$ON_CHECK${NC}" "Blocky installed to $_DESTINATION. Bye.."
       exit 1
     fi
 
