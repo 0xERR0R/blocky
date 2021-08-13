@@ -8,10 +8,37 @@ SCRIPT_PATH=$(cd `dirname "${BASH_SOURCE[0]}"` && pwd)
 
 # Vars
 # ---------------------------------------------------\
-_APP_FOLDER_NAME="blocky"
+_APP_NAME="blocky"
 _APP_USER_NAME="blockyusr"
-_DESTINATION=/opt/${_APP_FOLDER_NAME}
+_DESTINATION=/opt/${_APP_NAME}
 _BINARY=`curl -s https://api.github.com/repos/0xERR0R/blocky/releases/latest | grep browser_download_url | grep "Linux_x86_64" | awk '{print $2}' | tr -d '\"'`
+
+# Output messages
+# ---------------------------------------------------\
+Info() {
+  echo -en "${1}${green}${2}${nc}\n"
+}
+
+Warn() {
+        echo -en "${1}${purple}${2}${nc}\n"
+}
+
+Success() {
+  echo -en "${1}${green}${2}${nc}\n"
+}
+
+Error () {
+  echo -en "${1}${red}${2}${nc}\n"
+}
+
+Splash() {
+  echo -en "${white}${1}${nc}\n"
+}
+
+space() { 
+  echo -e ""
+}
+
 
 # Functions
 # ---------------------------------------------------\
@@ -19,20 +46,12 @@ _BINARY=`curl -s https://api.github.com/repos/0xERR0R/blocky/releases/latest | g
 if [[ -f /usr/bin/lsof ]]; then
 
   if lsof -Pi :53 -sTCP:LISTEN -t >/dev/null ; then
-      echo "Another DNS is running on 53 port! Exit.."
+      Warn "Another DNS is running on 53 port! Exit.."
       exit 1
   fi
 
 else
-  echo "Please install lsof for checking local exist DNS server.."
-  exit 1
-fi
-
-# Check destination folder
-if [[ ! -d $_DESTINATION ]]; then
-  mkdir -p $_DESTINATION/logs
-else
-  echo -e "Folder $_DESTINATION exist! Blocky already installed? Exit.."
+  Warn "Please install lsof for checking local exist DNS server.."
   exit 1
 fi
 
@@ -105,11 +124,8 @@ isSELinux() {
 
 }
 
-# Download latest blocky release from official repo
-download_blocky() {
-  cd $_DESTINATION
-  wget "$_BINARY"
-  tar xvf `ls ls *.tar.gz`
+centos_installs() {
+  yum install lsof wget net-tools git bind-utils -y
 }
 
 # Create simple user for blocky
@@ -145,7 +161,7 @@ _EOF_
 # Create systemd unit
 create_systemd_config() {
 # Systemd unit
-cat > /etc/systemd/system/$_APP_FOLDER_NAME.service <<_EOF_
+cat > /etc/systemd/system/$_APP_NAME.service <<_EOF_
 [Unit]
 Description=Blocky is a DNS proxy and ad-blocker
 ConditionPathExists=${_DESTINATION}
@@ -169,12 +185,57 @@ WantedBy=multi-user.target
 _EOF_
 
 systemctl daemon-reload
-systemctl enable --now $_APP_FOLDER_NAME
+systemctl enable --now $_APP_NAME
+}
+
+# Download latest blocky release from official repo
+download_blocky() {
+
+  # Check destination folder
+  if [[ ! -d $_DESTINATION/blocky ]]; then
+    mkdir -p $_DESTINATION/logs
+    cd $_DESTINATION
+    
+    wget "$_BINARY"
+    tar xvf `ls ls *.tar.gz`
+    
+  else
+    echo -e "Folder $_DESTINATION exist! Blocky already installed?"
+
+    if confirm "Reinstall blocky? (y/n or enter)"; then
+
+      if (systemctl is-active --quiet $_APP_NAME); then
+        systemctl stop $_APP_NAME
+        mv $_DESTINATION $_DESTINATION_bak_$(getDate)
+        download_blocky
+        create_blocky_config
+        # TODO - Checks user already exists
+        create_APP_USER_NAME
+        create_systemd_config
+      fi
+
+    else
+      Info "Ok. Bye.."
+      exit 1
+    fi
+  fi
 }
 
 # Install blocky
 # ---------------------------------------------------\
-download_blocky
-create_blocky_config
-create_APP_USER_NAME
-create_systemd_config
+
+isRoot
+checkDistro
+
+if confirm "Install blocky? (y/n or enter)"; then
+
+    Info "Run CentOS installer..."
+    if [[ "$RPM" -eq "1" ]]; then
+      centos_installs
+    fi
+
+    download_blocky
+    create_blocky_config
+    create_APP_USER_NAME
+    create_systemd_config
+fi
