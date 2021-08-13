@@ -157,7 +157,7 @@ getDate() {
 
 # Install core packages
 centos_installs() {
-  yum install wget net-tools git yum-utils -y -q -e 0
+  yum install wget net-tools git yum-utils tar -y -q -e 0
 }
 
 # Set permissions to destibation folder
