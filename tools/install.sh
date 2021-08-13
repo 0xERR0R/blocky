@@ -328,66 +328,71 @@ self_checking() {
 # Install blocky
 # ---------------------------------------------------\
 
+# Checking privileges ans supported platform
 isRoot
 checkDistro
 
 space
-Info "$ON_CHECK" "Blocky installer is starting..."
-if confirm " $ON_CHECK Install blocky? (y/n or enter)"; then
 
-    # netstat -pnltu | grep -w :53 | grep -i listen | awk '{print $7}'
-    if ss -tulpn | grep ':53' >/dev/null; then
-      Error "$ON_CHECK" "Another DNS is running on 53 port!"
-      PORT_USING=`ss -tulpn | grep ':53' | grep -i listen | awk '{print $7}'`
-      Info "$ON_CHECK" "Port using by - $PORT_USING"
+init_rpm() {
+  Info "$ON_CHECK" "Blocky installer is starting..."
+  if confirm " $ON_CHECK Install blocky? (y/n or enter)"; then
 
-      if (systemctl is-active --quiet systemd-resolved); then
-            Warn "$ON_CHECK" "Systemd-resolve possible using port"
-      fi
-
-      if confirm " $ON_CHECK Continue? (y/n or enter)"; then
-        Info "$ON_CHECK" "Run Blocky installer"
+      # netstat -pnltu | grep -w :53 | grep -i listen | awk '{print $7}'
+      if ss -tulpn | grep ':53' >/dev/null; then
+        Error "$ON_CHECK" "Another DNS is running on 53 port!"
+        PORT_USING=`ss -tulpn | grep ':53' | grep -i listen | awk '{print $7}'`
+        Info "$ON_CHECK" "Port using by - $PORT_USING"
 
         if (systemctl is-active --quiet systemd-resolved); then
-          if confirm " $ON_CHECK Disable systemd-resolved? (y/n or enter)"; then
-            systemctl disable --now systemd-resolved >/dev/null 2>&1
-            Info "$ON_CHECK" "Systemd-resolved disabled"
-          fi
+              Warn "$ON_CHECK" "Systemd-resolve possible using port"
         fi
+
+        if confirm " $ON_CHECK Continue? (y/n or enter)"; then
+          Info "$ON_CHECK" "Run Blocky installer"
+
+          if (systemctl is-active --quiet systemd-resolved); then
+            if confirm " $ON_CHECK Disable systemd-resolved? (y/n or enter)"; then
+              systemctl disable --now systemd-resolved >/dev/null 2>&1
+              Info "$ON_CHECK" "Systemd-resolved disabled"
+            fi
+          fi
+        else
+          echo -e "[${RED}✓${NC}] Blocky installer exit. Bye."
+          exit 1
+        fi
+
+      fi
+
+      if confirm " $ON_CHECK Set hostname? (y/n or enter)"; then
+        set_hostname
+      fi
+
+      Info "$ON_CHECK" "Run CentOS installer..."
+      if [[ "$RPM" -eq "1" ]]; then
+        echo -e "[${GREEN}✓${NC}] Install CentOS packages"
+        centos_installs
+      fi
+
+      download_blocky
+      create_blocky_config
+      create_APP_USER_NAME
+      create_systemd_config
+
+      if confirm " $ON_CHECK Install additional software? (y/n or enter)"; then
+          install_additional_software
       else
-        echo -e "[${RED}✓${NC}] Blocky installer exit. Bye."
+        self_checking
+        Info "${GREEN}$ON_CHECK${NC}" "Blocky installed to $_DESTINATION. Bye.."
         exit 1
       fi
 
-    fi
-
-    if confirm " $ON_CHECK Set hostname? (y/n or enter)"; then
-      set_hostname
-    fi
-
-    Info "$ON_CHECK" "Run CentOS installer..."
-    if [[ "$RPM" -eq "1" ]]; then
-      echo -e "[${GREEN}✓${NC}] Install CentOS packages"
-      centos_installs
-    fi
-
-    download_blocky
-    create_blocky_config
-    create_APP_USER_NAME
-    create_systemd_config
-
-    if confirm " $ON_CHECK Install additional software? (y/n or enter)"; then
-        install_additional_software
-    else
       self_checking
-      Info "${GREEN}$ON_CHECK${NC}" "Blocky installed to $_DESTINATION. Bye.."
-      exit 1
-    fi
 
-    self_checking
+  else
+    Info "${GREEN}$ON_CHECK${NC}" "Bye.."
+    exit 1
+  fi
+}
 
-else
-  Info "[${GREEN}$ON_CHECK${NC}] - Bye.."
-  exit 1
-fi
-
+init_rpm
