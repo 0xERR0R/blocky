@@ -61,6 +61,30 @@ space() {
   echo -e ""
 }
 
+# Set params and usage
+# ---------------------------------------------------\
+
+# Help information
+usage() {
+
+	Info "Usage" "You can use this script with several parameters:"
+	Info "$ON_CHECK" "./install.sh -e : export configs"
+	Info "$ON_CHECK" "./install.sh -a : Auto-install all software"
+	exit 1
+
+}
+
+# Checks arguments
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        -e|--export) _EXPORT=1; ;;
+		    -a|--auto) _AUTO=1; ;;
+		    -h|--help) usage ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+    esac
+    shift
+done
+
 # Functions
 # ---------------------------------------------------\
 
@@ -325,6 +349,10 @@ self_checking() {
   fi
 
 }
+
+export_configs() {
+  tar -zcvf blocky_$SERVER_NAME.tar.gz $DESTINATION /etc/nginx
+}
 # Install blocky
 # ---------------------------------------------------\
 
@@ -395,4 +423,16 @@ init_rpm() {
   fi
 }
 
-init_rpm
+# Inits
+# ---------------------------------------------------\
+
+if [[ "$_EXPORT" -eq "1" ]]; then
+    echo "Export configs!"
+    export_configs
+elif [[ "$_AUTO" -eq "1" ]]; then
+  echo "Auto install"
+else
+    init_rpm
+fi
+
+
