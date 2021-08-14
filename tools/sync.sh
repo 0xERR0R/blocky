@@ -47,7 +47,6 @@ if [ ! -f $sync_config ]; then
 
   echo "Trying copy ssh key to remote server"
 
-#  ssh-copy-id -o PubkeyAuthentication=no -i ~/.ssh/id_rsa.pub -p 41587 blockyusr@193.178.169.33
   ssh-copy-id -o PubkeyAuthentication=no -i ~/.ssh/id_rsa.pub -p $answer_port $answer@$answer_ip
 
   echo -e "\nSync config created run script again. Exit."
