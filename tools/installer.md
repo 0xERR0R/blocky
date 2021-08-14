@@ -29,5 +29,7 @@ _Note: All features tested. deployed and using on CentOS 8_
 
 ## Sync configs
 
-After unstall Blocky you can use sync feature to download or upload config to remote server over ssh connection.
+After install Blocky you can use sync feature to download or upload config to remote server over ssh connection with `sync.sh`.
+
+
 

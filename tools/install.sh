@@ -178,6 +178,9 @@ create_APP_USER_NAME() {
     echo "%$_APP_USER_NAME ALL=(ALL) NOPASSWD:/bin/systemctl restart $_APP_NAME,/bin/systemctl stop $_APP_NAME,/bin/systemctl start $_APP_NAME,/bin/systemctl status $_APP_NAME" > /etc/sudoers.d/blockyusr
     su - $_APP_USER_NAME -c "yes ~/.ssh/id_rsa | ssh-keygen -q -t rsa -N '' >/dev/null"
 
+    # Add sync.sh to user home folder
+    cp $SCRIPT_PATH/sync.sh /home/$_APP_USER_NAME
+
     # Set permissions for $_APP_USER_NAME to $_DESTINATION folder
     set_permissions
   else
