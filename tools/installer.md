@@ -36,5 +36,11 @@ In first run `sync.sh` will ask:
 * Remote server port
 * Remote server ssh user name
 
-Them will try copy ssh key to remote server with `ssh-copy-id`, after that you can run script again and `sync.sh` will copy `cinfig.yml` from remote server to local `/opt/blocky` folder.
+Then will try copy ssh key to remote server with `ssh-copy-id`, after that you can run script again and `sync.sh` will copy `cinfig.yml` from remote server to local `/opt/blocky` folder.
 
+You can also configure the scheduler with crontab (as example):
+```bash
+*/30 * * * * /bin/bash /home/blockyusr/sync.sh
+```
+
+# TODO add diff compare procedure
