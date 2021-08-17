@@ -158,7 +158,7 @@ getDate() {
 
 # Install core packages
 centos_installs() {
-  yum install wget net-tools git yum-utils tar -y -q -e 0
+  yum install wget net-tools git yum-utils tar rsync -y -q -e 0
 }
 
 # Set permissions to destibation folder
@@ -179,7 +179,8 @@ create_APP_USER_NAME() {
     su - $_APP_USER_NAME -c "yes ~/.ssh/id_rsa | ssh-keygen -q -t rsa -N '' >/dev/null"
 
     # Add sync.sh to user home folder
-    cp $SCRIPT_PATH/sync.sh /home/$_APP_USER_NAME
+    rsync -av $SCRIPT_PATH/sync.sh /home/$_APP_USER_NAME/
+#    cp $SCRIPT_PATH/sync.sh /home/$_APP_USER_NAME
 
     # Set permissions for $_APP_USER_NAME to $_DESTINATION folder
     set_permissions
@@ -223,8 +224,8 @@ ConditionPathExists=${_DESTINATION}
 After=local-fs.target
 
 [Service]
-user=${_APP_USER_NAME}
-group=${_APP_USER_NAME}
+User=${_APP_USER_NAME}
+Group=${_APP_USER_NAME}
 Type=simple
 WorkingDirectory=${_DESTINATION}
 ExecStart=${_DESTINATION}/blocky --config ${_DESTINATION}/config.yml
