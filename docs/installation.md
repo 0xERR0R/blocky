@@ -142,4 +142,8 @@ See [https://aur.archlinux.org/packages/blocky/](https://aur.archlinux.org/packa
 
 See [https://pkgs.alpinelinux.org/package/edge/testing/x86/blocky](https://pkgs.alpinelinux.org/package/edge/testing/x86/blocky)
 
+### Installation script for CentOS/Fedora
+
+See [https://github.com/m0zgen/blocky-installer](https://github.com/m0zgen/blocky-installer)
+
 --8<-- "docs/includes/abbreviations.md"
