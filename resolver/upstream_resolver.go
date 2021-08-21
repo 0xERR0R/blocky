@@ -46,6 +46,10 @@ func createUpstreamClient(cfg config.Upstream) (client upstreamClient, upstreamU
 	if cfg.Net == config.NetHTTPS {
 		return &httpUpstreamClient{
 			client: &http.Client{
+				Transport: &http.Transport{
+					Dial:                (util.Dialer(config.GetConfig())).Dial,
+					TLSHandshakeTimeout: 5 * time.Second,
+				},
 				Timeout: defaultTimeout,
 			},
 		}, fmt.Sprintf("%s://%s:%d%s", cfg.Net, cfg.Host, cfg.Port, cfg.Path)
@@ -56,6 +60,7 @@ func createUpstreamClient(cfg config.Upstream) (client upstreamClient, upstreamU
 			tcpClient: &dns.Client{
 				Net:     cfg.Net,
 				Timeout: defaultTimeout,
+				Dialer:  util.Dialer(config.GetConfig()),
 			},
 		}, net.JoinHostPort(cfg.Host, strconv.Itoa(int(cfg.Port)))
 	}
@@ -65,10 +70,12 @@ func createUpstreamClient(cfg config.Upstream) (client upstreamClient, upstreamU
 		tcpClient: &dns.Client{
 			Net:     "tcp",
 			Timeout: defaultTimeout,
+			Dialer:  util.Dialer(config.GetConfig()),
 		},
 		udpClient: &dns.Client{
 			Net:     "udp",
 			Timeout: defaultTimeout,
+			Dialer:  util.Dialer(config.GetConfig()),
 		},
 	}, net.JoinHostPort(cfg.Host, strconv.Itoa(int(cfg.Port)))
 }

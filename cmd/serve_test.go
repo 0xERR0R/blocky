@@ -10,7 +10,7 @@ import (
 var _ = Describe("Serve command", func() {
 	When("Serve command is called", func() {
 		It("should start DNS server", func() {
-			cfg.BootstrapDNS = config.Upstream{
+			config.GetConfig().BootstrapDNS = config.Upstream{
 				Net:  "tcp+udp",
 				Host: "1.1.1.1",
 				Port: 53,
