@@ -285,8 +285,11 @@ type QueryLogConfig struct {
 	LogRetentionDays uint64 `yaml:"logRetentionDays"`
 }
 
-// NewConfig creates new config from YAML file
-func NewConfig(path string, mandatory bool) Config {
+// nolint:gochecknoglobals
+var config = &Config{}
+
+// LoadConfig creates new config from YAML file
+func LoadConfig(path string, mandatory bool) {
 	cfg := Config{}
 	setDefaultValues(&cfg)
 
@@ -296,7 +299,8 @@ func NewConfig(path string, mandatory bool) Config {
 		if errors.Is(err, os.ErrNotExist) && !mandatory {
 			// config file does not exist
 			// return config with default values
-			return cfg
+			config = &cfg
+			return
 		}
 
 		log.Log().Fatal("Can't read config file: ", err)
@@ -311,7 +315,12 @@ func NewConfig(path string, mandatory bool) Config {
 		log.Log().Fatal("LogFormat should be 'text' or 'json'")
 	}
 
-	return cfg
+	config = &cfg
+}
+
+// GetConfig returns the current config
+func GetConfig() *Config {
+	return config
 }
 
 func setDefaultValues(cfg *Config) {

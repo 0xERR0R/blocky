@@ -18,30 +18,30 @@ var _ = Describe("Config", func() {
 				err := os.Chdir("../testdata")
 				Expect(err).Should(Succeed())
 
-				cfg := NewConfig("config.yml", true)
+				LoadConfig("config.yml", true)
 
-				Expect(cfg.Port).Should(Equal("55555"))
-				Expect(cfg.Upstream.ExternalResolvers["default"]).Should(HaveLen(3))
-				Expect(cfg.Upstream.ExternalResolvers["default"][0].Host).Should(Equal("8.8.8.8"))
-				Expect(cfg.Upstream.ExternalResolvers["default"][1].Host).Should(Equal("8.8.4.4"))
-				Expect(cfg.Upstream.ExternalResolvers["default"][2].Host).Should(Equal("1.1.1.1"))
-				Expect(cfg.CustomDNS.Mapping.HostIPs).Should(HaveLen(2))
-				Expect(cfg.CustomDNS.Mapping.HostIPs["my.duckdns.org"][0]).Should(Equal(net.ParseIP("192.168.178.3")))
-				Expect(cfg.CustomDNS.Mapping.HostIPs["multiple.ips"][0]).Should(Equal(net.ParseIP("192.168.178.3")))
-				Expect(cfg.CustomDNS.Mapping.HostIPs["multiple.ips"][1]).Should(Equal(net.ParseIP("192.168.178.4")))
-				Expect(cfg.CustomDNS.Mapping.HostIPs["multiple.ips"][2]).Should(Equal(
+				Expect(config.Port).Should(Equal("55555"))
+				Expect(config.Upstream.ExternalResolvers["default"]).Should(HaveLen(3))
+				Expect(config.Upstream.ExternalResolvers["default"][0].Host).Should(Equal("8.8.8.8"))
+				Expect(config.Upstream.ExternalResolvers["default"][1].Host).Should(Equal("8.8.4.4"))
+				Expect(config.Upstream.ExternalResolvers["default"][2].Host).Should(Equal("1.1.1.1"))
+				Expect(config.CustomDNS.Mapping.HostIPs).Should(HaveLen(2))
+				Expect(config.CustomDNS.Mapping.HostIPs["my.duckdns.org"][0]).Should(Equal(net.ParseIP("192.168.178.3")))
+				Expect(config.CustomDNS.Mapping.HostIPs["multiple.ips"][0]).Should(Equal(net.ParseIP("192.168.178.3")))
+				Expect(config.CustomDNS.Mapping.HostIPs["multiple.ips"][1]).Should(Equal(net.ParseIP("192.168.178.4")))
+				Expect(config.CustomDNS.Mapping.HostIPs["multiple.ips"][2]).Should(Equal(
 					net.ParseIP("2001:0db8:85a3:08d3:1319:8a2e:0370:7344")))
-				Expect(cfg.Conditional.Mapping.Upstreams).Should(HaveLen(2))
-				Expect(cfg.Conditional.Mapping.Upstreams["fritz.box"]).Should(HaveLen(1))
-				Expect(cfg.Conditional.Mapping.Upstreams["multiple.resolvers"]).Should(HaveLen(2))
-				Expect(cfg.ClientLookup.Upstream.Host).Should(Equal("192.168.178.1"))
-				Expect(cfg.ClientLookup.SingleNameOrder).Should(Equal([]uint{2, 1}))
-				Expect(cfg.Blocking.BlackLists).Should(HaveLen(2))
-				Expect(cfg.Blocking.WhiteLists).Should(HaveLen(1))
-				Expect(cfg.Blocking.ClientGroupsBlock).Should(HaveLen(2))
+				Expect(config.Conditional.Mapping.Upstreams).Should(HaveLen(2))
+				Expect(config.Conditional.Mapping.Upstreams["fritz.box"]).Should(HaveLen(1))
+				Expect(config.Conditional.Mapping.Upstreams["multiple.resolvers"]).Should(HaveLen(2))
+				Expect(config.ClientLookup.Upstream.Host).Should(Equal("192.168.178.1"))
+				Expect(config.ClientLookup.SingleNameOrder).Should(Equal([]uint{2, 1}))
+				Expect(config.Blocking.BlackLists).Should(HaveLen(2))
+				Expect(config.Blocking.WhiteLists).Should(HaveLen(1))
+				Expect(config.Blocking.ClientGroupsBlock).Should(HaveLen(2))
 
-				Expect(cfg.Caching.MaxCachingTime).Should(Equal(0))
-				Expect(cfg.Caching.MinCachingTime).Should(Equal(0))
+				Expect(config.Caching.MaxCachingTime).Should(Equal(0))
+				Expect(config.Caching.MinCachingTime).Should(Equal(0))
 			})
 		})
 		When("config file is malformed", func() {
@@ -61,7 +61,7 @@ var _ = Describe("Config", func() {
 
 				Log().ExitFunc = func(int) { fatal = true }
 
-				_ = NewConfig("config.yml", true)
+				LoadConfig("config.yml", true)
 				Expect(fatal).Should(BeTrue())
 			})
 		})
@@ -75,7 +75,7 @@ var _ = Describe("Config", func() {
 				var fatal bool
 
 				Log().ExitFunc = func(int) { fatal = true }
-				_ = NewConfig("config.yml", true)
+				LoadConfig("config.yml", true)
 
 				Expect(fatal).Should(BeTrue())
 			})
@@ -84,9 +84,9 @@ var _ = Describe("Config", func() {
 				err := os.Chdir("../..")
 				Expect(err).Should(Succeed())
 
-				cfg := NewConfig("config.yml", false)
+				LoadConfig("config.yml", false)
 
-				Expect(cfg.LogLevel).Should(Equal("info"))
+				Expect(config.LogLevel).Should(Equal("info"))
 			})
 		})
 	})
