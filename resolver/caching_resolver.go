@@ -82,7 +82,7 @@ func (r *CachingResolver) onEvicted(cacheKey string) {
 
 	// check if domain was queried > threshold in the time window
 	if found && cnt.(int) > r.prefetchThreshold {
-		logger.Debugf("prefetching '%s' (%s)", domainName, dns.TypeToString[qType])
+		logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), dns.TypeToString[qType])
 
 		req := newRequest(fmt.Sprintf("%s.", domainName), qType, logger)
 		response, err := r.next.Resolve(req)
@@ -137,7 +137,7 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 	for _, question := range request.Req.Question {
 		domain := util.ExtractDomain(question)
 		cacheKey := util.GenerateCacheKey(question.Qtype, domain)
-		logger := logger.WithField("domain", domain)
+		logger := logger.WithField("domain", util.Obfuscate(domain))
 
 		r.trackQueryDomainNameCount(domain, cacheKey, logger)
 
@@ -194,7 +194,7 @@ func (r *CachingResolver) trackQueryDomainNameCount(domain string, cacheKey stri
 		domainCount++
 		r.prefetchingNameCache.SetDefault(cacheKey, domainCount)
 		logger.Debugf("domain '%s' was requested %d times, "+
-			"total cache size: %d", domain, domainCount, r.prefetchingNameCache.ItemCount())
+			"total cache size: %d", util.Obfuscate(domain), domainCount, r.prefetchingNameCache.ItemCount())
 		evt.Bus().Publish(evt.CachingDomainsToPrefetchCountChanged, r.prefetchingNameCache.ItemCount())
 	}
 }

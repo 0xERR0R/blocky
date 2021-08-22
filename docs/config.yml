@@ -135,7 +135,7 @@ httpPort: 4000
 # mandatory, if https port > 0: path to cert and key file for SSL encryption
 #httpsCertFile: server.crt
 #httpsKeyFile: server.key
-# optional: use this DNS server to resolve blacklist urls and upstream DNS servers (DOH). Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp
+# optional: use this DNS server to resolve blacklist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp
 bootstrapDns: tcp:1.1.1.1
 # optional: Drop all AAAA query if set to true. Default: false
 disableIPv6: false
@@ -145,3 +145,5 @@ logLevel: info
 logFormat: text
 # optional: log timestamps. Default: true
 logTimestamp: true
+# optional: obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy. Default: false
+logPrivacy: false

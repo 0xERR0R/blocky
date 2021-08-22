@@ -12,11 +12,12 @@ configuration properties as [JSON](config.yml).
 | httpsPort       | no        |                    | HTTPS listener port and optional bind ip address . If > 0, will be used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as 192.168.0.1:443 |
 | httpsCertFile   | yes, if httpsPort > 0 |        | path to cert and key file for SSL encryption |
 | httpsKeyFile    | yes, if httpsPort > 0 |        | path to cert and key file for SSL encryption |
-| bootstrapDns    | no        |                    | use this DNS server to resolve blacklist urls and upstream DNS servers (DoH). Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp|
+| bootstrapDns    | no        |                    | use this DNS server to resolve blacklist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp|
 | disableIPv6     | no        | false              | Drop all AAAA query if set to true
 | logLevel        | no        | info               | Log level (one from debug, info, warn, error) |
 | logFormat       | no        | text               | Log format (text or json). |
 | logTimestamp    | no        | true               | Log time stamps (true or false). |
+| logPrivacy      | no        | false              | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy. |
 
 !!! example
 

@@ -209,6 +209,7 @@ type Config struct {
 	Prometheus   PrometheusConfig          `yaml:"prometheus"`
 	LogLevel     string                    `yaml:"logLevel"`
 	LogFormat    string                    `yaml:"logFormat"`
+	LogPrivacy   bool                      `yaml:"logPrivacy"`
 	LogTimestamp bool                      `yaml:"logTimestamp"`
 	Port         string                    `yaml:"port"`
 	HTTPPort     string                    `yaml:"httpPort"`
