@@ -1,10 +1,12 @@
 package util
 
 import (
+	"blocky/config"
 	"encoding/binary"
 	"fmt"
 	"net"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -13,6 +15,17 @@ import (
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 )
+
+var alphanumeric = regexp.MustCompile("[a-zA-Z0-9]")
+
+// Obfuscate replaces all alphanumeric characters with * to obfuscate user sensitive data if LogPrivacy is enabled
+func Obfuscate(in string) string {
+	if config.GetConfig().LogPrivacy {
+		return alphanumeric.ReplaceAllString(in, "*")
+	}
+
+	return in
+}
 
 // AnswerToString creates a user-friendly representation of an answer
 func AnswerToString(answer []dns.RR) string {
@@ -33,7 +46,7 @@ func AnswerToString(answer []dns.RR) string {
 		}
 	}
 
-	return strings.Join(answers, ", ")
+	return Obfuscate(strings.Join(answers, ", "))
 }
 
 // QuestionToString creates a user-friendly representation of a question
@@ -43,7 +56,7 @@ func QuestionToString(questions []dns.Question) string {
 		result[i] = fmt.Sprintf("%s (%s)", dns.TypeToString[question.Qtype], question.Name)
 	}
 
-	return strings.Join(result, ", ")
+	return Obfuscate(strings.Join(result, ", "))
 }
 
 // CreateAnswerFromQuestion creates new answer from a question
