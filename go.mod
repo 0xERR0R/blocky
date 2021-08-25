@@ -1,6 +1,6 @@
 module github.com/0xERR0R/blocky
 
-go 1.16
+go 1.17
 
 require (
 	github.com/0xERR0R/go-cache v1.5.0
