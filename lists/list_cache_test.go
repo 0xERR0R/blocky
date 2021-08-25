@@ -1,15 +1,15 @@
 package lists
 
 import (
-	"blocky/evt"
-	. "blocky/helpertest"
 	"net/http"
+	"net/http/httptest"
+	"os"
 	"sync/atomic"
 	"time"
 
-	"net/http/httptest"
-	"os"
+	"github.com/0xERR0R/blocky/evt"
 
+	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

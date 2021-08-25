@@ -1,8 +1,6 @@
 package resolver
 
 import (
-	"blocky/config"
-	"blocky/util"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -12,6 +10,9 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"

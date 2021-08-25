@@ -1,11 +1,11 @@
 package config
 
 import (
-	. "blocky/log"
 	"io/ioutil"
 	"net"
 	"os"
 
+	. "github.com/0xERR0R/blocky/log"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"

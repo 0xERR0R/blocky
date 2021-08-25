@@ -1,12 +1,6 @@
 package server
 
 import (
-	"blocky/api"
-	"blocky/config"
-	. "blocky/helpertest"
-	. "blocky/log"
-	"blocky/resolver"
-	"blocky/util"
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
@@ -15,6 +9,13 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/0xERR0R/blocky/api"
+	"github.com/0xERR0R/blocky/config"
+	. "github.com/0xERR0R/blocky/helpertest"
+	. "github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/resolver"
+	"github.com/0xERR0R/blocky/util"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

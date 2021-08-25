@@ -1,8 +1,9 @@
 package lists
 
 import (
-	. "blocky/log"
 	"testing"
+
+	. "github.com/0xERR0R/blocky/log"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

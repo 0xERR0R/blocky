@@ -1,18 +1,18 @@
 package resolver
 
 import (
-	"blocky/api"
-	"blocky/config"
-	"blocky/evt"
-	"blocky/lists"
-	"blocky/util"
 	"fmt"
 	"net"
 	"sort"
 	"strings"
 	"time"
 
-	"blocky/log"
+	"github.com/0xERR0R/blocky/api"
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/lists"
+	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"

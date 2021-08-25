@@ -1,20 +1,20 @@
 package server
 
 import (
-	"blocky/api"
-	"blocky/config"
-	"blocky/log"
-	"blocky/metrics"
-	"blocky/resolver"
+	"fmt"
+	"net"
 	"net/http"
 	"runtime"
 	"runtime/debug"
 	"strings"
 	"time"
 
-	"blocky/util"
-	"fmt"
-	"net"
+	"github.com/0xERR0R/blocky/api"
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/metrics"
+	"github.com/0xERR0R/blocky/resolver"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/go-chi/chi"
 	"github.com/miekg/dns"

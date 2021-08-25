@@ -1,8 +1,9 @@
 package main
 
 import (
-	"blocky/cmd"
 	"os"
+
+	"github.com/0xERR0R/blocky/cmd"
 )
 
 func main() {

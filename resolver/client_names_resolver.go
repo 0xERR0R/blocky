@@ -1,12 +1,13 @@
 package resolver
 
 import (
-	"blocky/config"
-	"blocky/util"
 	"fmt"
 	"net"
 	"strings"
 	"time"
+
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/0xERR0R/go-cache"
 	"github.com/miekg/dns"

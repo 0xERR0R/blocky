@@ -1,10 +1,11 @@
 package cmd
 
 import (
-	"blocky/api"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+
+	"github.com/0xERR0R/blocky/api"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

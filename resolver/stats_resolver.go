@@ -1,10 +1,11 @@
 package resolver
 
 import (
-	"blocky/stats"
-	"blocky/util"
 	"fmt"
 	"strings"
+
+	"github.com/0xERR0R/blocky/stats"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/jedib0t/go-pretty/table"
 	"github.com/miekg/dns"

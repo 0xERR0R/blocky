@@ -1,10 +1,11 @@
 package api
 
 import (
-	. "blocky/helpertest"
 	"encoding/json"
 	"net/http"
 	"time"
+
+	. "github.com/0xERR0R/blocky/helpertest"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

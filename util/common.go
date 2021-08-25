@@ -1,7 +1,6 @@
 package util
 
 import (
-	"blocky/config"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -10,7 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"blocky/log"
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
 
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"

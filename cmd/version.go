@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"blocky/util"
 	"fmt"
 
+	"github.com/0xERR0R/blocky/util"
 	"github.com/spf13/cobra"
 )
 

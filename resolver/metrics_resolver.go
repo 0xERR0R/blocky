@@ -1,11 +1,12 @@
 package resolver
 
 import (
-	"blocky/config"
-	"blocky/metrics"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/metrics"
 
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
