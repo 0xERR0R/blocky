@@ -1,12 +1,13 @@
 package resolver
 
 import (
-	"blocky/config"
-	"blocky/util"
 	"fmt"
 	"math"
 	"strings"
 	"time"
+
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/mroth/weightedrand"
 	"github.com/sirupsen/logrus"

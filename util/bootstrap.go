@@ -1,8 +1,8 @@
 package util
 
 import (
-	"blocky/config"
-	"blocky/log"
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
 
 	"context"
 	"fmt"

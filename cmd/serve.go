@@ -1,17 +1,17 @@
 package cmd
 
 import (
-	"blocky/config"
-	"blocky/evt"
-	"blocky/server"
-	"blocky/util"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"blocky/log"
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/server"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/spf13/cobra"
 )

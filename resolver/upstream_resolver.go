@@ -1,8 +1,6 @@
 package resolver
 
 import (
-	"blocky/config"
-	"blocky/util"
 	"bytes"
 	"errors"
 	"fmt"
@@ -11,6 +9,9 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"

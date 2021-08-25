@@ -1,12 +1,12 @@
 package resolver
 
 import (
-	"blocky/config"
-	. "blocky/evt"
-	. "blocky/helpertest"
-	"blocky/lists"
-	. "blocky/log"
-	"blocky/util"
+	"github.com/0xERR0R/blocky/config"
+	. "github.com/0xERR0R/blocky/evt"
+	. "github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/lists"
+	. "github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/util"
 
 	"os"
 	"time"

@@ -1,7 +1,6 @@
 package util
 
 import (
-	. "blocky/log"
 	"errors"
 	"fmt"
 	"net"
@@ -11,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 
+	. "github.com/0xERR0R/blocky/log"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

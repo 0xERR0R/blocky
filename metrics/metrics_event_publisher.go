@@ -1,12 +1,12 @@
 package metrics
 
 import (
-	"blocky/evt"
-	"blocky/lists"
-	"blocky/util"
+	"fmt"
 	"time"
 
-	"fmt"
+	"github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/lists"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/prometheus/client_golang/prometheus"
 )

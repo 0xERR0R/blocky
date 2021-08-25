@@ -1,11 +1,12 @@
 package api
 
 import (
-	"blocky/util"
 	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/go-chi/chi"
 	log "github.com/sirupsen/logrus"

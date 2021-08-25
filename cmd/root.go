@@ -1,13 +1,14 @@
 package cmd
 
 import (
-	"blocky/config"
-	"blocky/log"
-	"blocky/util"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/spf13/cobra"
 )

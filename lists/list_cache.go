@@ -1,8 +1,6 @@
 package lists
 
 import (
-	"blocky/evt"
-	"blocky/util"
 	"bufio"
 	"errors"
 	"fmt"
@@ -15,7 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"blocky/log"
+	"github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/sirupsen/logrus"
 )

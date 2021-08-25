@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"blocky/log"
+	"github.com/0xERR0R/blocky/log"
 
 	"gopkg.in/yaml.v2"
 )
