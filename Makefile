@@ -34,6 +34,9 @@ lint: build ## run golangcli-lint checks
 run: build ## Build and run binary
 	./$(BIN_OUT_DIR)/$(BINARY_NAME)
 
+fmt: ## gofmt and goimports all go files
+	find . -name '*.go' | while read -r file; do gofmt -w -s "$$file"; goimports -w "$$file"; done
+
 docker-build:  ## Build docker image
 	docker build --network=host --tag ${DOCKER_IMAGE_NAME} .
 
