@@ -9,6 +9,7 @@
 [![Codacy grade](https://img.shields.io/codacy/grade/8fcd8f8420b8419c808c47af58ed9282 "Codacy grade")](#)
 [![Go Report Card](https://goreportcard.com/badge/github.com/0xERR0R/blocky)](https://goreportcard.com/report/github.com/0xERR0R/blocky)
 [![Total alerts](https://img.shields.io/lgtm/alerts/g/0xERR0R/blocky.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/0xERR0R/blocky/alerts/)
+[![Donation](https://img.shields.io/badge/buy%20me%20a%20coffee-donate-blueviolet.svg)](https://ko-fi.com/0xerr0r)
 
 <p align="center">
   <img height="200" src="https://github.com/0xERR0R/blocky/blob/master/docs/blocky.svg">
@@ -89,3 +90,5 @@ at: [https://0xERR0R.github.io/blocky/](https://0xERR0R.github.io/blocky/)
 ## Contribution
 
 Issues, feature suggestions and pull requests are welcome!
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/G2G25XZQG)
