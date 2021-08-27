@@ -12,7 +12,7 @@ configuration properties as [JSON](config.yml).
 | httpsPort       | no        |                    | HTTPS listener port and optional bind ip address . If > 0, will be used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as 192.168.0.1:443 |
 | httpsCertFile   | yes, if httpsPort > 0 |        | path to cert and key file for SSL encryption |
 | httpsKeyFile    | yes, if httpsPort > 0 |        | path to cert and key file for SSL encryption |
-| bootstrapDns    | no        |                    | use this DNS server to resolve blacklist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp|
+| bootstrapDns    | no        |                    | use this DNS server to resolve blacklist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp. NOTE: Works only on Linux/*Nix OS due to golang limitations under windows.|
 | disableIPv6     | no        | false              | Drop all AAAA query if set to true
 | logLevel        | no        | info               | Log level (one from debug, info, warn, error) |
 | logFormat       | no        | text               | Log format (text or json). |
