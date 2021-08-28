@@ -245,6 +245,23 @@ var _ = Describe("ListCache", func() {
 				Expect(group).Should(Equal("gr2"))
 			})
 		})
+		When("inline list content is defined", func() {
+			It("should match", func() {
+				lists := map[string][]string{
+					"gr1": {"inlinedomain1.com\n#some comment\n#inlinedomain2.com"},
+				}
+
+				sut := NewListCache(BLACKLIST, lists, 0)
+
+				found, group := sut.Match("inlinedomain1.com", []string{"gr1"})
+				Expect(found).Should(BeTrue())
+				Expect(group).Should(Equal("gr1"))
+
+				found, group = sut.Match("inlinedomain1.com", []string{"gr1"})
+				Expect(found).Should(BeTrue())
+				Expect(group).Should(Equal("gr1"))
+			})
+		})
 	})
 	Describe("Configuration", func() {
 		When("refresh is enabled", func() {

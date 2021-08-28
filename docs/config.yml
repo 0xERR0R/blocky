@@ -39,12 +39,20 @@ blocking:
       - http://sysctl.org/cameleon/hosts
       - https://zeustracker.abuse.ch/blocklist.php?download=domainblocklist
       - https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt
+      - |
+        # inline definition with YAML literal block scalar style
+        # hosts format
+        someadsdomain.com
     special:
       - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
   # definition of whitelist groups. Attention: if the same group has black and whitelists, whitelists will be used to disable particular blacklist entries. If a group has only whitelist entries -> this means only domains from this list are allowed, all other domains will be blocked
   whiteLists:
     ads:
       - whitelist.txt
+      - |
+        # inline definition with YAML literal block scalar style
+        # hosts format
+        whitelistdomain.com
   # definition: which groups should be applied for which client
   clientGroupsBlock:
     # default will be used, if no special definition for a client name exists
@@ -127,8 +135,6 @@ queryLog:
 
 # optional: DNS listener port and bind ip address, default 53 (UDP and TCP). Example: 53, :53, 127.0.0.1:53
 port: 53
-# optional: HTTP listener port and bind ip address, default empty = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH ... Example: 4000, :4000, 127.0.0.1:4000
-httpPort: 4000
 # optional: HTTPS listener port and bind ip address, default empty = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH... Example: 443, :443, 127.0.0.1:443
 httpPort: 4000
 #httpsPort: 443

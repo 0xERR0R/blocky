@@ -181,8 +181,8 @@ To avoid overblocking, you can define or use already existing whitelists.
 
 ### Definition black and whitelists
 
-Each black or whitelist can be either a path to the local file, or a URL to download. All Urls must be grouped to a
-group name.
+Each black or whitelist can be either a path to the local file, a URL to download or inline list definition of a domains
+in hosts format (YAML literal block scalar style). All Urls must be grouped to a group name.
 
 !!! example
 
@@ -192,11 +192,18 @@ group name.
         ads:
           - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
           - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+          - |
+            # inline definition with YAML literal block scalar style
+            someadsdomain.com
+            anotheradsdomain.com
         special:
           - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
       whiteLists:
         ads:
           - whitelist.txt
+          - |
+            # inline definition with YAML literal block scalar style
+            whitelistdomain.com
     ```
 
     In this example you can see 2 groups: **ads** with 2 lists and **special** with one list. One local whitelist was defined for the **ads** group.
