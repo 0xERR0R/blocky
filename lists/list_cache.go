@@ -24,7 +24,7 @@ const (
 	defaultRefreshPeriod = 4 * time.Hour
 )
 
-// ListCacheType represents the type of a cached list
+// ListCacheType represents the type of cached list
 type ListCacheType int
 
 const (
@@ -310,9 +310,15 @@ func processFile(link string, ch chan<- []string, wg *sync.WaitGroup) {
 
 	var err error
 
-	if strings.HasPrefix(link, "http") {
+	switch {
+	// link contains a line break -> this is inline list definition in YAML (with literal style Block Scalar)
+	case strings.ContainsAny(link, "\n"):
+		r = io.NopCloser(strings.NewReader(link))
+	// link is http(s) -> download it
+	case strings.HasPrefix(link, "http"):
 		r, err = downloadFile(link)
-	} else {
+	// probably path to a local file
+	default:
 		r, err = readFile(link)
 	}
 
@@ -336,7 +342,7 @@ func processFile(link string, ch chan<- []string, wg *sync.WaitGroup) {
 	scanner := bufio.NewScanner(r)
 
 	for scanner.Scan() {
-		line := scanner.Text()
+		line := strings.TrimSpace(scanner.Text())
 		// skip comments
 		if line := processLine(line); line != "" {
 			result = append(result, line)
@@ -372,7 +378,7 @@ func processLine(line string) string {
 			return ip.String()
 		}
 
-		return strings.ToLower(host)
+		return strings.TrimSpace(strings.ToLower(host))
 	}
 
 	return ""
