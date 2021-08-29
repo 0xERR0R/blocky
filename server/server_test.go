@@ -14,6 +14,7 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/resolver"
 	"github.com/0xERR0R/blocky/util"
 
@@ -564,14 +565,14 @@ var _ = Describe("Running DNS server", func() {
 			It("should correct resolve client IP", func() {
 				ip, protocol := resolveClientIPAndProtocol(&net.UDPAddr{IP: net.ParseIP("192.168.178.88")})
 				Expect(ip).Should(Equal(net.ParseIP("192.168.178.88")))
-				Expect(protocol).Should(Equal(resolver.UDP))
+				Expect(protocol).Should(Equal(model.UDP))
 			})
 		})
 		Context("TCP address", func() {
 			It("should correct resolve client IP", func() {
 				ip, protocol := resolveClientIPAndProtocol(&net.TCPAddr{IP: net.ParseIP("192.168.178.88")})
 				Expect(ip).Should(Equal(net.ParseIP("192.168.178.88")))
-				Expect(protocol).Should(Equal(resolver.TCP))
+				Expect(protocol).Should(Equal(model.TCP))
 			})
 		})
 	})

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/stats"
 	"github.com/0xERR0R/blocky/util"
 
@@ -19,8 +20,8 @@ type StatsResolver struct {
 }
 
 type statsEntry struct {
-	request  *Request
-	response *Response
+	request  *model.Request
+	response *model.Response
 }
 
 type resolverStatRecorder struct {
@@ -51,7 +52,7 @@ func (r *StatsResolver) collectStats() {
 }
 
 // Resolve calculates query statistics
-func (r *StatsResolver) Resolve(request *Request) (*Response, error) {
+func (r *StatsResolver) Resolve(request *model.Request) (*model.Response, error) {
 	resp, err := r.next.Resolve(request)
 
 	if err == nil {
@@ -121,7 +122,7 @@ func createRecorders() []*resolverStatRecorder {
 			return util.ExtractDomain(e.request.Req.Question[0])
 		}),
 		newRecorderWithMax("Top 20 blocked queries", 20, func(e *statsEntry) string {
-			if e.response.RType == BLOCKED {
+			if e.response.RType == model.BLOCKED {
 				return util.ExtractDomain(e.request.Req.Question[0])
 			}
 			return ""

@@ -13,6 +13,7 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/metrics"
+	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/resolver"
 	"github.com/0xERR0R/blocky/util"
 
@@ -251,14 +252,14 @@ func (s *Server) Stop() {
 	}
 }
 
-func createResolverRequest(remoteAddress net.Addr, request *dns.Msg) *resolver.Request {
+func createResolverRequest(remoteAddress net.Addr, request *dns.Msg) *model.Request {
 	clientIP, protocol := resolveClientIPAndProtocol(remoteAddress)
 
 	return newRequest(clientIP, protocol, request)
 }
 
-func newRequest(clientIP net.IP, protocol resolver.RequestProtocol, request *dns.Msg) *resolver.Request {
-	return &resolver.Request{
+func newRequest(clientIP net.IP, protocol model.RequestProtocol, request *dns.Msg) *model.Request {
+	return &model.Request{
 		ClientIP:  clientIP,
 		Protocol:  protocol,
 		Req:       request,
@@ -323,12 +324,12 @@ func (s *Server) OnHealthCheck(w dns.ResponseWriter, request *dns.Msg) {
 	util.LogOnError("can't write message: ", err)
 }
 
-func resolveClientIPAndProtocol(addr net.Addr) (ip net.IP, protocol resolver.RequestProtocol) {
+func resolveClientIPAndProtocol(addr net.Addr) (ip net.IP, protocol model.RequestProtocol) {
 	if t, ok := addr.(*net.UDPAddr); ok {
-		return t.IP, resolver.UDP
+		return t.IP, model.UDP
 	} else if t, ok := addr.(*net.TCPAddr); ok {
-		return t.IP, resolver.TCP
+		return t.IP, model.TCP
 	}
 
-	return nil, resolver.TCP
+	return nil, model.TCP
 }

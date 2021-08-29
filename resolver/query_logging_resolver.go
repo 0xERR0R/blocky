@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
@@ -35,8 +36,8 @@ type QueryLoggingResolver struct {
 }
 
 type queryLogEntry struct {
-	request    *Request
-	response   *Response
+	request    *model.Request
+	response   *model.Response
 	start      time.Time
 	durationMs int64
 	logger     *logrus.Entry
@@ -110,7 +111,7 @@ func (r *QueryLoggingResolver) doCleanUp() {
 }
 
 // Resolve logs the query, duration and the result
-func (r *QueryLoggingResolver) Resolve(request *Request) (*Response, error) {
+func (r *QueryLoggingResolver) Resolve(request *model.Request) (*model.Response, error) {
 	logger := withPrefix(request.Log, queryLoggingResolverPrefix)
 
 	start := time.Now()

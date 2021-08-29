@@ -1,6 +1,9 @@
 package resolver
 
-import "github.com/miekg/dns"
+import (
+	"github.com/0xERR0R/blocky/model"
+	"github.com/miekg/dns"
+)
 
 // IPv6Checker can drop all AAAA query (empty ANSWER with NOERROR)
 type IPv6Checker struct {
@@ -8,12 +11,12 @@ type IPv6Checker struct {
 	disableAAAA bool
 }
 
-func (r *IPv6Checker) Resolve(request *Request) (*Response, error) {
+func (r *IPv6Checker) Resolve(request *model.Request) (*model.Response, error) {
 	if r.disableAAAA && request.Req.Question[0].Qtype == dns.TypeAAAA {
 		response := new(dns.Msg)
 		response.SetRcode(request.Req, dns.RcodeSuccess)
 
-		return &Response{Res: response, RType: RESOLVED}, nil
+		return &model.Response{Res: response, RType: model.RESOLVED}, nil
 	}
 
 	return r.next.Resolve(request)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/metrics"
+	"github.com/0xERR0R/blocky/model"
 
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
@@ -23,7 +24,7 @@ type MetricsResolver struct {
 }
 
 // Resolve resolves the passed request
-func (m *MetricsResolver) Resolve(request *Request) (*Response, error) {
+func (m *MetricsResolver) Resolve(request *model.Request) (*model.Response, error) {
 	response, err := m.next.Resolve(request)
 
 	if m.cfg.Enable {

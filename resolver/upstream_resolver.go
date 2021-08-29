@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
@@ -32,7 +33,7 @@ type UpstreamResolver struct {
 
 type upstreamClient interface {
 	callExternal(msg *dns.Msg, upstreamURL string,
-		protocol RequestProtocol) (response *dns.Msg, rtt time.Duration, err error)
+		protocol model.RequestProtocol) (response *dns.Msg, rtt time.Duration, err error)
 }
 
 type dnsUpstreamClient struct {
@@ -82,7 +83,7 @@ func createUpstreamClient(cfg config.Upstream) (client upstreamClient, upstreamU
 }
 
 func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
-	upstreamURL string, _ RequestProtocol) (*dns.Msg, time.Duration, error) {
+	upstreamURL string, _ model.RequestProtocol) (*dns.Msg, time.Duration, error) {
 	start := time.Now()
 
 	rawDNSMessage, err := msg.Pack()
@@ -127,8 +128,8 @@ func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
 }
 
 func (r *dnsUpstreamClient) callExternal(msg *dns.Msg,
-	upstreamURL string, protocol RequestProtocol) (response *dns.Msg, rtt time.Duration, err error) {
-	if protocol == TCP {
+	upstreamURL string, protocol model.RequestProtocol) (response *dns.Msg, rtt time.Duration, err error) {
+	if protocol == model.TCP {
 		response, rtt, err = r.tcpClient.Exchange(msg, upstreamURL)
 		if err != nil {
 			// try UDP as fallback
@@ -170,7 +171,7 @@ func (r UpstreamResolver) String() string {
 }
 
 // Resolve calls external resolver
-func (r *UpstreamResolver) Resolve(request *Request) (response *Response, err error) {
+func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Response, err error) {
 	logger := withPrefix(request.Log, "upstream_resolver")
 
 	attempt := 1
@@ -190,7 +191,7 @@ func (r *UpstreamResolver) Resolve(request *Request) (response *Response, err er
 				"response_time_ms": rtt.Milliseconds(),
 			}).Debugf("received response from upstream")
 
-			return &Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.upstreamURL)}, nil
+			return &model.Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.upstreamURL)}, nil
 		}
 
 		var netErr net.Error
