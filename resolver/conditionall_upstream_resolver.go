@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
@@ -65,7 +66,7 @@ func (r *ConditionalUpstreamResolver) applyRewrite(domain string) string {
 }
 
 // Resolve uses the conditional resolver to resolve the query
-func (r *ConditionalUpstreamResolver) Resolve(request *Request) (*Response, error) {
+func (r *ConditionalUpstreamResolver) Resolve(request *model.Request) (*model.Response, error) {
 	logger := withPrefix(request.Log, "conditional_resolver")
 
 	if len(r.mapping) > 0 {
@@ -82,7 +83,7 @@ func (r *ConditionalUpstreamResolver) Resolve(request *Request) (*Response, erro
 
 				if err == nil {
 					response.Reason = "CONDITIONAL"
-					response.RType = CONDITIONAL
+					response.RType = model.CONDITIONAL
 					response.Res.Question[0].Name = question.Name
 				}
 

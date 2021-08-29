@@ -6,6 +6,7 @@ import (
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/0xERR0R/go-cache"
@@ -123,7 +124,7 @@ func (r *CachingResolver) Configuration() (result []string) {
 // Resolve checks if the current query result is already in the cache and returns it
 // or delegates to the next resolver
 //nolint:gocognit,funlen
-func (r *CachingResolver) Resolve(request *Request) (response *Response, err error) {
+func (r *CachingResolver) Resolve(request *model.Request) (response *model.Response, err error) {
 	logger := withPrefix(request.Log, "caching_resolver")
 
 	if r.maxCacheTimeSec < 0 {
@@ -164,12 +165,12 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 					rr.Header().Ttl = remainingTTL
 				}
 
-				return &Response{Res: resp, RType: CACHED, Reason: "CACHED"}, nil
+				return &model.Response{Res: resp, RType: model.CACHED, Reason: "CACHED"}, nil
 			}
 			// Answer with response code != OK
 			resp.Rcode = val.(int)
 
-			return &Response{Res: resp, RType: CACHED, Reason: "CACHED NEGATIVE"}, nil
+			return &model.Response{Res: resp, RType: model.CACHED, Reason: "CACHED NEGATIVE"}, nil
 		}
 
 		evt.Bus().Publish(evt.CachingResultCacheMiss, domain)
@@ -199,7 +200,7 @@ func (r *CachingResolver) trackQueryDomainNameCount(domain string, cacheKey stri
 	}
 }
 
-func (r *CachingResolver) putInCache(cacheKey string, response *Response, prefetch bool) {
+func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, prefetch bool) {
 	answer := response.Res.Answer
 
 	if response.Res.Rcode == dns.RcodeSuccess {

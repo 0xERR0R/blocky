@@ -12,6 +12,7 @@ import (
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/lists"
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
@@ -202,7 +203,7 @@ func determineWhitelistOnlyGroups(cfg *config.BlockingConfig) (result map[string
 
 // sets answer and/or return code for DNS response, if request should be blocked
 func (r *BlockingResolver) handleBlocked(logger *logrus.Entry,
-	request *Request, question dns.Question, reason string) (*Response, error) {
+	request *model.Request, question dns.Question, reason string) (*model.Response, error) {
 	response := new(dns.Msg)
 	response.SetReply(request.Req)
 
@@ -210,7 +211,7 @@ func (r *BlockingResolver) handleBlocked(logger *logrus.Entry,
 
 	logger.Debugf("blocking request '%s'", reason)
 
-	return &Response{Res: response, RType: BLOCKED, Reason: reason}, nil
+	return &model.Response{Res: response, RType: model.BLOCKED, Reason: reason}, nil
 }
 
 // Configuration returns the current resolver configuration
@@ -256,7 +257,7 @@ func (r *BlockingResolver) hasWhiteListOnlyAllowed(groupsToCheck []string) bool 
 }
 
 func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
-	request *Request, logger *logrus.Entry) (*Response, error) {
+	request *model.Request, logger *logrus.Entry) (*model.Response, error) {
 	logger.WithField("groupsToCheck", strings.Join(groupsToCheck, "; ")).Debug("checking groups for request")
 	whitelistOnlyAllowed := r.hasWhiteListOnlyAllowed(groupsToCheck)
 
@@ -282,7 +283,7 @@ func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
 }
 
 // Resolve checks the query against the blacklist and delegates to next resolver if domain is not blocked
-func (r *BlockingResolver) Resolve(request *Request) (*Response, error) {
+func (r *BlockingResolver) Resolve(request *model.Request) (*model.Response, error) {
 	logger := withPrefix(request.Log, "blacklist_resolver")
 	groupsToCheck := r.groupsToCheckForClient(request)
 
@@ -340,7 +341,7 @@ func (r *BlockingResolver) isGroupDisabled(group string) bool {
 }
 
 // returns groups which should be checked for client's request
-func (r *BlockingResolver) groupsToCheckForClient(request *Request) []string {
+func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []string {
 	var groups []string
 	// try client names
 	for _, cName := range request.ClientNames {

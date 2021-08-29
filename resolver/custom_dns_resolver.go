@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
@@ -56,7 +57,7 @@ func isSupportedType(ip net.IP, question dns.Question) bool {
 		(strings.Contains(ip.String(), ":") && question.Qtype == dns.TypeAAAA)
 }
 
-func (r *CustomDNSResolver) handleReverseDNS(request *Request) *Response {
+func (r *CustomDNSResolver) handleReverseDNS(request *model.Request) *model.Response {
 	question := request.Req.Question[0]
 	if question.Qtype == dns.TypePTR {
 		urls, found := r.reverseAddresses[question.Name]
@@ -72,7 +73,7 @@ func (r *CustomDNSResolver) handleReverseDNS(request *Request) *Response {
 				response.Answer = append(response.Answer, ptr)
 			}
 
-			return &Response{Res: response, RType: CUSTOMDNS, Reason: "CUSTOM DNS"}
+			return &model.Response{Res: response, RType: model.CUSTOMDNS, Reason: "CUSTOM DNS"}
 		}
 	}
 
@@ -80,7 +81,7 @@ func (r *CustomDNSResolver) handleReverseDNS(request *Request) *Response {
 }
 
 // Resolve uses internal mapping to resolve the query
-func (r *CustomDNSResolver) Resolve(request *Request) (*Response, error) {
+func (r *CustomDNSResolver) Resolve(request *model.Request) (*model.Response, error) {
 	logger := withPrefix(request.Log, "custom_dns_resolver")
 
 	reverseResp := r.handleReverseDNS(request)
@@ -111,13 +112,13 @@ func (r *CustomDNSResolver) Resolve(request *Request) (*Response, error) {
 						"domain": domain,
 					}).Debugf("returning custom dns entry")
 
-					return &Response{Res: response, RType: CUSTOMDNS, Reason: "CUSTOM DNS"}, nil
+					return &model.Response{Res: response, RType: model.CUSTOMDNS, Reason: "CUSTOM DNS"}, nil
 				}
 
 				// Mapping exists for this domain, but for another type
 				// return NOERROR with empty result
 
-				return &Response{Res: response, RType: CUSTOMDNS, Reason: "CUSTOM DNS"}, nil
+				return &model.Response{Res: response, RType: model.CUSTOMDNS, Reason: "CUSTOM DNS"}, nil
 			}
 
 			if i := strings.Index(domain, "."); i >= 0 {

@@ -11,6 +11,8 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/util"
 
+	"github.com/0xERR0R/blocky/model"
+
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/mock"
 )
@@ -24,9 +26,9 @@ func (r *resolverMock) Configuration() (result []string) {
 	return
 }
 
-func (r *resolverMock) Resolve(req *Request) (*Response, error) {
+func (r *resolverMock) Resolve(req *model.Request) (*model.Response, error) {
 	args := r.Called(req)
-	resp, ok := args.Get(0).(*Response)
+	resp, ok := args.Get(0).(*model.Response)
 
 	if ok {
 		return resp, args.Error((1))

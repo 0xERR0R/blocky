@@ -6,6 +6,7 @@ import (
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/lists"
 	. "github.com/0xERR0R/blocky/log"
+	. "github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
 	"os"
