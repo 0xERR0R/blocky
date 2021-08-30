@@ -31,6 +31,15 @@ func (m *MetricsResolver) Resolve(request *Request) (*Response, error) {
 			"client": strings.Join(request.ClientNames, ","),
 			"type":   dns.TypeToString[request.Req.Question[0].Qtype]}).Inc()
 
+		reqDurationMs := float64(time.Since(request.RequestTS).Milliseconds())
+		responseType := "err"
+
+		if response != nil {
+			responseType = response.RType.String()
+		}
+
+		m.durationHistogram.WithLabelValues(responseType).Observe(reqDurationMs)
+
 		if err != nil {
 			m.totalErrors.Inc()
 		} else {
@@ -38,8 +47,6 @@ func (m *MetricsResolver) Resolve(request *Request) (*Response, error) {
 				"reason":        response.Reason,
 				"response_code": dns.RcodeToString[response.Res.Rcode],
 				"response_type": response.RType.String()}).Inc()
-			reqDurationMs := float64(time.Since(request.RequestTS).Milliseconds())
-			m.durationHistogram.WithLabelValues(response.RType.String()).Observe(reqDurationMs)
 		}
 	}
 
