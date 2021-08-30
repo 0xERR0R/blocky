@@ -23,7 +23,7 @@ serve_docs: ## serves online docs
 	mkdocs serve
 
 build:  ## Build binary
-	go build -v -ldflags="-w -s -X blocky/util.Version=${VERSION} -X blocky/util.BuildTime=${BUILD_TIME}" -o $(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
+	go build -v -ldflags="-w -s -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" -o $(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 
 test:  ## run tests
 	go test -v -coverprofile=coverage.txt -covermode=atomic -cover ./...
