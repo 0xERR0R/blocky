@@ -39,8 +39,8 @@ clientLookup:
       - 1
   
 queryLog:
-  dir: /opt/log
-  perClient: true
+  type: csv-client
+  target: /opt/log
 
 port: 55555
 logLevel: debug

@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/querylog"
+
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
@@ -21,6 +24,19 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
 )
+
+type SlowMockWriter struct {
+	entries []*querylog.Entry
+}
+
+func (m *SlowMockWriter) Write(entry *querylog.Entry) {
+	m.entries = append(m.entries, entry)
+
+	time.Sleep(time.Millisecond)
+}
+
+func (m *SlowMockWriter) CleanUp() {
+}
 
 var _ = Describe("QueryLoggingResolver", func() {
 	var (
@@ -66,8 +82,8 @@ var _ = Describe("QueryLoggingResolver", func() {
 		When("Configuration with logging per client", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLogConfig{
-					Dir:       tmpDir,
-					PerClient: true,
+					Target: tmpDir,
+					Type:   config.QueryLogTypeCSVPerClient,
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.TypeA, "123.122.121.120")
 			})
@@ -110,8 +126,8 @@ var _ = Describe("QueryLoggingResolver", func() {
 		When("Configuration with logging in one file for all clients", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLogConfig{
-					Dir:       tmpDir,
-					PerClient: false,
+					Target: tmpDir,
+					Type:   config.QueryLogTypeCSV,
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.TypeA, "123.122.121.120")
 			})
@@ -150,12 +166,34 @@ var _ = Describe("QueryLoggingResolver", func() {
 		})
 	})
 
+	Describe("Slow writer", func() {
+		When("writer is too slow", func() {
+			BeforeEach(func() {
+				sutConfig = config.QueryLogConfig{}
+			})
+			It("should drop messages", func() {
+				mockWriter := &SlowMockWriter{}
+				sut.writer = mockWriter
+
+				// run 10000 requests
+				for i := 0; i < 10000; i++ {
+					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "192.168.178.25", "client1"))
+					Expect(err).Should(Succeed())
+				}
+
+				// log channel is full
+				Expect(sut.logChan).Should(Not(BeEmpty()))
+			})
+
+		})
+	})
+
 	Describe("Configuration output", func() {
 		When("resolver is enabled", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLogConfig{
-					Dir:              tmpDir,
-					PerClient:        true,
+					Target:           tmpDir,
+					Type:             config.QueryLogTypeCSVPerClient,
 					LogRetentionDays: 0,
 				}
 			})
@@ -186,7 +224,10 @@ var _ = Describe("QueryLoggingResolver", func() {
 				var fatal bool
 
 				Log().ExitFunc = func(int) { fatal = true }
-				_ = NewQueryLoggingResolver(config.QueryLogConfig{Dir: "notExists"})
+				_ = NewQueryLoggingResolver(config.QueryLogConfig{
+					Target: "notExists",
+					Type:   config.QueryLogTypeCSV,
+				})
 
 				Expect(fatal).Should(BeTrue())
 			})
@@ -200,12 +241,23 @@ var _ = Describe("QueryLoggingResolver", func() {
 				Log().ExitFunc = func(int) { fatal = true }
 
 				sut := NewQueryLoggingResolver(config.QueryLogConfig{
-					Dir:              "wrongDir",
+					Target:           "wrongDir",
+					Type:             config.QueryLogTypeCSV,
 					LogRetentionDays: 7,
 				}).(*QueryLoggingResolver)
 
 				sut.doCleanUp()
 				Expect(fatal).Should(BeTrue())
+			})
+		})
+		When("fallback logger is enabled, log retention is enabled", func() {
+			It("should do nothing", func() {
+
+				sut := NewQueryLoggingResolver(config.QueryLogConfig{
+					LogRetentionDays: 7,
+				}).(*QueryLoggingResolver)
+
+				sut.doCleanUp()
 			})
 		})
 		When("log directory contains old files", func() {
@@ -222,7 +274,8 @@ var _ = Describe("QueryLoggingResolver", func() {
 				Expect(err).Should(Succeed())
 
 				sut := NewQueryLoggingResolver(config.QueryLogConfig{
-					Dir:              tmpDir,
+					Target:           tmpDir,
+					Type:             config.QueryLogTypeCSV,
 					LogRetentionDays: 7,
 				})
 
@@ -240,6 +293,21 @@ var _ = Describe("QueryLoggingResolver", func() {
 		})
 	})
 
+})
+
+var _ = Describe("Wrong target configuration", func() {
+	When("database path is wrong", func() {
+		It("should log fatal", func() {
+			helpertest.ShouldLogFatal(func() {
+				sutConfig := config.QueryLogConfig{
+					Target: "dummy",
+					Type:   config.QueryLogTypeMySQL,
+				}
+				NewQueryLoggingResolver(sutConfig)
+			})
+		})
+
+	})
 })
 
 func readCsv(file string) [][]string {
