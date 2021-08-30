@@ -5,6 +5,8 @@ import (
 	"net"
 	"os"
 
+	"github.com/0xERR0R/blocky/helpertest"
+
 	. "github.com/0xERR0R/blocky/log"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -42,6 +44,9 @@ var _ = Describe("Config", func() {
 
 				Expect(config.Caching.MaxCachingTime).Should(Equal(0))
 				Expect(config.Caching.MinCachingTime).Should(Equal(0))
+
+				Expect(GetConfig()).Should(Not(BeNil()))
+
 			})
 		})
 		When("config file is malformed", func() {
@@ -55,14 +60,55 @@ var _ = Describe("Config", func() {
 				err = ioutil.WriteFile("config.yml", []byte("malformed_config"), 0600)
 				Expect(err).Should(Succeed())
 
-				defer func() { Log().ExitFunc = nil }()
+				helpertest.ShouldLogFatal(func() {
+					LoadConfig("config.yml", true)
+				})
+			})
+		})
 
-				var fatal bool
+		When("wrong value types are specified", func() {
+			It("should log with fatal", func() {
+				helpertest.ShouldLogFatal(func() {
+					validateConfig(&Config{LogFormat: "wrongFormat"})
+				})
 
-				Log().ExitFunc = func(int) { fatal = true }
+				helpertest.ShouldLogFatal(func() {
+					validateConfig(&Config{QueryLog: QueryLogConfig{
+						Type: "wrong type",
+					}})
 
-				LoadConfig("config.yml", true)
-				Expect(fatal).Should(BeTrue())
+				})
+			})
+		})
+
+		When("deprecated querylog.dir parameter is used", func() {
+			It("should be mapped to csv writer", func() {
+				By("per client", func() {
+					c := &Config{
+						LogFormat: "text",
+						QueryLog: QueryLogConfig{
+							Dir:       "/somedir",
+							PerClient: true,
+						}}
+					validateConfig(c)
+
+					Expect(c.QueryLog.Target).Should(Equal("/somedir"))
+					Expect(c.QueryLog.Type).Should(Equal(QueryLogTypeCSVPerClient))
+				})
+
+				By("one file", func() {
+					c := &Config{
+						LogFormat: "text",
+						QueryLog: QueryLogConfig{
+							Dir:       "/somedir",
+							PerClient: false,
+						}}
+					validateConfig(c)
+
+					Expect(c.QueryLog.Target).Should(Equal("/somedir"))
+					Expect(c.QueryLog.Type).Should(Equal(QueryLogTypeCSV))
+				})
+
 			})
 		})
 		When("config directory does not exist", func() {

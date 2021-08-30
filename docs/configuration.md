@@ -348,32 +348,51 @@ see [Basic Configuration](#basic-configuration)).
 
 ## Query logging
 
-You can enable the logging of DNS queries (question, answer, client, duration etc) to a daily CSV file. This file can be
-opened in Excel or OpenOffice writer for analyse purposes.
+You can enable the logging of DNS queries (question, answer, client, duration etc.) to a daily CSV file (can be opened
+in Excel or OpenOffice Calc) or MySQL/MariaDB database.
 
 !!! warning
 
-    Query file contain sensitive information. Please ensure to inform users, if you log their queries.
+    Query file/database contains sensitive information. Please ensure to inform users, if you log their queries.
+
+### Query log types
+
+You can select one of following query log types:
+
+- `mysql` - log each query in the external MySQL/MariaDB database
+- `csv` - log into CSV file (one per day)
+- `csv-client` - log into CSV file (one per day and per client)
 
 Configuration parameters:
 
-| Parameter          | Mandatory | Default value      | Description                                       |
-| ---------------    | --------- | -------------------| ------------------------------------------------- |
-| queryLog.dir       | no        |                    |  If defined, directory for writing the logs       |
-| queryLog.perClient |   no      | false              |  if true, write one file per client. Writes all queries to single file otherwise                |
-| queryLog.logRetentionDays|   no      | 0            |  if > 0, deletes log files which are older than ... days             |
+| Parameter                | Mandatory | Default value      | Description                                       |
+| ---------------------    | --------- | -------------------| ------------------------------------------------- |
+| queryLog.type            | no        |                    |  One of mysql, csv, csv-client (see above).       |
+| queryLog.target          | no        |                    |  directory for writing the logs (for csv) or database url (for mysql)       |
+| queryLog.logRetentionDays| no        | 0                  |  if > 0, deletes log files/database entries which are older than ... days             |
 
 !!! hint
 
-    Please ensure, that the log directory is writable. If you use docker, please ensure, that the directory is properly
+    Please ensure, that the log directory is writable or database exists. If you use docker, please ensure, that the directory is properly
     mounted (e.g. volume)
 
+example for CSV format
 !!! example
 
     ```yaml
     queryLog:
-        dir: /logs
-        perClient: true
+        type: csv
+        target: /logs
+        logRetentionDays: 7
+    ```
+
+example for Database
+!!! example
+
+    ```yaml
+    queryLog:
+        type: mysql
+        target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
         logRetentionDays: 7
     ```
 

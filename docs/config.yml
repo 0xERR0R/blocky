@@ -126,10 +126,10 @@ prometheus:
 
 # optional: write query information (question, answer, client, duration etc) to daily csv file
 queryLog:
-  # directory (should be mounted as volume in docker)
-  dir: /logs
-  # if true, write one file per client. Writes all queries to single file otherwise
-  perClient: true
+  # optional one of: mysql, csv, csv-client. If empty, log to console
+  type: mysql
+  # directory (should be mounted as volume in docker) for csv, db connection string for mysql
+  target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
   # if > 0, deletes log files which are older than ... days
   logRetentionDays: 7
 
