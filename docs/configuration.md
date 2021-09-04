@@ -268,6 +268,19 @@ default** block type. Server returns 0.0.0.0 (or :: for IPv6) as result for A an
       blockType: nxDomain
     ```
 
+### Block TTL
+
+TTL for answers to blocked domains can be set to customize the time clients ask for those domains again.
+This setting only makes sense when `blockType` is set to `nxDomain` or `zeroIP`, and will affect how much time it could take for a client to be able to see the real IP address for a domain after receiving the custom value.
+
+!!! example
+
+    ```yaml
+    blocking:
+      blockType: 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344
+      blockTTL: 10
+    ```
+
 ### List refresh period
 
 To keep the list cache up-to-date, blocky will periodically download and reload all external lists. Default period is **

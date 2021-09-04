@@ -258,6 +258,7 @@ type BlockingConfig struct {
 	WhiteLists        map[string][]string `yaml:"whiteLists"`
 	ClientGroupsBlock map[string][]string `yaml:"clientGroupsBlock"`
 	BlockType         string              `yaml:"blockType"`
+	BlockTimeSec      int                 `yaml:"blockTTL"`
 	RefreshPeriod     int                 `yaml:"refreshPeriod"`
 }
 
