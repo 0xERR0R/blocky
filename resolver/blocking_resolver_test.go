@@ -245,6 +245,40 @@ badcnamedomain.com`)
 			})
 		})
 
+		When("BlockTimeSec is set", func() {
+			BeforeEach(func() {
+				sutConfig = config.BlockingConfig{
+					BlackLists: map[string][]string{
+						"defaultGroup": {defaultGroupFile.Name()},
+					},
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup"},
+					},
+					BlockTimeSec: 1234,
+				}
+			})
+
+			It("should return answer with specified TTL", func() {
+				resp, err = sut.Resolve(newRequestWithClient("blocked3.com.", dns.TypeA, "1.2.1.2", "unknown"))
+
+				Expect(resp.Reason).Should(Equal("BLOCKED (defaultGroup)"))
+				Expect(resp.Res.Answer).Should(BeDNSRecord("blocked3.com.", dns.TypeA, 1234, "0.0.0.0"))
+			})
+
+			When("BlockType is custom IP", func() {
+				BeforeEach(func() {
+					sutConfig.BlockType = "12.12.12.12"
+				})
+
+				It("should return custom IP with specified TTL", func() {
+					resp, err = sut.Resolve(newRequestWithClient("blocked3.com.", dns.TypeA, "1.2.1.2", "unknown"))
+
+					Expect(resp.Reason).Should(Equal("BLOCKED (defaultGroup)"))
+					Expect(resp.Res.Answer).Should(BeDNSRecord("blocked3.com.", dns.TypeA, 1234, "12.12.12.12"))
+				})
+			})
+		})
+
 		When("BlockType is custom IP", func() {
 			BeforeEach(func() {
 				sutConfig = config.BlockingConfig{
