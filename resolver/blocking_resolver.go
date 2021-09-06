@@ -223,6 +223,7 @@ func (r *BlockingResolver) Configuration() (result []string) {
 
 		blockType := blockTypeFromConfig(r.cfg)
 		result = append(result, fmt.Sprintf("blockType = \"%s\"", blockType))
+
 		if blockType != "NXDOMAIN" {
 			blockTime := blockTTLFromConfig(r.cfg)
 			result = append(result, fmt.Sprintf("blockTTL = %d", blockTime))
