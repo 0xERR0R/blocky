@@ -17,6 +17,12 @@
       "version": ""
     },
     {
+      "type": "panel",
+      "id": "bargauge",
+      "name": "Bar gauge",
+      "version": ""
+    },
+    {
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
@@ -70,7 +76,7 @@
   "gnetId": null,
   "graphTooltip": 0,
   "id": null,
-  "iteration": 1630959566500,
+  "iteration": 1631130053746,
   "links": [],
   "panels": [
     {
@@ -97,7 +103,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 6,
         "x": 0,
         "y": 0
       },
@@ -105,9 +111,7 @@
       "interval": null,
       "links": [],
       "options": {
-        "displayLabels": [
-          "value"
-        ],
+        "displayLabels": [],
         "legend": {
           "displayMode": "table",
           "placement": "right",
@@ -135,7 +139,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT  t.response_type, t.request_Ts as time, count(*) as cnt from log_entries t \n  WHERE $__timeFilter(t.request_Ts) and \n        t.response_type in ($response_type) and \n        ($client_name = '*' or t.client_name = $client_name) and \n        (length('$question') = 0 or INSTR(t.question_name, lower('$question')) > 0)\n        group by t.response_type\n        order by t.request_Ts",
+          "rawSql": "SELECT  t.response_type, t.request_Ts as time, count(*) as cnt from log_entries t \n  WHERE $__timeFilter(t.request_Ts) and \n        t.response_type in ($response_type) and \n        t.client_name in ($client_name) and \n        (length('$question') = 0 or INSTR(t.question_name, lower('$question')) > 0)\n        group by t.response_type\n        order by t.request_Ts",
           "refId": "A",
           "select": [
             [
@@ -164,9 +168,7 @@
       "type": "piechart"
     },
     {
-      "cacheTimeout": null,
       "datasource": "${DS_MYSQL}",
-      "description": "",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -179,8 +181,90 @@
               "viz": false
             }
           },
-          "displayName": "${__field.labels.client_name}",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 16,
+      "options": {
+        "displayLabels": [],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "format": "time_series",
+          "group": [],
+          "metricColumn": "none",
+          "rawQuery": true,
+          "rawSql": "SELECT t.request_ts AS time,\n       case when t.reason  like 'BLOCKED%' then SUBSTRING_INDEX(SUBSTRING_INDEX(t.reason,'(',-1), ')',1) else '' end AS metric,\n       count(t.reason) AS cnt\nFROM log_entries t\nWHERE t.response_type ='BLOCKED'\n  AND $__timeFilter(t.request_Ts)\n  AND t.client_name in ($client_name)\n  AND (length('$question') = 0 or INSTR(t.question_name, lower('$question')) > 0)\nGROUP BY 2\nORDER BY time",
+          "refId": "A",
+          "select": [
+            [
+              {
+                "params": [
+                  "duration_ms"
+                ],
+                "type": "column"
+              }
+            ]
+          ],
+          "table": "log_entries",
+          "timeColumn": "request_ts",
+          "timeColumnType": "timestamp",
+          "where": [
+            {
+              "name": "$__timeFilter",
+              "params": [],
+              "type": "macro"
+            }
+          ]
+        }
+      ],
+      "title": "Blocked by Blacklist",
+      "type": "piechart"
+    },
+    {
+      "cacheTimeout": null,
+      "datasource": "${DS_MYSQL}",
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
           "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
           "unit": "short"
         },
         "overrides": []
@@ -195,37 +279,27 @@
       "interval": null,
       "links": [],
       "options": {
-        "displayLabels": [
-          "value"
-        ],
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "values": [
-            "value"
-          ]
-        },
-        "pieType": "pie",
+        "displayMode": "gradient",
+        "orientation": "horizontal",
         "reduceOptions": {
           "calcs": [
-            "sum"
+            "lastNotNull"
           ],
           "fields": "",
-          "values": false
+          "values": true
         },
-        "tooltip": {
-          "mode": "single"
-        }
+        "showUnfilled": true,
+        "text": {}
       },
       "pluginVersion": "8.1.2",
       "repeatDirection": "v",
       "targets": [
         {
-          "format": "time_series",
+          "format": "table",
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT  t.client_name, t.request_Ts as time, count(*) as cnt from log_entries t \n  WHERE $__timeFilter(t.request_Ts) and \n        t.response_type in ($response_type) and \n        ($client_name = '*' or t.client_name = $client_name) and \n        (length('$question') = 0 or INSTR(t.question_name, lower('$question')) > 0)\n        group by t.client_name\n        order by t.request_Ts",
+          "rawSql": "SELECT  t.request_Ts as time, t.client_name as metric, count(*) as cnt from log_entries t \n  WHERE $__timeFilter(t.request_Ts) and \n        t.response_type in ($response_type) and \n        t.client_name in ($client_name) and \n        (length('$question') = 0 or INSTR(t.question_name, lower('$question')) > 0)\n  group by t.client_name\n  order by 3 desc",
           "refId": "A",
           "select": [
             [
@@ -251,109 +325,7 @@
       "timeShift": null,
       "title": "Query count by client",
       "transformations": [],
-      "type": "piechart"
-    },
-    {
-      "datasource": "${DS_MYSQL}",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": -1,
-            "drawStyle": "bars",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "stepBefore",
-            "lineStyle": {
-              "fill": "solid"
-            },
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "line"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "dtdurationms"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 8
-      },
-      "id": 10,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "hidden",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single"
-        }
-      },
-      "targets": [
-        {
-          "format": "time_series",
-          "group": [],
-          "metricColumn": "none",
-          "rawQuery": true,
-          "rawSql": "SELECT\n  UNIX_TIMESTAMP(t.request_Ts) as time,\n  t.duration_ms\nFROM log_entries t\nWHERE\n  $__timeFilter(t.request_Ts) and \n  t.response_type in ($response_type) and \n  ($client_name = '*' or t.client_name = $client_name) and \n  (length('$question') = 0 or INSTR(t.question_name, lower('$question')) > 0)\nORDER BY request_ts",
-          "refId": "A",
-          "select": [
-            [
-              {
-                "params": [
-                  "duration_ms"
-                ],
-                "type": "column"
-              }
-            ]
-          ],
-          "table": "log_entries",
-          "timeColumn": "request_ts",
-          "timeColumnType": "timestamp",
-          "where": [
-            {
-              "name": "$__timeFilter",
-              "params": [],
-              "type": "macro"
-            }
-          ]
-        }
-      ],
-      "title": "Query duration",
-      "type": "timeseries"
+      "type": "bargauge"
     },
     {
       "datasource": "${DS_MYSQL}",
@@ -395,7 +367,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 8
       },
       "id": 11,
       "options": {
@@ -423,7 +395,7 @@
           "hide": false,
           "metricColumn": "question_name",
           "rawQuery": true,
-          "rawSql": "SELECT t.effective_tldp as metric, count(*) as value from log_entries t \nWHERE $__timeFilter(t.request_Ts) \n    and t.response_type in ($response_type) \n    and ($client_name = '*' or t.client_name = $client_name) \n    and (length('$question') = 0 or INSTR(t.question_name, lower('$question')) > 0) \n    group by t.effective_tldp order by count(*) desc limit 20",
+          "rawSql": "SELECT t.effective_tldp as metric, count(*) as value from log_entries t \nWHERE $__timeFilter(t.request_Ts) \n    and t.response_type in ($response_type) \n    and t.client_name in ($client_name) \n    and (length('$question') = 0 or INSTR(t.question_name, lower('$question')) > 0) \n    group by t.effective_tldp order by count(*) desc limit 20",
           "refId": "A",
           "select": [
             [
@@ -483,7 +455,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 8
       },
       "id": 8,
       "options": {
@@ -511,7 +483,7 @@
           "hide": false,
           "metricColumn": "question_name",
           "rawQuery": true,
-          "rawSql": "SELECT t.question_name as metric, count(*) as value from log_entries t \n  WHERE $__timeFilter(t.request_Ts) and \n  t.response_type in ($response_type) and \n  ($client_name = '*' or t.client_name = $client_name) and \n  (length('$question') = 0 or INSTR(t.question_name, lower('$question')) > 0) \n  group by t.question_name order by count(*) desc limit 20",
+          "rawSql": "SELECT t.question_name as metric, count(*) as value from log_entries t \n  WHERE $__timeFilter(t.request_Ts) and \n  t.response_type in ($response_type) and \n  t.client_name in ($client_name) and \n  (length('$question') = 0 or INSTR(t.question_name, lower('$question')) > 0) \n  group by t.question_name order by count(*) desc limit 20",
           "refId": "A",
           "select": [
             [
@@ -592,7 +564,7 @@
         "h": 7,
         "w": 24,
         "x": 0,
-        "y": 24
+        "y": 16
       },
       "id": 12,
       "options": {
@@ -612,7 +584,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n $__timeGroupAlias(t.request_Ts, '30m'),\n  t.client_name,\n  count(*) as c\nFROM log_entries t\nWHERE\n  $__timeFilter(t.request_Ts) and \n  t.response_type in ($response_type) and \n  ($client_name = '*' or t.client_name = $client_name) and \n  (length('$question') = 0 or INSTR(t.question_name, lower('$question')) > 0)\nGROUP BY 1,2\nORDER BY 1",
+          "rawSql": "SELECT\n $__timeGroupAlias(t.request_Ts, '30m'),\n  t.client_name,\n  count(*) as c\nFROM log_entries t\nWHERE\n  $__timeFilter(t.request_Ts) and \n  t.response_type in ($response_type) and \n  t.client_name in ($client_name) and \n  (length('$question') = 0 or INSTR(t.question_name, lower('$question')) > 0)\nGROUP BY 1,2\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -637,6 +609,108 @@
         }
       ],
       "title": "Queries number per client (30m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "${DS_MYSQL}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": -1,
+            "drawStyle": "bars",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "stepBefore",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "dtdurationms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "hidden",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "format": "time_series",
+          "group": [],
+          "metricColumn": "none",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  UNIX_TIMESTAMP(t.request_Ts) as time,\n  t.duration_ms\nFROM log_entries t\nWHERE\n  $__timeFilter(t.request_Ts) and \n  t.response_type in ($response_type) and \n  t.client_name in ($client_name) and \n  (length('$question') = 0 or INSTR(t.question_name, lower('$question')) > 0)\nORDER BY request_ts",
+          "refId": "A",
+          "select": [
+            [
+              {
+                "params": [
+                  "duration_ms"
+                ],
+                "type": "column"
+              }
+            ]
+          ],
+          "table": "log_entries",
+          "timeColumn": "request_ts",
+          "timeColumnType": "timestamp",
+          "where": [
+            {
+              "name": "$__timeFilter",
+              "params": [],
+              "type": "macro"
+            }
+          ]
+        }
+      ],
+      "title": "Query duration",
       "type": "timeseries"
     },
     {
@@ -692,7 +766,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT UNIX_TIMESTAMP(t.request_Ts) as \"time\", \n       t.client_ip as \"client IP\", \n       t.client_name as \"client name\", \n       t.duration_ms as \"duration in ms\", \n       t.response_type as \"response type\", \n       t.question_type as \"question type\", \n       t.question_name as \"question name\", \n       t.effective_tldp as \"effective TLD+1\", \n       t.answer as \"answer\" from log_entries t \n       WHERE $__timeFilter(t.request_Ts) and \n       t.response_type in ($response_type) and \n       ($client_name = '*' or t.client_name = $client_name) and \n       (length('$question') = 0 or INSTR(t.question_name, lower('$question')) > 0) \n       order by t.request_Ts desc limit 100",
+          "rawSql": "SELECT UNIX_TIMESTAMP(t.request_Ts) as \"time\", \n       t.client_ip as \"client IP\", \n       t.client_name as \"client name\", \n       t.duration_ms as \"duration in ms\", \n       t.response_type as \"response type\", \n       t.question_type as \"question type\", \n       t.question_name as \"question name\", \n       t.effective_tldp as \"effective TLD+1\", \n       t.answer as \"answer\" from log_entries t \n       WHERE $__timeFilter(t.request_Ts) and \n       t.response_type in ($response_type) and \n       t.client_name in ($client_name) and \n       (length('$question') = 0 or INSTR(t.question_name, lower('$question')) > 0) \n       order by t.request_Ts desc limit 100",
           "refId": "A",
           "select": [
             [
@@ -727,7 +801,7 @@
   "templating": {
     "list": [
       {
-        "allValue": "'*'",
+        "allValue": "",
         "current": {},
         "datasource": "${DS_MYSQL}",
         "definition": "select distinct client_name from log_entries",
@@ -736,7 +810,7 @@
         "hide": 0,
         "includeAll": true,
         "label": "Client name",
-        "multi": false,
+        "multi": true,
         "name": "client_name",
         "options": [],
         "query": "select distinct client_name from log_entries",
@@ -803,6 +877,6 @@
   "timepicker": {},
   "timezone": "",
   "title": "Blocky query",
-  "uid": "No2u6DmRz",
-  "version": 47
+  "uid": "AVmWSVWgz",
+  "version": 3
 }
