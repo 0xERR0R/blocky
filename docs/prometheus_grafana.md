@@ -1,6 +1,8 @@
-# Integration in Prometheus / Grafana
+# Integration in Grafana
 
-## Prometheus export
+## Prometheus
+
+### Prometheus export
 
 Blocky can optionally export metrics for [Prometheus](https://prometheus.io/).
 
@@ -19,24 +21,34 @@ Following metrics will be exported:
 | blocky_prefetch_count | Amount of prefetched DNS responses |
 | blocky_prefetch_domain_name_cache_count | Amount of domain names being prefetched |
 
-## Grafana dashboard
+### Grafana dashboard
 
 Example [Grafana](https://grafana.com/) dashboard
 definition [as JSON](https://github.com/0xERR0R/blocky/blob/master/docs/blocky-grafana.json)
 or [at grafana.com](https://grafana.com/grafana/dashboards/13768)
-![grafana-dashboard](https://github.com/0xERR0R/blocky/raw/master/docs/grafana-dashboard.png).
+![grafana-dashboard](grafana-dashboard.png).
 
 This dashboard shows all relevant statistics and allows enabling and disabling the blocking status.
 
-## Grafana configuration
+### Grafana configuration
 
 Please install `grafana-piechart-panel` and
 set [disable-sanitize-html](https://grafana.com/docs/grafana/latest/installation/configuration/#disable-sanitize-html)
 in config or as env to use control buttons to enable/disable the blocking status.
 
-## Grafana and Prometheus example project
+### Grafana and Prometheus example project
 
 This [repo](https://github.com/0xERR0R/blocky-grafana-prometheus-example) contains example docker-compose.yml with
 blocky, prometheus (with configured scraper for blocky) and grafana with prometheus datasource.
+
+## MySQL / MariaDB
+
+If database query logging is activated (see [Query logging](configuration.md#query-logging)), you can use following
+Grafana Dashboard [as JSON](https://github.com/0xERR0R/blocky/blob/master/docs/blocky-query-grafana.json)
+or [at grafana.com](https://grafana.com/grafana/dashboards/14980)
+
+![grafana-dashboard](grafana-query-dashboard.png).
+
+Please define the MySQL source in Grafana, which points to the database with blocky's log entries.
 
 --8<-- "docs/includes/abbreviations.md"
