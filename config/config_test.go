@@ -66,26 +66,10 @@ var _ = Describe("Config", func() {
 			})
 		})
 
-		When("wrong value types are specified", func() {
-			It("should log with fatal", func() {
-				helpertest.ShouldLogFatal(func() {
-					validateConfig(&Config{LogFormat: "wrongFormat"})
-				})
-
-				helpertest.ShouldLogFatal(func() {
-					validateConfig(&Config{QueryLog: QueryLogConfig{
-						Type: "wrong type",
-					}})
-
-				})
-			})
-		})
-
 		When("deprecated querylog.dir parameter is used", func() {
 			It("should be mapped to csv writer", func() {
 				By("per client", func() {
 					c := &Config{
-						LogFormat: "text",
 						QueryLog: QueryLogConfig{
 							Dir:       "/somedir",
 							PerClient: true,
@@ -93,12 +77,11 @@ var _ = Describe("Config", func() {
 					validateConfig(c)
 
 					Expect(c.QueryLog.Target).Should(Equal("/somedir"))
-					Expect(c.QueryLog.Type).Should(Equal(QueryLogTypeCSVPerClient))
+					Expect(c.QueryLog.Type).Should(Equal(QueryLogTypeCsvClient))
 				})
 
 				By("one file", func() {
 					c := &Config{
-						LogFormat: "text",
 						QueryLog: QueryLogConfig{
 							Dir:       "/somedir",
 							PerClient: false,
@@ -106,7 +89,7 @@ var _ = Describe("Config", func() {
 					validateConfig(c)
 
 					Expect(c.QueryLog.Target).Should(Equal("/somedir"))
-					Expect(c.QueryLog.Type).Should(Equal(QueryLogTypeCSV))
+					Expect(c.QueryLog.Type).Should(Equal(QueryLogTypeCsv))
 				})
 
 			})
@@ -132,7 +115,7 @@ var _ = Describe("Config", func() {
 
 				LoadConfig("config.yml", false)
 
-				Expect(config.LogLevel).Should(Equal("info"))
+				Expect(config.LogLevel).Should(Equal(LevelInfo))
 			})
 		})
 	})
@@ -149,63 +132,63 @@ var _ = Describe("Config", func() {
 		},
 		Entry("udp with port",
 			"udp:4.4.4.4:531",
-			Upstream{Net: "tcp+udp", Host: "4.4.4.4", Port: 531},
+			Upstream{Net: NetProtocolTcpUdp, Host: "4.4.4.4", Port: 531},
 			false),
 		Entry("udp without port, use default",
 			"udp:4.4.4.4",
-			Upstream{Net: "tcp+udp", Host: "4.4.4.4", Port: 53},
+			Upstream{Net: NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53},
 			false),
 		Entry("tcp with port",
 			"tcp:4.4.4.4:4711",
-			Upstream{Net: "tcp+udp", Host: "4.4.4.4", Port: 4711},
+			Upstream{Net: NetProtocolTcpUdp, Host: "4.4.4.4", Port: 4711},
 			false),
 		Entry("tcp without port, use default",
 			"tcp:4.4.4.4",
-			Upstream{Net: "tcp+udp", Host: "4.4.4.4", Port: 53},
+			Upstream{Net: NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53},
 			false),
 		Entry("tcp-tls without port, use default",
 			"tcp-tls:4.4.4.4",
-			Upstream{Net: "tcp-tls", Host: "4.4.4.4", Port: 853},
+			Upstream{Net: NetProtocolTcpTls, Host: "4.4.4.4", Port: 853},
 			false),
 		Entry("DoH without port, use default",
 			"https:4.4.4.4",
-			Upstream{Net: "https", Host: "4.4.4.4", Port: 443},
+			Upstream{Net: NetProtocolHttps, Host: "4.4.4.4", Port: 443},
 			false),
 		Entry("DoH with port",
 			"https:4.4.4.4:888",
-			Upstream{Net: "https", Host: "4.4.4.4", Port: 888},
+			Upstream{Net: NetProtocolHttps, Host: "4.4.4.4", Port: 888},
 			false),
 		Entry("DoH named",
 			"https://dns.google/dns-query",
-			Upstream{Net: "https", Host: "dns.google", Port: 443, Path: "/dns-query"},
+			Upstream{Net: NetProtocolHttps, Host: "dns.google", Port: 443, Path: "/dns-query"},
 			false),
 		Entry("DoH named, path with multiple slashes",
 			"https://dns.google/dns-query/a/b",
-			Upstream{Net: "https", Host: "dns.google", Port: 443, Path: "/dns-query/a/b"},
+			Upstream{Net: NetProtocolHttps, Host: "dns.google", Port: 443, Path: "/dns-query/a/b"},
 			false),
 		Entry("DoH named with port",
 			"https://dns.google:888/dns-query",
-			Upstream{Net: "https", Host: "dns.google", Port: 888, Path: "/dns-query"},
+			Upstream{Net: NetProtocolHttps, Host: "dns.google", Port: 888, Path: "/dns-query"},
 			false),
 		Entry("empty",
 			"",
-			Upstream{Net: ""},
+			Upstream{Net: 0},
 			false),
 		Entry("udpIpv6WithPort",
 			"udp:[fd00::6cd4:d7e0:d99d:2952]:53",
-			Upstream{Net: "tcp+udp", Host: "fd00::6cd4:d7e0:d99d:2952", Port: 53},
+			Upstream{Net: NetProtocolTcpUdp, Host: "fd00::6cd4:d7e0:d99d:2952", Port: 53},
 			false),
 		Entry("udpIpv6WithPort2",
 			"udp://[2001:4860:4860::8888]:53",
-			Upstream{Net: "tcp+udp", Host: "2001:4860:4860::8888", Port: 53},
+			Upstream{Net: NetProtocolTcpUdp, Host: "2001:4860:4860::8888", Port: 53},
 			false),
 		Entry("default net, default port",
 			"1.1.1.1",
-			Upstream{Net: "tcp+udp", Host: "1.1.1.1", Port: 53},
+			Upstream{Net: NetProtocolTcpUdp, Host: "1.1.1.1", Port: 53},
 			false),
 		Entry("default net with port",
 			"1.1.1.1:153",
-			Upstream{Net: "tcp+udp", Host: "1.1.1.1", Port: 153},
+			Upstream{Net: NetProtocolTcpUdp, Host: "1.1.1.1", Port: 153},
 			false),
 		Entry("with negative port",
 			"tcp:4.4.4.4:-1",
@@ -225,11 +208,11 @@ var _ = Describe("Config", func() {
 			true),
 		Entry("tcp+udp",
 			"tcp+udp:1.1.1.1:53",
-			Upstream{Net: "tcp+udp", Host: "1.1.1.1", Port: 53},
+			Upstream{Net: NetProtocolTcpUdp, Host: "1.1.1.1", Port: 53},
 			false),
 		Entry("tcp+udp default port",
 			"tcp+udp:1.1.1.1",
-			Upstream{Net: "tcp+udp", Host: "1.1.1.1", Port: 53},
+			Upstream{Net: NetProtocolTcpUdp, Host: "1.1.1.1", Port: 53},
 			false),
 	)
 })

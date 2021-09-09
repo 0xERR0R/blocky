@@ -1,5 +1,6 @@
 package lists
 
+//go:generate go-enum -f=$GOFILE --marshal --names
 import (
 	"bufio"
 	"errors"
@@ -24,24 +25,11 @@ const (
 	defaultRefreshPeriod = 4 * time.Hour
 )
 
-// ListCacheType represents the type of cached list
+// ListCacheType represents the type of cached list ENUM(
+// blacklist // is a list with blocked domains
+// whitelist // is a list with whitelisted domains / IPs
+// )
 type ListCacheType int
-
-const (
-	// BLACKLIST is a list with blocked domains / IPs
-	BLACKLIST ListCacheType = iota
-
-	// WHITELIST is a list with whitelisted domains / IPs
-	WHITELIST
-)
-
-func (l ListCacheType) String() string {
-	names := [...]string{
-		"blacklist",
-		"whitelist"}
-
-	return names[l]
-}
 
 // nolint:gochecknoglobals
 var timeout = 60 * time.Second

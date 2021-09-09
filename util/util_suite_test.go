@@ -9,7 +9,7 @@ import (
 )
 
 func TestLists(t *testing.T) {
-	ConfigureLogger("Warn", "text", true)
+	ConfigureLogger(LevelError, FormatTypeText, true)
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Util Suite")
 }

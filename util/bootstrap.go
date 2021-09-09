@@ -15,7 +15,7 @@ func Dialer(cfg *config.Config) *net.Dialer {
 	var resolver *net.Resolver
 
 	if cfg.BootstrapDNS != (config.Upstream{}) {
-		if cfg.BootstrapDNS.Net == config.NetTCPUDP {
+		if cfg.BootstrapDNS.Net == config.NetProtocolTcpUdp {
 			dns := net.JoinHostPort(cfg.BootstrapDNS.Host, fmt.Sprint(cfg.BootstrapDNS.Port))
 			log.Log().Debugf("using %s as bootstrap dns server", dns)
 

@@ -124,5 +124,5 @@ func TestUDPUpstream(fn func(request *dns.Msg) (response *dns.Msg)) config.Upstr
 		}
 	}()
 
-	return config.Upstream{Net: "tcp+udp", Host: host, Port: port}
+	return config.Upstream{Net: config.NetProtocolTcpUdp, Host: host, Port: port}
 }

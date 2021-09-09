@@ -83,7 +83,7 @@ func (r *ConditionalUpstreamResolver) Resolve(request *model.Request) (*model.Re
 
 				if err == nil {
 					response.Reason = "CONDITIONAL"
-					response.RType = model.CONDITIONAL
+					response.RType = model.ResponseTypeCONDITIONAL
 					response.Res.Question[0].Name = question.Name
 				}
 

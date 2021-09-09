@@ -76,14 +76,14 @@ var _ = Describe("QueryLoggingResolver", func() {
 				resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
 
 				m.AssertExpectations(GinkgoT())
-				Expect(resp.RType).Should(Equal(RESOLVED))
+				Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 			})
 		})
 		When("Configuration with logging per client", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLogConfig{
 					Target: tmpDir,
-					Type:   config.QueryLogTypeCSVPerClient,
+					Type:   config.QueryLogTypeCsvClient,
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.TypeA, "123.122.121.120")
 			})
@@ -127,7 +127,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLogConfig{
 					Target: tmpDir,
-					Type:   config.QueryLogTypeCSV,
+					Type:   config.QueryLogTypeCsv,
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.TypeA, "123.122.121.120")
 			})
@@ -193,7 +193,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLogConfig{
 					Target:           tmpDir,
-					Type:             config.QueryLogTypeCSVPerClient,
+					Type:             config.QueryLogTypeCsvClient,
 					LogRetentionDays: 0,
 				}
 			})
@@ -226,7 +226,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 				Log().ExitFunc = func(int) { fatal = true }
 				_ = NewQueryLoggingResolver(config.QueryLogConfig{
 					Target: "notExists",
-					Type:   config.QueryLogTypeCSV,
+					Type:   config.QueryLogTypeCsv,
 				})
 
 				Expect(fatal).Should(BeTrue())
@@ -242,7 +242,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 				sut := NewQueryLoggingResolver(config.QueryLogConfig{
 					Target:           "wrongDir",
-					Type:             config.QueryLogTypeCSV,
+					Type:             config.QueryLogTypeCsv,
 					LogRetentionDays: 7,
 				}).(*QueryLoggingResolver)
 
@@ -275,7 +275,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 				sut := NewQueryLoggingResolver(config.QueryLogConfig{
 					Target:           tmpDir,
-					Type:             config.QueryLogTypeCSV,
+					Type:             config.QueryLogTypeCsv,
 					LogRetentionDays: 7,
 				})
 
@@ -301,7 +301,7 @@ var _ = Describe("Wrong target configuration", func() {
 			helpertest.ShouldLogFatal(func() {
 				sutConfig := config.QueryLogConfig{
 					Target: "dummy",
-					Type:   config.QueryLogTypeMySQL,
+					Type:   config.QueryLogTypeMysql,
 				}
 				NewQueryLoggingResolver(sutConfig)
 			})

@@ -122,7 +122,7 @@ func createRecorders() []*resolverStatRecorder {
 			return util.ExtractDomain(e.request.Req.Question[0])
 		}),
 		newRecorderWithMax("Top 20 blocked queries", 20, func(e *statsEntry) string {
-			if e.response.RType == model.BLOCKED {
+			if e.response.RType == model.ResponseTypeBLOCKED {
 				return util.ExtractDomain(e.request.Req.Question[0])
 			}
 			return ""

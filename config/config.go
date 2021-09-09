@@ -1,3 +1,4 @@
+//go:generate go-enum -f=$GOFILE --marshal --names
 package config
 
 import (
@@ -15,38 +16,37 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// NetProtocol resolver protocol ENUM(
+// udp // Deprecated: use tcp+udp instead
+// tcp // Deprecated: use tcp+udp instead
+// tcp+udp // TCP and UDP protocols
+// tcp-tls // TCP-TLS protocol
+// https // HTTPS protocol
+// )
+type NetProtocol uint16
+
+// QueryLogType type of the query log ENUM(
+// none // use logger as fallback
+// mysql // MySQL or MariaDB database
+// csv // CSV file per day
+// csv-client // CSV file per day and client
+// )
+type QueryLogType int16
+
 const (
 	validUpstream = `(?P<Host>(?:\[[^\]]+\])|[^\s/:]+):?(?P<Port>[^\s/:]*)?(?P<Path>/[^\s]*)?`
-	// NetUDP UDP protocol (deprecated)
-	NetUDP = "udp"
-
-	// NetTCP TCP protocol (deprecated)
-	NetTCP = "tcp"
-
-	// NetTCPUDP TCP and UDP protocols
-	NetTCPUDP = "tcp+udp"
-
-	// NetTCPTLS TCP-TLS protocol
-	NetTCPTLS = "tcp-tls"
-
-	// NetHTTPS HTTPS protocol
-	NetHTTPS = "https"
-
-	QueryLogTypeMySQL        = "mysql"
-	QueryLogTypeCSV          = "csv"
-	QueryLogTypeCSVPerClient = "csv-client"
 )
 
 // nolint:gochecknoglobals
-var netDefaultPort = map[string]uint16{
-	NetTCPUDP: 53,
-	NetTCPTLS: 853,
-	NetHTTPS:  443,
+var netDefaultPort = map[NetProtocol]uint16{
+	NetProtocolTcpUdp: 53,
+	NetProtocolTcpTls: 853,
+	NetProtocolHttps:  443,
 }
 
 // Upstream is the definition of external DNS server
 type Upstream struct {
-	Net  string
+	Net  NetProtocol
 	Host string
 	Port uint16
 	Path string
@@ -133,7 +133,7 @@ func ParseUpstream(upstream string) (result Upstream, err error) {
 		return Upstream{}, nil
 	}
 
-	var n string
+	var n NetProtocol
 
 	n, upstream = extractNet(upstream)
 
@@ -168,31 +168,31 @@ func ParseUpstream(upstream string) (result Upstream, err error) {
 	return Upstream{Net: n, Host: host, Port: port, Path: path}, nil
 }
 
-func extractNet(upstream string) (string, string) {
-	if strings.HasPrefix(upstream, NetTCP+":") {
+func extractNet(upstream string) (NetProtocol, string) {
+	if strings.HasPrefix(upstream, NetProtocolTcp.String()+":") {
 		log.Log().Warnf("net prefix tcp is deprecated, using tcp+udp as default fallback")
 
-		return NetTCPUDP, strings.Replace(upstream, NetTCP+":", "", 1)
+		return NetProtocolTcpUdp, strings.Replace(upstream, NetProtocolTcp.String()+":", "", 1)
 	}
 
-	if strings.HasPrefix(upstream, NetUDP+":") {
+	if strings.HasPrefix(upstream, NetProtocolUdp.String()+":") {
 		log.Log().Warnf("net prefix udp is deprecated, using tcp+udp as default fallback")
-		return NetTCPUDP, strings.Replace(upstream, NetUDP+":", "", 1)
+		return NetProtocolTcpUdp, strings.Replace(upstream, NetProtocolUdp.String()+":", "", 1)
 	}
 
-	if strings.HasPrefix(upstream, NetTCPUDP+":") {
-		return NetTCPUDP, strings.Replace(upstream, NetTCPUDP+":", "", 1)
+	if strings.HasPrefix(upstream, NetProtocolTcpUdp.String()+":") {
+		return NetProtocolTcpUdp, strings.Replace(upstream, NetProtocolTcpUdp.String()+":", "", 1)
 	}
 
-	if strings.HasPrefix(upstream, NetTCPTLS+":") {
-		return NetTCPTLS, strings.Replace(upstream, NetTCPTLS+":", "", 1)
+	if strings.HasPrefix(upstream, NetProtocolTcpTls.String()+":") {
+		return NetProtocolTcpTls, strings.Replace(upstream, NetProtocolTcpTls.String()+":", "", 1)
 	}
 
-	if strings.HasPrefix(upstream, NetHTTPS+":") {
-		return NetHTTPS, strings.Replace(upstream, NetHTTPS+":", "", 1)
+	if strings.HasPrefix(upstream, NetProtocolHttps.String()+":") {
+		return NetProtocolHttps, strings.Replace(upstream, NetProtocolHttps.String()+":", "", 1)
 	}
 
-	return NetTCPUDP, upstream
+	return NetProtocolTcpUdp, upstream
 }
 
 const (
@@ -211,8 +211,8 @@ type Config struct {
 	Caching      CachingConfig             `yaml:"caching"`
 	QueryLog     QueryLogConfig            `yaml:"queryLog"`
 	Prometheus   PrometheusConfig          `yaml:"prometheus"`
-	LogLevel     string                    `yaml:"logLevel"`
-	LogFormat    string                    `yaml:"logFormat"`
+	LogLevel     log.Level                 `yaml:"logLevel"`
+	LogFormat    log.FormatType            `yaml:"logFormat"`
 	LogPrivacy   bool                      `yaml:"logPrivacy"`
 	LogTimestamp bool                      `yaml:"logTimestamp"`
 	Port         string                    `yaml:"port"`
@@ -289,10 +289,10 @@ type QueryLogConfig struct {
 	// Deprecated
 	Dir string `yaml:"dir"`
 	// Deprecated
-	PerClient        bool   `yaml:"perClient"`
-	Target           string `yaml:"target"`
-	Type             string `yaml:"type"`
-	LogRetentionDays uint64 `yaml:"logRetentionDays"`
+	PerClient        bool         `yaml:"perClient"`
+	Target           string       `yaml:"target"`
+	Type             QueryLogType `yaml:"type"`
+	LogRetentionDays uint64       `yaml:"logRetentionDays"`
 }
 
 // nolint:gochecknoglobals
@@ -327,17 +327,6 @@ func LoadConfig(path string, mandatory bool) {
 }
 
 func validateConfig(cfg *Config) {
-	if cfg.LogFormat != log.CfgLogFormatText && cfg.LogFormat != log.CfgLogFormatJSON {
-		log.Log().Fatal("LogFormat should be 'text' or 'json'")
-	}
-
-	queryLogType := strings.ToLower(cfg.QueryLog.Type)
-	if queryLogType != "" && queryLogType != QueryLogTypeMySQL &&
-		queryLogType != QueryLogTypeCSV && queryLogType != QueryLogTypeCSVPerClient {
-		log.Log().Fatalf("queryLog.type should be one of: %s",
-			strings.Join([]string{QueryLogTypeMySQL, QueryLogTypeCSV, QueryLogTypeCSVPerClient}, ", "))
-	}
-
 	if cfg.QueryLog.Dir != "" {
 		log.Log().Warnf("queryLog.Dir is deprecated, use 'queryLog.target' instead")
 
@@ -345,11 +334,11 @@ func validateConfig(cfg *Config) {
 			cfg.QueryLog.Target = cfg.QueryLog.Dir
 		}
 
-		if cfg.QueryLog.Type == "" {
+		if cfg.QueryLog.Type == QueryLogTypeNone {
 			if cfg.QueryLog.PerClient {
-				cfg.QueryLog.Type = QueryLogTypeCSVPerClient
+				cfg.QueryLog.Type = QueryLogTypeCsvClient
 			} else {
-				cfg.QueryLog.Type = QueryLogTypeCSV
+				cfg.QueryLog.Type = QueryLogTypeCsv
 			}
 		}
 	}
@@ -362,8 +351,6 @@ func GetConfig() *Config {
 
 func setDefaultValues(cfg *Config) {
 	cfg.Port = cfgDefaultPort
-	cfg.LogLevel = "info"
-	cfg.LogFormat = log.CfgLogFormatText
 	cfg.LogTimestamp = true
 	cfg.Prometheus.Path = cfgDefaultPrometheusPath
 }

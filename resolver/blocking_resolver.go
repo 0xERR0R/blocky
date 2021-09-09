@@ -82,8 +82,8 @@ type BlockingResolver struct {
 // NewBlockingResolver returns a new configured instance of the resolver
 func NewBlockingResolver(cfg config.BlockingConfig) ChainedResolver {
 	blockHandler := createBlockHandler(cfg)
-	blacklistMatcher := lists.NewListCache(lists.BLACKLIST, cfg.BlackLists, cfg.RefreshPeriod)
-	whitelistMatcher := lists.NewListCache(lists.WHITELIST, cfg.WhiteLists, cfg.RefreshPeriod)
+	blacklistMatcher := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists, cfg.RefreshPeriod)
+	whitelistMatcher := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists, cfg.RefreshPeriod)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
 	res := &BlockingResolver{
@@ -211,7 +211,7 @@ func (r *BlockingResolver) handleBlocked(logger *logrus.Entry,
 
 	logger.Debugf("blocking request '%s'", reason)
 
-	return &model.Response{Res: response, RType: model.BLOCKED, Reason: reason}, nil
+	return &model.Response{Res: response, RType: model.ResponseTypeBLOCKED, Reason: reason}, nil
 }
 
 // Configuration returns the current resolver configuration

@@ -16,7 +16,7 @@ func (r *IPv6DisablingResolver) Resolve(request *model.Request) (*model.Response
 		response := new(dns.Msg)
 		response.SetRcode(request.Req, dns.RcodeSuccess)
 
-		return &model.Response{Res: response, RType: model.RESOLVED}, nil
+		return &model.Response{Res: response, RType: model.ResponseTypeRESOLVED}, nil
 	}
 
 	return r.next.Resolve(request)

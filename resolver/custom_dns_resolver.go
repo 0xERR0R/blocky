@@ -73,7 +73,7 @@ func (r *CustomDNSResolver) handleReverseDNS(request *model.Request) *model.Resp
 				response.Answer = append(response.Answer, ptr)
 			}
 
-			return &model.Response{Res: response, RType: model.CUSTOMDNS, Reason: "CUSTOM DNS"}
+			return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}
 		}
 	}
 
@@ -112,13 +112,13 @@ func (r *CustomDNSResolver) Resolve(request *model.Request) (*model.Response, er
 						"domain": domain,
 					}).Debugf("returning custom dns entry")
 
-					return &model.Response{Res: response, RType: model.CUSTOMDNS, Reason: "CUSTOM DNS"}, nil
+					return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}, nil
 				}
 
 				// Mapping exists for this domain, but for another type
 				// return NOERROR with empty result
 
-				return &model.Response{Res: response, RType: model.CUSTOMDNS, Reason: "CUSTOM DNS"}, nil
+				return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}, nil
 			}
 
 			if i := strings.Index(domain, "."); i >= 0 {

@@ -60,7 +60,7 @@ var _ = Describe("FileWriter", func() {
 						Response: &model.Response{
 							Res:    res,
 							Reason: "Resolved",
-							RType:  model.RESOLVED,
+							RType:  model.ResponseTypeRESOLVED,
 						},
 						Start:      time.Now(),
 						DurationMs: 20,
@@ -77,7 +77,7 @@ var _ = Describe("FileWriter", func() {
 						Response: &model.Response{
 							Res:    res,
 							Reason: "Resolved",
-							RType:  model.RESOLVED,
+							RType:  model.ResponseTypeRESOLVED,
 						},
 						Start:      time.Now(),
 						DurationMs: 20,
@@ -107,7 +107,7 @@ var _ = Describe("FileWriter", func() {
 						Response: &model.Response{
 							Res:    res,
 							Reason: "Resolved",
-							RType:  model.RESOLVED,
+							RType:  model.ResponseTypeRESOLVED,
 						},
 						Start:      time.Now(),
 						DurationMs: 20,
@@ -124,7 +124,7 @@ var _ = Describe("FileWriter", func() {
 						Response: &model.Response{
 							Res:    res,
 							Reason: "Resolved",
-							RType:  model.RESOLVED,
+							RType:  model.ResponseTypeRESOLVED,
 						},
 						Start:      time.Now(),
 						DurationMs: 20,
@@ -158,7 +158,7 @@ var _ = Describe("FileWriter", func() {
 						Response: &model.Response{
 							Res:    res,
 							Reason: "Resolved",
-							RType:  model.RESOLVED,
+							RType:  model.ResponseTypeRESOLVED,
 						},
 						Start:      time.Now(),
 						DurationMs: 20,
@@ -174,7 +174,7 @@ var _ = Describe("FileWriter", func() {
 						Response: &model.Response{
 							Res:    res,
 							Reason: "Resolved",
-							RType:  model.RESOLVED,
+							RType:  model.ResponseTypeRESOLVED,
 						},
 						Start:      time.Now().AddDate(0, 0, -2),
 						DurationMs: 20,

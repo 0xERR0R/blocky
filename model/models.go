@@ -1,5 +1,6 @@
 package model
 
+//go:generate go-enum -f=$GOFILE --marshal --names
 import (
 	"net"
 	"time"
@@ -8,36 +9,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// ResponseType represents the type of the response
+// ResponseType represents the type of the response ENUM(
+// RESOLVED // the response was resolved by the external upstream resolver
+// CACHED // the response was resolved from cache
+// BLOCKED // the query was blocked
+// CONDITIONAL // the query was resolved by the conditional upstream resolver
+// CUSTOMDNS // the query was resolved by a custom rule
+// )
 type ResponseType int
-
-const (
-	// RESOLVED the response was resolved by the external upstream resolver
-	RESOLVED ResponseType = iota
-
-	// CACHED the response was resolved from cache
-	CACHED
-
-	// BLOCKED the query was blocked
-	BLOCKED
-
-	// CONDITIONAL the query was resolved by the conditional upstream resolver
-	CONDITIONAL
-
-	// CUSTOMDNS the query was resolved by a custom rule
-	CUSTOMDNS
-)
-
-func (r ResponseType) String() string {
-	names := [...]string{
-		"RESOLVED",
-		"CACHED",
-		"BLOCKED",
-		"CONDITIONAL",
-		"CUSTOMDNS"}
-
-	return names[r]
-}
 
 // Response represents the response of a DNS query
 type Response struct {
@@ -46,24 +25,11 @@ type Response struct {
 	RType  ResponseType
 }
 
-// RequestProtocol represents the server protocol
+// RequestProtocol represents the server protocol ENUM(
+// TCP // is the TPC protocol
+// UDP //  is the UDP protocol
+// )
 type RequestProtocol uint8
-
-const (
-	// TCP is the TPC protocol
-	TCP RequestProtocol = iota
-
-	// UDP is the UDP protocol
-	UDP
-)
-
-func (r RequestProtocol) String() string {
-	names := [...]string{
-		"TCP",
-		"UDP"}
-
-	return names[r]
-}
 
 // Request represents client's DNS request
 type Request struct {

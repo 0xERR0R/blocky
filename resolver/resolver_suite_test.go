@@ -10,7 +10,7 @@ import (
 )
 
 func TestResolver(t *testing.T) {
-	ConfigureLogger("Warn", "text", true)
+	ConfigureLogger(LevelFatal, FormatTypeText, true)
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Resolver Suite")
 }

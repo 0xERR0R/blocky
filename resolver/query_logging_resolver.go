@@ -30,13 +30,13 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 	var writer querylog.Writer
 
 	switch cfg.Type {
-	case config.QueryLogTypeCSV:
+	case config.QueryLogTypeCsv:
 		writer = querylog.NewCSVWriter(cfg.Target, false, cfg.LogRetentionDays)
-	case config.QueryLogTypeCSVPerClient:
+	case config.QueryLogTypeCsvClient:
 		writer = querylog.NewCSVWriter(cfg.Target, true, cfg.LogRetentionDays)
-	case config.QueryLogTypeMySQL:
+	case config.QueryLogTypeMysql:
 		writer = querylog.NewDatabaseWriter(cfg.Target, cfg.LogRetentionDays)
-	default:
+	case config.QueryLogTypeNone:
 		writer = querylog.NewLoggerWriter()
 	}
 

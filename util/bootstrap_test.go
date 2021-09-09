@@ -19,7 +19,7 @@ var _ = Describe("Bootstrap resolver configuration", func() {
 		When("BootstrapDns is configured UDP resolver", func() {
 			dialer := Dialer(&config.Config{
 				BootstrapDNS: config.Upstream{
-					Net:  config.NetTCPUDP,
+					Net:  config.NetProtocolTcpUdp,
 					Host: "0.0.0.0",
 					Port: 53,
 				},
@@ -36,7 +36,7 @@ var _ = Describe("Bootstrap resolver configuration", func() {
 				helpertest.ShouldLogFatal(func() {
 					Dialer(&config.Config{
 						BootstrapDNS: config.Upstream{
-							Net:  config.NetHTTPS,
+							Net:  config.NetProtocolHttps,
 							Host: "1.1.1.1",
 							Port: 53,
 						},

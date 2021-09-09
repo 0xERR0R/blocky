@@ -9,7 +9,7 @@ import (
 )
 
 func TestDNSServer(t *testing.T) {
-	ConfigureLogger("Warn", "text", true)
+	ConfigureLogger(LevelFatal, FormatTypeText, true)
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Server Suite")
 }

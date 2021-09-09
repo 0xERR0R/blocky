@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 .PHONY: all clean build swagger test lint run help
 .DEFAULT_GOAL := help
 
@@ -6,6 +8,8 @@ BUILD_TIME=$(shell date '+%Y%m%d-%H%M%S')
 DOCKER_IMAGE_NAME="spx01/blocky"
 BINARY_NAME=blocky
 BIN_OUT_DIR=bin
+
+export PATH=$(shell go env GOPATH)/bin:$(shell echo $$PATH)
 
 all: test lint build ## Build binary (with tests)
 
@@ -23,6 +27,8 @@ serve_docs: ## serves online docs
 	mkdocs serve
 
 build:  ## Build binary
+	go install github.com/abice/go-enum
+	go generate ./...
 	go build -v -ldflags="-w -s -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" -o $(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 
 test:  ## run tests

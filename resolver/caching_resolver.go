@@ -165,12 +165,12 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 					rr.Header().Ttl = remainingTTL
 				}
 
-				return &model.Response{Res: resp, RType: model.CACHED, Reason: "CACHED"}, nil
+				return &model.Response{Res: resp, RType: model.ResponseTypeCACHED, Reason: "CACHED"}, nil
 			}
 			// Answer with response code != OK
 			resp.Rcode = val.(int)
 
-			return &model.Response{Res: resp, RType: model.CACHED, Reason: "CACHED NEGATIVE"}, nil
+			return &model.Response{Res: resp, RType: model.ResponseTypeCACHED, Reason: "CACHED NEGATIVE"}, nil
 		}
 
 		evt.Bus().Publish(evt.CachingResultCacheMiss, domain)

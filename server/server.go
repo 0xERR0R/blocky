@@ -50,7 +50,7 @@ func getServerAddress(addr string) string {
 func NewServer(cfg *config.Config) (server *Server, err error) {
 	address := getServerAddress(cfg.Port)
 
-	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
+	log.ConfigureLogger(log.LevelInfo, cfg.LogFormat, cfg.LogTimestamp)
 
 	udpServer := createUDPServer(address)
 	tcpServer := createTCPServer(address)
@@ -326,10 +326,10 @@ func (s *Server) OnHealthCheck(w dns.ResponseWriter, request *dns.Msg) {
 
 func resolveClientIPAndProtocol(addr net.Addr) (ip net.IP, protocol model.RequestProtocol) {
 	if t, ok := addr.(*net.UDPAddr); ok {
-		return t.IP, model.UDP
+		return t.IP, model.RequestProtocolUDP
 	} else if t, ok := addr.(*net.TCPAddr); ok {
-		return t.IP, model.TCP
+		return t.IP, model.RequestProtocolTCP
 	}
 
-	return nil, model.TCP
+	return nil, model.RequestProtocolUDP
 }

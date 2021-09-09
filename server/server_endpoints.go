@@ -94,7 +94,7 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 		return
 	}
 
-	r := newRequest(net.ParseIP(extractIP(req)), model.TCP, msg)
+	r := newRequest(net.ParseIP(extractIP(req)), model.RequestProtocolTCP, msg)
 
 	resResponse, err := s.queryResolver.Resolve(r)
 

@@ -32,7 +32,7 @@ var _ = Describe("UpstreamResolver", func() {
 				resp, err := sut.Resolve(newRequest("example.com.", dns.TypeA))
 				Expect(err).Should(Succeed())
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-				Expect(resp.RType).Should(Equal(RESOLVED))
+				Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 				Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.122"))
 				Expect(resp.Reason).Should(Equal(fmt.Sprintf("RESOLVED (%s:%d)", upstream.Host, upstream.Port)))
 			})
@@ -50,7 +50,7 @@ var _ = Describe("UpstreamResolver", func() {
 				resp, err := sut.Resolve(newRequest("example.com.", dns.TypeA))
 				Expect(err).Should(Succeed())
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
-				Expect(resp.RType).Should(Equal(RESOLVED))
+				Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 				Expect(resp.Reason).Should(Equal(fmt.Sprintf("RESOLVED (%s:%d)", upstream.Host, upstream.Port)))
 			})
 		})
@@ -92,7 +92,7 @@ var _ = Describe("UpstreamResolver", func() {
 					Expect(err).Should(Succeed())
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.122"))
-					Expect(resp.RType).Should(Equal(RESOLVED))
+					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 				})
 
 				By("3 attempts with timeout -> should return error", func() {
@@ -141,7 +141,7 @@ var _ = Describe("UpstreamResolver", func() {
 				resp, err := sut.Resolve(newRequest("example.com.", dns.TypeA))
 				Expect(err).Should(Succeed())
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-				Expect(resp.RType).Should(Equal(RESOLVED))
+				Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 				Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.122"))
 				Expect(resp.Reason).Should(Equal(fmt.Sprintf("RESOLVED (https://%s:%d)", upstream.Host, upstream.Port)))
 			})
@@ -184,7 +184,7 @@ var _ = Describe("UpstreamResolver", func() {
 		})
 		When("Configured DOH resolver does not respond", func() {
 			JustBeforeEach(func() {
-				sut = NewUpstreamResolver(config.Upstream{Net: "https", Host: "wronghost.example.com"})
+				sut = NewUpstreamResolver(config.Upstream{Net: config.NetProtocolHttps, Host: "wronghost.example.com"})
 			})
 			It("should return error", func() {
 				_, err := sut.Resolve(newRequest("example.com.", dns.TypeA))
@@ -194,7 +194,7 @@ var _ = Describe("UpstreamResolver", func() {
 		})
 		When("Configured DOH resolver receives wrong request", func() {
 			JustBeforeEach(func() {
-				sut = NewUpstreamResolver(config.Upstream{Net: "https", Host: "host"})
+				sut = NewUpstreamResolver(config.Upstream{Net: config.NetProtocolHttps, Host: "host"})
 			})
 			It("should return error", func() {
 				wrongReq := new(dns.Msg)

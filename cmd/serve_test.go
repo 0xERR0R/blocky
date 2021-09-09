@@ -12,7 +12,7 @@ var _ = Describe("Serve command", func() {
 	When("Serve command is called", func() {
 		It("should start DNS server", func() {
 			config.GetConfig().BootstrapDNS = config.Upstream{
-				Net:  "tcp+udp",
+				Net:  config.NetProtocolTcpTls,
 				Host: "1.1.1.1",
 				Port: 53,
 			}

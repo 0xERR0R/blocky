@@ -102,7 +102,6 @@ var _ = Describe("Running DNS server", func() {
 
 			Port:     "55555",
 			HTTPPort: "4000",
-			LogLevel: "info",
 			Prometheus: config.PrometheusConfig{
 				Enable: true,
 				Path:   "/metrics",
@@ -476,7 +475,7 @@ var _ = Describe("Running DNS server", func() {
 				server, err := NewServer(&config.Config{
 					Upstream: config.UpstreamConfig{
 						ExternalResolvers: map[string][]config.Upstream{
-							"default": {config.Upstream{Net: "tcp+udp", Host: "4.4.4.4", Port: 53}}}},
+							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}}}},
 					CustomDNS: config.CustomDNSConfig{
 						Mapping: config.CustomDNSMapping{
 							HostIPs: map[string][]net.IP{
@@ -484,8 +483,7 @@ var _ = Describe("Running DNS server", func() {
 								"lan.home":   {net.ParseIP("192.168.178.56")},
 							},
 						}},
-					Port:     ":55556",
-					LogLevel: "info",
+					Port: ":55556",
 				})
 
 				Expect(err).Should(Succeed())
@@ -523,7 +521,7 @@ var _ = Describe("Running DNS server", func() {
 				server, err := NewServer(&config.Config{
 					Upstream: config.UpstreamConfig{
 						ExternalResolvers: map[string][]config.Upstream{
-							"default": {config.Upstream{Net: "tcp+udp", Host: "4.4.4.4", Port: 53}}}},
+							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}}}},
 					CustomDNS: config.CustomDNSConfig{
 						Mapping: config.CustomDNSMapping{
 							HostIPs: map[string][]net.IP{
@@ -532,8 +530,7 @@ var _ = Describe("Running DNS server", func() {
 							},
 						}},
 
-					Port:     "127.0.0.1:55557",
-					LogLevel: "info",
+					Port: "127.0.0.1:55557",
 				})
 
 				Expect(err).Should(Succeed())
@@ -565,14 +562,14 @@ var _ = Describe("Running DNS server", func() {
 			It("should correct resolve client IP", func() {
 				ip, protocol := resolveClientIPAndProtocol(&net.UDPAddr{IP: net.ParseIP("192.168.178.88")})
 				Expect(ip).Should(Equal(net.ParseIP("192.168.178.88")))
-				Expect(protocol).Should(Equal(model.UDP))
+				Expect(protocol).Should(Equal(model.RequestProtocolUDP))
 			})
 		})
 		Context("TCP address", func() {
 			It("should correct resolve client IP", func() {
 				ip, protocol := resolveClientIPAndProtocol(&net.TCPAddr{IP: net.ParseIP("192.168.178.88")})
 				Expect(ip).Should(Equal(net.ParseIP("192.168.178.88")))
-				Expect(protocol).Should(Equal(model.TCP))
+				Expect(protocol).Should(Equal(model.RequestProtocolTCP))
 			})
 		})
 	})

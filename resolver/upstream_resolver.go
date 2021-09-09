@@ -28,7 +28,7 @@ type UpstreamResolver struct {
 	NextResolver
 	upstreamURL    string
 	upstreamClient upstreamClient
-	net            string
+	net            config.NetProtocol
 }
 
 type upstreamClient interface {
@@ -45,7 +45,7 @@ type httpUpstreamClient struct {
 }
 
 func createUpstreamClient(cfg config.Upstream) (client upstreamClient, upstreamURL string) {
-	if cfg.Net == config.NetHTTPS {
+	if cfg.Net == config.NetProtocolHttps {
 		return &httpUpstreamClient{
 			client: &http.Client{
 				Transport: &http.Transport{
@@ -57,10 +57,10 @@ func createUpstreamClient(cfg config.Upstream) (client upstreamClient, upstreamU
 		}, fmt.Sprintf("%s://%s:%d%s", cfg.Net, cfg.Host, cfg.Port, cfg.Path)
 	}
 
-	if cfg.Net == config.NetTCPTLS {
+	if cfg.Net == config.NetProtocolTcpTls {
 		return &dnsUpstreamClient{
 			tcpClient: &dns.Client{
-				Net:     cfg.Net,
+				Net:     cfg.Net.String(),
 				Timeout: defaultTimeout,
 				Dialer:  util.Dialer(config.GetConfig()),
 			},
@@ -129,7 +129,7 @@ func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
 
 func (r *dnsUpstreamClient) callExternal(msg *dns.Msg,
 	upstreamURL string, protocol model.RequestProtocol) (response *dns.Msg, rtt time.Duration, err error) {
-	if protocol == model.TCP {
+	if protocol == model.RequestProtocolTCP {
 		response, rtt, err = r.tcpClient.Exchange(msg, upstreamURL)
 		if err != nil {
 			// try UDP as fallback

@@ -24,7 +24,7 @@ func newRequest(question string, rType uint16, logger ...*logrus.Entry) *model.R
 	return &model.Request{
 		Req:      util.NewMsgWithQuestion(question, rType),
 		Log:      loggerEntry,
-		Protocol: model.UDP,
+		Protocol: model.RequestProtocolUDP,
 	}
 }
 
@@ -35,7 +35,7 @@ func newRequestWithClient(question string, rType uint16, ip string, clientNames 
 		Req:         util.NewMsgWithQuestion(question, rType),
 		Log:         logrus.NewEntry(log.Log()),
 		RequestTS:   time.Time{},
-		Protocol:    model.UDP,
+		Protocol:    model.RequestProtocolUDP,
 	}
 }
 
