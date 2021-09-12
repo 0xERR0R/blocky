@@ -82,8 +82,8 @@ type BlockingResolver struct {
 // NewBlockingResolver returns a new configured instance of the resolver
 func NewBlockingResolver(cfg config.BlockingConfig) ChainedResolver {
 	blockHandler := createBlockHandler(cfg)
-	blacklistMatcher := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists, cfg.RefreshPeriod)
-	whitelistMatcher := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists, cfg.RefreshPeriod)
+	blacklistMatcher := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists, time.Duration(cfg.RefreshPeriod))
+	whitelistMatcher := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists, time.Duration(cfg.RefreshPeriod))
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
 	res := &BlockingResolver{
@@ -454,11 +454,11 @@ func (b ipBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
 }
 
 func blockTTLFromConfig(cfg config.BlockingConfig) uint32 {
-	if cfg.BlockTimeSec <= 0 {
+	if cfg.BlockTTL <= 0 {
 		return defaultBlockTTL
 	}
 
-	return uint32(cfg.BlockTimeSec)
+	return uint32(time.Duration(cfg.BlockTTL).Seconds())
 }
 
 func blockTypeFromConfig(cfg config.BlockingConfig) string {

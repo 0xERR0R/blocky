@@ -3,6 +3,163 @@
 This chapter describes all configuration options in `config.yaml`. You can download a reference file with all
 configuration properties as [JSON](config.yml).
 
+??? example "reference configuration file"
+```yaml upstream:
+# these external DNS resolvers will be used. Blocky picks 2 random resolvers from the list for each query # format for
+resolver: [net:]host:[port][/path]. net could be empty (default, shortcut for tcp+udp), tcp+udp, tcp, udp, tcp-tls or
+https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))
+# this configuration is mandatory, please define at least one external DNS resolver default:
+- 46.182.19.48 - 80.241.218.68 - tcp-tls:fdns1.dismail.de:853 - https://dns.digitale-gesellschaft.ch/dns-query
+# optional: use client name (with wildcard support: * - sequence of any characters, [0-9] - range)
+# or single ip address / client subnet as CIDR notation laptop*:
+- 123.123.123.123
+
+    # optional: custom IP address(es) for domain name (with all sub-domains). Multiple addresses must be separated by a comma
+    # example: query "printer.lan" or "my.printer.lan" will return 192.168.178.3
+    customDNS:
+      mapping:
+        printer.lan: 192.168.178.3,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
+    
+    # optional: definition, which DNS resolver(s) should be used for queries to the domain (with all sub-domains). Multiple resolvers must be separated by a comma
+    # Example: Query client.fritz.box will ask DNS server 192.168.178.1. This is necessary for local network, to resolve clients by host name
+    conditional:
+      # optional: replace domain in the query with other domain before resover lookup in the mapping
+      rewrite:
+        example.com: fritz.box
+      mapping:
+        fritz.box: udp:192.168.178.1
+        lan.net: udp:192.168.178.1,udp:192.168.178.2
+    
+    # optional: use black and white lists to block queries (for example ads, trackers, adult pages etc.)
+    blocking:
+      # definition of blacklist groups. Can be external link (http/https) or local file
+      blackLists:
+        ads:
+          - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
+          - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+          - https://mirror1.malwaredomains.com/files/justdomains
+          - http://sysctl.org/cameleon/hosts
+          - https://zeustracker.abuse.ch/blocklist.php?download=domainblocklist
+          - https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt
+          - |
+            # inline definition with YAML literal block scalar style
+            # hosts format
+            someadsdomain.com
+        special:
+          - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
+      # definition of whitelist groups. Attention: if the same group has black and whitelists, whitelists will be used to disable particular blacklist entries. If a group has only whitelist entries -> this means only domains from this list are allowed, all other domains will be blocked
+      whiteLists:
+        ads:
+          - whitelist.txt
+          - |
+            # inline definition with YAML literal block scalar style
+            # hosts format
+            whitelistdomain.com
+      # definition: which groups should be applied for which client
+      clientGroupsBlock:
+        # default will be used, if no special definition for a client name exists
+        default:
+          - ads
+          - special
+        # use client name (with wildcard support: * - sequence of any characters, [0-9] - range)
+        # or single ip address / client subnet as CIDR notation
+        laptop*:
+          - ads
+        192.168.178.1/24:
+          - special
+      # which response will be sent, if query is blocked:
+      # zeroIp: 0.0.0.0 will be returned (default)
+      # nxDomain: return NXDOMAIN as return code
+      # comma separated list of destination IP adresses (for example: 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344). Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page.
+      blockType: zeroIp
+      # optional: TTL for answers to blocked domains
+      # default: 6h
+      blockTTL: 1m
+      # optional: automatically list refresh period (in duration format). Default: 4h.
+      # Negative value -> deactivate automatically refresh.
+      # 0 value -> use default
+      refreshPeriod: 4h
+    
+    # optional: configuration for caching of DNS responses
+    caching:
+      # duration how long a response must be cached (min value).
+      # If <=0, use response's TTL, if >0 use this value, if TTL is smaller
+      # Default: 0
+      minTime: 5m
+      # duration how long a response must be cached (max value).
+      # If <0, do not cache responses
+      # If 0, use TTL
+      # If > 0, use this value, if TTL is greater
+      # Default: 0
+      maxTime: -1
+      # Max number of cache entries (responses) to be kept in cache (soft limit). Useful on systems with limited amount of RAM.
+      # Default (0): unlimited
+      maxItemsCount: 0
+      # if true, will preload DNS results for often used queries (default: names queried more than 5 times in a 2 hour time window)
+      # this improves the response time for often used queries, but significantly increases external traffic
+      # default: false
+      prefetching: true
+      # prefetch track time window (in duration format)
+      # default: 120
+      prefetchExpires: 2h
+      # name queries threshold for prefetch
+      # default: 5
+      prefetchThreshold: 5
+      # Max number of domains to be kept in cache for prefetching (soft limit). Useful on systems with limited amount of RAM.
+      # Default (0): unlimited
+      prefetchMaxItemsCount: 0
+    
+    # optional: configuration of client name resolution
+    clientLookup:
+      # optional: this DNS resolver will be used to perform reverse DNS lookup (typically local router)
+      upstream: udp:192.168.178.1
+      # optional: some routers return multiple names for client (host name and user defined name). Define which single name should be used.
+      # Example: take second name if present, if not take first name
+      singleNameOrder:
+        - 2
+        - 1
+      # optional: custom mapping of client name to IP addresses. Useful if reverse DNS does not work properly or just to have custom client names.
+      clients:
+        laptop:
+          - 192.168.178.29
+    # optional: configuration for prometheus metrics endpoint
+    prometheus:
+      # enabled if true
+      enable: true
+      # url path, optional (default '/metrics')
+      path: /metrics
+    
+    # optional: write query information (question, answer, client, duration etc) to daily csv file
+    queryLog:
+      # optional one of: mysql, csv, csv-client. If empty, log to console
+      type: mysql
+      # directory (should be mounted as volume in docker) for csv, db connection string for mysql
+      target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
+      # if > 0, deletes log files which are older than ... days
+      logRetentionDays: 7
+    
+    # optional: DNS listener port and bind ip address, default 53 (UDP and TCP). Example: 53, :53, 127.0.0.1:53
+    port: 53
+    # optional: HTTPS listener port and bind ip address, default empty = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH... Example: 443, :443, 127.0.0.1:443
+    httpPort: 4000
+    #httpsPort: 443
+    # mandatory, if https port > 0: path to cert and key file for SSL encryption
+    #httpsCertFile: server.crt
+    #httpsKeyFile: server.key
+    # optional: use this DNS server to resolve blacklist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp
+    bootstrapDns: tcp:1.1.1.1
+    # optional: Drop all AAAA query if set to true. Default: false
+    disableIPv6: false
+    # optional: Log level (one from debug, info, warn, error). Default: info
+    logLevel: info
+    # optional: Log format (text or json). Default: text
+    logFormat: text
+    # optional: log timestamps. Default: true
+    logTimestamp: true
+    # optional: obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy. Default: false
+    logPrivacy: false
+    ```
+
 ## Basic configuration
 
 | Parameter       | Mandatory | Default value      | Description                                       |
@@ -270,28 +427,29 @@ default** block type. Server returns 0.0.0.0 (or :: for IPv6) as result for A an
 
 ### Block TTL
 
-TTL for answers to blocked domains can be set to customize the time clients ask for those domains again.
-This setting only makes sense when `blockType` is set to `nxDomain` or `zeroIP`, and will affect how much time it could take for a client to be able to see the real IP address for a domain after receiving the custom value.
+TTL for answers to blocked domains can be set to customize the time (in **duration format**) clients ask for those
+domains again. This setting only makes sense when `blockType` is set to `nxDomain` or `zeroIP`, and will affect how much
+time it could take for a client to be able to see the real IP address for a domain after receiving the custom value.
 
 !!! example
 
     ```yaml
     blocking:
       blockType: 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344
-      blockTTL: 10
+      blockTTL: 10s
     ```
 
 ### List refresh period
 
 To keep the list cache up-to-date, blocky will periodically download and reload all external lists. Default period is **
-4 hours**. You can configure this by setting the `blocking.refreshPeriod` parameter to a value in **minutes**. Negative
-value will deactivate automatically refresh.
+4 hours**. You can configure this by setting the `blocking.refreshPeriod` parameter to a value in **duration format**.
+Negative value will deactivate automatically refresh.
 
 !!! example
 
     ```yaml
     blocking:
-      refreshPeriod: 60
+      refreshPeriod: 60m
     ```
 
     Refresh every hour.
@@ -311,11 +469,13 @@ With following parameters you can tune the caching behavior:
 
 | Parameter                     | Mandatory | Default value      | Description                                       |
 | ----------------------------- | --------- | -------------------| ------------------------------------------------- |
-| caching.minTime               | no        | 0 (use TTL)        | Amount in minutes, how long a response must be cached (min value). If <=0, use response's TTL, if >0 use this value, if TTL is smaller |
-| caching.maxTime               | no        | 0 (use TTL)        | Amount in minutes, how long a response must be cached (max value). If <0, do not cache responses. If 0, use TTL. If > 0, use this value, if TTL is greater |
+| caching.minTime               | no        | 0 (use TTL)        | How long (in **duration
+format**) a response must be cached (min value). If <=0, use response's TTL, if >0 use this value, if TTL is smaller |
+| caching.maxTime               | no        | 0 (use TTL)        | How long (in **duration
+format**) a response must be cached (max value). If <0, do not cache responses. If 0, use TTL. If > 0, use this value, if TTL is greater |
 | caching.maxItemsCount         | no        | 0 (unlimited)      | Max number of cache entries (responses) to be kept in cache (soft limit). Default (0): unlimited. Useful on systems with limited amount of RAM. |
 | caching.prefetching           | no        | false              | if true, blocky will preload DNS results for often used queries (default: names queried more than 5 times in a 2 hour time window). Results in cache will be loaded again on their expire (TTL). This improves the response time for often used queries, but significantly increases external traffic. It is recommended to increase "minTime" to reduce the number of prefetch queries to external resolvers. |
-| caching.prefetchExpires       | no        | 120                | Amount in minutes, prefetch track time window
+| caching.prefetchExpires       | no        | 2h                 | Prefetch track time window (in **duration format**)
 | caching.prefetchThreshold     | no        | 5                  | Name queries threshold for prefetch
 | caching.prefetchMaxItemsCount | no        | 0 (unlimited)      | Max number of domains to be kept in cache for prefetching (soft limit). Default (0): unlimited. Useful on systems with limited amount of RAM. |
 
@@ -323,8 +483,8 @@ With following parameters you can tune the caching behavior:
 
     ```yaml
     caching:
-      minTime: 5
-      maxTime: 30
+      minTime: 5m
+      maxTime: 30m
       prefetching: true
     ```
 

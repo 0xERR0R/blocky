@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"time"
 
 	"github.com/0xERR0R/blocky/helpertest"
 
@@ -41,9 +42,11 @@ var _ = Describe("Config", func() {
 				Expect(config.Blocking.BlackLists).Should(HaveLen(2))
 				Expect(config.Blocking.WhiteLists).Should(HaveLen(1))
 				Expect(config.Blocking.ClientGroupsBlock).Should(HaveLen(2))
+				Expect(config.Blocking.BlockTTL).Should(Equal(Duration(time.Minute)))
+				Expect(config.Blocking.RefreshPeriod).Should(Equal(Duration(2 * time.Hour)))
 
-				Expect(config.Caching.MaxCachingTime).Should(Equal(0))
-				Expect(config.Caching.MinCachingTime).Should(Equal(0))
+				Expect(config.Caching.MaxCachingTime).Should(Equal(Duration(0)))
+				Expect(config.Caching.MinCachingTime).Should(Equal(Duration(0)))
 
 				Expect(GetConfig()).Should(Not(BeNil()))
 
@@ -62,6 +65,66 @@ var _ = Describe("Config", func() {
 
 				helpertest.ShouldLogFatal(func() {
 					LoadConfig("config.yml", true)
+				})
+			})
+		})
+		When("duration is in wrong format", func() {
+			It("should log with fatal and exit", func() {
+				cfg := Config{}
+				data :=
+					`blocking:
+  refreshPeriod: wrongduration`
+				helpertest.ShouldLogFatal(func() {
+					unmarshalConfig([]byte(data), cfg)
+				})
+			})
+		})
+		When("CustomDNS hast wrong IP defined", func() {
+			It("should log with fatal and exit", func() {
+				cfg := Config{}
+				data :=
+					`customDNS:
+  mapping:
+    someDomain: 192.168.178.WRONG`
+				helpertest.ShouldLogFatal(func() {
+					unmarshalConfig([]byte(data), cfg)
+				})
+			})
+		})
+		When("Conditional mapping hast wrong defined upstreams", func() {
+			It("should log with fatal and exit", func() {
+				cfg := Config{}
+				data :=
+					`conditional:
+  mapping:
+    multiple.resolvers: udp:192.168.178.1,wongprotocol:4.4.4.4:53`
+				helpertest.ShouldLogFatal(func() {
+					unmarshalConfig([]byte(data), cfg)
+				})
+			})
+		})
+		When("Wrong upstreams are defined", func() {
+			It("should log with fatal and exit", func() {
+				cfg := Config{}
+				data :=
+					`upstream:
+  default:
+    - udp:8.8.8.8
+    - wrongprotocol:8.8.4.4
+    - udp:1.1.1.1`
+				helpertest.ShouldLogFatal(func() {
+					unmarshalConfig([]byte(data), cfg)
+				})
+			})
+		})
+
+		When("config is not YAML", func() {
+			It("should log with fatal and exit", func() {
+				cfg := Config{}
+				data :=
+					`///`
+				helpertest.ShouldLogFatal(func() {
+					unmarshalConfig([]byte(data), cfg)
 				})
 			})
 		})
@@ -94,6 +157,7 @@ var _ = Describe("Config", func() {
 
 			})
 		})
+
 		When("config directory does not exist", func() {
 			It("should log with fatal and exit if config is mandatory", func() {
 				err := os.Chdir("../..")

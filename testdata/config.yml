@@ -31,7 +31,9 @@ blocking:
       - special
     Laptop-D.fritz.box:
       - ads
-    #blockMode: zeroIP
+  blockTTL: 1m
+  # without unit -> use minutes
+  refreshPeriod: 120
 clientLookup:
   upstream: udp:192.168.178.1
   singleNameOrder:

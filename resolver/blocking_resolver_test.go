@@ -246,7 +246,7 @@ badcnamedomain.com`)
 			})
 		})
 
-		When("BlockTimeSec is set", func() {
+		When("BlockTTL is set", func() {
 			BeforeEach(func() {
 				sutConfig = config.BlockingConfig{
 					BlackLists: map[string][]string{
@@ -255,7 +255,7 @@ badcnamedomain.com`)
 					ClientGroupsBlock: map[string][]string{
 						"default": {"defaultGroup"},
 					},
-					BlockTimeSec: 1234,
+					BlockTTL: config.Duration(time.Second * 1234),
 				}
 			})
 

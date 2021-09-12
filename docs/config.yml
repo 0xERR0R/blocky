@@ -70,18 +70,21 @@ blocking:
   # nxDomain: return NXDOMAIN as return code
   # comma separated list of destination IP adresses (for example: 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344). Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page.
   blockType: zeroIp
-  # optional: automatically list refresh period in minutes. Default: 4h.
+  # optional: TTL for answers to blocked domains
+  # default: 6h
+  blockTTL: 1m
+  # optional: automatically list refresh period (in duration format). Default: 4h.
   # Negative value -> deactivate automatically refresh.
   # 0 value -> use default
-  refreshPeriod: 0
+  refreshPeriod: 4h
 
 # optional: configuration for caching of DNS responses
 caching:
-  # amount in minutes, how long a response must be cached (min value).
+  # duration how long a response must be cached (min value).
   # If <=0, use response's TTL, if >0 use this value, if TTL is smaller
   # Default: 0
-  minTime: 5
-  # amount in minutes, how long a response must be cached (max value).
+  minTime: 5m
+  # duration how long a response must be cached (max value).
   # If <0, do not cache responses
   # If 0, use TTL
   # If > 0, use this value, if TTL is greater
@@ -94,9 +97,9 @@ caching:
   # this improves the response time for often used queries, but significantly increases external traffic
   # default: false
   prefetching: true
-  # amount in minutes, prefetch track time window
+  # prefetch track time window (in duration format)
   # default: 120
-  prefetchExpires: 120
+  prefetchExpires: 2h
   # name queries threshold for prefetch
   # default: 5
   prefetchThreshold: 5

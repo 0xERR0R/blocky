@@ -40,8 +40,8 @@ const (
 // NewCachingResolver creates a new resolver instance
 func NewCachingResolver(cfg config.CachingConfig) ChainedResolver {
 	c := &CachingResolver{
-		minCacheTimeSec: 60 * cfg.MinCachingTime,
-		maxCacheTimeSec: 60 * cfg.MaxCachingTime,
+		minCacheTimeSec: int(time.Duration(cfg.MinCachingTime).Seconds()),
+		maxCacheTimeSec: int(time.Duration(cfg.MaxCachingTime).Seconds()),
 		resultCache:     createQueryResultCache(&cfg),
 	}
 
@@ -59,7 +59,7 @@ func createQueryResultCache(cfg *config.CachingConfig) *cache.Cache {
 func configurePrefetching(c *CachingResolver, cfg *config.CachingConfig) {
 	c.prefetchExpires = prefetchingNameCacheExpiration
 	if cfg.PrefetchExpires > 0 {
-		c.prefetchExpires = time.Duration(cfg.PrefetchExpires) * time.Minute
+		c.prefetchExpires = time.Duration(cfg.PrefetchExpires)
 	}
 
 	c.prefetchThreshold = prefetchingNameCountThreshold

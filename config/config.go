@@ -10,9 +10,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/0xERR0R/blocky/log"
-
 	"gopkg.in/yaml.v2"
 )
 
@@ -32,6 +32,8 @@ type NetProtocol uint16
 // csv-client // CSV file per day and client
 // )
 type QueryLogType int16
+
+type Duration time.Duration
 
 const (
 	validUpstream = `(?P<Host>(?:\[[^\]]+\])|[^\s/:]+):?(?P<Port>[^\s/:]*)?(?P<Path>/[^\s]*)?`
@@ -125,6 +127,29 @@ func (c *CustomDNSMapping) UnmarshalYAML(unmarshal func(interface{}) error) erro
 	c.HostIPs = result
 
 	return nil
+}
+
+// UnmarshalYAML creates Duration from YAML. If no unit is used, uses minutes
+func (c *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var input string
+	if err := unmarshal(&input); err != nil {
+		return err
+	}
+
+	if minutes, err := strconv.Atoi(input); err == nil {
+		// duration is defined as number without unit
+		// use minutes to ensure back compatibility
+		*c = Duration(time.Duration(minutes) * time.Minute)
+		return nil
+	}
+
+	duration, err := time.ParseDuration(input)
+	if err == nil {
+		*c = Duration(duration)
+		return nil
+	}
+
+	return err
 }
 
 // ParseUpstream creates new Upstream from passed string in format [net]:host[:port][/path]
@@ -262,8 +287,8 @@ type BlockingConfig struct {
 	WhiteLists        map[string][]string `yaml:"whiteLists"`
 	ClientGroupsBlock map[string][]string `yaml:"clientGroupsBlock"`
 	BlockType         string              `yaml:"blockType"`
-	BlockTimeSec      int                 `yaml:"blockTTL"`
-	RefreshPeriod     int                 `yaml:"refreshPeriod"`
+	BlockTTL          Duration            `yaml:"blockTTL"`
+	RefreshPeriod     Duration            `yaml:"refreshPeriod"`
 }
 
 // ClientLookupConfig configuration for the client lookup
@@ -275,13 +300,13 @@ type ClientLookupConfig struct {
 
 // CachingConfig configuration for domain caching
 type CachingConfig struct {
-	MinCachingTime        int  `yaml:"minTime"`
-	MaxCachingTime        int  `yaml:"maxTime"`
-	MaxItemsCount         int  `yaml:"maxItemsCount"`
-	Prefetching           bool `yaml:"prefetching"`
-	PrefetchExpires       int  `yaml:"prefetchExpires"`
-	PrefetchThreshold     int  `yaml:"prefetchThreshold"`
-	PrefetchMaxItemsCount int  `yaml:"prefetchMaxItemsCount"`
+	MinCachingTime        Duration `yaml:"minTime"`
+	MaxCachingTime        Duration `yaml:"maxTime"`
+	MaxItemsCount         int      `yaml:"maxItemsCount"`
+	Prefetching           bool     `yaml:"prefetching"`
+	PrefetchExpires       Duration `yaml:"prefetchExpires"`
+	PrefetchThreshold     int      `yaml:"prefetchThreshold"`
+	PrefetchMaxItemsCount int      `yaml:"prefetchMaxItemsCount"`
 }
 
 // QueryLogConfig configuration for the query logging
@@ -316,7 +341,11 @@ func LoadConfig(path string, mandatory bool) {
 		log.Log().Fatal("Can't read config file: ", err)
 	}
 
-	err = yaml.UnmarshalStrict(data, &cfg)
+	unmarshalConfig(data, cfg)
+}
+
+func unmarshalConfig(data []byte, cfg Config) {
+	err := yaml.UnmarshalStrict(data, &cfg)
 	if err != nil {
 		log.Log().Fatal("wrong file structure: ", err)
 	}
