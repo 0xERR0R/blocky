@@ -86,7 +86,7 @@ type ListCache struct {
 // Configuration returns current configuration and stats
 func (b *ListCache) Configuration() (result []string) {
 	if b.refreshPeriod > 0 {
-		result = append(result, fmt.Sprintf("refresh period: %d minutes", b.refreshPeriod/time.Minute))
+		result = append(result, fmt.Sprintf("refresh period: %s", b.refreshPeriod))
 	} else {
 		result = append(result, "refresh: disabled")
 	}
@@ -114,10 +114,10 @@ func (b *ListCache) Configuration() (result []string) {
 }
 
 // NewListCache creates new list instance
-func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod int) *ListCache {
+func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration) *ListCache {
 	groupCaches := make(map[string]stringCache)
 
-	p := time.Duration(refreshPeriod) * time.Minute
+	p := refreshPeriod
 	if refreshPeriod == 0 {
 		p = defaultRefreshPeriod
 	}

@@ -49,7 +49,7 @@ var _ = Describe("CachingResolver", func() {
 			BeforeEach(func() {
 				sutConfig = config.CachingConfig{
 					Prefetching:       true,
-					PrefetchExpires:   120,
+					PrefetchExpires:   config.Duration(time.Minute * 120),
 					PrefetchThreshold: 5,
 				}
 			})
@@ -102,7 +102,7 @@ var _ = Describe("CachingResolver", func() {
 		When("min caching time is defined", func() {
 			BeforeEach(func() {
 				sutConfig = config.CachingConfig{
-					MinCachingTime: 5,
+					MinCachingTime: config.Duration(time.Minute * 5),
 				}
 			})
 			Context("response TTL is bigger than defined min caching time", func() {
@@ -232,7 +232,7 @@ var _ = Describe("CachingResolver", func() {
 			Context("max caching time is negative -> caching is disabled", func() {
 				BeforeEach(func() {
 					sutConfig = config.CachingConfig{
-						MaxCachingTime: -1,
+						MaxCachingTime: config.Duration(time.Minute * -1),
 					}
 				})
 
@@ -265,7 +265,7 @@ var _ = Describe("CachingResolver", func() {
 			Context("max caching time is positive", func() {
 				BeforeEach(func() {
 					sutConfig = config.CachingConfig{
-						MaxCachingTime: 4,
+						MaxCachingTime: config.Duration(time.Minute * 4),
 					}
 				})
 				It("should cache response and use max caching time as TTL if response TTL is bigger", func() {
@@ -369,7 +369,7 @@ var _ = Describe("CachingResolver", func() {
 		When("resolver is disabled", func() {
 			BeforeEach(func() {
 				sutConfig = config.CachingConfig{
-					MaxCachingTime: -1,
+					MaxCachingTime: config.Duration(time.Minute * -1),
 				}
 			})
 			It("should return 'disabled''", func() {
