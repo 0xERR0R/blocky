@@ -50,7 +50,7 @@ func getServerAddress(addr string) string {
 func NewServer(cfg *config.Config) (server *Server, err error) {
 	address := getServerAddress(cfg.Port)
 
-	log.ConfigureLogger(log.LevelInfo, cfg.LogFormat, cfg.LogTimestamp)
+	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
 	udpServer := createUDPServer(address)
 	tcpServer := createTCPServer(address)

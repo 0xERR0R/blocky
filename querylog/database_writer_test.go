@@ -22,7 +22,7 @@ var _ = Describe("DatabaseWriter", func() {
 		When("New log entry was created", func() {
 			It("should be persisted in the database", func() {
 				sqlite := sqlite.Open("file::memory:")
-				writer := newDatabaseWriter(sqlite, 7)
+				writer := newDatabaseWriter(sqlite, 7, 1)
 				request := &model.Request{
 					Req: util.NewMsgWithQuestion("google.de.", dns.TypeA),
 					Log: logrus.NewEntry(logrus.New()),
@@ -41,6 +41,7 @@ var _ = Describe("DatabaseWriter", func() {
 					Start:      time.Now(),
 					DurationMs: 20,
 				})
+				time.Sleep(500 * time.Millisecond)
 
 				result := writer.db.Find(&logEntry{})
 
@@ -55,7 +56,7 @@ var _ = Describe("DatabaseWriter", func() {
 		When("There are log entries with timestamp exceeding the retention period", func() {
 			It("these old entries should be deleted", func() {
 				sqlite := sqlite.Open("file::memory:")
-				writer := newDatabaseWriter(sqlite, 1)
+				writer := newDatabaseWriter(sqlite, 1, 1)
 				request := &model.Request{
 					Req: util.NewMsgWithQuestion("google.de.", dns.TypeA),
 					Log: logrus.NewEntry(logrus.New()),
@@ -87,6 +88,8 @@ var _ = Describe("DatabaseWriter", func() {
 
 				result := writer.db.Find(&logEntry{})
 
+				time.Sleep(500 * time.Millisecond)
+
 				var cnt int64
 				result.Count(&cnt)
 
@@ -106,7 +109,7 @@ var _ = Describe("DatabaseWriter", func() {
 		When("connection parameters wrong", func() {
 			It("should be log with fatal", func() {
 				helpertest.ShouldLogFatal(func() {
-					NewDatabaseWriter("wrong param", 7)
+					NewDatabaseWriter("wrong param", 7, 1)
 				})
 
 			})

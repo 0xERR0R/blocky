@@ -15,8 +15,7 @@ const (
 	logChanCap                 = 1000
 )
 
-// QueryLoggingResolver writes query information (question, answer, duration, ...) into
-// log file or as log entry (if log directory is not configured)
+// QueryLoggingResolver writes query information (question, answer, duration, ...)
 type QueryLoggingResolver struct {
 	NextResolver
 	target           string
@@ -35,7 +34,7 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 	case config.QueryLogTypeCsvClient:
 		writer = querylog.NewCSVWriter(cfg.Target, true, cfg.LogRetentionDays)
 	case config.QueryLogTypeMysql:
-		writer = querylog.NewDatabaseWriter(cfg.Target, cfg.LogRetentionDays)
+		writer = querylog.NewDatabaseWriter(cfg.Target, cfg.LogRetentionDays, 30*time.Second)
 	case config.QueryLogTypeNone:
 		writer = querylog.NewLoggerWriter()
 	}
