@@ -27,7 +27,7 @@ serve_docs: ## serves online docs
 	mkdocs serve
 
 build:  ## Build binary
-	go get -d github.com/abice/go-enum
+	go install github.com/abice/go-enum@v0.3.8
 	go generate ./...
 	go build -v -ldflags="-w -s -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" -o $(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 
