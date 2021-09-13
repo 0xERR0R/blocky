@@ -46,12 +46,11 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
 
 - **Integration** - :notebook_with_decorative_cover: various integration
 
-    * [Prometheus](https://prometheus.io/) metrics
-    * Prepared [Grafana](https://grafana.com/) dashboard
-    * Logging of DNS queries per day / per client in CSV format - easy to analyze
-    * Statistics report via CLI
-    * Various REST API endpoints
-    * CLI tool
+  * [Prometheus](https://prometheus.io/) metrics
+  * Prepared [Grafana](https://grafana.com/) dashboards (Prometheus and database)
+  * Logging of DNS queries per day / per client in CSV format or MySQL/MariaDB database - easy to analyze
+  * Various REST API endpoints
+  * CLI tool
 
 - **Simple configuration** - :baby: single configuration file in YAML format
 
