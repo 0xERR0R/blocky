@@ -288,6 +288,7 @@ type BlockingConfig struct {
 	ClientGroupsBlock map[string][]string `yaml:"clientGroupsBlock"`
 	BlockType         string              `yaml:"blockType"`
 	BlockTTL          Duration            `yaml:"blockTTL"`
+	DownloadTimeout   Duration            `yaml:"downloadTimeout"`
 	RefreshPeriod     Duration            `yaml:"refreshPeriod"`
 }
 

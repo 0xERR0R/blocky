@@ -22,7 +22,8 @@ import (
 )
 
 const (
-	defaultRefreshPeriod = 4 * time.Hour
+	defaultRefreshPeriod   = 4 * time.Hour
+	defaultDownloadTimeout = 60 * time.Second
 )
 
 // ListCacheType represents the type of cached list ENUM(
@@ -30,9 +31,6 @@ const (
 // whitelist // is a list with whitelisted domains / IPs
 // )
 type ListCacheType int
-
-// nolint:gochecknoglobals
-var timeout = 60 * time.Second
 
 type stringCache map[int]string
 
@@ -78,9 +76,10 @@ type ListCache struct {
 	groupCaches map[string]stringCache
 	lock        sync.RWMutex
 
-	groupToLinks  map[string][]string
-	refreshPeriod time.Duration
-	listType      ListCacheType
+	groupToLinks    map[string][]string
+	refreshPeriod   time.Duration
+	downloadTimeout time.Duration
+	listType        ListCacheType
 }
 
 // Configuration returns current configuration and stats
@@ -114,8 +113,14 @@ func (b *ListCache) Configuration() (result []string) {
 }
 
 // NewListCache creates new list instance
-func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration) *ListCache {
+func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration,
+	downloadTimeout time.Duration) *ListCache {
 	groupCaches := make(map[string]stringCache)
+
+	timeout := downloadTimeout
+	if downloadTimeout == 0 {
+		timeout = defaultDownloadTimeout
+	}
 
 	p := refreshPeriod
 	if refreshPeriod == 0 {
@@ -123,10 +128,11 @@ func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeri
 	}
 
 	b := &ListCache{
-		groupToLinks:  groupToLinks,
-		groupCaches:   groupCaches,
-		refreshPeriod: p,
-		listType:      t,
+		groupToLinks:    groupToLinks,
+		groupCaches:     groupCaches,
+		refreshPeriod:   p,
+		downloadTimeout: timeout,
+		listType:        t,
 	}
 	b.Refresh()
 
@@ -153,7 +159,7 @@ func logger() *logrus.Entry {
 }
 
 // downloads and reads files with domain names and creates cache for them
-func createCacheForGroup(links []string) stringCache {
+func (b *ListCache) createCacheForGroup(links []string) stringCache {
 	cache := make(stringCache)
 
 	keys := make(map[string]struct{})
@@ -165,7 +171,7 @@ func createCacheForGroup(links []string) stringCache {
 	for _, link := range links {
 		wg.Add(1)
 
-		go processFile(link, c, &wg)
+		go b.processFile(link, c, &wg)
 	}
 
 	wg.Wait()
@@ -223,7 +229,7 @@ func (b *ListCache) Match(domain string, groupsToCheck []string) (found bool, gr
 // Refresh triggers the refresh of a list
 func (b *ListCache) Refresh() {
 	for group, links := range b.groupToLinks {
-		cacheForGroup := createCacheForGroup(links)
+		cacheForGroup := b.createCacheForGroup(links)
 
 		if cacheForGroup != nil {
 			b.lock.Lock()
@@ -242,9 +248,9 @@ func (b *ListCache) Refresh() {
 	}
 }
 
-func downloadFile(link string) (io.ReadCloser, error) {
+func (b *ListCache) downloadFile(link string) (io.ReadCloser, error) {
 	client := http.Client{
-		Timeout: timeout,
+		Timeout: b.downloadTimeout,
 	}
 
 	var resp *http.Response
@@ -289,7 +295,7 @@ func readFile(file string) (io.ReadCloser, error) {
 }
 
 // downloads file (or reads local file) and writes file content as string array in the channel
-func processFile(link string, ch chan<- []string, wg *sync.WaitGroup) {
+func (b *ListCache) processFile(link string, ch chan<- []string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	result := make([]string, 0)
@@ -304,7 +310,7 @@ func processFile(link string, ch chan<- []string, wg *sync.WaitGroup) {
 		r = io.NopCloser(strings.NewReader(link))
 	// link is http(s) -> download it
 	case strings.HasPrefix(link, "http"):
-		r, err = downloadFile(link)
+		r, err = b.downloadFile(link)
 	// probably path to a local file
 	default:
 		r, err = readFile(link)
