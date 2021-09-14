@@ -146,4 +146,8 @@ See [https://pkgs.alpinelinux.org/package/edge/testing/x86/blocky](https://pkgs.
 
 See [https://github.com/m0zgen/blocky-installer](https://github.com/m0zgen/blocky-installer)
 
+### Package for FreeBSD
+
+See [https://www.freebsd.org/cgi/ports.cgi?query=blocky&stype=all](https://www.freebsd.org/cgi/ports.cgi?query=blocky&stype=all)
+
 --8<-- "docs/includes/abbreviations.md"
