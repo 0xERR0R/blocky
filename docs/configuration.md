@@ -301,6 +301,17 @@ Negative value will deactivate automatically refresh.
 
     Refresh every hour.
 
+### Download timeout
+
+You can override the default download timeout (**duration format**) of 60 seconds (for each URL) for big lists or slow
+internet connection:
+!!! example
+
+    ```yaml
+    blocking:
+     downloadTimeout: 4m
+    ```
+
 ## Caching
 
 Each DNS response has a TTL (Time-to-live) value. This value defines, how long is the record valid in seconds. The

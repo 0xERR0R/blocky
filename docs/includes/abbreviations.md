@@ -22,5 +22,4 @@
 *[CSV]: Comma-separated values
 *[SAMBA]: Server Message Block Protocol (Windows Network File System)
 *[DHCP]: Dynamic Host Configuration Protocol
-*[duration format]: Example: "300ms", "1.5h" or "2h45m". Valid time units are "ns", "us", "ms", "s", "m", "h". Number
-without unit treats as minutes.
+*[duration format]: Example: "300ms", "1.5h" or "2h45m". Valid time units are "ns", "us", "ms", "s", "m", "h".

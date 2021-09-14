@@ -82,8 +82,10 @@ type BlockingResolver struct {
 // NewBlockingResolver returns a new configured instance of the resolver
 func NewBlockingResolver(cfg config.BlockingConfig) ChainedResolver {
 	blockHandler := createBlockHandler(cfg)
-	blacklistMatcher := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists, time.Duration(cfg.RefreshPeriod))
-	whitelistMatcher := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists, time.Duration(cfg.RefreshPeriod))
+	refreshPeriod := time.Duration(cfg.RefreshPeriod)
+	timeout := time.Duration(cfg.DownloadTimeout)
+	blacklistMatcher := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists, refreshPeriod, timeout)
+	whitelistMatcher := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists, refreshPeriod, timeout)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
 	res := &BlockingResolver{

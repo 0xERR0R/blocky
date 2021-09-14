@@ -77,6 +77,8 @@ blocking:
   # Negative value -> deactivate automatically refresh.
   # 0 value -> use default
   refreshPeriod: 4h
+  # optional: timeout for list download (each url). Default: 60s. Use large values for big lists or slow internet connections
+  downloadTimeout: 4m
 
 # optional: configuration for caching of DNS responses
 caching:
