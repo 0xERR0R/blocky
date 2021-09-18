@@ -9,15 +9,12 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/log"
-	"github.com/0xERR0R/blocky/util"
-
 	"github.com/sirupsen/logrus"
 )
 
@@ -32,36 +29,6 @@ const (
 // )
 type ListCacheType int
 
-type stringCache map[int]string
-
-func (cache stringCache) elementCount() int {
-	count := 0
-
-	for k, v := range cache {
-		count += len(v) / k
-	}
-
-	return count
-}
-
-func (cache stringCache) contains(searchString string) bool {
-	searchLen := len(searchString)
-	if searchLen == 0 {
-		return false
-	}
-
-	searchBucketLen := len(cache[searchLen]) / searchLen
-	idx := sort.Search(searchBucketLen, func(i int) bool {
-		return cache[searchLen][i*searchLen:i*searchLen+searchLen] >= searchString
-	})
-
-	if idx < searchBucketLen {
-		return cache[searchLen][idx*searchLen:idx*searchLen+searchLen] == strings.ToLower(searchString)
-	}
-
-	return false
-}
-
 // Matcher checks if a domain is in a list
 type Matcher interface {
 	// Match matches passed domain name against cached list entries
@@ -73,7 +40,7 @@ type Matcher interface {
 
 // ListCache generic cache of strings divided in groups
 type ListCache struct {
-	groupCaches map[string]stringCache
+	groupCaches map[string]cache
 	lock        sync.RWMutex
 
 	groupToLinks    map[string][]string
@@ -115,7 +82,7 @@ func (b *ListCache) Configuration() (result []string) {
 // NewListCache creates new list instance
 func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration,
 	downloadTimeout time.Duration) *ListCache {
-	groupCaches := make(map[string]stringCache)
+	groupCaches := make(map[string]cache)
 
 	timeout := downloadTimeout
 	if downloadTimeout == 0 {
@@ -159,15 +126,12 @@ func logger() *logrus.Entry {
 }
 
 // downloads and reads files with domain names and creates cache for them
-func (b *ListCache) createCacheForGroup(links []string) stringCache {
-	cache := make(stringCache)
-
-	keys := make(map[string]struct{})
-
+func (b *ListCache) createCacheForGroup(links []string) cache {
 	var wg sync.WaitGroup
 
 	c := make(chan []string, len(links))
 
+	// loop over links (http/local) or inline definitions
 	for _, link := range links {
 		wg.Add(1)
 
@@ -176,7 +140,7 @@ func (b *ListCache) createCacheForGroup(links []string) stringCache {
 
 	wg.Wait()
 
-	tmp := make(map[int]*strings.Builder)
+	factory := newChainedCacheFactory()
 
 Loop:
 	for {
@@ -186,13 +150,7 @@ Loop:
 				return nil
 			}
 			for _, entry := range res {
-				if _, value := keys[entry]; !value {
-					keys[entry] = struct{}{}
-					if tmp[len(entry)] == nil {
-						tmp[len(entry)] = &strings.Builder{}
-					}
-					tmp[len(entry)].WriteString(entry)
-				}
+				factory.addEntry(entry)
 			}
 		default:
 			close(c)
@@ -200,16 +158,7 @@ Loop:
 		}
 	}
 
-	for k, v := range tmp {
-		chunks := util.Chunks(v.String(), k)
-		sort.Strings(chunks)
-
-		cache[k] = strings.Join(chunks, "")
-
-		v.Reset()
-	}
-
-	return cache
+	return factory.create()
 }
 
 // Match matches passed domain name against cached list entries
@@ -218,7 +167,7 @@ func (b *ListCache) Match(domain string, groupsToCheck []string) (found bool, gr
 	defer b.lock.RUnlock()
 
 	for _, g := range groupsToCheck {
-		if b.groupCaches[g].contains(domain) {
+		if c, ok := b.groupCaches[g]; ok && c.contains(domain) {
 			return true, g
 		}
 	}

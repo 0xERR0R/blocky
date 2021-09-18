@@ -12,6 +12,7 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
 
     * Definition of black and white lists per client group (Kids, Smart home devices, etc.)
     * Periodical reload of external black and white lists
+    * Regex support
     * Blocking of request domain, response CNAME (deep CNAME inspection) and response IP addresses (against IP lists)
 
 - **Advanced DNS configuration** - :nerd: not just an ad-blocker
