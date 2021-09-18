@@ -19,7 +19,6 @@ var _ = Describe("ListCache", func() {
 		emptyFile, file1, file2, file3 *os.File
 		server1, server2, server3      *httptest.Server
 	)
-
 	BeforeEach(func() {
 		emptyFile = TempFile("#empty file\n\n")
 		server1 = TestServer("blocked1.com\nblocked1a.com\n192.168.178.55")
@@ -255,6 +254,23 @@ var _ = Describe("ListCache", func() {
 				Expect(group).Should(Equal("gr1"))
 
 				found, group = sut.Match("inlinedomain1.com", []string{"gr1"})
+				Expect(found).Should(BeTrue())
+				Expect(group).Should(Equal("gr1"))
+			})
+		})
+		When("inline regex content is defined", func() {
+			It("should match", func() {
+				lists := map[string][]string{
+					"gr1": {"/^apple\\.(de|com)$/\n"},
+				}
+
+				sut := NewListCache(ListCacheTypeBlacklist, lists, 0, 0)
+
+				found, group := sut.Match("apple.com", []string{"gr1"})
+				Expect(found).Should(BeTrue())
+				Expect(group).Should(Equal("gr1"))
+
+				found, group = sut.Match("apple.de", []string{"gr1"})
 				Expect(found).Should(BeTrue())
 				Expect(group).Should(Equal("gr1"))
 			})

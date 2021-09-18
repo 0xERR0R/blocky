@@ -176,7 +176,8 @@ contains a map of client name and multiple IP addresses.
 
 Blocky can download and use external lists with domains or IP addresses to block DNS query (e.g. advertisement, malware,
 trackers, adult sites). You can group several list sources together and define the blocking behavior per client.
-External blacklists must be in the well-known [Hosts format](https://en.wikipedia.org/wiki/Hosts_(file)).
+External blacklists must be either in the well-known [Hosts format](https://en.wikipedia.org/wiki/Hosts_(file)) or just
+a plain domain list (one domain per line). Blocky also supports regex as more powerful tool to define patterns to block.
 
 Blocky uses [DNS sinkhole](https://en.wikipedia.org/wiki/DNS_sinkhole) approach to block a DNS query. Domain name from
 the request, IP address from the response, and the CNAME record will be checked against configured blacklists.
@@ -200,6 +201,8 @@ in hosts format (YAML literal block scalar style). All Urls must be grouped to a
             # inline definition with YAML literal block scalar style
             someadsdomain.com
             anotheradsdomain.com
+            # this is a regex
+            /^banners?[_.-]/
         special:
           - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
       whiteLists:
@@ -217,6 +220,15 @@ in hosts format (YAML literal block scalar style). All Urls must be grouped to a
     If the same group has black and whitelists, whitelists will be used to disable particular blacklist entries.
     If a group has **only** whitelist entries -> this means only domains from this list are allowed, all other domains will
     be blocked
+
+#### Regex support
+
+You can use regex to define patterns to block. A regex entry must start and end with the slash character (/). Some
+Examples:
+
+- `/baddomain/` will block `www.baddomain.com`, `baddomain.com`, but also `mybaddomain-sometext.com`
+- `/^baddomain/` will block `baddomain.com`, but not `www.baddomain.com`
+- `/^apple\.(de|com)$/` will only block `apple.de` and `apple.com`
 
 ### Client groups
 
