@@ -55,7 +55,12 @@ func (b *ListCache) Configuration() (result []string) {
 	result = append(result, "group links:")
 	for group, links := range b.groupToLinks {
 		result = append(result, fmt.Sprintf("  %s:", group))
+
 		for _, link := range links {
+			if strings.Contains(link, "\n") {
+				link = "[INLINE DEFINITION]"
+			}
+
 			result = append(result, fmt.Sprintf("   - %s", link))
 		}
 	}
@@ -71,7 +76,7 @@ func (b *ListCache) Configuration() (result []string) {
 
 	result = append(result, fmt.Sprintf("  TOTAL: %d entries", total))
 
-	return
+	return result
 }
 
 // NewListCache creates new list instance

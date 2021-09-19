@@ -281,12 +281,13 @@ var _ = Describe("ListCache", func() {
 			It("should print list configuration", func() {
 				lists := map[string][]string{
 					"gr1": {server1.URL, server2.URL},
+					"gr2": {"inline\ndefinition\n"},
 				}
 
 				sut := NewListCache(ListCacheTypeBlacklist, lists, 0, 0)
 
 				c := sut.Configuration()
-				Expect(c).Should(HaveLen(8))
+				Expect(c).Should(HaveLen(11))
 			})
 		})
 		When("refresh is disabled", func() {
