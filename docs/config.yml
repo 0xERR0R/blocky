@@ -12,6 +12,9 @@ upstream:
   laptop*:
     - 123.123.123.123
 
+# optional: timeout to query the upstream resolver. Default: 2s
+upstreamTimeout: 2s
+
 # optional: custom IP address(es) for domain name (with all sub-domains). Multiple addresses must be separated by a comma
 # example: query "printer.lan" or "my.printer.lan" will return 192.168.178.3
 customDNS:
@@ -21,7 +24,7 @@ customDNS:
 # optional: definition, which DNS resolver(s) should be used for queries to the domain (with all sub-domains). Multiple resolvers must be separated by a comma
 # Example: Query client.fritz.box will ask DNS server 192.168.178.1. This is necessary for local network, to resolve clients by host name
 conditional:
-  # optional: replace domain in the query with other domain before resover lookup in the mapping
+  # optional: replace domain in the query with other domain before resolver lookup in the mapping
   rewrite:
     example.com: fritz.box
   mapping:
@@ -70,7 +73,7 @@ blocking:
   # which response will be sent, if query is blocked:
   # zeroIp: 0.0.0.0 will be returned (default)
   # nxDomain: return NXDOMAIN as return code
-  # comma separated list of destination IP adresses (for example: 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344). Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page.
+  # comma separated list of destination IP addresses (for example: 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344). Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page.
   blockType: zeroIp
   # optional: TTL for answers to blocked domains
   # default: 6h
@@ -97,7 +100,7 @@ caching:
   # Max number of cache entries (responses) to be kept in cache (soft limit). Useful on systems with limited amount of RAM.
   # Default (0): unlimited
   maxItemsCount: 0
-  # if true, will preload DNS results for often used queries (default: names queried more than 5 times in a 2 hour time window)
+  # if true, will preload DNS results for often used queries (default: names queried more than 5 times in a 2-hour time window)
   # this improves the response time for often used queries, but significantly increases external traffic
   # default: false
   prefetching: true
@@ -131,7 +134,7 @@ prometheus:
   # url path, optional (default '/metrics')
   path: /metrics
 
-# optional: write query information (question, answer, client, duration etc) to daily csv file
+# optional: write query information (question, answer, client, duration etc.) to daily csv file
 queryLog:
   # optional one of: mysql, csv, csv-client. If empty, log to console
   type: mysql

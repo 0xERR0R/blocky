@@ -51,11 +51,11 @@ following network protocols (net part of the resolver URL):
 
 Each resolver must be defined as a string in following format: `[net:]host:[port][/path]`.
 
-| Parameter | Type | Mandatory | Value | Default value | | --------- | -------------------------------- |
--------------------------------------------------------- | ------------------------------------------------- | | net |
-enum (tcp+udp, tcp-tls or https) | no | network protocol | tcp+udp | | host | IP or hostname | yes | full qualified
-domain name or ip address | | | port | int (1 - 65535)                  | no | number < 65535 | 53 for udp/tcp, 853 for
-tcp-tls and 443 for https |
+| Parameter | Type                             | Mandatory | Default value | 
+| --------- | -------------------------------- | --------- | ------------- |
+| net       | enum (tcp+udp, tcp-tls or https) | no        | tcp+udp | 
+| host      | IP or hostname                   | yes       | | 
+| port      | int (1 - 65535)                  | no        | 53 for udp/tcp, 853 for tcp-tls and 443 for https |
 
 Blocky needs at least the configuration of the **default** group. This group will be used as a fallback, if no client
 specific resolver configuration is available.
@@ -92,6 +92,21 @@ CIDR notation.
 
 See [List of public DNS servers](additional_information.md#list-of-public-dns-servers) if you need some ideas, which
 public free DNS server you could use.
+
+### Upstream lookup timeout
+
+Blocky will wait 2 seconds (default value) for the response from the external upstream DNS server. You can change this
+value by setting the `upstreamTimeout` configuration parameter (in **duration format**).
+
+!!! example
+
+    ```yaml
+    upstream:
+      default:
+        - 46.182.19.48
+        - 80.241.218.68
+    upstreamTimeout: 5s
+    ```
 
 ## Custom DNS
 

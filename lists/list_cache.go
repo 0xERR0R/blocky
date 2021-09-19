@@ -18,11 +18,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const (
-	defaultRefreshPeriod   = 4 * time.Hour
-	defaultDownloadTimeout = 60 * time.Second
-)
-
 // ListCacheType represents the type of cached list ENUM(
 // blacklist // is a list with blocked domains
 // whitelist // is a list with whitelisted domains / IPs
@@ -84,21 +79,11 @@ func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeri
 	downloadTimeout time.Duration) *ListCache {
 	groupCaches := make(map[string]cache)
 
-	timeout := downloadTimeout
-	if downloadTimeout == 0 {
-		timeout = defaultDownloadTimeout
-	}
-
-	p := refreshPeriod
-	if refreshPeriod == 0 {
-		p = defaultRefreshPeriod
-	}
-
 	b := &ListCache{
 		groupToLinks:    groupToLinks,
 		groupCaches:     groupCaches,
-		refreshPeriod:   p,
-		downloadTimeout: timeout,
+		refreshPeriod:   refreshPeriod,
+		downloadTimeout: downloadTimeout,
 		listType:        t,
 	}
 	b.Refresh()
