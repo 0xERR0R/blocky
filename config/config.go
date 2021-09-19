@@ -221,32 +221,36 @@ func extractNet(upstream string) (NetProtocol, string) {
 }
 
 const (
-	cfgDefaultPort           = "53"
-	cfgDefaultPrometheusPath = "/metrics"
+	cfgDefaultPort            = "53"
+	cfgDefaultPrometheusPath  = "/metrics"
+	cfgDefaultUpstreamTimeout = Duration(2 * time.Second)
+	cfgDefaultRefreshPeriod   = Duration(4 * time.Hour)
+	cfgDefaultDownloadTimeout = Duration(60 * time.Second)
 )
 
 // Config main configuration
 // nolint:maligned
 type Config struct {
-	Upstream     UpstreamConfig            `yaml:"upstream"`
-	CustomDNS    CustomDNSConfig           `yaml:"customDNS"`
-	Conditional  ConditionalUpstreamConfig `yaml:"conditional"`
-	Blocking     BlockingConfig            `yaml:"blocking"`
-	ClientLookup ClientLookupConfig        `yaml:"clientLookup"`
-	Caching      CachingConfig             `yaml:"caching"`
-	QueryLog     QueryLogConfig            `yaml:"queryLog"`
-	Prometheus   PrometheusConfig          `yaml:"prometheus"`
-	LogLevel     log.Level                 `yaml:"logLevel"`
-	LogFormat    log.FormatType            `yaml:"logFormat"`
-	LogPrivacy   bool                      `yaml:"logPrivacy"`
-	LogTimestamp bool                      `yaml:"logTimestamp"`
-	Port         string                    `yaml:"port"`
-	HTTPPort     string                    `yaml:"httpPort"`
-	HTTPSPort    string                    `yaml:"httpsPort"`
-	DisableIPv6  bool                      `yaml:"disableIPv6"`
-	CertFile     string                    `yaml:"httpsCertFile"`
-	KeyFile      string                    `yaml:"httpsKeyFile"`
-	BootstrapDNS Upstream                  `yaml:"bootstrapDns"`
+	Upstream        UpstreamConfig            `yaml:"upstream"`
+	UpstreamTimeout Duration                  `yaml:"upstreamTimeout"`
+	CustomDNS       CustomDNSConfig           `yaml:"customDNS"`
+	Conditional     ConditionalUpstreamConfig `yaml:"conditional"`
+	Blocking        BlockingConfig            `yaml:"blocking"`
+	ClientLookup    ClientLookupConfig        `yaml:"clientLookup"`
+	Caching         CachingConfig             `yaml:"caching"`
+	QueryLog        QueryLogConfig            `yaml:"queryLog"`
+	Prometheus      PrometheusConfig          `yaml:"prometheus"`
+	LogLevel        log.Level                 `yaml:"logLevel"`
+	LogFormat       log.FormatType            `yaml:"logFormat"`
+	LogPrivacy      bool                      `yaml:"logPrivacy"`
+	LogTimestamp    bool                      `yaml:"logTimestamp"`
+	Port            string                    `yaml:"port"`
+	HTTPPort        string                    `yaml:"httpPort"`
+	HTTPSPort       string                    `yaml:"httpsPort"`
+	DisableIPv6     bool                      `yaml:"disableIPv6"`
+	CertFile        string                    `yaml:"httpsCertFile"`
+	KeyFile         string                    `yaml:"httpsKeyFile"`
+	BootstrapDNS    Upstream                  `yaml:"bootstrapDns"`
 }
 
 // PrometheusConfig contains the config values for prometheus
@@ -383,4 +387,7 @@ func setDefaultValues(cfg *Config) {
 	cfg.Port = cfgDefaultPort
 	cfg.LogTimestamp = true
 	cfg.Prometheus.Path = cfgDefaultPrometheusPath
+	cfg.UpstreamTimeout = cfgDefaultUpstreamTimeout
+	cfg.Blocking.RefreshPeriod = cfgDefaultRefreshPeriod
+	cfg.Blocking.DownloadTimeout = cfgDefaultDownloadTimeout
 }

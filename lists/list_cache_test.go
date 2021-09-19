@@ -111,7 +111,7 @@ var _ = Describe("ListCache", func() {
 					"gr1": {s.URL, emptyFile.Name()},
 				}
 
-				sut := NewListCache(ListCacheTypeBlacklist, lists, 0, 100*time.Millisecond)
+				sut := NewListCache(ListCacheTypeBlacklist, lists, 4*time.Hour, 100*time.Millisecond)
 				time.Sleep(time.Second)
 				By("Lists loaded without timeout", func() {
 					found, group := sut.Match("blocked1.com", []string{"gr1"})

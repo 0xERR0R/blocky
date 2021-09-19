@@ -19,7 +19,6 @@ import (
 )
 
 const (
-	defaultTimeout = 2 * time.Second
 	dnsContentType = "application/dns-message"
 )
 
@@ -52,7 +51,7 @@ func createUpstreamClient(cfg config.Upstream) (client upstreamClient, upstreamU
 					Dial:                (util.Dialer(config.GetConfig())).Dial,
 					TLSHandshakeTimeout: 5 * time.Second,
 				},
-				Timeout: defaultTimeout,
+				Timeout: time.Duration(config.GetConfig().UpstreamTimeout),
 			},
 		}, fmt.Sprintf("%s://%s:%d%s", cfg.Net, cfg.Host, cfg.Port, cfg.Path)
 	}
@@ -61,7 +60,7 @@ func createUpstreamClient(cfg config.Upstream) (client upstreamClient, upstreamU
 		return &dnsUpstreamClient{
 			tcpClient: &dns.Client{
 				Net:     cfg.Net.String(),
-				Timeout: defaultTimeout,
+				Timeout: time.Duration(config.GetConfig().UpstreamTimeout),
 				Dialer:  util.Dialer(config.GetConfig()),
 			},
 		}, net.JoinHostPort(cfg.Host, strconv.Itoa(int(cfg.Port)))
@@ -71,12 +70,12 @@ func createUpstreamClient(cfg config.Upstream) (client upstreamClient, upstreamU
 	return &dnsUpstreamClient{
 		tcpClient: &dns.Client{
 			Net:     "tcp",
-			Timeout: defaultTimeout,
+			Timeout: time.Duration(config.GetConfig().UpstreamTimeout),
 			Dialer:  util.Dialer(config.GetConfig()),
 		},
 		udpClient: &dns.Client{
 			Net:     "udp",
-			Timeout: defaultTimeout,
+			Timeout: time.Duration(config.GetConfig().UpstreamTimeout),
 			Dialer:  util.Dialer(config.GetConfig()),
 		},
 	}, net.JoinHostPort(cfg.Host, strconv.Itoa(int(cfg.Port)))
