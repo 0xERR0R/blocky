@@ -1,13 +1,14 @@
 package cmd
 
 import (
-	"blocky/config"
-	"blocky/log"
-	"blocky/util"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/spf13/cobra"
 )
@@ -15,7 +16,6 @@ import (
 //nolint:gochecknoglobals
 var (
 	configPath string
-	cfg        config.Config
 	apiHost    string
 	apiPort    uint16
 )
@@ -58,11 +58,11 @@ func init() {
 }
 
 func initConfig() {
-	cfg = config.NewConfig(configPath, false)
-	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
+	config.LoadConfig(configPath, false)
+	log.ConfigureLogger(config.GetConfig().LogLevel, config.GetConfig().LogFormat, config.GetConfig().LogTimestamp)
 
-	if cfg.HTTPPort != "" {
-		split := strings.Split(cfg.HTTPPort, ":")
+	if config.GetConfig().HTTPPort != "" {
+		split := strings.Split(config.GetConfig().HTTPPort, ":")
 
 		var p uint64
 		p, err := strconv.ParseUint(strings.TrimSpace(split[len(split)-1]), 10, 16)

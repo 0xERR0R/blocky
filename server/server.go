@@ -1,20 +1,21 @@
 package server
 
 import (
-	"blocky/api"
-	"blocky/config"
-	"blocky/log"
-	"blocky/metrics"
-	"blocky/resolver"
+	"fmt"
+	"net"
 	"net/http"
 	"runtime"
 	"runtime/debug"
 	"strings"
 	"time"
 
-	"blocky/util"
-	"fmt"
-	"net"
+	"github.com/0xERR0R/blocky/api"
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/metrics"
+	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/resolver"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/go-chi/chi"
 	"github.com/miekg/dns"
@@ -141,7 +142,6 @@ func createQueryResolver(cfg *config.Config) resolver.Resolver {
 		resolver.NewIPv6Checker(cfg.DisableIPv6),
 		resolver.NewClientNamesResolver(cfg.ClientLookup),
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
-		resolver.NewStatsResolver(),
 		resolver.NewMetricsResolver(cfg.Prometheus),
 		resolver.NewCustomDNSResolver(cfg.CustomDNS),
 		resolver.NewBlockingResolver(cfg.Blocking),
@@ -251,14 +251,14 @@ func (s *Server) Stop() {
 	}
 }
 
-func createResolverRequest(remoteAddress net.Addr, request *dns.Msg) *resolver.Request {
+func createResolverRequest(remoteAddress net.Addr, request *dns.Msg) *model.Request {
 	clientIP, protocol := resolveClientIPAndProtocol(remoteAddress)
 
 	return newRequest(clientIP, protocol, request)
 }
 
-func newRequest(clientIP net.IP, protocol resolver.RequestProtocol, request *dns.Msg) *resolver.Request {
-	return &resolver.Request{
+func newRequest(clientIP net.IP, protocol model.RequestProtocol, request *dns.Msg) *model.Request {
+	return &model.Request{
 		ClientIP:  clientIP,
 		Protocol:  protocol,
 		Req:       request,
@@ -323,12 +323,12 @@ func (s *Server) OnHealthCheck(w dns.ResponseWriter, request *dns.Msg) {
 	util.LogOnError("can't write message: ", err)
 }
 
-func resolveClientIPAndProtocol(addr net.Addr) (ip net.IP, protocol resolver.RequestProtocol) {
+func resolveClientIPAndProtocol(addr net.Addr) (ip net.IP, protocol model.RequestProtocol) {
 	if t, ok := addr.(*net.UDPAddr); ok {
-		return t.IP, resolver.UDP
+		return t.IP, model.RequestProtocolUDP
 	} else if t, ok := addr.(*net.TCPAddr); ok {
-		return t.IP, resolver.TCP
+		return t.IP, model.RequestProtocolTCP
 	}
 
-	return nil, resolver.TCP
+	return nil, model.RequestProtocolUDP
 }

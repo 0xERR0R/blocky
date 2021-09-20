@@ -1,5 +1,7 @@
 package log
 
+//go:generate go-enum -f=$GOFILE --marshal --names
+
 import (
 	"github.com/sirupsen/logrus"
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
@@ -9,19 +11,27 @@ import (
 // nolint:gochecknoglobals
 var logger *logrus.Logger
 
-const (
-	// CfgLogFormatText logging as text
-	CfgLogFormatText = "text"
+// FormatType format for logging ENUM(
+// text // logging as text
+// json // JSON format
+// )
+type FormatType int
 
-	// CfgLogFormatJSON as JSON
-	CfgLogFormatJSON = "json"
-)
+// Level log level ENUM(
+// info
+// trace
+// debug
+// warn
+// error
+// fatal
+// )
+type Level int
 
 // nolint:gochecknoinits
 func init() {
 	logger = logrus.New()
 
-	ConfigureLogger("info", "text", true)
+	ConfigureLogger(LevelInfo, FormatTypeText, true)
 }
 
 // Log returns the global logger
@@ -35,18 +45,15 @@ func PrefixedLog(prefix string) *logrus.Entry {
 }
 
 // ConfigureLogger applies configuration to the global logger
-func ConfigureLogger(logLevel, logFormat string, logTimestamp bool) {
-	if len(logLevel) == 0 {
-		logLevel = "info"
-	}
-
-	if level, err := logrus.ParseLevel(logLevel); err != nil {
+func ConfigureLogger(logLevel Level, formatType FormatType, logTimestamp bool) {
+	if level, err := logrus.ParseLevel(logLevel.String()); err != nil {
 		logger.Fatalf("invalid log level %s %v", logLevel, err)
 	} else {
 		logger.SetLevel(level)
 	}
 
-	if logFormat == CfgLogFormatText {
+	switch formatType {
+	case FormatTypeText:
 		logFormatter := &prefixed.TextFormatter{
 			TimestampFormat:  "2006-01-02 15:04:05",
 			FullTimestamp:    true,
@@ -61,9 +68,8 @@ func ConfigureLogger(logLevel, logFormat string, logTimestamp bool) {
 		})
 
 		logger.SetFormatter(logFormatter)
-	}
 
-	if logFormat == CfgLogFormatJSON {
+	case FormatTypeJson:
 		logger.SetFormatter(&logrus.JSONFormatter{})
 	}
 }

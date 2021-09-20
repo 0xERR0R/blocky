@@ -1,7 +1,9 @@
 package resolver
 
 import (
-	"blocky/util"
+	"github.com/0xERR0R/blocky/util"
+
+	. "github.com/0xERR0R/blocky/model"
 
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo"
@@ -9,9 +11,9 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-var _ = Describe("IPv6Checker", func() {
+var _ = Describe("IPv6DisablingResolver", func() {
 	var (
-		sut         *IPv6Checker
+		sut         *IPv6DisablingResolver
 		m           *resolverMock
 		mockAnswer  *dns.Msg
 		disableIPv6 *bool
@@ -20,7 +22,7 @@ var _ = Describe("IPv6Checker", func() {
 
 	JustBeforeEach(func() {
 		mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1230, dns.TypeAAAA, "2001:0db8:85a3:08d3:1319:8a2e:0370:7344")
-		sut = NewIPv6Checker(*disableIPv6).(*IPv6Checker)
+		sut = NewIPv6Checker(*disableIPv6).(*IPv6DisablingResolver)
 		m = &resolverMock{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer, Reason: "reason"}, nil)
 		sut.Next(m)

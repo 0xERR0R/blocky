@@ -1,12 +1,14 @@
 package resolver
 
 import (
-	"blocky/config"
-	"blocky/util"
 	"fmt"
 	"math"
 	"strings"
 	"time"
+
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/mroth/weightedrand"
 	"github.com/sirupsen/logrus"
@@ -29,7 +31,7 @@ type upstreamResolverStatus struct {
 }
 
 type requestResponse struct {
-	response *Response
+	response *model.Response
 	err      error
 }
 
@@ -94,7 +96,7 @@ func (r ParallelBestResolver) String() string {
 	return fmt.Sprintf("parallel upstreams '%s'", strings.Join(result, "; "))
 }
 
-func (r *ParallelBestResolver) resolversForClient(request *Request) (result []*upstreamResolverStatus) {
+func (r *ParallelBestResolver) resolversForClient(request *model.Request) (result []*upstreamResolverStatus) {
 	// try client names
 	for _, cName := range request.ClientNames {
 		for clientDefinition, upstreams := range r.resolversPerClient {
@@ -127,7 +129,7 @@ func (r *ParallelBestResolver) resolversForClient(request *Request) (result []*u
 }
 
 // Resolve sends the query request to multiple upstream resolvers and returns the fastest result
-func (r *ParallelBestResolver) Resolve(request *Request) (*Response, error) {
+func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response, error) {
 	logger := request.Log.WithField("prefix", parallelResolverLogger)
 
 	resolvers := r.resolversForClient(request)
@@ -205,7 +207,7 @@ func weightedRandom(in []*upstreamResolverStatus, exclude Resolver) *upstreamRes
 	return c.Pick().(*upstreamResolverStatus)
 }
 
-func resolve(req *Request, resolver *upstreamResolverStatus, ch chan<- requestResponse) {
+func resolve(req *model.Request, resolver *upstreamResolverStatus, ch chan<- requestResponse) {
 	resp, err := resolver.resolver.Resolve(req)
 
 	// update the last error time

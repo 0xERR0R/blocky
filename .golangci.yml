@@ -11,7 +11,7 @@ linters:
     - deadcode
     - typecheck
     - bodyclose
-    - golint
+    - revive
     - stylecheck
     - gosec
     - unconvert
@@ -38,6 +38,7 @@ linters:
     - exportloopref
   disable:
     - noctx
+    - scopelint
 
   disable-all: false
   presets:

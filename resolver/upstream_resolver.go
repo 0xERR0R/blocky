@@ -1,8 +1,6 @@
 package resolver
 
 import (
-	"blocky/config"
-	"blocky/util"
 	"bytes"
 	"errors"
 	"fmt"
@@ -12,12 +10,15 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
+
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 )
 
 const (
-	defaultTimeout = 2 * time.Second
 	dnsContentType = "application/dns-message"
 )
 
@@ -26,12 +27,12 @@ type UpstreamResolver struct {
 	NextResolver
 	upstreamURL    string
 	upstreamClient upstreamClient
-	net            string
+	net            config.NetProtocol
 }
 
 type upstreamClient interface {
 	callExternal(msg *dns.Msg, upstreamURL string,
-		protocol RequestProtocol) (response *dns.Msg, rtt time.Duration, err error)
+		protocol model.RequestProtocol) (response *dns.Msg, rtt time.Duration, err error)
 }
 
 type dnsUpstreamClient struct {
@@ -43,19 +44,24 @@ type httpUpstreamClient struct {
 }
 
 func createUpstreamClient(cfg config.Upstream) (client upstreamClient, upstreamURL string) {
-	if cfg.Net == config.NetHTTPS {
+	if cfg.Net == config.NetProtocolHttps {
 		return &httpUpstreamClient{
 			client: &http.Client{
-				Timeout: defaultTimeout,
+				Transport: &http.Transport{
+					Dial:                (util.Dialer(config.GetConfig())).Dial,
+					TLSHandshakeTimeout: 5 * time.Second,
+				},
+				Timeout: time.Duration(config.GetConfig().UpstreamTimeout),
 			},
 		}, fmt.Sprintf("%s://%s:%d%s", cfg.Net, cfg.Host, cfg.Port, cfg.Path)
 	}
 
-	if cfg.Net == config.NetTCPTLS {
+	if cfg.Net == config.NetProtocolTcpTls {
 		return &dnsUpstreamClient{
 			tcpClient: &dns.Client{
-				Net:     cfg.Net,
-				Timeout: defaultTimeout,
+				Net:     cfg.Net.String(),
+				Timeout: time.Duration(config.GetConfig().UpstreamTimeout),
+				Dialer:  util.Dialer(config.GetConfig()),
 			},
 		}, net.JoinHostPort(cfg.Host, strconv.Itoa(int(cfg.Port)))
 	}
@@ -64,17 +70,19 @@ func createUpstreamClient(cfg config.Upstream) (client upstreamClient, upstreamU
 	return &dnsUpstreamClient{
 		tcpClient: &dns.Client{
 			Net:     "tcp",
-			Timeout: defaultTimeout,
+			Timeout: time.Duration(config.GetConfig().UpstreamTimeout),
+			Dialer:  util.Dialer(config.GetConfig()),
 		},
 		udpClient: &dns.Client{
 			Net:     "udp",
-			Timeout: defaultTimeout,
+			Timeout: time.Duration(config.GetConfig().UpstreamTimeout),
+			Dialer:  util.Dialer(config.GetConfig()),
 		},
 	}, net.JoinHostPort(cfg.Host, strconv.Itoa(int(cfg.Port)))
 }
 
 func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
-	upstreamURL string, _ RequestProtocol) (*dns.Msg, time.Duration, error) {
+	upstreamURL string, _ model.RequestProtocol) (*dns.Msg, time.Duration, error) {
 	start := time.Now()
 
 	rawDNSMessage, err := msg.Pack()
@@ -119,8 +127,8 @@ func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
 }
 
 func (r *dnsUpstreamClient) callExternal(msg *dns.Msg,
-	upstreamURL string, protocol RequestProtocol) (response *dns.Msg, rtt time.Duration, err error) {
-	if protocol == TCP {
+	upstreamURL string, protocol model.RequestProtocol) (response *dns.Msg, rtt time.Duration, err error) {
+	if protocol == model.RequestProtocolTCP {
 		response, rtt, err = r.tcpClient.Exchange(msg, upstreamURL)
 		if err != nil {
 			// try UDP as fallback
@@ -162,7 +170,7 @@ func (r UpstreamResolver) String() string {
 }
 
 // Resolve calls external resolver
-func (r *UpstreamResolver) Resolve(request *Request) (response *Response, err error) {
+func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Response, err error) {
 	logger := withPrefix(request.Log, "upstream_resolver")
 
 	attempt := 1
@@ -182,7 +190,7 @@ func (r *UpstreamResolver) Resolve(request *Request) (response *Response, err er
 				"response_time_ms": rtt.Milliseconds(),
 			}).Debugf("received response from upstream")
 
-			return &Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.upstreamURL)}, nil
+			return &model.Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.upstreamURL)}, nil
 		}
 
 		var netErr net.Error

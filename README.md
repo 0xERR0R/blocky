@@ -9,6 +9,7 @@
 [![Codacy grade](https://img.shields.io/codacy/grade/8fcd8f8420b8419c808c47af58ed9282 "Codacy grade")](#)
 [![Go Report Card](https://goreportcard.com/badge/github.com/0xERR0R/blocky)](https://goreportcard.com/report/github.com/0xERR0R/blocky)
 [![Total alerts](https://img.shields.io/lgtm/alerts/g/0xERR0R/blocky.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/0xERR0R/blocky/alerts/)
+[![Donation](https://img.shields.io/badge/buy%20me%20a%20coffee-donate-blueviolet.svg)](https://ko-fi.com/0xerr0r)
 
 <p align="center">
   <img height="200" src="https://github.com/0xERR0R/blocky/blob/master/docs/blocky.svg">
@@ -24,6 +25,7 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
 
     * Definition of black and white lists per client group (Kids, Smart home devices, etc.)
     * Periodical reload of external black and white lists
+    * Regex support
     * Blocking of request domain, response CNAME (deep CNAME inspection) and response IP addresses (against IP lists)
 
 - **Advanced DNS configuration** - not just an ad-blocker
@@ -57,12 +59,11 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
 
 - **Integration** - various integration
 
-    * [Prometheus](https://prometheus.io/) metrics
-    * Prepared [Grafana](https://grafana.com/) dashboard
-    * Logging of DNS queries per day / per client in CSV format - easy to analyze
-    * Statistics report via CLI
-    * Various REST API endpoints
-    * CLI tool
+  * [Prometheus](https://prometheus.io/) metrics
+  * Prepared [Grafana](https://grafana.com/) dashboards (Prometheus and database)
+  * Logging of DNS queries per day / per client in CSV format or MySQL/MariaDB database - easy to analyze
+  * Various REST API endpoints
+  * CLI tool
 
 - **Simple configuration** - single configuration file in YAML format
 
@@ -89,3 +90,5 @@ at: [https://0xERR0R.github.io/blocky/](https://0xERR0R.github.io/blocky/)
 ## Contribution
 
 Issues, feature suggestions and pull requests are welcome!
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/G2G25XZQG)

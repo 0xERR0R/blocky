@@ -1,13 +1,14 @@
 package resolver
 
 import (
-	"blocky/config"
-	. "blocky/helpertest"
-	. "blocky/log"
-	"blocky/util"
 	"strings"
 	"time"
 
+	"github.com/0xERR0R/blocky/config"
+	. "github.com/0xERR0R/blocky/helpertest"
+	. "github.com/0xERR0R/blocky/log"
+	. "github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -59,7 +60,7 @@ var _ = Describe("ParallelBestResolver", func() {
 					Expect(err).Should(Succeed())
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(resp.RType).Should(Equal(RESOLVED))
+					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.122"))
 				})
 			})
@@ -83,7 +84,7 @@ var _ = Describe("ParallelBestResolver", func() {
 					Expect(err).Should(Succeed())
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(resp.RType).Should(Equal(RESOLVED))
+					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.123"))
 				})
 			})
@@ -151,7 +152,7 @@ var _ = Describe("ParallelBestResolver", func() {
 					resp, err = sut.Resolve(request)
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(resp.RType).Should(Equal(RESOLVED))
+					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.122"))
 				})
 				It("Should use client specific resolver if client name matches exact", func() {
@@ -159,7 +160,7 @@ var _ = Describe("ParallelBestResolver", func() {
 					resp, err = sut.Resolve(request)
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(resp.RType).Should(Equal(RESOLVED))
+					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.123"))
 				})
 				It("Should use client specific resolver if client name matches with wildcard", func() {
@@ -167,7 +168,7 @@ var _ = Describe("ParallelBestResolver", func() {
 					resp, err = sut.Resolve(request)
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(resp.RType).Should(Equal(RESOLVED))
+					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.124"))
 				})
 				It("Should use client specific resolver if client name matches with range wildcard", func() {
@@ -175,7 +176,7 @@ var _ = Describe("ParallelBestResolver", func() {
 					resp, err = sut.Resolve(request)
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(resp.RType).Should(Equal(RESOLVED))
+					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.124"))
 				})
 				It("Should use client specific resolver if client IP matches", func() {
@@ -183,7 +184,7 @@ var _ = Describe("ParallelBestResolver", func() {
 					resp, err = sut.Resolve(request)
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(resp.RType).Should(Equal(RESOLVED))
+					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.125"))
 				})
 				It("Should use client specific resolver if client's CIDR (10.43.8.64 - 10.43.8.79) matches", func() {
@@ -191,7 +192,7 @@ var _ = Describe("ParallelBestResolver", func() {
 					resp, err = sut.Resolve(request)
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(resp.RType).Should(Equal(RESOLVED))
+					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.126"))
 				})
 			})
@@ -211,7 +212,7 @@ var _ = Describe("ParallelBestResolver", func() {
 				resp, err = sut.Resolve(request)
 
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-				Expect(resp.RType).Should(Equal(RESOLVED))
+				Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 				Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.122"))
 			})
 		})

@@ -1,12 +1,12 @@
 package metrics
 
 import (
-	"blocky/evt"
-	"blocky/lists"
-	"blocky/util"
+	"fmt"
 	"time"
 
-	"fmt"
+	"github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/lists"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -64,9 +64,9 @@ func registerBlockingEventListeners() {
 	subscribe(evt.BlockingCacheGroupChanged, func(listType lists.ListCacheType, groupName string, cnt int) {
 		lastListGroupRefresh.Set(float64(time.Now().Unix()))
 		switch listType {
-		case lists.BLACKLIST:
+		case lists.ListCacheTypeBlacklist:
 			blacklistCnt.WithLabelValues(groupName).Set(float64(cnt))
-		case lists.WHITELIST:
+		case lists.ListCacheTypeWhitelist:
 			whitelistCnt.WithLabelValues(groupName).Set(float64(cnt))
 		}
 	})

@@ -1,11 +1,13 @@
 package resolver
 
 import (
-	"blocky/config"
-	"blocky/metrics"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/metrics"
+	"github.com/0xERR0R/blocky/model"
 
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
@@ -22,13 +24,22 @@ type MetricsResolver struct {
 }
 
 // Resolve resolves the passed request
-func (m *MetricsResolver) Resolve(request *Request) (*Response, error) {
+func (m *MetricsResolver) Resolve(request *model.Request) (*model.Response, error) {
 	response, err := m.next.Resolve(request)
 
 	if m.cfg.Enable {
 		m.totalQueries.With(prometheus.Labels{
 			"client": strings.Join(request.ClientNames, ","),
 			"type":   dns.TypeToString[request.Req.Question[0].Qtype]}).Inc()
+
+		reqDurationMs := float64(time.Since(request.RequestTS).Milliseconds())
+		responseType := "err"
+
+		if response != nil {
+			responseType = response.RType.String()
+		}
+
+		m.durationHistogram.WithLabelValues(responseType).Observe(reqDurationMs)
 
 		if err != nil {
 			m.totalErrors.Inc()
@@ -37,8 +48,6 @@ func (m *MetricsResolver) Resolve(request *Request) (*Response, error) {
 				"reason":        response.Reason,
 				"response_code": dns.RcodeToString[response.Res.Rcode],
 				"response_type": response.RType.String()}).Inc()
-			reqDurationMs := float64(time.Since(request.RequestTS).Milliseconds())
-			m.durationHistogram.WithLabelValues(response.RType.String()).Observe(reqDurationMs)
 		}
 	}
 

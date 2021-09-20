@@ -1,14 +1,17 @@
 package resolver
 
 import (
-	"blocky/config"
-	"blocky/util"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
+
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/util"
+
+	"github.com/0xERR0R/blocky/model"
 
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/mock"
@@ -23,9 +26,9 @@ func (r *resolverMock) Configuration() (result []string) {
 	return
 }
 
-func (r *resolverMock) Resolve(req *Request) (*Response, error) {
+func (r *resolverMock) Resolve(req *model.Request) (*model.Response, error) {
 	args := r.Called(req)
-	resp, ok := args.Get(0).(*Response)
+	resp, ok := args.Get(0).(*model.Response)
 
 	if ok {
 		return resp, args.Error((1))
@@ -121,5 +124,5 @@ func TestUDPUpstream(fn func(request *dns.Msg) (response *dns.Msg)) config.Upstr
 		}
 	}()
 
-	return config.Upstream{Net: "tcp+udp", Host: host, Port: port}
+	return config.Upstream{Net: config.NetProtocolTcpUdp, Host: host, Port: port}
 }

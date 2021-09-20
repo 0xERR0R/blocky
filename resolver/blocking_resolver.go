@@ -1,31 +1,37 @@
 package resolver
 
 import (
-	"blocky/api"
-	"blocky/config"
-	"blocky/evt"
-	"blocky/lists"
-	"blocky/util"
 	"fmt"
 	"net"
 	"sort"
 	"strings"
 	"time"
 
-	"blocky/log"
+	"github.com/0xERR0R/blocky/api"
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/lists"
+	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 )
 
 func createBlockHandler(cfg config.BlockingConfig) blockHandler {
-	cfgBlockType := strings.TrimSpace(strings.ToUpper(cfg.BlockType))
-	if cfgBlockType == "" || cfgBlockType == "ZEROIP" {
-		return zeroIPBlockHandler{}
-	}
+	cfgBlockType := blockTypeFromConfig(cfg)
 
 	if cfgBlockType == "NXDOMAIN" {
 		return nxDomainBlockHandler{}
+	}
+
+	blockTime := blockTTLFromConfig(cfg)
+
+	if cfgBlockType == "ZEROIP" {
+		return zeroIPBlockHandler{
+			BlockTimeSec: blockTime,
+		}
 	}
 
 	var ips []net.IP
@@ -38,14 +44,19 @@ func createBlockHandler(cfg config.BlockingConfig) blockHandler {
 
 	if len(ips) > 0 {
 		return ipBlockHandler{
-			destinations:    ips,
-			fallbackHandler: zeroIPBlockHandler{},
+			destinations: ips,
+			BlockTimeSec: blockTime,
+			fallbackHandler: zeroIPBlockHandler{
+				BlockTimeSec: blockTime,
+			},
 		}
 	}
 
 	log.Log().Fatalf("unknown blockType, please use one of: ZeroIP, NxDomain or specify destination IP address(es)")
 
-	return zeroIPBlockHandler{}
+	return zeroIPBlockHandler{
+		BlockTimeSec: blockTime,
+	}
 }
 
 type status struct {
@@ -71,8 +82,10 @@ type BlockingResolver struct {
 // NewBlockingResolver returns a new configured instance of the resolver
 func NewBlockingResolver(cfg config.BlockingConfig) ChainedResolver {
 	blockHandler := createBlockHandler(cfg)
-	blacklistMatcher := lists.NewListCache(lists.BLACKLIST, cfg.BlackLists, cfg.RefreshPeriod)
-	whitelistMatcher := lists.NewListCache(lists.WHITELIST, cfg.WhiteLists, cfg.RefreshPeriod)
+	refreshPeriod := time.Duration(cfg.RefreshPeriod)
+	timeout := time.Duration(cfg.DownloadTimeout)
+	blacklistMatcher := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists, refreshPeriod, timeout)
+	whitelistMatcher := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists, refreshPeriod, timeout)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
 	res := &BlockingResolver{
@@ -192,7 +205,7 @@ func determineWhitelistOnlyGroups(cfg *config.BlockingConfig) (result map[string
 
 // sets answer and/or return code for DNS response, if request should be blocked
 func (r *BlockingResolver) handleBlocked(logger *logrus.Entry,
-	request *Request, question dns.Question, reason string) (*Response, error) {
+	request *model.Request, question dns.Question, reason string) (*model.Response, error) {
 	response := new(dns.Msg)
 	response.SetReply(request.Req)
 
@@ -200,7 +213,7 @@ func (r *BlockingResolver) handleBlocked(logger *logrus.Entry,
 
 	logger.Debugf("blocking request '%s'", reason)
 
-	return &Response{Res: response, RType: BLOCKED, Reason: reason}, nil
+	return &model.Response{Res: response, RType: model.ResponseTypeBLOCKED, Reason: reason}, nil
 }
 
 // Configuration returns the current resolver configuration
@@ -211,7 +224,13 @@ func (r *BlockingResolver) Configuration() (result []string) {
 			result = append(result, fmt.Sprintf("  %s = \"%s\"", key, strings.Join(val, ";")))
 		}
 
-		result = append(result, fmt.Sprintf("blockType = \"%s\"", r.cfg.BlockType))
+		blockType := blockTypeFromConfig(r.cfg)
+		result = append(result, fmt.Sprintf("blockType = \"%s\"", blockType))
+
+		if blockType != "NXDOMAIN" {
+			blockTime := blockTTLFromConfig(r.cfg)
+			result = append(result, fmt.Sprintf("blockTTL = %d", blockTime))
+		}
 
 		result = append(result, "blacklist:")
 		for _, c := range r.blacklistMatcher.Configuration() {
@@ -240,7 +259,7 @@ func (r *BlockingResolver) hasWhiteListOnlyAllowed(groupsToCheck []string) bool 
 }
 
 func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
-	request *Request, logger *logrus.Entry) (*Response, error) {
+	request *model.Request, logger *logrus.Entry) (*model.Response, error) {
 	logger.WithField("groupsToCheck", strings.Join(groupsToCheck, "; ")).Debug("checking groups for request")
 	whitelistOnlyAllowed := r.hasWhiteListOnlyAllowed(groupsToCheck)
 
@@ -266,7 +285,7 @@ func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
 }
 
 // Resolve checks the query against the blacklist and delegates to next resolver if domain is not blocked
-func (r *BlockingResolver) Resolve(request *Request) (*Response, error) {
+func (r *BlockingResolver) Resolve(request *model.Request) (*model.Response, error) {
 	logger := withPrefix(request.Log, "blacklist_resolver")
 	groupsToCheck := r.groupsToCheckForClient(request)
 
@@ -324,7 +343,7 @@ func (r *BlockingResolver) isGroupDisabled(group string) bool {
 }
 
 // returns groups which should be checked for client's request
-func (r *BlockingResolver) groupsToCheckForClient(request *Request) []string {
+func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []string {
 	var groups []string
 	// try client names
 	for _, cName := range request.ClientNames {
@@ -379,13 +398,15 @@ func (r *BlockingResolver) matches(groupsToCheck []string, m lists.Matcher,
 	return false, ""
 }
 
-const blockTTL = 6 * 60 * 60
+const defaultBlockTTL = 6 * 60 * 60
+const defaultBlockType = "ZEROIP"
 
 type blockHandler interface {
 	handleBlock(question dns.Question, response *dns.Msg)
 }
 
 type zeroIPBlockHandler struct {
+	BlockTimeSec uint32
 }
 
 type nxDomainBlockHandler struct {
@@ -394,6 +415,7 @@ type nxDomainBlockHandler struct {
 type ipBlockHandler struct {
 	destinations    []net.IP
 	fallbackHandler blockHandler
+	BlockTimeSec    uint32
 }
 
 func (b zeroIPBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
@@ -409,7 +431,7 @@ func (b zeroIPBlockHandler) handleBlock(question dns.Question, response *dns.Msg
 		return
 	}
 
-	rr, _ := util.CreateAnswerFromQuestion(question, zeroIP, blockTTL)
+	rr, _ := util.CreateAnswerFromQuestion(question, zeroIP, b.BlockTimeSec)
 
 	response.Answer = append(response.Answer, rr)
 }
@@ -420,7 +442,7 @@ func (b nxDomainBlockHandler) handleBlock(_ dns.Question, response *dns.Msg) {
 
 func (b ipBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
 	for _, ip := range b.destinations {
-		answer, _ := util.CreateAnswerFromQuestion(question, ip, blockTTL)
+		answer, _ := util.CreateAnswerFromQuestion(question, ip, b.BlockTimeSec)
 
 		if (question.Qtype == dns.TypeAAAA && ip.To4() == nil) || (question.Qtype == dns.TypeA && ip.To4() != nil) {
 			response.Answer = append(response.Answer, answer)
@@ -431,4 +453,20 @@ func (b ipBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
 		// use fallback
 		b.fallbackHandler.handleBlock(question, response)
 	}
+}
+
+func blockTTLFromConfig(cfg config.BlockingConfig) uint32 {
+	if cfg.BlockTTL <= 0 {
+		return defaultBlockTTL
+	}
+
+	return uint32(time.Duration(cfg.BlockTTL).Seconds())
+}
+
+func blockTypeFromConfig(cfg config.BlockingConfig) string {
+	if cfgBlockType := strings.TrimSpace(strings.ToUpper(cfg.BlockType)); cfgBlockType != "" {
+		return cfgBlockType
+	}
+
+	return defaultBlockType
 }

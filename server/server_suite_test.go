@@ -1,15 +1,15 @@
 package server
 
 import (
-	. "blocky/log"
 	"testing"
 
+	. "github.com/0xERR0R/blocky/log"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 func TestDNSServer(t *testing.T) {
-	ConfigureLogger("Warn", "text", true)
+	ConfigureLogger(LevelFatal, FormatTypeText, true)
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Server Suite")
 }

@@ -12,6 +12,9 @@ upstream:
   laptop*:
     - 123.123.123.123
 
+# optional: timeout to query the upstream resolver. Default: 2s
+upstreamTimeout: 2s
+
 # optional: custom IP address(es) for domain name (with all sub-domains). Multiple addresses must be separated by a comma
 # example: query "printer.lan" or "my.printer.lan" will return 192.168.178.3
 customDNS:
@@ -21,7 +24,7 @@ customDNS:
 # optional: definition, which DNS resolver(s) should be used for queries to the domain (with all sub-domains). Multiple resolvers must be separated by a comma
 # Example: Query client.fritz.box will ask DNS server 192.168.178.1. This is necessary for local network, to resolve clients by host name
 conditional:
-  # optional: replace domain in the query with other domain before resover lookup in the mapping
+  # optional: replace domain in the query with other domain before resolver lookup in the mapping
   rewrite:
     example.com: fritz.box
   mapping:
@@ -39,12 +42,22 @@ blocking:
       - http://sysctl.org/cameleon/hosts
       - https://zeustracker.abuse.ch/blocklist.php?download=domainblocklist
       - https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt
+      - |
+        # inline definition with YAML literal block scalar style
+        # hosts format
+        someadsdomain.com
     special:
       - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
   # definition of whitelist groups. Attention: if the same group has black and whitelists, whitelists will be used to disable particular blacklist entries. If a group has only whitelist entries -> this means only domains from this list are allowed, all other domains will be blocked
   whiteLists:
     ads:
       - whitelist.txt
+      - |
+        # inline definition with YAML literal block scalar style
+        # hosts format
+        whitelistdomain.com
+        # this is a regex
+        /^banners?[_.-]/
   # definition: which groups should be applied for which client
   clientGroupsBlock:
     # default will be used, if no special definition for a client name exists
@@ -60,20 +73,25 @@ blocking:
   # which response will be sent, if query is blocked:
   # zeroIp: 0.0.0.0 will be returned (default)
   # nxDomain: return NXDOMAIN as return code
-  # comma separated list of destination IP adresses (for example: 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344). Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page.
+  # comma separated list of destination IP addresses (for example: 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344). Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page.
   blockType: zeroIp
-  # optional: automatically list refresh period in minutes. Default: 4h.
+  # optional: TTL for answers to blocked domains
+  # default: 6h
+  blockTTL: 1m
+  # optional: automatically list refresh period (in duration format). Default: 4h.
   # Negative value -> deactivate automatically refresh.
   # 0 value -> use default
-  refreshPeriod: 0
+  refreshPeriod: 4h
+  # optional: timeout for list download (each url). Default: 60s. Use large values for big lists or slow internet connections
+  downloadTimeout: 4m
 
 # optional: configuration for caching of DNS responses
 caching:
-  # amount in minutes, how long a response must be cached (min value).
+  # duration how long a response must be cached (min value).
   # If <=0, use response's TTL, if >0 use this value, if TTL is smaller
   # Default: 0
-  minTime: 5
-  # amount in minutes, how long a response must be cached (max value).
+  minTime: 5m
+  # duration how long a response must be cached (max value).
   # If <0, do not cache responses
   # If 0, use TTL
   # If > 0, use this value, if TTL is greater
@@ -82,13 +100,13 @@ caching:
   # Max number of cache entries (responses) to be kept in cache (soft limit). Useful on systems with limited amount of RAM.
   # Default (0): unlimited
   maxItemsCount: 0
-  # if true, will preload DNS results for often used queries (default: names queried more than 5 times in a 2 hour time window)
+  # if true, will preload DNS results for often used queries (default: names queried more than 5 times in a 2-hour time window)
   # this improves the response time for often used queries, but significantly increases external traffic
   # default: false
   prefetching: true
-  # amount in minutes, prefetch track time window
+  # prefetch track time window (in duration format)
   # default: 120
-  prefetchExpires: 120
+  prefetchExpires: 2h
   # name queries threshold for prefetch
   # default: 5
   prefetchThreshold: 5
@@ -116,26 +134,24 @@ prometheus:
   # url path, optional (default '/metrics')
   path: /metrics
 
-# optional: write query information (question, answer, client, duration etc) to daily csv file
+# optional: write query information (question, answer, client, duration etc.) to daily csv file
 queryLog:
-  # directory (should be mounted as volume in docker)
-  dir: /logs
-  # if true, write one file per client. Writes all queries to single file otherwise
-  perClient: true
+  # optional one of: mysql, csv, csv-client. If empty, log to console
+  type: mysql
+  # directory (should be mounted as volume in docker) for csv, db connection string for mysql
+  target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
   # if > 0, deletes log files which are older than ... days
   logRetentionDays: 7
 
 # optional: DNS listener port and bind ip address, default 53 (UDP and TCP). Example: 53, :53, 127.0.0.1:53
 port: 53
-# optional: HTTP listener port and bind ip address, default empty = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH ... Example: 4000, :4000, 127.0.0.1:4000
-httpPort: 4000
 # optional: HTTPS listener port and bind ip address, default empty = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH... Example: 443, :443, 127.0.0.1:443
 httpPort: 4000
 #httpsPort: 443
 # mandatory, if https port > 0: path to cert and key file for SSL encryption
 #httpsCertFile: server.crt
 #httpsKeyFile: server.key
-# optional: use this DNS server to resolve blacklist urls and upstream DNS servers (DOH). Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp
+# optional: use this DNS server to resolve blacklist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp
 bootstrapDns: tcp:1.1.1.1
 # optional: Drop all AAAA query if set to true. Default: false
 disableIPv6: false
@@ -145,3 +161,5 @@ logLevel: info
 logFormat: text
 # optional: log timestamps. Default: true
 logTimestamp: true
+# optional: obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy. Default: false
+logPrivacy: false

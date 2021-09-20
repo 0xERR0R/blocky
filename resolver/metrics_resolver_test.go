@@ -1,8 +1,11 @@
 package resolver
 
 import (
-	"blocky/config"
 	"errors"
+
+	"github.com/0xERR0R/blocky/config"
+
+	. "github.com/0xERR0R/blocky/model"
 
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo"

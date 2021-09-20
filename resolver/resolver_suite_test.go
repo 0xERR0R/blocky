@@ -1,15 +1,16 @@
 package resolver_test
 
 import (
-	. "blocky/log"
 	"testing"
+
+	. "github.com/0xERR0R/blocky/log"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 func TestResolver(t *testing.T) {
-	ConfigureLogger("Warn", "text", true)
+	ConfigureLogger(LevelFatal, FormatTypeText, true)
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Resolver Suite")
 }

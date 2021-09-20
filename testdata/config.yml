@@ -31,7 +31,9 @@ blocking:
       - special
     Laptop-D.fritz.box:
       - ads
-    #blockMode: zeroIP
+  blockTTL: 1m
+  # without unit -> use minutes
+  refreshPeriod: 120
 clientLookup:
   upstream: udp:192.168.178.1
   singleNameOrder:
@@ -39,8 +41,8 @@ clientLookup:
       - 1
   
 queryLog:
-  dir: /opt/log
-  perClient: true
+  type: csv-client
+  target: /opt/log
 
 port: 55555
 logLevel: debug

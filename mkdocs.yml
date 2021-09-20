@@ -23,6 +23,7 @@ markdown_extensions:
   - pymdownx.highlight
   - pymdownx.superfences
   - admonition
+  - pymdownx.details
 
 nav:
   - 'Welcome': 'index.md'

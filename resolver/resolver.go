@@ -1,47 +1,19 @@
 package resolver
 
 import (
-	"blocky/log"
-	"blocky/util"
 	"fmt"
 	"net"
 	"strings"
 	"time"
 
-	"github.com/miekg/dns"
+	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
+
 	"github.com/sirupsen/logrus"
 )
 
-// RequestProtocol represents the server protocol
-type RequestProtocol uint8
-
-const (
-	// TCP is the TPC protocol
-	TCP RequestProtocol = iota
-
-	// UDP is the UDP protocol
-	UDP
-)
-
-func (r RequestProtocol) String() string {
-	names := [...]string{
-		"TCP",
-		"UDP"}
-
-	return names[r]
-}
-
-// Request represents client's DNS request
-type Request struct {
-	ClientIP    net.IP
-	Protocol    RequestProtocol
-	ClientNames []string
-	Req         *dns.Msg
-	Log         *logrus.Entry
-	RequestTS   time.Time
-}
-
-func newRequest(question string, rType uint16, logger ...*logrus.Entry) *Request {
+func newRequest(question string, rType uint16, logger ...*logrus.Entry) *model.Request {
 	var loggerEntry *logrus.Entry
 	if len(logger) == 1 {
 		loggerEntry = logger[0]
@@ -49,67 +21,29 @@ func newRequest(question string, rType uint16, logger ...*logrus.Entry) *Request
 		loggerEntry = logrus.NewEntry(log.Log())
 	}
 
-	return &Request{
+	return &model.Request{
 		Req:      util.NewMsgWithQuestion(question, rType),
 		Log:      loggerEntry,
-		Protocol: UDP,
+		Protocol: model.RequestProtocolUDP,
 	}
 }
 
-func newRequestWithClient(question string, rType uint16, ip string, clientNames ...string) *Request {
-	return &Request{
+func newRequestWithClient(question string, rType uint16, ip string, clientNames ...string) *model.Request {
+	return &model.Request{
 		ClientIP:    net.ParseIP(ip),
 		ClientNames: clientNames,
 		Req:         util.NewMsgWithQuestion(question, rType),
 		Log:         logrus.NewEntry(log.Log()),
 		RequestTS:   time.Time{},
-		Protocol:    UDP,
+		Protocol:    model.RequestProtocolUDP,
 	}
-}
-
-// ResponseType represents the type of the response
-type ResponseType int
-
-const (
-	// RESOLVED the response was resolved by the external upstream resolver
-	RESOLVED ResponseType = iota
-
-	// CACHED the response was resolved from cache
-	CACHED
-
-	// BLOCKED the query was blocked
-	BLOCKED
-
-	// CONDITIONAL the query was resolved by the conditional upstream resolver
-	CONDITIONAL
-
-	// CUSTOMDNS the query was resolved by a custom rule
-	CUSTOMDNS
-)
-
-func (r ResponseType) String() string {
-	names := [...]string{
-		"RESOLVED",
-		"CACHED",
-		"BLOCKED",
-		"CONDITIONAL",
-		"CUSTOMDNS"}
-
-	return names[r]
-}
-
-// Response represents the response of a DNS query
-type Response struct {
-	Res    *dns.Msg
-	Reason string
-	RType  ResponseType
 }
 
 // Resolver generic interface for all resolvers
 type Resolver interface {
 
 	// Resolve performs resolution of a DNS request
-	Resolve(req *Request) (*Response, error)
+	Resolve(req *model.Request) (*model.Response, error)
 
 	// Configuration prints current resolver configuration
 	Configuration() []string

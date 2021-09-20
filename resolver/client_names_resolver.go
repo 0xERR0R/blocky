@@ -1,12 +1,14 @@
 package resolver
 
 import (
-	"blocky/config"
-	"blocky/util"
 	"fmt"
 	"net"
 	"strings"
 	"time"
+
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/0xERR0R/go-cache"
 	"github.com/miekg/dns"
@@ -62,7 +64,7 @@ func (r *ClientNamesResolver) Configuration() (result []string) {
 }
 
 // Resolve tries to resolve the client name from the ip address
-func (r *ClientNamesResolver) Resolve(request *Request) (*Response, error) {
+func (r *ClientNamesResolver) Resolve(request *model.Request) (*model.Response, error) {
 	clientNames := r.getClientNames(request)
 
 	request.ClientNames = clientNames
@@ -72,7 +74,7 @@ func (r *ClientNamesResolver) Resolve(request *Request) (*Response, error) {
 }
 
 // returns names of client
-func (r *ClientNamesResolver) getClientNames(request *Request) []string {
+func (r *ClientNamesResolver) getClientNames(request *model.Request) []string {
 	ip := request.ClientIP
 
 	if ip == nil {
@@ -105,7 +107,7 @@ func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry
 	if r.externalResolver != nil {
 		reverse, _ := dns.ReverseAddr(ip.String())
 
-		resp, err := r.externalResolver.Resolve(&Request{
+		resp, err := r.externalResolver.Resolve(&model.Request{
 			Req: util.NewMsgWithQuestion(reverse, dns.TypePTR),
 			Log: logger,
 		})

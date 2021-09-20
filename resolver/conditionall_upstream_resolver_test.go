@@ -1,10 +1,11 @@
 package resolver
 
 import (
-	"blocky/config"
-	. "blocky/helpertest"
-	"blocky/log"
-	"blocky/util"
+	"github.com/0xERR0R/blocky/config"
+	. "github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/log"
+	. "github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo"
@@ -56,7 +57,7 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 					Expect(resp.Res.Answer).Should(BeDNSRecord("fritz.box.", dns.TypeA, 123, "123.124.122.122"))
 					// no call to next resolver
 					Expect(m.Calls).Should(BeEmpty())
-					Expect(resp.RType).Should(Equal(CONDITIONAL))
+					Expect(resp.RType).Should(Equal(ResponseTypeCONDITIONAL))
 				})
 			})
 			Context("last mapping entry", func() {
@@ -66,7 +67,7 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 					Expect(resp.Res.Answer).Should(BeDNSRecord("other.box.", dns.TypeA, 250, "192.192.192.192"))
 					// no call to next resolver
 					Expect(m.Calls).Should(BeEmpty())
-					Expect(resp.RType).Should(Equal(CONDITIONAL))
+					Expect(resp.RType).Should(Equal(ResponseTypeCONDITIONAL))
 				})
 			})
 		})
@@ -77,7 +78,7 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 				Expect(resp.Res.Answer).Should(BeDNSRecord("test.fritz.box.", dns.TypeA, 123, "123.124.122.122"))
 				// no call to next resolver
 				Expect(m.Calls).Should(BeEmpty())
-				Expect(resp.RType).Should(Equal(CONDITIONAL))
+				Expect(resp.RType).Should(Equal(ResponseTypeCONDITIONAL))
 			})
 		})
 		When("rewrite mapping is defined", func() {
@@ -87,7 +88,7 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 				Expect(resp.Res.Answer).Should(BeDNSRecord("test.fritz.box.", dns.TypeA, 123, "123.124.122.122"))
 				// no call to next resolver
 				Expect(m.Calls).Should(BeEmpty())
-				Expect(resp.RType).Should(Equal(CONDITIONAL))
+				Expect(resp.RType).Should(Equal(ResponseTypeCONDITIONAL))
 			})
 
 			It("Should delegate to next resolver if there is no subdomain after rewrite", func() {

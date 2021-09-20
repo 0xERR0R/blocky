@@ -1,20 +1,17 @@
 package cmd
 
 import (
-	"blocky/config"
-	"blocky/evt"
-	"blocky/server"
-	"blocky/util"
-	"context"
-	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"blocky/log"
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/server"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/spf13/cobra"
 )
@@ -36,17 +33,17 @@ func newServeCommand() *cobra.Command {
 func startServer(_ *cobra.Command, _ []string) {
 	printBanner()
 
-	cfg = config.NewConfig(configPath, true)
-	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
+	config.LoadConfig(configPath, true)
+	log.ConfigureLogger(config.GetConfig().LogLevel, config.GetConfig().LogFormat, config.GetConfig().LogTimestamp)
 
-	configureHTTPClient(&cfg)
+	configureHTTPClient(config.GetConfig())
 
 	signals := make(chan os.Signal, 1)
 	done = make(chan bool, 1)
 
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
-	srv, err := server.NewServer(&cfg)
+	srv, err := server.NewServer(config.GetConfig())
 	util.FatalOnError("cant start server: ", err)
 
 	srv.Start()
@@ -63,30 +60,9 @@ func startServer(_ *cobra.Command, _ []string) {
 }
 
 func configureHTTPClient(cfg *config.Config) {
-	if cfg.BootstrapDNS != (config.Upstream{}) {
-		if cfg.BootstrapDNS.Net == config.NetTCPUDP {
-			dns := net.JoinHostPort(cfg.BootstrapDNS.Host, fmt.Sprint(cfg.BootstrapDNS.Port))
-			log.Log().Debugf("using %s as bootstrap dns server", dns)
-
-			r := &net.Resolver{
-				PreferGo: true,
-				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-					d := net.Dialer{
-						Timeout: time.Millisecond * time.Duration(2000),
-					}
-					return d.DialContext(ctx, "udp", dns)
-				}}
-
-			http.DefaultTransport = &http.Transport{
-				Dial: (&net.Dialer{
-					Timeout:  5 * time.Second,
-					Resolver: r,
-				}).Dial,
-				TLSHandshakeTimeout: 5 * time.Second,
-			}
-		} else {
-			log.Log().Fatal("bootstrap dns net should be tcp+udp")
-		}
+	http.DefaultTransport = &http.Transport{
+		Dial:                (util.Dialer(cfg)).Dial,
+		TLSHandshakeTimeout: 5 * time.Second,
 	}
 }
 

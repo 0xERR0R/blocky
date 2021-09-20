@@ -1,11 +1,14 @@
 package resolver
 
 import (
-	"blocky/config"
-	"blocky/util"
 	"errors"
 	"fmt"
 	"net"
+
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/util"
+
+	. "github.com/0xERR0R/blocky/model"
 
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo"
@@ -268,7 +271,7 @@ var _ = Describe("ClientResolver", func() {
 		When("resolver is enabled", func() {
 			BeforeEach(func() {
 				sutConfig = config.ClientLookupConfig{
-					Upstream:        config.Upstream{Net: "tcp", Host: "host"},
+					Upstream:        config.Upstream{Net: config.NetProtocolTcpUdp, Host: "host"},
 					SingleNameOrder: []uint{1, 2},
 					ClientnameIPMapping: map[string][]net.IP{
 						"client8": {net.ParseIP("1.2.3.5")},

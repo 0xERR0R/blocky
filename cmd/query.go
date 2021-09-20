@@ -1,14 +1,14 @@
 package cmd
 
 import (
-	"blocky/api"
-	"blocky/util"
 	"bytes"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
 
-	"blocky/log"
+	"github.com/0xERR0R/blocky/api"
+	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
 	"github.com/spf13/cobra"

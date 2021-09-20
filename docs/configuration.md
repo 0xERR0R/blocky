@@ -3,20 +3,27 @@
 This chapter describes all configuration options in `config.yaml`. You can download a reference file with all
 configuration properties as [JSON](config.yml).
 
+??? example "reference configuration file"
+
+    ```yaml
+    --8<-- "docs/config.yml"
+    ```
+
 ## Basic configuration
 
-| Parameter       | Mandatory | Default value      | Description                                       |
-| --------------- | --------- | -------------------| ------------------------------------------------- |
-| port            | no        | 53                 | Port and optional bind ip address to serve DNS endpoint (TCP and UDP). If you wish to specify a specific IP, you can do so such as 192.168.0.1:53. Example: 53, :53, :127.0.0.1:53  |
-| httpPort        | no        |                    | HTTP listener port and optional bind ip address . If > 0, will be used for prometheus metrics, pprof, REST API, DoH ...If you wish to specify a specific IP, you can do so such as 192.168.0.1:4000. Example: 4000, :4000, 127.0.0.1:4000 |
-| httpsPort       | no        |                    | HTTPS listener port and optional bind ip address . If > 0, will be used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as 192.168.0.1:443 |
-| httpsCertFile   | yes, if httpsPort > 0 |        | path to cert and key file for SSL encryption |
-| httpsKeyFile    | yes, if httpsPort > 0 |        | path to cert and key file for SSL encryption |
-| bootstrapDns    | no        |                    | use this DNS server to resolve blacklist urls and upstream DNS servers (DoH). Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp|
-| disableIPv6     | no        | false              | Drop all AAAA query if set to true
-| logLevel        | no        | info               | Log level (one from debug, info, warn, error) |
-| logFormat       | no        | text               | Log format (text or json). |
-| logTimestamp    | no        | true               | Log time stamps (true or false). |
+| Parameter       | Type              | Mandatory             | Default value      | Description                                       |
+| --------------- | ----------------- | --------------------- | -----------------  | ------------------------------------------------- |
+| port            | [IP]:port         | no                    | 53                 | Port and optional bind ip address to serve DNS endpoint (TCP and UDP). If you wish to specify a specific IP, you can do so such as 192.168.0.1:53. Example: 53, :53, 127.0.0.1:53  |
+| httpPort        | int (1 - 65535)   | no                    |                    | HTTP listener port and optional bind ip address . If > 0, will be used for prometheus metrics, pprof, REST API, DoH ...If you wish to specify a specific IP, you can do so such as 192.168.0.1:4000. Example: 4000, :4000, 127.0.0.1:4000 |
+| httpsPort       | int (1 - 65535)   | no                    |                    | HTTPS listener port and optional bind ip address . If > 0, will be used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as 192.168.0.1:443 |
+| httpsCertFile   | path              | yes, if httpsPort > 0 |                    | path to cert and key file for SSL encryption |
+| httpsKeyFile    | path              | yes, if httpsPort > 0 |                    | path to cert and key file for SSL encryption |
+| bootstrapDns    | IP:port           | no                    |                    | use this DNS server to resolve blacklist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. NOTE: Works only on Linux/*Nix OS due to golang limitations under windows.|
+| disableIPv6     | bool              | no                    | false              | Drop all AAAA query if set to true
+| logLevel        | enum (debug, info, warn, error)           | no                 | info               | Log level  |
+| logFormat       | enum (text, json) | no                    | text               | Log format (text or json). |
+| logTimestamp    | bool              |no                     | true               | Log time stamps (true or false). |
+| logPrivacy      | bool              |no                     | false              | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy. |
 
 !!! example
 
@@ -32,8 +39,6 @@ configuration properties as [JSON](config.yml).
 To resolve a DNS query, blocky needs external public or private DNS resolvers. Blocky supports DNS resolvers with
 following network protocols (net part of the resolver URL):
 
-- udp (only UDP) [deprecated]
-- tcp (only TCP) [deprecated]
 - tcp+udp (UDP and TCP, dependent on query type)
 - https (aka DoH)
 - tcp-tls (aka DoT)
@@ -46,11 +51,11 @@ following network protocols (net part of the resolver URL):
 
 Each resolver must be defined as a string in following format: `[net:]host:[port][/path]`.
 
-| Parameter | Mandatory | Value                                        | Default value                                     |
-| --------- | --------- | -------------------------------------------- | ------------------------------------------------- |
-| net       | no        | one of (tcp+udp, tcp, udp, tcp-tls or https) | tcp+udp                                           |
-| host      | yes       | full qualified domain name or ip address     |                                                   |
-| port      | no        | number < 65535                               | 53 for udp/tcp, 853 for tcp-tls and 443 for https |
+| Parameter | Type                             | Mandatory | Default value | 
+| --------- | -------------------------------- | --------- | ------------- |
+| net       | enum (tcp+udp, tcp-tls or https) | no        | tcp+udp | 
+| host      | IP or hostname                   | yes       | | 
+| port      | int (1 - 65535)                  | no        | 53 for udp/tcp, 853 for tcp-tls and 443 for https |
 
 Blocky needs at least the configuration of the **default** group. This group will be used as a fallback, if no client
 specific resolver configuration is available.
@@ -87,6 +92,21 @@ CIDR notation.
 
 See [List of public DNS servers](additional_information.md#list-of-public-dns-servers) if you need some ideas, which
 public free DNS server you could use.
+
+### Upstream lookup timeout
+
+Blocky will wait 2 seconds (default value) for the response from the external upstream DNS server. You can change this
+value by setting the `upstreamTimeout` configuration parameter (in **duration format**).
+
+!!! example
+
+    ```yaml
+    upstream:
+      default:
+        - 46.182.19.48
+        - 80.241.218.68
+    upstreamTimeout: 5s
+    ```
 
 ## Custom DNS
 
@@ -171,7 +191,8 @@ contains a map of client name and multiple IP addresses.
 
 Blocky can download and use external lists with domains or IP addresses to block DNS query (e.g. advertisement, malware,
 trackers, adult sites). You can group several list sources together and define the blocking behavior per client.
-External blacklists must be in the well-known [Hosts format](https://en.wikipedia.org/wiki/Hosts_(file)).
+External blacklists must be either in the well-known [Hosts format](https://en.wikipedia.org/wiki/Hosts_(file)) or just
+a plain domain list (one domain per line). Blocky also supports regex as more powerful tool to define patterns to block.
 
 Blocky uses [DNS sinkhole](https://en.wikipedia.org/wiki/DNS_sinkhole) approach to block a DNS query. Domain name from
 the request, IP address from the response, and the CNAME record will be checked against configured blacklists.
@@ -180,8 +201,8 @@ To avoid overblocking, you can define or use already existing whitelists.
 
 ### Definition black and whitelists
 
-Each black or whitelist can be either a path to the local file, or a URL to download. All Urls must be grouped to a
-group name.
+Each black or whitelist can be either a path to the local file, a URL to download or inline list definition of a domains
+in hosts format (YAML literal block scalar style). All Urls must be grouped to a group name.
 
 !!! example
 
@@ -191,11 +212,20 @@ group name.
         ads:
           - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
           - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+          - |
+            # inline definition with YAML literal block scalar style
+            someadsdomain.com
+            anotheradsdomain.com
+            # this is a regex
+            /^banners?[_.-]/
         special:
           - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
       whiteLists:
         ads:
           - whitelist.txt
+          - |
+            # inline definition with YAML literal block scalar style
+            whitelistdomain.com
     ```
 
     In this example you can see 2 groups: **ads** with 2 lists and **special** with one list. One local whitelist was defined for the **ads** group.
@@ -205,6 +235,15 @@ group name.
     If the same group has black and whitelists, whitelists will be used to disable particular blacklist entries.
     If a group has **only** whitelist entries -> this means only domains from this list are allowed, all other domains will
     be blocked
+
+#### Regex support
+
+You can use regex to define patterns to block. A regex entry must start and end with the slash character (/). Some
+Examples:
+
+- `/baddomain/` will block `www.baddomain.com`, `baddomain.com`, but also `mybaddomain-sometext.com`
+- `/^baddomain/` will block `baddomain.com`, but not `www.baddomain.com`
+- `/^apple\.(de|com)$/` will only block `apple.de` and `apple.com`
 
 ### Client groups
 
@@ -260,20 +299,45 @@ default** block type. Server returns 0.0.0.0 (or :: for IPv6) as result for A an
       blockType: nxDomain
     ```
 
-### List refresh period
+### Block TTL
 
-To keep the list cache up-to-date, blocky will periodically download and reload all external lists. Default period is **
-4 hours**. You can configure this by setting the `blocking.refreshPeriod` parameter to a value in **minutes**. Negative
-value will deactivate automatically refresh.
+TTL for answers to blocked domains can be set to customize the time (in **duration format**) clients ask for those
+domains again. This setting only makes sense when `blockType` is set to `nxDomain` or `zeroIP`, and will affect how much
+time it could take for a client to be able to see the real IP address for a domain after receiving the custom value.
 
 !!! example
 
     ```yaml
     blocking:
-      refreshPeriod: 60
+      blockType: 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344
+      blockTTL: 10s
+    ```
+
+### List refresh period
+
+To keep the list cache up-to-date, blocky will periodically download and reload all external lists. Default period is **
+4 hours**. You can configure this by setting the `blocking.refreshPeriod` parameter to a value in **duration format**.
+Negative value will deactivate automatically refresh.
+
+!!! example
+
+    ```yaml
+    blocking:
+      refreshPeriod: 60m
     ```
 
     Refresh every hour.
+
+### Download timeout
+
+You can override the default download timeout (**duration format**) of 60 seconds (for each URL) for big lists or slow
+internet connection:
+!!! example
+
+    ```yaml
+    blocking:
+     downloadTimeout: 4m
+    ```
 
 ## Caching
 
@@ -288,22 +352,22 @@ With following parameters you can tune the caching behavior:
 
     Wrong values can significantly increase external DNS traffic or memory consumption.
 
-| Parameter                     | Mandatory | Default value      | Description                                       |
-| ----------------------------- | --------- | -------------------| ------------------------------------------------- |
-| caching.minTime               | no        | 0 (use TTL)        | Amount in minutes, how long a response must be cached (min value). If <=0, use response's TTL, if >0 use this value, if TTL is smaller |
-| caching.maxTime               | no        | 0 (use TTL)        | Amount in minutes, how long a response must be cached (max value). If <0, do not cache responses. If 0, use TTL. If > 0, use this value, if TTL is greater |
-| caching.maxItemsCount         | no        | 0 (unlimited)      | Max number of cache entries (responses) to be kept in cache (soft limit). Default (0): unlimited. Useful on systems with limited amount of RAM. |
-| caching.prefetching           | no        | false              | if true, blocky will preload DNS results for often used queries (default: names queried more than 5 times in a 2 hour time window). Results in cache will be loaded again on their expire (TTL). This improves the response time for often used queries, but significantly increases external traffic. It is recommended to increase "minTime" to reduce the number of prefetch queries to external resolvers. |
-| caching.prefetchExpires       | no        | 120                | Amount in minutes, prefetch track time window
-| caching.prefetchThreshold     | no        | 5                  | Name queries threshold for prefetch
-| caching.prefetchMaxItemsCount | no        | 0 (unlimited)      | Max number of domains to be kept in cache for prefetching (soft limit). Default (0): unlimited. Useful on systems with limited amount of RAM. |
+| Parameter                     | Type            | Mandatory | Default value      | Description                                       |
+| ----------------------------- | --------------- | --------- | ------------------ | ------------------------------------------------- |
+| caching.minTime               | duration format | no        | 0 (use TTL)        | How long a response must be cached (min value). If <=0, use response's TTL, if >0 use this value, if TTL is smaller |
+| caching.maxTime               | duration format | no        | 0 (use TTL)        | How long a response must be cached (max value). If <0, do not cache responses. If 0, use TTL. If > 0, use this value, if TTL is greater |
+| caching.maxItemsCount         | int             | no        | 0 (unlimited)      | Max number of cache entries (responses) to be kept in cache (soft limit). Default (0): unlimited. Useful on systems with limited amount of RAM. |
+| caching.prefetching           | bool            | no        | false              | if true, blocky will preload DNS results for often used queries (default: names queried more than 5 times in a 2 hour time window). Results in cache will be loaded again on their expire (TTL). This improves the response time for often used queries, but significantly increases external traffic. It is recommended to increase "minTime" to reduce the number of prefetch queries to external resolvers. |
+| caching.prefetchExpires       | duration format | no        | 2h                 | Prefetch track time window |
+| caching.prefetchThreshold     | int             | no        | 5                  | Name queries threshold for prefetch
+| caching.prefetchMaxItemsCount | int             | no        | 0 (unlimited)      | Max number of domains to be kept in cache for prefetching (soft limit). Default (0): unlimited. Useful on systems with limited amount of RAM. |
 
 !!! example
 
     ```yaml
     caching:
-      minTime: 5
-      maxTime: 30
+      minTime: 5m
+      maxTime: 30m
       prefetching: true
     ```
 
@@ -327,32 +391,51 @@ see [Basic Configuration](#basic-configuration)).
 
 ## Query logging
 
-You can enable the logging of DNS queries (question, answer, client, duration etc) to a daily CSV file. This file can be
-opened in Excel or OpenOffice writer for analyse purposes.
+You can enable the logging of DNS queries (question, answer, client, duration etc.) to a daily CSV file (can be opened
+in Excel or OpenOffice Calc) or MySQL/MariaDB database.
 
 !!! warning
 
-    Query file contain sensitive information. Please ensure to inform users, if you log their queries.
+    Query file/database contains sensitive information. Please ensure to inform users, if you log their queries.
+
+### Query log types
+
+You can select one of following query log types:
+
+- `mysql` - log each query in the external MySQL/MariaDB database
+- `csv` - log into CSV file (one per day)
+- `csv-client` - log into CSV file (one per day and per client)
 
 Configuration parameters:
 
-| Parameter          | Mandatory | Default value      | Description                                       |
-| ---------------    | --------- | -------------------| ------------------------------------------------- |
-| queryLog.dir       | no        |                    |  If defined, directory for writing the logs       |
-| queryLog.perClient |   no      | false              |  if true, write one file per client. Writes all queries to single file otherwise                |
-| queryLog.logRetentionDays|   no      | 0            |  if > 0, deletes log files which are older than ... days             |
+| Parameter                | Type                                      | Mandatory | Default value      | Description                                                                 |
+| ---------------------    | ----------------------------------------- | --------- | ------------------ | --------------------------------------------------------------------------- |
+| queryLog.type            | enum (mysql, csv, csv-client (see above)) | no        |                    |  Type of logging target. Console if empty                                   |
+| queryLog.target          | string                                    | no        |                    |  directory for writing the logs (for csv) or database url (for mysql)       |
+| queryLog.logRetentionDays| int                                       | no        | 0                  |  if > 0, deletes log files/database entries which are older than ... days   |
 
 !!! hint
 
-    Please ensure, that the log directory is writable. If you use docker, please ensure, that the directory is properly
+    Please ensure, that the log directory is writable or database exists. If you use docker, please ensure, that the directory is properly
     mounted (e.g. volume)
 
+example for CSV format
 !!! example
 
     ```yaml
     queryLog:
-        dir: /logs
-        perClient: true
+        type: csv
+        target: /logs
+        logRetentionDays: 7
+    ```
+
+example for Database
+!!! example
+
+    ```yaml
+    queryLog:
+        type: mysql
+        target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
         logRetentionDays: 7
     ```
 

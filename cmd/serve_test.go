@@ -1,8 +1,9 @@
 package cmd
 
 import (
-	"blocky/config"
 	"time"
+
+	"github.com/0xERR0R/blocky/config"
 
 	. "github.com/onsi/ginkgo"
 )
@@ -10,8 +11,8 @@ import (
 var _ = Describe("Serve command", func() {
 	When("Serve command is called", func() {
 		It("should start DNS server", func() {
-			cfg.BootstrapDNS = config.Upstream{
-				Net:  "tcp+udp",
+			config.GetConfig().BootstrapDNS = config.Upstream{
+				Net:  config.NetProtocolTcpTls,
 				Host: "1.1.1.1",
 				Port: 53,
 			}

@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"blocky/config"
-	"blocky/evt"
-	"blocky/util"
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/0xERR0R/go-cache"
 	"github.com/miekg/dns"
@@ -39,8 +40,8 @@ const (
 // NewCachingResolver creates a new resolver instance
 func NewCachingResolver(cfg config.CachingConfig) ChainedResolver {
 	c := &CachingResolver{
-		minCacheTimeSec: 60 * cfg.MinCachingTime,
-		maxCacheTimeSec: 60 * cfg.MaxCachingTime,
+		minCacheTimeSec: int(time.Duration(cfg.MinCachingTime).Seconds()),
+		maxCacheTimeSec: int(time.Duration(cfg.MaxCachingTime).Seconds()),
 		resultCache:     createQueryResultCache(&cfg),
 	}
 
@@ -58,7 +59,7 @@ func createQueryResultCache(cfg *config.CachingConfig) *cache.Cache {
 func configurePrefetching(c *CachingResolver, cfg *config.CachingConfig) {
 	c.prefetchExpires = prefetchingNameCacheExpiration
 	if cfg.PrefetchExpires > 0 {
-		c.prefetchExpires = time.Duration(cfg.PrefetchExpires) * time.Minute
+		c.prefetchExpires = time.Duration(cfg.PrefetchExpires)
 	}
 
 	c.prefetchThreshold = prefetchingNameCountThreshold
@@ -82,7 +83,7 @@ func (r *CachingResolver) onEvicted(cacheKey string) {
 
 	// check if domain was queried > threshold in the time window
 	if found && cnt.(int) > r.prefetchThreshold {
-		logger.Debugf("prefetching '%s' (%s)", domainName, dns.TypeToString[qType])
+		logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), dns.TypeToString[qType])
 
 		req := newRequest(fmt.Sprintf("%s.", domainName), qType, logger)
 		response, err := r.next.Resolve(req)
@@ -123,7 +124,7 @@ func (r *CachingResolver) Configuration() (result []string) {
 // Resolve checks if the current query result is already in the cache and returns it
 // or delegates to the next resolver
 //nolint:gocognit,funlen
-func (r *CachingResolver) Resolve(request *Request) (response *Response, err error) {
+func (r *CachingResolver) Resolve(request *model.Request) (response *model.Response, err error) {
 	logger := withPrefix(request.Log, "caching_resolver")
 
 	if r.maxCacheTimeSec < 0 {
@@ -137,7 +138,7 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 	for _, question := range request.Req.Question {
 		domain := util.ExtractDomain(question)
 		cacheKey := util.GenerateCacheKey(question.Qtype, domain)
-		logger := logger.WithField("domain", domain)
+		logger := logger.WithField("domain", util.Obfuscate(domain))
 
 		r.trackQueryDomainNameCount(domain, cacheKey, logger)
 
@@ -164,12 +165,12 @@ func (r *CachingResolver) Resolve(request *Request) (response *Response, err err
 					rr.Header().Ttl = remainingTTL
 				}
 
-				return &Response{Res: resp, RType: CACHED, Reason: "CACHED"}, nil
+				return &model.Response{Res: resp, RType: model.ResponseTypeCACHED, Reason: "CACHED"}, nil
 			}
 			// Answer with response code != OK
 			resp.Rcode = val.(int)
 
-			return &Response{Res: resp, RType: CACHED, Reason: "CACHED NEGATIVE"}, nil
+			return &model.Response{Res: resp, RType: model.ResponseTypeCACHED, Reason: "CACHED NEGATIVE"}, nil
 		}
 
 		evt.Bus().Publish(evt.CachingResultCacheMiss, domain)
@@ -194,12 +195,12 @@ func (r *CachingResolver) trackQueryDomainNameCount(domain string, cacheKey stri
 		domainCount++
 		r.prefetchingNameCache.SetDefault(cacheKey, domainCount)
 		logger.Debugf("domain '%s' was requested %d times, "+
-			"total cache size: %d", domain, domainCount, r.prefetchingNameCache.ItemCount())
+			"total cache size: %d", util.Obfuscate(domain), domainCount, r.prefetchingNameCache.ItemCount())
 		evt.Bus().Publish(evt.CachingDomainsToPrefetchCountChanged, r.prefetchingNameCache.ItemCount())
 	}
 }
 
-func (r *CachingResolver) putInCache(cacheKey string, response *Response, prefetch bool) {
+func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, prefetch bool) {
 	answer := response.Res.Answer
 
 	if response.Res.Rcode == dns.RcodeSuccess {

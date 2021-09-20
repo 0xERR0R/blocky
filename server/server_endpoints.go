@@ -1,12 +1,6 @@
 package server
 
 import (
-	"blocky/api"
-	"blocky/config"
-	"blocky/log"
-	"blocky/resolver"
-	"blocky/util"
-	"blocky/web"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -15,6 +9,13 @@ import (
 	"net"
 	"net/http"
 	"strings"
+
+	"github.com/0xERR0R/blocky/api"
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
+	"github.com/0xERR0R/blocky/web"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -93,7 +94,7 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 		return
 	}
 
-	r := newRequest(net.ParseIP(extractIP(req)), resolver.TCP, msg)
+	r := newRequest(net.ParseIP(extractIP(req)), model.RequestProtocolTCP, msg)
 
 	resResponse, err := s.queryResolver.Resolve(r)
 

@@ -3,10 +3,11 @@ package resolver
 import (
 	"time"
 
-	"blocky/config"
-	. "blocky/evt"
-	. "blocky/helpertest"
-	"blocky/util"
+	"github.com/0xERR0R/blocky/config"
+	. "github.com/0xERR0R/blocky/evt"
+	. "github.com/0xERR0R/blocky/helpertest"
+	. "github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/0xERR0R/go-cache"
 	"github.com/miekg/dns"
@@ -48,7 +49,7 @@ var _ = Describe("CachingResolver", func() {
 			BeforeEach(func() {
 				sutConfig = config.CachingConfig{
 					Prefetching:       true,
-					PrefetchExpires:   120,
+					PrefetchExpires:   config.Duration(time.Minute * 120),
 					PrefetchThreshold: 5,
 				}
 			})
@@ -101,7 +102,7 @@ var _ = Describe("CachingResolver", func() {
 		When("min caching time is defined", func() {
 			BeforeEach(func() {
 				sutConfig = config.CachingConfig{
-					MinCachingTime: 5,
+					MinCachingTime: config.Duration(time.Minute * 5),
 				}
 			})
 			Context("response TTL is bigger than defined min caching time", func() {
@@ -124,7 +125,7 @@ var _ = Describe("CachingResolver", func() {
 
 						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
 						Expect(err).Should(Succeed())
-						Expect(resp.RType).Should(Equal(RESOLVED))
+						Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 						Expect(m.Calls).Should(HaveLen(1))
 						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 						Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 600, "123.122.121.120"))
@@ -143,7 +144,7 @@ var _ = Describe("CachingResolver", func() {
 
 						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
 						Expect(err).Should(Succeed())
-						Expect(resp.RType).Should(Equal(CACHED))
+						Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
 						// still one call to upstream
 						Expect(m.Calls).Should(HaveLen(1))
 						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -165,7 +166,7 @@ var _ = Describe("CachingResolver", func() {
 						By("first request", func() {
 							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
 							Expect(err).Should(Succeed())
-							Expect(resp.RType).Should(Equal(RESOLVED))
+							Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 							Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 							Expect(m.Calls).Should(HaveLen(1))
 							Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 300, "123.122.121.120"))
@@ -176,7 +177,7 @@ var _ = Describe("CachingResolver", func() {
 						By("second request", func() {
 							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
 							Expect(err).Should(Succeed())
-							Expect(resp.RType).Should(Equal(CACHED))
+							Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
 							Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 							// still one call to upstream
 							Expect(m.Calls).Should(HaveLen(1))
@@ -197,7 +198,7 @@ var _ = Describe("CachingResolver", func() {
 						By("first request", func() {
 							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
 							Expect(err).Should(Succeed())
-							Expect(resp.RType).Should(Equal(RESOLVED))
+							Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 							Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 							Expect(m.Calls).Should(HaveLen(1))
 							Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
@@ -209,7 +210,7 @@ var _ = Describe("CachingResolver", func() {
 						By("second request", func() {
 							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
 							Expect(err).Should(Succeed())
-							Expect(resp.RType).Should(Equal(CACHED))
+							Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
 							Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 							// still one call to upstream
 							Expect(m.Calls).Should(HaveLen(1))
@@ -231,7 +232,7 @@ var _ = Describe("CachingResolver", func() {
 			Context("max caching time is negative -> caching is disabled", func() {
 				BeforeEach(func() {
 					sutConfig = config.CachingConfig{
-						MaxCachingTime: -1,
+						MaxCachingTime: config.Duration(time.Minute * -1),
 					}
 				})
 
@@ -239,7 +240,7 @@ var _ = Describe("CachingResolver", func() {
 					By("first request", func() {
 						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
 						Expect(err).Should(Succeed())
-						Expect(resp.RType).Should(Equal(RESOLVED))
+						Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 						Expect(m.Calls).Should(HaveLen(1))
 						Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
@@ -251,7 +252,7 @@ var _ = Describe("CachingResolver", func() {
 					By("second request", func() {
 						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
 						Expect(err).Should(Succeed())
-						Expect(resp.RType).Should(Equal(RESOLVED))
+						Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 						//  one more call to upstream
 						Expect(m.Calls).Should(HaveLen(2))
@@ -264,14 +265,14 @@ var _ = Describe("CachingResolver", func() {
 			Context("max caching time is positive", func() {
 				BeforeEach(func() {
 					sutConfig = config.CachingConfig{
-						MaxCachingTime: 4,
+						MaxCachingTime: config.Duration(time.Minute * 4),
 					}
 				})
 				It("should cache response and use max caching time as TTL if response TTL is bigger", func() {
 					By("first request", func() {
 						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
 						Expect(err).Should(Succeed())
-						Expect(resp.RType).Should(Equal(RESOLVED))
+						Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 						Expect(m.Calls).Should(HaveLen(1))
 						Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
@@ -283,7 +284,7 @@ var _ = Describe("CachingResolver", func() {
 					By("second request", func() {
 						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
 						Expect(err).Should(Succeed())
-						Expect(resp.RType).Should(Equal(CACHED))
+						Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
 						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 						// still one call to upstream
 						Expect(m.Calls).Should(HaveLen(1))
@@ -306,7 +307,7 @@ var _ = Describe("CachingResolver", func() {
 				By("first request", func() {
 					resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
 					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(RESOLVED))
+					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
 					Expect(m.Calls).Should(HaveLen(1))
 				})
@@ -316,7 +317,7 @@ var _ = Describe("CachingResolver", func() {
 				By("second request", func() {
 					resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
 					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(CACHED))
+					Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
 					Expect(resp.Reason).Should(Equal("CACHED NEGATIVE"))
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
 					// still one call to resolver
@@ -336,7 +337,7 @@ var _ = Describe("CachingResolver", func() {
 				By("first request", func() {
 					resp, err = sut.Resolve(newRequest("google.de.", dns.TypeMX))
 					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(RESOLVED))
+					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 					Expect(m.Calls).Should(HaveLen(1))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("google.de.", dns.TypeMX, 180, "alt1.aspmx.l.google.com."))
@@ -345,7 +346,7 @@ var _ = Describe("CachingResolver", func() {
 				By("second request", func() {
 					resp, err = sut.Resolve(newRequest("google.de.", dns.TypeMX))
 					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(CACHED))
+					Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 					Expect(m.Calls).Should(HaveLen(1))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("google.de.", dns.TypeMX, 179, "alt1.aspmx.l.google.com."))
@@ -368,7 +369,7 @@ var _ = Describe("CachingResolver", func() {
 		When("resolver is disabled", func() {
 			BeforeEach(func() {
 				sutConfig = config.CachingConfig{
-					MaxCachingTime: -1,
+					MaxCachingTime: config.Duration(time.Minute * -1),
 				}
 			})
 			It("should return 'disabled''", func() {

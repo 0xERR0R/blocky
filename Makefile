@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 .PHONY: all clean build swagger test lint run help
 .DEFAULT_GOAL := help
 
@@ -7,13 +9,15 @@ DOCKER_IMAGE_NAME="spx01/blocky"
 BINARY_NAME=blocky
 BIN_OUT_DIR=bin
 
+export PATH=$(shell go env GOPATH)/bin:$(shell echo $$PATH)
+
 all: test lint build ## Build binary (with tests)
 
 clean: ## cleans output directory
 	$(shell rm -rf $(BIN_OUT_DIR)/*)
 
 swagger: ## creates swagger documentation as html file
-	go get github.com/swaggo/swag/cmd/swag@v1.6.9
+	go install github.com/swaggo/swag/cmd/swag@v1.6.9
 	npm install bootprint bootprint-openapi html-inline
 	$(shell go env GOPATH)/bin/swag init -g api/api.go
 	$(shell) node_modules/bootprint/bin/bootprint.js openapi docs/swagger.json /tmp/swagger/
@@ -23,16 +27,22 @@ serve_docs: ## serves online docs
 	mkdocs serve
 
 build:  ## Build binary
-	go build -v -ldflags="-w -s -X blocky/util.Version=${VERSION} -X blocky/util.BuildTime=${BUILD_TIME}" -o $(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
+	go install github.com/abice/go-enum@v0.3.8
+	go generate ./...
+	go build -v -ldflags="-w -s -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" -o $(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 
 test:  ## run tests
 	go test -v -coverprofile=coverage.txt -covermode=atomic -cover ./...
 
 lint: build ## run golangcli-lint checks
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.42.1
 	$(shell go env GOPATH)/bin/golangci-lint run
 
 run: build ## Build and run binary
 	./$(BIN_OUT_DIR)/$(BINARY_NAME)
+
+fmt: ## gofmt and goimports all go files
+	find . -name '*.go' | while read -r file; do gofmt -w -s "$$file"; goimports -w "$$file"; done
 
 docker-build:  ## Build docker image
 	docker build --network=host --tag ${DOCKER_IMAGE_NAME} .
