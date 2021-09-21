@@ -5,7 +5,6 @@ RUN apk add --no-cache \
     make \
     gcc \
     libc-dev \
-    tzdata \
     zip \
     ca-certificates
 
@@ -24,19 +23,14 @@ ARG opts
 RUN env ${opts} make build
 
 # final stage
-FROM alpine:3.12
+FROM alpine:3.14
 
 LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
       org.opencontainers.image.url="https://github.com/0xERR0R/blocky" \
       org.opencontainers.image.title="DNS proxy as ad-blocker for local network"
 
-RUN apk add --no-cache bind-tools tini
+RUN apk add --no-cache ca-certificates bind-tools tini tzdata
 COPY --from=build-env /src/bin/blocky /app/blocky
-
-# the timezone data:
-COPY --from=build-env /usr/share/zoneinfo /usr/share/zoneinfo
-# the tls certificates:
-COPY --from=build-env /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 HEALTHCHECK --interval=1m --timeout=3s CMD dig @127.0.0.1 -p 53 healthcheck.blocky +tcp +short || exit 1
 
