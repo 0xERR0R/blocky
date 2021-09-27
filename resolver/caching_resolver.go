@@ -74,15 +74,18 @@ func configurePrefetching(c *CachingResolver, cfg *config.CachingConfig) {
 	})
 }
 
+// check if domain was queried > threshold in the time window
+func (r *CachingResolver) isPrefetchingDomain(cacheKey string) bool {
+	cnt, found := r.prefetchingNameCache.Get(cacheKey)
+	return found && cnt.(int) > r.prefetchThreshold
+}
+
 // onEvicted is called if a DNS response in the cache is expired and was removed from cache
 func (r *CachingResolver) onEvicted(cacheKey string) {
 	qType, domainName := util.ExtractCacheKey(cacheKey)
 	logger := logger("caching_resolver")
 
-	cnt, found := r.prefetchingNameCache.Get(cacheKey)
-
-	// check if domain was queried > threshold in the time window
-	if found && cnt.(int) > r.prefetchThreshold {
+	if r.isPrefetchingDomain(cacheKey) {
 		logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), dns.TypeToString[qType])
 
 		req := newRequest(fmt.Sprintf("%s.", domainName), qType, logger)
@@ -121,6 +124,14 @@ func (r *CachingResolver) Configuration() (result []string) {
 	return
 }
 
+func calculateRemainingTTL(expiresAt time.Time) uint32 {
+	if expiresAt.IsZero() {
+		return 0
+	}
+
+	return uint32(time.Until(expiresAt).Seconds())
+}
+
 // Resolve checks if the current query result is already in the cache and returns it
 // or delegates to the next resolver
 //nolint:gocognit,funlen
@@ -142,7 +153,8 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 
 		r.trackQueryDomainNameCount(domain, cacheKey, logger)
 
-		val, expiresAt, found := r.resultCache.GetWithExpiration(cacheKey)
+		// can return expired items (if cache cleanup is not executed yet)
+		val, expiresAt, found := r.resultCache.GetRaw(cacheKey)
 
 		if found {
 			logger.Debug("domain is cached")
@@ -150,7 +162,7 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 			evt.Bus().Publish(evt.CachingResultCacheHit, domain)
 
 			// calculate remaining TTL
-			remainingTTL := uint32(time.Until(expiresAt).Seconds())
+			remainingTTL := calculateRemainingTTL(expiresAt)
 
 			v, ok := val.(cacheValue)
 			if ok {

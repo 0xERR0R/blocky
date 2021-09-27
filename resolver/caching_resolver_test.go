@@ -295,6 +295,43 @@ var _ = Describe("CachingResolver", func() {
 				})
 			})
 		})
+		When("Entry expires in cache", func() {
+			BeforeEach(func() {
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1, dns.TypeA, "1.1.1.1")
+			})
+			Context("max caching time is defined", func() {
+				BeforeEach(func() {
+					sutConfig = config.CachingConfig{
+						MaxCachingTime: config.Duration(time.Minute * 1),
+					}
+				})
+				It("should cache response and return 0 TTL if entry is expired", func() {
+					By("first request", func() {
+						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+						Expect(err).Should(Succeed())
+						Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+						Expect(m.Calls).Should(HaveLen(1))
+						Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
+							dns.TypeA, 1, "1.1.1.1"))
+					})
+
+					time.Sleep(1100 * time.Millisecond)
+
+					By("second request", func() {
+						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+						Expect(err).Should(Succeed())
+						Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
+						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+						// still one call to upstream
+						Expect(m.Calls).Should(HaveLen(1))
+						// ttl is 0
+						Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
+							dns.TypeA, 0, "1.1.1.1"))
+					})
+				})
+			})
+		})
 	})
 
 	Describe("Negative cache (caching if upstream resolver returns NXDOMAIN)", func() {
