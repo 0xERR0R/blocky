@@ -188,11 +188,11 @@ var _ = Describe("Config", func() {
 		func(in string, wantResult Upstream, wantErr bool) {
 			result, err := ParseUpstream(in)
 			if wantErr {
-				Expect(err).Should(HaveOccurred())
+				Expect(err).Should(HaveOccurred(), in)
 			} else {
-				Expect(err).Should(Succeed())
+				Expect(err).Should(Succeed(), in)
 			}
-			Expect(result).Should(Equal(wantResult))
+			Expect(result).Should(Equal(wantResult), in)
 		},
 		Entry("udp with port",
 			"udp:4.4.4.4:531",
@@ -237,19 +237,23 @@ var _ = Describe("Config", func() {
 		Entry("empty",
 			"",
 			Upstream{Net: 0},
-			false),
+			true),
 		Entry("udpIpv6WithPort",
 			"udp:[fd00::6cd4:d7e0:d99d:2952]:53",
 			Upstream{Net: NetProtocolTcpUdp, Host: "fd00::6cd4:d7e0:d99d:2952", Port: 53},
 			false),
 		Entry("udpIpv6WithPort2",
-			"udp://[2001:4860:4860::8888]:53",
+			"udp:[2001:4860:4860::8888]:53",
 			Upstream{Net: NetProtocolTcpUdp, Host: "2001:4860:4860::8888", Port: 53},
 			false),
 		Entry("default net, default port",
 			"1.1.1.1",
 			Upstream{Net: NetProtocolTcpUdp, Host: "1.1.1.1", Port: 53},
 			false),
+		Entry("wrong host name",
+			"host$name",
+			Upstream{},
+			true),
 		Entry("default net with port",
 			"1.1.1.1:153",
 			Upstream{Net: NetProtocolTcpUdp, Host: "1.1.1.1", Port: 153},
@@ -277,6 +281,18 @@ var _ = Describe("Config", func() {
 		Entry("tcp+udp default port",
 			"tcp+udp:1.1.1.1",
 			Upstream{Net: NetProtocolTcpUdp, Host: "1.1.1.1", Port: 53},
+			false),
+		Entry("defaultIpv6Short",
+			"2620:fe::fe",
+			Upstream{Net: NetProtocolTcpUdp, Host: "2620:fe::fe", Port: 53},
+			false),
+		Entry("defaultIpv6Short2",
+			"2620:fe::9",
+			Upstream{Net: NetProtocolTcpUdp, Host: "2620:fe::9", Port: 53},
+			false),
+		Entry("defaultIpv6WithPort",
+			"[2620:fe::9]:55",
+			Upstream{Net: NetProtocolTcpUdp, Host: "2620:fe::9", Port: 55},
 			false),
 	)
 })
