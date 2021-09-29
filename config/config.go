@@ -35,10 +35,6 @@ type QueryLogType int16
 
 type Duration time.Duration
 
-const (
-	validUpstream = `(?P<Host>(?:\[[^\]]+\])|[^\s/:]+):?(?P<Port>[^\s/:]*)?(?P<Path>/[^\s]*)?`
-)
-
 // nolint:gochecknoglobals
 var netDefaultPort = map[NetProtocol]uint16{
 	NetProtocolTcpUdp: 53,
@@ -152,45 +148,67 @@ func (c *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return err
 }
 
+var validDomain = regexp.MustCompile(
+	`^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$`)
+
 // ParseUpstream creates new Upstream from passed string in format [net]:host[:port][/path]
-func ParseUpstream(upstream string) (result Upstream, err error) {
-	if strings.TrimSpace(upstream) == "" {
-		return Upstream{}, nil
-	}
-
-	var n NetProtocol
-
-	n, upstream = extractNet(upstream)
-
-	r := regexp.MustCompile(validUpstream)
-
-	match := r.FindStringSubmatch(upstream)
-
-	host := match[1]
-
-	portPart := match[2]
-
-	path := match[3]
+func ParseUpstream(upstream string) (Upstream, error) {
+	var path string
 
 	var port uint16
 
-	if len(portPart) > 0 {
+	n, upstream := extractNet(upstream)
+
+	path, upstream = extractPath(upstream)
+
+	host, portString, err := net.SplitHostPort(upstream)
+
+	// string contains host:port
+	if err == nil {
 		var p uint64
-		p, err = strconv.ParseUint(strings.TrimSpace(portPart), 10, 16)
+		p, err = strconv.ParseUint(strings.TrimSpace(portString), 10, 16)
 
 		if err != nil {
 			err = fmt.Errorf("can't convert port to number (1 - 65535) %w", err)
-			return
+			return Upstream{}, err
 		}
 
 		port = uint16(p)
 	} else {
+		// only host, use default port
+		host = upstream
 		port = netDefaultPort[n]
 	}
 
-	host = regexp.MustCompile(`[\[\]]`).ReplaceAllString(host, "")
+	// validate hostname or ip
+	ip := net.ParseIP(host)
 
-	return Upstream{Net: n, Host: host, Port: port, Path: path}, nil
+	if ip == nil {
+		// is not IP
+		if !validDomain.MatchString(host) {
+			return Upstream{}, fmt.Errorf("wrong host name '%s'", host)
+		}
+	}
+
+	return Upstream{
+		Net:  n,
+		Host: host,
+		Port: port,
+		Path: path,
+	}, nil
+}
+
+func extractPath(in string) (path string, upstream string) {
+	slashIdx := strings.Index(in, "/")
+
+	if slashIdx >= 0 {
+		path = in[slashIdx:]
+		upstream = in[:slashIdx]
+	} else {
+		upstream = in
+	}
+
+	return
 }
 
 func extractNet(upstream string) (NetProtocol, string) {
@@ -214,7 +232,7 @@ func extractNet(upstream string) (NetProtocol, string) {
 	}
 
 	if strings.HasPrefix(upstream, NetProtocolHttps.String()+":") {
-		return NetProtocolHttps, strings.Replace(upstream, NetProtocolHttps.String()+":", "", 1)
+		return NetProtocolHttps, strings.TrimPrefix(strings.Replace(upstream, NetProtocolHttps.String()+":", "", 1), "//")
 	}
 
 	return NetProtocolTcpUdp, upstream
