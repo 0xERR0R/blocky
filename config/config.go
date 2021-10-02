@@ -265,10 +265,15 @@ type Config struct {
 	Port            string                    `yaml:"port"`
 	HTTPPort        string                    `yaml:"httpPort"`
 	HTTPSPort       string                    `yaml:"httpsPort"`
+	TLSPort         string                    `yaml:"tlsPort"`
 	DisableIPv6     bool                      `yaml:"disableIPv6"`
-	CertFile        string                    `yaml:"httpsCertFile"`
-	KeyFile         string                    `yaml:"httpsKeyFile"`
+	CertFile        string                    `yaml:"certFile"`
+	KeyFile         string                    `yaml:"keyFile"`
 	BootstrapDNS    Upstream                  `yaml:"bootstrapDns"`
+	// Deprecated
+	HTTPCertFile string `yaml:"httpsCertFile"`
+	// Deprecated
+	HTTPKeyFile string `yaml:"httpsKeyFile"`
 }
 
 // PrometheusConfig contains the config values for prometheus
@@ -392,6 +397,27 @@ func validateConfig(cfg *Config) {
 			} else {
 				cfg.QueryLog.Type = QueryLogTypeCsv
 			}
+		}
+	}
+
+	if cfg.HTTPKeyFile != "" || cfg.HTTPCertFile != "" {
+		log.Log().Warnf("'httpsCertFile'/'httpsKeyFile' are deprecated, use 'certFile'/'keyFile' instead")
+
+		if cfg.CertFile == "" && cfg.KeyFile == "" {
+			cfg.CertFile = cfg.HTTPCertFile
+			cfg.KeyFile = cfg.HTTPKeyFile
+		}
+	}
+
+	if cfg.TLSPort != "" {
+		if cfg.CertFile == "" || cfg.KeyFile == "" {
+			log.Log().Fatal("certFile and keyFile parameters are mandatory for TLS")
+		}
+	}
+
+	if cfg.HTTPSPort != "" {
+		if cfg.CertFile == "" || cfg.KeyFile == "" {
+			log.Log().Fatal("certFile and keyFile parameters are mandatory for HTTPS")
 		}
 	}
 }

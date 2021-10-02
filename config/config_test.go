@@ -158,6 +158,66 @@ var _ = Describe("Config", func() {
 			})
 		})
 
+		When("deprecated httpsCertFile/httpsKeyFile parameter is used", func() {
+			It("should be mapped to certFile/keyFile", func() {
+
+				c := &Config{
+					HTTPKeyFile:  "key",
+					HTTPCertFile: "cert",
+				}
+				validateConfig(c)
+
+				Expect(c.KeyFile).Should(Equal("key"))
+				Expect(c.CertFile).Should(Equal("cert"))
+			})
+		})
+
+		When("TlsPort is defined", func() {
+			It("certFile/keyFile must be set", func() {
+
+				By("certFile/keyFile not set", func() {
+					c := &Config{
+						TLSPort: "953",
+					}
+					helpertest.ShouldLogFatal(func() {
+						validateConfig(c)
+					})
+				})
+
+				By("certFile/keyFile set", func() {
+					c := &Config{
+						TLSPort:  "953",
+						KeyFile:  "key",
+						CertFile: "cert",
+					}
+					validateConfig(c)
+				})
+			})
+		})
+
+		When("HttpsPort is defined", func() {
+			It("certFile/keyFile must be set", func() {
+
+				By("certFile/keyFile not set", func() {
+					c := &Config{
+						HTTPSPort: "443",
+					}
+					helpertest.ShouldLogFatal(func() {
+						validateConfig(c)
+					})
+				})
+
+				By("certFile/keyFile set", func() {
+					c := &Config{
+						TLSPort:  "443",
+						KeyFile:  "key",
+						CertFile: "cert",
+					}
+					validateConfig(c)
+				})
+			})
+		})
+
 		When("config directory does not exist", func() {
 			It("should log with fatal and exit if config is mandatory", func() {
 				err := os.Chdir("../..")

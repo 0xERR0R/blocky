@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -24,8 +25,7 @@ import (
 
 // Server controls the endpoints for DNS and HTTP
 type Server struct {
-	udpServer     *dns.Server
-	tcpServer     *dns.Server
+	dnsServers    []*dns.Server
 	httpListener  net.Listener
 	httpsListener net.Listener
 	queryResolver resolver.Resolver
@@ -48,12 +48,16 @@ func getServerAddress(addr string) string {
 
 // NewServer creates new server instance with passed config
 func NewServer(cfg *config.Config) (server *Server, err error) {
-	address := getServerAddress(cfg.Port)
+	var dnsServers []*dns.Server
 
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
-	udpServer := createUDPServer(address)
-	tcpServer := createTCPServer(address)
+	dnsServers = append(dnsServers, createUDPServer(getServerAddress(cfg.Port)))
+	dnsServers = append(dnsServers, createTCPServer(getServerAddress(cfg.Port)))
+
+	if cfg.TLSPort != "" {
+		dnsServers = append(dnsServers, createTLSServer(getServerAddress(cfg.TLSPort), cfg.CertFile, cfg.KeyFile))
+	}
 
 	var httpListener, httpsListener net.Listener
 
@@ -68,10 +72,6 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 	}
 
 	if cfg.HTTPSPort != "" {
-		if cfg.CertFile == "" || cfg.KeyFile == "" {
-			return nil, fmt.Errorf("httpsCertFile and httpsKeyFile parameters are mandatory for HTTPS")
-		}
-
 		if httpsListener, err = net.Listen("tcp", getServerAddress(cfg.HTTPSPort)); err != nil {
 			return nil, fmt.Errorf("start https listener on port %s failed: %w", cfg.HTTPSPort, err)
 		}
@@ -83,8 +83,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	queryResolver := createQueryResolver(cfg)
 	server = &Server{
-		udpServer:     udpServer,
-		tcpServer:     tcpServer,
+		dnsServers:    dnsServers,
 		queryResolver: queryResolver,
 		cfg:           cfg,
 		httpListener:  httpListener,
@@ -94,8 +93,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	server.printConfiguration()
 
-	server.registerDNSHandlers(udpServer)
-	server.registerDNSHandlers(tcpServer)
+	server.registerDNSHandlers()
 	server.registerAPIEndpoints(router)
 
 	registerResolverAPIEndpoints(router, queryResolver)
@@ -115,13 +113,31 @@ func registerResolverAPIEndpoints(router chi.Router, res resolver.Resolver) {
 	}
 }
 
+func createTLSServer(address string, certFile string, keyFile string) *dns.Server {
+	cer, err := tls.LoadX509KeyPair(certFile, keyFile)
+	util.FatalOnError("can't load certificate files: ", err)
+
+	return &dns.Server{
+		Addr: address,
+		Net:  "tcp-tls",
+		TLSConfig: &tls.Config{
+			Certificates: []tls.Certificate{cer},
+			MinVersion:   tls.VersionTLS12,
+		},
+		Handler: dns.NewServeMux(),
+		NotifyStartedFunc: func() {
+			logger().Infof("TLS server is up and running on address %s", address)
+		},
+	}
+}
+
 func createTCPServer(address string) *dns.Server {
 	return &dns.Server{
 		Addr:    address,
 		Net:     "tcp",
 		Handler: dns.NewServeMux(),
 		NotifyStartedFunc: func() {
-			logger().Infof("tcp server is up and running on address %s", address)
+			logger().Infof("TCP server is up and running on address %s", address)
 		},
 	}
 }
@@ -132,7 +148,7 @@ func createUDPServer(address string) *dns.Server {
 		Net:     "udp",
 		Handler: dns.NewServeMux(),
 		NotifyStartedFunc: func() {
-			logger().Infof("udp server is up and running on address %s", address)
+			logger().Infof("UDP server is up and running on address %s", address)
 		},
 		UDPSize: 65535}
 }
@@ -151,10 +167,12 @@ func createQueryResolver(cfg *config.Config) resolver.Resolver {
 	)
 }
 
-func (s *Server) registerDNSHandlers(server *dns.Server) {
-	handler := server.Handler.(*dns.ServeMux)
-	handler.HandleFunc(".", s.OnRequest)
-	handler.HandleFunc("healthcheck.blocky", s.OnHealthCheck)
+func (s *Server) registerDNSHandlers() {
+	for _, server := range s.dnsServers {
+		handler := server.Handler.(*dns.ServeMux)
+		handler.HandleFunc(".", s.OnRequest)
+		handler.HandleFunc("healthcheck.blocky", s.OnHealthCheck)
+	}
 }
 
 func (s *Server) printConfiguration() {
@@ -205,17 +223,15 @@ func toMB(b uint64) uint64 {
 func (s *Server) Start() {
 	logger().Info("Starting server")
 
-	go func() {
-		if err := s.udpServer.ListenAndServe(); err != nil {
-			logger().Fatalf("start %s listener failed: %v", s.udpServer.Net, err)
-		}
-	}()
+	for _, srv := range s.dnsServers {
+		srv := srv
 
-	go func() {
-		if err := s.tcpServer.ListenAndServe(); err != nil {
-			logger().Fatalf("start %s listener failed: %v", s.tcpServer.Net, err)
-		}
-	}()
+		go func() {
+			if err := srv.ListenAndServe(); err != nil {
+				logger().Fatalf("start %s listener failed: %v", srv.Net, err)
+			}
+		}()
+	}
 
 	go func() {
 		if s.httpListener != nil {
@@ -242,12 +258,10 @@ func (s *Server) Start() {
 func (s *Server) Stop() {
 	logger().Info("Stopping server")
 
-	if err := s.udpServer.Shutdown(); err != nil {
-		logger().Fatalf("stop %s listener failed: %v", s.udpServer.Net, err)
-	}
-
-	if err := s.tcpServer.Shutdown(); err != nil {
-		logger().Fatalf("stop %s listener failed: %v", s.tcpServer.Net, err)
+	for _, server := range s.dnsServers {
+		if err := server.Shutdown(); err != nil {
+			logger().Fatalf("stop %s listener failed: %v", server.Net, err)
+		}
 	}
 }
 
