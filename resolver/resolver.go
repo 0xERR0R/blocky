@@ -39,6 +39,17 @@ func newRequestWithClient(question string, rType uint16, ip string, clientNames 
 	}
 }
 
+func newRequestWithClientID(question string, rType uint16, ip string, requestClientID string) *model.Request {
+	return &model.Request{
+		ClientIP:        net.ParseIP(ip),
+		RequestClientID: requestClientID,
+		Req:             util.NewMsgWithQuestion(question, rType),
+		Log:             logrus.NewEntry(log.Log()),
+		RequestTS:       time.Time{},
+		Protocol:        model.RequestProtocolUDP,
+	}
+}
+
 // Resolver generic interface for all resolvers
 type Resolver interface {
 

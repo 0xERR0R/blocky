@@ -31,8 +31,10 @@ const (
 func (s *Server) registerAPIEndpoints(router *chi.Mux) {
 	router.Post(api.PathQueryPath, s.apiQuery)
 
-	router.Get("/dns-query", s.dohGetRequestHandler)
-	router.Post("/dns-query", s.dohPostRequestHandler)
+	router.Get(api.PathDohQuery, s.dohGetRequestHandler)
+	router.Get(api.PathDohQuery+"/{clientID}", s.dohGetRequestHandler)
+	router.Post(api.PathDohQuery, s.dohPostRequestHandler)
+	router.Post(api.PathDohQuery+"/{clientID}", s.dohPostRequestHandler)
 }
 
 func (s *Server) dohGetRequestHandler(rw http.ResponseWriter, req *http.Request) {
@@ -94,7 +96,12 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 		return
 	}
 
-	r := newRequest(net.ParseIP(extractIP(req)), model.RequestProtocolTCP, msg)
+	clientID := chi.URLParam(req, "clientID")
+	if clientID == "" {
+		clientID = extractClientIDFromHost(req.Host)
+	}
+
+	r := newRequest(net.ParseIP(extractIP(req)), model.RequestProtocolTCP, clientID, msg)
 
 	resResponse, err := s.queryResolver.Resolve(r)
 

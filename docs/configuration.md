@@ -158,17 +158,34 @@ client.lan.net to 192.170.1.2 and 192.170.1.3.
 
 ## Client name lookup
 
-Blocky can try to resolve a user-friendly client name from the IP address. This is useful for defining of blocking
-groups, since IP address can change dynamically. Blocky uses rDNS to retrieve client's name. To use this feature, you
-can configure a DNS server for client lookup (typically your router). You can also define client names manually per IP
-address.
+Blocky can try to resolve a user-friendly client name from the IP address or server URL (DoT and DoH). This is useful
+for defining of blocking groups, since IP address can change dynamically.
 
-### Single name order
+### Resolving client name from URL/Host
+
+If DoT or DoH is enabled, you can use a subdomain prefixed with `id-` to provide a client name (wildcard ssl certificate
+recommended).
+
+Example: domain `example.com`
+
+DoT Host: `id-bob.example.com` -> request's client name is `bob`
+DoH URL: `https://id-bob.example.com/dns-query` -> request's client name is `bob`
+
+For DoH you can also pass the client name as url parameter:
+
+DoH URL: `htpps://blocky.example.com/dns-query/alice` -> request's client name is `alice`
+
+### Resolving client name from IP address
+
+Blocky uses rDNS to retrieve client's name. To use this feature, you can configure a DNS server for client lookup (
+typically your router). You can also define client names manually per IP address.
+
+#### Single name order
 
 Some routers return multiple names for the client (host name and user defined name). With
 parameter `clientLookup.singleNameOrder` you can specify, which of retrieved names should be used.
 
-### Custom client name mapping
+#### Custom client name mapping
 
 You can also map a particular client name to one (or more) IP (ipv4/ipv6) addresses. Parameter `clientLookup.clients`
 contains a map of client name and multiple IP addresses.
