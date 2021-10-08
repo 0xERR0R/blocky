@@ -100,8 +100,12 @@ var _ = Describe("Running DNS server", func() {
 				Upstream: upstreamClient,
 			},
 
-			Port:     "55555",
-			HTTPPort: "4000",
+			Port:      "55555",
+			TLSPort:   "8853",
+			CertFile:  "../testdata/cert.pem",
+			KeyFile:   "../testdata/key.pem",
+			HTTPPort:  "4000",
+			HTTPSPort: "4443",
 			Prometheus: config.PrometheusConfig{
 				Enable: true,
 				Path:   "/metrics",
@@ -412,6 +416,25 @@ var _ = Describe("Running DNS server", func() {
 					Expect(err).Should(Succeed())
 
 					resp, err := http.Post("http://localhost:4000/dns-query",
+						"application/dns-message", bytes.NewReader(rawDNSMessage))
+					Expect(err).Should(Succeed())
+					defer resp.Body.Close()
+					Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+					rawMsg, err := ioutil.ReadAll(resp.Body)
+					Expect(err).Should(Succeed())
+
+					msg = new(dns.Msg)
+					err = msg.Unpack(rawMsg)
+					Expect(err).Should(Succeed())
+
+					Expect(msg.Answer).Should(BeDNSRecord("www.example.com.", dns.TypeA, 0, "123.124.122.122"))
+				})
+				It("should get a valid response, clientId is passed", func() {
+					msg := util.NewMsgWithQuestion("www.example.com.", dns.TypeA)
+					rawDNSMessage, err := msg.Pack()
+					Expect(err).Should(Succeed())
+
+					resp, err := http.Post("http://localhost:4000/dns-query/client123",
 						"application/dns-message", bytes.NewReader(rawDNSMessage))
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()

@@ -106,9 +106,7 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 	resResponse, err := s.queryResolver.Resolve(r)
 
 	if err != nil {
-		logger().Error("unable to process query: ", err)
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-
+		logAndResponseWithError(err, "unable to process query: ", rw)
 		return
 	}
 
@@ -119,17 +117,14 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 
 	b, err := resResponse.Res.Pack()
 	if err != nil {
-		logger().Error("can't serialize message: ", err)
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		logAndResponseWithError(err, "can't serialize message: ", rw)
+		return
 	}
 
 	rw.Header().Set("content-type", dnsContentType)
 
 	_, err = rw.Write(b)
-	if err != nil {
-		logger().Error("can't write response: ", err)
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-	}
+	logAndResponseWithError(err, "can't write response: ", rw)
 }
 
 func extractIP(r *http.Request) string {
@@ -165,9 +160,7 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 	err := json.NewDecoder(req.Body).Decode(&queryRequest)
 
 	if err != nil {
-		logger().Error("can't read request: ", err)
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-
+		logAndResponseWithError(err, "can't read request: ", rw)
 		return
 	}
 
@@ -175,8 +168,7 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 	qType := dns.StringToType[queryRequest.Type]
 	if qType == dns.TypeNone {
 		err = fmt.Errorf("unknown query type '%s'", queryRequest.Type)
-		logger().Error(err)
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		logAndResponseWithError(err, "unknown query type: ", rw)
 
 		return
 	}
@@ -194,9 +186,7 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 	response, err := s.queryResolver.Resolve(r)
 
 	if err != nil {
-		logger().Error("unable to process query: ", err)
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-
+		logAndResponseWithError(err, "unable to process query: ", rw)
 		return
 	}
 
@@ -207,13 +197,7 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 		ReturnCode:   dns.RcodeToString[response.Res.Rcode],
 	})
 	_, err = rw.Write(jsonResponse)
-
-	if err != nil {
-		logger().Error("unable to write response ", err)
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
+	logAndResponseWithError(err, "unable to write response: ", rw)
 }
 
 func createRouter(cfg *config.Config) *chi.Mux {
@@ -268,11 +252,15 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 		}
 
 		err := t.Execute(writer, pd)
-		if err != nil {
-			log.Log().Error("can't write index template: ", err)
-			writer.WriteHeader(http.StatusInternalServerError)
-		}
+		logAndResponseWithError(err, "can't write index template: ", writer)
 	})
+}
+
+func logAndResponseWithError(err error, message string, writer http.ResponseWriter) {
+	if err != nil {
+		log.Log().Error(message, err)
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func configureDebugHandler(router *chi.Mux) {

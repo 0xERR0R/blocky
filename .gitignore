@@ -1,6 +1,6 @@
 .idea/
 *.iml
-*.pem
+/*.pem
 bin/
 dist/
 docs/swagger.json
