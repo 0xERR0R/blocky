@@ -167,6 +167,10 @@ func (b *ListCache) Match(domain string, groupsToCheck []string) (found bool, gr
 
 // Refresh triggers the refresh of a list
 func (b *ListCache) Refresh() {
+	b.refresh(false)
+}
+func (b *ListCache) refresh(init bool) []error {
+	res := []error{}
 	for group, links := range b.groupToLinks {
 		cacheForGroup := b.createCacheForGroup(links)
 
@@ -175,16 +179,24 @@ func (b *ListCache) Refresh() {
 			b.groupCaches[group] = cacheForGroup
 			b.lock.Unlock()
 		} else {
-			logger().Warn("Populating of group cache failed, leaving items from last successful download in cache")
+			if init {
+				msg := "Populating group cache failed for group " + group
+				logger().Warn(msg)
+				res = append(res, fmt.Errorf(msg))
+			} else {
+				logger().Warn("Populating of group cache failed, leaving items from last successful download in cache")
+			}
 		}
+		if b.groupCaches[group] != nil {
+			evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, b.groupCaches[group].elementCount())
 
-		evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, b.groupCaches[group].elementCount())
-
-		logger().WithFields(logrus.Fields{
-			"group":       group,
-			"total_count": b.groupCaches[group].elementCount(),
-		}).Info("group import finished")
+			logger().WithFields(logrus.Fields{
+				"group":       group,
+				"total_count": b.groupCaches[group].elementCount(),
+			}).Info("group import finished")
+		}
 	}
+	return res
 }
 
 func (b *ListCache) downloadFile(link string) (io.ReadCloser, error) {
