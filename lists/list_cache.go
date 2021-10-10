@@ -81,7 +81,7 @@ func (b *ListCache) Configuration() (result []string) {
 
 // NewListCache creates new list instance
 func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration,
-	downloadTimeout time.Duration) *ListCache {
+	downloadTimeout time.Duration) (*ListCache, []error) {
 	groupCaches := make(map[string]cache)
 
 	b := &ListCache{
@@ -91,11 +91,11 @@ func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeri
 		downloadTimeout: downloadTimeout,
 		listType:        t,
 	}
-	b.Refresh()
-
-	go periodicUpdate(b)
-
-	return b
+	initError := b.refresh(true)
+	if len(initError) == 0 {
+		go periodicUpdate(b)
+	}
+	return b, initError
 }
 
 // periodicUpdate triggers periodical refresh (and download) of list entries
