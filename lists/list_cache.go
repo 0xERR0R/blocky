@@ -262,14 +262,7 @@ func (b *ListCache) processFile(link string, ch chan<- []string, wg *sync.WaitGr
 
 	if err != nil {
 		logger().Warn("error during file processing: ", err)
-
-		var netErr net.Error
-		if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
-			// put nil to indicate the temporary error
-			ch <- nil
-			return
-		}
-		ch <- []string{}
+		ch <- nil
 
 		return
 	}
