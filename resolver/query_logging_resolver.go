@@ -57,6 +57,10 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 	return &resolver
 }
 
+func (c *QueryLoggingResolver) GetInitErrors() []error {
+	return []error{}
+}
+
 // triggers periodically cleanup of old log files
 func (r *QueryLoggingResolver) periodicCleanUp() {
 	ticker := time.NewTicker(cleanUpRunPeriod)

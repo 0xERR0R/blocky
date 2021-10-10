@@ -175,6 +175,10 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 		r1.resolver, r2.resolver, collectedErrors)
 }
 
+func (c *ParallelBestResolver) GetInitErrors() []error {
+	return []error{}
+}
+
 // pick 2 different random resolvers from the resolver pool
 func pickRandom(resolvers []*upstreamResolverStatus) (resolver1, resolver2 *upstreamResolverStatus) {
 	resolver1 = weightedRandom(resolvers, nil)

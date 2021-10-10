@@ -204,3 +204,7 @@ func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Resp
 
 	return response, err
 }
+
+func (c *UpstreamResolver) GetInitErrors() []error {
+	return []error{}
+}

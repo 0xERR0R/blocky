@@ -35,3 +35,7 @@ func (r *IPv6DisablingResolver) Configuration() (result []string) {
 func NewIPv6Checker(disable bool) ChainedResolver {
 	return &IPv6DisablingResolver{disableAAAA: disable}
 }
+
+func (c *IPv6DisablingResolver) GetInitErrors() []error {
+	return []error{}
+}

@@ -52,6 +52,10 @@ func NewCachingResolver(cfg config.CachingConfig) ChainedResolver {
 	return c
 }
 
+func (c *CachingResolver) GetInitErrors() []error {
+	return []error{}
+}
+
 func createQueryResultCache(cfg *config.CachingConfig) *cache.Cache {
 	return cache.NewWithLRU(15*time.Minute, 15*time.Second, cfg.MaxItemsCount)
 }

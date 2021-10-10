@@ -37,6 +37,10 @@ func (r *resolverMock) Resolve(req *model.Request) (*model.Response, error) {
 	return nil, args.Error(1)
 }
 
+func (c *resolverMock) GetInitErrors() []error {
+	return []error{}
+}
+
 // TestDOHUpstream creates a mock DoH Upstream
 func TestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg),
 	reqFn ...func(w http.ResponseWriter)) config.Upstream {
