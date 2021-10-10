@@ -205,22 +205,27 @@ func (b *ListCache) downloadFile(link string) (io.ReadCloser, error) {
 		if resp, err = client.Get(link); err == nil {
 			if resp.StatusCode == http.StatusOK {
 				return resp.Body, nil
+			} else {
+				logger().WithField("link", link).WithField("attempt",
+					attempt).Warnf("Got status code %d", resp.StatusCode)
 			}
 
 			_ = resp.Body.Close()
 
-			return nil, fmt.Errorf("couldn't download url '%s', got status code %d", link, resp.StatusCode)
+			err = fmt.Errorf("couldn't download url '%s', got status code %d", link, resp.StatusCode)
 		}
 
 		var netErr net.Error
+		var dnsErr *net.DNSError
 		if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
 			logger().WithField("link", link).WithField("attempt",
 				attempt).Warnf("Temporary network error / Timeout occurred, retrying... %s", netErr)
-			time.Sleep(time.Second)
-			attempt++
-		} else {
-			return nil, err
+		} else if errors.As(err, &dnsErr) {
+			logger().WithField("link", link).WithField("attempt",
+				attempt).Warnf("Name resolution error, retrying... %s", dnsErr.Err)
 		}
+		time.Sleep(time.Second)
+		attempt++
 	}
 
 	return nil, err
