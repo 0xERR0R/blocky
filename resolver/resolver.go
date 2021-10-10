@@ -87,8 +87,10 @@ func withPrefix(logger *logrus.Entry, prefix string) *logrus.Entry {
 }
 
 // Chain creates a chain of resolvers
-func Chain(resolvers ...Resolver) Resolver {
+func Chain(resolvers ...Resolver) (Resolver, []error) {
+	var initErrors []error
 	for i, res := range resolvers {
+		initErrors = append(initErrors, resolvers[i].GetInitErrors()...)
 		if i+1 < len(resolvers) {
 			if cr, ok := res.(ChainedResolver); ok {
 				cr.Next(resolvers[i+1])
@@ -96,7 +98,7 @@ func Chain(resolvers ...Resolver) Resolver {
 		}
 	}
 
-	return resolvers[0]
+	return resolvers[0], initErrors
 }
 
 // Name returns a user-friendly name of a resolver

@@ -29,7 +29,7 @@ var _ = Describe("Running DNS server", func() {
 		upstreamGoogle, upstreamFritzbox, upstreamClient config.Upstream
 		mockClientName                                   string
 		sut                                              *Server
-		err                                              error
+		err                                              []error
 		resp                                             *dns.Msg
 	)
 
