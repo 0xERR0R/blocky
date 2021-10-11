@@ -37,10 +37,6 @@ func NewConditionalUpstreamResolver(cfg config.ConditionalUpstreamConfig) Chaine
 	return &ConditionalUpstreamResolver{mapping: m, rewrite: rewrite}
 }
 
-func (c *ConditionalUpstreamResolver) GetInitErrors() []error {
-	return []error{}
-}
-
 // Configuration returns current configuration
 func (r *ConditionalUpstreamResolver) Configuration() (result []string) {
 	if len(r.mapping) > 0 {

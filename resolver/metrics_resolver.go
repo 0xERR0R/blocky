@@ -84,10 +84,6 @@ func NewMetricsResolver(cfg config.PrometheusConfig) ChainedResolver {
 	}
 }
 
-func (c *MetricsResolver) GetInitErrors() []error {
-	return []error{}
-}
-
 func totalQueriesMetric() *prometheus.CounterVec {
 	return prometheus.NewCounterVec(
 		prometheus.CounterOpts{

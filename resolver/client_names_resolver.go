@@ -39,10 +39,6 @@ func NewClientNamesResolver(cfg config.ClientLookupConfig) ChainedResolver {
 	}
 }
 
-func (c *ClientNamesResolver) GetInitErrors() []error {
-	return []error{}
-}
-
 // Configuration returns current resolver configuration
 func (r *ClientNamesResolver) Configuration() (result []string) {
 	if r.externalResolver != nil || len(r.clientIPMapping) > 0 {

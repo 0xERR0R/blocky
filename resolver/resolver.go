@@ -47,9 +47,6 @@ type Resolver interface {
 
 	// Configuration prints current resolver configuration
 	Configuration() []string
-
-	//returns a list of errors which occurred during the initialisation
-	GetInitErrors() []error
 }
 
 // ChainedResolver represents a resolver, which can delegate result to the next one

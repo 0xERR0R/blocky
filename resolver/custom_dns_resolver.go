@@ -39,10 +39,6 @@ func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
 	return &CustomDNSResolver{mapping: m, reverseAddresses: reverse}
 }
 
-func (c *CustomDNSResolver) GetInitErrors() []error {
-	return []error{}
-}
-
 // Configuration returns current resolver configuration
 func (r *CustomDNSResolver) Configuration() (result []string) {
 	if len(r.mapping) > 0 {

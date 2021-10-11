@@ -66,7 +66,6 @@ type status struct {
 	disabledGroups []string
 	enableTimer    *time.Timer
 	disableEnd     time.Time
-	initErrors     []error
 }
 
 // BlockingResolver checks request's question (domain name) against black and white lists
@@ -85,17 +84,10 @@ func NewBlockingResolver(cfg config.BlockingConfig) ChainedResolver {
 	blockHandler := createBlockHandler(cfg)
 	refreshPeriod := time.Duration(cfg.RefreshPeriod)
 	timeout := time.Duration(cfg.DownloadTimeout)
-	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists, refreshPeriod, timeout)
-	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists, refreshPeriod, timeout)
+	blacklistMatcher := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists, refreshPeriod, timeout)
+	whitelistMatcher := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists, refreshPeriod, timeout)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
-	var initErrors []error
-	if len(blErr) > 0 {
-		initErrors = append(initErrors, blErr...)
-	}
-	if len(wlErr) > 0 {
-		initErrors = append(initErrors, wlErr...)
-	}
 	res := &BlockingResolver{
 		blockHandler:        blockHandler,
 		cfg:                 cfg,
@@ -105,16 +97,10 @@ func NewBlockingResolver(cfg config.BlockingConfig) ChainedResolver {
 		status: &status{
 			enabled:     true,
 			enableTimer: time.NewTimer(0),
-			initErrors:  initErrors,
 		},
 	}
 
 	return res
-}
-
-//returns a list of errors which occurred during the initialisation
-func (c *BlockingResolver) GetInitErrors() []error {
-	return c.status.initErrors
 }
 
 // RefreshLists triggers the refresh of all black and white lists in the cache
