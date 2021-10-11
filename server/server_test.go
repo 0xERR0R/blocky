@@ -40,20 +40,20 @@ var _ = Describe("Running DNS server", func() {
 			}
 			response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 123, dns.TypeA, "123.124.122.122")
 
-			Expect(err).Should(Succeed())
+			Expect(err).Should(BeEmpty())
 			return response
 		})
 		upstreamFritzbox = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
 			response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 3600, dns.TypeA, "192.168.178.2")
 
-			Expect(err).Should(Succeed())
+			Expect(err).Should(BeEmpty())
 			return response
 		})
 
 		upstreamClient = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
 			response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 3600, dns.TypePTR, mockClientName)
 
-			Expect(err).Should(Succeed())
+			Expect(err).Should(BeEmpty())
 			return response
 		})
 
@@ -108,7 +108,7 @@ var _ = Describe("Running DNS server", func() {
 			},
 		})
 
-		Expect(err).Should(Succeed())
+		Expect(err).Should(BeEmpty())
 
 		// start server
 		go func() {
