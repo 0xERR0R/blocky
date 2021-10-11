@@ -11,7 +11,8 @@ var _ = Describe("Resolver", func() {
 	Describe("Creating resolver chain", func() {
 		When("A chain of resolvers will be created", func() {
 			It("should be iterable by calling 'GetNext'", func() {
-				ch, _ := Chain(NewBlockingResolver(config.BlockingConfig{}), NewClientNamesResolver(config.ClientLookupConfig{}))
+				br, _ := NewBlockingResolver(config.BlockingConfig{})
+				ch := Chain(br, NewClientNamesResolver(config.ClientLookupConfig{}))
 				c, ok := ch.(ChainedResolver)
 				Expect(ok).Should(BeTrue())
 
@@ -21,7 +22,8 @@ var _ = Describe("Resolver", func() {
 		})
 		When("'Name' will be called", func() {
 			It("should return resolver name", func() {
-				name := Name(NewBlockingResolver(config.BlockingConfig{}))
+				br, _ := NewBlockingResolver(config.BlockingConfig{})
+				name := Name(br)
 				Expect(name).Should(Equal("BlockingResolver"))
 			})
 		})

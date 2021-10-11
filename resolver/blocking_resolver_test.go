@@ -60,7 +60,8 @@ badcnamedomain.com`)
 	JustBeforeEach(func() {
 		m = &resolverMock{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
-		sut = NewBlockingResolver(sutConfig).(*BlockingResolver)
+		tmp, _ := NewBlockingResolver(sutConfig)
+		sut = tmp.(*BlockingResolver)
 		sut.Next(m)
 		sut.RefreshLists()
 	})
@@ -90,7 +91,8 @@ badcnamedomain.com`)
 				Expect(err).Should(Succeed())
 
 				// recreate to trigger a reload
-				sut = NewBlockingResolver(sutConfig).(*BlockingResolver)
+				tmp, _ := NewBlockingResolver(sutConfig)
+				sut = tmp.(*BlockingResolver)
 
 				time.Sleep(time.Second)
 
@@ -769,7 +771,7 @@ badcnamedomain.com`)
 
 				Log().ExitFunc = func(int) { fatal = true }
 
-				_ = NewBlockingResolver(config.BlockingConfig{
+				_, _ = NewBlockingResolver(config.BlockingConfig{
 					BlockType: "wrong",
 				})
 

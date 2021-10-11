@@ -158,17 +158,18 @@ func createUDPServer(address string) *dns.Server {
 }
 
 func createQueryResolver(cfg *config.Config) (resolver.Resolver, []error) {
+	br, brErr := resolver.NewBlockingResolver(cfg.Blocking)
 	return resolver.Chain(
 		resolver.NewIPv6Checker(cfg.DisableIPv6),
 		resolver.NewClientNamesResolver(cfg.ClientLookup),
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
 		resolver.NewMetricsResolver(cfg.Prometheus),
 		resolver.NewCustomDNSResolver(cfg.CustomDNS),
-		resolver.NewBlockingResolver(cfg.Blocking),
+		br,
 		resolver.NewCachingResolver(cfg.Caching),
 		resolver.NewConditionalUpstreamResolver(cfg.Conditional),
 		resolver.NewParallelBestResolver(cfg.Upstream.ExternalResolvers),
-	)
+	), brErr
 }
 
 func (s *Server) registerDNSHandlers() {
