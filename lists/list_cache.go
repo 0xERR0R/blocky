@@ -173,7 +173,9 @@ func (b *ListCache) refresh(init bool) []error {
 	res := []error{}
 	for group, links := range b.groupToLinks {
 		cacheForGroup := b.createCacheForGroup(links)
-
+		if init && cacheForGroup != nil && cacheForGroup.elementCount() == 0 {
+			cacheForGroup = nil
+		}
 		if cacheForGroup != nil {
 			b.lock.Lock()
 			b.groupCaches[group] = cacheForGroup
