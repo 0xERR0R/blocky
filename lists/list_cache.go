@@ -115,12 +115,17 @@ func logger() *logrus.Entry {
 	return log.PrefixedLog("list_cache")
 }
 
+type groupCache struct {
+	cache  []string
+	errors []error
+}
+
 // downloads and reads files with domain names and creates cache for them
-func (b *ListCache) createCacheForGroup(links []string) cache {
+func (b *ListCache) createCacheForGroup(links []string) (cache, []error) {
 	var wg sync.WaitGroup
 
-	c := make(chan []string, len(links))
-
+	c := make(chan groupCache, len(links))
+	err := []error{}
 	// loop over links (http/local) or inline definitions
 	for _, link := range links {
 		wg.Add(1)
@@ -136,10 +141,13 @@ Loop:
 	for {
 		select {
 		case res := <-c:
-			if res == nil {
-				return nil
+			if len(res.errors) > 0 {
+				err = append(err, res.errors...)
 			}
-			for _, entry := range res {
+			if res.cache == nil {
+				return nil, err
+			}
+			for _, entry := range res.cache {
 				factory.addEntry(entry)
 			}
 		default:
@@ -148,7 +156,7 @@ Loop:
 		}
 	}
 
-	return factory.create()
+	return factory.create(), err
 }
 
 // Match matches passed domain name against cached list entries
@@ -172,9 +180,9 @@ func (b *ListCache) Refresh() {
 func (b *ListCache) refresh(init bool) []error {
 	res := []error{}
 	for group, links := range b.groupToLinks {
-		cacheForGroup := b.createCacheForGroup(links)
-		if init && cacheForGroup != nil && cacheForGroup.elementCount() == 0 {
-			cacheForGroup = nil
+		cacheForGroup, errors := b.createCacheForGroup(links)
+		if len(errors) > 0 {
+			res = append(res, errors...)
 		}
 		if cacheForGroup != nil {
 			b.lock.Lock()
@@ -184,7 +192,6 @@ func (b *ListCache) refresh(init bool) []error {
 			if init {
 				msg := "Populating group cache failed for group " + group
 				logger().Warn(msg)
-				res = append(res, fmt.Errorf(msg))
 			} else {
 				logger().Warn("Populating of group cache failed, leaving items from last successful download in cache")
 			}
@@ -253,10 +260,13 @@ func readFile(file string) (io.ReadCloser, error) {
 }
 
 // downloads file (or reads local file) and writes file content as string array in the channel
-func (b *ListCache) processFile(link string, ch chan<- []string, wg *sync.WaitGroup) {
+func (b *ListCache) processFile(link string, ch chan<- groupCache, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	result := make([]string, 0)
+	result := groupCache{
+		cache:  []string{},
+		errors: []error{},
+	}
 
 	var r io.ReadCloser
 
@@ -276,14 +286,13 @@ func (b *ListCache) processFile(link string, ch chan<- []string, wg *sync.WaitGr
 
 	if err != nil {
 		logger().Warn("error during file processing: ", err)
-
+		result.errors = append(result.errors, err)
 		var netErr net.Error
 		if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
 			// put nil to indicate the temporary error
-			ch <- nil
-			return
+			result.cache = nil
 		}
-		ch <- []string{}
+		ch <- result
 
 		return
 	}
@@ -297,7 +306,7 @@ func (b *ListCache) processFile(link string, ch chan<- []string, wg *sync.WaitGr
 		line := strings.TrimSpace(scanner.Text())
 		// skip comments
 		if line := processLine(line); line != "" {
-			result = append(result, line)
+			result.cache = append(result.cache, line)
 
 			count++
 		}
