@@ -47,7 +47,7 @@ func getServerAddress(addr string) string {
 }
 
 // NewServer creates new server instance with passed config
-func NewServer(cfg *config.Config) (server *Server, errors []error) {
+func NewServer(cfg *config.Config) (server *Server, err error) {
 	var dnsServers []*dns.Server
 
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
@@ -61,13 +61,11 @@ func NewServer(cfg *config.Config) (server *Server, errors []error) {
 
 	var httpListener, httpsListener net.Listener
 
-	var err error
-
 	router := createRouter(cfg)
 
 	if cfg.HTTPPort != "" {
 		if httpListener, err = net.Listen("tcp", getServerAddress(cfg.HTTPPort)); err != nil {
-			return nil, append(errors, fmt.Errorf("start http listener on %s failed: %w", cfg.HTTPPort, err))
+			return nil, fmt.Errorf("start http listener on %s failed: %w", cfg.HTTPPort, err)
 		}
 
 		metrics.Start(router, cfg.Prometheus)
@@ -75,7 +73,7 @@ func NewServer(cfg *config.Config) (server *Server, errors []error) {
 
 	if cfg.HTTPSPort != "" {
 		if httpsListener, err = net.Listen("tcp", getServerAddress(cfg.HTTPSPort)); err != nil {
-			return nil, append(errors, fmt.Errorf("start https listener on port %s failed: %w", cfg.HTTPSPort, err))
+			return nil, fmt.Errorf("start https listener on port %s failed: %w", cfg.HTTPSPort, err)
 		}
 
 		metrics.Start(router, cfg.Prometheus)
@@ -83,9 +81,9 @@ func NewServer(cfg *config.Config) (server *Server, errors []error) {
 
 	metrics.RegisterEventListeners()
 
-	queryResolver, queryErrors := createQueryResolver(cfg)
-	if len(queryErrors) > 0 {
-		return nil, queryErrors
+	queryResolver, queryError := createQueryResolver(cfg)
+	if queryError != nil {
+		return nil, queryError
 	}
 
 	server = &Server{
@@ -104,7 +102,7 @@ func NewServer(cfg *config.Config) (server *Server, errors []error) {
 
 	registerResolverAPIEndpoints(router, queryResolver)
 
-	return server, errors
+	return server, err
 }
 
 func registerResolverAPIEndpoints(router chi.Router, res resolver.Resolver) {
@@ -159,7 +157,7 @@ func createUDPServer(address string) *dns.Server {
 		UDPSize: 65535}
 }
 
-func createQueryResolver(cfg *config.Config) (resolver.Resolver, []error) {
+func createQueryResolver(cfg *config.Config) (resolver.Resolver, error) {
 	br, brErr := resolver.NewBlockingResolver(cfg.Blocking)
 
 	return resolver.Chain(

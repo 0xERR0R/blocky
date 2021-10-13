@@ -157,25 +157,9 @@ func LogOnErrorWithEntry(logEntry *logrus.Entry, message string, err error) {
 }
 
 // FatalOnError logs the message only if error is not nil and exits the program execution
-func FatalOnError(message string, errors ...error) {
-	if errors != nil {
-		var nnErrors []error
-
-		for _, r := range errors {
-			if r != nil {
-				nnErrors = append(nnErrors, r)
-			}
-		}
-
-		if len(nnErrors) == 1 {
-			log.Log().Fatal(message, nnErrors[0])
-		} else if len(nnErrors) > 1 {
-			combined := []interface{}{message}
-			for _, r := range nnErrors {
-				combined = append(combined, "\n\t - ", r)
-			}
-			log.Log().Fatal(combined...)
-		}
+func FatalOnError(message string, err error) {
+	if err != nil {
+		log.Log().Fatal(message, err)
 	}
 }
 

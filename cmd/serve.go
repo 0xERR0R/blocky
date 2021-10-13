@@ -44,7 +44,7 @@ func startServer(_ *cobra.Command, _ []string) {
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	srv, err := server.NewServer(config.GetConfig())
-	util.FatalOnError("cant start server: ", err...)
+	util.FatalOnError("cant start server: ", err)
 
 	srv.Start()
 

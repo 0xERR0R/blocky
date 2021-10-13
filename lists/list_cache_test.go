@@ -92,7 +92,7 @@ var _ = Describe("ListCache", func() {
 				Expect(group).Should(Equal("gr1"))
 			})
 		})
-		When("a temporary error occurs on download", func() {
+		When("a temporary err occurs on download", func() {
 			var attempt uint64 = 1
 			It("should not delete existing elements from group cache", func() {
 				// should produce a timeout on second attempt
@@ -128,10 +128,10 @@ var _ = Describe("ListCache", func() {
 				})
 			})
 		})
-		When("error occurs on download", func() {
+		When("err occurs on download", func() {
 			var attempt uint64 = 1
 			It("should delete existing elements from group cache", func() {
-				// should produce a 404 error on second attempt
+				// should produce a 404 err on second attempt
 				s := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 					a := atomic.LoadUint64(&attempt)
 					if a != 1 {
@@ -149,7 +149,7 @@ var _ = Describe("ListCache", func() {
 
 				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 30*time.Second)
 				time.Sleep(time.Second)
-				By("Lists loaded without error", func() {
+				By("Lists loaded without err", func() {
 					found, group := sut.Match("blocked1.com", []string{"gr1"})
 					Expect(found).Should(BeTrue())
 					Expect(group).Should(Equal("gr1"))
@@ -158,7 +158,7 @@ var _ = Describe("ListCache", func() {
 				sut.Refresh()
 				time.Sleep(time.Second)
 
-				By("List couldn't be loaded due to 404 error", func() {
+				By("List couldn't be loaded due to 404 err", func() {
 					found, _ := sut.Match("blocked1.com", []string{"gr1"})
 					Expect(found).Should(BeFalse())
 				})

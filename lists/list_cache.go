@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/sirupsen/logrus"
@@ -81,7 +83,7 @@ func (b *ListCache) Configuration() (result []string) {
 
 // NewListCache creates new list instance
 func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration,
-	downloadTimeout time.Duration) (*ListCache, []error) {
+	downloadTimeout time.Duration) (*ListCache, error) {
 	groupCaches := make(map[string]cache)
 
 	b := &ListCache{
@@ -93,7 +95,7 @@ func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeri
 	}
 	initError := b.refresh(true)
 
-	if len(initError) == 0 {
+	if initError == nil {
 		go periodicUpdate(b)
 	}
 
@@ -118,16 +120,17 @@ func logger() *logrus.Entry {
 }
 
 type groupCache struct {
-	cache  []string
-	errors []error
+	cache []string
+	err   error
 }
 
 // downloads and reads files with domain names and creates cache for them
-func (b *ListCache) createCacheForGroup(links []string) (cache, []error) {
+func (b *ListCache) createCacheForGroup(links []string) (cache, error) {
 	var wg sync.WaitGroup
 
+	var err error
+
 	c := make(chan groupCache, len(links))
-	err := []error{}
 	// loop over links (http/local) or inline definitions
 	for _, link := range links {
 		wg.Add(1)
@@ -143,8 +146,8 @@ Loop:
 	for {
 		select {
 		case res := <-c:
-			if len(res.errors) > 0 {
-				err = append(err, res.errors...)
+			if res.err != nil {
+				err = multierror.Append(err, res.err)
 			}
 			if res.cache == nil {
 				return nil, err
@@ -177,15 +180,15 @@ func (b *ListCache) Match(domain string, groupsToCheck []string) (found bool, gr
 
 // Refresh triggers the refresh of a list
 func (b *ListCache) Refresh() {
-	b.refresh(false)
+	_ = b.refresh(false)
 }
-func (b *ListCache) refresh(init bool) []error {
-	res := []error{}
+func (b *ListCache) refresh(init bool) error {
+	var err error
 
 	for group, links := range b.groupToLinks {
-		cacheForGroup, errors := b.createCacheForGroup(links)
-		if len(errors) > 0 {
-			res = append(res, errors...)
+		cacheForGroup, e := b.createCacheForGroup(links)
+		if e != nil {
+			err = multierror.Append(err, multierror.Prefix(e, fmt.Sprintf("can't create cache group '%s':", group)))
 		}
 
 		if cacheForGroup != nil {
@@ -211,7 +214,7 @@ func (b *ListCache) refresh(init bool) []error {
 		}
 	}
 
-	return res
+	return err
 }
 
 func (b *ListCache) downloadFile(link string) (io.ReadCloser, error) {
@@ -248,10 +251,10 @@ func (b *ListCache) downloadFile(link string) (io.ReadCloser, error) {
 
 		if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
 			logger().WithField("link", link).WithField("attempt",
-				attempt).Warnf("Temporary network error / Timeout occurred, retrying... %s", netErr)
+				attempt).Warnf("Temporary network err / Timeout occurred, retrying... %s", netErr)
 		} else if errors.As(err, &dnsErr) {
 			logger().WithField("link", link).WithField("attempt",
-				attempt).Warnf("Name resolution error, retrying... %s", dnsErr.Err)
+				attempt).Warnf("Name resolution err, retrying... %s", dnsErr.Err)
 		}
 
 		time.Sleep(time.Second)
@@ -273,8 +276,7 @@ func (b *ListCache) processFile(link string, ch chan<- groupCache, wg *sync.Wait
 	defer wg.Done()
 
 	result := groupCache{
-		cache:  []string{},
-		errors: []error{},
+		cache: []string{},
 	}
 
 	var r io.ReadCloser
@@ -284,13 +286,13 @@ func (b *ListCache) processFile(link string, ch chan<- groupCache, wg *sync.Wait
 	r, err = b.getLinkReader(link)
 
 	if err != nil {
-		logger().Warn("error during file processing: ", err)
-		result.errors = append(result.errors, err)
+		logger().Warn("err during file processing: ", err)
+		result.err = multierror.Append(result.err, err)
 
 		var netErr net.Error
 
 		if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
-			// put nil to indicate the temporary error
+			// put nil to indicate the temporary err
 			result.cache = nil
 		}
 		ch <- result

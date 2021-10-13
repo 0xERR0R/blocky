@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/0xERR0R/blocky/api"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
@@ -80,7 +82,7 @@ type BlockingResolver struct {
 }
 
 // NewBlockingResolver returns a new configured instance of the resolver
-func NewBlockingResolver(cfg config.BlockingConfig) (ChainedResolver, []error) {
+func NewBlockingResolver(cfg config.BlockingConfig) (ChainedResolver, error) {
 	blockHandler := createBlockHandler(cfg)
 	refreshPeriod := time.Duration(cfg.RefreshPeriod)
 	timeout := time.Duration(cfg.DownloadTimeout)
@@ -88,13 +90,13 @@ func NewBlockingResolver(cfg config.BlockingConfig) (ChainedResolver, []error) {
 	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists, refreshPeriod, timeout)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
-	var initErrors []error
-	if len(blErr) > 0 {
-		initErrors = append(initErrors, blErr...)
+	var err error
+	if blErr != nil {
+		err = multierror.Append(err, blErr)
 	}
 
-	if len(wlErr) > 0 {
-		initErrors = append(initErrors, wlErr...)
+	if wlErr != nil {
+		err = multierror.Append(err, wlErr)
 	}
 
 	res := &BlockingResolver{
@@ -109,7 +111,7 @@ func NewBlockingResolver(cfg config.BlockingConfig) (ChainedResolver, []error) {
 		},
 	}
 
-	return res, initErrors
+	return res, multierror.Prefix(err, "blocking resolver: ")
 }
 
 // RefreshLists triggers the refresh of all black and white lists in the cache
