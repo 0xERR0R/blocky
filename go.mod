@@ -21,7 +21,7 @@ require (
 	golang.org/x/net v0.0.0-20210428140749-89ef3d95e781
 	gopkg.in/yaml.v2 v2.4.0
 	gorm.io/driver/mysql v1.1.2
-	gorm.io/driver/sqlite v1.1.5
+	gorm.io/driver/sqlite v1.1.6
 	gorm.io/gorm v1.21.15
 )
 
