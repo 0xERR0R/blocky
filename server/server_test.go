@@ -29,7 +29,7 @@ var _ = Describe("Running DNS server", func() {
 		upstreamGoogle, upstreamFritzbox, upstreamClient config.Upstream
 		mockClientName                                   string
 		sut                                              *Server
-		err                                              error
+		err                                              []error
 		resp                                             *dns.Msg
 	)
 
@@ -108,7 +108,7 @@ var _ = Describe("Running DNS server", func() {
 			},
 		})
 
-		Expect(err).Should(Succeed())
+		Expect(err).Should(BeEmpty())
 
 		// start server
 		go func() {
@@ -486,7 +486,7 @@ var _ = Describe("Running DNS server", func() {
 					Port: ":55556",
 				})
 
-				Expect(err).Should(Succeed())
+				Expect(err).Should(BeEmpty())
 
 				// start server
 				go func() {
@@ -533,7 +533,7 @@ var _ = Describe("Running DNS server", func() {
 					Port: "127.0.0.1:55557",
 				})
 
-				Expect(err).Should(Succeed())
+				Expect(err).Should(BeEmpty())
 
 				// start server
 				go func() {

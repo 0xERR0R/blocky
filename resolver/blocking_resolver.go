@@ -80,14 +80,21 @@ type BlockingResolver struct {
 }
 
 // NewBlockingResolver returns a new configured instance of the resolver
-func NewBlockingResolver(cfg config.BlockingConfig) ChainedResolver {
+func NewBlockingResolver(cfg config.BlockingConfig) (ChainedResolver, []error) {
 	blockHandler := createBlockHandler(cfg)
 	refreshPeriod := time.Duration(cfg.RefreshPeriod)
 	timeout := time.Duration(cfg.DownloadTimeout)
-	blacklistMatcher := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists, refreshPeriod, timeout)
-	whitelistMatcher := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists, refreshPeriod, timeout)
+	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists, refreshPeriod, timeout)
+	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists, refreshPeriod, timeout)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
+	var initErrors []error
+	if len(blErr) > 0 {
+		initErrors = append(initErrors, blErr...)
+	}
+	if len(wlErr) > 0 {
+		initErrors = append(initErrors, wlErr...)
+	}
 	res := &BlockingResolver{
 		blockHandler:        blockHandler,
 		cfg:                 cfg,
@@ -100,7 +107,7 @@ func NewBlockingResolver(cfg config.BlockingConfig) ChainedResolver {
 		},
 	}
 
-	return res
+	return res, initErrors
 }
 
 // RefreshLists triggers the refresh of all black and white lists in the cache

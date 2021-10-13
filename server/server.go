@@ -47,7 +47,7 @@ func getServerAddress(addr string) string {
 }
 
 // NewServer creates new server instance with passed config
-func NewServer(cfg *config.Config) (server *Server, err error) {
+func NewServer(cfg *config.Config) (server *Server, errors []error) {
 	var dnsServers []*dns.Server
 
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
@@ -60,12 +60,12 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 	}
 
 	var httpListener, httpsListener net.Listener
-
+	var err error
 	router := createRouter(cfg)
 
 	if cfg.HTTPPort != "" {
 		if httpListener, err = net.Listen("tcp", getServerAddress(cfg.HTTPPort)); err != nil {
-			return nil, fmt.Errorf("start http listener on %s failed: %w", cfg.HTTPPort, err)
+			return nil, append(errors, fmt.Errorf("start http listener on %s failed: %w", cfg.HTTPPort, err))
 		}
 
 		metrics.Start(router, cfg.Prometheus)
@@ -73,7 +73,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	if cfg.HTTPSPort != "" {
 		if httpsListener, err = net.Listen("tcp", getServerAddress(cfg.HTTPSPort)); err != nil {
-			return nil, fmt.Errorf("start https listener on port %s failed: %w", cfg.HTTPSPort, err)
+			return nil, append(errors, fmt.Errorf("start https listener on port %s failed: %w", cfg.HTTPSPort, err))
 		}
 
 		metrics.Start(router, cfg.Prometheus)
@@ -81,24 +81,28 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	metrics.RegisterEventListeners()
 
-	queryResolver := createQueryResolver(cfg)
-	server = &Server{
-		dnsServers:    dnsServers,
-		queryResolver: queryResolver,
-		cfg:           cfg,
-		httpListener:  httpListener,
-		httpsListener: httpsListener,
-		httpMux:       router,
+	queryResolver, queryErrors := createQueryResolver(cfg)
+	if len(queryErrors) > 0 {
+		return nil, queryErrors
+	} else {
+		server = &Server{
+			dnsServers:    dnsServers,
+			queryResolver: queryResolver,
+			cfg:           cfg,
+			httpListener:  httpListener,
+			httpsListener: httpsListener,
+			httpMux:       router,
+		}
+
+		server.printConfiguration()
+
+		server.registerDNSHandlers()
+		server.registerAPIEndpoints(router)
+
+		registerResolverAPIEndpoints(router, queryResolver)
+
+		return server, errors
 	}
-
-	server.printConfiguration()
-
-	server.registerDNSHandlers()
-	server.registerAPIEndpoints(router)
-
-	registerResolverAPIEndpoints(router, queryResolver)
-
-	return server, nil
 }
 
 func registerResolverAPIEndpoints(router chi.Router, res resolver.Resolver) {
@@ -153,18 +157,19 @@ func createUDPServer(address string) *dns.Server {
 		UDPSize: 65535}
 }
 
-func createQueryResolver(cfg *config.Config) resolver.Resolver {
+func createQueryResolver(cfg *config.Config) (resolver.Resolver, []error) {
+	br, brErr := resolver.NewBlockingResolver(cfg.Blocking)
 	return resolver.Chain(
 		resolver.NewIPv6Checker(cfg.DisableIPv6),
 		resolver.NewClientNamesResolver(cfg.ClientLookup),
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
 		resolver.NewMetricsResolver(cfg.Prometheus),
 		resolver.NewCustomDNSResolver(cfg.CustomDNS),
-		resolver.NewBlockingResolver(cfg.Blocking),
+		br,
 		resolver.NewCachingResolver(cfg.Caching),
 		resolver.NewConditionalUpstreamResolver(cfg.Conditional),
 		resolver.NewParallelBestResolver(cfg.Upstream.ExternalResolvers),
-	)
+	), brErr
 }
 
 func (s *Server) registerDNSHandlers() {
