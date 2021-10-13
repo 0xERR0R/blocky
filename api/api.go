@@ -27,6 +27,9 @@ const (
 
 	// PathQueryPath defines the REST endpoint for query
 	PathQueryPath = "/api/query"
+
+	// PathDohQuery DoH Url
+	PathDohQuery = "/dns-query"
 )
 
 // QueryRequest is a data structure for a DNS request

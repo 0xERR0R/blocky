@@ -271,22 +271,46 @@ func (s *Server) Stop() {
 	}
 }
 
-func createResolverRequest(remoteAddress net.Addr, request *dns.Msg) *model.Request {
-	clientIP, protocol := resolveClientIPAndProtocol(remoteAddress)
+func createResolverRequest(rw dns.ResponseWriter, request *dns.Msg) *model.Request {
+	var hostName string
 
-	return newRequest(clientIP, protocol, request)
+	var remoteAddr net.Addr
+
+	if rw != nil {
+		remoteAddr = rw.RemoteAddr()
+	}
+
+	clientIP, protocol := resolveClientIPAndProtocol(remoteAddr)
+	con, ok := rw.(dns.ConnectionStater)
+
+	if ok && con.ConnectionState() != nil {
+		hostName = con.ConnectionState().ServerName
+	}
+
+	return newRequest(clientIP, protocol, extractClientIDFromHost(hostName), request)
 }
 
-func newRequest(clientIP net.IP, protocol model.RequestProtocol, request *dns.Msg) *model.Request {
+func extractClientIDFromHost(hostName string) string {
+	const clientIDPrefix = "id-"
+	if strings.HasPrefix(hostName, clientIDPrefix) && strings.Contains(hostName, ".") {
+		return hostName[len(clientIDPrefix):strings.Index(hostName, ".")]
+	}
+
+	return ""
+}
+
+func newRequest(clientIP net.IP, protocol model.RequestProtocol,
+	requestClientID string, request *dns.Msg) *model.Request {
 	return &model.Request{
-		ClientIP:  clientIP,
-		Protocol:  protocol,
-		Req:       request,
-		RequestTS: time.Now(),
+		ClientIP:        clientIP,
+		RequestClientID: requestClientID,
+		Protocol:        protocol,
+		Req:             request,
 		Log: log.Log().WithFields(logrus.Fields{
 			"question":  util.QuestionToString(request.Question),
 			"client_ip": clientIP,
 		}),
+		RequestTS: time.Now(),
 	}
 }
 
@@ -294,7 +318,7 @@ func newRequest(clientIP net.IP, protocol model.RequestProtocol, request *dns.Ms
 func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
 	logger().Debug("new request")
 
-	r := createResolverRequest(w.RemoteAddr(), request)
+	r := createResolverRequest(w, request)
 
 	response, err := s.queryResolver.Resolve(r)
 

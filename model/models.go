@@ -27,16 +27,17 @@ type Response struct {
 
 // RequestProtocol represents the server protocol ENUM(
 // TCP // is the TPC protocol
-// UDP //  is the UDP protocol
+// UDP // is the UDP protocol
 // )
 type RequestProtocol uint8
 
 // Request represents client's DNS request
 type Request struct {
-	ClientIP    net.IP
-	Protocol    RequestProtocol
-	ClientNames []string
-	Req         *dns.Msg
-	Log         *logrus.Entry
-	RequestTS   time.Time
+	ClientIP        net.IP
+	RequestClientID string
+	Protocol        RequestProtocol
+	ClientNames     []string
+	Req             *dns.Msg
+	Log             *logrus.Entry
+	RequestTS       time.Time
 }

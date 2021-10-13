@@ -53,6 +53,29 @@ var _ = Describe("ClientResolver", func() {
 
 	})
 
+	Describe("Resolve client name from request clientID", func() {
+
+		It("should use clientID if set", func() {
+			request := newRequestWithClientID("google1.de.", dns.TypeA, "1.2.3.4", "client123")
+			resp, err = sut.Resolve(request)
+
+			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+			Expect(request.ClientNames).Should(HaveLen(1))
+			Expect(request.ClientNames[0]).Should(Equal("client123"))
+			Expect(mockReverseUpstreamCallCount).Should(Equal(0))
+		})
+		It("should use IP as fallback if clientID not set", func() {
+			request := newRequestWithClientID("google2.de.", dns.TypeA, "1.2.3.4", "")
+			resp, err = sut.Resolve(request)
+
+			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+			Expect(request.ClientNames).Should(HaveLen(1))
+			Expect(request.ClientNames[0]).Should(Equal("1.2.3.4"))
+			Expect(mockReverseUpstreamCallCount).Should(Equal(1))
+		})
+
+	})
+
 	Describe("Resolve client name with custom name mapping", func() {
 		BeforeEach(func() {
 			sutConfig = config.ClientLookupConfig{

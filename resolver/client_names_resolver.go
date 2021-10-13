@@ -43,6 +43,7 @@ func NewClientNamesResolver(cfg config.ClientLookupConfig) ChainedResolver {
 func (r *ClientNamesResolver) Configuration() (result []string) {
 	if r.externalResolver != nil || len(r.clientIPMapping) > 0 {
 		result = append(result, fmt.Sprintf("singleNameOrder = \"%v\"", r.singleNameOrder))
+
 		if r.externalResolver != nil {
 			result = append(result, fmt.Sprintf("externalResolver = \"%s\"", r.externalResolver))
 		}
@@ -87,6 +88,10 @@ func (r *ClientNamesResolver) getClientNames(request *model.Request) []string {
 		if t, ok := c.([]string); ok {
 			return t
 		}
+	}
+
+	if request.RequestClientID != "" {
+		return []string{request.RequestClientID}
 	}
 
 	names := r.resolveClientNames(ip, withPrefix(request.Log, "client_names_resolver"))
