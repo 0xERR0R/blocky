@@ -160,11 +160,13 @@ func LogOnErrorWithEntry(logEntry *logrus.Entry, message string, err error) {
 func FatalOnError(message string, errors ...error) {
 	if errors != nil {
 		var nnErrors []error
+
 		for _, r := range errors {
 			if r != nil {
 				nnErrors = append(nnErrors, r)
 			}
 		}
+
 		if len(nnErrors) == 1 {
 			log.Log().Fatal(message, nnErrors[0])
 		} else if len(nnErrors) > 1 {

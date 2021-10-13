@@ -60,7 +60,9 @@ func NewServer(cfg *config.Config) (server *Server, errors []error) {
 	}
 
 	var httpListener, httpsListener net.Listener
+
 	var err error
+
 	router := createRouter(cfg)
 
 	if cfg.HTTPPort != "" {
@@ -84,25 +86,25 @@ func NewServer(cfg *config.Config) (server *Server, errors []error) {
 	queryResolver, queryErrors := createQueryResolver(cfg)
 	if len(queryErrors) > 0 {
 		return nil, queryErrors
-	} else {
-		server = &Server{
-			dnsServers:    dnsServers,
-			queryResolver: queryResolver,
-			cfg:           cfg,
-			httpListener:  httpListener,
-			httpsListener: httpsListener,
-			httpMux:       router,
-		}
-
-		server.printConfiguration()
-
-		server.registerDNSHandlers()
-		server.registerAPIEndpoints(router)
-
-		registerResolverAPIEndpoints(router, queryResolver)
-
-		return server, errors
 	}
+
+	server = &Server{
+		dnsServers:    dnsServers,
+		queryResolver: queryResolver,
+		cfg:           cfg,
+		httpListener:  httpListener,
+		httpsListener: httpsListener,
+		httpMux:       router,
+	}
+
+	server.printConfiguration()
+
+	server.registerDNSHandlers()
+	server.registerAPIEndpoints(router)
+
+	registerResolverAPIEndpoints(router, queryResolver)
+
+	return server, errors
 }
 
 func registerResolverAPIEndpoints(router chi.Router, res resolver.Resolver) {
@@ -159,6 +161,7 @@ func createUDPServer(address string) *dns.Server {
 
 func createQueryResolver(cfg *config.Config) (resolver.Resolver, []error) {
 	br, brErr := resolver.NewBlockingResolver(cfg.Blocking)
+
 	return resolver.Chain(
 		resolver.NewIPv6Checker(cfg.DisableIPv6),
 		resolver.NewClientNamesResolver(cfg.ClientLookup),

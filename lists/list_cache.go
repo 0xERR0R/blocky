@@ -92,9 +92,11 @@ func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeri
 		listType:        t,
 	}
 	initError := b.refresh(true)
+
 	if len(initError) == 0 {
 		go periodicUpdate(b)
 	}
+
 	return b, initError
 }
 
@@ -179,11 +181,13 @@ func (b *ListCache) Refresh() {
 }
 func (b *ListCache) refresh(init bool) []error {
 	res := []error{}
+
 	for group, links := range b.groupToLinks {
 		cacheForGroup, errors := b.createCacheForGroup(links)
 		if len(errors) > 0 {
 			res = append(res, errors...)
 		}
+
 		if cacheForGroup != nil {
 			b.lock.Lock()
 			b.groupCaches[group] = cacheForGroup
@@ -196,6 +200,7 @@ func (b *ListCache) refresh(init bool) []error {
 				logger().Warn("Populating of group cache failed, leaving items from last successful download in cache")
 			}
 		}
+
 		if b.groupCaches[group] != nil {
 			evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, b.groupCaches[group].elementCount())
 
@@ -205,6 +210,7 @@ func (b *ListCache) refresh(init bool) []error {
 			}).Info("group import finished")
 		}
 	}
+
 	return res
 }
 
@@ -226,10 +232,10 @@ func (b *ListCache) downloadFile(link string) (io.ReadCloser, error) {
 		if resp, err = client.Get(link); err == nil {
 			if resp.StatusCode == http.StatusOK {
 				return resp.Body, nil
-			} else {
-				logger().WithField("link", link).WithField("attempt",
-					attempt).Warnf("Got status code %d", resp.StatusCode)
 			}
+
+			logger().WithField("link", link).WithField("attempt",
+				attempt).Warnf("Got status code %d", resp.StatusCode)
 
 			_ = resp.Body.Close()
 
@@ -237,7 +243,9 @@ func (b *ListCache) downloadFile(link string) (io.ReadCloser, error) {
 		}
 
 		var netErr net.Error
+
 		var dnsErr *net.DNSError
+
 		if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
 			logger().WithField("link", link).WithField("attempt",
 				attempt).Warnf("Temporary network error / Timeout occurred, retrying... %s", netErr)
@@ -245,6 +253,7 @@ func (b *ListCache) downloadFile(link string) (io.ReadCloser, error) {
 			logger().WithField("link", link).WithField("attempt",
 				attempt).Warnf("Name resolution error, retrying... %s", dnsErr.Err)
 		}
+
 		time.Sleep(time.Second)
 		attempt++
 	}
@@ -272,22 +281,14 @@ func (b *ListCache) processFile(link string, ch chan<- groupCache, wg *sync.Wait
 
 	var err error
 
-	switch {
-	// link contains a line break -> this is inline list definition in YAML (with literal style Block Scalar)
-	case strings.ContainsAny(link, "\n"):
-		r = io.NopCloser(strings.NewReader(link))
-	// link is http(s) -> download it
-	case strings.HasPrefix(link, "http"):
-		r, err = b.downloadFile(link)
-	// probably path to a local file
-	default:
-		r, err = readFile(link)
-	}
+	r, err = b.getLinkReader(link)
 
 	if err != nil {
 		logger().Warn("error during file processing: ", err)
 		result.errors = append(result.errors, err)
+
 		var netErr net.Error
+
 		if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
 			// put nil to indicate the temporary error
 			result.cache = nil
@@ -321,6 +322,22 @@ func (b *ListCache) processFile(link string, ch chan<- groupCache, wg *sync.Wait
 		}).Info("file imported")
 	}
 	ch <- result
+}
+
+func (b *ListCache) getLinkReader(link string) (r io.ReadCloser, err error) {
+	switch {
+	// link contains a line break -> this is inline list definition in YAML (with literal style Block Scalar)
+	case strings.ContainsAny(link, "\n"):
+		r = io.NopCloser(strings.NewReader(link))
+	// link is http(s) -> download it
+	case strings.HasPrefix(link, "http"):
+		r, err = b.downloadFile(link)
+	// probably path to a local file
+	default:
+		r, err = readFile(link)
+	}
+
+	return
 }
 
 // return only first column (see hosts format)

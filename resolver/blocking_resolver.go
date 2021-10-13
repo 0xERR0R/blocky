@@ -92,9 +92,11 @@ func NewBlockingResolver(cfg config.BlockingConfig) (ChainedResolver, []error) {
 	if len(blErr) > 0 {
 		initErrors = append(initErrors, blErr...)
 	}
+
 	if len(wlErr) > 0 {
 		initErrors = append(initErrors, wlErr...)
 	}
+
 	res := &BlockingResolver{
 		blockHandler:        blockHandler,
 		cfg:                 cfg,
