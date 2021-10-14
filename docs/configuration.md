@@ -349,11 +349,24 @@ Negative value will deactivate automatically refresh.
 
 You can override the default download timeout (**duration format**) of 60 seconds (for each URL) for big lists or slow
 internet connection:
+
 !!! example
 
     ```yaml
     blocking:
      downloadTimeout: 4m
+    ```
+
+### Fail on start
+
+You can ensure with parameter `failStartOnListError = true` that the application will fail if at least one list can't be
+downloaded or opened. Default value is `false`.
+
+!!! example
+
+    ```yaml
+    blocking:
+     failStartOnListError: false
     ```
 
 ## Caching

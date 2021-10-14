@@ -310,13 +310,14 @@ type ConditionalUpstreamMapping struct {
 
 // BlockingConfig configuration for query blocking
 type BlockingConfig struct {
-	BlackLists        map[string][]string `yaml:"blackLists"`
-	WhiteLists        map[string][]string `yaml:"whiteLists"`
-	ClientGroupsBlock map[string][]string `yaml:"clientGroupsBlock"`
-	BlockType         string              `yaml:"blockType"`
-	BlockTTL          Duration            `yaml:"blockTTL"`
-	DownloadTimeout   Duration            `yaml:"downloadTimeout"`
-	RefreshPeriod     Duration            `yaml:"refreshPeriod"`
+	BlackLists           map[string][]string `yaml:"blackLists"`
+	WhiteLists           map[string][]string `yaml:"whiteLists"`
+	ClientGroupsBlock    map[string][]string `yaml:"clientGroupsBlock"`
+	BlockType            string              `yaml:"blockType"`
+	BlockTTL             Duration            `yaml:"blockTTL"`
+	DownloadTimeout      Duration            `yaml:"downloadTimeout"`
+	RefreshPeriod        Duration            `yaml:"refreshPeriod"`
+	FailStartOnListError bool                `yaml:"failStartOnListError"`
 }
 
 // ClientLookupConfig configuration for the client lookup

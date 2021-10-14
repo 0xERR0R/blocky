@@ -84,6 +84,8 @@ blocking:
   refreshPeriod: 4h
   # optional: timeout for list download (each url). Default: 60s. Use large values for big lists or slow internet connections
   downloadTimeout: 4m
+  # optional: if true, application startup will fail if at least one list can't be downloaded / opened. Default: false
+  failStartOnListError: false
 
 # optional: configuration for caching of DNS responses
 caching:
