@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/log"
+	"github.com/creasty/defaults"
 	"gopkg.in/yaml.v2"
 )
 
@@ -238,19 +239,11 @@ func extractNet(upstream string) (NetProtocol, string) {
 	return NetProtocolTcpUdp, upstream
 }
 
-const (
-	cfgDefaultPort            = "53"
-	cfgDefaultPrometheusPath  = "/metrics"
-	cfgDefaultUpstreamTimeout = Duration(2 * time.Second)
-	cfgDefaultRefreshPeriod   = Duration(4 * time.Hour)
-	cfgDefaultDownloadTimeout = Duration(60 * time.Second)
-)
-
 // Config main configuration
 // nolint:maligned
 type Config struct {
 	Upstream        UpstreamConfig            `yaml:"upstream"`
-	UpstreamTimeout Duration                  `yaml:"upstreamTimeout"`
+	UpstreamTimeout Duration                  `yaml:"upstreamTimeout" default:"2s"`
 	CustomDNS       CustomDNSConfig           `yaml:"customDNS"`
 	Conditional     ConditionalUpstreamConfig `yaml:"conditional"`
 	Blocking        BlockingConfig            `yaml:"blocking"`
@@ -258,15 +251,15 @@ type Config struct {
 	Caching         CachingConfig             `yaml:"caching"`
 	QueryLog        QueryLogConfig            `yaml:"queryLog"`
 	Prometheus      PrometheusConfig          `yaml:"prometheus"`
-	LogLevel        log.Level                 `yaml:"logLevel"`
-	LogFormat       log.FormatType            `yaml:"logFormat"`
-	LogPrivacy      bool                      `yaml:"logPrivacy"`
-	LogTimestamp    bool                      `yaml:"logTimestamp"`
-	Port            string                    `yaml:"port"`
+	LogLevel        log.Level                 `yaml:"logLevel" default:"info"`
+	LogFormat       log.FormatType            `yaml:"logFormat" default:"text"`
+	LogPrivacy      bool                      `yaml:"logPrivacy" default:"false"`
+	LogTimestamp    bool                      `yaml:"logTimestamp" default:"true"`
+	Port            string                    `yaml:"port" default:"53"`
 	HTTPPort        string                    `yaml:"httpPort"`
 	HTTPSPort       string                    `yaml:"httpsPort"`
 	TLSPort         string                    `yaml:"tlsPort"`
-	DisableIPv6     bool                      `yaml:"disableIPv6"`
+	DisableIPv6     bool                      `yaml:"disableIPv6" default:"false"`
 	CertFile        string                    `yaml:"certFile"`
 	KeyFile         string                    `yaml:"keyFile"`
 	BootstrapDNS    Upstream                  `yaml:"bootstrapDns"`
@@ -278,8 +271,8 @@ type Config struct {
 
 // PrometheusConfig contains the config values for prometheus
 type PrometheusConfig struct {
-	Enable bool   `yaml:"enable"`
-	Path   string `yaml:"path"`
+	Enable bool   `yaml:"enable" default:"false"`
+	Path   string `yaml:"path" default:"/metrics"`
 }
 
 // UpstreamConfig upstream server configuration
@@ -313,11 +306,11 @@ type BlockingConfig struct {
 	BlackLists           map[string][]string `yaml:"blackLists"`
 	WhiteLists           map[string][]string `yaml:"whiteLists"`
 	ClientGroupsBlock    map[string][]string `yaml:"clientGroupsBlock"`
-	BlockType            string              `yaml:"blockType"`
-	BlockTTL             Duration            `yaml:"blockTTL"`
-	DownloadTimeout      Duration            `yaml:"downloadTimeout"`
-	RefreshPeriod        Duration            `yaml:"refreshPeriod"`
-	FailStartOnListError bool                `yaml:"failStartOnListError"`
+	BlockType            string              `yaml:"blockType" default:"ZEROIP"`
+	BlockTTL             Duration            `yaml:"blockTTL" default:"6h"`
+	DownloadTimeout      Duration            `yaml:"downloadTimeout" default:"60s"`
+	RefreshPeriod        Duration            `yaml:"refreshPeriod" default:"4h"`
+	FailStartOnListError bool                `yaml:"failStartOnListError" default:"false"`
 }
 
 // ClientLookupConfig configuration for the client lookup
@@ -333,8 +326,8 @@ type CachingConfig struct {
 	MaxCachingTime        Duration `yaml:"maxTime"`
 	MaxItemsCount         int      `yaml:"maxItemsCount"`
 	Prefetching           bool     `yaml:"prefetching"`
-	PrefetchExpires       Duration `yaml:"prefetchExpires"`
-	PrefetchThreshold     int      `yaml:"prefetchThreshold"`
+	PrefetchExpires       Duration `yaml:"prefetchExpires" default:"2h"`
+	PrefetchThreshold     int      `yaml:"prefetchThreshold" default:"5"`
 	PrefetchMaxItemsCount int      `yaml:"prefetchMaxItemsCount"`
 }
 
@@ -343,7 +336,7 @@ type QueryLogConfig struct {
 	// Deprecated
 	Dir string `yaml:"dir"`
 	// Deprecated
-	PerClient        bool         `yaml:"perClient"`
+	PerClient        bool         `yaml:"perClient" default:"false"`
 	Target           string       `yaml:"target"`
 	Type             QueryLogType `yaml:"type"`
 	LogRetentionDays uint64       `yaml:"logRetentionDays"`
@@ -355,7 +348,9 @@ var config = &Config{}
 // LoadConfig creates new config from YAML file
 func LoadConfig(path string, mandatory bool) {
 	cfg := Config{}
-	setDefaultValues(&cfg)
+	if err := defaults.Set(&cfg); err != nil {
+		log.Log().Fatal("Can't apply default values: ", err)
+	}
 
 	data, err := ioutil.ReadFile(path)
 
@@ -426,13 +421,4 @@ func validateConfig(cfg *Config) {
 // GetConfig returns the current config
 func GetConfig() *Config {
 	return config
-}
-
-func setDefaultValues(cfg *Config) {
-	cfg.Port = cfgDefaultPort
-	cfg.LogTimestamp = true
-	cfg.Prometheus.Path = cfgDefaultPrometheusPath
-	cfg.UpstreamTimeout = cfgDefaultUpstreamTimeout
-	cfg.Blocking.RefreshPeriod = cfgDefaultRefreshPeriod
-	cfg.Blocking.DownloadTimeout = cfgDefaultDownloadTimeout
 }
