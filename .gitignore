@@ -13,3 +13,4 @@ todo.txt
 !docs/config.yml
 node_modules
 package-lock.json
+Dockerfile.Test
