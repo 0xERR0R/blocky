@@ -46,6 +46,9 @@ func NewCachingResolver(cfg config.CachingConfig) ChainedResolver {
 		resultCache:       createQueryResultCache(&cfg),
 	}
 
+	if c.cacheTimeNegative == 0 {
+		c.cacheTimeNegative = time.Duration(time.Minute * 30)
+	}
 	if cfg.Prefetching {
 		configurePrefetching(c, &cfg)
 	}

@@ -239,12 +239,11 @@ func extractNet(upstream string) (NetProtocol, string) {
 }
 
 const (
-	cfgDefaultPort              = "53"
-	cfgDefaultPrometheusPath    = "/metrics"
-	cfgDefaultUpstreamTimeout   = Duration(2 * time.Second)
-	cfgDefaultRefreshPeriod     = Duration(4 * time.Hour)
-	cfgDefaultDownloadTimeout   = Duration(60 * time.Second)
-	cfgDefaultCacheTimeNegative = Duration(30 * time.Minute)
+	cfgDefaultPort            = "53"
+	cfgDefaultPrometheusPath  = "/metrics"
+	cfgDefaultUpstreamTimeout = Duration(2 * time.Second)
+	cfgDefaultRefreshPeriod   = Duration(4 * time.Hour)
+	cfgDefaultDownloadTimeout = Duration(60 * time.Second)
 )
 
 // Config main configuration
@@ -437,5 +436,4 @@ func setDefaultValues(cfg *Config) {
 	cfg.UpstreamTimeout = cfgDefaultUpstreamTimeout
 	cfg.Blocking.RefreshPeriod = cfgDefaultRefreshPeriod
 	cfg.Blocking.DownloadTimeout = cfgDefaultDownloadTimeout
-	cfg.Caching.CacheTimeNegative = cfgDefaultCacheTimeNegative
 }
