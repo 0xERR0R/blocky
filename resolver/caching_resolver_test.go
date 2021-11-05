@@ -8,6 +8,7 @@ import (
 	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/creasty/defaults"
 
 	"github.com/0xERR0R/go-cache"
 	"github.com/miekg/dns"
@@ -29,6 +30,7 @@ var _ = Describe("CachingResolver", func() {
 
 	BeforeEach(func() {
 		sutConfig = config.CachingConfig{}
+		defaults.Set(&sutConfig)
 		mockAnswer = new(dns.Msg)
 
 	})
