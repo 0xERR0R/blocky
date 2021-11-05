@@ -32,11 +32,6 @@ type cacheValue struct {
 	prefetch bool
 }
 
-const (
-	prefetchingNameCacheExpiration = 2 * time.Hour
-	prefetchingNameCountThreshold  = 5
-)
-
 // NewCachingResolver creates a new resolver instance
 func NewCachingResolver(cfg config.CachingConfig) ChainedResolver {
 	c := &CachingResolver{
