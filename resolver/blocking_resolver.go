@@ -22,15 +22,15 @@ import (
 )
 
 func createBlockHandler(cfg config.BlockingConfig) blockHandler {
-	cfgBlockType := blockTypeFromConfig(cfg)
+	cfgBlockType := cfg.BlockType
 
-	if cfgBlockType == "NXDOMAIN" {
+	if strings.EqualFold(cfgBlockType, "NXDOMAIN") {
 		return nxDomainBlockHandler{}
 	}
 
-	blockTime := blockTTLFromConfig(cfg)
+	blockTime := uint32(time.Duration(cfg.BlockTTL).Seconds())
 
-	if cfgBlockType == "ZEROIP" {
+	if strings.EqualFold(cfgBlockType, "ZEROIP") {
 		return zeroIPBlockHandler{
 			BlockTimeSec: blockTime,
 		}
@@ -239,11 +239,11 @@ func (r *BlockingResolver) Configuration() (result []string) {
 			result = append(result, fmt.Sprintf("  %s = \"%s\"", key, strings.Join(val, ";")))
 		}
 
-		blockType := blockTypeFromConfig(r.cfg)
+		blockType := r.cfg.BlockType
 		result = append(result, fmt.Sprintf("blockType = \"%s\"", blockType))
 
 		if blockType != "NXDOMAIN" {
-			blockTime := blockTTLFromConfig(r.cfg)
+			blockTime := uint32(time.Duration(r.cfg.BlockTTL).Seconds())
 			result = append(result, fmt.Sprintf("blockTTL = %d", blockTime))
 		}
 
@@ -413,9 +413,6 @@ func (r *BlockingResolver) matches(groupsToCheck []string, m lists.Matcher,
 	return false, ""
 }
 
-const defaultBlockTTL = 6 * 60 * 60
-const defaultBlockType = "ZEROIP"
-
 type blockHandler interface {
 	handleBlock(question dns.Question, response *dns.Msg)
 }
@@ -468,20 +465,4 @@ func (b ipBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
 		// use fallback
 		b.fallbackHandler.handleBlock(question, response)
 	}
-}
-
-func blockTTLFromConfig(cfg config.BlockingConfig) uint32 {
-	if cfg.BlockTTL <= 0 {
-		return defaultBlockTTL
-	}
-
-	return uint32(time.Duration(cfg.BlockTTL).Seconds())
-}
-
-func blockTypeFromConfig(cfg config.BlockingConfig) string {
-	if cfgBlockType := strings.TrimSpace(strings.ToUpper(cfg.BlockType)); cfgBlockType != "" {
-		return cfgBlockType
-	}
-
-	return defaultBlockType
 }

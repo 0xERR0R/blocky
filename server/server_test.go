@@ -92,6 +92,8 @@ var _ = Describe("Running DNS server", func() {
 					"clAdsAndYoutube": {"ads", "youtube"},
 					"clYoutubeOnly":   {"youtube"},
 				},
+				BlockType: "zeroIp",
+				BlockTTL:  config.Duration(6 * time.Hour),
 			},
 			Upstream: config.UpstreamConfig{
 				ExternalResolvers: map[string][]config.Upstream{"default": {upstreamGoogle}},
@@ -506,7 +508,8 @@ var _ = Describe("Running DNS server", func() {
 								"lan.home":   {net.ParseIP("192.168.178.56")},
 							},
 						}},
-					Port: ":55556",
+					Blocking: config.BlockingConfig{BlockType: "zeroIp"},
+					Port:     ":55556",
 				})
 
 				Expect(err).Should(Succeed())
@@ -552,8 +555,8 @@ var _ = Describe("Running DNS server", func() {
 								"lan.home":   {net.ParseIP("192.168.178.56")},
 							},
 						}},
-
-					Port: "127.0.0.1:55557",
+					Blocking: config.BlockingConfig{BlockType: "zeroIp"},
+					Port:     "127.0.0.1:55557",
 				})
 
 				Expect(err).Should(Succeed())

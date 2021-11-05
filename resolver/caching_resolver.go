@@ -61,15 +61,9 @@ func createQueryResultCache(cfg *config.CachingConfig) *cache.Cache {
 }
 
 func configurePrefetching(c *CachingResolver, cfg *config.CachingConfig) {
-	c.prefetchExpires = prefetchingNameCacheExpiration
-	if cfg.PrefetchExpires > 0 {
-		c.prefetchExpires = time.Duration(cfg.PrefetchExpires)
-	}
+	c.prefetchExpires = time.Duration(cfg.PrefetchExpires)
 
-	c.prefetchThreshold = prefetchingNameCountThreshold
-	if cfg.PrefetchThreshold > 0 {
-		c.prefetchThreshold = cfg.PrefetchThreshold
-	}
+	c.prefetchThreshold = cfg.PrefetchThreshold
 
 	c.prefetchingNameCache = cache.NewWithLRU(c.prefetchExpires, time.Minute, cfg.PrefetchMaxItemsCount)
 
