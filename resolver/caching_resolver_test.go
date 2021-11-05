@@ -30,7 +30,9 @@ var _ = Describe("CachingResolver", func() {
 
 	BeforeEach(func() {
 		sutConfig = config.CachingConfig{}
-		defaults.Set(&sutConfig)
+		if err := defaults.Set(&sutConfig); err != nil {
+			panic(err)
+		}
 		mockAnswer = new(dns.Msg)
 
 	})
