@@ -21,9 +21,9 @@ require (
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
 	golang.org/x/net v0.0.0-20210428140749-89ef3d95e781
 	gopkg.in/yaml.v2 v2.4.0
-	gorm.io/driver/mysql v1.1.2
-	gorm.io/driver/sqlite v1.1.6
-	gorm.io/gorm v1.21.16
+	gorm.io/driver/mysql v1.1.3
+	gorm.io/driver/sqlite v1.2.3
+	gorm.io/gorm v1.22.2
 )
 
 require (
@@ -39,7 +39,7 @@ require (
 	github.com/jinzhu/now v1.1.2 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
-	github.com/mattn/go-sqlite3 v1.14.8 // indirect
+	github.com/mattn/go-sqlite3 v1.14.9 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

@@ -76,6 +76,10 @@ func (r *ClientNamesResolver) Resolve(request *model.Request) (*model.Response, 
 
 // returns names of client
 func (r *ClientNamesResolver) getClientNames(request *model.Request) []string {
+	if request.RequestClientID != "" {
+		return []string{request.RequestClientID}
+	}
+
 	ip := request.ClientIP
 
 	if ip == nil {
@@ -88,10 +92,6 @@ func (r *ClientNamesResolver) getClientNames(request *model.Request) []string {
 		if t, ok := c.([]string); ok {
 			return t
 		}
-	}
-
-	if request.RequestClientID != "" {
-		return []string{request.RequestClientID}
 	}
 
 	names := r.resolveClientNames(ip, withPrefix(request.Log, "client_names_resolver"))

@@ -99,6 +99,10 @@ func NewBlockingResolver(cfg config.BlockingConfig) (ChainedResolver, error) {
 		err = multierror.Append(err, wlErr)
 	}
 
+	if err != nil && cfg.FailStartOnListError {
+		return nil, multierror.Prefix(err, "blocking resolver: ")
+	}
+
 	res := &BlockingResolver{
 		blockHandler:        blockHandler,
 		cfg:                 cfg,
@@ -111,7 +115,7 @@ func NewBlockingResolver(cfg config.BlockingConfig) (ChainedResolver, error) {
 		},
 	}
 
-	return res, multierror.Prefix(err, "blocking resolver: ")
+	return res, nil
 }
 
 // RefreshLists triggers the refresh of all black and white lists in the cache

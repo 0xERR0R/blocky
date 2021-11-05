@@ -32,8 +32,10 @@ func (s *Server) registerAPIEndpoints(router *chi.Mux) {
 	router.Post(api.PathQueryPath, s.apiQuery)
 
 	router.Get(api.PathDohQuery, s.dohGetRequestHandler)
+	router.Get(api.PathDohQuery+"/", s.dohGetRequestHandler)
 	router.Get(api.PathDohQuery+"/{clientID}", s.dohGetRequestHandler)
 	router.Post(api.PathDohQuery, s.dohPostRequestHandler)
+	router.Post(api.PathDohQuery+"/", s.dohPostRequestHandler)
 	router.Post(api.PathDohQuery+"/{clientID}", s.dohPostRequestHandler)
 }
 

@@ -778,6 +778,17 @@ badcnamedomain.com`)
 				Expect(fatal).Should(BeTrue())
 			})
 		})
+		When("failStartOnListError is active", func() {
+
+			It("should fail if lists can't be downloaded", func() {
+				_, err := NewBlockingResolver(config.BlockingConfig{
+					BlackLists:           map[string][]string{"gr1": {"wrongPath"}},
+					WhiteLists:           map[string][]string{"whitelist": {"wrongPath"}},
+					FailStartOnListError: true,
+				})
+				Expect(err).Should(HaveOccurred())
+			})
+		})
 	})
 
 })
