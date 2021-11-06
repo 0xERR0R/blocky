@@ -249,8 +249,8 @@ var _ = Describe("ParallelBestResolver", func() {
 						res2 := r2.resolver
 						Expect(res1).ShouldNot(Equal(res2))
 
-						resolverCount[res1] = resolverCount[res1] + 1
-						resolverCount[res2] = resolverCount[res2] + 1
+						resolverCount[res1]++
+						resolverCount[res2]++
 					}
 					for _, v := range resolverCount {
 						// should be 50 ± 10
@@ -274,8 +274,8 @@ var _ = Describe("ParallelBestResolver", func() {
 						res2 := r2.resolver.(*UpstreamResolver)
 						Expect(res1).ShouldNot(Equal(res2))
 
-						resolverCount[res1] = resolverCount[res1] + 1
-						resolverCount[res2] = resolverCount[res2] + 1
+						resolverCount[res1]++
+						resolverCount[res2]++
 					}
 					for k, v := range resolverCount {
 						if strings.Contains(k.String(), "wrong") {

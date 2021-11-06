@@ -19,6 +19,7 @@ import (
 type CachingResolver struct {
 	NextResolver
 	minCacheTimeSec, maxCacheTimeSec int
+	cacheTimeNegative                time.Duration
 	resultCache                      *cache.Cache
 	prefetchExpires                  time.Duration
 	prefetchThreshold                int
@@ -31,16 +32,13 @@ type cacheValue struct {
 	prefetch bool
 }
 
-const (
-	cacheTimeNegative = 30 * time.Minute
-)
-
 // NewCachingResolver creates a new resolver instance
 func NewCachingResolver(cfg config.CachingConfig) ChainedResolver {
 	c := &CachingResolver{
-		minCacheTimeSec: int(time.Duration(cfg.MinCachingTime).Seconds()),
-		maxCacheTimeSec: int(time.Duration(cfg.MaxCachingTime).Seconds()),
-		resultCache:     createQueryResultCache(&cfg),
+		minCacheTimeSec:   int(time.Duration(cfg.MinCachingTime).Seconds()),
+		maxCacheTimeSec:   int(time.Duration(cfg.MaxCachingTime).Seconds()),
+		cacheTimeNegative: time.Duration(cfg.CacheTimeNegative),
+		resultCache:       createQueryResultCache(&cfg),
 	}
 
 	if cfg.Prefetching {
@@ -211,8 +209,10 @@ func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, 
 		// put value into cache
 		r.resultCache.Set(cacheKey, cacheValue{answer, prefetch}, time.Duration(r.adjustTTLs(answer))*time.Second)
 	} else if response.Res.Rcode == dns.RcodeNameError {
-		// put return code if NXDOMAIN
-		r.resultCache.Set(cacheKey, response.Res.Rcode, cacheTimeNegative)
+		if r.cacheTimeNegative > 0 {
+			// put return code if NXDOMAIN
+			r.resultCache.Set(cacheKey, response.Res.Rcode, r.cacheTimeNegative)
+		}
 	}
 
 	evt.Bus().Publish(evt.CachingResultCacheChanged, r.resultCache.ItemCount())

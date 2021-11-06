@@ -8,6 +8,7 @@ import (
 	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/creasty/defaults"
 
 	"github.com/0xERR0R/go-cache"
 	"github.com/miekg/dns"
@@ -29,6 +30,9 @@ var _ = Describe("CachingResolver", func() {
 
 	BeforeEach(func() {
 		sutConfig = config.CachingConfig{}
+		if err := defaults.Set(&sutConfig); err != nil {
+			panic(err)
+		}
 		mockAnswer = new(dns.Msg)
 
 	})
@@ -335,7 +339,7 @@ var _ = Describe("CachingResolver", func() {
 	})
 
 	Describe("Negative cache (caching if upstream resolver returns NXDOMAIN)", func() {
-		When("Upstream resolver returns NXDOMAIN", func() {
+		When("Upstream resolver returns NXDOMAIN with caching", func() {
 			BeforeEach(func() {
 				mockAnswer.Rcode = dns.RcodeNameError
 			})
@@ -359,6 +363,35 @@ var _ = Describe("CachingResolver", func() {
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
 					// still one call to resolver
 					Expect(m.Calls).Should(HaveLen(1))
+				})
+			})
+
+		})
+		When("Upstream resolver returns NXDOMAIN without caching", func() {
+			BeforeEach(func() {
+				mockAnswer.Rcode = dns.RcodeNameError
+				sutConfig = config.CachingConfig{
+					CacheTimeNegative: config.Duration(time.Minute * -1),
+				}
+			})
+
+			It("response shouldn't be cached", func() {
+				By("first request", func() {
+					resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+					Expect(m.Calls).Should(HaveLen(1))
+				})
+
+				time.Sleep(500 * time.Millisecond)
+
+				By("second request", func() {
+					resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+					Expect(err).Should(Succeed())
+					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+					Expect(m.Calls).Should(HaveLen(2))
 				})
 			})
 

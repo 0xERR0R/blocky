@@ -324,6 +324,7 @@ type ClientLookupConfig struct {
 type CachingConfig struct {
 	MinCachingTime        Duration `yaml:"minTime"`
 	MaxCachingTime        Duration `yaml:"maxTime"`
+	CacheTimeNegative     Duration `yaml:"cacheTimeNegative" default:"30m"`
 	MaxItemsCount         int      `yaml:"maxItemsCount"`
 	Prefetching           bool     `yaml:"prefetching"`
 	PrefetchExpires       Duration `yaml:"prefetchExpires" default:"2h"`
