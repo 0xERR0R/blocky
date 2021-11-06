@@ -35,7 +35,7 @@ test:  ## run tests
 	go test -v -coverprofile=coverage.txt -covermode=atomic -cover ./...
 
 lint: build ## run golangcli-lint checks
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.42.1
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.43.0
 	$(shell go env GOPATH)/bin/golangci-lint run
 
 run: build ## Build and run binary
