@@ -44,9 +44,11 @@ func (r *ConditionalUpstreamResolver) Configuration() (result []string) {
 			result = append(result, fmt.Sprintf("%s = \"%s\"", key, val))
 		}
 
-		result = append(result, "rewrite:")
-		for key, val := range r.rewrite {
-			result = append(result, fmt.Sprintf("%s = \"%s\"", key, val))
+		if len(r.rewrite) > 0 {
+			result = append(result, "rewrite:")
+			for key, val := range r.rewrite {
+				result = append(result, fmt.Sprintf("%s = \"%s\"", key, val))
+			}
 		}
 	} else {
 		result = []string{"deactivated"}

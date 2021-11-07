@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hako/durafmt"
+
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/model"
@@ -102,10 +104,13 @@ func (r *CachingResolver) Configuration() (result []string) {
 
 	result = append(result, fmt.Sprintf("maxCacheTimeSec = %d", r.maxCacheTimeSec))
 
+	result = append(result, fmt.Sprintf("cacheTimeNegative = %s", durafmt.Parse(r.cacheTimeNegative)))
+
 	result = append(result, fmt.Sprintf("prefetching = %t", r.prefetchingNameCache != nil))
 
 	if r.prefetchingNameCache != nil {
-		result = append(result, fmt.Sprintf("prefetchExpires = %s", r.prefetchExpires))
+		result = append(result, fmt.Sprintf("prefetchExpires = %s", durafmt.Parse(r.prefetchExpires)))
+
 		result = append(result, fmt.Sprintf("prefetchThreshold = %d", r.prefetchThreshold))
 	}
 

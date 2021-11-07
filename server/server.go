@@ -199,7 +199,8 @@ func (s *Server) printConfiguration() {
 		}
 	}
 
-	logger().Infof("- DNS listening port: '%s'", s.cfg.Port)
+	logger().Infof("- DNS listening port: %s", s.cfg.Port)
+	logger().Infof("- TLS listening port: %s", s.cfg.TLSPort)
 	logger().Infof("- HTTP listening on addr/port: %s", s.cfg.HTTPPort)
 
 	logger().Info("runtime information:")

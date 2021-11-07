@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hako/durafmt"
+
 	"github.com/0xERR0R/blocky/log"
 	"github.com/creasty/defaults"
 	"gopkg.in/yaml.v2"
@@ -35,6 +37,10 @@ type NetProtocol uint16
 type QueryLogType int16
 
 type Duration time.Duration
+
+func (c *Duration) String() string {
+	return durafmt.Parse(time.Duration(*c)).String()
+}
 
 // nolint:gochecknoglobals
 var netDefaultPort = map[NetProtocol]uint16{

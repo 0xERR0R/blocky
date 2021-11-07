@@ -243,9 +243,12 @@ func (r *BlockingResolver) Configuration() (result []string) {
 		result = append(result, fmt.Sprintf("blockType = \"%s\"", blockType))
 
 		if blockType != "NXDOMAIN" {
-			blockTime := uint32(time.Duration(r.cfg.BlockTTL).Seconds())
-			result = append(result, fmt.Sprintf("blockTTL = %d", blockTime))
+			result = append(result, fmt.Sprintf("blockTTL = %s", r.cfg.BlockTTL.String()))
 		}
+
+		result = append(result, fmt.Sprintf("downloadTimeout = %s", r.cfg.DownloadTimeout.String()))
+
+		result = append(result, fmt.Sprintf("FailStartOnListError = %t", r.cfg.FailStartOnListError))
 
 		result = append(result, "blacklist:")
 		for _, c := range r.blacklistMatcher.Configuration() {
@@ -260,7 +263,7 @@ func (r *BlockingResolver) Configuration() (result []string) {
 		result = []string{"deactivated"}
 	}
 
-	return
+	return result
 }
 
 func (r *BlockingResolver) hasWhiteListOnlyAllowed(groupsToCheck []string) bool {

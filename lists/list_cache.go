@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hako/durafmt"
+
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/0xERR0R/blocky/evt"
@@ -49,7 +51,7 @@ type ListCache struct {
 // Configuration returns current configuration and stats
 func (b *ListCache) Configuration() (result []string) {
 	if b.refreshPeriod > 0 {
-		result = append(result, fmt.Sprintf("refresh period: %s", b.refreshPeriod))
+		result = append(result, fmt.Sprintf("refresh period: %s", durafmt.Parse(b.refreshPeriod)))
 	} else {
 		result = append(result, "refresh: disabled")
 	}
