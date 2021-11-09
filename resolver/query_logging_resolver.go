@@ -35,8 +35,10 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 		writer = querylog.NewCSVWriter(cfg.Target, true, cfg.LogRetentionDays)
 	case config.QueryLogTypeMysql:
 		writer = querylog.NewDatabaseWriter(cfg.Target, cfg.LogRetentionDays, 30*time.Second)
-	case config.QueryLogTypeNone:
+	case config.QueryLogTypeConsole:
 		writer = querylog.NewLoggerWriter()
+	case config.QueryLogTypeNone:
+		writer = querylog.NewNoneWriter()
 	}
 
 	logChan := make(chan *querylog.Entry, logChanCap)
