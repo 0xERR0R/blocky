@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
 
 	"github.com/0xERR0R/blocky/model"
@@ -29,23 +28,21 @@ var _ = Describe("FileWriter", func() {
 		Expect(err).Should(Succeed())
 	})
 	AfterEach(func() {
-		Expect(err).Should(Succeed())
 		_ = os.RemoveAll(tmpDir)
 	})
 
 	Describe("CSV writer", func() {
 		When("target dir does not exist", func() {
-			It("should log with fatal", func() {
-				helpertest.ShouldLogFatal(func() {
-					NewCSVWriter("wrongdir", false, 0)
-				})
+			It("should return error", func() {
+				_, err = NewCSVWriter("wrongdir", false, 0)
+				Expect(err).Should(HaveOccurred())
 			})
 		})
 		When("New log entry was created", func() {
 			It("should be logged in one file", func() {
 				tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
 				Expect(err).Should(Succeed())
-				writer := NewCSVWriter(tmpDir, false, 0)
+				writer, _ := NewCSVWriter(tmpDir, false, 0)
 				res, err := util.NewMsgWithAnswer("example.com", 123, dns.TypeA, "123.124.122.122")
 
 				Expect(err).Should(Succeed())
@@ -92,7 +89,7 @@ var _ = Describe("FileWriter", func() {
 			It("should be logged in separate files per client", func() {
 				tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
 				Expect(err).Should(Succeed())
-				writer := NewCSVWriter(tmpDir, true, 0)
+				writer, _ := NewCSVWriter(tmpDir, true, 0)
 				res, err := util.NewMsgWithAnswer("example.com", 123, dns.TypeA, "123.124.122.122")
 
 				Expect(err).Should(Succeed())
@@ -143,7 +140,7 @@ var _ = Describe("FileWriter", func() {
 			It("should delete old files", func() {
 				tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
 				Expect(err).Should(Succeed())
-				writer := NewCSVWriter(tmpDir, false, 1)
+				writer, _ := NewCSVWriter(tmpDir, false, 1)
 				res, err := util.NewMsgWithAnswer("example.com", 123, dns.TypeA, "123.124.122.122")
 
 				Expect(err).Should(Succeed())

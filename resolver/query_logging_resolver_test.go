@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/querylog"
 
 	"github.com/0xERR0R/blocky/config"
@@ -169,7 +168,9 @@ var _ = Describe("QueryLoggingResolver", func() {
 	Describe("Slow writer", func() {
 		When("writer is too slow", func() {
 			BeforeEach(func() {
-				sutConfig = config.QueryLogConfig{}
+				sutConfig = config.QueryLogConfig{
+					Type: config.QueryLogTypeNone,
+				}
 			})
 			It("should drop messages", func() {
 				mockWriter := &SlowMockWriter{}
@@ -202,54 +203,9 @@ var _ = Describe("QueryLoggingResolver", func() {
 				Expect(len(c) > 1).Should(BeTrue())
 			})
 		})
-
-		When("resolver is disabled", func() {
-			BeforeEach(func() {
-				sutConfig = config.QueryLogConfig{}
-			})
-			It("should return 'disabled'", func() {
-				c := sut.Configuration()
-				Expect(c).Should(HaveLen(1))
-				Expect(c).Should(Equal([]string{"deactivated"}))
-			})
-		})
 	})
 
 	Describe("Clean up of query log directory", func() {
-		When("Log directory does not exist", func() {
-
-			It("should exit with error", func() {
-				defer func() { Log().ExitFunc = nil }()
-
-				var fatal bool
-
-				Log().ExitFunc = func(int) { fatal = true }
-				_ = NewQueryLoggingResolver(config.QueryLogConfig{
-					Target: "notExists",
-					Type:   config.QueryLogTypeCsv,
-				})
-
-				Expect(fatal).Should(BeTrue())
-			})
-		})
-		When("not existing log directory is configured, log retention is enabled", func() {
-			It("should exit with error", func() {
-				defer func() { Log().ExitFunc = nil }()
-
-				var fatal bool
-
-				Log().ExitFunc = func(int) { fatal = true }
-
-				sut := NewQueryLoggingResolver(config.QueryLogConfig{
-					Target:           "wrongDir",
-					Type:             config.QueryLogTypeCsv,
-					LogRetentionDays: 7,
-				}).(*QueryLoggingResolver)
-
-				sut.doCleanUp()
-				Expect(fatal).Should(BeTrue())
-			})
-		})
 		When("fallback logger is enabled, log retention is enabled", func() {
 			It("should do nothing", func() {
 
@@ -297,14 +253,14 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 var _ = Describe("Wrong target configuration", func() {
 	When("database path is wrong", func() {
-		It("should log fatal", func() {
-			helpertest.ShouldLogFatal(func() {
-				sutConfig := config.QueryLogConfig{
-					Target: "dummy",
-					Type:   config.QueryLogTypeMysql,
-				}
-				NewQueryLoggingResolver(sutConfig)
-			})
+		It("should use fallback", func() {
+			sutConfig := config.QueryLogConfig{
+				Target: "dummy",
+				Type:   config.QueryLogTypeMysql,
+			}
+			resolver := NewQueryLoggingResolver(sutConfig)
+			loggingResolver := resolver.(*QueryLoggingResolver)
+			Expect(loggingResolver.logType).Should(Equal(config.QueryLogTypeConsole))
 		})
 
 	})
