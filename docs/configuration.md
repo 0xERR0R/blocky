@@ -436,14 +436,16 @@ You can select one of following query log types:
 - `mysql` - log each query in the external MySQL/MariaDB database
 - `csv` - log into CSV file (one per day)
 - `csv-client` - log into CSV file (one per day and per client)
+- `console` - log into console output
+- `none` - do not log any queries
 
 Configuration parameters:
 
-| Parameter                | Type                                      | Mandatory | Default value      | Description                                                                 |
-| ---------------------    | ----------------------------------------- | --------- | ------------------ | --------------------------------------------------------------------------- |
-| queryLog.type            | enum (mysql, csv, csv-client (see above)) | no        |                    |  Type of logging target. Console if empty                                   |
-| queryLog.target          | string                                    | no        |                    |  directory for writing the logs (for csv) or database url (for mysql)       |
-| queryLog.logRetentionDays| int                                       | no        | 0                  |  if > 0, deletes log files/database entries which are older than ... days   |
+| Parameter                | Type                                                     | Mandatory | Default value      | Description                                                                 |
+| ---------------------    | -------------------------------------------------------- | --------- | ------------------ | --------------------------------------------------------------------------- |
+| queryLog.type            | enum (mysql, csv, csv-client, console, none (see above)) | no        |                    |  Type of logging target. Console if empty                                   |
+| queryLog.target          | string                                                   | no        |                    |  directory for writing the logs (for csv) or database url (for mysql)       |
+| queryLog.logRetentionDays| int                                                      | no        | 0                  |  if > 0, deletes log files/database entries which are older than ... days   |
 
 !!! hint
 

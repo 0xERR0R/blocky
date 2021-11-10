@@ -95,9 +95,12 @@ func (x *NetProtocol) UnmarshalText(text []byte) error {
 }
 
 const (
-	// QueryLogTypeNone is a QueryLogType of type None.
+	// QueryLogTypeConsole is a QueryLogType of type Console.
 	// use logger as fallback
-	QueryLogTypeNone QueryLogType = iota
+	QueryLogTypeConsole QueryLogType = iota
+	// QueryLogTypeNone is a QueryLogType of type None.
+	// no logging
+	QueryLogTypeNone
 	// QueryLogTypeMysql is a QueryLogType of type Mysql.
 	// MySQL or MariaDB database
 	QueryLogTypeMysql
@@ -109,13 +112,14 @@ const (
 	QueryLogTypeCsvClient
 )
 
-const _QueryLogTypeName = "nonemysqlcsvcsv-client"
+const _QueryLogTypeName = "consolenonemysqlcsvcsv-client"
 
 var _QueryLogTypeNames = []string{
-	_QueryLogTypeName[0:4],
-	_QueryLogTypeName[4:9],
-	_QueryLogTypeName[9:12],
-	_QueryLogTypeName[12:22],
+	_QueryLogTypeName[0:7],
+	_QueryLogTypeName[7:11],
+	_QueryLogTypeName[11:16],
+	_QueryLogTypeName[16:19],
+	_QueryLogTypeName[19:29],
 }
 
 // QueryLogTypeNames returns a list of possible string values of QueryLogType.
@@ -126,10 +130,11 @@ func QueryLogTypeNames() []string {
 }
 
 var _QueryLogTypeMap = map[QueryLogType]string{
-	0: _QueryLogTypeName[0:4],
-	1: _QueryLogTypeName[4:9],
-	2: _QueryLogTypeName[9:12],
-	3: _QueryLogTypeName[12:22],
+	0: _QueryLogTypeName[0:7],
+	1: _QueryLogTypeName[7:11],
+	2: _QueryLogTypeName[11:16],
+	3: _QueryLogTypeName[16:19],
+	4: _QueryLogTypeName[19:29],
 }
 
 // String implements the Stringer interface.
@@ -141,10 +146,11 @@ func (x QueryLogType) String() string {
 }
 
 var _QueryLogTypeValue = map[string]QueryLogType{
-	_QueryLogTypeName[0:4]:   0,
-	_QueryLogTypeName[4:9]:   1,
-	_QueryLogTypeName[9:12]:  2,
-	_QueryLogTypeName[12:22]: 3,
+	_QueryLogTypeName[0:7]:   0,
+	_QueryLogTypeName[7:11]:  1,
+	_QueryLogTypeName[11:16]: 2,
+	_QueryLogTypeName[16:19]: 3,
+	_QueryLogTypeName[19:29]: 4,
 }
 
 // ParseQueryLogType attempts to convert a string to a QueryLogType

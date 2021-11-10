@@ -29,7 +29,8 @@ import (
 type NetProtocol uint16
 
 // QueryLogType type of the query log ENUM(
-// none // use logger as fallback
+// console // use logger as fallback
+// none // no logging
 // mysql // MySQL or MariaDB database
 // csv // CSV file per day
 // csv-client // CSV file per day and client
@@ -394,7 +395,7 @@ func validateConfig(cfg *Config) {
 			cfg.QueryLog.Target = cfg.QueryLog.Dir
 		}
 
-		if cfg.QueryLog.Type == QueryLogTypeNone {
+		if cfg.QueryLog.Type == QueryLogTypeConsole {
 			if cfg.QueryLog.PerClient {
 				cfg.QueryLog.Type = QueryLogTypeCsvClient
 			} else {
