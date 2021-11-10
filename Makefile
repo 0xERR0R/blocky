@@ -11,7 +11,7 @@ BIN_OUT_DIR=bin
 
 export PATH=$(shell go env GOPATH)/bin:$(shell echo $$PATH)
 
-all: test lint build ## Build binary (with tests)
+all: build test lint ## Build binary (with tests)
 
 clean: ## cleans output directory
 	$(shell rm -rf $(BIN_OUT_DIR)/*)
