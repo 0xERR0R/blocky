@@ -27,16 +27,16 @@ type FileWriter struct {
 	logRetentionDays uint64
 }
 
-func NewCSVWriter(target string, perClient bool, logRetentionDays uint64) *FileWriter {
+func NewCSVWriter(target string, perClient bool, logRetentionDays uint64) (*FileWriter, error) {
 	if _, err := os.Stat(target); target != "" && err != nil && os.IsNotExist(err) {
-		log.PrefixedLog(loggerPrefixFileWriter).Fatalf("query log directory '%s' does not exist or is not writable", target)
+		return nil, fmt.Errorf("query log directory '%s' does not exist or is not writable", target)
 	}
 
 	return &FileWriter{
 		target:           target,
 		perClient:        perClient,
 		logRetentionDays: logRetentionDays,
-	}
+	}, nil
 }
 
 func (d *FileWriter) Write(entry *Entry) {
