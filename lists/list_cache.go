@@ -42,10 +42,12 @@ type ListCache struct {
 	groupCaches map[string]cache
 	lock        sync.RWMutex
 
-	groupToLinks    map[string][]string
-	refreshPeriod   time.Duration
-	downloadTimeout time.Duration
-	listType        ListCacheType
+	groupToLinks     map[string][]string
+	refreshPeriod    time.Duration
+	downloadTimeout  time.Duration
+	downloadAttempts int
+	downloadCooldown time.Duration
+	listType         ListCacheType
 }
 
 // Configuration returns current configuration and stats
@@ -85,15 +87,17 @@ func (b *ListCache) Configuration() (result []string) {
 
 // NewListCache creates new list instance
 func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration,
-	downloadTimeout time.Duration) (*ListCache, error) {
+	downloadTimeout time.Duration, downloadAttempts int, downloadCooldown time.Duration) (*ListCache, error) {
 	groupCaches := make(map[string]cache)
 
 	b := &ListCache{
-		groupToLinks:    groupToLinks,
-		groupCaches:     groupCaches,
-		refreshPeriod:   refreshPeriod,
-		downloadTimeout: downloadTimeout,
-		listType:        t,
+		groupToLinks:     groupToLinks,
+		groupCaches:      groupCaches,
+		refreshPeriod:    refreshPeriod,
+		downloadTimeout:  downloadTimeout,
+		downloadAttempts: downloadAttempts,
+		downloadCooldown: downloadCooldown,
+		listType:         t,
 	}
 	initError := b.refresh(true)
 
@@ -232,7 +236,7 @@ func (b *ListCache) downloadFile(link string) (io.ReadCloser, error) {
 
 	attempt := 1
 
-	for attempt <= 3 {
+	for attempt <= b.downloadAttempts {
 		//nolint:bodyclose
 		if resp, err = client.Get(link); err == nil {
 			if resp.StatusCode == http.StatusOK {
@@ -259,7 +263,7 @@ func (b *ListCache) downloadFile(link string) (io.ReadCloser, error) {
 				attempt).Warnf("Name resolution err, retrying... %s", dnsErr.Err)
 		}
 
-		time.Sleep(time.Second)
+		time.Sleep(b.downloadCooldown)
 		attempt++
 	}
 
