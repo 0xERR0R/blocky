@@ -316,6 +316,8 @@ type BlockingConfig struct {
 	BlockType            string              `yaml:"blockType" default:"ZEROIP"`
 	BlockTTL             Duration            `yaml:"blockTTL" default:"6h"`
 	DownloadTimeout      Duration            `yaml:"downloadTimeout" default:"60s"`
+	DownloadAttempts     int                 `yaml:"downloadAttempts" default:"3"`
+	DownloadCooldown     Duration            `yaml:"downloadCooldown" default:"1s"`
 	RefreshPeriod        Duration            `yaml:"refreshPeriod" default:"4h"`
 	FailStartOnListError bool                `yaml:"failStartOnListError" default:"false"`
 }
