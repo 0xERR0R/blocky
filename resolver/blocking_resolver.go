@@ -87,8 +87,10 @@ func NewBlockingResolver(cfg config.BlockingConfig) (ChainedResolver, error) {
 	refreshPeriod := time.Duration(cfg.RefreshPeriod)
 	timeout := time.Duration(cfg.DownloadTimeout)
 	cooldown := time.Duration(cfg.DownloadCooldown)
-	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists, refreshPeriod, timeout, cfg.DownloadAttempts, cooldown)
-	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists, refreshPeriod, timeout, cfg.DownloadAttempts, cooldown)
+	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists, refreshPeriod,
+		timeout, cfg.DownloadAttempts, cooldown)
+	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists, refreshPeriod,
+		timeout, cfg.DownloadAttempts, cooldown)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
 	var err error
