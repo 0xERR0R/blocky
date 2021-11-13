@@ -104,8 +104,8 @@ func NewBlockingResolver(cfg config.BlockingConfig) (ChainedResolver, error) {
 		return nil, multierror.Prefix(err, "blocking resolver: ")
 	}
 
-	//split identifiers by commas and merge groups
 	cgb := make(map[string][]string)
+
 	for identifier, cfgGroups := range cfg.ClientGroupsBlock {
 		for _, ipart := range strings.Split(identifier, ",") {
 			existingGroups, found := cgb[ipart]
