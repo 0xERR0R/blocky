@@ -345,16 +345,23 @@ Negative value will deactivate automatically refresh.
 
     Refresh every hour.
 
-### Download timeout
+### Download
 
-You can override the default download timeout (**duration format**) of 60 seconds (for each URL) for big lists or slow
-internet connection:
+You can configure the list download attempts according to your internet connection:
+
+| Parameter                     | Type            | Mandatory | Default value      | Description                                       |
+| ----------------------------- | --------------- | --------- | ------------------ | ------------------------------------------------- |
+| downloadTimeout               | duration format | no        | 60s                | Download attempt timeout |
+| downloadAttempts              | int             | no        | 3                  | How many download attempts schould be performed |
+| downloadCooldown              | duration format | no        | 1s                 | Time between the download attempts|
 
 !!! example
 
     ```yaml
     blocking:
      downloadTimeout: 4m
+     downloadAttempts: 5
+     downloadCooldown: 10s
     ```
 
 ### Fail on start
