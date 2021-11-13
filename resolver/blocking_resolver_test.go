@@ -120,6 +120,7 @@ badcnamedomain.com`)
 				ClientGroupsBlock: map[string][]string{
 					"client1":         {"gr1"},
 					"client2,client3": {"gr1"},
+					"client3":         {"gr2"},
 					"192.168.178.55":  {"gr1"},
 					"altName":         {"gr2"},
 					"10.43.8.67/28":   {"gr1"},
@@ -135,20 +136,25 @@ badcnamedomain.com`)
 		})
 
 		When("client name is defined in client groups block", func() {
-			It("should block the A query if domain is on the black list", func() {
+			It("should block the A query if domain is on the black list (single)", func() {
 				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "client1"))
 
 				Expect(resp.Res.Answer).Should(BeDNSRecord("domain1.com.", dns.TypeA, 21600, "0.0.0.0"))
 			})
-			It("should block the A query if domain is on the black list multipart 1", func() {
+			It("should block the A query if domain is on the black list (multipart 1)", func() {
 				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "client2"))
 
 				Expect(resp.Res.Answer).Should(BeDNSRecord("domain1.com.", dns.TypeA, 21600, "0.0.0.0"))
 			})
-			It("should block the A query if domain is on the black list multipart 2", func() {
+			It("should block the A query if domain is on the black list (multipart 2)", func() {
 				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "client3"))
 
 				Expect(resp.Res.Answer).Should(BeDNSRecord("domain1.com.", dns.TypeA, 21600, "0.0.0.0"))
+			})
+			It("should block the A query if domain is on the black list (merged)", func() {
+				resp, err = sut.Resolve(newRequestWithClient("blocked2.com.", dns.TypeA, "1.2.1.2", "client3"))
+
+				Expect(resp.Res.Answer).Should(BeDNSRecord("blocked2.com.", dns.TypeA, 21600, "0.0.0.0"))
 			})
 			It("should block the AAAA query if domain is on the black list", func() {
 				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeAAAA, "1.2.1.2", "client1"))
