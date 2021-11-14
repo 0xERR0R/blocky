@@ -84,6 +84,10 @@ blocking:
   refreshPeriod: 4h
   # optional: timeout for list download (each url). Default: 60s. Use large values for big lists or slow internet connections
   downloadTimeout: 4m
+  # optional: Download attempt timeout. Default: 60s
+  downloadAttempts: 5
+  # optional: Time between the download attempts. Default: 1s
+  downloadCooldown: 10s
   # optional: if true, application startup will fail if at least one list can't be downloaded / opened. Default: false
   failStartOnListError: false
 
