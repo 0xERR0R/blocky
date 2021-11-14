@@ -79,6 +79,7 @@ type BlockingResolver struct {
 	blockHandler        blockHandler
 	whitelistOnlyGroups map[string]bool
 	status              *status
+	clientGroupsBlock   map[string][]string
 }
 
 // NewBlockingResolver returns a new configured instance of the resolver
@@ -103,6 +104,19 @@ func NewBlockingResolver(cfg config.BlockingConfig) (ChainedResolver, error) {
 		return nil, multierror.Prefix(err, "blocking resolver: ")
 	}
 
+	cgb := make(map[string][]string)
+
+	for identifier, cfgGroups := range cfg.ClientGroupsBlock {
+		for _, ipart := range strings.Split(identifier, ",") {
+			existingGroups, found := cgb[ipart]
+			if found {
+				cgb[ipart] = append(existingGroups, cfgGroups...)
+			} else {
+				cgb[ipart] = cfgGroups
+			}
+		}
+	}
+
 	res := &BlockingResolver{
 		blockHandler:        blockHandler,
 		cfg:                 cfg,
@@ -113,6 +127,7 @@ func NewBlockingResolver(cfg config.BlockingConfig) (ChainedResolver, error) {
 			enabled:     true,
 			enableTimer: time.NewTimer(0),
 		},
+		clientGroupsBlock: cgb,
 	}
 
 	return res, nil
@@ -365,7 +380,7 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 	var groups []string
 	// try client names
 	for _, cName := range request.ClientNames {
-		for blockGroup, groupsByName := range r.cfg.ClientGroupsBlock {
+		for blockGroup, groupsByName := range r.clientGroupsBlock {
 			if util.ClientNameMatchesGroupName(blockGroup, cName) {
 				groups = append(groups, groupsByName...)
 			}
@@ -373,14 +388,14 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 	}
 
 	// try IP
-	groupsByIP, found := r.cfg.ClientGroupsBlock[request.ClientIP.String()]
+	groupsByIP, found := r.clientGroupsBlock[request.ClientIP.String()]
 
 	if found {
 		groups = append(groups, groupsByIP...)
 	}
 
 	// try CIDR
-	for cidr, groupsByCidr := range r.cfg.ClientGroupsBlock {
+	for cidr, groupsByCidr := range r.clientGroupsBlock {
 		if util.CidrContainsIP(cidr, request.ClientIP) {
 			groups = append(groups, groupsByCidr...)
 		}
@@ -388,7 +403,7 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 
 	if len(groups) == 0 {
 		// return default
-		groups = r.cfg.ClientGroupsBlock["default"]
+		groups = r.clientGroupsBlock["default"]
 	}
 
 	var result []string
