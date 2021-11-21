@@ -84,11 +84,11 @@ var _ = Describe("Running DNS server", func() {
 					"youtube": {"../testdata/youtube.com.txt"}},
 				WhiteLists: map[string][]string{
 					"ads":       {"../testdata/heise.de.txt"},
-					"whitelist": {"../testdata/heise.de.txt"},
+					"allowlist": {"../testdata/heise.de.txt"},
 				},
 				ClientGroupsBlock: map[string][]string{
 					"default":         {"ads"},
-					"clWhitelistOnly": {"whitelist"},
+					"clWhitelistOnly": {"allowlist"},
 					"clAdsAndYoutube": {"ads", "youtube"},
 					"clYoutubeOnly":   {"youtube"},
 				},
@@ -199,14 +199,14 @@ var _ = Describe("Running DNS server", func() {
 			})
 		})
 		Context("no blocking default group with sub domain", func() {
-			It("Query with should not be blocked, sub domain is not in blacklist", func() {
+			It("Query with should not be blocked, sub domain is not in denylist", func() {
 				resp = requestServer(util.NewMsgWithQuestion("bild.de.", dns.TypeA))
 
 				Expect(resp.Answer).Should(BeDNSRecord("bild.de.", dns.TypeA, 0, "123.124.122.122"))
 			})
 		})
-		Context("domain is on white and blacklist default group", func() {
-			It("Query with should not be blocked, domain is on white and blacklist", func() {
+		Context("domain is on white and denylist default group", func() {
+			It("Query with should not be blocked, domain is on white and denylist", func() {
 				resp = requestServer(util.NewMsgWithQuestion("heise.de.", dns.TypeA))
 
 				Expect(resp.Answer).Should(BeDNSRecord("heise.de.", dns.TypeA, 0, "123.124.122.122"))
@@ -220,8 +220,8 @@ var _ = Describe("Running DNS server", func() {
 				Expect(resp.Answer).Should(BeDNSRecord("heise.de.", dns.TypeA, 0, "123.124.122.122"))
 			})
 		})
-		Context("block client whitelist only", func() {
-			It("Query with should be blocked, client has only whitelist, domain is not on client's white list", func() {
+		Context("block client allowlist only", func() {
+			It("Query with should be blocked, client has only allowlist, domain is not on client's white list", func() {
 				mockClientName = "clWhitelistOnly"
 				resp = requestServer(util.NewMsgWithQuestion("google.de.", dns.TypeA))
 

@@ -24,7 +24,7 @@ blocking:
       - https://hosts-file.net/ad_servers.txt
   whiteLists:
     ads:
-      - whitelist.txt
+      - allowlist.txt
   clientGroupsBlock:
     default:
       - ads
@@ -37,9 +37,9 @@ blocking:
 clientLookup:
   upstream: udp:192.168.178.1
   singleNameOrder:
-      - 2
-      - 1
-  
+    - 2
+    - 1
+
 queryLog:
   type: csv-client
   target: /opt/log

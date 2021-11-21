@@ -365,7 +365,7 @@ badcnamedomain.com`)
 					// return defined IP as response
 					mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.TypeA, "123.145.123.145")
 				})
-				It("should block query, if lookup result contains blacklisted IP", func() {
+				It("should block query, if lookup result contains denylisted IP", func() {
 					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "1.2.1.2", "unknown"))
 					Expect(resp.Reason).Should(Equal("BLOCKED IP (defaultGroup)"))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 21600, "0.0.0.0"))
@@ -376,7 +376,7 @@ badcnamedomain.com`)
 					// return defined IP as response
 					mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.TypeAAAA, "2001:0db8:85a3:08d3::0370:7344")
 				})
-				It("should block query, if lookup result contains blacklisted IP", func() {
+				It("should block query, if lookup result contains denylisted IP", func() {
 					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeAAAA, "1.2.1.2", "unknown"))
 					Expect(resp.Reason).Should(Equal("BLOCKED IP (defaultGroup)"))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeAAAA, 21600, "::"))
@@ -384,7 +384,7 @@ badcnamedomain.com`)
 			})
 		})
 
-		When("blacklist contains domain which is CNAME in response", func() {
+		When("denylist contains domain which is CNAME in response", func() {
 			BeforeEach(func() {
 				// reconfigure mock, to return CNAMEs
 				rr1, _ := dns.NewRR("example.com 300 IN CNAME domain.com")
@@ -393,7 +393,7 @@ badcnamedomain.com`)
 				mockAnswer = new(dns.Msg)
 				mockAnswer.Answer = []dns.RR{rr1, rr2, rr3}
 			})
-			It("should block the query, if response contains a CNAME with domain on a blacklist", func() {
+			It("should block the query, if response contains a CNAME with domain on a denylist", func() {
 				resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "1.2.1.2", "unknown"))
 				Expect(resp.Reason).Should(Equal("BLOCKED CNAME (defaultGroup)"))
 				Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 21600, "0.0.0.0"))
@@ -422,7 +422,7 @@ badcnamedomain.com`)
 			})
 		})
 
-		When("Only whitelist is defined", func() {
+		When("Only allowlist is defined", func() {
 			BeforeEach(func() {
 				sutConfig = config.BlockingConfig{
 					BlockType: "zeroIP",
@@ -440,14 +440,14 @@ badcnamedomain.com`)
 				}
 			})
 			It("should block everything else except domains on the white list with default group", func() {
-				By("querying domain on the whitelist", func() {
+				By("querying domain on the allowlist", func() {
 					resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "unknown"))
 
 					// was delegated to next resolver
 					m.AssertExpectations(GinkgoT())
 				})
 
-				By("querying another domain, which is not on the whitelist", func() {
+				By("querying another domain, which is not on the allowlist", func() {
 					resp, err = sut.Resolve(newRequestWithClient("google.com.", dns.TypeA, "1.2.1.2", "unknown"))
 					Expect(m.Calls).Should(HaveLen(1))
 					Expect(resp.Reason).Should(Equal("BLOCKED (WHITELIST ONLY)"))
@@ -455,14 +455,14 @@ badcnamedomain.com`)
 			})
 			It("should block everything else except domains on the white list "+
 				"if multiple white list only groups are defined", func() {
-				By("querying domain on the whitelist", func() {
+				By("querying domain on the allowlist", func() {
 					resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "one-client"))
 
 					// was delegated to next resolver
 					m.AssertExpectations(GinkgoT())
 				})
 
-				By("querying another domain, which is not on the whitelist", func() {
+				By("querying another domain, which is not on the allowlist", func() {
 					resp, err = sut.Resolve(newRequestWithClient("blocked2.com.", dns.TypeA, "1.2.1.2", "one-client"))
 					Expect(m.Calls).Should(HaveLen(1))
 					Expect(resp.Reason).Should(Equal("BLOCKED (WHITELIST ONLY)"))
@@ -470,14 +470,14 @@ badcnamedomain.com`)
 			})
 			It("should block everything else except domains on the white list "+
 				"if multiple white list only groups are defined", func() {
-				By("querying domain on the whitelist group 1", func() {
+				By("querying domain on the allowlist group 1", func() {
 					resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.TypeA, "1.2.1.2", "all-client"))
 
 					// was delegated to next resolver
 					m.AssertExpectations(GinkgoT())
 				})
 
-				By("querying another domain, which is in the whitelist group 1", func() {
+				By("querying another domain, which is in the allowlist group 1", func() {
 					resp, err = sut.Resolve(newRequestWithClient("blocked2.com.", dns.TypeA, "1.2.1.2", "all-client"))
 					Expect(m.Calls).Should(HaveLen(2))
 				})
@@ -823,7 +823,7 @@ badcnamedomain.com`)
 			It("should fail if lists can't be downloaded", func() {
 				_, err := NewBlockingResolver(config.BlockingConfig{
 					BlackLists:           map[string][]string{"gr1": {"wrongPath"}},
-					WhiteLists:           map[string][]string{"whitelist": {"wrongPath"}},
+					WhiteLists:           map[string][]string{"allowlist": {"wrongPath"}},
 					FailStartOnListError: true,
 					BlockType:            "zeroIp",
 				})

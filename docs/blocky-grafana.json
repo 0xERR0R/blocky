@@ -426,7 +426,7 @@
     {
       "cacheTimeout": null,
       "datasource": "${DS_PROMETHEUS}",
-      "description": "Number of blacklist entries",
+      "description": "Number of denylist entries",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -480,7 +480,7 @@
       "pluginVersion": "7.3.1",
       "targets": [
         {
-          "expr": "sum(blocky_blacklist_cache) / sum(up{job=\"blocky\"})",
+          "expr": "sum(blocky_denylist_cache) / sum(up{job=\"blocky\"})",
           "instant": false,
           "refId": "A"
         }
@@ -1608,7 +1608,7 @@
       "strokeWidth": 1,
       "targets": [
         {
-          "expr": "topk(1, blocky_blacklist_cache) by (group)",
+          "expr": "topk(1, blocky_denylist_cache) by (group)",
           "instant": true,
           "legendFormat": "{{ group }}",
           "refId": "A"

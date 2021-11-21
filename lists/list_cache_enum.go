@@ -16,11 +16,11 @@ const (
 	// is a list with blocked domains
 	ListCacheTypeBlacklist ListCacheType = iota
 	// ListCacheTypeWhitelist is a ListCacheType of type Whitelist.
-	// is a list with whitelisted domains / IPs
+	// is a list with allowlisted domains / IPs
 	ListCacheTypeWhitelist
 )
 
-const _ListCacheTypeName = "blacklistwhitelist"
+const _ListCacheTypeName = "denylistallowlist"
 
 var _ListCacheTypeNames = []string{
 	_ListCacheTypeName[0:9],

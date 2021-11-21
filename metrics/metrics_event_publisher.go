@@ -28,14 +28,14 @@ func registerApplicationEventListeners() {
 }
 
 func versionNumberGauge() *prometheus.GaugeVec {
-	blacklistCnt := prometheus.NewGaugeVec(
+	denylistCnt := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "blocky_build_info",
 			Help: "Version number and build info",
 		}, []string{"version", "build_time"},
 	)
 
-	return blacklistCnt
+	return denylistCnt
 }
 
 func registerBlockingEventListeners() {
@@ -51,23 +51,23 @@ func registerBlockingEventListeners() {
 		}
 	})
 
-	blacklistCnt := blacklistGauge()
+	denylistCnt := denylistGauge()
 
-	whitelistCnt := whitelistGauge()
+	allowlistCnt := allowlistGauge()
 
 	lastListGroupRefresh := lastListGroupRefresh()
 
-	RegisterMetric(blacklistCnt)
-	RegisterMetric(whitelistCnt)
+	RegisterMetric(denylistCnt)
+	RegisterMetric(allowlistCnt)
 	RegisterMetric(lastListGroupRefresh)
 
 	subscribe(evt.BlockingCacheGroupChanged, func(listType lists.ListCacheType, groupName string, cnt int) {
 		lastListGroupRefresh.Set(float64(time.Now().Unix()))
 		switch listType {
 		case lists.ListCacheTypeBlacklist:
-			blacklistCnt.WithLabelValues(groupName).Set(float64(cnt))
+			denylistCnt.WithLabelValues(groupName).Set(float64(cnt))
 		case lists.ListCacheTypeWhitelist:
-			whitelistCnt.WithLabelValues(groupName).Set(float64(cnt))
+			allowlistCnt.WithLabelValues(groupName).Set(float64(cnt))
 		}
 	})
 }
@@ -82,26 +82,26 @@ func enabledGauge() prometheus.Gauge {
 	return enabledGauge
 }
 
-func blacklistGauge() *prometheus.GaugeVec {
-	blacklistCnt := prometheus.NewGaugeVec(
+func denylistGauge() *prometheus.GaugeVec {
+	denylistCnt := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "blocky_blacklist_cache",
-			Help: "Number of entries in the blacklist cache",
+			Name: "blocky_denylist_cache",
+			Help: "Number of entries in the denylist cache",
 		}, []string{"group"},
 	)
 
-	return blacklistCnt
+	return denylistCnt
 }
 
-func whitelistGauge() *prometheus.GaugeVec {
-	whitelistCnt := prometheus.NewGaugeVec(
+func allowlistGauge() *prometheus.GaugeVec {
+	allowlistCnt := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "blocky_whitelist_cache",
-			Help: "Number of entries in the whitelist cache",
+			Name: "blocky_allowlist_cache",
+			Help: "Number of entries in the allowlist cache",
 		}, []string{"group"},
 	)
 
-	return whitelistCnt
+	return allowlistCnt
 }
 
 func lastListGroupRefresh() prometheus.Gauge {

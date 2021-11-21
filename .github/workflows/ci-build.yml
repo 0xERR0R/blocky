@@ -1,12 +1,10 @@
 name: CI Build
 on: [push, pull_request]
 jobs:
-
   build:
     name: Build
     runs-on: ubuntu-latest
     steps:
-
       - name: Set up Go 1.17
         uses: actions/setup-go@v1
         with:

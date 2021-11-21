@@ -19,7 +19,7 @@ configuration properties as [JSON](config.yml).
 | httpsPort       | int (1 - 65535)   | no                    |                    | HTTPS listener port and optional bind ip address . If > 0, will be used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as 192.168.0.1:443 |
 | certFile        | path              | yes, if httpsPort > 0 |                    | path to cert and key file for SSL encryption (DoH and DoT) |
 | keyFile         | path              | yes, if httpsPort > 0 |                    | path to cert and key file for SSL encryption (DoH and DoT) |
-| bootstrapDns    | IP:port           | no                    |                    | use this DNS server to resolve blacklist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. NOTE: Works only on Linux/*Nix OS due to golang limitations under windows.|
+| bootstrapDns    | IP:port           | no                    |                    | use this DNS server to resolve denylist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. NOTE: Works only on Linux/*Nix OS due to golang limitations under windows.|
 | disableIPv6     | bool              | no                    | false              | Drop all AAAA query if set to true
 | logLevel        | enum (debug, info, warn, error)           | no                 | info               | Log level  |
 | logFormat       | enum (text, json) | no                    | text               | Log format (text or json). |
@@ -205,21 +205,21 @@ contains a map of client name and multiple IP addresses.
 
     Use `192.168.178.1` for rDNS lookup. Take second name if present, if not take first name. IP address `192.168.178.29` is mapped to `laptop` as client name.
 
-## Blocking and whitelisting
+## Blocking and allowlisting
 
 Blocky can download and use external lists with domains or IP addresses to block DNS query (e.g. advertisement, malware,
 trackers, adult sites). You can group several list sources together and define the blocking behavior per client.
-External blacklists must be either in the well-known [Hosts format](https://en.wikipedia.org/wiki/Hosts_(file)) or just
+External denylists must be either in the well-known [Hosts format](https://en.wikipedia.org/wiki/Hosts_(file)) or just
 a plain domain list (one domain per line). Blocky also supports regex as more powerful tool to define patterns to block.
 
 Blocky uses [DNS sinkhole](https://en.wikipedia.org/wiki/DNS_sinkhole) approach to block a DNS query. Domain name from
-the request, IP address from the response, and the CNAME record will be checked against configured blacklists.
+the request, IP address from the response, and the CNAME record will be checked against configured denylists.
 
-To avoid overblocking, you can define or use already existing whitelists.
+To avoid overblocking, you can define or use already existing allowlists.
 
-### Definition black and whitelists
+### Definition black and allowlists
 
-Each black or whitelist can be either a path to the local file, a URL to download or inline list definition of a domains
+Each black or allowlist can be either a path to the local file, a URL to download or inline list definition of a domains
 in hosts format (YAML literal block scalar style). All Urls must be grouped to a group name.
 
 !!! example
@@ -240,18 +240,18 @@ in hosts format (YAML literal block scalar style). All Urls must be grouped to a
           - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
       whiteLists:
         ads:
-          - whitelist.txt
+          - allowlist.txt
           - |
             # inline definition with YAML literal block scalar style
-            whitelistdomain.com
+            allowlistdomain.com
     ```
 
-    In this example you can see 2 groups: **ads** with 2 lists and **special** with one list. One local whitelist was defined for the **ads** group.
+    In this example you can see 2 groups: **ads** with 2 lists and **special** with one list. One local allowlist was defined for the **ads** group.
 
 !!! warning
 
-    If the same group has black and whitelists, whitelists will be used to disable particular blacklist entries.
-    If a group has **only** whitelist entries -> this means only domains from this list are allowed, all other domains will
+    If the same group has black and allowlists, allowlists will be used to disable particular denylist entries.
+    If a group has **only** allowlist entries -> this means only domains from this list are allowed, all other domains will
     be blocked
 
 #### Regex support

@@ -60,7 +60,7 @@ Some links/ideas for lists:
 
 !!! warning
 
-    Use only blacklists from the sources you trust!
+    Use only denylists from the sources you trust!
 
 ### Whitelists
 
@@ -74,7 +74,7 @@ Some links/ideas for lists:
 
     Please read the description before using the DNS server as upstream. Some of them provide already an ad-blocker, some
     filters other content. If you use external DNS server with included ad-blocker, you can't choose which domains should be
-    blocked, and you can't use whitelisting.
+    blocked, and you can't use allowlisting.
 
 This is only a small excerpt of all free available DNS servers and should only be understood as an idee.
 
