@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/model"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -37,4 +38,16 @@ func New(cfg *config.RedisConfig) (*RedisClient, error) {
 	} else {
 		return nil, err
 	}
+}
+
+// PublishCache publish cache to redis async
+func (c *RedisClient) PublishCache(key string, data *model.Response) {
+	msg := &CacheMessage{
+		Key:      key,
+		Response: data,
+	}
+
+	go func() {
+		c.client.Publish(*c.context, CacheChannelName, msg)
+	}()
 }
