@@ -12,13 +12,13 @@ const (
 	CacheChannelName string = "blocky_cache_sync"
 )
 
-type RedisClient struct {
+type Client struct {
 	config  *config.RedisConfig
 	context *context.Context
 	client  *redis.Client
 }
 
-func New(cfg *config.RedisConfig) (*RedisClient, error) {
+func New(cfg *config.RedisConfig) (*Client, error) {
 	ctx := context.Background()
 
 	rdb := redis.NewClient(&redis.Options{
@@ -29,19 +29,20 @@ func New(cfg *config.RedisConfig) (*RedisClient, error) {
 
 	err := rdb.Ping(ctx).Err()
 	if err == nil {
-		res := &RedisClient{
+		res := &Client{
 			config:  cfg,
 			context: &ctx,
 			client:  rdb,
 		}
+
 		return res, nil
-	} else {
-		return nil, err
 	}
+
+	return nil, err
 }
 
 // PublishCache publish cache to redis async
-func (c *RedisClient) PublishCache(key string, data *model.Response) {
+func (c *Client) PublishCache(key string, data *model.Response) {
 	msg := &CacheMessage{
 		Key:      key,
 		Response: data,

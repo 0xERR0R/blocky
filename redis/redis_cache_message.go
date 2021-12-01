@@ -6,7 +6,7 @@ import (
 	"github.com/0xERR0R/blocky/model"
 )
 
-// CacheMessage struct holding key and response for cache syncronization
+// CacheMessage struct holding key and response for cache synchronization
 type CacheMessage struct {
 	Key      string
 	Response *model.Response
@@ -19,8 +19,7 @@ func (u *CacheMessage) MarshalBinary() ([]byte, error) {
 
 // UnmarshalBinary decodes the struct into a CacheMessage
 func (u *CacheMessage) UnmarshalBinary(data []byte) error {
-	if err := json.Unmarshal(data, &u); err != nil {
-		return err
-	}
-	return nil
+	err := json.Unmarshal(data, &u)
+
+	return err
 }
