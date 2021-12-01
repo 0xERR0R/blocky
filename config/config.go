@@ -357,7 +357,7 @@ type QueryLogConfig struct {
 type RedisConfig struct {
 	Address  string `yaml:"address"`
 	Password string `yaml:"password"`
-	Database string `yaml:"database" default:"0"`
+	Database int    `yaml:"database" default:"0"`
 }
 
 // nolint:gochecknoglobals
