@@ -258,6 +258,7 @@ type Config struct {
 	Caching         CachingConfig             `yaml:"caching"`
 	QueryLog        QueryLogConfig            `yaml:"queryLog"`
 	Prometheus      PrometheusConfig          `yaml:"prometheus"`
+	Redis           RedisConfig               `yaml:"redis"`
 	LogLevel        log.Level                 `yaml:"logLevel" default:"info"`
 	LogFormat       log.FormatType            `yaml:"logFormat" default:"text"`
 	LogPrivacy      bool                      `yaml:"logPrivacy" default:"false"`
@@ -350,6 +351,13 @@ type QueryLogConfig struct {
 	Target           string       `yaml:"target"`
 	Type             QueryLogType `yaml:"type"`
 	LogRetentionDays uint64       `yaml:"logRetentionDays"`
+}
+
+// RedisConfig configuration for the redis connection
+type RedisConfig struct {
+	Address  string `yaml:"address"`
+	Password string `yaml:"password"`
+	Database string `yaml:"database" default:"0"`
 }
 
 // nolint:gochecknoglobals
