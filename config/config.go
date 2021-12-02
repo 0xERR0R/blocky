@@ -355,9 +355,11 @@ type QueryLogConfig struct {
 
 // RedisConfig configuration for the redis connection
 type RedisConfig struct {
-	Address  string `yaml:"address"`
-	Password string `yaml:"password"`
-	Database int    `yaml:"database" default:"0"`
+	Address            string   `yaml:"address"`
+	Password           string   `yaml:"password"`
+	Database           int      `yaml:"database" default:"0"`
+	ConnectionAttempts int      `yaml:"connectionAttempts" default:"3"`
+	ConnectionCooldown Duration `yaml:"connectionCooldown" default:"1s"`
 }
 
 // nolint:gochecknoglobals
