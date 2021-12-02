@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
@@ -27,15 +28,23 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 		DB:       cfg.Database,
 	})
 
-	err := rdb.Ping(ctx).Err()
-	if err == nil {
-		res := &Client{
-			config:  cfg,
-			context: &ctx,
-			client:  rdb,
+	var err error
+
+	attempt := 1
+	for attempt <= cfg.ConnectionAttempts {
+		err = rdb.Ping(ctx).Err()
+		if err == nil {
+			res := &Client{
+				config:  cfg,
+				context: &ctx,
+				client:  rdb,
+			}
+
+			return res, nil
 		}
 
-		return res, nil
+		time.Sleep(time.Duration(cfg.ConnectionCooldown))
+		attempt++
 	}
 
 	return nil, err
