@@ -123,9 +123,12 @@ func (c *Client) startSubscriptionListener() error {
 func (c *Client) getResponse(key string) (*model.Response, error) {
 	resp, err := c.client.Get(*c.context, key).Result()
 	if err == nil {
-		var res model.Response
-		json.Unmarshal([]byte(resp), res)
-		return &res, nil
+		res := &model.Response{}
+		err = json.Unmarshal([]byte(resp), res)
+
+		if err == nil {
+			return res, nil
+		}
 	}
 	return nil, err
 }
