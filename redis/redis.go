@@ -102,6 +102,7 @@ func (c *Client) GetRedisCache() {
 // startSubscriptionListener starts a new goroutine for subscription and translation
 func (c *Client) startSubscriptionListener() error {
 	ps := c.client.Subscribe(*c.context, CacheChannelName)
+
 	_, err := ps.Receive(*c.context)
 	if err == nil {
 		pschan := ps.Channel()
@@ -130,6 +131,7 @@ func (c *Client) getResponse(key string) (*model.Response, error) {
 			return res, nil
 		}
 	}
+
 	return nil, err
 }
 
