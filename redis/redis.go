@@ -82,6 +82,7 @@ func (c *Client) PublishCache(key string, response *model.Response) {
 
 // GetRedisCache reads the redis cache and publish it to the channel
 func (c *Client) GetRedisCache() {
+	// start routine to get the cache
 	go func() {
 		iter := c.client.Scan(*c.context, 0, fmt.Sprintf("%s*", CacheStorePrefix), 0).Iterator()
 		for iter.Next(*c.context) {
@@ -106,9 +107,11 @@ func (c *Client) startSubscriptionListener() error {
 	_, err := ps.Receive(*c.context)
 	if err == nil {
 		pschan := ps.Channel()
+
 		go func() {
 			for msg := range pschan {
 				m := &model.ResponseCache{}
+
 				mErr := m.UnmarshalBinary([]byte(msg.Payload))
 				if mErr == nil {
 					c.Channel <- m
@@ -125,8 +128,8 @@ func (c *Client) getResponse(key string) (*model.Response, error) {
 	resp, err := c.client.Get(*c.context, key).Result()
 	if err == nil {
 		res := &model.Response{}
-		err = json.Unmarshal([]byte(resp), res)
 
+		err = json.Unmarshal([]byte(resp), res)
 		if err == nil {
 			return res, nil
 		}
