@@ -17,6 +17,7 @@ const (
 	CacheStorePrefix string = "cache:"
 )
 
+// Client for redis communication
 type Client struct {
 	config  *config.RedisConfig
 	context *context.Context
@@ -26,6 +27,7 @@ type Client struct {
 
 // New creates a new redis client
 func New(cfg *config.RedisConfig) (*Client, error) {
+	// disable redis if no address is provided
 	if len(cfg.Address) == 0 {
 		return nil, nil
 	}
@@ -44,7 +46,7 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 	for attempt <= cfg.ConnectionAttempts {
 		err = rdb.Ping(ctx).Err()
 		if err == nil {
-
+			// construct client
 			res := &Client{
 				config:  cfg,
 				context: &ctx,
@@ -52,7 +54,10 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 				Channel: make(chan *model.ResponseCache),
 			}
 
-			return res, nil
+			// start listener
+			pserr := res.startSubscriptionListener()
+
+			return res, pserr
 		}
 
 		time.Sleep(time.Duration(cfg.ConnectionCooldown))
@@ -75,6 +80,7 @@ func (c *Client) PublishCache(key string, response *model.Response) {
 	}()
 }
 
+// GetRedisCache reads the redis cache and publish it to the channel
 func (c *Client) GetRedisCache() {
 	go func() {
 		iter := c.client.Scan(*c.context, 0, fmt.Sprintf("%s*", CacheStorePrefix), 0).Iterator()
@@ -93,21 +99,43 @@ func (c *Client) GetRedisCache() {
 	}()
 }
 
+// startSubscriptionListener starts a new goroutine for subscription and translation
+func (c *Client) startSubscriptionListener() error {
+	ps := c.client.Subscribe(*c.context, CacheChannelName)
+	_, err := ps.Receive(*c.context)
+	if err == nil {
+		pschan := ps.Channel()
+		go func() {
+			for msg := range pschan {
+				m := &model.ResponseCache{}
+				mErr := m.UnmarshalBinary([]byte(msg.Payload))
+				if mErr == nil {
+					c.Channel <- m
+				}
+			}
+		}()
+	}
+
+	return err
+}
+
+// getResponse returns model.Response for a key
 func (c *Client) getResponse(key string) (*model.Response, error) {
-	resp := c.client.Get(*c.context, key)
-	err := resp.Err()
+	resp, err := c.client.Get(*c.context, key).Result()
 	if err == nil {
 		var res model.Response
-		json.Unmarshal([]byte(resp.String()), res)
+		json.Unmarshal([]byte(resp), res)
 		return &res, nil
 	}
 	return nil, err
 }
 
+// prefixKey prefixes a key
 func prefixKey(key string) string {
 	return fmt.Sprintf("%s%s", CacheStorePrefix, key)
 }
 
+// deprefixKey get the key from a prefixed one
 func deprefixKey(key string) string {
 	return strings.TrimPrefix(key, CacheStorePrefix)
 }
