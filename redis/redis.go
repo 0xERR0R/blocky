@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -12,17 +13,23 @@ import (
 )
 
 const (
-	CacheChannelName   string = "blocky_cache_sync"
-	CacheMessagePrefix string = "cache:"
+	CacheChannelName string = "blocky_cache_sync"
+	CacheStorePrefix string = "cache:"
 )
 
 type Client struct {
 	config  *config.RedisConfig
 	context *context.Context
 	client  *redis.Client
+	Channel chan *model.ResponseCache
 }
 
+// New creates a new redis client
 func New(cfg *config.RedisConfig) (*Client, error) {
+	if len(cfg.Address) == 0 {
+		return nil, nil
+	}
+
 	ctx := context.Background()
 
 	rdb := redis.NewClient(&redis.Options{
@@ -37,10 +44,12 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 	for attempt <= cfg.ConnectionAttempts {
 		err = rdb.Ping(ctx).Err()
 		if err == nil {
+
 			res := &Client{
 				config:  cfg,
 				context: &ctx,
 				client:  rdb,
+				Channel: make(chan *model.ResponseCache),
 			}
 
 			return res, nil
@@ -66,10 +75,39 @@ func (c *Client) PublishCache(key string, response *model.Response) {
 	}()
 }
 
+func (c *Client) GetRedisCache() {
+	go func() {
+		iter := c.client.Scan(*c.context, 0, fmt.Sprintf("%s*", CacheStorePrefix), 0).Iterator()
+		for iter.Next(*c.context) {
+			prefkey := iter.Val()
+			response, err := c.getResponse(prefkey)
+
+			if err == nil {
+				msg := &model.ResponseCache{
+					Key:      deprefixKey(prefkey),
+					Response: response,
+				}
+				c.Channel <- msg
+			}
+		}
+	}()
+}
+
+func (c *Client) getResponse(key string) (*model.Response, error) {
+	resp := c.client.Get(*c.context, key)
+	err := resp.Err()
+	if err == nil {
+		var res model.Response
+		json.Unmarshal([]byte(resp.String()), res)
+		return &res, nil
+	}
+	return nil, err
+}
+
 func prefixKey(key string) string {
-	return fmt.Sprintf("%s%s", CacheMessagePrefix, key)
+	return fmt.Sprintf("%s%s", CacheStorePrefix, key)
 }
 
 func deprefixKey(key string) string {
-	return strings.TrimPrefix(key, CacheMessagePrefix)
+	return strings.TrimPrefix(key, CacheStorePrefix)
 }
