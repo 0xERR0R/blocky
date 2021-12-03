@@ -2,6 +2,7 @@ package model
 
 //go:generate go-enum -f=$GOFILE --marshal --names
 import (
+	"encoding/json"
 	"net"
 	"time"
 
@@ -40,4 +41,22 @@ type Request struct {
 	Req             *dns.Msg
 	Log             *logrus.Entry
 	RequestTS       time.Time
+}
+
+// ResponseCache struct holding key and response for cache synchronization
+type ResponseCache struct {
+	Key      string
+	Response *Response
+}
+
+// MarshalBinary encodes the struct to json
+func (u *ResponseCache) MarshalBinary() ([]byte, error) {
+	return json.Marshal(u)
+}
+
+// UnmarshalBinary decodes the struct into a CacheMessage
+func (u *ResponseCache) UnmarshalBinary(data []byte) error {
+	err := json.Unmarshal(data, &u)
+
+	return err
 }

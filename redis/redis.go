@@ -52,7 +52,7 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 
 // PublishCache publish cache to redis async
 func (c *Client) PublishCache(key string, data *model.Response) {
-	msg := &CacheMessage{
+	msg := &model.ResponseCache{
 		Key:      key,
 		Response: data,
 	}
