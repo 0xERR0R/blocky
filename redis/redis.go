@@ -2,6 +2,8 @@ package redis
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -10,7 +12,8 @@ import (
 )
 
 const (
-	CacheChannelName string = "blocky_cache_sync"
+	CacheChannelName   string = "blocky_cache_sync"
+	CacheMessagePrefix string = "cache:"
 )
 
 type Client struct {
@@ -51,13 +54,22 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 }
 
 // PublishCache publish cache to redis async
-func (c *Client) PublishCache(key string, data *model.Response) {
+func (c *Client) PublishCache(key string, response *model.Response) {
 	msg := &model.ResponseCache{
 		Key:      key,
-		Response: data,
+		Response: response,
 	}
 
 	go func() {
 		c.client.Publish(*c.context, CacheChannelName, msg)
+		c.client.Set(*c.context, prefixKey(key), response, time.Duration(0))
 	}()
+}
+
+func prefixKey(key string) string {
+	return fmt.Sprintf("%s%s", CacheMessagePrefix, key)
+}
+
+func deprefixKey(key string) string {
+	return strings.TrimPrefix(key, CacheMessagePrefix)
 }
