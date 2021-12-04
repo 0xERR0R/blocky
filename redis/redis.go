@@ -28,7 +28,7 @@ type Client struct {
 // New creates a new redis client
 func New(cfg *config.RedisConfig) (*Client, error) {
 	// disable redis if no address is provided
-	if len(cfg.Address) == 0 {
+	if cfg == nil || len(cfg.Address) == 0 {
 		return nil, nil
 	}
 
