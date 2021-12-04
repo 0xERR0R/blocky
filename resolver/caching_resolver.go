@@ -9,6 +9,7 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/0xERR0R/go-cache"
@@ -26,6 +27,7 @@ type CachingResolver struct {
 	prefetchExpires                  time.Duration
 	prefetchThreshold                int
 	prefetchingNameCache             *cache.Cache
+	redisClient                      *redis.Client
 }
 
 // cacheValue includes query answer and prefetch flag
@@ -35,16 +37,22 @@ type cacheValue struct {
 }
 
 // NewCachingResolver creates a new resolver instance
-func NewCachingResolver(cfg config.CachingConfig) ChainedResolver {
+func NewCachingResolver(cfg config.CachingConfig, redis *redis.Client) ChainedResolver {
 	c := &CachingResolver{
 		minCacheTimeSec:   int(time.Duration(cfg.MinCachingTime).Seconds()),
 		maxCacheTimeSec:   int(time.Duration(cfg.MaxCachingTime).Seconds()),
 		cacheTimeNegative: time.Duration(cfg.CacheTimeNegative),
 		resultCache:       createQueryResultCache(&cfg),
+		redisClient:       redis,
 	}
 
 	if cfg.Prefetching {
 		configurePrefetching(c, &cfg)
+	}
+
+	if c.redisClient != nil {
+		setupRedisSubscribers(c)
+		c.redisClient.GetRedisCache()
 	}
 
 	return c
@@ -64,6 +72,17 @@ func configurePrefetching(c *CachingResolver, cfg *config.CachingConfig) {
 	c.resultCache.OnEvicted(func(key string, i interface{}) {
 		c.onEvicted(key)
 	})
+}
+
+func setupRedisSubscribers(c *CachingResolver) {
+	// listen on channel in seperate goroutine
+	go func() {
+		for rc := range c.redisClient.Channel {
+			if rc != nil && len(rc.Key) > 0 {
+				c.putInCache(rc.Key, rc.Response, true)
+			}
+		}
+	}()
 }
 
 // check if domain was queried > threshold in the time window
