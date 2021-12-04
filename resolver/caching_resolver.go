@@ -103,7 +103,7 @@ func (r *CachingResolver) onEvicted(cacheKey string) {
 		response, err := r.next.Resolve(req)
 
 		if err == nil {
-			r.putInCache(cacheKey, response, true)
+			r.putInCacheAndPublish(cacheKey, response, true)
 
 			evt.Bus().Publish(evt.CachingDomainPrefetched, domainName)
 		}
@@ -205,7 +205,7 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 		response, err = r.next.Resolve(request)
 
 		if err == nil {
-			r.putInCache(cacheKey, response, false)
+			r.putInCacheAndPublish(cacheKey, response, false)
 		}
 	}
 
@@ -223,6 +223,14 @@ func (r *CachingResolver) trackQueryDomainNameCount(domain string, cacheKey stri
 		logger.Debugf("domain '%s' was requested %d times, "+
 			"total cache size: %d", util.Obfuscate(domain), domainCount, r.prefetchingNameCache.ItemCount())
 		evt.Bus().Publish(evt.CachingDomainsToPrefetchCountChanged, r.prefetchingNameCache.ItemCount())
+	}
+}
+
+func (r *CachingResolver) putInCacheAndPublish(cacheKey string, response *model.Response, prefetch bool) {
+	r.putInCache(cacheKey, response, prefetch)
+
+	if r.redisClient != nil {
+		r.redisClient.PublishCache(cacheKey, response)
 	}
 }
 
