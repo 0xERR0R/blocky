@@ -76,13 +76,13 @@ func configurePrefetching(c *CachingResolver, cfg *config.CachingConfig) {
 
 func setupRedisSubscribers(c *CachingResolver) {
 	// listen on channel in separate goroutine
-	go func() {
-		for rc := range c.redisClient.Channel {
+	go func(ch <-chan *model.ResponseCache) {
+		for rc := range ch {
 			if rc != nil && len(rc.Key) > 0 {
 				c.putInCache(rc.Key, rc.Response, true)
 			}
 		}
-	}()
+	}(c.redisClient.Channel)
 }
 
 // check if domain was queried > threshold in the time window
