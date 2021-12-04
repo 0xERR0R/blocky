@@ -111,10 +111,9 @@ func (c *Client) startSubscriptionListener() error {
 
 	_, err := ps.Receive(*c.context)
 	if err == nil {
-		pschan := ps.Channel()
-
+		// no read subscription messages in go routine
 		go func(ch chan<- *model.ResponseCache) {
-			for msg := range pschan {
+			for msg := range ps.Channel() {
 				m := &model.ResponseCache{}
 
 				mErr := m.UnmarshalBinary([]byte(msg.Payload))
