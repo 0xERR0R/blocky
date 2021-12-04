@@ -77,18 +77,18 @@ func (c *Client) PublishCache(key string, response *model.Response) {
 		Response: response,
 	}
 
-	go func() {
-		c.client.Publish(*c.context, CacheChannelName, msg)
-		c.client.Set(*c.context, prefixKey(key), response, time.Duration(0))
-	}()
+	go func(rc *Client, message *model.ResponseCache) {
+		rc.client.Publish(*c.context, CacheChannelName, message)
+		rc.client.Set(*c.context, prefixKey(message.Key), message.Response, time.Duration(0))
+	}(c, msg)
 }
 
 // GetRedisCache reads the redis cache and publish it to the channel
 func (c *Client) GetRedisCache() {
 	// start routine to get the cache
-	go func(ch chan<- *model.ResponseCache) {
-		iter := c.client.Scan(*c.context, 0, fmt.Sprintf("%s*", CacheStorePrefix), 0).Iterator()
-		for iter.Next(*c.context) {
+	go func(client *redis.Client, context *context.Context, channel chan<- *model.ResponseCache) {
+		iter := client.Scan(*context, 0, fmt.Sprintf("%s*", CacheStorePrefix), 0).Iterator()
+		for iter.Next(*context) {
 			prefkey := iter.Val()
 			response, err := c.getResponse(prefkey)
 
@@ -97,10 +97,10 @@ func (c *Client) GetRedisCache() {
 					Key:      deprefixKey(prefkey),
 					Response: response,
 				}
-				ch <- msg
+				channel <- msg
 			}
 		}
-	}(c.Channel)
+	}(c.client, c.context, c.Channel)
 }
 
 // startSubscriptionListener starts a new goroutine for subscription and translation
