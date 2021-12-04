@@ -75,7 +75,7 @@ func configurePrefetching(c *CachingResolver, cfg *config.CachingConfig) {
 }
 
 func setupRedisSubscribers(c *CachingResolver) {
-	// listen on channel in seperate goroutine
+	// listen on channel in separate goroutine
 	go func() {
 		for rc := range c.redisClient.Channel {
 			if rc != nil && len(rc.Key) > 0 {
