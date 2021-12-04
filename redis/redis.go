@@ -54,6 +54,10 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 				Channel: make(chan *model.ResponseCache),
 			}
 
+			defer func() {
+				close(res.Channel)
+			}()
+
 			// start listener
 			pserr := res.startSubscriptionListener()
 
