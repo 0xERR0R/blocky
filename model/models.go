@@ -26,6 +26,11 @@ type Response struct {
 	RType  ResponseType
 }
 
+// UnmarshalString decodes string to struct
+func (r *Response) UnmarshalString(data string) error {
+	return json.Unmarshal([]byte(data), &r)
+}
+
 // RequestProtocol represents the server protocol ENUM(
 // TCP // is the TPC protocol
 // UDP // is the UDP protocol
@@ -50,13 +55,11 @@ type ResponseCache struct {
 }
 
 // MarshalBinary encodes the struct to json
-func (u *ResponseCache) MarshalBinary() ([]byte, error) {
-	return json.Marshal(u)
+func (rc *ResponseCache) MarshalBinary() ([]byte, error) {
+	return json.Marshal(rc)
 }
 
-// UnmarshalBinary decodes the struct into a CacheMessage
-func (u *ResponseCache) UnmarshalBinary(data []byte) error {
-	err := json.Unmarshal(data, &u)
-
-	return err
+// UnmarshalString decodes string to struct
+func (rc *ResponseCache) UnmarshalString(data string) error {
+	return json.Unmarshal([]byte(data), &rc)
 }

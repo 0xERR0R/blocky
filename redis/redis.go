@@ -2,7 +2,6 @@ package redis
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -111,17 +110,17 @@ func (c *Client) startSubscriptionListener() error {
 
 	_, err := ps.Receive(*c.context)
 	if err == nil {
-		// no read subscription messages in go routine
-		go func(ch chan<- *model.ResponseCache) {
-			for msg := range ps.Channel() {
+		// read and convert channel messages in go routine
+		go func(rxch <-chan *redis.Message, txch chan<- *model.ResponseCache) {
+			for msg := range rxch {
 				m := &model.ResponseCache{}
 
-				mErr := m.UnmarshalBinary([]byte(msg.Payload))
+				mErr := m.UnmarshalString(msg.Payload)
 				if mErr == nil {
-					ch <- m
+					txch <- m
 				}
 			}
-		}(c.Channel)
+		}(ps.Channel(), c.Channel)
 	}
 
 	return err
@@ -133,7 +132,7 @@ func (c *Client) getResponse(key string) (*model.Response, error) {
 	if err == nil {
 		res := &model.Response{}
 
-		err = json.Unmarshal([]byte(resp), res)
+		err = res.UnmarshalString(resp)
 		if err == nil {
 			return res, nil
 		}
