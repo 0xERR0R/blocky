@@ -67,7 +67,7 @@ func (u *Upstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	upstream, err := ParseUpstream(s)
 	if err != nil {
-		return err
+		return fmt.Errorf("can't convert upstream '%s': %w", s, err)
 	}
 
 	*u = upstream
@@ -90,7 +90,7 @@ func (c *ConditionalUpstreamMapping) UnmarshalYAML(unmarshal func(interface{}) e
 		for _, part := range strings.Split(v, ",") {
 			upstream, err := ParseUpstream(strings.TrimSpace(part))
 			if err != nil {
-				return err
+				return fmt.Errorf("can't convert upstream '%s': %w", strings.TrimSpace(part), err)
 			}
 
 			upstreams = append(upstreams, upstream)
