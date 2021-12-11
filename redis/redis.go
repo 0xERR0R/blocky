@@ -3,25 +3,34 @@ package redis
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/go-redis/redis/v8"
 )
 
 const (
 	CacheChannelName string = "blocky_cache_sync"
-	CacheStorePrefix string = "cache:"
+	CacheStorePrefix string = "blocky:cache:"
 )
+
+var (
+	ctx = context.Background()
+	l   = log.PrefixedLog("redis")
+)
+
+type CacheMessage struct {
+	Key      string
+	Response *model.Response
+}
 
 // Client for redis communication
 type Client struct {
 	config  *config.RedisConfig
-	context *context.Context
 	client  *redis.Client
-	Channel chan *model.ResponseCache
+	Channel chan *CacheMessage
 }
 
 // New creates a new redis client
@@ -31,8 +40,6 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 		return nil, nil
 	}
 
-	ctx := context.Background()
-
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     cfg.Address,
 		Password: cfg.Password,
@@ -40,22 +47,18 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 	})
 
 	var err error
+	var msg string
 
 	attempt := 1
 	for attempt <= cfg.ConnectionAttempts {
-		err = rdb.Ping(ctx).Err()
-		if err == nil {
+		msg, err = rdb.Ping(ctx).Result()
+		if err == nil && msg == "PONG" {
 			// construct client
 			res := &Client{
 				config:  cfg,
-				context: &ctx,
 				client:  rdb,
-				Channel: make(chan *model.ResponseCache),
+				Channel: make(chan *CacheMessage),
 			}
-
-			defer func() {
-				close(res.Channel)
-			}()
 
 			// start listener
 			pserr := res.startSubscriptionListener()
@@ -72,69 +75,78 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 
 // PublishCache publish cache to redis async
 func (c *Client) PublishCache(key string, response *model.Response) {
-	msg := &model.ResponseCache{
-		Key:      key,
-		Response: response,
+	msg, errConv := response.ConvertToCache(key)
+	if errConv == nil {
+		binMsg, errMar := msg.MarshalBinary()
+		if errMar == nil {
+			go func() {
+				c.client.Publish(ctx, CacheChannelName, binMsg)
+				c.client.Set(ctx, prefixKey(key), binMsg, time.Duration(0))
+			}()
+		} else {
+			l.Error("PublishCache marshal error ", errMar)
+		}
+	} else {
+		l.Error("PublishCache convert error ", errConv)
 	}
-
-	go func(rc *Client, message *model.ResponseCache) {
-		rc.client.Publish(*c.context, CacheChannelName, message)
-		rc.client.Set(*c.context, prefixKey(message.Key), message.Response, time.Duration(0))
-	}(c, msg)
 }
 
 // GetRedisCache reads the redis cache and publish it to the channel
 func (c *Client) GetRedisCache() {
 	// start routine to get the cache
-	go func(client *redis.Client, context *context.Context, channel chan<- *model.ResponseCache) {
-		iter := client.Scan(*context, 0, fmt.Sprintf("%s*", CacheStorePrefix), 0).Iterator()
-		for iter.Next(*context) {
-			prefkey := iter.Val()
-			response, err := c.getResponse(prefkey)
-
+	go func() {
+		iter := c.client.Scan(ctx, 0, fmt.Sprintf("%s*", CacheStorePrefix), 0).Iterator()
+		for iter.Next(ctx) {
+			response, err := c.getResponse(iter.Val())
 			if err == nil {
-				msg := &model.ResponseCache{
-					Key:      deprefixKey(prefkey),
-					Response: response,
+				if response != nil {
+					c.Channel <- response
 				}
-				channel <- msg
+			} else {
+				l.Error("GetRedisCache ", err)
 			}
 		}
-	}(c.client, c.context, c.Channel)
+	}()
 }
 
 // startSubscriptionListener starts a new goroutine for subscription and translation
 func (c *Client) startSubscriptionListener() error {
-	ps := c.client.Subscribe(*c.context, CacheChannelName)
-	defer ps.Close()
-
-	_, err := ps.Receive(*c.context)
+	ps := c.client.Subscribe(ctx, CacheChannelName)
+	_, err := ps.Receive(ctx)
 	if err == nil {
-		// read and convert channel messages in go routine
-		go func(rxch <-chan *redis.Message, txch chan<- *model.ResponseCache) {
-			for msg := range rxch {
-				m := &model.ResponseCache{}
+		go func() {
+			ch := ps.Channel()
 
-				mErr := m.UnmarshalString(msg.Payload)
-				if mErr == nil {
-					txch <- m
+			for {
+				select {
+				case msg := <-ch:
+					l.Debug("Received message: ", msg)
+					m, err := convertPayload(msg)
+					if err == nil {
+						if m != nil {
+							c.Channel <- m
+						}
+					} else {
+						l.Error("Conversion error: ", err)
+					}
+
 				}
 			}
-		}(ps.Channel(), c.Channel)
+		}()
 	}
-
 	return err
 }
 
 // getResponse returns model.Response for a key
-func (c *Client) getResponse(key string) (*model.Response, error) {
-	resp, err := c.client.Get(*c.context, key).Result()
+func (c *Client) getResponse(key string) (*CacheMessage, error) {
+	resp, err := c.client.Get(ctx, key).Result()
 	if err == nil {
-		res := &model.Response{}
-
-		err = res.UnmarshalString(resp)
+		var result *CacheMessage
+		result, err = convertMessage(resp)
 		if err == nil {
-			return res, nil
+			return result, nil
+		} else {
+			l.Error("Conversion error: ", err)
 		}
 	}
 
@@ -146,7 +158,32 @@ func prefixKey(key string) string {
 	return fmt.Sprintf("%s%s", CacheStorePrefix, key)
 }
 
-// deprefixKey get the key from a prefixed one
-func deprefixKey(key string) string {
-	return strings.TrimPrefix(key, CacheStorePrefix)
+func convertPayload(message *redis.Message) (*CacheMessage, error) {
+	if message != nil {
+		return convertMessage(message.Payload)
+	}
+	return nil, nil
+}
+
+func convertMessage(message string) (*CacheMessage, error) {
+	var err error = nil
+	if len(message) > 0 {
+		m := &model.ResponseCache{}
+
+		err := m.UnmarshalString(message)
+		if err == nil {
+			var key string
+			var response *model.Response
+			key, response, err = m.ConvertFromCache()
+			if err == nil {
+				result := &CacheMessage{
+					Key:      key,
+					Response: response,
+				}
+				return result, nil
+			}
+		}
+	}
+
+	return nil, err
 }
