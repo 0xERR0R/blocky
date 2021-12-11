@@ -78,9 +78,7 @@ func setupRedisSubscribers(c *CachingResolver) {
 	logger := logger("caching_resolver_redis")
 
 	go func() {
-
 		for rc := range c.redisClient.Channel {
-
 			if rc != nil {
 				logger.Debug("Key: ", rc.Key, " Value: ", rc.Response)
 				c.putInCache(rc.Key, rc.Response, true)

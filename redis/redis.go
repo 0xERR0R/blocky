@@ -43,17 +43,15 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 		Password: cfg.Password,
 		DB:       cfg.Database,
 	})
-
 	ctx := context.Background()
+
 	var err error
 	var msg string
 
 	attempt := 1
 	for attempt <= cfg.ConnectionAttempts {
-
 		msg, err = rdb.Ping(ctx).Result()
 		if err == nil && msg == "PONG" {
-
 			// construct client
 			res := &Client{
 				config:  cfg,
@@ -80,10 +78,8 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 func (c *Client) PublishCache(key string, response *model.Response) {
 	msg, errConv := response.ConvertToCache(key)
 	if errConv == nil {
-
 		binMsg, errMar := msg.MarshalBinary()
 		if errMar == nil {
-
 			go func() {
 				c.client.Publish(c.ctx, CacheChannelName, binMsg)
 				c.client.Set(c.ctx, prefixKey(key), binMsg, time.Duration(0))
@@ -100,13 +96,10 @@ func (c *Client) PublishCache(key string, response *model.Response) {
 func (c *Client) GetRedisCache() {
 	// start routine to get the cache
 	go func() {
-
 		iter := c.client.Scan(c.ctx, 0, fmt.Sprintf("%s*", CacheStorePrefix), 0).Iterator()
 		for iter.Next(c.ctx) {
-
 			response, err := c.getResponse(iter.Val())
 			if err == nil {
-
 				if response != nil {
 					c.Channel <- response
 				}
@@ -123,24 +116,18 @@ func (c *Client) startSubscriptionListener() error {
 
 	_, err := ps.Receive(c.ctx)
 	if err == nil {
-
 		go func() {
-
 			for msg := range ps.Channel() {
-
 				c.l.Debug("Received message: ", msg)
 
 				m, err := convertPayload(msg)
 				if err == nil {
-
 					if m != nil {
 						c.Channel <- m
 					}
-
 				} else {
 					c.l.Error("Conversion error: ", err)
 				}
-
 			}
 		}()
 	}
@@ -152,7 +139,6 @@ func (c *Client) startSubscriptionListener() error {
 func (c *Client) getResponse(key string) (*CacheMessage, error) {
 	resp, err := c.client.Get(c.ctx, key).Result()
 	if err == nil {
-
 		var result *CacheMessage
 
 		result, err = convertMessage(resp)
@@ -187,14 +173,11 @@ func convertMessage(message string) (*CacheMessage, error) {
 
 		err := m.UnmarshalString(message)
 		if err == nil {
-
 			var key string
-
 			var response *model.Response
 
 			key, response, err = m.ConvertFromCache()
 			if err == nil {
-
 				result := &CacheMessage{
 					Key:      key,
 					Response: response,
