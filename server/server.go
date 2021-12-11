@@ -82,7 +82,10 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	metrics.RegisterEventListeners()
 
-	redisClient, _ := redis.New(&cfg.Redis)
+	redisClient, redisErr := redis.New(&cfg.Redis)
+	if redisErr != nil {
+		return nil, redisErr
+	}
 
 	queryResolver, queryError := createQueryResolver(cfg, redisClient)
 	if queryError != nil {
