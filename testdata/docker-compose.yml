@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis
+    ports:
+    - 6380:6379
+  dnscacherefresh:
+    image: kwitsch/dnscacherefresh:dev
+    environment:
+      - DCR.resolver=blocky
+      - DCR.start=30s
+      - DCR.refresh=10s
+      - DCR.verbose=True
+      - DCR.domains[0]=github.com
+      - DCR.domains[1]=microsoft.com
+      - DCR.domains[2]=google.com
+      - DCR.domains[3]=amazon.com
+  blocky:
+    build: ..
+    deploy:
+      mode: replicated
+      replicas: 3
+    volumes:
+    - ./redis-config.yml:/app/config.yml:ro
