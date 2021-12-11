@@ -9,16 +9,12 @@ import (
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/go-redis/redis/v8"
+	"github.com/sirupsen/logrus"
 )
 
 const (
 	CacheChannelName string = "blocky_cache_sync"
 	CacheStorePrefix string = "blocky:cache:"
-)
-
-var (
-	ctx = context.Background()
-	l   = log.PrefixedLog("redis")
 )
 
 type CacheMessage struct {
@@ -30,6 +26,8 @@ type CacheMessage struct {
 type Client struct {
 	config  *config.RedisConfig
 	client  *redis.Client
+	l       *logrus.Entry
+	ctx     context.Context
 	Channel chan *CacheMessage
 }
 
@@ -46,17 +44,22 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 		DB:       cfg.Database,
 	})
 
+	ctx := context.Background()
 	var err error
 	var msg string
 
 	attempt := 1
 	for attempt <= cfg.ConnectionAttempts {
+
 		msg, err = rdb.Ping(ctx).Result()
 		if err == nil && msg == "PONG" {
+
 			// construct client
 			res := &Client{
 				config:  cfg,
 				client:  rdb,
+				l:       log.PrefixedLog("redis"),
+				ctx:     ctx,
 				Channel: make(chan *CacheMessage),
 			}
 
@@ -77,17 +80,19 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 func (c *Client) PublishCache(key string, response *model.Response) {
 	msg, errConv := response.ConvertToCache(key)
 	if errConv == nil {
+
 		binMsg, errMar := msg.MarshalBinary()
 		if errMar == nil {
+
 			go func() {
-				c.client.Publish(ctx, CacheChannelName, binMsg)
-				c.client.Set(ctx, prefixKey(key), binMsg, time.Duration(0))
+				c.client.Publish(c.ctx, CacheChannelName, binMsg)
+				c.client.Set(c.ctx, prefixKey(key), binMsg, time.Duration(0))
 			}()
 		} else {
-			l.Error("PublishCache marshal error ", errMar)
+			c.l.Error("PublishCache marshal error ", errMar)
 		}
 	} else {
-		l.Error("PublishCache convert error ", errConv)
+		c.l.Error("PublishCache convert error ", errConv)
 	}
 }
 
@@ -95,15 +100,18 @@ func (c *Client) PublishCache(key string, response *model.Response) {
 func (c *Client) GetRedisCache() {
 	// start routine to get the cache
 	go func() {
-		iter := c.client.Scan(ctx, 0, fmt.Sprintf("%s*", CacheStorePrefix), 0).Iterator()
-		for iter.Next(ctx) {
+
+		iter := c.client.Scan(c.ctx, 0, fmt.Sprintf("%s*", CacheStorePrefix), 0).Iterator()
+		for iter.Next(c.ctx) {
+
 			response, err := c.getResponse(iter.Val())
 			if err == nil {
+
 				if response != nil {
 					c.Channel <- response
 				}
 			} else {
-				l.Error("GetRedisCache ", err)
+				c.l.Error("GetRedisCache ", err)
 			}
 		}
 	}()
@@ -111,43 +119,48 @@ func (c *Client) GetRedisCache() {
 
 // startSubscriptionListener starts a new goroutine for subscription and translation
 func (c *Client) startSubscriptionListener() error {
-	ps := c.client.Subscribe(ctx, CacheChannelName)
-	_, err := ps.Receive(ctx)
-	if err == nil {
-		go func() {
-			ch := ps.Channel()
+	ps := c.client.Subscribe(c.ctx, CacheChannelName)
 
-			for {
-				select {
-				case msg := <-ch:
-					l.Debug("Received message: ", msg)
-					m, err := convertPayload(msg)
-					if err == nil {
-						if m != nil {
-							c.Channel <- m
-						}
-					} else {
-						l.Error("Conversion error: ", err)
+	_, err := ps.Receive(c.ctx)
+	if err == nil {
+
+		go func() {
+
+			for msg := range ps.Channel() {
+
+				c.l.Debug("Received message: ", msg)
+
+				m, err := convertPayload(msg)
+				if err == nil {
+
+					if m != nil {
+						c.Channel <- m
 					}
 
+				} else {
+					c.l.Error("Conversion error: ", err)
 				}
+
 			}
 		}()
 	}
+
 	return err
 }
 
 // getResponse returns model.Response for a key
 func (c *Client) getResponse(key string) (*CacheMessage, error) {
-	resp, err := c.client.Get(ctx, key).Result()
+	resp, err := c.client.Get(c.ctx, key).Result()
 	if err == nil {
+
 		var result *CacheMessage
+
 		result, err = convertMessage(resp)
 		if err == nil {
 			return result, nil
-		} else {
-			l.Error("Conversion error: ", err)
 		}
+
+		c.l.Error("Conversion error: ", err)
 	}
 
 	return nil, err
@@ -162,24 +175,31 @@ func convertPayload(message *redis.Message) (*CacheMessage, error) {
 	if message != nil {
 		return convertMessage(message.Payload)
 	}
+
 	return nil, nil
 }
 
 func convertMessage(message string) (*CacheMessage, error) {
-	var err error = nil
+	var err error
+
 	if len(message) > 0 {
 		m := &model.ResponseCache{}
 
 		err := m.UnmarshalString(message)
 		if err == nil {
+
 			var key string
+
 			var response *model.Response
+
 			key, response, err = m.ConvertFromCache()
 			if err == nil {
+
 				result := &CacheMessage{
 					Key:      key,
 					Response: response,
 				}
+
 				return result, nil
 			}
 		}
