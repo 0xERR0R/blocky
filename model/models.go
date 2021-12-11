@@ -54,6 +54,7 @@ type ResponseCache struct {
 func (r *Response) ConvertToCache(key string) (*ResponseCache, error) {
 	res := r.Res
 	res.Compress = true
+
 	resBin, err := res.Pack()
 	if err == nil {
 		result := &ResponseCache{
@@ -62,13 +63,16 @@ func (r *Response) ConvertToCache(key string) (*ResponseCache, error) {
 			Reason: r.Reason,
 			RType:  r.RType,
 		}
+
 		return result, nil
 	}
+
 	return nil, err
 }
 
 func (rc *ResponseCache) ConvertFromCache() (string, *Response, error) {
 	res := &dns.Msg{}
+
 	err := res.Unpack(rc.Res)
 	if err == nil {
 		result := &Response{
@@ -76,8 +80,10 @@ func (rc *ResponseCache) ConvertFromCache() (string, *Response, error) {
 			Reason: rc.Reason,
 			RType:  rc.RType,
 		}
+
 		return rc.Key, result, nil
 	}
+
 	return rc.Key, nil, err
 }
 

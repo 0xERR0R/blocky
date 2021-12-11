@@ -46,12 +46,11 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 	ctx := context.Background()
 
 	var err error
-	var msg string
 
 	attempt := 1
 	for attempt <= cfg.ConnectionAttempts {
-		msg, err = rdb.Ping(ctx).Result()
-		if err == nil && msg == "PONG" {
+		_, err = rdb.Ping(ctx).Result()
+		if err == nil {
 			// construct client
 			res := &Client{
 				config:  cfg,
@@ -62,9 +61,9 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 			}
 
 			// start listener
-			pserr := res.startSubscriptionListener()
+			err = res.startSubscriptionListener()
 
-			return res, pserr
+			return res, err
 		}
 
 		time.Sleep(time.Duration(cfg.ConnectionCooldown))
@@ -174,6 +173,7 @@ func convertMessage(message string) (*CacheMessage, error) {
 		err := m.UnmarshalString(message)
 		if err == nil {
 			var key string
+
 			var response *model.Response
 
 			key, response, err = m.ConvertFromCache()
