@@ -17,6 +17,7 @@ import (
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/resolver"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/creasty/defaults"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -488,27 +489,34 @@ var _ = Describe("Running DNS server", func() {
 	})
 
 	Describe("Server create", func() {
+		var (
+			cfg  config.Config
+			cErr error
+		)
+		BeforeEach(func() {
+			cErr = defaults.Set(&cfg)
+
+			Expect(cErr).Should(Succeed())
+
+			cfg.Upstream.ExternalResolvers = map[string][]config.Upstream{
+				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}}}
+
+			cfg.Redis.Address = "test-fail"
+		})
 		When("Server is created", func() {
 			It("is created without redis connection", func() {
 				defer func() { Log().ExitFunc = nil }()
 
-				_, err := NewServer(&config.Config{
-					Redis: config.RedisConfig{
-						Address: "test-fail",
-					},
-				})
+				_, err := NewServer(&cfg)
 
 				Expect(err).Should(Succeed())
 			})
 			It("can't be created if redis server is unavailable", func() {
 				defer func() { Log().ExitFunc = nil }()
 
-				_, err := NewServer(&config.Config{
-					Redis: config.RedisConfig{
-						Address:  "test-fail",
-						Required: true,
-					},
-				})
+				cfg.Redis.Required = true
+
+				_, err := NewServer(&cfg)
 
 				Expect(err).ShouldNot(Succeed())
 			})
