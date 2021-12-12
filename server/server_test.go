@@ -487,6 +487,34 @@ var _ = Describe("Running DNS server", func() {
 		})
 	})
 
+	Describe("Server create", func() {
+		When("Server is created", func() {
+			It("is created without redis connection", func() {
+				defer func() { Log().ExitFunc = nil }()
+
+				_, err := NewServer(&config.Config{
+					Redis: config.RedisConfig{
+						Address: "test-fail",
+					},
+				})
+
+				Expect(err).Should(Succeed())
+			})
+			It("can't be created if redis server is unavailable", func() {
+				defer func() { Log().ExitFunc = nil }()
+
+				_, err := NewServer(&config.Config{
+					Redis: config.RedisConfig{
+						Address:  "test-fail",
+						Required: true,
+					},
+				})
+
+				Expect(err).ShouldNot(Succeed())
+			})
+		})
+	})
+
 	Describe("Server start", func() {
 		When("Server start is called", func() {
 			It("start was called 2 times, start should fail", func() {
