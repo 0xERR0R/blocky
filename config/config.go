@@ -358,6 +358,7 @@ type RedisConfig struct {
 	Address            string   `yaml:"address"`
 	Password           string   `yaml:"password" default:""`
 	Database           int      `yaml:"database" default:"0"`
+	Required           bool     `yaml:"required" default:"false"`
 	ConnectionAttempts int      `yaml:"connectionAttempts" default:"3"`
 	ConnectionCooldown Duration `yaml:"connectionCooldown" default:"1s"`
 }

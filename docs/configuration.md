@@ -419,6 +419,7 @@ Synchronization is disabled if no address is configured.
 | redis.address                 | string          | no        |                    | Server address and port                           |
 | redis.password                | string          | no        |                    | Password if necessary                             |
 | redis.database                | int             | no        | 0                  | Database                                          |
+| redis.required                | bool            | no        | false              | Connection is required for blocky to start        |
 | redis.connectionCooldown      | int             | no        | 3                  | Max connection attempts                           |
 | redis.connectionCooldown      | duration format | no        | 1s                 | Time between the connection attempts              |
 
@@ -429,6 +430,7 @@ Synchronization is disabled if no address is configured.
       address: redis:6379
       password: passwd
       database: 2
+      required: true
       connectionAttempts: 10
       connectionCooldown: 3s
     ```

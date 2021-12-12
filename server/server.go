@@ -83,7 +83,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 	metrics.RegisterEventListeners()
 
 	redisClient, redisErr := redis.New(&cfg.Redis)
-	if redisErr != nil {
+	if redisErr != nil && cfg.Redis.Required {
 		return nil, redisErr
 	}
 
