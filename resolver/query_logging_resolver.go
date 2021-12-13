@@ -7,6 +7,7 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/querylog"
+	"github.com/avast/retry-go"
 )
 
 const (
@@ -29,21 +30,35 @@ type QueryLoggingResolver struct {
 func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 	var writer querylog.Writer
 
-	var err error
+	const (
+		retryAttempts = 3
+		retryDelay    = 2 * time.Second
+	)
 
 	logType := cfg.Type
-	switch logType {
-	case config.QueryLogTypeCsv:
-		writer, err = querylog.NewCSVWriter(cfg.Target, false, cfg.LogRetentionDays)
-	case config.QueryLogTypeCsvClient:
-		writer, err = querylog.NewCSVWriter(cfg.Target, true, cfg.LogRetentionDays)
-	case config.QueryLogTypeMysql:
-		writer, err = querylog.NewDatabaseWriter(cfg.Target, cfg.LogRetentionDays, 30*time.Second)
-	case config.QueryLogTypeConsole:
-		writer = querylog.NewLoggerWriter()
-	case config.QueryLogTypeNone:
-		writer = querylog.NewNoneWriter()
-	}
+	err := retry.Do(
+		func() error {
+			var err error
+			switch logType {
+			case config.QueryLogTypeCsv:
+				writer, err = querylog.NewCSVWriter(cfg.Target, false, cfg.LogRetentionDays)
+			case config.QueryLogTypeCsvClient:
+				writer, err = querylog.NewCSVWriter(cfg.Target, true, cfg.LogRetentionDays)
+			case config.QueryLogTypeMysql:
+				writer, err = querylog.NewDatabaseWriter(cfg.Target, cfg.LogRetentionDays, 30*time.Second)
+			case config.QueryLogTypeConsole:
+				writer = querylog.NewLoggerWriter()
+			case config.QueryLogTypeNone:
+				writer = querylog.NewNoneWriter()
+			}
+			return err
+		},
+		retry.Attempts(retryAttempts),
+		retry.Delay(retryDelay),
+		retry.OnRetry(func(n uint, err error) {
+			logger(queryLoggingResolverPrefix).Warnf("Error occurred on query writer creation, "+
+				"retry attempt %d/%d: %v", n+1, retryAttempts, err)
+		}))
 
 	if err != nil {
 		logger(queryLoggingResolverPrefix).Error("can't create query log writer, using console as fallback: ", err)
