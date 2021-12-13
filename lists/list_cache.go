@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/avast/retry-go"
+
 	"github.com/hako/durafmt"
 
 	"github.com/hashicorp/go-multierror"
@@ -230,44 +232,49 @@ func (b *ListCache) downloadFile(link string) (io.ReadCloser, error) {
 
 	var resp *http.Response
 
-	var err error
-
 	logger().WithField("link", link).Info("starting download")
 
-	attempt := 1
+	var body io.ReadCloser
 
-	for attempt <= b.downloadAttempts {
-		//nolint:bodyclose
-		if resp, err = client.Get(link); err == nil {
-			if resp.StatusCode == http.StatusOK {
-				return resp.Body, nil
+	err := retry.Do(
+		func() error {
+			var err error
+			//nolint:bodyclose
+			if resp, err = client.Get(link); err == nil {
+				if resp.StatusCode == http.StatusOK {
+					body = resp.Body
+					return nil
+				}
+
+				_ = resp.Body.Close()
+
+				return fmt.Errorf("got status code %d", resp.StatusCode)
 			}
+			return err
+		},
+		retry.Attempts(uint(b.downloadAttempts)),
+		retry.DelayType(retry.FixedDelay),
+		retry.Delay(b.downloadCooldown),
+		retry.LastErrorOnly(true),
+		retry.OnRetry(func(n uint, err error) {
+			var netErr net.Error
 
-			logger().WithField("link", link).WithField("attempt",
-				attempt).Warnf("Got status code %d", resp.StatusCode)
+			var dnsErr *net.DNSError
 
-			_ = resp.Body.Close()
+			logger := logger().WithField("link", link).WithField("attempt",
+				fmt.Sprintf("%d/%d", n+1, b.downloadAttempts))
 
-			err = fmt.Errorf("couldn't download url '%s', got status code %d", link, resp.StatusCode)
-		}
+			switch {
+			case errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()):
+				logger.Warnf("Temporary network err / Timeout occurred: %s", netErr)
+			case errors.As(err, &dnsErr):
+				logger.Warnf("Name resolution err: %s", dnsErr.Err)
+			default:
+				logger.Warnf("Can't download file: %s", err)
+			}
+		}))
 
-		var netErr net.Error
-
-		var dnsErr *net.DNSError
-
-		if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
-			logger().WithField("link", link).WithField("attempt",
-				attempt).Warnf("Temporary network err / Timeout occurred, retrying... %s", netErr)
-		} else if errors.As(err, &dnsErr) {
-			logger().WithField("link", link).WithField("attempt",
-				attempt).Warnf("Name resolution err, retrying... %s", dnsErr.Err)
-		}
-
-		time.Sleep(b.downloadCooldown)
-		attempt++
-	}
-
-	return nil, err
+	return body, err
 }
 
 func readFile(file string) (io.ReadCloser, error) {
