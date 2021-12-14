@@ -211,6 +211,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 				sut := NewQueryLoggingResolver(config.QueryLogConfig{
 					LogRetentionDays: 7,
+					Type:             config.QueryLogTypeConsole,
 				}).(*QueryLoggingResolver)
 
 				sut.doCleanUp()
