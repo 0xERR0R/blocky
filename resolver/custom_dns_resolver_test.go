@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"net"
+	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
@@ -20,6 +21,8 @@ var _ = Describe("CustomDNSResolver", func() {
 		resp *Response
 	)
 
+	TTL := uint32(time.Now().Second())
+
 	BeforeEach(func() {
 		sut = NewCustomDNSResolver(config.CustomDNSConfig{
 			Mapping: config.CustomDNSMapping{HostIPs: map[string][]net.IP{
@@ -29,7 +32,9 @@ var _ = Describe("CustomDNSResolver", func() {
 					net.ParseIP("192.168.143.123"),
 					net.ParseIP("192.168.143.125"),
 					net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")},
-			}}})
+			}},
+			CustomTTL: config.Duration(time.Duration(TTL) * time.Second),
+		})
 		m = &resolverMock{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
@@ -41,7 +46,7 @@ var _ = Describe("CustomDNSResolver", func() {
 				resp, err = sut.Resolve(newRequest("custom.domain.", dns.TypeA))
 
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-				Expect(resp.Res.Answer).Should(BeDNSRecord("custom.domain.", dns.TypeA, 3600, "192.168.143.123"))
+				Expect(resp.Res.Answer).Should(BeDNSRecord("custom.domain.", dns.TypeA, TTL, "192.168.143.123"))
 			})
 			It("ip6 query should return NOERROR and empty result", func() {
 				resp, err := sut.Resolve(newRequest("custom.domain.", dns.TypeAAAA))
@@ -56,7 +61,7 @@ var _ = Describe("CustomDNSResolver", func() {
 				resp, err = sut.Resolve(newRequest("ip6.domain.", dns.TypeAAAA))
 
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-				Expect(resp.Res.Answer).Should(BeDNSRecord("ip6.domain.", dns.TypeAAAA, 3600, "2001:db8:85a3::8a2e:370:7334"))
+				Expect(resp.Res.Answer).Should(BeDNSRecord("ip6.domain.", dns.TypeAAAA, TTL, "2001:db8:85a3::8a2e:370:7334"))
 			})
 		})
 		When("Multiple IPs are defined for custom domain ", func() {
@@ -65,7 +70,7 @@ var _ = Describe("CustomDNSResolver", func() {
 					resp, err = sut.Resolve(newRequest("multiple.ips.", dns.TypeAAAA))
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(resp.Res.Answer).Should(BeDNSRecord("multiple.ips.", dns.TypeAAAA, 3600, "2001:db8:85a3::8a2e:370:7334"))
+					Expect(resp.Res.Answer).Should(BeDNSRecord("multiple.ips.", dns.TypeAAAA, TTL, "2001:db8:85a3::8a2e:370:7334"))
 				})
 
 				By("IPv4 query", func() {
@@ -74,8 +79,8 @@ var _ = Describe("CustomDNSResolver", func() {
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 					Expect(resp.Res.Answer).Should(HaveLen(2))
 					Expect(resp.Res.Answer).Should(ContainElements(
-						BeDNSRecord("multiple.ips.", dns.TypeA, 3600, "192.168.143.123")),
-						BeDNSRecord("multiple.ips.", dns.TypeA, 3600, "192.168.143.125"))
+						BeDNSRecord("multiple.ips.", dns.TypeA, TTL, "192.168.143.123")),
+						BeDNSRecord("multiple.ips.", dns.TypeA, TTL, "192.168.143.125"))
 				})
 			})
 		})
@@ -87,8 +92,8 @@ var _ = Describe("CustomDNSResolver", func() {
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 					Expect(resp.Res.Answer).Should(HaveLen(2))
 					Expect(resp.Res.Answer).Should(ContainElements(
-						BeDNSRecord("123.143.168.192.in-addr.arpa.", dns.TypePTR, 3600, "custom.domain."),
-						BeDNSRecord("123.143.168.192.in-addr.arpa.", dns.TypePTR, 3600, "multiple.ips.")))
+						BeDNSRecord("123.143.168.192.in-addr.arpa.", dns.TypePTR, TTL, "custom.domain."),
+						BeDNSRecord("123.143.168.192.in-addr.arpa.", dns.TypePTR, TTL, "multiple.ips.")))
 				})
 
 				By("ipv6", func() {
@@ -98,9 +103,9 @@ var _ = Describe("CustomDNSResolver", func() {
 					Expect(resp.Res.Answer).Should(HaveLen(2))
 					Expect(resp.Res.Answer).Should(ContainElements(
 						BeDNSRecord("4.3.3.7.0.7.3.0.e.2.a.8.0.0.0.0.0.0.0.0.3.a.5.8.8.b.d.0.1.0.0.2.ip6.arpa.",
-							dns.TypePTR, 3600, "ip6.domain.")),
+							dns.TypePTR, TTL, "ip6.domain.")),
 						BeDNSRecord("4.3.3.7.0.7.3.0.e.2.a.8.0.0.0.0.0.0.0.0.3.a.5.8.8.b.d.0.1.0.0.2.ip6.arpa.",
-							dns.TypePTR, 3600, "multiple.ips."))
+							dns.TypePTR, TTL, "multiple.ips."))
 				})
 			})
 		})
@@ -109,7 +114,7 @@ var _ = Describe("CustomDNSResolver", func() {
 				resp, err = sut.Resolve(newRequest("ABC.CUSTOM.DOMAIN.", dns.TypeA))
 
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-				Expect(resp.Res.Answer).Should(BeDNSRecord("ABC.CUSTOM.DOMAIN.", dns.TypeA, 3600, "192.168.143.123"))
+				Expect(resp.Res.Answer).Should(BeDNSRecord("ABC.CUSTOM.DOMAIN.", dns.TypeA, TTL, "192.168.143.123"))
 			})
 		})
 		AfterEach(func() {

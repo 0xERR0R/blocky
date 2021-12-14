@@ -289,7 +289,8 @@ type UpstreamConfig struct {
 
 // CustomDNSConfig custom DNS configuration
 type CustomDNSConfig struct {
-	Mapping CustomDNSMapping `yaml:"mapping"`
+	CustomTTL Duration         `yaml:"customTTL" default:"1h"`
+	Mapping   CustomDNSMapping `yaml:"mapping"`
 }
 
 // CustomDNSMapping mapping for the custom DNS configuration
