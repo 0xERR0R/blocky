@@ -150,11 +150,11 @@ queryLog:
   # if > 0, deletes log files which are older than ... days
   logRetentionDays: 7
 
-# optional: DNS listener port and bind ip address, default 53 (UDP and TCP). Example: 53, :53, 127.0.0.1:53
+# optional: DNS listener port(s) and bind ip address(es), default 53 (UDP and TCP). Example: 53, :53, "127.0.0.1:5353,[::1]:5353"
 port: 53
-# optional: Port for DoT (DNS-over-TLS) listener. Example: 853, 127.0.0.1:853
+# optional: Port(s) and bind ip address(es) for DoT (DNS-over-TLS) listener. Example: 853, 127.0.0.1:853
 #tlsPort: 53
-# optional: HTTPS listener port and bind ip address, default empty = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH... Example: 443, :443, 127.0.0.1:443
+# optional: HTTPS listener port(s) and bind ip address(es), default empty = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH... Example: 443, :443, 127.0.0.1:443
 httpPort: 4000
 #httpsPort: 443
 # mandatory, if https port > 0: path to cert and key file for SSL encryption

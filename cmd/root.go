@@ -61,8 +61,8 @@ func initConfig() {
 	config.LoadConfig(configPath, false)
 	log.ConfigureLogger(config.GetConfig().LogLevel, config.GetConfig().LogFormat, config.GetConfig().LogTimestamp)
 
-	if config.GetConfig().HTTPPort != "" {
-		split := strings.Split(config.GetConfig().HTTPPort, ":")
+	if len(config.GetConfig().HTTPPorts) != 0 {
+		split := strings.Split(config.GetConfig().HTTPPorts[0], ":")
 
 		var p uint64
 		p, err := strconv.ParseUint(strings.TrimSpace(split[len(split)-1]), 10, 16)
