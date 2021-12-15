@@ -16,6 +16,7 @@ var _ = Describe("Redis", func() {
 	var (
 		redisServer *miniredis.Miniredis
 		redisClient *Client
+		redisConfig *config.RedisConfig
 		err         error
 	)
 
@@ -23,15 +24,15 @@ var _ = Describe("Redis", func() {
 		redisServer, err = miniredis.Run()
 
 		Expect(err).Should(Succeed())
-		var rCfg config.RedisConfig
 
-		err = defaults.Set(&rCfg)
+		var rcfg config.RedisConfig
+		err = defaults.Set(&rcfg)
 
 		Expect(err).Should(Succeed())
 
-		rCfg.Address = redisServer.Addr()
-
-		redisClient, err = New(&rCfg)
+		rcfg.Address = redisServer.Addr()
+		redisConfig = &rcfg
+		redisClient, err = New(redisConfig)
 
 		Expect(err).Should(Succeed())
 		Expect(redisClient).ShouldNot(BeNil())
@@ -53,6 +54,9 @@ var _ = Describe("Redis", func() {
 				RType:  model.ResponseTypeCACHED,
 				Reason: "CACHED",
 			})
+
+			keysLen := len(redisServer.DB(redisConfig.Database).Keys())
+			Expect(keysLen).To(Equal(1))
 		})
 	})
 })
