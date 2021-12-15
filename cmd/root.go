@@ -35,8 +35,8 @@ Complete documentation is available at https://github.com/0xERR0R/blocky`,
 	}
 
 	c.PersistentFlags().StringVarP(&configPath, "config", "c", "./config.yml", "path to config file")
-	c.PersistentFlags().StringVar(&apiHost, "apiHost", "localhost", "host of blocky (API)")
-	c.PersistentFlags().Uint16Var(&apiPort, "apiPort", 4000, "port of blocky (API)")
+	c.PersistentFlags().StringVar(&apiHost, "apiHost", "localhost", "host of blocky (API). Default overridden by config and CLI.") // nolint:lll
+	c.PersistentFlags().Uint16Var(&apiPort, "apiPort", 4000, "port of blocky (API). Default overridden by config and CLI.")
 
 	c.AddCommand(newRefreshCommand(),
 		NewQueryCommand(),
@@ -64,8 +64,12 @@ func initConfig() {
 	if len(config.GetConfig().HTTPPorts) != 0 {
 		split := strings.Split(config.GetConfig().HTTPPorts[0], ":")
 
+		lastIdx := len(split) - 1
+
+		apiHost = strings.Join(split[:lastIdx], ":")
+
 		var p uint64
-		p, err := strconv.ParseUint(strings.TrimSpace(split[len(split)-1]), 10, 16)
+		p, err := strconv.ParseUint(strings.TrimSpace(split[lastIdx]), 10, 16)
 
 		if err != nil {
 			util.FatalOnError("can't convert port to number (1 - 65535)", err)
