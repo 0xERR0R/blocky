@@ -27,7 +27,7 @@ func NewRootCommand() *cobra.Command {
 		Short: "blocky is a DNS proxy ",
 		Long: `A fast and configurable DNS Proxy
 and ad-blocker for local network.
-		   
+
 Complete documentation is available at https://github.com/0xERR0R/blocky`,
 		Run: func(cmd *cobra.Command, args []string) {
 			newServeCommand().Run(cmd, args)
