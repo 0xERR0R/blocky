@@ -79,10 +79,8 @@ func (c *Client) PublishCache(key string, response *model.Response) {
 	if errConv == nil {
 		binMsg, errMar := msg.MarshalBinary()
 		if errMar == nil {
-			go func() {
-				c.client.Publish(c.ctx, CacheChannelName, binMsg)
-				c.client.Set(c.ctx, prefixKey(key), binMsg, time.Duration(0))
-			}()
+			c.client.Publish(c.ctx, CacheChannelName, binMsg)
+			c.client.Set(c.ctx, prefixKey(key), binMsg, time.Duration(0))
 		} else {
 			c.l.Error("PublishCache marshal error ", errMar)
 		}
@@ -93,20 +91,17 @@ func (c *Client) PublishCache(key string, response *model.Response) {
 
 // GetRedisCache reads the redis cache and publish it to the channel
 func (c *Client) GetRedisCache() {
-	// start routine to get the cache
-	go func() {
-		iter := c.client.Scan(c.ctx, 0, fmt.Sprintf("%s*", CacheStorePrefix), 0).Iterator()
-		for iter.Next(c.ctx) {
-			response, err := c.getResponse(iter.Val())
-			if err == nil {
-				if response != nil {
-					c.Channel <- response
-				}
-			} else {
-				c.l.Error("GetRedisCache ", err)
+	iter := c.client.Scan(c.ctx, 0, fmt.Sprintf("%s*", CacheStorePrefix), 0).Iterator()
+	for iter.Next(c.ctx) {
+		response, err := c.getResponse(iter.Val())
+		if err == nil {
+			if response != nil {
+				c.Channel <- response
 			}
+		} else {
+			c.l.Error("GetRedisCache ", err)
 		}
-	}()
+	}
 }
 
 // startSubscriptionListener starts a new goroutine for subscription and translation
