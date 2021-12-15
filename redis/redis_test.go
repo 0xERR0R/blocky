@@ -48,7 +48,11 @@ var _ = Describe("Redis", func() {
 
 			Expect(err).Should(Succeed())
 
-			redisClient.PublishCache("example.com.", &model.Response{Res: res, RType: model.ResponseTypeCACHED, Reason: "CACHED"})
+			redisClient.PublishCache("example.com.", &model.Response{
+				Res:    res,
+				RType:  model.ResponseTypeCACHED,
+				Reason: "CACHED",
+			})
 		})
 	})
 })
