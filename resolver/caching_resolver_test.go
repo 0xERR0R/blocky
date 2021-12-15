@@ -501,7 +501,7 @@ var _ = Describe("CachingResolver", func() {
 				resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
 				Expect(err).Should(Succeed())
 
-				time.Sleep(500)
+				time.Sleep(50 * time.Millisecond)
 
 				keysLen := len(redisServer.DB(redisConfig.Database).Keys())
 				Expect(keysLen).To(Equal(1))
