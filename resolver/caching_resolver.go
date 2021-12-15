@@ -105,7 +105,7 @@ func (r *CachingResolver) onEvicted(cacheKey string) {
 		response, err := r.next.Resolve(req)
 
 		if err == nil {
-			r.putInCacheAndPublish(cacheKey, response, true)
+			r.putInCache(cacheKey, response, true)
 
 			evt.Bus().Publish(evt.CachingDomainPrefetched, domainName)
 		}
