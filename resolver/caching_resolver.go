@@ -81,7 +81,7 @@ func setupRedisSubscribers(c *CachingResolver) {
 		for rc := range c.redisClient.Channel {
 			if rc != nil {
 				logger.Debug("Key: ", rc.Key, " Value: ", rc.Response)
-				c.putInCache(rc.Key, rc.Response, true)
+				c.putInCache(rc.Key, rc.Response, false)
 			}
 		}
 	}()
