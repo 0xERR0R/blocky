@@ -52,7 +52,9 @@ func NewCachingResolver(cfg config.CachingConfig, redis *redis.Client) ChainedRe
 
 	if c.redisClient != nil {
 		setupRedisSubscribers(c)
-		go c.redisClient.GetRedisCache()
+		go func() {
+			c.redisClient.GetRedisCache()
+		}()
 	}
 
 	return c
@@ -232,7 +234,9 @@ func (r *CachingResolver) putInCacheAndPublish(cacheKey string, response *model.
 	r.putInCache(cacheKey, response, prefetch)
 
 	if r.redisClient != nil {
-		go r.redisClient.PublishCache(cacheKey, response)
+		go func() {
+			r.redisClient.PublishCache(cacheKey, response)
+		}()
 	}
 }
 
