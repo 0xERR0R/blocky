@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Redis", func() {
+var _ = Describe("Redis client", func() {
 
 	var (
 		redisServer *miniredis.Miniredis
@@ -40,9 +40,46 @@ var _ = Describe("Redis", func() {
 	AfterSuite(func() {
 		redisServer.Close()
 	})
+	When("created", func() {
+		It("with no address", func() {
+			var rcfg config.RedisConfig
+			err = defaults.Set(&rcfg)
 
-	When("Client", func() {
-		It("Publish", func() {
+			Expect(err).Should(Succeed())
+
+			var rClient *Client
+
+			rClient, err = New(&rcfg)
+
+			Expect(err).Should(Succeed())
+			Expect(rClient).Should(BeNil())
+		})
+		It("with invalid address", func() {
+			var rcfg config.RedisConfig
+			err = defaults.Set(&rcfg)
+			Expect(err).Should(Succeed())
+
+			rcfg.Address = "test:123"
+
+			_, err = New(&rcfg)
+
+			Expect(err).ShouldNot(Succeed())
+		})
+		It("with invalid password", func() {
+			var rcfg config.RedisConfig
+			err = defaults.Set(&rcfg)
+			Expect(err).Should(Succeed())
+
+			rcfg.Address = redisServer.Addr()
+			rcfg.Password = "wrong"
+
+			_, err = New(&rcfg)
+
+			Expect(err).ShouldNot(Succeed())
+		})
+	})
+	When("publish", func() {
+		It("works", func() {
 			var res *dns.Msg
 
 			res, err = util.NewMsgWithAnswer("example.com.", 123, dns.TypeA, "123.124.122.123")
