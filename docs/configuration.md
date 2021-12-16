@@ -420,7 +420,7 @@ Synchronization is disabled if no address is configured.
 | redis.password                | string          | no        |                    | Password if necessary                             |
 | redis.database                | int             | no        | 0                  | Database                                          |
 | redis.required                | bool            | no        | false              | Connection is required for blocky to start        |
-| redis.connectionCooldown      | int             | no        | 3                  | Max connection attempts                           |
+| redis.connectionAttempts      | int             | no        | 3                  | Max connection attempts                           |
 | redis.connectionCooldown      | duration format | no        | 1s                 | Time between the connection attempts              |
 
 !!! example
