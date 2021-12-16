@@ -39,35 +39,29 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 	}
 
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     cfg.Address,
-		Password: cfg.Password,
-		DB:       cfg.Database,
+		Addr:            cfg.Address,
+		Password:        cfg.Password,
+		DB:              cfg.Database,
+		MaxRetries:      cfg.ConnectionAttempts,
+		MaxRetryBackoff: time.Duration(cfg.ConnectionCooldown),
 	})
 	ctx := context.Background()
 
-	var err error
-
-	attempt := 1
-	for attempt <= cfg.ConnectionAttempts {
-		_, err = rdb.Ping(ctx).Result()
-		if err == nil {
-			// construct client
-			res := &Client{
-				config:  cfg,
-				client:  rdb,
-				l:       log.PrefixedLog("redis"),
-				ctx:     ctx,
-				Channel: make(chan *CacheMessage),
-			}
-
-			// start listener
-			err = res.startSubscriptionListener()
-
-			return res, err
+	_, err := rdb.Ping(ctx).Result()
+	if err == nil {
+		// construct client
+		res := &Client{
+			config:  cfg,
+			client:  rdb,
+			l:       log.PrefixedLog("redis"),
+			ctx:     ctx,
+			Channel: make(chan *CacheMessage),
 		}
 
-		time.Sleep(time.Duration(cfg.ConnectionCooldown))
-		attempt++
+		// start listener
+		err = res.startSubscriptionListener()
+
+		return res, err
 	}
 
 	return nil, err
