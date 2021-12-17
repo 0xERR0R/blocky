@@ -115,10 +115,16 @@ You can define your own domain name to IP mappings. For example, you can use a u
 or define a domain name for your local device on order to use the HTTPS certificate. Multiple IP addresses for one
 domain must be separated by a comma.
 
+| Parameter | Type                                    | Mandatory | Default value | 
+| --------- | --------------------------------------- | --------- | ------------- |
+| customTTL | duration (no unit is minutes)           | no        | 1h            | 
+| mapping   | string: string (hostname: address list) | no        |               | 
+
 !!! example
 
     ```yaml
     customDNS:
+      customTTL: 1h
       mapping:
         printer.lan: 192.168.178.3 
         otherdevice.lan: 192.168.178.15,2001:0db8:85a3:08d3:1319:8a2e:0370:7344

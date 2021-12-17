@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
@@ -13,13 +14,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const customDNSTTL = 60 * 60
-
 // CustomDNSResolver resolves passed domain name to ip address defined in domain-IP map
 type CustomDNSResolver struct {
 	NextResolver
 	mapping          map[string][]net.IP
 	reverseAddresses map[string][]string
+	ttl              uint32
 }
 
 // NewCustomDNSResolver creates new resolver instance
@@ -36,7 +36,9 @@ func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
 		}
 	}
 
-	return &CustomDNSResolver{mapping: m, reverseAddresses: reverse}
+	ttl := uint32(time.Duration(cfg.CustomTTL).Seconds())
+
+	return &CustomDNSResolver{mapping: m, reverseAddresses: reverse, ttl: ttl}
 }
 
 // Configuration returns current resolver configuration
@@ -66,7 +68,7 @@ func (r *CustomDNSResolver) handleReverseDNS(request *model.Request) *model.Resp
 			response.SetReply(request.Req)
 
 			for _, url := range urls {
-				h := util.CreateHeader(question, customDNSTTL)
+				h := util.CreateHeader(question, r.ttl)
 				ptr := new(dns.PTR)
 				ptr.Ptr = dns.Fqdn(url)
 				ptr.Hdr = h
@@ -101,7 +103,7 @@ func (r *CustomDNSResolver) Resolve(request *model.Request) (*model.Response, er
 			if found {
 				for _, ip := range ips {
 					if isSupportedType(ip, question) {
-						rr, _ := util.CreateAnswerFromQuestion(question, ip, customDNSTTL)
+						rr, _ := util.CreateAnswerFromQuestion(question, ip, r.ttl)
 						response.Answer = append(response.Answer, rr)
 					}
 				}
