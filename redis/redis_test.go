@@ -1,8 +1,9 @@
 package redis
 
 import (
+	"time"
+
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/creasty/defaults"
@@ -86,14 +87,35 @@ var _ = Describe("Redis client", func() {
 
 			Expect(err).Should(Succeed())
 
-			redisClient.PublishCache("example.com.", &model.Response{
-				Res:    res,
-				RType:  model.ResponseTypeCACHED,
-				Reason: "CACHED",
-			})
+			redisClient.PublishCache("example.com", res)
+
+			time.Sleep(50 * time.Millisecond)
 
 			keysLen := len(redisServer.DB(redisConfig.Database).Keys())
 			Expect(keysLen).To(Equal(1))
+		})
+	})
+	When("GetRedisCache", func() {
+		It("works", func() {
+			var res *dns.Msg
+
+			origCount := len(redisClient.CacheChannel)
+			res, err = util.NewMsgWithAnswer("example.com.", 123, dns.TypeA, "123.124.122.123")
+
+			Expect(err).Should(Succeed())
+
+			redisClient.PublishCache("example.com", res)
+
+			time.Sleep(50 * time.Millisecond)
+
+			keysLen := len(redisServer.DB(redisConfig.Database).Keys())
+			Expect(keysLen).To(Equal(1))
+
+			redisClient.GetRedisCache()
+
+			time.Sleep(50 * time.Millisecond)
+
+			Expect(len(redisClient.CacheChannel)).To(Equal(origCount + 1))
 		})
 	})
 })
