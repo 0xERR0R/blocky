@@ -11,6 +11,7 @@ require (
 	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-chi/cors v1.2.0
 	github.com/go-redis/redis/v8 v8.11.4
+	github.com/google/uuid v1.1.2
 	github.com/hako/durafmt v0.0.0-20210608085754-5c1018a4e16b
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/miekg/dns v1.1.43
