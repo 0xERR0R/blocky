@@ -3,6 +3,8 @@ package log
 //go:generate go-enum -f=$GOFILE --marshal --names
 
 import (
+	"strings"
+
 	"github.com/sirupsen/logrus"
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
 )
@@ -42,6 +44,14 @@ func Log() *logrus.Logger {
 // PrefixedLog return the global logger with prefix
 func PrefixedLog(prefix string) *logrus.Entry {
 	return logger.WithField("prefix", prefix)
+}
+
+// EscapeInput removes line breaks from input
+func EscapeInput(input string) string {
+	result := strings.ReplaceAll(input, "\n", "")
+	result = strings.ReplaceAll(result, "\r", "")
+
+	return result
 }
 
 // ConfigureLogger applies configuration to the global logger

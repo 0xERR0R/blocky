@@ -260,7 +260,7 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 
 func logAndResponseWithError(err error, message string, writer http.ResponseWriter) {
 	if err != nil {
-		log.Log().Error(message, err)
+		log.Log().Error(message, log.EscapeInput(err.Error()))
 		http.Error(writer, err.Error(), http.StatusInternalServerError)
 	}
 }
