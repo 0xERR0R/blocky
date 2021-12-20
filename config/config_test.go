@@ -97,7 +97,7 @@ var _ = Describe("Config", func() {
 				data :=
 					`conditional:
   mapping:
-    multiple.resolvers: udp:192.168.178.1,wongprotocol:4.4.4.4:53`
+    multiple.resolvers: udp:192.168.178.1,wrongprotocol:4.4.4.4:53`
 				helpertest.ShouldLogFatal(func() {
 					unmarshalConfig([]byte(data), cfg)
 				})
