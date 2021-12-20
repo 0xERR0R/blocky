@@ -23,7 +23,7 @@ var _ = Describe("Config", func() {
 
 				LoadConfig("config.yml", true)
 
-				Expect(config.Port).Should(Equal("55555"))
+				Expect(config.DNSPorts).Should(Equal(ListenConfig{"55553", ":55554", "[::1]:55555"}))
 				Expect(config.Upstream.ExternalResolvers["default"]).Should(HaveLen(3))
 				Expect(config.Upstream.ExternalResolvers["default"][0].Host).Should(Equal("8.8.8.8"))
 				Expect(config.Upstream.ExternalResolvers["default"][1].Host).Should(Equal("8.8.4.4"))
@@ -177,7 +177,7 @@ var _ = Describe("Config", func() {
 
 				By("certFile/keyFile not set", func() {
 					c := &Config{
-						TLSPort: "953",
+						TLSPorts: ListenConfig{"953"},
 					}
 					helpertest.ShouldLogFatal(func() {
 						validateConfig(c)
@@ -186,7 +186,7 @@ var _ = Describe("Config", func() {
 
 				By("certFile/keyFile set", func() {
 					c := &Config{
-						TLSPort:  "953",
+						TLSPorts: ListenConfig{"953"},
 						KeyFile:  "key",
 						CertFile: "cert",
 					}
@@ -200,7 +200,7 @@ var _ = Describe("Config", func() {
 
 				By("certFile/keyFile not set", func() {
 					c := &Config{
-						HTTPSPort: "443",
+						HTTPSPorts: ListenConfig{"443"},
 					}
 					helpertest.ShouldLogFatal(func() {
 						validateConfig(c)
@@ -209,7 +209,7 @@ var _ = Describe("Config", func() {
 
 				By("certFile/keyFile set", func() {
 					c := &Config{
-						TLSPort:  "443",
+						TLSPorts: ListenConfig{"443"},
 						KeyFile:  "key",
 						CertFile: "cert",
 					}

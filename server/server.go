@@ -25,12 +25,12 @@ import (
 
 // Server controls the endpoints for DNS and HTTP
 type Server struct {
-	dnsServers    []*dns.Server
-	httpListener  net.Listener
-	httpsListener net.Listener
-	queryResolver resolver.Resolver
-	cfg           *config.Config
-	httpMux       *chi.Mux
+	dnsServers     []*dns.Server
+	httpListeners  []net.Listener
+	httpsListeners []net.Listener
+	queryResolver  resolver.Resolver
+	cfg            *config.Config
+	httpMux        *chi.Mux
 }
 
 func logger() *logrus.Entry {
@@ -38,12 +38,11 @@ func logger() *logrus.Entry {
 }
 
 func getServerAddress(addr string) string {
-	address := addr
 	if !strings.Contains(addr, ":") {
-		address = fmt.Sprintf(":%s", addr)
+		addr = fmt.Sprintf(":%s", addr)
 	}
 
-	return address
+	return addr
 }
 
 // NewServer creates new server instance with passed config
@@ -52,30 +51,34 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
-	dnsServers = append(dnsServers, createUDPServer(getServerAddress(cfg.Port)))
-	dnsServers = append(dnsServers, createTCPServer(getServerAddress(cfg.Port)))
+	type NewServerFunc func(address string) *dns.Server
 
-	if cfg.TLSPort != "" {
-		dnsServers = append(dnsServers, createTLSServer(getServerAddress(cfg.TLSPort), cfg.CertFile, cfg.KeyFile))
+	addServers := func(newServer NewServerFunc, addresses config.ListenConfig) {
+		for _, address := range addresses {
+			dnsServers = append(dnsServers, newServer(getServerAddress(address)))
+		}
 	}
 
-	var httpListener, httpsListener net.Listener
+	addServers(createUDPServer, cfg.DNSPorts)
+	addServers(createTCPServer, cfg.DNSPorts)
+
+	addServers(func(address string) *dns.Server {
+		return createTLSServer(address, cfg.CertFile, cfg.KeyFile)
+	}, cfg.TLSPorts)
 
 	router := createRouter(cfg)
 
-	if cfg.HTTPPort != "" {
-		if httpListener, err = net.Listen("tcp", getServerAddress(cfg.HTTPPort)); err != nil {
-			return nil, fmt.Errorf("start http listener on %s failed: %w", cfg.HTTPPort, err)
-		}
-
-		metrics.Start(router, cfg.Prometheus)
+	httpListeners, err := newListeners("http", cfg.HTTPPorts)
+	if err != nil {
+		return nil, err
 	}
 
-	if cfg.HTTPSPort != "" {
-		if httpsListener, err = net.Listen("tcp", getServerAddress(cfg.HTTPSPort)); err != nil {
-			return nil, fmt.Errorf("start https listener on port %s failed: %w", cfg.HTTPSPort, err)
-		}
+	httpsListeners, err := newListeners("https", cfg.HTTPSPorts)
+	if err != nil {
+		return nil, err
+	}
 
+	if len(httpListeners) != 0 || len(httpsListeners) != 0 {
 		metrics.Start(router, cfg.Prometheus)
 	}
 
@@ -87,12 +90,12 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 	}
 
 	server = &Server{
-		dnsServers:    dnsServers,
-		queryResolver: queryResolver,
-		cfg:           cfg,
-		httpListener:  httpListener,
-		httpsListener: httpsListener,
-		httpMux:       router,
+		dnsServers:     dnsServers,
+		queryResolver:  queryResolver,
+		cfg:            cfg,
+		httpListeners:  httpListeners,
+		httpsListeners: httpsListeners,
+		httpMux:        router,
 	}
 
 	server.printConfiguration()
@@ -103,6 +106,21 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 	registerResolverAPIEndpoints(router, queryResolver)
 
 	return server, err
+}
+
+func newListeners(proto string, addresses config.ListenConfig) ([]net.Listener, error) {
+	listeners := make([]net.Listener, 0, len(addresses))
+
+	for _, address := range addresses {
+		listener, err := net.Listen("tcp", getServerAddress(address))
+		if err != nil {
+			return nil, fmt.Errorf("start %s listener on %s failed: %w", proto, address, err)
+		}
+
+		listeners = append(listeners, listener)
+	}
+
+	return listeners, nil
 }
 
 func registerResolverAPIEndpoints(router chi.Router, res resolver.Resolver) {
@@ -199,9 +217,10 @@ func (s *Server) printConfiguration() {
 		}
 	}
 
-	logger().Infof("- DNS listening port: %s", s.cfg.Port)
-	logger().Infof("- TLS listening port: %s", s.cfg.TLSPort)
-	logger().Infof("- HTTP listening on addr/port: %s", s.cfg.HTTPPort)
+	logger().Infof("- DNS listening on addrs/ports: %v", s.cfg.DNSPorts)
+	logger().Infof("- TLS listening on addrs/ports: %v", s.cfg.TLSPorts)
+	logger().Infof("- HTTP listening on addrs/ports: %v", s.cfg.HTTPPorts)
+	logger().Infof("- HTTPS listening on addrs/ports: %v", s.cfg.HTTPSPorts)
 
 	logger().Info("runtime information:")
 
@@ -240,23 +259,29 @@ func (s *Server) Start() {
 		}()
 	}
 
-	go func() {
-		if s.httpListener != nil {
-			logger().Infof("http server is up and running on addr/port %s", s.cfg.HTTPPort)
+	for i, listener := range s.httpListeners {
+		listener := listener
+		address := s.cfg.HTTPPorts[i]
 
-			err := http.Serve(s.httpListener, s.httpMux)
+		go func() {
+			logger().Infof("http server is up and running on addr/port %s", address)
+
+			err := http.Serve(listener, s.httpMux)
 			util.FatalOnError("start http listener failed: ", err)
-		}
-	}()
+		}()
+	}
 
-	go func() {
-		if s.httpsListener != nil {
-			logger().Infof("https server is up and running on addr/port %s", s.cfg.HTTPSPort)
+	for i, listener := range s.httpsListeners {
+		listener := listener
+		address := s.cfg.HTTPSPorts[i]
 
-			err := http.ServeTLS(s.httpsListener, s.httpMux, s.cfg.CertFile, s.cfg.KeyFile)
+		go func() {
+			logger().Infof("https server is up and running on addr/port %s", address)
+
+			err := http.ServeTLS(listener, s.httpMux, s.cfg.CertFile, s.cfg.KeyFile)
 			util.FatalOnError("start https listener failed: ", err)
-		}
-	}()
+		}()
+	}
 
 	registerPrintConfigurationTrigger(s)
 }
