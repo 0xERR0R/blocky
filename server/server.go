@@ -46,13 +46,13 @@ func getServerAddress(addr string) string {
 	return addr
 }
 
+type NewServerFunc func(address string) *dns.Server
+
 // NewServer creates new server instance with passed config
 func NewServer(cfg *config.Config) (server *Server, err error) {
 	var dnsServers []*dns.Server
 
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
-
-	type NewServerFunc func(address string) *dns.Server
 
 	addServers := func(newServer NewServerFunc, addresses config.ListenConfig) {
 		for _, address := range addresses {
@@ -69,12 +69,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	router := createRouter(cfg)
 
-	httpListeners, err := newListeners("http", cfg.HTTPPorts)
-	if err != nil {
-		return nil, err
-	}
-
-	httpsListeners, err := newListeners("https", cfg.HTTPSPorts)
+	httpListeners, httpsListeners, err := createHTTPListeners(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -112,6 +107,20 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 	registerResolverAPIEndpoints(router, queryResolver)
 
 	return server, err
+}
+
+func createHTTPListeners(cfg *config.Config) (httpListeners []net.Listener, httpsListeners []net.Listener, err error) {
+	httpListeners, err = newListeners("http", cfg.HTTPPorts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	httpsListeners, err = newListeners("https", cfg.HTTPSPorts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return httpListeners, httpsListeners, nil
 }
 
 func newListeners(proto string, addresses config.ListenConfig) ([]net.Listener, error) {

@@ -18,11 +18,11 @@ import (
 )
 
 const (
-	CacheChannelName string        = "blocky_sync"
-	CacheStorePrefix string        = "blocky:cache:"
-	chanCap          int           = 1000
-	cacheReason      string        = "EXTERNAL_CACHE"
-	defaultCacheTime time.Duration = time.Duration(1 * time.Second)
+	CacheChannelName string = "blocky_sync"
+	CacheStorePrefix string = "blocky:cache:"
+	chanCap          int    = 1000
+	cacheReason      string = "EXTERNAL_CACHE"
+	defaultCacheTime        = 1 * time.Second
 )
 
 // sendBuffer message
@@ -111,6 +111,7 @@ func (c *Client) PublishCache(key string, message *dns.Msg) {
 // GetRedisCache reads the redis cache and publish it to the channel
 func (c *Client) GetRedisCache() {
 	c.l.Debug("GetRedisCache")
+
 	go func() {
 		iter := c.client.Scan(c.ctx, 0, prefixKey("*"), 0).Iterator()
 		for iter.Next(c.ctx) {
@@ -135,53 +136,63 @@ func (c *Client) startup() error {
 		go func() {
 			for {
 				select {
-				// recieved message from subscription
+				// received message from subscription
 				case msg := <-ps.Channel():
-					c.l.Debug("Received message: ", msg)
-					// message is not empty
-					if msg != nil && len(msg.Payload) > 0 {
-						var rm redisMessage
-
-						err = json.Unmarshal([]byte(msg.Payload), &rm)
-						if err == nil {
-							// message was sent from a different blocky instance
-							if bytes.Compare(rm.C, c.id) != 0 {
-								var cm *CacheMessage
-
-								cm, err = convertMessage(&rm, 0)
-								if err == nil {
-									c.CacheChannel <- cm
-								}
-							}
-						} else {
-							c.l.Error("Conversion error: ", err)
-						}
-					}
+					err = c.processReceivedMessage(msg)
 					// publish message from buffer
 				case s := <-c.sendBuffer:
-					origRes := s.Message
-					origRes.Compress = true
-
-					binRes, pErr := origRes.Pack()
-					if pErr == nil {
-						binMsg, mErr := json.Marshal(redisMessage{
-							K: s.Key,
-							M: binRes,
-							C: c.id,
-						})
-
-						if mErr == nil {
-							c.client.Publish(c.ctx, CacheChannelName, binMsg)
-						}
-
-						c.client.Set(c.ctx,
-							prefixKey(s.Key),
-							binRes,
-							c.getTTL(origRes))
-					}
+					c.publishMessageFromBuffer(s)
 				}
 			}
 		}()
+	}
+
+	return err
+}
+
+func (c *Client) publishMessageFromBuffer(s *bufferMessage) {
+	origRes := s.Message
+	origRes.Compress = true
+
+	binRes, pErr := origRes.Pack()
+	if pErr == nil {
+		binMsg, mErr := json.Marshal(redisMessage{
+			K: s.Key,
+			M: binRes,
+			C: c.id,
+		})
+
+		if mErr == nil {
+			c.client.Publish(c.ctx, CacheChannelName, binMsg)
+		}
+
+		c.client.Set(c.ctx,
+			prefixKey(s.Key),
+			binRes,
+			c.getTTL(origRes))
+	}
+}
+
+func (c *Client) processReceivedMessage(msg *redis.Message) (err error) {
+	c.l.Debug("Received message: ", msg)
+	// message is not empty
+	if msg != nil && len(msg.Payload) > 0 {
+		var rm redisMessage
+
+		err = json.Unmarshal([]byte(msg.Payload), &rm)
+		if err == nil {
+			// message was sent from a different blocky instance
+			if !bytes.Equal(rm.C, c.id) {
+				var cm *CacheMessage
+
+				cm, err = convertMessage(&rm, 0)
+				if err == nil {
+					c.CacheChannel <- cm
+				}
+			}
+		} else {
+			c.l.Error("Conversion error: ", err)
+		}
 	}
 
 	return err
@@ -193,6 +204,7 @@ func (c *Client) getResponse(key string) (*CacheMessage, error) {
 	if err == nil {
 		var ttl time.Duration
 		ttl, err = c.client.TTL(c.ctx, key).Result()
+
 		if err == nil {
 			var result *CacheMessage
 
@@ -203,7 +215,6 @@ func (c *Client) getResponse(key string) (*CacheMessage, error) {
 			if err == nil {
 				return result, nil
 			}
-
 		}
 	}
 
@@ -214,21 +225,22 @@ func (c *Client) getResponse(key string) (*CacheMessage, error) {
 
 // convertMessage converts redisMessage to CacheMessage
 func convertMessage(message *redisMessage, ttl time.Duration) (*CacheMessage, error) {
-	dns := dns.Msg{}
+	msg := dns.Msg{}
 
-	err := dns.Unpack(message.M)
+	err := msg.Unpack(message.M)
 	if err == nil {
 		if ttl > 0 {
-			for _, a := range dns.Answer {
+			for _, a := range msg.Answer {
 				a.Header().Ttl = uint32(ttl.Seconds())
 			}
 		}
+
 		res := &CacheMessage{
 			Key: message.K,
 			Response: &model.Response{
 				RType:  model.ResponseTypeCACHED,
 				Reason: cacheReason,
-				Res:    &dns,
+				Res:    &msg,
 			},
 		}
 
@@ -246,6 +258,7 @@ func (c *Client) getTTL(dns *dns.Msg) time.Duration {
 			ttl = a.Header().Ttl
 		}
 	}
+
 	if ttl == 0 {
 		return defaultCacheTime
 	}
