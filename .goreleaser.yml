@@ -23,7 +23,7 @@ builds:
       - goos: windows
         goarch: arm64
     ldflags:
-      - -w -s -X blocky/util.Version={{.Version}} -X blocky/util.BuildTime={{time "20060102-150405"}}
+      - -w -s -X github.com/0xERR0R/blocky/util.Version={{.Version}} -X github.com/0xERR0R/blocky/util.BuildTime={{time "20060102-150405"}}
 release:
   draft: true
 archives:

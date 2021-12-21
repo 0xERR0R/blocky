@@ -15,7 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// ClientNamesResolver tries to determine client name by asking responsible DNS server vie rDNS (reverse lookup)
+// ClientNamesResolver tries to determine client name by asking responsible DNS server via rDNS (reverse lookup)
 type ClientNamesResolver struct {
 	cache            *cache.Cache
 	externalResolver Resolver

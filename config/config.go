@@ -75,6 +75,26 @@ func (u *Upstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// ListenConfig is a list of address(es) to listen on
+type ListenConfig []string
+
+// UnmarshalYAML creates ListenConfig from YAML
+func (l *ListenConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var addresses string
+	if err := unmarshal(&addresses); err != nil {
+		var port uint16
+		if err := unmarshal(&port); err != nil {
+			return err
+		}
+
+		addresses = fmt.Sprintf("%d", port)
+	}
+
+	*l = strings.Split(addresses, ",")
+
+	return nil
+}
+
 // UnmarshalYAML creates ConditionalUpstreamMapping from YAML
 func (c *ConditionalUpstreamMapping) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var input map[string]string
@@ -263,10 +283,10 @@ type Config struct {
 	LogFormat       log.FormatType            `yaml:"logFormat" default:"text"`
 	LogPrivacy      bool                      `yaml:"logPrivacy" default:"false"`
 	LogTimestamp    bool                      `yaml:"logTimestamp" default:"true"`
-	Port            string                    `yaml:"port" default:"53"`
-	HTTPPort        string                    `yaml:"httpPort"`
-	HTTPSPort       string                    `yaml:"httpsPort"`
-	TLSPort         string                    `yaml:"tlsPort"`
+	DNSPorts        ListenConfig              `yaml:"port" default:"[\"53\"]"`
+	HTTPPorts       ListenConfig              `yaml:"httpPort"`
+	HTTPSPorts      ListenConfig              `yaml:"httpsPort"`
+	TLSPorts        ListenConfig              `yaml:"tlsPort"`
 	DisableIPv6     bool                      `yaml:"disableIPv6" default:"false"`
 	CertFile        string                    `yaml:"certFile"`
 	KeyFile         string                    `yaml:"keyFile"`
@@ -427,16 +447,12 @@ func validateConfig(cfg *Config) {
 		}
 	}
 
-	if cfg.TLSPort != "" {
-		if cfg.CertFile == "" || cfg.KeyFile == "" {
-			log.Log().Fatal("certFile and keyFile parameters are mandatory for TLS")
-		}
+	if len(cfg.TLSPorts) != 0 && (cfg.CertFile == "" || cfg.KeyFile == "") {
+		log.Log().Fatal("certFile and keyFile parameters are mandatory for TLS")
 	}
 
-	if cfg.HTTPSPort != "" {
-		if cfg.CertFile == "" || cfg.KeyFile == "" {
-			log.Log().Fatal("certFile and keyFile parameters are mandatory for HTTPS")
-		}
+	if len(cfg.HTTPSPorts) != 0 && (cfg.CertFile == "" || cfg.KeyFile == "") {
+		log.Log().Fatal("certFile and keyFile parameters are mandatory for HTTPS")
 	}
 }
 

@@ -104,12 +104,12 @@ var _ = Describe("Running DNS server", func() {
 				Upstream: upstreamClient,
 			},
 
-			Port:      "55555",
-			TLSPort:   "8853",
-			CertFile:  "../testdata/cert.pem",
-			KeyFile:   "../testdata/key.pem",
-			HTTPPort:  "4000",
-			HTTPSPort: "4443",
+			DNSPorts:   config.ListenConfig{"55555"},
+			TLSPorts:   config.ListenConfig{"8853"},
+			CertFile:   "../testdata/cert.pem",
+			KeyFile:    "../testdata/key.pem",
+			HTTPPorts:  config.ListenConfig{"4000"},
+			HTTPSPorts: config.ListenConfig{"4443"},
 			Prometheus: config.PrometheusConfig{
 				Enable: true,
 				Path:   "/metrics",
@@ -546,7 +546,7 @@ var _ = Describe("Running DNS server", func() {
 							},
 						}},
 					Blocking: config.BlockingConfig{BlockType: "zeroIp"},
-					Port:     ":55556",
+					DNSPorts: config.ListenConfig{":55556"},
 				})
 
 				Expect(err).Should(Succeed())
@@ -593,7 +593,7 @@ var _ = Describe("Running DNS server", func() {
 							},
 						}},
 					Blocking: config.BlockingConfig{BlockType: "zeroIp"},
-					Port:     "127.0.0.1:55557",
+					DNSPorts: config.ListenConfig{"127.0.0.1:55557"},
 				})
 
 				Expect(err).Should(Succeed())

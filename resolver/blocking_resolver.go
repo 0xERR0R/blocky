@@ -195,9 +195,10 @@ func (r *BlockingResolver) DisableBlocking(duration time.Duration, disableGroups
 	s.disableEnd = time.Now().Add(duration)
 
 	if duration == 0 {
-		log.Log().Infof("disable blocking for group(s) '%s'", strings.Join(s.disabledGroups, "; "))
+		log.Log().Infof("disable blocking for group(s) '%s'", log.EscapeInput(strings.Join(s.disabledGroups, "; ")))
 	} else {
-		log.Log().Infof("disable blocking for %s for group(s) '%s'", duration, strings.Join(s.disabledGroups, "; "))
+		log.Log().Infof("disable blocking for %s for group(s) '%s'", duration,
+			log.EscapeInput(strings.Join(s.disabledGroups, "; ")))
 		s.enableTimer = time.AfterFunc(duration, func() {
 			r.EnableBlocking()
 			log.Log().Info("blocking enabled again")
