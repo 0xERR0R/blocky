@@ -7,7 +7,9 @@ import (
 	. "github.com/0xERR0R/blocky/evt"
 	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/creasty/defaults"
 
 	"github.com/0xERR0R/go-cache"
@@ -42,7 +44,7 @@ var _ = Describe("CachingResolver", func() {
 	})
 
 	JustBeforeEach(func() {
-		sut = NewCachingResolver(sutConfig)
+		sut = NewCachingResolver(sutConfig, nil)
 		m = &resolverMock{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		sut.Next(m)
@@ -459,6 +461,50 @@ var _ = Describe("CachingResolver", func() {
 				c := sut.Configuration()
 				Expect(len(c) > 1).Should(BeTrue())
 				Expect(c).Should(ContainElement(ContainSubstring("prefetchThreshold")))
+			})
+		})
+	})
+	Describe("Redis is configured", func() {
+		var (
+			redisServer *miniredis.Miniredis
+			redisClient *redis.Client
+			redisConfig *config.RedisConfig
+		)
+		When("cache", func() {
+			BeforeEach(func() {
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1, dns.TypeA, "1.1.1.1")
+				redisServer, err = miniredis.Run()
+
+				Expect(err).Should(Succeed())
+				var rcfg config.RedisConfig
+				err = defaults.Set(&rcfg)
+
+				Expect(err).Should(Succeed())
+
+				rcfg.Address = redisServer.Addr()
+				redisConfig = &rcfg
+				redisClient, err = redis.New(redisConfig)
+
+				Expect(err).Should(Succeed())
+				Expect(redisClient).ShouldNot(BeNil())
+			})
+			AfterEach(func() {
+				redisServer.Close()
+			})
+			JustBeforeEach(func() {
+				sut = NewCachingResolver(sutConfig, redisClient)
+				m = &resolverMock{}
+				m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
+				sut.Next(m)
+			})
+			It("should cache in redis", func() {
+				resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+				Expect(err).Should(Succeed())
+
+				time.Sleep(50 * time.Millisecond)
+
+				keysLen := len(redisServer.DB(redisConfig.Database).Keys())
+				Expect(keysLen).To(Equal(1))
 			})
 		})
 	})

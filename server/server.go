@@ -15,6 +15,7 @@ import (
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/resolver"
 	"github.com/0xERR0R/blocky/util"
 
@@ -84,7 +85,12 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	metrics.RegisterEventListeners()
 
-	queryResolver, queryError := createQueryResolver(cfg)
+	redisClient, redisErr := redis.New(&cfg.Redis)
+	if redisErr != nil && cfg.Redis.Required {
+		return nil, redisErr
+	}
+
+	queryResolver, queryError := createQueryResolver(cfg, redisClient)
 	if queryError != nil {
 		return nil, queryError
 	}
@@ -175,7 +181,7 @@ func createUDPServer(address string) *dns.Server {
 		UDPSize: 65535}
 }
 
-func createQueryResolver(cfg *config.Config) (resolver.Resolver, error) {
+func createQueryResolver(cfg *config.Config, redisClient *redis.Client) (resolver.Resolver, error) {
 	br, brErr := resolver.NewBlockingResolver(cfg.Blocking)
 
 	return resolver.Chain(
@@ -185,7 +191,7 @@ func createQueryResolver(cfg *config.Config) (resolver.Resolver, error) {
 		resolver.NewMetricsResolver(cfg.Prometheus),
 		resolver.NewCustomDNSResolver(cfg.CustomDNS),
 		br,
-		resolver.NewCachingResolver(cfg.Caching),
+		resolver.NewCachingResolver(cfg.Caching, redisClient),
 		resolver.NewConditionalUpstreamResolver(cfg.Conditional),
 		resolver.NewParallelBestResolver(cfg.Upstream.ExternalResolvers),
 	), brErr

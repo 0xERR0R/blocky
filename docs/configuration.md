@@ -414,6 +414,32 @@ With following parameters you can tune the caching behavior:
       maxTime: 30m
       prefetching: true
     ```
+    
+## Redis
+
+Blocky can synchronize its cache between multiple instances through redis.
+Synchronization is disabled if no address is configured.
+
+| Parameter                     | Type            | Mandatory | Default value      | Description                                       |
+| ----------------------------- | --------------- | --------- | ------------------ | ------------------------------------------------- |
+| redis.address                 | string          | no        |                    | Server address and port                           |
+| redis.password                | string          | no        |                    | Password if necessary                             |
+| redis.database                | int             | no        | 0                  | Database                                          |
+| redis.required                | bool            | no        | false              | Connection is required for blocky to start        |
+| redis.connectionAttempts      | int             | no        | 3                  | Max connection attempts                           |
+| redis.connectionCooldown      | duration format | no        | 1s                 | Time between the connection attempts              |
+
+!!! example
+
+    ```yaml
+    redis:
+      address: redis:6379
+      password: passwd
+      database: 2
+      required: true
+      connectionAttempts: 10
+      connectionCooldown: 3s
+    ```
 
 ## Prometheus
 
