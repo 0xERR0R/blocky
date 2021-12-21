@@ -69,7 +69,10 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 		When("Resolver has no configuration", func() {
 			BeforeEach(func() {
-				sutConfig = config.QueryLogConfig{}
+				sutConfig = config.QueryLogConfig{
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
+				}
 			})
 			It("should process request without query logging", func() {
 				resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
@@ -81,8 +84,10 @@ var _ = Describe("QueryLoggingResolver", func() {
 		When("Configuration with logging per client", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLogConfig{
-					Target: tmpDir,
-					Type:   config.QueryLogTypeCsvClient,
+					Target:           tmpDir,
+					Type:             config.QueryLogTypeCsvClient,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.TypeA, "123.122.121.120")
 			})
@@ -125,8 +130,10 @@ var _ = Describe("QueryLoggingResolver", func() {
 		When("Configuration with logging in one file for all clients", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLogConfig{
-					Target: tmpDir,
-					Type:   config.QueryLogTypeCsv,
+					Target:           tmpDir,
+					Type:             config.QueryLogTypeCsv,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.TypeA, "123.122.121.120")
 			})
@@ -169,7 +176,9 @@ var _ = Describe("QueryLoggingResolver", func() {
 		When("writer is too slow", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLogConfig{
-					Type: config.QueryLogTypeNone,
+					Type:             config.QueryLogTypeNone,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
 				}
 			})
 			It("should drop messages", func() {
@@ -196,6 +205,8 @@ var _ = Describe("QueryLoggingResolver", func() {
 					Target:           tmpDir,
 					Type:             config.QueryLogTypeCsvClient,
 					LogRetentionDays: 0,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
 				}
 			})
 			It("should return configuration", func() {
@@ -212,6 +223,8 @@ var _ = Describe("QueryLoggingResolver", func() {
 				sut := NewQueryLoggingResolver(config.QueryLogConfig{
 					LogRetentionDays: 7,
 					Type:             config.QueryLogTypeConsole,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
 				}).(*QueryLoggingResolver)
 
 				sut.doCleanUp()
@@ -234,6 +247,8 @@ var _ = Describe("QueryLoggingResolver", func() {
 					Target:           tmpDir,
 					Type:             config.QueryLogTypeCsv,
 					LogRetentionDays: 7,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
 				})
 
 				sut.(*QueryLoggingResolver).doCleanUp()
@@ -256,8 +271,10 @@ var _ = Describe("Wrong target configuration", func() {
 	When("database path is wrong", func() {
 		It("should use fallback", func() {
 			sutConfig := config.QueryLogConfig{
-				Target: "dummy",
-				Type:   config.QueryLogTypeMysql,
+				Target:           "dummy",
+				Type:             config.QueryLogTypeMysql,
+				CreationAttempts: 1,
+				CreationCooldown: config.Duration(time.Millisecond),
 			}
 			resolver := NewQueryLoggingResolver(sutConfig)
 			loggingResolver := resolver.(*QueryLoggingResolver)

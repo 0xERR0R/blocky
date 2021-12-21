@@ -372,6 +372,8 @@ type QueryLogConfig struct {
 	Target           string       `yaml:"target"`
 	Type             QueryLogType `yaml:"type"`
 	LogRetentionDays uint64       `yaml:"logRetentionDays"`
+	CreationAttempts int          `yaml:"creationAttempts" default:"3"`
+	CreationCooldown Duration     `yaml:"creationCooldown" default:"2s"`
 }
 
 // RedisConfig configuration for the redis connection

@@ -149,6 +149,10 @@ queryLog:
   target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
   # if > 0, deletes log files which are older than ... days
   logRetentionDays: 7
+  # optional: Max attempts to create specific query log writer, default: 3
+  creationAttempts: 1
+  # optional: Time between the creation attempts, default: 2s
+  creationCooldown: 2s
 
 # optional: DNS listener port(s) and bind ip address(es), default 53 (UDP and TCP). Example: 53, :53, "127.0.0.1:5353,[::1]:5353"
 port: 53
