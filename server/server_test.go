@@ -558,16 +558,18 @@ var _ = Describe("Running DNS server", func() {
 
 				defer server.Stop()
 
-				time.Sleep(100 * time.Millisecond)
+				Eventually(func() bool {
+					return fatal
+				}, "100ms").Should(BeFalse())
 
 				Expect(fatal).Should(BeFalse())
 
 				// start again -> should fail
 				server.Start()
 
-				time.Sleep(100 * time.Millisecond)
-
-				Expect(fatal).Should(BeTrue())
+				Eventually(func() bool {
+					return fatal
+				}, "100ms").Should(BeTrue())
 			})
 		})
 	})

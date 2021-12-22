@@ -1,8 +1,6 @@
 package redis
 
 import (
-	"time"
-
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/alicebob/miniredis/v2"
@@ -88,11 +86,9 @@ var _ = Describe("Redis client", func() {
 			Expect(err).Should(Succeed())
 
 			redisClient.PublishCache("example.com", res)
-
-			time.Sleep(50 * time.Millisecond)
-
-			keysLen := len(redisServer.DB(redisConfig.Database).Keys())
-			Expect(keysLen).To(Equal(1))
+			Eventually(func() []string {
+				return redisServer.DB(redisConfig.Database).Keys()
+			}, "100ms").Should(HaveLen(1))
 		})
 	})
 	When("GetRedisCache", func() {
@@ -106,16 +102,16 @@ var _ = Describe("Redis client", func() {
 
 			redisClient.PublishCache("example.com", res)
 
-			time.Sleep(50 * time.Millisecond)
-
-			keysLen := len(redisServer.DB(redisConfig.Database).Keys())
-			Expect(keysLen).To(Equal(1))
+			Eventually(func() []string {
+				return redisServer.DB(redisConfig.Database).Keys()
+			}, "100ms").Should(HaveLen(1))
 
 			redisClient.GetRedisCache()
 
-			time.Sleep(50 * time.Millisecond)
+			Eventually(func() []string {
+				return redisServer.DB(redisConfig.Database).Keys()
+			}, "100ms").Should(HaveLen(origCount + 1))
 
-			Expect(len(redisClient.CacheChannel)).To(Equal(origCount + 1))
 		})
 	})
 })
