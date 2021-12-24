@@ -7,7 +7,7 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/querylog"
-	"github.com/avast/retry-go"
+	"github.com/avast/retry-go/v4"
 )
 
 const (

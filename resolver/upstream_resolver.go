@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/avast/retry-go"
+	"github.com/avast/retry-go/v4"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
