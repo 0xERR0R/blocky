@@ -19,7 +19,7 @@ import (
 	"github.com/0xERR0R/blocky/resolver"
 	"github.com/0xERR0R/blocky/util"
 
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 )
