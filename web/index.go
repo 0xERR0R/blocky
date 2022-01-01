@@ -1,19 +1,7 @@
 package web
 
-// IndexTmpl html template for the start page
-const IndexTmpl = `<!DOCTYPE html>
-<html>
-	<head>
-		<title>blocky</title>
-	</head>
-	<body>
-		<h1>blocky</h1>
-		<ul>
-		{{range .Links}}
-			<li><a href="{{.URL}}">{{.Title}}</a></li>
-		{{end}}
-		</ul>
+import _ "embed"
 
-		<p><span class="small">Version {{.Version}}   Build time {{.BuildTime}}</span></p> 
-		</body>
-	</html>`
+// IndexTmpl html template for the start page
+//go:embed index.html
+var IndexTmpl string
