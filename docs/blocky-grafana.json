@@ -12,7 +12,7 @@
       "name": "VAR_BLOCKY_URL",
       "type": "constant",
       "label": "blocky API URL",
-      "value": "http://pi3.fritz.box:4000",
+      "value": "",
       "description": ""
     }
   ],
@@ -84,7 +84,7 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "id": null,
-  "iteration": 1641070862287,
+  "iteration": 1641070862290,
   "links": [
     {
       "icon": "external link",
