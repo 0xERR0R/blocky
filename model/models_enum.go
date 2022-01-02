@@ -92,9 +92,12 @@ const (
 	// ResponseTypeCUSTOMDNS is a ResponseType of type CUSTOMDNS.
 	// the query was resolved by a custom rule
 	ResponseTypeCUSTOMDNS
+	// ResponseTypeHOSTSFILE is a ResponseType of type HOSTSFILE.
+	// the query was resolved by looking up the hosts file
+	ResponseTypeHOSTSFILE
 )
 
-const _ResponseTypeName = "RESOLVEDCACHEDBLOCKEDCONDITIONALCUSTOMDNS"
+const _ResponseTypeName = "RESOLVEDCACHEDBLOCKEDCONDITIONALCUSTOMDNSHOSTSFILE"
 
 var _ResponseTypeNames = []string{
 	_ResponseTypeName[0:8],
@@ -102,6 +105,7 @@ var _ResponseTypeNames = []string{
 	_ResponseTypeName[14:21],
 	_ResponseTypeName[21:32],
 	_ResponseTypeName[32:41],
+	_ResponseTypeName[41:50],
 }
 
 // ResponseTypeNames returns a list of possible string values of ResponseType.
@@ -117,6 +121,7 @@ var _ResponseTypeMap = map[ResponseType]string{
 	2: _ResponseTypeName[14:21],
 	3: _ResponseTypeName[21:32],
 	4: _ResponseTypeName[32:41],
+	5: _ResponseTypeName[41:50],
 }
 
 // String implements the Stringer interface.
@@ -133,6 +138,7 @@ var _ResponseTypeValue = map[string]ResponseType{
 	_ResponseTypeName[14:21]: 2,
 	_ResponseTypeName[21:32]: 3,
 	_ResponseTypeName[32:41]: 4,
+	_ResponseTypeName[41:50]: 5,
 }
 
 // ParseResponseType attempts to convert a string to a ResponseType
