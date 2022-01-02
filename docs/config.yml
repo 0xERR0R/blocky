@@ -168,6 +168,8 @@ httpPort: 4000
 bootstrapDns: tcp:1.1.1.1
 # optional: Drop all AAAA query if set to true. Default: false
 disableIPv6: false
+# optional: path to hosts file. If set, use this file for query resolution (A, AAAA and rDNS). Default: empty
+hostsFile: /etc/hosts
 # optional: Log level (one from debug, info, warn, error). Default: info
 logLevel: info
 # optional: Log format (text or json). Default: text
