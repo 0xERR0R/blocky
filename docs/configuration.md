@@ -12,6 +12,9 @@ configuration properties as [JSON](config.yml).
 ## Basic configuration
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 2f0ff5e (Fixed configuration)
 | Parameter    | Type                            | Mandatory             | Default value | Description                                                                                                                                                                                                                                       |
 |--------------|---------------------------------|-----------------------|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | port         | [IP]:port[,[IP]:port]*          | no                    | 53            | Port(s) and optional bind ip address(es) to serve DNS endpoint (TCP and UDP). If you wish to specify a specific IP, you can do so such as `192.168.0.1:53`. Example: `53`, `:53`, `127.0.0.1:53,[::1]:53`                                         |
@@ -19,13 +22,19 @@ configuration properties as [JSON](config.yml).
 | httpPort     | [IP]:port[,[IP]:port]*          | no                    |               | Port(s) and optional bind ip address(es) to serve HTTP used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:4000`. Example: `4000`, `:4000`, `127.0.0.1:4000,[::1]:4000` |
 | httpsPort    | [IP]:port[,[IP]:port]*          | no                    |               | Port(s) and optional bind ip address(es) to serve HTTPS used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:443`. Example: `443`, `:443`, `127.0.0.1:443,[::1]:443`     |
 | certFile     | path                            | yes, if httpsPort > 0 |               | Path to cert and key file for SSL encryption (DoH and DoT)                                                                                                                                                                                        |
+<<<<<<< HEAD
 | keyFile      | path                            | yes, if httpsPort > 0 |               | Path to cert and key file for SSL encryption (DoH and DoT)                                                                                                                                                                                        |
+=======
+| keyFile      | path                            | yes, if httpsPort > 0 |               | Path to cert and key file for SSL encryption (DoH and DoT)
+| hostsFile    | path                            | no                    |               | Path to hosts file to be resolved, if desired.                                                   |
+>>>>>>> 2f0ff5e (Fixed configuration)
 | bootstrapDns | IP:port                         | no                    |               | Use this DNS server to resolve blacklist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. NOTE: Works only on Linux/*Nix OS due to golang limitations under windows.               |
 | disableIPv6  | bool                            | no                    | false         | Drop all AAAA query if set to true                                                                                                                                                                                                                |
 | logLevel     | enum (debug, info, warn, error) | no                    | info          | Log level                                                                                                                                                                                                                                         |
 | logFormat    | enum (text, json)               | no                    | text          | Log format (text or json).                                                                                                                                                                                                                        |
 | logTimestamp | bool                            | no                    | true          | Log time stamps (true or false).                                                                                                                                                                                                                  |
 | logPrivacy   | bool                            | no                    | false         | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy.                                                                                                  |
+<<<<<<< HEAD
 =======
 | Parameter       | Type              | Mandatory             | Default value      | Description                                       |
 | --------------- | ----------------- | --------------------- | -----------------  | ------------------------------------------------- |
@@ -43,6 +52,8 @@ configuration properties as [JSON](config.yml).
 | logTimestamp    | bool              |no                     | true               | Log time stamps (true or false). |
 | logPrivacy      | bool              |no                     | false              | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy. |
 >>>>>>> 6bb2173 (Added entry to configuration docs)
+=======
+>>>>>>> 2f0ff5e (Fixed configuration)
 
 !!! example
 
