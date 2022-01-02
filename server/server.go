@@ -166,6 +166,7 @@ func createQueryResolver(cfg *config.Config) (resolver.Resolver, error) {
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
 		resolver.NewMetricsResolver(cfg.Prometheus),
 		resolver.NewCustomDNSResolver(cfg.CustomDNS),
+		resolver.NewHostsFileResolver(cfg.HostsFile),
 		br,
 		resolver.NewCachingResolver(cfg.Caching),
 		resolver.NewConditionalUpstreamResolver(cfg.Conditional),

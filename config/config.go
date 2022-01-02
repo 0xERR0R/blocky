@@ -270,6 +270,7 @@ type Config struct {
 	CertFile        string                    `yaml:"certFile"`
 	KeyFile         string                    `yaml:"keyFile"`
 	BootstrapDNS    Upstream                  `yaml:"bootstrapDns"`
+	HostsFile       string                    `yaml:"hostsFile"`
 	// Deprecated
 	HTTPCertFile string `yaml:"httpsCertFile"`
 	// Deprecated
