@@ -12,6 +12,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const hostsDNSTTL = 3600
+
 type HostsFileResolver struct {
 	NextResolver
 	HostsFilePath string
@@ -31,7 +33,7 @@ func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Resp
 			if raddr == question.Name {
 				ptr := new(dns.PTR)
 				ptr.Ptr = dns.Fqdn(host.Hostname)
-				ptr.Hdr = util.CreateHeader(question, customDNSTTL)
+				ptr.Hdr = util.CreateHeader(question, hostsDNSTTL)
 				response.Answer = append(response.Answer, ptr)
 
 				return &model.Response{Res: response, RType: model.ResponseTypeHOSTSFILE, Reason: "HOSTS FILE"}
@@ -73,7 +75,7 @@ func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, er
 		for _, host := range r.hosts {
 			if host.Hostname == domain {
 				if isSupportedType(host.IP, question) {
-					rr, _ := util.CreateAnswerFromQuestion(question, host.IP, customDNSTTL)
+					rr, _ := util.CreateAnswerFromQuestion(question, host.IP, hostsDNSTTL)
 					response.Answer = append(response.Answer, rr)
 				}
 			}
@@ -81,7 +83,7 @@ func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, er
 			for _, alias := range host.Aliases {
 				if alias == domain {
 					if isSupportedType(host.IP, question) {
-						rr, _ := util.CreateAnswerFromQuestion(question, host.IP, customDNSTTL)
+						rr, _ := util.CreateAnswerFromQuestion(question, host.IP, hostsDNSTTL)
 						response.Answer = append(response.Answer, rr)
 					}
 				}
