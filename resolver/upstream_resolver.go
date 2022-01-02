@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/avast/retry-go/v4"
+
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
@@ -171,36 +173,44 @@ func (r UpstreamResolver) String() string {
 
 // Resolve calls external resolver
 func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Response, err error) {
-	logger := withPrefix(request.Log, "upstream_resolver")
+	const retryAttempts = 3
 
-	attempt := 1
+	logger := withPrefix(request.Log, "upstream_resolver")
 
 	var rtt time.Duration
 
 	var resp *dns.Msg
 
-	for attempt <= 3 {
-		if resp, rtt, err = r.upstreamClient.callExternal(request.Req, r.upstreamURL, request.Protocol); err == nil {
-			logger.WithFields(logrus.Fields{
-				"answer":           util.AnswerToString(resp.Answer),
-				"return_code":      dns.RcodeToString[resp.Rcode],
-				"upstream":         r.upstreamURL,
-				"protocol":         request.Protocol,
-				"net":              r.net,
-				"response_time_ms": rtt.Milliseconds(),
-			}).Debugf("received response from upstream")
+	err = retry.Do(
+		func() error {
+			var err error
+			if resp, rtt, err = r.upstreamClient.callExternal(request.Req, r.upstreamURL, request.Protocol); err == nil {
+				logger.WithFields(logrus.Fields{
+					"answer":           util.AnswerToString(resp.Answer),
+					"return_code":      dns.RcodeToString[resp.Rcode],
+					"upstream":         r.upstreamURL,
+					"protocol":         request.Protocol,
+					"net":              r.net,
+					"response_time_ms": rtt.Milliseconds(),
+				}).Debugf("received response from upstream")
+			}
+			return err
+		},
+		retry.Attempts(retryAttempts),
+		retry.DelayType(retry.FixedDelay),
+		retry.LastErrorOnly(true),
+		retry.RetryIf(func(err error) bool {
+			var netErr net.Error
 
-			return &model.Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.upstreamURL)}, nil
-		}
-
-		var netErr net.Error
-		if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
-			logger.WithField("attempt", attempt).Debugf("Temporary network error / Timeout occurred, retrying...")
-			attempt++
-		} else {
-			return nil, err
-		}
+			return errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary())
+		}),
+		retry.OnRetry(func(n uint, err error) {
+			logger.WithField("attempt", fmt.Sprintf("%d/%d", n+1, retryAttempts)).
+				Debugf("Temporary network error / Timeout occurred, retrying...")
+		}))
+	if err != nil {
+		return nil, err
 	}
 
-	return response, err
+	return &model.Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.upstreamURL)}, nil
 }

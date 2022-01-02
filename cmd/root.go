@@ -27,7 +27,7 @@ func NewRootCommand() *cobra.Command {
 		Short: "blocky is a DNS proxy ",
 		Long: `A fast and configurable DNS Proxy
 and ad-blocker for local network.
-		   
+
 Complete documentation is available at https://github.com/0xERR0R/blocky`,
 		Run: func(cmd *cobra.Command, args []string) {
 			newServeCommand().Run(cmd, args)
@@ -35,8 +35,8 @@ Complete documentation is available at https://github.com/0xERR0R/blocky`,
 	}
 
 	c.PersistentFlags().StringVarP(&configPath, "config", "c", "./config.yml", "path to config file")
-	c.PersistentFlags().StringVar(&apiHost, "apiHost", "localhost", "host of blocky (API)")
-	c.PersistentFlags().Uint16Var(&apiPort, "apiPort", 4000, "port of blocky (API)")
+	c.PersistentFlags().StringVar(&apiHost, "apiHost", "localhost", "host of blocky (API). Default overridden by config and CLI.") // nolint:lll
+	c.PersistentFlags().Uint16Var(&apiPort, "apiPort", 4000, "port of blocky (API). Default overridden by config and CLI.")
 
 	c.AddCommand(newRefreshCommand(),
 		NewQueryCommand(),
@@ -61,11 +61,15 @@ func initConfig() {
 	config.LoadConfig(configPath, false)
 	log.ConfigureLogger(config.GetConfig().LogLevel, config.GetConfig().LogFormat, config.GetConfig().LogTimestamp)
 
-	if config.GetConfig().HTTPPort != "" {
-		split := strings.Split(config.GetConfig().HTTPPort, ":")
+	if len(config.GetConfig().HTTPPorts) != 0 {
+		split := strings.Split(config.GetConfig().HTTPPorts[0], ":")
+
+		lastIdx := len(split) - 1
+
+		apiHost = strings.Join(split[:lastIdx], ":")
 
 		var p uint64
-		p, err := strconv.ParseUint(strings.TrimSpace(split[len(split)-1]), 10, 16)
+		p, err := strconv.ParseUint(strings.TrimSpace(split[lastIdx]), 10, 16)
 
 		if err != nil {
 			util.FatalOnError("can't convert port to number (1 - 65535)", err)

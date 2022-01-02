@@ -7,6 +7,7 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/querylog"
+	"github.com/avast/retry-go/v4"
 )
 
 const (
@@ -22,23 +23,43 @@ type QueryLoggingResolver struct {
 	logRetentionDays uint64
 	logChan          chan *querylog.Entry
 	writer           querylog.Writer
+	logType          config.QueryLogType
 }
 
 // NewQueryLoggingResolver returns a new resolver instance
 func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 	var writer querylog.Writer
 
-	switch cfg.Type {
-	case config.QueryLogTypeCsv:
-		writer = querylog.NewCSVWriter(cfg.Target, false, cfg.LogRetentionDays)
-	case config.QueryLogTypeCsvClient:
-		writer = querylog.NewCSVWriter(cfg.Target, true, cfg.LogRetentionDays)
-	case config.QueryLogTypeMysql:
-		writer = querylog.NewDatabaseWriter(cfg.Target, cfg.LogRetentionDays, 30*time.Second)
-	case config.QueryLogTypeConsole:
+	logType := cfg.Type
+	err := retry.Do(
+		func() error {
+			var err error
+			switch logType {
+			case config.QueryLogTypeCsv:
+				writer, err = querylog.NewCSVWriter(cfg.Target, false, cfg.LogRetentionDays)
+			case config.QueryLogTypeCsvClient:
+				writer, err = querylog.NewCSVWriter(cfg.Target, true, cfg.LogRetentionDays)
+			case config.QueryLogTypeMysql:
+				writer, err = querylog.NewDatabaseWriter(cfg.Target, cfg.LogRetentionDays, 30*time.Second)
+			case config.QueryLogTypeConsole:
+				writer = querylog.NewLoggerWriter()
+			case config.QueryLogTypeNone:
+				writer = querylog.NewNoneWriter()
+			}
+			return err
+		},
+		retry.Attempts(uint(cfg.CreationAttempts)),
+		retry.Delay(time.Duration(cfg.CreationCooldown)),
+		retry.OnRetry(func(n uint, err error) {
+			logger(queryLoggingResolverPrefix).Warnf("Error occurred on query writer creation, "+
+				"retry attempt %d/%d: %v", n+1, cfg.CreationAttempts, err)
+		}))
+
+	if err != nil {
+		logger(queryLoggingResolverPrefix).Error("can't create query log writer, using console as fallback: ", err)
+
 		writer = querylog.NewLoggerWriter()
-	case config.QueryLogTypeNone:
-		writer = querylog.NewNoneWriter()
+		logType = config.QueryLogTypeConsole
 	}
 
 	logChan := make(chan *querylog.Entry, logChanCap)
@@ -48,6 +69,7 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 		logRetentionDays: cfg.LogRetentionDays,
 		logChan:          logChan,
 		writer:           writer,
+		logType:          logType,
 	}
 
 	go resolver.writeLog()
@@ -118,16 +140,9 @@ func (r *QueryLoggingResolver) writeLog() {
 
 // Configuration returns the current resolver configuration
 func (r *QueryLoggingResolver) Configuration() (result []string) {
-	if r.target != "" {
-		result = append(result, fmt.Sprintf("target: \"%s\"", r.target))
-		result = append(result, fmt.Sprintf("logRetentionDays: %d", r.logRetentionDays))
-
-		if r.logRetentionDays == 0 {
-			result = append(result, "log cleanup deactivated")
-		}
-	} else {
-		result = []string{"deactivated"}
-	}
+	result = append(result, fmt.Sprintf("type: \"%s\"", r.logType))
+	result = append(result, fmt.Sprintf("target: \"%s\"", r.target))
+	result = append(result, fmt.Sprintf("logRetentionDays: %d", r.logRetentionDays))
 
 	return
 }

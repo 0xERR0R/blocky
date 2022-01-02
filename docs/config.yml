@@ -18,6 +18,7 @@ upstreamTimeout: 2s
 # optional: custom IP address(es) for domain name (with all sub-domains). Multiple addresses must be separated by a comma
 # example: query "printer.lan" or "my.printer.lan" will return 192.168.178.3
 customDNS:
+  customTTL: 1h
   mapping:
     printer.lan: 192.168.178.3,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
 
@@ -84,6 +85,10 @@ blocking:
   refreshPeriod: 4h
   # optional: timeout for list download (each url). Default: 60s. Use large values for big lists or slow internet connections
   downloadTimeout: 4m
+  # optional: Download attempt timeout. Default: 60s
+  downloadAttempts: 5
+  # optional: Time between the download attempts. Default: 1s
+  downloadCooldown: 10s
   # optional: if true, application startup will fail if at least one list can't be downloaded / opened. Default: false
   failStartOnListError: false
 
@@ -144,12 +149,16 @@ queryLog:
   target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
   # if > 0, deletes log files which are older than ... days
   logRetentionDays: 7
+  # optional: Max attempts to create specific query log writer, default: 3
+  creationAttempts: 1
+  # optional: Time between the creation attempts, default: 2s
+  creationCooldown: 2s
 
-# optional: DNS listener port and bind ip address, default 53 (UDP and TCP). Example: 53, :53, 127.0.0.1:53
+# optional: DNS listener port(s) and bind ip address(es), default 53 (UDP and TCP). Example: 53, :53, "127.0.0.1:5353,[::1]:5353"
 port: 53
-# optional: Port for DoT (DNS-over-TLS) listener. Example: 853, 127.0.0.1:853
+# optional: Port(s) and bind ip address(es) for DoT (DNS-over-TLS) listener. Example: 853, 127.0.0.1:853
 #tlsPort: 53
-# optional: HTTPS listener port and bind ip address, default empty = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH... Example: 443, :443, 127.0.0.1:443
+# optional: HTTPS listener port(s) and bind ip address(es), default empty = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH... Example: 443, :443, 127.0.0.1:443
 httpPort: 4000
 #httpsPort: 443
 # mandatory, if https port > 0: path to cert and key file for SSL encryption

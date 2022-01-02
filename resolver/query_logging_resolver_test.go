@@ -11,11 +11,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/querylog"
 
 	"github.com/0xERR0R/blocky/config"
-	. "github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
@@ -70,7 +68,10 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 		When("Resolver has no configuration", func() {
 			BeforeEach(func() {
-				sutConfig = config.QueryLogConfig{}
+				sutConfig = config.QueryLogConfig{
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
+				}
 			})
 			It("should process request without query logging", func() {
 				resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
@@ -82,8 +83,10 @@ var _ = Describe("QueryLoggingResolver", func() {
 		When("Configuration with logging per client", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLogConfig{
-					Target: tmpDir,
-					Type:   config.QueryLogTypeCsvClient,
+					Target:           tmpDir,
+					Type:             config.QueryLogTypeCsvClient,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.TypeA, "123.122.121.120")
 			})
@@ -97,37 +100,46 @@ var _ = Describe("QueryLoggingResolver", func() {
 					Expect(err).Should(Succeed())
 				})
 
-				time.Sleep(100 * time.Millisecond)
 				m.AssertExpectations(GinkgoT())
 
 				By("check log for client1", func() {
-					csvLines := readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_client1.log", time.Now().Format("2006-01-02"))))
+					Eventually(func(g Gomega) {
+						csvLines, err := readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_client1.log", time.Now().Format("2006-01-02"))))
 
-					Expect(csvLines).Should(HaveLen(1))
-					Expect(csvLines[0][1]).Should(Equal("192.168.178.25"))
-					Expect(csvLines[0][2]).Should(Equal("client1"))
-					Expect(csvLines[0][4]).Should(Equal("reason"))
-					Expect(csvLines[0][5]).Should(Equal("A (example.com.)"))
-					Expect(csvLines[0][6]).Should(Equal("A (123.122.121.120)"))
+						g.Expect(err).Should(Succeed())
+						g.Expect(csvLines).Should(Not(BeEmpty()))
+						g.Expect(csvLines[0][1]).Should(Equal("192.168.178.25"))
+						g.Expect(csvLines[0][2]).Should(Equal("client1"))
+						g.Expect(csvLines[0][4]).Should(Equal("reason"))
+						g.Expect(csvLines[0][5]).Should(Equal("A (example.com.)"))
+						g.Expect(csvLines[0][6]).Should(Equal("A (123.122.121.120)"))
+					}, "1s").Should(Succeed())
+
 				})
 
 				By("check log for client2", func() {
-					csvLines := readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_cl_ient2_test.log", time.Now().Format("2006-01-02"))))
+					Eventually(func(g Gomega) {
+						csvLines, err := readCsv(filepath.Join(tmpDir,
+							fmt.Sprintf("%s_cl_ient2_test.log", time.Now().Format("2006-01-02"))))
 
-					Expect(csvLines).Should(HaveLen(1))
-					Expect(csvLines[0][1]).Should(Equal("192.168.178.26"))
-					Expect(csvLines[0][2]).Should(Equal("cl/ient2\\$%&test"))
-					Expect(csvLines[0][4]).Should(Equal("reason"))
-					Expect(csvLines[0][5]).Should(Equal("A (example.com.)"))
-					Expect(csvLines[0][6]).Should(Equal("A (123.122.121.120)"))
+						g.Expect(err).Should(Succeed())
+						g.Expect(csvLines).Should(HaveLen(1))
+						g.Expect(csvLines[0][1]).Should(Equal("192.168.178.26"))
+						g.Expect(csvLines[0][2]).Should(Equal("cl/ient2\\$%&test"))
+						g.Expect(csvLines[0][4]).Should(Equal("reason"))
+						g.Expect(csvLines[0][5]).Should(Equal("A (example.com.)"))
+						g.Expect(csvLines[0][6]).Should(Equal("A (123.122.121.120)"))
+					}, "1s").Should(Succeed())
 				})
 			})
 		})
 		When("Configuration with logging in one file for all clients", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLogConfig{
-					Target: tmpDir,
-					Type:   config.QueryLogTypeCsv,
+					Target:           tmpDir,
+					Type:             config.QueryLogTypeCsv,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.TypeA, "123.122.121.120")
 			})
@@ -141,26 +153,29 @@ var _ = Describe("QueryLoggingResolver", func() {
 					Expect(err).Should(Succeed())
 				})
 
-				time.Sleep(100 * time.Millisecond)
 				m.AssertExpectations(GinkgoT())
 
 				By("check log", func() {
-					csvLines := readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02"))))
+					Eventually(func(g Gomega) {
+						csvLines, err := readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02"))))
 
-					Expect(csvLines).Should(HaveLen(2))
-					// client1 -> first line
-					Expect(csvLines[0][1]).Should(Equal("192.168.178.25"))
-					Expect(csvLines[0][2]).Should(Equal("client1"))
-					Expect(csvLines[0][4]).Should(Equal("reason"))
-					Expect(csvLines[0][5]).Should(Equal("A (example.com.)"))
-					Expect(csvLines[0][6]).Should(Equal("A (123.122.121.120)"))
+						g.Expect(err).Should(Succeed())
+						g.Expect(csvLines).Should(HaveLen(2))
+						// client1 -> first line
+						g.Expect(csvLines[0][1]).Should(Equal("192.168.178.25"))
+						g.Expect(csvLines[0][2]).Should(Equal("client1"))
+						g.Expect(csvLines[0][4]).Should(Equal("reason"))
+						g.Expect(csvLines[0][5]).Should(Equal("A (example.com.)"))
+						g.Expect(csvLines[0][6]).Should(Equal("A (123.122.121.120)"))
 
-					// client2 -> second line
-					Expect(csvLines[1][1]).Should(Equal("192.168.178.26"))
-					Expect(csvLines[1][2]).Should(Equal("client2"))
-					Expect(csvLines[1][4]).Should(Equal("reason"))
-					Expect(csvLines[1][5]).Should(Equal("A (example.com.)"))
-					Expect(csvLines[1][6]).Should(Equal("A (123.122.121.120)"))
+						// client2 -> second line
+						g.Expect(csvLines[1][1]).Should(Equal("192.168.178.26"))
+						g.Expect(csvLines[1][2]).Should(Equal("client2"))
+						g.Expect(csvLines[1][4]).Should(Equal("reason"))
+						g.Expect(csvLines[1][5]).Should(Equal("A (example.com.)"))
+						g.Expect(csvLines[1][6]).Should(Equal("A (123.122.121.120)"))
+					}, "1s").Should(Succeed())
+
 				})
 			})
 		})
@@ -169,7 +184,11 @@ var _ = Describe("QueryLoggingResolver", func() {
 	Describe("Slow writer", func() {
 		When("writer is too slow", func() {
 			BeforeEach(func() {
-				sutConfig = config.QueryLogConfig{}
+				sutConfig = config.QueryLogConfig{
+					Type:             config.QueryLogTypeNone,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
+				}
 			})
 			It("should drop messages", func() {
 				mockWriter := &SlowMockWriter{}
@@ -195,6 +214,8 @@ var _ = Describe("QueryLoggingResolver", func() {
 					Target:           tmpDir,
 					Type:             config.QueryLogTypeCsvClient,
 					LogRetentionDays: 0,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
 				}
 			})
 			It("should return configuration", func() {
@@ -202,59 +223,17 @@ var _ = Describe("QueryLoggingResolver", func() {
 				Expect(len(c) > 1).Should(BeTrue())
 			})
 		})
-
-		When("resolver is disabled", func() {
-			BeforeEach(func() {
-				sutConfig = config.QueryLogConfig{}
-			})
-			It("should return 'disabled'", func() {
-				c := sut.Configuration()
-				Expect(c).Should(HaveLen(1))
-				Expect(c).Should(Equal([]string{"deactivated"}))
-			})
-		})
 	})
 
 	Describe("Clean up of query log directory", func() {
-		When("Log directory does not exist", func() {
-
-			It("should exit with error", func() {
-				defer func() { Log().ExitFunc = nil }()
-
-				var fatal bool
-
-				Log().ExitFunc = func(int) { fatal = true }
-				_ = NewQueryLoggingResolver(config.QueryLogConfig{
-					Target: "notExists",
-					Type:   config.QueryLogTypeCsv,
-				})
-
-				Expect(fatal).Should(BeTrue())
-			})
-		})
-		When("not existing log directory is configured, log retention is enabled", func() {
-			It("should exit with error", func() {
-				defer func() { Log().ExitFunc = nil }()
-
-				var fatal bool
-
-				Log().ExitFunc = func(int) { fatal = true }
-
-				sut := NewQueryLoggingResolver(config.QueryLogConfig{
-					Target:           "wrongDir",
-					Type:             config.QueryLogTypeCsv,
-					LogRetentionDays: 7,
-				}).(*QueryLoggingResolver)
-
-				sut.doCleanUp()
-				Expect(fatal).Should(BeTrue())
-			})
-		})
 		When("fallback logger is enabled, log retention is enabled", func() {
 			It("should do nothing", func() {
 
 				sut := NewQueryLoggingResolver(config.QueryLogConfig{
 					LogRetentionDays: 7,
+					Type:             config.QueryLogTypeConsole,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
 				}).(*QueryLoggingResolver)
 
 				sut.doCleanUp()
@@ -277,6 +256,8 @@ var _ = Describe("QueryLoggingResolver", func() {
 					Target:           tmpDir,
 					Type:             config.QueryLogTypeCsv,
 					LogRetentionDays: 7,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
 				})
 
 				sut.(*QueryLoggingResolver).doCleanUp()
@@ -297,24 +278,28 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 var _ = Describe("Wrong target configuration", func() {
 	When("database path is wrong", func() {
-		It("should log fatal", func() {
-			helpertest.ShouldLogFatal(func() {
-				sutConfig := config.QueryLogConfig{
-					Target: "dummy",
-					Type:   config.QueryLogTypeMysql,
-				}
-				NewQueryLoggingResolver(sutConfig)
-			})
+		It("should use fallback", func() {
+			sutConfig := config.QueryLogConfig{
+				Target:           "dummy",
+				Type:             config.QueryLogTypeMysql,
+				CreationAttempts: 1,
+				CreationCooldown: config.Duration(time.Millisecond),
+			}
+			resolver := NewQueryLoggingResolver(sutConfig)
+			loggingResolver := resolver.(*QueryLoggingResolver)
+			Expect(loggingResolver.logType).Should(Equal(config.QueryLogTypeConsole))
 		})
 
 	})
 })
 
-func readCsv(file string) [][]string {
+func readCsv(file string) ([][]string, error) {
 	var result [][]string
 
 	csvFile, err := os.Open(file)
-	Expect(err).Should(Succeed())
+	if err != nil {
+		return nil, err
+	}
 
 	reader := csv.NewReader(bufio.NewReader(csvFile))
 	reader.Comma = '\t'
@@ -324,11 +309,11 @@ func readCsv(file string) [][]string {
 		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
-			Log().Fatal("can't read line", err)
+			return nil, err
 		}
 
 		result = append(result, line)
 	}
 
-	return result
+	return result, nil
 }

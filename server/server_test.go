@@ -17,6 +17,7 @@ import (
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/resolver"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/creasty/defaults"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -60,6 +61,7 @@ var _ = Describe("Running DNS server", func() {
 		// create server
 		sut, err = NewServer(&config.Config{
 			CustomDNS: config.CustomDNSConfig{
+				CustomTTL: config.Duration(time.Duration(3600) * time.Second),
 				Mapping: config.CustomDNSMapping{
 					HostIPs: map[string][]net.IP{
 						"custom.lan": {net.ParseIP("192.168.178.55")},
@@ -102,12 +104,12 @@ var _ = Describe("Running DNS server", func() {
 				Upstream: upstreamClient,
 			},
 
-			Port:      "55555",
-			TLSPort:   "8853",
-			CertFile:  "../testdata/cert.pem",
-			KeyFile:   "../testdata/key.pem",
-			HTTPPort:  "4000",
-			HTTPSPort: "4443",
+			DNSPorts:   config.ListenConfig{"55555"},
+			TLSPorts:   config.ListenConfig{"8853"},
+			CertFile:   "../testdata/cert.pem",
+			KeyFile:    "../testdata/key.pem",
+			HTTPPorts:  config.ListenConfig{"4000"},
+			HTTPSPorts: config.ListenConfig{"4443"},
 			Prometheus: config.PrometheusConfig{
 				Enable: true,
 				Path:   "/metrics",
@@ -487,6 +489,41 @@ var _ = Describe("Running DNS server", func() {
 		})
 	})
 
+	Describe("Server create", func() {
+		var (
+			cfg  config.Config
+			cErr error
+		)
+		BeforeEach(func() {
+			cErr = defaults.Set(&cfg)
+
+			Expect(cErr).Should(Succeed())
+
+			cfg.Upstream.ExternalResolvers = map[string][]config.Upstream{
+				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}}}
+
+			cfg.Redis.Address = "test-fail"
+		})
+		When("Server is created", func() {
+			It("is created without redis connection", func() {
+				defer func() { Log().ExitFunc = nil }()
+
+				_, err := NewServer(&cfg)
+
+				Expect(err).Should(Succeed())
+			})
+			It("can't be created if redis server is unavailable", func() {
+				defer func() { Log().ExitFunc = nil }()
+
+				cfg.Redis.Required = true
+
+				_, err := NewServer(&cfg)
+
+				Expect(err).ShouldNot(Succeed())
+			})
+		})
+	})
+
 	Describe("Server start", func() {
 		When("Server start is called", func() {
 			It("start was called 2 times, start should fail", func() {
@@ -509,7 +546,7 @@ var _ = Describe("Running DNS server", func() {
 							},
 						}},
 					Blocking: config.BlockingConfig{BlockType: "zeroIp"},
-					Port:     ":55556",
+					DNSPorts: config.ListenConfig{":55556"},
 				})
 
 				Expect(err).Should(Succeed())
@@ -521,16 +558,18 @@ var _ = Describe("Running DNS server", func() {
 
 				defer server.Stop()
 
-				time.Sleep(100 * time.Millisecond)
+				Eventually(func() bool {
+					return fatal
+				}, "100ms").Should(BeFalse())
 
 				Expect(fatal).Should(BeFalse())
 
 				// start again -> should fail
 				server.Start()
 
-				time.Sleep(100 * time.Millisecond)
-
-				Expect(fatal).Should(BeTrue())
+				Eventually(func() bool {
+					return fatal
+				}, "100ms").Should(BeTrue())
 			})
 		})
 	})
@@ -556,7 +595,7 @@ var _ = Describe("Running DNS server", func() {
 							},
 						}},
 					Blocking: config.BlockingConfig{BlockType: "zeroIp"},
-					Port:     "127.0.0.1:55557",
+					DNSPorts: config.ListenConfig{"127.0.0.1:55557"},
 				})
 
 				Expect(err).Should(Succeed())

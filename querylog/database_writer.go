@@ -1,6 +1,7 @@
 package querylog
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -38,11 +39,12 @@ type DatabaseWriter struct {
 	dbFlushPeriod    time.Duration
 }
 
-func NewDatabaseWriter(target string, logRetentionDays uint64, dbFlushPeriod time.Duration) *DatabaseWriter {
+func NewDatabaseWriter(target string, logRetentionDays uint64, dbFlushPeriod time.Duration) (*DatabaseWriter, error) {
 	return newDatabaseWriter(mysql.Open(target), logRetentionDays, dbFlushPeriod)
 }
 
-func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64, dbFlushPeriod time.Duration) *DatabaseWriter {
+func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64,
+	dbFlushPeriod time.Duration) (*DatabaseWriter, error) {
 	db, err := gorm.Open(target, &gorm.Config{
 		Logger: logger.New(
 			log.Log(),
@@ -55,12 +57,13 @@ func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64, dbFlushPe
 	})
 
 	if err != nil {
-		util.FatalOnError("can't create database connection", err)
-		return nil
+		return nil, fmt.Errorf("can't create database connection: %w", err)
 	}
 
 	// Migrate the schema
-	util.FatalOnError("can't perform auto migration", db.AutoMigrate(&logEntry{}))
+	if err := db.AutoMigrate(&logEntry{}); err != nil {
+		return nil, fmt.Errorf("can't perform auto migration: %w", err)
+	}
 
 	w := &DatabaseWriter{
 		db:               db,
@@ -69,7 +72,7 @@ func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64, dbFlushPe
 
 	go w.periodicFlush()
 
-	return w
+	return w, nil
 }
 
 func (d *DatabaseWriter) periodicFlush() {
