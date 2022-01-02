@@ -7,8 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/0xERR0R/blocky/evt"
-
+	. "github.com/0xERR0R/blocky/evt"
 	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -69,6 +68,11 @@ var _ = Describe("ListCache", func() {
 		When("If timeout occurs", func() {
 			var attempt uint64 = 1
 			It("Should perform a retry", func() {
+				failedDownloadCount := 0
+				_ = Bus().SubscribeOnce(CachingFailedDownloadChanged, func(_ string) {
+					failedDownloadCount++
+				})
+
 				// should produce a timeout on first attempt
 				s := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 					a := atomic.LoadUint64(&attempt)
@@ -91,6 +95,8 @@ var _ = Describe("ListCache", func() {
 					g.Expect(found).Should(BeTrue())
 					g.Expect(group).Should(Equal("gr1"))
 				}, "1s").Should(Succeed())
+
+				Expect(failedDownloadCount).Should(Equal(1))
 
 			})
 		})
@@ -214,7 +220,7 @@ var _ = Describe("ListCache", func() {
 
 				resultCnt := 0
 
-				_ = evt.Bus().SubscribeOnce(evt.BlockingCacheGroupChanged, func(listType ListCacheType, group string, cnt int) {
+				_ = Bus().SubscribeOnce(BlockingCacheGroupChanged, func(listType ListCacheType, group string, cnt int) {
 					resultCnt = cnt
 				})
 
