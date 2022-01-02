@@ -18,7 +18,8 @@ configuration properties as [JSON](config.yml).
 | httpPort        | int (1 - 65535)   | no                    |                    | HTTP listener port and optional bind ip address . If > 0, will be used for prometheus metrics, pprof, REST API, DoH ...If you wish to specify a specific IP, you can do so such as 192.168.0.1:4000. Example: 4000, :4000, 127.0.0.1:4000 |
 | httpsPort       | int (1 - 65535)   | no                    |                    | HTTPS listener port and optional bind ip address . If > 0, will be used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as 192.168.0.1:443 |
 | certFile        | path              | yes, if httpsPort > 0 |                    | path to cert and key file for SSL encryption (DoH and DoT) |
-| keyFile         | path              | yes, if httpsPort > 0 |                    | path to cert and key file for SSL encryption (DoH and DoT) |
+| keyFile         | path              | yes, if httpsPort > 0 |                    | path to cert and key file for SSL encryption (DoH 
+| hostsFile       | path              | no                    |                    | path to hosts file to be included in resolving, if desired |
 | bootstrapDns    | IP:port           | no                    |                    | use this DNS server to resolve blacklist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. NOTE: Works only on Linux/*Nix OS due to golang limitations under windows.|
 | disableIPv6     | bool              | no                    | false              | Drop all AAAA query if set to true
 | logLevel        | enum (debug, info, warn, error)           | no                 | info               | Log level  |
