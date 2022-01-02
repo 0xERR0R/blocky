@@ -29,6 +29,7 @@ var _ = Describe("HostsFileResolver", func() {
 	Describe("Using hosts file", func() {
 		When("Hosts file cannot be located", func() {
 			BeforeEach(func() {
+				//nolint:gosec
 				sut = NewHostsFileResolver(fmt.Sprintf("/tmp/blocky/file-%d", rand.Uint64())).(*HostsFileResolver)
 			})
 			It("should return an error", func() {
@@ -117,12 +118,15 @@ var _ = Describe("HostsFileResolver", func() {
 					Expect(resp.Res.Answer).Should(BeDNSRecord("2.0.0.10.in-addr.arpa.", dns.TypePTR, 3600, "router3."))
 				})
 				By("ipv6", func() {
-					resp, err = sut.Resolve(newRequest("1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.f.a.a.f.f.a.a.f.f.a.a.f.f.a.a.f.ip6.arpa.", dns.TypePTR))
+					resp, err = sut.Resolve(newRequest("1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.f.a.a.f.f.a.a.f.f.a.a.f.f.a.a.f.ip6.arpa.",
+						dns.TypePTR))
 					Expect(err).Should(Succeed())
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 					Expect(resp.RType).Should(Equal(ResponseTypeHOSTSFILE))
 					Expect(resp.Res.Answer).Should(HaveLen(1))
-					Expect(resp.Res.Answer).Should(BeDNSRecord("1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.f.a.a.f.f.a.a.f.f.a.a.f.f.a.a.f.ip6.arpa.", dns.TypePTR, 3600, "ipv6host."))
+					Expect(resp.Res.Answer).Should(
+						BeDNSRecord("1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.f.a.a.f.f.a.a.f.f.a.a.f.f.a.a.f.ip6.arpa.",
+							dns.TypePTR, 3600, "ipv6host."))
 				})
 			})
 		})

@@ -57,6 +57,7 @@ func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, er
 		if err != nil {
 			return nil, err
 		}
+
 		r.parsed = true
 	}
 
@@ -101,6 +102,7 @@ func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, er
 	}
 
 	logger.WithField("resolver", Name(r.next)).Trace("go to next resolver")
+
 	return r.next.Resolve(request)
 }
 
@@ -144,7 +146,9 @@ func (r *HostsFileResolver) parseHostsFile() error {
 
 		// Find comment symbol at the end of the line
 		var fields []string
+
 		end := strings.IndexRune(trimmed, '#')
+
 		if end == -1 {
 			fields = strings.Fields(trimmed)
 		} else {
