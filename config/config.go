@@ -291,7 +291,7 @@ type Config struct {
 	CertFile        string                    `yaml:"certFile"`
 	KeyFile         string                    `yaml:"keyFile"`
 	BootstrapDNS    Upstream                  `yaml:"bootstrapDns"`
-	HostsFile       string                    `yaml:"hostsFile"`
+	HostsFile       HostsFileConfig           `yaml:"hostsFile"`
 	// Deprecated
 	HTTPCertFile string `yaml:"httpsCertFile"`
 	// Deprecated
@@ -385,6 +385,12 @@ type RedisConfig struct {
 	Required           bool     `yaml:"required" default:"false"`
 	ConnectionAttempts int      `yaml:"connectionAttempts" default:"3"`
 	ConnectionCooldown Duration `yaml:"connectionCooldown" default:"1s"`
+}
+
+type HostsFileConfig struct {
+	Filepath      string   `yaml:"filePath"`
+	HostsTTL      Duration `yaml:"hostsTTL" default:"1h"`
+	RefreshPeriod Duration `yaml:"refreshPeriod" default:"1h"`
 }
 
 // nolint:gochecknoglobals

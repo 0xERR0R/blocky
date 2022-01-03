@@ -19,7 +19,6 @@ configuration properties as [JSON](config.yml).
 | httpsPort    | [IP]:port[,[IP]:port]*          | no                    |               | Port(s) and optional bind ip address(es) to serve HTTPS used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:443`. Example: `443`, `:443`, `127.0.0.1:443,[::1]:443`     |
 | certFile     | path                            | yes, if httpsPort > 0 |               | Path to cert and key file for SSL encryption (DoH and DoT)                                                                                                                                                                                        |
 | keyFile      | path                            | yes, if httpsPort > 0 |               | Path to cert and key file for SSL encryption (DoH and DoT)
-| hostsFile    | path                            | no                    |               | Path to hosts file to be resolved, if desired.                                                   |
 | bootstrapDns | IP:port                         | no                    |               | Use this DNS server to resolve blacklist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. NOTE: Works only on Linux/*Nix OS due to golang limitations under windows.               |
 | disableIPv6  | bool                            | no                    | false         | Drop all AAAA query if set to true                                                                                                                                                                                                                |
 | logLevel     | enum (debug, info, warn, error) | no                    | info          | Log level                                                                                                                                                                                                                                         |
@@ -502,17 +501,37 @@ example for CSV format
         type: csv
         target: /logs
         logRetentionDays: 7
-    ```
+  ```
 
 example for Database
 !!! example
 
-    ```yaml
+```yaml
     queryLog:
         type: mysql
         target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
         logRetentionDays: 7
-    ```
+  ```
+
+### Hosts file
+
+You can enable resolving of entries, located in local hosts file.
+
+Configuration parameters:
+
+| Parameter                | Type                           | Mandatory | Default value | Description                                   |
+|--------------------------|--------------------------------|-----------|---------------|-----------------------------------------------|
+| hostsFile.filePath       | string                         | no        |               | Path to hosts file (e.g. /etc/hosts on Linux  |
+| hostsFile.hostsTTL       | duration (no units is minutes) | no        | 1h            | TTL                                           |
+| hostsFile.refreshPeriod  | duration format                | no        | 1h            | Time between hosts file refresh               |
+
+!!! example
+```yaml
+hostsFile:
+    filePath: /etc/hosts
+    hostsTTL: 60m
+    refreshPeriod: 30m
+```
 
 ## SSL certificate configuration (DoH / TLS listener)
 

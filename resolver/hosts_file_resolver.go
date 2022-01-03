@@ -5,20 +5,25 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 )
 
-const hostsDNSTTL = 3600
+const (
+	hostsFileResolverLogger = "hosts_file_resolver"
+)
 
 type HostsFileResolver struct {
 	NextResolver
 	HostsFilePath string
-	parsed        bool
 	hosts         []host
+	ttl           uint32
+	refreshPeriod time.Duration
 }
 
 func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Response {
@@ -33,8 +38,15 @@ func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Resp
 			if raddr == question.Name {
 				ptr := new(dns.PTR)
 				ptr.Ptr = dns.Fqdn(host.Hostname)
-				ptr.Hdr = util.CreateHeader(question, hostsDNSTTL)
+				ptr.Hdr = util.CreateHeader(question, r.ttl)
 				response.Answer = append(response.Answer, ptr)
+
+				for _, alias := range host.Aliases {
+					ptrAlias := new(dns.PTR)
+					ptrAlias.Ptr = dns.Fqdn(alias)
+					ptrAlias.Hdr = util.CreateHeader(question, r.ttl)
+					response.Answer = append(response.Answer, ptrAlias)
+				}
 
 				return &model.Response{Res: response, RType: model.ResponseTypeHOSTSFILE, Reason: "HOSTS FILE"}
 			}
@@ -45,20 +57,10 @@ func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Resp
 }
 
 func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, error) {
-	logger := withPrefix(request.Log, "hosts_file_resolver")
+	logger := withPrefix(request.Log, hostsFileResolverLogger)
 
 	if r.HostsFilePath == "" {
-		logger.WithField("resolver", Name(r.next)).Trace("go to next resolver")
 		return r.next.Resolve(request)
-	}
-
-	if !r.parsed {
-		err := r.parseHostsFile()
-		if err != nil {
-			return nil, err
-		}
-
-		r.parsed = true
 	}
 
 	reverseResp := r.handleReverseDNS(request)
@@ -76,7 +78,7 @@ func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, er
 		for _, host := range r.hosts {
 			if host.Hostname == domain {
 				if isSupportedType(host.IP, question) {
-					rr, _ := util.CreateAnswerFromQuestion(question, host.IP, hostsDNSTTL)
+					rr, _ := util.CreateAnswerFromQuestion(question, host.IP, r.ttl)
 					response.Answer = append(response.Answer, rr)
 				}
 			}
@@ -84,7 +86,7 @@ func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, er
 			for _, alias := range host.Aliases {
 				if alias == domain {
 					if isSupportedType(host.IP, question) {
-						rr, _ := util.CreateAnswerFromQuestion(question, host.IP, hostsDNSTTL)
+						rr, _ := util.CreateAnswerFromQuestion(question, host.IP, r.ttl)
 						response.Answer = append(response.Answer, rr)
 					}
 				}
@@ -107,8 +109,10 @@ func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, er
 }
 
 func (r *HostsFileResolver) Configuration() (result []string) {
-	if r.HostsFilePath != "" {
+	if r.HostsFilePath != "" && len(r.hosts) != 0 {
 		result = append(result, fmt.Sprintf("hosts file path: %s", r.HostsFilePath))
+		result = append(result, fmt.Sprintf("hosts TTL: %d", r.ttl))
+		result = append(result, fmt.Sprintf("hosts refresh period: %s", r.refreshPeriod.String()))
 	} else {
 		result = []string{"deactivated"}
 	}
@@ -116,8 +120,24 @@ func (r *HostsFileResolver) Configuration() (result []string) {
 	return
 }
 
-func NewHostsFileResolver(filepath string) ChainedResolver {
-	return &HostsFileResolver{HostsFilePath: filepath}
+func NewHostsFileResolver(cfg config.HostsFileConfig) ChainedResolver {
+	r := HostsFileResolver{
+		HostsFilePath: cfg.Filepath,
+		ttl:           uint32(time.Duration(cfg.HostsTTL).Seconds()),
+		refreshPeriod: time.Duration(cfg.RefreshPeriod),
+	}
+
+	err := r.parseHostsFile()
+
+	if err != nil {
+		logger := logger(hostsFileResolverLogger)
+		logger.Warnf("cannot parse hosts file: %s, hosts file resolving is disabled", r.HostsFilePath)
+		r.HostsFilePath = ""
+	} else {
+		go r.periodicUpdate()
+	}
+
+	return &r
 }
 
 type host struct {
@@ -135,6 +155,8 @@ func (r *HostsFileResolver) parseHostsFile() error {
 	if err != nil {
 		return err
 	}
+
+	r.hosts = nil
 
 	for _, line := range strings.Split(string(buf), "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -179,4 +201,20 @@ func (r *HostsFileResolver) parseHostsFile() error {
 	}
 
 	return nil
+}
+
+func (r *HostsFileResolver) periodicUpdate() {
+	if r.refreshPeriod > 0 {
+		ticker := time.NewTicker(r.refreshPeriod)
+		defer ticker.Stop()
+
+		for {
+			<-ticker.C
+
+			logger := logger(hostsFileResolverLogger)
+			logger.WithField("file", r.HostsFilePath).Info("refreshing hosts file")
+
+			_ = r.parseHostsFile()
+		}
+	}
 }
