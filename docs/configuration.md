@@ -521,7 +521,7 @@ Configuration parameters:
 
 | Parameter                | Type                           | Mandatory | Default value | Description                                   |
 |--------------------------|--------------------------------|-----------|---------------|-----------------------------------------------|
-| hostsFile.filePath       | string                         | no        |               | Path to hosts file (e.g. /etc/hosts on Linux  |
+| hostsFile.filePath       | string                         | no        |               | Path to hosts file (e.g. /etc/hosts on Linux) |
 | hostsFile.hostsTTL       | duration (no units is minutes) | no        | 1h            | TTL                                           |
 | hostsFile.refreshPeriod  | duration format                | no        | 1h            | Time between hosts file refresh               |
 
