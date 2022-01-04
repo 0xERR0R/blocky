@@ -168,6 +168,14 @@ httpPort: 4000
 bootstrapDns: tcp:1.1.1.1
 # optional: Drop all AAAA query if set to true. Default: false
 disableIPv6: false
+# optional: if path defined, use this file for query resolution (A, AAAA and rDNS). Default: empty
+hostsFile:
+  # optional: Path to hosts file (e.g. /etc/hosts on Linux)
+  filePath: /etc/hosts
+  # optional: TTL, default: 1h
+  hostsTTL: 60m
+  # optional: Time between hosts file refresh, default: 1h
+  refreshPeriod: 30m
 # optional: Log level (one from debug, info, warn, error). Default: info
 logLevel: info
 # optional: Log format (text or json). Default: text
