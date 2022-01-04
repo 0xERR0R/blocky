@@ -214,9 +214,12 @@ func (r *HostsFileResolver) periodicUpdate() {
 			<-ticker.C
 
 			logger := logger(hostsFileResolverLogger)
-			logger.WithField("file", r.HostsFilePath).Info("refreshing hosts file")
+			logger.WithField("file", r.HostsFilePath).Debug("refreshing hosts file")
 
-			_ = r.parseHostsFile()
+			err := r.parseHostsFile()
+			if err != nil {
+				logger.Warn("can't refresh hosts file: ", err)
+			}
 		}
 	}
 }
