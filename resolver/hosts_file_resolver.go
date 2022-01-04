@@ -156,7 +156,7 @@ func (r *HostsFileResolver) parseHostsFile() error {
 		return err
 	}
 
-	r.hosts = nil
+	newHosts := make([]host, 0)
 
 	for _, line := range strings.Split(string(buf), "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -197,8 +197,10 @@ func (r *HostsFileResolver) parseHostsFile() error {
 			}
 		}
 
-		r.hosts = append(r.hosts, h)
+		newHosts = append(newHosts, h)
 	}
+
+	r.hosts = newHosts
 
 	return nil
 }
