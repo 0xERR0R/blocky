@@ -125,13 +125,23 @@ var _ = Describe("HostsFileResolver", func() {
 
 		When("Reverse DNS request is received", func() {
 			It("should resolve the defined domain name", func() {
-				By("ipv4", func() {
+				By("ipv4 with one hostname", func() {
 					resp, err = sut.Resolve(newRequest("2.0.0.10.in-addr.arpa.", dns.TypePTR))
 					Expect(err).Should(Succeed())
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 					Expect(resp.RType).Should(Equal(ResponseTypeHOSTSFILE))
 					Expect(resp.Res.Answer).Should(HaveLen(1))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("2.0.0.10.in-addr.arpa.", dns.TypePTR, TTL, "router3."))
+				})
+				By("ipv4 with aliases", func() {
+					resp, err = sut.Resolve(newRequest("1.0.0.10.in-addr.arpa.", dns.TypePTR))
+					Expect(err).Should(Succeed())
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+					Expect(resp.RType).Should(Equal(ResponseTypeHOSTSFILE))
+					Expect(resp.Res.Answer).Should(HaveLen(3))
+					Expect(resp.Res.Answer[0]).Should(BeDNSRecord("1.0.0.10.in-addr.arpa.", dns.TypePTR, TTL, "router0."))
+					Expect(resp.Res.Answer[1]).Should(BeDNSRecord("1.0.0.10.in-addr.arpa.", dns.TypePTR, TTL, "router1."))
+					Expect(resp.Res.Answer[2]).Should(BeDNSRecord("1.0.0.10.in-addr.arpa.", dns.TypePTR, TTL, "router2."))
 				})
 				By("ipv6", func() {
 					resp, err = sut.Resolve(newRequest("1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.f.a.a.f.f.a.a.f.f.a.a.f.f.a.a.f.ip6.arpa.",
