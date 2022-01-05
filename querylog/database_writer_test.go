@@ -106,11 +106,27 @@ var _ = Describe("DatabaseWriter", func() {
 			})
 		})
 
-		When("connection parameters wrong", func() {
+		When("mysql connection parameters wrong", func() {
 			It("should be log with fatal", func() {
-				_, err := NewDatabaseWriter("wrong param", 7, 1)
+				_, err := NewDatabaseWriter("mysql", "wrong param", 7, 1)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(HavePrefix("can't create database connection"))
+			})
+		})
+
+		When("postgresql connection parameters wrong", func() {
+			It("should be log with fatal", func() {
+				_, err := NewDatabaseWriter("postgresql", "wrong param", 7, 1)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(HavePrefix("can't create database connection"))
+			})
+		})
+
+		When("invalid database type is specified", func() {
+			It("should be log with fatal", func() {
+				_, err := NewDatabaseWriter("invalidsql", "", 7, 1)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(HavePrefix("incorrect database type provided"))
 			})
 		})
 	})

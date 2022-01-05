@@ -14,6 +14,7 @@ import (
 	"github.com/miekg/dns"
 	"golang.org/x/net/publicsuffix"
 	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -39,8 +40,16 @@ type DatabaseWriter struct {
 	dbFlushPeriod    time.Duration
 }
 
-func NewDatabaseWriter(target string, logRetentionDays uint64, dbFlushPeriod time.Duration) (*DatabaseWriter, error) {
-	return newDatabaseWriter(mysql.Open(target), logRetentionDays, dbFlushPeriod)
+func NewDatabaseWriter(dbType string, target string, logRetentionDays uint64,
+	dbFlushPeriod time.Duration) (*DatabaseWriter, error) {
+	switch dbType {
+	case "mysql":
+		return newDatabaseWriter(mysql.Open(target), logRetentionDays, dbFlushPeriod)
+	case "postgresql":
+		return newDatabaseWriter(postgres.Open(target), logRetentionDays, dbFlushPeriod)
+	}
+
+	return nil, fmt.Errorf("incorrect database type provided: %s", dbType)
 }
 
 func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64,
