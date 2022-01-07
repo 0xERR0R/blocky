@@ -146,8 +146,8 @@ queryLog:
   # optional one of: mysql, postgresql, csv, csv-client. If empty, log to console
   type: mysql
   # directory (should be mounted as volume in docker) for csv, db connection string for mysql/postgresql
-  target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
-  #postgresql target: host=localhost user=blocky password=blocky dbname=blocky port=5432 sslmode=disable
+  target: db_user:db_password@tcp(db_host_or_ip:3306)/db_name?charset=utf8mb4&parseTime=True&loc=Local
+  #postgresql target: postgres://user:password@db_host_or_ip:5432/db_name
   # if > 0, deletes log files which are older than ... days
   logRetentionDays: 7
   # optional: Max attempts to create specific query log writer, default: 3
