@@ -78,7 +78,7 @@ var _ = Describe("ListCache", func() {
 				s := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 					a := atomic.LoadUint64(&attempt)
 					if a == 1 {
-						time.Sleep(200 * time.Millisecond)
+						time.Sleep(500 * time.Millisecond)
 					} else {
 						_, err := rw.Write([]byte("blocked1.com"))
 						Expect(err).Should(Succeed())
@@ -90,7 +90,7 @@ var _ = Describe("ListCache", func() {
 					"gr1": {s.URL},
 				}
 
-				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 100*time.Millisecond, 3, time.Millisecond)
+				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 400*time.Millisecond, 3, time.Millisecond)
 				Eventually(func(g Gomega) {
 					found, group := sut.Match("blocked1.com", []string{"gr1"})
 					g.Expect(found).Should(BeTrue())
