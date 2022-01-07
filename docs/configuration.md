@@ -473,6 +473,7 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.
 You can select one of following query log types:
 
 - `mysql` - log each query in the external MySQL/MariaDB database
+- `postgresql` - log each query in the external PostgreSQL database
 - `csv` - log into CSV file (one per day)
 - `csv-client` - log into CSV file (one per day and per client)
 - `console` - log into console output
@@ -480,13 +481,13 @@ You can select one of following query log types:
 
 Configuration parameters:
 
-| Parameter                 | Type                                                     | Mandatory | Default value | Description                                                              |
-|---------------------------|----------------------------------------------------------|-----------|---------------|--------------------------------------------------------------------------|
-| queryLog.type             | enum (mysql, csv, csv-client, console, none (see above)) | no        |               | Type of logging target. Console if empty                                 |
-| queryLog.target           | string                                                   | no        |               | directory for writing the logs (for csv) or database url (for mysql)     |
-| queryLog.logRetentionDays | int                                                      | no        | 0             | if > 0, deletes log files/database entries which are older than ... days |
-| queryLog.creationAttempts | int                                                      | no        | 3             | Max attempts to create specific query log writer                         |
-| queryLog.CreationCooldown | duration format                                          | no        | 2             | Time between the creation attempts                                       |
+| Parameter                 | Type                                                                 | Mandatory | Default value | Description                                                                            |
+|---------------------------|----------------------------------------------------------------------|-----------|---------------|----------------------------------------------------------------------------------------|
+| queryLog.type             | enum (mysql, postgresql, csv, csv-client, console, none (see above)) | no        |               | Type of logging target. Console if empty                                               |
+| queryLog.target           | string                                                               | no        |               | directory for writing the logs (for csv) or database url (for mysql or postgresql)     |
+| queryLog.logRetentionDays | int                                                                  | no        | 0             | if > 0, deletes log files/database entries which are older than ... days               |
+| queryLog.creationAttempts | int                                                                  | no        | 3             | Max attempts to create specific query log writer                                       |
+| queryLog.CreationCooldown | duration format                                                      | no        | 2             | Time between the creation attempts                                                     |
 
 !!! hint
 

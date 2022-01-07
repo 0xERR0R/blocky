@@ -32,6 +32,7 @@ type NetProtocol uint16
 // console // use logger as fallback
 // none // no logging
 // mysql // MySQL or MariaDB database
+// postgresql // PostgreSQL database
 // csv // CSV file per day
 // csv-client // CSV file per day and client
 // )

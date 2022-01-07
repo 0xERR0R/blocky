@@ -277,7 +277,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 })
 
 var _ = Describe("Wrong target configuration", func() {
-	When("database path is wrong", func() {
+	When("mysql database path is wrong", func() {
 		It("should use fallback", func() {
 			sutConfig := config.QueryLogConfig{
 				Target:           "dummy",
@@ -289,7 +289,20 @@ var _ = Describe("Wrong target configuration", func() {
 			loggingResolver := resolver.(*QueryLoggingResolver)
 			Expect(loggingResolver.logType).Should(Equal(config.QueryLogTypeConsole))
 		})
+	})
 
+	When("postgresql database path is wrong", func() {
+		It("should use fallback", func() {
+			sutConfig := config.QueryLogConfig{
+				Target:           "dummy",
+				Type:             config.QueryLogTypePostgresql,
+				CreationAttempts: 1,
+				CreationCooldown: config.Duration(time.Millisecond),
+			}
+			resolver := NewQueryLoggingResolver(sutConfig)
+			loggingResolver := resolver.(*QueryLoggingResolver)
+			Expect(loggingResolver.logType).Should(Equal(config.QueryLogTypeConsole))
+		})
 	})
 })
 
