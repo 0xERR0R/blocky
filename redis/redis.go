@@ -121,7 +121,6 @@ func (c *Client) PublishCache(key string, message *dns.Msg) {
 
 func (c *Client) PublishEnabled(state *EnabledMessage) {
 	binState, sErr := json.Marshal(state)
-
 	if sErr == nil {
 		binMsg, mErr := json.Marshal(redisMessage{
 			K: "system.enabled",
@@ -221,7 +220,7 @@ func (c *Client) processReceivedMessage(msg *redis.Message) (err error) {
 						c.CacheChannel <- cm
 					}
 				case messageTypeEnable:
-					err = c.processEnabledMessage(rm.M)
+					err = c.processEnabledMessage(&rm)
 				default:
 					c.l.Warn("Unknown message type: ", rm.T)
 				}
@@ -236,12 +235,12 @@ func (c *Client) processReceivedMessage(msg *redis.Message) (err error) {
 	return err
 }
 
-func (c *Client) processEnabledMessage(rawMsg []byte) error {
-	var msg *EnabledMessage
+func (c *Client) processEnabledMessage(redisMsg *redisMessage) error {
+	var msg EnabledMessage
 
-	err := json.Unmarshal(rawMsg, msg)
+	err := json.Unmarshal(redisMsg.M, &msg)
 	if err == nil {
-		c.EnabledChannel <- msg
+		c.EnabledChannel <- &msg
 	}
 
 	return err
