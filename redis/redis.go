@@ -119,7 +119,7 @@ func (c *Client) PublishCache(key string, message *dns.Msg) {
 	}
 }
 
-func (c *Client) PublishEnabled(state EnabledMessage) {
+func (c *Client) PublishEnabled(state *EnabledMessage) {
 	binState, sErr := json.Marshal(state)
 	if sErr == nil {
 		binMsg, mErr := json.Marshal(redisMessage{
