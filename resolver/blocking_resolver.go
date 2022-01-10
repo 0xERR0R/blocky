@@ -152,10 +152,14 @@ func setupRedisEnabledSubscriber(c *BlockingResolver) {
 		for em := range c.redisClient.EnabledChannel {
 			if em != nil {
 				logger.Debug("Received state from redis: ", em)
+
 				if em.State {
 					c.internalEnableBlocking()
 				} else {
-					c.internalDisableBlocking(em.Duration, em.Groups)
+					err := c.internalDisableBlocking(em.Duration, em.Groups)
+					if err != nil {
+						logger.Warn("Blocking couldn't be disabled:", err)
+					}
 				}
 			}
 		}
@@ -190,6 +194,7 @@ func (r *BlockingResolver) retrieveAllBlockingGroups() []string {
 // EnableBlocking enables the blocking against the blacklists
 func (r *BlockingResolver) EnableBlocking() {
 	r.internalEnableBlocking()
+
 	if r.redisEnabled {
 		r.redisClient.PublishEnabled(&redis.EnabledMessage{State: true})
 	}

@@ -235,10 +235,12 @@ func (c *Client) processReceivedMessage(msg *redis.Message) (err error) {
 
 func (c *Client) processEnabledMessage(rawMsg []byte) error {
 	var msg *EnabledMessage
+
 	err := json.Unmarshal(rawMsg, msg)
 	if err == nil {
 		c.EnabledChannel <- msg
 	}
+
 	return err
 }
 
