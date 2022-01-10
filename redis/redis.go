@@ -18,11 +18,13 @@ import (
 )
 
 const (
-	CacheChannelName string = "blocky_sync"
-	CacheStorePrefix string = "blocky:cache:"
-	chanCap          int    = 1000
-	cacheReason      string = "EXTERNAL_CACHE"
-	defaultCacheTime        = 1 * time.Second
+	CacheChannelName  = "blocky_sync"
+	CacheStorePrefix  = "blocky:cache:"
+	chanCap           = 1000
+	cacheReason       = "EXTERNAL_CACHE"
+	defaultCacheTime  = 1 * time.Second
+	messageTypeCache  = 0
+	messageTypeEnable = 1
 )
 
 // sendBuffer message
@@ -34,6 +36,7 @@ type bufferMessage struct {
 // redis pubsub message
 type redisMessage struct {
 	K string // key
+	T int    // type
 	M []byte // message
 	C []byte // client
 }
@@ -158,6 +161,7 @@ func (c *Client) publishMessageFromBuffer(s *bufferMessage) {
 	if pErr == nil {
 		binMsg, mErr := json.Marshal(redisMessage{
 			K: s.Key,
+			T: messageTypeCache,
 			M: binRes,
 			C: c.id,
 		})
@@ -183,11 +187,16 @@ func (c *Client) processReceivedMessage(msg *redis.Message) (err error) {
 		if err == nil {
 			// message was sent from a different blocky instance
 			if !bytes.Equal(rm.C, c.id) {
-				var cm *CacheMessage
+				switch rm.T {
+				case messageTypeCache:
+					var cm *CacheMessage
 
-				cm, err = convertMessage(&rm, 0)
-				if err == nil {
-					c.CacheChannel <- cm
+					cm, err = convertMessage(&rm, 0)
+					if err == nil {
+						c.CacheChannel <- cm
+					}
+				default:
+					c.l.Warn("Unknown message type: ", rm.T)
 				}
 			}
 		} else {
