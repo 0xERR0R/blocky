@@ -179,8 +179,8 @@ func (c *Client) startup() error {
 func (c *Client) publishMessageFromBuffer(s *bufferMessage) {
 	origRes := s.Message
 	origRes.Compress = true
-
 	binRes, pErr := origRes.Pack()
+
 	if pErr == nil {
 		binMsg, mErr := json.Marshal(redisMessage{
 			K: s.Key,
