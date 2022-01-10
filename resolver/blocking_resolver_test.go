@@ -63,7 +63,7 @@ badcnamedomain.com`)
 	JustBeforeEach(func() {
 		m = &resolverMock{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
-		tmp, _ := NewBlockingResolver(sutConfig)
+		tmp, _ := NewBlockingResolver(sutConfig, nil)
 		sut = tmp.(*BlockingResolver)
 		sut.Next(m)
 		sut.RefreshLists()
@@ -96,7 +96,7 @@ badcnamedomain.com`)
 				Expect(err).Should(Succeed())
 
 				// recreate to trigger a reload
-				tmp, _ := NewBlockingResolver(sutConfig)
+				tmp, _ := NewBlockingResolver(sutConfig, nil)
 				sut = tmp.(*BlockingResolver)
 
 				Eventually(groupCnt, "1s").Should(HaveLen(2))
@@ -812,7 +812,7 @@ badcnamedomain.com`)
 
 				_, _ = NewBlockingResolver(config.BlockingConfig{
 					BlockType: "wrong",
-				})
+				}, nil)
 
 				Expect(fatal).Should(BeTrue())
 			})
@@ -825,7 +825,7 @@ badcnamedomain.com`)
 					WhiteLists:           map[string][]string{"whitelist": {"wrongPath"}},
 					FailStartOnListError: true,
 					BlockType:            "zeroIp",
-				})
+				}, nil)
 				Expect(err).Should(HaveOccurred())
 			})
 		})
