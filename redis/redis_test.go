@@ -94,14 +94,13 @@ var _ = Describe("Redis client", func() {
 			}, "100ms").Should(HaveLen(1))
 		})
 		It("enabled works", func() {
-
 			var binState []byte
 			binState, err = json.Marshal(EnabledMessage{State: true})
 			Expect(err).Should(Succeed())
 
 			var id []byte
-
 			id, err = uuid.New().MarshalBinary()
+			Expect(err).Should(Succeed())
 
 			var binMsg []byte
 			binMsg, err = json.Marshal(redisMessage{
@@ -112,13 +111,42 @@ var _ = Describe("Redis client", func() {
 			})
 			Expect(err).Should(Succeed())
 
+			lenE := len(redisClient.EnabledChannel)
+
 			rec := redisServer.Publish(SyncChannelName, string(binMsg))
 			Expect(rec).Should(Equal(1))
 
 			Eventually(func() chan *EnabledMessage {
 				return redisClient.EnabledChannel
-			}, "1000ms").Should(HaveLen(1))
+			}, "100ms").Should(HaveLen(lenE + 1))
+		})
+		It("unknown doesn't work", func() {
+			var id []byte
+			id, err = uuid.New().MarshalBinary()
+			Expect(err).Should(Succeed())
 
+			var binMsg []byte
+			binMsg, err = json.Marshal(redisMessage{
+				K: "unknown",
+				T: 99,
+				M: []byte("test"),
+				C: id,
+			})
+			Expect(err).Should(Succeed())
+
+			lenE := len(redisClient.EnabledChannel)
+			lenC := len(redisClient.CacheChannel)
+
+			rec := redisServer.Publish(SyncChannelName, string(binMsg))
+			Expect(rec).Should(Equal(1))
+
+			Eventually(func() chan *EnabledMessage {
+				return redisClient.EnabledChannel
+			}, "100ms").Should(HaveLen(lenE))
+
+			Eventually(func() chan *CacheMessage {
+				return redisClient.CacheChannel
+			}, "100ms").Should(HaveLen(lenC))
 		})
 	})
 	When("GetRedisCache", func() {
