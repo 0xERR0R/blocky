@@ -32,6 +32,7 @@ type NetProtocol uint16
 // console // use logger as fallback
 // none // no logging
 // mysql // MySQL or MariaDB database
+// postgresql // PostgreSQL database
 // csv // CSV file per day
 // csv-client // CSV file per day and client
 // )
@@ -71,6 +72,26 @@ func (u *Upstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	*u = upstream
+
+	return nil
+}
+
+// ListenConfig is a list of address(es) to listen on
+type ListenConfig []string
+
+// UnmarshalYAML creates ListenConfig from YAML
+func (l *ListenConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var addresses string
+	if err := unmarshal(&addresses); err != nil {
+		var port uint16
+		if err := unmarshal(&port); err != nil {
+			return err
+		}
+
+		addresses = fmt.Sprintf("%d", port)
+	}
+
+	*l = strings.Split(addresses, ",")
 
 	return nil
 }
@@ -258,18 +279,20 @@ type Config struct {
 	Caching         CachingConfig             `yaml:"caching"`
 	QueryLog        QueryLogConfig            `yaml:"queryLog"`
 	Prometheus      PrometheusConfig          `yaml:"prometheus"`
+	Redis           RedisConfig               `yaml:"redis"`
 	LogLevel        log.Level                 `yaml:"logLevel" default:"info"`
 	LogFormat       log.FormatType            `yaml:"logFormat" default:"text"`
 	LogPrivacy      bool                      `yaml:"logPrivacy" default:"false"`
 	LogTimestamp    bool                      `yaml:"logTimestamp" default:"true"`
-	Port            string                    `yaml:"port" default:"53"`
-	HTTPPort        string                    `yaml:"httpPort"`
-	HTTPSPort       string                    `yaml:"httpsPort"`
-	TLSPort         string                    `yaml:"tlsPort"`
+	DNSPorts        ListenConfig              `yaml:"port" default:"[\"53\"]"`
+	HTTPPorts       ListenConfig              `yaml:"httpPort"`
+	HTTPSPorts      ListenConfig              `yaml:"httpsPort"`
+	TLSPorts        ListenConfig              `yaml:"tlsPort"`
 	DisableIPv6     bool                      `yaml:"disableIPv6" default:"false"`
 	CertFile        string                    `yaml:"certFile"`
 	KeyFile         string                    `yaml:"keyFile"`
 	BootstrapDNS    Upstream                  `yaml:"bootstrapDns"`
+	HostsFile       HostsFileConfig           `yaml:"hostsFile"`
 	// Deprecated
 	HTTPCertFile string `yaml:"httpsCertFile"`
 	// Deprecated
@@ -351,6 +374,24 @@ type QueryLogConfig struct {
 	Target           string       `yaml:"target"`
 	Type             QueryLogType `yaml:"type"`
 	LogRetentionDays uint64       `yaml:"logRetentionDays"`
+	CreationAttempts int          `yaml:"creationAttempts" default:"3"`
+	CreationCooldown Duration     `yaml:"creationCooldown" default:"2s"`
+}
+
+// RedisConfig configuration for the redis connection
+type RedisConfig struct {
+	Address            string   `yaml:"address"`
+	Password           string   `yaml:"password" default:""`
+	Database           int      `yaml:"database" default:"0"`
+	Required           bool     `yaml:"required" default:"false"`
+	ConnectionAttempts int      `yaml:"connectionAttempts" default:"3"`
+	ConnectionCooldown Duration `yaml:"connectionCooldown" default:"1s"`
+}
+
+type HostsFileConfig struct {
+	Filepath      string   `yaml:"filePath"`
+	HostsTTL      Duration `yaml:"hostsTTL" default:"1h"`
+	RefreshPeriod Duration `yaml:"refreshPeriod" default:"1h"`
 }
 
 // nolint:gochecknoglobals
@@ -416,16 +457,12 @@ func validateConfig(cfg *Config) {
 		}
 	}
 
-	if cfg.TLSPort != "" {
-		if cfg.CertFile == "" || cfg.KeyFile == "" {
-			log.Log().Fatal("certFile and keyFile parameters are mandatory for TLS")
-		}
+	if len(cfg.TLSPorts) != 0 && (cfg.CertFile == "" || cfg.KeyFile == "") {
+		log.Log().Fatal("certFile and keyFile parameters are mandatory for TLS")
 	}
 
-	if cfg.HTTPSPort != "" {
-		if cfg.CertFile == "" || cfg.KeyFile == "" {
-			log.Log().Fatal("certFile and keyFile parameters are mandatory for HTTPS")
-		}
+	if len(cfg.HTTPSPorts) != 0 && (cfg.CertFile == "" || cfg.KeyFile == "") {
+		log.Log().Fatal("certFile and keyFile parameters are mandatory for HTTPS")
 	}
 }
 

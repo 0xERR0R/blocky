@@ -20,7 +20,7 @@ var _ = Describe("DatabaseWriter", func() {
 		When("New log entry was created", func() {
 			It("should be persisted in the database", func() {
 				sqlite := sqlite.Open("file::memory:")
-				writer, err := newDatabaseWriter(sqlite, 7, 1)
+				writer, err := newDatabaseWriter(sqlite, 7, time.Millisecond)
 				Expect(err).Should(Succeed())
 				request := &model.Request{
 					Req: util.NewMsgWithQuestion("google.de.", dns.TypeA),
@@ -40,22 +40,19 @@ var _ = Describe("DatabaseWriter", func() {
 					Start:      time.Now(),
 					DurationMs: 20,
 				})
-				time.Sleep(500 * time.Millisecond)
+				Eventually(func() (res int64) {
+					result := writer.db.Find(&logEntry{})
 
-				result := writer.db.Find(&logEntry{})
-
-				var cnt int64
-				result.Count(&cnt)
-
-				Expect(cnt).Should(Equal(int64(1)))
-
+					result.Count(&res)
+					return res
+				}, "1s").Should(BeNumerically("==", 1))
 			})
 		})
 
 		When("There are log entries with timestamp exceeding the retention period", func() {
 			It("these old entries should be deleted", func() {
 				sqlite := sqlite.Open("file::memory:")
-				writer, err := newDatabaseWriter(sqlite, 1, 1)
+				writer, err := newDatabaseWriter(sqlite, 1, time.Millisecond)
 				Expect(err).Should(Succeed())
 
 				request := &model.Request{
@@ -87,31 +84,49 @@ var _ = Describe("DatabaseWriter", func() {
 					DurationMs: 20,
 				})
 
-				result := writer.db.Find(&logEntry{})
-
-				time.Sleep(500 * time.Millisecond)
-
-				var cnt int64
-				result.Count(&cnt)
-
 				// 2 entries in the database
-				Expect(cnt).Should(Equal(int64(2)))
+				Eventually(func() int64 {
+					var res int64
+					result := writer.db.Find(&logEntry{})
+
+					result.Count(&res)
+					return res
+				}, "1s").Should(BeNumerically("==", 2))
 
 				// do cleanup now
 				writer.CleanUp()
 
-				result.Count(&cnt)
-
 				// now only 1 entry in the database
-				Expect(cnt).Should(Equal(int64(1)))
+				Eventually(func() (res int64) {
+					result := writer.db.Find(&logEntry{})
+
+					result.Count(&res)
+					return res
+				}, "1s").Should(BeNumerically("==", 1))
 			})
 		})
 
-		When("connection parameters wrong", func() {
+		When("mysql connection parameters wrong", func() {
 			It("should be log with fatal", func() {
-				_, err := NewDatabaseWriter("wrong param", 7, 1)
+				_, err := NewDatabaseWriter("mysql", "wrong param", 7, 1)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(HavePrefix("can't create database connection"))
+			})
+		})
+
+		When("postgresql connection parameters wrong", func() {
+			It("should be log with fatal", func() {
+				_, err := NewDatabaseWriter("postgresql", "wrong param", 7, 1)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(HavePrefix("can't create database connection"))
+			})
+		})
+
+		When("invalid database type is specified", func() {
+			It("should be log with fatal", func() {
+				_, err := NewDatabaseWriter("invalidsql", "", 7, 1)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(HavePrefix("incorrect database type provided"))
 			})
 		})
 	})

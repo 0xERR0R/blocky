@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/0xERR0R/blocky/evt"
+	. "github.com/0xERR0R/blocky/evt"
 
 	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/onsi/ginkgo"
@@ -69,11 +69,16 @@ var _ = Describe("ListCache", func() {
 		When("If timeout occurs", func() {
 			var attempt uint64 = 1
 			It("Should perform a retry", func() {
+				failedDownloadCount := 0
+				_ = Bus().SubscribeOnce(CachingFailedDownloadChanged, func(_ string) {
+					failedDownloadCount++
+				})
+
 				// should produce a timeout on first attempt
 				s := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 					a := atomic.LoadUint64(&attempt)
 					if a == 1 {
-						time.Sleep(200 * time.Millisecond)
+						time.Sleep(500 * time.Millisecond)
 					} else {
 						_, err := rw.Write([]byte("blocked1.com"))
 						Expect(err).Should(Succeed())
@@ -85,11 +90,14 @@ var _ = Describe("ListCache", func() {
 					"gr1": {s.URL},
 				}
 
-				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 100*time.Millisecond, 3, time.Second)
-				time.Sleep(time.Second)
-				found, group := sut.Match("blocked1.com", []string{"gr1"})
-				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr1"))
+				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 400*time.Millisecond, 3, time.Millisecond)
+				Eventually(func(g Gomega) {
+					found, group := sut.Match("blocked1.com", []string{"gr1"})
+					g.Expect(found).Should(BeTrue())
+					g.Expect(group).Should(Equal("gr1"))
+				}, "1s").Should(Succeed())
+
+				Expect(failedDownloadCount).Should(Equal(1))
 			})
 		})
 		When("a temporary err occurs on download", func() {
@@ -111,12 +119,14 @@ var _ = Describe("ListCache", func() {
 					"gr1": {s.URL, emptyFile.Name()},
 				}
 
-				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 4*time.Hour, 100*time.Millisecond, 3, time.Second)
-				time.Sleep(time.Second)
+				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 4*time.Hour, 100*time.Millisecond, 3, time.Millisecond)
 				By("Lists loaded without timeout", func() {
-					found, group := sut.Match("blocked1.com", []string{"gr1"})
-					Expect(found).Should(BeTrue())
-					Expect(group).Should(Equal("gr1"))
+					Eventually(func(g Gomega) {
+						found, group := sut.Match("blocked1.com", []string{"gr1"})
+						g.Expect(found).Should(BeTrue())
+						g.Expect(group).Should(Equal("gr1"))
+					}, "1s").Should(Succeed())
+
 				})
 
 				sut.Refresh()
@@ -147,20 +157,23 @@ var _ = Describe("ListCache", func() {
 					"gr1": {s.URL},
 				}
 
-				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 30*time.Second, 3, time.Second)
-				time.Sleep(time.Second)
+				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 30*time.Second, 3, time.Millisecond)
 				By("Lists loaded without err", func() {
-					found, group := sut.Match("blocked1.com", []string{"gr1"})
-					Expect(found).Should(BeTrue())
-					Expect(group).Should(Equal("gr1"))
+					Eventually(func(g Gomega) {
+						found, group := sut.Match("blocked1.com", []string{"gr1"})
+						g.Expect(found).Should(BeTrue())
+						g.Expect(group).Should(Equal("gr1"))
+					}, "1s").Should(Succeed())
+
 				})
 
 				sut.Refresh()
-				time.Sleep(time.Second)
 
 				By("List couldn't be loaded due to 404 err", func() {
-					found, _ := sut.Match("blocked1.com", []string{"gr1"})
-					Expect(found).Should(BeFalse())
+					Eventually(func() bool {
+						found, _ := sut.Match("blocked1.com", []string{"gr1"})
+						return found
+					}, "1s").Should(BeFalse())
 				})
 			})
 		})
@@ -171,7 +184,7 @@ var _ = Describe("ListCache", func() {
 					"gr2": {server3.URL},
 				}
 
-				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 30*time.Second, 3, time.Second)
+				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 30*time.Second, 3, time.Millisecond)
 
 				found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
 				Expect(found).Should(BeTrue())
@@ -192,7 +205,7 @@ var _ = Describe("ListCache", func() {
 					"withDeadLink": {"http://wrong.host.name"},
 				}
 
-				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 30*time.Second, 3, time.Second)
+				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 30*time.Second, 3, time.Millisecond)
 
 				found, group := sut.Match("blocked1.com", []string{})
 				Expect(found).Should(BeFalse())
@@ -207,11 +220,11 @@ var _ = Describe("ListCache", func() {
 
 				resultCnt := 0
 
-				_ = evt.Bus().SubscribeOnce(evt.BlockingCacheGroupChanged, func(listType ListCacheType, group string, cnt int) {
+				_ = Bus().SubscribeOnce(BlockingCacheGroupChanged, func(listType ListCacheType, group string, cnt int) {
 					resultCnt = cnt
 				})
 
-				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 30*time.Second, 3, time.Second)
+				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 30*time.Second, 3, time.Millisecond)
 
 				found, group := sut.Match("blocked1.com", []string{})
 				Expect(found).Should(BeFalse())
@@ -226,7 +239,7 @@ var _ = Describe("ListCache", func() {
 					"gr2": {"file://" + file3.Name()},
 				}
 
-				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 0, 3, time.Second)
+				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 0, 3, time.Millisecond)
 
 				found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
 				Expect(found).Should(BeTrue())
@@ -247,7 +260,7 @@ var _ = Describe("ListCache", func() {
 					"gr1": {"inlinedomain1.com\n#some comment\n#inlinedomain2.com"},
 				}
 
-				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 0, 3, time.Second)
+				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 0, 3, time.Millisecond)
 
 				found, group := sut.Match("inlinedomain1.com", []string{"gr1"})
 				Expect(found).Should(BeTrue())
@@ -264,7 +277,7 @@ var _ = Describe("ListCache", func() {
 					"gr1": {"/^apple\\.(de|com)$/\n"},
 				}
 
-				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 0, 3, time.Second)
+				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 0, 3, time.Millisecond)
 
 				found, group := sut.Match("apple.com", []string{"gr1"})
 				Expect(found).Should(BeTrue())
@@ -284,7 +297,7 @@ var _ = Describe("ListCache", func() {
 					"gr2": {"inline\ndefinition\n"},
 				}
 
-				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 0, 3, time.Second)
+				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, 0, 3, time.Millisecond)
 
 				c := sut.Configuration()
 				Expect(c).Should(HaveLen(11))
@@ -296,7 +309,7 @@ var _ = Describe("ListCache", func() {
 					"gr1": {"file1", "file2"},
 				}
 
-				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, -1, 0, 3, time.Second)
+				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, -1, 0, 3, time.Millisecond)
 
 				c := sut.Configuration()
 				Expect(c).Should(ContainElement("refresh: disabled"))

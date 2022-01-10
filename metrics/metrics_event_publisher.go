@@ -120,6 +120,7 @@ func registerCachingEventListeners() {
 	missCount := cacheMissCount()
 	prefetchCount := domainPrefetchCount()
 	prefetchHitCount := domainPrefetchHitCount()
+	failedDownloadCount := failedDownloadCount()
 
 	RegisterMetric(entryCount)
 	RegisterMetric(prefetchDomainCount)
@@ -127,6 +128,7 @@ func registerCachingEventListeners() {
 	RegisterMetric(missCount)
 	RegisterMetric(prefetchCount)
 	RegisterMetric(prefetchHitCount)
+	RegisterMetric(failedDownloadCount)
 
 	subscribe(evt.CachingDomainsToPrefetchCountChanged, func(cnt int) {
 		prefetchDomainCount.Set(float64(cnt))
@@ -150,6 +152,17 @@ func registerCachingEventListeners() {
 
 	subscribe(evt.CachingResultCacheChanged, func(cnt int) {
 		entryCount.Set(float64(cnt))
+	})
+
+	subscribe(evt.CachingFailedDownloadChanged, func(_ string) {
+		failedDownloadCount.Inc()
+	})
+}
+
+func failedDownloadCount() prometheus.Counter {
+	return prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "blocky_failed_download_count",
+		Help: "Failed download counter",
 	})
 }
 

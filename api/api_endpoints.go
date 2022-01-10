@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/util"
 
-	"github.com/go-chi/chi"
-	log "github.com/sirupsen/logrus"
+	"github.com/go-chi/chi/v5"
 )
 
 // BlockingControl interface to control the blocking status
@@ -76,7 +76,7 @@ func registerBlockingEndpoints(router chi.Router, control BlockingControl) {
 // @Success 200   "Blocking is enabled"
 // @Router /blocking/enable [get]
 func (s *BlockingEndpoint) apiBlockingEnable(_ http.ResponseWriter, _ *http.Request) {
-	log.Info("enabling blocking...")
+	log.Log().Info("enabling blocking...")
 
 	s.control.EnableBlocking()
 }
@@ -103,7 +103,7 @@ func (s *BlockingEndpoint) apiBlockingDisable(rw http.ResponseWriter, req *http.
 	if len(durationParam) > 0 {
 		duration, err = time.ParseDuration(durationParam)
 		if err != nil {
-			log.Errorf("wrong duration format '%s'", durationParam)
+			log.Log().Errorf("wrong duration format '%s'", log.EscapeInput(durationParam))
 			rw.WriteHeader(http.StatusBadRequest)
 
 			return
@@ -117,7 +117,7 @@ func (s *BlockingEndpoint) apiBlockingDisable(rw http.ResponseWriter, req *http.
 
 	err = s.control.DisableBlocking(duration, groups)
 	if err != nil {
-		log.Error("can't disable the blocking: ", err)
+		log.Log().Error("can't disable the blocking: ", log.EscapeInput(err.Error()))
 		rw.WriteHeader(http.StatusBadRequest)
 	}
 }

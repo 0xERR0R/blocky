@@ -7,7 +7,9 @@ import (
 	. "github.com/0xERR0R/blocky/evt"
 	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/creasty/defaults"
 
 	"github.com/0xERR0R/go-cache"
@@ -42,7 +44,7 @@ var _ = Describe("CachingResolver", func() {
 	})
 
 	JustBeforeEach(func() {
-		sut = NewCachingResolver(sutConfig)
+		sut = NewCachingResolver(sutConfig, nil)
 		m = &resolverMock{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		sut.Next(m)
@@ -93,14 +95,15 @@ var _ = Describe("CachingResolver", func() {
 					_, _ = sut.Resolve(newRequest("example.com.", dns.TypeA))
 
 				}
-				time.Sleep(50 * time.Millisecond)
+				Eventually(func(g Gomega) {
+					// now is this domain prefetched
+					g.Expect(domainPrefetched).Should(Equal("example.com"))
 
-				// now is this domain prefetched
-				Expect(domainPrefetched).Should(Equal("example.com"))
+					// and it should hit from prefetch cache
+					_, _ = sut.Resolve(newRequest("example.com.", dns.TypeA))
+					g.Expect(prefetchHitDomain).Should(Equal("example.com"))
+				}, "50ms").Should(Succeed())
 
-				// and it should hit from prefetch cache
-				_, _ = sut.Resolve(newRequest("example.com.", dns.TypeA))
-				Expect(prefetchHitDomain).Should(Equal("example.com"))
 			})
 		})
 		When("min caching time is defined", func() {
@@ -138,24 +141,25 @@ var _ = Describe("CachingResolver", func() {
 						Expect(totalCacheCount).Should(Equal(1))
 					})
 
-					time.Sleep(500 * time.Millisecond)
-
 					By("second request", func() {
-						domain := ""
-						_ = Bus().SubscribeOnce(CachingResultCacheHit, func(d string) {
-							domain = d
-						})
+						Eventually(func(g Gomega) {
+							domain := ""
+							_ = Bus().SubscribeOnce(CachingResultCacheHit, func(d string) {
+								domain = d
+							})
 
-						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
-						Expect(err).Should(Succeed())
-						Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
-						// still one call to upstream
-						Expect(m.Calls).Should(HaveLen(1))
-						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-						// ttl is smaller
-						Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 599, "123.122.121.120"))
+							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+							g.Expect(err).Should(Succeed())
+							g.Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
+							// still one call to upstream
+							g.Expect(m.Calls).Should(HaveLen(1))
+							g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+							// ttl is smaller
+							g.Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 599, "123.122.121.120"))
 
-						Expect(domain).Should(Equal("example.com"))
+							g.Expect(domain).Should(Equal("example.com"))
+						}, "500ms").Should(Succeed())
+
 					})
 				})
 			})
@@ -176,17 +180,17 @@ var _ = Describe("CachingResolver", func() {
 							Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 300, "123.122.121.120"))
 						})
 
-						time.Sleep(500 * time.Millisecond)
-
 						By("second request", func() {
-							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
-							Expect(err).Should(Succeed())
-							Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
-							Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-							// still one call to upstream
-							Expect(m.Calls).Should(HaveLen(1))
-							// ttl is smaller
-							Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 299, "123.122.121.120"))
+							Eventually(func(g Gomega) {
+								resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+								g.Expect(err).Should(Succeed())
+								g.Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
+								g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+								// still one call to upstream
+								g.Expect(m.Calls).Should(HaveLen(1))
+								// ttl is smaller
+								g.Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 299, "123.122.121.120"))
+							}, "500ms").Should(Succeed())
 						})
 					})
 				})
@@ -209,18 +213,19 @@ var _ = Describe("CachingResolver", func() {
 								dns.TypeAAAA, 300, "2001:db8:85a3:8d3:1319:8a2e:370:7344"))
 						})
 
-						time.Sleep(500 * time.Millisecond)
-
 						By("second request", func() {
-							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
-							Expect(err).Should(Succeed())
-							Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
-							Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-							// still one call to upstream
-							Expect(m.Calls).Should(HaveLen(1))
-							// ttl is smaller
-							Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
-								dns.TypeAAAA, 299, "2001:db8:85a3:8d3:1319:8a2e:370:7344"))
+							Eventually(func(g Gomega) {
+								resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+								g.Expect(err).Should(Succeed())
+								g.Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
+								g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+								// still one call to upstream
+								g.Expect(m.Calls).Should(HaveLen(1))
+								// ttl is smaller
+								g.Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
+									dns.TypeAAAA, 299, "2001:db8:85a3:8d3:1319:8a2e:370:7344"))
+							}, "500ms").Should(Succeed())
+
 						})
 					})
 				})
@@ -251,17 +256,17 @@ var _ = Describe("CachingResolver", func() {
 							dns.TypeAAAA, 1230, "2001:db8:85a3:8d3:1319:8a2e:370:7344"))
 					})
 
-					time.Sleep(500 * time.Millisecond)
-
 					By("second request", func() {
-						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
-						Expect(err).Should(Succeed())
-						Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-						//  one more call to upstream
-						Expect(m.Calls).Should(HaveLen(2))
-						Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
-							dns.TypeAAAA, 1230, "2001:db8:85a3:8d3:1319:8a2e:370:7344"))
+						Eventually(func(g Gomega) {
+							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+							g.Expect(err).Should(Succeed())
+							g.Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+							g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+							//  one more call to upstream
+							g.Expect(m.Calls).Should(HaveLen(2))
+							g.Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
+								dns.TypeAAAA, 1230, "2001:db8:85a3:8d3:1319:8a2e:370:7344"))
+						}, "500ms").Should(Succeed())
 					})
 				})
 			})
@@ -283,18 +288,18 @@ var _ = Describe("CachingResolver", func() {
 							dns.TypeAAAA, 240, "2001:db8:85a3:8d3:1319:8a2e:370:7344"))
 					})
 
-					time.Sleep(500 * time.Millisecond)
-
 					By("second request", func() {
-						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
-						Expect(err).Should(Succeed())
-						Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
-						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-						// still one call to upstream
-						Expect(m.Calls).Should(HaveLen(1))
-						// ttl is smaller
-						Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
-							dns.TypeAAAA, 239, "2001:db8:85a3:8d3:1319:8a2e:370:7344"))
+						Eventually(func(g Gomega) {
+							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+							g.Expect(err).Should(Succeed())
+							g.Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
+							g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+							// still one call to upstream
+							g.Expect(m.Calls).Should(HaveLen(1))
+							// ttl is smaller
+							g.Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
+								dns.TypeAAAA, 239, "2001:db8:85a3:8d3:1319:8a2e:370:7344"))
+						}, "500ms").Should(Succeed())
 					})
 				})
 			})
@@ -320,18 +325,19 @@ var _ = Describe("CachingResolver", func() {
 							dns.TypeA, 1, "1.1.1.1"))
 					})
 
-					time.Sleep(1100 * time.Millisecond)
-
 					By("second request", func() {
-						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
-						Expect(err).Should(Succeed())
-						Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
-						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-						// still one call to upstream
-						Expect(m.Calls).Should(HaveLen(1))
-						// ttl is 0
-						Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
-							dns.TypeA, 0, "1.1.1.1"))
+						Eventually(func(g Gomega) {
+							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+							g.Expect(err).Should(Succeed())
+							g.Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
+							g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+							// still one call to upstream
+							g.Expect(m.Calls).Should(HaveLen(1))
+							// ttl is 0
+							g.Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
+								dns.TypeA, 0, "1.1.1.1"))
+						}, "1100ms").Should(Succeed())
+
 					})
 				})
 			})
@@ -353,16 +359,16 @@ var _ = Describe("CachingResolver", func() {
 					Expect(m.Calls).Should(HaveLen(1))
 				})
 
-				time.Sleep(500 * time.Millisecond)
-
 				By("second request", func() {
-					resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
-					Expect(resp.Reason).Should(Equal("CACHED NEGATIVE"))
-					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
-					// still one call to resolver
-					Expect(m.Calls).Should(HaveLen(1))
+					Eventually(func(g Gomega) {
+						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+						g.Expect(err).Should(Succeed())
+						g.Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
+						g.Expect(resp.Reason).Should(Equal("CACHED NEGATIVE"))
+						g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+						// still one call to resolver
+						g.Expect(m.Calls).Should(HaveLen(1))
+					}, "500ms").Should(Succeed())
 				})
 			})
 
@@ -384,14 +390,14 @@ var _ = Describe("CachingResolver", func() {
 					Expect(m.Calls).Should(HaveLen(1))
 				})
 
-				time.Sleep(500 * time.Millisecond)
-
 				By("second request", func() {
-					resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
-					Expect(m.Calls).Should(HaveLen(2))
+					Eventually(func(g Gomega) {
+						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+						g.Expect(err).Should(Succeed())
+						g.Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+						g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+						g.Expect(m.Calls).Should(HaveLen(2))
+					}, "500ms").Should(Succeed())
 				})
 			})
 
@@ -459,6 +465,49 @@ var _ = Describe("CachingResolver", func() {
 				c := sut.Configuration()
 				Expect(len(c) > 1).Should(BeTrue())
 				Expect(c).Should(ContainElement(ContainSubstring("prefetchThreshold")))
+			})
+		})
+	})
+	Describe("Redis is configured", func() {
+		var (
+			redisServer *miniredis.Miniredis
+			redisClient *redis.Client
+			redisConfig *config.RedisConfig
+		)
+		When("cache", func() {
+			BeforeEach(func() {
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1, dns.TypeA, "1.1.1.1")
+				redisServer, err = miniredis.Run()
+
+				Expect(err).Should(Succeed())
+				var rcfg config.RedisConfig
+				err = defaults.Set(&rcfg)
+
+				Expect(err).Should(Succeed())
+
+				rcfg.Address = redisServer.Addr()
+				redisConfig = &rcfg
+				redisClient, err = redis.New(redisConfig)
+
+				Expect(err).Should(Succeed())
+				Expect(redisClient).ShouldNot(BeNil())
+			})
+			AfterEach(func() {
+				redisServer.Close()
+			})
+			JustBeforeEach(func() {
+				sut = NewCachingResolver(sutConfig, redisClient)
+				m = &resolverMock{}
+				m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
+				sut.Next(m)
+			})
+			It("should cache in redis", func() {
+				resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+				Expect(err).Should(Succeed())
+
+				Eventually(func() []string {
+					return redisServer.DB(redisConfig.Database).Keys()
+				}, "50ms").Should(HaveLen(1))
 			})
 		})
 	})

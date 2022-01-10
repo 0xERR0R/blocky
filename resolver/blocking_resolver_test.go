@@ -99,10 +99,7 @@ badcnamedomain.com`)
 				tmp, _ := NewBlockingResolver(sutConfig)
 				sut = tmp.(*BlockingResolver)
 
-				time.Sleep(time.Second)
-
-				Expect(groupCnt).Should(HaveLen(2))
-
+				Eventually(groupCnt, "1s").Should(HaveLen(2))
 			})
 		})
 	})
@@ -666,8 +663,9 @@ badcnamedomain.com`)
 						enabled = state
 					})
 					// wait 1 sec
-					time.Sleep(time.Second)
-					Expect(enabled).Should(BeTrue())
+					Eventually(func() bool {
+						return enabled
+					}, "1s").Should(BeTrue())
 
 					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.TypeA, "1.2.1.2", "unknown"))
 					Expect(err).Should(Succeed())
@@ -727,8 +725,9 @@ badcnamedomain.com`)
 						enabled = state
 					})
 					// wait 1 sec
-					time.Sleep(time.Second)
-					Expect(enabled).Should(BeTrue())
+					Eventually(func() bool {
+						return enabled
+					}, "1s").Should(BeTrue())
 
 					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.TypeA, "1.2.1.2", "unknown"))
 					Expect(err).Should(Succeed())

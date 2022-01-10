@@ -143,18 +143,23 @@ prometheus:
 
 # optional: write query information (question, answer, client, duration etc.) to daily csv file
 queryLog:
-  # optional one of: mysql, csv, csv-client. If empty, log to console
+  # optional one of: mysql, postgresql, csv, csv-client. If empty, log to console
   type: mysql
-  # directory (should be mounted as volume in docker) for csv, db connection string for mysql
-  target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
+  # directory (should be mounted as volume in docker) for csv, db connection string for mysql/postgresql
+  target: db_user:db_password@tcp(db_host_or_ip:3306)/db_name?charset=utf8mb4&parseTime=True&loc=Local
+  #postgresql target: postgres://user:password@db_host_or_ip:5432/db_name
   # if > 0, deletes log files which are older than ... days
   logRetentionDays: 7
+  # optional: Max attempts to create specific query log writer, default: 3
+  creationAttempts: 1
+  # optional: Time between the creation attempts, default: 2s
+  creationCooldown: 2s
 
-# optional: DNS listener port and bind ip address, default 53 (UDP and TCP). Example: 53, :53, 127.0.0.1:53
+# optional: DNS listener port(s) and bind ip address(es), default 53 (UDP and TCP). Example: 53, :53, "127.0.0.1:5353,[::1]:5353"
 port: 53
-# optional: Port for DoT (DNS-over-TLS) listener. Example: 853, 127.0.0.1:853
+# optional: Port(s) and bind ip address(es) for DoT (DNS-over-TLS) listener. Example: 853, 127.0.0.1:853
 #tlsPort: 53
-# optional: HTTPS listener port and bind ip address, default empty = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH... Example: 443, :443, 127.0.0.1:443
+# optional: HTTPS listener port(s) and bind ip address(es), default empty = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH... Example: 443, :443, 127.0.0.1:443
 httpPort: 4000
 #httpsPort: 443
 # mandatory, if https port > 0: path to cert and key file for SSL encryption
@@ -164,6 +169,14 @@ httpPort: 4000
 bootstrapDns: tcp:1.1.1.1
 # optional: Drop all AAAA query if set to true. Default: false
 disableIPv6: false
+# optional: if path defined, use this file for query resolution (A, AAAA and rDNS). Default: empty
+hostsFile:
+  # optional: Path to hosts file (e.g. /etc/hosts on Linux)
+  filePath: /etc/hosts
+  # optional: TTL, default: 1h
+  hostsTTL: 60m
+  # optional: Time between hosts file refresh, default: 1h
+  refreshPeriod: 30m
 # optional: Log level (one from debug, info, warn, error). Default: info
 logLevel: info
 # optional: Log format (text or json). Default: text

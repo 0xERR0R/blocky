@@ -7,7 +7,7 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/querylog"
-	"github.com/avast/retry-go"
+	"github.com/avast/retry-go/v4"
 )
 
 const (
@@ -30,11 +30,6 @@ type QueryLoggingResolver struct {
 func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 	var writer querylog.Writer
 
-	const (
-		retryAttempts = 3
-		retryDelay    = 2 * time.Second
-	)
-
 	logType := cfg.Type
 	err := retry.Do(
 		func() error {
@@ -45,7 +40,9 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 			case config.QueryLogTypeCsvClient:
 				writer, err = querylog.NewCSVWriter(cfg.Target, true, cfg.LogRetentionDays)
 			case config.QueryLogTypeMysql:
-				writer, err = querylog.NewDatabaseWriter(cfg.Target, cfg.LogRetentionDays, 30*time.Second)
+				writer, err = querylog.NewDatabaseWriter("mysql", cfg.Target, cfg.LogRetentionDays, 30*time.Second)
+			case config.QueryLogTypePostgresql:
+				writer, err = querylog.NewDatabaseWriter("postgresql", cfg.Target, cfg.LogRetentionDays, 30*time.Second)
 			case config.QueryLogTypeConsole:
 				writer = querylog.NewLoggerWriter()
 			case config.QueryLogTypeNone:
@@ -53,11 +50,11 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 			}
 			return err
 		},
-		retry.Attempts(retryAttempts),
-		retry.Delay(retryDelay),
+		retry.Attempts(uint(cfg.CreationAttempts)),
+		retry.Delay(time.Duration(cfg.CreationCooldown)),
 		retry.OnRetry(func(n uint, err error) {
 			logger(queryLoggingResolverPrefix).Warnf("Error occurred on query writer creation, "+
-				"retry attempt %d/%d: %v", n+1, retryAttempts, err)
+				"retry attempt %d/%d: %v", n+1, cfg.CreationAttempts, err)
 		}))
 
 	if err != nil {

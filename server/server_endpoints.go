@@ -17,8 +17,8 @@ import (
 	"github.com/0xERR0R/blocky/util"
 	"github.com/0xERR0R/blocky/web"
 
-	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/miekg/dns"
 )
@@ -260,7 +260,7 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 
 func logAndResponseWithError(err error, message string, writer http.ResponseWriter) {
 	if err != nil {
-		log.Log().Error(message, err)
+		log.Log().Error(message, log.EscapeInput(err.Error()))
 		http.Error(writer, err.Error(), http.StatusInternalServerError)
 	}
 }

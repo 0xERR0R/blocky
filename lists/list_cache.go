@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/avast/retry-go"
+	"github.com/avast/retry-go/v4"
 
 	"github.com/hako/durafmt"
 
@@ -272,6 +272,8 @@ func (b *ListCache) downloadFile(link string) (io.ReadCloser, error) {
 			default:
 				logger.Warnf("Can't download file: %s", err)
 			}
+
+			evt.Bus().Publish(evt.CachingFailedDownloadChanged, link)
 		}))
 
 	return body, err

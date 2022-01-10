@@ -20,6 +20,7 @@ Following metrics will be exported:
 | blocky_cache_hit_count / blocky_cache_miss_count | Cache hit/miss counters |
 | blocky_prefetch_count | Amount of prefetched DNS responses |
 | blocky_prefetch_domain_name_cache_count | Amount of domain names being prefetched |
+| blocky_failed_download_count      | Number of failed list downloads |
 
 ### Grafana dashboard
 
