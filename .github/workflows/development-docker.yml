@@ -7,6 +7,7 @@ on:
 
 jobs:
   docker:
+    if: github.repository_owner == '0xERR0R'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
