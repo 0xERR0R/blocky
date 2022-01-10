@@ -15,6 +15,7 @@ import (
 	"github.com/0xERR0R/blocky/lists"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
@@ -80,10 +81,12 @@ type BlockingResolver struct {
 	whitelistOnlyGroups map[string]bool
 	status              *status
 	clientGroupsBlock   map[string][]string
+	redisClient         *redis.Client
+	redisEnabled        bool
 }
 
 // NewBlockingResolver returns a new configured instance of the resolver
-func NewBlockingResolver(cfg config.BlockingConfig) (ChainedResolver, error) {
+func NewBlockingResolver(cfg config.BlockingConfig, redis *redis.Client) (ChainedResolver, error) {
 	blockHandler := createBlockHandler(cfg)
 	refreshPeriod := time.Duration(cfg.RefreshPeriod)
 	timeout := time.Duration(cfg.DownloadTimeout)
@@ -131,9 +134,32 @@ func NewBlockingResolver(cfg config.BlockingConfig) (ChainedResolver, error) {
 			enableTimer: time.NewTimer(0),
 		},
 		clientGroupsBlock: cgb,
+		redisClient:       redis,
+		redisEnabled:      (redis != nil),
+	}
+
+	if res.redisEnabled {
+		setupRedisEnabledSubscriber(res)
 	}
 
 	return res, nil
+}
+
+func setupRedisEnabledSubscriber(c *BlockingResolver) {
+	logger := logger("blocking_resolver")
+
+	go func() {
+		for em := range c.redisClient.EnabledChannel {
+			if em != nil {
+				logger.Debug("Received state from redis: ", em)
+				if em.State {
+					c.internalEnableBlocking()
+				} else {
+					c.internalDisableBlocking(em.Duration, em.Groups)
+				}
+			}
+		}
+	}()
 }
 
 // RefreshLists triggers the refresh of all black and white lists in the cache
@@ -163,6 +189,13 @@ func (r *BlockingResolver) retrieveAllBlockingGroups() []string {
 
 // EnableBlocking enables the blocking against the blacklists
 func (r *BlockingResolver) EnableBlocking() {
+	r.internalEnableBlocking()
+	if r.redisEnabled {
+		r.redisClient.PublishEnabled(&redis.EnabledMessage{State: true})
+	}
+}
+
+func (r *BlockingResolver) internalEnableBlocking() {
 	s := r.status
 	s.enableTimer.Stop()
 	s.enabled = true
@@ -173,6 +206,19 @@ func (r *BlockingResolver) EnableBlocking() {
 
 // DisableBlocking deactivates the blocking for a particular duration (or forever if 0).
 func (r *BlockingResolver) DisableBlocking(duration time.Duration, disableGroups []string) error {
+	err := r.internalDisableBlocking(duration, disableGroups)
+	if err == nil && r.redisEnabled {
+		r.redisClient.PublishEnabled(&redis.EnabledMessage{
+			State:    false,
+			Duration: duration,
+			Groups:   disableGroups,
+		})
+	}
+
+	return err
+}
+
+func (r *BlockingResolver) internalDisableBlocking(duration time.Duration, disableGroups []string) error {
 	s := r.status
 	s.enableTimer.Stop()
 	s.enabled = false
