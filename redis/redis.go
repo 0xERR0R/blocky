@@ -227,8 +227,9 @@ func (c *Client) processReceivedMessage(msg *redis.Message) (err error) {
 				}
 			}
 		}
+
 		if err == nil {
-			c.l.Error("Conversion error: ", err)
+			c.l.Error("Processing error: ", err)
 		}
 	}
 
