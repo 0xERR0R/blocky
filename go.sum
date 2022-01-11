@@ -46,8 +46,8 @@ cloud.google.com/go/storage v1.6.0/go.mod h1:N7U0C8pVQ/+NIKOBQyamJIeKQKkZ+mxpohl
 cloud.google.com/go/storage v1.8.0/go.mod h1:Wv1Oy7z6Yz3DshWRJFhqM/UCfaWIRTdp0RXyy7KQOVs=
 cloud.google.com/go/storage v1.10.0/go.mod h1:FLPqc6j+Ki4BU591ie1oL6qBQGu2Bl/tZ9ullr3+Kg0=
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
-github.com/0xERR0R/go-cache v1.6.0 h1:/WFYV/4v0XuOT3MxHNp8zL6MWHHzZt+x2Px0JLtLn2Y=
-github.com/0xERR0R/go-cache v1.6.0/go.mod h1:ngsTQjvR6Aq/zvQI88HsfVJwIz9M78r0xNZi1QYY3jE=
+github.com/0xERR0R/go-cache v2.1.0+incompatible h1:Qq1yHYPYLjoisCJBHqNKHreiCpdo2RH8Bc5O1Sahm+k=
+github.com/0xERR0R/go-cache v2.1.0+incompatible/go.mod h1:WpL6mQvkHjIH9M8MQxSNmzfRRsPTFeCfupBdfPKUWjk=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=

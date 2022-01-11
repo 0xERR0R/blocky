@@ -3,7 +3,7 @@ module github.com/0xERR0R/blocky
 go 1.17
 
 require (
-	github.com/0xERR0R/go-cache v1.6.0
+	github.com/0xERR0R/go-cache v2.1.0+incompatible
 	github.com/alicebob/miniredis/v2 v2.17.0
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/avast/retry-go/v4 v4.0.2
