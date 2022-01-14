@@ -6,6 +6,7 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/evt"
 	. "github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/model"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
@@ -468,46 +469,73 @@ var _ = Describe("CachingResolver", func() {
 			})
 		})
 	})
+
 	Describe("Redis is configured", func() {
 		var (
 			redisServer *miniredis.Miniredis
 			redisClient *redis.Client
 			redisConfig *config.RedisConfig
 		)
+		BeforeEach(func() {
+			redisServer, err = miniredis.Run()
+
+			Expect(err).Should(Succeed())
+
+			var rcfg config.RedisConfig
+			err = defaults.Set(&rcfg)
+
+			Expect(err).Should(Succeed())
+
+			rcfg.Address = redisServer.Addr()
+			redisConfig = &rcfg
+			redisClient, err = redis.New(redisConfig)
+
+			Expect(err).Should(Succeed())
+			Expect(redisClient).ShouldNot(BeNil())
+		})
+		AfterEach(func() {
+			redisServer.Close()
+		})
 		When("cache", func() {
-			BeforeEach(func() {
-				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1, dns.TypeA, "1.1.1.1")
-				redisServer, err = miniredis.Run()
-
-				Expect(err).Should(Succeed())
-				var rcfg config.RedisConfig
-				err = defaults.Set(&rcfg)
-
-				Expect(err).Should(Succeed())
-
-				rcfg.Address = redisServer.Addr()
-				redisConfig = &rcfg
-				redisClient, err = redis.New(redisConfig)
-
-				Expect(err).Should(Succeed())
-				Expect(redisClient).ShouldNot(BeNil())
-			})
-			AfterEach(func() {
-				redisServer.Close()
-			})
 			JustBeforeEach(func() {
+				sutConfig = config.CachingConfig{
+					MaxCachingTime: config.Duration(time.Second * 10),
+				}
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1000, dns.TypeA, "1.1.1.1")
+
 				sut = NewCachingResolver(sutConfig, redisClient)
 				m = &resolverMock{}
 				m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 				sut.Next(m)
 			})
-			It("should cache in redis", func() {
+
+			It("put in redis", func() {
 				resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
 				Expect(err).Should(Succeed())
 
 				Eventually(func() []string {
 					return redisServer.DB(redisConfig.Database).Keys()
 				}, "50ms").Should(HaveLen(1))
+			})
+
+			It("load", func() {
+				request := newRequest("example2.com.", dns.TypeA)
+				domain := util.ExtractDomain(request.Req.Question[0])
+				cacheKey := util.GenerateCacheKey(dns.TypeA, domain)
+				redisMockMsg := &redis.CacheMessage{
+					Key: cacheKey,
+					Response: &model.Response{
+						RType:  model.ResponseTypeCACHED,
+						Reason: "MOCK_REDIS",
+						Res:    mockAnswer,
+					},
+				}
+				redisClient.CacheChannel <- redisMockMsg
+
+				Eventually(func() error {
+					resp, err = sut.Resolve(request)
+					return err
+				}, "50ms").Should(Succeed())
 			})
 		})
 	})
