@@ -100,18 +100,18 @@ func (r *ConditionalUpstreamResolver) Resolve(request *model.Request) (*model.Re
 	return r.next.Resolve(request)
 }
 
-func (r *ConditionalUpstreamResolver) internalResolve(resolver Resolver, domainFromQuestion,
-	domain string, request *model.Request) (*model.Response, error) {
+func (r *ConditionalUpstreamResolver) internalResolve(reso Resolver, doFQ, do string,
+	req *model.Request) (*model.Response, error) {
+	// internal request resolution
+	logger := withPrefix(req.Log, "conditional_resolver")
 
-	logger := withPrefix(request.Log, "conditional_resolver")
-
-	request.Req.Question[0].Name = dns.Fqdn(domainFromQuestion)
-	response, err := resolver.Resolve(request)
+	req.Req.Question[0].Name = dns.Fqdn(doFQ)
+	response, err := reso.Resolve(req)
 
 	if err == nil {
 		response.Reason = "CONDITIONAL"
 		response.RType = model.ResponseTypeCONDITIONAL
-		response.Res.Question[0].Name = request.Req.Question[0].Name
+		response.Res.Question[0].Name = req.Req.Question[0].Name
 	}
 
 	var answer string
@@ -121,8 +121,8 @@ func (r *ConditionalUpstreamResolver) internalResolve(resolver Resolver, domainF
 
 	logger.WithFields(logrus.Fields{
 		"answer":   answer,
-		"domain":   domain,
-		"upstream": resolver,
+		"domain":   do,
+		"upstream": reso,
 	}).Debugf("received response from conditional upstream")
 
 	return response, err
