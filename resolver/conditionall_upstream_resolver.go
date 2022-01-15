@@ -74,6 +74,7 @@ func (r *ConditionalUpstreamResolver) Resolve(request *model.Request) (*model.Re
 	if len(r.mapping) > 0 {
 		domainFromQuestion := r.applyRewrite(util.ExtractDomain(request.Req.Question[0]))
 		domain := domainFromQuestion
+
 		if !strings.Contains(domainFromQuestion, ".") {
 			if resolver, found := r.mapping["."]; found {
 				return r.internalResolve(resolver, domainFromQuestion, domain, request)
@@ -99,7 +100,9 @@ func (r *ConditionalUpstreamResolver) Resolve(request *model.Request) (*model.Re
 	return r.next.Resolve(request)
 }
 
-func (r *ConditionalUpstreamResolver) internalResolve(resolver Resolver, domainFromQuestion, domain string, request *model.Request) (*model.Response, error) {
+func (r *ConditionalUpstreamResolver) internalResolve(resolver Resolver, domainFromQuestion,
+	domain string, request *model.Request) (*model.Response, error) {
+
 	logger := withPrefix(request.Log, "conditional_resolver")
 
 	request.Req.Question[0].Name = dns.Fqdn(domainFromQuestion)
