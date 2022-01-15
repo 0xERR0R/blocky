@@ -7,7 +7,10 @@ import (
 	"github.com/0xERR0R/blocky/lists"
 	. "github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/alicebob/miniredis/v2"
+	"github.com/creasty/defaults"
 
 	"os"
 	"time"
@@ -831,4 +834,46 @@ badcnamedomain.com`)
 		})
 	})
 
+	Describe("Redis is configured", func() {
+		When("disable", func() {
+			var redisServer *miniredis.Miniredis
+			var redisClient *redis.Client
+
+			redisServer, err = miniredis.Run()
+
+			Expect(err).Should(Succeed())
+
+			var rcfg config.RedisConfig
+			err = defaults.Set(&rcfg)
+
+			Expect(err).Should(Succeed())
+
+			rcfg.Address = redisServer.Addr()
+			redisClient, err = redis.New(&rcfg)
+
+			Expect(err).Should(Succeed())
+			Expect(redisClient).ShouldNot(BeNil())
+
+			sutConfig = config.BlockingConfig{
+				BlockType: "ZEROIP",
+				BlockTTL:  config.Duration(time.Minute),
+			}
+
+			tmp, err2 := NewBlockingResolver(sutConfig, redisClient)
+			Expect(err2).Should(Succeed())
+			sut = tmp.(*BlockingResolver)
+			sut.EnableBlocking()
+
+			redisMockMsg := &redis.EnabledMessage{
+				State: false,
+			}
+			redisClient.EnabledChannel <- redisMockMsg
+
+			Eventually(func() bool {
+				return sut.status.enabled
+			}, "50ms").Should(BeFalse())
+
+			redisServer.Close()
+		})
+	})
 })
