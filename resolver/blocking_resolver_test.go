@@ -943,7 +943,7 @@ badcnamedomain.com`)
 			tmp, err2 := NewBlockingResolver(sutConfig, redisClient)
 			Expect(err2).Should(Succeed())
 			sut = tmp.(*BlockingResolver)
-			err = sut.DisableBlocking(time.Duration(time.Hour), []string{})
+			err = sut.DisableBlocking(time.Hour, []string{})
 			Expect(err).Should(Succeed())
 
 			redisMockMsg := &redis.EnabledMessage{
