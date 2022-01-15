@@ -94,6 +94,18 @@ var _ = Describe("Redis client", func() {
 			}, "100ms").Should(HaveLen(1))
 		})
 		It("enabled works", func() {
+			sub := redisServer.NewSubscriber()
+			sub.Subscribe(SyncChannelName)
+			redisClient.PublishEnabled(&EnabledMessage{
+				State: true,
+			})
+			Eventually(func() miniredis.PubsubMessage {
+				return <-sub.Messages()
+			}, "50ms").ShouldNot(BeNil())
+		})
+	})
+	When("recieved", func() {
+		It("enabled", func() {
 			var binState []byte
 			binState, err = json.Marshal(EnabledMessage{State: true})
 			Expect(err).Should(Succeed())
@@ -120,7 +132,7 @@ var _ = Describe("Redis client", func() {
 				return redisClient.EnabledChannel
 			}, "100ms").Should(HaveLen(lenE + 1))
 		})
-		It("unknown doesn't work", func() {
+		It("doesn't work", func() {
 			var id []byte
 			id, err = uuid.New().MarshalBinary()
 			Expect(err).Should(Succeed())
