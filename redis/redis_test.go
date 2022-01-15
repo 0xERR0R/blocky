@@ -94,14 +94,12 @@ var _ = Describe("Redis client", func() {
 			}, "100ms").Should(HaveLen(1))
 		})
 		It("enabled works", func() {
-			sub := redisServer.NewSubscriber()
-			sub.Subscribe(SyncChannelName)
 			redisClient.PublishEnabled(&EnabledMessage{
 				State: true,
 			})
-			Eventually(func() miniredis.PubsubMessage {
-				return <-sub.Messages()
-			}, "50ms").ShouldNot(BeNil())
+			Eventually(func() map[string]int {
+				return redisServer.PubSubNumSub(SyncChannelName)
+			}, "50ms").Should(HaveLen(1))
 		})
 	})
 	When("received", func() {
