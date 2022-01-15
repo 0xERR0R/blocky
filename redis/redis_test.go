@@ -104,7 +104,7 @@ var _ = Describe("Redis client", func() {
 			}, "50ms").ShouldNot(BeNil())
 		})
 	})
-	When("recieved", func() {
+	When("received", func() {
 		It("enabled", func() {
 			var binState []byte
 			binState, err = json.Marshal(EnabledMessage{State: true})
