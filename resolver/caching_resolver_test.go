@@ -6,7 +6,6 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/evt"
 	. "github.com/0xERR0R/blocky/helpertest"
-	"github.com/0xERR0R/blocky/model"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
@@ -524,8 +523,8 @@ var _ = Describe("CachingResolver", func() {
 				cacheKey := util.GenerateCacheKey(dns.TypeA, domain)
 				redisMockMsg := &redis.CacheMessage{
 					Key: cacheKey,
-					Response: &model.Response{
-						RType:  model.ResponseTypeCACHED,
+					Response: &Response{
+						RType:  ResponseTypeCACHED,
 						Reason: "MOCK_REDIS",
 						Res:    mockAnswer,
 					},
