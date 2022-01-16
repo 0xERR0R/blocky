@@ -59,10 +59,15 @@ func init() {
 
 func initConfig() {
 	config.LoadConfig(configPath, false)
-	log.ConfigureLogger(config.GetConfig().LogLevel, config.GetConfig().LogFormat, config.GetConfig().LogTimestamp)
+	cfg := config.GetConfig()
+	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
-	if len(config.GetConfig().HTTPPorts) != 0 {
-		split := strings.Split(config.GetConfig().HTTPPorts[0], ":")
+	if cfg.LogInstanceId {
+		log.SetInstanceId(util.InstanceId.String())
+	}
+
+	if len(cfg.HTTPPorts) != 0 {
+		split := strings.Split(cfg.HTTPPorts[0], ":")
 
 		lastIdx := len(split) - 1
 

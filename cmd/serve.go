@@ -34,16 +34,21 @@ func startServer(_ *cobra.Command, _ []string) {
 	printBanner()
 
 	config.LoadConfig(configPath, true)
-	log.ConfigureLogger(config.GetConfig().LogLevel, config.GetConfig().LogFormat, config.GetConfig().LogTimestamp)
+	cfg := config.GetConfig()
+	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
-	configureHTTPClient(config.GetConfig())
+	if cfg.LogInstanceId {
+		log.SetInstanceId(util.InstanceId.String())
+	}
+
+	configureHTTPClient(cfg)
 
 	signals := make(chan os.Signal, 1)
 	done = make(chan bool, 1)
 
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
-	srv, err := server.NewServer(config.GetConfig())
+	srv, err := server.NewServer(cfg)
 	util.FatalOnError("cant start server: ", err)
 
 	srv.Start()
