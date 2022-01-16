@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -33,4 +34,9 @@ func (i ID) String() string {
 // Bytes InstanceId representation as slice of bytes
 func (i ID) Bytes() []byte {
 	return i
+}
+
+// Equal compares a slice of bytes to the InstanceId
+func (i ID) Equal(comp []byte) bool {
+	return bytes.Equal(comp, i)
 }
