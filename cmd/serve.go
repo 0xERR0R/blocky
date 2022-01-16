@@ -38,7 +38,7 @@ func startServer(_ *cobra.Command, _ []string) {
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
 	if cfg.LogInstanceId {
-		log.SetInstanceId(util.InstanceId.String())
+		log.SetInstanceId()
 	}
 
 	configureHTTPClient(cfg)

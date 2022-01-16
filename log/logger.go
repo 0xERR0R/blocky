@@ -84,10 +84,9 @@ func ConfigureLogger(logLevel Level, formatType FormatType, logTimestamp bool) {
 	}
 }
 
-func SetInstanceId(instanceId string) {
+func SetInstanceId() {
 	defFormat := logger.Formatter
 	logger.SetFormatter(instanceIdLogger{
-		instanceId: instanceId,
-		formatter:  defFormat,
+		formatter: defFormat,
 	})
 }
