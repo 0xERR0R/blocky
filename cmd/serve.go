@@ -37,7 +37,7 @@ func startServer(_ *cobra.Command, _ []string) {
 	cfg := config.GetConfig()
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
-	if cfg.LogInstanceId {
+	if cfg.LogInstanceID {
 		log.SetInstanceID()
 	}
 

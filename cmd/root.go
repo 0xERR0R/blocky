@@ -62,7 +62,7 @@ func initConfig() {
 	cfg := config.GetConfig()
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
-	if cfg.LogInstanceId {
+	if cfg.LogInstanceID {
 		log.SetInstanceID()
 	}
 
