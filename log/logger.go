@@ -83,3 +83,11 @@ func ConfigureLogger(logLevel Level, formatType FormatType, logTimestamp bool) {
 		logger.SetFormatter(&logrus.JSONFormatter{})
 	}
 }
+
+func SetInstanceId(instanceId string) {
+	defFormat := logger.Formatter
+	logger.SetFormatter(instanceIdLogger{
+		instanceId: instanceId,
+		formatter:  defFormat,
+	})
+}
