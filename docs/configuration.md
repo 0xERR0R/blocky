@@ -24,6 +24,8 @@ configuration properties as [JSON](config.yml).
 | logLevel     | enum (debug, info, warn, error) | no                    | info          | Log level                                                                                                                                                                                                                                         |
 | logFormat    | enum (text, json)               | no                    | text          | Log format (text or json).                                                                                                                                                                                                                        |
 | logTimestamp | bool                            | no                    | true          | Log time stamps (true or false).                                                                                                                                                                                                                  |
+| logInstanceId | bool                            | no                    | false          | Log instance id (true or false).                                                                                                                                                                                                                  |
+
 | logPrivacy   | bool                            | no                    | false         | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy.                                                                                                  |
 
 !!! example
