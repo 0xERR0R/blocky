@@ -284,7 +284,7 @@ type Config struct {
 	LogFormat       log.FormatType            `yaml:"logFormat" default:"text"`
 	LogPrivacy      bool                      `yaml:"logPrivacy" default:"false"`
 	LogTimestamp    bool                      `yaml:"logTimestamp" default:"true"`
-	LogInstanceId   bool                      `yaml:"logInstanceId" default:"false"`
+	LogInstanceID   bool                      `yaml:"logInstanceId" default:"false"`
 	DNSPorts        ListenConfig              `yaml:"port" default:"[\"53\"]"`
 	HTTPPorts       ListenConfig              `yaml:"httpPort"`
 	HTTPSPorts      ListenConfig              `yaml:"httpsPort"`
