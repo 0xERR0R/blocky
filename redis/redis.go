@@ -1,7 +1,6 @@
 package redis
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,8 +10,8 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
 	"github.com/go-redis/redis/v8"
-	"github.com/google/uuid"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 )
@@ -50,7 +49,6 @@ type Client struct {
 	client       *redis.Client
 	l            *logrus.Entry
 	ctx          context.Context
-	id           []byte
 	sendBuffer   chan *bufferMessage
 	CacheChannel chan *CacheMessage
 }
@@ -73,26 +71,20 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 
 	_, err := rdb.Ping(ctx).Result()
 	if err == nil {
-		var id []byte
-
-		id, err = uuid.New().MarshalBinary()
-		if err == nil {
-			// construct client
-			res := &Client{
-				config:       cfg,
-				client:       rdb,
-				l:            log.PrefixedLog("redis"),
-				ctx:          ctx,
-				id:           id,
-				sendBuffer:   make(chan *bufferMessage, chanCap),
-				CacheChannel: make(chan *CacheMessage, chanCap),
-			}
-
-			// start channel handling go routine
-			err = res.startup()
-
-			return res, err
+		// construct client
+		res := &Client{
+			config:       cfg,
+			client:       rdb,
+			l:            log.PrefixedLog("redis"),
+			ctx:          ctx,
+			sendBuffer:   make(chan *bufferMessage, chanCap),
+			CacheChannel: make(chan *CacheMessage, chanCap),
 		}
+
+		// start channel handling go routine
+		err = res.startup()
+
+		return res, err
 	}
 
 	return nil, err
@@ -159,7 +151,7 @@ func (c *Client) publishMessageFromBuffer(s *bufferMessage) {
 		binMsg, mErr := json.Marshal(redisMessage{
 			K: s.Key,
 			M: binRes,
-			C: c.id,
+			C: util.InstanceId.Bytes(),
 		})
 
 		if mErr == nil {
@@ -182,7 +174,7 @@ func (c *Client) processReceivedMessage(msg *redis.Message) (err error) {
 		err = json.Unmarshal([]byte(msg.Payload), &rm)
 		if err == nil {
 			// message was sent from a different blocky instance
-			if !bytes.Equal(rm.C, c.id) {
+			if !util.InstanceId.Equal(rm.C) {
 				var cm *CacheMessage
 
 				cm, err = convertMessage(&rm, 0)
