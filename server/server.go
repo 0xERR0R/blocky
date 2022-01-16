@@ -55,7 +55,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
 	if cfg.LogInstanceId {
-		log.SetInstanceId()
+		log.SetInstanceID()
 	}
 
 	addServers := func(newServer NewServerFunc, addresses config.ListenConfig) {

@@ -7,21 +7,21 @@ import (
 )
 
 // nolint:gochecknoglobals
-var instanceId uuid.UUID
+var instanceID uuid.UUID
 
 // nolint:gochecknoinits
 func init() {
-	instanceId = uuid.New()
+	instanceID = uuid.New()
 }
 
 // String instanceid representation as string
 func String() string {
-	return instanceId.String()
+	return instanceID.String()
 }
 
 // Bytes instanceid representation as slice of bytes
 func Bytes() []byte {
-	b, _ := instanceId.MarshalBinary()
+	b, _ := instanceID.MarshalBinary()
 	return b
 }
 
