@@ -5,11 +5,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type instanceIdLogger struct {
+type instanceIDLogger struct {
 	formatter log.Formatter
 }
 
-func (l instanceIdLogger) Format(entry *log.Entry) ([]byte, error) {
+func (l instanceIDLogger) Format(entry *log.Entry) ([]byte, error) {
 	entry.Data["instanceId"] = instanceid.String()
 	return l.formatter.Format(entry)
 }
