@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/instanceid"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
-	"github.com/0xERR0R/blocky/util"
 	"github.com/go-redis/redis/v8"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
@@ -151,7 +151,7 @@ func (c *Client) publishMessageFromBuffer(s *bufferMessage) {
 		binMsg, mErr := json.Marshal(redisMessage{
 			K: s.Key,
 			M: binRes,
-			C: util.InstanceId.Bytes(),
+			C: instanceid.Bytes(),
 		})
 
 		if mErr == nil {
@@ -174,7 +174,7 @@ func (c *Client) processReceivedMessage(msg *redis.Message) (err error) {
 		err = json.Unmarshal([]byte(msg.Payload), &rm)
 		if err == nil {
 			// message was sent from a different blocky instance
-			if !util.InstanceId.Equal(rm.C) {
+			if !instanceid.Equal(rm.C) {
 				var cm *CacheMessage
 
 				cm, err = convertMessage(&rm, 0)
