@@ -7,9 +7,10 @@ import (
 	"github.com/google/uuid"
 )
 
+// ID type for InstanceId with base slice of bytes
 type ID []byte
 
-//nolint:gochecknoglobals
+// nolint:gochecknoglobals
 var (
 	InstanceId ID
 )
