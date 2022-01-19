@@ -225,9 +225,7 @@ func (c *Client) processReceivedMessage(msg *redis.Message) (err error) {
 					c.l.Warn("Unknown message type: ", rm.T)
 				}
 			}
-		}
-
-		if err == nil {
+		} else {
 			c.l.Error("Processing error: ", err)
 		}
 	}
