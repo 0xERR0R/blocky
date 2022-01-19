@@ -18,11 +18,13 @@ import (
 )
 
 const (
-	CacheChannelName string = "blocky_sync"
-	CacheStorePrefix string = "blocky:cache:"
-	chanCap          int    = 1000
-	cacheReason      string = "EXTERNAL_CACHE"
-	defaultCacheTime        = 1 * time.Second
+	SyncChannelName   = "blocky_sync"
+	CacheStorePrefix  = "blocky:cache:"
+	chanCap           = 1000
+	cacheReason       = "EXTERNAL_CACHE"
+	defaultCacheTime  = 1 * time.Second
+	messageTypeCache  = 0
+	messageTypeEnable = 1
 )
 
 // sendBuffer message
@@ -34,6 +36,7 @@ type bufferMessage struct {
 // redis pubsub message
 type redisMessage struct {
 	K string // key
+	T int    // type
 	M []byte // message
 	C []byte // client
 }
@@ -44,15 +47,22 @@ type CacheMessage struct {
 	Response *model.Response
 }
 
+type EnabledMessage struct {
+	State    bool          `json:"s"`
+	Duration time.Duration `json:"d,omitempty"`
+	Groups   []string      `json:"g,omitempty"`
+}
+
 // Client for redis communication
 type Client struct {
-	config       *config.RedisConfig
-	client       *redis.Client
-	l            *logrus.Entry
-	ctx          context.Context
-	id           []byte
-	sendBuffer   chan *bufferMessage
-	CacheChannel chan *CacheMessage
+	config         *config.RedisConfig
+	client         *redis.Client
+	l              *logrus.Entry
+	ctx            context.Context
+	id             []byte
+	sendBuffer     chan *bufferMessage
+	CacheChannel   chan *CacheMessage
+	EnabledChannel chan *EnabledMessage
 }
 
 // New creates a new redis client
@@ -79,13 +89,14 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 		if err == nil {
 			// construct client
 			res := &Client{
-				config:       cfg,
-				client:       rdb,
-				l:            log.PrefixedLog("redis"),
-				ctx:          ctx,
-				id:           id,
-				sendBuffer:   make(chan *bufferMessage, chanCap),
-				CacheChannel: make(chan *CacheMessage, chanCap),
+				config:         cfg,
+				client:         rdb,
+				l:              log.PrefixedLog("redis"),
+				ctx:            ctx,
+				id:             id,
+				sendBuffer:     make(chan *bufferMessage, chanCap),
+				CacheChannel:   make(chan *CacheMessage, chanCap),
+				EnabledChannel: make(chan *EnabledMessage, chanCap),
 			}
 
 			// start channel handling go routine
@@ -104,6 +115,22 @@ func (c *Client) PublishCache(key string, message *dns.Msg) {
 		c.sendBuffer <- &bufferMessage{
 			Key:     key,
 			Message: message,
+		}
+	}
+}
+
+func (c *Client) PublishEnabled(state *EnabledMessage) {
+	binState, sErr := json.Marshal(state)
+	if sErr == nil {
+		binMsg, mErr := json.Marshal(redisMessage{
+			K: "system.enabled",
+			T: messageTypeEnable,
+			M: binState,
+			C: c.id,
+		})
+
+		if mErr == nil {
+			c.client.Publish(c.ctx, SyncChannelName, binMsg)
 		}
 	}
 }
@@ -129,7 +156,7 @@ func (c *Client) GetRedisCache() {
 
 // startup starts a new goroutine for subscription and translation
 func (c *Client) startup() error {
-	ps := c.client.Subscribe(c.ctx, CacheChannelName)
+	ps := c.client.Subscribe(c.ctx, SyncChannelName)
 
 	_, err := ps.Receive(c.ctx)
 	if err == nil {
@@ -153,17 +180,18 @@ func (c *Client) startup() error {
 func (c *Client) publishMessageFromBuffer(s *bufferMessage) {
 	origRes := s.Message
 	origRes.Compress = true
-
 	binRes, pErr := origRes.Pack()
+
 	if pErr == nil {
 		binMsg, mErr := json.Marshal(redisMessage{
 			K: s.Key,
+			T: messageTypeCache,
 			M: binRes,
 			C: c.id,
 		})
 
 		if mErr == nil {
-			c.client.Publish(c.ctx, CacheChannelName, binMsg)
+			c.client.Publish(c.ctx, SyncChannelName, binMsg)
 		}
 
 		c.client.Set(c.ctx,
@@ -183,16 +211,34 @@ func (c *Client) processReceivedMessage(msg *redis.Message) (err error) {
 		if err == nil {
 			// message was sent from a different blocky instance
 			if !bytes.Equal(rm.C, c.id) {
-				var cm *CacheMessage
+				switch rm.T {
+				case messageTypeCache:
+					var cm *CacheMessage
 
-				cm, err = convertMessage(&rm, 0)
-				if err == nil {
-					c.CacheChannel <- cm
+					cm, err = convertMessage(&rm, 0)
+					if err == nil {
+						c.CacheChannel <- cm
+					}
+				case messageTypeEnable:
+					err = c.processEnabledMessage(&rm)
+				default:
+					c.l.Warn("Unknown message type: ", rm.T)
 				}
 			}
 		} else {
-			c.l.Error("Conversion error: ", err)
+			c.l.Error("Processing error: ", err)
 		}
+	}
+
+	return err
+}
+
+func (c *Client) processEnabledMessage(redisMsg *redisMessage) error {
+	var msg EnabledMessage
+
+	err := json.Unmarshal(redisMsg.M, &msg)
+	if err == nil {
+		c.EnabledChannel <- &msg
 	}
 
 	return err

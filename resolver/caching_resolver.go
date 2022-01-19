@@ -53,7 +53,7 @@ func NewCachingResolver(cfg config.CachingConfig, redis *redis.Client) ChainedRe
 	}
 
 	if c.redisEnabled {
-		setupRedisSubscribers(c)
+		setupRedisCacheSubscriber(c)
 		c.redisClient.GetRedisCache()
 	}
 
@@ -76,7 +76,7 @@ func configurePrefetching(c *CachingResolver, cfg *config.CachingConfig) {
 	})
 }
 
-func setupRedisSubscribers(c *CachingResolver) {
+func setupRedisCacheSubscriber(c *CachingResolver) {
 	logger := logger("caching_resolver")
 
 	go func() {

@@ -73,23 +73,23 @@ CIDR notation.
     ```yaml
     upstream:
       default:
-        - 46.182.19.48
-        - 80.241.218.68
-        - tcp-tls:fdns1.dismail.de:853
-        - https://dns.digitale-gesellschaft.ch/dns-query
-      laptop*:
-        - 123.123.123.123
-      10.43.8.67/28:
-        - 1.1.1.1
-        - 9.9.9.9
-    ```
-    
-    Use `123.123.123.123` as single upstream DNS resolver for client laptop-home, 
-    `1.1.1.1` and `9.9.9.9` for all clients in the sub-net `10.43.8.67/28` and 4 resolvers (default) for all others clients.
+- 46.182.19.48
+- 80.241.218.68
+- tcp-tls:fdns1.dismail.de:853
+- https://dns.digitale-gesellschaft.ch/dns-query
+laptop*:
+- 123.123.123.123
+10.43.8.67/28:
+- 1.1.1.1
+- 9.9.9.9
+```
+
+Use `123.123.123.123` as single upstream DNS resolver for client laptop-home,
+`1.1.1.1` and `9.9.9.9` for all clients in the sub-net `10.43.8.67/28` and 4 resolvers (default) for all others clients.
 
 !!! note
 
-    ** Blocky needs at least one upstream DNS server **
+** Blocky needs at least one upstream DNS server **
 
 See [List of public DNS servers](additional_information.md#list-of-public-dns-servers) if you need some ideas, which
 public free DNS server you could use.
@@ -101,11 +101,11 @@ value by setting the `upstreamTimeout` configuration parameter (in **duration fo
 
 !!! example
 
-    ```yaml
-    upstream:
-      default:
-        - 46.182.19.48
-        - 80.241.218.68
+```yaml
+upstream:
+default:
+- 46.182.19.48
+- 80.241.218.68
 upstreamTimeout: 5s
 ```
 
@@ -146,18 +146,18 @@ resolver lookup is performed.
 
 ```yaml
 conditional:
-      rewrite:
-        example.com: fritz.box
-        replace-me.com: with-this.com
-      mapping:
-        fritz.box: 192.168.178.1
-        lan.net: 192.170.1.2,192.170.1.3
-        # for reverse DNS lookups of local devices
-        178.168.192.in-addr.arpa: 192.168.178.1
-    ```
+rewrite:
+example.com: fritz.box
+replace-me.com: with-this.com
+mapping:
+fritz.box: 192.168.178.1
+lan.net: 192.170.1.2,192.170.1.3
+# for reverse DNS lookups of local devices
+178.168.192.in-addr.arpa: 192.168.178.1
+```
 
-    In this example, a DNS query "client.fritz.box" will be redirected to the router's DNS server at 192.168.178.1 and client.lan.net to 192.170.1.2 and 192.170.1.3. 
-    The query client.example.com will be rewritten to "client.fritz.box" and also redirected to the resolver at 192.168.178.1
+In this example, a DNS query "client.fritz.box" will be redirected to the router's DNS server at 192.168.178.1 and client.lan.net to 192.170.1.2 and 192.170.1.3.
+The query client.example.com will be rewritten to "client.fritz.box" and also redirected to the resolver at 192.168.178.1
 
 In this example, a DNS query "client.fritz.box" will be redirected to the router's DNS server at 192.168.178.1 and
 client.lan.net to 192.170.1.2 and 192.170.1.3.
@@ -232,16 +232,16 @@ in hosts format (YAML literal block scalar style). All Urls must be grouped to a
 
 ```yaml
 blocking:
-      blackLists:
-        ads:
-          - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
-          - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
-          - |
-            # inline definition with YAML literal block scalar style
-            someadsdomain.com
-            anotheradsdomain.com
-            # this is a regex
-            /^banners?[_.-]/
+blackLists:
+ads:
+- https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
+- https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+- |
+# inline definition with YAML literal block scalar style
+someadsdomain.com
+anotheradsdomain.com
+# this is a regex
+/^banners?[_.-]/
         special:
           - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
       whiteLists:
@@ -330,7 +330,7 @@ time it could take for a client to be able to see the real IP address for a doma
 
 !!! example
 
-    ```yaml
+```yaml
     blocking:
       blockType: 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344
       blockTTL: 10s
@@ -344,7 +344,7 @@ Negative value will deactivate automatically refresh.
 
 !!! example
 
-    ```yaml
+```yaml
 blocking:
 refreshPeriod: 60m
 ```
@@ -377,8 +377,8 @@ downloaded or opened. Default value is `false`.
 
 !!! example
 
-    ```yaml
-    blocking:
+```yaml
+blocking:
      failStartOnListError: false
     ```
 
@@ -417,7 +417,7 @@ prefetching: true
 
 ## Redis
 
-Blocky can synchronize its cache between multiple instances through redis.
+Blocky can synchronize its cache and blocking state between multiple instances through redis.
 Synchronization is disabled if no address is configured.
 
 | Parameter                | Type            | Mandatory | Default value | Description                                |
@@ -466,7 +466,7 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.
 
 !!! warning
 
-    Query file/database contains sensitive information. Please ensure to inform users, if you log their queries.
+Query file/database contains sensitive information. Please ensure to inform users, if you log their queries.
 
 ### Query log types
 
@@ -498,21 +498,21 @@ example for CSV format
 !!! example
 
 ```yaml
-    queryLog:
-        type: csv
-        target: /logs
-        logRetentionDays: 7
-  ```
+queryLog:
+type: csv
+target: /logs
+logRetentionDays: 7
+```
 
 example for Database
 !!! example
 
 ```yaml
-    queryLog:
-        type: mysql
-        target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
-        logRetentionDays: 7
-  ```
+queryLog:
+type: mysql
+target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
+logRetentionDays: 7
+```
 
 ### Hosts file
 
@@ -529,9 +529,9 @@ Configuration parameters:
 !!! example
 ```yaml
 hostsFile:
-    filePath: /etc/hosts
-    hostsTTL: 60m
-    refreshPeriod: 30m
+filePath: /etc/hosts
+hostsTTL: 60m
+refreshPeriod: 30m
 ```
 
 ## SSL certificate configuration (DoH / TLS listener)
