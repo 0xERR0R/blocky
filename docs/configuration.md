@@ -5,9 +5,9 @@ configuration properties as [JSON](config.yml).
 
 ??? example "reference configuration file"
 
-```yaml
---8<-- "docs/config.yml"
-```
+    ```yaml
+    --8<-- "docs/config.yml"
+    ```
 
 ## Basic configuration
 
@@ -28,12 +28,12 @@ configuration properties as [JSON](config.yml).
 
 !!! example
 
-```yaml
-port: 53
-httpPort: 4000
-httpsPort: 443
-logLevel: info
-```
+    ```yaml
+    port: 53
+    httpPort: 4000
+    httpsPort: 443
+    logLevel: info
+    ```
 
 ## Upstream configuration
 
@@ -46,9 +46,9 @@ following network protocols (net part of the resolver URL):
 
 !!! hint
 
-You can (and should!) configure multiple DNS resolvers. Blocky picks 2 random resolvers from the list for each query and
-returns the answer from the fastest one. This improves your network speed and increases your privacy - your DNS traffic
-will be distributed over multiple providers.
+    You can (and should!) configure multiple DNS resolvers. Blocky picks 2 random resolvers from the list for each query and
+    returns the answer from the fastest one. This improves your network speed and increases your privacy - your DNS traffic
+    will be distributed over multiple providers.
 
 Each resolver must be defined as a string in following format: `[net:]host:[port][/path]`.
 
@@ -73,23 +73,23 @@ CIDR notation.
     ```yaml
     upstream:
       default:
-- 46.182.19.48
-- 80.241.218.68
-- tcp-tls:fdns1.dismail.de:853
-- https://dns.digitale-gesellschaft.ch/dns-query
-laptop*:
-- 123.123.123.123
-10.43.8.67/28:
-- 1.1.1.1
-- 9.9.9.9
-```
+      - 46.182.19.48
+      - 80.241.218.68
+      - tcp-tls:fdns1.dismail.de:853
+      - https://dns.digitale-gesellschaft.ch/dns-query
+      laptop*:
+      - 123.123.123.123
+      10.43.8.67/28:
+      - 1.1.1.1
+      - 9.9.9.9
+    ```
 
 Use `123.123.123.123` as single upstream DNS resolver for client laptop-home,
 `1.1.1.1` and `9.9.9.9` for all clients in the sub-net `10.43.8.67/28` and 4 resolvers (default) for all others clients.
 
 !!! note
 
-** Blocky needs at least one upstream DNS server **
+    ** Blocky needs at least one upstream DNS server **
 
 See [List of public DNS servers](additional_information.md#list-of-public-dns-servers) if you need some ideas, which
 public free DNS server you could use.
@@ -101,13 +101,13 @@ value by setting the `upstreamTimeout` configuration parameter (in **duration fo
 
 !!! example
 
-```yaml
-upstream:
-default:
-- 46.182.19.48
-- 80.241.218.68
-upstreamTimeout: 5s
-```
+    ```yaml
+    upstream:
+        default:
+        - 46.182.19.48
+        - 80.241.218.68
+    upstreamTimeout: 5s
+    ```
 
 ## Custom DNS
 
@@ -122,13 +122,13 @@ domain must be separated by a comma.
 
 !!! example
 
-```yaml
-customDNS:
-customTTL: 1h
-mapping:
-printer.lan: 192.168.178.3
-otherdevice.lan: 192.168.178.15,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
-```
+    ```yaml
+    customDNS:
+        customTTL: 1h
+    mapping:
+        printer.lan: 192.168.178.3
+        otherdevice.lan: 192.168.178.15,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
+    ```
 
 This configuration will also resolve any subdomain of the defined domain. For example a query "printer.lan" or "
 my.printer.lan" will return 192.168.178.3 as IP address.
@@ -144,23 +144,28 @@ resolver lookup is performed.
 
 !!! example
 
-```yaml
-conditional:
-rewrite:
-example.com: fritz.box
-replace-me.com: with-this.com
-mapping:
-fritz.box: 192.168.178.1
-lan.net: 192.170.1.2,192.170.1.3
-# for reverse DNS lookups of local devices
-178.168.192.in-addr.arpa: 192.168.178.1
-```
+    ```yaml
+    conditional:
+        rewrite:
+            example.com: fritz.box
+            replace-me.com: with-this.com
+        mapping:
+            fritz.box: 192.168.178.1
+            lan.net: 192.170.1.2,192.170.1.3
+            # for reverse DNS lookups of local devices
+            178.168.192.in-addr.arpa: 192.168.178.1
+            # for all unqualified hostnames
+            .: 168.168.0.1
+    ```
+
+!!! tip
+
+    You can use `.` as wildcard for all non full qualified domains (domains without dot)
 
 In this example, a DNS query "client.fritz.box" will be redirected to the router's DNS server at 192.168.178.1 and client.lan.net to 192.170.1.2 and 192.170.1.3.
-The query client.example.com will be rewritten to "client.fritz.box" and also redirected to the resolver at 192.168.178.1
+The query client.example.com will be rewritten to "client.fritz.box" and also redirected to the resolver at 192.168.178.1. All unqualified hostnames (e.g. 'test')
+will be redirected to the DNS server at 168.168.0.1
 
-In this example, a DNS query "client.fritz.box" will be redirected to the router's DNS server at 192.168.178.1 and
-client.lan.net to 192.170.1.2 and 192.170.1.3.
 
 ## Client name lookup
 
@@ -179,7 +184,7 @@ DoH URL: `https://id-bob.example.com/dns-query` -> request's client name is `bob
 
 For DoH you can also pass the client name as url parameter:
 
-DoH URL: `htpps://blocky.example.com/dns-query/alice` -> request's client name is `alice`
+DoH URL: `https://blocky.example.com/dns-query/alice` -> request's client name is `alice`
 
 ### Resolving client name from IP address
 
@@ -230,18 +235,18 @@ in hosts format (YAML literal block scalar style). All Urls must be grouped to a
 
 !!! example
 
-```yaml
-blocking:
-blackLists:
-ads:
-- https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
-- https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
-- |
-# inline definition with YAML literal block scalar style
-someadsdomain.com
-anotheradsdomain.com
-# this is a regex
-/^banners?[_.-]/
+    ```yaml
+    blocking:
+    blackLists:
+    ads:
+    - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
+    - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+    - |
+    # inline definition with YAML literal block scalar style
+    someadsdomain.com
+    anotheradsdomain.com
+    # this is a regex
+    /^banners?[_.-]/
         special:
           - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
       whiteLists:
@@ -302,7 +307,7 @@ CIDR notation.
 
 !!! tip
 
-You can use `*` as wildcard for the sequence of any character or `[0-9]` as number range
+    You can use `*` as wildcard for the sequence of any character or `[0-9]` as number range
 
 ### Block type
 
@@ -317,10 +322,10 @@ queries, NXDOMAIN for other types):
 
 !!! example
 
-```yaml
-blocking:
-blockType: nxDomain
-```
+    ```yaml
+    blocking:
+    blockType: nxDomain
+    ```
 
 ### Block TTL
 
@@ -330,7 +335,7 @@ time it could take for a client to be able to see the real IP address for a doma
 
 !!! example
 
-```yaml
+    ```yaml
     blocking:
       blockType: 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344
       blockTTL: 10s
@@ -344,9 +349,9 @@ Negative value will deactivate automatically refresh.
 
 !!! example
 
-```yaml
-blocking:
-refreshPeriod: 60m
+    ```yaml
+    blocking:
+    refreshPeriod: 60m
 ```
 
 Refresh every hour.
@@ -363,12 +368,12 @@ You can configure the list download attempts according to your internet connecti
 
 !!! example
 
-```yaml
-blocking:
-downloadTimeout: 4m
-downloadAttempts: 5
-downloadCooldown: 10s
-```
+    ```yaml
+    blocking:
+        downloadTimeout: 4m
+        downloadAttempts: 5
+        downloadCooldown: 10s
+    ```
 
 ### Fail on start
 
@@ -377,8 +382,8 @@ downloaded or opened. Default value is `false`.
 
 !!! example
 
-```yaml
-blocking:
+    ```yaml
+    blocking:
      failStartOnListError: false
     ```
 
@@ -393,7 +398,7 @@ With following parameters you can tune the caching behavior:
 
 !!! warning
 
-Wrong values can significantly increase external DNS traffic or memory consumption.
+    Wrong values can significantly increase external DNS traffic or memory consumption.
 
 | Parameter                     | Type            | Mandatory | Default value | Description                                                                                                                                                                                                                                                                                                                                                                                                    |
 |-------------------------------|-----------------|-----------|---------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -408,12 +413,12 @@ Wrong values can significantly increase external DNS traffic or memory consumpti
 
 !!! example
 
-```yaml
-caching:
-minTime: 5m
-maxTime: 30m
-prefetching: true
-```
+    ```yaml
+    caching:
+        minTime: 5m
+        maxTime: 30m
+        prefetching: true
+    ```
 
 ## Redis
 
@@ -431,15 +436,15 @@ Synchronization is disabled if no address is configured.
 
 !!! example
 
-```yaml
-redis:
-address: redis:6379
-password: passwd
-database: 2
-required: true
-connectionAttempts: 10
-connectionCooldown: 3s
-```
+    ```yaml
+    redis:
+        address: redis:6379
+        password: passwd
+        database: 2
+        required: true
+        connectionAttempts: 10
+        connectionCooldown: 3s
+    ```
 
 ## Prometheus
 
@@ -453,11 +458,11 @@ see [Basic Configuration](#basic-configuration)).
 
 !!! example
 
-```yaml
-prometheus:
-enable: true
-path: /metrics
-```
+    ```yaml
+    prometheus:
+        enable: true
+        path: /metrics
+    ```
 
 ## Query logging
 
@@ -466,7 +471,7 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.
 
 !!! warning
 
-Query file/database contains sensitive information. Please ensure to inform users, if you log their queries.
+    Query file/database contains sensitive information. Please ensure to inform users, if you log their queries.
 
 ### Query log types
 
@@ -491,28 +496,28 @@ Configuration parameters:
 
 !!! hint
 
-Please ensure, that the log directory is writable or database exists. If you use docker, please ensure, that the directory is properly
-mounted (e.g. volume)
+    Please ensure, that the log directory is writable or database exists. If you use docker, please ensure, that the directory is properly
+    mounted (e.g. volume)
 
 example for CSV format
 !!! example
 
-```yaml
-queryLog:
-type: csv
-target: /logs
-logRetentionDays: 7
-```
+    ```yaml
+    queryLog:
+        type: csv
+        target: /logs
+        logRetentionDays: 7
+    ```
 
 example for Database
 !!! example
 
-```yaml
-queryLog:
-type: mysql
-target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
-logRetentionDays: 7
-```
+    ```yaml
+    queryLog:
+        type: mysql
+        target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
+        logRetentionDays: 7
+    ```
 
 ### Hosts file
 
@@ -527,12 +532,13 @@ Configuration parameters:
 | hostsFile.refreshPeriod  | duration format                | no        | 1h            | Time between hosts file refresh               |
 
 !!! example
-```yaml
-hostsFile:
-filePath: /etc/hosts
-hostsTTL: 60m
-refreshPeriod: 30m
-```
+
+    ```yaml
+    hostsFile:
+        filePath: /etc/hosts
+        hostsTTL: 60m
+        refreshPeriod: 30m
+    ```
 
 ## SSL certificate configuration (DoH / TLS listener)
 
