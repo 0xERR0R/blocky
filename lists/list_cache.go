@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/0xERR0R/blocky/cache/stringcache"
+
 	"github.com/avast/retry-go/v4"
 
 	"github.com/hako/durafmt"
@@ -41,7 +43,7 @@ type Matcher interface {
 
 // ListCache generic cache of strings divided in groups
 type ListCache struct {
-	groupCaches map[string]cache
+	groupCaches map[string]stringcache.StringCache
 	lock        sync.RWMutex
 
 	groupToLinks     map[string][]string
@@ -78,8 +80,8 @@ func (b *ListCache) Configuration() (result []string) {
 	var total int
 
 	for group, cache := range b.groupCaches {
-		result = append(result, fmt.Sprintf("  %s: %d entries", group, cache.elementCount()))
-		total += cache.elementCount()
+		result = append(result, fmt.Sprintf("  %s: %d entries", group, cache.ElementCount()))
+		total += cache.ElementCount()
 	}
 
 	result = append(result, fmt.Sprintf("  TOTAL: %d entries", total))
@@ -90,7 +92,7 @@ func (b *ListCache) Configuration() (result []string) {
 // NewListCache creates new list instance
 func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration,
 	downloadTimeout time.Duration, downloadAttempts int, downloadCooldown time.Duration) (*ListCache, error) {
-	groupCaches := make(map[string]cache)
+	groupCaches := make(map[string]stringcache.StringCache)
 
 	b := &ListCache{
 		groupToLinks:     groupToLinks,
@@ -133,7 +135,7 @@ type groupCache struct {
 }
 
 // downloads and reads files with domain names and creates cache for them
-func (b *ListCache) createCacheForGroup(links []string) (cache, error) {
+func (b *ListCache) createCacheForGroup(links []string) (stringcache.StringCache, error) {
 	var wg sync.WaitGroup
 
 	var err error
@@ -148,7 +150,7 @@ func (b *ListCache) createCacheForGroup(links []string) (cache, error) {
 
 	wg.Wait()
 
-	factory := newChainedCacheFactory()
+	factory := stringcache.NewChainedCacheFactory()
 
 Loop:
 	for {
@@ -161,7 +163,7 @@ Loop:
 				return nil, err
 			}
 			for _, entry := range res.cache {
-				factory.addEntry(entry)
+				factory.AddEntry(entry)
 			}
 		default:
 			close(c)
@@ -169,7 +171,7 @@ Loop:
 		}
 	}
 
-	return factory.create(), err
+	return factory.Create(), err
 }
 
 // Match matches passed domain name against cached list entries
@@ -178,7 +180,7 @@ func (b *ListCache) Match(domain string, groupsToCheck []string) (found bool, gr
 	defer b.lock.RUnlock()
 
 	for _, g := range groupsToCheck {
-		if c, ok := b.groupCaches[g]; ok && c.contains(domain) {
+		if c, ok := b.groupCaches[g]; ok && c.Contains(domain) {
 			return true, g
 		}
 	}
@@ -213,11 +215,11 @@ func (b *ListCache) refresh(init bool) error {
 		}
 
 		if b.groupCaches[group] != nil {
-			evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, b.groupCaches[group].elementCount())
+			evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, b.groupCaches[group].ElementCount())
 
 			logger().WithFields(logrus.Fields{
 				"group":       group,
-				"total_count": b.groupCaches[group].elementCount(),
+				"total_count": b.groupCaches[group].ElementCount(),
 			}).Info("group import finished")
 		}
 	}

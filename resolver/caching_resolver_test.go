@@ -3,6 +3,7 @@ package resolver
 import (
 	"time"
 
+	"github.com/0xERR0R/blocky/cache/expirationcache"
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/evt"
 	. "github.com/0xERR0R/blocky/helpertest"
@@ -12,7 +13,6 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/creasty/defaults"
 
-	"github.com/0xERR0R/go-cache"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -58,13 +58,16 @@ var _ = Describe("CachingResolver", func() {
 					PrefetchExpires:   config.Duration(time.Minute * 120),
 					PrefetchThreshold: 5,
 				}
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1, dns.TypeA, "123.122.121.120")
 			})
 
 			It("should prefetch domain if query count > threshold", func() {
 				// prepare resolver, set smaller caching times for testing
 				prefetchThreshold := 5
-				sut.(*CachingResolver).resultCache = cache.New(25*time.Millisecond, 15*time.Millisecond)
-				configurePrefetching(sut.(*CachingResolver), &sutConfig)
+				configureCaches(sut.(*CachingResolver), &sutConfig)
+				sut.(*CachingResolver).resultCache = expirationcache.NewCache(
+					expirationcache.WithCleanUpInterval(100*time.Millisecond),
+					expirationcache.WithOnExpiredFn(sut.(*CachingResolver).onExpired))
 
 				prefetchedCnt := 0
 				_ = Bus().SubscribeOnce(CachingDomainsToPrefetchCountChanged, func(cnt int) {
@@ -93,8 +96,8 @@ var _ = Describe("CachingResolver", func() {
 				// now query again > threshold
 				for i := 0; i < prefetchThreshold; i++ {
 					_, _ = sut.Resolve(newRequest("example.com.", dns.TypeA))
-
 				}
+
 				Eventually(func(g Gomega) {
 					// now is this domain prefetched
 					g.Expect(domainPrefetched).Should(Equal("example.com"))
@@ -102,7 +105,7 @@ var _ = Describe("CachingResolver", func() {
 					// and it should hit from prefetch cache
 					_, _ = sut.Resolve(newRequest("example.com.", dns.TypeA))
 					g.Expect(prefetchHitDomain).Should(Equal("example.com"))
-				}, "50ms").Should(Succeed())
+				}, "2s").Should(Succeed())
 
 			})
 		})
@@ -420,12 +423,15 @@ var _ = Describe("CachingResolver", func() {
 				})
 
 				By("second request", func() {
-					resp, err = sut.Resolve(newRequest("google.de.", dns.TypeMX))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
-					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(m.Calls).Should(HaveLen(1))
-					Expect(resp.Res.Answer).Should(BeDNSRecord("google.de.", dns.TypeMX, 179, "alt1.aspmx.l.google.com."))
+					Eventually(func(g Gomega) {
+						resp, err = sut.Resolve(newRequest("google.de.", dns.TypeMX))
+						g.Expect(err).Should(Succeed())
+						g.Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
+						g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+						g.Expect(m.Calls).Should(HaveLen(1))
+						g.Expect(resp.Res.Answer).Should(BeDNSRecord("google.de.", dns.TypeMX, 179, "alt1.aspmx.l.google.com."))
+					}, "1s").Should(Succeed())
+
 				})
 			})
 		})

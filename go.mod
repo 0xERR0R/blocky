@@ -3,7 +3,7 @@ module github.com/0xERR0R/blocky
 go 1.17
 
 require (
-	github.com/0xERR0R/go-cache v1.6.0
+	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 	github.com/alicebob/miniredis/v2 v2.18.0
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/avast/retry-go/v4 v4.0.2
@@ -14,6 +14,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/hako/durafmt v0.0.0-20210608085754-5c1018a4e16b
 	github.com/hashicorp/go-multierror v1.1.1
+	github.com/hashicorp/golang-lru v0.5.4
 	github.com/miekg/dns v1.1.45
 	github.com/mroth/weightedrand v0.4.1
 	github.com/onsi/ginkgo v1.16.5
