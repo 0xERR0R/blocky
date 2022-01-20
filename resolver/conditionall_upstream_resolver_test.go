@@ -41,6 +41,11 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 
 						return response
 					})},
+					".": {TestUDPUpstream(func(request *dns.Msg) (response *dns.Msg) {
+						response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 223, dns.TypeA, "168.168.168.168")
+
+						return response
+					})},
 				}},
 		})
 		m = &resolverMock{}
@@ -76,6 +81,16 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 				resp, err = sut.Resolve(newRequest("test.fritz.box.", dns.TypeA))
 
 				Expect(resp.Res.Answer).Should(BeDNSRecord("test.fritz.box.", dns.TypeA, 123, "123.124.122.122"))
+				// no call to next resolver
+				Expect(m.Calls).Should(BeEmpty())
+				Expect(resp.RType).Should(Equal(ResponseTypeCONDITIONAL))
+			})
+		})
+		When("Query is not fqdn and . condition is defined in mapping", func() {
+			It("Should resolve the IP of .", func() {
+				resp, err = sut.Resolve(newRequest("test.", dns.TypeA))
+
+				Expect(resp.Res.Answer).Should(BeDNSRecord("test.", dns.TypeA, 223, "168.168.168.168"))
 				// no call to next resolver
 				Expect(m.Calls).Should(BeEmpty())
 				Expect(resp.RType).Should(Equal(ResponseTypeCONDITIONAL))

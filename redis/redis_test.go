@@ -1,10 +1,13 @@
 package redis
 
 import (
+	"encoding/json"
+
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/creasty/defaults"
+	"github.com/google/uuid"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -78,7 +81,7 @@ var _ = Describe("Redis client", func() {
 		})
 	})
 	When("publish", func() {
-		It("works", func() {
+		It("cache works", func() {
 			var res *dns.Msg
 
 			res, err = util.NewMsgWithAnswer("example.com.", 123, dns.TypeA, "123.124.122.123")
@@ -89,6 +92,71 @@ var _ = Describe("Redis client", func() {
 			Eventually(func() []string {
 				return redisServer.DB(redisConfig.Database).Keys()
 			}, "100ms").Should(HaveLen(1))
+		})
+		It("enabled works", func() {
+			redisClient.PublishEnabled(&EnabledMessage{
+				State: true,
+			})
+			Eventually(func() map[string]int {
+				return redisServer.PubSubNumSub(SyncChannelName)
+			}, "50ms").Should(HaveLen(1))
+		})
+	})
+	When("received", func() {
+		It("enabled", func() {
+			var binState []byte
+			binState, err = json.Marshal(EnabledMessage{State: true})
+			Expect(err).Should(Succeed())
+
+			var id []byte
+			id, err = uuid.New().MarshalBinary()
+			Expect(err).Should(Succeed())
+
+			var binMsg []byte
+			binMsg, err = json.Marshal(redisMessage{
+				K: "system.enabled",
+				T: messageTypeEnable,
+				M: binState,
+				C: id,
+			})
+			Expect(err).Should(Succeed())
+
+			lenE := len(redisClient.EnabledChannel)
+
+			rec := redisServer.Publish(SyncChannelName, string(binMsg))
+			Expect(rec).Should(Equal(1))
+
+			Eventually(func() chan *EnabledMessage {
+				return redisClient.EnabledChannel
+			}, "100ms").Should(HaveLen(lenE + 1))
+		})
+		It("doesn't work", func() {
+			var id []byte
+			id, err = uuid.New().MarshalBinary()
+			Expect(err).Should(Succeed())
+
+			var binMsg []byte
+			binMsg, err = json.Marshal(redisMessage{
+				K: "unknown",
+				T: 99,
+				M: []byte("test"),
+				C: id,
+			})
+			Expect(err).Should(Succeed())
+
+			lenE := len(redisClient.EnabledChannel)
+			lenC := len(redisClient.CacheChannel)
+
+			rec := redisServer.Publish(SyncChannelName, string(binMsg))
+			Expect(rec).Should(Equal(1))
+
+			Eventually(func() chan *EnabledMessage {
+				return redisClient.EnabledChannel
+			}, "100ms").Should(HaveLen(lenE))
+
+			Eventually(func() chan *CacheMessage {
+				return redisClient.CacheChannel
+			}, "100ms").Should(HaveLen(lenC))
 		})
 	})
 	When("GetRedisCache", func() {

@@ -191,7 +191,7 @@ func createUDPServer(address string) *dns.Server {
 }
 
 func createQueryResolver(cfg *config.Config, redisClient *redis.Client) (resolver.Resolver, error) {
-	br, brErr := resolver.NewBlockingResolver(cfg.Blocking)
+	br, brErr := resolver.NewBlockingResolver(cfg.Blocking, redisClient)
 
 	return resolver.Chain(
 		resolver.NewIPv6Checker(cfg.DisableIPv6),

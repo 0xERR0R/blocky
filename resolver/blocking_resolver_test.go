@@ -7,7 +7,10 @@ import (
 	"github.com/0xERR0R/blocky/lists"
 	. "github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/alicebob/miniredis/v2"
+	"github.com/creasty/defaults"
 
 	"os"
 	"time"
@@ -63,7 +66,7 @@ badcnamedomain.com`)
 	JustBeforeEach(func() {
 		m = &resolverMock{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
-		tmp, _ := NewBlockingResolver(sutConfig)
+		tmp, _ := NewBlockingResolver(sutConfig, nil)
 		sut = tmp.(*BlockingResolver)
 		sut.Next(m)
 		sut.RefreshLists()
@@ -96,7 +99,7 @@ badcnamedomain.com`)
 				Expect(err).Should(Succeed())
 
 				// recreate to trigger a reload
-				tmp, _ := NewBlockingResolver(sutConfig)
+				tmp, _ := NewBlockingResolver(sutConfig, nil)
 				sut = tmp.(*BlockingResolver)
 
 				Eventually(groupCnt, "1s").Should(HaveLen(2))
@@ -812,7 +815,7 @@ badcnamedomain.com`)
 
 				_, _ = NewBlockingResolver(config.BlockingConfig{
 					BlockType: "wrong",
-				})
+				}, nil)
 
 				Expect(fatal).Should(BeTrue())
 			})
@@ -825,10 +828,134 @@ badcnamedomain.com`)
 					WhiteLists:           map[string][]string{"whitelist": {"wrongPath"}},
 					FailStartOnListError: true,
 					BlockType:            "zeroIp",
-				})
+				}, nil)
 				Expect(err).Should(HaveOccurred())
 			})
 		})
 	})
 
+	Describe("Redis is configured", func() {
+		When("disable", func() {
+			var redisServer *miniredis.Miniredis
+			var redisClient *redis.Client
+
+			redisServer, err = miniredis.Run()
+
+			Expect(err).Should(Succeed())
+
+			var rcfg config.RedisConfig
+			err = defaults.Set(&rcfg)
+
+			Expect(err).Should(Succeed())
+
+			rcfg.Address = redisServer.Addr()
+			redisClient, err = redis.New(&rcfg)
+
+			Expect(err).Should(Succeed())
+			Expect(redisClient).ShouldNot(BeNil())
+
+			sutConfig = config.BlockingConfig{
+				BlockType: "ZEROIP",
+				BlockTTL:  config.Duration(time.Minute),
+			}
+
+			tmp, err2 := NewBlockingResolver(sutConfig, redisClient)
+			Expect(err2).Should(Succeed())
+			sut = tmp.(*BlockingResolver)
+			sut.EnableBlocking()
+
+			redisMockMsg := &redis.EnabledMessage{
+				State: false,
+			}
+			redisClient.EnabledChannel <- redisMockMsg
+
+			Eventually(func() bool {
+				return sut.status.enabled
+			}, "50ms").Should(BeFalse())
+
+			redisServer.Close()
+		})
+		When("disable", func() {
+			var redisServer *miniredis.Miniredis
+			var redisClient *redis.Client
+
+			redisServer, err = miniredis.Run()
+
+			Expect(err).Should(Succeed())
+
+			var rcfg config.RedisConfig
+			err = defaults.Set(&rcfg)
+
+			Expect(err).Should(Succeed())
+
+			rcfg.Address = redisServer.Addr()
+			redisClient, err = redis.New(&rcfg)
+
+			Expect(err).Should(Succeed())
+			Expect(redisClient).ShouldNot(BeNil())
+
+			sutConfig = config.BlockingConfig{
+				BlockType: "ZEROIP",
+				BlockTTL:  config.Duration(time.Minute),
+			}
+
+			tmp, err2 := NewBlockingResolver(sutConfig, redisClient)
+			Expect(err2).Should(Succeed())
+			sut = tmp.(*BlockingResolver)
+			sut.EnableBlocking()
+
+			redisMockMsg := &redis.EnabledMessage{
+				State:  false,
+				Groups: []string{"unknown"},
+			}
+			redisClient.EnabledChannel <- redisMockMsg
+
+			Eventually(func() bool {
+				return sut.status.enabled
+			}, "50ms").Should(BeTrue())
+
+			redisServer.Close()
+		})
+		When("enable", func() {
+			var redisServer *miniredis.Miniredis
+			var redisClient *redis.Client
+
+			redisServer, err = miniredis.Run()
+
+			Expect(err).Should(Succeed())
+
+			var rcfg config.RedisConfig
+			err = defaults.Set(&rcfg)
+
+			Expect(err).Should(Succeed())
+
+			rcfg.Address = redisServer.Addr()
+			redisClient, err = redis.New(&rcfg)
+
+			Expect(err).Should(Succeed())
+			Expect(redisClient).ShouldNot(BeNil())
+
+			sutConfig = config.BlockingConfig{
+				BlockType: "ZEROIP",
+				BlockTTL:  config.Duration(time.Minute),
+			}
+
+			tmp, err2 := NewBlockingResolver(sutConfig, redisClient)
+			Expect(err2).Should(Succeed())
+			sut = tmp.(*BlockingResolver)
+			err = sut.DisableBlocking(time.Hour, []string{})
+			Expect(err).Should(Succeed())
+
+			redisMockMsg := &redis.EnabledMessage{
+				State: true,
+			}
+			redisClient.EnabledChannel <- redisMockMsg
+
+			Eventually(func() bool {
+				return sut.status.enabled
+			}, "50ms").Should(BeTrue())
+
+			redisServer.Close()
+		})
+	})
 })
