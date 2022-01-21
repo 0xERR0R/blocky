@@ -6,18 +6,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xERR0R/blocky/cache/expirationcache"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
-	"github.com/0xERR0R/go-cache"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 )
 
 // ClientNamesResolver tries to determine client name by asking responsible DNS server via rDNS (reverse lookup)
 type ClientNamesResolver struct {
-	cache            *cache.Cache
+	cache            expirationcache.ExpiringCache
 	externalResolver Resolver
 	singleNameOrder  []uint
 	clientIPMapping  map[string][]net.IP
@@ -32,7 +32,7 @@ func NewClientNamesResolver(cfg config.ClientLookupConfig) ChainedResolver {
 	}
 
 	return &ClientNamesResolver{
-		cache:            cache.New(1*time.Hour, 1*time.Hour),
+		cache:            expirationcache.NewCache(expirationcache.WithCleanUpInterval(time.Hour)),
 		externalResolver: r,
 		singleNameOrder:  cfg.SingleNameOrder,
 		clientIPMapping:  cfg.ClientnameIPMapping,
@@ -48,7 +48,7 @@ func (r *ClientNamesResolver) Configuration() (result []string) {
 			result = append(result, fmt.Sprintf("externalResolver = \"%s\"", r.externalResolver))
 		}
 
-		result = append(result, fmt.Sprintf("cache item count = %d", r.cache.ItemCount()))
+		result = append(result, fmt.Sprintf("cache item count = %d", r.cache.TotalCount()))
 
 		if len(r.clientIPMapping) > 0 {
 			result = append(result, "client IP mapping:")
@@ -86,16 +86,16 @@ func (r *ClientNamesResolver) getClientNames(request *model.Request) []string {
 		return []string{}
 	}
 
-	c, found := r.cache.Get(ip.String())
+	c, _ := r.cache.Get(ip.String())
 
-	if found {
+	if c != nil {
 		if t, ok := c.([]string); ok {
 			return t
 		}
 	}
 
 	names := r.resolveClientNames(ip, withPrefix(request.Log, "client_names_resolver"))
-	r.cache.Set(ip.String(), names, cache.DefaultExpiration)
+	r.cache.Put(ip.String(), names, time.Hour)
 
 	return names
 }
@@ -169,5 +169,5 @@ func (r *ClientNamesResolver) getNameFromIPMapping(ip net.IP, result []string) [
 
 // FlushCache reset client name cache
 func (r *ClientNamesResolver) FlushCache() {
-	r.cache.Flush()
+	r.cache.Clear()
 }
