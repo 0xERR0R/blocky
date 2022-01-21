@@ -114,7 +114,6 @@ var _ = Describe("Redis client", func() {
 
 			var binMsg []byte
 			binMsg, err = json.Marshal(redisMessage{
-				Key:     "system.enabled",
 				Type:    messageTypeEnable,
 				Message: binState,
 				Client:  id,

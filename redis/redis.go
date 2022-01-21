@@ -123,7 +123,6 @@ func (c *Client) PublishEnabled(state *EnabledMessage) {
 	binState, sErr := json.Marshal(state)
 	if sErr == nil {
 		binMsg, mErr := json.Marshal(redisMessage{
-			Key:     "system.enabled",
 			Type:    messageTypeEnable,
 			Message: binState,
 			Client:  c.id,
