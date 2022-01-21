@@ -35,10 +35,10 @@ type bufferMessage struct {
 
 // redis pubsub message
 type redisMessage struct {
-	K string // key
-	T int    // type
-	M []byte // message
-	C []byte // client
+	Key     string `json:"k,omitempty"`
+	Type    int    `json:"t"`
+	Message []byte `json:"m"`
+	Client  []byte `json:"c"`
 }
 
 // CacheChannel message
@@ -123,10 +123,10 @@ func (c *Client) PublishEnabled(state *EnabledMessage) {
 	binState, sErr := json.Marshal(state)
 	if sErr == nil {
 		binMsg, mErr := json.Marshal(redisMessage{
-			K: "system.enabled",
-			T: messageTypeEnable,
-			M: binState,
-			C: c.id,
+			Key:     "system.enabled",
+			Type:    messageTypeEnable,
+			Message: binState,
+			Client:  c.id,
 		})
 
 		if mErr == nil {
@@ -184,10 +184,10 @@ func (c *Client) publishMessageFromBuffer(s *bufferMessage) {
 
 	if pErr == nil {
 		binMsg, mErr := json.Marshal(redisMessage{
-			K: s.Key,
-			T: messageTypeCache,
-			M: binRes,
-			C: c.id,
+			Key:     s.Key,
+			Type:    messageTypeCache,
+			Message: binRes,
+			Client:  c.id,
 		})
 
 		if mErr == nil {
@@ -210,8 +210,8 @@ func (c *Client) processReceivedMessage(msg *redis.Message) (err error) {
 		err = json.Unmarshal([]byte(msg.Payload), &rm)
 		if err == nil {
 			// message was sent from a different blocky instance
-			if !bytes.Equal(rm.C, c.id) {
-				switch rm.T {
+			if !bytes.Equal(rm.Client, c.id) {
+				switch rm.Type {
 				case messageTypeCache:
 					var cm *CacheMessage
 
@@ -222,7 +222,7 @@ func (c *Client) processReceivedMessage(msg *redis.Message) (err error) {
 				case messageTypeEnable:
 					err = c.processEnabledMessage(&rm)
 				default:
-					c.l.Warn("Unknown message type: ", rm.T)
+					c.l.Warn("Unknown message type: ", rm.Type)
 				}
 			}
 		}
@@ -238,7 +238,7 @@ func (c *Client) processReceivedMessage(msg *redis.Message) (err error) {
 func (c *Client) processEnabledMessage(redisMsg *redisMessage) error {
 	var msg EnabledMessage
 
-	err := json.Unmarshal(redisMsg.M, &msg)
+	err := json.Unmarshal(redisMsg.Message, &msg)
 	if err == nil {
 		c.EnabledChannel <- &msg
 	}
@@ -257,8 +257,8 @@ func (c *Client) getResponse(key string) (*CacheMessage, error) {
 			var result *CacheMessage
 
 			result, err = convertMessage(&redisMessage{
-				K: cleanKey(key),
-				M: []byte(resp),
+				Key:     cleanKey(key),
+				Message: []byte(resp),
 			}, ttl)
 			if err == nil {
 				return result, nil
@@ -275,7 +275,7 @@ func (c *Client) getResponse(key string) (*CacheMessage, error) {
 func convertMessage(message *redisMessage, ttl time.Duration) (*CacheMessage, error) {
 	msg := dns.Msg{}
 
-	err := msg.Unpack(message.M)
+	err := msg.Unpack(message.Message)
 	if err == nil {
 		if ttl > 0 {
 			for _, a := range msg.Answer {
@@ -284,7 +284,7 @@ func convertMessage(message *redisMessage, ttl time.Duration) (*CacheMessage, er
 		}
 
 		res := &CacheMessage{
-			Key: message.K,
+			Key: message.Key,
 			Response: &model.Response{
 				RType:  model.ResponseTypeCACHED,
 				Reason: cacheReason,
