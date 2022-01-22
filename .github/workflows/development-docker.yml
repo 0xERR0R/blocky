@@ -12,11 +12,11 @@ jobs:
       tag: ${{ steps.get_all.outputs.tag }}
       ghtag: ${{ steps.get_gh.outputs.tag }}
     steps:
-      - name: Extract branch name
+      - name: Extract branch name as tag base
         shell: bash
         run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
         id: extract_branch
-
+      
       - name: Get GitHub tag
         shell: bash
         run: echo "##[set-output name=tag;]$(echo ghcr.io/${{github.repository}}:${{steps.extract_branch.outputs.branch}})"
@@ -70,7 +70,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
-      - name: Build
+      - name: Build Docker image
         uses: docker/build-push-action@v2
         with:
           context: .
@@ -81,8 +81,7 @@ jobs:
           tags: |
             ${{ needs.vars.outputs.tag }}
 
-      # Fix for https://github.com/docker/build-push-action/issues/252
-      - name: Move cache
+      - name: Clean Docker Cache
         run: |
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
