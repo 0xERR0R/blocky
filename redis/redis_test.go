@@ -114,10 +114,9 @@ var _ = Describe("Redis client", func() {
 
 			var binMsg []byte
 			binMsg, err = json.Marshal(redisMessage{
-				K: "system.enabled",
-				T: messageTypeEnable,
-				M: binState,
-				C: id,
+				Type:    messageTypeEnable,
+				Message: binState,
+				Client:  id,
 			})
 			Expect(err).Should(Succeed())
 
@@ -137,10 +136,10 @@ var _ = Describe("Redis client", func() {
 
 			var binMsg []byte
 			binMsg, err = json.Marshal(redisMessage{
-				K: "unknown",
-				T: 99,
-				M: []byte("test"),
-				C: id,
+				Key:     "unknown",
+				Type:    99,
+				Message: []byte("test"),
+				Client:  id,
 			})
 			Expect(err).Should(Succeed())
 
