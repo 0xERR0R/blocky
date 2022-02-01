@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/alicebob/miniredis/v2 v2.18.0
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
-	github.com/avast/retry-go/v4 v4.0.2
+	github.com/avast/retry-go/v4 v4.0.3
 	github.com/creasty/defaults v1.5.2
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/cors v1.2.0
