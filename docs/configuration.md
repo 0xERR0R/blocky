@@ -73,8 +73,8 @@ CIDR notation.
     ```yaml
     upstream:
       default:
-      - 46.182.19.48
-      - 80.241.218.68
+      - 5.9.164.112
+      - 1.1.1.1
       - tcp-tls:fdns1.dismail.de:853
       - https://dns.digitale-gesellschaft.ch/dns-query
       laptop*:
