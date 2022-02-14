@@ -17,6 +17,36 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+type MockResolver struct {
+	AnswerFn func(t uint16, qName string) *dns.Msg
+}
+
+func (m *MockResolver) Resolve(req *model.Request) (*model.Response, error) {
+	for _, question := range req.Req.Question {
+		answer := m.AnswerFn(question.Qtype, question.Name)
+		if answer != nil {
+			return &model.Response{
+				Res:    answer,
+				Reason: "",
+				RType:  model.ResponseTypeRESOLVED,
+			}, nil
+		}
+	}
+
+	response := new(dns.Msg)
+	response.SetRcode(req.Req, dns.RcodeBadName)
+
+	return &model.Response{
+		Res:    response,
+		Reason: "",
+		RType:  model.ResponseTypeRESOLVED,
+	}, nil
+}
+
+func (m *MockResolver) Configuration() []string {
+	return []string{}
+}
+
 type resolverMock struct {
 	mock.Mock
 	NextResolver
