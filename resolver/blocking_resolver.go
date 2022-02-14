@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xERR0R/blocky/cache/expirationcache"
+
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/0xERR0R/blocky/api"
@@ -83,6 +85,7 @@ type BlockingResolver struct {
 	clientGroupsBlock   map[string][]string
 	redisClient         *redis.Client
 	redisEnabled        bool
+	fqdnIPCache         expirationcache.ExpiringCache
 }
 
 // NewBlockingResolver returns a new configured instance of the resolver
@@ -141,6 +144,10 @@ func NewBlockingResolver(cfg config.BlockingConfig, redis *redis.Client) (Chaine
 	if res.redisEnabled {
 		setupRedisEnabledSubscriber(res)
 	}
+
+	_ = evt.Bus().Subscribe(evt.ApplicationStarted, func(_ ...string) {
+		go res.initFQDNIPCache()
+	})
 
 	return res, nil
 }
@@ -449,10 +456,20 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 		groups = append(groups, groupsByIP...)
 	}
 
-	// try CIDR
-	for cidr, groupsByCidr := range r.clientGroupsBlock {
-		if util.CidrContainsIP(cidr, request.ClientIP) {
+	for clientIdentifier, groupsByCidr := range r.clientGroupsBlock {
+		// try CIDR
+		if util.CidrContainsIP(clientIdentifier, request.ClientIP) {
 			groups = append(groups, groupsByCidr...)
+		} else if isFQDN(clientIdentifier) && r.fqdnIPCache != nil {
+			clIps, _ := r.fqdnIPCache.Get(clientIdentifier)
+			if clIps != nil {
+				ips := clIps.([]net.IP)
+				for _, ip := range ips {
+					if ip.Equal(request.ClientIP) {
+						groups = append(groups, groupsByCidr...)
+					}
+				}
+			}
 		}
 	}
 
@@ -538,4 +555,56 @@ func (b ipBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
 		// use fallback
 		b.fallbackHandler.handleBlock(question, response)
 	}
+}
+
+func (r *BlockingResolver) queryForFQIdentifierIPs(identifier string) (result []net.IP, ttl time.Duration) {
+	for _, mType := range []uint16{dns.TypeA, dns.TypeAAAA} {
+		prefixedLog := log.PrefixedLog("FQDNClientIdentifierCache")
+		resp, err := r.next.Resolve(&model.Request{
+			Req: util.NewMsgWithQuestion(identifier, mType),
+			Log: prefixedLog,
+		})
+
+		if err == nil && resp.Res.Rcode == dns.RcodeSuccess {
+			for _, rr := range resp.Res.Answer {
+				ttl = time.Duration(rr.Header().Ttl) * time.Second
+
+				switch v := rr.(type) {
+				case *dns.A:
+					result = append(result, v.A)
+				case *dns.AAAA:
+					result = append(result, v.AAAA)
+				}
+			}
+
+			prefixedLog.Debugf("resolved IPs '%v' for fq identifier '%s'", result, identifier)
+		}
+	}
+
+	return
+}
+
+func (r *BlockingResolver) initFQDNIPCache() {
+	identifiers := make([]string, 0)
+
+	for identifier := range r.clientGroupsBlock {
+		identifiers = append(identifiers, identifier)
+	}
+
+	r.fqdnIPCache = expirationcache.NewCache(expirationcache.WithCleanUpInterval(5*time.Second),
+		expirationcache.WithOnExpiredFn(func(key string) (val interface{}, ttl time.Duration) {
+			return r.queryForFQIdentifierIPs(key)
+		}))
+
+	for _, identifier := range identifiers {
+		if isFQDN(identifier) {
+			iPs, ttl := r.queryForFQIdentifierIPs(identifier)
+			r.fqdnIPCache.Put(identifier, iPs, ttl)
+		}
+	}
+}
+
+func isFQDN(in string) bool {
+	s := strings.Trim(in, ".")
+	return strings.Contains(s, ".")
 }

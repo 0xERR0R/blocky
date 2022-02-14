@@ -107,6 +107,46 @@ badcnamedomain.com`)
 		})
 	})
 
+	Describe("Blocking with full-qualified client name", func() {
+		BeforeEach(func() {
+			sutConfig = config.BlockingConfig{
+				BlockType: "ZEROIP",
+				BlockTTL:  config.Duration(time.Minute),
+				BlackLists: map[string][]string{
+					"gr1": {group1File.Name()},
+					"gr2": {group2File.Name()},
+				},
+				ClientGroupsBlock: map[string][]string{
+					"default":            {"gr1"},
+					"full.qualified.com": {"gr2"},
+				},
+			}
+
+		})
+
+		When("Full-qualified group name is used", func() {
+			It("bla", func() {
+				tmp, _ := NewBlockingResolver(sutConfig, nil)
+				sut = tmp.(*BlockingResolver)
+				sut.Next(&MockResolver{AnswerFn: func(t uint16, qName string) *dns.Msg {
+					if t == dns.TypeA && qName == "full.qualified.com." {
+						a, _ := util.NewMsgWithAnswer(qName, 60*60, dns.TypeA, "192.168.178.39")
+						return a
+					}
+					return nil
+				}})
+				sut.RefreshLists()
+				Bus().Publish(ApplicationStarted, "")
+				Eventually(func(g Gomega) {
+					resp, err = sut.Resolve(newRequestWithClient("blocked2.com.", dns.TypeA, "192.168.178.39", "client1"))
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(resp.Res.Answer).ShouldNot(BeNil())
+					g.Expect(resp.Res.Answer).Should(BeDNSRecord("blocked2.com.", dns.TypeA, 60, "0.0.0.0"))
+				}, "1s").Should(Succeed())
+			})
+		})
+	})
+
 	Describe("Blocking requests", func() {
 		var rType ResponseType
 		BeforeEach(func() {
