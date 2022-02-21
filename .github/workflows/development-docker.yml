@@ -42,3 +42,8 @@ jobs:
           tags: |
             ghcr.io/0xerr0r/blocky:${{ steps.extract_branch.outputs.branch }}
             spx01/blocky:${{ steps.extract_branch.outputs.branch }}
+      - name: Scan image
+        uses: anchore/scan-action@v3
+        with:
+          image: "spx01/blocky:${{ steps.extract_branch.outputs.branch }}"
+          fail-build: true
