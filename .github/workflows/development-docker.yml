@@ -47,7 +47,7 @@ jobs:
         id: scan
         with:
           image: "spx01/blocky:${{ steps.extract_branch.outputs.branch }}"
-          fail-build: true
+          fail-build: false
           acs-report-enable: true
       - name: upload Anchore scan SARIF report
         uses: github/codeql-action/upload-sarif@v1
