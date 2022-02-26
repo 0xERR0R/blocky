@@ -58,6 +58,9 @@ var _ = Describe("BlockingResolver", func() {
 		sutConfig = config.BlockingConfig{
 			BlockType: "ZEROIP",
 			BlockTTL:  config.Duration(time.Minute),
+			ClientGroupsBlock: map[string][]string{
+				"default": {"defaultGroup"},
+			},
 		}
 
 		mockAnswer = new(dns.Msg)
@@ -66,10 +69,15 @@ var _ = Describe("BlockingResolver", func() {
 	JustBeforeEach(func() {
 		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
-		tmp, _ := NewBlockingResolver(sutConfig, nil)
-		sut = tmp.(*BlockingResolver)
-		sut.Next(m)
-		sut.RefreshLists()
+		tmp, err := NewBlockingResolver(sutConfig, nil)
+		Expect(err).Should(Succeed())
+		if tmp != nil {
+			sut = tmp.(*BlockingResolver)
+			sut.Next(m)
+			sut.RefreshLists()
+		} else {
+			sut = nil
+		}
 	})
 
 	AfterEach(func() {
@@ -77,6 +85,19 @@ var _ = Describe("BlockingResolver", func() {
 		if resp != nil {
 			Expect(resp.Res.Rcode).Should(Equal(expectedReturnCode))
 		}
+		sut = nil
+	})
+
+	Describe("Constructor", func() {
+		When("no configuration provided", func() {
+			BeforeEach(func() {
+				sutConfig = config.BlockingConfig{}
+			})
+
+			It("should return nil", func() {
+				Expect(sut).Should(BeNil())
+			})
+		})
 	})
 
 	Describe("Events", func() {
@@ -87,6 +108,9 @@ var _ = Describe("BlockingResolver", func() {
 				BlackLists: map[string][]string{
 					"gr1": {group1File.Name()},
 					"gr2": {group2File.Name()},
+				},
+				ClientGroupsBlock: map[string][]string{
+					"default": {"defaultGroup"},
 				},
 			}
 		})
@@ -99,7 +123,8 @@ var _ = Describe("BlockingResolver", func() {
 				Expect(err).Should(Succeed())
 
 				// recreate to trigger a reload
-				tmp, _ := NewBlockingResolver(sutConfig, nil)
+				tmp, err := NewBlockingResolver(sutConfig, nil)
+				Expect(err).Should(Succeed())
 				sut = tmp.(*BlockingResolver)
 
 				Eventually(groupCnt, "1s").Should(HaveLen(2))
@@ -565,18 +590,6 @@ var _ = Describe("BlockingResolver", func() {
 				resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "1.2.1.2", "unknown"))
 			})
 		})
-		When("no lists defined", func() {
-			BeforeEach(func() {
-				sutConfig = config.BlockingConfig{
-					BlockType: "ZEROIP",
-					BlockTTL:  config.Duration(time.Minute),
-				}
-			})
-			It("should delegate to next resolver", func() {
-				resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "1.2.1.2", "unknown"))
-			})
-		})
-
 	})
 
 	Describe("Control status via API", func() {
@@ -829,17 +842,6 @@ var _ = Describe("BlockingResolver", func() {
 				Expect(len(c)).Should(BeNumerically(">", 1))
 			})
 		})
-
-		When("resolver is disabled", func() {
-			BeforeEach(func() {
-				sutConfig = config.BlockingConfig{}
-			})
-		})
-		It("should return 'disabled''", func() {
-			c := sut.Configuration()
-			Expect(c).Should(HaveLen(1))
-			Expect(c).Should(Equal([]string{"deactivated"}))
-		})
 	})
 
 	Describe("Create resolver with wrong parameter", func() {
@@ -850,9 +852,8 @@ var _ = Describe("BlockingResolver", func() {
 
 				Log().ExitFunc = func(int) { fatal = true }
 
-				_, _ = NewBlockingResolver(config.BlockingConfig{
-					BlockType: "wrong",
-				}, nil)
+				sutConfig.BlockType = "wrong"
+				_, _ = NewBlockingResolver(sutConfig, nil)
 
 				Expect(fatal).Should(BeTrue())
 			})
@@ -865,6 +866,7 @@ var _ = Describe("BlockingResolver", func() {
 					WhiteLists:           map[string][]string{"whitelist": {"wrongPath"}},
 					FailStartOnListError: true,
 					BlockType:            "zeroIp",
+					ClientGroupsBlock: map[string][]string{"default": {"gr1"}},
 				}, nil)
 				Expect(err).Should(HaveOccurred())
 			})
@@ -894,6 +896,9 @@ var _ = Describe("BlockingResolver", func() {
 			sutConfig = config.BlockingConfig{
 				BlockType: "ZEROIP",
 				BlockTTL:  config.Duration(time.Minute),
+				ClientGroupsBlock: map[string][]string{
+					"default": {"defaultGroup"},
+				},
 			}
 
 			tmp, err2 := NewBlockingResolver(sutConfig, redisClient)
@@ -934,6 +939,9 @@ var _ = Describe("BlockingResolver", func() {
 			sutConfig = config.BlockingConfig{
 				BlockType: "ZEROIP",
 				BlockTTL:  config.Duration(time.Minute),
+				ClientGroupsBlock: map[string][]string{
+					"default": {"defaultGroup"},
+				},
 			}
 
 			tmp, err2 := NewBlockingResolver(sutConfig, redisClient)
@@ -975,6 +983,9 @@ var _ = Describe("BlockingResolver", func() {
 			sutConfig = config.BlockingConfig{
 				BlockType: "ZEROIP",
 				BlockTTL:  config.Duration(time.Minute),
+				ClientGroupsBlock: map[string][]string{
+					"default": {"defaultGroup"},
+				},
 			}
 
 			tmp, err2 := NewBlockingResolver(sutConfig, redisClient)

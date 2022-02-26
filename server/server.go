@@ -2,6 +2,7 @@ package server
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -88,6 +89,10 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 	queryResolver, queryError := createQueryResolver(cfg, redisClient)
 	if queryError != nil {
 		return nil, queryError
+	}
+
+	if queryResolver == nil {
+		return nil, errors.New("no resolvers are configured")
 	}
 
 	server = &Server{

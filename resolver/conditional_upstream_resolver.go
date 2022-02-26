@@ -20,6 +20,10 @@ type ConditionalUpstreamResolver struct {
 
 // NewConditionalUpstreamResolver returns new resolver instance
 func NewConditionalUpstreamResolver(cfg config.ConditionalUpstreamConfig) ChainedResolver {
+	if len(cfg.Mapping.Upstreams) == 0 {
+		return nil
+	}
+
 	m := make(map[string]Resolver, len(cfg.Mapping.Upstreams))
 
 	for domain, upstream := range cfg.Mapping.Upstreams {
@@ -33,12 +37,8 @@ func NewConditionalUpstreamResolver(cfg config.ConditionalUpstreamConfig) Chaine
 
 // Configuration returns current configuration
 func (r *ConditionalUpstreamResolver) Configuration() (result []string) {
-	if len(r.mapping) > 0 {
-		for key, val := range r.mapping {
-			result = append(result, fmt.Sprintf("%s = \"%s\"", key, val))
-		}
-	} else {
-		result = []string{"deactivated"}
+	for key, val := range r.mapping {
+		result = append(result, fmt.Sprintf("%s = \"%s\"", key, val))
 	}
 
 	return

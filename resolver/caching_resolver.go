@@ -39,9 +39,14 @@ type cacheValue struct {
 
 // NewCachingResolver creates a new resolver instance
 func NewCachingResolver(cfg config.CachingConfig, redis *redis.Client) ChainedResolver {
+	maxCacheTimeSec := int(time.Duration(cfg.MaxCachingTime).Seconds())
+	if maxCacheTimeSec < 0 {
+		return nil
+	}
+
 	c := &CachingResolver{
 		minCacheTimeSec:   int(time.Duration(cfg.MinCachingTime).Seconds()),
-		maxCacheTimeSec:   int(time.Duration(cfg.MaxCachingTime).Seconds()),
+		maxCacheTimeSec:   maxCacheTimeSec,
 		cacheTimeNegative: time.Duration(cfg.CacheTimeNegative),
 		redisClient:       redis,
 		redisEnabled:      (redis != nil),
@@ -120,11 +125,6 @@ func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.
 
 // Configuration returns a current resolver configuration
 func (r *CachingResolver) Configuration() (result []string) {
-	if r.maxCacheTimeSec < 0 {
-		result = []string{"deactivated"}
-		return
-	}
-
 	result = append(result, fmt.Sprintf("minCacheTimeInSec = %d", r.minCacheTimeSec))
 
 	result = append(result, fmt.Sprintf("maxCacheTimeSec = %d", r.maxCacheTimeSec))

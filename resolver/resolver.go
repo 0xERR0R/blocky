@@ -113,25 +113,50 @@ type ChainBuilder struct {
 	head, tail ChainedResolver
 }
 
-// ChainBuilder creates a resolver chain builder
+// NewChainBuilder creates a resolver chain builder
+// This function returns nil when all given resolvers are nil
 func NewChainBuilder(head ChainedResolver, rest ...ChainedResolver) *ChainBuilder {
-	resolvers := make([]ChainedResolver, 0, len(rest)+1)
-	resolvers = append(resolvers, head)
-	resolvers = append(resolvers, rest...)
-
-	lastIdx := len(resolvers) - 1
-	for i := 0; i < lastIdx; i++ {
-		resolvers[i].Next(resolvers[i+1])
+	newCB := func(head ChainedResolver, rest []ChainedResolver) *ChainBuilder {
+		cb := ChainBuilder{
+			head: head,
+			tail: head,
+		}
+		cb.Extend(rest)
+		return &cb
 	}
 
-	return &ChainBuilder{
-		head: resolvers[0],
-		tail: resolvers[lastIdx],
+	if head != nil {
+		return newCB(head, rest)
+	}
+
+	for i, resolver := range rest {
+		if resolver != nil {
+			return newCB(resolver, rest[i+1:])
+		}
+	}
+
+	// All resolvers are nil, not an error: having a valid resolver on End suffices
+	return nil
+}
+
+// Extend adds all non-nil resolvers to the end of the chain
+func (cb *ChainBuilder) Extend(resolvers []ChainedResolver) {
+	for _, resolver := range resolvers {
+		cb.Next(resolver)
 	}
 }
 
-// Next adds the resolver to the end of the chain
+// Next adds the resolver to the end of the chain if it is non-nil
 func (cb *ChainBuilder) Next(resolver ChainedResolver) {
+	if resolver == nil {
+		return
+	}
+
+	if cb == nil {
+		// Panic with nice message instead of dereferencing nil
+		panic("called Next on a nil ChainBuilder")
+	}
+
 	cb.tail.Next(resolver)
 	cb.tail = resolver
 }
@@ -139,8 +164,16 @@ func (cb *ChainBuilder) Next(resolver ChainedResolver) {
 // End attaches the final resolver and returns the complete chain
 // The ChainBuilder should not be reused after calling this
 func (cb *ChainBuilder) End(resolver Resolver) (Resolver, error) {
+	if resolver == nil {
+		return nil, errors.New("cannot end a chain with nil resolver")
+	}
+
 	if _, ok := resolver.(ChainedResolver); ok {
 		return nil, errors.New("cannot end a chain with a ChainedResolver")
+	}
+
+	if cb == nil {
+		return resolver, nil
 	}
 
 	cb.tail.Next(resolver)

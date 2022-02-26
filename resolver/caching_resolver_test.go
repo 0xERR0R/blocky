@@ -47,7 +47,9 @@ var _ = Describe("CachingResolver", func() {
 		sut = NewCachingResolver(sutConfig, nil)
 		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
-		sut.Next(m)
+		if sut != nil {
+			sut.Next(m)
+		}
 	})
 
 	Describe("Caching responses", func() {
@@ -248,29 +250,8 @@ var _ = Describe("CachingResolver", func() {
 					}
 				})
 
-				It("Shouldn't cache any responses", func() {
-					By("first request", func() {
-						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
-						Expect(err).Should(Succeed())
-						Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-						Expect(m.Calls).Should(HaveLen(1))
-						Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
-							dns.TypeAAAA, 1230, "2001:db8:85a3:8d3:1319:8a2e:370:7344"))
-					})
-
-					By("second request", func() {
-						Eventually(func(g Gomega) {
-							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
-							g.Expect(err).Should(Succeed())
-							g.Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-							g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-							//  one more call to upstream
-							g.Expect(m.Calls).Should(HaveLen(2))
-							g.Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
-								dns.TypeAAAA, 1230, "2001:db8:85a3:8d3:1319:8a2e:370:7344"))
-						}, "500ms").Should(Succeed())
-					})
+				It("should be nil", func() {
+					Expect(sut).Should(BeNil())
 				})
 			})
 
@@ -445,19 +426,6 @@ var _ = Describe("CachingResolver", func() {
 			It("should return configuration", func() {
 				c := sut.Configuration()
 				Expect(len(c)).Should(BeNumerically(">", 1))
-			})
-		})
-
-		When("resolver is disabled", func() {
-			BeforeEach(func() {
-				sutConfig = config.CachingConfig{
-					MaxCachingTime: config.Duration(time.Minute * -1),
-				}
-			})
-			It("should return 'disabled'", func() {
-				c := sut.Configuration()
-				Expect(c).Should(HaveLen(1))
-				Expect(c).Should(Equal([]string{"deactivated"}))
 			})
 		})
 

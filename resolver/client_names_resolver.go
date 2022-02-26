@@ -17,23 +17,22 @@ import (
 
 // ClientNamesResolver tries to determine client name by asking responsible DNS server via rDNS (reverse lookup)
 type ClientNamesResolver struct {
+	NextResolver
 	cache            expirationcache.ExpiringCache
 	externalResolver Resolver
 	singleNameOrder  []uint
 	clientIPMapping  map[string][]net.IP
-	NextResolver
 }
 
 // NewClientNamesResolver creates new resolver instance
 func NewClientNamesResolver(cfg config.ClientLookupConfig) ChainedResolver {
-	var r Resolver
-	if (config.Upstream{}) != cfg.Upstream {
-		r = NewUpstreamResolver(cfg.Upstream)
+	if cfg.Upstream == (config.Upstream{}) || len(cfg.ClientnameIPMapping) == 0 {
+		return nil
 	}
 
 	return &ClientNamesResolver{
 		cache:            expirationcache.NewCache(expirationcache.WithCleanUpInterval(time.Hour)),
-		externalResolver: r,
+		externalResolver: NewUpstreamResolver(cfg.Upstream),
 		singleNameOrder:  cfg.SingleNameOrder,
 		clientIPMapping:  cfg.ClientnameIPMapping,
 	}
@@ -41,24 +40,20 @@ func NewClientNamesResolver(cfg config.ClientLookupConfig) ChainedResolver {
 
 // Configuration returns current resolver configuration
 func (r *ClientNamesResolver) Configuration() (result []string) {
-	if r.externalResolver != nil || len(r.clientIPMapping) > 0 {
-		result = append(result, fmt.Sprintf("singleNameOrder = \"%v\"", r.singleNameOrder))
+	result = append(result, fmt.Sprintf("singleNameOrder = \"%v\"", r.singleNameOrder))
 
-		if r.externalResolver != nil {
-			result = append(result, fmt.Sprintf("externalResolver = \"%s\"", r.externalResolver))
+	if r.externalResolver != nil {
+		result = append(result, fmt.Sprintf("externalResolver = \"%s\"", r.externalResolver))
+	}
+
+	result = append(result, fmt.Sprintf("cache item count = %d", r.cache.TotalCount()))
+
+	if len(r.clientIPMapping) > 0 {
+		result = append(result, "client IP mapping:")
+
+		for k, v := range r.clientIPMapping {
+			result = append(result, fmt.Sprintf("%s -> %s", k, v))
 		}
-
-		result = append(result, fmt.Sprintf("cache item count = %d", r.cache.TotalCount()))
-
-		if len(r.clientIPMapping) > 0 {
-			result = append(result, "client IP mapping:")
-
-			for k, v := range r.clientIPMapping {
-				result = append(result, fmt.Sprintf("%s -> %s", k, v))
-			}
-		}
-	} else {
-		result = []string{"deactivated, use only IP address"}
 	}
 
 	return
@@ -109,48 +104,44 @@ func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry
 		return
 	}
 
-	if r.externalResolver != nil {
-		reverse, _ := dns.ReverseAddr(ip.String())
+	reverse, _ := dns.ReverseAddr(ip.String())
 
-		resp, err := r.externalResolver.Resolve(&model.Request{
-			Req: util.NewMsgWithQuestion(reverse, dns.TypePTR),
-			Log: logger,
-		})
+	resp, err := r.externalResolver.Resolve(&model.Request{
+		Req: util.NewMsgWithQuestion(reverse, dns.TypePTR),
+		Log: logger,
+	})
 
-		if err != nil {
-			logger.Error("can't resolve client name: ", err)
-			return []string{ip.String()}
-		}
-
-		var clientNames []string
-
-		for _, answer := range resp.Res.Answer {
-			if t, ok := answer.(*dns.PTR); ok {
-				hostName := strings.TrimSuffix(t.Ptr, ".")
-				clientNames = append(clientNames, hostName)
-			}
-		}
-
-		if len(clientNames) == 0 {
-			clientNames = []string{ip.String()}
-		}
-
-		// optional: if singleNameOrder is set, use only one name in the defined order
-		if len(r.singleNameOrder) > 0 {
-			for _, i := range r.singleNameOrder {
-				if i > 0 && int(i) <= len(clientNames) {
-					result = []string{clientNames[i-1]}
-					break
-				}
-			}
-		} else {
-			result = clientNames
-		}
-
-		logger.WithField("client_names", strings.Join(result, "; ")).Debug("resolved client name(s) from external resolver")
-	} else {
-		result = []string{ip.String()}
+	if err != nil {
+		logger.Error("can't resolve client name: ", err)
+		return []string{ip.String()}
 	}
+
+	var clientNames []string
+
+	for _, answer := range resp.Res.Answer {
+		if t, ok := answer.(*dns.PTR); ok {
+			hostName := strings.TrimSuffix(t.Ptr, ".")
+			clientNames = append(clientNames, hostName)
+		}
+	}
+
+	if len(clientNames) == 0 {
+		clientNames = []string{ip.String()}
+	}
+
+	// optional: if singleNameOrder is set, use only one name in the defined order
+	if len(r.singleNameOrder) > 0 {
+		for _, i := range r.singleNameOrder {
+			if i > 0 && int(i) <= len(clientNames) {
+				result = []string{clientNames[i-1]}
+				break
+			}
+		}
+	} else {
+		result = clientNames
+	}
+
+	logger.WithField("client_names", strings.Join(result, "; ")).Debug("resolved client name(s) from external resolver")
 
 	return result
 }

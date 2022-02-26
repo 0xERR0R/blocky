@@ -63,6 +63,66 @@ var _ = Describe("Resolver", func() {
 					cb.Next(&NoOpChainedResolver{})
 				})
 			})
+
+			When("first is nil", func() {
+				It("should complete", func() {
+					ch, err = NewChainBuilder(nil, beg, mid).End(end)
+					Expect(err).Should(Succeed())
+					Expect(ch).ShouldNot(BeNil())
+				})
+			})
+
+			When("first two are nil", func() {
+				It("should complete", func() {
+					ch, err = NewChainBuilder(nil, nil, beg, mid).End(end)
+					Expect(err).Should(Succeed())
+					Expect(ch).ShouldNot(BeNil())
+				})
+			})
+
+			When("some are nil", func() {
+				It("should complete", func() {
+					ch, err = NewChainBuilder(nil, beg, nil, mid, nil).End(end)
+					Expect(err).Should(Succeed())
+					Expect(ch).ShouldNot(BeNil())
+				})
+			})
+		})
+
+		When("given no resolvers", func() {
+			It("should be nil", func() {
+				cb := NewChainBuilder(nil)
+				Expect(cb).Should(BeNil())
+			})
+
+			It("should complete", func() {
+				cb := NewChainBuilder(nil)
+				Expect(cb).Should(BeNil())
+
+				ch, err := cb.End(NewNoOpResolver())
+				Expect(err).Should(Succeed())
+				Expect(ch).ShouldNot(BeNil())
+			})
+		})
+
+		When("ended with nil", func() {
+			It("should fail", func() {
+				cb := NewChainBuilder(nil, nil)
+				Expect(cb).Should(BeNil())
+
+				_, err := cb.End(nil)
+				Expect(err).ShouldNot(BeNil())
+			})
+		})
+
+		When("ended with a ChainedResolver", func() {
+			It("should fail", func() {
+				cb := NewChainBuilder(nil, nil)
+				Expect(cb).Should(BeNil())
+
+				_, err := cb.End(&NoOpChainedResolver{})
+				Expect(err).ShouldNot(BeNil())
+			})
 		})
 	})
 

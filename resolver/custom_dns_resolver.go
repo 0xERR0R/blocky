@@ -25,6 +25,10 @@ type CustomDNSResolver struct {
 
 // NewCustomDNSResolver creates new resolver instance
 func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
+	if len(cfg.Mapping.HostIPs) == 0 {
+		return nil
+	}
+
 	m := make(map[string][]net.IP, len(cfg.Mapping.HostIPs))
 	reverse := make(map[string][]string, len(cfg.Mapping.HostIPs))
 
@@ -49,12 +53,8 @@ func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
 
 // Configuration returns current resolver configuration
 func (r *CustomDNSResolver) Configuration() (result []string) {
-	if len(r.mapping) > 0 {
-		for key, val := range r.mapping {
-			result = append(result, fmt.Sprintf("%s = \"%s\"", key, val))
-		}
-	} else {
-		result = []string{"deactivated"}
+	for key, val := range r.mapping {
+		result = append(result, fmt.Sprintf("%s = \"%s\"", key, val))
 	}
 
 	return
