@@ -3,9 +3,13 @@ upstream:
   # format for resolver: [net:]host:[port][/path]. net could be empty (default, shortcut for tcp+udp), tcp+udp, tcp, udp, tcp-tls or https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))
   # this configuration is mandatory, please define at least one external DNS resolver
   default:
-    - 46.182.19.48
-    - 80.241.218.68
+    # example for tcp+udp IPv4 server (https://digitalcourage.de/)
+    - 5.9.164.112
+    # Cloudflare
+    - 1.1.1.1
+    # example for DNS-over-TLS server (DoT)
     - tcp-tls:fdns1.dismail.de:853
+    # example for DNS-over-HTTPS (DoH)
     - https://dns.digitale-gesellschaft.ch/dns-query
   # optional: use client name (with wildcard support: * - sequence of any characters, [0-9] - range)
   # or single ip address / client subnet as CIDR notation
@@ -39,9 +43,7 @@ blocking:
     ads:
       - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
       - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
-      - https://mirror1.malwaredomains.com/files/justdomains
       - http://sysctl.org/cameleon/hosts
-      - https://zeustracker.abuse.ch/blocklist.php?download=domainblocklist
       - https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt
       - |
         # inline definition with YAML literal block scalar style

@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/alicebob/miniredis/v2 v2.18.0
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
-	github.com/avast/retry-go/v4 v4.0.2
+	github.com/avast/retry-go/v4 v4.0.3
 	github.com/creasty/defaults v1.5.2
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/cors v1.2.0
@@ -14,11 +14,11 @@ require (
 	github.com/hako/durafmt v0.0.0-20210608085754-5c1018a4e16b
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v0.5.4
-	github.com/miekg/dns v1.1.45
+	github.com/miekg/dns v1.1.46
 	github.com/mroth/weightedrand v0.4.1
 	github.com/onsi/ginkgo v1.16.5
-	github.com/onsi/gomega v1.18.0
-	github.com/prometheus/client_golang v1.12.0
+	github.com/onsi/gomega v1.18.1
+	github.com/prometheus/client_golang v1.12.1
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.3.0
 	github.com/stretchr/testify v1.7.0

@@ -73,8 +73,8 @@ CIDR notation.
     ```yaml
     upstream:
       default:
-      - 46.182.19.48
-      - 80.241.218.68
+      - 5.9.164.112
+      - 1.1.1.1
       - tcp-tls:fdns1.dismail.de:853
       - https://dns.digitale-gesellschaft.ch/dns-query
       laptop*:
@@ -265,6 +265,9 @@ in hosts format (YAML literal block scalar style). All Urls must be grouped to a
     If a group has **only** whitelist entries -> this means only domains from this list are allowed, all other domains will
     be blocked
 
+!!! note
+    Please define also client group mapping, otherwise you black and whitelist definition will have no effect
+
 #### Regex support
 
 You can use regex to define patterns to block. A regex entry must start and end with the slash character (/). Some
@@ -282,8 +285,11 @@ group, which blocky adult sites.
 
 Clients without a group assignment will use automatically the **default** group.
 
-You can use the client name (see [Client name lookup](#client-name-lookup)), client's IP address or a client subnet as
-CIDR notation.
+You can use the client name (see [Client name lookup](#client-name-lookup)), client's IP address, client's full-qualified domain name
+or a client subnet as CIDR notation.
+
+If full-qualified domain name is used (for example "myclient.ddns.org"), blocky will try to resolve the IP address (A and AAAA records) of this domain.
+If client's IP address matches with the result, the defined group will be used.
 
 !!! example
 
