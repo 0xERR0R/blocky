@@ -8,7 +8,7 @@ import (
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
@@ -134,7 +134,7 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 			BeforeEach(func() {
 				sut = NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{})
 			})
-			It("should return 'disabled''", func() {
+			It("should return 'disabled'", func() {
 				c := sut.Configuration()
 				Expect(c).Should(HaveLen(1))
 				Expect(c).Should(Equal([]string{"deactivated"}))

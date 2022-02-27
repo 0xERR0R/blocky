@@ -8,7 +8,7 @@ import (
 	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/miekg/dns"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
 )
@@ -148,7 +148,7 @@ var _ = Describe("CustomDNSResolver", func() {
 			BeforeEach(func() {
 				sut = NewCustomDNSResolver(config.CustomDNSConfig{})
 			})
-			It("should return 'disabled''", func() {
+			It("should return 'disabled'", func() {
 				c := sut.Configuration()
 				Expect(c).Should(HaveLen(1))
 				Expect(c).Should(Equal([]string{"deactivated"}))

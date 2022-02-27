@@ -10,7 +10,7 @@ import (
 	. "github.com/0xERR0R/blocky/evt"
 
 	. "github.com/0xERR0R/blocky/helpertest"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
