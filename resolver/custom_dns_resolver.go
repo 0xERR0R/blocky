@@ -24,8 +24,8 @@ type CustomDNSResolver struct {
 
 // NewCustomDNSResolver creates new resolver instance
 func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
-	m := make(map[string][]net.IP)
-	reverse := make(map[string][]string)
+	m := make(map[string][]net.IP, len(cfg.Mapping.HostIPs))
+	reverse := make(map[string][]string, len(cfg.Mapping.HostIPs))
 
 	for url, ips := range cfg.Mapping.HostIPs {
 		m[strings.ToLower(url)] = ips

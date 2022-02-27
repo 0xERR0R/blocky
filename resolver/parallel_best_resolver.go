@@ -37,7 +37,7 @@ type requestResponse struct {
 
 // NewParallelBestResolver creates new resolver instance
 func NewParallelBestResolver(upstreamResolvers map[string][]config.Upstream) Resolver {
-	s := make(map[string][]*upstreamResolverStatus)
+	s := make(map[string][]*upstreamResolverStatus, len(upstreamResolvers))
 	logger := logger(parallelResolverLogger)
 
 	for name, res := range upstreamResolvers {

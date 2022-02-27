@@ -113,7 +113,7 @@ func NewBlockingResolver(cfg config.BlockingConfig, redis *redis.Client) (Chaine
 		return nil, multierror.Prefix(err, "blocking resolver: ")
 	}
 
-	cgb := make(map[string][]string)
+	cgb := make(map[string][]string, len(cfg.ClientGroupsBlock))
 
 	for identifier, cfgGroups := range cfg.ClientGroupsBlock {
 		for _, ipart := range strings.Split(identifier, ",") {
@@ -181,7 +181,7 @@ func (r *BlockingResolver) RefreshLists() {
 
 // nolint:prealloc
 func (r *BlockingResolver) retrieveAllBlockingGroups() []string {
-	groups := make(map[string]bool)
+	groups := make(map[string]bool, len(r.cfg.BlackLists))
 
 	for group := range r.cfg.BlackLists {
 		groups[group] = true
@@ -282,7 +282,7 @@ func (r *BlockingResolver) BlockingStatus() api.BlockingStatus {
 
 // returns groups, which have only whitelist entries
 func determineWhitelistOnlyGroups(cfg *config.BlockingConfig) (result map[string]bool) {
-	result = make(map[string]bool)
+	result = make(map[string]bool, len(cfg.WhiteLists))
 
 	for g, links := range cfg.WhiteLists {
 		if len(links) > 0 {

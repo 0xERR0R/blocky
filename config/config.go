@@ -103,7 +103,7 @@ func (c *ConditionalUpstreamMapping) UnmarshalYAML(unmarshal func(interface{}) e
 		return err
 	}
 
-	result := make(map[string][]Upstream)
+	result := make(map[string][]Upstream, len(input))
 
 	for k, v := range input {
 		var upstreams []Upstream
@@ -132,7 +132,7 @@ func (c *CustomDNSMapping) UnmarshalYAML(unmarshal func(interface{}) error) erro
 		return err
 	}
 
-	result := make(map[string][]net.IP)
+	result := make(map[string][]net.IP, len(input))
 
 	for k, v := range input {
 		var ips []net.IP

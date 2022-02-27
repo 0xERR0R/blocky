@@ -21,8 +21,8 @@ type ConditionalUpstreamResolver struct {
 
 // NewConditionalUpstreamResolver returns new resolver instance
 func NewConditionalUpstreamResolver(cfg config.ConditionalUpstreamConfig) ChainedResolver {
-	m := make(map[string]Resolver)
-	rewrite := make(map[string]string)
+	m := make(map[string]Resolver, len(cfg.Mapping.Upstreams))
+	rewrite := make(map[string]string, len(cfg.Rewrite))
 
 	for domain, upstream := range cfg.Mapping.Upstreams {
 		upstreams := make(map[string][]config.Upstream)
