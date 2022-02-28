@@ -24,10 +24,10 @@ import (
 )
 
 type SlowMockWriter struct {
-	entries []*querylog.Entry
+	entries []*querylog.LogEntry
 }
 
-func (m *SlowMockWriter) Write(entry *querylog.Entry) {
+func (m *SlowMockWriter) Write(entry *querylog.LogEntry) {
 	m.entries = append(m.entries, entry)
 
 	time.Sleep(time.Millisecond)

@@ -34,7 +34,7 @@ var _ = Describe("LoggerWriter", func() {
 					Reason: "Resolved",
 					RType:  model.ResponseTypeRESOLVED,
 				}
-				writer.Write(&Entry{
+				writer.Write(&LogEntry{
 					Request:    request,
 					Response:   response,
 					Start:      time.Now(),
