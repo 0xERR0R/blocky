@@ -191,20 +191,26 @@ func createUDPServer(address string) *dns.Server {
 }
 
 func createQueryResolver(cfg *config.Config, redisClient *redis.Client) (resolver.Resolver, error) {
-	br, brErr := resolver.NewBlockingResolver(cfg.Blocking, redisClient)
+	br, err := resolver.NewBlockingResolver(cfg.Blocking, redisClient)
+	if err != nil {
+		return nil, err
+	}
 
-	return resolver.Chain(
+	chain := resolver.NewChainBuilder(
 		resolver.NewIPv6Checker(cfg.DisableIPv6),
 		resolver.NewClientNamesResolver(cfg.ClientLookup),
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
 		resolver.NewMetricsResolver(cfg.Prometheus),
-		resolver.NewRewriterResolver(cfg.CustomDNS.RewriteConfig, resolver.NewCustomDNSResolver(cfg.CustomDNS)),
+		resolver.NewRewriterResolver(cfg.CustomDNS.RewriteConfig,
+			resolver.NewChainBuilder(resolver.NewCustomDNSResolver(cfg.CustomDNS))),
 		resolver.NewHostsFileResolver(cfg.HostsFile),
 		br,
 		resolver.NewCachingResolver(cfg.Caching, redisClient),
-		resolver.NewRewriterResolver(cfg.Conditional.RewriteConfig, resolver.NewConditionalUpstreamResolver(cfg.Conditional)),
-		resolver.NewParallelBestResolver(cfg.Upstream.ExternalResolvers),
-	), brErr
+		resolver.NewRewriterResolver(cfg.Conditional.RewriteConfig,
+			resolver.NewChainBuilder(resolver.NewConditionalUpstreamResolver(cfg.Conditional))),
+	)
+
+	return chain.End(resolver.NewParallelBestResolver(cfg.Upstream.ExternalResolvers))
 }
 
 func (s *Server) registerDNSHandlers() {

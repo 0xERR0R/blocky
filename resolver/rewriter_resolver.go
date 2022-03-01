@@ -22,16 +22,20 @@ type RewriterResolver struct {
 	inner   Resolver
 }
 
-func NewRewriterResolver(cfg config.RewriteConfig, inner ChainedResolver) ChainedResolver {
+func NewRewriterResolver(cfg config.RewriteConfig, chain *ChainBuilder) ChainedResolver {
+	inner, err := chain.End(NewNoOpResolver())
+	if err != nil {
+		panic(fmt.Errorf("chain.Finish(NoopResolver) cannot fail: %w", err))
+	}
+
 	if len(cfg.Rewrite) == 0 {
-		return inner
+		// NoopResolver will be replaced when `inner.Next` is called
+		return inner.(ChainedResolver)
 	}
 
 	for k, v := range cfg.Rewrite {
 		cfg.Rewrite[strings.ToLower(k)] = strings.ToLower(v)
 	}
-
-	inner.Next(NewNoOpResolver())
 
 	return &RewriterResolver{
 		rewrite: cfg.Rewrite,

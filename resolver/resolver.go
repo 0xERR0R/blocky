@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -93,27 +94,6 @@ type NamedResolver interface {
 	Name() string
 }
 
-func logger(prefix string) *logrus.Entry {
-	return log.PrefixedLog(prefix)
-}
-
-func withPrefix(logger *logrus.Entry, prefix string) *logrus.Entry {
-	return logger.WithField("prefix", prefix)
-}
-
-// Chain creates a chain of resolvers
-func Chain(resolvers ...Resolver) Resolver {
-	for i, res := range resolvers {
-		if i+1 < len(resolvers) {
-			if cr, ok := res.(ChainedResolver); ok {
-				cr.Next(resolvers[i+1])
-			}
-		}
-	}
-
-	return resolvers[0]
-}
-
 // Name returns a user-friendly name of a resolver
 func Name(resolver Resolver) string {
 	if named, ok := resolver.(NamedResolver); ok {
@@ -126,4 +106,57 @@ func Name(resolver Resolver) string {
 // defaultName returns a short user-friendly name of a resolver
 func defaultName(resolver Resolver) string {
 	return strings.Split(fmt.Sprintf("%T", resolver), ".")[1]
+}
+
+// ChainBuilder is a resolver chain builder
+type ChainBuilder struct {
+	head, tail ChainedResolver
+}
+
+// ChainBuilder creates a resolver chain builder
+func NewChainBuilder(head ChainedResolver, rest ...ChainedResolver) *ChainBuilder {
+	resolvers := make([]ChainedResolver, 0, len(rest)+1)
+	resolvers = append(resolvers, head)
+	resolvers = append(resolvers, rest...)
+
+	lastIdx := len(resolvers) - 1
+	for i := 0; i < lastIdx; i++ {
+		resolvers[i].Next(resolvers[i+1])
+	}
+
+	return &ChainBuilder{
+		head: resolvers[0],
+		tail: resolvers[lastIdx],
+	}
+}
+
+// Next adds the resolver to the end of the chain
+func (cb *ChainBuilder) Next(resolver ChainedResolver) {
+	cb.tail.Next(resolver)
+	cb.tail = resolver
+}
+
+// End attaches the final resolver and returns the complete chain
+// The ChainBuilder should not be reused after calling this
+func (cb *ChainBuilder) End(resolver Resolver) (Resolver, error) {
+	if _, ok := resolver.(ChainedResolver); ok {
+		return nil, errors.New("cannot end a chain with a ChainedResolver")
+	}
+
+	cb.tail.Next(resolver)
+
+	// Prevent caller from breaking the chain if they reuse `cb`
+	head := cb.head
+	cb.head = nil
+	cb.tail = nil
+
+	return head, nil
+}
+
+func logger(prefix string) *logrus.Entry {
+	return log.PrefixedLog(prefix)
+}
+
+func withPrefix(logger *logrus.Entry, prefix string) *logrus.Entry {
+	return logger.WithField("prefix", prefix)
 }

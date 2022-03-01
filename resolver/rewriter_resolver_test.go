@@ -32,23 +32,7 @@ var _ = Describe("RewriterResolver", func() {
 	})
 
 	JustBeforeEach(func() {
-		sut = NewRewriterResolver(sutConfig, mInner)
-		sut.Next(mNext)
-	})
-
-	AfterEach(func() {
-		mInner.AssertExpectations(GinkgoT())
-		mNext.AssertExpectations(GinkgoT())
-	})
-
-	When("has no configuration", func() {
-		BeforeEach(func() {
-			sutConfig = config.RewriteConfig{}
-		})
-
-		It("should return the inner resolver", func() {
-			Expect(sut).Should(BeIdenticalTo(mInner))
-		})
+		sut = NewRewriterResolver(cfg, NewChainBuilder(m))
 	})
 
 	When("has rewrite", func() {
