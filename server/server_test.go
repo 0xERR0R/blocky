@@ -19,116 +19,116 @@ import (
 	"github.com/0xERR0R/blocky/util"
 	"github.com/creasty/defaults"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/miekg/dns"
 )
 
-var _ = Describe("Running DNS server", func() {
-	var (
-		upstreamGoogle, upstreamFritzbox, upstreamClient config.Upstream
-		mockClientName                                   string
-		sut                                              *Server
-		err                                              error
-		resp                                             *dns.Msg
-	)
+var (
+	upstreamGoogle, upstreamFritzbox, upstreamClient config.Upstream
+	mockClientName                                   string
+	sut                                              *Server
+	err                                              error
+	resp                                             *dns.Msg
+)
 
-	BeforeSuite(func() {
-		upstreamGoogle = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-			if request.Question[0].Name == "error." {
-				return nil
-			}
-			response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 123, dns.TypeA, "123.124.122.122")
-
-			Expect(err).Should(Succeed())
-			return response
-		})
-		upstreamFritzbox = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-			response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 3600, dns.TypeA, "192.168.178.2")
-
-			Expect(err).Should(Succeed())
-			return response
-		})
-
-		upstreamClient = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-			response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 3600, dns.TypePTR, mockClientName)
-
-			Expect(err).Should(Succeed())
-			return response
-		})
-
-		// create server
-		sut, err = NewServer(&config.Config{
-			CustomDNS: config.CustomDNSConfig{
-				CustomTTL: config.Duration(time.Duration(3600) * time.Second),
-				Mapping: config.CustomDNSMapping{
-					HostIPs: map[string][]net.IP{
-						"custom.lan": {net.ParseIP("192.168.178.55")},
-						"lan.home":   {net.ParseIP("192.168.178.56")},
-					},
-				},
-			},
-			Conditional: config.ConditionalUpstreamConfig{
-				Mapping: config.ConditionalUpstreamMapping{
-					Upstreams: map[string][]config.Upstream{
-						"net.cn":    {upstreamClient},
-						"fritz.box": {upstreamFritzbox},
-					},
-				},
-			},
-			Blocking: config.BlockingConfig{
-				BlackLists: map[string][]string{
-					"ads": {
-						"../testdata/doubleclick.net.txt",
-						"../testdata/www.bild.de.txt",
-						"../testdata/heise.de.txt"},
-					"youtube": {"../testdata/youtube.com.txt"}},
-				WhiteLists: map[string][]string{
-					"ads":       {"../testdata/heise.de.txt"},
-					"whitelist": {"../testdata/heise.de.txt"},
-				},
-				ClientGroupsBlock: map[string][]string{
-					"default":         {"ads"},
-					"clWhitelistOnly": {"whitelist"},
-					"clAdsAndYoutube": {"ads", "youtube"},
-					"clYoutubeOnly":   {"youtube"},
-				},
-				BlockType: "zeroIp",
-				BlockTTL:  config.Duration(6 * time.Hour),
-			},
-			Upstream: config.UpstreamConfig{
-				ExternalResolvers: map[string][]config.Upstream{"default": {upstreamGoogle}},
-			},
-			ClientLookup: config.ClientLookupConfig{
-				Upstream: upstreamClient,
-			},
-
-			DNSPorts:   config.ListenConfig{"55555"},
-			TLSPorts:   config.ListenConfig{"8853"},
-			CertFile:   "../testdata/cert.pem",
-			KeyFile:    "../testdata/key.pem",
-			HTTPPorts:  config.ListenConfig{"4000"},
-			HTTPSPorts: config.ListenConfig{"4443"},
-			Prometheus: config.PrometheusConfig{
-				Enable: true,
-				Path:   "/metrics",
-			},
-		})
+var _ = BeforeSuite(func() {
+	upstreamGoogle = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
+		if request.Question[0].Name == "error." {
+			return nil
+		}
+		response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 123, dns.TypeA, "123.124.122.122")
 
 		Expect(err).Should(Succeed())
+		return response
+	})
+	upstreamFritzbox = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
+		response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 3600, dns.TypeA, "192.168.178.2")
 
-		// start server
-		go func() {
-			sut.Start()
-		}()
-		time.Sleep(100 * time.Millisecond)
+		Expect(err).Should(Succeed())
+		return response
 	})
 
-	AfterSuite(func() {
-		sut.Stop()
+	upstreamClient = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
+		response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 3600, dns.TypePTR, mockClientName)
+
+		Expect(err).Should(Succeed())
+		return response
 	})
 
+	// create server
+	sut, err = NewServer(&config.Config{
+		CustomDNS: config.CustomDNSConfig{
+			CustomTTL: config.Duration(time.Duration(3600) * time.Second),
+			Mapping: config.CustomDNSMapping{
+				HostIPs: map[string][]net.IP{
+					"custom.lan": {net.ParseIP("192.168.178.55")},
+					"lan.home":   {net.ParseIP("192.168.178.56")},
+				},
+			},
+		},
+		Conditional: config.ConditionalUpstreamConfig{
+			Mapping: config.ConditionalUpstreamMapping{
+				Upstreams: map[string][]config.Upstream{
+					"net.cn":    {upstreamClient},
+					"fritz.box": {upstreamFritzbox},
+				},
+			},
+		},
+		Blocking: config.BlockingConfig{
+			BlackLists: map[string][]string{
+				"ads": {
+					"../testdata/doubleclick.net.txt",
+					"../testdata/www.bild.de.txt",
+					"../testdata/heise.de.txt"},
+				"youtube": {"../testdata/youtube.com.txt"}},
+			WhiteLists: map[string][]string{
+				"ads":       {"../testdata/heise.de.txt"},
+				"whitelist": {"../testdata/heise.de.txt"},
+			},
+			ClientGroupsBlock: map[string][]string{
+				"default":         {"ads"},
+				"clWhitelistOnly": {"whitelist"},
+				"clAdsAndYoutube": {"ads", "youtube"},
+				"clYoutubeOnly":   {"youtube"},
+			},
+			BlockType: "zeroIp",
+			BlockTTL:  config.Duration(6 * time.Hour),
+		},
+		Upstream: config.UpstreamConfig{
+			ExternalResolvers: map[string][]config.Upstream{"default": {upstreamGoogle}},
+		},
+		ClientLookup: config.ClientLookupConfig{
+			Upstream: upstreamClient,
+		},
+
+		DNSPorts:   config.ListenConfig{"55555"},
+		TLSPorts:   config.ListenConfig{"8853"},
+		CertFile:   "../testdata/cert.pem",
+		KeyFile:    "../testdata/key.pem",
+		HTTPPorts:  config.ListenConfig{"4000"},
+		HTTPSPorts: config.ListenConfig{"4443"},
+		Prometheus: config.PrometheusConfig{
+			Enable: true,
+			Path:   "/metrics",
+		},
+	})
+
+	Expect(err).Should(Succeed())
+
+	// start server
+	go func() {
+		sut.Start()
+	}()
+	time.Sleep(100 * time.Millisecond)
+})
+
+var _ = AfterSuite(func() {
+	sut.Stop()
+})
+
+var _ = Describe("Running DNS server", func() {
 	Describe("performing DNS request with running server", func() {
 
 		BeforeEach(func() {

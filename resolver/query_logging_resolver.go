@@ -21,7 +21,7 @@ type QueryLoggingResolver struct {
 	NextResolver
 	target           string
 	logRetentionDays uint64
-	logChan          chan *querylog.Entry
+	logChan          chan *querylog.LogEntry
 	writer           querylog.Writer
 	logType          config.QueryLogType
 }
@@ -64,7 +64,7 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 		logType = config.QueryLogTypeConsole
 	}
 
-	logChan := make(chan *querylog.Entry, logChanCap)
+	logChan := make(chan *querylog.LogEntry, logChanCap)
 
 	resolver := QueryLoggingResolver{
 		target:           cfg.Target,
@@ -110,7 +110,7 @@ func (r *QueryLoggingResolver) Resolve(request *model.Request) (*model.Response,
 
 	if err == nil {
 		select {
-		case r.logChan <- &querylog.Entry{
+		case r.logChan <- &querylog.LogEntry{
 			Request:    request,
 			Response:   resp,
 			Start:      start,

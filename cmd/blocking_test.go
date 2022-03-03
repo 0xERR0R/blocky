@@ -9,7 +9,7 @@ import (
 
 	"github.com/0xERR0R/blocky/api"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 

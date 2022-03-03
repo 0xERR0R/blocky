@@ -18,16 +18,16 @@ import (
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
 )
 
 type SlowMockWriter struct {
-	entries []*querylog.Entry
+	entries []*querylog.LogEntry
 }
 
-func (m *SlowMockWriter) Write(entry *querylog.Entry) {
+func (m *SlowMockWriter) Write(entry *querylog.LogEntry) {
 	m.entries = append(m.entries, entry)
 
 	time.Sleep(time.Millisecond)

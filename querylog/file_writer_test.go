@@ -16,7 +16,7 @@ import (
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -48,7 +48,7 @@ var _ = Describe("FileWriter", func() {
 				Expect(err).Should(Succeed())
 
 				By("entry for client 1", func() {
-					writer.Write(&Entry{
+					writer.Write(&LogEntry{
 						Request: &model.Request{
 							ClientNames: []string{"client1"},
 							Req:         util.NewMsgWithQuestion("google.de.", dns.TypeA),
@@ -65,7 +65,7 @@ var _ = Describe("FileWriter", func() {
 				})
 
 				By("entry for client 2", func() {
-					writer.Write(&Entry{
+					writer.Write(&LogEntry{
 						Request: &model.Request{
 							ClientNames: []string{"client2"},
 							Req:         util.NewMsgWithQuestion("google.de.", dns.TypeA),
@@ -95,7 +95,7 @@ var _ = Describe("FileWriter", func() {
 				Expect(err).Should(Succeed())
 
 				By("entry for client 1", func() {
-					writer.Write(&Entry{
+					writer.Write(&LogEntry{
 						Request: &model.Request{
 							ClientNames: []string{"client1"},
 							Req:         util.NewMsgWithQuestion("google.de.", dns.TypeA),
@@ -112,7 +112,7 @@ var _ = Describe("FileWriter", func() {
 				})
 
 				By("entry for client 2", func() {
-					writer.Write(&Entry{
+					writer.Write(&LogEntry{
 						Request: &model.Request{
 							ClientNames: []string{"client2"},
 							Req:         util.NewMsgWithQuestion("google.de.", dns.TypeA),
@@ -146,7 +146,7 @@ var _ = Describe("FileWriter", func() {
 				Expect(err).Should(Succeed())
 
 				By("entry today", func() {
-					writer.Write(&Entry{
+					writer.Write(&LogEntry{
 						Request: &model.Request{
 							ClientNames: []string{"client1"},
 							Req:         util.NewMsgWithQuestion("google.de.", dns.TypeA),
@@ -162,7 +162,7 @@ var _ = Describe("FileWriter", func() {
 					})
 				})
 				By("entry 2 days ago", func() {
-					writer.Write(&Entry{
+					writer.Write(&LogEntry{
 						Request: &model.Request{
 							ClientNames: []string{"client1"},
 							Req:         util.NewMsgWithQuestion("google.de.", dns.TypeA),

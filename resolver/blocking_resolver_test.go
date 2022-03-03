@@ -16,10 +16,28 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
 )
+
+var group1File, group2File, defaultGroupFile *os.File
+
+var _ = BeforeSuite(func() {
+	group1File = TempFile("DOMAIN1.com")
+	group2File = TempFile("blocked2.com")
+	defaultGroupFile = TempFile(
+		`blocked3.com
+123.145.123.145
+2001:db8:85a3:08d3::370:7344
+badcnamedomain.com`)
+})
+
+var _ = AfterSuite(func() {
+	_ = group1File.Close()
+	_ = group2File.Close()
+	_ = defaultGroupFile.Close()
+})
 
 var _ = Describe("BlockingResolver", func() {
 	var (
@@ -31,26 +49,8 @@ var _ = Describe("BlockingResolver", func() {
 		err  error
 		resp *Response
 
-		group1File, group2File, defaultGroupFile *os.File
-
 		expectedReturnCode int
 	)
-
-	BeforeSuite(func() {
-		group1File = TempFile("DOMAIN1.com")
-		group2File = TempFile("blocked2.com")
-		defaultGroupFile = TempFile(
-			`blocked3.com
-123.145.123.145
-2001:db8:85a3:08d3::370:7344
-badcnamedomain.com`)
-	})
-
-	AfterSuite(func() {
-		_ = group1File.Close()
-		_ = group2File.Close()
-		_ = defaultGroupFile.Close()
-	})
 
 	BeforeEach(func() {
 		expectedReturnCode = dns.RcodeSuccess

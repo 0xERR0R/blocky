@@ -39,7 +39,7 @@ func NewCSVWriter(target string, perClient bool, logRetentionDays uint64) (*File
 	}, nil
 }
 
-func (d *FileWriter) Write(entry *Entry) {
+func (d *FileWriter) Write(entry *LogEntry) {
 	var clientPrefix string
 
 	dateString := entry.Start.Format("2006-01-02")
@@ -101,7 +101,7 @@ func (d *FileWriter) CleanUp() {
 	}
 }
 
-func createQueryLogRow(logEntry *Entry) []string {
+func createQueryLogRow(logEntry *LogEntry) []string {
 	request := logEntry.Request
 	response := logEntry.Response
 

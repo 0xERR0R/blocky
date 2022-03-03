@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 )
 
 var _ = Describe("LoggerWriter", func() {
@@ -34,7 +34,7 @@ var _ = Describe("LoggerWriter", func() {
 					Reason: "Resolved",
 					RType:  model.ResponseTypeRESOLVED,
 				}
-				writer.Write(&Entry{
+				writer.Write(&LogEntry{
 					Request:    request,
 					Response:   response,
 					Start:      time.Now(),

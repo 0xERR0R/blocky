@@ -14,7 +14,7 @@ import (
 	"github.com/creasty/defaults"
 
 	"github.com/miekg/dns"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
 )
@@ -454,7 +454,7 @@ var _ = Describe("CachingResolver", func() {
 					MaxCachingTime: config.Duration(time.Minute * -1),
 				}
 			})
-			It("should return 'disabled''", func() {
+			It("should return 'disabled'", func() {
 				c := sut.Configuration()
 				Expect(c).Should(HaveLen(1))
 				Expect(c).Should(Equal([]string{"deactivated"}))

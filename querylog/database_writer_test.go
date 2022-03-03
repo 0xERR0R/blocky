@@ -11,7 +11,7 @@ import (
 
 	. "github.com/onsi/gomega"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 )
 
 var _ = Describe("DatabaseWriter", func() {
@@ -34,7 +34,7 @@ var _ = Describe("DatabaseWriter", func() {
 					Reason: "Resolved",
 					RType:  model.ResponseTypeRESOLVED,
 				}
-				writer.Write(&Entry{
+				writer.Write(&LogEntry{
 					Request:    request,
 					Response:   response,
 					Start:      time.Now(),
@@ -69,7 +69,7 @@ var _ = Describe("DatabaseWriter", func() {
 				}
 
 				// one entry with now as timestamp
-				writer.Write(&Entry{
+				writer.Write(&LogEntry{
 					Request:    request,
 					Response:   response,
 					Start:      time.Now(),
@@ -77,7 +77,7 @@ var _ = Describe("DatabaseWriter", func() {
 				})
 
 				// one entry before 2 days -> should be deleted
-				writer.Write(&Entry{
+				writer.Write(&LogEntry{
 					Request:    request,
 					Response:   response,
 					Start:      time.Now().AddDate(0, 0, -2),

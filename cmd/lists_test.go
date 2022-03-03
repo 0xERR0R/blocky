@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -40,7 +40,9 @@ var _ = Describe("Lists command", func() {
 				}
 			})
 			It("should end with error", func() {
-				_ = newRefreshCommand().Execute()
+				c := newRefreshCommand()
+				c.SetArgs(make([]string, 0))
+				_ = c.Execute()
 				Expect(fatal).Should(BeTrue())
 				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("NOK: 500 Internal Server Error"))
 			})
@@ -48,7 +50,9 @@ var _ = Describe("Lists command", func() {
 		When("Url is wrong", func() {
 			It("should end with error", func() {
 				apiPort = 0
-				_ = newRefreshCommand().Execute()
+				c := newRefreshCommand()
+				c.SetArgs(make([]string, 0))
+				_ = c.Execute()
 				Expect(fatal).Should(BeTrue())
 				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("connection refused"))
 			})
