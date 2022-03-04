@@ -14,7 +14,7 @@ import (
 var _ = Describe("IPv6DisablingResolver", func() {
 	var (
 		sut         *IPv6DisablingResolver
-		m           *resolverMock
+		m           *MockResolver
 		mockAnswer  *dns.Msg
 		disableIPv6 *bool
 		query       = newRequest("example.com", dns.TypeAAAA)
@@ -23,7 +23,7 @@ var _ = Describe("IPv6DisablingResolver", func() {
 	JustBeforeEach(func() {
 		mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1230, dns.TypeAAAA, "2001:0db8:85a3:08d3:1319:8a2e:0370:7344")
 		sut = NewIPv6Checker(*disableIPv6).(*IPv6DisablingResolver)
-		m = &resolverMock{}
+		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer, Reason: "reason"}, nil)
 		sut.Next(m)
 	})

@@ -43,7 +43,7 @@ var _ = Describe("BlockingResolver", func() {
 	var (
 		sut        *BlockingResolver
 		sutConfig  config.BlockingConfig
-		m          *resolverMock
+		m          *MockResolver
 		mockAnswer *dns.Msg
 
 		err  error
@@ -64,7 +64,7 @@ var _ = Describe("BlockingResolver", func() {
 	})
 
 	JustBeforeEach(func() {
-		m = &resolverMock{}
+		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		tmp, _ := NewBlockingResolver(sutConfig, nil)
 		sut = tmp.(*BlockingResolver)
@@ -126,16 +126,13 @@ var _ = Describe("BlockingResolver", func() {
 
 		When("Full-qualified group name is used", func() {
 			It("bla", func() {
-				tmp, _ := NewBlockingResolver(sutConfig, nil)
-				sut = tmp.(*BlockingResolver)
-				sut.Next(&MockResolver{AnswerFn: func(t uint16, qName string) *dns.Msg {
+				m.AnswerFn = func(t uint16, qName string) *dns.Msg {
 					if t == dns.TypeA && qName == "full.qualified.com." {
 						a, _ := util.NewMsgWithAnswer(qName, 60*60, dns.TypeA, "192.168.178.39")
 						return a
 					}
 					return nil
-				}})
-				sut.RefreshLists()
+				}
 				Bus().Publish(ApplicationStarted, "")
 				Eventually(func(g Gomega) {
 					resp, err = sut.Resolve(newRequestWithClient("blocked2.com.", dns.TypeA, "192.168.178.39", "client1"))

@@ -17,7 +17,7 @@ import (
 var _ = Describe("HostsFileResolver", func() {
 	var (
 		sut  *HostsFileResolver
-		m    *resolverMock
+		m    *MockResolver
 		err  error
 		resp *Response
 	)
@@ -31,7 +31,7 @@ var _ = Describe("HostsFileResolver", func() {
 			RefreshPeriod: config.Duration(30 * time.Minute),
 		}
 		sut = NewHostsFileResolver(cfg).(*HostsFileResolver)
-		m = &resolverMock{}
+		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
 	})
@@ -44,7 +44,7 @@ var _ = Describe("HostsFileResolver", func() {
 					Filepath: fmt.Sprintf("/tmp/blocky/file-%d", rand.Uint64()),
 					HostsTTL: config.Duration(time.Duration(TTL) * time.Second),
 				}).(*HostsFileResolver)
-				m = &resolverMock{}
+				m = &MockResolver{}
 				m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 				sut.Next(m)
 			})
@@ -62,7 +62,7 @@ var _ = Describe("HostsFileResolver", func() {
 		When("Hosts file is not set", func() {
 			BeforeEach(func() {
 				sut = NewHostsFileResolver(config.HostsFileConfig{}).(*HostsFileResolver)
-				m = &resolverMock{}
+				m = &MockResolver{}
 				m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 				sut.Next(m)
 			})

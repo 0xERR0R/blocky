@@ -15,19 +15,17 @@ var _ = Describe("RewriterResolver", func() {
 	var (
 		sut       ChainedResolver
 		sutConfig config.RewriteConfig
-		mInner    *resolverMock
+		mInner    *MockResolver
 		mNext     *MockResolver
 
 		fqdnOriginal  string
 		fqdnRewritten string
 
-		request  *model.Request
-		response model.Response
 		mNextResponse *model.Response
 	)
 
 	BeforeEach(func() {
-		mInner = &resolverMock{}
+		mInner = &MockResolver{}
 		mNext = &MockResolver{}
 
 		sutConfig = config.RewriteConfig{Rewrite: map[string]string{"original": "rewritten"}}
@@ -36,6 +34,11 @@ var _ = Describe("RewriterResolver", func() {
 	JustBeforeEach(func() {
 		sut = NewRewriterResolver(sutConfig, mInner)
 		sut.Next(mNext)
+	})
+
+	AfterEach(func() {
+		mInner.AssertExpectations(GinkgoT())
+		mNext.AssertExpectations(GinkgoT())
 	})
 
 	When("has no configuration", func() {
@@ -49,30 +52,33 @@ var _ = Describe("RewriterResolver", func() {
 	})
 
 	When("has rewrite", func() {
+		var request *model.Request
+
 		AfterEach(func() {
 			request = newRequest(fqdnOriginal, dns.TypeA)
 
-			mInner.On("Resolve", mock.Anything).Return(&response, nil).Run(func(args mock.Arguments) {
-				Expect(args.Get(0)).Should(Equal(request))
+			mInner.On("Resolve", mock.Anything)
+			mInner.ResponseFn = func(req *dns.Msg) *dns.Msg {
+				Expect(req).Should(Equal(request.Req))
 
-				q := request.Req.Question[0]
+				// Inner should see fqdnRewritten
+				q := req.Question[0]
 				Expect(q.Name).Should(Equal(fqdnRewritten))
 
 				res := new(dns.Msg)
-				res.SetReply(request.Req)
+				res.SetReply(req)
 
 				ptr := new(dns.PTR)
 				ptr.Ptr = fqdnRewritten
 				ptr.Hdr = util.CreateHeader(q, 1)
 				res.Answer = append(res.Answer, ptr)
 
-				response = model.Response{Res: res}
-			})
+				return res
+			}
 
 			resp, err := sut.Resolve(request)
 			Expect(err).Should(Succeed())
 			if resp != mNextResponse {
-				Expect(resp).Should(Equal(&response))
 				Expect(resp.Res.Question[0].Name).Should(Equal(fqdnOriginal))
 				Expect(resp.Res.Answer[0].Header().Name).Should(Equal(fqdnOriginal))
 			}
@@ -103,12 +109,17 @@ var _ = Describe("RewriterResolver", func() {
 			fqdnRewritten = "test.rewritten."
 
 			// Make inner call the NoOpResolver
-			mInner := MockResolver{ResolveFn: NewNoOpResolver().Resolve}
+			mInner.ResolveFn = func(req *model.Request) (*model.Response, error) {
+				Expect(req).Should(Equal(request))
 
-			sut = NewRewriterResolver(sutConfig, &mInner)
-			sut.Next(mNext)
+				// Inner should see fqdnRewritten
+				Expect(req.Req.Question[0].Name).Should(Equal(fqdnRewritten))
+
+				return mInner.next.Resolve(req)
+			}
 
 			// Resolver after RewriterResolver should see `fqdnOriginal`
+			mNext.On("Resolve", mock.Anything)
 			mNext.ResolveFn = func(req *model.Request) (*model.Response, error) {
 				Expect(req.Req.Question[0].Name).Should(Equal(fqdnOriginal))
 				return mNextResponse, nil
@@ -123,7 +134,6 @@ var _ = Describe("RewriterResolver", func() {
 				mInner.On("Configuration").Return(innerOutput)
 
 				c := sut.Configuration()
-				m.AssertExpectations(GinkgoT())
 				Expect(len(c)).Should(BeNumerically(">", len(innerOutput)))
 			})
 		})

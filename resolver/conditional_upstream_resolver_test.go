@@ -17,7 +17,7 @@ import (
 var _ = Describe("ConditionalUpstreamResolver", func() {
 	var (
 		sut  ChainedResolver
-		m    *resolverMock
+		m    *MockResolver
 		err  error
 		resp *Response
 	)
@@ -47,7 +47,7 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 					})},
 				}},
 		})
-		m = &resolverMock{}
+		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
 	})
