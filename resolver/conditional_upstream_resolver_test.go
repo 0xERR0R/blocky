@@ -110,7 +110,7 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 		When("resolver is enabled", func() {
 			It("should return configuration", func() {
 				c := sut.Configuration()
-				Expect(len(c) > 1).Should(BeTrue())
+				Expect(len(c)).Should(BeNumerically(">", 1))
 			})
 		})
 		When("resolver is disabled", func() {

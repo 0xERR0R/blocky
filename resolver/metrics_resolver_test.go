@@ -65,7 +65,7 @@ var _ = Describe("MetricResolver", func() {
 		When("resolver is enabled", func() {
 			It("should return configuration", func() {
 				c := sut.Configuration()
-				Expect(len(c) > 1).Should(BeTrue())
+				Expect(len(c)).Should(BeNumerically(">", 1))
 			})
 		})
 	})
