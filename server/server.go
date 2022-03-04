@@ -198,11 +198,11 @@ func createQueryResolver(cfg *config.Config, redisClient *redis.Client) (resolve
 		resolver.NewClientNamesResolver(cfg.ClientLookup),
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
 		resolver.NewMetricsResolver(cfg.Prometheus),
-		resolver.NewCustomDNSResolver(cfg.CustomDNS),
+		resolver.NewRewriterResolver(cfg.CustomDNS.RewriteConfig, resolver.NewCustomDNSResolver(cfg.CustomDNS)),
 		resolver.NewHostsFileResolver(cfg.HostsFile),
 		br,
 		resolver.NewCachingResolver(cfg.Caching, redisClient),
-		resolver.NewConditionalUpstreamResolver(cfg.Conditional),
+		resolver.NewRewriterResolver(cfg.Conditional.RewriteConfig, resolver.NewConditionalUpstreamResolver(cfg.Conditional)),
 		resolver.NewParallelBestResolver(cfg.Upstream.ExternalResolvers),
 	), brErr
 }

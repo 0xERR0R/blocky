@@ -16,13 +16,11 @@ import (
 type ConditionalUpstreamResolver struct {
 	NextResolver
 	mapping map[string]Resolver
-	rewrite map[string]string
 }
 
 // NewConditionalUpstreamResolver returns new resolver instance
 func NewConditionalUpstreamResolver(cfg config.ConditionalUpstreamConfig) ChainedResolver {
 	m := make(map[string]Resolver, len(cfg.Mapping.Upstreams))
-	rewrite := make(map[string]string, len(cfg.Rewrite))
 
 	for domain, upstream := range cfg.Mapping.Upstreams {
 		upstreams := make(map[string][]config.Upstream)
@@ -30,11 +28,7 @@ func NewConditionalUpstreamResolver(cfg config.ConditionalUpstreamConfig) Chaine
 		m[strings.ToLower(domain)] = NewParallelBestResolver(upstreams)
 	}
 
-	for k, v := range cfg.Rewrite {
-		rewrite[strings.ToLower(k)] = strings.ToLower(v)
-	}
-
-	return &ConditionalUpstreamResolver{mapping: m, rewrite: rewrite}
+	return &ConditionalUpstreamResolver{mapping: m}
 }
 
 // Configuration returns current configuration
@@ -43,13 +37,6 @@ func (r *ConditionalUpstreamResolver) Configuration() (result []string) {
 		for key, val := range r.mapping {
 			result = append(result, fmt.Sprintf("%s = \"%s\"", key, val))
 		}
-
-		if len(r.rewrite) > 0 {
-			result = append(result, "rewrite:")
-			for key, val := range r.rewrite {
-				result = append(result, fmt.Sprintf("%s = \"%s\"", key, val))
-			}
-		}
 	} else {
 		result = []string{"deactivated"}
 	}
@@ -57,22 +44,12 @@ func (r *ConditionalUpstreamResolver) Configuration() (result []string) {
 	return
 }
 
-func (r *ConditionalUpstreamResolver) applyRewrite(domain string) string {
-	for k, v := range r.rewrite {
-		if strings.HasSuffix(domain, "."+k) {
-			return strings.TrimSuffix(domain, "."+k) + "." + v
-		}
-	}
-
-	return domain
-}
-
 // Resolve uses the conditional resolver to resolve the query
 func (r *ConditionalUpstreamResolver) Resolve(request *model.Request) (*model.Response, error) {
 	logger := withPrefix(request.Log, "conditional_resolver")
 
 	if len(r.mapping) > 0 {
-		domainFromQuestion := r.applyRewrite(util.ExtractDomain(request.Req.Question[0]))
+		domainFromQuestion := util.ExtractDomain(request.Req.Question[0])
 		domain := domainFromQuestion
 
 		if !strings.Contains(domainFromQuestion, ".") {

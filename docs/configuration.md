@@ -118,6 +118,7 @@ domain must be separated by a comma.
 | Parameter | Type                                    | Mandatory | Default value |
 |-----------|-----------------------------------------|-----------|---------------|
 | customTTL | duration (no unit is minutes)           | no        | 1h            |
+| rewrite   | string: string (domain: domain)         | no        |               |
 | mapping   | string: string (hostname: address list) | no        |               |
 
 !!! example
@@ -125,13 +126,20 @@ domain must be separated by a comma.
     ```yaml
     customDNS:
         customTTL: 1h
-    mapping:
-        printer.lan: 192.168.178.3
-        otherdevice.lan: 192.168.178.15,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
+        rewrite:
+            home: lan
+            replace-me.com: with-this.com
+        mapping:
+            printer.lan: 192.168.178.3
+            otherdevice.lan: 192.168.178.15,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
     ```
 
 This configuration will also resolve any subdomain of the defined domain. For example a query "printer.lan" or "
-my.printer.lan" will return 192.168.178.3 as IP address.
+my.printer.lan" will return 192.168.178.3 as IP address.  
+
+With the optional parameter `rewrite` you can replace domain part of the query with the defined part **before** the
+resolver lookup is performed.  
+The query "printer.home" will be rewritten to "printer.lan" and return 192.168.178.3.
 
 ## Conditional DNS resolution
 
@@ -139,8 +147,7 @@ You can define, which DNS resolver(s) should be used for queries for the particu
 is for example useful, if you want to reach devices in your local network by the name. Since only your router know which
 hostname belongs to which IP address, all DNS queries for the local network should be redirected to the router.
 
-With the optional parameter `rewrite` you can replace domain part of the query with the defined part **before** the
-resolver lookup is performed.
+The optional parameter `rewrite` behaves the same as with custom DNS.
 
 !!! example
 
@@ -163,7 +170,7 @@ resolver lookup is performed.
     You can use `.` as wildcard for all non full qualified domains (domains without dot)
 
 In this example, a DNS query "client.fritz.box" will be redirected to the router's DNS server at 192.168.178.1 and client.lan.net to 192.170.1.2 and 192.170.1.3.
-The query client.example.com will be rewritten to "client.fritz.box" and also redirected to the resolver at 192.168.178.1. All unqualified hostnames (e.g. 'test')
+The query "client.example.com" will be rewritten to "client.fritz.box" and also redirected to the resolver at 192.168.178.1. All unqualified hostnames (e.g. "test")
 will be redirected to the DNS server at 168.168.0.1
 
 

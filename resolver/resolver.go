@@ -56,7 +56,7 @@ type Resolver interface {
 	// Resolve performs resolution of a DNS request
 	Resolve(req *model.Request) (*model.Response, error)
 
-	// Configuration prints current resolver configuration
+	// Configuration returns current resolver configuration
 	Configuration() []string
 }
 
@@ -86,6 +86,13 @@ func (r *NextResolver) GetNext() Resolver {
 	return r.next
 }
 
+// NamedResolver is a resolver with a special name
+type NamedResolver interface {
+
+	// Name returns the full name of the resolver
+	Name() string
+}
+
 func logger(prefix string) *logrus.Entry {
 	return log.PrefixedLog(prefix)
 }
@@ -109,5 +116,14 @@ func Chain(resolvers ...Resolver) Resolver {
 
 // Name returns a user-friendly name of a resolver
 func Name(resolver Resolver) string {
+	if named, ok := resolver.(NamedResolver); ok {
+		return named.Name()
+	}
+
+	return defaultName(resolver)
+}
+
+// defaultName returns a short user-friendly name of a resolver
+func defaultName(resolver Resolver) string {
 	return strings.Split(fmt.Sprintf("%T", resolver), ".")[1]
 }

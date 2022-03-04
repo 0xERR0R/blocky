@@ -310,10 +310,16 @@ type UpstreamConfig struct {
 	ExternalResolvers map[string][]Upstream `yaml:",inline"`
 }
 
+// RewriteConfig custom DNS configuration
+type RewriteConfig struct {
+	Rewrite map[string]string `yaml:"rewrite"`
+}
+
 // CustomDNSConfig custom DNS configuration
 type CustomDNSConfig struct {
-	CustomTTL Duration         `yaml:"customTTL" default:"1h"`
-	Mapping   CustomDNSMapping `yaml:"mapping"`
+	RewriteConfig `yaml:",inline"`
+	CustomTTL     Duration         `yaml:"customTTL" default:"1h"`
+	Mapping       CustomDNSMapping `yaml:"mapping"`
 }
 
 // CustomDNSMapping mapping for the custom DNS configuration
@@ -323,8 +329,8 @@ type CustomDNSMapping struct {
 
 // ConditionalUpstreamConfig conditional upstream configuration
 type ConditionalUpstreamConfig struct {
-	Rewrite map[string]string          `yaml:"rewrite"`
-	Mapping ConditionalUpstreamMapping `yaml:"mapping"`
+	RewriteConfig `yaml:",inline"`
+	Mapping       ConditionalUpstreamMapping `yaml:"mapping"`
 }
 
 // ConditionalUpstreamMapping mapping for conditional configuration

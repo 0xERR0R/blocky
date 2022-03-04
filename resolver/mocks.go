@@ -18,10 +18,17 @@ import (
 )
 
 type MockResolver struct {
+	NextResolver
+
+	ResolveFn  func(req *model.Request) (*model.Response, error)
 	AnswerFn func(t uint16, qName string) *dns.Msg
 }
 
 func (m *MockResolver) Resolve(req *model.Request) (*model.Response, error) {
+	if m.ResolveFn != nil {
+		return m.ResolveFn(req)
+	}
+
 	for _, question := range req.Req.Question {
 		answer := m.AnswerFn(question.Qtype, question.Name)
 		if answer != nil {
@@ -52,8 +59,9 @@ type resolverMock struct {
 	NextResolver
 }
 
-func (r *resolverMock) Configuration() (result []string) {
-	return
+func (r *resolverMock) Configuration() []string {
+	args := r.Called()
+	return args.Get(0).([]string)
 }
 
 func (r *resolverMock) Resolve(req *model.Request) (*model.Response, error) {
@@ -61,7 +69,7 @@ func (r *resolverMock) Resolve(req *model.Request) (*model.Response, error) {
 	resp, ok := args.Get(0).(*model.Response)
 
 	if ok {
-		return resp, args.Error((1))
+		return resp, args.Error(1)
 	}
 
 	return nil, args.Error(1)

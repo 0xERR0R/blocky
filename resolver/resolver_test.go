@@ -20,11 +20,22 @@ var _ = Describe("Resolver", func() {
 				Expect(next).ShouldNot(BeNil())
 			})
 		})
-		When("'Name' will be called", func() {
+		When("'Name' is called", func() {
 			It("should return resolver name", func() {
 				br, _ := NewBlockingResolver(config.BlockingConfig{BlockType: "zeroIP"}, nil)
 				name := Name(br)
 				Expect(name).Should(Equal("BlockingResolver"))
+			})
+		})
+		When("'Name' is called on a NamedResolver", func() {
+			It("should return it's custom name", func() {
+				br, _ := NewBlockingResolver(config.BlockingConfig{BlockType: "zeroIP"}, nil)
+
+				cfg := config.RewriteConfig{Rewrite: map[string]string{"not": "empty"}}
+				r := NewRewriterResolver(cfg, br)
+
+				name := Name(r)
+				Expect(name).Should(Equal("BlockingResolver w/ RewriterResolver"))
 			})
 		})
 	})
