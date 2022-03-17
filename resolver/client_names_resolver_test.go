@@ -20,7 +20,7 @@ var _ = Describe("ClientResolver", func() {
 	var (
 		sut                          *ClientNamesResolver
 		sutConfig                    config.ClientLookupConfig
-		m                            *resolverMock
+		m                            *MockResolver
 		mockReverseUpstream          config.Upstream
 		mockReverseUpstreamCallCount int
 		mockReverseUpstreamAnswer    *dns.Msg
@@ -47,7 +47,7 @@ var _ = Describe("ClientResolver", func() {
 
 	JustBeforeEach(func() {
 		sut = NewClientNamesResolver(sutConfig).(*ClientNamesResolver)
-		m = &resolverMock{}
+		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
 
@@ -250,9 +250,9 @@ var _ = Describe("ClientResolver", func() {
 		})
 		When("Upstream produces error", func() {
 			JustBeforeEach(func() {
-				clientResolverMock := &resolverMock{}
-				clientResolverMock.On("Resolve", mock.Anything).Return(nil, errors.New("error"))
-				sut.externalResolver = clientResolverMock
+				clientMockResolver := &MockResolver{}
+				clientMockResolver.On("Resolve", mock.Anything).Return(nil, errors.New("error"))
+				sut.externalResolver = clientMockResolver
 			})
 			It("should use fallback for client name", func() {
 				request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
@@ -303,7 +303,7 @@ var _ = Describe("ClientResolver", func() {
 			})
 			It("should return configuration", func() {
 				c := sut.Configuration()
-				Expect(len(c) > 1).Should(BeTrue())
+				Expect(len(c)).Should(BeNumerically(">", 1))
 			})
 		})
 

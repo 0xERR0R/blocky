@@ -18,50 +18,60 @@ import (
 )
 
 type MockResolver struct {
-	AnswerFn func(t uint16, qName string) *dns.Msg
-}
-
-func (m *MockResolver) Resolve(req *model.Request) (*model.Response, error) {
-	for _, question := range req.Req.Question {
-		answer := m.AnswerFn(question.Qtype, question.Name)
-		if answer != nil {
-			return &model.Response{
-				Res:    answer,
-				Reason: "",
-				RType:  model.ResponseTypeRESOLVED,
-			}, nil
-		}
-	}
-
-	response := new(dns.Msg)
-	response.SetRcode(req.Req, dns.RcodeBadName)
-
-	return &model.Response{
-		Res:    response,
-		Reason: "",
-		RType:  model.ResponseTypeRESOLVED,
-	}, nil
-}
-
-func (m *MockResolver) Configuration() []string {
-	return []string{}
-}
-
-type resolverMock struct {
 	mock.Mock
 	NextResolver
+
+	ResolveFn  func(req *model.Request) (*model.Response, error)
+	ResponseFn func(req *dns.Msg) *dns.Msg
+	AnswerFn   func(t uint16, qName string) *dns.Msg
 }
 
-func (r *resolverMock) Configuration() (result []string) {
-	return
+func (r *MockResolver) Configuration() []string {
+	args := r.Called()
+	return args.Get(0).([]string)
 }
 
-func (r *resolverMock) Resolve(req *model.Request) (*model.Response, error) {
+func (r *MockResolver) Resolve(req *model.Request) (*model.Response, error) {
 	args := r.Called(req)
+
+	if r.ResolveFn != nil {
+		return r.ResolveFn(req)
+	}
+
+	if r.ResponseFn != nil {
+		return &model.Response{
+			Res:    r.ResponseFn(req.Req),
+			Reason: "",
+			RType:  model.ResponseTypeRESOLVED,
+		}, nil
+	}
+
+	if r.AnswerFn != nil {
+		for _, question := range req.Req.Question {
+			answer := r.AnswerFn(question.Qtype, question.Name)
+			if answer != nil {
+				return &model.Response{
+					Res:    answer,
+					Reason: "",
+					RType:  model.ResponseTypeRESOLVED,
+				}, nil
+			}
+		}
+
+		response := new(dns.Msg)
+		response.SetRcode(req.Req, dns.RcodeBadName)
+
+		return &model.Response{
+			Res:    response,
+			Reason: "",
+			RType:  model.ResponseTypeRESOLVED,
+		}, nil
+	}
+
 	resp, ok := args.Get(0).(*model.Response)
 
 	if ok {
-		return resp, args.Error((1))
+		return resp, args.Error(1)
 	}
 
 	return nil, args.Error(1)

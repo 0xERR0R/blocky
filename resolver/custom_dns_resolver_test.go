@@ -16,7 +16,7 @@ import (
 var _ = Describe("CustomDNSResolver", func() {
 	var (
 		sut  ChainedResolver
-		m    *resolverMock
+		m    *MockResolver
 		err  error
 		resp *Response
 	)
@@ -35,7 +35,7 @@ var _ = Describe("CustomDNSResolver", func() {
 			}},
 			CustomTTL: config.Duration(time.Duration(TTL) * time.Second),
 		})
-		m = &resolverMock{}
+		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
 	})

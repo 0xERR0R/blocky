@@ -42,7 +42,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 		sutConfig  config.QueryLogConfig
 		err        error
 		resp       *Response
-		m          *resolverMock
+		m          *MockResolver
 		tmpDir     string
 		mockAnswer *dns.Msg
 	)
@@ -55,7 +55,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 	JustBeforeEach(func() {
 		sut = NewQueryLoggingResolver(sutConfig).(*QueryLoggingResolver)
-		m = &resolverMock{}
+		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer, Reason: "reason"}, nil)
 		sut.Next(m)
 	})
@@ -220,7 +220,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 			})
 			It("should return configuration", func() {
 				c := sut.Configuration()
-				Expect(len(c) > 1).Should(BeTrue())
+				Expect(len(c)).Should(BeNumerically(">", 1))
 			})
 		})
 	})

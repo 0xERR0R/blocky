@@ -23,6 +23,9 @@ upstreamTimeout: 2s
 # example: query "printer.lan" or "my.printer.lan" will return 192.168.178.3
 customDNS:
   customTTL: 1h
+  # optional: replace domain in the query with other domain before resolver lookup in the mapping
+  rewrite:
+    example.com: printer.lan
   mapping:
     printer.lan: 192.168.178.3,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
 
