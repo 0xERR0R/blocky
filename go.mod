@@ -3,7 +3,7 @@ module github.com/0xERR0R/blocky
 go 1.17
 
 require (
-	github.com/alicebob/miniredis/v2 v2.18.0
+	github.com/alicebob/miniredis/v2 v2.19.0
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/creasty/defaults v1.5.2
 	github.com/go-chi/cors v1.2.0
