@@ -41,7 +41,7 @@ var _ = Describe("Expiration cache", func() {
 					val, ttl := cache.Get("key1")
 					g.Expect(val).Should(Equal("val1"))
 					g.Expect(ttl.Milliseconds()).Should(BeNumerically("==", 0))
-				}, "60ms").Should(Succeed())
+				}, "100ms").Should(Succeed())
 
 				Expect(cache.TotalCount()).Should(Equal(0))
 				// internal map has still the expired item
