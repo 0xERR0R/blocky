@@ -317,9 +317,10 @@ type RewriteConfig struct {
 
 // CustomDNSConfig custom DNS configuration
 type CustomDNSConfig struct {
-	RewriteConfig `yaml:",inline"`
-	CustomTTL     Duration         `yaml:"customTTL" default:"1h"`
-	Mapping       CustomDNSMapping `yaml:"mapping"`
+	RewriteConfig       `yaml:",inline"`
+	CustomTTL           Duration         `yaml:"customTTL" default:"1h"`
+	Mapping             CustomDNSMapping `yaml:"mapping"`
+	FilterUnmappedTypes bool             `yaml:"filterUnmappedTypes" default:"true"`
 }
 
 // CustomDNSMapping mapping for the custom DNS configuration
