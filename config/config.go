@@ -83,12 +83,7 @@ type ListenConfig []string
 func (l *ListenConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var addresses string
 	if err := unmarshal(&addresses); err != nil {
-		var port uint16
-		if err := unmarshal(&port); err != nil {
-			return err
-		}
-
-		addresses = fmt.Sprintf("%d", port)
+		return err
 	}
 
 	*l = strings.Split(addresses, ",")
