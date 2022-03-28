@@ -12,15 +12,9 @@ import (
 )
 
 const (
-	// NetProtocolUdp is a NetProtocol of type Udp.
-	// Deprecated: use tcp+udp instead
-	NetProtocolUdp NetProtocol = iota
-	// NetProtocolTcp is a NetProtocol of type Tcp.
-	// Deprecated: use tcp+udp instead
-	NetProtocolTcp
 	// NetProtocolTcpUdp is a NetProtocol of type Tcp+Udp.
 	// TCP and UDP protocols
-	NetProtocolTcpUdp
+	NetProtocolTcpUdp NetProtocol = iota
 	// NetProtocolTcpTls is a NetProtocol of type Tcp-Tls.
 	// TCP-TLS protocol
 	NetProtocolTcpTls
@@ -29,14 +23,12 @@ const (
 	NetProtocolHttps
 )
 
-const _NetProtocolName = "udptcptcp+udptcp-tlshttps"
+const _NetProtocolName = "tcp+udptcp-tlshttps"
 
 var _NetProtocolNames = []string{
-	_NetProtocolName[0:3],
-	_NetProtocolName[3:6],
-	_NetProtocolName[6:13],
-	_NetProtocolName[13:20],
-	_NetProtocolName[20:25],
+	_NetProtocolName[0:7],
+	_NetProtocolName[7:14],
+	_NetProtocolName[14:19],
 }
 
 // NetProtocolNames returns a list of possible string values of NetProtocol.
@@ -47,11 +39,9 @@ func NetProtocolNames() []string {
 }
 
 var _NetProtocolMap = map[NetProtocol]string{
-	NetProtocolUdp:    _NetProtocolName[0:3],
-	NetProtocolTcp:    _NetProtocolName[3:6],
-	NetProtocolTcpUdp: _NetProtocolName[6:13],
-	NetProtocolTcpTls: _NetProtocolName[13:20],
-	NetProtocolHttps:  _NetProtocolName[20:25],
+	NetProtocolTcpUdp: _NetProtocolName[0:7],
+	NetProtocolTcpTls: _NetProtocolName[7:14],
+	NetProtocolHttps:  _NetProtocolName[14:19],
 }
 
 // String implements the Stringer interface.
@@ -63,11 +53,9 @@ func (x NetProtocol) String() string {
 }
 
 var _NetProtocolValue = map[string]NetProtocol{
-	_NetProtocolName[0:3]:   NetProtocolUdp,
-	_NetProtocolName[3:6]:   NetProtocolTcp,
-	_NetProtocolName[6:13]:  NetProtocolTcpUdp,
-	_NetProtocolName[13:20]: NetProtocolTcpTls,
-	_NetProtocolName[20:25]: NetProtocolHttps,
+	_NetProtocolName[0:7]:   NetProtocolTcpUdp,
+	_NetProtocolName[7:14]:  NetProtocolTcpTls,
+	_NetProtocolName[14:19]: NetProtocolHttps,
 }
 
 // ParseNetProtocol attempts to convert a string to a NetProtocol.

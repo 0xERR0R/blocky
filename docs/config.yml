@@ -39,8 +39,8 @@ conditional:
   rewrite:
     example.com: fritz.box
   mapping:
-    fritz.box: udp:192.168.178.1
-    lan.net: udp:192.168.178.1,udp:192.168.178.2
+    fritz.box: 192.168.178.1
+    lan.net: 192.168.178.1,192.168.178.2
 
 # optional: use black and white lists to block queries (for example ads, trackers, adult pages etc.)
 blocking:
@@ -132,7 +132,7 @@ caching:
 # optional: configuration of client name resolution
 clientLookup:
   # optional: this DNS resolver will be used to perform reverse DNS lookup (typically local router)
-  upstream: udp:192.168.178.1
+  upstream: 192.168.178.1
   # optional: some routers return multiple names for client (host name and user defined name). Define which single name should be used.
   # Example: take second name if present, if not take first name
   singleNameOrder:

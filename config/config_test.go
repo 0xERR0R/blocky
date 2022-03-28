@@ -97,7 +97,7 @@ var _ = Describe("Config", func() {
 				data :=
 					`conditional:
   mapping:
-    multiple.resolvers: udp:192.168.178.1,wrongprotocol:4.4.4.4:53`
+    multiple.resolvers: 192.168.178.1,wrongprotocol:4.4.4.4:53`
 				helpertest.ShouldLogFatal(func() {
 					unmarshalConfig([]byte(data), cfg)
 				})
@@ -109,9 +109,9 @@ var _ = Describe("Config", func() {
 				data :=
 					`upstream:
   default:
-    - udp:8.8.8.8
+    - 8.8.8.8
     - wrongprotocol:8.8.4.4
-    - udp:1.1.1.1`
+    - 1.1.1.1`
 				helpertest.ShouldLogFatal(func() {
 					unmarshalConfig([]byte(data), cfg)
 				})
@@ -126,49 +126,6 @@ var _ = Describe("Config", func() {
 				helpertest.ShouldLogFatal(func() {
 					unmarshalConfig([]byte(data), cfg)
 				})
-			})
-		})
-
-		When("deprecated querylog.dir parameter is used", func() {
-			It("should be mapped to csv writer", func() {
-				By("per client", func() {
-					c := &Config{
-						QueryLog: QueryLogConfig{
-							Dir:       "/somedir",
-							PerClient: true,
-						}}
-					validateConfig(c)
-
-					Expect(c.QueryLog.Target).Should(Equal("/somedir"))
-					Expect(c.QueryLog.Type).Should(Equal(QueryLogTypeCsvClient))
-				})
-
-				By("one file", func() {
-					c := &Config{
-						QueryLog: QueryLogConfig{
-							Dir:       "/somedir",
-							PerClient: false,
-						}}
-					validateConfig(c)
-
-					Expect(c.QueryLog.Target).Should(Equal("/somedir"))
-					Expect(c.QueryLog.Type).Should(Equal(QueryLogTypeCsv))
-				})
-
-			})
-		})
-
-		When("deprecated httpsCertFile/httpsKeyFile parameter is used", func() {
-			It("should be mapped to certFile/keyFile", func() {
-
-				c := &Config{
-					HTTPKeyFile:  "key",
-					HTTPCertFile: "cert",
-				}
-				validateConfig(c)
-
-				Expect(c.KeyFile).Should(Equal("key"))
-				Expect(c.CertFile).Should(Equal("cert"))
 			})
 		})
 
@@ -373,20 +330,20 @@ var _ = Describe("Config", func() {
 			}
 			Expect(result).Should(Equal(wantResult), in)
 		},
-		Entry("udp with port",
-			"udp:4.4.4.4:531",
+		Entry("udp+tcp with port",
+			"4.4.4.4:531",
 			Upstream{Net: NetProtocolTcpUdp, Host: "4.4.4.4", Port: 531},
 			false),
-		Entry("udp without port, use default",
-			"udp:4.4.4.4",
+		Entry("udp+tcü without port, use default",
+			"4.4.4.4",
 			Upstream{Net: NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53},
 			false),
-		Entry("tcp with port",
-			"tcp:4.4.4.4:4711",
+		Entry("udp+tcp with port",
+			"tcp+udp:4.4.4.4:4711",
 			Upstream{Net: NetProtocolTcpUdp, Host: "4.4.4.4", Port: 4711},
 			false),
 		Entry("tcp without port, use default",
-			"tcp:4.4.4.4",
+			"4.4.4.4",
 			Upstream{Net: NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53},
 			false),
 		Entry("tcp-tls without port, use default",
@@ -418,11 +375,11 @@ var _ = Describe("Config", func() {
 			Upstream{Net: 0},
 			true),
 		Entry("udpIpv6WithPort",
-			"udp:[fd00::6cd4:d7e0:d99d:2952]:53",
+			"tcp+udp:[fd00::6cd4:d7e0:d99d:2952]:53",
 			Upstream{Net: NetProtocolTcpUdp, Host: "fd00::6cd4:d7e0:d99d:2952", Port: 53},
 			false),
 		Entry("udpIpv6WithPort2",
-			"udp:[2001:4860:4860::8888]:53",
+			"[2001:4860:4860::8888]:53",
 			Upstream{Net: NetProtocolTcpUdp, Host: "2001:4860:4860::8888", Port: 53},
 			false),
 		Entry("default net, default port",

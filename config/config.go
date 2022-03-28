@@ -20,8 +20,6 @@ import (
 )
 
 // NetProtocol resolver protocol ENUM(
-// udp // Deprecated: use tcp+udp instead
-// tcp // Deprecated: use tcp+udp instead
 // tcp+udp // TCP and UDP protocols
 // tcp-tls // TCP-TLS protocol
 // https // HTTPS protocol
@@ -236,17 +234,6 @@ func extractPath(in string) (path string, upstream string) {
 }
 
 func extractNet(upstream string) (NetProtocol, string) {
-	if strings.HasPrefix(upstream, NetProtocolTcp.String()+":") {
-		log.Log().Warnf("net prefix tcp is deprecated, using tcp+udp as default fallback")
-
-		return NetProtocolTcpUdp, strings.Replace(upstream, NetProtocolTcp.String()+":", "", 1)
-	}
-
-	if strings.HasPrefix(upstream, NetProtocolUdp.String()+":") {
-		log.Log().Warnf("net prefix udp is deprecated, using tcp+udp as default fallback")
-		return NetProtocolTcpUdp, strings.Replace(upstream, NetProtocolUdp.String()+":", "", 1)
-	}
-
 	if strings.HasPrefix(upstream, NetProtocolTcpUdp.String()+":") {
 		return NetProtocolTcpUdp, strings.Replace(upstream, NetProtocolTcpUdp.String()+":", "", 1)
 	}
@@ -288,10 +275,6 @@ type Config struct {
 	KeyFile         string                    `yaml:"keyFile"`
 	BootstrapDNS    Upstream                  `yaml:"bootstrapDns"`
 	HostsFile       HostsFileConfig           `yaml:"hostsFile"`
-	// Deprecated
-	HTTPCertFile string `yaml:"httpsCertFile"`
-	// Deprecated
-	HTTPKeyFile string `yaml:"httpsKeyFile"`
 }
 
 // PrometheusConfig contains the config values for prometheus
@@ -369,10 +352,6 @@ type CachingConfig struct {
 
 // QueryLogConfig configuration for the query logging
 type QueryLogConfig struct {
-	// Deprecated
-	Dir string `yaml:"dir"`
-	// Deprecated
-	PerClient        bool         `yaml:"perClient" default:"false"`
 	Target           string       `yaml:"target"`
 	Type             QueryLogType `yaml:"type"`
 	LogRetentionDays uint64       `yaml:"logRetentionDays"`
@@ -434,31 +413,6 @@ func unmarshalConfig(data []byte, cfg Config) {
 }
 
 func validateConfig(cfg *Config) {
-	if cfg.QueryLog.Dir != "" {
-		log.Log().Warnf("queryLog.Dir is deprecated, use 'queryLog.target' instead")
-
-		if cfg.QueryLog.Target == "" {
-			cfg.QueryLog.Target = cfg.QueryLog.Dir
-		}
-
-		if cfg.QueryLog.Type == QueryLogTypeConsole {
-			if cfg.QueryLog.PerClient {
-				cfg.QueryLog.Type = QueryLogTypeCsvClient
-			} else {
-				cfg.QueryLog.Type = QueryLogTypeCsv
-			}
-		}
-	}
-
-	if cfg.HTTPKeyFile != "" || cfg.HTTPCertFile != "" {
-		log.Log().Warnf("'httpsCertFile'/'httpsKeyFile' are deprecated, use 'certFile'/'keyFile' instead")
-
-		if cfg.CertFile == "" && cfg.KeyFile == "" {
-			cfg.CertFile = cfg.HTTPCertFile
-			cfg.KeyFile = cfg.HTTPKeyFile
-		}
-	}
-
 	if len(cfg.TLSPorts) != 0 && (cfg.CertFile == "" || cfg.KeyFile == "") {
 		log.Log().Fatal("certFile and keyFile parameters are mandatory for TLS")
 	}
