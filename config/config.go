@@ -31,6 +31,7 @@ type NetProtocol uint16
 // QueryLogType type of the query log ENUM(
 // console // use logger as fallback
 // none // no logging
+// kafka // Kafka stream
 // mysql // MySQL or MariaDB database
 // postgresql // PostgreSQL database
 // csv // CSV file per day

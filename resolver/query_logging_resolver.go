@@ -39,6 +39,8 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 				writer, err = querylog.NewCSVWriter(cfg.Target, false, cfg.LogRetentionDays)
 			case config.QueryLogTypeCsvClient:
 				writer, err = querylog.NewCSVWriter(cfg.Target, true, cfg.LogRetentionDays)
+			case config.QueryLogTypeKafka:
+				writer, err = querylog.NewKafkaWriter(cfg.Target)
 			case config.QueryLogTypeMysql:
 				writer, err = querylog.NewDatabaseWriter("mysql", cfg.Target, cfg.LogRetentionDays, 30*time.Second)
 			case config.QueryLogTypePostgresql:
