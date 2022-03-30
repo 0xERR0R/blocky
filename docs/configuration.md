@@ -492,6 +492,7 @@ You can select one of following query log types:
 
 - `mysql` - log each query in the external MySQL/MariaDB database
 - `postgresql` - log each query in the external PostgreSQL database
+- `kafka` - log each query to a kafka stream
 - `csv` - log into CSV file (one per day)
 - `csv-client` - log into CSV file (one per day and per client)
 - `console` - log into console output
@@ -501,8 +502,8 @@ Configuration parameters:
 
 | Parameter                 | Type                                                                 | Mandatory | Default value | Description                                                                            |
 |---------------------------|----------------------------------------------------------------------|-----------|---------------|----------------------------------------------------------------------------------------|
-| queryLog.type             | enum (mysql, postgresql, csv, csv-client, console, none (see above)) | no        |               | Type of logging target. Console if empty                                               |
-| queryLog.target           | string                                                               | no        |               | directory for writing the logs (for csv) or database url (for mysql or postgresql)     |
+| queryLog.type             | enum (mysql, postgresql, kafka, csv, csv-client, console, none (see above)) | no        |               | Type of logging target. Console if empty                                               |
+| queryLog.target           | string                                                               | no        |               | directory for writing the logs (for csv), database url (for mysql or postgresql), or json object with kafka configuration details for logging to kafka      |
 | queryLog.logRetentionDays | int                                                                  | no        | 0             | if > 0, deletes log files/database entries which are older than ... days               |
 | queryLog.creationAttempts | int                                                                  | no        | 3             | Max attempts to create specific query log writer                                       |
 | queryLog.CreationCooldown | duration format                                                      | no        | 2             | Time between the creation attempts                                                     |
@@ -510,7 +511,9 @@ Configuration parameters:
 !!! hint
 
     Please ensure, that the log directory is writable or database exists. If you use docker, please ensure, that the directory is properly
-    mounted (e.g. volume)
+    mounted (e.g. volume).
+
+    Note that the `target` field can use environment variables via the format `env:$ENV_VAR_NAME`
 
 example for CSV format
 !!! example
@@ -530,6 +533,15 @@ example for Database
         type: mysql
         target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
         logRetentionDays: 7
+    ```
+
+example for kafka
+!!! example
+
+    ```yaml
+    queryLog:
+        type: kafka
+        target: '{"topic":"dns","bootstrap.servers":"db_host_or_ip:9200","security.protocol":"SSL","ssl.keystore.password":"env:$KEYSTORE_PASSWORD","ssl.keystore.location":"(keystore .p12 location)"}'
     ```
 
 ### Hosts file
