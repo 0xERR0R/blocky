@@ -115,17 +115,19 @@ You can define your own domain name to IP mappings. For example, you can use a u
 or define a domain name for your local device on order to use the HTTPS certificate. Multiple IP addresses for one
 domain must be separated by a comma.
 
-| Parameter | Type                                    | Mandatory | Default value |
-|-----------|-----------------------------------------|-----------|---------------|
-| customTTL | duration (no unit is minutes)           | no        | 1h            |
-| rewrite   | string: string (domain: domain)         | no        |               |
-| mapping   | string: string (hostname: address list) | no        |               |
+| Parameter | Type                                                | Mandatory | Default value |
+|-----------------------|-----------------------------------------|-----------|---------------|
+| customTTL             | duration (no unit is minutes)           | no        | 1h            |
+| rewrite               | string: string (domain: domain)         | no        |               |
+| mapping               | string: string (hostname: address list) | no        |               |
+| filterUnmappedTypes   | boolean                                 | no        | true          |
 
 !!! example
 
     ```yaml
     customDNS:
         customTTL: 1h
+        filterUnmappedTypes: true
         rewrite:
             home: lan
             replace-me.com: with-this.com
@@ -140,6 +142,10 @@ my.printer.lan" will return 192.168.178.3 as IP address.
 With the optional parameter `rewrite` you can replace domain part of the query with the defined part **before** the
 resolver lookup is performed.  
 The query "printer.home" will be rewritten to "printer.lan" and return 192.168.178.3.
+
+With parameter `filterUnmappedTypes = true` (default), blocky will filter all queries with unmapped types, for example:
+AAAA for "printer.lan" or TXT for "otherdevice.lan".
+With `filterUnmappedTypes = true` a query AAAA "printer.lan" will be forwarded to the upstream DNS server.
 
 ## Conditional DNS resolution
 

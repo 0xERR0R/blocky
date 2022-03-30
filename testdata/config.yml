@@ -2,7 +2,7 @@ upstream:
   default:
     - tcp+udp:8.8.8.8
     - tcp+udp:8.8.4.4
-    - udp:1.1.1.1 # deprecated
+    - 1.1.1.1
 customDNS:
   mapping:
     my.duckdns.org: 192.168.178.3
@@ -35,7 +35,7 @@ blocking:
   # without unit -> use minutes
   refreshPeriod: 120
 clientLookup:
-  upstream: udp:192.168.178.1
+  upstream: 192.168.178.1
   singleNameOrder:
       - 2
       - 1

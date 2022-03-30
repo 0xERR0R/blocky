@@ -35,8 +35,8 @@ func FormatTypeNames() []string {
 }
 
 var _FormatTypeMap = map[FormatType]string{
-	0: _FormatTypeName[0:4],
-	1: _FormatTypeName[4:8],
+	FormatTypeText: _FormatTypeName[0:4],
+	FormatTypeJson: _FormatTypeName[4:8],
 }
 
 // String implements the Stringer interface.
@@ -48,11 +48,11 @@ func (x FormatType) String() string {
 }
 
 var _FormatTypeValue = map[string]FormatType{
-	_FormatTypeName[0:4]: 0,
-	_FormatTypeName[4:8]: 1,
+	_FormatTypeName[0:4]: FormatTypeText,
+	_FormatTypeName[4:8]: FormatTypeJson,
 }
 
-// ParseFormatType attempts to convert a string to a FormatType
+// ParseFormatType attempts to convert a string to a FormatType.
 func ParseFormatType(name string) (FormatType, error) {
 	if x, ok := _FormatTypeValue[name]; ok {
 		return x, nil
@@ -60,12 +60,12 @@ func ParseFormatType(name string) (FormatType, error) {
 	return FormatType(0), fmt.Errorf("%s is not a valid FormatType, try [%s]", name, strings.Join(_FormatTypeNames, ", "))
 }
 
-// MarshalText implements the text marshaller method
+// MarshalText implements the text marshaller method.
 func (x FormatType) MarshalText() ([]byte, error) {
 	return []byte(x.String()), nil
 }
 
-// UnmarshalText implements the text unmarshaller method
+// UnmarshalText implements the text unmarshaller method.
 func (x *FormatType) UnmarshalText(text []byte) error {
 	name := string(text)
 	tmp, err := ParseFormatType(name)
@@ -110,12 +110,12 @@ func LevelNames() []string {
 }
 
 var _LevelMap = map[Level]string{
-	0: _LevelName[0:4],
-	1: _LevelName[4:9],
-	2: _LevelName[9:14],
-	3: _LevelName[14:18],
-	4: _LevelName[18:23],
-	5: _LevelName[23:28],
+	LevelInfo:  _LevelName[0:4],
+	LevelTrace: _LevelName[4:9],
+	LevelDebug: _LevelName[9:14],
+	LevelWarn:  _LevelName[14:18],
+	LevelError: _LevelName[18:23],
+	LevelFatal: _LevelName[23:28],
 }
 
 // String implements the Stringer interface.
@@ -127,15 +127,15 @@ func (x Level) String() string {
 }
 
 var _LevelValue = map[string]Level{
-	_LevelName[0:4]:   0,
-	_LevelName[4:9]:   1,
-	_LevelName[9:14]:  2,
-	_LevelName[14:18]: 3,
-	_LevelName[18:23]: 4,
-	_LevelName[23:28]: 5,
+	_LevelName[0:4]:   LevelInfo,
+	_LevelName[4:9]:   LevelTrace,
+	_LevelName[9:14]:  LevelDebug,
+	_LevelName[14:18]: LevelWarn,
+	_LevelName[18:23]: LevelError,
+	_LevelName[23:28]: LevelFatal,
 }
 
-// ParseLevel attempts to convert a string to a Level
+// ParseLevel attempts to convert a string to a Level.
 func ParseLevel(name string) (Level, error) {
 	if x, ok := _LevelValue[name]; ok {
 		return x, nil
@@ -143,12 +143,12 @@ func ParseLevel(name string) (Level, error) {
 	return Level(0), fmt.Errorf("%s is not a valid Level, try [%s]", name, strings.Join(_LevelNames, ", "))
 }
 
-// MarshalText implements the text marshaller method
+// MarshalText implements the text marshaller method.
 func (x Level) MarshalText() ([]byte, error) {
 	return []byte(x.String()), nil
 }
 
-// UnmarshalText implements the text unmarshaller method
+// UnmarshalText implements the text unmarshaller method.
 func (x *Level) UnmarshalText(text []byte) error {
 	name := string(text)
 	tmp, err := ParseLevel(name)
