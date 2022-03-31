@@ -48,6 +48,11 @@ run `./blocky --config config.yml`.
 Blocky docker images are deployed to DockerHub (`spx01/blocky`) and GitHub Container Registry (`ghcr.io/0xerr0r/blocky`)
 .
 
+### Parameters
+
+You can define the location of the config file in the container with environment variable "CONFIG_FILE".
+Default value is "/app/config.yml".
+
 ### Docker from command line
 
 Execute following command from the command line:
