@@ -216,10 +216,7 @@ func (r *HostsFileResolver) periodicUpdate() {
 			logger := logger(hostsFileResolverLogger)
 			logger.WithField("file", r.HostsFilePath).Debug("refreshing hosts file")
 
-			err := r.parseHostsFile()
-			if err != nil {
-				logger.Warn("can't refresh hosts file: ", err)
-			}
+			util.LogOnError("can't refresh hosts file: ", r.parseHostsFile())
 		}
 	}
 }
