@@ -105,7 +105,7 @@ var _ = Describe("CachingResolver", func() {
 					// and it should hit from prefetch cache
 					_, _ = sut.Resolve(newRequest("example.com.", dns.TypeA))
 					g.Expect(prefetchHitDomain).Should(Equal("example.com"))
-				}, "2s").Should(Succeed())
+				}, "5s").Should(Succeed())
 
 			})
 		})
