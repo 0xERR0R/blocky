@@ -9,7 +9,8 @@ RUN apk add --no-cache \
     ca-certificates
 
 ENV GO111MODULE=on \
-    CGO_ENABLED=0
+    CGO_ENABLED=0 \
+    CONFIG_FILE=/app/config.yml
     
 WORKDIR /src
 
@@ -40,4 +41,4 @@ USER blocky
 WORKDIR /app
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["/app/blocky","--config","/app/config.yml"]
+CMD ["/app/blocky","--config","$CONFIG_FILE"]
