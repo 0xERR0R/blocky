@@ -20,7 +20,6 @@ configuration properties as [JSON](config.yml).
 | certFile     | path                            | yes, if httpsPort > 0 |               | Path to cert and key file for SSL encryption (DoH and DoT)                                                                                                                                                                                        |
 | keyFile      | path                            | yes, if httpsPort > 0 |               | Path to cert and key file for SSL encryption (DoH and DoT)
 | bootstrapDns | IP:port                         | no                    |               | Use this DNS server to resolve blacklist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. NOTE: Works only on Linux/*Nix OS due to golang limitations under windows.               |
-| disableIPv6  | bool                            | no                    | false         | Drop all AAAA query if set to true                                                                                                                                                                                                                |
 | logLevel     | enum (debug, info, warn, error) | no                    | info          | Log level                                                                                                                                                                                                                                         |
 | logFormat    | enum (text, json)               | no                    | text          | Log format (text or json).                                                                                                                                                                                                                        |
 | logTimestamp | bool                            | no                    | true          | Log time stamps (true or false).                                                                                                                                                                                                                  |
@@ -108,6 +107,21 @@ value by setting the `upstreamTimeout` configuration parameter (in **duration fo
         - 80.241.218.68
     upstreamTimeout: 5s
     ```
+
+## Filtering
+
+Under certain circumstances, it may be useful to filter some types of DNS queries. You can define one or more DNS query
+types, all queries with these types will be dropped (empty answer will be returned).
+
+!!! example
+
+    ```yaml
+    filtering:
+        queryTypes:
+            - AAAA
+    ```
+
+This configuration will drop all 'AAAA' (IPv6) queries.
 
 ## Custom DNS
 

@@ -33,7 +33,11 @@ func newServeCommand() *cobra.Command {
 func startServer(_ *cobra.Command, _ []string) {
 	printBanner()
 
-	config.LoadConfig(configPath, true)
+	err := config.LoadConfig(configPath, true)
+	if err != nil {
+		util.FatalOnError("unable to load configuration: ", err)
+	}
+
 	log.ConfigureLogger(config.GetConfig().LogLevel, config.GetConfig().LogFormat, config.GetConfig().LogTimestamp)
 
 	configureHTTPClient(config.GetConfig())

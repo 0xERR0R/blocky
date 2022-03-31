@@ -11,6 +11,10 @@ conditional:
   mapping:
     fritz.box: tcp+udp:192.168.178.1
     multiple.resolvers: tcp+udp:192.168.178.1,tcp+udp:192.168.178.2
+filtering:
+  queryTypes:
+    - AAAA
+    - A
 blocking:
   blackLists:
     ads:

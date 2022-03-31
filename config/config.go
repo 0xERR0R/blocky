@@ -8,11 +8,15 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/miekg/dns"
+
 	"github.com/hako/durafmt"
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/creasty/defaults"
@@ -35,6 +39,12 @@ type NetProtocol uint16
 // csv-client // CSV file per day and client
 // )
 type QueryLogType int16
+
+type QType dns.Type
+
+func (c QType) String() string {
+	return dns.TypeToString[uint16(c)]
+}
 
 type Duration time.Duration
 
@@ -170,6 +180,30 @@ func (c *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return err
 }
 
+func (c *QType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var input string
+	if err := unmarshal(&input); err != nil {
+		return err
+	}
+
+	t, found := dns.StringToType[input]
+	if !found {
+		types := make([]string, 0, len(dns.StringToType))
+		for k := range dns.StringToType {
+			types = append(types, k)
+		}
+
+		sort.Strings(types)
+
+		return fmt.Errorf("unknown DNS query type: '%s'. Please use following types '%s'",
+			input, strings.Join(types, ", "))
+	}
+
+	*c = QType(t)
+
+	return nil
+}
+
 var validDomain = regexp.MustCompile(
 	`^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$`)
 
@@ -270,11 +304,13 @@ type Config struct {
 	HTTPPorts       ListenConfig              `yaml:"httpPort"`
 	HTTPSPorts      ListenConfig              `yaml:"httpsPort"`
 	TLSPorts        ListenConfig              `yaml:"tlsPort"`
-	DisableIPv6     bool                      `yaml:"disableIPv6" default:"false"`
-	CertFile        string                    `yaml:"certFile"`
-	KeyFile         string                    `yaml:"keyFile"`
-	BootstrapDNS    Upstream                  `yaml:"bootstrapDns"`
-	HostsFile       HostsFileConfig           `yaml:"hostsFile"`
+	// Deprecated
+	DisableIPv6  bool            `yaml:"disableIPv6" default:"false"`
+	CertFile     string          `yaml:"certFile"`
+	KeyFile      string          `yaml:"keyFile"`
+	BootstrapDNS Upstream        `yaml:"bootstrapDns"`
+	HostsFile    HostsFileConfig `yaml:"hostsFile"`
+	Filtering    FilteringConfig `yaml:"filtering"`
 }
 
 // PrometheusConfig contains the config values for prometheus
@@ -375,14 +411,18 @@ type HostsFileConfig struct {
 	RefreshPeriod Duration `yaml:"refreshPeriod" default:"1h"`
 }
 
+type FilteringConfig struct {
+	QueryTypes []QType `yaml:"queryTypes"`
+}
+
 // nolint:gochecknoglobals
 var config = &Config{}
 
 // LoadConfig creates new config from YAML file
-func LoadConfig(path string, mandatory bool) {
+func LoadConfig(path string, mandatory bool) error {
 	cfg := Config{}
 	if err := defaults.Set(&cfg); err != nil {
-		log.Log().Fatal("Can't apply default values: ", err)
+		return fmt.Errorf("can't apply default values: %w", err)
 	}
 
 	data, err := ioutil.ReadFile(path)
@@ -392,34 +432,47 @@ func LoadConfig(path string, mandatory bool) {
 			// config file does not exist
 			// return config with default values
 			config = &cfg
-			return
+			return nil
 		}
 
-		log.Log().Fatal("Can't read config file: ", err)
+		return fmt.Errorf("can't read config file: %w", err)
 	}
 
-	unmarshalConfig(data, cfg)
+	return unmarshalConfig(data, cfg)
 }
 
-func unmarshalConfig(data []byte, cfg Config) {
+func unmarshalConfig(data []byte, cfg Config) error {
 	err := yaml.UnmarshalStrict(data, &cfg)
 	if err != nil {
-		log.Log().Fatal("wrong file structure: ", err)
+		return fmt.Errorf("wrong file structure: %w", err)
 	}
 
-	validateConfig(&cfg)
+	err = validateConfig(&cfg)
+	if err != nil {
+		return fmt.Errorf("unable to validate config: %w", err)
+	}
 
 	config = &cfg
+
+	return nil
 }
 
-func validateConfig(cfg *Config) {
+func validateConfig(cfg *Config) (err error) {
 	if len(cfg.TLSPorts) != 0 && (cfg.CertFile == "" || cfg.KeyFile == "") {
-		log.Log().Fatal("certFile and keyFile parameters are mandatory for TLS")
+		err = multierror.Append(err, errors.New("'certFile' and 'keyFile' parameters are mandatory for TLS"))
 	}
 
 	if len(cfg.HTTPSPorts) != 0 && (cfg.CertFile == "" || cfg.KeyFile == "") {
-		log.Log().Fatal("certFile and keyFile parameters are mandatory for HTTPS")
+		err = multierror.Append(err, errors.New("'certFile' and 'keyFile' parameters are mandatory for HTTPS"))
 	}
+
+	if cfg.DisableIPv6 {
+		log.Log().Warnf("'disableIPv6' is deprecated. Please use 'filtering.queryTypes' with 'AAAA' instead.")
+
+		cfg.Filtering.QueryTypes = append(cfg.Filtering.QueryTypes, QType(dns.TypeAAAA))
+	}
+
+	return
 }
 
 // GetConfig returns the current config

@@ -58,7 +58,11 @@ func init() {
 }
 
 func initConfig() {
-	config.LoadConfig(configPath, false)
+	err := config.LoadConfig(configPath, false)
+	if err != nil {
+		util.FatalOnError("unable to load configuration: ", err)
+	}
+
 	log.ConfigureLogger(config.GetConfig().LogLevel, config.GetConfig().LogFormat, config.GetConfig().LogTimestamp)
 
 	if len(config.GetConfig().HTTPPorts) != 0 {
