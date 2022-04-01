@@ -190,8 +190,12 @@ httpPort: 4000
 #keyFile: server.key
 # optional: use this DNS server to resolve blacklist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp
 bootstrapDns: tcp:1.1.1.1
-# optional: Drop all AAAA query if set to true. Default: false
-disableIPv6: false
+
+filtering:
+# optional: drop all queries with following query types. Default: empty
+  queryTypes:
+    - AAAA
+
 # optional: if path defined, use this file for query resolution (A, AAAA and rDNS). Default: empty
 hostsFile:
   # optional: Path to hosts file (e.g. /etc/hosts on Linux)

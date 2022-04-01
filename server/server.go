@@ -194,7 +194,7 @@ func createQueryResolver(cfg *config.Config, redisClient *redis.Client) (resolve
 	br, brErr := resolver.NewBlockingResolver(cfg.Blocking, redisClient)
 
 	return resolver.Chain(
-		resolver.NewIPv6Checker(cfg.DisableIPv6),
+		resolver.NewFilteringResolver(cfg.Filtering),
 		resolver.NewClientNamesResolver(cfg.ClientLookup),
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
 		resolver.NewMetricsResolver(cfg.Prometheus),

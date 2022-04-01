@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/0xERR0R/blocky/helpertest"
+	"github.com/miekg/dns"
 
 	. "github.com/0xERR0R/blocky/log"
 	. "github.com/onsi/ginkgo/v2"
@@ -21,7 +21,8 @@ var _ = Describe("Config", func() {
 				err := os.Chdir("../testdata")
 				Expect(err).Should(Succeed())
 
-				LoadConfig("config.yml", true)
+				err = LoadConfig("config.yml", true)
+				Expect(err).Should(Succeed())
 
 				Expect(config.DNSPorts).Should(Equal(ListenConfig{"55553", ":55554", "[::1]:55555"}))
 				Expect(config.Upstream.ExternalResolvers["default"]).Should(HaveLen(3))
@@ -44,6 +45,7 @@ var _ = Describe("Config", func() {
 				Expect(config.Blocking.ClientGroupsBlock).Should(HaveLen(2))
 				Expect(config.Blocking.BlockTTL).Should(Equal(Duration(time.Minute)))
 				Expect(config.Blocking.RefreshPeriod).Should(Equal(Duration(2 * time.Hour)))
+				Expect(config.Filtering.QueryTypes).Should(HaveLen(2))
 
 				Expect(config.Caching.MaxCachingTime).Should(Equal(Duration(0)))
 				Expect(config.Caching.MinCachingTime).Should(Equal(Duration(0)))
@@ -53,7 +55,7 @@ var _ = Describe("Config", func() {
 			})
 		})
 		When("config file is malformed", func() {
-			It("should log with fatal and exit", func() {
+			It("should return error", func() {
 
 				dir, err := ioutil.TempDir("", "blocky")
 				defer os.Remove(dir)
@@ -63,48 +65,48 @@ var _ = Describe("Config", func() {
 				err = ioutil.WriteFile("config.yml", []byte("malformed_config"), 0600)
 				Expect(err).Should(Succeed())
 
-				helpertest.ShouldLogFatal(func() {
-					LoadConfig("config.yml", true)
-				})
+				err = LoadConfig("config.yml", true)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("wrong file structure"))
 			})
 		})
 		When("duration is in wrong format", func() {
-			It("should log with fatal and exit", func() {
+			It("should return error", func() {
 				cfg := Config{}
 				data :=
 					`blocking:
   refreshPeriod: wrongduration`
-				helpertest.ShouldLogFatal(func() {
-					unmarshalConfig([]byte(data), cfg)
-				})
+				err := unmarshalConfig([]byte(data), cfg)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("invalid duration \"wrongduration\""))
 			})
 		})
 		When("CustomDNS hast wrong IP defined", func() {
-			It("should log with fatal and exit", func() {
+			It("should return error", func() {
 				cfg := Config{}
 				data :=
 					`customDNS:
   mapping:
     someDomain: 192.168.178.WRONG`
-				helpertest.ShouldLogFatal(func() {
-					unmarshalConfig([]byte(data), cfg)
-				})
+				err := unmarshalConfig([]byte(data), cfg)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("invalid IP address '192.168.178.WRONG'"))
 			})
 		})
 		When("Conditional mapping hast wrong defined upstreams", func() {
-			It("should log with fatal and exit", func() {
+			It("should return error", func() {
 				cfg := Config{}
 				data :=
 					`conditional:
   mapping:
     multiple.resolvers: 192.168.178.1,wrongprotocol:4.4.4.4:53`
-				helpertest.ShouldLogFatal(func() {
-					unmarshalConfig([]byte(data), cfg)
-				})
+				err := unmarshalConfig([]byte(data), cfg)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("wrong host name 'wrongprotocol:4.4.4.4:53'"))
 			})
 		})
 		When("Wrong upstreams are defined", func() {
-			It("should log with fatal and exit", func() {
+			It("should return error", func() {
 				cfg := Config{}
 				data :=
 					`upstream:
@@ -112,20 +114,31 @@ var _ = Describe("Config", func() {
     - 8.8.8.8
     - wrongprotocol:8.8.4.4
     - 1.1.1.1`
-				helpertest.ShouldLogFatal(func() {
-					unmarshalConfig([]byte(data), cfg)
-				})
+				err := unmarshalConfig([]byte(data), cfg)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("can't convert upstream 'wrongprotocol:8.8.4.4'"))
 			})
 		})
 
 		When("config is not YAML", func() {
-			It("should log with fatal and exit", func() {
+			It("should return error", func() {
 				cfg := Config{}
 				data :=
 					`///`
-				helpertest.ShouldLogFatal(func() {
-					unmarshalConfig([]byte(data), cfg)
-				})
+				err := unmarshalConfig([]byte(data), cfg)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("cannot unmarshal !!str `///`"))
+			})
+		})
+
+		When("Validation fails", func() {
+			It("should return error", func() {
+				cfg := Config{}
+				data :=
+					`httpsPort: 443`
+				err := unmarshalConfig([]byte(data), cfg)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("'certFile' and 'keyFile' parameters are mandatory for HTTPS"))
 			})
 		})
 
@@ -136,9 +149,9 @@ var _ = Describe("Config", func() {
 					c := &Config{
 						TLSPorts: ListenConfig{"953"},
 					}
-					helpertest.ShouldLogFatal(func() {
-						validateConfig(c)
-					})
+					err := validateConfig(c)
+					Expect(err).Should(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("'certFile' and 'keyFile' parameters are mandatory for TLS"))
 				})
 
 				By("certFile/keyFile set", func() {
@@ -147,8 +160,21 @@ var _ = Describe("Config", func() {
 						KeyFile:  "key",
 						CertFile: "cert",
 					}
-					validateConfig(c)
+					err := validateConfig(c)
+					Expect(err).Should(Succeed())
+
 				})
+			})
+		})
+
+		When("Deprecated parameter 'disableIPv6' is set", func() {
+			It("should add 'AAAA' to filter.queryTypes", func() {
+				c := &Config{
+					DisableIPv6: true,
+				}
+				err := validateConfig(c)
+				Expect(err).Should(Succeed())
+				Expect(c.Filtering.QueryTypes).Should(ContainElements(QType(dns.TypeAAAA)))
 			})
 		})
 
@@ -159,9 +185,9 @@ var _ = Describe("Config", func() {
 					c := &Config{
 						HTTPSPorts: ListenConfig{"443"},
 					}
-					helpertest.ShouldLogFatal(func() {
-						validateConfig(c)
-					})
+					err := validateConfig(c)
+					Expect(err).Should(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("'certFile' and 'keyFile' parameters are mandatory for HTTPS"))
 				})
 
 				By("certFile/keyFile set", func() {
@@ -170,32 +196,30 @@ var _ = Describe("Config", func() {
 						KeyFile:  "key",
 						CertFile: "cert",
 					}
-					validateConfig(c)
+					err := validateConfig(c)
+					Expect(err).Should(Succeed())
 				})
 			})
 		})
 
 		When("config directory does not exist", func() {
-			It("should log with fatal and exit if config is mandatory", func() {
+			It("should return error", func() {
 				err := os.Chdir("../..")
 				Expect(err).Should(Succeed())
 
-				defer func() { Log().ExitFunc = nil }()
+				err = LoadConfig("config.yml", true)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("no such file or directory"))
 
-				var fatal bool
-
-				Log().ExitFunc = func(int) { fatal = true }
-				LoadConfig("config.yml", true)
-
-				Expect(fatal).Should(BeTrue())
 			})
 
 			It("should use default config if config is not mandatory", func() {
 				err := os.Chdir("../..")
 				Expect(err).Should(Succeed())
 
-				LoadConfig("config.yml", false)
+				err = LoadConfig("config.yml", false)
 
+				Expect(err).Should(Succeed())
 				Expect(config.LogLevel).Should(Equal(LevelInfo))
 			})
 		})
@@ -312,6 +336,35 @@ var _ = Describe("Config", func() {
 			It("should fail if wrong YAML format", func() {
 				c := &CustomDNSMapping{}
 				err := c.UnmarshalYAML(func(i interface{}) error {
+					return errors.New("some err")
+				})
+				Expect(err).Should(HaveOccurred())
+				Expect(err).Should(MatchError("some err"))
+			})
+		})
+		Context("QueryTyoe", func() {
+			It("Should parse existing DNS type as string", func() {
+				t := QType(0)
+				err := t.UnmarshalYAML(func(i interface{}) error {
+					*i.(*string) = "AAAA"
+					return nil
+				})
+				Expect(err).Should(Succeed())
+				Expect(t).Should(Equal(QType(dns.TypeAAAA)))
+				Expect(t.String()).Should(Equal("AAAA"))
+			})
+			It("should fail if DNS type does not exist", func() {
+				t := QType(0)
+				err := t.UnmarshalYAML(func(i interface{}) error {
+					*i.(*string) = "WRONGTYPE"
+					return nil
+				})
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("unknown DNS query type: 'WRONGTYPE'"))
+			})
+			It("should fail if wrong YAML format", func() {
+				d := QType(0)
+				err := d.UnmarshalYAML(func(i interface{}) error {
 					return errors.New("some err")
 				})
 				Expect(err).Should(HaveOccurred())
