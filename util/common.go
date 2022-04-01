@@ -192,21 +192,39 @@ func Chunks(s string, chunkSize int) []string {
 }
 
 // GenerateCacheKey return cacheKey by query type/domain
-func GenerateCacheKey(qType uint16, qName string) string {
-	b := make([]byte, 2+len(qName))
+func GenerateCacheKey(hdr *dns.MsgHdr, qType uint16, qName string) string {
+	cdSize := 1
+	qTypeSize := 2
+	qNameSize := len(qName)
+	b := make([]byte, cdSize+qTypeSize+qNameSize)
 
-	binary.BigEndian.PutUint16(b, qType)
-	copy(b[2:], strings.ToLower(qName))
+	pos := 0
+	getSlice := func(size int) []byte {
+		start := pos
+		pos += size
+
+		return b[start:pos]
+	}
+
+	if hdr.CheckingDisabled {
+		getSlice(cdSize)[0] = 1
+	} else {
+		getSlice(cdSize)[0] = 0
+	}
+
+	binary.BigEndian.PutUint16(getSlice(qTypeSize), qType)
+	copy(getSlice(qNameSize), strings.ToLower(qName))
 
 	return string(b)
 }
 
 // ExtractCacheKey return query type/domain from cacheKey
-func ExtractCacheKey(key string) (qType uint16, qName string) {
+func ExtractCacheKey(key string) (cd bool, qType uint16, qName string) {
 	b := []byte(key)
 
-	qType = binary.BigEndian.Uint16(b)
-	qName = string(b[2:])
+	cd = b[0] == 1
+	qType = binary.BigEndian.Uint16(b[1:])
+	qName = string(b[3:])
 
 	return
 }

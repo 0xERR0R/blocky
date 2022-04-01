@@ -526,7 +526,7 @@ var _ = Describe("CachingResolver", func() {
 			It("load", func() {
 				request := newRequest("example2.com.", dns.TypeA)
 				domain := util.ExtractDomain(request.Req.Question[0])
-				cacheKey := util.GenerateCacheKey(dns.TypeA, domain)
+				cacheKey := util.GenerateCacheKey(&dns.MsgHdr{}, dns.TypeA, domain)
 				redisMockMsg := &redis.CacheMessage{
 					Key: cacheKey,
 					Response: &Response{
