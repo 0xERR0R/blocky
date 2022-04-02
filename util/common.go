@@ -100,9 +100,9 @@ func ExtractDomainOnly(in string) string {
 }
 
 // NewMsgWithQuestion creates new DNS message with question
-func NewMsgWithQuestion(question string, mType uint16) *dns.Msg {
+func NewMsgWithQuestion(question string, qType uint16) *dns.Msg {
 	msg := new(dns.Msg)
-	msg.SetQuestion(dns.Fqdn(question), mType)
+	msg.SetQuestion(dns.Fqdn(question), qType)
 
 	return msg
 }

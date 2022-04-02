@@ -13,7 +13,7 @@ import (
 
 const (
 	// RequestProtocolTCP is a RequestProtocol of type TCP.
-	// is the TPC protocol
+	// is the TCP protocol
 	RequestProtocolTCP RequestProtocol = iota
 	// RequestProtocolUDP is a RequestProtocol of type UDP.
 	// is the UDP protocol

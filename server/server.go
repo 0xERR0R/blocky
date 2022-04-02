@@ -187,7 +187,8 @@ func createUDPServer(address string) *dns.Server {
 		NotifyStartedFunc: func() {
 			logger().Infof("UDP server is up and running on address %s", address)
 		},
-		UDPSize: 65535}
+		UDPSize: 65535,
+	}
 }
 
 func createQueryResolver(cfg *config.Config, redisClient *redis.Client) (resolver.Resolver, error) {
@@ -385,7 +386,7 @@ func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
 	}
 }
 
-// returns EDNS upd size or if not present, 512 for UDP and 64K for TCP
+// returns EDNS UDP size or if not present, 512 for UDP and 64K for TCP
 func getMaxResponseSize(network string, request *dns.Msg) int {
 	edns := request.IsEdns0()
 	if edns != nil && edns.UDPSize() > 0 {

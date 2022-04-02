@@ -100,7 +100,7 @@ func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
 	}
 
 	defer func() {
-		util.LogOnError("cant close response body ", httpResponse.Body.Close())
+		util.LogOnError("can't close response body ", httpResponse.Body.Close())
 	}()
 
 	if httpResponse.StatusCode != http.StatusOK {
@@ -135,10 +135,8 @@ func (r *dnsUpstreamClient) callExternal(msg *dns.Msg,
 		if err != nil {
 			// try UDP as fallback
 			var opErr *net.OpError
-			if errors.As(err, &opErr) {
-				if opErr.Op == "dial" && r.udpClient != nil {
-					return r.udpClient.Exchange(msg, upstreamURL)
-				}
+			if errors.As(err, &opErr) && opErr.Op == "dial" && r.udpClient != nil {
+				return r.udpClient.Exchange(msg, upstreamURL)
 			}
 		}
 
@@ -159,7 +157,8 @@ func NewUpstreamResolver(upstream config.Upstream) *UpstreamResolver {
 	return &UpstreamResolver{
 		upstreamClient: upstreamClient,
 		upstreamURL:    upstreamURL,
-		net:            upstream.Net}
+		net:            upstream.Net,
+	}
 }
 
 // Configuration return current resolver configuration
