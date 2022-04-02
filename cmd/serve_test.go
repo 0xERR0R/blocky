@@ -16,6 +16,9 @@ var _ = Describe("Serve command", func() {
 				Host: "1.1.1.1",
 				Port: 53,
 			}
+
+			isConfigMandatory = false
+
 			go startServer(newServeCommand(), []string{})
 
 			time.Sleep(100 * time.Millisecond)

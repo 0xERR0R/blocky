@@ -21,7 +21,7 @@ var _ = Describe("Config", func() {
 				err := os.Chdir("../testdata")
 				Expect(err).Should(Succeed())
 
-				err = LoadConfig("config.yml", true)
+				_, err = LoadConfig("config.yml", true)
 				Expect(err).Should(Succeed())
 
 				Expect(config.DNSPorts).Should(Equal(ListenConfig{"55553", ":55554", "[::1]:55555"}))
@@ -65,7 +65,7 @@ var _ = Describe("Config", func() {
 				err = ioutil.WriteFile("config.yml", []byte("malformed_config"), 0600)
 				Expect(err).Should(Succeed())
 
-				err = LoadConfig("config.yml", true)
+				_, err = LoadConfig("config.yml", true)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("wrong file structure"))
 			})
@@ -76,7 +76,7 @@ var _ = Describe("Config", func() {
 				data :=
 					`blocking:
   refreshPeriod: wrongduration`
-				err := unmarshalConfig([]byte(data), cfg)
+				err := unmarshalConfig([]byte(data), &cfg)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("invalid duration \"wrongduration\""))
 			})
@@ -88,7 +88,7 @@ var _ = Describe("Config", func() {
 					`customDNS:
   mapping:
     someDomain: 192.168.178.WRONG`
-				err := unmarshalConfig([]byte(data), cfg)
+				err := unmarshalConfig([]byte(data), &cfg)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("invalid IP address '192.168.178.WRONG'"))
 			})
@@ -100,7 +100,7 @@ var _ = Describe("Config", func() {
 					`conditional:
   mapping:
     multiple.resolvers: 192.168.178.1,wrongprotocol:4.4.4.4:53`
-				err := unmarshalConfig([]byte(data), cfg)
+				err := unmarshalConfig([]byte(data), &cfg)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("wrong host name 'wrongprotocol:4.4.4.4:53'"))
 			})
@@ -114,7 +114,7 @@ var _ = Describe("Config", func() {
     - 8.8.8.8
     - wrongprotocol:8.8.4.4
     - 1.1.1.1`
-				err := unmarshalConfig([]byte(data), cfg)
+				err := unmarshalConfig([]byte(data), &cfg)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("can't convert upstream 'wrongprotocol:8.8.4.4'"))
 			})
@@ -125,7 +125,7 @@ var _ = Describe("Config", func() {
 				cfg := Config{}
 				data :=
 					`///`
-				err := unmarshalConfig([]byte(data), cfg)
+				err := unmarshalConfig([]byte(data), &cfg)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("cannot unmarshal !!str `///`"))
 			})
@@ -136,7 +136,7 @@ var _ = Describe("Config", func() {
 				cfg := Config{}
 				data :=
 					`httpsPort: 443`
-				err := unmarshalConfig([]byte(data), cfg)
+				err := unmarshalConfig([]byte(data), &cfg)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("'certFile' and 'keyFile' parameters are mandatory for HTTPS"))
 			})
@@ -207,7 +207,7 @@ var _ = Describe("Config", func() {
 				err := os.Chdir("../..")
 				Expect(err).Should(Succeed())
 
-				err = LoadConfig("config.yml", true)
+				_, err = LoadConfig("config.yml", true)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("no such file or directory"))
 
@@ -217,7 +217,7 @@ var _ = Describe("Config", func() {
 				err := os.Chdir("../..")
 				Expect(err).Should(Succeed())
 
-				err = LoadConfig("config.yml", false)
+				_, err = LoadConfig("config.yml", false)
 
 				Expect(err).Should(Succeed())
 				Expect(config.LogLevel).Should(Equal(LevelInfo))

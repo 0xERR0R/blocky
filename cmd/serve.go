@@ -18,7 +18,8 @@ import (
 
 //nolint:gochecknoglobals
 var (
-	done chan bool
+	done              chan bool
+	isConfigMandatory = true
 )
 
 func newServeCommand() *cobra.Command {
@@ -33,21 +34,19 @@ func newServeCommand() *cobra.Command {
 func startServer(_ *cobra.Command, _ []string) {
 	printBanner()
 
-	err := config.LoadConfig(configPath, true)
-	if err != nil {
-		util.FatalOnError("unable to load configuration: ", err)
-	}
+	cfg, err := config.LoadConfig(configPath, isConfigMandatory)
+	util.FatalOnError("unable to load configuration: ", err)
 
-	log.ConfigureLogger(config.GetConfig().LogLevel, config.GetConfig().LogFormat, config.GetConfig().LogTimestamp)
+	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
-	configureHTTPClient(config.GetConfig())
+	configureHTTPClient(cfg)
 
 	signals := make(chan os.Signal, 1)
 	done = make(chan bool, 1)
 
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
-	srv, err := server.NewServer(config.GetConfig())
+	srv, err := server.NewServer(cfg)
 	util.FatalOnError("can't start server: ", err)
 
 	srv.Start()

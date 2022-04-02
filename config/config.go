@@ -419,10 +419,10 @@ type FilteringConfig struct {
 var config = &Config{}
 
 // LoadConfig creates new config from YAML file
-func LoadConfig(path string, mandatory bool) error {
+func LoadConfig(path string, mandatory bool) (*Config, error) {
 	cfg := Config{}
 	if err := defaults.Set(&cfg); err != nil {
-		return fmt.Errorf("can't apply default values: %w", err)
+		return nil, fmt.Errorf("can't apply default values: %w", err)
 	}
 
 	data, err := ioutil.ReadFile(path)
@@ -432,27 +432,32 @@ func LoadConfig(path string, mandatory bool) error {
 			// config file does not exist
 			// return config with default values
 			config = &cfg
-			return nil
+			return config, nil
 		}
 
-		return fmt.Errorf("can't read config file: %w", err)
+		return nil, fmt.Errorf("can't read config file: %w", err)
 	}
 
-	return unmarshalConfig(data, cfg)
+	err = unmarshalConfig(data, &cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	config = &cfg
+
+	return &cfg, nil
 }
 
-func unmarshalConfig(data []byte, cfg Config) error {
-	err := yaml.UnmarshalStrict(data, &cfg)
+func unmarshalConfig(data []byte, cfg *Config) error {
+	err := yaml.UnmarshalStrict(data, cfg)
 	if err != nil {
 		return fmt.Errorf("wrong file structure: %w", err)
 	}
 
-	err = validateConfig(&cfg)
+	err = validateConfig(cfg)
 	if err != nil {
 		return fmt.Errorf("unable to validate config: %w", err)
 	}
-
-	config = &cfg
 
 	return nil
 }
