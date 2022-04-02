@@ -189,7 +189,7 @@ httpPort: 4000
 #certFile: server.crt
 #keyFile: server.key
 # optional: use this DNS server to resolve blacklist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp
-bootstrapDns: tcp:1.1.1.1
+bootstrapDns: tcp+udp:1.1.1.1
 
 filtering:
 # optional: drop all queries with following query types. Default: empty
