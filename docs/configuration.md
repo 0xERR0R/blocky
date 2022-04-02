@@ -72,15 +72,15 @@ CIDR notation.
     ```yaml
     upstream:
       default:
-      - 5.9.164.112
-      - 1.1.1.1
-      - tcp-tls:fdns1.dismail.de:853
-      - https://dns.digitale-gesellschaft.ch/dns-query
+        - 5.9.164.112
+        - 1.1.1.1
+        - tcp-tls:fdns1.dismail.de:853
+        - https://dns.digitale-gesellschaft.ch/dns-query
       laptop*:
-      - 123.123.123.123
+        - 123.123.123.123
       10.43.8.67/28:
-      - 1.1.1.1
-      - 9.9.9.9
+        - 1.1.1.1
+        - 9.9.9.9
     ```
 
 Use `123.123.123.123` as single upstream DNS resolver for client laptop-home,
@@ -102,7 +102,7 @@ value by setting the `upstreamTimeout` configuration parameter (in **duration fo
 
     ```yaml
     upstream:
-        default:
+      default:
         - 46.182.19.48
         - 80.241.218.68
     upstreamTimeout: 5s
@@ -117,8 +117,8 @@ types, all queries with these types will be dropped (empty answer will be return
 
     ```yaml
     filtering:
-        queryTypes:
-            - AAAA
+      queryTypes:
+        - AAAA
     ```
 
 This configuration will drop all 'AAAA' (IPv6) queries.
@@ -140,14 +140,14 @@ domain must be separated by a comma.
 
     ```yaml
     customDNS:
-        customTTL: 1h
-        filterUnmappedTypes: true
-        rewrite:
-            home: lan
-            replace-me.com: with-this.com
-        mapping:
-            printer.lan: 192.168.178.3
-            otherdevice.lan: 192.168.178.15,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
+      customTTL: 1h
+      filterUnmappedTypes: true
+      rewrite:
+        home: lan
+        replace-me.com: with-this.com
+      mapping:
+        printer.lan: 192.168.178.3
+        otherdevice.lan: 192.168.178.15,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
     ```
 
 This configuration will also resolve any subdomain of the defined domain. For example a query "printer.lan" or "
@@ -173,16 +173,16 @@ The optional parameter `rewrite` behaves the same as with custom DNS.
 
     ```yaml
     conditional:
-        rewrite:
-            example.com: fritz.box
-            replace-me.com: with-this.com
-        mapping:
-            fritz.box: 192.168.178.1
-            lan.net: 192.170.1.2,192.170.1.3
-            # for reverse DNS lookups of local devices
-            178.168.192.in-addr.arpa: 192.168.178.1
-            # for all unqualified hostnames
-            .: 168.168.0.1
+      rewrite:
+        example.com: fritz.box
+        replace-me.com: with-this.com
+      mapping:
+        fritz.box: 192.168.178.1
+        lan.net: 192.170.1.2,192.170.1.3
+        # for reverse DNS lookups of local devices
+        178.168.192.in-addr.arpa: 192.168.178.1
+        # for all unqualified hostnames
+        .: 168.168.0.1
     ```
 
 !!! tip
@@ -232,13 +232,13 @@ contains a map of client name and multiple IP addresses.
 
     ```yaml
     clientLookup:
-        upstream: 192.168.178.1
-        singleNameOrder:
-          - 2
-          - 1
-        clients:
-          laptop:
-            - 192.168.178.29
+      upstream: 192.168.178.1
+      singleNameOrder:
+        - 2
+        - 1
+      clients:
+        laptop:
+          - 192.168.178.29
     ```
 
     Use `192.168.178.1` for rDNS lookup. Take second name if present, if not take first name. IP address `192.168.178.29` is mapped to `laptop` as client name.
@@ -264,16 +264,16 @@ in hosts format (YAML literal block scalar style). All Urls must be grouped to a
 
     ```yaml
     blocking:
-    blackLists:
-    ads:
-    - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
-    - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
-    - |
-    # inline definition with YAML literal block scalar style
-    someadsdomain.com
-    anotheradsdomain.com
-    # this is a regex
-    /^banners?[_.-]/
+      blackLists:
+        ads:
+          - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
+          - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+          - |
+            # inline definition with YAML literal block scalar style
+            someadsdomain.com
+            anotheradsdomain.com
+            # this is a regex
+            /^banners?[_.-]/
         special:
           - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
       whiteLists:
@@ -322,18 +322,18 @@ If client's IP address matches with the result, the defined group will be used.
 
     ```yaml
     blocking:
-        clientGroupsBlock:
-        # default will be used, if no special definition for a client name exists
-          default:
-            - ads
-            - special
-          laptop*:
-            - ads
-          192.168.178.1/24:
-            - special
-          kid-laptop:
-            - ads
-            - adult
+      clientGroupsBlock:
+      # default will be used, if no special definition for a client name exists
+        default:
+          - ads
+          - special
+        laptop*:
+          - ads
+        192.168.178.1/24:
+          - special
+        kid-laptop:
+          - ads
+          - adult
     ```
 
     All queries from network clients, whose device name starts with `laptop`, will be filtered against the **ads** group's lists. All devices from the subnet `192.168.178.1/24` against the **special** group and `kid-laptop` against **ads** and **adult**. All other clients: **ads** and **special**.
@@ -357,7 +357,7 @@ queries, NXDOMAIN for other types):
 
     ```yaml
     blocking:
-    blockType: nxDomain
+      blockType: nxDomain
     ```
 
 ### Block TTL
@@ -384,8 +384,8 @@ Negative value will deactivate automatically refresh.
 
     ```yaml
     blocking:
-    refreshPeriod: 60m
-```
+      refreshPeriod: 60m
+    ```
 
 Refresh every hour.
 
@@ -403,9 +403,9 @@ You can configure the list download attempts according to your internet connecti
 
     ```yaml
     blocking:
-        downloadTimeout: 4m
-        downloadAttempts: 5
-        downloadCooldown: 10s
+      downloadTimeout: 4m
+      downloadAttempts: 5
+      downloadCooldown: 10s
     ```
 
 ### Fail on start
@@ -417,7 +417,7 @@ downloaded or opened. Default value is `false`.
 
     ```yaml
     blocking:
-     failStartOnListError: false
+      failStartOnListError: false
     ```
 
 ## Caching
@@ -448,9 +448,9 @@ With following parameters you can tune the caching behavior:
 
     ```yaml
     caching:
-        minTime: 5m
-        maxTime: 30m
-        prefetching: true
+      minTime: 5m
+      maxTime: 30m
+      prefetching: true
     ```
 
 ## Redis
@@ -471,12 +471,12 @@ Synchronization is disabled if no address is configured.
 
     ```yaml
     redis:
-        address: redis:6379
-        password: passwd
-        database: 2
-        required: true
-        connectionAttempts: 10
-        connectionCooldown: 3s
+      address: redis:6379
+      password: passwd
+      database: 2
+      required: true
+      connectionAttempts: 10
+      connectionCooldown: 3s
     ```
 
 ## Prometheus
@@ -493,8 +493,8 @@ see [Basic Configuration](#basic-configuration)).
 
     ```yaml
     prometheus:
-        enable: true
-        path: /metrics
+      enable: true
+      path: /metrics
     ```
 
 ## Query logging
@@ -537,9 +537,9 @@ example for CSV format
 
     ```yaml
     queryLog:
-        type: csv
-        target: /logs
-        logRetentionDays: 7
+      type: csv
+      target: /logs
+      logRetentionDays: 7
     ```
 
 example for Database
@@ -547,9 +547,9 @@ example for Database
 
     ```yaml
     queryLog:
-        type: mysql
-        target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
-        logRetentionDays: 7
+      type: mysql
+      target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
+      logRetentionDays: 7
     ```
 
 ### Hosts file
@@ -568,9 +568,9 @@ Configuration parameters:
 
     ```yaml
     hostsFile:
-        filePath: /etc/hosts
-        hostsTTL: 60m
-        refreshPeriod: 30m
+      filePath: /etc/hosts
+      hostsTTL: 60m
+      refreshPeriod: 30m
     ```
 
 ## SSL certificate configuration (DoH / TLS listener)
