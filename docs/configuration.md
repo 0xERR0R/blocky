@@ -338,8 +338,9 @@ queries, NXDOMAIN for other types):
 ### Block TTL
 
 TTL for answers to blocked domains can be set to customize the time (in **duration format**) clients ask for those
-domains again. This setting only makes sense when `blockType` is set to `nxDomain` or `zeroIP`, and will affect how much
-time it could take for a client to be able to see the real IP address for a domain after receiving the custom value.
+domains again. Default Block TTL is **6hours**. This setting only makes sense when `blockType` is set to `nxDomain` or
+`zeroIP`, and will affect how much time it could take for a client to be able to see the real IP address for a domain
+after receiving the custom value.
 
 !!! example
 
