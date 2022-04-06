@@ -75,21 +75,24 @@ func createUpstreamClient(cfg config.Upstream) upstreamClient {
 	case config.NetProtocolTcpTls:
 		return &dnsUpstreamClient{
 			tcpClient: &dns.Client{
-				TLSConfig: &tlsConfig,
-				Net:       cfg.Net.String(),
-				Timeout:   timeout,
+				TLSConfig:      &tlsConfig,
+				Net:            cfg.Net.String(),
+				Timeout:        timeout,
+				SingleInflight: true,
 			},
 		}
 
 	case config.NetProtocolTcpUdp:
 		return &dnsUpstreamClient{
 			tcpClient: &dns.Client{
-				Net:     "tcp",
-				Timeout: timeout,
+				Net:            "tcp",
+				Timeout:        timeout,
+				SingleInflight: true,
 			},
 			udpClient: &dns.Client{
-				Net:     "udp",
-				Timeout: timeout,
+				Net:            "udp",
+				Timeout:        timeout,
+				SingleInflight: true,
 			},
 		}
 
