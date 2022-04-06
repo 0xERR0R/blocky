@@ -56,7 +56,7 @@ var _ = Describe("ClientResolver", func() {
 	Describe("Resolve client name from request clientID", func() {
 
 		It("should use clientID if set", func() {
-			request := newRequestWithClientID("google1.de.", dns.TypeA, "1.2.3.4", "client123")
+			request := newRequestWithClientID("google1.de.", dns.Type(dns.TypeA), "1.2.3.4", "client123")
 			resp, err = sut.Resolve(request)
 
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -65,7 +65,7 @@ var _ = Describe("ClientResolver", func() {
 			Expect(mockReverseUpstreamCallCount).Should(Equal(0))
 		})
 		It("should use IP as fallback if clientID not set", func() {
-			request := newRequestWithClientID("google2.de.", dns.TypeA, "1.2.3.4", "")
+			request := newRequestWithClientID("google2.de.", dns.Type(dns.TypeA), "1.2.3.4", "")
 			resp, err = sut.Resolve(request)
 
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -88,7 +88,7 @@ var _ = Describe("ClientResolver", func() {
 		})
 
 		It("should resolve defined name with ipv4 address", func() {
-			request := newRequestWithClient("google.de.", dns.TypeA, "1.2.3.4")
+			request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "1.2.3.4")
 			resp, err = sut.Resolve(request)
 
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -98,7 +98,7 @@ var _ = Describe("ClientResolver", func() {
 		})
 
 		It("should resolve defined name with ipv6 address", func() {
-			request := newRequestWithClient("google.de.", dns.TypeA, "2a02:590:505:4700:2e4f:1503:ce74:df78")
+			request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "2a02:590:505:4700:2e4f:1503:ce74:df78")
 			resp, err = sut.Resolve(request)
 
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -107,7 +107,7 @@ var _ = Describe("ClientResolver", func() {
 			Expect(mockReverseUpstreamCallCount).Should(Equal(0))
 		})
 		It("should resolve multiple names defined names", func() {
-			request := newRequestWithClient("google.de.", dns.TypeA, "1.2.3.5")
+			request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "1.2.3.5")
 			resp, err = sut.Resolve(request)
 
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -127,12 +127,12 @@ var _ = Describe("ClientResolver", func() {
 			When("Client has one name", func() {
 				BeforeEach(func() {
 					r, _ := dns.ReverseAddr("192.168.178.25")
-					mockReverseUpstreamAnswer, _ = util.NewMsgWithAnswer(r, 600, dns.TypePTR, "host1")
+					mockReverseUpstreamAnswer, _ = util.NewMsgWithAnswer(r, 600, dns.Type(dns.TypePTR), "host1")
 				})
 
 				It("should resolve client name", func() {
 					By("first request", func() {
-						request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
+						request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
 						resp, err = sut.Resolve(request)
 
 						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -141,7 +141,7 @@ var _ = Describe("ClientResolver", func() {
 					})
 
 					By("second request", func() {
-						request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
+						request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
 						resp, err = sut.Resolve(request)
 
 						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -154,7 +154,7 @@ var _ = Describe("ClientResolver", func() {
 					sut.FlushCache()
 
 					By("third request", func() {
-						request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
+						request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
 						resp, err = sut.Resolve(request)
 
 						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -178,7 +178,7 @@ var _ = Describe("ClientResolver", func() {
 				})
 
 				It("should resolve all client names", func() {
-					request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
+					request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
 					resp, err = sut.Resolve(request)
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -199,11 +199,11 @@ var _ = Describe("ClientResolver", func() {
 			When("Client has one name", func() {
 				BeforeEach(func() {
 					r, _ := dns.ReverseAddr("192.168.178.25")
-					mockReverseUpstreamAnswer, _ = util.NewMsgWithAnswer(r, 600, dns.TypePTR, "host1")
+					mockReverseUpstreamAnswer, _ = util.NewMsgWithAnswer(r, 600, dns.Type(dns.TypePTR), "host1")
 				})
 
 				It("should resolve client name", func() {
-					request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
+					request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
 					resp, err = sut.Resolve(request)
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -223,7 +223,7 @@ var _ = Describe("ClientResolver", func() {
 				})
 
 				It("should resolve the client name depending to defined order", func() {
-					request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
+					request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
 					resp, err = sut.Resolve(request)
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -239,7 +239,7 @@ var _ = Describe("ClientResolver", func() {
 				mockReverseUpstreamAnswer.Rcode = dns.RcodeNameError
 			})
 			It("should use fallback for client name", func() {
-				request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
+				request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
 				resp, err = sut.Resolve(request)
 
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -255,7 +255,7 @@ var _ = Describe("ClientResolver", func() {
 				sut.externalResolver = clientMockResolver
 			})
 			It("should use fallback for client name", func() {
-				request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
+				request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
 				resp, err = sut.Resolve(request)
 
 				Expect(request.ClientNames).Should(HaveLen(1))
@@ -266,7 +266,7 @@ var _ = Describe("ClientResolver", func() {
 
 		When("Client has no IP", func() {
 			It("should resolve no names", func() {
-				request := newRequestWithClient("google.de.", dns.TypeA, "")
+				request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "")
 				resp, err = sut.Resolve(request)
 
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -280,7 +280,7 @@ var _ = Describe("ClientResolver", func() {
 				sutConfig = config.ClientLookupConfig{}
 			})
 			It("should use fallback for client name", func() {
-				request := newRequestWithClient("google.de.", dns.TypeA, "192.168.178.25")
+				request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
 				resp, err = sut.Resolve(request)
 
 				Expect(request.ClientNames).Should(HaveLen(1))

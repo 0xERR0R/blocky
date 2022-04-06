@@ -559,9 +559,10 @@ func (b ipBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
 
 func (r *BlockingResolver) queryForFQIdentifierIPs(identifier string) (result []net.IP, ttl time.Duration) {
 	prefixedLog := log.PrefixedLog("FQDNClientIdentifierCache")
+
 	for _, qType := range []uint16{dns.TypeA, dns.TypeAAAA} {
 		resp, err := r.next.Resolve(&model.Request{
-			Req: util.NewMsgWithQuestion(identifier, qType),
+			Req: util.NewMsgWithQuestion(identifier, dns.Type(qType)),
 			Log: prefixedLog,
 		})
 

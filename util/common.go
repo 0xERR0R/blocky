@@ -100,16 +100,16 @@ func ExtractDomainOnly(in string) string {
 }
 
 // NewMsgWithQuestion creates new DNS message with question
-func NewMsgWithQuestion(question string, qType uint16) *dns.Msg {
+func NewMsgWithQuestion(question string, qType dns.Type) *dns.Msg {
 	msg := new(dns.Msg)
-	msg.SetQuestion(dns.Fqdn(question), qType)
+	msg.SetQuestion(dns.Fqdn(question), uint16(qType))
 
 	return msg
 }
 
 // NewMsgWithAnswer creates new DNS message with answer
-func NewMsgWithAnswer(domain string, ttl uint, dnsType uint16, address string) (*dns.Msg, error) {
-	rr, err := dns.NewRR(fmt.Sprintf("%s\t%d\tIN\t%s\t%s", domain, ttl, dns.TypeToString[dnsType], address))
+func NewMsgWithAnswer(domain string, ttl uint, dnsType dns.Type, address string) (*dns.Msg, error) {
+	rr, err := dns.NewRR(fmt.Sprintf("%s\t%d\tIN\t%s\t%s", domain, ttl, dnsType.String(), address))
 	if err != nil {
 		return nil, err
 	}
@@ -192,20 +192,20 @@ func Chunks(s string, chunkSize int) []string {
 }
 
 // GenerateCacheKey return cacheKey by query type/domain
-func GenerateCacheKey(qType uint16, qName string) string {
+func GenerateCacheKey(qType dns.Type, qName string) string {
 	b := make([]byte, 2+len(qName))
 
-	binary.BigEndian.PutUint16(b, qType)
+	binary.BigEndian.PutUint16(b, uint16(qType))
 	copy(b[2:], strings.ToLower(qName))
 
 	return string(b)
 }
 
 // ExtractCacheKey return query type/domain from cacheKey
-func ExtractCacheKey(key string) (qType uint16, qName string) {
+func ExtractCacheKey(key string) (qType dns.Type, qName string) {
 	b := []byte(key)
 
-	qType = binary.BigEndian.Uint16(b)
+	qType = dns.Type(binary.BigEndian.Uint16(b))
 	qName = string(b[2:])
 
 	return

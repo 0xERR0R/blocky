@@ -43,7 +43,7 @@ type QueryLogType int16
 type QType dns.Type
 
 func (c QType) String() string {
-	return dns.TypeToString[uint16(c)]
+	return dns.Type(c).String()
 }
 
 type Duration time.Duration

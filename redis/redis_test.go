@@ -85,7 +85,7 @@ var _ = Describe("Redis client", func() {
 		It("cache works", func() {
 			var res *dns.Msg
 
-			res, err = util.NewMsgWithAnswer("example.com.", 123, dns.TypeA, "123.124.122.123")
+			res, err = util.NewMsgWithAnswer("example.com.", 123, dns.Type(dns.TypeA), "123.124.122.123")
 
 			Expect(err).Should(Succeed())
 
@@ -164,7 +164,7 @@ var _ = Describe("Redis client", func() {
 			var res *dns.Msg
 
 			origCount := len(redisClient.CacheChannel)
-			res, err = util.NewMsgWithAnswer("example.com.", 123, dns.TypeA, "123.124.122.123")
+			res, err = util.NewMsgWithAnswer("example.com.", 123, dns.Type(dns.TypeA), "123.124.122.123")
 
 			Expect(err).Should(Succeed())
 

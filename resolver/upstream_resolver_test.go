@@ -22,14 +22,14 @@ var _ = Describe("UpstreamResolver", func() {
 		When("Configured DNS resolver can resolve query", func() {
 			It("should return answer from DNS upstream", func() {
 				upstream := TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-					response, err := util.NewMsgWithAnswer("example.com", 123, dns.TypeA, "123.124.122.122")
+					response, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
 
 					Expect(err).Should(Succeed())
 					return response
 				})
 				sut := NewUpstreamResolver(upstream)
 
-				resp, err := sut.Resolve(newRequest("example.com.", dns.TypeA))
+				resp, err := sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 				Expect(err).Should(Succeed())
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 				Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
@@ -47,7 +47,7 @@ var _ = Describe("UpstreamResolver", func() {
 				})
 				sut := NewUpstreamResolver(upstream)
 
-				resp, err := sut.Resolve(newRequest("example.com.", dns.TypeA))
+				resp, err := sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 				Expect(err).Should(Succeed())
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
 				Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
@@ -62,7 +62,7 @@ var _ = Describe("UpstreamResolver", func() {
 				})
 				sut := NewUpstreamResolver(upstream)
 
-				_, err := sut.Resolve(newRequest("example.com.", dns.TypeA))
+				_, err := sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 				Expect(err).Should(HaveOccurred())
 			})
 		})
@@ -75,7 +75,7 @@ var _ = Describe("UpstreamResolver", func() {
 				if counter <= attemptsWithTimeout {
 					time.Sleep(110 * time.Millisecond)
 				}
-				response, err := util.NewMsgWithAnswer("example.com", 123, dns.TypeA, "123.124.122.122")
+				response, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
 				Expect(err).Should(Succeed())
 
 				return response
@@ -88,7 +88,7 @@ var _ = Describe("UpstreamResolver", func() {
 					counter = 0
 					attemptsWithTimeout = 2
 
-					resp, err := sut.Resolve(newRequest("example.com.", dns.TypeA))
+					resp, err := sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 					Expect(err).Should(Succeed())
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.122"))
@@ -98,7 +98,7 @@ var _ = Describe("UpstreamResolver", func() {
 				By("3 attempts with timeout -> should return error", func() {
 					attemptsWithTimeout = 3
 					counter = 0
-					_, err := sut.Resolve(newRequest("example.com.", dns.TypeA))
+					_, err := sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 					Expect(err).Should(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("i/o timeout"))
 				})
@@ -117,7 +117,7 @@ var _ = Describe("UpstreamResolver", func() {
 
 		BeforeEach(func() {
 			respFn = func(_ *dns.Msg) *dns.Msg {
-				response, err := util.NewMsgWithAnswer("example.com", 123, dns.TypeA, "123.124.122.122")
+				response, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
 
 				Expect(err).Should(Succeed())
 				return response
@@ -138,7 +138,7 @@ var _ = Describe("UpstreamResolver", func() {
 		})
 		When("Configured DOH resolver can resolve query", func() {
 			It("should return answer from DNS upstream", func() {
-				resp, err := sut.Resolve(newRequest("example.com.", dns.TypeA))
+				resp, err := sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 				Expect(err).Should(Succeed())
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 				Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
@@ -153,7 +153,7 @@ var _ = Describe("UpstreamResolver", func() {
 				}
 			})
 			It("should return error", func() {
-				_, err := sut.Resolve(newRequest("example.com.", dns.TypeA))
+				_, err := sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(Equal("http return code should be 200, but received 500"))
 			})
@@ -165,7 +165,7 @@ var _ = Describe("UpstreamResolver", func() {
 				}
 			})
 			It("should return error", func() {
-				_, err := sut.Resolve(newRequest("example.com.", dns.TypeA))
+				_, err := sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(Equal("http return content type should be 'application/dns-message', but was 'text'"))
 			})
@@ -177,7 +177,7 @@ var _ = Describe("UpstreamResolver", func() {
 				}
 			})
 			It("should return error", func() {
-				_, err := sut.Resolve(newRequest("example.com.", dns.TypeA))
+				_, err := sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(Equal("can't unpack message"))
 			})
@@ -187,7 +187,7 @@ var _ = Describe("UpstreamResolver", func() {
 				sut = NewUpstreamResolver(config.Upstream{Net: config.NetProtocolHttps, Host: "wronghost.example.com"})
 			})
 			It("should return error", func() {
-				_, err := sut.Resolve(newRequest("example.com.", dns.TypeA))
+				_, err := sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("no such host"))
 			})

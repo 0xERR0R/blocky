@@ -113,7 +113,7 @@ func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry
 		reverse, _ := dns.ReverseAddr(ip.String())
 
 		resp, err := r.externalResolver.Resolve(&model.Request{
-			Req: util.NewMsgWithQuestion(reverse, dns.TypePTR),
+			Req: util.NewMsgWithQuestion(reverse, dns.Type(dns.TypePTR)),
 			Log: logger,
 		})
 

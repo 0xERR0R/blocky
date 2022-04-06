@@ -167,8 +167,8 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// validate query type
-	qType := dns.StringToType[queryRequest.Type]
-	if qType == dns.TypeNone {
+	qType := dns.Type(dns.StringToType[queryRequest.Type])
+	if qType == dns.Type(dns.TypeNone) {
 		err = fmt.Errorf("unknown query type '%s'", queryRequest.Type)
 		logAndResponseWithError(err, "unknown query type: ", rw)
 
