@@ -34,7 +34,7 @@ require (
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/ncruces/go-dns v1.1.0
 	github.com/onsi/ginkgo/v2 v2.1.3
-	gorm.io/driver/postgres v1.3.3
+	gorm.io/driver/postgres v1.3.4
 )
 
 require (
