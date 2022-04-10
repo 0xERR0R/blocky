@@ -265,6 +265,7 @@ func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Resp
 		},
 		retry.Attempts(retryAttempts),
 		retry.DelayType(retry.FixedDelay),
+		retry.Delay(1*time.Millisecond),
 		retry.LastErrorOnly(true),
 		retry.RetryIf(func(err error) bool {
 			var netErr net.Error
