@@ -23,6 +23,11 @@ import (
 	"github.com/0xERR0R/blocky/log"
 )
 
+const (
+	defaultProcessingConcurrency = 4
+	chanCap                      = 1000
+)
+
 // ListCacheType represents the type of cached list ENUM(
 // blacklist // is a list with blocked domains
 // whitelist // is a list with whitelisted domains / IPs
@@ -43,10 +48,11 @@ type ListCache struct {
 	groupCaches map[string]stringcache.StringCache
 	lock        sync.RWMutex
 
-	groupToLinks  map[string][]string
-	refreshPeriod time.Duration
-	downloader    FileDownloader
-	listType      ListCacheType
+	groupToLinks          map[string][]string
+	refreshPeriod         time.Duration
+	downloader            FileDownloader
+	listType              ListCacheType
+	processingConcurrency uint
 }
 
 // Configuration returns current configuration and stats
@@ -89,15 +95,20 @@ func (b *ListCache) Configuration() (result []string) {
 
 // NewListCache creates new list instance
 func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration,
-	downloader FileDownloader) (*ListCache, error) {
+	downloader FileDownloader, processingConcurrency uint) (*ListCache, error) {
 	groupCaches := make(map[string]stringcache.StringCache)
 
+	if processingConcurrency == 0 {
+		processingConcurrency = defaultProcessingConcurrency
+	}
+
 	b := &ListCache{
-		groupToLinks:  groupToLinks,
-		groupCaches:   groupCaches,
-		refreshPeriod: refreshPeriod,
-		downloader:    downloader,
-		listType:      t,
+		groupToLinks:          groupToLinks,
+		groupCaches:           groupCaches,
+		refreshPeriod:         refreshPeriod,
+		downloader:            downloader,
+		listType:              t,
+		processingConcurrency: processingConcurrency,
 	}
 	initError := b.refresh(true)
 
@@ -125,46 +136,57 @@ func logger() *logrus.Entry {
 	return log.PrefixedLog("list_cache")
 }
 
-type groupCache struct {
-	cache []string
-	err   error
-}
-
 // downloads and reads files with domain names and creates cache for them
 func (b *ListCache) createCacheForGroup(links []string) (stringcache.StringCache, error) {
-	var wg sync.WaitGroup
-
 	var err error
 
-	c := make(chan groupCache, len(links))
-	// loop over links (http/local) or inline definitions
-	for _, link := range links {
-		wg.Add(1)
-
-		go b.processFile(link, c, &wg)
-	}
-
-	wg.Wait()
-
 	factory := stringcache.NewChainedCacheFactory()
+
+	fileLinesChan := make(chan string, chanCap)
+	errChan := make(chan error, chanCap)
+
+	workerDoneChan := make(chan bool, len(links))
+
+	// guard channel is used to limit the number of concurrent executions of the function
+	guard := make(chan struct{}, b.processingConcurrency)
+
+	processingLinkJobs := len(links)
+
+	// loop over links (http/local) or inline definitions
+	// start a new goroutine for each link, but limit to max. number (see processingConcurrency)
+	for _, link := range links {
+		go func(link string) {
+			// thy to write in this channel -> this will block if max amount of goroutines are being executed
+			guard <- struct{}{}
+
+			defer func() {
+				// remove from guard channel to allow other blocked goroutines to continue
+				<-guard
+				workerDoneChan <- true
+			}()
+			b.processFile(link, fileLinesChan, errChan)
+		}(link)
+	}
 
 Loop:
 	for {
 		select {
-		case res := <-c:
-			if res.err != nil {
-				err = multierror.Append(err, res.err)
-			}
-			if res.cache == nil {
-				return nil, err
-			}
-			for _, entry := range res.cache {
-				factory.AddEntry(entry)
-			}
-		default:
-			close(c)
+		case line := <-fileLinesChan:
+			factory.AddEntry(line)
+		case e := <-errChan:
+			var transientErr *TransientError
 
-			break Loop
+			if errors.As(e, &transientErr) {
+				return nil, e
+			}
+			err = multierror.Append(err, e)
+		case <-workerDoneChan:
+			processingLinkJobs--
+
+		default:
+			if processingLinkJobs == 0 {
+				break Loop
+			}
 		}
 	}
 
@@ -231,14 +253,8 @@ func readFile(file string) (io.ReadCloser, error) {
 	return os.Open(file)
 }
 
-// downloads file (or reads local file) and writes file content as string array in the channel
-func (b *ListCache) processFile(link string, ch chan<- groupCache, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	result := groupCache{
-		cache: []string{},
-	}
-
+// downloads file (or reads local file) and writes each line in the file to the result channel
+func (b *ListCache) processFile(link string, resultCh chan<- string, errCh chan<- error) {
 	var r io.ReadCloser
 
 	var err error
@@ -247,15 +263,7 @@ func (b *ListCache) processFile(link string, ch chan<- groupCache, wg *sync.Wait
 
 	if err != nil {
 		logger().Warn("error during file processing: ", err)
-		result.err = multierror.Append(result.err, err)
-
-		var transientErr *TransientError
-
-		if errors.As(err, &transientErr) {
-			// put nil to indicate the temporary err
-			result.cache = nil
-		}
-		ch <- result
+		errCh <- err
 
 		return
 	}
@@ -269,13 +277,14 @@ func (b *ListCache) processFile(link string, ch chan<- groupCache, wg *sync.Wait
 		line := strings.TrimSpace(scanner.Text())
 		// skip comments
 		if line := processLine(line); line != "" {
-			result.cache = append(result.cache, line)
+			resultCh <- line
 
 			count++
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
+		// don't propagate error here. If some lines are not parsable (e.g. too long), it is ok
 		logger().Warn("can't parse file: ", err)
 	} else {
 		logger().WithFields(logrus.Fields{
@@ -283,7 +292,6 @@ func (b *ListCache) processFile(link string, ch chan<- groupCache, wg *sync.Wait
 			"count":  count,
 		}).Info("file imported")
 	}
-	ch <- result
 }
 
 func (b *ListCache) getLinkReader(link string) (r io.ReadCloser, err error) {

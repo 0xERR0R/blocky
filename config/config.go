@@ -474,16 +474,17 @@ type ConditionalUpstreamMapping struct {
 
 // BlockingConfig configuration for query blocking
 type BlockingConfig struct {
-	BlackLists           map[string][]string `yaml:"blackLists"`
-	WhiteLists           map[string][]string `yaml:"whiteLists"`
-	ClientGroupsBlock    map[string][]string `yaml:"clientGroupsBlock"`
-	BlockType            string              `yaml:"blockType" default:"ZEROIP"`
-	BlockTTL             Duration            `yaml:"blockTTL" default:"6h"`
-	DownloadTimeout      Duration            `yaml:"downloadTimeout" default:"60s"`
-	DownloadAttempts     uint                `yaml:"downloadAttempts" default:"3"`
-	DownloadCooldown     Duration            `yaml:"downloadCooldown" default:"1s"`
-	RefreshPeriod        Duration            `yaml:"refreshPeriod" default:"4h"`
-	FailStartOnListError bool                `yaml:"failStartOnListError" default:"false"`
+	BlackLists            map[string][]string `yaml:"blackLists"`
+	WhiteLists            map[string][]string `yaml:"whiteLists"`
+	ClientGroupsBlock     map[string][]string `yaml:"clientGroupsBlock"`
+	BlockType             string              `yaml:"blockType" default:"ZEROIP"`
+	BlockTTL              Duration            `yaml:"blockTTL" default:"6h"`
+	DownloadTimeout       Duration            `yaml:"downloadTimeout" default:"60s"`
+	DownloadAttempts      uint                `yaml:"downloadAttempts" default:"3"`
+	DownloadCooldown      Duration            `yaml:"downloadCooldown" default:"1s"`
+	RefreshPeriod         Duration            `yaml:"refreshPeriod" default:"4h"`
+	FailStartOnListError  bool                `yaml:"failStartOnListError" default:"false"`
+	ProcessingConcurrency uint                `yaml:"processingConcurrency" default:"4"`
 }
 
 // ClientLookupConfig configuration for the client lookup
