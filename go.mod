@@ -29,7 +29,7 @@ require (
 )
 
 require (
-	github.com/avast/retry-go/v4 v4.0.3
+	github.com/avast/retry-go/v4 v4.0.4
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/ncruces/go-dns v1.1.0
