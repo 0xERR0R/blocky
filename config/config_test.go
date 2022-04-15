@@ -411,7 +411,7 @@ bootstrapDns:
 		})
 	})
 
-	DescribeTable("parse upstream string",
+	DescribeTable("Upstream parsing",
 		func(in string, wantResult Upstream, wantErr bool) {
 			result, err := ParseUpstream(in)
 			if wantErr {
@@ -421,15 +421,15 @@ bootstrapDns:
 			}
 			Expect(result).Should(Equal(wantResult), in)
 		},
-		Entry("udp+tcp with port",
+		Entry("tcp+udp with port",
 			"4.4.4.4:531",
 			Upstream{Net: NetProtocolTcpUdp, Host: "4.4.4.4", Port: 531},
 			false),
-		Entry("udp+tcü without port, use default",
+		Entry("tcp+udp without port, use default",
 			"4.4.4.4",
 			Upstream{Net: NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53},
 			false),
-		Entry("udp+tcp with port",
+		Entry("tcp+udp with port",
 			"tcp+udp:4.4.4.4:4711",
 			Upstream{Net: NetProtocolTcpUdp, Host: "4.4.4.4", Port: 4711},
 			false),
@@ -521,6 +521,68 @@ bootstrapDns:
 			"[2620:fe::9]:55",
 			Upstream{Net: NetProtocolTcpUdp, Host: "2620:fe::9", Port: 55},
 			false),
+	)
+
+	DescribeTable("Upstream string representation",
+		func(upstream Upstream, canonical string) {
+			Expect(upstream.String()).To(Equal(canonical))
+
+			if !upstream.IsDefault() {
+				roundTripped, err := ParseUpstream(canonical)
+				Expect(err).Should(Succeed())
+				Expect(roundTripped).Should(Equal(upstream))
+			}
+		},
+		Entry("Default",
+			Upstream{}, "no upstream",
+		),
+		Entry("tcp+udp with port",
+			Upstream{Net: NetProtocolTcpUdp, Host: "localhost", Port: 531},
+			"tcp+udp:localhost:531",
+		),
+		Entry("tcp+udp default port",
+			Upstream{Net: NetProtocolTcpUdp, Host: "localhost", Port: 53},
+			"tcp+udp:localhost",
+		),
+		Entry("tcp-tls with port",
+			Upstream{Net: NetProtocolTcpTls, Host: "localhost", Port: 888},
+			"tcp-tls:localhost:888",
+		),
+		Entry("tcp-tls default port",
+			Upstream{Net: NetProtocolTcpTls, Host: "localhost", Port: 853},
+			"tcp-tls:localhost",
+		),
+		Entry("tcp+udp with other default port",
+			Upstream{Net: NetProtocolTcpUdp, Host: "localhost", Port: 443},
+			"tcp+udp:localhost:443"),
+		Entry("https with port",
+			Upstream{Net: NetProtocolHttps, Host: "localhost", Port: 888},
+			"https://localhost:888",
+		),
+		Entry("https with path",
+			Upstream{Net: NetProtocolHttps, Host: "localhost", Port: 443, Path: "/dns-query"},
+			"https://localhost/dns-query",
+		),
+		Entry("https with path and port",
+			Upstream{Net: NetProtocolHttps, Host: "localhost", Port: 888, Path: "/dns-query"},
+			"https://localhost:888/dns-query",
+		),
+		Entry("tcp+udp IPv4 with port",
+			Upstream{Net: NetProtocolTcpUdp, Host: "127.0.0.1", Port: 531},
+			"tcp+udp:127.0.0.1:531",
+		),
+		Entry("tcp+udp IPv4 default port",
+			Upstream{Net: NetProtocolTcpUdp, Host: "127.0.0.1", Port: 53},
+			"tcp+udp:127.0.0.1",
+		),
+		Entry("tcp-tls IPv6 with port",
+			Upstream{Net: NetProtocolTcpTls, Host: "fd00::6cd4:d7e0:d99d:2952", Port: 531},
+			"tcp-tls:[fd00::6cd4:d7e0:d99d:2952]:531",
+		),
+		Entry("tcp-tls IPv6 default port",
+			Upstream{Net: NetProtocolTcpTls, Host: "fd00::6cd4:d7e0:d99d:2952", Port: 853},
+			"tcp-tls:[fd00::6cd4:d7e0:d99d:2952]",
+		),
 	)
 
 	Describe("QTypeSet", func() {

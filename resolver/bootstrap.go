@@ -44,7 +44,7 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 	var ips []net.IP
 
 	switch {
-	case upstream == (config.Upstream{}):
+	case upstream.IsDefault():
 		log.Infof("bootstrapDns is not configured, will use system resolver")
 	case upstream.Net == config.NetProtocolTcpUdp:
 		ip := net.ParseIP(upstream.Host)
@@ -69,7 +69,7 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 		systemResolver: net.DefaultResolver, // allow replacing it during tests
 	}
 
-	if upstream == (config.Upstream{}) {
+	if upstream.IsDefault() {
 		return b, nil
 	}
 

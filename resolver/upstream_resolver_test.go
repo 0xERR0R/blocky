@@ -39,7 +39,7 @@ var _ = Describe("UpstreamResolver", func() {
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 				Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 				Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.122"))
-				Expect(resp.Reason).Should(Equal(fmt.Sprintf("RESOLVED (%s:%d)", upstream.Host, upstream.Port)))
+				Expect(resp.Reason).Should(Equal(fmt.Sprintf("RESOLVED (%s)", upstream.String())))
 			})
 		})
 		When("Configured DNS resolver can't resolve query", func() {
@@ -56,7 +56,7 @@ var _ = Describe("UpstreamResolver", func() {
 				Expect(err).Should(Succeed())
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
 				Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-				Expect(resp.Reason).Should(Equal(fmt.Sprintf("RESOLVED (%s:%d)", upstream.Host, upstream.Port)))
+				Expect(resp.Reason).Should(Equal(fmt.Sprintf("RESOLVED (%s)", upstream.String())))
 			})
 		})
 		When("Configured DNS resolver fails", func() {

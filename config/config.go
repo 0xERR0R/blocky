@@ -92,6 +92,47 @@ type Upstream struct {
 	Path string
 }
 
+// IsDefault returns true if u is the default value
+func (u *Upstream) IsDefault() bool {
+	return *u == Upstream{}
+}
+
+// String returns the string representation of u
+func (u *Upstream) String() string {
+	if u.IsDefault() {
+		return "no upstream"
+	}
+
+	var sb strings.Builder
+
+	sb.WriteString(u.Net.String())
+	sb.WriteRune(':')
+
+	if u.Net == NetProtocolHttps {
+		sb.WriteString("//")
+	}
+
+	isIPv6 := strings.ContainsRune(u.Host, ':')
+	if isIPv6 {
+		sb.WriteRune('[')
+		sb.WriteString(u.Host)
+		sb.WriteRune(']')
+	} else {
+		sb.WriteString(u.Host)
+	}
+
+	if u.Port != netDefaultPort[u.Net] {
+		sb.WriteRune(':')
+		sb.WriteString(fmt.Sprint(u.Port))
+	}
+
+	if u.Path != "" {
+		sb.WriteString(u.Path)
+	}
+
+	return sb.String()
+}
+
 // UnmarshalYAML creates Upstream from YAML
 func (u *Upstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var s string
@@ -292,6 +333,10 @@ func ParseUpstream(upstream string) (Upstream, error) {
 		// only host, use default port
 		host = upstream
 		port = netDefaultPort[n]
+
+		// trim any IPv6 brackets
+		host = strings.TrimPrefix(host, "[")
+		host = strings.TrimSuffix(host, "]")
 	}
 
 	// validate hostname or ip
@@ -326,16 +371,19 @@ func extractPath(in string) (path string, upstream string) {
 }
 
 func extractNet(upstream string) (NetProtocol, string) {
-	if strings.HasPrefix(upstream, NetProtocolTcpUdp.String()+":") {
-		return NetProtocolTcpUdp, strings.Replace(upstream, NetProtocolTcpUdp.String()+":", "", 1)
+	tcpUDPPrefix := NetProtocolTcpUdp.String() + ":"
+	if strings.HasPrefix(upstream, tcpUDPPrefix) {
+		return NetProtocolTcpUdp, upstream[len(tcpUDPPrefix):]
 	}
 
-	if strings.HasPrefix(upstream, NetProtocolTcpTls.String()+":") {
-		return NetProtocolTcpTls, strings.Replace(upstream, NetProtocolTcpTls.String()+":", "", 1)
+	tcpTLSPrefix := NetProtocolTcpTls.String() + ":"
+	if strings.HasPrefix(upstream, tcpTLSPrefix) {
+		return NetProtocolTcpTls, upstream[len(tcpTLSPrefix):]
 	}
 
-	if strings.HasPrefix(upstream, NetProtocolHttps.String()+":") {
-		return NetProtocolHttps, strings.TrimPrefix(strings.Replace(upstream, NetProtocolHttps.String()+":", "", 1), "//")
+	httpsPrefix := NetProtocolHttps.String() + ":"
+	if strings.HasPrefix(upstream, httpsPrefix) {
+		return NetProtocolHttps, strings.TrimPrefix(upstream[len(httpsPrefix):], "//")
 	}
 
 	return NetProtocolTcpUdp, upstream

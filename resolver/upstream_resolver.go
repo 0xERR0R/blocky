@@ -40,7 +40,7 @@ type UpstreamResolver struct {
 }
 
 type upstreamClient interface {
-	fmtURL(host string, port uint16, path string) string
+	fmtURL(ip net.IP, port uint16, path string) string
 	callExternal(msg *dns.Msg, upstreamURL string,
 		protocol model.RequestProtocol) (response *dns.Msg, rtt time.Duration, err error)
 }
@@ -99,8 +99,8 @@ func createUpstreamClient(cfg config.Upstream) upstreamClient {
 	}
 }
 
-func (r *httpUpstreamClient) fmtURL(host string, port uint16, path string) string {
-	return fmt.Sprintf("https://%s:%d%s", host, port, path)
+func (r *httpUpstreamClient) fmtURL(ip net.IP, port uint16, path string) string {
+	return fmt.Sprintf("https://%s:%d%s", ip.String(), port, path)
 }
 
 func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
@@ -148,8 +148,8 @@ func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
 	return &response, time.Since(start), nil
 }
 
-func (r *dnsUpstreamClient) fmtURL(host string, port uint16, _path string) string {
-	return net.JoinHostPort(host, strconv.Itoa(int(port)))
+func (r *dnsUpstreamClient) fmtURL(ip net.IP, port uint16, _path string) string {
+	return net.JoinHostPort(ip.String(), strconv.Itoa(int(port)))
 }
 
 func (r *dnsUpstreamClient) callExternal(msg *dns.Msg,
@@ -205,7 +205,7 @@ func (r *UpstreamResolver) Configuration() (result []string) {
 }
 
 func (r UpstreamResolver) String() string {
-	return fmt.Sprintf("upstream '%s:%s:%d'", r.upstream.Net.String(), r.upstream.Host, r.upstream.Port)
+	return fmt.Sprintf("upstream '%s'", r.upstream.String())
 }
 
 // Resolve calls external resolver
@@ -219,8 +219,6 @@ func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Resp
 		return nil, err
 	}
 
-	upstreamStr := r.upstreamClient.fmtURL(r.upstream.Host, r.upstream.Port, r.upstream.Path)
-
 	var (
 		rtt  time.Duration
 		resp *dns.Msg
@@ -230,7 +228,7 @@ func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Resp
 	err = retry.Do(
 		func() error {
 			ip = ips.Current()
-			upstreamURL := r.upstreamClient.fmtURL(ip.String(), r.upstream.Port, r.upstream.Path)
+			upstreamURL := r.upstreamClient.fmtURL(ip, r.upstream.Port, r.upstream.Path)
 
 			var err error
 			resp, rtt, err = r.upstreamClient.callExternal(request.Req, upstreamURL, request.Protocol)
@@ -238,7 +236,7 @@ func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Resp
 				logger.WithFields(logrus.Fields{
 					"answer":           util.AnswerToString(resp.Answer),
 					"return_code":      dns.RcodeToString[resp.Rcode],
-					"upstream":         upstreamStr,
+					"upstream":         r.upstream.String(),
 					"upstream_ip":      ip.String(),
 					"protocol":         request.Protocol,
 					"net":              r.upstream.Net,
@@ -257,7 +255,7 @@ func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Resp
 		}),
 		retry.OnRetry(func(n uint, err error) {
 			logger.WithFields(logrus.Fields{
-				"upstream":    upstreamStr,
+				"upstream":    r.upstream.String(),
 				"upstream_ip": ip.String(),
 				"question":    util.QuestionToString(request.Req.Question),
 				"attempt":     fmt.Sprintf("%d/%d", n+1, retryAttempts),
@@ -269,5 +267,5 @@ func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Resp
 		return nil, err
 	}
 
-	return &model.Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", upstreamStr)}, nil
+	return &model.Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.upstream.String())}, nil
 }
