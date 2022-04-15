@@ -14,12 +14,12 @@ import (
 // returns empty ANSWER with NOERROR
 type FilteringResolver struct {
 	NextResolver
-	queryTypes map[config.QType]bool
+	queryTypes config.QTypeSet
 }
 
 func (r *FilteringResolver) Resolve(request *model.Request) (*model.Response, error) {
 	qType := request.Req.Question[0].Qtype
-	if _, found := r.queryTypes[config.QType(qType)]; found {
+	if r.queryTypes.Contains(dns.Type(qType)) {
 		response := new(dns.Msg)
 		response.SetRcode(request.Req, dns.RcodeSuccess)
 
@@ -46,12 +46,7 @@ func (r *FilteringResolver) Configuration() (result []string) {
 }
 
 func NewFilteringResolver(cfg config.FilteringConfig) ChainedResolver {
-	queryTypes := make(map[config.QType]bool, len(cfg.QueryTypes))
-	for _, queryType := range cfg.QueryTypes {
-		queryTypes[queryType] = true
-	}
-
 	return &FilteringResolver{
-		queryTypes: queryTypes,
+		queryTypes: cfg.QueryTypes,
 	}
 }

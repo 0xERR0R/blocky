@@ -89,28 +89,22 @@ type BlockingResolver struct {
 }
 
 // NewBlockingResolver returns a new configured instance of the resolver
-func NewBlockingResolver(cfg config.BlockingConfig, redis *redis.Client) (ChainedResolver, error) {
+func NewBlockingResolver(cfg config.BlockingConfig,
+	redis *redis.Client, bootstrap *Bootstrap) (r ChainedResolver, err error) {
 	blockHandler := createBlockHandler(cfg)
 	refreshPeriod := time.Duration(cfg.RefreshPeriod)
 	timeout := time.Duration(cfg.DownloadTimeout)
 	cooldown := time.Duration(cfg.DownloadCooldown)
+	transport := bootstrap.NewHTTPTransport()
 	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists, refreshPeriod,
-		timeout, cfg.DownloadAttempts, cooldown)
+		timeout, cfg.DownloadAttempts, cooldown, transport)
 	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists, refreshPeriod,
-		timeout, cfg.DownloadAttempts, cooldown)
+		timeout, cfg.DownloadAttempts, cooldown, transport)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
-	var err error
-	if blErr != nil {
-		err = multierror.Append(err, blErr)
-	}
-
-	if wlErr != nil {
-		err = multierror.Append(err, wlErr)
-	}
-
+	err = multierror.Append(err, blErr, wlErr).ErrorOrNil()
 	if err != nil && cfg.FailStartOnListError {
-		return nil, multierror.Prefix(err, "blocking resolver: ")
+		return nil, err
 	}
 
 	cgb := make(map[string][]string, len(cfg.ClientGroupsBlock))

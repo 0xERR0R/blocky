@@ -46,6 +46,31 @@ func (c QType) String() string {
 	return dns.Type(c).String()
 }
 
+type QTypeSet map[QType]struct{}
+
+func NewQTypeSet(qTypes ...dns.Type) QTypeSet {
+	s := make(QTypeSet, len(qTypes))
+
+	for _, qType := range qTypes {
+		s.Insert(qType)
+	}
+
+	return s
+}
+
+func (s QTypeSet) Contains(qType dns.Type) bool {
+	_, found := s[QType(qType)]
+	return found
+}
+
+func (s *QTypeSet) Insert(qType dns.Type) {
+	if *s == nil {
+		*s = make(QTypeSet, 1)
+	}
+
+	(*s)[QType(qType)] = struct{}{}
+}
+
 type Duration time.Duration
 
 func (c *Duration) String() string {
@@ -95,6 +120,24 @@ func (l *ListenConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	*l = strings.Split(addresses, ",")
+
+	return nil
+}
+
+// UnmarshalYAML creates BootstrapConfig from YAML
+func (b *BootstrapConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	if err := unmarshal(&b.Upstream); err == nil {
+		return nil
+	}
+
+	// bootstrapConfig is used to avoid infinite recursion:
+	// if we used BootstrapConfig, unmarshal would just call us again.
+	var c bootstrapConfig
+	if err := unmarshal(&c); err != nil {
+		return err
+	}
+
+	*b = BootstrapConfig(c)
 
 	return nil
 }
@@ -204,6 +247,21 @@ func (c *QType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+func (s *QTypeSet) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var input []QType
+	if err := unmarshal(&input); err != nil {
+		return err
+	}
+
+	*s = make(QTypeSet, len(input))
+
+	for _, qType := range input {
+		(*s)[qType] = struct{}{}
+	}
+
+	return nil
+}
+
 var validDomain = regexp.MustCompile(
 	`^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$`)
 
@@ -308,9 +366,15 @@ type Config struct {
 	DisableIPv6  bool            `yaml:"disableIPv6" default:"false"`
 	CertFile     string          `yaml:"certFile"`
 	KeyFile      string          `yaml:"keyFile"`
-	BootstrapDNS Upstream        `yaml:"bootstrapDns"`
+	BootstrapDNS BootstrapConfig `yaml:"bootstrapDns"`
 	HostsFile    HostsFileConfig `yaml:"hostsFile"`
 	Filtering    FilteringConfig `yaml:"filtering"`
+}
+
+type BootstrapConfig bootstrapConfig // to avoid infinite recursion. See BootstrapConfig.UnmarshalYAML.
+type bootstrapConfig struct {
+	Upstream Upstream `yaml:"upstream"`
+	IPs      []net.IP `yaml:"ips"`
 }
 
 // PrometheusConfig contains the config values for prometheus
@@ -412,7 +476,7 @@ type HostsFileConfig struct {
 }
 
 type FilteringConfig struct {
-	QueryTypes []QType `yaml:"queryTypes"`
+	QueryTypes QTypeSet `yaml:"queryTypes"`
 }
 
 // nolint:gochecknoglobals
@@ -474,7 +538,7 @@ func validateConfig(cfg *Config) (err error) {
 	if cfg.DisableIPv6 {
 		log.Log().Warnf("'disableIPv6' is deprecated. Please use 'filtering.queryTypes' with 'AAAA' instead.")
 
-		cfg.Filtering.QueryTypes = append(cfg.Filtering.QueryTypes, QType(dns.TypeAAAA))
+		cfg.Filtering.QueryTypes.Insert(dns.Type(dns.TypeAAAA))
 	}
 
 	return

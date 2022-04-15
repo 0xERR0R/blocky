@@ -25,18 +25,23 @@ type ClientNamesResolver struct {
 }
 
 // NewClientNamesResolver creates new resolver instance
-func NewClientNamesResolver(cfg config.ClientLookupConfig) ChainedResolver {
+func NewClientNamesResolver(cfg config.ClientLookupConfig, bootstrap *Bootstrap) (cr ChainedResolver, err error) {
 	var r Resolver
 	if (config.Upstream{}) != cfg.Upstream {
-		r = NewUpstreamResolver(cfg.Upstream)
+		r, err = NewUpstreamResolver(cfg.Upstream, bootstrap)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return &ClientNamesResolver{
+	cr = &ClientNamesResolver{
 		cache:            expirationcache.NewCache(expirationcache.WithCleanUpInterval(time.Hour)),
 		externalResolver: r,
 		singleNameOrder:  cfg.SingleNameOrder,
 		clientIPMapping:  cfg.ClientnameIPMapping,
 	}
+
+	return
 }
 
 // Configuration returns current resolver configuration

@@ -1,11 +1,9 @@
 package cmd
 
 import (
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
@@ -39,8 +37,6 @@ func startServer(_ *cobra.Command, _ []string) {
 
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
-	configureHTTPClient(cfg)
-
 	signals := make(chan os.Signal, 1)
 	done = make(chan bool, 1)
 
@@ -60,13 +56,6 @@ func startServer(_ *cobra.Command, _ []string) {
 
 	evt.Bus().Publish(evt.ApplicationStarted, util.Version, util.BuildTime)
 	<-done
-}
-
-func configureHTTPClient(cfg *config.Config) {
-	http.DefaultTransport = &http.Transport{
-		Dial:                (util.Dialer(cfg)).Dial,
-		TLSHandshakeTimeout: 5 * time.Second,
-	}
 }
 
 func printBanner() {

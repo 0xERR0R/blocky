@@ -77,6 +77,25 @@ func (r *MockResolver) Resolve(req *model.Request) (*model.Response, error) {
 	return nil, args.Error(1)
 }
 
+// TestBootstrap creates a mock Bootstrap
+func TestBootstrap(response *dns.Msg) *Bootstrap {
+	bootstrapUpstream := &MockResolver{}
+
+	b, err := NewBootstrap(&config.Config{})
+	util.FatalOnError("can't create bootstrap", err)
+
+	b.resolver = bootstrapUpstream
+	b.upstream = bootstrapUpstream
+
+	if response != nil {
+		bootstrapUpstream.
+			On("Resolve", mock.Anything).
+			Return(&model.Response{Res: response}, nil)
+	}
+
+	return b
+}
+
 // TestDOHUpstream creates a mock DoH Upstream
 func TestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg),
 	reqFn ...func(w http.ResponseWriter)) config.Upstream {

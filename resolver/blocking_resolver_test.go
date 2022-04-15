@@ -66,7 +66,7 @@ var _ = Describe("BlockingResolver", func() {
 	JustBeforeEach(func() {
 		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
-		tmp, _ := NewBlockingResolver(sutConfig, nil)
+		tmp, _ := NewBlockingResolver(sutConfig, nil, skipUpstreamCheck)
 		sut = tmp.(*BlockingResolver)
 		sut.Next(m)
 		sut.RefreshLists()
@@ -99,7 +99,7 @@ var _ = Describe("BlockingResolver", func() {
 				Expect(err).Should(Succeed())
 
 				// recreate to trigger a reload
-				tmp, _ := NewBlockingResolver(sutConfig, nil)
+				tmp, _ := NewBlockingResolver(sutConfig, nil, skipUpstreamCheck)
 				sut = tmp.(*BlockingResolver)
 
 				Eventually(groupCnt, "1s").Should(HaveLen(2))
@@ -855,7 +855,7 @@ var _ = Describe("BlockingResolver", func() {
 
 				_, _ = NewBlockingResolver(config.BlockingConfig{
 					BlockType: "wrong",
-				}, nil)
+				}, nil, skipUpstreamCheck)
 
 				Expect(fatal).Should(BeTrue())
 			})
@@ -868,7 +868,7 @@ var _ = Describe("BlockingResolver", func() {
 					WhiteLists:           map[string][]string{"whitelist": {"wrongPath"}},
 					FailStartOnListError: true,
 					BlockType:            "zeroIp",
-				}, nil)
+				}, nil, skipUpstreamCheck)
 				Expect(err).Should(HaveOccurred())
 			})
 		})
@@ -899,7 +899,7 @@ var _ = Describe("BlockingResolver", func() {
 				BlockTTL:  config.Duration(time.Minute),
 			}
 
-			tmp, err2 := NewBlockingResolver(sutConfig, redisClient)
+			tmp, err2 := NewBlockingResolver(sutConfig, redisClient, skipUpstreamCheck)
 			Expect(err2).Should(Succeed())
 			sut = tmp.(*BlockingResolver)
 			sut.EnableBlocking()
@@ -939,7 +939,7 @@ var _ = Describe("BlockingResolver", func() {
 				BlockTTL:  config.Duration(time.Minute),
 			}
 
-			tmp, err2 := NewBlockingResolver(sutConfig, redisClient)
+			tmp, err2 := NewBlockingResolver(sutConfig, redisClient, skipUpstreamCheck)
 			Expect(err2).Should(Succeed())
 			sut = tmp.(*BlockingResolver)
 			sut.EnableBlocking()
@@ -980,7 +980,7 @@ var _ = Describe("BlockingResolver", func() {
 				BlockTTL:  config.Duration(time.Minute),
 			}
 
-			tmp, err2 := NewBlockingResolver(sutConfig, redisClient)
+			tmp, err2 := NewBlockingResolver(sutConfig, redisClient, skipUpstreamCheck)
 			Expect(err2).Should(Succeed())
 			sut = tmp.(*BlockingResolver)
 			err = sut.DisableBlocking(time.Hour, []string{})

@@ -46,7 +46,8 @@ var _ = Describe("ClientResolver", func() {
 	})
 
 	JustBeforeEach(func() {
-		sut = NewClientNamesResolver(sutConfig).(*ClientNamesResolver)
+		tmp, _ := NewClientNamesResolver(sutConfig, skipUpstreamCheck)
+		sut = tmp.(*ClientNamesResolver)
 		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
@@ -287,6 +288,19 @@ var _ = Describe("ClientResolver", func() {
 				Expect(request.ClientNames[0]).Should(Equal("192.168.178.25"))
 				Expect(mockReverseUpstreamCallCount).Should(Equal(0))
 			})
+		})
+	})
+
+	When("upstream is invalid", func() {
+		It("errors during construction", func() {
+			b := TestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
+
+			r, err := NewClientNamesResolver(config.ClientLookupConfig{
+				Upstream: config.Upstream{Host: "example.com"},
+			}, b)
+
+			Expect(err).ShouldNot(Succeed())
+			Expect(r).Should(BeNil())
 		})
 	})
 

@@ -119,6 +119,43 @@ var _ = Describe("Config", func() {
 				Expect(err.Error()).Should(ContainSubstring("can't convert upstream 'wrongprotocol:8.8.4.4'"))
 			})
 		})
+		When("Wrong filtering is defined", func() {
+			It("should return error", func() {
+				cfg := Config{}
+				data :=
+					`filtering:
+  queryTypes:
+    - invalidqtype
+`
+				err := unmarshalConfig([]byte(data), &cfg)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("unknown DNS query type: 'invalidqtype'"))
+			})
+		})
+
+		When("bootstrapDns is defined", func() {
+			It("should is backwards compatible", func() {
+				cfg := Config{}
+				data := "bootstrapDns: 0.0.0.0"
+
+				err := unmarshalConfig([]byte(data), &cfg)
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(cfg.BootstrapDNS.Upstream.Host).Should(Equal("0.0.0.0"))
+			})
+			It("should is backwards compatible", func() {
+				cfg := Config{}
+				data := `
+bootstrapDns:
+  upstream: tcp-tls:dns.example.com
+  ips:
+    - 0.0.0.0
+`
+				err := unmarshalConfig([]byte(data), &cfg)
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(cfg.BootstrapDNS.Upstream.Host).Should(Equal("dns.example.com"))
+				Expect(cfg.BootstrapDNS.IPs).Should(HaveLen(1))
+			})
+		})
 
 		When("config is not YAML", func() {
 			It("should return error", func() {
@@ -174,7 +211,8 @@ var _ = Describe("Config", func() {
 				}
 				err := validateConfig(c)
 				Expect(err).Should(Succeed())
-				Expect(c.Filtering.QueryTypes).Should(ContainElements(QType(dns.TypeAAAA)))
+				Expect(c.Filtering.QueryTypes).Should(HaveKey(QType(dns.TypeAAAA)))
+				Expect(c.Filtering.QueryTypes.Contains(dns.Type(dns.TypeAAAA))).Should(BeTrue())
 			})
 		})
 
@@ -484,4 +522,27 @@ var _ = Describe("Config", func() {
 			Upstream{Net: NetProtocolTcpUdp, Host: "2620:fe::9", Port: 55},
 			false),
 	)
+
+	Describe("QTypeSet", func() {
+		It("new should insert given qTypes", func() {
+			set := NewQTypeSet(dns.Type(dns.TypeA))
+			Expect(set).Should(HaveKey(QType(dns.TypeA)))
+			Expect(set.Contains(dns.Type(dns.TypeA))).Should(BeTrue())
+
+			Expect(set).ShouldNot(HaveKey(QType(dns.TypeAAAA)))
+			Expect(set.Contains(dns.Type(dns.TypeAAAA))).ShouldNot(BeTrue())
+		})
+
+		It("should insert given qTypes", func() {
+			set := NewQTypeSet()
+
+			Expect(set).ShouldNot(HaveKey(QType(dns.TypeAAAA)))
+			Expect(set.Contains(dns.Type(dns.TypeAAAA))).ShouldNot(BeTrue())
+
+			set.Insert(dns.Type(dns.TypeAAAA))
+
+			Expect(set).Should(HaveKey(QType(dns.TypeAAAA)))
+			Expect(set.Contains(dns.Type(dns.TypeAAAA))).Should(BeTrue())
+		})
+	})
 })

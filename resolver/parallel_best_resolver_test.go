@@ -28,7 +28,7 @@ var _ = Describe("ParallelBestResolver", func() {
 
 			Log().ExitFunc = func(int) { fatal = true }
 
-			sut = NewParallelBestResolver(map[string][]config.Upstream{})
+			sut, _ = NewParallelBestResolver(map[string][]config.Upstream{}, skipUpstreamCheck)
 			Expect(fatal).Should(BeTrue())
 		})
 	})
@@ -51,7 +51,9 @@ var _ = Describe("ParallelBestResolver", func() {
 						Expect(err).Should(Succeed())
 						return response
 					})
-					sut = NewParallelBestResolver(map[string][]config.Upstream{upstreamDefaultCfgName: {fast, slow}})
+					sut, _ = NewParallelBestResolver(map[string][]config.Upstream{
+						upstreamDefaultCfgName: {fast, slow},
+					}, skipUpstreamCheck)
 				})
 				It("Should use result from fastest one", func() {
 					request := newRequest("example.com.", dns.Type(dns.TypeA))
@@ -75,7 +77,9 @@ var _ = Describe("ParallelBestResolver", func() {
 						Expect(err).Should(Succeed())
 						return response
 					})
-					sut = NewParallelBestResolver(map[string][]config.Upstream{upstreamDefaultCfgName: {withError, slow}})
+					sut, _ = NewParallelBestResolver(map[string][]config.Upstream{
+						upstreamDefaultCfgName: {withError, slow},
+					}, skipUpstreamCheck)
 				})
 				It("Should use result from successful resolver", func() {
 					request := newRequest("example.com.", dns.Type(dns.TypeA))
@@ -93,7 +97,9 @@ var _ = Describe("ParallelBestResolver", func() {
 					withError1 := config.Upstream{Host: "wrong"}
 					withError2 := config.Upstream{Host: "wrong"}
 
-					sut = NewParallelBestResolver(map[string][]config.Upstream{upstreamDefaultCfgName: {withError1, withError2}})
+					sut, _ = NewParallelBestResolver(map[string][]config.Upstream{
+						upstreamDefaultCfgName: {withError1, withError2},
+					}, skipUpstreamCheck)
 				})
 				It("Should return error", func() {
 					request := newRequest("example.com.", dns.Type(dns.TypeA))
@@ -138,14 +144,14 @@ var _ = Describe("ParallelBestResolver", func() {
 						Expect(err).Should(Succeed())
 						return response
 					})
-					sut = NewParallelBestResolver(map[string][]config.Upstream{
+					sut, _ = NewParallelBestResolver(map[string][]config.Upstream{
 						upstreamDefaultCfgNameDeprecated: {defaultResolver},
 						"laptop":                         {clientSpecificResolverExact},
 						"client-*-m":                     {clientSpecificResolverWildcard},
 						"client[0-9]":                    {clientSpecificResolverWildcard},
 						"192.168.178.33":                 {clientSpecificResolverIP},
 						"10.43.8.67/28":                  {clientSpecificResolverCIDR},
-					})
+					}, skipUpstreamCheck)
 				})
 				It("Should use default if client name or IP don't match", func() {
 					request := newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.55", "test")
@@ -205,7 +211,7 @@ var _ = Describe("ParallelBestResolver", func() {
 					Expect(err).Should(Succeed())
 					return response
 				})
-				sut = NewParallelBestResolver(map[string][]config.Upstream{upstreamDefaultCfgName: {fast}})
+				sut, _ = NewParallelBestResolver(map[string][]config.Upstream{upstreamDefaultCfgName: {fast}}, skipUpstreamCheck)
 			})
 			It("Should use result from defined resolver", func() {
 				request := newRequest("example.com.", dns.Type(dns.TypeA))
@@ -236,9 +242,10 @@ var _ = Describe("ParallelBestResolver", func() {
 					return response
 				})
 
-				sut := NewParallelBestResolver(map[string][]config.Upstream{
+				tmp, _ := NewParallelBestResolver(map[string][]config.Upstream{
 					upstreamDefaultCfgName: {withError1, fast1, fast2, withError2},
-				}).(*ParallelBestResolver)
+				}, skipUpstreamCheck)
+				sut := tmp.(*ParallelBestResolver)
 
 				By("all resolvers have same weight for random -> equal distribution", func() {
 					resolverCount := make(map[Resolver]int)
@@ -295,12 +302,23 @@ var _ = Describe("ParallelBestResolver", func() {
 		})
 	})
 
+	When("upstream is invalid", func() {
+		It("errors during construction", func() {
+			b := TestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
+
+			r, err := NewParallelBestResolver(map[string][]config.Upstream{"test": {{Host: "example.com"}}}, b)
+
+			Expect(err).ShouldNot(Succeed())
+			Expect(r).Should(BeNil())
+		})
+	})
+
 	Describe("Configuration output", func() {
 		BeforeEach(func() {
-			sut = NewParallelBestResolver(map[string][]config.Upstream{upstreamDefaultCfgName: {
+			sut, _ = NewParallelBestResolver(map[string][]config.Upstream{upstreamDefaultCfgName: {
 				{Host: "host1"},
 				{Host: "host2"},
-			}})
+			}}, skipUpstreamCheck)
 		})
 		It("should return configuration", func() {
 			c := sut.Configuration()

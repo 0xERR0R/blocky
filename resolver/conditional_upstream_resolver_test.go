@@ -27,7 +27,7 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 	})
 
 	BeforeEach(func() {
-		sut = NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{
+		sut, _ = NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{
 			Mapping: config.ConditionalUpstreamMapping{
 				Upstreams: map[string][]config.Upstream{
 					"fritz.box": {TestUDPUpstream(func(request *dns.Msg) (response *dns.Msg) {
@@ -46,7 +46,7 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 						return response
 					})},
 				}},
-		})
+		}, skipUpstreamCheck)
 		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
@@ -106,6 +106,23 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 		})
 	})
 
+	When("upstream is invalid", func() {
+		It("errors during construction", func() {
+			b := TestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
+
+			r, err := NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{
+				Mapping: config.ConditionalUpstreamMapping{
+					Upstreams: map[string][]config.Upstream{
+						".": {config.Upstream{Host: "example.com"}},
+					},
+				},
+			}, b)
+
+			Expect(err).ShouldNot(Succeed())
+			Expect(r).Should(BeNil())
+		})
+	})
+
 	Describe("Configuration output", func() {
 		When("resolver is enabled", func() {
 			It("should return configuration", func() {
@@ -115,7 +132,7 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 		})
 		When("resolver is disabled", func() {
 			BeforeEach(func() {
-				sut = NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{})
+				sut, _ = NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{}, skipUpstreamCheck)
 			})
 			It("should return 'disabled'", func() {
 				c := sut.Configuration()

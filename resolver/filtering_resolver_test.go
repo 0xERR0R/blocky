@@ -32,7 +32,7 @@ var _ = Describe("FilteringResolver", func() {
 	When("Filtering query types are defined", func() {
 		BeforeEach(func() {
 			sutConfig = config.FilteringConfig{
-				QueryTypes: []config.QType{config.QType(dns.TypeAAAA), config.QType(dns.TypeMX)},
+				QueryTypes: config.NewQTypeSet(dns.Type(dns.TypeAAAA), dns.Type(dns.TypeMX)),
 			}
 		})
 		It("Should delegate to next resolver if request query has other type", func() {

@@ -36,15 +36,21 @@ type requestResponse struct {
 }
 
 // NewParallelBestResolver creates new resolver instance
-func NewParallelBestResolver(upstreamResolvers map[string][]config.Upstream) Resolver {
+func NewParallelBestResolver(upstreamResolvers map[string][]config.Upstream, bootstrap *Bootstrap) (Resolver, error) {
 	s := make(map[string][]*upstreamResolverStatus, len(upstreamResolvers))
 	logger := logger(parallelResolverLogger)
 
 	for name, res := range upstreamResolvers {
 		resolvers := make([]*upstreamResolverStatus, len(res))
+
 		for i, u := range res {
+			r, err := NewUpstreamResolver(u, bootstrap)
+			if err != nil {
+				return nil, err
+			}
+
 			resolvers[i] = &upstreamResolverStatus{
-				resolver:      NewUpstreamResolver(u),
+				resolver:      r,
 				lastErrorTime: time.Unix(0, 0),
 			}
 		}
@@ -65,7 +71,7 @@ func NewParallelBestResolver(upstreamResolvers map[string][]config.Upstream) Res
 			"Please configure at least one under '%s' configuration name", upstreamDefaultCfgName)
 	}
 
-	return &ParallelBestResolver{resolversPerClient: s}
+	return &ParallelBestResolver{resolversPerClient: s}, nil
 }
 
 // Configuration returns current resolver configuration
