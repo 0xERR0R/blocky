@@ -192,12 +192,18 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	jsonResponse, _ := json.Marshal(api.QueryResult{
+	jsonResponse, err := json.Marshal(api.QueryResult{
 		Reason:       response.Reason,
 		ResponseType: response.RType.String(),
 		Response:     util.AnswerToString(response.Res.Answer),
 		ReturnCode:   dns.RcodeToString[response.Res.Rcode],
 	})
+
+	if err != nil {
+		logAndResponseWithError(err, "unable to marshal response: ", rw)
+		return
+	}
+
 	_, err = rw.Write(jsonResponse)
 	logAndResponseWithError(err, "unable to write response: ", rw)
 }

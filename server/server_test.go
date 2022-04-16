@@ -300,7 +300,8 @@ var _ = Describe("Running DNS server", func() {
 					Query: "google.de",
 					Type:  "A",
 				}
-				jsonValue, _ := json.Marshal(req)
+				jsonValue, err := json.Marshal(req)
+				Expect(err).Should(Succeed())
 
 				resp, err := http.Post("http://localhost:4000/api/query", "application/json", bytes.NewBuffer(jsonValue))
 
@@ -321,7 +322,8 @@ var _ = Describe("Running DNS server", func() {
 					Query: "google.de",
 					Type:  "WrongType",
 				}
-				jsonValue, _ := json.Marshal(req)
+				jsonValue, err := json.Marshal(req)
+				Expect(err).Should(Succeed())
 
 				resp, err := http.Post("http://localhost:4000/api/query", "application/json", bytes.NewBuffer(jsonValue))
 
@@ -337,7 +339,8 @@ var _ = Describe("Running DNS server", func() {
 					Query: "error.",
 					Type:  "A",
 				}
-				jsonValue, _ := json.Marshal(req)
+				jsonValue, err := json.Marshal(req)
+				Expect(err).Should(Succeed())
 
 				resp, err := http.Post("http://localhost:4000/api/query", "application/json", bytes.NewBuffer(jsonValue))
 				Expect(err).Should(Succeed())

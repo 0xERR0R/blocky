@@ -132,8 +132,9 @@ func (s *BlockingEndpoint) apiBlockingDisable(rw http.ResponseWriter, req *http.
 func (s *BlockingEndpoint) apiBlockingStatus(rw http.ResponseWriter, _ *http.Request) {
 	status := s.control.BlockingStatus()
 
-	response, _ := json.Marshal(status)
-	_, err := rw.Write(response)
+	response, err := json.Marshal(status)
+	util.LogOnError("unable to marshal response ", err)
 
+	_, err = rw.Write(response)
 	util.LogOnError("unable to write response ", err)
 }
