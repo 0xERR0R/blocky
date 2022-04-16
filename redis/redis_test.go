@@ -62,7 +62,7 @@ var _ = Describe("Redis client", func() {
 			err = defaults.Set(&rcfg)
 			Expect(err).Should(Succeed())
 
-			rcfg.Address = "test:123"
+			rcfg.Address = "127.0.0.1:0"
 
 			_, err = New(&rcfg)
 
