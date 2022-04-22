@@ -230,6 +230,11 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 			Title string
 		}
 
+		swaggerVersion := "master"
+		if util.Version != "undefined" {
+			swaggerVersion = util.Version
+		}
+
 		type PageData struct {
 			Links     []HandlerLink
 			Version   string
@@ -241,9 +246,11 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 			BuildTime: util.BuildTime,
 		}
 		pd.Links = []HandlerLink{
-
 			{
-				URL:   "https://htmlpreview.github.io/?https://github.com/0xERR0R/blocky/blob/master/docs/swagger.html",
+				URL: fmt.Sprintf(
+					"https://htmlpreview.github.io/?https://github.com/0xERR0R/blocky/blob/%s/docs/swagger.html",
+					swaggerVersion,
+				),
 				Title: "Swagger Rest API Documentation (Online @GitHub)",
 			},
 			{
