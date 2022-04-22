@@ -32,11 +32,11 @@ var _ = Describe("FilteringResolver", func() {
 	When("Filtering query types are defined", func() {
 		BeforeEach(func() {
 			sutConfig = config.FilteringConfig{
-				QueryTypes: []config.QType{config.QType(dns.TypeAAAA), config.QType(dns.TypeMX)},
+				QueryTypes: config.NewQTypeSet(dns.Type(dns.TypeAAAA), dns.Type(dns.TypeMX)),
 			}
 		})
 		It("Should delegate to next resolver if request query has other type", func() {
-			resp, err := sut.Resolve(newRequest("example.com", dns.TypeA))
+			resp, err := sut.Resolve(newRequest("example.com", dns.Type(dns.TypeA)))
 			Expect(err).Should(Succeed())
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 			Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
@@ -45,7 +45,7 @@ var _ = Describe("FilteringResolver", func() {
 			Expect(m.Calls).Should(HaveLen(1))
 		})
 		It("Should return empty answer for defined query type", func() {
-			resp, err := sut.Resolve(newRequest("example.com", dns.TypeAAAA))
+			resp, err := sut.Resolve(newRequest("example.com", dns.Type(dns.TypeAAAA)))
 			Expect(err).Should(Succeed())
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 			Expect(resp.RType).Should(Equal(ResponseTypeFILTERED))
@@ -66,7 +66,7 @@ var _ = Describe("FilteringResolver", func() {
 			sutConfig = config.FilteringConfig{}
 		})
 		It("Should return empty answer without error", func() {
-			resp, err := sut.Resolve(newRequest("example.com", dns.TypeAAAA))
+			resp, err := sut.Resolve(newRequest("example.com", dns.Type(dns.TypeAAAA)))
 			Expect(err).Should(Succeed())
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 			Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))

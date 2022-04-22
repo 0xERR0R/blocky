@@ -100,7 +100,7 @@ func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.
 	logger := logger("caching_resolver")
 
 	if r.isPrefetchingDomain(cacheKey) {
-		logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), dns.TypeToString[qType])
+		logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), qType.String())
 
 		req := newRequest(fmt.Sprintf("%s.", domainName), qType, logger)
 		response, err := r.next.Resolve(req)
@@ -160,7 +160,7 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 
 	for _, question := range request.Req.Question {
 		domain := util.ExtractDomain(question)
-		cacheKey := util.GenerateCacheKey(question.Qtype, domain)
+		cacheKey := util.GenerateCacheKey(dns.Type(question.Qtype), domain)
 		logger := logger.WithField("domain", util.Obfuscate(domain))
 
 		r.trackQueryDomainNameCount(domain, cacheKey, logger)

@@ -15,7 +15,7 @@ var _ = Describe("NoOpResolver", func() {
 
 	Describe("Resolving", func() {
 		It("returns no response", func() {
-			resp, err := sut.Resolve(newRequest("test.tld", dns.TypeA))
+			resp, err := sut.Resolve(newRequest("test.tld", dns.Type(dns.TypeA)))
 			Expect(err).Should(Succeed())
 			Expect(resp).Should(Equal(NoResponse))
 		})

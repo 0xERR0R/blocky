@@ -11,11 +11,16 @@ import (
 var _ = Describe("Serve command", func() {
 	When("Serve command is called", func() {
 		It("should start DNS server", func() {
-			config.GetConfig().BootstrapDNS = config.Upstream{
-				Net:  config.NetProtocolTcpTls,
-				Host: "1.1.1.1",
-				Port: 53,
+			config.GetConfig().BootstrapDNS = config.BootstrapConfig{
+				Upstream: config.Upstream{
+					Net:  config.NetProtocolTcpTls,
+					Host: "1.1.1.1",
+					Port: 53,
+				},
 			}
+
+			isConfigMandatory = false
+
 			go startServer(newServeCommand(), []string{})
 
 			time.Sleep(100 * time.Millisecond)

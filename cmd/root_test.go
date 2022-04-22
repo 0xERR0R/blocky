@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"io/ioutil"
+
 	"github.com/0xERR0R/blocky/log"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -12,6 +14,7 @@ var _ = Describe("Version command", func() {
 		log.Log().ExitFunc = nil
 		It("should execute without error", func() {
 			c := NewRootCommand()
+			c.SetOutput(ioutil.Discard)
 			c.SetArgs([]string{"help"})
 			err := c.Execute()
 			Expect(err).Should(Succeed())

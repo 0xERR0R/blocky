@@ -38,20 +38,26 @@ var _ = BeforeSuite(func() {
 		if request.Question[0].Name == "error." {
 			return nil
 		}
-		response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 123, dns.TypeA, "123.124.122.122")
+		response, err := util.NewMsgWithAnswer(
+			util.ExtractDomain(request.Question[0]), 123, dns.Type(dns.TypeA), "123.124.122.122",
+		)
 
 		Expect(err).Should(Succeed())
 		return response
 	})
 	upstreamFritzbox = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-		response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 3600, dns.TypeA, "192.168.178.2")
+		response, err := util.NewMsgWithAnswer(
+			util.ExtractDomain(request.Question[0]), 3600, dns.Type(dns.TypeA), "192.168.178.2",
+		)
 
 		Expect(err).Should(Succeed())
 		return response
 	})
 
 	upstreamClient = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
-		response, err := util.NewMsgWithAnswer(util.ExtractDomain(request.Question[0]), 3600, dns.TypePTR, mockClientName)
+		response, err := util.NewMsgWithAnswer(
+			util.ExtractDomain(request.Question[0]), 3600, dns.Type(dns.TypePTR), mockClientName,
+		)
 
 		Expect(err).Should(Succeed())
 		return response
@@ -153,63 +159,63 @@ var _ = Describe("Running DNS server", func() {
 		})
 		Context("DNS query is resolvable via external DNS", func() {
 			It("should return valid answer", func() {
-				resp = requestServer(util.NewMsgWithQuestion("google.de.", dns.TypeA))
+				resp = requestServer(util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("google.de.", dns.TypeA, 123, "123.124.122.122"))
 			})
 		})
 		Context("Custom DNS entry with exact match", func() {
 			It("should return valid answer", func() {
-				resp = requestServer(util.NewMsgWithQuestion("custom.lan.", dns.TypeA))
+				resp = requestServer(util.NewMsgWithQuestion("custom.lan.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("custom.lan.", dns.TypeA, 3600, "192.168.178.55"))
 			})
 		})
 		Context("Custom DNS entry with sub domain", func() {
 			It("should return valid answer", func() {
-				resp = requestServer(util.NewMsgWithQuestion("host.lan.home.", dns.TypeA))
+				resp = requestServer(util.NewMsgWithQuestion("host.lan.home.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("host.lan.home.", dns.TypeA, 3600, "192.168.178.56"))
 			})
 		})
 		Context("Conditional upstream", func() {
 			It("should resolve query via conditional upstream resolver", func() {
-				resp = requestServer(util.NewMsgWithQuestion("host.fritz.box.", dns.TypeA))
+				resp = requestServer(util.NewMsgWithQuestion("host.fritz.box.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("host.fritz.box.", dns.TypeA, 3600, "192.168.178.2"))
 			})
 		})
 		Context("Conditional upstream blocking", func() {
 			It("Query should be blocked, domain is in default group", func() {
-				resp = requestServer(util.NewMsgWithQuestion("doubleclick.net.cn.", dns.TypeA))
+				resp = requestServer(util.NewMsgWithQuestion("doubleclick.net.cn.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("doubleclick.net.cn.", dns.TypeA, 21600, "0.0.0.0"))
 			})
 		})
 		Context("Blocking default group", func() {
 			It("Query should be blocked, domain is in default group", func() {
-				resp = requestServer(util.NewMsgWithQuestion("doubleclick.net.", dns.TypeA))
+				resp = requestServer(util.NewMsgWithQuestion("doubleclick.net.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("doubleclick.net.", dns.TypeA, 21600, "0.0.0.0"))
 			})
 		})
 		Context("Blocking default group with sub domain", func() {
 			It("Query with subdomain should be blocked, domain is in default group", func() {
-				resp = requestServer(util.NewMsgWithQuestion("www.bild.de.", dns.TypeA))
+				resp = requestServer(util.NewMsgWithQuestion("www.bild.de.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("www.bild.de.", dns.TypeA, 21600, "0.0.0.0"))
 			})
 		})
 		Context("no blocking default group with sub domain", func() {
 			It("Query with should not be blocked, sub domain is not in blacklist", func() {
-				resp = requestServer(util.NewMsgWithQuestion("bild.de.", dns.TypeA))
+				resp = requestServer(util.NewMsgWithQuestion("bild.de.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("bild.de.", dns.TypeA, 0, "123.124.122.122"))
 			})
 		})
 		Context("domain is on white and blacklist default group", func() {
 			It("Query with should not be blocked, domain is on white and blacklist", func() {
-				resp = requestServer(util.NewMsgWithQuestion("heise.de.", dns.TypeA))
+				resp = requestServer(util.NewMsgWithQuestion("heise.de.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("heise.de.", dns.TypeA, 0, "123.124.122.122"))
 			})
@@ -217,7 +223,7 @@ var _ = Describe("Running DNS server", func() {
 		Context("domain is on client specific white list", func() {
 			It("Query with should not be blocked, domain is on client's white list", func() {
 				mockClientName = "clWhitelistOnly"
-				resp = requestServer(util.NewMsgWithQuestion("heise.de.", dns.TypeA))
+				resp = requestServer(util.NewMsgWithQuestion("heise.de.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("heise.de.", dns.TypeA, 0, "123.124.122.122"))
 			})
@@ -225,7 +231,7 @@ var _ = Describe("Running DNS server", func() {
 		Context("block client whitelist only", func() {
 			It("Query with should be blocked, client has only whitelist, domain is not on client's white list", func() {
 				mockClientName = "clWhitelistOnly"
-				resp = requestServer(util.NewMsgWithQuestion("google.de.", dns.TypeA))
+				resp = requestServer(util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("google.de.", dns.TypeA, 0, "0.0.0.0"))
 			})
@@ -233,11 +239,11 @@ var _ = Describe("Running DNS server", func() {
 		Context("block client with 2 groups", func() {
 			It("Query with should be blocked, domain is on black list", func() {
 				mockClientName = "clAdsAndYoutube"
-				resp = requestServer(util.NewMsgWithQuestion("www.bild.de.", dns.TypeA))
+				resp = requestServer(util.NewMsgWithQuestion("www.bild.de.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("www.bild.de.", dns.TypeA, 0, "0.0.0.0"))
 
-				resp = requestServer(util.NewMsgWithQuestion("youtube.com.", dns.TypeA))
+				resp = requestServer(util.NewMsgWithQuestion("youtube.com.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("youtube.com.", dns.TypeA, 0, "0.0.0.0"))
 			})
@@ -245,7 +251,7 @@ var _ = Describe("Running DNS server", func() {
 		Context("client with 1 group: no block if domain in other group", func() {
 			It("Query with should not be blocked, domain is on black list in another group", func() {
 				mockClientName = "clYoutubeOnly"
-				resp = requestServer(util.NewMsgWithQuestion("www.bild.de.", dns.TypeA))
+				resp = requestServer(util.NewMsgWithQuestion("www.bild.de.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("www.bild.de.", dns.TypeA, 0, "123.124.122.122"))
 			})
@@ -253,14 +259,14 @@ var _ = Describe("Running DNS server", func() {
 		Context("block client with 1 group", func() {
 			It("Query with should not  blocked, domain is on black list in client's group", func() {
 				mockClientName = "clYoutubeOnly"
-				resp = requestServer(util.NewMsgWithQuestion("youtube.com.", dns.TypeA))
+				resp = requestServer(util.NewMsgWithQuestion("youtube.com.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("youtube.com.", dns.TypeA, 0, "0.0.0.0"))
 			})
 		})
 		Context("health check", func() {
 			It("Should always return dummy response", func() {
-				resp = requestServer(util.NewMsgWithQuestion("healthcheck.blocky.", dns.TypeA))
+				resp = requestServer(util.NewMsgWithQuestion("healthcheck.blocky.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeEmpty())
 			})
@@ -294,7 +300,8 @@ var _ = Describe("Running DNS server", func() {
 					Query: "google.de",
 					Type:  "A",
 				}
-				jsonValue, _ := json.Marshal(req)
+				jsonValue, err := json.Marshal(req)
+				Expect(err).Should(Succeed())
 
 				resp, err := http.Post("http://localhost:4000/api/query", "application/json", bytes.NewBuffer(jsonValue))
 
@@ -315,7 +322,8 @@ var _ = Describe("Running DNS server", func() {
 					Query: "google.de",
 					Type:  "WrongType",
 				}
-				jsonValue, _ := json.Marshal(req)
+				jsonValue, err := json.Marshal(req)
+				Expect(err).Should(Succeed())
 
 				resp, err := http.Post("http://localhost:4000/api/query", "application/json", bytes.NewBuffer(jsonValue))
 
@@ -331,7 +339,8 @@ var _ = Describe("Running DNS server", func() {
 					Query: "error.",
 					Type:  "A",
 				}
-				jsonValue, _ := json.Marshal(req)
+				jsonValue, err := json.Marshal(req)
+				Expect(err).Should(Succeed())
 
 				resp, err := http.Post("http://localhost:4000/api/query", "application/json", bytes.NewBuffer(jsonValue))
 				Expect(err).Should(Succeed())
@@ -415,7 +424,7 @@ var _ = Describe("Running DNS server", func() {
 		Context("DOH over POST (RFC 8484)", func() {
 			When("DOH post request with 'example.com' is performed", func() {
 				It("should get a valid response", func() {
-					msg := util.NewMsgWithQuestion("www.example.com.", dns.TypeA)
+					msg := util.NewMsgWithQuestion("www.example.com.", dns.Type(dns.TypeA))
 					rawDNSMessage, err := msg.Pack()
 					Expect(err).Should(Succeed())
 
@@ -434,7 +443,7 @@ var _ = Describe("Running DNS server", func() {
 					Expect(msg.Answer).Should(BeDNSRecord("www.example.com.", dns.TypeA, 0, "123.124.122.122"))
 				})
 				It("should get a valid response, clientId is passed", func() {
-					msg := util.NewMsgWithQuestion("www.example.com.", dns.TypeA)
+					msg := util.NewMsgWithQuestion("www.example.com.", dns.Type(dns.TypeA))
 					rawDNSMessage, err := msg.Pack()
 					Expect(err).Should(Succeed())
 
@@ -475,7 +484,7 @@ var _ = Describe("Running DNS server", func() {
 			})
 			When("Internal error occurs", func() {
 				It("should return 'Internal server error'", func() {
-					msg := util.NewMsgWithQuestion("error.", dns.TypeA)
+					msg := util.NewMsgWithQuestion("error.", dns.Type(dns.TypeA))
 					rawDNSMessage, err := msg.Pack()
 					Expect(err).Should(Succeed())
 

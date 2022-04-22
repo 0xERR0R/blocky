@@ -43,7 +43,32 @@ type QueryLogType int16
 type QType dns.Type
 
 func (c QType) String() string {
-	return dns.TypeToString[uint16(c)]
+	return dns.Type(c).String()
+}
+
+type QTypeSet map[QType]struct{}
+
+func NewQTypeSet(qTypes ...dns.Type) QTypeSet {
+	s := make(QTypeSet, len(qTypes))
+
+	for _, qType := range qTypes {
+		s.Insert(qType)
+	}
+
+	return s
+}
+
+func (s QTypeSet) Contains(qType dns.Type) bool {
+	_, found := s[QType(qType)]
+	return found
+}
+
+func (s *QTypeSet) Insert(qType dns.Type) {
+	if *s == nil {
+		*s = make(QTypeSet, 1)
+	}
+
+	(*s)[QType(qType)] = struct{}{}
 }
 
 type Duration time.Duration
@@ -65,6 +90,47 @@ type Upstream struct {
 	Host string
 	Port uint16
 	Path string
+}
+
+// IsDefault returns true if u is the default value
+func (u *Upstream) IsDefault() bool {
+	return *u == Upstream{}
+}
+
+// String returns the string representation of u
+func (u *Upstream) String() string {
+	if u.IsDefault() {
+		return "no upstream"
+	}
+
+	var sb strings.Builder
+
+	sb.WriteString(u.Net.String())
+	sb.WriteRune(':')
+
+	if u.Net == NetProtocolHttps {
+		sb.WriteString("//")
+	}
+
+	isIPv6 := strings.ContainsRune(u.Host, ':')
+	if isIPv6 {
+		sb.WriteRune('[')
+		sb.WriteString(u.Host)
+		sb.WriteRune(']')
+	} else {
+		sb.WriteString(u.Host)
+	}
+
+	if u.Port != netDefaultPort[u.Net] {
+		sb.WriteRune(':')
+		sb.WriteString(fmt.Sprint(u.Port))
+	}
+
+	if u.Path != "" {
+		sb.WriteString(u.Path)
+	}
+
+	return sb.String()
 }
 
 // UnmarshalYAML creates Upstream from YAML
@@ -95,6 +161,24 @@ func (l *ListenConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	*l = strings.Split(addresses, ",")
+
+	return nil
+}
+
+// UnmarshalYAML creates BootstrapConfig from YAML
+func (b *BootstrapConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	if err := unmarshal(&b.Upstream); err == nil {
+		return nil
+	}
+
+	// bootstrapConfig is used to avoid infinite recursion:
+	// if we used BootstrapConfig, unmarshal would just call us again.
+	var c bootstrapConfig
+	if err := unmarshal(&c); err != nil {
+		return err
+	}
+
+	*b = BootstrapConfig(c)
 
 	return nil
 }
@@ -204,6 +288,21 @@ func (c *QType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+func (s *QTypeSet) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var input []QType
+	if err := unmarshal(&input); err != nil {
+		return err
+	}
+
+	*s = make(QTypeSet, len(input))
+
+	for _, qType := range input {
+		(*s)[qType] = struct{}{}
+	}
+
+	return nil
+}
+
 var validDomain = regexp.MustCompile(
 	`^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$`)
 
@@ -234,6 +333,10 @@ func ParseUpstream(upstream string) (Upstream, error) {
 		// only host, use default port
 		host = upstream
 		port = netDefaultPort[n]
+
+		// trim any IPv6 brackets
+		host = strings.TrimPrefix(host, "[")
+		host = strings.TrimSuffix(host, "]")
 	}
 
 	// validate hostname or ip
@@ -268,16 +371,19 @@ func extractPath(in string) (path string, upstream string) {
 }
 
 func extractNet(upstream string) (NetProtocol, string) {
-	if strings.HasPrefix(upstream, NetProtocolTcpUdp.String()+":") {
-		return NetProtocolTcpUdp, strings.Replace(upstream, NetProtocolTcpUdp.String()+":", "", 1)
+	tcpUDPPrefix := NetProtocolTcpUdp.String() + ":"
+	if strings.HasPrefix(upstream, tcpUDPPrefix) {
+		return NetProtocolTcpUdp, upstream[len(tcpUDPPrefix):]
 	}
 
-	if strings.HasPrefix(upstream, NetProtocolTcpTls.String()+":") {
-		return NetProtocolTcpTls, strings.Replace(upstream, NetProtocolTcpTls.String()+":", "", 1)
+	tcpTLSPrefix := NetProtocolTcpTls.String() + ":"
+	if strings.HasPrefix(upstream, tcpTLSPrefix) {
+		return NetProtocolTcpTls, upstream[len(tcpTLSPrefix):]
 	}
 
-	if strings.HasPrefix(upstream, NetProtocolHttps.String()+":") {
-		return NetProtocolHttps, strings.TrimPrefix(strings.Replace(upstream, NetProtocolHttps.String()+":", "", 1), "//")
+	httpsPrefix := NetProtocolHttps.String() + ":"
+	if strings.HasPrefix(upstream, httpsPrefix) {
+		return NetProtocolHttps, strings.TrimPrefix(upstream[len(httpsPrefix):], "//")
 	}
 
 	return NetProtocolTcpUdp, upstream
@@ -308,9 +414,15 @@ type Config struct {
 	DisableIPv6  bool            `yaml:"disableIPv6" default:"false"`
 	CertFile     string          `yaml:"certFile"`
 	KeyFile      string          `yaml:"keyFile"`
-	BootstrapDNS Upstream        `yaml:"bootstrapDns"`
+	BootstrapDNS BootstrapConfig `yaml:"bootstrapDns"`
 	HostsFile    HostsFileConfig `yaml:"hostsFile"`
 	Filtering    FilteringConfig `yaml:"filtering"`
+}
+
+type BootstrapConfig bootstrapConfig // to avoid infinite recursion. See BootstrapConfig.UnmarshalYAML.
+type bootstrapConfig struct {
+	Upstream Upstream `yaml:"upstream"`
+	IPs      []net.IP `yaml:"ips"`
 }
 
 // PrometheusConfig contains the config values for prometheus
@@ -412,17 +524,17 @@ type HostsFileConfig struct {
 }
 
 type FilteringConfig struct {
-	QueryTypes []QType `yaml:"queryTypes"`
+	QueryTypes QTypeSet `yaml:"queryTypes"`
 }
 
 // nolint:gochecknoglobals
 var config = &Config{}
 
 // LoadConfig creates new config from YAML file
-func LoadConfig(path string, mandatory bool) error {
+func LoadConfig(path string, mandatory bool) (*Config, error) {
 	cfg := Config{}
 	if err := defaults.Set(&cfg); err != nil {
-		return fmt.Errorf("can't apply default values: %w", err)
+		return nil, fmt.Errorf("can't apply default values: %w", err)
 	}
 
 	data, err := ioutil.ReadFile(path)
@@ -432,27 +544,32 @@ func LoadConfig(path string, mandatory bool) error {
 			// config file does not exist
 			// return config with default values
 			config = &cfg
-			return nil
+			return config, nil
 		}
 
-		return fmt.Errorf("can't read config file: %w", err)
+		return nil, fmt.Errorf("can't read config file: %w", err)
 	}
 
-	return unmarshalConfig(data, cfg)
+	err = unmarshalConfig(data, &cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	config = &cfg
+
+	return &cfg, nil
 }
 
-func unmarshalConfig(data []byte, cfg Config) error {
-	err := yaml.UnmarshalStrict(data, &cfg)
+func unmarshalConfig(data []byte, cfg *Config) error {
+	err := yaml.UnmarshalStrict(data, cfg)
 	if err != nil {
 		return fmt.Errorf("wrong file structure: %w", err)
 	}
 
-	err = validateConfig(&cfg)
+	err = validateConfig(cfg)
 	if err != nil {
 		return fmt.Errorf("unable to validate config: %w", err)
 	}
-
-	config = &cfg
 
 	return nil
 }
@@ -469,7 +586,7 @@ func validateConfig(cfg *Config) (err error) {
 	if cfg.DisableIPv6 {
 		log.Log().Warnf("'disableIPv6' is deprecated. Please use 'filtering.queryTypes' with 'AAAA' instead.")
 
-		cfg.Filtering.QueryTypes = append(cfg.Filtering.QueryTypes, QType(dns.TypeAAAA))
+		cfg.Filtering.QueryTypes.Insert(dns.Type(dns.TypeAAAA))
 	}
 
 	return

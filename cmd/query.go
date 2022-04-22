@@ -41,7 +41,8 @@ func query(cmd *cobra.Command, args []string) {
 		Query: args[0],
 		Type:  typeFlag,
 	}
-	jsonValue, _ := json.Marshal(apiRequest)
+	jsonValue, err := json.Marshal(apiRequest)
+	util.FatalOnError("can't marshal request: ", err)
 
 	resp, err := http.Post(apiURL(api.PathQueryPath), "application/json", bytes.NewBuffer(jsonValue))
 

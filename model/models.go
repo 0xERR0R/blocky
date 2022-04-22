@@ -28,7 +28,7 @@ type Response struct {
 }
 
 // RequestProtocol represents the server protocol ENUM(
-// TCP // is the TPC protocol
+// TCP // is the TCP protocol
 // UDP // is the UDP protocol
 // )
 type RequestProtocol uint8

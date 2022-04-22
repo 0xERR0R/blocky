@@ -9,11 +9,12 @@ import (
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/miekg/dns"
 
 	"github.com/sirupsen/logrus"
 )
 
-func newRequest(question string, rType uint16, logger ...*logrus.Entry) *model.Request {
+func newRequest(question string, rType dns.Type, logger ...*logrus.Entry) *model.Request {
 	var loggerEntry *logrus.Entry
 	if len(logger) == 1 {
 		loggerEntry = logger[0]
@@ -28,7 +29,7 @@ func newRequest(question string, rType uint16, logger ...*logrus.Entry) *model.R
 	}
 }
 
-func newRequestWithClient(question string, rType uint16, ip string, clientNames ...string) *model.Request {
+func newRequestWithClient(question string, rType dns.Type, ip string, clientNames ...string) *model.Request {
 	return &model.Request{
 		ClientIP:    net.ParseIP(ip),
 		ClientNames: clientNames,
@@ -39,7 +40,7 @@ func newRequestWithClient(question string, rType uint16, ip string, clientNames 
 	}
 }
 
-func newRequestWithClientID(question string, rType uint16, ip string, requestClientID string) *model.Request {
+func newRequestWithClientID(question string, rType dns.Type, ip string, requestClientID string) *model.Request {
 	return &model.Request{
 		ClientIP:        net.ParseIP(ip),
 		RequestClientID: requestClientID,

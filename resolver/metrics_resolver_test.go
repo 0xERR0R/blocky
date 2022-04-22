@@ -34,7 +34,7 @@ var _ = Describe("MetricResolver", func() {
 		Context("Recording request metrics", func() {
 			When("Request will be performed", func() {
 				It("Should record metrics", func() {
-					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "", "client"))
+					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "", "client"))
 					Expect(err).Should(Succeed())
 
 					cnt, err := sut.totalQueries.GetMetricWith(prometheus.Labels{"client": "client", "type": "A"})
@@ -52,7 +52,7 @@ var _ = Describe("MetricResolver", func() {
 					sut.Next(m)
 				})
 				It("Error should be recorded", func() {
-					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "", "client"))
+					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "", "client"))
 					Expect(err).Should(HaveOccurred())
 
 					Expect(testutil.ToFloat64(sut.totalErrors)).Should(Equal(float64(1)))

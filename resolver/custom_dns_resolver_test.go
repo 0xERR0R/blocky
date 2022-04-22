@@ -52,7 +52,7 @@ var _ = Describe("CustomDNSResolver", func() {
 			Context("filterUnmappedTypes is true", func() {
 				BeforeEach(func() { cfg.FilterUnmappedTypes = true })
 				It("defined ip4 query should be resolved", func() {
-					resp, err = sut.Resolve(newRequest("custom.domain.", dns.TypeA))
+					resp, err = sut.Resolve(newRequest("custom.domain.", dns.Type(dns.TypeA)))
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("custom.domain.", dns.TypeA, TTL, "192.168.143.123"))
@@ -60,7 +60,7 @@ var _ = Describe("CustomDNSResolver", func() {
 					m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
 				})
 				It("TXT query for defined mapping should return NOERROR and empty result", func() {
-					resp, err = sut.Resolve(newRequest("custom.domain.", dns.TypeTXT))
+					resp, err = sut.Resolve(newRequest("custom.domain.", dns.Type(dns.TypeTXT)))
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 					Expect(resp.Res.Answer).Should(HaveLen(0))
@@ -68,7 +68,7 @@ var _ = Describe("CustomDNSResolver", func() {
 					m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
 				})
 				It("ip6 query should return NOERROR and empty result", func() {
-					resp, err = sut.Resolve(newRequest("custom.domain.", dns.TypeAAAA))
+					resp, err = sut.Resolve(newRequest("custom.domain.", dns.Type(dns.TypeAAAA)))
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 					Expect(resp.Res.Answer).Should(HaveLen(0))
@@ -80,7 +80,7 @@ var _ = Describe("CustomDNSResolver", func() {
 			Context("filterUnmappedTypes is false", func() {
 				BeforeEach(func() { cfg.FilterUnmappedTypes = false })
 				It("defined ip4 query should be resolved", func() {
-					resp, err = sut.Resolve(newRequest("custom.domain.", dns.TypeA))
+					resp, err = sut.Resolve(newRequest("custom.domain.", dns.Type(dns.TypeA)))
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("custom.domain.", dns.TypeA, TTL, "192.168.143.123"))
@@ -88,13 +88,13 @@ var _ = Describe("CustomDNSResolver", func() {
 					m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
 				})
 				It("TXT query for defined mapping should be delegated to next resolver", func() {
-					resp, err = sut.Resolve(newRequest("custom.domain.", dns.TypeTXT))
+					resp, err = sut.Resolve(newRequest("custom.domain.", dns.Type(dns.TypeTXT)))
 
 					// delegate was executed
 					m.AssertExpectations(GinkgoT())
 				})
 				It("ip6 query should return NOERROR and empty result", func() {
-					resp, err = sut.Resolve(newRequest("custom.domain.", dns.TypeAAAA))
+					resp, err = sut.Resolve(newRequest("custom.domain.", dns.Type(dns.TypeAAAA)))
 
 					// delegate was executed
 					m.AssertExpectations(GinkgoT())
@@ -104,7 +104,7 @@ var _ = Describe("CustomDNSResolver", func() {
 		})
 		When("Ip 6 mapping is defined for custom domain ", func() {
 			It("ip6 query should be resolved", func() {
-				resp, err = sut.Resolve(newRequest("ip6.domain.", dns.TypeAAAA))
+				resp, err = sut.Resolve(newRequest("ip6.domain.", dns.Type(dns.TypeAAAA)))
 
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 				Expect(resp.Res.Answer).Should(BeDNSRecord("ip6.domain.", dns.TypeAAAA, TTL, "2001:db8:85a3::8a2e:370:7334"))
@@ -115,7 +115,7 @@ var _ = Describe("CustomDNSResolver", func() {
 		When("Multiple IPs are defined for custom domain ", func() {
 			It("all IPs for the current type should be returned", func() {
 				By("IPv6 query", func() {
-					resp, err = sut.Resolve(newRequest("multiple.ips.", dns.TypeAAAA))
+					resp, err = sut.Resolve(newRequest("multiple.ips.", dns.Type(dns.TypeAAAA)))
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("multiple.ips.", dns.TypeAAAA, TTL, "2001:db8:85a3::8a2e:370:7334"))
@@ -124,7 +124,7 @@ var _ = Describe("CustomDNSResolver", func() {
 				})
 
 				By("IPv4 query", func() {
-					resp, err = sut.Resolve(newRequest("multiple.ips.", dns.TypeA))
+					resp, err = sut.Resolve(newRequest("multiple.ips.", dns.Type(dns.TypeA)))
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 					Expect(resp.Res.Answer).Should(HaveLen(2))
@@ -139,7 +139,7 @@ var _ = Describe("CustomDNSResolver", func() {
 		When("Reverse DNS request is received", func() {
 			It("should resolve the defined domain name", func() {
 				By("ipv4", func() {
-					resp, err = sut.Resolve(newRequest("123.143.168.192.in-addr.arpa.", dns.TypePTR))
+					resp, err = sut.Resolve(newRequest("123.143.168.192.in-addr.arpa.", dns.Type(dns.TypePTR)))
 
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 					Expect(resp.Res.Answer).Should(HaveLen(2))
@@ -152,7 +152,7 @@ var _ = Describe("CustomDNSResolver", func() {
 
 				By("ipv6", func() {
 					resp, err = sut.Resolve(newRequest("4.3.3.7.0.7.3.0.e.2.a.8.0.0.0.0.0.0.0.0.3.a.5.8.8.b.d.0.1.0.0.2.ip6.arpa.",
-						dns.TypePTR))
+						dns.Type(dns.TypePTR)))
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 					Expect(resp.Res.Answer).Should(HaveLen(2))
 					Expect(resp.Res.Answer).Should(ContainElements(
@@ -167,7 +167,7 @@ var _ = Describe("CustomDNSResolver", func() {
 		})
 		When("Domain mapping is defined", func() {
 			It("subdomain must also match", func() {
-				resp, err = sut.Resolve(newRequest("ABC.CUSTOM.DOMAIN.", dns.TypeA))
+				resp, err = sut.Resolve(newRequest("ABC.CUSTOM.DOMAIN.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 				Expect(resp.Res.Answer).Should(BeDNSRecord("ABC.CUSTOM.DOMAIN.", dns.TypeA, TTL, "192.168.143.123"))
@@ -183,7 +183,7 @@ var _ = Describe("CustomDNSResolver", func() {
 	Describe("Delegating to next resolver", func() {
 		When("no mapping for domain exist", func() {
 			It("should delegate to next resolver", func() {
-				resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+				resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 
 				Expect(err).Should(Succeed())
 				// delegate was executed

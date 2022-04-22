@@ -51,6 +51,7 @@ type ListCache struct {
 	downloadTimeout  time.Duration
 	downloadAttempts int
 	downloadCooldown time.Duration
+	httpTransport    *http.Transport
 	listType         ListCacheType
 }
 
@@ -91,7 +92,8 @@ func (b *ListCache) Configuration() (result []string) {
 
 // NewListCache creates new list instance
 func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration,
-	downloadTimeout time.Duration, downloadAttempts int, downloadCooldown time.Duration) (*ListCache, error) {
+	downloadTimeout time.Duration, downloadAttempts int,
+	downloadCooldown time.Duration, httpTransport *http.Transport) (*ListCache, error) {
 	groupCaches := make(map[string]stringcache.StringCache)
 
 	b := &ListCache{
@@ -101,6 +103,7 @@ func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeri
 		downloadTimeout:  downloadTimeout,
 		downloadAttempts: downloadAttempts,
 		downloadCooldown: downloadCooldown,
+		httpTransport:    httpTransport,
 		listType:         t,
 	}
 	initError := b.refresh(true)
@@ -229,7 +232,8 @@ func (b *ListCache) refresh(init bool) error {
 
 func (b *ListCache) downloadFile(link string) (io.ReadCloser, error) {
 	client := http.Client{
-		Timeout: b.downloadTimeout,
+		Timeout:   b.downloadTimeout,
+		Transport: b.httpTransport,
 	}
 
 	var resp *http.Response

@@ -55,7 +55,7 @@ var _ = Describe("RewriterResolver", func() {
 		var request *model.Request
 
 		AfterEach(func() {
-			request = newRequest(fqdnOriginal, dns.TypeA)
+			request = newRequest(fqdnOriginal, dns.Type(dns.TypeA))
 
 			mInner.On("Resolve", mock.Anything)
 			mInner.ResponseFn = func(req *dns.Msg) *dns.Msg {

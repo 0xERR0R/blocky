@@ -25,18 +25,23 @@ type ClientNamesResolver struct {
 }
 
 // NewClientNamesResolver creates new resolver instance
-func NewClientNamesResolver(cfg config.ClientLookupConfig) ChainedResolver {
+func NewClientNamesResolver(cfg config.ClientLookupConfig, bootstrap *Bootstrap) (cr ChainedResolver, err error) {
 	var r Resolver
-	if (config.Upstream{}) != cfg.Upstream {
-		r = NewUpstreamResolver(cfg.Upstream)
+	if !cfg.Upstream.IsDefault() {
+		r, err = NewUpstreamResolver(cfg.Upstream, bootstrap)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return &ClientNamesResolver{
+	cr = &ClientNamesResolver{
 		cache:            expirationcache.NewCache(expirationcache.WithCleanUpInterval(time.Hour)),
 		externalResolver: r,
 		singleNameOrder:  cfg.SingleNameOrder,
 		clientIPMapping:  cfg.ClientnameIPMapping,
 	}
+
+	return
 }
 
 // Configuration returns current resolver configuration
@@ -113,7 +118,7 @@ func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry
 		reverse, _ := dns.ReverseAddr(ip.String())
 
 		resp, err := r.externalResolver.Resolve(&model.Request{
-			Req: util.NewMsgWithQuestion(reverse, dns.TypePTR),
+			Req: util.NewMsgWithQuestion(reverse, dns.Type(dns.TypePTR)),
 			Log: logger,
 		})
 

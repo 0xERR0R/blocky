@@ -19,7 +19,6 @@ configuration properties as [JSON](config.yml).
 | httpsPort    | [IP]:port[,[IP]:port]*          | no                    |               | Port(s) and optional bind ip address(es) to serve HTTPS used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:443`. Example: `443`, `:443`, `127.0.0.1:443,[::1]:443`     |
 | certFile     | path                            | yes, if httpsPort > 0 |               | Path to cert and key file for SSL encryption (DoH and DoT)                                                                                                                                                                                        |
 | keyFile      | path                            | yes, if httpsPort > 0 |               | Path to cert and key file for SSL encryption (DoH and DoT)
-| bootstrapDns | IP:port                         | no                    |               | Use this DNS server to resolve blacklist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. NOTE: Works only on Linux/*Nix OS due to golang limitations under windows.               |
 | logLevel     | enum (debug, info, warn, error) | no                    | info          | Log level                                                                                                                                                                                                                                         |
 | logFormat    | enum (text, json)               | no                    | text          | Log format (text or json).                                                                                                                                                                                                                        |
 | logTimestamp | bool                            | no                    | true          | Log time stamps (true or false).                                                                                                                                                                                                                  |
@@ -107,6 +106,32 @@ value by setting the `upstreamTimeout` configuration parameter (in **duration fo
         - 80.241.218.68
     upstreamTimeout: 5s
     ```
+
+## Bootstrap DNS configuration
+
+This DNS server is used to resolve upstream DoH and DoT servers that are specified as hostnames.
+Useful if no system DNS resolver is configured, and to encrypt the bootstrap queries.
+
+| Parameter | Type                             | Mandatory                   | Default value | Description                          |
+|-----------|----------------------------------|-----------------------------|---------------|--------------------------------------|
+| upstream  | Upstream (see below)             | no                          |               |                                      |
+| ips       | List of IPs                      | yes, if upstream is DoT/DoH |               | Only valid if upstream is DoH or DoT |
+
+If you only need to specify upstream, you can use the short form: `bootstrapDns: <upstream>`.
+
+!!! note
+
+Works only on Linux/\*nix OS due to golang limitations under Windows.
+
+!!! example
+
+    ```yaml
+        bootstrapDns:
+          upstream: tcp-tls:dns.example.com
+          ips:
+          - 123.123.123.123
+    ```
+
 
 ## Filtering
 
