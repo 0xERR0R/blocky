@@ -7,7 +7,7 @@ import (
 
 	"github.com/0xERR0R/blocky/api"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -28,26 +28,30 @@ var _ = Describe("Blocking command", func() {
 	Describe("Call query command", func() {
 		BeforeEach(func() {
 			mockFn = func(w http.ResponseWriter, _ *http.Request) {
-				response, _ := json.Marshal(api.QueryResult{
+				response, err := json.Marshal(api.QueryResult{
 					Reason:       "Reason",
 					ResponseType: "Type",
 					Response:     "Response",
 					ReturnCode:   "NOERROR",
 				})
-				_, err := w.Write(response)
+				Expect(err).Should(Succeed())
+
+				_, err = w.Write(response)
 				Expect(err).Should(Succeed())
 			}
 		})
 		When("query command is called via REST", func() {
 			BeforeEach(func() {
 				mockFn = func(w http.ResponseWriter, _ *http.Request) {
-					response, _ := json.Marshal(api.QueryResult{
+					response, err := json.Marshal(api.QueryResult{
 						Reason:       "Reason",
 						ResponseType: "Type",
 						Response:     "Response",
 						ReturnCode:   "NOERROR",
 					})
-					_, err := w.Write(response)
+					Expect(err).Should(Succeed())
+
+					_, err = w.Write(response)
 					Expect(err).Should(Succeed())
 				}
 			})

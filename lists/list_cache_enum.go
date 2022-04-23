@@ -35,8 +35,8 @@ func ListCacheTypeNames() []string {
 }
 
 var _ListCacheTypeMap = map[ListCacheType]string{
-	0: _ListCacheTypeName[0:9],
-	1: _ListCacheTypeName[9:18],
+	ListCacheTypeBlacklist: _ListCacheTypeName[0:9],
+	ListCacheTypeWhitelist: _ListCacheTypeName[9:18],
 }
 
 // String implements the Stringer interface.
@@ -48,11 +48,11 @@ func (x ListCacheType) String() string {
 }
 
 var _ListCacheTypeValue = map[string]ListCacheType{
-	_ListCacheTypeName[0:9]:  0,
-	_ListCacheTypeName[9:18]: 1,
+	_ListCacheTypeName[0:9]:  ListCacheTypeBlacklist,
+	_ListCacheTypeName[9:18]: ListCacheTypeWhitelist,
 }
 
-// ParseListCacheType attempts to convert a string to a ListCacheType
+// ParseListCacheType attempts to convert a string to a ListCacheType.
 func ParseListCacheType(name string) (ListCacheType, error) {
 	if x, ok := _ListCacheTypeValue[name]; ok {
 		return x, nil
@@ -60,12 +60,12 @@ func ParseListCacheType(name string) (ListCacheType, error) {
 	return ListCacheType(0), fmt.Errorf("%s is not a valid ListCacheType, try [%s]", name, strings.Join(_ListCacheTypeNames, ", "))
 }
 
-// MarshalText implements the text marshaller method
+// MarshalText implements the text marshaller method.
 func (x ListCacheType) MarshalText() ([]byte, error) {
 	return []byte(x.String()), nil
 }
 
-// UnmarshalText implements the text unmarshaller method
+// UnmarshalText implements the text unmarshaller method.
 func (x *ListCacheType) UnmarshalText(text []byte) error {
 	name := string(text)
 	tmp, err := ParseListCacheType(name)

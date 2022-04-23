@@ -14,7 +14,7 @@ import (
 	"github.com/creasty/defaults"
 
 	"github.com/miekg/dns"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
 )
@@ -23,7 +23,7 @@ var _ = Describe("CachingResolver", func() {
 	var (
 		sut        ChainedResolver
 		sutConfig  config.CachingConfig
-		m          *resolverMock
+		m          *MockResolver
 		mockAnswer *dns.Msg
 
 		err  error
@@ -45,7 +45,7 @@ var _ = Describe("CachingResolver", func() {
 
 	JustBeforeEach(func() {
 		sut = NewCachingResolver(sutConfig, nil)
-		m = &resolverMock{}
+		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		sut.Next(m)
 	})
@@ -58,7 +58,7 @@ var _ = Describe("CachingResolver", func() {
 					PrefetchExpires:   config.Duration(time.Minute * 120),
 					PrefetchThreshold: 5,
 				}
-				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1, dns.TypeA, "123.122.121.120")
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1, dns.Type(dns.TypeA), "123.122.121.120")
 			})
 
 			It("should prefetch domain if query count > threshold", func() {
@@ -85,7 +85,7 @@ var _ = Describe("CachingResolver", func() {
 				})
 
 				// first request
-				_, _ = sut.Resolve(newRequest("example.com.", dns.TypeA))
+				_, _ = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 
 				// Domain is not prefetched
 				Expect(domainPrefetched).Should(Equal(""))
@@ -95,7 +95,7 @@ var _ = Describe("CachingResolver", func() {
 
 				// now query again > threshold
 				for i := 0; i < prefetchThreshold; i++ {
-					_, _ = sut.Resolve(newRequest("example.com.", dns.TypeA))
+					_, _ = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 				}
 
 				Eventually(func(g Gomega) {
@@ -103,9 +103,9 @@ var _ = Describe("CachingResolver", func() {
 					g.Expect(domainPrefetched).Should(Equal("example.com"))
 
 					// and it should hit from prefetch cache
-					_, _ = sut.Resolve(newRequest("example.com.", dns.TypeA))
+					_, _ = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 					g.Expect(prefetchHitDomain).Should(Equal("example.com"))
-				}, "2s").Should(Succeed())
+				}, "5s").Should(Succeed())
 
 			})
 		})
@@ -117,7 +117,7 @@ var _ = Describe("CachingResolver", func() {
 			})
 			Context("response TTL is bigger than defined min caching time", func() {
 				BeforeEach(func() {
-					mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 600, dns.TypeA, "123.122.121.120")
+					mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 600, dns.Type(dns.TypeA), "123.122.121.120")
 				})
 
 				It("should cache response and use response's TTL", func() {
@@ -133,7 +133,7 @@ var _ = Describe("CachingResolver", func() {
 							totalCacheCount = d
 						})
 
-						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+						resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 						Expect(err).Should(Succeed())
 						Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 						Expect(m.Calls).Should(HaveLen(1))
@@ -151,7 +151,7 @@ var _ = Describe("CachingResolver", func() {
 								domain = d
 							})
 
-							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+							resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 							g.Expect(err).Should(Succeed())
 							g.Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
 							// still one call to upstream
@@ -169,13 +169,13 @@ var _ = Describe("CachingResolver", func() {
 			Context("response TTL is smaller than defined min caching time", func() {
 				Context("A query", func() {
 					BeforeEach(func() {
-						mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 123, dns.TypeA, "123.122.121.120")
+						mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 123, dns.Type(dns.TypeA), "123.122.121.120")
 					})
 
 					It("should cache response and use min caching time as TTL", func() {
 
 						By("first request", func() {
-							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+							resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 							Expect(err).Should(Succeed())
 							Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 							Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -185,7 +185,7 @@ var _ = Describe("CachingResolver", func() {
 
 						By("second request", func() {
 							Eventually(func(g Gomega) {
-								resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+								resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 								g.Expect(err).Should(Succeed())
 								g.Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
 								g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -201,13 +201,13 @@ var _ = Describe("CachingResolver", func() {
 				Context("AAAA query", func() {
 					BeforeEach(func() {
 						mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 123,
-							dns.TypeAAAA, "2001:0db8:85a3:08d3:1319:8a2e:0370:7344")
+							dns.Type(dns.TypeAAAA), "2001:0db8:85a3:08d3:1319:8a2e:0370:7344")
 					})
 
 					It("should cache response and use min caching time as TTL", func() {
 
 						By("first request", func() {
-							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+							resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
 							Expect(err).Should(Succeed())
 							Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 							Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -218,7 +218,7 @@ var _ = Describe("CachingResolver", func() {
 
 						By("second request", func() {
 							Eventually(func(g Gomega) {
-								resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+								resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
 								g.Expect(err).Should(Succeed())
 								g.Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
 								g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -239,7 +239,12 @@ var _ = Describe("CachingResolver", func() {
 		When("max caching time is defined", func() {
 
 			BeforeEach(func() {
-				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1230, dns.TypeAAAA, "2001:0db8:85a3:08d3:1319:8a2e:0370:7344")
+				mockAnswer, _ = util.NewMsgWithAnswer(
+					"example.com.",
+					1230,
+					dns.Type(dns.TypeAAAA),
+					"2001:0db8:85a3:08d3:1319:8a2e:0370:7344",
+				)
 			})
 			Context("max caching time is negative -> caching is disabled", func() {
 				BeforeEach(func() {
@@ -250,7 +255,7 @@ var _ = Describe("CachingResolver", func() {
 
 				It("Shouldn't cache any responses", func() {
 					By("first request", func() {
-						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+						resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
 						Expect(err).Should(Succeed())
 						Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -261,7 +266,7 @@ var _ = Describe("CachingResolver", func() {
 
 					By("second request", func() {
 						Eventually(func(g Gomega) {
-							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+							resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
 							g.Expect(err).Should(Succeed())
 							g.Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 							g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -282,7 +287,7 @@ var _ = Describe("CachingResolver", func() {
 				})
 				It("should cache response and use max caching time as TTL if response TTL is bigger", func() {
 					By("first request", func() {
-						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+						resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
 						Expect(err).Should(Succeed())
 						Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -293,7 +298,7 @@ var _ = Describe("CachingResolver", func() {
 
 					By("second request", func() {
 						Eventually(func(g Gomega) {
-							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+							resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
 							g.Expect(err).Should(Succeed())
 							g.Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
 							g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -309,7 +314,7 @@ var _ = Describe("CachingResolver", func() {
 		})
 		When("Entry expires in cache", func() {
 			BeforeEach(func() {
-				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1, dns.TypeA, "1.1.1.1")
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1, dns.Type(dns.TypeA), "1.1.1.1")
 			})
 			Context("max caching time is defined", func() {
 				BeforeEach(func() {
@@ -319,7 +324,7 @@ var _ = Describe("CachingResolver", func() {
 				})
 				It("should cache response and return 0 TTL if entry is expired", func() {
 					By("first request", func() {
-						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+						resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 						Expect(err).Should(Succeed())
 						Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -330,7 +335,7 @@ var _ = Describe("CachingResolver", func() {
 
 					By("second request", func() {
 						Eventually(func(g Gomega) {
-							resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+							resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 							g.Expect(err).Should(Succeed())
 							g.Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
 							g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -355,7 +360,7 @@ var _ = Describe("CachingResolver", func() {
 
 			It("response should be cached", func() {
 				By("first request", func() {
-					resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+					resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
 					Expect(err).Should(Succeed())
 					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
@@ -364,7 +369,7 @@ var _ = Describe("CachingResolver", func() {
 
 				By("second request", func() {
 					Eventually(func(g Gomega) {
-						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+						resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
 						g.Expect(err).Should(Succeed())
 						g.Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
 						g.Expect(resp.Reason).Should(Equal("CACHED NEGATIVE"))
@@ -386,7 +391,7 @@ var _ = Describe("CachingResolver", func() {
 
 			It("response shouldn't be cached", func() {
 				By("first request", func() {
-					resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+					resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
 					Expect(err).Should(Succeed())
 					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
@@ -395,7 +400,7 @@ var _ = Describe("CachingResolver", func() {
 
 				By("second request", func() {
 					Eventually(func(g Gomega) {
-						resp, err = sut.Resolve(newRequest("example.com.", dns.TypeAAAA))
+						resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
 						g.Expect(err).Should(Succeed())
 						g.Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 						g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
@@ -410,11 +415,11 @@ var _ = Describe("CachingResolver", func() {
 	Describe("Not A / AAAA queries should also cached", func() {
 		When("MX query will be performed", func() {
 			BeforeEach(func() {
-				mockAnswer, _ = util.NewMsgWithAnswer("google.de.", 180, dns.TypeMX, "10 alt1.aspmx.l.google.com.")
+				mockAnswer, _ = util.NewMsgWithAnswer("google.de.", 180, dns.Type(dns.TypeMX), "10 alt1.aspmx.l.google.com.")
 			})
 			It("Should be cached", func() {
 				By("first request", func() {
-					resp, err = sut.Resolve(newRequest("google.de.", dns.TypeMX))
+					resp, err = sut.Resolve(newRequest("google.de.", dns.Type(dns.TypeMX)))
 					Expect(err).Should(Succeed())
 					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -424,7 +429,7 @@ var _ = Describe("CachingResolver", func() {
 
 				By("second request", func() {
 					Eventually(func(g Gomega) {
-						resp, err = sut.Resolve(newRequest("google.de.", dns.TypeMX))
+						resp, err = sut.Resolve(newRequest("google.de.", dns.Type(dns.TypeMX)))
 						g.Expect(err).Should(Succeed())
 						g.Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
 						g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -444,7 +449,7 @@ var _ = Describe("CachingResolver", func() {
 			})
 			It("should return configuration", func() {
 				c := sut.Configuration()
-				Expect(len(c) > 1).Should(BeTrue())
+				Expect(len(c)).Should(BeNumerically(">", 1))
 			})
 		})
 
@@ -454,7 +459,7 @@ var _ = Describe("CachingResolver", func() {
 					MaxCachingTime: config.Duration(time.Minute * -1),
 				}
 			})
-			It("should return 'disabled''", func() {
+			It("should return 'disabled'", func() {
 				c := sut.Configuration()
 				Expect(c).Should(HaveLen(1))
 				Expect(c).Should(Equal([]string{"deactivated"}))
@@ -469,7 +474,7 @@ var _ = Describe("CachingResolver", func() {
 			})
 			It("should return configuration", func() {
 				c := sut.Configuration()
-				Expect(len(c) > 1).Should(BeTrue())
+				Expect(len(c)).Should(BeNumerically(">", 1))
 				Expect(c).Should(ContainElement(ContainSubstring("prefetchThreshold")))
 			})
 		})
@@ -506,16 +511,16 @@ var _ = Describe("CachingResolver", func() {
 				sutConfig = config.CachingConfig{
 					MaxCachingTime: config.Duration(time.Second * 10),
 				}
-				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1000, dns.TypeA, "1.1.1.1")
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1000, dns.Type(dns.TypeA), "1.1.1.1")
 
 				sut = NewCachingResolver(sutConfig, redisClient)
-				m = &resolverMock{}
+				m = &MockResolver{}
 				m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 				sut.Next(m)
 			})
 
 			It("put in redis", func() {
-				resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+				resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 				Expect(err).Should(Succeed())
 
 				Eventually(func() []string {
@@ -524,9 +529,9 @@ var _ = Describe("CachingResolver", func() {
 			})
 
 			It("load", func() {
-				request := newRequest("example2.com.", dns.TypeA)
+				request := newRequest("example2.com.", dns.Type(dns.TypeA))
 				domain := util.ExtractDomain(request.Req.Question[0])
-				cacheKey := util.GenerateCacheKey(dns.TypeA, domain)
+				cacheKey := util.GenerateCacheKey(dns.Type(dns.TypeA), domain)
 				redisMockMsg := &redis.CacheMessage{
 					Key: cacheKey,
 					Response: &Response{

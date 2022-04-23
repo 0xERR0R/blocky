@@ -167,8 +167,8 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// validate query type
-	qType := dns.StringToType[queryRequest.Type]
-	if qType == dns.TypeNone {
+	qType := dns.Type(dns.StringToType[queryRequest.Type])
+	if qType == dns.Type(dns.TypeNone) {
 		err = fmt.Errorf("unknown query type '%s'", queryRequest.Type)
 		logAndResponseWithError(err, "unknown query type: ", rw)
 
@@ -192,12 +192,18 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	jsonResponse, _ := json.Marshal(api.QueryResult{
+	jsonResponse, err := json.Marshal(api.QueryResult{
 		Reason:       response.Reason,
 		ResponseType: response.RType.String(),
 		Response:     util.AnswerToString(response.Res.Answer),
 		ReturnCode:   dns.RcodeToString[response.Res.Rcode],
 	})
+
+	if err != nil {
+		logAndResponseWithError(err, "unable to marshal response: ", rw)
+		return
+	}
+
 	_, err = rw.Write(jsonResponse)
 	logAndResponseWithError(err, "unable to write response: ", rw)
 }
@@ -224,6 +230,11 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 			Title string
 		}
 
+		swaggerVersion := "master"
+		if util.Version != "undefined" {
+			swaggerVersion = util.Version
+		}
+
 		type PageData struct {
 			Links     []HandlerLink
 			Version   string
@@ -235,9 +246,11 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 			BuildTime: util.BuildTime,
 		}
 		pd.Links = []HandlerLink{
-
 			{
-				URL:   "https://htmlpreview.github.io/?https://github.com/0xERR0R/blocky/blob/master/docs/swagger.html",
+				URL: fmt.Sprintf(
+					"https://htmlpreview.github.io/?https://github.com/0xERR0R/blocky/blob/%s/docs/swagger.html",
+					swaggerVersion,
+				),
 				Title: "Swagger Rest API Documentation (Online @GitHub)",
 			},
 			{

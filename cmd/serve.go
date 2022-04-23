@@ -1,11 +1,9 @@
 package cmd
 
 import (
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
@@ -18,7 +16,8 @@ import (
 
 //nolint:gochecknoglobals
 var (
-	done chan bool
+	done              chan bool
+	isConfigMandatory = true
 )
 
 func newServeCommand() *cobra.Command {
@@ -33,18 +32,18 @@ func newServeCommand() *cobra.Command {
 func startServer(_ *cobra.Command, _ []string) {
 	printBanner()
 
-	config.LoadConfig(configPath, true)
-	log.ConfigureLogger(config.GetConfig().LogLevel, config.GetConfig().LogFormat, config.GetConfig().LogTimestamp)
+	cfg, err := config.LoadConfig(configPath, isConfigMandatory)
+	util.FatalOnError("unable to load configuration: ", err)
 
-	configureHTTPClient(config.GetConfig())
+	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
 	signals := make(chan os.Signal, 1)
 	done = make(chan bool, 1)
 
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
-	srv, err := server.NewServer(config.GetConfig())
-	util.FatalOnError("cant start server: ", err)
+	srv, err := server.NewServer(cfg)
+	util.FatalOnError("can't start server: ", err)
 
 	srv.Start()
 
@@ -57,13 +56,6 @@ func startServer(_ *cobra.Command, _ []string) {
 
 	evt.Bus().Publish(evt.ApplicationStarted, util.Version, util.BuildTime)
 	<-done
-}
-
-func configureHTTPClient(cfg *config.Config) {
-	http.DefaultTransport = &http.Transport{
-		Dial:                (util.Dialer(cfg)).Dial,
-		TLSHandshakeTimeout: 5 * time.Second,
-	}
 }
 
 func printBanner() {

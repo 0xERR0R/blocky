@@ -89,31 +89,25 @@ type BlockingResolver struct {
 }
 
 // NewBlockingResolver returns a new configured instance of the resolver
-func NewBlockingResolver(cfg config.BlockingConfig, redis *redis.Client) (ChainedResolver, error) {
+func NewBlockingResolver(cfg config.BlockingConfig,
+	redis *redis.Client, bootstrap *Bootstrap) (r ChainedResolver, err error) {
 	blockHandler := createBlockHandler(cfg)
 	refreshPeriod := time.Duration(cfg.RefreshPeriod)
 	timeout := time.Duration(cfg.DownloadTimeout)
 	cooldown := time.Duration(cfg.DownloadCooldown)
+	transport := bootstrap.NewHTTPTransport()
 	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists, refreshPeriod,
-		timeout, cfg.DownloadAttempts, cooldown)
+		timeout, cfg.DownloadAttempts, cooldown, transport)
 	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists, refreshPeriod,
-		timeout, cfg.DownloadAttempts, cooldown)
+		timeout, cfg.DownloadAttempts, cooldown, transport)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
-	var err error
-	if blErr != nil {
-		err = multierror.Append(err, blErr)
-	}
-
-	if wlErr != nil {
-		err = multierror.Append(err, wlErr)
-	}
-
+	err = multierror.Append(err, blErr, wlErr).ErrorOrNil()
 	if err != nil && cfg.FailStartOnListError {
-		return nil, multierror.Prefix(err, "blocking resolver: ")
+		return nil, err
 	}
 
-	cgb := make(map[string][]string)
+	cgb := make(map[string][]string, len(cfg.ClientGroupsBlock))
 
 	for identifier, cfgGroups := range cfg.ClientGroupsBlock {
 		for _, ipart := range strings.Split(identifier, ",") {
@@ -181,7 +175,7 @@ func (r *BlockingResolver) RefreshLists() {
 
 // nolint:prealloc
 func (r *BlockingResolver) retrieveAllBlockingGroups() []string {
-	groups := make(map[string]bool)
+	groups := make(map[string]bool, len(r.cfg.BlackLists))
 
 	for group := range r.cfg.BlackLists {
 		groups[group] = true
@@ -282,7 +276,7 @@ func (r *BlockingResolver) BlockingStatus() api.BlockingStatus {
 
 // returns groups, which have only whitelist entries
 func determineWhitelistOnlyGroups(cfg *config.BlockingConfig) (result map[string]bool) {
-	result = make(map[string]bool)
+	result = make(map[string]bool, len(cfg.WhiteLists))
 
 	for g, links := range cfg.WhiteLists {
 		if len(links) > 0 {
@@ -558,10 +552,11 @@ func (b ipBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
 }
 
 func (r *BlockingResolver) queryForFQIdentifierIPs(identifier string) (result []net.IP, ttl time.Duration) {
-	for _, mType := range []uint16{dns.TypeA, dns.TypeAAAA} {
-		prefixedLog := log.PrefixedLog("FQDNClientIdentifierCache")
+	prefixedLog := log.PrefixedLog("FQDNClientIdentifierCache")
+
+	for _, qType := range []uint16{dns.TypeA, dns.TypeAAAA} {
 		resp, err := r.next.Resolve(&model.Request{
-			Req: util.NewMsgWithQuestion(identifier, mType),
+			Req: util.NewMsgWithQuestion(identifier, dns.Type(qType)),
 			Log: prefixedLog,
 		})
 

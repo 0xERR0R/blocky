@@ -3,6 +3,7 @@ package querylog
 import (
 	"time"
 
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
@@ -11,7 +12,7 @@ import (
 
 	. "github.com/onsi/gomega"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 )
 
 var _ = Describe("DatabaseWriter", func() {
@@ -23,10 +24,10 @@ var _ = Describe("DatabaseWriter", func() {
 				writer, err := newDatabaseWriter(sqlite, 7, time.Millisecond)
 				Expect(err).Should(Succeed())
 				request := &model.Request{
-					Req: util.NewMsgWithQuestion("google.de.", dns.TypeA),
-					Log: logrus.NewEntry(logrus.New()),
+					Req: util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)),
+					Log: logrus.NewEntry(log.Log()),
 				}
-				res, err := util.NewMsgWithAnswer("example.com", 123, dns.TypeA, "123.124.122.122")
+				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
 
 				Expect(err).Should(Succeed())
 				response := &model.Response{
@@ -34,7 +35,7 @@ var _ = Describe("DatabaseWriter", func() {
 					Reason: "Resolved",
 					RType:  model.ResponseTypeRESOLVED,
 				}
-				writer.Write(&Entry{
+				writer.Write(&LogEntry{
 					Request:    request,
 					Response:   response,
 					Start:      time.Now(),
@@ -56,10 +57,10 @@ var _ = Describe("DatabaseWriter", func() {
 				Expect(err).Should(Succeed())
 
 				request := &model.Request{
-					Req: util.NewMsgWithQuestion("google.de.", dns.TypeA),
-					Log: logrus.NewEntry(logrus.New()),
+					Req: util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)),
+					Log: logrus.NewEntry(log.Log()),
 				}
-				res, err := util.NewMsgWithAnswer("example.com", 123, dns.TypeA, "123.124.122.122")
+				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
 
 				Expect(err).Should(Succeed())
 				response := &model.Response{
@@ -69,7 +70,7 @@ var _ = Describe("DatabaseWriter", func() {
 				}
 
 				// one entry with now as timestamp
-				writer.Write(&Entry{
+				writer.Write(&LogEntry{
 					Request:    request,
 					Response:   response,
 					Start:      time.Now(),
@@ -77,7 +78,7 @@ var _ = Describe("DatabaseWriter", func() {
 				})
 
 				// one entry before 2 days -> should be deleted
-				writer.Write(&Entry{
+				writer.Write(&LogEntry{
 					Request:    request,
 					Response:   response,
 					Start:      time.Now().AddDate(0, 0, -2),

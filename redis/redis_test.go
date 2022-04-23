@@ -9,39 +9,40 @@ import (
 	"github.com/creasty/defaults"
 	"github.com/google/uuid"
 	"github.com/miekg/dns"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
+var (
+	redisServer *miniredis.Miniredis
+	redisClient *Client
+	redisConfig *config.RedisConfig
+	err         error
+)
+
+var _ = BeforeSuite(func() {
+	redisServer, err = miniredis.Run()
+
+	Expect(err).Should(Succeed())
+
+	var rcfg config.RedisConfig
+	err = defaults.Set(&rcfg)
+
+	Expect(err).Should(Succeed())
+
+	rcfg.Address = redisServer.Addr()
+	redisConfig = &rcfg
+	redisClient, err = New(redisConfig)
+
+	Expect(err).Should(Succeed())
+	Expect(redisClient).ShouldNot(BeNil())
+})
+
+var _ = AfterSuite(func() {
+	redisServer.Close()
+})
+
 var _ = Describe("Redis client", func() {
-
-	var (
-		redisServer *miniredis.Miniredis
-		redisClient *Client
-		redisConfig *config.RedisConfig
-		err         error
-	)
-
-	BeforeSuite(func() {
-		redisServer, err = miniredis.Run()
-
-		Expect(err).Should(Succeed())
-
-		var rcfg config.RedisConfig
-		err = defaults.Set(&rcfg)
-
-		Expect(err).Should(Succeed())
-
-		rcfg.Address = redisServer.Addr()
-		redisConfig = &rcfg
-		redisClient, err = New(redisConfig)
-
-		Expect(err).Should(Succeed())
-		Expect(redisClient).ShouldNot(BeNil())
-	})
-	AfterSuite(func() {
-		redisServer.Close()
-	})
 	When("created", func() {
 		It("with no address", func() {
 			var rcfg config.RedisConfig
@@ -61,7 +62,7 @@ var _ = Describe("Redis client", func() {
 			err = defaults.Set(&rcfg)
 			Expect(err).Should(Succeed())
 
-			rcfg.Address = "test:123"
+			rcfg.Address = "127.0.0.1:0"
 
 			_, err = New(&rcfg)
 
@@ -84,7 +85,7 @@ var _ = Describe("Redis client", func() {
 		It("cache works", func() {
 			var res *dns.Msg
 
-			res, err = util.NewMsgWithAnswer("example.com.", 123, dns.TypeA, "123.124.122.123")
+			res, err = util.NewMsgWithAnswer("example.com.", 123, dns.Type(dns.TypeA), "123.124.122.123")
 
 			Expect(err).Should(Succeed())
 
@@ -163,7 +164,7 @@ var _ = Describe("Redis client", func() {
 			var res *dns.Msg
 
 			origCount := len(redisClient.CacheChannel)
-			res, err = util.NewMsgWithAnswer("example.com.", 123, dns.TypeA, "123.124.122.123")
+			res, err = util.NewMsgWithAnswer("example.com.", 123, dns.Type(dns.TypeA), "123.124.122.123")
 
 			Expect(err).Should(Succeed())
 

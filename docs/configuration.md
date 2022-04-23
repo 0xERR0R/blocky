@@ -19,8 +19,6 @@ configuration properties as [JSON](config.yml).
 | httpsPort    | [IP]:port[,[IP]:port]*          | no                    |               | Port(s) and optional bind ip address(es) to serve HTTPS used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:443`. Example: `443`, `:443`, `127.0.0.1:443,[::1]:443`     |
 | certFile     | path                            | yes, if httpsPort > 0 |               | Path to cert and key file for SSL encryption (DoH and DoT)                                                                                                                                                                                        |
 | keyFile      | path                            | yes, if httpsPort > 0 |               | Path to cert and key file for SSL encryption (DoH and DoT)
-| bootstrapDns | IP:port                         | no                    |               | Use this DNS server to resolve blacklist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. NOTE: Works only on Linux/*Nix OS due to golang limitations under windows.               |
-| disableIPv6  | bool                            | no                    | false         | Drop all AAAA query if set to true                                                                                                                                                                                                                |
 | logLevel     | enum (debug, info, warn, error) | no                    | info          | Log level                                                                                                                                                                                                                                         |
 | logFormat    | enum (text, json)               | no                    | text          | Log format (text or json).                                                                                                                                                                                                                        |
 | logTimestamp | bool                            | no                    | true          | Log time stamps (true or false).                                                                                                                                                                                                                  |
@@ -73,15 +71,15 @@ CIDR notation.
     ```yaml
     upstream:
       default:
-      - 5.9.164.112
-      - 1.1.1.1
-      - tcp-tls:fdns1.dismail.de:853
-      - https://dns.digitale-gesellschaft.ch/dns-query
+        - 5.9.164.112
+        - 1.1.1.1
+        - tcp-tls:fdns1.dismail.de:853
+        - https://dns.digitale-gesellschaft.ch/dns-query
       laptop*:
-      - 123.123.123.123
+        - 123.123.123.123
       10.43.8.67/28:
-      - 1.1.1.1
-      - 9.9.9.9
+        - 1.1.1.1
+        - 9.9.9.9
     ```
 
 Use `123.123.123.123` as single upstream DNS resolver for client laptop-home,
@@ -103,11 +101,52 @@ value by setting the `upstreamTimeout` configuration parameter (in **duration fo
 
     ```yaml
     upstream:
-        default:
+      default:
         - 46.182.19.48
         - 80.241.218.68
     upstreamTimeout: 5s
     ```
+
+## Bootstrap DNS configuration
+
+This DNS server is used to resolve upstream DoH and DoT servers that are specified as hostnames.
+Useful if no system DNS resolver is configured, and to encrypt the bootstrap queries.
+
+| Parameter | Type                             | Mandatory                   | Default value | Description                          |
+|-----------|----------------------------------|-----------------------------|---------------|--------------------------------------|
+| upstream  | Upstream (see below)             | no                          |               |                                      |
+| ips       | List of IPs                      | yes, if upstream is DoT/DoH |               | Only valid if upstream is DoH or DoT |
+
+If you only need to specify upstream, you can use the short form: `bootstrapDns: <upstream>`.
+
+!!! note
+
+Works only on Linux/\*nix OS due to golang limitations under Windows.
+
+!!! example
+
+    ```yaml
+        bootstrapDns:
+          upstream: tcp-tls:dns.example.com
+          ips:
+          - 123.123.123.123
+    ```
+
+
+## Filtering
+
+Under certain circumstances, it may be useful to filter some types of DNS queries. You can define one or more DNS query
+types, all queries with these types will be dropped (empty answer will be returned).
+
+!!! example
+
+    ```yaml
+    filtering:
+      queryTypes:
+        - AAAA
+    ```
+
+This configuration will drop all 'AAAA' (IPv6) queries.
 
 ## Custom DNS
 
@@ -115,23 +154,37 @@ You can define your own domain name to IP mappings. For example, you can use a u
 or define a domain name for your local device on order to use the HTTPS certificate. Multiple IP addresses for one
 domain must be separated by a comma.
 
-| Parameter | Type                                    | Mandatory | Default value |
-|-----------|-----------------------------------------|-----------|---------------|
-| customTTL | duration (no unit is minutes)           | no        | 1h            |
-| mapping   | string: string (hostname: address list) | no        |               |
+| Parameter | Type                                                | Mandatory | Default value |
+|-----------------------|-----------------------------------------|-----------|---------------|
+| customTTL             | duration (no unit is minutes)           | no        | 1h            |
+| rewrite               | string: string (domain: domain)         | no        |               |
+| mapping               | string: string (hostname: address list) | no        |               |
+| filterUnmappedTypes   | boolean                                 | no        | true          |
 
 !!! example
 
     ```yaml
     customDNS:
-        customTTL: 1h
-    mapping:
+      customTTL: 1h
+      filterUnmappedTypes: true
+      rewrite:
+        home: lan
+        replace-me.com: with-this.com
+      mapping:
         printer.lan: 192.168.178.3
         otherdevice.lan: 192.168.178.15,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
     ```
 
 This configuration will also resolve any subdomain of the defined domain. For example a query "printer.lan" or "
-my.printer.lan" will return 192.168.178.3 as IP address.
+my.printer.lan" will return 192.168.178.3 as IP address.  
+
+With the optional parameter `rewrite` you can replace domain part of the query with the defined part **before** the
+resolver lookup is performed.  
+The query "printer.home" will be rewritten to "printer.lan" and return 192.168.178.3.
+
+With parameter `filterUnmappedTypes = true` (default), blocky will filter all queries with unmapped types, for example:
+AAAA for "printer.lan" or TXT for "otherdevice.lan".
+With `filterUnmappedTypes = true` a query AAAA "printer.lan" will be forwarded to the upstream DNS server.
 
 ## Conditional DNS resolution
 
@@ -139,23 +192,22 @@ You can define, which DNS resolver(s) should be used for queries for the particu
 is for example useful, if you want to reach devices in your local network by the name. Since only your router know which
 hostname belongs to which IP address, all DNS queries for the local network should be redirected to the router.
 
-With the optional parameter `rewrite` you can replace domain part of the query with the defined part **before** the
-resolver lookup is performed.
+The optional parameter `rewrite` behaves the same as with custom DNS.
 
 !!! example
 
     ```yaml
     conditional:
-        rewrite:
-            example.com: fritz.box
-            replace-me.com: with-this.com
-        mapping:
-            fritz.box: 192.168.178.1
-            lan.net: 192.170.1.2,192.170.1.3
-            # for reverse DNS lookups of local devices
-            178.168.192.in-addr.arpa: 192.168.178.1
-            # for all unqualified hostnames
-            .: 168.168.0.1
+      rewrite:
+        example.com: fritz.box
+        replace-me.com: with-this.com
+      mapping:
+        fritz.box: 192.168.178.1
+        lan.net: 192.170.1.2,192.170.1.3
+        # for reverse DNS lookups of local devices
+        178.168.192.in-addr.arpa: 192.168.178.1
+        # for all unqualified hostnames
+        .: 168.168.0.1
     ```
 
 !!! tip
@@ -163,7 +215,7 @@ resolver lookup is performed.
     You can use `.` as wildcard for all non full qualified domains (domains without dot)
 
 In this example, a DNS query "client.fritz.box" will be redirected to the router's DNS server at 192.168.178.1 and client.lan.net to 192.170.1.2 and 192.170.1.3.
-The query client.example.com will be rewritten to "client.fritz.box" and also redirected to the resolver at 192.168.178.1. All unqualified hostnames (e.g. 'test')
+The query "client.example.com" will be rewritten to "client.fritz.box" and also redirected to the resolver at 192.168.178.1. All unqualified hostnames (e.g. "test")
 will be redirected to the DNS server at 168.168.0.1
 
 
@@ -205,13 +257,13 @@ contains a map of client name and multiple IP addresses.
 
     ```yaml
     clientLookup:
-        upstream: 192.168.178.1
-        singleNameOrder:
-          - 2
-          - 1
-        clients:
-          laptop:
-            - 192.168.178.29
+      upstream: 192.168.178.1
+      singleNameOrder:
+        - 2
+        - 1
+      clients:
+        laptop:
+          - 192.168.178.29
     ```
 
     Use `192.168.178.1` for rDNS lookup. Take second name if present, if not take first name. IP address `192.168.178.29` is mapped to `laptop` as client name.
@@ -237,16 +289,16 @@ in hosts format (YAML literal block scalar style). All Urls must be grouped to a
 
     ```yaml
     blocking:
-    blackLists:
-    ads:
-    - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
-    - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
-    - |
-    # inline definition with YAML literal block scalar style
-    someadsdomain.com
-    anotheradsdomain.com
-    # this is a regex
-    /^banners?[_.-]/
+      blackLists:
+        ads:
+          - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
+          - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+          - |
+            # inline definition with YAML literal block scalar style
+            someadsdomain.com
+            anotheradsdomain.com
+            # this is a regex
+            /^banners?[_.-]/
         special:
           - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
       whiteLists:
@@ -295,18 +347,18 @@ If client's IP address matches with the result, the defined group will be used.
 
     ```yaml
     blocking:
-        clientGroupsBlock:
-        # default will be used, if no special definition for a client name exists
-          default:
-            - ads
-            - special
-          laptop*:
-            - ads
-          192.168.178.1/24:
-            - special
-          kid-laptop:
-            - ads
-            - adult
+      clientGroupsBlock:
+      # default will be used, if no special definition for a client name exists
+        default:
+          - ads
+          - special
+        laptop*:
+          - ads
+        192.168.178.1/24:
+          - special
+        kid-laptop:
+          - ads
+          - adult
     ```
 
     All queries from network clients, whose device name starts with `laptop`, will be filtered against the **ads** group's lists. All devices from the subnet `192.168.178.1/24` against the **special** group and `kid-laptop` against **ads** and **adult**. All other clients: **ads** and **special**.
@@ -330,14 +382,15 @@ queries, NXDOMAIN for other types):
 
     ```yaml
     blocking:
-    blockType: nxDomain
+      blockType: nxDomain
     ```
 
 ### Block TTL
 
 TTL for answers to blocked domains can be set to customize the time (in **duration format**) clients ask for those
-domains again. This setting only makes sense when `blockType` is set to `nxDomain` or `zeroIP`, and will affect how much
-time it could take for a client to be able to see the real IP address for a domain after receiving the custom value.
+domains again. Default Block TTL is **6hours**. This setting only makes sense when `blockType` is set to `nxDomain` or
+`zeroIP`, and will affect how much time it could take for a client to be able to see the real IP address for a domain
+after receiving the custom value.
 
 !!! example
 
@@ -357,8 +410,8 @@ Negative value will deactivate automatically refresh.
 
     ```yaml
     blocking:
-    refreshPeriod: 60m
-```
+      refreshPeriod: 60m
+    ```
 
 Refresh every hour.
 
@@ -376,9 +429,9 @@ You can configure the list download attempts according to your internet connecti
 
     ```yaml
     blocking:
-        downloadTimeout: 4m
-        downloadAttempts: 5
-        downloadCooldown: 10s
+      downloadTimeout: 4m
+      downloadAttempts: 5
+      downloadCooldown: 10s
     ```
 
 ### Fail on start
@@ -390,7 +443,7 @@ downloaded or opened. Default value is `false`.
 
     ```yaml
     blocking:
-     failStartOnListError: false
+      failStartOnListError: false
     ```
 
 ## Caching
@@ -421,9 +474,9 @@ With following parameters you can tune the caching behavior:
 
     ```yaml
     caching:
-        minTime: 5m
-        maxTime: 30m
-        prefetching: true
+      minTime: 5m
+      maxTime: 30m
+      prefetching: true
     ```
 
 ## Redis
@@ -444,12 +497,12 @@ Synchronization is disabled if no address is configured.
 
     ```yaml
     redis:
-        address: redis:6379
-        password: passwd
-        database: 2
-        required: true
-        connectionAttempts: 10
-        connectionCooldown: 3s
+      address: redis:6379
+      password: passwd
+      database: 2
+      required: true
+      connectionAttempts: 10
+      connectionCooldown: 3s
     ```
 
 ## Prometheus
@@ -466,8 +519,8 @@ see [Basic Configuration](#basic-configuration)).
 
     ```yaml
     prometheus:
-        enable: true
-        path: /metrics
+      enable: true
+      path: /metrics
     ```
 
 ## Query logging
@@ -510,9 +563,9 @@ example for CSV format
 
     ```yaml
     queryLog:
-        type: csv
-        target: /logs
-        logRetentionDays: 7
+      type: csv
+      target: /logs
+      logRetentionDays: 7
     ```
 
 example for Database
@@ -520,9 +573,9 @@ example for Database
 
     ```yaml
     queryLog:
-        type: mysql
-        target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
-        logRetentionDays: 7
+      type: mysql
+      target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
+      logRetentionDays: 7
     ```
 
 ### Hosts file
@@ -541,9 +594,9 @@ Configuration parameters:
 
     ```yaml
     hostsFile:
-        filePath: /etc/hosts
-        hostsTTL: 60m
-        refreshPeriod: 30m
+      filePath: /etc/hosts
+      hostsTTL: 60m
+      refreshPeriod: 30m
     ```
 
 ## SSL certificate configuration (DoH / TLS listener)

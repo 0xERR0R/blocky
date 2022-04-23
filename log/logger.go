@@ -3,6 +3,7 @@ package log
 //go:generate go-enum -f=$GOFILE --marshal --names
 
 import (
+	"io/ioutil"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -82,4 +83,9 @@ func ConfigureLogger(logLevel Level, formatType FormatType, logTimestamp bool) {
 	case FormatTypeJson:
 		logger.SetFormatter(&logrus.JSONFormatter{})
 	}
+}
+
+// Silence disables the logger output
+func Silence() {
+	logger.Out = ioutil.Discard
 }

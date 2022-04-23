@@ -16,7 +16,7 @@ import (
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -43,15 +43,15 @@ var _ = Describe("FileWriter", func() {
 				tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
 				Expect(err).Should(Succeed())
 				writer, _ := NewCSVWriter(tmpDir, false, 0)
-				res, err := util.NewMsgWithAnswer("example.com", 123, dns.TypeA, "123.124.122.122")
+				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
 
 				Expect(err).Should(Succeed())
 
 				By("entry for client 1", func() {
-					writer.Write(&Entry{
+					writer.Write(&LogEntry{
 						Request: &model.Request{
 							ClientNames: []string{"client1"},
-							Req:         util.NewMsgWithQuestion("google.de.", dns.TypeA),
+							Req:         util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)),
 							RequestTS:   time.Time{},
 						},
 						Response: &model.Response{
@@ -65,10 +65,10 @@ var _ = Describe("FileWriter", func() {
 				})
 
 				By("entry for client 2", func() {
-					writer.Write(&Entry{
+					writer.Write(&LogEntry{
 						Request: &model.Request{
 							ClientNames: []string{"client2"},
-							Req:         util.NewMsgWithQuestion("google.de.", dns.TypeA),
+							Req:         util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)),
 							RequestTS:   time.Time{},
 						},
 						Response: &model.Response{
@@ -90,15 +90,15 @@ var _ = Describe("FileWriter", func() {
 				tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
 				Expect(err).Should(Succeed())
 				writer, _ := NewCSVWriter(tmpDir, true, 0)
-				res, err := util.NewMsgWithAnswer("example.com", 123, dns.TypeA, "123.124.122.122")
+				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
 
 				Expect(err).Should(Succeed())
 
 				By("entry for client 1", func() {
-					writer.Write(&Entry{
+					writer.Write(&LogEntry{
 						Request: &model.Request{
 							ClientNames: []string{"client1"},
-							Req:         util.NewMsgWithQuestion("google.de.", dns.TypeA),
+							Req:         util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)),
 							RequestTS:   time.Time{},
 						},
 						Response: &model.Response{
@@ -112,10 +112,10 @@ var _ = Describe("FileWriter", func() {
 				})
 
 				By("entry for client 2", func() {
-					writer.Write(&Entry{
+					writer.Write(&LogEntry{
 						Request: &model.Request{
 							ClientNames: []string{"client2"},
-							Req:         util.NewMsgWithQuestion("google.de.", dns.TypeA),
+							Req:         util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)),
 							RequestTS:   time.Time{},
 						},
 						Response: &model.Response{
@@ -141,15 +141,15 @@ var _ = Describe("FileWriter", func() {
 				tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
 				Expect(err).Should(Succeed())
 				writer, _ := NewCSVWriter(tmpDir, false, 1)
-				res, err := util.NewMsgWithAnswer("example.com", 123, dns.TypeA, "123.124.122.122")
+				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
 
 				Expect(err).Should(Succeed())
 
 				By("entry today", func() {
-					writer.Write(&Entry{
+					writer.Write(&LogEntry{
 						Request: &model.Request{
 							ClientNames: []string{"client1"},
-							Req:         util.NewMsgWithQuestion("google.de.", dns.TypeA),
+							Req:         util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)),
 							RequestTS:   time.Now(),
 						},
 						Response: &model.Response{
@@ -162,10 +162,10 @@ var _ = Describe("FileWriter", func() {
 					})
 				})
 				By("entry 2 days ago", func() {
-					writer.Write(&Entry{
+					writer.Write(&LogEntry{
 						Request: &model.Request{
 							ClientNames: []string{"client1"},
-							Req:         util.NewMsgWithQuestion("google.de.", dns.TypeA),
+							Req:         util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)),
 							RequestTS:   time.Now(),
 						},
 						Response: &model.Response{

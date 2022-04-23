@@ -9,7 +9,7 @@ import (
 
 	"github.com/0xERR0R/blocky/api"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -87,11 +87,13 @@ var _ = Describe("Blocking command", func() {
 		When("status blocking is called via REST and blocking is enabled", func() {
 			BeforeEach(func() {
 				mockFn = func(w http.ResponseWriter, _ *http.Request) {
-					response, _ := json.Marshal(api.BlockingStatus{
+					response, err := json.Marshal(api.BlockingStatus{
 						Enabled:         true,
 						AutoEnableInSec: uint(5),
 					})
-					_, err := w.Write(response)
+					Expect(err).Should(Succeed())
+
+					_, err = w.Write(response)
 					Expect(err).Should(Succeed())
 				}
 			})
@@ -104,12 +106,14 @@ var _ = Describe("Blocking command", func() {
 			var autoEnable uint
 			BeforeEach(func() {
 				mockFn = func(w http.ResponseWriter, _ *http.Request) {
-					response, _ := json.Marshal(api.BlockingStatus{
+					response, err := json.Marshal(api.BlockingStatus{
 						Enabled:         false,
 						AutoEnableInSec: autoEnable,
 						DisabledGroups:  []string{"abc"},
 					})
-					_, err := w.Write(response)
+					Expect(err).Should(Succeed())
+
+					_, err = w.Write(response)
 					Expect(err).Should(Succeed())
 				}
 			})

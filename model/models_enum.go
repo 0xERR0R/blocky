@@ -13,7 +13,7 @@ import (
 
 const (
 	// RequestProtocolTCP is a RequestProtocol of type TCP.
-	// is the TPC protocol
+	// is the TCP protocol
 	RequestProtocolTCP RequestProtocol = iota
 	// RequestProtocolUDP is a RequestProtocol of type UDP.
 	// is the UDP protocol
@@ -35,8 +35,8 @@ func RequestProtocolNames() []string {
 }
 
 var _RequestProtocolMap = map[RequestProtocol]string{
-	0: _RequestProtocolName[0:3],
-	1: _RequestProtocolName[3:6],
+	RequestProtocolTCP: _RequestProtocolName[0:3],
+	RequestProtocolUDP: _RequestProtocolName[3:6],
 }
 
 // String implements the Stringer interface.
@@ -48,11 +48,11 @@ func (x RequestProtocol) String() string {
 }
 
 var _RequestProtocolValue = map[string]RequestProtocol{
-	_RequestProtocolName[0:3]: 0,
-	_RequestProtocolName[3:6]: 1,
+	_RequestProtocolName[0:3]: RequestProtocolTCP,
+	_RequestProtocolName[3:6]: RequestProtocolUDP,
 }
 
-// ParseRequestProtocol attempts to convert a string to a RequestProtocol
+// ParseRequestProtocol attempts to convert a string to a RequestProtocol.
 func ParseRequestProtocol(name string) (RequestProtocol, error) {
 	if x, ok := _RequestProtocolValue[name]; ok {
 		return x, nil
@@ -60,12 +60,12 @@ func ParseRequestProtocol(name string) (RequestProtocol, error) {
 	return RequestProtocol(0), fmt.Errorf("%s is not a valid RequestProtocol, try [%s]", name, strings.Join(_RequestProtocolNames, ", "))
 }
 
-// MarshalText implements the text marshaller method
+// MarshalText implements the text marshaller method.
 func (x RequestProtocol) MarshalText() ([]byte, error) {
 	return []byte(x.String()), nil
 }
 
-// UnmarshalText implements the text unmarshaller method
+// UnmarshalText implements the text unmarshaller method.
 func (x *RequestProtocol) UnmarshalText(text []byte) error {
 	name := string(text)
 	tmp, err := ParseRequestProtocol(name)
@@ -95,9 +95,12 @@ const (
 	// ResponseTypeHOSTSFILE is a ResponseType of type HOSTSFILE.
 	// the query was resolved by looking up the hosts file
 	ResponseTypeHOSTSFILE
+	// ResponseTypeFILTERED is a ResponseType of type FILTERED.
+	// the query was filtered by query type
+	ResponseTypeFILTERED
 )
 
-const _ResponseTypeName = "RESOLVEDCACHEDBLOCKEDCONDITIONALCUSTOMDNSHOSTSFILE"
+const _ResponseTypeName = "RESOLVEDCACHEDBLOCKEDCONDITIONALCUSTOMDNSHOSTSFILEFILTERED"
 
 var _ResponseTypeNames = []string{
 	_ResponseTypeName[0:8],
@@ -106,6 +109,7 @@ var _ResponseTypeNames = []string{
 	_ResponseTypeName[21:32],
 	_ResponseTypeName[32:41],
 	_ResponseTypeName[41:50],
+	_ResponseTypeName[50:58],
 }
 
 // ResponseTypeNames returns a list of possible string values of ResponseType.
@@ -116,12 +120,13 @@ func ResponseTypeNames() []string {
 }
 
 var _ResponseTypeMap = map[ResponseType]string{
-	0: _ResponseTypeName[0:8],
-	1: _ResponseTypeName[8:14],
-	2: _ResponseTypeName[14:21],
-	3: _ResponseTypeName[21:32],
-	4: _ResponseTypeName[32:41],
-	5: _ResponseTypeName[41:50],
+	ResponseTypeRESOLVED:    _ResponseTypeName[0:8],
+	ResponseTypeCACHED:      _ResponseTypeName[8:14],
+	ResponseTypeBLOCKED:     _ResponseTypeName[14:21],
+	ResponseTypeCONDITIONAL: _ResponseTypeName[21:32],
+	ResponseTypeCUSTOMDNS:   _ResponseTypeName[32:41],
+	ResponseTypeHOSTSFILE:   _ResponseTypeName[41:50],
+	ResponseTypeFILTERED:    _ResponseTypeName[50:58],
 }
 
 // String implements the Stringer interface.
@@ -133,15 +138,16 @@ func (x ResponseType) String() string {
 }
 
 var _ResponseTypeValue = map[string]ResponseType{
-	_ResponseTypeName[0:8]:   0,
-	_ResponseTypeName[8:14]:  1,
-	_ResponseTypeName[14:21]: 2,
-	_ResponseTypeName[21:32]: 3,
-	_ResponseTypeName[32:41]: 4,
-	_ResponseTypeName[41:50]: 5,
+	_ResponseTypeName[0:8]:   ResponseTypeRESOLVED,
+	_ResponseTypeName[8:14]:  ResponseTypeCACHED,
+	_ResponseTypeName[14:21]: ResponseTypeBLOCKED,
+	_ResponseTypeName[21:32]: ResponseTypeCONDITIONAL,
+	_ResponseTypeName[32:41]: ResponseTypeCUSTOMDNS,
+	_ResponseTypeName[41:50]: ResponseTypeHOSTSFILE,
+	_ResponseTypeName[50:58]: ResponseTypeFILTERED,
 }
 
-// ParseResponseType attempts to convert a string to a ResponseType
+// ParseResponseType attempts to convert a string to a ResponseType.
 func ParseResponseType(name string) (ResponseType, error) {
 	if x, ok := _ResponseTypeValue[name]; ok {
 		return x, nil
@@ -149,12 +155,12 @@ func ParseResponseType(name string) (ResponseType, error) {
 	return ResponseType(0), fmt.Errorf("%s is not a valid ResponseType, try [%s]", name, strings.Join(_ResponseTypeNames, ", "))
 }
 
-// MarshalText implements the text marshaller method
+// MarshalText implements the text marshaller method.
 func (x ResponseType) MarshalText() ([]byte, error) {
 	return []byte(x.String()), nil
 }
 
-// UnmarshalText implements the text unmarshaller method
+// UnmarshalText implements the text unmarshaller method.
 func (x *ResponseType) UnmarshalText(text []byte) error {
 	name := string(text)
 	tmp, err := ParseResponseType(name)

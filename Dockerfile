@@ -40,4 +40,4 @@ USER blocky
 WORKDIR /app
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["/app/blocky","--config","/app/config.yml"]
+CMD ["sh", "-c", "/app/blocky --config ${CONFIG_FILE:-/app/config.yml}"]

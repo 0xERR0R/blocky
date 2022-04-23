@@ -17,15 +17,16 @@ import (
 // CustomDNSResolver resolves passed domain name to ip address defined in domain-IP map
 type CustomDNSResolver struct {
 	NextResolver
-	mapping          map[string][]net.IP
-	reverseAddresses map[string][]string
-	ttl              uint32
+	mapping             map[string][]net.IP
+	reverseAddresses    map[string][]string
+	ttl                 uint32
+	filterUnmappedTypes bool
 }
 
 // NewCustomDNSResolver creates new resolver instance
 func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
-	m := make(map[string][]net.IP)
-	reverse := make(map[string][]string)
+	m := make(map[string][]net.IP, len(cfg.Mapping.HostIPs))
+	reverse := make(map[string][]string, len(cfg.Mapping.HostIPs))
 
 	for url, ips := range cfg.Mapping.HostIPs {
 		m[strings.ToLower(url)] = ips
@@ -38,7 +39,12 @@ func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
 
 	ttl := uint32(time.Duration(cfg.CustomTTL).Seconds())
 
-	return &CustomDNSResolver{mapping: m, reverseAddresses: reverse, ttl: ttl}
+	return &CustomDNSResolver{
+		mapping:             m,
+		reverseAddresses:    reverse,
+		ttl:                 ttl,
+		filterUnmappedTypes: cfg.FilterUnmappedTypes,
+	}
 }
 
 // Configuration returns current resolver configuration
@@ -118,8 +124,12 @@ func (r *CustomDNSResolver) Resolve(request *model.Request) (*model.Response, er
 				}
 
 				// Mapping exists for this domain, but for another type
-				// return NOERROR with empty result
+				if !r.filterUnmappedTypes {
+					// go to next resolver
+					break
+				}
 
+				// return NOERROR with empty result
 				return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}, nil
 			}
 

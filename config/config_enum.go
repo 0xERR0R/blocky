@@ -12,15 +12,9 @@ import (
 )
 
 const (
-	// NetProtocolUdp is a NetProtocol of type Udp.
-	// Deprecated: use tcp+udp instead
-	NetProtocolUdp NetProtocol = iota
-	// NetProtocolTcp is a NetProtocol of type Tcp.
-	// Deprecated: use tcp+udp instead
-	NetProtocolTcp
 	// NetProtocolTcpUdp is a NetProtocol of type Tcp+Udp.
 	// TCP and UDP protocols
-	NetProtocolTcpUdp
+	NetProtocolTcpUdp NetProtocol = iota
 	// NetProtocolTcpTls is a NetProtocol of type Tcp-Tls.
 	// TCP-TLS protocol
 	NetProtocolTcpTls
@@ -29,14 +23,12 @@ const (
 	NetProtocolHttps
 )
 
-const _NetProtocolName = "udptcptcp+udptcp-tlshttps"
+const _NetProtocolName = "tcp+udptcp-tlshttps"
 
 var _NetProtocolNames = []string{
-	_NetProtocolName[0:3],
-	_NetProtocolName[3:6],
-	_NetProtocolName[6:13],
-	_NetProtocolName[13:20],
-	_NetProtocolName[20:25],
+	_NetProtocolName[0:7],
+	_NetProtocolName[7:14],
+	_NetProtocolName[14:19],
 }
 
 // NetProtocolNames returns a list of possible string values of NetProtocol.
@@ -47,11 +39,9 @@ func NetProtocolNames() []string {
 }
 
 var _NetProtocolMap = map[NetProtocol]string{
-	0: _NetProtocolName[0:3],
-	1: _NetProtocolName[3:6],
-	2: _NetProtocolName[6:13],
-	3: _NetProtocolName[13:20],
-	4: _NetProtocolName[20:25],
+	NetProtocolTcpUdp: _NetProtocolName[0:7],
+	NetProtocolTcpTls: _NetProtocolName[7:14],
+	NetProtocolHttps:  _NetProtocolName[14:19],
 }
 
 // String implements the Stringer interface.
@@ -63,14 +53,12 @@ func (x NetProtocol) String() string {
 }
 
 var _NetProtocolValue = map[string]NetProtocol{
-	_NetProtocolName[0:3]:   0,
-	_NetProtocolName[3:6]:   1,
-	_NetProtocolName[6:13]:  2,
-	_NetProtocolName[13:20]: 3,
-	_NetProtocolName[20:25]: 4,
+	_NetProtocolName[0:7]:   NetProtocolTcpUdp,
+	_NetProtocolName[7:14]:  NetProtocolTcpTls,
+	_NetProtocolName[14:19]: NetProtocolHttps,
 }
 
-// ParseNetProtocol attempts to convert a string to a NetProtocol
+// ParseNetProtocol attempts to convert a string to a NetProtocol.
 func ParseNetProtocol(name string) (NetProtocol, error) {
 	if x, ok := _NetProtocolValue[name]; ok {
 		return x, nil
@@ -78,12 +66,12 @@ func ParseNetProtocol(name string) (NetProtocol, error) {
 	return NetProtocol(0), fmt.Errorf("%s is not a valid NetProtocol, try [%s]", name, strings.Join(_NetProtocolNames, ", "))
 }
 
-// MarshalText implements the text marshaller method
+// MarshalText implements the text marshaller method.
 func (x NetProtocol) MarshalText() ([]byte, error) {
 	return []byte(x.String()), nil
 }
 
-// UnmarshalText implements the text unmarshaller method
+// UnmarshalText implements the text unmarshaller method.
 func (x *NetProtocol) UnmarshalText(text []byte) error {
 	name := string(text)
 	tmp, err := ParseNetProtocol(name)
@@ -134,12 +122,12 @@ func QueryLogTypeNames() []string {
 }
 
 var _QueryLogTypeMap = map[QueryLogType]string{
-	0: _QueryLogTypeName[0:7],
-	1: _QueryLogTypeName[7:11],
-	2: _QueryLogTypeName[11:16],
-	3: _QueryLogTypeName[16:26],
-	4: _QueryLogTypeName[26:29],
-	5: _QueryLogTypeName[29:39],
+	QueryLogTypeConsole:    _QueryLogTypeName[0:7],
+	QueryLogTypeNone:       _QueryLogTypeName[7:11],
+	QueryLogTypeMysql:      _QueryLogTypeName[11:16],
+	QueryLogTypePostgresql: _QueryLogTypeName[16:26],
+	QueryLogTypeCsv:        _QueryLogTypeName[26:29],
+	QueryLogTypeCsvClient:  _QueryLogTypeName[29:39],
 }
 
 // String implements the Stringer interface.
@@ -151,15 +139,15 @@ func (x QueryLogType) String() string {
 }
 
 var _QueryLogTypeValue = map[string]QueryLogType{
-	_QueryLogTypeName[0:7]:   0,
-	_QueryLogTypeName[7:11]:  1,
-	_QueryLogTypeName[11:16]: 2,
-	_QueryLogTypeName[16:26]: 3,
-	_QueryLogTypeName[26:29]: 4,
-	_QueryLogTypeName[29:39]: 5,
+	_QueryLogTypeName[0:7]:   QueryLogTypeConsole,
+	_QueryLogTypeName[7:11]:  QueryLogTypeNone,
+	_QueryLogTypeName[11:16]: QueryLogTypeMysql,
+	_QueryLogTypeName[16:26]: QueryLogTypePostgresql,
+	_QueryLogTypeName[26:29]: QueryLogTypeCsv,
+	_QueryLogTypeName[29:39]: QueryLogTypeCsvClient,
 }
 
-// ParseQueryLogType attempts to convert a string to a QueryLogType
+// ParseQueryLogType attempts to convert a string to a QueryLogType.
 func ParseQueryLogType(name string) (QueryLogType, error) {
 	if x, ok := _QueryLogTypeValue[name]; ok {
 		return x, nil
@@ -167,12 +155,12 @@ func ParseQueryLogType(name string) (QueryLogType, error) {
 	return QueryLogType(0), fmt.Errorf("%s is not a valid QueryLogType, try [%s]", name, strings.Join(_QueryLogTypeNames, ", "))
 }
 
-// MarshalText implements the text marshaller method
+// MarshalText implements the text marshaller method.
 func (x QueryLogType) MarshalText() ([]byte, error) {
 	return []byte(x.String()), nil
 }
 
-// UnmarshalText implements the text unmarshaller method
+// UnmarshalText implements the text unmarshaller method.
 func (x *QueryLogType) UnmarshalText(text []byte) error {
 	name := string(text)
 	tmp, err := ParseQueryLogType(name)

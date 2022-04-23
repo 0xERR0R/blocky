@@ -58,11 +58,15 @@ func init() {
 }
 
 func initConfig() {
-	config.LoadConfig(configPath, false)
-	log.ConfigureLogger(config.GetConfig().LogLevel, config.GetConfig().LogFormat, config.GetConfig().LogTimestamp)
+	cfg, err := config.LoadConfig(configPath, false)
+	if err != nil {
+		util.FatalOnError("unable to load configuration: ", err)
+	}
 
-	if len(config.GetConfig().HTTPPorts) != 0 {
-		split := strings.Split(config.GetConfig().HTTPPorts[0], ":")
+	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
+
+	if len(cfg.HTTPPorts) != 0 {
+		split := strings.Split(cfg.HTTPPorts[0], ":")
 
 		lastIdx := len(split) - 1
 

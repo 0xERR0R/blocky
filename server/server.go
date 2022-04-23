@@ -18,6 +18,7 @@ import (
 	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/resolver"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/miekg/dns"
@@ -50,22 +51,9 @@ type NewServerFunc func(address string) *dns.Server
 
 // NewServer creates new server instance with passed config
 func NewServer(cfg *config.Config) (server *Server, err error) {
-	var dnsServers []*dns.Server
-
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
-	addServers := func(newServer NewServerFunc, addresses config.ListenConfig) {
-		for _, address := range addresses {
-			dnsServers = append(dnsServers, newServer(getServerAddress(address)))
-		}
-	}
-
-	addServers(createUDPServer, cfg.DNSPorts)
-	addServers(createTCPServer, cfg.DNSPorts)
-
-	addServers(func(address string) *dns.Server {
-		return createTLSServer(address, cfg.CertFile, cfg.KeyFile)
-	}, cfg.TLSPorts)
+	dnsServers := createServers(cfg)
 
 	router := createRouter(cfg)
 
@@ -80,12 +68,17 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	metrics.RegisterEventListeners()
 
+	bootstrap, err := resolver.NewBootstrap(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	redisClient, redisErr := redis.New(&cfg.Redis)
 	if redisErr != nil && cfg.Redis.Required {
 		return nil, redisErr
 	}
 
-	queryResolver, queryError := createQueryResolver(cfg, redisClient)
+	queryResolver, queryError := createQueryResolver(cfg, bootstrap, redisClient)
 	if queryError != nil {
 		return nil, queryError
 	}
@@ -107,6 +100,23 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 	registerResolverAPIEndpoints(router, queryResolver)
 
 	return server, err
+}
+
+func createServers(cfg *config.Config) (dnsServers []*dns.Server) {
+	addServers := func(newServer NewServerFunc, addresses config.ListenConfig) {
+		for _, address := range addresses {
+			dnsServers = append(dnsServers, newServer(getServerAddress(address)))
+		}
+	}
+
+	addServers(createUDPServer, cfg.DNSPorts)
+	addServers(createTCPServer, cfg.DNSPorts)
+
+	addServers(func(address string) *dns.Server {
+		return createTLSServer(address, cfg.CertFile, cfg.KeyFile)
+	}, cfg.TLSPorts)
+
+	return
 }
 
 func createHTTPListeners(cfg *config.Config) (httpListeners []net.Listener, httpsListeners []net.Listener, err error) {
@@ -187,24 +197,44 @@ func createUDPServer(address string) *dns.Server {
 		NotifyStartedFunc: func() {
 			logger().Infof("UDP server is up and running on address %s", address)
 		},
-		UDPSize: 65535}
+		UDPSize: 65535,
+	}
 }
 
-func createQueryResolver(cfg *config.Config, redisClient *redis.Client) (resolver.Resolver, error) {
-	br, brErr := resolver.NewBlockingResolver(cfg.Blocking, redisClient)
+func createQueryResolver(
+	cfg *config.Config,
+	bootstrap *resolver.Bootstrap,
+	redisClient *redis.Client,
+) (r resolver.Resolver, err error) {
+	blockingResolver, blErr := resolver.NewBlockingResolver(cfg.Blocking, redisClient, bootstrap)
+	parallelResolver, pErr := resolver.NewParallelBestResolver(cfg.Upstream.ExternalResolvers, bootstrap)
+	clientNamesResolver, cnErr := resolver.NewClientNamesResolver(cfg.ClientLookup, bootstrap)
+	conditionalUpstreamResolver, cuErr := resolver.NewConditionalUpstreamResolver(cfg.Conditional, bootstrap)
 
-	return resolver.Chain(
-		resolver.NewIPv6Checker(cfg.DisableIPv6),
-		resolver.NewClientNamesResolver(cfg.ClientLookup),
+	mErr := multierror.Append(
+		multierror.Prefix(blErr, "blocking resolver: "),
+		multierror.Prefix(pErr, "parallel resolver: "),
+		multierror.Prefix(cnErr, "client names resolver: "),
+		multierror.Prefix(cuErr, "conditional upstream resolver: "),
+	)
+	if mErr.ErrorOrNil() != nil {
+		return nil, mErr
+	}
+
+	r = resolver.Chain(
+		resolver.NewFilteringResolver(cfg.Filtering),
+		clientNamesResolver,
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
 		resolver.NewMetricsResolver(cfg.Prometheus),
-		resolver.NewCustomDNSResolver(cfg.CustomDNS),
+		resolver.NewRewriterResolver(cfg.CustomDNS.RewriteConfig, resolver.NewCustomDNSResolver(cfg.CustomDNS)),
 		resolver.NewHostsFileResolver(cfg.HostsFile),
-		br,
+		blockingResolver,
 		resolver.NewCachingResolver(cfg.Caching, redisClient),
-		resolver.NewConditionalUpstreamResolver(cfg.Conditional),
-		resolver.NewParallelBestResolver(cfg.Upstream.ExternalResolvers),
-	), brErr
+		resolver.NewRewriterResolver(cfg.Conditional.RewriteConfig, conditionalUpstreamResolver),
+		parallelResolver,
+	)
+
+	return r, nil
 }
 
 func (s *Server) registerDNSHandlers() {
@@ -385,7 +415,7 @@ func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
 	}
 }
 
-// returns EDNS upd size or if not present, 512 for UDP and 64K for TCP
+// returns EDNS UDP size or if not present, 512 for UDP and 64K for TCP
 func getMaxResponseSize(network string, request *dns.Msg) int {
 	edns := request.IsEdns0()
 	if edns != nil && edns.UDPSize() > 0 {

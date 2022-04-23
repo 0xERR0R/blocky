@@ -1,16 +1,16 @@
 package config
 
 import (
+	"errors"
 	"io/ioutil"
 	"net"
 	"os"
 	"time"
 
-	"github.com/0xERR0R/blocky/helpertest"
+	"github.com/miekg/dns"
 
 	. "github.com/0xERR0R/blocky/log"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -21,7 +21,8 @@ var _ = Describe("Config", func() {
 				err := os.Chdir("../testdata")
 				Expect(err).Should(Succeed())
 
-				LoadConfig("config.yml", true)
+				_, err = LoadConfig("config.yml", true)
+				Expect(err).Should(Succeed())
 
 				Expect(config.DNSPorts).Should(Equal(ListenConfig{"55553", ":55554", "[::1]:55555"}))
 				Expect(config.Upstream.ExternalResolvers["default"]).Should(HaveLen(3))
@@ -44,6 +45,7 @@ var _ = Describe("Config", func() {
 				Expect(config.Blocking.ClientGroupsBlock).Should(HaveLen(2))
 				Expect(config.Blocking.BlockTTL).Should(Equal(Duration(time.Minute)))
 				Expect(config.Blocking.RefreshPeriod).Should(Equal(Duration(2 * time.Hour)))
+				Expect(config.Filtering.QueryTypes).Should(HaveLen(2))
 
 				Expect(config.Caching.MaxCachingTime).Should(Equal(Duration(0)))
 				Expect(config.Caching.MinCachingTime).Should(Equal(Duration(0)))
@@ -53,7 +55,7 @@ var _ = Describe("Config", func() {
 			})
 		})
 		When("config file is malformed", func() {
-			It("should log with fatal and exit", func() {
+			It("should return error", func() {
 
 				dir, err := ioutil.TempDir("", "blocky")
 				defer os.Remove(dir)
@@ -63,112 +65,117 @@ var _ = Describe("Config", func() {
 				err = ioutil.WriteFile("config.yml", []byte("malformed_config"), 0600)
 				Expect(err).Should(Succeed())
 
-				helpertest.ShouldLogFatal(func() {
-					LoadConfig("config.yml", true)
-				})
+				_, err = LoadConfig("config.yml", true)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("wrong file structure"))
 			})
 		})
 		When("duration is in wrong format", func() {
-			It("should log with fatal and exit", func() {
+			It("should return error", func() {
 				cfg := Config{}
 				data :=
 					`blocking:
   refreshPeriod: wrongduration`
-				helpertest.ShouldLogFatal(func() {
-					unmarshalConfig([]byte(data), cfg)
-				})
+				err := unmarshalConfig([]byte(data), &cfg)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("invalid duration \"wrongduration\""))
 			})
 		})
 		When("CustomDNS hast wrong IP defined", func() {
-			It("should log with fatal and exit", func() {
+			It("should return error", func() {
 				cfg := Config{}
 				data :=
 					`customDNS:
   mapping:
     someDomain: 192.168.178.WRONG`
-				helpertest.ShouldLogFatal(func() {
-					unmarshalConfig([]byte(data), cfg)
-				})
+				err := unmarshalConfig([]byte(data), &cfg)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("invalid IP address '192.168.178.WRONG'"))
 			})
 		})
 		When("Conditional mapping hast wrong defined upstreams", func() {
-			It("should log with fatal and exit", func() {
+			It("should return error", func() {
 				cfg := Config{}
 				data :=
 					`conditional:
   mapping:
-    multiple.resolvers: udp:192.168.178.1,wrongprotocol:4.4.4.4:53`
-				helpertest.ShouldLogFatal(func() {
-					unmarshalConfig([]byte(data), cfg)
-				})
+    multiple.resolvers: 192.168.178.1,wrongprotocol:4.4.4.4:53`
+				err := unmarshalConfig([]byte(data), &cfg)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("wrong host name 'wrongprotocol:4.4.4.4:53'"))
 			})
 		})
 		When("Wrong upstreams are defined", func() {
-			It("should log with fatal and exit", func() {
+			It("should return error", func() {
 				cfg := Config{}
 				data :=
 					`upstream:
   default:
-    - udp:8.8.8.8
+    - 8.8.8.8
     - wrongprotocol:8.8.4.4
-    - udp:1.1.1.1`
-				helpertest.ShouldLogFatal(func() {
-					unmarshalConfig([]byte(data), cfg)
-				})
+    - 1.1.1.1`
+				err := unmarshalConfig([]byte(data), &cfg)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("can't convert upstream 'wrongprotocol:8.8.4.4'"))
+			})
+		})
+		When("Wrong filtering is defined", func() {
+			It("should return error", func() {
+				cfg := Config{}
+				data :=
+					`filtering:
+  queryTypes:
+    - invalidqtype
+`
+				err := unmarshalConfig([]byte(data), &cfg)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("unknown DNS query type: 'invalidqtype'"))
+			})
+		})
+
+		When("bootstrapDns is defined", func() {
+			It("should is backwards compatible", func() {
+				cfg := Config{}
+				data := "bootstrapDns: 0.0.0.0"
+
+				err := unmarshalConfig([]byte(data), &cfg)
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(cfg.BootstrapDNS.Upstream.Host).Should(Equal("0.0.0.0"))
+			})
+			It("should is backwards compatible", func() {
+				cfg := Config{}
+				data := `
+bootstrapDns:
+  upstream: tcp-tls:dns.example.com
+  ips:
+    - 0.0.0.0
+`
+				err := unmarshalConfig([]byte(data), &cfg)
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(cfg.BootstrapDNS.Upstream.Host).Should(Equal("dns.example.com"))
+				Expect(cfg.BootstrapDNS.IPs).Should(HaveLen(1))
 			})
 		})
 
 		When("config is not YAML", func() {
-			It("should log with fatal and exit", func() {
+			It("should return error", func() {
 				cfg := Config{}
 				data :=
 					`///`
-				helpertest.ShouldLogFatal(func() {
-					unmarshalConfig([]byte(data), cfg)
-				})
+				err := unmarshalConfig([]byte(data), &cfg)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("cannot unmarshal !!str `///`"))
 			})
 		})
 
-		When("deprecated querylog.dir parameter is used", func() {
-			It("should be mapped to csv writer", func() {
-				By("per client", func() {
-					c := &Config{
-						QueryLog: QueryLogConfig{
-							Dir:       "/somedir",
-							PerClient: true,
-						}}
-					validateConfig(c)
-
-					Expect(c.QueryLog.Target).Should(Equal("/somedir"))
-					Expect(c.QueryLog.Type).Should(Equal(QueryLogTypeCsvClient))
-				})
-
-				By("one file", func() {
-					c := &Config{
-						QueryLog: QueryLogConfig{
-							Dir:       "/somedir",
-							PerClient: false,
-						}}
-					validateConfig(c)
-
-					Expect(c.QueryLog.Target).Should(Equal("/somedir"))
-					Expect(c.QueryLog.Type).Should(Equal(QueryLogTypeCsv))
-				})
-
-			})
-		})
-
-		When("deprecated httpsCertFile/httpsKeyFile parameter is used", func() {
-			It("should be mapped to certFile/keyFile", func() {
-
-				c := &Config{
-					HTTPKeyFile:  "key",
-					HTTPCertFile: "cert",
-				}
-				validateConfig(c)
-
-				Expect(c.KeyFile).Should(Equal("key"))
-				Expect(c.CertFile).Should(Equal("cert"))
+		When("Validation fails", func() {
+			It("should return error", func() {
+				cfg := Config{}
+				data :=
+					`httpsPort: 443`
+				err := unmarshalConfig([]byte(data), &cfg)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("'certFile' and 'keyFile' parameters are mandatory for HTTPS"))
 			})
 		})
 
@@ -179,9 +186,9 @@ var _ = Describe("Config", func() {
 					c := &Config{
 						TLSPorts: ListenConfig{"953"},
 					}
-					helpertest.ShouldLogFatal(func() {
-						validateConfig(c)
-					})
+					err := validateConfig(c)
+					Expect(err).Should(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("'certFile' and 'keyFile' parameters are mandatory for TLS"))
 				})
 
 				By("certFile/keyFile set", func() {
@@ -190,8 +197,22 @@ var _ = Describe("Config", func() {
 						KeyFile:  "key",
 						CertFile: "cert",
 					}
-					validateConfig(c)
+					err := validateConfig(c)
+					Expect(err).Should(Succeed())
+
 				})
+			})
+		})
+
+		When("Deprecated parameter 'disableIPv6' is set", func() {
+			It("should add 'AAAA' to filter.queryTypes", func() {
+				c := &Config{
+					DisableIPv6: true,
+				}
+				err := validateConfig(c)
+				Expect(err).Should(Succeed())
+				Expect(c.Filtering.QueryTypes).Should(HaveKey(QType(dns.TypeAAAA)))
+				Expect(c.Filtering.QueryTypes.Contains(dns.Type(dns.TypeAAAA))).Should(BeTrue())
 			})
 		})
 
@@ -202,9 +223,9 @@ var _ = Describe("Config", func() {
 					c := &Config{
 						HTTPSPorts: ListenConfig{"443"},
 					}
-					helpertest.ShouldLogFatal(func() {
-						validateConfig(c)
-					})
+					err := validateConfig(c)
+					Expect(err).Should(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("'certFile' and 'keyFile' parameters are mandatory for HTTPS"))
 				})
 
 				By("certFile/keyFile set", func() {
@@ -213,38 +234,184 @@ var _ = Describe("Config", func() {
 						KeyFile:  "key",
 						CertFile: "cert",
 					}
-					validateConfig(c)
+					err := validateConfig(c)
+					Expect(err).Should(Succeed())
 				})
 			})
 		})
 
 		When("config directory does not exist", func() {
-			It("should log with fatal and exit if config is mandatory", func() {
+			It("should return error", func() {
 				err := os.Chdir("../..")
 				Expect(err).Should(Succeed())
 
-				defer func() { Log().ExitFunc = nil }()
+				_, err = LoadConfig("config.yml", true)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("no such file or directory"))
 
-				var fatal bool
-
-				Log().ExitFunc = func(int) { fatal = true }
-				LoadConfig("config.yml", true)
-
-				Expect(fatal).Should(BeTrue())
 			})
 
 			It("should use default config if config is not mandatory", func() {
 				err := os.Chdir("../..")
 				Expect(err).Should(Succeed())
 
-				LoadConfig("config.yml", false)
+				_, err = LoadConfig("config.yml", false)
 
+				Expect(err).Should(Succeed())
 				Expect(config.LogLevel).Should(Equal(LevelInfo))
 			})
 		})
 	})
 
-	DescribeTable("parse upstream string",
+	Describe("YAML parsing", func() {
+		Context("upstream", func() {
+			It("should create the upstream struct with data", func() {
+				u := &Upstream{}
+				err := u.UnmarshalYAML(func(i interface{}) error {
+					*i.(*string) = "tcp+udp:1.2.3.4"
+					return nil
+
+				})
+				Expect(err).Should(Succeed())
+				Expect(u.Net).Should(Equal(NetProtocolTcpUdp))
+				Expect(u.Host).Should(Equal("1.2.3.4"))
+				Expect(u.Port).Should(BeNumerically("==", 53))
+			})
+
+			It("should fail if the upstream is in wrong format", func() {
+				u := &Upstream{}
+				err := u.UnmarshalYAML(func(i interface{}) error {
+					return errors.New("some err")
+
+				})
+				Expect(err).Should(HaveOccurred())
+			})
+		})
+		Context("ListenConfig", func() {
+			It("should parse and split valid string config", func() {
+				l := &ListenConfig{}
+				err := l.UnmarshalYAML(func(i interface{}) error {
+					*i.(*string) = "55,:56"
+					return nil
+				})
+				Expect(err).Should(Succeed())
+				Expect(*l).Should(HaveLen(2))
+				Expect(*l).Should(ContainElements("55", ":56"))
+			})
+			It("should fail on error", func() {
+				l := &ListenConfig{}
+				err := l.UnmarshalYAML(func(i interface{}) error {
+					return errors.New("some err")
+				})
+				Expect(err).Should(HaveOccurred())
+			})
+		})
+		Context("Duration", func() {
+			It("should parse duration with unit", func() {
+				d := Duration(0)
+				err := d.UnmarshalYAML(func(i interface{}) error {
+					*i.(*string) = "1m20s"
+					return nil
+				})
+				Expect(err).Should(Succeed())
+				Expect(d).Should(Equal(Duration(80 * time.Second)))
+				Expect(d.String()).Should(Equal("1 minute 20 seconds"))
+			})
+			It("should fail if duration is in wrong format", func() {
+				d := Duration(0)
+				err := d.UnmarshalYAML(func(i interface{}) error {
+					*i.(*string) = "wrong"
+					return nil
+				})
+				Expect(err).Should(HaveOccurred())
+				Expect(err).Should(MatchError("time: invalid duration \"wrong\""))
+
+			})
+			It("should fail if wrong YAML format", func() {
+				d := Duration(0)
+				err := d.UnmarshalYAML(func(i interface{}) error {
+					return errors.New("some err")
+				})
+				Expect(err).Should(HaveOccurred())
+				Expect(err).Should(MatchError("some err"))
+			})
+
+		})
+		Context("ConditionalUpstreamMapping", func() {
+			It("Should parse config as map", func() {
+				c := &ConditionalUpstreamMapping{}
+				err := c.UnmarshalYAML(func(i interface{}) error {
+					*i.(*map[string]string) = map[string]string{"key": "1.2.3.4"}
+					return nil
+				})
+				Expect(err).Should(Succeed())
+				Expect(c.Upstreams).Should(HaveLen(1))
+				Expect(c.Upstreams["key"]).Should(HaveLen(1))
+				Expect(c.Upstreams["key"][0]).Should(Equal(Upstream{
+					Net: NetProtocolTcpUdp, Host: "1.2.3.4", Port: 53}))
+			})
+			It("should fail if wrong YAML format", func() {
+				c := &ConditionalUpstreamMapping{}
+				err := c.UnmarshalYAML(func(i interface{}) error {
+					return errors.New("some err")
+				})
+				Expect(err).Should(HaveOccurred())
+				Expect(err).Should(MatchError("some err"))
+			})
+		})
+		Context("CustomDNSMapping", func() {
+			It("Should parse config as map", func() {
+				c := &CustomDNSMapping{}
+				err := c.UnmarshalYAML(func(i interface{}) error {
+					*i.(*map[string]string) = map[string]string{"key": "1.2.3.4"}
+					return nil
+				})
+				Expect(err).Should(Succeed())
+				Expect(c.HostIPs).Should(HaveLen(1))
+				Expect(c.HostIPs["key"]).Should(HaveLen(1))
+				Expect(c.HostIPs["key"][0]).Should(Equal(net.ParseIP("1.2.3.4")))
+			})
+			It("should fail if wrong YAML format", func() {
+				c := &CustomDNSMapping{}
+				err := c.UnmarshalYAML(func(i interface{}) error {
+					return errors.New("some err")
+				})
+				Expect(err).Should(HaveOccurred())
+				Expect(err).Should(MatchError("some err"))
+			})
+		})
+		Context("QueryTyoe", func() {
+			It("Should parse existing DNS type as string", func() {
+				t := QType(0)
+				err := t.UnmarshalYAML(func(i interface{}) error {
+					*i.(*string) = "AAAA"
+					return nil
+				})
+				Expect(err).Should(Succeed())
+				Expect(t).Should(Equal(QType(dns.TypeAAAA)))
+				Expect(t.String()).Should(Equal("AAAA"))
+			})
+			It("should fail if DNS type does not exist", func() {
+				t := QType(0)
+				err := t.UnmarshalYAML(func(i interface{}) error {
+					*i.(*string) = "WRONGTYPE"
+					return nil
+				})
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("unknown DNS query type: 'WRONGTYPE'"))
+			})
+			It("should fail if wrong YAML format", func() {
+				d := QType(0)
+				err := d.UnmarshalYAML(func(i interface{}) error {
+					return errors.New("some err")
+				})
+				Expect(err).Should(HaveOccurred())
+				Expect(err).Should(MatchError("some err"))
+			})
+		})
+	})
+
+	DescribeTable("Upstream parsing",
 		func(in string, wantResult Upstream, wantErr bool) {
 			result, err := ParseUpstream(in)
 			if wantErr {
@@ -254,20 +421,20 @@ var _ = Describe("Config", func() {
 			}
 			Expect(result).Should(Equal(wantResult), in)
 		},
-		Entry("udp with port",
-			"udp:4.4.4.4:531",
+		Entry("tcp+udp with port",
+			"4.4.4.4:531",
 			Upstream{Net: NetProtocolTcpUdp, Host: "4.4.4.4", Port: 531},
 			false),
-		Entry("udp without port, use default",
-			"udp:4.4.4.4",
+		Entry("tcp+udp without port, use default",
+			"4.4.4.4",
 			Upstream{Net: NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53},
 			false),
-		Entry("tcp with port",
-			"tcp:4.4.4.4:4711",
+		Entry("tcp+udp with port",
+			"tcp+udp:4.4.4.4:4711",
 			Upstream{Net: NetProtocolTcpUdp, Host: "4.4.4.4", Port: 4711},
 			false),
 		Entry("tcp without port, use default",
-			"tcp:4.4.4.4",
+			"4.4.4.4",
 			Upstream{Net: NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53},
 			false),
 		Entry("tcp-tls without port, use default",
@@ -299,11 +466,11 @@ var _ = Describe("Config", func() {
 			Upstream{Net: 0},
 			true),
 		Entry("udpIpv6WithPort",
-			"udp:[fd00::6cd4:d7e0:d99d:2952]:53",
+			"tcp+udp:[fd00::6cd4:d7e0:d99d:2952]:53",
 			Upstream{Net: NetProtocolTcpUdp, Host: "fd00::6cd4:d7e0:d99d:2952", Port: 53},
 			false),
 		Entry("udpIpv6WithPort2",
-			"udp:[2001:4860:4860::8888]:53",
+			"[2001:4860:4860::8888]:53",
 			Upstream{Net: NetProtocolTcpUdp, Host: "2001:4860:4860::8888", Port: 53},
 			false),
 		Entry("default net, default port",
@@ -355,4 +522,89 @@ var _ = Describe("Config", func() {
 			Upstream{Net: NetProtocolTcpUdp, Host: "2620:fe::9", Port: 55},
 			false),
 	)
+
+	DescribeTable("Upstream string representation",
+		func(upstream Upstream, canonical string) {
+			Expect(upstream.String()).To(Equal(canonical))
+
+			if !upstream.IsDefault() {
+				roundTripped, err := ParseUpstream(canonical)
+				Expect(err).Should(Succeed())
+				Expect(roundTripped).Should(Equal(upstream))
+			}
+		},
+		Entry("Default",
+			Upstream{}, "no upstream",
+		),
+		Entry("tcp+udp with port",
+			Upstream{Net: NetProtocolTcpUdp, Host: "localhost", Port: 531},
+			"tcp+udp:localhost:531",
+		),
+		Entry("tcp+udp default port",
+			Upstream{Net: NetProtocolTcpUdp, Host: "localhost", Port: 53},
+			"tcp+udp:localhost",
+		),
+		Entry("tcp-tls with port",
+			Upstream{Net: NetProtocolTcpTls, Host: "localhost", Port: 888},
+			"tcp-tls:localhost:888",
+		),
+		Entry("tcp-tls default port",
+			Upstream{Net: NetProtocolTcpTls, Host: "localhost", Port: 853},
+			"tcp-tls:localhost",
+		),
+		Entry("tcp+udp with other default port",
+			Upstream{Net: NetProtocolTcpUdp, Host: "localhost", Port: 443},
+			"tcp+udp:localhost:443"),
+		Entry("https with port",
+			Upstream{Net: NetProtocolHttps, Host: "localhost", Port: 888},
+			"https://localhost:888",
+		),
+		Entry("https with path",
+			Upstream{Net: NetProtocolHttps, Host: "localhost", Port: 443, Path: "/dns-query"},
+			"https://localhost/dns-query",
+		),
+		Entry("https with path and port",
+			Upstream{Net: NetProtocolHttps, Host: "localhost", Port: 888, Path: "/dns-query"},
+			"https://localhost:888/dns-query",
+		),
+		Entry("tcp+udp IPv4 with port",
+			Upstream{Net: NetProtocolTcpUdp, Host: "127.0.0.1", Port: 531},
+			"tcp+udp:127.0.0.1:531",
+		),
+		Entry("tcp+udp IPv4 default port",
+			Upstream{Net: NetProtocolTcpUdp, Host: "127.0.0.1", Port: 53},
+			"tcp+udp:127.0.0.1",
+		),
+		Entry("tcp-tls IPv6 with port",
+			Upstream{Net: NetProtocolTcpTls, Host: "fd00::6cd4:d7e0:d99d:2952", Port: 531},
+			"tcp-tls:[fd00::6cd4:d7e0:d99d:2952]:531",
+		),
+		Entry("tcp-tls IPv6 default port",
+			Upstream{Net: NetProtocolTcpTls, Host: "fd00::6cd4:d7e0:d99d:2952", Port: 853},
+			"tcp-tls:[fd00::6cd4:d7e0:d99d:2952]",
+		),
+	)
+
+	Describe("QTypeSet", func() {
+		It("new should insert given qTypes", func() {
+			set := NewQTypeSet(dns.Type(dns.TypeA))
+			Expect(set).Should(HaveKey(QType(dns.TypeA)))
+			Expect(set.Contains(dns.Type(dns.TypeA))).Should(BeTrue())
+
+			Expect(set).ShouldNot(HaveKey(QType(dns.TypeAAAA)))
+			Expect(set.Contains(dns.Type(dns.TypeAAAA))).ShouldNot(BeTrue())
+		})
+
+		It("should insert given qTypes", func() {
+			set := NewQTypeSet()
+
+			Expect(set).ShouldNot(HaveKey(QType(dns.TypeAAAA)))
+			Expect(set.Contains(dns.Type(dns.TypeAAAA))).ShouldNot(BeTrue())
+
+			set.Insert(dns.Type(dns.TypeAAAA))
+
+			Expect(set).Should(HaveKey(QType(dns.TypeAAAA)))
+			Expect(set.Contains(dns.Type(dns.TypeAAAA))).Should(BeTrue())
+		})
+	})
 })
