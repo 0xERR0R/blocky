@@ -543,6 +543,7 @@ var _ = Describe("CachingResolver", func() {
 					},
 				}
 				redisClient.CacheChannel <- redisMockMsg
+				time.Sleep(time.Second)
 
 				Eventually(func() error {
 					resp, err = sut.Resolve(request)

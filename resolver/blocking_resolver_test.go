@@ -5,7 +5,6 @@ import (
 	. "github.com/0xERR0R/blocky/evt"
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/lists"
-	. "github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
@@ -39,7 +38,7 @@ var _ = AfterSuite(func() {
 	_ = defaultGroupFile.Close()
 })
 
-var _ = Describe("BlockingResolver", func() {
+var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 	var (
 		sut        *BlockingResolver
 		sutConfig  config.BlockingConfig
@@ -66,7 +65,8 @@ var _ = Describe("BlockingResolver", func() {
 	JustBeforeEach(func() {
 		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
-		tmp, _ := NewBlockingResolver(sutConfig, nil, skipUpstreamCheck)
+		tmp, err := NewBlockingResolver(sutConfig, nil, skipUpstreamCheck)
+		Expect(err).Should(Succeed())
 		sut = tmp.(*BlockingResolver)
 		sut.Next(m)
 		sut.RefreshLists()
@@ -99,7 +99,8 @@ var _ = Describe("BlockingResolver", func() {
 				Expect(err).Should(Succeed())
 
 				// recreate to trigger a reload
-				tmp, _ := NewBlockingResolver(sutConfig, nil, skipUpstreamCheck)
+				tmp, err := NewBlockingResolver(sutConfig, nil, skipUpstreamCheck)
+				Expect(err).Should(Succeed())
 				sut = tmp.(*BlockingResolver)
 
 				Eventually(groupCnt, "1s").Should(HaveLen(2))
@@ -125,7 +126,7 @@ var _ = Describe("BlockingResolver", func() {
 		})
 
 		When("Full-qualified group name is used", func() {
-			It("bla", func() {
+			It("should block request", func() {
 				m.AnswerFn = func(t uint16, qName string) *dns.Msg {
 					if t == dns.TypeA && qName == "full.qualified.com." {
 						a, _ := util.NewMsgWithAnswer(qName, 60*60, dns.Type(dns.TypeA), "192.168.178.39")
@@ -134,6 +135,7 @@ var _ = Describe("BlockingResolver", func() {
 					return nil
 				}
 				Bus().Publish(ApplicationStarted, "")
+				time.Sleep(time.Second)
 				Eventually(func(g Gomega) {
 					resp, err = sut.Resolve(newRequestWithClient("blocked2.com.", dns.Type(dns.TypeA), "192.168.178.39", "client1"))
 					g.Expect(err).NotTo(HaveOccurred())
@@ -701,14 +703,12 @@ var _ = Describe("BlockingResolver", func() {
 				})
 
 				By("Wait 1 sec and perform the same query again, should be blocked now", func() {
-					enabled := false
+					enabled := make(chan bool, 1)
 					_ = Bus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
-						enabled = state
+						enabled <- state
 					})
 					// wait 1 sec
-					Eventually(func() bool {
-						return enabled
-					}, "1s").Should(BeTrue())
+					Eventually(enabled, "1s").Should(Receive(BeTrue()))
 
 					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
 					Expect(err).Should(Succeed())
@@ -735,14 +735,14 @@ var _ = Describe("BlockingResolver", func() {
 				})
 
 				By("Calling Rest API to deactivate blocking for one group for 0.5 sec", func() {
-					enabled := true
+					enabled := make(chan bool, 1)
 					err := Bus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
-						enabled = state
+						enabled <- false
 					})
 					Expect(err).Should(Succeed())
 					err = sut.DisableBlocking(500*time.Millisecond, []string{"group1"})
 					Expect(err).Should(Succeed())
-					Expect(enabled).Should(BeFalse())
+					Eventually(enabled, "1s").Should(Receive(BeFalse()))
 				})
 
 				By("perform the same query again to ensure that this query will not be blocked (defaultGroup)", func() {
@@ -763,14 +763,12 @@ var _ = Describe("BlockingResolver", func() {
 				})
 
 				By("Wait 1 sec and perform the same query again, should be blocked now", func() {
-					enabled := false
+					enabled := make(chan bool, 1)
 					_ = Bus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
-						enabled = state
+						enabled <- state
 					})
 					// wait 1 sec
-					Eventually(func() bool {
-						return enabled
-					}, "1s").Should(BeTrue())
+					Eventually(enabled, "1s").Should(Receive(BeTrue()))
 
 					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
 					Expect(err).Should(Succeed())
@@ -847,17 +845,13 @@ var _ = Describe("BlockingResolver", func() {
 
 	Describe("Create resolver with wrong parameter", func() {
 		When("Wrong blockType is used", func() {
-			var fatal bool
-			It("should end with fatal exit", func() {
-				defer func() { Log().ExitFunc = nil }()
-
-				Log().ExitFunc = func(int) { fatal = true }
-
-				_, _ = NewBlockingResolver(config.BlockingConfig{
+			It("should return error", func() {
+				_, err := NewBlockingResolver(config.BlockingConfig{
 					BlockType: "wrong",
 				}, nil, skipUpstreamCheck)
 
-				Expect(fatal).Should(BeTrue())
+				Expect(err).Should(
+					MatchError("unknown blockType 'wrong', please use one of: ZeroIP, NxDomain or specify destination IP address(es)"))
 			})
 		})
 		When("failStartOnListError is active", func() {
@@ -913,7 +907,7 @@ var _ = Describe("BlockingResolver", func() {
 				redisClient.EnabledChannel <- redisMockMsg
 
 				Eventually(func() bool {
-					return sut.status.enabled
+					return sut.BlockingStatus().Enabled
 				}, "5s").Should(BeFalse())
 			})
 		})
@@ -927,7 +921,7 @@ var _ = Describe("BlockingResolver", func() {
 				redisClient.EnabledChannel <- redisMockMsg
 
 				Eventually(func() bool {
-					return sut.status.enabled
+					return sut.BlockingStatus().Enabled
 				}, "5s").Should(BeTrue())
 			})
 		})
@@ -942,7 +936,7 @@ var _ = Describe("BlockingResolver", func() {
 				redisClient.EnabledChannel <- redisMockMsg
 
 				Eventually(func() bool {
-					return sut.status.enabled
+					return sut.BlockingStatus().Enabled
 				}, "5s").Should(BeTrue())
 			})
 		})

@@ -20,7 +20,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Bootstrap", func() {
+var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 	var (
 		sut       *Bootstrap
 		sutConfig *config.Config
@@ -52,19 +52,19 @@ var _ = Describe("Bootstrap", func() {
 			})
 
 			It("should use the system resolver", func() {
-				usedSystemResolver := false
+				usedSystemResolver := make(chan bool, 10)
 
 				sut.systemResolver = &net.Resolver{
 					PreferGo: true,
 					Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-						usedSystemResolver = true
+						usedSystemResolver <- true
 						return nil, errors.New("don't actually do anything")
 					},
 				}
 
 				_, err := sut.resolveUpstream(nil, "example.com")
 				Expect(err).ShouldNot(Succeed())
-				Expect(usedSystemResolver).Should(BeTrue())
+				Expect(usedSystemResolver).Should(Receive(BeTrue()))
 			})
 
 			Describe("HTTP transport", func() {
@@ -77,61 +77,63 @@ var _ = Describe("Bootstrap", func() {
 			})
 		})
 
-		When("using TCP UDP", func() {
-			It("accepts an IP", func() {
-				cfg := config.Config{
-					BootstrapDNS: config.BootstrapConfig{
-						Upstream: config.Upstream{
-							Net:  config.NetProtocolTcpUdp,
-							Host: "0.0.0.0",
+		Context("using TCP UDP", func() {
+			When("IP is set", func() {
+				BeforeEach(func() {
+					sutConfig = &config.Config{
+						BootstrapDNS: config.BootstrapConfig{
+							Upstream: config.Upstream{
+								Net:  config.NetProtocolTcpUdp,
+								Host: "0.0.0.0",
+							},
 						},
-					},
-				}
-
-				b, err := NewBootstrap(&cfg)
-				Expect(err).Should(Succeed())
-				Expect(b).ShouldNot(BeNil())
-				Expect(b.upstreamIPs).Should(ContainElement(net.IPv4zero))
+					}
+				})
+				It("accepts an IP", func() {
+					Expect(sut).ShouldNot(BeNil())
+					Expect(sut.upstreamIPs).Should(ContainElement(net.IPv4zero))
+				})
 			})
-
-			It("requires an IP", func() {
-				cfg := config.Config{
-					BootstrapDNS: config.BootstrapConfig{
-						Upstream: config.Upstream{
-							Net:  config.NetProtocolTcpUdp,
-							Host: "bootstrapUpstream.invalid",
+			When("IP is invalid", func() {
+				It("requires an IP", func() {
+					cfg := config.Config{
+						BootstrapDNS: config.BootstrapConfig{
+							Upstream: config.Upstream{
+								Net:  config.NetProtocolTcpUdp,
+								Host: "bootstrapUpstream.invalid",
+							},
 						},
-					},
-				}
+					}
 
-				_, err := NewBootstrap(&cfg)
-				Expect(err).ShouldNot(Succeed())
-				Expect(err.Error()).Should(ContainSubstring("is not an IP"))
+					_, err := NewBootstrap(&cfg)
+					Expect(err).ShouldNot(Succeed())
+					Expect(err.Error()).Should(ContainSubstring("is not an IP"))
+				})
 			})
 		})
 
-		When("using encrypted DNS", func() {
-			It("requires bootstrap IPs", func() {
-				cfg := config.Config{
-					BootstrapDNS: config.BootstrapConfig{
-						Upstream: config.Upstream{
-							Net:  config.NetProtocolTcpTls,
-							Host: "bootstrapUpstream.invalid",
+		Context("using encrypted DNS", func() {
+			When("IP is invalid", func() {
+				It("requires bootstrap IPs", func() {
+					cfg := config.Config{
+						BootstrapDNS: config.BootstrapConfig{
+							Upstream: config.Upstream{
+								Net:  config.NetProtocolTcpTls,
+								Host: "bootstrapUpstream.invalid",
+							},
 						},
-					},
-				}
+					}
 
-				_, err := NewBootstrap(&cfg)
-				Expect(err).ShouldNot(Succeed())
-				Expect(err.Error()).Should(ContainSubstring("bootstrapDns.IPs is required"))
+					_, err := NewBootstrap(&cfg)
+					Expect(err).ShouldNot(Succeed())
+					Expect(err.Error()).Should(ContainSubstring("bootstrapDns.IPs is required"))
+				})
 			})
 		})
 	})
 
 	Describe("resolving", func() {
-		var (
-			bootstrapUpstream *MockResolver
-		)
+		var bootstrapUpstream *MockResolver
 
 		BeforeEach(func() {
 			bootstrapUpstream = &MockResolver{}
@@ -224,13 +226,9 @@ var _ = Describe("Bootstrap", func() {
 					Log: logrus.NewEntry(log.Log()),
 				}
 
-				mainRes, err := util.NewMsgWithAnswer(
-					"example.com.", 123, dns.Type(dns.TypeA), "123.124.122.122",
-				)
-
-				Expect(err).Should(Succeed())
-
-				upstream := TestUDPUpstream(func(request *dns.Msg) *dns.Msg { return mainRes })
+				mockUpstreamServer := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
+				DeferCleanup(mockUpstreamServer.Close)
+				upstream := mockUpstreamServer.Start()
 
 				upstreamIP := upstream.Host
 
@@ -247,7 +245,8 @@ var _ = Describe("Bootstrap", func() {
 
 				rsp, err := r.Resolve(mainReq)
 				Expect(err).Should(Succeed())
-				Expect(rsp.Res.Id).Should(Equal(mainRes.Id))
+				Expect(mockUpstreamServer.GetCallCount()).Should(Equal(1))
+				Expect(rsp.Res.Question[0].Name).Should(Equal("example.com."))
 				Expect(rsp.Res.Id).ShouldNot(Equal(bootstrapResponse.Id))
 			})
 		})
@@ -257,7 +256,7 @@ var _ = Describe("Bootstrap", func() {
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(200)
 				}))
-				defer server.Close()
+				DeferCleanup(server.Close)
 
 				url, err := url.Parse(server.URL)
 				Expect(err).Should(Succeed())
