@@ -7,15 +7,13 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/0xERR0R/blocky/cache/stringcache"
-
-	"github.com/avast/retry-go/v4"
+	"github.com/sirupsen/logrus"
 
 	"github.com/hako/durafmt"
 
@@ -23,7 +21,6 @@ import (
 
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/log"
-	"github.com/sirupsen/logrus"
 )
 
 // ListCacheType represents the type of cached list ENUM(
@@ -46,13 +43,10 @@ type ListCache struct {
 	groupCaches map[string]stringcache.StringCache
 	lock        sync.RWMutex
 
-	groupToLinks     map[string][]string
-	refreshPeriod    time.Duration
-	downloadTimeout  time.Duration
-	downloadAttempts int
-	downloadCooldown time.Duration
-	httpTransport    *http.Transport
-	listType         ListCacheType
+	groupToLinks  map[string][]string
+	refreshPeriod time.Duration
+	downloader    FileDownloader
+	listType      ListCacheType
 }
 
 // Configuration returns current configuration and stats
@@ -80,6 +74,9 @@ func (b *ListCache) Configuration() (result []string) {
 
 	var total int
 
+	b.lock.RLock()
+	defer b.lock.RUnlock()
+
 	for group, cache := range b.groupCaches {
 		result = append(result, fmt.Sprintf("  %s: %d entries", group, cache.ElementCount()))
 		total += cache.ElementCount()
@@ -92,19 +89,15 @@ func (b *ListCache) Configuration() (result []string) {
 
 // NewListCache creates new list instance
 func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration,
-	downloadTimeout time.Duration, downloadAttempts int,
-	downloadCooldown time.Duration, httpTransport *http.Transport) (*ListCache, error) {
+	downloader FileDownloader) (*ListCache, error) {
 	groupCaches := make(map[string]stringcache.StringCache)
 
 	b := &ListCache{
-		groupToLinks:     groupToLinks,
-		groupCaches:      groupCaches,
-		refreshPeriod:    refreshPeriod,
-		downloadTimeout:  downloadTimeout,
-		downloadAttempts: downloadAttempts,
-		downloadCooldown: downloadCooldown,
-		httpTransport:    httpTransport,
-		listType:         t,
+		groupToLinks:  groupToLinks,
+		groupCaches:   groupCaches,
+		refreshPeriod: refreshPeriod,
+		downloader:    downloader,
+		listType:      t,
 	}
 	initError := b.refresh(true)
 
@@ -217,72 +210,17 @@ func (b *ListCache) refresh(init bool) error {
 			}
 		}
 
-		if b.groupCaches[group] != nil {
-			evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, b.groupCaches[group].ElementCount())
+		if cacheForGroup != nil {
+			evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, cacheForGroup.ElementCount())
 
 			logger().WithFields(logrus.Fields{
 				"group":       group,
-				"total_count": b.groupCaches[group].ElementCount(),
+				"total_count": cacheForGroup.ElementCount(),
 			}).Info("group import finished")
 		}
 	}
 
 	return err
-}
-
-func (b *ListCache) downloadFile(link string) (io.ReadCloser, error) {
-	client := http.Client{
-		Timeout:   b.downloadTimeout,
-		Transport: b.httpTransport,
-	}
-
-	var resp *http.Response
-
-	logger().WithField("link", link).Info("starting download")
-
-	var body io.ReadCloser
-
-	err := retry.Do(
-		func() error {
-			var err error
-			//nolint:bodyclose
-			if resp, err = client.Get(link); err == nil {
-				if resp.StatusCode == http.StatusOK {
-					body = resp.Body
-					return nil
-				}
-
-				_ = resp.Body.Close()
-
-				return fmt.Errorf("got status code %d", resp.StatusCode)
-			}
-			return err
-		},
-		retry.Attempts(uint(b.downloadAttempts)),
-		retry.DelayType(retry.FixedDelay),
-		retry.Delay(b.downloadCooldown),
-		retry.LastErrorOnly(true),
-		retry.OnRetry(func(n uint, err error) {
-			var netErr net.Error
-
-			var dnsErr *net.DNSError
-
-			logger := logger().WithField("link", link).WithField("attempt",
-				fmt.Sprintf("%d/%d", n+1, b.downloadAttempts))
-
-			switch {
-			case errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()):
-				logger.Warnf("Temporary network err / Timeout occurred: %s", netErr)
-			case errors.As(err, &dnsErr):
-				logger.Warnf("Name resolution err: %s", dnsErr.Err)
-			default:
-				logger.Warnf("Can't download file: %s", err)
-			}
-
-			evt.Bus().Publish(evt.CachingFailedDownloadChanged, link)
-		}))
-
-	return body, err
 }
 
 func readFile(file string) (io.ReadCloser, error) {
@@ -307,12 +245,12 @@ func (b *ListCache) processFile(link string, ch chan<- groupCache, wg *sync.Wait
 	r, err = b.getLinkReader(link)
 
 	if err != nil {
-		logger().Warn("err during file processing: ", err)
+		logger().Warn("error during file processing: ", err)
 		result.err = multierror.Append(result.err, err)
 
-		var netErr net.Error
+		var transientErr *TransientError
 
-		if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
+		if errors.As(err, &transientErr) {
 			// put nil to indicate the temporary err
 			result.cache = nil
 		}
@@ -354,7 +292,7 @@ func (b *ListCache) getLinkReader(link string) (r io.ReadCloser, err error) {
 		r = io.NopCloser(strings.NewReader(link))
 	// link is http(s) -> download it
 	case strings.HasPrefix(link, "http"):
-		r, err = b.downloadFile(link)
+		r, err = b.downloader.DownloadFile(link)
 	// probably path to a local file
 	default:
 		r, err = readFile(link)

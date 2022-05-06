@@ -93,13 +93,14 @@ func NewBlockingResolver(cfg config.BlockingConfig,
 	redis *redis.Client, bootstrap *Bootstrap) (r ChainedResolver, err error) {
 	blockHandler := createBlockHandler(cfg)
 	refreshPeriod := time.Duration(cfg.RefreshPeriod)
-	timeout := time.Duration(cfg.DownloadTimeout)
-	cooldown := time.Duration(cfg.DownloadCooldown)
-	transport := bootstrap.NewHTTPTransport()
-	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists, refreshPeriod,
-		timeout, cfg.DownloadAttempts, cooldown, transport)
-	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists, refreshPeriod,
-		timeout, cfg.DownloadAttempts, cooldown, transport)
+	downloader := lists.NewDownloader(
+		lists.WithTimeout(time.Duration(cfg.DownloadTimeout)),
+		lists.WithAttempts(cfg.DownloadAttempts),
+		lists.WithCooldown(time.Duration(cfg.DownloadCooldown)),
+		lists.WithTransport(bootstrap.NewHTTPTransport()),
+	)
+	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists, refreshPeriod, downloader)
+	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists, refreshPeriod, downloader)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
 	err = multierror.Append(err, blErr, wlErr).ErrorOrNil()
