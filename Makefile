@@ -38,7 +38,7 @@ race: ## run tests with race detector
 	go test -race -short ./...
 
 lint: build ## run golangcli-lint checks
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.43.0
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.45.2
 	$(shell go env GOPATH)/bin/golangci-lint run
 
 run: build ## Build and run binary
