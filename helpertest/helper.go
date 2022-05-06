@@ -11,7 +11,6 @@ import (
 	"github.com/0xERR0R/blocky/log"
 
 	"github.com/miekg/dns"
-	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 )
 
@@ -112,16 +111,4 @@ func (matcher *dnsRecordMatcher) FailureMessage(actual interface{}) (message str
 func (matcher *dnsRecordMatcher) NegatedFailureMessage(actual interface{}) (message string) {
 	return fmt.Sprintf("Expected\n\t%s\n not to contain\n\t domain '%s', ttl '%d', type '%s', answer '%s'",
 		actual, matcher.domain, matcher.TTL, dns.TypeToString[matcher.dnsType], matcher.answer)
-}
-
-// ShouldLogFatal checks if passed function calls log.fatal
-func ShouldLogFatal(fn func()) {
-	defer func() { log.Log().ExitFunc = nil }()
-
-	var fatal bool
-
-	log.Log().ExitFunc = func(int) { fatal = true }
-
-	fn()
-	gomega.Expect(fatal).Should(gomega.BeTrue())
 }

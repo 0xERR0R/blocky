@@ -21,7 +21,9 @@ var _ = Describe("Serve command", func() {
 
 			isConfigMandatory = false
 
-			go startServer(newServeCommand(), []string{})
+			go func() {
+				_ = startServer(newServeCommand(), []string{})
+			}()
 
 			time.Sleep(100 * time.Millisecond)
 

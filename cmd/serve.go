@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,7 +17,7 @@ import (
 
 //nolint:gochecknoglobals
 var (
-	done              chan bool
+	done              = make(chan bool, 1)
 	isConfigMandatory = true
 )
 
@@ -25,37 +26,49 @@ func newServeCommand() *cobra.Command {
 		Use:   "serve",
 		Args:  cobra.NoArgs,
 		Short: "start blocky DNS server (default command)",
-		Run:   startServer,
+		RunE:  startServer,
 	}
 }
 
-func startServer(_ *cobra.Command, _ []string) {
+func startServer(_ *cobra.Command, _ []string) error {
 	printBanner()
 
 	cfg, err := config.LoadConfig(configPath, isConfigMandatory)
-	util.FatalOnError("unable to load configuration: ", err)
+	if err != nil {
+		return fmt.Errorf("unable to load configuration: %w", err)
+	}
 
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
 	signals := make(chan os.Signal, 1)
-	done = make(chan bool, 1)
 
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	srv, err := server.NewServer(cfg)
-	util.FatalOnError("can't start server: ", err)
+	if err != nil {
+		return fmt.Errorf("can't start server: %w", err)
+	}
 
-	srv.Start()
+	errChan := make(chan error, 10)
+
+	srv.Start(errChan)
 
 	go func() {
-		<-signals
-		log.Log().Infof("Terminating...")
-		srv.Stop()
-		done <- true
+		select {
+		case <-signals:
+			log.Log().Infof("Terminating...")
+			util.LogOnError("can't stop server: ", srv.Stop())
+			done <- true
+
+		case <-errChan:
+			done <- true
+		}
 	}()
 
 	evt.Bus().Publish(evt.ApplicationStarted, util.Version, util.BuildTime)
 	<-done
+
+	return nil
 }
 
 func printBanner() {

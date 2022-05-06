@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-var _ = Describe("ConditionalUpstreamResolver", func() {
+var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), func() {
 	var (
 		sut  ChainedResolver
 		m    *MockResolver
@@ -27,24 +27,33 @@ var _ = Describe("ConditionalUpstreamResolver", func() {
 	})
 
 	BeforeEach(func() {
+		fbTestUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
+			response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 123, dns.Type(dns.TypeA), "123.124.122.122")
+
+			return response
+		})
+		DeferCleanup(fbTestUpstream.Close)
+
+		otherTestUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
+			response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 250, dns.Type(dns.TypeA), "192.192.192.192")
+
+			return response
+		})
+		DeferCleanup(otherTestUpstream.Close)
+
+		dotTestUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
+			response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 223, dns.Type(dns.TypeA), "168.168.168.168")
+
+			return response
+		})
+		DeferCleanup(dotTestUpstream.Close)
+
 		sut, _ = NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{
 			Mapping: config.ConditionalUpstreamMapping{
 				Upstreams: map[string][]config.Upstream{
-					"fritz.box": {TestUDPUpstream(func(request *dns.Msg) (response *dns.Msg) {
-						response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 123, dns.Type(dns.TypeA), "123.124.122.122")
-
-						return response
-					})},
-					"other.box": {TestUDPUpstream(func(request *dns.Msg) (response *dns.Msg) {
-						response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 250, dns.Type(dns.TypeA), "192.192.192.192")
-
-						return response
-					})},
-					".": {TestUDPUpstream(func(request *dns.Msg) (response *dns.Msg) {
-						response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 223, dns.Type(dns.TypeA), "168.168.168.168")
-
-						return response
-					})},
+					"fritz.box": {fbTestUpstream.Start()},
+					"other.box": {otherTestUpstream.Start()},
+					".":         {dotTestUpstream.Start()},
 				}},
 		}, skipUpstreamCheck)
 		m = &MockResolver{}

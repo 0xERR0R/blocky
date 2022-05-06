@@ -47,13 +47,16 @@ func getServerAddress(addr string) string {
 	return addr
 }
 
-type NewServerFunc func(address string) *dns.Server
+type NewServerFunc func(address string) (*dns.Server, error)
 
 // NewServer creates new server instance with passed config
 func NewServer(cfg *config.Config) (server *Server, err error) {
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
-	dnsServers := createServers(cfg)
+	dnsServers, err := createServers(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("server creation failed: %w", err)
+	}
 
 	router := createRouter(cfg)
 
@@ -102,21 +105,32 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 	return server, err
 }
 
-func createServers(cfg *config.Config) (dnsServers []*dns.Server) {
-	addServers := func(newServer NewServerFunc, addresses config.ListenConfig) {
+func createServers(cfg *config.Config) ([]*dns.Server, error) {
+	var dnsServers []*dns.Server
+
+	var err *multierror.Error
+
+	addServers := func(newServer NewServerFunc, addresses config.ListenConfig) error {
 		for _, address := range addresses {
-			dnsServers = append(dnsServers, newServer(getServerAddress(address)))
+			server, err := newServer(getServerAddress(address))
+			if err != nil {
+				return err
+			}
+
+			dnsServers = append(dnsServers, server)
 		}
+
+		return nil
 	}
 
-	addServers(createUDPServer, cfg.DNSPorts)
-	addServers(createTCPServer, cfg.DNSPorts)
+	err = multierror.Append(err,
+		addServers(createUDPServer, cfg.DNSPorts),
+		addServers(createTCPServer, cfg.DNSPorts),
+		addServers(func(address string) (*dns.Server, error) {
+			return createTLSServer(address, cfg.CertFile, cfg.KeyFile)
+		}, cfg.TLSPorts))
 
-	addServers(func(address string) *dns.Server {
-		return createTLSServer(address, cfg.CertFile, cfg.KeyFile)
-	}, cfg.TLSPorts)
-
-	return
+	return dnsServers, err.ErrorOrNil()
 }
 
 func createHTTPListeners(cfg *config.Config) (httpListeners []net.Listener, httpsListeners []net.Listener, err error) {
@@ -160,9 +174,11 @@ func registerResolverAPIEndpoints(router chi.Router, res resolver.Resolver) {
 	}
 }
 
-func createTLSServer(address string, certFile string, keyFile string) *dns.Server {
+func createTLSServer(address string, certFile string, keyFile string) (*dns.Server, error) {
 	cer, err := tls.LoadX509KeyPair(certFile, keyFile)
-	util.FatalOnError("can't load certificate files: ", err)
+	if err != nil {
+		return nil, fmt.Errorf("can't load certificate files: %w", err)
+	}
 
 	return &dns.Server{
 		Addr: address,
@@ -175,10 +191,10 @@ func createTLSServer(address string, certFile string, keyFile string) *dns.Serve
 		NotifyStartedFunc: func() {
 			logger().Infof("TLS server is up and running on address %s", address)
 		},
-	}
+	}, nil
 }
 
-func createTCPServer(address string) *dns.Server {
+func createTCPServer(address string) (*dns.Server, error) {
 	return &dns.Server{
 		Addr:    address,
 		Net:     "tcp",
@@ -186,10 +202,10 @@ func createTCPServer(address string) *dns.Server {
 		NotifyStartedFunc: func() {
 			logger().Infof("TCP server is up and running on address %s", address)
 		},
-	}
+	}, nil
 }
 
-func createUDPServer(address string) *dns.Server {
+func createUDPServer(address string) (*dns.Server, error) {
 	return &dns.Server{
 		Addr:    address,
 		Net:     "udp",
@@ -198,7 +214,7 @@ func createUDPServer(address string) *dns.Server {
 			logger().Infof("UDP server is up and running on address %s", address)
 		},
 		UDPSize: 65535,
-	}
+	}, nil
 }
 
 func createQueryResolver(
@@ -292,7 +308,7 @@ func toMB(b uint64) uint64 {
 }
 
 // Start starts the server
-func (s *Server) Start() {
+func (s *Server) Start(errCh chan<- error) {
 	logger().Info("Starting server")
 
 	for _, srv := range s.dnsServers {
@@ -300,7 +316,7 @@ func (s *Server) Start() {
 
 		go func() {
 			if err := srv.ListenAndServe(); err != nil {
-				logger().Fatalf("start %s listener failed: %v", srv.Net, err)
+				errCh <- fmt.Errorf("start %s listener failed: %w", srv.Net, err)
 			}
 		}()
 	}
@@ -312,8 +328,9 @@ func (s *Server) Start() {
 		go func() {
 			logger().Infof("http server is up and running on addr/port %s", address)
 
-			err := http.Serve(listener, s.httpMux)
-			util.FatalOnError("start http listener failed: ", err)
+			if err := http.Serve(listener, s.httpMux); err != nil {
+				errCh <- fmt.Errorf("start http listener failed: %w", err)
+			}
 		}()
 	}
 
@@ -324,8 +341,9 @@ func (s *Server) Start() {
 		go func() {
 			logger().Infof("https server is up and running on addr/port %s", address)
 
-			err := http.ServeTLS(listener, s.httpMux, s.cfg.CertFile, s.cfg.KeyFile)
-			util.FatalOnError("start https listener failed: ", err)
+			if err := http.ServeTLS(listener, s.httpMux, s.cfg.CertFile, s.cfg.KeyFile); err != nil {
+				errCh <- fmt.Errorf("start https listener failed: %w", err)
+			}
 		}()
 	}
 
@@ -333,14 +351,16 @@ func (s *Server) Start() {
 }
 
 // Stop stops the server
-func (s *Server) Stop() {
+func (s *Server) Stop() error {
 	logger().Info("Stopping server")
 
 	for _, server := range s.dnsServers {
 		if err := server.Shutdown(); err != nil {
-			logger().Fatalf("stop %s listener failed: %v", server.Net, err)
+			return fmt.Errorf("stop %s listener failed: %w", server.Net, err)
 		}
 	}
+
+	return nil
 }
 
 func createResolverRequest(rw dns.ResponseWriter, request *dns.Msg) *model.Request {

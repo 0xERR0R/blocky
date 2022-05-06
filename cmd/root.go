@@ -29,9 +29,10 @@ func NewRootCommand() *cobra.Command {
 and ad-blocker for local network.
 
 Complete documentation is available at https://github.com/0xERR0R/blocky`,
-		Run: func(cmd *cobra.Command, args []string) {
-			newServeCommand().Run(cmd, args)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return newServeCommand().RunE(cmd, args)
 		},
+		SilenceUsage: true,
 	}
 
 	c.PersistentFlags().StringVarP(&configPath, "config", "c", "./config.yml", "path to config file")
@@ -87,7 +88,6 @@ func initConfig() {
 // Execute starts the command
 func Execute() {
 	if err := NewRootCommand().Execute(); err != nil {
-		fmt.Println(err)
 		os.Exit(1)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"net"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/0xERR0R/blocky/cache/expirationcache"
@@ -24,11 +25,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func createBlockHandler(cfg config.BlockingConfig) blockHandler {
+func createBlockHandler(cfg config.BlockingConfig) (blockHandler, error) {
 	cfgBlockType := cfg.BlockType
 
 	if strings.EqualFold(cfgBlockType, "NXDOMAIN") {
-		return nxDomainBlockHandler{}
+		return nxDomainBlockHandler{}, nil
 	}
 
 	blockTime := uint32(time.Duration(cfg.BlockTTL).Seconds())
@@ -36,7 +37,7 @@ func createBlockHandler(cfg config.BlockingConfig) blockHandler {
 	if strings.EqualFold(cfgBlockType, "ZEROIP") {
 		return zeroIPBlockHandler{
 			BlockTimeSec: blockTime,
-		}
+		}, nil
 	}
 
 	var ips []net.IP
@@ -54,14 +55,12 @@ func createBlockHandler(cfg config.BlockingConfig) blockHandler {
 			fallbackHandler: zeroIPBlockHandler{
 				BlockTimeSec: blockTime,
 			},
-		}
+		}, nil
 	}
 
-	log.Log().Fatalf("unknown blockType, please use one of: ZeroIP, NxDomain or specify destination IP address(es)")
-
-	return zeroIPBlockHandler{
-		BlockTimeSec: blockTime,
-	}
+	return nil,
+		fmt.Errorf("unknown blockType '%s', please use one of: ZeroIP, NxDomain or specify destination IP address(es)",
+			cfgBlockType)
 }
 
 type status struct {
@@ -71,6 +70,7 @@ type status struct {
 	disabledGroups []string
 	enableTimer    *time.Timer
 	disableEnd     time.Time
+	lock           sync.RWMutex
 }
 
 // BlockingResolver checks request's question (domain name) against black and white lists
@@ -91,7 +91,11 @@ type BlockingResolver struct {
 // NewBlockingResolver returns a new configured instance of the resolver
 func NewBlockingResolver(cfg config.BlockingConfig,
 	redis *redis.Client, bootstrap *Bootstrap) (r ChainedResolver, err error) {
-	blockHandler := createBlockHandler(cfg)
+	blockHandler, err := createBlockHandler(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	refreshPeriod := time.Duration(cfg.RefreshPeriod)
 	downloader := lists.NewDownloader(
 		lists.WithTimeout(time.Duration(cfg.DownloadTimeout)),
@@ -204,6 +208,8 @@ func (r *BlockingResolver) EnableBlocking() {
 
 func (r *BlockingResolver) internalEnableBlocking() {
 	s := r.status
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	s.enableTimer.Stop()
 	s.enabled = true
 	s.disabledGroups = []string{}
@@ -227,8 +233,10 @@ func (r *BlockingResolver) DisableBlocking(duration time.Duration, disableGroups
 
 func (r *BlockingResolver) internalDisableBlocking(duration time.Duration, disableGroups []string) error {
 	s := r.status
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	s.enableTimer.Stop()
-	s.enabled = false
+
 	allBlockingGroups := r.retrieveAllBlockingGroups()
 
 	if len(disableGroups) == 0 {
@@ -243,6 +251,7 @@ func (r *BlockingResolver) internalDisableBlocking(duration time.Duration, disab
 		s.disabledGroups = disableGroups
 	}
 
+	s.enabled = false
 	evt.Bus().Publish(evt.BlockingEnabledEvent, false)
 
 	s.disableEnd = time.Now().Add(duration)
@@ -264,6 +273,10 @@ func (r *BlockingResolver) internalDisableBlocking(duration time.Duration, disab
 // BlockingStatus returns the current blocking status
 func (r *BlockingResolver) BlockingStatus() api.BlockingStatus {
 	var autoEnableDuration time.Duration
+
+	r.status.lock.RLock()
+	defer r.status.lock.RUnlock()
+
 	if !r.status.enabled && r.status.disableEnd.After(time.Now()) {
 		autoEnableDuration = time.Until(r.status.disableEnd)
 	}
@@ -423,6 +436,9 @@ func extractEntryToCheckFromResponse(rr dns.RR) (entryToCheck string, tName stri
 }
 
 func (r *BlockingResolver) isGroupDisabled(group string) bool {
+	r.status.lock.RLock()
+	defer r.status.lock.RUnlock()
+
 	for _, g := range r.status.disabledGroups {
 		if g == group {
 			return true

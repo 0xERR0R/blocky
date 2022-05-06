@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -15,9 +16,8 @@ import (
 )
 
 const (
-	upstreamDefaultCfgNameDeprecated = "externalResolvers"
-	upstreamDefaultCfgName           = "default"
-	parallelResolverLogger           = "parallel_best_resolver"
+	upstreamDefaultCfgName = "default"
+	parallelResolverLogger = "parallel_best_resolver"
 )
 
 // ParallelBestResolver delegates the DNS message to 2 upstream resolvers and returns the fastest answer
@@ -27,7 +27,7 @@ type ParallelBestResolver struct {
 
 type upstreamResolverStatus struct {
 	resolver      Resolver
-	lastErrorTime time.Time
+	lastErrorTime atomic.Value
 }
 
 type requestResponse struct {
@@ -38,7 +38,6 @@ type requestResponse struct {
 // NewParallelBestResolver creates new resolver instance
 func NewParallelBestResolver(upstreamResolvers map[string][]config.Upstream, bootstrap *Bootstrap) (Resolver, error) {
 	s := make(map[string][]*upstreamResolverStatus, len(upstreamResolvers))
-	logger := logger(parallelResolverLogger)
 
 	for name, res := range upstreamResolvers {
 		resolvers := make([]*upstreamResolverStatus, len(res))
@@ -50,24 +49,16 @@ func NewParallelBestResolver(upstreamResolvers map[string][]config.Upstream, boo
 			}
 
 			resolvers[i] = &upstreamResolverStatus{
-				resolver:      r,
-				lastErrorTime: time.Unix(0, 0),
+				resolver: r,
 			}
-		}
-
-		if _, ok := upstreamResolvers[upstreamDefaultCfgName]; !ok && name == upstreamDefaultCfgNameDeprecated {
-			logger.Warnf("using deprecated '%s' as default upstream resolver"+
-				" configuration name, please consider to change it to '%s'",
-				upstreamDefaultCfgNameDeprecated, upstreamDefaultCfgName)
-
-			name = upstreamDefaultCfgName
+			resolvers[i].lastErrorTime.Store(time.Unix(0, 0))
 		}
 
 		s[name] = resolvers
 	}
 
 	if len(s[upstreamDefaultCfgName]) == 0 {
-		logger.Fatalf("no external DNS resolvers configured as default upstream resolvers. "+
+		return nil, fmt.Errorf("no external DNS resolvers configured as default upstream resolvers. "+
 			"Please configure at least one under '%s' configuration name", upstreamDefaultCfgName)
 	}
 
@@ -195,9 +186,9 @@ func weightedRandom(in []*upstreamResolverStatus, exclude Resolver) *upstreamRes
 	for _, res := range in {
 		var weight float64 = 60
 
-		if time.Since(res.lastErrorTime) < time.Hour {
+		if time.Since(res.lastErrorTime.Load().(time.Time)) < time.Hour {
 			// reduce weight: consider last error time
-			weight = math.Max(1, weight-(60-time.Since(res.lastErrorTime).Minutes()))
+			weight = math.Max(1, weight-(60-time.Since(res.lastErrorTime.Load().(time.Time)).Minutes()))
 		}
 
 		if exclude != res.resolver {
@@ -218,7 +209,7 @@ func resolve(req *model.Request, resolver *upstreamResolverStatus, ch chan<- req
 
 	// update the last error time
 	if err != nil {
-		resolver.lastErrorTime = time.Now()
+		resolver.lastErrorTime.Store(time.Now())
 	}
 	ch <- requestResponse{
 		response: resp,
