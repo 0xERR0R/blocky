@@ -43,6 +43,7 @@ linters:
     - nlreturn
     - nolintlint
     - prealloc
+    - predeclared
     - revive
     - staticcheck
     - structcheck

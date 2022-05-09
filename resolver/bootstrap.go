@@ -244,10 +244,10 @@ func (ips *IPSet) Current() net.IP {
 }
 
 func (ips *IPSet) Next() {
-	old := ips.index
-	new := uint32(int(ips.index+1) % len(ips.values))
+	oldIP := ips.index
+	newIP := uint32(int(ips.index+1) % len(ips.values))
 
 	// We don't care about the result: if the call fails,
 	// it means the value was incremented by another goroutine
-	_ = atomic.CompareAndSwapUint32(&ips.index, old, new)
+	_ = atomic.CompareAndSwapUint32(&ips.index, oldIP, newIP)
 }
