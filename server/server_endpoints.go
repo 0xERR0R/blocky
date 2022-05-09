@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/0xERR0R/blocky/api"
 	"github.com/0xERR0R/blocky/config"
@@ -26,6 +27,7 @@ import (
 const (
 	dohMessageLimit = 512
 	dnsContentType  = "application/dns-message"
+	corsMaxAge      = 5 * time.Minute
 )
 
 func (s *Server) registerAPIEndpoints(router *chi.Mux) {
@@ -289,7 +291,7 @@ func configureCorsHandler(router *chi.Mux) {
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
-		MaxAge:           300,
+		MaxAge:           int(corsMaxAge.Seconds()),
 	})
 	router.Use(crs.Handler)
 }

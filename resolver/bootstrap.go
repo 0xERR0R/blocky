@@ -176,7 +176,7 @@ func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 }
 
 func (b *Bootstrap) resolve(hostname string, qTypes []dns.Type) (ips []net.IP, err error) {
-	ips = make([]net.IP, 0, 2)
+	ips = make([]net.IP, 0, len(qTypes))
 
 	for _, qType := range qTypes {
 		qIPs, qErr := b.resolveType(hostname, qType)

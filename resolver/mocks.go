@@ -5,7 +5,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"sync/atomic"
 
@@ -195,26 +194,33 @@ func (t *MockUDPUpstreamServer) Close() {
 	}
 }
 
-func (t *MockUDPUpstreamServer) Start() config.Upstream {
+func CreateConnection() *net.UDPConn {
 	a, err := net.ResolveUDPAddr("udp4", ":0")
 	util.FatalOnError("can't resolve address: ", err)
 
 	ln, err := net.ListenUDP("udp4", a)
 	util.FatalOnError("can't create connection: ", err)
 
-	t.ln = ln
+	return ln
+}
+
+func (t *MockUDPUpstreamServer) Start() config.Upstream {
+	ln := CreateConnection()
 
 	ladr := ln.LocalAddr().String()
 	host := strings.Split(ladr, ":")[0]
-	p, err := strconv.ParseUint(strings.Split(ladr, ":")[1], 10, 16)
+	p, err := config.ConvertPort(strings.Split(ladr, ":")[1])
 
 	util.FatalOnError("can't convert port: ", err)
 
-	port := uint16(p)
+	port := p
+	t.ln = ln
 
 	go func() {
+		const bufferSize = 1024
+
 		for {
-			buffer := make([]byte, 1024)
+			buffer := make([]byte, bufferSize)
 			n, addr, err := ln.ReadFromUDP(buffer)
 
 			if err != nil {

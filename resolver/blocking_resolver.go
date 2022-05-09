@@ -25,6 +25,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const defaultBlockingCleanUpInterval = 5 * time.Second
+
 func createBlockHandler(cfg config.BlockingConfig) (blockHandler, error) {
 	cfgBlockType := cfg.BlockType
 
@@ -603,7 +605,7 @@ func (r *BlockingResolver) initFQDNIPCache() {
 		identifiers = append(identifiers, identifier)
 	}
 
-	r.fqdnIPCache = expirationcache.NewCache(expirationcache.WithCleanUpInterval(5*time.Second),
+	r.fqdnIPCache = expirationcache.NewCache(expirationcache.WithCleanUpInterval(defaultBlockingCleanUpInterval),
 		expirationcache.WithOnExpiredFn(func(key string) (val interface{}, ttl time.Duration) {
 			return r.queryForFQIdentifierIPs(key)
 		}))

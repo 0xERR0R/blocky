@@ -25,6 +25,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	maxUDPBufferSize = 65535
+)
+
 // Server controls the endpoints for DNS and HTTP
 type Server struct {
 	dnsServers     []*dns.Server
@@ -213,7 +217,7 @@ func createUDPServer(address string) (*dns.Server, error) {
 		NotifyStartedFunc: func() {
 			logger().Infof("UDP server is up and running on address %s", address)
 		},
-		UDPSize: 65535,
+		UDPSize: maxUDPBufferSize,
 	}, nil
 }
 
@@ -304,7 +308,8 @@ func (s *Server) printConfiguration() {
 }
 
 func toMB(b uint64) uint64 {
-	return b / 1024 / 1024
+	const bytesInKB = 1024
+	return b / bytesInKB / bytesInKB
 }
 
 // Start starts the server

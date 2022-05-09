@@ -23,6 +23,12 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const (
+	udpPort   = 53
+	tlsPort   = 853
+	httpsPort = 443
+)
+
 // NetProtocol resolver protocol ENUM(
 // tcp+udp // TCP and UDP protocols
 // tcp-tls // TCP-TLS protocol
@@ -79,9 +85,9 @@ func (c *Duration) String() string {
 
 // nolint:gochecknoglobals
 var netDefaultPort = map[NetProtocol]uint16{
-	NetProtocolTcpUdp: 53,
-	NetProtocolTcpTls: 853,
-	NetProtocolHttps:  443,
+	NetProtocolTcpUdp: udpPort,
+	NetProtocolTcpTls: tlsPort,
+	NetProtocolHttps:  httpsPort,
 }
 
 // Upstream is the definition of external DNS server
@@ -320,15 +326,14 @@ func ParseUpstream(upstream string) (Upstream, error) {
 
 	// string contains host:port
 	if err == nil {
-		var p uint64
-		p, err = strconv.ParseUint(strings.TrimSpace(portString), 10, 16)
+		p, err := ConvertPort(portString)
 
 		if err != nil {
 			err = fmt.Errorf("can't convert port to number (1 - 65535) %w", err)
 			return Upstream{}, err
 		}
 
-		port = uint16(p)
+		port = p
 	} else {
 		// only host, use default port
 		host = upstream
@@ -595,4 +600,21 @@ func validateConfig(cfg *Config) (err error) {
 // GetConfig returns the current config
 func GetConfig() *Config {
 	return config
+}
+
+// ConvertPort converts string representation into a valid port (0 - 65535)
+func ConvertPort(in string) (uint16, error) {
+	const (
+		base    = 10
+		bitSize = 16
+	)
+
+	var p uint64
+	p, err := strconv.ParseUint(strings.TrimSpace(in), base, bitSize)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return uint16(p), nil
 }

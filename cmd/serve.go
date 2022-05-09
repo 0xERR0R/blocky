@@ -49,7 +49,8 @@ func startServer(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("can't start server: %w", err)
 	}
 
-	errChan := make(chan error, 10)
+	const errChanSize = 10
+	errChan := make(chan error, errChanSize)
 
 	srv.Start(errChan)
 

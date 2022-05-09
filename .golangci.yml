@@ -1,41 +1,42 @@
 linters:
   enable:
-    - govet
-    - errcheck
-    - staticcheck
-    - unused
-    - gosimple
-    - structcheck
-    - varcheck
-    - ineffassign
-    - deadcode
-    - typecheck
     - bodyclose
-    - revive
-    - stylecheck
-    - gosec
-    - unconvert
-    - dupl
-    - goconst
-    - gocyclo
-    - gocognit
-    - gofmt
-    - goimports
+    - deadcode
     - depguard
-    - misspell
-    - lll
-    - unparam
     - dogsled
+    - dupl
+    - errcheck
+    - exportloopref
     - funlen
     - gochecknoglobals
     - gochecknoinits
+    - gocognit
+    - goconst
     - gocritic
+    - gocyclo
     - godox
+    - gofmt
+    - goimports
+    - gomnd
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - lll
+    - misspell
     - nakedret
     - prealloc
+    - revive
+    - staticcheck
+    - structcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - varcheck
     - whitespace
     - wsl
-    - exportloopref
   disable:
     - noctx
     - scopelint
@@ -46,6 +47,11 @@ linters:
     - unused
   fast: false
 
+linters-settings:
+  gomnd:
+    ignored-numbers:
+      - '0666'
+      
 issues:
   exclude-rules:
     # Exclude some linters from running on tests files.

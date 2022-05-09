@@ -561,10 +561,9 @@ var _ = Describe("Running DNS server", func() {
 				Expect(err).Should(Succeed())
 
 				errChan := make(chan error, 10)
+
 				// start server
-				go func() {
-					server.Start(errChan)
-				}()
+				go server.Start(errChan)
 
 				DeferCleanup(server.Stop)
 

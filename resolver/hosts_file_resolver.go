@@ -147,6 +147,8 @@ type host struct {
 }
 
 func (r *HostsFileResolver) parseHostsFile() error {
+	const minColumnCount = 2
+
 	if r.HostsFilePath == "" {
 		return nil
 	}
@@ -177,7 +179,7 @@ func (r *HostsFileResolver) parseHostsFile() error {
 			fields = strings.Fields(trimmed[:end])
 		}
 
-		if len(fields) < 2 {
+		if len(fields) < minColumnCount {
 			// Skip invalid entry
 			continue
 		}
@@ -191,7 +193,7 @@ func (r *HostsFileResolver) parseHostsFile() error {
 		h.IP = net.ParseIP(fields[0])
 		h.Hostname = fields[1]
 
-		if len(fields) > 2 {
+		if len(fields) > minColumnCount {
 			for i := 2; i < len(fields); i++ {
 				h.Aliases = append(h.Aliases, fields[i])
 			}
