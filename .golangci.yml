@@ -27,9 +27,10 @@ linters:
     - gomoddirectives
     - gomodguard
     - gosec
-    - grouper
     - gosimple
     - govet
+    - grouper
+    - ifshort
     - ineffassign
     - lll
     - misspell

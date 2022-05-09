@@ -196,8 +196,7 @@ func (b *Bootstrap) resolve(hostname string, qTypes []dns.Type) (ips []net.IP, e
 }
 
 func (b *Bootstrap) resolveType(hostname string, qType dns.Type) (ips []net.IP, err error) {
-	ip := net.ParseIP(hostname)
-	if ip != nil {
+	if ip := net.ParseIP(hostname); ip != nil {
 		return []net.IP{ip}, nil
 	}
 

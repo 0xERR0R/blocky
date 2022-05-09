@@ -139,8 +139,7 @@ func isExpired(el *element) bool {
 }
 
 func calculateRemainTTL(expiresEpoch int64) time.Duration {
-	now := time.Now().UnixMilli()
-	if now < expiresEpoch {
+	if now := time.Now().UnixMilli(); now < expiresEpoch {
 		return time.Duration(expiresEpoch-now) * time.Millisecond
 	}
 

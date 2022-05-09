@@ -127,9 +127,7 @@ func NewHostsFileResolver(cfg config.HostsFileConfig) ChainedResolver {
 		refreshPeriod: time.Duration(cfg.RefreshPeriod),
 	}
 
-	err := r.parseHostsFile()
-
-	if err != nil {
+	if err := r.parseHostsFile(); err != nil {
 		logger := logger(hostsFileResolverLogger)
 		logger.Warnf("cannot parse hosts file: %s, hosts file resolving is disabled", r.HostsFilePath)
 		r.HostsFilePath = ""

@@ -307,9 +307,7 @@ func processLine(line string) string {
 		return ""
 	}
 
-	parts := strings.Fields(line)
-
-	if len(parts) > 0 {
+	if parts := strings.Fields(line); len(parts) > 0 {
 		host := parts[len(parts)-1]
 
 		ip := net.ParseIP(host)

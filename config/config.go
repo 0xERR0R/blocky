@@ -345,9 +345,7 @@ func ParseUpstream(upstream string) (Upstream, error) {
 	}
 
 	// validate hostname or ip
-	ip := net.ParseIP(host)
-
-	if ip == nil {
+	if ip := net.ParseIP(host); ip == nil {
 		// is not IP
 		if !validDomain.MatchString(host) {
 			return Upstream{}, fmt.Errorf("wrong host name '%s'", host)
