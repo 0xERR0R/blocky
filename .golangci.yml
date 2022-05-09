@@ -34,6 +34,7 @@ linters:
     - importas
     - ineffassign
     - lll
+    - makezero
     - misspell
     - nakedret
     - prealloc
