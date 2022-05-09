@@ -88,6 +88,54 @@ func (r *CustomDNSResolver) handleReverseDNS(request *model.Request) *model.Resp
 	return nil
 }
 
+func (r *CustomDNSResolver) processRequest(request *model.Request) *model.Response {
+	logger := withPrefix(request.Log, "custom_dns_resolver")
+
+	response := new(dns.Msg)
+	response.SetReply(request.Req)
+
+	question := request.Req.Question[0]
+	domain := util.ExtractDomain(question)
+
+	for len(domain) > 0 {
+		ips, found := r.mapping[domain]
+		if found {
+			for _, ip := range ips {
+				if isSupportedType(ip, question) {
+					rr, _ := util.CreateAnswerFromQuestion(question, ip, r.ttl)
+					response.Answer = append(response.Answer, rr)
+				}
+			}
+
+			if len(response.Answer) > 0 {
+				logger.WithFields(logrus.Fields{
+					"answer": util.AnswerToString(response.Answer),
+					"domain": domain,
+				}).Debugf("returning custom dns entry")
+
+				return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}
+			}
+
+			// Mapping exists for this domain, but for another type
+			if !r.filterUnmappedTypes {
+				// go to next resolver
+				break
+			}
+
+			// return NOERROR with empty result
+			return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}
+		}
+
+		if i := strings.Index(domain, "."); i >= 0 {
+			domain = domain[i+1:]
+		} else {
+			break
+		}
+	}
+
+	return nil
+}
+
 // Resolve uses internal mapping to resolve the query
 func (r *CustomDNSResolver) Resolve(request *model.Request) (*model.Response, error) {
 	logger := withPrefix(request.Log, "custom_dns_resolver")
@@ -98,46 +146,9 @@ func (r *CustomDNSResolver) Resolve(request *model.Request) (*model.Response, er
 	}
 
 	if len(r.mapping) > 0 {
-		response := new(dns.Msg)
-		response.SetReply(request.Req)
-
-		question := request.Req.Question[0]
-		domain := util.ExtractDomain(question)
-
-		for len(domain) > 0 {
-			ips, found := r.mapping[domain]
-			if found {
-				for _, ip := range ips {
-					if isSupportedType(ip, question) {
-						rr, _ := util.CreateAnswerFromQuestion(question, ip, r.ttl)
-						response.Answer = append(response.Answer, rr)
-					}
-				}
-
-				if len(response.Answer) > 0 {
-					logger.WithFields(logrus.Fields{
-						"answer": util.AnswerToString(response.Answer),
-						"domain": domain,
-					}).Debugf("returning custom dns entry")
-
-					return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}, nil
-				}
-
-				// Mapping exists for this domain, but for another type
-				if !r.filterUnmappedTypes {
-					// go to next resolver
-					break
-				}
-
-				// return NOERROR with empty result
-				return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}, nil
-			}
-
-			if i := strings.Index(domain, "."); i >= 0 {
-				domain = domain[i+1:]
-			} else {
-				break
-			}
+		resp := r.processRequest(request)
+		if resp != nil {
+			return resp, nil
 		}
 	}
 

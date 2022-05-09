@@ -37,6 +37,7 @@ linters:
     - makezero
     - misspell
     - nakedret
+    - nestif 
     - prealloc
     - revive
     - staticcheck

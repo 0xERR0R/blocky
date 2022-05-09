@@ -51,31 +51,38 @@ func (r *ConditionalUpstreamResolver) Configuration() (result []string) {
 	return
 }
 
+func (r *ConditionalUpstreamResolver) processRequest(request *model.Request) (*model.Response, error) {
+	domainFromQuestion := util.ExtractDomain(request.Req.Question[0])
+	domain := domainFromQuestion
+
+	if strings.Contains(domainFromQuestion, ".") {
+		// try with domain with and without sub-domains
+		for len(domain) > 0 {
+			if resolver, found := r.mapping[domain]; found {
+				return r.internalResolve(resolver, domainFromQuestion, domain, request)
+			}
+
+			if i := strings.Index(domain, "."); i >= 0 {
+				domain = domain[i+1:]
+			} else {
+				break
+			}
+		}
+	} else if resolver, found := r.mapping["."]; found {
+		return r.internalResolve(resolver, domainFromQuestion, domain, request)
+	}
+
+	return nil, nil
+}
+
 // Resolve uses the conditional resolver to resolve the query
 func (r *ConditionalUpstreamResolver) Resolve(request *model.Request) (*model.Response, error) {
 	logger := withPrefix(request.Log, "conditional_resolver")
 
 	if len(r.mapping) > 0 {
-		domainFromQuestion := util.ExtractDomain(request.Req.Question[0])
-		domain := domainFromQuestion
-
-		if !strings.Contains(domainFromQuestion, ".") {
-			if resolver, found := r.mapping["."]; found {
-				return r.internalResolve(resolver, domainFromQuestion, domain, request)
-			}
-		} else {
-			// try with domain with and without sub-domains
-			for len(domain) > 0 {
-				if resolver, found := r.mapping[domain]; found {
-					return r.internalResolve(resolver, domainFromQuestion, domain, request)
-				}
-
-				if i := strings.Index(domain, "."); i >= 0 {
-					domain = domain[i+1:]
-				} else {
-					break
-				}
-			}
+		resp, err := r.processRequest(request)
+		if resp != nil || err != nil {
+			return resp, err
 		}
 	}
 

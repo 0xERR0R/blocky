@@ -76,21 +76,7 @@ func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, er
 		domain := util.ExtractDomain(question)
 
 		for _, host := range r.hosts {
-			if host.Hostname == domain {
-				if isSupportedType(host.IP, question) {
-					rr, _ := util.CreateAnswerFromQuestion(question, host.IP, r.ttl)
-					response.Answer = append(response.Answer, rr)
-				}
-			}
-
-			for _, alias := range host.Aliases {
-				if alias == domain {
-					if isSupportedType(host.IP, question) {
-						rr, _ := util.CreateAnswerFromQuestion(question, host.IP, r.ttl)
-						response.Answer = append(response.Answer, rr)
-					}
-				}
-			}
+			response.Answer = append(response.Answer, r.processHostEntry(host, domain, question)...)
 		}
 
 		if len(response.Answer) > 0 {
@@ -106,6 +92,26 @@ func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, er
 	logger.WithField("resolver", Name(r.next)).Trace("go to next resolver")
 
 	return r.next.Resolve(request)
+}
+
+func (r *HostsFileResolver) processHostEntry(host host, domain string, question dns.Question) (result []dns.RR) {
+	if host.Hostname == domain {
+		if isSupportedType(host.IP, question) {
+			rr, _ := util.CreateAnswerFromQuestion(question, host.IP, r.ttl)
+			result = append(result, rr)
+		}
+	}
+
+	for _, alias := range host.Aliases {
+		if alias == domain {
+			if isSupportedType(host.IP, question) {
+				rr, _ := util.CreateAnswerFromQuestion(question, host.IP, r.ttl)
+				result = append(result, rr)
+			}
+		}
+	}
+
+	return
 }
 
 func (r *HostsFileResolver) Configuration() (result []string) {
