@@ -1,5 +1,6 @@
 linters:
   enable:
+    - asciicheck
     - bodyclose
     - deadcode
     - depguard
@@ -51,7 +52,7 @@ linters-settings:
   gomnd:
     ignored-numbers:
       - '0666'
-      
+
 issues:
   exclude-rules:
     # Exclude some linters from running on tests files.
