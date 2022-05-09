@@ -55,6 +55,7 @@ linters:
     - unparam
     - unused
     - varcheck
+    - wastedassign
     - whitespace
     - wsl
   disable:
