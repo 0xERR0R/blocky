@@ -39,6 +39,7 @@ linters:
     - nakedret
     - nestif
     - nilerr
+    - nilnil
     - prealloc
     - revive
     - staticcheck

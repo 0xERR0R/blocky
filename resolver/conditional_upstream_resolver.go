@@ -51,7 +51,7 @@ func (r *ConditionalUpstreamResolver) Configuration() (result []string) {
 	return
 }
 
-func (r *ConditionalUpstreamResolver) processRequest(request *model.Request) (*model.Response, error) {
+func (r *ConditionalUpstreamResolver) processRequest(request *model.Request) (bool, *model.Response, error) {
 	domainFromQuestion := util.ExtractDomain(request.Req.Question[0])
 	domain := domainFromQuestion
 
@@ -59,7 +59,8 @@ func (r *ConditionalUpstreamResolver) processRequest(request *model.Request) (*m
 		// try with domain with and without sub-domains
 		for len(domain) > 0 {
 			if resolver, found := r.mapping[domain]; found {
-				return r.internalResolve(resolver, domainFromQuestion, domain, request)
+				resp, err := r.internalResolve(resolver, domainFromQuestion, domain, request)
+				return true, resp, err
 			}
 
 			if i := strings.Index(domain, "."); i >= 0 {
@@ -69,10 +70,11 @@ func (r *ConditionalUpstreamResolver) processRequest(request *model.Request) (*m
 			}
 		}
 	} else if resolver, found := r.mapping["."]; found {
-		return r.internalResolve(resolver, domainFromQuestion, domain, request)
+		resp, err := r.internalResolve(resolver, domainFromQuestion, domain, request)
+		return true, resp, err
 	}
 
-	return nil, nil
+	return false, nil, nil
 }
 
 // Resolve uses the conditional resolver to resolve the query
@@ -80,8 +82,8 @@ func (r *ConditionalUpstreamResolver) Resolve(request *model.Request) (*model.Re
 	logger := withPrefix(request.Log, "conditional_resolver")
 
 	if len(r.mapping) > 0 {
-		resp, err := r.processRequest(request)
-		if resp != nil || err != nil {
+		resolved, resp, err := r.processRequest(request)
+		if resolved {
 			return resp, err
 		}
 	}

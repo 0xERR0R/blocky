@@ -364,7 +364,7 @@ func (r *BlockingResolver) hasWhiteListOnlyAllowed(groupsToCheck []string) bool 
 }
 
 func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
-	request *model.Request, logger *logrus.Entry) (*model.Response, error) {
+	request *model.Request, logger *logrus.Entry) (bool, *model.Response, error) {
 	logger.WithField("groupsToCheck", strings.Join(groupsToCheck, "; ")).Debug("checking groups for request")
 	whitelistOnlyAllowed := r.hasWhiteListOnlyAllowed(groupsToCheck)
 
@@ -374,19 +374,26 @@ func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
 
 		if whitelisted, group := r.matches(groupsToCheck, r.whitelistMatcher, domain); whitelisted {
 			logger.WithField("group", group).Debugf("domain is whitelisted")
-			return r.next.Resolve(request)
+
+			resp, err := r.next.Resolve(request)
+
+			return true, resp, err
 		}
 
 		if whitelistOnlyAllowed {
-			return r.handleBlocked(logger, request, question, "BLOCKED (WHITELIST ONLY)")
+			resp, err := r.handleBlocked(logger, request, question, "BLOCKED (WHITELIST ONLY)")
+
+			return true, resp, err
 		}
 
 		if blocked, group := r.matches(groupsToCheck, r.blacklistMatcher, domain); blocked {
-			return r.handleBlocked(logger, request, question, fmt.Sprintf("BLOCKED (%s)", group))
+			resp, err := r.handleBlocked(logger, request, question, fmt.Sprintf("BLOCKED (%s)", group))
+
+			return true, resp, err
 		}
 	}
 
-	return nil, nil
+	return false, nil, nil
 }
 
 // Resolve checks the query against the blacklist and delegates to next resolver if domain is not blocked
@@ -395,8 +402,8 @@ func (r *BlockingResolver) Resolve(request *model.Request) (*model.Response, err
 	groupsToCheck := r.groupsToCheckForClient(request)
 
 	if len(groupsToCheck) > 0 {
-		resp, err := r.handleBlacklist(groupsToCheck, request, logger)
-		if resp != nil || err != nil {
+		handled, resp, err := r.handleBlacklist(groupsToCheck, request, logger)
+		if handled {
 			return resp, err
 		}
 	}
