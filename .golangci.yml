@@ -25,6 +25,7 @@ linters:
     - goimports
     - gomnd
     - gomoddirectives
+    - gomodguard
     - gosec
     - gosimple
     - govet
