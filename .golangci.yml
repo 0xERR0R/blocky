@@ -11,6 +11,7 @@ linters:
     - errcheck
     - errchkjson
     - errorlint
+    - exhaustive
     - exportloopref
     - funlen
     - gochecknoglobals
