@@ -49,6 +49,7 @@ linters:
     - staticcheck
     - structcheck
     - stylecheck
+    - tenv
     - typecheck
     - unconvert
     - unparam
