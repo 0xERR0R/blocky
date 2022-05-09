@@ -309,6 +309,7 @@ func (s *Server) printConfiguration() {
 
 func toMB(b uint64) uint64 {
 	const bytesInKB = 1024
+
 	return b / bytesInKB / bytesInKB
 }
 

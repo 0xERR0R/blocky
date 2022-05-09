@@ -54,6 +54,7 @@ func query(cmd *cobra.Command, args []string) error {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := ioutil.ReadAll(resp.Body)
+
 		return fmt.Errorf("response NOK, %s %s", resp.Status, string(body))
 	}
 

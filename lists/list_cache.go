@@ -163,6 +163,7 @@ Loop:
 			}
 		default:
 			close(c)
+
 			break Loop
 		}
 	}

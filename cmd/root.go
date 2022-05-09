@@ -81,6 +81,7 @@ func initConfig() {
 		port, err := config.ConvertPort(split[lastIdx])
 		if err != nil {
 			util.FatalOnError("can't convert port to number (1 - 65535)", err)
+
 			return
 		}
 

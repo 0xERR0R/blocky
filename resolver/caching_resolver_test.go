@@ -547,6 +547,7 @@ var _ = Describe("CachingResolver", func() {
 
 				Eventually(func() error {
 					resp, err = sut.Resolve(request)
+
 					return err
 				}, "50ms").Should(Succeed())
 			})

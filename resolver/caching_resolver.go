@@ -93,6 +93,7 @@ func setupRedisCacheSubscriber(c *CachingResolver) {
 // check if domain was queried > threshold in the time window
 func (r *CachingResolver) isPrefetchingDomain(cacheKey string) bool {
 	cnt, _ := r.prefetchingNameCache.Get(cacheKey)
+
 	return cnt != nil && cnt.(int) > r.prefetchThreshold
 }
 
@@ -110,6 +111,7 @@ func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.
 		if err == nil {
 			if response.Res.Rcode == dns.RcodeSuccess {
 				evt.Bus().Publish(evt.CachingDomainPrefetched, domainName)
+
 				return cacheValue{response.Res.Answer, true}, time.Duration(r.adjustTTLs(response.Res.Answer)) * time.Second
 			}
 		} else {
@@ -124,6 +126,7 @@ func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.
 func (r *CachingResolver) Configuration() (result []string) {
 	if r.maxCacheTimeSec < 0 {
 		result = []string{"deactivated"}
+
 		return
 	}
 
@@ -154,6 +157,7 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 
 	if r.maxCacheTimeSec < 0 {
 		logger.Debug("skip cache")
+
 		return r.next.Resolve(request)
 	}
 

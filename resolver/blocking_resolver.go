@@ -550,6 +550,7 @@ func (b zeroIPBlockHandler) handleBlock(question dns.Question, response *dns.Msg
 		zeroIP = net.IPv4zero
 	default:
 		response.Rcode = dns.RcodeNameError
+
 		return
 	}
 
@@ -627,5 +628,6 @@ func (r *BlockingResolver) initFQDNIPCache() {
 
 func isFQDN(in string) bool {
 	s := strings.Trim(in, ".")
+
 	return strings.Contains(s, ".")
 }

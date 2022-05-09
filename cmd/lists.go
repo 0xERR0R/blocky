@@ -40,6 +40,7 @@ func refreshList(_ *cobra.Command, _ []string) error {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := ioutil.ReadAll(resp.Body)
+
 		return fmt.Errorf("response NOK, %s %s", resp.Status, string(body))
 	}
 

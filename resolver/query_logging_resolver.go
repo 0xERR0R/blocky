@@ -49,6 +49,7 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 			case config.QueryLogTypeNone:
 				writer = querylog.NewNoneWriter()
 			}
+
 			return err
 		},
 		retry.Attempts(uint(cfg.CreationAttempts)),

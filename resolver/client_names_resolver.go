@@ -142,6 +142,7 @@ func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry
 
 	if err != nil {
 		logger.Error("can't resolve client name: ", err)
+
 		return []string{ip.String()}
 	}
 
@@ -152,6 +153,7 @@ func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry
 		for _, i := range r.singleNameOrder {
 			if i > 0 && int(i) <= len(clientNames) {
 				result = []string{clientNames[i-1]}
+
 				break
 			}
 		}

@@ -30,6 +30,7 @@ func (b *BlockingControlMock) EnableBlocking() {
 }
 func (b *BlockingControlMock) DisableBlocking(_ time.Duration, disableGroups []string) error {
 	b.enabled = false
+
 	return nil
 }
 

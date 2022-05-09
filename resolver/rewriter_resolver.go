@@ -80,6 +80,7 @@ func (r *RewriterResolver) Resolve(request *model.Request) (*model.Response, err
 	if response == NoResponse {
 		// Inner resolver had no response, continue with the normal chain
 		logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
+
 		return r.next.Resolve(request)
 	}
 
@@ -128,6 +129,7 @@ func (r *RewriterResolver) rewriteDomain(domain string) (string, string) {
 	for k, v := range r.rewrite {
 		if strings.HasSuffix(domain, "."+k) {
 			newDomain := strings.TrimSuffix(domain, "."+k) + "." + v
+
 			return newDomain, k
 		}
 	}

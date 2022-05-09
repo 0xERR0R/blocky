@@ -60,6 +60,7 @@ func (r *ConditionalUpstreamResolver) processRequest(request *model.Request) (bo
 		for len(domain) > 0 {
 			if resolver, found := r.mapping[domain]; found {
 				resp, err := r.internalResolve(resolver, domainFromQuestion, domain, request)
+
 				return true, resp, err
 			}
 
@@ -71,6 +72,7 @@ func (r *ConditionalUpstreamResolver) processRequest(request *model.Request) (bo
 		}
 	} else if resolver, found := r.mapping["."]; found {
 		resp, err := r.internalResolve(resolver, domainFromQuestion, domain, request)
+
 		return true, resp, err
 	}
 

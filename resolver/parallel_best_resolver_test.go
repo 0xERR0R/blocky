@@ -43,6 +43,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 						time.Sleep(50 * time.Millisecond)
 
 						Expect(err).Should(Succeed())
+
 						return response
 					})
 					DeferCleanup(slowTestUpstream.Close)
@@ -71,6 +72,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 						time.Sleep(50 * time.Millisecond)
 
 						Expect(err).Should(Succeed())
+
 						return response
 					})
 					DeferCleanup(slowTestUpstream.Close)

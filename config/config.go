@@ -66,6 +66,7 @@ func NewQTypeSet(qTypes ...dns.Type) QTypeSet {
 
 func (s QTypeSet) Contains(qType dns.Type) bool {
 	_, found := s[QType(qType)]
+
 	return found
 }
 
@@ -258,12 +259,14 @@ func (c *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		// duration is defined as number without unit
 		// use minutes to ensure back compatibility
 		*c = Duration(time.Duration(minutes) * time.Minute)
+
 		return nil
 	}
 
 	duration, err := time.ParseDuration(input)
 	if err == nil {
 		*c = Duration(duration)
+
 		return nil
 	}
 
@@ -330,6 +333,7 @@ func ParseUpstream(upstream string) (Upstream, error) {
 
 		if err != nil {
 			err = fmt.Errorf("can't convert port to number (1 - 65535) %w", err)
+
 			return Upstream{}, err
 		}
 
@@ -547,6 +551,7 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 			// config file does not exist
 			// return config with default values
 			config = &cfg
+
 			return config, nil
 		}
 

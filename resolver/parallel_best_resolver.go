@@ -134,6 +134,7 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 
 	if len(resolvers) == 1 {
 		logger.WithField("resolver", resolvers[0].resolver).Debug("delegating to resolver")
+
 		return resolvers[0].resolver.Resolve(request)
 	}
 
@@ -164,6 +165,7 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 					"resolver": r1.resolver,
 					"answer":   util.AnswerToString(result.response.Res.Answer),
 				}).Debug("using response from resolver")
+
 				return result.response, nil
 			}
 		}

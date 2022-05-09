@@ -111,6 +111,7 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 
 	if err != nil {
 		logAndResponseWithError(err, "unable to process query: ", rw)
+
 		return
 	}
 
@@ -122,6 +123,7 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 	b, err := resResponse.Res.Pack()
 	if err != nil {
 		logAndResponseWithError(err, "can't serialize message: ", rw)
+
 		return
 	}
 
@@ -165,6 +167,7 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 
 	if err != nil {
 		logAndResponseWithError(err, "can't read request: ", rw)
+
 		return
 	}
 
@@ -191,6 +194,7 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 
 	if err != nil {
 		logAndResponseWithError(err, "unable to process query: ", rw)
+
 		return
 	}
 
@@ -203,6 +207,7 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 
 	if err != nil {
 		logAndResponseWithError(err, "unable to marshal response: ", rw)
+
 		return
 	}
 

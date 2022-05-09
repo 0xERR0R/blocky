@@ -28,6 +28,7 @@ type MockResolver struct {
 
 func (r *MockResolver) Configuration() []string {
 	args := r.Called()
+
 	return args.Get(0).([]string)
 }
 
@@ -181,6 +182,7 @@ func (t *MockUDPUpstreamServer) WithAnswerError(errorCode int) *MockUDPUpstreamS
 
 func (t *MockUDPUpstreamServer) WithAnswerFn(fn func(request *dns.Msg) (response *dns.Msg)) *MockUDPUpstreamServer {
 	t.answerFn = fn
+
 	return t
 }
 
@@ -239,6 +241,7 @@ func (t *MockUDPUpstreamServer) Start() config.Upstream {
 			// nil should indicate an error
 			if response == nil {
 				_, _ = ln.WriteToUDP([]byte("dummy"), addr)
+
 				continue
 			}
 

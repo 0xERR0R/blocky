@@ -58,6 +58,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 					PreferGo: true,
 					Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 						usedSystemResolver <- true
+
 						return nil, errors.New("don't actually do anything")
 					},
 				}
