@@ -151,7 +151,6 @@ func (r *CachingResolver) Configuration() (result []string) {
 
 // Resolve checks if the current query result is already in the cache and returns it
 // or delegates to the next resolver
-//nolint:gocognit,funlen
 func (r *CachingResolver) Resolve(request *model.Request) (response *model.Response, err error) {
 	logger := withPrefix(request.Log, "caching_resolver")
 

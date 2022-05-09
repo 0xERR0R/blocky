@@ -41,6 +41,7 @@ linters:
     - nilerr
     - nilnil
     - nlreturn
+    - nolintlint
     - prealloc
     - revive
     - staticcheck
