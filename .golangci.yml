@@ -1,6 +1,7 @@
 linters:
   enable:
     - asciicheck
+    - bidichk
     - bodyclose
     - deadcode
     - depguard
