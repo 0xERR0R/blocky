@@ -27,6 +27,7 @@ linters:
     - gomoddirectives
     - gomodguard
     - gosec
+    - grouper
     - gosimple
     - govet
     - ineffassign
