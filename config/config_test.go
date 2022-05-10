@@ -269,6 +269,7 @@ bootstrapDns:
 				u := &Upstream{}
 				err := u.UnmarshalYAML(func(i interface{}) error {
 					*i.(*string) = "tcp+udp:1.2.3.4"
+
 					return nil
 
 				})
@@ -292,6 +293,7 @@ bootstrapDns:
 				l := &ListenConfig{}
 				err := l.UnmarshalYAML(func(i interface{}) error {
 					*i.(*string) = "55,:56"
+
 					return nil
 				})
 				Expect(err).Should(Succeed())
@@ -311,6 +313,7 @@ bootstrapDns:
 				d := Duration(0)
 				err := d.UnmarshalYAML(func(i interface{}) error {
 					*i.(*string) = "1m20s"
+
 					return nil
 				})
 				Expect(err).Should(Succeed())
@@ -321,6 +324,7 @@ bootstrapDns:
 				d := Duration(0)
 				err := d.UnmarshalYAML(func(i interface{}) error {
 					*i.(*string) = "wrong"
+
 					return nil
 				})
 				Expect(err).Should(HaveOccurred())
@@ -342,6 +346,7 @@ bootstrapDns:
 				c := &ConditionalUpstreamMapping{}
 				err := c.UnmarshalYAML(func(i interface{}) error {
 					*i.(*map[string]string) = map[string]string{"key": "1.2.3.4"}
+
 					return nil
 				})
 				Expect(err).Should(Succeed())
@@ -364,6 +369,7 @@ bootstrapDns:
 				c := &CustomDNSMapping{}
 				err := c.UnmarshalYAML(func(i interface{}) error {
 					*i.(*map[string]string) = map[string]string{"key": "1.2.3.4"}
+
 					return nil
 				})
 				Expect(err).Should(Succeed())
@@ -385,6 +391,7 @@ bootstrapDns:
 				t := QType(0)
 				err := t.UnmarshalYAML(func(i interface{}) error {
 					*i.(*string) = "AAAA"
+
 					return nil
 				})
 				Expect(err).Should(Succeed())
@@ -395,6 +402,7 @@ bootstrapDns:
 				t := QType(0)
 				err := t.UnmarshalYAML(func(i interface{}) error {
 					*i.(*string) = "WRONGTYPE"
+
 					return nil
 				})
 				Expect(err).Should(HaveOccurred())

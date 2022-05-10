@@ -99,6 +99,7 @@ func (cache regexCache) Contains(searchString string) bool {
 	for _, regex := range cache {
 		if regex.MatchString(searchString) {
 			log.PrefixedLog("regexCache").Debugf("regex '%s' matched with '%s'", regex, searchString)
+
 			return true
 		}
 	}

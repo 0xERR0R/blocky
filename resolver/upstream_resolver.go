@@ -23,7 +23,8 @@ import (
 )
 
 const (
-	dnsContentType = "application/dns-message"
+	dnsContentType             = "application/dns-message"
+	defaultTLSHandshakeTimeout = 5 * time.Second
 )
 
 // nolint:gochecknoglobals
@@ -66,7 +67,7 @@ func createUpstreamClient(cfg config.Upstream) upstreamClient {
 			client: &http.Client{
 				Transport: &http.Transport{
 					TLSClientConfig:     &tlsConfig,
-					TLSHandshakeTimeout: 5 * time.Second,
+					TLSHandshakeTimeout: defaultTLSHandshakeTimeout,
 				},
 				Timeout: timeout,
 			},
@@ -246,6 +247,7 @@ func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Resp
 					"response_time_ms": rtt.Milliseconds(),
 				}).Debugf("received response from upstream")
 			}
+
 			return err
 		},
 		retry.Attempts(retryAttempts),

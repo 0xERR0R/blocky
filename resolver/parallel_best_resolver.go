@@ -18,6 +18,7 @@ import (
 const (
 	upstreamDefaultCfgName = "default"
 	parallelResolverLogger = "parallel_best_resolver"
+	resolverCount          = 2
 )
 
 // ParallelBestResolver delegates the DNS message to 2 upstream resolvers and returns the fastest answer
@@ -133,13 +134,14 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 
 	if len(resolvers) == 1 {
 		logger.WithField("resolver", resolvers[0].resolver).Debug("delegating to resolver")
+
 		return resolvers[0].resolver.Resolve(request)
 	}
 
 	r1, r2 := pickRandom(resolvers)
 	logger.Debugf("using %s and %s as resolver", r1.resolver, r2.resolver)
 
-	ch := make(chan requestResponse, 2)
+	ch := make(chan requestResponse, resolverCount)
 
 	var collectedErrors []error
 
@@ -152,7 +154,7 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 	go resolve(request, r2, ch)
 
 	//nolint: gosimple
-	for len(collectedErrors) < 2 {
+	for len(collectedErrors) < resolverCount {
 		select {
 		case result := <-ch:
 			if result.err != nil {
@@ -163,6 +165,7 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 					"resolver": r1.resolver,
 					"answer":   util.AnswerToString(result.response.Res.Answer),
 				}).Debug("using response from resolver")
+
 				return result.response, nil
 			}
 		}
@@ -181,14 +184,17 @@ func pickRandom(resolvers []*upstreamResolverStatus) (resolver1, resolver2 *upst
 }
 
 func weightedRandom(in []*upstreamResolverStatus, exclude Resolver) *upstreamResolverStatus {
+	const errorWindowInSec = 60
+
 	var choices []weightedrand.Choice
 
 	for _, res := range in {
-		var weight float64 = 60
+		var weight float64 = errorWindowInSec
 
 		if time.Since(res.lastErrorTime.Load().(time.Time)) < time.Hour {
 			// reduce weight: consider last error time
-			weight = math.Max(1, weight-(60-time.Since(res.lastErrorTime.Load().(time.Time)).Minutes()))
+			lastErrorTime := res.lastErrorTime.Load().(time.Time)
+			weight = math.Max(1, weight-(errorWindowInSec-time.Since(lastErrorTime).Minutes()))
 		}
 
 		if exclude != res.resolver {

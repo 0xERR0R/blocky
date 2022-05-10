@@ -17,6 +17,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const defaultCachingCleanUpInterval = 5 * time.Second
+
 // CachingResolver caches answers from dns queries with their TTL time,
 // to avoid external resolver calls for recurrent queries
 type CachingResolver struct {
@@ -58,7 +60,7 @@ func NewCachingResolver(cfg config.CachingConfig, redis *redis.Client) ChainedRe
 }
 
 func configureCaches(c *CachingResolver, cfg *config.CachingConfig) {
-	cleanupOption := expirationcache.WithCleanUpInterval(5 * time.Second)
+	cleanupOption := expirationcache.WithCleanUpInterval(defaultCachingCleanUpInterval)
 	maxSizeOption := expirationcache.WithMaxSize(uint(cfg.MaxItemsCount))
 
 	if cfg.Prefetching {
@@ -91,6 +93,7 @@ func setupRedisCacheSubscriber(c *CachingResolver) {
 // check if domain was queried > threshold in the time window
 func (r *CachingResolver) isPrefetchingDomain(cacheKey string) bool {
 	cnt, _ := r.prefetchingNameCache.Get(cacheKey)
+
 	return cnt != nil && cnt.(int) > r.prefetchThreshold
 }
 
@@ -108,6 +111,7 @@ func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.
 		if err == nil {
 			if response.Res.Rcode == dns.RcodeSuccess {
 				evt.Bus().Publish(evt.CachingDomainPrefetched, domainName)
+
 				return cacheValue{response.Res.Answer, true}, time.Duration(r.adjustTTLs(response.Res.Answer)) * time.Second
 			}
 		} else {
@@ -122,6 +126,7 @@ func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.
 func (r *CachingResolver) Configuration() (result []string) {
 	if r.maxCacheTimeSec < 0 {
 		result = []string{"deactivated"}
+
 		return
 	}
 
@@ -146,12 +151,12 @@ func (r *CachingResolver) Configuration() (result []string) {
 
 // Resolve checks if the current query result is already in the cache and returns it
 // or delegates to the next resolver
-//nolint:gocognit,funlen
 func (r *CachingResolver) Resolve(request *model.Request) (response *model.Response, err error) {
 	logger := withPrefix(request.Log, "caching_resolver")
 
 	if r.maxCacheTimeSec < 0 {
 		logger.Debug("skip cache")
+
 		return r.next.Resolve(request)
 	}
 

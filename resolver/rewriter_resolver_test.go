@@ -122,6 +122,7 @@ var _ = Describe("RewriterResolver", func() {
 			mNext.On("Resolve", mock.Anything)
 			mNext.ResolveFn = func(req *model.Request) (*model.Response, error) {
 				Expect(req.Req.Question[0].Name).Should(Equal(fqdnOriginal))
+
 				return mNextResponse, nil
 			}
 		})

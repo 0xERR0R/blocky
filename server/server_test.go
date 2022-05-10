@@ -44,6 +44,7 @@ var _ = BeforeSuite(func() {
 		)
 
 		Expect(err).Should(Succeed())
+
 		return response
 	})
 	DeferCleanup(googleMockUpstream.Close)
@@ -54,6 +55,7 @@ var _ = BeforeSuite(func() {
 		)
 
 		Expect(err).Should(Succeed())
+
 		return response
 	})
 	DeferCleanup(fritzboxMockUpstream.Close)
@@ -64,6 +66,7 @@ var _ = BeforeSuite(func() {
 		)
 
 		Expect(err).Should(Succeed())
+
 		return response
 	})
 	DeferCleanup(clientMockUpstream.Close)
@@ -153,6 +156,7 @@ var _ = Describe("Running DNS server", func() {
 			for res != nil {
 				if t, ok := res.(*resolver.ClientNamesResolver); ok {
 					t.FlushCache()
+
 					break
 				}
 				if c, ok := res.(resolver.ChainedResolver); ok {
@@ -561,10 +565,9 @@ var _ = Describe("Running DNS server", func() {
 				Expect(err).Should(Succeed())
 
 				errChan := make(chan error, 10)
+
 				// start server
-				go func() {
-					server.Start(errChan)
-				}()
+				go server.Start(errChan)
 
 				DeferCleanup(server.Stop)
 

@@ -131,6 +131,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				response, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
 
 				Expect(err).Should(Succeed())
+
 				return response
 			}
 		})

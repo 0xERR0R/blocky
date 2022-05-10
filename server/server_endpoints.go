@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/0xERR0R/blocky/api"
 	"github.com/0xERR0R/blocky/config"
@@ -26,6 +27,7 @@ import (
 const (
 	dohMessageLimit = 512
 	dnsContentType  = "application/dns-message"
+	corsMaxAge      = 5 * time.Minute
 )
 
 func (s *Server) registerAPIEndpoints(router *chi.Mux) {
@@ -109,6 +111,7 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 
 	if err != nil {
 		logAndResponseWithError(err, "unable to process query: ", rw)
+
 		return
 	}
 
@@ -120,6 +123,7 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 	b, err := resResponse.Res.Pack()
 	if err != nil {
 		logAndResponseWithError(err, "can't serialize message: ", rw)
+
 		return
 	}
 
@@ -163,6 +167,7 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 
 	if err != nil {
 		logAndResponseWithError(err, "can't read request: ", rw)
+
 		return
 	}
 
@@ -189,6 +194,7 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 
 	if err != nil {
 		logAndResponseWithError(err, "unable to process query: ", rw)
+
 		return
 	}
 
@@ -201,6 +207,7 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 
 	if err != nil {
 		logAndResponseWithError(err, "unable to marshal response: ", rw)
+
 		return
 	}
 
@@ -289,7 +296,7 @@ func configureCorsHandler(router *chi.Mux) {
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
-		MaxAge:           300,
+		MaxAge:           int(corsMaxAge.Seconds()),
 	})
 	router.Use(crs.Handler)
 }

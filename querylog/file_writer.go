@@ -72,6 +72,8 @@ func (d *FileWriter) Write(entry *LogEntry) {
 
 // CleanUp deletes old log files
 func (d *FileWriter) CleanUp() {
+	const hoursPerDay = 24
+
 	logger := log.PrefixedLog(loggerPrefixFileWriter)
 
 	logger.Trace("starting clean up")
@@ -85,7 +87,7 @@ func (d *FileWriter) CleanUp() {
 		if strings.HasSuffix(f.Name(), ".log") && len(f.Name()) > 10 {
 			t, err := time.Parse("2006-01-02", f.Name()[:10])
 			if err == nil {
-				differenceDays := uint64(time.Since(t).Hours() / 24)
+				differenceDays := uint64(time.Since(t).Hours() / hoursPerDay)
 				if d.logRetentionDays > 0 && differenceDays > d.logRetentionDays {
 					logger.WithFields(logrus.Fields{
 						"file":             f.Name(),

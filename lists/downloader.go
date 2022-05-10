@@ -103,10 +103,10 @@ func (d *HTTPDownloader) DownloadFile(link string) (io.ReadCloser, error) {
 		func() error {
 			var resp *http.Response
 			var httpErr error
-			//nolint:bodyclose
 			if resp, httpErr = client.Get(link); httpErr == nil {
 				if resp.StatusCode == http.StatusOK {
 					body = resp.Body
+
 					return nil
 				}
 
@@ -118,6 +118,7 @@ func (d *HTTPDownloader) DownloadFile(link string) (io.ReadCloser, error) {
 			if errors.As(httpErr, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
 				return &TransientError{inner: netErr}
 			}
+
 			return httpErr
 		},
 		retry.Attempts(d.downloadAttempts),

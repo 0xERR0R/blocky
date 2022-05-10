@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
@@ -18,6 +17,12 @@ var (
 	configPath string
 	apiHost    string
 	apiPort    uint16
+)
+
+const (
+	defaultPort       = 4000
+	defaultHost       = "localhost"
+	defaultConfigPath = "./config.yml"
 )
 
 // NewRootCommand creates a new root cli command instance
@@ -35,9 +40,9 @@ Complete documentation is available at https://github.com/0xERR0R/blocky`,
 		SilenceUsage: true,
 	}
 
-	c.PersistentFlags().StringVarP(&configPath, "config", "c", "./config.yml", "path to config file")
-	c.PersistentFlags().StringVar(&apiHost, "apiHost", "localhost", "host of blocky (API). Default overridden by config and CLI.") // nolint:lll
-	c.PersistentFlags().Uint16Var(&apiPort, "apiPort", 4000, "port of blocky (API). Default overridden by config and CLI.")
+	c.PersistentFlags().StringVarP(&configPath, "config", "c", defaultConfigPath, "path to config file")
+	c.PersistentFlags().StringVar(&apiHost, "apiHost", defaultHost, "host of blocky (API). Default overridden by config and CLI.") // nolint:lll
+	c.PersistentFlags().Uint16Var(&apiPort, "apiPort", defaultPort, "port of blocky (API). Default overridden by config and CLI.") // nolint:lll
 
 	c.AddCommand(newRefreshCommand(),
 		NewQueryCommand(),
@@ -73,15 +78,14 @@ func initConfig() {
 
 		apiHost = strings.Join(split[:lastIdx], ":")
 
-		var p uint64
-		p, err := strconv.ParseUint(strings.TrimSpace(split[lastIdx]), 10, 16)
-
+		port, err := config.ConvertPort(split[lastIdx])
 		if err != nil {
 			util.FatalOnError("can't convert port to number (1 - 65535)", err)
+
 			return
 		}
 
-		apiPort = uint16(p)
+		apiPort = port
 	}
 }
 

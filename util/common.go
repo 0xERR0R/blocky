@@ -193,7 +193,8 @@ func Chunks(s string, chunkSize int) []string {
 
 // GenerateCacheKey return cacheKey by query type/domain
 func GenerateCacheKey(qType dns.Type, qName string) string {
-	b := make([]byte, 2+len(qName))
+	const qTypeLength = 2
+	b := make([]byte, qTypeLength+len(qName))
 
 	binary.BigEndian.PutUint16(b, uint16(qType))
 	copy(b[2:], strings.ToLower(qName))
@@ -224,5 +225,6 @@ func CidrContainsIP(cidr string, ip net.IP) bool {
 // ClientNameMatchesGroupName checks if a group with optional wildcards contains a client name
 func ClientNameMatchesGroupName(group string, clientName string) bool {
 	match, _ := filepath.Match(group, clientName)
+
 	return match
 }

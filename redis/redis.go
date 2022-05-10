@@ -69,7 +69,7 @@ type Client struct {
 func New(cfg *config.RedisConfig) (*Client, error) {
 	// disable redis if no address is provided
 	if cfg == nil || len(cfg.Address) == 0 {
-		return nil, nil
+		return nil, nil // nolint:nilnil
 	}
 
 	rdb := redis.NewClient(&redis.Options{
@@ -164,7 +164,12 @@ func (c *Client) startup() error {
 				select {
 				// received message from subscription
 				case msg := <-ps.Channel():
-					err = c.processReceivedMessage(msg)
+					c.l.Debug("Received message: ", msg)
+
+					if msg != nil && len(msg.Payload) > 0 {
+						// message is not empty
+						err = c.processReceivedMessage(msg)
+					}
 					// publish message from buffer
 				case s := <-c.sendBuffer:
 					c.publishMessageFromBuffer(s)
@@ -201,34 +206,30 @@ func (c *Client) publishMessageFromBuffer(s *bufferMessage) {
 }
 
 func (c *Client) processReceivedMessage(msg *redis.Message) (err error) {
-	c.l.Debug("Received message: ", msg)
-	// message is not empty
-	if msg != nil && len(msg.Payload) > 0 {
-		var rm redisMessage
+	var rm redisMessage
 
-		err = json.Unmarshal([]byte(msg.Payload), &rm)
-		if err == nil {
-			// message was sent from a different blocky instance
-			if !bytes.Equal(rm.Client, c.id) {
-				switch rm.Type {
-				case messageTypeCache:
-					var cm *CacheMessage
+	err = json.Unmarshal([]byte(msg.Payload), &rm)
+	if err == nil {
+		// message was sent from a different blocky instance
+		if !bytes.Equal(rm.Client, c.id) {
+			switch rm.Type {
+			case messageTypeCache:
+				var cm *CacheMessage
 
-					cm, err = convertMessage(&rm, 0)
-					if err == nil {
-						c.CacheChannel <- cm
-					}
-				case messageTypeEnable:
-					err = c.processEnabledMessage(&rm)
-				default:
-					c.l.Warn("Unknown message type: ", rm.Type)
+				cm, err = convertMessage(&rm, 0)
+				if err == nil {
+					c.CacheChannel <- cm
 				}
+			case messageTypeEnable:
+				err = c.processEnabledMessage(&rm)
+			default:
+				c.l.Warn("Unknown message type: ", rm.Type)
 			}
 		}
+	}
 
-		if err != nil {
-			c.l.Error("Processing error: ", err)
-		}
+	if err != nil {
+		c.l.Error("Processing error: ", err)
 	}
 
 	return err

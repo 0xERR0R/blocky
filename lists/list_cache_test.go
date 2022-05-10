@@ -152,6 +152,7 @@ var _ = Describe("ListCache", func() {
 				By("List couldn't be loaded due to 404 err", func() {
 					Eventually(func() bool {
 						found, _ := sut.Match("blocked1.com", []string{"gr1"})
+
 						return found
 					}, "1s").Should(BeFalse())
 				})
@@ -313,5 +314,6 @@ type MockDownloader struct {
 
 func (m *MockDownloader) DownloadFile(link string) (io.ReadCloser, error) {
 	fn := <-m.data
+
 	return fn()
 }

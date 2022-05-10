@@ -130,8 +130,10 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				m.AnswerFn = func(t uint16, qName string) *dns.Msg {
 					if t == dns.TypeA && qName == "full.qualified.com." {
 						a, _ := util.NewMsgWithAnswer(qName, 60*60, dns.Type(dns.TypeA), "192.168.178.39")
+
 						return a
 					}
+
 					return nil
 				}
 				Bus().Publish(ApplicationStarted, "")
