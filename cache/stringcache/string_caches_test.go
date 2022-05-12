@@ -11,10 +11,21 @@ var _ = Describe("Caches", func() {
 			factory := newStringCacheFactory()
 			factory.AddEntry("google.com")
 			factory.AddEntry("apple.com")
+			factory.AddEntry("")
+			factory.AddEntry("google.com")
+			factory.AddEntry("APPLe.com")
+
 			cache := factory.Create()
-			It("should match if StringCache Contains string", func() {
+
+			It("should match if StringCache contains exact string", func() {
 				Expect(cache.Contains("apple.com")).Should(BeTrue())
 				Expect(cache.Contains("google.com")).Should(BeTrue())
+				Expect(cache.Contains("www.google.com")).Should(BeFalse())
+				Expect(cache.Contains("")).Should(BeFalse())
+			})
+			It("should match case-insensitive", func() {
+				Expect(cache.Contains("aPPle.com")).Should(BeTrue())
+				Expect(cache.Contains("google.COM")).Should(BeTrue())
 				Expect(cache.Contains("www.google.com")).Should(BeFalse())
 				Expect(cache.Contains("")).Should(BeFalse())
 			})

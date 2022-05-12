@@ -16,26 +16,6 @@ import (
 )
 
 var _ = Describe("Common function tests", func() {
-	Describe("Split string in chunks", func() {
-		When("String length < chunk size", func() {
-			It("should return one chunk", func() {
-				chunks := Chunks("mystring", 10)
-
-				Expect(chunks).Should(HaveLen(1))
-				Expect(chunks).Should(ContainElement("mystring"))
-			})
-		})
-
-		When("String length > chunk size", func() {
-			It("should return multiple chunks", func() {
-				chunks := Chunks("myveryveryverylongstring", 5)
-
-				Expect(chunks).Should(HaveLen(5))
-				Expect(chunks).Should(ContainElements("myver", "yvery", "veryl", "ongst", "ring"))
-			})
-		})
-	})
-
 	Describe("Print DNS answer", func() {
 		When("different types of DNS answers", func() {
 			rr := make([]dns.RR, 0)
