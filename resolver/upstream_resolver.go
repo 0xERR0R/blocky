@@ -117,7 +117,15 @@ func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
 		return nil, 0, fmt.Errorf("can't pack message: %w", err)
 	}
 
-	httpResponse, err := r.client.Post(upstreamURL, dnsContentType, bytes.NewReader(rawDNSMessage))
+	req, err := http.NewRequest("POST", upstreamURL, bytes.NewReader(rawDNSMessage))
+
+	if err != nil {
+		return nil, 0, fmt.Errorf("can't create the new request %w", err)
+	}
+
+	req.Header.Set("User-Agent", "")
+	req.Header.Set("Content-Type", dnsContentType)
+	httpResponse, err := r.client.Do(req)
 
 	if err != nil {
 		return nil, 0, fmt.Errorf("can't perform https request: %w", err)
