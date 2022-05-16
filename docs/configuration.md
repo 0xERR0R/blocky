@@ -446,6 +446,19 @@ downloaded or opened. Default value is `false`.
       failStartOnListError: false
     ```
 
+### Concurrency
+
+Blocky downloads and processes links in a single group concurrently. With parameter `processingConcurrency` you can adjust
+how many links can be processed in the same time. Higher value can reduce the overall list refresh time, but more parallel
+ download and processing jobs need more RAM. Please consider to reduce this value on systems with limited memory. Default value is 4.
+
+    !!! example
+
+    ```yaml
+    blocking:
+      processingConcurrency: 10
+    ```
+
 ## Caching
 
 Each DNS response has a TTL (Time-to-live) value. This value defines, how long is the record valid in seconds. The

@@ -99,14 +99,11 @@ func NewBlockingResolver(cfg config.BlockingConfig,
 	}
 
 	refreshPeriod := time.Duration(cfg.RefreshPeriod)
-	downloader := lists.NewDownloader(
-		lists.WithTimeout(time.Duration(cfg.DownloadTimeout)),
-		lists.WithAttempts(cfg.DownloadAttempts),
-		lists.WithCooldown(time.Duration(cfg.DownloadCooldown)),
-		lists.WithTransport(bootstrap.NewHTTPTransport()),
-	)
-	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists, refreshPeriod, downloader)
-	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists, refreshPeriod, downloader)
+	downloader := createDownloader(cfg, bootstrap)
+	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists,
+		refreshPeriod, downloader, cfg.ProcessingConcurrency)
+	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists,
+		refreshPeriod, downloader, cfg.ProcessingConcurrency)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
 	err = multierror.Append(err, blErr, wlErr).ErrorOrNil()
@@ -151,6 +148,15 @@ func NewBlockingResolver(cfg config.BlockingConfig,
 	})
 
 	return res, nil
+}
+
+func createDownloader(cfg config.BlockingConfig, bootstrap *Bootstrap) *lists.HTTPDownloader {
+	return lists.NewDownloader(
+		lists.WithTimeout(time.Duration(cfg.DownloadTimeout)),
+		lists.WithAttempts(cfg.DownloadAttempts),
+		lists.WithCooldown(time.Duration(cfg.DownloadCooldown)),
+		lists.WithTransport(bootstrap.NewHTTPTransport()),
+	)
 }
 
 func setupRedisEnabledSubscriber(c *BlockingResolver) {

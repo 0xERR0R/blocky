@@ -1,8 +1,13 @@
 package lists
 
 import (
+	"bufio"
 	"errors"
+	"fmt"
 	"io"
+	"io/ioutil"
+	"log"
+	"math/rand"
 	"net/http/httptest"
 	"os"
 	"strings"
@@ -46,7 +51,7 @@ var _ = Describe("ListCache", func() {
 				lists := map[string][]string{
 					"gr0": {emptyFile.Name()},
 				}
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader())
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
 				Expect(err).Should(Succeed())
 
 				found, group := sut.Match("", []string{"gr0"})
@@ -60,7 +65,7 @@ var _ = Describe("ListCache", func() {
 				lists := map[string][]string{
 					"gr1": {emptyFile.Name()},
 				}
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader())
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
 				Expect(err).Should(Succeed())
 
 				found, group := sut.Match("google.com", []string{"gr1"})
@@ -72,7 +77,7 @@ var _ = Describe("ListCache", func() {
 		When("a temporary/transient err occurs on download", func() {
 			It("should not delete existing elements from group cache", func() {
 				// should produce a transient error on second and third attempt
-				data := make(chan (func() (io.ReadCloser, error)), 3)
+				data := make(chan func() (io.ReadCloser, error), 3)
 				mockDownloader := &MockDownloader{data: data}
 				data <- func() (io.ReadCloser, error) { //nolint:unparam
 					return io.NopCloser(strings.NewReader("blocked1.com")), nil
@@ -91,6 +96,7 @@ var _ = Describe("ListCache", func() {
 					ListCacheTypeBlacklist, lists,
 					4*time.Hour,
 					mockDownloader,
+					defaultProcessingConcurrency,
 				)
 				Expect(err).Should(Succeed())
 
@@ -123,7 +129,7 @@ var _ = Describe("ListCache", func() {
 		When("non transient err occurs on download", func() {
 			It("should delete existing elements from group cache", func() {
 				// should produce a 404 err on second attempt
-				data := make(chan (func() (io.ReadCloser, error)), 2)
+				data := make(chan func() (io.ReadCloser, error), 2)
 				mockDownloader := &MockDownloader{data: data}
 				data <- func() (io.ReadCloser, error) { //nolint:unparam
 					return io.NopCloser(strings.NewReader("blocked1.com")), nil
@@ -135,7 +141,7 @@ var _ = Describe("ListCache", func() {
 					"gr1": {"http://dummy"},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, mockDownloader)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, mockDownloader, defaultProcessingConcurrency)
 				Expect(err).Should(Succeed())
 
 				By("Lists loaded without err", func() {
@@ -158,14 +164,36 @@ var _ = Describe("ListCache", func() {
 				})
 			})
 		})
-		When("Configuration has 3 external urls", func() {
+		When("Configuration has 3 external working urls", func() {
 			It("should download the list and match against", func() {
 				lists := map[string][]string{
 					"gr1": {server1.URL, server2.URL},
 					"gr2": {server3.URL},
 				}
 
-				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader())
+				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
+
+				found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
+				Expect(found).Should(BeTrue())
+				Expect(group).Should(Equal("gr1"))
+
+				found, group = sut.Match("blocked1a.com", []string{"gr1", "gr2"})
+				Expect(found).Should(BeTrue())
+				Expect(group).Should(Equal("gr1"))
+
+				found, group = sut.Match("blocked1a.com", []string{"gr2"})
+				Expect(found).Should(BeTrue())
+				Expect(group).Should(Equal("gr2"))
+			})
+		})
+		When("Configuration has some faulty urls", func() {
+			It("should download the list and match against", func() {
+				lists := map[string][]string{
+					"gr1": {server1.URL, server2.URL, "doesnotexist"},
+					"gr2": {server3.URL, "someotherfile"},
+				}
+
+				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
 
 				found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
 				Expect(found).Should(BeTrue())
@@ -192,7 +220,7 @@ var _ = Describe("ListCache", func() {
 					resultCnt = cnt
 				})
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader())
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
 				Expect(err).Should(Succeed())
 
 				found, group := sut.Match("blocked1.com", []string{})
@@ -208,8 +236,11 @@ var _ = Describe("ListCache", func() {
 					"gr2": {"file://" + file3.Name()},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader())
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
 				Expect(err).Should(Succeed())
+
+				Expect(sut.groupCaches["gr1"].ElementCount()).Should(Equal(3))
+				Expect(sut.groupCaches["gr2"].ElementCount()).Should(Equal(2))
 
 				found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
 				Expect(found).Should(BeTrue())
@@ -224,15 +255,31 @@ var _ = Describe("ListCache", func() {
 				Expect(group).Should(Equal("gr2"))
 			})
 		})
+		When("group with bigger files", func() {
+			It("should match", func() {
+				file1 := createTestListFile(GinkgoT().TempDir(), 10000)
+				file2 := createTestListFile(GinkgoT().TempDir(), 15000)
+				file3 := createTestListFile(GinkgoT().TempDir(), 13000)
+				lists := map[string][]string{
+					"gr1": {file1, file2, file3},
+				}
+
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
+				Expect(err).Should(Succeed())
+
+				Expect(sut.groupCaches["gr1"].ElementCount()).Should(Equal(38000))
+			})
+		})
 		When("inline list content is defined", func() {
 			It("should match", func() {
 				lists := map[string][]string{
 					"gr1": {"inlinedomain1.com\n#some comment\ninlinedomain2.com"},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader())
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
 				Expect(err).Should(Succeed())
 
+				Expect(sut.groupCaches["gr1"].ElementCount()).Should(Equal(2))
 				found, group := sut.Match("inlinedomain1.com", []string{"gr1"})
 				Expect(found).Should(BeTrue())
 				Expect(group).Should(Equal("gr1"))
@@ -249,7 +296,7 @@ var _ = Describe("ListCache", func() {
 					"gr1": {"inlinedomain1.com\n" + strings.Repeat("longString", 100000)},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader())
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
 				Expect(err).Should(Succeed())
 
 				found, group := sut.Match("inlinedomain1.com", []string{"gr1"})
@@ -263,7 +310,7 @@ var _ = Describe("ListCache", func() {
 					"gr1": {"/^apple\\.(de|com)$/\n"},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader())
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
 				Expect(err).Should(Succeed())
 
 				found, group := sut.Match("apple.com", []string{"gr1"})
@@ -284,7 +331,7 @@ var _ = Describe("ListCache", func() {
 					"gr2": {"inline\ndefinition\n"},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, time.Hour, NewDownloader())
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, time.Hour, NewDownloader(), defaultProcessingConcurrency)
 				Expect(err).Should(Succeed())
 
 				c := sut.Configuration()
@@ -298,7 +345,7 @@ var _ = Describe("ListCache", func() {
 					"gr1": {emptyFile.Name()},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, -1, NewDownloader())
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, -1, NewDownloader(), defaultProcessingConcurrency)
 				Expect(err).Should(Succeed())
 
 				c := sut.Configuration()
@@ -309,11 +356,37 @@ var _ = Describe("ListCache", func() {
 })
 
 type MockDownloader struct {
-	data chan (func() (io.ReadCloser, error))
+	data chan func() (io.ReadCloser, error)
 }
 
-func (m *MockDownloader) DownloadFile(link string) (io.ReadCloser, error) {
+func (m *MockDownloader) DownloadFile(_ string) (io.ReadCloser, error) {
 	fn := <-m.data
 
 	return fn()
+}
+
+func createTestListFile(dir string, totalLines int) string {
+	file, err := ioutil.TempFile(dir, "blocky")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	w := bufio.NewWriter(file)
+	for i := 0; i < totalLines; i++ {
+		fmt.Fprintln(w, RandStringBytes(8+rand.Intn(10))+".com") // nolint:gosec
+	}
+	w.Flush()
+
+	return file.Name()
+}
+
+const charpool = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
+
+func RandStringBytes(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = charpool[rand.Intn(len(charpool))] // nolint:gosec
+	}
+
+	return string(b)
 }
