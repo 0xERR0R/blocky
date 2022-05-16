@@ -61,7 +61,8 @@ func startServer(_ *cobra.Command, _ []string) error {
 			util.LogOnError("can't stop server: ", srv.Stop())
 			done <- true
 
-		case <-errChan:
+		case err := <-errChan:
+			log.Log().Error("server start failed: ", err)
 			done <- true
 		}
 	}()
