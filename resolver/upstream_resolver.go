@@ -68,6 +68,7 @@ func createUpstreamClient(cfg config.Upstream) upstreamClient {
 				Transport: &http.Transport{
 					TLSClientConfig:     &tlsConfig,
 					TLSHandshakeTimeout: defaultTLSHandshakeTimeout,
+					ForceAttemptHTTP2:   true,
 				},
 				Timeout: timeout,
 			},
