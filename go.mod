@@ -16,7 +16,7 @@ require (
 	github.com/miekg/dns v1.1.49
 	github.com/mroth/weightedrand v0.4.1
 	github.com/onsi/gomega v1.19.0
-	github.com/prometheus/client_golang v1.12.1
+	github.com/prometheus/client_golang v1.12.2
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.4.0
 	github.com/stretchr/testify v1.7.1
