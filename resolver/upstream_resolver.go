@@ -25,6 +25,7 @@ import (
 const (
 	dnsContentType             = "application/dns-message"
 	defaultTLSHandshakeTimeout = 5 * time.Second
+	retryAttempts              = 3
 )
 
 // nolint:gochecknoglobals
@@ -140,14 +141,14 @@ func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
 
 	body, err := ioutil.ReadAll(httpResponse.Body)
 	if err != nil {
-		return nil, 0, errors.New("can't read response body")
+		return nil, 0, fmt.Errorf("can't read response body:  %w", err)
 	}
 
 	response := dns.Msg{}
 	err = response.Unpack(body)
 
 	if err != nil {
-		return nil, 0, errors.New("can't unpack message")
+		return nil, 0, fmt.Errorf("can't unpack message: %w", err)
 	}
 
 	return &response, time.Since(start), nil
@@ -215,8 +216,6 @@ func (r UpstreamResolver) String() string {
 
 // Resolve calls external resolver
 func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Response, err error) {
-	const retryAttempts = 3
-
 	logger := withPrefix(request.Log, "upstream_resolver")
 
 	ips, err := r.bootstrap.UpstreamIPs(r)
@@ -247,9 +246,11 @@ func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Resp
 					"net":              r.upstream.Net,
 					"response_time_ms": rtt.Milliseconds(),
 				}).Debugf("received response from upstream")
+
+				return nil
 			}
 
-			return err
+			return fmt.Errorf("can't resolve request via upstream server %s: %w", upstreamURL, err)
 		},
 		retry.Attempts(retryAttempts),
 		retry.DelayType(retry.FixedDelay),

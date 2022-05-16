@@ -429,7 +429,7 @@ func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
 	response, err := s.queryResolver.Resolve(r)
 
 	if err != nil {
-		logger().Errorf("error on processing request: %v", err)
+		logger().Error("error on processing request:", err)
 
 		m := new(dns.Msg)
 		m.SetRcode(request, dns.RcodeServerFailure)

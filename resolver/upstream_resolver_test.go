@@ -167,7 +167,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 			It("should return error", func() {
 				_, err := sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 				Expect(err).Should(HaveOccurred())
-				Expect(err.Error()).Should(Equal("http return code should be 200, but received 500"))
+				Expect(err.Error()).Should(ContainSubstring("http return code should be 200, but received 500"))
 			})
 		})
 		When("Configured DOH resolver returns wrong content type", func() {
@@ -179,7 +179,8 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 			It("should return error", func() {
 				_, err := sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 				Expect(err).Should(HaveOccurred())
-				Expect(err.Error()).Should(Equal("http return content type should be 'application/dns-message', but was 'text'"))
+				Expect(err.Error()).Should(
+					ContainSubstring("http return content type should be 'application/dns-message', but was 'text'"))
 			})
 		})
 		When("Configured DOH resolver returns wrong content", func() {
@@ -191,7 +192,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 			It("should return error", func() {
 				_, err := sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 				Expect(err).Should(HaveOccurred())
-				Expect(err.Error()).Should(Equal("can't unpack message"))
+				Expect(err.Error()).Should(ContainSubstring("can't unpack message"))
 			})
 		})
 		When("Configured DOH resolver does not respond", func() {
