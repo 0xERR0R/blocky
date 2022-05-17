@@ -356,6 +356,7 @@ func (s *Server) Start(errCh chan<- error) {
 			logger().Infof("https server is up and running on addr/port %s", address)
 
 			httpServer := &http.Server{
+				Handler: s.httpMux,
 				TLSConfig: &tls.Config{
 					MinVersion: tls.VersionTLS12,
 					CipherSuites: []uint16{
