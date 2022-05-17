@@ -355,7 +355,21 @@ func (s *Server) Start(errCh chan<- error) {
 		go func() {
 			logger().Infof("https server is up and running on addr/port %s", address)
 
-			if err := http.ServeTLS(listener, s.httpMux, s.cfg.CertFile, s.cfg.KeyFile); err != nil {
+			httpServer := &http.Server{
+				TLSConfig: &tls.Config{
+					MinVersion: tls.VersionTLS12,
+					CipherSuites: []uint16{
+						tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+						tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+						tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+						tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+						tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+						tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+					},
+				},
+			}
+
+			if err := httpServer.ServeTLS(listener, s.cfg.CertFile, s.cfg.KeyFile); err != nil {
 				errCh <- fmt.Errorf("start https listener failed: %w", err)
 			}
 		}()
