@@ -417,6 +417,7 @@ type Config struct {
 	HTTPPorts       ListenConfig              `yaml:"httpPort"`
 	HTTPSPorts      ListenConfig              `yaml:"httpsPort"`
 	TLSPorts        ListenConfig              `yaml:"tlsPort"`
+	DoHUserAgent    string                    `yaml:"dohUserAgent" default:"blocky"`
 	// Deprecated
 	DisableIPv6  bool            `yaml:"disableIPv6" default:"false"`
 	CertFile     string          `yaml:"certFile"`

@@ -125,7 +125,7 @@ func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
 		return nil, 0, fmt.Errorf("can't create the new request %w", err)
 	}
 
-	req.Header.Set("User-Agent", "")
+	req.Header.Set("User-Agent", config.GetConfig().DoHUserAgent)
 	req.Header.Set("Content-Type", dnsContentType)
 	httpResponse, err := r.client.Do(req)
 
