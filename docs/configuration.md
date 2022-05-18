@@ -23,7 +23,7 @@ configuration properties as [JSON](config.yml).
 | logFormat    | enum (text, json)               | no                    | text          | Log format (text or json).                                                                                                                                                                                                                        |
 | logTimestamp | bool                            | no                    | true          | Log time stamps (true or false).                                                                                                                                                                                                                  |
 | logPrivacy   | bool                            | no                    | false         | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy.                                                                                                 |
-| dohUserAgent | string                          | no                    | blocky        | HTTP User Agent for DoH upstreams                                                                                                  |
+| dohUserAgent | string                          | no                    |               | HTTP User Agent for DoH upstreams                                                                                                  |
 
 !!! example
 
