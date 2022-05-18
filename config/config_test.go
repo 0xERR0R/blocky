@@ -50,6 +50,8 @@ var _ = Describe("Config", func() {
 				Expect(config.Caching.MaxCachingTime).Should(Equal(Duration(0)))
 				Expect(config.Caching.MinCachingTime).Should(Equal(Duration(0)))
 
+				Expect(config.DoHUserAgent).Should(Equal("testBlocky"))
+
 				Expect(GetConfig()).Should(Not(BeNil()))
 
 			})

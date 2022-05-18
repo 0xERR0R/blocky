@@ -50,3 +50,4 @@ queryLog:
 
 port: 55553,:55554,[::1]:55555
 logLevel: debug
+dohUserAgent: testBlocky
