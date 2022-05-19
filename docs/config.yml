@@ -111,7 +111,7 @@ caching:
   # If 0, use TTL
   # If > 0, use this value, if TTL is greater
   # Default: 0
-  maxTime: -1
+  maxTime: 30m
   # Max number of cache entries (responses) to be kept in cache (soft limit). Useful on systems with limited amount of RAM.
   # Default (0): unlimited
   maxItemsCount: 0
