@@ -16,7 +16,6 @@ import (
 	"github.com/miekg/dns"
 
 	"github.com/hako/durafmt"
-	"github.com/hashicorp/go-multierror"
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/creasty/defaults"
@@ -585,14 +584,6 @@ func unmarshalConfig(data []byte, cfg *Config) error {
 }
 
 func validateConfig(cfg *Config) (err error) {
-	if len(cfg.TLSPorts) != 0 && (cfg.CertFile == "" || cfg.KeyFile == "") {
-		err = multierror.Append(err, errors.New("'certFile' and 'keyFile' parameters are mandatory for TLS"))
-	}
-
-	if len(cfg.HTTPSPorts) != 0 && (cfg.CertFile == "" || cfg.KeyFile == "") {
-		err = multierror.Append(err, errors.New("'certFile' and 'keyFile' parameters are mandatory for HTTPS"))
-	}
-
 	if cfg.DisableIPv6 {
 		log.Log().Warnf("'disableIPv6' is deprecated. Please use 'filtering.queryTypes' with 'AAAA' instead.")
 

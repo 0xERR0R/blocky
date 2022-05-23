@@ -1,8 +1,14 @@
 package server
 
 import (
+	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"math/big"
 	"net"
 	"net/http"
 	"runtime"
@@ -37,6 +43,7 @@ type Server struct {
 	queryResolver  resolver.Resolver
 	cfg            *config.Config
 	httpMux        *chi.Mux
+	cert           tls.Certificate
 }
 
 func logger() *logrus.Entry {
@@ -70,14 +77,30 @@ type NewServerFunc func(address string) (*dns.Server, error)
 func NewServer(cfg *config.Config) (server *Server, err error) {
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
-	dnsServers, err := createServers(cfg)
+	var cert tls.Certificate
+
+	if cfg.CertFile == "" && cfg.KeyFile == "" {
+		cert, err = createSelfSignedCert()
+		if err != nil {
+			return nil, fmt.Errorf("unable to generate self-signed certificate: %w", err)
+		}
+
+		log.Log().Info("using self-signed certificate")
+	} else {
+		cert, err = tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("can't load certificate files: %w", err)
+		}
+	}
+
+	dnsServers, err := createServers(cfg, cert)
 	if err != nil {
 		return nil, fmt.Errorf("server creation failed: %w", err)
 	}
 
 	router := createRouter(cfg)
 
-	httpListeners, httpsListeners, err := createHTTPListeners(cfg)
+	httpListeners, httpsListeners, err := createHTTPListeners(cfg, cert)
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +133,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 		httpListeners:  httpListeners,
 		httpsListeners: httpsListeners,
 		httpMux:        router,
+		cert:           cert,
 	}
 
 	server.printConfiguration()
@@ -122,7 +146,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 	return server, err
 }
 
-func createServers(cfg *config.Config) ([]*dns.Server, error) {
+func createServers(cfg *config.Config, cert tls.Certificate) ([]*dns.Server, error) {
 	var dnsServers []*dns.Server
 
 	var err *multierror.Error
@@ -144,13 +168,13 @@ func createServers(cfg *config.Config) ([]*dns.Server, error) {
 		addServers(createUDPServer, cfg.DNSPorts),
 		addServers(createTCPServer, cfg.DNSPorts),
 		addServers(func(address string) (*dns.Server, error) {
-			return createTLSServer(address, cfg.CertFile, cfg.KeyFile)
+			return createTLSServer(address, cert)
 		}, cfg.TLSPorts))
 
 	return dnsServers, err.ErrorOrNil()
 }
 
-func createHTTPListeners(cfg *config.Config) (httpListeners []net.Listener, httpsListeners []net.Listener, err error) {
+func createHTTPListeners(cfg *config.Config, cert tls.Certificate) (httpListeners []net.Listener, httpsListeners []net.Listener, err error) {
 	httpListeners, err = newListeners("http", cfg.HTTPPorts)
 	if err != nil {
 		return nil, nil, err
@@ -191,17 +215,12 @@ func registerResolverAPIEndpoints(router chi.Router, res resolver.Resolver) {
 	}
 }
 
-func createTLSServer(address string, certFile string, keyFile string) (*dns.Server, error) {
-	cer, err := tls.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		return nil, fmt.Errorf("can't load certificate files: %w", err)
-	}
-
+func createTLSServer(address string, cert tls.Certificate) (*dns.Server, error) {
 	return &dns.Server{
 		Addr: address,
 		Net:  "tcp-tls",
 		TLSConfig: &tls.Config{
-			Certificates: []tls.Certificate{cer},
+			Certificates: []tls.Certificate{cert},
 			MinVersion:   tls.VersionTLS12,
 			CipherSuites: tlsCipherSuites(),
 		},
@@ -233,6 +252,81 @@ func createUDPServer(address string) (*dns.Server, error) {
 		},
 		UDPSize: maxUDPBufferSize,
 	}, nil
+}
+
+func createSelfSignedCert() (tls.Certificate, error) {
+	// Create CA
+	ca := &x509.Certificate{
+		SerialNumber:          big.NewInt(2022),
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().AddDate(5, 0, 0),
+		IsCA:                  true,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+	}
+
+	caPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	caBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &caPrivKey.PublicKey, caPrivKey)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	caPEM := new(bytes.Buffer)
+	pem.Encode(caPEM, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: caBytes,
+	})
+
+	caPrivKeyPEM := new(bytes.Buffer)
+	pem.Encode(caPrivKeyPEM, &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(caPrivKey),
+	})
+
+	// Create certificate
+	cert := &x509.Certificate{
+		SerialNumber: big.NewInt(2002),
+		DNSNames:     []string{"*"},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().AddDate(5, 0, 0),
+		SubjectKeyId: []byte{1, 2, 3, 4, 6},
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+
+	certPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	certBytes, err := x509.CreateCertificate(rand.Reader, cert, ca, &certPrivKey.PublicKey, caPrivKey)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	certPEM := new(bytes.Buffer)
+	pem.Encode(certPEM, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certBytes,
+	})
+
+	certPrivKeyPEM := new(bytes.Buffer)
+	pem.Encode(certPrivKeyPEM, &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(certPrivKey),
+	})
+
+	keyPair, err := tls.X509KeyPair(certPEM.Bytes(), certPrivKeyPEM.Bytes())
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	return keyPair, nil
 }
 
 func createQueryResolver(
@@ -366,10 +460,11 @@ func (s *Server) Start(errCh chan<- error) {
 				TLSConfig: &tls.Config{
 					MinVersion:   tls.VersionTLS12,
 					CipherSuites: tlsCipherSuites(),
+					Certificates: []tls.Certificate{s.cert},
 				},
 			}
 
-			if err := server.ServeTLS(listener, s.cfg.CertFile, s.cfg.KeyFile); err != nil {
+			if err := server.ServeTLS(listener, "", ""); err != nil {
 				errCh <- fmt.Errorf("start https listener failed: %w", err)
 			}
 		}()
