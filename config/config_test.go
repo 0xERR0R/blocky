@@ -175,8 +175,7 @@ bootstrapDns:
 				c := &Config{
 					DisableIPv6: true,
 				}
-				err := validateConfig(c)
-				Expect(err).Should(Succeed())
+				validateConfig(c)
 				Expect(c.Filtering.QueryTypes).Should(HaveKey(QType(dns.TypeAAAA)))
 				Expect(c.Filtering.QueryTypes.Contains(dns.Type(dns.TypeAAAA))).Should(BeTrue())
 			})

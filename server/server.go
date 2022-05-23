@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	mrand "math/rand"
 	"net"
 	"net/http"
 	"runtime"
@@ -33,6 +34,9 @@ import (
 
 const (
 	maxUDPBufferSize = 65535
+	caExpiryYears    = 10
+	certExpiryYears  = 5
+	certRSAsize      = 4096
 )
 
 // Server controls the endpoints for DNS and HTTP
@@ -74,6 +78,7 @@ func getServerAddress(addr string) string {
 type NewServerFunc func(address string) (*dns.Server, error)
 
 // NewServer creates new server instance with passed config
+// nolint:funlen
 func NewServer(cfg *config.Config) (server *Server, err error) {
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
@@ -100,7 +105,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	router := createRouter(cfg)
 
-	httpListeners, httpsListeners, err := createHTTPListeners(cfg, cert)
+	httpListeners, httpsListeners, err := createHTTPListeners(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +179,7 @@ func createServers(cfg *config.Config, cert tls.Certificate) ([]*dns.Server, err
 	return dnsServers, err.ErrorOrNil()
 }
 
-func createHTTPListeners(cfg *config.Config, cert tls.Certificate) (httpListeners []net.Listener, httpsListeners []net.Listener, err error) {
+func createHTTPListeners(cfg *config.Config) (httpListeners []net.Listener, httpsListeners []net.Listener, err error) {
 	httpListeners, err = newListeners("http", cfg.HTTPPorts)
 	if err != nil {
 		return nil, nil, err
@@ -254,19 +259,20 @@ func createUDPServer(address string) (*dns.Server, error) {
 	}, nil
 }
 
+// nolint:funlen
 func createSelfSignedCert() (tls.Certificate, error) {
 	// Create CA
 	ca := &x509.Certificate{
-		SerialNumber:          big.NewInt(2022),
+		SerialNumber:          big.NewInt(int64(mrand.Intn(certRSAsize))), //nolint:gosec
 		NotBefore:             time.Now(),
-		NotAfter:              time.Now().AddDate(5, 0, 0),
+		NotAfter:              time.Now().AddDate(caExpiryYears, 0, 0),
 		IsCA:                  true,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
 	}
 
-	caPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
+	caPrivKey, err := rsa.GenerateKey(rand.Reader, certRSAsize)
 	if err != nil {
 		return tls.Certificate{}, err
 	}
@@ -277,29 +283,33 @@ func createSelfSignedCert() (tls.Certificate, error) {
 	}
 
 	caPEM := new(bytes.Buffer)
-	pem.Encode(caPEM, &pem.Block{
+	if err = pem.Encode(caPEM, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: caBytes,
-	})
+	}); err != nil {
+		return tls.Certificate{}, err
+	}
 
 	caPrivKeyPEM := new(bytes.Buffer)
-	pem.Encode(caPrivKeyPEM, &pem.Block{
+	if err = pem.Encode(caPrivKeyPEM, &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(caPrivKey),
-	})
+	}); err != nil {
+		return tls.Certificate{}, err
+	}
 
 	// Create certificate
 	cert := &x509.Certificate{
-		SerialNumber: big.NewInt(2002),
+		SerialNumber: big.NewInt(int64(mrand.Intn(certRSAsize))), //nolint:gosec
 		DNSNames:     []string{"*"},
 		NotBefore:    time.Now(),
-		NotAfter:     time.Now().AddDate(5, 0, 0),
+		NotAfter:     time.Now().AddDate(certExpiryYears, 0, 0),
 		SubjectKeyId: []byte{1, 2, 3, 4, 6},
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 	}
 
-	certPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
+	certPrivKey, err := rsa.GenerateKey(rand.Reader, certRSAsize)
 	if err != nil {
 		return tls.Certificate{}, err
 	}
@@ -310,16 +320,20 @@ func createSelfSignedCert() (tls.Certificate, error) {
 	}
 
 	certPEM := new(bytes.Buffer)
-	pem.Encode(certPEM, &pem.Block{
+	if err = pem.Encode(certPEM, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: certBytes,
-	})
+	}); err != nil {
+		return tls.Certificate{}, err
+	}
 
 	certPrivKeyPEM := new(bytes.Buffer)
-	pem.Encode(certPrivKeyPEM, &pem.Block{
+	if err = pem.Encode(certPrivKeyPEM, &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(certPrivKey),
-	})
+	}); err != nil {
+		return tls.Certificate{}, err
+	}
 
 	keyPair, err := tls.X509KeyPair(certPEM.Bytes(), certPrivKeyPEM.Bytes())
 	if err != nil {

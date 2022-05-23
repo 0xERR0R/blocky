@@ -575,22 +575,17 @@ func unmarshalConfig(data []byte, cfg *Config) error {
 		return fmt.Errorf("wrong file structure: %w", err)
 	}
 
-	err = validateConfig(cfg)
-	if err != nil {
-		return fmt.Errorf("unable to validate config: %w", err)
-	}
+	validateConfig(cfg)
 
 	return nil
 }
 
-func validateConfig(cfg *Config) (err error) {
+func validateConfig(cfg *Config) {
 	if cfg.DisableIPv6 {
 		log.Log().Warnf("'disableIPv6' is deprecated. Please use 'filtering.queryTypes' with 'AAAA' instead.")
 
 		cfg.Filtering.QueryTypes.Insert(dns.Type(dns.TypeAAAA))
 	}
-
-	return
 }
 
 // GetConfig returns the current config
