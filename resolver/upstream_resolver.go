@@ -266,7 +266,7 @@ func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Resp
 		retry.RetryIf(func(err error) bool {
 			var netErr net.Error
 
-			return errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary())
+			return errors.As(err, &netErr) && netErr.Timeout()
 		}),
 		retry.OnRetry(func(n uint, err error) {
 			logger.WithFields(logrus.Fields{
