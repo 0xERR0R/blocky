@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -539,15 +540,14 @@ type FilteringConfig struct {
 // nolint:gochecknoglobals
 var config = &Config{}
 
-// LoadConfig creates new config from YAML file
+// LoadConfig creates new config from YAML file or a directory containing YAML files
 func LoadConfig(path string, mandatory bool) (*Config, error) {
 	cfg := Config{}
 	if err := defaults.Set(&cfg); err != nil {
 		return nil, fmt.Errorf("can't apply default values: %w", err)
 	}
 
-	data, err := ioutil.ReadFile(path)
-
+	fs, err := os.Stat(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) && !mandatory {
 			// config file does not exist
@@ -557,7 +557,40 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 			return config, nil
 		}
 
-		return nil, fmt.Errorf("can't read config file: %w", err)
+		return nil, fmt.Errorf("can't read config file(s): %w", err)
+	}
+
+	var data []byte
+
+	if fs.IsDir() { //nolint:nestif
+		err = filepath.WalkDir(path, func(filePath string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if path == filePath {
+				return nil
+			}
+
+			fileData, err := os.ReadFile(filePath)
+			if err != nil {
+				return err
+			}
+
+			data = append(data, []byte("\n")...)
+			data = append(data, fileData...)
+
+			return nil
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("can't read config files: %w", err)
+		}
+	} else {
+		data, err = ioutil.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("can't read config file: %w", err)
+		}
 	}
 
 	err = unmarshalConfig(data, &cfg)

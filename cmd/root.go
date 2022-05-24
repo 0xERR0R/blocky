@@ -40,7 +40,7 @@ Complete documentation is available at https://github.com/0xERR0R/blocky`,
 		SilenceUsage: true,
 	}
 
-	c.PersistentFlags().StringVarP(&configPath, "config", "c", defaultConfigPath, "path to config file")
+	c.PersistentFlags().StringVarP(&configPath, "config", "c", defaultConfigPath, "path to config file or folder")
 	c.PersistentFlags().StringVar(&apiHost, "apiHost", defaultHost, "host of blocky (API). Default overridden by config and CLI.") // nolint:lll
 	c.PersistentFlags().Uint16Var(&apiPort, "apiPort", defaultPort, "port of blocky (API). Default overridden by config and CLI.") // nolint:lll
 

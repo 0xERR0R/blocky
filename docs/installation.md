@@ -8,7 +8,7 @@ You can choose one of the following installation options:
 
 ## Prepare your configuration
 
-Blocky uses one YAML file as configuration. Create new `config.yaml` with your configuration (
+Blocky supports single or multiple YAML files as configuration. Create new `config.yaml` with your configuration (
 see [Configuration](configuration.md) for more details and all configuration options).
 
 Simple configuration file, which enables only basic features:
@@ -127,6 +127,12 @@ volumes:
       o: username=USER,password=PASSWORD,rw
       device: //NAS_HOSTNAME/blocky  
 ```
+
+#### Multiple configuration files
+
+For complex setups, splitting the configuration between multiple YAML files might be desired. In this case, folder containing YAML files is passed on startup, Blocky will join all the files in alphabetic order and load the configuration.
+
+`./blocky --config ./config/`
 
 ## Other installation types
 
