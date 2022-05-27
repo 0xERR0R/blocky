@@ -1,5 +1,5 @@
 # build stage
-FROM golang:1.17-alpine AS build-env
+FROM golang:1.18-alpine AS build-env
 RUN apk add --no-cache \
     git \
     make \
@@ -23,7 +23,7 @@ ARG opts
 RUN env ${opts} make build
 
 # final stage
-FROM alpine:3.15
+FROM alpine:3.16
 
 LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
       org.opencontainers.image.url="https://github.com/0xERR0R/blocky" \
