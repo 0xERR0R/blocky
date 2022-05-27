@@ -641,6 +641,29 @@ var _ = Describe("Running DNS server", func() {
 		})
 	})
 
+	Describe("self-signed certificate creation", func() {
+		var (
+			cfg  config.Config
+			cErr error
+		)
+		BeforeEach(func() {
+			cErr = defaults.Set(&cfg)
+
+			Expect(cErr).Should(Succeed())
+
+			cfg.Upstream.ExternalResolvers = map[string][]config.Upstream{
+				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}}}
+		})
+
+		It("should create self-signed certificate if key/cert files are not provided", func() {
+			cfg.KeyFile = ""
+			cfg.CertFile = ""
+
+			sut, err := NewServer(&cfg)
+			Expect(err).Should(Succeed())
+			Expect(sut.cert.Certificate).ShouldNot(BeNil())
+		})
+	})
 })
 
 func requestServer(request *dns.Msg) *dns.Msg {

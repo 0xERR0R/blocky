@@ -161,75 +161,14 @@ bootstrapDns:
 			})
 		})
 
-		When("Validation fails", func() {
-			It("should return error", func() {
-				cfg := Config{}
-				data :=
-					`httpsPort: 443`
-				err := unmarshalConfig([]byte(data), &cfg)
-				Expect(err).Should(HaveOccurred())
-				Expect(err.Error()).Should(ContainSubstring("'certFile' and 'keyFile' parameters are mandatory for HTTPS"))
-			})
-		})
-
-		When("TlsPort is defined", func() {
-			It("certFile/keyFile must be set", func() {
-
-				By("certFile/keyFile not set", func() {
-					c := &Config{
-						TLSPorts: ListenConfig{"953"},
-					}
-					err := validateConfig(c)
-					Expect(err).Should(HaveOccurred())
-					Expect(err.Error()).Should(ContainSubstring("'certFile' and 'keyFile' parameters are mandatory for TLS"))
-				})
-
-				By("certFile/keyFile set", func() {
-					c := &Config{
-						TLSPorts: ListenConfig{"953"},
-						KeyFile:  "key",
-						CertFile: "cert",
-					}
-					err := validateConfig(c)
-					Expect(err).Should(Succeed())
-
-				})
-			})
-		})
-
 		When("Deprecated parameter 'disableIPv6' is set", func() {
 			It("should add 'AAAA' to filter.queryTypes", func() {
 				c := &Config{
 					DisableIPv6: true,
 				}
-				err := validateConfig(c)
-				Expect(err).Should(Succeed())
+				validateConfig(c)
 				Expect(c.Filtering.QueryTypes).Should(HaveKey(QType(dns.TypeAAAA)))
 				Expect(c.Filtering.QueryTypes.Contains(dns.Type(dns.TypeAAAA))).Should(BeTrue())
-			})
-		})
-
-		When("HttpsPort is defined", func() {
-			It("certFile/keyFile must be set", func() {
-
-				By("certFile/keyFile not set", func() {
-					c := &Config{
-						HTTPSPorts: ListenConfig{"443"},
-					}
-					err := validateConfig(c)
-					Expect(err).Should(HaveOccurred())
-					Expect(err.Error()).Should(ContainSubstring("'certFile' and 'keyFile' parameters are mandatory for HTTPS"))
-				})
-
-				By("certFile/keyFile set", func() {
-					c := &Config{
-						TLSPorts: ListenConfig{"443"},
-						KeyFile:  "key",
-						CertFile: "cert",
-					}
-					err := validateConfig(c)
-					Expect(err).Should(Succeed())
-				})
 			})
 		})
 

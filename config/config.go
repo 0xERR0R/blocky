@@ -17,7 +17,6 @@ import (
 	"github.com/miekg/dns"
 
 	"github.com/hako/durafmt"
-	"github.com/hashicorp/go-multierror"
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/creasty/defaults"
@@ -609,30 +608,17 @@ func unmarshalConfig(data []byte, cfg *Config) error {
 		return fmt.Errorf("wrong file structure: %w", err)
 	}
 
-	err = validateConfig(cfg)
-	if err != nil {
-		return fmt.Errorf("unable to validate config: %w", err)
-	}
+	validateConfig(cfg)
 
 	return nil
 }
 
-func validateConfig(cfg *Config) (err error) {
-	if len(cfg.TLSPorts) != 0 && (cfg.CertFile == "" || cfg.KeyFile == "") {
-		err = multierror.Append(err, errors.New("'certFile' and 'keyFile' parameters are mandatory for TLS"))
-	}
-
-	if len(cfg.HTTPSPorts) != 0 && (cfg.CertFile == "" || cfg.KeyFile == "") {
-		err = multierror.Append(err, errors.New("'certFile' and 'keyFile' parameters are mandatory for HTTPS"))
-	}
-
+func validateConfig(cfg *Config) {
 	if cfg.DisableIPv6 {
 		log.Log().Warnf("'disableIPv6' is deprecated. Please use 'filtering.queryTypes' with 'AAAA' instead.")
 
 		cfg.Filtering.QueryTypes.Insert(dns.Type(dns.TypeAAAA))
 	}
-
-	return
 }
 
 // GetConfig returns the current config

@@ -1,8 +1,15 @@
 package server
 
 import (
+	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"math/big"
+	mrand "math/rand"
 	"net"
 	"net/http"
 	"runtime"
@@ -27,6 +34,9 @@ import (
 
 const (
 	maxUDPBufferSize = 65535
+	caExpiryYears    = 10
+	certExpiryYears  = 5
+	certRSAsize      = 4096
 )
 
 // Server controls the endpoints for DNS and HTTP
@@ -37,6 +47,7 @@ type Server struct {
 	queryResolver  resolver.Resolver
 	cfg            *config.Config
 	httpMux        *chi.Mux
+	cert           tls.Certificate
 }
 
 func logger() *logrus.Entry {
@@ -67,10 +78,27 @@ func getServerAddress(addr string) string {
 type NewServerFunc func(address string) (*dns.Server, error)
 
 // NewServer creates new server instance with passed config
+// nolint:funlen
 func NewServer(cfg *config.Config) (server *Server, err error) {
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
-	dnsServers, err := createServers(cfg)
+	var cert tls.Certificate
+
+	if cfg.CertFile == "" && cfg.KeyFile == "" {
+		cert, err = createSelfSignedCert()
+		if err != nil {
+			return nil, fmt.Errorf("unable to generate self-signed certificate: %w", err)
+		}
+
+		log.Log().Info("using self-signed certificate")
+	} else {
+		cert, err = tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("can't load certificate files: %w", err)
+		}
+	}
+
+	dnsServers, err := createServers(cfg, cert)
 	if err != nil {
 		return nil, fmt.Errorf("server creation failed: %w", err)
 	}
@@ -110,6 +138,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 		httpListeners:  httpListeners,
 		httpsListeners: httpsListeners,
 		httpMux:        router,
+		cert:           cert,
 	}
 
 	server.printConfiguration()
@@ -122,7 +151,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 	return server, err
 }
 
-func createServers(cfg *config.Config) ([]*dns.Server, error) {
+func createServers(cfg *config.Config, cert tls.Certificate) ([]*dns.Server, error) {
 	var dnsServers []*dns.Server
 
 	var err *multierror.Error
@@ -144,7 +173,7 @@ func createServers(cfg *config.Config) ([]*dns.Server, error) {
 		addServers(createUDPServer, cfg.DNSPorts),
 		addServers(createTCPServer, cfg.DNSPorts),
 		addServers(func(address string) (*dns.Server, error) {
-			return createTLSServer(address, cfg.CertFile, cfg.KeyFile)
+			return createTLSServer(address, cert)
 		}, cfg.TLSPorts))
 
 	return dnsServers, err.ErrorOrNil()
@@ -191,17 +220,12 @@ func registerResolverAPIEndpoints(router chi.Router, res resolver.Resolver) {
 	}
 }
 
-func createTLSServer(address string, certFile string, keyFile string) (*dns.Server, error) {
-	cer, err := tls.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		return nil, fmt.Errorf("can't load certificate files: %w", err)
-	}
-
+func createTLSServer(address string, cert tls.Certificate) (*dns.Server, error) {
 	return &dns.Server{
 		Addr: address,
 		Net:  "tcp-tls",
 		TLSConfig: &tls.Config{
-			Certificates: []tls.Certificate{cer},
+			Certificates: []tls.Certificate{cert},
 			MinVersion:   tls.VersionTLS12,
 			CipherSuites: tlsCipherSuites(),
 		},
@@ -233,6 +257,90 @@ func createUDPServer(address string) (*dns.Server, error) {
 		},
 		UDPSize: maxUDPBufferSize,
 	}, nil
+}
+
+// nolint:funlen
+func createSelfSignedCert() (tls.Certificate, error) {
+	// Create CA
+	ca := &x509.Certificate{
+		SerialNumber:          big.NewInt(int64(mrand.Intn(certRSAsize))), //nolint:gosec
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().AddDate(caExpiryYears, 0, 0),
+		IsCA:                  true,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+	}
+
+	caPrivKey, err := rsa.GenerateKey(rand.Reader, certRSAsize)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	caBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &caPrivKey.PublicKey, caPrivKey)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	caPEM := new(bytes.Buffer)
+	if err = pem.Encode(caPEM, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: caBytes,
+	}); err != nil {
+		return tls.Certificate{}, err
+	}
+
+	caPrivKeyPEM := new(bytes.Buffer)
+	if err = pem.Encode(caPrivKeyPEM, &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(caPrivKey),
+	}); err != nil {
+		return tls.Certificate{}, err
+	}
+
+	// Create certificate
+	cert := &x509.Certificate{
+		SerialNumber: big.NewInt(int64(mrand.Intn(certRSAsize))), //nolint:gosec
+		DNSNames:     []string{"*"},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().AddDate(certExpiryYears, 0, 0),
+		SubjectKeyId: []byte{1, 2, 3, 4, 6},
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+
+	certPrivKey, err := rsa.GenerateKey(rand.Reader, certRSAsize)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	certBytes, err := x509.CreateCertificate(rand.Reader, cert, ca, &certPrivKey.PublicKey, caPrivKey)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	certPEM := new(bytes.Buffer)
+	if err = pem.Encode(certPEM, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certBytes,
+	}); err != nil {
+		return tls.Certificate{}, err
+	}
+
+	certPrivKeyPEM := new(bytes.Buffer)
+	if err = pem.Encode(certPrivKeyPEM, &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(certPrivKey),
+	}); err != nil {
+		return tls.Certificate{}, err
+	}
+
+	keyPair, err := tls.X509KeyPair(certPEM.Bytes(), certPrivKeyPEM.Bytes())
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	return keyPair, nil
 }
 
 func createQueryResolver(
@@ -366,10 +474,11 @@ func (s *Server) Start(errCh chan<- error) {
 				TLSConfig: &tls.Config{
 					MinVersion:   tls.VersionTLS12,
 					CipherSuites: tlsCipherSuites(),
+					Certificates: []tls.Certificate{s.cert},
 				},
 			}
 
-			if err := server.ServeTLS(listener, s.cfg.CertFile, s.cfg.KeyFile); err != nil {
+			if err := server.ServeTLS(listener, "", ""); err != nil {
 				errCh <- fmt.Errorf("start https listener failed: %w", err)
 			}
 		}()
