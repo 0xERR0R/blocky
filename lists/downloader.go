@@ -115,7 +115,7 @@ func (d *HTTPDownloader) DownloadFile(link string) (io.ReadCloser, error) {
 				return fmt.Errorf("got status code %d", resp.StatusCode)
 			}
 			var netErr net.Error
-			if errors.As(httpErr, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
+			if errors.As(httpErr, &netErr) && netErr.Timeout() {
 				return &TransientError{inner: netErr}
 			}
 
