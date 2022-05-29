@@ -244,6 +244,7 @@ func createTLSServer(address string, cert tls.Certificate) (*dns.Server, error) 
 	return &dns.Server{
 		Addr: address,
 		Net:  "tcp-tls",
+		//nolint:gosec
 		TLSConfig: &tls.Config{
 			Certificates: []tls.Certificate{cert},
 			MinVersion:   minTLSVersion(),
@@ -491,6 +492,7 @@ func (s *Server) Start(errCh chan<- error) {
 
 			server := http.Server{
 				Handler: s.httpsMux,
+				//nolint:gosec
 				TLSConfig: &tls.Config{
 					MinVersion:   minTLSVersion(),
 					CipherSuites: tlsCipherSuites(),
