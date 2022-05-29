@@ -185,6 +185,8 @@ port: 53
 # optional: HTTPS listener port(s) and bind ip address(es), default empty = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH... Example: 443, :443, 127.0.0.1:443
 httpPort: 4000
 #httpsPort: 443
+# optional: Mininal TLS version that the DoH and DoT server will use
+minTlsServeVersion: 1.3
 # if https port > 0: path to cert and key file for SSL encryption. if not set, self-signed certificate will be generated
 #certFile: server.crt
 #keyFile: server.key
