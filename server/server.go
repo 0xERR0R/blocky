@@ -47,6 +47,7 @@ type Server struct {
 	queryResolver  resolver.Resolver
 	cfg            *config.Config
 	httpMux        *chi.Mux
+	httpsMux       *chi.Mux
 	cert           tls.Certificate
 }
 
@@ -103,7 +104,8 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 		return nil, fmt.Errorf("server creation failed: %w", err)
 	}
 
-	router := createRouter(cfg)
+	httpRouter := createRouter(cfg)
+	httpsRouter := createHTTPSRouter(cfg)
 
 	httpListeners, httpsListeners, err := createHTTPListeners(cfg)
 	if err != nil {
@@ -111,7 +113,8 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 	}
 
 	if len(httpListeners) != 0 || len(httpsListeners) != 0 {
-		metrics.Start(router, cfg.Prometheus)
+		metrics.Start(httpRouter, cfg.Prometheus)
+		metrics.Start(httpsRouter, cfg.Prometheus)
 	}
 
 	metrics.RegisterEventListeners()
@@ -137,16 +140,19 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 		cfg:            cfg,
 		httpListeners:  httpListeners,
 		httpsListeners: httpsListeners,
-		httpMux:        router,
+		httpMux:        httpRouter,
+		httpsMux:       httpsRouter,
 		cert:           cert,
 	}
 
 	server.printConfiguration()
 
 	server.registerDNSHandlers()
-	server.registerAPIEndpoints(router)
+	server.registerAPIEndpoints(httpRouter)
+	server.registerAPIEndpoints(httpsRouter)
 
-	registerResolverAPIEndpoints(router, queryResolver)
+	registerResolverAPIEndpoints(httpRouter, queryResolver)
+	registerResolverAPIEndpoints(httpsRouter, queryResolver)
 
 	return server, err
 }
@@ -470,7 +476,7 @@ func (s *Server) Start(errCh chan<- error) {
 			logger().Infof("https server is up and running on addr/port %s", address)
 
 			server := http.Server{
-				Handler: s.httpMux,
+				Handler: s.httpsMux,
 				TLSConfig: &tls.Config{
 					MinVersion:   tls.VersionTLS12,
 					CipherSuites: tlsCipherSuites(),

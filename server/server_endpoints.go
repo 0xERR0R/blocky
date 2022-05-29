@@ -30,6 +30,16 @@ const (
 	corsMaxAge      = 5 * time.Minute
 )
 
+func securityHeader(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("strict-transport-security", "max-age=63072000")
+		w.Header().Set("x-frame-options", "DENY")
+		w.Header().Set("x-content-type-options", "nosniff")
+		w.Header().Set("x-xss-protection", "1; mode=block")
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (s *Server) registerAPIEndpoints(router *chi.Mux) {
 	router.Post(api.PathQueryPath, s.apiQuery)
 
@@ -215,6 +225,20 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 	logAndResponseWithError(err, "unable to write response: ", rw)
 }
 
+func createHTTPSRouter(cfg *config.Config) *chi.Mux {
+	router := chi.NewRouter()
+
+	configureSecurityHeaderHandler(router)
+
+	configureCorsHandler(router)
+
+	configureDebugHandler(router)
+
+	configureRootHandler(cfg, router)
+
+	return router
+}
+
 func createRouter(cfg *config.Config) *chi.Mux {
 	router := chi.NewRouter()
 
@@ -229,6 +253,7 @@ func createRouter(cfg *config.Config) *chi.Mux {
 
 func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 	router.Get("/", func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("content-type", dnsContentType)
 		t := template.New("index")
 		_, _ = t.Parse(web.IndexTmpl)
 
@@ -283,6 +308,10 @@ func logAndResponseWithError(err error, message string, writer http.ResponseWrit
 		log.Log().Error(message, log.EscapeInput(err.Error()))
 		http.Error(writer, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func configureSecurityHeaderHandler(router *chi.Mux) {
+	router.Use(securityHeader)
 }
 
 func configureDebugHandler(router *chi.Mux) {
