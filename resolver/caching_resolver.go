@@ -219,9 +219,11 @@ func (r *CachingResolver) trackQueryDomainNameCount(domain string, cacheKey stri
 		}
 		domainCount++
 		r.prefetchingNameCache.Put(cacheKey, domainCount, r.prefetchExpires)
+		totalCount := r.prefetchingNameCache.TotalCount()
+
 		logger.Debugf("domain '%s' was requested %d times, "+
-			"total cache size: %d", util.Obfuscate(domain), domainCount, r.prefetchingNameCache.TotalCount())
-		evt.Bus().Publish(evt.CachingDomainsToPrefetchCountChanged, r.prefetchingNameCache.TotalCount())
+			"total cache size: %d", util.Obfuscate(domain), domainCount, totalCount)
+		evt.Bus().Publish(evt.CachingDomainsToPrefetchCountChanged, totalCount)
 	}
 }
 
