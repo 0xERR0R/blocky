@@ -30,7 +30,7 @@ const (
 	corsMaxAge      = 5 * time.Minute
 )
 
-func securityHeader(next http.Handler) http.Handler {
+func secureHeader(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("strict-transport-security", "max-age=63072000")
 		w.Header().Set("x-frame-options", "DENY")
@@ -228,7 +228,7 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 func createHTTPSRouter(cfg *config.Config) *chi.Mux {
 	router := chi.NewRouter()
 
-	configureSecurityHeaderHandler(router)
+	configureSecureHeaderHandler(router)
 
 	configureCorsHandler(router)
 
@@ -310,8 +310,8 @@ func logAndResponseWithError(err error, message string, writer http.ResponseWrit
 	}
 }
 
-func configureSecurityHeaderHandler(router *chi.Mux) {
-	router.Use(securityHeader)
+func configureSecureHeaderHandler(router *chi.Mux) {
+	router.Use(secureHeader)
 }
 
 func configureDebugHandler(router *chi.Mux) {
