@@ -147,15 +147,7 @@ func calculateRemainTTL(expiresEpoch int64) time.Duration {
 }
 
 func (e *ExpiringLRUCache) TotalCount() (count int) {
-	for _, k := range e.lru.Keys() {
-		if v, ok := e.lru.Peek(k); ok {
-			if !isExpired(v.(*element)) {
-				count++
-			}
-		}
-	}
-
-	return count
+	return e.lru.Len()
 }
 
 func (e *ExpiringLRUCache) Clear() {
