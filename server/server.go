@@ -92,6 +92,24 @@ func getServerAddress(addr string) string {
 
 type NewServerFunc func(address string) (*dns.Server, error)
 
+func retrieveCertificate(cfg *config.Config) (cert tls.Certificate, err error) {
+	if cfg.CertFile == "" && cfg.KeyFile == "" {
+		cert, err = createSelfSignedCert()
+		if err != nil {
+			return tls.Certificate{}, fmt.Errorf("unable to generate self-signed certificate: %w", err)
+		}
+
+		log.Log().Info("using self-signed certificate")
+	} else {
+		cert, err = tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
+		if err != nil {
+			return tls.Certificate{}, fmt.Errorf("can't load certificate files: %w", err)
+		}
+	}
+
+	return
+}
+
 // NewServer creates new server instance with passed config
 // nolint:funlen
 func NewServer(cfg *config.Config) (server *Server, err error) {
@@ -99,17 +117,10 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	var cert tls.Certificate
 
-	if cfg.CertFile == "" && cfg.KeyFile == "" {
-		cert, err = createSelfSignedCert()
+	if len(cfg.HTTPSPorts) > 0 || len(cfg.TLSPorts) > 0 {
+		cert, err = retrieveCertificate(cfg)
 		if err != nil {
-			return nil, fmt.Errorf("unable to generate self-signed certificate: %w", err)
-		}
-
-		log.Log().Info("using self-signed certificate")
-	} else {
-		cert, err = tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
-		if err != nil {
-			return nil, fmt.Errorf("can't load certificate files: %w", err)
+			return nil, fmt.Errorf("can't retrieve cert: %w", err)
 		}
 	}
 
