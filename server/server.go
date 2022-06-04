@@ -55,6 +55,20 @@ func logger() *logrus.Entry {
 	return log.PrefixedLog("server")
 }
 
+func minTLSVersion() uint16 {
+	minTLSVer := config.GetConfig().MinTLSServeVer
+	switch minTLSVer {
+	case "1.2":
+		return tls.VersionTLS12
+	case "1.3":
+		return tls.VersionTLS13
+	default:
+		logger().Warn("Not allowed or supported mininum TLS version ", minTLSVer, ", fallback to TLS 1.3")
+
+		return tls.VersionTLS13
+	}
+}
+
 func tlsCipherSuites() []uint16 {
 	tlsCipherSuites := []uint16{
 		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
@@ -230,9 +244,10 @@ func createTLSServer(address string, cert tls.Certificate) (*dns.Server, error) 
 	return &dns.Server{
 		Addr: address,
 		Net:  "tcp-tls",
+		//nolint:gosec
 		TLSConfig: &tls.Config{
 			Certificates: []tls.Certificate{cert},
-			MinVersion:   tls.VersionTLS12,
+			MinVersion:   minTLSVersion(),
 			CipherSuites: tlsCipherSuites(),
 		},
 		Handler: dns.NewServeMux(),
@@ -477,8 +492,9 @@ func (s *Server) Start(errCh chan<- error) {
 
 			server := http.Server{
 				Handler: s.httpsMux,
+				//nolint:gosec
 				TLSConfig: &tls.Config{
-					MinVersion:   tls.VersionTLS12,
+					MinVersion:   minTLSVersion(),
 					CipherSuites: tlsCipherSuites(),
 					Certificates: []tls.Certificate{s.cert},
 				},
