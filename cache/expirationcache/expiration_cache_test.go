@@ -43,10 +43,6 @@ var _ = Describe("Expiration cache", func() {
 					g.Expect(ttl.Milliseconds()).Should(BeNumerically("==", 0))
 				}, "100ms").Should(Succeed())
 
-				Expect(cache.TotalCount()).Should(Equal(0))
-				// internal map has still the expired item
-				Expect(cache.lru.Len()).Should(Equal(1))
-
 				// wait for cleanup run
 				Eventually(func() int {
 					return cache.lru.Len()

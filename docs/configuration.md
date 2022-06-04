@@ -24,6 +24,7 @@ configuration properties as [JSON](config.yml).
 | logTimestamp | bool                            | no                    | true          | Log time stamps (true or false).                                                                                                                                                                                                                  |
 | logPrivacy   | bool                            | no                    | false         | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy.                                                                                                 |
 | dohUserAgent | string                          | no                    |               | HTTP User Agent for DoH upstreams                                                                                                  |
+| minTlsServeVersion | string                    | no                    | 1.2           | Minimum TLS version that the DoT and DoH server use to serve those encrypted DNS requests                       |
 
 !!! example
 

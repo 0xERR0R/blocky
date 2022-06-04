@@ -577,6 +577,7 @@ func defaultTestFileConfig() {
 	Expect(config.Caching.MinCachingTime).Should(Equal(Duration(0)))
 
 	Expect(config.DoHUserAgent).Should(Equal("testBlocky"))
+	Expect(config.MinTLSServeVer).Should(Equal("1.3"))
 
 	Expect(GetConfig()).Should(Not(BeNil()))
 }

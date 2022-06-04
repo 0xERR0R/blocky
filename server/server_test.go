@@ -658,6 +658,7 @@ var _ = Describe("Running DNS server", func() {
 		It("should create self-signed certificate if key/cert files are not provided", func() {
 			cfg.KeyFile = ""
 			cfg.CertFile = ""
+			cfg.HTTPSPorts = []string{":14443"}
 
 			sut, err := NewServer(&cfg)
 			Expect(err).Should(Succeed())

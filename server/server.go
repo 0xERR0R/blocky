@@ -47,11 +47,26 @@ type Server struct {
 	queryResolver  resolver.Resolver
 	cfg            *config.Config
 	httpMux        *chi.Mux
+	httpsMux       *chi.Mux
 	cert           tls.Certificate
 }
 
 func logger() *logrus.Entry {
 	return log.PrefixedLog("server")
+}
+
+func minTLSVersion() uint16 {
+	minTLSVer := config.GetConfig().MinTLSServeVer
+	switch minTLSVer {
+	case "1.2":
+		return tls.VersionTLS12
+	case "1.3":
+		return tls.VersionTLS13
+	default:
+		logger().Warn("Not allowed or supported mininum TLS version ", minTLSVer, ", fallback to TLS 1.3")
+
+		return tls.VersionTLS13
+	}
 }
 
 func tlsCipherSuites() []uint16 {
@@ -77,6 +92,24 @@ func getServerAddress(addr string) string {
 
 type NewServerFunc func(address string) (*dns.Server, error)
 
+func retrieveCertificate(cfg *config.Config) (cert tls.Certificate, err error) {
+	if cfg.CertFile == "" && cfg.KeyFile == "" {
+		cert, err = createSelfSignedCert()
+		if err != nil {
+			return tls.Certificate{}, fmt.Errorf("unable to generate self-signed certificate: %w", err)
+		}
+
+		log.Log().Info("using self-signed certificate")
+	} else {
+		cert, err = tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
+		if err != nil {
+			return tls.Certificate{}, fmt.Errorf("can't load certificate files: %w", err)
+		}
+	}
+
+	return
+}
+
 // NewServer creates new server instance with passed config
 // nolint:funlen
 func NewServer(cfg *config.Config) (server *Server, err error) {
@@ -84,17 +117,10 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	var cert tls.Certificate
 
-	if cfg.CertFile == "" && cfg.KeyFile == "" {
-		cert, err = createSelfSignedCert()
+	if len(cfg.HTTPSPorts) > 0 || len(cfg.TLSPorts) > 0 {
+		cert, err = retrieveCertificate(cfg)
 		if err != nil {
-			return nil, fmt.Errorf("unable to generate self-signed certificate: %w", err)
-		}
-
-		log.Log().Info("using self-signed certificate")
-	} else {
-		cert, err = tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
-		if err != nil {
-			return nil, fmt.Errorf("can't load certificate files: %w", err)
+			return nil, fmt.Errorf("can't retrieve cert: %w", err)
 		}
 	}
 
@@ -103,7 +129,8 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 		return nil, fmt.Errorf("server creation failed: %w", err)
 	}
 
-	router := createRouter(cfg)
+	httpRouter := createRouter(cfg)
+	httpsRouter := createHTTPSRouter(cfg)
 
 	httpListeners, httpsListeners, err := createHTTPListeners(cfg)
 	if err != nil {
@@ -111,7 +138,8 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 	}
 
 	if len(httpListeners) != 0 || len(httpsListeners) != 0 {
-		metrics.Start(router, cfg.Prometheus)
+		metrics.Start(httpRouter, cfg.Prometheus)
+		metrics.Start(httpsRouter, cfg.Prometheus)
 	}
 
 	metrics.RegisterEventListeners()
@@ -137,16 +165,19 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 		cfg:            cfg,
 		httpListeners:  httpListeners,
 		httpsListeners: httpsListeners,
-		httpMux:        router,
+		httpMux:        httpRouter,
+		httpsMux:       httpsRouter,
 		cert:           cert,
 	}
 
 	server.printConfiguration()
 
 	server.registerDNSHandlers()
-	server.registerAPIEndpoints(router)
+	server.registerAPIEndpoints(httpRouter)
+	server.registerAPIEndpoints(httpsRouter)
 
-	registerResolverAPIEndpoints(router, queryResolver)
+	registerResolverAPIEndpoints(httpRouter, queryResolver)
+	registerResolverAPIEndpoints(httpsRouter, queryResolver)
 
 	return server, err
 }
@@ -224,9 +255,10 @@ func createTLSServer(address string, cert tls.Certificate) (*dns.Server, error) 
 	return &dns.Server{
 		Addr: address,
 		Net:  "tcp-tls",
+		//nolint:gosec
 		TLSConfig: &tls.Config{
 			Certificates: []tls.Certificate{cert},
-			MinVersion:   tls.VersionTLS12,
+			MinVersion:   minTLSVersion(),
 			CipherSuites: tlsCipherSuites(),
 		},
 		Handler: dns.NewServeMux(),
@@ -470,9 +502,10 @@ func (s *Server) Start(errCh chan<- error) {
 			logger().Infof("https server is up and running on addr/port %s", address)
 
 			server := http.Server{
-				Handler: s.httpMux,
+				Handler: s.httpsMux,
+				//nolint:gosec
 				TLSConfig: &tls.Config{
-					MinVersion:   tls.VersionTLS12,
+					MinVersion:   minTLSVersion(),
 					CipherSuites: tlsCipherSuites(),
 					Certificates: []tls.Certificate{s.cert},
 				},
