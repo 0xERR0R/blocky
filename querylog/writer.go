@@ -6,7 +6,7 @@ import (
 	"github.com/0xERR0R/blocky/model"
 )
 
-type Entry struct {
+type LogEntry struct {
 	Request    *model.Request
 	Response   *model.Response
 	Start      time.Time
@@ -14,6 +14,6 @@ type Entry struct {
 }
 
 type Writer interface {
-	Write(entry *Entry)
+	Write(entry *LogEntry)
 	CleanUp()
 }

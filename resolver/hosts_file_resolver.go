@@ -76,21 +76,7 @@ func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, er
 		domain := util.ExtractDomain(question)
 
 		for _, host := range r.hosts {
-			if host.Hostname == domain {
-				if isSupportedType(host.IP, question) {
-					rr, _ := util.CreateAnswerFromQuestion(question, host.IP, r.ttl)
-					response.Answer = append(response.Answer, rr)
-				}
-			}
-
-			for _, alias := range host.Aliases {
-				if alias == domain {
-					if isSupportedType(host.IP, question) {
-						rr, _ := util.CreateAnswerFromQuestion(question, host.IP, r.ttl)
-						response.Answer = append(response.Answer, rr)
-					}
-				}
-			}
+			response.Answer = append(response.Answer, r.processHostEntry(host, domain, question)...)
 		}
 
 		if len(response.Answer) > 0 {
@@ -106,6 +92,26 @@ func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, er
 	logger.WithField("resolver", Name(r.next)).Trace("go to next resolver")
 
 	return r.next.Resolve(request)
+}
+
+func (r *HostsFileResolver) processHostEntry(host host, domain string, question dns.Question) (result []dns.RR) {
+	if host.Hostname == domain {
+		if isSupportedType(host.IP, question) {
+			rr, _ := util.CreateAnswerFromQuestion(question, host.IP, r.ttl)
+			result = append(result, rr)
+		}
+	}
+
+	for _, alias := range host.Aliases {
+		if alias == domain {
+			if isSupportedType(host.IP, question) {
+				rr, _ := util.CreateAnswerFromQuestion(question, host.IP, r.ttl)
+				result = append(result, rr)
+			}
+		}
+	}
+
+	return
 }
 
 func (r *HostsFileResolver) Configuration() (result []string) {
@@ -127,9 +133,7 @@ func NewHostsFileResolver(cfg config.HostsFileConfig) ChainedResolver {
 		refreshPeriod: time.Duration(cfg.RefreshPeriod),
 	}
 
-	err := r.parseHostsFile()
-
-	if err != nil {
+	if err := r.parseHostsFile(); err != nil {
 		logger := logger(hostsFileResolverLogger)
 		logger.Warnf("cannot parse hosts file: %s, hosts file resolving is disabled", r.HostsFilePath)
 		r.HostsFilePath = ""
@@ -147,6 +151,8 @@ type host struct {
 }
 
 func (r *HostsFileResolver) parseHostsFile() error {
+	const minColumnCount = 2
+
 	if r.HostsFilePath == "" {
 		return nil
 	}
@@ -177,7 +183,7 @@ func (r *HostsFileResolver) parseHostsFile() error {
 			fields = strings.Fields(trimmed[:end])
 		}
 
-		if len(fields) < 2 {
+		if len(fields) < minColumnCount {
 			// Skip invalid entry
 			continue
 		}
@@ -191,7 +197,7 @@ func (r *HostsFileResolver) parseHostsFile() error {
 		h.IP = net.ParseIP(fields[0])
 		h.Hostname = fields[1]
 
-		if len(fields) > 2 {
+		if len(fields) > minColumnCount {
 			for i := 2; i < len(fields); i++ {
 				h.Aliases = append(h.Aliases, fields[i])
 			}
@@ -216,10 +222,7 @@ func (r *HostsFileResolver) periodicUpdate() {
 			logger := logger(hostsFileResolverLogger)
 			logger.WithField("file", r.HostsFilePath).Debug("refreshing hosts file")
 
-			err := r.parseHostsFile()
-			if err != nil {
-				logger.Warn("can't refresh hosts file: ", err)
-			}
+			util.LogOnError("can't refresh hosts file: ", r.parseHostsFile())
 		}
 	}
 }

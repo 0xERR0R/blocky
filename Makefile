@@ -27,15 +27,18 @@ serve_docs: ## serves online docs
 	mkdocs serve
 
 build:  ## Build binary
-	go install github.com/abice/go-enum@v0.3.8
+	go install github.com/abice/go-enum@v0.4.0
 	go generate ./...
 	go build -v -ldflags="-w -s -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" -o $(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 
 test:  ## run tests
 	go test -v -coverprofile=coverage.txt -covermode=atomic -cover ./...
 
+race: ## run tests with race detector
+	go test -race -short ./...
+
 lint: build ## run golangcli-lint checks
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.43.0
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.46.2
 	$(shell go env GOPATH)/bin/golangci-lint run
 
 run: build ## Build and run binary

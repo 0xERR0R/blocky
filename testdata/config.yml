@@ -2,7 +2,7 @@ upstream:
   default:
     - tcp+udp:8.8.8.8
     - tcp+udp:8.8.4.4
-    - udp:1.1.1.1 # deprecated
+    - 1.1.1.1
 customDNS:
   mapping:
     my.duckdns.org: 192.168.178.3
@@ -11,6 +11,10 @@ conditional:
   mapping:
     fritz.box: tcp+udp:192.168.178.1
     multiple.resolvers: tcp+udp:192.168.178.1,tcp+udp:192.168.178.2
+filtering:
+  queryTypes:
+    - AAAA
+    - A
 blocking:
   blackLists:
     ads:
@@ -35,7 +39,7 @@ blocking:
   # without unit -> use minutes
   refreshPeriod: 120
 clientLookup:
-  upstream: udp:192.168.178.1
+  upstream: 192.168.178.1
   singleNameOrder:
       - 2
       - 1
@@ -46,3 +50,5 @@ queryLog:
 
 port: 55553,:55554,[::1]:55555
 logLevel: debug
+dohUserAgent: testBlocky
+minTlsServeVersion: 1.3

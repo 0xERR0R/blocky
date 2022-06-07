@@ -25,18 +25,23 @@ type ClientNamesResolver struct {
 }
 
 // NewClientNamesResolver creates new resolver instance
-func NewClientNamesResolver(cfg config.ClientLookupConfig) ChainedResolver {
+func NewClientNamesResolver(cfg config.ClientLookupConfig, bootstrap *Bootstrap) (cr *ClientNamesResolver, err error) {
 	var r Resolver
-	if (config.Upstream{}) != cfg.Upstream {
-		r = NewUpstreamResolver(cfg.Upstream)
+	if !cfg.Upstream.IsDefault() {
+		r, err = NewUpstreamResolver(cfg.Upstream, bootstrap)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return &ClientNamesResolver{
+	cr = &ClientNamesResolver{
 		cache:            expirationcache.NewCache(expirationcache.WithCleanUpInterval(time.Hour)),
 		externalResolver: r,
 		singleNameOrder:  cfg.SingleNameOrder,
 		clientIPMapping:  cfg.ClientnameIPMapping,
 	}
+
+	return
 }
 
 // Configuration returns current resolver configuration
@@ -100,6 +105,21 @@ func (r *ClientNamesResolver) getClientNames(request *model.Request) []string {
 	return names
 }
 
+func extractClientNamesFromAnswer(answer []dns.RR, fallbackIP net.IP) (clientNames []string) {
+	for _, answer := range answer {
+		if t, ok := answer.(*dns.PTR); ok {
+			hostName := strings.TrimSuffix(t.Ptr, ".")
+			clientNames = append(clientNames, hostName)
+		}
+	}
+
+	if len(clientNames) == 0 {
+		clientNames = []string{fallbackIP.String()}
+	}
+
+	return
+}
+
 // tries to resolve client name from mapping, performs reverse DNS lookup otherwise
 func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry) (result []string) {
 	// try client mapping first
@@ -109,48 +129,39 @@ func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry
 		return
 	}
 
-	if r.externalResolver != nil {
-		reverse, _ := dns.ReverseAddr(ip.String())
-
-		resp, err := r.externalResolver.Resolve(&model.Request{
-			Req: util.NewMsgWithQuestion(reverse, dns.TypePTR),
-			Log: logger,
-		})
-
-		if err != nil {
-			logger.Error("can't resolve client name: ", err)
-			return []string{ip.String()}
-		}
-
-		var clientNames []string
-
-		for _, answer := range resp.Res.Answer {
-			if t, ok := answer.(*dns.PTR); ok {
-				hostName := strings.TrimSuffix(t.Ptr, ".")
-				clientNames = append(clientNames, hostName)
-			}
-		}
-
-		if len(clientNames) == 0 {
-			clientNames = []string{ip.String()}
-		}
-
-		// optional: if singleNameOrder is set, use only one name in the defined order
-		if len(r.singleNameOrder) > 0 {
-			for _, i := range r.singleNameOrder {
-				if i > 0 && int(i) <= len(clientNames) {
-					result = []string{clientNames[i-1]}
-					break
-				}
-			}
-		} else {
-			result = clientNames
-		}
-
-		logger.WithField("client_names", strings.Join(result, "; ")).Debug("resolved client name(s) from external resolver")
-	} else {
-		result = []string{ip.String()}
+	if r.externalResolver == nil {
+		return []string{ip.String()}
 	}
+
+	reverse, _ := dns.ReverseAddr(ip.String())
+
+	resp, err := r.externalResolver.Resolve(&model.Request{
+		Req: util.NewMsgWithQuestion(reverse, dns.Type(dns.TypePTR)),
+		Log: logger,
+	})
+
+	if err != nil {
+		logger.Error("can't resolve client name: ", err)
+
+		return []string{ip.String()}
+	}
+
+	clientNames := extractClientNamesFromAnswer(resp.Res.Answer, ip)
+
+	// optional: if singleNameOrder is set, use only one name in the defined order
+	if len(r.singleNameOrder) > 0 {
+		for _, i := range r.singleNameOrder {
+			if i > 0 && int(i) <= len(clientNames) {
+				result = []string{clientNames[i-1]}
+
+				break
+			}
+		}
+	} else {
+		result = clientNames
+	}
+
+	logger.WithField("client_names", strings.Join(result, "; ")).Debug("resolved client name(s) from external resolver")
 
 	return result
 }

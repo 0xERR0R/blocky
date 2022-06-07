@@ -17,14 +17,14 @@ configuration properties as [JSON](config.yml).
 | tlsPort      | [IP]:port[,[IP]:port]*          | no                    |               | Port(s) and optional bind ip address(es) to serve DoT DNS endpoint (DNS-over-TLS). If you wish to specify a specific IP, you can do so such as `192.168.0.1:853`. Example: `83`, `:853`, `127.0.0.1:853,[::1]:853`                                |
 | httpPort     | [IP]:port[,[IP]:port]*          | no                    |               | Port(s) and optional bind ip address(es) to serve HTTP used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:4000`. Example: `4000`, `:4000`, `127.0.0.1:4000,[::1]:4000` |
 | httpsPort    | [IP]:port[,[IP]:port]*          | no                    |               | Port(s) and optional bind ip address(es) to serve HTTPS used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:443`. Example: `443`, `:443`, `127.0.0.1:443,[::1]:443`     |
-| certFile     | path                            | yes, if httpsPort > 0 |               | Path to cert and key file for SSL encryption (DoH and DoT)                                                                                                                                                                                        |
-| keyFile      | path                            | yes, if httpsPort > 0 |               | Path to cert and key file for SSL encryption (DoH and DoT)
-| bootstrapDns | IP:port                         | no                    |               | Use this DNS server to resolve blacklist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. NOTE: Works only on Linux/*Nix OS due to golang limitations under windows.               |
-| disableIPv6  | bool                            | no                    | false         | Drop all AAAA query if set to true                                                                                                                                                                                                                |
+| certFile     | path                            | no                    |               | Path to cert and key file for SSL encryption (DoH and DoT); if empty, self-signed certificate is generated                                               |
+| keyFile      | path                            | no                    |               | Path to cert and key file for SSL encryption (DoH and DoT); if empty, self-signed certificate is generated                                              |
 | logLevel     | enum (debug, info, warn, error) | no                    | info          | Log level                                                                                                                                                                                                                                         |
 | logFormat    | enum (text, json)               | no                    | text          | Log format (text or json).                                                                                                                                                                                                                        |
 | logTimestamp | bool                            | no                    | true          | Log time stamps (true or false).                                                                                                                                                                                                                  |
-| logPrivacy   | bool                            | no                    | false         | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy.                                                                                                  |
+| logPrivacy   | bool                            | no                    | false         | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy.                                                                                                 |
+| dohUserAgent | string                          | no                    |               | HTTP User Agent for DoH upstreams                                                                                                  |
+| minTlsServeVersion | string                    | no                    | 1.2           | Minimum TLS version that the DoT and DoH server use to serve those encrypted DNS requests                       |
 
 !!! example
 
@@ -109,6 +109,47 @@ value by setting the `upstreamTimeout` configuration parameter (in **duration fo
     upstreamTimeout: 5s
     ```
 
+## Bootstrap DNS configuration
+
+This DNS server is used to resolve upstream DoH and DoT servers that are specified as hostnames.
+Useful if no system DNS resolver is configured, and to encrypt the bootstrap queries.
+
+| Parameter | Type                             | Mandatory                   | Default value | Description                          |
+|-----------|----------------------------------|-----------------------------|---------------|--------------------------------------|
+| upstream  | Upstream (see below)             | no                          |               |                                      |
+| ips       | List of IPs                      | yes, if upstream is DoT/DoH |               | Only valid if upstream is DoH or DoT |
+
+If you only need to specify upstream, you can use the short form: `bootstrapDns: <upstream>`.
+
+!!! note
+
+Works only on Linux/\*nix OS due to golang limitations under Windows.
+
+!!! example
+
+    ```yaml
+        bootstrapDns:
+          upstream: tcp-tls:dns.example.com
+          ips:
+          - 123.123.123.123
+    ```
+
+
+## Filtering
+
+Under certain circumstances, it may be useful to filter some types of DNS queries. You can define one or more DNS query
+types, all queries with these types will be dropped (empty answer will be returned).
+
+!!! example
+
+    ```yaml
+    filtering:
+      queryTypes:
+        - AAAA
+    ```
+
+This configuration will drop all 'AAAA' (IPv6) queries.
+
 ## Custom DNS
 
 You can define your own domain name to IP mappings. For example, you can use a user-friendly name for a network printer
@@ -127,6 +168,10 @@ domain must be separated by a comma.
     ```yaml
     customDNS:
       customTTL: 1h
+      filterUnmappedTypes: true
+      rewrite:
+        home: lan
+        replace-me.com: with-this.com
       mapping:
         printer.lan: 192.168.178.3
         otherdevice.lan: 192.168.178.15,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
@@ -135,14 +180,21 @@ domain must be separated by a comma.
 This configuration will also resolve any subdomain of the defined domain. For example a query "printer.lan" or "
 my.printer.lan" will return 192.168.178.3 as IP address.
 
+With the optional parameter `rewrite` you can replace domain part of the query with the defined part **before** the
+resolver lookup is performed.
+The query "printer.home" will be rewritten to "printer.lan" and return 192.168.178.3.
+
+With parameter `filterUnmappedTypes = true` (default), blocky will filter all queries with unmapped types, for example:
+AAAA for "printer.lan" or TXT for "otherdevice.lan".
+With `filterUnmappedTypes = true` a query AAAA "printer.lan" will be forwarded to the upstream DNS server.
+
 ## Conditional DNS resolution
 
 You can define, which DNS resolver(s) should be used for queries for the particular domain (with all subdomains). This
 is for example useful, if you want to reach devices in your local network by the name. Since only your router know which
 hostname belongs to which IP address, all DNS queries for the local network should be redirected to the router.
 
-With the optional parameter `rewrite` you can replace domain part of the query with the defined part **before** the
-resolver lookup is performed.
+The optional parameter `rewrite` behaves the same as with custom DNS.
 
 !!! example
 
@@ -165,7 +217,7 @@ resolver lookup is performed.
     You can use `.` as wildcard for all non full qualified domains (domains without dot)
 
 In this example, a DNS query "client.fritz.box" will be redirected to the router's DNS server at 192.168.178.1 and client.lan.net to 192.170.1.2 and 192.170.1.3.
-The query client.example.com will be rewritten to "client.fritz.box" and also redirected to the resolver at 192.168.178.1. All unqualified hostnames (e.g. 'test')
+The query "client.example.com" will be rewritten to "client.fritz.box" and also redirected to the resolver at 192.168.178.1. All unqualified hostnames (e.g. "test")
 will be redirected to the DNS server at 168.168.0.1
 
 
@@ -394,6 +446,19 @@ downloaded or opened. Default value is `false`.
     ```yaml
     blocking:
       failStartOnListError: false
+    ```
+
+### Concurrency
+
+Blocky downloads and processes links in a single group concurrently. With parameter `processingConcurrency` you can adjust
+how many links can be processed in the same time. Higher value can reduce the overall list refresh time, but more parallel
+ download and processing jobs need more RAM. Please consider to reduce this value on systems with limited memory. Default value is 4.
+
+    !!! example
+
+    ```yaml
+    blocking:
+      processingConcurrency: 10
     ```
 
 ## Caching

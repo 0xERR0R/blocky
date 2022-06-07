@@ -5,16 +5,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 
+	"github.com/0xERR0R/blocky/log"
+	"github.com/sirupsen/logrus/hooks/test"
+
 	"github.com/0xERR0R/blocky/api"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Blocking command", func() {
 	var (
-		ts     *httptest.Server
-		mockFn func(w http.ResponseWriter, _ *http.Request)
+		ts         *httptest.Server
+		mockFn     func(w http.ResponseWriter, _ *http.Request)
+		loggerHook *test.Hook
 	)
 	JustBeforeEach(func() {
 		ts = testHTTPAPIServer(mockFn)
@@ -24,36 +28,44 @@ var _ = Describe("Blocking command", func() {
 	})
 	BeforeEach(func() {
 		mockFn = func(w http.ResponseWriter, _ *http.Request) {}
+		loggerHook = test.NewGlobal()
+		log.Log().AddHook(loggerHook)
+	})
+	AfterEach(func() {
+		loggerHook.Reset()
 	})
 	Describe("Call query command", func() {
 		BeforeEach(func() {
 			mockFn = func(w http.ResponseWriter, _ *http.Request) {
-				response, _ := json.Marshal(api.QueryResult{
+				response, err := json.Marshal(api.QueryResult{
 					Reason:       "Reason",
 					ResponseType: "Type",
 					Response:     "Response",
 					ReturnCode:   "NOERROR",
 				})
-				_, err := w.Write(response)
+				Expect(err).Should(Succeed())
+
+				_, err = w.Write(response)
 				Expect(err).Should(Succeed())
 			}
 		})
 		When("query command is called via REST", func() {
 			BeforeEach(func() {
 				mockFn = func(w http.ResponseWriter, _ *http.Request) {
-					response, _ := json.Marshal(api.QueryResult{
+					response, err := json.Marshal(api.QueryResult{
 						Reason:       "Reason",
 						ResponseType: "Type",
 						Response:     "Response",
 						ReturnCode:   "NOERROR",
 					})
-					_, err := w.Write(response)
+					Expect(err).Should(Succeed())
+
+					_, err = w.Write(response)
 					Expect(err).Should(Succeed())
 				}
 			})
 			It("should print result", func() {
-				query(NewQueryCommand(), []string{"google.de"})
-
+				Expect(query(NewQueryCommand(), []string{"google.de"})).Should(Succeed())
 				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("NOERROR"))
 			})
 		})
@@ -64,9 +76,9 @@ var _ = Describe("Blocking command", func() {
 				}
 			})
 			It("should end with error", func() {
-				query(NewQueryCommand(), []string{"google.de"})
-				Expect(fatal).Should(BeTrue())
-				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("NOK: 500 Internal Server Error"))
+				err := query(NewQueryCommand(), []string{"google.de"})
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("500 Internal Server Error"))
 			})
 		})
 		When("Type is wrong", func() {
@@ -74,17 +86,17 @@ var _ = Describe("Blocking command", func() {
 
 				command := NewQueryCommand()
 				command.SetArgs([]string{"--type", "X", "google.de"})
-				_ = command.Execute()
-				Expect(fatal).Should(BeTrue())
-				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("unknown query type 'X'"))
+				err := command.Execute()
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("unknown query type 'X'"))
 			})
 		})
 		When("Url is wrong", func() {
 			It("should end with error", func() {
 				apiPort = 0
-				query(NewQueryCommand(), []string{"google.de"})
-				Expect(fatal).Should(BeTrue())
-				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("connection refused"))
+				err := query(NewQueryCommand(), []string{"google.de"})
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("connection refused"))
 			})
 		})
 	})

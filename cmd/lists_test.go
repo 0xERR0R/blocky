@@ -4,14 +4,18 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	. "github.com/onsi/ginkgo"
+	"github.com/0xERR0R/blocky/log"
+	"github.com/sirupsen/logrus/hooks/test"
+
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Lists command", func() {
 	var (
-		ts     *httptest.Server
-		mockFn func(w http.ResponseWriter, _ *http.Request)
+		ts         *httptest.Server
+		mockFn     func(w http.ResponseWriter, _ *http.Request)
+		loggerHook *test.Hook
 	)
 	JustBeforeEach(func() {
 		ts = testHTTPAPIServer(mockFn)
@@ -21,6 +25,11 @@ var _ = Describe("Lists command", func() {
 	})
 	BeforeEach(func() {
 		mockFn = func(w http.ResponseWriter, _ *http.Request) {}
+		loggerHook = test.NewGlobal()
+		log.Log().AddHook(loggerHook)
+	})
+	AfterEach(func() {
+		loggerHook.Reset()
 	})
 	Describe("Call list refresh command", func() {
 		When("list refresh is executed", func() {
@@ -40,17 +49,21 @@ var _ = Describe("Lists command", func() {
 				}
 			})
 			It("should end with error", func() {
-				_ = newRefreshCommand().Execute()
-				Expect(fatal).Should(BeTrue())
-				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("NOK: 500 Internal Server Error"))
+				c := newRefreshCommand()
+				c.SetArgs(make([]string, 0))
+				err := c.Execute()
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("500 Internal Server Error"))
 			})
 		})
 		When("Url is wrong", func() {
 			It("should end with error", func() {
 				apiPort = 0
-				_ = newRefreshCommand().Execute()
-				Expect(fatal).Should(BeTrue())
-				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("connection refused"))
+				c := newRefreshCommand()
+				c.SetArgs(make([]string, 0))
+				err := c.Execute()
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("connection refused"))
 			})
 		})
 	})

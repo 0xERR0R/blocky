@@ -7,7 +7,7 @@ import (
 
 	. "github.com/0xERR0R/blocky/helpertest"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/go-chi/chi/v5"
@@ -30,6 +30,7 @@ func (b *BlockingControlMock) EnableBlocking() {
 }
 func (b *BlockingControlMock) DisableBlocking(_ time.Duration, disableGroups []string) error {
 	b.enabled = false
+
 	return nil
 }
 

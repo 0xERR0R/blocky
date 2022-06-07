@@ -19,7 +19,7 @@ func NewLoggerWriter() *LoggerWriter {
 	return &LoggerWriter{logger: log.PrefixedLog(loggerPrefixLoggerWriter)}
 }
 
-func (d *LoggerWriter) Write(entry *Entry) {
+func (d *LoggerWriter) Write(entry *LogEntry) {
 	d.logger.WithFields(
 		logrus.Fields{
 			"client_ip":       entry.Request.ClientIP,

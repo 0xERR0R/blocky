@@ -1,11 +1,10 @@
 package cmd
 
 import (
-	"net/http"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
@@ -18,7 +17,8 @@ import (
 
 //nolint:gochecknoglobals
 var (
-	done chan bool
+	done              = make(chan bool, 1)
+	isConfigMandatory = true
 )
 
 func newServeCommand() *cobra.Command {
@@ -26,44 +26,51 @@ func newServeCommand() *cobra.Command {
 		Use:   "serve",
 		Args:  cobra.NoArgs,
 		Short: "start blocky DNS server (default command)",
-		Run:   startServer,
+		RunE:  startServer,
 	}
 }
 
-func startServer(_ *cobra.Command, _ []string) {
+func startServer(_ *cobra.Command, _ []string) error {
 	printBanner()
 
-	config.LoadConfig(configPath, true)
-	log.ConfigureLogger(config.GetConfig().LogLevel, config.GetConfig().LogFormat, config.GetConfig().LogTimestamp)
+	cfg, err := config.LoadConfig(configPath, isConfigMandatory)
+	if err != nil {
+		return fmt.Errorf("unable to load configuration: %w", err)
+	}
 
-	configureHTTPClient(config.GetConfig())
+	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
 	signals := make(chan os.Signal, 1)
-	done = make(chan bool, 1)
 
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
-	srv, err := server.NewServer(config.GetConfig())
-	util.FatalOnError("cant start server: ", err)
+	srv, err := server.NewServer(cfg)
+	if err != nil {
+		return fmt.Errorf("can't start server: %w", err)
+	}
 
-	srv.Start()
+	const errChanSize = 10
+	errChan := make(chan error, errChanSize)
+
+	srv.Start(errChan)
 
 	go func() {
-		<-signals
-		log.Log().Infof("Terminating...")
-		srv.Stop()
-		done <- true
+		select {
+		case <-signals:
+			log.Log().Infof("Terminating...")
+			util.LogOnError("can't stop server: ", srv.Stop())
+			done <- true
+
+		case err := <-errChan:
+			log.Log().Error("server start failed: ", err)
+			done <- true
+		}
 	}()
 
 	evt.Bus().Publish(evt.ApplicationStarted, util.Version, util.BuildTime)
 	<-done
-}
 
-func configureHTTPClient(cfg *config.Config) {
-	http.DefaultTransport = &http.Transport{
-		Dial:                (util.Dialer(cfg)).Dial,
-		TLSHandshakeTimeout: 5 * time.Second,
-	}
+	return nil
 }
 
 func printBanner() {

@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
@@ -20,6 +19,12 @@ var (
 	apiPort    uint16
 )
 
+const (
+	defaultPort       = 4000
+	defaultHost       = "localhost"
+	defaultConfigPath = "./config.yml"
+)
+
 // NewRootCommand creates a new root cli command instance
 func NewRootCommand() *cobra.Command {
 	c := &cobra.Command{
@@ -29,14 +34,15 @@ func NewRootCommand() *cobra.Command {
 and ad-blocker for local network.
 
 Complete documentation is available at https://github.com/0xERR0R/blocky`,
-		Run: func(cmd *cobra.Command, args []string) {
-			newServeCommand().Run(cmd, args)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return newServeCommand().RunE(cmd, args)
 		},
+		SilenceUsage: true,
 	}
 
-	c.PersistentFlags().StringVarP(&configPath, "config", "c", "./config.yml", "path to config file")
-	c.PersistentFlags().StringVar(&apiHost, "apiHost", "localhost", "host of blocky (API). Default overridden by config and CLI.") // nolint:lll
-	c.PersistentFlags().Uint16Var(&apiPort, "apiPort", 4000, "port of blocky (API). Default overridden by config and CLI.")
+	c.PersistentFlags().StringVarP(&configPath, "config", "c", defaultConfigPath, "path to config file or folder")
+	c.PersistentFlags().StringVar(&apiHost, "apiHost", defaultHost, "host of blocky (API). Default overridden by config and CLI.") // nolint:lll
+	c.PersistentFlags().Uint16Var(&apiPort, "apiPort", defaultPort, "port of blocky (API). Default overridden by config and CLI.") // nolint:lll
 
 	c.AddCommand(newRefreshCommand(),
 		NewQueryCommand(),
@@ -58,32 +64,34 @@ func init() {
 }
 
 func initConfig() {
-	config.LoadConfig(configPath, false)
-	log.ConfigureLogger(config.GetConfig().LogLevel, config.GetConfig().LogFormat, config.GetConfig().LogTimestamp)
+	cfg, err := config.LoadConfig(configPath, false)
+	if err != nil {
+		util.FatalOnError("unable to load configuration: ", err)
+	}
 
-	if len(config.GetConfig().HTTPPorts) != 0 {
-		split := strings.Split(config.GetConfig().HTTPPorts[0], ":")
+	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
+
+	if len(cfg.HTTPPorts) != 0 {
+		split := strings.Split(cfg.HTTPPorts[0], ":")
 
 		lastIdx := len(split) - 1
 
 		apiHost = strings.Join(split[:lastIdx], ":")
 
-		var p uint64
-		p, err := strconv.ParseUint(strings.TrimSpace(split[lastIdx]), 10, 16)
-
+		port, err := config.ConvertPort(split[lastIdx])
 		if err != nil {
 			util.FatalOnError("can't convert port to number (1 - 65535)", err)
+
 			return
 		}
 
-		apiPort = uint16(p)
+		apiPort = port
 	}
 }
 
 // Execute starts the command
 func Execute() {
 	if err := NewRootCommand().Execute(); err != nil {
-		fmt.Println(err)
 		os.Exit(1)
 	}
 }

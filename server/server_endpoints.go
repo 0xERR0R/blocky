@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/0xERR0R/blocky/api"
 	"github.com/0xERR0R/blocky/config"
@@ -26,7 +27,18 @@ import (
 const (
 	dohMessageLimit = 512
 	dnsContentType  = "application/dns-message"
+	corsMaxAge      = 5 * time.Minute
 )
+
+func secureHeader(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("strict-transport-security", "max-age=63072000")
+		w.Header().Set("x-frame-options", "DENY")
+		w.Header().Set("x-content-type-options", "nosniff")
+		w.Header().Set("x-xss-protection", "1; mode=block")
+		next.ServeHTTP(w, r)
+	})
+}
 
 func (s *Server) registerAPIEndpoints(router *chi.Mux) {
 	router.Post(api.PathQueryPath, s.apiQuery)
@@ -109,6 +121,7 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 
 	if err != nil {
 		logAndResponseWithError(err, "unable to process query: ", rw)
+
 		return
 	}
 
@@ -120,6 +133,7 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 	b, err := resResponse.Res.Pack()
 	if err != nil {
 		logAndResponseWithError(err, "can't serialize message: ", rw)
+
 		return
 	}
 
@@ -163,12 +177,13 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 
 	if err != nil {
 		logAndResponseWithError(err, "can't read request: ", rw)
+
 		return
 	}
 
 	// validate query type
-	qType := dns.StringToType[queryRequest.Type]
-	if qType == dns.TypeNone {
+	qType := dns.Type(dns.StringToType[queryRequest.Type])
+	if qType == dns.Type(dns.TypeNone) {
 		err = fmt.Errorf("unknown query type '%s'", queryRequest.Type)
 		logAndResponseWithError(err, "unknown query type: ", rw)
 
@@ -189,17 +204,39 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 
 	if err != nil {
 		logAndResponseWithError(err, "unable to process query: ", rw)
+
 		return
 	}
 
-	jsonResponse, _ := json.Marshal(api.QueryResult{
+	jsonResponse, err := json.Marshal(api.QueryResult{
 		Reason:       response.Reason,
 		ResponseType: response.RType.String(),
 		Response:     util.AnswerToString(response.Res.Answer),
 		ReturnCode:   dns.RcodeToString[response.Res.Rcode],
 	})
+
+	if err != nil {
+		logAndResponseWithError(err, "unable to marshal response: ", rw)
+
+		return
+	}
+
 	_, err = rw.Write(jsonResponse)
 	logAndResponseWithError(err, "unable to write response: ", rw)
+}
+
+func createHTTPSRouter(cfg *config.Config) *chi.Mux {
+	router := chi.NewRouter()
+
+	configureSecureHeaderHandler(router)
+
+	configureCorsHandler(router)
+
+	configureDebugHandler(router)
+
+	configureRootHandler(cfg, router)
+
+	return router
 }
 
 func createRouter(cfg *config.Config) *chi.Mux {
@@ -216,12 +253,18 @@ func createRouter(cfg *config.Config) *chi.Mux {
 
 func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 	router.Get("/", func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("content-type", dnsContentType)
 		t := template.New("index")
 		_, _ = t.Parse(web.IndexTmpl)
 
 		type HandlerLink struct {
 			URL   string
 			Title string
+		}
+
+		swaggerVersion := "master"
+		if util.Version != "undefined" {
+			swaggerVersion = util.Version
 		}
 
 		type PageData struct {
@@ -235,9 +278,11 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 			BuildTime: util.BuildTime,
 		}
 		pd.Links = []HandlerLink{
-
 			{
-				URL:   "https://htmlpreview.github.io/?https://github.com/0xERR0R/blocky/blob/master/docs/swagger.html",
+				URL: fmt.Sprintf(
+					"https://htmlpreview.github.io/?https://github.com/0xERR0R/blocky/blob/%s/docs/swagger.html",
+					swaggerVersion,
+				),
 				Title: "Swagger Rest API Documentation (Online @GitHub)",
 			},
 			{
@@ -265,6 +310,10 @@ func logAndResponseWithError(err error, message string, writer http.ResponseWrit
 	}
 }
 
+func configureSecureHeaderHandler(router *chi.Mux) {
+	router.Use(secureHeader)
+}
+
 func configureDebugHandler(router *chi.Mux) {
 	router.Mount("/debug", middleware.Profiler())
 }
@@ -276,7 +325,7 @@ func configureCorsHandler(router *chi.Mux) {
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
-		MaxAge:           300,
+		MaxAge:           int(corsMaxAge.Seconds()),
 	})
 	router.Use(crs.Handler)
 }

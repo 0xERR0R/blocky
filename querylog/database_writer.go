@@ -94,7 +94,7 @@ func (d *DatabaseWriter) periodicFlush() {
 	}
 }
 
-func (d *DatabaseWriter) Write(entry *Entry) {
+func (d *DatabaseWriter) Write(entry *LogEntry) {
 	domain := util.ExtractDomain(entry.Request.Req.Question[0])
 	eTLD, _ := publicsuffix.EffectiveTLDPlusOne(domain)
 

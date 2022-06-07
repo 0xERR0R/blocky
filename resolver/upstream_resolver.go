@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"bytes"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -13,6 +14,7 @@ import (
 	"github.com/avast/retry-go/v4"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
@@ -21,18 +23,26 @@ import (
 )
 
 const (
-	dnsContentType = "application/dns-message"
+	dnsContentType             = "application/dns-message"
+	defaultTLSHandshakeTimeout = 5 * time.Second
+	retryAttempts              = 3
+)
+
+// nolint:gochecknoglobals
+var (
+	// This is only set during tests (see upstream_resolver_test.go)
+	skipUpstreamCheck *Bootstrap
 )
 
 // UpstreamResolver sends request to external DNS server
 type UpstreamResolver struct {
-	NextResolver
-	upstreamURL    string
+	upstream       config.Upstream
 	upstreamClient upstreamClient
-	net            config.NetProtocol
+	bootstrap      *Bootstrap
 }
 
 type upstreamClient interface {
+	fmtURL(ip net.IP, port uint16, path string) string
 	callExternal(msg *dns.Msg, upstreamURL string,
 		protocol model.RequestProtocol) (response *dns.Msg, rtt time.Duration, err error)
 }
@@ -45,42 +55,58 @@ type httpUpstreamClient struct {
 	client *http.Client
 }
 
-func createUpstreamClient(cfg config.Upstream) (client upstreamClient, upstreamURL string) {
-	if cfg.Net == config.NetProtocolHttps {
+func createUpstreamClient(cfg config.Upstream) upstreamClient {
+	timeout := time.Duration(config.GetConfig().UpstreamTimeout)
+	tlsConfig := tls.Config{
+		ServerName: cfg.Host,
+		MinVersion: tls.VersionTLS12,
+	}
+
+	switch cfg.Net {
+	case config.NetProtocolHttps:
 		return &httpUpstreamClient{
 			client: &http.Client{
 				Transport: &http.Transport{
-					Dial:                (util.Dialer(config.GetConfig())).Dial,
-					TLSHandshakeTimeout: 5 * time.Second,
+					TLSClientConfig:     &tlsConfig,
+					TLSHandshakeTimeout: defaultTLSHandshakeTimeout,
+					ForceAttemptHTTP2:   true,
 				},
-				Timeout: time.Duration(config.GetConfig().UpstreamTimeout),
+				Timeout: timeout,
 			},
-		}, fmt.Sprintf("%s://%s:%d%s", cfg.Net, cfg.Host, cfg.Port, cfg.Path)
-	}
+		}
 
-	if cfg.Net == config.NetProtocolTcpTls {
+	case config.NetProtocolTcpTls:
 		return &dnsUpstreamClient{
 			tcpClient: &dns.Client{
-				Net:     cfg.Net.String(),
-				Timeout: time.Duration(config.GetConfig().UpstreamTimeout),
-				Dialer:  util.Dialer(config.GetConfig()),
+				TLSConfig:      &tlsConfig,
+				Net:            cfg.Net.String(),
+				Timeout:        timeout,
+				SingleInflight: true,
 			},
-		}, net.JoinHostPort(cfg.Host, strconv.Itoa(int(cfg.Port)))
-	}
+		}
 
-	// tcp+udp
-	return &dnsUpstreamClient{
-		tcpClient: &dns.Client{
-			Net:     "tcp",
-			Timeout: time.Duration(config.GetConfig().UpstreamTimeout),
-			Dialer:  util.Dialer(config.GetConfig()),
-		},
-		udpClient: &dns.Client{
-			Net:     "udp",
-			Timeout: time.Duration(config.GetConfig().UpstreamTimeout),
-			Dialer:  util.Dialer(config.GetConfig()),
-		},
-	}, net.JoinHostPort(cfg.Host, strconv.Itoa(int(cfg.Port)))
+	case config.NetProtocolTcpUdp:
+		return &dnsUpstreamClient{
+			tcpClient: &dns.Client{
+				Net:            "tcp",
+				Timeout:        timeout,
+				SingleInflight: true,
+			},
+			udpClient: &dns.Client{
+				Net:            "udp",
+				Timeout:        timeout,
+				SingleInflight: true,
+			},
+		}
+
+	default:
+		log.Log().Fatalf("invalid protocol %s", cfg.Net)
+		panic("unreachable")
+	}
+}
+
+func (r *httpUpstreamClient) fmtURL(ip net.IP, port uint16, path string) string {
+	return fmt.Sprintf("https://%s:%d%s", ip.String(), port, path)
 }
 
 func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
@@ -93,14 +119,22 @@ func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
 		return nil, 0, fmt.Errorf("can't pack message: %w", err)
 	}
 
-	httpResponse, err := r.client.Post(upstreamURL, dnsContentType, bytes.NewReader(rawDNSMessage))
+	req, err := http.NewRequest("POST", upstreamURL, bytes.NewReader(rawDNSMessage))
+
+	if err != nil {
+		return nil, 0, fmt.Errorf("can't create the new request %w", err)
+	}
+
+	req.Header.Set("User-Agent", config.GetConfig().DoHUserAgent)
+	req.Header.Set("Content-Type", dnsContentType)
+	httpResponse, err := r.client.Do(req)
 
 	if err != nil {
 		return nil, 0, fmt.Errorf("can't perform https request: %w", err)
 	}
 
 	defer func() {
-		util.LogOnError("cant close response body ", httpResponse.Body.Close())
+		util.LogOnError("can't close response body ", httpResponse.Body.Close())
 	}()
 
 	if httpResponse.StatusCode != http.StatusOK {
@@ -115,17 +149,21 @@ func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
 
 	body, err := ioutil.ReadAll(httpResponse.Body)
 	if err != nil {
-		return nil, 0, errors.New("can't read response body")
+		return nil, 0, fmt.Errorf("can't read response body:  %w", err)
 	}
 
 	response := dns.Msg{}
 	err = response.Unpack(body)
 
 	if err != nil {
-		return nil, 0, errors.New("can't unpack message")
+		return nil, 0, fmt.Errorf("can't unpack message: %w", err)
 	}
 
 	return &response, time.Since(start), nil
+}
+
+func (r *dnsUpstreamClient) fmtURL(ip net.IP, port uint16, _path string) string {
+	return net.JoinHostPort(ip.String(), strconv.Itoa(int(port)))
 }
 
 func (r *dnsUpstreamClient) callExternal(msg *dns.Msg,
@@ -135,10 +173,8 @@ func (r *dnsUpstreamClient) callExternal(msg *dns.Msg,
 		if err != nil {
 			// try UDP as fallback
 			var opErr *net.OpError
-			if errors.As(err, &opErr) {
-				if opErr.Op == "dial" && r.udpClient != nil {
-					return r.udpClient.Exchange(msg, upstreamURL)
-				}
+			if errors.As(err, &opErr) && opErr.Op == "dial" && r.udpClient != nil {
+				return r.udpClient.Exchange(msg, upstreamURL)
 			}
 		}
 
@@ -153,13 +189,28 @@ func (r *dnsUpstreamClient) callExternal(msg *dns.Msg,
 }
 
 // NewUpstreamResolver creates new resolver instance
-func NewUpstreamResolver(upstream config.Upstream) *UpstreamResolver {
-	upstreamClient, upstreamURL := createUpstreamClient(upstream)
+func NewUpstreamResolver(upstream config.Upstream, bootstrap *Bootstrap) (*UpstreamResolver, error) {
+	r := newUpstreamResolverUnchecked(upstream, bootstrap)
+
+	if skipUpstreamCheck == nil || r.bootstrap != skipUpstreamCheck { // skip check during tests
+		_, err := r.bootstrap.UpstreamIPs(r)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return r, nil
+}
+
+// newUpstreamResolverUnchecked creates new resolver instance without validating the upstream
+func newUpstreamResolverUnchecked(upstream config.Upstream, bootstrap *Bootstrap) *UpstreamResolver {
+	upstreamClient := createUpstreamClient(upstream)
 
 	return &UpstreamResolver{
+		upstream:       upstream,
 		upstreamClient: upstreamClient,
-		upstreamURL:    upstreamURL,
-		net:            upstream.Net}
+		bootstrap:      bootstrap,
+	}
 }
 
 // Configuration return current resolver configuration
@@ -168,33 +219,46 @@ func (r *UpstreamResolver) Configuration() (result []string) {
 }
 
 func (r UpstreamResolver) String() string {
-	return fmt.Sprintf("upstream '%s:%s'", r.net, r.upstreamURL)
+	return fmt.Sprintf("upstream '%s'", r.upstream.String())
 }
 
 // Resolve calls external resolver
 func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Response, err error) {
-	const retryAttempts = 3
-
 	logger := withPrefix(request.Log, "upstream_resolver")
 
-	var rtt time.Duration
+	ips, err := r.bootstrap.UpstreamIPs(r)
+	if err != nil {
+		return nil, err
+	}
 
-	var resp *dns.Msg
+	var (
+		rtt  time.Duration
+		resp *dns.Msg
+		ip   net.IP
+	)
 
 	err = retry.Do(
 		func() error {
+			ip = ips.Current()
+			upstreamURL := r.upstreamClient.fmtURL(ip, r.upstream.Port, r.upstream.Path)
+
 			var err error
-			if resp, rtt, err = r.upstreamClient.callExternal(request.Req, r.upstreamURL, request.Protocol); err == nil {
+			resp, rtt, err = r.upstreamClient.callExternal(request.Req, upstreamURL, request.Protocol)
+			if err == nil {
 				logger.WithFields(logrus.Fields{
 					"answer":           util.AnswerToString(resp.Answer),
 					"return_code":      dns.RcodeToString[resp.Rcode],
-					"upstream":         r.upstreamURL,
+					"upstream":         r.upstream.String(),
+					"upstream_ip":      ip.String(),
 					"protocol":         request.Protocol,
-					"net":              r.net,
+					"net":              r.upstream.Net,
 					"response_time_ms": rtt.Milliseconds(),
 				}).Debugf("received response from upstream")
+
+				return nil
 			}
-			return err
+
+			return fmt.Errorf("can't resolve request via upstream server %s: %w", upstreamURL, err)
 		},
 		retry.Attempts(retryAttempts),
 		retry.DelayType(retry.FixedDelay),
@@ -202,15 +266,21 @@ func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Resp
 		retry.RetryIf(func(err error) bool {
 			var netErr net.Error
 
-			return errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary())
+			return errors.As(err, &netErr) && netErr.Timeout()
 		}),
 		retry.OnRetry(func(n uint, err error) {
-			logger.WithField("attempt", fmt.Sprintf("%d/%d", n+1, retryAttempts)).
-				Debugf("Temporary network error / Timeout occurred, retrying...")
+			logger.WithFields(logrus.Fields{
+				"upstream":    r.upstream.String(),
+				"upstream_ip": ip.String(),
+				"question":    util.QuestionToString(request.Req.Question),
+				"attempt":     fmt.Sprintf("%d/%d", n+1, retryAttempts),
+			}).Debugf("%s, retrying...", err)
+
+			ips.Next()
 		}))
 	if err != nil {
 		return nil, err
 	}
 
-	return &model.Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.upstreamURL)}, nil
+	return &model.Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.upstream.String())}, nil
 }

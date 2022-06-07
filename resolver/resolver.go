@@ -9,11 +9,12 @@ import (
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/miekg/dns"
 
 	"github.com/sirupsen/logrus"
 )
 
-func newRequest(question string, rType uint16, logger ...*logrus.Entry) *model.Request {
+func newRequest(question string, rType dns.Type, logger ...*logrus.Entry) *model.Request {
 	var loggerEntry *logrus.Entry
 	if len(logger) == 1 {
 		loggerEntry = logger[0]
@@ -28,7 +29,7 @@ func newRequest(question string, rType uint16, logger ...*logrus.Entry) *model.R
 	}
 }
 
-func newRequestWithClient(question string, rType uint16, ip string, clientNames ...string) *model.Request {
+func newRequestWithClient(question string, rType dns.Type, ip string, clientNames ...string) *model.Request {
 	return &model.Request{
 		ClientIP:    net.ParseIP(ip),
 		ClientNames: clientNames,
@@ -39,7 +40,7 @@ func newRequestWithClient(question string, rType uint16, ip string, clientNames 
 	}
 }
 
-func newRequestWithClientID(question string, rType uint16, ip string, requestClientID string) *model.Request {
+func newRequestWithClientID(question string, rType dns.Type, ip string, requestClientID string) *model.Request {
 	return &model.Request{
 		ClientIP:        net.ParseIP(ip),
 		RequestClientID: requestClientID,
@@ -56,7 +57,7 @@ type Resolver interface {
 	// Resolve performs resolution of a DNS request
 	Resolve(req *model.Request) (*model.Response, error)
 
-	// Configuration prints current resolver configuration
+	// Configuration returns current resolver configuration
 	Configuration() []string
 }
 
@@ -86,6 +87,13 @@ func (r *NextResolver) GetNext() Resolver {
 	return r.next
 }
 
+// NamedResolver is a resolver with a special name
+type NamedResolver interface {
+
+	// Name returns the full name of the resolver
+	Name() string
+}
+
 func logger(prefix string) *logrus.Entry {
 	return log.PrefixedLog(prefix)
 }
@@ -109,5 +117,14 @@ func Chain(resolvers ...Resolver) Resolver {
 
 // Name returns a user-friendly name of a resolver
 func Name(resolver Resolver) string {
+	if named, ok := resolver.(NamedResolver); ok {
+		return named.Name()
+	}
+
+	return defaultName(resolver)
+}
+
+// defaultName returns a short user-friendly name of a resolver
+func defaultName(resolver Resolver) string {
 	return strings.Split(fmt.Sprintf("%T", resolver), ".")[1]
 }

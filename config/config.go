@@ -7,10 +7,14 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/miekg/dns"
 
 	"github.com/hako/durafmt"
 
@@ -19,9 +23,13 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const (
+	udpPort   = 53
+	tlsPort   = 853
+	httpsPort = 443
+)
+
 // NetProtocol resolver protocol ENUM(
-// udp // Deprecated: use tcp+udp instead
-// tcp // Deprecated: use tcp+udp instead
 // tcp+udp // TCP and UDP protocols
 // tcp-tls // TCP-TLS protocol
 // https // HTTPS protocol
@@ -38,6 +46,38 @@ type NetProtocol uint16
 // )
 type QueryLogType int16
 
+type QType dns.Type
+
+func (c QType) String() string {
+	return dns.Type(c).String()
+}
+
+type QTypeSet map[QType]struct{}
+
+func NewQTypeSet(qTypes ...dns.Type) QTypeSet {
+	s := make(QTypeSet, len(qTypes))
+
+	for _, qType := range qTypes {
+		s.Insert(qType)
+	}
+
+	return s
+}
+
+func (s QTypeSet) Contains(qType dns.Type) bool {
+	_, found := s[QType(qType)]
+
+	return found
+}
+
+func (s *QTypeSet) Insert(qType dns.Type) {
+	if *s == nil {
+		*s = make(QTypeSet, 1)
+	}
+
+	(*s)[QType(qType)] = struct{}{}
+}
+
 type Duration time.Duration
 
 func (c *Duration) String() string {
@@ -46,9 +86,9 @@ func (c *Duration) String() string {
 
 // nolint:gochecknoglobals
 var netDefaultPort = map[NetProtocol]uint16{
-	NetProtocolTcpUdp: 53,
-	NetProtocolTcpTls: 853,
-	NetProtocolHttps:  443,
+	NetProtocolTcpUdp: udpPort,
+	NetProtocolTcpTls: tlsPort,
+	NetProtocolHttps:  httpsPort,
 }
 
 // Upstream is the definition of external DNS server
@@ -57,6 +97,47 @@ type Upstream struct {
 	Host string
 	Port uint16
 	Path string
+}
+
+// IsDefault returns true if u is the default value
+func (u *Upstream) IsDefault() bool {
+	return *u == Upstream{}
+}
+
+// String returns the string representation of u
+func (u *Upstream) String() string {
+	if u.IsDefault() {
+		return "no upstream"
+	}
+
+	var sb strings.Builder
+
+	sb.WriteString(u.Net.String())
+	sb.WriteRune(':')
+
+	if u.Net == NetProtocolHttps {
+		sb.WriteString("//")
+	}
+
+	isIPv6 := strings.ContainsRune(u.Host, ':')
+	if isIPv6 {
+		sb.WriteRune('[')
+		sb.WriteString(u.Host)
+		sb.WriteRune(']')
+	} else {
+		sb.WriteString(u.Host)
+	}
+
+	if u.Port != netDefaultPort[u.Net] {
+		sb.WriteRune(':')
+		sb.WriteString(fmt.Sprint(u.Port))
+	}
+
+	if u.Path != "" {
+		sb.WriteString(u.Path)
+	}
+
+	return sb.String()
 }
 
 // UnmarshalYAML creates Upstream from YAML
@@ -83,15 +164,28 @@ type ListenConfig []string
 func (l *ListenConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var addresses string
 	if err := unmarshal(&addresses); err != nil {
-		var port uint16
-		if err := unmarshal(&port); err != nil {
-			return err
-		}
-
-		addresses = fmt.Sprintf("%d", port)
+		return err
 	}
 
 	*l = strings.Split(addresses, ",")
+
+	return nil
+}
+
+// UnmarshalYAML creates BootstrapConfig from YAML
+func (b *BootstrapConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	if err := unmarshal(&b.Upstream); err == nil {
+		return nil
+	}
+
+	// bootstrapConfig is used to avoid infinite recursion:
+	// if we used BootstrapConfig, unmarshal would just call us again.
+	var c bootstrapConfig
+	if err := unmarshal(&c); err != nil {
+		return err
+	}
+
+	*b = BootstrapConfig(c)
 
 	return nil
 }
@@ -103,7 +197,7 @@ func (c *ConditionalUpstreamMapping) UnmarshalYAML(unmarshal func(interface{}) e
 		return err
 	}
 
-	result := make(map[string][]Upstream)
+	result := make(map[string][]Upstream, len(input))
 
 	for k, v := range input {
 		var upstreams []Upstream
@@ -132,7 +226,7 @@ func (c *CustomDNSMapping) UnmarshalYAML(unmarshal func(interface{}) error) erro
 		return err
 	}
 
-	result := make(map[string][]net.IP)
+	result := make(map[string][]net.IP, len(input))
 
 	for k, v := range input {
 		var ips []net.IP
@@ -165,16 +259,57 @@ func (c *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		// duration is defined as number without unit
 		// use minutes to ensure back compatibility
 		*c = Duration(time.Duration(minutes) * time.Minute)
+
 		return nil
 	}
 
 	duration, err := time.ParseDuration(input)
 	if err == nil {
 		*c = Duration(duration)
+
 		return nil
 	}
 
 	return err
+}
+
+func (c *QType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var input string
+	if err := unmarshal(&input); err != nil {
+		return err
+	}
+
+	t, found := dns.StringToType[input]
+	if !found {
+		types := make([]string, 0, len(dns.StringToType))
+		for k := range dns.StringToType {
+			types = append(types, k)
+		}
+
+		sort.Strings(types)
+
+		return fmt.Errorf("unknown DNS query type: '%s'. Please use following types '%s'",
+			input, strings.Join(types, ", "))
+	}
+
+	*c = QType(t)
+
+	return nil
+}
+
+func (s *QTypeSet) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var input []QType
+	if err := unmarshal(&input); err != nil {
+		return err
+	}
+
+	*s = make(QTypeSet, len(input))
+
+	for _, qType := range input {
+		(*s)[qType] = struct{}{}
+	}
+
+	return nil
 }
 
 var validDomain = regexp.MustCompile(
@@ -194,25 +329,27 @@ func ParseUpstream(upstream string) (Upstream, error) {
 
 	// string contains host:port
 	if err == nil {
-		var p uint64
-		p, err = strconv.ParseUint(strings.TrimSpace(portString), 10, 16)
+		p, err := ConvertPort(portString)
 
 		if err != nil {
 			err = fmt.Errorf("can't convert port to number (1 - 65535) %w", err)
+
 			return Upstream{}, err
 		}
 
-		port = uint16(p)
+		port = p
 	} else {
 		// only host, use default port
 		host = upstream
 		port = netDefaultPort[n]
+
+		// trim any IPv6 brackets
+		host = strings.TrimPrefix(host, "[")
+		host = strings.TrimSuffix(host, "]")
 	}
 
 	// validate hostname or ip
-	ip := net.ParseIP(host)
-
-	if ip == nil {
+	if ip := net.ParseIP(host); ip == nil {
 		// is not IP
 		if !validDomain.MatchString(host) {
 			return Upstream{}, fmt.Errorf("wrong host name '%s'", host)
@@ -241,27 +378,19 @@ func extractPath(in string) (path string, upstream string) {
 }
 
 func extractNet(upstream string) (NetProtocol, string) {
-	if strings.HasPrefix(upstream, NetProtocolTcp.String()+":") {
-		log.Log().Warnf("net prefix tcp is deprecated, using tcp+udp as default fallback")
-
-		return NetProtocolTcpUdp, strings.Replace(upstream, NetProtocolTcp.String()+":", "", 1)
+	tcpUDPPrefix := NetProtocolTcpUdp.String() + ":"
+	if strings.HasPrefix(upstream, tcpUDPPrefix) {
+		return NetProtocolTcpUdp, upstream[len(tcpUDPPrefix):]
 	}
 
-	if strings.HasPrefix(upstream, NetProtocolUdp.String()+":") {
-		log.Log().Warnf("net prefix udp is deprecated, using tcp+udp as default fallback")
-		return NetProtocolTcpUdp, strings.Replace(upstream, NetProtocolUdp.String()+":", "", 1)
+	tcpTLSPrefix := NetProtocolTcpTls.String() + ":"
+	if strings.HasPrefix(upstream, tcpTLSPrefix) {
+		return NetProtocolTcpTls, upstream[len(tcpTLSPrefix):]
 	}
 
-	if strings.HasPrefix(upstream, NetProtocolTcpUdp.String()+":") {
-		return NetProtocolTcpUdp, strings.Replace(upstream, NetProtocolTcpUdp.String()+":", "", 1)
-	}
-
-	if strings.HasPrefix(upstream, NetProtocolTcpTls.String()+":") {
-		return NetProtocolTcpTls, strings.Replace(upstream, NetProtocolTcpTls.String()+":", "", 1)
-	}
-
-	if strings.HasPrefix(upstream, NetProtocolHttps.String()+":") {
-		return NetProtocolHttps, strings.TrimPrefix(strings.Replace(upstream, NetProtocolHttps.String()+":", "", 1), "//")
+	httpsPrefix := NetProtocolHttps.String() + ":"
+	if strings.HasPrefix(upstream, httpsPrefix) {
+		return NetProtocolHttps, strings.TrimPrefix(upstream[len(httpsPrefix):], "//")
 	}
 
 	return NetProtocolTcpUdp, upstream
@@ -288,15 +417,21 @@ type Config struct {
 	HTTPPorts       ListenConfig              `yaml:"httpPort"`
 	HTTPSPorts      ListenConfig              `yaml:"httpsPort"`
 	TLSPorts        ListenConfig              `yaml:"tlsPort"`
-	DisableIPv6     bool                      `yaml:"disableIPv6" default:"false"`
-	CertFile        string                    `yaml:"certFile"`
-	KeyFile         string                    `yaml:"keyFile"`
-	BootstrapDNS    Upstream                  `yaml:"bootstrapDns"`
-	HostsFile       HostsFileConfig           `yaml:"hostsFile"`
+	DoHUserAgent    string                    `yaml:"dohUserAgent"`
+	MinTLSServeVer  string                    `yaml:"minTlsServeVersion" default:"1.2"`
 	// Deprecated
-	HTTPCertFile string `yaml:"httpsCertFile"`
-	// Deprecated
-	HTTPKeyFile string `yaml:"httpsKeyFile"`
+	DisableIPv6  bool            `yaml:"disableIPv6" default:"false"`
+	CertFile     string          `yaml:"certFile"`
+	KeyFile      string          `yaml:"keyFile"`
+	BootstrapDNS BootstrapConfig `yaml:"bootstrapDns"`
+	HostsFile    HostsFileConfig `yaml:"hostsFile"`
+	Filtering    FilteringConfig `yaml:"filtering"`
+}
+
+type BootstrapConfig bootstrapConfig // to avoid infinite recursion. See BootstrapConfig.UnmarshalYAML.
+type bootstrapConfig struct {
+	Upstream Upstream `yaml:"upstream"`
+	IPs      []net.IP `yaml:"ips"`
 }
 
 // PrometheusConfig contains the config values for prometheus
@@ -310,10 +445,17 @@ type UpstreamConfig struct {
 	ExternalResolvers map[string][]Upstream `yaml:",inline"`
 }
 
+// RewriteConfig custom DNS configuration
+type RewriteConfig struct {
+	Rewrite map[string]string `yaml:"rewrite"`
+}
+
 // CustomDNSConfig custom DNS configuration
 type CustomDNSConfig struct {
-	CustomTTL Duration         `yaml:"customTTL" default:"1h"`
-	Mapping   CustomDNSMapping `yaml:"mapping"`
+	RewriteConfig       `yaml:",inline"`
+	CustomTTL           Duration         `yaml:"customTTL" default:"1h"`
+	Mapping             CustomDNSMapping `yaml:"mapping"`
+	FilterUnmappedTypes bool             `yaml:"filterUnmappedTypes" default:"true"`
 }
 
 // CustomDNSMapping mapping for the custom DNS configuration
@@ -323,8 +465,8 @@ type CustomDNSMapping struct {
 
 // ConditionalUpstreamConfig conditional upstream configuration
 type ConditionalUpstreamConfig struct {
-	Rewrite map[string]string          `yaml:"rewrite"`
-	Mapping ConditionalUpstreamMapping `yaml:"mapping"`
+	RewriteConfig `yaml:",inline"`
+	Mapping       ConditionalUpstreamMapping `yaml:"mapping"`
 }
 
 // ConditionalUpstreamMapping mapping for conditional configuration
@@ -334,16 +476,17 @@ type ConditionalUpstreamMapping struct {
 
 // BlockingConfig configuration for query blocking
 type BlockingConfig struct {
-	BlackLists           map[string][]string `yaml:"blackLists"`
-	WhiteLists           map[string][]string `yaml:"whiteLists"`
-	ClientGroupsBlock    map[string][]string `yaml:"clientGroupsBlock"`
-	BlockType            string              `yaml:"blockType" default:"ZEROIP"`
-	BlockTTL             Duration            `yaml:"blockTTL" default:"6h"`
-	DownloadTimeout      Duration            `yaml:"downloadTimeout" default:"60s"`
-	DownloadAttempts     int                 `yaml:"downloadAttempts" default:"3"`
-	DownloadCooldown     Duration            `yaml:"downloadCooldown" default:"1s"`
-	RefreshPeriod        Duration            `yaml:"refreshPeriod" default:"4h"`
-	FailStartOnListError bool                `yaml:"failStartOnListError" default:"false"`
+	BlackLists            map[string][]string `yaml:"blackLists"`
+	WhiteLists            map[string][]string `yaml:"whiteLists"`
+	ClientGroupsBlock     map[string][]string `yaml:"clientGroupsBlock"`
+	BlockType             string              `yaml:"blockType" default:"ZEROIP"`
+	BlockTTL              Duration            `yaml:"blockTTL" default:"6h"`
+	DownloadTimeout       Duration            `yaml:"downloadTimeout" default:"60s"`
+	DownloadAttempts      uint                `yaml:"downloadAttempts" default:"3"`
+	DownloadCooldown      Duration            `yaml:"downloadCooldown" default:"1s"`
+	RefreshPeriod         Duration            `yaml:"refreshPeriod" default:"4h"`
+	FailStartOnListError  bool                `yaml:"failStartOnListError" default:"false"`
+	ProcessingConcurrency uint                `yaml:"processingConcurrency" default:"4"`
 }
 
 // ClientLookupConfig configuration for the client lookup
@@ -367,10 +510,6 @@ type CachingConfig struct {
 
 // QueryLogConfig configuration for the query logging
 type QueryLogConfig struct {
-	// Deprecated
-	Dir string `yaml:"dir"`
-	// Deprecated
-	PerClient        bool         `yaml:"perClient" default:"false"`
 	Target           string       `yaml:"target"`
 	Type             QueryLogType `yaml:"type"`
 	LogRetentionDays uint64       `yaml:"logRetentionDays"`
@@ -394,79 +533,113 @@ type HostsFileConfig struct {
 	RefreshPeriod Duration `yaml:"refreshPeriod" default:"1h"`
 }
 
+type FilteringConfig struct {
+	QueryTypes QTypeSet `yaml:"queryTypes"`
+}
+
 // nolint:gochecknoglobals
 var config = &Config{}
 
-// LoadConfig creates new config from YAML file
-func LoadConfig(path string, mandatory bool) {
+// LoadConfig creates new config from YAML file or a directory containing YAML files
+func LoadConfig(path string, mandatory bool) (*Config, error) {
 	cfg := Config{}
 	if err := defaults.Set(&cfg); err != nil {
-		log.Log().Fatal("Can't apply default values: ", err)
+		return nil, fmt.Errorf("can't apply default values: %w", err)
 	}
 
-	data, err := ioutil.ReadFile(path)
-
+	fs, err := os.Stat(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) && !mandatory {
 			// config file does not exist
 			// return config with default values
 			config = &cfg
-			return
+
+			return config, nil
 		}
 
-		log.Log().Fatal("Can't read config file: ", err)
+		return nil, fmt.Errorf("can't read config file(s): %w", err)
 	}
 
-	unmarshalConfig(data, cfg)
-}
+	var data []byte
 
-func unmarshalConfig(data []byte, cfg Config) {
-	err := yaml.UnmarshalStrict(data, &cfg)
+	if fs.IsDir() { //nolint:nestif
+		err = filepath.WalkDir(path, func(filePath string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if path == filePath {
+				return nil
+			}
+
+			fileData, err := os.ReadFile(filePath)
+			if err != nil {
+				return err
+			}
+
+			data = append(data, []byte("\n")...)
+			data = append(data, fileData...)
+
+			return nil
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("can't read config files: %w", err)
+		}
+	} else {
+		data, err = ioutil.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("can't read config file: %w", err)
+		}
+	}
+
+	err = unmarshalConfig(data, &cfg)
 	if err != nil {
-		log.Log().Fatal("wrong file structure: ", err)
+		return nil, err
 	}
-
-	validateConfig(&cfg)
 
 	config = &cfg
+
+	return &cfg, nil
+}
+
+func unmarshalConfig(data []byte, cfg *Config) error {
+	err := yaml.UnmarshalStrict(data, cfg)
+	if err != nil {
+		return fmt.Errorf("wrong file structure: %w", err)
+	}
+
+	validateConfig(cfg)
+
+	return nil
 }
 
 func validateConfig(cfg *Config) {
-	if cfg.QueryLog.Dir != "" {
-		log.Log().Warnf("queryLog.Dir is deprecated, use 'queryLog.target' instead")
+	if cfg.DisableIPv6 {
+		log.Log().Warnf("'disableIPv6' is deprecated. Please use 'filtering.queryTypes' with 'AAAA' instead.")
 
-		if cfg.QueryLog.Target == "" {
-			cfg.QueryLog.Target = cfg.QueryLog.Dir
-		}
-
-		if cfg.QueryLog.Type == QueryLogTypeConsole {
-			if cfg.QueryLog.PerClient {
-				cfg.QueryLog.Type = QueryLogTypeCsvClient
-			} else {
-				cfg.QueryLog.Type = QueryLogTypeCsv
-			}
-		}
-	}
-
-	if cfg.HTTPKeyFile != "" || cfg.HTTPCertFile != "" {
-		log.Log().Warnf("'httpsCertFile'/'httpsKeyFile' are deprecated, use 'certFile'/'keyFile' instead")
-
-		if cfg.CertFile == "" && cfg.KeyFile == "" {
-			cfg.CertFile = cfg.HTTPCertFile
-			cfg.KeyFile = cfg.HTTPKeyFile
-		}
-	}
-
-	if len(cfg.TLSPorts) != 0 && (cfg.CertFile == "" || cfg.KeyFile == "") {
-		log.Log().Fatal("certFile and keyFile parameters are mandatory for TLS")
-	}
-
-	if len(cfg.HTTPSPorts) != 0 && (cfg.CertFile == "" || cfg.KeyFile == "") {
-		log.Log().Fatal("certFile and keyFile parameters are mandatory for HTTPS")
+		cfg.Filtering.QueryTypes.Insert(dns.Type(dns.TypeAAAA))
 	}
 }
 
 // GetConfig returns the current config
 func GetConfig() *Config {
 	return config
+}
+
+// ConvertPort converts string representation into a valid port (0 - 65535)
+func ConvertPort(in string) (uint16, error) {
+	const (
+		base    = 10
+		bitSize = 16
+	)
+
+	var p uint64
+	p, err := strconv.ParseUint(strings.TrimSpace(in), base, bitSize)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return uint16(p), nil
 }

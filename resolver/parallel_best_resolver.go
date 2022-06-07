@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -15,9 +16,9 @@ import (
 )
 
 const (
-	upstreamDefaultCfgNameDeprecated = "externalResolvers"
-	upstreamDefaultCfgName           = "default"
-	parallelResolverLogger           = "parallel_best_resolver"
+	upstreamDefaultCfgName = "default"
+	parallelResolverLogger = "parallel_best_resolver"
+	resolverCount          = 2
 )
 
 // ParallelBestResolver delegates the DNS message to 2 upstream resolvers and returns the fastest answer
@@ -27,7 +28,7 @@ type ParallelBestResolver struct {
 
 type upstreamResolverStatus struct {
 	resolver      Resolver
-	lastErrorTime time.Time
+	lastErrorTime atomic.Value
 }
 
 type requestResponse struct {
@@ -36,36 +37,33 @@ type requestResponse struct {
 }
 
 // NewParallelBestResolver creates new resolver instance
-func NewParallelBestResolver(upstreamResolvers map[string][]config.Upstream) Resolver {
-	s := make(map[string][]*upstreamResolverStatus)
-	logger := logger(parallelResolverLogger)
+func NewParallelBestResolver(upstreamResolvers map[string][]config.Upstream, bootstrap *Bootstrap) (Resolver, error) {
+	s := make(map[string][]*upstreamResolverStatus, len(upstreamResolvers))
 
 	for name, res := range upstreamResolvers {
 		resolvers := make([]*upstreamResolverStatus, len(res))
+
 		for i, u := range res {
-			resolvers[i] = &upstreamResolverStatus{
-				resolver:      NewUpstreamResolver(u),
-				lastErrorTime: time.Unix(0, 0),
+			r, err := NewUpstreamResolver(u, bootstrap)
+			if err != nil {
+				return nil, err
 			}
-		}
 
-		if _, ok := upstreamResolvers[upstreamDefaultCfgName]; !ok && name == upstreamDefaultCfgNameDeprecated {
-			logger.Warnf("using deprecated '%s' as default upstream resolver"+
-				" configuration name, please consider to change it to '%s'",
-				upstreamDefaultCfgNameDeprecated, upstreamDefaultCfgName)
-
-			name = upstreamDefaultCfgName
+			resolvers[i] = &upstreamResolverStatus{
+				resolver: r,
+			}
+			resolvers[i].lastErrorTime.Store(time.Unix(0, 0))
 		}
 
 		s[name] = resolvers
 	}
 
 	if len(s[upstreamDefaultCfgName]) == 0 {
-		logger.Fatalf("no external DNS resolvers configured as default upstream resolvers. "+
+		return nil, fmt.Errorf("no external DNS resolvers configured as default upstream resolvers. "+
 			"Please configure at least one under '%s' configuration name", upstreamDefaultCfgName)
 	}
 
-	return &ParallelBestResolver{resolversPerClient: s}
+	return &ParallelBestResolver{resolversPerClient: s}, nil
 }
 
 // Configuration returns current resolver configuration
@@ -136,13 +134,14 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 
 	if len(resolvers) == 1 {
 		logger.WithField("resolver", resolvers[0].resolver).Debug("delegating to resolver")
+
 		return resolvers[0].resolver.Resolve(request)
 	}
 
 	r1, r2 := pickRandom(resolvers)
 	logger.Debugf("using %s and %s as resolver", r1.resolver, r2.resolver)
 
-	ch := make(chan requestResponse, 2)
+	ch := make(chan requestResponse, resolverCount)
 
 	var collectedErrors []error
 
@@ -155,7 +154,7 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 	go resolve(request, r2, ch)
 
 	//nolint: gosimple
-	for len(collectedErrors) < 2 {
+	for len(collectedErrors) < resolverCount {
 		select {
 		case result := <-ch:
 			if result.err != nil {
@@ -166,6 +165,7 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 					"resolver": r1.resolver,
 					"answer":   util.AnswerToString(result.response.Res.Answer),
 				}).Debug("using response from resolver")
+
 				return result.response, nil
 			}
 		}
@@ -184,14 +184,17 @@ func pickRandom(resolvers []*upstreamResolverStatus) (resolver1, resolver2 *upst
 }
 
 func weightedRandom(in []*upstreamResolverStatus, exclude Resolver) *upstreamResolverStatus {
+	const errorWindowInSec = 60
+
 	var choices []weightedrand.Choice
 
 	for _, res := range in {
-		var weight float64 = 60
+		var weight float64 = errorWindowInSec
 
-		if time.Since(res.lastErrorTime) < time.Hour {
+		if time.Since(res.lastErrorTime.Load().(time.Time)) < time.Hour {
 			// reduce weight: consider last error time
-			weight = math.Max(1, weight-(60-time.Since(res.lastErrorTime).Minutes()))
+			lastErrorTime := res.lastErrorTime.Load().(time.Time)
+			weight = math.Max(1, weight-(errorWindowInSec-time.Since(lastErrorTime).Minutes()))
 		}
 
 		if exclude != res.resolver {
@@ -212,7 +215,7 @@ func resolve(req *model.Request, resolver *upstreamResolverStatus, ch chan<- req
 
 	// update the last error time
 	if err != nil {
-		resolver.lastErrorTime = time.Now()
+		resolver.lastErrorTime.Store(time.Now())
 	}
 	ch <- requestResponse{
 		response: resp,

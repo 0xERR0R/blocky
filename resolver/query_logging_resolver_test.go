@@ -18,16 +18,16 @@ import (
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
 )
 
 type SlowMockWriter struct {
-	entries []*querylog.Entry
+	entries []*querylog.LogEntry
 }
 
-func (m *SlowMockWriter) Write(entry *querylog.Entry) {
+func (m *SlowMockWriter) Write(entry *querylog.LogEntry) {
 	m.entries = append(m.entries, entry)
 
 	time.Sleep(time.Millisecond)
@@ -42,7 +42,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 		sutConfig  config.QueryLogConfig
 		err        error
 		resp       *Response
-		m          *resolverMock
+		m          *MockResolver
 		tmpDir     string
 		mockAnswer *dns.Msg
 	)
@@ -55,7 +55,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 	JustBeforeEach(func() {
 		sut = NewQueryLoggingResolver(sutConfig).(*QueryLoggingResolver)
-		m = &resolverMock{}
+		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer, Reason: "reason"}, nil)
 		sut.Next(m)
 	})
@@ -74,7 +74,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 				}
 			})
 			It("should process request without query logging", func() {
-				resp, err = sut.Resolve(newRequest("example.com.", dns.TypeA))
+				resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 
 				m.AssertExpectations(GinkgoT())
 				Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
@@ -88,15 +88,17 @@ var _ = Describe("QueryLoggingResolver", func() {
 					CreationAttempts: 1,
 					CreationCooldown: config.Duration(time.Millisecond),
 				}
-				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.TypeA, "123.122.121.120")
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.Type(dns.TypeA), "123.122.121.120")
 			})
 			It("should create a log file per client", func() {
 				By("request from client 1", func() {
-					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "192.168.178.25", "client1"))
+					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.25", "client1"))
 					Expect(err).Should(Succeed())
 				})
 				By("request from client 2, has name with special chars, should be escaped", func() {
-					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "192.168.178.26", "cl/ient2\\$%&test"))
+					resp, err = sut.Resolve(newRequestWithClient(
+						"example.com.", dns.Type(dns.TypeA), "192.168.178.26", "cl/ient2\\$%&test",
+					))
 					Expect(err).Should(Succeed())
 				})
 
@@ -141,15 +143,15 @@ var _ = Describe("QueryLoggingResolver", func() {
 					CreationAttempts: 1,
 					CreationCooldown: config.Duration(time.Millisecond),
 				}
-				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.TypeA, "123.122.121.120")
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.Type(dns.TypeA), "123.122.121.120")
 			})
 			It("should create one log file for all clients", func() {
 				By("request from client 1", func() {
-					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "192.168.178.25", "client1"))
+					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.25", "client1"))
 					Expect(err).Should(Succeed())
 				})
 				By("request from client 2, has name with special chars, should be escaped", func() {
-					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "192.168.178.26", "client2"))
+					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.26", "client2"))
 					Expect(err).Should(Succeed())
 				})
 
@@ -196,7 +198,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 				// run 10000 requests
 				for i := 0; i < 10000; i++ {
-					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.TypeA, "192.168.178.25", "client1"))
+					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.25", "client1"))
 					Expect(err).Should(Succeed())
 				}
 
@@ -220,7 +222,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 			})
 			It("should return configuration", func() {
 				c := sut.Configuration()
-				Expect(len(c) > 1).Should(BeTrue())
+				Expect(len(c)).Should(BeNumerically(">", 1))
 			})
 		})
 	})

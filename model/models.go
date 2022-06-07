@@ -16,6 +16,7 @@ import (
 // CONDITIONAL // the query was resolved by the conditional upstream resolver
 // CUSTOMDNS // the query was resolved by a custom rule
 // HOSTSFILE // the query was resolved by looking up the hosts file
+// FILTERED // the query was filtered by query type
 // )
 type ResponseType int
 
@@ -27,7 +28,7 @@ type Response struct {
 }
 
 // RequestProtocol represents the server protocol ENUM(
-// TCP // is the TPC protocol
+// TCP // is the TCP protocol
 // UDP // is the UDP protocol
 // )
 type RequestProtocol uint8

@@ -3,7 +3,7 @@ package expirationcache
 import (
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -41,11 +41,7 @@ var _ = Describe("Expiration cache", func() {
 					val, ttl := cache.Get("key1")
 					g.Expect(val).Should(Equal("val1"))
 					g.Expect(ttl.Milliseconds()).Should(BeNumerically("==", 0))
-				}, "60ms").Should(Succeed())
-
-				Expect(cache.TotalCount()).Should(Equal(0))
-				// internal map has still the expired item
-				Expect(cache.lru.Len()).Should(Equal(1))
+				}, "100ms").Should(Succeed())
 
 				// wait for cleanup run
 				Eventually(func() int {

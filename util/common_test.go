@@ -11,31 +11,11 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 
 	. "github.com/0xERR0R/blocky/log"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Common function tests", func() {
-	Describe("Split string in chunks", func() {
-		When("String length < chunk size", func() {
-			It("should return one chunk", func() {
-				chunks := Chunks("mystring", 10)
-
-				Expect(chunks).Should(HaveLen(1))
-				Expect(chunks).Should(ContainElement("mystring"))
-			})
-		})
-
-		When("String length > chunk size", func() {
-			It("should return multiple chunks", func() {
-				chunks := Chunks("myveryveryverylongstring", 5)
-
-				Expect(chunks).Should(HaveLen(5))
-				Expect(chunks).Should(ContainElements("myver", "yvery", "veryl", "ongst", "ring"))
-			})
-		})
-	})
-
 	Describe("Print DNS answer", func() {
 		When("different types of DNS answers", func() {
 			rr := make([]dns.RR, 0)
@@ -84,20 +64,20 @@ var _ = Describe("Common function tests", func() {
 		When("Question is provided", func() {
 			question := "google.com."
 			It("should create message", func() {
-				msg := NewMsgWithQuestion(question, dns.TypeA)
+				msg := NewMsgWithQuestion(question, dns.Type(dns.TypeA))
 				Expect(QuestionToString(msg.Question)).Should(Equal("A (google.com.)"))
 			})
 		})
 		When("Answer is provided", func() {
 			It("should create message", func() {
-				msg, err := NewMsgWithAnswer("google.com", 25, dns.TypeA, "192.168.178.1")
+				msg, err := NewMsgWithAnswer("google.com", 25, dns.Type(dns.TypeA), "192.168.178.1")
 				Expect(err).Should(Succeed())
 				Expect(AnswerToString(msg.Answer)).Should(Equal("A (192.168.178.1)"))
 			})
 		})
 		When("Answer is corrupt", func() {
 			It("should throw an error", func() {
-				_, err := NewMsgWithAnswer(strings.Repeat("a", 300), 25, dns.TypeA, "192.168.178.1")
+				_, err := NewMsgWithAnswer(strings.Repeat("a", 300), 25, dns.Type(dns.TypeA), "192.168.178.1")
 				Expect(err).Should(HaveOccurred())
 			})
 		})
@@ -215,9 +195,9 @@ var _ = Describe("Common function tests", func() {
 
 	Describe("Domain cache key generate/extract", func() {
 		It("should works", func() {
-			cacheKey := GenerateCacheKey(dns.TypeA, "example.com")
+			cacheKey := GenerateCacheKey(dns.Type(dns.TypeA), "example.com")
 			qType, qName := ExtractCacheKey(cacheKey)
-			Expect(qType).Should(Equal(dns.TypeA))
+			Expect(qType).Should(Equal(dns.Type(dns.TypeA)))
 			Expect(qName).Should(Equal("example.com"))
 		})
 	})

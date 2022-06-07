@@ -17,6 +17,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const defaultCachingCleanUpInterval = 5 * time.Second
+
 // CachingResolver caches answers from dns queries with their TTL time,
 // to avoid external resolver calls for recurrent queries
 type CachingResolver struct {
@@ -58,7 +60,7 @@ func NewCachingResolver(cfg config.CachingConfig, redis *redis.Client) ChainedRe
 }
 
 func configureCaches(c *CachingResolver, cfg *config.CachingConfig) {
-	cleanupOption := expirationcache.WithCleanUpInterval(5 * time.Second)
+	cleanupOption := expirationcache.WithCleanUpInterval(defaultCachingCleanUpInterval)
 	maxSizeOption := expirationcache.WithMaxSize(uint(cfg.MaxItemsCount))
 
 	if cfg.Prefetching {
@@ -91,6 +93,7 @@ func setupRedisCacheSubscriber(c *CachingResolver) {
 // check if domain was queried > threshold in the time window
 func (r *CachingResolver) isPrefetchingDomain(cacheKey string) bool {
 	cnt, _ := r.prefetchingNameCache.Get(cacheKey)
+
 	return cnt != nil && cnt.(int) > r.prefetchThreshold
 }
 
@@ -100,7 +103,7 @@ func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.
 	logger := logger("caching_resolver")
 
 	if r.isPrefetchingDomain(cacheKey) {
-		logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), dns.TypeToString[qType])
+		logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), qType.String())
 
 		req := newRequest(fmt.Sprintf("%s.", domainName), qType, logger)
 		response, err := r.next.Resolve(req)
@@ -108,6 +111,7 @@ func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.
 		if err == nil {
 			if response.Res.Rcode == dns.RcodeSuccess {
 				evt.Bus().Publish(evt.CachingDomainPrefetched, domainName)
+
 				return cacheValue{response.Res.Answer, true}, time.Duration(r.adjustTTLs(response.Res.Answer)) * time.Second
 			}
 		} else {
@@ -122,6 +126,7 @@ func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.
 func (r *CachingResolver) Configuration() (result []string) {
 	if r.maxCacheTimeSec < 0 {
 		result = []string{"deactivated"}
+
 		return
 	}
 
@@ -146,12 +151,12 @@ func (r *CachingResolver) Configuration() (result []string) {
 
 // Resolve checks if the current query result is already in the cache and returns it
 // or delegates to the next resolver
-//nolint:gocognit,funlen
 func (r *CachingResolver) Resolve(request *model.Request) (response *model.Response, err error) {
 	logger := withPrefix(request.Log, "caching_resolver")
 
 	if r.maxCacheTimeSec < 0 {
 		logger.Debug("skip cache")
+
 		return r.next.Resolve(request)
 	}
 
@@ -160,7 +165,7 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 
 	for _, question := range request.Req.Question {
 		domain := util.ExtractDomain(question)
-		cacheKey := util.GenerateCacheKey(question.Qtype, domain)
+		cacheKey := util.GenerateCacheKey(dns.Type(question.Qtype), domain)
 		logger := logger.WithField("domain", util.Obfuscate(domain))
 
 		r.trackQueryDomainNameCount(domain, cacheKey, logger)
@@ -214,9 +219,11 @@ func (r *CachingResolver) trackQueryDomainNameCount(domain string, cacheKey stri
 		}
 		domainCount++
 		r.prefetchingNameCache.Put(cacheKey, domainCount, r.prefetchExpires)
+		totalCount := r.prefetchingNameCache.TotalCount()
+
 		logger.Debugf("domain '%s' was requested %d times, "+
-			"total cache size: %d", util.Obfuscate(domain), domainCount, r.prefetchingNameCache.TotalCount())
-		evt.Bus().Publish(evt.CachingDomainsToPrefetchCountChanged, r.prefetchingNameCache.TotalCount())
+			"total cache size: %d", util.Obfuscate(domain), domainCount, totalCount)
+		evt.Bus().Publish(evt.CachingDomainsToPrefetchCountChanged, totalCount)
 	}
 }
 
