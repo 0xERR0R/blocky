@@ -204,7 +204,7 @@ var _ = Describe("Downloader", func() {
 				reader, err := sut.DownloadFile("http://some.domain.which.does.not.exist")
 				Expect(err).Should(HaveOccurred())
 				var dnsError *net.DNSError
-				Expect(errors.As(err, &dnsError)).To(BeTrue())
+				Expect(errors.As(err, &dnsError)).To(BeTrue(), "received error %w", err)
 				Expect(reader).Should(BeNil())
 
 				// failed download event was emitted 3 times
