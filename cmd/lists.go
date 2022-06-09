@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -26,25 +27,24 @@ func newRefreshCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "refresh",
 		Short: "refreshes all lists",
-		Run:   refreshList,
+		RunE:  refreshList,
 	}
 }
 
-func refreshList(_ *cobra.Command, _ []string) {
+func refreshList(_ *cobra.Command, _ []string) error {
 	resp, err := http.Post(apiURL(api.PathListsRefresh), "application/json", nil)
 	if err != nil {
-		log.Log().Fatal("can't execute", err)
-
-		return
+		return fmt.Errorf("can't execute %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := ioutil.ReadAll(resp.Body)
-		log.Log().Fatalf("NOK: %s %s", resp.Status, string(body))
 
-		return
+		return fmt.Errorf("response NOK, %s %s", resp.Status, string(body))
 	}
 
 	log.Log().Info("OK")
+
+	return nil
 }

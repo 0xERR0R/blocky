@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/0xERR0R/blocky/log"
+
 	"github.com/go-redis/redis/v8"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -20,4 +21,4 @@ func TestResolver(t *testing.T) {
 
 type NoLogs struct{}
 
-func (l NoLogs) Printf(ctx context.Context, format string, v ...interface{}) {}
+func (l NoLogs) Printf(_ context.Context, _ string, _ ...interface{}) {}

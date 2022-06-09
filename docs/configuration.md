@@ -17,12 +17,14 @@ configuration properties as [JSON](config.yml).
 | tlsPort      | [IP]:port[,[IP]:port]*          | no                    |               | Port(s) and optional bind ip address(es) to serve DoT DNS endpoint (DNS-over-TLS). If you wish to specify a specific IP, you can do so such as `192.168.0.1:853`. Example: `83`, `:853`, `127.0.0.1:853,[::1]:853`                                |
 | httpPort     | [IP]:port[,[IP]:port]*          | no                    |               | Port(s) and optional bind ip address(es) to serve HTTP used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:4000`. Example: `4000`, `:4000`, `127.0.0.1:4000,[::1]:4000` |
 | httpsPort    | [IP]:port[,[IP]:port]*          | no                    |               | Port(s) and optional bind ip address(es) to serve HTTPS used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:443`. Example: `443`, `:443`, `127.0.0.1:443,[::1]:443`     |
-| certFile     | path                            | yes, if httpsPort > 0 |               | Path to cert and key file for SSL encryption (DoH and DoT)                                                                                                                                                                                        |
-| keyFile      | path                            | yes, if httpsPort > 0 |               | Path to cert and key file for SSL encryption (DoH and DoT)
+| certFile     | path                            | no                    |               | Path to cert and key file for SSL encryption (DoH and DoT); if empty, self-signed certificate is generated                                               |
+| keyFile      | path                            | no                    |               | Path to cert and key file for SSL encryption (DoH and DoT); if empty, self-signed certificate is generated                                              |
 | logLevel     | enum (debug, info, warn, error) | no                    | info          | Log level                                                                                                                                                                                                                                         |
 | logFormat    | enum (text, json)               | no                    | text          | Log format (text or json).                                                                                                                                                                                                                        |
 | logTimestamp | bool                            | no                    | true          | Log time stamps (true or false).                                                                                                                                                                                                                  |
-| logPrivacy   | bool                            | no                    | false         | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy.                                                                                                  |
+| logPrivacy   | bool                            | no                    | false         | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy.                                                                                                 |
+| dohUserAgent | string                          | no                    |               | HTTP User Agent for DoH upstreams                                                                                                  |
+| minTlsServeVersion | string                    | no                    | 1.2           | Minimum TLS version that the DoT and DoH server use to serve those encrypted DNS requests                       |
 
 !!! example
 
@@ -444,6 +446,19 @@ downloaded or opened. Default value is `false`.
     ```yaml
     blocking:
       failStartOnListError: false
+    ```
+
+### Concurrency
+
+Blocky downloads and processes links in a single group concurrently. With parameter `processingConcurrency` you can adjust
+how many links can be processed in the same time. Higher value can reduce the overall list refresh time, but more parallel
+ download and processing jobs need more RAM. Please consider to reduce this value on systems with limited memory. Default value is 4.
+
+    !!! example
+
+    ```yaml
+    blocking:
+      processingConcurrency: 10
     ```
 
 ## Caching

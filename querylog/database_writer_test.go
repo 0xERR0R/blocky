@@ -45,6 +45,7 @@ var _ = Describe("DatabaseWriter", func() {
 					result := writer.db.Find(&logEntry{})
 
 					result.Count(&res)
+
 					return res
 				}, "1s").Should(BeNumerically("==", 1))
 			})
@@ -91,6 +92,7 @@ var _ = Describe("DatabaseWriter", func() {
 					result := writer.db.Find(&logEntry{})
 
 					result.Count(&res)
+
 					return res
 				}, "1s").Should(BeNumerically("==", 2))
 
@@ -102,6 +104,7 @@ var _ = Describe("DatabaseWriter", func() {
 					result := writer.db.Find(&logEntry{})
 
 					result.Count(&res)
+
 					return res
 				}, "1s").Should(BeNumerically("==", 1))
 			})

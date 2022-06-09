@@ -141,6 +141,7 @@ func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 			host, port, err := net.SplitHostPort(addr)
 			if err != nil {
 				log.Errorf("dial error: %s", err)
+
 				return nil, err
 			}
 
@@ -161,6 +162,7 @@ func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 			ips, err := b.resolve(host, qTypes)
 			if err != nil {
 				log.Errorf("resolve error: %s", err)
+
 				return nil, err
 			}
 
@@ -170,18 +172,20 @@ func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 
 			// Use the standard dialer to actually connect
 			addrWithIP := net.JoinHostPort(ip.String(), port)
+
 			return dialer.DialContext(ctx, network, addrWithIP)
 		},
 	}
 }
 
 func (b *Bootstrap) resolve(hostname string, qTypes []dns.Type) (ips []net.IP, err error) {
-	ips = make([]net.IP, 0, 2)
+	ips = make([]net.IP, 0, len(qTypes))
 
 	for _, qType := range qTypes {
 		qIPs, qErr := b.resolveType(hostname, qType)
 		if qErr != nil {
 			err = multierror.Append(err, qErr)
+
 			continue
 		}
 
@@ -196,8 +200,7 @@ func (b *Bootstrap) resolve(hostname string, qTypes []dns.Type) (ips []net.IP, e
 }
 
 func (b *Bootstrap) resolveType(hostname string, qType dns.Type) (ips []net.IP, err error) {
-	ip := net.ParseIP(hostname)
-	if ip != nil {
+	if ip := net.ParseIP(hostname); ip != nil {
 		return []net.IP{ip}, nil
 	}
 
@@ -236,14 +239,15 @@ type IPSet struct {
 
 func (ips *IPSet) Current() net.IP {
 	idx := atomic.LoadUint32(&ips.index)
+
 	return ips.values[idx]
 }
 
 func (ips *IPSet) Next() {
-	old := ips.index
-	new := uint32(int(ips.index+1) % len(ips.values))
+	oldIP := ips.index
+	newIP := uint32(int(ips.index+1) % len(ips.values))
 
 	// We don't care about the result: if the call fails,
 	// it means the value was incremented by another goroutine
-	_ = atomic.CompareAndSwapUint32(&ips.index, old, new)
+	_ = atomic.CompareAndSwapUint32(&ips.index, oldIP, newIP)
 }

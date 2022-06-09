@@ -1,41 +1,63 @@
 linters:
   enable:
-    - govet
-    - errcheck
-    - staticcheck
-    - unused
-    - gosimple
-    - structcheck
-    - varcheck
-    - ineffassign
-    - deadcode
-    - typecheck
+    - asciicheck
+    - bidichk
     - bodyclose
-    - revive
-    - stylecheck
-    - gosec
-    - unconvert
-    - dupl
-    - goconst
-    - gocyclo
-    - gocognit
-    - gofmt
-    - goimports
+    - deadcode
     - depguard
-    - misspell
-    - lll
-    - unparam
     - dogsled
+    - dupl
+    - durationcheck
+    - errcheck
+    - errchkjson
+    - errorlint
+    - exhaustive
+    - exportloopref
     - funlen
     - gochecknoglobals
     - gochecknoinits
+    - gocognit
+    - goconst
     - gocritic
+    - gocyclo
     - godox
+    - gofmt
+    - goimports
+    - gomnd
+    - gomoddirectives
+    - gomodguard
+    - gosec
+    - gosimple
+    - govet
+    - grouper
+    - ifshort
+    - importas
+    - ineffassign
+    - lll
+    - makezero
+    - misspell
     - nakedret
+    - nestif
+    - nilerr
+    - nilnil
+    - nlreturn
+    - nolintlint
     - prealloc
+    - predeclared
+    - revive
+    - sqlclosecheck
+    - staticcheck
+    - structcheck
+    - stylecheck
+    - tenv
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - varcheck
+    - wastedassign
     - whitespace
     - wsl
-    - exportloopref
   disable:
     - noctx
     - scopelint
@@ -45,6 +67,11 @@ linters:
     - bugs
     - unused
   fast: false
+
+linters-settings:
+  gomnd:
+    ignored-numbers:
+      - '0666'
 
 issues:
   exclude-rules:

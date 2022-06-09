@@ -14,6 +14,7 @@ const (
 	cleanUpRunPeriod           = 12 * time.Hour
 	queryLoggingResolverPrefix = "query_logging_resolver"
 	logChanCap                 = 1000
+	defaultFlushPeriod         = 30 * time.Second
 )
 
 // QueryLoggingResolver writes query information (question, answer, duration, ...)
@@ -40,14 +41,15 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 			case config.QueryLogTypeCsvClient:
 				writer, err = querylog.NewCSVWriter(cfg.Target, true, cfg.LogRetentionDays)
 			case config.QueryLogTypeMysql:
-				writer, err = querylog.NewDatabaseWriter("mysql", cfg.Target, cfg.LogRetentionDays, 30*time.Second)
+				writer, err = querylog.NewDatabaseWriter("mysql", cfg.Target, cfg.LogRetentionDays, defaultFlushPeriod)
 			case config.QueryLogTypePostgresql:
-				writer, err = querylog.NewDatabaseWriter("postgresql", cfg.Target, cfg.LogRetentionDays, 30*time.Second)
+				writer, err = querylog.NewDatabaseWriter("postgresql", cfg.Target, cfg.LogRetentionDays, defaultFlushPeriod)
 			case config.QueryLogTypeConsole:
 				writer = querylog.NewLoggerWriter()
 			case config.QueryLogTypeNone:
 				writer = querylog.NewNoneWriter()
 			}
+
 			return err
 		},
 		retry.Attempts(uint(cfg.CreationAttempts)),
@@ -130,7 +132,7 @@ func (r *QueryLoggingResolver) writeLog() {
 
 		r.writer.Write(logEntry)
 
-		halfCap := cap(r.logChan) / 2
+		halfCap := cap(r.logChan) / 2 // nolint:gomnd
 
 		// if log channel is > 50% full, this could be a problem with slow writer (external storage over network etc.)
 		if len(r.logChan) > halfCap {

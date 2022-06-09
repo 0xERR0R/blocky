@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/0xERR0R/blocky/api"
@@ -26,15 +27,15 @@ import (
 )
 
 var (
-	upstreamGoogle, upstreamFritzbox, upstreamClient config.Upstream
-	mockClientName                                   string
-	sut                                              *Server
-	err                                              error
-	resp                                             *dns.Msg
+	mockClientName atomic.Value
+	sut            *Server
+	err            error
+	resp           *dns.Msg
 )
 
 var _ = BeforeSuite(func() {
-	upstreamGoogle = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
+	var upstreamGoogle, upstreamFritzbox, upstreamClient config.Upstream
+	googleMockUpstream := resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 		if request.Question[0].Name == "error." {
 			return nil
 		}
@@ -43,25 +44,36 @@ var _ = BeforeSuite(func() {
 		)
 
 		Expect(err).Should(Succeed())
+
 		return response
 	})
-	upstreamFritzbox = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
+	DeferCleanup(googleMockUpstream.Close)
+
+	fritzboxMockUpstream := resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 		response, err := util.NewMsgWithAnswer(
 			util.ExtractDomain(request.Question[0]), 3600, dns.Type(dns.TypeA), "192.168.178.2",
 		)
 
 		Expect(err).Should(Succeed())
+
 		return response
 	})
+	DeferCleanup(fritzboxMockUpstream.Close)
 
-	upstreamClient = resolver.TestUDPUpstream(func(request *dns.Msg) *dns.Msg {
+	clientMockUpstream := resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 		response, err := util.NewMsgWithAnswer(
-			util.ExtractDomain(request.Question[0]), 3600, dns.Type(dns.TypePTR), mockClientName,
+			util.ExtractDomain(request.Question[0]), 3600, dns.Type(dns.TypePTR), mockClientName.Load().(string),
 		)
 
 		Expect(err).Should(Succeed())
+
 		return response
 	})
+	DeferCleanup(clientMockUpstream.Close)
+
+	upstreamClient = clientMockUpstream.Start()
+	upstreamFritzbox = fritzboxMockUpstream.Start()
+	upstreamGoogle = googleMockUpstream.Start()
 
 	// create server
 	sut, err = NewServer(&config.Config{
@@ -123,27 +135,28 @@ var _ = BeforeSuite(func() {
 
 	Expect(err).Should(Succeed())
 
+	errChan := make(chan error, 10)
+
 	// start server
 	go func() {
-		sut.Start()
+		sut.Start(errChan)
 	}()
-	time.Sleep(100 * time.Millisecond)
-})
+	DeferCleanup(sut.Stop)
 
-var _ = AfterSuite(func() {
-	sut.Stop()
+	Consistently(errChan, "1s").ShouldNot(Receive())
 })
 
 var _ = Describe("Running DNS server", func() {
 	Describe("performing DNS request with running server", func() {
 
 		BeforeEach(func() {
-			mockClientName = ""
+			mockClientName.Store("")
 			// reset client cache
 			res := sut.queryResolver
 			for res != nil {
 				if t, ok := res.(*resolver.ClientNamesResolver); ok {
 					t.FlushCache()
+
 					break
 				}
 				if c, ok := res.(resolver.ChainedResolver); ok {
@@ -222,7 +235,7 @@ var _ = Describe("Running DNS server", func() {
 		})
 		Context("domain is on client specific white list", func() {
 			It("Query with should not be blocked, domain is on client's white list", func() {
-				mockClientName = "clWhitelistOnly"
+				mockClientName.Store("clWhitelistOnly")
 				resp = requestServer(util.NewMsgWithQuestion("heise.de.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("heise.de.", dns.TypeA, 0, "123.124.122.122"))
@@ -230,7 +243,7 @@ var _ = Describe("Running DNS server", func() {
 		})
 		Context("block client whitelist only", func() {
 			It("Query with should be blocked, client has only whitelist, domain is not on client's white list", func() {
-				mockClientName = "clWhitelistOnly"
+				mockClientName.Store("clWhitelistOnly")
 				resp = requestServer(util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("google.de.", dns.TypeA, 0, "0.0.0.0"))
@@ -238,7 +251,7 @@ var _ = Describe("Running DNS server", func() {
 		})
 		Context("block client with 2 groups", func() {
 			It("Query with should be blocked, domain is on black list", func() {
-				mockClientName = "clAdsAndYoutube"
+				mockClientName.Store("clAdsAndYoutube")
 				resp = requestServer(util.NewMsgWithQuestion("www.bild.de.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("www.bild.de.", dns.TypeA, 0, "0.0.0.0"))
@@ -250,7 +263,7 @@ var _ = Describe("Running DNS server", func() {
 		})
 		Context("client with 1 group: no block if domain in other group", func() {
 			It("Query with should not be blocked, domain is on black list in another group", func() {
-				mockClientName = "clYoutubeOnly"
+				mockClientName.Store("clYoutubeOnly")
 				resp = requestServer(util.NewMsgWithQuestion("www.bild.de.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("www.bild.de.", dns.TypeA, 0, "123.124.122.122"))
@@ -258,7 +271,7 @@ var _ = Describe("Running DNS server", func() {
 		})
 		Context("block client with 1 group", func() {
 			It("Query with should not  blocked, domain is on black list in client's group", func() {
-				mockClientName = "clYoutubeOnly"
+				mockClientName.Store("clYoutubeOnly")
 				resp = requestServer(util.NewMsgWithQuestion("youtube.com.", dns.Type(dns.TypeA)))
 
 				Expect(resp.Answer).Should(BeDNSRecord("youtube.com.", dns.TypeA, 0, "0.0.0.0"))
@@ -515,14 +528,11 @@ var _ = Describe("Running DNS server", func() {
 		})
 		When("Server is created", func() {
 			It("is created without redis connection", func() {
-				defer func() { Log().ExitFunc = nil }()
-
 				_, err := NewServer(&cfg)
 
 				Expect(err).Should(Succeed())
 			})
 			It("can't be created if redis server is unavailable", func() {
-				defer func() { Log().ExitFunc = nil }()
 
 				cfg.Redis.Required = true
 
@@ -533,15 +543,9 @@ var _ = Describe("Running DNS server", func() {
 		})
 	})
 
-	Describe("Server start", func() {
+	Describe("Server start", Label("XX"), func() {
 		When("Server start is called", func() {
 			It("start was called 2 times, start should fail", func() {
-				defer func() { Log().ExitFunc = nil }()
-
-				var fatal bool
-
-				Log().ExitFunc = func(int) { fatal = true }
-
 				// create server
 				server, err := NewServer(&config.Config{
 					Upstream: config.UpstreamConfig{
@@ -560,37 +564,26 @@ var _ = Describe("Running DNS server", func() {
 
 				Expect(err).Should(Succeed())
 
+				errChan := make(chan error, 10)
+
 				// start server
-				go func() {
-					server.Start()
-				}()
+				go server.Start(errChan)
 
-				defer server.Stop()
+				DeferCleanup(server.Stop)
 
-				Eventually(func() bool {
-					return fatal
-				}, "100ms").Should(BeFalse())
-
-				Expect(fatal).Should(BeFalse())
+				Consistently(errChan, "1s").ShouldNot(Receive())
 
 				// start again -> should fail
-				server.Start()
+				server.Start(errChan)
 
-				Eventually(func() bool {
-					return fatal
-				}, "100ms").Should(BeTrue())
+				Eventually(errChan).Should(Receive())
 			})
 		})
 	})
 	Describe("Server stop", func() {
 		When("Stop is called", func() {
+
 			It("stop was called 2 times, start should fail", func() {
-				defer func() { Log().ExitFunc = nil }()
-
-				var fatal bool
-
-				Log().ExitFunc = func(int) { fatal = true }
-
 				// create server
 				server, err := NewServer(&config.Config{
 					Upstream: config.UpstreamConfig{
@@ -609,24 +602,24 @@ var _ = Describe("Running DNS server", func() {
 
 				Expect(err).Should(Succeed())
 
+				errChan := make(chan error, 10)
+
 				// start server
 				go func() {
-					server.Start()
+					server.Start(errChan)
 				}()
-
-				defer server.Stop()
 
 				time.Sleep(100 * time.Millisecond)
 
-				server.Stop()
+				err = server.Stop()
 
 				// stop server, should be ok
-				Expect(fatal).Should(BeFalse())
+				Expect(err).Should(Succeed())
 
-				// stop again, should raise fatal error
-				server.Stop()
+				// stop again, should raise error
+				err = server.Stop()
 
-				Expect(fatal).Should(BeTrue())
+				Expect(err).Should(HaveOccurred())
 			})
 		})
 	})
@@ -648,6 +641,30 @@ var _ = Describe("Running DNS server", func() {
 		})
 	})
 
+	Describe("self-signed certificate creation", func() {
+		var (
+			cfg  config.Config
+			cErr error
+		)
+		BeforeEach(func() {
+			cErr = defaults.Set(&cfg)
+
+			Expect(cErr).Should(Succeed())
+
+			cfg.Upstream.ExternalResolvers = map[string][]config.Upstream{
+				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}}}
+		})
+
+		It("should create self-signed certificate if key/cert files are not provided", func() {
+			cfg.KeyFile = ""
+			cfg.CertFile = ""
+			cfg.HTTPSPorts = []string{":14443"}
+
+			sut, err := NewServer(&cfg)
+			Expect(err).Should(Succeed())
+			Expect(sut.cert.Certificate).ShouldNot(BeNil())
+		})
+	})
 })
 
 func requestServer(request *dns.Msg) *dns.Msg {

@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -16,11 +17,16 @@ import (
 	"github.com/miekg/dns"
 
 	"github.com/hako/durafmt"
-	"github.com/hashicorp/go-multierror"
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/creasty/defaults"
 	"gopkg.in/yaml.v2"
+)
+
+const (
+	udpPort   = 53
+	tlsPort   = 853
+	httpsPort = 443
 )
 
 // NetProtocol resolver protocol ENUM(
@@ -60,6 +66,7 @@ func NewQTypeSet(qTypes ...dns.Type) QTypeSet {
 
 func (s QTypeSet) Contains(qType dns.Type) bool {
 	_, found := s[QType(qType)]
+
 	return found
 }
 
@@ -79,9 +86,9 @@ func (c *Duration) String() string {
 
 // nolint:gochecknoglobals
 var netDefaultPort = map[NetProtocol]uint16{
-	NetProtocolTcpUdp: 53,
-	NetProtocolTcpTls: 853,
-	NetProtocolHttps:  443,
+	NetProtocolTcpUdp: udpPort,
+	NetProtocolTcpTls: tlsPort,
+	NetProtocolHttps:  httpsPort,
 }
 
 // Upstream is the definition of external DNS server
@@ -252,12 +259,14 @@ func (c *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		// duration is defined as number without unit
 		// use minutes to ensure back compatibility
 		*c = Duration(time.Duration(minutes) * time.Minute)
+
 		return nil
 	}
 
 	duration, err := time.ParseDuration(input)
 	if err == nil {
 		*c = Duration(duration)
+
 		return nil
 	}
 
@@ -320,15 +329,15 @@ func ParseUpstream(upstream string) (Upstream, error) {
 
 	// string contains host:port
 	if err == nil {
-		var p uint64
-		p, err = strconv.ParseUint(strings.TrimSpace(portString), 10, 16)
+		p, err := ConvertPort(portString)
 
 		if err != nil {
 			err = fmt.Errorf("can't convert port to number (1 - 65535) %w", err)
+
 			return Upstream{}, err
 		}
 
-		port = uint16(p)
+		port = p
 	} else {
 		// only host, use default port
 		host = upstream
@@ -340,9 +349,7 @@ func ParseUpstream(upstream string) (Upstream, error) {
 	}
 
 	// validate hostname or ip
-	ip := net.ParseIP(host)
-
-	if ip == nil {
+	if ip := net.ParseIP(host); ip == nil {
 		// is not IP
 		if !validDomain.MatchString(host) {
 			return Upstream{}, fmt.Errorf("wrong host name '%s'", host)
@@ -410,6 +417,8 @@ type Config struct {
 	HTTPPorts       ListenConfig              `yaml:"httpPort"`
 	HTTPSPorts      ListenConfig              `yaml:"httpsPort"`
 	TLSPorts        ListenConfig              `yaml:"tlsPort"`
+	DoHUserAgent    string                    `yaml:"dohUserAgent"`
+	MinTLSServeVer  string                    `yaml:"minTlsServeVersion" default:"1.2"`
 	// Deprecated
 	DisableIPv6  bool            `yaml:"disableIPv6" default:"false"`
 	CertFile     string          `yaml:"certFile"`
@@ -467,16 +476,17 @@ type ConditionalUpstreamMapping struct {
 
 // BlockingConfig configuration for query blocking
 type BlockingConfig struct {
-	BlackLists           map[string][]string `yaml:"blackLists"`
-	WhiteLists           map[string][]string `yaml:"whiteLists"`
-	ClientGroupsBlock    map[string][]string `yaml:"clientGroupsBlock"`
-	BlockType            string              `yaml:"blockType" default:"ZEROIP"`
-	BlockTTL             Duration            `yaml:"blockTTL" default:"6h"`
-	DownloadTimeout      Duration            `yaml:"downloadTimeout" default:"60s"`
-	DownloadAttempts     int                 `yaml:"downloadAttempts" default:"3"`
-	DownloadCooldown     Duration            `yaml:"downloadCooldown" default:"1s"`
-	RefreshPeriod        Duration            `yaml:"refreshPeriod" default:"4h"`
-	FailStartOnListError bool                `yaml:"failStartOnListError" default:"false"`
+	BlackLists            map[string][]string `yaml:"blackLists"`
+	WhiteLists            map[string][]string `yaml:"whiteLists"`
+	ClientGroupsBlock     map[string][]string `yaml:"clientGroupsBlock"`
+	BlockType             string              `yaml:"blockType" default:"ZEROIP"`
+	BlockTTL              Duration            `yaml:"blockTTL" default:"6h"`
+	DownloadTimeout       Duration            `yaml:"downloadTimeout" default:"60s"`
+	DownloadAttempts      uint                `yaml:"downloadAttempts" default:"3"`
+	DownloadCooldown      Duration            `yaml:"downloadCooldown" default:"1s"`
+	RefreshPeriod         Duration            `yaml:"refreshPeriod" default:"4h"`
+	FailStartOnListError  bool                `yaml:"failStartOnListError" default:"false"`
+	ProcessingConcurrency uint                `yaml:"processingConcurrency" default:"4"`
 }
 
 // ClientLookupConfig configuration for the client lookup
@@ -530,24 +540,57 @@ type FilteringConfig struct {
 // nolint:gochecknoglobals
 var config = &Config{}
 
-// LoadConfig creates new config from YAML file
+// LoadConfig creates new config from YAML file or a directory containing YAML files
 func LoadConfig(path string, mandatory bool) (*Config, error) {
 	cfg := Config{}
 	if err := defaults.Set(&cfg); err != nil {
 		return nil, fmt.Errorf("can't apply default values: %w", err)
 	}
 
-	data, err := ioutil.ReadFile(path)
-
+	fs, err := os.Stat(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) && !mandatory {
 			// config file does not exist
 			// return config with default values
 			config = &cfg
+
 			return config, nil
 		}
 
-		return nil, fmt.Errorf("can't read config file: %w", err)
+		return nil, fmt.Errorf("can't read config file(s): %w", err)
+	}
+
+	var data []byte
+
+	if fs.IsDir() { //nolint:nestif
+		err = filepath.WalkDir(path, func(filePath string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if path == filePath {
+				return nil
+			}
+
+			fileData, err := os.ReadFile(filePath)
+			if err != nil {
+				return err
+			}
+
+			data = append(data, []byte("\n")...)
+			data = append(data, fileData...)
+
+			return nil
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("can't read config files: %w", err)
+		}
+	} else {
+		data, err = ioutil.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("can't read config file: %w", err)
+		}
 	}
 
 	err = unmarshalConfig(data, &cfg)
@@ -566,33 +609,37 @@ func unmarshalConfig(data []byte, cfg *Config) error {
 		return fmt.Errorf("wrong file structure: %w", err)
 	}
 
-	err = validateConfig(cfg)
-	if err != nil {
-		return fmt.Errorf("unable to validate config: %w", err)
-	}
+	validateConfig(cfg)
 
 	return nil
 }
 
-func validateConfig(cfg *Config) (err error) {
-	if len(cfg.TLSPorts) != 0 && (cfg.CertFile == "" || cfg.KeyFile == "") {
-		err = multierror.Append(err, errors.New("'certFile' and 'keyFile' parameters are mandatory for TLS"))
-	}
-
-	if len(cfg.HTTPSPorts) != 0 && (cfg.CertFile == "" || cfg.KeyFile == "") {
-		err = multierror.Append(err, errors.New("'certFile' and 'keyFile' parameters are mandatory for HTTPS"))
-	}
-
+func validateConfig(cfg *Config) {
 	if cfg.DisableIPv6 {
 		log.Log().Warnf("'disableIPv6' is deprecated. Please use 'filtering.queryTypes' with 'AAAA' instead.")
 
 		cfg.Filtering.QueryTypes.Insert(dns.Type(dns.TypeAAAA))
 	}
-
-	return
 }
 
 // GetConfig returns the current config
 func GetConfig() *Config {
 	return config
+}
+
+// ConvertPort converts string representation into a valid port (0 - 65535)
+func ConvertPort(in string) (uint16, error) {
+	const (
+		base    = 10
+		bitSize = 16
+	)
+
+	var p uint64
+	p, err := strconv.ParseUint(strings.TrimSpace(in), base, bitSize)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return uint16(p), nil
 }
