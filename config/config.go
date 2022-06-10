@@ -425,7 +425,7 @@ type Config struct {
 	KeyFile      string          `yaml:"keyFile"`
 	BootstrapDNS BootstrapConfig `yaml:"bootstrapDns"`
 	HostsFile    HostsFileConfig `yaml:"hostsFile"`
-	FqdnOnly     bool            `yaml:"fFqdnOnly" default:"false"`
+	FqdnOnly     bool            `yaml:"fqdnOnly" default:"false"`
 	Filtering    FilteringConfig `yaml:"filtering"`
 }
 
