@@ -37,11 +37,11 @@ var _ = Describe("EdeResolver", func() {
 				EdeEnabled: false,
 			}
 		})
-		It("Should delegate to next resolver if request query has other type", func() {
+		It("Shouldn't add EDE information", func() {
 			resp, err := sut.Resolve(newRequest("example.com", dns.Type(dns.TypeA)))
 			Expect(err).Should(Succeed())
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-			Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+			Expect(resp.RType).Should(Equal(ResponseTypeCUSTOMDNS))
 			Expect(resp.Res.Answer).Should(BeEmpty())
 			Expect(resp.Res.Extra).Should(BeEmpty())
 
@@ -60,11 +60,11 @@ var _ = Describe("EdeResolver", func() {
 				EdeEnabled: true,
 			}
 		})
-		It("Should delegate to next resolver if request query has other type", func() {
+		It("Should add EDE information", func() {
 			resp, err := sut.Resolve(newRequest("example.com", dns.Type(dns.TypeA)))
 			Expect(err).Should(Succeed())
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-			Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+			Expect(resp.RType).Should(Equal(ResponseTypeCUSTOMDNS))
 			Expect(resp.Res.Answer).Should(BeEmpty())
 			Expect(resp.Res.Extra).Should(HaveLen(1))
 			opt := getEDE(resp.Res.Extra)
