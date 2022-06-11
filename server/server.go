@@ -408,7 +408,9 @@ func createQueryResolver(
 		parallelResolver,
 	)
 
-	return resolver.NewEdeResolver(*cfg, r), nil
+	exR := resolver.NewEdeResolver(*cfg, r)
+
+	return exR, nil
 }
 
 func (s *Server) registerDNSHandlers() {
