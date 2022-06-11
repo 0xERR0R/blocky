@@ -426,6 +426,7 @@ type Config struct {
 	BootstrapDNS BootstrapConfig `yaml:"bootstrapDns"`
 	HostsFile    HostsFileConfig `yaml:"hostsFile"`
 	Filtering    FilteringConfig `yaml:"filtering"`
+	EdeEnabled   bool            `yaml:"edeEnabled" default:"false"`
 }
 
 type BootstrapConfig bootstrapConfig // to avoid infinite recursion. See BootstrapConfig.UnmarshalYAML.
