@@ -25,7 +25,11 @@ var _ = Describe("EdeResolver", func() {
 
 	JustBeforeEach(func() {
 		m = &MockResolver{}
-		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer, RType: model.ResponseTypeCUSTOMDNS}, nil)
+		m.On("Resolve", mock.Anything).Return(&Response{
+			Res:    mockAnswer,
+			RType:  model.ResponseTypeCUSTOMDNS,
+			Reason: "Test",
+		}, nil)
 
 		sut = NewEdeResolver(sutConfig, m).(*EdeResolver)
 
@@ -72,7 +76,7 @@ var _ = Describe("EdeResolver", func() {
 			ede, ok := opt.Option[0].(*dns.EDNS0_EDE)
 			Expect(ok).Should(BeTrue())
 			Expect(ede.InfoCode).Should(Equal(dns.ExtendedErrorCodeForgedAnswer))
-
+			Expect(ede.ExtraText).Should(Equal("Test"))
 		})
 		It("Configure should output activated", func() {
 			c := sut.Configuration()
