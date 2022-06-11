@@ -71,7 +71,8 @@ var _ = Describe("EdeResolver", func() {
 			Expect(resp.RType).Should(Equal(ResponseTypeCUSTOMDNS))
 			Expect(resp.Res.Answer).Should(BeEmpty())
 			Expect(resp.Res.Extra).Should(HaveLen(1))
-			opt := getEDE(resp.Res.Extra)
+			opt, ok := resp.Res.Extra[0].(*dns.OPT)
+			Expect(ok).Should(BeTrue())
 			Expect(opt).ShouldNot(BeNil())
 			ede, ok := opt.Option[0].(*dns.EDNS0_EDE)
 			Expect(ok).Should(BeTrue())
@@ -85,16 +86,3 @@ var _ = Describe("EdeResolver", func() {
 		})
 	})
 })
-
-func getEDE(rrs []dns.RR) *dns.OPT {
-	for _, extra := range rrs {
-
-		switch extra.(type) {
-		case *dns.OPT:
-			if res, ok := extra.(*dns.OPT); ok {
-				return res
-			}
-		}
-	}
-	return nil
-}
