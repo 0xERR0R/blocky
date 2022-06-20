@@ -1,7 +1,6 @@
 package resolver
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
@@ -28,9 +27,7 @@ func (r *FqdnOnlyResolver) Resolve(request *model.Request) (*model.Response, err
 			response := new(dns.Msg)
 			response.Rcode = dns.RcodeNameError
 
-			reason := fmt.Sprintf("NOTFQDN (%s)", domainFromQuestion)
-
-			return &model.Response{Res: response, RType: model.ResponseTypeNOTFQDN, Reason: reason}, nil
+			return &model.Response{Res: response, RType: model.ResponseTypeNOTFQDN, Reason: "NOTFQDN"}, nil
 		}
 	}
 
