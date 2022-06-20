@@ -35,7 +35,8 @@ test:  ## run tests
 	go test -v -coverprofile=coverage.txt -covermode=atomic -cover ./...
 
 race: ## run tests with race detector
-	go test -race -short ./...
+	go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+	$(shell go env GOPATH)/bin/ginkgo --repeat=20 --race ./...
 
 lint: build ## run golangcli-lint checks
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.46.2
