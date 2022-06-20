@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/miekg/dns"
@@ -539,10 +540,16 @@ type FilteringConfig struct {
 }
 
 // nolint:gochecknoglobals
-var config = &Config{}
+var (
+	config  = &Config{}
+	cfgLock sync.RWMutex
+)
 
 // LoadConfig creates new config from YAML file or a directory containing YAML files
 func LoadConfig(path string, mandatory bool) (*Config, error) {
+	cfgLock.Lock()
+	defer cfgLock.Unlock()
+
 	cfg := Config{}
 	if err := defaults.Set(&cfg); err != nil {
 		return nil, fmt.Errorf("can't apply default values: %w", err)
@@ -563,26 +570,8 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 
 	var data []byte
 
-	if fs.IsDir() { //nolint:nestif
-		err = filepath.WalkDir(path, func(filePath string, d os.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-
-			if path == filePath {
-				return nil
-			}
-
-			fileData, err := os.ReadFile(filePath)
-			if err != nil {
-				return err
-			}
-
-			data = append(data, []byte("\n")...)
-			data = append(data, fileData...)
-
-			return nil
-		})
+	if fs.IsDir() {
+		data, err = readFromDir(path, data)
 
 		if err != nil {
 			return nil, fmt.Errorf("can't read config files: %w", err)
@@ -602,6 +591,30 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 	config = &cfg
 
 	return &cfg, nil
+}
+
+func readFromDir(path string, data []byte) ([]byte, error) {
+	err := filepath.WalkDir(path, func(filePath string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if path == filePath {
+			return nil
+		}
+
+		fileData, err := os.ReadFile(filePath)
+		if err != nil {
+			return err
+		}
+
+		data = append(data, []byte("\n")...)
+		data = append(data, fileData...)
+
+		return nil
+	})
+
+	return data, err
 }
 
 func unmarshalConfig(data []byte, cfg *Config) error {
@@ -625,6 +638,9 @@ func validateConfig(cfg *Config) {
 
 // GetConfig returns the current config
 func GetConfig() *Config {
+	cfgLock.RLock()
+	defer cfgLock.RUnlock()
+
 	return config
 }
 
