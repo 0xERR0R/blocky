@@ -25,11 +25,11 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gorm.io/driver/mysql v1.3.4
 	gorm.io/driver/sqlite v1.3.4
-	gorm.io/gorm v1.23.5
+	gorm.io/gorm v1.23.6
 )
 
 require (
-	github.com/avast/retry-go/v4 v4.0.5
+	github.com/avast/retry-go/v4 v4.1.0
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/onsi/ginkgo/v2 v2.1.4
