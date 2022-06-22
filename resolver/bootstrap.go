@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math/rand"
@@ -85,15 +86,15 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 }
 
 func (b *Bootstrap) UpstreamIPs(r *UpstreamResolver) (*IPSet, error) {
-	ips, err := b.resolveUpstream(r, r.upstream.Host)
+	ips, _, err := b.resolveUpstream(r, r.upstream.Host)
 	if err != nil {
 		return nil, err
 	}
 
-	return &IPSet{values: ips}, nil
+	return newIPSet(ips, 0), nil
 }
 
-func (b *Bootstrap) resolveUpstream(r Resolver, host string) ([]net.IP, error) {
+func (b *Bootstrap) resolveUpstream(r *UpstreamResolver, host string) (ips []net.IP, cached bool, err error) {
 	// Use system resolver if no bootstrap is configured
 	if b.resolver == nil {
 		filteredQTypes := config.GetConfig().Filtering.QueryTypes
@@ -115,12 +116,14 @@ func (b *Bootstrap) resolveUpstream(r Resolver, host string) ([]net.IP, error) {
 			defer cancel()
 		}
 
-		return b.systemResolver.LookupIP(ctx, network, host)
+		ips, err = b.systemResolver.LookupIP(ctx, network, host)
+
+		return ips, false, err
 	}
 
 	if r == b.upstream {
 		// Special path for b.upstream to avoid infinite recursion
-		return b.upstreamIPs, nil
+		return b.upstreamIPs, true, nil
 	}
 
 	return b.resolve(host, v4v6QTypes)
@@ -159,7 +162,7 @@ func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 			}
 
 			// Resolve the host with the bootstrap DNS
-			ips, err := b.resolve(host, qTypes)
+			ips, _, err := b.resolve(host, qTypes)
 			if err != nil {
 				log.Errorf("resolve error: %s", err)
 
@@ -178,30 +181,36 @@ func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 	}
 }
 
-func (b *Bootstrap) resolve(hostname string, qTypes []dns.Type) (ips []net.IP, err error) {
+func (b *Bootstrap) resolve(hostname string, qTypes []dns.Type) (ips []net.IP, cached bool, err error) {
 	ips = make([]net.IP, 0, len(qTypes))
+	cached = true
 
 	for _, qType := range qTypes {
-		qIPs, qErr := b.resolveType(hostname, qType)
+		qIPs, qCached, qErr := b.resolveType(hostname, qType)
 		if qErr != nil {
 			err = multierror.Append(err, qErr)
 
 			continue
 		}
 
+		if ips == nil {
+			continue
+		}
+
 		ips = append(ips, qIPs...)
+		cached = cached && qCached
 	}
 
 	if err == nil && len(ips) == 0 {
-		return nil, fmt.Errorf("no such host %s", hostname)
+		return nil, false, fmt.Errorf("no such host %s", hostname)
 	}
 
 	return
 }
 
-func (b *Bootstrap) resolveType(hostname string, qType dns.Type) (ips []net.IP, err error) {
+func (b *Bootstrap) resolveType(hostname string, qType dns.Type) (ips []net.IP, cached bool, err error) {
 	if ip := net.ParseIP(hostname); ip != nil {
-		return []net.IP{ip}, nil
+		return []net.IP{ip}, true, nil
 	}
 
 	req := model.Request{
@@ -211,11 +220,11 @@ func (b *Bootstrap) resolveType(hostname string, qType dns.Type) (ips []net.IP, 
 
 	rsp, err := b.resolver.Resolve(&req)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	if rsp.Res.Rcode != dns.RcodeSuccess {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	ips = make([]net.IP, 0, len(rsp.Res.Answer))
@@ -229,12 +238,21 @@ func (b *Bootstrap) resolveType(hostname string, qType dns.Type) (ips []net.IP, 
 		}
 	}
 
-	return ips, nil
+	cached = rsp.RType == model.ResponseTypeCACHED
+
+	return ips, cached, nil
 }
 
 type IPSet struct {
 	values []net.IP
 	index  uint32
+}
+
+func newIPSet(values []net.IP, index uint32) *IPSet {
+	return &IPSet{
+		values: values,
+		index:  index,
+	}
 }
 
 func (ips *IPSet) Current() net.IP {
@@ -250,4 +268,46 @@ func (ips *IPSet) Next() {
 	// We don't care about the result: if the call fails,
 	// it means the value was incremented by another goroutine
 	_ = atomic.CompareAndSwapUint32(&ips.index, oldIP, newIP)
+}
+
+func (ips *IPSet) Refresh(bootstrap *Bootstrap, r *UpstreamResolver) (*IPSet, error) {
+	// Make this function nil safe so that UpstreamResolver code can avoid having to check
+	// for nil and call UpstreamIPs in that case
+	if ips == nil {
+		return bootstrap.UpstreamIPs(r)
+	}
+
+	newIPs, cached, err := bootstrap.resolveUpstream(r, r.upstream.Host)
+	if err != nil {
+		return nil, err
+	}
+
+	// Try to keep using the IP at `ips.index` as it should be a known good IP.
+
+	var newIdx uint32
+
+	if cached && ips.valuesEq(newIPs, &newIdx) {
+		// Return this instance if the values didn't change
+		return ips, nil
+	}
+
+	return newIPSet(newIPs, newIdx), nil
+}
+
+func (ips *IPSet) valuesEq(otherValues []net.IP, outNewIdx *uint32) bool {
+	if len(otherValues) != len(ips.values) {
+		return false
+	}
+
+	for i, other := range otherValues {
+		if !bytes.Equal(other, ips.values[i]) {
+			return false
+		}
+
+		if uint32(i) == ips.index {
+			*outNewIdx = uint32(i)
+		}
+	}
+
+	return true
 }

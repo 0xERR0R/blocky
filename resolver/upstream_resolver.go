@@ -39,6 +39,7 @@ type UpstreamResolver struct {
 	upstream       config.Upstream
 	upstreamClient upstreamClient
 	bootstrap      *Bootstrap
+	ips            *IPSet
 }
 
 type upstreamClient interface {
@@ -226,9 +227,14 @@ func (r UpstreamResolver) String() string {
 func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Response, err error) {
 	logger := withPrefix(request.Log, "upstream_resolver")
 
-	ips, err := r.bootstrap.UpstreamIPs(r)
-	if err != nil {
-		return nil, err
+	{
+		ips, err := r.ips.Refresh(r.bootstrap, r) // nil safe
+		if err != nil {
+			return nil, err
+		}
+
+		// TODO: locking / compare and swap
+		r.ips = ips
 	}
 
 	var (
@@ -239,7 +245,7 @@ func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Resp
 
 	err = retry.Do(
 		func() error {
-			ip = ips.Current()
+			ip = r.ips.Current()
 			upstreamURL := r.upstreamClient.fmtURL(ip, r.upstream.Port, r.upstream.Path)
 
 			var err error
@@ -276,7 +282,7 @@ func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Resp
 				"attempt":     fmt.Sprintf("%d/%d", n+1, retryAttempts),
 			}).Debugf("%s, retrying...", err)
 
-			ips.Next()
+			r.ips.Next()
 		}))
 	if err != nil {
 		return nil, err
