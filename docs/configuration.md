@@ -197,7 +197,7 @@ The query "printer.home" will be rewritten to "printer.lan" and return 192.168.1
 
 With parameter `filterUnmappedTypes = true` (default), blocky will filter all queries with unmapped types, for example:
 AAAA for "printer.lan" or TXT for "otherdevice.lan".
-With `filterUnmappedTypes = true` a query AAAA "printer.lan" will be forwarded to the upstream DNS server.
+With `filterUnmappedTypes = false` a query AAAA "printer.lan" will be forwarded to the upstream DNS server.
 
 ## Conditional DNS resolution
 
