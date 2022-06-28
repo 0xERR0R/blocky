@@ -38,22 +38,23 @@ type DatabaseWriter struct {
 	pendingEntries   []*logEntry
 	lock             sync.RWMutex
 	dbFlushPeriod    time.Duration
+	hideClient       bool
 }
 
 func NewDatabaseWriter(dbType string, target string, logRetentionDays uint64,
-	dbFlushPeriod time.Duration) (*DatabaseWriter, error) {
+	dbFlushPeriod time.Duration, hideClient bool) (*DatabaseWriter, error) {
 	switch dbType {
 	case "mysql":
-		return newDatabaseWriter(mysql.Open(target), logRetentionDays, dbFlushPeriod)
+		return newDatabaseWriter(mysql.Open(target), logRetentionDays, dbFlushPeriod, hideClient)
 	case "postgresql":
-		return newDatabaseWriter(postgres.Open(target), logRetentionDays, dbFlushPeriod)
+		return newDatabaseWriter(postgres.Open(target), logRetentionDays, dbFlushPeriod, hideClient)
 	}
 
 	return nil, fmt.Errorf("incorrect database type provided: %s", dbType)
 }
 
 func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64,
-	dbFlushPeriod time.Duration) (*DatabaseWriter, error) {
+	dbFlushPeriod time.Duration, hideClient bool) (*DatabaseWriter, error) {
 	db, err := gorm.Open(target, &gorm.Config{
 		Logger: logger.New(
 			log.Log(),
@@ -77,7 +78,8 @@ func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64,
 	w := &DatabaseWriter{
 		db:               db,
 		logRetentionDays: logRetentionDays,
-		dbFlushPeriod:    dbFlushPeriod}
+		dbFlushPeriod:    dbFlushPeriod,
+		hideClient:       hideClient}
 
 	go w.periodicFlush()
 
@@ -98,10 +100,17 @@ func (d *DatabaseWriter) Write(entry *LogEntry) {
 	domain := util.ExtractDomain(entry.Request.Req.Question[0])
 	eTLD, _ := publicsuffix.EffectiveTLDPlusOne(domain)
 
+	var clientIp string
+	var clientName string
+	if !d.hideClient {
+		clientIp = entry.Request.ClientIP.String()
+		clientName = strings.Join(entry.Request.ClientNames, "; ")
+	}
+
 	e := &logEntry{
 		RequestTS:     &entry.Start,
-		ClientIP:      entry.Request.ClientIP.String(),
-		ClientName:    strings.Join(entry.Request.ClientNames, "; "),
+		ClientIP:      clientIp,
+		ClientName:    clientName,
 		DurationMs:    entry.DurationMs,
 		Reason:        entry.Response.Reason,
 		ResponseType:  entry.Response.RType.String(),

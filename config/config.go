@@ -517,6 +517,7 @@ type QueryLogConfig struct {
 	LogRetentionDays uint64       `yaml:"logRetentionDays"`
 	CreationAttempts int          `yaml:"creationAttempts" default:"3"`
 	CreationCooldown Duration     `yaml:"creationCooldown" default:"2s"`
+	HideClient       bool         `yaml:"hideClient" default:"false"`
 }
 
 // RedisConfig configuration for the redis connection
