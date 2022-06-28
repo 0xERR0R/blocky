@@ -100,16 +100,16 @@ func (d *DatabaseWriter) Write(entry *LogEntry) {
 	domain := util.ExtractDomain(entry.Request.Req.Question[0])
 	eTLD, _ := publicsuffix.EffectiveTLDPlusOne(domain)
 
-	var clientIp string
-	var clientName string
+	var clientIP, clientName string
+
 	if !d.hideClient {
-		clientIp = entry.Request.ClientIP.String()
+		clientIP = entry.Request.ClientIP.String()
 		clientName = strings.Join(entry.Request.ClientNames, "; ")
 	}
 
 	e := &logEntry{
 		RequestTS:     &entry.Start,
-		ClientIP:      clientIp,
+		ClientIP:      clientIP,
 		ClientName:    clientName,
 		DurationMs:    entry.DurationMs,
 		Reason:        entry.Response.Reason,
