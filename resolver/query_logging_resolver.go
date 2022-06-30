@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -25,6 +26,7 @@ type QueryLoggingResolver struct {
 	logChan          chan *querylog.LogEntry
 	writer           querylog.Writer
 	logType          config.QueryLogType
+	hideClient       bool
 }
 
 // NewQueryLoggingResolver returns a new resolver instance
@@ -42,10 +44,10 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 				writer, err = querylog.NewCSVWriter(cfg.Target, true, cfg.LogRetentionDays)
 			case config.QueryLogTypeMysql:
 				writer, err =
-					querylog.NewDatabaseWriter("mysql", cfg.Target, cfg.LogRetentionDays, defaultFlushPeriod, cfg.HideClient)
+					querylog.NewDatabaseWriter("mysql", cfg.Target, cfg.LogRetentionDays, defaultFlushPeriod)
 			case config.QueryLogTypePostgresql:
 				writer, err =
-					querylog.NewDatabaseWriter("postgresql", cfg.Target, cfg.LogRetentionDays, defaultFlushPeriod, cfg.HideClient)
+					querylog.NewDatabaseWriter("postgresql", cfg.Target, cfg.LogRetentionDays, defaultFlushPeriod)
 			case config.QueryLogTypeConsole:
 				writer = querylog.NewLoggerWriter()
 			case config.QueryLogTypeNone:
@@ -76,6 +78,7 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 		logChan:          logChan,
 		writer:           writer,
 		logType:          logType,
+		hideClient:       cfg.HideClient,
 	}
 
 	go resolver.writeLog()
@@ -129,8 +132,15 @@ func (r *QueryLoggingResolver) Resolve(request *model.Request) (*model.Response,
 
 // write entry: if log directory is configured, write to log file
 func (r *QueryLoggingResolver) writeLog() {
+	var emptyClientIP = net.ParseIP("0.0.0.0")
+	var emptyClientName []string
 	for logEntry := range r.logChan {
 		start := time.Now()
+
+		if r.hideClient {
+			logEntry.Request.ClientIP = emptyClientIP
+			logEntry.Request.ClientNames = emptyClientName
+		}
 
 		r.writer.Write(logEntry)
 
@@ -149,6 +159,7 @@ func (r *QueryLoggingResolver) Configuration() (result []string) {
 	result = append(result, fmt.Sprintf("type: \"%s\"", r.logType))
 	result = append(result, fmt.Sprintf("target: \"%s\"", r.target))
 	result = append(result, fmt.Sprintf("logRetentionDays: %d", r.logRetentionDays))
+	result = append(result, fmt.Sprintf("hideClient: %t", r.hideClient))
 
 	return
 }

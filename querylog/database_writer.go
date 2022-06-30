@@ -38,23 +38,22 @@ type DatabaseWriter struct {
 	pendingEntries   []*logEntry
 	lock             sync.RWMutex
 	dbFlushPeriod    time.Duration
-	hideClient       bool
 }
 
 func NewDatabaseWriter(dbType string, target string, logRetentionDays uint64,
-	dbFlushPeriod time.Duration, hideClient bool) (*DatabaseWriter, error) {
+	dbFlushPeriod time.Duration) (*DatabaseWriter, error) {
 	switch dbType {
 	case "mysql":
-		return newDatabaseWriter(mysql.Open(target), logRetentionDays, dbFlushPeriod, hideClient)
+		return newDatabaseWriter(mysql.Open(target), logRetentionDays, dbFlushPeriod)
 	case "postgresql":
-		return newDatabaseWriter(postgres.Open(target), logRetentionDays, dbFlushPeriod, hideClient)
+		return newDatabaseWriter(postgres.Open(target), logRetentionDays, dbFlushPeriod)
 	}
 
 	return nil, fmt.Errorf("incorrect database type provided: %s", dbType)
 }
 
 func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64,
-	dbFlushPeriod time.Duration, hideClient bool) (*DatabaseWriter, error) {
+	dbFlushPeriod time.Duration) (*DatabaseWriter, error) {
 	db, err := gorm.Open(target, &gorm.Config{
 		Logger: logger.New(
 			log.Log(),
@@ -78,8 +77,7 @@ func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64,
 	w := &DatabaseWriter{
 		db:               db,
 		logRetentionDays: logRetentionDays,
-		dbFlushPeriod:    dbFlushPeriod,
-		hideClient:       hideClient}
+		dbFlushPeriod:    dbFlushPeriod}
 
 	go w.periodicFlush()
 
@@ -100,17 +98,10 @@ func (d *DatabaseWriter) Write(entry *LogEntry) {
 	domain := util.ExtractDomain(entry.Request.Req.Question[0])
 	eTLD, _ := publicsuffix.EffectiveTLDPlusOne(domain)
 
-	var clientIP, clientName string
-
-	if !d.hideClient {
-		clientIP = entry.Request.ClientIP.String()
-		clientName = strings.Join(entry.Request.ClientNames, "; ")
-	}
-
 	e := &logEntry{
 		RequestTS:     &entry.Start,
-		ClientIP:      clientIP,
-		ClientName:    clientName,
+		ClientIP:      entry.Request.ClientIP.String(),
+		ClientName:    strings.Join(entry.Request.ClientNames, "; "),
 		DurationMs:    entry.DurationMs,
 		Reason:        entry.Response.Reason,
 		ResponseType:  entry.Response.RType.String(),
