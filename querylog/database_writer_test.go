@@ -21,7 +21,7 @@ var _ = Describe("DatabaseWriter", func() {
 		When("New log entry was created", func() {
 			It("should be persisted in the database", func() {
 				sqlite := sqlite.Open("file::memory:")
-				writer, err := newDatabaseWriter(sqlite, 7, time.Millisecond, false)
+				writer, err := newDatabaseWriter(sqlite, 7, time.Millisecond)
 				Expect(err).Should(Succeed())
 				request := &model.Request{
 					Req: util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)),
@@ -54,7 +54,7 @@ var _ = Describe("DatabaseWriter", func() {
 		When("There are log entries with timestamp exceeding the retention period", func() {
 			It("these old entries should be deleted", func() {
 				sqlite := sqlite.Open("file::memory:")
-				writer, err := newDatabaseWriter(sqlite, 1, time.Millisecond, false)
+				writer, err := newDatabaseWriter(sqlite, 1, time.Millisecond)
 				Expect(err).Should(Succeed())
 
 				request := &model.Request{
@@ -112,7 +112,7 @@ var _ = Describe("DatabaseWriter", func() {
 
 		When("mysql connection parameters wrong", func() {
 			It("should be log with fatal", func() {
-				_, err := NewDatabaseWriter("mysql", "wrong param", 7, 1, false)
+				_, err := NewDatabaseWriter("mysql", "wrong param", 7, 1)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(HavePrefix("can't create database connection"))
 			})
@@ -120,7 +120,7 @@ var _ = Describe("DatabaseWriter", func() {
 
 		When("postgresql connection parameters wrong", func() {
 			It("should be log with fatal", func() {
-				_, err := NewDatabaseWriter("postgresql", "wrong param", 7, 1, false)
+				_, err := NewDatabaseWriter("postgresql", "wrong param", 7, 1)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(HavePrefix("can't create database connection"))
 			})
@@ -128,7 +128,7 @@ var _ = Describe("DatabaseWriter", func() {
 
 		When("invalid database type is specified", func() {
 			It("should be log with fatal", func() {
-				_, err := NewDatabaseWriter("invalidsql", "", 7, 1, false)
+				_, err := NewDatabaseWriter("invalidsql", "", 7, 1)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(HavePrefix("incorrect database type provided"))
 			})
