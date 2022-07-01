@@ -36,6 +36,39 @@ const (
 // )
 type NetProtocol uint16
 
+// IPVersion represents IP protocol version(s). ENUM(
+// dual // IPv4 and IPv6
+// v4   // IPv4 only
+// v6   // IPv6 only
+// )
+type IPVersion uint8
+
+func (ipv IPVersion) Net() string {
+	switch ipv {
+	case IPVersionDual:
+		return "ip"
+	case IPVersionV4:
+		return "ipv4"
+	case IPVersionV6:
+		return "ipv6"
+	}
+
+	panic(fmt.Errorf("bad value: %s", ipv))
+}
+
+func (ipv IPVersion) QTypes() []dns.Type {
+	switch ipv {
+	case IPVersionDual:
+		return []dns.Type{dns.Type(dns.TypeA), dns.Type(dns.TypeAAAA)}
+	case IPVersionV4:
+		return []dns.Type{dns.Type(dns.TypeA)}
+	case IPVersionV6:
+		return []dns.Type{dns.Type(dns.TypeAAAA)}
+	}
+
+	panic(fmt.Errorf("bad value: %s", ipv))
+}
+
 // QueryLogType type of the query log ENUM(
 // console // use logger as fallback
 // none // no logging
@@ -408,6 +441,7 @@ func extractNet(upstream string) (NetProtocol, string) {
 type Config struct {
 	Upstream            UpstreamConfig            `yaml:"upstream"`
 	UpstreamTimeout     Duration                  `yaml:"upstreamTimeout" default:"2s"`
+	ConnectIPVersion    IPVersion                 `yaml:"connectIPVersion"`
 	CustomDNS           CustomDNSConfig           `yaml:"customDNS"`
 	Conditional         ConditionalUpstreamConfig `yaml:"conditional"`
 	Blocking            BlockingConfig            `yaml:"blocking"`

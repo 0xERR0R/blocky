@@ -12,6 +12,77 @@ import (
 )
 
 const (
+	// IPVersionDual is a IPVersion of type Dual.
+	// IPv4 and IPv6
+	IPVersionDual IPVersion = iota
+	// IPVersionV4 is a IPVersion of type V4.
+	// IPv4 only
+	IPVersionV4
+	// IPVersionV6 is a IPVersion of type V6.
+	// IPv6 only
+	IPVersionV6
+)
+
+const _IPVersionName = "dualv4v6"
+
+var _IPVersionNames = []string{
+	_IPVersionName[0:4],
+	_IPVersionName[4:6],
+	_IPVersionName[6:8],
+}
+
+// IPVersionNames returns a list of possible string values of IPVersion.
+func IPVersionNames() []string {
+	tmp := make([]string, len(_IPVersionNames))
+	copy(tmp, _IPVersionNames)
+	return tmp
+}
+
+var _IPVersionMap = map[IPVersion]string{
+	IPVersionDual: _IPVersionName[0:4],
+	IPVersionV4:   _IPVersionName[4:6],
+	IPVersionV6:   _IPVersionName[6:8],
+}
+
+// String implements the Stringer interface.
+func (x IPVersion) String() string {
+	if str, ok := _IPVersionMap[x]; ok {
+		return str
+	}
+	return fmt.Sprintf("IPVersion(%d)", x)
+}
+
+var _IPVersionValue = map[string]IPVersion{
+	_IPVersionName[0:4]: IPVersionDual,
+	_IPVersionName[4:6]: IPVersionV4,
+	_IPVersionName[6:8]: IPVersionV6,
+}
+
+// ParseIPVersion attempts to convert a string to a IPVersion
+func ParseIPVersion(name string) (IPVersion, error) {
+	if x, ok := _IPVersionValue[name]; ok {
+		return x, nil
+	}
+	return IPVersion(0), fmt.Errorf("%s is not a valid IPVersion, try [%s]", name, strings.Join(_IPVersionNames, ", "))
+}
+
+// MarshalText implements the text marshaller method
+func (x IPVersion) MarshalText() ([]byte, error) {
+	return []byte(x.String()), nil
+}
+
+// UnmarshalText implements the text unmarshaller method
+func (x *IPVersion) UnmarshalText(text []byte) error {
+	name := string(text)
+	tmp, err := ParseIPVersion(name)
+	if err != nil {
+		return err
+	}
+	*x = tmp
+	return nil
+}
+
+const (
 	// NetProtocolTcpUdp is a NetProtocol of type Tcp+Udp.
 	// TCP and UDP protocols
 	NetProtocolTcpUdp NetProtocol = iota

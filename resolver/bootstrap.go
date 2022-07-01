@@ -98,18 +98,10 @@ func (b *Bootstrap) UpstreamIPs(r *UpstreamResolver) (*IPSet, error) {
 func (b *Bootstrap) resolveUpstream(r Resolver, host string) ([]net.IP, error) {
 	// Use system resolver if no bootstrap is configured
 	if b.resolver == nil {
-		filteredQTypes := config.GetConfig().Filtering.QueryTypes
-
-		network := "ip"
-		if filteredQTypes.Contains(dns.Type(dns.TypeAAAA)) {
-			network = "ip4"
-		} else if filteredQTypes.Contains(dns.Type(dns.TypeA)) {
-			network = "ip6"
-		}
-
+		cfg := config.GetConfig()
 		ctx := context.Background()
 
-		timeout := config.GetConfig().UpstreamTimeout
+		timeout := cfg.UpstreamTimeout
 		if timeout != 0 {
 			var cancel context.CancelFunc
 
@@ -117,7 +109,7 @@ func (b *Bootstrap) resolveUpstream(r Resolver, host string) ([]net.IP, error) {
 			defer cancel()
 		}
 
-		return b.systemResolver.LookupIP(ctx, network, host)
+		return b.systemResolver.LookupIP(ctx, cfg.ConnectIPVersion.Net(), host)
 	}
 
 	if r == b.upstream {
@@ -147,14 +139,16 @@ func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 				return nil, err
 			}
 
-			filteredQTypes := config.GetConfig().Filtering.QueryTypes
+			connectIPVersion := config.GetConfig().ConnectIPVersion
 
 			var qTypes []dns.Type
 
 			switch {
-			case strings.HasSuffix(network, "4") || filteredQTypes.Contains(dns.Type(dns.TypeAAAA)):
+			case connectIPVersion != config.IPVersionDual: // ignore `network` if a specific version is configured
+				qTypes = connectIPVersion.QTypes()
+			case strings.HasSuffix(network, "4"):
 				qTypes = []dns.Type{dns.Type(dns.TypeA)}
-			case strings.HasSuffix(network, "6") || filteredQTypes.Contains(dns.Type(dns.TypeA)):
+			case strings.HasSuffix(network, "6"):
 				qTypes = []dns.Type{dns.Type(dns.TypeAAAA)}
 			default:
 				qTypes = v4v6QTypes
