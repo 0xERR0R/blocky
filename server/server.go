@@ -397,6 +397,7 @@ func createQueryResolver(
 
 	r = resolver.Chain(
 		resolver.NewFilteringResolver(cfg.Filtering),
+		resolver.NewFqdnOnlyResolver(*cfg),
 		clientNamesResolver,
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
 		resolver.NewMetricsResolver(cfg.Prometheus),

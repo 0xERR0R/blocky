@@ -12,6 +12,11 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+const (
+	contentTypeHeader = "content-type"
+	jsonContentType   = "application/json"
+)
+
 // BlockingControl interface to control the blocking status
 type BlockingControl interface {
 	EnableBlocking()
@@ -57,7 +62,8 @@ func registerListRefreshEndpoints(router chi.Router, refresher ListRefresher) {
 // @Tags lists
 // @Success 200   "Lists were reloaded"
 // @Router /lists/refresh [post]
-func (l *ListRefreshEndpoint) apiListRefresh(_ http.ResponseWriter, _ *http.Request) {
+func (l *ListRefreshEndpoint) apiListRefresh(rw http.ResponseWriter, _ *http.Request) {
+	rw.Header().Set(contentTypeHeader, jsonContentType)
 	l.refresher.RefreshLists()
 }
 
@@ -75,10 +81,12 @@ func registerBlockingEndpoints(router chi.Router, control BlockingControl) {
 // @Tags blocking
 // @Success 200   "Blocking is enabled"
 // @Router /blocking/enable [get]
-func (s *BlockingEndpoint) apiBlockingEnable(_ http.ResponseWriter, _ *http.Request) {
+func (s *BlockingEndpoint) apiBlockingEnable(rw http.ResponseWriter, _ *http.Request) {
 	log.Log().Info("enabling blocking...")
 
 	s.control.EnableBlocking()
+
+	rw.Header().Set(contentTypeHeader, jsonContentType)
 }
 
 // apiBlockingDisable is the http endpoint to disable the blocking status
@@ -97,6 +105,8 @@ func (s *BlockingEndpoint) apiBlockingDisable(rw http.ResponseWriter, req *http.
 		groups   []string
 		err      error
 	)
+
+	rw.Header().Set(contentTypeHeader, jsonContentType)
 
 	// parse duration from query parameter
 	durationParam := req.URL.Query().Get("duration")
@@ -131,6 +141,8 @@ func (s *BlockingEndpoint) apiBlockingDisable(rw http.ResponseWriter, req *http.
 // @Router /blocking/status [get]
 func (s *BlockingEndpoint) apiBlockingStatus(rw http.ResponseWriter, _ *http.Request) {
 	status := s.control.BlockingStatus()
+
+	rw.Header().Set(contentTypeHeader, jsonContentType)
 
 	response, err := json.Marshal(status)
 	util.LogOnError("unable to marshal response ", err)

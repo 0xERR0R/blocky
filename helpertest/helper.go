@@ -40,7 +40,8 @@ func TestServer(data string) *httptest.Server {
 }
 
 // DoGetRequest performs a GET request
-func DoGetRequest(url string, fn func(w http.ResponseWriter, r *http.Request)) (code int, body *bytes.Buffer) {
+func DoGetRequest(url string,
+	fn func(w http.ResponseWriter, r *http.Request)) (*httptest.ResponseRecorder, *bytes.Buffer) {
 	r, _ := http.NewRequest("GET", url, nil)
 
 	rr := httptest.NewRecorder()
@@ -48,7 +49,7 @@ func DoGetRequest(url string, fn func(w http.ResponseWriter, r *http.Request)) (
 
 	handler.ServeHTTP(rr, r)
 
-	return rr.Code, rr.Body
+	return rr, rr.Body
 }
 
 // BeDNSRecord returns new dns matcher
