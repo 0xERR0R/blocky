@@ -24,7 +24,7 @@ var _ = Describe("FileWriter", func() {
 	var tmpDir string
 	var err error
 	BeforeEach(func() {
-		tmpDir, err = ioutil.TempDir("", "fileWriter")
+		tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
 		Expect(err).Should(Succeed())
 	})
 	AfterEach(func() {
@@ -40,8 +40,6 @@ var _ = Describe("FileWriter", func() {
 		})
 		When("New log entry was created", func() {
 			It("should be logged in one file", func() {
-				tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
-				Expect(err).Should(Succeed())
 				writer, _ := NewCSVWriter(tmpDir, false, 0)
 				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
 
@@ -87,8 +85,6 @@ var _ = Describe("FileWriter", func() {
 			})
 
 			It("should be logged in separate files per client", func() {
-				tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
-				Expect(err).Should(Succeed())
 				writer, _ := NewCSVWriter(tmpDir, true, 0)
 				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
 
@@ -138,8 +134,6 @@ var _ = Describe("FileWriter", func() {
 		})
 		When("Cleanup is called", func() {
 			It("should delete old files", func() {
-				tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
-				Expect(err).Should(Succeed())
 				writer, _ := NewCSVWriter(tmpDir, false, 1)
 				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
 
@@ -178,14 +172,18 @@ var _ = Describe("FileWriter", func() {
 					})
 				})
 
-				files, err := ioutil.ReadDir(tmpDir)
-				Expect(err).Should(Succeed())
-				Expect(files).Should(HaveLen(2))
+				Eventually(func(g Gomega) int {
+					files, err := ioutil.ReadDir(tmpDir)
+					g.Expect(err).Should(Succeed())
+					return len(files)
+				}).Should(Equal(2))
 				writer.CleanUp()
 
-				files, err = ioutil.ReadDir(tmpDir)
-				Expect(err).Should(Succeed())
-				Expect(files).Should(HaveLen(1))
+				Eventually(func(g Gomega) int {
+					files, err := ioutil.ReadDir(tmpDir)
+					g.Expect(err).Should(Succeed())
+					return len(files)
+				}).Should(Equal(1))
 			})
 		})
 	})
