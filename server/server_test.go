@@ -290,18 +290,19 @@ var _ = Describe("Running DNS server", func() {
 	Describe("Prometheus endpoint", func() {
 		When("Prometheus URL is called", func() {
 			It("should return prometheus data", func() {
-				r, err := http.Get("http://localhost:4000/metrics")
+				resp, err := http.Get("http://localhost:4000/metrics")
 				Expect(err).Should(Succeed())
-				Expect(r.StatusCode).Should(Equal(http.StatusOK))
+				Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
 			})
 		})
 	})
 	Describe("Root endpoint", func() {
 		When("Root URL is called", func() {
 			It("should return root page", func() {
-				r, err := http.Get("http://localhost:4000/")
+				resp, err := http.Get("http://localhost:4000/")
 				Expect(err).Should(Succeed())
-				Expect(r.StatusCode).Should(Equal(http.StatusOK))
+				Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+				Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "text/html; charset=UTF-8"))
 			})
 		})
 	})
@@ -321,7 +322,8 @@ var _ = Describe("Running DNS server", func() {
 				Expect(err).Should(Succeed())
 				defer resp.Body.Close()
 
-				Expect(resp.StatusCode).Should(Equal(http.StatusOK))
+				Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+				Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/json"))
 
 				var result api.QueryResult
 				err = json.NewDecoder(resp.Body).Decode(&result)
@@ -384,6 +386,8 @@ var _ = Describe("Running DNS server", func() {
 					defer resp.Body.Close()
 
 					Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+					Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/dns-message"))
+
 					rawMsg, err := ioutil.ReadAll(resp.Body)
 					Expect(err).Should(Succeed())
 
@@ -446,6 +450,7 @@ var _ = Describe("Running DNS server", func() {
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()
 					Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+					Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/dns-message"))
 					rawMsg, err := ioutil.ReadAll(resp.Body)
 					Expect(err).Should(Succeed())
 
@@ -465,6 +470,7 @@ var _ = Describe("Running DNS server", func() {
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()
 					Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+					Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/dns-message"))
 					rawMsg, err := ioutil.ReadAll(resp.Body)
 					Expect(err).Should(Succeed())
 

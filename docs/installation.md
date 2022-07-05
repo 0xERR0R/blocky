@@ -144,6 +144,10 @@ For complex setups, splitting the configuration between multiple YAML files migh
 
     These projects are maintained by other people.
 
+### Web UI
+
+[Blocky Frontend](https://github.com/Mozart409/blocky-frontend) provides a Web UI to control blocky. See linked project for installation instructions.
+
 ### Run with helm chart on Kubernetes
 
 See [this repo](https://github.com/k8s-at-home/charts/tree/master/charts/stable/blocky)

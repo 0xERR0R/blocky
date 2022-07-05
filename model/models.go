@@ -17,6 +17,7 @@ import (
 // CUSTOMDNS // the query was resolved by a custom rule
 // HOSTSFILE // the query was resolved by looking up the hosts file
 // FILTERED // the query was filtered by query type
+// NOTFQDN // the query was filtered as it is not fqdn conform
 // )
 type ResponseType int
 

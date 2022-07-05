@@ -134,7 +134,6 @@ Works only on Linux/\*nix OS due to golang limitations under Windows.
           - 123.123.123.123
     ```
 
-
 ## Filtering
 
 Under certain circumstances, it may be useful to filter some types of DNS queries. You can define one or more DNS query
@@ -149,6 +148,18 @@ types, all queries with these types will be dropped (empty answer will be return
     ```
 
 This configuration will drop all 'AAAA' (IPv6) queries.
+
+## FQDN only
+
+In domain environments, it may be usefull to only response to FQDN requests. If this option is enabled blocky respond immidiatly
+with NXDOMAIN if the request is not a valid FQDN. The request is therfore not further processed by other options like custom or conditional.
+Please be aware that by enabling it your hostname resolution will break unless every hostname is part of a domain.
+
+!!! example
+
+    ```yaml
+    fqdnOnly: true
+    ```
 
 ## Custom DNS
 
@@ -186,7 +197,7 @@ The query "printer.home" will be rewritten to "printer.lan" and return 192.168.1
 
 With parameter `filterUnmappedTypes = true` (default), blocky will filter all queries with unmapped types, for example:
 AAAA for "printer.lan" or TXT for "otherdevice.lan".
-With `filterUnmappedTypes = true` a query AAAA "printer.lan" will be forwarded to the upstream DNS server.
+With `filterUnmappedTypes = false` a query AAAA "printer.lan" will be forwarded to the upstream DNS server.
 
 ## Conditional DNS resolution
 

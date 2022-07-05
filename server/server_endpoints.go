@@ -25,9 +25,12 @@ import (
 )
 
 const (
-	dohMessageLimit = 512
-	dnsContentType  = "application/dns-message"
-	corsMaxAge      = 5 * time.Minute
+	dohMessageLimit   = 512
+	contentTypeHeader = "content-type"
+	dnsContentType    = "application/dns-message"
+	jsonContentType   = "application/json"
+	htmlContentType   = "text/html; charset=UTF-8"
+	corsMaxAge        = 5 * time.Minute
 )
 
 func secureHeader(next http.Handler) http.Handler {
@@ -173,6 +176,9 @@ func extractIP(r *http.Request) string {
 // @Router /query [post]
 func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 	var queryRequest api.QueryRequest
+
+	rw.Header().Set(contentTypeHeader, jsonContentType)
+
 	err := json.NewDecoder(req.Body).Decode(&queryRequest)
 
 	if err != nil {
@@ -253,7 +259,7 @@ func createRouter(cfg *config.Config) *chi.Mux {
 
 func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 	router.Get("/", func(writer http.ResponseWriter, request *http.Request) {
-		writer.Header().Set("content-type", dnsContentType)
+		writer.Header().Set(contentTypeHeader, htmlContentType)
 		t := template.New("index")
 		_, _ = t.Parse(web.IndexTmpl)
 

@@ -98,9 +98,12 @@ const (
 	// ResponseTypeFILTERED is a ResponseType of type FILTERED.
 	// the query was filtered by query type
 	ResponseTypeFILTERED
+	// ResponseTypeNOTFQDN is a ResponseType of type NOTFQDN.
+	// the query was filtered as it is not fqdn conform
+	ResponseTypeNOTFQDN
 )
 
-const _ResponseTypeName = "RESOLVEDCACHEDBLOCKEDCONDITIONALCUSTOMDNSHOSTSFILEFILTERED"
+const _ResponseTypeName = "RESOLVEDCACHEDBLOCKEDCONDITIONALCUSTOMDNSHOSTSFILEFILTEREDNOTFQDN"
 
 var _ResponseTypeNames = []string{
 	_ResponseTypeName[0:8],
@@ -110,6 +113,7 @@ var _ResponseTypeNames = []string{
 	_ResponseTypeName[32:41],
 	_ResponseTypeName[41:50],
 	_ResponseTypeName[50:58],
+	_ResponseTypeName[58:65],
 }
 
 // ResponseTypeNames returns a list of possible string values of ResponseType.
@@ -127,6 +131,7 @@ var _ResponseTypeMap = map[ResponseType]string{
 	ResponseTypeCUSTOMDNS:   _ResponseTypeName[32:41],
 	ResponseTypeHOSTSFILE:   _ResponseTypeName[41:50],
 	ResponseTypeFILTERED:    _ResponseTypeName[50:58],
+	ResponseTypeNOTFQDN:     _ResponseTypeName[58:65],
 }
 
 // String implements the Stringer interface.
@@ -145,6 +150,7 @@ var _ResponseTypeValue = map[string]ResponseType{
 	_ResponseTypeName[32:41]: ResponseTypeCUSTOMDNS,
 	_ResponseTypeName[41:50]: ResponseTypeHOSTSFILE,
 	_ResponseTypeName[50:58]: ResponseTypeFILTERED,
+	_ResponseTypeName[58:65]: ResponseTypeNOTFQDN,
 }
 
 // ParseResponseType attempts to convert a string to a ResponseType.
