@@ -24,7 +24,7 @@ var _ = Describe("FileWriter", func() {
 	var tmpDir string
 	var err error
 	BeforeEach(func() {
-		tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
+		tmpDir, err = ioutil.TempDir("", "fileWriter")
 		Expect(err).Should(Succeed())
 	})
 	AfterEach(func() {
