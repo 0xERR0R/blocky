@@ -33,11 +33,11 @@ build:  ## Build binary
 
 test:  ## run tests
 	go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
-	$(shell go env GOPATH)/bin/ginkgo --flake-attempts=5 -v --coverprofile=coverage.txt --covermode=atomic -cover ./...
+	$(shell go env GOPATH)/bin/ginkgo -v --coverprofile=coverage.txt --covermode=atomic -cover ./...
 
 race: ## run tests with race detector
 	go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
-	$(shell go env GOPATH)/bin/ginkgo --flake-attempts=5 --race ./...
+	$(shell go env GOPATH)/bin/ginkgo --race ./...
 
 lint: build ## run golangcli-lint checks
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.46.2
