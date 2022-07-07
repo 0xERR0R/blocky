@@ -200,7 +200,7 @@ var _ = Describe("Downloader", func() {
 					WithAttempts(3),
 					WithCooldown(time.Millisecond))
 			})
-			It("Should perform a retry until max retry attempt count is reached and return DNSError", func() {
+			It("Should perform a retry until max retry attempt count is reached and return DNSError", FlakeAttempts(5), func() {
 				reader, err := sut.DownloadFile("http://some.domain.which.does.not.exist")
 				Expect(err).Should(HaveOccurred())
 				var dnsError *net.DNSError
