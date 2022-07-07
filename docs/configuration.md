@@ -232,8 +232,12 @@ The optional parameter fallbackOnFailure, if false (default), return empty resul
     You can use `.` as wildcard for all non full qualified domains (domains without dot)
 
 In this example, a DNS query "client.fritz.box" will be redirected to the router's DNS server at 192.168.178.1 and client.lan.net to 192.170.1.2 and 192.170.1.3.
-The query "client.example.com" will be rewritten to "client.fritz.box" and also redirected to the resolver at 192.168.178.1. If not found and if `fallbackOnFailure` was set to `true`, the original query "blog.example.com" will be sent upstream.
-All unqualified hostnames (e.g. "test") will be redirected to the DNS server at 168.168.0.1
+The query "client.example.com" will be rewritten to "client.fritz.box" and also redirected to the resolver at 192.168.178.1.
+
+If not found and if `fallbackOnFailure` was set to `true`, the original query "blog.example.com" will be sent upstream.
+
+All unqualified hostnames (e.g. "test") will be redirected to the DNS server at 168.168.0.1.
+
 One usecase for `fallbackOnFailure` is when having split DNS for internal and external (internet facing) users, but not all subdomains are listed in the internal domain.
 
 ## Client name lookup
