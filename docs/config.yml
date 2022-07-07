@@ -35,6 +35,10 @@ customDNS:
 # optional: definition, which DNS resolver(s) should be used for queries to the domain (with all sub-domains). Multiple resolvers must be separated by a comma
 # Example: Query client.fritz.box will ask DNS server 192.168.178.1. This is necessary for local network, to resolve clients by host name
 conditional:
+  # optional: if false (default), return empty result if after rewrite, the mapped resolver returned an empty answer. If true, the original query will be sent to the upstream resolver
+  # Example: The query "blog.example.com" will be rewritten to "blog.fritz.box" and also redirected to the resolver at 192.168.178.1. If not found and if `fallbackOnFailure` was set to `true`, the original query "blog.example.com" will be sent upstream.
+  # Usage: One usecase when having split DNS for internal and external (internet facing) users, but not all subdomains are listed in the internal domain.
+  fallbackOnFailure: false
   # optional: replace domain in the query with other domain before resolver lookup in the mapping
   rewrite:
     example.com: fritz.box
