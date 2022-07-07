@@ -11,6 +11,11 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+const (
+	sampleOriginal  = "test.original."
+	sampleRewritten = "test.rewritten."
+)
+
 var _ = Describe("RewriterResolver", func() {
 	var (
 		sut       ChainedResolver
@@ -90,8 +95,8 @@ var _ = Describe("RewriterResolver", func() {
 		})
 
 		It("should modify names", func() {
-			fqdnOriginal = "test.original."
-			fqdnRewritten = "test.rewritten."
+			fqdnOriginal = sampleOriginal
+			fqdnRewritten = sampleRewritten
 		})
 
 		It("should modify subdomains", func() {
@@ -110,8 +115,8 @@ var _ = Describe("RewriterResolver", func() {
 		})
 
 		It("should call next resolver", func() {
-			fqdnOriginal = "test.original."
-			fqdnRewritten = "test.rewritten."
+			fqdnOriginal = sampleOriginal
+			fqdnRewritten = sampleRewritten
 			fqdnEmptyResponse = true
 
 			// Make inner call the NoOpResolver
@@ -134,8 +139,8 @@ var _ = Describe("RewriterResolver", func() {
 		})
 
 		It("should not call next resolver", func() {
-			fqdnOriginal = "test.original."
-			fqdnRewritten = "test.rewritten."
+			fqdnOriginal = sampleOriginal
+			fqdnRewritten = sampleRewritten
 
 			// Make inner return a nil Answer but not an empty Response
 			mInner.ResolveFn = func(req *model.Request) (*model.Response, error) {
@@ -195,8 +200,8 @@ var _ = Describe("RewriterResolver", func() {
 		})
 
 		It("should modify names", func() {
-			fqdnOriginal = "test.original."
-			fqdnRewritten = "test.rewritten."
+			fqdnOriginal = sampleOriginal
+			fqdnRewritten = sampleRewritten
 		})
 
 		It("should modify subdomains", func() {
@@ -215,8 +220,8 @@ var _ = Describe("RewriterResolver", func() {
 		})
 
 		It("should call next resolver", func() {
-			fqdnOriginal = "test.original."
-			fqdnRewritten = "test.rewritten."
+			fqdnOriginal = sampleOriginal
+			fqdnRewritten = sampleRewritten
 
 			// Make inner return a nil Answer but not an empty Response
 			mInner.ResolveFn = func(req *model.Request) (*model.Response, error) {
