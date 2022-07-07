@@ -128,6 +128,92 @@ var _ = Describe("RewriterResolver", func() {
 		})
 	})
 
+	When("has rewrite and fallback on failure", func() {
+		var request *model.Request
+		var fqdnEmptyResponse bool
+
+		BeforeEach(func() {
+			sutConfig = config.RewriteConfig{Rewrite: map[string]string{"original": "rewritten"}, FallbackOnFail: true}
+		})
+
+		AfterEach(func() {
+			request = newRequest(fqdnOriginal, dns.Type(dns.TypeA))
+
+			mInner.On("Resolve", mock.Anything)
+			mInner.ResponseFn = func(req *dns.Msg) *dns.Msg {
+				Expect(req).Should(Equal(request.Req))
+
+				// Inner should see fqdnRewritten
+				q := req.Question[0]
+				Expect(q.Name).Should(Equal(fqdnRewritten))
+
+				res := new(dns.Msg)
+				res.SetReply(req)
+
+				ptr := new(dns.PTR)
+				ptr.Ptr = fqdnRewritten
+				ptr.Hdr = util.CreateHeader(q, 1)
+				res.Answer = append(res.Answer, ptr)
+
+				return res
+			}
+
+			resp, err := sut.Resolve(request)
+			Expect(err).Should(Succeed())
+			if resp != mNextResponse {
+				Expect(resp.Res.Question[0].Name).Should(Equal(fqdnOriginal))
+				if !fqdnEmptyResponse {
+					Expect(resp.Res.Answer[0].Header().Name).Should(Equal(fqdnOriginal))
+				} else {
+					Expect(resp.Res.Answer).Should(BeEmpty())
+				}
+			}
+		})
+
+		It("should modify names", func() {
+			fqdnOriginal = "test.original."
+			fqdnRewritten = "test.rewritten."
+		})
+
+		It("should modify subdomains", func() {
+			fqdnOriginal = "sub.test.original."
+			fqdnRewritten = "sub.test.rewritten."
+		})
+
+		It("should not modify unknown names", func() {
+			fqdnOriginal = "test.untouched."
+			fqdnRewritten = fqdnOriginal
+		})
+
+		It("should not modify name if subdomain", func() {
+			fqdnOriginal = "test.original.untouched."
+			fqdnRewritten = fqdnOriginal
+		})
+
+		It("should call next resolver", func() {
+			fqdnOriginal = "test.original."
+			fqdnRewritten = "test.rewritten."
+
+			// Make inner return a nil Answer but not an empty Response
+			mInner.ResolveFn = func(req *model.Request) (*model.Response, error) {
+				Expect(req).Should(Equal(request))
+
+				// Inner should see fqdnRewritten
+				Expect(req.Req.Question[0].Name).Should(Equal(fqdnRewritten))
+
+				return &model.Response{Res: &dns.Msg{Question: req.Req.Question, Answer: nil}}, nil
+			}
+
+			// Resolver after RewriterResolver should see `fqdnOriginal`
+			mNext.On("Resolve", mock.Anything)
+			mNext.ResolveFn = func(req *model.Request) (*model.Response, error) {
+				Expect(req.Req.Question[0].Name).Should(Equal(fqdnOriginal))
+
+				return mNextResponse, nil
+			}
+		})
+	})
+
 	Describe("Configuration output", func() {
 		When("resolver is enabled", func() {
 			It("should return configuration", func() {
