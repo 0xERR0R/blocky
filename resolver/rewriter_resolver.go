@@ -72,23 +72,26 @@ func (r *RewriterResolver) Resolve(request *model.Request) (*model.Response, err
 	logger.WithField("resolver", Name(r.inner)).Trace("go to inner resolver")
 
 	response, err := r.inner.Resolve(request)
-	if err != nil {
-		return response, err
-	}
+	// Test for error after checking for fallbackOnFail
 
 	// Revert the request: must be done before calling r.next
 	request.Req = original
 
-	if response == NoResponse {
-		// Inner resolver had no response, continue with the normal chain
-		logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
+	fallbackCondition := err != nil || (response != NoResponse && response.Res.Answer == nil)
+	if r.fallbackOnFail && fallbackCondition {
+		// Inner resolver had no answer, configuration requests fallback, continue with the normal chain
+		logger.WithField("next_resolver", Name(r.next)).Trace("fallback to next resolver")
 
 		return r.next.Resolve(request)
 	}
 
-	if r.fallbackOnFail && response.Res.Answer == nil {
-		// Inner resolver had no answer, configuration requests fallback, continue with the normal chain
-		logger.WithField("next_resolver", Name(r.next)).Trace("fallback to next resolver")
+	if err != nil {
+		return response, err
+	}
+
+	if response == NoResponse {
+		// Inner resolver had no response, continue with the normal chain
+		logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
 
 		return r.next.Resolve(request)
 	}
