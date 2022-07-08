@@ -33,7 +33,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/onsi/ginkgo/v2 v2.1.4
-	gorm.io/driver/postgres v1.3.7
+	gorm.io/driver/postgres v1.3.8
 )
 
 require (
