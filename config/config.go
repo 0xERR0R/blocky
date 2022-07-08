@@ -331,7 +331,6 @@ func ParseUpstream(upstream string) (Upstream, error) {
 	// string contains host:port
 	if err == nil {
 		p, err := ConvertPort(portString)
-
 		if err != nil {
 			err = fmt.Errorf("can't convert port to number (1 - 65535) %w", err)
 
@@ -430,11 +429,13 @@ type Config struct {
 	Filtering    FilteringConfig `yaml:"filtering"`
 }
 
-type BootstrapConfig bootstrapConfig // to avoid infinite recursion. See BootstrapConfig.UnmarshalYAML.
-type bootstrapConfig struct {
-	Upstream Upstream `yaml:"upstream"`
-	IPs      []net.IP `yaml:"ips"`
-}
+type (
+	BootstrapConfig bootstrapConfig // to avoid infinite recursion. See BootstrapConfig.UnmarshalYAML.
+	bootstrapConfig struct {
+		Upstream Upstream `yaml:"upstream"`
+		IPs      []net.IP `yaml:"ips"`
+	}
+)
 
 // PrometheusConfig contains the config values for prometheus
 type PrometheusConfig struct {
@@ -653,7 +654,6 @@ func ConvertPort(in string) (uint16, error) {
 
 	var p uint64
 	p, err := strconv.ParseUint(strings.TrimSpace(in), base, bitSize)
-
 	if err != nil {
 		return 0, err
 	}
