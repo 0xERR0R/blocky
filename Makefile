@@ -32,10 +32,12 @@ build:  ## Build binary
 	go build -v -ldflags="-w -s -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" -o $(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 
 test:  ## run tests
-	go test -v -coverprofile=coverage.txt -covermode=atomic -cover ./...
+	go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+	$(shell go env GOPATH)/bin/ginkgo -v --coverprofile=coverage.txt --covermode=atomic -cover ./...
 
 race: ## run tests with race detector
-	go test -race -short ./...
+	go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+	$(shell go env GOPATH)/bin/ginkgo --race ./...
 
 lint: build ## run golangcli-lint checks
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.46.2
