@@ -207,10 +207,14 @@ hostname belongs to which IP address, all DNS queries for the local network shou
 
 The optional parameter `rewrite` behaves the same as with custom DNS.
 
+The optional parameter fallbackUpstream, if false (default), return empty result if after rewrite, the mapped resolver returned an empty answer. If true, the original query will be sent to the upstream resolver.
+# Usage: One usecase when having split DNS for internal and external (internet facing) users, but not all subdomains are listed in the internal domain.
+
 !!! example
 
     ```yaml
     conditional:
+      fallbackUpstream: false
       rewrite:
         example.com: fritz.box
         replace-me.com: with-this.com
@@ -228,9 +232,13 @@ The optional parameter `rewrite` behaves the same as with custom DNS.
     You can use `.` as wildcard for all non full qualified domains (domains without dot)
 
 In this example, a DNS query "client.fritz.box" will be redirected to the router's DNS server at 192.168.178.1 and client.lan.net to 192.170.1.2 and 192.170.1.3.
-The query "client.example.com" will be rewritten to "client.fritz.box" and also redirected to the resolver at 192.168.178.1. All unqualified hostnames (e.g. "test")
-will be redirected to the DNS server at 168.168.0.1
+The query "client.example.com" will be rewritten to "client.fritz.box" and also redirected to the resolver at 192.168.178.1.
 
+If not found and if `fallbackUpstream` was set to `true`, the original query "blog.example.com" will be sent upstream.
+
+All unqualified hostnames (e.g. "test") will be redirected to the DNS server at 168.168.0.1.
+
+One usecase for `fallbackUpstream` is when having split DNS for internal and external (internet facing) users, but not all subdomains are listed in the internal domain.
 
 ## Client name lookup
 
