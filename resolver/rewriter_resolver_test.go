@@ -161,9 +161,9 @@ var _ = Describe("RewriterResolver", func() {
 			mNext.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
 		})
 
-		When("has fallback on failure", func() {
+		When("has fallbackUpstream", func() {
 			BeforeEach(func() {
-				sutConfig.FallbackOnFail = true
+				sutConfig.FallbackUpstream = true
 			})
 
 			It("should call next resolver", func() {

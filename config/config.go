@@ -449,8 +449,8 @@ type UpstreamConfig struct {
 
 // RewriteConfig custom DNS configuration
 type RewriteConfig struct {
-	Rewrite        map[string]string `yaml:"rewrite"`
-	FallbackOnFail bool              `yaml:"fallbackOnFail" default:"false"`
+	Rewrite          map[string]string `yaml:"rewrite"`
+	FallbackUpstream bool              `yaml:"fallbackUpstream" default:"false"`
 }
 
 // CustomDNSConfig custom DNS configuration
