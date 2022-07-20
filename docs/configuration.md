@@ -1,6 +1,6 @@
 # Configuration
 
-This chapter describes all configuration options in `config.yaml`. You can download a reference file with all
+This chapter describes all configuration options in `config.yml`. You can download a reference file with all
 configuration properties as [JSON](config.yml).
 
 ??? example "reference configuration file"
@@ -189,10 +189,10 @@ domain must be separated by a comma.
     ```
 
 This configuration will also resolve any subdomain of the defined domain. For example a query "printer.lan" or "
-my.printer.lan" will return 192.168.178.3 as IP address.  
+my.printer.lan" will return 192.168.178.3 as IP address.
 
 With the optional parameter `rewrite` you can replace domain part of the query with the defined part **before** the
-resolver lookup is performed.  
+resolver lookup is performed.
 The query "printer.home" will be rewritten to "printer.lan" and return 192.168.178.3.
 
 With parameter `filterUnmappedTypes = true` (default), blocky will filter all queries with unmapped types, for example:

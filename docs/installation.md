@@ -8,7 +8,7 @@ You can choose one of the following installation options:
 
 ## Prepare your configuration
 
-Blocky supports single or multiple YAML files as configuration. Create new `config.yaml` with your configuration (
+Blocky supports single or multiple YAML files as configuration. Create new `config.yml` with your configuration (
 see [Configuration](configuration.md) for more details and all configuration options).
 
 Simple configuration file, which enables only basic features:
@@ -57,7 +57,7 @@ Default value is "/app/config.yml".
 
 Execute following command from the command line:
 
-```    
+```
 docker run --name blocky -v /path/to/config.yml:/app/config.yml -p 4000:4000 -p 53:53/udp spx01/blocky
 ```
 
@@ -125,7 +125,7 @@ volumes:
     driver_opts:
       type: cifs
       o: username=USER,password=PASSWORD,rw
-      device: //NAS_HOSTNAME/blocky  
+      device: //NAS_HOSTNAME/blocky
 ```
 
 #### Multiple configuration files
