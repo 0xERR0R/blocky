@@ -1,0 +1,7 @@
+port: 5300
+httpPort: 4000
+logLevel: info
+
+upstream:
+  default:
+    - 8.8.8.8
