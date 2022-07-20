@@ -30,6 +30,9 @@ const (
 
 	// PathDohQuery DoH Url
 	PathDohQuery = "/dns-query"
+
+	// HealthPath Url
+	HealthPath = "/health"
 )
 
 // QueryRequest is a data structure for a DNS request
@@ -60,4 +63,10 @@ type BlockingStatus struct {
 	DisabledGroups []string `json:"disabledGroups"`
 	// If blocking is temporary disabled: amount of seconds until blocking will be enabled
 	AutoEnableInSec uint `json:"autoEnableInSec"`
+}
+
+// HealthStatus represents the current health status
+type HealthStatus struct {
+	// Display version
+	Version string `json:"version"`
 }

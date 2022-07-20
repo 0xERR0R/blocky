@@ -296,6 +296,12 @@ func (r *BlockingResolver) BlockingStatus() api.BlockingStatus {
 	}
 }
 
+func (r *BlockingResolver) GetHealth() api.HealthStatus {
+	return api.HealthStatus{
+		Version: util.Version,
+	}
+}
+
 // returns groups, which have only whitelist entries
 func determineWhitelistOnlyGroups(cfg *config.BlockingConfig) (result map[string]bool) {
 	result = make(map[string]bool, len(cfg.WhiteLists))

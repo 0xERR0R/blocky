@@ -29,6 +29,11 @@ type ListRefresher interface {
 	RefreshLists()
 }
 
+// HealthControl interface to control the blocking status
+type HealthControl interface {
+	GetHealth() HealthStatus
+}
+
 // BlockingEndpoint endpoint for the blocking status control
 type BlockingEndpoint struct {
 	control BlockingControl
@@ -39,6 +44,11 @@ type ListRefreshEndpoint struct {
 	refresher ListRefresher
 }
 
+// HealthEndpoint endpoint for the blocking status control
+type HealthEndpoint struct {
+	control HealthControl
+}
+
 // RegisterEndpoint registers an implementation as HTTP endpoint
 func RegisterEndpoint(router chi.Router, t interface{}) {
 	if a, ok := t.(BlockingControl); ok {
@@ -47,6 +57,10 @@ func RegisterEndpoint(router chi.Router, t interface{}) {
 
 	if a, ok := t.(ListRefresher); ok {
 		registerListRefreshEndpoints(router, a)
+	}
+
+	if a, ok := t.(HealthControl); ok {
+		registerHealthEndpoint(router, a)
 	}
 }
 
@@ -73,6 +87,12 @@ func registerBlockingEndpoints(router chi.Router, control BlockingControl) {
 	router.Get(PathBlockingEnablePath, s.apiBlockingEnable)
 	router.Get(PathBlockingDisablePath, s.apiBlockingDisable)
 	router.Get(PathBlockingStatusPath, s.apiBlockingStatus)
+}
+
+func registerHealthEndpoint(router chi.Router, control HealthControl) {
+	s := &HealthEndpoint{control}
+	// register API endpoints
+	router.Get(HealthPath, s.apiHealth)
 }
 
 // apiBlockingEnable is the http endpoint to enable the blocking status
@@ -144,6 +164,23 @@ func (s *BlockingEndpoint) apiBlockingStatus(rw http.ResponseWriter, _ *http.Req
 
 	rw.Header().Set(contentTypeHeader, jsonContentType)
 
+	response, err := json.Marshal(status)
+	util.LogOnError("unable to marshal response ", err)
+
+	_, err = rw.Write(response)
+	util.LogOnError("unable to write response ", err)
+}
+
+// apiHealth is the http endpoint to check API health
+// @Summary API health
+// @Description get API health
+// @Tags health
+// @Success 200   "Health is OK"
+// @Router /health [get]
+func (s *HealthEndpoint) apiHealth(rw http.ResponseWriter, req *http.Request) {
+	rw.Header().Set(contentTypeHeader, jsonContentType)
+
+	status := s.control.GetHealth()
 	response, err := json.Marshal(status)
 	util.LogOnError("unable to marshal response ", err)
 

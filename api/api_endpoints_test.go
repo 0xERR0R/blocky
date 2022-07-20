@@ -6,6 +6,7 @@ import (
 	"time"
 
 	. "github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/util"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -21,6 +22,16 @@ type ListRefreshMock struct {
 	refreshTriggered bool
 }
 
+type HealthControlMock struct {
+	healthDisplayed bool
+}
+
+func (h *HealthControlMock) GetHealth() HealthStatus {
+	h.healthDisplayed = true
+
+	return HealthStatus{Version: util.Version}
+}
+
 func (l *ListRefreshMock) RefreshLists() {
 	l.refreshTriggered = true
 }
@@ -28,6 +39,7 @@ func (l *ListRefreshMock) RefreshLists() {
 func (b *BlockingControlMock) EnableBlocking() {
 	b.enabled = true
 }
+
 func (b *BlockingControlMock) DisableBlocking(_ time.Duration, disableGroups []string) error {
 	b.enabled = false
 
@@ -43,10 +55,10 @@ var _ = Describe("API tests", func() {
 	Describe("Register router", func() {
 		RegisterEndpoint(chi.NewRouter(), &BlockingControlMock{})
 		RegisterEndpoint(chi.NewRouter(), &ListRefreshMock{})
+		RegisterEndpoint(chi.NewRouter(), &HealthControlMock{})
 	})
 
 	Describe("Lists API", func() {
-
 		When("List refresh is called", func() {
 			r := &ListRefreshMock{}
 			sut := &ListRefreshEndpoint{refresher: r}
@@ -56,7 +68,18 @@ var _ = Describe("API tests", func() {
 				Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/json"))
 			})
 		})
+	})
 
+	Describe("Health API", func() {
+		When("Health endpoint is called", func() {
+			hc := &HealthControlMock{}
+			sut := &HealthEndpoint{control: hc}
+			It("should retrieve API health", func() {
+				resp, _ := DoGetRequest("/health", sut.apiHealth)
+				Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+				Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/json"))
+			})
+		})
 	})
 
 	Describe("Control blocking status via API", func() {
