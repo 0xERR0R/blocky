@@ -40,7 +40,6 @@ var _ = Describe("FileWriter", func() {
 		})
 		When("New log entry was created", func() {
 			It("should be logged in one file", func() {
-				tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
 				Expect(err).Should(Succeed())
 				writer, _ := NewCSVWriter(tmpDir, false, 0)
 				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
@@ -81,13 +80,12 @@ var _ = Describe("FileWriter", func() {
 					})
 				})
 
-				csvLines := readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02"))))
-				Expect(csvLines).Should(HaveLen(2))
-
+				Eventually(func(g Gomega) int {
+					return len(readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02")))))
+				}).Should(Equal(1))
 			})
 
 			It("should be logged in separate files per client", func() {
-				tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
 				Expect(err).Should(Succeed())
 				writer, _ := NewCSVWriter(tmpDir, true, 0)
 				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
@@ -128,17 +126,18 @@ var _ = Describe("FileWriter", func() {
 					})
 				})
 
-				csvLines := readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_client1.log", time.Now().Format("2006-01-02"))))
-				Expect(csvLines).Should(HaveLen(1))
+				Eventually(func(g Gomega) int {
+					return len(readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_client1.log", time.Now().Format("2006-01-02")))))
+				}).Should(Equal(1))
 
-				csvLines = readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_client2.log", time.Now().Format("2006-01-02"))))
-				Expect(csvLines).Should(HaveLen(1))
+				Eventually(func(g Gomega) int {
+					return len(readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_client2.log", time.Now().Format("2006-01-02")))))
+				}).Should(Equal(1))
 
 			})
 		})
 		When("Cleanup is called", func() {
 			It("should delete old files", func() {
-				tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
 				Expect(err).Should(Succeed())
 				writer, _ := NewCSVWriter(tmpDir, false, 1)
 				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
@@ -178,14 +177,18 @@ var _ = Describe("FileWriter", func() {
 					})
 				})
 
-				files, err := ioutil.ReadDir(tmpDir)
-				Expect(err).Should(Succeed())
-				Expect(files).Should(HaveLen(2))
+				Eventually(func(g Gomega) int {
+					files, err := ioutil.ReadDir(tmpDir)
+					g.Expect(err).Should(Succeed())
+					return len(files)
+				}).Should(Equal(2))
 				writer.CleanUp()
 
-				files, err = ioutil.ReadDir(tmpDir)
-				Expect(err).Should(Succeed())
-				Expect(files).Should(HaveLen(1))
+				Eventually(func(g Gomega) int {
+					files, err := ioutil.ReadDir(tmpDir)
+					g.Expect(err).Should(Succeed())
+					return len(files)
+				}).Should(Equal(1))
 			})
 		})
 	})
