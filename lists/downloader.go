@@ -145,6 +145,14 @@ func (d *HTTPDownloader) DownloadFile(link string) (io.ReadCloser, error) {
 			onDownloadError(link)
 		}))
 
+	var transientErr *TransientError
+	if errors.As(err, &transientErr) {
+		var dnsErr *net.DNSError
+		if errors.As(transientErr.inner, &dnsErr) {
+			return body, dnsErr
+		}
+	}
+
 	return body, err
 }
 
