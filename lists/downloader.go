@@ -89,6 +89,7 @@ func WithTransport(httpTransport *http.Transport) DownloaderOption {
 	}
 }
 
+//nolint:funlen
 func (d *HTTPDownloader) DownloadFile(link string) (io.ReadCloser, error) {
 	client := http.Client{
 		Timeout:   d.downloadTimeout,
