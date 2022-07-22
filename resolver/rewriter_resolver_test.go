@@ -11,6 +11,11 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+const (
+	sampleOriginal  = "test.original."
+	sampleRewritten = "test.rewritten."
+)
+
 var _ = Describe("RewriterResolver", func() {
 	var (
 		sut       ChainedResolver
@@ -53,6 +58,11 @@ var _ = Describe("RewriterResolver", func() {
 
 	When("has rewrite", func() {
 		var request *model.Request
+		var expectNilAnswer bool
+
+		BeforeEach(func() {
+			expectNilAnswer = false
+		})
 
 		AfterEach(func() {
 			request = newRequest(fqdnOriginal, dns.Type(dns.TypeA))
@@ -80,13 +90,17 @@ var _ = Describe("RewriterResolver", func() {
 			Expect(err).Should(Succeed())
 			if resp != mNextResponse {
 				Expect(resp.Res.Question[0].Name).Should(Equal(fqdnOriginal))
-				Expect(resp.Res.Answer[0].Header().Name).Should(Equal(fqdnOriginal))
+				if expectNilAnswer {
+					Expect(resp.Res.Answer).Should(BeEmpty())
+				} else {
+					Expect(resp.Res.Answer[0].Header().Name).Should(Equal(fqdnOriginal))
+				}
 			}
 		})
 
 		It("should modify names", func() {
-			fqdnOriginal = "test.original."
-			fqdnRewritten = "test.rewritten."
+			fqdnOriginal = sampleOriginal
+			fqdnRewritten = sampleRewritten
 		})
 
 		It("should modify subdomains", func() {
@@ -105,8 +119,9 @@ var _ = Describe("RewriterResolver", func() {
 		})
 
 		It("should call next resolver", func() {
-			fqdnOriginal = "test.original."
-			fqdnRewritten = "test.rewritten."
+			fqdnOriginal = sampleOriginal
+			fqdnRewritten = sampleRewritten
+			expectNilAnswer = true
 
 			// Make inner call the NoOpResolver
 			mInner.ResolveFn = func(req *model.Request) (*model.Response, error) {
@@ -125,6 +140,54 @@ var _ = Describe("RewriterResolver", func() {
 
 				return mNextResponse, nil
 			}
+		})
+
+		It("should not call next resolver", func() {
+			fqdnOriginal = sampleOriginal
+			fqdnRewritten = sampleRewritten
+			expectNilAnswer = true
+
+			// Make inner return a nil Answer but not an empty Response
+			mInner.ResolveFn = func(req *model.Request) (*model.Response, error) {
+				Expect(req).Should(Equal(request))
+
+				// Inner should see fqdnRewritten
+				Expect(req.Req.Question[0].Name).Should(Equal(fqdnRewritten))
+
+				return &model.Response{Res: &dns.Msg{Question: req.Req.Question, Answer: nil}}, nil
+			}
+
+			// Resolver after RewriterResolver should not be called `fqdnOriginal`
+			mNext.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
+		})
+
+		When("has fallbackUpstream", func() {
+			BeforeEach(func() {
+				sutConfig.FallbackUpstream = true
+			})
+
+			It("should call next resolver", func() {
+				fqdnOriginal = sampleOriginal
+				fqdnRewritten = sampleRewritten
+
+				// Make inner return a nil Answer but not an empty Response
+				mInner.ResolveFn = func(req *model.Request) (*model.Response, error) {
+					Expect(req).Should(Equal(request))
+
+					// Inner should see fqdnRewritten
+					Expect(req.Req.Question[0].Name).Should(Equal(fqdnRewritten))
+
+					return &model.Response{Res: &dns.Msg{Question: req.Req.Question, Answer: nil}}, nil
+				}
+
+				// Resolver after RewriterResolver should see `fqdnOriginal`
+				mNext.On("Resolve", mock.Anything)
+				mNext.ResolveFn = func(req *model.Request) (*model.Response, error) {
+					Expect(req.Req.Question[0].Name).Should(Equal(fqdnOriginal))
+
+					return mNextResponse, nil
+				}
+			})
 		})
 	})
 
