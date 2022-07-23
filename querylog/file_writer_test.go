@@ -191,6 +191,7 @@ var _ = Describe("FileWriter", func() {
 				Eventually(func(g Gomega) int {
 					files, err := ioutil.ReadDir(tmpDir)
 					g.Expect(err).Should(Succeed())
+
 					return len(files)
 				}, "20s", "1s").Should(Equal(2))
 
@@ -199,6 +200,7 @@ var _ = Describe("FileWriter", func() {
 				Eventually(func(g Gomega) int {
 					files, err := ioutil.ReadDir(tmpDir)
 					g.Expect(err).Should(Succeed())
+
 					return len(files)
 				}, "20s", "1s").Should(Equal(1))
 			})
