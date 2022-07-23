@@ -25,13 +25,13 @@ var _ = Describe("Serve command", func() {
 			go func(doneChannel chan bool) {
 				defer GinkgoRecover()
 
-				time.Sleep(100 * time.Millisecond)
+				time.Sleep(200 * time.Millisecond)
 
 				doneChannel <- true
 			}(done)
 
 			err := startServer(newServeCommand(), []string{})
-			Expect(err).ShouldNot(Succeed())
+			Expect(err).Should(HaveOccurred())
 		})
 	})
 })
