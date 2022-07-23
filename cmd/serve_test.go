@@ -6,6 +6,7 @@ import (
 	"github.com/0xERR0R/blocky/config"
 
 	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Serve command", func() {
@@ -21,13 +22,16 @@ var _ = Describe("Serve command", func() {
 
 			isConfigMandatory = false
 
-			go func() {
-				_ = startServer(newServeCommand(), []string{})
-			}()
+			go func(doneChannel chan bool) {
+				defer GinkgoRecover()
 
-			time.Sleep(100 * time.Millisecond)
+				time.Sleep(100 * time.Millisecond)
 
-			done <- true
+				doneChannel <- true
+			}(done)
+
+			err := startServer(newServeCommand(), []string{})
+			Expect(err).ShouldNot(Succeed())
 		})
 	})
 })
