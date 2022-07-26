@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"time"
-
 	"github.com/0xERR0R/blocky/config"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -22,16 +20,18 @@ var _ = Describe("Serve command", func() {
 
 			isConfigMandatory = false
 
-			go func(doneChannel chan bool) {
+			grClosure := make(chan interface{})
+
+			go func() {
 				defer GinkgoRecover()
 
-				time.Sleep(200 * time.Millisecond)
+				err := startServer(newServeCommand(), []string{})
+				Expect(err).Should(HaveOccurred())
 
-				doneChannel <- true
-			}(done)
+				close(grClosure)
+			}()
 
-			err := startServer(newServeCommand(), []string{})
-			Expect(err).Should(HaveOccurred())
+			Eventually(grClosure).Should(BeClosed())
 		})
 	})
 })
