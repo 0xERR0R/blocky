@@ -38,21 +38,29 @@ type requestResponse struct {
 
 // NewParallelBestResolver creates new resolver instance
 func NewParallelBestResolver(upstreamResolvers map[string][]config.Upstream, bootstrap *Bootstrap) (Resolver, error) {
+	logger := logger("parallel resolver")
 	s := make(map[string][]*upstreamResolverStatus, len(upstreamResolvers))
 
 	for name, res := range upstreamResolvers {
 		resolvers := make([]*upstreamResolverStatus, len(res))
 
+		var errResolvers int
+
 		for i, u := range res {
 			r, err := NewUpstreamResolver(u, bootstrap)
 			if err != nil {
-				return nil, err
+				logger.Warnf("upstream group %s: %v", name, err)
+				errResolvers++
 			}
 
 			resolvers[i] = &upstreamResolverStatus{
 				resolver: r,
 			}
 			resolvers[i].lastErrorTime.Store(time.Unix(0, 0))
+		}
+
+		if errResolvers == len(res) {
+			return nil, fmt.Errorf("unable to reach any DNS resolvers configured for resolver group %s", name)
 		}
 
 		s[name] = resolvers
