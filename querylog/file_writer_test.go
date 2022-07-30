@@ -26,14 +26,11 @@ var _ = Describe("FileWriter", func() {
 		err    error
 		writer *FileWriter
 	)
+
 	JustBeforeEach(func() {
 		tmpDir, err = ioutil.TempDir("", "fileWriter")
 		Expect(err).Should(Succeed())
-	})
-	JustAfterEach(func() {
-		Eventually(func(g Gomega) error {
-			return os.RemoveAll(tmpDir)
-		}).Should(Succeed())
+		DeferCleanup(func() { os.RemoveAll(tmpDir) })
 	})
 
 	Describe("CSV writer", func() {
