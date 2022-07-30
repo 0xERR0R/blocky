@@ -194,7 +194,9 @@ var _ = Describe("QueryLoggingResolver", func() {
 				sut.writer = mockWriter
 
 				Eventually(func() int {
-					sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.25", "client1"))
+					_, ierr := sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.25", "client1"))
+					Expect(ierr).Should(Succeed())
+
 					return len(sut.logChan)
 				}, "20s", "1µs").Should(Equal(cap(sut.logChan)))
 			})
