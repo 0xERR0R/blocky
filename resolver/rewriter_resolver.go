@@ -18,8 +18,9 @@ import (
 // yield a result, the normal resolving is continued.
 type RewriterResolver struct {
 	NextResolver
-	rewrite map[string]string
-	inner   Resolver
+	rewrite          map[string]string
+	inner            Resolver
+	fallbackUpstream bool
 }
 
 func NewRewriterResolver(cfg config.RewriteConfig, inner ChainedResolver) ChainedResolver {
@@ -34,8 +35,9 @@ func NewRewriterResolver(cfg config.RewriteConfig, inner ChainedResolver) Chaine
 	inner.Next(NewNoOpResolver())
 
 	return &RewriterResolver{
-		rewrite: cfg.Rewrite,
-		inner:   inner,
+		rewrite:          cfg.Rewrite,
+		inner:            inner,
+		fallbackUpstream: cfg.FallbackUpstream,
 	}
 }
 
@@ -70,12 +72,22 @@ func (r *RewriterResolver) Resolve(request *model.Request) (*model.Response, err
 	logger.WithField("resolver", Name(r.inner)).Trace("go to inner resolver")
 
 	response, err := r.inner.Resolve(request)
-	if err != nil {
-		return response, err
-	}
+	// Test for error after checking for fallbackUpstream
 
 	// Revert the request: must be done before calling r.next
 	request.Req = original
+
+	fallbackCondition := err != nil || (response != NoResponse && response.Res.Answer == nil)
+	if r.fallbackUpstream && fallbackCondition {
+		// Inner resolver had no answer, configuration requests fallback, continue with the normal chain
+		logger.WithField("next_resolver", Name(r.next)).Trace("fallback to next resolver")
+
+		return r.next.Resolve(request)
+	}
+
+	if err != nil {
+		return response, err
+	}
 
 	if response == NoResponse {
 		// Inner resolver had no response, continue with the normal chain
