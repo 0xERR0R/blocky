@@ -2,6 +2,7 @@ package querylog
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -70,7 +71,7 @@ func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64,
 	}
 
 	// Migrate the schema
-	if err := db.AutoMigrate(&logEntry{}); err != nil {
+	if err := databaseMigration(db); err != nil {
 		return nil, fmt.Errorf("can't perform auto migration: %w", err)
 	}
 
@@ -82,6 +83,35 @@ func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64,
 	go w.periodicFlush()
 
 	return w, nil
+}
+
+func databaseMigration(db *gorm.DB) error {
+	if err := db.AutoMigrate(&logEntry{}); err != nil {
+		return err
+	}
+
+	tableName := db.NamingStrategy.TableName(reflect.TypeOf(logEntry{}).Name())
+
+	// create unmapped primary key
+	switch db.Config.Name() {
+	case "mysql":
+		tx := db.Exec("ALTER TABLE `" + tableName + "` ADD `id` INT PRIMARY KEY AUTO_INCREMENT")
+		if tx.Error != nil {
+			// mysql doesn't support "add column if not exist"
+			if strings.Contains(tx.Error.Error(), "1060") {
+				// error 1060: duplicate column name
+				// ignore it
+				return nil
+			}
+
+			return tx.Error
+		}
+
+	case "postgres":
+		return db.Exec("ALTER TABLE " + tableName + " ADD column if not exists id serial primary key").Error
+	}
+
+	return nil
 }
 
 func (d *DatabaseWriter) periodicFlush() {
