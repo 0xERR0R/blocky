@@ -30,7 +30,7 @@ type SlowMockWriter struct {
 func (m *SlowMockWriter) Write(entry *querylog.LogEntry) {
 	m.entries = append(m.entries, entry)
 
-	time.Sleep(time.Millisecond)
+	time.Sleep(time.Second)
 }
 
 func (m *SlowMockWriter) CleanUp() {
@@ -51,21 +51,18 @@ var _ = Describe("QueryLoggingResolver", func() {
 		mockAnswer = new(dns.Msg)
 		tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
 		Expect(err).Should(Succeed())
+		DeferCleanup(os.RemoveAll, tmpDir)
 	})
 
 	JustBeforeEach(func() {
 		sut = NewQueryLoggingResolver(sutConfig).(*QueryLoggingResolver)
+		DeferCleanup(func() { close(sut.logChan) })
 		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer, Reason: "reason"}, nil)
 		sut.Next(m)
 	})
-	AfterEach(func() {
-		Expect(err).Should(Succeed())
-		_ = os.RemoveAll(tmpDir)
-	})
 
 	Describe("Process request", func() {
-
 		When("Resolver has no configuration", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLogConfig{
@@ -196,16 +193,11 @@ var _ = Describe("QueryLoggingResolver", func() {
 				mockWriter := &SlowMockWriter{}
 				sut.writer = mockWriter
 
-				// run 10000 requests
-				for i := 0; i < 10000; i++ {
-					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.25", "client1"))
-					Expect(err).Should(Succeed())
-				}
-
-				// log channel is full
-				Expect(sut.logChan).Should(Not(BeEmpty()))
+				Eventually(func() int {
+					sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.25", "client1"))
+					return len(sut.logChan)
+				}, "20s", "1µs").Should(Equal(cap(sut.logChan)))
 			})
-
 		})
 	})
 
@@ -229,81 +221,86 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 	Describe("Clean up of query log directory", func() {
 		When("fallback logger is enabled, log retention is enabled", func() {
-			It("should do nothing", func() {
-
-				sut := NewQueryLoggingResolver(config.QueryLogConfig{
+			BeforeEach(func() {
+				sutConfig = config.QueryLogConfig{
 					LogRetentionDays: 7,
 					Type:             config.QueryLogTypeConsole,
 					CreationAttempts: 1,
 					CreationCooldown: config.Duration(time.Millisecond),
-				}).(*QueryLoggingResolver)
-
+				}
+			})
+			It("should do nothing", func() {
 				sut.doCleanUp()
 			})
 		})
 		When("log directory contains old files", func() {
+			BeforeEach(func() {
+				sutConfig = config.QueryLogConfig{
+					Target:           tmpDir,
+					Type:             config.QueryLogTypeCsv,
+					LogRetentionDays: 7,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
+				}
+			})
 			It("should remove files older than defined log retention", func() {
-
 				// create 2 files, 7 and 8 days old
 				dateBefore7Days := time.Now().AddDate(0, 0, -7)
 				dateBefore8Days := time.Now().AddDate(0, 0, -8)
 
 				f1, err := os.Create(filepath.Join(tmpDir, fmt.Sprintf("%s-test.log", dateBefore7Days.Format("2006-01-02"))))
 				Expect(err).Should(Succeed())
+				f1Name := f1.Name()
+				f1.Close()
 
 				f2, err := os.Create(filepath.Join(tmpDir, fmt.Sprintf("%s-test.log", dateBefore8Days.Format("2006-01-02"))))
 				Expect(err).Should(Succeed())
+				f2Name := f2.Name()
+				f2.Close()
 
-				sut := NewQueryLoggingResolver(config.QueryLogConfig{
-					Target:           tmpDir,
-					Type:             config.QueryLogTypeCsv,
-					LogRetentionDays: 7,
-					CreationAttempts: 1,
-					CreationCooldown: config.Duration(time.Millisecond),
-				})
+				sut.doCleanUp()
 
-				sut.(*QueryLoggingResolver).doCleanUp()
+				Eventually(func(g Gomega) {
+					// file 1 exist
+					_, ierr1 := os.Stat(f1Name)
+					g.Expect(ierr1).Should(Succeed())
 
-				// file 1 exist
-				_, err = os.Stat(f1.Name())
-				Expect(err).Should(Succeed())
-
-				// file 2 was deleted
-				_, err = os.Stat(f2.Name())
-				Expect(err).Should(HaveOccurred())
-				Expect(os.IsNotExist(err)).Should(BeTrue())
+					// file 2 was deleted
+					_, ierr2 := os.Stat(f2Name)
+					g.Expect(ierr2).Should(HaveOccurred())
+					g.Expect(os.IsNotExist(ierr2)).Should(BeTrue())
+				}).Should(Succeed())
 			})
 		})
 	})
 
-})
-
-var _ = Describe("Wrong target configuration", func() {
-	When("mysql database path is wrong", func() {
-		It("should use fallback", func() {
-			sutConfig := config.QueryLogConfig{
-				Target:           "dummy",
-				Type:             config.QueryLogTypeMysql,
-				CreationAttempts: 1,
-				CreationCooldown: config.Duration(time.Millisecond),
-			}
-			resolver := NewQueryLoggingResolver(sutConfig)
-			loggingResolver := resolver.(*QueryLoggingResolver)
-			Expect(loggingResolver.logType).Should(Equal(config.QueryLogTypeConsole))
+	Describe("Wrong target configuration", func() {
+		When("mysql database path is wrong", func() {
+			BeforeEach(func() {
+				sutConfig = config.QueryLogConfig{
+					Target:           "dummy",
+					Type:             config.QueryLogTypeMysql,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
+				}
+			})
+			It("should use fallback", func() {
+				Expect(sut.logType).Should(Equal(config.QueryLogTypeConsole))
+			})
 		})
-	})
 
-	When("postgresql database path is wrong", func() {
-		It("should use fallback", func() {
-			sutConfig := config.QueryLogConfig{
-				Target:           "dummy",
-				Type:             config.QueryLogTypePostgresql,
-				CreationAttempts: 1,
-				CreationCooldown: config.Duration(time.Millisecond),
-			}
-			resolver := NewQueryLoggingResolver(sutConfig)
-			loggingResolver := resolver.(*QueryLoggingResolver)
-			Expect(loggingResolver.logType).Should(Equal(config.QueryLogTypeConsole))
+		When("postgresql database path is wrong", func() {
+			BeforeEach(func() {
+				sutConfig = config.QueryLogConfig{
+					Target:           "dummy",
+					Type:             config.QueryLogTypePostgresql,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
+				}
+			})
+			It("should use fallback", func() {
+				Expect(sut.logType).Should(Equal(config.QueryLogTypeConsole))
+			})
 		})
 	})
 })
@@ -315,6 +312,7 @@ func readCsv(file string) ([][]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer csvFile.Close()
 
 	reader := csv.NewReader(bufio.NewReader(csvFile))
 	reader.Comma = '\t'
