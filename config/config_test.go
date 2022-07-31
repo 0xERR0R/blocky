@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/miekg/dns"
@@ -51,14 +52,15 @@ var _ = Describe("Config", func() {
 			It("should return error", func() {
 
 				dir, err := ioutil.TempDir("", "blocky")
-				defer os.Remove(dir)
 				Expect(err).Should(Succeed())
-				err = os.Chdir(dir)
-				Expect(err).Should(Succeed())
-				err = ioutil.WriteFile("config.yml", []byte("malformed_config"), 0600)
+				DeferCleanup(os.RemoveAll, dir)
+
+				cfgFile := filepath.Join(dir, "config.yml")
+
+				err = ioutil.WriteFile(cfgFile, []byte("malformed_config"), 0600)
 				Expect(err).Should(Succeed())
 
-				_, err = LoadConfig("config.yml", true)
+				_, err = LoadConfig(cfgFile, true)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("wrong file structure"))
 			})
