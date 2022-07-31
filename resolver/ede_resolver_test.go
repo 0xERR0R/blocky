@@ -31,8 +31,8 @@ var _ = Describe("EdeResolver", func() {
 			Reason: "Test",
 		}, nil)
 
-		sut = NewEdeResolver(sutConfig, m).(*EdeResolver)
-
+		sut = NewEdeResolver(sutConfig).(*EdeResolver)
+		sut.Next(m)
 	})
 
 	When("Ede is disabled", func() {

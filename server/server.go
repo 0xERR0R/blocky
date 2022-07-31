@@ -399,6 +399,7 @@ func createQueryResolver(
 		resolver.NewFilteringResolver(cfg.Filtering),
 		resolver.NewFqdnOnlyResolver(*cfg),
 		clientNamesResolver,
+		resolver.NewEdeResolver(*cfg),
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
 		resolver.NewMetricsResolver(cfg.Prometheus),
 		resolver.NewRewriterResolver(cfg.CustomDNS.RewriteConfig, resolver.NewCustomDNSResolver(cfg.CustomDNS)),
@@ -409,9 +410,7 @@ func createQueryResolver(
 		parallelResolver,
 	)
 
-	exR := resolver.NewEdeResolver(*cfg, r)
-
-	return exR, nil
+	return r, nil
 }
 
 func (s *Server) registerDNSHandlers() {

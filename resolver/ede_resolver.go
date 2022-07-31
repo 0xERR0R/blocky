@@ -7,26 +7,25 @@ import (
 )
 
 type EdeResolver struct {
-	Resolver
+	NextResolver
 	enabled      bool
 	mainResolver Resolver
 }
 
-func NewEdeResolver(cfg config.Config, r Resolver) Resolver {
+func NewEdeResolver(cfg config.Config) ChainedResolver {
 	return &EdeResolver{
-		enabled:      cfg.EdeEnabled,
-		mainResolver: r,
+		enabled: cfg.EdeEnabled,
 	}
 }
 
 func (r *EdeResolver) Resolve(request *model.Request) (*model.Response, error) {
-	res, err := r.mainResolver.Resolve(request)
+	resp, err := r.next.Resolve(request)
 
 	if r.enabled {
-		addExtraReasoning(res)
+		addExtraReasoning(resp)
 	}
 
-	return res, err
+	return resp, err
 }
 
 func (r *EdeResolver) Configuration() (result []string) {
