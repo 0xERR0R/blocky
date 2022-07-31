@@ -59,14 +59,13 @@ func (d *FileWriter) Write(entry *LogEntry) {
 		"can't create/open file", err)
 
 	if err == nil {
+		defer file.Close()
 		writer := createCsvWriter(file)
 
 		err := writer.Write(createQueryLogRow(entry))
 		util.LogOnErrorWithEntry(log.PrefixedLog(loggerPrefixFileWriter).WithField("file_name", writePath),
 			"can't write to file", err)
 		writer.Flush()
-
-		_ = file.Close()
 	}
 }
 
