@@ -8,8 +8,7 @@ import (
 
 type EdeResolver struct {
 	NextResolver
-	enabled      bool
-	mainResolver Resolver
+	enabled bool
 }
 
 func NewEdeResolver(cfg config.Config) ChainedResolver {
@@ -65,6 +64,8 @@ func convertToExtendedErrorCode(input model.ResponseType) uint16 {
 		return dns.ExtendedErrorCodeForgedAnswer
 	case model.ResponseTypeHOSTSFILE:
 		return dns.ExtendedErrorCodeForgedAnswer
+	case model.ResponseTypeNOTFQDN:
+		return dns.ExtendedErrorCodeBlocked
 	case model.ResponseTypeBLOCKED:
 		return dns.ExtendedErrorCodeBlocked
 	case model.ResponseTypeFILTERED:

@@ -3,7 +3,6 @@ package resolver
 import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
-	. "github.com/0xERR0R/blocky/model"
 
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
@@ -25,7 +24,7 @@ var _ = Describe("EdeResolver", func() {
 
 	JustBeforeEach(func() {
 		m = &MockResolver{}
-		m.On("Resolve", mock.Anything).Return(&Response{
+		m.On("Resolve", mock.Anything).Return(&model.Response{
 			Res:    mockAnswer,
 			RType:  model.ResponseTypeCUSTOMDNS,
 			Reason: "Test",
@@ -45,7 +44,7 @@ var _ = Describe("EdeResolver", func() {
 			resp, err := sut.Resolve(newRequest("example.com", dns.Type(dns.TypeA)))
 			Expect(err).Should(Succeed())
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-			Expect(resp.RType).Should(Equal(ResponseTypeCUSTOMDNS))
+			Expect(resp.RType).Should(Equal(model.ResponseTypeCUSTOMDNS))
 			Expect(resp.Res.Answer).Should(BeEmpty())
 			Expect(resp.Res.Extra).Should(BeEmpty())
 
@@ -68,7 +67,7 @@ var _ = Describe("EdeResolver", func() {
 			resp, err := sut.Resolve(newRequest("example.com", dns.Type(dns.TypeA)))
 			Expect(err).Should(Succeed())
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-			Expect(resp.RType).Should(Equal(ResponseTypeCUSTOMDNS))
+			Expect(resp.RType).Should(Equal(model.ResponseTypeCUSTOMDNS))
 			Expect(resp.Res.Answer).Should(BeEmpty())
 			Expect(resp.Res.Extra).Should(HaveLen(1))
 			opt, ok := resp.Res.Extra[0].(*dns.OPT)
