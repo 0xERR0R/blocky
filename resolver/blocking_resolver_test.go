@@ -24,12 +24,17 @@ var group1File, group2File, defaultGroupFile *os.File
 
 var _ = BeforeSuite(func() {
 	group1File = TempFile("DOMAIN1.com")
+	DeferCleanup(os.Remove, group1File.Name())
+
 	group2File = TempFile("blocked2.com")
+	DeferCleanup(os.Remove, group2File.Name())
+
 	defaultGroupFile = TempFile(
 		`blocked3.com
 123.145.123.145
 2001:db8:85a3:08d3::370:7344
 badcnamedomain.com`)
+	DeferCleanup(os.Remove, defaultGroupFile.Name())
 })
 
 var _ = AfterSuite(func() {
