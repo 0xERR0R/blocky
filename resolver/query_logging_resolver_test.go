@@ -49,7 +49,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 	BeforeEach(func() {
 		mockAnswer = new(dns.Msg)
-		tmpDir = helpertest.CreateFolder("queryLoggingResolver")
+		tmpDir = helpertest.NewTempFolder("queryLoggingResolver")
 		Expect(tmpDir.Error).Should(Succeed())
 		DeferCleanup(tmpDir.Clean)
 	})
@@ -250,10 +250,10 @@ var _ = Describe("QueryLoggingResolver", func() {
 				dateBefore7Days := time.Now().AddDate(0, 0, -7)
 				dateBefore8Days := time.Now().AddDate(0, 0, -8)
 
-				f1Name, err := tmpDir.EmptyFile(fmt.Sprintf("%s-test.log", dateBefore7Days.Format("2006-01-02")))
+				f1Name, err := tmpDir.CreateEmptyFile(fmt.Sprintf("%s-test.log", dateBefore7Days.Format("2006-01-02")))
 				Expect(err).Should(Succeed())
 
-				f2Name, err := tmpDir.EmptyFile(fmt.Sprintf("%s-test.log", dateBefore8Days.Format("2006-01-02")))
+				f2Name, err := tmpDir.CreateEmptyFile(fmt.Sprintf("%s-test.log", dateBefore8Days.Format("2006-01-02")))
 				Expect(err).Should(Succeed())
 
 				sut.doCleanUp()
