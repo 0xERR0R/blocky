@@ -79,12 +79,15 @@ var _ = Describe("ListCache", func() {
 				// should produce a transient error on second and third attempt
 				data := make(chan func() (io.ReadCloser, error), 3)
 				mockDownloader := &MockDownloader{data: data}
+				// nolint:unparam
 				data <- func() (io.ReadCloser, error) {
 					return io.NopCloser(strings.NewReader("blocked1.com")), nil
 				}
+				// nolint:unparam
 				data <- func() (io.ReadCloser, error) {
 					return nil, &TransientError{inner: errors.New("boom")}
 				}
+				// nolint:unparam
 				data <- func() (io.ReadCloser, error) {
 					return nil, &TransientError{inner: errors.New("boom")}
 				}
@@ -131,6 +134,7 @@ var _ = Describe("ListCache", func() {
 				// should produce a 404 err on second attempt
 				data := make(chan func() (io.ReadCloser, error), 2)
 				mockDownloader := &MockDownloader{data: data}
+				//nolint:unparam
 				data <- func() (io.ReadCloser, error) {
 					return io.NopCloser(strings.NewReader("blocked1.com")), nil
 				}
