@@ -34,11 +34,13 @@ func (tf *TempFolder) Clean() error {
 	if len(tf.Path) > 0 {
 		return os.RemoveAll(tf.Path)
 	}
+
 	return nil
 }
 
 func (tf *TempFolder) CreateSubFolder(name string) *TempFolder {
 	var path string
+
 	var err error
 
 	if len(name) > 0 {
@@ -75,7 +77,9 @@ func (tf *TempFolder) CreateStringFile(name string, lines ...string) (string, er
 	}
 
 	first := true
+
 	w := bufio.NewWriter(f)
+
 	for _, l := range lines {
 		if first {
 			first = false
@@ -92,6 +96,7 @@ func (tf *TempFolder) CreateStringFile(name string, lines ...string) (string, er
 			break
 		}
 	}
+
 	w.Flush()
 
 	return checkState(f, err)
@@ -100,9 +105,9 @@ func (tf *TempFolder) CreateStringFile(name string, lines ...string) (string, er
 func (tf *TempFolder) createFile(name string) (*os.File, error) {
 	if len(name) > 0 {
 		return os.Create(filepath.Join(tf.Path, name))
-	} else {
-		return os.CreateTemp(tf.Path, "temp")
 	}
+
+	return os.CreateTemp(tf.Path, "temp")
 }
 
 func checkState(file *os.File, ierr error) (string, error) {
