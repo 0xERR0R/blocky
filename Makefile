@@ -35,8 +35,8 @@ test:  ## run tests
 race: ## run tests with race detector
 	go run github.com/onsi/ginkgo/v2/ginkgo --race ./...
 
-lint: build ## run golangcli-lint checks
-	go run github.com/golangci/golangci-lint/cmd/golangci-lint run
+lint: ## run golangcli-lint checks
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint run --timeout 5m
 
 run: build ## Build and run binary
 	./$(BIN_OUT_DIR)/$(BINARY_NAME)
