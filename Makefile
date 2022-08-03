@@ -17,9 +17,8 @@ clean: ## cleans output directory
 	$(shell rm -rf $(BIN_OUT_DIR)/*)
 
 swagger: ## creates swagger documentation as html file
-	go install github.com/swaggo/swag/cmd/swag@v1.6.9
 	npm install bootprint bootprint-openapi html-inline
-	$(shell go env GOPATH)/bin/swag init -g api/api.go
+	go run github.com/swaggo/swag/cmd/swag init -g api/api.go
 	$(shell) node_modules/bootprint/bin/bootprint.js openapi docs/swagger.json /tmp/swagger/
 	$(shell) node_modules/html-inline/bin/cmd.js /tmp/swagger/index.html > docs/swagger.html
 
@@ -27,21 +26,17 @@ serve_docs: ## serves online docs
 	mkdocs serve
 
 build:  ## Build binary
-	go install github.com/abice/go-enum@v0.4.0
 	go generate ./...
 	go build -v -ldflags="-w -s -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" -o $(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 
 test:  ## run tests
-	go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
-	$(shell go env GOPATH)/bin/ginkgo -v --coverprofile=coverage.txt --covermode=atomic -cover ./...
+	go run github.com/onsi/ginkgo/v2/ginkgo -v --coverprofile=coverage.txt --covermode=atomic -cover ./...
 
 race: ## run tests with race detector
-	go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
-	$(shell go env GOPATH)/bin/ginkgo --race ./...
+	go run github.com/onsi/ginkgo/v2/ginkgo --race ./...
 
 lint: build ## run golangcli-lint checks
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.47.3
-	$(shell go env GOPATH)/bin/golangci-lint run
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint run
 
 run: build ## Build and run binary
 	./$(BIN_OUT_DIR)/$(BINARY_NAME)
