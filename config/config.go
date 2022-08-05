@@ -400,26 +400,27 @@ func extractNet(upstream string) (NetProtocol, string) {
 // Config main configuration
 // nolint:maligned
 type Config struct {
-	Upstream        UpstreamConfig            `yaml:"upstream"`
-	UpstreamTimeout Duration                  `yaml:"upstreamTimeout" default:"2s"`
-	CustomDNS       CustomDNSConfig           `yaml:"customDNS"`
-	Conditional     ConditionalUpstreamConfig `yaml:"conditional"`
-	Blocking        BlockingConfig            `yaml:"blocking"`
-	ClientLookup    ClientLookupConfig        `yaml:"clientLookup"`
-	Caching         CachingConfig             `yaml:"caching"`
-	QueryLog        QueryLogConfig            `yaml:"queryLog"`
-	Prometheus      PrometheusConfig          `yaml:"prometheus"`
-	Redis           RedisConfig               `yaml:"redis"`
-	LogLevel        log.Level                 `yaml:"logLevel" default:"info"`
-	LogFormat       log.FormatType            `yaml:"logFormat" default:"text"`
-	LogPrivacy      bool                      `yaml:"logPrivacy" default:"false"`
-	LogTimestamp    bool                      `yaml:"logTimestamp" default:"true"`
-	DNSPorts        ListenConfig              `yaml:"port" default:"[\"53\"]"`
-	HTTPPorts       ListenConfig              `yaml:"httpPort"`
-	HTTPSPorts      ListenConfig              `yaml:"httpsPort"`
-	TLSPorts        ListenConfig              `yaml:"tlsPort"`
-	DoHUserAgent    string                    `yaml:"dohUserAgent"`
-	MinTLSServeVer  string                    `yaml:"minTlsServeVersion" default:"1.2"`
+	Upstream            UpstreamConfig            `yaml:"upstream"`
+	UpstreamTimeout     Duration                  `yaml:"upstreamTimeout" default:"2s"`
+	CustomDNS           CustomDNSConfig           `yaml:"customDNS"`
+	Conditional         ConditionalUpstreamConfig `yaml:"conditional"`
+	Blocking            BlockingConfig            `yaml:"blocking"`
+	ClientLookup        ClientLookupConfig        `yaml:"clientLookup"`
+	Caching             CachingConfig             `yaml:"caching"`
+	QueryLog            QueryLogConfig            `yaml:"queryLog"`
+	Prometheus          PrometheusConfig          `yaml:"prometheus"`
+	Redis               RedisConfig               `yaml:"redis"`
+	LogLevel            log.Level                 `yaml:"logLevel" default:"info"`
+	LogFormat           log.FormatType            `yaml:"logFormat" default:"text"`
+	LogPrivacy          bool                      `yaml:"logPrivacy" default:"false"`
+	LogTimestamp        bool                      `yaml:"logTimestamp" default:"true"`
+	DNSPorts            ListenConfig              `yaml:"port" default:"[\"53\"]"`
+	HTTPPorts           ListenConfig              `yaml:"httpPort"`
+	HTTPSPorts          ListenConfig              `yaml:"httpsPort"`
+	TLSPorts            ListenConfig              `yaml:"tlsPort"`
+	DoHUserAgent        string                    `yaml:"dohUserAgent"`
+	MinTLSServeVer      string                    `yaml:"minTlsServeVersion" default:"1.2"`
+	StartVerifyUpstream bool                      `yaml:"startVerifyUpstream" default:"true"`
 	// Deprecated
 	DisableIPv6  bool            `yaml:"disableIPv6" default:"false"`
 	CertFile     string          `yaml:"certFile"`

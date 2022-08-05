@@ -61,8 +61,15 @@ var _ = BeforeSuite(func() {
 	DeferCleanup(fritzboxMockUpstream.Close)
 
 	clientMockUpstream := resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
+		var clientName string
+		client := mockClientName.Load()
+
+		if client != nil {
+			clientName = mockClientName.Load().(string)
+		}
+
 		response, err := util.NewMsgWithAnswer(
-			util.ExtractDomain(request.Question[0]), 3600, dns.Type(dns.TypePTR), mockClientName.Load().(string),
+			util.ExtractDomain(request.Question[0]), 3600, dns.Type(dns.TypePTR), clientName,
 		)
 
 		Expect(err).Should(Succeed())

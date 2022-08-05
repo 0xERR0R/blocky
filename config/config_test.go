@@ -580,6 +580,7 @@ func defaultTestFileConfig() {
 
 	Expect(config.DoHUserAgent).Should(Equal("testBlocky"))
 	Expect(config.MinTLSServeVer).Should(Equal("1.3"))
+	Expect(config.StartVerifyUpstream).Should(BeFalse())
 
 	Expect(GetConfig()).Should(Not(BeNil()))
 }
