@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/0xERR0R/blocky/helpertest"
@@ -43,7 +42,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 		err        error
 		resp       *Response
 		m          *MockResolver
-		tmpDir     *helpertest.TempFolder
+		tmpDir     *helpertest.TmpFolder
 		mockAnswer *dns.Msg
 	)
 
@@ -103,7 +102,8 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 				By("check log for client1", func() {
 					Eventually(func(g Gomega) {
-						csvLines, err := readCsv(filepath.Join(tmpDir.Path, fmt.Sprintf("%s_client1.log", time.Now().Format("2006-01-02"))))
+						csvLines, err := readCsv(tmpDir.JoinPath(
+							fmt.Sprintf("%s_client1.log", time.Now().Format("2006-01-02"))))
 
 						g.Expect(err).Should(Succeed())
 						g.Expect(csvLines).Should(Not(BeEmpty()))
@@ -118,7 +118,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 				By("check log for client2", func() {
 					Eventually(func(g Gomega) {
-						csvLines, err := readCsv(filepath.Join(tmpDir.Path,
+						csvLines, err := readCsv(tmpDir.JoinPath(
 							fmt.Sprintf("%s_cl_ient2_test.log", time.Now().Format("2006-01-02"))))
 
 						g.Expect(err).Should(Succeed())
@@ -156,7 +156,8 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 				By("check log", func() {
 					Eventually(func(g Gomega) {
-						csvLines, err := readCsv(filepath.Join(tmpDir.Path, fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02"))))
+						csvLines, err := readCsv(tmpDir.JoinPath(
+							fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02"))))
 
 						g.Expect(err).Should(Succeed())
 						g.Expect(csvLines).Should(HaveLen(2))
@@ -250,21 +251,20 @@ var _ = Describe("QueryLoggingResolver", func() {
 				dateBefore7Days := time.Now().AddDate(0, 0, -7)
 				dateBefore8Days := time.Now().AddDate(0, 0, -8)
 
-				f1Name, err := tmpDir.CreateEmptyFile(fmt.Sprintf("%s-test.log", dateBefore7Days.Format("2006-01-02")))
-				Expect(err).Should(Succeed())
+				f1 := tmpDir.CreateEmptyFile(fmt.Sprintf("%s-test.log", dateBefore7Days.Format("2006-01-02")))
+				Expect(f1.Error).Should(Succeed())
 
-				f2Name, err := tmpDir.CreateEmptyFile(fmt.Sprintf("%s-test.log", dateBefore8Days.Format("2006-01-02")))
-				Expect(err).Should(Succeed())
+				f2 := tmpDir.CreateEmptyFile(fmt.Sprintf("%s-test.log", dateBefore8Days.Format("2006-01-02")))
+				Expect(f2.Error).Should(Succeed())
 
 				sut.doCleanUp()
 
 				Eventually(func(g Gomega) {
 					// file 1 exist
-					_, ierr1 := os.Stat(f1Name)
-					g.Expect(ierr1).Should(Succeed())
+					g.Expect(f1.Stat()).Should(Succeed())
 
 					// file 2 was deleted
-					_, ierr2 := os.Stat(f2Name)
+					ierr2 := f2.Stat()
 					g.Expect(ierr2).Should(HaveOccurred())
 					g.Expect(os.IsNotExist(ierr2)).Should(BeTrue())
 				}).Should(Succeed())

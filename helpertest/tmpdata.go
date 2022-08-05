@@ -6,13 +6,19 @@ import (
 	"path/filepath"
 )
 
-type TempFolder struct {
+type TmpFolder struct {
 	Path   string
 	Error  error
 	prefix string
 }
 
-func NewTempFolder(prefix string) *TempFolder {
+type TmpFile struct {
+	Path   string
+	Error  error
+	Folder *TmpFolder
+}
+
+func NewTempFolder(prefix string) *TmpFolder {
 	ipref := prefix
 
 	if len(ipref) == 0 {
@@ -21,7 +27,7 @@ func NewTempFolder(prefix string) *TempFolder {
 
 	path, err := os.MkdirTemp("", ipref)
 
-	res := &TempFolder{
+	res := &TmpFolder{
 		Path:   path,
 		Error:  err,
 		prefix: ipref,
@@ -30,7 +36,7 @@ func NewTempFolder(prefix string) *TempFolder {
 	return res
 }
 
-func (tf *TempFolder) Clean() error {
+func (tf *TmpFolder) Clean() error {
 	if len(tf.Path) > 0 {
 		return os.RemoveAll(tf.Path)
 	}
@@ -38,7 +44,7 @@ func (tf *TempFolder) Clean() error {
 	return nil
 }
 
-func (tf *TempFolder) CreateSubFolder(name string) *TempFolder {
+func (tf *TmpFolder) CreateSubFolder(name string) *TmpFolder {
 	var path string
 
 	var err error
@@ -50,7 +56,7 @@ func (tf *TempFolder) CreateSubFolder(name string) *TempFolder {
 		path, err = os.MkdirTemp(tf.Path, tf.prefix)
 	}
 
-	res := &TempFolder{
+	res := &TmpFolder{
 		Path:   path,
 		Error:  err,
 		prefix: tf.prefix,
@@ -59,21 +65,21 @@ func (tf *TempFolder) CreateSubFolder(name string) *TempFolder {
 	return res
 }
 
-func (tf *TempFolder) CreateEmptyFile(name string) (string, error) {
+func (tf *TmpFolder) CreateEmptyFile(name string) *TmpFile {
 	f, err := tf.createFile(name)
 
 	if err != nil {
-		return "", err
+		return tf.newErrorTmpFile(err)
 	}
 
-	return checkState(f, err)
+	return tf.checkState(f, err)
 }
 
-func (tf *TempFolder) CreateStringFile(name string, lines ...string) (string, error) {
+func (tf *TmpFolder) CreateStringFile(name string, lines ...string) *TmpFile {
 	f, err := tf.createFile(name)
 
 	if err != nil {
-		return "", err
+		return tf.newErrorTmpFile(err)
 	}
 
 	first := true
@@ -99,10 +105,14 @@ func (tf *TempFolder) CreateStringFile(name string, lines ...string) (string, er
 
 	w.Flush()
 
-	return checkState(f, err)
+	return tf.checkState(f, err)
 }
 
-func (tf *TempFolder) createFile(name string) (*os.File, error) {
+func (tf *TmpFolder) JoinPath(name string) string {
+	return filepath.Join(tf.Path, name)
+}
+
+func (tf *TmpFolder) createFile(name string) (*os.File, error) {
 	if len(name) > 0 {
 		return os.Create(filepath.Join(tf.Path, name))
 	}
@@ -110,7 +120,15 @@ func (tf *TempFolder) createFile(name string) (*os.File, error) {
 	return os.CreateTemp(tf.Path, "temp")
 }
 
-func checkState(file *os.File, ierr error) (string, error) {
+func (tf *TmpFolder) newErrorTmpFile(err error) *TmpFile {
+	return &TmpFile{
+		Path:   "",
+		Error:  err,
+		Folder: tf,
+	}
+}
+
+func (tf *TmpFolder) checkState(file *os.File, ierr error) *TmpFile {
 	err := ierr
 	filepath := ""
 
@@ -122,5 +140,19 @@ func checkState(file *os.File, ierr error) (string, error) {
 		_, err = os.Stat(filepath)
 	}
 
-	return filepath, err
+	return &TmpFile{
+		Path:   filepath,
+		Error:  err,
+		Folder: tf,
+	}
+}
+
+func (tf *TmpFile) Stat() error {
+	if tf.Error != nil {
+		return tf.Error
+	}
+
+	_, res := os.Stat(tf.Path)
+
+	return res
 }
