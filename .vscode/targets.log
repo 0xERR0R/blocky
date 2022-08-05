@@ -1,4 +1,0 @@
-make.exe all --print-data-base --no-builtin-variables --no-builtin-rules --question
-Der Befehl "make.exe" ist entweder falsch geschrieben oder
-konnte nicht gefunden werden.
-
