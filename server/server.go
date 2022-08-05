@@ -502,8 +502,11 @@ func (s *Server) Start(errCh chan<- error) {
 		go func() {
 			logger().Infof("https server is up and running on addr/port %s", address)
 
+			const readHeaderTimeout = 20 * time.Second
+
 			server := http.Server{
-				Handler: s.httpsMux,
+				Handler:           s.httpsMux,
+				ReadHeaderTimeout: readHeaderTimeout,
 				//nolint:gosec
 				TLSConfig: &tls.Config{
 					MinVersion:   minTLSVersion(),

@@ -6,15 +6,14 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-
-      - name: Set up Go 1.18
-        uses: actions/setup-go@v1
-        with:
-          go-version: 1.18
-        id: go
-
       - name: Check out code into the Go module directory
         uses: actions/checkout@v1
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: go.mod
+        id: go
 
       - name: Get dependencies
         run: |
@@ -34,7 +33,7 @@ jobs:
         run: make race
 
       - name: Upload results to codecov
-        run: bash <(curl -s https://codecov.io/bash) -t 48d6a1a8-a66e-4f27-9cc1-a7b91c4209b2
+        uses: codecov/codecov-action@v3
 
       - name: Docker images
         run: make docker-build
