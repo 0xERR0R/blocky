@@ -38,14 +38,18 @@ func (r *EdeResolver) Configuration() (result []string) {
 }
 
 func addExtraReasoning(res *model.Response) {
-	opt := new(dns.OPT)
-	opt.Hdr.Name = "."
-	opt.Hdr.Rrtype = dns.TypeOPT
-	opt.Option = append(opt.Option, convertExtendedError(res))
-	res.Res.Extra = append(res.Res.Extra, opt)
+	// dns.ExtendedErrorCodeOther seams broken in some clients
+	infocode := convertToExtendedErrorCode(res.RType)
+	if infocode > 0 {
+		opt := new(dns.OPT)
+		opt.Hdr.Name = "."
+		opt.Hdr.Rrtype = dns.TypeOPT
+		opt.Option = append(opt.Option, convertExtendedError(res, infocode))
+		res.Res.Extra = append(res.Res.Extra, opt)
+	}
 }
 
-func convertExtendedError(input *model.Response) *dns.EDNS0_EDE {
+func convertExtendedError(input *model.Response, infocode uint16) *dns.EDNS0_EDE {
 	return &dns.EDNS0_EDE{
 		InfoCode:  convertToExtendedErrorCode(input.RType),
 		ExtraText: input.Reason,
@@ -59,7 +63,7 @@ func convertToExtendedErrorCode(input model.ResponseType) uint16 {
 	case model.ResponseTypeCACHED:
 		return dns.ExtendedErrorCodeCachedError
 	case model.ResponseTypeCONDITIONAL:
-		return dns.ExtendedErrorCodeOther
+		return dns.ExtendedErrorCodeForgedAnswer
 	case model.ResponseTypeCUSTOMDNS:
 		return dns.ExtendedErrorCodeForgedAnswer
 	case model.ResponseTypeHOSTSFILE:
