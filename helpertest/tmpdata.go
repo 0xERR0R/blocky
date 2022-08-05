@@ -18,7 +18,7 @@ type TmpFile struct {
 	Folder *TmpFolder
 }
 
-func NewTempFolder(prefix string) *TmpFolder {
+func NewTmpFolder(prefix string) *TmpFolder {
 	ipref := prefix
 
 	if len(ipref) == 0 {
