@@ -237,6 +237,8 @@ var _ = Describe("QueryLoggingResolver", func() {
 			})
 		})
 		When("log directory contains old files", func() {
+			BeforeEach(func() {
+				sutConfig = config.QueryLogConfig{
 					Target:           tmpDir.Path,
 					Type:             config.QueryLogTypeCsv,
 					LogRetentionDays: 7,
@@ -247,12 +249,12 @@ var _ = Describe("QueryLoggingResolver", func() {
 			It("should remove files older than defined log retention", func() {
 				// create 2 files, 7 and 8 days old
 				dateBefore7Days := time.Now().AddDate(0, 0, -7)
-				dateBefore8Days := time.Now().AddDate(0, 0, -8)
+				dateBefore9Days := time.Now().AddDate(0, 0, -9)
 
 				f1 := tmpDir.CreateEmptyFile(fmt.Sprintf("%s-test.log", dateBefore7Days.Format("2006-01-02")))
 				Expect(f1.Error).Should(Succeed())
 
-				f2 := tmpDir.CreateEmptyFile(fmt.Sprintf("%s-test.log", dateBefore8Days.Format("2006-01-02")))
+				f2 := tmpDir.CreateEmptyFile(fmt.Sprintf("%s-test.log", dateBefore9Days.Format("2006-01-02")))
 				Expect(f2.Error).Should(Succeed())
 
 				sut.doCleanUp()
@@ -262,13 +264,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 					g.Expect(f1.Stat()).Should(Succeed())
 
 					// file 2 was deleted
-				_, err = os.Stat(f1.Name())
-				Expect(err).Should(Succeed())
-
-				// file 2 was deleted
-				_, err = os.Stat(f2.Name())
-				Expect(err).Should(HaveOccurred())
-				Expect(os.IsNotExist(err)).Should(BeTrue())
+					ierr2 := f2.Stat()
 					g.Expect(ierr2).Should(HaveOccurred())
 					g.Expect(os.IsNotExist(ierr2)).Should(BeTrue())
 				}).Should(Succeed())

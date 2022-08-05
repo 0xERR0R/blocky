@@ -6,11 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"time"
 
+	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
 
 	"github.com/0xERR0R/blocky/model"
@@ -22,15 +21,15 @@ import (
 
 var _ = Describe("FileWriter", func() {
 	var (
-		tmpDir string
+		tmpDir *helpertest.TmpFolder
 		err    error
 		writer *FileWriter
 	)
 
 	JustBeforeEach(func() {
-		tmpDir, err = ioutil.TempDir("", "fileWriter")
-		Expect(err).Should(Succeed())
-		DeferCleanup(func() { os.RemoveAll(tmpDir) })
+		tmpDir = helpertest.NewTmpFolder("fileWriter")
+		Expect(tmpDir.Error).Should(Succeed())
+		// DeferCleanup(tmpDir.Clean)
 	})
 
 	Describe("CSV writer", func() {
@@ -42,7 +41,7 @@ var _ = Describe("FileWriter", func() {
 		})
 		When("New log entry was created", func() {
 			It("should be logged in one file", func() {
-				writer, err = NewCSVWriter(tmpDir, false, 0)
+				writer, err = NewCSVWriter(tmpDir.Path, false, 0)
 
 				Expect(err).Should(Succeed())
 
@@ -85,12 +84,13 @@ var _ = Describe("FileWriter", func() {
 				})
 
 				Eventually(func(g Gomega) int {
-					return len(readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02")))))
+					return len(readCsv(tmpDir.JoinPath(
+						fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02")))))
 				}).Should(Equal(2))
 			})
 
 			It("should be logged in separate files per client", func() {
-				writer, err = NewCSVWriter(tmpDir, true, 0)
+				writer, err = NewCSVWriter(tmpDir.Path, true, 0)
 
 				Expect(err).Should(Succeed())
 
@@ -133,18 +133,20 @@ var _ = Describe("FileWriter", func() {
 				})
 
 				Eventually(func(g Gomega) int {
-					return len(readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_client1.log", time.Now().Format("2006-01-02")))))
+					return len(readCsv(tmpDir.JoinPath(
+						fmt.Sprintf("%s_client1.log", time.Now().Format("2006-01-02")))))
 				}).Should(Equal(1))
 
 				Eventually(func(g Gomega) int {
-					return len(readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_client2.log", time.Now().Format("2006-01-02")))))
+					return len(readCsv(tmpDir.JoinPath(
+						fmt.Sprintf("%s_client2.log", time.Now().Format("2006-01-02")))))
 				}).Should(Equal(1))
 
 			})
 		})
 		When("Cleanup is called", func() {
 			It("should delete old files", func() {
-				writer, err = NewCSVWriter(tmpDir, false, 1)
+				writer, err = NewCSVWriter(tmpDir.Path, false, 1)
 
 				Expect(err).Should(Succeed())
 
@@ -180,25 +182,26 @@ var _ = Describe("FileWriter", func() {
 							Reason: "Resolved",
 							RType:  model.ResponseTypeRESOLVED,
 						},
-						Start:      time.Now().AddDate(0, 0, -2),
+						Start:      time.Now().AddDate(0, 0, -3),
 						DurationMs: 20,
 					})
 				})
+				fmt.Println(tmpDir.Path)
 
 				Eventually(func(g Gomega) int {
-					files, err := ioutil.ReadDir(tmpDir)
+					filesCount, err := tmpDir.CountFiles()
 					g.Expect(err).Should(Succeed())
 
-					return len(files)
+					return filesCount
 				}, "20s", "1s").Should(Equal(2))
 
 				go writer.CleanUp()
 
 				Eventually(func(g Gomega) int {
-					files, err := ioutil.ReadDir(tmpDir)
+					filesCount, err := tmpDir.CountFiles()
 					g.Expect(err).Should(Succeed())
 
-					return len(files)
+					return filesCount
 				}, "20s", "1s").Should(Equal(1))
 			})
 		})

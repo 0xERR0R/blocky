@@ -24,34 +24,15 @@ var group1File, group2File, defaultGroupFile *TmpFile
 var tmpDir *TmpFolder
 
 var _ = BeforeSuite(func() {
-	group1File = TempFile("DOMAIN1.com")
 	tmpDir = helpertest.NewTmpFolder("BlockingResolver")
 	Expect(tmpDir.Error).Should(Succeed())
 	DeferCleanup(tmpDir.Clean)
-	group1File = TempFile("DOMAIN1.com")
-	DeferCleanup(os.Remove, group1File.Name())
 
-	group2File = TempFile("blocked2.com")
 	group1File = tmpDir.CreateStringFile("group1File", "DOMAIN1.com")
 	Expect(group1File.Error).Should(Succeed())
-	group2File = TempFile("blocked2.com")
-	DeferCleanup(os.Remove, group2File.Name())
 
-	defaultGroupFile = TempFile(
-		`blocked3.com
-123.145.123.145
-2001:db8:85a3:08d3::370:7344
-badcnamedomain.com`)
-})
 	group2File = tmpDir.CreateStringFile("group2File", "blocked2.com")
 	Expect(group2File.Error).Should(Succeed())
-	defaultGroupFile = TempFile(
-		`blocked3.com
-123.145.123.145
-2001:db8:85a3:08d3::370:7344
-badcnamedomain.com`)
-	DeferCleanup(os.Remove, defaultGroupFile.Name())
-})
 
 	defaultGroupFile = tmpDir.CreateStringFile("defaultGroupFile",
 		"blocked3.com",

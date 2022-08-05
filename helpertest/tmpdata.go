@@ -112,6 +112,15 @@ func (tf *TmpFolder) JoinPath(name string) string {
 	return filepath.Join(tf.Path, name)
 }
 
+func (tf *TmpFolder) CountFiles() (int, error) {
+	files, err := os.ReadDir(tf.Path)
+	if err != nil {
+		return 0, err
+	}
+
+	return len(files), nil
+}
+
 func (tf *TmpFolder) createFile(name string) (*os.File, error) {
 	if len(name) > 0 {
 		return os.Create(filepath.Join(tf.Path, name))
