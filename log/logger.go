@@ -1,6 +1,6 @@
 package log
 
-//go:generate go-enum -f=$GOFILE --marshal --names
+//go:generate go run github.com/abice/go-enum -f=$GOFILE --marshal --names
 
 import (
 	"io/ioutil"
@@ -69,7 +69,7 @@ func ConfigureLogger(logLevel Level, formatType FormatType, logTimestamp bool) {
 			TimestampFormat:  "2006-01-02 15:04:05",
 			FullTimestamp:    true,
 			ForceFormatting:  true,
-			ForceColors:      true,
+			ForceColors:      false,
 			QuoteEmptyFields: true,
 			DisableTimestamp: !logTimestamp}
 

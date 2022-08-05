@@ -1,3 +1,16 @@
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 80%
+    patch:
+      default:
+        # basic
+        target: auto
+        threshold: 0%
+        base: auto 
+        only_pulls: true
 ignore:
   - "resolver/mocks.go"
   - "**/*_enum.go"
