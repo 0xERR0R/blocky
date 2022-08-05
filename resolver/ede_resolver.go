@@ -51,7 +51,7 @@ func addExtraReasoning(res *model.Response) {
 
 func convertExtendedError(input *model.Response, infocode uint16) *dns.EDNS0_EDE {
 	return &dns.EDNS0_EDE{
-		InfoCode:  convertToExtendedErrorCode(input.RType),
+		InfoCode:  infocode,
 		ExtraText: input.Reason,
 	}
 }
