@@ -20,7 +20,7 @@ func NewEdeResolver(cfg config.EdeConfig) ChainedResolver {
 func (r *EdeResolver) Resolve(request *model.Request) (*model.Response, error) {
 	resp, err := r.next.Resolve(request)
 
-	if r.config.Enabled {
+	if r.config.Enable {
 		addExtraReasoning(resp)
 	}
 
@@ -28,7 +28,7 @@ func (r *EdeResolver) Resolve(request *model.Request) (*model.Response, error) {
 }
 
 func (r *EdeResolver) Configuration() (result []string) {
-	if r.config.Enabled {
+	if r.config.Enable {
 		result = []string{"activated"}
 	} else {
 		result = []string{"deactivated"}

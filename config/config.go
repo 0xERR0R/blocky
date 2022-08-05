@@ -542,7 +542,7 @@ type FilteringConfig struct {
 }
 
 type EdeConfig struct {
-	Enabled bool `yaml:"enabled" default:"false"`
+	Enable bool `yaml:"enable" default:"false"`
 }
 
 // nolint:gochecknoglobals

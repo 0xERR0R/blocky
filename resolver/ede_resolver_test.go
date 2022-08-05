@@ -37,7 +37,7 @@ var _ = Describe("EdeResolver", func() {
 	When("Ede is disabled", func() {
 		BeforeEach(func() {
 			sutConfig = config.EdeConfig{
-				Enabled: false,
+				Enable: false,
 			}
 		})
 		It("Shouldn't add EDE information", func() {
@@ -60,7 +60,7 @@ var _ = Describe("EdeResolver", func() {
 	When("Ede is enabled", func() {
 		BeforeEach(func() {
 			sutConfig = config.EdeConfig{
-				Enabled: true,
+				Enable: true,
 			}
 		})
 		It("Should add EDE information", func() {
