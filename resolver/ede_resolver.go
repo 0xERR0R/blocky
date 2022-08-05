@@ -8,19 +8,19 @@ import (
 
 type EdeResolver struct {
 	NextResolver
-	enabled bool
+	config config.EdeConfig
 }
 
-func NewEdeResolver(cfg config.Config) ChainedResolver {
+func NewEdeResolver(cfg config.EdeConfig) ChainedResolver {
 	return &EdeResolver{
-		enabled: cfg.EdeEnabled,
+		config: cfg,
 	}
 }
 
 func (r *EdeResolver) Resolve(request *model.Request) (*model.Response, error) {
 	resp, err := r.next.Resolve(request)
 
-	if r.enabled {
+	if r.config.Enabled {
 		addExtraReasoning(resp)
 	}
 
@@ -28,7 +28,7 @@ func (r *EdeResolver) Resolve(request *model.Request) (*model.Response, error) {
 }
 
 func (r *EdeResolver) Configuration() (result []string) {
-	if r.enabled {
+	if r.config.Enabled {
 		result = []string{"activated"}
 	} else {
 		result = []string{"deactivated"}
