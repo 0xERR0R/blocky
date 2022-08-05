@@ -237,8 +237,6 @@ var _ = Describe("QueryLoggingResolver", func() {
 			})
 		})
 		When("log directory contains old files", func() {
-			BeforeEach(func() {
-				sutConfig = config.QueryLogConfig{
 					Target:           tmpDir.Path,
 					Type:             config.QueryLogTypeCsv,
 					LogRetentionDays: 7,
@@ -264,7 +262,13 @@ var _ = Describe("QueryLoggingResolver", func() {
 					g.Expect(f1.Stat()).Should(Succeed())
 
 					// file 2 was deleted
-					ierr2 := f2.Stat()
+				_, err = os.Stat(f1.Name())
+				Expect(err).Should(Succeed())
+
+				// file 2 was deleted
+				_, err = os.Stat(f2.Name())
+				Expect(err).Should(HaveOccurred())
+				Expect(os.IsNotExist(err)).Should(BeTrue())
 					g.Expect(ierr2).Should(HaveOccurred())
 					g.Expect(os.IsNotExist(ierr2)).Should(BeTrue())
 				}).Should(Succeed())
