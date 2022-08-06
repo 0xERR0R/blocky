@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -97,8 +96,6 @@ var _ = BeforeSuite(func() {
 
 	youtubeFile := tmpDir.CreateStringFile("youtube.com.txt", "youtube.com")
 	Expect(youtubeFile.Error).Should(Succeed())
-
-	fmt.Println(tmpDir.Path)
 
 	// create server
 	sut, err = NewServer(&config.Config{
