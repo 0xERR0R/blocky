@@ -4,3 +4,4 @@ dist/
 .github
 testdata/
 node_modules/
+.vscode/
