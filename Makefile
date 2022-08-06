@@ -45,7 +45,7 @@ fmt: ## gofmt and goimports all go files
 	find . -name '*.go' | while read -r file; do gofmt -w -s "$$file"; goimports -w "$$file"; done
 
 docker-build:  ## Build docker image
-	docker build --network=host --tag ${DOCKER_IMAGE_NAME} .
+	docker buildx build --network=host --tag ${DOCKER_IMAGE_NAME} .
 
 help:  ## Shows help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
