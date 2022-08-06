@@ -634,6 +634,23 @@ Configuration parameters:
       refreshPeriod: 30m
     ```
 
+### Deliver EDE codes as EDNS0 option
+
+DNS responses can be extended with EDE codes according to [RFC8914](https://datatracker.ietf.org/doc/rfc8914/).
+
+Configuration parameters:
+
+| Parameter                | Type                           | Mandatory | Default value | Description                                        |
+|--------------------------|--------------------------------|-----------|---------------|----------------------------------------------------|
+| ede.enable               | bool                           | no        | false         | If true, DNS responses are deliverd with EDE codes |
+
+!!! example
+
+    ```yaml
+    ede:
+      enable: true
+    ```
+
 ## SSL certificate configuration (DoH / TLS listener)
 
 See [Wiki - Configuration of HTTPS](https://github.com/0xERR0R/blocky/wiki/Configuration-of-HTTPS-for-DoH-and-Rest-API)

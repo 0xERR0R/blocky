@@ -218,3 +218,8 @@ logFormat: text
 logTimestamp: true
 # optional: obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy. Default: false
 logPrivacy: false
+
+# optional: add EDE error codes to dns response
+ede: 
+  # enabled if true, Default: false
+  enable: true
