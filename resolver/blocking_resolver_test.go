@@ -3,7 +3,6 @@ package resolver
 import (
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/evt"
-	"github.com/0xERR0R/blocky/helpertest"
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/lists"
 	. "github.com/0xERR0R/blocky/model"
@@ -24,7 +23,7 @@ var group1File, group2File, defaultGroupFile *TmpFile
 var tmpDir *TmpFolder
 
 var _ = BeforeSuite(func() {
-	tmpDir = helpertest.NewTmpFolder("BlockingResolver")
+	tmpDir = NewTmpFolder("BlockingResolver")
 	Expect(tmpDir.Error).Should(Succeed())
 	DeferCleanup(tmpDir.Clean)
 

@@ -2,6 +2,7 @@ package helpertest
 
 import (
 	"bufio"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -51,7 +52,7 @@ func (tf *TmpFolder) CreateSubFolder(name string) *TmpFolder {
 
 	if len(name) > 0 {
 		path = filepath.Join(tf.Path, name)
-		err = os.Mkdir(path, 0750)
+		err = os.Mkdir(path, fs.ModePerm)
 	} else {
 		path, err = os.MkdirTemp(tf.Path, tf.prefix)
 	}
