@@ -428,6 +428,7 @@ type Config struct {
 	HostsFile    HostsFileConfig `yaml:"hostsFile"`
 	FqdnOnly     bool            `yaml:"fqdnOnly" default:"false"`
 	Filtering    FilteringConfig `yaml:"filtering"`
+	Ede          EdeConfig       `yaml:"ede"`
 }
 
 type BootstrapConfig bootstrapConfig // to avoid infinite recursion. See BootstrapConfig.UnmarshalYAML.
@@ -538,6 +539,10 @@ type HostsFileConfig struct {
 
 type FilteringConfig struct {
 	QueryTypes QTypeSet `yaml:"queryTypes"`
+}
+
+type EdeConfig struct {
+	Enable bool `yaml:"enable" default:"false"`
 }
 
 // nolint:gochecknoglobals

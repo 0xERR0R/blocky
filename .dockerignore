@@ -2,6 +2,5 @@ bin/
 dist/
 .idea
 .github
-testdata/
 node_modules/
 .vscode/
