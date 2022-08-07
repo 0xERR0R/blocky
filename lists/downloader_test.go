@@ -197,9 +197,9 @@ var _ = Describe("Downloader", func() {
 		When("DNS resolution of passed URL fails", func() {
 			BeforeEach(func() {
 				sut = NewDownloader(
-					WithTimeout(100*time.Millisecond),
+					WithTimeout(500*time.Millisecond),
 					WithAttempts(3),
-					WithCooldown(time.Millisecond))
+					WithCooldown(200*time.Millisecond))
 			})
 			It("Should perform a retry until max retry attempt count is reached and return DNSError", func() {
 				reader, err := sut.DownloadFile("http://some.domain.which.does.not.exist")
