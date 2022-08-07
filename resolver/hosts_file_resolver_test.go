@@ -16,17 +16,26 @@ import (
 
 var _ = Describe("HostsFileResolver", func() {
 	var (
-		sut  *HostsFileResolver
-		m    *MockResolver
-		err  error
-		resp *Response
+		sut     *HostsFileResolver
+		m       *MockResolver
+		err     error
+		resp    *Response
+		tmpDir  *TmpFolder
+		tmpFile *TmpFile
 	)
 
 	TTL := uint32(time.Now().Second())
 
 	BeforeEach(func() {
+		tmpDir = NewTmpFolder("HostsFileResolver")
+		Expect(tmpDir.Error).Should(Succeed())
+		DeferCleanup(tmpDir.Clean)
+
+		tmpFile = writeHostFile(tmpDir)
+		Expect(tmpFile.Error).Should(Succeed())
+
 		cfg := config.HostsFileConfig{
-			Filepath:      "../testdata/hosts.txt",
+			Filepath:      tmpFile.Path,
 			HostsTTL:      config.Duration(time.Duration(TTL) * time.Second),
 			RefreshPeriod: config.Duration(30 * time.Minute),
 		}
@@ -79,7 +88,7 @@ var _ = Describe("HostsFileResolver", func() {
 
 		When("Hosts file can be located", func() {
 			It("should parse it successfully", func() {
-				Expect(sut).Should(Not(BeNil()))
+				Expect(sut).ShouldNot(BeNil())
 				Expect(sut.hosts).Should(HaveLen(7))
 			})
 		})
@@ -192,3 +201,21 @@ var _ = Describe("HostsFileResolver", func() {
 		})
 	})
 })
+
+func writeHostFile(tmpDir *TmpFolder) *TmpFile {
+	return tmpDir.CreateStringFile("hosts.txt",
+		"# Random comment",
+		"127.0.0.1               localhost",
+		"127.0.1.1               localhost2  localhost2.local.lan",
+		"::1                     localhost",
+		"# Two empty lines to follow",
+		"",
+		"",
+		"faaf:faaf:faaf:faaf::1  ipv6host    ipv6host.local.lan",
+		"192.168.2.1             ipv4host    ipv4host.local.lan",
+		"10.0.0.1                router0 router1 router2",
+		"10.0.0.2                router3     # Another comment",
+		"10.0.0.3                            # Invalid entry",
+		"300.300.300.300         invalid4    # Invalid IPv4",
+		"abcd:efgh:ijkl::1       invalid6    # Invalud IPv6")
+}
