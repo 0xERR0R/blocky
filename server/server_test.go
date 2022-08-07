@@ -557,7 +557,7 @@ var _ = Describe("Running DNS server", func() {
 			Expect(cErr).Should(Succeed())
 
 			cfg.Upstream.ExternalResolvers = map[string][]config.Upstream{
-				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}}}
+				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "1.1.1.1", Port: 53}}}
 
 			cfg.Redis.Address = "test-fail"
 		})
@@ -687,7 +687,7 @@ var _ = Describe("Running DNS server", func() {
 			Expect(cErr).Should(Succeed())
 
 			cfg.Upstream.ExternalResolvers = map[string][]config.Upstream{
-				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}}}
+				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "1.1.1.1", Port: 53}}}
 		})
 
 		It("should create self-signed certificate if key/cert files are not provided", func() {
