@@ -1,7 +1,7 @@
 package resolver
 
 import (
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -101,7 +101,7 @@ func TestBootstrap(response *dns.Msg) *Bootstrap {
 func TestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg),
 	reqFn ...func(w http.ResponseWriter)) config.Upstream {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 
 		util.FatalOnError("can't read request: ", err)
 

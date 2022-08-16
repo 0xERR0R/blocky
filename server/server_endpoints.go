@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -86,7 +86,7 @@ func (s *Server) dohPostRequestHandler(rw http.ResponseWriter, req *http.Request
 		return
 	}
 
-	rawMsg, err := ioutil.ReadAll(req.Body)
+	rawMsg, err := io.ReadAll(req.Body)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 
