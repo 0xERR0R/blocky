@@ -3,7 +3,7 @@ module github.com/0xERR0R/blocky
 go 1.18
 
 require (
-	github.com/abice/go-enum v0.4.3
+	github.com/abice/go-enum v0.5.0
 	github.com/alicebob/miniredis/v2 v2.22.0
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/avast/retry-go/v4 v4.1.0
@@ -35,6 +35,8 @@ require (
 	gorm.io/driver/sqlite v1.3.6
 	gorm.io/gorm v1.23.8
 )
+
+require github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 
 require (
 	4d63.com/gochecknoglobals v0.1.0 // indirect
@@ -208,7 +210,7 @@ require (
 	github.com/tommy-muehle/go-mnd/v2 v2.5.0 // indirect
 	github.com/ultraware/funlen v0.0.3 // indirect
 	github.com/ultraware/whitespace v0.0.5 // indirect
-	github.com/urfave/cli/v2 v2.8.1 // indirect
+	github.com/urfave/cli/v2 v2.11.1 // indirect
 	github.com/uudashr/gocognit v1.0.6 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/yagipy/maintidx v1.0.0 // indirect
