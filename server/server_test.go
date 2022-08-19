@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -410,7 +410,7 @@ var _ = Describe("Running DNS server", func() {
 					Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
 					Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/dns-message"))
 
-					rawMsg, err := ioutil.ReadAll(resp.Body)
+					rawMsg, err := io.ReadAll(resp.Body)
 					Expect(err).Should(Succeed())
 
 					msg := new(dns.Msg)
@@ -473,7 +473,7 @@ var _ = Describe("Running DNS server", func() {
 					defer resp.Body.Close()
 					Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
 					Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/dns-message"))
-					rawMsg, err := ioutil.ReadAll(resp.Body)
+					rawMsg, err := io.ReadAll(resp.Body)
 					Expect(err).Should(Succeed())
 
 					msg = new(dns.Msg)
@@ -493,7 +493,7 @@ var _ = Describe("Running DNS server", func() {
 					defer resp.Body.Close()
 					Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
 					Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/dns-message"))
-					rawMsg, err := ioutil.ReadAll(resp.Body)
+					rawMsg, err := io.ReadAll(resp.Body)
 					Expect(err).Should(Succeed())
 
 					msg = new(dns.Msg)

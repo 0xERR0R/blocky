@@ -5,7 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -152,7 +152,7 @@ func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
 			dnsContentType, contentType)
 	}
 
-	body, err := ioutil.ReadAll(httpResponse.Body)
+	body, err := io.ReadAll(httpResponse.Body)
 	if err != nil {
 		return nil, 0, fmt.Errorf("can't read response body:  %w", err)
 	}

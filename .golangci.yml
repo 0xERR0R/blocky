@@ -41,7 +41,6 @@ linters:
     - nilerr
     - nilnil
     - nlreturn
-    - nolintlint
     - prealloc
     - predeclared
     - revive

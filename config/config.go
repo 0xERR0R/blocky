@@ -4,7 +4,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -583,7 +582,7 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 			return nil, fmt.Errorf("can't read config files: %w", err)
 		}
 	} else {
-		data, err = ioutil.ReadFile(path)
+		data, err = os.ReadFile(path)
 		if err != nil {
 			return nil, fmt.Errorf("can't read config file: %w", err)
 		}
