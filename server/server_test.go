@@ -61,8 +61,15 @@ var _ = BeforeSuite(func() {
 	DeferCleanup(fritzboxMockUpstream.Close)
 
 	clientMockUpstream := resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
+		var clientName string
+		client := mockClientName.Load()
+
+		if client != nil {
+			clientName = mockClientName.Load().(string)
+		}
+
 		response, err := util.NewMsgWithAnswer(
-			util.ExtractDomain(request.Question[0]), 3600, dns.Type(dns.TypePTR), mockClientName.Load().(string),
+			util.ExtractDomain(request.Question[0]), 3600, dns.Type(dns.TypePTR), clientName,
 		)
 
 		Expect(err).Should(Succeed())
@@ -550,7 +557,7 @@ var _ = Describe("Running DNS server", func() {
 			Expect(cErr).Should(Succeed())
 
 			cfg.Upstream.ExternalResolvers = map[string][]config.Upstream{
-				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}}}
+				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "1.1.1.1", Port: 53}}}
 
 			cfg.Redis.Address = "test-fail"
 		})
@@ -680,7 +687,7 @@ var _ = Describe("Running DNS server", func() {
 			Expect(cErr).Should(Succeed())
 
 			cfg.Upstream.ExternalResolvers = map[string][]config.Upstream{
-				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}}}
+				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "1.1.1.1", Port: 53}}}
 		})
 
 		It("should create self-signed certificate if key/cert files are not provided", func() {

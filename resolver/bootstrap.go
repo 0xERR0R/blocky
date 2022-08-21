@@ -26,7 +26,8 @@ var (
 
 // Bootstrap allows resolving hostnames using the configured bootstrap DNS.
 type Bootstrap struct {
-	log *logrus.Entry
+	log                 *logrus.Entry
+	startVerifyUpstream bool
 
 	resolver    Resolver
 	upstream    Resolver // the upstream that's part of the above resolver
@@ -64,9 +65,10 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 	// This also prevents the GC to clean up these two structs, but is not currently an
 	// issue since they stay allocated until the process terminates
 	b = &Bootstrap{
-		log:            log,
-		upstreamIPs:    ips,
-		systemResolver: net.DefaultResolver, // allow replacing it during tests
+		log:                 log,
+		upstreamIPs:         ips,
+		systemResolver:      net.DefaultResolver, // allow replacing it during tests
+		startVerifyUpstream: cfg.StartVerifyUpstream,
 	}
 
 	if upstream.IsDefault() {
