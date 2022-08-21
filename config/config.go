@@ -420,7 +420,7 @@ type Config struct {
 	TLSPorts            ListenConfig              `yaml:"tlsPort"`
 	DoHUserAgent        string                    `yaml:"dohUserAgent"`
 	MinTLSServeVer      string                    `yaml:"minTlsServeVersion" default:"1.2"`
-	StartVerifyUpstream bool                      `yaml:"startVerifyUpstream" default:"true"`
+	StartVerifyUpstream bool                      `yaml:"startVerifyUpstream" default:"false"`
 	// Deprecated
 	DisableIPv6  bool            `yaml:"disableIPv6" default:"false"`
 	CertFile     string          `yaml:"certFile"`

@@ -25,7 +25,7 @@ configuration properties as [JSON](config.yml).
 | logPrivacy   | bool                            | no                    | false         | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy.                                                                                                 |
 | dohUserAgent | string                          | no                    |               | HTTP User Agent for DoH upstreams                                                                                                  |
 | minTlsServeVersion | string                    | no                    | 1.2           | Minimum TLS version that the DoT and DoH server use to serve those encrypted DNS requests                       |
-| startVerifyUpstream | bool                     | no                    | true          | If true, blocky will fail to start unless at least one upstream server per group is reachable.                  |
+| startVerifyUpstream | bool                     | no                    | false          | If true, blocky will fail to start unless at least one upstream server per group is reachable.                  |
 
 !!! example
 

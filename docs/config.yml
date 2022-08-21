@@ -19,6 +19,9 @@ upstream:
 # optional: timeout to query the upstream resolver. Default: 2s
 upstreamTimeout: 2s
 
+#optional: If true, blocky will fail to start unless at least one upstream server per group is reachable. Default: false
+startVerifyUpstream: true
+
 # optional: custom IP address(es) for domain name (with all sub-domains). Multiple addresses must be separated by a comma
 # example: query "printer.lan" or "my.printer.lan" will return 192.168.178.3
 customDNS:
