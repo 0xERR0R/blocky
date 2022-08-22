@@ -579,6 +579,7 @@ func defaultTestFileConfig() {
 
 	Expect(config.DoHUserAgent).Should(Equal("testBlocky"))
 	Expect(config.MinTLSServeVer).Should(Equal("1.3"))
+	Expect(config.StartVerifyUpstream).Should(BeFalse())
 
 	Expect(GetConfig()).Should(Not(BeNil()))
 }
@@ -635,7 +636,8 @@ func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {
 		"port: 55553,:55554,[::1]:55555",
 		"logLevel: debug",
 		"dohUserAgent: testBlocky",
-		"minTlsServeVersion: 1.3")
+		"minTlsServeVersion: 1.3",
+		"startVerifyUpstream: false")
 }
 
 func writeConfigDir(tmpDir *helpertest.TmpFolder) error {
@@ -695,7 +697,8 @@ func writeConfigDir(tmpDir *helpertest.TmpFolder) error {
 		"port: 55553,:55554,[::1]:55555",
 		"logLevel: debug",
 		"dohUserAgent: testBlocky",
-		"minTlsServeVersion: 1.3")
+		"minTlsServeVersion: 1.3",
+		"startVerifyUpstream: false")
 
 	return f2.Error
 }

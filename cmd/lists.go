@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/0xERR0R/blocky/api"
@@ -39,7 +39,7 @@ func refreshList(_ *cobra.Command, _ []string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 
 		return fmt.Errorf("response NOK, %s %s", resp.Status, string(body))
 	}

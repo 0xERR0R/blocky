@@ -3,7 +3,6 @@ package helpertest
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,7 +15,7 @@ import (
 
 // TempFile creates temp file with passed data
 func TempFile(data string) *os.File {
-	f, err := ioutil.TempFile("", "prefix")
+	f, err := os.CreateTemp("", "prefix")
 	if err != nil {
 		log.Log().Fatal(err)
 	}

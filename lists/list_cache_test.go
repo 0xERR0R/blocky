@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http/httptest"
@@ -370,7 +369,7 @@ func (m *MockDownloader) DownloadFile(_ string) (io.ReadCloser, error) {
 }
 
 func createTestListFile(dir string, totalLines int) string {
-	file, err := ioutil.TempFile(dir, "blocky")
+	file, err := os.CreateTemp(dir, "blocky")
 	if err != nil {
 		log.Fatal(err)
 	}

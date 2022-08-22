@@ -3,7 +3,7 @@ package log
 //go:generate go run github.com/abice/go-enum -f=$GOFILE --marshal --names
 
 import (
-	"io/ioutil"
+	"io"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -87,5 +87,5 @@ func ConfigureLogger(logLevel Level, formatType FormatType, logTimestamp bool) {
 
 // Silence disables the logger output
 func Silence() {
-	logger.Out = ioutil.Discard
+	logger.Out = io.Discard
 }
