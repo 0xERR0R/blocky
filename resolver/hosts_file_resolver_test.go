@@ -89,7 +89,7 @@ var _ = Describe("HostsFileResolver", func() {
 		When("Hosts file can be located", func() {
 			It("should parse it successfully", func() {
 				Expect(sut).ShouldNot(BeNil())
-				Expect(sut.hosts).Should(HaveLen(7))
+				Expect(sut.hosts).Should(HaveLen(4))
 			})
 		})
 

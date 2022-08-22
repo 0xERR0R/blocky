@@ -150,6 +150,7 @@ type host struct {
 	Aliases  []string
 }
 
+// nolint:funlen
 func (r *HostsFileResolver) parseHostsFile() error {
 	const minColumnCount = 2
 
@@ -197,6 +198,10 @@ func (r *HostsFileResolver) parseHostsFile() error {
 		h.IP = net.ParseIP(fields[0])
 		h.Hostname = fields[1]
 
+		if isLoopbackAddr(h.IP) {
+			continue
+		}
+
 		if len(fields) > minColumnCount {
 			for i := 2; i < len(fields); i++ {
 				h.Aliases = append(h.Aliases, fields[i])
@@ -209,6 +214,17 @@ func (r *HostsFileResolver) parseHostsFile() error {
 	r.hosts = newHosts
 
 	return nil
+}
+
+func isLoopbackAddr(addr net.IP) bool {
+	_, loopback4, _ := net.ParseCIDR("127.0.0.0/8")
+	loopback6 := net.ParseIP("::1")
+
+	if loopback4.Contains(addr) || loopback6.Equal(addr) {
+		return true
+	}
+
+	return false
 }
 
 func (r *HostsFileResolver) periodicUpdate() {
