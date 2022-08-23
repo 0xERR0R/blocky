@@ -14,16 +14,23 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+//nolint:gochecknoglobals
+var (
+	_, loopback4, _ = net.ParseCIDR("127.0.0.0/8")
+	loopback6       = net.ParseIP("::1")
+)
+
 const (
 	hostsFileResolverLogger = "hosts_file_resolver"
 )
 
 type HostsFileResolver struct {
 	NextResolver
-	HostsFilePath string
-	hosts         []host
-	ttl           uint32
-	refreshPeriod time.Duration
+	HostsFilePath  string
+	hosts          []host
+	ttl            uint32
+	refreshPeriod  time.Duration
+	filterLoopback bool
 }
 
 func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Response {
@@ -119,6 +126,7 @@ func (r *HostsFileResolver) Configuration() (result []string) {
 		result = append(result, fmt.Sprintf("hosts file path: %s", r.HostsFilePath))
 		result = append(result, fmt.Sprintf("hosts TTL: %d", r.ttl))
 		result = append(result, fmt.Sprintf("hosts refresh period: %s", r.refreshPeriod.String()))
+		result = append(result, fmt.Sprintf("filter loopback addresses: %t", r.filterLoopback))
 	} else {
 		result = []string{"deactivated"}
 	}
@@ -128,9 +136,10 @@ func (r *HostsFileResolver) Configuration() (result []string) {
 
 func NewHostsFileResolver(cfg config.HostsFileConfig) ChainedResolver {
 	r := HostsFileResolver{
-		HostsFilePath: cfg.Filepath,
-		ttl:           uint32(time.Duration(cfg.HostsTTL).Seconds()),
-		refreshPeriod: time.Duration(cfg.RefreshPeriod),
+		HostsFilePath:  cfg.Filepath,
+		ttl:            uint32(time.Duration(cfg.HostsTTL).Seconds()),
+		refreshPeriod:  time.Duration(cfg.RefreshPeriod),
+		filterLoopback: cfg.FilterLoopback,
 	}
 
 	if err := r.parseHostsFile(); err != nil {
@@ -198,7 +207,8 @@ func (r *HostsFileResolver) parseHostsFile() error {
 		h.IP = net.ParseIP(fields[0])
 		h.Hostname = fields[1]
 
-		if isLoopbackAddr(h.IP) {
+		// Check if loopback
+		if r.filterLoopback && (loopback4.Contains(h.IP) || loopback6.Equal(h.IP)) {
 			continue
 		}
 
@@ -214,17 +224,6 @@ func (r *HostsFileResolver) parseHostsFile() error {
 	r.hosts = newHosts
 
 	return nil
-}
-
-func isLoopbackAddr(addr net.IP) bool {
-	_, loopback4, _ := net.ParseCIDR("127.0.0.0/8")
-	loopback6 := net.ParseIP("::1")
-
-	if loopback4.Contains(addr) || loopback6.Equal(addr) {
-		return true
-	}
-
-	return false
 }
 
 func (r *HostsFileResolver) periodicUpdate() {

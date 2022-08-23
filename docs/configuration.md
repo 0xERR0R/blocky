@@ -619,11 +619,12 @@ You can enable resolving of entries, located in local hosts file.
 
 Configuration parameters:
 
-| Parameter                | Type                           | Mandatory | Default value | Description                                   |
-|--------------------------|--------------------------------|-----------|---------------|-----------------------------------------------|
-| hostsFile.filePath       | string                         | no        |               | Path to hosts file (e.g. /etc/hosts on Linux) |
-| hostsFile.hostsTTL       | duration (no units is minutes) | no        | 1h            | TTL                                           |
-| hostsFile.refreshPeriod  | duration format                | no        | 1h            | Time between hosts file refresh               |
+| Parameter                | Type                           | Mandatory | Default value | Description                                      |
+|--------------------------|--------------------------------|-----------|---------------|--------------------------------------------------|
+| hostsFile.filePath       | string                         | no        |               | Path to hosts file (e.g. /etc/hosts on Linux)    |
+| hostsFile.hostsTTL       | duration (no units is minutes) | no        | 1h            | TTL                                              |
+| hostsFile.refreshPeriod  | duration format                | no        | 1h            | Time between hosts file refresh                  |
+| hostsFile.filterLoopback | bool                           | no        | false         | Filter loopback addresses (127.0.0.0/8 and ::1)  |
 
 !!! example
 
