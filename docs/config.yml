@@ -213,6 +213,8 @@ hostsFile:
   hostsTTL: 60m
   # optional: Time between hosts file refresh, default: 1h
   refreshPeriod: 30m
+  # optional: Whether loopback hosts addresses (127.0.0.0/8 and ::1) should be filtered or not, default: false
+  filterLoopback: true
 # optional: Log level (one from debug, info, warn, error). Default: info
 logLevel: info
 # optional: Log format (text or json). Default: text

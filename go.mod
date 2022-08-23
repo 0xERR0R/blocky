@@ -36,8 +36,6 @@ require (
 	gorm.io/gorm v1.23.8
 )
 
-require github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
-
 require (
 	4d63.com/gochecknoglobals v0.1.0 // indirect
 	github.com/Antonboom/errname v0.1.7 // indirect
