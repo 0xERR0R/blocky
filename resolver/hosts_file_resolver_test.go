@@ -35,9 +35,10 @@ var _ = Describe("HostsFileResolver", func() {
 		Expect(tmpFile.Error).Should(Succeed())
 
 		cfg := config.HostsFileConfig{
-			Filepath:      tmpFile.Path,
-			HostsTTL:      config.Duration(time.Duration(TTL) * time.Second),
-			RefreshPeriod: config.Duration(30 * time.Minute),
+			Filepath:       tmpFile.Path,
+			HostsTTL:       config.Duration(time.Duration(TTL) * time.Second),
+			RefreshPeriod:  config.Duration(30 * time.Minute),
+			FilterLoopback: true,
 		}
 		sut = NewHostsFileResolver(cfg).(*HostsFileResolver)
 		m = &MockResolver{}
@@ -89,7 +90,7 @@ var _ = Describe("HostsFileResolver", func() {
 		When("Hosts file can be located", func() {
 			It("should parse it successfully", func() {
 				Expect(sut).ShouldNot(BeNil())
-				Expect(sut.hosts).Should(HaveLen(7))
+				Expect(sut.hosts).Should(HaveLen(4))
 			})
 		})
 
@@ -174,7 +175,7 @@ var _ = Describe("HostsFileResolver", func() {
 		When("hosts file is provided", func() {
 			It("should return configuration", func() {
 				c := sut.Configuration()
-				Expect(c).Should(HaveLen(3))
+				Expect(c).Should(HaveLen(4))
 			})
 		})
 
