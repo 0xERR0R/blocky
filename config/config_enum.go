@@ -170,3 +170,74 @@ func (x *QueryLogType) UnmarshalText(text []byte) error {
 	*x = tmp
 	return nil
 }
+
+const (
+	// StartStrategyTypeDefault is a StartStrategyType of type Default.
+	// syncronously download blocking lists on startup
+	StartStrategyTypeDefault StartStrategyType = iota
+	// StartStrategyTypeFailOnError is a StartStrategyType of type FailOnError.
+	// syncronously download blocking lists on startup and shutdown on error
+	StartStrategyTypeFailOnError
+	// StartStrategyTypeFast is a StartStrategyType of type Fast.
+	// asyncronously download blocking lists on startup
+	StartStrategyTypeFast
+)
+
+const _StartStrategyTypeName = "defaultfailOnErrorfast"
+
+var _StartStrategyTypeNames = []string{
+	_StartStrategyTypeName[0:7],
+	_StartStrategyTypeName[7:18],
+	_StartStrategyTypeName[18:22],
+}
+
+// StartStrategyTypeNames returns a list of possible string values of StartStrategyType.
+func StartStrategyTypeNames() []string {
+	tmp := make([]string, len(_StartStrategyTypeNames))
+	copy(tmp, _StartStrategyTypeNames)
+	return tmp
+}
+
+var _StartStrategyTypeMap = map[StartStrategyType]string{
+	StartStrategyTypeDefault:     _StartStrategyTypeName[0:7],
+	StartStrategyTypeFailOnError: _StartStrategyTypeName[7:18],
+	StartStrategyTypeFast:        _StartStrategyTypeName[18:22],
+}
+
+// String implements the Stringer interface.
+func (x StartStrategyType) String() string {
+	if str, ok := _StartStrategyTypeMap[x]; ok {
+		return str
+	}
+	return fmt.Sprintf("StartStrategyType(%d)", x)
+}
+
+var _StartStrategyTypeValue = map[string]StartStrategyType{
+	_StartStrategyTypeName[0:7]:   StartStrategyTypeDefault,
+	_StartStrategyTypeName[7:18]:  StartStrategyTypeFailOnError,
+	_StartStrategyTypeName[18:22]: StartStrategyTypeFast,
+}
+
+// ParseStartStrategyType attempts to convert a string to a StartStrategyType.
+func ParseStartStrategyType(name string) (StartStrategyType, error) {
+	if x, ok := _StartStrategyTypeValue[name]; ok {
+		return x, nil
+	}
+	return StartStrategyType(0), fmt.Errorf("%s is not a valid StartStrategyType, try [%s]", name, strings.Join(_StartStrategyTypeNames, ", "))
+}
+
+// MarshalText implements the text marshaller method.
+func (x StartStrategyType) MarshalText() ([]byte, error) {
+	return []byte(x.String()), nil
+}
+
+// UnmarshalText implements the text unmarshaller method.
+func (x *StartStrategyType) UnmarshalText(text []byte) error {
+	name := string(text)
+	tmp, err := ParseStartStrategyType(name)
+	if err != nil {
+		return err
+	}
+	*x = tmp
+	return nil
+}
