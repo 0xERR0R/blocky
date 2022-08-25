@@ -269,7 +269,8 @@ var _ = Describe("ListCache", func() {
 					"gr1": {file1, file2, file3},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
+					defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
 				Expect(sut.groupCaches["gr1"].ElementCount()).Should(Equal(38000))
@@ -281,7 +282,8 @@ var _ = Describe("ListCache", func() {
 					"gr1": {"inlinedomain1.com\n#some comment\ninlinedomain2.com"},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
+					defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
 				Expect(sut.groupCaches["gr1"].ElementCount()).Should(Equal(2))
@@ -301,7 +303,8 @@ var _ = Describe("ListCache", func() {
 					"gr1": {"inlinedomain1.com\n" + strings.Repeat("longString", 100000)},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
+					defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
 				found, group := sut.Match("inlinedomain1.com", []string{"gr1"})
@@ -315,7 +318,8 @@ var _ = Describe("ListCache", func() {
 					"gr1": {"/^apple\\.(de|com)$/\n"},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
+					defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
 				found, group := sut.Match("apple.com", []string{"gr1"})
@@ -336,7 +340,8 @@ var _ = Describe("ListCache", func() {
 					"gr2": {"inline\ndefinition\n"},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, time.Hour, NewDownloader(), defaultProcessingConcurrency, false)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, time.Hour, NewDownloader(),
+					defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
 				c := sut.Configuration()
@@ -350,7 +355,8 @@ var _ = Describe("ListCache", func() {
 					"gr1": {emptyFile.Name()},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, -1, NewDownloader(), defaultProcessingConcurrency, false)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, -1, NewDownloader(),
+					defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
 				c := sut.Configuration()
