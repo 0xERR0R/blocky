@@ -474,7 +474,7 @@ Blocky downloads and processes links in a single group concurrently. With parame
 how many links can be processed in the same time. Higher value can reduce the overall list refresh time, but more parallel
  download and processing jobs need more RAM. Please consider to reduce this value on systems with limited memory. Default value is 4.
 
-    !!! example
+!!! example
 
     ```yaml
     blocking:
