@@ -456,16 +456,22 @@ You can configure the list download attempts according to your internet connecti
       downloadCooldown: 10s
     ```
 
-### Fail on start
+### Start strategy
 
-You can ensure with parameter `failStartOnListError = true` that the application will fail if at least one list can't be
-downloaded or opened. Default value is `false`.
+You can configure the blocking behavior during application start of blocky.  
+If no starategy is selected default will be used.
+
+| startStrategy | Description                                                                                           |
+|---------------|-------------------------------------------------------------------------------------------------------|
+| default       | all blocking lists will be loaded before DNS resoulution starts                                       |
+| failOnError   | like default but blocky shutsdown if an download fails                                                |
+| fast          | DNS resolution starts immediately without blocking which will be enabled after list load is completed |
 
 !!! example
 
     ```yaml
     blocking:
-      failStartOnListError: false
+      startStrategy: failOnError
     ```
 
 ### Concurrency
