@@ -145,7 +145,8 @@ var _ = Describe("ListCache", func() {
 					"gr1": {"http://dummy"},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, mockDownloader, defaultProcessingConcurrency, false)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, mockDownloader,
+					defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
 				By("Lists loaded without err", func() {

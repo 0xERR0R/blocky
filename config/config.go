@@ -652,7 +652,8 @@ func validateConfig(cfg *Config) {
 	}
 
 	if cfg.Blocking.FailStartOnListError {
-		log.Log().Warnf("'blocking.failStartOnListError' is deprecated. Please use 'blocking.startStrategy' with 'failOnError' instead.")
+		log.Log().Warnf("'blocking.failStartOnListError' is deprecated. Please use 'blocking.startStrategy'" +
+			" with 'failOnError' instead.")
 
 		if cfg.Blocking.StartStrategy == StartStrategyTypeDefault {
 			cfg.Blocking.StartStrategy = StartStrategyTypeFailOnError
