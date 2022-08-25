@@ -10,6 +10,7 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/miekg/dns"
 
 	"github.com/mroth/weightedrand"
 	"github.com/sirupsen/logrus"
@@ -36,23 +37,56 @@ type requestResponse struct {
 	err      error
 }
 
+// testResolver sends a test query to verify the resolver is reachable and working
+func testResolver(r *UpstreamResolver) error {
+	request := newRequest("github.com.", dns.Type(dns.TypeA))
+
+	resp, err := r.Resolve(request)
+	if err != nil || resp.RType != model.ResponseTypeRESOLVED {
+		return fmt.Errorf("test resolve of upstream server failed: %w", err)
+	}
+
+	return nil
+}
+
 // NewParallelBestResolver creates new resolver instance
 func NewParallelBestResolver(upstreamResolvers map[string][]config.Upstream, bootstrap *Bootstrap) (Resolver, error) {
-	s := make(map[string][]*upstreamResolverStatus, len(upstreamResolvers))
+	logger := logger("parallel resolver")
+	s := make(map[string][]*upstreamResolverStatus)
 
 	for name, res := range upstreamResolvers {
-		resolvers := make([]*upstreamResolverStatus, len(res))
+		var resolvers []*upstreamResolverStatus
 
-		for i, u := range res {
+		var errResolvers int
+
+		for _, u := range res {
 			r, err := NewUpstreamResolver(u, bootstrap)
 			if err != nil {
-				return nil, err
+				logger.Warnf("upstream group %s: %v", name, err)
+				errResolvers++
+
+				continue
 			}
 
-			resolvers[i] = &upstreamResolverStatus{
+			if bootstrap != skipUpstreamCheck {
+				err = testResolver(r)
+				if err != nil {
+					logger.Warn(err)
+					errResolvers++
+				}
+			}
+
+			resolver := &upstreamResolverStatus{
 				resolver: r,
 			}
-			resolvers[i].lastErrorTime.Store(time.Unix(0, 0))
+			resolver.lastErrorTime.Store(time.Unix(0, 0))
+			resolvers = append(resolvers, resolver)
+		}
+
+		if bootstrap != skipUpstreamCheck {
+			if bootstrap.startVerifyUpstream && errResolvers == len(res) {
+				return nil, fmt.Errorf("unable to reach any DNS resolvers configured for resolver group %s", name)
+			}
 		}
 
 		s[name] = resolvers
