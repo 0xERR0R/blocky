@@ -47,8 +47,8 @@ type NetProtocol uint16
 type QueryLogType int16
 
 // StartStrategyType upstart strategy ENUM(
-// default // syncronously download blocking lists on startup
-// failOnError // syncronously download blocking lists on startup and shutdown on error
+// default // synchronously download blocking lists on startup
+// failOnError // synchronously download blocking lists on startup and shutdown on error
 // fast // asyncronously download blocking lists on startup
 // )
 type StartStrategyType uint16
