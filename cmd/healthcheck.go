@@ -9,7 +9,7 @@ import (
 )
 
 const (
-        defaultDnsPort = 53
+	defaultDNSPort = 53
 )
 
 func NewHealthcheckCommand() *cobra.Command {
@@ -19,7 +19,7 @@ func NewHealthcheckCommand() *cobra.Command {
 		RunE:  healthcheck,
 	}
 
-	c.Flags().Uint16P("port", "p", defaultDnsPort, "healthcheck port 5333")
+	c.Flags().Uint16P("port", "p", defaultDNSPort, "healthcheck port 5333")
 
 	return c
 }
