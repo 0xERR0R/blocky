@@ -1,43 +1,34 @@
 package cmd
 
 import (
-	"context"
+	"fmt"
 	"net"
-	"time"
 
+	"github.com/miekg/dns"
 	"github.com/spf13/cobra"
 )
 
 func NewHealthcheckCommand() *cobra.Command {
 	c := &cobra.Command{
-		Use:   "healthcheck <port>",
-		Args:  cobra.ExactArgs(1),
+		Use:   "healthcheck",
 		Short: "performs healthcheck",
 		RunE:  healthcheck,
 	}
 
-	c.Flags().IntP("port", "p", 53, "healthcheck port 5333")
+	c.Flags().Uint16P("port", "p", 53, "healthcheck port 5333")
 
 	return c
 }
 
 func healthcheck(cmd *cobra.Command, args []string) error {
-	port, err := cmd.Flags().GetInt("port")
-	if err != nil {
-		port = 53
-	}
+	port, _ := cmd.Flags().GetUint16("port")
 
-	resolver := &net.Resolver{
-		PreferGo: true,
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			d := net.Dialer{
-				Timeout: 2 * time.Second,
-			}
-			return d.DialContext(ctx, network, "127.0.0.1")
-		},
-	}
+	c := new(dns.Client)
+	c.Net = "tcp"
+	m := new(dns.Msg)
+	m.SetQuestion("healthcheck.blocky.", dns.TypeA)
 
-	_, err := resolver.LookupHost(context.Background(), "healthcheck.blocky")
+	_, _, err := c.Exchange(m, net.JoinHostPort("127.0.0.1", fmt.Sprintf("%d", port)))
 
 	return err
 }

@@ -23,6 +23,7 @@ const (
 	defaultPort       = 4000
 	defaultHost       = "localhost"
 	defaultConfigPath = "./config.yml"
+	configFileEnvVar  = "BLOCKY_CONFIG_FILE"
 )
 
 // NewRootCommand creates a new root cli command instance
@@ -49,7 +50,8 @@ Complete documentation is available at https://github.com/0xERR0R/blocky`,
 		NewVersionCommand(),
 		newServeCommand(),
 		newBlockingCommand(),
-		NewListsCommand())
+		NewListsCommand(),
+		NewHealthcheckCommand())
 
 	return c
 }
@@ -64,6 +66,13 @@ func init() {
 }
 
 func initConfig() {
+	if configPath == defaultConfigPath {
+		val, present := os.LookupEnv(configFileEnvVar)
+		if present {
+			configPath = val
+		}
+	}
+
 	cfg, err := config.LoadConfig(configPath, false)
 	if err != nil {
 		util.FatalOnError("unable to load configuration: ", err)
