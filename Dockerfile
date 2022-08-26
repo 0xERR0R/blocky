@@ -42,10 +42,11 @@ LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
 COPY --from=build-env /src/bin/blocky /app/blocky
 COPY --from=build-env /etc/passwd /etc/passwd
 
-# HEALTHCHECK --interval=1m --timeout=3s CMD dig @127.0.0.1 -p 53 healthcheck.blocky +tcp +short || exit 1
-
 USER blocky
 WORKDIR /app
 
+ENV BLOCKY_CONFIG_FILE=/app/config.yml
+
 ENTRYPOINT ["/app/blocky"]
-CMD ["--config ${CONFIG_FILE:-/app/config.yml}"]
+
+HEALTHCHECK --interval=1m --timeout=3s CMD ["/app/blocky", "healthcheck"]
