@@ -74,6 +74,8 @@ func convertToExtendedErrorCode(input model.ResponseType) uint16 {
 		return dns.ExtendedErrorCodeBlocked
 	case model.ResponseTypeFILTERED:
 		return dns.ExtendedErrorCodeFiltered
+	case model.ResponseTypeSPECIAL:
+		return dns.ExtendedErrorCodeFiltered
 	default:
 		return dns.ExtendedErrorCodeOther
 	}
