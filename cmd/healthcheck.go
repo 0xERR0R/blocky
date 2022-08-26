@@ -8,6 +8,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+        defaultDnsPort = 53
+)
+
 func NewHealthcheckCommand() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "healthcheck",
@@ -15,7 +19,7 @@ func NewHealthcheckCommand() *cobra.Command {
 		RunE:  healthcheck,
 	}
 
-	c.Flags().Uint16P("port", "p", 53, "healthcheck port 5333")
+	c.Flags().Uint16P("port", "p", defaultDnsPort, "healthcheck port 5333")
 
 	return c
 }
