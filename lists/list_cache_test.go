@@ -21,34 +21,37 @@ import (
 
 var _ = Describe("ListCache", func() {
 	var (
-		emptyFile, file1, file2, file3 *os.File
+		tmpDir                         *TmpFolder
+		emptyFile, file1, file2, file3 *TmpFile
 		server1, server2, server3      *httptest.Server
 	)
 	BeforeEach(func() {
-		emptyFile = TempFile("#empty file\n\n")
-		server1 = TestServer("blocked1.com\nblocked1a.com\n192.168.178.55")
-		server2 = TestServer("blocked2.com")
-		server3 = TestServer("blocked3.com\nblocked1a.com")
+		tmpDir = NewTmpFolder("ListCache")
+		Expect(tmpDir.Error).Should(Succeed())
+		DeferCleanup(tmpDir.Clean)
 
-		file1 = TempFile("blocked1.com\nblocked1a.com")
-		file2 = TempFile("blocked2.com")
-		file3 = TempFile("blocked3.com\nblocked1a.com")
-	})
-	AfterEach(func() {
-		_ = os.Remove(emptyFile.Name())
-		_ = os.Remove(file1.Name())
-		_ = os.Remove(file2.Name())
-		_ = os.Remove(file3.Name())
-		server1.Close()
-		server2.Close()
-		server3.Close()
+		server1 = TestServer("blocked1.com\nblocked1a.com\n192.168.178.55")
+		DeferCleanup(server1.Close)
+		server2 = TestServer("blocked2.com")
+		DeferCleanup(server2.Close)
+		server3 = TestServer("blocked3.com\nblocked1a.com")
+		DeferCleanup(server3.Close)
+
+		emptyFile = tmpDir.CreateStringFile("empty", "#empty file")
+		Expect(emptyFile.Error).Should(Succeed())
+		file1 = tmpDir.CreateStringFile("file1", "blocked1.com", "blocked1a.com")
+		Expect(file1.Error).Should(Succeed())
+		file2 = tmpDir.CreateStringFile("file2", "blocked2.com")
+		Expect(file2.Error).Should(Succeed())
+		file3 = tmpDir.CreateStringFile("file3", "blocked3.com", "blocked1a.com")
+		Expect(file3.Error).Should(Succeed())
 	})
 
 	Describe("List cache and matching", func() {
 		When("Query with empty", func() {
 			It("should not panic", func() {
 				lists := map[string][]string{
-					"gr0": {emptyFile.Name()},
+					"gr0": {emptyFile.Path},
 				}
 				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
@@ -62,7 +65,7 @@ var _ = Describe("ListCache", func() {
 		When("List is empty", func() {
 			It("should not match anything", func() {
 				lists := map[string][]string{
-					"gr1": {emptyFile.Name()},
+					"gr1": {emptyFile.Path},
 				}
 				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
@@ -237,8 +240,8 @@ var _ = Describe("ListCache", func() {
 		When("multiple groups are passed", func() {
 			It("should match", func() {
 				lists := map[string][]string{
-					"gr1": {file1.Name(), file2.Name()},
-					"gr2": {"file://" + file3.Name()},
+					"gr1": {file1.Path, file2.Path},
+					"gr2": {"file://" + file3.Path},
 				}
 
 				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false)
@@ -352,7 +355,7 @@ var _ = Describe("ListCache", func() {
 		When("refresh is disabled", func() {
 			It("should print 'refresh disabled'", func() {
 				lists := map[string][]string{
-					"gr1": {emptyFile.Name()},
+					"gr1": {emptyFile.Path},
 				}
 
 				sut, err := NewListCache(ListCacheTypeBlacklist, lists, -1, NewDownloader(),
