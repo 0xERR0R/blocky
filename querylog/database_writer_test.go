@@ -68,7 +68,7 @@ var _ = Describe("DatabaseWriter", func() {
 					DurationMs: 20,
 				})
 
-				//force write
+				// force write
 				writer.doDBWrite()
 
 				// 2 entries in the database
@@ -127,7 +127,7 @@ var _ = Describe("DatabaseWriter", func() {
 					DurationMs: 20,
 				})
 
-				//force write
+				// force write
 				writer.doDBWrite()
 
 				// 2 entries in the database
