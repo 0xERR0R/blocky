@@ -367,6 +367,20 @@ var _ = Describe("ListCache", func() {
 			})
 		})
 	})
+
+	Describe("StartStrategy", func() {
+		When("async load is enabled", func() {
+			It("should never return an error", func() {
+				lists := map[string][]string{
+					"gr1": {"doesnotexist"},
+				}
+
+				_, err := NewListCache(ListCacheTypeBlacklist, lists, -1, NewDownloader(),
+					defaultProcessingConcurrency, true)
+				Expect(err).Should(Succeed())
+			})
+		})
+	})
 })
 
 type MockDownloader struct {
