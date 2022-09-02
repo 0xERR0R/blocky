@@ -47,7 +47,7 @@ type NetProtocol uint16
 type QueryLogType int16
 
 // StartStrategyType upstart strategy ENUM(
-// default // synchronously download blocking lists on startup
+// blocking // synchronously download blocking lists on startup
 // failOnError // synchronously download blocking lists on startup and shutdown on error
 // fast // asyncronously download blocking lists on startup
 // )
@@ -499,7 +499,7 @@ type BlockingConfig struct {
 	// Deprecated
 	FailStartOnListError  bool              `yaml:"failStartOnListError" default:"false"`
 	ProcessingConcurrency uint              `yaml:"processingConcurrency" default:"4"`
-	StartStrategy         StartStrategyType `yaml:"startStrategy" default:"default"`
+	StartStrategy         StartStrategyType `yaml:"startStrategy" default:"blocking"`
 }
 
 // ClientLookupConfig configuration for the client lookup
@@ -655,7 +655,7 @@ func validateConfig(cfg *Config) {
 		log.Log().Warnf("'blocking.failStartOnListError' is deprecated. Please use 'blocking.startStrategy'" +
 			" with 'failOnError' instead.")
 
-		if cfg.Blocking.StartStrategy == StartStrategyTypeDefault {
+		if cfg.Blocking.StartStrategy == StartStrategyTypeBlocking {
 			cfg.Blocking.StartStrategy = StartStrategyTypeFailOnError
 		} else if cfg.Blocking.StartStrategy == StartStrategyTypeFast {
 			log.Log().Warnf("'blocking.startStrategy' with 'fast' will ignore 'blocking.failStartOnListError'.")

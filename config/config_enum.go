@@ -172,23 +172,23 @@ func (x *QueryLogType) UnmarshalText(text []byte) error {
 }
 
 const (
-	// StartStrategyTypeDefault is a StartStrategyType of type Default.
-	// syncronously download blocking lists on startup
-	StartStrategyTypeDefault StartStrategyType = iota
+	// StartStrategyTypeBlocking is a StartStrategyType of type Blocking.
+	// synchronously download blocking lists on startup
+	StartStrategyTypeBlocking StartStrategyType = iota
 	// StartStrategyTypeFailOnError is a StartStrategyType of type FailOnError.
-	// syncronously download blocking lists on startup and shutdown on error
+	// synchronously download blocking lists on startup and shutdown on error
 	StartStrategyTypeFailOnError
 	// StartStrategyTypeFast is a StartStrategyType of type Fast.
 	// asyncronously download blocking lists on startup
 	StartStrategyTypeFast
 )
 
-const _StartStrategyTypeName = "defaultfailOnErrorfast"
+const _StartStrategyTypeName = "blockingfailOnErrorfast"
 
 var _StartStrategyTypeNames = []string{
-	_StartStrategyTypeName[0:7],
-	_StartStrategyTypeName[7:18],
-	_StartStrategyTypeName[18:22],
+	_StartStrategyTypeName[0:8],
+	_StartStrategyTypeName[8:19],
+	_StartStrategyTypeName[19:23],
 }
 
 // StartStrategyTypeNames returns a list of possible string values of StartStrategyType.
@@ -199,9 +199,9 @@ func StartStrategyTypeNames() []string {
 }
 
 var _StartStrategyTypeMap = map[StartStrategyType]string{
-	StartStrategyTypeDefault:     _StartStrategyTypeName[0:7],
-	StartStrategyTypeFailOnError: _StartStrategyTypeName[7:18],
-	StartStrategyTypeFast:        _StartStrategyTypeName[18:22],
+	StartStrategyTypeBlocking:    _StartStrategyTypeName[0:8],
+	StartStrategyTypeFailOnError: _StartStrategyTypeName[8:19],
+	StartStrategyTypeFast:        _StartStrategyTypeName[19:23],
 }
 
 // String implements the Stringer interface.
@@ -213,9 +213,9 @@ func (x StartStrategyType) String() string {
 }
 
 var _StartStrategyTypeValue = map[string]StartStrategyType{
-	_StartStrategyTypeName[0:7]:   StartStrategyTypeDefault,
-	_StartStrategyTypeName[7:18]:  StartStrategyTypeFailOnError,
-	_StartStrategyTypeName[18:22]: StartStrategyTypeFast,
+	_StartStrategyTypeName[0:8]:   StartStrategyTypeBlocking,
+	_StartStrategyTypeName[8:19]:  StartStrategyTypeFailOnError,
+	_StartStrategyTypeName[19:23]: StartStrategyTypeFast,
 }
 
 // ParseStartStrategyType attempts to convert a string to a StartStrategyType.

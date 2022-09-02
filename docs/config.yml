@@ -104,7 +104,7 @@ blocking:
   downloadAttempts: 5
   # optional: Time between the download attempts. Default: 1s
   downloadCooldown: 10s
-  # optional: if failOnError, application startup will fail if at least one list can't be downloaded / opened. Default: false
+  # optional: if failOnError, application startup will fail if at least one list can't be downloaded / opened. Default: blocking
   startStrategy: failOnError
 
 # optional: configuration for caching of DNS responses

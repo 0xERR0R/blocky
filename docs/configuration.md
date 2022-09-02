@@ -459,12 +459,12 @@ You can configure the list download attempts according to your internet connecti
 ### Start strategy
 
 You can configure the blocking behavior during application start of blocky.  
-If no starategy is selected default will be used.
+If no starategy is selected blocking will be used.
 
 | startStrategy | Description                                                                                           |
 |---------------|-------------------------------------------------------------------------------------------------------|
-| default       | all blocking lists will be loaded before DNS resoulution starts                                       |
-| failOnError   | like default but blocky shutsdown if an download fails                                                |
+| blocking      | all blocking lists will be loaded before DNS resoulution starts                                       |
+| failOnError   | like blocking but blocky shutsdown if an download fails                                               |
 | fast          | DNS resolution starts immediately without blocking which will be enabled after list load is completed |
 
 !!! example
