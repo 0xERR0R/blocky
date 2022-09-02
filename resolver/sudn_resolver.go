@@ -51,6 +51,8 @@ func (r *SudnResolver) Resolve(request *model.Request) (*model.Response, error) 
 		r.isSpecial(request, sudnInvalid) ||
 		r.isSpecial(request, sudnTest) {
 		return r.negativeResponse()
+	} else if r.isSpecial(request, sudnLocalhost) {
+		return r.negativeResponse()
 	}
 
 	return r.next.Resolve(request)
