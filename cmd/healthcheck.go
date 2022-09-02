@@ -34,5 +34,11 @@ func healthcheck(cmd *cobra.Command, args []string) error {
 
 	_, _, err := c.Exchange(m, net.JoinHostPort("127.0.0.1", fmt.Sprintf("%d", port)))
 
+	if err == nil {
+		fmt.Println("OK")
+	} else {
+		fmt.Println("NOT OK")
+	}
+
 	return err
 }
