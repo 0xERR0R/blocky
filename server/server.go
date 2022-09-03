@@ -482,6 +482,12 @@ func toMB(b uint64) uint64 {
 	return b / bytesInKB / bytesInKB
 }
 
+const (
+	readHeaderTimeout = 20 * time.Second
+	readTimeout       = 20 * time.Second
+	writeTimeout      = 20 * time.Second
+)
+
 // Start starts the server
 func (s *Server) Start(errCh chan<- error) {
 	logger().Info("Starting server")
@@ -503,7 +509,14 @@ func (s *Server) Start(errCh chan<- error) {
 		go func() {
 			logger().Infof("http server is up and running on addr/port %s", address)
 
-			if err := http.Serve(listener, s.httpMux); err != nil {
+			srv := &http.Server{
+				ReadTimeout:       readTimeout,
+				ReadHeaderTimeout: readHeaderTimeout,
+				WriteTimeout:      writeTimeout,
+				Handler:           s.httpsMux,
+			}
+
+			if err := srv.Serve(listener); err != nil {
 				errCh <- fmt.Errorf("start http listener failed: %w", err)
 			}
 		}()
@@ -516,11 +529,11 @@ func (s *Server) Start(errCh chan<- error) {
 		go func() {
 			logger().Infof("https server is up and running on addr/port %s", address)
 
-			const readHeaderTimeout = 20 * time.Second
-
 			server := http.Server{
 				Handler:           s.httpsMux,
+				ReadTimeout:       readTimeout,
 				ReadHeaderTimeout: readHeaderTimeout,
+				WriteTimeout:      writeTimeout,
 				//nolint:gosec
 				TLSConfig: &tls.Config{
 					MinVersion:   minTLSVersion(),
