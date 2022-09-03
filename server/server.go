@@ -2,12 +2,14 @@ package server
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"math"
 	"math/big"
 	mrand "math/rand"
 	"net"
@@ -36,7 +38,6 @@ const (
 	maxUDPBufferSize = 65535
 	caExpiryYears    = 10
 	certExpiryYears  = 5
-	certRSAsize      = 4096
 )
 
 // Server controls the endpoints for DNS and HTTP
@@ -295,7 +296,7 @@ func createUDPServer(address string) (*dns.Server, error) {
 func createSelfSignedCert() (tls.Certificate, error) {
 	// Create CA
 	ca := &x509.Certificate{
-		SerialNumber:          big.NewInt(int64(mrand.Intn(certRSAsize))), //nolint:gosec
+		SerialNumber:          big.NewInt(int64(mrand.Intn(math.MaxInt))), //nolint:gosec
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().AddDate(caExpiryYears, 0, 0),
 		IsCA:                  true,
@@ -304,7 +305,7 @@ func createSelfSignedCert() (tls.Certificate, error) {
 		BasicConstraintsValid: true,
 	}
 
-	caPrivKey, err := rsa.GenerateKey(rand.Reader, certRSAsize)
+	caPrivKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return tls.Certificate{}, err
 	}
@@ -323,16 +324,22 @@ func createSelfSignedCert() (tls.Certificate, error) {
 	}
 
 	caPrivKeyPEM := new(bytes.Buffer)
+
+	b, err := x509.MarshalECPrivateKey(caPrivKey)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
 	if err = pem.Encode(caPrivKeyPEM, &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(caPrivKey),
+		Type:  "EC PRIVATE KEY",
+		Bytes: b,
 	}); err != nil {
 		return tls.Certificate{}, err
 	}
 
 	// Create certificate
 	cert := &x509.Certificate{
-		SerialNumber: big.NewInt(int64(mrand.Intn(certRSAsize))), //nolint:gosec
+		SerialNumber: big.NewInt(int64(mrand.Intn(math.MaxInt))), //nolint:gosec
 		DNSNames:     []string{"*"},
 		NotBefore:    time.Now(),
 		NotAfter:     time.Now().AddDate(certExpiryYears, 0, 0),
@@ -341,7 +348,7 @@ func createSelfSignedCert() (tls.Certificate, error) {
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 	}
 
-	certPrivKey, err := rsa.GenerateKey(rand.Reader, certRSAsize)
+	certPrivKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return tls.Certificate{}, err
 	}
@@ -360,9 +367,15 @@ func createSelfSignedCert() (tls.Certificate, error) {
 	}
 
 	certPrivKeyPEM := new(bytes.Buffer)
+
+	b, err = x509.MarshalECPrivateKey(certPrivKey)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
 	if err = pem.Encode(certPrivKeyPEM, &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(certPrivKey),
+		Type:  "EC PRIVATE KEY",
+		Bytes: b,
 	}); err != nil {
 		return tls.Certificate{}, err
 	}
