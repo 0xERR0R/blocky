@@ -120,8 +120,8 @@ var _ = Describe("Expiration cache", func() {
 				val, ttl := cache.Get("key1")
 				Expect(val).Should(Equal("val2"))
 				Expect(ttl.Milliseconds()).Should(And(
-					BeNumerically(">", 900)),
-					BeNumerically("<=", 1000))
+					BeNumerically(">", 900),
+					BeNumerically("<=", 1000)))
 			})
 
 			It("should delete the key if function returns nil", func() {
