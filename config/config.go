@@ -46,6 +46,13 @@ type NetProtocol uint16
 // )
 type QueryLogType int16
 
+// StartStrategyType upstart strategy ENUM(
+// blocking // synchronously download blocking lists on startup
+// failOnError // synchronously download blocking lists on startup and shutdown on error
+// fast // asyncronously download blocking lists on startup
+// )
+type StartStrategyType uint16
+
 type QType dns.Type
 
 func (c QType) String() string {
@@ -480,17 +487,19 @@ type ConditionalUpstreamMapping struct {
 
 // BlockingConfig configuration for query blocking
 type BlockingConfig struct {
-	BlackLists            map[string][]string `yaml:"blackLists"`
-	WhiteLists            map[string][]string `yaml:"whiteLists"`
-	ClientGroupsBlock     map[string][]string `yaml:"clientGroupsBlock"`
-	BlockType             string              `yaml:"blockType" default:"ZEROIP"`
-	BlockTTL              Duration            `yaml:"blockTTL" default:"6h"`
-	DownloadTimeout       Duration            `yaml:"downloadTimeout" default:"60s"`
-	DownloadAttempts      uint                `yaml:"downloadAttempts" default:"3"`
-	DownloadCooldown      Duration            `yaml:"downloadCooldown" default:"1s"`
-	RefreshPeriod         Duration            `yaml:"refreshPeriod" default:"4h"`
-	FailStartOnListError  bool                `yaml:"failStartOnListError" default:"false"`
-	ProcessingConcurrency uint                `yaml:"processingConcurrency" default:"4"`
+	BlackLists        map[string][]string `yaml:"blackLists"`
+	WhiteLists        map[string][]string `yaml:"whiteLists"`
+	ClientGroupsBlock map[string][]string `yaml:"clientGroupsBlock"`
+	BlockType         string              `yaml:"blockType" default:"ZEROIP"`
+	BlockTTL          Duration            `yaml:"blockTTL" default:"6h"`
+	DownloadTimeout   Duration            `yaml:"downloadTimeout" default:"60s"`
+	DownloadAttempts  uint                `yaml:"downloadAttempts" default:"3"`
+	DownloadCooldown  Duration            `yaml:"downloadCooldown" default:"1s"`
+	RefreshPeriod     Duration            `yaml:"refreshPeriod" default:"4h"`
+	// Deprecated
+	FailStartOnListError  bool              `yaml:"failStartOnListError" default:"false"`
+	ProcessingConcurrency uint              `yaml:"processingConcurrency" default:"4"`
+	StartStrategy         StartStrategyType `yaml:"startStrategy" default:"blocking"`
 }
 
 // ClientLookupConfig configuration for the client lookup
@@ -640,6 +649,17 @@ func validateConfig(cfg *Config) {
 		log.Log().Warnf("'disableIPv6' is deprecated. Please use 'filtering.queryTypes' with 'AAAA' instead.")
 
 		cfg.Filtering.QueryTypes.Insert(dns.Type(dns.TypeAAAA))
+	}
+
+	if cfg.Blocking.FailStartOnListError {
+		log.Log().Warnf("'blocking.failStartOnListError' is deprecated. Please use 'blocking.startStrategy'" +
+			" with 'failOnError' instead.")
+
+		if cfg.Blocking.StartStrategy == StartStrategyTypeBlocking {
+			cfg.Blocking.StartStrategy = StartStrategyTypeFailOnError
+		} else if cfg.Blocking.StartStrategy == StartStrategyTypeFast {
+			log.Log().Warnf("'blocking.startStrategy' with 'fast' will ignore 'blocking.failStartOnListError'.")
+		}
 	}
 }
 
