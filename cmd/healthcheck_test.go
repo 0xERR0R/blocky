@@ -13,8 +13,11 @@ var _ = Describe("Healthcheck command", func() {
 	Describe("Call healthcheck command", func() {
 		It("should fail", func() {
 			c := NewHealthcheckCommand()
+			c.SetArgs([]string{"-p", "5344"})
+
 			err := c.Execute()
-			Expect(err).ShouldNot(Succeed())
+
+			Expect(err).Should(HaveOccurred())
 		})
 
 		It("shoul succeed", func() {
