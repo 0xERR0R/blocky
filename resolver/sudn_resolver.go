@@ -2,10 +2,10 @@ package resolver
 
 import (
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/0xERR0R/blocky/model"
-	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 )
 
@@ -52,7 +52,16 @@ func (r *SudnResolver) Resolve(request *model.Request) (*model.Response, error) 
 		r.isSpecial(request, sudnTest) {
 		return r.negativeResponse()
 	} else if r.isSpecial(request, sudnLocalhost) {
-		return r.negativeResponse()
+		qtype := request.Req.Question[0].Qtype
+		fmt.Println("QType:", qtype)
+		switch qtype {
+		case dns.TypeA:
+			return r.loopbackResponseA()
+		case dns.TypeAAAA:
+			return r.loopbackResponseAAAA()
+		default:
+			return r.negativeResponse()
+		}
 	}
 
 	return r.next.Resolve(request)
@@ -73,8 +82,54 @@ func (r *SudnResolver) negativeResponse() (*model.Response, error) {
 	}, nil
 }
 
+func (r *SudnResolver) loopbackResponseA() (*model.Response, error) {
+	response := new(dns.Msg)
+	response.Rcode = dns.RcodeSuccess
+
+	rr := new(dns.A)
+	rr.Hdr = dns.RR_Header{
+		Name:   sudnLocalhost,
+		Rrtype: dns.TypeA,
+		Class:  dns.ClassINET,
+		Ttl:    0,
+	}
+
+	rr.A = net.ParseIP("127.0.0.1")
+
+	response.Answer = []dns.RR{rr}
+
+	return &model.Response{
+		Res:    response,
+		RType:  model.ResponseTypeSPECIAL,
+		Reason: "Special-Use Domain Name",
+	}, nil
+}
+
+func (r *SudnResolver) loopbackResponseAAAA() (*model.Response, error) {
+	response := new(dns.Msg)
+	response.Rcode = dns.RcodeSuccess
+
+	rr := new(dns.AAAA)
+	rr.Hdr = dns.RR_Header{
+		Name:   sudnLocalhost,
+		Rrtype: dns.TypeA,
+		Class:  dns.ClassINET,
+		Ttl:    0,
+	}
+
+	rr.AAAA = net.ParseIP("::1")
+
+	response.Answer = []dns.RR{rr}
+
+	return &model.Response{
+		Res:    response,
+		RType:  model.ResponseTypeSPECIAL,
+		Reason: "Special-Use Domain Name",
+	}, nil
+}
+
 func (r *SudnResolver) isSpecial(request *model.Request, names ...string) bool {
-	domainFromQuestion := util.ExtractDomain(request.Req.Question[0])
+	domainFromQuestion := request.Req.Question[0].Name
 	for _, n := range names {
 		if domainFromQuestion == n ||
 			strings.HasSuffix(domainFromQuestion, fmt.Sprintf(".%s", n)) {
