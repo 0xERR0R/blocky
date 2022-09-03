@@ -179,6 +179,29 @@ bootstrapDns:
 			})
 		})
 
+		When("Deprecated parameter 'failStartOnListError' is set", func() {
+			var (
+				c Config
+			)
+			BeforeEach(func() {
+				c = Config{
+					Blocking: BlockingConfig{
+						FailStartOnListError: true,
+						StartStrategy:        StartStrategyTypeBlocking,
+					},
+				}
+			})
+			It("should change StartStrategy blocking to failOnError", func() {
+				validateConfig(&c)
+				Expect(c.Blocking.StartStrategy).Should(Equal(StartStrategyTypeFailOnError))
+			})
+			It("shouldn't change StartStrategy if set to fast", func() {
+				c.Blocking.StartStrategy = StartStrategyTypeFast
+				validateConfig(&c)
+				Expect(c.Blocking.StartStrategy).Should(Equal(StartStrategyTypeFast))
+			})
+		})
+
 		When("config directory does not exist", func() {
 			It("should return error", func() {
 				_, err = LoadConfig(tmpDir.JoinPath("config.yml"), true)

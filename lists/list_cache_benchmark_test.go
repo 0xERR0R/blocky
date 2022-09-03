@@ -12,7 +12,7 @@ func BenchmarkRefresh(b *testing.B) {
 		"gr1": {file1, file2, file3},
 	}
 
-	cache, _ := NewListCache(ListCacheTypeBlacklist, lists, -1, NewDownloader(), 5)
+	cache, _ := NewListCache(ListCacheTypeBlacklist, lists, -1, NewDownloader(), 5, false)
 
 	b.ReportAllocs()
 

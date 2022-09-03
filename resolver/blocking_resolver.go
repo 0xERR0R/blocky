@@ -101,13 +101,15 @@ func NewBlockingResolver(cfg config.BlockingConfig,
 	refreshPeriod := time.Duration(cfg.RefreshPeriod)
 	downloader := createDownloader(cfg, bootstrap)
 	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists,
-		refreshPeriod, downloader, cfg.ProcessingConcurrency)
+		refreshPeriod, downloader, cfg.ProcessingConcurrency,
+		(cfg.StartStrategy == config.StartStrategyTypeFast))
 	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists,
-		refreshPeriod, downloader, cfg.ProcessingConcurrency)
+		refreshPeriod, downloader, cfg.ProcessingConcurrency,
+		(cfg.StartStrategy == config.StartStrategyTypeFast))
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
 	err = multierror.Append(err, blErr, wlErr).ErrorOrNil()
-	if err != nil && cfg.FailStartOnListError {
+	if err != nil && cfg.StartStrategy == config.StartStrategyTypeFailOnError {
 		return nil, err
 	}
 
