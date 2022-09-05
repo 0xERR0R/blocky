@@ -859,14 +859,13 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					MatchError("unknown blockType 'wrong', please use one of: ZeroIP, NxDomain or specify destination IP address(es)"))
 			})
 		})
-		When("failStartOnListError is active", func() {
-
+		When("startStrategy is failOnError", func() {
 			It("should fail if lists can't be downloaded", func() {
 				_, err := NewBlockingResolver(config.BlockingConfig{
-					BlackLists:           map[string][]string{"gr1": {"wrongPath"}},
-					WhiteLists:           map[string][]string{"whitelist": {"wrongPath"}},
-					FailStartOnListError: true,
-					BlockType:            "zeroIp",
+					BlackLists:    map[string][]string{"gr1": {"wrongPath"}},
+					WhiteLists:    map[string][]string{"whitelist": {"wrongPath"}},
+					StartStrategy: config.StartStrategyTypeFailOnError,
+					BlockType:     "zeroIp",
 				}, nil, skipUpstreamCheck)
 				Expect(err).Should(HaveOccurred())
 			})
