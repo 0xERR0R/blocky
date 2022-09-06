@@ -72,20 +72,14 @@ func (r *SudnResolver) Configuration() []string {
 }
 
 func (r *SudnResolver) negativeResponse(request *model.Request) (*model.Response, error) {
-	response := new(dns.Msg)
-	response.SetReply(request.Req)
+	response := r.newResponseMsg(request)
 	response.Rcode = dns.RcodeNameError
 
-	return &model.Response{
-		Res:    response,
-		RType:  model.ResponseTypeSPECIAL,
-		Reason: "Special-Use Domain Name",
-	}, nil
+	return r.returnResponseModel(response)
 }
 
 func (r *SudnResolver) loopbackResponseA(request *model.Request) (*model.Response, error) {
-	response := new(dns.Msg)
-	response.SetReply(request.Req)
+	response := r.newResponseMsg(request)
 	response.Rcode = dns.RcodeSuccess
 
 	rr := new(dns.A)
@@ -100,16 +94,11 @@ func (r *SudnResolver) loopbackResponseA(request *model.Request) (*model.Respons
 
 	response.Answer = []dns.RR{rr}
 
-	return &model.Response{
-		Res:    response,
-		RType:  model.ResponseTypeSPECIAL,
-		Reason: "Special-Use Domain Name",
-	}, nil
+	return r.returnResponseModel(response)
 }
 
 func (r *SudnResolver) loopbackResponseAAAA(request *model.Request) (*model.Response, error) {
-	response := new(dns.Msg)
-	response.SetReply(request.Req)
+	response := r.newResponseMsg(request)
 	response.Rcode = dns.RcodeSuccess
 
 	rr := new(dns.AAAA)
@@ -124,11 +113,7 @@ func (r *SudnResolver) loopbackResponseAAAA(request *model.Request) (*model.Resp
 
 	response.Answer = []dns.RR{rr}
 
-	return &model.Response{
-		Res:    response,
-		RType:  model.ResponseTypeSPECIAL,
-		Reason: "Special-Use Domain Name",
-	}, nil
+	return r.returnResponseModel(response)
 }
 
 func (r *SudnResolver) isSpecial(request *model.Request, names ...string) bool {
@@ -141,4 +126,19 @@ func (r *SudnResolver) isSpecial(request *model.Request, names ...string) bool {
 	}
 
 	return false
+}
+
+func (r *SudnResolver) newResponseMsg(request *model.Request) *dns.Msg {
+	response := new(dns.Msg)
+	response.SetReply(request.Req)
+
+	return response
+}
+
+func (r *SudnResolver) returnResponseModel(response *dns.Msg) (*model.Response, error) {
+	return &model.Response{
+		Res:    response,
+		RType:  model.ResponseTypeSPECIAL,
+		Reason: "Special-Use Domain Name",
+	}, nil
 }
