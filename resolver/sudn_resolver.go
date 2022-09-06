@@ -67,8 +67,9 @@ func (r *SudnResolver) Resolve(request *model.Request) (*model.Response, error) 
 	return r.next.Resolve(request)
 }
 
+// Special-Use Domain Names (RFC 6761) always active
 func (r *SudnResolver) Configuration() []string {
-	return []string{"Special-Use Domain Names (RFC 6761)"}
+	return []string{}
 }
 
 func (r *SudnResolver) negativeResponse(request *model.Request) (*model.Response, error) {

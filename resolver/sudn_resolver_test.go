@@ -84,4 +84,10 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 			Expect(resp.Res.Answer[0].(*dns.A).A).Should(Equal(net.ParseIP("123.145.123.145")))
 		})
 	})
+
+	Describe("Configuration pseudo test", func() {
+		It("should always be empty", func() {
+			Expect(sut.Configuration()).Should(HaveLen(0))
+		})
+	})
 })
