@@ -50,17 +50,17 @@ func (r *SudnResolver) Resolve(request *model.Request) (*model.Response, error) 
 	if r.isSpecial(request, sudnArpaSlice()...) ||
 		r.isSpecial(request, sudnInvalid) ||
 		r.isSpecial(request, sudnTest) {
-		return r.negativeResponse()
+		return r.negativeResponse(request)
 	} else if r.isSpecial(request, sudnLocalhost) {
 		qtype := request.Req.Question[0].Qtype
 		fmt.Println("QType:", qtype)
 		switch qtype {
 		case dns.TypeA:
-			return r.loopbackResponseA()
+			return r.loopbackResponseA(request)
 		case dns.TypeAAAA:
-			return r.loopbackResponseAAAA()
+			return r.loopbackResponseAAAA(request)
 		default:
-			return r.negativeResponse()
+			return r.negativeResponse(request)
 		}
 	}
 
@@ -71,8 +71,9 @@ func (r *SudnResolver) Configuration() []string {
 	return []string{"Special-Use Domain Names (RFC 6761)"}
 }
 
-func (r *SudnResolver) negativeResponse() (*model.Response, error) {
+func (r *SudnResolver) negativeResponse(request *model.Request) (*model.Response, error) {
 	response := new(dns.Msg)
+	response.SetReply(request.Req)
 	response.Rcode = dns.RcodeNameError
 
 	return &model.Response{
@@ -82,8 +83,9 @@ func (r *SudnResolver) negativeResponse() (*model.Response, error) {
 	}, nil
 }
 
-func (r *SudnResolver) loopbackResponseA() (*model.Response, error) {
+func (r *SudnResolver) loopbackResponseA(request *model.Request) (*model.Response, error) {
 	response := new(dns.Msg)
+	response.SetReply(request.Req)
 	response.Rcode = dns.RcodeSuccess
 
 	rr := new(dns.A)
@@ -105,8 +107,9 @@ func (r *SudnResolver) loopbackResponseA() (*model.Response, error) {
 	}, nil
 }
 
-func (r *SudnResolver) loopbackResponseAAAA() (*model.Response, error) {
+func (r *SudnResolver) loopbackResponseAAAA(request *model.Request) (*model.Response, error) {
 	response := new(dns.Msg)
+	response.SetReply(request.Req)
 	response.Rcode = dns.RcodeSuccess
 
 	rr := new(dns.AAAA)
