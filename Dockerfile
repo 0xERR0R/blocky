@@ -1,12 +1,19 @@
 # build stage
 FROM golang:1-alpine AS build-env
 RUN apk add --no-cache \
+    build-base \
+    linux-headers \
+    coreutils \
+    binutils \
+    libtool \
+    musl-dev \
     git \
     make \
     gcc \
     libc-dev \
     zip \
-    ca-certificates
+    ca-certificates \
+    libcap
 
 ENV GO111MODULE=on \
     CGO_ENABLED=0
@@ -20,24 +27,35 @@ RUN go mod download
 ADD . .
 
 ARG opts
-RUN env ${opts} make build
+RUN env ${opts} make build-static
+RUN setcap 'cap_net_bind_service=+ep' /src/bin/blocky
+
+RUN adduser -S -D -H -h /app -s /sbin/nologin blocky
+RUN chown blocky /src/bin/blocky
+RUN tail -n 1 /etc/passwd > /tmp/blocky_passwd
+
+# get all required files and build a root directory
+FROM scratch AS combine-env
+
+COPY --from=build-env /src/bin/blocky /app/blocky
+COPY --from=build-env /tmp/blocky_passwd /etc/passwd
+COPY --from=build-env /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
 
 # final stage
-FROM alpine:3.16
+FROM scratch
 
 LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
       org.opencontainers.image.url="https://github.com/0xERR0R/blocky" \
       org.opencontainers.image.title="DNS proxy as ad-blocker for local network"
 
-COPY --from=build-env /src/bin/blocky /app/blocky
-RUN apk add --no-cache ca-certificates bind-tools tini tzdata libcap && \
-    adduser -S -D -H -h /app -s /sbin/nologin blocky && \
-    setcap 'cap_net_bind_service=+ep' /app/blocky
-
-HEALTHCHECK --interval=1m --timeout=3s CMD dig @127.0.0.1 -p 53 healthcheck.blocky +tcp +short || exit 1
+COPY --from=combine-env / /
 
 USER blocky
 WORKDIR /app
 
-ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["sh", "-c", "/app/blocky --config ${CONFIG_FILE:-/app/config.yml}"]
+ENV BLOCKY_CONFIG_FILE=/app/config.yml
+
+ENTRYPOINT ["/app/blocky"]
+
+HEALTHCHECK --interval=1m --timeout=3s CMD ["/app/blocky", "healthcheck"]
