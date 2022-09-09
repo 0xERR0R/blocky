@@ -38,15 +38,15 @@ func sudnArpaSlice() []string {
 	}
 }
 
-type SudnResolver struct {
+type SpecialUseDomainNamesResolver struct {
 	NextResolver
 }
 
-func NewSudnResolver() ChainedResolver {
-	return &SudnResolver{}
+func NewSpecialUseDomainNamesResolver() ChainedResolver {
+	return &SpecialUseDomainNamesResolver{}
 }
 
-func (r *SudnResolver) Resolve(request *model.Request) (*model.Response, error) {
+func (r *SpecialUseDomainNamesResolver) Resolve(request *model.Request) (*model.Response, error) {
 	if r.isSpecial(request, sudnArpaSlice()...) ||
 		r.isSpecial(request, sudnInvalid) ||
 		r.isSpecial(request, sudnTest) {
@@ -68,18 +68,18 @@ func (r *SudnResolver) Resolve(request *model.Request) (*model.Response, error) 
 }
 
 // Special-Use Domain Names (RFC 6761) always active
-func (r *SudnResolver) Configuration() []string {
+func (r *SpecialUseDomainNamesResolver) Configuration() []string {
 	return []string{}
 }
 
-func (r *SudnResolver) negativeResponse(request *model.Request) (*model.Response, error) {
+func (r *SpecialUseDomainNamesResolver) negativeResponse(request *model.Request) (*model.Response, error) {
 	response := r.newResponseMsg(request)
 	response.Rcode = dns.RcodeNameError
 
 	return r.returnResponseModel(response)
 }
 
-func (r *SudnResolver) loopbackResponseA(request *model.Request) (*model.Response, error) {
+func (r *SpecialUseDomainNamesResolver) loopbackResponseA(request *model.Request) (*model.Response, error) {
 	response := r.newResponseMsg(request)
 	response.Rcode = dns.RcodeSuccess
 
@@ -98,7 +98,7 @@ func (r *SudnResolver) loopbackResponseA(request *model.Request) (*model.Respons
 	return r.returnResponseModel(response)
 }
 
-func (r *SudnResolver) loopbackResponseAAAA(request *model.Request) (*model.Response, error) {
+func (r *SpecialUseDomainNamesResolver) loopbackResponseAAAA(request *model.Request) (*model.Response, error) {
 	response := r.newResponseMsg(request)
 	response.Rcode = dns.RcodeSuccess
 
@@ -117,7 +117,7 @@ func (r *SudnResolver) loopbackResponseAAAA(request *model.Request) (*model.Resp
 	return r.returnResponseModel(response)
 }
 
-func (r *SudnResolver) isSpecial(request *model.Request, names ...string) bool {
+func (r *SpecialUseDomainNamesResolver) isSpecial(request *model.Request, names ...string) bool {
 	domainFromQuestion := request.Req.Question[0].Name
 	for _, n := range names {
 		if domainFromQuestion == n ||
@@ -129,14 +129,14 @@ func (r *SudnResolver) isSpecial(request *model.Request, names ...string) bool {
 	return false
 }
 
-func (r *SudnResolver) newResponseMsg(request *model.Request) *dns.Msg {
+func (r *SpecialUseDomainNamesResolver) newResponseMsg(request *model.Request) *dns.Msg {
 	response := new(dns.Msg)
 	response.SetReply(request.Req)
 
 	return response
 }
 
-func (r *SudnResolver) returnResponseModel(response *dns.Msg) (*model.Response, error) {
+func (r *SpecialUseDomainNamesResolver) returnResponseModel(response *dns.Msg) (*model.Response, error) {
 	return &model.Response{
 		Res:    response,
 		RType:  model.ResponseTypeSPECIAL,

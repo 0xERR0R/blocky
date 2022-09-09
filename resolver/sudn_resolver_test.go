@@ -13,7 +13,7 @@ import (
 
 var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 	var (
-		sut        *SudnResolver
+		sut        *SpecialUseDomainNamesResolver
 		m          *MockResolver
 		mockAnswer *dns.Msg
 
@@ -28,7 +28,7 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 
-		sut = NewSudnResolver().(*SudnResolver)
+		sut = NewSpecialUseDomainNamesResolver().(*SpecialUseDomainNamesResolver)
 		sut.Next(m)
 	})
 
