@@ -209,7 +209,8 @@ hostname belongs to which IP address, all DNS queries for the local network shou
 The optional parameter `rewrite` behaves the same as with custom DNS.
 
 The optional parameter fallbackUpstream, if false (default), return empty result if after rewrite, the mapped resolver returned an empty answer. If true, the original query will be sent to the upstream resolver.
-# Usage: One usecase when having split DNS for internal and external (internet facing) users, but not all subdomains are listed in the internal domain.
+
+### Usage: One usecase when having split DNS for internal and external (internet facing) users, but not all subdomains are listed in the internal domain
 
 !!! example
 
@@ -456,16 +457,22 @@ You can configure the list download attempts according to your internet connecti
       downloadCooldown: 10s
     ```
 
-### Fail on start
+### Start strategy
 
-You can ensure with parameter `failStartOnListError = true` that the application will fail if at least one list can't be
-downloaded or opened. Default value is `false`.
+You can configure the blocking behavior during application start of blocky.  
+If no starategy is selected blocking will be used.
+
+| startStrategy | Description                                                                                           |
+|---------------|-------------------------------------------------------------------------------------------------------|
+| blocking      | all blocking lists will be loaded before DNS resoulution starts                                       |
+| failOnError   | like blocking but blocky shutsdown if an download fails                                               |
+| fast          | DNS resolution starts immediately without blocking which will be enabled after list load is completed |
 
 !!! example
 
     ```yaml
     blocking:
-      failStartOnListError: false
+      startStrategy: failOnError
     ```
 
 ### Concurrency
@@ -474,7 +481,7 @@ Blocky downloads and processes links in a single group concurrently. With parame
 how many links can be processed in the same time. Higher value can reduce the overall list refresh time, but more parallel
  download and processing jobs need more RAM. Please consider to reduce this value on systems with limited memory. Default value is 4.
 
-    !!! example
+!!! example
 
     ```yaml
     blocking:
