@@ -15,6 +15,8 @@ const (
 	sudnLocalhost = "localhost."
 )
 
+var IPv4loopback net.IP = net.ParseIP("127.0.0.1")
+
 func sudnArpaSlice() []string {
 	return []string{
 		"10.in-addr.arpa.",
@@ -90,7 +92,7 @@ func (r *SpecialUseDomainNamesResolver) loopbackResponseA(request *model.Request
 		Ttl:    0,
 	}
 
-	rr.A = net.ParseIP("127.0.0.1")
+	rr.A = IPv4loopback
 
 	response.Answer = []dns.RR{rr}
 
