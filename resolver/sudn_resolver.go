@@ -53,7 +53,6 @@ func (r *SpecialUseDomainNamesResolver) Resolve(request *model.Request) (*model.
 		return r.negativeResponse(request)
 	} else if r.isSpecial(request, sudnLocalhost) {
 		qtype := request.Req.Question[0].Qtype
-		fmt.Println("QType:", qtype)
 		switch qtype {
 		case dns.TypeA:
 			return r.loopbackResponseA(request)
