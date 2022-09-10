@@ -9,13 +9,14 @@ import (
 	"github.com/miekg/dns"
 )
 
+//nolint:gochecknoglobals
+var IPv4loopback = net.ParseIP("127.0.0.1")
+
 const (
 	sudnTest      = "test."
 	sudnInvalid   = "invalid."
 	sudnLocalhost = "localhost."
 )
-
-var IPv4loopback net.IP = net.ParseIP("127.0.0.1")
 
 func sudnArpaSlice() []string {
 	return []string{
