@@ -109,7 +109,7 @@ func (r *SpecialUseDomainNamesResolver) loopbackResponseAAAA(request *model.Requ
 		Ttl:    0,
 	}
 
-	rr.AAAA = net.ParseIP("::1")
+	rr.AAAA = net.IPv6loopback
 
 	response.Answer = []dns.RR{rr}
 
