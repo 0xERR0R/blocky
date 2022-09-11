@@ -1,6 +1,9 @@
-bin/
-dist/
+bin
+dist
+site
+docs
+node_modules
+.git
 .idea
 .github
-node_modules/
-.vscode/
+.vscode
