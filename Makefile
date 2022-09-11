@@ -3,7 +3,7 @@
 .PHONY: all clean build swagger test lint run help
 .DEFAULT_GOAL := help
 
-VERSION := $(shell git describe --always --tags)
+VERSION?=$(shell git describe --always --tags)
 BUILD_TIME=$(shell date '+%Y%m%d-%H%M%S')
 DOCKER_IMAGE_NAME=spx01/blocky
 BINARY_NAME=blocky
