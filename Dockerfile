@@ -1,5 +1,9 @@
 # build stage
 FROM golang:1-alpine AS build-env
+# add blocky user
+RUN adduser -S -D -H -h /app -s /sbin/nologin blocky
+RUN tail -n 1 /etc/passwd > /tmp/blocky_passwd
+# add packages
 RUN apk add --no-cache \
     build-base \
     linux-headers \
@@ -29,18 +33,14 @@ ADD . .
 ARG opts
 RUN env ${opts} make build-static
 RUN setcap 'cap_net_bind_service=+ep' /src/bin/blocky
-
-RUN adduser -S -D -H -h /app -s /sbin/nologin blocky
 RUN chown blocky /src/bin/blocky
-RUN tail -n 1 /etc/passwd > /tmp/blocky_passwd
 
 # get all required files and build a root directory
 FROM scratch AS combine-env
 
-COPY --from=build-env /src/bin/blocky /app/blocky
 COPY --from=build-env /tmp/blocky_passwd /etc/passwd
 COPY --from=build-env /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-
+COPY --from=build-env /src/bin/blocky /app/blocky
 
 # final stage
 FROM scratch
