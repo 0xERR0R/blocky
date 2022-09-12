@@ -36,9 +36,10 @@ jobs:
           if [[ "${ENABLED,,}" != "true" ]]; then
             echo "##[set-output name=enabled;]$(echo 0)"
             echo "::notice::Enable this workflow by creating a secret 'DEVELOPMENT_DOCKER' with the value 'true'"
+            echo "Workflow is disabled" >> $GITHUB_STEP_SUMMARY
           else
             echo "##[set-output name=enabled;]$(echo 1)"
-            echo "Workflow is enabled"
+            echo "Workflow is enabled" >> $GITHUB_STEP_SUMMARY
           fi
 
   docker:
@@ -75,14 +76,14 @@ jobs:
           CACHE_EXISTS=$(jq '[ .tags[]? | contains("buildcache") ] | any' <<< "$JSON")
 
           if [[ $CACHE_EXISTS == 'true' ]]; then
-            echo "No preparation needed"
+            echo "No preparation needed" >> $GITHUB_STEP_SUMMARY
           else
             echo '::echo::off'
             docker pull ghcr.io/0xerr0r/blocky:development
             docker tag ghcr.io/0xerr0r/blocky:development ghcr.io/${{ github.repository }}:buildcache
             docker push ghcr.io/${{ github.repository }}:buildcache
             echo '::echo::on'
-            echo "Preparation complete"
+            echo "Preparation complete" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Extract branch name
@@ -100,10 +101,9 @@ jobs:
           echo "##[set-output name=version;]$(echo ${VERSION})"
           echo "##[set-output name=build_time;]$(echo ${BUILD_TIME})"
           echo '::echo::on'
-          echo "::group::Build-Args"
-          echo " - VERSION: ${VERSION}"
-          echo " - BUILD_TIME: ${BUILD_TIME}"
-          echo "::endgroup::"
+          echo "## Build-Args" >> $GITHUB_STEP_SUMMARY
+          echo " - VERSION: ${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo " - BUILD_TIME: ${BUILD_TIME}" >> $GITHUB_STEP_SUMMARY
         
       - name: Build and push
         uses: docker/build-push-action@v3
