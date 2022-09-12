@@ -27,14 +27,13 @@ jobs:
         id: check
         shell: bash
         run: | 
-          SECVAR=${{ secrets.DEVELOPMENT_DOCKER }}
-          ENABLED=$(echo "${SECVAR,,}")
+          ENABLED=${{ secrets.DEVELOPMENT_DOCKER }}
 
           if [[ "${{ github.repository_owner }}" == "0xERR0R" ]]; then
             ENABLED="true"
           fi          
 
-          if [[ "${ENABLED}" != 'true' ]]; then
+          if [[ "${ENABLED,,}" != "true" ]]; then
             echo "##[set-output name=enabled;]$(echo 0)"
             echo "::notice::Enable this workflow by creating a secret 'DEVELOPMENT_DOCKER' with the value 'true'"
           else
@@ -91,16 +90,20 @@ jobs:
         shell: bash
         run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
 
-      - name: Get build ARG opts
-        id: get_arg
+      - name: Get build args
+        id: get_args
         shell: bash
         run: |
           echo '::echo::off'
           VERSION=$(git describe --always --tags)
-          OPTS=$(echo "VERSION=${VERSION}")
-          echo "##[set-output name=opts;]$(echo ${OPTS})"
+          BUILD_TIME=$(date '+%Y%m%d-%H%M%S')
+          echo "##[set-output name=version;]$(echo ${VERSION})"
+          echo "##[set-output name=build_time;]$(echo ${BUILD_TIME})"
           echo '::echo::on'
-          echo ${OPTS}
+          echo "::group::Build-Args"
+          echo " - VERSION: ${VERSION}"
+          echo " - BUILD_TIME: ${BUILD_TIME}"
+          echo "::endgroup::"
         
       - name: Build and push
         uses: docker/build-push-action@v3
@@ -108,10 +111,12 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
           push: true
-          build-args: ${{ steps.get_arg.outputs.opts }}
           tags: ghcr.io/${{ github.repository }}:${{ steps.extract_branch.outputs.branch }}
           cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
           cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
+          build-args: |
+            VERSION=${{ steps.get_arg.outputs.version }}
+            BUILD_TIME=${{ steps.get_arg.outputs.build_time }}
 
   retag:
     name: Add DockerHub tag
