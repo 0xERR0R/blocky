@@ -4,7 +4,7 @@
 .DEFAULT_GOAL := help
 
 VERSION?=$(shell git describe --always --tags)
-BUILD_TIME=$(shell date '+%Y%m%d-%H%M%S')
+BUILD_TIME?=$(shell date '+%Y%m%d-%H%M%S')
 DOCKER_IMAGE_NAME=spx01/blocky
 BINARY_NAME=blocky
 BIN_OUT_DIR=bin
@@ -49,7 +49,7 @@ fmt: ## gofmt and goimports all go files
 	find . -name '*.go' | while read -r file; do gofmt -w -s "$$file"; goimports -w "$$file"; done
 
 docker-build:  ## Build docker image
-	docker buildx build -o type=docker --network=host -t ${DOCKER_IMAGE_NAME} .
+	docker buildx build -o type=docker --build-arg VERSION=${VERSION} --build-arg BUILD_TIME=${BUILD_TIME} --network=host -t ${DOCKER_IMAGE_NAME} .
 
 help:  ## Shows help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'

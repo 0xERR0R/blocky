@@ -1,8 +1,12 @@
 # build stage
 FROM golang:1-alpine AS build-env
+# set working directory
+WORKDIR /src
+
 # add blocky user
 RUN adduser -S -D -H -h /app -s /sbin/nologin blocky
 RUN tail -n 1 /etc/passwd > /tmp/blocky_passwd
+
 # add packages
 RUN apk add --no-cache \
     build-base \
@@ -19,19 +23,23 @@ RUN apk add --no-cache \
     ca-certificates \
     libcap
 
-ENV GO111MODULE=on \
-    CGO_ENABLED=0
-    
-WORKDIR /src
-
+# get go modules
 COPY go.mod go.sum ./
 RUN go mod download
 
 # add source
 ADD . .
 
-ARG opts
-RUN env ${opts} make build-static
+# setup environment
+ARG VERSION
+ENV VERSION ${VERSION}
+ARG BUILD_TIME
+ENV BUILD_TIME ${BUILD_TIME}
+ENV GO111MODULE=on 
+ENV CGO_ENABLED=0
+
+# build binary
+RUN make build-static
 RUN setcap 'cap_net_bind_service=+ep' /src/bin/blocky
 RUN chown blocky /src/bin/blocky
 
