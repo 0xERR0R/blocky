@@ -53,6 +53,19 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: Get build args
+        id: get_args
+        shell: bash
+        run: |
+          VERSION=$(git describe --always --tags)
+          BUILD_TIME=$(date '+%Y%m%d-%H%M%S')
+
+          echo "##[set-output name=version;]$(echo ${VERSION})"
+          echo "##[set-output name=build_time;]$(echo ${BUILD_TIME})"
+
+          echo "VERSION: ${VERSION}"
+          echo "BUILD_TIME: ${BUILD_TIME}"
+
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
@@ -63,6 +76,9 @@ jobs:
           labels: ${{ steps.docker_meta.outputs.labels }}
           cache-from: type=registry,ref=ghcr.io/0xerr0r/blocky:buildcache
           cache-to: type=registry,ref=ghcr.io/0xerr0r/blocky:buildcache,mode=max
+          build-args: |
+            VERSION=${{ steps.get_arg.outputs.version }}
+            BUILD_TIME=${{ steps.get_arg.outputs.build_time }}
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
