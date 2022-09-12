@@ -35,11 +35,11 @@ jobs:
 
           if [[ "${ENABLED,,}" != "true" ]]; then
             echo "##[set-output name=enabled;]$(echo 0)"
-            echo "::notice::Enable this workflow by creating a secret 'DEVELOPMENT_DOCKER' with the value 'true'"
-            echo "Workflow is disabled" >> $GITHUB_STEP_SUMMARY
+            echo "### Workflow is disabled" >> $GITHUB_STEP_SUMMARY
+            echo "To enable this workflow by creating a secret 'DEVELOPMENT_DOCKER' with the value 'true'" >> $GITHUB_STEP_SUMMARY
           else
             echo "##[set-output name=enabled;]$(echo 1)"
-            echo "Workflow is enabled" >> $GITHUB_STEP_SUMMARY
+            echo "Workflow is enabled"
           fi
 
   docker:
@@ -76,32 +76,36 @@ jobs:
           CACHE_EXISTS=$(jq '[ .tags[]? | contains("buildcache") ] | any' <<< "$JSON")
 
           if [[ $CACHE_EXISTS == 'true' ]]; then
-            echo "No preparation needed" >> $GITHUB_STEP_SUMMARY
+            echo "The buildcache tag is already initialized"
           else
-            echo '::echo::off'
+            echo "Initializing buildcache tag"
             docker pull ghcr.io/0xerr0r/blocky:development
             docker tag ghcr.io/0xerr0r/blocky:development ghcr.io/${{ github.repository }}:buildcache
             docker push ghcr.io/${{ github.repository }}:buildcache
-            echo '::echo::on'
-            echo "Preparation complete" >> $GITHUB_STEP_SUMMARY
+            echo "Initializing complete"
           fi
 
       - name: Extract branch name
         id: extract_branch
         shell: bash
-        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        run: |
+          BRANCH=${GITHUB_REF#refs/heads/}
+
+          echo "##[set-output name=branch;]$(echo ${BRANCH})"
+
+          echo "### Branch: ${BRANCH}" >> $GITHUB_STEP_SUMMARY
 
       - name: Get build args
         id: get_args
         shell: bash
         run: |
-          echo '::echo::off'
           VERSION=$(git describe --always --tags)
           BUILD_TIME=$(date '+%Y%m%d-%H%M%S')
+
           echo "##[set-output name=version;]$(echo ${VERSION})"
           echo "##[set-output name=build_time;]$(echo ${BUILD_TIME})"
-          echo '::echo::on'
-          echo "## Build-Args" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Build-Args" >> $GITHUB_STEP_SUMMARY
           echo " - VERSION: ${VERSION}" >> $GITHUB_STEP_SUMMARY
           echo " - BUILD_TIME: ${BUILD_TIME}" >> $GITHUB_STEP_SUMMARY
         
