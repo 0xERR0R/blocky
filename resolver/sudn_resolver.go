@@ -9,13 +9,11 @@ import (
 	"github.com/miekg/dns"
 )
 
-//nolint:gochecknoglobals
-var IPv4loopback = net.ParseIP("127.0.0.1")
-
 const (
 	sudnTest      = "test."
 	sudnInvalid   = "invalid."
 	sudnLocalhost = "localhost."
+	mdnsLocal     = "local."
 )
 
 func sudnArpaSlice() []string {
@@ -41,82 +39,52 @@ func sudnArpaSlice() []string {
 	}
 }
 
+type defaultIPs struct {
+	localV4    net.IP
+	localV6    net.IP
+	loopbackV4 net.IP
+	loopbackV6 net.IP
+}
+
 type SpecialUseDomainNamesResolver struct {
 	NextResolver
+	defaults *defaultIPs
 }
 
 func NewSpecialUseDomainNamesResolver() ChainedResolver {
-	return &SpecialUseDomainNamesResolver{}
+	return &SpecialUseDomainNamesResolver{
+		defaults: &defaultIPs{
+			localV4:    net.ParseIP("224.0.0.251"),
+			localV6:    net.ParseIP("FF02::FB"),
+			loopbackV4: net.ParseIP("127.0.0.1"),
+			loopbackV6: net.IPv6loopback,
+		},
+	}
 }
 
 func (r *SpecialUseDomainNamesResolver) Resolve(request *model.Request) (*model.Response, error) {
+	// RFC 6761 - negative
 	if r.isSpecial(request, sudnArpaSlice()...) ||
 		r.isSpecial(request, sudnInvalid) ||
 		r.isSpecial(request, sudnTest) {
 		return r.negativeResponse(request)
-	} else if r.isSpecial(request, sudnLocalhost) {
-		qtype := request.Req.Question[0].Qtype
-		switch qtype {
-		case dns.TypeA:
-			return r.loopbackResponseA(request)
-		case dns.TypeAAAA:
-			return r.loopbackResponseAAAA(request)
-		default:
-			return r.negativeResponse(request)
-		}
+	}
+	// RFC 6761 - switched
+	if r.isSpecial(request, sudnLocalhost) {
+		return r.responseSwitch(request, sudnLocalhost, r.defaults.loopbackV4, r.defaults.loopbackV6)
+	}
+
+	// RFC 6762 - switched
+	if r.isSpecial(request, mdnsLocal) {
+		return r.responseSwitch(request, mdnsLocal, r.defaults.localV4, r.defaults.localV6)
 	}
 
 	return r.next.Resolve(request)
 }
 
-// Special-Use Domain Names (RFC 6761) always active
+// RFC 6761 & 6762 are always active
 func (r *SpecialUseDomainNamesResolver) Configuration() []string {
 	return []string{}
-}
-
-func (r *SpecialUseDomainNamesResolver) negativeResponse(request *model.Request) (*model.Response, error) {
-	response := r.newResponseMsg(request)
-	response.Rcode = dns.RcodeNameError
-
-	return r.returnResponseModel(response)
-}
-
-func (r *SpecialUseDomainNamesResolver) loopbackResponseA(request *model.Request) (*model.Response, error) {
-	response := r.newResponseMsg(request)
-	response.Rcode = dns.RcodeSuccess
-
-	rr := new(dns.A)
-	rr.Hdr = dns.RR_Header{
-		Name:   sudnLocalhost,
-		Rrtype: dns.TypeA,
-		Class:  dns.ClassINET,
-		Ttl:    0,
-	}
-
-	rr.A = IPv4loopback
-
-	response.Answer = []dns.RR{rr}
-
-	return r.returnResponseModel(response)
-}
-
-func (r *SpecialUseDomainNamesResolver) loopbackResponseAAAA(request *model.Request) (*model.Response, error) {
-	response := r.newResponseMsg(request)
-	response.Rcode = dns.RcodeSuccess
-
-	rr := new(dns.AAAA)
-	rr.Hdr = dns.RR_Header{
-		Name:   sudnLocalhost,
-		Rrtype: dns.TypeA,
-		Class:  dns.ClassINET,
-		Ttl:    0,
-	}
-
-	rr.AAAA = net.IPv6loopback
-
-	response.Answer = []dns.RR{rr}
-
-	return r.returnResponseModel(response)
 }
 
 func (r *SpecialUseDomainNamesResolver) isSpecial(request *model.Request, names ...string) bool {
@@ -131,6 +99,61 @@ func (r *SpecialUseDomainNamesResolver) isSpecial(request *model.Request, names 
 	return false
 }
 
+func (r *SpecialUseDomainNamesResolver) responseSwitch(request *model.Request,
+	name string, ipV4, ipV6 net.IP) (*model.Response, error) {
+	qtype := request.Req.Question[0].Qtype
+	switch qtype {
+	case dns.TypeA:
+		return r.positiveResponse(request, name, dns.TypeA, ipV4)
+	case dns.TypeAAAA:
+		return r.positiveResponse(request, name, dns.TypeAAAA, ipV6)
+	default:
+		return r.negativeResponse(request)
+	}
+}
+
+func (r *SpecialUseDomainNamesResolver) positiveResponse(request *model.Request,
+	name string, rtype uint16, ip net.IP) (*model.Response, error) {
+	response := r.newResponseMsg(request)
+	response.Rcode = dns.RcodeSuccess
+
+	hdr := dns.RR_Header{
+		Name:   name,
+		Rrtype: rtype,
+		Class:  dns.ClassINET,
+		Ttl:    0,
+	}
+
+	if rtype != dns.TypeA && rtype != dns.TypeAAAA {
+		return nil, fmt.Errorf("invalid response type")
+	}
+
+	var rr dns.RR
+	if rtype == dns.TypeA {
+		rr = &dns.A{
+			A:   ip,
+			Hdr: hdr,
+		}
+	} else {
+		rr = &dns.AAAA{
+			AAAA: ip,
+			Hdr:  hdr,
+		}
+	}
+
+	response.Answer = []dns.RR{rr}
+
+	return r.returnResponseModel(response)
+}
+
+func (r *SpecialUseDomainNamesResolver) negativeResponse(request *model.Request) (*model.Response, error) {
+	response := r.newResponseMsg(request)
+	response.Rcode = dns.RcodeNameError
+
+	return r.returnResponseModel(response)
+}
+
+// Creates a new dns.Msg as response for a request
 func (r *SpecialUseDomainNamesResolver) newResponseMsg(request *model.Request) *dns.Msg {
 	response := new(dns.Msg)
 	response.SetReply(request.Req)
@@ -138,6 +161,7 @@ func (r *SpecialUseDomainNamesResolver) newResponseMsg(request *model.Request) *
 	return response
 }
 
+// Wrapps a dns.Msg into a model.Response
 func (r *SpecialUseDomainNamesResolver) returnResponseModel(response *dns.Msg) (*model.Response, error) {
 	return &model.Response{
 		Res:    response,
