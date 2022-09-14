@@ -40,8 +40,6 @@ func sudnArpaSlice() []string {
 }
 
 type defaultIPs struct {
-	localV4    net.IP
-	localV6    net.IP
 	loopbackV4 net.IP
 	loopbackV6 net.IP
 }
@@ -54,8 +52,6 @@ type SpecialUseDomainNamesResolver struct {
 func NewSpecialUseDomainNamesResolver() ChainedResolver {
 	return &SpecialUseDomainNamesResolver{
 		defaults: &defaultIPs{
-			localV4:    net.ParseIP("224.0.0.251"),
-			localV6:    net.ParseIP("FF02::FB"),
 			loopbackV4: net.ParseIP("127.0.0.1"),
 			loopbackV6: net.IPv6loopback,
 		},
@@ -74,9 +70,9 @@ func (r *SpecialUseDomainNamesResolver) Resolve(request *model.Request) (*model.
 		return r.responseSwitch(request, sudnLocalhost, r.defaults.loopbackV4, r.defaults.loopbackV6)
 	}
 
-	// RFC 6762 - switched
+	// RFC 6762 - negative
 	if r.isSpecial(request, mdnsLocal) {
-		return r.responseSwitch(request, mdnsLocal, r.defaults.localV4, r.defaults.localV6)
+		return r.negativeResponse(request)
 	}
 
 	return r.next.Resolve(request)

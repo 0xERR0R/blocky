@@ -59,7 +59,13 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
 		})
 
-		It("should block local none A", func() {
+		It("should block local", func() {
+			resp, err = sut.Resolve(newRequest(mdnsLocal, dns.Type(dns.TypeA)))
+			Expect(err).Should(Succeed())
+			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+		})
+
+		It("should block localhost none A", func() {
 			resp, err = sut.Resolve(newRequest(mdnsLocal, dns.Type(dns.TypeHTTPS)))
 			Expect(err).Should(Succeed())
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
@@ -79,22 +85,6 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 			Expect(err).Should(Succeed())
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 			Expect(resp.Res.Answer[0].(*dns.AAAA).AAAA).Should(Equal(sut.defaults.loopbackV6))
-		})
-	})
-
-	Describe("Resolve local", func() {
-		It("should resolve IPv4 local", func() {
-			resp, err = sut.Resolve(newRequest(mdnsLocal, dns.Type(dns.TypeA)))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-			Expect(resp.Res.Answer[0].(*dns.A).A).Should(Equal(sut.defaults.localV4))
-		})
-
-		It("should resolve IPv6 local", func() {
-			resp, err = sut.Resolve(newRequest(mdnsLocal, dns.Type(dns.TypeAAAA)))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-			Expect(resp.Res.Answer[0].(*dns.AAAA).AAAA).Should(Equal(sut.defaults.localV6))
 		})
 	})
 
