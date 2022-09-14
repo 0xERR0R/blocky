@@ -1,5 +1,5 @@
 # prepare build environment
-FROM --platform=$BUILDPLATFORM golang:1-alpine AS build-env
+FROM --platform=$BUILDPLATFORM golang:1-alpine AS build
 
 ARG VERSION
 ARG BUILD_TIME
