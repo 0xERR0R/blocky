@@ -3,8 +3,8 @@
 .PHONY: all clean build swagger test lint run help
 .DEFAULT_GOAL := help
 
-VERSION?=$(shell git describe --always --tags)
-BUILD_TIME?=$(shell date '+%Y%m%d-%H%M%S')
+VERSION:=$(shell git describe --always --tags)
+BUILD_TIME=$(shell date '+%Y%m%d-%H%M%S')
 DOCKER_IMAGE_NAME=spx01/blocky
 BINARY_NAME=blocky
 BIN_OUT_DIR=bin
@@ -28,10 +28,6 @@ serve_docs: ## serves online docs
 build:  ## Build binary
 	go generate ./...
 	go build -v -ldflags="-w -s -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" -o $(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
-
-build-static:  ## Build static binary
-	go generate ./...
-	go build -tags static -v -ldflags="-linkmode external -extldflags -static -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" -o $(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 
 test:  ## run tests
 	go run github.com/onsi/ginkgo/v2/ginkgo -v --coverprofile=coverage.txt --covermode=atomic -cover ./...
