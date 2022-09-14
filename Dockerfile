@@ -1,7 +1,5 @@
-# build stage
+# prepare build environment
 FROM golang:1-alpine AS build-env
-# set working directory
-WORKDIR /src
 
 # add blocky user
 RUN adduser -S -D -H -h /app -s /sbin/nologin blocky
@@ -23,6 +21,12 @@ RUN apk add --no-cache \
     ca-certificates \
     libcap
 
+# build blocky
+FROM build-env AS build
+
+# set working directory
+WORKDIR /src
+
 # get go modules
 COPY go.mod go.sum ./
 RUN go mod download
@@ -43,13 +47,6 @@ RUN --mount=type=cache,target=/root/.cache/go-build make build-static
 RUN setcap 'cap_net_bind_service=+ep' /src/bin/blocky
 RUN chown blocky /src/bin/blocky
 
-# get all required files and build a root directory
-FROM scratch AS combine-env
-
-COPY --from=build-env /tmp/blocky_passwd /etc/passwd
-COPY --from=build-env /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=build-env /src/bin/blocky /app/blocky
-
 # final stage
 FROM scratch
 
@@ -57,7 +54,9 @@ LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
       org.opencontainers.image.url="https://github.com/0xERR0R/blocky" \
       org.opencontainers.image.title="DNS proxy as ad-blocker for local network"
 
-COPY --from=combine-env / /
+COPY --from=build-env /tmp/blocky_passwd /etc/passwd
+COPY --from=build-env /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=build /src/bin/blocky /app/blocky
 
 USER blocky
 WORKDIR /app
