@@ -76,6 +76,7 @@ jobs:
       - name: Prepare project
         shell: bash
         run: |
+          go mod tidy
           go mod download
           go generate ./...
           go mod vendor
