@@ -31,7 +31,7 @@ WORKDIR /src
 
 # get go modules
 COPY go.mod go.sum ./
-RUN --mount=type=cache,target=/root/go/pkg,sharing=locked \ 
+RUN --mount=type=cache,target=/root/go/pkg/mod \ 
     go mod download
 
 # add source
@@ -42,7 +42,9 @@ ENV GO111MODULE=on
 ENV CGO_ENABLED=0
 
 # build binary
-RUN go build \
+RUN --mount=type=cache,target=/root/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \ 
+    go build \
     -tags static \
     -v \
     -ldflags="-linkmode external -extldflags -static -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" \
