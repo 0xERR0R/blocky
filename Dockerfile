@@ -39,7 +39,7 @@ ENV GO111MODULE=on
 ENV CGO_ENABLED=0
 
 # build binary
-RUN make build-static
+RUN --mount=type=cache,target=/root/.cache/go-build make build-static
 RUN setcap 'cap_net_bind_service=+ep' /src/bin/blocky
 RUN chown blocky /src/bin/blocky
 
