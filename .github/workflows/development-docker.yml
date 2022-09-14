@@ -64,9 +64,12 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Go Generate
+      - name: Prepare project
         shell: bash
-        run: go generate ./...
+        run: |
+          go mod tidy
+          go generate ./...
+          go mod vendor
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2

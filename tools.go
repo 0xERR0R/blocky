@@ -8,7 +8,7 @@ package tools
 import (
 	_ "github.com/abice/go-enum"
 	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
-	_ "github.com/inigolabs/revgen@latest"
+	_ "github.com/inigolabs/revgen"
 	_ "github.com/onsi/ginkgo/v2/ginkgo"
 	_ "github.com/swaggo/swag/cmd/swag"
 )
