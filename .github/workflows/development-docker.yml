@@ -122,8 +122,8 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
           cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
           build-args: |
-            VERSION=${{ steps.get_arg.outputs.version }}
-            BUILD_TIME=${{ steps.get_arg.outputs.build_time }}
+            VERSION=${{ steps.get_args.outputs.version }}
+            BUILD_TIME=${{ steps.get_args.outputs.build_time }}
 
   retag:
     name: Add DockerHub tag
