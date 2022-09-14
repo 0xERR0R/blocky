@@ -26,32 +26,24 @@ FROM build-env AS build
 ARG VERSION
 ARG BUILD_TIME
 
-# set working directory
-WORKDIR /src
+# setup environment
+ENV CGO_ENABLED=0
 
-# get go modules
-COPY go.mod go.sum ./
-RUN --mount=type=cache,target=/root/go/pkg/mod \ 
-    go mod download
+# set working directory
+WORKDIR /go/src
 
 # add source
 ADD . .
 
-# setup environment
-ENV GO111MODULE=on 
-ENV CGO_ENABLED=0
-
 # build binary
-RUN --mount=type=cache,target=/root/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \ 
-    go build \
+RUN go build \
     -tags static \
     -v \
     -ldflags="-linkmode external -extldflags -static -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" \
-    -o /src/bin/blocky
+    -o /go/src/bin/blocky
 
-RUN setcap 'cap_net_bind_service=+ep' /src/bin/blocky
-RUN chown blocky /src/bin/blocky
+RUN setcap 'cap_net_bind_service=+ep' /go/src/bin/blocky && \
+    chown blocky /go/src/bin/blocky
 
 # final stage
 FROM scratch
@@ -62,7 +54,7 @@ LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
 
 COPY --from=build-env /tmp/blocky_passwd /etc/passwd
 COPY --from=build-env /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=build /src/bin/blocky /app/blocky
+COPY --from=build /go/src/bin/blocky /app/blocky
 
 USER blocky
 WORKDIR /app
