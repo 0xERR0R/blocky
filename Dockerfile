@@ -1,5 +1,10 @@
 # prepare build environment
-FROM golang:1-alpine AS build-env
+FROM --platform=$BUILDPLATFORM golang:1-alpine AS build-env
+
+ARG VERSION
+ARG BUILD_TIME
+ARG TARGETOS
+ARG TARGETARCH
 
 # add blocky user
 RUN adduser -S -D -H -h /app -s /sbin/nologin blocky
@@ -21,11 +26,6 @@ RUN apk add --no-cache \
     ca-certificates \
     libcap
 
-# build blocky
-FROM build-env AS build
-ARG VERSION
-ARG BUILD_TIME
-
 # setup environment
 ENV CGO_ENABLED=0
 
@@ -34,12 +34,15 @@ WORKDIR /go/src
 
 # add source
 ADD . .
+RUN go generate ./...
 
 # build binary
-RUN --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
-    GOCACHE=/root/.cache/go-build/${BUILDPLATFORM} \
+RUN --mount=target=. \
+    --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg \
+    GOOS=$TARGETOS \
+    GOARCH=$TARGETARCH \
     go build \
-    -mod=vendor \
     -tags static \
     -v \
     -ldflags="-linkmode external -extldflags -static -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" \

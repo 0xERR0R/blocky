@@ -58,28 +58,6 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      
-      - name: Set up Go
-        uses: actions/setup-go@v3
-        with:
-          go-version-file: go.mod
-
-      - name: Cache Go modules
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Prepare project
-        shell: bash
-        run: |
-          go mod tidy
-          go mod download
-          go generate ./...
-          go mod vendor -v
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
