@@ -79,7 +79,7 @@ jobs:
           go mod tidy
           go mod download
           go generate ./...
-          go mod vendor
+          go mod vendor -v
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2

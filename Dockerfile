@@ -37,6 +37,7 @@ ADD . .
 
 # build binary
 RUN go build \
+    -mod=vendor \
     -tags static \
     -v \
     -ldflags="-linkmode external -extldflags -static -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" \
