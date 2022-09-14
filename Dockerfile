@@ -58,8 +58,8 @@ LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
       org.opencontainers.image.url="https://github.com/0xERR0R/blocky" \
       org.opencontainers.image.title="DNS proxy as ad-blocker for local network"
 
-COPY --from=build-env /tmp/blocky_passwd /etc/passwd
-COPY --from=build-env /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=build /tmp/blocky_passwd /etc/passwd
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /go/src/bin/blocky /app/blocky
 
 USER blocky
