@@ -33,17 +33,22 @@ RUN go mod download
 
 # add source
 ADD . .
+RUN go generate ./...
 
 # setup environment
 ARG VERSION
-ENV VERSION ${VERSION}
 ARG BUILD_TIME
-ENV BUILD_TIME ${BUILD_TIME}
 ENV GO111MODULE=on 
 ENV CGO_ENABLED=0
 
 # build binary
-RUN --mount=type=cache,target=/root/.cache/go-build make build-static
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    go build \
+    -tags static \
+    -v \
+    -ldflags="-linkmode external -extldflags -static -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" \
+    -o /src/bin/blocky
+
 RUN setcap 'cap_net_bind_service=+ep' /src/bin/blocky
 RUN chown blocky /src/bin/blocky
 
