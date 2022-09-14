@@ -1,7 +1,5 @@
 # prepare build environment
 FROM golang:1-alpine AS build-env
-ARG VERSION
-ARG BUILD_TIME
 
 # add blocky user
 RUN adduser -S -D -H -h /app -s /sbin/nologin blocky
