@@ -36,15 +36,13 @@ RUN --mount=type=cache,target=/root/go/pkg,sharing=locked \
 
 # add source
 ADD . .
-RUN go generate ./...
 
 # setup environment
 ENV GO111MODULE=on 
 ENV CGO_ENABLED=0
 
 # build binary
-RUN --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
-    go build \
+RUN go build \
     -tags static \
     -v \
     -ldflags="-linkmode external -extldflags -static -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" \
