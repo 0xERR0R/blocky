@@ -37,7 +37,7 @@ ADD . .
 
 # build binary
 RUN --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
-    GOCACHE=/root/.cache/go-build/$BUILDPLATFORM \
+    GOCACHE=/root/.cache/go-build/${BUILDPLATFORM} \
     go build \
     -mod=vendor \
     -tags static \
