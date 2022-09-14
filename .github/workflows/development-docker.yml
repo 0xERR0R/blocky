@@ -64,10 +64,19 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
       - name: Prepare project
         shell: bash
         run: |
-          go mod tidy
+          go mod download
           go generate ./...
           go mod vendor
 
