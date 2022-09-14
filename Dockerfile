@@ -35,8 +35,11 @@ WORKDIR /go/src
 # add source
 ADD . .
 
+ENV GOCACHE /root/.cache/go-build/$BUILDPLATFORM
+
 # build binary
-RUN go build \
+RUN --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
+    go build \
     -mod=vendor \
     -tags static \
     -v \
