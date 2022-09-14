@@ -31,7 +31,8 @@ WORKDIR /src
 
 # get go modules
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/root/go/pkg,sharing=locked \ 
+    go mod download
 
 # add source
 ADD . .
@@ -42,7 +43,7 @@ ENV GO111MODULE=on
 ENV CGO_ENABLED=0
 
 # build binary
-RUN --mount=type=cache,target=/root/.cache/go-build \
+RUN --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     go build \
     -tags static \
     -v \
