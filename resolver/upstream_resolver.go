@@ -59,17 +59,13 @@ type httpUpstreamClient struct {
 func createUpstreamClient(cfg config.Upstream) upstreamClient {
 	timeout := time.Duration(config.GetConfig().UpstreamTimeout)
 
-	var cn string
-
-	if cfg.CommonName != nil {
-		cn = *cfg.CommonName
-	} else {
-		cn = cfg.Host
+	tlsConfig := tls.Config{
+		ServerName: cfg.Host,
+		MinVersion: tls.VersionTLS12,
 	}
 
-	tlsConfig := tls.Config{
-		ServerName: cn,
-		MinVersion: tls.VersionTLS12,
+	if cfg.CommonName != nil {
+		tlsConfig.ServerName = *cfg.CommonName
 	}
 
 	switch cfg.Net {
