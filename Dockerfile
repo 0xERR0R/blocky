@@ -15,13 +15,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     dpkg --add-architecture armhf && \
     dpkg --add-architecture armel && \
+    dpkg --add-architecture arm64 && \
     apt-get update && \
     apt-get --no-install-recommends install -y \
     ca-certificates \
     build-essential \
-    cross-gcc-dev \
     crossbuild-essential-armhf \
-    crossbuild-essential-armel
+    crossbuild-essential-armel \
+    crossbuild-essential-arm64
 
 # set working directory
 WORKDIR /go/src
