@@ -405,6 +405,10 @@ bootstrapDns:
 			"tcp-tls:4.4.4.4",
 			Upstream{Net: NetProtocolTcpTls, Host: "4.4.4.4", Port: 853},
 			false),
+		Entry("tcp-tls with common name",
+			"tcp-tls:example.com#otherexample.com",
+			Upstream{Net: NetProtocolTcpTls, Host: "example.com", Port: 853, CommonName: strPtr("otherexample.com")},
+			false),
 		Entry("DoH without port, use default",
 			"https:4.4.4.4",
 			Upstream{Net: NetProtocolHttps, Host: "4.4.4.4", Port: 443},
@@ -724,4 +728,8 @@ func writeConfigDir(tmpDir *helpertest.TmpFolder) error {
 		"startVerifyUpstream: false")
 
 	return f2.Error
+}
+
+func strPtr(s string) *string {
+	return &s
 }
