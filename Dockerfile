@@ -25,19 +25,17 @@ ADD . .
 RUN --mount=type=cache,target=/go/pkg \
     go generate ./...
 
-RUN cp ./docker/*.sh /go/bin && \
-    chmod +x ./docker/*.sh
+RUN chmod +x ./docker/*.sh && \
+    export GOARM=${TARGETVARIANT##*v} && \
+    export CC=$(./docker/getenv_cc.sh)
 #    . ./docker/setenv_go.sh && \
 #    . ./docker/setenv_cc.sh && \
 #    . ./docker/printenv.sh
-
+RUN ./docker/printenv.sh
 # build binary
 RUN --mount=target=. \
     --mount=type=cache,target=/root/.cache/go-build \ 
     --mount=type=cache,target=/go/pkg \
-    export GOARM=${TARGETVARIANT##*v} && \
-    export CC=$(getenv_cc.sh) && \
-    printenv.sh && \
     go build \
     -tags static,osusergo,netgo \
     -v \
