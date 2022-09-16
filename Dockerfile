@@ -16,7 +16,10 @@ WORKDIR /go/src
 
 # add source
 ADD . .
-RUN go generate ./...
+RUN --mount=type=cache,target=/go/pkg \
+    go generate ./...
+
+RUN if [ "${TARGETARCH}" == "arm" ]; then GOARM=$TARGETVARIANT; export GOARM; fi
 
 # build binary
 RUN --mount=target=. \
@@ -25,7 +28,6 @@ RUN --mount=target=. \
     CGO_ENABLED=0 \
     GOOS=$TARGETOS \
     GOARCH=$TARGETARCH \
-    GOARM=$TARGETVARIANT \
     go build \
     -tags static \
     -v \
