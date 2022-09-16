@@ -33,9 +33,12 @@ RUN chmod +x ./docker/*.sh && \
 #    . ./docker/printenv.sh
 RUN ./docker/printenv.sh
 # build binary
-RUN --mount=target=. \
-    --mount=type=cache,target=/root/.cache/go-build \ 
+# --mount=target=. \
+RUN --mount=type=cache,target=/root/.cache/go-build \ 
     --mount=type=cache,target=/go/pkg \
+    chmod +x ./docker/*.sh && \
+    export GOARM=${TARGETVARIANT##*v} && \
+    export CC=$(./docker/getenv_cc.sh) && \
     go build \
     -tags static,osusergo,netgo \
     -v \
