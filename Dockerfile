@@ -29,9 +29,9 @@ RUN --mount=target=. \
     CGO_ENABLED=0 \
     GOOS=$TARGETOS \
     GOARCH=$TARGETARCH \
-    GOARM=$TARGETVARIANT \
+    GOARM=${TARGETVARIANT##*v} \
     go build \
-    -tags static \
+    -tags static,osusergo,netgo \
     -v \
     -ldflags="-linkmode external -extldflags -static -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" \
     -o /bin/blocky
