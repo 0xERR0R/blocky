@@ -34,6 +34,7 @@ RUN --mount=type=cache,target=/go/pkg \
 RUN --mount=target=. \
     --mount=type=cache,target=/root/.cache/go-build \ 
     --mount=type=cache,target=/go/pkg \
+    chmod +x ./docker/*.sh && \
     export GOARM=${TARGETVARIANT##*v} && \
     export CC=$(./docker/getenv_cc.sh) && \
     ./docker/printenv.sh && \
