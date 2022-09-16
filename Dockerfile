@@ -19,7 +19,7 @@ ADD . .
 RUN --mount=type=cache,target=/go/pkg \
     go generate ./...
 
-RUN if [ "${TARGETARCH}" == "arm" ]; then GOARM=$TARGETVARIANT; export GOARM; fi
+RUN if [[ "$TARGETARCH" != "arm" ]]; then export GOARM=$TARGETVARIANT; fi
 
 # build binary
 RUN --mount=target=. \
