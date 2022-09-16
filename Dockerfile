@@ -26,6 +26,7 @@ RUN --mount=target=. \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     --mount=type=cache,target=/go/pkg \
     env \
+    CGO_ENABLED=0 \
     GOOS=$TARGETOS \
     GOARCH=$TARGETARCH \
     GOARM=$TARGETVARIANT \
