@@ -7,6 +7,12 @@ ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT
 
+ENV VERSION=$VERSION
+ENV BUILD_TIME=$BUILD_TIME
+ENV TARGETOS=$TARGETOS
+ENV TARGETARCH=$TARGETARCH
+ENV TARGETVARIANT=$TARGETVARIANT
+
 # add blocky user
 #RUN adduser -home /app -shell /sbin/nologin blocky && \
 #    tail -n 1 /etc/passwd > /tmp/blocky_passwd
@@ -19,17 +25,15 @@ ADD . .
 RUN --mount=type=cache,target=/go/pkg \
     go generate ./...
 
-# RUN if [[ "$TARGETARCH" != "arm" ]]; then export GOARM=$TARGETVARIANT; fi
+RUN chmod +x ./docker/*.sh && \
+    ./docker/setenv_go.sh && \
+    ./docker/setenv_cc.sh && \
+    ./docker/printenv.sh
 
 # build binary
 RUN --mount=target=. \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     --mount=type=cache,target=/go/pkg \
-    env \
-    CGO_ENABLED=0 \
-    GOOS=$TARGETOS \
-    GOARCH=$TARGETARCH \
-    GOARM=${TARGETVARIANT##*v} \
     go build \
     -tags static,osusergo,netgo \
     -v \
