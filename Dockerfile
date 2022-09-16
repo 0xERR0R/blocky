@@ -1,28 +1,15 @@
 # prepare build environment
-FROM --platform=$BUILDPLATFORM golang:buster AS build
+FROM --platform=$BUILDPLATFORM ghcr.io/gythialy/golang-cross-builder:v1.19.1-0 AS build
 
 ARG VERSION
 ARG BUILD_TIME
 ARG TARGETOS
 ARG TARGETARCH
+ARG TARGETVARIANT
 
 # add blocky user
 #RUN adduser -home /app -shell /sbin/nologin blocky && \
 #    tail -n 1 /etc/passwd > /tmp/blocky_passwd
-
-# add packages
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    dpkg --add-architecture armhf && \
-    dpkg --add-architecture armel && \
-    dpkg --add-architecture arm64 && \
-    apt-get update && \
-    apt-get --no-install-recommends install -y \
-    ca-certificates \
-    build-essential \
-    crossbuild-essential-armhf \
-    crossbuild-essential-armel \
-    crossbuild-essential-arm64
 
 # set working directory
 WORKDIR /go/src
@@ -38,6 +25,7 @@ RUN --mount=target=. \
     CGO_ENABLED=0 \
     GOOS=$TARGETOS \
     GOARCH=$TARGETARCH \
+    GOARM=$TARGETVARIANT \
     go build \
     -tags static \
     -v \
