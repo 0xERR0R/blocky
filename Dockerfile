@@ -26,18 +26,8 @@ RUN --mount=type=cache,target=/go/pkg \
     go mod download
 
 ADD . .
-#RUN --mount=type=cache,target=/go/pkg \
-#    go generate ./...
 
-#RUN chmod +x ./docker/*.sh && \
-#    . export GOARM=${TARGETVARIANT##*v} && \
-#    . export CC=$(./docker/getenv_cc.sh)
-#    . ./docker/setenv_go.sh && \
-#    . ./docker/setenv_cc.sh && \
-#    . ./docker/printenv.sh
-#RUN ./docker/printenv.sh
 # build binary
-# --mount=target=. \
 RUN --mount=type=cache,target=/root/.cache/go-build \ 
     --mount=type=cache,target=/go/pkg \
     chmod +x ./docker/*.sh && \
