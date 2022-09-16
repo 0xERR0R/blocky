@@ -9,11 +9,9 @@ ARG TARGETARCH
 ARG TARGETVARIANT
 
 # arguments to environment
-ENV VERSION=$VERSION
-ENV BUILD_TIME=$BUILD_TIME
-ENV TARGETOS=$TARGETOS
-ENV TARGETARCH=$TARGETARCH
-ENV TARGETVARIANT=$TARGETVARIANT
+ENV CGO_ENABLED=0
+ENV GOOS=$TARGETOS
+ENV GOARCH=$TARGETARCH
 
 # add blocky user
 #RUN adduser -home /app -shell /sbin/nologin blocky && \
@@ -36,6 +34,9 @@ RUN --mount=type=cache,target=/go/pkg \
 RUN --mount=target=. \
     --mount=type=cache,target=/root/.cache/go-build \ 
     --mount=type=cache,target=/go/pkg \
+    export GOARM=${TARGETVARIANT##*v} && \
+    export CC=$(./docker/getenv_cc.sh) && \
+    ./docker/printenv.sh && \
     go build \
     -tags static,osusergo,netgo \
     -v \

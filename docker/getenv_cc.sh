@@ -15,4 +15,4 @@ else
     GCC_BIN="x86_64-linux-gnu-gcc"
 fi
 
-export CC="/usr/bin$GCC_BIN"
+echo "/usr/bin$GCC_BIN"
