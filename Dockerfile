@@ -21,9 +21,13 @@ ENV GOARCH=$TARGETARCH
 WORKDIR /go/src
 
 # add source
-ADD . .
+COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg \
-    go generate ./...
+    go mod download
+
+ADD . .
+#RUN --mount=type=cache,target=/go/pkg \
+#    go generate ./...
 
 #RUN chmod +x ./docker/*.sh && \
 #    . export GOARM=${TARGETVARIANT##*v} && \
@@ -40,6 +44,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     export GOARM=${TARGETVARIANT##*v} && \
     export CC=$(./docker/getenv_cc.sh) && \
     ./docker/printenv.sh && \
+    go generate ./... && \
     go build \
     -tags static,osusergo,netgo \
     -v \
