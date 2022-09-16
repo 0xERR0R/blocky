@@ -1,12 +1,14 @@
 # prepare build environment
 FROM --platform=$BUILDPLATFORM ghcr.io/gythialy/golang-cross-builder:v1.19.1-0 AS build
 
+# required arguments(target will be through buildx)
 ARG VERSION
 ARG BUILD_TIME
 ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT
 
+# arguments to environment
 ENV VERSION=$VERSION
 ENV BUILD_TIME=$BUILD_TIME
 ENV TARGETOS=$TARGETOS
@@ -29,7 +31,7 @@ RUN chmod +x ./docker/*.sh && \
     . ./docker/setenv_go.sh && \
     . ./docker/setenv_cc.sh && \
     . ./docker/printenv.sh
-# ,sharing=locked
+
 # build binary
 RUN --mount=target=. \
     --mount=type=cache,target=/root/.cache/go-build \ 
@@ -39,6 +41,7 @@ RUN --mount=target=. \
     -v \
     -ldflags="-linkmode external -extldflags -static -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" \
     -o /bin/blocky
+# ,sharing=locked
 
 RUN setcap 'cap_net_bind_service=+ep' /bin/blocky 
     #chown blocky /bin/blocky
