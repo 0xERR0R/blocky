@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 
 export CGO_ENABLED=0
 export GOOS=$TARGETOS

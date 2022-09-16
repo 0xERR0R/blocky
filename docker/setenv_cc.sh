@@ -1,11 +1,11 @@
-#!/bin/bash -e
+#!/bin/bash
 
-if [[ "$TARGETARCH" == "arm64" ]]
+if [[ "$TARGETARCH" = "arm64" ]]
 then 
     GCC_BIN="aarch64-linux-gnu-gcc"
-elif  [[ "$TARGETARCH" == "arm" ]]
+elif  [[ "$TARGETARCH" = "arm" ]]
 then
-    if [[ "$TARGETVARIANT" == "v7" ]]
+    if [[ "$TARGETVARIANT" = "v7" ]]
     then
         GCC_BIN="arm-linux-gnueabihf-gcc"
     else
