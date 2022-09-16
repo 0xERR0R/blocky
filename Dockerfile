@@ -26,13 +26,13 @@ RUN --mount=type=cache,target=/go/pkg \
     go generate ./...
 
 RUN chmod +x ./docker/*.sh && \
-    ./docker/setenv_go.sh && \
-    ./docker/setenv_cc.sh && \
-    ./docker/printenv.sh
-
+    . ./docker/setenv_go.sh && \
+    . ./docker/setenv_cc.sh && \
+    . ./docker/printenv.sh
+# ,sharing=locked
 # build binary
 RUN --mount=target=. \
-    --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
+    --mount=type=cache,target=/root/.cache/go-build \ 
     --mount=type=cache,target=/go/pkg \
     go build \
     -tags static,osusergo,netgo \
