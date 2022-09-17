@@ -113,12 +113,12 @@ jobs:
 
           echo "VERSION: ${VERSION}"
           echo "BUILD_TIME: ${BUILD_TIME}"
-
+#,linux/arm/v6,linux/arm/v7,linux/arm64
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
           context: .
-          platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: ghcr.io/${{ github.repository }}:${{ steps.extract_branch.outputs.branch }}
           cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
@@ -231,7 +231,7 @@ jobs:
 
           # test script
           echo 'sleep 20' > /tmp/test.sh
-          echo '[ "$(dig docker.com @127.0.0.1 +short -p 5333)" ] && exit 1 || echo "docker.com is blocked"' > /tmp/test.sh
+          echo '[ "$(dig docker.com @127.0.0.1 +short -p 5333)" ] && exit 1 || echo "docker.com is blocked"' >> /tmp/test.sh
           echo '[ "$(dig github.com @127.0.0.1 +short -p 5333)" ] && echo "github.com is resolved" || exit 2' >> /tmp/test.sh
           chmod +x /tmp/test.sh
 
