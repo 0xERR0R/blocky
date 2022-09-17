@@ -50,7 +50,7 @@ jobs:
     name: Build Docker image
     runs-on: ubuntu-latest
     needs: check
-    if: needs.check.outputs.enabled == 1
+    if: ${{ needs.check.outputs.enabled == 1 }}
     outputs:
       branch: ${{ steps.extract_branch.outputs.branch }}
     steps:
@@ -131,7 +131,7 @@ jobs:
     name: Add DockerHub tag
     runs-on: ubuntu-latest
     needs: docker
-    if: github.repository_owner == '0xERR0R'
+    if: ${{ github.repository_owner == '0xERR0R' }}
     steps:
       - name: Login to DockerHub
         uses: docker/login-action@v2
@@ -189,3 +189,67 @@ jobs:
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: 'trivy-image-results.sarif'
+
+  image-test:
+    name: Test docker images
+    runs-on: ubuntu-latest
+    needs: docker
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: amd64
+            distro: ubuntu-latest
+          - arch: aarch64
+            distro: buster
+          - arch: armv6
+            distro: buster
+          - arch: armv7
+            distro: buster
+    steps:
+      - name: Create test files
+        shell: bash
+        run: |
+          # blocky config
+          echo "port: 5333" > /tmp/blocky_test.yml
+          echo "upstream:" >> /tmp/blocky_test.yml
+          echo "  default:" >> /tmp/blocky_test.yml
+          echo "    - 127.0.1.1" >> /tmp/blocky_test.yml
+          echo "blocking:" >> /tmp/blocky_test.yml
+          echo "  clientGroupsBlock:" >> /tmp/blocky_test.yml
+          echo "      - docker" >> /tmp/blocky_test.yml
+          echo "  blackLists:" >> /tmp/blocky_test.yml
+          echo "    docker:" >> /tmp/blocky_test.yml
+          echo "      - |" >> /tmp/blocky_test.yml
+          echo "        docker.com" >> /tmp/blocky_test.yml
+
+          # test script
+          echo "apt-get update" > /tmp/test.sh
+          echo "apt-get install -y --no-install-recommends dnsutils" >> /tmp/test.sh
+          echo "[ "$(dig docker.com @127.0.0.1 +short -p 5333)" ] && false || true" >> /tmp/test.sh
+          echo "[ "$(dig github.com @127.0.0.1 +short -p 5333)" ] && true || false" >> /tmp/test.sh
+          chmod +x /tmp/test.sh
+
+      - name: Test amd64 image
+        if: ${{ matrix.arch == "amd64" }}
+        shell: bash
+        run: |
+          docker run \
+          -d \
+          --name test_${{ $matrix.arch }} \
+          --rm \
+          -v /tmp/blocky_test.yml:/app/config.yml:ro \
+          ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }}
+          ./tmp/test.sh
+
+      - name: Test arm image
+        if: ${{ matrix.arch != "amd64" }}
+        shell: bash
+        run: |
+          echo "Image arch: {{ $matrix.arch }}"
+      
+      - name: Stop docker container
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          docker stop test_${{ $matrix.arch }} || true
