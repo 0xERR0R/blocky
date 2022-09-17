@@ -378,7 +378,7 @@ func ParseUpstream(upstream string) (Upstream, error) {
 func extractCommonName(in string) (cn string, upstream string) {
 	upstream, cn, _ = strings.Cut(in, "#")
 
-	return cn, upstream
+	return
 }
 
 func extractPath(in string) (path string, upstream string) {
