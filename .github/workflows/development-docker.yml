@@ -200,19 +200,15 @@ jobs:
         include:
           - arch: amd64
             distro: ubuntu-latest
-            amd: true
             arm: false
           - arch: aarch64
             distro: buster
-            amd: false
             arm: true
           - arch: armv6
             distro: buster
-            amd: false
             arm: true
           - arch: armv7
             distro: buster
-            amd: false
             arm: true
     steps:
       - name: Create test files
@@ -232,20 +228,27 @@ jobs:
           echo '        docker.com' >> /tmp/blocky_test.yml
 
           # test script
-          echo 'sudo apt-get update' > /tmp/test.sh
-          echo 'sudo apt-get install -y --no-install-recommends dnsutils' >> /tmp/test.sh
-          echo '[ "$(dig docker.com @127.0.0.1 +short -p 5333)" ] && false || true' >> /tmp/test.sh
-          echo '[ "$(dig github.com @127.0.0.1 +short -p 5333)" ] && true || false' >> /tmp/test.sh
+#          echo 'sudo apt-get update' > /tmp/test.sh
+#          echo 'sudo apt-get install -y --no-install-recommends dnsutils' >> /tmp/test.sh
+          echo '[ "$(dig docker.com @127.0.0.1 +short -p 5333)" ] && false || echo "docker.com is blocked"' > /tmp/test.sh
+          echo '[ "$(dig github.com @127.0.0.1 +short -p 5333)" ] && echo "github.com is resolved" || false' >> /tmp/test.sh
           chmod +x /tmp/test.sh
 
+          # print files
+          echo 'Content of /tmp/blocky_test.yml'
+          cat /tmp/blocky_test.yml
+          echo 'Content of /tmp/test.sh'
+          cat /tmp/test.sh
+
       - name: Test amd64 image
-        if: ${{ matrix.amd }}
+        if: ${{ matrix.arm }} == false
         shell: bash
         run: |
           docker run \
-          -d \
+#          -d \
+          -p 5333:5333/udp \
           --name test_${{ matrix.arch }} \
-          --rm \
+#          --rm \
           -v /tmp/blocky_test.yml:/app/config.yml:ro \
           ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }}
           /tmp/test.sh
@@ -254,7 +257,7 @@ jobs:
         if: ${{ matrix.arm }}
         shell: bash
         run: |
-          echo "Image arch: {{ $matrix.arch }}"
+          echo "Image arch: ${{ matrix.arch }}"
       
       - name: Stop docker container
         if: ${{ always() }}
