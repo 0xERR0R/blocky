@@ -14,7 +14,7 @@ ENV GOOS=$TARGETOS
 ENV GOARCH=$TARGETARCH
 
 # create blocky user passwd file
-RUN echo "blocky:x:100:65533:Blocky User,,,:/app:/sbin/nologin" > /tmp/blocky_passw
+RUN echo "blocky:x:100:65533:Blocky User,,,:/app:/sbin/nologin" > /tmp/blocky_passwd
 
 # set working directory
 WORKDIR /go/src
