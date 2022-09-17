@@ -1,7 +1,7 @@
 # prepare build environment
 FROM --platform=$BUILDPLATFORM ghcr.io/gythialy/golang-cross-builder:v1.19.1-0 AS build
 
-# required arguments(target will be through buildx)
+# required arguments(buildx will set target)
 ARG VERSION
 ARG BUILD_TIME
 ARG TARGETOS
@@ -13,20 +13,19 @@ ENV CGO_ENABLED=0
 ENV GOOS=$TARGETOS
 ENV GOARCH=$TARGETARCH
 
-# add blocky user
-RUN echo "blocky:x:100:65533:Blocky User,,,:/app:/sbin/nologin" > /tmp/blocky_passwd
-#adduser -home /app -shell /sbin/nologin blocky && \
-#    tail -n 1 /etc/passwd > /tmp/blocky_passwd
+# create blocky user passwd file
+RUN echo "blocky:x:100:65533:Blocky User,,,:/app:/sbin/nologin" > /tmp/blocky_passw
 
 # set working directory
 WORKDIR /go/src
 
-# add source
+# download packages
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg \
     go mod download
 
-ADD . .
+# add source
+COPY . .
 
 # build binary
 RUN --mount=type=cache,target=/root/.cache/go-build \ 
@@ -41,7 +40,6 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     -v \
     -ldflags="-linkmode external -extldflags -static -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" \
     -o /bin/blocky
-# ,sharing=locked
 
 RUN setcap 'cap_net_bind_service=+ep' /bin/blocky 
 RUN chown 100 /bin/blocky
