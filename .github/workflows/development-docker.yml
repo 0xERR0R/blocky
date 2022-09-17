@@ -239,11 +239,10 @@ jobs:
           cat /tmp/test.sh
 
       - name: Test amd64 image
-        if: ${{ matrix.arm }} == false
+        if: ${{ matrix.arm == false }}
         shell: bash
         run: |
           docker run \
-#          -d \
           -p 5333:5333/udp \
           --name test_${{ matrix.arch }} \
           -v /tmp/blocky_test.yml:/app/config.yml:ro \
