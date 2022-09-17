@@ -407,7 +407,7 @@ bootstrapDns:
 			false),
 		Entry("tcp-tls with common name",
 			"tcp-tls:1.1.1.2#security.cloudflare-dns.com",
-			Upstream{Net: NetProtocolTcpTls, Host: "1.1.1.2", Port: 853, CommonName: strPtr("security.cloudflare-dns.com")},
+			Upstream{Net: NetProtocolTcpTls, Host: "1.1.1.2", Port: 853, CommonName: "security.cloudflare-dns.com"},
 			false),
 		Entry("DoH without port, use default",
 			"https:4.4.4.4",
@@ -728,8 +728,4 @@ func writeConfigDir(tmpDir *helpertest.TmpFolder) error {
 		"startVerifyUpstream: false")
 
 	return f2.Error
-}
-
-func strPtr(s string) *string {
-	return &s
 }

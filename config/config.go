@@ -104,7 +104,7 @@ type Upstream struct {
 	Host       string
 	Port       uint16
 	Path       string
-	CommonName *string
+	CommonName string // Common Name to use for certificate verification; optional. "" uses .Host
 }
 
 // IsDefault returns true if u is the default value
@@ -329,13 +329,7 @@ func ParseUpstream(upstream string) (Upstream, error) {
 
 	var port uint16
 
-	var commonName *string
-
-	cn, upstream := extractCN(upstream)
-
-	if cn != "" {
-		commonName = &cn
-	}
+	commonName, upstream := extractCN(upstream)
 
 	n, upstream := extractNet(upstream)
 
@@ -382,16 +376,8 @@ func ParseUpstream(upstream string) (Upstream, error) {
 }
 
 func extractCN(in string) (cn string, upstream string) {
-	hashIdx := strings.Index(in, "#")
-
-	if hashIdx >= 0 {
-		cn = strings.TrimPrefix(in[hashIdx:], "#")
-		upstream = in[:hashIdx]
-	} else {
-		upstream = in
-	}
-
-	return
+	upstream, cn, _ = strings.Cut(in, "#")
+	return upstream, cn
 }
 
 func extractPath(in string) (path string, upstream string) {
