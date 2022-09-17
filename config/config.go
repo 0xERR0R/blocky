@@ -619,6 +619,11 @@ func readFromDir(path string, data []byte) ([]byte, error) {
 			return nil
 		}
 
+		// Ignore non YAML files
+		if !strings.HasSuffix(filePath, ".yml") && !strings.HasSuffix(filePath, ".yaml") {
+			return nil
+		}
+
 		fileData, err := os.ReadFile(filePath)
 		if err != nil {
 			return err
