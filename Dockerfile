@@ -14,7 +14,8 @@ ENV GOOS=$TARGETOS
 ENV GOARCH=$TARGETARCH
 
 # add blocky user
-#RUN adduser -home /app -shell /sbin/nologin blocky && \
+RUN echo "blocky:x:100:65533:Blocky User,,,:/app:/sbin/nologin" > /tmp/blocky_passwd
+#adduser -home /app -shell /sbin/nologin blocky && \
 #    tail -n 1 /etc/passwd > /tmp/blocky_passwd
 
 # set working directory
@@ -43,7 +44,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 # ,sharing=locked
 
 RUN setcap 'cap_net_bind_service=+ep' /bin/blocky 
-    #chown blocky /bin/blocky
+RUN chown 100 /bin/blocky
 
 # final stage
 FROM scratch
@@ -54,12 +55,11 @@ LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
 
 WORKDIR /app
 
-# COPY --from=build /tmp/blocky_passwd /etc/passwd
+COPY --from=build /tmp/blocky_passwd /etc/passwd
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /bin/blocky /app/blocky
 
-#USER blocky
-
+USER blocky
 
 ENV BLOCKY_CONFIG_FILE=/app/config.yml
 

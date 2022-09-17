@@ -77,6 +77,8 @@ jobs:
       - name: Prepare build cache
         shell: bash
         run: |
+          rm -Rf ./vendor
+          
           TOKEN64=$(echo ${{ secrets.GITHUB_TOKEN }} | base64)
           JSON=$(curl -s -H "Authorization: Bearer ${TOKEN64}" https://ghcr.io/v2/${{ github.repository }}/tags/list | jq .)
           CACHE_EXISTS=$(jq '[ .tags[]? | contains("buildcache") ] | any' <<< "$JSON")
