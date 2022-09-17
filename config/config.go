@@ -375,10 +375,10 @@ func ParseUpstream(upstream string) (Upstream, error) {
 	}, nil
 }
 
-func extractCommonName(in string) (cn string, upstream string) {
-	upstream, cn, _ = strings.Cut(in, "#")
+func extractCommonName(in string) (string, string) {
+	upstream, cn, _ := strings.Cut(in, "#")
 
-	return
+	return cn, upstream
 }
 
 func extractPath(in string) (path string, upstream string) {
