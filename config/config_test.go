@@ -63,6 +63,17 @@ var _ = Describe("Config", func() {
 				_, err := LoadConfig(tmpDir.Path, true)
 				Expect(err).Should(Succeed())
 			})
+
+			It("should ignore non regular files", func() {
+				err = writeConfigDir(tmpDir)
+				Expect(err).Should(Succeed())
+
+				tmpDir.CreateSubFolder("subfolder")
+				tmpDir.CreateSubFolder("subfolder.yml")
+
+				_, err := LoadConfig(tmpDir.Path, true)
+				Expect(err).Should(Succeed())
+			})
 		})
 		When("Config folder does not exist", func() {
 			It("should fail", func() {
