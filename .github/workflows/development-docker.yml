@@ -131,7 +131,7 @@ jobs:
     name: Add DockerHub tag
     runs-on: ubuntu-latest
     needs: docker
-    if: ${{ github.repository_owner == '0xERR0R' }}
+    if: github.repository_owner == '0xERR0R'
     steps:
       - name: Login to DockerHub
         uses: docker/login-action@v2
@@ -231,7 +231,7 @@ jobs:
           chmod +x /tmp/test.sh
 
       - name: Test amd64 image
-        if: ${{ matrix.arch == 'amd64' }}
+        if: matrix.arch == 'amd64'
         shell: bash
         run: |
           docker run \
@@ -243,7 +243,7 @@ jobs:
           ./tmp/test.sh
 
       - name: Test arm image
-        if: ${{ matrix.arch != 'amd64' }}
+        if: matrix.arch != 'amd64'
         shell: bash
         run: |
           echo "Image arch: {{ $matrix.arch }}"
