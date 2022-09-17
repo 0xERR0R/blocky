@@ -377,6 +377,7 @@ func ParseUpstream(upstream string) (Upstream, error) {
 
 func extractCN(in string) (cn string, upstream string) {
 	upstream, cn, _ = strings.Cut(in, "#")
+
 	return upstream, cn
 }
 
