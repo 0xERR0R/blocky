@@ -228,8 +228,6 @@ jobs:
           echo '        docker.com' >> /tmp/blocky_test.yml
 
           # test script
-#          echo 'sudo apt-get update' > /tmp/test.sh
-#          echo 'sudo apt-get install -y --no-install-recommends dnsutils' >> /tmp/test.sh
           echo '[ "$(dig docker.com @127.0.0.1 +short -p 5333)" ] && false || echo "docker.com is blocked"' > /tmp/test.sh
           echo '[ "$(dig github.com @127.0.0.1 +short -p 5333)" ] && echo "github.com is resolved" || false' >> /tmp/test.sh
           chmod +x /tmp/test.sh
@@ -248,7 +246,6 @@ jobs:
 #          -d \
           -p 5333:5333/udp \
           --name test_${{ matrix.arch }} \
-#          --rm \
           -v /tmp/blocky_test.yml:/app/config.yml:ro \
           ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }}
           /tmp/test.sh
