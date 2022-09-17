@@ -240,7 +240,7 @@ jobs:
           --rm \
           -v /tmp/blocky_test.yml:/app/config.yml:ro \
           ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }}
-          ./tmp/test.sh
+          /tmp/test.sh
 
       - name: Test arm image
         if: ${{ matrix.arch }} != 'amd64'
