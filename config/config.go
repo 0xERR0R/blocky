@@ -329,7 +329,7 @@ func ParseUpstream(upstream string) (Upstream, error) {
 
 	var port uint16
 
-	commonName, upstream := extractCN(upstream)
+	commonName, upstream := extractCommonName(upstream)
 
 	n, upstream := extractNet(upstream)
 
@@ -375,10 +375,10 @@ func ParseUpstream(upstream string) (Upstream, error) {
 	}, nil
 }
 
-func extractCN(in string) (cn string, upstream string) {
+func extractCommonName(in string) (cn string, upstream string) {
 	upstream, cn, _ = strings.Cut(in, "#")
 
-	return upstream, cn
+	return cn, upstream
 }
 
 func extractPath(in string) (path string, upstream string) {
