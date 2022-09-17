@@ -34,6 +34,8 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     export GOARM=${TARGETVARIANT##*v} && \
     export CC=$(./docker/getenv_cc.sh) && \
     export CXX=$(./docker/getenv_cxx.sh) && \
+    export LD=$(./docker/getenv_ld.sh) && \
+    export AR=$(./docker/getenv_ar.sh) && \
     ./docker/printenv.sh && \
     go generate ./... && \
     go build \

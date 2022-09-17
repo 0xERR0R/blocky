@@ -230,9 +230,11 @@ jobs:
           echo '        docker.com' >> /tmp/blocky_test.yml
 
           # test script
-          echo 'sleep 20' > /tmp/test.sh
-          echo '[ "$(dig docker.com @127.0.0.1 +short -p 5333)" ] && exit 1 || echo "docker.com is blocked"' >> /tmp/test.sh
-          echo '[ "$(dig github.com @127.0.0.1 +short -p 5333)" ] && echo "github.com is resolved" || exit 2' >> /tmp/test.sh
+          echo '#!/bin/sh' >> /tmp/test.sh
+          echo 'docker run -d -p 5333:5333/tcp --name test_${{ matrix.arch }} --rm -v /tmp/blocky_test.yml:/app/config.yml:ro ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }}' >> /tmp/test.sh
+          echo 'sleep 20' >> /tmp/test.sh
+          echo '[ "$(dig docker.com @127.0.0.1 +short +tcp -p 5333)" ] && exit 1 || echo "docker.com is blocked"' >> /tmp/test.sh
+          echo '[ "$(dig github.com @127.0.0.1 +short +tcp -p 5333)" ] && echo "github.com is resolved" || exit 2' >> /tmp/test.sh
           chmod +x /tmp/test.sh
 
           # print files
@@ -244,14 +246,7 @@ jobs:
       - name: Test amd64 image
         if: ${{ matrix.arm == false }}
         shell: bash
-        run: |
-          docker run \
-          -p 5333:5333/udp \
-          --name test_${{ matrix.arch }} \
-          --rm
-          -v /tmp/blocky_test.yml:/app/config.yml:ro \
-          ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }}
-          /tmp/test.sh
+        run: /tmp/test.sh
 
       - name: Test arm image
         if: ${{ matrix.arm }}
