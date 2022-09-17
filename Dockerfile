@@ -53,11 +53,11 @@ LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
 
 WORKDIR /app
 
-COPY --from=build /tmp/blocky_passwd /etc/passwd
+#COPY --from=build /tmp/blocky_passwd /etc/passwd
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /bin/blocky /app/blocky
 
-USER blocky
+# USER blocky
 
 ENV BLOCKY_CONFIG_FILE=/app/config.yml
 
