@@ -46,8 +46,8 @@ fmt: ## gofmt and goimports all go files
 
 docker-build:  ## Build docker image 
 	docker buildx \
-	--cache-from type=registry,ref=ghcr.io/0xerr0r/blocky:buildcache \
 	build -o type=docker \
+	--cache-from type=registry,ref=ghcr.io/0xerr0r/blocky:buildcache \
 	--build-arg VERSION=${VERSION} \
 	--build-arg BUILD_TIME=${BUILD_TIME} \
 	--network=host -t ${DOCKER_IMAGE_NAME} .
