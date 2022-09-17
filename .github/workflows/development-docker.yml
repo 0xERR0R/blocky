@@ -231,19 +231,19 @@ jobs:
           chmod +x /tmp/test.sh
 
       - name: Test amd64 image
-        if: matrix.arch == 'amd64'
+        if: ${{ matrix.arch }} == 'amd64'
         shell: bash
         run: |
           docker run \
           -d \
-          --name test_${{ $matrix.arch }} \
+          --name test_${{ matrix.arch }} \
           --rm \
           -v /tmp/blocky_test.yml:/app/config.yml:ro \
           ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }}
           ./tmp/test.sh
 
       - name: Test arm image
-        if: matrix.arch != 'amd64'
+        if: ${{ matrix.arch }} != 'amd64'
         shell: bash
         run: |
           echo "Image arch: {{ $matrix.arch }}"
@@ -252,4 +252,4 @@ jobs:
         if: ${{ always() }}
         shell: bash
         run: |
-          docker stop test_${{ $matrix.arch }} || true
+          docker stop test_${{ matrix.arch }} || true
