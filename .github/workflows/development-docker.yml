@@ -200,12 +200,20 @@ jobs:
         include:
           - arch: amd64
             distro: ubuntu-latest
+            amd: true
+            arm: false
           - arch: aarch64
             distro: buster
+            amd: false
+            arm: true
           - arch: armv6
             distro: buster
+            amd: false
+            arm: true
           - arch: armv7
             distro: buster
+            amd: false
+            arm: true
     steps:
       - name: Create test files
         shell: bash
@@ -231,7 +239,7 @@ jobs:
           chmod +x /tmp/test.sh
 
       - name: Test amd64 image
-        if: ${{ matrix.arch }} == 'amd64'
+        if: ${{ matrix.amd }}
         shell: bash
         run: |
           docker run \
@@ -243,7 +251,7 @@ jobs:
           /tmp/test.sh
 
       - name: Test arm image
-        if: ${{ matrix.arch }} != 'amd64'
+        if: ${{ matrix.arm }}
         shell: bash
         run: |
           echo "Image arch: {{ $matrix.arch }}"
