@@ -219,23 +219,23 @@ jobs:
         shell: bash
         run: |
           # blocky config
-          echo "port: 5333" > /tmp/blocky_test.yml
-          echo "upstream:" >> /tmp/blocky_test.yml
-          echo "  default:" >> /tmp/blocky_test.yml
-          echo "    - 127.0.1.1" >> /tmp/blocky_test.yml
-          echo "blocking:" >> /tmp/blocky_test.yml
-          echo "  clientGroupsBlock:" >> /tmp/blocky_test.yml
-          echo "      - docker" >> /tmp/blocky_test.yml
-          echo "  blackLists:" >> /tmp/blocky_test.yml
-          echo "    docker:" >> /tmp/blocky_test.yml
-          echo "      - |" >> /tmp/blocky_test.yml
-          echo "        docker.com" >> /tmp/blocky_test.yml
+          echo 'port: 5333' > /tmp/blocky_test.yml
+          echo 'upstream:' >> /tmp/blocky_test.yml
+          echo '  default:' >> /tmp/blocky_test.yml
+          echo '    - 127.0.1.1' >> /tmp/blocky_test.yml
+          echo 'blocking:' >> /tmp/blocky_test.yml
+          echo '  clientGroupsBlock:' >> /tmp/blocky_test.yml
+          echo '      - docker' >> /tmp/blocky_test.yml
+          echo '  blackLists:' >> /tmp/blocky_test.yml
+          echo '    docker:' >> /tmp/blocky_test.yml
+          echo '      - |' >> /tmp/blocky_test.yml
+          echo '        docker.com' >> /tmp/blocky_test.yml
 
           # test script
-          echo "apt-get update" > /tmp/test.sh
-          echo "apt-get install -y --no-install-recommends dnsutils" >> /tmp/test.sh
-          echo "[ "$(dig docker.com @127.0.0.1 +short -p 5333)" ] && false || true" >> /tmp/test.sh
-          echo "[ "$(dig github.com @127.0.0.1 +short -p 5333)" ] && true || false" >> /tmp/test.sh
+          echo 'sudo apt-get update' > /tmp/test.sh
+          echo 'sudo apt-get install -y --no-install-recommends dnsutils' >> /tmp/test.sh
+          echo '[ "$(dig docker.com @127.0.0.1 +short -p 5333)" ] && false || true' >> /tmp/test.sh
+          echo '[ "$(dig github.com @127.0.0.1 +short -p 5333)" ] && true || false' >> /tmp/test.sh
           chmod +x /tmp/test.sh
 
       - name: Test amd64 image
