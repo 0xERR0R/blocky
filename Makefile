@@ -44,8 +44,13 @@ run: build ## Build and run binary
 fmt: ## gofmt and goimports all go files
 	find . -name '*.go' | while read -r file; do gofmt -w -s "$$file"; goimports -w "$$file"; done
 
-docker-build:  ## Build docker image
-	docker buildx build -o type=docker --build-arg VERSION=${VERSION} --build-arg BUILD_TIME=${BUILD_TIME} --network=host -t ${DOCKER_IMAGE_NAME} .
+docker-build:  ## Build docker image 
+	docker buildx \
+	--cache-from type=registry,ref=ghcr.io/0xerr0r/blocky:buildcache \
+	build -o type=docker \
+	--build-arg VERSION=${VERSION} \
+	--build-arg BUILD_TIME=${BUILD_TIME} \
+	--network=host -t ${DOCKER_IMAGE_NAME} .
 
 help:  ## Shows help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
