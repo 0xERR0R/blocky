@@ -2,6 +2,7 @@
 
 echo "## Environment ##"
 echo "CC: $CC"
+echo "CXX: $CXX"
 echo "CGO_ENABLED: $CGO_ENABLED"
 echo "GOOS: $GOOS"
 echo "GOARCH: $GOARCH"

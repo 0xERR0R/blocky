@@ -220,7 +220,9 @@ jobs:
           echo '  default:' >> /tmp/blocky_test.yml
           echo '    - 127.0.1.1' >> /tmp/blocky_test.yml
           echo 'blocking:' >> /tmp/blocky_test.yml
+          echo '  blockType: nxDomain' >> /tmp/blocky_test.yml
           echo '  clientGroupsBlock:' >> /tmp/blocky_test.yml
+          echo '    default:' >> /tmp/blocky_test.yml
           echo '      - docker' >> /tmp/blocky_test.yml
           echo '  blackLists:' >> /tmp/blocky_test.yml
           echo '    docker:' >> /tmp/blocky_test.yml
@@ -228,8 +230,9 @@ jobs:
           echo '        docker.com' >> /tmp/blocky_test.yml
 
           # test script
-          echo '[ "$(dig docker.com @127.0.0.1 +short -p 5333)" ] && false || echo "docker.com is blocked"' > /tmp/test.sh
-          echo '[ "$(dig github.com @127.0.0.1 +short -p 5333)" ] && echo "github.com is resolved" || false' >> /tmp/test.sh
+          echo 'sleep 20' > /tmp/test.sh
+          echo '[ "$(dig docker.com @127.0.0.1 +short -p 5333)" ] && exit 1 || echo "docker.com is blocked"' > /tmp/test.sh
+          echo '[ "$(dig github.com @127.0.0.1 +short -p 5333)" ] && echo "github.com is resolved" || exit 2' >> /tmp/test.sh
           chmod +x /tmp/test.sh
 
           # print files
@@ -245,6 +248,7 @@ jobs:
           docker run \
           -p 5333:5333/udp \
           --name test_${{ matrix.arch }} \
+          --rm
           -v /tmp/blocky_test.yml:/app/config.yml:ro \
           ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }}
           /tmp/test.sh

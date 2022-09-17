@@ -1,5 +1,5 @@
 # prepare build environment
-FROM --platform=$BUILDPLATFORM ghcr.io/gythialy/golang-cross-builder:v1.19.1-0 AS build
+FROM --platform=$BUILDPLATFORM ghcr.io/gythialy/golang-cross-builder:v1.18.6-0 AS build
 
 # required arguments(buildx will set target)
 ARG VERSION
@@ -9,7 +9,7 @@ ARG TARGETARCH
 ARG TARGETVARIANT
 
 # arguments to environment
-ENV CGO_ENABLED=0
+ENV CGO_ENABLED=1
 ENV GOOS=$TARGETOS
 ENV GOARCH=$TARGETARCH
 
@@ -33,16 +33,16 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     chmod +x ./docker/*.sh && \
     export GOARM=${TARGETVARIANT##*v} && \
     export CC=$(./docker/getenv_cc.sh) && \
+    export CXX=$(./docker/getenv_cxx.sh) && \
     ./docker/printenv.sh && \
     go generate ./... && \
     go build \
-    -tags static,osusergo,netgo \
+    -tags static \
     -v \
     -ldflags="-linkmode external -extldflags -static -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" \
-    -o /bin/blocky
-
-RUN setcap 'cap_net_bind_service=+ep' /bin/blocky 
-RUN chown 100 /bin/blocky
+    -o /bin/blocky && \
+    setcap 'cap_net_bind_service=+ep' /bin/blocky && \
+    chown 100 /bin/blocky
 
 # final stage
 FROM scratch
@@ -53,11 +53,11 @@ LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
 
 WORKDIR /app
 
-#COPY --from=build /tmp/blocky_passwd /etc/passwd
+COPY --from=build /tmp/blocky_passwd /etc/passwd
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /bin/blocky /app/blocky
 
-# USER blocky
+USER blocky
 
 ENV BLOCKY_CONFIG_FILE=/app/config.yml
 
