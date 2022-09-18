@@ -100,10 +100,11 @@ var netDefaultPort = map[NetProtocol]uint16{
 
 // Upstream is the definition of external DNS server
 type Upstream struct {
-	Net  NetProtocol
-	Host string
-	Port uint16
-	Path string
+	Net        NetProtocol
+	Host       string
+	Port       uint16
+	Path       string
+	CommonName string // Common Name to use for certificate verification; optional. "" uses .Host
 }
 
 // IsDefault returns true if u is the default value
@@ -322,11 +323,13 @@ func (s *QTypeSet) UnmarshalYAML(unmarshal func(interface{}) error) error {
 var validDomain = regexp.MustCompile(
 	`^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$`)
 
-// ParseUpstream creates new Upstream from passed string in format [net]:host[:port][/path]
+// ParseUpstream creates new Upstream from passed string in format [net]:host[:port][/path][#commonname]
 func ParseUpstream(upstream string) (Upstream, error) {
 	var path string
 
 	var port uint16
+
+	commonName, upstream := extractCommonName(upstream)
 
 	n, upstream := extractNet(upstream)
 
@@ -364,11 +367,18 @@ func ParseUpstream(upstream string) (Upstream, error) {
 	}
 
 	return Upstream{
-		Net:  n,
-		Host: host,
-		Port: port,
-		Path: path,
+		Net:        n,
+		Host:       host,
+		Port:       port,
+		Path:       path,
+		CommonName: commonName,
 	}, nil
+}
+
+func extractCommonName(in string) (string, string) {
+	upstream, cn, _ := strings.Cut(in, "#")
+
+	return cn, upstream
 }
 
 func extractPath(in string) (path string, upstream string) {
