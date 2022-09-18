@@ -157,7 +157,7 @@ func (r *SpecialUseDomainNamesResolver) newResponseMsg(request *model.Request) *
 	return response
 }
 
-// Wrapps a dns.Msg into a model.Response
+// Wraps a dns.Msg into a model.Response
 func (r *SpecialUseDomainNamesResolver) returnResponseModel(response *dns.Msg) (*model.Response, error) {
 	return &model.Response{
 		Res:    response,
