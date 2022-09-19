@@ -44,6 +44,7 @@ RUN --mount=type=cache,target=/go/pkg \
 # build binary
 RUN --mount=type=cache,target=/root/.cache/go-build \ 
     --mount=type=cache,target=/go/pkg \
+    export GOARM=${TARGETVARIANT##*v} && \
     /scripts/printenv.sh && \
     go build \
     -tags static,sqlite_omit_load_extensions,osusergo,netgo \
