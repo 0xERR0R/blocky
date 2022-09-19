@@ -1,5 +1,3 @@
-#!/bin/ash
-
 echo "::group::Environment - ${TARGETARCH}${TARGETVARIANT}"
 echo "CC: $(go env CC)"
 echo "CXX: $(go env CXX)"
