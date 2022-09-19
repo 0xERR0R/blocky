@@ -1,6 +1,6 @@
 FROM ghcr.io/euantorano/zig:master AS zig-env
 # prepare build environment
-FROM --platform=$BUILDPLATFORM ghcr.io/gythialy/golang-cross-builder:v1.18.6-0 AS build
+FROM --platform=$BUILDPLATFORM golang:1-alpine AS build
 
 # required arguments(buildx will set target)
 ARG VERSION
@@ -47,7 +47,8 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     export GOARM=${TARGETVARIANT##*v} && \
     /scripts/printenv.sh && \
     go build \
-    -tags static,sqlite_omit_load_extensions,osusergo,netgo \
+    -tags static \
+    \
     -v \
     -ldflags="-linkmode=external -extldflags=-static -s -w -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" \
     -o /bin/blocky
