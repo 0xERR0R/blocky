@@ -51,13 +51,16 @@ following network protocols (net part of the resolver URL):
     returns the answer from the fastest one. This improves your network speed and increases your privacy - your DNS traffic
     will be distributed over multiple providers.
 
-Each resolver must be defined as a string in following format: `[net:]host:[port][/path]`.
+Each resolver must be defined as a string in following format: `[net:]host:[port][/path][#commonName]`.
 
 | Parameter | Type                             | Mandatory | Default value                                     |
 |-----------|----------------------------------|-----------|---------------------------------------------------|
-| net       | enum (tcp+udp, tcp-tls or https) | no        | tcp+udp                                           |
-| host      | IP or hostname                   | yes       |                                                   |
-| port      | int (1 - 65535)                  | no        | 53 for udp/tcp, 853 for tcp-tls and 443 for https |
+| net        | enum (tcp+udp, tcp-tls or https) | no        | tcp+udp                                           |
+| host       | IP or hostname                   | yes       |                                                   |
+| port       | int (1 - 65535)                  | no        | 53 for udp/tcp, 853 for tcp-tls and 443 for https |
+| commonName | string                           | no        | the host value                                    |
+
+The commonName parameter overrides the expected certificate common name value used for verification.
 
 Blocky needs at least the configuration of the **default** group. This group will be used as a fallback, if no client
 specific resolver configuration is available.
