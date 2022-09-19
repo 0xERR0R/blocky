@@ -240,7 +240,7 @@ jobs:
           # print files
           echo '::group::Content of /tmp/blocky_test.yml'
           cat /tmp/blocky_test.yml
-          echo ''::endgroup::'
+          echo '::endgroup::'
           echo '::group::Content of /tmp/test.sh'
           cat /tmp/test.sh
           echo '::endgroup::'
