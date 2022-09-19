@@ -1,7 +1,9 @@
 FROM ghcr.io/euantorano/zig:master AS zig-env
 # prepare build environment
 FROM --platform=$BUILDPLATFORM golang:1-alpine AS build
+RUN apk add --no-cache git libcap ca-certificates
 
+RUN update-ca-certificates 2>/dev/null || true
 # required arguments(buildx will set target)
 ARG VERSION
 ARG BUILD_TIME
