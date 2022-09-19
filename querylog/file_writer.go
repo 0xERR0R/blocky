@@ -4,7 +4,6 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -77,7 +76,7 @@ func (d *FileWriter) CleanUp() {
 
 	logger.Trace("starting clean up")
 
-	files, err := ioutil.ReadDir(d.target)
+	files, err := os.ReadDir(d.target)
 
 	util.LogOnErrorWithEntry(logger.WithField("target", d.target), "can't list log directory: ", err)
 

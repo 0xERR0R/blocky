@@ -129,8 +129,8 @@ var _ = Describe("CustomDNSResolver", func() {
 					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 					Expect(resp.Res.Answer).Should(HaveLen(2))
 					Expect(resp.Res.Answer).Should(ContainElements(
-						BeDNSRecord("multiple.ips.", dns.TypeA, TTL, "192.168.143.123")),
-						BeDNSRecord("multiple.ips.", dns.TypeA, TTL, "192.168.143.125"))
+						BeDNSRecord("multiple.ips.", dns.TypeA, TTL, "192.168.143.123"),
+						BeDNSRecord("multiple.ips.", dns.TypeA, TTL, "192.168.143.125")))
 					// will not delegate to next resolver
 					m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
 				})
@@ -157,9 +157,9 @@ var _ = Describe("CustomDNSResolver", func() {
 					Expect(resp.Res.Answer).Should(HaveLen(2))
 					Expect(resp.Res.Answer).Should(ContainElements(
 						BeDNSRecord("4.3.3.7.0.7.3.0.e.2.a.8.0.0.0.0.0.0.0.0.3.a.5.8.8.b.d.0.1.0.0.2.ip6.arpa.",
-							dns.TypePTR, TTL, "ip6.domain.")),
+							dns.TypePTR, TTL, "ip6.domain."),
 						BeDNSRecord("4.3.3.7.0.7.3.0.e.2.a.8.0.0.0.0.0.0.0.0.3.a.5.8.8.b.d.0.1.0.0.2.ip6.arpa.",
-							dns.TypePTR, TTL, "multiple.ips."))
+							dns.TypePTR, TTL, "multiple.ips.")))
 					// will not delegate to next resolver
 					m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
 				})

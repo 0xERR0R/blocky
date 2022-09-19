@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http/httptest"
@@ -22,36 +21,39 @@ import (
 
 var _ = Describe("ListCache", func() {
 	var (
-		emptyFile, file1, file2, file3 *os.File
+		tmpDir                         *TmpFolder
+		emptyFile, file1, file2, file3 *TmpFile
 		server1, server2, server3      *httptest.Server
 	)
 	BeforeEach(func() {
-		emptyFile = TempFile("#empty file\n\n")
-		server1 = TestServer("blocked1.com\nblocked1a.com\n192.168.178.55")
-		server2 = TestServer("blocked2.com")
-		server3 = TestServer("blocked3.com\nblocked1a.com")
+		tmpDir = NewTmpFolder("ListCache")
+		Expect(tmpDir.Error).Should(Succeed())
+		DeferCleanup(tmpDir.Clean)
 
-		file1 = TempFile("blocked1.com\nblocked1a.com")
-		file2 = TempFile("blocked2.com")
-		file3 = TempFile("blocked3.com\nblocked1a.com")
-	})
-	AfterEach(func() {
-		_ = os.Remove(emptyFile.Name())
-		_ = os.Remove(file1.Name())
-		_ = os.Remove(file2.Name())
-		_ = os.Remove(file3.Name())
-		server1.Close()
-		server2.Close()
-		server3.Close()
+		server1 = TestServer("blocked1.com\nblocked1a.com\n192.168.178.55")
+		DeferCleanup(server1.Close)
+		server2 = TestServer("blocked2.com")
+		DeferCleanup(server2.Close)
+		server3 = TestServer("blocked3.com\nblocked1a.com")
+		DeferCleanup(server3.Close)
+
+		emptyFile = tmpDir.CreateStringFile("empty", "#empty file")
+		Expect(emptyFile.Error).Should(Succeed())
+		file1 = tmpDir.CreateStringFile("file1", "blocked1.com", "blocked1a.com")
+		Expect(file1.Error).Should(Succeed())
+		file2 = tmpDir.CreateStringFile("file2", "blocked2.com")
+		Expect(file2.Error).Should(Succeed())
+		file3 = tmpDir.CreateStringFile("file3", "blocked3.com", "blocked1a.com")
+		Expect(file3.Error).Should(Succeed())
 	})
 
 	Describe("List cache and matching", func() {
 		When("Query with empty", func() {
 			It("should not panic", func() {
 				lists := map[string][]string{
-					"gr0": {emptyFile.Name()},
+					"gr0": {emptyFile.Path},
 				}
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
 				found, group := sut.Match("", []string{"gr0"})
@@ -63,9 +65,9 @@ var _ = Describe("ListCache", func() {
 		When("List is empty", func() {
 			It("should not match anything", func() {
 				lists := map[string][]string{
-					"gr1": {emptyFile.Name()},
+					"gr1": {emptyFile.Path},
 				}
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
 				found, group := sut.Match("google.com", []string{"gr1"})
@@ -100,6 +102,7 @@ var _ = Describe("ListCache", func() {
 					4*time.Hour,
 					mockDownloader,
 					defaultProcessingConcurrency,
+					false,
 				)
 				Expect(err).Should(Succeed())
 
@@ -145,7 +148,8 @@ var _ = Describe("ListCache", func() {
 					"gr1": {"http://dummy"},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, mockDownloader, defaultProcessingConcurrency)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, mockDownloader,
+					defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
 				By("Lists loaded without err", func() {
@@ -175,7 +179,7 @@ var _ = Describe("ListCache", func() {
 					"gr2": {server3.URL},
 				}
 
-				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
+				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false)
 
 				found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
 				Expect(found).Should(BeTrue())
@@ -197,7 +201,7 @@ var _ = Describe("ListCache", func() {
 					"gr2": {server3.URL, "someotherfile"},
 				}
 
-				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
+				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false)
 
 				found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
 				Expect(found).Should(BeTrue())
@@ -224,7 +228,7 @@ var _ = Describe("ListCache", func() {
 					resultCnt = cnt
 				})
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
 				found, group := sut.Match("blocked1.com", []string{})
@@ -236,11 +240,11 @@ var _ = Describe("ListCache", func() {
 		When("multiple groups are passed", func() {
 			It("should match", func() {
 				lists := map[string][]string{
-					"gr1": {file1.Name(), file2.Name()},
-					"gr2": {"file://" + file3.Name()},
+					"gr1": {file1.Path, file2.Path},
+					"gr2": {"file://" + file3.Path},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
 				Expect(sut.groupCaches["gr1"].ElementCount()).Should(Equal(3))
@@ -268,7 +272,8 @@ var _ = Describe("ListCache", func() {
 					"gr1": {file1, file2, file3},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
+					defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
 				Expect(sut.groupCaches["gr1"].ElementCount()).Should(Equal(38000))
@@ -280,7 +285,8 @@ var _ = Describe("ListCache", func() {
 					"gr1": {"inlinedomain1.com\n#some comment\ninlinedomain2.com"},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
+					defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
 				Expect(sut.groupCaches["gr1"].ElementCount()).Should(Equal(2))
@@ -300,7 +306,8 @@ var _ = Describe("ListCache", func() {
 					"gr1": {"inlinedomain1.com\n" + strings.Repeat("longString", 100000)},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
+					defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
 				found, group := sut.Match("inlinedomain1.com", []string{"gr1"})
@@ -314,7 +321,8 @@ var _ = Describe("ListCache", func() {
 					"gr1": {"/^apple\\.(de|com)$/\n"},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
+					defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
 				found, group := sut.Match("apple.com", []string{"gr1"})
@@ -335,7 +343,8 @@ var _ = Describe("ListCache", func() {
 					"gr2": {"inline\ndefinition\n"},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, time.Hour, NewDownloader(), defaultProcessingConcurrency)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, time.Hour, NewDownloader(),
+					defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
 				c := sut.Configuration()
@@ -346,14 +355,29 @@ var _ = Describe("ListCache", func() {
 		When("refresh is disabled", func() {
 			It("should print 'refresh disabled'", func() {
 				lists := map[string][]string{
-					"gr1": {emptyFile.Name()},
+					"gr1": {emptyFile.Path},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, -1, NewDownloader(), defaultProcessingConcurrency)
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, -1, NewDownloader(),
+					defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
 				c := sut.Configuration()
 				Expect(c).Should(ContainElement("refresh: disabled"))
+			})
+		})
+	})
+
+	Describe("StartStrategy", func() {
+		When("async load is enabled", func() {
+			It("should never return an error", func() {
+				lists := map[string][]string{
+					"gr1": {"doesnotexist"},
+				}
+
+				_, err := NewListCache(ListCacheTypeBlacklist, lists, -1, NewDownloader(),
+					defaultProcessingConcurrency, true)
+				Expect(err).Should(Succeed())
 			})
 		})
 	})
@@ -370,7 +394,7 @@ func (m *MockDownloader) DownloadFile(_ string) (io.ReadCloser, error) {
 }
 
 func createTestListFile(dir string, totalLines int) string {
-	file, err := ioutil.TempFile(dir, "blocky")
+	file, err := os.CreateTemp(dir, "blocky")
 	if err != nil {
 		log.Fatal(err)
 	}
