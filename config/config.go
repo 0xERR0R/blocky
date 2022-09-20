@@ -36,6 +36,39 @@ const (
 // )
 type NetProtocol uint16
 
+// IPVersion represents IP protocol version(s). ENUM(
+// dual // IPv4 and IPv6
+// v4   // IPv4 only
+// v6   // IPv6 only
+// )
+type IPVersion uint8
+
+func (ipv IPVersion) Net() string {
+	switch ipv {
+	case IPVersionDual:
+		return "ip"
+	case IPVersionV4:
+		return "ipv4"
+	case IPVersionV6:
+		return "ipv6"
+	}
+
+	panic(fmt.Errorf("bad value: %s", ipv))
+}
+
+func (ipv IPVersion) QTypes() []dns.Type {
+	switch ipv {
+	case IPVersionDual:
+		return []dns.Type{dns.Type(dns.TypeA), dns.Type(dns.TypeAAAA)}
+	case IPVersionV4:
+		return []dns.Type{dns.Type(dns.TypeA)}
+	case IPVersionV6:
+		return []dns.Type{dns.Type(dns.TypeAAAA)}
+	}
+
+	panic(fmt.Errorf("bad value: %s", ipv))
+}
+
 // QueryLogType type of the query log ENUM(
 // console // use logger as fallback
 // none // no logging
@@ -100,10 +133,11 @@ var netDefaultPort = map[NetProtocol]uint16{
 
 // Upstream is the definition of external DNS server
 type Upstream struct {
-	Net  NetProtocol
-	Host string
-	Port uint16
-	Path string
+	Net        NetProtocol
+	Host       string
+	Port       uint16
+	Path       string
+	CommonName string // Common Name to use for certificate verification; optional. "" uses .Host
 }
 
 // IsDefault returns true if u is the default value
@@ -322,11 +356,13 @@ func (s *QTypeSet) UnmarshalYAML(unmarshal func(interface{}) error) error {
 var validDomain = regexp.MustCompile(
 	`^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$`)
 
-// ParseUpstream creates new Upstream from passed string in format [net]:host[:port][/path]
+// ParseUpstream creates new Upstream from passed string in format [net]:host[:port][/path][#commonname]
 func ParseUpstream(upstream string) (Upstream, error) {
 	var path string
 
 	var port uint16
+
+	commonName, upstream := extractCommonName(upstream)
 
 	n, upstream := extractNet(upstream)
 
@@ -364,11 +400,18 @@ func ParseUpstream(upstream string) (Upstream, error) {
 	}
 
 	return Upstream{
-		Net:  n,
-		Host: host,
-		Port: port,
-		Path: path,
+		Net:        n,
+		Host:       host,
+		Port:       port,
+		Path:       path,
+		CommonName: commonName,
 	}, nil
+}
+
+func extractCommonName(in string) (string, string) {
+	upstream, cn, _ := strings.Cut(in, "#")
+
+	return cn, upstream
 }
 
 func extractPath(in string) (path string, upstream string) {
@@ -408,6 +451,7 @@ func extractNet(upstream string) (NetProtocol, string) {
 type Config struct {
 	Upstream            UpstreamConfig            `yaml:"upstream"`
 	UpstreamTimeout     Duration                  `yaml:"upstreamTimeout" default:"2s"`
+	ConnectIPVersion    IPVersion                 `yaml:"connectIPVersion"`
 	CustomDNS           CustomDNSConfig           `yaml:"customDNS"`
 	Conditional         ConditionalUpstreamConfig `yaml:"conditional"`
 	Blocking            BlockingConfig            `yaml:"blocking"`
