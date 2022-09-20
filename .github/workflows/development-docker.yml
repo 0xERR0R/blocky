@@ -74,23 +74,6 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Prepare build cache
-        shell: bash
-        run: |
-          TOKEN64=$(echo ${{ secrets.GITHUB_TOKEN }} | base64)
-          JSON=$(curl -s -H "Authorization: Bearer ${TOKEN64}" https://ghcr.io/v2/${{ github.repository }}/tags/list | jq .)
-          CACHE_EXISTS=$(jq '[ .tags[]? | contains("buildcache") ] | any' <<< "$JSON")
-
-          if [[ $CACHE_EXISTS == 'true' ]]; then
-            echo "The buildcache tag is already initialized"
-          else
-            echo "Initializing buildcache tag"
-            docker pull ghcr.io/0xerr0r/blocky:development
-            docker tag ghcr.io/0xerr0r/blocky:development ghcr.io/${{ github.repository }}:buildcache
-            docker push ghcr.io/${{ github.repository }}:buildcache
-            echo "Initializing complete"
-          fi
-
       - name: Extract branch name
         id: extract_branch
         shell: bash
@@ -114,6 +97,20 @@ jobs:
           echo "VERSION: ${VERSION}"
           echo "BUILD_TIME: ${BUILD_TIME}"
 
+      - name: Build cache
+        shell: bash
+        run: |
+          docker buildx \
+          build -o type=docker \
+          --cache-from type=registry,ref=ghcr.io/${{ github.repository }} \
+          --cache-to=type=inline \
+          --build-arg VERSION=${{ steps.get_args.outputs.version }} \
+          --build-arg BUILD_TIME=${{ steps.get_args.outputs.build_time }} \
+          --target build \
+          -t build \
+          -t ghcr.io/${{ github.repository }}:buildcache \
+          .
+
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
@@ -121,11 +118,10 @@ jobs:
           platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository }}:${{ steps.extract_branch.outputs.branch }}
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
           build-args: |
             VERSION=${{ steps.get_args.outputs.version }}
             BUILD_TIME=${{ steps.get_args.outputs.build_time }}
-          #cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
 
   retag:
     name: Add DockerHub tag

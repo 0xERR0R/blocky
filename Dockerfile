@@ -33,21 +33,22 @@ RUN --mount=type=cache,target=/go/pkg \
     go generate ./...
 
 # setup environment
+COPY --from=zig-env /usr/local/bin/zig /usr/local/bin/zig
+ENV PATH="/usr/local/bin/zig:${PATH}"
 RUN --mount=type=cache,target=/go/pkg \
     go install github.com/dosgo/zigtool/zigcc@latest && \
-    go install github.com/dosgo/zigtool/zigcpp@latest
-COPY --from=zig-env /usr/local/bin/zig /usr/local/bin/zig
-ENV PATH="/usr/local/bin/zig:${PATH}" \
-    CC="zigcc" \
+    go install github.com/dosgo/zigtool/zigcpp@latest && \
+    go env -w GOARM=${TARGETVARIANT##*v}
+
+ENV CC="zigcc" \
     CXX="zigcpp" \
     CGO_ENABLED=0 \
     GOOS="linux" \
     GOARCH=$TARGETARCH
 
-# build binary
+# build binary 
 RUN --mount=type=cache,target=/root/.cache/go-build \ 
     --mount=type=cache,target=/go/pkg \
-    export GOARM=${TARGETVARIANT##*v} && \
     /scripts/printenv.sh && \
     go build \
     -tags static \
