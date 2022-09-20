@@ -26,6 +26,7 @@ configuration properties as [JSON](config.yml).
 | dohUserAgent | string                          | no                    |               | HTTP User Agent for DoH upstreams                                                                                                  |
 | minTlsServeVersion | string                    | no                    | 1.2           | Minimum TLS version that the DoT and DoH server use to serve those encrypted DNS requests                       |
 | startVerifyUpstream | bool                     | no                    | false          | If true, blocky will fail to start unless at least one upstream server per group is reachable.                  |
+| connectIPVersion | bool                        | no                    | dual          | IP version to use for outgoing connections (dual, v4, v6)                  |
 
 !!! example
 

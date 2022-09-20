@@ -52,4 +52,8 @@ or [at grafana.com](https://grafana.com/grafana/dashboards/14980)
 
 Please define the MySQL source in Grafana, which points to the database with blocky's log entries.
 
+## Postgres
+
+The JSON for a Grafana dashboard equivalent to the MySQL/MariaDB version is located [here](https://github.com/0xERR0R/blocky/blob/master/docs/blocky-query-grafana-postgres.json)
+
 --8<-- "docs/includes/abbreviations.md"
