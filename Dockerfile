@@ -1,3 +1,13 @@
+# create blocky user
+FROM --platform=$BUILDPLATFORM alpine:3.16 AS create-user
+RUN echo "blocky:x:100:65533:Blocky User,,,:/app:/sbin/nologin" > /tmp/blocky_passwd
+
+# get newest certificates
+FROM --platform=$BUILDPLATFORM alpine:3.16 AS ca-certs
+RUN apk add --no-cache ca-certificates
+RUN --mount=type=cache,target=/etc/ssl/certs \
+    update-ca-certificates 2>/dev/null || true
+
 # zig compiler
 FROM --platform=$BUILDPLATFORM ghcr.io/euantorano/zig:master AS zig-env
 
@@ -44,9 +54,8 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     -ldflags="-X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" \
     -o /bin/blocky
 
-RUN apk add --no-cache libcap ca-certificates && \
+RUN apk add --no-cache libcap && \
     setcap 'cap_net_bind_service=+ep' /bin/blocky && \
-    echo "blocky:x:100:65533:Blocky User,,,:/app:/sbin/nologin" > /tmp/blocky_passwd && \
     chown 100 /bin/blocky
 
 # final stage
@@ -58,8 +67,8 @@ LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
 
 WORKDIR /app
 
-COPY --from=build /tmp/blocky_passwd /etc/passwd
-COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=create-user /tmp/blocky_passwd /etc/passwd
+COPY --from=ca-certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /bin/blocky /app/blocky
 
 USER blocky

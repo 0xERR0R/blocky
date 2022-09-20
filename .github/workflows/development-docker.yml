@@ -97,20 +97,6 @@ jobs:
           echo "VERSION: ${VERSION}"
           echo "BUILD_TIME: ${BUILD_TIME}"
 
-      - name: Build cache
-        shell: bash
-        run: |
-          docker buildx \
-          build -o type=docker \
-          --cache-from type=registry,ref=ghcr.io/${{ github.repository }} \
-          --cache-to=type=inline \
-          --build-arg VERSION=${{ steps.get_args.outputs.version }} \
-          --build-arg BUILD_TIME=${{ steps.get_args.outputs.build_time }} \
-          --target build \
-          -t build \
-          -t ghcr.io/${{ github.repository }}:buildcache \
-          .
-
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
@@ -118,7 +104,6 @@ jobs:
           platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository }}:${{ steps.extract_branch.outputs.branch }}
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
           build-args: |
             VERSION=${{ steps.get_args.outputs.version }}
             BUILD_TIME=${{ steps.get_args.outputs.build_time }}
