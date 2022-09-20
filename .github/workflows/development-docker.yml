@@ -121,11 +121,11 @@ jobs:
           platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository }}:${{ steps.extract_branch.outputs.branch }}
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}
           build-args: |
             VERSION=${{ steps.get_args.outputs.version }}
             BUILD_TIME=${{ steps.get_args.outputs.build_time }}
+          #cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
 
   retag:
     name: Add DockerHub tag
@@ -215,7 +215,7 @@ jobs:
         if: ${{ matrix.arm == false }}
         shell: bash
         run: | 
-          echo '::group::Version for ${{ matrix.arm }}'
+          echo '::group::Version for ${{ matrix.arch }}'
           docker run --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
           echo '::endgroup::'
 
@@ -224,9 +224,3 @@ jobs:
         shell: bash
         run: |
           echo "Image arch: ${{ matrix.arch }}"
-      
-      - name: Stop docker container
-        if: ${{ always() }}
-        shell: bash
-        run: |
-          docker stop test_${{ matrix.arch }} || true
