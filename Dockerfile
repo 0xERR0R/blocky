@@ -19,10 +19,6 @@ RUN echo "blocky:x:100:65533:Blocky User,,,:/app:/sbin/nologin" > /tmp/blocky_pa
 # set working directory
 WORKDIR /go/src
 
-COPY --from=zig-env /usr/local/bin/zig /usr/local/bin/zig
-
-ENV PATH "/usr/local/bin/zig:${PATH}"
-
 COPY ./docker /scripts
 RUN chmod +x /scripts/*.sh
 
@@ -36,19 +32,22 @@ COPY . .
 RUN --mount=type=cache,target=/go/pkg \
     go generate ./...
 
-# arguments to environment
-ENV CGO_ENABLED=0
-ENV GOOS="linux"
-ENV GOARCH=$TARGETARCH
+# setup environment
+RUN --mount=type=cache,target=/go/pkg \
+    go install github.com/dosgo/zigtool/zigcc@latest && \
+    go install github.com/dosgo/zigtool/zigcpp@latest
+COPY --from=zig-env /usr/local/bin/zig /usr/local/bin/zig
+ENV PATH="/usr/local/bin/zig:${PATH}" \
+    CC="zigcc" \
+    CXX="zigcpp" \
+    CGO_ENABLED=0 \
+    GOOS="linux" \
+    GOARCH=$TARGETARCH
 
 # build binary
 RUN --mount=type=cache,target=/root/.cache/go-build \ 
     --mount=type=cache,target=/go/pkg \
     export GOARM=${TARGETVARIANT##*v} && \
-    go install github.com/dosgo/zigtool/zigcc@latest && \
-    go install github.com/dosgo/zigtool/zigcpp@latest && \
-    export CC=zigcc && \
-    export CXX=zigcpp && \
     /scripts/printenv.sh && \
     go build \
     -tags static \

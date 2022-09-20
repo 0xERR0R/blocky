@@ -113,12 +113,12 @@ jobs:
 
           echo "VERSION: ${VERSION}"
           echo "BUILD_TIME: ${BUILD_TIME}"
-#,linux/arm/v6,linux/arm/v7,linux/arm64
+
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository }}:${{ steps.extract_branch.outputs.branch }}
           cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
@@ -211,44 +211,13 @@ jobs:
             distro: buster
             arm: true
     steps:
-      - name: Create test files
-        shell: bash
-        run: |
-          # blocky config
-          echo 'port: 5333' > /tmp/blocky_test.yml
-          echo 'upstream:' >> /tmp/blocky_test.yml
-          echo '  default:' >> /tmp/blocky_test.yml
-          echo '    - 127.0.1.1' >> /tmp/blocky_test.yml
-          echo 'blocking:' >> /tmp/blocky_test.yml
-          echo '  blockType: nxDomain' >> /tmp/blocky_test.yml
-          echo '  clientGroupsBlock:' >> /tmp/blocky_test.yml
-          echo '    default:' >> /tmp/blocky_test.yml
-          echo '      - docker' >> /tmp/blocky_test.yml
-          echo '  blackLists:' >> /tmp/blocky_test.yml
-          echo '    docker:' >> /tmp/blocky_test.yml
-          echo '      - |' >> /tmp/blocky_test.yml
-          echo '        docker.com' >> /tmp/blocky_test.yml
-
-          # test script
-          echo '#!/bin/sh' > /tmp/test.sh
-          echo 'docker run -d -p 5333:5333/tcp --name test_${{ matrix.arch }} --rm -v /tmp/blocky_test.yml:/app/config.yml:ro ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }}' >> /tmp/test.sh
-          echo 'sleep 20' >> /tmp/test.sh
-          echo '[ "$(dig docker.com @127.0.0.1 +short +tcp -p 5333)" ] && exit 1 || echo "docker.com is blocked"' >> /tmp/test.sh
-          echo '[ "$(dig github.com @127.0.0.1 +short +tcp -p 5333)" ] && echo "github.com is resolved" || exit 2' >> /tmp/test.sh
-          chmod +x /tmp/test.sh
-
-          # print files
-          echo '::group::Content of /tmp/blocky_test.yml'
-          cat /tmp/blocky_test.yml
-          echo '::endgroup::'
-          echo '::group::Content of /tmp/test.sh'
-          cat /tmp/test.sh
-          echo '::endgroup::'
-
       - name: Test amd64 image
         if: ${{ matrix.arm == false }}
         shell: bash
-        run: docker run --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
+        run: | 
+          echo '::group::Version for ${{ matrix.arm }}'
+          docker run --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
+          echo '::endgroup::'
 
       - name: Test arm image
         if: ${{ matrix.arm }}
