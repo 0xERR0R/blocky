@@ -202,6 +202,11 @@ jobs:
 
       - name: Test arm image
         if: ${{ matrix.arm }}
-        shell: bash
-        run: |
-          echo "Image arch: ${{ matrix.arch }}"
+        uses: uraimo/run-on-arch-action@v2
+        with:
+          arch: ${{ matrix.arch }}
+          distro: ${{ matrix.distro }}
+          run: |
+            echo '::group::Version for ${{ matrix.arch }}'
+            docker run --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
+            echo '::endgroup::'
