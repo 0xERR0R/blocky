@@ -45,9 +45,9 @@ fmt: ## gofmt and goimports all go files
 	find . -name '*.go' | while read -r file; do gofmt -w -s "$$file"; goimports -w "$$file"; done
 
 docker-build:  ## Build docker image 
+	go generate ./...
 	docker buildx \
 	build -o type=docker \
-	--cache-from type=registry,ref=ghcr.io/0xerr0r/blocky:buildcache \
 	--build-arg VERSION=${VERSION} \
 	--build-arg BUILD_TIME=${BUILD_TIME} \
 	--network=host -t ${DOCKER_IMAGE_NAME} .

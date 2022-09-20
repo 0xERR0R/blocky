@@ -1,11 +1,9 @@
+# zig compiler
 FROM --platform=$BUILDPLATFORM ghcr.io/euantorano/zig:master AS zig-env
-# prepare build environment
-FROM --platform=$BUILDPLATFORM golang:1-alpine AS build
-RUN apk add --no-cache \
-    ca-certificates \
-    libcap
 
-RUN update-ca-certificates 2>/dev/null || true
+# build environment
+FROM --platform=$BUILDPLATFORM golang:1-alpine AS build
+
 # required arguments(buildx will set target)
 ARG VERSION
 ARG BUILD_TIME
@@ -13,14 +11,8 @@ ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT
 
-# create blocky user passwd file
-RUN echo "blocky:x:100:65533:Blocky User,,,:/app:/sbin/nologin" > /tmp/blocky_passwd
-
 # set working directory
 WORKDIR /go/src
-
-COPY ./docker /scripts
-RUN chmod +x /scripts/*.sh
 
 # download packages
 COPY go.mod go.sum ./
@@ -29,17 +21,14 @@ RUN --mount=type=cache,target=/go/pkg \
 
 # add source
 COPY . .
-RUN --mount=type=cache,target=/go/pkg \
-    go generate ./...
 
-# setup environment
+# setup go+zig
 COPY --from=zig-env /usr/local/bin/zig /usr/local/bin/zig
 ENV PATH="/usr/local/bin/zig:${PATH}"
 RUN --mount=type=cache,target=/go/pkg \
     go install github.com/dosgo/zigtool/zigcc@latest && \
     go install github.com/dosgo/zigtool/zigcpp@latest && \
     go env -w GOARM=${TARGETVARIANT##*v}
-
 ENV CC="zigcc" \
     CXX="zigcpp" \
     CGO_ENABLED=0 \
@@ -49,26 +38,25 @@ ENV CC="zigcc" \
 # build binary 
 RUN --mount=type=cache,target=/root/.cache/go-build \ 
     --mount=type=cache,target=/go/pkg \
-    /scripts/printenv.sh && \
     go build \
     -tags static \
     -v \
     -ldflags="-X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" \
     -o /bin/blocky
 
-RUN setcap 'cap_net_bind_service=+ep' /bin/blocky && \
+RUN apk add --no-cache libcap ca-certificates && \
+    setcap 'cap_net_bind_service=+ep' /bin/blocky && \
+    echo "blocky:x:100:65533:Blocky User,,,:/app:/sbin/nologin" > /tmp/blocky_passwd && \
     chown 100 /bin/blocky
 
 # final stage
 FROM scratch
 
-#LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
-#      org.opencontainers.image.url="https://github.com/0xERR0R/blocky" \
-#      org.opencontainers.image.title="DNS proxy as ad-blocker for local network"
+LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
+      org.opencontainers.image.url="https://github.com/0xERR0R/blocky" \
+      org.opencontainers.image.title="DNS proxy as ad-blocker for local network"
 
 WORKDIR /app
-
-#RUN cp /bin/blocky /app/blocky
 
 COPY --from=build /tmp/blocky_passwd /etc/passwd
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
