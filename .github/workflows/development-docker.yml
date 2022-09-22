@@ -206,6 +206,11 @@ jobs:
         with:
           arch: ${{ matrix.arch }}
           distro: ${{ matrix.distro }}
+          #githubToken: ${{ secrets.GITHUB_TOKEN }}
+          install: |
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            chmod +x get-docker.sh
+            sh get-docker.sh
           run: |
             echo '::group::Version for ${{ matrix.arch }}'
             docker run --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
