@@ -209,11 +209,14 @@ jobs:
           #githubToken: ${{ secrets.GITHUB_TOKEN }}
           shell: /bin/bash
           install: |
-            apt-get update -q -y
-            apt-get install -q -y curl
-            curl -fsSL https://get.docker.com -o get-docker.sh
-            chmod +x get-docker.sh
-            sh get-docker.sh
+            apt-get update
+            apt-get install -y ca-certificates curl gnupg lsb-release
+            mkdir -p /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
+            $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+            apt-get update 
+            apt-get install -y docker-ce docker-ce-cli containerd.io
           run: |
             echo '::group::Version for ${{ matrix.arch }}'
             docker run --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
