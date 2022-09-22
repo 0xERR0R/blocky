@@ -207,7 +207,10 @@ jobs:
           arch: ${{ matrix.arch }}
           distro: ${{ matrix.distro }}
           #githubToken: ${{ secrets.GITHUB_TOKEN }}
+          shell: /bin/bash
           install: |
+            apt-get update -q -y
+            apt-get install -q -y curl
             curl -fsSL https://get.docker.com -o get-docker.sh
             chmod +x get-docker.sh
             sh get-docker.sh
