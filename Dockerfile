@@ -1,7 +1,3 @@
-# create blocky user
-FROM --platform=$BUILDPLATFORM alpine:3.16 AS create-user
-RUN echo "blocky:x:100:65533:Blocky User,,,:/app:/sbin/nologin" > /tmp/blocky_passwd
-
 # get newest certificates
 FROM --platform=$BUILDPLATFORM alpine:3.16 AS ca-certs
 RUN apk add --no-cache ca-certificates
@@ -52,7 +48,7 @@ RUN --mount=type=bind,target=. \
     go build \
     -tags static \
     -v \
-    -ldflags="-X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME} -X github.com/0xERR0R/blocky/util.Architecture=${GOARCH}${TARGETVARIANT}" \
+    -ldflags="-X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME} -X github.com/0xERR0R/blocky/util.Architecture=${TARGETARCH}${TARGETVARIANT}" \
     -o /bin/blocky
 
 RUN apk add --no-cache libcap && \
@@ -68,11 +64,10 @@ LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
 
 WORKDIR /app
 
-COPY --from=create-user /tmp/blocky_passwd /etc/passwd
 COPY --from=ca-certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /bin/blocky /app/blocky
 
-USER blocky
+USER 100
 
 ENV BLOCKY_CONFIG_FILE=/app/config.yml
 
