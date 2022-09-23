@@ -64,6 +64,10 @@ func createUpstreamClient(cfg config.Upstream) upstreamClient {
 		MinVersion: tls.VersionTLS12,
 	}
 
+	if cfg.CommonName != "" {
+		tlsConfig.ServerName = cfg.CommonName
+	}
+
 	switch cfg.Net {
 	case config.NetProtocolHttps:
 		return &httpUpstreamClient{
