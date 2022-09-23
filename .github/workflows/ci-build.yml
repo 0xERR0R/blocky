@@ -5,7 +5,6 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: true
       matrix:
         make: [build, test, race, docker-build, goreleaser]
     steps:
