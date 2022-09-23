@@ -615,6 +615,9 @@ func (r *BlockingResolver) queryForFQIdentifierIPs(identifier string) (result []
 }
 
 func (r *BlockingResolver) initFQDNIPCache() {
+	r.status.lock.Lock()
+	defer r.status.lock.Unlock()
+
 	identifiers := make([]string, 0)
 
 	for identifier := range r.clientGroupsBlock {
