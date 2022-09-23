@@ -1,10 +1,13 @@
 name: CI Build
 on: [push, pull_request]
 jobs:
-
-  build:
-    name: Build
+  make:
+    name: Make test
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        make: [build, test, race, docker-build]
     steps:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v1
@@ -17,27 +20,19 @@ jobs:
 
       - name: Get dependencies
         run: |
-          go get -v -t -d ./...
-          if [ -f Gopkg.toml ]; then
-              curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-              dep ensure
-          fi
+          go mod download
 
-      - name: Build
-        run: make build
-
-      - name: Test
-        run: make test
-
-      - name: Race detection
-        run: make race
+      - name: make ${{ matrix.make }}
+        run: make ${{ matrix.make }}
 
       - name: Upload results to codecov
         uses: codecov/codecov-action@v3
+        if: matrix.make == 'test'
 
-      - name: Docker images
-        run: make docker-build
-
+  goreleaser:
+    name: GoReleaser check
+    runs-on: ubuntu-latest
+    steps:
       - name: Check GoReleaser configuration
         uses: goreleaser/goreleaser-action@v2
         with:
