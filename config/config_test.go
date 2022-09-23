@@ -48,10 +48,31 @@ var _ = Describe("Config", func() {
 				err = writeConfigDir(tmpDir)
 				Expect(err).Should(Succeed())
 
-				_, err := LoadConfig(tmpDir.JoinPath("/"), true)
+				_, err := LoadConfig(tmpDir.Path, true)
 				Expect(err).Should(Succeed())
 
 				defaultTestFileConfig()
+			})
+
+			It("should ignore non YAML files", func() {
+				err = writeConfigDir(tmpDir)
+				Expect(err).Should(Succeed())
+
+				tmpDir.CreateStringFile("ignore-me.txt", "THIS SHOULD BE IGNORED!")
+
+				_, err := LoadConfig(tmpDir.Path, true)
+				Expect(err).Should(Succeed())
+			})
+
+			It("should ignore non regular files", func() {
+				err = writeConfigDir(tmpDir)
+				Expect(err).Should(Succeed())
+
+				tmpDir.CreateSubFolder("subfolder")
+				tmpDir.CreateSubFolder("subfolder.yml")
+
+				_, err := LoadConfig(tmpDir.Path, true)
+				Expect(err).Should(Succeed())
 			})
 		})
 		When("Config folder does not exist", func() {

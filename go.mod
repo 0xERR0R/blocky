@@ -36,7 +36,36 @@ require (
 	gorm.io/gorm v1.23.9
 )
 
-require github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
+require (
+	github.com/Antonboom/nilnil v0.1.1 // indirect
+	github.com/GaijinEntertainment/go-exhaustruct/v2 v2.3.0 // indirect
+	github.com/alingse/asasalint v0.0.11 // indirect
+	github.com/blizzy78/varnamelen v0.8.0 // indirect
+	github.com/breml/bidichk v0.2.3 // indirect
+	github.com/breml/errchkjson v0.3.0 // indirect
+	github.com/butuzov/ireturn v0.1.1 // indirect
+	github.com/curioswitch/go-reassign v0.1.2 // indirect
+	github.com/denis-tingaikin/go-header v0.4.3 // indirect
+	github.com/firefart/nonamedreturns v1.0.4 // indirect
+	github.com/hexops/gotextdiff v1.0.3 // indirect
+	github.com/leonklingele/grouper v1.1.0 // indirect
+	github.com/lufeee/execinquery v1.2.1 // indirect
+	github.com/sashamelentyev/interfacebloat v1.1.0 // indirect
+	github.com/sashamelentyev/usestdlibvars v1.13.0 // indirect
+	github.com/sivchari/containedctx v1.0.2 // indirect
+	github.com/sivchari/nosnakecase v1.7.0 // indirect
+	github.com/sivchari/tenv v1.7.0 // indirect
+	github.com/stbenjam/no-sprintf-host-port v0.1.1 // indirect
+	github.com/sylvia7788/contextcheck v1.0.6 // indirect
+	github.com/timonwong/logrlint v0.1.0 // indirect
+	github.com/yagipy/maintidx v1.0.0 // indirect
+	gitlab.com/bosi/decorder v0.2.3 // indirect
+	go.uber.org/atomic v1.7.0 // indirect
+	go.uber.org/multierr v1.6.0 // indirect
+	go.uber.org/zap v1.17.0 // indirect
+	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e // indirect
+	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
+)
 
 require (
 	github.com/Antonboom/nilnil v0.1.1 // indirect

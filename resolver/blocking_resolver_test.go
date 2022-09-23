@@ -140,13 +140,12 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					return nil
 				}
 				Bus().Publish(ApplicationStarted, "")
-				time.Sleep(time.Second)
 				Eventually(func(g Gomega) {
 					resp, err = sut.Resolve(newRequestWithClient("blocked2.com.", dns.Type(dns.TypeA), "192.168.178.39", "client1"))
 					g.Expect(err).NotTo(HaveOccurred())
 					g.Expect(resp.Res.Answer).ShouldNot(BeNil())
 					g.Expect(resp.Res.Answer).Should(BeDNSRecord("blocked2.com.", dns.TypeA, 60, "0.0.0.0"))
-				}, "1s").Should(Succeed())
+				}, "10s", "1s").Should(Succeed())
 			})
 		})
 	})
