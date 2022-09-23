@@ -114,6 +114,13 @@ jobs:
     needs: docker
     if: github.repository_owner == '0xERR0R'
     steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
@@ -123,6 +130,7 @@ jobs:
       - name: DockerHub tag
         shell: bash
         run: |
+          docker pull ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }}
           docker tag ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} spx01/blocky:${{ needs.docker.outputs.branch }}
           docker push
 
