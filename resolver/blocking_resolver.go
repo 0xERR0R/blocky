@@ -467,6 +467,9 @@ func (r *BlockingResolver) isGroupDisabled(group string) bool {
 
 // returns groups which should be checked for client's request
 func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []string {
+	r.status.lock.RLock()
+	defer r.status.lock.RUnlock()
+
 	var groups []string
 	// try client names
 	for _, cName := range request.ClientNames {
