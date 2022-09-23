@@ -175,7 +175,6 @@ jobs:
     name: Test docker images
     runs-on: ubuntu-latest
     needs: docker
-            #linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
     steps:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
@@ -191,4 +190,12 @@ jobs:
 
           echo '::group::Version for linux/arm/v6'
           docker run --platform linux/arm/v6 --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
+          echo '::endgroup::'
+
+          echo '::group::Version for linux/arm/v7'
+          docker run --platform linux/arm/v7 --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
+          echo '::endgroup::'
+
+          echo '::group::Version for linux/arm64'
+          docker run --platform linux/arm64 --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
           echo '::endgroup::'
