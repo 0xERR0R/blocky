@@ -139,12 +139,16 @@ func (r *SpecialUseDomainNamesResolver) positiveResponse(request *model.Request,
 
 	response.Answer = []dns.RR{rr}
 
-	return returnResponseModel(response, model.ResponseTypeSPECIAL, "Special-Use Domain Name")
+	return r.returnResponseModel(response)
 }
 
 func (r *SpecialUseDomainNamesResolver) negativeResponse(request *model.Request) (*model.Response, error) {
 	response := newResponseMsg(request)
 	response.Rcode = dns.RcodeNameError
 
+	return r.returnResponseModel(response)
+}
+
+func (r *SpecialUseDomainNamesResolver) returnResponseModel(response *dns.Msg) (*model.Response, error) {
 	return returnResponseModel(response, model.ResponseTypeSPECIAL, "Special-Use Domain Name")
 }
