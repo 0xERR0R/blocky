@@ -40,6 +40,23 @@ func newRequestWithClient(question string, rType dns.Type, ip string, clientName
 	}
 }
 
+// newResponseMsg creates a new dns.Msg as response for a request
+func newResponseMsg(request *model.Request) *dns.Msg {
+	response := new(dns.Msg)
+	response.SetReply(request.Req)
+
+	return response
+}
+
+// returnResponseModel wrapps a dns.Msg into a model.Response
+func returnResponseModel(response *dns.Msg, rtype model.ResponseType, reason string) (*model.Response, error) {
+	return &model.Response{
+		Res:    response,
+		RType:  rtype,
+		Reason: reason,
+	}, nil
+}
+
 func newRequestWithClientID(question string, rType dns.Type, ip string, requestClientID string) *model.Request {
 	return &model.Request{
 		ClientIP:        net.ParseIP(ip),

@@ -36,8 +36,6 @@ require (
 	gorm.io/gorm v1.23.9
 )
 
-require github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
-
 require (
 	github.com/Antonboom/nilnil v0.1.1 // indirect
 	github.com/GaijinEntertainment/go-exhaustruct/v2 v2.3.0 // indirect
