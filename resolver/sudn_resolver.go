@@ -110,7 +110,7 @@ func (r *SpecialUseDomainNamesResolver) responseSwitch(request *model.Request,
 
 func (r *SpecialUseDomainNamesResolver) positiveResponse(request *model.Request,
 	name string, rtype uint16, ip net.IP) (*model.Response, error) {
-	response := r.newResponseMsg(request)
+	response := newResponseMsg(request)
 	response.Rcode = dns.RcodeSuccess
 
 	hdr := dns.RR_Header{
@@ -139,29 +139,12 @@ func (r *SpecialUseDomainNamesResolver) positiveResponse(request *model.Request,
 
 	response.Answer = []dns.RR{rr}
 
-	return r.returnResponseModel(response)
+	return returnResponseModel(response, model.ResponseTypeSPECIAL, "Special-Use Domain Name")
 }
 
 func (r *SpecialUseDomainNamesResolver) negativeResponse(request *model.Request) (*model.Response, error) {
-	response := r.newResponseMsg(request)
+	response := newResponseMsg(request)
 	response.Rcode = dns.RcodeNameError
 
-	return r.returnResponseModel(response)
-}
-
-// Creates a new dns.Msg as response for a request
-func (r *SpecialUseDomainNamesResolver) newResponseMsg(request *model.Request) *dns.Msg {
-	response := new(dns.Msg)
-	response.SetReply(request.Req)
-
-	return response
-}
-
-// Wrapps a dns.Msg into a model.Response
-func (r *SpecialUseDomainNamesResolver) returnResponseModel(response *dns.Msg) (*model.Response, error) {
-	return &model.Response{
-		Res:    response,
-		RType:  model.ResponseTypeSPECIAL,
-		Reason: "Special-Use Domain Name",
-	}, nil
+	return returnResponseModel(response, model.ResponseTypeSPECIAL, "Special-Use Domain Name")
 }
