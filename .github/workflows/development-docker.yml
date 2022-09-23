@@ -50,7 +50,7 @@ jobs:
     name: Build Docker image
     runs-on: ubuntu-latest
     needs: check
-    if: needs.check.outputs.enabled == 1
+    if: ${{ needs.check.outputs.enabled == 1 }}
     outputs:
       branch: ${{ steps.extract_branch.outputs.branch }}
     steps:
@@ -61,6 +61,8 @@ jobs:
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
+        with:
+          platforms: arm,arm64
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -71,23 +73,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Prepare build cache
-        shell: bash
-        run: |
-          TOKEN64=$(echo ${{ secrets.GITHUB_TOKEN }} | base64)
-          JSON=$(curl -s -H "Authorization: Bearer ${TOKEN64}" https://ghcr.io/v2/${{ github.repository }}/tags/list | jq .)
-          CACHE_EXISTS=$(jq '[ .tags[]? | contains("buildcache") ] | any' <<< "$JSON")
-
-          if [[ $CACHE_EXISTS == 'true' ]]; then
-            echo "The buildcache tag is already initialized"
-          else
-            echo "Initializing buildcache tag"
-            docker pull ghcr.io/0xerr0r/blocky:development
-            docker tag ghcr.io/0xerr0r/blocky:development ghcr.io/${{ github.repository }}:buildcache
-            docker push ghcr.io/${{ github.repository }}:buildcache
-            echo "Initializing complete"
-          fi
 
       - name: Extract branch name
         id: extract_branch
@@ -111,7 +96,7 @@ jobs:
 
           echo "VERSION: ${VERSION}"
           echo "BUILD_TIME: ${BUILD_TIME}"
-        
+
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
@@ -119,11 +104,9 @@ jobs:
           platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository }}:${{ steps.extract_branch.outputs.branch }}
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
           build-args: |
-            VERSION=${{ steps.get_arg.outputs.version }}
-            BUILD_TIME=${{ steps.get_arg.outputs.build_time }}
+            VERSION=${{ steps.get_args.outputs.version }}
+            BUILD_TIME=${{ steps.get_args.outputs.build_time }}
 
   retag:
     name: Add DockerHub tag
@@ -131,6 +114,13 @@ jobs:
     needs: docker
     if: github.repository_owner == '0xERR0R'
     steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
@@ -140,6 +130,7 @@ jobs:
       - name: DockerHub tag
         shell: bash
         run: |
+          docker pull ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }}
           docker tag ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} spx01/blocky:${{ needs.docker.outputs.branch }}
           docker push
 
@@ -187,3 +178,32 @@ jobs:
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: 'trivy-image-results.sarif'
+
+  image-test:
+    name: Test docker images
+    runs-on: ubuntu-latest
+    needs: docker
+    steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: arm,arm64
+
+      - name: Test images
+        shell: bash
+        run: | 
+          echo '::group::Version for linux/amd64'
+          docker run --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
+          echo '::endgroup::'
+
+          echo '::group::Version for linux/arm/v6'
+          docker run --platform linux/arm/v6 --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
+          echo '::endgroup::'
+
+          echo '::group::Version for linux/arm/v7'
+          docker run --platform linux/arm/v7 --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
+          echo '::endgroup::'
+
+          echo '::group::Version for linux/arm64'
+          docker run --platform linux/arm64 --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
+          echo '::endgroup::'
