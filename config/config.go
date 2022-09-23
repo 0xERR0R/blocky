@@ -663,6 +663,21 @@ func readFromDir(path string, data []byte) ([]byte, error) {
 			return nil
 		}
 
+		// Ignore non YAML files
+		if !strings.HasSuffix(filePath, ".yml") && !strings.HasSuffix(filePath, ".yaml") {
+			return nil
+		}
+
+		isRegular, err := isRegularFile(filePath)
+		if err != nil {
+			return err
+		}
+
+		// Ignore non regular files (directories, sockets, etc.)
+		if !isRegular {
+			return nil
+		}
+
 		fileData, err := os.ReadFile(filePath)
 		if err != nil {
 			return err
@@ -675,6 +690,18 @@ func readFromDir(path string, data []byte) ([]byte, error) {
 	})
 
 	return data, err
+}
+
+// isRegularFile follows symlinks, so the result is `true` for a symlink to a regular file.
+func isRegularFile(path string) (bool, error) {
+	stat, err := os.Stat(path)
+	if err != nil {
+		return false, err
+	}
+
+	isRegular := stat.Mode()&os.ModeType == 0
+
+	return isRegular, nil
 }
 
 func unmarshalConfig(data []byte, cfg *Config) error {
