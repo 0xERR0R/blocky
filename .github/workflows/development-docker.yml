@@ -175,49 +175,20 @@ jobs:
     name: Test docker images
     runs-on: ubuntu-latest
     needs: docker
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - arch: amd64
-            distro: ubuntu-latest
-            arm: false
-          - arch: aarch64
-            distro: buster
-            arm: true
-          - arch: armv6
-            distro: buster
-            arm: true
-          - arch: armv7
-            distro: buster
-            arm: true
+            #linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
     steps:
-      - name: Test amd64 image
-        if: ${{ matrix.arm == false }}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: arm,arm64
+
+      - name: Test images
         shell: bash
         run: | 
-          echo '::group::Version for ${{ matrix.arch }}'
+          echo '::group::Version for linux/amd64'
           docker run --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
           echo '::endgroup::'
 
-      - name: Test arm image
-        if: ${{ matrix.arm }}
-        uses: uraimo/run-on-arch-action@v2
-        with:
-          arch: ${{ matrix.arch }}
-          distro: ${{ matrix.distro }}
-          #githubToken: ${{ secrets.GITHUB_TOKEN }}
-          shell: /bin/bash
-          install: |
-            apt-get update
-            apt-get install -y ca-certificates curl gnupg lsb-release
-            mkdir -p /etc/apt/keyrings
-            curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
-            $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-            apt-get update 
-            apt-get install -y docker-ce docker-ce-cli containerd.io
-          run: |
-            echo '::group::Version for ${{ matrix.arch }}'
-            docker run --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
-            echo '::endgroup::'
+          echo '::group::Version for linux/arm/v6'
+          docker run --platform linux/arm/v6 --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
+          echo '::endgroup::'
