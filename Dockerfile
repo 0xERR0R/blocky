@@ -52,7 +52,7 @@ RUN --mount=type=bind,target=. \
     go build \
     -tags static \
     -v \
-    -ldflags="-X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" \
+    -ldflags="-X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME} -X github.com/0xERR0R/blocky/util.Architecture=${GOARCH}${TARGETVARIANT}" \
     -o /bin/blocky
 
 RUN apk add --no-cache libcap && \
