@@ -150,8 +150,12 @@ For complex setups, splitting the configuration between multiple YAML files migh
 
 ### Run with helm chart on Kubernetes
 
-See [this repo](https://github.com/k8s-at-home/charts/tree/master/charts/stable/blocky)
-or [artifacthub](https://hub.helm.sh/charts/k8s-at-home/blocky) for details about running blocky via helm in kubernetes.
+See [this repo](https://github.com/truecharts/charts/tree/master/charts/enterprise/blocky)
+or [truecharts.org](https://truecharts.org/docs/charts/blocky) for details about running blocky via helm in kubernetes.
+
+### Run as an App for TrueNAS SCALE
+
+See [truecharts.org](https://truecharts.org/docs/charts/blocky) for details about running blocky as a native App for TrueNAS SCALE
 
 ### AUR package for Arch Linux
 
