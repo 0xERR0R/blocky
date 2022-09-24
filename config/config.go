@@ -615,6 +615,14 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 		return nil, fmt.Errorf("can't apply default values: %w", err)
 	}
 
+	if path == "##ENVIRONMENT##" {
+		cfg2, err := loadEnvironment(&cfg)
+
+		config = cfg2
+
+		return config, err
+	}
+
 	fs, err := os.Stat(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) && !mandatory {
