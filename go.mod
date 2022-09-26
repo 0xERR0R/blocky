@@ -3,7 +3,7 @@ module github.com/0xERR0R/blocky
 go 1.19
 
 require (
-	github.com/abice/go-enum v0.5.0
+	github.com/abice/go-enum v0.5.1
 	github.com/alicebob/miniredis/v2 v2.23.0
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/avast/retry-go/v4 v4.1.0
@@ -11,7 +11,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/cors v1.2.1
 	github.com/go-redis/redis/v8 v8.11.5
-	github.com/golangci/golangci-lint v1.49.0
+	github.com/golangci/golangci-lint v1.42.1
 	github.com/google/uuid v1.3.0
 	github.com/hako/durafmt v0.0.0-20210608085754-5c1018a4e16b
 	github.com/hashicorp/go-multierror v1.1.1
@@ -37,34 +37,9 @@ require (
 )
 
 require (
-	github.com/Antonboom/nilnil v0.1.1 // indirect
-	github.com/GaijinEntertainment/go-exhaustruct/v2 v2.3.0 // indirect
-	github.com/alingse/asasalint v0.0.11 // indirect
-	github.com/blizzy78/varnamelen v0.8.0 // indirect
-	github.com/breml/bidichk v0.2.3 // indirect
-	github.com/breml/errchkjson v0.3.0 // indirect
-	github.com/butuzov/ireturn v0.1.1 // indirect
-	github.com/curioswitch/go-reassign v0.1.2 // indirect
-	github.com/denis-tingaikin/go-header v0.4.3 // indirect
-	github.com/firefart/nonamedreturns v1.0.4 // indirect
-	github.com/hexops/gotextdiff v1.0.3 // indirect
-	github.com/leonklingele/grouper v1.1.0 // indirect
-	github.com/lufeee/execinquery v1.2.1 // indirect
-	github.com/sashamelentyev/interfacebloat v1.1.0 // indirect
-	github.com/sashamelentyev/usestdlibvars v1.13.0 // indirect
-	github.com/sivchari/containedctx v1.0.2 // indirect
-	github.com/sivchari/nosnakecase v1.7.0 // indirect
-	github.com/sivchari/tenv v1.7.0 // indirect
-	github.com/stbenjam/no-sprintf-host-port v0.1.1 // indirect
-	github.com/sylvia7788/contextcheck v1.0.6 // indirect
-	github.com/timonwong/logrlint v0.1.0 // indirect
-	github.com/yagipy/maintidx v1.0.0 // indirect
-	gitlab.com/bosi/decorder v0.2.3 // indirect
-	go.uber.org/atomic v1.7.0 // indirect
-	go.uber.org/multierr v1.6.0 // indirect
-	go.uber.org/zap v1.17.0 // indirect
-	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e // indirect
-	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
+	github.com/denis-tingajkin/go-header v0.4.2 // indirect
+	github.com/gostaticanalysis/testutil v0.4.0 // indirect
+	github.com/mgechev/dots v0.0.0-20210922191527-e955255bf517 // indirect
 )
 
 require (
@@ -90,7 +65,7 @@ require (
 	github.com/charithe/durationcheck v0.0.9 // indirect
 	github.com/chavacava/garif v0.0.0-20220630083739-93517212f375 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
-	github.com/daixiang0/gci v0.6.3 // indirect
+	github.com/daixiang0/gci v0.2.9 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/esimonov/ifshort v1.0.4 // indirect
@@ -156,7 +131,6 @@ require (
 	github.com/jirfag/go-printf-func-name v0.0.0-20200119135958-7558a9eaa5af // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/julz/importas v0.1.0 // indirect
-	github.com/kevinburke/go-bindata v3.23.0+incompatible // indirect
 	github.com/kisielk/errcheck v1.6.2 // indirect
 	github.com/kisielk/gotool v1.0.0 // indirect
 	github.com/kulti/thelper v0.6.3 // indirect
@@ -223,7 +197,7 @@ require (
 	github.com/tommy-muehle/go-mnd/v2 v2.5.0 // indirect
 	github.com/ultraware/funlen v0.0.3 // indirect
 	github.com/ultraware/whitespace v0.0.5 // indirect
-	github.com/urfave/cli/v2 v2.11.1 // indirect
+	github.com/urfave/cli/v2 v2.16.3 // indirect
 	github.com/uudashr/gocognit v1.0.6 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/yeya24/promlinter v0.2.0 // indirect
