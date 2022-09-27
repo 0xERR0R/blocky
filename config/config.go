@@ -464,7 +464,7 @@ type Config struct {
 	LogFormat           log.FormatType            `yaml:"logFormat" default:"text"`
 	LogPrivacy          bool                      `yaml:"logPrivacy" default:"false"`
 	LogTimestamp        bool                      `yaml:"logTimestamp" default:"true"`
-	DNSPorts            ListenConfig              `yaml:"port" default:"[\"53\"]"`
+	DNSPorts            ListenConfig              `yaml:"port" koanf:"port" default:"[\"53\"]"`
 	HTTPPorts           ListenConfig              `yaml:"httpPort"`
 	HTTPSPorts          ListenConfig              `yaml:"httpsPort"`
 	TLSPorts            ListenConfig              `yaml:"tlsPort"`
@@ -496,7 +496,7 @@ type PrometheusConfig struct {
 
 // UpstreamConfig upstream server configuration
 type UpstreamConfig struct {
-	ExternalResolvers map[string][]Upstream `yaml:",inline"`
+	ExternalResolvers map[string][]Upstream `yaml:",inline" koanf:",remain"`
 }
 
 // RewriteConfig custom DNS configuration
@@ -507,7 +507,7 @@ type RewriteConfig struct {
 
 // CustomDNSConfig custom DNS configuration
 type CustomDNSConfig struct {
-	RewriteConfig       `yaml:",inline"`
+	RewriteConfig       `yaml:",inline" koanf:",squash"`
 	CustomTTL           Duration         `yaml:"customTTL" default:"1h"`
 	Mapping             CustomDNSMapping `yaml:"mapping"`
 	FilterUnmappedTypes bool             `yaml:"filterUnmappedTypes" default:"true"`
@@ -515,18 +515,18 @@ type CustomDNSConfig struct {
 
 // CustomDNSMapping mapping for the custom DNS configuration
 type CustomDNSMapping struct {
-	HostIPs map[string][]net.IP
+	HostIPs map[string][]net.IP `koanf:",remain"`
 }
 
 // ConditionalUpstreamConfig conditional upstream configuration
 type ConditionalUpstreamConfig struct {
-	RewriteConfig `yaml:",inline"`
+	RewriteConfig `yaml:",inline" koanf:",squash"`
 	Mapping       ConditionalUpstreamMapping `yaml:"mapping"`
 }
 
 // ConditionalUpstreamMapping mapping for conditional configuration
 type ConditionalUpstreamMapping struct {
-	Upstreams map[string][]Upstream
+	Upstreams map[string][]Upstream `koanf:",remain"`
 }
 
 // BlockingConfig configuration for query blocking

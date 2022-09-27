@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"reflect"
 	"sort"
 	"strconv"
@@ -17,15 +18,17 @@ const prefix = "BLOCKY_"
 func loadEnvironment(cfg *Config) (*Config, error) {
 	var k = koanf.New("_")
 	err := k.Load(env.Provider(prefix, "_", func(s string) string {
-		return strings.ToLower(strings.TrimPrefix(s, prefix))
+		//return strings.ToLower(strings.TrimPrefix(s, prefix))
+		return strings.TrimPrefix(s, prefix)
 	}), nil)
 
 	if err != nil {
 		return nil, err
 	}
 
-	err = k.UnmarshalWithConf("", cfg, koanf.UnmarshalConf{
-		Tag: "yaml",
+	var test interface{}
+
+	err = k.UnmarshalWithConf("", &test, koanf.UnmarshalConf{
 		DecoderConfig: &mapstructure.DecoderConfig{
 			DecodeHook:       composeDecodeHookFunc(),
 			Metadata:         nil,
@@ -34,6 +37,8 @@ func loadEnvironment(cfg *Config) (*Config, error) {
 		},
 	})
 
+	fmt.Println(test)
+
 	return cfg, err
 }
 
@@ -41,6 +46,8 @@ func composeDecodeHookFunc() mapstructure.DecodeHookFunc {
 	return mapstructure.ComposeDecodeHookFunc(
 		mapToSliceHookFunc(),
 		mapstructure.TextUnmarshallerHookFunc(),
+		mapstructure.StringToIPHookFunc(),
+		mapstructure.StringToIPNetHookFunc(),
 		unmarshalYAMLHookFunc())
 }
 
@@ -79,8 +86,7 @@ func mapToSliceHookFunc() mapstructure.DecodeHookFuncType {
 		t reflect.Type,
 		data interface{}) (interface{}, error) {
 
-		if f.Kind() == reflect.Map &&
-			t.Kind() == reflect.Slice {
+		if f.Kind() == reflect.Map {
 			unboxed, ok := data.(map[string]interface{})
 			if ok && unboxed != nil {
 				res, ok := extract(unboxed)
@@ -92,18 +98,6 @@ func mapToSliceHookFunc() mapstructure.DecodeHookFuncType {
 
 		return data, nil
 	}
-}
-
-func multiextract(in map[string]map[string]interface{}) (map[string][]interface{}, bool) {
-	res := make(map[string][]interface{})
-	for k, v := range in {
-		ex, ok := extract(v)
-		if !ok {
-			return res, false
-		}
-		res[k] = ex
-	}
-	return res, true
 }
 
 func extract(in map[string]interface{}) ([]interface{}, bool) {
