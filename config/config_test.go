@@ -821,7 +821,7 @@ func setConfigEnvironment() {
 
 	setBlockyEnv("LOGLEVEL", "debug")
 	setBlockyEnv("DOHUSERAGENT", "testBlocky")
-	setBlockyEnv("MINTLSSERVERVERSION", "1.3")
+	setBlockyEnv("MINTLSSERVEVERSION", "1.3")
 	setBlockyEnv("STARTVERIFYUPSTREAM", "false")
 }
 

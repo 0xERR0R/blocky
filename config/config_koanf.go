@@ -9,6 +9,7 @@ import (
 
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/providers/env"
+	"github.com/miekg/dns"
 	"github.com/mitchellh/mapstructure"
 	"gopkg.in/yaml.v2"
 )
@@ -26,9 +27,7 @@ func loadEnvironment(cfg *Config) (*Config, error) {
 		return nil, err
 	}
 
-	var test interface{}
-
-	err = k.UnmarshalWithConf("", &test, koanf.UnmarshalConf{
+	err = k.UnmarshalWithConf("", cfg, koanf.UnmarshalConf{
 		DecoderConfig: &mapstructure.DecoderConfig{
 			DecodeHook:       composeDecodeHookFunc(),
 			Metadata:         nil,
@@ -36,8 +35,6 @@ func loadEnvironment(cfg *Config) (*Config, error) {
 			WeaklyTypedInput: true,
 		},
 	})
-
-	fmt.Println(test)
 
 	return cfg, err
 }
@@ -48,6 +45,7 @@ func composeDecodeHookFunc() mapstructure.DecodeHookFunc {
 		mapstructure.TextUnmarshallerHookFunc(),
 		mapstructure.StringToIPHookFunc(),
 		mapstructure.StringToIPNetHookFunc(),
+		queryTypeHookFunc(),
 		unmarshalYAMLHookFunc())
 }
 
@@ -77,6 +75,36 @@ func unmarshalYAMLHookFunc() mapstructure.DecodeHookFuncType {
 		}
 
 		return result, nil
+	}
+}
+
+func queryTypeHookFunc() mapstructure.DecodeHookFuncType {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data interface{}) (interface{}, error) {
+
+		if f.Kind() == reflect.Slice &&
+			t == reflect.TypeOf(QTypeSet{}) {
+			s := reflect.ValueOf(data)
+
+			var qtypes []dns.Type
+			for i := 0; i < s.Len(); i++ {
+				qt := fmt.Sprint(s.Index(i))
+				for qi := 0; qi < 100; qi++ {
+					q := dns.Type(qi)
+					if qt == q.String() {
+						qtypes = append(qtypes, q)
+						break
+					}
+				}
+
+			}
+			fmt.Println(qtypes)
+			return NewQTypeSet(qtypes...), nil
+		}
+
+		return data, nil
 	}
 }
 
