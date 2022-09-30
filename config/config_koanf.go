@@ -47,6 +47,7 @@ func composeDecodeHookFunc() mapstructure.DecodeHookFunc {
 		mapstructure.TextUnmarshallerHookFunc(),
 		mapstructure.StringToIPHookFunc(),
 		mapstructure.StringToIPNetHookFunc(),
+		mapstructure.StringToSliceHookFunc(","),
 		queryTypeHookFunc(),
 		unmarshalYAMLHookFunc())
 }
