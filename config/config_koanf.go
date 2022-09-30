@@ -44,9 +44,8 @@ func unmarshalKoanf(k *koanf.Koanf, cfg *Config) error {
 func composeDecodeHookFunc() mapstructure.DecodeHookFunc {
 	return mapstructure.ComposeDecodeHookFunc(
 		mapToSliceHookFunc(),
+		upstreamTypeHookFunc(),
 		mapstructure.TextUnmarshallerHookFunc(),
-		mapstructure.StringToIPHookFunc(),
-		mapstructure.StringToIPNetHookFunc(),
 		mapstructure.StringToSliceHookFunc(","),
 		queryTypeHookFunc(),
 		unmarshalYAMLHookFunc())
@@ -57,7 +56,8 @@ func unmarshalYAMLHookFunc() mapstructure.DecodeHookFuncType {
 		f reflect.Type,
 		t reflect.Type,
 		data interface{}) (interface{}, error) {
-		if f.Kind() != reflect.String {
+		if f.Kind() != reflect.String ||
+			t == reflect.TypeOf(Upstream{}) {
 			return data, nil
 		}
 
@@ -68,8 +68,17 @@ func unmarshalYAMLHookFunc() mapstructure.DecodeHookFuncType {
 		}
 
 		err := unmarshaller.UnmarshalYAML(func(v interface{}) error {
+			vt := reflect.TypeOf(v)
 			val := reflect.ValueOf(v)
-			val.Elem().Set(reflect.ValueOf(data))
+			if vt == reflect.TypeOf(&Upstream{}) {
+				result, err := ParseUpstream(data.(string))
+				if err != nil {
+					return err
+				}
+				val.Elem().Set(reflect.ValueOf(result))
+			} else {
+				val.Elem().Set(reflect.ValueOf(data))
+			}
 			return nil
 		})
 
@@ -104,6 +113,22 @@ func queryTypeHookFunc() mapstructure.DecodeHookFuncType {
 
 			}
 			return NewQTypeSet(qtypes...), nil
+		}
+
+		return data, nil
+	}
+}
+
+func upstreamTypeHookFunc() mapstructure.DecodeHookFuncType {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data interface{}) (interface{}, error) {
+
+		if f.Kind() == reflect.String &&
+			t == reflect.TypeOf(Upstream{}) {
+			result, err := ParseUpstream(data.(string))
+			return result, err
 		}
 
 		return data, nil

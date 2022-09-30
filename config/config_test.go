@@ -94,67 +94,71 @@ var _ = Describe("Config", func() {
 
 					_, err = LoadConfig(cfgFile.Path, true)
 					Expect(err).Should(HaveOccurred())
-					Expect(err.Error()).Should(ContainSubstring("wrong file structure"))
+					Expect(err.Error()).Should(ContainSubstring("can't read config file"))
 				})
 			})
 			When("duration is in wrong format", func() {
 				It("should return error", func() {
-					cfg := Config{}
-					data :=
-						`blocking:
-  refreshPeriod: wrongduration`
-					err := unmarshalConfig([]byte(data), &cfg)
+					cfgFile := tmpDir.CreateStringFile("config.yml",
+						"blocking:",
+						"  refreshPeriod: wrongduration")
+					Expect(cfgFile.Error).Should(Succeed())
+
+					_, err = LoadConfig(cfgFile.Path, true)
 					Expect(err).Should(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("invalid duration \"wrongduration\""))
 				})
 			})
 			When("CustomDNS hast wrong IP defined", func() {
 				It("should return error", func() {
-					cfg := Config{}
-					data :=
-						`customDNS:
-  mapping:
-    someDomain: 192.168.178.WRONG`
-					err := unmarshalConfig([]byte(data), &cfg)
+					cfgFile := tmpDir.CreateStringFile("config.yml",
+						"customDNS:",
+						"  mapping:",
+						"    someDomain: 192.168.178.WRONG")
+					Expect(cfgFile.Error).Should(Succeed())
+
+					_, err = LoadConfig(cfgFile.Path, true)
 					Expect(err).Should(HaveOccurred())
-					Expect(err.Error()).Should(ContainSubstring("invalid IP address '192.168.178.WRONG'"))
+					Expect(err.Error()).Should(ContainSubstring("invalid IP address: 192.168.178.WRONG"))
 				})
 			})
 			When("Conditional mapping hast wrong defined upstreams", func() {
 				It("should return error", func() {
-					cfg := Config{}
-					data :=
-						`conditional:
-  mapping:
-    multiple.resolvers: 192.168.178.1,wrongprotocol:4.4.4.4:53`
-					err := unmarshalConfig([]byte(data), &cfg)
+					cfgFile := tmpDir.CreateStringFile("config.yml",
+						"conditional:",
+						"  mapping:",
+						"    multiple.resolvers: 192.168.178.1,wrongprotocol:4.4.4.4:53")
+					Expect(cfgFile.Error).Should(Succeed())
+
+					_, err = LoadConfig(cfgFile.Path, true)
 					Expect(err).Should(HaveOccurred())
-					Expect(err.Error()).Should(ContainSubstring("wrong host name 'wrongprotocol:4.4.4.4:53'"))
+					Expect(err.Error()).Should(ContainSubstring("wrong host name"))
 				})
 			})
 			When("Wrong upstreams are defined", func() {
 				It("should return error", func() {
-					cfg := Config{}
-					data :=
-						`upstream:
-  default:
-    - 8.8.8.8
-    - wrongprotocol:8.8.4.4
-    - 1.1.1.1`
-					err := unmarshalConfig([]byte(data), &cfg)
+					cfgFile := tmpDir.CreateStringFile("config.yml",
+						"upstream:",
+						"  default:",
+						"    - 8.8.8.8",
+						"    - wrongprotocol:8.8.4.4",
+						"    - 1.1.1.1")
+					Expect(cfgFile.Error).Should(Succeed())
+
+					_, err = LoadConfig(cfgFile.Path, true)
 					Expect(err).Should(HaveOccurred())
-					Expect(err.Error()).Should(ContainSubstring("can't convert upstream 'wrongprotocol:8.8.4.4'"))
+					Expect(err.Error()).Should(ContainSubstring("can't convert port to number"))
 				})
 			})
 			When("Wrong filtering is defined", func() {
 				It("should return error", func() {
-					cfg := Config{}
-					data :=
-						`filtering:
-  queryTypes:
-    - invalidqtype
-`
-					err := unmarshalConfig([]byte(data), &cfg)
+					cfgFile := tmpDir.CreateStringFile("config.yml",
+						"filtering:",
+						"  queryTypes:",
+						"    - invalidqtype")
+					Expect(cfgFile.Error).Should(Succeed())
+
+					_, err = LoadConfig(cfgFile.Path, true)
 					Expect(err).Should(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("unknown DNS query type: 'invalidqtype'"))
 				})
@@ -162,22 +166,23 @@ var _ = Describe("Config", func() {
 
 			When("bootstrapDns is defined", func() {
 				It("should is backwards compatible", func() {
-					cfg := Config{}
-					data := "bootstrapDns: 0.0.0.0"
+					cfgFile := tmpDir.CreateStringFile("config.yml",
+						"bootstrapDns: 0.0.0.0")
+					Expect(cfgFile.Error).Should(Succeed())
 
-					err := unmarshalConfig([]byte(data), &cfg)
+					cfg, err := LoadConfig(cfgFile.Path, true)
 					Expect(err).ShouldNot(HaveOccurred())
 					Expect(cfg.BootstrapDNS.Upstream.Host).Should(Equal("0.0.0.0"))
 				})
 				It("should is backwards compatible", func() {
-					cfg := Config{}
-					data := `
-bootstrapDns:
-  upstream: tcp-tls:dns.example.com
-  ips:
-    - 0.0.0.0
-`
-					err := unmarshalConfig([]byte(data), &cfg)
+					cfgFile := tmpDir.CreateStringFile("config.yml",
+						"bootstrapDns:",
+						"  upstream: tcp-tls:dns.example.com",
+						"  ips:",
+						"    - 0.0.0.0")
+					Expect(cfgFile.Error).Should(Succeed())
+
+					cfg, err := LoadConfig(cfgFile.Path, true)
 					Expect(err).ShouldNot(HaveOccurred())
 					Expect(cfg.BootstrapDNS.Upstream.Host).Should(Equal("dns.example.com"))
 					Expect(cfg.BootstrapDNS.IPs).Should(HaveLen(1))
@@ -186,10 +191,11 @@ bootstrapDns:
 
 			When("config is not YAML", func() {
 				It("should return error", func() {
-					cfg := Config{}
-					data :=
-						`///`
-					err := unmarshalConfig([]byte(data), &cfg)
+					cfgFile := tmpDir.CreateStringFile("config.yml",
+						"///")
+					Expect(cfgFile.Error).Should(Succeed())
+
+					_, err = LoadConfig(cfgFile.Path, true)
 					Expect(err).Should(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("cannot unmarshal !!str `///`"))
 				})
@@ -233,7 +239,7 @@ bootstrapDns:
 				It("should return error", func() {
 					_, err = LoadConfig(tmpDir.JoinPath("config.yml"), true)
 					Expect(err).Should(HaveOccurred())
-					Expect(err.Error()).Should(ContainSubstring("no such file or directory"))
+					Expect(err.Error()).Should(ContainSubstring("The system cannot find the file specified."))
 
 				})
 
