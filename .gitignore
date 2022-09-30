@@ -1,6 +1,7 @@
 .idea/
 .vscode/
 *.iml
+*.report
 /*.pem
 bin/
 dist/
