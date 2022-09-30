@@ -8,26 +8,28 @@ import (
 	"strings"
 
 	"github.com/knadh/koanf"
+	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/env"
+	"github.com/knadh/koanf/providers/file"
 	"github.com/miekg/dns"
 	"github.com/mitchellh/mapstructure"
-	"gopkg.in/yaml.v2"
+	yamlv2 "gopkg.in/yaml.v2"
 )
 
 const prefix = "BLOCKY_"
 
-func loadEnvironment(cfg *Config) (*Config, error) {
-	var k = koanf.New("_")
-	err := k.Load(env.Provider(prefix, "_", func(s string) string {
-		//return strings.ToLower(strings.TrimPrefix(s, prefix))
+func loadEnvironment(k *koanf.Koanf) error {
+	return k.Load(env.Provider(prefix, "_", func(s string) string {
 		return strings.TrimPrefix(s, prefix)
 	}), nil)
+}
 
-	if err != nil {
-		return nil, err
-	}
+func loadFile(k *koanf.Koanf, path string) error {
+	return k.Load(file.Provider(path), yaml.Parser())
+}
 
-	err = k.UnmarshalWithConf("", cfg, koanf.UnmarshalConf{
+func unmarshalKoanf(k *koanf.Koanf, cfg *Config) error {
+	err := k.UnmarshalWithConf("", cfg, koanf.UnmarshalConf{
 		DecoderConfig: &mapstructure.DecoderConfig{
 			DecodeHook:       composeDecodeHookFunc(),
 			Metadata:         nil,
@@ -36,7 +38,7 @@ func loadEnvironment(cfg *Config) (*Config, error) {
 		},
 	})
 
-	return cfg, err
+	return err
 }
 
 func composeDecodeHookFunc() mapstructure.DecodeHookFunc {
@@ -59,7 +61,7 @@ func unmarshalYAMLHookFunc() mapstructure.DecodeHookFuncType {
 		}
 
 		result := reflect.New(t).Interface()
-		unmarshaller, ok := result.(yaml.Unmarshaler)
+		unmarshaller, ok := result.(yamlv2.Unmarshaler)
 		if !ok {
 			return data, nil
 		}
@@ -100,7 +102,6 @@ func queryTypeHookFunc() mapstructure.DecodeHookFuncType {
 				}
 
 			}
-			fmt.Println(qtypes)
 			return NewQTypeSet(qtypes...), nil
 		}
 

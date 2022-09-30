@@ -14,13 +14,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/knadh/koanf"
 	"github.com/miekg/dns"
 
 	"github.com/hako/durafmt"
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/creasty/defaults"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -615,53 +615,48 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 		return nil, fmt.Errorf("can't apply default values: %w", err)
 	}
 
+	var k = koanf.New("_")
 	if path == "##ENVIRONMENT##" {
-		cfg2, err := loadEnvironment(&cfg)
-
-		config = cfg2
-
-		return config, err
-	}
-
-	fs, err := os.Stat(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) && !mandatory {
-			// config file does not exist
-			// return config with default values
-			config = &cfg
-
-			return config, nil
-		}
-
-		return nil, fmt.Errorf("can't read config file(s): %w", err)
-	}
-
-	var data []byte
-
-	if fs.IsDir() {
-		data, err = readFromDir(path, data)
-
-		if err != nil {
-			return nil, fmt.Errorf("can't read config files: %w", err)
+		if err := loadEnvironment(k); err != nil {
+			return nil, fmt.Errorf("can't read environment config: %w", err)
 		}
 	} else {
-		data, err = os.ReadFile(path)
+		fs, err := os.Stat(path)
 		if err != nil {
-			return nil, fmt.Errorf("can't read config file: %w", err)
+			if errors.Is(err, os.ErrNotExist) && !mandatory {
+				// config file does not exist
+				// return config with default values
+				config = &cfg
+
+				return config, nil
+			}
+
+			return nil, fmt.Errorf("can't read config file(s): %w", err)
+		}
+
+		if fs.IsDir() {
+			if err := readFromDir(path, k); err != nil {
+				return nil, fmt.Errorf("can't read config files: %w", err)
+			}
+		} else {
+			if err := loadFile(k, path); err != nil {
+				return nil, fmt.Errorf("can't read config file: %w", err)
+			}
 		}
 	}
 
-	err = unmarshalConfig(data, &cfg)
-	if err != nil {
+	if err := unmarshalKoanf(k, &cfg); err != nil {
 		return nil, err
 	}
+
+	validateConfig(&cfg)
 
 	config = &cfg
 
 	return &cfg, nil
 }
 
-func readFromDir(path string, data []byte) ([]byte, error) {
+func readFromDir(path string, k *koanf.Koanf) error {
 	err := filepath.WalkDir(path, func(filePath string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -686,18 +681,14 @@ func readFromDir(path string, data []byte) ([]byte, error) {
 			return nil
 		}
 
-		fileData, err := os.ReadFile(filePath)
-		if err != nil {
+		if err := loadFile(k, filePath); err != nil {
 			return err
 		}
-
-		data = append(data, []byte("\n")...)
-		data = append(data, fileData...)
 
 		return nil
 	})
 
-	return data, err
+	return err
 }
 
 // isRegularFile follows symlinks, so the result is `true` for a symlink to a regular file.
@@ -710,17 +701,6 @@ func isRegularFile(path string) (bool, error) {
 	isRegular := stat.Mode()&os.ModeType == 0
 
 	return isRegular, nil
-}
-
-func unmarshalConfig(data []byte, cfg *Config) error {
-	err := yaml.UnmarshalStrict(data, cfg)
-	if err != nil {
-		return fmt.Errorf("wrong file structure: %w", err)
-	}
-
-	validateConfig(cfg)
-
-	return nil
 }
 
 func validateConfig(cfg *Config) {
