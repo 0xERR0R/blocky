@@ -103,11 +103,14 @@ func queryTypeHookFunc() mapstructure.DecodeHookFuncType {
 			var qtypes []dns.Type
 			for i := 0; i < s.Len(); i++ {
 				qt := fmt.Sprint(s.Index(i))
-				for qi := 0; qi < 100; qi++ {
+				for qi := 0; qi <= 110; qi++ {
 					q := dns.Type(qi)
 					if qt == q.String() {
 						qtypes = append(qtypes, q)
 						break
+					}
+					if qi == 110 {
+						return nil, fmt.Errorf("unknown DNS query type: %s", qt)
 					}
 				}
 

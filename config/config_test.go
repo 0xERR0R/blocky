@@ -160,7 +160,7 @@ var _ = Describe("Config", func() {
 
 					_, err = LoadConfig(cfgFile.Path, true)
 					Expect(err).Should(HaveOccurred())
-					Expect(err.Error()).Should(ContainSubstring("unknown DNS query type: 'invalidqtype'"))
+					Expect(err.Error()).Should(ContainSubstring("unknown DNS query type: invalidqtype"))
 				})
 			})
 
