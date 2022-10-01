@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
@@ -45,6 +46,7 @@ func composeDecodeHookFunc() mapstructure.DecodeHookFunc {
 	return mapstructure.ComposeDecodeHookFunc(
 		mapToSliceHookFunc(),
 		upstreamTypeHookFunc(),
+		durationTypeHookFunc(),
 		mapstructure.TextUnmarshallerHookFunc(),
 		mapstructure.StringToSliceHookFunc(","),
 		queryTypeHookFunc(),
@@ -132,6 +134,35 @@ func upstreamTypeHookFunc() mapstructure.DecodeHookFuncType {
 			t == reflect.TypeOf(Upstream{}) {
 			result, err := ParseUpstream(data.(string))
 			return result, err
+		}
+
+		return data, nil
+	}
+}
+
+func durationTypeHookFunc() mapstructure.DecodeHookFuncType {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data interface{}) (interface{}, error) {
+
+		if f.Kind() == reflect.String &&
+			t == reflect.TypeOf(Duration(0)) {
+			input := data.(string)
+			if minutes, err := strconv.Atoi(input); err == nil {
+				// duration is defined as number without unit
+				// use minutes to ensure back compatibility
+				result := Duration(time.Duration(minutes) * time.Minute)
+
+				return result, nil
+			}
+
+			duration, err := time.ParseDuration(input)
+			if err == nil {
+				result := Duration(duration)
+
+				return result, nil
+			}
 		}
 
 		return data, nil
