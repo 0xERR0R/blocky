@@ -778,16 +778,16 @@ func writeConfigDir(tmpDir *helpertest.TmpFolder) error {
 
 func setConfigEnvironment() {
 	setBlockyEnv("CONFIG_FILE", "##ENVIRONMENT##")
-	//_EXTERNALRESOLVERS
+
 	setBlockyEnv("UPSTREAM_default_1", "tcp+udp:8.8.8.8")
 	setBlockyEnv("UPSTREAM_default_2", "tcp+udp:8.8.4.4")
 	setBlockyEnv("UPSTREAM_default_3", "1.1.1.1")
-	//_HOSTIPS
+
 	setBlockyEnv("CUSTOMDNS_MAPPING_my.duckdns.org_1", "192.168.178.3")
 	setBlockyEnv("CUSTOMDNS_MAPPING_multiple.ips_1", "192.168.178.3")
 	setBlockyEnv("CUSTOMDNS_MAPPING_multiple.ips_2", "192.168.178.4")
 	setBlockyEnv("CUSTOMDNS_MAPPING_multiple.ips_3", "2001:0db8:85a3:08d3:1319:8a2e:0370:7344")
-	//_UPSTREAMS
+
 	setBlockyEnv("CONDITIONAL_MAPPING_fritz.box", "tcp+udp:192.168.178.1")
 	setBlockyEnv("CONDITIONAL_MAPPING_multiple.resolvers_1", "tcp+udp:192.168.178.1")
 	setBlockyEnv("CONDITIONAL_MAPPING_multiple.resolvers_2", "tcp+udp:192.168.178.2")

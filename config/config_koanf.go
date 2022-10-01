@@ -64,6 +64,7 @@ func unmarshalYAMLHookFunc() mapstructure.DecodeHookFuncType {
 		}
 
 		result := reflect.New(t).Interface()
+
 		unmarshaller, ok := result.(yamlv2.Unmarshaler)
 		if !ok {
 			return data, nil
@@ -81,6 +82,7 @@ func unmarshalYAMLHookFunc() mapstructure.DecodeHookFuncType {
 			} else {
 				val.Elem().Set(reflect.ValueOf(data))
 			}
+
 			return nil
 		})
 
@@ -97,26 +99,29 @@ func queryTypeHookFunc() mapstructure.DecodeHookFuncType {
 		f reflect.Type,
 		t reflect.Type,
 		data interface{}) (interface{}, error) {
-
 		if f.Kind() == reflect.Slice &&
 			t == reflect.TypeOf(QTypeSet{}) {
 			s := reflect.ValueOf(data)
 
 			var qtypes []dns.Type
+
 			for i := 0; i < s.Len(); i++ {
 				qt := fmt.Sprint(s.Index(i))
+
 				for qi := 0; qi <= 110; qi++ {
 					q := dns.Type(qi)
 					if qt == q.String() {
 						qtypes = append(qtypes, q)
+
 						break
 					}
+
 					if qi == 110 {
 						return nil, fmt.Errorf("unknown DNS query type: %s", qt)
 					}
 				}
-
 			}
+
 			return NewQTypeSet(qtypes...), nil
 		}
 
@@ -129,10 +134,10 @@ func upstreamTypeHookFunc() mapstructure.DecodeHookFuncType {
 		f reflect.Type,
 		t reflect.Type,
 		data interface{}) (interface{}, error) {
-
 		if f.Kind() == reflect.String &&
 			t == reflect.TypeOf(Upstream{}) {
 			result, err := ParseUpstream(data.(string))
+
 			return result, err
 		}
 
@@ -145,7 +150,6 @@ func durationTypeHookFunc() mapstructure.DecodeHookFuncType {
 		f reflect.Type,
 		t reflect.Type,
 		data interface{}) (interface{}, error) {
-
 		if f.Kind() == reflect.String &&
 			t == reflect.TypeOf(Duration(0)) {
 			input := data.(string)
@@ -174,7 +178,6 @@ func mapToSliceHookFunc() mapstructure.DecodeHookFuncType {
 		f reflect.Type,
 		t reflect.Type,
 		data interface{}) (interface{}, error) {
-
 		if f.Kind() == reflect.Map {
 			unboxed, ok := data.(map[string]interface{})
 			if ok && unboxed != nil {
@@ -191,17 +194,24 @@ func mapToSliceHookFunc() mapstructure.DecodeHookFuncType {
 
 func extract(in map[string]interface{}) ([]interface{}, bool) {
 	res := make([]interface{}, 0, len(in))
+
 	keys := make([]int, 0, len(in))
+
 	intmap := make(map[int]interface{})
+
 	for k, v := range in {
 		ik, err := strconv.Atoi(k)
 		if err != nil {
 			return res, false
 		}
+
 		keys = append(keys, ik)
+
 		intmap[ik] = v
 	}
+
 	sort.Ints(keys)
+
 	for _, k := range keys {
 		res = append(res, intmap[k])
 	}
