@@ -11,7 +11,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/cors v1.2.1
 	github.com/go-redis/redis/v8 v8.11.5
-	github.com/golangci/golangci-lint v1.49.0
+	github.com/golangci/golangci-lint v1.50.0
 	github.com/google/uuid v1.3.0
 	github.com/hako/durafmt v0.0.0-20210608085754-5c1018a4e16b
 	github.com/hashicorp/go-multierror v1.1.1
@@ -39,6 +39,7 @@ require (
 require github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 
 require (
+	github.com/Abirdcfly/dupword v0.0.7 // indirect
 	github.com/Antonboom/nilnil v0.1.1 // indirect
 	github.com/GaijinEntertainment/go-exhaustruct/v2 v2.3.0 // indirect
 	github.com/alingse/asasalint v0.0.11 // indirect
@@ -51,16 +52,17 @@ require (
 	github.com/firefart/nonamedreturns v1.0.4 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/hexops/gotextdiff v1.0.3 // indirect
+	github.com/kkHAIKE/contextcheck v1.1.2 // indirect
 	github.com/leonklingele/grouper v1.1.0 // indirect
 	github.com/lufeee/execinquery v1.2.1 // indirect
+	github.com/maratori/testableexamples v1.0.0 // indirect
 	github.com/sashamelentyev/interfacebloat v1.1.0 // indirect
 	github.com/sashamelentyev/usestdlibvars v1.20.0 // indirect
 	github.com/sivchari/containedctx v1.0.2 // indirect
 	github.com/sivchari/nosnakecase v1.7.0 // indirect
 	github.com/sivchari/tenv v1.7.0 // indirect
 	github.com/stbenjam/no-sprintf-host-port v0.1.1 // indirect
-	github.com/sylvia7788/contextcheck v1.0.6 // indirect
-	github.com/timonwong/logrlint v0.1.0 // indirect
+	github.com/timonwong/loggercheck v0.9.3 // indirect
 	github.com/yagipy/maintidx v1.0.0 // indirect
 	gitlab.com/bosi/decorder v0.2.3 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
