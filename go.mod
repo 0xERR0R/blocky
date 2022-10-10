@@ -32,8 +32,8 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gorm.io/driver/mysql v1.3.6
 	gorm.io/driver/postgres v1.4.4
-	gorm.io/driver/sqlite v1.3.6
-	gorm.io/gorm v1.23.9
+	gorm.io/driver/sqlite v1.4.2
+	gorm.io/gorm v1.24.0
 )
 
 require github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
@@ -172,7 +172,7 @@ require (
 	github.com/matoous/godox v0.0.0-20210227103229-6504466cf951 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
-	github.com/mattn/go-sqlite3 v1.14.14 // indirect
+	github.com/mattn/go-sqlite3 v1.14.15 // indirect
 	github.com/mattn/goveralls v0.0.11 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/mbilski/exhaustivestruct v1.2.0 // indirect
