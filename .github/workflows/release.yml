@@ -75,8 +75,6 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.docker_meta.outputs.tags }}
           labels: ${{ steps.docker_meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/0xerr0r/blocky:buildcache
-          cache-to: type=registry,ref=ghcr.io/0xerr0r/blocky:buildcache,mode=max
           build-args: |
             VERSION=${{ steps.get_args.outputs.version }}
             BUILD_TIME=${{ steps.get_args.outputs.build_time }}
