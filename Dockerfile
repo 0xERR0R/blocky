@@ -41,6 +41,9 @@ ENV CC="zigcc" \
     GOOS="linux" \
     GOARCH=$TARGETARCH
 
+#add libcap
+RUN apk add --no-cache libcap
+
 # build binary 
 RUN --mount=type=bind,target=. \
     --mount=type=cache,target=/root/.cache/go-build \ 
@@ -49,11 +52,9 @@ RUN --mount=type=bind,target=. \
     -tags static \
     -v \
     -ldflags="-X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME} -X github.com/0xERR0R/blocky/util.Architecture=${TARGETARCH}${TARGETVARIANT}" \
-    -o /bin/blocky
-
-RUN apk add --no-cache libcap && \
-    setcap 'cap_net_bind_service=+ep' /bin/blocky && \
-    chown 100 /bin/blocky
+    -o /bin/blocky && \
+    chown 100 /bin/blocky && \
+    setcap 'cap_net_bind_service=+ep' /bin/blocky
 
 # final stage
 FROM scratch
@@ -62,12 +63,11 @@ LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
       org.opencontainers.image.url="https://github.com/0xERR0R/blocky" \
       org.opencontainers.image.title="DNS proxy as ad-blocker for local network"
 
+USER 100
 WORKDIR /app
 
 COPY --from=ca-certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /bin/blocky /app/blocky
-
-USER 100
 
 ENV BLOCKY_CONFIG_FILE=/app/config.yml
 
