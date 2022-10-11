@@ -27,20 +27,9 @@ RUN go mod download
 ADD . .
 
 ARG opts
-RUN env ${opts} make build-static
-RUN setcap 'cap_net_bind_service=+ep' /src/bin/blocky
-
-RUN adduser -S -D -H -h /app -s /sbin/nologin blocky
-RUN chown blocky /src/bin/blocky
-RUN tail -n 1 /etc/passwd > /tmp/blocky_passwd
-
-# get all required files and build a root directory
-FROM scratch AS combine-env
-
-COPY --from=build-env /src/bin/blocky /app/blocky
-COPY --from=build-env /tmp/blocky_passwd /etc/passwd
-COPY --from=build-env /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-
+RUN env ${opts} make build-static && \
+    chown 100 /src/bin/blocky && \
+    setcap 'cap_net_bind_service=+ep' /src/bin/blocky
 
 # final stage
 FROM scratch
@@ -49,9 +38,10 @@ LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
       org.opencontainers.image.url="https://github.com/0xERR0R/blocky" \
       org.opencontainers.image.title="DNS proxy as ad-blocker for local network"
 
-COPY --from=combine-env / /
+COPY --from=build-env /src/bin/blocky /app/blocky
+COPY --from=build-env /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-USER blocky
+USER 100
 WORKDIR /app
 
 ENV BLOCKY_CONFIG_FILE=/app/config.yml
