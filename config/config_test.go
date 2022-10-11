@@ -48,10 +48,31 @@ var _ = Describe("Config", func() {
 				err = writeConfigDir(tmpDir)
 				Expect(err).Should(Succeed())
 
-				_, err := LoadConfig(tmpDir.JoinPath("/"), true)
+				_, err := LoadConfig(tmpDir.Path, true)
 				Expect(err).Should(Succeed())
 
 				defaultTestFileConfig()
+			})
+
+			It("should ignore non YAML files", func() {
+				err = writeConfigDir(tmpDir)
+				Expect(err).Should(Succeed())
+
+				tmpDir.CreateStringFile("ignore-me.txt", "THIS SHOULD BE IGNORED!")
+
+				_, err := LoadConfig(tmpDir.Path, true)
+				Expect(err).Should(Succeed())
+			})
+
+			It("should ignore non regular files", func() {
+				err = writeConfigDir(tmpDir)
+				Expect(err).Should(Succeed())
+
+				tmpDir.CreateSubFolder("subfolder")
+				tmpDir.CreateSubFolder("subfolder.yml")
+
+				_, err := LoadConfig(tmpDir.Path, true)
+				Expect(err).Should(Succeed())
 			})
 		})
 		When("Config folder does not exist", func() {
@@ -404,6 +425,10 @@ bootstrapDns:
 		Entry("tcp-tls without port, use default",
 			"tcp-tls:4.4.4.4",
 			Upstream{Net: NetProtocolTcpTls, Host: "4.4.4.4", Port: 853},
+			false),
+		Entry("tcp-tls with common name",
+			"tcp-tls:1.1.1.2#security.cloudflare-dns.com",
+			Upstream{Net: NetProtocolTcpTls, Host: "1.1.1.2", Port: 853, CommonName: "security.cloudflare-dns.com"},
 			false),
 		Entry("DoH without port, use default",
 			"https:4.4.4.4",
