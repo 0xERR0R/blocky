@@ -58,7 +58,7 @@ var _IPVersionValue = map[string]IPVersion{
 	_IPVersionName[6:8]: IPVersionV6,
 }
 
-// ParseIPVersion attempts to convert a string to a IPVersion
+// ParseIPVersion attempts to convert a string to a IPVersion.
 func ParseIPVersion(name string) (IPVersion, error) {
 	if x, ok := _IPVersionValue[name]; ok {
 		return x, nil
@@ -66,12 +66,12 @@ func ParseIPVersion(name string) (IPVersion, error) {
 	return IPVersion(0), fmt.Errorf("%s is not a valid IPVersion, try [%s]", name, strings.Join(_IPVersionNames, ", "))
 }
 
-// MarshalText implements the text marshaller method
+// MarshalText implements the text marshaller method.
 func (x IPVersion) MarshalText() ([]byte, error) {
 	return []byte(x.String()), nil
 }
 
-// UnmarshalText implements the text unmarshaller method
+// UnmarshalText implements the text unmarshaller method.
 func (x *IPVersion) UnmarshalText(text []byte) error {
 	name := string(text)
 	tmp, err := ParseIPVersion(name)
