@@ -33,6 +33,21 @@ const (
 	corsMaxAge        = 5 * time.Minute
 )
 
+type ApiResponseWriter struct {
+	ip string
+}
+
+func (r *ApiResponseWriter) RemoteAddr() net.Addr {
+	return &net.TCPAddr{IP: net.ParseIP(r.ip)}
+}
+func (r *ApiResponseWriter) LocalAddr() net.Addr       { return nil }
+func (r *ApiResponseWriter) WriteMsg(m *dns.Msg) error { return nil }
+func (r *ApiResponseWriter) Write([]byte) (int, error) { return 0, nil }
+func (r *ApiResponseWriter) Close() error              { return nil }
+func (r *ApiResponseWriter) TsigStatus() error         { return nil }
+func (r *ApiResponseWriter) TsigTimersOnly(bool)       {}
+func (r *ApiResponseWriter) Hijack()                   {}
+
 func secureHeader(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("strict-transport-security", "max-age=63072000")
@@ -176,6 +191,7 @@ func extractIP(r *http.Request) string {
 // @Router /query [post]
 func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 	var queryRequest api.QueryRequest
+	var apirw ApiResponseWriter
 
 	rw.Header().Set(contentTypeHeader, jsonContentType)
 
@@ -203,8 +219,21 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 		query += "."
 	}
 
+	useRemoteAdress := queryRequest.UseRemoteAddress
+	if useRemoteAdress {
+		remoteAddr, _, err := net.SplitHostPort(req.RemoteAddr)
+		if err != nil {
+			logAndResponseWithError(err, "Cannot find remote url on "+req.RemoteAddr+" : ", rw)
+			return
+		} else {
+			apirw = ApiResponseWriter{ip: remoteAddr}
+		}
+	} else if queryRequest.RemoteAddress != "" {
+		apirw = ApiResponseWriter{ip: queryRequest.RemoteAddress}
+	}
+
 	dnsRequest := util.NewMsgWithQuestion(query, qType)
-	r := createResolverRequest(nil, dnsRequest)
+	r := createResolverRequest(&apirw, dnsRequest)
 
 	response, err := s.queryResolver.Resolve(r)
 

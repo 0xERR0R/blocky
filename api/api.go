@@ -38,6 +38,10 @@ type QueryRequest struct {
 	Query string
 	// request type (A, AAAA, ...)
 	Type string
+	// optional : Use remote address : default false
+	UseRemoteAddress bool
+	// optional : Remote address override
+	RemoteAddress string
 }
 
 // QueryResult is a data structure for the DNS result
