@@ -22,6 +22,15 @@ const (
 	// PathBlockingDisablePath defines the REST endpoint for blocking disable
 	PathBlockingDisablePath = "/api/blocking/disable"
 
+	// PathClientDNSResolverStatusPath defines the REST endpoint for client dns resolver status
+	PathClientDNSResolverStatusPath = "/api/dns/status"
+
+	// PathClientDNSResolverEnablePath defines the REST endpoint for client dns resolver enable
+	PathClientDNSResolverEnablePath = "/api/dns/enable"
+
+	// PathClientDNSResolverDisablePath defines the REST endpoint for client dns resolver disable
+	PathClientDNSResolverDisablePath = "/api/dns/disable"
+
 	// PathListsRefresh defines the REST endpoint for blocking refresh
 	PathListsRefresh = "/api/lists/refresh"
 
@@ -39,9 +48,11 @@ type QueryRequest struct {
 	// request type (A, AAAA, ...)
 	Type string `json:"type"`
 	// optional : Use remote address : default false
-	UseRemoteAddress bool
+	UseRemoteAddress bool `json:"useRemoteAddress"`
 	// optional : Remote address override
-	RemoteAddress string
+	RemoteAddress string `json:"remoteAddress"`
+	// optional : refresh cache : default false
+	RefreshCache bool `json:"refreshCache"`
 }
 
 // QueryResult is a data structure for the DNS result

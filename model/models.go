@@ -69,4 +69,5 @@ type Request struct {
 	Req             *dns.Msg
 	Log             *logrus.Entry
 	RequestTS       time.Time
+	RefreshCache    bool
 }

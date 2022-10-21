@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/0xERR0R/blocky/api"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
@@ -31,6 +33,7 @@ type ParallelBestResolver struct {
 	typed
 
 	resolversPerClient map[string][]*upstreamResolverStatus
+	status             *status
 }
 
 type upstreamResolverStatus struct {
@@ -142,10 +145,13 @@ func newParallelBestResolver(
 	}
 
 	r := ParallelBestResolver{
-		configurable: withConfig(&cfg),
-		typed:        withType(parallelResolverType),
-
+		configurable:       withConfig(&cfg),
+		typed:              withType(parallelResolverType),
 		resolversPerClient: resolversPerClient,
+		status: &status{
+			enabled:     true,
+			enableTimer: time.NewTimer(0),
+		},
 	}
 
 	return &r, nil
@@ -170,11 +176,105 @@ func (r *ParallelBestResolver) String() string {
 	return fmt.Sprintf("parallel upstreams '%s'", strings.Join(result, "; "))
 }
 
+func (r *ParallelBestResolver) EnableClientDNSResolver() {
+	r.status.lock.Lock()
+	defer r.status.lock.Unlock()
+	r.status.enableTimer.Stop()
+
+	r.status.enabled = true
+	r.status.disabledGroups = []string{}
+}
+
+// BlockingStatus returns the current blocking status
+func (r *ParallelBestResolver) ClientDNSResolverStatus() api.BlockingStatus {
+	var autoEnableDuration time.Duration
+
+	r.status.lock.RLock()
+	defer r.status.lock.RUnlock()
+
+	if !r.status.enabled && r.status.disableEnd.After(time.Now()) {
+		autoEnableDuration = time.Until(r.status.disableEnd)
+	}
+
+	return api.BlockingStatus{
+		Enabled:         r.status.enabled,
+		DisabledGroups:  r.status.disabledGroups,
+		AutoEnableInSec: uint(autoEnableDuration.Seconds()),
+	}
+}
+
+func (r *ParallelBestResolver) DisableClientDNSResolver(duration time.Duration, disableGroups []string) error {
+	dnsStatus := r.status
+	dnsStatus.lock.Lock()
+	defer dnsStatus.lock.Unlock()
+	dnsStatus.enableTimer.Stop()
+
+	var allBlockingGroups []string
+
+	for k := range r.resolversPerClient {
+		if k != upstreamDefaultCfgName {
+			allBlockingGroups = append(allBlockingGroups, k)
+		}
+	}
+
+	sort.Strings(allBlockingGroups)
+
+	if len(disableGroups) == 0 {
+		dnsStatus.disabledGroups = allBlockingGroups
+	} else {
+		for _, g := range disableGroups {
+			i := sort.SearchStrings(allBlockingGroups, g)
+			if !(i < len(allBlockingGroups) && allBlockingGroups[i] == g) {
+				return fmt.Errorf("group '%s' is unknown", g)
+			}
+		}
+		dnsStatus.disabledGroups = disableGroups
+	}
+
+	dnsStatus.enabled = false
+
+	dnsStatus.disableEnd = time.Now().Add(duration)
+
+	if duration == 0 {
+		log.Log().Infof(
+			"disable blocking with specific dns for group(s) '%s'",
+			log.EscapeInput(strings.Join(dnsStatus.disabledGroups, "; ")))
+	} else {
+		log.Log().Infof("disable blocking with specific dns for %s for group(s) '%s'", duration,
+			log.EscapeInput(strings.Join(dnsStatus.disabledGroups, "; ")))
+		dnsStatus.enableTimer = time.AfterFunc(duration, func() {
+			r.EnableClientDNSResolver()
+			log.Log().Info("blocking with specific dns enabled again")
+		})
+	}
+
+	return nil
+}
+
+func (r *ParallelBestResolver) filterClientsForResolver(clientNames []string) (filteredClientNames []string) {
+	for _, cName := range clientNames {
+		var toInclude = true
+
+		for _, filteredCname := range r.status.disabledGroups {
+			if util.ClientNameMatchesGroupName(filteredCname, cName) {
+				toInclude = false
+			}
+		}
+
+		if toInclude {
+			filteredClientNames = append(filteredClientNames, cName)
+		}
+	}
+
+	return filteredClientNames
+}
+
 func (r *ParallelBestResolver) resolversForClient(request *model.Request) (result []*upstreamResolverStatus) {
 	clientIP := request.ClientIP.String()
 
+	overridedClientNames := r.filterClientsForResolver(request.ClientNames)
 	// try client names
-	for _, cName := range request.ClientNames {
+	for _, cName := range overridedClientNames {
 		for clientDefinition, upstreams := range r.resolversPerClient {
 			if cName != clientIP && util.ClientNameMatchesGroupName(clientDefinition, cName) {
 				result = append(result, upstreams...)
