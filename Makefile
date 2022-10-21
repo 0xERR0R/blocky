@@ -8,8 +8,10 @@ DOCKER_IMAGE_NAME=spx01/blocky
 BINARY_NAME:=blocky
 BIN_OUT_DIR?=bin
 
-GO_BUILD_FLAGS?=-v
+GOARCH?=$(shell go env GOARCH)
+GOARM?=$(shell go env GOARM)
 
+GO_BUILD_FLAGS?=-v
 GO_BUILD_LD_FLAGS:=\
 	-w \
 	-s \
