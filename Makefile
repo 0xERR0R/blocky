@@ -74,8 +74,5 @@ docker-build:  ## Build docker image
 	--build-arg BUILD_TIME=${BUILD_TIME} \
 	--network=host -t ${DOCKER_IMAGE_NAME} .
 
-printenv: ## Prints the current go environment
-	$(info "test")
-
 help:  ## Shows help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
