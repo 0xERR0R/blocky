@@ -52,7 +52,7 @@ jobs:
     needs: check
     if: ${{ needs.check.outputs.enabled == 1 }}
     outputs:
-      branch: ${{ steps.extract_branch.outputs.branch }}
+      branch: ${{ steps.get_vars.outputs.branch }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -74,27 +74,20 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract branch name
-        id: extract_branch
+      - name: Populate build variables
+        id: get_vars
         shell: bash
         run: |
           BRANCH=${GITHUB_REF#refs/heads/}
-
           echo "branch=${BRANCH}" >> $GITHUB_OUTPUT
-
           echo "Branch: ${BRANCH}"
-
-      - name: Get build args
-        id: get_args
-        shell: bash
-        run: |
+          
           VERSION=$(git describe --always --tags)
-          BUILD_TIME=$(date '+%Y%m%d-%H%M%S')
-
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "build_time=${BUILD_TIME}" >> $GITHUB_OUTPUT
-
           echo "VERSION: ${VERSION}"
+
+          BUILD_TIME=$(date '+%Y%m%d-%H%M%S')
+          echo "build_time=${BUILD_TIME}" >> $GITHUB_OUTPUT
           echo "BUILD_TIME: ${BUILD_TIME}"
 
       - name: Build and push
@@ -103,10 +96,10 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
           push: true
-          tags: ghcr.io/${{ github.repository }}:${{ steps.extract_branch.outputs.branch }}
+          tags: ghcr.io/${{ github.repository }}:${{ steps.get_vars.outputs.branch }}
           build-args: |
-            VERSION=${{ steps.get_args.outputs.version }}
-            BUILD_TIME=${{ steps.get_args.outputs.build_time }}
+            VERSION=${{ steps.get_vars.outputs.version }}
+            BUILD_TIME=${{ steps.get_vars.outputs.build_time }}
 
   retag:
     name: Add DockerHub tag
