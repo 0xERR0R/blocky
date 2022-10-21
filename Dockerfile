@@ -30,31 +30,26 @@ COPY . .
 
 # setup go+zig
 COPY --from=zig-env /usr/local/bin/zig /usr/local/bin/zig
-ENV PATH="/usr/local/bin/zig:${PATH}"
-RUN --mount=type=cache,target=/go/pkg \
-    go install github.com/dosgo/zigtool/zigcc@latest && \
-    go install github.com/dosgo/zigtool/zigcpp@latest && \
-    go env -w GOARM=${TARGETVARIANT##*v}
-ENV CC="zigcc" \
+ENV PATH="/usr/local/bin/zig:${PATH}" \
+    CC="zigcc" \
     CXX="zigcpp" \
     CGO_ENABLED=0 \
     GOOS="linux" \
-    GOARCH=$TARGETARCH
+    GOARCH=$TARGETARCH \
+    GO_SKIP_GENERATE=1\
+    GO_BUILD_FLAGS="-tags static -v " \
+    BIN_USER=100\
+    BIN_AUTOCAB=1 \
+    BIN_OUT_DIR="/bin"
 
-#add libcap
-RUN apk add --no-cache libcap
+#add make & libcap
+RUN apk add --no-cache make libcap
 
 # build binary 
 RUN --mount=type=bind,target=. \
     --mount=type=cache,target=/root/.cache/go-build \ 
     --mount=type=cache,target=/go/pkg \
-    go build \
-    -tags static \
-    -v \
-    -ldflags="-X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME} -X github.com/0xERR0R/blocky/util.Architecture=${TARGETARCH}${TARGETVARIANT}" \
-    -o /bin/blocky && \
-    chown 100 /bin/blocky && \
-    setcap 'cap_net_bind_service=+ep' /bin/blocky
+    make GOARM=${TARGETVARIANT##*v} build
 
 # final stage
 FROM scratch

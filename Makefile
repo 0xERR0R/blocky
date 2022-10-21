@@ -1,20 +1,30 @@
-#!/usr/bin/env bash
+.PHONY: all clean build swagger test lint run fmt docker-build help
+.DEFAULT_GOAL:=help
 
-.PHONY: all clean build swagger test lint run help
-.DEFAULT_GOAL := help
-
-VERSION:=$(shell git describe --always --tags)
-BUILD_TIME=$(shell date '+%Y%m%d-%H%M%S')
+VERSION?=$(shell git describe --always --tags)
+BUILD_TIME?=$(shell date '+%Y%m%d-%H%M%S')
 DOCKER_IMAGE_NAME=spx01/blocky
-BINARY_NAME=blocky
-BIN_OUT_DIR=bin
+
+BINARY_NAME:=blocky
+BIN_OUT_DIR?=bin
+
+GO_BUILD_FLAGS?=-v
+
+GO_BUILD_LD_FLAGS:=\
+	-w \
+	-s \
+	-X github.com/0xERR0R/blocky/util.Version=${VERSION} \
+	-X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME} \
+	-X github.com/0xERR0R/blocky/util.Architecture=${ARCHITECTURE}
+
+GO_BUILD_OUTPUT:=$(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 
 export PATH=$(shell go env GOPATH)/bin:$(shell echo $$PATH)
 
 all: build test lint ## Build binary (with tests)
 
 clean: ## cleans output directory
-	$(shell rm -rf $(BIN_OUT_DIR)/*)
+	rm -rf $(BIN_OUT_DIR)/*
 
 swagger: ## creates swagger documentation as html file
 	npm install bootprint bootprint-openapi html-inline
@@ -26,8 +36,20 @@ serve_docs: ## serves online docs
 	mkdocs serve
 
 build:  ## Build binary
+ifdef GO_SKIP_GENERATE
+	$(info skipping go generate)
+else
 	go generate ./...
-	go build -v -ldflags="-w -s -X github.com/0xERR0R/blocky/util.Version=${VERSION} -X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME}" -o $(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
+endif
+	go build $(GO_BUILD_FLAGS) -ldflags="$(GO_BUILD_LD_FLAGS)" -o $(GO_BUILD_OUTPUT)
+ifdef BIN_USER
+	$(info setting owner of $(GO_BUILD_OUTPUT) to $(BINARY_USER))
+	chown $(BINARY_USER) $(GO_BUILD_OUTPUT)
+endif
+ifdef BIN_AUTOCAB
+	$(info setting cap_net_bind_service to $(GO_BUILD_OUTPUT))
+	setcap 'cap_net_bind_service=+ep' $(GO_BUILD_OUTPUT)
+endif
 
 test:  ## run tests
 	go run github.com/onsi/ginkgo/v2/ginkgo -v --coverprofile=coverage.txt --covermode=atomic -cover ./...
@@ -51,6 +73,9 @@ docker-build:  ## Build docker image
 	--build-arg VERSION=${VERSION} \
 	--build-arg BUILD_TIME=${BUILD_TIME} \
 	--network=host -t ${DOCKER_IMAGE_NAME} .
+
+printenv: ## Prints the current go environment
+	$(info "test")
 
 help:  ## Shows help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'

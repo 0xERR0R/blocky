@@ -10,5 +10,4 @@ node_modules
 .gitignore
 *.md
 LICENSE
-Makefile
 vendor
