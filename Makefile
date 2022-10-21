@@ -15,7 +15,7 @@ GO_BUILD_LD_FLAGS:=\
 	-s \
 	-X github.com/0xERR0R/blocky/util.Version=${VERSION} \
 	-X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME} \
-	-X github.com/0xERR0R/blocky/util.Architecture=${ARCHITECTURE}
+	-X github.com/0xERR0R/blocky/util.Architecture=${GOARCH}${GOARM}
 
 GO_BUILD_OUTPUT:=$(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 
