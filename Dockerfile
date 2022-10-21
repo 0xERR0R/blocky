@@ -1,6 +1,8 @@
 # get newest certificates
 FROM --platform=$BUILDPLATFORM alpine:3.16 AS ca-certs
 RUN apk add --no-cache ca-certificates
+
+# update certificates and use the apk ones if update fails
 RUN --mount=type=cache,target=/etc/ssl/certs \
     update-ca-certificates 2>/dev/null || true
 
@@ -10,9 +12,12 @@ FROM --platform=$BUILDPLATFORM ghcr.io/euantorano/zig:master AS zig-env
 # build environment
 FROM --platform=$BUILDPLATFORM golang:1-alpine AS build
 
-# required arguments(buildx will set target)
+# required arguments
 ARG VERSION
 ARG BUILD_TIME
+
+# auto provided by Docker
+# https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
 ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT
@@ -49,8 +54,7 @@ RUN apk add --no-cache make libcap
 RUN --mount=type=bind,target=. \
     --mount=type=cache,target=/root/.cache/go-build \ 
     --mount=type=cache,target=/go/pkg \
-    export GOARM=${TARGETVARIANT##*v} && \
-    make build
+    make build GOARM=${TARGETVARIANT##*v}
 
 # final stage
 FROM scratch
