@@ -88,7 +88,7 @@ jobs:
         id: get_args
         shell: bash
         run: |
-          VERSION=$(git describe origin/master^ --always --tags)
+          VERSION=$(git describe --always --tags)
           BUILD_TIME=$(date '+%Y%m%d-%H%M%S')
 
           echo "##[set-output name=version;]$(echo ${VERSION})"
