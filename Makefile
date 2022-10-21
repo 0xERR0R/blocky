@@ -71,12 +71,12 @@ fmt: ## gofmt and goimports all go files
 docker-build:  ## Build docker image 
 	go generate ./...
 	docker buildx build \
-	--build-arg VERSION=${VERSION} \
-	--build-arg BUILD_TIME=${BUILD_TIME} \
-	--network=host \
-	-o type=docker \
-	-t ${DOCKER_IMAGE_NAME} \
-	.
+		--build-arg VERSION=${VERSION} \
+		--build-arg BUILD_TIME=${BUILD_TIME} \
+		--network=host \
+		-o type=docker \
+		-t ${DOCKER_IMAGE_NAME} \
+		.
 
 help:  ## Shows help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
