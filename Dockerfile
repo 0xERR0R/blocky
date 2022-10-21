@@ -49,7 +49,8 @@ RUN apk add --no-cache make libcap
 RUN --mount=type=bind,target=. \
     --mount=type=cache,target=/root/.cache/go-build \ 
     --mount=type=cache,target=/go/pkg \
-    make GOARM=${TARGETVARIANT##*v} build
+    export GOARM=${TARGETVARIANT##*v} && \
+    make build
 
 # final stage
 FROM scratch

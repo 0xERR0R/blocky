@@ -43,8 +43,8 @@ else
 endif
 	go build $(GO_BUILD_FLAGS) -ldflags="$(GO_BUILD_LD_FLAGS)" -o $(GO_BUILD_OUTPUT)
 ifdef BIN_USER
-	$(info setting owner of $(GO_BUILD_OUTPUT) to $(BINARY_USER))
-	chown $(BINARY_USER) $(GO_BUILD_OUTPUT)
+	$(info setting owner of $(GO_BUILD_OUTPUT) to $(BIN_USER))
+	chown $(BIN_USER) $(GO_BUILD_OUTPUT)
 endif
 ifdef BIN_AUTOCAB
 	$(info setting cap_net_bind_service to $(GO_BUILD_OUTPUT))
