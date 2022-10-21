@@ -77,6 +77,8 @@ jobs:
           build-args: |
             VERSION=${{ steps.get_vars.outputs.version }}
             BUILD_TIME=${{ steps.get_vars.outputs.build_time }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
