@@ -6,7 +6,7 @@ require (
 	github.com/abice/go-enum v0.5.1
 	github.com/alicebob/miniredis/v2 v2.23.0
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
-	github.com/avast/retry-go/v4 v4.1.0
+	github.com/avast/retry-go/v4 v4.3.0
 	github.com/creasty/defaults v1.6.0
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/cors v1.2.1
