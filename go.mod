@@ -24,7 +24,7 @@ require (
 	github.com/onsi/gomega v1.21.1
 	github.com/prometheus/client_golang v1.13.0
 	github.com/sirupsen/logrus v1.9.0
-	github.com/spf13/cobra v1.5.0
+	github.com/spf13/cobra v1.6.0
 	github.com/stretchr/testify v1.8.0
 	github.com/swaggo/swag v1.8.6
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
@@ -35,6 +35,8 @@ require (
 	gorm.io/driver/sqlite v1.4.2
 	gorm.io/gorm v1.24.0
 )
+
+require github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 
 require (
 	github.com/Abirdcfly/dupword v0.0.7 // indirect
@@ -142,7 +144,7 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
-	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/inconshreveable/mousetrap v1.0.1 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgconn v1.13.0 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
