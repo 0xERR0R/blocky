@@ -1,4 +1,5 @@
-# get newest certificates
+# ----------- stage: ca-certs
+# get newest certificates in seperate stage for caching
 FROM --platform=$BUILDPLATFORM alpine:3.16 AS ca-certs
 RUN apk add --no-cache ca-certificates
 
@@ -6,10 +7,12 @@ RUN apk add --no-cache ca-certificates
 RUN --mount=type=cache,target=/etc/ssl/certs \
     update-ca-certificates 2>/dev/null || true
 
-# zig compiler
+# ----------- stage: zig-env
+# zig compiler is used for CGO cross compilation
+# even though CGO is disabled it is used in the os and net package
 FROM --platform=$BUILDPLATFORM ghcr.io/euantorano/zig:master AS zig-env
 
-# build environment
+# ----------- stage: build
 FROM --platform=$BUILDPLATFORM golang:1-alpine AS build
 
 # required arguments
@@ -33,7 +36,7 @@ RUN --mount=type=cache,target=/go/pkg \
 # add source
 COPY . .
 
-# setup go+zig
+# setup go & zig as CGO compiler
 COPY --from=zig-env /usr/local/bin/zig /usr/local/bin/zig
 ENV PATH="/usr/local/bin/zig:${PATH}" \
     CC="zigcc" \
@@ -47,7 +50,7 @@ ENV PATH="/usr/local/bin/zig:${PATH}" \
     BIN_AUTOCAB=1 \
     BIN_OUT_DIR="/bin"
 
-#add make & libcap
+# add make & libcap
 RUN apk add --no-cache make libcap
 
 # build binary 
@@ -56,7 +59,7 @@ RUN --mount=type=bind,target=. \
     --mount=type=cache,target=/go/pkg \
     make build GOARM=${TARGETVARIANT##*v}
 
-# final stage
+# ----------- stage: final
 FROM scratch
 
 LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
