@@ -201,18 +201,6 @@ func (u *Upstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // ListenConfig is a list of address(es) to listen on
 type ListenConfig []string
 
-// UnmarshalYAML creates ListenConfig from YAML
-func (l *ListenConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var addresses string
-	if err := unmarshal(&addresses); err != nil {
-		return err
-	}
-
-	*l = strings.Split(addresses, ",")
-
-	return nil
-}
-
 // UnmarshalYAML creates BootstrapConfig from YAML
 func (b *BootstrapConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&b.Upstream); err == nil {

@@ -276,60 +276,60 @@ var _ = Describe("Config", func() {
 					})
 					Expect(err).Should(HaveOccurred())
 				})
-			})
-			Context("ListenConfig", func() {
-				It("should parse and split valid string config", func() {
-					l := &ListenConfig{}
-					err := l.UnmarshalYAML(func(i interface{}) error {
-						*i.(*string) = "55,:56"
+			}) /*
+					Context("ListenConfig", func() {
+						It("should parse and split valid string config", func() {
+							l := &ListenConfig{}
+							err := l.UnmarshalYAML(func(i interface{}) error {
+								*i.(*string) = "55,:56"
 
-						return nil
+								return nil
+							})
+							Expect(err).Should(Succeed())
+							Expect(*l).Should(HaveLen(2))
+							Expect(*l).Should(ContainElements("55", ":56"))
+						})
+						It("should fail on error", func() {
+							l := &ListenConfig{}
+							err := l.UnmarshalYAML(func(i interface{}) error {
+								return errors.New("some err")
+							})
+							Expect(err).Should(HaveOccurred())
+						})
 					})
-					Expect(err).Should(Succeed())
-					Expect(*l).Should(HaveLen(2))
-					Expect(*l).Should(ContainElements("55", ":56"))
-				})
-				It("should fail on error", func() {
-					l := &ListenConfig{}
-					err := l.UnmarshalYAML(func(i interface{}) error {
-						return errors.New("some err")
-					})
-					Expect(err).Should(HaveOccurred())
-				})
-			})
-			Context("Duration", func() {
-				It("should parse duration with unit", func() {
-					d := Duration(0)
-					err := d.UnmarshalYAML(func(i interface{}) error {
-						*i.(*string) = "1m20s"
+				Context("Duration", func() {
+					It("should parse duration with unit", func() {
+						d := Duration(0)
+						err := d.UnmarshalYAML(func(i interface{}) error {
+							*i.(*string) = "1m20s"
 
-						return nil
+							return nil
+						})
+						Expect(err).Should(Succeed())
+						Expect(d).Should(Equal(Duration(80 * time.Second)))
+						Expect(d.String()).Should(Equal("1 minute 20 seconds"))
 					})
-					Expect(err).Should(Succeed())
-					Expect(d).Should(Equal(Duration(80 * time.Second)))
-					Expect(d.String()).Should(Equal("1 minute 20 seconds"))
-				})
-				It("should fail if duration is in wrong format", func() {
-					d := Duration(0)
-					err := d.UnmarshalYAML(func(i interface{}) error {
-						*i.(*string) = "wrong"
+					It("should fail if duration is in wrong format", func() {
+						d := Duration(0)
+						err := d.UnmarshalYAML(func(i interface{}) error {
+							*i.(*string) = "wrong"
 
-						return nil
+							return nil
+						})
+						Expect(err).Should(HaveOccurred())
+						Expect(err).Should(MatchError("time: invalid duration \"wrong\""))
+
 					})
-					Expect(err).Should(HaveOccurred())
-					Expect(err).Should(MatchError("time: invalid duration \"wrong\""))
-
-				})
-				It("should fail if wrong YAML format", func() {
-					d := Duration(0)
-					err := d.UnmarshalYAML(func(i interface{}) error {
-						return errors.New("some err")
+					It("should fail if wrong YAML format", func() {
+						d := Duration(0)
+						err := d.UnmarshalYAML(func(i interface{}) error {
+							return errors.New("some err")
+						})
+						Expect(err).Should(HaveOccurred())
+						Expect(err).Should(MatchError("some err"))
 					})
-					Expect(err).Should(HaveOccurred())
-					Expect(err).Should(MatchError("some err"))
-				})
 
-			})
+				})*/
 			Context("ConditionalUpstreamMapping", func() {
 				It("Should parse config as map", func() {
 					c := &ConditionalUpstreamMapping{}
