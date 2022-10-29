@@ -239,7 +239,7 @@ var _ = Describe("Config", func() {
 				It("should return error", func() {
 					_, err = LoadConfig(tmpDir.JoinPath("config.yml"), true)
 					Expect(err).Should(HaveOccurred())
-					Expect(err.Error()).Should(ContainSubstring("The system cannot find the file specified."))
+					Expect(err.Error()).Should(ContainSubstring("no such file or directory"))
 
 				})
 
