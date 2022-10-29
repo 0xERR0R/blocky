@@ -24,9 +24,10 @@ import (
 )
 
 const (
-	udpPort   = 53
-	tlsPort   = 853
-	httpsPort = 443
+	udpPort          = 53
+	tlsPort          = 853
+	httpsPort        = 443
+	envKey    string = "##ENVIRONMENT##"
 )
 
 // NetProtocol resolver protocol ENUM(
@@ -181,23 +182,6 @@ func (u *Upstream) String() string {
 	return sb.String()
 }
 
-// UnmarshalYAML creates Upstream from YAML
-func (u *Upstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var s string
-	if err := unmarshal(&s); err != nil {
-		return err
-	}
-
-	upstream, err := ParseUpstream(s)
-	if err != nil {
-		return fmt.Errorf("can't convert upstream '%s': %w", s, err)
-	}
-
-	*u = upstream
-
-	return nil
-}
-
 // ListenConfig is a list of address(es) to listen on
 type ListenConfig []string
 
@@ -277,31 +261,6 @@ func (c *CustomDNSMapping) UnmarshalYAML(unmarshal func(interface{}) error) erro
 	return nil
 }
 
-// UnmarshalYAML creates Duration from YAML. If no unit is used, uses minutes
-func (c *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var input string
-	if err := unmarshal(&input); err != nil {
-		return err
-	}
-
-	if minutes, err := strconv.Atoi(input); err == nil {
-		// duration is defined as number without unit
-		// use minutes to ensure back compatibility
-		*c = Duration(time.Duration(minutes) * time.Minute)
-
-		return nil
-	}
-
-	duration, err := time.ParseDuration(input)
-	if err == nil {
-		*c = Duration(duration)
-
-		return nil
-	}
-
-	return err
-}
-
 func (c *QType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var input string
 	if err := unmarshal(&input); err != nil {
@@ -322,21 +281,6 @@ func (c *QType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	*c = QType(t)
-
-	return nil
-}
-
-func (s *QTypeSet) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var input []QType
-	if err := unmarshal(&input); err != nil {
-		return err
-	}
-
-	*s = make(QTypeSet, len(input))
-
-	for _, qType := range input {
-		(*s)[qType] = struct{}{}
-	}
 
 	return nil
 }
@@ -604,8 +548,11 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 	}
 
 	var k = koanf.New("_")
-	if path == "##ENVIRONMENT##" {
-		if err := loadEnvironment(k); err != nil {
+	if path == envKey {
+		log.Log().Info("Loading configuration from environment.")
+
+		err := loadEnvironment(k)
+		if err != nil {
 			return nil, fmt.Errorf("can't read environment config: %w", err)
 		}
 	} else {
@@ -621,10 +568,9 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 
 			return nil, fmt.Errorf("can't read config file(s): %w", err)
 		}
-
 		if fs.IsDir() {
 			if err := readFromDir(path, k); err != nil {
-				return nil, fmt.Errorf("can't read config files: %w", err)
+				return nil, fmt.Errorf("can't read config folder: %w", err)
 			}
 		} else {
 			if err := loadFile(k, path); err != nil {
