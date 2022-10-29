@@ -11,7 +11,6 @@ import (
 	"github.com/knadh/koanf/providers/env"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/mitchellh/mapstructure"
-	yamlv2 "gopkg.in/yaml.v2"
 )
 
 const prefix = "BLOCKY_"
@@ -49,48 +48,6 @@ func composeDecodeHookFunc() mapstructure.DecodeHookFunc {
 		mapstructure.StringToSliceHookFunc(","),
 		queryTypeHookFunc(),
 		bootstrapConfigUnmarshallerHookFunc())
-	//unmarshalYAMLHookFunc())
-}
-
-func unmarshalYAMLHookFunc() mapstructure.DecodeHookFuncType {
-	return func(
-		f reflect.Type,
-		t reflect.Type,
-		data interface{}) (interface{}, error) {
-		if f.Kind() != reflect.String ||
-			t == reflect.TypeOf(Upstream{}) {
-			return data, nil
-		}
-
-		result := reflect.New(t).Interface()
-
-		unmarshaller, ok := result.(yamlv2.Unmarshaler)
-		if !ok {
-			return data, nil
-		}
-
-		err := unmarshaller.UnmarshalYAML(func(v interface{}) error {
-			vt := reflect.TypeOf(v)
-			val := reflect.ValueOf(v)
-			if vt == reflect.TypeOf(&Upstream{}) {
-				result, err := ParseUpstream(data.(string))
-				if err != nil {
-					return err
-				}
-				val.Elem().Set(reflect.ValueOf(result))
-			} else {
-				val.Elem().Set(reflect.ValueOf(data))
-			}
-
-			return nil
-		})
-
-		if err != nil {
-			return data, err
-		}
-
-		return result, nil
-	}
 }
 
 func mapToSliceHookFunc() mapstructure.DecodeHookFuncType {
