@@ -77,9 +77,7 @@ func upstreamTypeHookFunc() mapstructure.DecodeHookFuncType {
 		data interface{}) (interface{}, error) {
 		if f.Kind() == reflect.String &&
 			t == reflect.TypeOf(Upstream{}) {
-			result, err := ParseUpstream(data.(string))
-
-			return result, err
+			return ParseUpstream(data.(string))
 		}
 
 		return data, nil
