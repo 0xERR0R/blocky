@@ -20,10 +20,6 @@ var (
 	}
 )
 
-const (
-	queryTypeMax = 110
-)
-
 func hasCustomHook(t reflect.Type) bool {
 	for _, kht := range koanfHookTypes {
 		if kht == t {
@@ -41,24 +37,17 @@ func queryTypeHookFunc() mapstructure.DecodeHookFuncType {
 		data interface{}) (interface{}, error) {
 		if f.Kind() == reflect.Slice &&
 			t == reflect.TypeOf(QTypeSet{}) {
-			s := reflect.ValueOf(data)
+			s := reflect.ValueOf(data).Interface().([]any)
 
 			var qtypes []dns.Type
 
-			for i := 0; i < s.Len(); i++ {
-				qt := fmt.Sprint(s.Index(i))
-
-				for qi := 0; qi <= queryTypeMax; qi++ {
+			for _, q := range s {
+				qt := q.(string)
+				if qi, ok := dns.StringToType[qt]; ok {
 					q := dns.Type(qi)
-					if qt == q.String() {
-						qtypes = append(qtypes, q)
-
-						break
-					}
-
-					if qi == queryTypeMax {
-						return nil, fmt.Errorf("unknown DNS query type: %s", qt)
-					}
+					qtypes = append(qtypes, q)
+				} else {
+					return nil, fmt.Errorf("unknown DNS query type: %s", qt)
 				}
 			}
 
