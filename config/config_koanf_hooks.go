@@ -66,9 +66,7 @@ func upstreamTypeHookFunc() mapstructure.DecodeHookFuncType {
 		data interface{}) (interface{}, error) {
 		if f.Kind() == reflect.String &&
 			t == reflect.TypeOf(Upstream{}) {
-			result, err := ParseUpstream(data.(string))
-
-			return result, err
+			return ParseUpstream(data.(string))
 		}
 
 		return data, nil
@@ -82,7 +80,12 @@ func durationTypeHookFunc() mapstructure.DecodeHookFuncType {
 		t reflect.Type,
 		data interface{}) (interface{}, error) {
 		dt := reflect.TypeOf(Duration(0))
-		if t == dt && f.Kind() == reflect.String {
+		if t != dt {
+			return data, nil
+		}
+
+		switch f.Kind() {
+		case reflect.String:
 			input := data.(string)
 			if minutes, err := strconv.Atoi(input); err == nil {
 				// duration is defined as number without unit
@@ -98,7 +101,8 @@ func durationTypeHookFunc() mapstructure.DecodeHookFuncType {
 
 				return result, nil
 			}
-		} else if t == dt && f.Kind() == reflect.Int {
+
+		case reflect.Int:
 			// duration is defined as number without unit
 			// use minutes to ensure back compatibility
 			minutes := data.(int)

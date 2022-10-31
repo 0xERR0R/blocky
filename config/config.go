@@ -547,7 +547,7 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 		return nil, fmt.Errorf("can't apply default values: %w", err)
 	}
 
-	var k = koanf.New("_")
+	k := koanf.New("_")
 	if path == envKey {
 		log.Log().Info("Loading configuration from environment.")
 
