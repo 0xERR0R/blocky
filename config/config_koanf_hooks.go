@@ -91,7 +91,12 @@ func durationTypeHookFunc() mapstructure.DecodeHookFuncType {
 		t reflect.Type,
 		data interface{}) (interface{}, error) {
 		dt := reflect.TypeOf(Duration(0))
-		if t == dt && f.Kind() == reflect.String {
+		if t != dt {
+			return data, nil
+		}
+
+		switch f.Kind() {
+		case reflect.String:
 			input := data.(string)
 			if minutes, err := strconv.Atoi(input); err == nil {
 				// duration is defined as number without unit
@@ -107,7 +112,8 @@ func durationTypeHookFunc() mapstructure.DecodeHookFuncType {
 
 				return result, nil
 			}
-		} else if t == dt && f.Kind() == reflect.Int {
+
+		case reflect.Int:
 			// duration is defined as number without unit
 			// use minutes to ensure back compatibility
 			minutes := data.(int)
