@@ -624,7 +624,7 @@ example for Database
       logRetentionDays: 7
     ```
 
-### Hosts file
+## Hosts file
 
 You can enable resolving of entries, located in local hosts file.
 
