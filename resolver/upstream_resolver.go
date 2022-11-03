@@ -113,7 +113,7 @@ func createUpstreamClient(cfg config.Upstream) upstreamClient {
 }
 
 func (r *httpUpstreamClient) fmtURL(ip net.IP, port uint16, path string) string {
-	return fmt.Sprintf("https://%s:%d%s", ip.String(), port, path)
+	return fmt.Sprintf("https://%s%s", net.JoinHostPort(ip.String(), strconv.Itoa(int(port))), path)
 }
 
 func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
@@ -171,7 +171,7 @@ func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
 	return &response, time.Since(start), nil
 }
 
-func (r *dnsUpstreamClient) fmtURL(ip net.IP, port uint16, _path string) string {
+func (r *dnsUpstreamClient) fmtURL(ip net.IP, port uint16, _ string) string {
 	return net.JoinHostPort(ip.String(), strconv.Itoa(int(port)))
 }
 
