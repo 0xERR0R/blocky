@@ -39,6 +39,7 @@ linters:
     - nilerr
     - nilnil
     - nlreturn
+    - nosprintfhostport
     - prealloc
     - predeclared
     - revive
