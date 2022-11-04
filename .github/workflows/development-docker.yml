@@ -137,7 +137,7 @@ jobs:
         run: |
           docker pull ghcr.io/${{ needs.docker.outputs.repository }}:${{ needs.docker.outputs.branch }}
           docker tag ghcr.io/${{ needs.docker.outputs.repository }}:${{ needs.docker.outputs.branch }} spx01/blocky:${{ needs.docker.outputs.branch }}
-          docker push
+          docker push spx01/blocky:${{ needs.docker.outputs.branch }}
 
   repo-scan:
     name: Repo vulnerability scan
