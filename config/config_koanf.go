@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strconv"
@@ -23,6 +25,41 @@ func loadEnvironment(k *koanf.Koanf) error {
 
 func loadFile(k *koanf.Koanf, path string) error {
 	return k.Load(file.Provider(path), yaml.Parser())
+}
+
+func loadDir(path string, k *koanf.Koanf) error {
+	err := filepath.WalkDir(path, func(filePath string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if path == filePath {
+			return nil
+		}
+
+		// Ignore non YAML files
+		if !strings.HasSuffix(filePath, ".yml") && !strings.HasSuffix(filePath, ".yaml") {
+			return nil
+		}
+
+		isRegular, err := isRegularFile(filePath)
+		if err != nil {
+			return err
+		}
+
+		// Ignore non regular files (directories, sockets, etc.)
+		if !isRegular {
+			return nil
+		}
+
+		if err := loadFile(k, filePath); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	return err
 }
 
 func unmarshalKoanf(k *koanf.Koanf, cfg *Config) error {
