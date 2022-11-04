@@ -547,7 +547,7 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 	k := koanf.New("_")
 
 	fs, err := os.Stat(path)
-	if fs.IsDir() {
+	if err == nil && fs.IsDir() {
 		if err := loadDir(path, k); err != nil {
 			return nil, fmt.Errorf("can't read config folder: %w", err)
 		}
