@@ -49,9 +49,9 @@ func (ipv IPVersion) Net() string {
 	case IPVersionDual:
 		return "ip"
 	case IPVersionV4:
-		return "ipv4"
+		return "ip4"
 	case IPVersionV6:
-		return "ipv6"
+		return "ip6"
 	}
 
 	panic(fmt.Errorf("bad value: %s", ipv))

@@ -6,4 +6,6 @@ var (
 	Version = "undefined"
 	// BuildTime build time of the binary
 	BuildTime = "undefined"
+	// Architecture current CPU architecture
+	Architecture = "undefined"
 )

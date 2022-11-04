@@ -7,6 +7,8 @@ package tools
 
 import (
 	_ "github.com/abice/go-enum"
+	_ "github.com/dosgo/zigtool/zigcc"
+	_ "github.com/dosgo/zigtool/zigcpp"
 	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
 	_ "github.com/onsi/ginkgo/v2/ginkgo"
 	_ "github.com/swaggo/swag/cmd/swag"

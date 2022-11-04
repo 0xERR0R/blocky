@@ -36,6 +36,10 @@ require (
 	gorm.io/gorm v1.24.1-0.20221019064659-5dd2bb482755
 )
 
+require github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
+
+require github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198
+
 require (
 	github.com/Abirdcfly/dupword v0.0.7 // indirect
 	github.com/Antonboom/nilnil v0.1.1 // indirect
