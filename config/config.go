@@ -2,11 +2,9 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -24,10 +22,9 @@ import (
 )
 
 const (
-	udpPort          = 53
-	tlsPort          = 853
-	httpsPort        = 443
-	envKey    string = "##ENVIRONMENT##"
+	udpPort   = 53
+	tlsPort   = 853
+	httpsPort = 443
 )
 
 // NetProtocol resolver protocol ENUM(
@@ -548,34 +545,15 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 	}
 
 	k := koanf.New("_")
-	if path == envKey {
-		log.Log().Info("Loading configuration from environment.")
 
-		err := loadEnvironment(k)
-		if err != nil {
-			return nil, fmt.Errorf("can't read environment config: %w", err)
+	fs, err := os.Stat(path)
+	if fs.IsDir() {
+		if err := loadDir(path, k); err != nil {
+			return nil, fmt.Errorf("can't read config folder: %w", err)
 		}
-	} else {
-		fs, err := os.Stat(path)
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) && !mandatory {
-				// config file does not exist
-				// return config with default values
-				config = &cfg
-
-				return config, nil
-			}
-
-			return nil, fmt.Errorf("can't read config file(s): %w", err)
-		}
-		if fs.IsDir() {
-			if err := readFromDir(path, k); err != nil {
-				return nil, fmt.Errorf("can't read config folder: %w", err)
-			}
-		} else {
-			if err := loadFile(k, path); err != nil {
-				return nil, fmt.Errorf("can't read config file: %w", err)
-			}
+	} else if err == nil {
+		if err := loadFile(k, path); err != nil {
+			return nil, fmt.Errorf("can't read config file: %w", err)
 		}
 	}
 
@@ -583,46 +561,16 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 		return nil, err
 	}
 
+	err = loadEnvironment(k)
+	if err != nil {
+		return nil, fmt.Errorf("can't read environment config: %w", err)
+	}
+
 	validateConfig(&cfg)
 
 	config = &cfg
 
 	return &cfg, nil
-}
-
-func readFromDir(path string, k *koanf.Koanf) error {
-	err := filepath.WalkDir(path, func(filePath string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if path == filePath {
-			return nil
-		}
-
-		// Ignore non YAML files
-		if !strings.HasSuffix(filePath, ".yml") && !strings.HasSuffix(filePath, ".yaml") {
-			return nil
-		}
-
-		isRegular, err := isRegularFile(filePath)
-		if err != nil {
-			return err
-		}
-
-		// Ignore non regular files (directories, sockets, etc.)
-		if !isRegular {
-			return nil
-		}
-
-		if err := loadFile(k, filePath); err != nil {
-			return err
-		}
-
-		return nil
-	})
-
-	return err
 }
 
 // isRegularFile follows symlinks, so the result is `true` for a symlink to a regular file.
