@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"net"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
@@ -58,7 +60,7 @@ Complete documentation is available at https://github.com/0xERR0R/blocky`,
 }
 
 func apiURL(path string) string {
-	return fmt.Sprintf("http://%s:%d%s", apiHost, apiPort, path)
+	return fmt.Sprintf("http://%s%s", net.JoinHostPort(apiHost, strconv.Itoa(int(apiPort))), path)
 }
 
 //nolint:gochecknoinits

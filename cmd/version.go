@@ -21,4 +21,5 @@ func printVersion(_ *cobra.Command, _ []string) {
 	fmt.Println("blocky")
 	fmt.Printf("Version: %s\n", util.Version)
 	fmt.Printf("Build time: %s\n", util.BuildTime)
+	fmt.Printf("Architecture: %s\n", util.Architecture)
 }

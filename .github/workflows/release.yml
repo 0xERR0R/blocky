@@ -7,9 +7,8 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
+    if: github.repository_owner == '0xERR0R'
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -36,6 +35,8 @@ jobs:
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
+        with:
+          platforms: arm,arm64
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -53,6 +54,18 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: Populate build variables
+        id: get_vars
+        shell: bash
+        run: |
+          VERSION=$(git describe --always --tags)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "VERSION: ${VERSION}"
+
+          BUILD_TIME=$(date '+%Y%m%d-%H%M%S')
+          echo "build_time=${BUILD_TIME}" >> $GITHUB_OUTPUT
+          echo "BUILD_TIME: ${BUILD_TIME}"
+
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
@@ -61,8 +74,11 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.docker_meta.outputs.tags }}
           labels: ${{ steps.docker_meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/0xerr0r/blocky:buildcache
-          cache-to: type=registry,ref=ghcr.io/0xerr0r/blocky:buildcache,mode=max
+          build-args: |
+            VERSION=${{ steps.get_vars.outputs.version }}
+            BUILD_TIME=${{ steps.get_vars.outputs.build_time }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
