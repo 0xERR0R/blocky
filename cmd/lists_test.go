@@ -19,17 +19,13 @@ var _ = Describe("Lists command", func() {
 	)
 	JustBeforeEach(func() {
 		ts = testHTTPAPIServer(mockFn)
-	})
-	JustAfterEach(func() {
-		ts.Close()
+		DeferCleanup(ts.Close)
 	})
 	BeforeEach(func() {
 		mockFn = func(w http.ResponseWriter, _ *http.Request) {}
 		loggerHook = test.NewGlobal()
 		log.Log().AddHook(loggerHook)
-	})
-	AfterEach(func() {
-		loggerHook.Reset()
+		DeferCleanup(loggerHook.Reset)
 	})
 	Describe("Call list refresh command", func() {
 		When("list refresh is executed", func() {

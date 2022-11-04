@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"io"
 	"os"
 
 	"github.com/0xERR0R/blocky/config"
@@ -18,8 +17,7 @@ var _ = Describe("root command", func() {
 		log.Log().ExitFunc = nil
 		It("should execute without error", func() {
 			c := NewRootCommand()
-			c.SetOutput(io.Discard)
-			c.SetArgs([]string{"help"})
+			c.SetArgs([]string{"version"})
 			err := c.Execute()
 			Expect(err).Should(Succeed())
 		})
