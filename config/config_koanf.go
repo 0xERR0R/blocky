@@ -15,11 +15,9 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
-const prefix = "BLOCKY_"
-
 func loadEnvironment(k *koanf.Koanf) error {
-	return k.Load(env.Provider(prefix, "_", func(s string) string {
-		return strings.TrimPrefix(s, prefix)
+	return k.Load(env.Provider(EnvConfigPrefix, "_", func(s string) string {
+		return strings.TrimPrefix(s, EnvConfigPrefix)
 	}), nil)
 }
 

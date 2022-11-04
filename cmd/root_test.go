@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -53,8 +54,8 @@ var _ = Describe("root command", func() {
 		})
 
 		It("should accept old env var", func() {
-			os.Setenv(configFileEnvVarOld, tmpFile.Path)
-			DeferCleanup(func() { os.Unsetenv(configFileEnvVarOld) })
+			os.Setenv(config.ConfigFilePathOld, tmpFile.Path)
+			DeferCleanup(func() { os.Unsetenv(config.ConfigFilePathOld) })
 
 			initConfig()
 
@@ -62,8 +63,8 @@ var _ = Describe("root command", func() {
 		})
 
 		It("should accept new env var", func() {
-			os.Setenv(configFileEnvVar, tmpFile.Path)
-			DeferCleanup(func() { os.Unsetenv(configFileEnvVar) })
+			os.Setenv(config.ConfigFilePath, tmpFile.Path)
+			DeferCleanup(func() { os.Unsetenv(config.ConfigFilePath) })
 
 			initConfig()
 

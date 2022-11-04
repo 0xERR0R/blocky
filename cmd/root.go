@@ -22,11 +22,9 @@ var (
 )
 
 const (
-	defaultPort         = 4000
-	defaultHost         = "localhost"
-	defaultConfigPath   = "./config.yml"
-	configFileEnvVar    = "BLOCKY_CONFIG_FILE"
-	configFileEnvVarOld = "CONFIG_FILE"
+	defaultPort       = 4000
+	defaultHost       = "localhost"
+	defaultConfigPath = "./config.yml"
 )
 
 // NewRootCommand creates a new root cli command instance
@@ -70,11 +68,11 @@ func init() {
 
 func initConfig() {
 	if configPath == defaultConfigPath {
-		val, present := os.LookupEnv(configFileEnvVar)
+		val, present := os.LookupEnv(config.ConfigFilePath)
 		if present {
 			configPath = val
 		} else {
-			val, present = os.LookupEnv(configFileEnvVarOld)
+			val, present = os.LookupEnv(config.ConfigFilePathOld)
 			if present {
 				configPath = val
 			}
