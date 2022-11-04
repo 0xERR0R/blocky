@@ -52,6 +52,7 @@ jobs:
     needs: check
     if: ${{ needs.check.outputs.enabled == 1 }}
     outputs:
+      repository: ${{ steps.get_repo.outputs.lowercase }}
       branch: ${{ steps.get_vars.outputs.branch }}
     steps:
       - name: Checkout
@@ -89,14 +90,20 @@ jobs:
           BUILD_TIME=$(date '+%Y%m%d-%H%M%S')
           echo "build_time=${BUILD_TIME}" >> $GITHUB_OUTPUT
           echo "BUILD_TIME: ${BUILD_TIME}"
-
+      
+      - name: Repo to lower
+        id: get_repo
+        uses: ASzc/change-string-case-action@v2
+        with:
+          string: ${{ github.repository }}
+      
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
           context: .
           platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
           push: true
-          tags: ghcr.io/${{ github.repository }}:${{ steps.get_vars.outputs.branch }}
+          tags: ghcr.io/${{ steps.get_repo.outputs.lowercase }}:${{ steps.get_vars.outputs.branch }}
           build-args: |
             VERSION=${{ steps.get_vars.outputs.version }}
             BUILD_TIME=${{ steps.get_vars.outputs.build_time }}
@@ -125,8 +132,8 @@ jobs:
       - name: DockerHub tag
         shell: bash
         run: |
-          docker pull ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }}
-          docker tag ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} spx01/blocky:${{ needs.docker.outputs.branch }}
+          docker pull ghcr.io/${{ needs.docker.outputs.repository }}:${{ needs.docker.outputs.branch }}
+          docker tag ghcr.io/${{ needs.docker.outputs.repository }}:${{ needs.docker.outputs.branch }} spx01/blocky:${{ needs.docker.outputs.branch }}
           docker push
 
   repo-scan:
@@ -165,7 +172,7 @@ jobs:
       - name: Run Trivy vulnerability scanner on Docker image
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }}'
+          image-ref: 'ghcr.io/${{ needs.docker.outputs.repository }}:${{ needs.docker.outputs.branch }}'
           format: 'sarif'
           output: 'trivy-image-results.sarif'
 
@@ -188,17 +195,17 @@ jobs:
         shell: bash
         run: | 
           echo '::group::Version for linux/amd64'
-          docker run --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
+          docker run --rm ghcr.io/${{ needs.docker.outputs.repository }}:${{ needs.docker.outputs.branch }} version
           echo '::endgroup::'
 
           echo '::group::Version for linux/arm/v6'
-          docker run --platform linux/arm/v6 --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
+          docker run --platform linux/arm/v6 --rm ghcr.io/${{ needs.docker.outputs.repository }}:${{ needs.docker.outputs.branch }} version
           echo '::endgroup::'
 
           echo '::group::Version for linux/arm/v7'
-          docker run --platform linux/arm/v7 --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
+          docker run --platform linux/arm/v7 --rm ghcr.io/${{ needs.docker.outputs.repository }}:${{ needs.docker.outputs.branch }} version
           echo '::endgroup::'
 
           echo '::group::Version for linux/arm64'
-          docker run --platform linux/arm64 --rm ghcr.io/${{ github.repository }}:${{ needs.docker.outputs.branch }} version
+          docker run --platform linux/arm64 --rm ghcr.io/${{ needs.docker.outputs.repository }}:${{ needs.docker.outputs.branch }} version
           echo '::endgroup::'
