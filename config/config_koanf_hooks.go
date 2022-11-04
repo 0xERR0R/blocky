@@ -84,6 +84,7 @@ func durationTypeHookFunc() mapstructure.DecodeHookFuncType {
 			return data, nil
 		}
 
+		// nolint:exhaustive
 		switch f.Kind() {
 		case reflect.String:
 			input := data.(string)
