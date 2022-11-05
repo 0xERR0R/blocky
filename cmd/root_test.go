@@ -3,7 +3,7 @@ package cmd
 import (
 	"os"
 
-	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/environment"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -15,7 +15,7 @@ var _ = Describe("root command", func() {
 	When("Version command is called", func() {
 		It("should execute without error", func() {
 			c := NewRootCommand()
-			c.SetArgs([]string{"version"})
+			c.Flag("version")
 			err := c.Execute()
 			Expect(err).Should(Succeed())
 		})
@@ -48,21 +48,23 @@ var _ = Describe("root command", func() {
 		})
 
 		It("should accept old env var", func() {
-			os.Setenv(config.ConfigFilePathOld, tmpFile.Path)
-			DeferCleanup(func() { os.Unsetenv(config.ConfigFilePathOld) })
+			os.Setenv(environment.ConfigFilePathOld, tmpFile.Path)
 
 			initConfig()
 
 			Expect(configPath).Should(Equal(tmpFile.Path))
+
+			DeferCleanup(func() { os.Unsetenv(environment.ConfigFilePathOld) })
 		})
 
 		It("should accept new env var", func() {
-			os.Setenv(config.ConfigFilePath, tmpFile.Path)
-			DeferCleanup(func() { os.Unsetenv(config.ConfigFilePath) })
+			os.Setenv(environment.ConfigFilePath, tmpFile.Path)
 
 			initConfig()
 
 			Expect(configPath).Should(Equal(tmpFile.Path))
+
+			DeferCleanup(func() { os.Unsetenv(environment.ConfigFilePath) })
 		})
 	})
 })

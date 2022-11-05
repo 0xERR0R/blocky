@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/environment"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/util"
 
@@ -68,11 +69,11 @@ func init() {
 
 func initConfig() {
 	if configPath == defaultConfigPath {
-		val, present := os.LookupEnv(config.ConfigFilePath)
+		val, present := os.LookupEnv(environment.ConfigFilePath)
 		if present {
 			configPath = val
 		} else {
-			val, present = os.LookupEnv(config.ConfigFilePathOld)
+			val, present = os.LookupEnv(environment.ConfigFilePathOld)
 			if present {
 				configPath = val
 			}

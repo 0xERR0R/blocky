@@ -1,4 +1,4 @@
-package config
+package environment
 
 const (
 	// Prefix of all environment configurations

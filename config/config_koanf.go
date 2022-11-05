@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/0xERR0R/blocky/environment"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/env"
@@ -16,8 +17,8 @@ import (
 )
 
 func loadEnvironment(k *koanf.Koanf) error {
-	return k.Load(env.Provider(EnvConfigPrefix, "_", func(s string) string {
-		return strings.TrimPrefix(s, EnvConfigPrefix)
+	return k.Load(env.Provider(environment.EnvConfigPrefix, "_", func(s string) string {
+		return strings.TrimPrefix(s, environment.EnvConfigPrefix)
 	}), nil)
 }
 
