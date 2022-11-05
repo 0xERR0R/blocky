@@ -44,7 +44,7 @@ var _ = Describe("Blocking command", func() {
 				apiPort = 0
 				err := enableBlocking(newBlockingCommand(), []string{})
 				Expect(err).Should(HaveOccurred())
-				Expect(err.Error()).Should(ContainSubstring("connection refused"))
+				Expect(err.Error()).Should(ContainSubstring("The requested address is not valid in its context."))
 			})
 		})
 		When("Server returns internal error", func() {
@@ -72,7 +72,7 @@ var _ = Describe("Blocking command", func() {
 				apiPort = 0
 				err := disableBlocking(newBlockingCommand(), []string{})
 				Expect(err).Should(HaveOccurred())
-				Expect(err.Error()).Should(ContainSubstring("connection refused"))
+				Expect(err.Error()).Should(ContainSubstring("The requested address is not valid in its context."))
 			})
 		})
 		When("Server returns internal error", func() {

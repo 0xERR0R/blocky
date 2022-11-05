@@ -79,7 +79,9 @@ var _ = Describe("Blocking command", func() {
 		})
 		When("Type is wrong", func() {
 			It("should end with error", func() {
-				err := query(NewQueryCommand(), []string{"type", "X", "google.de"})
+				command := NewQueryCommand()
+				command.SetArgs([]string{"--type", "X", "google.de"})
+				err := command.Execute()
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("unknown query type 'X'"))
 			})
@@ -89,7 +91,7 @@ var _ = Describe("Blocking command", func() {
 				apiPort = 0
 				err := query(NewQueryCommand(), []string{"google.de"})
 				Expect(err).Should(HaveOccurred())
-				Expect(err.Error()).Should(ContainSubstring("connection refused"))
+				Expect(err.Error()).Should(ContainSubstring("The requested address is not valid in its context."))
 			})
 		})
 	})
