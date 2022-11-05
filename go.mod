@@ -23,7 +23,7 @@ require (
 	github.com/onsi/gomega v1.22.1
 	github.com/prometheus/client_golang v1.13.0
 	github.com/sirupsen/logrus v1.9.0
-	github.com/spf13/cobra v1.6.0
+	github.com/spf13/cobra v1.6.1
 	github.com/stretchr/testify v1.8.0
 	github.com/swaggo/swag v1.8.7
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
@@ -35,10 +35,7 @@ require (
 	gorm.io/gorm v1.24.1-0.20221019064659-5dd2bb482755
 )
 
-require (
-	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
-	github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198
-)
+require github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198
 
 require (
 	github.com/go-logr/logr v1.2.3 // indirect
