@@ -4,7 +4,6 @@ import (
 	"os"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/log"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -14,7 +13,6 @@ import (
 
 var _ = Describe("root command", func() {
 	When("Version command is called", func() {
-		log.Log().ExitFunc = nil
 		It("should execute without error", func() {
 			c := NewRootCommand()
 			c.SetArgs([]string{"version"})
@@ -29,8 +27,6 @@ var _ = Describe("root command", func() {
 		)
 
 		BeforeEach(func() {
-			configPath = defaultConfigPath
-
 			tmpDir = NewTmpFolder("RootCommand")
 			Expect(tmpDir.Error).Should(Succeed())
 			DeferCleanup(tmpDir.Clean)
