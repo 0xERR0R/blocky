@@ -52,7 +52,7 @@ jobs:
     needs: check
     if: ${{ needs.check.outputs.enabled == 1 }}
     outputs:
-      repository: ${{ steps.get_repo.outputs.lowercase }}
+      repository: ${{ steps.get_vars.outputs.repo }}
       branch: ${{ steps.get_vars.outputs.branch }}
     steps:
       - name: Checkout
@@ -92,16 +92,14 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Repo to lower
-        id: get_repo
-        uses: ASzc/change-string-case-action@v2
-        with:
-          string: ${{ github.repository }}
-
       - name: Populate build variables
         id: get_vars
         shell: bash
         run: |
+          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "repo=${REPO}" >> $GITHUB_OUTPUT
+          echo "REPO: ${REPO}"
+
           BRANCH=${GITHUB_REF#refs/heads/}
           echo "branch=${BRANCH}" >> $GITHUB_OUTPUT
           echo "Branch: ${BRANCH}"
@@ -114,7 +112,7 @@ jobs:
           echo "build_time=${BUILD_TIME}" >> $GITHUB_OUTPUT
           echo "BUILD_TIME: ${BUILD_TIME}"
 
-          TAGS="ghcr.io/${{ steps.get_repo.outputs.lowercase }}:${BRANCH}"
+          TAGS="ghcr.io/${{ REPO }}:${BRANCH}"
           if [[ "${{ github.repository_owner }}" == "0xERR0R" ]]; then
             TAGS="${TAGS} , spx01/blocky:${BRANCH}"
           fi
