@@ -23,7 +23,7 @@ require (
 	github.com/onsi/gomega v1.24.0
 	github.com/prometheus/client_golang v1.13.0
 	github.com/sirupsen/logrus v1.9.0
-	github.com/spf13/cobra v1.6.0
+	github.com/spf13/cobra v1.6.1
 	github.com/stretchr/testify v1.8.0
 	github.com/swaggo/swag v1.8.7
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
