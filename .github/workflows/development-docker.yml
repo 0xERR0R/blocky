@@ -52,7 +52,7 @@ jobs:
     needs: check
     if: ${{ needs.check.outputs.enabled == 1 }}
     outputs:
-      repository: ${{ steps.get_vars.outputs.repo }}
+      repository: ${{ steps.get_vars.outputs.repository }}
       branch: ${{ steps.get_vars.outputs.branch }}
     steps:
       - name: Checkout
@@ -96,9 +96,9 @@ jobs:
         id: get_vars
         shell: bash
         run: |
-          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          echo "repo=${REPO}" >> $GITHUB_OUTPUT
-          echo "REPO: ${REPO}"
+          REPOSITORY=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "repository=${REPOSITORY}" >> $GITHUB_OUTPUT
+          echo "REPOSITORY: ${REPOSITORY}"
 
           BRANCH=${GITHUB_REF#refs/heads/}
           echo "branch=${BRANCH}" >> $GITHUB_OUTPUT
@@ -112,7 +112,7 @@ jobs:
           echo "build_time=${BUILD_TIME}" >> $GITHUB_OUTPUT
           echo "BUILD_TIME: ${BUILD_TIME}"
 
-          TAGS="ghcr.io/${{ REPO }}:${BRANCH}"
+          TAGS="ghcr.io/${REPOSITORY}:${BRANCH}"
           if [[ "${{ github.repository_owner }}" == "0xERR0R" ]]; then
             TAGS="${TAGS} , spx01/blocky:${BRANCH}"
           fi
