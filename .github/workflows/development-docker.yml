@@ -114,7 +114,7 @@ jobs:
           echo "build_time=${BUILD_TIME}" >> $GITHUB_OUTPUT
           echo "BUILD_TIME: ${BUILD_TIME}"
 
-          TAGS="ghcr.io/${{ steps.get_repo.outputs.lowercase }}:${BRANCH}""
+          TAGS="ghcr.io/${{ steps.get_repo.outputs.lowercase }}:${BRANCH}"
           if [[ "${{ github.repository_owner }}" == "0xERR0R" ]]; then
             TAGS="${TAGS} , spx01/blocky:${BRANCH}"
           fi
