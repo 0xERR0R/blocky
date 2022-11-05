@@ -22,17 +22,13 @@ var _ = Describe("Blocking command", func() {
 	)
 	JustBeforeEach(func() {
 		ts = testHTTPAPIServer(mockFn)
-	})
-	JustAfterEach(func() {
-		ts.Close()
+		DeferCleanup(ts.Close)
 	})
 	BeforeEach(func() {
 		mockFn = func(w http.ResponseWriter, _ *http.Request) {}
 		loggerHook = test.NewGlobal()
 		log.Log().AddHook(loggerHook)
-	})
-	AfterEach(func() {
-		loggerHook.Reset()
+		DeferCleanup(loggerHook.Reset)
 	})
 	Describe("Call query command", func() {
 		BeforeEach(func() {
@@ -83,10 +79,7 @@ var _ = Describe("Blocking command", func() {
 		})
 		When("Type is wrong", func() {
 			It("should end with error", func() {
-
-				command := NewQueryCommand()
-				command.SetArgs([]string{"--type", "X", "google.de"})
-				err := command.Execute()
+				err := query(NewQueryCommand(), []string{"type", "X", "google.de"})
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("unknown query type 'X'"))
 			})
