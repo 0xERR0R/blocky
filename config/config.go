@@ -557,13 +557,13 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 		}
 	}
 
-	if err := unmarshalKoanf(k, &cfg); err != nil {
-		return nil, err
-	}
-
 	err = loadEnvironment(k)
 	if err != nil {
 		return nil, fmt.Errorf("can't read environment config: %w", err)
+	}
+
+	if err := unmarshalKoanf(k, &cfg); err != nil {
+		return nil, err
 	}
 
 	validateConfig(&cfg)
