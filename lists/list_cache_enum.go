@@ -20,6 +20,8 @@ const (
 	ListCacheTypeWhitelist
 )
 
+var ErrInvalidListCacheType = fmt.Errorf("not a valid ListCacheType, try [%s]", strings.Join(_ListCacheTypeNames, ", "))
+
 const _ListCacheTypeName = "blacklistwhitelist"
 
 var _ListCacheTypeNames = []string{
@@ -57,7 +59,7 @@ func ParseListCacheType(name string) (ListCacheType, error) {
 	if x, ok := _ListCacheTypeValue[name]; ok {
 		return x, nil
 	}
-	return ListCacheType(0), fmt.Errorf("%s is not a valid ListCacheType, try [%s]", name, strings.Join(_ListCacheTypeNames, ", "))
+	return ListCacheType(0), fmt.Errorf("%s is %w", name, ErrInvalidListCacheType)
 }
 
 // MarshalText implements the text marshaller method.

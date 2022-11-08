@@ -23,6 +23,8 @@ const (
 	IPVersionV6
 )
 
+var ErrInvalidIPVersion = fmt.Errorf("not a valid IPVersion, try [%s]", strings.Join(_IPVersionNames, ", "))
+
 const _IPVersionName = "dualv4v6"
 
 var _IPVersionNames = []string{
@@ -63,7 +65,7 @@ func ParseIPVersion(name string) (IPVersion, error) {
 	if x, ok := _IPVersionValue[name]; ok {
 		return x, nil
 	}
-	return IPVersion(0), fmt.Errorf("%s is not a valid IPVersion, try [%s]", name, strings.Join(_IPVersionNames, ", "))
+	return IPVersion(0), fmt.Errorf("%s is %w", name, ErrInvalidIPVersion)
 }
 
 // MarshalText implements the text marshaller method.
@@ -93,6 +95,8 @@ const (
 	// HTTPS protocol
 	NetProtocolHttps
 )
+
+var ErrInvalidNetProtocol = fmt.Errorf("not a valid NetProtocol, try [%s]", strings.Join(_NetProtocolNames, ", "))
 
 const _NetProtocolName = "tcp+udptcp-tlshttps"
 
@@ -134,7 +138,7 @@ func ParseNetProtocol(name string) (NetProtocol, error) {
 	if x, ok := _NetProtocolValue[name]; ok {
 		return x, nil
 	}
-	return NetProtocol(0), fmt.Errorf("%s is not a valid NetProtocol, try [%s]", name, strings.Join(_NetProtocolNames, ", "))
+	return NetProtocol(0), fmt.Errorf("%s is %w", name, ErrInvalidNetProtocol)
 }
 
 // MarshalText implements the text marshaller method.
@@ -173,6 +177,8 @@ const (
 	// CSV file per day and client
 	QueryLogTypeCsvClient
 )
+
+var ErrInvalidQueryLogType = fmt.Errorf("not a valid QueryLogType, try [%s]", strings.Join(_QueryLogTypeNames, ", "))
 
 const _QueryLogTypeName = "consolenonemysqlpostgresqlcsvcsv-client"
 
@@ -223,7 +229,7 @@ func ParseQueryLogType(name string) (QueryLogType, error) {
 	if x, ok := _QueryLogTypeValue[name]; ok {
 		return x, nil
 	}
-	return QueryLogType(0), fmt.Errorf("%s is not a valid QueryLogType, try [%s]", name, strings.Join(_QueryLogTypeNames, ", "))
+	return QueryLogType(0), fmt.Errorf("%s is %w", name, ErrInvalidQueryLogType)
 }
 
 // MarshalText implements the text marshaller method.
@@ -253,6 +259,8 @@ const (
 	// asyncronously download blocking lists on startup
 	StartStrategyTypeFast
 )
+
+var ErrInvalidStartStrategyType = fmt.Errorf("not a valid StartStrategyType, try [%s]", strings.Join(_StartStrategyTypeNames, ", "))
 
 const _StartStrategyTypeName = "blockingfailOnErrorfast"
 
@@ -294,7 +302,7 @@ func ParseStartStrategyType(name string) (StartStrategyType, error) {
 	if x, ok := _StartStrategyTypeValue[name]; ok {
 		return x, nil
 	}
-	return StartStrategyType(0), fmt.Errorf("%s is not a valid StartStrategyType, try [%s]", name, strings.Join(_StartStrategyTypeNames, ", "))
+	return StartStrategyType(0), fmt.Errorf("%s is %w", name, ErrInvalidStartStrategyType)
 }
 
 // MarshalText implements the text marshaller method.
