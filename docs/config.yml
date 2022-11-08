@@ -140,6 +140,9 @@ caching:
   # Max number of domains to be kept in cache for prefetching (soft limit). Useful on systems with limited amount of RAM.
   # Default (0): unlimited
   prefetchMaxItemsCount: 0
+  # Time how long negative results (NXDOMAIN response or empty result) are cached. A value of -1 will disable caching for negative results.
+  # Default: 30m
+  cacheTimeNegative: 30m
 
 # optional: configuration of client name resolution
 clientLookup:

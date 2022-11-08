@@ -355,66 +355,98 @@ var _ = Describe("CachingResolver", func() {
 	})
 
 	Describe("Negative cache (caching if upstream resolver returns NXDOMAIN)", func() {
-		When("Upstream resolver returns NXDOMAIN with caching", func() {
-			BeforeEach(func() {
-				mockAnswer.Rcode = dns.RcodeNameError
-			})
-
-			It("response should be cached", func() {
-				By("first request", func() {
-					resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
-					Expect(m.Calls).Should(HaveLen(1))
+		Context("Caching if upstream resolver returns NXDOMAIN", func() {
+			When("Upstream resolver returns NXDOMAIN with caching", func() {
+				BeforeEach(func() {
+					mockAnswer.Rcode = dns.RcodeNameError
 				})
 
-				By("second request", func() {
-					Eventually(func(g Gomega) {
+				It("response should be cached", func() {
+					By("first request", func() {
 						resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
-						g.Expect(err).Should(Succeed())
-						g.Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
-						g.Expect(resp.Reason).Should(Equal("CACHED NEGATIVE"))
-						g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
-						// still one call to resolver
-						g.Expect(m.Calls).Should(HaveLen(1))
-					}, "500ms").Should(Succeed())
+						Expect(err).Should(Succeed())
+						Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+						Expect(m.Calls).Should(HaveLen(1))
+					})
+
+					By("second request", func() {
+						Eventually(func(g Gomega) {
+							resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
+							g.Expect(err).Should(Succeed())
+							g.Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
+							g.Expect(resp.Reason).Should(Equal("CACHED NEGATIVE"))
+							g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+							// still one call to resolver
+							g.Expect(m.Calls).Should(HaveLen(1))
+						}, "500ms").Should(Succeed())
+					})
+				})
+
+			})
+			When("Upstream resolver returns NXDOMAIN without caching", func() {
+				BeforeEach(func() {
+					mockAnswer.Rcode = dns.RcodeNameError
+					sutConfig = config.CachingConfig{
+						CacheTimeNegative: config.Duration(time.Minute * -1),
+					}
+				})
+
+				It("response shouldn't be cached", func() {
+					By("first request", func() {
+						resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
+						Expect(err).Should(Succeed())
+						Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+						Expect(m.Calls).Should(HaveLen(1))
+					})
+
+					By("second request", func() {
+						Eventually(func(g Gomega) {
+							resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
+							g.Expect(err).Should(Succeed())
+							g.Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+							g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+							g.Expect(m.Calls).Should(HaveLen(2))
+						}, "500ms").Should(Succeed())
+					})
 				})
 			})
-
 		})
-		When("Upstream resolver returns NXDOMAIN without caching", func() {
-			BeforeEach(func() {
-				mockAnswer.Rcode = dns.RcodeNameError
-				sutConfig = config.CachingConfig{
-					CacheTimeNegative: config.Duration(time.Minute * -1),
-				}
-			})
-
-			It("response shouldn't be cached", func() {
-				By("first request", func() {
-					resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
-					Expect(m.Calls).Should(HaveLen(1))
+		Context("Caching if upstream resolver returns empty result", func() {
+			When("Upstream resolver returns empty result with caching", func() {
+				BeforeEach(func() {
+					mockAnswer.Rcode = dns.RcodeSuccess
+					mockAnswer.Answer = make([]dns.RR, 0)
 				})
 
-				By("second request", func() {
-					Eventually(func(g Gomega) {
+				It("response should be cached", func() {
+					By("first request", func() {
 						resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
-						g.Expect(err).Should(Succeed())
-						g.Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-						g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
-						g.Expect(m.Calls).Should(HaveLen(2))
-					}, "500ms").Should(Succeed())
-				})
-			})
+						Expect(err).Should(Succeed())
+						Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+						Expect(m.Calls).Should(HaveLen(1))
+					})
 
+					By("second request", func() {
+						Eventually(func(g Gomega) {
+							resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
+							g.Expect(err).Should(Succeed())
+							g.Expect(resp.RType).Should(Equal(ResponseTypeCACHED))
+							g.Expect(resp.Reason).Should(Equal("CACHED"))
+							g.Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+							// still one call to resolver
+							g.Expect(m.Calls).Should(HaveLen(1))
+						}, "500ms").Should(Succeed())
+					})
+				})
+
+			})
 		})
 	})
 
-	Describe("Not A / AAAA queries should also cached", func() {
+	Describe("Not A / AAAA queries should also be cached", func() {
 		When("MX query will be performed", func() {
 			BeforeEach(func() {
 				mockAnswer, _ = util.NewMsgWithAnswer("google.de.", 180, dns.Type(dns.TypeMX), "10 alt1.aspmx.l.google.com.")

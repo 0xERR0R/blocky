@@ -112,7 +112,7 @@ func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.
 			if response.Res.Rcode == dns.RcodeSuccess {
 				evt.Bus().Publish(evt.CachingDomainPrefetched, domainName)
 
-				return cacheValue{response.Res.Answer, true}, time.Duration(r.adjustTTLs(response.Res.Answer)) * time.Second
+				return cacheValue{response.Res.Answer, true}, r.adjustTTLs(response.Res.Answer)
 			}
 		} else {
 			util.LogOnError(fmt.Sprintf("can't prefetch '%s' ", domainName), err)
@@ -232,7 +232,7 @@ func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, 
 
 	if response.Res.Rcode == dns.RcodeSuccess {
 		// put value into cache
-		r.resultCache.Put(cacheKey, cacheValue{answer, prefetch}, time.Duration(r.adjustTTLs(answer))*time.Second)
+		r.resultCache.Put(cacheKey, cacheValue{answer, prefetch}, r.adjustTTLs(answer))
 	} else if response.Res.Rcode == dns.RcodeNameError {
 		if r.cacheTimeNegative > 0 {
 			// put return code if NXDOMAIN
@@ -249,7 +249,16 @@ func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, 
 	}
 }
 
-func (r *CachingResolver) adjustTTLs(answer []dns.RR) (maxTTL uint32) {
+// adjustTTLs calculates and returns the max TTL (considers also the min and max cache time)
+// for all records from answer or a negative cache time for empty answer
+// adjust the TTL in the answer header accordingly
+func (r *CachingResolver) adjustTTLs(answer []dns.RR) (maxTTL time.Duration) {
+	var max uint32
+
+	if len(answer) == 0 {
+		return r.cacheTimeNegative
+	}
+
 	for _, a := range answer {
 		// if TTL < mitTTL -> adjust the value, set minTTL
 		if r.minCacheTimeSec > 0 {
@@ -264,10 +273,10 @@ func (r *CachingResolver) adjustTTLs(answer []dns.RR) (maxTTL uint32) {
 			}
 		}
 
-		if maxTTL < a.Header().Ttl {
-			maxTTL = a.Header().Ttl
+		if max < a.Header().Ttl {
+			max = a.Header().Ttl
 		}
 	}
 
-	return
+	return time.Duration(max) * time.Second
 }
