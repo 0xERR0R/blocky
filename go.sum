@@ -43,8 +43,8 @@ github.com/Masterminds/semver/v3 v3.1.1 h1:hLg3sBzpNErnxhQtUy/mmLR2I9foDujNK030I
 github.com/Masterminds/semver/v3 v3.1.1/go.mod h1:VPu/7SZ7ePZ3QOrcuXROw5FAcLl4a0cBrbBpGY/8hQs=
 github.com/Masterminds/sprig v2.22.0+incompatible h1:z4yfnGrZ7netVz+0EDJ0Wi+5VZCSYp4Z0m2dk6cEM60=
 github.com/Masterminds/sprig v2.22.0+incompatible/go.mod h1:y6hNFY5UBTIWBxnzTeuNhlNS5hqE0NB0E6fgfo2Br3o=
-github.com/abice/go-enum v0.5.2 h1:pKs/DmlPSi1Y5MlmRD89X+efHjvc8YwV3Tlie9Yp+2M=
-github.com/abice/go-enum v0.5.2/go.mod h1:wJhx/CzcJLcQbcmr/ljMaEY1vVgsck0yfBwr1BU45vY=
+github.com/abice/go-enum v0.5.3 h1:Ghq0aWp+tCNZFAb4lFK7UnjzUJQTS1atIMjHkX+Gex4=
+github.com/abice/go-enum v0.5.3/go.mod h1:jf915DI7NxXZRwk8qDgZJKq2raAtwcPBXJRh9WVgtU0=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
 github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
 github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf/go.mod h1:ybxpYRFXyAe+OPACYpWeL0wqObRcbAqCMya13uyzqw0=
