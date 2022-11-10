@@ -3,7 +3,7 @@ module github.com/0xERR0R/blocky
 go 1.19
 
 require (
-	github.com/abice/go-enum v0.5.2
+	github.com/abice/go-enum v0.5.3
 	github.com/alicebob/miniredis/v2 v2.23.0
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/avast/retry-go/v4 v4.3.0
