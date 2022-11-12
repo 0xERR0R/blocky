@@ -33,9 +33,10 @@ type hostnameFormatter struct {
 }
 
 func (l hostnameFormatter) Format(entry *logrus.Entry) ([]byte, error) {
-	entry.Data["hostname"] = l.hostname
+	newentry := *entry
+	newentry.Data["host"] = l.hostname
 
-	return l.formatter.Format(entry)
+	return l.formatter.Format(&newentry)
 }
 
 // Log returns the global logger
@@ -74,7 +75,8 @@ func ConfigureLogger(lc logconfig.Config) {
 			ForceFormatting:  true,
 			ForceColors:      false,
 			QuoteEmptyFields: true,
-			DisableTimestamp: !lc.Timestamp}
+			DisableTimestamp: !lc.Timestamp,
+		}
 
 		logFormatter.SetColorScheme(&prefixed.ColorScheme{
 			PrefixStyle:    "blue+b",
