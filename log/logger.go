@@ -2,6 +2,7 @@ package log
 
 import (
 	"io"
+	"os"
 	"strings"
 
 	"github.com/0xERR0R/blocky/logconfig"
@@ -24,6 +25,17 @@ func init() {
 	}
 
 	ConfigureLogger(lc)
+}
+
+type hostnameFormatter struct {
+	hostname  string
+	formatter logrus.Formatter
+}
+
+func (l hostnameFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+	entry.Data["hostname"] = l.hostname
+
+	return l.formatter.Format(entry)
 }
 
 // Log returns the global logger
@@ -52,6 +64,8 @@ func ConfigureLogger(lc logconfig.Config) {
 		logger.SetLevel(level)
 	}
 
+	var formatter logrus.Formatter
+
 	switch lc.Format {
 	case logconfig.FormatTypeText:
 		logFormatter := &prefixed.TextFormatter{
@@ -67,11 +81,24 @@ func ConfigureLogger(lc logconfig.Config) {
 			TimestampStyle: "white+h",
 		})
 
-		logger.SetFormatter(logFormatter)
+		formatter = logFormatter
 
 	case logconfig.FormatTypeJson:
-		logger.SetFormatter(&logrus.JSONFormatter{})
+		formatter = &logrus.JSONFormatter{}
 	}
+
+	if lc.Hostname {
+		if hn, err := os.Hostname(); err == nil {
+			logger.SetFormatter(hostnameFormatter{
+				hostname:  hn,
+				formatter: formatter,
+			})
+
+			return
+		}
+	}
+
+	logger.SetFormatter(formatter)
 }
 
 // Silence disables the logger output

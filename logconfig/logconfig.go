@@ -23,4 +23,5 @@ type Config struct {
 	Format    FormatType `yaml:"format" default:"text"`
 	Privacy   bool       `yaml:"privacy" default:"false"`
 	Timestamp bool       `yaml:"timestamp" default:"true"`
+	Hostname  bool       `yaml:"hostname" default:"false"`
 }
