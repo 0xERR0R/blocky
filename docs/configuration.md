@@ -11,22 +11,18 @@ configuration properties as [JSON](config.yml).
 
 ## Basic configuration
 
-| Parameter           | Type                            | Mandatory | Default value | Description                                                                                                                                                                                                                                       |
-|---------------------|---------------------------------|-----------|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| port                | [IP]:port[,[IP]:port]*          | no        | 53            | Port(s) and optional bind ip address(es) to serve DNS endpoint (TCP and UDP). If you wish to specify a specific IP, you can do so such as `192.168.0.1:53`. Example: `53`, `:53`, `127.0.0.1:53,[::1]:53`                                         |
-| tlsPort             | [IP]:port[,[IP]:port]*          | no        |               | Port(s) and optional bind ip address(es) to serve DoT DNS endpoint (DNS-over-TLS). If you wish to specify a specific IP, you can do so such as `192.168.0.1:853`. Example: `83`, `:853`, `127.0.0.1:853,[::1]:853`                                |
-| httpPort            | [IP]:port[,[IP]:port]*          | no        |               | Port(s) and optional bind ip address(es) to serve HTTP used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:4000`. Example: `4000`, `:4000`, `127.0.0.1:4000,[::1]:4000` |
-| httpsPort           | [IP]:port[,[IP]:port]*          | no        |               | Port(s) and optional bind ip address(es) to serve HTTPS used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:443`. Example: `443`, `:443`, `127.0.0.1:443,[::1]:443`     |
-| certFile            | path                            | no        |               | Path to cert and key file for SSL encryption (DoH and DoT); if empty, self-signed certificate is generated                                                                                                                                        |
-| keyFile             | path                            | no        |               | Path to cert and key file for SSL encryption (DoH and DoT); if empty, self-signed certificate is generated                                                                                                                                        |
-| logLevel            | enum (debug, info, warn, error) | no        | info          | Log level                                                                                                                                                                                                                                         |
-| logFormat           | enum (text, json)               | no        | text          | Log format (text or json).                                                                                                                                                                                                                        |
-| logTimestamp        | bool                            | no        | true          | Log time stamps (true or false).                                                                                                                                                                                                                  |
-| logPrivacy          | bool                            | no        | false         | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy.                                                                                                  |
-| dohUserAgent        | string                          | no        |               | HTTP User Agent for DoH upstreams                                                                                                                                                                                                                 |
-| minTlsServeVersion  | string                          | no        | 1.2           | Minimum TLS version that the DoT and DoH server use to serve those encrypted DNS requests                                                                                                                                                         |
-| startVerifyUpstream | bool                            | no        | false         | If true, blocky will fail to start unless at least one upstream server per group is reachable.                                                                                                                                                    |
-| connectIPVersion    | bool                            | no        | dual          | IP version to use for outgoing connections (dual, v4, v6)                                                                                                                                                                                         |
+| Parameter           | Type                   | Mandatory | Default value | Description                                                                                                                                                                                                                                       |
+|---------------------|------------------------|-----------|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| port                | [IP]:port[,[IP]:port]* | no        | 53            | Port(s) and optional bind ip address(es) to serve DNS endpoint (TCP and UDP). If you wish to specify a specific IP, you can do so such as `192.168.0.1:53`. Example: `53`, `:53`, `127.0.0.1:53,[::1]:53`                                         |
+| tlsPort             | [IP]:port[,[IP]:port]* | no        |               | Port(s) and optional bind ip address(es) to serve DoT DNS endpoint (DNS-over-TLS). If you wish to specify a specific IP, you can do so such as `192.168.0.1:853`. Example: `83`, `:853`, `127.0.0.1:853,[::1]:853`                                |
+| httpPort            | [IP]:port[,[IP]:port]* | no        |               | Port(s) and optional bind ip address(es) to serve HTTP used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:4000`. Example: `4000`, `:4000`, `127.0.0.1:4000,[::1]:4000` |
+| httpsPort           | [IP]:port[,[IP]:port]* | no        |               | Port(s) and optional bind ip address(es) to serve HTTPS used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:443`. Example: `443`, `:443`, `127.0.0.1:443,[::1]:443`     |
+| certFile            | path                   | no        |               | Path to cert and key file for SSL encryption (DoH and DoT); if empty, self-signed certificate is generated                                                                                                                                        |
+| keyFile             | path                   | no        |               | Path to cert and key file for SSL encryption (DoH and DoT); if empty, self-signed certificate is generated                                                                                                                                        |
+| dohUserAgent        | string                 | no        |               | HTTP User Agent for DoH upstreams                                                                                                                                                                                                                 |
+| minTlsServeVersion  | string                 | no        | 1.2           | Minimum TLS version that the DoT and DoH server use to serve those encrypted DNS requests                                                                                                                                                         |
+| startVerifyUpstream | bool                   | no        | false         | If true, blocky will fail to start unless at least one upstream server per group is reachable.                                                                                                                                                    |
+| connectIPVersion    | bool                   | no        | dual          | IP version to use for outgoing connections (dual, v4, v6)                                                                                                                                                                                         |
 
 !!! example
 
@@ -36,6 +32,33 @@ configuration properties as [JSON](config.yml).
     httpsPort: 443
     logLevel: info
     ```
+
+## Log configuration
+
+All configuration options in this section are optional.
+
+| Parameter | Type                            | Default value | Description                                                                                                                                      |
+|-----------|---------------------------------|---------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| level     | enum (debug, info, warn, error) | info          | Log level                                                                                                                                        |
+| format    | enum (text, json)               | text          | Log format (text or json).                                                                                                                       |
+| timestamp | bool                            | true          | Log time stamps (true or false).                                                                                                                 |
+| privacy   | bool                            | false         | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy. |
+| hostname  | bool                            | false         | Add hostname of the blocky instance to log output                                                                                                 |
+
+!!! example
+
+    ```yaml
+    log:
+      format: json
+      level: debug
+      timestamp: false
+      privacy: true
+      hostname: true
+    ```
+
+!!! hint
+
+    If blocky is used inside a docker container the docker host hostname can be used by mounting /etc/hostname.
 
 ## Upstream configuration
 
