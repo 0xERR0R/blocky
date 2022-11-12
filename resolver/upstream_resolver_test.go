@@ -205,7 +205,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 			It("should return error", func() {
 				_, err := sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 				Expect(err).Should(HaveOccurred())
-				Expect(err.Error()).Should(ContainSubstring("no such host"))
+				Expect(err.Error()).Should(Or(ContainSubstring("no such host"), ContainSubstring("i/o timeout")))
 			})
 		})
 	})

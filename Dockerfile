@@ -1,43 +1,79 @@
-# build stage
-FROM golang:1.18-alpine AS build-env
-RUN apk add --no-cache \
-    git \
-    make \
-    gcc \
-    libc-dev \
-    zip \
-    ca-certificates
+# ----------- stage: ca-certs
+# get newest certificates in seperate stage for caching
+FROM --platform=$BUILDPLATFORM alpine:3.16 AS ca-certs
+RUN apk add --no-cache ca-certificates
 
-ENV GO111MODULE=on \
-    CGO_ENABLED=0
-    
-WORKDIR /src
+# update certificates and use the apk ones if update fails
+RUN --mount=type=cache,target=/etc/ssl/certs \
+    update-ca-certificates 2>/dev/null || true
 
+# ----------- stage: zig-env
+# zig compiler is used for CGO cross compilation
+# even though CGO is disabled it is used in the os and net package
+FROM --platform=$BUILDPLATFORM ghcr.io/euantorano/zig:master AS zig-env
+
+# ----------- stage: build
+FROM --platform=$BUILDPLATFORM golang:1-alpine AS build
+
+# required arguments
+ARG VERSION
+ARG BUILD_TIME
+
+# auto provided by Docker
+# https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
+ARG TARGETOS
+ARG TARGETARCH
+ARG TARGETVARIANT
+
+# set working directory
+WORKDIR /go/src
+
+# download packages
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg \
+    go mod download
 
 # add source
-ADD . .
+COPY . .
 
-ARG opts
-RUN env ${opts} make build
+# setup go & zig as CGO compiler
+COPY --from=zig-env /usr/local/bin/zig /usr/local/bin/zig
+ENV PATH="/usr/local/bin/zig:${PATH}" \
+    CC="zigcc" \
+    CXX="zigcpp" \
+    CGO_ENABLED=0 \
+    GOOS="linux" \
+    GOARCH=$TARGETARCH \
+    GO_SKIP_GENERATE=1\
+    GO_BUILD_FLAGS="-tags static -v " \
+    BIN_USER=100\
+    BIN_AUTOCAB=1 \
+    BIN_OUT_DIR="/bin"
 
-# final stage
-FROM alpine:3.16
+# add make & libcap
+RUN apk add --no-cache make libcap
+
+# build binary 
+RUN --mount=type=bind,target=. \
+    --mount=type=cache,target=/root/.cache/go-build \ 
+    --mount=type=cache,target=/go/pkg \
+    make build GOARM=${TARGETVARIANT##*v}
+
+# ----------- stage: final
+FROM scratch
 
 LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
       org.opencontainers.image.url="https://github.com/0xERR0R/blocky" \
       org.opencontainers.image.title="DNS proxy as ad-blocker for local network"
 
-COPY --from=build-env /src/bin/blocky /app/blocky
-RUN apk add --no-cache ca-certificates bind-tools tini tzdata libcap && \
-    adduser -S -D -H -h /app -s /sbin/nologin blocky && \
-    setcap 'cap_net_bind_service=+ep' /app/blocky
-
-HEALTHCHECK --interval=1m --timeout=3s CMD dig @127.0.0.1 -p 53 healthcheck.blocky +tcp +short || exit 1
-
-USER blocky
+USER 100
 WORKDIR /app
 
-ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["sh", "-c", "/app/blocky --config ${CONFIG_FILE:-/app/config.yml}"]
+COPY --from=ca-certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=build /bin/blocky /app/blocky
+
+ENV BLOCKY_CONFIG_FILE=/app/config.yml
+
+ENTRYPOINT ["/app/blocky"]
+
+HEALTHCHECK --interval=1m --timeout=3s CMD ["/app/blocky", "healthcheck"]

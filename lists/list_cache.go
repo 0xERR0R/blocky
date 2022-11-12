@@ -1,6 +1,6 @@
 package lists
 
-//go:generate go-enum -f=$GOFILE --marshal --names
+//go:generate go run github.com/abice/go-enum -f=$GOFILE --marshal --names
 import (
 	"bufio"
 	"errors"
@@ -95,7 +95,7 @@ func (b *ListCache) Configuration() (result []string) {
 
 // NewListCache creates new list instance
 func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration,
-	downloader FileDownloader, processingConcurrency uint) (*ListCache, error) {
+	downloader FileDownloader, processingConcurrency uint, async bool) (*ListCache, error) {
 	groupCaches := make(map[string]stringcache.StringCache)
 
 	if processingConcurrency == 0 {
@@ -110,7 +110,13 @@ func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeri
 		listType:              t,
 		processingConcurrency: processingConcurrency,
 	}
-	initError := b.refresh(true)
+
+	var initError error
+	if async {
+		initError = nil
+	} else {
+		initError = b.refresh(true)
+	}
 
 	if initError == nil {
 		go periodicUpdate(b)

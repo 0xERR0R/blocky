@@ -11,7 +11,6 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/creasty/defaults"
 
-	"os"
 	"time"
 
 	"github.com/miekg/dns"
@@ -20,22 +19,26 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-var group1File, group2File, defaultGroupFile *os.File
+var group1File, group2File, defaultGroupFile *TmpFile
+var tmpDir *TmpFolder
 
 var _ = BeforeSuite(func() {
-	group1File = TempFile("DOMAIN1.com")
-	group2File = TempFile("blocked2.com")
-	defaultGroupFile = TempFile(
-		`blocked3.com
-123.145.123.145
-2001:db8:85a3:08d3::370:7344
-badcnamedomain.com`)
-})
+	tmpDir = NewTmpFolder("BlockingResolver")
+	Expect(tmpDir.Error).Should(Succeed())
+	DeferCleanup(tmpDir.Clean)
 
-var _ = AfterSuite(func() {
-	_ = group1File.Close()
-	_ = group2File.Close()
-	_ = defaultGroupFile.Close()
+	group1File = tmpDir.CreateStringFile("group1File", "DOMAIN1.com")
+	Expect(group1File.Error).Should(Succeed())
+
+	group2File = tmpDir.CreateStringFile("group2File", "blocked2.com")
+	Expect(group2File.Error).Should(Succeed())
+
+	defaultGroupFile = tmpDir.CreateStringFile("defaultGroupFile",
+		"blocked3.com",
+		"123.145.123.145",
+		"2001:db8:85a3:08d3::370:7344",
+		"badcnamedomain.com")
+	Expect(defaultGroupFile.Error).Should(Succeed())
 })
 
 var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
@@ -85,8 +88,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				BlockType: "ZEROIP",
 				BlockTTL:  config.Duration(time.Minute),
 				BlackLists: map[string][]string{
-					"gr1": {group1File.Name()},
-					"gr2": {group2File.Name()},
+					"gr1": {group1File.Path},
+					"gr2": {group2File.Path},
 				},
 			}
 		})
@@ -114,8 +117,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				BlockType: "ZEROIP",
 				BlockTTL:  config.Duration(time.Minute),
 				BlackLists: map[string][]string{
-					"gr1": {group1File.Name()},
-					"gr2": {group2File.Name()},
+					"gr1": {group1File.Path},
+					"gr2": {group2File.Path},
 				},
 				ClientGroupsBlock: map[string][]string{
 					"default":            {"gr1"},
@@ -137,13 +140,12 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					return nil
 				}
 				Bus().Publish(ApplicationStarted, "")
-				time.Sleep(time.Second)
 				Eventually(func(g Gomega) {
 					resp, err = sut.Resolve(newRequestWithClient("blocked2.com.", dns.Type(dns.TypeA), "192.168.178.39", "client1"))
 					g.Expect(err).NotTo(HaveOccurred())
 					g.Expect(resp.Res.Answer).ShouldNot(BeNil())
 					g.Expect(resp.Res.Answer).Should(BeDNSRecord("blocked2.com.", dns.TypeA, 60, "0.0.0.0"))
-				}, "1s").Should(Succeed())
+				}, "10s", "1s").Should(Succeed())
 			})
 		})
 	})
@@ -154,9 +156,9 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			sutConfig = config.BlockingConfig{
 				BlockTTL: config.Duration(6 * time.Hour),
 				BlackLists: map[string][]string{
-					"gr1":          {group1File.Name()},
-					"gr2":          {group2File.Name()},
-					"defaultGroup": {defaultGroupFile.Name()},
+					"gr1":          {group1File.Path},
+					"gr2":          {group2File.Path},
+					"defaultGroup": {defaultGroupFile.Path},
 				},
 				ClientGroupsBlock: map[string][]string{
 					"client1":         {"gr1"},
@@ -293,7 +295,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				sutConfig = config.BlockingConfig{
 					BlockTTL: config.Duration(time.Minute),
 					BlackLists: map[string][]string{
-						"defaultGroup": {defaultGroupFile.Name()},
+						"defaultGroup": {defaultGroupFile.Path},
 					},
 					ClientGroupsBlock: map[string][]string{
 						"default": {"defaultGroup"},
@@ -318,7 +320,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				sutConfig = config.BlockingConfig{
 					BlockType: "ZEROIP",
 					BlackLists: map[string][]string{
-						"defaultGroup": {defaultGroupFile.Name()},
+						"defaultGroup": {defaultGroupFile.Path},
 					},
 					ClientGroupsBlock: map[string][]string{
 						"default": {"defaultGroup"},
@@ -353,7 +355,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				sutConfig = config.BlockingConfig{
 					BlockTTL: config.Duration(6 * time.Hour),
 					BlackLists: map[string][]string{
-						"defaultGroup": {defaultGroupFile.Name()},
+						"defaultGroup": {defaultGroupFile.Path},
 					},
 					ClientGroupsBlock: map[string][]string{
 						"default": {"defaultGroup"},
@@ -381,7 +383,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			BeforeEach(func() {
 				sutConfig = config.BlockingConfig{
 					BlackLists: map[string][]string{
-						"defaultGroup": {defaultGroupFile.Name()},
+						"defaultGroup": {defaultGroupFile.Path},
 					},
 					ClientGroupsBlock: map[string][]string{
 						"default": {"defaultGroup"},
@@ -451,8 +453,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				sutConfig = config.BlockingConfig{
 					BlockType:  "ZEROIP",
 					BlockTTL:   config.Duration(time.Minute),
-					BlackLists: map[string][]string{"gr1": {group1File.Name()}},
-					WhiteLists: map[string][]string{"gr1": {group1File.Name()}},
+					BlackLists: map[string][]string{"gr1": {group1File.Path}},
+					WhiteLists: map[string][]string{"gr1": {group1File.Path}},
 					ClientGroupsBlock: map[string][]string{
 						"default": {"gr1"},
 					},
@@ -472,8 +474,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					BlockType: "zeroIP",
 					BlockTTL:  config.Duration(60 * time.Second),
 					WhiteLists: map[string][]string{
-						"gr1": {group1File.Name()},
-						"gr2": {group2File.Name()},
+						"gr1": {group1File.Path},
+						"gr2": {group2File.Path},
 					},
 					ClientGroupsBlock: map[string][]string{
 						"default":    {"gr1"},
@@ -533,8 +535,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				sutConfig = config.BlockingConfig{
 					BlockType:  "ZEROIP",
 					BlockTTL:   config.Duration(time.Minute),
-					BlackLists: map[string][]string{"gr1": {group1File.Name()}},
-					WhiteLists: map[string][]string{"gr1": {defaultGroupFile.Name()}},
+					BlackLists: map[string][]string{"gr1": {group1File.Path}},
+					WhiteLists: map[string][]string{"gr1": {defaultGroupFile.Path}},
 					ClientGroupsBlock: map[string][]string{
 						"default": {"gr1"},
 					},
@@ -555,7 +557,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			sutConfig = config.BlockingConfig{
 				BlockType:  "ZEROIP",
 				BlockTTL:   config.Duration(time.Minute),
-				BlackLists: map[string][]string{"gr1": {group1File.Name()}},
+				BlackLists: map[string][]string{"gr1": {group1File.Path}},
 				ClientGroupsBlock: map[string][]string{
 					"default": {"gr1"},
 				},
@@ -590,8 +592,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		BeforeEach(func() {
 			sutConfig = config.BlockingConfig{
 				BlackLists: map[string][]string{
-					"defaultGroup": {defaultGroupFile.Name()},
-					"group1":       {group1File.Name()},
+					"defaultGroup": {defaultGroupFile.Path},
+					"group1":       {group1File.Path},
 				},
 				ClientGroupsBlock: map[string][]string{
 					"default": {"defaultGroup", "group1"},
@@ -821,7 +823,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				sutConfig = config.BlockingConfig{
 					BlockType:  "ZEROIP",
 					BlockTTL:   config.Duration(time.Minute),
-					BlackLists: map[string][]string{"gr1": {group1File.Name()}},
+					BlackLists: map[string][]string{"gr1": {group1File.Path}},
 					ClientGroupsBlock: map[string][]string{
 						"default": {"gr1"},
 					},
@@ -856,14 +858,13 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					MatchError("unknown blockType 'wrong', please use one of: ZeroIP, NxDomain or specify destination IP address(es)"))
 			})
 		})
-		When("failStartOnListError is active", func() {
-
+		When("startStrategy is failOnError", func() {
 			It("should fail if lists can't be downloaded", func() {
 				_, err := NewBlockingResolver(config.BlockingConfig{
-					BlackLists:           map[string][]string{"gr1": {"wrongPath"}},
-					WhiteLists:           map[string][]string{"whitelist": {"wrongPath"}},
-					FailStartOnListError: true,
-					BlockType:            "zeroIp",
+					BlackLists:    map[string][]string{"gr1": {"wrongPath"}},
+					WhiteLists:    map[string][]string{"whitelist": {"wrongPath"}},
+					StartStrategy: config.StartStrategyTypeFailOnError,
+					BlockType:     "zeroIp",
 				}, nil, skipUpstreamCheck)
 				Expect(err).Should(HaveOccurred())
 			})

@@ -6,11 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"time"
 
+	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/querylog"
 
 	"github.com/0xERR0R/blocky/config"
@@ -30,7 +29,7 @@ type SlowMockWriter struct {
 func (m *SlowMockWriter) Write(entry *querylog.LogEntry) {
 	m.entries = append(m.entries, entry)
 
-	time.Sleep(time.Millisecond)
+	time.Sleep(time.Second)
 }
 
 func (m *SlowMockWriter) CleanUp() {
@@ -43,29 +42,26 @@ var _ = Describe("QueryLoggingResolver", func() {
 		err        error
 		resp       *Response
 		m          *MockResolver
-		tmpDir     string
+		tmpDir     *helpertest.TmpFolder
 		mockAnswer *dns.Msg
 	)
 
 	BeforeEach(func() {
 		mockAnswer = new(dns.Msg)
-		tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
-		Expect(err).Should(Succeed())
+		tmpDir = helpertest.NewTmpFolder("queryLoggingResolver")
+		Expect(tmpDir.Error).Should(Succeed())
+		DeferCleanup(tmpDir.Clean)
 	})
 
 	JustBeforeEach(func() {
 		sut = NewQueryLoggingResolver(sutConfig).(*QueryLoggingResolver)
+		DeferCleanup(func() { close(sut.logChan) })
 		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer, Reason: "reason"}, nil)
 		sut.Next(m)
 	})
-	AfterEach(func() {
-		Expect(err).Should(Succeed())
-		_ = os.RemoveAll(tmpDir)
-	})
 
 	Describe("Process request", func() {
-
 		When("Resolver has no configuration", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLogConfig{
@@ -83,7 +79,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 		When("Configuration with logging per client", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLogConfig{
-					Target:           tmpDir,
+					Target:           tmpDir.Path,
 					Type:             config.QueryLogTypeCsvClient,
 					CreationAttempts: 1,
 					CreationCooldown: config.Duration(time.Millisecond),
@@ -106,7 +102,8 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 				By("check log for client1", func() {
 					Eventually(func(g Gomega) {
-						csvLines, err := readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_client1.log", time.Now().Format("2006-01-02"))))
+						csvLines, err := readCsv(tmpDir.JoinPath(
+							fmt.Sprintf("%s_client1.log", time.Now().Format("2006-01-02"))))
 
 						g.Expect(err).Should(Succeed())
 						g.Expect(csvLines).Should(Not(BeEmpty()))
@@ -121,7 +118,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 				By("check log for client2", func() {
 					Eventually(func(g Gomega) {
-						csvLines, err := readCsv(filepath.Join(tmpDir,
+						csvLines, err := readCsv(tmpDir.JoinPath(
 							fmt.Sprintf("%s_cl_ient2_test.log", time.Now().Format("2006-01-02"))))
 
 						g.Expect(err).Should(Succeed())
@@ -138,7 +135,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 		When("Configuration with logging in one file for all clients", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLogConfig{
-					Target:           tmpDir,
+					Target:           tmpDir.Path,
 					Type:             config.QueryLogTypeCsv,
 					CreationAttempts: 1,
 					CreationCooldown: config.Duration(time.Millisecond),
@@ -159,7 +156,8 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 				By("check log", func() {
 					Eventually(func(g Gomega) {
-						csvLines, err := readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02"))))
+						csvLines, err := readCsv(tmpDir.JoinPath(
+							fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02"))))
 
 						g.Expect(err).Should(Succeed())
 						g.Expect(csvLines).Should(HaveLen(2))
@@ -196,16 +194,13 @@ var _ = Describe("QueryLoggingResolver", func() {
 				mockWriter := &SlowMockWriter{}
 				sut.writer = mockWriter
 
-				// run 10000 requests
-				for i := 0; i < 10000; i++ {
-					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.25", "client1"))
-					Expect(err).Should(Succeed())
-				}
+				Eventually(func() int {
+					_, ierr := sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.25", "client1"))
+					Expect(ierr).Should(Succeed())
 
-				// log channel is full
-				Expect(sut.logChan).Should(Not(BeEmpty()))
+					return len(sut.logChan)
+				}, "20s", "1µs").Should(Equal(cap(sut.logChan)))
 			})
-
 		})
 	})
 
@@ -213,7 +208,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 		When("resolver is enabled", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLogConfig{
-					Target:           tmpDir,
+					Target:           tmpDir.Path,
 					Type:             config.QueryLogTypeCsvClient,
 					LogRetentionDays: 0,
 					CreationAttempts: 1,
@@ -229,81 +224,81 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 	Describe("Clean up of query log directory", func() {
 		When("fallback logger is enabled, log retention is enabled", func() {
-			It("should do nothing", func() {
-
-				sut := NewQueryLoggingResolver(config.QueryLogConfig{
+			BeforeEach(func() {
+				sutConfig = config.QueryLogConfig{
 					LogRetentionDays: 7,
 					Type:             config.QueryLogTypeConsole,
 					CreationAttempts: 1,
 					CreationCooldown: config.Duration(time.Millisecond),
-				}).(*QueryLoggingResolver)
-
+				}
+			})
+			It("should do nothing", func() {
 				sut.doCleanUp()
 			})
 		})
 		When("log directory contains old files", func() {
-			It("should remove files older than defined log retention", func() {
-
-				// create 2 files, 7 and 8 days old
-				dateBefore7Days := time.Now().AddDate(0, 0, -7)
-				dateBefore8Days := time.Now().AddDate(0, 0, -8)
-
-				f1, err := os.Create(filepath.Join(tmpDir, fmt.Sprintf("%s-test.log", dateBefore7Days.Format("2006-01-02"))))
-				Expect(err).Should(Succeed())
-
-				f2, err := os.Create(filepath.Join(tmpDir, fmt.Sprintf("%s-test.log", dateBefore8Days.Format("2006-01-02"))))
-				Expect(err).Should(Succeed())
-
-				sut := NewQueryLoggingResolver(config.QueryLogConfig{
-					Target:           tmpDir,
+			BeforeEach(func() {
+				sutConfig = config.QueryLogConfig{
+					Target:           tmpDir.Path,
 					Type:             config.QueryLogTypeCsv,
 					LogRetentionDays: 7,
 					CreationAttempts: 1,
 					CreationCooldown: config.Duration(time.Millisecond),
-				})
+				}
+			})
+			It("should remove files older than defined log retention", func() {
+				// create 2 files, 7 and 8 days old
+				dateBefore7Days := time.Now().AddDate(0, 0, -7)
+				dateBefore9Days := time.Now().AddDate(0, 0, -9)
 
-				sut.(*QueryLoggingResolver).doCleanUp()
+				f1 := tmpDir.CreateEmptyFile(fmt.Sprintf("%s-test.log", dateBefore7Days.Format("2006-01-02")))
+				Expect(f1.Error).Should(Succeed())
 
-				// file 1 exist
-				_, err = os.Stat(f1.Name())
-				Expect(err).Should(Succeed())
+				f2 := tmpDir.CreateEmptyFile(fmt.Sprintf("%s-test.log", dateBefore9Days.Format("2006-01-02")))
+				Expect(f2.Error).Should(Succeed())
 
-				// file 2 was deleted
-				_, err = os.Stat(f2.Name())
-				Expect(err).Should(HaveOccurred())
-				Expect(os.IsNotExist(err)).Should(BeTrue())
+				sut.doCleanUp()
+
+				Eventually(func(g Gomega) {
+					// file 1 exist
+					g.Expect(f1.Stat()).Should(Succeed())
+
+					// file 2 was deleted
+					ierr2 := f2.Stat()
+					g.Expect(ierr2).Should(HaveOccurred())
+					g.Expect(os.IsNotExist(ierr2)).Should(BeTrue())
+				}).Should(Succeed())
 			})
 		})
 	})
 
-})
-
-var _ = Describe("Wrong target configuration", func() {
-	When("mysql database path is wrong", func() {
-		It("should use fallback", func() {
-			sutConfig := config.QueryLogConfig{
-				Target:           "dummy",
-				Type:             config.QueryLogTypeMysql,
-				CreationAttempts: 1,
-				CreationCooldown: config.Duration(time.Millisecond),
-			}
-			resolver := NewQueryLoggingResolver(sutConfig)
-			loggingResolver := resolver.(*QueryLoggingResolver)
-			Expect(loggingResolver.logType).Should(Equal(config.QueryLogTypeConsole))
+	Describe("Wrong target configuration", func() {
+		When("mysql database path is wrong", func() {
+			BeforeEach(func() {
+				sutConfig = config.QueryLogConfig{
+					Target:           "dummy",
+					Type:             config.QueryLogTypeMysql,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
+				}
+			})
+			It("should use fallback", func() {
+				Expect(sut.logType).Should(Equal(config.QueryLogTypeConsole))
+			})
 		})
-	})
 
-	When("postgresql database path is wrong", func() {
-		It("should use fallback", func() {
-			sutConfig := config.QueryLogConfig{
-				Target:           "dummy",
-				Type:             config.QueryLogTypePostgresql,
-				CreationAttempts: 1,
-				CreationCooldown: config.Duration(time.Millisecond),
-			}
-			resolver := NewQueryLoggingResolver(sutConfig)
-			loggingResolver := resolver.(*QueryLoggingResolver)
-			Expect(loggingResolver.logType).Should(Equal(config.QueryLogTypeConsole))
+		When("postgresql database path is wrong", func() {
+			BeforeEach(func() {
+				sutConfig = config.QueryLogConfig{
+					Target:           "dummy",
+					Type:             config.QueryLogTypePostgresql,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
+				}
+			})
+			It("should use fallback", func() {
+				Expect(sut.logType).Should(Equal(config.QueryLogTypeConsole))
+			})
 		})
 	})
 })
@@ -315,6 +310,7 @@ func readCsv(file string) ([][]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer csvFile.Close()
 
 	reader := csv.NewReader(bufio.NewReader(csvFile))
 	reader.Comma = '\t'

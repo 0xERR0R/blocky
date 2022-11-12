@@ -2,26 +2,36 @@ package config
 
 import (
 	"errors"
-	"io/ioutil"
 	"net"
-	"os"
 	"time"
 
 	"github.com/miekg/dns"
 
+	"github.com/0xERR0R/blocky/helpertest"
 	. "github.com/0xERR0R/blocky/log"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Config", func() {
+	var (
+		tmpDir *helpertest.TmpFolder
+		err    error
+	)
+
+	BeforeEach(func() {
+		tmpDir = helpertest.NewTmpFolder("config")
+		Expect(tmpDir.Error).Should(Succeed())
+		DeferCleanup(tmpDir.Clean)
+	})
+
 	Describe("Creation of Config", func() {
 		When("Test config file will be parsed", func() {
 			It("should return a valid config struct", func() {
-				err := os.Chdir("../testdata")
-				Expect(err).Should(Succeed())
+				confFile := writeConfigYml(tmpDir)
+				Expect(confFile.Error).Should(Succeed())
 
-				_, err = LoadConfig("config.yml", true)
+				_, err = LoadConfig(confFile.Path, true)
 				Expect(err).Should(Succeed())
 
 				defaultTestFileConfig()
@@ -29,36 +39,54 @@ var _ = Describe("Config", func() {
 		})
 		When("Test file does not exist", func() {
 			It("should fail", func() {
-				_, err := LoadConfig("../testdata/config-does-not-exist.yaml", true)
+				_, err := LoadConfig(tmpDir.JoinPath("config-does-not-exist.yaml"), true)
 				Expect(err).Should(Not(Succeed()))
 			})
 		})
 		When("Multiple config files are used", func() {
 			It("should return a valid config struct", func() {
-				_, err := LoadConfig("../testdata/config/", true)
+				err = writeConfigDir(tmpDir)
+				Expect(err).Should(Succeed())
+
+				_, err := LoadConfig(tmpDir.Path, true)
 				Expect(err).Should(Succeed())
 
 				defaultTestFileConfig()
 			})
+
+			It("should ignore non YAML files", func() {
+				err = writeConfigDir(tmpDir)
+				Expect(err).Should(Succeed())
+
+				tmpDir.CreateStringFile("ignore-me.txt", "THIS SHOULD BE IGNORED!")
+
+				_, err := LoadConfig(tmpDir.Path, true)
+				Expect(err).Should(Succeed())
+			})
+
+			It("should ignore non regular files", func() {
+				err = writeConfigDir(tmpDir)
+				Expect(err).Should(Succeed())
+
+				tmpDir.CreateSubFolder("subfolder")
+				tmpDir.CreateSubFolder("subfolder.yml")
+
+				_, err := LoadConfig(tmpDir.Path, true)
+				Expect(err).Should(Succeed())
+			})
 		})
 		When("Config folder does not exist", func() {
 			It("should fail", func() {
-				_, err := LoadConfig("../testdata/does-not-exist-config/", true)
+				_, err := LoadConfig(tmpDir.JoinPath("does-not-exist-config/"), true)
 				Expect(err).Should(Not(Succeed()))
 			})
 		})
 		When("config file is malformed", func() {
 			It("should return error", func() {
+				cfgFile := tmpDir.CreateStringFile("config.yml", "malformed_config")
+				Expect(cfgFile.Error).Should(Succeed())
 
-				dir, err := ioutil.TempDir("", "blocky")
-				defer os.Remove(dir)
-				Expect(err).Should(Succeed())
-				err = os.Chdir(dir)
-				Expect(err).Should(Succeed())
-				err = ioutil.WriteFile("config.yml", []byte("malformed_config"), 0600)
-				Expect(err).Should(Succeed())
-
-				_, err = LoadConfig("config.yml", true)
+				_, err = LoadConfig(cfgFile.Path, true)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("wrong file structure"))
 			})
@@ -172,22 +200,39 @@ bootstrapDns:
 			})
 		})
 
+		When("Deprecated parameter 'failStartOnListError' is set", func() {
+			var (
+				c Config
+			)
+			BeforeEach(func() {
+				c = Config{
+					Blocking: BlockingConfig{
+						FailStartOnListError: true,
+						StartStrategy:        StartStrategyTypeBlocking,
+					},
+				}
+			})
+			It("should change StartStrategy blocking to failOnError", func() {
+				validateConfig(&c)
+				Expect(c.Blocking.StartStrategy).Should(Equal(StartStrategyTypeFailOnError))
+			})
+			It("shouldn't change StartStrategy if set to fast", func() {
+				c.Blocking.StartStrategy = StartStrategyTypeFast
+				validateConfig(&c)
+				Expect(c.Blocking.StartStrategy).Should(Equal(StartStrategyTypeFast))
+			})
+		})
+
 		When("config directory does not exist", func() {
 			It("should return error", func() {
-				err := os.Chdir("../..")
-				Expect(err).Should(Succeed())
-
-				_, err = LoadConfig("config.yml", true)
+				_, err = LoadConfig(tmpDir.JoinPath("config.yml"), true)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("no such file or directory"))
 
 			})
 
 			It("should use default config if config is not mandatory", func() {
-				err := os.Chdir("../..")
-				Expect(err).Should(Succeed())
-
-				_, err = LoadConfig("config.yml", false)
+				_, err = LoadConfig(tmpDir.JoinPath("config.yml"), false)
 
 				Expect(err).Should(Succeed())
 				Expect(config.LogLevel).Should(Equal(LevelInfo))
@@ -380,6 +425,10 @@ bootstrapDns:
 		Entry("tcp-tls without port, use default",
 			"tcp-tls:4.4.4.4",
 			Upstream{Net: NetProtocolTcpTls, Host: "4.4.4.4", Port: 853},
+			false),
+		Entry("tcp-tls with common name",
+			"tcp-tls:1.1.1.2#security.cloudflare-dns.com",
+			Upstream{Net: NetProtocolTcpTls, Host: "1.1.1.2", Port: 853, CommonName: "security.cloudflare-dns.com"},
 			false),
 		Entry("DoH without port, use default",
 			"https:4.4.4.4",
@@ -578,6 +627,126 @@ func defaultTestFileConfig() {
 
 	Expect(config.DoHUserAgent).Should(Equal("testBlocky"))
 	Expect(config.MinTLSServeVer).Should(Equal("1.3"))
+	Expect(config.StartVerifyUpstream).Should(BeFalse())
 
 	Expect(GetConfig()).Should(Not(BeNil()))
+}
+
+func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {
+	return tmpDir.CreateStringFile("config.yml",
+		"upstream:",
+		"  default:",
+		"    - tcp+udp:8.8.8.8",
+		"    - tcp+udp:8.8.4.4",
+		"    - 1.1.1.1",
+		"customDNS:",
+		"  mapping:",
+		"    my.duckdns.org: 192.168.178.3",
+		"    multiple.ips: 192.168.178.3,192.168.178.4,2001:0db8:85a3:08d3:1319:8a2e:0370:7344",
+		"conditional:",
+		"  mapping:",
+		"    fritz.box: tcp+udp:192.168.178.1",
+		"    multiple.resolvers: tcp+udp:192.168.178.1,tcp+udp:192.168.178.2",
+		"filtering:",
+		"  queryTypes:",
+		"    - AAAA",
+		"    - A",
+		"blocking:",
+		"  blackLists:",
+		"    ads:",
+		"      - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt",
+		"      - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
+		"      - https://mirror1.malwaredomains.com/files/justdomains",
+		"      - http://sysctl.org/cameleon/hosts",
+		"      - https://zeustracker.abuse.ch/blocklist.php?download=domainblocklist",
+		"      - https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt",
+		"    special:",
+		"      - https://hosts-file.net/ad_servers.txt",
+		"  whiteLists:",
+		"    ads:",
+		"      - whitelist.txt",
+		"  clientGroupsBlock:",
+		"    default:",
+		"      - ads",
+		"      - special",
+		"    Laptop-D.fritz.box:",
+		"      - ads",
+		"  blockTTL: 1m",
+		"  refreshPeriod: 120",
+		"clientLookup:",
+		"  upstream: 192.168.178.1",
+		"  singleNameOrder:",
+		"    - 2",
+		"    - 1",
+		"queryLog:",
+		"  type: csv-client",
+		"  target: /opt/log",
+		"port: 55553,:55554,[::1]:55555",
+		"logLevel: debug",
+		"dohUserAgent: testBlocky",
+		"minTlsServeVersion: 1.3",
+		"startVerifyUpstream: false")
+}
+
+func writeConfigDir(tmpDir *helpertest.TmpFolder) error {
+	f1 := tmpDir.CreateStringFile("config1.yaml",
+		"upstream:",
+		"  default:",
+		"    - tcp+udp:8.8.8.8",
+		"    - tcp+udp:8.8.4.4",
+		"    - 1.1.1.1",
+		"customDNS:",
+		"  mapping:",
+		"    my.duckdns.org: 192.168.178.3",
+		"    multiple.ips: 192.168.178.3,192.168.178.4,2001:0db8:85a3:08d3:1319:8a2e:0370:7344",
+		"conditional:",
+		"  mapping:",
+		"    fritz.box: tcp+udp:192.168.178.1",
+		"    multiple.resolvers: tcp+udp:192.168.178.1,tcp+udp:192.168.178.2",
+		"filtering:",
+		"  queryTypes:",
+		"    - AAAA",
+		"    - A")
+	if f1.Error != nil {
+		return f1.Error
+	}
+
+	f2 := tmpDir.CreateStringFile("config2.yaml",
+		"blocking:",
+		"  blackLists:",
+		"    ads:",
+		"      - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt",
+		"      - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
+		"      - https://mirror1.malwaredomains.com/files/justdomains",
+		"      - http://sysctl.org/cameleon/hosts",
+		"      - https://zeustracker.abuse.ch/blocklist.php?download=domainblocklist",
+		"      - https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt",
+		"    special:",
+		"      - https://hosts-file.net/ad_servers.txt",
+		"  whiteLists:",
+		"    ads:",
+		"      - whitelist.txt",
+		"  clientGroupsBlock:",
+		"    default:",
+		"      - ads",
+		"      - special",
+		"    Laptop-D.fritz.box:",
+		"      - ads",
+		"  blockTTL: 1m",
+		"  refreshPeriod: 120",
+		"clientLookup:",
+		"  upstream: 192.168.178.1",
+		"  singleNameOrder:",
+		"    - 2",
+		"    - 1",
+		"queryLog:",
+		"  type: csv-client",
+		"  target: /opt/log",
+		"port: 55553,:55554,[::1]:55555",
+		"logLevel: debug",
+		"dohUserAgent: testBlocky",
+		"minTlsServeVersion: 1.3",
+		"startVerifyUpstream: false")
+
+	return f2.Error
 }

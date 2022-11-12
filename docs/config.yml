@@ -19,6 +19,14 @@ upstream:
 # optional: timeout to query the upstream resolver. Default: 2s
 upstreamTimeout: 2s
 
+# optional: If true, blocky will fail to start unless at least one upstream server per group is reachable. Default: false
+startVerifyUpstream: true
+
+# optional: Determines how blocky will create outgoing connections. This impacts both upstreams, and lists.
+# accepted: dual, v4, v6
+# default: dual
+connectIPVersion: dual
+
 # optional: custom IP address(es) for domain name (with all sub-domains). Multiple addresses must be separated by a comma
 # example: query "printer.lan" or "my.printer.lan" will return 192.168.178.3
 customDNS:
@@ -35,6 +43,10 @@ customDNS:
 # optional: definition, which DNS resolver(s) should be used for queries to the domain (with all sub-domains). Multiple resolvers must be separated by a comma
 # Example: Query client.fritz.box will ask DNS server 192.168.178.1. This is necessary for local network, to resolve clients by host name
 conditional:
+  # optional: if false (default), return empty result if after rewrite, the mapped resolver returned an empty answer. If true, the original query will be sent to the upstream resolver
+  # Example: The query "blog.example.com" will be rewritten to "blog.fritz.box" and also redirected to the resolver at 192.168.178.1. If not found and if `fallbackUpstream` was set to `true`, the original query "blog.example.com" will be sent upstream.
+  # Usage: One usecase when having split DNS for internal and external (internet facing) users, but not all subdomains are listed in the internal domain.
+  fallbackUpstream: false
   # optional: replace domain in the query with other domain before resolver lookup in the mapping
   rewrite:
     example.com: fritz.box
@@ -97,8 +109,8 @@ blocking:
   downloadAttempts: 5
   # optional: Time between the download attempts. Default: 1s
   downloadCooldown: 10s
-  # optional: if true, application startup will fail if at least one list can't be downloaded / opened. Default: false
-  failStartOnListError: false
+  # optional: if failOnError, application startup will fail if at least one list can't be downloaded / opened. Default: blocking
+  startStrategy: failOnError
 
 # optional: configuration for caching of DNS responses
 caching:
@@ -128,6 +140,9 @@ caching:
   # Max number of domains to be kept in cache for prefetching (soft limit). Useful on systems with limited amount of RAM.
   # Default (0): unlimited
   prefetchMaxItemsCount: 0
+  # Time how long negative results (NXDOMAIN response or empty result) are cached. A value of -1 will disable caching for negative results.
+  # Default: 30m
+  cacheTimeNegative: 30m
 
 # optional: configuration of client name resolution
 clientLookup:
@@ -206,6 +221,8 @@ hostsFile:
   hostsTTL: 60m
   # optional: Time between hosts file refresh, default: 1h
   refreshPeriod: 30m
+  # optional: Whether loopback hosts addresses (127.0.0.0/8 and ::1) should be filtered or not, default: false
+  filterLoopback: true
 # optional: Log level (one from debug, info, warn, error). Default: info
 logLevel: info
 # optional: Log format (text or json). Default: text
@@ -214,3 +231,8 @@ logFormat: text
 logTimestamp: true
 # optional: obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy. Default: false
 logPrivacy: false
+
+# optional: add EDE error codes to dns response
+ede: 
+  # enabled if true, Default: false
+  enable: true

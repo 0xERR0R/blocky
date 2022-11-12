@@ -3,7 +3,6 @@ linters:
     - asciicheck
     - bidichk
     - bodyclose
-    - deadcode
     - depguard
     - dogsled
     - dupl
@@ -30,7 +29,6 @@ linters:
     - gosimple
     - govet
     - grouper
-    - ifshort
     - importas
     - ineffassign
     - lll
@@ -41,25 +39,24 @@ linters:
     - nilerr
     - nilnil
     - nlreturn
-    - nolintlint
+    - nosprintfhostport
     - prealloc
     - predeclared
     - revive
     - sqlclosecheck
     - staticcheck
-    - structcheck
     - stylecheck
     - tenv
     - typecheck
     - unconvert
     - unparam
     - unused
-    - varcheck
     - wastedassign
     - whitespace
     - wsl
   disable:
     - noctx
+    - contextcheck
     - scopelint
 
   disable-all: false

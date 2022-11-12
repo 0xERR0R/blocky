@@ -4,7 +4,6 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -59,14 +58,13 @@ func (d *FileWriter) Write(entry *LogEntry) {
 		"can't create/open file", err)
 
 	if err == nil {
+		defer file.Close()
 		writer := createCsvWriter(file)
 
 		err := writer.Write(createQueryLogRow(entry))
 		util.LogOnErrorWithEntry(log.PrefixedLog(loggerPrefixFileWriter).WithField("file_name", writePath),
 			"can't write to file", err)
 		writer.Flush()
-
-		_ = file.Close()
 	}
 }
 
@@ -78,7 +76,7 @@ func (d *FileWriter) CleanUp() {
 
 	logger.Trace("starting clean up")
 
-	files, err := ioutil.ReadDir(d.target)
+	files, err := os.ReadDir(d.target)
 
 	util.LogOnErrorWithEntry(logger.WithField("target", d.target), "can't list log directory: ", err)
 

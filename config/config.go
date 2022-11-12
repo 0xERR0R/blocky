@@ -1,10 +1,9 @@
-//go:generate go-enum -f=$GOFILE --marshal --names
+//go:generate go run github.com/abice/go-enum -f=$GOFILE --marshal --names
 package config
 
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -12,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/miekg/dns"
@@ -36,6 +36,39 @@ const (
 // )
 type NetProtocol uint16
 
+// IPVersion represents IP protocol version(s). ENUM(
+// dual // IPv4 and IPv6
+// v4   // IPv4 only
+// v6   // IPv6 only
+// )
+type IPVersion uint8
+
+func (ipv IPVersion) Net() string {
+	switch ipv {
+	case IPVersionDual:
+		return "ip"
+	case IPVersionV4:
+		return "ip4"
+	case IPVersionV6:
+		return "ip6"
+	}
+
+	panic(fmt.Errorf("bad value: %s", ipv))
+}
+
+func (ipv IPVersion) QTypes() []dns.Type {
+	switch ipv {
+	case IPVersionDual:
+		return []dns.Type{dns.Type(dns.TypeA), dns.Type(dns.TypeAAAA)}
+	case IPVersionV4:
+		return []dns.Type{dns.Type(dns.TypeA)}
+	case IPVersionV6:
+		return []dns.Type{dns.Type(dns.TypeAAAA)}
+	}
+
+	panic(fmt.Errorf("bad value: %s", ipv))
+}
+
 // QueryLogType type of the query log ENUM(
 // console // use logger as fallback
 // none // no logging
@@ -45,6 +78,13 @@ type NetProtocol uint16
 // csv-client // CSV file per day and client
 // )
 type QueryLogType int16
+
+// StartStrategyType upstart strategy ENUM(
+// blocking // synchronously download blocking lists on startup
+// failOnError // synchronously download blocking lists on startup and shutdown on error
+// fast // asyncronously download blocking lists on startup
+// )
+type StartStrategyType uint16
 
 type QType dns.Type
 
@@ -93,10 +133,11 @@ var netDefaultPort = map[NetProtocol]uint16{
 
 // Upstream is the definition of external DNS server
 type Upstream struct {
-	Net  NetProtocol
-	Host string
-	Port uint16
-	Path string
+	Net        NetProtocol
+	Host       string
+	Port       uint16
+	Path       string
+	CommonName string // Common Name to use for certificate verification; optional. "" uses .Host
 }
 
 // IsDefault returns true if u is the default value
@@ -315,11 +356,13 @@ func (s *QTypeSet) UnmarshalYAML(unmarshal func(interface{}) error) error {
 var validDomain = regexp.MustCompile(
 	`^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$`)
 
-// ParseUpstream creates new Upstream from passed string in format [net]:host[:port][/path]
+// ParseUpstream creates new Upstream from passed string in format [net]:host[:port][/path][#commonname]
 func ParseUpstream(upstream string) (Upstream, error) {
 	var path string
 
 	var port uint16
+
+	commonName, upstream := extractCommonName(upstream)
 
 	n, upstream := extractNet(upstream)
 
@@ -357,11 +400,18 @@ func ParseUpstream(upstream string) (Upstream, error) {
 	}
 
 	return Upstream{
-		Net:  n,
-		Host: host,
-		Port: port,
-		Path: path,
+		Net:        n,
+		Host:       host,
+		Port:       port,
+		Path:       path,
+		CommonName: commonName,
 	}, nil
+}
+
+func extractCommonName(in string) (string, string) {
+	upstream, cn, _ := strings.Cut(in, "#")
+
+	return cn, upstream
 }
 
 func extractPath(in string) (path string, upstream string) {
@@ -399,33 +449,37 @@ func extractNet(upstream string) (NetProtocol, string) {
 // Config main configuration
 // nolint:maligned
 type Config struct {
-	Upstream        UpstreamConfig            `yaml:"upstream"`
-	UpstreamTimeout Duration                  `yaml:"upstreamTimeout" default:"2s"`
-	CustomDNS       CustomDNSConfig           `yaml:"customDNS"`
-	Conditional     ConditionalUpstreamConfig `yaml:"conditional"`
-	Blocking        BlockingConfig            `yaml:"blocking"`
-	ClientLookup    ClientLookupConfig        `yaml:"clientLookup"`
-	Caching         CachingConfig             `yaml:"caching"`
-	QueryLog        QueryLogConfig            `yaml:"queryLog"`
-	Prometheus      PrometheusConfig          `yaml:"prometheus"`
-	Redis           RedisConfig               `yaml:"redis"`
-	LogLevel        log.Level                 `yaml:"logLevel" default:"info"`
-	LogFormat       log.FormatType            `yaml:"logFormat" default:"text"`
-	LogPrivacy      bool                      `yaml:"logPrivacy" default:"false"`
-	LogTimestamp    bool                      `yaml:"logTimestamp" default:"true"`
-	DNSPorts        ListenConfig              `yaml:"port" default:"[\"53\"]"`
-	HTTPPorts       ListenConfig              `yaml:"httpPort"`
-	HTTPSPorts      ListenConfig              `yaml:"httpsPort"`
-	TLSPorts        ListenConfig              `yaml:"tlsPort"`
-	DoHUserAgent    string                    `yaml:"dohUserAgent"`
-	MinTLSServeVer  string                    `yaml:"minTlsServeVersion" default:"1.2"`
+	Upstream            UpstreamConfig            `yaml:"upstream"`
+	UpstreamTimeout     Duration                  `yaml:"upstreamTimeout" default:"2s"`
+	ConnectIPVersion    IPVersion                 `yaml:"connectIPVersion"`
+	CustomDNS           CustomDNSConfig           `yaml:"customDNS"`
+	Conditional         ConditionalUpstreamConfig `yaml:"conditional"`
+	Blocking            BlockingConfig            `yaml:"blocking"`
+	ClientLookup        ClientLookupConfig        `yaml:"clientLookup"`
+	Caching             CachingConfig             `yaml:"caching"`
+	QueryLog            QueryLogConfig            `yaml:"queryLog"`
+	Prometheus          PrometheusConfig          `yaml:"prometheus"`
+	Redis               RedisConfig               `yaml:"redis"`
+	LogLevel            log.Level                 `yaml:"logLevel" default:"info"`
+	LogFormat           log.FormatType            `yaml:"logFormat" default:"text"`
+	LogPrivacy          bool                      `yaml:"logPrivacy" default:"false"`
+	LogTimestamp        bool                      `yaml:"logTimestamp" default:"true"`
+	DNSPorts            ListenConfig              `yaml:"port" default:"[\"53\"]"`
+	HTTPPorts           ListenConfig              `yaml:"httpPort"`
+	HTTPSPorts          ListenConfig              `yaml:"httpsPort"`
+	TLSPorts            ListenConfig              `yaml:"tlsPort"`
+	DoHUserAgent        string                    `yaml:"dohUserAgent"`
+	MinTLSServeVer      string                    `yaml:"minTlsServeVersion" default:"1.2"`
+	StartVerifyUpstream bool                      `yaml:"startVerifyUpstream" default:"false"`
 	// Deprecated
 	DisableIPv6  bool            `yaml:"disableIPv6" default:"false"`
 	CertFile     string          `yaml:"certFile"`
 	KeyFile      string          `yaml:"keyFile"`
 	BootstrapDNS BootstrapConfig `yaml:"bootstrapDns"`
 	HostsFile    HostsFileConfig `yaml:"hostsFile"`
+	FqdnOnly     bool            `yaml:"fqdnOnly" default:"false"`
 	Filtering    FilteringConfig `yaml:"filtering"`
+	Ede          EdeConfig       `yaml:"ede"`
 }
 
 type BootstrapConfig bootstrapConfig // to avoid infinite recursion. See BootstrapConfig.UnmarshalYAML.
@@ -447,7 +501,8 @@ type UpstreamConfig struct {
 
 // RewriteConfig custom DNS configuration
 type RewriteConfig struct {
-	Rewrite map[string]string `yaml:"rewrite"`
+	Rewrite          map[string]string `yaml:"rewrite"`
+	FallbackUpstream bool              `yaml:"fallbackUpstream" default:"false"`
 }
 
 // CustomDNSConfig custom DNS configuration
@@ -476,17 +531,19 @@ type ConditionalUpstreamMapping struct {
 
 // BlockingConfig configuration for query blocking
 type BlockingConfig struct {
-	BlackLists            map[string][]string `yaml:"blackLists"`
-	WhiteLists            map[string][]string `yaml:"whiteLists"`
-	ClientGroupsBlock     map[string][]string `yaml:"clientGroupsBlock"`
-	BlockType             string              `yaml:"blockType" default:"ZEROIP"`
-	BlockTTL              Duration            `yaml:"blockTTL" default:"6h"`
-	DownloadTimeout       Duration            `yaml:"downloadTimeout" default:"60s"`
-	DownloadAttempts      uint                `yaml:"downloadAttempts" default:"3"`
-	DownloadCooldown      Duration            `yaml:"downloadCooldown" default:"1s"`
-	RefreshPeriod         Duration            `yaml:"refreshPeriod" default:"4h"`
-	FailStartOnListError  bool                `yaml:"failStartOnListError" default:"false"`
-	ProcessingConcurrency uint                `yaml:"processingConcurrency" default:"4"`
+	BlackLists        map[string][]string `yaml:"blackLists"`
+	WhiteLists        map[string][]string `yaml:"whiteLists"`
+	ClientGroupsBlock map[string][]string `yaml:"clientGroupsBlock"`
+	BlockType         string              `yaml:"blockType" default:"ZEROIP"`
+	BlockTTL          Duration            `yaml:"blockTTL" default:"6h"`
+	DownloadTimeout   Duration            `yaml:"downloadTimeout" default:"60s"`
+	DownloadAttempts  uint                `yaml:"downloadAttempts" default:"3"`
+	DownloadCooldown  Duration            `yaml:"downloadCooldown" default:"1s"`
+	RefreshPeriod     Duration            `yaml:"refreshPeriod" default:"4h"`
+	// Deprecated
+	FailStartOnListError  bool              `yaml:"failStartOnListError" default:"false"`
+	ProcessingConcurrency uint              `yaml:"processingConcurrency" default:"4"`
+	StartStrategy         StartStrategyType `yaml:"startStrategy" default:"blocking"`
 }
 
 // ClientLookupConfig configuration for the client lookup
@@ -528,20 +585,31 @@ type RedisConfig struct {
 }
 
 type HostsFileConfig struct {
-	Filepath      string   `yaml:"filePath"`
-	HostsTTL      Duration `yaml:"hostsTTL" default:"1h"`
-	RefreshPeriod Duration `yaml:"refreshPeriod" default:"1h"`
+	Filepath       string   `yaml:"filePath"`
+	HostsTTL       Duration `yaml:"hostsTTL" default:"1h"`
+	RefreshPeriod  Duration `yaml:"refreshPeriod" default:"1h"`
+	FilterLoopback bool     `yaml:"filterLoopback"`
 }
 
 type FilteringConfig struct {
 	QueryTypes QTypeSet `yaml:"queryTypes"`
 }
 
+type EdeConfig struct {
+	Enable bool `yaml:"enable" default:"false"`
+}
+
 // nolint:gochecknoglobals
-var config = &Config{}
+var (
+	config  = &Config{}
+	cfgLock sync.RWMutex
+)
 
 // LoadConfig creates new config from YAML file or a directory containing YAML files
 func LoadConfig(path string, mandatory bool) (*Config, error) {
+	cfgLock.Lock()
+	defer cfgLock.Unlock()
+
 	cfg := Config{}
 	if err := defaults.Set(&cfg); err != nil {
 		return nil, fmt.Errorf("can't apply default values: %w", err)
@@ -562,32 +630,14 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 
 	var data []byte
 
-	if fs.IsDir() { //nolint:nestif
-		err = filepath.WalkDir(path, func(filePath string, d os.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-
-			if path == filePath {
-				return nil
-			}
-
-			fileData, err := os.ReadFile(filePath)
-			if err != nil {
-				return err
-			}
-
-			data = append(data, []byte("\n")...)
-			data = append(data, fileData...)
-
-			return nil
-		})
+	if fs.IsDir() {
+		data, err = readFromDir(path, data)
 
 		if err != nil {
 			return nil, fmt.Errorf("can't read config files: %w", err)
 		}
 	} else {
-		data, err = ioutil.ReadFile(path)
+		data, err = os.ReadFile(path)
 		if err != nil {
 			return nil, fmt.Errorf("can't read config file: %w", err)
 		}
@@ -601,6 +651,57 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 	config = &cfg
 
 	return &cfg, nil
+}
+
+func readFromDir(path string, data []byte) ([]byte, error) {
+	err := filepath.WalkDir(path, func(filePath string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if path == filePath {
+			return nil
+		}
+
+		// Ignore non YAML files
+		if !strings.HasSuffix(filePath, ".yml") && !strings.HasSuffix(filePath, ".yaml") {
+			return nil
+		}
+
+		isRegular, err := isRegularFile(filePath)
+		if err != nil {
+			return err
+		}
+
+		// Ignore non regular files (directories, sockets, etc.)
+		if !isRegular {
+			return nil
+		}
+
+		fileData, err := os.ReadFile(filePath)
+		if err != nil {
+			return err
+		}
+
+		data = append(data, []byte("\n")...)
+		data = append(data, fileData...)
+
+		return nil
+	})
+
+	return data, err
+}
+
+// isRegularFile follows symlinks, so the result is `true` for a symlink to a regular file.
+func isRegularFile(path string) (bool, error) {
+	stat, err := os.Stat(path)
+	if err != nil {
+		return false, err
+	}
+
+	isRegular := stat.Mode()&os.ModeType == 0
+
+	return isRegular, nil
 }
 
 func unmarshalConfig(data []byte, cfg *Config) error {
@@ -620,10 +721,24 @@ func validateConfig(cfg *Config) {
 
 		cfg.Filtering.QueryTypes.Insert(dns.Type(dns.TypeAAAA))
 	}
+
+	if cfg.Blocking.FailStartOnListError {
+		log.Log().Warnf("'blocking.failStartOnListError' is deprecated. Please use 'blocking.startStrategy'" +
+			" with 'failOnError' instead.")
+
+		if cfg.Blocking.StartStrategy == StartStrategyTypeBlocking {
+			cfg.Blocking.StartStrategy = StartStrategyTypeFailOnError
+		} else if cfg.Blocking.StartStrategy == StartStrategyTypeFast {
+			log.Log().Warnf("'blocking.startStrategy' with 'fast' will ignore 'blocking.failStartOnListError'.")
+		}
+	}
 }
 
 // GetConfig returns the current config
 func GetConfig() *Config {
+	cfgLock.RLock()
+	defer cfgLock.RUnlock()
+
 	return config
 }
 

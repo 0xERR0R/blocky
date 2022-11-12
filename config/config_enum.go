@@ -12,6 +12,79 @@ import (
 )
 
 const (
+	// IPVersionDual is a IPVersion of type Dual.
+	// IPv4 and IPv6
+	IPVersionDual IPVersion = iota
+	// IPVersionV4 is a IPVersion of type V4.
+	// IPv4 only
+	IPVersionV4
+	// IPVersionV6 is a IPVersion of type V6.
+	// IPv6 only
+	IPVersionV6
+)
+
+var ErrInvalidIPVersion = fmt.Errorf("not a valid IPVersion, try [%s]", strings.Join(_IPVersionNames, ", "))
+
+const _IPVersionName = "dualv4v6"
+
+var _IPVersionNames = []string{
+	_IPVersionName[0:4],
+	_IPVersionName[4:6],
+	_IPVersionName[6:8],
+}
+
+// IPVersionNames returns a list of possible string values of IPVersion.
+func IPVersionNames() []string {
+	tmp := make([]string, len(_IPVersionNames))
+	copy(tmp, _IPVersionNames)
+	return tmp
+}
+
+var _IPVersionMap = map[IPVersion]string{
+	IPVersionDual: _IPVersionName[0:4],
+	IPVersionV4:   _IPVersionName[4:6],
+	IPVersionV6:   _IPVersionName[6:8],
+}
+
+// String implements the Stringer interface.
+func (x IPVersion) String() string {
+	if str, ok := _IPVersionMap[x]; ok {
+		return str
+	}
+	return fmt.Sprintf("IPVersion(%d)", x)
+}
+
+var _IPVersionValue = map[string]IPVersion{
+	_IPVersionName[0:4]: IPVersionDual,
+	_IPVersionName[4:6]: IPVersionV4,
+	_IPVersionName[6:8]: IPVersionV6,
+}
+
+// ParseIPVersion attempts to convert a string to a IPVersion.
+func ParseIPVersion(name string) (IPVersion, error) {
+	if x, ok := _IPVersionValue[name]; ok {
+		return x, nil
+	}
+	return IPVersion(0), fmt.Errorf("%s is %w", name, ErrInvalidIPVersion)
+}
+
+// MarshalText implements the text marshaller method.
+func (x IPVersion) MarshalText() ([]byte, error) {
+	return []byte(x.String()), nil
+}
+
+// UnmarshalText implements the text unmarshaller method.
+func (x *IPVersion) UnmarshalText(text []byte) error {
+	name := string(text)
+	tmp, err := ParseIPVersion(name)
+	if err != nil {
+		return err
+	}
+	*x = tmp
+	return nil
+}
+
+const (
 	// NetProtocolTcpUdp is a NetProtocol of type Tcp+Udp.
 	// TCP and UDP protocols
 	NetProtocolTcpUdp NetProtocol = iota
@@ -22,6 +95,8 @@ const (
 	// HTTPS protocol
 	NetProtocolHttps
 )
+
+var ErrInvalidNetProtocol = fmt.Errorf("not a valid NetProtocol, try [%s]", strings.Join(_NetProtocolNames, ", "))
 
 const _NetProtocolName = "tcp+udptcp-tlshttps"
 
@@ -63,7 +138,7 @@ func ParseNetProtocol(name string) (NetProtocol, error) {
 	if x, ok := _NetProtocolValue[name]; ok {
 		return x, nil
 	}
-	return NetProtocol(0), fmt.Errorf("%s is not a valid NetProtocol, try [%s]", name, strings.Join(_NetProtocolNames, ", "))
+	return NetProtocol(0), fmt.Errorf("%s is %w", name, ErrInvalidNetProtocol)
 }
 
 // MarshalText implements the text marshaller method.
@@ -102,6 +177,8 @@ const (
 	// CSV file per day and client
 	QueryLogTypeCsvClient
 )
+
+var ErrInvalidQueryLogType = fmt.Errorf("not a valid QueryLogType, try [%s]", strings.Join(_QueryLogTypeNames, ", "))
 
 const _QueryLogTypeName = "consolenonemysqlpostgresqlcsvcsv-client"
 
@@ -152,7 +229,7 @@ func ParseQueryLogType(name string) (QueryLogType, error) {
 	if x, ok := _QueryLogTypeValue[name]; ok {
 		return x, nil
 	}
-	return QueryLogType(0), fmt.Errorf("%s is not a valid QueryLogType, try [%s]", name, strings.Join(_QueryLogTypeNames, ", "))
+	return QueryLogType(0), fmt.Errorf("%s is %w", name, ErrInvalidQueryLogType)
 }
 
 // MarshalText implements the text marshaller method.
@@ -164,6 +241,79 @@ func (x QueryLogType) MarshalText() ([]byte, error) {
 func (x *QueryLogType) UnmarshalText(text []byte) error {
 	name := string(text)
 	tmp, err := ParseQueryLogType(name)
+	if err != nil {
+		return err
+	}
+	*x = tmp
+	return nil
+}
+
+const (
+	// StartStrategyTypeBlocking is a StartStrategyType of type Blocking.
+	// synchronously download blocking lists on startup
+	StartStrategyTypeBlocking StartStrategyType = iota
+	// StartStrategyTypeFailOnError is a StartStrategyType of type FailOnError.
+	// synchronously download blocking lists on startup and shutdown on error
+	StartStrategyTypeFailOnError
+	// StartStrategyTypeFast is a StartStrategyType of type Fast.
+	// asyncronously download blocking lists on startup
+	StartStrategyTypeFast
+)
+
+var ErrInvalidStartStrategyType = fmt.Errorf("not a valid StartStrategyType, try [%s]", strings.Join(_StartStrategyTypeNames, ", "))
+
+const _StartStrategyTypeName = "blockingfailOnErrorfast"
+
+var _StartStrategyTypeNames = []string{
+	_StartStrategyTypeName[0:8],
+	_StartStrategyTypeName[8:19],
+	_StartStrategyTypeName[19:23],
+}
+
+// StartStrategyTypeNames returns a list of possible string values of StartStrategyType.
+func StartStrategyTypeNames() []string {
+	tmp := make([]string, len(_StartStrategyTypeNames))
+	copy(tmp, _StartStrategyTypeNames)
+	return tmp
+}
+
+var _StartStrategyTypeMap = map[StartStrategyType]string{
+	StartStrategyTypeBlocking:    _StartStrategyTypeName[0:8],
+	StartStrategyTypeFailOnError: _StartStrategyTypeName[8:19],
+	StartStrategyTypeFast:        _StartStrategyTypeName[19:23],
+}
+
+// String implements the Stringer interface.
+func (x StartStrategyType) String() string {
+	if str, ok := _StartStrategyTypeMap[x]; ok {
+		return str
+	}
+	return fmt.Sprintf("StartStrategyType(%d)", x)
+}
+
+var _StartStrategyTypeValue = map[string]StartStrategyType{
+	_StartStrategyTypeName[0:8]:   StartStrategyTypeBlocking,
+	_StartStrategyTypeName[8:19]:  StartStrategyTypeFailOnError,
+	_StartStrategyTypeName[19:23]: StartStrategyTypeFast,
+}
+
+// ParseStartStrategyType attempts to convert a string to a StartStrategyType.
+func ParseStartStrategyType(name string) (StartStrategyType, error) {
+	if x, ok := _StartStrategyTypeValue[name]; ok {
+		return x, nil
+	}
+	return StartStrategyType(0), fmt.Errorf("%s is %w", name, ErrInvalidStartStrategyType)
+}
+
+// MarshalText implements the text marshaller method.
+func (x StartStrategyType) MarshalText() ([]byte, error) {
+	return []byte(x.String()), nil
+}
+
+// UnmarshalText implements the text unmarshaller method.
+func (x *StartStrategyType) UnmarshalText(text []byte) error {
+	name := string(text)
+	tmp, err := ParseStartStrategyType(name)
 	if err != nil {
 		return err
 	}

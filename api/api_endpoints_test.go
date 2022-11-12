@@ -51,9 +51,9 @@ var _ = Describe("API tests", func() {
 			r := &ListRefreshMock{}
 			sut := &ListRefreshEndpoint{refresher: r}
 			It("should trigger the list refresh", func() {
-				httpCode, _ := DoGetRequest("/api/lists/refresh", sut.apiListRefresh)
-				Expect(httpCode).Should(Equal(http.StatusOK))
-				Expect(r.refreshTriggered).Should(BeTrue())
+				resp, _ := DoGetRequest("/api/lists/refresh", sut.apiListRefresh)
+				Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+				Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/json"))
 			})
 		})
 
@@ -74,18 +74,18 @@ var _ = Describe("API tests", func() {
 			It("should disable blocking resolver", func() {
 				By("Calling Rest API to deactivate", func() {
 
-					httpCode, _ := DoGetRequest("/api/blocking/disable", sut.apiBlockingDisable)
-					Expect(httpCode).Should(Equal(http.StatusOK))
-					Expect(bc.enabled).Should(BeFalse())
+					resp, _ := DoGetRequest("/api/blocking/disable", sut.apiBlockingDisable)
+					Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+					Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/json"))
 				})
 			})
 		})
 
 		When("Disable blocking is called with a wrong parameter", func() {
 			It("Should return http bad request as return code", func() {
-				httpCode, _ := DoGetRequest("/api/blocking/disable?duration=xyz", sut.apiBlockingDisable)
-
-				Expect(httpCode).Should(Equal(http.StatusBadRequest))
+				resp, _ := DoGetRequest("/api/blocking/disable?duration=xyz", sut.apiBlockingDisable)
+				Expect(resp).Should(HaveHTTPStatus(http.StatusBadRequest))
+				Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/json"))
 			})
 		})
 
@@ -96,8 +96,9 @@ var _ = Describe("API tests", func() {
 				})
 
 				By("Calling Rest API to deactivate blocking for 0.5 sec", func() {
-					httpCode, _ := DoGetRequest("/api/blocking/disable?duration=500ms", sut.apiBlockingDisable)
-					Expect(httpCode).Should(Equal(http.StatusOK))
+					resp, _ := DoGetRequest("/api/blocking/disable?duration=500ms", sut.apiBlockingDisable)
+					Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+					Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/json"))
 				})
 
 				By("ensure that the blocking is disabled", func() {
@@ -110,13 +111,15 @@ var _ = Describe("API tests", func() {
 		When("Blocking status is called", func() {
 			It("should return correct status", func() {
 				By("enable blocking via API", func() {
-					httpCode, _ := DoGetRequest("/api/blocking/enable", sut.apiBlockingEnable)
-					Expect(httpCode).Should(Equal(http.StatusOK))
+					resp, _ := DoGetRequest("/api/blocking/enable", sut.apiBlockingEnable)
+					Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+					Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/json"))
 				})
 
 				By("Query blocking status via API should return 'enabled'", func() {
-					httpCode, body := DoGetRequest("/api/blocking/status", sut.apiBlockingStatus)
-					Expect(httpCode).Should(Equal(http.StatusOK))
+					resp, body := DoGetRequest("/api/blocking/status", sut.apiBlockingStatus)
+					Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+					Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/json"))
 					var result BlockingStatus
 					err := json.NewDecoder(body).Decode(&result)
 					Expect(err).Should(Succeed())
@@ -125,13 +128,15 @@ var _ = Describe("API tests", func() {
 				})
 
 				By("disable blocking via API", func() {
-					httpCode, _ := DoGetRequest("/api/blocking/disable?duration=500ms", sut.apiBlockingDisable)
-					Expect(httpCode).Should(Equal(http.StatusOK))
+					resp, _ := DoGetRequest("/api/blocking/disable?duration=500ms", sut.apiBlockingDisable)
+					Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+					Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/json"))
 				})
 
 				By("Query blocking status via API again should return 'disabled'", func() {
-					httpCode, body := DoGetRequest("/api/blocking/status", sut.apiBlockingStatus)
-					Expect(httpCode).Should(Equal(http.StatusOK))
+					resp, body := DoGetRequest("/api/blocking/status", sut.apiBlockingStatus)
+					Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+					Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/json"))
 
 					var result BlockingStatus
 					err := json.NewDecoder(body).Decode(&result)

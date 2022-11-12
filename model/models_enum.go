@@ -20,6 +20,8 @@ const (
 	RequestProtocolUDP
 )
 
+var ErrInvalidRequestProtocol = fmt.Errorf("not a valid RequestProtocol, try [%s]", strings.Join(_RequestProtocolNames, ", "))
+
 const _RequestProtocolName = "TCPUDP"
 
 var _RequestProtocolNames = []string{
@@ -57,7 +59,7 @@ func ParseRequestProtocol(name string) (RequestProtocol, error) {
 	if x, ok := _RequestProtocolValue[name]; ok {
 		return x, nil
 	}
-	return RequestProtocol(0), fmt.Errorf("%s is not a valid RequestProtocol, try [%s]", name, strings.Join(_RequestProtocolNames, ", "))
+	return RequestProtocol(0), fmt.Errorf("%s is %w", name, ErrInvalidRequestProtocol)
 }
 
 // MarshalText implements the text marshaller method.
@@ -98,9 +100,17 @@ const (
 	// ResponseTypeFILTERED is a ResponseType of type FILTERED.
 	// the query was filtered by query type
 	ResponseTypeFILTERED
+	// ResponseTypeNOTFQDN is a ResponseType of type NOTFQDN.
+	// the query was filtered as it is not fqdn conform
+	ResponseTypeNOTFQDN
+	// ResponseTypeSPECIAL is a ResponseType of type SPECIAL.
+	// the query was resolved by the special use domain name resolver
+	ResponseTypeSPECIAL
 )
 
-const _ResponseTypeName = "RESOLVEDCACHEDBLOCKEDCONDITIONALCUSTOMDNSHOSTSFILEFILTERED"
+var ErrInvalidResponseType = fmt.Errorf("not a valid ResponseType, try [%s]", strings.Join(_ResponseTypeNames, ", "))
+
+const _ResponseTypeName = "RESOLVEDCACHEDBLOCKEDCONDITIONALCUSTOMDNSHOSTSFILEFILTEREDNOTFQDNSPECIAL"
 
 var _ResponseTypeNames = []string{
 	_ResponseTypeName[0:8],
@@ -110,6 +120,8 @@ var _ResponseTypeNames = []string{
 	_ResponseTypeName[32:41],
 	_ResponseTypeName[41:50],
 	_ResponseTypeName[50:58],
+	_ResponseTypeName[58:65],
+	_ResponseTypeName[65:72],
 }
 
 // ResponseTypeNames returns a list of possible string values of ResponseType.
@@ -127,6 +139,8 @@ var _ResponseTypeMap = map[ResponseType]string{
 	ResponseTypeCUSTOMDNS:   _ResponseTypeName[32:41],
 	ResponseTypeHOSTSFILE:   _ResponseTypeName[41:50],
 	ResponseTypeFILTERED:    _ResponseTypeName[50:58],
+	ResponseTypeNOTFQDN:     _ResponseTypeName[58:65],
+	ResponseTypeSPECIAL:     _ResponseTypeName[65:72],
 }
 
 // String implements the Stringer interface.
@@ -145,6 +159,8 @@ var _ResponseTypeValue = map[string]ResponseType{
 	_ResponseTypeName[32:41]: ResponseTypeCUSTOMDNS,
 	_ResponseTypeName[41:50]: ResponseTypeHOSTSFILE,
 	_ResponseTypeName[50:58]: ResponseTypeFILTERED,
+	_ResponseTypeName[58:65]: ResponseTypeNOTFQDN,
+	_ResponseTypeName[65:72]: ResponseTypeSPECIAL,
 }
 
 // ParseResponseType attempts to convert a string to a ResponseType.
@@ -152,7 +168,7 @@ func ParseResponseType(name string) (ResponseType, error) {
 	if x, ok := _ResponseTypeValue[name]; ok {
 		return x, nil
 	}
-	return ResponseType(0), fmt.Errorf("%s is not a valid ResponseType, try [%s]", name, strings.Join(_ResponseTypeNames, ", "))
+	return ResponseType(0), fmt.Errorf("%s is %w", name, ErrInvalidResponseType)
 }
 
 // MarshalText implements the text marshaller method.

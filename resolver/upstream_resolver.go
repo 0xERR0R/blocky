@@ -5,7 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -53,13 +53,19 @@ type dnsUpstreamClient struct {
 
 type httpUpstreamClient struct {
 	client *http.Client
+	host   string
 }
 
 func createUpstreamClient(cfg config.Upstream) upstreamClient {
 	timeout := time.Duration(config.GetConfig().UpstreamTimeout)
+
 	tlsConfig := tls.Config{
 		ServerName: cfg.Host,
 		MinVersion: tls.VersionTLS12,
+	}
+
+	if cfg.CommonName != "" {
+		tlsConfig.ServerName = cfg.CommonName
 	}
 
 	switch cfg.Net {
@@ -73,6 +79,7 @@ func createUpstreamClient(cfg config.Upstream) upstreamClient {
 				},
 				Timeout: timeout,
 			},
+			host: cfg.Host,
 		}
 
 	case config.NetProtocolTcpTls:
@@ -106,7 +113,7 @@ func createUpstreamClient(cfg config.Upstream) upstreamClient {
 }
 
 func (r *httpUpstreamClient) fmtURL(ip net.IP, port uint16, path string) string {
-	return fmt.Sprintf("https://%s:%d%s", ip.String(), port, path)
+	return fmt.Sprintf("https://%s%s", net.JoinHostPort(ip.String(), strconv.Itoa(int(port))), path)
 }
 
 func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
@@ -127,6 +134,8 @@ func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
 
 	req.Header.Set("User-Agent", config.GetConfig().DoHUserAgent)
 	req.Header.Set("Content-Type", dnsContentType)
+	req.Host = r.host
+
 	httpResponse, err := r.client.Do(req)
 
 	if err != nil {
@@ -147,7 +156,7 @@ func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
 			dnsContentType, contentType)
 	}
 
-	body, err := ioutil.ReadAll(httpResponse.Body)
+	body, err := io.ReadAll(httpResponse.Body)
 	if err != nil {
 		return nil, 0, fmt.Errorf("can't read response body:  %w", err)
 	}
@@ -162,7 +171,7 @@ func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
 	return &response, time.Since(start), nil
 }
 
-func (r *dnsUpstreamClient) fmtURL(ip net.IP, port uint16, _path string) string {
+func (r *dnsUpstreamClient) fmtURL(ip net.IP, port uint16, _ string) string {
 	return net.JoinHostPort(ip.String(), strconv.Itoa(int(port)))
 }
 

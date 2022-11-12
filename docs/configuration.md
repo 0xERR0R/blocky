@@ -25,6 +25,8 @@ configuration properties as [JSON](config.yml).
 | logPrivacy   | bool                            | no                    | false         | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy.                                                                                                 |
 | dohUserAgent | string                          | no                    |               | HTTP User Agent for DoH upstreams                                                                                                  |
 | minTlsServeVersion | string                    | no                    | 1.2           | Minimum TLS version that the DoT and DoH server use to serve those encrypted DNS requests                       |
+| startVerifyUpstream | bool                     | no                    | false          | If true, blocky will fail to start unless at least one upstream server per group is reachable.                  |
+| connectIPVersion | bool                        | no                    | dual          | IP version to use for outgoing connections (dual, v4, v6)                  |
 
 !!! example
 
@@ -50,13 +52,16 @@ following network protocols (net part of the resolver URL):
     returns the answer from the fastest one. This improves your network speed and increases your privacy - your DNS traffic
     will be distributed over multiple providers.
 
-Each resolver must be defined as a string in following format: `[net:]host:[port][/path]`.
+Each resolver must be defined as a string in following format: `[net:]host:[port][/path][#commonName]`.
 
 | Parameter | Type                             | Mandatory | Default value                                     |
 |-----------|----------------------------------|-----------|---------------------------------------------------|
-| net       | enum (tcp+udp, tcp-tls or https) | no        | tcp+udp                                           |
-| host      | IP or hostname                   | yes       |                                                   |
-| port      | int (1 - 65535)                  | no        | 53 for udp/tcp, 853 for tcp-tls and 443 for https |
+| net        | enum (tcp+udp, tcp-tls or https) | no        | tcp+udp                                           |
+| host       | IP or hostname                   | yes       |                                                   |
+| port       | int (1 - 65535)                  | no        | 53 for udp/tcp, 853 for tcp-tls and 443 for https |
+| commonName | string                           | no        | the host value                                    |
+
+The commonName parameter overrides the expected certificate common name value used for verification.
 
 Blocky needs at least the configuration of the **default** group. This group will be used as a fallback, if no client
 specific resolver configuration is available.
@@ -134,7 +139,6 @@ Works only on Linux/\*nix OS due to golang limitations under Windows.
           - 123.123.123.123
     ```
 
-
 ## Filtering
 
 Under certain circumstances, it may be useful to filter some types of DNS queries. You can define one or more DNS query
@@ -149,6 +153,18 @@ types, all queries with these types will be dropped (empty answer will be return
     ```
 
 This configuration will drop all 'AAAA' (IPv6) queries.
+
+## FQDN only
+
+In domain environments, it may be usefull to only response to FQDN requests. If this option is enabled blocky respond immidiatly
+with NXDOMAIN if the request is not a valid FQDN. The request is therfore not further processed by other options like custom or conditional.
+Please be aware that by enabling it your hostname resolution will break unless every hostname is part of a domain.
+
+!!! example
+
+    ```yaml
+    fqdnOnly: true
+    ```
 
 ## Custom DNS
 
@@ -186,7 +202,7 @@ The query "printer.home" will be rewritten to "printer.lan" and return 192.168.1
 
 With parameter `filterUnmappedTypes = true` (default), blocky will filter all queries with unmapped types, for example:
 AAAA for "printer.lan" or TXT for "otherdevice.lan".
-With `filterUnmappedTypes = true` a query AAAA "printer.lan" will be forwarded to the upstream DNS server.
+With `filterUnmappedTypes = false` a query AAAA "printer.lan" will be forwarded to the upstream DNS server.
 
 ## Conditional DNS resolution
 
@@ -196,10 +212,15 @@ hostname belongs to which IP address, all DNS queries for the local network shou
 
 The optional parameter `rewrite` behaves the same as with custom DNS.
 
+The optional parameter fallbackUpstream, if false (default), return empty result if after rewrite, the mapped resolver returned an empty answer. If true, the original query will be sent to the upstream resolver.
+
+### Usage: One usecase when having split DNS for internal and external (internet facing) users, but not all subdomains are listed in the internal domain
+
 !!! example
 
     ```yaml
     conditional:
+      fallbackUpstream: false
       rewrite:
         example.com: fritz.box
         replace-me.com: with-this.com
@@ -217,9 +238,13 @@ The optional parameter `rewrite` behaves the same as with custom DNS.
     You can use `.` as wildcard for all non full qualified domains (domains without dot)
 
 In this example, a DNS query "client.fritz.box" will be redirected to the router's DNS server at 192.168.178.1 and client.lan.net to 192.170.1.2 and 192.170.1.3.
-The query "client.example.com" will be rewritten to "client.fritz.box" and also redirected to the resolver at 192.168.178.1. All unqualified hostnames (e.g. "test")
-will be redirected to the DNS server at 168.168.0.1
+The query "client.example.com" will be rewritten to "client.fritz.box" and also redirected to the resolver at 192.168.178.1.
 
+If not found and if `fallbackUpstream` was set to `true`, the original query "blog.example.com" will be sent upstream.
+
+All unqualified hostnames (e.g. "test") will be redirected to the DNS server at 168.168.0.1.
+
+One usecase for `fallbackUpstream` is when having split DNS for internal and external (internet facing) users, but not all subdomains are listed in the internal domain.
 
 ## Client name lookup
 
@@ -436,16 +461,22 @@ You can configure the list download attempts according to your internet connecti
       downloadCooldown: 10s
     ```
 
-### Fail on start
+### Start strategy
 
-You can ensure with parameter `failStartOnListError = true` that the application will fail if at least one list can't be
-downloaded or opened. Default value is `false`.
+You can configure the blocking behavior during application start of blocky.  
+If no starategy is selected blocking will be used.
+
+| startStrategy | Description                                                                                           |
+|---------------|-------------------------------------------------------------------------------------------------------|
+| blocking      | all blocking lists will be loaded before DNS resoulution starts                                       |
+| failOnError   | like blocking but blocky shutsdown if an download fails                                               |
+| fast          | DNS resolution starts immediately without blocking which will be enabled after list load is completed |
 
 !!! example
 
     ```yaml
     blocking:
-      failStartOnListError: false
+      startStrategy: failOnError
     ```
 
 ### Concurrency
@@ -454,7 +485,7 @@ Blocky downloads and processes links in a single group concurrently. With parame
 how many links can be processed in the same time. Higher value can reduce the overall list refresh time, but more parallel
  download and processing jobs need more RAM. Please consider to reduce this value on systems with limited memory. Default value is 4.
 
-    !!! example
+!!! example
 
     ```yaml
     blocking:
@@ -483,7 +514,7 @@ With following parameters you can tune the caching behavior:
 | caching.prefetchExpires       | duration format | no        | 2h            | Prefetch track time window                                                                                                                                                                                                                                                                                                                                                                                     |
 | caching.prefetchThreshold     | int             | no        | 5             | Name queries threshold for prefetch                                                                                                                                                                                                                                                                                                                                                                            |
 | caching.prefetchMaxItemsCount | int             | no        | 0 (unlimited) | Max number of domains to be kept in cache for prefetching (soft limit). Default (0): unlimited. Useful on systems with limited amount of RAM.                                                                                                                                                                                                                                                                  |
-| caching.cacheTimeNegative     | duration format | no        | 30m           | Time how long negative results are cached. A value of -1 will disable caching for negative results.                                                                                                                                                                                                                                                                                                            |
+| caching.cacheTimeNegative     | duration format | no        | 30m           | Time how long negative results (NXDOMAIN response or empty result) are cached. A value of -1 will disable caching for negative results.                                                                                                                                                                                                                                                                                                            |
 
 !!! example
 
@@ -593,17 +624,18 @@ example for Database
       logRetentionDays: 7
     ```
 
-### Hosts file
+## Hosts file
 
 You can enable resolving of entries, located in local hosts file.
 
 Configuration parameters:
 
-| Parameter                | Type                           | Mandatory | Default value | Description                                   |
-|--------------------------|--------------------------------|-----------|---------------|-----------------------------------------------|
-| hostsFile.filePath       | string                         | no        |               | Path to hosts file (e.g. /etc/hosts on Linux) |
-| hostsFile.hostsTTL       | duration (no units is minutes) | no        | 1h            | TTL                                           |
-| hostsFile.refreshPeriod  | duration format                | no        | 1h            | Time between hosts file refresh               |
+| Parameter                | Type                           | Mandatory | Default value | Description                                      |
+|--------------------------|--------------------------------|-----------|---------------|--------------------------------------------------|
+| hostsFile.filePath       | string                         | no        |               | Path to hosts file (e.g. /etc/hosts on Linux)    |
+| hostsFile.hostsTTL       | duration (no units is minutes) | no        | 1h            | TTL                                              |
+| hostsFile.refreshPeriod  | duration format                | no        | 1h            | Time between hosts file refresh                  |
+| hostsFile.filterLoopback | bool                           | no        | false         | Filter loopback addresses (127.0.0.0/8 and ::1)  |
 
 !!! example
 
@@ -612,6 +644,23 @@ Configuration parameters:
       filePath: /etc/hosts
       hostsTTL: 60m
       refreshPeriod: 30m
+    ```
+
+### Deliver EDE codes as EDNS0 option
+
+DNS responses can be extended with EDE codes according to [RFC8914](https://datatracker.ietf.org/doc/rfc8914/).
+
+Configuration parameters:
+
+| Parameter                | Type                           | Mandatory | Default value | Description                                        |
+|--------------------------|--------------------------------|-----------|---------------|----------------------------------------------------|
+| ede.enable               | bool                           | no        | false         | If true, DNS responses are deliverd with EDE codes |
+
+!!! example
+
+    ```yaml
+    ede:
+      enable: true
     ```
 
 ## SSL certificate configuration (DoH / TLS listener)

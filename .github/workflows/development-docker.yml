@@ -1,55 +1,207 @@
 name: Development docker build
+
 on:
   push:
     branches:
       - development
       - fb-*
 
+permissions:
+  security-events: write
+  actions: read
+  contents: read
+  packages: write
+
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  docker:
-    if: github.repository_owner == '0xERR0R'
+  check:
+    name: Check if workflow should run 
     runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - name: Enabled Check
+        id: check
+        shell: bash
+        run: | 
+          ENABLED=${{ secrets.DEVELOPMENT_DOCKER }}
+
+          if [[ "${{ github.repository_owner }}" == "0xERR0R" ]]; then
+            ENABLED="true"
+          fi          
+
+          if [[ "${ENABLED,,}" != "true" ]]; then
+            echo "enabled=0" >> $GITHUB_OUTPUT
+
+            echo "Workflow is disabled"
+
+            echo "### Workflow is disabled" >> $GITHUB_STEP_SUMMARY
+            echo "To enable this workflow by creating a secret 'DEVELOPMENT_DOCKER' with the value 'true'" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "enabled=1" >> $GITHUB_OUTPUT
+
+            echo "Workflow is enabled"
+          fi
+
+  docker:
+    name: Build Docker image
+    runs-on: ubuntu-latest
+    needs: check
+    if: ${{ needs.check.outputs.enabled == 1 }}
+    outputs:
+      repository: ${{ steps.get_vars.outputs.repository }}
+      branch: ${{ steps.get_vars.outputs.branch }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
+
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: arm,arm64
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2
+
+      - name: Get registry token
+        id: get_token
+        shell: bash
+        run: |
+          if [ "${{ secrets.CR_PAT }}" ]; then
+            echo "token=${{ secrets.CR_PAT }}" >> $GITHUB_OUTPUT
+          else
+            echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
-          password: ${{ secrets.CR_PAT }}
+          password: ${{ steps.get_token.outputs.token }}
+      
       - name: Login to DockerHub
-        uses: docker/login-action@v1
+        if: github.repository_owner == '0xERR0R'
+        uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-      - name: Extract branch name
+
+      - name: Populate build variables
+        id: get_vars
         shell: bash
-        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
-        id: extract_branch
+        run: |
+          REPOSITORY=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "repository=${REPOSITORY}" >> $GITHUB_OUTPUT
+          echo "REPOSITORY: ${REPOSITORY}"
+
+          BRANCH=${GITHUB_REF#refs/heads/}
+          echo "branch=${BRANCH}" >> $GITHUB_OUTPUT
+          echo "Branch: ${BRANCH}"
+          
+          VERSION=$(git describe --always --tags)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "VERSION: ${VERSION}"
+
+          BUILD_TIME=$(date '+%Y%m%d-%H%M%S')
+          echo "build_time=${BUILD_TIME}" >> $GITHUB_OUTPUT
+          echo "BUILD_TIME: ${BUILD_TIME}"
+
+          TAGS="ghcr.io/${REPOSITORY}:${BRANCH}"
+          if [[ "${{ github.repository_owner }}" == "0xERR0R" ]]; then
+            TAGS="${TAGS} , spx01/blocky:${BRANCH}"
+          fi
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+          echo "TAGS: ${TAGS}"
+      
       - name: Build and push
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           context: .
           platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
           push: true
-          tags: |
-            ghcr.io/0xerr0r/blocky:${{ steps.extract_branch.outputs.branch }}
-            spx01/blocky:${{ steps.extract_branch.outputs.branch }}
-      - name: Scan image
-        uses: anchore/scan-action@v3
-        id: scan
+          tags: ${{ steps.get_vars.outputs.tags }}
+          build-args: |
+            VERSION=${{ steps.get_vars.outputs.version }}
+            BUILD_TIME=${{ steps.get_vars.outputs.build_time }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  repo-scan:
+    name: Repo vulnerability scan
+    runs-on: ubuntu-latest
+    needs: check
+    if: needs.check.outputs.enabled == 1
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run Trivy vulnerability scanner in repo mode
+        uses: aquasecurity/trivy-action@master
         with:
-          image: "spx01/blocky:${{ steps.extract_branch.outputs.branch }}"
-          fail-build: false
-          acs-report-enable: true
-      - name: upload Anchore scan SARIF report
-        uses: github/codeql-action/upload-sarif@v1
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-repo-results.sarif'
+          severity: 'CRITICAL'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
         with:
-          sarif_file: ${{ steps.scan.outputs.sarif }}
+          sarif_file: 'trivy-repo-results.sarif'
+
+  image-scan:
+    name: Image vulnerability scan
+    runs-on: ubuntu-latest
+    needs: docker
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Run Trivy vulnerability scanner on Docker image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'ghcr.io/${{ needs.docker.outputs.repository }}:${{ needs.docker.outputs.branch }}'
+          format: 'sarif'
+          output: 'trivy-image-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-image-results.sarif'
+
+  image-test:
+    name: Test docker images
+    runs-on: ubuntu-latest
+    needs: docker
+    steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: arm,arm64
+
+      - name: Test images
+        shell: bash
+        run: | 
+          echo '::group::Version for linux/amd64'
+          docker run --rm ghcr.io/${{ needs.docker.outputs.repository }}:${{ needs.docker.outputs.branch }} version
+          echo '::endgroup::'
+
+          echo '::group::Version for linux/arm/v6'
+          docker run --platform linux/arm/v6 --rm ghcr.io/${{ needs.docker.outputs.repository }}:${{ needs.docker.outputs.branch }} version
+          echo '::endgroup::'
+
+          echo '::group::Version for linux/arm/v7'
+          docker run --platform linux/arm/v7 --rm ghcr.io/${{ needs.docker.outputs.repository }}:${{ needs.docker.outputs.branch }} version
+          echo '::endgroup::'
+
+          echo '::group::Version for linux/arm64'
+          docker run --platform linux/arm64 --rm ghcr.io/${{ needs.docker.outputs.repository }}:${{ needs.docker.outputs.branch }} version
+          echo '::endgroup::'

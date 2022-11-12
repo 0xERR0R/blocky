@@ -26,6 +26,67 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 		})
 	})
 
+	Describe("Some default upstream resolvers cannot be reached", func() {
+		It("should start normally", func() {
+			skipUpstreamCheck.startVerifyUpstream = true
+
+			mockUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
+				response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 123, dns.Type(dns.TypeA), "123.124.122.122")
+
+				return
+			})
+			defer mockUpstream.Close()
+
+			upstream := map[string][]config.Upstream{
+				upstreamDefaultCfgName: {
+					config.Upstream{
+						Host: "wrong",
+					},
+					mockUpstream.Start(),
+				},
+			}
+
+			_, err := NewParallelBestResolver(upstream, skipUpstreamCheck)
+			Expect(err).Should(Not(HaveOccurred()))
+		})
+	})
+
+	Describe("All default upstream resolvers cannot be reached", func() {
+		var (
+			upstream map[string][]config.Upstream
+			b        *Bootstrap
+		)
+
+		BeforeEach(func() {
+			b = TestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
+
+			upstream = map[string][]config.Upstream{
+				upstreamDefaultCfgName: {
+					config.Upstream{
+						Host: "wrong",
+					},
+					config.Upstream{
+						Host: "127.0.0.2",
+					},
+				},
+			}
+		})
+
+		It("should fail to start if strict checking is enabled", func() {
+			b.startVerifyUpstream = true
+
+			_, err := NewParallelBestResolver(upstream, b)
+			Expect(err).Should(HaveOccurred())
+		})
+
+		It("should start if strict checking is disabled", func() {
+			b.startVerifyUpstream = false
+
+			_, err := NewParallelBestResolver(upstream, b)
+			Expect(err).Should(Not(HaveOccurred()))
+		})
+	})
+
 	Describe("Resolving result from fastest upstream resolver", func() {
 		var (
 			sut  Resolver
@@ -310,6 +371,8 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 			sut Resolver
 		)
 		BeforeEach(func() {
+			config.GetConfig().StartVerifyUpstream = false
+
 			sut, _ = NewParallelBestResolver(map[string][]config.Upstream{upstreamDefaultCfgName: {
 				{Host: "host1"},
 				{Host: "host2"},

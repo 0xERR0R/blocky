@@ -101,13 +101,15 @@ func NewBlockingResolver(cfg config.BlockingConfig,
 	refreshPeriod := time.Duration(cfg.RefreshPeriod)
 	downloader := createDownloader(cfg, bootstrap)
 	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists,
-		refreshPeriod, downloader, cfg.ProcessingConcurrency)
+		refreshPeriod, downloader, cfg.ProcessingConcurrency,
+		(cfg.StartStrategy == config.StartStrategyTypeFast))
 	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists,
-		refreshPeriod, downloader, cfg.ProcessingConcurrency)
+		refreshPeriod, downloader, cfg.ProcessingConcurrency,
+		(cfg.StartStrategy == config.StartStrategyTypeFast))
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
 	err = multierror.Append(err, blErr, wlErr).ErrorOrNil()
-	if err != nil && cfg.FailStartOnListError {
+	if err != nil && cfg.StartStrategy == config.StartStrategyTypeFailOnError {
 		return nil, err
 	}
 
@@ -465,6 +467,9 @@ func (r *BlockingResolver) isGroupDisabled(group string) bool {
 
 // returns groups which should be checked for client's request
 func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []string {
+	r.status.lock.RLock()
+	defer r.status.lock.RUnlock()
+
 	var groups []string
 	// try client names
 	for _, cName := range request.ClientNames {
@@ -613,6 +618,9 @@ func (r *BlockingResolver) queryForFQIdentifierIPs(identifier string) (result []
 }
 
 func (r *BlockingResolver) initFQDNIPCache() {
+	r.status.lock.Lock()
+	defer r.status.lock.Unlock()
+
 	identifiers := make([]string, 0)
 
 	for identifier := range r.clientGroupsBlock {

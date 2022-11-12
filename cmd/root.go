@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"net"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
@@ -20,9 +22,11 @@ var (
 )
 
 const (
-	defaultPort       = 4000
-	defaultHost       = "localhost"
-	defaultConfigPath = "./config.yml"
+	defaultPort         = 4000
+	defaultHost         = "localhost"
+	defaultConfigPath   = "./config.yml"
+	configFileEnvVar    = "BLOCKY_CONFIG_FILE"
+	configFileEnvVarOld = "CONFIG_FILE"
 )
 
 // NewRootCommand creates a new root cli command instance
@@ -49,13 +53,14 @@ Complete documentation is available at https://github.com/0xERR0R/blocky`,
 		NewVersionCommand(),
 		newServeCommand(),
 		newBlockingCommand(),
-		NewListsCommand())
+		NewListsCommand(),
+		NewHealthcheckCommand())
 
 	return c
 }
 
 func apiURL(path string) string {
-	return fmt.Sprintf("http://%s:%d%s", apiHost, apiPort, path)
+	return fmt.Sprintf("http://%s%s", net.JoinHostPort(apiHost, strconv.Itoa(int(apiPort))), path)
 }
 
 //nolint:gochecknoinits
@@ -64,6 +69,18 @@ func init() {
 }
 
 func initConfig() {
+	if configPath == defaultConfigPath {
+		val, present := os.LookupEnv(configFileEnvVar)
+		if present {
+			configPath = val
+		} else {
+			val, present = os.LookupEnv(configFileEnvVarOld)
+			if present {
+				configPath = val
+			}
+		}
+	}
+
 	cfg, err := config.LoadConfig(configPath, false)
 	if err != nil {
 		util.FatalOnError("unable to load configuration: ", err)

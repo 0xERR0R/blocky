@@ -7,3 +7,8 @@ updates:
   open-pull-requests-limit: 10
   assignees:
   - 0xERR0R
+
+- package-ecosystem: github-actions
+  directory: "/"
+  schedule:
+    interval: daily

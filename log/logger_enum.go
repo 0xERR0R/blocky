@@ -20,6 +20,8 @@ const (
 	FormatTypeJson
 )
 
+var ErrInvalidFormatType = fmt.Errorf("not a valid FormatType, try [%s]", strings.Join(_FormatTypeNames, ", "))
+
 const _FormatTypeName = "textjson"
 
 var _FormatTypeNames = []string{
@@ -57,7 +59,7 @@ func ParseFormatType(name string) (FormatType, error) {
 	if x, ok := _FormatTypeValue[name]; ok {
 		return x, nil
 	}
-	return FormatType(0), fmt.Errorf("%s is not a valid FormatType, try [%s]", name, strings.Join(_FormatTypeNames, ", "))
+	return FormatType(0), fmt.Errorf("%s is %w", name, ErrInvalidFormatType)
 }
 
 // MarshalText implements the text marshaller method.
@@ -90,6 +92,8 @@ const (
 	// LevelFatal is a Level of type Fatal.
 	LevelFatal
 )
+
+var ErrInvalidLevel = fmt.Errorf("not a valid Level, try [%s]", strings.Join(_LevelNames, ", "))
 
 const _LevelName = "infotracedebugwarnerrorfatal"
 
@@ -140,7 +144,7 @@ func ParseLevel(name string) (Level, error) {
 	if x, ok := _LevelValue[name]; ok {
 		return x, nil
 	}
-	return Level(0), fmt.Errorf("%s is not a valid Level, try [%s]", name, strings.Join(_LevelNames, ", "))
+	return Level(0), fmt.Errorf("%s is %w", name, ErrInvalidLevel)
 }
 
 // MarshalText implements the text marshaller method.

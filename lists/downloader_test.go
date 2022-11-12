@@ -183,9 +183,10 @@ var _ = Describe("Downloader", func() {
 			It("Should perform a retry until max retry attempt count is reached and return TransientError", func() {
 				reader, err := sut.DownloadFile(server.URL)
 				Expect(err).Should(HaveOccurred())
-				var transientErr *TransientError
-				Expect(errors.As(err, &transientErr)).To(BeTrue())
-				Expect(transientErr.Unwrap().Error()).Should(ContainSubstring("Timeout"))
+
+				err2 := unwrapTransientErr(err)
+
+				Expect(err2.Error()).Should(ContainSubstring("Timeout"))
 				Expect(reader).Should(BeNil())
 
 				// failed download event was emitted 3 times
@@ -196,15 +197,18 @@ var _ = Describe("Downloader", func() {
 		When("DNS resolution of passed URL fails", func() {
 			BeforeEach(func() {
 				sut = NewDownloader(
-					WithTimeout(100*time.Millisecond),
+					WithTimeout(500*time.Millisecond),
 					WithAttempts(3),
-					WithCooldown(time.Millisecond))
+					WithCooldown(200*time.Millisecond))
 			})
 			It("Should perform a retry until max retry attempt count is reached and return DNSError", func() {
 				reader, err := sut.DownloadFile("http://some.domain.which.does.not.exist")
 				Expect(err).Should(HaveOccurred())
+
+				err2 := unwrapTransientErr(err)
+
 				var dnsError *net.DNSError
-				Expect(errors.As(err, &dnsError)).To(BeTrue(), "received error %w", err)
+				Expect(errors.As(err2, &dnsError)).To(BeTrue(), "received error %w", err)
 				Expect(reader).Should(BeNil())
 
 				// failed download event was emitted 3 times
@@ -215,3 +219,12 @@ var _ = Describe("Downloader", func() {
 		})
 	})
 })
+
+func unwrapTransientErr(origErr error) error {
+	var transientErr *TransientError
+	if errors.As(origErr, &transientErr) {
+		return transientErr.Unwrap()
+	}
+
+	return origErr
+}

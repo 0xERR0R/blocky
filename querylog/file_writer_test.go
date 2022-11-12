@@ -6,11 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"time"
 
+	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
 
 	"github.com/0xERR0R/blocky/model"
@@ -21,14 +20,16 @@ import (
 )
 
 var _ = Describe("FileWriter", func() {
-	var tmpDir string
-	var err error
-	BeforeEach(func() {
-		tmpDir, err = ioutil.TempDir("", "fileWriter")
-		Expect(err).Should(Succeed())
-	})
-	AfterEach(func() {
-		_ = os.RemoveAll(tmpDir)
+	var (
+		tmpDir *helpertest.TmpFolder
+		err    error
+		writer *FileWriter
+	)
+
+	JustBeforeEach(func() {
+		tmpDir = helpertest.NewTmpFolder("fileWriter")
+		Expect(tmpDir.Error).Should(Succeed())
+		DeferCleanup(tmpDir.Clean)
 	})
 
 	Describe("CSV writer", func() {
@@ -40,9 +41,10 @@ var _ = Describe("FileWriter", func() {
 		})
 		When("New log entry was created", func() {
 			It("should be logged in one file", func() {
-				tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
+				writer, err = NewCSVWriter(tmpDir.Path, false, 0)
+
 				Expect(err).Should(Succeed())
-				writer, _ := NewCSVWriter(tmpDir, false, 0)
+
 				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
 
 				Expect(err).Should(Succeed())
@@ -81,15 +83,17 @@ var _ = Describe("FileWriter", func() {
 					})
 				})
 
-				csvLines := readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02"))))
-				Expect(csvLines).Should(HaveLen(2))
-
+				Eventually(func(g Gomega) int {
+					return len(readCsv(tmpDir.JoinPath(
+						fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02")))))
+				}).Should(Equal(2))
 			})
 
 			It("should be logged in separate files per client", func() {
-				tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
+				writer, err = NewCSVWriter(tmpDir.Path, true, 0)
+
 				Expect(err).Should(Succeed())
-				writer, _ := NewCSVWriter(tmpDir, true, 0)
+
 				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
 
 				Expect(err).Should(Succeed())
@@ -128,19 +132,24 @@ var _ = Describe("FileWriter", func() {
 					})
 				})
 
-				csvLines := readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_client1.log", time.Now().Format("2006-01-02"))))
-				Expect(csvLines).Should(HaveLen(1))
+				Eventually(func(g Gomega) int {
+					return len(readCsv(tmpDir.JoinPath(
+						fmt.Sprintf("%s_client1.log", time.Now().Format("2006-01-02")))))
+				}).Should(Equal(1))
 
-				csvLines = readCsv(filepath.Join(tmpDir, fmt.Sprintf("%s_client2.log", time.Now().Format("2006-01-02"))))
-				Expect(csvLines).Should(HaveLen(1))
+				Eventually(func(g Gomega) int {
+					return len(readCsv(tmpDir.JoinPath(
+						fmt.Sprintf("%s_client2.log", time.Now().Format("2006-01-02")))))
+				}).Should(Equal(1))
 
 			})
 		})
 		When("Cleanup is called", func() {
 			It("should delete old files", func() {
-				tmpDir, err = ioutil.TempDir("", "queryLoggingResolver")
+				writer, err = NewCSVWriter(tmpDir.Path, false, 1)
+
 				Expect(err).Should(Succeed())
-				writer, _ := NewCSVWriter(tmpDir, false, 1)
+
 				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
 
 				Expect(err).Should(Succeed())
@@ -173,19 +182,27 @@ var _ = Describe("FileWriter", func() {
 							Reason: "Resolved",
 							RType:  model.ResponseTypeRESOLVED,
 						},
-						Start:      time.Now().AddDate(0, 0, -2),
+						Start:      time.Now().AddDate(0, 0, -3),
 						DurationMs: 20,
 					})
 				})
+				fmt.Println(tmpDir.Path)
 
-				files, err := ioutil.ReadDir(tmpDir)
-				Expect(err).Should(Succeed())
-				Expect(files).Should(HaveLen(2))
-				writer.CleanUp()
+				Eventually(func(g Gomega) int {
+					filesCount, err := tmpDir.CountFiles()
+					g.Expect(err).Should(Succeed())
 
-				files, err = ioutil.ReadDir(tmpDir)
-				Expect(err).Should(Succeed())
-				Expect(files).Should(HaveLen(1))
+					return filesCount
+				}, "20s", "1s").Should(Equal(2))
+
+				go writer.CleanUp()
+
+				Eventually(func(g Gomega) int {
+					filesCount, err := tmpDir.CountFiles()
+					g.Expect(err).Should(Succeed())
+
+					return filesCount
+				}, "20s", "1s").Should(Equal(1))
 			})
 		})
 	})

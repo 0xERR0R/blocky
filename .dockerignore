@@ -1,6 +1,13 @@
-bin/
-dist/
+bin
+dist
+site
+docs
+node_modules
+.git
 .idea
 .github
-testdata/
-node_modules/
+.vscode
+.gitignore
+*.md
+LICENSE
+vendor
