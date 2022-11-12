@@ -12,6 +12,8 @@ import (
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
 )
 
+const etc_hostname string = "/etc/hostname"
+
 // FormatType format for logging ENUM(
 // text // logging as text
 // json // JSON format
@@ -105,7 +107,7 @@ func ConfigureLogger(lc Config) {
 
 	var newFormatter logrus.Formatter
 
-	if hn, err := getHostname(); err == nil && lc.Hostname {
+	if hn, err := getHostname(etc_hostname); err == nil && lc.Hostname {
 		newFormatter = hostnameFormatter{
 			hostname:  hn,
 			formatter: baseFormatter,
@@ -134,9 +136,9 @@ func (l hostnameFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	return l.formatter.Format(&newentry)
 }
 
-func getHostname() (string, error) {
-	if hn, err := os.ReadFile("/etc/hostname"); err == nil {
-		return strings.TrimSpace(string(hn)), nil
+func getHostname(hFile string) (string, error) {
+	if hn, err := os.ReadFile(hFile); err == nil {
+		return strings.ToLower(strings.TrimSpace(string(hn))), nil
 	}
 
 	if hn, err := os.Hostname(); err == nil {
