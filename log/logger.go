@@ -59,7 +59,7 @@ type hostnameFormatter struct {
 
 func (l hostnameFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	newentry := *entry
-	newentry.Data["host"] = l.hostname
+	newentry.Data["hostname"] = l.hostname
 
 	return l.formatter.Format(&newentry)
 }
