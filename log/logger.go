@@ -1,14 +1,39 @@
 package log
 
+//go:generate go run github.com/abice/go-enum -f=$GOFILE --marshal --names
+
 import (
 	"io"
 	"os"
 	"strings"
 
-	"github.com/0xERR0R/blocky/logconfig"
 	"github.com/sirupsen/logrus"
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
 )
+
+// FormatType format for logging ENUM(
+// text // logging as text
+// json // JSON format
+// )
+type FormatType int
+
+// Level log level ENUM(
+// info
+// trace
+// debug
+// warn
+// error
+// fatal
+// )
+type Level int
+
+type Config struct {
+	Level     Level      `yaml:"level" default:"info"`
+	Format    FormatType `yaml:"format" default:"text"`
+	Privacy   bool       `yaml:"privacy" default:"false"`
+	Timestamp bool       `yaml:"timestamp" default:"true"`
+	Hostname  bool       `yaml:"hostname" default:"false"`
+}
 
 // Logger is the global logging instance
 // nolint:gochecknoglobals
@@ -18,9 +43,9 @@ var logger *logrus.Logger
 func init() {
 	logger = logrus.New()
 
-	lc := logconfig.Config{
-		Level:     logconfig.LevelInfo,
-		Format:    logconfig.FormatTypeText,
+	lc := Config{
+		Level:     LevelInfo,
+		Format:    FormatTypeText,
 		Timestamp: true,
 	}
 
@@ -58,7 +83,7 @@ func EscapeInput(input string) string {
 }
 
 // ConfigureLogger applies configuration to the global logger
-func ConfigureLogger(lc logconfig.Config) {
+func ConfigureLogger(lc Config) {
 	if level, err := logrus.ParseLevel(lc.Level.String()); err != nil {
 		logger.Fatalf("invalid log level %s %v", lc.Level, err)
 	} else {
@@ -68,7 +93,7 @@ func ConfigureLogger(lc logconfig.Config) {
 	var formatter logrus.Formatter
 
 	switch lc.Format {
-	case logconfig.FormatTypeText:
+	case FormatTypeText:
 		logFormatter := &prefixed.TextFormatter{
 			TimestampFormat:  "2006-01-02 15:04:05",
 			FullTimestamp:    true,
@@ -85,7 +110,7 @@ func ConfigureLogger(lc logconfig.Config) {
 
 		formatter = logFormatter
 
-	case logconfig.FormatTypeJson:
+	case FormatTypeJson:
 		formatter = &logrus.JSONFormatter{}
 	}
 

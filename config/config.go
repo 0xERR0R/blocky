@@ -19,7 +19,6 @@ import (
 	"github.com/hako/durafmt"
 
 	"github.com/0xERR0R/blocky/log"
-	"github.com/0xERR0R/blocky/logconfig"
 	"github.com/creasty/defaults"
 	"gopkg.in/yaml.v2"
 )
@@ -461,7 +460,7 @@ type Config struct {
 	QueryLog            QueryLogConfig            `yaml:"queryLog"`
 	Prometheus          PrometheusConfig          `yaml:"prometheus"`
 	Redis               RedisConfig               `yaml:"redis"`
-	Log                 logconfig.Config          `yaml:"log"`
+	Log                 log.Config                `yaml:"log"`
 	DNSPorts            ListenConfig              `yaml:"port" default:"[\"53\"]"`
 	HTTPPorts           ListenConfig              `yaml:"httpPort"`
 	HTTPSPorts          ListenConfig              `yaml:"httpsPort"`
@@ -479,9 +478,9 @@ type Config struct {
 	// Deprecated
 	DisableIPv6 bool `yaml:"disableIPv6" default:"false"`
 	// Deprecated
-	LogLevel logconfig.Level `yaml:"logLevel" default:"info"`
+	LogLevel log.Level `yaml:"logLevel" default:"info"`
 	// Deprecated
-	LogFormat logconfig.FormatType `yaml:"logFormat" default:"text"`
+	LogFormat log.FormatType `yaml:"logFormat" default:"text"`
 	// Deprecated
 	LogPrivacy bool `yaml:"logPrivacy" default:"false"`
 	// Deprecated
@@ -740,13 +739,13 @@ func validateConfig(cfg *Config) {
 	}
 
 	// old log format transformation
-	if cfg.LogLevel != logconfig.LevelInfo && cfg.Log.Level == logconfig.LevelInfo {
+	if cfg.LogLevel != log.LevelInfo && cfg.Log.Level == log.LevelInfo {
 		log.Log().Warnf("'logLevel' is deprecated. Please use 'log.level'")
 
 		cfg.Log.Level = cfg.LogLevel
 	}
 
-	if cfg.LogFormat != logconfig.FormatTypeText && cfg.Log.Format == logconfig.FormatTypeText {
+	if cfg.LogFormat != log.FormatTypeText && cfg.Log.Format == log.FormatTypeText {
 		log.Log().Warnf("'logFormat' is deprecated. Please use 'log.format'")
 
 		cfg.Log.Format = cfg.LogFormat
