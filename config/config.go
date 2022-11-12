@@ -19,6 +19,7 @@ import (
 	"github.com/hako/durafmt"
 
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/logconfig"
 	"github.com/creasty/defaults"
 	"gopkg.in/yaml.v2"
 )
@@ -460,10 +461,7 @@ type Config struct {
 	QueryLog            QueryLogConfig            `yaml:"queryLog"`
 	Prometheus          PrometheusConfig          `yaml:"prometheus"`
 	Redis               RedisConfig               `yaml:"redis"`
-	LogLevel            log.Level                 `yaml:"logLevel" default:"info"`
-	LogFormat           log.FormatType            `yaml:"logFormat" default:"text"`
-	LogPrivacy          bool                      `yaml:"logPrivacy" default:"false"`
-	LogTimestamp        bool                      `yaml:"logTimestamp" default:"true"`
+	Log                 logconfig.Config          `yaml:"log"`
 	DNSPorts            ListenConfig              `yaml:"port" default:"[\"53\"]"`
 	HTTPPorts           ListenConfig              `yaml:"httpPort"`
 	HTTPSPorts          ListenConfig              `yaml:"httpsPort"`
@@ -471,15 +469,23 @@ type Config struct {
 	DoHUserAgent        string                    `yaml:"dohUserAgent"`
 	MinTLSServeVer      string                    `yaml:"minTlsServeVersion" default:"1.2"`
 	StartVerifyUpstream bool                      `yaml:"startVerifyUpstream" default:"false"`
+	CertFile            string                    `yaml:"certFile"`
+	KeyFile             string                    `yaml:"keyFile"`
+	BootstrapDNS        BootstrapConfig           `yaml:"bootstrapDns"`
+	HostsFile           HostsFileConfig           `yaml:"hostsFile"`
+	FqdnOnly            bool                      `yaml:"fqdnOnly" default:"false"`
+	Filtering           FilteringConfig           `yaml:"filtering"`
+	Ede                 EdeConfig                 `yaml:"ede"`
 	// Deprecated
-	DisableIPv6  bool            `yaml:"disableIPv6" default:"false"`
-	CertFile     string          `yaml:"certFile"`
-	KeyFile      string          `yaml:"keyFile"`
-	BootstrapDNS BootstrapConfig `yaml:"bootstrapDns"`
-	HostsFile    HostsFileConfig `yaml:"hostsFile"`
-	FqdnOnly     bool            `yaml:"fqdnOnly" default:"false"`
-	Filtering    FilteringConfig `yaml:"filtering"`
-	Ede          EdeConfig       `yaml:"ede"`
+	DisableIPv6 bool `yaml:"disableIPv6" default:"false"`
+	// Deprecated
+	LogLevel logconfig.Level `yaml:"logLevel" default:"info"`
+	// Deprecated
+	LogFormat logconfig.FormatType `yaml:"logFormat" default:"text"`
+	// Deprecated
+	LogPrivacy bool `yaml:"logPrivacy" default:"false"`
+	// Deprecated
+	LogTimestamp bool `yaml:"logTimestamp" default:"true"`
 }
 
 type BootstrapConfig bootstrapConfig // to avoid infinite recursion. See BootstrapConfig.UnmarshalYAML.
@@ -731,6 +737,31 @@ func validateConfig(cfg *Config) {
 		} else if cfg.Blocking.StartStrategy == StartStrategyTypeFast {
 			log.Log().Warnf("'blocking.startStrategy' with 'fast' will ignore 'blocking.failStartOnListError'.")
 		}
+	}
+
+	// old log format transformation
+	if cfg.LogLevel != logconfig.LevelInfo && cfg.Log.Level == logconfig.LevelInfo {
+		log.Log().Warnf("'logLevel' is deprecated. Please use 'log.level'")
+
+		cfg.Log.Level = cfg.LogLevel
+	}
+
+	if cfg.LogFormat != logconfig.FormatTypeText && cfg.Log.Format == logconfig.FormatTypeText {
+		log.Log().Warnf("'logFormat' is deprecated. Please use 'log.format'")
+
+		cfg.Log.Format = cfg.LogFormat
+	}
+
+	if cfg.LogPrivacy && !cfg.Log.Privacy {
+		log.Log().Warnf("'logPrivacy' is deprecated. Please use 'log.privacy'")
+
+		cfg.Log.Privacy = cfg.LogPrivacy
+	}
+
+	if !cfg.LogTimestamp && cfg.Log.Timestamp {
+		log.Log().Warnf("'logTimestamp' is deprecated. Please use 'log.timestamp'")
+
+		cfg.Log.Timestamp = cfg.LogTimestamp
 	}
 }
 

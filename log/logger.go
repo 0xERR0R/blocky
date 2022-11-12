@@ -1,11 +1,10 @@
 package log
 
-//go:generate go run github.com/abice/go-enum -f=$GOFILE --marshal --names
-
 import (
 	"io"
 	"strings"
 
+	"github.com/0xERR0R/blocky/logconfig"
 	"github.com/sirupsen/logrus"
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
 )
@@ -14,27 +13,17 @@ import (
 // nolint:gochecknoglobals
 var logger *logrus.Logger
 
-// FormatType format for logging ENUM(
-// text // logging as text
-// json // JSON format
-// )
-type FormatType int
-
-// Level log level ENUM(
-// info
-// trace
-// debug
-// warn
-// error
-// fatal
-// )
-type Level int
-
 // nolint:gochecknoinits
 func init() {
 	logger = logrus.New()
 
-	ConfigureLogger(LevelInfo, FormatTypeText, true)
+	lc := logconfig.Config{
+		Level:     logconfig.LevelInfo,
+		Format:    logconfig.FormatTypeText,
+		Timestamp: true,
+	}
+
+	ConfigureLogger(lc)
 }
 
 // Log returns the global logger
@@ -56,22 +45,22 @@ func EscapeInput(input string) string {
 }
 
 // ConfigureLogger applies configuration to the global logger
-func ConfigureLogger(logLevel Level, formatType FormatType, logTimestamp bool) {
-	if level, err := logrus.ParseLevel(logLevel.String()); err != nil {
-		logger.Fatalf("invalid log level %s %v", logLevel, err)
+func ConfigureLogger(lc logconfig.Config) {
+	if level, err := logrus.ParseLevel(lc.Level.String()); err != nil {
+		logger.Fatalf("invalid log level %s %v", lc.Level, err)
 	} else {
 		logger.SetLevel(level)
 	}
 
-	switch formatType {
-	case FormatTypeText:
+	switch lc.Format {
+	case logconfig.FormatTypeText:
 		logFormatter := &prefixed.TextFormatter{
 			TimestampFormat:  "2006-01-02 15:04:05",
 			FullTimestamp:    true,
 			ForceFormatting:  true,
 			ForceColors:      false,
 			QuoteEmptyFields: true,
-			DisableTimestamp: !logTimestamp}
+			DisableTimestamp: !lc.Timestamp}
 
 		logFormatter.SetColorScheme(&prefixed.ColorScheme{
 			PrefixStyle:    "blue+b",
@@ -80,7 +69,7 @@ func ConfigureLogger(logLevel Level, formatType FormatType, logTimestamp bool) {
 
 		logger.SetFormatter(logFormatter)
 
-	case FormatTypeJson:
+	case logconfig.FormatTypeJson:
 		logger.SetFormatter(&logrus.JSONFormatter{})
 	}
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/miekg/dns"
 
 	"github.com/0xERR0R/blocky/helpertest"
-	. "github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/logconfig"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -235,7 +235,7 @@ bootstrapDns:
 				_, err = LoadConfig(tmpDir.JoinPath("config.yml"), false)
 
 				Expect(err).Should(Succeed())
-				Expect(config.LogLevel).Should(Equal(LevelInfo))
+				Expect(config.LogLevel).Should(Equal(logconfig.LevelInfo))
 			})
 		})
 	})

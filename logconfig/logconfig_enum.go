@@ -4,7 +4,7 @@
 // Build Date:
 // Built By:
 
-package log
+package logconfig
 
 import (
 	"fmt"
