@@ -43,7 +43,6 @@ All configuration options in this section are optional.
 | format    | enum (text, json)               | text          | Log format (text or json).                                                                                                                       |
 | timestamp | bool                            | true          | Log time stamps (true or false).                                                                                                                 |
 | privacy   | bool                            | false         | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy. |
-| hostname  | bool                            | false         | Add hostname of the blocky instance to log output                                                                                                 |
 
 !!! example
 
@@ -53,7 +52,6 @@ All configuration options in this section are optional.
       level: debug
       timestamp: false
       privacy: true
-      hostname: true
     ```
 
 !!! hint

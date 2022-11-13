@@ -3,9 +3,7 @@ package log
 //go:generate go run github.com/abice/go-enum -f=$GOFILE --marshal --names
 
 import (
-	"errors"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -35,7 +33,6 @@ type Config struct {
 	Format    FormatType `yaml:"format" default:"text"`
 	Privacy   bool       `yaml:"privacy" default:"false"`
 	Timestamp bool       `yaml:"timestamp" default:"true"`
-	Hostname  bool       `yaml:"hostname" default:"false"`
 }
 
 // Logger is the global logging instance
@@ -81,8 +78,6 @@ func ConfigureLogger(lc Config) {
 		logger.SetLevel(level)
 	}
 
-	var baseFormatter logrus.Formatter
-
 	switch lc.Format {
 	case FormatTypeText:
 		logFormatter := &prefixed.TextFormatter{
@@ -99,51 +94,14 @@ func ConfigureLogger(lc Config) {
 			TimestampStyle: "white+h",
 		})
 
-		baseFormatter = logFormatter
+		logger.SetFormatter(logFormatter)
 
 	case FormatTypeJson:
-		baseFormatter = &logrus.JSONFormatter{}
+		logger.SetFormatter(&logrus.JSONFormatter{})
 	}
-
-	var newFormatter logrus.Formatter
-
-	if hn, err := getHostname(etcHostname); err == nil && lc.Hostname {
-		newFormatter = hostnameFormatter{
-			hostname:  hn,
-			formatter: baseFormatter,
-		}
-	} else {
-		newFormatter = baseFormatter
-	}
-
-	logger.SetFormatter(newFormatter)
 }
 
 // Silence disables the logger output
 func Silence() {
 	logger.Out = io.Discard
-}
-
-type hostnameFormatter struct {
-	hostname  string
-	formatter logrus.Formatter
-}
-
-func (l hostnameFormatter) Format(entry *logrus.Entry) ([]byte, error) {
-	newentry := *entry
-	newentry.Data["hostname"] = l.hostname
-
-	return l.formatter.Format(&newentry)
-}
-
-func getHostname(hFile string) (string, error) {
-	if hn, err := os.ReadFile(hFile); err == nil {
-		return strings.ToLower(strings.TrimSpace(string(hn))), nil
-	}
-
-	if hn, err := os.Hostname(); err == nil {
-		return hn, nil
-	}
-
-	return "", errors.New("hostname couldn't be determined")
 }
