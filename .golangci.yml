@@ -77,3 +77,4 @@ issues:
       linters:
         - gochecknoglobals
         - dupl
+        - gosec
