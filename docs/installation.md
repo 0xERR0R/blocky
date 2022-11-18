@@ -79,6 +79,10 @@ services:
     environment:
       - TZ=Europe/Berlin # Optional to synchronize the log timestamp with host
     volumes:
+      # Optional to synchronize the log timestamp with host
+      - /etc/localtime:/etc/localtime:ro
+      # Optional to synchronize the hostname with host
+      - /etc/hostname:/etc/hostname:ro
       # config file
       - ./config.yml:/app/config.yml
 ```
