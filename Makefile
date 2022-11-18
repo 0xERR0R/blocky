@@ -35,6 +35,7 @@ swagger: ## creates swagger documentation as html file
 	$(shell) node_modules/html-inline/bin/cmd.js /tmp/swagger/index.html > docs/swagger.html
 
 serve_docs: ## serves online docs
+	pip install mkdocs-material
 	mkdocs serve
 
 build:  ## Build binary
