@@ -116,7 +116,7 @@ value by setting the `upstreamTimeout` configuration parameter (in **duration fo
 
 ## Bootstrap DNS configuration
 
-This DNS server is used to resolve upstream DoH and DoT servers that are specified as hostnames.
+This DNS server is used to resolve upstream DoH and DoT servers that are specified as host names.
 Useful if no system DNS resolver is configured, and to encrypt the bootstrap queries.
 
 | Parameter | Type                             | Mandatory                   | Default value | Description                          |
@@ -128,7 +128,7 @@ If you only need to specify upstream, you can use the short form: `bootstrapDns:
 
 !!! note
 
-Works only on Linux/\*nix OS due to golang limitations under Windows.
+    Works only on Linux/\*nix OS due to golang limitations under Windows.
 
 !!! example
 
@@ -156,8 +156,8 @@ This configuration will drop all 'AAAA' (IPv6) queries.
 
 ## FQDN only
 
-In domain environments, it may be usefull to only response to FQDN requests. If this option is enabled blocky respond immidiatly
-with NXDOMAIN if the request is not a valid FQDN. The request is therfore not further processed by other options like custom or conditional.
+In domain environments, it may be useful to only response to FQDN requests. If this option is enabled blocky respond immediately
+with NXDOMAIN if the request is not a valid FQDN. The request is therefore not further processed by other options like custom or conditional.
 Please be aware that by enabling it your hostname resolution will break unless every hostname is part of a domain.
 
 !!! example
@@ -212,9 +212,9 @@ hostname belongs to which IP address, all DNS queries for the local network shou
 
 The optional parameter `rewrite` behaves the same as with custom DNS.
 
-The optional parameter fallbackUpstream, if false (default), return empty result if after rewrite, the mapped resolver returned an empty answer. If true, the original query will be sent to the upstream resolver.
+The optional parameter `fallbackUpstream`, if false (default), return empty result if after rewrite, the mapped resolver returned an empty answer. If true, the original query will be sent to the upstream resolver.
 
-### Usage: One usecase when having split DNS for internal and external (internet facing) users, but not all subdomains are listed in the internal domain
+**Usage:** One usecase when having split DNS for internal and external (internet facing) users, but not all subdomains are listed in the internal domain
 
 !!! example
 
@@ -242,7 +242,7 @@ The query "client.example.com" will be rewritten to "client.fritz.box" and also 
 
 If not found and if `fallbackUpstream` was set to `true`, the original query "blog.example.com" will be sent upstream.
 
-All unqualified hostnames (e.g. "test") will be redirected to the DNS server at 168.168.0.1.
+All unqualified host names (e.g. "test") will be redirected to the DNS server at 168.168.0.1.
 
 One usecase for `fallbackUpstream` is when having split DNS for internal and external (internet facing) users, but not all subdomains are listed in the internal domain.
 
@@ -449,7 +449,7 @@ You can configure the list download attempts according to your internet connecti
 | Parameter        | Type            | Mandatory | Default value | Description                                     |
 |------------------|-----------------|-----------|---------------|-------------------------------------------------|
 | downloadTimeout  | duration format | no        | 60s           | Download attempt timeout                        |
-| downloadAttempts | int             | no        | 3             | How many download attempts should be performed |
+| downloadAttempts | int             | no        | 3             | How many download attempts should be performed  |
 | downloadCooldown | duration format | no        | 1s            | Time between the download attempts              |
 
 !!! example
@@ -468,8 +468,8 @@ If no starategy is selected blocking will be used.
 
 | startStrategy | Description                                                                                           |
 |---------------|-------------------------------------------------------------------------------------------------------|
-| blocking      | all blocking lists will be loaded before DNS resoulution starts                                       |
-| failOnError   | like blocking but blocky shutsdown if an download fails                                               |
+| blocking      | all blocking lists will be loaded before DNS resolution starts                                        |
+| failOnError   | like blocking but blocky will shut down if an download fails                                          |
 | fast          | DNS resolution starts immediately without blocking which will be enabled after list load is completed |
 
 !!! example
@@ -646,7 +646,7 @@ Configuration parameters:
       refreshPeriod: 30m
     ```
 
-### Deliver EDE codes as EDNS0 option
+## Deliver EDE codes as EDNS0 option
 
 DNS responses can be extended with EDE codes according to [RFC8914](https://datatracker.ietf.org/doc/rfc8914/).
 
@@ -654,7 +654,7 @@ Configuration parameters:
 
 | Parameter                | Type                           | Mandatory | Default value | Description                                        |
 |--------------------------|--------------------------------|-----------|---------------|----------------------------------------------------|
-| ede.enable               | bool                           | no        | false         | If true, DNS responses are deliverd with EDE codes |
+| ede.enable               | bool                           | no        | false         | If true, DNS responses are delivered with EDE codes |
 
 !!! example
 
