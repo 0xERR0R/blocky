@@ -18,8 +18,14 @@ func init() {
 	getHostname(hostnameFile)
 }
 
+// Direct replacement for os.Hostname
 func Hostname() (string, error) {
 	return hostname, hostnameErr
+}
+
+// Only return the hostname(may be empty if there was an error)
+func HostnameString() string {
+	return hostname
 }
 
 func getHostname(location string) {

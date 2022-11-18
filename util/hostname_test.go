@@ -40,13 +40,13 @@ var _ = Describe("Hostname function tests", func() {
 		It("should use os.Hostname", func() {
 			getHostname("/does-not-exist")
 
-			hn, err := Hostname()
+			_, err := Hostname()
 			Expect(err).Should(Succeed())
 
 			ohn, err := os.Hostname()
 			Expect(err).Should(Succeed())
 
-			Expect(hn).Should(Equal(ohn))
+			Expect(HostnameString()).Should(Equal(ohn))
 		})
 	})
 })
