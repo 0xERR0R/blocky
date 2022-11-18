@@ -29,6 +29,7 @@ func (d *LoggerWriter) Write(entry *LogEntry) {
 			"response_code":   dns.RcodeToString[entry.Response.Res.Rcode],
 			"answer":          util.AnswerToString(entry.Response.Res.Answer),
 			"duration_ms":     entry.DurationMs,
+			"hostname":        util.HostnameString(),
 		},
 	).Infof("query resolved")
 }
