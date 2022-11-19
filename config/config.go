@@ -583,9 +583,9 @@ type RedisConfig struct {
 	Required           bool     `yaml:"required" default:"false"`
 	ConnectionAttempts int      `yaml:"connectionAttempts" default:"3"`
 	ConnectionCooldown Duration `yaml:"connectionCooldown" default:"1s"`
-	SentinelAddresses  []string `yaml:"sentinelAddresses"`
 	SentinelUsername   string   `yaml:"sentinelUsername" default:""`
 	SentinelPassword   string   `yaml:"sentinelPassword" default:""`
+	SentinelAddresses  []string `yaml:"sentinelAddresses"`
 }
 
 type HostsFileConfig struct {
