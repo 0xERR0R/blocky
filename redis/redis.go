@@ -185,7 +185,7 @@ func (c *Client) startup() error {
 
 					if msg != nil && len(msg.Payload) > 0 {
 						// message is not empty
-						err = c.processReceivedMessage(msg)
+						c.processReceivedMessage(msg)
 					}
 					// publish message from buffer
 				case s := <-c.sendBuffer:
@@ -222,10 +222,10 @@ func (c *Client) publishMessageFromBuffer(s *bufferMessage) {
 	}
 }
 
-func (c *Client) processReceivedMessage(msg *redis.Message) (err error) {
+func (c *Client) processReceivedMessage(msg *redis.Message) {
 	var rm redisMessage
 
-	err = json.Unmarshal([]byte(msg.Payload), &rm)
+	err := json.Unmarshal([]byte(msg.Payload), &rm)
 	if err == nil {
 		// message was sent from a different blocky instance
 		if !bytes.Equal(rm.Client, c.id) {
@@ -248,8 +248,6 @@ func (c *Client) processReceivedMessage(msg *redis.Message) (err error) {
 	if err != nil {
 		c.l.Error("Processing error: ", err)
 	}
-
-	return err
 }
 
 func (c *Client) processEnabledMessage(redisMsg *redisMessage) error {
@@ -277,13 +275,13 @@ func (c *Client) getResponse(key string) (*CacheMessage, error) {
 				Key:     cleanKey(key),
 				Message: []byte(resp),
 			}, ttl)
-			if err == nil {
-				return result, nil
+			if err != nil {
+				return nil, fmt.Errorf("conversion error: %w", err)
 			}
+
+			return result, nil
 		}
 	}
-
-	c.l.Error("Conversion error: ", err)
 
 	return nil, err
 }
