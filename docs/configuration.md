@@ -469,7 +469,7 @@ If no starategy is selected blocking will be used.
 | startStrategy | Description                                                                                           |
 |---------------|-------------------------------------------------------------------------------------------------------|
 | blocking      | all blocking lists will be loaded before DNS resolution starts                                        |
-| failOnError   | like blocking but blocky will shut down if an download fails                                          |
+| failOnError   | like blocking but blocky will shut down if any download fails                                         |
 | fast          | DNS resolution starts immediately without blocking which will be enabled after list load is completed |
 
 !!! example
