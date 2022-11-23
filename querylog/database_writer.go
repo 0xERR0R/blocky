@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm/logger"
 
 	"github.com/0xERR0R/blocky/log"
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
@@ -121,7 +122,12 @@ func (d *DatabaseWriter) periodicFlush() {
 
 	for {
 		<-ticker.C
-		d.doDBWrite()
+
+		err := d.doDBWrite()
+
+		if err != nil {
+			log.Log().Error("can't write entries to the database: ", err)
+		}
 	}
 }
 
@@ -157,16 +163,32 @@ func (d *DatabaseWriter) CleanUp() {
 	d.db.Where("request_ts < ?", deletionDate).Delete(&logEntry{})
 }
 
-func (d *DatabaseWriter) doDBWrite() {
+func (d *DatabaseWriter) doDBWrite() error {
 	d.lock.Lock()
 	defer d.lock.Unlock()
+
+	var err *multierror.Error
 
 	if len(d.pendingEntries) > 0 {
 		log.Log().Tracef("%d entries to write", len(d.pendingEntries))
 
-		// write bulk
-		d.db.Create(d.pendingEntries)
+		const bulkSize = 100
+
+		for i := 0; i < len(d.pendingEntries); i += bulkSize {
+			j := i + bulkSize
+			if j > len(d.pendingEntries) {
+				j = len(d.pendingEntries)
+			}
+			// write bulk
+			tx := d.db.Create(d.pendingEntries[i:j])
+			err = multierror.Append(err, tx.Error)
+		}
+
 		// clear the slice with pending entries
 		d.pendingEntries = nil
+
+		return err.ErrorOrNil()
 	}
+
+	return nil
 }

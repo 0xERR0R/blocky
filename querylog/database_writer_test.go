@@ -69,7 +69,7 @@ var _ = Describe("DatabaseWriter", func() {
 				})
 
 				// force write
-				writer.doDBWrite()
+				Expect(writer.doDBWrite()).Should(Succeed())
 
 				// 2 entries in the database
 				Eventually(func() int64 {
@@ -92,6 +92,48 @@ var _ = Describe("DatabaseWriter", func() {
 
 					return res
 				}, "5s").Should(BeNumerically("==", 2))
+			})
+		})
+
+		When("> 10000 Entries were created", func() {
+			BeforeEach(func() {
+				writer, err = newDatabaseWriter(sqliteDB, 7, time.Millisecond)
+				Expect(err).Should(Succeed())
+			})
+
+			It("should be persisted in the database in bulk", func() {
+				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
+				Expect(err).Should(Succeed())
+
+				response := &model.Response{
+					Res:    res,
+					Reason: "Resolved",
+					RType:  model.ResponseTypeRESOLVED,
+				}
+
+				const count = 10_123
+
+				for i := 0; i < count; i++ {
+					writer.Write(&LogEntry{
+						Request:    request,
+						Response:   response,
+						Start:      time.Now(),
+						DurationMs: 20,
+					})
+				}
+
+				// force write
+				Expect(writer.doDBWrite()).Should(Succeed())
+
+				// 2 entries in the database
+				Eventually(func() int64 {
+					var res int64
+					result := writer.db.Find(&logEntry{})
+
+					result.Count(&res)
+
+					return res
+				}, "5s").Should(BeNumerically("==", count))
 			})
 		})
 
@@ -128,7 +170,7 @@ var _ = Describe("DatabaseWriter", func() {
 				})
 
 				// force write
-				writer.doDBWrite()
+				Expect(writer.doDBWrite()).Should(Succeed())
 
 				// 2 entries in the database
 				Eventually(func() int64 {
