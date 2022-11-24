@@ -125,9 +125,7 @@ func (d *DatabaseWriter) periodicFlush() {
 
 		err := d.doDBWrite()
 
-		if err != nil {
-			log.Log().Error("can't write entries to the database: ", err)
-		}
+		util.LogOnError("can't write entries to the database: ", err)
 	}
 }
 

@@ -1,13 +1,18 @@
 package querylog
 
 import (
+	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
@@ -221,6 +226,129 @@ var _ = Describe("DatabaseWriter", func() {
 				Expect(err.Error()).Should(HavePrefix("incorrect database type provided"))
 			})
 		})
+	})
+
+	Describe("Database initialization and migration", func() {
+		var (
+			db   *sql.DB
+			dlc  gorm.Dialector
+			mock sqlmock.Sqlmock
+			err  error
+		)
+
+		When("postgres database is configured", func() {
+			BeforeEach(func() {
+				db, mock, err = sqlmock.New()
+				Expect(err).Should(Succeed())
+
+				dlc = postgres.New(postgres.Config{
+					Conn: db,
+				})
+				Expect(err).Should(Succeed())
+
+				mock.MatchExpectationsInOrder(false)
+			})
+			AfterEach(func() {
+				Expect(mock.ExpectationsWereMet()).Should(Succeed())
+			})
+
+			// nolint:lll
+			It("should create the database schema automatically", func() {
+				By("create table", func() {
+					mock.ExpectExec(`CREATE TABLE "log_entries"`).WillReturnResult(sqlmock.NewResult(0, 0))
+				})
+
+				By("create indexes", func() {
+					mock.ExpectExec(`CREATE INDEX IF NOT EXISTS "idx_log_entries_response_type"`).WillReturnResult(sqlmock.NewResult(0, 0))
+					mock.ExpectExec(`CREATE INDEX IF NOT EXISTS "idx_log_entries_client_name"`).WillReturnResult(sqlmock.NewResult(0, 0))
+					mock.ExpectExec(`CREATE INDEX IF NOT EXISTS "idx_log_entries_request_ts"`).WillReturnResult(sqlmock.NewResult(0, 0))
+				})
+
+				By("create postgres specific manually defined primary key", func() {
+					mock.ExpectExec(`ALTER TABLE log_entries ADD column if not exists id serial primary key`).WillReturnResult(sqlmock.NewResult(0, 0))
+				})
+
+				_, err = newDatabaseWriter(dlc, 1, time.Millisecond)
+				Expect(err).Should(Succeed())
+			})
+		})
+
+		When("mysql database is configured", func() {
+			BeforeEach(func() {
+				db, mock, err = sqlmock.New()
+				Expect(err).Should(Succeed())
+
+				dlc = mysql.New(mysql.Config{
+					Conn:                      db,
+					SkipInitializeWithVersion: true,
+				})
+				Expect(err).Should(Succeed())
+
+				mock.MatchExpectationsInOrder(false)
+			})
+			AfterEach(func() {
+				Expect(mock.ExpectationsWereMet()).Should(Succeed())
+			})
+			// nolint:lll
+			Context("Happy path", func() {
+				It("should create the database schema automatically", func() {
+					By("create table with indexes", func() {
+						mock.ExpectExec("CREATE TABLE `log_entries`.*INDEX (`idx_log_entries_request_ts`|`idx_log_entries_client_name`|`idx_log_entries_response_type`)").WillReturnResult(sqlmock.NewResult(0, 0))
+					})
+
+					By("create mysql specific manually defined primary key", func() {
+						mock.ExpectExec("ALTER TABLE `log_entries` ADD `id` INT PRIMARY KEY AUTO_INCREMENT").WillReturnResult(sqlmock.NewResult(0, 0))
+					})
+
+					_, err = newDatabaseWriter(dlc, 1, time.Millisecond)
+					Expect(err).Should(Succeed())
+				})
+			})
+
+			// nolint:lll
+			Context("primary index creation", func() {
+				It("should create the database schema automatically without errors even if primary idex exists", func() {
+					By("create table with indexes", func() {
+						mock.ExpectExec("CREATE TABLE `log_entries`.*INDEX (`idx_log_entries_request_ts`|`idx_log_entries_client_name`|`idx_log_entries_response_type`)").WillReturnResult(sqlmock.NewResult(0, 0))
+					})
+
+					By("create mysql specific manually defined primary key should be skipped if already exists (error 1060)", func() {
+						mock.ExpectExec("ALTER TABLE `log_entries` ADD `id` INT PRIMARY KEY AUTO_INCREMENT").WillReturnError(fmt.Errorf("error 1060: duplicate column name"))
+					})
+
+					_, err = newDatabaseWriter(dlc, 1, time.Millisecond)
+					Expect(err).Should(Succeed())
+				})
+
+				It("should fail if manually defined index can't be created", func() {
+					By("create table with indexes", func() {
+						mock.ExpectExec("CREATE TABLE `log_entries`.*INDEX (`idx_log_entries_request_ts`|`idx_log_entries_client_name`|`idx_log_entries_response_type`)").WillReturnResult(sqlmock.NewResult(0, 0))
+					})
+
+					By("create mysql specific manually defined primary key should be skipped if already exists", func() {
+						mock.ExpectExec("ALTER TABLE `log_entries` ADD `id` INT PRIMARY KEY AUTO_INCREMENT").WillReturnError(fmt.Errorf("error XXX: some index error"))
+					})
+
+					_, err = newDatabaseWriter(dlc, 1, time.Millisecond)
+					Expect(err).Should(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("can't perform auto migration: error XXX: some index error"))
+				})
+			})
+
+			Context("table can't be created", func() {
+				It("should create the database schema automatically without errors", func() {
+					By("create table with indexes", func() {
+						mock.ExpectExec("CREATE TABLE `log_entries`").WillReturnError(fmt.Errorf("error XXX: some db error"))
+					})
+
+					_, err = newDatabaseWriter(dlc, 1, time.Millisecond)
+					Expect(err).Should(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("can't perform auto migration: error XXX: some db error"))
+				})
+			})
+
+		})
+
 	})
 
 })
