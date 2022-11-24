@@ -600,22 +600,37 @@ You can select one of following query log types:
 - `console` - log into console output
 - `none` - do not log any queries
 
+### Query log fields
+
+You can choose which information from processed DNS request and response should be logged in the target system. You can define one or more of following fields:
+
+- `clientIP` - origin IP address from the request
+- `clientName` - resolved client name(s) from the origins request
+- `responseReason` - reason for the response (e.g. from which upstream resolver), response type and code
+- `responseAnswer` - returned DNS answer
+- `question` - DNS question from the request
+- `duration` - request processing time in milliseconds
+
+!!! hint
+    If not defined, blocky will log all available information
+
 Configuration parameters:
 
-| Parameter                 | Type                                                                 | Mandatory | Default value | Description                                                                        |
-|---------------------------|----------------------------------------------------------------------|-----------|---------------|------------------------------------------------------------------------------------|
-| queryLog.type             | enum (mysql, postgresql, csv, csv-client, console, none (see above)) | no        |               | Type of logging target. Console if empty                                           |
-| queryLog.target           | string                                                               | no        |               | directory for writing the logs (for csv) or database url (for mysql or postgresql) |
-| queryLog.logRetentionDays | int                                                                  | no        | 0             | if > 0, deletes log files/database entries which are older than ... days           |
-| queryLog.creationAttempts | int                                                                  | no        | 3             | Max attempts to create specific query log writer                                   |
-| queryLog.CreationCooldown | duration format                                                      | no        | 2             | Time between the creation attempts                                                 |
+| Parameter                 | Type                                                                                 | Mandatory | Default value | Description                                                                        |
+|---------------------------|--------------------------------------------------------------------------------------|-----------|---------------|------------------------------------------------------------------------------------|
+| queryLog.type             | enum (mysql, postgresql, csv, csv-client, console, none (see above))                 | no        |               | Type of logging target. Console if empty                                           |
+| queryLog.target           | string                                                                               | no        |               | directory for writing the logs (for csv) or database url (for mysql or postgresql) |
+| queryLog.logRetentionDays | int                                                                                  | no        | 0             | if > 0, deletes log files/database entries which are older than ... days           |
+| queryLog.creationAttempts | int                                                                                  | no        | 3             | Max attempts to create specific query log writer                                   |
+| queryLog.CreationCooldown | duration format                                                                      | no        | 2             | Time between the creation attempts                                                 |
+| queryLog.fields           | list enum (clientIP, clientName, responseReason, responseAnswer, question, duration) | no        | all           | which information should be logged                                                 |
 
 !!! hint
 
     Please ensure, that the log directory is writable or database exists. If you use docker, please ensure, that the directory is properly
     mounted (e.g. volume)
 
-example for CSV format
+example for CSV format with limited logging information
 !!! example
 
     ```yaml
@@ -623,6 +638,9 @@ example for CSV format
       type: csv
       target: /logs
       logRetentionDays: 7
+      fields:
+      - clientIP
+      - duration
     ```
 
 example for Database

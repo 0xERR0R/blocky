@@ -86,6 +86,10 @@ type QueryLogType int16
 // )
 type StartStrategyType uint16
 
+// QueryLogField data field to be logged
+// ENUM(clientIP,clientName,responseReason,responseAnswer,question,duration)
+type QueryLogField string
+
 type QType dns.Type
 
 func (c QType) String() string {
@@ -567,11 +571,12 @@ type CachingConfig struct {
 
 // QueryLogConfig configuration for the query logging
 type QueryLogConfig struct {
-	Target           string       `yaml:"target"`
-	Type             QueryLogType `yaml:"type"`
-	LogRetentionDays uint64       `yaml:"logRetentionDays"`
-	CreationAttempts int          `yaml:"creationAttempts" default:"3"`
-	CreationCooldown Duration     `yaml:"creationCooldown" default:"2s"`
+	Target           string          `yaml:"target"`
+	Type             QueryLogType    `yaml:"type"`
+	LogRetentionDays uint64          `yaml:"logRetentionDays"`
+	CreationAttempts int             `yaml:"creationAttempts" default:"3"`
+	CreationCooldown Duration        `yaml:"creationCooldown" default:"2s"`
+	Fields           []QueryLogField `yaml:"fields"`
 }
 
 // RedisConfig configuration for the redis connection

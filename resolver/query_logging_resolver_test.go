@@ -110,8 +110,11 @@ var _ = Describe("QueryLoggingResolver", func() {
 						g.Expect(csvLines[0][1]).Should(Equal("192.168.178.25"))
 						g.Expect(csvLines[0][2]).Should(Equal("client1"))
 						g.Expect(csvLines[0][4]).Should(Equal("reason"))
-						g.Expect(csvLines[0][5]).Should(Equal("A (example.com.)"))
+						g.Expect(csvLines[0][5]).Should(Equal("example.com."))
 						g.Expect(csvLines[0][6]).Should(Equal("A (123.122.121.120)"))
+						g.Expect(csvLines[0][7]).Should(Equal("NOERROR"))
+						g.Expect(csvLines[0][8]).Should(Equal("RESOLVED"))
+						g.Expect(csvLines[0][9]).Should(Equal("A"))
 					}, "1s").Should(Succeed())
 
 				})
@@ -126,8 +129,11 @@ var _ = Describe("QueryLoggingResolver", func() {
 						g.Expect(csvLines[0][1]).Should(Equal("192.168.178.26"))
 						g.Expect(csvLines[0][2]).Should(Equal("cl/ient2\\$%&test"))
 						g.Expect(csvLines[0][4]).Should(Equal("reason"))
-						g.Expect(csvLines[0][5]).Should(Equal("A (example.com.)"))
+						g.Expect(csvLines[0][5]).Should(Equal("example.com."))
 						g.Expect(csvLines[0][6]).Should(Equal("A (123.122.121.120)"))
+						g.Expect(csvLines[0][7]).Should(Equal("NOERROR"))
+						g.Expect(csvLines[0][8]).Should(Equal("RESOLVED"))
+						g.Expect(csvLines[0][9]).Should(Equal("A"))
 					}, "1s").Should(Succeed())
 				})
 			})
@@ -165,20 +171,69 @@ var _ = Describe("QueryLoggingResolver", func() {
 						g.Expect(csvLines[0][1]).Should(Equal("192.168.178.25"))
 						g.Expect(csvLines[0][2]).Should(Equal("client1"))
 						g.Expect(csvLines[0][4]).Should(Equal("reason"))
-						g.Expect(csvLines[0][5]).Should(Equal("A (example.com.)"))
+						g.Expect(csvLines[0][5]).Should(Equal("example.com."))
 						g.Expect(csvLines[0][6]).Should(Equal("A (123.122.121.120)"))
+						g.Expect(csvLines[0][7]).Should(Equal("NOERROR"))
+						g.Expect(csvLines[0][8]).Should(Equal("RESOLVED"))
+						g.Expect(csvLines[0][9]).Should(Equal("A"))
 
 						// client2 -> second line
 						g.Expect(csvLines[1][1]).Should(Equal("192.168.178.26"))
 						g.Expect(csvLines[1][2]).Should(Equal("client2"))
 						g.Expect(csvLines[1][4]).Should(Equal("reason"))
-						g.Expect(csvLines[1][5]).Should(Equal("A (example.com.)"))
+						g.Expect(csvLines[1][5]).Should(Equal("example.com."))
 						g.Expect(csvLines[1][6]).Should(Equal("A (123.122.121.120)"))
+						g.Expect(csvLines[1][7]).Should(Equal("NOERROR"))
+						g.Expect(csvLines[1][8]).Should(Equal("RESOLVED"))
+						g.Expect(csvLines[1][9]).Should(Equal("A"))
 					}, "1s").Should(Succeed())
 
 				})
 			})
 		})
+		When("Configuration with specific fields to log", func() {
+			BeforeEach(func() {
+				sutConfig = config.QueryLogConfig{
+					Target:           tmpDir.Path,
+					Type:             config.QueryLogTypeCsv,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
+					Fields:           []config.QueryLogField{config.QueryLogFieldClientIP},
+				}
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.Type(dns.TypeA), "123.122.121.120")
+			})
+			It("should create one log file", func() {
+				By("request from client 1", func() {
+					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.25", "client1"))
+					Expect(err).Should(Succeed())
+				})
+
+				m.AssertExpectations(GinkgoT())
+
+				By("check log", func() {
+					Eventually(func(g Gomega) {
+						csvLines, err := readCsv(tmpDir.JoinPath(
+							fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02"))))
+
+						g.Expect(err).Should(Succeed())
+						g.Expect(csvLines).Should(HaveLen(1))
+
+						// ip will be logged
+						g.Expect(csvLines[0][1]).Should(Equal("192.168.178.25"))
+						g.Expect(csvLines[0][2]).Should(Equal("none"))
+						g.Expect(csvLines[0][3]).Should(Equal("0"))
+						g.Expect(csvLines[0][4]).Should(Equal(""))
+						g.Expect(csvLines[0][5]).Should(Equal(""))
+						g.Expect(csvLines[0][6]).Should(Equal(""))
+						g.Expect(csvLines[0][7]).Should(Equal(""))
+						g.Expect(csvLines[0][8]).Should(Equal(""))
+						g.Expect(csvLines[0][9]).Should(Equal(""))
+					}, "1s").Should(Succeed())
+
+				})
+			})
+		})
+
 	})
 
 	Describe("Slow writer", func() {

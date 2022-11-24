@@ -158,6 +158,82 @@ func (x *NetProtocol) UnmarshalText(text []byte) error {
 }
 
 const (
+	// QueryLogFieldClientIP is a QueryLogField of type clientIP.
+	QueryLogFieldClientIP QueryLogField = "clientIP"
+	// QueryLogFieldClientName is a QueryLogField of type clientName.
+	QueryLogFieldClientName QueryLogField = "clientName"
+	// QueryLogFieldResponseReason is a QueryLogField of type responseReason.
+	QueryLogFieldResponseReason QueryLogField = "responseReason"
+	// QueryLogFieldResponseAnswer is a QueryLogField of type responseAnswer.
+	QueryLogFieldResponseAnswer QueryLogField = "responseAnswer"
+	// QueryLogFieldQuestion is a QueryLogField of type question.
+	QueryLogFieldQuestion QueryLogField = "question"
+	// QueryLogFieldDuration is a QueryLogField of type duration.
+	QueryLogFieldDuration QueryLogField = "duration"
+)
+
+var ErrInvalidQueryLogField = fmt.Errorf("not a valid QueryLogField, try [%s]", strings.Join(_QueryLogFieldNames, ", "))
+
+var _QueryLogFieldNames = []string{
+	string(QueryLogFieldClientIP),
+	string(QueryLogFieldClientName),
+	string(QueryLogFieldResponseReason),
+	string(QueryLogFieldResponseAnswer),
+	string(QueryLogFieldQuestion),
+	string(QueryLogFieldDuration),
+}
+
+// QueryLogFieldNames returns a list of possible string values of QueryLogField.
+func QueryLogFieldNames() []string {
+	tmp := make([]string, len(_QueryLogFieldNames))
+	copy(tmp, _QueryLogFieldNames)
+	return tmp
+}
+
+// String implements the Stringer interface.
+func (x QueryLogField) String() string {
+	return string(x)
+}
+
+// String implements the Stringer interface.
+func (x QueryLogField) IsValid() bool {
+	_, err := ParseQueryLogField(string(x))
+	return err == nil
+}
+
+var _QueryLogFieldValue = map[string]QueryLogField{
+	"clientIP":       QueryLogFieldClientIP,
+	"clientName":     QueryLogFieldClientName,
+	"responseReason": QueryLogFieldResponseReason,
+	"responseAnswer": QueryLogFieldResponseAnswer,
+	"question":       QueryLogFieldQuestion,
+	"duration":       QueryLogFieldDuration,
+}
+
+// ParseQueryLogField attempts to convert a string to a QueryLogField.
+func ParseQueryLogField(name string) (QueryLogField, error) {
+	if x, ok := _QueryLogFieldValue[name]; ok {
+		return x, nil
+	}
+	return QueryLogField(""), fmt.Errorf("%s is %w", name, ErrInvalidQueryLogField)
+}
+
+// MarshalText implements the text marshaller method.
+func (x QueryLogField) MarshalText() ([]byte, error) {
+	return []byte(string(x)), nil
+}
+
+// UnmarshalText implements the text unmarshaller method.
+func (x *QueryLogField) UnmarshalText(text []byte) error {
+	tmp, err := ParseQueryLogField(string(text))
+	if err != nil {
+		return err
+	}
+	*x = tmp
+	return nil
+}
+
+const (
 	// QueryLogTypeConsole is a QueryLogType of type Console.
 	// use logger as fallback
 	QueryLogTypeConsole QueryLogType = iota
