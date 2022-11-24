@@ -72,13 +72,30 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 		return nil, nil // nolint:nilnil
 	}
 
-	rdb := redis.NewClient(&redis.Options{
-		Addr:            cfg.Address,
-		Password:        cfg.Password,
-		DB:              cfg.Database,
-		MaxRetries:      cfg.ConnectionAttempts,
-		MaxRetryBackoff: time.Duration(cfg.ConnectionCooldown),
-	})
+	var rdb *redis.Client
+	if len(cfg.SentinelAddresses) > 0 {
+		rdb = redis.NewFailoverClient(&redis.FailoverOptions{
+			MasterName:       cfg.Address,
+			SentinelUsername: cfg.Username,
+			SentinelPassword: cfg.SentinelPassword,
+			SentinelAddrs:    cfg.SentinelAddresses,
+			Username:         cfg.Username,
+			Password:         cfg.Password,
+			DB:               cfg.Database,
+			MaxRetries:       cfg.ConnectionAttempts,
+			MaxRetryBackoff:  time.Duration(cfg.ConnectionCooldown),
+		})
+	} else {
+		rdb = redis.NewClient(&redis.Options{
+			Addr:            cfg.Address,
+			Username:        cfg.Username,
+			Password:        cfg.Password,
+			DB:              cfg.Database,
+			MaxRetries:      cfg.ConnectionAttempts,
+			MaxRetryBackoff: time.Duration(cfg.ConnectionCooldown),
+		})
+	}
+
 	ctx := context.Background()
 
 	_, err := rdb.Ping(ctx).Result()
