@@ -11,22 +11,22 @@ configuration properties as [JSON](config.yml).
 
 ## Basic configuration
 
-| Parameter    | Type                            | Mandatory             | Default value | Description                                                                                                                                                                                                                                       |
-|--------------|---------------------------------|-----------------------|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| port         | [IP]:port[,[IP]:port]*          | no                    | 53            | Port(s) and optional bind ip address(es) to serve DNS endpoint (TCP and UDP). If you wish to specify a specific IP, you can do so such as `192.168.0.1:53`. Example: `53`, `:53`, `127.0.0.1:53,[::1]:53`                                         |
-| tlsPort      | [IP]:port[,[IP]:port]*          | no                    |               | Port(s) and optional bind ip address(es) to serve DoT DNS endpoint (DNS-over-TLS). If you wish to specify a specific IP, you can do so such as `192.168.0.1:853`. Example: `83`, `:853`, `127.0.0.1:853,[::1]:853`                                |
-| httpPort     | [IP]:port[,[IP]:port]*          | no                    |               | Port(s) and optional bind ip address(es) to serve HTTP used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:4000`. Example: `4000`, `:4000`, `127.0.0.1:4000,[::1]:4000` |
-| httpsPort    | [IP]:port[,[IP]:port]*          | no                    |               | Port(s) and optional bind ip address(es) to serve HTTPS used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:443`. Example: `443`, `:443`, `127.0.0.1:443,[::1]:443`     |
-| certFile     | path                            | no                    |               | Path to cert and key file for SSL encryption (DoH and DoT); if empty, self-signed certificate is generated                                               |
-| keyFile      | path                            | no                    |               | Path to cert and key file for SSL encryption (DoH and DoT); if empty, self-signed certificate is generated                                              |
-| logLevel     | enum (debug, info, warn, error) | no                    | info          | Log level                                                                                                                                                                                                                                         |
-| logFormat    | enum (text, json)               | no                    | text          | Log format (text or json).                                                                                                                                                                                                                        |
-| logTimestamp | bool                            | no                    | true          | Log time stamps (true or false).                                                                                                                                                                                                                  |
-| logPrivacy   | bool                            | no                    | false         | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy.                                                                                                 |
-| dohUserAgent | string                          | no                    |               | HTTP User Agent for DoH upstreams                                                                                                  |
-| minTlsServeVersion | string                    | no                    | 1.2           | Minimum TLS version that the DoT and DoH server use to serve those encrypted DNS requests                       |
-| startVerifyUpstream | bool                     | no                    | false          | If true, blocky will fail to start unless at least one upstream server per group is reachable.                  |
-| connectIPVersion | enum (dual, v4, v6)         | no                    | dual          | IP version to use for outgoing connections (dual, v4, v6)                  |
+| Parameter           | Type                            | Mandatory | Default value | Description                                                                                                                                                                                                                                       |
+|---------------------|---------------------------------|-----------|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| port                | [IP]:port[,[IP]:port]*          | no        | 53            | Port(s) and optional bind ip address(es) to serve DNS endpoint (TCP and UDP). If you wish to specify a specific IP, you can do so such as `192.168.0.1:53`. Example: `53`, `:53`, `127.0.0.1:53,[::1]:53`                                         |
+| tlsPort             | [IP]:port[,[IP]:port]*          | no        |               | Port(s) and optional bind ip address(es) to serve DoT DNS endpoint (DNS-over-TLS). If you wish to specify a specific IP, you can do so such as `192.168.0.1:853`. Example: `83`, `:853`, `127.0.0.1:853,[::1]:853`                                |
+| httpPort            | [IP]:port[,[IP]:port]*          | no        |               | Port(s) and optional bind ip address(es) to serve HTTP used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:4000`. Example: `4000`, `:4000`, `127.0.0.1:4000,[::1]:4000` |
+| httpsPort           | [IP]:port[,[IP]:port]*          | no        |               | Port(s) and optional bind ip address(es) to serve HTTPS used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:443`. Example: `443`, `:443`, `127.0.0.1:443,[::1]:443`     |
+| certFile            | path                            | no        |               | Path to cert and key file for SSL encryption (DoH and DoT); if empty, self-signed certificate is generated                                                                                                                                        |
+| keyFile             | path                            | no        |               | Path to cert and key file for SSL encryption (DoH and DoT); if empty, self-signed certificate is generated                                                                                                                                        |
+| logLevel            | enum (debug, info, warn, error) | no        | info          | Log level                                                                                                                                                                                                                                         |
+| logFormat           | enum (text, json)               | no        | text          | Log format (text or json).                                                                                                                                                                                                                        |
+| logTimestamp        | bool                            | no        | true          | Log time stamps (true or false).                                                                                                                                                                                                                  |
+| logPrivacy          | bool                            | no        | false         | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy.                                                                                                  |
+| dohUserAgent        | string                          | no        |               | HTTP User Agent for DoH upstreams                                                                                                                                                                                                                 |
+| minTlsServeVersion  | string                          | no        | 1.2           | Minimum TLS version that the DoT and DoH server use to serve those encrypted DNS requests                                                                                                                                                         |
+| startVerifyUpstream | bool                            | no        | false         | If true, blocky will fail to start unless at least one upstream server per group is reachable.                                                                                                                                                    |
+| connectIPVersion    | enum (dual, v4, v6)             | no        | dual          | IP version to use for outgoing connections (dual, v4, v6)                                                                                                                                                                                         |
 
 !!! example
 
@@ -54,8 +54,8 @@ following network protocols (net part of the resolver URL):
 
 Each resolver must be defined as a string in following format: `[net:]host:[port][/path][#commonName]`.
 
-| Parameter | Type                             | Mandatory | Default value                                     |
-|-----------|----------------------------------|-----------|---------------------------------------------------|
+| Parameter  | Type                             | Mandatory | Default value                                     |
+|------------|----------------------------------|-----------|---------------------------------------------------|
 | net        | enum (tcp+udp, tcp-tls or https) | no        | tcp+udp                                           |
 | host       | IP or hostname                   | yes       |                                                   |
 | port       | int (1 - 65535)                  | no        | 53 for udp/tcp, 853 for tcp-tls and 443 for https |
@@ -119,10 +119,10 @@ value by setting the `upstreamTimeout` configuration parameter (in **duration fo
 This DNS server is used to resolve upstream DoH and DoT servers that are specified as host names.
 Useful if no system DNS resolver is configured, and to encrypt the bootstrap queries.
 
-| Parameter | Type                             | Mandatory                   | Default value | Description                          |
-|-----------|----------------------------------|-----------------------------|---------------|--------------------------------------|
-| upstream  | Upstream (see below)             | no                          |               |                                      |
-| ips       | List of IPs                      | yes, if upstream is DoT/DoH |               | Only valid if upstream is DoH or DoT |
+| Parameter | Type                 | Mandatory                   | Default value | Description                          |
+|-----------|----------------------|-----------------------------|---------------|--------------------------------------|
+| upstream  | Upstream (see below) | no                          |               |                                      |
+| ips       | List of IPs          | yes, if upstream is DoT/DoH |               | Only valid if upstream is DoH or DoT |
 
 If you only need to specify upstream, you can use the short form: `bootstrapDns: <upstream>`.
 
@@ -172,12 +172,12 @@ You can define your own domain name to IP mappings. For example, you can use a u
 or define a domain name for your local device on order to use the HTTPS certificate. Multiple IP addresses for one
 domain must be separated by a comma.
 
-| Parameter | Type                                                | Mandatory | Default value |
-|-----------------------|-----------------------------------------|-----------|---------------|
-| customTTL             | duration (no unit is minutes)           | no        | 1h            |
-| rewrite               | string: string (domain: domain)         | no        |               |
-| mapping               | string: string (hostname: address list) | no        |               |
-| filterUnmappedTypes   | boolean                                 | no        | true          |
+| Parameter           | Type                                    | Mandatory | Default value |
+|---------------------|-----------------------------------------|-----------|---------------|
+| customTTL           | duration (no unit is minutes)           | no        | 1h            |
+| rewrite             | string: string (domain: domain)         | no        |               |
+| mapping             | string: string (hostname: address list) | no        |               |
+| filterUnmappedTypes | boolean                                 | no        | true          |
 
 !!! example
 
@@ -446,11 +446,11 @@ Refresh every hour.
 
 You can configure the list download attempts according to your internet connection:
 
-| Parameter        | Type            | Mandatory | Default value | Description                                     |
-|------------------|-----------------|-----------|---------------|-------------------------------------------------|
-| downloadTimeout  | duration format | no        | 60s           | Download attempt timeout                        |
-| downloadAttempts | int             | no        | 3             | How many download attempts should be performed  |
-| downloadCooldown | duration format | no        | 1s            | Time between the download attempts              |
+| Parameter        | Type            | Mandatory | Default value | Description                                    |
+|------------------|-----------------|-----------|---------------|------------------------------------------------|
+| downloadTimeout  | duration format | no        | 60s           | Download attempt timeout                       |
+| downloadAttempts | int             | no        | 3             | How many download attempts should be performed |
+| downloadCooldown | duration format | no        | 1s            | Time between the download attempts             |
 
 !!! example
 
@@ -514,7 +514,7 @@ With following parameters you can tune the caching behavior:
 | caching.prefetchExpires       | duration format | no        | 2h            | Prefetch track time window                                                                                                                                                                                                                                                                                                                                                                                     |
 | caching.prefetchThreshold     | int             | no        | 5             | Name queries threshold for prefetch                                                                                                                                                                                                                                                                                                                                                                            |
 | caching.prefetchMaxItemsCount | int             | no        | 0 (unlimited) | Max number of domains to be kept in cache for prefetching (soft limit). Default (0): unlimited. Useful on systems with limited amount of RAM.                                                                                                                                                                                                                                                                  |
-| caching.cacheTimeNegative     | duration format | no        | 30m           | Time how long negative results (NXDOMAIN response or empty result) are cached. A value of -1 will disable caching for negative results.                                                                                                                                                                                                                                                                                                            |
+| caching.cacheTimeNegative     | duration format | no        | 30m           | Time how long negative results (NXDOMAIN response or empty result) are cached. A value of -1 will disable caching for negative results.                                                                                                                                                                                                                                                                        |
 
 !!! example
 
@@ -530,25 +530,36 @@ With following parameters you can tune the caching behavior:
 Blocky can synchronize its cache and blocking state between multiple instances through redis.
 Synchronization is disabled if no address is configured.
 
-| Parameter                | Type            | Mandatory | Default value | Description                                |
-|--------------------------|-----------------|-----------|---------------|--------------------------------------------|
-| redis.address            | string          | no        |               | Server address and port                    |
-| redis.password           | string          | no        |               | Password if necessary                      |
-| redis.database           | int             | no        | 0             | Database                                   |
-| redis.required           | bool            | no        | false         | Connection is required for blocky to start |
-| redis.connectionAttempts | int             | no        | 3             | Max connection attempts                    |
-| redis.connectionCooldown | duration format | no        | 1s            | Time between the connection attempts       |
+| Parameter                | Type            | Mandatory | Default value | Description                                                         |
+|--------------------------|-----------------|-----------|---------------|---------------------------------------------------------------------|
+| redis.address            | string          | no        |               | Server address and port or master name if sentinel is used          |
+| redis.username           | string          | no        |               | Username if necessary                                               |
+| redis.password           | string          | no        |               | Password if necessary                                               |
+| redis.database           | int             | no        | 0             | Database                                                            |
+| redis.required           | bool            | no        | false         | Connection is required for blocky to start                          |
+| redis.connectionAttempts | int             | no        | 3             | Max connection attempts                                             |
+| redis.connectionCooldown | duration format | no        | 1s            | Time between the connection attempts                                |
+| redis.sentinelUsername   | string          | no        |               | Sentinel username if necessary                                      |
+| redis.sentinelPassword   | string          | no        |               | Sentinel password if necessary                                      |
+| redis.sentinelAddresses  | string[]        | no        |               | Sentinel host list (Sentinel is activated if addresses are defined) |
 
 !!! example
 
     ```yaml
     redis:
-      address: redis:6379
+      address: redismaster
+      username: usrname
       password: passwd
       database: 2
       required: true
       connectionAttempts: 10
       connectionCooldown: 3s
+      sentinelUsername: sentUsrname
+      sentinelPassword: sentPasswd
+      sentinelAddresses:
+        - redis-sentinel1:26379
+        - redis-sentinel2:26379
+        - redis-sentinel3:26379
     ```
 
 ## Prometheus
@@ -591,13 +602,13 @@ You can select one of following query log types:
 
 Configuration parameters:
 
-| Parameter                 | Type                                                                 | Mandatory | Default value | Description                                                                            |
-|---------------------------|----------------------------------------------------------------------|-----------|---------------|----------------------------------------------------------------------------------------|
-| queryLog.type             | enum (mysql, postgresql, csv, csv-client, console, none (see above)) | no        |               | Type of logging target. Console if empty                                               |
-| queryLog.target           | string                                                               | no        |               | directory for writing the logs (for csv) or database url (for mysql or postgresql)     |
-| queryLog.logRetentionDays | int                                                                  | no        | 0             | if > 0, deletes log files/database entries which are older than ... days               |
-| queryLog.creationAttempts | int                                                                  | no        | 3             | Max attempts to create specific query log writer                                       |
-| queryLog.CreationCooldown | duration format                                                      | no        | 2             | Time between the creation attempts                                                     |
+| Parameter                 | Type                                                                 | Mandatory | Default value | Description                                                                        |
+|---------------------------|----------------------------------------------------------------------|-----------|---------------|------------------------------------------------------------------------------------|
+| queryLog.type             | enum (mysql, postgresql, csv, csv-client, console, none (see above)) | no        |               | Type of logging target. Console if empty                                           |
+| queryLog.target           | string                                                               | no        |               | directory for writing the logs (for csv) or database url (for mysql or postgresql) |
+| queryLog.logRetentionDays | int                                                                  | no        | 0             | if > 0, deletes log files/database entries which are older than ... days           |
+| queryLog.creationAttempts | int                                                                  | no        | 3             | Max attempts to create specific query log writer                                   |
+| queryLog.CreationCooldown | duration format                                                      | no        | 2             | Time between the creation attempts                                                 |
 
 !!! hint
 
@@ -630,12 +641,12 @@ You can enable resolving of entries, located in local hosts file.
 
 Configuration parameters:
 
-| Parameter                | Type                           | Mandatory | Default value | Description                                      |
-|--------------------------|--------------------------------|-----------|---------------|--------------------------------------------------|
-| hostsFile.filePath       | string                         | no        |               | Path to hosts file (e.g. /etc/hosts on Linux)    |
-| hostsFile.hostsTTL       | duration (no units is minutes) | no        | 1h            | TTL                                              |
-| hostsFile.refreshPeriod  | duration format                | no        | 1h            | Time between hosts file refresh                  |
-| hostsFile.filterLoopback | bool                           | no        | false         | Filter loopback addresses (127.0.0.0/8 and ::1)  |
+| Parameter                | Type                           | Mandatory | Default value | Description                                     |
+|--------------------------|--------------------------------|-----------|---------------|-------------------------------------------------|
+| hostsFile.filePath       | string                         | no        |               | Path to hosts file (e.g. /etc/hosts on Linux)   |
+| hostsFile.hostsTTL       | duration (no units is minutes) | no        | 1h            | TTL                                             |
+| hostsFile.refreshPeriod  | duration format                | no        | 1h            | Time between hosts file refresh                 |
+| hostsFile.filterLoopback | bool                           | no        | false         | Filter loopback addresses (127.0.0.0/8 and ::1) |
 
 !!! example
 
@@ -652,9 +663,9 @@ DNS responses can be extended with EDE codes according to [RFC8914](https://data
 
 Configuration parameters:
 
-| Parameter                | Type                           | Mandatory | Default value | Description                                        |
-|--------------------------|--------------------------------|-----------|---------------|----------------------------------------------------|
-| ede.enable               | bool                           | no        | false         | If true, DNS responses are delivered with EDE codes |
+| Parameter  | Type | Mandatory | Default value | Description                                        |
+|------------|------|-----------|---------------|----------------------------------------------------|
+| ede.enable | bool | no        | false         | If true, DNS responses are deliverd with EDE codes |
 
 !!! example
 

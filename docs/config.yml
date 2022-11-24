@@ -180,8 +180,10 @@ queryLog:
 
 # optional: Blocky can synchronize its cache and blocking state between multiple instances through redis.
 redis:
-  # Server address and port
-  address: redis:6379
+  # Server address and port or master name if sentinel is used
+  address: redismaster
+  # Username if necessary
+  username: usrname
   # Password if necessary
   password: passwd
   # Database, default: 0
@@ -192,6 +194,15 @@ redis:
   connectionAttempts: 10
   # Time between the connection attempts, default: 1s
   connectionCooldown: 3s
+  # Sentinal username if necessary
+  sentinelUsername: usrname
+  # Sentinal password if necessary
+  sentinelPassword: passwd
+  # List with address and port of sentinel hosts(sentinel is activated if at least one sentinel address is configured)
+  sentinelAddresses:
+    - redis-sentinel1:26379
+    - redis-sentinel2:26379
+    - redis-sentinel3:26379
 
 # optional: DNS listener port(s) and bind ip address(es), default 53 (UDP and TCP). Example: 53, :53, "127.0.0.1:5353,[::1]:5353"
 port: 53
