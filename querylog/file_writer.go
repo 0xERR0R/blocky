@@ -114,6 +114,7 @@ func createQueryLogRow(logEntry *LogEntry) []string {
 		util.QuestionToString(request.Req.Question),
 		util.AnswerToString(response.Res.Answer),
 		dns.RcodeToString[response.Res.Rcode],
+		util.HostnameString(),
 	}
 }
 

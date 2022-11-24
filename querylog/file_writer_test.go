@@ -186,7 +186,6 @@ var _ = Describe("FileWriter", func() {
 						DurationMs: 20,
 					})
 				})
-				fmt.Println(tmpDir.Path)
 
 				Eventually(func(g Gomega) int {
 					filesCount, err := tmpDir.CountFiles()
