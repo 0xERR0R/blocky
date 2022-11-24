@@ -19,13 +19,13 @@ require (
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/miekg/dns v1.1.50
 	github.com/mroth/weightedrand v1.0.0
-	github.com/onsi/ginkgo/v2 v2.5.0
+	github.com/onsi/ginkgo/v2 v2.5.1
 	github.com/onsi/gomega v1.24.1
 	github.com/prometheus/client_golang v1.14.0
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cobra v1.6.1
 	github.com/stretchr/testify v1.8.1
-	github.com/swaggo/swag v1.8.7
+	github.com/swaggo/swag v1.8.8
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
 	golang.org/x/net v0.2.0
 	gopkg.in/yaml.v2 v2.4.0
