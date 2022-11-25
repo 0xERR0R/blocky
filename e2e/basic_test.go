@@ -78,7 +78,8 @@ var _ = Describe("Basic functional tests", func() {
 						"upstream:",
 						"  default:",
 						"    - moka1",
-						"httpPort: 4000",
+						"ports:",
+						"  http: 4000",
 					)
 
 					Expect(err).Should(Succeed())

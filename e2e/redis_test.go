@@ -45,7 +45,8 @@ var _ = Describe("Redis configuration tests", func() {
 		When("Redis and 2 blocky instances are configured", func() {
 			BeforeEach(func() {
 				blocky1, err = createBlockyContainer(tmpDir,
-					"logLevel: warn",
+					"log:",
+					"  level: warn",
 					"upstream:",
 					"  default:",
 					"    - moka1",
@@ -57,7 +58,8 @@ var _ = Describe("Redis configuration tests", func() {
 				DeferCleanup(blocky1.Terminate)
 
 				blocky2, err = createBlockyContainer(tmpDir,
-					"logLevel: warn",
+					"log:",
+					"  level: warn",
 					"upstream:",
 					"  default:",
 					"    - moka1",
@@ -98,7 +100,8 @@ var _ = Describe("Redis configuration tests", func() {
 		When("Redis and 1 blocky instance are configured", func() {
 			BeforeEach(func() {
 				blocky1, err = createBlockyContainer(tmpDir,
-					"logLevel: warn",
+					"log:",
+					"  level: warn",
 					"upstream:",
 					"  default:",
 					"    - moka1",
@@ -121,7 +124,8 @@ var _ = Describe("Redis configuration tests", func() {
 
 				By("start other instance of blocky now -> it should load the cache from redis", func() {
 					blocky2, err = createBlockyContainer(tmpDir,
-						"logLevel: warn",
+						"log:",
+						"  level: warn",
 						"upstream:",
 						"  default:",
 						"    - moka1",

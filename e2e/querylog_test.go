@@ -34,7 +34,8 @@ var _ = Describe("Query logs functional tests", func() {
 			DeferCleanup(database.Terminate)
 
 			blocky, err = createBlockyContainer(tmpDir,
-				"logLevel: warn",
+				"log:",
+				"  level: warn",
 				"upstream:",
 				"  default:",
 				"    - moka1",
@@ -108,7 +109,8 @@ var _ = Describe("Query logs functional tests", func() {
 			DeferCleanup(database.Terminate)
 
 			blocky, err = createBlockyContainer(tmpDir,
-				"logLevel: warn",
+				"log:",
+				"  level: warn",
 				"upstream:",
 				"  default:",
 				"    - moka1",

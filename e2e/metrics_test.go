@@ -47,7 +47,8 @@ var _ = Describe("Metrics functional tests", func() {
 				"      - http://httpserver1:8080/list1.txt",
 				"    group2:",
 				"      - http://httpserver2:8080/list2.txt",
-				"httpPort: 4000",
+				"ports:",
+				"  http: 4000",
 				"prometheus:",
 				"  enable: true",
 			)

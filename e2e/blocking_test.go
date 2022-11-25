@@ -23,7 +23,8 @@ var _ = Describe("External lists and query blocking", func() {
 			Context("startStrategy = blocking", func() {
 				BeforeEach(func() {
 					blocky, err = createBlockyContainer(tmpDir,
-						"logLevel: warn",
+						"log:",
+						"  level: warn",
 						"upstream:",
 						"  default:",
 						"    - moka",
@@ -53,7 +54,8 @@ var _ = Describe("External lists and query blocking", func() {
 			Context("startStrategy = failOnError", func() {
 				BeforeEach(func() {
 					blocky, err = createBlockyContainer(tmpDir,
-						"logLevel: warn",
+						"log:",
+						"  level: warn",
 						"upstream:",
 						"  default:",
 						"    - moka",
@@ -89,7 +91,8 @@ var _ = Describe("External lists and query blocking", func() {
 				DeferCleanup(httpServer.Terminate)
 
 				blocky, err = createBlockyContainer(tmpDir,
-					"logLevel: warn",
+					"log:",
+					"  level: warn",
 					"upstream:",
 					"  default:",
 					"    - moka",
