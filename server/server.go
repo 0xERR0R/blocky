@@ -118,7 +118,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	var cert tls.Certificate
 
-	if len(cfg.HTTPSPorts) > 0 || len(cfg.TLSPorts) > 0 {
+	if len(cfg.Ports.HTTPS) > 0 || len(cfg.Ports.TLS) > 0 {
 		cert, err = retrieveCertificate(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("can't retrieve cert: %w", err)
@@ -202,22 +202,22 @@ func createServers(cfg *config.Config, cert tls.Certificate) ([]*dns.Server, err
 	}
 
 	err = multierror.Append(err,
-		addServers(createUDPServer, cfg.DNSPorts),
-		addServers(createTCPServer, cfg.DNSPorts),
+		addServers(createUDPServer, cfg.Ports.DNS),
+		addServers(createTCPServer, cfg.Ports.DNS),
 		addServers(func(address string) (*dns.Server, error) {
 			return createTLSServer(address, cert)
-		}, cfg.TLSPorts))
+		}, cfg.Ports.TLS))
 
 	return dnsServers, err.ErrorOrNil()
 }
 
 func createHTTPListeners(cfg *config.Config) (httpListeners []net.Listener, httpsListeners []net.Listener, err error) {
-	httpListeners, err = newListeners("http", cfg.HTTPPorts)
+	httpListeners, err = newListeners("http", cfg.Ports.HTTP)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	httpsListeners, err = newListeners("https", cfg.HTTPSPorts)
+	httpsListeners, err = newListeners("https", cfg.Ports.HTTPS)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -453,10 +453,10 @@ func (s *Server) printConfiguration() {
 		}
 	}
 
-	logger().Infof("- DNS listening on addrs/ports: %v", s.cfg.DNSPorts)
-	logger().Infof("- TLS listening on addrs/ports: %v", s.cfg.TLSPorts)
-	logger().Infof("- HTTP listening on addrs/ports: %v", s.cfg.HTTPPorts)
-	logger().Infof("- HTTPS listening on addrs/ports: %v", s.cfg.HTTPSPorts)
+	logger().Infof("- DNS listening on addrs/ports: %v", s.cfg.Ports.DNS)
+	logger().Infof("- TLS listening on addrs/ports: %v", s.cfg.Ports.TLS)
+	logger().Infof("- HTTP listening on addrs/ports: %v", s.cfg.Ports.HTTP)
+	logger().Infof("- HTTPS listening on addrs/ports: %v", s.cfg.Ports.HTTPS)
 
 	logger().Info("runtime information:")
 
@@ -505,7 +505,7 @@ func (s *Server) Start(errCh chan<- error) {
 
 	for i, listener := range s.httpListeners {
 		listener := listener
-		address := s.cfg.HTTPPorts[i]
+		address := s.cfg.Ports.HTTP[i]
 
 		go func() {
 			logger().Infof("http server is up and running on addr/port %s", address)
@@ -525,7 +525,7 @@ func (s *Server) Start(errCh chan<- error) {
 
 	for i, listener := range s.httpsListeners {
 		listener := listener
-		address := s.cfg.HTTPSPorts[i]
+		address := s.cfg.Ports.HTTPS[i]
 
 		go func() {
 			logger().Infof("https server is up and running on addr/port %s", address)

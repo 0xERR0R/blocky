@@ -461,10 +461,7 @@ type Config struct {
 	Prometheus          PrometheusConfig          `yaml:"prometheus"`
 	Redis               RedisConfig               `yaml:"redis"`
 	Log                 log.Config                `yaml:"log"`
-	DNSPorts            ListenConfig              `yaml:"port" default:"[\"53\"]"`
-	HTTPPorts           ListenConfig              `yaml:"httpPort"`
-	HTTPSPorts          ListenConfig              `yaml:"httpsPort"`
-	TLSPorts            ListenConfig              `yaml:"tlsPort"`
+	Ports               PortsConfig               `yaml:"ports"`
 	DoHUserAgent        string                    `yaml:"dohUserAgent"`
 	MinTLSServeVer      string                    `yaml:"minTlsServeVersion" default:"1.2"`
 	StartVerifyUpstream bool                      `yaml:"startVerifyUpstream" default:"false"`
@@ -485,6 +482,21 @@ type Config struct {
 	LogPrivacy bool `yaml:"logPrivacy" default:"false"`
 	// Deprecated
 	LogTimestamp bool `yaml:"logTimestamp" default:"true"`
+	// Deprecated
+	DNSPorts ListenConfig `yaml:"port" default:"[\"53\"]"`
+	// Deprecated
+	HTTPPorts ListenConfig `yaml:"httpPort"`
+	// Deprecated
+	HTTPSPorts ListenConfig `yaml:"httpsPort"`
+	// Deprecated
+	TLSPorts ListenConfig `yaml:"tlsPort"`
+}
+
+type PortsConfig struct {
+	DNS   ListenConfig `yaml:"dns" default:"[\"53\"]"`
+	HTTP  ListenConfig `yaml:"http"`
+	HTTPS ListenConfig `yaml:"https"`
+	TLS   ListenConfig `yaml:"tls"`
 }
 
 type BootstrapConfig bootstrapConfig // to avoid infinite recursion. See BootstrapConfig.UnmarshalYAML.
@@ -765,6 +777,32 @@ func validateConfig(cfg *Config) {
 		log.Log().Warnf("'logTimestamp' is deprecated. Please use 'log.timestamp' instead.")
 
 		cfg.Log.Timestamp = cfg.LogTimestamp
+	}
+
+	// backwards compatibility for ports options
+	if (len(cfg.DNSPorts) > 1 || cfg.DNSPorts[0] != "53") &&
+		(len(cfg.Ports.DNS) == 1 && cfg.Ports.DNS[0] == "53") {
+		log.Log().Warnf("'port' is deprecated. Please use 'ports.dns' instead.")
+
+		cfg.Ports.DNS = cfg.DNSPorts
+	}
+
+	if len(cfg.HTTPPorts) > 0 && len(cfg.Ports.HTTP) == 0 {
+		log.Log().Warnf("'httpPort' is deprecated. Please use 'ports.http' instead.")
+
+		cfg.Ports.HTTP = cfg.HTTPPorts
+	}
+
+	if len(cfg.HTTPSPorts) > 0 && len(cfg.Ports.HTTPS) == 0 {
+		log.Log().Warnf("'httpsPort' is deprecated. Please use 'ports.https' instead.")
+
+		cfg.Ports.HTTPS = cfg.HTTPSPorts
+	}
+
+	if len(cfg.TLSPorts) > 0 && len(cfg.Ports.TLS) == 0 {
+		log.Log().Warnf("'tlsPort' is deprecated. Please use 'ports.tls' instead.")
+
+		cfg.Ports.TLS = cfg.TLSPorts
 	}
 }
 
