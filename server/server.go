@@ -114,7 +114,7 @@ func retrieveCertificate(cfg *config.Config) (cert tls.Certificate, err error) {
 // NewServer creates new server instance with passed config
 // nolint:funlen
 func NewServer(cfg *config.Config) (server *Server, err error) {
-	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
+	log.ConfigureLogger(&cfg.Log)
 
 	var cert tls.Certificate
 

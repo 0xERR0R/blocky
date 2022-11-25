@@ -8,7 +8,7 @@ import (
 	"github.com/miekg/dns"
 
 	"github.com/0xERR0R/blocky/helpertest"
-	. "github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/log"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -223,6 +223,46 @@ bootstrapDns:
 			})
 		})
 
+		When("Deprecated parameter 'logLevel' is set", func() {
+			It("should convert to log.level", func() {
+				c := &Config{
+					LogLevel: log.LevelDebug,
+				}
+				validateConfig(c)
+				Expect(c.Log.Level).Should(Equal(log.LevelDebug))
+			})
+		})
+
+		When("Deprecated parameter 'logFormat' is set", func() {
+			It("should convert to log.format", func() {
+				c := &Config{
+					LogFormat: log.FormatTypeJson,
+				}
+				validateConfig(c)
+				Expect(c.Log.Format).Should(Equal(log.FormatTypeJson))
+			})
+		})
+
+		When("Deprecated parameter 'logPrivacy' is set", func() {
+			It("should convert to log.privacy", func() {
+				c := &Config{
+					LogPrivacy: true,
+				}
+				validateConfig(c)
+				Expect(c.Log.Privacy).Should(BeTrue())
+			})
+		})
+
+		When("Deprecated parameter 'logTimestamp' is set", func() {
+			It("should convert to log.timestamp", func() {
+				c := &Config{
+					LogTimestamp: false,
+				}
+				validateConfig(c)
+				Expect(c.Log.Timestamp).Should(BeFalse())
+			})
+		})
+
 		When("config directory does not exist", func() {
 			It("should return error", func() {
 				_, err = LoadConfig(tmpDir.JoinPath("config.yml"), true)
@@ -235,7 +275,7 @@ bootstrapDns:
 				_, err = LoadConfig(tmpDir.JoinPath("config.yml"), false)
 
 				Expect(err).Should(Succeed())
-				Expect(config.LogLevel).Should(Equal(LevelInfo))
+				Expect(config.LogLevel).Should(Equal(log.LevelInfo))
 			})
 		})
 	})

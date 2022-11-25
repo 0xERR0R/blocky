@@ -38,7 +38,7 @@ func startServer(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("unable to load configuration: %w", err)
 	}
 
-	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
+	log.ConfigureLogger(&cfg.Log)
 
 	signals := make(chan os.Signal, 1)
 
