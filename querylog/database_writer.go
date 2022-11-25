@@ -30,6 +30,7 @@ type logEntry struct {
 	EffectiveTLDP string
 	Answer        string
 	ResponseCode  string
+	Hostname      string
 }
 
 type DatabaseWriter struct {
@@ -139,6 +140,7 @@ func (d *DatabaseWriter) Write(entry *LogEntry) {
 		EffectiveTLDP: eTLD,
 		Answer:        entry.Answer,
 		ResponseCode:  entry.ResponseCode,
+		Hostname:      util.HostnameString(),
 	}
 
 	d.lock.Lock()

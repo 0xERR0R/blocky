@@ -72,6 +72,8 @@ services:
     image: spx01/blocky
     container_name: blocky
     restart: unless-stopped
+    # Optional the instance hostname for logging purpose
+    hostname: blocky-hostname
     ports:
       - "53:53/tcp"
       - "53:53/udp"
@@ -79,6 +81,8 @@ services:
     environment:
       - TZ=Europe/Berlin # Optional to synchronize the log timestamp with host
     volumes:
+      # Optional to synchronize the log timestamp with host
+      - /etc/localtime:/etc/localtime:ro
       # config file
       - ./config.yml:/app/config.yml
 ```

@@ -1,4 +1,4 @@
-.PHONY: all clean build swagger test lint run fmt docker-build help
+.PHONY: all clean build swagger test e2e-test lint run fmt docker-build help
 .DEFAULT_GOAL:=help
 
 VERSION?=$(shell git describe --always --tags)
@@ -54,11 +54,20 @@ ifdef BIN_AUTOCAB
 	setcap 'cap_net_bind_service=+ep' $(GO_BUILD_OUTPUT)
 endif
 
-test:  ## run tests
-	go run github.com/onsi/ginkgo/v2/ginkgo -v --coverprofile=coverage.txt --covermode=atomic -cover ./...
+test: ## run tests
+	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --coverprofile=coverage.txt --covermode=atomic -cover ./...
+
+e2e-test: ## run e2e tests
+	docker buildx build \
+		--build-arg VERSION=blocky-e2e \
+		--network=host \
+		-o type=docker \
+		-t blocky-e2e \
+		.
+	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="e2e" ./...
 
 race: ## run tests with race detector
-	go run github.com/onsi/ginkgo/v2/ginkgo --race ./...
+	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --race ./...
 
 lint: ## run golangcli-lint checks
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
@@ -81,4 +90,4 @@ docker-build:  ## Build docker image
 		.
 
 help:  ## Shows help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[0-9a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'

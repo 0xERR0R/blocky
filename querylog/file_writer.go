@@ -112,6 +112,7 @@ func createQueryLogRow(logEntry *LogEntry) []string {
 		logEntry.ResponseCode,
 		logEntry.ResponseType,
 		logEntry.QuestionType,
+		util.HostnameString(),
 	}
 }
 
