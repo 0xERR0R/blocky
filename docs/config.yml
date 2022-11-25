@@ -204,13 +204,6 @@ redis:
     - redis-sentinel2:26379
     - redis-sentinel3:26379
 
-# optional: DNS listener port(s) and bind ip address(es), default 53 (UDP and TCP). Example: 53, :53, "127.0.0.1:5353,[::1]:5353"
-port: 53
-# optional: Port(s) and bind ip address(es) for DoT (DNS-over-TLS) listener. Example: 853, 127.0.0.1:853
-#tlsPort: 853
-# optional: HTTPS listener port(s) and bind ip address(es), default empty = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH... Example: 443, :443, 127.0.0.1:443
-httpPort: 4000
-#httpsPort: 443
 # optional: Mininal TLS version that the DoH and DoT server will use
 minTlsServeVersion: 1.3
 # if https port > 0: path to cert and key file for SSL encryption. if not set, self-signed certificate will be generated
@@ -234,6 +227,16 @@ hostsFile:
   refreshPeriod: 30m
   # optional: Whether loopback hosts addresses (127.0.0.0/8 and ::1) should be filtered or not, default: false
   filterLoopback: true
+
+# optional: ports configuration
+ports:
+  # optional: DNS listener port(s) and bind ip address(es), default 53 (UDP and TCP). Example: 53, :53, "127.0.0.1:5353,[::1]:5353"
+  dns: 53
+  # optional: Port(s) and bind ip address(es) for DoT (DNS-over-TLS) listener. Example: 853, 127.0.0.1:853
+  tls: 853
+  # optional: HTTPS listener port(s) and bind ip address(es), default empty = no http listener. If > 0, will be used for prometheus metrics, pprof, REST API, DoH... Example: 443, :443, 127.0.0.1:443
+  https: 443
+  # http: 4000 
 
 # optional: logging configuration
 log:
