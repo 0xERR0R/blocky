@@ -97,7 +97,7 @@ func resolveQueryLogFields(cfg config.QueryLogConfig) []config.QueryLogField {
 		// no fields defined, use all fields as fallback
 		for _, v := range config.QueryLogFieldNames() {
 			qlt, err := config.ParseQueryLogField(v)
-			util.LogOnError("unknown query log field", err)
+			util.LogOnError("ignoring unknown query log field", err)
 
 			fields = append(fields, qlt)
 		}
