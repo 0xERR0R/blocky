@@ -58,6 +58,9 @@ linters:
     - noctx
     - contextcheck
     - scopelint
+    - structcheck
+    - deadcode
+    - varcheck
 
   disable-all: false
   presets:
