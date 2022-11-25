@@ -10,7 +10,6 @@ import (
 	"github.com/0xERR0R/blocky/util"
 	"github.com/avast/retry-go/v4"
 	"github.com/miekg/dns"
-	"golang.org/x/exp/slices"
 )
 
 const (
@@ -152,31 +151,29 @@ func (r *QueryLoggingResolver) createLogEntry(request *model.Request, response *
 		ClientNames: []string{"none"},
 	}
 
-	if slices.Contains(r.fields, config.QueryLogFieldClientIP) {
-		entry.ClientIP = request.ClientIP.String()
-	}
+	for _, f := range r.fields {
+		switch f {
+		case config.QueryLogFieldClientIP:
+			entry.ClientIP = request.ClientIP.String()
 
-	if slices.Contains(r.fields, config.QueryLogFieldClientName) {
-		entry.ClientNames = request.ClientNames
-	}
+		case config.QueryLogFieldClientName:
+			entry.ClientNames = request.ClientNames
 
-	if slices.Contains(r.fields, config.QueryLogFieldResponseReason) {
-		entry.ResponseReason = response.Reason
-		entry.ResponseType = response.RType.String()
-		entry.ResponseCode = dns.RcodeToString[response.Res.Rcode]
-	}
+		case config.QueryLogFieldResponseReason:
+			entry.ResponseReason = response.Reason
+			entry.ResponseType = response.RType.String()
+			entry.ResponseCode = dns.RcodeToString[response.Res.Rcode]
 
-	if slices.Contains(r.fields, config.QueryLogFieldResponseAnswer) {
-		entry.Answer = util.AnswerToString(response.Res.Answer)
-	}
+		case config.QueryLogFieldResponseAnswer:
+			entry.Answer = util.AnswerToString(response.Res.Answer)
 
-	if slices.Contains(r.fields, config.QueryLogFieldQuestion) {
-		entry.QuestionName = request.Req.Question[0].Name
-		entry.QuestionType = dns.TypeToString[request.Req.Question[0].Qtype]
-	}
+		case config.QueryLogFieldQuestion:
+			entry.QuestionName = request.Req.Question[0].Name
+			entry.QuestionType = dns.TypeToString[request.Req.Question[0].Qtype]
 
-	if slices.Contains(r.fields, config.QueryLogFieldDuration) {
-		entry.DurationMs = durationMs
+		case config.QueryLogFieldDuration:
+			entry.DurationMs = durationMs
+		}
 	}
 
 	return &entry
