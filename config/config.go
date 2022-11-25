@@ -754,7 +754,13 @@ func validateConfig(cfg *Config) {
 		}
 	}
 
-	// backwards compatibility for logging options
+	fixDeprecatedLog(cfg)
+
+	fixDeprecatedPorts(cfg)
+}
+
+// fixDeprecatedLog ensures backwards compatibility for logging options
+func fixDeprecatedLog(cfg *Config) {
 	if cfg.LogLevel != log.LevelInfo && cfg.Log.Level == log.LevelInfo {
 		log.Log().Warnf("'logLevel' is deprecated. Please use 'log.level' instead.")
 
@@ -778,10 +784,13 @@ func validateConfig(cfg *Config) {
 
 		cfg.Log.Timestamp = cfg.LogTimestamp
 	}
+}
 
-	// backwards compatibility for ports options
-	if (len(cfg.DNSPorts) > 1 || cfg.DNSPorts[0] != "53") &&
-		(len(cfg.Ports.DNS) == 1 && cfg.Ports.DNS[0] == "53") {
+// fixDeprecatedPorts ensures backwards compatibility for ports options
+func fixDeprecatedPorts(cfg *Config) {
+	defaultDNSPort := ListenConfig([]string{"53"})
+	if (len(cfg.DNSPorts) > 1 || (len(cfg.DNSPorts) == 1 && cfg.DNSPorts[0] != defaultDNSPort[0])) &&
+		(len(cfg.Ports.DNS) == 1 && cfg.Ports.DNS[0] == defaultDNSPort[0]) {
 		log.Log().Warnf("'port' is deprecated. Please use 'ports.dns' instead.")
 
 		cfg.Ports.DNS = cfg.DNSPorts
