@@ -2,15 +2,19 @@ package querylog
 
 import (
 	"time"
-
-	"github.com/0xERR0R/blocky/model"
 )
 
 type LogEntry struct {
-	Request    *model.Request
-	Response   *model.Response
-	Start      time.Time
-	DurationMs int64
+	Start          time.Time
+	ClientIP       string
+	ClientNames    []string
+	DurationMs     int64
+	ResponseReason string
+	ResponseType   string
+	ResponseCode   string
+	QuestionType   string
+	QuestionName   string
+	Answer         string
 }
 
 type Writer interface {

@@ -177,6 +177,10 @@ queryLog:
   creationAttempts: 1
   # optional: Time between the creation attempts, default: 2s
   creationCooldown: 2s
+  # optional: Which fields should be logged. You can choose one or more from: clientIP, clientName, responseReason, responseAnswer, question, duration. If not defined, it logs all fields
+  fields:
+    - clientIP
+    - duration
 
 # optional: Blocky can synchronize its cache and blocking state between multiple instances through redis.
 redis:
