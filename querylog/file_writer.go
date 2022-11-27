@@ -12,7 +12,6 @@ import (
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/util"
-	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 )
 
@@ -44,7 +43,7 @@ func (d *FileWriter) Write(entry *LogEntry) {
 	dateString := entry.Start.Format("2006-01-02")
 
 	if d.perClient {
-		clientPrefix = strings.Join(entry.Request.ClientNames, "-")
+		clientPrefix = strings.Join(entry.ClientNames, "-")
 	} else {
 		clientPrefix = "ALL"
 	}
@@ -102,18 +101,17 @@ func (d *FileWriter) CleanUp() {
 }
 
 func createQueryLogRow(logEntry *LogEntry) []string {
-	request := logEntry.Request
-	response := logEntry.Response
-
 	return []string{
 		logEntry.Start.Format("2006-01-02 15:04:05"),
-		request.ClientIP.String(),
-		strings.Join(request.ClientNames, "; "),
+		logEntry.ClientIP,
+		strings.Join(logEntry.ClientNames, "; "),
 		fmt.Sprintf("%d", logEntry.DurationMs),
-		response.Reason,
-		util.QuestionToString(request.Req.Question),
-		util.AnswerToString(response.Res.Answer),
-		dns.RcodeToString[response.Res.Rcode],
+		logEntry.ResponseReason,
+		logEntry.QuestionName,
+		logEntry.Answer,
+		logEntry.ResponseCode,
+		logEntry.ResponseType,
+		logEntry.QuestionType,
 		util.HostnameString(),
 	}
 }

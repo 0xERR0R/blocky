@@ -5,12 +5,7 @@ import (
 
 	"github.com/sirupsen/logrus/hooks/test"
 
-	"github.com/0xERR0R/blocky/log"
-	"github.com/0xERR0R/blocky/model"
-	"github.com/0xERR0R/blocky/util"
-	"github.com/miekg/dns"
 	. "github.com/onsi/gomega"
-	"github.com/sirupsen/logrus"
 
 	. "github.com/onsi/ginkgo/v2"
 )
@@ -23,21 +18,8 @@ var _ = Describe("LoggerWriter", func() {
 				writer := NewLoggerWriter()
 				logger, hook := test.NewNullLogger()
 				writer.logger = logger.WithField("k", "v")
-				request := &model.Request{
-					Req: util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)),
-					Log: logrus.NewEntry(log.Log()),
-				}
-				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
 
-				Expect(err).Should(Succeed())
-				response := &model.Response{
-					Res:    res,
-					Reason: "Resolved",
-					RType:  model.ResponseTypeRESOLVED,
-				}
 				writer.Write(&LogEntry{
-					Request:    request,
-					Response:   response,
 					Start:      time.Now(),
 					DurationMs: 20,
 				})

@@ -12,9 +12,6 @@ import (
 	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
 
-	"github.com/0xERR0R/blocky/model"
-	"github.com/0xERR0R/blocky/util"
-	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -45,41 +42,19 @@ var _ = Describe("FileWriter", func() {
 
 				Expect(err).Should(Succeed())
 
-				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
-
-				Expect(err).Should(Succeed())
-
 				By("entry for client 1", func() {
 					writer.Write(&LogEntry{
-						Request: &model.Request{
-							ClientNames: []string{"client1"},
-							Req:         util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)),
-							RequestTS:   time.Time{},
-						},
-						Response: &model.Response{
-							Res:    res,
-							Reason: "Resolved",
-							RType:  model.ResponseTypeRESOLVED,
-						},
-						Start:      time.Now(),
-						DurationMs: 20,
+						ClientNames: []string{"client1"},
+						Start:       time.Now(),
+						DurationMs:  20,
 					})
 				})
 
 				By("entry for client 2", func() {
 					writer.Write(&LogEntry{
-						Request: &model.Request{
-							ClientNames: []string{"client2"},
-							Req:         util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)),
-							RequestTS:   time.Time{},
-						},
-						Response: &model.Response{
-							Res:    res,
-							Reason: "Resolved",
-							RType:  model.ResponseTypeRESOLVED,
-						},
-						Start:      time.Now(),
-						DurationMs: 20,
+						ClientNames: []string{"client2"},
+						Start:       time.Now(),
+						DurationMs:  20,
 					})
 				})
 
@@ -94,41 +69,19 @@ var _ = Describe("FileWriter", func() {
 
 				Expect(err).Should(Succeed())
 
-				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
-
-				Expect(err).Should(Succeed())
-
 				By("entry for client 1", func() {
 					writer.Write(&LogEntry{
-						Request: &model.Request{
-							ClientNames: []string{"client1"},
-							Req:         util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)),
-							RequestTS:   time.Time{},
-						},
-						Response: &model.Response{
-							Res:    res,
-							Reason: "Resolved",
-							RType:  model.ResponseTypeRESOLVED,
-						},
-						Start:      time.Now(),
-						DurationMs: 20,
+						ClientNames: []string{"client1"},
+						Start:       time.Now(),
+						DurationMs:  20,
 					})
 				})
 
 				By("entry for client 2", func() {
 					writer.Write(&LogEntry{
-						Request: &model.Request{
-							ClientNames: []string{"client2"},
-							Req:         util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)),
-							RequestTS:   time.Time{},
-						},
-						Response: &model.Response{
-							Res:    res,
-							Reason: "Resolved",
-							RType:  model.ResponseTypeRESOLVED,
-						},
-						Start:      time.Now(),
-						DurationMs: 20,
+						ClientNames: []string{"client2"},
+						Start:       time.Now(),
+						DurationMs:  20,
 					})
 				})
 
@@ -150,40 +103,18 @@ var _ = Describe("FileWriter", func() {
 
 				Expect(err).Should(Succeed())
 
-				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
-
-				Expect(err).Should(Succeed())
-
 				By("entry today", func() {
 					writer.Write(&LogEntry{
-						Request: &model.Request{
-							ClientNames: []string{"client1"},
-							Req:         util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)),
-							RequestTS:   time.Now(),
-						},
-						Response: &model.Response{
-							Res:    res,
-							Reason: "Resolved",
-							RType:  model.ResponseTypeRESOLVED,
-						},
-						Start:      time.Now(),
-						DurationMs: 20,
+						ClientNames: []string{"client1"},
+						Start:       time.Now(),
+						DurationMs:  20,
 					})
 				})
 				By("entry 2 days ago", func() {
 					writer.Write(&LogEntry{
-						Request: &model.Request{
-							ClientNames: []string{"client1"},
-							Req:         util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)),
-							RequestTS:   time.Now(),
-						},
-						Response: &model.Response{
-							Res:    res,
-							Reason: "Resolved",
-							RType:  model.ResponseTypeRESOLVED,
-						},
-						Start:      time.Now().AddDate(0, 0, -3),
-						DurationMs: 20,
+						ClientNames: []string{"client1"},
+						Start:       time.Now().AddDate(0, 0, -3),
+						DurationMs:  20,
 					})
 				})
 

@@ -3,11 +3,6 @@ package querylog
 import (
 	"time"
 
-	"github.com/0xERR0R/blocky/log"
-	"github.com/0xERR0R/blocky/model"
-	"github.com/0xERR0R/blocky/util"
-	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
@@ -24,16 +19,10 @@ var _ = Describe("DatabaseWriter", func() {
 		var (
 			sqliteDB gorm.Dialector
 			writer   *DatabaseWriter
-			request  *model.Request
 		)
 
 		BeforeEach(func() {
 			sqliteDB = sqlite.Open("file::memory:")
-
-			request = &model.Request{
-				Req: util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)),
-				Log: logrus.NewEntry(log.Log()),
-			}
 		})
 
 		When("New log entry was created", func() {
@@ -43,27 +32,14 @@ var _ = Describe("DatabaseWriter", func() {
 			})
 
 			It("should be persisted in the database", func() {
-				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
-				Expect(err).Should(Succeed())
-
-				response := &model.Response{
-					Res:    res,
-					Reason: "Resolved",
-					RType:  model.ResponseTypeRESOLVED,
-				}
-
 				// one entry with now as timestamp
 				writer.Write(&LogEntry{
-					Request:    request,
-					Response:   response,
 					Start:      time.Now(),
 					DurationMs: 20,
 				})
 
 				// one entry before 2 days
 				writer.Write(&LogEntry{
-					Request:    request,
-					Response:   response,
 					Start:      time.Now().AddDate(0, 0, -2),
 					DurationMs: 20,
 				})
@@ -102,27 +78,14 @@ var _ = Describe("DatabaseWriter", func() {
 			})
 
 			It("these old entries should be deleted", func() {
-				res, err := util.NewMsgWithAnswer("example.com", 123, dns.Type(dns.TypeA), "123.124.122.122")
-				Expect(err).Should(Succeed())
-
-				response := &model.Response{
-					Res:    res,
-					Reason: "Resolved",
-					RType:  model.ResponseTypeRESOLVED,
-				}
-
 				// one entry with now as timestamp
 				writer.Write(&LogEntry{
-					Request:    request,
-					Response:   response,
 					Start:      time.Now(),
 					DurationMs: 20,
 				})
 
 				// one entry before 2 days -> should be deleted
 				writer.Write(&LogEntry{
-					Request:    request,
-					Response:   response,
 					Start:      time.Now().AddDate(0, 0, -2),
 					DurationMs: 20,
 				})
