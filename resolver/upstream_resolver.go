@@ -28,7 +28,7 @@ const (
 	retryAttempts              = 3
 )
 
-// nolint:gochecknoglobals
+//nolint:gochecknoglobals
 var (
 	// This is only set during tests (see upstream_resolver_test.go)
 	skipUpstreamCheck *Bootstrap

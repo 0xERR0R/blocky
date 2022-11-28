@@ -188,7 +188,7 @@ func (r *BlockingResolver) RefreshLists() {
 	r.whitelistMatcher.Refresh()
 }
 
-// nolint:prealloc
+//nolint:prealloc
 func (r *BlockingResolver) retrieveAllBlockingGroups() []string {
 	groups := make(map[string]bool, len(r.cfg.BlackLists))
 

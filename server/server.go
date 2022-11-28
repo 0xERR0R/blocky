@@ -112,7 +112,8 @@ func retrieveCertificate(cfg *config.Config) (cert tls.Certificate, err error) {
 }
 
 // NewServer creates new server instance with passed config
-// nolint:funlen
+//
+//nolint:funlen
 func NewServer(cfg *config.Config) (server *Server, err error) {
 	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
 
@@ -292,11 +293,11 @@ func createUDPServer(address string) (*dns.Server, error) {
 	}, nil
 }
 
-// nolint:funlen
+//nolint:funlen
 func createSelfSignedCert() (tls.Certificate, error) {
 	// Create CA
 	ca := &x509.Certificate{
-		SerialNumber:          big.NewInt(int64(mrand.Intn(math.MaxInt))), //nolint:gosec
+		SerialNumber:          big.NewInt(int64(mrand.Intn(math.MaxInt))),
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().AddDate(caExpiryYears, 0, 0),
 		IsCA:                  true,
@@ -339,7 +340,7 @@ func createSelfSignedCert() (tls.Certificate, error) {
 
 	// Create certificate
 	cert := &x509.Certificate{
-		SerialNumber: big.NewInt(int64(mrand.Intn(math.MaxInt))), //nolint:gosec
+		SerialNumber: big.NewInt(int64(mrand.Intn(math.MaxInt))),
 		DNSNames:     []string{"*"},
 		NotBefore:    time.Now(),
 		NotAfter:     time.Now().AddDate(certExpiryYears, 0, 0),

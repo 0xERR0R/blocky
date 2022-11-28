@@ -39,6 +39,7 @@ linters:
     - nilerr
     - nilnil
     - nlreturn
+    - nolintlint
     - nosprintfhostport
     - prealloc
     - predeclared
@@ -61,6 +62,7 @@ linters:
     - structcheck
     - deadcode
     - varcheck
+    - forbidigo
 
   disable-all: false
   presets:
