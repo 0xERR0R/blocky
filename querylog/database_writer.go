@@ -13,7 +13,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/0xERR0R/blocky/util"
-	"github.com/miekg/dns"
+
 	"golang.org/x/net/publicsuffix"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -130,21 +130,21 @@ func (d *DatabaseWriter) periodicFlush() {
 }
 
 func (d *DatabaseWriter) Write(entry *LogEntry) {
-	domain := util.ExtractDomain(entry.Request.Req.Question[0])
+	domain := util.ExtractDomainOnly(entry.QuestionName)
 	eTLD, _ := publicsuffix.EffectiveTLDPlusOne(domain)
 
 	e := &logEntry{
 		RequestTS:     &entry.Start,
-		ClientIP:      entry.Request.ClientIP.String(),
-		ClientName:    strings.Join(entry.Request.ClientNames, "; "),
+		ClientIP:      entry.ClientIP,
+		ClientName:    strings.Join(entry.ClientNames, "; "),
 		DurationMs:    entry.DurationMs,
-		Reason:        entry.Response.Reason,
-		ResponseType:  entry.Response.RType.String(),
-		QuestionType:  dns.TypeToString[entry.Request.Req.Question[0].Qtype],
+		Reason:        entry.ResponseReason,
+		ResponseType:  entry.ResponseType,
+		QuestionType:  entry.QuestionType,
 		QuestionName:  domain,
 		EffectiveTLDP: eTLD,
-		Answer:        util.AnswerToString(entry.Response.Res.Answer),
-		ResponseCode:  dns.RcodeToString[entry.Response.Res.Rcode],
+		Answer:        entry.Answer,
+		ResponseCode:  entry.ResponseCode,
 		Hostname:      util.HostnameString(),
 	}
 
