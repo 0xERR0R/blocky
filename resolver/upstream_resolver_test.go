@@ -160,7 +160,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 		When("Configured DOH resolver returns wrong http status code", func() {
 			BeforeEach(func() {
 				modifyHTTPRespFn = func(w http.ResponseWriter) {
-					w.WriteHeader(500)
+					w.WriteHeader(http.StatusInternalServerError)
 				}
 			})
 			It("should return error", func() {

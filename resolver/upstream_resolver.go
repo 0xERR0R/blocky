@@ -126,7 +126,7 @@ func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
 		return nil, 0, fmt.Errorf("can't pack message: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", upstreamURL, bytes.NewReader(rawDNSMessage))
+	req, err := http.NewRequest(http.MethodPost, upstreamURL, bytes.NewReader(rawDNSMessage))
 
 	if err != nil {
 		return nil, 0, fmt.Errorf("can't create the new request %w", err)

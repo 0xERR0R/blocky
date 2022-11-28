@@ -52,6 +52,7 @@ linters:
     - unconvert
     - unparam
     - unused
+    - usestdlibvars
     - wastedassign
     - whitespace
     - wsl
