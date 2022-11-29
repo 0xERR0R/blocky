@@ -16,7 +16,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// nolint:gochecknoinits
+//nolint:gochecknoinits
 func init() {
 	// Skips the constructor's check
 	// Resolves hostnames using system resolver
@@ -141,7 +141,6 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 			sut, _ = NewUpstreamResolver(upstream, skipUpstreamCheck)
 
 			// use insecure certificates for test doh upstream
-			// nolint:gosec
 			sut.upstreamClient.(*httpUpstreamClient).client.Transport = &http.Transport{
 				TLSClientConfig: &tls.Config{
 					InsecureSkipVerify: true,
@@ -161,7 +160,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 		When("Configured DOH resolver returns wrong http status code", func() {
 			BeforeEach(func() {
 				modifyHTTPRespFn = func(w http.ResponseWriter) {
-					w.WriteHeader(500)
+					w.WriteHeader(http.StatusInternalServerError)
 				}
 			})
 			It("should return error", func() {

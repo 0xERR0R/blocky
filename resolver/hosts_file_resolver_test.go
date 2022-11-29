@@ -50,7 +50,6 @@ var _ = Describe("HostsFileResolver", func() {
 		When("Hosts file cannot be located", func() {
 			BeforeEach(func() {
 				sut = NewHostsFileResolver(config.HostsFileConfig{
-					//nolint:gosec
 					Filepath: fmt.Sprintf("/tmp/blocky/file-%d", rand.Uint64()),
 					HostsTTL: config.Duration(time.Duration(TTL) * time.Second),
 				}).(*HostsFileResolver)

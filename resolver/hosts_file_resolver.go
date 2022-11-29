@@ -159,7 +159,7 @@ type host struct {
 	Aliases  []string
 }
 
-// nolint:funlen
+//nolint:funlen
 func (r *HostsFileResolver) parseHostsFile() error {
 	const minColumnCount = 2
 

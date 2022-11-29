@@ -19,7 +19,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// nolint:gochecknoglobals
+//nolint:gochecknoglobals
 var (
 	v4v6QTypes = []dns.Type{dns.Type(dns.TypeA), dns.Type(dns.TypeAAAA)}
 )
@@ -162,7 +162,7 @@ func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 				return nil, err
 			}
 
-			ip := ips[rand.Intn(len(ips))] // nolint:gosec
+			ip := ips[rand.Intn(len(ips))] //nolint:gosec
 
 			log.WithField("ip", ip).Tracef("dialing %s", host)
 

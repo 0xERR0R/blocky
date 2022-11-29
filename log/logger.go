@@ -11,7 +11,8 @@ import (
 )
 
 // Logger is the global logging instance
-// nolint:gochecknoglobals
+//
+//nolint:gochecknoglobals
 var logger *logrus.Logger
 
 // FormatType format for logging ENUM(
@@ -30,7 +31,7 @@ type FormatType int
 // )
 type Level int
 
-// nolint:gochecknoinits
+//nolint:gochecknoinits
 func init() {
 	logger = logrus.New()
 
