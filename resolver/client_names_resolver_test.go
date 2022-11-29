@@ -22,7 +22,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 	)
 
 	JustBeforeEach(func() {
-		res, err := NewClientNamesResolver(sutConfig, skipUpstreamCheck)
+		res, err := NewClientNamesResolver(sutConfig, nil, false)
 		Expect(err).Should(Succeed())
 		sut = res
 		m = &MockResolver{}
@@ -315,7 +315,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 
 				r, err := NewClientNamesResolver(config.ClientLookupConfig{
 					Upstream: config.Upstream{Host: "example.com"},
-				}, b)
+				}, b, true)
 
 				Expect(err).ShouldNot(Succeed())
 				Expect(r).Should(BeNil())
