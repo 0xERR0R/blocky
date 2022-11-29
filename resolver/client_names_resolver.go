@@ -25,10 +25,12 @@ type ClientNamesResolver struct {
 }
 
 // NewClientNamesResolver creates new resolver instance
-func NewClientNamesResolver(cfg config.ClientLookupConfig, bootstrap *Bootstrap) (cr *ClientNamesResolver, err error) {
+func NewClientNamesResolver(
+	cfg config.ClientLookupConfig, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
+) (cr *ClientNamesResolver, err error) {
 	var r Resolver
 	if !cfg.Upstream.IsDefault() {
-		r, err = NewUpstreamResolver(cfg.Upstream, bootstrap)
+		r, err = NewUpstreamResolver(cfg.Upstream, bootstrap, shouldVerifyUpstreams)
 		if err != nil {
 			return nil, err
 		}

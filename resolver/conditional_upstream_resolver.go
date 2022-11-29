@@ -19,15 +19,16 @@ type ConditionalUpstreamResolver struct {
 }
 
 // NewConditionalUpstreamResolver returns new resolver instance
-func NewConditionalUpstreamResolver(cfg config.ConditionalUpstreamConfig,
-	bootstrap *Bootstrap) (ChainedResolver, error) {
+func NewConditionalUpstreamResolver(
+	cfg config.ConditionalUpstreamConfig, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
+) (ChainedResolver, error) {
 	m := make(map[string]Resolver, len(cfg.Mapping.Upstreams))
 
 	for domain, upstream := range cfg.Mapping.Upstreams {
 		upstreams := make(map[string][]config.Upstream)
 		upstreams[upstreamDefaultCfgName] = upstream
 
-		r, err := NewParallelBestResolver(upstreams, bootstrap)
+		r, err := NewParallelBestResolver(upstreams, bootstrap, shouldVerifyUpstreams)
 		if err != nil {
 			return nil, err
 		}

@@ -394,10 +394,10 @@ func createQueryResolver(
 	bootstrap *resolver.Bootstrap,
 	redisClient *redis.Client,
 ) (r resolver.Resolver, err error) {
-	blockingResolver, blErr := resolver.NewBlockingResolver(cfg.Blocking, redisClient, bootstrap)
-	parallelResolver, pErr := resolver.NewParallelBestResolver(cfg.Upstream.ExternalResolvers, bootstrap)
-	clientNamesResolver, cnErr := resolver.NewClientNamesResolver(cfg.ClientLookup, bootstrap)
-	conditionalUpstreamResolver, cuErr := resolver.NewConditionalUpstreamResolver(cfg.Conditional, bootstrap)
+	blocking, blErr := resolver.NewBlockingResolver(cfg.Blocking, redisClient, bootstrap)
+	parallel, pErr := resolver.NewParallelBestResolver(cfg.Upstream.ExternalResolvers, bootstrap, cfg.StartVerifyUpstream)
+	clientNames, cnErr := resolver.NewClientNamesResolver(cfg.ClientLookup, bootstrap, cfg.StartVerifyUpstream)
+	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(cfg.Conditional, bootstrap, cfg.StartVerifyUpstream)
 
 	mErr := multierror.Append(
 		multierror.Prefix(blErr, "blocking resolver: "),
@@ -412,17 +412,17 @@ func createQueryResolver(
 	r = resolver.Chain(
 		resolver.NewFilteringResolver(cfg.Filtering),
 		resolver.NewFqdnOnlyResolver(*cfg),
-		clientNamesResolver,
+		clientNames,
 		resolver.NewEdeResolver(cfg.Ede),
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
 		resolver.NewMetricsResolver(cfg.Prometheus),
 		resolver.NewRewriterResolver(cfg.CustomDNS.RewriteConfig, resolver.NewCustomDNSResolver(cfg.CustomDNS)),
 		resolver.NewHostsFileResolver(cfg.HostsFile),
-		blockingResolver,
+		blocking,
 		resolver.NewCachingResolver(cfg.Caching, redisClient),
-		resolver.NewRewriterResolver(cfg.Conditional.RewriteConfig, conditionalUpstreamResolver),
+		resolver.NewRewriterResolver(cfg.Conditional.RewriteConfig, condUpstream),
 		resolver.NewSpecialUseDomainNamesResolver(),
-		parallelResolver,
+		parallel,
 	)
 
 	return r, nil

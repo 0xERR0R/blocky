@@ -55,7 +55,7 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 					"other.box": {otherTestUpstream.Start()},
 					".":         {dotTestUpstream.Start()},
 				}},
-		}, skipUpstreamCheck)
+		}, nil, false)
 		m = &MockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
@@ -125,7 +125,7 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 						".": {config.Upstream{Host: "example.com"}},
 					},
 				},
-			}, b)
+			}, b, true)
 
 			Expect(err).ShouldNot(Succeed())
 			Expect(r).Should(BeNil())
@@ -141,7 +141,7 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 		})
 		When("resolver is disabled", func() {
 			BeforeEach(func() {
-				sut, _ = NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{}, skipUpstreamCheck)
+				sut, _ = NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{}, nil, false)
 			})
 			It("should return 'disabled'", func() {
 				c := sut.Configuration()

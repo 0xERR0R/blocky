@@ -45,7 +45,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 			It("should not start", func() {
 				Expect(blocky.IsRunning()).Should(BeFalse())
 				Expect(getContainerLogs(blocky)).
-					Should(ContainElement(ContainSubstring("unable to reach any DNS resolvers configured for resolver group default")))
+					Should(ContainElement(ContainSubstring("no valid upstream for group default")))
 			})
 		})
 	})
