@@ -134,10 +134,10 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 	})
 
 	Describe("resolving", func() {
-		var bootstrapUpstream *MockResolver
+		var bootstrapUpstream *mockResolver
 
 		BeforeEach(func() {
-			bootstrapUpstream = &MockResolver{}
+			bootstrapUpstream = &mockResolver{}
 
 			sutConfig.BootstrapDNS = config.BootstrapConfig{
 				Upstream: config.Upstream{

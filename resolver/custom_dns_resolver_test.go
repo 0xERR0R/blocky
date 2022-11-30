@@ -16,7 +16,7 @@ import (
 var _ = Describe("CustomDNSResolver", func() {
 	var (
 		sut  ChainedResolver
-		m    *MockResolver
+		m    *mockResolver
 		err  error
 		resp *Response
 		cfg  config.CustomDNSConfig
@@ -42,7 +42,7 @@ var _ = Describe("CustomDNSResolver", func() {
 
 	JustBeforeEach(func() {
 		sut = NewCustomDNSResolver(cfg)
-		m = &MockResolver{}
+		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
 	})

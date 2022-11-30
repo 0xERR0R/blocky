@@ -16,7 +16,7 @@ var _ = Describe("EdeResolver", func() {
 	var (
 		sut        *EdeResolver
 		sutConfig  config.EdeConfig
-		m          *MockResolver
+		m          *mockResolver
 		mockAnswer *dns.Msg
 	)
 
@@ -26,7 +26,7 @@ var _ = Describe("EdeResolver", func() {
 
 	JustBeforeEach(func() {
 		if m == nil {
-			m = &MockResolver{}
+			m = &mockResolver{}
 			m.On("Resolve", mock.Anything).Return(&model.Response{
 				Res:    mockAnswer,
 				RType:  model.ResponseTypeCUSTOMDNS,
@@ -92,7 +92,7 @@ var _ = Describe("EdeResolver", func() {
 			resolveErr := errors.New("test")
 
 			BeforeEach(func() {
-				m = &MockResolver{}
+				m = &mockResolver{}
 				m.On("Resolve", mock.Anything).Return(nil, resolveErr)
 			})
 
