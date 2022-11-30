@@ -62,7 +62,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 		)
 
 		BeforeEach(func() {
-			b = TestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
+			b = newTestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
 			upstream = map[string][]config.Upstream{
 				upstreamDefaultCfgName: {
@@ -357,7 +357,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 	When("upstream is invalid", func() {
 		It("errors during construction", func() {
-			b := TestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
+			b := newTestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
 			r, err := NewParallelBestResolver(map[string][]config.Upstream{"test": {{Host: "example.com"}}}, b, verifyUpstreams)
 

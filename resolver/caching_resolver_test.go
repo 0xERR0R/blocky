@@ -23,7 +23,7 @@ var _ = Describe("CachingResolver", func() {
 	var (
 		sut        ChainedResolver
 		sutConfig  config.CachingConfig
-		m          *MockResolver
+		m          *mockResolver
 		mockAnswer *dns.Msg
 
 		err  error
@@ -45,7 +45,7 @@ var _ = Describe("CachingResolver", func() {
 
 	JustBeforeEach(func() {
 		sut = NewCachingResolver(sutConfig, nil)
-		m = &MockResolver{}
+		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		sut.Next(m)
 	})
@@ -548,7 +548,7 @@ var _ = Describe("CachingResolver", func() {
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1000, dns.Type(dns.TypeA), "1.1.1.1")
 
 				sut = NewCachingResolver(sutConfig, redisClient)
-				m = &MockResolver{}
+				m = &mockResolver{}
 				m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 				sut.Next(m)
 			})

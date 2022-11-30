@@ -133,7 +133,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 		})
 
 		JustBeforeEach(func() {
-			upstream = TestDOHUpstream(respFn, modifyHTTPRespFn)
+			upstream = newTestDOHUpstream(respFn, modifyHTTPRespFn)
 			sut = newUpstreamResolverUnchecked(upstream, nil)
 
 			// use insecure certificates for test doh upstream
