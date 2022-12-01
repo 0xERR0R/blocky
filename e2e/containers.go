@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/util"
+	"github.com/avast/retry-go/v4"
 	"github.com/docker/go-connections/nat"
 	"github.com/miekg/dns"
 	"github.com/onsi/ginkgo/v2"
@@ -178,6 +180,7 @@ func createBlockyContainer(tmpDir *helpertest.TmpFolder, lines ...string) (testc
 				FileMode:          modeOwner,
 			},
 		},
+		// can't use forExposedPorts / forListeningPorts because it needs "/bin/sh" in container
 		WaitingFor: wait.NewExecStrategy([]string{"/app/blocky", "healthcheck"}),
 	}
 
@@ -193,6 +196,23 @@ func createBlockyContainer(tmpDir *helpertest.TmpFolder, lines ...string) (testc
 				ginkgo.AddReportEntry("blocky container log", string(b))
 			}
 		}
+	}
+
+	// check if DNS interface is working.
+	// Sometimes the internal health check returns OK, but the container port is not mapped yet
+	const retryAttempts = 3
+	err = retry.Do(
+		func() error {
+			_, err = doDNSRequest(container, util.NewMsgWithQuestion("healthcheck.blocky.", dns.Type(dns.TypeA)))
+
+			return err
+		},
+		retry.Attempts(retryAttempts),
+		retry.DelayType(retry.BackOffDelay),
+		retry.Delay(time.Second))
+
+	if err != nil {
+		return container, fmt.Errorf("can't perform the healthcheck request: %w", err)
 	}
 
 	return container, err
