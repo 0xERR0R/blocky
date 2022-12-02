@@ -73,7 +73,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 					transport := sut.NewHTTPTransport()
 
 					Expect(transport).ShouldNot(BeNil())
-					Expect(*transport).Should(BeZero()) // nolint:govet
+					Expect(*transport).Should(BeZero()) //nolint:govet
 				})
 			})
 		})
@@ -255,7 +255,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 		Describe("HTTP Transport", func() {
 			It("uses the bootstrap upstream", func() {
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.WriteHeader(200)
+					w.WriteHeader(http.StatusOK)
 				}))
 				DeferCleanup(server.Close)
 

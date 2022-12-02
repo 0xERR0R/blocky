@@ -112,7 +112,8 @@ func retrieveCertificate(cfg *config.Config) (cert tls.Certificate, err error) {
 }
 
 // NewServer creates new server instance with passed config
-// nolint:funlen
+//
+//nolint:funlen
 func NewServer(cfg *config.Config) (server *Server, err error) {
 	log.ConfigureLogger(&cfg.Log)
 
@@ -292,11 +293,11 @@ func createUDPServer(address string) (*dns.Server, error) {
 	}, nil
 }
 
-// nolint:funlen
+//nolint:funlen
 func createSelfSignedCert() (tls.Certificate, error) {
 	// Create CA
 	ca := &x509.Certificate{
-		SerialNumber:          big.NewInt(int64(mrand.Intn(math.MaxInt))), //nolint:gosec
+		SerialNumber:          big.NewInt(int64(mrand.Intn(math.MaxInt))),
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().AddDate(caExpiryYears, 0, 0),
 		IsCA:                  true,
@@ -339,7 +340,7 @@ func createSelfSignedCert() (tls.Certificate, error) {
 
 	// Create certificate
 	cert := &x509.Certificate{
-		SerialNumber: big.NewInt(int64(mrand.Intn(math.MaxInt))), //nolint:gosec
+		SerialNumber: big.NewInt(int64(mrand.Intn(math.MaxInt))),
 		DNSNames:     []string{"*"},
 		NotBefore:    time.Now(),
 		NotAfter:     time.Now().AddDate(certExpiryYears, 0, 0),
@@ -393,10 +394,10 @@ func createQueryResolver(
 	bootstrap *resolver.Bootstrap,
 	redisClient *redis.Client,
 ) (r resolver.Resolver, err error) {
-	blockingResolver, blErr := resolver.NewBlockingResolver(cfg.Blocking, redisClient, bootstrap)
-	parallelResolver, pErr := resolver.NewParallelBestResolver(cfg.Upstream.ExternalResolvers, bootstrap)
-	clientNamesResolver, cnErr := resolver.NewClientNamesResolver(cfg.ClientLookup, bootstrap)
-	conditionalUpstreamResolver, cuErr := resolver.NewConditionalUpstreamResolver(cfg.Conditional, bootstrap)
+	blocking, blErr := resolver.NewBlockingResolver(cfg.Blocking, redisClient, bootstrap)
+	parallel, pErr := resolver.NewParallelBestResolver(cfg.Upstream.ExternalResolvers, bootstrap, cfg.StartVerifyUpstream)
+	clientNames, cnErr := resolver.NewClientNamesResolver(cfg.ClientLookup, bootstrap, cfg.StartVerifyUpstream)
+	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(cfg.Conditional, bootstrap, cfg.StartVerifyUpstream)
 
 	mErr := multierror.Append(
 		multierror.Prefix(blErr, "blocking resolver: "),
@@ -411,17 +412,17 @@ func createQueryResolver(
 	r = resolver.Chain(
 		resolver.NewFilteringResolver(cfg.Filtering),
 		resolver.NewFqdnOnlyResolver(*cfg),
-		clientNamesResolver,
+		clientNames,
 		resolver.NewEdeResolver(cfg.Ede),
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
 		resolver.NewMetricsResolver(cfg.Prometheus),
 		resolver.NewRewriterResolver(cfg.CustomDNS.RewriteConfig, resolver.NewCustomDNSResolver(cfg.CustomDNS)),
 		resolver.NewHostsFileResolver(cfg.HostsFile),
-		blockingResolver,
+		blocking,
 		resolver.NewCachingResolver(cfg.Caching, redisClient),
-		resolver.NewRewriterResolver(cfg.Conditional.RewriteConfig, conditionalUpstreamResolver),
+		resolver.NewRewriterResolver(cfg.Conditional.RewriteConfig, condUpstream),
 		resolver.NewSpecialUseDomainNamesResolver(),
-		parallelResolver,
+		parallel,
 	)
 
 	return r, nil

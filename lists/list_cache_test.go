@@ -81,15 +81,15 @@ var _ = Describe("ListCache", func() {
 				// should produce a transient error on second and third attempt
 				data := make(chan func() (io.ReadCloser, error), 3)
 				mockDownloader := &MockDownloader{data: data}
-				// nolint:unparam
+				//nolint:unparam
 				data <- func() (io.ReadCloser, error) {
 					return io.NopCloser(strings.NewReader("blocked1.com")), nil
 				}
-				// nolint:unparam
+				//nolint:unparam
 				data <- func() (io.ReadCloser, error) {
 					return nil, &TransientError{inner: errors.New("boom")}
 				}
-				// nolint:unparam
+				//nolint:unparam
 				data <- func() (io.ReadCloser, error) {
 					return nil, &TransientError{inner: errors.New("boom")}
 				}
@@ -401,7 +401,7 @@ func createTestListFile(dir string, totalLines int) string {
 
 	w := bufio.NewWriter(file)
 	for i := 0; i < totalLines; i++ {
-		fmt.Fprintln(w, RandStringBytes(8+rand.Intn(10))+".com") // nolint:gosec
+		fmt.Fprintln(w, RandStringBytes(8+rand.Intn(10))+".com")
 	}
 	w.Flush()
 
@@ -413,7 +413,7 @@ const charpool = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789
 func RandStringBytes(n int) string {
 	b := make([]byte, n)
 	for i := range b {
-		b[i] = charpool[rand.Intn(len(charpool))] // nolint:gosec
+		b[i] = charpool[rand.Intn(len(charpool))]
 	}
 
 	return string(b)

@@ -128,7 +128,7 @@ func (c *Duration) String() string {
 	return durafmt.Parse(time.Duration(*c)).String()
 }
 
-// nolint:gochecknoglobals
+//nolint:gochecknoglobals
 var netDefaultPort = map[NetProtocol]uint16{
 	NetProtocolTcpUdp: udpPort,
 	NetProtocolTcpTls: tlsPort,
@@ -451,7 +451,8 @@ func extractNet(upstream string) (NetProtocol, string) {
 }
 
 // Config main configuration
-// nolint:maligned
+//
+//nolint:maligned
 type Config struct {
 	Upstream            UpstreamConfig            `yaml:"upstream"`
 	UpstreamTimeout     Duration                  `yaml:"upstreamTimeout" default:"2s"`
@@ -625,7 +626,7 @@ type EdeConfig struct {
 	Enable bool `yaml:"enable" default:"false"`
 }
 
-// nolint:gochecknoglobals
+//nolint:gochecknoglobals
 var (
 	config  = &Config{}
 	cfgLock sync.RWMutex

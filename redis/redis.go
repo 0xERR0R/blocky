@@ -69,7 +69,7 @@ type Client struct {
 func New(cfg *config.RedisConfig) (*Client, error) {
 	// disable redis if no address is provided
 	if cfg == nil || len(cfg.Address) == 0 {
-		return nil, nil // nolint:nilnil
+		return nil, nil //nolint:nilnil
 	}
 
 	var rdb *redis.Client

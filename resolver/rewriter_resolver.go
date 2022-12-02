@@ -110,7 +110,7 @@ func (r *RewriterResolver) Resolve(request *model.Request) (*model.Response, err
 	return response, nil
 }
 
-func (r *RewriterResolver) rewriteRequest(logger *logrus.Entry, request *dns.Msg) (rewritten *dns.Msg, originalNames []string) { // nolint: lll
+func (r *RewriterResolver) rewriteRequest(logger *logrus.Entry, request *dns.Msg) (rewritten *dns.Msg, originalNames []string) { //nolint: lll
 	originalNames = make([]string, len(request.Question))
 
 	for i := range request.Question {

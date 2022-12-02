@@ -19,15 +19,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// nolint:gochecknoglobals
+//nolint:gochecknoglobals
 var (
 	v4v6QTypes = []dns.Type{dns.Type(dns.TypeA), dns.Type(dns.TypeAAAA)}
 )
 
 // Bootstrap allows resolving hostnames using the configured bootstrap DNS.
 type Bootstrap struct {
-	log                 *logrus.Entry
-	startVerifyUpstream bool
+	log *logrus.Entry
 
 	resolver    Resolver
 	upstream    Resolver // the upstream that's part of the above resolver
@@ -65,10 +64,9 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 	// This also prevents the GC to clean up these two structs, but is not currently an
 	// issue since they stay allocated until the process terminates
 	b = &Bootstrap{
-		log:                 log,
-		upstreamIPs:         ips,
-		systemResolver:      net.DefaultResolver, // allow replacing it during tests
-		startVerifyUpstream: cfg.StartVerifyUpstream,
+		log:            log,
+		upstreamIPs:    ips,
+		systemResolver: net.DefaultResolver, // allow replacing it during tests
 	}
 
 	if upstream.IsDefault() {
@@ -87,12 +85,18 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 }
 
 func (b *Bootstrap) UpstreamIPs(r *UpstreamResolver) (*IPSet, error) {
-	ips, err := b.resolveUpstream(r, r.upstream.Host)
+	hostname := r.upstream.Host
+
+	if ip := net.ParseIP(hostname); ip != nil { // nil-safe when hostname is an IP: makes writing test easier
+		return newIPSet([]net.IP{ip}), nil
+	}
+
+	ips, err := b.resolveUpstream(r, hostname)
 	if err != nil {
 		return nil, err
 	}
 
-	return &IPSet{values: ips}, nil
+	return newIPSet(ips), nil
 }
 
 func (b *Bootstrap) resolveUpstream(r Resolver, host string) ([]net.IP, error) {
@@ -162,7 +166,7 @@ func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 				return nil, err
 			}
 
-			ip := ips[rand.Intn(len(ips))] // nolint:gosec
+			ip := ips[rand.Intn(len(ips))] //nolint:gosec
 
 			log.WithField("ip", ip).Tracef("dialing %s", host)
 
@@ -231,6 +235,10 @@ func (b *Bootstrap) resolveType(hostname string, qType dns.Type) (ips []net.IP, 
 type IPSet struct {
 	values []net.IP
 	index  uint32
+}
+
+func newIPSet(ips []net.IP) *IPSet {
+	return &IPSet{values: ips}
 }
 
 func (ips *IPSet) Current() net.IP {

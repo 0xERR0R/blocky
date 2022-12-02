@@ -16,14 +16,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// nolint:gochecknoinits
-func init() {
-	// Skips the constructor's check
-	// Resolves hostnames using system resolver
-	skipUpstreamCheck = &Bootstrap{}
-}
-
 var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
+
+	systemResolverBootstrap := &Bootstrap{}
+
 	Describe("Using DNS upstream", func() {
 
 		When("Configured DNS resolver can resolve query", func() {
@@ -32,7 +28,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				DeferCleanup(mockUpstream.Close)
 
 				upstream := mockUpstream.Start()
-				sut, _ := NewUpstreamResolver(upstream, skipUpstreamCheck)
+				sut := newUpstreamResolverUnchecked(upstream, nil)
 
 				resp, err := sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 				Expect(err).Should(Succeed())
@@ -48,7 +44,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				DeferCleanup(mockUpstream.Close)
 
 				upstream := mockUpstream.Start()
-				sut, _ := NewUpstreamResolver(upstream, skipUpstreamCheck)
+				sut := newUpstreamResolverUnchecked(upstream, nil)
 
 				resp, err := sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 				Expect(err).Should(Succeed())
@@ -64,7 +60,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				})
 				DeferCleanup(mockUpstream.Close)
 				upstream := mockUpstream.Start()
-				sut, _ := NewUpstreamResolver(upstream, skipUpstreamCheck)
+				sut := newUpstreamResolverUnchecked(upstream, nil)
 
 				_, err := sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 				Expect(err).Should(HaveOccurred())
@@ -91,7 +87,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 
 				upstream := mockUpstream.Start()
 
-				sut, _ = NewUpstreamResolver(upstream, skipUpstreamCheck)
+				sut = newUpstreamResolverUnchecked(upstream, nil)
 				sut.upstreamClient.(*dnsUpstreamClient).udpClient.Timeout = 100 * time.Millisecond
 			})
 			It("should perform a retry with 3 attempts", func() {
@@ -138,10 +134,9 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 
 		JustBeforeEach(func() {
 			upstream = TestDOHUpstream(respFn, modifyHTTPRespFn)
-			sut, _ = NewUpstreamResolver(upstream, skipUpstreamCheck)
+			sut = newUpstreamResolverUnchecked(upstream, nil)
 
 			// use insecure certificates for test doh upstream
-			// nolint:gosec
 			sut.upstreamClient.(*httpUpstreamClient).client.Transport = &http.Transport{
 				TLSClientConfig: &tls.Config{
 					InsecureSkipVerify: true,
@@ -161,7 +156,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 		When("Configured DOH resolver returns wrong http status code", func() {
 			BeforeEach(func() {
 				modifyHTTPRespFn = func(w http.ResponseWriter) {
-					w.WriteHeader(500)
+					w.WriteHeader(http.StatusInternalServerError)
 				}
 			})
 			It("should return error", func() {
@@ -197,10 +192,10 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 		})
 		When("Configured DOH resolver does not respond", func() {
 			JustBeforeEach(func() {
-				sut, _ = NewUpstreamResolver(config.Upstream{
+				sut = newUpstreamResolverUnchecked(config.Upstream{
 					Net:  config.NetProtocolHttps,
 					Host: "wronghost.example.com",
-				}, skipUpstreamCheck)
+				}, systemResolverBootstrap)
 			})
 			It("should return error", func() {
 				_, err := sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
@@ -212,7 +207,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 	Describe("Configuration", func() {
 		When("Configuration is called", func() {
 			It("should return nil, because upstream resolver is printed out by other resolvers", func() {
-				sut, _ := NewUpstreamResolver(config.Upstream{}, skipUpstreamCheck)
+				sut := newUpstreamResolverUnchecked(config.Upstream{}, nil)
 
 				c := sut.Configuration()
 

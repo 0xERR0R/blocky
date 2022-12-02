@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"errors"
+
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
 
@@ -23,12 +25,14 @@ var _ = Describe("EdeResolver", func() {
 	})
 
 	JustBeforeEach(func() {
-		m = &MockResolver{}
-		m.On("Resolve", mock.Anything).Return(&model.Response{
-			Res:    mockAnswer,
-			RType:  model.ResponseTypeCUSTOMDNS,
-			Reason: "Test",
-		}, nil)
+		if m == nil {
+			m = &MockResolver{}
+			m.On("Resolve", mock.Anything).Return(&model.Response{
+				Res:    mockAnswer,
+				RType:  model.ResponseTypeCUSTOMDNS,
+				Reason: "Test",
+			}, nil)
+		}
 
 		sut = NewEdeResolver(sutConfig).(*EdeResolver)
 		sut.Next(m)
@@ -82,6 +86,21 @@ var _ = Describe("EdeResolver", func() {
 			c := sut.Configuration()
 			Expect(c).Should(HaveLen(1))
 			Expect(c[0]).Should(Equal("activated"))
+		})
+
+		When("resolver returns an error", func() {
+			resolveErr := errors.New("test")
+
+			BeforeEach(func() {
+				m = &MockResolver{}
+				m.On("Resolve", mock.Anything).Return(nil, resolveErr)
+			})
+
+			It("should return it", func() {
+				resp, err := sut.Resolve(newRequest("example.com", dns.Type(dns.TypeA)))
+				Expect(resp).To(BeNil())
+				Expect(err).To(Equal(resolveErr))
+			})
 		})
 	})
 })
