@@ -196,7 +196,7 @@ var _ = Describe("CustomDNSResolver", func() {
 		When("resolver is enabled", func() {
 			It("should return configuration", func() {
 				c := sut.Configuration()
-				Expect(c).Should(HaveLen(3))
+				Expect(len(c)).Should(BeNumerically(">", 1))
 			})
 		})
 
@@ -206,8 +206,7 @@ var _ = Describe("CustomDNSResolver", func() {
 			})
 			It("should return 'disabled'", func() {
 				c := sut.Configuration()
-				Expect(c).Should(HaveLen(1))
-				Expect(c).Should(Equal([]string{"deactivated"}))
+				Expect(c).Should(ContainElement(configStatusDisabled))
 			})
 		})
 	})

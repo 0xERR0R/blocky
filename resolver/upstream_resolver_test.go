@@ -206,12 +206,12 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 	})
 	Describe("Configuration", func() {
 		When("Configuration is called", func() {
-			It("should return nil, because upstream resolver is printed out by other resolvers", func() {
+			It("should return configuration", func() {
 				sut := newUpstreamResolverUnchecked(config.Upstream{}, nil)
 
 				c := sut.Configuration()
 
-				Expect(c).Should(BeNil())
+				Expect(len(c)).Should(BeNumerically(">=", 1))
 			})
 		})
 	})

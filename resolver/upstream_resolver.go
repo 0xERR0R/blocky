@@ -218,7 +218,7 @@ func newUpstreamResolverUnchecked(upstream config.Upstream, bootstrap *Bootstrap
 
 // Configuration return current resolver configuration
 func (r *UpstreamResolver) Configuration() (result []string) {
-	return
+	return []string{r.String()}
 }
 
 func (r UpstreamResolver) String() string {
