@@ -99,7 +99,9 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 
 	Describe("Configuration pseudo test", func() {
 		It("should always be empty", func() {
-			Expect(sut.Configuration()).Should(HaveLen(0))
+			c := sut.Configuration()
+
+			Expect(len(c)).Should(BeNumerically(">=", 1))
 		})
 	})
 })

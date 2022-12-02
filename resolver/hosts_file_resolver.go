@@ -122,14 +122,14 @@ func (r *HostsFileResolver) processHostEntry(host host, domain string, question 
 }
 
 func (r *HostsFileResolver) Configuration() (result []string) {
-	if r.HostsFilePath != "" && len(r.hosts) != 0 {
-		result = append(result, fmt.Sprintf("hosts file path: %s", r.HostsFilePath))
-		result = append(result, fmt.Sprintf("hosts TTL: %d", r.ttl))
-		result = append(result, fmt.Sprintf("hosts refresh period: %s", r.refreshPeriod.String()))
-		result = append(result, fmt.Sprintf("filter loopback addresses: %t", r.filterLoopback))
-	} else {
-		result = []string{"deactivated"}
+	if r.HostsFilePath == "" || len(r.hosts) == 0 {
+		return configDisabled
 	}
+
+	result = append(result, fmt.Sprintf("file path: %s", r.HostsFilePath))
+	result = append(result, fmt.Sprintf("TTL: %d", r.ttl))
+	result = append(result, fmt.Sprintf("refresh period: %s", r.refreshPeriod.String()))
+	result = append(result, fmt.Sprintf("filter loopback addresses: %t", r.filterLoopback))
 
 	return
 }

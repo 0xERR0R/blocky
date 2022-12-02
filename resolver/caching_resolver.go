@@ -125,9 +125,7 @@ func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.
 // Configuration returns a current resolver configuration
 func (r *CachingResolver) Configuration() (result []string) {
 	if r.maxCacheTimeSec < 0 {
-		result = []string{"deactivated"}
-
-		return
+		return configDisabled
 	}
 
 	result = append(result, fmt.Sprintf("minCacheTimeInSec = %d", r.minCacheTimeSec))

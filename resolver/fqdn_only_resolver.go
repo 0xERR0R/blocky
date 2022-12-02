@@ -35,11 +35,9 @@ func (r *FqdnOnlyResolver) Resolve(request *model.Request) (*model.Response, err
 }
 
 func (r *FqdnOnlyResolver) Configuration() (result []string) {
-	if r.enabled {
-		result = []string{"activated"}
-	} else {
-		result = []string{"deactivated"}
+	if !r.enabled {
+		return configDisabled
 	}
 
-	return result
+	return configEnabled
 }

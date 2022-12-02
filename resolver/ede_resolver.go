@@ -27,17 +27,15 @@ func (r *EdeResolver) Resolve(request *model.Request) (*model.Response, error) {
 		addExtraReasoning(resp)
 	}
 
-	return resp, err
+	return resp, nil
 }
 
 func (r *EdeResolver) Configuration() (result []string) {
-	if r.config.Enable {
-		result = []string{"activated"}
-	} else {
-		result = []string{"deactivated"}
+	if !r.config.Enable {
+		return configDisabled
 	}
 
-	return result
+	return configEnabled
 }
 
 func addExtraReasoning(res *model.Response) {

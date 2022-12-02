@@ -30,12 +30,14 @@ func (r *FilteringResolver) Resolve(request *model.Request) (*model.Response, er
 }
 
 func (r *FilteringResolver) Configuration() (result []string) {
-	qTypes := make([]string, len(r.queryTypes))
-	ix := 0
+	if len(r.queryTypes) == 0 {
+		return configDisabled
+	}
+
+	qTypes := make([]string, 0, len(r.queryTypes))
 
 	for qType := range r.queryTypes {
-		qTypes[ix] = qType.String()
-		ix++
+		qTypes = append(qTypes, qType.String())
 	}
 
 	sort.Strings(qTypes)

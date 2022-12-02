@@ -344,10 +344,9 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 			BeforeEach(func() {
 				sutConfig = config.ClientLookupConfig{}
 			})
-			It("should return 'deactivated'", func() {
+			It("should return 'disabled'", func() {
 				c := sut.Configuration()
-				Expect(c).Should(HaveLen(1))
-				Expect(c).Should(Equal([]string{"deactivated, use only IP address"}))
+				Expect(c).Should(ContainElement(configStatusDisabled))
 			})
 		})
 

@@ -49,12 +49,12 @@ func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
 
 // Configuration returns current resolver configuration
 func (r *CustomDNSResolver) Configuration() (result []string) {
-	if len(r.mapping) > 0 {
-		for key, val := range r.mapping {
-			result = append(result, fmt.Sprintf("%s = \"%s\"", key, val))
-		}
-	} else {
-		result = []string{"deactivated"}
+	if len(r.mapping) == 0 {
+		return configDisabled
+	}
+
+	for key, val := range r.mapping {
+		result = append(result, fmt.Sprintf("%s = \"%s\"", key, val))
 	}
 
 	return
