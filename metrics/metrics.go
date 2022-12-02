@@ -9,7 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// nolint
+//nolint:gochecknoglobals
 var reg = prometheus.NewRegistry()
 
 // RegisterMetric registers prometheus collector

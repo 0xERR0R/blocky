@@ -19,6 +19,9 @@ func NewEdeResolver(cfg config.EdeConfig) ChainedResolver {
 
 func (r *EdeResolver) Resolve(request *model.Request) (*model.Response, error) {
 	resp, err := r.next.Resolve(request)
+	if err != nil {
+		return nil, err
+	}
 
 	if r.config.Enable {
 		addExtraReasoning(resp)

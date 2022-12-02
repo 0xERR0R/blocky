@@ -11,7 +11,8 @@ import (
 )
 
 // Logger is the global logging instance
-// nolint:gochecknoglobals
+//
+//nolint:gochecknoglobals
 var logger *logrus.Logger
 
 // FormatType format for logging ENUM(
@@ -38,7 +39,7 @@ type Config struct {
 	Timestamp bool       `yaml:"timestamp" default:"true"`
 }
 
-// nolint:gochecknoinits
+//nolint:gochecknoinits
 func init() {
 	logger = logrus.New()
 

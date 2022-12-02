@@ -27,7 +27,7 @@ func randString(n int) string {
 	b := make([]byte, n)
 
 	for i := range b {
-		b[i] = charPool[rand.Intn(len(charPool))] // nolint:gosec
+		b[i] = charPool[rand.Intn(len(charPool))]
 	}
 
 	return string(b)
@@ -37,7 +37,7 @@ func createTestdata(count int) []string {
 	var result []string
 
 	for i := 0; i < count; i++ {
-		result = append(result, randString(8+rand.Intn(20))) // nolint:gosec
+		result = append(result, randString(8+rand.Intn(20)))
 	}
 
 	return result
