@@ -150,12 +150,14 @@ var _ = BeforeSuite(func() {
 			Upstream: upstreamClient,
 		},
 
-		DNSPorts:   config.ListenConfig{"55555"},
-		TLSPorts:   config.ListenConfig{"8853"},
-		CertFile:   certPem.Path,
-		KeyFile:    keyPem.Path,
-		HTTPPorts:  config.ListenConfig{"4000"},
-		HTTPSPorts: config.ListenConfig{"4443"},
+		Ports: config.PortsConfig{
+			DNS:   config.ListenConfig{"55555"},
+			TLS:   config.ListenConfig{"8853"},
+			HTTP:  config.ListenConfig{"4000"},
+			HTTPS: config.ListenConfig{"4443"},
+		},
+		CertFile: certPem.Path,
+		KeyFile:  keyPem.Path,
 		Prometheus: config.PrometheusConfig{
 			Enable: true,
 			Path:   "/metrics",
@@ -594,7 +596,9 @@ var _ = Describe("Running DNS server", func() {
 							},
 						}},
 					Blocking: config.BlockingConfig{BlockType: "zeroIp"},
-					DNSPorts: config.ListenConfig{":55556"},
+					Ports: config.PortsConfig{
+						DNS: config.ListenConfig{":55556"},
+					},
 				})
 
 				Expect(err).Should(Succeed())
@@ -632,7 +636,9 @@ var _ = Describe("Running DNS server", func() {
 							},
 						}},
 					Blocking: config.BlockingConfig{BlockType: "zeroIp"},
-					DNSPorts: config.ListenConfig{"127.0.0.1:55557"},
+					Ports: config.PortsConfig{
+						DNS: config.ListenConfig{"127.0.0.1:55557"},
+					},
 				})
 
 				Expect(err).Should(Succeed())
@@ -693,7 +699,9 @@ var _ = Describe("Running DNS server", func() {
 		It("should create self-signed certificate if key/cert files are not provided", func() {
 			cfg.KeyFile = ""
 			cfg.CertFile = ""
-			cfg.HTTPSPorts = []string{":14443"}
+			cfg.Ports = config.PortsConfig{
+				HTTPS: []string{":14443"},
+			}
 
 			sut, err := NewServer(&cfg)
 			Expect(err).Should(Succeed())

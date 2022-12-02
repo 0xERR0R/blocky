@@ -20,7 +20,7 @@ var alphanumeric = regexp.MustCompile("[a-zA-Z0-9]")
 
 // Obfuscate replaces all alphanumeric characters with * to obfuscate user sensitive data if LogPrivacy is enabled
 func Obfuscate(in string) string {
-	if config.GetConfig().LogPrivacy {
+	if config.GetConfig().Log.Privacy {
 		return alphanumeric.ReplaceAllString(in, "*")
 	}
 

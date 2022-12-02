@@ -17,7 +17,8 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 		When("'startVerifyUpstream' is false and upstream server as IP is not reachable", func() {
 			BeforeEach(func() {
 				blocky, err = createBlockyContainer(tmpDir,
-					"logLevel: warn",
+					"log:",
+					"  level: warn",
 					"upstream:",
 					"  default:",
 					"    - 192.192.192.192",
@@ -35,7 +36,8 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 		When("'startVerifyUpstream' is false and upstream server as host name is not reachable", func() {
 			BeforeEach(func() {
 				blocky, err = createBlockyContainer(tmpDir,
-					"logLevel: warn",
+					"log:",
+					"  level: warn",
 					"upstream:",
 					"  default:",
 					"    - some.wrong.host",

@@ -5,10 +5,11 @@ import (
 	"net"
 	"time"
 
+	"github.com/creasty/defaults"
 	"github.com/miekg/dns"
 
 	"github.com/0xERR0R/blocky/helpertest"
-	. "github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/log"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -23,6 +24,111 @@ var _ = Describe("Config", func() {
 		tmpDir = helpertest.NewTmpFolder("config")
 		Expect(tmpDir.Error).Should(Succeed())
 		DeferCleanup(tmpDir.Clean)
+	})
+
+	Describe("Deprecated parameters are converted", func() {
+		var (
+			c Config
+		)
+		BeforeEach(func() {
+			err := defaults.Set(&c)
+			Expect(err).Should(Succeed())
+		})
+
+		When("parameter 'disableIPv6' is set", func() {
+			It("should add 'AAAA' to filter.queryTypes", func() {
+				c.DisableIPv6 = true
+				validateConfig(&c)
+				Expect(c.Filtering.QueryTypes).Should(HaveKey(QType(dns.TypeAAAA)))
+				Expect(c.Filtering.QueryTypes.Contains(dns.Type(dns.TypeAAAA))).Should(BeTrue())
+			})
+		})
+
+		When("parameter 'failStartOnListError' is set", func() {
+			BeforeEach(func() {
+				c.Blocking = BlockingConfig{
+					FailStartOnListError: true,
+					StartStrategy:        StartStrategyTypeBlocking,
+				}
+			})
+			It("should change StartStrategy blocking to failOnError", func() {
+				validateConfig(&c)
+				Expect(c.Blocking.StartStrategy).Should(Equal(StartStrategyTypeFailOnError))
+			})
+			It("shouldn't change StartStrategy if set to fast", func() {
+				c.Blocking.StartStrategy = StartStrategyTypeFast
+				validateConfig(&c)
+				Expect(c.Blocking.StartStrategy).Should(Equal(StartStrategyTypeFast))
+			})
+		})
+
+		When("parameter 'logLevel' is set", func() {
+			It("should convert to log.level", func() {
+				c.LogLevel = log.LevelDebug
+				validateConfig(&c)
+				Expect(c.Log.Level).Should(Equal(log.LevelDebug))
+			})
+		})
+
+		When("parameter 'logFormat' is set", func() {
+			It("should convert to log.format", func() {
+				c.LogFormat = log.FormatTypeJson
+				validateConfig(&c)
+				Expect(c.Log.Format).Should(Equal(log.FormatTypeJson))
+			})
+		})
+
+		When("parameter 'logPrivacy' is set", func() {
+			It("should convert to log.privacy", func() {
+				c.LogPrivacy = true
+				validateConfig(&c)
+				Expect(c.Log.Privacy).Should(BeTrue())
+			})
+		})
+
+		When("parameter 'logTimestamp' is set", func() {
+			It("should convert to log.timestamp", func() {
+				c.LogTimestamp = false
+				validateConfig(&c)
+				Expect(c.Log.Timestamp).Should(BeFalse())
+			})
+		})
+
+		When("parameter 'port' is set", func() {
+			It("should convert to ports.dns", func() {
+				ports := ListenConfig([]string{"5333"})
+				c.DNSPorts = ports
+				validateConfig(&c)
+				Expect(c.Ports.DNS).Should(Equal(ports))
+			})
+		})
+
+		When("parameter 'httpPort' is set", func() {
+			It("should convert to ports.http", func() {
+				ports := ListenConfig([]string{"5333"})
+				c.HTTPPorts = ports
+				validateConfig(&c)
+				Expect(c.Ports.HTTP).Should(Equal(ports))
+			})
+		})
+
+		When("parameter 'httpsPort' is set", func() {
+			It("should convert to ports.https", func() {
+				ports := ListenConfig([]string{"5333"})
+				c.HTTPSPorts = ports
+				validateConfig(&c)
+				Expect(c.Ports.HTTPS).Should(Equal(ports))
+			})
+		})
+
+		When("parameter 'tlsPort' is set", func() {
+			It("should convert to ports.tls", func() {
+				ports := ListenConfig([]string{"5333"})
+				c.TLSPorts = ports
+				validateConfig(&c)
+				Expect(c.Ports.TLS).Should(Equal(ports))
+			})
+		})
 	})
 
 	Describe("Creation of Config", func() {
@@ -155,7 +261,7 @@ var _ = Describe("Config", func() {
 		})
 
 		When("bootstrapDns is defined", func() {
-			It("should is backwards compatible", func() {
+			It("should be backwards compatible", func() {
 				cfg := Config{}
 				data := "bootstrapDns: 0.0.0.0"
 
@@ -163,7 +269,7 @@ var _ = Describe("Config", func() {
 				Expect(err).ShouldNot(HaveOccurred())
 				Expect(cfg.BootstrapDNS.Upstream.Host).Should(Equal("0.0.0.0"))
 			})
-			It("should is backwards compatible", func() {
+			It("should be backwards compatible", func() {
 				cfg := Config{}
 				data := `
 bootstrapDns:
@@ -189,40 +295,6 @@ bootstrapDns:
 			})
 		})
 
-		When("Deprecated parameter 'disableIPv6' is set", func() {
-			It("should add 'AAAA' to filter.queryTypes", func() {
-				c := &Config{
-					DisableIPv6: true,
-				}
-				validateConfig(c)
-				Expect(c.Filtering.QueryTypes).Should(HaveKey(QType(dns.TypeAAAA)))
-				Expect(c.Filtering.QueryTypes.Contains(dns.Type(dns.TypeAAAA))).Should(BeTrue())
-			})
-		})
-
-		When("Deprecated parameter 'failStartOnListError' is set", func() {
-			var (
-				c Config
-			)
-			BeforeEach(func() {
-				c = Config{
-					Blocking: BlockingConfig{
-						FailStartOnListError: true,
-						StartStrategy:        StartStrategyTypeBlocking,
-					},
-				}
-			})
-			It("should change StartStrategy blocking to failOnError", func() {
-				validateConfig(&c)
-				Expect(c.Blocking.StartStrategy).Should(Equal(StartStrategyTypeFailOnError))
-			})
-			It("shouldn't change StartStrategy if set to fast", func() {
-				c.Blocking.StartStrategy = StartStrategyTypeFast
-				validateConfig(&c)
-				Expect(c.Blocking.StartStrategy).Should(Equal(StartStrategyTypeFast))
-			})
-		})
-
 		When("config directory does not exist", func() {
 			It("should return error", func() {
 				_, err = LoadConfig(tmpDir.JoinPath("config.yml"), true)
@@ -235,7 +307,7 @@ bootstrapDns:
 				_, err = LoadConfig(tmpDir.JoinPath("config.yml"), false)
 
 				Expect(err).Should(Succeed())
-				Expect(config.LogLevel).Should(Equal(LevelInfo))
+				Expect(config.LogLevel).Should(Equal(log.LevelInfo))
 			})
 		})
 	})
