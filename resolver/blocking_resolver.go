@@ -164,7 +164,7 @@ func createDownloader(cfg config.BlockingConfig, bootstrap *Bootstrap) *lists.HT
 }
 
 func setupRedisEnabledSubscriber(c *BlockingResolver) {
-	logger := logger("blocking_resolver")
+	logger := log.PrefixedLog("blocking_resolver")
 
 	go func() {
 		for em := range c.redisClient.EnabledChannel {
@@ -410,7 +410,7 @@ func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
 
 // Resolve checks the query against the blacklist and delegates to next resolver if domain is not blocked
 func (r *BlockingResolver) Resolve(request *model.Request) (*model.Response, error) {
-	logger := withPrefix(request.Log, "blacklist_resolver")
+	logger := log.WithPrefix(request.Log, "blacklist_resolver")
 	groupsToCheck := r.groupsToCheckForClient(request)
 
 	if len(groupsToCheck) > 0 {

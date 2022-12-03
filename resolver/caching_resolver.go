@@ -10,6 +10,7 @@ import (
 	"github.com/0xERR0R/blocky/cache/expirationcache"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
@@ -79,7 +80,7 @@ func configureCaches(c *CachingResolver, cfg *config.CachingConfig) {
 }
 
 func setupRedisCacheSubscriber(c *CachingResolver) {
-	logger := logger("caching_resolver")
+	logger := log.PrefixedLog("caching_resolver")
 
 	go func() {
 		for rc := range c.redisClient.CacheChannel {
@@ -101,7 +102,7 @@ func (r *CachingResolver) isPrefetchingDomain(cacheKey string) bool {
 func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.Duration) {
 	qType, domainName := util.ExtractCacheKey(cacheKey)
 
-	logger := logger("caching_resolver")
+	logger := log.PrefixedLog("caching_resolver")
 
 	if r.isPrefetchingDomain(cacheKey) {
 		logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), qType.String())
@@ -151,7 +152,7 @@ func (r *CachingResolver) Configuration() (result []string) {
 // Resolve checks if the current query result is already in the cache and returns it
 // or delegates to the next resolver
 func (r *CachingResolver) Resolve(request *model.Request) (response *model.Response, err error) {
-	logger := withPrefix(request.Log, "caching_resolver")
+	logger := log.WithPrefix(request.Log, "caching_resolver")
 
 	if r.maxCacheTimeSec < 0 {
 		logger.Debug("skip cache")

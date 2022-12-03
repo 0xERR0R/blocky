@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
@@ -64,7 +65,7 @@ func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Resp
 }
 
 func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, error) {
-	logger := withPrefix(request.Log, hostsFileResolverLogger)
+	logger := log.WithPrefix(request.Log, hostsFileResolverLogger)
 
 	if r.HostsFilePath == "" {
 		return r.next.Resolve(request)
@@ -143,7 +144,7 @@ func NewHostsFileResolver(cfg config.HostsFileConfig) *HostsFileResolver {
 	}
 
 	if err := r.parseHostsFile(); err != nil {
-		logger := logger(hostsFileResolverLogger)
+		logger := log.PrefixedLog(hostsFileResolverLogger)
 		logger.Warnf("cannot parse hosts file: %s, hosts file resolving is disabled", r.HostsFilePath)
 		r.HostsFilePath = ""
 	} else {
@@ -234,7 +235,7 @@ func (r *HostsFileResolver) periodicUpdate() {
 		for {
 			<-ticker.C
 
-			logger := logger(hostsFileResolverLogger)
+			logger := log.PrefixedLog(hostsFileResolverLogger)
 			logger.WithField("file", r.HostsFilePath).Debug("refreshing hosts file")
 
 			util.LogOnError("can't refresh hosts file: ", r.parseHostsFile())

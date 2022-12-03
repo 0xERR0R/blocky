@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
@@ -78,7 +79,7 @@ func testResolver(r *UpstreamResolver) error {
 func NewParallelBestResolver(
 	upstreamResolvers map[string][]config.Upstream, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
 ) (Resolver, error) {
-	logger := logger(parallelResolverLogger)
+	logger := log.PrefixedLog(parallelResolverLogger)
 
 	resolverGroups := make(map[string][]Resolver, len(upstreamResolvers))
 
@@ -205,7 +206,7 @@ func (r *ParallelBestResolver) resolversForClient(request *model.Request) (resul
 
 // Resolve sends the query request to multiple upstream resolvers and returns the fastest result
 func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response, error) {
-	logger := request.Log.WithField("prefix", parallelResolverLogger)
+	logger := log.WithPrefix(request.Log, parallelResolverLogger)
 
 	resolvers := r.resolversForClient(request)
 

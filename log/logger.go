@@ -3,12 +3,15 @@ package log
 //go:generate go run github.com/abice/go-enum -f=$GOFILE --marshal --names
 
 import (
+	"fmt"
 	"io"
 	"strings"
 
 	"github.com/sirupsen/logrus"
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
 )
+
+const prefixField = "prefix"
 
 // Logger is the global logging instance
 //
@@ -60,7 +63,16 @@ func Log() *logrus.Logger {
 
 // PrefixedLog return the global logger with prefix
 func PrefixedLog(prefix string) *logrus.Entry {
-	return logger.WithField("prefix", prefix)
+	return logger.WithField(prefixField, prefix)
+}
+
+// WithPrefix adds the given prefix to the logger.
+func WithPrefix(logger *logrus.Entry, prefix string) *logrus.Entry {
+	if existingPrefix, ok := logger.Data[prefixField]; ok {
+		prefix = fmt.Sprintf("%s.%s", existingPrefix, prefix)
+	}
+
+	return logger.WithField(prefixField, prefix)
 }
 
 // EscapeInput removes line breaks from input
