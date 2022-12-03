@@ -128,7 +128,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 				})
 			})
 
-			When("IP is invalid", func() {
+			When("using non IP hostname", func() {
 				It("errors", func() {
 					cfg := config.Config{
 						BootstrapDNS: []config.BootstrappedUpstreamConfig{
@@ -144,6 +144,29 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 					_, err := NewBootstrap(&cfg)
 					Expect(err).ShouldNot(Succeed())
 					Expect(err.Error()).Should(ContainSubstring("must use IP instead of hostname"))
+				})
+			})
+
+			When("extra IPs are configured", func() {
+				BeforeEach(func() {
+					sutConfig = &config.Config{
+						BootstrapDNS: []config.BootstrappedUpstreamConfig{
+							{
+								Upstream: config.Upstream{
+									Net:  config.NetProtocolTcpUdp,
+									Host: "0.0.0.0",
+								},
+								IPs: []net.IP{net.IPv4allrouter},
+							},
+						},
+					}
+				})
+				It("uses them", func() {
+					Expect(sut).ShouldNot(BeNil())
+
+					for _, ips := range sut.bootstraped {
+						Expect(ips).Should(ContainElements(net.IPv4zero, net.IPv4allrouter))
+					}
 				})
 			})
 		})
@@ -164,7 +187,25 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 					_, err := NewBootstrap(&cfg)
 					Expect(err).ShouldNot(Succeed())
-					Expect(err.Error()).Should(ContainSubstring("requires IPs to be set"))
+					Expect(err.Error()).Should(ContainSubstring("no IPs configured"))
+				})
+			})
+
+			When("hostname is IP", func() {
+				It("doesn't require extra IPs", func() {
+					cfg := config.Config{
+						BootstrapDNS: []config.BootstrappedUpstreamConfig{
+							{
+								Upstream: config.Upstream{
+									Net:  config.NetProtocolTcpTls,
+									Host: "0.0.0.0",
+								},
+							},
+						},
+					}
+
+					_, err := NewBootstrap(&cfg)
+					Expect(err).Should(Succeed())
 				})
 			})
 		})

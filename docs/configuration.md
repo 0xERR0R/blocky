@@ -155,7 +155,7 @@ It is useful if no system DNS resolver is configured, and/or to encrypt the boot
 | upstream  | Upstream (see above) | no                          |               |                                      |
 | ips       | List of IPs          | yes, if upstream is DoT/DoH |               | Only valid if upstream is DoH or DoT |
 
-If you only need to specify upstream, you can use the short form: `bootstrapDns: <upstream>`.
+When using an upstream specified by IP, and not by hostname, you can write only the upstream and skip `ips`.
 
 !!! note
 
@@ -168,9 +168,7 @@ If you only need to specify upstream, you can use the short form: `bootstrapDns:
           - upstream: tcp-tls:dns.example.com
             ips:
             - 123.123.123.123
-          - upstream: https://dns2.example.com/dns-query
-            ips:
-            - 234.234.234.234
+          - upstream: https://234.234.234.234/dns-query
     ```
 
 ## Filtering
