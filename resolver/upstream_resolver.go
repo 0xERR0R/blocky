@@ -226,7 +226,7 @@ func (r UpstreamResolver) String() string {
 
 // Resolve calls external resolver
 func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Response, err error) {
-	logger := withPrefix(request.Log, "upstream_resolver")
+	logger := log.WithPrefix(request.Log, "upstream_resolver")
 
 	ips, err := r.bootstrap.UpstreamIPs(r)
 	if err != nil {

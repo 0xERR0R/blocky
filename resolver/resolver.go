@@ -124,14 +124,6 @@ type NamedResolver interface {
 	Name() string
 }
 
-func logger(prefix string) *logrus.Entry {
-	return log.PrefixedLog(prefix)
-}
-
-func withPrefix(logger *logrus.Entry, prefix string) *logrus.Entry {
-	return logger.WithField("prefix", prefix)
-}
-
 // Chain creates a chain of resolvers
 func Chain(resolvers ...Resolver) Resolver {
 	for i, res := range resolvers {

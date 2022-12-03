@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/querylog"
 	"github.com/0xERR0R/blocky/util"
@@ -32,6 +33,8 @@ type QueryLoggingResolver struct {
 
 // NewQueryLoggingResolver returns a new resolver instance
 func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
+	logger := log.PrefixedLog(queryLoggingResolverPrefix)
+
 	var writer querylog.Writer
 
 	logType := cfg.Type
@@ -60,11 +63,12 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 		retry.DelayType(retry.FixedDelay),
 		retry.Delay(time.Duration(cfg.CreationCooldown)),
 		retry.OnRetry(func(n uint, err error) {
-			logger(queryLoggingResolverPrefix).Warnf("Error occurred on query writer creation, "+
-				"retry attempt %d/%d: %v", n+1, cfg.CreationAttempts, err)
+			logger.Warnf(
+				"Error occurred on query writer creation, retry attempt %d/%d: %v", n+1, cfg.CreationAttempts, err,
+			)
 		}))
 	if err != nil {
-		logger(queryLoggingResolverPrefix).Error("can't create query log writer, using console as fallback: ", err)
+		logger.Error("can't create query log writer, using console as fallback: ", err)
 
 		writer = querylog.NewLoggerWriter()
 		logType = config.QueryLogTypeConsole
@@ -125,7 +129,7 @@ func (r *QueryLoggingResolver) doCleanUp() {
 
 // Resolve logs the query, duration and the result
 func (r *QueryLoggingResolver) Resolve(request *model.Request) (*model.Response, error) {
-	logger := withPrefix(request.Log, queryLoggingResolverPrefix)
+	logger := log.WithPrefix(request.Log, queryLoggingResolverPrefix)
 
 	start := time.Now()
 
@@ -192,7 +196,7 @@ func (r *QueryLoggingResolver) writeLog() {
 
 		// if log channel is > 50% full, this could be a problem with slow writer (external storage over network etc.)
 		if len(r.logChan) > halfCap {
-			logger(queryLoggingResolverPrefix).WithField("channel_len",
+			log.PrefixedLog(queryLoggingResolverPrefix).WithField("channel_len",
 				len(r.logChan)).Warnf("query log writer is too slow, write duration: %d ms", time.Since(start).Milliseconds())
 		}
 	}

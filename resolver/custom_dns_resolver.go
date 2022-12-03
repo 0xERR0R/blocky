@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
@@ -89,7 +90,7 @@ func (r *CustomDNSResolver) handleReverseDNS(request *model.Request) *model.Resp
 }
 
 func (r *CustomDNSResolver) processRequest(request *model.Request) *model.Response {
-	logger := withPrefix(request.Log, "custom_dns_resolver")
+	logger := log.WithPrefix(request.Log, "custom_dns_resolver")
 
 	response := new(dns.Msg)
 	response.SetReply(request.Req)
@@ -138,7 +139,7 @@ func (r *CustomDNSResolver) processRequest(request *model.Request) *model.Respon
 
 // Resolve uses internal mapping to resolve the query
 func (r *CustomDNSResolver) Resolve(request *model.Request) (*model.Response, error) {
-	logger := withPrefix(request.Log, "custom_dns_resolver")
+	logger := log.WithPrefix(request.Log, "custom_dns_resolver")
 
 	reverseResp := r.handleReverseDNS(request)
 	if reverseResp != nil {
