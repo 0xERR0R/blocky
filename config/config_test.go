@@ -260,7 +260,7 @@ var _ = Describe("Config", func() {
 
 				err := unmarshalConfig([]byte(data), &cfg)
 				Expect(err).ShouldNot(HaveOccurred())
-				Expect(cfg.BootstrapDNS.Upstream.Host).Should(Equal("0.0.0.0"))
+				Expect(cfg.BootstrapDNS[0].Upstream.Host).Should(Equal("0.0.0.0"))
 			})
 			It("should be backwards compatible", func() {
 				cfg := Config{}
@@ -272,8 +272,8 @@ bootstrapDns:
 `
 				err := unmarshalConfig([]byte(data), &cfg)
 				Expect(err).ShouldNot(HaveOccurred())
-				Expect(cfg.BootstrapDNS.Upstream.Host).Should(Equal("dns.example.com"))
-				Expect(cfg.BootstrapDNS.IPs).Should(HaveLen(1))
+				Expect(cfg.BootstrapDNS[0].Upstream.Host).Should(Equal("dns.example.com"))
+				Expect(cfg.BootstrapDNS[0].IPs).Should(HaveLen(1))
 			})
 		})
 

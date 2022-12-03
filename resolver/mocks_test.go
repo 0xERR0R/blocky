@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 
@@ -83,7 +84,7 @@ func newTestBootstrap(response *dns.Msg) *Bootstrap {
 	util.FatalOnError("can't create bootstrap", err)
 
 	b.resolver = bootstrapUpstream
-	b.upstream = bootstrapUpstream
+	b.bootstraped = bootstrapedResolvers{bootstrapUpstream: []net.IP{}}
 
 	if response != nil {
 		bootstrapUpstream.
