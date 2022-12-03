@@ -235,35 +235,34 @@ func newBootstrapedResolvers(b *Bootstrap, cfg config.BootstrapDNSConfig) (boots
 
 		upstream := upstreamCfg.Upstream
 
-		var ips []net.IP
-
-		switch {
-		case upstream.IsDefault():
+		if upstream.IsDefault() {
 			multiErr = multierror.Append(
 				multiErr,
 				fmt.Errorf("item %d: upstream not configured (ips=%v)", i, upstreamCfg.IPs),
 			)
-			continue
-		case upstream.Net == config.NetProtocolTcpUdp:
-			ip := net.ParseIP(upstream.Host)
-			if ip == nil {
-				multiErr = multierror.Append(
-					multiErr,
-					fmt.Errorf("item %d: '%s': protocol %s must use IP instead of hostname", i, upstream, upstream.Net),
-				)
-				continue
-			}
 
+			continue
+		}
+
+		var ips []net.IP
+
+		if ip := net.ParseIP(upstream.Host); ip != nil {
 			ips = append(ips, ip)
-		default:
-			ips = upstreamCfg.IPs
-			if len(ips) == 0 {
-				multiErr = multierror.Append(
-					multiErr,
-					fmt.Errorf("item %d: '%s': protocol %s requires IPs to be set", i, upstream, upstream.Net),
-				)
-				continue
-			}
+		} else if upstream.Net == config.NetProtocolTcpUdp {
+			multiErr = multierror.Append(
+				multiErr,
+				fmt.Errorf("item %d: '%s': protocol %s must use IP instead of hostname", i, upstream, upstream.Net),
+			)
+
+			continue
+		}
+
+		ips = append(ips, upstreamCfg.IPs...)
+
+		if len(ips) == 0 {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("item %d: '%s': no IPs configured", i, upstream))
+
+			continue
 		}
 
 		resolver := newUpstreamResolverUnchecked(upstream, b)
