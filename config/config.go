@@ -124,8 +124,8 @@ func (s *QTypeSet) Insert(qType dns.Type) {
 
 type Duration time.Duration
 
-func (c *Duration) String() string {
-	return durafmt.Parse(time.Duration(*c)).String()
+func (c Duration) String() string {
+	return durafmt.Parse(time.Duration(c)).String()
 }
 
 //nolint:gochecknoglobals
@@ -150,7 +150,7 @@ func (u *Upstream) IsDefault() bool {
 }
 
 // String returns the string representation of u
-func (u *Upstream) String() string {
+func (u Upstream) String() string {
 	if u.IsDefault() {
 		return "no upstream"
 	}
@@ -217,20 +217,41 @@ func (l *ListenConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// UnmarshalYAML creates BootstrapDNSConfig from YAML
+func (b *BootstrapDNSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var single BootstrappedUpstreamConfig
+	if err := unmarshal(&single); err == nil {
+		*b = BootstrapDNSConfig{single}
+
+		return nil
+	}
+
+	// bootstrapDNSConfig is used to avoid infinite recursion:
+	// if we used BootstrapDNSConfig, unmarshal would just call us again.
+	var c bootstrapDNSConfig
+	if err := unmarshal(&c); err != nil {
+		return err
+	}
+
+	*b = BootstrapDNSConfig(c)
+
+	return nil
+}
+
 // UnmarshalYAML creates BootstrapConfig from YAML
-func (b *BootstrapConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (b *BootstrappedUpstreamConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&b.Upstream); err == nil {
 		return nil
 	}
 
 	// bootstrapConfig is used to avoid infinite recursion:
 	// if we used BootstrapConfig, unmarshal would just call us again.
-	var c bootstrapConfig
+	var c bootstrappedUpstreamConfig
 	if err := unmarshal(&c); err != nil {
 		return err
 	}
 
-	*b = BootstrapConfig(c)
+	*b = BootstrappedUpstreamConfig(c)
 
 	return nil
 }
@@ -471,7 +492,7 @@ type Config struct {
 	StartVerifyUpstream bool                      `yaml:"startVerifyUpstream" default:"false"`
 	CertFile            string                    `yaml:"certFile"`
 	KeyFile             string                    `yaml:"keyFile"`
-	BootstrapDNS        BootstrapConfig           `yaml:"bootstrapDns"`
+	BootstrapDNS        BootstrapDNSConfig        `yaml:"bootstrapDns"`
 	HostsFile           HostsFileConfig           `yaml:"hostsFile"`
 	FqdnOnly            bool                      `yaml:"fqdnOnly" default:"false"`
 	Filtering           FilteringConfig           `yaml:"filtering"`
@@ -503,9 +524,16 @@ type PortsConfig struct {
 	TLS   ListenConfig `yaml:"tls"`
 }
 
+// split in two types to avoid infinite recursion. See `BootstrapDNSConfig.UnmarshalYAML`.
 type (
-	BootstrapConfig bootstrapConfig // to avoid infinite recursion. See BootstrapConfig.UnmarshalYAML.
-	bootstrapConfig struct {
+	BootstrapDNSConfig bootstrapDNSConfig
+	bootstrapDNSConfig []BootstrappedUpstreamConfig
+)
+
+// split in two types to avoid infinite recursion. See `BootstrappedUpstreamConfig.UnmarshalYAML`.
+type (
+	BootstrappedUpstreamConfig bootstrappedUpstreamConfig
+	bootstrappedUpstreamConfig struct {
 		Upstream Upstream `yaml:"upstream"`
 		IPs      []net.IP `yaml:"ips"`
 	}

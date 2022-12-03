@@ -31,12 +31,14 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 	BeforeEach(func() {
 		sutConfig = &config.Config{
-			BootstrapDNS: config.BootstrapConfig{
-				Upstream: config.Upstream{
-					Net:  config.NetProtocolTcpTls,
-					Host: "bootstrapUpstream.invalid",
+			BootstrapDNS: []config.BootstrappedUpstreamConfig{
+				{
+					Upstream: config.Upstream{
+						Net:  config.NetProtocolTcpTls,
+						Host: "bootstrapUpstream.invalid",
+					},
+					IPs: []net.IP{net.IPv4zero},
 				},
-				IPs: []net.IP{net.IPv4zero},
 			},
 		}
 	})
@@ -77,58 +79,92 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 					Expect(*transport).Should(BeZero()) //nolint:govet
 				})
 			})
-		})
 
-		Context("using TCP UDP", func() {
-			When("IP is set", func() {
-				BeforeEach(func() {
-					sutConfig = &config.Config{
-						BootstrapDNS: config.BootstrapConfig{
-							Upstream: config.Upstream{
-								Net:  config.NetProtocolTcpUdp,
-								Host: "0.0.0.0",
-							},
-						},
-					}
-				})
-				It("accepts an IP", func() {
-					Expect(sut).ShouldNot(BeNil())
-					Expect(sut.upstreamIPs).Should(ContainElement(net.IPv4zero))
-				})
-			})
-			When("IP is invalid", func() {
-				It("requires an IP", func() {
+			When("one of multiple upstreams is invalid", func() {
+				It("errors", func() {
 					cfg := config.Config{
-						BootstrapDNS: config.BootstrapConfig{
-							Upstream: config.Upstream{
-								Net:  config.NetProtocolTcpUdp,
-								Host: "bootstrapUpstream.invalid",
+						BootstrapDNS: []config.BootstrappedUpstreamConfig{
+							{
+								Upstream: config.Upstream{ // valid
+									Net:  config.NetProtocolTcpUdp,
+									Host: "0.0.0.0",
+								},
+							},
+							{
+								Upstream: config.Upstream{ // invalid
+									Net:  config.NetProtocolTcpUdp,
+									Host: "hostname",
+								},
 							},
 						},
 					}
 
 					_, err := NewBootstrap(&cfg)
 					Expect(err).ShouldNot(Succeed())
-					Expect(err.Error()).Should(ContainSubstring("is not an IP"))
+				})
+			})
+		})
+
+		Context("using TCP UDP", func() {
+			When("hostname is an IP", func() {
+				BeforeEach(func() {
+					sutConfig = &config.Config{
+						BootstrapDNS: []config.BootstrappedUpstreamConfig{
+							{
+								Upstream: config.Upstream{
+									Net:  config.NetProtocolTcpUdp,
+									Host: "0.0.0.0",
+								},
+							},
+						},
+					}
+				})
+				It("uses it", func() {
+					Expect(sut).ShouldNot(BeNil())
+
+					for _, ips := range sut.bootstraped {
+						Expect(ips).Should(Equal([]net.IP{net.IPv4zero}))
+					}
+				})
+			})
+
+			When("IP is invalid", func() {
+				It("errors", func() {
+					cfg := config.Config{
+						BootstrapDNS: []config.BootstrappedUpstreamConfig{
+							{
+								Upstream: config.Upstream{
+									Net:  config.NetProtocolTcpUdp,
+									Host: "bootstrapUpstream.invalid",
+								},
+							},
+						},
+					}
+
+					_, err := NewBootstrap(&cfg)
+					Expect(err).ShouldNot(Succeed())
+					Expect(err.Error()).Should(ContainSubstring("must use IP instead of hostname"))
 				})
 			})
 		})
 
 		Context("using encrypted DNS", func() {
-			When("IP is invalid", func() {
-				It("requires bootstrap IPs", func() {
+			When("IPs are missing", func() {
+				It("errors", func() {
 					cfg := config.Config{
-						BootstrapDNS: config.BootstrapConfig{
-							Upstream: config.Upstream{
-								Net:  config.NetProtocolTcpTls,
-								Host: "bootstrapUpstream.invalid",
+						BootstrapDNS: []config.BootstrappedUpstreamConfig{
+							{
+								Upstream: config.Upstream{
+									Net:  config.NetProtocolTcpTls,
+									Host: "bootstrapUpstream.invalid",
+								},
 							},
 						},
 					}
 
 					_, err := NewBootstrap(&cfg)
 					Expect(err).ShouldNot(Succeed())
-					Expect(err.Error()).Should(ContainSubstring("bootstrapDns.IPs is required"))
+					Expect(err.Error()).Should(ContainSubstring("requires IPs to be set"))
 				})
 			})
 		})
@@ -140,18 +176,20 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 		BeforeEach(func() {
 			bootstrapUpstream = &mockResolver{}
 
-			sutConfig.BootstrapDNS = config.BootstrapConfig{
-				Upstream: config.Upstream{
-					Net:  config.NetProtocolTcpTls,
-					Host: "bootstrapUpstream.invalid",
+			sutConfig.BootstrapDNS = []config.BootstrappedUpstreamConfig{
+				{
+					Upstream: config.Upstream{
+						Net:  config.NetProtocolTcpTls,
+						Host: "bootstrapUpstream.invalid",
+					},
+					IPs: []net.IP{net.IPv4zero},
 				},
-				IPs: []net.IP{net.IPv4zero},
 			}
 		})
 
 		JustBeforeEach(func() {
 			sut.resolver = bootstrapUpstream
-			sut.upstream = bootstrapUpstream
+			sut.bootstraped = bootstrapedResolvers{bootstrapUpstream: sutConfig.BootstrapDNS[0].IPs}
 		})
 
 		AfterEach(func() {
@@ -163,7 +201,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 				ips, err := sut.resolveUpstream(bootstrapUpstream, "host")
 
 				Expect(err).Should(Succeed())
-				Expect(ips).Should(Equal(sutConfig.BootstrapDNS.IPs))
+				Expect(ips).Should(Equal(sutConfig.BootstrapDNS[0].IPs))
 			})
 		})
 
@@ -318,6 +356,37 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 				Expect(err).ShouldNot(Succeed())
 				Expect(err.Error()).Should(ContainSubstring("no such host"))
 			})
+		})
+	})
+
+	Describe("multiple upstreams", func() {
+		var (
+			mockUpstream1 *MockUDPUpstreamServer
+			mockUpstream2 *MockUDPUpstreamServer
+		)
+
+		BeforeEach(func() {
+			mockUpstream1 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
+			DeferCleanup(mockUpstream1.Close)
+
+			mockUpstream2 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
+			DeferCleanup(mockUpstream1.Close)
+
+			sutConfig.BootstrapDNS = []config.BootstrappedUpstreamConfig{
+				{Upstream: mockUpstream1.Start()},
+				{Upstream: mockUpstream2.Start()},
+			}
+		})
+
+		It("uses both", func() {
+			_, err := sut.resolve("example.com.", []dns.Type{dns.Type(dns.TypeA)})
+
+			Expect(err).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				g.Expect(mockUpstream1.GetCallCount()).To(Equal(1))
+				g.Expect(mockUpstream2.GetCallCount()).To(Equal(1))
+			}, "100ms").Should(Succeed())
 		})
 	})
 })
