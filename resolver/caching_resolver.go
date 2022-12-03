@@ -70,10 +70,16 @@ func configureCaches(c *CachingResolver, cfg *config.CachingConfig) {
 
 		c.prefetchThreshold = cfg.PrefetchThreshold
 
-		c.prefetchingNameCache = expirationcache.NewCache(expirationcache.WithCleanUpInterval(time.Minute),
-			expirationcache.WithMaxSize(uint(cfg.PrefetchMaxItemsCount)))
-		c.resultCache = expirationcache.NewCache(cleanupOption, maxSizeOption,
-			expirationcache.WithOnExpiredFn(c.onExpired))
+		c.prefetchingNameCache = expirationcache.NewCache(
+			expirationcache.WithCleanUpInterval(time.Minute),
+			expirationcache.WithMaxSize(uint(cfg.PrefetchMaxItemsCount)),
+		)
+
+		c.resultCache = expirationcache.NewCache(
+			cleanupOption,
+			maxSizeOption,
+			expirationcache.WithOnExpiredFn(c.onExpired),
+		)
 	} else {
 		c.resultCache = expirationcache.NewCache(cleanupOption, maxSizeOption)
 	}
@@ -93,7 +99,11 @@ func setupRedisCacheSubscriber(c *CachingResolver) {
 }
 
 // check if domain was queried > threshold in the time window
-func (r *CachingResolver) isPrefetchingDomain(cacheKey string) bool {
+func (r *CachingResolver) shouldPrefetch(cacheKey string) bool {
+	if r.prefetchThreshold == 0 {
+		return true
+	}
+
 	cnt, _ := r.prefetchingNameCache.Get(cacheKey)
 
 	return cnt != nil && cnt.(int) > r.prefetchThreshold
@@ -104,7 +114,7 @@ func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.
 
 	logger := log.PrefixedLog("caching_resolver")
 
-	if r.isPrefetchingDomain(cacheKey) {
+	if r.shouldPrefetch(cacheKey) {
 		logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), qType.String())
 
 		req := newRequest(fmt.Sprintf("%s.", domainName), qType, logger)

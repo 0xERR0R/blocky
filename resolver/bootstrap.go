@@ -63,11 +63,23 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 		return nil, fmt.Errorf("could not create bootstrap ParallelBestResolver: %w", err)
 	}
 
+	// Always enable prefetching to avoid stalling user requests
+	// Otherwise, a request to blocky could end up waiting for 2 DNS requests:
+	//   1. lookup the DNS server IP
+	//   2. forward the user request to the server looked-up in 1
+	cachingCfg := cfg.Caching
+	cachingCfg.EnablePrefetch()
+
+	if cachingCfg.MinCachingTime == 0 {
+		// Set a min time in case the user didn't to avoid prefetching too often
+		cachingCfg.MinCachingTime = config.Duration(time.Hour)
+	}
+
 	b.bootstraped = bootstraped
 
 	b.resolver = Chain(
 		NewFilteringResolver(cfg.Filtering),
-		NewCachingResolver(cfg.Caching, nil),
+		NewCachingResolver(cachingCfg, nil),
 		parallelResolver,
 	)
 

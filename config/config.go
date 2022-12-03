@@ -616,6 +616,18 @@ type CachingConfig struct {
 	PrefetchMaxItemsCount int      `yaml:"prefetchMaxItemsCount"`
 }
 
+func (c *CachingConfig) EnablePrefetch() {
+	const day = 24 * time.Hour
+
+	if c.MaxCachingTime == 0 {
+		// make sure resolver gets enabled
+		c.MaxCachingTime = Duration(day)
+	}
+
+	c.Prefetching = true
+	c.PrefetchThreshold = 0
+}
+
 // QueryLogConfig configuration for the query logging
 type QueryLogConfig struct {
 	Target           string          `yaml:"target"`
