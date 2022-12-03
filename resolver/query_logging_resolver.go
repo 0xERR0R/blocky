@@ -56,6 +56,7 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 			return err
 		},
 		retry.Attempts(uint(cfg.CreationAttempts)),
+		retry.DelayType(retry.FixedDelay),
 		retry.Delay(time.Duration(cfg.CreationCooldown)),
 		retry.OnRetry(func(n uint, err error) {
 			logger(queryLoggingResolverPrefix).Warnf("Error occurred on query writer creation, "+
