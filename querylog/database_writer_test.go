@@ -205,7 +205,7 @@ var _ = Describe("DatabaseWriter", func() {
 				Expect(mock.ExpectationsWereMet()).Should(Succeed())
 			})
 
-			// nolint:lll
+			//nolint:lll
 			It("should create the database schema automatically", func() {
 				By("create table", func() {
 					mock.ExpectExec(`CREATE TABLE "log_entries"`).WillReturnResult(sqlmock.NewResult(0, 0))
@@ -242,7 +242,7 @@ var _ = Describe("DatabaseWriter", func() {
 			AfterEach(func() {
 				Expect(mock.ExpectationsWereMet()).Should(Succeed())
 			})
-			// nolint:lll
+			//nolint:lll
 			Context("Happy path", func() {
 				It("should create the database schema automatically", func() {
 					By("create table with indexes", func() {
@@ -258,7 +258,7 @@ var _ = Describe("DatabaseWriter", func() {
 				})
 			})
 
-			// nolint:lll
+			//nolint:lll
 			Context("primary index creation", func() {
 				It("should create the database schema automatically without errors even if primary idex exists", func() {
 					By("create table with indexes", func() {
