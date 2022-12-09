@@ -150,17 +150,19 @@ func (r ParallelBestResolver) String() string {
 }
 
 func (r *ParallelBestResolver) resolversForClient(request *model.Request) (result []*upstreamResolverStatus) {
+	clientIP := request.ClientIP.String()
+
 	// try client names
 	for _, cName := range request.ClientNames {
 		for clientDefinition, upstreams := range r.resolversPerClient {
-			if util.ClientNameMatchesGroupName(clientDefinition, cName) {
+			if cName != clientIP && util.ClientNameMatchesGroupName(clientDefinition, cName) {
 				result = append(result, upstreams...)
 			}
 		}
 	}
 
 	// try IP
-	upstreams, found := r.resolversPerClient[request.ClientIP.String()]
+	upstreams, found := r.resolversPerClient[clientIP]
 
 	if found {
 		result = append(result, upstreams...)
@@ -260,7 +262,8 @@ func weightedRandom(in []*upstreamResolverStatus, exclude Resolver) *upstreamRes
 		}
 	}
 
-	c, _ := weightedrand.NewChooser(choices...)
+	c, err := weightedrand.NewChooser(choices...)
+	util.LogOnError("can't choose random weighted resolver: ", err)
 
 	return c.Pick().(*upstreamResolverStatus)
 }
