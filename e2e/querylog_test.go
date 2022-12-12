@@ -78,21 +78,25 @@ var _ = Describe("Query logs functional tests", func() {
 
 					Expect(entries).Should(HaveLen(2))
 
-					Expect(entries[0]).Should(SatisfyAll(
-						HaveField("ResponseType", "RESOLVED"),
-						HaveField("QuestionType", "A"),
-						HaveField("QuestionName", "google.de"),
-						HaveField("Answer", "A (1.2.3.4)"),
-						HaveField("ResponseCode", "NOERROR"),
-					))
+					Expect(entries[0]).
+						Should(
+							SatisfyAll(
+								HaveField("ResponseType", "RESOLVED"),
+								HaveField("QuestionType", "A"),
+								HaveField("QuestionName", "google.de"),
+								HaveField("Answer", "A (1.2.3.4)"),
+								HaveField("ResponseCode", "NOERROR"),
+							))
 
-					Expect(entries[1]).Should(SatisfyAll(
-						HaveField("ResponseType", "RESOLVED"),
-						HaveField("QuestionType", "A"),
-						HaveField("QuestionName", "unknown.domain"),
-						HaveField("Answer", ""),
-						HaveField("ResponseCode", "NXDOMAIN"),
-					))
+					Expect(entries[1]).
+						Should(
+							SatisfyAll(
+								HaveField("ResponseType", "RESOLVED"),
+								HaveField("QuestionType", "A"),
+								HaveField("QuestionName", "unknown.domain"),
+								HaveField("Answer", ""),
+								HaveField("ResponseCode", "NXDOMAIN"),
+							))
 				})
 			})
 		})
@@ -149,21 +153,25 @@ var _ = Describe("Query logs functional tests", func() {
 
 					Expect(entries).Should(HaveLen(2))
 
-					Expect(entries[0]).Should(SatisfyAll(
-						HaveField("ResponseType", "RESOLVED"),
-						HaveField("QuestionType", "A"),
-						HaveField("QuestionName", "google.de"),
-						HaveField("Answer", "A (1.2.3.4)"),
-						HaveField("ResponseCode", "NOERROR"),
-					))
+					Expect(entries[0]).
+						Should(
+							SatisfyAll(
+								HaveField("ResponseType", "RESOLVED"),
+								HaveField("QuestionType", "A"),
+								HaveField("QuestionName", "google.de"),
+								HaveField("Answer", "A (1.2.3.4)"),
+								HaveField("ResponseCode", "NOERROR"),
+							))
 
-					Expect(entries[1]).Should(SatisfyAll(
-						HaveField("ResponseType", "CACHED"),
-						HaveField("QuestionType", "A"),
-						HaveField("QuestionName", "google.de"),
-						HaveField("Answer", "A (1.2.3.4)"),
-						HaveField("ResponseCode", "NOERROR"),
-					))
+					Expect(entries[1]).
+						Should(
+							SatisfyAll(
+								HaveField("ResponseType", "CACHED"),
+								HaveField("QuestionType", "A"),
+								HaveField("QuestionName", "google.de"),
+								HaveField("Answer", "A (1.2.3.4)"),
+								HaveField("ResponseCode", "NOERROR"),
+							))
 				})
 			})
 		})

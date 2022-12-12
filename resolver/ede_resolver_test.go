@@ -4,7 +4,9 @@ import (
 	"errors"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/model"
+	. "github.com/0xERR0R/blocky/helpertest"
+
+	. "github.com/0xERR0R/blocky/model"
 
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
@@ -27,9 +29,9 @@ var _ = Describe("EdeResolver", func() {
 	JustBeforeEach(func() {
 		if m == nil {
 			m = &mockResolver{}
-			m.On("Resolve", mock.Anything).Return(&model.Response{
+			m.On("Resolve", mock.Anything).Return(&Response{
 				Res:    mockAnswer,
-				RType:  model.ResponseTypeCUSTOMDNS,
+				RType:  ResponseTypeCUSTOMDNS,
 				Reason: "Test",
 			}, nil)
 		}
@@ -45,12 +47,14 @@ var _ = Describe("EdeResolver", func() {
 			}
 		})
 		It("shouldn't add EDE information", func() {
-			resp, err := sut.Resolve(newRequest("example.com", dns.Type(dns.TypeA)))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-			Expect(resp.RType).Should(Equal(model.ResponseTypeCUSTOMDNS))
-			Expect(resp.Res.Answer).Should(BeEmpty())
-			Expect(resp.Res.Extra).Should(BeEmpty())
+			Expect(sut.Resolve(newRequest("example.com.", A))).
+				Should(
+					SatisfyAll(
+						HaveNoAnswer(),
+						HaveResponseType(ResponseTypeCUSTOMDNS),
+						HaveReturnCode(dns.RcodeSuccess),
+						WithTransform(ToExtra, BeEmpty()),
+					))
 
 			// delegated to next resolver
 			Expect(m.Calls).Should(HaveLen(1))
@@ -63,20 +67,29 @@ var _ = Describe("EdeResolver", func() {
 				Enable: true,
 			}
 		})
+
+		extractFirstOptRecord := func(e []dns.RR) []dns.EDNS0 {
+			return e[0].(*dns.OPT).Option
+		}
+
 		It("should add EDE information", func() {
-			resp, err := sut.Resolve(newRequest("example.com", dns.Type(dns.TypeA)))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-			Expect(resp.RType).Should(Equal(model.ResponseTypeCUSTOMDNS))
-			Expect(resp.Res.Answer).Should(BeEmpty())
-			Expect(resp.Res.Extra).Should(HaveLen(1))
-			opt, ok := resp.Res.Extra[0].(*dns.OPT)
-			Expect(ok).Should(BeTrue())
-			Expect(opt).ShouldNot(BeNil())
-			ede, ok := opt.Option[0].(*dns.EDNS0_EDE)
-			Expect(ok).Should(BeTrue())
-			Expect(ede.InfoCode).Should(Equal(dns.ExtendedErrorCodeForgedAnswer))
-			Expect(ede.ExtraText).Should(Equal("Test"))
+			Expect(sut.Resolve(newRequest("example.com.", A))).
+				Should(
+					SatisfyAll(
+						HaveNoAnswer(),
+						HaveResponseType(ResponseTypeCUSTOMDNS),
+						HaveReturnCode(dns.RcodeSuccess),
+						// extra should contain one OPT record
+						WithTransform(ToExtra,
+							SatisfyAll(
+								HaveLen(1),
+								WithTransform(extractFirstOptRecord,
+									SatisfyAll(
+										ContainElement(HaveField("InfoCode", Equal(dns.ExtendedErrorCodeForgedAnswer))),
+										ContainElement(HaveField("ExtraText", Equal("Test"))),
+									)),
+							)),
+					))
 		})
 
 		When("resolver returns an error", func() {
@@ -88,7 +101,7 @@ var _ = Describe("EdeResolver", func() {
 			})
 
 			It("should return it", func() {
-				resp, err := sut.Resolve(newRequest("example.com", dns.Type(dns.TypeA)))
+				resp, err := sut.Resolve(newRequest("example.com", A))
 				Expect(resp).To(BeNil())
 				Expect(err).To(Equal(resolveErr))
 			})

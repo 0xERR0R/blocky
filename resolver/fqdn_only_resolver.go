@@ -14,7 +14,7 @@ type FqdnOnlyResolver struct {
 	enabled bool
 }
 
-func NewFqdnOnlyResolver(cfg config.Config) ChainedResolver {
+func NewFqdnOnlyResolver(cfg config.Config) *FqdnOnlyResolver {
 	return &FqdnOnlyResolver{
 		enabled: cfg.FqdnOnly,
 	}

@@ -111,13 +111,17 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 		})
 		It("should consider the timeout parameter", func() {
 			By("query without timeout", func() {
-				msg := util.NewMsgWithQuestion("example.com.", dns.Type(dns.TypeA))
-
-				Expect(doDNSRequest(blocky, msg)).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "1.2.3.4"))
+				msg := util.NewMsgWithQuestion("example.com.", A)
+				Expect(doDNSRequest(blocky, msg)).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("example.com.", A, "1.2.3.4"),
+							HaveTTL(BeNumerically("==", 123)),
+						))
 			})
 
 			By("query with timeout", func() {
-				msg := util.NewMsgWithQuestion("delay.com/.", dns.Type(dns.TypeA))
+				msg := util.NewMsgWithQuestion("delay.com/.", A)
 
 				resp, err := doDNSRequest(blocky, msg)
 				Expect(err).Should(Succeed())

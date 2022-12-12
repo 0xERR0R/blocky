@@ -15,6 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 
+	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -178,13 +179,13 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 		When("upstream returns an IPv6", func() {
 			It("it is used", func() {
 				bootstrapResponse, err := util.NewMsgWithAnswer(
-					"localhost.", 123, dns.Type(dns.TypeAAAA), net.IPv6loopback.String(),
+					"localhost.", 123, AAAA, net.IPv6loopback.String(),
 				)
 				Expect(err).Should(Succeed())
 
 				bootstrapUpstream.On("Resolve", mock.Anything).Return(&model.Response{Res: bootstrapResponse}, nil)
 
-				ips, err := sut.resolve("localhost", []dns.Type{dns.Type(dns.TypeAAAA)})
+				ips, err := sut.resolve("localhost", []dns.Type{AAAA})
 
 				Expect(err).Should(Succeed())
 				Expect(ips).Should(HaveLen(1))
@@ -198,7 +199,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 				bootstrapUpstream.On("Resolve", mock.Anything).Return(nil, resolveErr)
 
-				ips, err := sut.resolve("localhost", []dns.Type{dns.Type(dns.TypeA)})
+				ips, err := sut.resolve("localhost", []dns.Type{A})
 
 				Expect(err).ShouldNot(Succeed())
 				Expect(err.Error()).Should(ContainSubstring(resolveErr.Error()))
@@ -212,7 +213,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 				bootstrapUpstream.On("Resolve", mock.Anything).Return(&model.Response{Res: bootstrapResponse}, nil)
 
-				ips, err := sut.resolve("unknownhost.invalid", []dns.Type{dns.Type(dns.TypeA)})
+				ips, err := sut.resolve("unknownhost.invalid", []dns.Type{A})
 
 				Expect(err).ShouldNot(Succeed())
 				Expect(err.Error()).Should(ContainSubstring("no such host"))
@@ -223,7 +224,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 		When("called from another UpstreamResolver", func() {
 			It("uses the bootstrap upstream", func() {
 				mainReq := &model.Request{
-					Req: util.NewMsgWithQuestion("example.com.", dns.Type(dns.TypeA)),
+					Req: util.NewMsgWithQuestion("example.com.", A),
 					Log: logrus.NewEntry(log.Log()),
 				}
 
@@ -234,7 +235,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 				upstreamIP := upstream.Host
 
 				bootstrapResponse, err := util.NewMsgWithAnswer(
-					"localhost.", 123, dns.Type(dns.TypeA), upstreamIP,
+					"localhost.", 123, A, upstreamIP,
 				)
 				Expect(err).Should(Succeed())
 
@@ -266,7 +267,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 				Expect(err).Should(Succeed())
 
 				bootstrapResponse, err := util.NewMsgWithAnswer(
-					"localhost.", 123, dns.Type(dns.TypeA), host,
+					"localhost.", 123, A, host,
 				)
 				Expect(err).Should(Succeed())
 

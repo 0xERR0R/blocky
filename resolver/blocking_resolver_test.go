@@ -49,18 +49,11 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		sutConfig  config.BlockingConfig
 		m          *mockResolver
 		mockAnswer *dns.Msg
-
-		err  error
-		resp *Response
-
-		expectedReturnCode int
 	)
 
 	systemResolverBootstrap := &Bootstrap{}
 
 	BeforeEach(func() {
-		expectedReturnCode = dns.RcodeSuccess
-
 		sutConfig = config.BlockingConfig{
 			BlockType: "ZEROIP",
 			BlockTTL:  config.Duration(time.Minute),
@@ -70,19 +63,12 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 	})
 
 	JustBeforeEach(func() {
+		var err error
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
-		tmp, err := NewBlockingResolver(sutConfig, nil, systemResolverBootstrap)
+		sut, err = NewBlockingResolver(sutConfig, nil, systemResolverBootstrap)
 		Expect(err).Should(Succeed())
-		sut = tmp.(*BlockingResolver)
 		sut.Next(m)
-	})
-
-	AfterEach(func() {
-		Expect(err).Should(Succeed())
-		if resp != nil {
-			Expect(resp.Res.Rcode).Should(Equal(expectedReturnCode))
-		}
 	})
 
 	Describe("Events", func() {
@@ -99,15 +85,14 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		When("List is refreshed", func() {
 			It("event should be fired", func() {
 				groupCnt := make(map[string]int)
-				err = Bus().Subscribe(BlockingCacheGroupChanged, func(listType lists.ListCacheType, group string, cnt int) {
+				err := Bus().Subscribe(BlockingCacheGroupChanged, func(listType lists.ListCacheType, group string, cnt int) {
 					groupCnt[group] = cnt
 				})
 				Expect(err).Should(Succeed())
 
 				// recreate to trigger a reload
-				tmp, err := NewBlockingResolver(sutConfig, nil, systemResolverBootstrap)
+				sut, err = NewBlockingResolver(sutConfig, nil, systemResolverBootstrap)
 				Expect(err).Should(Succeed())
-				sut = tmp.(*BlockingResolver)
 
 				Eventually(groupCnt, "1s").Should(HaveLen(2))
 			})
@@ -134,7 +119,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			It("should block request", func() {
 				m.AnswerFn = func(t uint16, qName string) *dns.Msg {
 					if t == dns.TypeA && qName == "full.qualified.com." {
-						a, _ := util.NewMsgWithAnswer(qName, 60*60, dns.Type(dns.TypeA), "192.168.178.39")
+						a, _ := util.NewMsgWithAnswer(qName, 60*60, A, "192.168.178.39")
 
 						return a
 					}
@@ -143,10 +128,13 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				}
 				Bus().Publish(ApplicationStarted, "")
 				Eventually(func(g Gomega) {
-					resp, err = sut.Resolve(newRequestWithClient("blocked2.com.", dns.Type(dns.TypeA), "192.168.178.39", "client1"))
-					g.Expect(err).NotTo(HaveOccurred())
-					g.Expect(resp.Res.Answer).ShouldNot(BeNil())
-					g.Expect(resp.Res.Answer).Should(BeDNSRecord("blocked2.com.", dns.TypeA, 60, "0.0.0.0"))
+					g.Expect(sut.Resolve(newRequestWithClient("blocked2.com.", A, "192.168.178.39", "client1"))).
+						Should(And(
+							BeDNSRecord("blocked2.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 60)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 				}, "10s", "1s").Should(Succeed())
 			})
 		})
@@ -169,17 +157,20 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 		When("Domain is on the black list", func() {
 			It("should block request", func() {
-				Eventually(func(g Gomega) {
-					resp, err = sut.Resolve(newRequestWithClient("regex.com.", dns.Type(dns.TypeA), "1.2.1.2", "client1"))
-					g.Expect(err).Should(Succeed())
-					g.Expect(resp.Res.Answer).Should(BeDNSRecord("regex.com.", dns.TypeA, 60, "0.0.0.0"))
-				}).Should(Succeed())
+				Eventually(sut.Resolve).
+					WithArguments(newRequestWithClient("regex.com.", dns.Type(dns.TypeA), "1.2.1.2", "client1")).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("regex.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 60)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 			})
 		})
 	})
 
 	Describe("Blocking requests", func() {
-		var rType ResponseType
 		BeforeEach(func() {
 			sutConfig = config.BlockingConfig{
 				BlockTTL: config.Duration(6 * time.Hour),
@@ -200,71 +191,108 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				},
 				BlockType: "ZeroIP",
 			}
-			rType = ResponseTypeBLOCKED
-		})
-		AfterEach(func() {
-			Expect(resp.RType).Should(Equal(rType))
 		})
 
 		When("client name is defined in client groups block", func() {
 			It("should block the A query if domain is on the black list (single)", func() {
-				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "1.2.1.2", "client1"))
-
-				Expect(resp.Res.Answer).Should(BeDNSRecord("domain1.com.", dns.TypeA, 21600, "0.0.0.0"))
+				Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "client1"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("domain1.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 21600)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReason("BLOCKED (gr1)"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 			})
 			It("should block the A query if domain is on the black list (multipart 1)", func() {
-				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "1.2.1.2", "client2"))
-
-				Expect(resp.Res.Answer).Should(BeDNSRecord("domain1.com.", dns.TypeA, 21600, "0.0.0.0"))
+				Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "client2"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("domain1.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 21600)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReason("BLOCKED (gr1)"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 			})
 			It("should block the A query if domain is on the black list (multipart 2)", func() {
-				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "1.2.1.2", "client3"))
-
-				Expect(resp.Res.Answer).Should(BeDNSRecord("domain1.com.", dns.TypeA, 21600, "0.0.0.0"))
+				Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "client3"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("domain1.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 21600)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReason("BLOCKED (gr1)"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 			})
 			It("should block the A query if domain is on the black list (merged)", func() {
-				resp, err = sut.Resolve(newRequestWithClient("blocked2.com.", dns.Type(dns.TypeA), "1.2.1.2", "client3"))
-
-				Expect(resp.Res.Answer).Should(BeDNSRecord("blocked2.com.", dns.TypeA, 21600, "0.0.0.0"))
+				Expect(sut.Resolve(newRequestWithClient("blocked2.com.", A, "1.2.1.2", "client3"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("blocked2.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 21600)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReason("BLOCKED (gr2)"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 			})
 			It("should block the AAAA query if domain is on the black list", func() {
-				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeAAAA), "1.2.1.2", "client1"))
-
-				Expect(resp.Res.Answer).Should(BeDNSRecord("domain1.com.", dns.TypeAAAA, 21600, "::"))
+				Expect(sut.Resolve(newRequestWithClient("domain1.com.", AAAA, "1.2.1.2", "client1"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("domain1.com.", AAAA, "::"),
+							HaveTTL(BeNumerically("==", 21600)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReason("BLOCKED (gr1)"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 			})
 			It("should block the HTTPS query if domain is on the black list", func() {
-				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeHTTPS), "1.2.1.2", "client1"))
-
-				expectedReturnCode = dns.RcodeNameError
-				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+				Expect(sut.Resolve(newRequestWithClient("domain1.com.", HTTPS, "1.2.1.2", "client1"))).
+					Should(HaveReturnCode(dns.RcodeNameError))
 			})
 			It("should block the MX query if domain is on the black list", func() {
-				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeMX), "1.2.1.2", "client1"))
-
-				expectedReturnCode = dns.RcodeNameError
-				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+				Expect(sut.Resolve(newRequestWithClient("domain1.com.", MX, "1.2.1.2", "client1"))).
+					Should(HaveReturnCode(dns.RcodeNameError))
 			})
 		})
 
 		When("Client ip is defined in client groups block", func() {
 			It("should block the query if domain is on the black list", func() {
-				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "192.168.178.55", "unknown"))
-
-				Expect(resp.Res.Answer).Should(BeDNSRecord("domain1.com.", dns.TypeA, 21600, "0.0.0.0"))
+				Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "192.168.178.55", "unknown"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("domain1.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 21600)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReason("BLOCKED (gr1)"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 			})
 		})
 		When("Client CIDR (10.43.8.64 - 10.43.8.79) is defined in client groups block", func() {
-			JustBeforeEach(func() {
-				rType = ResponseTypeRESOLVED
-			})
 			It("should not block the query for 10.43.8.63 if domain is on the black list", func() {
-				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "10.43.8.63", "unknown"))
+				Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "10.43.8.63", "unknown"))).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 
 				// was delegated to next resolver
 				m.AssertExpectations(GinkgoT())
 			})
 			It("should not block the query for 10.43.8.80 if domain is on the black list", func() {
-				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "10.43.8.80", "unknown"))
+				Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "10.43.8.80", "unknown"))).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 
 				// was delegated to next resolver
 				m.AssertExpectations(GinkgoT())
@@ -273,46 +301,78 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 		When("Client CIDR (10.43.8.64 - 10.43.8.79) is defined in client groups block", func() {
 			It("should block the query for 10.43.8.64 if domain is on the black list", func() {
-				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "10.43.8.64", "unknown"))
-
-				Expect(resp.Res.Answer).Should(BeDNSRecord("domain1.com.", dns.TypeA, 21600, "0.0.0.0"))
+				Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "10.43.8.64", "unknown"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("domain1.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 21600)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReason("BLOCKED (gr1)"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 			})
 			It("should block the query for 10.43.8.79 if domain is on the black list", func() {
-				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "10.43.8.79", "unknown"))
-
-				Expect(resp.Res.Answer).Should(BeDNSRecord("domain1.com.", dns.TypeA, 21600, "0.0.0.0"))
+				Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "10.43.8.79", "unknown"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("domain1.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 21600)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReason("BLOCKED (gr1)"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 			})
 		})
 
 		When("Client has multiple names and for each name a client group block definition exists", func() {
 			It("should block query if domain is in one group", func() {
-				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "1.2.1.2", "client1", "altName"))
-
-				Expect(resp.Reason).Should(Equal("BLOCKED (gr1)"))
-				Expect(resp.Res.Answer).Should(BeDNSRecord("domain1.com.", dns.TypeA, 21600, "0.0.0.0"))
+				Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "client1", "altName"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("domain1.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 21600)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReason("BLOCKED (gr1)"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 			})
 			It("should block query if domain is in another group too", func() {
-				resp, err = sut.Resolve(newRequestWithClient("blocked2.com.", dns.Type(dns.TypeA), "1.2.1.2", "client1", "altName"))
-
-				Expect(resp.Reason).Should(Equal("BLOCKED (gr2)"))
-				Expect(resp.Res.Answer).Should(BeDNSRecord("blocked2.com.", dns.TypeA, 21600, "0.0.0.0"))
+				Expect(sut.Resolve(newRequestWithClient("blocked2.com.", A, "1.2.1.2", "client1", "altName"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("blocked2.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 21600)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReason("BLOCKED (gr2)"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 			})
 		})
 		When("Client name matches wildcard", func() {
 			It("should block query if domain is in one group", func() {
-				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "1.2.1.2", "wildcard1name"))
-
-				Expect(resp.Reason).Should(Equal("BLOCKED (gr1)"))
-				Expect(resp.Res.Answer).Should(BeDNSRecord("domain1.com.", dns.TypeA, 21600, "0.0.0.0"))
+				Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "wildcard1name"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("domain1.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 21600)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReason("BLOCKED (gr1)"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 			})
 		})
 
 		When("Default group is defined", func() {
 			It("should block domains from default group for each client", func() {
-				resp, err = sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-
-				Expect(resp.Reason).Should(Equal("BLOCKED (defaultGroup)"))
-				Expect(resp.Res.Answer).Should(BeDNSRecord("blocked3.com.", dns.TypeA, 21600, "0.0.0.0"))
+				Expect(sut.Resolve(newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("blocked3.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 21600)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReason("BLOCKED (defaultGroup)"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 			})
 		})
 
@@ -329,15 +389,16 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					BlockType: "NxDomain",
 				}
 			})
-			JustBeforeEach(func() {
-				expectedReturnCode = dns.RcodeNameError
-			})
 
 			It("should return NXDOMAIN if query is blocked", func() {
-				resp, err = sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-
-				Expect(resp.Reason).Should(Equal("BLOCKED (defaultGroup)"))
-				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+				Expect(sut.Resolve(newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeNameError),
+							HaveReason("BLOCKED (defaultGroup)"),
+						))
 			})
 		})
 
@@ -356,10 +417,15 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			})
 
 			It("should return answer with specified TTL", func() {
-				resp, err = sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-
-				Expect(resp.Reason).Should(Equal("BLOCKED (defaultGroup)"))
-				Expect(resp.Res.Answer).Should(BeDNSRecord("blocked3.com.", dns.TypeA, 1234, "0.0.0.0"))
+				Expect(sut.Resolve(newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("blocked3.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 1234)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeSuccess),
+							HaveReason("BLOCKED (defaultGroup)"),
+						))
 			})
 
 			When("BlockType is custom IP", func() {
@@ -368,10 +434,15 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				})
 
 				It("should return custom IP with specified TTL", func() {
-					resp, err = sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-
-					Expect(resp.Reason).Should(Equal("BLOCKED (defaultGroup)"))
-					Expect(resp.Res.Answer).Should(BeDNSRecord("blocked3.com.", dns.TypeA, 1234, "12.12.12.12"))
+					Expect(sut.Resolve(newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("blocked3.com.", A, "12.12.12.12"),
+								HaveTTL(BeNumerically("==", 1234)),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReturnCode(dns.RcodeSuccess),
+								HaveReason("BLOCKED (defaultGroup)"),
+							))
 				})
 			})
 		})
@@ -391,17 +462,27 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			})
 
 			It("should return ipv4 address for A query if query is blocked", func() {
-				resp, err = sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-
-				Expect(resp.Reason).Should(Equal("BLOCKED (defaultGroup)"))
-				Expect(resp.Res.Answer).Should(BeDNSRecord("blocked3.com.", dns.TypeA, 21600, "12.12.12.12"))
+				Expect(sut.Resolve(newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("blocked3.com.", A, "12.12.12.12"),
+							HaveTTL(BeNumerically("==", 21600)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeSuccess),
+							HaveReason("BLOCKED (defaultGroup)"),
+						))
 			})
 
 			It("should return ipv6 address for AAAA query if query is blocked", func() {
-				resp, err = sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeAAAA), "1.2.1.2", "unknown"))
-
-				Expect(resp.Reason).Should(Equal("BLOCKED (defaultGroup)"))
-				Expect(resp.Res.Answer).Should(BeDNSRecord("blocked3.com.", dns.TypeAAAA, 21600, "2001:db8:85a3::8a2e:370:7334"))
+				Expect(sut.Resolve(newRequestWithClient("blocked3.com.", AAAA, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("blocked3.com.", AAAA, "2001:db8:85a3::8a2e:370:7334"),
+							HaveTTL(BeNumerically("==", 21600)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeSuccess),
+							HaveReason("BLOCKED (defaultGroup)"),
+						))
 			})
 		})
 
@@ -420,10 +501,15 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			})
 
 			It("should use fallback for ipv6 and return zero ip", func() {
-				resp, err = sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeAAAA), "1.2.1.2", "unknown"))
-
-				Expect(resp.Reason).Should(Equal("BLOCKED (defaultGroup)"))
-				Expect(resp.Res.Answer).Should(BeDNSRecord("blocked3.com.", dns.TypeAAAA, 21600, "::"))
+				Expect(sut.Resolve(newRequestWithClient("blocked3.com.", AAAA, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("blocked3.com.", AAAA, "::"),
+							HaveTTL(BeNumerically("==", 21600)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeSuccess),
+							HaveReason("BLOCKED (defaultGroup)"),
+						))
 			})
 		})
 
@@ -431,12 +517,18 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			When("IP4", func() {
 				BeforeEach(func() {
 					// return defined IP as response
-					mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.Type(dns.TypeA), "123.145.123.145")
+					mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, A, "123.145.123.145")
 				})
 				It("should block query, if lookup result contains blacklisted IP", func() {
-					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(resp.Reason).Should(Equal("BLOCKED IP (defaultGroup)"))
-					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 21600, "0.0.0.0"))
+					Expect(sut.Resolve(newRequestWithClient("example.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("example.com.", A, "0.0.0.0"),
+								HaveTTL(BeNumerically("==", 21600)),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReturnCode(dns.RcodeSuccess),
+								HaveReason("BLOCKED IP (defaultGroup)"),
+							))
 				})
 			})
 			When("IP6", func() {
@@ -444,13 +536,19 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					// return defined IP as response
 					mockAnswer, _ = util.NewMsgWithAnswer(
 						"example.com.", 300,
-						dns.Type(dns.TypeAAAA), "2001:0db8:85a3:08d3::0370:7344",
+						AAAA, "2001:0db8:85a3:08d3::0370:7344",
 					)
 				})
 				It("should block query, if lookup result contains blacklisted IP", func() {
-					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeAAAA), "1.2.1.2", "unknown"))
-					Expect(resp.Reason).Should(Equal("BLOCKED IP (defaultGroup)"))
-					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeAAAA, 21600, "::"))
+					Expect(sut.Resolve(newRequestWithClient("example.com.", AAAA, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("example.com.", AAAA, "::"),
+								HaveTTL(BeNumerically("==", 21600)),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReturnCode(dns.RcodeSuccess),
+								HaveReason("BLOCKED IP (defaultGroup)"),
+							))
 				})
 			})
 		})
@@ -465,9 +563,15 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				mockAnswer.Answer = []dns.RR{rr1, rr2, rr3}
 			})
 			It("should block the query, if response contains a CNAME with domain on a blacklist", func() {
-				resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-				Expect(resp.Reason).Should(Equal("BLOCKED CNAME (defaultGroup)"))
-				Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 21600, "0.0.0.0"))
+				Expect(sut.Resolve(newRequestWithClient("example.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("example.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 21600)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeSuccess),
+							HaveReason("BLOCKED CNAME (defaultGroup)"),
+						))
 			})
 		})
 	})
@@ -486,7 +590,13 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				}
 			})
 			It("Should not be blocked", func() {
-				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
+				Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 
 				// was delegated to next resolver
 				m.AssertExpectations(GinkgoT())
@@ -512,44 +622,83 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			})
 			It("should block everything else except domains on the white list with default group", func() {
 				By("querying domain on the whitelist", func() {
-					resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
+					Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								HaveNoAnswer(),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 
 					// was delegated to next resolver
 					m.AssertExpectations(GinkgoT())
 				})
 
 				By("querying another domain, which is not on the whitelist", func() {
-					resp, err = sut.Resolve(newRequestWithClient("google.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
+					Expect(sut.Resolve(newRequestWithClient("google.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("google.com.", A, "0.0.0.0"),
+								HaveTTL(BeNumerically("==", 60)),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReturnCode(dns.RcodeSuccess),
+								HaveReason("BLOCKED (WHITELIST ONLY)"),
+							))
+
 					Expect(m.Calls).Should(HaveLen(1))
-					Expect(resp.Reason).Should(Equal("BLOCKED (WHITELIST ONLY)"))
 				})
 			})
 			It("should block everything else except domains on the white list "+
 				"if multiple white list only groups are defined", func() {
 				By("querying domain on the whitelist", func() {
-					resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "1.2.1.2", "one-client"))
+					Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "one-client"))).
+						Should(
+							SatisfyAll(
+								HaveNoAnswer(),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 
 					// was delegated to next resolver
 					m.AssertExpectations(GinkgoT())
 				})
 
 				By("querying another domain, which is not on the whitelist", func() {
-					resp, err = sut.Resolve(newRequestWithClient("blocked2.com.", dns.Type(dns.TypeA), "1.2.1.2", "one-client"))
+					Expect(sut.Resolve(newRequestWithClient("blocked2.com.", A, "1.2.1.2", "one-client"))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("blocked2.com.", A, "0.0.0.0"),
+								HaveTTL(BeNumerically("==", 60)),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReturnCode(dns.RcodeSuccess),
+								HaveReason("BLOCKED (WHITELIST ONLY)"),
+							))
 					Expect(m.Calls).Should(HaveLen(1))
-					Expect(resp.Reason).Should(Equal("BLOCKED (WHITELIST ONLY)"))
 				})
 			})
 			It("should block everything else except domains on the white list "+
 				"if multiple white list only groups are defined", func() {
 				By("querying domain on the whitelist group 1", func() {
-					resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "1.2.1.2", "all-client"))
+					Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "all-client"))).
+						Should(
+							SatisfyAll(
+								HaveNoAnswer(),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 
 					// was delegated to next resolver
 					m.AssertExpectations(GinkgoT())
 				})
 
 				By("querying another domain, which is in the whitelist group 1", func() {
-					resp, err = sut.Resolve(newRequestWithClient("blocked2.com.", dns.Type(dns.TypeA), "1.2.1.2", "all-client"))
+					Expect(sut.Resolve(newRequestWithClient("blocked2.com.", A, "1.2.1.2", "all-client"))).
+						Should(
+							SatisfyAll(
+								HaveNoAnswer(),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 					Expect(m.Calls).Should(HaveLen(2))
 				})
 			})
@@ -566,11 +715,16 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 						"default": {"gr1"},
 					},
 				}
-				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.Type(dns.TypeA), "123.145.123.145")
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, A, "123.145.123.145")
 			})
 			It("should not block if DNS answer contains IP from the white list", func() {
-				resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-
+				Expect(sut.Resolve(newRequestWithClient("example.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("example.com.", A, "123.145.123.145"),
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 				// was delegated to next resolver
 				m.AssertExpectations(GinkgoT())
 			})
@@ -591,12 +745,16 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		AfterEach(func() {
 			// was delegated to next resolver
 			m.AssertExpectations(GinkgoT())
-
-			Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 		})
 		When("domain is not on the black list", func() {
 			It("should delegate to next resolver", func() {
-				resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
+				Expect(sut.Resolve(newRequestWithClient("example.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 			})
 		})
 		When("no lists defined", func() {
@@ -607,7 +765,13 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				}
 			})
 			It("should delegate to next resolver", func() {
-				resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
+				Expect(sut.Resolve(newRequestWithClient("example.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 			})
 		})
 	})
@@ -628,15 +792,25 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		When("Disable blocking is called", func() {
 			It("no query should be blocked", func() {
 				By("Perform query to ensure that the blocking status is active (defaultGroup)", func() {
-					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeBLOCKED))
+					Expect(sut.Resolve(newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("blocked3.com.", A, "0.0.0.0"),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReason("BLOCKED (defaultGroup)"),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 
 				By("Perform query to ensure that the blocking status is active (group1)", func() {
-					resp, err := sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeBLOCKED))
+					Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("domain1.com.", A, "0.0.0.0"),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReason("BLOCKED (group1)"),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 
 				By("Calling Rest API to deactivate all groups", func() {
@@ -646,9 +820,13 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 				By("perform the same query again (defaultGroup)", func() {
 					// now is blocking disabled, query the url again
-					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+					Expect(sut.Resolve(newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								HaveNoAnswer(),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 
 					m.AssertExpectations(GinkgoT())
 					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
@@ -656,9 +834,13 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 				By("perform the same query again (group1)", func() {
 					// now is blocking disabled, query the url again
-					resp, err := sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+					Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								HaveNoAnswer(),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 
 					m.AssertExpectations(GinkgoT())
 					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 2)
@@ -671,18 +853,27 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 				By("perform the same query again (defaultGroup)", func() {
 					// now is blocking disabled, query the url again
-					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+					Expect(sut.Resolve(newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								HaveNoAnswer(),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 
 					m.AssertExpectations(GinkgoT())
 					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 3)
 				})
 
 				By("Perform query to ensure that the blocking status is active (group1)", func() {
-					resp, err := sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeBLOCKED))
+					Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("domain1.com.", A, "0.0.0.0"),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReason("BLOCKED (group1)"),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 			})
 		})
@@ -690,41 +881,59 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		When("Disable blocking for all groups is called with a duration parameter", func() {
 			It("No query should be blocked only for passed amount of time", func() {
 				By("Perform query to ensure that the blocking status is active (defaultGroup)", func() {
-					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeBLOCKED))
+					Expect(sut.Resolve(newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("blocked3.com.", A, "0.0.0.0"),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReason("BLOCKED (defaultGroup)"),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 				By("Perform query to ensure that the blocking status is active (group1)", func() {
-					resp, err := sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeBLOCKED))
+					Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("domain1.com.", A, "0.0.0.0"),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReason("BLOCKED (group1)"),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 
 				By("Calling Rest API to deactivate blocking for 0.5 sec", func() {
-					enabled := true
+					enabled := make(chan bool, 1)
 					err := Bus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
-						enabled = state
+						enabled <- state
 					})
 					Expect(err).Should(Succeed())
 					err = sut.DisableBlocking(500*time.Millisecond, []string{})
 					Expect(err).Should(Succeed())
-					Expect(enabled).Should(BeFalse())
+					Eventually(enabled, "1s").Should(Receive(BeFalse()))
 				})
 
 				By("perform the same query again to ensure that this query will not be blocked (defaultGroup)", func() {
 					// now is blocking disabled, query the url again
-					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+					Expect(sut.Resolve(newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								HaveNoAnswer(),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 
 					m.AssertExpectations(GinkgoT())
 					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
 				})
 				By("perform the same query again to ensure that this query will not be blocked (group1)", func() {
 					// now is blocking disabled, query the url again
-					resp, err := sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+					Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								HaveNoAnswer(),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 
 					m.AssertExpectations(GinkgoT())
 					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 2)
@@ -738,13 +947,23 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					// wait 1 sec
 					Eventually(enabled, "1s").Should(Receive(BeTrue()))
 
-					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeBLOCKED))
+					Expect(sut.Resolve(newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("blocked3.com.", A, "0.0.0.0"),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReason("BLOCKED (defaultGroup)"),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 
-					resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeBLOCKED))
+					Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("domain1.com.", A, "0.0.0.0"),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReason("BLOCKED (group1)"),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 			})
 		})
@@ -752,14 +971,24 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		When("Disable blocking for one group is called with a duration parameter", func() {
 			It("No query should be blocked only for passed amount of time", func() {
 				By("Perform query to ensure that the blocking status is active (defaultGroup)", func() {
-					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeBLOCKED))
+					Expect(sut.Resolve(newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("blocked3.com.", A, "0.0.0.0"),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReason("BLOCKED (defaultGroup)"),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 				By("Perform query to ensure that the blocking status is active (group1)", func() {
-					resp, err := sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeBLOCKED))
+					Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("domain1.com.", A, "0.0.0.0"),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReason("BLOCKED (group1)"),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 
 				By("Calling Rest API to deactivate blocking for one group for 0.5 sec", func() {
@@ -775,15 +1004,24 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 				By("perform the same query again to ensure that this query will not be blocked (defaultGroup)", func() {
 					// now is blocking disabled, query the url again
-					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeBLOCKED))
+					Expect(sut.Resolve(newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("blocked3.com.", A, "0.0.0.0"),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReason("BLOCKED (defaultGroup)"),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 				By("perform the same query again to ensure that this query will not be blocked (group1)", func() {
 					// now is blocking disabled, query the url again
-					resp, err := sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+					Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								HaveNoAnswer(),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 
 					m.AssertExpectations(GinkgoT())
 					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
@@ -797,13 +1035,23 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					// wait 1 sec
 					Eventually(enabled, "1s").Should(Receive(BeTrue()))
 
-					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeBLOCKED))
+					Expect(sut.Resolve(newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("blocked3.com.", A, "0.0.0.0"),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReason("BLOCKED (defaultGroup)"),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 
-					resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
-					Expect(err).Should(Succeed())
-					Expect(resp.RType).Should(Equal(ResponseTypeBLOCKED))
+					Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("domain1.com.", A, "0.0.0.0"),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReason("BLOCKED (group1)"),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 			})
 		})
@@ -863,7 +1111,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				sutConfig = config.BlockingConfig{}
 			})
 		})
-		It("should return 'disabled''", func() {
+		It("should return 'disabled'", func() {
 			c := sut.Configuration()
 			Expect(c).Should(ContainElement(configStatusDisabled))
 		})
@@ -896,6 +1144,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 	Describe("Redis is configured", func() {
 		var redisServer *miniredis.Miniredis
 		var redisClient *redis.Client
+		var err error
 		JustBeforeEach(func() {
 			redisServer, err = miniredis.Run()
 
@@ -915,9 +1164,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				BlockTTL:  config.Duration(time.Minute),
 			}
 
-			tmp, err2 := NewBlockingResolver(sutConfig, redisClient, systemResolverBootstrap)
-			Expect(err2).Should(Succeed())
-			sut = tmp.(*BlockingResolver)
+			sut, err = NewBlockingResolver(sutConfig, redisClient, systemResolverBootstrap)
+			Expect(err).Should(Succeed())
 		})
 		JustAfterEach(func() {
 			redisServer.Close()
