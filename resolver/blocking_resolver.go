@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/0xERR0R/blocky/cache/expirationcache"
@@ -603,7 +604,7 @@ func (r *BlockingResolver) queryForFQIdentifierIPs(identifier string) (result []
 
 		if err == nil && resp.Res.Rcode == dns.RcodeSuccess {
 			for _, rr := range resp.Res.Answer {
-				ttl = time.Duration(rr.Header().Ttl) * time.Second
+				ttl = time.Duration(atomic.LoadUint32(&rr.Header().Ttl)) * time.Second
 
 				switch v := rr.(type) {
 				case *dns.A:
