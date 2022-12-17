@@ -1,7 +1,6 @@
 package querylog
 
-type NoneWriter struct {
-}
+type NoneWriter struct{}
 
 func NewNoneWriter() *NoneWriter {
 	return &NoneWriter{}

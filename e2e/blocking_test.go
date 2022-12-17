@@ -43,7 +43,6 @@ var _ = Describe("External lists and query blocking", func() {
 				})
 
 				It("should start with warning in log work without errors", func() {
-
 					msg := util.NewMsgWithQuestion("google.com.", dns.Type(dns.TypeA))
 
 					Expect(doDNSRequest(blocky, msg)).Should(BeDNSRecord("google.com.", dns.TypeA, 123, "1.2.3.4"))

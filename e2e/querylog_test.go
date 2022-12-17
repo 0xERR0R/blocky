@@ -28,7 +28,6 @@ var _ = Describe("Query logs functional tests", func() {
 
 	Describe("Query logging into the mariaDB database", func() {
 		BeforeEach(func() {
-
 			database, err = createMariaDBContainer()
 			Expect(err).Should(Succeed())
 			DeferCleanup(database.Terminate)
@@ -61,7 +60,6 @@ var _ = Describe("Query logs functional tests", func() {
 			Expect(err).Should(Succeed())
 
 			Eventually(countEntries).WithArguments(db).Should(BeNumerically("==", 0))
-
 		})
 		When("Some queries were performed", func() {
 			It("Should store query log in the mariaDB database", func() {
@@ -97,13 +95,11 @@ var _ = Describe("Query logs functional tests", func() {
 					))
 				})
 			})
-
 		})
 	})
 
 	Describe("Query logging into the postgres database", func() {
 		BeforeEach(func() {
-
 			database, err = createPostgresContainer()
 			Expect(err).Should(Succeed())
 			DeferCleanup(database.Terminate)
@@ -134,7 +130,6 @@ var _ = Describe("Query logs functional tests", func() {
 			Expect(err).Should(Succeed())
 
 			Eventually(countEntries).WithArguments(db).Should(BeNumerically("==", 0))
-
 		})
 		When("Some queries were performed", func() {
 			msg := util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA))
@@ -171,7 +166,6 @@ var _ = Describe("Query logs functional tests", func() {
 					))
 				})
 			})
-
 		})
 	})
 })

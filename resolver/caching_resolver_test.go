@@ -36,7 +36,6 @@ var _ = Describe("CachingResolver", func() {
 			panic(err)
 		}
 		mockAnswer = new(dns.Msg)
-
 	})
 
 	AfterEach(func() {
@@ -107,7 +106,6 @@ var _ = Describe("CachingResolver", func() {
 				Expect(res.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 				Expect(err).Should(Succeed())
 				Eventually(prefetchHitDomain, "4s").Should(Receive(Equal("example.com")))
-
 			})
 		})
 		When("min caching time is defined", func() {
@@ -122,7 +120,6 @@ var _ = Describe("CachingResolver", func() {
 				})
 
 				It("should cache response and use response's TTL", func() {
-
 					By("first request", func() {
 						domain := make(chan string, 1)
 						_ = Bus().SubscribeOnce(CachingResultCacheMiss, func(d string) {
@@ -143,7 +140,6 @@ var _ = Describe("CachingResolver", func() {
 
 						Expect(domain).Should(Receive(Equal("example.com")))
 						Expect(totalCacheCount).Should(Receive(Equal(1)))
-
 					})
 
 					By("second request", func() {
@@ -164,7 +160,6 @@ var _ = Describe("CachingResolver", func() {
 
 							g.Expect(domain).Should(Receive(Equal("example.com")))
 						}, "1s").Should(Succeed())
-
 					})
 				})
 			})
@@ -175,7 +170,6 @@ var _ = Describe("CachingResolver", func() {
 					})
 
 					It("should cache response and use min caching time as TTL", func() {
-
 						By("first request", func() {
 							resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
 							Expect(err).Should(Succeed())
@@ -207,7 +201,6 @@ var _ = Describe("CachingResolver", func() {
 					})
 
 					It("should cache response and use min caching time as TTL", func() {
-
 						By("first request", func() {
 							resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeAAAA)))
 							Expect(err).Should(Succeed())
@@ -230,16 +223,12 @@ var _ = Describe("CachingResolver", func() {
 								g.Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
 									dns.TypeAAAA, 299, "2001:db8:85a3:8d3:1319:8a2e:370:7344"))
 							}, "500ms").Should(Succeed())
-
 						})
 					})
 				})
-
 			})
-
 		})
 		When("max caching time is defined", func() {
-
 			BeforeEach(func() {
 				mockAnswer, _ = util.NewMsgWithAnswer(
 					"example.com.",
@@ -347,7 +336,6 @@ var _ = Describe("CachingResolver", func() {
 							g.Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.",
 								dns.TypeA, 0, "1.1.1.1"))
 						}, "1100ms").Should(Succeed())
-
 					})
 				})
 			})
@@ -382,7 +370,6 @@ var _ = Describe("CachingResolver", func() {
 						}, "500ms").Should(Succeed())
 					})
 				})
-
 			})
 			When("Upstream resolver returns NXDOMAIN without caching", func() {
 				BeforeEach(func() {
@@ -441,7 +428,6 @@ var _ = Describe("CachingResolver", func() {
 						}, "500ms").Should(Succeed())
 					})
 				})
-
 			})
 		})
 	})
@@ -470,7 +456,6 @@ var _ = Describe("CachingResolver", func() {
 						g.Expect(m.Calls).Should(HaveLen(1))
 						g.Expect(resp.Res.Answer).Should(BeDNSRecord("google.de.", dns.TypeMX, 179, "alt1.aspmx.l.google.com."))
 					}, "1s").Should(Succeed())
-
 				})
 			})
 		})

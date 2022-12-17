@@ -14,7 +14,6 @@ import (
 )
 
 var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
-
 	const (
 		verifyUpstreams   = true
 		noVerifyUpstreams = false
@@ -170,12 +169,10 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					Expect(err).Should(HaveOccurred())
 				})
 			})
-
 		})
 		When("client specific resolvers are defined", func() {
 			When("client name matches", func() {
 				BeforeEach(func() {
-
 					defaultMockUpstream := NewMockUDPUpstreamServer().
 						WithAnswerRR("example.com 123 IN A 123.124.122.122")
 					DeferCleanup(defaultMockUpstream.Close)
@@ -376,9 +373,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 	})
 
 	Describe("Configuration output", func() {
-		var (
-			sut Resolver
-		)
+		var sut Resolver
 		BeforeEach(func() {
 			config.GetConfig().StartVerifyUpstream = false
 
@@ -392,5 +387,4 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 			Expect(len(c)).Should(BeNumerically(">", 1))
 		})
 	})
-
 })

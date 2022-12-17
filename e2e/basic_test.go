@@ -27,7 +27,6 @@ var _ = Describe("Basic functional tests", func() {
 		})
 		When("Minimal configuration is provided", func() {
 			BeforeEach(func() {
-
 				blocky, err = createBlockyContainer(tmpDir,
 					"upstream:",
 					"  default:",
@@ -106,6 +105,5 @@ var _ = Describe("Basic functional tests", func() {
 				})
 			})
 		})
-
 	})
 })

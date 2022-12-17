@@ -195,7 +195,7 @@ func CidrContainsIP(cidr string, ip net.IP) bool {
 }
 
 // ClientNameMatchesGroupName checks if a group with optional wildcards contains a client name
-func ClientNameMatchesGroupName(group string, clientName string) bool {
+func ClientNameMatchesGroupName(group, clientName string) bool {
 	match, _ := filepath.Match(group, clientName)
 
 	return match

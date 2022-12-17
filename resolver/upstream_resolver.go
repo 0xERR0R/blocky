@@ -111,17 +111,16 @@ func (r *httpUpstreamClient) fmtURL(ip net.IP, port uint16, path string) string 
 }
 
 func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
-	upstreamURL string, _ model.RequestProtocol) (*dns.Msg, time.Duration, error) {
+	upstreamURL string, _ model.RequestProtocol,
+) (*dns.Msg, time.Duration, error) {
 	start := time.Now()
 
 	rawDNSMessage, err := msg.Pack()
-
 	if err != nil {
 		return nil, 0, fmt.Errorf("can't pack message: %w", err)
 	}
 
 	req, err := http.NewRequest(http.MethodPost, upstreamURL, bytes.NewReader(rawDNSMessage))
-
 	if err != nil {
 		return nil, 0, fmt.Errorf("can't create the new request %w", err)
 	}
@@ -131,7 +130,6 @@ func (r *httpUpstreamClient) callExternal(msg *dns.Msg,
 	req.Host = r.host
 
 	httpResponse, err := r.client.Do(req)
-
 	if err != nil {
 		return nil, 0, fmt.Errorf("can't perform https request: %w", err)
 	}
@@ -170,7 +168,8 @@ func (r *dnsUpstreamClient) fmtURL(ip net.IP, port uint16, _ string) string {
 }
 
 func (r *dnsUpstreamClient) callExternal(msg *dns.Msg,
-	upstreamURL string, protocol model.RequestProtocol) (response *dns.Msg, rtt time.Duration, err error) {
+	upstreamURL string, protocol model.RequestProtocol,
+) (response *dns.Msg, rtt time.Duration, err error) {
 	if protocol == model.RequestProtocolTCP {
 		response, rtt, err = r.tcpClient.Exchange(msg, upstreamURL)
 		if err != nil {

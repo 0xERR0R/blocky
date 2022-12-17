@@ -316,7 +316,8 @@ func determineWhitelistOnlyGroups(cfg *config.BlockingConfig) (result map[string
 
 // sets answer and/or return code for DNS response, if request should be blocked
 func (r *BlockingResolver) handleBlocked(logger *logrus.Entry,
-	request *model.Request, question dns.Question, reason string) (*model.Response, error) {
+	request *model.Request, question dns.Question, reason string,
+) (*model.Response, error) {
 	response := new(dns.Msg)
 	response.SetReply(request.Req)
 
@@ -373,7 +374,8 @@ func (r *BlockingResolver) hasWhiteListOnlyAllowed(groupsToCheck []string) bool 
 }
 
 func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
-	request *model.Request, logger *logrus.Entry) (bool, *model.Response, error) {
+	request *model.Request, logger *logrus.Entry,
+) (bool, *model.Response, error) {
 	logger.WithField("groupsToCheck", strings.Join(groupsToCheck, "; ")).Debug("checking groups for request")
 	whitelistOnlyAllowed := r.hasWhiteListOnlyAllowed(groupsToCheck)
 
@@ -437,7 +439,7 @@ func (r *BlockingResolver) Resolve(request *model.Request) (*model.Response, err
 	return respFromNext, err
 }
 
-func extractEntryToCheckFromResponse(rr dns.RR) (entryToCheck string, tName string) {
+func extractEntryToCheckFromResponse(rr dns.RR) (entryToCheck, tName string) {
 	switch v := rr.(type) {
 	case *dns.A:
 		entryToCheck = v.A.String()
@@ -524,7 +526,8 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 }
 
 func (r *BlockingResolver) matches(groupsToCheck []string, m lists.Matcher,
-	domain string) (blocked bool, group string) {
+	domain string,
+) (blocked bool, group string) {
 	if len(groupsToCheck) > 0 {
 		found, group := m.Match(domain, groupsToCheck)
 		if found {
@@ -543,8 +546,7 @@ type zeroIPBlockHandler struct {
 	BlockTimeSec uint32
 }
 
-type nxDomainBlockHandler struct {
-}
+type nxDomainBlockHandler struct{}
 
 type ipBlockHandler struct {
 	destinations    []net.IP

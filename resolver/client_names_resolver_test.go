@@ -57,7 +57,6 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 			Expect(request.ClientNames).Should(HaveLen(1))
 			Expect(request.ClientNames[0]).Should(Equal("1.2.3.4"))
 		})
-
 	})
 	Describe("Resolve client name with custom name mapping", Label("XXX"), func() {
 		BeforeEach(func() {
@@ -124,7 +123,6 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 					sutConfig = config.ClientLookupConfig{
 						Upstream: testUpstream.Start(),
 					}
-
 				})
 
 				It("should resolve client name", func() {
@@ -163,7 +161,6 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 						Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
 						Expect(request.ClientNames[0]).Should(Equal("host1"))
 					})
-
 				})
 			})
 
@@ -189,14 +186,12 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 					Expect(testUpstream.GetCallCount()).Should(Equal(1))
 				})
 			})
-
 		})
 		Context("with order", func() {
 			BeforeEach(func() {
 				sutConfig = config.ClientLookupConfig{
 					SingleNameOrder: []uint{2, 1},
 				}
-
 			})
 			When("Client has one name", func() {
 				BeforeEach(func() {
@@ -204,7 +199,6 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 						WithAnswerRR("25.178.168.192.in-addr.arpa. 600 IN PTR host1")
 					DeferCleanup(testUpstream.Close)
 					sutConfig.Upstream = testUpstream.Start()
-
 				})
 
 				It("should resolve client name", func() {
@@ -349,6 +343,5 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 				Expect(c).Should(ContainElement(configStatusDisabled))
 			})
 		})
-
 	})
 })

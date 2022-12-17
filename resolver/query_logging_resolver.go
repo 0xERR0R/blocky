@@ -35,6 +35,7 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 	var writer querylog.Writer
 
 	logType := cfg.Type
+
 	err := retry.Do(
 		func() error {
 			var err error
@@ -62,7 +63,6 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 			logger(queryLoggingResolverPrefix).Warnf("Error occurred on query writer creation, "+
 				"retry attempt %d/%d: %v", n+1, cfg.CreationAttempts, err)
 		}))
-
 	if err != nil {
 		logger(queryLoggingResolverPrefix).Error("can't create query log writer, using console as fallback: ", err)
 
@@ -145,7 +145,8 @@ func (r *QueryLoggingResolver) Resolve(request *model.Request) (*model.Response,
 }
 
 func (r *QueryLoggingResolver) createLogEntry(request *model.Request, response *model.Response,
-	start time.Time, durationMs int64) *querylog.LogEntry {
+	start time.Time, durationMs int64,
+) *querylog.LogEntry {
 	entry := querylog.LogEntry{
 		Start:       start,
 		ClientIP:    "0.0.0.0",

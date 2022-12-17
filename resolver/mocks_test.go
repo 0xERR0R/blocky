@@ -96,7 +96,8 @@ func newTestBootstrap(response *dns.Msg) *Bootstrap {
 
 // newTestDOHUpstream creates a test DoH Upstream
 func newTestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg),
-	reqFn ...func(w http.ResponseWriter)) config.Upstream {
+	reqFn ...func(w http.ResponseWriter),
+) config.Upstream {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 

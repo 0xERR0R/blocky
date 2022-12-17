@@ -65,7 +65,6 @@ var _ = Describe("Metrics functional tests", func() {
 			It("Should provide 'blocky_build_info' prometheus metrics", func() {
 				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).
 					Should(ContainElement(ContainSubstring("blocky_build_info")))
-
 			})
 
 			It("Should provide 'blocky_blocking_enabled' prometheus metrics", func() {
@@ -116,7 +115,6 @@ func fetchBlockyMetrics(url string) ([]string, error) {
 	var metrics []string
 
 	r, err := http.Get(url)
-
 	if err != nil {
 		return nil, err
 	}

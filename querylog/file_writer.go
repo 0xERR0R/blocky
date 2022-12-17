@@ -17,7 +17,7 @@ import (
 
 const (
 	loggerPrefixFileWriter = "fileQueryLogWriter"
-	filePermission         = 0666
+	filePermission         = 0o666
 )
 
 var validFilePattern = regexp.MustCompile("[^a-zA-Z0-9-_]+")

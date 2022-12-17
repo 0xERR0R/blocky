@@ -212,7 +212,7 @@ func createServers(cfg *config.Config, cert tls.Certificate) ([]*dns.Server, err
 	return dnsServers, err.ErrorOrNil()
 }
 
-func createHTTPListeners(cfg *config.Config) (httpListeners []net.Listener, httpsListeners []net.Listener, err error) {
+func createHTTPListeners(cfg *config.Config) (httpListeners, httpsListeners []net.Listener, err error) {
 	httpListeners, err = newListeners("http", cfg.Ports.HTTP)
 	if err != nil {
 		return nil, nil, err
@@ -595,7 +595,8 @@ func extractClientIDFromHost(hostName string) string {
 }
 
 func newRequest(clientIP net.IP, protocol model.RequestProtocol,
-	requestClientID string, request *dns.Msg) *model.Request {
+	requestClientID string, request *dns.Msg,
+) *model.Request {
 	return &model.Request{
 		ClientIP:        clientIP,
 		RequestClientID: requestClientID,

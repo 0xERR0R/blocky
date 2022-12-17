@@ -99,8 +99,8 @@ func (t *MockUDPUpstreamServer) Start() config.Upstream {
 
 		for {
 			buffer := make([]byte, bufferSize)
-			n, addr, err := ln.ReadFromUDP(buffer)
 
+			n, addr, err := ln.ReadFromUDP(buffer)
 			if err != nil {
 				// closed
 				break
@@ -111,7 +111,7 @@ func (t *MockUDPUpstreamServer) Start() config.Upstream {
 
 			util.FatalOnError("can't deserialize message: ", err)
 
-			var response = t.answerFn(msg)
+			response := t.answerFn(msg)
 
 			atomic.AddInt32(&t.callCount, 1)
 			// nil should indicate an error

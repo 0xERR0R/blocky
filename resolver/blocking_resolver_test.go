@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"time"
+
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/evt"
 	. "github.com/0xERR0R/blocky/helpertest"
@@ -11,16 +13,16 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/creasty/defaults"
 
-	"time"
-
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
 )
 
-var group1File, group2File, defaultGroupFile *TmpFile
-var tmpDir *TmpFolder
+var (
+	group1File, group2File, defaultGroupFile *TmpFile
+	tmpDir                                   *TmpFolder
+)
 
 var _ = BeforeSuite(func() {
 	tmpDir = NewTmpFolder("BlockingResolver")
@@ -127,7 +129,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					"full.qualified.com": {"gr2"},
 				},
 			}
-
 		})
 
 		When("Full-qualified group name is used", func() {
@@ -232,7 +233,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				rType = ResponseTypeRESOLVED
 			})
 			It("should not block the query for 10.43.8.63 if domain is on the black list", func() {
-
 				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "10.43.8.63", "unknown"))
 
 				// was delegated to next resolver
@@ -247,7 +247,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 
 		When("Client CIDR (10.43.8.64 - 10.43.8.79) is defined in client groups block", func() {
-
 			It("should block the query for 10.43.8.64 if domain is on the black list", func() {
 				resp, err = sut.Resolve(newRequestWithClient("domain1.com.", dns.Type(dns.TypeA), "10.43.8.64", "unknown"))
 
@@ -401,7 +400,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				Expect(resp.Reason).Should(Equal("BLOCKED (defaultGroup)"))
 				Expect(resp.Res.Answer).Should(BeDNSRecord("blocked3.com.", dns.TypeAAAA, 21600, "::"))
 			})
-
 		})
 
 		When("Blacklist contains IP", func() {
@@ -587,7 +585,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
 			})
 		})
-
 	})
 
 	Describe("Control status via API", func() {
@@ -756,7 +753,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					resp, err := sut.Resolve(newRequestWithClient("blocked3.com.", dns.Type(dns.TypeA), "1.2.1.2", "unknown"))
 					Expect(err).Should(Succeed())
 					Expect(resp.RType).Should(Equal(ResponseTypeBLOCKED))
-
 				})
 				By("perform the same query again to ensure that this query will not be blocked (group1)", func() {
 					// now is blocking disabled, query the url again

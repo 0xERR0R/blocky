@@ -54,7 +54,8 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 					"fritz.box": {fbTestUpstream.Start()},
 					"other.box": {otherTestUpstream.Start()},
 					".":         {dotTestUpstream.Start()},
-				}},
+				},
+			},
 		}, nil, false)
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)

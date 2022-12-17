@@ -17,11 +17,9 @@ import (
 )
 
 var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
-
 	systemResolverBootstrap := &Bootstrap{}
 
 	Describe("Using DNS upstream", func() {
-
 		When("Configured DNS resolver can resolve query", func() {
 			It("should return answer from DNS upstream", func() {
 				mockUpstream := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
@@ -109,7 +107,6 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 					Expect(err).Should(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("i/o timeout"))
 				})
-
 			})
 		})
 	})
