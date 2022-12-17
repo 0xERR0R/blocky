@@ -63,19 +63,21 @@ var _ = Describe("Metrics functional tests", func() {
 		})
 		When("Blocky is started", func() {
 			It("Should provide 'blocky_build_info' prometheus metrics", func() {
-				Expect(fetchBlockyMetrics(metricsURL)).Should(ContainElement(ContainSubstring("blocky_build_info")))
+				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).
+					Should(ContainElement(ContainSubstring("blocky_build_info")))
+
 			})
 
 			It("Should provide 'blocky_blocking_enabled' prometheus metrics", func() {
-				Expect(fetchBlockyMetrics(metricsURL)).Should(ContainElement("blocky_blocking_enabled 1"))
+				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_blocking_enabled 1"))
 			})
 		})
 
 		When("Some query results are cached", func() {
 			BeforeEach(func() {
-				Expect(fetchBlockyMetrics(metricsURL)).Should(ContainElement("blocky_cache_entry_count 0"))
-				Expect(fetchBlockyMetrics(metricsURL)).Should(ContainElement("blocky_cache_hit_count 0"))
-				Expect(fetchBlockyMetrics(metricsURL)).Should(ContainElement("blocky_cache_miss_count 0"))
+				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_cache_entry_count 0"))
+				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_cache_hit_count 0"))
+				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_cache_miss_count 0"))
 			})
 
 			It("Should increment cache counts", func() {
@@ -84,25 +86,27 @@ var _ = Describe("Metrics functional tests", func() {
 				By("first query, should increment the cache miss count and the total count", func() {
 					Expect(doDNSRequest(blocky, msg)).Should(BeDNSRecord("google.de.", dns.TypeA, 123, "1.2.3.4"))
 
-					Expect(fetchBlockyMetrics(metricsURL)).Should(ContainElement("blocky_cache_entry_count 1"))
-					Expect(fetchBlockyMetrics(metricsURL)).Should(ContainElement("blocky_cache_hit_count 0"))
-					Expect(fetchBlockyMetrics(metricsURL)).Should(ContainElement("blocky_cache_miss_count 1"))
+					Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_cache_entry_count 1"))
+					Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_cache_hit_count 0"))
+					Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_cache_miss_count 1"))
 				})
 
 				By("Same query again, should increment the cache hit count", func() {
 					Expect(doDNSRequest(blocky, msg)).Should(BeDNSRecord("google.de.", dns.TypeA, 0, "1.2.3.4"))
 
-					Expect(fetchBlockyMetrics(metricsURL)).Should(ContainElement("blocky_cache_entry_count 1"))
-					Expect(fetchBlockyMetrics(metricsURL)).Should(ContainElement("blocky_cache_hit_count 1"))
-					Expect(fetchBlockyMetrics(metricsURL)).Should(ContainElement("blocky_cache_miss_count 1"))
+					Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_cache_entry_count 1"))
+					Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_cache_hit_count 1"))
+					Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_cache_miss_count 1"))
 				})
 			})
 		})
 
 		When("Lists are loaded", func() {
 			It("Should expose list cache sizes per group as metrics", func() {
-				Expect(fetchBlockyMetrics(metricsURL)).Should(ContainElement("blocky_blacklist_cache{group=\"group1\"} 1"))
-				Expect(fetchBlockyMetrics(metricsURL)).Should(ContainElement("blocky_blacklist_cache{group=\"group2\"} 3"))
+				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).
+					Should(ContainElement("blocky_blacklist_cache{group=\"group1\"} 1"))
+				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).
+					Should(ContainElement("blocky_blacklist_cache{group=\"group2\"} 3"))
 			})
 		})
 	})

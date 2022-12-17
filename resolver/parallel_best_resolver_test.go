@@ -62,7 +62,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 		)
 
 		BeforeEach(func() {
-			b = TestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
+			b = newTestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
 			upstream = map[string][]config.Upstream{
 				upstreamDefaultCfgName: {
@@ -250,6 +250,15 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.125"))
 				})
+				It("Should use client specific resolver if client IP/name matches", func() {
+					request := newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.33", "192.168.178.33")
+					resp, err = sut.Resolve(request)
+
+					Expect(err).Should(Succeed())
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.125"))
+				})
 				It("Should use client specific resolver if client's CIDR (10.43.8.64 - 10.43.8.79) matches", func() {
 					request := newRequestWithClient("example.com.", dns.Type(dns.TypeA), "10.43.8.64", "cl")
 					resp, err = sut.Resolve(request)
@@ -357,7 +366,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 	When("upstream is invalid", func() {
 		It("errors during construction", func() {
-			b := TestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
+			b := newTestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
 			r, err := NewParallelBestResolver(map[string][]config.Upstream{"test": {{Host: "example.com"}}}, b, verifyUpstreams)
 

@@ -133,7 +133,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 		})
 
 		JustBeforeEach(func() {
-			upstream = TestDOHUpstream(respFn, modifyHTTPRespFn)
+			upstream = newTestDOHUpstream(respFn, modifyHTTPRespFn)
 			sut = newUpstreamResolverUnchecked(upstream, nil)
 
 			// use insecure certificates for test doh upstream
@@ -206,12 +206,12 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 	})
 	Describe("Configuration", func() {
 		When("Configuration is called", func() {
-			It("should return nil, because upstream resolver is printed out by other resolvers", func() {
+			It("should return configuration", func() {
 				sut := newUpstreamResolverUnchecked(config.Upstream{}, nil)
 
 				c := sut.Configuration()
 
-				Expect(c).Should(BeNil())
+				Expect(len(c)).Should(BeNumerically(">=", 1))
 			})
 		})
 	})

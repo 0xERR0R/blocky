@@ -14,7 +14,7 @@ var _ = Describe("FilteringResolver", func() {
 	var (
 		sut        *FilteringResolver
 		sutConfig  config.FilteringConfig
-		m          *MockResolver
+		m          *mockResolver
 		mockAnswer *dns.Msg
 	)
 
@@ -24,7 +24,7 @@ var _ = Describe("FilteringResolver", func() {
 
 	JustBeforeEach(func() {
 		sut = NewFilteringResolver(sutConfig).(*FilteringResolver)
-		m = &MockResolver{}
+		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		sut.Next(m)
 	})
@@ -56,8 +56,7 @@ var _ = Describe("FilteringResolver", func() {
 		})
 		It("Configure should output all query types", func() {
 			c := sut.Configuration()
-			Expect(c).Should(HaveLen(1))
-			Expect(c[0]).Should(Equal("filtering query Types: 'AAAA, MX'"))
+			Expect(c).Should(Equal([]string{"filtering query Types: 'AAAA, MX'"}))
 		})
 	})
 
@@ -74,8 +73,7 @@ var _ = Describe("FilteringResolver", func() {
 		})
 		It("Configure should output 'empty list'", func() {
 			c := sut.Configuration()
-			Expect(c).Should(HaveLen(1))
-			Expect(c[0]).Should(Equal("filtering query Types: ''"))
+			Expect(c).Should(ContainElement(configStatusDisabled))
 		})
 	})
 })

@@ -80,7 +80,7 @@ func (r *SpecialUseDomainNamesResolver) Resolve(request *model.Request) (*model.
 
 // RFC 6761 & 6762 are always active
 func (r *SpecialUseDomainNamesResolver) Configuration() []string {
-	return []string{}
+	return configEnabled
 }
 
 func (r *SpecialUseDomainNamesResolver) isSpecial(request *model.Request, names ...string) bool {

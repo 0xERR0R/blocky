@@ -48,24 +48,24 @@ func NewClientNamesResolver(
 
 // Configuration returns current resolver configuration
 func (r *ClientNamesResolver) Configuration() (result []string) {
-	if r.externalResolver != nil || len(r.clientIPMapping) > 0 {
-		result = append(result, fmt.Sprintf("singleNameOrder = \"%v\"", r.singleNameOrder))
+	if r.externalResolver == nil && len(r.clientIPMapping) == 0 {
+		return append(configDisabled, "use only IP address")
+	}
 
-		if r.externalResolver != nil {
-			result = append(result, fmt.Sprintf("externalResolver = \"%s\"", r.externalResolver))
+	result = append(result, fmt.Sprintf("singleNameOrder = \"%v\"", r.singleNameOrder))
+
+	if r.externalResolver != nil {
+		result = append(result, fmt.Sprintf("externalResolver = \"%s\"", r.externalResolver))
+	}
+
+	result = append(result, fmt.Sprintf("cache item count = %d", r.cache.TotalCount()))
+
+	if len(r.clientIPMapping) > 0 {
+		result = append(result, "client IP mapping:")
+
+		for k, v := range r.clientIPMapping {
+			result = append(result, fmt.Sprintf("%s -> %s", k, v))
 		}
-
-		result = append(result, fmt.Sprintf("cache item count = %d", r.cache.TotalCount()))
-
-		if len(r.clientIPMapping) > 0 {
-			result = append(result, "client IP mapping:")
-
-			for k, v := range r.clientIPMapping {
-				result = append(result, fmt.Sprintf("%s -> %s", k, v))
-			}
-		}
-	} else {
-		result = []string{"deactivated, use only IP address"}
 	}
 
 	return

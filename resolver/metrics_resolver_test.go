@@ -18,14 +18,14 @@ import (
 var _ = Describe("MetricResolver", func() {
 	var (
 		sut  *MetricsResolver
-		m    *MockResolver
+		m    *mockResolver
 		err  error
 		resp *Response
 	)
 
 	BeforeEach(func() {
 		sut = NewMetricsResolver(config.PrometheusConfig{Enable: true}).(*MetricsResolver)
-		m = &MockResolver{}
+		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
 	})
@@ -47,7 +47,7 @@ var _ = Describe("MetricResolver", func() {
 			})
 			When("Error occurs while request processing", func() {
 				BeforeEach(func() {
-					m = &MockResolver{}
+					m = &mockResolver{}
 					m.On("Resolve", mock.Anything).Return(nil, errors.New("error"))
 					sut.Next(m)
 				})

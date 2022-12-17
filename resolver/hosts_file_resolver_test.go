@@ -17,7 +17,7 @@ import (
 var _ = Describe("HostsFileResolver", func() {
 	var (
 		sut     *HostsFileResolver
-		m       *MockResolver
+		m       *mockResolver
 		err     error
 		resp    *Response
 		tmpDir  *TmpFolder
@@ -41,7 +41,7 @@ var _ = Describe("HostsFileResolver", func() {
 			FilterLoopback: true,
 		}
 		sut = NewHostsFileResolver(cfg).(*HostsFileResolver)
-		m = &MockResolver{}
+		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
 	})
@@ -53,7 +53,7 @@ var _ = Describe("HostsFileResolver", func() {
 					Filepath: fmt.Sprintf("/tmp/blocky/file-%d", rand.Uint64()),
 					HostsTTL: config.Duration(time.Duration(TTL) * time.Second),
 				}).(*HostsFileResolver)
-				m = &MockResolver{}
+				m = &mockResolver{}
 				m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 				sut.Next(m)
 			})
@@ -71,7 +71,7 @@ var _ = Describe("HostsFileResolver", func() {
 		When("Hosts file is not set", func() {
 			BeforeEach(func() {
 				sut = NewHostsFileResolver(config.HostsFileConfig{}).(*HostsFileResolver)
-				m = &MockResolver{}
+				m = &mockResolver{}
 				m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 				sut.Next(m)
 			})
@@ -174,7 +174,7 @@ var _ = Describe("HostsFileResolver", func() {
 		When("hosts file is provided", func() {
 			It("should return configuration", func() {
 				c := sut.Configuration()
-				Expect(c).Should(HaveLen(4))
+				Expect(len(c)).Should(BeNumerically(">", 1))
 			})
 		})
 
@@ -184,8 +184,7 @@ var _ = Describe("HostsFileResolver", func() {
 			})
 			It("should return 'disabled'", func() {
 				c := sut.Configuration()
-				Expect(c).Should(HaveLen(1))
-				Expect(c).Should(Equal([]string{"deactivated"}))
+				Expect(c).Should(ContainElement(configStatusDisabled))
 			})
 		})
 	})

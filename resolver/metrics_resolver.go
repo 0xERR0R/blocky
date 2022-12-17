@@ -56,6 +56,10 @@ func (m *MetricsResolver) Resolve(request *model.Request) (*model.Response, erro
 
 // Configuration gets the config of this resolver in a string slice
 func (m *MetricsResolver) Configuration() (result []string) {
+	if !m.cfg.Enable {
+		return configDisabled
+	}
+
 	result = append(result, "metrics:")
 	result = append(result, fmt.Sprintf("  Enable = %t", m.cfg.Enable))
 	result = append(result, fmt.Sprintf("  Path   = %s", m.cfg.Path))

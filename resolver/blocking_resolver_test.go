@@ -45,7 +45,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 	var (
 		sut        *BlockingResolver
 		sutConfig  config.BlockingConfig
-		m          *MockResolver
+		m          *mockResolver
 		mockAnswer *dns.Msg
 
 		err  error
@@ -68,7 +68,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 	})
 
 	JustBeforeEach(func() {
-		m = &MockResolver{}
+		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		tmp, err := NewBlockingResolver(sutConfig, nil, systemResolverBootstrap)
 		Expect(err).Should(Succeed())
@@ -844,8 +844,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 		It("should return 'disabled''", func() {
 			c := sut.Configuration()
-			Expect(c).Should(HaveLen(1))
-			Expect(c).Should(Equal([]string{"deactivated"}))
+			Expect(c).Should(ContainElement(configStatusDisabled))
 		})
 	})
 

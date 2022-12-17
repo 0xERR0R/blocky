@@ -1,3 +1,4 @@
+//go:generate go run github.com/abice/go-enum -f=$GOFILE --marshal --names
 package resolver
 
 import (
@@ -12,6 +13,20 @@ import (
 	"github.com/miekg/dns"
 
 	"github.com/sirupsen/logrus"
+)
+
+// Resolver is not configured.
+const (
+	configStatusEnabled string = "enabled"
+
+	configStatusDisabled string = "disabled"
+)
+
+var (
+	// note: this is not used by all resolvers: only those that don't print any other configuration
+	configEnabled = []string{configStatusEnabled} //nolint:gochecknoglobals
+
+	configDisabled = []string{configStatusDisabled} //nolint:gochecknoglobals
 )
 
 func newRequest(question string, rType dns.Type, logger ...*logrus.Entry) *model.Request {

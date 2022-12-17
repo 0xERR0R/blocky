@@ -41,7 +41,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 		sutConfig  config.QueryLogConfig
 		err        error
 		resp       *Response
-		m          *MockResolver
+		m          *mockResolver
 		tmpDir     *helpertest.TmpFolder
 		mockAnswer *dns.Msg
 	)
@@ -56,7 +56,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 	JustBeforeEach(func() {
 		sut = NewQueryLoggingResolver(sutConfig).(*QueryLoggingResolver)
 		DeferCleanup(func() { close(sut.logChan) })
-		m = &MockResolver{}
+		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer, Reason: "reason"}, nil)
 		sut.Next(m)
 	})

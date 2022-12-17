@@ -14,7 +14,7 @@ import (
 var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 	var (
 		sut        *SpecialUseDomainNamesResolver
-		m          *MockResolver
+		m          *mockResolver
 		mockAnswer *dns.Msg
 
 		err  error
@@ -25,7 +25,7 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 		mockAnswer, err = util.NewMsgWithAnswer("example.com.", 300, dns.Type(dns.TypeA), "123.145.123.145")
 		Expect(err).Should(Succeed())
 
-		m = &MockResolver{}
+		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 
 		sut = NewSpecialUseDomainNamesResolver().(*SpecialUseDomainNamesResolver)
@@ -99,7 +99,9 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 
 	Describe("Configuration pseudo test", func() {
 		It("should always be empty", func() {
-			Expect(sut.Configuration()).Should(HaveLen(0))
+			c := sut.Configuration()
+
+			Expect(len(c)).Should(BeNumerically(">=", 1))
 		})
 	})
 })

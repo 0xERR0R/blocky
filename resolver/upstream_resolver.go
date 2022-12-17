@@ -218,7 +218,7 @@ func newUpstreamResolverUnchecked(upstream config.Upstream, bootstrap *Bootstrap
 
 // Configuration return current resolver configuration
 func (r *UpstreamResolver) Configuration() (result []string) {
-	return
+	return []string{r.String()}
 }
 
 func (r UpstreamResolver) String() string {
@@ -265,6 +265,7 @@ func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Resp
 		},
 		retry.Attempts(retryAttempts),
 		retry.DelayType(retry.FixedDelay),
+		retry.Delay(1*time.Millisecond),
 		retry.LastErrorOnly(true),
 		retry.RetryIf(func(err error) bool {
 			var netErr net.Error

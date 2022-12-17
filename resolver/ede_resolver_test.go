@@ -16,7 +16,7 @@ var _ = Describe("EdeResolver", func() {
 	var (
 		sut        *EdeResolver
 		sutConfig  config.EdeConfig
-		m          *MockResolver
+		m          *mockResolver
 		mockAnswer *dns.Msg
 	)
 
@@ -26,7 +26,7 @@ var _ = Describe("EdeResolver", func() {
 
 	JustBeforeEach(func() {
 		if m == nil {
-			m = &MockResolver{}
+			m = &mockResolver{}
 			m.On("Resolve", mock.Anything).Return(&model.Response{
 				Res:    mockAnswer,
 				RType:  model.ResponseTypeCUSTOMDNS,
@@ -38,13 +38,13 @@ var _ = Describe("EdeResolver", func() {
 		sut.Next(m)
 	})
 
-	When("Ede is disabled", func() {
+	When("ede is disabled", func() {
 		BeforeEach(func() {
 			sutConfig = config.EdeConfig{
 				Enable: false,
 			}
 		})
-		It("Shouldn't add EDE information", func() {
+		It("shouldn't add EDE information", func() {
 			resp, err := sut.Resolve(newRequest("example.com", dns.Type(dns.TypeA)))
 			Expect(err).Should(Succeed())
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -55,19 +55,15 @@ var _ = Describe("EdeResolver", func() {
 			// delegated to next resolver
 			Expect(m.Calls).Should(HaveLen(1))
 		})
-		It("Configure should output deactivated", func() {
-			c := sut.Configuration()
-			Expect(c).Should(HaveLen(1))
-			Expect(c[0]).Should(Equal("deactivated"))
-		})
 	})
-	When("Ede is enabled", func() {
+
+	When("ede is enabled", func() {
 		BeforeEach(func() {
 			sutConfig = config.EdeConfig{
 				Enable: true,
 			}
 		})
-		It("Should add EDE information", func() {
+		It("should add EDE information", func() {
 			resp, err := sut.Resolve(newRequest("example.com", dns.Type(dns.TypeA)))
 			Expect(err).Should(Succeed())
 			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -82,17 +78,12 @@ var _ = Describe("EdeResolver", func() {
 			Expect(ede.InfoCode).Should(Equal(dns.ExtendedErrorCodeForgedAnswer))
 			Expect(ede.ExtraText).Should(Equal("Test"))
 		})
-		It("Configure should output activated", func() {
-			c := sut.Configuration()
-			Expect(c).Should(HaveLen(1))
-			Expect(c[0]).Should(Equal("activated"))
-		})
 
 		When("resolver returns an error", func() {
 			resolveErr := errors.New("test")
 
 			BeforeEach(func() {
-				m = &MockResolver{}
+				m = &mockResolver{}
 				m.On("Resolve", mock.Anything).Return(nil, resolveErr)
 			})
 
@@ -100,6 +91,28 @@ var _ = Describe("EdeResolver", func() {
 				resp, err := sut.Resolve(newRequest("example.com", dns.Type(dns.TypeA)))
 				Expect(resp).To(BeNil())
 				Expect(err).To(Equal(resolveErr))
+			})
+		})
+	})
+
+	Describe("Configuration output", func() {
+		When("resolver is enabled", func() {
+			BeforeEach(func() {
+				sutConfig = config.EdeConfig{Enable: true}
+			})
+			It("should return configuration", func() {
+				c := sut.Configuration()
+				Expect(c).Should(Equal(configEnabled))
+			})
+		})
+
+		When("resolver is disabled", func() {
+			BeforeEach(func() {
+				sutConfig = config.EdeConfig{Enable: false}
+			})
+			It("should return 'disabled'", func() {
+				c := sut.Configuration()
+				Expect(c).Should(ContainElement(configStatusDisabled))
 			})
 		})
 	})

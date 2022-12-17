@@ -18,14 +18,14 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 	var (
 		sut       *ClientNamesResolver
 		sutConfig config.ClientLookupConfig
-		m         *MockResolver
+		m         *mockResolver
 	)
 
 	JustBeforeEach(func() {
 		res, err := NewClientNamesResolver(sutConfig, nil, false)
 		Expect(err).Should(Succeed())
 		sut = res
-		m = &MockResolver{}
+		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
 	})
@@ -263,7 +263,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 			When("Upstream produces error", func() {
 				BeforeEach(func() {
 					sutConfig = config.ClientLookupConfig{}
-					clientMockResolver := &MockResolver{}
+					clientMockResolver := &mockResolver{}
 					clientMockResolver.On("Resolve", mock.Anything).Return(nil, errors.New("error"))
 					sut.externalResolver = clientMockResolver
 				})
@@ -311,7 +311,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 	Describe("Connstruction", func() {
 		When("upstream is invalid", func() {
 			It("errors during construction", func() {
-				b := TestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
+				b := newTestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
 				r, err := NewClientNamesResolver(config.ClientLookupConfig{
 					Upstream: config.Upstream{Host: "example.com"},
@@ -344,10 +344,9 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 			BeforeEach(func() {
 				sutConfig = config.ClientLookupConfig{}
 			})
-			It("should return 'deactivated'", func() {
+			It("should return 'disabled'", func() {
 				c := sut.Configuration()
-				Expect(c).Should(HaveLen(1))
-				Expect(c).Should(Equal([]string{"deactivated, use only IP address"}))
+				Expect(c).Should(ContainElement(configStatusDisabled))
 			})
 		})
 

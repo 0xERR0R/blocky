@@ -17,7 +17,7 @@ import (
 var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), func() {
 	var (
 		sut  ChainedResolver
-		m    *MockResolver
+		m    *mockResolver
 		err  error
 		resp *Response
 	)
@@ -56,7 +56,7 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 					".":         {dotTestUpstream.Start()},
 				}},
 		}, nil, false)
-		m = &MockResolver{}
+		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
 	})
@@ -117,7 +117,7 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 
 	When("upstream is invalid", func() {
 		It("errors during construction", func() {
-			b := TestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
+			b := newTestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
 			r, err := NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{
 				Mapping: config.ConditionalUpstreamMapping{
@@ -145,8 +145,7 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 			})
 			It("should return 'disabled'", func() {
 				c := sut.Configuration()
-				Expect(c).Should(HaveLen(1))
-				Expect(c).Should(Equal([]string{"deactivated"}))
+				Expect(c).Should(ContainElement(configStatusDisabled))
 			})
 		})
 	})

@@ -14,7 +14,7 @@ var _ = Describe("FqdnOnlyResolver", func() {
 	var (
 		sut        *FqdnOnlyResolver
 		sutConfig  config.Config
-		m          *MockResolver
+		m          *mockResolver
 		mockAnswer *dns.Msg
 	)
 
@@ -24,12 +24,12 @@ var _ = Describe("FqdnOnlyResolver", func() {
 
 	JustBeforeEach(func() {
 		sut = NewFqdnOnlyResolver(sutConfig).(*FqdnOnlyResolver)
-		m = &MockResolver{}
+		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		sut.Next(m)
 	})
 
-	When("Fqdn only is activated", func() {
+	When("Fqdn only is enabled", func() {
 		BeforeEach(func() {
 			sutConfig = config.Config{
 				FqdnOnly: true,
@@ -55,14 +55,13 @@ var _ = Describe("FqdnOnlyResolver", func() {
 			// no call of next resolver
 			Expect(m.Calls).Should(BeZero())
 		})
-		It("Configure should output activated", func() {
+		It("Configure should output enabled", func() {
 			c := sut.Configuration()
-			Expect(c).Should(HaveLen(1))
-			Expect(c[0]).Should(Equal("activated"))
+			Expect(c).Should(Equal(configEnabled))
 		})
 	})
 
-	When("Fqdn only is deactivated", func() {
+	When("Fqdn only is disabled", func() {
 		BeforeEach(func() {
 			sutConfig = config.Config{
 				FqdnOnly: false,
@@ -88,10 +87,9 @@ var _ = Describe("FqdnOnlyResolver", func() {
 			// delegated to next resolver
 			Expect(m.Calls).Should(HaveLen(1))
 		})
-		It("Configure should output deactivated", func() {
+		It("Configure should output disabled", func() {
 			c := sut.Configuration()
-			Expect(c).Should(HaveLen(1))
-			Expect(c[0]).Should(Equal("deactivated"))
+			Expect(c).Should(ContainElement(configStatusDisabled))
 		})
 	})
 })
