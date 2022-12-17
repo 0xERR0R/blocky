@@ -114,6 +114,9 @@ func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeri
 	var initError error
 	if async {
 		initError = nil
+
+		// start list refresh in the background
+		go b.Refresh()
 	} else {
 		initError = b.refresh(true)
 	}

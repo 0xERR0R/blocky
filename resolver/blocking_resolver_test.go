@@ -74,7 +74,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		Expect(err).Should(Succeed())
 		sut = tmp.(*BlockingResolver)
 		sut.Next(m)
-		sut.RefreshLists()
 	})
 
 	AfterEach(func() {
@@ -148,6 +147,33 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					g.Expect(resp.Res.Answer).ShouldNot(BeNil())
 					g.Expect(resp.Res.Answer).Should(BeDNSRecord("blocked2.com.", dns.TypeA, 60, "0.0.0.0"))
 				}, "10s", "1s").Should(Succeed())
+			})
+		})
+	})
+
+	Describe("Blocking with fast start strategy", func() {
+		BeforeEach(func() {
+			sutConfig = config.BlockingConfig{
+				BlockType: "ZEROIP",
+				BlockTTL:  config.Duration(time.Minute),
+				BlackLists: map[string][]string{
+					"gr1": {"\n/regex/"},
+				},
+				ClientGroupsBlock: map[string][]string{
+					"default": {"gr1"},
+				},
+				StartStrategy: config.StartStrategyTypeFast,
+			}
+
+		})
+
+		When("Domain is on the black list", func() {
+			It("should block request", func() {
+				Eventually(func(g Gomega) {
+					resp, err = sut.Resolve(newRequestWithClient("regex.com.", dns.Type(dns.TypeA), "1.2.1.2", "client1"))
+					g.Expect(err).Should(Succeed())
+					g.Expect(resp.Res.Answer).Should(BeDNSRecord("regex.com.", dns.TypeA, 60, "0.0.0.0"))
+				}).Should(Succeed())
 			})
 		})
 	})
