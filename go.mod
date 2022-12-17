@@ -40,6 +40,7 @@ require (
 	github.com/docker/go-connections v0.4.0
 	github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198
 	github.com/testcontainers/testcontainers-go v0.15.0
+	mvdan.cc/gofumpt v0.4.0
 )
 
 require (
