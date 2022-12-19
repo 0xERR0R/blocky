@@ -77,7 +77,7 @@ run: build ## Build and run binary
 
 fmt: ## gofmt and goimports all go files
 	go run mvdan.cc/gofumpt -l -w -extra .
-	find . -name '*.go' | while read -r file; do gofmt -w -s "$$file"; goimports -w "$$file" > /dev/null 2>&1; done
+	find . -name '*.go' -exec goimports -w {} +
 
 docker-build:  ## Build docker image 
 	go generate ./...
