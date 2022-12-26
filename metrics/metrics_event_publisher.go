@@ -22,7 +22,7 @@ func registerApplicationEventListeners() {
 	v := versionNumberGauge()
 	RegisterMetric(v)
 
-	subscribe(evt.ApplicationStarted, func(version string, buildTime string) {
+	subscribe(evt.ApplicationStarted, func(version, buildTime string) {
 		v.WithLabelValues(version, buildTime).Set(1)
 	})
 }

@@ -32,12 +32,12 @@ var _ = Describe("CustomDNSResolver", func() {
 				"multiple.ips": {
 					net.ParseIP("192.168.143.123"),
 					net.ParseIP("192.168.143.125"),
-					net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")},
+					net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334"),
+				},
 			}},
 			CustomTTL:           config.Duration(time.Duration(TTL) * time.Second),
 			FilterUnmappedTypes: true,
 		}
-
 	})
 
 	JustBeforeEach(func() {
@@ -100,7 +100,6 @@ var _ = Describe("CustomDNSResolver", func() {
 					m.AssertExpectations(GinkgoT())
 				})
 			})
-
 		})
 		When("Ip 6 mapping is defined for custom domain ", func() {
 			It("ip6 query should be resolved", func() {

@@ -128,8 +128,10 @@ var _ = BeforeSuite(func() {
 				"ads": {
 					doubleclickFile.Path,
 					bildFile.Path,
-					heiseFile.Path},
-				"youtube": {youtubeFile.Path}},
+					heiseFile.Path,
+				},
+				"youtube": {youtubeFile.Path},
+			},
 			WhiteLists: map[string][]string{
 				"ads":       {heiseFile.Path},
 				"whitelist": {heiseFile.Path},
@@ -179,7 +181,6 @@ var _ = BeforeSuite(func() {
 
 var _ = Describe("Running DNS server", func() {
 	Describe("performing DNS request with running server", func() {
-
 		BeforeEach(func() {
 			mockClientName.Store("")
 			// reset client cache
@@ -315,7 +316,6 @@ var _ = Describe("Running DNS server", func() {
 				Expect(resp.Answer).Should(BeEmpty())
 			})
 		})
-
 	})
 
 	Describe("Prometheus endpoint", func() {
@@ -467,7 +467,6 @@ var _ = Describe("Running DNS server", func() {
 					Expect(resp).Should(HaveHTTPStatus(http.StatusRequestURITooLong))
 				})
 			})
-
 		})
 		Context("DOH over POST (RFC 8484)", func() {
 			When("DOH post request with 'example.com' is performed", func() {
@@ -559,7 +558,8 @@ var _ = Describe("Running DNS server", func() {
 			Expect(cErr).Should(Succeed())
 
 			cfg.Upstream.ExternalResolvers = map[string][]config.Upstream{
-				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "1.1.1.1", Port: 53}}}
+				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "1.1.1.1", Port: 53}},
+			}
 
 			cfg.Redis.Address = "test-fail"
 		})
@@ -570,7 +570,6 @@ var _ = Describe("Running DNS server", func() {
 				Expect(err).Should(Succeed())
 			})
 			It("can't be created if redis server is unavailable", func() {
-
 				cfg.Redis.Required = true
 
 				_, err := NewServer(&cfg)
@@ -587,14 +586,17 @@ var _ = Describe("Running DNS server", func() {
 				server, err := NewServer(&config.Config{
 					Upstream: config.UpstreamConfig{
 						ExternalResolvers: map[string][]config.Upstream{
-							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}}}},
+							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}},
+						},
+					},
 					CustomDNS: config.CustomDNSConfig{
 						Mapping: config.CustomDNSMapping{
 							HostIPs: map[string][]net.IP{
 								"custom.lan": {net.ParseIP("192.168.178.55")},
 								"lan.home":   {net.ParseIP("192.168.178.56")},
 							},
-						}},
+						},
+					},
 					Blocking: config.BlockingConfig{BlockType: "zeroIp"},
 					Ports: config.PortsConfig{
 						DNS: config.ListenConfig{":55556"},
@@ -621,20 +623,22 @@ var _ = Describe("Running DNS server", func() {
 	})
 	Describe("Server stop", func() {
 		When("Stop is called", func() {
-
 			It("stop was called 2 times, start should fail", func() {
 				// create server
 				server, err := NewServer(&config.Config{
 					Upstream: config.UpstreamConfig{
 						ExternalResolvers: map[string][]config.Upstream{
-							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}}}},
+							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}},
+						},
+					},
 					CustomDNS: config.CustomDNSConfig{
 						Mapping: config.CustomDNSMapping{
 							HostIPs: map[string][]net.IP{
 								"custom.lan": {net.ParseIP("192.168.178.55")},
 								"lan.home":   {net.ParseIP("192.168.178.56")},
 							},
-						}},
+						},
+					},
 					Blocking: config.BlockingConfig{BlockType: "zeroIp"},
 					Ports: config.PortsConfig{
 						DNS: config.ListenConfig{"127.0.0.1:55557"},
@@ -693,7 +697,8 @@ var _ = Describe("Running DNS server", func() {
 			Expect(cErr).Should(Succeed())
 
 			cfg.Upstream.ExternalResolvers = map[string][]config.Upstream{
-				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "1.1.1.1", Port: 53}}}
+				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "1.1.1.1", Port: 53}},
+			}
 		})
 
 		It("should create self-signed certificate if key/cert files are not provided", func() {
@@ -731,7 +736,8 @@ func requestServer(request *dns.Msg) *dns.Msg {
 
 	if _, err := conn.Read(out); err == nil {
 		response := new(dns.Msg)
-		err := response.Unpack(out)
+
+		err = response.Unpack(out)
 
 		if err != nil {
 			Log().Fatal("can't unpack response: ", err)

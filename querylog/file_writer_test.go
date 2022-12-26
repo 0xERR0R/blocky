@@ -94,7 +94,6 @@ var _ = Describe("FileWriter", func() {
 					return len(readCsv(tmpDir.JoinPath(
 						fmt.Sprintf("%s_client2.log", time.Now().Format("2006-01-02")))))
 				}).Should(Equal(1))
-
 			})
 		})
 		When("Cleanup is called", func() {
@@ -136,7 +135,6 @@ var _ = Describe("FileWriter", func() {
 			})
 		})
 	})
-
 })
 
 func readCsv(file string) [][]string {

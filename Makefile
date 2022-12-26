@@ -70,14 +70,14 @@ race: ## run tests with race detector
 	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --race ./...
 
 lint: ## run golangcli-lint checks
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
-	golangci-lint run --timeout 5m
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint run --timeout 5m
 
 run: build ## Build and run binary
 	./$(BIN_OUT_DIR)/$(BINARY_NAME)
 
 fmt: ## gofmt and goimports all go files
-	find . -name '*.go' | while read -r file; do gofmt -w -s "$$file"; goimports -w "$$file"; done
+	go run mvdan.cc/gofumpt -l -w -extra .
+	find . -name '*.go' -exec goimports -w {} +
 
 docker-build:  ## Build docker image 
 	go generate ./...

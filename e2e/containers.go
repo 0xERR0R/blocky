@@ -56,7 +56,8 @@ func createDNSMokkaContainer(alias string, rules ...string) (testcontainers.Cont
 }
 
 func createHTTPServerContainer(alias string, tmpDir *helpertest.TmpFolder,
-	filename string, lines ...string) (testcontainers.Container, error) {
+	filename string, lines ...string,
+) (testcontainers.Container, error) {
 	f1 := tmpDir.CreateStringFile(filename,
 		lines...,
 	)
@@ -188,7 +189,6 @@ func createBlockyContainer(tmpDir *helpertest.TmpFolder, lines ...string) (testc
 		ContainerRequest: req,
 		Started:          true,
 	})
-
 	if err != nil {
 		// attach container log if error occurs
 		if r, err := container.Logs(context.Background()); err == nil {
@@ -236,7 +236,7 @@ func doDNSRequest(blocky testcontainers.Container, message *dns.Msg) (*dns.Msg, 
 	return msg, err
 }
 
-func getContainerHostPort(c testcontainers.Container, p nat.Port) (host string, port string, err error) {
+func getContainerHostPort(c testcontainers.Container, p nat.Port) (host, port string, err error) {
 	res, err := c.MappedPort(context.Background(), p)
 	if err != nil {
 		return "", "", err

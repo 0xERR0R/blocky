@@ -27,9 +27,7 @@ var _ = Describe("Config", func() {
 	})
 
 	Describe("Deprecated parameters are converted", func() {
-		var (
-			c Config
-		)
+		var c Config
 		BeforeEach(func() {
 			err := defaults.Set(&c)
 			Expect(err).Should(Succeed())
@@ -200,8 +198,7 @@ var _ = Describe("Config", func() {
 		When("duration is in wrong format", func() {
 			It("should return error", func() {
 				cfg := Config{}
-				data :=
-					`blocking:
+				data := `blocking:
   refreshPeriod: wrongduration`
 				err := unmarshalConfig([]byte(data), &cfg)
 				Expect(err).Should(HaveOccurred())
@@ -211,8 +208,7 @@ var _ = Describe("Config", func() {
 		When("CustomDNS hast wrong IP defined", func() {
 			It("should return error", func() {
 				cfg := Config{}
-				data :=
-					`customDNS:
+				data := `customDNS:
   mapping:
     someDomain: 192.168.178.WRONG`
 				err := unmarshalConfig([]byte(data), &cfg)
@@ -223,8 +219,7 @@ var _ = Describe("Config", func() {
 		When("Conditional mapping hast wrong defined upstreams", func() {
 			It("should return error", func() {
 				cfg := Config{}
-				data :=
-					`conditional:
+				data := `conditional:
   mapping:
     multiple.resolvers: 192.168.178.1,wrongprotocol:4.4.4.4:53`
 				err := unmarshalConfig([]byte(data), &cfg)
@@ -235,8 +230,7 @@ var _ = Describe("Config", func() {
 		When("Wrong upstreams are defined", func() {
 			It("should return error", func() {
 				cfg := Config{}
-				data :=
-					`upstream:
+				data := `upstream:
   default:
     - 8.8.8.8
     - wrongprotocol:8.8.4.4
@@ -249,8 +243,7 @@ var _ = Describe("Config", func() {
 		When("Wrong filtering is defined", func() {
 			It("should return error", func() {
 				cfg := Config{}
-				data :=
-					`filtering:
+				data := `filtering:
   queryTypes:
     - invalidqtype
 `
@@ -287,8 +280,7 @@ bootstrapDns:
 		When("config is not YAML", func() {
 			It("should return error", func() {
 				cfg := Config{}
-				data :=
-					`///`
+				data := `///`
 				err := unmarshalConfig([]byte(data), &cfg)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("cannot unmarshal !!str `///`"))
@@ -300,7 +292,6 @@ bootstrapDns:
 				_, err = LoadConfig(tmpDir.JoinPath("config.yml"), true)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("no such file or directory"))
-
 			})
 
 			It("should use default config if config is not mandatory", func() {
@@ -320,7 +311,6 @@ bootstrapDns:
 					*i.(*string) = "tcp+udp:1.2.3.4"
 
 					return nil
-
 				})
 				Expect(err).Should(Succeed())
 				Expect(u.Net).Should(Equal(NetProtocolTcpUdp))
@@ -332,7 +322,6 @@ bootstrapDns:
 				u := &Upstream{}
 				err := u.UnmarshalYAML(func(i interface{}) error {
 					return errors.New("some err")
-
 				})
 				Expect(err).Should(HaveOccurred())
 			})
@@ -378,7 +367,6 @@ bootstrapDns:
 				})
 				Expect(err).Should(HaveOccurred())
 				Expect(err).Should(MatchError("time: invalid duration \"wrong\""))
-
 			})
 			It("should fail if wrong YAML format", func() {
 				d := Duration(0)
@@ -388,7 +376,6 @@ bootstrapDns:
 				Expect(err).Should(HaveOccurred())
 				Expect(err).Should(MatchError("some err"))
 			})
-
 		})
 		Context("ConditionalUpstreamMapping", func() {
 			It("Should parse config as map", func() {
@@ -402,7 +389,8 @@ bootstrapDns:
 				Expect(c.Upstreams).Should(HaveLen(1))
 				Expect(c.Upstreams["key"]).Should(HaveLen(1))
 				Expect(c.Upstreams["key"][0]).Should(Equal(Upstream{
-					Net: NetProtocolTcpUdp, Host: "1.2.3.4", Port: 53}))
+					Net: NetProtocolTcpUdp, Host: "1.2.3.4", Port: 53,
+				}))
 			})
 			It("should fail if wrong YAML format", func() {
 				c := &ConditionalUpstreamMapping{}

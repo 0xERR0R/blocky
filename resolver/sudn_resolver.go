@@ -96,7 +96,8 @@ func (r *SpecialUseDomainNamesResolver) isSpecial(request *model.Request, names 
 }
 
 func (r *SpecialUseDomainNamesResolver) responseSwitch(request *model.Request,
-	name string, ipV4, ipV6 net.IP) (*model.Response, error) {
+	name string, ipV4, ipV6 net.IP,
+) (*model.Response, error) {
 	qtype := request.Req.Question[0].Qtype
 	switch qtype {
 	case dns.TypeA:
@@ -109,7 +110,8 @@ func (r *SpecialUseDomainNamesResolver) responseSwitch(request *model.Request,
 }
 
 func (r *SpecialUseDomainNamesResolver) positiveResponse(request *model.Request,
-	name string, rtype uint16, ip net.IP) (*model.Response, error) {
+	name string, rtype uint16, ip net.IP,
+) (*model.Response, error) {
 	response := newResponseMsg(request)
 	response.Rcode = dns.RcodeSuccess
 

@@ -377,7 +377,6 @@ func ParseUpstream(upstream string) (Upstream, error) {
 	// string contains host:port
 	if err == nil {
 		p, err := ConvertPort(portString)
-
 		if err != nil {
 			err = fmt.Errorf("can't convert port to number (1 - 65535) %w", err)
 
@@ -418,7 +417,7 @@ func extractCommonName(in string) (string, string) {
 	return cn, upstream
 }
 
-func extractPath(in string) (path string, upstream string) {
+func extractPath(in string) (path, upstream string) {
 	slashIdx := strings.Index(in, "/")
 
 	if slashIdx >= 0 {
@@ -504,11 +503,13 @@ type PortsConfig struct {
 	TLS   ListenConfig `yaml:"tls"`
 }
 
-type BootstrapConfig bootstrapConfig // to avoid infinite recursion. See BootstrapConfig.UnmarshalYAML.
-type bootstrapConfig struct {
-	Upstream Upstream `yaml:"upstream"`
-	IPs      []net.IP `yaml:"ips"`
-}
+type (
+	BootstrapConfig bootstrapConfig // to avoid infinite recursion. See BootstrapConfig.UnmarshalYAML.
+	bootstrapConfig struct {
+		Upstream Upstream `yaml:"upstream"`
+		IPs      []net.IP `yaml:"ips"`
+	}
+)
 
 // PrometheusConfig contains the config values for prometheus
 type PrometheusConfig struct {
@@ -836,9 +837,7 @@ func ConvertPort(in string) (uint16, error) {
 		bitSize = 16
 	)
 
-	var p uint64
 	p, err := strconv.ParseUint(strings.TrimSpace(in), base, bitSize)
-
 	if err != nil {
 		return 0, err
 	}

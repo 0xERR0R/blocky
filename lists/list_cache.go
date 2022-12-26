@@ -95,7 +95,8 @@ func (b *ListCache) Configuration() (result []string) {
 
 // NewListCache creates new list instance
 func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration,
-	downloader FileDownloader, processingConcurrency uint, async bool) (*ListCache, error) {
+	downloader FileDownloader, processingConcurrency uint, async bool,
+) (*ListCache, error) {
 	groupCaches := make(map[string]stringcache.StringCache)
 
 	if processingConcurrency == 0 {
@@ -220,6 +221,7 @@ func (b *ListCache) Match(domain string, groupsToCheck []string) (found bool, gr
 func (b *ListCache) Refresh() {
 	_ = b.refresh(false)
 }
+
 func (b *ListCache) refresh(init bool) error {
 	var err error
 

@@ -8,7 +8,6 @@ import (
 )
 
 var _ = Describe("Resolver", func() {
-
 	systemResolverBootstrap := &Bootstrap{}
 
 	Describe("Creating resolver chain", func() {

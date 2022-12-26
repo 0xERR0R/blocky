@@ -209,7 +209,7 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 	return response, err
 }
 
-func (r *CachingResolver) trackQueryDomainNameCount(domain string, cacheKey string, logger *logrus.Entry) {
+func (r *CachingResolver) trackQueryDomainNameCount(domain, cacheKey string, logger *logrus.Entry) {
 	if r.prefetchingNameCache != nil {
 		var domainCount int
 		if x, _ := r.prefetchingNameCache.Get(cacheKey); x != nil {

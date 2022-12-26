@@ -116,7 +116,6 @@ var _ = Describe("QueryLoggingResolver", func() {
 						g.Expect(csvLines[0][8]).Should(Equal("RESOLVED"))
 						g.Expect(csvLines[0][9]).Should(Equal("A"))
 					}, "1s").Should(Succeed())
-
 				})
 
 				By("check log for client2", func() {
@@ -187,7 +186,6 @@ var _ = Describe("QueryLoggingResolver", func() {
 						g.Expect(csvLines[1][8]).Should(Equal("RESOLVED"))
 						g.Expect(csvLines[1][9]).Should(Equal("A"))
 					}, "1s").Should(Succeed())
-
 				})
 			})
 		})
@@ -229,11 +227,9 @@ var _ = Describe("QueryLoggingResolver", func() {
 						g.Expect(csvLines[0][8]).Should(Equal(""))
 						g.Expect(csvLines[0][9]).Should(Equal(""))
 					}, "1s").Should(Succeed())
-
 				})
 			})
 		})
-
 	})
 
 	Describe("Slow writer", func() {

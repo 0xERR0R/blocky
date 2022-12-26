@@ -11,9 +11,7 @@ import (
 
 var _ = Describe("Hostname function tests", func() {
 	When("file is present", func() {
-		var (
-			tmpDir *helpertest.TmpFolder
-		)
+		var tmpDir *helpertest.TmpFolder
 
 		BeforeEach(func() {
 			tmpDir = helpertest.NewTmpFolder("hostname")

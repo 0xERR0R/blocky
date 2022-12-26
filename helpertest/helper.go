@@ -40,7 +40,8 @@ func TestServer(data string) *httptest.Server {
 
 // DoGetRequest performs a GET request
 func DoGetRequest(url string,
-	fn func(w http.ResponseWriter, r *http.Request)) (*httptest.ResponseRecorder, *bytes.Buffer) {
+	fn func(w http.ResponseWriter, r *http.Request),
+) (*httptest.ResponseRecorder, *bytes.Buffer) {
 	r, _ := http.NewRequest(http.MethodGet, url, nil)
 
 	rr := httptest.NewRecorder()

@@ -43,8 +43,9 @@ type DatabaseWriter struct {
 	dbFlushPeriod    time.Duration
 }
 
-func NewDatabaseWriter(dbType string, target string, logRetentionDays uint64,
-	dbFlushPeriod time.Duration) (*DatabaseWriter, error) {
+func NewDatabaseWriter(dbType, target string, logRetentionDays uint64,
+	dbFlushPeriod time.Duration,
+) (*DatabaseWriter, error) {
 	switch dbType {
 	case "mysql":
 		return newDatabaseWriter(mysql.Open(target), logRetentionDays, dbFlushPeriod)
@@ -56,7 +57,8 @@ func NewDatabaseWriter(dbType string, target string, logRetentionDays uint64,
 }
 
 func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64,
-	dbFlushPeriod time.Duration) (*DatabaseWriter, error) {
+	dbFlushPeriod time.Duration,
+) (*DatabaseWriter, error) {
 	db, err := gorm.Open(target, &gorm.Config{
 		Logger: logger.New(
 			log.Log(),
@@ -67,7 +69,6 @@ func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64,
 				Colorful:                  false,
 			}),
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("can't create database connection: %w", err)
 	}
@@ -80,7 +81,8 @@ func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64,
 	w := &DatabaseWriter{
 		db:               db,
 		logRetentionDays: logRetentionDays,
-		dbFlushPeriod:    dbFlushPeriod}
+		dbFlushPeriod:    dbFlushPeriod,
+	}
 
 	go w.periodicFlush()
 
