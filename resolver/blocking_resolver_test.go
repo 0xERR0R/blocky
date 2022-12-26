@@ -165,7 +165,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				},
 				StartStrategy: config.StartStrategyTypeFast,
 			}
-
 		})
 
 		When("Domain is on the black list", func() {
