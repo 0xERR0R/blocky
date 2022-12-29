@@ -1,7 +1,7 @@
 package resolver
 
 import (
-	"github.com/miekg/dns"
+	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -15,7 +15,7 @@ var _ = Describe("NoOpResolver", func() {
 
 	Describe("Resolving", func() {
 		It("returns no response", func() {
-			resp, err := sut.Resolve(newRequest("test.tld", dns.Type(dns.TypeA)))
+			resp, err := sut.Resolve(newRequest("test.tld", A))
 			Expect(err).Should(Succeed())
 			Expect(resp).Should(Equal(NoResponse))
 		})

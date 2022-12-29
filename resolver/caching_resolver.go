@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/hako/durafmt"
@@ -40,7 +41,7 @@ type cacheValue struct {
 }
 
 // NewCachingResolver creates a new resolver instance
-func NewCachingResolver(cfg config.CachingConfig, redis *redis.Client) ChainedResolver {
+func NewCachingResolver(cfg config.CachingConfig, redis *redis.Client) *CachingResolver {
 	c := &CachingResolver{
 		minCacheTimeSec:   int(time.Duration(cfg.MinCachingTime).Seconds()),
 		maxCacheTimeSec:   int(time.Duration(cfg.MaxCachingTime).Seconds()),
@@ -183,9 +184,12 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 				}
 
 				// Answer from successful request
-				resp.Answer = v.answer
-				for _, rr := range resp.Answer {
-					rr.Header().Ttl = uint32(ttl.Seconds())
+				for _, rr := range v.answer {
+					// make copy here since entries in cache can be modified by other goroutines (e.g. redis cache)
+					cp := dns.Copy(rr)
+					cp.Header().Ttl = uint32(ttl.Seconds())
+
+					resp.Answer = append(resp.Answer, cp)
 				}
 
 				return &model.Response{Res: resp, RType: model.ResponseTypeCACHED, Reason: "CACHED"}, nil
@@ -260,19 +264,20 @@ func (r *CachingResolver) adjustTTLs(answer []dns.RR) (maxTTL time.Duration) {
 	for _, a := range answer {
 		// if TTL < mitTTL -> adjust the value, set minTTL
 		if r.minCacheTimeSec > 0 {
-			if a.Header().Ttl < uint32(r.minCacheTimeSec) {
-				a.Header().Ttl = uint32(r.minCacheTimeSec)
+			if atomic.LoadUint32(&a.Header().Ttl) < uint32(r.minCacheTimeSec) {
+				atomic.StoreUint32(&a.Header().Ttl, uint32(r.minCacheTimeSec))
 			}
 		}
 
 		if r.maxCacheTimeSec > 0 {
-			if a.Header().Ttl > uint32(r.maxCacheTimeSec) {
-				a.Header().Ttl = uint32(r.maxCacheTimeSec)
+			if atomic.LoadUint32(&a.Header().Ttl) > uint32(r.maxCacheTimeSec) {
+				atomic.StoreUint32(&a.Header().Ttl, uint32(r.maxCacheTimeSec))
 			}
 		}
 
-		if max < a.Header().Ttl {
-			max = a.Header().Ttl
+		headerTTL := atomic.LoadUint32(&a.Header().Ttl)
+		if max < headerTTL {
+			max = headerTTL
 		}
 	}
 

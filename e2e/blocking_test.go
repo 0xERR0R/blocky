@@ -3,7 +3,6 @@ package e2e
 import (
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
-	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
@@ -43,9 +42,14 @@ var _ = Describe("External lists and query blocking", func() {
 				})
 
 				It("should start with warning in log work without errors", func() {
-					msg := util.NewMsgWithQuestion("google.com.", dns.Type(dns.TypeA))
+					msg := util.NewMsgWithQuestion("google.com.", A)
 
-					Expect(doDNSRequest(blocky, msg)).Should(BeDNSRecord("google.com.", dns.TypeA, 123, "1.2.3.4"))
+					Expect(doDNSRequest(blocky, msg)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("google.com.", A, "1.2.3.4"),
+								HaveTTL(BeNumerically("==", 123)),
+							))
 
 					Expect(getContainerLogs(blocky)).Should(ContainElement(ContainSubstring("error during file processing")))
 				})
@@ -108,9 +112,14 @@ var _ = Describe("External lists and query blocking", func() {
 				DeferCleanup(blocky.Terminate)
 			})
 			It("should download external list on startup and block queries", func() {
-				msg := util.NewMsgWithQuestion("blockeddomain.com.", dns.Type(dns.TypeA))
+				msg := util.NewMsgWithQuestion("blockeddomain.com.", A)
 
-				Expect(doDNSRequest(blocky, msg)).Should(BeDNSRecord("blockeddomain.com.", dns.TypeA, 6*60*60, "0.0.0.0"))
+				Expect(doDNSRequest(blocky, msg)).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("blockeddomain.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 6*60*60)),
+						))
 
 				Expect(getContainerLogs(blocky)).Should(BeEmpty())
 			})
