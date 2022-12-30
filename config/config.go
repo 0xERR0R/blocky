@@ -424,11 +424,14 @@ type Config struct {
 	TLSPorts ListenConfig `yaml:"tlsPort"`
 }
 
-type BootstrapConfig bootstrapConfig // to avoid infinite recursion. See BootstrapConfig.UnmarshalYAML.
-type bootstrapConfig struct {
-	Upstream Upstream `yaml:"upstream"`
-	IPs      []net.IP `yaml:"ips"`
-}
+type (
+	BootstrapConfig bootstrapConfig // to avoid infinite recursion. See BootstrapConfig.UnmarshalYAML.
+	bootstrapConfig struct {
+		Upstream Upstream `yaml:"upstream"`
+		IPs      []net.IP `yaml:"ips"`
+	}
+)
+
 type PortsConfig struct {
 	DNS   ListenConfig `yaml:"dns" default:"[\"53\"]"`
 	HTTP  ListenConfig `yaml:"http"`

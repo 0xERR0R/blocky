@@ -11,7 +11,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
-// nolint:gochecknoglobals
+//nolint:gochecknoglobals
 var (
 	koanfHookTypes = []reflect.Type{
 		reflect.TypeOf(Duration(0)),
@@ -34,7 +34,8 @@ func queryTypeHookFunc() mapstructure.DecodeHookFuncType {
 	return func(
 		f reflect.Type,
 		t reflect.Type,
-		data interface{}) (interface{}, error) {
+		data interface{},
+	) (interface{}, error) {
 		if f.Kind() == reflect.Slice &&
 			t == reflect.TypeOf(QTypeSet{}) {
 			s := reflect.ValueOf(data).Interface().([]any)
@@ -63,7 +64,8 @@ func upstreamTypeHookFunc() mapstructure.DecodeHookFuncType {
 	return func(
 		f reflect.Type,
 		t reflect.Type,
-		data interface{}) (interface{}, error) {
+		data interface{},
+	) (interface{}, error) {
 		if f.Kind() == reflect.String &&
 			t == reflect.TypeOf(Upstream{}) {
 			return ParseUpstream(data.(string))
@@ -78,13 +80,14 @@ func durationTypeHookFunc() mapstructure.DecodeHookFuncType {
 	return func(
 		f reflect.Type,
 		t reflect.Type,
-		data interface{}) (interface{}, error) {
+		data interface{},
+	) (interface{}, error) {
 		dt := reflect.TypeOf(Duration(0))
 		if t != dt {
 			return data, nil
 		}
 
-		// nolint:exhaustive
+		//nolint:exhaustive
 		switch f.Kind() {
 		case reflect.String:
 			input := data.(string)
@@ -122,7 +125,8 @@ func bootstrapConfigUnmarshallerHookFunc() mapstructure.DecodeHookFuncType {
 	return func(
 		f reflect.Type,
 		t reflect.Type,
-		data interface{}) (interface{}, error) {
+		data interface{},
+	) (interface{}, error) {
 		if f.Kind() == reflect.String &&
 			t == reflect.TypeOf(BootstrapConfig{}) {
 			up, err := ParseUpstream(data.(string))
@@ -143,7 +147,8 @@ func textUnmarshallerHookFunc() mapstructure.DecodeHookFuncType {
 	return func(
 		f reflect.Type,
 		t reflect.Type,
-		data interface{}) (interface{}, error) {
+		data interface{},
+	) (interface{}, error) {
 		if hasCustomHook(t) || f.Kind() != reflect.String {
 			return data, nil
 		}

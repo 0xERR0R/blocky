@@ -90,7 +90,8 @@ func mapToSliceHookFunc() mapstructure.DecodeHookFuncType {
 	return func(
 		f reflect.Type,
 		t reflect.Type,
-		data interface{}) (interface{}, error) {
+		data interface{},
+	) (interface{}, error) {
 		if f.Kind() == reflect.Map {
 			unboxed, ok := data.(map[string]interface{})
 			if ok && unboxed != nil {
