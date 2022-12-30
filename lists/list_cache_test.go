@@ -73,7 +73,6 @@ var _ = Describe("ListCache", func() {
 				found, group := sut.Match("google.com", []string{"gr1"})
 				Expect(found).Should(BeFalse())
 				Expect(group).Should(BeEmpty())
-
 			})
 		})
 		When("a temporary/transient err occurs on download", func() {
@@ -112,7 +111,6 @@ var _ = Describe("ListCache", func() {
 						g.Expect(found).Should(BeTrue())
 						g.Expect(group).Should(Equal("gr1"))
 					}, "1s").Should(Succeed())
-
 				})
 
 				Expect(sut.refresh(true)).Should(HaveOccurred())
@@ -158,7 +156,6 @@ var _ = Describe("ListCache", func() {
 						g.Expect(found).Should(BeTrue())
 						g.Expect(group).Should(Equal("gr1"))
 					}, "1s").Should(Succeed())
-
 				})
 
 				Expect(sut.refresh(false)).Should(HaveOccurred())

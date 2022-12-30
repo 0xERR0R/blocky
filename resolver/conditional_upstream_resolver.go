@@ -97,7 +97,8 @@ func (r *ConditionalUpstreamResolver) Resolve(request *model.Request) (*model.Re
 }
 
 func (r *ConditionalUpstreamResolver) internalResolve(reso Resolver, doFQ, do string,
-	req *model.Request) (*model.Response, error) {
+	req *model.Request,
+) (*model.Response, error) {
 	// internal request resolution
 	logger := withPrefix(req.Log, "conditional_resolver")
 

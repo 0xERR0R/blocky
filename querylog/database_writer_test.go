@@ -20,7 +20,6 @@ import (
 var err error
 
 var _ = Describe("DatabaseWriter", func() {
-
 	Describe("Database query log to sqlite", func() {
 		var (
 			sqliteDB gorm.Dialector
@@ -299,9 +298,6 @@ var _ = Describe("DatabaseWriter", func() {
 					Expect(err.Error()).Should(ContainSubstring("can't perform auto migration: error XXX: some db error"))
 				})
 			})
-
 		})
-
 	})
-
 })

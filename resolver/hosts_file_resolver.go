@@ -134,7 +134,7 @@ func (r *HostsFileResolver) Configuration() (result []string) {
 	return
 }
 
-func NewHostsFileResolver(cfg config.HostsFileConfig) ChainedResolver {
+func NewHostsFileResolver(cfg config.HostsFileConfig) *HostsFileResolver {
 	r := HostsFileResolver{
 		HostsFilePath:  cfg.Filepath,
 		ttl:            uint32(time.Duration(cfg.HostsTTL).Seconds()),

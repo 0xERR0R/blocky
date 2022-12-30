@@ -10,7 +10,6 @@ import (
 var _ = Describe("Expiration cache", func() {
 	Describe("Basic operations", func() {
 		When("string cache was created", func() {
-
 			It("Initial cache should be empty", func() {
 				cache := NewCache()
 				Expect(cache.TotalCount()).Should(Equal(0))
@@ -135,7 +134,6 @@ var _ = Describe("Expiration cache", func() {
 					return cache.Get("key1")
 				}, "200ms").Should(BeNil())
 			})
-
 		})
 	})
 	Describe("LRU behaviour", func() {

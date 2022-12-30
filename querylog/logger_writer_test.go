@@ -11,7 +11,6 @@ import (
 )
 
 var _ = Describe("LoggerWriter", func() {
-
 	Describe("logger query log", func() {
 		When("New log entry was created", func() {
 			It("should be logged", func() {
@@ -26,7 +25,6 @@ var _ = Describe("LoggerWriter", func() {
 
 				Expect(hook.Entries).Should(HaveLen(1))
 				Expect(hook.LastEntry().Message).Should(Equal("query resolved"))
-
 			})
 		})
 		When("Cleanup is called", func() {
@@ -36,5 +34,4 @@ var _ = Describe("LoggerWriter", func() {
 			})
 		})
 	})
-
 })

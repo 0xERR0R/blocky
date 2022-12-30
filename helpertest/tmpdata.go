@@ -68,7 +68,6 @@ func (tf *TmpFolder) CreateSubFolder(name string) *TmpFolder {
 
 func (tf *TmpFolder) CreateEmptyFile(name string) *TmpFile {
 	f, err := tf.createFile(name)
-
 	if err != nil {
 		return tf.newErrorTmpFile(err)
 	}
@@ -78,7 +77,6 @@ func (tf *TmpFolder) CreateEmptyFile(name string) *TmpFile {
 
 func (tf *TmpFolder) CreateStringFile(name string, lines ...string) *TmpFile {
 	f, err := tf.createFile(name)
-
 	if err != nil {
 		return tf.newErrorTmpFile(err)
 	}

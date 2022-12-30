@@ -8,7 +8,6 @@ import (
 
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
-	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
@@ -27,7 +26,6 @@ var _ = Describe("Basic functional tests", func() {
 		})
 		When("Minimal configuration is provided", func() {
 			BeforeEach(func() {
-
 				blocky, err = createBlockyContainer(tmpDir,
 					"upstream:",
 					"  default:",
@@ -38,9 +36,14 @@ var _ = Describe("Basic functional tests", func() {
 				DeferCleanup(blocky.Terminate)
 			})
 			It("Should start and answer DNS queries", func() {
-				msg := util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA))
+				msg := util.NewMsgWithQuestion("google.de.", A)
 
-				Expect(doDNSRequest(blocky, msg)).Should(BeDNSRecord("google.de.", dns.TypeA, 123, "1.2.3.4"))
+				Expect(doDNSRequest(blocky, msg)).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("google.de.", A, "1.2.3.4"),
+							HaveTTL(BeNumerically("==", 123)),
+						))
 			})
 			It("should return 'healthy' container status (healthcheck)", func() {
 				Eventually(func(g Gomega) string {
@@ -106,6 +109,5 @@ var _ = Describe("Basic functional tests", func() {
 				})
 			})
 		})
-
 	})
 })

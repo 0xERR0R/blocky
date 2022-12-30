@@ -87,7 +87,8 @@ func ConfigureLogger(cfg *Config) {
 			ForceFormatting:  true,
 			ForceColors:      false,
 			QuoteEmptyFields: true,
-			DisableTimestamp: !cfg.Timestamp}
+			DisableTimestamp: !cfg.Timestamp,
+		}
 
 		logFormatter.SetColorScheme(&prefixed.ColorScheme{
 			PrefixStyle:    "blue+b",

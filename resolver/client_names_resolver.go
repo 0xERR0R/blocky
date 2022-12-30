@@ -141,7 +141,6 @@ func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry
 		Req: util.NewMsgWithQuestion(reverse, dns.Type(dns.TypePTR)),
 		Log: logger,
 	})
-
 	if err != nil {
 		logger.Error("can't resolve client name: ", err)
 

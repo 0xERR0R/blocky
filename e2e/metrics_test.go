@@ -9,7 +9,6 @@ import (
 
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
-	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
@@ -65,7 +64,6 @@ var _ = Describe("Metrics functional tests", func() {
 			It("Should provide 'blocky_build_info' prometheus metrics", func() {
 				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).
 					Should(ContainElement(ContainSubstring("blocky_build_info")))
-
 			})
 
 			It("Should provide 'blocky_blocking_enabled' prometheus metrics", func() {
@@ -75,28 +73,50 @@ var _ = Describe("Metrics functional tests", func() {
 
 		When("Some query results are cached", func() {
 			BeforeEach(func() {
-				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_cache_entry_count 0"))
-				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_cache_hit_count 0"))
-				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_cache_miss_count 0"))
+				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).
+					Should(
+						SatisfyAll(
+							ContainElement("blocky_cache_entry_count 0"),
+							ContainElement("blocky_cache_hit_count 0"),
+							ContainElement("blocky_cache_miss_count 0"),
+						))
 			})
 
 			It("Should increment cache counts", func() {
-				msg := util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA))
+				msg := util.NewMsgWithQuestion("google.de.", A)
 
 				By("first query, should increment the cache miss count and the total count", func() {
-					Expect(doDNSRequest(blocky, msg)).Should(BeDNSRecord("google.de.", dns.TypeA, 123, "1.2.3.4"))
+					Expect(doDNSRequest(blocky, msg)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("google.de.", A, "1.2.3.4"),
+								HaveTTL(BeNumerically("==", 123)),
+							))
 
-					Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_cache_entry_count 1"))
-					Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_cache_hit_count 0"))
-					Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_cache_miss_count 1"))
+					Eventually(fetchBlockyMetrics).WithArguments(metricsURL).
+						Should(
+							SatisfyAll(
+								ContainElement("blocky_cache_entry_count 1"),
+								ContainElement("blocky_cache_hit_count 0"),
+								ContainElement("blocky_cache_miss_count 1"),
+							))
 				})
 
 				By("Same query again, should increment the cache hit count", func() {
-					Expect(doDNSRequest(blocky, msg)).Should(BeDNSRecord("google.de.", dns.TypeA, 0, "1.2.3.4"))
+					Expect(doDNSRequest(blocky, msg)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("google.de.", A, "1.2.3.4"),
+								HaveTTL(BeNumerically("<=", 123)),
+							))
 
-					Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_cache_entry_count 1"))
-					Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_cache_hit_count 1"))
-					Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_cache_miss_count 1"))
+					Eventually(fetchBlockyMetrics).WithArguments(metricsURL).
+						Should(
+							SatisfyAll(
+								ContainElement("blocky_cache_entry_count 1"),
+								ContainElement("blocky_cache_hit_count 1"),
+								ContainElement("blocky_cache_miss_count 1"),
+							))
 				})
 			})
 		})
@@ -104,9 +124,11 @@ var _ = Describe("Metrics functional tests", func() {
 		When("Lists are loaded", func() {
 			It("Should expose list cache sizes per group as metrics", func() {
 				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).
-					Should(ContainElement("blocky_blacklist_cache{group=\"group1\"} 1"))
-				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).
-					Should(ContainElement("blocky_blacklist_cache{group=\"group2\"} 3"))
+					Should(
+						SatisfyAll(
+							ContainElement("blocky_blacklist_cache{group=\"group1\"} 1"),
+							ContainElement("blocky_blacklist_cache{group=\"group2\"} 3"),
+						))
 			})
 		})
 	})
@@ -116,7 +138,6 @@ func fetchBlockyMetrics(url string) ([]string, error) {
 	var metrics []string
 
 	r, err := http.Get(url)
-
 	if err != nil {
 		return nil, err
 	}

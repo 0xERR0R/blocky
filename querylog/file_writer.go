@@ -15,7 +15,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const loggerPrefixFileWriter = "fileQueryLogWriter"
+const (
+	loggerPrefixFileWriter = "fileQueryLogWriter"
+	filePermission         = 0o666
+)
 
 var validFilePattern = regexp.MustCompile("[^a-zA-Z0-9-_]+")
 
@@ -51,7 +54,7 @@ func (d *FileWriter) Write(entry *LogEntry) {
 	fileName := fmt.Sprintf("%s_%s.log", dateString, escape(clientPrefix))
 	writePath := filepath.Join(d.target, fileName)
 
-	file, err := os.OpenFile(writePath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
+	file, err := os.OpenFile(writePath, os.O_APPEND|os.O_CREATE|os.O_RDWR, filePermission)
 
 	util.LogOnErrorWithEntry(log.PrefixedLog(loggerPrefixFileWriter).WithField("file_name", writePath),
 		"can't create/open file", err)

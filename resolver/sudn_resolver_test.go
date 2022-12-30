@@ -1,8 +1,7 @@
 package resolver
 
 import (
-	"net"
-
+	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
@@ -13,16 +12,12 @@ import (
 
 var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 	var (
-		sut        *SpecialUseDomainNamesResolver
-		m          *mockResolver
-		mockAnswer *dns.Msg
-
-		err  error
-		resp *Response
+		sut *SpecialUseDomainNamesResolver
+		m   *mockResolver
 	)
 
 	BeforeEach(func() {
-		mockAnswer, err = util.NewMsgWithAnswer("example.com.", 300, dns.Type(dns.TypeA), "123.145.123.145")
+		mockAnswer, err := util.NewMsgWithAnswer("example.com.", 300, A, "123.145.123.145")
 		Expect(err).Should(Succeed())
 
 		m = &mockResolver{}
@@ -35,65 +30,107 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 	Describe("Blocking special names", func() {
 		It("should block arpa", func() {
 			for _, arpa := range sudnArpaSlice() {
-				resp, err = sut.Resolve(newRequest(arpa, dns.Type(dns.TypeA)))
-				Expect(err).Should(Succeed())
-				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+				Expect(sut.Resolve(newRequest(arpa, A))).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							HaveResponseType(ResponseTypeSPECIAL),
+							HaveReturnCode(dns.RcodeNameError),
+							HaveReason("Special-Use Domain Name"),
+						))
 			}
 		})
 
 		It("should block test", func() {
-			resp, err = sut.Resolve(newRequest(sudnTest, dns.Type(dns.TypeA)))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+			Expect(sut.Resolve(newRequest(sudnTest, A))).
+				Should(
+					SatisfyAll(
+						HaveNoAnswer(),
+						HaveResponseType(ResponseTypeSPECIAL),
+						HaveReturnCode(dns.RcodeNameError),
+						HaveReason("Special-Use Domain Name"),
+					))
 		})
 
 		It("should block invalid", func() {
-			resp, err = sut.Resolve(newRequest(sudnInvalid, dns.Type(dns.TypeA)))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+			Expect(sut.Resolve(newRequest(sudnInvalid, A))).
+				Should(
+					SatisfyAll(
+						HaveNoAnswer(),
+						HaveResponseType(ResponseTypeSPECIAL),
+						HaveReturnCode(dns.RcodeNameError),
+						HaveReason("Special-Use Domain Name"),
+					))
 		})
 
 		It("should block localhost none A", func() {
-			resp, err = sut.Resolve(newRequest(sudnLocalhost, dns.Type(dns.TypeHTTPS)))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+			Expect(sut.Resolve(newRequest(sudnLocalhost, HTTPS))).
+				Should(
+					SatisfyAll(
+						HaveNoAnswer(),
+						HaveResponseType(ResponseTypeSPECIAL),
+						HaveReturnCode(dns.RcodeNameError),
+						HaveReason("Special-Use Domain Name"),
+					))
 		})
 
 		It("should block local", func() {
-			resp, err = sut.Resolve(newRequest(mdnsLocal, dns.Type(dns.TypeA)))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+			Expect(sut.Resolve(newRequest(mdnsLocal, A))).
+				Should(
+					SatisfyAll(
+						HaveNoAnswer(),
+						HaveResponseType(ResponseTypeSPECIAL),
+						HaveReturnCode(dns.RcodeNameError),
+						HaveReason("Special-Use Domain Name"),
+					))
 		})
 
 		It("should block localhost none A", func() {
-			resp, err = sut.Resolve(newRequest(mdnsLocal, dns.Type(dns.TypeHTTPS)))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeNameError))
+			Expect(sut.Resolve(newRequest(mdnsLocal, HTTPS))).
+				Should(
+					SatisfyAll(
+						HaveNoAnswer(),
+						HaveResponseType(ResponseTypeSPECIAL),
+						HaveReturnCode(dns.RcodeNameError),
+						HaveReason("Special-Use Domain Name"),
+					))
 		})
 	})
 
 	Describe("Resolve localhost", func() {
 		It("should resolve IPv4 loopback", func() {
-			resp, err = sut.Resolve(newRequest(sudnLocalhost, dns.Type(dns.TypeA)))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-			Expect(resp.Res.Answer[0].(*dns.A).A).Should(Equal(sut.defaults.loopbackV4))
+			Expect(sut.Resolve(newRequest(sudnLocalhost, A))).
+				Should(
+					SatisfyAll(
+						BeDNSRecord(sudnLocalhost, A, sut.defaults.loopbackV4.String()),
+						HaveTTL(BeNumerically("==", 0)),
+						HaveResponseType(ResponseTypeSPECIAL),
+						HaveReturnCode(dns.RcodeSuccess),
+					))
 		})
 
 		It("should resolve IPv6 loopback", func() {
-			resp, err = sut.Resolve(newRequest(sudnLocalhost, dns.Type(dns.TypeAAAA)))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-			Expect(resp.Res.Answer[0].(*dns.AAAA).AAAA).Should(Equal(sut.defaults.loopbackV6))
+			Expect(sut.Resolve(newRequest(sudnLocalhost, AAAA))).
+				Should(
+					SatisfyAll(
+						BeDNSRecord(sudnLocalhost, AAAA, sut.defaults.loopbackV6.String()),
+						HaveTTL(BeNumerically("==", 0)),
+						HaveResponseType(ResponseTypeSPECIAL),
+						HaveReturnCode(dns.RcodeSuccess),
+					))
 		})
 	})
 
 	Describe("Forward other", func() {
 		It("should forward example.com", func() {
-			resp, err = sut.Resolve(newRequest("example.com", dns.Type(dns.TypeA)))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-			Expect(resp.Res.Answer[0].(*dns.A).A).Should(Equal(net.ParseIP("123.145.123.145")))
+			Expect(sut.Resolve(newRequest("example.com", A))).
+				Should(
+					SatisfyAll(
+						BeDNSRecord("example.com.", A, "123.145.123.145"),
+						HaveTTL(BeNumerically("==", 300)),
+						HaveResponseType(ResponseTypeRESOLVED),
+						HaveReturnCode(dns.RcodeSuccess),
+					))
 		})
 	})
 

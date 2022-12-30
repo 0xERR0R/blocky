@@ -2,8 +2,8 @@ package resolver
 
 import (
 	"github.com/0xERR0R/blocky/config"
+	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/0xERR0R/blocky/model"
-
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -32,24 +32,29 @@ var _ = Describe("FilteringResolver", func() {
 	When("Filtering query types are defined", func() {
 		BeforeEach(func() {
 			sutConfig = config.FilteringConfig{
-				QueryTypes: config.NewQTypeSet(dns.Type(dns.TypeAAAA), dns.Type(dns.TypeMX)),
+				QueryTypes: config.NewQTypeSet(AAAA, MX),
 			}
 		})
 		It("Should delegate to next resolver if request query has other type", func() {
-			resp, err := sut.Resolve(newRequest("example.com", dns.Type(dns.TypeA)))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-			Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-			Expect(resp.Res.Answer).Should(BeEmpty())
+			Expect(sut.Resolve(newRequest("example.com.", A))).
+				Should(
+					SatisfyAll(
+						HaveNoAnswer(),
+						HaveResponseType(ResponseTypeRESOLVED),
+						HaveReturnCode(dns.RcodeSuccess),
+					))
+
 			// delegated to next resolver
 			Expect(m.Calls).Should(HaveLen(1))
 		})
 		It("Should return empty answer for defined query type", func() {
-			resp, err := sut.Resolve(newRequest("example.com", dns.Type(dns.TypeAAAA)))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-			Expect(resp.RType).Should(Equal(ResponseTypeFILTERED))
-			Expect(resp.Res.Answer).Should(BeEmpty())
+			Expect(sut.Resolve(newRequest("example.com.", AAAA))).
+				Should(
+					SatisfyAll(
+						HaveNoAnswer(),
+						HaveResponseType(ResponseTypeFILTERED),
+						HaveReturnCode(dns.RcodeSuccess),
+					))
 
 			// no call of next resolver
 			Expect(m.Calls).Should(BeZero())
@@ -65,11 +70,16 @@ var _ = Describe("FilteringResolver", func() {
 			sutConfig = config.FilteringConfig{}
 		})
 		It("Should return empty answer without error", func() {
-			resp, err := sut.Resolve(newRequest("example.com", dns.Type(dns.TypeAAAA)))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-			Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-			Expect(resp.Res.Answer).Should(HaveLen(0))
+			Expect(sut.Resolve(newRequest("example.com.", AAAA))).
+				Should(
+					SatisfyAll(
+						HaveNoAnswer(),
+						HaveResponseType(ResponseTypeRESOLVED),
+						HaveReturnCode(dns.RcodeSuccess),
+					))
+
+			// delegated to next resolver
+			Expect(m.Calls).Should(HaveLen(1))
 		})
 		It("Configure should output 'empty list'", func() {
 			c := sut.Configuration()

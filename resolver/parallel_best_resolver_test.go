@@ -14,7 +14,6 @@ import (
 )
 
 var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
-
 	const (
 		verifyUpstreams   = true
 		noVerifyUpstreams = false
@@ -35,7 +34,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 	When("some default upstream resolvers cannot be reached", func() {
 		It("should start normally", func() {
 			mockUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
-				response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 123, dns.Type(dns.TypeA), "123.124.122.122")
+				response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 123, A, "123.124.122.122")
 
 				return
 			})
@@ -89,9 +88,8 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 	Describe("Resolving result from fastest upstream resolver", func() {
 		var (
-			sut  Resolver
-			err  error
-			resp *Response
+			sut Resolver
+			err error
 		)
 		When("2 Upstream resolvers are defined", func() {
 			When("one resolver is fast and another is slow", func() {
@@ -100,7 +98,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					DeferCleanup(fastTestUpstream.Close)
 
 					slowTestUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
-						response, err := util.NewMsgWithAnswer("example.com.", 123, dns.Type(dns.TypeA), "123.124.122.123")
+						response, err := util.NewMsgWithAnswer("example.com.", 123, A, "123.124.122.123")
 						time.Sleep(50 * time.Millisecond)
 
 						Expect(err).Should(Succeed())
@@ -115,21 +113,22 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					Expect(err).Should(Succeed())
 				})
 				It("Should use result from fastest one", func() {
-					request := newRequest("example.com.", dns.Type(dns.TypeA))
-					resp, err = sut.Resolve(request)
-
-					Expect(err).Should(Succeed())
-
-					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.122"))
+					request := newRequest("example.com.", A)
+					Expect(sut.Resolve(request)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("example.com.", A, "123.124.122.122"),
+								HaveTTL(BeNumerically("==", 123)),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 			})
 			When("one resolver is slow, but another returns an error", func() {
 				BeforeEach(func() {
 					withErrorUpstream := config.Upstream{Host: "wrong"}
 					slowTestUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
-						response, err := util.NewMsgWithAnswer("example.com.", 123, dns.Type(dns.TypeA), "123.124.122.123")
+						response, err := util.NewMsgWithAnswer("example.com.", 123, A, "123.124.122.123")
 						time.Sleep(50 * time.Millisecond)
 
 						Expect(err).Should(Succeed())
@@ -143,14 +142,15 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					Expect(err).Should(Succeed())
 				})
 				It("Should use result from successful resolver", func() {
-					request := newRequest("example.com.", dns.Type(dns.TypeA))
-					resp, err = sut.Resolve(request)
-
-					Expect(err).Should(Succeed())
-
-					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.123"))
+					request := newRequest("example.com.", A)
+					Expect(sut.Resolve(request)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("example.com.", A, "123.124.122.123"),
+								HaveTTL(BeNumerically("==", 123)),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 			})
 			When("all resolvers return errors", func() {
@@ -164,18 +164,16 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					Expect(err).Should(Succeed())
 				})
 				It("Should return error", func() {
-					request := newRequest("example.com.", dns.Type(dns.TypeA))
-					resp, err = sut.Resolve(request)
+					request := newRequest("example.com.", A)
+					_, err = sut.Resolve(request)
 
 					Expect(err).Should(HaveOccurred())
 				})
 			})
-
 		})
 		When("client specific resolvers are defined", func() {
 			When("client name matches", func() {
 				BeforeEach(func() {
-
 					defaultMockUpstream := NewMockUDPUpstreamServer().
 						WithAnswerRR("example.com 123 IN A 123.124.122.122")
 					DeferCleanup(defaultMockUpstream.Close)
@@ -206,67 +204,88 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					}, nil, noVerifyUpstreams)
 				})
 				It("Should use default if client name or IP don't match", func() {
-					request := newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.55", "test")
-					resp, err = sut.Resolve(request)
+					request := newRequestWithClient("example.com.", A, "192.168.178.55", "test")
 
-					Expect(err).Should(Succeed())
-					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.122"))
+					Expect(sut.Resolve(request)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("example.com.", A, "123.124.122.122"),
+								HaveTTL(BeNumerically("==", 123)),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 				It("Should use client specific resolver if client name matches exact", func() {
-					request := newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.55", "laptop")
-					resp, err = sut.Resolve(request)
+					request := newRequestWithClient("example.com.", A, "192.168.178.55", "laptop")
 
-					Expect(err).Should(Succeed())
-					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.123"))
+					Expect(sut.Resolve(request)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("example.com.", A, "123.124.122.123"),
+								HaveTTL(BeNumerically("==", 123)),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 				It("Should use client specific resolver if client name matches with wildcard", func() {
-					request := newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.55", "client-test-m")
-					resp, err = sut.Resolve(request)
+					request := newRequestWithClient("example.com.", A, "192.168.178.55", "client-test-m")
 
-					Expect(err).Should(Succeed())
-					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.124"))
+					Expect(sut.Resolve(request)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("example.com.", A, "123.124.122.124"),
+								HaveTTL(BeNumerically("==", 123)),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 				It("Should use client specific resolver if client name matches with range wildcard", func() {
-					request := newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.55", "client7")
-					resp, err = sut.Resolve(request)
+					request := newRequestWithClient("example.com.", A, "192.168.178.55", "client7")
 
-					Expect(err).Should(Succeed())
-					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.124"))
+					Expect(sut.Resolve(request)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("example.com.", A, "123.124.122.124"),
+								HaveTTL(BeNumerically("==", 123)),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 				It("Should use client specific resolver if client IP matches", func() {
-					request := newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.33", "cl")
-					resp, err = sut.Resolve(request)
+					request := newRequestWithClient("example.com.", A, "192.168.178.33", "cl")
 
-					Expect(err).Should(Succeed())
-					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.125"))
+					Expect(sut.Resolve(request)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("example.com.", A, "123.124.122.125"),
+								HaveTTL(BeNumerically("==", 123)),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 				It("Should use client specific resolver if client IP/name matches", func() {
-					request := newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.33", "192.168.178.33")
-					resp, err = sut.Resolve(request)
+					request := newRequestWithClient("example.com.", A, "192.168.178.33", "192.168.178.33")
 
-					Expect(err).Should(Succeed())
-					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.125"))
+					Expect(sut.Resolve(request)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("example.com.", A, "123.124.122.125"),
+								HaveTTL(BeNumerically("==", 123)),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 				It("Should use client specific resolver if client's CIDR (10.43.8.64 - 10.43.8.79) matches", func() {
-					request := newRequestWithClient("example.com.", dns.Type(dns.TypeA), "10.43.8.64", "cl")
-					resp, err = sut.Resolve(request)
+					request := newRequestWithClient("example.com.", A, "10.43.8.64", "cl")
 
-					Expect(err).Should(Succeed())
-					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-					Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-					Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.126"))
+					Expect(sut.Resolve(request)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("example.com.", A, "123.124.122.126"),
+								HaveTTL(BeNumerically("==", 123)),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 			})
 		})
@@ -282,12 +301,16 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 				}, nil, noVerifyUpstreams)
 			})
 			It("Should use result from defined resolver", func() {
-				request := newRequest("example.com.", dns.Type(dns.TypeA))
-				resp, err = sut.Resolve(request)
+				request := newRequest("example.com.", A)
 
-				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
-				Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-				Expect(resp.Res.Answer).Should(BeDNSRecord("example.com.", dns.TypeA, 123, "123.124.122.122"))
+				Expect(sut.Resolve(request)).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("example.com.", A, "123.124.122.122"),
+							HaveTTL(BeNumerically("==", 123)),
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 			})
 		})
 	})
@@ -314,7 +337,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 					for i := 0; i < 100; i++ {
 						r1, r2 := pickRandom(sut.resolversForClient(newRequestWithClient(
-							"example.com", dns.Type(dns.TypeA), "123.123.100.100",
+							"example.com", A, "123.123.100.100",
 						)))
 						res1 := r1.resolver
 						res2 := r2.resolver
@@ -331,7 +354,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 				By("perform 10 request, error upstream's weight will be reduced", func() {
 					// perform 10 requests
 					for i := 0; i < 100; i++ {
-						request := newRequest("example.com.", dns.Type(dns.TypeA))
+						request := newRequest("example.com.", A)
 						_, _ = sut.Resolve(request)
 					}
 				})
@@ -341,7 +364,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 					for i := 0; i < 100; i++ {
 						r1, r2 := pickRandom(sut.resolversForClient(newRequestWithClient(
-							"example.com", dns.Type(dns.TypeA), "123.123.100.100",
+							"example.com", A, "123.123.100.100",
 						)))
 						res1 := r1.resolver.(*UpstreamResolver)
 						res2 := r2.resolver.(*UpstreamResolver)
@@ -376,9 +399,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 	})
 
 	Describe("Configuration output", func() {
-		var (
-			sut Resolver
-		)
+		var sut Resolver
 		BeforeEach(func() {
 			config.GetConfig().StartVerifyUpstream = false
 
@@ -392,5 +413,4 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 			Expect(len(c)).Should(BeNumerically(">", 1))
 		})
 	})
-
 })

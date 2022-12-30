@@ -7,7 +7,6 @@ import (
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/go-redis/redis/v8"
-	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
@@ -71,9 +70,14 @@ var _ = Describe("Redis configuration tests", func() {
 				DeferCleanup(blocky2.Terminate)
 			})
 			It("2nd instance of blocky should use cache from redis", func() {
-				msg := util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA))
+				msg := util.NewMsgWithQuestion("google.de.", A)
 				By("Query first blocky instance, should store cache in redis", func() {
-					Expect(doDNSRequest(blocky1, msg)).Should(BeDNSRecord("google.de.", dns.TypeA, 123, "1.2.3.4"))
+					Expect(doDNSRequest(blocky1, msg)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("google.de.", A, "1.2.3.4"),
+								HaveTTL(BeNumerically("==", 123)),
+							))
 				})
 
 				By("Check redis, must contain one cache entry", func() {
@@ -85,7 +89,12 @@ var _ = Describe("Redis configuration tests", func() {
 				})
 
 				By("Query second blocky instance, should use cache from redis", func() {
-					Expect(doDNSRequest(blocky2, msg)).Should(BeDNSRecord("google.de.", dns.TypeA, 0, "1.2.3.4"))
+					Expect(doDNSRequest(blocky2, msg)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("google.de.", A, "1.2.3.4"),
+								HaveTTL(BeNumerically("<=", 123)),
+							))
 				})
 
 				By("No warnings/errors in log", func() {
@@ -113,9 +122,14 @@ var _ = Describe("Redis configuration tests", func() {
 				DeferCleanup(blocky1.Terminate)
 			})
 			It("should load cache from redis after start", func() {
-				msg := util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA))
+				msg := util.NewMsgWithQuestion("google.de.", A)
 				By("Query first blocky instance, should store cache in redis\"", func() {
-					Expect(doDNSRequest(blocky1, msg)).Should(BeDNSRecord("google.de.", dns.TypeA, 123, "1.2.3.4"))
+					Expect(doDNSRequest(blocky1, msg)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("google.de.", A, "1.2.3.4"),
+								HaveTTL(BeNumerically("==", 123)),
+							))
 				})
 
 				By("Check redis, must contain one cache entry", func() {
@@ -142,7 +156,12 @@ var _ = Describe("Redis configuration tests", func() {
 				})
 
 				By("Query second blocky instance", func() {
-					Expect(doDNSRequest(blocky2, msg)).Should(BeDNSRecord("google.de.", dns.TypeA, 0, "1.2.3.4"))
+					Expect(doDNSRequest(blocky2, msg)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("google.de.", A, "1.2.3.4"),
+								HaveTTL(BeNumerically("<=", 123)),
+							))
 				})
 
 				By("No warnings/errors in log", func() {
