@@ -73,7 +73,6 @@ var _ = Describe("ListCache", func() {
 				found, group := sut.Match("google.com", []string{"gr1"})
 				Expect(found).Should(BeFalse())
 				Expect(group).Should(BeEmpty())
-
 			})
 		})
 		When("a temporary/transient err occurs on download", func() {
@@ -81,15 +80,15 @@ var _ = Describe("ListCache", func() {
 				// should produce a transient error on second and third attempt
 				data := make(chan func() (io.ReadCloser, error), 3)
 				mockDownloader := &MockDownloader{data: data}
-				// nolint:unparam
+				//nolint:unparam
 				data <- func() (io.ReadCloser, error) {
 					return io.NopCloser(strings.NewReader("blocked1.com")), nil
 				}
-				// nolint:unparam
+				//nolint:unparam
 				data <- func() (io.ReadCloser, error) {
 					return nil, &TransientError{inner: errors.New("boom")}
 				}
-				// nolint:unparam
+				//nolint:unparam
 				data <- func() (io.ReadCloser, error) {
 					return nil, &TransientError{inner: errors.New("boom")}
 				}
@@ -112,7 +111,6 @@ var _ = Describe("ListCache", func() {
 						g.Expect(found).Should(BeTrue())
 						g.Expect(group).Should(Equal("gr1"))
 					}, "1s").Should(Succeed())
-
 				})
 
 				Expect(sut.refresh(true)).Should(HaveOccurred())
@@ -158,7 +156,6 @@ var _ = Describe("ListCache", func() {
 						g.Expect(found).Should(BeTrue())
 						g.Expect(group).Should(Equal("gr1"))
 					}, "1s").Should(Succeed())
-
 				})
 
 				Expect(sut.refresh(false)).Should(HaveOccurred())
@@ -349,7 +346,7 @@ var _ = Describe("ListCache", func() {
 
 				c := sut.Configuration()
 				Expect(c).Should(ContainElement("refresh period: 1 hour"))
-				Expect(c).Should(HaveLen(11))
+				Expect(len(c)).Should(BeNumerically(">", 1))
 			})
 		})
 		When("refresh is disabled", func() {
@@ -401,7 +398,7 @@ func createTestListFile(dir string, totalLines int) string {
 
 	w := bufio.NewWriter(file)
 	for i := 0; i < totalLines; i++ {
-		fmt.Fprintln(w, RandStringBytes(8+rand.Intn(10))+".com") // nolint:gosec
+		fmt.Fprintln(w, RandStringBytes(8+rand.Intn(10))+".com")
 	}
 	w.Flush()
 
@@ -413,7 +410,7 @@ const charpool = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789
 func RandStringBytes(n int) string {
 	b := make([]byte, n)
 	for i := range b {
-		b[i] = charpool[rand.Intn(len(charpool))] // nolint:gosec
+		b[i] = charpool[rand.Intn(len(charpool))]
 	}
 
 	return string(b)

@@ -1,4 +1,4 @@
-.PHONY: all clean build swagger test lint run fmt docker-build help
+.PHONY: all clean build swagger test e2e-test lint run fmt docker-build help
 .DEFAULT_GOAL:=help
 
 VERSION?=$(shell git describe --always --tags)
@@ -35,6 +35,7 @@ swagger: ## creates swagger documentation as html file
 	$(shell) node_modules/html-inline/bin/cmd.js /tmp/swagger/index.html > docs/swagger.html
 
 serve_docs: ## serves online docs
+	pip install mkdocs-material
 	mkdocs serve
 
 build:  ## Build binary
@@ -53,11 +54,20 @@ ifdef BIN_AUTOCAB
 	setcap 'cap_net_bind_service=+ep' $(GO_BUILD_OUTPUT)
 endif
 
-test:  ## run tests
-	go run github.com/onsi/ginkgo/v2/ginkgo -v --coverprofile=coverage.txt --covermode=atomic -cover ./...
+test: ## run tests
+	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --coverprofile=coverage.txt --covermode=atomic -cover ./...
+
+e2e-test: ## run e2e tests
+	docker buildx build \
+		--build-arg VERSION=blocky-e2e \
+		--network=host \
+		-o type=docker \
+		-t blocky-e2e \
+		.
+	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="e2e" ./...
 
 race: ## run tests with race detector
-	go run github.com/onsi/ginkgo/v2/ginkgo --race ./...
+	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --race ./...
 
 lint: ## run golangcli-lint checks
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint run --timeout 5m
@@ -66,7 +76,8 @@ run: build ## Build and run binary
 	./$(BIN_OUT_DIR)/$(BINARY_NAME)
 
 fmt: ## gofmt and goimports all go files
-	find . -name '*.go' | while read -r file; do gofmt -w -s "$$file"; goimports -w "$$file"; done
+	go run mvdan.cc/gofumpt -l -w -extra .
+	find . -name '*.go' -exec goimports -w {} +
 
 docker-build:  ## Build docker image 
 	go generate ./...
@@ -79,4 +90,4 @@ docker-build:  ## Build docker image
 		.
 
 help:  ## Shows help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[0-9a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'

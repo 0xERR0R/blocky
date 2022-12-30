@@ -5,7 +5,6 @@ import (
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/util"
-	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 )
 
@@ -22,13 +21,16 @@ func NewLoggerWriter() *LoggerWriter {
 func (d *LoggerWriter) Write(entry *LogEntry) {
 	d.logger.WithFields(
 		logrus.Fields{
-			"client_ip":       entry.Request.ClientIP,
-			"client_names":    strings.Join(entry.Request.ClientNames, "; "),
-			"response_reason": entry.Response.Reason,
-			"question":        util.QuestionToString(entry.Request.Req.Question),
-			"response_code":   dns.RcodeToString[entry.Response.Res.Rcode],
-			"answer":          util.AnswerToString(entry.Response.Res.Answer),
+			"client_ip":       entry.ClientIP,
+			"client_names":    strings.Join(entry.ClientNames, "; "),
+			"response_reason": entry.ResponseReason,
+			"response_type":   entry.ResponseType,
+			"response_code":   entry.ResponseCode,
+			"question_name":   entry.QuestionName,
+			"question_type":   entry.QuestionType,
+			"answer":          entry.Answer,
 			"duration_ms":     entry.DurationMs,
+			"hostname":        util.HostnameString(),
 		},
 	).Infof("query resolved")
 }

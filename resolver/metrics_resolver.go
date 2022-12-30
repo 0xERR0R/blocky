@@ -30,7 +30,8 @@ func (m *MetricsResolver) Resolve(request *model.Request) (*model.Response, erro
 	if m.cfg.Enable {
 		m.totalQueries.With(prometheus.Labels{
 			"client": strings.Join(request.ClientNames, ","),
-			"type":   dns.TypeToString[request.Req.Question[0].Qtype]}).Inc()
+			"type":   dns.TypeToString[request.Req.Question[0].Qtype],
+		}).Inc()
 
 		reqDurationMs := float64(time.Since(request.RequestTS).Milliseconds())
 		responseType := "err"
@@ -47,7 +48,8 @@ func (m *MetricsResolver) Resolve(request *model.Request) (*model.Response, erro
 			m.totalResponse.With(prometheus.Labels{
 				"reason":        response.Reason,
 				"response_code": dns.RcodeToString[response.Res.Rcode],
-				"response_type": response.RType.String()}).Inc()
+				"response_type": response.RType.String(),
+			}).Inc()
 		}
 	}
 
@@ -56,6 +58,10 @@ func (m *MetricsResolver) Resolve(request *model.Request) (*model.Response, erro
 
 // Configuration gets the config of this resolver in a string slice
 func (m *MetricsResolver) Configuration() (result []string) {
+	if !m.cfg.Enable {
+		return configDisabled
+	}
+
 	result = append(result, "metrics:")
 	result = append(result, fmt.Sprintf("  Enable = %t", m.cfg.Enable))
 	result = append(result, fmt.Sprintf("  Path   = %s", m.cfg.Path))

@@ -104,9 +104,8 @@ func (s *Server) dohPostRequestHandler(rw http.ResponseWriter, req *http.Request
 
 func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *http.Request) {
 	msg := new(dns.Msg)
-	err := msg.Unpack(rawMsg)
 
-	if err != nil {
+	if err := msg.Unpack(rawMsg); err != nil {
 		logger().Error("can't deserialize message: ", err)
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 
@@ -121,7 +120,6 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 	r := newRequest(net.ParseIP(extractIP(req)), model.RequestProtocolTCP, clientID, msg)
 
 	resResponse, err := s.queryResolver.Resolve(r)
-
 	if err != nil {
 		logAndResponseWithError(err, "unable to process query: ", rw)
 
@@ -180,7 +178,6 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set(contentTypeHeader, jsonContentType)
 
 	err := json.NewDecoder(req.Body).Decode(&queryRequest)
-
 	if err != nil {
 		logAndResponseWithError(err, "can't read request: ", rw)
 
@@ -207,7 +204,6 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 	r := createResolverRequest(nil, dnsRequest)
 
 	response, err := s.queryResolver.Resolve(r)
-
 	if err != nil {
 		logAndResponseWithError(err, "unable to process query: ", rw)
 
@@ -220,7 +216,6 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 		Response:     util.AnswerToString(response.Res.Answer),
 		ReturnCode:   dns.RcodeToString[response.Res.Rcode],
 	})
-
 	if err != nil {
 		logAndResponseWithError(err, "unable to marshal response: ", rw)
 

@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/hako/durafmt"
@@ -40,7 +41,7 @@ type cacheValue struct {
 }
 
 // NewCachingResolver creates a new resolver instance
-func NewCachingResolver(cfg config.CachingConfig, redis *redis.Client) ChainedResolver {
+func NewCachingResolver(cfg config.CachingConfig, redis *redis.Client) *CachingResolver {
 	c := &CachingResolver{
 		minCacheTimeSec:   int(time.Duration(cfg.MinCachingTime).Seconds()),
 		maxCacheTimeSec:   int(time.Duration(cfg.MaxCachingTime).Seconds()),
@@ -112,7 +113,7 @@ func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.
 			if response.Res.Rcode == dns.RcodeSuccess {
 				evt.Bus().Publish(evt.CachingDomainPrefetched, domainName)
 
-				return cacheValue{response.Res.Answer, true}, time.Duration(r.adjustTTLs(response.Res.Answer)) * time.Second
+				return cacheValue{response.Res.Answer, true}, r.adjustTTLs(response.Res.Answer)
 			}
 		} else {
 			util.LogOnError(fmt.Sprintf("can't prefetch '%s' ", domainName), err)
@@ -125,9 +126,7 @@ func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.
 // Configuration returns a current resolver configuration
 func (r *CachingResolver) Configuration() (result []string) {
 	if r.maxCacheTimeSec < 0 {
-		result = []string{"deactivated"}
-
-		return
+		return configDisabled
 	}
 
 	result = append(result, fmt.Sprintf("minCacheTimeInSec = %d", r.minCacheTimeSec))
@@ -185,9 +184,12 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 				}
 
 				// Answer from successful request
-				resp.Answer = v.answer
-				for _, rr := range resp.Answer {
-					rr.Header().Ttl = uint32(ttl.Seconds())
+				for _, rr := range v.answer {
+					// make copy here since entries in cache can be modified by other goroutines (e.g. redis cache)
+					cp := dns.Copy(rr)
+					cp.Header().Ttl = uint32(ttl.Seconds())
+
+					resp.Answer = append(resp.Answer, cp)
 				}
 
 				return &model.Response{Res: resp, RType: model.ResponseTypeCACHED, Reason: "CACHED"}, nil
@@ -211,7 +213,7 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 	return response, err
 }
 
-func (r *CachingResolver) trackQueryDomainNameCount(domain string, cacheKey string, logger *logrus.Entry) {
+func (r *CachingResolver) trackQueryDomainNameCount(domain, cacheKey string, logger *logrus.Entry) {
 	if r.prefetchingNameCache != nil {
 		var domainCount int
 		if x, _ := r.prefetchingNameCache.Get(cacheKey); x != nil {
@@ -232,7 +234,7 @@ func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, 
 
 	if response.Res.Rcode == dns.RcodeSuccess {
 		// put value into cache
-		r.resultCache.Put(cacheKey, cacheValue{answer, prefetch}, time.Duration(r.adjustTTLs(answer))*time.Second)
+		r.resultCache.Put(cacheKey, cacheValue{answer, prefetch}, r.adjustTTLs(answer))
 	} else if response.Res.Rcode == dns.RcodeNameError {
 		if r.cacheTimeNegative > 0 {
 			// put return code if NXDOMAIN
@@ -249,25 +251,35 @@ func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, 
 	}
 }
 
-func (r *CachingResolver) adjustTTLs(answer []dns.RR) (maxTTL uint32) {
+// adjustTTLs calculates and returns the max TTL (considers also the min and max cache time)
+// for all records from answer or a negative cache time for empty answer
+// adjust the TTL in the answer header accordingly
+func (r *CachingResolver) adjustTTLs(answer []dns.RR) (maxTTL time.Duration) {
+	var max uint32
+
+	if len(answer) == 0 {
+		return r.cacheTimeNegative
+	}
+
 	for _, a := range answer {
 		// if TTL < mitTTL -> adjust the value, set minTTL
 		if r.minCacheTimeSec > 0 {
-			if a.Header().Ttl < uint32(r.minCacheTimeSec) {
-				a.Header().Ttl = uint32(r.minCacheTimeSec)
+			if atomic.LoadUint32(&a.Header().Ttl) < uint32(r.minCacheTimeSec) {
+				atomic.StoreUint32(&a.Header().Ttl, uint32(r.minCacheTimeSec))
 			}
 		}
 
 		if r.maxCacheTimeSec > 0 {
-			if a.Header().Ttl > uint32(r.maxCacheTimeSec) {
-				a.Header().Ttl = uint32(r.maxCacheTimeSec)
+			if atomic.LoadUint32(&a.Header().Ttl) > uint32(r.maxCacheTimeSec) {
+				atomic.StoreUint32(&a.Header().Ttl, uint32(r.maxCacheTimeSec))
 			}
 		}
 
-		if maxTTL < a.Header().Ttl {
-			maxTTL = a.Header().Ttl
+		headerTTL := atomic.LoadUint32(&a.Header().Ttl)
+		if max < headerTTL {
+			max = headerTTL
 		}
 	}
 
-	return
+	return time.Duration(max) * time.Second
 }

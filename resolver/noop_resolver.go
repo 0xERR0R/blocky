@@ -4,7 +4,7 @@ import (
 	"github.com/0xERR0R/blocky/model"
 )
 
-var NoResponse = &model.Response{} // nolint:gochecknoglobals
+var NoResponse = &model.Response{} //nolint:gochecknoglobals
 
 // NoOpResolver is used to finish a resolver branch as created in RewriterResolver
 type NoOpResolver struct{}

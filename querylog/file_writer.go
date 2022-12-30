@@ -12,11 +12,13 @@ import (
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/util"
-	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 )
 
-const loggerPrefixFileWriter = "fileQueryLogWriter"
+const (
+	loggerPrefixFileWriter = "fileQueryLogWriter"
+	filePermission         = 0o666
+)
 
 var validFilePattern = regexp.MustCompile("[^a-zA-Z0-9-_]+")
 
@@ -44,7 +46,7 @@ func (d *FileWriter) Write(entry *LogEntry) {
 	dateString := entry.Start.Format("2006-01-02")
 
 	if d.perClient {
-		clientPrefix = strings.Join(entry.Request.ClientNames, "-")
+		clientPrefix = strings.Join(entry.ClientNames, "-")
 	} else {
 		clientPrefix = "ALL"
 	}
@@ -52,7 +54,7 @@ func (d *FileWriter) Write(entry *LogEntry) {
 	fileName := fmt.Sprintf("%s_%s.log", dateString, escape(clientPrefix))
 	writePath := filepath.Join(d.target, fileName)
 
-	file, err := os.OpenFile(writePath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
+	file, err := os.OpenFile(writePath, os.O_APPEND|os.O_CREATE|os.O_RDWR, filePermission)
 
 	util.LogOnErrorWithEntry(log.PrefixedLog(loggerPrefixFileWriter).WithField("file_name", writePath),
 		"can't create/open file", err)
@@ -102,18 +104,18 @@ func (d *FileWriter) CleanUp() {
 }
 
 func createQueryLogRow(logEntry *LogEntry) []string {
-	request := logEntry.Request
-	response := logEntry.Response
-
 	return []string{
 		logEntry.Start.Format("2006-01-02 15:04:05"),
-		request.ClientIP.String(),
-		strings.Join(request.ClientNames, "; "),
+		logEntry.ClientIP,
+		strings.Join(logEntry.ClientNames, "; "),
 		fmt.Sprintf("%d", logEntry.DurationMs),
-		response.Reason,
-		util.QuestionToString(request.Req.Question),
-		util.AnswerToString(response.Res.Answer),
-		dns.RcodeToString[response.Res.Rcode],
+		logEntry.ResponseReason,
+		logEntry.QuestionName,
+		logEntry.Answer,
+		logEntry.ResponseCode,
+		logEntry.ResponseType,
+		logEntry.QuestionType,
+		util.HostnameString(),
 	}
 }
 

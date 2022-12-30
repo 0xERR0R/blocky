@@ -10,9 +10,10 @@ import (
 	"gorm.io/gorm/logger"
 
 	"github.com/0xERR0R/blocky/log"
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/0xERR0R/blocky/util"
-	"github.com/miekg/dns"
+
 	"golang.org/x/net/publicsuffix"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -31,6 +32,7 @@ type logEntry struct {
 	EffectiveTLDP string
 	Answer        string
 	ResponseCode  string
+	Hostname      string
 }
 
 type DatabaseWriter struct {
@@ -41,8 +43,9 @@ type DatabaseWriter struct {
 	dbFlushPeriod    time.Duration
 }
 
-func NewDatabaseWriter(dbType string, target string, logRetentionDays uint64,
-	dbFlushPeriod time.Duration) (*DatabaseWriter, error) {
+func NewDatabaseWriter(dbType, target string, logRetentionDays uint64,
+	dbFlushPeriod time.Duration,
+) (*DatabaseWriter, error) {
 	switch dbType {
 	case "mysql":
 		return newDatabaseWriter(mysql.Open(target), logRetentionDays, dbFlushPeriod)
@@ -54,7 +57,8 @@ func NewDatabaseWriter(dbType string, target string, logRetentionDays uint64,
 }
 
 func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64,
-	dbFlushPeriod time.Duration) (*DatabaseWriter, error) {
+	dbFlushPeriod time.Duration,
+) (*DatabaseWriter, error) {
 	db, err := gorm.Open(target, &gorm.Config{
 		Logger: logger.New(
 			log.Log(),
@@ -65,7 +69,6 @@ func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64,
 				Colorful:                  false,
 			}),
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("can't create database connection: %w", err)
 	}
@@ -78,7 +81,8 @@ func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64,
 	w := &DatabaseWriter{
 		db:               db,
 		logRetentionDays: logRetentionDays,
-		dbFlushPeriod:    dbFlushPeriod}
+		dbFlushPeriod:    dbFlushPeriod,
+	}
 
 	go w.periodicFlush()
 
@@ -120,26 +124,30 @@ func (d *DatabaseWriter) periodicFlush() {
 
 	for {
 		<-ticker.C
-		d.doDBWrite()
+
+		err := d.doDBWrite()
+
+		util.LogOnError("can't write entries to the database: ", err)
 	}
 }
 
 func (d *DatabaseWriter) Write(entry *LogEntry) {
-	domain := util.ExtractDomain(entry.Request.Req.Question[0])
+	domain := util.ExtractDomainOnly(entry.QuestionName)
 	eTLD, _ := publicsuffix.EffectiveTLDPlusOne(domain)
 
 	e := &logEntry{
 		RequestTS:     &entry.Start,
-		ClientIP:      entry.Request.ClientIP.String(),
-		ClientName:    strings.Join(entry.Request.ClientNames, "; "),
+		ClientIP:      entry.ClientIP,
+		ClientName:    strings.Join(entry.ClientNames, "; "),
 		DurationMs:    entry.DurationMs,
-		Reason:        entry.Response.Reason,
-		ResponseType:  entry.Response.RType.String(),
-		QuestionType:  dns.TypeToString[entry.Request.Req.Question[0].Qtype],
+		Reason:        entry.ResponseReason,
+		ResponseType:  entry.ResponseType,
+		QuestionType:  entry.QuestionType,
 		QuestionName:  domain,
 		EffectiveTLDP: eTLD,
-		Answer:        util.AnswerToString(entry.Response.Res.Answer),
-		ResponseCode:  dns.RcodeToString[entry.Response.Res.Rcode],
+		Answer:        entry.Answer,
+		ResponseCode:  entry.ResponseCode,
+		Hostname:      util.HostnameString(),
 	}
 
 	d.lock.Lock()
@@ -155,16 +163,32 @@ func (d *DatabaseWriter) CleanUp() {
 	d.db.Where("request_ts < ?", deletionDate).Delete(&logEntry{})
 }
 
-func (d *DatabaseWriter) doDBWrite() {
+func (d *DatabaseWriter) doDBWrite() error {
 	d.lock.Lock()
 	defer d.lock.Unlock()
+
+	var err *multierror.Error
 
 	if len(d.pendingEntries) > 0 {
 		log.Log().Tracef("%d entries to write", len(d.pendingEntries))
 
-		// write bulk
-		d.db.Create(d.pendingEntries)
+		const bulkSize = 100
+
+		for i := 0; i < len(d.pendingEntries); i += bulkSize {
+			j := i + bulkSize
+			if j > len(d.pendingEntries) {
+				j = len(d.pendingEntries)
+			}
+			// write bulk
+			tx := d.db.Create(d.pendingEntries[i:j])
+			err = multierror.Append(err, tx.Error)
+		}
+
 		// clear the slice with pending entries
 		d.pendingEntries = nil
+
+		return err.ErrorOrNil()
 	}
+
+	return nil
 }

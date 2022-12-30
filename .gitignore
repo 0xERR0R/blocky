@@ -2,6 +2,7 @@
 .vscode/
 *.iml
 *.report
+*.test
 /*.pem
 bin/
 dist/

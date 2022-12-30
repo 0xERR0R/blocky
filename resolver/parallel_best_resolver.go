@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -32,6 +34,29 @@ type upstreamResolverStatus struct {
 	lastErrorTime atomic.Value
 }
 
+func newUpstreamResolverStatus(resolver Resolver) *upstreamResolverStatus {
+	status := &upstreamResolverStatus{
+		resolver: resolver,
+	}
+
+	status.lastErrorTime.Store(time.Unix(0, 0))
+
+	return status
+}
+
+func (r *upstreamResolverStatus) resolve(req *model.Request, ch chan<- requestResponse) {
+	resp, err := r.resolver.Resolve(req)
+	if err != nil && !errors.Is(err, context.Canceled) { // ignore `Canceled`: resolver lost the race, not an error
+		// update the last error time
+		r.lastErrorTime.Store(time.Now())
+	}
+
+	ch <- requestResponse{
+		response: resp,
+		err:      err,
+	}
+}
+
 type requestResponse struct {
 	response *model.Response
 	err      error
@@ -50,46 +75,42 @@ func testResolver(r *UpstreamResolver) error {
 }
 
 // NewParallelBestResolver creates new resolver instance
-func NewParallelBestResolver(upstreamResolvers map[string][]config.Upstream, bootstrap *Bootstrap) (Resolver, error) {
-	logger := logger("parallel resolver")
-	s := make(map[string][]*upstreamResolverStatus)
+func NewParallelBestResolver(
+	upstreamResolvers map[string][]config.Upstream, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
+) (Resolver, error) {
+	logger := logger(parallelResolverLogger)
 
-	for name, res := range upstreamResolvers {
-		var resolvers []*upstreamResolverStatus
+	s := make(map[string][]*upstreamResolverStatus, len(upstreamResolvers))
 
-		var errResolvers int
+	for name, upstreamCfgs := range upstreamResolvers {
+		group := make([]*upstreamResolverStatus, 0, len(upstreamCfgs))
+		hasValidResolver := false
 
-		for _, u := range res {
-			r, err := NewUpstreamResolver(u, bootstrap)
+		for _, u := range upstreamCfgs {
+			r, err := NewUpstreamResolver(u, bootstrap, shouldVerifyUpstreams)
 			if err != nil {
 				logger.Warnf("upstream group %s: %v", name, err)
-				errResolvers++
 
 				continue
 			}
 
-			if bootstrap != skipUpstreamCheck {
+			if shouldVerifyUpstreams {
 				err = testResolver(r)
 				if err != nil {
 					logger.Warn(err)
-					errResolvers++
+				} else {
+					hasValidResolver = true
 				}
 			}
 
-			resolver := &upstreamResolverStatus{
-				resolver: r,
-			}
-			resolver.lastErrorTime.Store(time.Unix(0, 0))
-			resolvers = append(resolvers, resolver)
+			group = append(group, newUpstreamResolverStatus(r))
 		}
 
-		if bootstrap != skipUpstreamCheck {
-			if bootstrap.startVerifyUpstream && errResolvers == len(res) {
-				return nil, fmt.Errorf("unable to reach any DNS resolvers configured for resolver group %s", name)
-			}
+		if shouldVerifyUpstreams && !hasValidResolver {
+			return nil, fmt.Errorf("no valid upstream for group %s", name)
 		}
 
-		s[name] = resolvers
+		s[name] = group
 	}
 
 	if len(s[upstreamDefaultCfgName]) == 0 {
@@ -129,17 +150,19 @@ func (r ParallelBestResolver) String() string {
 }
 
 func (r *ParallelBestResolver) resolversForClient(request *model.Request) (result []*upstreamResolverStatus) {
+	clientIP := request.ClientIP.String()
+
 	// try client names
 	for _, cName := range request.ClientNames {
 		for clientDefinition, upstreams := range r.resolversPerClient {
-			if util.ClientNameMatchesGroupName(clientDefinition, cName) {
+			if cName != clientIP && util.ClientNameMatchesGroupName(clientDefinition, cName) {
 				result = append(result, upstreams...)
 			}
 		}
 	}
 
 	// try IP
-	upstreams, found := r.resolversPerClient[request.ClientIP.String()]
+	upstreams, found := r.resolversPerClient[clientIP]
 
 	if found {
 		result = append(result, upstreams...)
@@ -181,11 +204,11 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 
 	logger.WithField("resolver", r1.resolver).Debug("delegating to resolver")
 
-	go resolve(request, r1, ch)
+	go r1.resolve(request, ch)
 
 	logger.WithField("resolver", r2.resolver).Debug("delegating to resolver")
 
-	go resolve(request, r2, ch)
+	go r2.resolve(request, ch)
 
 	//nolint: gosimple
 	for len(collectedErrors) < resolverCount {
@@ -239,20 +262,8 @@ func weightedRandom(in []*upstreamResolverStatus, exclude Resolver) *upstreamRes
 		}
 	}
 
-	c, _ := weightedrand.NewChooser(choices...)
+	c, err := weightedrand.NewChooser(choices...)
+	util.LogOnError("can't choose random weighted resolver: ", err)
 
 	return c.Pick().(*upstreamResolverStatus)
-}
-
-func resolve(req *model.Request, resolver *upstreamResolverStatus, ch chan<- requestResponse) {
-	resp, err := resolver.resolver.Resolve(req)
-
-	// update the last error time
-	if err != nil {
-		resolver.lastErrorTime.Store(time.Now())
-	}
-	ch <- requestResponse{
-		response: resp,
-		err:      err,
-	}
 }

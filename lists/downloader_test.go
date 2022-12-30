@@ -90,7 +90,6 @@ var _ = Describe("Downloader", func() {
 				Expect(err).Should(Succeed())
 				Expect(buf.String()).Should(Equal("line.one\nline.two"))
 			})
-
 		})
 		When("Server returns NOT_FOUND (404)", func() {
 			BeforeEach(func() {
@@ -110,7 +109,6 @@ var _ = Describe("Downloader", func() {
 				Expect(failedDownloadCountEvtChannel).Should(HaveLen(3))
 				Expect(failedDownloadCountEvtChannel).Should(Receive(Equal(server.URL)))
 			})
-
 		})
 		When("Wrong URL is defined", func() {
 			BeforeEach(func() {
@@ -148,7 +146,6 @@ var _ = Describe("Downloader", func() {
 					}
 				}))
 				DeferCleanup(server.Close)
-
 			})
 			It("Should perform a retry and return file content", func() {
 				reader, err := sut.DownloadFile(server.URL)

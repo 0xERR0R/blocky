@@ -20,6 +20,8 @@ const (
 	RequestProtocolUDP
 )
 
+var ErrInvalidRequestProtocol = fmt.Errorf("not a valid RequestProtocol, try [%s]", strings.Join(_RequestProtocolNames, ", "))
+
 const _RequestProtocolName = "TCPUDP"
 
 var _RequestProtocolNames = []string{
@@ -57,7 +59,7 @@ func ParseRequestProtocol(name string) (RequestProtocol, error) {
 	if x, ok := _RequestProtocolValue[name]; ok {
 		return x, nil
 	}
-	return RequestProtocol(0), fmt.Errorf("%s is not a valid RequestProtocol, try [%s]", name, strings.Join(_RequestProtocolNames, ", "))
+	return RequestProtocol(0), fmt.Errorf("%s is %w", name, ErrInvalidRequestProtocol)
 }
 
 // MarshalText implements the text marshaller method.
@@ -105,6 +107,8 @@ const (
 	// the query was resolved by the special use domain name resolver
 	ResponseTypeSPECIAL
 )
+
+var ErrInvalidResponseType = fmt.Errorf("not a valid ResponseType, try [%s]", strings.Join(_ResponseTypeNames, ", "))
 
 const _ResponseTypeName = "RESOLVEDCACHEDBLOCKEDCONDITIONALCUSTOMDNSHOSTSFILEFILTEREDNOTFQDNSPECIAL"
 
@@ -164,7 +168,7 @@ func ParseResponseType(name string) (ResponseType, error) {
 	if x, ok := _ResponseTypeValue[name]; ok {
 		return x, nil
 	}
-	return ResponseType(0), fmt.Errorf("%s is not a valid ResponseType, try [%s]", name, strings.Join(_ResponseTypeNames, ", "))
+	return ResponseType(0), fmt.Errorf("%s is %w", name, ErrInvalidResponseType)
 }
 
 // MarshalText implements the text marshaller method.
