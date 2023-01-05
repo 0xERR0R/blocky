@@ -29,7 +29,7 @@ require (
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
 	golang.org/x/net v0.4.0
 	gopkg.in/yaml.v2 v2.4.0
-	gorm.io/driver/mysql v1.4.4
+	gorm.io/driver/mysql v1.4.5
 	gorm.io/driver/postgres v1.4.6
 	gorm.io/driver/sqlite v1.4.4
 	gorm.io/gorm v1.24.3
@@ -88,7 +88,7 @@ require (
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
 	github.com/go-openapi/spec v0.20.7 // indirect
 	github.com/go-openapi/swag v0.22.3 // indirect
-	github.com/go-sql-driver/mysql v1.6.0 // indirect
+	github.com/go-sql-driver/mysql v1.7.0 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
