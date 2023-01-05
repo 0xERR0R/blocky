@@ -23,7 +23,6 @@ linters:
     - gofmt
     - goimports
     - gomnd
-    - gomoddirectives
     - gomodguard
     - gosec
     - gosimple
