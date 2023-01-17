@@ -20,7 +20,7 @@ require (
 	github.com/miekg/dns v1.1.50
 	github.com/mroth/weightedrand v1.0.0
 	github.com/onsi/ginkgo/v2 v2.7.0
-	github.com/onsi/gomega v1.24.2
+	github.com/onsi/gomega v1.25.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cobra v1.6.1
