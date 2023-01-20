@@ -10,6 +10,7 @@ import (
 	"github.com/0xERR0R/blocky/cache/expirationcache"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
@@ -69,17 +70,23 @@ func configureCaches(c *CachingResolver, cfg *config.CachingConfig) {
 
 		c.prefetchThreshold = cfg.PrefetchThreshold
 
-		c.prefetchingNameCache = expirationcache.NewCache(expirationcache.WithCleanUpInterval(time.Minute),
-			expirationcache.WithMaxSize(uint(cfg.PrefetchMaxItemsCount)))
-		c.resultCache = expirationcache.NewCache(cleanupOption, maxSizeOption,
-			expirationcache.WithOnExpiredFn(c.onExpired))
+		c.prefetchingNameCache = expirationcache.NewCache(
+			expirationcache.WithCleanUpInterval(time.Minute),
+			expirationcache.WithMaxSize(uint(cfg.PrefetchMaxItemsCount)),
+		)
+
+		c.resultCache = expirationcache.NewCache(
+			cleanupOption,
+			maxSizeOption,
+			expirationcache.WithOnExpiredFn(c.onExpired),
+		)
 	} else {
 		c.resultCache = expirationcache.NewCache(cleanupOption, maxSizeOption)
 	}
 }
 
 func setupRedisCacheSubscriber(c *CachingResolver) {
-	logger := logger("caching_resolver")
+	logger := log.PrefixedLog("caching_resolver")
 
 	go func() {
 		for rc := range c.redisClient.CacheChannel {
@@ -92,7 +99,11 @@ func setupRedisCacheSubscriber(c *CachingResolver) {
 }
 
 // check if domain was queried > threshold in the time window
-func (r *CachingResolver) isPrefetchingDomain(cacheKey string) bool {
+func (r *CachingResolver) shouldPrefetch(cacheKey string) bool {
+	if r.prefetchThreshold == 0 {
+		return true
+	}
+
 	cnt, _ := r.prefetchingNameCache.Get(cacheKey)
 
 	return cnt != nil && cnt.(int) > r.prefetchThreshold
@@ -101,9 +112,9 @@ func (r *CachingResolver) isPrefetchingDomain(cacheKey string) bool {
 func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.Duration) {
 	qType, domainName := util.ExtractCacheKey(cacheKey)
 
-	logger := logger("caching_resolver")
+	logger := log.PrefixedLog("caching_resolver")
 
-	if r.isPrefetchingDomain(cacheKey) {
+	if r.shouldPrefetch(cacheKey) {
 		logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), qType.String())
 
 		req := newRequest(fmt.Sprintf("%s.", domainName), qType, logger)
@@ -151,7 +162,7 @@ func (r *CachingResolver) Configuration() (result []string) {
 // Resolve checks if the current query result is already in the cache and returns it
 // or delegates to the next resolver
 func (r *CachingResolver) Resolve(request *model.Request) (response *model.Response, err error) {
-	logger := withPrefix(request.Log, "caching_resolver")
+	logger := log.WithPrefix(request.Log, "caching_resolver")
 
 	if r.maxCacheTimeSec < 0 {
 		logger.Debug("skip cache")

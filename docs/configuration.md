@@ -41,7 +41,7 @@ All logging port are optional.
 !!! example
 
     ```yaml
-    ports: 
+    ports:
       dns: 53
       http: 4000
       https: 443
@@ -147,15 +147,15 @@ value by setting the `upstreamTimeout` configuration parameter (in **duration fo
 
 ## Bootstrap DNS configuration
 
-This DNS server is used to resolve upstream DoH and DoT servers that are specified as host names.
-Useful if no system DNS resolver is configured, and to encrypt the bootstrap queries.
+These DNS servers are used to resolve upstream DoH and DoT servers that are specified as host names, and list domains.
+It is useful if no system DNS resolver is configured, and/or to encrypt the bootstrap queries.
 
 | Parameter | Type                 | Mandatory                   | Default value | Description                          |
 |-----------|----------------------|-----------------------------|---------------|--------------------------------------|
-| upstream  | Upstream (see below) | no                          |               |                                      |
+| upstream  | Upstream (see above) | no                          |               |                                      |
 | ips       | List of IPs          | yes, if upstream is DoT/DoH |               | Only valid if upstream is DoH or DoT |
 
-If you only need to specify upstream, you can use the short form: `bootstrapDns: <upstream>`.
+When using an upstream specified by IP, and not by hostname, you can write only the upstream and skip `ips`.
 
 !!! note
 
@@ -165,9 +165,10 @@ If you only need to specify upstream, you can use the short form: `bootstrapDns:
 
     ```yaml
         bootstrapDns:
-          upstream: tcp-tls:dns.example.com
-          ips:
-          - 123.123.123.123
+          - upstream: tcp-tls:dns.example.com
+            ips:
+            - 123.123.123.123
+          - upstream: https://234.234.234.234/dns-query
     ```
 
 ## Filtering

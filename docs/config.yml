@@ -213,11 +213,16 @@ minTlsServeVersion: 1.3
 # if https port > 0: path to cert and key file for SSL encryption. if not set, self-signed certificate will be generated
 #certFile: server.crt
 #keyFile: server.key
-# optional: use this DNS server to resolve blacklist urls and upstream DNS servers. Useful if no DNS resolver is configured and blocky needs to resolve a host name. Format net:IP:port, net must be udp or tcp
-bootstrapDns: tcp+udp:1.1.1.1
+# optional: use these DNS servers to resolve blacklist urls and upstream DNS servers. It is useful if no system DNS resolver is configured, and/or to encrypt the bootstrap queries.
+bootstrapDns:
+  - tcp+udp:1.1.1.1
+  - https://1.1.1.1/dns-query
+  - upstream: https://dns.digitale-gesellschaft.ch/dns-query
+    ips:
+      - 185.95.218.42
 
-filtering:
 # optional: drop all queries with following query types. Default: empty
+filtering:
   queryTypes:
     - AAAA
 
@@ -241,7 +246,7 @@ ports:
   # optional: Port(s) and optional bind ip address(es) to serve HTTPS used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as 192.168.0.1:443. Example: 443, :443, 127.0.0.1:443,[::1]:443
   https: 443
   # optional: Port(s) and optional bind ip address(es) to serve HTTP used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as 192.168.0.1:4000. Example: 4000, :4000, 127.0.0.1:4000,[::1]:4000
-  http: 4000 
+  http: 4000
 
 # optional: logging configuration
 log:
@@ -255,6 +260,6 @@ log:
   privacy: false
 
 # optional: add EDE error codes to dns response
-ede: 
+ede:
   # enabled if true, Default: false
   enable: true

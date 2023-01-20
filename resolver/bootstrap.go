@@ -29,8 +29,7 @@ type Bootstrap struct {
 	log *logrus.Entry
 
 	resolver    Resolver
-	upstream    Resolver // the upstream that's part of the above resolver
-	upstreamIPs []net.IP // IPs for b.upstream
+	bootstraped bootstrapedResolvers
 
 	systemResolver *net.Resolver
 }
@@ -38,47 +37,50 @@ type Bootstrap struct {
 // NewBootstrap creates and returns a new Bootstrap.
 // Internally, it uses a CachingResolver and an UpstreamResolver.
 func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
-	upstream := cfg.BootstrapDNS.Upstream
 	log := log.PrefixedLog("bootstrap")
-
-	var ips []net.IP
-
-	switch {
-	case upstream.IsDefault():
-		log.Infof("bootstrapDns is not configured, will use system resolver")
-	case upstream.Net == config.NetProtocolTcpUdp:
-		ip := net.ParseIP(upstream.Host)
-		if ip == nil {
-			return nil, fmt.Errorf("bootstrapDns uses %s but is not an IP", upstream.Net)
-		}
-
-		ips = append(ips, ip)
-	default:
-		ips = cfg.BootstrapDNS.IPs
-		if len(ips) == 0 {
-			return nil, fmt.Errorf("bootstrapDns.IPs is required when upstream uses %s", upstream.Net)
-		}
-	}
 
 	// Create b in multiple steps: Bootstrap and UpstreamResolver have a cyclic dependency
 	// This also prevents the GC to clean up these two structs, but is not currently an
 	// issue since they stay allocated until the process terminates
 	b = &Bootstrap{
 		log:            log,
-		upstreamIPs:    ips,
 		systemResolver: net.DefaultResolver, // allow replacing it during tests
 	}
 
-	if upstream.IsDefault() {
+	bootstraped, err := newBootstrapedResolvers(b, cfg.BootstrapDNS)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(bootstraped) == 0 {
+		log.Infof("bootstrapDns is not configured, will use system resolver")
+
 		return b, nil
 	}
 
-	b.upstream = newUpstreamResolverUnchecked(upstream, b)
+	parallelResolver, err := newParallelBestResolver(bootstraped.ResolverGroups())
+	if err != nil {
+		return nil, fmt.Errorf("could not create bootstrap ParallelBestResolver: %w", err)
+	}
+
+	// Always enable prefetching to avoid stalling user requests
+	// Otherwise, a request to blocky could end up waiting for 2 DNS requests:
+	//   1. lookup the DNS server IP
+	//   2. forward the user request to the server looked-up in 1
+	cachingCfg := cfg.Caching
+	cachingCfg.EnablePrefetch()
+
+	if cachingCfg.MinCachingTime == 0 {
+		// Set a min time in case the user didn't to avoid prefetching too often
+		cachingCfg.MinCachingTime = config.Duration(time.Hour)
+	}
+
+	b.bootstraped = bootstraped
 
 	b.resolver = Chain(
 		NewFilteringResolver(cfg.Filtering),
-		NewCachingResolver(cfg.Caching, nil),
-		b.upstream,
+		NewCachingResolver(cachingCfg, nil),
+		parallelResolver,
 	)
 
 	return b, nil
@@ -116,9 +118,9 @@ func (b *Bootstrap) resolveUpstream(r Resolver, host string) ([]net.IP, error) {
 		return b.systemResolver.LookupIP(ctx, cfg.ConnectIPVersion.Net(), host)
 	}
 
-	if r == b.upstream {
-		// Special path for b.upstream to avoid infinite recursion
-		return b.upstreamIPs, nil
+	if ips, ok := b.bootstraped[r]; ok {
+		// Special path for bootstraped upstreams to avoid infinite recursion
+		return ips, nil
 	}
 
 	return b.resolve(host, v4v6QTypes)
@@ -230,6 +232,73 @@ func (b *Bootstrap) resolveType(hostname string, qType dns.Type) (ips []net.IP, 
 	}
 
 	return ips, nil
+}
+
+// map of bootstraped resolvers their hardcoded IPs
+type bootstrapedResolvers map[Resolver][]net.IP
+
+func newBootstrapedResolvers(b *Bootstrap, cfg config.BootstrapDNSConfig) (bootstrapedResolvers, error) {
+	upstreamIPs := make(bootstrapedResolvers, len(cfg))
+
+	var multiErr *multierror.Error
+
+	for i, upstreamCfg := range cfg {
+		i := i + 1 // user visible index should start at 1
+
+		upstream := upstreamCfg.Upstream
+
+		if upstream.IsDefault() {
+			multiErr = multierror.Append(
+				multiErr,
+				fmt.Errorf("item %d: upstream not configured (ips=%v)", i, upstreamCfg.IPs),
+			)
+
+			continue
+		}
+
+		var ips []net.IP
+
+		if ip := net.ParseIP(upstream.Host); ip != nil {
+			ips = append(ips, ip)
+		} else if upstream.Net == config.NetProtocolTcpUdp {
+			multiErr = multierror.Append(
+				multiErr,
+				fmt.Errorf("item %d: '%s': protocol %s must use IP instead of hostname", i, upstream, upstream.Net),
+			)
+
+			continue
+		}
+
+		ips = append(ips, upstreamCfg.IPs...)
+
+		if len(ips) == 0 {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("item %d: '%s': no IPs configured", i, upstream))
+
+			continue
+		}
+
+		resolver := newUpstreamResolverUnchecked(upstream, b)
+
+		upstreamIPs[resolver] = ips
+	}
+
+	if multiErr != nil {
+		return nil, fmt.Errorf("invalid bootstrapDns configuration: %w", multiErr)
+	}
+
+	return upstreamIPs, nil
+}
+
+func (br bootstrapedResolvers) ResolverGroups() map[string][]Resolver {
+	resolvers := make([]Resolver, 0, len(br))
+
+	for resolver := range br {
+		resolvers = append(resolvers, resolver)
+	}
+
+	return map[string][]Resolver{
+		upstreamDefaultCfgName: resolvers,
+	}
 }
 
 type IPSet struct {

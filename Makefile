@@ -21,6 +21,9 @@ GO_BUILD_LD_FLAGS:=\
 
 GO_BUILD_OUTPUT:=$(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 
+# define version of golangci-lint here. If defined in tools.go, go mod perfoms automatically downgrade to older version which doesn't work with golang >=1.18
+GOLANG_LINT_VERSION=v1.50.1
+
 export PATH=$(shell go env GOPATH)/bin:$(shell echo $$PATH)
 
 all: build test lint ## Build binary (with tests)
@@ -70,7 +73,7 @@ race: ## run tests with race detector
 	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --race ./...
 
 lint: ## run golangcli-lint checks
-	go run github.com/golangci/golangci-lint/cmd/golangci-lint run --timeout 5m
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANG_LINT_VERSION) run --timeout 5m
 
 run: build ## Build and run binary
 	./$(BIN_OUT_DIR)/$(BINARY_NAME)

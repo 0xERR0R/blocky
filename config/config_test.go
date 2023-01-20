@@ -254,15 +254,15 @@ var _ = Describe("Config", func() {
 		})
 
 		When("bootstrapDns is defined", func() {
-			It("should be backwards compatible", func() {
+			It("should be backwards compatible to 'single IP syntax'", func() {
 				cfg := Config{}
 				data := "bootstrapDns: 0.0.0.0"
 
 				err := unmarshalConfig([]byte(data), &cfg)
 				Expect(err).ShouldNot(HaveOccurred())
-				Expect(cfg.BootstrapDNS.Upstream.Host).Should(Equal("0.0.0.0"))
+				Expect(cfg.BootstrapDNS[0].Upstream.Host).Should(Equal("0.0.0.0"))
 			})
-			It("should be backwards compatible", func() {
+			It("should be backwards compatible to 'single item definition'", func() {
 				cfg := Config{}
 				data := `
 bootstrapDns:
@@ -272,8 +272,26 @@ bootstrapDns:
 `
 				err := unmarshalConfig([]byte(data), &cfg)
 				Expect(err).ShouldNot(HaveOccurred())
-				Expect(cfg.BootstrapDNS.Upstream.Host).Should(Equal("dns.example.com"))
-				Expect(cfg.BootstrapDNS.IPs).Should(HaveLen(1))
+				Expect(cfg.BootstrapDNS[0].Upstream.Host).Should(Equal("dns.example.com"))
+				Expect(cfg.BootstrapDNS[0].IPs).Should(HaveLen(1))
+			})
+			It("should process list of bootstrap items", func() {
+				cfg := Config{}
+				data := `
+bootstrapDns:
+  - upstream: tcp-tls:dns.example.com
+    ips:
+      - 0.0.0.0
+  - upstream: 1.2.3.4
+`
+				err := unmarshalConfig([]byte(data), &cfg)
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(cfg.BootstrapDNS).Should(HaveLen(2))
+				Expect(cfg.BootstrapDNS[0].Upstream.Host).Should(Equal("dns.example.com"))
+				Expect(cfg.BootstrapDNS[0].Upstream.Net).Should(Equal(NetProtocolTcpTls))
+				Expect(cfg.BootstrapDNS[0].IPs).Should(HaveLen(1))
+				Expect(cfg.BootstrapDNS[1].Upstream.Host).Should(Equal("1.2.3.4"))
+				Expect(cfg.BootstrapDNS[1].Upstream.Net).Should(Equal(NetProtocolTcpUdp))
 			})
 		})
 

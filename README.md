@@ -1,5 +1,5 @@
-[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/0xERR0R/blocky/CI%20Build?label=CI%20Build "CI Build")](#)
-[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/0xERR0R/blocky/Release?label=Release "Release")](#)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/0xERR0R/blocky/ci-build.yml "CI Build")](#)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/0xERR0R/blocky/release.yml "Release")](#)
 [![GitHub latest version](https://img.shields.io/github/v/release/0xERR0R/blocky "Latest version")](https://github.com/0xERR0R/blocky/releases)
 [![GitHub Release Date](https://img.shields.io/github/release-date/0xERR0R/blocky "Latest release date")](https://github.com/0xERR0R/blocky/releases)
 [![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/0xERR0R/blocky "Go version")](#)
