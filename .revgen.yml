@@ -1,0 +1,26 @@
+auto_update: false
+configs:
+    - path: config\config.go
+      gen_cmd: go run github.com/abice/go-enum -f=config/config.go --marshal --names
+      gen_deps: 
+        - config/config.go
+      gen_files:
+        - config/config_enum.go
+    - path: lists\list_cache.go
+      gen_cmd: go run github.com/abice/go-enum -f=lists/list_cache.go --marshal --names
+      gen_deps:
+        - lists/list_cache.go
+      gen_files:
+        - lists/list_cache_enum.go
+    - path: log\logger.go
+      gen_cmd: go run github.com/abice/go-enum -f=log/logger.go --marshal --names
+      gen_deps:
+        - log/logger.go
+      gen_files:
+         - log/logger_enum.go
+    - path: model\models.go
+      gen_cmd: go run github.com/abice/go-enum -f=model/models.go --marshal --names
+      gen_deps:
+          - model/models.go
+      gen_files:
+        - model/models_enum.go

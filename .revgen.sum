@@ -1,0 +1,16 @@
+- path: config\config.go
+  cmd: go run github.com/abice/go-enum -f=config/config.go --marshal --names
+  hash_deps: 5e13f47bc71adf2dd9ea2989d6faad13
+  hash_files: b33eb09a81cda5c1affdbbea6aefa16b
+- path: lists\list_cache.go
+  cmd: go run github.com/abice/go-enum -f=lists/list_cache.go --marshal --names
+  hash_deps: 736487954f4c7da19adba3e65a1c8fb6
+  hash_files: 534cad81099b2f44b23b32c3a8f53f81
+- path: log\logger.go
+  cmd: go run github.com/abice/go-enum -f=log/logger.go --marshal --names
+  hash_deps: 08ac286da8f0c8be7a99422498893e9e
+  hash_files: 9209361c4dace193a72d7c0f8ae9a385
+- path: model\models.go
+  cmd: go run github.com/abice/go-enum -f=model/models.go --marshal --names
+  hash_deps: d6a2829ddd5c066ca1bd77c10d5230e9
+  hash_files: bfa2853e5e46ea2718cd1fe13a669413

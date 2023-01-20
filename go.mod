@@ -39,9 +39,12 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/docker/go-connections v0.4.0
 	github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198
+	github.com/inigolabs/revgen v0.1.0
 	github.com/testcontainers/testcontainers-go v0.17.0
 	mvdan.cc/gofumpt v0.4.0
 )
+
+exclude github.com/inigolabs/revgen v0.2.0
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect

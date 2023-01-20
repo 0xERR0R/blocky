@@ -45,7 +45,7 @@ build:  ## Build binary
 ifdef GO_SKIP_GENERATE
 	$(info skipping go generate)
 else
-	go generate ./...
+	go run github.com/inigolabs/revgen
 endif
 	go build $(GO_BUILD_FLAGS) -ldflags="$(GO_BUILD_LD_FLAGS)" -o $(GO_BUILD_OUTPUT)
 ifdef BIN_USER
