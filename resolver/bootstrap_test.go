@@ -248,7 +248,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 		When("hostname is an IP", func() {
 			It("returns immediately", func() {
-				ips, err := sut.resolve("0.0.0.0", v4v6QTypes)
+				ips, err := sut.resolve("0.0.0.0", config.IPVersionDual.QTypes())
 
 				Expect(err).Should(Succeed())
 				Expect(ips).Should(ContainElement(net.IPv4zero))
@@ -397,6 +397,58 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 				Expect(err).ShouldNot(Succeed())
 				Expect(err.Error()).Should(ContainSubstring("no such host"))
 			})
+		})
+	})
+
+	When("connectIPVersion is", func() {
+		var (
+			m         *mockResolver
+			ipVersion config.IPVersion
+		)
+
+		BeforeEach(func() {
+			sutConfig.ConnectIPVersion = ipVersion
+		})
+
+		JustBeforeEach(func() {
+			m = &mockResolver{AnswerFn: autoAnswer}
+
+			m.On("Resolve", mock.Anything).
+				Times(len(ipVersion.QTypes())).
+				Run(func(args mock.Arguments) {
+					req, ok := args.Get(0).(*model.Request)
+					Expect(ok).Should(BeTrue())
+
+					qType := dns.Type(req.Req.Question[0].Qtype)
+					Expect(qType).Should(BeElementOf(ipVersion.QTypes()))
+				})
+
+			sut.resolver = m
+		})
+
+		AfterEach(func() {
+			_, err := sut.resolveUpstream(nil, "example.com")
+			Expect(err).Should(Succeed())
+
+			m.AssertExpectations(GinkgoT())
+		})
+
+		Context("dual", func() {
+			ipVersion = config.IPVersionDual
+
+			It("should query both IPv4 and IPv6", func() {})
+		})
+
+		Context("v4", func() {
+			ipVersion = config.IPVersionV4
+
+			It("should query IPv4 only", func() {})
+		})
+
+		Context("v6", func() {
+			ipVersion = config.IPVersionV6
+
+			It("should query IPv6 only", func() {})
 		})
 	})
 
