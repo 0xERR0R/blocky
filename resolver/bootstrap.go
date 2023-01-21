@@ -19,17 +19,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-//nolint:gochecknoglobals
-var (
-	v4v6QTypes = []dns.Type{dns.Type(dns.TypeA), dns.Type(dns.TypeAAAA)}
-)
-
 // Bootstrap allows resolving hostnames using the configured bootstrap DNS.
 type Bootstrap struct {
 	log *logrus.Entry
 
 	resolver    Resolver
 	bootstraped bootstrapedResolvers
+
+	connectIPVersion config.IPVersion
 
 	systemResolver *net.Resolver
 }
@@ -43,8 +40,9 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 	// This also prevents the GC to clean up these two structs, but is not currently an
 	// issue since they stay allocated until the process terminates
 	b = &Bootstrap{
-		log:            log,
-		systemResolver: net.DefaultResolver, // allow replacing it during tests
+		log:              log,
+		connectIPVersion: cfg.ConnectIPVersion,
+		systemResolver:   net.DefaultResolver, // allow replacing it during tests
 	}
 
 	bootstraped, err := newBootstrapedResolvers(b, cfg.BootstrapDNS)
@@ -123,7 +121,7 @@ func (b *Bootstrap) resolveUpstream(r Resolver, host string) ([]net.IP, error) {
 		return ips, nil
 	}
 
-	return b.resolve(host, v4v6QTypes)
+	return b.resolve(host, b.connectIPVersion.QTypes())
 }
 
 // NewHTTPTransport returns a new http.Transport that uses b to resolve hostnames
@@ -145,19 +143,17 @@ func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 				return nil, err
 			}
 
-			connectIPVersion := config.GetConfig().ConnectIPVersion
-
 			var qTypes []dns.Type
 
 			switch {
-			case connectIPVersion != config.IPVersionDual: // ignore `network` if a specific version is configured
-				qTypes = connectIPVersion.QTypes()
+			case b.connectIPVersion != config.IPVersionDual: // ignore `network` if a specific version is configured
+				qTypes = b.connectIPVersion.QTypes()
 			case strings.HasSuffix(network, "4"):
-				qTypes = []dns.Type{dns.Type(dns.TypeA)}
+				qTypes = config.IPVersionV4.QTypes()
 			case strings.HasSuffix(network, "6"):
-				qTypes = []dns.Type{dns.Type(dns.TypeAAAA)}
+				qTypes = config.IPVersionV6.QTypes()
 			default:
-				qTypes = v4v6QTypes
+				qTypes = config.IPVersionDual.QTypes()
 			}
 
 			// Resolve the host with the bootstrap DNS

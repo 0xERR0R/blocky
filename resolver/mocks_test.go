@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -21,7 +22,7 @@ type mockResolver struct {
 
 	ResolveFn  func(req *model.Request) (*model.Response, error)
 	ResponseFn func(req *dns.Msg) *dns.Msg
-	AnswerFn   func(t uint16, qName string) *dns.Msg
+	AnswerFn   func(qType dns.Type, qName string) (*dns.Msg, error)
 }
 
 func (r *mockResolver) Configuration() []string {
@@ -47,7 +48,11 @@ func (r *mockResolver) Resolve(req *model.Request) (*model.Response, error) {
 
 	if r.AnswerFn != nil {
 		for _, question := range req.Req.Question {
-			answer := r.AnswerFn(question.Qtype, question.Name)
+			answer, err := r.AnswerFn(dns.Type(question.Qtype), question.Name)
+			if err != nil {
+				return nil, fmt.Errorf("AnswerFn error: %w", err)
+			}
+
 			if answer != nil {
 				return &model.Response{
 					Res:    answer,
@@ -68,12 +73,29 @@ func (r *mockResolver) Resolve(req *model.Request) (*model.Response, error) {
 	}
 
 	resp, ok := args.Get(0).(*model.Response)
-
 	if ok {
 		return resp, args.Error(1)
 	}
 
 	return nil, args.Error(1)
+}
+
+// autoAnswer provides a valid fake answer.
+//
+// To be used as a value for `mockResolver.AnswerFn`.
+func autoAnswer(qType dns.Type, qName string) (*dns.Msg, error) {
+	var ip net.IP
+
+	switch uint16(qType) {
+	case dns.TypeA:
+		ip = net.IPv4zero
+	case dns.TypeAAAA:
+		ip = net.IPv6zero
+	default:
+		return nil, fmt.Errorf("autoAnswer not implemented for qType=%s", dns.TypeToString[uint16(qType)])
+	}
+
+	return util.NewMsgWithAnswer(qName, 60, qType, ip.String())
 }
 
 // newTestBootstrap creates a test Bootstrap
