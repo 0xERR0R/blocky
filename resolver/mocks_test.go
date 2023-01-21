@@ -1,11 +1,13 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/util"
@@ -80,6 +82,11 @@ func (r *mockResolver) Resolve(req *model.Request) (*model.Response, error) {
 	return nil, args.Error(1)
 }
 
+var (
+	autoAnswerIPv4 = net.IPv4(127, 0, 0, 1)
+	autoAnswerIPv6 = net.IPv6loopback
+)
+
 // autoAnswer provides a valid fake answer.
 //
 // To be used as a value for `mockResolver.AnswerFn`.
@@ -88,9 +95,9 @@ func autoAnswer(qType dns.Type, qName string) (*dns.Msg, error) {
 
 	switch uint16(qType) {
 	case dns.TypeA:
-		ip = net.IPv4zero
+		ip = autoAnswerIPv4
 	case dns.TypeAAAA:
-		ip = net.IPv6zero
+		ip = autoAnswerIPv6
 	default:
 		return nil, fmt.Errorf("autoAnswer not implemented for qType=%s", dns.TypeToString[uint16(qType)])
 	}
@@ -154,4 +161,54 @@ func newTestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg),
 	util.FatalOnError("can't resolve address: ", err)
 
 	return upstream
+}
+
+type mockDialer struct {
+	mock.Mock
+}
+
+func newMockDialer() *mockDialer {
+	return &mockDialer{}
+}
+
+func (d *mockDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	d.Called(ctx, network, addr)
+
+	return aMockConn, nil
+}
+
+var aMockConn = &mockConn{}
+
+type mockConn struct{}
+
+func (c *mockConn) Read(b []byte) (n int, err error) {
+	panic("not implemented")
+}
+
+func (c *mockConn) Write(b []byte) (n int, err error) {
+	panic("not implemented")
+}
+
+func (c *mockConn) Close() error {
+	panic("not implemented")
+}
+
+func (c *mockConn) LocalAddr() net.Addr {
+	panic("not implemented")
+}
+
+func (c *mockConn) RemoteAddr() net.Addr {
+	panic("not implemented")
+}
+
+func (c *mockConn) SetDeadline(t time.Time) error {
+	panic("not implemented")
+}
+
+func (c *mockConn) SetReadDeadline(t time.Time) error {
+	panic("not implemented")
+}
+
+func (c *mockConn) SetWriteDeadline(t time.Time) error {
+	panic("not implemented")
 }

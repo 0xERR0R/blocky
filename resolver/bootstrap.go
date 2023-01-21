@@ -28,7 +28,11 @@ type Bootstrap struct {
 
 	connectIPVersion config.IPVersion
 
+	// To allow replacing during tests
 	systemResolver *net.Resolver
+	dialer         interface {
+		DialContext(ctx context.Context, network, addr string) (net.Conn, error)
+	}
 }
 
 // NewBootstrap creates and returns a new Bootstrap.
@@ -42,7 +46,9 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 	b = &Bootstrap{
 		log:              log,
 		connectIPVersion: cfg.ConnectIPVersion,
-		systemResolver:   net.DefaultResolver, // allow replacing it during tests
+
+		systemResolver: net.DefaultResolver,
+		dialer:         &net.Dialer{},
 	}
 
 	bootstraped, err := newBootstrapedResolvers(b, cfg.BootstrapDNS)
@@ -130,50 +136,50 @@ func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 		return &http.Transport{}
 	}
 
-	dialer := net.Dialer{}
-
 	return &http.Transport{
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			log := b.log.WithField("network", network).WithField("addr", addr)
-
-			host, port, err := net.SplitHostPort(addr)
-			if err != nil {
-				log.Errorf("dial error: %s", err)
-
-				return nil, err
-			}
-
-			var qTypes []dns.Type
-
-			switch {
-			case b.connectIPVersion != config.IPVersionDual: // ignore `network` if a specific version is configured
-				qTypes = b.connectIPVersion.QTypes()
-			case strings.HasSuffix(network, "4"):
-				qTypes = config.IPVersionV4.QTypes()
-			case strings.HasSuffix(network, "6"):
-				qTypes = config.IPVersionV6.QTypes()
-			default:
-				qTypes = config.IPVersionDual.QTypes()
-			}
-
-			// Resolve the host with the bootstrap DNS
-			ips, err := b.resolve(host, qTypes)
-			if err != nil {
-				log.Errorf("resolve error: %s", err)
-
-				return nil, err
-			}
-
-			ip := ips[rand.Intn(len(ips))] //nolint:gosec
-
-			log.WithField("ip", ip).Tracef("dialing %s", host)
-
-			// Use the standard dialer to actually connect
-			addrWithIP := net.JoinHostPort(ip.String(), port)
-
-			return dialer.DialContext(ctx, network, addrWithIP)
-		},
+		DialContext: b.dialContext,
 	}
+}
+
+func (b *Bootstrap) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	log := b.log.WithField("network", network).WithField("addr", addr)
+
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		log.Errorf("dial error: %s", err)
+
+		return nil, err
+	}
+
+	var qTypes []dns.Type
+
+	switch {
+	case b.connectIPVersion != config.IPVersionDual: // ignore `network` if a specific version is configured
+		qTypes = b.connectIPVersion.QTypes()
+	case strings.HasSuffix(network, "4"):
+		qTypes = config.IPVersionV4.QTypes()
+	case strings.HasSuffix(network, "6"):
+		qTypes = config.IPVersionV6.QTypes()
+	default:
+		qTypes = config.IPVersionDual.QTypes()
+	}
+
+	// Resolve the host with the bootstrap DNS
+	ips, err := b.resolve(host, qTypes)
+	if err != nil {
+		log.Errorf("resolve error: %s", err)
+
+		return nil, err
+	}
+
+	ip := ips[rand.Intn(len(ips))] //nolint:gosec
+
+	log.WithField("ip", ip).Tracef("dialing %s", host)
+
+	// Use the standard dialer to actually connect
+	addrWithIP := net.JoinHostPort(ip.String(), port)
+
+	return b.dialer.DialContext(ctx, network, addrWithIP)
 }
 
 func (b *Bootstrap) resolve(hostname string, qTypes []dns.Type) (ips []net.IP, err error) {
