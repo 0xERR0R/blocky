@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   make:
-    name: Test
+    name: make
     runs-on: ubuntu-latest
     strategy:
       matrix:
