@@ -35,6 +35,8 @@ jobs:
       - name: make ${{ matrix.make }}
         run: make ${{ matrix.make }}
         if: matrix.make != 'goreleaser'  
+        env:
+          GO_SKIP_GENERATE: 1
 
       - name: Upload results to codecov
         uses: codecov/codecov-action@v3

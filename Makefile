@@ -83,7 +83,11 @@ fmt: ## gofmt and goimports all go files
 	find . -name '*.go' -exec goimports -w {} +
 
 docker-build:  ## Build docker image 
+ifdef GO_SKIP_GENERATE
+	$(info skipping go generate)
+else
 	go generate ./...
+endif
 	docker buildx build \
 		--build-arg VERSION=${VERSION} \
 		--build-arg BUILD_TIME=${BUILD_TIME} \
