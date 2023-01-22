@@ -26,7 +26,7 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
-        if: matrix.make == 'e2e-test'
+        if: matrix.make == 'docker-build' || matrix.make == 'e2e-test'
 
       - name: make ${{ matrix.make }}
         run: make ${{ matrix.make }}
