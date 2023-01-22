@@ -25,10 +25,10 @@ jobs:
             go: true
             docker: false
           - make: docker-build
-            go: true
+            go: false
             docker: true
           - make: e2e-test
-            go: false
+            go: true
             docker: true
           - make: goreleaser
             go: false
