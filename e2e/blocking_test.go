@@ -78,7 +78,7 @@ var _ = Describe("External lists and query blocking", func() {
 
 				It("should fail to start", func() {
 					// This check is somehow flaky at this location
-					// Eventually(blocky.IsRunning, "60s", "500ms").Should(BeFalse())
+					Eventually(blocky.IsRunning, "30s", "2ms").Should(BeFalse())
 
 					Expect(getContainerLogs(blocky)).
 						Should(ContainElement(ContainSubstring("Error: can't start server: 1 error occurred")))
