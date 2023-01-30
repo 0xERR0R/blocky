@@ -117,14 +117,12 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 		When("Full-qualified group name is used", func() {
 			It("should block request", func() {
-				m.AnswerFn = func(t uint16, qName string) *dns.Msg {
-					if t == dns.TypeA && qName == "full.qualified.com." {
-						a, _ := util.NewMsgWithAnswer(qName, 60*60, A, "192.168.178.39")
-
-						return a
+				m.AnswerFn = func(t dns.Type, qName string) (*dns.Msg, error) {
+					if t == dns.Type(dns.TypeA) && qName == "full.qualified.com." {
+						return util.NewMsgWithAnswer(qName, 60*60, A, "192.168.178.39")
 					}
 
-					return nil
+					return nil, nil //nolint:nilnil
 				}
 				Bus().Publish(ApplicationStarted, "")
 				Eventually(func(g Gomega) {
