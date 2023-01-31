@@ -77,7 +77,6 @@ var _ = Describe("External lists and query blocking", func() {
 				})
 
 				It("should fail to start", func() {
-					// This check is somehow flaky at this location
 					Eventually(blocky.IsRunning, "30s", "2ms").Should(BeFalse())
 
 					Expect(getContainerLogs(blocky)).
