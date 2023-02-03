@@ -1,4 +1,4 @@
-name: Makefile tests
+name: Makefile
 
 on:
   push:
