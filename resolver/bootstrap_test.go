@@ -248,7 +248,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 		When("hostname is an IP", func() {
 			It("returns immediately", func() {
-				ips, err := sut.resolve("0.0.0.0", v4v6QTypes)
+				ips, err := sut.resolve("0.0.0.0", config.IPVersionDual.QTypes())
 
 				Expect(err).Should(Succeed())
 				Expect(ips).Should(ContainElement(net.IPv4zero))
@@ -396,6 +396,164 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 				Expect(err).ShouldNot(Succeed())
 				Expect(err.Error()).Should(ContainSubstring("no such host"))
+			})
+		})
+	})
+
+	Describe("connectIPVersion", func() {
+		var (
+			m             *mockResolver
+			dialIPVersion config.IPVersion
+		)
+
+		BeforeEach(func() {
+			dialIPVersion = config.IPVersionDual
+		})
+
+		JustBeforeEach(func() {
+			m = &mockResolver{AnswerFn: autoAnswer}
+			sut.resolver = m
+
+			m.On("Resolve", mock.Anything).
+				Times(len(sutConfig.ConnectIPVersion.QTypes())).
+				Run(func(args mock.Arguments) {
+					req, ok := args.Get(0).(*model.Request)
+					Expect(ok).Should(BeTrue())
+
+					qType := dns.Type(req.Req.Question[0].Qtype)
+
+					if sutConfig.ConnectIPVersion != config.IPVersionDual {
+						Expect(qType).Should(BeElementOf(sutConfig.ConnectIPVersion.QTypes()))
+					} else {
+						Expect(qType).Should(BeElementOf(dialIPVersion.QTypes()))
+					}
+				})
+		})
+
+		Describe("resolve", func() {
+			AfterEach(func() {
+				_, err := sut.resolveUpstream(nil, "example.com")
+				Expect(err).Should(Succeed())
+
+				m.AssertExpectations(GinkgoT())
+			})
+
+			Context("using dual", func() {
+				BeforeEach(func() {
+					sutConfig.ConnectIPVersion = config.IPVersionV4
+				})
+
+				It("should query both IPv4 and IPv6", func() {})
+			})
+
+			Context("using v4", func() {
+				BeforeEach(func() {
+					sutConfig.ConnectIPVersion = config.IPVersionV4
+				})
+
+				It("should query IPv4 only", func() {})
+			})
+
+			Context("using v6", func() {
+				BeforeEach(func() {
+					sutConfig.ConnectIPVersion = config.IPVersionV6
+				})
+
+				It("should query IPv6 only", func() {})
+			})
+		})
+
+		Describe("HTTP Transport", func() {
+			var (
+				d *mockDialer
+
+				validIPs []string
+			)
+
+			JustBeforeEach(func() {
+				d = newMockDialer()
+				sut.dialer = d
+
+				m.On("Resolve", mock.Anything).Once()
+
+				d.On("DialContext", mock.Anything, mock.Anything, mock.Anything).
+					Once().
+					Run(func(args mock.Arguments) {
+						network, ok := args.Get(1).(string)
+						Expect(ok).Should(BeTrue())
+						Expect(network).Should(Equal(dialIPVersion.Net()))
+
+						addr, ok := args.Get(2).(string)
+						Expect(ok).Should(BeTrue())
+
+						ip, port, err := net.SplitHostPort(addr)
+						Expect(err).Should(Succeed())
+						Expect(ip).Should(BeElementOf(validIPs))
+						Expect(port).Should(Equal("0"))
+					})
+			})
+
+			AfterEach(func() {
+				t := sut.NewHTTPTransport()
+
+				conn, err := t.DialContext(context.Background(), dialIPVersion.Net(), "localhost:0")
+				Expect(err).Should(Succeed())
+				Expect(conn).Should(Equal(aMockConn))
+
+				d.AssertExpectations(GinkgoT())
+			})
+
+			Context("using dual", func() {
+				BeforeEach(func() {
+					sutConfig.ConnectIPVersion = config.IPVersionDual
+					validIPs = []string{autoAnswerIPv4.String(), autoAnswerIPv6.String()}
+				})
+
+				It("should dial one of IPv4 and IPv6", func() {})
+
+				Context("and dialing IPv4", func() {
+					BeforeEach(func() {
+						dialIPVersion = config.IPVersionV4 // overrides ipVersion
+						validIPs = []string{autoAnswerIPv4.String()}
+					})
+
+					It("should use IPv4 only", func() {})
+				})
+
+				Context("and dialing IPv6", func() {
+					BeforeEach(func() {
+						dialIPVersion = config.IPVersionV6 // overrides ipVersion
+						validIPs = []string{autoAnswerIPv6.String()}
+					})
+
+					It("should use IPv6 only", func() {})
+				})
+			})
+
+			Context("using v4", func() {
+				BeforeEach(func() {
+					sutConfig.ConnectIPVersion = config.IPVersionV4
+					validIPs = []string{autoAnswerIPv4.String()}
+				})
+
+				It("should dial IPv4 only", func() {})
+
+				It("should ignore the dial IP version", func() {
+					dialIPVersion = config.IPVersionV6 // overridden by ipVersion
+				})
+			})
+
+			Context("using v6", func() {
+				BeforeEach(func() {
+					sutConfig.ConnectIPVersion = config.IPVersionV6
+					validIPs = []string{autoAnswerIPv6.String()}
+				})
+
+				It("should dial IPv6 only", func() {})
+
+				It("should ignore the dial IP version", func() {
+					dialIPVersion = config.IPVersionV4 // overridden by ipVersion
+				})
 			})
 		})
 	})
