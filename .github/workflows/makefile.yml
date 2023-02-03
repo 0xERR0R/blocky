@@ -4,6 +4,11 @@ on:
   push:
   pull_request:
 
+permissions:
+  security-events: write
+  actions: read
+  contents: read
+
 concurrency: 
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -32,6 +37,9 @@ jobs:
             docker: true
           - make: goreleaser
             go: false
+            docker: false
+          - make: lint
+            go: true
             docker: false
 
     steps:
