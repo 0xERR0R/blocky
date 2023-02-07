@@ -312,6 +312,21 @@ var _ = Describe("ListCache", func() {
 				Expect(group).Should(Equal("gr1"))
 			})
 		})
+		When("file has end of line comment", func() {
+			It("should still parse the domain", func() {
+				lists := map[string][]string{
+					"gr1": {"inlinedomain1.com#a comment\n"},
+				}
+
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
+					defaultProcessingConcurrency, false)
+				Expect(err).Should(Succeed())
+
+				found, group := sut.Match("inlinedomain1.com", []string{"gr1"})
+				Expect(found).Should(BeTrue())
+				Expect(group).Should(Equal("gr1"))
+			})
+		})
 		When("inline regex content is defined", func() {
 			It("should match", func() {
 				lists := map[string][]string{
