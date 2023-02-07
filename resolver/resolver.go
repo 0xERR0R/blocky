@@ -1,4 +1,3 @@
-//go:generate go run github.com/abice/go-enum -f=$GOFILE --marshal --names
 package resolver
 
 import (
