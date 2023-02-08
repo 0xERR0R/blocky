@@ -3,7 +3,7 @@ module github.com/0xERR0R/blocky
 go 1.19
 
 require (
-	github.com/abice/go-enum v0.5.4
+	github.com/abice/go-enum v0.5.5
 	github.com/alicebob/miniredis/v2 v2.30.0
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/avast/retry-go/v4 v4.3.2
@@ -116,7 +116,7 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
-	github.com/urfave/cli/v2 v2.23.7 // indirect
+	github.com/urfave/cli/v2 v2.24.1 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64 // indirect
 	golang.org/x/crypto v0.4.0 // indirect
