@@ -27,7 +27,7 @@ require (
 	github.com/stretchr/testify v1.8.1
 	github.com/swaggo/swag v1.8.10
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
-	golang.org/x/net v0.5.0
+	golang.org/x/net v0.6.0
 	gopkg.in/yaml.v2 v2.4.0
 	gorm.io/driver/mysql v1.4.6
 	gorm.io/driver/postgres v1.4.7
@@ -121,9 +121,9 @@ require (
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64 // indirect
 	golang.org/x/crypto v0.4.0 // indirect
 	golang.org/x/mod v0.7.0 // indirect
-	golang.org/x/sys v0.4.0 // indirect
-	golang.org/x/term v0.4.0 // indirect
-	golang.org/x/text v0.6.0 // indirect
+	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/term v0.5.0 // indirect
+	golang.org/x/text v0.7.0 // indirect
 	golang.org/x/tools v0.5.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
