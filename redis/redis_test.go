@@ -2,6 +2,7 @@ package redis
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/util"
@@ -254,6 +255,8 @@ var _ = Describe("Redis client", func() {
 
 				rec := redisServer.Publish(SyncChannelName, string(binMsg))
 				Expect(rec).Should(Equal(1))
+
+				time.Sleep(2 * time.Second)
 
 				Eventually(func() chan *EnabledMessage {
 					return redisClient.EnabledChannel

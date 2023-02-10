@@ -179,11 +179,9 @@ type chainedCacheFactory struct {
 	regexCacheFactory  CacheFactory
 }
 
-var regexPattern = regexp.MustCompile("^/.*/$")
-
 func (r *chainedCacheFactory) AddEntry(entry string) {
-	if regexPattern.MatchString(entry) {
-		entry = strings.TrimSpace(strings.Trim(entry, "/"))
+	if strings.HasPrefix(entry, "/") && strings.HasSuffix(entry, "/") {
+		entry = strings.TrimSpace(entry[1 : len(entry)-1])
 		r.regexCacheFactory.AddEntry(entry)
 	} else {
 		r.stringCacheFactory.AddEntry(entry)

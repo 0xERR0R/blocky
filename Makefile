@@ -1,4 +1,4 @@
-.PHONY: all clean build swagger test e2e-test lint run fmt docker-build help
+.PHONY: all clean generate build swagger test e2e-test lint run fmt docker-build help
 .DEFAULT_GOAL:=help
 
 VERSION?=$(shell git describe --always --tags)
@@ -41,12 +41,14 @@ serve_docs: ## serves online docs
 	pip install mkdocs-material
 	mkdocs serve
 
-build:  ## Build binary
+generate: ## Go generate
 ifdef GO_SKIP_GENERATE
 	$(info skipping go generate)
 else
 	go generate ./...
 endif
+
+build: generate ## Build binary
 	go build $(GO_BUILD_FLAGS) -ldflags="$(GO_BUILD_LD_FLAGS)" -o $(GO_BUILD_OUTPUT)
 ifdef BIN_USER
 	$(info setting owner of $(GO_BUILD_OUTPUT) to $(BIN_USER))
@@ -82,8 +84,7 @@ fmt: ## gofmt and goimports all go files
 	go run mvdan.cc/gofumpt -l -w -extra .
 	find . -name '*.go' -exec goimports -w {} +
 
-docker-build:  ## Build docker image 
-	go generate ./...
+docker-build: generate ## Build docker image 
 	docker buildx build \
 		--build-arg VERSION=${VERSION} \
 		--build-arg BUILD_TIME=${BUILD_TIME} \

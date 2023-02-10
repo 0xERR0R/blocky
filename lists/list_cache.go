@@ -327,6 +327,11 @@ func processLine(line string) string {
 		return ""
 	}
 
+	// remove end of line comment
+	if idx := strings.IndexRune(line, '#'); idx != -1 {
+		line = line[:idx]
+	}
+
 	if parts := strings.Fields(line); len(parts) > 0 {
 		host := parts[len(parts)-1]
 

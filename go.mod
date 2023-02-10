@@ -3,10 +3,10 @@ module github.com/0xERR0R/blocky
 go 1.19
 
 require (
-	github.com/abice/go-enum v0.5.4
+	github.com/abice/go-enum v0.5.5
 	github.com/alicebob/miniredis/v2 v2.30.0
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
-	github.com/avast/retry-go/v4 v4.3.2
+	github.com/avast/retry-go/v4 v4.3.3
 	github.com/creasty/defaults v1.6.0
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/go-chi/cors v1.2.1
@@ -19,20 +19,20 @@ require (
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/miekg/dns v1.1.50
 	github.com/mroth/weightedrand v1.0.0
-	github.com/onsi/ginkgo/v2 v2.7.0
+	github.com/onsi/ginkgo/v2 v2.8.0
 	github.com/onsi/gomega v1.26.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cobra v1.6.1
 	github.com/stretchr/testify v1.8.1
-	github.com/swaggo/swag v1.8.9
+	github.com/swaggo/swag v1.8.10
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
-	golang.org/x/net v0.5.0
+	golang.org/x/net v0.6.0
 	gopkg.in/yaml.v2 v2.4.0
-	gorm.io/driver/mysql v1.4.5
-	gorm.io/driver/postgres v1.4.6
+	gorm.io/driver/mysql v1.4.6
+	gorm.io/driver/postgres v1.4.7
 	gorm.io/driver/sqlite v1.4.4
-	gorm.io/gorm v1.24.3
+	gorm.io/gorm v1.24.5
 )
 
 require (
@@ -116,15 +116,15 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
-	github.com/urfave/cli/v2 v2.23.7 // indirect
+	github.com/urfave/cli/v2 v2.24.1 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64 // indirect
 	golang.org/x/crypto v0.4.0 // indirect
 	golang.org/x/mod v0.7.0 // indirect
-	golang.org/x/sys v0.4.0 // indirect
-	golang.org/x/term v0.4.0 // indirect
-	golang.org/x/text v0.6.0 // indirect
-	golang.org/x/tools v0.4.0 // indirect
+	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/term v0.5.0 // indirect
+	golang.org/x/text v0.7.0 // indirect
+	golang.org/x/tools v0.5.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

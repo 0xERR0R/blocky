@@ -67,7 +67,8 @@ var _ = Describe("Metrics functional tests", func() {
 			})
 
 			It("Should provide 'blocky_blocking_enabled' prometheus metrics", func() {
-				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).Should(ContainElement("blocky_blocking_enabled 1"))
+				Eventually(fetchBlockyMetrics, "30s", "2ms").WithArguments(metricsURL).
+					Should(ContainElement("blocky_blocking_enabled 1"))
 			})
 		})
 
