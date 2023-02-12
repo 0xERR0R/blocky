@@ -238,7 +238,7 @@ func (b *ListCache) refresh(init bool) error {
 		} else {
 			msg := "Populating group cache failed for group " + group
 			if !init {
-				msg = msg + ", leaving items from last successful download in cache"
+				msg += ", leaving items from last successful download in cache"
 			}
 			logger().Warn(msg)
 		}
