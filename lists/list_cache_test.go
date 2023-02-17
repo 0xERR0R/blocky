@@ -76,6 +76,44 @@ var _ = Describe("ListCache", func() {
 				Expect(group).Should(BeEmpty())
 			})
 		})
+		When("List becomes empty on refresh", func() {
+			It("should delete existing elements from group cache", func() {
+				data := make(chan func() (io.ReadCloser, error), 3)
+				mockDownloader := &MockDownloader{data: data}
+				//nolint:unparam
+				data <- func() (io.ReadCloser, error) {
+					return io.NopCloser(strings.NewReader("blocked1.com")), nil
+				}
+				//nolint:unparam
+				data <- func() (io.ReadCloser, error) {
+					return io.NopCloser(strings.NewReader("# nothing")), nil
+				}
+
+				lists := map[string][]string{
+					"gr1": {"http://dummy"},
+				}
+
+				sut, err := NewListCache(
+					ListCacheTypeBlacklist, lists,
+					4*time.Hour,
+					mockDownloader,
+					defaultProcessingConcurrency,
+					false,
+				)
+				Expect(err).Should(Succeed())
+
+				found, group := sut.Match("blocked1.com", []string{"gr1"})
+				Expect(found).Should(BeTrue())
+				Expect(group).Should(Equal("gr1"))
+
+				err = sut.refresh(false)
+				Expect(err).Should(Succeed())
+
+				found, group = sut.Match("blocked1.com", []string{"gr1"})
+				Expect(found).Should(BeFalse())
+				Expect(group).Should(BeEmpty())
+			})
+		})
 		When("List has invalid lines", func() {
 			It("should still other domains", func() {
 				lists := map[string][]string{
@@ -157,7 +195,7 @@ var _ = Describe("ListCache", func() {
 			})
 		})
 		When("non transient err occurs on download", func() {
-			It("should delete existing elements from group cache", func() {
+			It("should keep existing elements from group cache", func() {
 				// should produce a 404 err on second attempt
 				data := make(chan func() (io.ReadCloser, error), 2)
 				mockDownloader := &MockDownloader{data: data}
@@ -177,21 +215,17 @@ var _ = Describe("ListCache", func() {
 				Expect(err).Should(Succeed())
 
 				By("Lists loaded without err", func() {
-					Eventually(func(g Gomega) {
-						found, group := sut.Match("blocked1.com", []string{"gr1"})
-						g.Expect(found).Should(BeTrue())
-						g.Expect(group).Should(Equal("gr1"))
-					}, "1s").Should(Succeed())
+					found, group := sut.Match("blocked1.com", []string{"gr1"})
+					Expect(found).Should(BeTrue())
+					Expect(group).Should(Equal("gr1"))
 				})
 
 				Expect(sut.refresh(false)).Should(HaveOccurred())
 
-				By("List couldn't be loaded due to 404 err", func() {
-					Eventually(func() bool {
-						found, _ := sut.Match("blocked1.com", []string{"gr1"})
-
-						return found
-					}, "1s").Should(BeFalse())
+				By("Lists from first load is kept", func() {
+					found, group := sut.Match("blocked1.com", []string{"gr1"})
+					Expect(found).Should(BeTrue())
+					Expect(group).Should(Equal("gr1"))
 				})
 			})
 		})

@@ -211,7 +211,12 @@ Loop:
 		}
 	}
 
-	return factory.Create(), err
+	cache := factory.Create()
+	if cache.ElementCount() == 0 && err != nil {
+		cache = nil // don't replace existing cache
+	}
+
+	return cache, err
 }
 
 // Match matches passed domain name against cached list entries
