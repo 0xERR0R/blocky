@@ -236,11 +236,14 @@ func (b *ListCache) refresh(init bool) error {
 			b.groupCaches[group] = cacheForGroup
 			b.lock.Unlock()
 		} else {
+			logger := logger().WithFields(logrus.Fields{
+				"group": group,
+			})
+
 			if init {
-				msg := "Populating group cache failed for group " + group
-				logger().Warn(msg)
+				logger.Warn("Populating of group cache failed, cache will be empty until refresh succeeds")
 			} else {
-				logger().Warn("Populating of group cache failed, leaving items from last successful download in cache")
+				logger.Warn("Populating of group cache failed, using existing cache, if any")
 			}
 		}
 
