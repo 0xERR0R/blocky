@@ -66,7 +66,7 @@ var _ = Describe("Caches", func() {
 
 	Describe("Chained StringCache", func() {
 		When("chained StringCache was created", func() {
-			factory := NewChainedCacheFactory()
+			factory := NewChainedCacheFactory("test")
 			factory.AddEntry("/.*google.com/")
 			factory.AddEntry("/^apple\\.(de|com)$/")
 			factory.AddEntry("amazon.com")

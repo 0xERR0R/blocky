@@ -1,11 +1,15 @@
 package stringcache
 
 import (
+	"context"
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/0xERR0R/blocky/log"
+	"github.com/go-redis/redis/v8"
+	"github.com/hako/durafmt"
 )
 
 type StringCache interface {
@@ -16,6 +20,23 @@ type StringCache interface {
 type CacheFactory interface {
 	AddEntry(entry string)
 	Create() StringCache
+}
+
+type redisStringCache struct {
+	rdb *redis.Client
+	key string
+}
+
+func (cache *redisStringCache) ElementCount() int {
+	return int(cache.rdb.SCard(context.Background(), cache.key).Val())
+}
+
+func (cache *redisStringCache) Contains(searchString string) bool {
+	now := time.Now()
+	found := cache.rdb.SIsMember(context.Background(), cache.key, searchString).Val()
+	log.Log().Infof("redis lookup in set '%s', domain '%s': result: %t, duration %s", cache.key, searchString, found, durafmt.Parse(time.Since(now)).String())
+
+	return found
 }
 
 type stringCache map[int]string
@@ -52,6 +73,39 @@ func (cache stringCache) Contains(searchString string) bool {
 	}
 
 	return false
+}
+
+type redisStringCacheFactory struct {
+	pipeline redis.Pipeliner
+	name     string
+	rdb      *redis.Client
+}
+
+func newRedisStringCacheFactory(rdb *redis.Client, name string) CacheFactory {
+	pipeline := rdb.Pipeline()
+	pipeline.Del(context.Background(), name)
+
+	return &redisStringCacheFactory{
+		rdb:      rdb,
+		pipeline: pipeline,
+		name:     name,
+	}
+}
+
+func (s *redisStringCacheFactory) AddEntry(entry string) {
+	err := s.pipeline.SAdd(context.Background(), s.name, entry).Err()
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (s *redisStringCacheFactory) Create() StringCache {
+	// TODO batch
+	s.pipeline.Exec(context.Background())
+	return &redisStringCache{
+		rdb: s.rdb,
+		key: s.name,
+	}
 }
 
 type stringCacheFactory struct {
@@ -194,9 +248,13 @@ func (r *chainedCacheFactory) Create() StringCache {
 	}
 }
 
-func NewChainedCacheFactory() CacheFactory {
+func NewChainedCacheFactory(name string) CacheFactory {
 	return &chainedCacheFactory{
-		stringCacheFactory: newStringCacheFactory(),
-		regexCacheFactory:  newRegexCacheFactory(),
+		stringCacheFactory: newRedisStringCacheFactory(redis.NewClient(&redis.Options{
+			Addr:     "localhost:6379",
+			Password: "", // no password set
+			DB:       0,  // use default DB
+		}), name),
+		regexCacheFactory: newRegexCacheFactory(),
 	}
 }

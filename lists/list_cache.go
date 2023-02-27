@@ -146,11 +146,16 @@ func logger() *logrus.Entry {
 	return log.PrefixedLog("list_cache")
 }
 
+func (b *ListCache) cacheKey(groupName string) string {
+	return fmt.Sprintf("cache_%s_%s", b.listType.String(), groupName)
+
+}
+
 // downloads and reads files with domain names and creates cache for them
-func (b *ListCache) createCacheForGroup(links []string) (stringcache.StringCache, error) {
+func (b *ListCache) createCacheForGroup(links []string, groupName string) (stringcache.StringCache, error) {
 	var err error
 
-	factory := stringcache.NewChainedCacheFactory()
+	factory := stringcache.NewChainedCacheFactory(b.cacheKey(groupName))
 
 	fileLinesChan := make(chan string, chanCap)
 	errChan := make(chan error, chanCap)
@@ -226,7 +231,7 @@ func (b *ListCache) refresh(init bool) error {
 	var err error
 
 	for group, links := range b.groupToLinks {
-		cacheForGroup, e := b.createCacheForGroup(links)
+		cacheForGroup, e := b.createCacheForGroup(links, group)
 		if e != nil {
 			err = multierror.Append(err, multierror.Prefix(e, fmt.Sprintf("can't create cache group '%s':", group)))
 		}
