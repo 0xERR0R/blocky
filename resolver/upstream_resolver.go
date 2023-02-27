@@ -260,7 +260,7 @@ func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Resp
 				return nil
 			}
 
-			return fmt.Errorf("can't resolve request via upstream server %s: %w", upstreamURL, err)
+			return fmt.Errorf("can't resolve request via upstream server %s (%s): %w", r.upstream, upstreamURL, err)
 		},
 		retry.Attempts(retryAttempts),
 		retry.DelayType(retry.FixedDelay),
@@ -285,5 +285,5 @@ func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Resp
 		return nil, err
 	}
 
-	return &model.Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.upstream.String())}, nil
+	return &model.Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.upstream)}, nil
 }
