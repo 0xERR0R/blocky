@@ -305,9 +305,9 @@ var _ = Describe("ListCache", func() {
 		})
 		When("group with bigger files", func() {
 			It("should match", func() {
-				file1 := createTestListFile(GinkgoT().TempDir(), 10000)
-				file2 := createTestListFile(GinkgoT().TempDir(), 15000)
-				file3 := createTestListFile(GinkgoT().TempDir(), 13000)
+				file1, lines1 := createTestListFile(GinkgoT().TempDir(), 10000)
+				file2, lines2 := createTestListFile(GinkgoT().TempDir(), 15000)
+				file3, lines3 := createTestListFile(GinkgoT().TempDir(), 13000)
 				lists := map[string][]string{
 					"gr1": {file1, file2, file3},
 				}
@@ -316,7 +316,7 @@ var _ = Describe("ListCache", func() {
 					defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
-				Expect(sut.groupCaches["gr1"].ElementCount()).Should(Equal(38000))
+				Expect(sut.groupCaches["gr1"].ElementCount()).Should(Equal(lines1 + lines2 + lines3))
 			})
 		})
 		When("inline list content is defined", func() {
@@ -483,7 +483,7 @@ func (m *MockDownloader) ListSource() string {
 	return "http://mock"
 }
 
-func createTestListFile(dir string, totalLines int) string {
+func createTestListFile(dir string, totalLines int) (string, int) {
 	file, err := os.CreateTemp(dir, "blocky")
 	if err != nil {
 		log.Fatal(err)
@@ -495,7 +495,7 @@ func createTestListFile(dir string, totalLines int) string {
 	}
 	w.Flush()
 
-	return file.Name()
+	return file.Name(), totalLines
 }
 
 const (
