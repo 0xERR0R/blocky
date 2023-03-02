@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/0xERR0R/blocky/util"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -164,54 +165,28 @@ func iteratorToList[T any](forEach func(func(T) error) error) []T {
 	return res
 }
 
-type mockParser[T any] struct {
-	driver    func(chan<- T, chan<- error)
-	res       chan T
-	err       chan error
-	callCount uint
-}
+type mockParser[T any] struct{ util.MockCallSequence[T] }
 
 func newMockParser[T any](driver func(chan<- T, chan<- error)) SeriesParser[T] {
-	return &mockParser[T]{
-		driver: driver,
-	}
+	return &mockParser[T]{util.NewMockCallSequence(driver)}
 }
 
-func (m *mockParser[T]) Next(ctx context.Context) (T, error) {
-	var zero T
-
-	m.callCount++
+func (m *mockParser[T]) Next(ctx context.Context) (_ T, rerr error) {
+	defer func() {
+		if rerr != nil && IsNonResumableErr(rerr) {
+			m.Close()
+		}
+	}()
 
 	if err := ctx.Err(); err != nil {
-		close(m.res)
-		close(m.err)
+		var zero T
 
 		return zero, NewNonResumableError(err)
 	}
 
-	if m.res == nil {
-		m.res = make(chan T)
-		m.err = make(chan error)
-
-		go func() {
-			m.driver(m.res, m.err)
-		}()
-	}
-
-	select {
-	case t := <-m.res:
-		return t, nil
-
-	case err := <-m.err:
-		if IsNonResumableErr(err) {
-			close(m.res)
-			close(m.err)
-		}
-
-		return zero, err
-	}
+	return m.Call()
 }
 
 func (m *mockParser[T]) Position() string {
-	return fmt.Sprintf("call %d", m.callCount)
+	return fmt.Sprintf("call %d", m.CallCount())
 }

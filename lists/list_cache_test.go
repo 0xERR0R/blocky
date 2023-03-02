@@ -14,6 +14,7 @@ import (
 
 	. "github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/lists/parsers"
+	"github.com/0xERR0R/blocky/util"
 
 	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/onsi/ginkgo/v2"
@@ -78,19 +79,13 @@ var _ = Describe("ListCache", func() {
 		})
 		When("List becomes empty on refresh", func() {
 			It("should delete existing elements from group cache", func() {
-				data := make(chan func() (io.ReadCloser, error), 3)
-				mockDownloader := &MockDownloader{data: data}
-				//nolint:unparam
-				data <- func() (io.ReadCloser, error) {
-					return io.NopCloser(strings.NewReader("blocked1.com")), nil
-				}
-				//nolint:unparam
-				data <- func() (io.ReadCloser, error) {
-					return io.NopCloser(strings.NewReader("# nothing")), nil
-				}
+				mockDownloader := newMockDownloader(func(res chan<- string, err chan<- error) {
+					res <- "blocked1.com"
+					res <- "# nothing"
+				})
 
 				lists := map[string][]string{
-					"gr1": {"http://dummy"},
+					"gr1": {mockDownloader.ListSource()},
 				}
 
 				sut, err := NewListCache(
@@ -142,22 +137,14 @@ var _ = Describe("ListCache", func() {
 		When("a temporary/transient err occurs on download", func() {
 			It("should not delete existing elements from group cache", func() {
 				// should produce a transient error on second and third attempt
-				data := make(chan func() (io.ReadCloser, error), 3)
-				mockDownloader := &MockDownloader{data: data}
-				//nolint:unparam
-				data <- func() (io.ReadCloser, error) {
-					return io.NopCloser(strings.NewReader("blocked1.com")), nil
-				}
-				//nolint:unparam
-				data <- func() (io.ReadCloser, error) {
-					return nil, &TransientError{inner: errors.New("boom")}
-				}
-				//nolint:unparam
-				data <- func() (io.ReadCloser, error) {
-					return nil, &TransientError{inner: errors.New("boom")}
-				}
+				mockDownloader := newMockDownloader(func(res chan<- string, err chan<- error) {
+					res <- "blocked1.com"
+					err <- &TransientError{inner: errors.New("boom")}
+					err <- &TransientError{inner: errors.New("boom")}
+				})
+
 				lists := map[string][]string{
-					"gr1": {"http://dummy"},
+					"gr1": {mockDownloader.ListSource()},
 				}
 
 				sut, err := NewListCache(
@@ -196,18 +183,14 @@ var _ = Describe("ListCache", func() {
 		})
 		When("non transient err occurs on download", func() {
 			It("should keep existing elements from group cache", func() {
-				// should produce a 404 err on second attempt
-				data := make(chan func() (io.ReadCloser, error), 2)
-				mockDownloader := &MockDownloader{data: data}
-				//nolint:unparam
-				data <- func() (io.ReadCloser, error) {
-					return io.NopCloser(strings.NewReader("blocked1.com")), nil
-				}
-				data <- func() (io.ReadCloser, error) {
-					return nil, errors.New("boom")
-				}
+				// should produce a non transient error on second attempt
+				mockDownloader := newMockDownloader(func(res chan<- string, err chan<- error) {
+					res <- "blocked1.com"
+					err <- errors.New("boom")
+				})
+
 				lists := map[string][]string{
-					"gr1": {"http://dummy"},
+					"gr1": {mockDownloader.ListSource()},
 				}
 
 				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, mockDownloader,
@@ -480,13 +463,24 @@ var _ = Describe("ListCache", func() {
 })
 
 type MockDownloader struct {
-	data chan func() (io.ReadCloser, error)
+	util.MockCallSequence[string]
+}
+
+func newMockDownloader(driver func(res chan<- string, err chan<- error)) *MockDownloader {
+	return &MockDownloader{util.NewMockCallSequence(driver)}
 }
 
 func (m *MockDownloader) DownloadFile(_ string) (io.ReadCloser, error) {
-	fn := <-m.data
+	str, err := m.Call()
+	if err != nil {
+		return nil, err
+	}
 
-	return fn()
+	return io.NopCloser(strings.NewReader(str)), nil
+}
+
+func (m *MockDownloader) ListSource() string {
+	return "http://mock"
 }
 
 func createTestListFile(dir string, totalLines int) string {
