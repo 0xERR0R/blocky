@@ -51,7 +51,7 @@ var _ = Describe("External lists and query blocking", func() {
 								HaveTTL(BeNumerically("==", 123)),
 							))
 
-					Expect(getContainerLogs(blocky)).Should(ContainElement(ContainSubstring("error during file processing")))
+					Expect(getContainerLogs(blocky)).Should(ContainElement(ContainSubstring("cannot open source: ")))
 				})
 			})
 			Context("startStrategy = failOnError", func() {

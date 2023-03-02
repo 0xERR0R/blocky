@@ -1,24 +1,18 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
-	"net"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/lists/parsers"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
-)
-
-//nolint:gochecknoglobals
-var (
-	_, loopback4, _ = net.ParseCIDR("127.0.0.0/8")
-	loopback6       = net.ParseIP("::1")
 )
 
 const (
@@ -28,11 +22,13 @@ const (
 type HostsFileResolver struct {
 	NextResolver
 	HostsFilePath  string
-	hosts          []host
+	hosts          []HostsFileEntry
 	ttl            uint32
 	refreshPeriod  time.Duration
 	filterLoopback bool
 }
+
+type HostsFileEntry = parsers.HostsFileEntry
 
 func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Response {
 	question := request.Req.Question[0]
@@ -45,7 +41,7 @@ func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Resp
 
 			if raddr == question.Name {
 				ptr := new(dns.PTR)
-				ptr.Ptr = dns.Fqdn(host.Hostname)
+				ptr.Ptr = dns.Fqdn(host.Name)
 				ptr.Hdr = util.CreateHeader(question, r.ttl)
 				response.Answer = append(response.Answer, ptr)
 
@@ -102,8 +98,10 @@ func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, er
 	return r.next.Resolve(request)
 }
 
-func (r *HostsFileResolver) processHostEntry(host host, domain string, question dns.Question) (result []dns.RR) {
-	if host.Hostname == domain {
+func (r *HostsFileResolver) processHostEntry(
+	host HostsFileEntry, domain string, question dns.Question,
+) (result []dns.RR) {
+	if host.Name == domain {
 		if isSupportedType(host.IP, question) {
 			rr, _ := util.CreateAnswerFromQuestion(question, host.IP, r.ttl)
 			result = append(result, rr)
@@ -143,10 +141,11 @@ func NewHostsFileResolver(cfg config.HostsFileConfig) *HostsFileResolver {
 		filterLoopback: cfg.FilterLoopback,
 	}
 
-	if err := r.parseHostsFile(); err != nil {
+	if err := r.parseHostsFile(context.Background()); err != nil {
 		logger := log.PrefixedLog(hostsFileResolverLogger)
-		logger.Warnf("cannot parse hosts file: %s, hosts file resolving is disabled", r.HostsFilePath)
-		r.HostsFilePath = ""
+		logger.Warnf("hosts file resolving is disabled: %s", err)
+
+		r.HostsFilePath = "" // don't try parsing the file again
 	} else {
 		go r.periodicUpdate()
 	}
@@ -154,72 +153,49 @@ func NewHostsFileResolver(cfg config.HostsFileConfig) *HostsFileResolver {
 	return &r
 }
 
-type host struct {
-	IP       net.IP
-	Hostname string
-	Aliases  []string
-}
-
-//nolint:funlen
-func (r *HostsFileResolver) parseHostsFile() error {
-	const minColumnCount = 2
+func (r *HostsFileResolver) parseHostsFile(ctx context.Context) error {
+	const (
+		maxErrorsPerFile = 5
+		memReleaseFactor = 2
+	)
 
 	if r.HostsFilePath == "" {
 		return nil
 	}
 
-	buf, err := os.ReadFile(r.HostsFilePath)
+	f, err := os.Open(r.HostsFilePath)
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 
-	newHosts := make([]host, 0)
+	// reduce initial capacity so we don't waste memory if there are less entries than before
+	capacity := len(r.hosts) / memReleaseFactor
+	newHosts := make([]HostsFileEntry, 0, capacity)
 
-	for _, line := range strings.Split(string(buf), "\n") {
-		trimmed := strings.TrimSpace(line)
+	p := parsers.AllowErrors(parsers.HostsFile(f), maxErrorsPerFile)
+	p.OnErr(func(err error) {
+		log.PrefixedLog(hostsFileResolverLogger).Warnf("error parsing %s: %s, trying to continue", r.HostsFilePath, err)
+	})
 
-		if len(trimmed) == 0 || trimmed[0] == '#' {
-			// Skip empty and commented lines
-			continue
+	err = parsers.ForEach[*HostsFileEntry](ctx, p, func(entry *HostsFileEntry) error {
+		if len(entry.Interface) != 0 {
+			// Ignore entries with a specific interface: we don't restrict what clients/interfaces we serve entries to,
+			// so this avoids returning entries that can't be accessed by the client.
+			return nil
 		}
 
-		// Find comment symbol at the end of the line
-		var fields []string
-
-		end := strings.IndexRune(trimmed, '#')
-
-		if end == -1 {
-			fields = strings.Fields(trimmed)
-		} else {
-			fields = strings.Fields(trimmed[:end])
+		// Ignore loopback, if so configured
+		if r.filterLoopback && (entry.IP.IsLoopback() || entry.Name == "localhost") {
+			return nil
 		}
 
-		if len(fields) < minColumnCount {
-			// Skip invalid entry
-			continue
-		}
+		newHosts = append(newHosts, *entry)
 
-		if net.ParseIP(fields[0]) == nil {
-			// Skip invalid IP address
-			continue
-		}
-
-		var h host
-		h.IP = net.ParseIP(fields[0])
-		h.Hostname = fields[1]
-
-		// Check if loopback
-		if r.filterLoopback && (loopback4.Contains(h.IP) || loopback6.Equal(h.IP)) {
-			continue
-		}
-
-		if len(fields) > minColumnCount {
-			for i := 2; i < len(fields); i++ {
-				h.Aliases = append(h.Aliases, fields[i])
-			}
-		}
-
-		newHosts = append(newHosts, h)
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("error parsing %s: %w", r.HostsFilePath, err) // err is parsers.ErrTooManyErrors
 	}
 
 	r.hosts = newHosts
@@ -238,7 +214,7 @@ func (r *HostsFileResolver) periodicUpdate() {
 			logger := log.PrefixedLog(hostsFileResolverLogger)
 			logger.WithField("file", r.HostsFilePath).Debug("refreshing hosts file")
 
-			util.LogOnError("can't refresh hosts file: ", r.parseHostsFile())
+			util.LogOnError("can't refresh hosts file: ", r.parseHostsFile(context.Background()))
 		}
 	}
 }

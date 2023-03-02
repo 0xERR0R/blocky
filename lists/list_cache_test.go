@@ -13,6 +13,7 @@ import (
 	"time"
 
 	. "github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/lists/parsers"
 
 	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/onsi/ginkgo/v2"
@@ -75,6 +76,31 @@ var _ = Describe("ListCache", func() {
 				Expect(group).Should(BeEmpty())
 			})
 		})
+		When("List has invalid lines", func() {
+			It("should still other domains", func() {
+				lists := map[string][]string{
+					"gr1": {
+						inlineList(
+							"inlinedomain1.com",
+							"invaliddomain!",
+							"inlinedomain2.com",
+						),
+					},
+				}
+
+				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
+					defaultProcessingConcurrency, false)
+				Expect(err).Should(Succeed())
+
+				found, group := sut.Match("inlinedomain1.com", []string{"gr1"})
+				Expect(found).Should(BeTrue())
+				Expect(group).Should(Equal("gr1"))
+
+				found, group = sut.Match("inlinedomain2.com", []string{"gr1"})
+				Expect(found).Should(BeTrue())
+				Expect(group).Should(Equal("gr1"))
+			})
+		})
 		When("a temporary/transient err occurs on download", func() {
 			It("should not delete existing elements from group cache", func() {
 				// should produce a transient error on second and third attempt
@@ -113,7 +139,7 @@ var _ = Describe("ListCache", func() {
 					}, "1s").Should(Succeed())
 				})
 
-				Expect(sut.refresh(true)).Should(HaveOccurred())
+				Expect(sut.refresh(false)).Should(HaveOccurred())
 
 				By("List couldn't be loaded due to timeout", func() {
 					found, group := sut.Match("blocked1.com", []string{"gr1"})
@@ -279,7 +305,11 @@ var _ = Describe("ListCache", func() {
 		When("inline list content is defined", func() {
 			It("should match", func() {
 				lists := map[string][]string{
-					"gr1": {"inlinedomain1.com\n#some comment\ninlinedomain2.com"},
+					"gr1": {inlineList(
+						"inlinedomain1.com",
+						"#some comment",
+						"inlinedomain2.com",
+					)},
 				}
 
 				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
@@ -298,9 +328,13 @@ var _ = Describe("ListCache", func() {
 		})
 		When("Text file can't be parsed", func() {
 			It("should still match already imported strings", func() {
-				// 2nd line is too long and will cause an error
 				lists := map[string][]string{
-					"gr1": {"inlinedomain1.com\n" + strings.Repeat("longString", 100000)},
+					"gr1": {
+						inlineList(
+							"inlinedomain1.com",
+							"lineTooLong"+strings.Repeat("x", bufio.MaxScanTokenSize), // too long
+						),
+					},
 				}
 
 				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
@@ -312,10 +346,26 @@ var _ = Describe("ListCache", func() {
 				Expect(group).Should(Equal("gr1"))
 			})
 		})
+		When("Text file has too many errors", func() {
+			It("should fail parsing", func() {
+				lists := map[string][]string{
+					"gr1": {
+						inlineList(
+							strings.Repeat("invaliddomain!\n", maxErrorsPerFile+1), // too many errors
+						),
+					},
+				}
+
+				_, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
+					defaultProcessingConcurrency, false)
+				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(MatchError(parsers.ErrTooManyErrors))
+			})
+		})
 		When("file has end of line comment", func() {
 			It("should still parse the domain", func() {
 				lists := map[string][]string{
-					"gr1": {"inlinedomain1.com#a comment\n"},
+					"gr1": {inlineList("inlinedomain1.com#a comment")},
 				}
 
 				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
@@ -330,7 +380,7 @@ var _ = Describe("ListCache", func() {
 		When("inline regex content is defined", func() {
 			It("should match", func() {
 				lists := map[string][]string{
-					"gr1": {"/^apple\\.(de|com)$/\n"},
+					"gr1": {inlineList("/^apple\\.(de|com)$/")},
 				}
 
 				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
@@ -352,7 +402,7 @@ var _ = Describe("ListCache", func() {
 			It("should print list configuration", func() {
 				lists := map[string][]string{
 					"gr1": {server1.URL, server2.URL},
-					"gr2": {"inline\ndefinition\n"},
+					"gr2": {inlineList("inline", "definition")},
 				}
 
 				sut, err := NewListCache(ListCacheTypeBlacklist, lists, time.Hour, NewDownloader(),
@@ -420,13 +470,30 @@ func createTestListFile(dir string, totalLines int) string {
 	return file.Name()
 }
 
-const charpool = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
+const (
+	initCharpool = "abcdefghijklmnopqrstuvwxyz"
+	contCharpool = initCharpool + "0123456789-"
+)
 
 func RandStringBytes(n int) string {
 	b := make([]byte, n)
+
+	pool := initCharpool
+
 	for i := range b {
-		b[i] = charpool[rand.Intn(len(charpool))]
+		b[i] = pool[rand.Intn(len(pool))]
+
+		pool = contCharpool
 	}
 
 	return string(b)
+}
+
+func inlineList(lines ...string) string {
+	res := strings.Join(lines, "\n")
+
+	// ensure at least one line ending so it's parsed as an inline block
+	res += "\n"
+
+	return res
 }
