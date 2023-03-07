@@ -83,7 +83,6 @@ var _ = Describe("Blocking command", func() {
 		})
 		When("Type is wrong", func() {
 			It("should end with error", func() {
-
 				command := NewQueryCommand()
 				command.SetArgs([]string{"--type", "X", "google.de"})
 				err := command.Execute()

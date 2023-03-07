@@ -8,6 +8,7 @@ import (
 
 	"github.com/0xERR0R/blocky/cache/expirationcache"
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
@@ -25,10 +26,12 @@ type ClientNamesResolver struct {
 }
 
 // NewClientNamesResolver creates new resolver instance
-func NewClientNamesResolver(cfg config.ClientLookupConfig, bootstrap *Bootstrap) (cr *ClientNamesResolver, err error) {
+func NewClientNamesResolver(
+	cfg config.ClientLookupConfig, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
+) (cr *ClientNamesResolver, err error) {
 	var r Resolver
 	if !cfg.Upstream.IsDefault() {
-		r, err = NewUpstreamResolver(cfg.Upstream, bootstrap)
+		r, err = NewUpstreamResolver(cfg.Upstream, bootstrap, shouldVerifyUpstreams)
 		if err != nil {
 			return nil, err
 		}
@@ -46,24 +49,24 @@ func NewClientNamesResolver(cfg config.ClientLookupConfig, bootstrap *Bootstrap)
 
 // Configuration returns current resolver configuration
 func (r *ClientNamesResolver) Configuration() (result []string) {
-	if r.externalResolver != nil || len(r.clientIPMapping) > 0 {
-		result = append(result, fmt.Sprintf("singleNameOrder = \"%v\"", r.singleNameOrder))
+	if r.externalResolver == nil && len(r.clientIPMapping) == 0 {
+		return append(configDisabled, "use only IP address")
+	}
 
-		if r.externalResolver != nil {
-			result = append(result, fmt.Sprintf("externalResolver = \"%s\"", r.externalResolver))
+	result = append(result, fmt.Sprintf("singleNameOrder = \"%v\"", r.singleNameOrder))
+
+	if r.externalResolver != nil {
+		result = append(result, fmt.Sprintf("externalResolver = \"%s\"", r.externalResolver))
+	}
+
+	result = append(result, fmt.Sprintf("cache item count = %d", r.cache.TotalCount()))
+
+	if len(r.clientIPMapping) > 0 {
+		result = append(result, "client IP mapping:")
+
+		for k, v := range r.clientIPMapping {
+			result = append(result, fmt.Sprintf("%s -> %s", k, v))
 		}
-
-		result = append(result, fmt.Sprintf("cache item count = %d", r.cache.TotalCount()))
-
-		if len(r.clientIPMapping) > 0 {
-			result = append(result, "client IP mapping:")
-
-			for k, v := range r.clientIPMapping {
-				result = append(result, fmt.Sprintf("%s -> %s", k, v))
-			}
-		}
-	} else {
-		result = []string{"deactivated, use only IP address"}
 	}
 
 	return
@@ -99,7 +102,7 @@ func (r *ClientNamesResolver) getClientNames(request *model.Request) []string {
 		}
 	}
 
-	names := r.resolveClientNames(ip, withPrefix(request.Log, "client_names_resolver"))
+	names := r.resolveClientNames(ip, log.WithPrefix(request.Log, "client_names_resolver"))
 	r.cache.Put(ip.String(), names, time.Hour)
 
 	return names
@@ -139,7 +142,6 @@ func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry
 		Req: util.NewMsgWithQuestion(reverse, dns.Type(dns.TypePTR)),
 		Log: logger,
 	})
-
 	if err != nil {
 		logger.Error("can't resolve client name: ", err)
 

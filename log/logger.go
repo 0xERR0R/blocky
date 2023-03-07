@@ -3,6 +3,7 @@ package log
 //go:generate go run github.com/abice/go-enum -f=$GOFILE --marshal --names
 
 import (
+	"fmt"
 	"io"
 	"strings"
 
@@ -10,8 +11,11 @@ import (
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
 )
 
+const prefixField = "prefix"
+
 // Logger is the global logging instance
-// nolint:gochecknoglobals
+//
+//nolint:gochecknoglobals
 var logger *logrus.Logger
 
 // FormatType format for logging ENUM(
@@ -30,11 +34,26 @@ type FormatType int
 // )
 type Level int
 
-// nolint:gochecknoinits
+// Config defines all logging configurations
+type Config struct {
+	Level     Level      `yaml:"level" default:"info"`
+	Format    FormatType `yaml:"format" default:"text"`
+	Privacy   bool       `yaml:"privacy" default:"false"`
+	Timestamp bool       `yaml:"timestamp" default:"true"`
+}
+
+//nolint:gochecknoinits
 func init() {
 	logger = logrus.New()
 
-	ConfigureLogger(LevelInfo, FormatTypeText, true)
+	defaultConfig := &Config{
+		Level:     LevelInfo,
+		Format:    FormatTypeText,
+		Privacy:   false,
+		Timestamp: true,
+	}
+
+	ConfigureLogger(defaultConfig)
 }
 
 // Log returns the global logger
@@ -44,7 +63,16 @@ func Log() *logrus.Logger {
 
 // PrefixedLog return the global logger with prefix
 func PrefixedLog(prefix string) *logrus.Entry {
-	return logger.WithField("prefix", prefix)
+	return logger.WithField(prefixField, prefix)
+}
+
+// WithPrefix adds the given prefix to the logger.
+func WithPrefix(logger *logrus.Entry, prefix string) *logrus.Entry {
+	if existingPrefix, ok := logger.Data[prefixField]; ok {
+		prefix = fmt.Sprintf("%s.%s", existingPrefix, prefix)
+	}
+
+	return logger.WithField(prefixField, prefix)
 }
 
 // EscapeInput removes line breaks from input
@@ -56,14 +84,14 @@ func EscapeInput(input string) string {
 }
 
 // ConfigureLogger applies configuration to the global logger
-func ConfigureLogger(logLevel Level, formatType FormatType, logTimestamp bool) {
-	if level, err := logrus.ParseLevel(logLevel.String()); err != nil {
-		logger.Fatalf("invalid log level %s %v", logLevel, err)
+func ConfigureLogger(cfg *Config) {
+	if level, err := logrus.ParseLevel(cfg.Level.String()); err != nil {
+		logger.Fatalf("invalid log level %s %v", cfg.Level, err)
 	} else {
 		logger.SetLevel(level)
 	}
 
-	switch formatType {
+	switch cfg.Format {
 	case FormatTypeText:
 		logFormatter := &prefixed.TextFormatter{
 			TimestampFormat:  "2006-01-02 15:04:05",
@@ -71,7 +99,8 @@ func ConfigureLogger(logLevel Level, formatType FormatType, logTimestamp bool) {
 			ForceFormatting:  true,
 			ForceColors:      false,
 			QuoteEmptyFields: true,
-			DisableTimestamp: !logTimestamp}
+			DisableTimestamp: !cfg.Timestamp,
+		}
 
 		logFormatter.SetColorScheme(&prefixed.ColorScheme{
 			PrefixStyle:    "blue+b",

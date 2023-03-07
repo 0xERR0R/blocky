@@ -45,8 +45,8 @@ Complete documentation is available at https://github.com/0xERR0R/blocky`,
 	}
 
 	c.PersistentFlags().StringVarP(&configPath, "config", "c", defaultConfigPath, "path to config file or folder")
-	c.PersistentFlags().StringVar(&apiHost, "apiHost", defaultHost, "host of blocky (API). Default overridden by config and CLI.") // nolint:lll
-	c.PersistentFlags().Uint16Var(&apiPort, "apiPort", defaultPort, "port of blocky (API). Default overridden by config and CLI.") // nolint:lll
+	c.PersistentFlags().StringVar(&apiHost, "apiHost", defaultHost, "host of blocky (API). Default overridden by config and CLI.") //nolint:lll
+	c.PersistentFlags().Uint16Var(&apiPort, "apiPort", defaultPort, "port of blocky (API). Default overridden by config and CLI.") //nolint:lll
 
 	c.AddCommand(newRefreshCommand(),
 		NewQueryCommand(),
@@ -86,7 +86,7 @@ func initConfig() {
 		util.FatalOnError("unable to load configuration: ", err)
 	}
 
-	log.ConfigureLogger(cfg.LogLevel, cfg.LogFormat, cfg.LogTimestamp)
+	log.ConfigureLogger(&cfg.Log)
 
 	if len(cfg.HTTPPorts) != 0 {
 		split := strings.Split(cfg.HTTPPorts[0], ":")

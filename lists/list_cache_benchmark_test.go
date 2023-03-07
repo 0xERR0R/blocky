@@ -5,9 +5,9 @@ import (
 )
 
 func BenchmarkRefresh(b *testing.B) {
-	file1 := createTestListFile(b.TempDir(), 100000)
-	file2 := createTestListFile(b.TempDir(), 150000)
-	file3 := createTestListFile(b.TempDir(), 130000)
+	file1, _ := createTestListFile(b.TempDir(), 100000)
+	file2, _ := createTestListFile(b.TempDir(), 150000)
+	file3, _ := createTestListFile(b.TempDir(), 130000)
 	lists := map[string][]string{
 		"gr1": {file1, file2, file3},
 	}

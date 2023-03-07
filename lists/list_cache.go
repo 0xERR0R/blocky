@@ -2,7 +2,7 @@ package lists
 
 //go:generate go run github.com/abice/go-enum -f=$GOFILE --marshal --names
 import (
-	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -12,20 +12,20 @@ import (
 	"sync"
 	"time"
 
-	"github.com/0xERR0R/blocky/cache/stringcache"
+	"github.com/hako/durafmt"
+	"github.com/hashicorp/go-multierror"
 	"github.com/sirupsen/logrus"
 
-	"github.com/hako/durafmt"
-
-	"github.com/hashicorp/go-multierror"
-
+	"github.com/0xERR0R/blocky/cache/stringcache"
 	"github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/lists/parsers"
 	"github.com/0xERR0R/blocky/log"
 )
 
 const (
 	defaultProcessingConcurrency = 4
 	chanCap                      = 1000
+	maxErrorsPerFile             = 5
 )
 
 // ListCacheType represents the type of cached list ENUM(
@@ -95,7 +95,8 @@ func (b *ListCache) Configuration() (result []string) {
 
 // NewListCache creates new list instance
 func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration,
-	downloader FileDownloader, processingConcurrency uint, async bool) (*ListCache, error) {
+	downloader FileDownloader, processingConcurrency uint, async bool,
+) (*ListCache, error) {
 	groupCaches := make(map[string]stringcache.StringCache)
 
 	if processingConcurrency == 0 {
@@ -114,6 +115,9 @@ func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeri
 	var initError error
 	if async {
 		initError = nil
+
+		// start list refresh in the background
+		go b.Refresh()
 	} else {
 		initError = b.refresh(true)
 	}
@@ -143,6 +147,8 @@ func logger() *logrus.Entry {
 }
 
 // downloads and reads files with domain names and creates cache for them
+//
+//nolint:funlen // will refactor in a later commit
 func (b *ListCache) createCacheForGroup(links []string) (stringcache.StringCache, error) {
 	var err error
 
@@ -158,11 +164,14 @@ func (b *ListCache) createCacheForGroup(links []string) (stringcache.StringCache
 
 	processingLinkJobs := len(links)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// loop over links (http/local) or inline definitions
 	// start a new goroutine for each link, but limit to max. number (see processingConcurrency)
-	for _, link := range links {
-		go func(link string) {
-			// thy to write in this channel -> this will block if max amount of goroutines are being executed
+	for idx, link := range links {
+		go func(idx int, link string) {
+			// try to write in this channel -> this will block if max amount of goroutines are being executed
 			guard <- struct{}{}
 
 			defer func() {
@@ -170,8 +179,14 @@ func (b *ListCache) createCacheForGroup(links []string) (stringcache.StringCache
 				<-guard
 				workerDoneChan <- true
 			}()
-			b.processFile(link, fileLinesChan, errChan)
-		}(link)
+
+			name := linkName(idx, link)
+
+			err := b.parseFile(ctx, name, link, fileLinesChan)
+			if err != nil {
+				errChan <- err
+			}
+		}(idx, link)
 	}
 
 Loop:
@@ -196,7 +211,12 @@ Loop:
 		}
 	}
 
-	return factory.Create(), err
+	cache := factory.Create()
+	if cache.ElementCount() == 0 && err != nil {
+		cache = nil // don't replace existing cache
+	}
+
+	return cache, err
 }
 
 // Match matches passed domain name against cached list entries
@@ -217,7 +237,8 @@ func (b *ListCache) Match(domain string, groupsToCheck []string) (found bool, gr
 func (b *ListCache) Refresh() {
 	_ = b.refresh(false)
 }
-func (b *ListCache) refresh(init bool) error {
+
+func (b *ListCache) refresh(isInit bool) error {
 	var err error
 
 	for group, links := range b.groupToLinks {
@@ -226,30 +247,52 @@ func (b *ListCache) refresh(init bool) error {
 			err = multierror.Append(err, multierror.Prefix(e, fmt.Sprintf("can't create cache group '%s':", group)))
 		}
 
-		if cacheForGroup != nil {
-			b.lock.Lock()
-			b.groupCaches[group] = cacheForGroup
-			b.lock.Unlock()
-		} else {
-			if init {
-				msg := "Populating group cache failed for group " + group
-				logger().Warn(msg)
-			} else {
-				logger().Warn("Populating of group cache failed, leaving items from last successful download in cache")
-			}
-		}
+		if cacheForGroup == nil {
+			count := b.groupElementCount(group, isInit)
 
-		if cacheForGroup != nil {
-			evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, cacheForGroup.ElementCount())
-
-			logger().WithFields(logrus.Fields{
+			logger := logger().WithFields(logrus.Fields{
 				"group":       group,
-				"total_count": cacheForGroup.ElementCount(),
-			}).Info("group import finished")
+				"total_count": count,
+			})
+
+			if count == 0 {
+				logger.Warn("Populating of group cache failed, cache will be empty until refresh succeeds")
+			} else {
+				logger.Warn("Populating of group cache failed, using existing cache, if any")
+			}
+
+			continue
 		}
+
+		b.lock.Lock()
+		b.groupCaches[group] = cacheForGroup
+		b.lock.Unlock()
+
+		evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, cacheForGroup.ElementCount())
+
+		logger().WithFields(logrus.Fields{
+			"group":       group,
+			"total_count": cacheForGroup.ElementCount(),
+		}).Info("group import finished")
 	}
 
 	return err
+}
+
+func (b *ListCache) groupElementCount(group string, isInit bool) int {
+	if isInit {
+		return 0
+	}
+
+	b.lock.RLock()
+	oldCache, ok := b.groupCaches[group]
+	b.lock.RUnlock()
+
+	if !ok {
+		return 0
+	}
+
+	return oldCache.ElementCount()
 }
 
 func readFile(file string) (io.ReadCloser, error) {
@@ -260,47 +303,75 @@ func readFile(file string) (io.ReadCloser, error) {
 }
 
 // downloads file (or reads local file) and writes each line in the file to the result channel
-func (b *ListCache) processFile(link string, resultCh chan<- string, errCh chan<- error) {
-	var r io.ReadCloser
+func (b *ListCache) parseFile(ctx context.Context, name, link string, resultCh chan<- string) error {
+	count := 0
 
-	var err error
+	logger := func() *logrus.Entry {
+		return logger().WithFields(logrus.Fields{
+			"source": name,
+			"count":  count,
+		})
+	}
 
-	r, err = b.getLinkReader(link)
-
+	r, err := b.newLinkReader(link)
 	if err != nil {
-		logger().Warn("error during file processing: ", err)
-		errCh <- err
+		logger().Error("cannot open source: ", err)
 
-		return
+		return err
 	}
 	defer r.Close()
 
-	var count int
+	p := parsers.AllowErrors(parsers.Hosts(r), maxErrorsPerFile)
+	p.OnErr(func(err error) {
+		logger().Warnf("parse error: %s, trying to continue", err)
+	})
 
-	scanner := bufio.NewScanner(r)
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		// skip comments
-		if line := processLine(line); line != "" {
-			resultCh <- line
-
+	err = parsers.ForEach[*parsers.HostsIterator](ctx, p, func(hosts *parsers.HostsIterator) error {
+		return hosts.ForEach(func(host string) error {
 			count++
+
+			// For IPs, we want to ensure the string is the Go representation so that when
+			// we compare responses, a same IP matches, even if it was written differently
+			// in the list.
+			if ip := net.ParseIP(host); ip != nil {
+				host = ip.String()
+			}
+
+			resultCh <- host
+
+			return nil
+		})
+	})
+	if err != nil {
+		// Don't log cancelation: it was caused by another goroutine failing
+		if !errors.Is(err, context.Canceled) {
+			logger().Error("parse error: ", err)
 		}
+
+		// Only propagate the error if no entries were parsed
+		// If the file was partially parsed, we'll settle for that
+
+		if count == 0 {
+			return err
+		}
+
+		return nil
 	}
 
-	if err := scanner.Err(); err != nil {
-		// don't propagate error here. If some lines are not parsable (e.g. too long), it is ok
-		logger().Warn("can't parse file: ", err)
-	} else {
-		logger().WithFields(logrus.Fields{
-			"source": link,
-			"count":  count,
-		}).Info("file imported")
-	}
+	logger().Info("import succeeded")
+
+	return nil
 }
 
-func (b *ListCache) getLinkReader(link string) (r io.ReadCloser, err error) {
+func linkName(linkIdx int, link string) string {
+	if strings.ContainsAny(link, "\n") {
+		return fmt.Sprintf("inline block (item #%d in group)", linkIdx)
+	}
+
+	return link
+}
+
+func (b *ListCache) newLinkReader(link string) (r io.ReadCloser, err error) {
 	switch {
 	// link contains a line break -> this is inline list definition in YAML (with literal style Block Scalar)
 	case strings.ContainsAny(link, "\n"):
@@ -314,24 +385,4 @@ func (b *ListCache) getLinkReader(link string) (r io.ReadCloser, err error) {
 	}
 
 	return
-}
-
-// return only first column (see hosts format)
-func processLine(line string) string {
-	if strings.HasPrefix(line, "#") {
-		return ""
-	}
-
-	if parts := strings.Fields(line); len(parts) > 0 {
-		host := parts[len(parts)-1]
-
-		ip := net.ParseIP(host)
-		if ip != nil {
-			return ip.String()
-		}
-
-		return strings.TrimSpace(strings.ToLower(host))
-	}
-
-	return ""
 }

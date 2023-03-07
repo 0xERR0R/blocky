@@ -5,10 +5,11 @@ import (
 	"net"
 	"time"
 
+	"github.com/creasty/defaults"
 	"github.com/miekg/dns"
 
 	"github.com/0xERR0R/blocky/helpertest"
-	. "github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/log"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -23,6 +24,109 @@ var _ = Describe("Config", func() {
 		tmpDir = helpertest.NewTmpFolder("config")
 		Expect(tmpDir.Error).Should(Succeed())
 		DeferCleanup(tmpDir.Clean)
+	})
+
+	Describe("Deprecated parameters are converted", func() {
+		var c Config
+		BeforeEach(func() {
+			err := defaults.Set(&c)
+			Expect(err).Should(Succeed())
+		})
+
+		When("parameter 'disableIPv6' is set", func() {
+			It("should add 'AAAA' to filter.queryTypes", func() {
+				c.DisableIPv6 = true
+				validateConfig(&c)
+				Expect(c.Filtering.QueryTypes).Should(HaveKey(QType(dns.TypeAAAA)))
+				Expect(c.Filtering.QueryTypes.Contains(dns.Type(dns.TypeAAAA))).Should(BeTrue())
+			})
+		})
+
+		When("parameter 'failStartOnListError' is set", func() {
+			BeforeEach(func() {
+				c.Blocking = BlockingConfig{
+					FailStartOnListError: true,
+					StartStrategy:        StartStrategyTypeBlocking,
+				}
+			})
+			It("should change StartStrategy blocking to failOnError", func() {
+				validateConfig(&c)
+				Expect(c.Blocking.StartStrategy).Should(Equal(StartStrategyTypeFailOnError))
+			})
+			It("shouldn't change StartStrategy if set to fast", func() {
+				c.Blocking.StartStrategy = StartStrategyTypeFast
+				validateConfig(&c)
+				Expect(c.Blocking.StartStrategy).Should(Equal(StartStrategyTypeFast))
+			})
+		})
+
+		When("parameter 'logLevel' is set", func() {
+			It("should convert to log.level", func() {
+				c.LogLevel = log.LevelDebug
+				validateConfig(&c)
+				Expect(c.Log.Level).Should(Equal(log.LevelDebug))
+			})
+		})
+
+		When("parameter 'logFormat' is set", func() {
+			It("should convert to log.format", func() {
+				c.LogFormat = log.FormatTypeJson
+				validateConfig(&c)
+				Expect(c.Log.Format).Should(Equal(log.FormatTypeJson))
+			})
+		})
+
+		When("parameter 'logPrivacy' is set", func() {
+			It("should convert to log.privacy", func() {
+				c.LogPrivacy = true
+				validateConfig(&c)
+				Expect(c.Log.Privacy).Should(BeTrue())
+			})
+		})
+
+		When("parameter 'logTimestamp' is set", func() {
+			It("should convert to log.timestamp", func() {
+				c.LogTimestamp = false
+				validateConfig(&c)
+				Expect(c.Log.Timestamp).Should(BeFalse())
+			})
+		})
+
+		When("parameter 'port' is set", func() {
+			It("should convert to ports.dns", func() {
+				ports := ListenConfig([]string{"5333"})
+				c.DNSPorts = ports
+				validateConfig(&c)
+				Expect(c.Ports.DNS).Should(Equal(ports))
+			})
+		})
+
+		When("parameter 'httpPort' is set", func() {
+			It("should convert to ports.http", func() {
+				ports := ListenConfig([]string{"5333"})
+				c.HTTPPorts = ports
+				validateConfig(&c)
+				Expect(c.Ports.HTTP).Should(Equal(ports))
+			})
+		})
+
+		When("parameter 'httpsPort' is set", func() {
+			It("should convert to ports.https", func() {
+				ports := ListenConfig([]string{"5333"})
+				c.HTTPSPorts = ports
+				validateConfig(&c)
+				Expect(c.Ports.HTTPS).Should(Equal(ports))
+			})
+		})
+
+		When("parameter 'tlsPort' is set", func() {
+			It("should convert to ports.tls", func() {
+				ports := ListenConfig([]string{"5333"})
+				c.TLSPorts = ports
+				validateConfig(&c)
+				Expect(c.Ports.TLS).Should(Equal(ports))
+			})
+		})
 	})
 
 	Describe("Creation of Config", func() {
@@ -94,8 +198,7 @@ var _ = Describe("Config", func() {
 		When("duration is in wrong format", func() {
 			It("should return error", func() {
 				cfg := Config{}
-				data :=
-					`blocking:
+				data := `blocking:
   refreshPeriod: wrongduration`
 				err := unmarshalConfig([]byte(data), &cfg)
 				Expect(err).Should(HaveOccurred())
@@ -105,8 +208,7 @@ var _ = Describe("Config", func() {
 		When("CustomDNS hast wrong IP defined", func() {
 			It("should return error", func() {
 				cfg := Config{}
-				data :=
-					`customDNS:
+				data := `customDNS:
   mapping:
     someDomain: 192.168.178.WRONG`
 				err := unmarshalConfig([]byte(data), &cfg)
@@ -117,8 +219,7 @@ var _ = Describe("Config", func() {
 		When("Conditional mapping hast wrong defined upstreams", func() {
 			It("should return error", func() {
 				cfg := Config{}
-				data :=
-					`conditional:
+				data := `conditional:
   mapping:
     multiple.resolvers: 192.168.178.1,wrongprotocol:4.4.4.4:53`
 				err := unmarshalConfig([]byte(data), &cfg)
@@ -129,8 +230,7 @@ var _ = Describe("Config", func() {
 		When("Wrong upstreams are defined", func() {
 			It("should return error", func() {
 				cfg := Config{}
-				data :=
-					`upstream:
+				data := `upstream:
   default:
     - 8.8.8.8
     - wrongprotocol:8.8.4.4
@@ -143,8 +243,7 @@ var _ = Describe("Config", func() {
 		When("Wrong filtering is defined", func() {
 			It("should return error", func() {
 				cfg := Config{}
-				data :=
-					`filtering:
+				data := `filtering:
   queryTypes:
     - invalidqtype
 `
@@ -155,15 +254,15 @@ var _ = Describe("Config", func() {
 		})
 
 		When("bootstrapDns is defined", func() {
-			It("should is backwards compatible", func() {
+			It("should be backwards compatible to 'single IP syntax'", func() {
 				cfg := Config{}
 				data := "bootstrapDns: 0.0.0.0"
 
 				err := unmarshalConfig([]byte(data), &cfg)
 				Expect(err).ShouldNot(HaveOccurred())
-				Expect(cfg.BootstrapDNS.Upstream.Host).Should(Equal("0.0.0.0"))
+				Expect(cfg.BootstrapDNS[0].Upstream.Host).Should(Equal("0.0.0.0"))
 			})
-			It("should is backwards compatible", func() {
+			It("should be backwards compatible to 'single item definition'", func() {
 				cfg := Config{}
 				data := `
 bootstrapDns:
@@ -173,53 +272,36 @@ bootstrapDns:
 `
 				err := unmarshalConfig([]byte(data), &cfg)
 				Expect(err).ShouldNot(HaveOccurred())
-				Expect(cfg.BootstrapDNS.Upstream.Host).Should(Equal("dns.example.com"))
-				Expect(cfg.BootstrapDNS.IPs).Should(HaveLen(1))
+				Expect(cfg.BootstrapDNS[0].Upstream.Host).Should(Equal("dns.example.com"))
+				Expect(cfg.BootstrapDNS[0].IPs).Should(HaveLen(1))
+			})
+			It("should process list of bootstrap items", func() {
+				cfg := Config{}
+				data := `
+bootstrapDns:
+  - upstream: tcp-tls:dns.example.com
+    ips:
+      - 0.0.0.0
+  - upstream: 1.2.3.4
+`
+				err := unmarshalConfig([]byte(data), &cfg)
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(cfg.BootstrapDNS).Should(HaveLen(2))
+				Expect(cfg.BootstrapDNS[0].Upstream.Host).Should(Equal("dns.example.com"))
+				Expect(cfg.BootstrapDNS[0].Upstream.Net).Should(Equal(NetProtocolTcpTls))
+				Expect(cfg.BootstrapDNS[0].IPs).Should(HaveLen(1))
+				Expect(cfg.BootstrapDNS[1].Upstream.Host).Should(Equal("1.2.3.4"))
+				Expect(cfg.BootstrapDNS[1].Upstream.Net).Should(Equal(NetProtocolTcpUdp))
 			})
 		})
 
 		When("config is not YAML", func() {
 			It("should return error", func() {
 				cfg := Config{}
-				data :=
-					`///`
+				data := `///`
 				err := unmarshalConfig([]byte(data), &cfg)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("cannot unmarshal !!str `///`"))
-			})
-		})
-
-		When("Deprecated parameter 'disableIPv6' is set", func() {
-			It("should add 'AAAA' to filter.queryTypes", func() {
-				c := &Config{
-					DisableIPv6: true,
-				}
-				validateConfig(c)
-				Expect(c.Filtering.QueryTypes).Should(HaveKey(QType(dns.TypeAAAA)))
-				Expect(c.Filtering.QueryTypes.Contains(dns.Type(dns.TypeAAAA))).Should(BeTrue())
-			})
-		})
-
-		When("Deprecated parameter 'failStartOnListError' is set", func() {
-			var (
-				c Config
-			)
-			BeforeEach(func() {
-				c = Config{
-					Blocking: BlockingConfig{
-						FailStartOnListError: true,
-						StartStrategy:        StartStrategyTypeBlocking,
-					},
-				}
-			})
-			It("should change StartStrategy blocking to failOnError", func() {
-				validateConfig(&c)
-				Expect(c.Blocking.StartStrategy).Should(Equal(StartStrategyTypeFailOnError))
-			})
-			It("shouldn't change StartStrategy if set to fast", func() {
-				c.Blocking.StartStrategy = StartStrategyTypeFast
-				validateConfig(&c)
-				Expect(c.Blocking.StartStrategy).Should(Equal(StartStrategyTypeFast))
 			})
 		})
 
@@ -228,14 +310,13 @@ bootstrapDns:
 				_, err = LoadConfig(tmpDir.JoinPath("config.yml"), true)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("no such file or directory"))
-
 			})
 
 			It("should use default config if config is not mandatory", func() {
 				_, err = LoadConfig(tmpDir.JoinPath("config.yml"), false)
 
 				Expect(err).Should(Succeed())
-				Expect(config.LogLevel).Should(Equal(LevelInfo))
+				Expect(config.LogLevel).Should(Equal(log.LevelInfo))
 			})
 		})
 	})
@@ -248,7 +329,6 @@ bootstrapDns:
 					*i.(*string) = "tcp+udp:1.2.3.4"
 
 					return nil
-
 				})
 				Expect(err).Should(Succeed())
 				Expect(u.Net).Should(Equal(NetProtocolTcpUdp))
@@ -260,7 +340,6 @@ bootstrapDns:
 				u := &Upstream{}
 				err := u.UnmarshalYAML(func(i interface{}) error {
 					return errors.New("some err")
-
 				})
 				Expect(err).Should(HaveOccurred())
 			})
@@ -306,7 +385,6 @@ bootstrapDns:
 				})
 				Expect(err).Should(HaveOccurred())
 				Expect(err).Should(MatchError("time: invalid duration \"wrong\""))
-
 			})
 			It("should fail if wrong YAML format", func() {
 				d := Duration(0)
@@ -316,7 +394,6 @@ bootstrapDns:
 				Expect(err).Should(HaveOccurred())
 				Expect(err).Should(MatchError("some err"))
 			})
-
 		})
 		Context("ConditionalUpstreamMapping", func() {
 			It("Should parse config as map", func() {
@@ -330,7 +407,8 @@ bootstrapDns:
 				Expect(c.Upstreams).Should(HaveLen(1))
 				Expect(c.Upstreams["key"]).Should(HaveLen(1))
 				Expect(c.Upstreams["key"][0]).Should(Equal(Upstream{
-					Net: NetProtocolTcpUdp, Host: "1.2.3.4", Port: 53}))
+					Net: NetProtocolTcpUdp, Host: "1.2.3.4", Port: 53,
+				}))
 			})
 			It("should fail if wrong YAML format", func() {
 				c := &ConditionalUpstreamMapping{}

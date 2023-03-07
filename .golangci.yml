@@ -23,7 +23,6 @@ linters:
     - gofmt
     - goimports
     - gomnd
-    - gomoddirectives
     - gomodguard
     - gosec
     - gosimple
@@ -39,6 +38,7 @@ linters:
     - nilerr
     - nilnil
     - nlreturn
+    - nolintlint
     - nosprintfhostport
     - prealloc
     - predeclared
@@ -51,6 +51,7 @@ linters:
     - unconvert
     - unparam
     - unused
+    - usestdlibvars
     - wastedassign
     - whitespace
     - wsl
@@ -58,6 +59,10 @@ linters:
     - noctx
     - contextcheck
     - scopelint
+    - structcheck
+    - deadcode
+    - varcheck
+    - forbidigo
 
   disable-all: false
   presets:
@@ -77,3 +82,4 @@ issues:
       linters:
         - gochecknoglobals
         - dupl
+        - gosec

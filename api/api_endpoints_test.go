@@ -28,6 +28,7 @@ func (l *ListRefreshMock) RefreshLists() {
 func (b *BlockingControlMock) EnableBlocking() {
 	b.enabled = true
 }
+
 func (b *BlockingControlMock) DisableBlocking(_ time.Duration, disableGroups []string) error {
 	b.enabled = false
 
@@ -39,14 +40,12 @@ func (b *BlockingControlMock) BlockingStatus() BlockingStatus {
 }
 
 var _ = Describe("API tests", func() {
-
 	Describe("Register router", func() {
 		RegisterEndpoint(chi.NewRouter(), &BlockingControlMock{})
 		RegisterEndpoint(chi.NewRouter(), &ListRefreshMock{})
 	})
 
 	Describe("Lists API", func() {
-
 		When("List refresh is called", func() {
 			r := &ListRefreshMock{}
 			sut := &ListRefreshEndpoint{refresher: r}
@@ -56,7 +55,6 @@ var _ = Describe("API tests", func() {
 				Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/json"))
 			})
 		})
-
 	})
 
 	Describe("Control blocking status via API", func() {
@@ -73,7 +71,6 @@ var _ = Describe("API tests", func() {
 		When("Disable blocking is called", func() {
 			It("should disable blocking resolver", func() {
 				By("Calling Rest API to deactivate", func() {
-
 					resp, _ := DoGetRequest("/api/blocking/disable", sut.apiBlockingDisable)
 					Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
 					Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/json"))

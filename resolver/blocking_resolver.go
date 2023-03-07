@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/0xERR0R/blocky/cache/expirationcache"
@@ -91,8 +92,9 @@ type BlockingResolver struct {
 }
 
 // NewBlockingResolver returns a new configured instance of the resolver
-func NewBlockingResolver(cfg config.BlockingConfig,
-	redis *redis.Client, bootstrap *Bootstrap) (r ChainedResolver, err error) {
+func NewBlockingResolver(
+	cfg config.BlockingConfig, redis *redis.Client, bootstrap *Bootstrap,
+) (r *BlockingResolver, err error) {
 	blockHandler, err := createBlockHandler(cfg)
 	if err != nil {
 		return nil, err
@@ -116,7 +118,7 @@ func NewBlockingResolver(cfg config.BlockingConfig,
 	cgb := make(map[string][]string, len(cfg.ClientGroupsBlock))
 
 	for identifier, cfgGroups := range cfg.ClientGroupsBlock {
-		for _, ipart := range strings.Split(identifier, ",") {
+		for _, ipart := range strings.Split(strings.ToLower(identifier), ",") {
 			existingGroups, found := cgb[ipart]
 			if found {
 				cgb[ipart] = append(existingGroups, cfgGroups...)
@@ -162,7 +164,7 @@ func createDownloader(cfg config.BlockingConfig, bootstrap *Bootstrap) *lists.HT
 }
 
 func setupRedisEnabledSubscriber(c *BlockingResolver) {
-	logger := logger("blocking_resolver")
+	logger := log.PrefixedLog("blocking_resolver")
 
 	go func() {
 		for em := range c.redisClient.EnabledChannel {
@@ -188,7 +190,7 @@ func (r *BlockingResolver) RefreshLists() {
 	r.whitelistMatcher.Refresh()
 }
 
-// nolint:prealloc
+//nolint:prealloc
 func (r *BlockingResolver) retrieveAllBlockingGroups() []string {
 	groups := make(map[string]bool, len(r.cfg.BlackLists))
 
@@ -315,7 +317,8 @@ func determineWhitelistOnlyGroups(cfg *config.BlockingConfig) (result map[string
 
 // sets answer and/or return code for DNS response, if request should be blocked
 func (r *BlockingResolver) handleBlocked(logger *logrus.Entry,
-	request *model.Request, question dns.Question, reason string) (*model.Response, error) {
+	request *model.Request, question dns.Question, reason string,
+) (*model.Response, error) {
 	response := new(dns.Msg)
 	response.SetReply(request.Req)
 
@@ -328,34 +331,34 @@ func (r *BlockingResolver) handleBlocked(logger *logrus.Entry,
 
 // Configuration returns the current resolver configuration
 func (r *BlockingResolver) Configuration() (result []string) {
-	if len(r.cfg.ClientGroupsBlock) > 0 {
-		result = append(result, "clientGroupsBlock")
-		for key, val := range r.cfg.ClientGroupsBlock {
-			result = append(result, fmt.Sprintf("  %s = \"%s\"", key, strings.Join(val, ";")))
-		}
+	if len(r.cfg.ClientGroupsBlock) == 0 {
+		return configDisabled
+	}
 
-		blockType := r.cfg.BlockType
-		result = append(result, fmt.Sprintf("blockType = \"%s\"", blockType))
+	result = append(result, "clientGroupsBlock")
+	for key, val := range r.cfg.ClientGroupsBlock {
+		result = append(result, fmt.Sprintf("  %s = \"%s\"", key, strings.Join(val, ";")))
+	}
 
-		if blockType != "NXDOMAIN" {
-			result = append(result, fmt.Sprintf("blockTTL = %s", r.cfg.BlockTTL.String()))
-		}
+	blockType := r.cfg.BlockType
+	result = append(result, fmt.Sprintf("blockType = \"%s\"", blockType))
 
-		result = append(result, fmt.Sprintf("downloadTimeout = %s", r.cfg.DownloadTimeout.String()))
+	if blockType != "NXDOMAIN" {
+		result = append(result, fmt.Sprintf("blockTTL = %s", r.cfg.BlockTTL.String()))
+	}
 
-		result = append(result, fmt.Sprintf("FailStartOnListError = %t", r.cfg.FailStartOnListError))
+	result = append(result, fmt.Sprintf("downloadTimeout = %s", r.cfg.DownloadTimeout.String()))
 
-		result = append(result, "blacklist:")
-		for _, c := range r.blacklistMatcher.Configuration() {
-			result = append(result, fmt.Sprintf("  %s", c))
-		}
+	result = append(result, fmt.Sprintf("FailStartOnListError = %t", r.cfg.FailStartOnListError))
 
-		result = append(result, "whitelist:")
-		for _, c := range r.whitelistMatcher.Configuration() {
-			result = append(result, fmt.Sprintf("  %s", c))
-		}
-	} else {
-		result = []string{"deactivated"}
+	result = append(result, "blacklist:")
+	for _, c := range r.blacklistMatcher.Configuration() {
+		result = append(result, fmt.Sprintf("  %s", c))
+	}
+
+	result = append(result, "whitelist:")
+	for _, c := range r.whitelistMatcher.Configuration() {
+		result = append(result, fmt.Sprintf("  %s", c))
 	}
 
 	return result
@@ -372,7 +375,8 @@ func (r *BlockingResolver) hasWhiteListOnlyAllowed(groupsToCheck []string) bool 
 }
 
 func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
-	request *model.Request, logger *logrus.Entry) (bool, *model.Response, error) {
+	request *model.Request, logger *logrus.Entry,
+) (bool, *model.Response, error) {
 	logger.WithField("groupsToCheck", strings.Join(groupsToCheck, "; ")).Debug("checking groups for request")
 	whitelistOnlyAllowed := r.hasWhiteListOnlyAllowed(groupsToCheck)
 
@@ -406,7 +410,7 @@ func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
 
 // Resolve checks the query against the blacklist and delegates to next resolver if domain is not blocked
 func (r *BlockingResolver) Resolve(request *model.Request) (*model.Response, error) {
-	logger := withPrefix(request.Log, "blacklist_resolver")
+	logger := log.WithPrefix(request.Log, "blacklist_resolver")
 	groupsToCheck := r.groupsToCheckForClient(request)
 
 	if len(groupsToCheck) > 0 {
@@ -436,7 +440,7 @@ func (r *BlockingResolver) Resolve(request *model.Request) (*model.Response, err
 	return respFromNext, err
 }
 
-func extractEntryToCheckFromResponse(rr dns.RR) (entryToCheck string, tName string) {
+func extractEntryToCheckFromResponse(rr dns.RR) (entryToCheck, tName string) {
 	switch v := rr.(type) {
 	case *dns.A:
 		entryToCheck = v.A.String()
@@ -523,7 +527,8 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 }
 
 func (r *BlockingResolver) matches(groupsToCheck []string, m lists.Matcher,
-	domain string) (blocked bool, group string) {
+	domain string,
+) (blocked bool, group string) {
 	if len(groupsToCheck) > 0 {
 		found, group := m.Match(domain, groupsToCheck)
 		if found {
@@ -542,8 +547,7 @@ type zeroIPBlockHandler struct {
 	BlockTimeSec uint32
 }
 
-type nxDomainBlockHandler struct {
-}
+type nxDomainBlockHandler struct{}
 
 type ipBlockHandler struct {
 	destinations    []net.IP
@@ -600,7 +604,7 @@ func (r *BlockingResolver) queryForFQIdentifierIPs(identifier string) (result []
 
 		if err == nil && resp.Res.Rcode == dns.RcodeSuccess {
 			for _, rr := range resp.Res.Answer {
-				ttl = time.Duration(rr.Header().Ttl) * time.Second
+				ttl = time.Duration(atomic.LoadUint32(&rr.Header().Ttl)) * time.Second
 
 				switch v := rr.(type) {
 				case *dns.A:

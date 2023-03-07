@@ -1,4 +1,4 @@
-.PHONY: all clean build swagger test lint run fmt docker-build help
+.PHONY: all clean generate build swagger test e2e-test lint run fmt docker-build help
 .DEFAULT_GOAL:=help
 
 VERSION?=$(shell git describe --always --tags)
@@ -21,6 +21,9 @@ GO_BUILD_LD_FLAGS:=\
 
 GO_BUILD_OUTPUT:=$(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 
+# define version of golangci-lint here. If defined in tools.go, go mod perfoms automatically downgrade to older version which doesn't work with golang >=1.18
+GOLANG_LINT_VERSION=v1.50.1
+
 export PATH=$(shell go env GOPATH)/bin:$(shell echo $$PATH)
 
 all: build test lint ## Build binary (with tests)
@@ -35,14 +38,17 @@ swagger: ## creates swagger documentation as html file
 	$(shell) node_modules/html-inline/bin/cmd.js /tmp/swagger/index.html > docs/swagger.html
 
 serve_docs: ## serves online docs
+	pip install mkdocs-material
 	mkdocs serve
 
-build:  ## Build binary
+generate: ## Go generate
 ifdef GO_SKIP_GENERATE
 	$(info skipping go generate)
 else
 	go generate ./...
 endif
+
+build: generate ## Build binary
 	go build $(GO_BUILD_FLAGS) -ldflags="$(GO_BUILD_LD_FLAGS)" -o $(GO_BUILD_OUTPUT)
 ifdef BIN_USER
 	$(info setting owner of $(GO_BUILD_OUTPUT) to $(BIN_USER))
@@ -53,24 +59,32 @@ ifdef BIN_AUTOCAB
 	setcap 'cap_net_bind_service=+ep' $(GO_BUILD_OUTPUT)
 endif
 
-test:  ## run tests
-	go run github.com/onsi/ginkgo/v2/ginkgo -v --coverprofile=coverage.txt --covermode=atomic -cover ./...
+test: ## run tests
+	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --coverprofile=coverage.txt --covermode=atomic -cover ./...
+
+e2e-test: ## run e2e tests
+	docker buildx build \
+		--build-arg VERSION=blocky-e2e \
+		--network=host \
+		-o type=docker \
+		-t blocky-e2e \
+		.
+	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="e2e" ./...
 
 race: ## run tests with race detector
-	go run github.com/onsi/ginkgo/v2/ginkgo --race ./...
+	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --race ./...
 
 lint: ## run golangcli-lint checks
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
-	golangci-lint run --timeout 5m
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANG_LINT_VERSION) run --timeout 5m
 
 run: build ## Build and run binary
 	./$(BIN_OUT_DIR)/$(BINARY_NAME)
 
 fmt: ## gofmt and goimports all go files
-	find . -name '*.go' | while read -r file; do gofmt -w -s "$$file"; goimports -w "$$file"; done
+	go run mvdan.cc/gofumpt -l -w -extra .
+	find . -name '*.go' -exec goimports -w {} +
 
-docker-build:  ## Build docker image 
-	go generate ./...
+docker-build: generate ## Build docker image 
 	docker buildx build \
 		--build-arg VERSION=${VERSION} \
 		--build-arg BUILD_TIME=${BUILD_TIME} \
@@ -80,4 +94,4 @@ docker-build:  ## Build docker image
 		.
 
 help:  ## Shows help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[0-9a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'

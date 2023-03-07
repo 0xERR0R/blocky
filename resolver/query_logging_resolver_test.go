@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/0xERR0R/blocky/helpertest"
+	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/querylog"
 
 	"github.com/0xERR0R/blocky/config"
@@ -39,16 +39,14 @@ var _ = Describe("QueryLoggingResolver", func() {
 	var (
 		sut        *QueryLoggingResolver
 		sutConfig  config.QueryLogConfig
-		err        error
-		resp       *Response
-		m          *MockResolver
-		tmpDir     *helpertest.TmpFolder
+		m          *mockResolver
+		tmpDir     *TmpFolder
 		mockAnswer *dns.Msg
 	)
 
 	BeforeEach(func() {
 		mockAnswer = new(dns.Msg)
-		tmpDir = helpertest.NewTmpFolder("queryLoggingResolver")
+		tmpDir = NewTmpFolder("queryLoggingResolver")
 		Expect(tmpDir.Error).Should(Succeed())
 		DeferCleanup(tmpDir.Clean)
 	})
@@ -56,7 +54,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 	JustBeforeEach(func() {
 		sut = NewQueryLoggingResolver(sutConfig).(*QueryLoggingResolver)
 		DeferCleanup(func() { close(sut.logChan) })
-		m = &MockResolver{}
+		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer, Reason: "reason"}, nil)
 		sut.Next(m)
 	})
@@ -70,10 +68,14 @@ var _ = Describe("QueryLoggingResolver", func() {
 				}
 			})
 			It("should process request without query logging", func() {
-				resp, err = sut.Resolve(newRequest("example.com.", dns.Type(dns.TypeA)))
+				Expect(sut.Resolve(newRequest("example.com", A))).
+					Should(
+						SatisfyAll(
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 
 				m.AssertExpectations(GinkgoT())
-				Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 			})
 		})
 		When("Configuration with logging per client", func() {
@@ -84,18 +86,25 @@ var _ = Describe("QueryLoggingResolver", func() {
 					CreationAttempts: 1,
 					CreationCooldown: config.Duration(time.Millisecond),
 				}
-				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.Type(dns.TypeA), "123.122.121.120")
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, A, "123.122.121.120")
 			})
 			It("should create a log file per client", func() {
 				By("request from client 1", func() {
-					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.25", "client1"))
-					Expect(err).Should(Succeed())
+					Expect(sut.Resolve(newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))).
+						Should(
+							SatisfyAll(
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 				By("request from client 2, has name with special chars, should be escaped", func() {
-					resp, err = sut.Resolve(newRequestWithClient(
-						"example.com.", dns.Type(dns.TypeA), "192.168.178.26", "cl/ient2\\$%&test",
-					))
-					Expect(err).Should(Succeed())
+					Expect(sut.Resolve(newRequestWithClient(
+						"example.com.", A, "192.168.178.26", "cl/ient2\\$%&test"))).
+						Should(
+							SatisfyAll(
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 
 				m.AssertExpectations(GinkgoT())
@@ -110,10 +119,12 @@ var _ = Describe("QueryLoggingResolver", func() {
 						g.Expect(csvLines[0][1]).Should(Equal("192.168.178.25"))
 						g.Expect(csvLines[0][2]).Should(Equal("client1"))
 						g.Expect(csvLines[0][4]).Should(Equal("reason"))
-						g.Expect(csvLines[0][5]).Should(Equal("A (example.com.)"))
+						g.Expect(csvLines[0][5]).Should(Equal("example.com."))
 						g.Expect(csvLines[0][6]).Should(Equal("A (123.122.121.120)"))
+						g.Expect(csvLines[0][7]).Should(Equal("NOERROR"))
+						g.Expect(csvLines[0][8]).Should(Equal("RESOLVED"))
+						g.Expect(csvLines[0][9]).Should(Equal("A"))
 					}, "1s").Should(Succeed())
-
 				})
 
 				By("check log for client2", func() {
@@ -126,8 +137,11 @@ var _ = Describe("QueryLoggingResolver", func() {
 						g.Expect(csvLines[0][1]).Should(Equal("192.168.178.26"))
 						g.Expect(csvLines[0][2]).Should(Equal("cl/ient2\\$%&test"))
 						g.Expect(csvLines[0][4]).Should(Equal("reason"))
-						g.Expect(csvLines[0][5]).Should(Equal("A (example.com.)"))
+						g.Expect(csvLines[0][5]).Should(Equal("example.com."))
 						g.Expect(csvLines[0][6]).Should(Equal("A (123.122.121.120)"))
+						g.Expect(csvLines[0][7]).Should(Equal("NOERROR"))
+						g.Expect(csvLines[0][8]).Should(Equal("RESOLVED"))
+						g.Expect(csvLines[0][9]).Should(Equal("A"))
 					}, "1s").Should(Succeed())
 				})
 			})
@@ -140,16 +154,24 @@ var _ = Describe("QueryLoggingResolver", func() {
 					CreationAttempts: 1,
 					CreationCooldown: config.Duration(time.Millisecond),
 				}
-				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, dns.Type(dns.TypeA), "123.122.121.120")
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, A, "123.122.121.120")
 			})
 			It("should create one log file for all clients", func() {
 				By("request from client 1", func() {
-					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.25", "client1"))
-					Expect(err).Should(Succeed())
+					Expect(sut.Resolve(newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))).
+						Should(
+							SatisfyAll(
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 				By("request from client 2, has name with special chars, should be escaped", func() {
-					resp, err = sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.26", "client2"))
-					Expect(err).Should(Succeed())
+					Expect(sut.Resolve(newRequestWithClient("example.com.", A, "192.168.178.26", "client2"))).
+						Should(
+							SatisfyAll(
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
 				})
 
 				m.AssertExpectations(GinkgoT())
@@ -165,17 +187,67 @@ var _ = Describe("QueryLoggingResolver", func() {
 						g.Expect(csvLines[0][1]).Should(Equal("192.168.178.25"))
 						g.Expect(csvLines[0][2]).Should(Equal("client1"))
 						g.Expect(csvLines[0][4]).Should(Equal("reason"))
-						g.Expect(csvLines[0][5]).Should(Equal("A (example.com.)"))
+						g.Expect(csvLines[0][5]).Should(Equal("example.com."))
 						g.Expect(csvLines[0][6]).Should(Equal("A (123.122.121.120)"))
+						g.Expect(csvLines[0][7]).Should(Equal("NOERROR"))
+						g.Expect(csvLines[0][8]).Should(Equal("RESOLVED"))
+						g.Expect(csvLines[0][9]).Should(Equal("A"))
 
 						// client2 -> second line
 						g.Expect(csvLines[1][1]).Should(Equal("192.168.178.26"))
 						g.Expect(csvLines[1][2]).Should(Equal("client2"))
 						g.Expect(csvLines[1][4]).Should(Equal("reason"))
-						g.Expect(csvLines[1][5]).Should(Equal("A (example.com.)"))
+						g.Expect(csvLines[1][5]).Should(Equal("example.com."))
 						g.Expect(csvLines[1][6]).Should(Equal("A (123.122.121.120)"))
+						g.Expect(csvLines[1][7]).Should(Equal("NOERROR"))
+						g.Expect(csvLines[1][8]).Should(Equal("RESOLVED"))
+						g.Expect(csvLines[1][9]).Should(Equal("A"))
 					}, "1s").Should(Succeed())
+				})
+			})
+		})
+		When("Configuration with specific fields to log", func() {
+			BeforeEach(func() {
+				sutConfig = config.QueryLogConfig{
+					Target:           tmpDir.Path,
+					Type:             config.QueryLogTypeCsv,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
+					Fields:           []config.QueryLogField{config.QueryLogFieldClientIP},
+				}
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, A, "123.122.121.120")
+			})
+			It("should create one log file", func() {
+				By("request from client 1", func() {
+					Expect(sut.Resolve(newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))).
+						Should(
+							SatisfyAll(
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
+				})
 
+				m.AssertExpectations(GinkgoT())
+
+				By("check log", func() {
+					Eventually(func(g Gomega) {
+						csvLines, err := readCsv(tmpDir.JoinPath(
+							fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02"))))
+
+						g.Expect(err).Should(Succeed())
+						g.Expect(csvLines).Should(HaveLen(1))
+
+						// ip will be logged
+						g.Expect(csvLines[0][1]).Should(Equal("192.168.178.25"))
+						g.Expect(csvLines[0][2]).Should(Equal("none"))
+						g.Expect(csvLines[0][3]).Should(Equal("0"))
+						g.Expect(csvLines[0][4]).Should(Equal(""))
+						g.Expect(csvLines[0][5]).Should(Equal(""))
+						g.Expect(csvLines[0][6]).Should(Equal(""))
+						g.Expect(csvLines[0][7]).Should(Equal(""))
+						g.Expect(csvLines[0][8]).Should(Equal(""))
+						g.Expect(csvLines[0][9]).Should(Equal(""))
+					}, "1s").Should(Succeed())
 				})
 			})
 		})
@@ -195,7 +267,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 				sut.writer = mockWriter
 
 				Eventually(func() int {
-					_, ierr := sut.Resolve(newRequestWithClient("example.com.", dns.Type(dns.TypeA), "192.168.178.25", "client1"))
+					_, ierr := sut.Resolve(newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))
 					Expect(ierr).Should(Succeed())
 
 					return len(sut.logChan)

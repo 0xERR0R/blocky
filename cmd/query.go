@@ -39,14 +39,13 @@ func query(cmd *cobra.Command, args []string) error {
 		Query: args[0],
 		Type:  typeFlag,
 	}
-	jsonValue, err := json.Marshal(apiRequest)
 
+	jsonValue, err := json.Marshal(apiRequest)
 	if err != nil {
 		return fmt.Errorf("can't marshal request: %w", err)
 	}
 
 	resp, err := http.Post(apiURL(api.PathQueryPath), "application/json", bytes.NewBuffer(jsonValue))
-
 	if err != nil {
 		return fmt.Errorf("can't execute: %w", err)
 	}

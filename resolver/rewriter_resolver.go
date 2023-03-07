@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
@@ -60,7 +61,7 @@ func (r *RewriterResolver) Configuration() (result []string) {
 
 // Resolve uses the inner resolver to resolve the rewritten query
 func (r *RewriterResolver) Resolve(request *model.Request) (*model.Response, error) {
-	logger := withPrefix(request.Log, "rewriter_resolver")
+	logger := log.WithPrefix(request.Log, "rewriter_resolver")
 
 	original := request.Req
 
@@ -110,7 +111,7 @@ func (r *RewriterResolver) Resolve(request *model.Request) (*model.Response, err
 	return response, nil
 }
 
-func (r *RewriterResolver) rewriteRequest(logger *logrus.Entry, request *dns.Msg) (rewritten *dns.Msg, originalNames []string) { // nolint: lll
+func (r *RewriterResolver) rewriteRequest(logger *logrus.Entry, request *dns.Msg) (rewritten *dns.Msg, originalNames []string) { //nolint: lll
 	originalNames = make([]string, len(request.Question))
 
 	for i := range request.Question {

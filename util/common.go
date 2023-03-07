@@ -20,7 +20,7 @@ var alphanumeric = regexp.MustCompile("[a-zA-Z0-9]")
 
 // Obfuscate replaces all alphanumeric characters with * to obfuscate user sensitive data if LogPrivacy is enabled
 func Obfuscate(in string) string {
-	if config.GetConfig().LogPrivacy {
+	if config.GetConfig().Log.Privacy {
 		return alphanumeric.ReplaceAllString(in, "*")
 	}
 
@@ -195,8 +195,8 @@ func CidrContainsIP(cidr string, ip net.IP) bool {
 }
 
 // ClientNameMatchesGroupName checks if a group with optional wildcards contains a client name
-func ClientNameMatchesGroupName(group string, clientName string) bool {
-	match, _ := filepath.Match(group, clientName)
+func ClientNameMatchesGroupName(group, clientName string) bool {
+	match, _ := filepath.Match(strings.ToLower(group), strings.ToLower(clientName))
 
 	return match
 }

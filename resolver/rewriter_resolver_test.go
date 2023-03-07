@@ -20,8 +20,8 @@ var _ = Describe("RewriterResolver", func() {
 	var (
 		sut       ChainedResolver
 		sutConfig config.RewriteConfig
-		mInner    *MockResolver
-		mNext     *MockResolver
+		mInner    *mockResolver
+		mNext     *mockResolver
 
 		fqdnOriginal  string
 		fqdnRewritten string
@@ -30,8 +30,8 @@ var _ = Describe("RewriterResolver", func() {
 	)
 
 	BeforeEach(func() {
-		mInner = &MockResolver{}
-		mNext = &MockResolver{}
+		mInner = &mockResolver{}
+		mNext = &mockResolver{}
 
 		sutConfig = config.RewriteConfig{Rewrite: map[string]string{"original": "rewritten"}}
 	})
