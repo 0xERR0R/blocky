@@ -264,7 +264,7 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 			Title string
 		}
 
-		swaggerVersion := "master"
+		swaggerVersion := "main"
 		if util.Version != "undefined" {
 			swaggerVersion = util.Version
 		}

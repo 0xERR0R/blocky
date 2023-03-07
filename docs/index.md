@@ -1,7 +1,7 @@
 # Blocky
 
 <figure>
-  <img src="https://raw.githubusercontent.com/0xERR0R/blocky/master/docs/blocky.svg" width="200" />
+  <img src="https://raw.githubusercontent.com/0xERR0R/blocky/main/docs/blocky.svg" width="200" />
 </figure>
 
 Blocky is a DNS proxy and ad-blocker for the local network written in Go with following features:

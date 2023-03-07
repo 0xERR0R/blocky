@@ -25,7 +25,7 @@ Following metrics will be exported:
 ### Grafana dashboard
 
 Example [Grafana](https://grafana.com/) dashboard
-definition [as JSON](https://github.com/0xERR0R/blocky/blob/master/docs/blocky-grafana.json)
+definition [as JSON](https://github.com/0xERR0R/blocky/blob/main/docs/blocky-grafana.json)
 or [at grafana.com](https://grafana.com/grafana/dashboards/13768)
 ![grafana-dashboard](grafana-dashboard.png).
 
@@ -45,7 +45,7 @@ blocky, prometheus (with configured scraper for blocky) and grafana with prometh
 ## MySQL / MariaDB
 
 If database query logging is activated (see [Query logging](configuration.md#query-logging)), you can use following
-Grafana Dashboard [as JSON](https://github.com/0xERR0R/blocky/blob/master/docs/blocky-query-grafana.json)
+Grafana Dashboard [as JSON](https://github.com/0xERR0R/blocky/blob/main/docs/blocky-query-grafana.json)
 or [at grafana.com](https://grafana.com/grafana/dashboards/14980)
 
 ![grafana-dashboard](grafana-query-dashboard.png).
@@ -54,6 +54,6 @@ Please define the MySQL source in Grafana, which points to the database with blo
 
 ## Postgres
 
-The JSON for a Grafana dashboard equivalent to the MySQL/MariaDB version is located [here](https://github.com/0xERR0R/blocky/blob/master/docs/blocky-query-grafana-postgres.json)
+The JSON for a Grafana dashboard equivalent to the MySQL/MariaDB version is located [here](https://github.com/0xERR0R/blocky/blob/main/docs/blocky-query-grafana-postgres.json)
 
 --8<-- "docs/includes/abbreviations.md"

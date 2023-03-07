@@ -3,7 +3,7 @@ name: Development docker build
 on:
   push:
     branches:
-      - master
+      - main
 
 permissions:
   security-events: write

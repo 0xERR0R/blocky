@@ -11,7 +11,7 @@
 [![Donation](https://img.shields.io/badge/buy%20me%20a%20coffee-donate-blueviolet.svg)](https://ko-fi.com/0xerr0r)
 
 <p align="center">
-  <img height="200" src="https://github.com/0xERR0R/blocky/blob/master/docs/blocky.svg">
+  <img height="200" src="https://github.com/0xERR0R/blocky/blob/main/docs/blocky.svg">
 </p>
 
 # Blocky
