@@ -81,9 +81,13 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 
 	b.bootstraped = bootstraped
 
+	cachingResolver := NewCachingResolver(cachingCfg, nil)
+	// don't emit any metrics
+	cachingResolver.emitMetricEvents = false
+
 	b.resolver = Chain(
 		NewFilteringResolver(cfg.Filtering),
-		NewCachingResolver(cachingCfg, nil),
+		cachingResolver,
 		parallelResolver,
 	)
 
