@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"time"
@@ -16,10 +17,11 @@ import (
 
 var _ = Describe("HostsFileResolver", func() {
 	var (
-		sut     *HostsFileResolver
-		m       *mockResolver
-		tmpDir  *TmpFolder
-		tmpFile *TmpFile
+		sut       *HostsFileResolver
+		sutConfig config.HostsFileConfig
+		m         *mockResolver
+		tmpDir    *TmpFolder
+		tmpFile   *TmpFile
 	)
 
 	TTL := uint32(time.Now().Second())
@@ -32,13 +34,16 @@ var _ = Describe("HostsFileResolver", func() {
 		tmpFile = writeHostFile(tmpDir)
 		Expect(tmpFile.Error).Should(Succeed())
 
-		cfg := config.HostsFileConfig{
+		sutConfig = config.HostsFileConfig{
 			Filepath:       tmpFile.Path,
 			HostsTTL:       config.Duration(time.Duration(TTL) * time.Second),
 			RefreshPeriod:  config.Duration(30 * time.Minute),
 			FilterLoopback: true,
 		}
-		sut = NewHostsFileResolver(cfg)
+	})
+
+	JustBeforeEach(func() {
+		sut = NewHostsFileResolver(sutConfig)
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
@@ -47,17 +52,18 @@ var _ = Describe("HostsFileResolver", func() {
 	Describe("Using hosts file", func() {
 		When("Hosts file cannot be located", func() {
 			BeforeEach(func() {
-				sut = NewHostsFileResolver(config.HostsFileConfig{
+				sutConfig = config.HostsFileConfig{
 					Filepath: fmt.Sprintf("/tmp/blocky/file-%d", rand.Uint64()),
 					HostsTTL: config.Duration(time.Duration(TTL) * time.Second),
-				})
-				m = &mockResolver{}
-				m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
-				sut.Next(m)
+				}
 			})
 			It("should not parse any hosts", func() {
 				Expect(sut.HostsFilePath).Should(BeEmpty())
-				Expect(sut.hosts).Should(HaveLen(0))
+				Expect(sut.hosts.v4.hosts).Should(BeEmpty())
+				Expect(sut.hosts.v6.hosts).Should(BeEmpty())
+				Expect(sut.hosts.v4.aliases).Should(BeEmpty())
+				Expect(sut.hosts.v6.aliases).Should(BeEmpty())
+				Expect(sut.hosts.isEmpty()).Should(BeTrue())
 			})
 			It("should go to next resolver on query", func() {
 				Expect(sut.Resolve(newRequest("example.com.", A))).
@@ -78,7 +84,7 @@ var _ = Describe("HostsFileResolver", func() {
 				sut.Next(m)
 			})
 			It("should not return an error", func() {
-				err := sut.parseHostsFile()
+				err := sut.parseHostsFile(context.Background())
 				Expect(err).Should(Succeed())
 			})
 			It("should go to next resolver on query", func() {
@@ -95,7 +101,50 @@ var _ = Describe("HostsFileResolver", func() {
 		When("Hosts file can be located", func() {
 			It("should parse it successfully", func() {
 				Expect(sut).ShouldNot(BeNil())
-				Expect(sut.hosts).Should(HaveLen(4))
+				Expect(sut.hosts.v4.hosts).Should(HaveLen(5))
+				Expect(sut.hosts.v6.hosts).Should(HaveLen(2))
+				Expect(sut.hosts.v4.aliases).Should(HaveLen(4))
+				Expect(sut.hosts.v6.aliases).Should(HaveLen(2))
+			})
+
+			When("filterLoopback is false", func() {
+				BeforeEach(func() {
+					sutConfig.FilterLoopback = false
+				})
+
+				It("should parse it successfully", func() {
+					Expect(sut).ShouldNot(BeNil())
+					Expect(sut.hosts.v4.hosts).Should(HaveLen(7))
+					Expect(sut.hosts.v6.hosts).Should(HaveLen(3))
+					Expect(sut.hosts.v4.aliases).Should(HaveLen(5))
+					Expect(sut.hosts.v6.aliases).Should(HaveLen(2))
+				})
+			})
+		})
+
+		When("Hosts file has too many errors", func() {
+			BeforeEach(func() {
+				tmpFile = tmpDir.CreateStringFile("hosts-too-many-errors.txt",
+					"invalidip localhost",
+					"127.0.0.1 localhost", // ok
+					"127.0.0.1 # no host",
+					"127.0.0.1 invalidhost!",
+					"a.b.c.d localhost",
+					"127.0.0.x localhost",
+					"256.0.0.1 localhost",
+				)
+				Expect(tmpFile.Error).Should(Succeed())
+
+				sutConfig.Filepath = tmpFile.Path
+			})
+
+			It("should not be used", func() {
+				Expect(sut).ShouldNot(BeNil())
+				Expect(sut.HostsFilePath).Should(BeEmpty())
+				Expect(sut.hosts.v4.hosts).Should(HaveLen(0))
+				Expect(sut.hosts.v6.hosts).Should(HaveLen(0))
+				Expect(sut.hosts.v4.aliases).Should(HaveLen(0))
+				Expect(sut.hosts.v6.aliases).Should(HaveLen(0))
 			})
 		})
 
@@ -153,6 +202,24 @@ var _ = Describe("HostsFileResolver", func() {
 			})
 		})
 
+		When("the domain is not known", func() {
+			It("calls the next resolver", func() {
+				resp, err := sut.Resolve(newRequest("not-in-hostsfile.tld.", A))
+				Expect(err).Should(Succeed())
+				Expect(resp).ShouldNot(HaveResponseType(ResponseTypeHOSTSFILE))
+				m.AssertExpectations(GinkgoT())
+			})
+		})
+
+		When("the question type is not handled", func() {
+			It("calls the next resolver", func() {
+				resp, err := sut.Resolve(newRequest("localhost.", MX))
+				Expect(err).Should(Succeed())
+				Expect(resp).ShouldNot(HaveResponseType(ResponseTypeHOSTSFILE))
+				m.AssertExpectations(GinkgoT())
+			})
+		})
+
 		When("Reverse DNS request is received", func() {
 			It("should resolve the defined domain name", func() {
 				By("ipv4 with one hostname", func() {
@@ -193,6 +260,50 @@ var _ = Describe("HostsFileResolver", func() {
 							))
 				})
 			})
+
+			It("should ignore invalid PTR", func() {
+				resp, err := sut.Resolve(newRequest("2.0.0.10.in-addr.fail.arpa.", PTR))
+				Expect(err).Should(Succeed())
+				Expect(resp).ShouldNot(HaveResponseType(ResponseTypeHOSTSFILE))
+				m.AssertExpectations(GinkgoT())
+			})
+
+			When("filterLoopback is true", func() {
+				It("calls the next resolver", func() {
+					resp, err := sut.Resolve(newRequest("1.0.0.127.in-addr.arpa.", PTR))
+					Expect(err).Should(Succeed())
+					Expect(resp).ShouldNot(HaveResponseType(ResponseTypeHOSTSFILE))
+					m.AssertExpectations(GinkgoT())
+				})
+			})
+
+			When("the IP is not known", func() {
+				It("calls the next resolver", func() {
+					resp, err := sut.Resolve(newRequest("255.255.255.255.in-addr.arpa.", PTR))
+					Expect(err).Should(Succeed())
+					Expect(resp).ShouldNot(HaveResponseType(ResponseTypeHOSTSFILE))
+					m.AssertExpectations(GinkgoT())
+				})
+			})
+
+			When("filterLoopback is false", func() {
+				BeforeEach(func() {
+					sutConfig.FilterLoopback = false
+				})
+
+				It("resolve the defined domain name", func() {
+					Expect(sut.Resolve(newRequest("1.1.0.127.in-addr.arpa.", PTR))).
+						Should(
+							SatisfyAll(
+								HaveResponseType(ResponseTypeHOSTSFILE),
+								HaveReturnCode(dns.RcodeSuccess),
+								WithTransform(ToAnswer, ContainElements(
+									BeDNSRecord("1.1.0.127.in-addr.arpa.", PTR, "localhost2."),
+									BeDNSRecord("1.1.0.127.in-addr.arpa.", PTR, "localhost2.local.lan."),
+								)),
+							))
+				})
+			})
 		})
 	})
 
@@ -206,7 +317,7 @@ var _ = Describe("HostsFileResolver", func() {
 
 		When("hosts file is not provided", func() {
 			BeforeEach(func() {
-				sut = NewHostsFileResolver(config.HostsFileConfig{})
+				sutConfig = config.HostsFileConfig{}
 			})
 			It("should return 'disabled'", func() {
 				c := sut.Configuration()
@@ -238,9 +349,17 @@ func writeHostFile(tmpDir *TmpFolder) *TmpFile {
 		"",
 		"faaf:faaf:faaf:faaf::1  ipv6host    ipv6host.local.lan",
 		"192.168.2.1             ipv4host    ipv4host.local.lan",
+		"faaf:faaf:faaf:faaf::2  dualhost    dualhost.local.lan",
+		"192.168.2.2             dualhost    dualhost.local.lan",
 		"10.0.0.1                router0 router1 router2",
 		"10.0.0.2                router3     # Another comment",
-		"10.0.0.3                            # Invalid entry",
+		"10.0.0.3                router4#comment without a space",
+		"10.0.0.4                            # Invalid entry",
 		"300.300.300.300         invalid4    # Invalid IPv4",
-		"abcd:efgh:ijkl::1       invalid6    # Invalud IPv6")
+		"abcd:efgh:ijkl::1       invalid6    # Invalid IPv6",
+		"1.2.3.4                 localhost", // localhost name but not localhost IP
+
+		// from https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+		"fe80::1%lo0             localhost", // interface name
+	)
 }
