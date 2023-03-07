@@ -3,7 +3,7 @@ name: Development docker build
 on:
   push:
     branches:
-      - development
+      - master
       - fb-*
 
 permissions:
