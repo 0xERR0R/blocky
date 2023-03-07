@@ -201,7 +201,8 @@ func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	dnsRequest := util.NewMsgWithQuestion(query, qType)
-	r := createResolverRequest(nil, dnsRequest)
+
+	r := newRequest(net.ParseIP(extractIP(req)), model.RequestProtocolTCP, "", dnsRequest)
 
 	response, err := s.queryResolver.Resolve(r)
 	if err != nil {
