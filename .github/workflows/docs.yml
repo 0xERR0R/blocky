@@ -17,7 +17,7 @@ jobs:
           python-version: 3.x
       
       - name: install tools
-      - run: pip install mkdocs-material mike
+        run: pip install mkdocs-material mike
             
       - name: Setup doc deploy
         run: |
