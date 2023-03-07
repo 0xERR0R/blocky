@@ -3,10 +3,11 @@ site_description: blocky Documentation
 theme:
   name: material
   palette:
-    #    scheme: slate
     primary: teal
     accent: teal
 extra:
+  version:
+    provider: mike
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/0xERR0R/blocky

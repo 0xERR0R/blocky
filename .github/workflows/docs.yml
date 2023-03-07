@@ -2,15 +2,31 @@ name: docs
 on:
   push:
     branches:
-      - docs
       - main
+    tags:
+      - v*
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v4
         with:
           python-version: 3.x
-      - run: pip install mkdocs-material
-      - run: mkdocs gh-deploy --force
+      
+      - name: install tools
+      - run: pip install mkdocs-material mike
+            
+      - name: Setup doc deploy
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+      - name: Deploy version for tag/branch
+        run: mike deploy --push --update-aliases ${GITHUB_REF_NAME}
+      - name: Deploy latest version for tag only
+        if: ${{ github.ref != 'refs/heads/main' }}
+        run: mike deploy --push --update-aliases latest
+      - run: mike set-default --push latest
