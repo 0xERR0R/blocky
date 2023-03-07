@@ -178,7 +178,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					"defaultGroup": {defaultGroupFile.Path},
 				},
 				ClientGroupsBlock: map[string][]string{
-					"client1":         {"gr1"},
+					"Client1":         {"gr1"},
 					"client2,client3": {"gr1"},
 					"client3":         {"gr2"},
 					"192.168.178.55":  {"gr1"},
@@ -324,7 +324,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 		When("Client has multiple names and for each name a client group block definition exists", func() {
 			It("should block query if domain is in one group", func() {
-				Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "client1", "altName"))).
+				Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "client1", "altname"))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("domain1.com.", A, "0.0.0.0"),

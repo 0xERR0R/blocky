@@ -118,7 +118,7 @@ func NewBlockingResolver(
 	cgb := make(map[string][]string, len(cfg.ClientGroupsBlock))
 
 	for identifier, cfgGroups := range cfg.ClientGroupsBlock {
-		for _, ipart := range strings.Split(identifier, ",") {
+		for _, ipart := range strings.Split(strings.ToLower(identifier), ",") {
 			existingGroups, found := cgb[ipart]
 			if found {
 				cgb[ipart] = append(existingGroups, cfgGroups...)
