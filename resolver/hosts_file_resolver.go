@@ -25,11 +25,8 @@ const (
 
 type HostsFileResolver struct {
 	NextResolver
-	HostsFilePath  string
-	hosts          splitHostsFileData
-	ttl            uint32
-	refreshPeriod  time.Duration
-	filterLoopback bool
+	cfg   config.HostsFileConfig
+	hosts splitHostsFileData
 }
 
 type HostsFileEntry = parsers.HostsFileEntry
@@ -46,7 +43,7 @@ func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Resp
 		return nil
 	}
 
-	if r.filterLoopback && questionIP.IsLoopback() {
+	if r.cfg.FilterLoopback && questionIP.IsLoopback() {
 		// skip the search: we won't find anything
 		return nil
 	}
@@ -64,13 +61,13 @@ func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Resp
 
 			ptr := new(dns.PTR)
 			ptr.Ptr = dns.Fqdn(host)
-			ptr.Hdr = util.CreateHeader(question, r.ttl)
+			ptr.Hdr = util.CreateHeader(question, r.cfg.HostsTTL.SecondsU32())
 			response.Answer = append(response.Answer, ptr)
 
 			for _, alias := range hostData.Aliases {
 				ptrAlias := new(dns.PTR)
 				ptrAlias.Ptr = dns.Fqdn(alias)
-				ptrAlias.Hdr = util.CreateHeader(question, r.ttl)
+				ptrAlias.Hdr = ptr.Hdr
 				response.Answer = append(response.Answer, ptrAlias)
 			}
 
@@ -84,7 +81,7 @@ func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Resp
 func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, error) {
 	logger := log.WithPrefix(request.Log, hostsFileResolverLogger)
 
-	if r.HostsFilePath == "" {
+	if r.cfg.Filepath == "" {
 		return r.next.Resolve(request)
 	}
 
@@ -117,7 +114,7 @@ func (r *HostsFileResolver) resolve(req *dns.Msg, question dns.Question, domain 
 		return nil
 	}
 
-	rr, _ := util.CreateAnswerFromQuestion(question, ip, r.ttl)
+	rr, _ := util.CreateAnswerFromQuestion(question, ip, r.cfg.HostsTTL.SecondsU32())
 
 	response := new(dns.Msg)
 	response.SetReply(req)
@@ -127,31 +124,28 @@ func (r *HostsFileResolver) resolve(req *dns.Msg, question dns.Question, domain 
 }
 
 func (r *HostsFileResolver) Configuration() (result []string) {
-	if r.HostsFilePath == "" || r.hosts.isEmpty() {
+	if r.cfg.Filepath == "" || r.hosts.isEmpty() {
 		return configDisabled
 	}
 
-	result = append(result, fmt.Sprintf("file path: %s", r.HostsFilePath))
-	result = append(result, fmt.Sprintf("TTL: %d", r.ttl))
-	result = append(result, fmt.Sprintf("refresh period: %s", r.refreshPeriod.String()))
-	result = append(result, fmt.Sprintf("filter loopback addresses: %t", r.filterLoopback))
+	result = append(result, fmt.Sprintf("file path: %s", r.cfg.Filepath))
+	result = append(result, fmt.Sprintf("TTL: %d", r.cfg.HostsTTL.SecondsU32()))
+	result = append(result, fmt.Sprintf("refresh period: %s", r.cfg.RefreshPeriod))
+	result = append(result, fmt.Sprintf("filter loopback addresses: %t", r.cfg.FilterLoopback))
 
 	return
 }
 
 func NewHostsFileResolver(cfg config.HostsFileConfig) *HostsFileResolver {
 	r := HostsFileResolver{
-		HostsFilePath:  cfg.Filepath,
-		ttl:            uint32(cfg.HostsTTL.Seconds()),
-		refreshPeriod:  cfg.RefreshPeriod.Cast(),
-		filterLoopback: cfg.FilterLoopback,
+		cfg: cfg,
 	}
 
 	if err := r.parseHostsFile(context.Background()); err != nil {
 		logger := log.PrefixedLog(hostsFileResolverLogger)
 		logger.Warnf("hosts file resolving is disabled: %s", err)
 
-		r.HostsFilePath = "" // don't try parsing the file again
+		r.cfg.Filepath = "" // don't try parsing the file again
 	} else {
 		go r.periodicUpdate()
 	}
@@ -162,11 +156,11 @@ func NewHostsFileResolver(cfg config.HostsFileConfig) *HostsFileResolver {
 func (r *HostsFileResolver) parseHostsFile(ctx context.Context) error {
 	const maxErrorsPerFile = 5
 
-	if r.HostsFilePath == "" {
+	if r.cfg.Filepath == "" {
 		return nil
 	}
 
-	f, err := os.Open(r.HostsFilePath)
+	f, err := os.Open(r.cfg.Filepath)
 	if err != nil {
 		return err
 	}
@@ -176,7 +170,7 @@ func (r *HostsFileResolver) parseHostsFile(ctx context.Context) error {
 
 	p := parsers.AllowErrors(parsers.HostsFile(f), maxErrorsPerFile)
 	p.OnErr(func(err error) {
-		log.PrefixedLog(hostsFileResolverLogger).Warnf("error parsing %s: %s, trying to continue", r.HostsFilePath, err)
+		log.PrefixedLog(hostsFileResolverLogger).Warnf("error parsing %s: %s, trying to continue", r.cfg.Filepath, err)
 	})
 
 	err = parsers.ForEach[*HostsFileEntry](ctx, p, func(entry *HostsFileEntry) error {
@@ -187,7 +181,7 @@ func (r *HostsFileResolver) parseHostsFile(ctx context.Context) error {
 		}
 
 		// Ignore loopback, if so configured
-		if r.filterLoopback && (entry.IP.IsLoopback() || entry.Name == "localhost") {
+		if r.cfg.FilterLoopback && (entry.IP.IsLoopback() || entry.Name == "localhost") {
 			return nil
 		}
 
@@ -196,7 +190,7 @@ func (r *HostsFileResolver) parseHostsFile(ctx context.Context) error {
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("error parsing %s: %w", r.HostsFilePath, err) // err is parsers.ErrTooManyErrors
+		return fmt.Errorf("error parsing %s: %w", r.cfg.Filepath, err) // err is parsers.ErrTooManyErrors
 	}
 
 	r.hosts = newHosts
@@ -205,15 +199,15 @@ func (r *HostsFileResolver) parseHostsFile(ctx context.Context) error {
 }
 
 func (r *HostsFileResolver) periodicUpdate() {
-	if r.refreshPeriod > 0 {
-		ticker := time.NewTicker(r.refreshPeriod)
+	if r.cfg.RefreshPeriod.Cast() > 0 {
+		ticker := time.NewTicker(r.cfg.RefreshPeriod.Cast())
 		defer ticker.Stop()
 
 		for {
 			<-ticker.C
 
 			logger := log.PrefixedLog(hostsFileResolverLogger)
-			logger.WithField("file", r.HostsFilePath).Debug("refreshing hosts file")
+			logger.WithField("file", r.cfg.Filepath).Debug("refreshing hosts file")
 
 			util.LogOnError("can't refresh hosts file: ", r.parseHostsFile(context.Background()))
 		}

@@ -58,7 +58,7 @@ var _ = Describe("HostsFileResolver", func() {
 				}
 			})
 			It("should not parse any hosts", func() {
-				Expect(sut.HostsFilePath).Should(BeEmpty())
+				Expect(sut.cfg.Filepath).Should(BeEmpty())
 				Expect(sut.hosts.v4.hosts).Should(BeEmpty())
 				Expect(sut.hosts.v6.hosts).Should(BeEmpty())
 				Expect(sut.hosts.v4.aliases).Should(BeEmpty())
@@ -140,11 +140,11 @@ var _ = Describe("HostsFileResolver", func() {
 
 			It("should not be used", func() {
 				Expect(sut).ShouldNot(BeNil())
-				Expect(sut.HostsFilePath).Should(BeEmpty())
-				Expect(sut.hosts.v4.hosts).Should(HaveLen(0))
-				Expect(sut.hosts.v6.hosts).Should(HaveLen(0))
-				Expect(sut.hosts.v4.aliases).Should(HaveLen(0))
-				Expect(sut.hosts.v6.aliases).Should(HaveLen(0))
+				Expect(sut.cfg.Filepath).Should(BeEmpty())
+				Expect(sut.hosts.v4.hosts).Should(BeEmpty())
+				Expect(sut.hosts.v6.hosts).Should(BeEmpty())
+				Expect(sut.hosts.v4.aliases).Should(BeEmpty())
+				Expect(sut.hosts.v6.aliases).Should(BeEmpty())
 			})
 		})
 

@@ -23,6 +23,10 @@ func (c Duration) IsZero() bool {
 	return c.Duration == 0
 }
 
+func (c Duration) SecondsU32() uint32 {
+	return uint32(c.Seconds())
+}
+
 func (c Duration) String() string {
 	return durafmt.Parse(c.Cast()).String()
 }
