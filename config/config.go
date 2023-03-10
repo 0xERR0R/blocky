@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/sirupsen/logrus"
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/creasty/defaults"
@@ -26,6 +27,10 @@ const (
 	tlsPort   = 853
 	httpsPort = 443
 )
+
+type ValueLogger interface {
+	LogValues(log *logrus.Entry)
+}
 
 // NetProtocol resolver protocol ENUM(
 // tcp+udp // TCP and UDP protocols
@@ -617,13 +622,6 @@ type RedisConfig struct {
 	SentinelUsername   string   `yaml:"sentinelUsername" default:""`
 	SentinelPassword   string   `yaml:"sentinelPassword" default:""`
 	SentinelAddresses  []string `yaml:"sentinelAddresses"`
-}
-
-type HostsFileConfig struct {
-	Filepath       string   `yaml:"filePath"`
-	HostsTTL       Duration `yaml:"hostsTTL" default:"\"1h\""`
-	RefreshPeriod  Duration `yaml:"refreshPeriod" default:"\"1h\""`
-	FilterLoopback bool     `yaml:"filterLoopback"`
 }
 
 type FilteringConfig struct {

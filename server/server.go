@@ -443,8 +443,17 @@ func (s *Server) printConfiguration() {
 	for res != nil {
 		logger().Infof("-> resolver: '%s'", resolver.Name(res))
 
-		for _, c := range res.Configuration() {
-			logger().Infof("     %s", c)
+		if resCfg, ok := res.(resolver.ConfigGetter); ok {
+			func() {
+				undo := log.PrefixMessages("     ", logger().Logger)
+				defer undo()
+
+				resCfg.Cfg().LogValues(logger())
+			}()
+		} else {
+			for _, c := range res.Configuration() {
+				logger().Infof("     %s", c)
+			}
 		}
 
 		if c, ok := res.(resolver.ChainedResolver); ok {

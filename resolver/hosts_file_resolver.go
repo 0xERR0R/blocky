@@ -136,6 +136,10 @@ func (r *HostsFileResolver) Configuration() (result []string) {
 	return
 }
 
+func (r *HostsFileResolver) Cfg() config.ValueLogger {
+	return &r.cfg
+}
+
 func NewHostsFileResolver(cfg config.HostsFileConfig) *HostsFileResolver {
 	r := HostsFileResolver{
 		cfg: cfg,

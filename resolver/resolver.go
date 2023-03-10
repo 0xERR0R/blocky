@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
@@ -89,6 +90,11 @@ type Resolver interface {
 
 	// Configuration returns current resolver configuration
 	Configuration() []string
+}
+
+type ConfigGetter interface {
+	// Configuration returns current resolver configuration
+	Cfg() config.ValueLogger
 }
 
 // ChainedResolver represents a resolver, which can delegate result to the next one

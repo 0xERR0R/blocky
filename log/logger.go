@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
+	"golang.org/x/exp/maps"
 )
 
 const prefixField = "prefix"
@@ -117,4 +119,43 @@ func ConfigureLogger(cfg *Config) {
 // Silence disables the logger output
 func Silence() {
 	logger.Out = io.Discard
+}
+
+// PrefixMessages modifies a logger entry which will add `prefix` to all messages.
+//
+// The returned function must be called to remove the prefix.
+func PrefixMessages(prefix string, logger *logrus.Logger) func() {
+	if _, ok := logger.Formatter.(*prefixed.TextFormatter); !ok {
+		// log is not plaintext, do nothing
+		return func() {}
+	}
+
+	oldHooks := maps.Clone(logger.Hooks)
+
+	logger.AddHook(prefixMsgHook{
+		prefix: prefix,
+	})
+
+	var once sync.Once
+
+	return func() {
+		once.Do(func() {
+			logger.ReplaceHooks(oldHooks)
+		})
+	}
+}
+
+type prefixMsgHook struct {
+	prefix string
+}
+
+func (f prefixMsgHook) Levels() []logrus.Level {
+	return logrus.AllLevels
+}
+
+// Format implements `logrus.Formatter`.
+func (f prefixMsgHook) Fire(entry *logrus.Entry) error {
+	entry.Message = f.prefix + entry.Message
+
+	return nil
 }
