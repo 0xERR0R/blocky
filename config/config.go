@@ -16,8 +16,6 @@ import (
 
 	"github.com/miekg/dns"
 
-	"github.com/hako/durafmt"
-
 	"github.com/0xERR0R/blocky/log"
 	"github.com/creasty/defaults"
 	"gopkg.in/yaml.v2"
@@ -120,12 +118,6 @@ func (s *QTypeSet) Insert(qType dns.Type) {
 	}
 
 	(*s)[QType(qType)] = struct{}{}
-}
-
-type Duration time.Duration
-
-func (c Duration) String() string {
-	return durafmt.Parse(time.Duration(c)).String()
 }
 
 //nolint:gochecknoglobals
@@ -314,31 +306,6 @@ func (c *CustomDNSMapping) UnmarshalYAML(unmarshal func(interface{}) error) erro
 	return nil
 }
 
-// UnmarshalYAML creates Duration from YAML. If no unit is used, uses minutes
-func (c *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var input string
-	if err := unmarshal(&input); err != nil {
-		return err
-	}
-
-	if minutes, err := strconv.Atoi(input); err == nil {
-		// duration is defined as number without unit
-		// use minutes to ensure back compatibility
-		*c = Duration(time.Duration(minutes) * time.Minute)
-
-		return nil
-	}
-
-	duration, err := time.ParseDuration(input)
-	if err == nil {
-		*c = Duration(duration)
-
-		return nil
-	}
-
-	return err
-}
-
 func (c *QType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var input string
 	if err := unmarshal(&input); err != nil {
@@ -475,7 +442,7 @@ func extractNet(upstream string) (NetProtocol, string) {
 //nolint:maligned
 type Config struct {
 	Upstream            UpstreamConfig            `yaml:"upstream"`
-	UpstreamTimeout     Duration                  `yaml:"upstreamTimeout" default:"2s"`
+	UpstreamTimeout     Duration                  `yaml:"upstreamTimeout" default:"\"2s\""`
 	ConnectIPVersion    IPVersion                 `yaml:"connectIPVersion"`
 	CustomDNS           CustomDNSConfig           `yaml:"customDNS"`
 	Conditional         ConditionalUpstreamConfig `yaml:"conditional"`
@@ -559,7 +526,7 @@ type RewriteConfig struct {
 // CustomDNSConfig custom DNS configuration
 type CustomDNSConfig struct {
 	RewriteConfig       `yaml:",inline"`
-	CustomTTL           Duration         `yaml:"customTTL" default:"1h"`
+	CustomTTL           Duration         `yaml:"customTTL" default:"\"1h\""`
 	Mapping             CustomDNSMapping `yaml:"mapping"`
 	FilterUnmappedTypes bool             `yaml:"filterUnmappedTypes" default:"true"`
 }
@@ -586,11 +553,11 @@ type BlockingConfig struct {
 	WhiteLists        map[string][]string `yaml:"whiteLists"`
 	ClientGroupsBlock map[string][]string `yaml:"clientGroupsBlock"`
 	BlockType         string              `yaml:"blockType" default:"ZEROIP"`
-	BlockTTL          Duration            `yaml:"blockTTL" default:"6h"`
-	DownloadTimeout   Duration            `yaml:"downloadTimeout" default:"60s"`
+	BlockTTL          Duration            `yaml:"blockTTL" default:"\"6h\""`
+	DownloadTimeout   Duration            `yaml:"downloadTimeout" default:"\"60s\""`
 	DownloadAttempts  uint                `yaml:"downloadAttempts" default:"3"`
-	DownloadCooldown  Duration            `yaml:"downloadCooldown" default:"1s"`
-	RefreshPeriod     Duration            `yaml:"refreshPeriod" default:"4h"`
+	DownloadCooldown  Duration            `yaml:"downloadCooldown" default:"\"1s\""`
+	RefreshPeriod     Duration            `yaml:"refreshPeriod" default:"\"4h\""`
 	// Deprecated
 	FailStartOnListError  bool              `yaml:"failStartOnListError" default:"false"`
 	ProcessingConcurrency uint              `yaml:"processingConcurrency" default:"4"`
@@ -608,10 +575,10 @@ type ClientLookupConfig struct {
 type CachingConfig struct {
 	MinCachingTime        Duration `yaml:"minTime"`
 	MaxCachingTime        Duration `yaml:"maxTime"`
-	CacheTimeNegative     Duration `yaml:"cacheTimeNegative" default:"30m"`
+	CacheTimeNegative     Duration `yaml:"cacheTimeNegative" default:"\"30m\""`
 	MaxItemsCount         int      `yaml:"maxItemsCount"`
 	Prefetching           bool     `yaml:"prefetching"`
-	PrefetchExpires       Duration `yaml:"prefetchExpires" default:"2h"`
+	PrefetchExpires       Duration `yaml:"prefetchExpires" default:"\"2h\""`
 	PrefetchThreshold     int      `yaml:"prefetchThreshold" default:"5"`
 	PrefetchMaxItemsCount int      `yaml:"prefetchMaxItemsCount"`
 }
@@ -619,9 +586,9 @@ type CachingConfig struct {
 func (c *CachingConfig) EnablePrefetch() {
 	const day = 24 * time.Hour
 
-	if c.MaxCachingTime == 0 {
+	if c.MaxCachingTime == (Duration{}) {
 		// make sure resolver gets enabled
-		c.MaxCachingTime = Duration(day)
+		c.MaxCachingTime = NewDuration(day)
 	}
 
 	c.Prefetching = true
@@ -634,7 +601,7 @@ type QueryLogConfig struct {
 	Type             QueryLogType    `yaml:"type"`
 	LogRetentionDays uint64          `yaml:"logRetentionDays"`
 	CreationAttempts int             `yaml:"creationAttempts" default:"3"`
-	CreationCooldown Duration        `yaml:"creationCooldown" default:"2s"`
+	CreationCooldown Duration        `yaml:"creationCooldown" default:"\"2s\""`
 	Fields           []QueryLogField `yaml:"fields"`
 }
 
@@ -646,7 +613,7 @@ type RedisConfig struct {
 	Database           int      `yaml:"database" default:"0"`
 	Required           bool     `yaml:"required" default:"false"`
 	ConnectionAttempts int      `yaml:"connectionAttempts" default:"3"`
-	ConnectionCooldown Duration `yaml:"connectionCooldown" default:"1s"`
+	ConnectionCooldown Duration `yaml:"connectionCooldown" default:"\"1s\""`
 	SentinelUsername   string   `yaml:"sentinelUsername" default:""`
 	SentinelPassword   string   `yaml:"sentinelPassword" default:""`
 	SentinelAddresses  []string `yaml:"sentinelAddresses"`
@@ -654,8 +621,8 @@ type RedisConfig struct {
 
 type HostsFileConfig struct {
 	Filepath       string   `yaml:"filePath"`
-	HostsTTL       Duration `yaml:"hostsTTL" default:"1h"`
-	RefreshPeriod  Duration `yaml:"refreshPeriod" default:"1h"`
+	HostsTTL       Duration `yaml:"hostsTTL" default:"\"1h\""`
+	RefreshPeriod  Duration `yaml:"refreshPeriod" default:"\"1h\""`
 	FilterLoopback bool     `yaml:"filterLoopback"`
 }
 

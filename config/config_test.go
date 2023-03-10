@@ -364,37 +364,6 @@ bootstrapDns:
 				Expect(err).Should(HaveOccurred())
 			})
 		})
-		Context("Duration", func() {
-			It("should parse duration with unit", func() {
-				d := Duration(0)
-				err := d.UnmarshalYAML(func(i interface{}) error {
-					*i.(*string) = "1m20s"
-
-					return nil
-				})
-				Expect(err).Should(Succeed())
-				Expect(d).Should(Equal(Duration(80 * time.Second)))
-				Expect(d.String()).Should(Equal("1 minute 20 seconds"))
-			})
-			It("should fail if duration is in wrong format", func() {
-				d := Duration(0)
-				err := d.UnmarshalYAML(func(i interface{}) error {
-					*i.(*string) = "wrong"
-
-					return nil
-				})
-				Expect(err).Should(HaveOccurred())
-				Expect(err).Should(MatchError("time: invalid duration \"wrong\""))
-			})
-			It("should fail if wrong YAML format", func() {
-				d := Duration(0)
-				err := d.UnmarshalYAML(func(i interface{}) error {
-					return errors.New("some err")
-				})
-				Expect(err).Should(HaveOccurred())
-				Expect(err).Should(MatchError("some err"))
-			})
-		})
 		Context("ConditionalUpstreamMapping", func() {
 			It("Should parse config as map", func() {
 				c := &ConditionalUpstreamMapping{}
@@ -696,12 +665,12 @@ func defaultTestFileConfig() {
 	Expect(config.Blocking.BlackLists).Should(HaveLen(2))
 	Expect(config.Blocking.WhiteLists).Should(HaveLen(1))
 	Expect(config.Blocking.ClientGroupsBlock).Should(HaveLen(2))
-	Expect(config.Blocking.BlockTTL).Should(Equal(Duration(time.Minute)))
-	Expect(config.Blocking.RefreshPeriod).Should(Equal(Duration(2 * time.Hour)))
+	Expect(config.Blocking.BlockTTL).Should(Equal(NewDuration(time.Minute)))
+	Expect(config.Blocking.RefreshPeriod).Should(Equal(NewDuration(2 * time.Hour)))
 	Expect(config.Filtering.QueryTypes).Should(HaveLen(2))
 
-	Expect(config.Caching.MaxCachingTime).Should(Equal(Duration(0)))
-	Expect(config.Caching.MinCachingTime).Should(Equal(Duration(0)))
+	Expect(config.Caching.MaxCachingTime.IsZero()).Should(BeTrue())
+	Expect(config.Caching.MinCachingTime.IsZero()).Should(BeTrue())
 
 	Expect(config.DoHUserAgent).Should(Equal("testBlocky"))
 	Expect(config.MinTLSServeVer).Should(Equal("1.3"))

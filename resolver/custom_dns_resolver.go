@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
@@ -38,7 +37,7 @@ func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
 		}
 	}
 
-	ttl := uint32(time.Duration(cfg.CustomTTL).Seconds())
+	ttl := uint32(cfg.CustomTTL.Seconds())
 
 	return &CustomDNSResolver{
 		mapping:             m,

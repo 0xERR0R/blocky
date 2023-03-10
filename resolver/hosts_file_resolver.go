@@ -142,8 +142,8 @@ func (r *HostsFileResolver) Configuration() (result []string) {
 func NewHostsFileResolver(cfg config.HostsFileConfig) *HostsFileResolver {
 	r := HostsFileResolver{
 		HostsFilePath:  cfg.Filepath,
-		ttl:            uint32(time.Duration(cfg.HostsTTL).Seconds()),
-		refreshPeriod:  time.Duration(cfg.RefreshPeriod),
+		ttl:            uint32(cfg.HostsTTL.Seconds()),
+		refreshPeriod:  cfg.RefreshPeriod.Cast(),
 		filterLoopback: cfg.FilterLoopback,
 	}
 

@@ -21,7 +21,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 	systemResolverBootstrap := &Bootstrap{}
 
-	config.GetConfig().UpstreamTimeout = config.Duration(1000 * time.Millisecond)
+	config.GetConfig().UpstreamTimeout = config.NewDuration(1000 * time.Millisecond)
 
 	When("default upstream resolvers are not defined", func() {
 		It("should fail on startup", func() {
