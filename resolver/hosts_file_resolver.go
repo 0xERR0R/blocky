@@ -203,8 +203,8 @@ func (r *HostsFileResolver) parseHostsFile(ctx context.Context) error {
 }
 
 func (r *HostsFileResolver) periodicUpdate() {
-	if r.cfg.RefreshPeriod.Cast() > 0 {
-		ticker := time.NewTicker(r.cfg.RefreshPeriod.Cast())
+	if r.cfg.RefreshPeriod.ToDuration() > 0 {
+		ticker := time.NewTicker(r.cfg.RefreshPeriod.ToDuration())
 		defer ticker.Stop()
 
 		for {

@@ -51,7 +51,7 @@ type httpUpstreamClient struct {
 }
 
 func createUpstreamClient(cfg config.Upstream) upstreamClient {
-	timeout := config.GetConfig().UpstreamTimeout.Cast()
+	timeout := config.GetConfig().UpstreamTimeout.ToDuration()
 
 	tlsConfig := tls.Config{
 		ServerName: cfg.Host,

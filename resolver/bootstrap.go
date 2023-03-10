@@ -119,7 +119,7 @@ func (b *Bootstrap) resolveUpstream(r Resolver, host string) ([]net.IP, error) {
 		if timeout.IsZero() {
 			var cancel context.CancelFunc
 
-			ctx, cancel = context.WithTimeout(ctx, timeout.Cast())
+			ctx, cancel = context.WithTimeout(ctx, timeout.ToDuration())
 			defer cancel()
 		}
 

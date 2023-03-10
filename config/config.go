@@ -591,7 +591,7 @@ type CachingConfig struct {
 func (c *CachingConfig) EnablePrefetch() {
 	const day = 24 * time.Hour
 
-	if c.MaxCachingTime == (Duration{}) {
+	if c.MaxCachingTime.IsZero() {
 		// make sure resolver gets enabled
 		c.MaxCachingTime = NewDuration(day)
 	}

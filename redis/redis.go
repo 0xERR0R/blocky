@@ -83,7 +83,7 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 			Password:         cfg.Password,
 			DB:               cfg.Database,
 			MaxRetries:       cfg.ConnectionAttempts,
-			MaxRetryBackoff:  cfg.ConnectionCooldown.Cast(),
+			MaxRetryBackoff:  cfg.ConnectionCooldown.ToDuration(),
 		})
 	} else {
 		rdb = redis.NewClient(&redis.Options{
@@ -92,7 +92,7 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 			Password:        cfg.Password,
 			DB:              cfg.Database,
 			MaxRetries:      cfg.ConnectionAttempts,
-			MaxRetryBackoff: cfg.ConnectionCooldown.Cast(),
+			MaxRetryBackoff: cfg.ConnectionCooldown.ToDuration(),
 		})
 	}
 

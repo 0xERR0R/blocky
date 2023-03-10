@@ -35,7 +35,7 @@ func createBlockHandler(cfg config.BlockingConfig) (blockHandler, error) {
 		return nxDomainBlockHandler{}, nil
 	}
 
-	blockTime := uint32(cfg.BlockTTL.Seconds())
+	blockTime := cfg.BlockTTL.SecondsU32()
 
 	if strings.EqualFold(cfgBlockType, "ZEROIP") {
 		return zeroIPBlockHandler{
@@ -100,7 +100,7 @@ func NewBlockingResolver(
 		return nil, err
 	}
 
-	refreshPeriod := cfg.RefreshPeriod.Cast()
+	refreshPeriod := cfg.RefreshPeriod.ToDuration()
 	downloader := createDownloader(cfg, bootstrap)
 	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists,
 		refreshPeriod, downloader, cfg.ProcessingConcurrency,
@@ -156,9 +156,9 @@ func NewBlockingResolver(
 
 func createDownloader(cfg config.BlockingConfig, bootstrap *Bootstrap) *lists.HTTPDownloader {
 	return lists.NewDownloader(
-		lists.WithTimeout(cfg.DownloadTimeout.Cast()),
+		lists.WithTimeout(cfg.DownloadTimeout.ToDuration()),
 		lists.WithAttempts(cfg.DownloadAttempts),
-		lists.WithCooldown(cfg.DownloadCooldown.Cast()),
+		lists.WithCooldown(cfg.DownloadCooldown.ToDuration()),
 		lists.WithTransport(bootstrap.NewHTTPTransport()),
 	)
 }

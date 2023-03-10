@@ -15,20 +15,20 @@ func NewDuration[T constraints.Integer | time.Duration](value T) Duration {
 	return Duration{Duration: time.Duration(value)}
 }
 
-func (c Duration) Cast() time.Duration {
+func (c Duration) ToDuration() time.Duration {
 	return c.Duration
 }
 
 func (c Duration) IsZero() bool {
-	return c.Duration == 0
+	return c.ToDuration() == 0
 }
 
 func (c Duration) SecondsU32() uint32 {
-	return uint32(c.Seconds())
+	return uint32(c.ToDuration().Seconds())
 }
 
 func (c Duration) String() string {
-	return durafmt.Parse(c.Cast()).String()
+	return durafmt.Parse(c.ToDuration()).String()
 }
 
 func (c *Duration) UnmarshalText(data []byte) error {

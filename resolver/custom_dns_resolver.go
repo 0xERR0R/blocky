@@ -37,7 +37,7 @@ func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
 		}
 	}
 
-	ttl := uint32(cfg.CustomTTL.Seconds())
+	ttl := cfg.CustomTTL.SecondsU32()
 
 	return &CustomDNSResolver{
 		mapping:             m,

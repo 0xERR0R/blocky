@@ -47,7 +47,7 @@ func NewCachingResolver(cfg config.CachingConfig, redis *redis.Client) *CachingR
 	c := &CachingResolver{
 		minCacheTimeSec:   int(cfg.MinCachingTime.Seconds()),
 		maxCacheTimeSec:   int(cfg.MaxCachingTime.Seconds()),
-		cacheTimeNegative: cfg.CacheTimeNegative.Cast(),
+		cacheTimeNegative: cfg.CacheTimeNegative.ToDuration(),
 		redisClient:       redis,
 		redisEnabled:      (redis != nil),
 		emitMetricEvents:  true,
@@ -68,7 +68,7 @@ func configureCaches(c *CachingResolver, cfg *config.CachingConfig) {
 	maxSizeOption := expirationcache.WithMaxSize(uint(cfg.MaxItemsCount))
 
 	if cfg.Prefetching {
-		c.prefetchExpires = cfg.PrefetchExpires.Cast()
+		c.prefetchExpires = cfg.PrefetchExpires.ToDuration()
 
 		c.prefetchThreshold = cfg.PrefetchThreshold
 
