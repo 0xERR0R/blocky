@@ -665,8 +665,8 @@ func defaultTestFileConfig() {
 	Expect(config.Blocking.BlackLists).Should(HaveLen(2))
 	Expect(config.Blocking.WhiteLists).Should(HaveLen(1))
 	Expect(config.Blocking.ClientGroupsBlock).Should(HaveLen(2))
-	Expect(config.Blocking.BlockTTL).Should(Equal(NewDuration(time.Minute)))
-	Expect(config.Blocking.RefreshPeriod).Should(Equal(NewDuration(2 * time.Hour)))
+	Expect(config.Blocking.BlockTTL).Should(Equal(Duration(time.Minute)))
+	Expect(config.Blocking.RefreshPeriod).Should(Equal(Duration(2 * time.Hour)))
 	Expect(config.Filtering.QueryTypes).Should(HaveLen(2))
 
 	Expect(config.Caching.MaxCachingTime.IsZero()).Should(BeTrue())

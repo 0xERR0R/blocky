@@ -13,7 +13,7 @@ var _ = Describe("Duration", func() {
 	It("should parse duration with unit", func() {
 		err := d.UnmarshalText([]byte("1m20s"))
 		Expect(err).Should(Succeed())
-		Expect(d).Should(Equal(NewDuration(80 * time.Second)))
+		Expect(d).Should(Equal(Duration(80 * time.Second)))
 		Expect(d.String()).Should(Equal("1 minute 20 seconds"))
 	})
 

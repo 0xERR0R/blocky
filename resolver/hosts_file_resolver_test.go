@@ -36,8 +36,8 @@ var _ = Describe("HostsFileResolver", func() {
 
 		sutConfig = config.HostsFileConfig{
 			Filepath:       tmpFile.Path,
-			HostsTTL:       config.NewDuration(time.Duration(TTL) * time.Second),
-			RefreshPeriod:  config.NewDuration(30 * time.Minute),
+			HostsTTL:       config.Duration(time.Duration(TTL) * time.Second),
+			RefreshPeriod:  config.Duration(30 * time.Minute),
 			FilterLoopback: true,
 		}
 	})
@@ -54,7 +54,7 @@ var _ = Describe("HostsFileResolver", func() {
 			BeforeEach(func() {
 				sutConfig = config.HostsFileConfig{
 					Filepath: fmt.Sprintf("/tmp/blocky/file-%d", rand.Uint64()),
-					HostsTTL: config.NewDuration(time.Duration(TTL) * time.Second),
+					HostsTTL: config.Duration(time.Duration(TTL) * time.Second),
 				}
 			})
 			It("should not parse any hosts", func() {

@@ -447,7 +447,7 @@ func extractNet(upstream string) (NetProtocol, string) {
 //nolint:maligned
 type Config struct {
 	Upstream            UpstreamConfig            `yaml:"upstream"`
-	UpstreamTimeout     Duration                  `yaml:"upstreamTimeout" default:"\"2s\""`
+	UpstreamTimeout     Duration                  `yaml:"upstreamTimeout" default:"2s"`
 	ConnectIPVersion    IPVersion                 `yaml:"connectIPVersion"`
 	CustomDNS           CustomDNSConfig           `yaml:"customDNS"`
 	Conditional         ConditionalUpstreamConfig `yaml:"conditional"`
@@ -531,7 +531,7 @@ type RewriteConfig struct {
 // CustomDNSConfig custom DNS configuration
 type CustomDNSConfig struct {
 	RewriteConfig       `yaml:",inline"`
-	CustomTTL           Duration         `yaml:"customTTL" default:"\"1h\""`
+	CustomTTL           Duration         `yaml:"customTTL" default:"1h"`
 	Mapping             CustomDNSMapping `yaml:"mapping"`
 	FilterUnmappedTypes bool             `yaml:"filterUnmappedTypes" default:"true"`
 }
@@ -558,11 +558,11 @@ type BlockingConfig struct {
 	WhiteLists        map[string][]string `yaml:"whiteLists"`
 	ClientGroupsBlock map[string][]string `yaml:"clientGroupsBlock"`
 	BlockType         string              `yaml:"blockType" default:"ZEROIP"`
-	BlockTTL          Duration            `yaml:"blockTTL" default:"\"6h\""`
-	DownloadTimeout   Duration            `yaml:"downloadTimeout" default:"\"60s\""`
+	BlockTTL          Duration            `yaml:"blockTTL" default:"6h"`
+	DownloadTimeout   Duration            `yaml:"downloadTimeout" default:"60s"`
 	DownloadAttempts  uint                `yaml:"downloadAttempts" default:"3"`
-	DownloadCooldown  Duration            `yaml:"downloadCooldown" default:"\"1s\""`
-	RefreshPeriod     Duration            `yaml:"refreshPeriod" default:"\"4h\""`
+	DownloadCooldown  Duration            `yaml:"downloadCooldown" default:"1s"`
+	RefreshPeriod     Duration            `yaml:"refreshPeriod" default:"4h"`
 	// Deprecated
 	FailStartOnListError  bool              `yaml:"failStartOnListError" default:"false"`
 	ProcessingConcurrency uint              `yaml:"processingConcurrency" default:"4"`
@@ -580,10 +580,10 @@ type ClientLookupConfig struct {
 type CachingConfig struct {
 	MinCachingTime        Duration `yaml:"minTime"`
 	MaxCachingTime        Duration `yaml:"maxTime"`
-	CacheTimeNegative     Duration `yaml:"cacheTimeNegative" default:"\"30m\""`
+	CacheTimeNegative     Duration `yaml:"cacheTimeNegative" default:"30m"`
 	MaxItemsCount         int      `yaml:"maxItemsCount"`
 	Prefetching           bool     `yaml:"prefetching"`
-	PrefetchExpires       Duration `yaml:"prefetchExpires" default:"\"2h\""`
+	PrefetchExpires       Duration `yaml:"prefetchExpires" default:"2h"`
 	PrefetchThreshold     int      `yaml:"prefetchThreshold" default:"5"`
 	PrefetchMaxItemsCount int      `yaml:"prefetchMaxItemsCount"`
 }
@@ -593,7 +593,7 @@ func (c *CachingConfig) EnablePrefetch() {
 
 	if c.MaxCachingTime.IsZero() {
 		// make sure resolver gets enabled
-		c.MaxCachingTime = NewDuration(day)
+		c.MaxCachingTime = Duration(day)
 	}
 
 	c.Prefetching = true
@@ -606,7 +606,7 @@ type QueryLogConfig struct {
 	Type             QueryLogType    `yaml:"type"`
 	LogRetentionDays uint64          `yaml:"logRetentionDays"`
 	CreationAttempts int             `yaml:"creationAttempts" default:"3"`
-	CreationCooldown Duration        `yaml:"creationCooldown" default:"\"2s\""`
+	CreationCooldown Duration        `yaml:"creationCooldown" default:"2s"`
 	Fields           []QueryLogField `yaml:"fields"`
 }
 
@@ -618,7 +618,7 @@ type RedisConfig struct {
 	Database           int      `yaml:"database" default:"0"`
 	Required           bool     `yaml:"required" default:"false"`
 	ConnectionAttempts int      `yaml:"connectionAttempts" default:"3"`
-	ConnectionCooldown Duration `yaml:"connectionCooldown" default:"\"1s\""`
+	ConnectionCooldown Duration `yaml:"connectionCooldown" default:"1s"`
 	SentinelUsername   string   `yaml:"sentinelUsername" default:""`
 	SentinelPassword   string   `yaml:"sentinelPassword" default:""`
 	SentinelAddresses  []string `yaml:"sentinelAddresses"`

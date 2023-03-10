@@ -105,7 +105,7 @@ var _ = BeforeSuite(func() {
 	// create server
 	sut, err = NewServer(&config.Config{
 		CustomDNS: config.CustomDNSConfig{
-			CustomTTL: config.NewDuration(3600 * time.Second),
+			CustomTTL: config.Duration(3600 * time.Second),
 			Mapping: config.CustomDNSMapping{
 				HostIPs: map[string][]net.IP{
 					"custom.lan": {net.ParseIP("192.168.178.55")},
@@ -141,7 +141,7 @@ var _ = BeforeSuite(func() {
 				"clYoutubeOnly":   {"youtube"},
 			},
 			BlockType: "zeroIp",
-			BlockTTL:  config.NewDuration(6 * time.Hour),
+			BlockTTL:  config.Duration(6 * time.Hour),
 		},
 		Upstream: config.UpstreamConfig{
 			ExternalResolvers: map[string][]config.Upstream{"default": {upstreamGoogle}},

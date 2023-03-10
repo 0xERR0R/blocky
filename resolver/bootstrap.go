@@ -76,7 +76,7 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 
 	if cachingCfg.MinCachingTime.IsZero() {
 		// Set a min time in case the user didn't to avoid prefetching too often
-		cachingCfg.MinCachingTime = config.NewDuration(time.Hour)
+		cachingCfg.MinCachingTime = config.Duration(time.Hour)
 	}
 
 	b.bootstraped = bootstraped

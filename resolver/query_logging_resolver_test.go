@@ -64,7 +64,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLogConfig{
 					CreationAttempts: 1,
-					CreationCooldown: config.NewDuration(time.Millisecond),
+					CreationCooldown: config.Duration(time.Millisecond),
 				}
 			})
 			It("should process request without query logging", func() {
@@ -84,7 +84,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 					Target:           tmpDir.Path,
 					Type:             config.QueryLogTypeCsvClient,
 					CreationAttempts: 1,
-					CreationCooldown: config.NewDuration(time.Millisecond),
+					CreationCooldown: config.Duration(time.Millisecond),
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, A, "123.122.121.120")
 			})
@@ -152,7 +152,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 					Target:           tmpDir.Path,
 					Type:             config.QueryLogTypeCsv,
 					CreationAttempts: 1,
-					CreationCooldown: config.NewDuration(time.Millisecond),
+					CreationCooldown: config.Duration(time.Millisecond),
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, A, "123.122.121.120")
 			})
@@ -212,7 +212,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 					Target:           tmpDir.Path,
 					Type:             config.QueryLogTypeCsv,
 					CreationAttempts: 1,
-					CreationCooldown: config.NewDuration(time.Millisecond),
+					CreationCooldown: config.Duration(time.Millisecond),
 					Fields:           []config.QueryLogField{config.QueryLogFieldClientIP},
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, A, "123.122.121.120")
@@ -259,7 +259,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 				sutConfig = config.QueryLogConfig{
 					Type:             config.QueryLogTypeNone,
 					CreationAttempts: 1,
-					CreationCooldown: config.NewDuration(time.Millisecond),
+					CreationCooldown: config.Duration(time.Millisecond),
 				}
 			})
 			It("should drop messages", func() {
@@ -284,7 +284,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 					Type:             config.QueryLogTypeCsvClient,
 					LogRetentionDays: 0,
 					CreationAttempts: 1,
-					CreationCooldown: config.NewDuration(time.Millisecond),
+					CreationCooldown: config.Duration(time.Millisecond),
 				}
 			})
 			It("should return configuration", func() {
@@ -301,7 +301,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 					LogRetentionDays: 7,
 					Type:             config.QueryLogTypeConsole,
 					CreationAttempts: 1,
-					CreationCooldown: config.NewDuration(time.Millisecond),
+					CreationCooldown: config.Duration(time.Millisecond),
 				}
 			})
 			It("should do nothing", func() {
@@ -315,7 +315,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 					Type:             config.QueryLogTypeCsv,
 					LogRetentionDays: 7,
 					CreationAttempts: 1,
-					CreationCooldown: config.NewDuration(time.Millisecond),
+					CreationCooldown: config.Duration(time.Millisecond),
 				}
 			})
 			It("should remove files older than defined log retention", func() {
@@ -351,7 +351,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 					Target:           "dummy",
 					Type:             config.QueryLogTypeMysql,
 					CreationAttempts: 1,
-					CreationCooldown: config.NewDuration(time.Millisecond),
+					CreationCooldown: config.Duration(time.Millisecond),
 				}
 			})
 			It("should use fallback", func() {
@@ -365,7 +365,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 					Target:           "dummy",
 					Type:             config.QueryLogTypePostgresql,
 					CreationAttempts: 1,
-					CreationCooldown: config.NewDuration(time.Millisecond),
+					CreationCooldown: config.Duration(time.Millisecond),
 				}
 			})
 			It("should use fallback", func() {

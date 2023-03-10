@@ -47,7 +47,7 @@ var _ = Describe("CachingResolver", func() {
 			BeforeEach(func() {
 				sutConfig = config.CachingConfig{
 					Prefetching:       true,
-					PrefetchExpires:   config.NewDuration(time.Minute * 120),
+					PrefetchExpires:   config.Duration(time.Minute * 120),
 					PrefetchThreshold: 5,
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 2, A, "123.122.121.120")
@@ -107,7 +107,7 @@ var _ = Describe("CachingResolver", func() {
 		When("min caching time is defined", func() {
 			BeforeEach(func() {
 				sutConfig = config.CachingConfig{
-					MinCachingTime: config.NewDuration(time.Minute * 5),
+					MinCachingTime: config.Duration(time.Minute * 5),
 				}
 			})
 			Context("response TTL is bigger than defined min caching time", func() {
@@ -246,7 +246,7 @@ var _ = Describe("CachingResolver", func() {
 			Context("max caching time is negative -> caching is disabled", func() {
 				BeforeEach(func() {
 					sutConfig = config.CachingConfig{
-						MaxCachingTime: config.NewDuration(time.Minute * -1),
+						MaxCachingTime: config.Duration(time.Minute * -1),
 					}
 				})
 
@@ -281,7 +281,7 @@ var _ = Describe("CachingResolver", func() {
 			Context("max caching time is positive", func() {
 				BeforeEach(func() {
 					sutConfig = config.CachingConfig{
-						MaxCachingTime: config.NewDuration(time.Minute * 4),
+						MaxCachingTime: config.Duration(time.Minute * 4),
 					}
 				})
 				It("should cache response and use max caching time as TTL if response TTL is bigger", func() {
@@ -320,7 +320,7 @@ var _ = Describe("CachingResolver", func() {
 			Context("max caching time is defined", func() {
 				BeforeEach(func() {
 					sutConfig = config.CachingConfig{
-						MaxCachingTime: config.NewDuration(time.Minute * 1),
+						MaxCachingTime: config.Duration(time.Minute * 1),
 					}
 				})
 				It("should cache response and return 0 TTL if entry is expired", func() {
@@ -393,7 +393,7 @@ var _ = Describe("CachingResolver", func() {
 				BeforeEach(func() {
 					mockAnswer.Rcode = dns.RcodeNameError
 					sutConfig = config.CachingConfig{
-						CacheTimeNegative: config.NewDuration(time.Minute * -1),
+						CacheTimeNegative: config.Duration(time.Minute * -1),
 					}
 				})
 
@@ -509,7 +509,7 @@ var _ = Describe("CachingResolver", func() {
 		When("resolver is disabled", func() {
 			BeforeEach(func() {
 				sutConfig = config.CachingConfig{
-					MaxCachingTime: config.NewDuration(time.Minute * -1),
+					MaxCachingTime: config.Duration(time.Minute * -1),
 				}
 			})
 			It("should return 'disabled'", func() {
@@ -562,7 +562,7 @@ var _ = Describe("CachingResolver", func() {
 		When("cache", func() {
 			JustBeforeEach(func() {
 				sutConfig = config.CachingConfig{
-					MaxCachingTime: config.NewDuration(time.Second * 10),
+					MaxCachingTime: config.Duration(time.Second * 10),
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1000, A, "1.1.1.1")
 

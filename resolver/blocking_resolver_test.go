@@ -56,7 +56,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 	BeforeEach(func() {
 		sutConfig = config.BlockingConfig{
 			BlockType: "ZEROIP",
-			BlockTTL:  config.NewDuration(time.Minute),
+			BlockTTL:  config.Duration(time.Minute),
 		}
 
 		mockAnswer = new(dns.Msg)
@@ -75,7 +75,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		BeforeEach(func() {
 			sutConfig = config.BlockingConfig{
 				BlockType: "ZEROIP",
-				BlockTTL:  config.NewDuration(time.Minute),
+				BlockTTL:  config.Duration(time.Minute),
 				BlackLists: map[string][]string{
 					"gr1": {group1File.Path},
 					"gr2": {group2File.Path},
@@ -103,7 +103,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		BeforeEach(func() {
 			sutConfig = config.BlockingConfig{
 				BlockType: "ZEROIP",
-				BlockTTL:  config.NewDuration(time.Minute),
+				BlockTTL:  config.Duration(time.Minute),
 				BlackLists: map[string][]string{
 					"gr1": {group1File.Path},
 					"gr2": {group2File.Path},
@@ -142,7 +142,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		BeforeEach(func() {
 			sutConfig = config.BlockingConfig{
 				BlockType: "ZEROIP",
-				BlockTTL:  config.NewDuration(time.Minute),
+				BlockTTL:  config.Duration(time.Minute),
 				BlackLists: map[string][]string{
 					"gr1": {"\n/regex/"},
 				},
@@ -171,7 +171,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 	Describe("Blocking requests", func() {
 		BeforeEach(func() {
 			sutConfig = config.BlockingConfig{
-				BlockTTL: config.NewDuration(6 * time.Hour),
+				BlockTTL: config.Duration(6 * time.Hour),
 				BlackLists: map[string][]string{
 					"gr1":          {group1File.Path},
 					"gr2":          {group2File.Path},
@@ -377,7 +377,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		When("BlockType is NxDomain", func() {
 			BeforeEach(func() {
 				sutConfig = config.BlockingConfig{
-					BlockTTL: config.NewDuration(time.Minute),
+					BlockTTL: config.Duration(time.Minute),
 					BlackLists: map[string][]string{
 						"defaultGroup": {defaultGroupFile.Path},
 					},
@@ -410,7 +410,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					ClientGroupsBlock: map[string][]string{
 						"default": {"defaultGroup"},
 					},
-					BlockTTL: config.NewDuration(time.Second * 1234),
+					BlockTTL: config.Duration(time.Second * 1234),
 				}
 			})
 
@@ -448,7 +448,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		When("BlockType is custom IP", func() {
 			BeforeEach(func() {
 				sutConfig = config.BlockingConfig{
-					BlockTTL: config.NewDuration(6 * time.Hour),
+					BlockTTL: config.Duration(6 * time.Hour),
 					BlackLists: map[string][]string{
 						"defaultGroup": {defaultGroupFile.Path},
 					},
@@ -494,7 +494,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 						"default": {"defaultGroup"},
 					},
 					BlockType: "12.12.12.12",
-					BlockTTL:  config.NewDuration(6 * time.Hour),
+					BlockTTL:  config.Duration(6 * time.Hour),
 				}
 			})
 
@@ -579,7 +579,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			BeforeEach(func() {
 				sutConfig = config.BlockingConfig{
 					BlockType:  "ZEROIP",
-					BlockTTL:   config.NewDuration(time.Minute),
+					BlockTTL:   config.Duration(time.Minute),
 					BlackLists: map[string][]string{"gr1": {group1File.Path}},
 					WhiteLists: map[string][]string{"gr1": {group1File.Path}},
 					ClientGroupsBlock: map[string][]string{
@@ -605,7 +605,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			BeforeEach(func() {
 				sutConfig = config.BlockingConfig{
 					BlockType: "zeroIP",
-					BlockTTL:  config.NewDuration(60 * time.Second),
+					BlockTTL:  config.Duration(60 * time.Second),
 					WhiteLists: map[string][]string{
 						"gr1": {group1File.Path},
 						"gr2": {group2File.Path},
@@ -706,7 +706,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			BeforeEach(func() {
 				sutConfig = config.BlockingConfig{
 					BlockType:  "ZEROIP",
-					BlockTTL:   config.NewDuration(time.Minute),
+					BlockTTL:   config.Duration(time.Minute),
 					BlackLists: map[string][]string{"gr1": {group1File.Path}},
 					WhiteLists: map[string][]string{"gr1": {defaultGroupFile.Path}},
 					ClientGroupsBlock: map[string][]string{
@@ -733,7 +733,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		BeforeEach(func() {
 			sutConfig = config.BlockingConfig{
 				BlockType:  "ZEROIP",
-				BlockTTL:   config.NewDuration(time.Minute),
+				BlockTTL:   config.Duration(time.Minute),
 				BlackLists: map[string][]string{"gr1": {group1File.Path}},
 				ClientGroupsBlock: map[string][]string{
 					"default": {"gr1"},
@@ -759,7 +759,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			BeforeEach(func() {
 				sutConfig = config.BlockingConfig{
 					BlockType: "ZEROIP",
-					BlockTTL:  config.NewDuration(time.Minute),
+					BlockTTL:  config.Duration(time.Minute),
 				}
 			})
 			It("should delegate to next resolver", func() {
@@ -1091,7 +1091,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			BeforeEach(func() {
 				sutConfig = config.BlockingConfig{
 					BlockType:  "ZEROIP",
-					BlockTTL:   config.NewDuration(time.Minute),
+					BlockTTL:   config.Duration(time.Minute),
 					BlackLists: map[string][]string{"gr1": {group1File.Path}},
 					ClientGroupsBlock: map[string][]string{
 						"default": {"gr1"},
@@ -1159,7 +1159,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			Expect(redisClient).ShouldNot(BeNil())
 			sutConfig = config.BlockingConfig{
 				BlockType: "ZEROIP",
-				BlockTTL:  config.NewDuration(time.Minute),
+				BlockTTL:  config.Duration(time.Minute),
 			}
 
 			sut, err = NewBlockingResolver(sutConfig, redisClient, systemResolverBootstrap)
