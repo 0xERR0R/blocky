@@ -235,8 +235,6 @@ func (r UpstreamResolver) String() string {
 
 // Resolve calls external resolver
 func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Response, err error) {
-	logger := log.WithPrefix(request.Log, "upstream_resolver")
-
 	ips, err := r.bootstrap.UpstreamIPs(r)
 	if err != nil {
 		return nil, err
@@ -256,7 +254,7 @@ func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Resp
 			var err error
 			resp, rtt, err = r.upstreamClient.callExternal(request.Req, upstreamURL, request.Protocol)
 			if err == nil {
-				logger.WithFields(logrus.Fields{
+				r.log().WithFields(logrus.Fields{
 					"answer":           util.AnswerToString(resp.Answer),
 					"return_code":      dns.RcodeToString[resp.Rcode],
 					"upstream":         r.upstream.String(),
@@ -281,7 +279,7 @@ func (r *UpstreamResolver) Resolve(request *model.Request) (response *model.Resp
 			return errors.As(err, &netErr) && netErr.Timeout()
 		}),
 		retry.OnRetry(func(n uint, err error) {
-			logger.WithFields(logrus.Fields{
+			r.log().WithFields(logrus.Fields{
 				"upstream":    r.upstream.String(),
 				"upstream_ip": ip.String(),
 				"question":    util.QuestionToString(request.Req.Question),

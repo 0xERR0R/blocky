@@ -9,7 +9,6 @@ import (
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/lists/parsers"
-	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
@@ -17,8 +16,6 @@ import (
 )
 
 const (
-	hostsFileResolverLogger = "hosts_file_resolver"
-
 	// reduce initial capacity so we don't waste memory if there are less entries than before
 	memReleaseFactor = 2
 )
@@ -40,8 +37,7 @@ func NewHostsFileResolver(cfg config.HostsFileConfig) *HostsFileResolver {
 	}
 
 	if err := r.parseHostsFile(context.Background()); err != nil {
-		logger := log.PrefixedLog(hostsFileResolverLogger)
-		logger.Errorf("disabling hosts file resolving due to error: %s", err)
+		r.log().Errorf("disabling hosts file resolving due to error: %s", err)
 
 		r.cfg.Filepath = "" // don't try parsing the file again
 	} else {
@@ -106,8 +102,6 @@ func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Resp
 }
 
 func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, error) {
-	logger := log.WithPrefix(request.Log, hostsFileResolverLogger)
-
 	if r.cfg.Filepath == "" {
 		return r.next.Resolve(request)
 	}
@@ -122,7 +116,7 @@ func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, er
 
 	response := r.resolve(request.Req, question, domain)
 	if response != nil {
-		logger.WithFields(logrus.Fields{
+		r.log().WithFields(logrus.Fields{
 			"answer": util.AnswerToString(response.Answer),
 			"domain": domain,
 		}).Debugf("returning hosts file entry")
@@ -130,7 +124,7 @@ func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, er
 		return &model.Response{Res: response, RType: model.ResponseTypeHOSTSFILE, Reason: "HOSTS FILE"}, nil
 	}
 
-	logger.WithField("resolver", Name(r.next)).Trace("go to next resolver")
+	r.log().WithField("resolver", Name(r.next)).Trace("go to next resolver")
 
 	return r.next.Resolve(request)
 }
@@ -167,7 +161,7 @@ func (r *HostsFileResolver) parseHostsFile(ctx context.Context) error {
 
 	p := parsers.AllowErrors(parsers.HostsFile(f), maxErrorsPerFile)
 	p.OnErr(func(err error) {
-		log.PrefixedLog(hostsFileResolverLogger).Warnf("error parsing %s: %s, trying to continue", r.cfg.Filepath, err)
+		r.log().Warnf("error parsing %s: %s, trying to continue", r.cfg.Filepath, err)
 	})
 
 	err = parsers.ForEach[*HostsFileEntry](ctx, p, func(entry *HostsFileEntry) error {
@@ -203,8 +197,7 @@ func (r *HostsFileResolver) periodicUpdate() {
 		for {
 			<-ticker.C
 
-			logger := log.PrefixedLog(hostsFileResolverLogger)
-			logger.WithField("file", r.cfg.Filepath).Debug("refreshing hosts file")
+			r.log().WithField("file", r.cfg.Filepath).Debug("refreshing hosts file")
 
 			util.LogOnError("can't refresh hosts file: ", r.parseHostsFile(context.Background()))
 		}

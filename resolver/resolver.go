@@ -163,6 +163,11 @@ func withType(t string) typed {
 func (t *typed) Type() string {
 	return t.typeName
 }
+
+func (t *typed) log() *logrus.Entry {
+	return log.PrefixedLog(t.Type())
+}
+
 // Should be embedded in a Resolver to auto-implement `config.Configurable`.
 type configurable[T config.Configurable] struct {
 	cfg T

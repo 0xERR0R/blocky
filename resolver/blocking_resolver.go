@@ -166,19 +166,17 @@ func createDownloader(cfg config.BlockingConfig, bootstrap *Bootstrap) *lists.HT
 }
 
 func setupRedisEnabledSubscriber(c *BlockingResolver) {
-	logger := log.PrefixedLog("blocking_resolver")
-
 	go func() {
 		for em := range c.redisClient.EnabledChannel {
 			if em != nil {
-				logger.Debug("Received state from redis: ", em)
+				c.log().Debug("Received state from redis: ", em)
 
 				if em.State {
 					c.internalEnableBlocking()
 				} else {
 					err := c.internalDisableBlocking(em.Duration, em.Groups)
 					if err != nil {
-						logger.Warn("Blocking couldn't be disabled:", err)
+						c.log().Warn("Blocking couldn't be disabled:", err)
 					}
 				}
 			}
@@ -572,7 +570,7 @@ func (b ipBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
 }
 
 func (r *BlockingResolver) queryForFQIdentifierIPs(identifier string) (result []net.IP, ttl time.Duration) {
-	prefixedLog := log.PrefixedLog("FQDNClientIdentifierCache")
+	prefixedLog := log.WithPrefix(r.log(), "client_id_cache")
 
 	for _, qType := range []uint16{dns.TypeA, dns.TypeAAAA} {
 		resp, err := r.next.Resolve(&model.Request{

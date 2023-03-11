@@ -21,7 +21,7 @@ import (
 
 const (
 	upstreamDefaultCfgName = config.UpstreamDefaultCfgName
-	parallelResolverLogger = "parallel_best_resolver"
+	parallelResolverType   = "parallel_best"
 	resolverCount          = 2
 )
 
@@ -82,7 +82,7 @@ func testResolver(r *UpstreamResolver) error {
 func NewParallelBestResolver(
 	cfg config.ParallelBestConfig, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
 ) (*ParallelBestResolver, error) {
-	logger := log.PrefixedLog(parallelResolverLogger)
+	logger := log.PrefixedLog(parallelResolverType)
 
 	upstreamResolvers := cfg.ExternalResolvers
 	resolverGroups := make(map[string][]Resolver, len(upstreamResolvers))
@@ -143,7 +143,7 @@ func newParallelBestResolver(
 
 	r := ParallelBestResolver{
 		configurable: withConfig(&cfg),
-		typed:        withType("parallel_best"),
+		typed:        withType(parallelResolverType),
 
 		resolversPerClient: resolversPerClient,
 	}
@@ -206,7 +206,7 @@ func (r *ParallelBestResolver) resolversForClient(request *model.Request) (resul
 
 // Resolve sends the query request to multiple upstream resolvers and returns the fastest result
 func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response, error) {
-	logger := log.WithPrefix(request.Log, parallelResolverLogger)
+	logger := log.WithPrefix(request.Log, parallelResolverType)
 
 	resolvers := r.resolversForClient(request)
 

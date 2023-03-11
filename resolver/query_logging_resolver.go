@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	cleanUpRunPeriod           = 12 * time.Hour
-	queryLoggingResolverPrefix = "query_logging_resolver"
-	logChanCap                 = 1000
-	defaultFlushPeriod         = 30 * time.Second
+	cleanUpRunPeriod         = 12 * time.Hour
+	queryLoggingResolverType = "query_logging"
+	logChanCap               = 1000
+	defaultFlushPeriod       = 30 * time.Second
 )
 
 // QueryLoggingResolver writes query information (question, answer, duration, ...)
@@ -31,7 +31,7 @@ type QueryLoggingResolver struct {
 
 // NewQueryLoggingResolver returns a new resolver instance
 func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
-	logger := log.PrefixedLog(queryLoggingResolverPrefix)
+	logger := log.PrefixedLog(queryLoggingResolverType)
 
 	var writer querylog.Writer
 
@@ -74,7 +74,7 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 
 	resolver := QueryLoggingResolver{
 		configurable: withConfig(&cfg),
-		typed:        withType("query_logging"),
+		typed:        withType(queryLoggingResolverType),
 
 		logChan: logChan,
 		writer:  writer,
@@ -106,7 +106,7 @@ func (r *QueryLoggingResolver) doCleanUp() {
 
 // Resolve logs the query, duration and the result
 func (r *QueryLoggingResolver) Resolve(request *model.Request) (*model.Response, error) {
-	logger := log.WithPrefix(request.Log, queryLoggingResolverPrefix)
+	logger := log.WithPrefix(request.Log, queryLoggingResolverType)
 
 	start := time.Now()
 
@@ -173,7 +173,7 @@ func (r *QueryLoggingResolver) writeLog() {
 
 		// if log channel is > 50% full, this could be a problem with slow writer (external storage over network etc.)
 		if len(r.logChan) > halfCap {
-			log.PrefixedLog(queryLoggingResolverPrefix).WithField("channel_len",
+			r.log().WithField("channel_len",
 				len(r.logChan)).Warnf("query log writer is too slow, write duration: %d ms", time.Since(start).Milliseconds())
 		}
 	}

@@ -84,12 +84,10 @@ func configureCaches(c *CachingResolver, cfg *config.CachingConfig) {
 }
 
 func setupRedisCacheSubscriber(c *CachingResolver) {
-	logger := log.PrefixedLog("caching_resolver")
-
 	go func() {
 		for rc := range c.redisClient.CacheChannel {
 			if rc != nil {
-				logger.Debug("Received key from redis: ", rc.Key)
+				c.log().Debug("Received key from redis: ", rc.Key)
 				c.putInCache(rc.Key, rc.Response, false, false)
 			}
 		}
@@ -110,9 +108,9 @@ func (r *CachingResolver) shouldPrefetch(cacheKey string) bool {
 func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.Duration) {
 	qType, domainName := util.ExtractCacheKey(cacheKey)
 
-	logger := log.PrefixedLog("caching_resolver")
-
 	if r.shouldPrefetch(cacheKey) {
+		logger := r.log()
+
 		logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), qType)
 
 		req := newRequest(fmt.Sprintf("%s.", domainName), qType, logger)
