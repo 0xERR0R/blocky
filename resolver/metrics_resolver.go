@@ -16,7 +16,9 @@ import (
 // MetricsResolver resolver that records metrics about requests/response
 type MetricsResolver struct {
 	NextResolver
-	cfg               config.PrometheusConfig
+
+	cfg config.PrometheusConfig
+
 	totalQueries      *prometheus.CounterVec
 	totalResponse     *prometheus.CounterVec
 	totalErrors       prometheus.Counter
@@ -24,11 +26,11 @@ type MetricsResolver struct {
 }
 
 // Resolve resolves the passed request
-func (m *MetricsResolver) Resolve(request *model.Request) (*model.Response, error) {
-	response, err := m.next.Resolve(request)
+func (r *MetricsResolver) Resolve(request *model.Request) (*model.Response, error) {
+	response, err := r.next.Resolve(request)
 
-	if m.cfg.Enable {
-		m.totalQueries.With(prometheus.Labels{
+	if r.cfg.Enable {
+		r.totalQueries.With(prometheus.Labels{
 			"client": strings.Join(request.ClientNames, ","),
 			"type":   dns.TypeToString[request.Req.Question[0].Qtype],
 		}).Inc()
@@ -40,12 +42,12 @@ func (m *MetricsResolver) Resolve(request *model.Request) (*model.Response, erro
 			responseType = response.RType.String()
 		}
 
-		m.durationHistogram.WithLabelValues(responseType).Observe(reqDurationMs)
+		r.durationHistogram.WithLabelValues(responseType).Observe(reqDurationMs)
 
 		if err != nil {
-			m.totalErrors.Inc()
+			r.totalErrors.Inc()
 		} else {
-			m.totalResponse.With(prometheus.Labels{
+			r.totalResponse.With(prometheus.Labels{
 				"reason":        response.Reason,
 				"response_code": dns.RcodeToString[response.Res.Rcode],
 				"response_type": response.RType.String(),
@@ -71,23 +73,25 @@ func (m *MetricsResolver) Configuration() (result []string) {
 
 // NewMetricsResolver creates a new intance of the MetricsResolver type
 func NewMetricsResolver(cfg config.PrometheusConfig) ChainedResolver {
-	durationHistogram := durationHistogram()
-	totalQueries := totalQueriesMetric()
-	totalResponse := totalResponseMetric()
-	totalErrors := totalErrorMetric()
+	m := MetricsResolver{
+		cfg: cfg,
 
-	metrics.RegisterMetric(durationHistogram)
-	metrics.RegisterMetric(totalQueries)
-	metrics.RegisterMetric(totalResponse)
-	metrics.RegisterMetric(totalErrors)
-
-	return &MetricsResolver{
-		cfg:               cfg,
-		durationHistogram: durationHistogram,
-		totalQueries:      totalQueries,
-		totalResponse:     totalResponse,
-		totalErrors:       totalErrors,
+		durationHistogram: durationHistogram(),
+		totalQueries:      totalQueriesMetric(),
+		totalResponse:     totalResponseMetric(),
+		totalErrors:       totalErrorMetric(),
 	}
+
+	m.registerMetrics()
+
+	return &m
+}
+
+func (r *MetricsResolver) registerMetrics() {
+	metrics.RegisterMetric(r.durationHistogram)
+	metrics.RegisterMetric(r.totalQueries)
+	metrics.RegisterMetric(r.totalResponse)
+	metrics.RegisterMetric(r.totalErrors)
 }
 
 func totalQueriesMetric() *prometheus.CounterVec {

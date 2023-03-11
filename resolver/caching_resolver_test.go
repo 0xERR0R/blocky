@@ -364,6 +364,10 @@ var _ = Describe("CachingResolver", func() {
 				})
 
 				It("response should be cached", func() {
+					By("default config should enable negative caching", func() {
+						Expect(sutConfig.CacheTimeNegative).Should(BeNumerically(">", 0))
+					})
+
 					By("first request", func() {
 						Expect(sut.Resolve(newRequest("example.com.", AAAA))).
 							Should(SatisfyAll(

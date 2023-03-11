@@ -17,10 +17,11 @@ import (
 // CustomDNSResolver resolves passed domain name to ip address defined in domain-IP map
 type CustomDNSResolver struct {
 	NextResolver
-	mapping             map[string][]net.IP
-	reverseAddresses    map[string][]string
-	ttl                 uint32
-	filterUnmappedTypes bool
+
+	cfg config.CustomDNSConfig
+
+	mapping          map[string][]net.IP
+	reverseAddresses map[string][]string
 }
 
 // NewCustomDNSResolver creates new resolver instance
@@ -37,13 +38,11 @@ func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
 		}
 	}
 
-	ttl := cfg.CustomTTL.SecondsU32()
-
 	return &CustomDNSResolver{
-		mapping:             m,
-		reverseAddresses:    reverse,
-		ttl:                 ttl,
-		filterUnmappedTypes: cfg.FilterUnmappedTypes,
+		cfg: cfg,
+
+		mapping:          m,
+		reverseAddresses: reverse,
 	}
 }
 
@@ -74,7 +73,7 @@ func (r *CustomDNSResolver) handleReverseDNS(request *model.Request) *model.Resp
 			response.SetReply(request.Req)
 
 			for _, url := range urls {
-				h := util.CreateHeader(question, r.ttl)
+				h := util.CreateHeader(question, r.cfg.CustomTTL.SecondsU32())
 				ptr := new(dns.PTR)
 				ptr.Ptr = dns.Fqdn(url)
 				ptr.Hdr = h
@@ -102,7 +101,7 @@ func (r *CustomDNSResolver) processRequest(request *model.Request) *model.Respon
 		if found {
 			for _, ip := range ips {
 				if isSupportedType(ip, question) {
-					rr, _ := util.CreateAnswerFromQuestion(question, ip, r.ttl)
+					rr, _ := util.CreateAnswerFromQuestion(question, ip, r.cfg.CustomTTL.SecondsU32())
 					response.Answer = append(response.Answer, rr)
 				}
 			}
@@ -117,7 +116,7 @@ func (r *CustomDNSResolver) processRequest(request *model.Request) *model.Respon
 			}
 
 			// Mapping exists for this domain, but for another type
-			if !r.filterUnmappedTypes {
+			if !r.cfg.FilterUnmappedTypes {
 				// go to next resolver
 				break
 			}

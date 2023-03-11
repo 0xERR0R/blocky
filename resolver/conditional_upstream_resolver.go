@@ -16,6 +16,9 @@ import (
 // ConditionalUpstreamResolver delegates DNS question to other DNS resolver dependent on domain name in question
 type ConditionalUpstreamResolver struct {
 	NextResolver
+
+	cfg config.ConditionalUpstreamConfig
+
 	mapping map[string]Resolver
 }
 
@@ -26,10 +29,13 @@ func NewConditionalUpstreamResolver(
 	m := make(map[string]Resolver, len(cfg.Mapping.Upstreams))
 
 	for domain, upstream := range cfg.Mapping.Upstreams {
-		upstreams := make(map[string][]config.Upstream)
-		upstreams[upstreamDefaultCfgName] = upstream
+		pbCfg := config.UpstreamConfig{
+			ExternalResolvers: config.UpstreamMapping{
+				upstreamDefaultCfgName: upstream,
+			},
+		}
 
-		r, err := NewParallelBestResolver(upstreams, bootstrap, shouldVerifyUpstreams)
+		r, err := NewParallelBestResolver(pbCfg, bootstrap, shouldVerifyUpstreams)
 		if err != nil {
 			return nil, err
 		}

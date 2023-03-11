@@ -14,12 +14,19 @@ import (
 // returns empty ANSWER with NOERROR
 type FilteringResolver struct {
 	NextResolver
-	queryTypes config.QTypeSet
+
+	cfg config.FilteringConfig
+}
+
+func NewFilteringResolver(cfg config.FilteringConfig) ChainedResolver {
+	return &FilteringResolver{
+		cfg: cfg,
+	}
 }
 
 func (r *FilteringResolver) Resolve(request *model.Request) (*model.Response, error) {
 	qType := request.Req.Question[0].Qtype
-	if r.queryTypes.Contains(dns.Type(qType)) {
+	if r.cfg.QueryTypes.Contains(dns.Type(qType)) {
 		response := new(dns.Msg)
 		response.SetRcode(request.Req, dns.RcodeSuccess)
 
@@ -45,10 +52,4 @@ func (r *FilteringResolver) Configuration() (result []string) {
 	result = append(result, fmt.Sprintf("filtering query Types: '%v'", strings.Join(qTypes, ", ")))
 
 	return
-}
-
-func NewFilteringResolver(cfg config.FilteringConfig) ChainedResolver {
-	return &FilteringResolver{
-		queryTypes: cfg.QueryTypes,
-	}
 }

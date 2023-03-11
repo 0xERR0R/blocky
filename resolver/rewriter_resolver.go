@@ -19,9 +19,10 @@ import (
 // yield a result, the normal resolving is continued.
 type RewriterResolver struct {
 	NextResolver
-	rewrite          map[string]string
-	inner            Resolver
-	fallbackUpstream bool
+
+	cfg config.RewriteConfig
+
+	inner Resolver
 }
 
 func NewRewriterResolver(cfg config.RewriteConfig, inner ChainedResolver) ChainedResolver {
@@ -36,9 +37,9 @@ func NewRewriterResolver(cfg config.RewriteConfig, inner ChainedResolver) Chaine
 	inner.Next(NewNoOpResolver())
 
 	return &RewriterResolver{
-		rewrite:          cfg.Rewrite,
-		inner:            inner,
-		fallbackUpstream: cfg.FallbackUpstream,
+		cfg: cfg,
+
+		inner: inner,
 	}
 }
 
@@ -49,7 +50,7 @@ func (r *RewriterResolver) Name() string {
 // Configuration returns current resolver configuration
 func (r *RewriterResolver) Configuration() (result []string) {
 	result = append(result, "rewrite:")
-	for key, val := range r.rewrite {
+	for key, val := range r.cfg.Rewrite {
 		result = append(result, fmt.Sprintf("  %s = \"%s\"", key, val))
 	}
 
@@ -79,7 +80,7 @@ func (r *RewriterResolver) Resolve(request *model.Request) (*model.Response, err
 	request.Req = original
 
 	fallbackCondition := err != nil || (response != NoResponse && response.Res.Answer == nil)
-	if r.fallbackUpstream && fallbackCondition {
+	if r.cfg.FallbackUpstream && fallbackCondition {
 		// Inner resolver had no answer, configuration requests fallback, continue with the normal chain
 		logger.WithField("next_resolver", Name(r.next)).Trace("fallback to next resolver")
 
@@ -130,7 +131,7 @@ func (r *RewriterResolver) rewriteRequest(logger *logrus.Entry, request *dns.Msg
 
 			logger.WithFields(logrus.Fields{
 				"domain":  domainOriginal,
-				"rewrite": rewriteKey + ":" + r.rewrite[rewriteKey],
+				"rewrite": rewriteKey + ":" + r.cfg.Rewrite[rewriteKey],
 			}).Debugf("rewriting %q to %q", domainOriginal, domainRewritten)
 		}
 	}
@@ -139,7 +140,7 @@ func (r *RewriterResolver) rewriteRequest(logger *logrus.Entry, request *dns.Msg
 }
 
 func (r *RewriterResolver) rewriteDomain(domain string) (string, string) {
-	for k, v := range r.rewrite {
+	for k, v := range r.cfg.Rewrite {
 		if strings.HasSuffix(domain, "."+k) {
 			newDomain := strings.TrimSuffix(domain, "."+k) + "." + v
 

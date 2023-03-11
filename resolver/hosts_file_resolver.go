@@ -25,7 +25,9 @@ const (
 
 type HostsFileResolver struct {
 	NextResolver
-	cfg   config.HostsFileConfig
+
+	cfg config.HostsFileConfig
+
 	hosts splitHostsFileData
 }
 

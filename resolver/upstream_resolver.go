@@ -221,7 +221,7 @@ func (r *UpstreamResolver) Configuration() (result []string) {
 }
 
 func (r UpstreamResolver) String() string {
-	return fmt.Sprintf("upstream '%s'", r.upstream.String())
+	return fmt.Sprintf("upstream '%s'", r.upstream)
 }
 
 // Resolve calls external resolver

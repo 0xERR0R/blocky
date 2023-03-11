@@ -355,7 +355,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 				}
 			})
 			It("should use fallback", func() {
-				Expect(sut.logType).Should(Equal(config.QueryLogTypeConsole))
+				Expect(sut.cfg.Type).Should(Equal(config.QueryLogTypeConsole))
 			})
 		})
 
@@ -369,7 +369,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 				}
 			})
 			It("should use fallback", func() {
-				Expect(sut.logType).Should(Equal(config.QueryLogTypeConsole))
+				Expect(sut.cfg.Type).Should(Equal(config.QueryLogTypeConsole))
 			})
 		})
 	})

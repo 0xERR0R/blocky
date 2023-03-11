@@ -23,12 +23,12 @@ const (
 // QueryLoggingResolver writes query information (question, answer, duration, ...)
 type QueryLoggingResolver struct {
 	NextResolver
-	target           string
-	logRetentionDays uint64
-	logChan          chan *querylog.LogEntry
-	writer           querylog.Writer
-	logType          config.QueryLogType
-	fields           []config.QueryLogField
+
+	cfg config.QueryLogConfig
+
+	logChan chan *querylog.LogEntry
+	writer  querylog.Writer
+	fields  []config.QueryLogField
 }
 
 // NewQueryLoggingResolver returns a new resolver instance
@@ -37,12 +37,10 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 
 	var writer querylog.Writer
 
-	logType := cfg.Type
-
 	err := retry.Do(
 		func() error {
 			var err error
-			switch logType {
+			switch cfg.Type {
 			case config.QueryLogTypeCsv:
 				writer, err = querylog.NewCSVWriter(cfg.Target, false, cfg.LogRetentionDays)
 			case config.QueryLogTypeCsvClient:
@@ -71,18 +69,15 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 		logger.Error("can't create query log writer, using console as fallback: ", err)
 
 		writer = querylog.NewLoggerWriter()
-		logType = config.QueryLogTypeConsole
+		cfg.Type = config.QueryLogTypeConsole
 	}
 
 	logChan := make(chan *querylog.LogEntry, logChanCap)
 
 	resolver := QueryLoggingResolver{
-		target:           cfg.Target,
-		logRetentionDays: cfg.LogRetentionDays,
-		logChan:          logChan,
-		writer:           writer,
-		logType:          logType,
-		fields:           resolveQueryLogFields(cfg),
+		logChan: logChan,
+		writer:  writer,
+		fields:  resolveQueryLogFields(cfg),
 	}
 
 	go resolver.writeLog()
@@ -204,9 +199,9 @@ func (r *QueryLoggingResolver) writeLog() {
 
 // Configuration returns the current resolver configuration
 func (r *QueryLoggingResolver) Configuration() (result []string) {
-	result = append(result, fmt.Sprintf("type: \"%s\"", r.logType))
-	result = append(result, fmt.Sprintf("target: \"%s\"", r.target))
-	result = append(result, fmt.Sprintf("logRetentionDays: %d", r.logRetentionDays))
+	result = append(result, fmt.Sprintf("type: %q", r.cfg.Type))
+	result = append(result, fmt.Sprintf("target: %q", r.cfg.Target))
+	result = append(result, fmt.Sprintf("logRetentionDays: %d", r.cfg.LogRetentionDays))
 	result = append(result, fmt.Sprintf("fields: %s", r.fields))
 
 	return

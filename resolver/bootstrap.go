@@ -62,7 +62,11 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 		return b, nil
 	}
 
-	parallelResolver, err := newParallelBestResolver(bootstraped.ResolverGroups())
+	// Bootstrap doesn't have a `LogConfig` method, and since that's the only place
+	// where `ParallelBestResolver` uses its config, we can just use an empty one.
+	pbCfg := config.UpstreamConfig{}
+
+	parallelResolver, err := newParallelBestResolver(pbCfg, bootstraped.ResolverGroups())
 	if err != nil {
 		return nil, fmt.Errorf("could not create bootstrap ParallelBestResolver: %w", err)
 	}
@@ -81,13 +85,9 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 
 	b.bootstraped = bootstraped
 
-	cachingResolver := NewCachingResolver(cachingCfg, nil)
-	// don't emit any metrics
-	cachingResolver.emitMetricEvents = false
-
 	b.resolver = Chain(
 		NewFilteringResolver(cfg.Filtering),
-		cachingResolver,
+		newCachingResolver(cachingCfg, nil, false), // false: no metrics, to not overwrite the main blocking resolver ones
 		parallelResolver,
 	)
 
