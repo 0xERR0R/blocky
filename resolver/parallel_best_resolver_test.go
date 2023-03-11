@@ -71,6 +71,12 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 		})
 	})
 
+	Describe("Name", func() {
+		It("should not be empty", func() {
+			Expect(sut.Name()).ShouldNot(BeEmpty())
+		})
+	})
+
 	When("default upstream resolvers are not defined", func() {
 		It("should fail on startup", func() {
 			_, err := NewParallelBestResolver(config.ParallelBestConfig{

@@ -298,7 +298,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 				})
 			})
 			When("Upstream produces error", func() {
-				BeforeEach(func() {
+				JustBeforeEach(func() {
 					sutConfig = config.ClientLookupConfig{}
 					clientMockResolver := &mockResolver{}
 					clientMockResolver.On("Resolve", mock.Anything).Return(nil, errors.New("error"))

@@ -28,6 +28,22 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 		sut.Next(m)
 	})
 
+	Describe("IsEnabled", func() {
+		It("is true", func() {
+			Expect(sut.IsEnabled()).Should(BeTrue())
+		})
+	})
+
+	Describe("LogConfig", func() {
+		It("should not log anything", func() {
+			logger, hook := log.NewMockEntry()
+
+			sut.LogConfig(logger)
+
+			Expect(hook.Calls).Should(BeEmpty())
+		})
+	})
+
 	Describe("Blocking special names", func() {
 		It("should block arpa", func() {
 			for _, arpa := range sudnArpaSlice() {
@@ -132,16 +148,6 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 						HaveResponseType(ResponseTypeRESOLVED),
 						HaveReturnCode(dns.RcodeSuccess),
 					))
-		})
-	})
-
-	Describe("LogConfig", func() {
-		It("should not log anything", func() {
-			logger, hook := log.NewMockEntry()
-
-			sut.LogConfig(logger)
-
-			Expect(hook.Calls).Should(BeEmpty())
 		})
 	})
 })

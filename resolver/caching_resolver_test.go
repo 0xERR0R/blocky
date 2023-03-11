@@ -120,6 +120,15 @@ var _ = Describe("CachingResolver", func() {
 							HaveTTL(BeNumerically("<=", 2))))
 				Eventually(prefetchHitDomain, "4s").Should(Receive(Equal("example.com")))
 			})
+			When("threshold is 0", func() {
+				BeforeEach(func() {
+					sutConfig.PrefetchThreshold = 0
+				})
+
+				It("should always prefetch", func() {
+					Expect(sut.shouldPrefetch("domain.tld")).Should(BeTrue())
+				})
+			})
 		})
 		When("min caching time is defined", func() {
 			BeforeEach(func() {

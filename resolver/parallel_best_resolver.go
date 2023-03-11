@@ -149,8 +149,12 @@ func newParallelBestResolver(
 	return &r, nil
 }
 
-func (r ParallelBestResolver) String() string {
-	result := make([]string, 0)
+func (r *ParallelBestResolver) Name() string {
+	return r.String()
+}
+
+func (r *ParallelBestResolver) String() string {
+	result := make([]string, 0, len(r.resolversPerClient))
 
 	for name, res := range r.resolversPerClient {
 		tmp := make([]string, len(res))
