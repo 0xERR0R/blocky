@@ -10,7 +10,6 @@ import (
 	"github.com/0xERR0R/blocky/util"
 	"github.com/avast/retry-go/v4"
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -22,9 +21,8 @@ const (
 
 // QueryLoggingResolver writes query information (question, answer, duration, ...)
 type QueryLoggingResolver struct {
+	configurable[*config.QueryLogConfig]
 	NextResolver
-
-	cfg config.QueryLogConfig
 
 	logChan chan *querylog.LogEntry
 	writer  querylog.Writer
@@ -74,7 +72,7 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 	logChan := make(chan *querylog.LogEntry, logChanCap)
 
 	resolver := QueryLoggingResolver{
-		cfg: cfg,
+		configurable: withConfig(&cfg),
 
 		logChan: logChan,
 		writer:  writer,
@@ -87,16 +85,6 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 	}
 
 	return &resolver
-}
-
-// IsEnabled implements `config.Configurable`.
-func (r *QueryLoggingResolver) IsEnabled() bool {
-	return r.cfg.IsEnabled()
-}
-
-// LogConfig implements `config.Configurable`.
-func (r *QueryLoggingResolver) LogConfig(logger *logrus.Entry) {
-	r.cfg.LogConfig(logger)
 }
 
 // triggers periodically cleanup of old log files

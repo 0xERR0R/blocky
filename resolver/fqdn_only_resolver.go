@@ -7,29 +7,17 @@ import (
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
 )
 
 type FqdnOnlyResolver struct {
+	configurable[*config.FqdnOnlyConfig]
 	NextResolver
-
-	cfg config.FqdnOnlyConfig
 }
 
 func NewFqdnOnlyResolver(cfg config.FqdnOnlyConfig) *FqdnOnlyResolver {
 	return &FqdnOnlyResolver{
-		cfg: cfg,
+		configurable: withConfig(&cfg),
 	}
-}
-
-// IsEnabled implements `config.Configurable`.
-func (r *FqdnOnlyResolver) IsEnabled() bool {
-	return r.cfg.IsEnabled()
-}
-
-// LogConfig implements `config.Configurable`.
-func (r *FqdnOnlyResolver) LogConfig(logger *logrus.Entry) {
-	r.cfg.LogConfig(logger)
 }
 
 func (r *FqdnOnlyResolver) Resolve(request *model.Request) (*model.Response, error) {

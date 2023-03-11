@@ -78,10 +78,11 @@ type status struct {
 
 // BlockingResolver checks request's question (domain name) against black and white lists
 type BlockingResolver struct {
+	configurable[*config.BlockingConfig]
 	NextResolver
+
 	blacklistMatcher    *lists.ListCache
 	whitelistMatcher    *lists.ListCache
-	cfg                 config.BlockingConfig
 	blockHandler        blockHandler
 	whitelistOnlyGroups map[string]bool
 	status              *status
@@ -128,8 +129,9 @@ func NewBlockingResolver(
 	}
 
 	res := &BlockingResolver{
+		configurable: withConfig(&cfg),
+
 		blockHandler:        blockHandler,
-		cfg:                 cfg,
 		blacklistMatcher:    blacklistMatcher,
 		whitelistMatcher:    whitelistMatcher,
 		whitelistOnlyGroups: whitelistOnlyGroups,
@@ -325,11 +327,6 @@ func (r *BlockingResolver) handleBlocked(logger *logrus.Entry,
 	logger.Debugf("blocking request '%s'", reason)
 
 	return &model.Response{Res: response, RType: model.ResponseTypeBLOCKED, Reason: reason}, nil
-}
-
-// IsEnabled implements `config.Configurable`.
-func (r *BlockingResolver) IsEnabled() bool {
-	return r.cfg.IsEnabled()
 }
 
 // LogConfig implements `config.Configurable`.

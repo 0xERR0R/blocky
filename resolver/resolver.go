@@ -151,3 +151,22 @@ func ForEach(resolver Resolver, callback func(Resolver)) {
 		}
 	}
 }
+
+// Should be embedded in a Resolver to auto-implement `config.Configurable`.
+type configurable[T config.Configurable] struct {
+	cfg T
+}
+
+func withConfig[T config.Configurable](cfg T) configurable[T] {
+	return configurable[T]{cfg: cfg}
+}
+
+// IsEnabled implements `config.Configurable`.
+func (c *configurable[T]) IsEnabled() bool {
+	return c.cfg.IsEnabled()
+}
+
+// LogConfig implements `config.Configurable`.
+func (c *configurable[T]) LogConfig(logger *logrus.Entry) {
+	c.cfg.LogConfig(logger)
+}

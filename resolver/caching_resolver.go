@@ -22,9 +22,9 @@ const defaultCachingCleanUpInterval = 5 * time.Second
 // CachingResolver caches answers from dns queries with their TTL time,
 // to avoid external resolver calls for recurrent queries
 type CachingResolver struct {
+	configurable[*config.CachingConfig]
 	NextResolver
 
-	cfg              config.CachingConfig
 	emitMetricEvents bool // disabled by Bootstrap
 
 	resultCache          expirationcache.ExpiringCache
@@ -45,7 +45,8 @@ func NewCachingResolver(cfg config.CachingConfig, redis *redis.Client) *CachingR
 
 func newCachingResolver(cfg config.CachingConfig, redis *redis.Client, emitMetricEvents bool) *CachingResolver {
 	c := &CachingResolver{
-		cfg:              cfg,
+		configurable: withConfig(&cfg),
+
 		redisClient:      redis,
 		emitMetricEvents: emitMetricEvents,
 	}
@@ -127,11 +128,6 @@ func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.
 	}
 
 	return nil, 0
-}
-
-// IsEnabled implements `config.Configurable`.
-func (r *CachingResolver) IsEnabled() bool {
-	return r.cfg.IsEnabled()
 }
 
 // LogConfig implements `config.Configurable`.

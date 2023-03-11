@@ -7,7 +7,6 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/model"
-	"github.com/sirupsen/logrus"
 
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
@@ -15,24 +14,13 @@ import (
 
 // MetricsResolver resolver that records metrics about requests/response
 type MetricsResolver struct {
+	configurable[*config.MetricsConfig]
 	NextResolver
-
-	cfg config.MetricsConfig
 
 	totalQueries      *prometheus.CounterVec
 	totalResponse     *prometheus.CounterVec
 	totalErrors       prometheus.Counter
 	durationHistogram *prometheus.HistogramVec
-}
-
-// IsEnabled implements `config.Configurable`.
-func (r *MetricsResolver) IsEnabled() bool {
-	return r.cfg.IsEnabled()
-}
-
-// LogConfig implements `config.Configurable`.
-func (r *MetricsResolver) LogConfig(logger *logrus.Entry) {
-	r.cfg.LogConfig(logger)
 }
 
 // Resolve resolves the passed request
@@ -71,7 +59,7 @@ func (r *MetricsResolver) Resolve(request *model.Request) (*model.Response, erro
 // NewMetricsResolver creates a new intance of the MetricsResolver type
 func NewMetricsResolver(cfg config.MetricsConfig) ChainedResolver {
 	m := MetricsResolver{
-		cfg: cfg,
+		configurable: withConfig(&cfg),
 
 		durationHistogram: durationHistogram(),
 		totalQueries:      totalQueriesMetric(),

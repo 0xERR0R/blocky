@@ -17,9 +17,8 @@ import (
 
 // ClientNamesResolver tries to determine client name by asking responsible DNS server via rDNS (reverse lookup)
 type ClientNamesResolver struct {
+	configurable[*config.ClientLookupConfig]
 	NextResolver
-
-	cfg config.ClientLookupConfig
 
 	cache            expirationcache.ExpiringCache
 	externalResolver Resolver
@@ -38,18 +37,13 @@ func NewClientNamesResolver(
 	}
 
 	cr = &ClientNamesResolver{
-		cfg: cfg,
+		configurable: withConfig(&cfg),
 
 		cache:            expirationcache.NewCache(expirationcache.WithCleanUpInterval(time.Hour)),
 		externalResolver: r,
 	}
 
 	return
-}
-
-// IsEnabled implements `config.Configurable`.
-func (r *ClientNamesResolver) IsEnabled() bool {
-	return r.cfg.IsEnabled()
 }
 
 // LogConfig implements `config.Configurable`.

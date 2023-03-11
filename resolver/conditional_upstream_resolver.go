@@ -14,9 +14,8 @@ import (
 
 // ConditionalUpstreamResolver delegates DNS question to other DNS resolver dependent on domain name in question
 type ConditionalUpstreamResolver struct {
+	configurable[*config.ConditionalUpstreamConfig]
 	NextResolver
-
-	cfg config.ConditionalUpstreamConfig
 
 	mapping map[string]Resolver
 }
@@ -43,22 +42,12 @@ func NewConditionalUpstreamResolver(
 	}
 
 	r := ConditionalUpstreamResolver{
-		cfg: cfg,
+		configurable: withConfig(&cfg),
 
 		mapping: m,
 	}
 
 	return &r, nil
-}
-
-// IsEnabled implements `config.Configurable`.
-func (r *ConditionalUpstreamResolver) IsEnabled() bool {
-	return r.cfg.IsEnabled()
-}
-
-// LogConfig implements `config.Configurable`.
-func (r *ConditionalUpstreamResolver) LogConfig(logger *logrus.Entry) {
-	r.cfg.LogConfig(logger)
 }
 
 func (r *ConditionalUpstreamResolver) processRequest(request *model.Request) (bool, *model.Response, error) {

@@ -18,9 +18,8 @@ import (
 // The branch is where the rewrite is active. If the branch doesn't
 // yield a result, the normal resolving is continued.
 type RewriterResolver struct {
+	configurable[*config.RewriterConfig]
 	NextResolver
-
-	cfg config.RewriterConfig
 
 	inner Resolver
 }
@@ -37,7 +36,7 @@ func NewRewriterResolver(cfg config.RewriterConfig, inner ChainedResolver) Chain
 	inner.Next(NewNoOpResolver())
 
 	return &RewriterResolver{
-		cfg: cfg,
+		configurable: withConfig(&cfg),
 
 		inner: inner,
 	}
@@ -45,11 +44,6 @@ func NewRewriterResolver(cfg config.RewriterConfig, inner ChainedResolver) Chain
 
 func (r *RewriterResolver) Name() string {
 	return fmt.Sprintf("%s w/ %s", Name(r.inner), defaultName(r))
-}
-
-// IsEnabled implements `config.Configurable`.
-func (r *RewriterResolver) IsEnabled() bool {
-	return r.cfg.IsEnabled()
 }
 
 // LogConfig implements `config.Configurable`.

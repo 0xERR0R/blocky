@@ -4,31 +4,19 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
 )
 
 // FilteringResolver filters DNS queries (for example can drop all AAAA query)
 // returns empty ANSWER with NOERROR
 type FilteringResolver struct {
+	configurable[*config.FilteringConfig]
 	NextResolver
-
-	cfg config.FilteringConfig
 }
 
 func NewFilteringResolver(cfg config.FilteringConfig) ChainedResolver {
 	return &FilteringResolver{
-		cfg: cfg,
+		configurable: withConfig(&cfg),
 	}
-}
-
-// IsEnabled implements `config.Configurable`.
-func (r *FilteringResolver) IsEnabled() bool {
-	return r.cfg.IsEnabled()
-}
-
-// LogConfig implements `config.Configurable`.
-func (r *FilteringResolver) LogConfig(logger *logrus.Entry) {
-	r.cfg.LogConfig(logger)
 }
 
 func (r *FilteringResolver) Resolve(request *model.Request) (*model.Response, error) {

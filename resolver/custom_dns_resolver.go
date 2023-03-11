@@ -15,9 +15,8 @@ import (
 
 // CustomDNSResolver resolves passed domain name to ip address defined in domain-IP map
 type CustomDNSResolver struct {
+	configurable[*config.CustomDNSConfig]
 	NextResolver
-
-	cfg config.CustomDNSConfig
 
 	mapping          map[string][]net.IP
 	reverseAddresses map[string][]string
@@ -38,21 +37,11 @@ func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
 	}
 
 	return &CustomDNSResolver{
-		cfg: cfg,
+		configurable: withConfig(&cfg),
 
 		mapping:          m,
 		reverseAddresses: reverse,
 	}
-}
-
-// IsEnabled implements `config.Configurable`.
-func (r *CustomDNSResolver) IsEnabled() bool {
-	return r.cfg.IsEnabled()
-}
-
-// LogConfig implements `config.Configurable`.
-func (r *CustomDNSResolver) LogConfig(logger *logrus.Entry) {
-	r.cfg.LogConfig(logger)
 }
 
 func isSupportedType(ip net.IP, question dns.Question) bool {

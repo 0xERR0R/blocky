@@ -27,7 +27,7 @@ const (
 
 // ParallelBestResolver delegates the DNS message to 2 upstream resolvers and returns the fastest answer
 type ParallelBestResolver struct {
-	cfg config.ParallelBestConfig
+	configurable[*config.ParallelBestConfig]
 
 	resolversPerClient map[string][]*upstreamResolverStatus
 }
@@ -141,22 +141,12 @@ func newParallelBestResolver(
 	}
 
 	r := ParallelBestResolver{
-		cfg: cfg,
+		configurable: withConfig(&cfg),
 
 		resolversPerClient: resolversPerClient,
 	}
 
 	return &r, nil
-}
-
-// IsEnabled implements `config.Configurable`.
-func (r *ParallelBestResolver) IsEnabled() bool {
-	return r.cfg.IsEnabled()
-}
-
-// LogConfig implements `config.Configurable`.
-func (r *ParallelBestResolver) LogConfig(logger *logrus.Entry) {
-	r.cfg.LogConfig(logger)
 }
 
 func (r ParallelBestResolver) String() string {

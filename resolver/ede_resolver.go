@@ -4,29 +4,17 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
 )
 
 type EdeResolver struct {
+	configurable[*config.EdeConfig]
 	NextResolver
-
-	cfg config.EdeConfig
 }
 
 func NewEdeResolver(cfg config.EdeConfig) ChainedResolver {
 	return &EdeResolver{
-		cfg: cfg,
+		configurable: withConfig(&cfg),
 	}
-}
-
-// IsEnabled implements `config.Configurable`.
-func (r *EdeResolver) IsEnabled() bool {
-	return r.cfg.IsEnabled()
-}
-
-// LogConfig implements `config.Configurable`.
-func (r *EdeResolver) LogConfig(logger *logrus.Entry) {
-	r.cfg.LogConfig(logger)
 }
 
 func (r *EdeResolver) Resolve(request *model.Request) (*model.Response, error) {
