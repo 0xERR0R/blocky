@@ -8,11 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
@@ -29,7 +27,13 @@ const (
 )
 
 type ValueLogger interface {
-	LogValues(log *logrus.Entry)
+	// IsEnabled returns true when the receiver is configured.
+	IsEnabled() bool
+
+	// LogValues logs the receiver's configuration.
+	//
+	// Calling this method when `IsEnabled` returns false is undefined.
+	LogValues(*logrus.Entry) // TODO: LogConfiguration
 }
 
 // NetProtocol resolver protocol ENUM(
@@ -92,38 +96,6 @@ type StartStrategyType uint16
 // QueryLogField data field to be logged
 // ENUM(clientIP,clientName,responseReason,responseAnswer,question,duration)
 type QueryLogField string
-
-type QType dns.Type
-
-func (c QType) String() string {
-	return dns.Type(c).String()
-}
-
-type QTypeSet map[QType]struct{}
-
-func NewQTypeSet(qTypes ...dns.Type) QTypeSet {
-	s := make(QTypeSet, len(qTypes))
-
-	for _, qType := range qTypes {
-		s.Insert(qType)
-	}
-
-	return s
-}
-
-func (s QTypeSet) Contains(qType dns.Type) bool {
-	_, found := s[QType(qType)]
-
-	return found
-}
-
-func (s *QTypeSet) Insert(qType dns.Type) {
-	if *s == nil {
-		*s = make(QTypeSet, 1)
-	}
-
-	(*s)[QType(qType)] = struct{}{}
-}
 
 //nolint:gochecknoglobals
 var netDefaultPort = map[NetProtocol]uint16{
@@ -253,103 +225,6 @@ func (b *BootstrappedUpstreamConfig) UnmarshalYAML(unmarshal func(interface{}) e
 	return nil
 }
 
-// UnmarshalYAML creates ConditionalUpstreamMapping from YAML
-func (c *ConditionalUpstreamMapping) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var input map[string]string
-	if err := unmarshal(&input); err != nil {
-		return err
-	}
-
-	result := make(map[string][]Upstream, len(input))
-
-	for k, v := range input {
-		var upstreams []Upstream
-
-		for _, part := range strings.Split(v, ",") {
-			upstream, err := ParseUpstream(strings.TrimSpace(part))
-			if err != nil {
-				return fmt.Errorf("can't convert upstream '%s': %w", strings.TrimSpace(part), err)
-			}
-
-			upstreams = append(upstreams, upstream)
-		}
-
-		result[k] = upstreams
-	}
-
-	c.Upstreams = result
-
-	return nil
-}
-
-// UnmarshalYAML creates CustomDNSMapping from YAML
-func (c *CustomDNSMapping) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var input map[string]string
-	if err := unmarshal(&input); err != nil {
-		return err
-	}
-
-	result := make(map[string][]net.IP, len(input))
-
-	for k, v := range input {
-		var ips []net.IP
-
-		for _, part := range strings.Split(v, ",") {
-			ip := net.ParseIP(strings.TrimSpace(part))
-			if ip == nil {
-				return fmt.Errorf("invalid IP address '%s'", part)
-			}
-
-			ips = append(ips, ip)
-		}
-
-		result[k] = ips
-	}
-
-	c.HostIPs = result
-
-	return nil
-}
-
-func (c *QType) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var input string
-	if err := unmarshal(&input); err != nil {
-		return err
-	}
-
-	t, found := dns.StringToType[input]
-	if !found {
-		types := make([]string, 0, len(dns.StringToType))
-		for k := range dns.StringToType {
-			types = append(types, k)
-		}
-
-		sort.Strings(types)
-
-		return fmt.Errorf("unknown DNS query type: '%s'. Please use following types '%s'",
-			input, strings.Join(types, ", "))
-	}
-
-	*c = QType(t)
-
-	return nil
-}
-
-func (s *QTypeSet) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var input []QType
-	if err := unmarshal(&input); err != nil {
-		return err
-	}
-
-	*s = make(QTypeSet, len(input))
-
-	for _, qType := range input {
-		(*s)[qType] = struct{}{}
-	}
-
-	return nil
-}
-
 var validDomain = regexp.MustCompile(
 	`^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$`)
 
@@ -455,7 +330,7 @@ type Config struct {
 	ClientLookup        ClientLookupConfig        `yaml:"clientLookup"`
 	Caching             CachingConfig             `yaml:"caching"`
 	QueryLog            QueryLogConfig            `yaml:"queryLog"`
-	Prometheus          PrometheusConfig          `yaml:"prometheus"`
+	Prometheus          MetricsConfig             `yaml:"prometheus"`
 	Redis               RedisConfig               `yaml:"redis"`
 	Log                 log.Config                `yaml:"log"`
 	Ports               PortsConfig               `yaml:"ports"`
@@ -466,7 +341,7 @@ type Config struct {
 	KeyFile             string                    `yaml:"keyFile"`
 	BootstrapDNS        BootstrapDNSConfig        `yaml:"bootstrapDns"`
 	HostsFile           HostsFileConfig           `yaml:"hostsFile"`
-	FqdnOnly            bool                      `yaml:"fqdnOnly" default:"false"`
+	FqdnOnly            FqdnOnlyConfig            `yaml:",inline"`
 	Filtering           FilteringConfig           `yaml:"filtering"`
 	Ede                 EdeConfig                 `yaml:"ede"`
 	// Deprecated
@@ -511,105 +386,6 @@ type (
 	}
 )
 
-// PrometheusConfig contains the config values for prometheus
-type PrometheusConfig struct {
-	Enable bool   `yaml:"enable" default:"false"`
-	Path   string `yaml:"path" default:"/metrics"`
-}
-
-// UpstreamConfig upstream server configuration
-type UpstreamConfig struct {
-	ExternalResolvers map[string][]Upstream `yaml:",inline"`
-}
-
-// RewriteConfig custom DNS configuration
-type RewriteConfig struct {
-	Rewrite          map[string]string `yaml:"rewrite"`
-	FallbackUpstream bool              `yaml:"fallbackUpstream" default:"false"`
-}
-
-// CustomDNSConfig custom DNS configuration
-type CustomDNSConfig struct {
-	RewriteConfig       `yaml:",inline"`
-	CustomTTL           Duration         `yaml:"customTTL" default:"1h"`
-	Mapping             CustomDNSMapping `yaml:"mapping"`
-	FilterUnmappedTypes bool             `yaml:"filterUnmappedTypes" default:"true"`
-}
-
-// CustomDNSMapping mapping for the custom DNS configuration
-type CustomDNSMapping struct {
-	HostIPs map[string][]net.IP
-}
-
-// ConditionalUpstreamConfig conditional upstream configuration
-type ConditionalUpstreamConfig struct {
-	RewriteConfig `yaml:",inline"`
-	Mapping       ConditionalUpstreamMapping `yaml:"mapping"`
-}
-
-// ConditionalUpstreamMapping mapping for conditional configuration
-type ConditionalUpstreamMapping struct {
-	Upstreams map[string][]Upstream
-}
-
-// BlockingConfig configuration for query blocking
-type BlockingConfig struct {
-	BlackLists        map[string][]string `yaml:"blackLists"`
-	WhiteLists        map[string][]string `yaml:"whiteLists"`
-	ClientGroupsBlock map[string][]string `yaml:"clientGroupsBlock"`
-	BlockType         string              `yaml:"blockType" default:"ZEROIP"`
-	BlockTTL          Duration            `yaml:"blockTTL" default:"6h"`
-	DownloadTimeout   Duration            `yaml:"downloadTimeout" default:"60s"`
-	DownloadAttempts  uint                `yaml:"downloadAttempts" default:"3"`
-	DownloadCooldown  Duration            `yaml:"downloadCooldown" default:"1s"`
-	RefreshPeriod     Duration            `yaml:"refreshPeriod" default:"4h"`
-	// Deprecated
-	FailStartOnListError  bool              `yaml:"failStartOnListError" default:"false"`
-	ProcessingConcurrency uint              `yaml:"processingConcurrency" default:"4"`
-	StartStrategy         StartStrategyType `yaml:"startStrategy" default:"blocking"`
-}
-
-// ClientLookupConfig configuration for the client lookup
-type ClientLookupConfig struct {
-	ClientnameIPMapping map[string][]net.IP `yaml:"clients"`
-	Upstream            Upstream            `yaml:"upstream"`
-	SingleNameOrder     []uint              `yaml:"singleNameOrder"`
-}
-
-// CachingConfig configuration for domain caching
-type CachingConfig struct {
-	MinCachingTime        Duration `yaml:"minTime"`
-	MaxCachingTime        Duration `yaml:"maxTime"`
-	CacheTimeNegative     Duration `yaml:"cacheTimeNegative" default:"30m"`
-	MaxItemsCount         int      `yaml:"maxItemsCount"`
-	Prefetching           bool     `yaml:"prefetching"`
-	PrefetchExpires       Duration `yaml:"prefetchExpires" default:"2h"`
-	PrefetchThreshold     int      `yaml:"prefetchThreshold" default:"5"`
-	PrefetchMaxItemsCount int      `yaml:"prefetchMaxItemsCount"`
-}
-
-func (c *CachingConfig) EnablePrefetch() {
-	const day = 24 * time.Hour
-
-	if c.MaxCachingTime.IsZero() {
-		// make sure resolver gets enabled
-		c.MaxCachingTime = Duration(day)
-	}
-
-	c.Prefetching = true
-	c.PrefetchThreshold = 0
-}
-
-// QueryLogConfig configuration for the query logging
-type QueryLogConfig struct {
-	Target           string          `yaml:"target"`
-	Type             QueryLogType    `yaml:"type"`
-	LogRetentionDays uint64          `yaml:"logRetentionDays"`
-	CreationAttempts int             `yaml:"creationAttempts" default:"3"`
-	CreationCooldown Duration        `yaml:"creationCooldown" default:"2s"`
-	Fields           []QueryLogField `yaml:"fields"`
-}
-
 // RedisConfig configuration for the redis connection
 type RedisConfig struct {
 	Address            string   `yaml:"address"`
@@ -624,12 +400,23 @@ type RedisConfig struct {
 	SentinelAddresses  []string `yaml:"sentinelAddresses"`
 }
 
-type FilteringConfig struct {
-	QueryTypes QTypeSet `yaml:"queryTypes"`
+type (
+	FqdnOnlyConfig = toEnable
+	EdeConfig      = toEnable
+)
+
+type toEnable struct {
+	Enable bool `yaml:"enable" default:"false"`
 }
 
-type EdeConfig struct {
-	Enable bool `yaml:"enable" default:"false"`
+// IsEnabled implements `config.ValueLogger`.
+func (c *toEnable) IsEnabled() bool {
+	return c.Enable
+}
+
+// LogValues implements `config.ValueLogger`.
+func (c *toEnable) LogValues(logger *logrus.Entry) {
+	logger.Info("enabled")
 }
 
 //nolint:gochecknoglobals

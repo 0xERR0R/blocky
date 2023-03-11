@@ -1,13 +1,10 @@
 package resolver
 
 import (
-	"fmt"
-	"sort"
-	"strings"
-
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/miekg/dns"
+	"github.com/sirupsen/logrus"
 )
 
 // FilteringResolver filters DNS queries (for example can drop all AAAA query)
@@ -24,6 +21,16 @@ func NewFilteringResolver(cfg config.FilteringConfig) ChainedResolver {
 	}
 }
 
+// IsEnabled implements `config.ValueLogger`.
+func (r *FilteringResolver) IsEnabled() bool {
+	return r.cfg.IsEnabled()
+}
+
+// LogValues implements `config.ValueLogger`.
+func (r *FilteringResolver) LogValues(logger *logrus.Entry) {
+	r.cfg.LogValues(logger)
+}
+
 func (r *FilteringResolver) Resolve(request *model.Request) (*model.Response, error) {
 	qType := request.Req.Question[0].Qtype
 	if r.cfg.QueryTypes.Contains(dns.Type(qType)) {
@@ -34,22 +41,4 @@ func (r *FilteringResolver) Resolve(request *model.Request) (*model.Response, er
 	}
 
 	return r.next.Resolve(request)
-}
-
-func (r *FilteringResolver) Configuration() (result []string) {
-	if len(r.queryTypes) == 0 {
-		return configDisabled
-	}
-
-	qTypes := make([]string, 0, len(r.queryTypes))
-
-	for qType := range r.queryTypes {
-		qTypes = append(qTypes, qType.String())
-	}
-
-	sort.Strings(qTypes)
-
-	result = append(result, fmt.Sprintf("filtering query Types: '%v'", strings.Join(qTypes, ", ")))
-
-	return
 }

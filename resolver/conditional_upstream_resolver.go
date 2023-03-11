@@ -1,7 +1,6 @@
 package resolver
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
@@ -43,20 +42,23 @@ func NewConditionalUpstreamResolver(
 		m[strings.ToLower(domain)] = r
 	}
 
-	return &ConditionalUpstreamResolver{mapping: m}, nil
+	r := ConditionalUpstreamResolver{
+		cfg: cfg,
+
+		mapping: m,
+	}
+
+	return &r, nil
 }
 
-// Configuration returns current configuration
-func (r *ConditionalUpstreamResolver) Configuration() (result []string) {
-	if len(r.mapping) == 0 {
-		return configDisabled
-	}
+// IsEnabled implements `config.ValueLogger`.
+func (r *ConditionalUpstreamResolver) IsEnabled() bool {
+	return r.cfg.IsEnabled()
+}
 
-	for key, val := range r.mapping {
-		result = append(result, fmt.Sprintf("%s = \"%s\"", key, val))
-	}
-
-	return
+// LogValues implements `config.ValueLogger`.
+func (r *ConditionalUpstreamResolver) LogValues(logger *logrus.Entry) {
+	r.cfg.LogValues(logger)
 }
 
 func (r *ConditionalUpstreamResolver) processRequest(request *model.Request) (bool, *model.Response, error) {

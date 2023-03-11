@@ -129,29 +129,16 @@ func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.
 	return nil, 0
 }
 
-// Configuration returns a current resolver configuration
-func (r *CachingResolver) Configuration() (result []string) {
-	if r.cfg.MaxCachingTime < 0 {
-		return configDisabled
-	}
+// IsEnabled implements `config.ValueLogger`.
+func (r *CachingResolver) IsEnabled() bool {
+	return r.cfg.IsEnabled()
+}
 
-	result = append(result, fmt.Sprintf("minCacheTimeInSec = %d", r.cfg.MinCachingTime))
+// LogValues implements `config.ValueLogger`.
+func (r *CachingResolver) LogValues(logger *logrus.Entry) {
+	r.cfg.LogValues(logger)
 
-	result = append(result, fmt.Sprintf("maxCacheTimeSec = %d", r.cfg.MaxCachingTime))
-
-	result = append(result, fmt.Sprintf("cacheTimeNegative = %s", r.cfg.CacheTimeNegative))
-
-	result = append(result, fmt.Sprintf("prefetching = %t", r.prefetchingNameCache != nil))
-
-	if r.prefetchingNameCache != nil {
-		result = append(result, fmt.Sprintf("prefetchExpires = %s", r.cfg.PrefetchExpires))
-
-		result = append(result, fmt.Sprintf("prefetchThreshold = %d", r.cfg.PrefetchThreshold))
-	}
-
-	result = append(result, fmt.Sprintf("cache items count = %d", r.resultCache.TotalCount()))
-
-	return
+	logger.Infof("cache entries = %d", r.resultCache.TotalCount())
 }
 
 // Resolve checks if the current query result is already in the cache and returns it

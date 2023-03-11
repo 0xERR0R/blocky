@@ -1,7 +1,6 @@
 package resolver
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -11,6 +10,7 @@ import (
 	"github.com/0xERR0R/blocky/util"
 	"github.com/avast/retry-go/v4"
 	"github.com/miekg/dns"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -107,6 +107,18 @@ func resolveQueryLogFields(cfg config.QueryLogConfig) []config.QueryLogField {
 	return fields
 }
 
+// IsEnabled implements `config.ValueLogger`.
+func (r *QueryLoggingResolver) IsEnabled() bool {
+	return r.cfg.IsEnabled()
+}
+
+// LogValues implements `config.ValueLogger`.
+func (r *QueryLoggingResolver) LogValues(logger *logrus.Entry) {
+	r.cfg.LogValues(logger)
+
+	logger.Infof("fields: %s", r.fields)
+}
+
 // triggers periodically cleanup of old log files
 func (r *QueryLoggingResolver) periodicCleanUp() {
 	ticker := time.NewTicker(cleanUpRunPeriod)
@@ -195,14 +207,4 @@ func (r *QueryLoggingResolver) writeLog() {
 				len(r.logChan)).Warnf("query log writer is too slow, write duration: %d ms", time.Since(start).Milliseconds())
 		}
 	}
-}
-
-// Configuration returns the current resolver configuration
-func (r *QueryLoggingResolver) Configuration() (result []string) {
-	result = append(result, fmt.Sprintf("type: %q", r.cfg.Type))
-	result = append(result, fmt.Sprintf("target: %q", r.cfg.Target))
-	result = append(result, fmt.Sprintf("logRetentionDays: %d", r.cfg.LogRetentionDays))
-	result = append(result, fmt.Sprintf("fields: %s", r.fields))
-
-	return
 }

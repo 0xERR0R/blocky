@@ -4,6 +4,7 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/miekg/dns"
+	"github.com/sirupsen/logrus"
 )
 
 type EdeResolver struct {
@@ -16,6 +17,16 @@ func NewEdeResolver(cfg config.EdeConfig) ChainedResolver {
 	return &EdeResolver{
 		cfg: cfg,
 	}
+}
+
+// IsEnabled implements `config.ValueLogger`.
+func (r *EdeResolver) IsEnabled() bool {
+	return r.cfg.IsEnabled()
+}
+
+// LogValues implements `config.ValueLogger`.
+func (r *EdeResolver) LogValues(logger *logrus.Entry) {
+	r.cfg.LogValues(logger)
 }
 
 func (r *EdeResolver) Resolve(request *model.Request) (*model.Response, error) {
@@ -31,14 +42,6 @@ func (r *EdeResolver) Resolve(request *model.Request) (*model.Response, error) {
 	r.addExtraReasoning(resp)
 
 	return resp, nil
-}
-
-func (r *EdeResolver) Configuration() (result []string) {
-	if !r.cfg.Enable {
-		return configDisabled
-	}
-
-	return configEnabled
 }
 
 func (r *EdeResolver) addExtraReasoning(res *model.Response) {

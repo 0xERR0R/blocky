@@ -7,21 +7,33 @@ import (
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
+	"github.com/sirupsen/logrus"
 )
 
 type FqdnOnlyResolver struct {
 	NextResolver
-	enabled bool
+
+	cfg config.FqdnOnlyConfig
 }
 
-func NewFqdnOnlyResolver(cfg config.Config) *FqdnOnlyResolver {
+func NewFqdnOnlyResolver(cfg config.FqdnOnlyConfig) *FqdnOnlyResolver {
 	return &FqdnOnlyResolver{
-		enabled: cfg.FqdnOnly,
+		cfg: cfg,
 	}
 }
 
+// IsEnabled implements `config.ValueLogger`.
+func (r *FqdnOnlyResolver) IsEnabled() bool {
+	return r.cfg.IsEnabled()
+}
+
+// LogValues implements `config.ValueLogger`.
+func (r *FqdnOnlyResolver) LogValues(logger *logrus.Entry) {
+	r.cfg.LogValues(logger)
+}
+
 func (r *FqdnOnlyResolver) Resolve(request *model.Request) (*model.Response, error) {
-	if r.enabled {
+	if r.IsEnabled() {
 		domainFromQuestion := util.ExtractDomain(request.Req.Question[0])
 		if !strings.Contains(domainFromQuestion, ".") {
 			response := new(dns.Msg)
@@ -32,12 +44,4 @@ func (r *FqdnOnlyResolver) Resolve(request *model.Request) (*model.Response, err
 	}
 
 	return r.next.Resolve(request)
-}
-
-func (r *FqdnOnlyResolver) Configuration() (result []string) {
-	if !r.enabled {
-		return configDisabled
-	}
-
-	return configEnabled
 }

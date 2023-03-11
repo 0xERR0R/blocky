@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	upstreamDefaultCfgName = "default"
+	upstreamDefaultCfgName = config.UpstreamDefaultCfgName
 	parallelResolverLogger = "parallel_best_resolver"
 	resolverCount          = 2
 )
@@ -147,17 +147,14 @@ func newParallelBestResolver(cfg config.UpstreamConfig, resolverGroups map[strin
 	return &r, nil
 }
 
-// Configuration returns current resolver configuration
-func (r *ParallelBestResolver) Configuration() (result []string) {
-	result = append(result, "upstream resolvers:")
-	for name, res := range r.resolversPerClient {
-		result = append(result, fmt.Sprintf("- %s", name))
-		for _, r := range res {
-			result = append(result, fmt.Sprintf("  - %s", r.resolver))
-		}
-	}
+// IsEnabled implements `config.ValueLogger`.
+func (r *ParallelBestResolver) IsEnabled() bool {
+	return r.cfg.IsEnabled()
+}
 
-	return
+// LogValues implements `config.ValueLogger`.
+func (r *ParallelBestResolver) LogValues(logger *logrus.Entry) {
+	r.cfg.LogValues(logger)
 }
 
 func (r ParallelBestResolver) String() string {

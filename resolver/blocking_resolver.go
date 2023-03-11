@@ -327,39 +327,20 @@ func (r *BlockingResolver) handleBlocked(logger *logrus.Entry,
 	return &model.Response{Res: response, RType: model.ResponseTypeBLOCKED, Reason: reason}, nil
 }
 
-// Configuration returns the current resolver configuration
-func (r *BlockingResolver) Configuration() (result []string) {
-	if len(r.cfg.ClientGroupsBlock) == 0 {
-		return configDisabled
-	}
+// IsEnabled implements `config.ValueLogger`.
+func (r *BlockingResolver) IsEnabled() bool {
+	return r.cfg.IsEnabled()
+}
 
-	result = append(result, "clientGroupsBlock")
-	for key, val := range r.cfg.ClientGroupsBlock {
-		result = append(result, fmt.Sprintf("  %s = \"%s\"", key, strings.Join(val, ";")))
-	}
+// LogValues implements `config.ValueLogger`.
+func (r *BlockingResolver) LogValues(logger *logrus.Entry) {
+	r.cfg.LogValues(logger)
 
-	blockType := r.cfg.BlockType
-	result = append(result, fmt.Sprintf("blockType = \"%s\"", blockType))
+	logger.Info("blacklist cache entries:")
+	log.WithIndent(logger, "  ", r.blacklistMatcher.LogValues)
 
-	if blockType != "NXDOMAIN" {
-		result = append(result, fmt.Sprintf("blockTTL = %s", r.cfg.BlockTTL.String()))
-	}
-
-	result = append(result, fmt.Sprintf("downloadTimeout = %s", r.cfg.DownloadTimeout.String()))
-
-	result = append(result, fmt.Sprintf("FailStartOnListError = %t", r.cfg.FailStartOnListError))
-
-	result = append(result, "blacklist:")
-	for _, c := range r.blacklistMatcher.Configuration() {
-		result = append(result, fmt.Sprintf("  %s", c))
-	}
-
-	result = append(result, "whitelist:")
-	for _, c := range r.whitelistMatcher.Configuration() {
-		result = append(result, fmt.Sprintf("  %s", c))
-	}
-
-	return result
+	logger.Info("whitelist cache entries:")
+	log.WithIndent(logger, "  ", r.whitelistMatcher.LogValues)
 }
 
 func (r *BlockingResolver) hasWhiteListOnlyAllowed(groupsToCheck []string) bool {

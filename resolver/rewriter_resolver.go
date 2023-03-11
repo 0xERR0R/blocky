@@ -47,17 +47,16 @@ func (r *RewriterResolver) Name() string {
 	return fmt.Sprintf("%s w/ %s", Name(r.inner), defaultName(r))
 }
 
-// Configuration returns current resolver configuration
-func (r *RewriterResolver) Configuration() (result []string) {
-	result = append(result, "rewrite:")
-	for key, val := range r.cfg.Rewrite {
-		result = append(result, fmt.Sprintf("  %s = \"%s\"", key, val))
-	}
+// IsEnabled implements `config.ValueLogger`.
+func (r *RewriterResolver) IsEnabled() bool {
+	return r.cfg.IsEnabled()
+}
 
-	innerCfg := r.inner.Configuration()
-	result = append(result, innerCfg...)
+// LogValues implements `config.ValueLogger`.
+func (r *RewriterResolver) LogValues(logger *logrus.Entry) {
+	r.inner.LogValues(logger)
 
-	return result
+	r.cfg.LogValues(logger)
 }
 
 // Resolve uses the inner resolver to resolve the rewritten query

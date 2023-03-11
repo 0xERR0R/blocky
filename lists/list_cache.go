@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hako/durafmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/sirupsen/logrus"
 
@@ -38,9 +37,6 @@ type ListCacheType int
 type Matcher interface {
 	// Match matches passed domain name against cached list entries
 	Match(domain string, groupsToCheck []string) (found bool, group string)
-
-	// Configuration returns current configuration and stats
-	Configuration() []string
 }
 
 // ListCache generic cache of strings divided in groups
@@ -55,42 +51,19 @@ type ListCache struct {
 	processingConcurrency uint
 }
 
-// Configuration returns current configuration and stats
-func (b *ListCache) Configuration() (result []string) {
-	if b.refreshPeriod > 0 {
-		result = append(result, fmt.Sprintf("refresh period: %s", durafmt.Parse(b.refreshPeriod)))
-	} else {
-		result = append(result, "refresh: disabled")
-	}
-
-	result = append(result, "group links:")
-	for group, links := range b.groupToLinks {
-		result = append(result, fmt.Sprintf("  %s:", group))
-
-		for _, link := range links {
-			if strings.Contains(link, "\n") {
-				link = "[INLINE DEFINITION]"
-			}
-
-			result = append(result, fmt.Sprintf("   - %s", link))
-		}
-	}
-
-	result = append(result, "group caches:")
-
+// LogValues implements `config.ValueLogger`.
+func (b *ListCache) LogValues(logger *logrus.Entry) {
 	var total int
 
 	b.lock.RLock()
 	defer b.lock.RUnlock()
 
 	for group, cache := range b.groupCaches {
-		result = append(result, fmt.Sprintf("  %s: %d entries", group, cache.ElementCount()))
+		logger.Infof("%s: %d entries", group, cache.ElementCount())
 		total += cache.ElementCount()
 	}
 
-	result = append(result, fmt.Sprintf("  TOTAL: %d entries", total))
-
-	return result
+	logger.Infof("TOTAL: %d entries", total)
 }
 
 // NewListCache creates new list instance

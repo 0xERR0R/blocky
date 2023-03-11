@@ -121,10 +121,17 @@ func Silence() {
 	logger.Out = io.Discard
 }
 
-// PrefixMessages modifies a logger entry which will add `prefix` to all messages.
+func WithIndent(log *logrus.Entry, prefix string, callback func(*logrus.Entry)) {
+	undo := indentMessages(prefix, log.Logger)
+	defer undo()
+
+	callback(log)
+}
+
+// indentMessages modifies a logger and adds `prefix` to all messages.
 //
 // The returned function must be called to remove the prefix.
-func PrefixMessages(prefix string, logger *logrus.Logger) func() {
+func indentMessages(prefix string, logger *logrus.Logger) func() {
 	if _, ok := logger.Formatter.(*prefixed.TextFormatter); !ok {
 		// log is not plaintext, do nothing
 		return func() {}
@@ -149,13 +156,14 @@ type prefixMsgHook struct {
 	prefix string
 }
 
-func (f prefixMsgHook) Levels() []logrus.Level {
+// Levels implements `logrus.Hook`.
+func (h prefixMsgHook) Levels() []logrus.Level {
 	return logrus.AllLevels
 }
 
-// Format implements `logrus.Formatter`.
-func (f prefixMsgHook) Fire(entry *logrus.Entry) error {
-	entry.Message = f.prefix + entry.Message
+// Fire implements `logrus.Hook`.
+func (h prefixMsgHook) Fire(entry *logrus.Entry) error {
+	entry.Message = h.prefix + entry.Message
 
 	return nil
 }

@@ -23,7 +23,7 @@ var _ = Describe("MetricResolver", func() {
 	)
 
 	BeforeEach(func() {
-		sut = NewMetricsResolver(config.PrometheusConfig{Enable: true}).(*MetricsResolver)
+		sut = NewMetricsResolver(config.MetricsConfig{Enable: true}).(*MetricsResolver)
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)

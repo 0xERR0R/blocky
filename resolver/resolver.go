@@ -15,20 +15,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Resolver is not configured.
-const (
-	configStatusEnabled string = "enabled"
-
-	configStatusDisabled string = "disabled"
-)
-
-var (
-	// note: this is not used by all resolvers: only those that don't print any other configuration
-	configEnabled = []string{configStatusEnabled} //nolint:gochecknoglobals
-
-	configDisabled = []string{configStatusDisabled} //nolint:gochecknoglobals
-)
-
 func newRequest(question string, rType dns.Type, logger ...*logrus.Entry) *model.Request {
 	var loggerEntry *logrus.Entry
 	if len(logger) == 1 {
@@ -85,16 +71,10 @@ func newRequestWithClientID(question string, rType dns.Type, ip, requestClientID
 
 // Resolver generic interface for all resolvers
 type Resolver interface {
+	config.ValueLogger
+
 	// Resolve performs resolution of a DNS request
 	Resolve(req *model.Request) (*model.Response, error)
-
-	// Configuration returns current resolver configuration
-	Configuration() []string
-}
-
-type ConfigGetter interface {
-	// Configuration returns current resolver configuration
-	Cfg() config.ValueLogger
 }
 
 // ChainedResolver represents a resolver, which can delegate result to the next one
@@ -154,4 +134,20 @@ func Name(resolver Resolver) string {
 // defaultName returns a short user-friendly name of a resolver
 func defaultName(resolver Resolver) string {
 	return strings.Split(fmt.Sprintf("%T", resolver), ".")[1]
+}
+
+// ForEach iterates over all resolvers in the chain.
+//
+// If resolver is not a chain, or is unlinked,
+// the callback is called exactly once.
+func ForEach(resolver Resolver, callback func(Resolver)) {
+	for resolver != nil {
+		callback(resolver)
+
+		if chained, ok := resolver.(ChainedResolver); ok {
+			resolver = chained.GetNext()
+		} else {
+			break
+		}
+	}
 }

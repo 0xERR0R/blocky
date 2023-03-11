@@ -7,6 +7,7 @@ import (
 
 	"github.com/0xERR0R/blocky/model"
 	"github.com/miekg/dns"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -58,6 +59,16 @@ func NewSpecialUseDomainNamesResolver() ChainedResolver {
 	}
 }
 
+// IsEnabled implements `config.ValueLogger`.
+func (r *SpecialUseDomainNamesResolver) IsEnabled() bool {
+	// RFC 6761 & 6762 are always active
+	return true
+}
+
+// LogValues implements `config.ValueLogger`.
+func (r *SpecialUseDomainNamesResolver) LogValues(logger *logrus.Entry) {
+}
+
 func (r *SpecialUseDomainNamesResolver) Resolve(request *model.Request) (*model.Response, error) {
 	// RFC 6761 - negative
 	if r.isSpecial(request, sudnArpaSlice()...) ||
@@ -76,11 +87,6 @@ func (r *SpecialUseDomainNamesResolver) Resolve(request *model.Request) (*model.
 	}
 
 	return r.next.Resolve(request)
-}
-
-// RFC 6761 & 6762 are always active
-func (r *SpecialUseDomainNamesResolver) Configuration() []string {
-	return configEnabled
 }
 
 func (r *SpecialUseDomainNamesResolver) isSpecial(request *model.Request, names ...string) bool {

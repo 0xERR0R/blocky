@@ -33,6 +33,35 @@ type HostsFileResolver struct {
 
 type HostsFileEntry = parsers.HostsFileEntry
 
+func NewHostsFileResolver(cfg config.HostsFileConfig) *HostsFileResolver {
+	r := HostsFileResolver{
+		cfg: cfg,
+	}
+
+	if err := r.parseHostsFile(context.Background()); err != nil {
+		logger := log.PrefixedLog(hostsFileResolverLogger)
+		logger.Errorf("disabling hosts file resolving due to error: %s", err)
+
+		r.cfg.Filepath = "" // don't try parsing the file again
+	} else {
+		go r.periodicUpdate()
+	}
+
+	return &r
+}
+
+// IsEnabled implements `config.ValueLogger`.
+func (r *HostsFileResolver) IsEnabled() bool {
+	return r.cfg.IsEnabled()
+}
+
+// LogValues implements `config.ValueLogger`.
+func (r *HostsFileResolver) LogValues(logger *logrus.Entry) {
+	r.cfg.LogValues(logger)
+
+	logger.Infof("cache entries = %d", r.hosts.len())
+}
+
 func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Response {
 	question := request.Req.Question[0]
 	if question.Qtype != dns.TypePTR {
@@ -125,40 +154,6 @@ func (r *HostsFileResolver) resolve(req *dns.Msg, question dns.Question, domain 
 	return response
 }
 
-func (r *HostsFileResolver) Configuration() (result []string) {
-	if r.cfg.Filepath == "" || r.hosts.isEmpty() {
-		return configDisabled
-	}
-
-	result = append(result, fmt.Sprintf("file path: %s", r.cfg.Filepath))
-	result = append(result, fmt.Sprintf("TTL: %d", r.cfg.HostsTTL.SecondsU32()))
-	result = append(result, fmt.Sprintf("refresh period: %s", r.cfg.RefreshPeriod))
-	result = append(result, fmt.Sprintf("filter loopback addresses: %t", r.cfg.FilterLoopback))
-
-	return
-}
-
-func (r *HostsFileResolver) Cfg() config.ValueLogger {
-	return &r.cfg
-}
-
-func NewHostsFileResolver(cfg config.HostsFileConfig) *HostsFileResolver {
-	r := HostsFileResolver{
-		cfg: cfg,
-	}
-
-	if err := r.parseHostsFile(context.Background()); err != nil {
-		logger := log.PrefixedLog(hostsFileResolverLogger)
-		logger.Warnf("hosts file resolving is disabled: %s", err)
-
-		r.cfg.Filepath = "" // don't try parsing the file again
-	} else {
-		go r.periodicUpdate()
-	}
-
-	return &r
-}
-
 func (r *HostsFileResolver) parseHostsFile(ctx context.Context) error {
 	const maxErrorsPerFile = 5
 
@@ -238,7 +233,11 @@ func newSplitHostsDataWithSameCapacity(other splitHostsFileData) splitHostsFileD
 }
 
 func (d splitHostsFileData) isEmpty() bool {
-	return d.v4.isEmpty() && d.v6.isEmpty()
+	return d.len() == 0
+}
+
+func (d splitHostsFileData) len() int {
+	return d.v4.len() + d.v6.len()
 }
 
 func (d splitHostsFileData) getIP(qType dns.Type, domain string) net.IP {
@@ -277,8 +276,8 @@ func newHostsDataWithSameCapacity(other hostsFileData) hostsFileData {
 	}
 }
 
-func (d hostsFileData) isEmpty() bool {
-	return len(d.hosts) == 0 && len(d.aliases) == 0
+func (d hostsFileData) len() int {
+	return len(d.hosts) + len(d.aliases)
 }
 
 func (d hostsFileData) getIP(hostname string) net.IP {

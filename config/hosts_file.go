@@ -11,13 +11,15 @@ type HostsFileConfig struct {
 	FilterLoopback bool     `yaml:"filterLoopback"`
 }
 
-func (c *HostsFileConfig) LogValues(log *logrus.Entry) {
-	if c.Filepath == "" {
-		return
-	}
+// IsEnabled implements `config.ValueLogger`.
+func (c *HostsFileConfig) IsEnabled() bool {
+	return len(c.Filepath) != 0
+}
 
-	log.Infof("file path: %s", c.Filepath)
-	log.Infof("TTL: %d", c.HostsTTL.SecondsU32())
-	log.Infof("refresh period: %s", c.RefreshPeriod)
-	log.Infof("filter loopback addresses: %t", c.FilterLoopback)
+// LogValues implements `config.ValueLogger`.
+func (c *HostsFileConfig) LogValues(logger *logrus.Entry) {
+	logger.Infof("file path: %s", c.Filepath)
+	logger.Infof("TTL: %d", c.HostsTTL.SecondsU32())
+	logger.Infof("refresh period: %s", c.RefreshPeriod)
+	logger.Infof("filter loopback addresses: %t", c.FilterLoopback)
 }

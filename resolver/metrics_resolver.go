@@ -1,13 +1,13 @@
 package resolver
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/model"
+	"github.com/sirupsen/logrus"
 
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
@@ -17,12 +17,22 @@ import (
 type MetricsResolver struct {
 	NextResolver
 
-	cfg config.PrometheusConfig
+	cfg config.MetricsConfig
 
 	totalQueries      *prometheus.CounterVec
 	totalResponse     *prometheus.CounterVec
 	totalErrors       prometheus.Counter
 	durationHistogram *prometheus.HistogramVec
+}
+
+// IsEnabled implements `config.ValueLogger`.
+func (r *MetricsResolver) IsEnabled() bool {
+	return r.cfg.IsEnabled()
+}
+
+// LogValues implements `config.ValueLogger`.
+func (r *MetricsResolver) LogValues(logger *logrus.Entry) {
+	r.cfg.LogValues(logger)
 }
 
 // Resolve resolves the passed request
@@ -58,21 +68,8 @@ func (r *MetricsResolver) Resolve(request *model.Request) (*model.Response, erro
 	return response, err
 }
 
-// Configuration gets the config of this resolver in a string slice
-func (m *MetricsResolver) Configuration() (result []string) {
-	if !m.cfg.Enable {
-		return configDisabled
-	}
-
-	result = append(result, "metrics:")
-	result = append(result, fmt.Sprintf("  Enable = %t", m.cfg.Enable))
-	result = append(result, fmt.Sprintf("  Path   = %s", m.cfg.Path))
-
-	return
-}
-
 // NewMetricsResolver creates a new intance of the MetricsResolver type
-func NewMetricsResolver(cfg config.PrometheusConfig) ChainedResolver {
+func NewMetricsResolver(cfg config.MetricsConfig) ChainedResolver {
 	m := MetricsResolver{
 		cfg: cfg,
 
