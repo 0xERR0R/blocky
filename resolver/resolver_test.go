@@ -10,19 +10,58 @@ import (
 var systemResolverBootstrap = &Bootstrap{}
 
 var _ = Describe("Resolver", func() {
-	Describe("Creating resolver chain", func() {
-		When("A chain of resolvers will be created", func() {
-			It("should be iterable by calling 'GetNext'", func() {
-				br, _ := NewBlockingResolver(config.BlockingConfig{BlockType: "zeroIP"}, nil, systemResolverBootstrap)
-				cr, _ := NewClientNamesResolver(config.ClientLookupConfig{}, nil, false)
-				ch := Chain(br, cr)
-				c, ok := ch.(ChainedResolver)
-				Expect(ok).Should(BeTrue())
+	Describe("Chains", func() {
+		var (
+			r1 ChainedResolver
+			r2 ChainedResolver
+			r3 ChainedResolver
+			r4 Resolver
+		)
 
-				next := c.GetNext()
-				Expect(next).ShouldNot(BeNil())
+		BeforeEach(func() {
+			r1 = &mockResolver{}
+			r2 = &mockResolver{}
+			r3 = &mockResolver{}
+			r4 = &NoOpResolver{}
+		})
+
+		Describe("Chain", func() {
+			It("should create a chain iterable using `GetNext`", func() {
+				ch := Chain(r1, r2, r3, r4)
+				Expect(ch).ShouldNot(BeNil())
+				Expect(ch).Should(Equal(r1))
+				Expect(r1.GetNext()).Should(Equal(r2))
+				Expect(r2.GetNext()).Should(Equal(r3))
+				Expect(r3.GetNext()).Should(Equal(r4))
+			})
+
+			It("should not link a final ChainedResolver", func() {
+				ch := Chain(r1, r2)
+				Expect(ch).ShouldNot(BeNil())
+
+				Expect(r1.GetNext()).Should(Equal(r2))
+				Expect(r2.GetNext()).Should(BeNil())
 			})
 		})
+
+		Describe("ForEach", func() {
+			It("should iterate on all resolvers in the chain", func() {
+				ch := Chain(r1, r2, r3, r4)
+				Expect(ch).ShouldNot(BeNil())
+
+				var itResult []Resolver
+
+				ForEach(ch, func(r Resolver) {
+					itResult = append(itResult, r)
+				})
+
+				Expect(itResult).ShouldNot(BeEmpty())
+				Expect(itResult).Should(Equal([]Resolver{r1, r2, r3, r4}))
+			})
+		})
+	})
+
+	Describe("Name", func() {
 		When("'Name' is called", func() {
 			It("should return resolver name", func() {
 				br, _ := NewBlockingResolver(config.BlockingConfig{BlockType: "zeroIP"}, nil, systemResolverBootstrap)
