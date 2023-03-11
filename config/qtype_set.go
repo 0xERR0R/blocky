@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/miekg/dns"
+	"golang.org/x/exp/maps"
 )
 
 type QTypeSet map[QType]struct{}
@@ -55,18 +56,13 @@ func (c QType) String() string {
 	return dns.Type(c).String()
 }
 
-func (c *QType) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var input string
-	if err := unmarshal(&input); err != nil {
-		return err
-	}
+// UnmarshalText implements `encoding.TextUnmarshaler`.
+func (c *QType) UnmarshalText(data []byte) error {
+	input := string(data)
 
 	t, found := dns.StringToType[input]
 	if !found {
-		types := make([]string, 0, len(dns.StringToType))
-		for k := range dns.StringToType {
-			types = append(types, k)
-		}
+		types := maps.Keys(dns.StringToType)
 
 		sort.Strings(types)
 
