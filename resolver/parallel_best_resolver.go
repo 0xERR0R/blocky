@@ -27,7 +27,7 @@ const (
 
 // ParallelBestResolver delegates the DNS message to 2 upstream resolvers and returns the fastest answer
 type ParallelBestResolver struct {
-	cfg config.UpstreamConfig
+	cfg config.ParallelBestConfig
 
 	resolversPerClient map[string][]*upstreamResolverStatus
 }
@@ -79,7 +79,7 @@ func testResolver(r *UpstreamResolver) error {
 
 // NewParallelBestResolver creates new resolver instance
 func NewParallelBestResolver(
-	cfg config.UpstreamConfig, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
+	cfg config.ParallelBestConfig, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
 ) (Resolver, error) {
 	logger := log.PrefixedLog(parallelResolverLogger)
 
@@ -120,7 +120,9 @@ func NewParallelBestResolver(
 	return newParallelBestResolver(cfg, resolverGroups)
 }
 
-func newParallelBestResolver(cfg config.UpstreamConfig, resolverGroups map[string][]Resolver) (Resolver, error) {
+func newParallelBestResolver(
+	cfg config.ParallelBestConfig, resolverGroups map[string][]Resolver,
+) (Resolver, error) {
 	resolversPerClient := make(map[string][]*upstreamResolverStatus, len(resolverGroups))
 
 	for groupName, resolvers := range resolverGroups {

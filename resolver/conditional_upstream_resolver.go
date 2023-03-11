@@ -28,8 +28,8 @@ func NewConditionalUpstreamResolver(
 	m := make(map[string]Resolver, len(cfg.Mapping.Upstreams))
 
 	for domain, upstream := range cfg.Mapping.Upstreams {
-		pbCfg := config.UpstreamConfig{
-			ExternalResolvers: config.UpstreamMapping{
+		pbCfg := config.ParallelBestConfig{
+			ExternalResolvers: config.ParallelBestMapping{
 				upstreamDefaultCfgName: upstream,
 			},
 		}

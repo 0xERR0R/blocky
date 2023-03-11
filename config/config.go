@@ -321,7 +321,7 @@ func extractNet(upstream string) (NetProtocol, string) {
 //
 //nolint:maligned
 type Config struct {
-	Upstream            UpstreamConfig            `yaml:"upstream"`
+	Upstream            ParallelBestConfig        `yaml:"upstream"`
 	UpstreamTimeout     Duration                  `yaml:"upstreamTimeout" default:"2s"`
 	ConnectIPVersion    IPVersion                 `yaml:"connectIPVersion"`
 	CustomDNS           CustomDNSConfig           `yaml:"customDNS"`

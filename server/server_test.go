@@ -143,7 +143,7 @@ var _ = BeforeSuite(func() {
 			BlockType: "zeroIp",
 			BlockTTL:  config.Duration(6 * time.Hour),
 		},
-		Upstream: config.UpstreamConfig{
+		Upstream: config.ParallelBestConfig{
 			ExternalResolvers: map[string][]config.Upstream{"default": {upstreamGoogle}},
 		},
 		ClientLookup: config.ClientLookupConfig{
@@ -643,7 +643,7 @@ var _ = Describe("Running DNS server", func() {
 			It("start was called 2 times, start should fail", func() {
 				// create server
 				server, err := NewServer(&config.Config{
-					Upstream: config.UpstreamConfig{
+					Upstream: config.ParallelBestConfig{
 						ExternalResolvers: map[string][]config.Upstream{
 							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}},
 						},
@@ -685,7 +685,7 @@ var _ = Describe("Running DNS server", func() {
 			It("stop was called 2 times, start should fail", func() {
 				// create server
 				server, err := NewServer(&config.Config{
-					Upstream: config.UpstreamConfig{
+					Upstream: config.ParallelBestConfig{
 						ExternalResolvers: map[string][]config.Upstream{
 							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}},
 						},

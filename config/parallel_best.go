@@ -6,20 +6,20 @@ import (
 
 const UpstreamDefaultCfgName = "default"
 
-// UpstreamConfig upstream server configuration
-type UpstreamConfig struct {
-	ExternalResolvers UpstreamMapping `yaml:",inline"`
+// ParallelBestConfig upstream server configuration
+type ParallelBestConfig struct {
+	ExternalResolvers ParallelBestMapping `yaml:",inline"`
 }
 
-type UpstreamMapping map[string][]Upstream
+type ParallelBestMapping map[string][]Upstream
 
 // IsEnabled implements `config.Configurable`.
-func (c *UpstreamConfig) IsEnabled() bool {
+func (c *ParallelBestConfig) IsEnabled() bool {
 	return len(c.ExternalResolvers) != 0
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *UpstreamConfig) LogConfig(logger *logrus.Entry) {
+func (c *ParallelBestConfig) LogConfig(logger *logrus.Entry) {
 	logger.Info("upstream resolvers:")
 
 	for name, upstreams := range c.ExternalResolvers {

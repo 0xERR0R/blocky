@@ -64,7 +64,7 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 
 	// Bootstrap doesn't have a `LogConfig` method, and since that's the only place
 	// where `ParallelBestResolver` uses its config, we can just use an empty one.
-	pbCfg := config.UpstreamConfig{}
+	pbCfg := config.ParallelBestConfig{}
 
 	parallelResolver, err := newParallelBestResolver(pbCfg, bootstraped.ResolverGroups())
 	if err != nil {
