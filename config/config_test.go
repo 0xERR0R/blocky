@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"net"
 	"time"
 
@@ -321,15 +320,11 @@ bootstrapDns:
 		})
 	})
 
-	Describe("YAML parsing", func() {
+	Describe("Parsing", func() {
 		Context("upstream", func() {
 			It("should create the upstream struct with data", func() {
 				u := &Upstream{}
-				err := u.UnmarshalYAML(func(i interface{}) error {
-					*i.(*string) = "tcp+udp:1.2.3.4"
-
-					return nil
-				})
+				err := u.UnmarshalText([]byte("tcp+udp:1.2.3.4"))
 				Expect(err).Should(Succeed())
 				Expect(u.Net).Should(Equal(NetProtocolTcpUdp))
 				Expect(u.Host).Should(Equal("1.2.3.4"))
@@ -338,30 +333,17 @@ bootstrapDns:
 
 			It("should fail if the upstream is in wrong format", func() {
 				u := &Upstream{}
-				err := u.UnmarshalYAML(func(i interface{}) error {
-					return errors.New("some err")
-				})
+				err := u.UnmarshalText([]byte("invalid!"))
 				Expect(err).Should(HaveOccurred())
 			})
 		})
 		Context("ListenConfig", func() {
 			It("should parse and split valid string config", func() {
 				l := &ListenConfig{}
-				err := l.UnmarshalYAML(func(i interface{}) error {
-					*i.(*string) = "55,:56"
-
-					return nil
-				})
+				err := l.UnmarshalText([]byte("55,:56"))
 				Expect(err).Should(Succeed())
 				Expect(*l).Should(HaveLen(2))
 				Expect(*l).Should(ContainElements("55", ":56"))
-			})
-			It("should fail on error", func() {
-				l := &ListenConfig{}
-				err := l.UnmarshalYAML(func(i interface{}) error {
-					return errors.New("some err")
-				})
-				Expect(err).Should(HaveOccurred())
 			})
 		})
 	})

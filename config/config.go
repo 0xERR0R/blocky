@@ -154,12 +154,9 @@ func (u Upstream) String() string {
 	return sb.String()
 }
 
-// UnmarshalYAML creates Upstream from YAML
-func (u *Upstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var s string
-	if err := unmarshal(&s); err != nil {
-		return err
-	}
+// UnmarshalText implements `encoding.TextUnmarshaler`.
+func (u *Upstream) UnmarshalText(data []byte) error {
+	s := string(data)
 
 	upstream, err := ParseUpstream(s)
 	if err != nil {
@@ -174,12 +171,9 @@ func (u *Upstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // ListenConfig is a list of address(es) to listen on
 type ListenConfig []string
 
-// UnmarshalYAML creates ListenConfig from YAML
-func (l *ListenConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var addresses string
-	if err := unmarshal(&addresses); err != nil {
-		return err
-	}
+// UnmarshalText implements `encoding.TextUnmarshaler`.
+func (l *ListenConfig) UnmarshalText(data []byte) error {
+	addresses := string(data)
 
 	*l = strings.Split(addresses, ",")
 
@@ -355,7 +349,7 @@ type Config struct {
 	// Deprecated
 	LogTimestamp bool `yaml:"logTimestamp" default:"true"`
 	// Deprecated
-	DNSPorts ListenConfig `yaml:"port" default:"[\"53\"]"`
+	DNSPorts ListenConfig `yaml:"port" default:"\"53\""`
 	// Deprecated
 	HTTPPorts ListenConfig `yaml:"httpPort"`
 	// Deprecated
@@ -365,7 +359,7 @@ type Config struct {
 }
 
 type PortsConfig struct {
-	DNS   ListenConfig `yaml:"dns" default:"[\"53\"]"`
+	DNS   ListenConfig `yaml:"dns" default:"\"53\""`
 	HTTP  ListenConfig `yaml:"http"`
 	HTTPS ListenConfig `yaml:"https"`
 	TLS   ListenConfig `yaml:"tls"`
