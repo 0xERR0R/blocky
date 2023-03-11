@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
+	"github.com/sirupsen/logrus"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -59,6 +61,33 @@ var _ = Describe("Resolver", func() {
 
 				Expect(itResult).ShouldNot(BeEmpty())
 				Expect(itResult).Should(Equal([]Resolver{r1, r2, r3, r4}))
+			})
+		})
+
+		Describe("LogResolverConfig", func() {
+			It("should call the resolver's `LogConfig`", func() {
+				logger := logrus.NewEntry(log.Log())
+
+				m := &mockResolver{}
+				m.On("IsEnabled").Return(true)
+				m.On("LogConfig")
+
+				LogResolverConfig(m, logger)
+
+				m.AssertExpectations(GinkgoT())
+			})
+
+			When("the resolver is disabled", func() {
+				It("should not call the resolver's `LogConfig`", func() {
+					logger := logrus.NewEntry(log.Log())
+
+					m := &mockResolver{}
+					m.On("IsEnabled").Return(false)
+
+					LogResolverConfig(m, logger)
+
+					m.AssertExpectations(GinkgoT())
+				})
 			})
 		})
 	})

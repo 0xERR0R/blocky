@@ -150,6 +150,7 @@ func ForEach(resolver Resolver, callback func(Resolver)) {
 	}
 }
 
+// LogResolverConfig logs the resolver's type and config.
 func LogResolverConfig(res Resolver, logger *logrus.Entry) {
 	// Use the type, not the full typeName, to avoid redundant information with the config
 	typeName := res.Type()
