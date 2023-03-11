@@ -52,6 +52,10 @@ var _ = Describe("QueryLoggingResolver", func() {
 	})
 
 	JustBeforeEach(func() {
+		if len(sutConfig.Fields) == 0 {
+			sutConfig.SetDefaults() // not called when using a struct literal
+		}
+
 		sut = NewQueryLoggingResolver(sutConfig).(*QueryLoggingResolver)
 		DeferCleanup(func() { close(sut.logChan) })
 		m = &mockResolver{}

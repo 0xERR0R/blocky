@@ -28,7 +28,6 @@ type QueryLoggingResolver struct {
 
 	logChan chan *querylog.LogEntry
 	writer  querylog.Writer
-	fields  []config.QueryLogField
 }
 
 // NewQueryLoggingResolver returns a new resolver instance
@@ -75,9 +74,10 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 	logChan := make(chan *querylog.LogEntry, logChanCap)
 
 	resolver := QueryLoggingResolver{
+		cfg: cfg,
+
 		logChan: logChan,
 		writer:  writer,
-		fields:  resolveQueryLogFields(cfg),
 	}
 
 	go resolver.writeLog()
@@ -89,34 +89,14 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 	return &resolver
 }
 
-func resolveQueryLogFields(cfg config.QueryLogConfig) []config.QueryLogField {
-	var fields []config.QueryLogField
-
-	if len(cfg.Fields) == 0 {
-		// no fields defined, use all fields as fallback
-		for _, v := range config.QueryLogFieldNames() {
-			qlt, err := config.ParseQueryLogField(v)
-			util.LogOnError("ignoring unknown query log field", err)
-
-			fields = append(fields, qlt)
-		}
-	} else {
-		fields = cfg.Fields
-	}
-
-	return fields
-}
-
 // IsEnabled implements `config.ValueLogger`.
 func (r *QueryLoggingResolver) IsEnabled() bool {
 	return r.cfg.IsEnabled()
 }
 
-// LogValues implements `config.ValueLogger`.
-func (r *QueryLoggingResolver) LogValues(logger *logrus.Entry) {
-	r.cfg.LogValues(logger)
-
-	logger.Infof("fields: %s", r.fields)
+// LogConfig implements `config.Configurable`.
+func (r *QueryLoggingResolver) LogConfig(logger *logrus.Entry) {
+	r.cfg.LogConfig(logger)
 }
 
 // triggers periodically cleanup of old log files
@@ -164,7 +144,7 @@ func (r *QueryLoggingResolver) createLogEntry(request *model.Request, response *
 		ClientNames: []string{"none"},
 	}
 
-	for _, f := range r.fields {
+	for _, f := range r.cfg.Fields {
 		switch f {
 		case config.QueryLogFieldClientIP:
 			entry.ClientIP = request.ClientIP.String()
