@@ -21,18 +21,18 @@ type CustomDNSMapping struct {
 	HostIPs map[string][]net.IP `yaml:"hostIPs"`
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (c *CustomDNSConfig) IsEnabled() bool {
 	return len(c.Mapping.HostIPs) != 0
 }
 
-// LogValues implements `config.ValueLogger`.
-func (c *CustomDNSConfig) LogValues(logger *logrus.Entry) {
+// LogConfig implements `config.Configurable`.
+func (c *CustomDNSConfig) LogConfig(logger *logrus.Entry) {
 	for key, val := range c.Mapping.HostIPs {
 		logger.Infof("%s = %q", key, val)
 	}
 
-	c.RewriteConfig.LogValues(logger)
+	c.RewriteConfig.LogConfig(logger)
 }
 
 // UnmarshalYAML implements `yaml.Unmarshaler`.

@@ -47,14 +47,14 @@ func NewClientNamesResolver(
 	return
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (r *ClientNamesResolver) IsEnabled() bool {
 	return r.cfg.IsEnabled()
 }
 
-// LogValues implements `config.ValueLogger`.
-func (r *ClientNamesResolver) LogValues(logger *logrus.Entry) {
-	r.cfg.LogValues(logger)
+// LogConfig implements `config.Configurable`.
+func (r *ClientNamesResolver) LogConfig(logger *logrus.Entry) {
+	r.cfg.LogConfig(logger)
 
 	logger.Infof("cache entries = %d", r.cache.TotalCount())
 }

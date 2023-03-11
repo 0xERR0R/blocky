@@ -8,12 +8,12 @@ type MetricsConfig struct {
 	Path   string `yaml:"path" default:"/metrics"`
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (c *MetricsConfig) IsEnabled() bool {
 	return c.Enable
 }
 
-// LogValues implements `config.ValueLogger`.
-func (c *MetricsConfig) LogValues(logger *logrus.Entry) {
+// LogConfig implements `config.Configurable`.
+func (c *MetricsConfig) LogConfig(logger *logrus.Entry) {
 	logger.Infof("url path: %s", c.Path)
 }

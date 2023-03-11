@@ -21,14 +21,14 @@ func NewFilteringResolver(cfg config.FilteringConfig) ChainedResolver {
 	}
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (r *FilteringResolver) IsEnabled() bool {
 	return r.cfg.IsEnabled()
 }
 
-// LogValues implements `config.ValueLogger`.
-func (r *FilteringResolver) LogValues(logger *logrus.Entry) {
-	r.cfg.LogValues(logger)
+// LogConfig implements `config.Configurable`.
+func (r *FilteringResolver) LogConfig(logger *logrus.Entry) {
+	r.cfg.LogConfig(logger)
 }
 
 func (r *FilteringResolver) Resolve(request *model.Request) (*model.Response, error) {

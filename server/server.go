@@ -447,7 +447,7 @@ func (s *Server) printConfiguration() {
 		}
 
 		logger().Infof("-> %s", resolver.Name(res))
-		log.WithIndent(logger(), "     ", res.LogValues)
+		log.WithIndent(logger(), "     ", res.LogConfig)
 	})
 
 	logger().Infof("- DNS listening on addrs/ports: %v", s.cfg.Ports.DNS)

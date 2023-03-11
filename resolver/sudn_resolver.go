@@ -59,14 +59,14 @@ func NewSpecialUseDomainNamesResolver() ChainedResolver {
 	}
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (r *SpecialUseDomainNamesResolver) IsEnabled() bool {
 	// RFC 6761 & 6762 are always active
 	return true
 }
 
-// LogValues implements `config.ValueLogger`.
-func (r *SpecialUseDomainNamesResolver) LogValues(logger *logrus.Entry) {
+// LogConfig implements `config.Configurable`.
+func (r *SpecialUseDomainNamesResolver) LogConfig(logger *logrus.Entry) {
 }
 
 func (r *SpecialUseDomainNamesResolver) Resolve(request *model.Request) (*model.Response, error) {

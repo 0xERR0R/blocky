@@ -19,14 +19,14 @@ func NewEdeResolver(cfg config.EdeConfig) ChainedResolver {
 	}
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (r *EdeResolver) IsEnabled() bool {
 	return r.cfg.IsEnabled()
 }
 
-// LogValues implements `config.ValueLogger`.
-func (r *EdeResolver) LogValues(logger *logrus.Entry) {
-	r.cfg.LogValues(logger)
+// LogConfig implements `config.Configurable`.
+func (r *EdeResolver) LogConfig(logger *logrus.Entry) {
+	r.cfg.LogConfig(logger)
 }
 
 func (r *EdeResolver) Resolve(request *model.Request) (*model.Response, error) {

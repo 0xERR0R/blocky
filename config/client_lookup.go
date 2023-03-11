@@ -13,13 +13,13 @@ type ClientLookupConfig struct {
 	SingleNameOrder     []uint              `yaml:"singleNameOrder"`
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (c *ClientLookupConfig) IsEnabled() bool {
 	return !c.Upstream.IsDefault() || len(c.ClientnameIPMapping) != 0
 }
 
-// LogValues implements `config.ValueLogger`.
-func (c *ClientLookupConfig) LogValues(logger *logrus.Entry) {
+// LogConfig implements `config.Configurable`.
+func (c *ClientLookupConfig) LogConfig(logger *logrus.Entry) {
 	logger.Infof("singleNameOrder = \"%v\"", c.SingleNameOrder)
 
 	if !c.Upstream.IsDefault() {

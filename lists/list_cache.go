@@ -51,8 +51,8 @@ type ListCache struct {
 	processingConcurrency uint
 }
 
-// LogValues implements `config.ValueLogger`.
-func (b *ListCache) LogValues(logger *logrus.Entry) {
+// LogConfig implements `config.Configurable`.
+func (b *ListCache) LogConfig(logger *logrus.Entry) {
 	var total int
 
 	b.lock.RLock()

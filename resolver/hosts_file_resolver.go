@@ -50,14 +50,14 @@ func NewHostsFileResolver(cfg config.HostsFileConfig) *HostsFileResolver {
 	return &r
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (r *HostsFileResolver) IsEnabled() bool {
 	return r.cfg.IsEnabled()
 }
 
-// LogValues implements `config.ValueLogger`.
-func (r *HostsFileResolver) LogValues(logger *logrus.Entry) {
-	r.cfg.LogValues(logger)
+// LogConfig implements `config.Configurable`.
+func (r *HostsFileResolver) LogConfig(logger *logrus.Entry) {
+	r.cfg.LogConfig(logger)
 
 	logger.Infof("cache entries = %d", r.hosts.len())
 }

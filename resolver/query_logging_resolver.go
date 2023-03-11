@@ -89,7 +89,7 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 	return &resolver
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (r *QueryLoggingResolver) IsEnabled() bool {
 	return r.cfg.IsEnabled()
 }

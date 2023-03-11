@@ -8,13 +8,13 @@ type FilteringConfig struct {
 	QueryTypes QTypeSet `yaml:"queryTypes"`
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (c *FilteringConfig) IsEnabled() bool {
 	return len(c.QueryTypes) != 0
 }
 
-// LogValues implements `config.ValueLogger`.
-func (c *FilteringConfig) LogValues(logger *logrus.Entry) {
+// LogConfig implements `config.Configurable`.
+func (c *FilteringConfig) LogConfig(logger *logrus.Entry) {
 	logger.Info("filtering query Types:")
 
 	for qType := range c.QueryTypes {

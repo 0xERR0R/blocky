@@ -51,14 +51,14 @@ func NewConditionalUpstreamResolver(
 	return &r, nil
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (r *ConditionalUpstreamResolver) IsEnabled() bool {
 	return r.cfg.IsEnabled()
 }
 
-// LogValues implements `config.ValueLogger`.
-func (r *ConditionalUpstreamResolver) LogValues(logger *logrus.Entry) {
-	r.cfg.LogValues(logger)
+// LogConfig implements `config.Configurable`.
+func (r *ConditionalUpstreamResolver) LogConfig(logger *logrus.Entry) {
+	r.cfg.LogConfig(logger)
 }
 
 func (r *ConditionalUpstreamResolver) processRequest(request *model.Request) (bool, *model.Response, error) {

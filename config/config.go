@@ -26,14 +26,14 @@ const (
 	httpsPort = 443
 )
 
-type ValueLogger interface {
+type Configurable interface {
 	// IsEnabled returns true when the receiver is configured.
 	IsEnabled() bool
 
-	// LogValues logs the receiver's configuration.
+	// LogConfig logs the receiver's configuration.
 	//
 	// Calling this method when `IsEnabled` returns false is undefined.
-	LogValues(*logrus.Entry) // TODO: LogConfiguration
+	LogConfig(*logrus.Entry)
 }
 
 // NetProtocol resolver protocol ENUM(
@@ -409,13 +409,13 @@ type toEnable struct {
 	Enable bool `yaml:"enable" default:"false"`
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (c *toEnable) IsEnabled() bool {
 	return c.Enable
 }
 
-// LogValues implements `config.ValueLogger`.
-func (c *toEnable) LogValues(logger *logrus.Entry) {
+// LogConfig implements `config.Configurable`.
+func (c *toEnable) LogConfig(logger *logrus.Entry) {
 	logger.Info("enabled")
 }
 

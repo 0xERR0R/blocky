@@ -22,14 +22,14 @@ func NewFqdnOnlyResolver(cfg config.FqdnOnlyConfig) *FqdnOnlyResolver {
 	}
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (r *FqdnOnlyResolver) IsEnabled() bool {
 	return r.cfg.IsEnabled()
 }
 
-// LogValues implements `config.ValueLogger`.
-func (r *FqdnOnlyResolver) LogValues(logger *logrus.Entry) {
-	r.cfg.LogValues(logger)
+// LogConfig implements `config.Configurable`.
+func (r *FqdnOnlyResolver) LogConfig(logger *logrus.Entry) {
+	r.cfg.LogConfig(logger)
 }
 
 func (r *FqdnOnlyResolver) Resolve(request *model.Request) (*model.Response, error) {

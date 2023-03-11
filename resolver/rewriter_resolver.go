@@ -47,16 +47,16 @@ func (r *RewriterResolver) Name() string {
 	return fmt.Sprintf("%s w/ %s", Name(r.inner), defaultName(r))
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (r *RewriterResolver) IsEnabled() bool {
 	return r.cfg.IsEnabled()
 }
 
-// LogValues implements `config.ValueLogger`.
-func (r *RewriterResolver) LogValues(logger *logrus.Entry) {
-	r.inner.LogValues(logger)
+// LogConfig implements `config.Configurable`.
+func (r *RewriterResolver) LogConfig(logger *logrus.Entry) {
+	r.inner.LogConfig(logger)
 
-	r.cfg.LogValues(logger)
+	r.cfg.LogConfig(logger)
 }
 
 // Resolve uses the inner resolver to resolve the rewritten query

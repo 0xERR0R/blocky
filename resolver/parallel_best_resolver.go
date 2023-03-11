@@ -147,14 +147,14 @@ func newParallelBestResolver(cfg config.UpstreamConfig, resolverGroups map[strin
 	return &r, nil
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (r *ParallelBestResolver) IsEnabled() bool {
 	return r.cfg.IsEnabled()
 }
 
-// LogValues implements `config.ValueLogger`.
-func (r *ParallelBestResolver) LogValues(logger *logrus.Entry) {
-	r.cfg.LogValues(logger)
+// LogConfig implements `config.Configurable`.
+func (r *ParallelBestResolver) LogConfig(logger *logrus.Entry) {
+	r.cfg.LogConfig(logger)
 }
 
 func (r ParallelBestResolver) String() string {

@@ -21,13 +21,13 @@ func (c *QueryLogConfig) SetDefaults() {
 	c.Fields = QueryLogFieldValues()
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (c *QueryLogConfig) IsEnabled() bool {
 	return c.Type != QueryLogTypeNone
 }
 
-// LogValues implements `config.ValueLogger`.
-func (c *QueryLogConfig) LogValues(logger *logrus.Entry) {
+// LogConfig implements `config.Configurable`.
+func (c *QueryLogConfig) LogConfig(logger *logrus.Entry) {
 	logger.Infof("type: %q", c.Type)
 	logger.Infof("target: %q", c.Target)
 	logger.Infof("logRetentionDays: %d", c.LogRetentionDays)

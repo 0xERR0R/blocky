@@ -18,18 +18,18 @@ type ConditionalUpstreamMapping struct {
 	Upstreams map[string][]Upstream
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (c *ConditionalUpstreamConfig) IsEnabled() bool {
 	return len(c.Mapping.Upstreams) != 0
 }
 
-// LogValues implements `config.ValueLogger`.
-func (c *ConditionalUpstreamConfig) LogValues(logger *logrus.Entry) {
+// LogConfig implements `config.Configurable`.
+func (c *ConditionalUpstreamConfig) LogConfig(logger *logrus.Entry) {
 	for key, val := range c.Mapping.Upstreams {
 		logger.Infof("%s = %q", key, val)
 	}
 
-	c.RewriteConfig.LogValues(logger)
+	c.RewriteConfig.LogConfig(logger)
 }
 
 // UnmarshalYAML implements `yaml.Unmarshaler`.

@@ -45,14 +45,14 @@ func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
 	}
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (r *CustomDNSResolver) IsEnabled() bool {
 	return r.cfg.IsEnabled()
 }
 
-// LogValues implements `config.ValueLogger`.
-func (r *CustomDNSResolver) LogValues(logger *logrus.Entry) {
-	r.cfg.LogValues(logger)
+// LogConfig implements `config.Configurable`.
+func (r *CustomDNSResolver) LogConfig(logger *logrus.Entry) {
+	r.cfg.LogConfig(logger)
 }
 
 func isSupportedType(ip net.IP, question dns.Question) bool {

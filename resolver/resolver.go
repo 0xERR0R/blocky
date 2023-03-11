@@ -71,7 +71,7 @@ func newRequestWithClientID(question string, rType dns.Type, ip, requestClientID
 
 // Resolver generic interface for all resolvers
 type Resolver interface {
-	config.ValueLogger
+	config.Configurable
 
 	// Resolve performs resolution of a DNS request
 	Resolve(req *model.Request) (*model.Response, error)

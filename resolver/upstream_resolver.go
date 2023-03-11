@@ -215,13 +215,13 @@ func newUpstreamResolverUnchecked(upstream config.Upstream, bootstrap *Bootstrap
 	}
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (r *UpstreamResolver) IsEnabled() bool {
 	return true
 }
 
-// LogValues implements `config.ValueLogger`.
-func (r *UpstreamResolver) LogValues(logger *logrus.Entry) {
+// LogConfig implements `config.Configurable`.
+func (r *UpstreamResolver) LogConfig(logger *logrus.Entry) {
 	logger.Info(r.upstream)
 }
 

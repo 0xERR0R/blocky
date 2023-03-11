@@ -13,13 +13,13 @@ type UpstreamConfig struct {
 
 type UpstreamMapping map[string][]Upstream
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (c *UpstreamConfig) IsEnabled() bool {
 	return len(c.ExternalResolvers) != 0
 }
 
-// LogValues implements `config.ValueLogger`.
-func (c *UpstreamConfig) LogValues(logger *logrus.Entry) {
+// LogConfig implements `config.Configurable`.
+func (c *UpstreamConfig) LogConfig(logger *logrus.Entry) {
 	logger.Info("upstream resolvers:")
 
 	for name, upstreams := range c.ExternalResolvers {

@@ -24,12 +24,13 @@ type BlockingConfig struct {
 	StartStrategy         StartStrategyType `yaml:"startStrategy" default:"blocking"`
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (c *BlockingConfig) IsEnabled() bool {
 	return len(c.ClientGroupsBlock) != 0
 }
 
-func (c *BlockingConfig) LogValues(logger *logrus.Entry) {
+// IsEnabled implements `config.Configurable`.
+func (c *BlockingConfig) LogConfig(logger *logrus.Entry) {
 	logger.Info("clientGroupsBlock:")
 
 	for key, val := range c.ClientGroupsBlock {

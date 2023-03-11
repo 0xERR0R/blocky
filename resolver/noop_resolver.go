@@ -14,13 +14,13 @@ func NewNoOpResolver() Resolver {
 	return NoOpResolver{}
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (NoOpResolver) IsEnabled() bool {
 	return true
 }
 
-// LogValues implements `config.ValueLogger`.
-func (NoOpResolver) LogValues(*logrus.Entry) {
+// LogConfig implements `config.Configurable`.
+func (NoOpResolver) LogConfig(*logrus.Entry) {
 }
 
 func (NoOpResolver) Resolve(*model.Request) (*model.Response, error) {

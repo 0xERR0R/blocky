@@ -10,13 +10,13 @@ type RewriteConfig struct {
 	FallbackUpstream bool              `yaml:"fallbackUpstream" default:"false"`
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (c *RewriteConfig) IsEnabled() bool {
 	return len(c.Rewrite) != 0
 }
 
-// LogValues implements `config.ValueLogger`.
-func (c *RewriteConfig) LogValues(logger *logrus.Entry) {
+// LogConfig implements `config.Configurable`.
+func (c *RewriteConfig) LogConfig(logger *logrus.Entry) {
 	logger.Info("rewrite:")
 
 	for key, val := range c.Rewrite {

@@ -327,20 +327,20 @@ func (r *BlockingResolver) handleBlocked(logger *logrus.Entry,
 	return &model.Response{Res: response, RType: model.ResponseTypeBLOCKED, Reason: reason}, nil
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (r *BlockingResolver) IsEnabled() bool {
 	return r.cfg.IsEnabled()
 }
 
-// LogValues implements `config.ValueLogger`.
-func (r *BlockingResolver) LogValues(logger *logrus.Entry) {
-	r.cfg.LogValues(logger)
+// LogConfig implements `config.Configurable`.
+func (r *BlockingResolver) LogConfig(logger *logrus.Entry) {
+	r.cfg.LogConfig(logger)
 
 	logger.Info("blacklist cache entries:")
-	log.WithIndent(logger, "  ", r.blacklistMatcher.LogValues)
+	log.WithIndent(logger, "  ", r.blacklistMatcher.LogConfig)
 
 	logger.Info("whitelist cache entries:")
-	log.WithIndent(logger, "  ", r.whitelistMatcher.LogValues)
+	log.WithIndent(logger, "  ", r.whitelistMatcher.LogConfig)
 }
 
 func (r *BlockingResolver) hasWhiteListOnlyAllowed(groupsToCheck []string) bool {

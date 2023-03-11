@@ -18,13 +18,13 @@ type CachingConfig struct {
 	PrefetchMaxItemsCount int      `yaml:"prefetchMaxItemsCount"`
 }
 
-// IsEnabled implements `config.ValueLogger`.
+// IsEnabled implements `config.Configurable`.
 func (c *CachingConfig) IsEnabled() bool {
 	return c.MaxCachingTime > 0
 }
 
-// LogValues implements `config.ValueLogger`.
-func (c *CachingConfig) LogValues(logger *logrus.Entry) {
+// LogConfig implements `config.Configurable`.
+func (c *CachingConfig) LogConfig(logger *logrus.Entry) {
 	logger.Infof("minCacheTimeInSec = %d", c.MinCachingTime)
 
 	logger.Infof("maxCacheTimeSec = %d", c.MaxCachingTime)
