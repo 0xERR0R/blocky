@@ -7,6 +7,7 @@ import (
 	. "github.com/0xERR0R/blocky/evt"
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/lists"
+	"github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
@@ -51,8 +52,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		mockAnswer *dns.Msg
 	)
 
-	systemResolverBootstrap := &Bootstrap{}
-
 	BeforeEach(func() {
 		sutConfig = config.BlockingConfig{
 			BlockType: "ZEROIP",
@@ -69,6 +68,22 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		sut, err = NewBlockingResolver(sutConfig, nil, systemResolverBootstrap)
 		Expect(err).Should(Succeed())
 		sut.Next(m)
+	})
+
+	Describe("IsEnabled", func() {
+		It("is false", func() {
+			Expect(sut.IsEnabled()).Should(BeFalse())
+		})
+	})
+
+	Describe("LogConfig", func() {
+		It("should log something", func() {
+			logger, hook := log.NewMockEntry()
+
+			sut.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+		})
 	})
 
 	Describe("Events", func() {

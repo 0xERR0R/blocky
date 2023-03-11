@@ -80,7 +80,7 @@ func testResolver(r *UpstreamResolver) error {
 // NewParallelBestResolver creates new resolver instance
 func NewParallelBestResolver(
 	cfg config.ParallelBestConfig, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
-) (Resolver, error) {
+) (*ParallelBestResolver, error) {
 	logger := log.PrefixedLog(parallelResolverLogger)
 
 	upstreamResolvers := cfg.ExternalResolvers
@@ -122,7 +122,7 @@ func NewParallelBestResolver(
 
 func newParallelBestResolver(
 	cfg config.ParallelBestConfig, resolverGroups map[string][]Resolver,
-) (Resolver, error) {
+) (*ParallelBestResolver, error) {
 	resolversPerClient := make(map[string][]*upstreamResolverStatus, len(resolverGroups))
 
 	for groupName, resolvers := range resolverGroups {

@@ -2,12 +2,11 @@ package resolver
 
 import (
 	"context"
-	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
@@ -49,11 +48,27 @@ var _ = Describe("HostsFileResolver", func() {
 		sut.Next(m)
 	})
 
+	Describe("IsEnabled", func() {
+		It("is true", func() {
+			Expect(sut.IsEnabled()).Should(BeTrue())
+		})
+	})
+
+	Describe("LogConfig", func() {
+		It("should log something", func() {
+			logger, hook := log.NewMockEntry()
+
+			sut.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+		})
+	})
+
 	Describe("Using hosts file", func() {
 		When("Hosts file cannot be located", func() {
 			BeforeEach(func() {
 				sutConfig = config.HostsFileConfig{
-					Filepath: fmt.Sprintf("/tmp/blocky/file-%d", rand.Uint64()),
+					Filepath: "/this/file/does/not/exist",
 					HostsTTL: config.Duration(time.Duration(TTL) * time.Second),
 				}
 			})

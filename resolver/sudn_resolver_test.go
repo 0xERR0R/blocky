@@ -2,6 +2,7 @@ package resolver
 
 import (
 	. "github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
@@ -134,11 +135,13 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 		})
 	})
 
-	Describe("Configuration pseudo test", func() {
-		It("should always be empty", func() {
-			c := sut.Configuration()
+	Describe("LogConfig", func() {
+		It("should not log anything", func() {
+			logger, hook := log.NewMockEntry()
 
-			Expect(len(c)).Should(BeNumerically(">=", 1))
+			sut.LogConfig(logger)
+
+			Expect(hook.Calls).Should(BeEmpty())
 		})
 	})
 })

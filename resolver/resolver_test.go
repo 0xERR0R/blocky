@@ -7,9 +7,9 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Resolver", func() {
-	systemResolverBootstrap := &Bootstrap{}
+var systemResolverBootstrap = &Bootstrap{}
 
+var _ = Describe("Resolver", func() {
 	Describe("Creating resolver chain", func() {
 		When("A chain of resolvers will be created", func() {
 			It("should be iterable by calling 'GetNext'", func() {
