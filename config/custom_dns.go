@@ -28,11 +28,14 @@ func (c *CustomDNSConfig) IsEnabled() bool {
 
 // LogConfig implements `config.Configurable`.
 func (c *CustomDNSConfig) LogConfig(logger *logrus.Entry) {
-	for key, val := range c.Mapping.HostIPs {
-		logger.Infof("%s = %q", key, val)
-	}
+	logger.Debugf("TTL = %s", c.CustomTTL)
+	logger.Debugf("filterUnmappedTypes = %t", c.FilterUnmappedTypes)
 
-	c.RewriterConfig.LogConfig(logger)
+	logger.Info("mapping:")
+
+	for key, val := range c.Mapping.HostIPs {
+		logger.Infof("  %s = %s", key, val)
+	}
 }
 
 // UnmarshalYAML implements `yaml.Unmarshaler`.

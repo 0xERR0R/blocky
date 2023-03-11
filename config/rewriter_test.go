@@ -50,7 +50,7 @@ var _ = Describe("RewriterConfig", func() {
 			cfg.LogConfig(logger)
 
 			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("rewrite:")))
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("rules:")))
 			Expect(hook.Messages).Should(ContainElement(ContainSubstring("original2 =")))
 		})
 	})

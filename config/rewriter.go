@@ -17,9 +17,11 @@ func (c *RewriterConfig) IsEnabled() bool {
 
 // LogConfig implements `config.Configurable`.
 func (c *RewriterConfig) LogConfig(logger *logrus.Entry) {
-	logger.Info("rewrite:")
+	logger.Infof("fallbackUpstream = %t", c.FallbackUpstream)
+
+	logger.Info("rules:")
 
 	for key, val := range c.Rewrite {
-		logger.Infof("  %s = %q", key, val)
+		logger.Infof("  %s = %s", key, val)
 	}
 }

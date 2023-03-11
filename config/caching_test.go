@@ -58,10 +58,7 @@ var _ = Describe("CachingConfig", func() {
 				cfg.LogConfig(logger)
 
 				Expect(hook.Calls).ShouldNot(BeEmpty())
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("prefetching = true")))
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("prefetchExpires = ")))
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("prefetchThreshold = ")))
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("prefetchMaxItemsCount = ")))
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("prefetching:")))
 			})
 		})
 	})

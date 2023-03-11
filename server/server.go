@@ -440,23 +440,11 @@ func (s *Server) printConfiguration() {
 	logger().Info("current configuration:")
 
 	resolver.ForEach(s.queryResolver, func(res resolver.Resolver) {
-		// Use the type, not the full name, to avoid redundant information with the config
-		name := res.Type()
-
-		if !res.IsEnabled() {
-			logger().Debugf("-> %s: disabled", name)
-
-			return
-		}
-
-		logger().Infof("-> %s:", name)
-		log.WithIndent(logger(), "     ", res.LogConfig)
+		resolver.LogResolverConfig(res, logger())
 	})
 
-	logger().Infof("- DNS listening on addrs/ports: %v", s.cfg.Ports.DNS)
-	logger().Infof("- TLS listening on addrs/ports: %v", s.cfg.Ports.TLS)
-	logger().Infof("- HTTP listening on addrs/ports: %v", s.cfg.Ports.HTTP)
-	logger().Infof("- HTTPS listening on addrs/ports: %v", s.cfg.Ports.HTTPS)
+	logger().Info("listeners:")
+	log.WithIndent(logger(), "  ", s.cfg.Ports.LogConfig)
 
 	logger().Info("runtime information:")
 

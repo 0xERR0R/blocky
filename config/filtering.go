@@ -15,7 +15,7 @@ func (c *FilteringConfig) IsEnabled() bool {
 
 // LogConfig implements `config.Configurable`.
 func (c *FilteringConfig) LogConfig(logger *logrus.Entry) {
-	logger.Info("filtering query Types:")
+	logger.Info("query types:")
 
 	for qType := range c.QueryTypes {
 		logger.Infof("  - %s", qType)

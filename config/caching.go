@@ -25,18 +25,17 @@ func (c *CachingConfig) IsEnabled() bool {
 
 // LogConfig implements `config.Configurable`.
 func (c *CachingConfig) LogConfig(logger *logrus.Entry) {
-	logger.Infof("minCacheTimeInSec = %d", c.MinCachingTime)
-
-	logger.Infof("maxCacheTimeSec = %d", c.MaxCachingTime)
-
+	logger.Infof("minTime = %s", c.MinCachingTime)
+	logger.Infof("maxTime = %s", c.MaxCachingTime)
 	logger.Infof("cacheTimeNegative = %s", c.CacheTimeNegative)
 
-	logger.Infof("prefetching = %t", c.Prefetching)
-
 	if c.Prefetching {
-		logger.Infof("prefetchExpires = %s", c.PrefetchExpires)
-		logger.Infof("prefetchThreshold = %d", c.PrefetchThreshold)
-		logger.Infof("prefetchMaxItemsCount = %d", c.PrefetchMaxItemsCount)
+		logger.Infof("prefetching:")
+		logger.Infof("  expires   = %s", c.PrefetchExpires)
+		logger.Infof("  threshold = %d", c.PrefetchThreshold)
+		logger.Infof("  maxItems  = %d", c.PrefetchMaxItemsCount)
+	} else {
+		logger.Debug("prefetching: disabled")
 	}
 }
 

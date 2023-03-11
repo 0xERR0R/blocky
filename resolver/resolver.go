@@ -150,6 +150,20 @@ func ForEach(resolver Resolver, callback func(Resolver)) {
 	}
 }
 
+func LogResolverConfig(res Resolver, logger *logrus.Entry) {
+	// Use the type, not the full typeName, to avoid redundant information with the config
+	typeName := res.Type()
+
+	if !res.IsEnabled() {
+		logger.Debugf("-> %s: disabled", typeName)
+
+		return
+	}
+
+	logger.Infof("-> %s:", typeName)
+	log.WithIndent(logger, "     ", res.LogConfig)
+}
+
 // Should be embedded in a Resolver to auto-implement `Resolver.Type`.
 type typed struct {
 	typeName string

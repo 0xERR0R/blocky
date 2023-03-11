@@ -71,6 +71,7 @@ func (r *SpecialUseDomainNamesResolver) IsEnabled() bool {
 
 // LogConfig implements `config.Configurable`.
 func (r *SpecialUseDomainNamesResolver) LogConfig(logger *logrus.Entry) {
+	logger.Info("enabled")
 }
 
 func (r *SpecialUseDomainNamesResolver) Resolve(request *model.Request) (*model.Response, error) {

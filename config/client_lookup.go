@@ -20,17 +20,17 @@ func (c *ClientLookupConfig) IsEnabled() bool {
 
 // LogConfig implements `config.Configurable`.
 func (c *ClientLookupConfig) LogConfig(logger *logrus.Entry) {
-	logger.Infof("singleNameOrder = \"%v\"", c.SingleNameOrder)
-
 	if !c.Upstream.IsDefault() {
-		logger.Infof("upstream = %q", c.Upstream)
+		logger.Infof("upstream = %s", c.Upstream)
 	}
+
+	logger.Infof("singleNameOrder = %v", c.SingleNameOrder)
 
 	if len(c.ClientnameIPMapping) > 0 {
 		logger.Infof("client IP mapping:")
 
 		for k, v := range c.ClientnameIPMapping {
-			logger.Infof("%s -> %s", k, v)
+			logger.Infof("  %s = %s", k, v)
 		}
 	}
 }

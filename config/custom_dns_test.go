@@ -62,7 +62,6 @@ var _ = Describe("CustomDNSConfig", func() {
 			Expect(hook.Calls).ShouldNot(BeEmpty())
 			Expect(hook.Messages).Should(ContainElement(ContainSubstring("custom.domain = ")))
 			Expect(hook.Messages).Should(ContainElement(ContainSubstring("multiple.ips = ")))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("rewrite:")))
 		})
 	})
 

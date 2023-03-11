@@ -50,7 +50,7 @@ func (r *RewriterResolver) Name() string {
 
 // LogConfig implements `config.Configurable`.
 func (r *RewriterResolver) LogConfig(logger *logrus.Entry) {
-	r.inner.LogConfig(logger)
+	LogResolverConfig(r.inner, logger)
 
 	r.cfg.LogConfig(logger)
 }

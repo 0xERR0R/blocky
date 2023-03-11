@@ -58,7 +58,6 @@ var _ = Describe("ConditionalUpstreamConfig", func() {
 
 			Expect(hook.Calls).ShouldNot(BeEmpty())
 			Expect(hook.Messages).Should(ContainElement(ContainSubstring("fritz.box = ")))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("rewrite:")))
 		})
 	})
 

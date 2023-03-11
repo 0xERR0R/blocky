@@ -23,7 +23,7 @@ func (c *ParallelBestConfig) LogConfig(logger *logrus.Entry) {
 	logger.Info("upstream resolvers:")
 
 	for name, upstreams := range c.ExternalResolvers {
-		logger.Infof("  - %s", name)
+		logger.Infof("  %s:", name)
 
 		for _, upstream := range upstreams {
 			logger.Infof("    - %s", upstream)

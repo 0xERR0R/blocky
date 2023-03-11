@@ -46,7 +46,7 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 
 			sut.LogConfig(logger)
 
-			Expect(hook.Calls).Should(BeEmpty())
+			Expect(hook.Calls).ShouldNot(BeEmpty())
 		})
 	})
 

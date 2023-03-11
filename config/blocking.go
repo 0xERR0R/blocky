@@ -34,10 +34,10 @@ func (c *BlockingConfig) LogConfig(logger *logrus.Entry) {
 	logger.Info("clientGroupsBlock:")
 
 	for key, val := range c.ClientGroupsBlock {
-		logger.Infof("  %s = %q", key, strings.Join(val, ";"))
+		logger.Infof("  %s = %v", key, val)
 	}
 
-	logger.Infof("blockType = %q", c.BlockType)
+	logger.Infof("blockType = %s", c.BlockType)
 
 	if c.BlockType != "NXDOMAIN" {
 		logger.Infof("blockTTL = %s", c.BlockTTL)
@@ -48,9 +48,9 @@ func (c *BlockingConfig) LogConfig(logger *logrus.Entry) {
 	logger.Infof("failStartOnListError = %t", c.FailStartOnListError)
 
 	if c.RefreshPeriod > 0 {
-		logger.Infof("refresh: every %s", c.RefreshPeriod)
+		logger.Infof("refresh = every %s", c.RefreshPeriod)
 	} else {
-		logger.Infof("refresh: disabled")
+		logger.Debug("refresh = disabled")
 	}
 
 	logger.Info("blacklist:")
@@ -69,11 +69,13 @@ func (c *BlockingConfig) logListGroups(logger *logrus.Entry, listGroups map[stri
 		logger.Infof("%s:", group)
 
 		for _, link := range links {
-			if strings.Contains(link, "\n") {
-				link = "[INLINE DEFINITION]"
-			}
+			if idx := strings.IndexRune(link, '\n'); idx != -1 && idx < len(link) { // found and not last char
+				link = link[:idx] // first line only
 
-			logger.Infof("   - %s", link)
+				logger.Infof("   - %s [...]", link)
+			} else {
+				logger.Infof("   - %s", link)
+			}
 		}
 	}
 }

@@ -28,8 +28,12 @@ func (c *QueryLogConfig) IsEnabled() bool {
 
 // LogConfig implements `config.Configurable`.
 func (c *QueryLogConfig) LogConfig(logger *logrus.Entry) {
-	logger.Infof("type: %q", c.Type)
-	logger.Infof("target: %q", c.Target)
+	logger.Infof("type: %s", c.Type)
+
+	if c.Target != "" {
+		logger.Infof("target: %s", c.Target)
+	}
+
 	logger.Infof("logRetentionDays: %d", c.LogRetentionDays)
 	logger.Debugf("creationAttempts: %d", c.CreationAttempts)
 	logger.Debugf("creationCooldown: %d", c.CreationCooldown)

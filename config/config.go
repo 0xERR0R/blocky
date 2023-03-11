@@ -208,6 +208,13 @@ type PortsConfig struct {
 	TLS   ListenConfig `yaml:"tls"`
 }
 
+func (c *PortsConfig) LogConfig(logger *logrus.Entry) {
+	logger.Infof("DNS   = %s", c.DNS)
+	logger.Infof("TLS   = %s", c.TLS)
+	logger.Infof("HTTP  = %s", c.HTTP)
+	logger.Infof("HTTPS = %s", c.HTTPS)
+}
+
 // split in two types to avoid infinite recursion. See `BootstrapDNSConfig.UnmarshalYAML`.
 type (
 	BootstrapDNSConfig bootstrapDNSConfig

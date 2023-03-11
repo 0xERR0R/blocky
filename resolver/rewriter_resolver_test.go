@@ -203,10 +203,9 @@ var _ = Describe("RewriterResolver", func() {
 		When("resolver is enabled", func() {
 			It("should return configuration", func() {
 				mInner.On("LogConfig")
+				mInner.On("IsEnabled").Return(true)
 
 				sut.LogConfig(logrus.NewEntry(log.Log()))
-
-				Expect(mInner.Calls).Should(HaveLen(1))
 			})
 		})
 	})

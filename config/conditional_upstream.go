@@ -26,10 +26,8 @@ func (c *ConditionalUpstreamConfig) IsEnabled() bool {
 // LogConfig implements `config.Configurable`.
 func (c *ConditionalUpstreamConfig) LogConfig(logger *logrus.Entry) {
 	for key, val := range c.Mapping.Upstreams {
-		logger.Infof("%s = %q", key, val)
+		logger.Infof("%s = %v", key, val)
 	}
-
-	c.RewriterConfig.LogConfig(logger)
 }
 
 // UnmarshalYAML implements `yaml.Unmarshaler`.

@@ -6,6 +6,7 @@ import (
 	"github.com/creasty/defaults"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 )
 
 var _ = Describe("BlockingConfig", func() {
@@ -60,16 +61,25 @@ var _ = Describe("BlockingConfig", func() {
 
 			Expect(hook.Calls).ShouldNot(BeEmpty())
 			Expect(hook.Messages[0]).Should(Equal("clientGroupsBlock:"))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("refresh: every 1 hour")))
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("refresh = every 1 hour")))
 		})
 		When("refresh is disabled", func() {
 			It("should reflect that", func() {
 				cfg.RefreshPeriod = Duration(-1)
 
+				logger.Logger.Level = logrus.InfoLevel
+
 				cfg.LogConfig(logger)
 
 				Expect(hook.Calls).ShouldNot(BeEmpty())
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("refresh: disabled")))
+				Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("refresh = disabled")))
+
+				logger.Logger.Level = logrus.TraceLevel
+
+				cfg.LogConfig(logger)
+
+				Expect(hook.Calls).ShouldNot(BeEmpty())
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("refresh = disabled")))
 			})
 		})
 	})
