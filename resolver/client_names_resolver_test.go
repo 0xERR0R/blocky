@@ -23,6 +23,12 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 		m         *mockResolver
 	)
 
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
+
 	JustBeforeEach(func() {
 		res, err := NewClientNamesResolver(sutConfig, nil, false)
 		Expect(err).Should(Succeed())

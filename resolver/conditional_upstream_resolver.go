@@ -16,6 +16,7 @@ import (
 type ConditionalUpstreamResolver struct {
 	configurable[*config.ConditionalUpstreamConfig]
 	NextResolver
+	typed
 
 	mapping map[string]Resolver
 }
@@ -43,6 +44,7 @@ func NewConditionalUpstreamResolver(
 
 	r := ConditionalUpstreamResolver{
 		configurable: withConfig(&cfg),
+		typed:        withType("conditional_upstream"),
 
 		mapping: m,
 	}

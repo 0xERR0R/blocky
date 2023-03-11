@@ -10,6 +10,12 @@ import (
 var _ = Describe("NoOpResolver", func() {
 	var sut NoOpResolver
 
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
+
 	BeforeEach(func() {
 		sut = NewNoOpResolver().(NoOpResolver)
 	})

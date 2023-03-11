@@ -47,11 +47,15 @@ type defaultIPs struct {
 
 type SpecialUseDomainNamesResolver struct {
 	NextResolver
+	typed
+
 	defaults *defaultIPs
 }
 
 func NewSpecialUseDomainNamesResolver() ChainedResolver {
 	return &SpecialUseDomainNamesResolver{
+		typed: withType("special_use_domains"),
+
 		defaults: &defaultIPs{
 			loopbackV4: net.ParseIP("127.0.0.1"),
 			loopbackV6: net.IPv6loopback,

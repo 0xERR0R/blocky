@@ -23,6 +23,7 @@ const (
 type QueryLoggingResolver struct {
 	configurable[*config.QueryLogConfig]
 	NextResolver
+	typed
 
 	logChan chan *querylog.LogEntry
 	writer  querylog.Writer
@@ -73,6 +74,7 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 
 	resolver := QueryLoggingResolver{
 		configurable: withConfig(&cfg),
+		typed:        withType("query_logging"),
 
 		logChan: logChan,
 		writer:  writer,

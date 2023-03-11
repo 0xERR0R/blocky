@@ -30,6 +30,8 @@ const (
 
 // UpstreamResolver sends request to external DNS server
 type UpstreamResolver struct {
+	typed
+
 	upstream       config.Upstream
 	upstreamClient upstreamClient
 	bootstrap      *Bootstrap
@@ -209,6 +211,8 @@ func newUpstreamResolverUnchecked(upstream config.Upstream, bootstrap *Bootstrap
 	upstreamClient := createUpstreamClient(upstream)
 
 	return &UpstreamResolver{
+		typed: withType("upstream"),
+
 		upstream:       upstream,
 		upstreamClient: upstreamClient,
 		bootstrap:      bootstrap,
@@ -226,7 +230,7 @@ func (r *UpstreamResolver) LogConfig(logger *logrus.Entry) {
 }
 
 func (r UpstreamResolver) String() string {
-	return fmt.Sprintf("upstream '%s'", r.upstream)
+	return fmt.Sprintf("%s '%s'", r.Type(), r.upstream)
 }
 
 // Resolve calls external resolver

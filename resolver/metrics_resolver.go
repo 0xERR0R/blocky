@@ -16,6 +16,7 @@ import (
 type MetricsResolver struct {
 	configurable[*config.MetricsConfig]
 	NextResolver
+	typed
 
 	totalQueries      *prometheus.CounterVec
 	totalResponse     *prometheus.CounterVec
@@ -60,6 +61,7 @@ func (r *MetricsResolver) Resolve(request *model.Request) (*model.Response, erro
 func NewMetricsResolver(cfg config.MetricsConfig) ChainedResolver {
 	m := MetricsResolver{
 		configurable: withConfig(&cfg),
+		typed:        withType("metrics"),
 
 		durationHistogram: durationHistogram(),
 		totalQueries:      totalQueriesMetric(),

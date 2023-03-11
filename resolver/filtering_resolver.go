@@ -11,11 +11,13 @@ import (
 type FilteringResolver struct {
 	configurable[*config.FilteringConfig]
 	NextResolver
+	typed
 }
 
 func NewFilteringResolver(cfg config.FilteringConfig) ChainedResolver {
 	return &FilteringResolver{
 		configurable: withConfig(&cfg),
+		typed:        withType("filtering"),
 	}
 }
 

@@ -1,9 +1,7 @@
 package resolver
 
 import (
-	"fmt"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -73,6 +71,11 @@ func newRequestWithClientID(question string, rType dns.Type, ip, requestClientID
 type Resolver interface {
 	config.Configurable
 
+	// Type returns a short, user-friendly, name for the resolver.
+	//
+	// It should be the same for all instances of a specific Resolver type.
+	Type() string
+
 	// Resolve performs resolution of a DNS request
 	Resolve(req *model.Request) (*model.Response, error)
 }
@@ -128,12 +131,7 @@ func Name(resolver Resolver) string {
 		return named.Name()
 	}
 
-	return defaultName(resolver)
-}
-
-// defaultName returns a short user-friendly name of a resolver
-func defaultName(resolver Resolver) string {
-	return strings.Split(fmt.Sprintf("%T", resolver), ".")[1]
+	return resolver.Type()
 }
 
 // ForEach iterates over all resolvers in the chain.
@@ -152,6 +150,19 @@ func ForEach(resolver Resolver, callback func(Resolver)) {
 	}
 }
 
+// Should be embedded in a Resolver to auto-implement `Resolver.Type`.
+type typed struct {
+	typeName string
+}
+
+func withType(t string) typed {
+	return typed{typeName: t}
+}
+
+// Type implements `Resolver`.
+func (t *typed) Type() string {
+	return t.typeName
+}
 // Should be embedded in a Resolver to auto-implement `config.Configurable`.
 type configurable[T config.Configurable] struct {
 	cfg T

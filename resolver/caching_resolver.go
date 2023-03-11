@@ -24,6 +24,7 @@ const defaultCachingCleanUpInterval = 5 * time.Second
 type CachingResolver struct {
 	configurable[*config.CachingConfig]
 	NextResolver
+	typed
 
 	emitMetricEvents bool // disabled by Bootstrap
 
@@ -46,6 +47,7 @@ func NewCachingResolver(cfg config.CachingConfig, redis *redis.Client) *CachingR
 func newCachingResolver(cfg config.CachingConfig, redis *redis.Client, emitMetricEvents bool) *CachingResolver {
 	c := &CachingResolver{
 		configurable: withConfig(&cfg),
+		typed:        withType("caching"),
 
 		redisClient:      redis,
 		emitMetricEvents: emitMetricEvents,

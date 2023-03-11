@@ -9,11 +9,13 @@ import (
 type EdeResolver struct {
 	configurable[*config.EdeConfig]
 	NextResolver
+	typed
 }
 
 func NewEdeResolver(cfg config.EdeConfig) ChainedResolver {
 	return &EdeResolver{
 		configurable: withConfig(&cfg),
+		typed:        withType("extended_error_code"),
 	}
 }
 

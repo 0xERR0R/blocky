@@ -440,13 +440,16 @@ func (s *Server) printConfiguration() {
 	logger().Info("current configuration:")
 
 	resolver.ForEach(s.queryResolver, func(res resolver.Resolver) {
+		// Use the type, not the full name, to avoid redundant information with the config
+		name := res.Type()
+
 		if !res.IsEnabled() {
-			logger().Debugf("-> %s: disabled", resolver.Name(res))
+			logger().Debugf("-> %s: disabled", name)
 
 			return
 		}
 
-		logger().Infof("-> %s", resolver.Name(res))
+		logger().Infof("-> %s:", name)
 		log.WithIndent(logger(), "     ", res.LogConfig)
 	})
 

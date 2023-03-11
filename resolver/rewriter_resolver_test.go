@@ -31,6 +31,12 @@ var _ = Describe("RewriterResolver", func() {
 		mNextResponse *model.Response
 	)
 
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
+
 	BeforeEach(func() {
 		mInner = &mockResolver{}
 		mNext = &mockResolver{}

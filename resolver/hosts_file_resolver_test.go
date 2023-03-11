@@ -16,6 +16,8 @@ import (
 
 var _ = Describe("HostsFileResolver", func() {
 	var (
+		TTL = uint32(time.Now().Second())
+
 		sut       *HostsFileResolver
 		sutConfig config.HostsFileConfig
 		m         *mockResolver
@@ -23,7 +25,11 @@ var _ = Describe("HostsFileResolver", func() {
 		tmpFile   *TmpFile
 	)
 
-	TTL := uint32(time.Now().Second())
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
 
 	BeforeEach(func() {
 		tmpDir = NewTmpFolder("HostsFileResolver")

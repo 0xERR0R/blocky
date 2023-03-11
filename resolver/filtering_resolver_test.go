@@ -20,6 +20,12 @@ var _ = Describe("FilteringResolver", func() {
 		mockAnswer *dns.Msg
 	)
 
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
+
 	BeforeEach(func() {
 		mockAnswer = new(dns.Msg)
 	})

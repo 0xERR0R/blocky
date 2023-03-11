@@ -19,6 +19,12 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 		m   *mockResolver
 	)
 
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
+
 	BeforeEach(func() {
 		fbTestUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 			response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 123, A, "123.124.122.122")

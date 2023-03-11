@@ -16,12 +16,18 @@ import (
 
 var _ = Describe("CustomDNSResolver", func() {
 	var (
+		TTL = uint32(time.Now().Second())
+
 		sut ChainedResolver
 		m   *mockResolver
 		cfg config.CustomDNSConfig
 	)
 
-	TTL := uint32(time.Now().Second())
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
 
 	BeforeEach(func() {
 		cfg = config.CustomDNSConfig{

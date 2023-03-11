@@ -17,6 +17,7 @@ import (
 type CustomDNSResolver struct {
 	configurable[*config.CustomDNSConfig]
 	NextResolver
+	typed
 
 	mapping          map[string][]net.IP
 	reverseAddresses map[string][]string
@@ -38,6 +39,7 @@ func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
 
 	return &CustomDNSResolver{
 		configurable: withConfig(&cfg),
+		typed:        withType("custom_dns"),
 
 		mapping:          m,
 		reverseAddresses: reverse,

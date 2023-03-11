@@ -28,6 +28,7 @@ const (
 // ParallelBestResolver delegates the DNS message to 2 upstream resolvers and returns the fastest answer
 type ParallelBestResolver struct {
 	configurable[*config.ParallelBestConfig]
+	typed
 
 	resolversPerClient map[string][]*upstreamResolverStatus
 }
@@ -142,6 +143,7 @@ func newParallelBestResolver(
 
 	r := ParallelBestResolver{
 		configurable: withConfig(&cfg),
+		typed:        withType("parallel_best"),
 
 		resolversPerClient: resolversPerClient,
 	}

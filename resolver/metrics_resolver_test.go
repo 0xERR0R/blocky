@@ -23,6 +23,12 @@ var _ = Describe("MetricResolver", func() {
 		m   *mockResolver
 	)
 
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
+
 	BeforeEach(func() {
 		sut = NewMetricsResolver(config.MetricsConfig{Enable: true}).(*MetricsResolver)
 		m = &mockResolver{}

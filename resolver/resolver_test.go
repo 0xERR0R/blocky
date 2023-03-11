@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"strings"
+
 	"github.com/0xERR0R/blocky/config"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -66,19 +68,31 @@ var _ = Describe("Resolver", func() {
 			It("should return resolver name", func() {
 				br, _ := NewBlockingResolver(config.BlockingConfig{BlockType: "zeroIP"}, nil, systemResolverBootstrap)
 				name := Name(br)
-				Expect(name).Should(Equal("BlockingResolver"))
+				Expect(name).Should(Equal("blocking"))
 			})
 		})
 		When("'Name' is called on a NamedResolver", func() {
-			It("should return it's custom name", func() {
+			It("should return its custom name", func() {
 				br, _ := NewBlockingResolver(config.BlockingConfig{BlockType: "zeroIP"}, nil, systemResolverBootstrap)
 
 				cfg := config.RewriterConfig{Rewrite: map[string]string{"not": "empty"}}
 				r := NewRewriterResolver(cfg, br)
 
 				name := Name(r)
-				Expect(name).Should(Equal("BlockingResolver w/ RewriterResolver"))
+				Expect(name).Should(Equal("blocking w/ rewrite"))
 			})
 		})
 	})
 })
+
+func expectValidResolverType(sut Resolver) {
+	By("it must not contain spaces", func() {
+		Expect(sut.Type()).ShouldNot(ContainSubstring(" "))
+	})
+	By("it must be lower case", func() {
+		Expect(sut.Type()).Should(Equal(strings.ToLower(sut.Type())))
+	})
+	By("it must not contain 'resolver'", func() {
+		Expect(sut.Type()).ShouldNot(ContainSubstring("resolver"))
+	})
+}

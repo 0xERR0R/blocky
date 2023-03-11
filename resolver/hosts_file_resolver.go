@@ -26,6 +26,7 @@ const (
 type HostsFileResolver struct {
 	configurable[*config.HostsFileConfig]
 	NextResolver
+	typed
 
 	hosts splitHostsFileData
 }
@@ -35,6 +36,7 @@ type HostsFileEntry = parsers.HostsFileEntry
 func NewHostsFileResolver(cfg config.HostsFileConfig) *HostsFileResolver {
 	r := HostsFileResolver{
 		configurable: withConfig(&cfg),
+		typed:        withType("hosts_file"),
 	}
 
 	if err := r.parseHostsFile(context.Background()); err != nil {

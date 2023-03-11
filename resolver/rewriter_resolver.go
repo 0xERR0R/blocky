@@ -20,6 +20,7 @@ import (
 type RewriterResolver struct {
 	configurable[*config.RewriterConfig]
 	NextResolver
+	typed
 
 	inner Resolver
 }
@@ -37,13 +38,14 @@ func NewRewriterResolver(cfg config.RewriterConfig, inner ChainedResolver) Chain
 
 	return &RewriterResolver{
 		configurable: withConfig(&cfg),
+		typed:        withType("rewrite"),
 
 		inner: inner,
 	}
 }
 
 func (r *RewriterResolver) Name() string {
-	return fmt.Sprintf("%s w/ %s", Name(r.inner), defaultName(r))
+	return fmt.Sprintf("%s w/ %s", Name(r.inner), r.Type())
 }
 
 // LogConfig implements `config.Configurable`.

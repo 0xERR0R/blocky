@@ -19,6 +19,7 @@ import (
 type ClientNamesResolver struct {
 	configurable[*config.ClientLookupConfig]
 	NextResolver
+	typed
 
 	cache            expirationcache.ExpiringCache
 	externalResolver Resolver
@@ -38,6 +39,7 @@ func NewClientNamesResolver(
 
 	cr = &ClientNamesResolver{
 		configurable: withConfig(&cfg),
+		typed:        withType("client_names"),
 
 		cache:            expirationcache.NewCache(expirationcache.WithCleanUpInterval(time.Hour)),
 		externalResolver: r,

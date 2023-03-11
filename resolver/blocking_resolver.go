@@ -80,6 +80,7 @@ type status struct {
 type BlockingResolver struct {
 	configurable[*config.BlockingConfig]
 	NextResolver
+	typed
 
 	blacklistMatcher    *lists.ListCache
 	whitelistMatcher    *lists.ListCache
@@ -130,6 +131,7 @@ func NewBlockingResolver(
 
 	res := &BlockingResolver{
 		configurable: withConfig(&cfg),
+		typed:        withType("blocking"),
 
 		blockHandler:        blockHandler,
 		blacklistMatcher:    blacklistMatcher,

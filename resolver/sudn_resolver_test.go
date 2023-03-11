@@ -17,6 +17,12 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 		m   *mockResolver
 	)
 
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
+
 	BeforeEach(func() {
 		mockAnswer, err := util.NewMsgWithAnswer("example.com.", 300, A, "123.145.123.145")
 		Expect(err).Should(Succeed())

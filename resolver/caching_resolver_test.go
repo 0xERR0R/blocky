@@ -28,6 +28,12 @@ var _ = Describe("CachingResolver", func() {
 		mockAnswer *dns.Msg
 	)
 
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
+
 	BeforeEach(func() {
 		sutConfig = config.CachingConfig{}
 		if err := defaults.Set(&sutConfig); err != nil {

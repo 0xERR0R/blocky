@@ -30,6 +30,12 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 		bootstrap *Bootstrap
 	)
 
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
+
 	BeforeEach(func() {
 		sutMapping = config.ParallelBestMapping{
 			upstreamDefaultCfgName: {

@@ -12,11 +12,13 @@ import (
 type FqdnOnlyResolver struct {
 	configurable[*config.FqdnOnlyConfig]
 	NextResolver
+	typed
 }
 
 func NewFqdnOnlyResolver(cfg config.FqdnOnlyConfig) *FqdnOnlyResolver {
 	return &FqdnOnlyResolver{
 		configurable: withConfig(&cfg),
+		typed:        withType("fqdn_only"),
 	}
 }
 

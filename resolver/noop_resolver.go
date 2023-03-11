@@ -14,6 +14,11 @@ func NewNoOpResolver() Resolver {
 	return NoOpResolver{}
 }
 
+// Type implements `Resolver`.
+func (NoOpResolver) Type() string {
+	return "noop"
+}
+
 // IsEnabled implements `config.Configurable`.
 func (NoOpResolver) IsEnabled() bool {
 	return true

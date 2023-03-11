@@ -28,6 +28,11 @@ type mockResolver struct {
 	AnswerFn   func(qType dns.Type, qName string) (*dns.Msg, error)
 }
 
+// Type implements `Resolver`.
+func (r *mockResolver) Type() string {
+	return "mock"
+}
+
 // IsEnabled implements `config.Configurable`.
 func (r *mockResolver) IsEnabled() bool {
 	args := r.Called()

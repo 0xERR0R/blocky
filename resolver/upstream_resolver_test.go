@@ -31,6 +31,12 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 		sut = newUpstreamResolverUnchecked(sutConfig, systemResolverBootstrap)
 	})
 
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
+
 	Describe("IsEnabled", func() {
 		It("is true", func() {
 			Expect(sut.IsEnabled()).Should(BeTrue())
