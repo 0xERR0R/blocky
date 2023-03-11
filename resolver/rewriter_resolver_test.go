@@ -19,7 +19,7 @@ const (
 var _ = Describe("RewriterResolver", func() {
 	var (
 		sut       ChainedResolver
-		sutConfig config.RewriteConfig
+		sutConfig config.RewriterConfig
 		mInner    *mockResolver
 		mNext     *mockResolver
 
@@ -33,7 +33,7 @@ var _ = Describe("RewriterResolver", func() {
 		mInner = &mockResolver{}
 		mNext = &mockResolver{}
 
-		sutConfig = config.RewriteConfig{Rewrite: map[string]string{"original": "rewritten"}}
+		sutConfig = config.RewriterConfig{Rewrite: map[string]string{"original": "rewritten"}}
 	})
 
 	JustBeforeEach(func() {
@@ -48,7 +48,7 @@ var _ = Describe("RewriterResolver", func() {
 
 	When("has no configuration", func() {
 		BeforeEach(func() {
-			sutConfig = config.RewriteConfig{}
+			sutConfig = config.RewriterConfig{}
 		})
 
 		It("should return the inner resolver", func() {

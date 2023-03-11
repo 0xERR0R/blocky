@@ -416,11 +416,11 @@ func createQueryResolver(
 		resolver.NewEdeResolver(cfg.Ede),
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
 		resolver.NewMetricsResolver(cfg.Prometheus),
-		resolver.NewRewriterResolver(cfg.CustomDNS.RewriteConfig, resolver.NewCustomDNSResolver(cfg.CustomDNS)),
+		resolver.NewRewriterResolver(cfg.CustomDNS.RewriterConfig, resolver.NewCustomDNSResolver(cfg.CustomDNS)),
 		resolver.NewHostsFileResolver(cfg.HostsFile),
 		blocking,
 		resolver.NewCachingResolver(cfg.Caching, redisClient),
-		resolver.NewRewriterResolver(cfg.Conditional.RewriteConfig, condUpstream),
+		resolver.NewRewriterResolver(cfg.Conditional.RewriterConfig, condUpstream),
 		resolver.NewSpecialUseDomainNamesResolver(),
 		parallel,
 	)

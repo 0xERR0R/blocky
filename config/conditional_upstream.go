@@ -9,8 +9,8 @@ import (
 
 // ConditionalUpstreamConfig conditional upstream configuration
 type ConditionalUpstreamConfig struct {
-	RewriteConfig `yaml:",inline"`
-	Mapping       ConditionalUpstreamMapping `yaml:"mapping"`
+	RewriterConfig `yaml:",inline"`
+	Mapping        ConditionalUpstreamMapping `yaml:"mapping"`
 }
 
 // ConditionalUpstreamMapping mapping for conditional configuration
@@ -29,7 +29,7 @@ func (c *ConditionalUpstreamConfig) LogConfig(logger *logrus.Entry) {
 		logger.Infof("%s = %q", key, val)
 	}
 
-	c.RewriteConfig.LogConfig(logger)
+	c.RewriterConfig.LogConfig(logger)
 }
 
 // UnmarshalYAML implements `yaml.Unmarshaler`.

@@ -10,7 +10,7 @@ import (
 
 // CustomDNSConfig custom DNS configuration
 type CustomDNSConfig struct {
-	RewriteConfig       `yaml:",inline"`
+	RewriterConfig      `yaml:",inline"`
 	CustomTTL           Duration         `yaml:"customTTL" default:"1h"`
 	Mapping             CustomDNSMapping `yaml:"mapping"`
 	FilterUnmappedTypes bool             `yaml:"filterUnmappedTypes" default:"true"`
@@ -32,7 +32,7 @@ func (c *CustomDNSConfig) LogConfig(logger *logrus.Entry) {
 		logger.Infof("%s = %q", key, val)
 	}
 
-	c.RewriteConfig.LogConfig(logger)
+	c.RewriterConfig.LogConfig(logger)
 }
 
 // UnmarshalYAML implements `yaml.Unmarshaler`.

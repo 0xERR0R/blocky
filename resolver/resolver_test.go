@@ -34,7 +34,7 @@ var _ = Describe("Resolver", func() {
 			It("should return it's custom name", func() {
 				br, _ := NewBlockingResolver(config.BlockingConfig{BlockType: "zeroIP"}, nil, systemResolverBootstrap)
 
-				cfg := config.RewriteConfig{Rewrite: map[string]string{"not": "empty"}}
+				cfg := config.RewriterConfig{Rewrite: map[string]string{"not": "empty"}}
 				r := NewRewriterResolver(cfg, br)
 
 				name := Name(r)

@@ -20,12 +20,12 @@ import (
 type RewriterResolver struct {
 	NextResolver
 
-	cfg config.RewriteConfig
+	cfg config.RewriterConfig
 
 	inner Resolver
 }
 
-func NewRewriterResolver(cfg config.RewriteConfig, inner ChainedResolver) ChainedResolver {
+func NewRewriterResolver(cfg config.RewriterConfig, inner ChainedResolver) ChainedResolver {
 	if len(cfg.Rewrite) == 0 {
 		return inner
 	}
