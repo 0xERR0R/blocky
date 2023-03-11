@@ -499,43 +499,6 @@ var _ = Describe("CachingResolver", func() {
 		})
 	})
 
-	Describe("Configuration output", func() {
-		When("resolver is enabled", func() {
-			BeforeEach(func() {
-				sutConfig = config.CachingConfig{}
-			})
-			It("should return configuration", func() {
-				c := sut.Configuration()
-				Expect(len(c)).Should(BeNumerically(">", 1))
-			})
-		})
-
-		When("resolver is disabled", func() {
-			BeforeEach(func() {
-				sutConfig = config.CachingConfig{
-					MaxCachingTime: config.Duration(time.Minute * -1),
-				}
-			})
-			It("should return 'disabled'", func() {
-				c := sut.Configuration()
-				Expect(c).Should(ContainElement(configStatusDisabled))
-			})
-		})
-
-		When("prefetching is enabled", func() {
-			BeforeEach(func() {
-				sutConfig = config.CachingConfig{
-					Prefetching: true,
-				}
-			})
-			It("should return configuration", func() {
-				c := sut.Configuration()
-				Expect(len(c)).Should(BeNumerically(">", 1))
-				Expect(c).Should(ContainElement(ContainSubstring("prefetchThreshold")))
-			})
-		})
-	})
-
 	Describe("Redis is configured", func() {
 		var (
 			redisServer *miniredis.Miniredis

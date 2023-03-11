@@ -348,32 +348,4 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 			})
 		})
 	})
-
-	Describe("Configuration output", func() {
-		When("resolver is enabled", func() {
-			BeforeEach(func() {
-				sutConfig = config.ClientLookupConfig{
-					Upstream:        config.Upstream{Net: config.NetProtocolTcpUdp, Host: "host"},
-					SingleNameOrder: []uint{1, 2},
-					ClientnameIPMapping: map[string][]net.IP{
-						"client8": {net.ParseIP("1.2.3.5")},
-					},
-				}
-			})
-			It("should return configuration", func() {
-				c := sut.Configuration()
-				Expect(len(c)).Should(BeNumerically(">", 1))
-			})
-		})
-
-		When("resolver is disabled", func() {
-			BeforeEach(func() {
-				sutConfig = config.ClientLookupConfig{}
-			})
-			It("should return 'disabled'", func() {
-				c := sut.Configuration()
-				Expect(c).Should(ContainElement(configStatusDisabled))
-			})
-		})
-	})
 })

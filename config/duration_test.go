@@ -16,17 +16,19 @@ var _ = Describe("Duration", func() {
 		d = zero
 	})
 
-	It("should parse duration with unit", func() {
-		err := d.UnmarshalText([]byte("1m20s"))
-		Expect(err).Should(Succeed())
-		Expect(d).Should(Equal(Duration(80 * time.Second)))
-		Expect(d.String()).Should(Equal("1 minute 20 seconds"))
-	})
+	Describe("UnmarshalText", func() {
+		It("should parse duration with unit", func() {
+			err := d.UnmarshalText([]byte("1m20s"))
+			Expect(err).Should(Succeed())
+			Expect(d).Should(Equal(Duration(80 * time.Second)))
+			Expect(d.String()).Should(Equal("1 minute 20 seconds"))
+		})
 
-	It("should fail if duration is in wrong format", func() {
-		err := d.UnmarshalText([]byte("wrong"))
-		Expect(err).Should(HaveOccurred())
-		Expect(err).Should(MatchError("time: invalid duration \"wrong\""))
+		It("should fail if duration is in wrong format", func() {
+			err := d.UnmarshalText([]byte("wrong"))
+			Expect(err).Should(HaveOccurred())
+			Expect(err).Should(MatchError("time: invalid duration \"wrong\""))
+		})
 	})
 
 	Describe("IsZero", func() {

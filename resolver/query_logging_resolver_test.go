@@ -280,24 +280,6 @@ var _ = Describe("QueryLoggingResolver", func() {
 		})
 	})
 
-	Describe("Configuration output", func() {
-		When("resolver is enabled", func() {
-			BeforeEach(func() {
-				sutConfig = config.QueryLogConfig{
-					Target:           tmpDir.Path,
-					Type:             config.QueryLogTypeCsvClient,
-					LogRetentionDays: 0,
-					CreationAttempts: 1,
-					CreationCooldown: config.Duration(time.Millisecond),
-				}
-			})
-			It("should return configuration", func() {
-				c := sut.Configuration()
-				Expect(len(c)).Should(BeNumerically(">", 1))
-			})
-		})
-	})
-
 	Describe("Clean up of query log directory", func() {
 		When("fallback logger is enabled, log retention is enabled", func() {
 			BeforeEach(func() {

@@ -282,7 +282,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 				Expect(err).ShouldNot(Succeed())
 				Expect(err.Error()).Should(ContainSubstring(resolveErr.Error()))
-				Expect(ips).Should(HaveLen(0))
+				Expect(ips).Should(BeEmpty())
 			})
 		})
 
@@ -296,7 +296,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 				Expect(err).ShouldNot(Succeed())
 				Expect(err.Error()).Should(ContainSubstring("no such host"))
-				Expect(ips).Should(HaveLen(0))
+				Expect(ips).Should(BeEmpty())
 			})
 		})
 

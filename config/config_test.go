@@ -364,83 +364,6 @@ bootstrapDns:
 				Expect(err).Should(HaveOccurred())
 			})
 		})
-		Context("ConditionalUpstreamMapping", func() {
-			It("Should parse config as map", func() {
-				c := &ConditionalUpstreamMapping{}
-				err := c.UnmarshalYAML(func(i interface{}) error {
-					*i.(*map[string]string) = map[string]string{"key": "1.2.3.4"}
-
-					return nil
-				})
-				Expect(err).Should(Succeed())
-				Expect(c.Upstreams).Should(HaveLen(1))
-				Expect(c.Upstreams["key"]).Should(HaveLen(1))
-				Expect(c.Upstreams["key"][0]).Should(Equal(Upstream{
-					Net: NetProtocolTcpUdp, Host: "1.2.3.4", Port: 53,
-				}))
-			})
-			It("should fail if wrong YAML format", func() {
-				c := &ConditionalUpstreamMapping{}
-				err := c.UnmarshalYAML(func(i interface{}) error {
-					return errors.New("some err")
-				})
-				Expect(err).Should(HaveOccurred())
-				Expect(err).Should(MatchError("some err"))
-			})
-		})
-		Context("CustomDNSMapping", func() {
-			It("Should parse config as map", func() {
-				c := &CustomDNSMapping{}
-				err := c.UnmarshalYAML(func(i interface{}) error {
-					*i.(*map[string]string) = map[string]string{"key": "1.2.3.4"}
-
-					return nil
-				})
-				Expect(err).Should(Succeed())
-				Expect(c.HostIPs).Should(HaveLen(1))
-				Expect(c.HostIPs["key"]).Should(HaveLen(1))
-				Expect(c.HostIPs["key"][0]).Should(Equal(net.ParseIP("1.2.3.4")))
-			})
-			It("should fail if wrong YAML format", func() {
-				c := &CustomDNSMapping{}
-				err := c.UnmarshalYAML(func(i interface{}) error {
-					return errors.New("some err")
-				})
-				Expect(err).Should(HaveOccurred())
-				Expect(err).Should(MatchError("some err"))
-			})
-		})
-		Context("QueryTyoe", func() {
-			It("Should parse existing DNS type as string", func() {
-				t := QType(0)
-				err := t.UnmarshalYAML(func(i interface{}) error {
-					*i.(*string) = "AAAA"
-
-					return nil
-				})
-				Expect(err).Should(Succeed())
-				Expect(t).Should(Equal(QType(dns.TypeAAAA)))
-				Expect(t.String()).Should(Equal("AAAA"))
-			})
-			It("should fail if DNS type does not exist", func() {
-				t := QType(0)
-				err := t.UnmarshalYAML(func(i interface{}) error {
-					*i.(*string) = "WRONGTYPE"
-
-					return nil
-				})
-				Expect(err).Should(HaveOccurred())
-				Expect(err.Error()).Should(ContainSubstring("unknown DNS query type: 'WRONGTYPE'"))
-			})
-			It("should fail if wrong YAML format", func() {
-				d := QType(0)
-				err := d.UnmarshalYAML(func(i interface{}) error {
-					return errors.New("some err")
-				})
-				Expect(err).Should(HaveOccurred())
-				Expect(err).Should(MatchError("some err"))
-			})
-		})
 	})
 
 	DescribeTable("Upstream parsing",
@@ -620,29 +543,6 @@ bootstrapDns:
 			"tcp-tls:[fd00::6cd4:d7e0:d99d:2952]",
 		),
 	)
-
-	Describe("QTypeSet", func() {
-		It("new should insert given qTypes", func() {
-			set := NewQTypeSet(dns.Type(dns.TypeA))
-			Expect(set).Should(HaveKey(QType(dns.TypeA)))
-			Expect(set.Contains(dns.Type(dns.TypeA))).Should(BeTrue())
-
-			Expect(set).ShouldNot(HaveKey(QType(dns.TypeAAAA)))
-			Expect(set.Contains(dns.Type(dns.TypeAAAA))).ShouldNot(BeTrue())
-		})
-
-		It("should insert given qTypes", func() {
-			set := NewQTypeSet()
-
-			Expect(set).ShouldNot(HaveKey(QType(dns.TypeAAAA)))
-			Expect(set.Contains(dns.Type(dns.TypeAAAA))).ShouldNot(BeTrue())
-
-			set.Insert(dns.Type(dns.TypeAAAA))
-
-			Expect(set).Should(HaveKey(QType(dns.TypeAAAA)))
-			Expect(set.Contains(dns.Type(dns.TypeAAAA))).Should(BeTrue())
-		})
-	})
 })
 
 func defaultTestFileConfig() {

@@ -2,8 +2,10 @@ package resolver
 
 import (
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/sirupsen/logrus"
 
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
@@ -194,11 +196,11 @@ var _ = Describe("RewriterResolver", func() {
 	Describe("Configuration output", func() {
 		When("resolver is enabled", func() {
 			It("should return configuration", func() {
-				innerOutput := []string{"inner:", "config-output"}
-				mInner.On("Configuration").Return(innerOutput)
+				mInner.On("LogConfig")
 
-				c := sut.Configuration()
-				Expect(len(c)).Should(BeNumerically(">", len(innerOutput)))
+				sut.LogConfig(logrus.NewEntry(log.Log()))
+
+				Expect(mInner.Calls).Should(HaveLen(1))
 			})
 		})
 	})

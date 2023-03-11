@@ -149,22 +149,4 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 			Expect(r).Should(BeNil())
 		})
 	})
-
-	Describe("Configuration output", func() {
-		When("resolver is enabled", func() {
-			It("should return configuration", func() {
-				c := sut.Configuration()
-				Expect(len(c)).Should(BeNumerically(">", 1))
-			})
-		})
-		When("resolver is disabled", func() {
-			BeforeEach(func() {
-				sut, _ = NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{}, nil, false)
-			})
-			It("should return 'disabled'", func() {
-				c := sut.Configuration()
-				Expect(c).Should(ContainElement(configStatusDisabled))
-			})
-		})
-	})
 })

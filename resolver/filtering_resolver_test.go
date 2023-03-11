@@ -4,6 +4,7 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/0xERR0R/blocky/model"
+
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -59,10 +60,6 @@ var _ = Describe("FilteringResolver", func() {
 			// no call of next resolver
 			Expect(m.Calls).Should(BeZero())
 		})
-		It("Configure should output all query types", func() {
-			c := sut.Configuration()
-			Expect(c).Should(Equal([]string{"filtering query Types: 'AAAA, MX'"}))
-		})
 	})
 
 	When("No filtering query types are defined", func() {
@@ -80,10 +77,6 @@ var _ = Describe("FilteringResolver", func() {
 
 			// delegated to next resolver
 			Expect(m.Calls).Should(HaveLen(1))
-		})
-		It("Configure should output 'empty list'", func() {
-			c := sut.Configuration()
-			Expect(c).Should(ContainElement(configStatusDisabled))
 		})
 	})
 })

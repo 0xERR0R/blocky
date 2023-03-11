@@ -257,23 +257,4 @@ var _ = Describe("CustomDNSResolver", func() {
 			})
 		})
 	})
-
-	Describe("Configuration output", func() {
-		When("resolver is enabled", func() {
-			It("should return configuration", func() {
-				c := sut.Configuration()
-				Expect(len(c)).Should(BeNumerically(">", 1))
-			})
-		})
-
-		When("resolver is disabled", func() {
-			BeforeEach(func() {
-				cfg = config.CustomDNSConfig{}
-			})
-			It("should return 'disabled'", func() {
-				c := sut.Configuration()
-				Expect(c).Should(ContainElement(configStatusDisabled))
-			})
-		})
-	})
 })

@@ -307,25 +307,6 @@ var _ = Describe("HostsFileResolver", func() {
 		})
 	})
 
-	Describe("Configuration output", func() {
-		When("hosts file is provided", func() {
-			It("should return configuration", func() {
-				c := sut.Configuration()
-				Expect(len(c)).Should(BeNumerically(">", 1))
-			})
-		})
-
-		When("hosts file is not provided", func() {
-			BeforeEach(func() {
-				sutConfig = config.HostsFileConfig{}
-			})
-			It("should return 'disabled'", func() {
-				c := sut.Configuration()
-				Expect(c).Should(ContainElement(configStatusDisabled))
-			})
-		})
-	})
-
 	Describe("Delegating to next resolver", func() {
 		When("no hosts file is provided", func() {
 			It("should delegate to next resolver", func() {
