@@ -6,6 +6,7 @@ import (
 
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
@@ -15,12 +16,18 @@ import (
 
 var _ = Describe("CustomDNSResolver", func() {
 	var (
+		TTL = uint32(time.Now().Second())
+
 		sut ChainedResolver
 		m   *mockResolver
 		cfg config.CustomDNSConfig
 	)
 
-	TTL := uint32(time.Now().Second())
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
 
 	BeforeEach(func() {
 		cfg = config.CustomDNSConfig{
@@ -43,6 +50,22 @@ var _ = Describe("CustomDNSResolver", func() {
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
+	})
+
+	Describe("IsEnabled", func() {
+		It("is true", func() {
+			Expect(sut.IsEnabled()).Should(BeTrue())
+		})
+	})
+
+	Describe("LogConfig", func() {
+		It("should log something", func() {
+			logger, hook := log.NewMockEntry()
+
+			sut.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+		})
 	})
 
 	Describe("Resolving custom name via CustomDNSResolver", func() {
@@ -254,25 +277,6 @@ var _ = Describe("CustomDNSResolver", func() {
 
 				// delegate was executed
 				m.AssertExpectations(GinkgoT())
-			})
-		})
-	})
-
-	Describe("Configuration output", func() {
-		When("resolver is enabled", func() {
-			It("should return configuration", func() {
-				c := sut.Configuration()
-				Expect(len(c)).Should(BeNumerically(">", 1))
-			})
-		})
-
-		When("resolver is disabled", func() {
-			BeforeEach(func() {
-				cfg = config.CustomDNSConfig{}
-			})
-			It("should return 'disabled'", func() {
-				c := sut.Configuration()
-				Expect(c).Should(ContainElement(configStatusDisabled))
 			})
 		})
 	})

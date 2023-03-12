@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
 
 	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/0xERR0R/blocky/model"
@@ -22,11 +23,33 @@ var _ = Describe("MetricResolver", func() {
 		m   *mockResolver
 	)
 
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
+
 	BeforeEach(func() {
-		sut = NewMetricsResolver(config.PrometheusConfig{Enable: true}).(*MetricsResolver)
+		sut = NewMetricsResolver(config.MetricsConfig{Enable: true}).(*MetricsResolver)
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
+	})
+
+	Describe("IsEnabled", func() {
+		It("is true", func() {
+			Expect(sut.IsEnabled()).Should(BeTrue())
+		})
+	})
+
+	Describe("LogConfig", func() {
+		It("should log something", func() {
+			logger, hook := log.NewMockEntry()
+
+			sut.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+		})
 	})
 
 	Describe("Recording prometheus metrics", func() {
@@ -60,15 +83,6 @@ var _ = Describe("MetricResolver", func() {
 
 					Expect(testutil.ToFloat64(sut.totalErrors)).Should(BeNumerically("==", 1))
 				})
-			})
-		})
-	})
-
-	Describe("Configuration output", func() {
-		When("resolver is enabled", func() {
-			It("should return configuration", func() {
-				c := sut.Configuration()
-				Expect(len(c)).Should(BeNumerically(">", 1))
 			})
 		})
 	})

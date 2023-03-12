@@ -1,31 +1,16 @@
 package resolver
 
 import (
-	"fmt"
 	"net"
-	"strings"
 	"time"
 
+	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 
 	"github.com/sirupsen/logrus"
-)
-
-// Resolver is not configured.
-const (
-	configStatusEnabled string = "enabled"
-
-	configStatusDisabled string = "disabled"
-)
-
-var (
-	// note: this is not used by all resolvers: only those that don't print any other configuration
-	configEnabled = []string{configStatusEnabled} //nolint:gochecknoglobals
-
-	configDisabled = []string{configStatusDisabled} //nolint:gochecknoglobals
 )
 
 func newRequest(question string, rType dns.Type, logger ...*logrus.Entry) *model.Request {
@@ -84,11 +69,15 @@ func newRequestWithClientID(question string, rType dns.Type, ip, requestClientID
 
 // Resolver generic interface for all resolvers
 type Resolver interface {
+	config.Configurable
+
+	// Type returns a short, user-friendly, name for the resolver.
+	//
+	// It should be the same for all instances of a specific Resolver type.
+	Type() string
+
 	// Resolve performs resolution of a DNS request
 	Resolve(req *model.Request) (*model.Response, error)
-
-	// Configuration returns current resolver configuration
-	Configuration() []string
 }
 
 // ChainedResolver represents a resolver, which can delegate result to the next one
@@ -142,10 +131,73 @@ func Name(resolver Resolver) string {
 		return named.Name()
 	}
 
-	return defaultName(resolver)
+	return resolver.Type()
 }
 
-// defaultName returns a short user-friendly name of a resolver
-func defaultName(resolver Resolver) string {
-	return strings.Split(fmt.Sprintf("%T", resolver), ".")[1]
+// ForEach iterates over all resolvers in the chain.
+//
+// If resolver is not a chain, or is unlinked,
+// the callback is called exactly once.
+func ForEach(resolver Resolver, callback func(Resolver)) {
+	for resolver != nil {
+		callback(resolver)
+
+		if chained, ok := resolver.(ChainedResolver); ok {
+			resolver = chained.GetNext()
+		} else {
+			break
+		}
+	}
+}
+
+// LogResolverConfig logs the resolver's type and config.
+func LogResolverConfig(res Resolver, logger *logrus.Entry) {
+	// Use the type, not the full typeName, to avoid redundant information with the config
+	typeName := res.Type()
+
+	if !res.IsEnabled() {
+		logger.Debugf("-> %s: disabled", typeName)
+
+		return
+	}
+
+	logger.Infof("-> %s:", typeName)
+	log.WithIndent(logger, "     ", res.LogConfig)
+}
+
+// Should be embedded in a Resolver to auto-implement `Resolver.Type`.
+type typed struct {
+	typeName string
+}
+
+func withType(t string) typed {
+	return typed{typeName: t}
+}
+
+// Type implements `Resolver`.
+func (t *typed) Type() string {
+	return t.typeName
+}
+
+func (t *typed) log() *logrus.Entry {
+	return log.PrefixedLog(t.Type())
+}
+
+// Should be embedded in a Resolver to auto-implement `config.Configurable`.
+type configurable[T config.Configurable] struct {
+	cfg T
+}
+
+func withConfig[T config.Configurable](cfg T) configurable[T] {
+	return configurable[T]{cfg: cfg}
+}
+
+// IsEnabled implements `config.Configurable`.
+func (c *configurable[T]) IsEnabled() bool {
+	return c.cfg.IsEnabled()
+}
+
+// LogConfig implements `config.Configurable`.
+func (c *configurable[T]) LogConfig(logger *logrus.Entry) {
+	c.cfg.LogConfig(logger)
 }

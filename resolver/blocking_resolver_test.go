@@ -7,6 +7,7 @@ import (
 	. "github.com/0xERR0R/blocky/evt"
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/lists"
+	"github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
@@ -51,7 +52,11 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		mockAnswer *dns.Msg
 	)
 
-	systemResolverBootstrap := &Bootstrap{}
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
 
 	BeforeEach(func() {
 		sutConfig = config.BlockingConfig{
@@ -69,6 +74,22 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		sut, err = NewBlockingResolver(sutConfig, nil, systemResolverBootstrap)
 		Expect(err).Should(Succeed())
 		sut.Next(m)
+	})
+
+	Describe("IsEnabled", func() {
+		It("is false", func() {
+			Expect(sut.IsEnabled()).Should(BeFalse())
+		})
+	})
+
+	Describe("LogConfig", func() {
+		It("should log something", func() {
+			logger, hook := log.NewMockEntry()
+
+			sut.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+		})
 	})
 
 	Describe("Events", func() {
@@ -1083,35 +1104,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					Expect(result.Enabled).Should(BeFalse())
 				})
 			})
-		})
-	})
-
-	Describe("Configuration output", func() {
-		When("resolver is enabled", func() {
-			BeforeEach(func() {
-				sutConfig = config.BlockingConfig{
-					BlockType:  "ZEROIP",
-					BlockTTL:   config.Duration(time.Minute),
-					BlackLists: map[string][]string{"gr1": {group1File.Path}},
-					ClientGroupsBlock: map[string][]string{
-						"default": {"gr1"},
-					},
-				}
-			})
-			It("should return configuration", func() {
-				c := sut.Configuration()
-				Expect(len(c)).Should(BeNumerically(">", 1))
-			})
-		})
-
-		When("resolver is disabled", func() {
-			BeforeEach(func() {
-				sutConfig = config.BlockingConfig{}
-			})
-		})
-		It("should return 'disabled'", func() {
-			c := sut.Configuration()
-			Expect(c).Should(ContainElement(configStatusDisabled))
 		})
 	})
 

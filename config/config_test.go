@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"net"
 	"time"
 
@@ -321,15 +320,11 @@ bootstrapDns:
 		})
 	})
 
-	Describe("YAML parsing", func() {
+	Describe("Parsing", func() {
 		Context("upstream", func() {
 			It("should create the upstream struct with data", func() {
 				u := &Upstream{}
-				err := u.UnmarshalYAML(func(i interface{}) error {
-					*i.(*string) = "tcp+udp:1.2.3.4"
-
-					return nil
-				})
+				err := u.UnmarshalText([]byte("tcp+udp:1.2.3.4"))
 				Expect(err).Should(Succeed())
 				Expect(u.Net).Should(Equal(NetProtocolTcpUdp))
 				Expect(u.Host).Should(Equal("1.2.3.4"))
@@ -338,138 +333,17 @@ bootstrapDns:
 
 			It("should fail if the upstream is in wrong format", func() {
 				u := &Upstream{}
-				err := u.UnmarshalYAML(func(i interface{}) error {
-					return errors.New("some err")
-				})
+				err := u.UnmarshalText([]byte("invalid!"))
 				Expect(err).Should(HaveOccurred())
 			})
 		})
 		Context("ListenConfig", func() {
 			It("should parse and split valid string config", func() {
 				l := &ListenConfig{}
-				err := l.UnmarshalYAML(func(i interface{}) error {
-					*i.(*string) = "55,:56"
-
-					return nil
-				})
+				err := l.UnmarshalText([]byte("55,:56"))
 				Expect(err).Should(Succeed())
 				Expect(*l).Should(HaveLen(2))
 				Expect(*l).Should(ContainElements("55", ":56"))
-			})
-			It("should fail on error", func() {
-				l := &ListenConfig{}
-				err := l.UnmarshalYAML(func(i interface{}) error {
-					return errors.New("some err")
-				})
-				Expect(err).Should(HaveOccurred())
-			})
-		})
-		Context("Duration", func() {
-			It("should parse duration with unit", func() {
-				d := Duration(0)
-				err := d.UnmarshalYAML(func(i interface{}) error {
-					*i.(*string) = "1m20s"
-
-					return nil
-				})
-				Expect(err).Should(Succeed())
-				Expect(d).Should(Equal(Duration(80 * time.Second)))
-				Expect(d.String()).Should(Equal("1 minute 20 seconds"))
-			})
-			It("should fail if duration is in wrong format", func() {
-				d := Duration(0)
-				err := d.UnmarshalYAML(func(i interface{}) error {
-					*i.(*string) = "wrong"
-
-					return nil
-				})
-				Expect(err).Should(HaveOccurred())
-				Expect(err).Should(MatchError("time: invalid duration \"wrong\""))
-			})
-			It("should fail if wrong YAML format", func() {
-				d := Duration(0)
-				err := d.UnmarshalYAML(func(i interface{}) error {
-					return errors.New("some err")
-				})
-				Expect(err).Should(HaveOccurred())
-				Expect(err).Should(MatchError("some err"))
-			})
-		})
-		Context("ConditionalUpstreamMapping", func() {
-			It("Should parse config as map", func() {
-				c := &ConditionalUpstreamMapping{}
-				err := c.UnmarshalYAML(func(i interface{}) error {
-					*i.(*map[string]string) = map[string]string{"key": "1.2.3.4"}
-
-					return nil
-				})
-				Expect(err).Should(Succeed())
-				Expect(c.Upstreams).Should(HaveLen(1))
-				Expect(c.Upstreams["key"]).Should(HaveLen(1))
-				Expect(c.Upstreams["key"][0]).Should(Equal(Upstream{
-					Net: NetProtocolTcpUdp, Host: "1.2.3.4", Port: 53,
-				}))
-			})
-			It("should fail if wrong YAML format", func() {
-				c := &ConditionalUpstreamMapping{}
-				err := c.UnmarshalYAML(func(i interface{}) error {
-					return errors.New("some err")
-				})
-				Expect(err).Should(HaveOccurred())
-				Expect(err).Should(MatchError("some err"))
-			})
-		})
-		Context("CustomDNSMapping", func() {
-			It("Should parse config as map", func() {
-				c := &CustomDNSMapping{}
-				err := c.UnmarshalYAML(func(i interface{}) error {
-					*i.(*map[string]string) = map[string]string{"key": "1.2.3.4"}
-
-					return nil
-				})
-				Expect(err).Should(Succeed())
-				Expect(c.HostIPs).Should(HaveLen(1))
-				Expect(c.HostIPs["key"]).Should(HaveLen(1))
-				Expect(c.HostIPs["key"][0]).Should(Equal(net.ParseIP("1.2.3.4")))
-			})
-			It("should fail if wrong YAML format", func() {
-				c := &CustomDNSMapping{}
-				err := c.UnmarshalYAML(func(i interface{}) error {
-					return errors.New("some err")
-				})
-				Expect(err).Should(HaveOccurred())
-				Expect(err).Should(MatchError("some err"))
-			})
-		})
-		Context("QueryTyoe", func() {
-			It("Should parse existing DNS type as string", func() {
-				t := QType(0)
-				err := t.UnmarshalYAML(func(i interface{}) error {
-					*i.(*string) = "AAAA"
-
-					return nil
-				})
-				Expect(err).Should(Succeed())
-				Expect(t).Should(Equal(QType(dns.TypeAAAA)))
-				Expect(t.String()).Should(Equal("AAAA"))
-			})
-			It("should fail if DNS type does not exist", func() {
-				t := QType(0)
-				err := t.UnmarshalYAML(func(i interface{}) error {
-					*i.(*string) = "WRONGTYPE"
-
-					return nil
-				})
-				Expect(err).Should(HaveOccurred())
-				Expect(err.Error()).Should(ContainSubstring("unknown DNS query type: 'WRONGTYPE'"))
-			})
-			It("should fail if wrong YAML format", func() {
-				d := QType(0)
-				err := d.UnmarshalYAML(func(i interface{}) error {
-					return errors.New("some err")
-				})
-				Expect(err).Should(HaveOccurred())
-				Expect(err).Should(MatchError("some err"))
 			})
 		})
 	})
@@ -651,29 +525,6 @@ bootstrapDns:
 			"tcp-tls:[fd00::6cd4:d7e0:d99d:2952]",
 		),
 	)
-
-	Describe("QTypeSet", func() {
-		It("new should insert given qTypes", func() {
-			set := NewQTypeSet(dns.Type(dns.TypeA))
-			Expect(set).Should(HaveKey(QType(dns.TypeA)))
-			Expect(set.Contains(dns.Type(dns.TypeA))).Should(BeTrue())
-
-			Expect(set).ShouldNot(HaveKey(QType(dns.TypeAAAA)))
-			Expect(set.Contains(dns.Type(dns.TypeAAAA))).ShouldNot(BeTrue())
-		})
-
-		It("should insert given qTypes", func() {
-			set := NewQTypeSet()
-
-			Expect(set).ShouldNot(HaveKey(QType(dns.TypeAAAA)))
-			Expect(set.Contains(dns.Type(dns.TypeAAAA))).ShouldNot(BeTrue())
-
-			set.Insert(dns.Type(dns.TypeAAAA))
-
-			Expect(set).Should(HaveKey(QType(dns.TypeAAAA)))
-			Expect(set.Contains(dns.Type(dns.TypeAAAA))).Should(BeTrue())
-		})
-	})
 })
 
 func defaultTestFileConfig() {
@@ -700,8 +551,8 @@ func defaultTestFileConfig() {
 	Expect(config.Blocking.RefreshPeriod).Should(Equal(Duration(2 * time.Hour)))
 	Expect(config.Filtering.QueryTypes).Should(HaveLen(2))
 
-	Expect(config.Caching.MaxCachingTime).Should(Equal(Duration(0)))
-	Expect(config.Caching.MinCachingTime).Should(Equal(Duration(0)))
+	Expect(config.Caching.MaxCachingTime.IsZero()).Should(BeTrue())
+	Expect(config.Caching.MinCachingTime.IsZero()).Should(BeTrue())
 
 	Expect(config.DoHUserAgent).Should(Equal("testBlocky"))
 	Expect(config.MinTLSServeVer).Should(Equal("1.3"))

@@ -1,10 +1,8 @@
 package resolver
 
 import (
-	"fmt"
 	"net"
 	"strings"
-	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
@@ -17,11 +15,12 @@ import (
 
 // CustomDNSResolver resolves passed domain name to ip address defined in domain-IP map
 type CustomDNSResolver struct {
+	configurable[*config.CustomDNSConfig]
 	NextResolver
-	mapping             map[string][]net.IP
-	reverseAddresses    map[string][]string
-	ttl                 uint32
-	filterUnmappedTypes bool
+	typed
+
+	mapping          map[string][]net.IP
+	reverseAddresses map[string][]string
 }
 
 // NewCustomDNSResolver creates new resolver instance
@@ -38,27 +37,13 @@ func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
 		}
 	}
 
-	ttl := uint32(time.Duration(cfg.CustomTTL).Seconds())
-
 	return &CustomDNSResolver{
-		mapping:             m,
-		reverseAddresses:    reverse,
-		ttl:                 ttl,
-		filterUnmappedTypes: cfg.FilterUnmappedTypes,
-	}
-}
+		configurable: withConfig(&cfg),
+		typed:        withType("custom_dns"),
 
-// Configuration returns current resolver configuration
-func (r *CustomDNSResolver) Configuration() (result []string) {
-	if len(r.mapping) == 0 {
-		return configDisabled
+		mapping:          m,
+		reverseAddresses: reverse,
 	}
-
-	for key, val := range r.mapping {
-		result = append(result, fmt.Sprintf("%s = \"%s\"", key, val))
-	}
-
-	return
 }
 
 func isSupportedType(ip net.IP, question dns.Question) bool {
@@ -75,7 +60,7 @@ func (r *CustomDNSResolver) handleReverseDNS(request *model.Request) *model.Resp
 			response.SetReply(request.Req)
 
 			for _, url := range urls {
-				h := util.CreateHeader(question, r.ttl)
+				h := util.CreateHeader(question, r.cfg.CustomTTL.SecondsU32())
 				ptr := new(dns.PTR)
 				ptr.Ptr = dns.Fqdn(url)
 				ptr.Hdr = h
@@ -103,7 +88,7 @@ func (r *CustomDNSResolver) processRequest(request *model.Request) *model.Respon
 		if found {
 			for _, ip := range ips {
 				if isSupportedType(ip, question) {
-					rr, _ := util.CreateAnswerFromQuestion(question, ip, r.ttl)
+					rr, _ := util.CreateAnswerFromQuestion(question, ip, r.cfg.CustomTTL.SecondsU32())
 					response.Answer = append(response.Answer, rr)
 				}
 			}
@@ -118,7 +103,7 @@ func (r *CustomDNSResolver) processRequest(request *model.Request) *model.Respon
 			}
 
 			// Mapping exists for this domain, but for another type
-			if !r.filterUnmappedTypes {
+			if !r.cfg.FilterUnmappedTypes {
 				// go to next resolver
 				break
 			}

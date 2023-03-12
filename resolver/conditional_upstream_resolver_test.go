@@ -3,6 +3,7 @@ package resolver
 import (
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
@@ -17,6 +18,12 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 		sut ChainedResolver
 		m   *mockResolver
 	)
+
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
 
 	BeforeEach(func() {
 		fbTestUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
@@ -52,6 +59,22 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
+	})
+
+	Describe("IsEnabled", func() {
+		It("is true", func() {
+			Expect(sut.IsEnabled()).Should(BeTrue())
+		})
+	})
+
+	Describe("LogConfig", func() {
+		It("should log something", func() {
+			logger, hook := log.NewMockEntry()
+
+			sut.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+		})
 	})
 
 	Describe("Resolve conditional DNS queries via defined DNS server", func() {
@@ -147,24 +170,6 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 
 			Expect(err).ShouldNot(Succeed())
 			Expect(r).Should(BeNil())
-		})
-	})
-
-	Describe("Configuration output", func() {
-		When("resolver is enabled", func() {
-			It("should return configuration", func() {
-				c := sut.Configuration()
-				Expect(len(c)).Should(BeNumerically(">", 1))
-			})
-		})
-		When("resolver is disabled", func() {
-			BeforeEach(func() {
-				sut, _ = NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{}, nil, false)
-			})
-			It("should return 'disabled'", func() {
-				c := sut.Configuration()
-				Expect(c).Should(ContainElement(configStatusDisabled))
-			})
 		})
 	})
 })

@@ -10,18 +10,20 @@ import (
 )
 
 type FqdnOnlyResolver struct {
+	configurable[*config.FqdnOnlyConfig]
 	NextResolver
-	enabled bool
+	typed
 }
 
-func NewFqdnOnlyResolver(cfg config.Config) *FqdnOnlyResolver {
+func NewFqdnOnlyResolver(cfg config.FqdnOnlyConfig) *FqdnOnlyResolver {
 	return &FqdnOnlyResolver{
-		enabled: cfg.FqdnOnly,
+		configurable: withConfig(&cfg),
+		typed:        withType("fqdn_only"),
 	}
 }
 
 func (r *FqdnOnlyResolver) Resolve(request *model.Request) (*model.Response, error) {
-	if r.enabled {
+	if r.IsEnabled() {
 		domainFromQuestion := util.ExtractDomain(request.Req.Question[0])
 		if !strings.Contains(domainFromQuestion, ".") {
 			response := new(dns.Msg)
@@ -32,12 +34,4 @@ func (r *FqdnOnlyResolver) Resolve(request *model.Request) (*model.Response, err
 	}
 
 	return r.next.Resolve(request)
-}
-
-func (r *FqdnOnlyResolver) Configuration() (result []string) {
-	if !r.enabled {
-		return configDisabled
-	}
-
-	return configEnabled
 }

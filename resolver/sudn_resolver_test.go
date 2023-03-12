@@ -2,6 +2,7 @@ package resolver
 
 import (
 	. "github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
@@ -16,6 +17,12 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 		m   *mockResolver
 	)
 
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
+
 	BeforeEach(func() {
 		mockAnswer, err := util.NewMsgWithAnswer("example.com.", 300, A, "123.145.123.145")
 		Expect(err).Should(Succeed())
@@ -25,6 +32,22 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 
 		sut = NewSpecialUseDomainNamesResolver().(*SpecialUseDomainNamesResolver)
 		sut.Next(m)
+	})
+
+	Describe("IsEnabled", func() {
+		It("is true", func() {
+			Expect(sut.IsEnabled()).Should(BeTrue())
+		})
+	})
+
+	Describe("LogConfig", func() {
+		It("should not log anything", func() {
+			logger, hook := log.NewMockEntry()
+
+			sut.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+		})
 	})
 
 	Describe("Blocking special names", func() {
@@ -131,14 +154,6 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 						HaveResponseType(ResponseTypeRESOLVED),
 						HaveReturnCode(dns.RcodeSuccess),
 					))
-		})
-	})
-
-	Describe("Configuration pseudo test", func() {
-		It("should always be empty", func() {
-			c := sut.Configuration()
-
-			Expect(len(c)).Should(BeNumerically(">=", 1))
 		})
 	})
 })

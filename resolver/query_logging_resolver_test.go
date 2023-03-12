@@ -10,6 +10,7 @@ import (
 	"time"
 
 	. "github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/querylog"
 
 	"github.com/0xERR0R/blocky/config"
@@ -44,6 +45,12 @@ var _ = Describe("QueryLoggingResolver", func() {
 		mockAnswer *dns.Msg
 	)
 
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
+
 	BeforeEach(func() {
 		mockAnswer = new(dns.Msg)
 		tmpDir = NewTmpFolder("queryLoggingResolver")
@@ -52,11 +59,31 @@ var _ = Describe("QueryLoggingResolver", func() {
 	})
 
 	JustBeforeEach(func() {
+		if len(sutConfig.Fields) == 0 {
+			sutConfig.SetDefaults() // not called when using a struct literal
+		}
+
 		sut = NewQueryLoggingResolver(sutConfig).(*QueryLoggingResolver)
 		DeferCleanup(func() { close(sut.logChan) })
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer, Reason: "reason"}, nil)
 		sut.Next(m)
+	})
+
+	Describe("IsEnabled", func() {
+		It("is true", func() {
+			Expect(sut.IsEnabled()).Should(BeTrue())
+		})
+	})
+
+	Describe("LogConfig", func() {
+		It("should log something", func() {
+			logger, hook := log.NewMockEntry()
+
+			sut.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+		})
 	})
 
 	Describe("Process request", func() {
@@ -276,24 +303,6 @@ var _ = Describe("QueryLoggingResolver", func() {
 		})
 	})
 
-	Describe("Configuration output", func() {
-		When("resolver is enabled", func() {
-			BeforeEach(func() {
-				sutConfig = config.QueryLogConfig{
-					Target:           tmpDir.Path,
-					Type:             config.QueryLogTypeCsvClient,
-					LogRetentionDays: 0,
-					CreationAttempts: 1,
-					CreationCooldown: config.Duration(time.Millisecond),
-				}
-			})
-			It("should return configuration", func() {
-				c := sut.Configuration()
-				Expect(len(c)).Should(BeNumerically(">", 1))
-			})
-		})
-	})
-
 	Describe("Clean up of query log directory", func() {
 		When("fallback logger is enabled, log retention is enabled", func() {
 			BeforeEach(func() {
@@ -355,7 +364,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 				}
 			})
 			It("should use fallback", func() {
-				Expect(sut.logType).Should(Equal(config.QueryLogTypeConsole))
+				Expect(sut.cfg.Type).Should(Equal(config.QueryLogTypeConsole))
 			})
 		})
 
@@ -369,7 +378,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 				}
 			})
 			It("should use fallback", func() {
-				Expect(sut.logType).Should(Equal(config.QueryLogTypeConsole))
+				Expect(sut.cfg.Type).Should(Equal(config.QueryLogTypeConsole))
 			})
 		})
 	})

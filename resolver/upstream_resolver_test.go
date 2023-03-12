@@ -9,6 +9,7 @@ import (
 
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
@@ -17,7 +18,40 @@ import (
 )
 
 var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
-	systemResolverBootstrap := &Bootstrap{}
+	var (
+		sut       *UpstreamResolver
+		sutConfig config.Upstream
+	)
+
+	BeforeEach(func() {
+		sutConfig = config.Upstream{Host: "localhost"}
+	})
+
+	JustBeforeEach(func() {
+		sut = newUpstreamResolverUnchecked(sutConfig, systemResolverBootstrap)
+	})
+
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
+
+	Describe("IsEnabled", func() {
+		It("is true", func() {
+			Expect(sut.IsEnabled()).Should(BeTrue())
+		})
+	})
+
+	Describe("LogConfig", func() {
+		It("should log something", func() {
+			logger, hook := log.NewMockEntry()
+
+			sut.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+		})
+	})
 
 	Describe("Using DNS upstream", func() {
 		When("Configured DNS resolver can resolve query", func() {
@@ -35,7 +69,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 							HaveResponseType(ResponseTypeRESOLVED),
 							HaveReturnCode(dns.RcodeSuccess),
 							HaveTTL(BeNumerically("==", 123)),
-							HaveReason(fmt.Sprintf("RESOLVED (%s)", upstream.String()))),
+							HaveReason(fmt.Sprintf("RESOLVED (%s)", upstream))),
 					)
 			})
 		})
@@ -53,7 +87,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 							HaveNoAnswer(),
 							HaveResponseType(ResponseTypeRESOLVED),
 							HaveReturnCode(dns.RcodeNameError),
-							HaveReason(fmt.Sprintf("RESOLVED (%s)", upstream.String()))),
+							HaveReason(fmt.Sprintf("RESOLVED (%s)", upstream))),
 					)
 			})
 		})
@@ -213,17 +247,6 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 					ContainSubstring("no such host"),
 					ContainSubstring("i/o timeout"),
 					ContainSubstring("Temporary failure in name resolution")))
-			})
-		})
-	})
-	Describe("Configuration", func() {
-		When("Configuration is called", func() {
-			It("should return configuration", func() {
-				sut := newUpstreamResolverUnchecked(config.Upstream{}, nil)
-
-				c := sut.Configuration()
-
-				Expect(len(c)).Should(BeNumerically(">=", 1))
 			})
 		})
 	})

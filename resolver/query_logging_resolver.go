@@ -1,7 +1,6 @@
 package resolver
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -14,35 +13,32 @@ import (
 )
 
 const (
-	cleanUpRunPeriod           = 12 * time.Hour
-	queryLoggingResolverPrefix = "query_logging_resolver"
-	logChanCap                 = 1000
-	defaultFlushPeriod         = 30 * time.Second
+	cleanUpRunPeriod         = 12 * time.Hour
+	queryLoggingResolverType = "query_logging"
+	logChanCap               = 1000
+	defaultFlushPeriod       = 30 * time.Second
 )
 
 // QueryLoggingResolver writes query information (question, answer, duration, ...)
 type QueryLoggingResolver struct {
+	configurable[*config.QueryLogConfig]
 	NextResolver
-	target           string
-	logRetentionDays uint64
-	logChan          chan *querylog.LogEntry
-	writer           querylog.Writer
-	logType          config.QueryLogType
-	fields           []config.QueryLogField
+	typed
+
+	logChan chan *querylog.LogEntry
+	writer  querylog.Writer
 }
 
 // NewQueryLoggingResolver returns a new resolver instance
 func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
-	logger := log.PrefixedLog(queryLoggingResolverPrefix)
+	logger := log.PrefixedLog(queryLoggingResolverType)
 
 	var writer querylog.Writer
-
-	logType := cfg.Type
 
 	err := retry.Do(
 		func() error {
 			var err error
-			switch logType {
+			switch cfg.Type {
 			case config.QueryLogTypeCsv:
 				writer, err = querylog.NewCSVWriter(cfg.Target, false, cfg.LogRetentionDays)
 			case config.QueryLogTypeCsvClient:
@@ -61,7 +57,7 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 		},
 		retry.Attempts(uint(cfg.CreationAttempts)),
 		retry.DelayType(retry.FixedDelay),
-		retry.Delay(time.Duration(cfg.CreationCooldown)),
+		retry.Delay(cfg.CreationCooldown.ToDuration()),
 		retry.OnRetry(func(n uint, err error) {
 			logger.Warnf(
 				"Error occurred on query writer creation, retry attempt %d/%d: %v", n+1, cfg.CreationAttempts, err,
@@ -71,18 +67,17 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 		logger.Error("can't create query log writer, using console as fallback: ", err)
 
 		writer = querylog.NewLoggerWriter()
-		logType = config.QueryLogTypeConsole
+		cfg.Type = config.QueryLogTypeConsole
 	}
 
 	logChan := make(chan *querylog.LogEntry, logChanCap)
 
 	resolver := QueryLoggingResolver{
-		target:           cfg.Target,
-		logRetentionDays: cfg.LogRetentionDays,
-		logChan:          logChan,
-		writer:           writer,
-		logType:          logType,
-		fields:           resolveQueryLogFields(cfg),
+		configurable: withConfig(&cfg),
+		typed:        withType(queryLoggingResolverType),
+
+		logChan: logChan,
+		writer:  writer,
 	}
 
 	go resolver.writeLog()
@@ -92,24 +87,6 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 	}
 
 	return &resolver
-}
-
-func resolveQueryLogFields(cfg config.QueryLogConfig) []config.QueryLogField {
-	var fields []config.QueryLogField
-
-	if len(cfg.Fields) == 0 {
-		// no fields defined, use all fields as fallback
-		for _, v := range config.QueryLogFieldNames() {
-			qlt, err := config.ParseQueryLogField(v)
-			util.LogOnError("ignoring unknown query log field", err)
-
-			fields = append(fields, qlt)
-		}
-	} else {
-		fields = cfg.Fields
-	}
-
-	return fields
 }
 
 // triggers periodically cleanup of old log files
@@ -129,7 +106,7 @@ func (r *QueryLoggingResolver) doCleanUp() {
 
 // Resolve logs the query, duration and the result
 func (r *QueryLoggingResolver) Resolve(request *model.Request) (*model.Response, error) {
-	logger := log.WithPrefix(request.Log, queryLoggingResolverPrefix)
+	logger := log.WithPrefix(request.Log, queryLoggingResolverType)
 
 	start := time.Now()
 
@@ -157,7 +134,7 @@ func (r *QueryLoggingResolver) createLogEntry(request *model.Request, response *
 		ClientNames: []string{"none"},
 	}
 
-	for _, f := range r.fields {
+	for _, f := range r.cfg.Fields {
 		switch f {
 		case config.QueryLogFieldClientIP:
 			entry.ClientIP = request.ClientIP.String()
@@ -196,18 +173,8 @@ func (r *QueryLoggingResolver) writeLog() {
 
 		// if log channel is > 50% full, this could be a problem with slow writer (external storage over network etc.)
 		if len(r.logChan) > halfCap {
-			log.PrefixedLog(queryLoggingResolverPrefix).WithField("channel_len",
+			r.log().WithField("channel_len",
 				len(r.logChan)).Warnf("query log writer is too slow, write duration: %d ms", time.Since(start).Milliseconds())
 		}
 	}
-}
-
-// Configuration returns the current resolver configuration
-func (r *QueryLoggingResolver) Configuration() (result []string) {
-	result = append(result, fmt.Sprintf("type: \"%s\"", r.logType))
-	result = append(result, fmt.Sprintf("target: \"%s\"", r.target))
-	result = append(result, fmt.Sprintf("logRetentionDays: %d", r.logRetentionDays))
-	result = append(result, fmt.Sprintf("fields: %s", r.fields))
-
-	return
 }

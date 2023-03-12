@@ -5,6 +5,7 @@ import (
 	"net"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
 
 	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/0xERR0R/blocky/model"
@@ -22,6 +23,12 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 		m         *mockResolver
 	)
 
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
+
 	JustBeforeEach(func() {
 		res, err := NewClientNamesResolver(sutConfig, nil, false)
 		Expect(err).Should(Succeed())
@@ -29,6 +36,22 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
+	})
+
+	Describe("IsEnabled", func() {
+		It("is false", func() {
+			Expect(sut.IsEnabled()).Should(BeFalse())
+		})
+	})
+
+	Describe("LogConfig", func() {
+		It("should log something", func() {
+			logger, hook := log.NewMockEntry()
+
+			sut.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+		})
 	})
 
 	Describe("Resolve client name from request clientID", func() {
@@ -281,7 +304,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 				})
 			})
 			When("Upstream produces error", func() {
-				BeforeEach(func() {
+				JustBeforeEach(func() {
 					sutConfig = config.ClientLookupConfig{}
 					clientMockResolver := &mockResolver{}
 					clientMockResolver.On("Resolve", mock.Anything).Return(nil, errors.New("error"))
@@ -345,34 +368,6 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 
 				Expect(err).ShouldNot(Succeed())
 				Expect(r).Should(BeNil())
-			})
-		})
-	})
-
-	Describe("Configuration output", func() {
-		When("resolver is enabled", func() {
-			BeforeEach(func() {
-				sutConfig = config.ClientLookupConfig{
-					Upstream:        config.Upstream{Net: config.NetProtocolTcpUdp, Host: "host"},
-					SingleNameOrder: []uint{1, 2},
-					ClientnameIPMapping: map[string][]net.IP{
-						"client8": {net.ParseIP("1.2.3.5")},
-					},
-				}
-			})
-			It("should return configuration", func() {
-				c := sut.Configuration()
-				Expect(len(c)).Should(BeNumerically(">", 1))
-			})
-		})
-
-		When("resolver is disabled", func() {
-			BeforeEach(func() {
-				sutConfig = config.ClientLookupConfig{}
-			})
-			It("should return 'disabled'", func() {
-				c := sut.Configuration()
-				Expect(c).Should(ContainElement(configStatusDisabled))
 			})
 		})
 	})

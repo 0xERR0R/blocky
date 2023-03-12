@@ -11,6 +11,7 @@ import (
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/sirupsen/logrus"
 
 	"github.com/0xERR0R/blocky/model"
 
@@ -27,10 +28,21 @@ type mockResolver struct {
 	AnswerFn   func(qType dns.Type, qName string) (*dns.Msg, error)
 }
 
-func (r *mockResolver) Configuration() []string {
+// Type implements `Resolver`.
+func (r *mockResolver) Type() string {
+	return "mock"
+}
+
+// IsEnabled implements `config.Configurable`.
+func (r *mockResolver) IsEnabled() bool {
 	args := r.Called()
 
-	return args.Get(0).([]string)
+	return args.Get(0).(bool)
+}
+
+// LogConfig implements `config.Configurable`.
+func (r *mockResolver) LogConfig(logger *logrus.Entry) {
+	r.Called()
 }
 
 func (r *mockResolver) Resolve(req *model.Request) (*model.Response, error) {

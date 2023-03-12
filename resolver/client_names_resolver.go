@@ -1,7 +1,6 @@
 package resolver
 
 import (
-	"fmt"
 	"net"
 	"strings"
 	"time"
@@ -18,11 +17,12 @@ import (
 
 // ClientNamesResolver tries to determine client name by asking responsible DNS server via rDNS (reverse lookup)
 type ClientNamesResolver struct {
+	configurable[*config.ClientLookupConfig]
+	NextResolver
+	typed
+
 	cache            expirationcache.ExpiringCache
 	externalResolver Resolver
-	singleNameOrder  []uint
-	clientIPMapping  map[string][]net.IP
-	NextResolver
 }
 
 // NewClientNamesResolver creates new resolver instance
@@ -38,38 +38,21 @@ func NewClientNamesResolver(
 	}
 
 	cr = &ClientNamesResolver{
+		configurable: withConfig(&cfg),
+		typed:        withType("client_names"),
+
 		cache:            expirationcache.NewCache(expirationcache.WithCleanUpInterval(time.Hour)),
 		externalResolver: r,
-		singleNameOrder:  cfg.SingleNameOrder,
-		clientIPMapping:  cfg.ClientnameIPMapping,
 	}
 
 	return
 }
 
-// Configuration returns current resolver configuration
-func (r *ClientNamesResolver) Configuration() (result []string) {
-	if r.externalResolver == nil && len(r.clientIPMapping) == 0 {
-		return append(configDisabled, "use only IP address")
-	}
+// LogConfig implements `config.Configurable`.
+func (r *ClientNamesResolver) LogConfig(logger *logrus.Entry) {
+	r.cfg.LogConfig(logger)
 
-	result = append(result, fmt.Sprintf("singleNameOrder = \"%v\"", r.singleNameOrder))
-
-	if r.externalResolver != nil {
-		result = append(result, fmt.Sprintf("externalResolver = \"%s\"", r.externalResolver))
-	}
-
-	result = append(result, fmt.Sprintf("cache item count = %d", r.cache.TotalCount()))
-
-	if len(r.clientIPMapping) > 0 {
-		result = append(result, "client IP mapping:")
-
-		for k, v := range r.clientIPMapping {
-			result = append(result, fmt.Sprintf("%s -> %s", k, v))
-		}
-	}
-
-	return
+	logger.Infof("cache entries = %d", r.cache.TotalCount())
 }
 
 // Resolve tries to resolve the client name from the ip address
@@ -89,13 +72,11 @@ func (r *ClientNamesResolver) getClientNames(request *model.Request) []string {
 	}
 
 	ip := request.ClientIP
-
 	if ip == nil {
 		return []string{}
 	}
 
 	c, _ := r.cache.Get(ip.String())
-
 	if c != nil {
 		if t, ok := c.([]string); ok {
 			return t
@@ -103,6 +84,7 @@ func (r *ClientNamesResolver) getClientNames(request *model.Request) []string {
 	}
 
 	names := r.resolveClientNames(ip, log.WithPrefix(request.Log, "client_names_resolver"))
+
 	r.cache.Put(ip.String(), names, time.Hour)
 
 	return names
@@ -127,7 +109,6 @@ func extractClientNamesFromAnswer(answer []dns.RR, fallbackIP net.IP) (clientNam
 func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry) (result []string) {
 	// try client mapping first
 	result = r.getNameFromIPMapping(ip, result)
-
 	if len(result) > 0 {
 		return
 	}
@@ -151,8 +132,8 @@ func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry
 	clientNames := extractClientNamesFromAnswer(resp.Res.Answer, ip)
 
 	// optional: if singleNameOrder is set, use only one name in the defined order
-	if len(r.singleNameOrder) > 0 {
-		for _, i := range r.singleNameOrder {
+	if len(r.cfg.SingleNameOrder) > 0 {
+		for _, i := range r.cfg.SingleNameOrder {
 			if i > 0 && int(i) <= len(clientNames) {
 				result = []string{clientNames[i-1]}
 
@@ -169,7 +150,7 @@ func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry
 }
 
 func (r *ClientNamesResolver) getNameFromIPMapping(ip net.IP, result []string) []string {
-	for name, ips := range r.clientIPMapping {
+	for name, ips := range r.cfg.ClientnameIPMapping {
 		for _, i := range ips {
 			if ip.String() == i.String() {
 				result = append(result, name)

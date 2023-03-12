@@ -7,6 +7,7 @@ import (
 
 	"github.com/0xERR0R/blocky/model"
 	"github.com/miekg/dns"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -46,16 +47,31 @@ type defaultIPs struct {
 
 type SpecialUseDomainNamesResolver struct {
 	NextResolver
+	typed
+
 	defaults *defaultIPs
 }
 
 func NewSpecialUseDomainNamesResolver() ChainedResolver {
 	return &SpecialUseDomainNamesResolver{
+		typed: withType("special_use_domains"),
+
 		defaults: &defaultIPs{
 			loopbackV4: net.ParseIP("127.0.0.1"),
 			loopbackV6: net.IPv6loopback,
 		},
 	}
+}
+
+// IsEnabled implements `config.Configurable`.
+func (r *SpecialUseDomainNamesResolver) IsEnabled() bool {
+	// RFC 6761 & 6762 are always active
+	return true
+}
+
+// LogConfig implements `config.Configurable`.
+func (r *SpecialUseDomainNamesResolver) LogConfig(logger *logrus.Entry) {
+	logger.Info("enabled")
 }
 
 func (r *SpecialUseDomainNamesResolver) Resolve(request *model.Request) (*model.Response, error) {
@@ -76,11 +92,6 @@ func (r *SpecialUseDomainNamesResolver) Resolve(request *model.Request) (*model.
 	}
 
 	return r.next.Resolve(request)
-}
-
-// RFC 6761 & 6762 are always active
-func (r *SpecialUseDomainNamesResolver) Configuration() []string {
-	return configEnabled
 }
 
 func (r *SpecialUseDomainNamesResolver) isSpecial(request *model.Request, names ...string) bool {

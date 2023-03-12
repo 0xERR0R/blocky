@@ -3,7 +3,9 @@ package resolver
 import (
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
+
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -18,6 +20,12 @@ var _ = Describe("FilteringResolver", func() {
 		mockAnswer *dns.Msg
 	)
 
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
+
 	BeforeEach(func() {
 		mockAnswer = new(dns.Msg)
 	})
@@ -27,6 +35,22 @@ var _ = Describe("FilteringResolver", func() {
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		sut.Next(m)
+	})
+
+	Describe("IsEnabled", func() {
+		It("is false", func() {
+			Expect(sut.IsEnabled()).Should(BeFalse())
+		})
+	})
+
+	Describe("LogConfig", func() {
+		It("should log something", func() {
+			logger, hook := log.NewMockEntry()
+
+			sut.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+		})
 	})
 
 	When("Filtering query types are defined", func() {
@@ -59,10 +83,6 @@ var _ = Describe("FilteringResolver", func() {
 			// no call of next resolver
 			Expect(m.Calls).Should(BeZero())
 		})
-		It("Configure should output all query types", func() {
-			c := sut.Configuration()
-			Expect(c).Should(Equal([]string{"filtering query Types: 'AAAA, MX'"}))
-		})
 	})
 
 	When("No filtering query types are defined", func() {
@@ -80,10 +100,6 @@ var _ = Describe("FilteringResolver", func() {
 
 			// delegated to next resolver
 			Expect(m.Calls).Should(HaveLen(1))
-		})
-		It("Configure should output 'empty list'", func() {
-			c := sut.Configuration()
-			Expect(c).Should(ContainElement(configStatusDisabled))
 		})
 	})
 })

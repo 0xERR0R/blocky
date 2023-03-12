@@ -62,7 +62,11 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 		return b, nil
 	}
 
-	parallelResolver, err := newParallelBestResolver(bootstraped.ResolverGroups())
+	// Bootstrap doesn't have a `LogConfig` method, and since that's the only place
+	// where `ParallelBestResolver` uses its config, we can just use an empty one.
+	pbCfg := config.ParallelBestConfig{}
+
+	parallelResolver, err := newParallelBestResolver(pbCfg, bootstraped.ResolverGroups())
 	if err != nil {
 		return nil, fmt.Errorf("could not create bootstrap ParallelBestResolver: %w", err)
 	}
@@ -74,20 +78,16 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 	cachingCfg := cfg.Caching
 	cachingCfg.EnablePrefetch()
 
-	if cachingCfg.MinCachingTime == 0 {
+	if cachingCfg.MinCachingTime.IsZero() {
 		// Set a min time in case the user didn't to avoid prefetching too often
 		cachingCfg.MinCachingTime = config.Duration(time.Hour)
 	}
 
 	b.bootstraped = bootstraped
 
-	cachingResolver := NewCachingResolver(cachingCfg, nil)
-	// don't emit any metrics
-	cachingResolver.emitMetricEvents = false
-
 	b.resolver = Chain(
 		NewFilteringResolver(cfg.Filtering),
-		cachingResolver,
+		newCachingResolver(cachingCfg, nil, false), // false: no metrics, to not overwrite the main blocking resolver ones
 		parallelResolver,
 	)
 
@@ -116,10 +116,10 @@ func (b *Bootstrap) resolveUpstream(r Resolver, host string) ([]net.IP, error) {
 		ctx := context.Background()
 
 		timeout := cfg.UpstreamTimeout
-		if timeout != 0 {
+		if timeout.IsZero() {
 			var cancel context.CancelFunc
 
-			ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout))
+			ctx, cancel = context.WithTimeout(ctx, timeout.ToDuration())
 			defer cancel()
 		}
 

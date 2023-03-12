@@ -3,6 +3,7 @@ package resolver
 import (
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
@@ -13,10 +14,16 @@ import (
 var _ = Describe("FqdnOnlyResolver", func() {
 	var (
 		sut        *FqdnOnlyResolver
-		sutConfig  config.Config
+		sutConfig  config.FqdnOnlyConfig
 		m          *mockResolver
 		mockAnswer *dns.Msg
 	)
+
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
 
 	BeforeEach(func() {
 		mockAnswer = new(dns.Msg)
@@ -29,11 +36,25 @@ var _ = Describe("FqdnOnlyResolver", func() {
 		sut.Next(m)
 	})
 
+	Describe("IsEnabled", func() {
+		It("is false", func() {
+			Expect(sut.IsEnabled()).Should(BeFalse())
+		})
+	})
+
+	Describe("LogConfig", func() {
+		It("should log something", func() {
+			logger, hook := log.NewMockEntry()
+
+			sut.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+		})
+	})
+
 	When("Fqdn only is enabled", func() {
 		BeforeEach(func() {
-			sutConfig = config.Config{
-				FqdnOnly: true,
-			}
+			sutConfig = config.FqdnOnlyConfig{Enable: true}
 		})
 		It("Should delegate to next resolver if request query is fqdn", func() {
 			Expect(sut.Resolve(newRequest("example.com", A))).
@@ -59,17 +80,27 @@ var _ = Describe("FqdnOnlyResolver", func() {
 			// no call of next resolver
 			Expect(m.Calls).Should(BeZero())
 		})
-		It("Configure should output enabled", func() {
-			c := sut.Configuration()
-			Expect(c).Should(Equal(configEnabled))
+
+		Describe("IsEnabled", func() {
+			It("is true", func() {
+				Expect(sut.IsEnabled()).Should(BeTrue())
+			})
+		})
+
+		Describe("LogConfig", func() {
+			It("should log something", func() {
+				logger, hook := log.NewMockEntry()
+
+				sut.LogConfig(logger)
+
+				Expect(hook.Calls).ShouldNot(BeEmpty())
+			})
 		})
 	})
 
 	When("Fqdn only is disabled", func() {
 		BeforeEach(func() {
-			sutConfig = config.Config{
-				FqdnOnly: false,
-			}
+			sutConfig = config.FqdnOnlyConfig{Enable: false}
 		})
 		It("Should delegate to next resolver if request query is fqdn", func() {
 			Expect(sut.Resolve(newRequest("example.com", A))).
@@ -95,9 +126,11 @@ var _ = Describe("FqdnOnlyResolver", func() {
 			// delegated to next resolver
 			Expect(m.Calls).Should(HaveLen(1))
 		})
-		It("Configure should output disabled", func() {
-			c := sut.Configuration()
-			Expect(c).Should(ContainElement(configStatusDisabled))
+
+		Describe("IsEnabled", func() {
+			It("is false", func() {
+				Expect(sut.IsEnabled()).Should(BeFalse())
+			})
 		})
 	})
 })

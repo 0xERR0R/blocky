@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
+	"golang.org/x/exp/maps"
 )
 
 const prefixField = "prefix"
@@ -117,4 +119,51 @@ func ConfigureLogger(cfg *Config) {
 // Silence disables the logger output
 func Silence() {
 	logger.Out = io.Discard
+}
+
+func WithIndent(log *logrus.Entry, prefix string, callback func(*logrus.Entry)) {
+	undo := indentMessages(prefix, log.Logger)
+	defer undo()
+
+	callback(log)
+}
+
+// indentMessages modifies a logger and adds `prefix` to all messages.
+//
+// The returned function must be called to remove the prefix.
+func indentMessages(prefix string, logger *logrus.Logger) func() {
+	if _, ok := logger.Formatter.(*prefixed.TextFormatter); !ok {
+		// log is not plaintext, do nothing
+		return func() {}
+	}
+
+	oldHooks := maps.Clone(logger.Hooks)
+
+	logger.AddHook(prefixMsgHook{
+		prefix: prefix,
+	})
+
+	var once sync.Once
+
+	return func() {
+		once.Do(func() {
+			logger.ReplaceHooks(oldHooks)
+		})
+	}
+}
+
+type prefixMsgHook struct {
+	prefix string
+}
+
+// Levels implements `logrus.Hook`.
+func (h prefixMsgHook) Levels() []logrus.Level {
+	return logrus.AllLevels
+}
+
+// Fire implements `logrus.Hook`.
+func (h prefixMsgHook) Fire(entry *logrus.Entry) error {
+	entry.Message = h.prefix + entry.Message
+
+	return nil
 }

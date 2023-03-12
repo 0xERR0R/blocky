@@ -2,8 +2,10 @@ package resolver
 
 import (
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/sirupsen/logrus"
 
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
@@ -19,7 +21,7 @@ const (
 var _ = Describe("RewriterResolver", func() {
 	var (
 		sut       ChainedResolver
-		sutConfig config.RewriteConfig
+		sutConfig config.RewriterConfig
 		mInner    *mockResolver
 		mNext     *mockResolver
 
@@ -29,11 +31,17 @@ var _ = Describe("RewriterResolver", func() {
 		mNextResponse *model.Response
 	)
 
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
+
 	BeforeEach(func() {
 		mInner = &mockResolver{}
 		mNext = &mockResolver{}
 
-		sutConfig = config.RewriteConfig{Rewrite: map[string]string{"original": "rewritten"}}
+		sutConfig = config.RewriterConfig{Rewrite: map[string]string{"original": "rewritten"}}
 	})
 
 	JustBeforeEach(func() {
@@ -48,7 +56,7 @@ var _ = Describe("RewriterResolver", func() {
 
 	When("has no configuration", func() {
 		BeforeEach(func() {
-			sutConfig = config.RewriteConfig{}
+			sutConfig = config.RewriterConfig{}
 		})
 
 		It("should return the inner resolver", func() {
@@ -194,11 +202,10 @@ var _ = Describe("RewriterResolver", func() {
 	Describe("Configuration output", func() {
 		When("resolver is enabled", func() {
 			It("should return configuration", func() {
-				innerOutput := []string{"inner:", "config-output"}
-				mInner.On("Configuration").Return(innerOutput)
+				mInner.On("LogConfig")
+				mInner.On("IsEnabled").Return(true)
 
-				c := sut.Configuration()
-				Expect(len(c)).Should(BeNumerically(">", len(innerOutput)))
+				sut.LogConfig(logrus.NewEntry(log.Log()))
 			})
 		})
 	})

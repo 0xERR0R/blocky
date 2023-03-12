@@ -40,6 +40,15 @@ func IPVersionNames() []string {
 	return tmp
 }
 
+// IPVersionValues returns a list of the values for IPVersion
+func IPVersionValues() []IPVersion {
+	return []IPVersion{
+		IPVersionDual,
+		IPVersionV4,
+		IPVersionV6,
+	}
+}
+
 var _IPVersionMap = map[IPVersion]string{
 	IPVersionDual: _IPVersionName[0:4],
 	IPVersionV4:   _IPVersionName[4:6],
@@ -111,6 +120,15 @@ func NetProtocolNames() []string {
 	tmp := make([]string, len(_NetProtocolNames))
 	copy(tmp, _NetProtocolNames)
 	return tmp
+}
+
+// NetProtocolValues returns a list of the values for NetProtocol
+func NetProtocolValues() []NetProtocol {
+	return []NetProtocol{
+		NetProtocolTcpUdp,
+		NetProtocolTcpTls,
+		NetProtocolHttps,
+	}
 }
 
 var _NetProtocolMap = map[NetProtocol]string{
@@ -188,6 +206,18 @@ func QueryLogFieldNames() []string {
 	tmp := make([]string, len(_QueryLogFieldNames))
 	copy(tmp, _QueryLogFieldNames)
 	return tmp
+}
+
+// QueryLogFieldValues returns a list of the values for QueryLogField
+func QueryLogFieldValues() []QueryLogField {
+	return []QueryLogField{
+		QueryLogFieldClientIP,
+		QueryLogFieldClientName,
+		QueryLogFieldResponseReason,
+		QueryLogFieldResponseAnswer,
+		QueryLogFieldQuestion,
+		QueryLogFieldDuration,
+	}
 }
 
 // String implements the Stringer interface.
@@ -274,6 +304,18 @@ func QueryLogTypeNames() []string {
 	return tmp
 }
 
+// QueryLogTypeValues returns a list of the values for QueryLogType
+func QueryLogTypeValues() []QueryLogType {
+	return []QueryLogType{
+		QueryLogTypeConsole,
+		QueryLogTypeNone,
+		QueryLogTypeMysql,
+		QueryLogTypePostgresql,
+		QueryLogTypeCsv,
+		QueryLogTypeCsvClient,
+	}
+}
+
 var _QueryLogTypeMap = map[QueryLogType]string{
 	QueryLogTypeConsole:    _QueryLogTypeName[0:7],
 	QueryLogTypeNone:       _QueryLogTypeName[7:11],
@@ -351,6 +393,15 @@ func StartStrategyTypeNames() []string {
 	tmp := make([]string, len(_StartStrategyTypeNames))
 	copy(tmp, _StartStrategyTypeNames)
 	return tmp
+}
+
+// StartStrategyTypeValues returns a list of the values for StartStrategyType
+func StartStrategyTypeValues() []StartStrategyType {
+	return []StartStrategyType{
+		StartStrategyTypeBlocking,
+		StartStrategyTypeFailOnError,
+		StartStrategyTypeFast,
+	}
 }
 
 var _StartStrategyTypeMap = map[StartStrategyType]string{

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"net/http/httptest"
 	"os"
@@ -14,7 +13,9 @@ import (
 
 	. "github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/lists/parsers"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/sirupsen/logrus"
 
 	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/onsi/ginkgo/v2"
@@ -414,36 +415,31 @@ var _ = Describe("ListCache", func() {
 			})
 		})
 	})
-	Describe("Configuration", func() {
-		When("refresh is enabled", func() {
-			It("should print list configuration", func() {
-				lists := map[string][]string{
-					"gr1": {server1.URL, server2.URL},
-					"gr2": {inlineList("inline", "definition")},
-				}
+	Describe("LogConfig", func() {
+		var (
+			logger *logrus.Entry
+			hook   *log.MockLoggerHook
+		)
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, time.Hour, NewDownloader(),
-					defaultProcessingConcurrency, false)
-				Expect(err).Should(Succeed())
-
-				c := sut.Configuration()
-				Expect(c).Should(ContainElement("refresh period: 1 hour"))
-				Expect(len(c)).Should(BeNumerically(">", 1))
-			})
+		BeforeEach(func() {
+			logger, hook = log.NewMockEntry()
 		})
-		When("refresh is disabled", func() {
-			It("should print 'refresh disabled'", func() {
-				lists := map[string][]string{
-					"gr1": {emptyFile.Path},
-				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, -1, NewDownloader(),
-					defaultProcessingConcurrency, false)
-				Expect(err).Should(Succeed())
+		It("should print list configuration", func() {
+			lists := map[string][]string{
+				"gr1": {server1.URL, server2.URL},
+				"gr2": {inlineList("inline", "definition")},
+			}
 
-				c := sut.Configuration()
-				Expect(c).Should(ContainElement("refresh: disabled"))
-			})
+			sut, err := NewListCache(ListCacheTypeBlacklist, lists, time.Hour, NewDownloader(),
+				defaultProcessingConcurrency, false)
+			Expect(err).Should(Succeed())
+
+			sut.LogConfig(logger)
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("gr1:")))
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("gr2:")))
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("TOTAL:")))
 		})
 	})
 
@@ -486,7 +482,7 @@ func (m *MockDownloader) ListSource() string {
 func createTestListFile(dir string, totalLines int) (string, int) {
 	file, err := os.CreateTemp(dir, "blocky")
 	if err != nil {
-		log.Fatal(err)
+		log.Log().Fatal(err)
 	}
 
 	w := bufio.NewWriter(file)

@@ -2,12 +2,11 @@ package resolver
 
 import (
 	"context"
-	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
@@ -17,6 +16,8 @@ import (
 
 var _ = Describe("HostsFileResolver", func() {
 	var (
+		TTL = uint32(time.Now().Second())
+
 		sut       *HostsFileResolver
 		sutConfig config.HostsFileConfig
 		m         *mockResolver
@@ -24,7 +25,11 @@ var _ = Describe("HostsFileResolver", func() {
 		tmpFile   *TmpFile
 	)
 
-	TTL := uint32(time.Now().Second())
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
 
 	BeforeEach(func() {
 		tmpDir = NewTmpFolder("HostsFileResolver")
@@ -49,16 +54,32 @@ var _ = Describe("HostsFileResolver", func() {
 		sut.Next(m)
 	})
 
+	Describe("IsEnabled", func() {
+		It("is true", func() {
+			Expect(sut.IsEnabled()).Should(BeTrue())
+		})
+	})
+
+	Describe("LogConfig", func() {
+		It("should log something", func() {
+			logger, hook := log.NewMockEntry()
+
+			sut.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+		})
+	})
+
 	Describe("Using hosts file", func() {
 		When("Hosts file cannot be located", func() {
 			BeforeEach(func() {
 				sutConfig = config.HostsFileConfig{
-					Filepath: fmt.Sprintf("/tmp/blocky/file-%d", rand.Uint64()),
+					Filepath: "/this/file/does/not/exist",
 					HostsTTL: config.Duration(time.Duration(TTL) * time.Second),
 				}
 			})
 			It("should not parse any hosts", func() {
-				Expect(sut.HostsFilePath).Should(BeEmpty())
+				Expect(sut.cfg.Filepath).Should(BeEmpty())
 				Expect(sut.hosts.v4.hosts).Should(BeEmpty())
 				Expect(sut.hosts.v6.hosts).Should(BeEmpty())
 				Expect(sut.hosts.v4.aliases).Should(BeEmpty())
@@ -140,11 +161,11 @@ var _ = Describe("HostsFileResolver", func() {
 
 			It("should not be used", func() {
 				Expect(sut).ShouldNot(BeNil())
-				Expect(sut.HostsFilePath).Should(BeEmpty())
-				Expect(sut.hosts.v4.hosts).Should(HaveLen(0))
-				Expect(sut.hosts.v6.hosts).Should(HaveLen(0))
-				Expect(sut.hosts.v4.aliases).Should(HaveLen(0))
-				Expect(sut.hosts.v6.aliases).Should(HaveLen(0))
+				Expect(sut.cfg.Filepath).Should(BeEmpty())
+				Expect(sut.hosts.v4.hosts).Should(BeEmpty())
+				Expect(sut.hosts.v6.hosts).Should(BeEmpty())
+				Expect(sut.hosts.v4.aliases).Should(BeEmpty())
+				Expect(sut.hosts.v6.aliases).Should(BeEmpty())
 			})
 		})
 
@@ -303,25 +324,6 @@ var _ = Describe("HostsFileResolver", func() {
 								)),
 							))
 				})
-			})
-		})
-	})
-
-	Describe("Configuration output", func() {
-		When("hosts file is provided", func() {
-			It("should return configuration", func() {
-				c := sut.Configuration()
-				Expect(len(c)).Should(BeNumerically(">", 1))
-			})
-		})
-
-		When("hosts file is not provided", func() {
-			BeforeEach(func() {
-				sutConfig = config.HostsFileConfig{}
-			})
-			It("should return 'disabled'", func() {
-				c := sut.Configuration()
-				Expect(c).Should(ContainElement(configStatusDisabled))
 			})
 		})
 	})

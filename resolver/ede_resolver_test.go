@@ -5,6 +5,7 @@ import (
 
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/log"
 
 	. "github.com/0xERR0R/blocky/model"
 
@@ -21,6 +22,12 @@ var _ = Describe("EdeResolver", func() {
 		m          *mockResolver
 		mockAnswer *dns.Msg
 	)
+
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
 
 	BeforeEach(func() {
 		mockAnswer = new(dns.Msg)
@@ -58,6 +65,12 @@ var _ = Describe("EdeResolver", func() {
 
 			// delegated to next resolver
 			Expect(m.Calls).Should(HaveLen(1))
+		})
+
+		Describe("IsEnabled", func() {
+			It("is false", func() {
+				Expect(sut.IsEnabled()).Should(BeFalse())
+			})
 		})
 	})
 
@@ -106,26 +119,14 @@ var _ = Describe("EdeResolver", func() {
 				Expect(err).To(Equal(resolveErr))
 			})
 		})
-	})
 
-	Describe("Configuration output", func() {
-		When("resolver is enabled", func() {
-			BeforeEach(func() {
-				sutConfig = config.EdeConfig{Enable: true}
-			})
-			It("should return configuration", func() {
-				c := sut.Configuration()
-				Expect(c).Should(Equal(configEnabled))
-			})
-		})
+		Describe("LogConfig", func() {
+			It("should log something", func() {
+				logger, hook := log.NewMockEntry()
 
-		When("resolver is disabled", func() {
-			BeforeEach(func() {
-				sutConfig = config.EdeConfig{Enable: false}
-			})
-			It("should return 'disabled'", func() {
-				c := sut.Configuration()
-				Expect(c).Should(ContainElement(configStatusDisabled))
+				sut.LogConfig(logger)
+
+				Expect(hook.Calls).ShouldNot(BeEmpty())
 			})
 		})
 	})
