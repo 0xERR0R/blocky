@@ -19,7 +19,7 @@ func (c *HostsFileConfig) IsEnabled() bool {
 // LogConfig implements `config.Configurable`.
 func (c *HostsFileConfig) LogConfig(logger *logrus.Entry) {
 	logger.Infof("file path: %s", c.Filepath)
-	logger.Infof("TTL: %d", c.HostsTTL.SecondsU32())
+	logger.Infof("TTL: %s", c.HostsTTL)
 	logger.Infof("refresh period: %s", c.RefreshPeriod)
 	logger.Infof("filter loopback addresses: %t", c.FilterLoopback)
 }
