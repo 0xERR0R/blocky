@@ -1,0 +1,16 @@
+name: mirror git repo
+on:
+  push:
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    if: github.repository_owner == '0xERR0R'
+    steps:
+       - uses: actions/checkout@v3
+         with:
+           fetch-depth: 0
+       - uses: yesolutions/mirror-action@master
+         with:
+           REMOTE: 'https://codeberg.org/0xERR0R/blocky.git'
+           GIT_USERNAME: 0xERR0R
+           GIT_PASSWORD: ${{ secrets.CODEBERG_TOKEN }}

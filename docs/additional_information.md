@@ -94,4 +94,18 @@ This is only a small excerpt of all free available DNS servers and should only b
 * [Quad9](https://www.quad9.net/)
 * [UncensoredDNS](https://blog.uncensoreddns.org/dns-servers/)
 
+## Project links
+
+### Code repository
+
+Main: [:material-github:GitHub](https://github.com/0xERR0R/blocky)
+
+Mirror: [:simple-codeberg:Codeberg](https://codeberg.org/0xERR0R/blocky)
+
+### Container Registry
+
+Main: [:material-docker:Docker Hub](https://hub.docker.com/r/spx01/blocky)
+
+Mirror: [:material-github:GitHub Container Registry](https://ghcr.io/0xerr0r/blocky)
+
 --8<-- "docs/includes/abbreviations.md"

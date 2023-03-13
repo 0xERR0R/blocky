@@ -11,6 +11,8 @@ extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/0xERR0R/blocky
+    - icon: simple/codeberg
+      link: https://codeberg.org/0xERR0R/blocky
     - icon: fontawesome/brands/docker
       link: https://hub.docker.com/r/spx01/blocky
 repo_url: https://github.com/0xERR0R/blocky
