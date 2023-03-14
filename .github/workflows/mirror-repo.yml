@@ -1,6 +1,8 @@
 name: mirror git repo
 on:
   push:
+    branches:
+      - main
 jobs:
   mirror:
     runs-on: ubuntu-latest
