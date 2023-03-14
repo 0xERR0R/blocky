@@ -15,9 +15,7 @@ const (
 	byteBits = 8
 )
 
-var (
-	ErrInvalidArpaAddrLen = errors.New("arpa hostname is not of expected length")
-)
+var ErrInvalidArpaAddrLen = errors.New("arpa hostname is not of expected length")
 
 func ParseIPFromArpaAddr(arpa string) (net.IP, error) {
 	if strings.HasSuffix(arpa, IPv4PtrSuffix) {

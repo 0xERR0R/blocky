@@ -360,8 +360,8 @@ func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
 		domain := util.ExtractDomain(question)
 		logger := logger.WithField("domain", domain)
 
-		if whitelisted, group := r.matches(groupsToCheck, r.whitelistMatcher, domain); whitelisted {
-			logger.WithField("group", group).Debugf("domain is whitelisted")
+		if whitelisted, groups := r.matches(groupsToCheck, r.whitelistMatcher, domain); whitelisted {
+			logger.WithField("groups", groups).Debugf("domain is whitelisted")
 
 			resp, err := r.next.Resolve(request)
 
@@ -374,8 +374,8 @@ func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
 			return true, resp, err
 		}
 
-		if blocked, group := r.matches(groupsToCheck, r.blacklistMatcher, domain); blocked {
-			resp, err := r.handleBlocked(logger, request, question, fmt.Sprintf("BLOCKED (%s)", group))
+		if blocked, groups := r.matches(groupsToCheck, r.blacklistMatcher, domain); blocked {
+			resp, err := r.handleBlocked(logger, request, question, fmt.Sprintf("BLOCKED (%s)", strings.Join(groups, ",")))
 
 			return true, resp, err
 		}
@@ -404,10 +404,11 @@ func (r *BlockingResolver) Resolve(request *model.Request) (*model.Response, err
 			if len(entryToCheck) > 0 {
 				logger := logger.WithField("response_entry", entryToCheck)
 
-				if whitelisted, group := r.matches(groupsToCheck, r.whitelistMatcher, entryToCheck); whitelisted {
-					logger.WithField("group", group).Debugf("%s is whitelisted", tName)
-				} else if blocked, group := r.matches(groupsToCheck, r.blacklistMatcher, entryToCheck); blocked {
-					return r.handleBlocked(logger, request, request.Req.Question[0], fmt.Sprintf("BLOCKED %s (%s)", tName, group))
+				if whitelisted, groups := r.matches(groupsToCheck, r.whitelistMatcher, entryToCheck); whitelisted {
+					logger.WithField("groups", groups).Debugf("%s is whitelisted", tName)
+				} else if blocked, groups := r.matches(groupsToCheck, r.blacklistMatcher, entryToCheck); blocked {
+					return r.handleBlocked(logger, request, request.Req.Question[0], fmt.Sprintf("BLOCKED %s (%s)", tName,
+						strings.Join(groups, ",")))
 				}
 			}
 		}
@@ -503,15 +504,15 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 
 func (r *BlockingResolver) matches(groupsToCheck []string, m lists.Matcher,
 	domain string,
-) (blocked bool, group string) {
+) (blocked bool, group []string) {
 	if len(groupsToCheck) > 0 {
-		found, group := m.Match(domain, groupsToCheck)
+		found, matchedGroups := m.Match(domain, groupsToCheck)
 		if found {
-			return true, group
+			return true, matchedGroups
 		}
 	}
 
-	return false, ""
+	return false, []string{}
 }
 
 type blockHandler interface {

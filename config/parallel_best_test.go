@@ -7,9 +7,7 @@ import (
 )
 
 var _ = Describe("ParallelBestConfig", func() {
-	var (
-		cfg ParallelBestConfig
-	)
+	var cfg ParallelBestConfig
 
 	suiteBeforeEach()
 

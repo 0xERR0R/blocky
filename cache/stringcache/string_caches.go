@@ -16,6 +16,7 @@ type StringCache interface {
 type CacheFactory interface {
 	AddEntry(entry string)
 	Create() StringCache
+	Count() int
 }
 
 type stringCache map[int]string
@@ -57,6 +58,7 @@ func (cache stringCache) Contains(searchString string) bool {
 type stringCacheFactory struct {
 	// temporary map which holds sorted slice of strings grouped by string length
 	tmp map[int][]string
+	cnt int
 }
 
 func newStringCacheFactory() CacheFactory {
@@ -71,6 +73,10 @@ func (s *stringCacheFactory) getBucket(length int) []string {
 	}
 
 	return s.tmp[length]
+}
+
+func (s *stringCacheFactory) Count() int {
+	return s.cnt
 }
 
 func (s *stringCacheFactory) insertString(entry string) {
@@ -94,7 +100,8 @@ func (s *stringCacheFactory) insertString(entry string) {
 
 func (s *stringCacheFactory) AddEntry(entry string) {
 	// skip empty strings
-	if len(entry) > 0 {
+	if len(entry) > 0 && !strings.HasPrefix(entry, "/") {
+		s.cnt++
 		s.insertString(entry)
 	}
 }
@@ -133,12 +140,20 @@ type regexCacheFactory struct {
 }
 
 func (r *regexCacheFactory) AddEntry(entry string) {
-	compile, err := regexp.Compile(entry)
-	if err != nil {
-		log.Log().Warnf("invalid regex '%s'", entry)
-	} else {
-		r.cache = append(r.cache, compile)
+	if strings.HasPrefix(entry, "/") && strings.HasSuffix(entry, "/") {
+		entry = strings.TrimSpace(entry[1 : len(entry)-1])
+		compile, err := regexp.Compile(entry)
+
+		if err != nil {
+			log.Log().Warnf("invalid regex '%s'", entry)
+		} else {
+			r.cache = append(r.cache, compile)
+		}
 	}
+}
+
+func (r *regexCacheFactory) Count() int {
+	return len(r.cache)
 }
 
 func (r *regexCacheFactory) Create() StringCache {
@@ -148,55 +163,5 @@ func (r *regexCacheFactory) Create() StringCache {
 func newRegexCacheFactory() CacheFactory {
 	return &regexCacheFactory{
 		cache: make(regexCache, 0),
-	}
-}
-
-type chainedCache struct {
-	caches []StringCache
-}
-
-func (cache chainedCache) ElementCount() int {
-	sum := 0
-	for _, c := range cache.caches {
-		sum += c.ElementCount()
-	}
-
-	return sum
-}
-
-func (cache chainedCache) Contains(searchString string) bool {
-	for _, c := range cache.caches {
-		if c.Contains(searchString) {
-			return true
-		}
-	}
-
-	return false
-}
-
-type chainedCacheFactory struct {
-	stringCacheFactory CacheFactory
-	regexCacheFactory  CacheFactory
-}
-
-func (r *chainedCacheFactory) AddEntry(entry string) {
-	if strings.HasPrefix(entry, "/") && strings.HasSuffix(entry, "/") {
-		entry = strings.TrimSpace(entry[1 : len(entry)-1])
-		r.regexCacheFactory.AddEntry(entry)
-	} else {
-		r.stringCacheFactory.AddEntry(entry)
-	}
-}
-
-func (r *chainedCacheFactory) Create() StringCache {
-	return &chainedCache{
-		caches: []StringCache{r.stringCacheFactory.Create(), r.regexCacheFactory.Create()},
-	}
-}
-
-func NewChainedCacheFactory() CacheFactory {
-	return &chainedCacheFactory{
-		stringCacheFactory: newStringCacheFactory(),
-		regexCacheFactory:  newRegexCacheFactory(),
 	}
 }

@@ -9,9 +9,7 @@ import (
 )
 
 var _ = Describe("ConditionalUpstreamConfig", func() {
-	var (
-		cfg ConditionalUpstreamConfig
-	)
+	var cfg ConditionalUpstreamConfig
 
 	suiteBeforeEach()
 

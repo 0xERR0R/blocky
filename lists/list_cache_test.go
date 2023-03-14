@@ -100,7 +100,7 @@ var _ = Describe("ListCache", func() {
 
 				found, group := sut.Match("blocked1.com", []string{"gr1"})
 				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr1"))
+				Expect(group).Should(ContainElement("gr1"))
 
 				err = sut.refresh(false)
 				Expect(err).Should(Succeed())
@@ -128,11 +128,11 @@ var _ = Describe("ListCache", func() {
 
 				found, group := sut.Match("inlinedomain1.com", []string{"gr1"})
 				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr1"))
+				Expect(group).Should(ContainElement("gr1"))
 
 				found, group = sut.Match("inlinedomain2.com", []string{"gr1"})
 				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr1"))
+				Expect(group).Should(ContainElement("gr1"))
 			})
 		})
 		When("a temporary/transient err occurs on download", func() {
@@ -161,7 +161,7 @@ var _ = Describe("ListCache", func() {
 					Eventually(func(g Gomega) {
 						found, group := sut.Match("blocked1.com", []string{"gr1"})
 						g.Expect(found).Should(BeTrue())
-						g.Expect(group).Should(Equal("gr1"))
+						g.Expect(group).Should(ContainElement("gr1"))
 					}, "1s").Should(Succeed())
 				})
 
@@ -170,7 +170,7 @@ var _ = Describe("ListCache", func() {
 				By("List couldn't be loaded due to timeout", func() {
 					found, group := sut.Match("blocked1.com", []string{"gr1"})
 					Expect(found).Should(BeTrue())
-					Expect(group).Should(Equal("gr1"))
+					Expect(group).Should(ContainElement("gr1"))
 				})
 
 				sut.Refresh()
@@ -178,7 +178,7 @@ var _ = Describe("ListCache", func() {
 				By("List couldn't be loaded due to timeout", func() {
 					found, group := sut.Match("blocked1.com", []string{"gr1"})
 					Expect(found).Should(BeTrue())
-					Expect(group).Should(Equal("gr1"))
+					Expect(group).Should(ContainElement("gr1"))
 				})
 			})
 		})
@@ -201,7 +201,7 @@ var _ = Describe("ListCache", func() {
 				By("Lists loaded without err", func() {
 					found, group := sut.Match("blocked1.com", []string{"gr1"})
 					Expect(found).Should(BeTrue())
-					Expect(group).Should(Equal("gr1"))
+					Expect(group).Should(ContainElement("gr1"))
 				})
 
 				Expect(sut.refresh(false)).Should(HaveOccurred())
@@ -209,7 +209,7 @@ var _ = Describe("ListCache", func() {
 				By("Lists from first load is kept", func() {
 					found, group := sut.Match("blocked1.com", []string{"gr1"})
 					Expect(found).Should(BeTrue())
-					Expect(group).Should(Equal("gr1"))
+					Expect(group).Should(ContainElement("gr1"))
 				})
 			})
 		})
@@ -224,15 +224,15 @@ var _ = Describe("ListCache", func() {
 
 				found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
 				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr1"))
+				Expect(group).Should(ContainElement("gr1"))
 
 				found, group = sut.Match("blocked1a.com", []string{"gr1", "gr2"})
 				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr1"))
+				Expect(group).Should(ContainElement("gr1"))
 
 				found, group = sut.Match("blocked1a.com", []string{"gr2"})
 				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr2"))
+				Expect(group).Should(ContainElement("gr2"))
 			})
 		})
 		When("Configuration has some faulty urls", func() {
@@ -246,15 +246,15 @@ var _ = Describe("ListCache", func() {
 
 				found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
 				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr1"))
+				Expect(group).Should(ContainElement("gr1"))
 
 				found, group = sut.Match("blocked1a.com", []string{"gr1", "gr2"})
 				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr1"))
+				Expect(group).Should(ContainElements("gr1", "gr2"))
 
 				found, group = sut.Match("blocked1a.com", []string{"gr2"})
 				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr2"))
+				Expect(group).Should(ContainElement("gr2"))
 			})
 		})
 		When("List will be updated", func() {
@@ -288,20 +288,20 @@ var _ = Describe("ListCache", func() {
 				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
-				Expect(sut.groupCaches["gr1"].ElementCount()).Should(Equal(3))
-				Expect(sut.groupCaches["gr2"].ElementCount()).Should(Equal(2))
+				Expect(sut.groupedCache.ElementCount("gr1")).Should(Equal(3))
+				Expect(sut.groupedCache.ElementCount("gr2")).Should(Equal(2))
 
 				found, group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
 				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr1"))
+				Expect(group).Should(ContainElement("gr1"))
 
 				found, group = sut.Match("blocked1a.com", []string{"gr1", "gr2"})
 				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr1"))
+				Expect(group).Should(ContainElement("gr1"))
 
 				found, group = sut.Match("blocked1a.com", []string{"gr2"})
 				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr2"))
+				Expect(group).Should(ContainElement("gr2"))
 			})
 		})
 		When("group with bigger files", func() {
@@ -317,7 +317,7 @@ var _ = Describe("ListCache", func() {
 					defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
-				Expect(sut.groupCaches["gr1"].ElementCount()).Should(Equal(lines1 + lines2 + lines3))
+				Expect(sut.groupedCache.ElementCount("gr1")).Should(Equal(lines1 + lines2 + lines3))
 			})
 		})
 		When("inline list content is defined", func() {
@@ -334,14 +334,14 @@ var _ = Describe("ListCache", func() {
 					defaultProcessingConcurrency, false)
 				Expect(err).Should(Succeed())
 
-				Expect(sut.groupCaches["gr1"].ElementCount()).Should(Equal(2))
+				Expect(sut.groupedCache.ElementCount("gr1")).Should(Equal(2))
 				found, group := sut.Match("inlinedomain1.com", []string{"gr1"})
 				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr1"))
+				Expect(group).Should(ContainElement("gr1"))
 
 				found, group = sut.Match("inlinedomain2.com", []string{"gr1"})
 				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr1"))
+				Expect(group).Should(ContainElement("gr1"))
 			})
 		})
 		When("Text file can't be parsed", func() {
@@ -361,7 +361,7 @@ var _ = Describe("ListCache", func() {
 
 				found, group := sut.Match("inlinedomain1.com", []string{"gr1"})
 				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr1"))
+				Expect(group).Should(ContainElement("gr1"))
 			})
 		})
 		When("Text file has too many errors", func() {
@@ -392,7 +392,7 @@ var _ = Describe("ListCache", func() {
 
 				found, group := sut.Match("inlinedomain1.com", []string{"gr1"})
 				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr1"))
+				Expect(group).Should(ContainElement("gr1"))
 			})
 		})
 		When("inline regex content is defined", func() {
@@ -407,11 +407,11 @@ var _ = Describe("ListCache", func() {
 
 				found, group := sut.Match("apple.com", []string{"gr1"})
 				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr1"))
+				Expect(group).Should(ContainElement("gr1"))
 
 				found, group = sut.Match("apple.de", []string{"gr1"})
 				Expect(found).Should(BeTrue())
-				Expect(group).Should(Equal("gr1"))
+				Expect(group).Should(ContainElement("gr1"))
 			})
 		})
 	})

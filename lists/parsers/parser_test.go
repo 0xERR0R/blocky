@@ -11,9 +11,7 @@ import (
 )
 
 var _ = Describe("ForEach", func() {
-	var (
-		lines SeriesParser[string]
-	)
+	var lines SeriesParser[string]
 
 	BeforeEach(func() {
 		lines = Lines(linesReader(

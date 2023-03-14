@@ -9,7 +9,6 @@ import (
 	"net"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -36,13 +35,12 @@ type ListCacheType int
 // Matcher checks if a domain is in a list
 type Matcher interface {
 	// Match matches passed domain name against cached list entries
-	Match(domain string, groupsToCheck []string) (found bool, group string)
+	Match(domain string, groupsToCheck []string) (found bool, groups []string)
 }
 
 // ListCache generic cache of strings divided in groups
 type ListCache struct {
-	groupCaches map[string]stringcache.StringCache
-	lock        sync.RWMutex
+	groupedCache stringcache.GroupedStringCache
 
 	groupToLinks          map[string][]string
 	refreshPeriod         time.Duration
@@ -55,12 +53,10 @@ type ListCache struct {
 func (b *ListCache) LogConfig(logger *logrus.Entry) {
 	var total int
 
-	b.lock.RLock()
-	defer b.lock.RUnlock()
-
-	for group, cache := range b.groupCaches {
-		logger.Infof("%s: %d entries", group, cache.ElementCount())
-		total += cache.ElementCount()
+	for group := range b.groupToLinks {
+		count := b.groupedCache.ElementCount(group)
+		logger.Infof("%s: %d entries", group, count)
+		total += count
 	}
 
 	logger.Infof("TOTAL: %d entries", total)
@@ -70,15 +66,16 @@ func (b *ListCache) LogConfig(logger *logrus.Entry) {
 func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration,
 	downloader FileDownloader, processingConcurrency uint, async bool,
 ) (*ListCache, error) {
-	groupCaches := make(map[string]stringcache.StringCache)
-
 	if processingConcurrency == 0 {
 		processingConcurrency = defaultProcessingConcurrency
 	}
 
 	b := &ListCache{
+		groupedCache: stringcache.NewChainedGroupedCache(
+			stringcache.NewInMemoryGroupedStringCache(),
+			stringcache.NewInMemoryGroupedRegexCache(),
+		),
 		groupToLinks:          groupToLinks,
-		groupCaches:           groupCaches,
 		refreshPeriod:         refreshPeriod,
 		downloader:            downloader,
 		listType:              t,
@@ -122,10 +119,8 @@ func logger() *logrus.Entry {
 // downloads and reads files with domain names and creates cache for them
 //
 //nolint:funlen // will refactor in a later commit
-func (b *ListCache) createCacheForGroup(links []string) (stringcache.StringCache, error) {
-	var err error
-
-	factory := stringcache.NewChainedCacheFactory()
+func (b *ListCache) createCacheForGroup(group string, links []string) (created bool, err error) {
+	groupFactory := b.groupedCache.Refresh(group)
 
 	fileLinesChan := make(chan string, chanCap)
 	errChan := make(chan error, chanCap)
@@ -166,12 +161,12 @@ Loop:
 	for {
 		select {
 		case line := <-fileLinesChan:
-			factory.AddEntry(line)
+			groupFactory.AddEntry(line)
 		case e := <-errChan:
 			var transientErr *TransientError
 
 			if errors.As(e, &transientErr) {
-				return nil, e
+				return false, e
 			}
 			err = multierror.Append(err, e)
 		case <-workerDoneChan:
@@ -184,26 +179,24 @@ Loop:
 		}
 	}
 
-	cache := factory.Create()
-	if cache.ElementCount() == 0 && err != nil {
-		cache = nil // don't replace existing cache
+	if groupFactory.Count() == 0 && err != nil {
+		return false, err
 	}
 
-	return cache, err
+	groupFactory.Finish()
+
+	return true, err
 }
 
 // Match matches passed domain name against cached list entries
-func (b *ListCache) Match(domain string, groupsToCheck []string) (found bool, group string) {
-	b.lock.RLock()
-	defer b.lock.RUnlock()
+func (b *ListCache) Match(domain string, groupsToCheck []string) (found bool, groups []string) {
+	matchedGroups := b.groupedCache.Contains(domain, groupsToCheck)
 
-	for _, g := range groupsToCheck {
-		if c, ok := b.groupCaches[g]; ok && c.Contains(domain) {
-			return true, g
-		}
+	if len(matchedGroups) > 0 {
+		return true, matchedGroups
 	}
 
-	return false, ""
+	return false, []string{}
 }
 
 // Refresh triggers the refresh of a list
@@ -215,20 +208,20 @@ func (b *ListCache) refresh(isInit bool) error {
 	var err error
 
 	for group, links := range b.groupToLinks {
-		cacheForGroup, e := b.createCacheForGroup(links)
+		created, e := b.createCacheForGroup(group, links)
 		if e != nil {
 			err = multierror.Append(err, multierror.Prefix(e, fmt.Sprintf("can't create cache group '%s':", group)))
 		}
 
-		if cacheForGroup == nil {
-			count := b.groupElementCount(group, isInit)
+		count := b.groupedCache.ElementCount(group)
 
+		if !created {
 			logger := logger().WithFields(logrus.Fields{
 				"group":       group,
 				"total_count": count,
 			})
 
-			if count == 0 {
+			if count == 0 || isInit {
 				logger.Warn("Populating of group cache failed, cache will be empty until refresh succeeds")
 			} else {
 				logger.Warn("Populating of group cache failed, using existing cache, if any")
@@ -237,35 +230,15 @@ func (b *ListCache) refresh(isInit bool) error {
 			continue
 		}
 
-		b.lock.Lock()
-		b.groupCaches[group] = cacheForGroup
-		b.lock.Unlock()
-
-		evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, cacheForGroup.ElementCount())
+		evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, count)
 
 		logger().WithFields(logrus.Fields{
 			"group":       group,
-			"total_count": cacheForGroup.ElementCount(),
+			"total_count": count,
 		}).Info("group import finished")
 	}
 
 	return err
-}
-
-func (b *ListCache) groupElementCount(group string, isInit bool) int {
-	if isInit {
-		return 0
-	}
-
-	b.lock.RLock()
-	oldCache, ok := b.groupCaches[group]
-	b.lock.RUnlock()
-
-	if !ok {
-		return 0
-	}
-
-	return oldCache.ElementCount()
 }
 
 func readFile(file string) (io.ReadCloser, error) {
