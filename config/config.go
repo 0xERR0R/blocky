@@ -192,7 +192,7 @@ type Config struct {
 	// Deprecated
 	LogTimestamp bool `yaml:"logTimestamp" default:"true"`
 	// Deprecated
-	DNSPorts ListenConfig `yaml:"port" default:"\"53\""`
+	DNSPorts ListenConfig `yaml:"port" default:"53"`
 	// Deprecated
 	HTTPPorts ListenConfig `yaml:"httpPort"`
 	// Deprecated
@@ -202,7 +202,7 @@ type Config struct {
 }
 
 type PortsConfig struct {
-	DNS   ListenConfig `yaml:"dns" default:"\"53\""`
+	DNS   ListenConfig `yaml:"dns" default:"53"`
 	HTTP  ListenConfig `yaml:"http"`
 	HTTPS ListenConfig `yaml:"https"`
 	TLS   ListenConfig `yaml:"tls"`
