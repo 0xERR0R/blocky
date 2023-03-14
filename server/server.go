@@ -297,6 +297,7 @@ func createUDPServer(address string) (*dns.Server, error) {
 func createSelfSignedCert() (tls.Certificate, error) {
 	// Create CA
 	ca := &x509.Certificate{
+		//nolint:gosec
 		SerialNumber:          big.NewInt(int64(mrand.Intn(math.MaxInt))),
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().AddDate(caExpiryYears, 0, 0),
@@ -340,6 +341,7 @@ func createSelfSignedCert() (tls.Certificate, error) {
 
 	// Create certificate
 	cert := &x509.Certificate{
+		//nolint:gosec
 		SerialNumber: big.NewInt(int64(mrand.Intn(math.MaxInt))),
 		DNSNames:     []string{"*"},
 		NotBefore:    time.Now(),

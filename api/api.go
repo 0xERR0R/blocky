@@ -35,9 +35,9 @@ const (
 // QueryRequest is a data structure for a DNS request
 type QueryRequest struct {
 	// query for DNS request
-	Query string
+	Query string `json:"query"`
 	// request type (A, AAAA, ...)
-	Type string
+	Type string `json:"type"`
 }
 
 // QueryResult is a data structure for the DNS result
