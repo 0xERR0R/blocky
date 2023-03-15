@@ -12,6 +12,6 @@ coverage:
         base: auto 
         only_pulls: true
 ignore:
-  - "resolver/mocks.go"
+  - "**/mock_*"
   - "**/*_enum.go"
   - "e2e/*.go"
