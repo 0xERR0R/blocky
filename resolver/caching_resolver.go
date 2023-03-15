@@ -28,8 +28,8 @@ type CachingResolver struct {
 
 	emitMetricEvents bool // disabled by Bootstrap
 
-	resultCache          expirationcache.ExpiringCache
-	prefetchingNameCache expirationcache.ExpiringCache
+	resultCache          expirationcache.ExpiringCache[cacheValue]
+	prefetchingNameCache expirationcache.ExpiringCache[int]
 	redisClient          *redis.Client
 }
 
@@ -64,13 +64,13 @@ func newCachingResolver(cfg config.CachingConfig, redis *redis.Client, emitMetri
 }
 
 func configureCaches(c *CachingResolver, cfg *config.CachingConfig) {
-	cleanupOption := expirationcache.WithCleanUpInterval(defaultCachingCleanUpInterval)
-	maxSizeOption := expirationcache.WithMaxSize(uint(cfg.MaxItemsCount))
+	cleanupOption := expirationcache.WithCleanUpInterval[cacheValue](defaultCachingCleanUpInterval)
+	maxSizeOption := expirationcache.WithMaxSize[cacheValue](uint(cfg.MaxItemsCount))
 
 	if cfg.Prefetching {
 		c.prefetchingNameCache = expirationcache.NewCache(
-			expirationcache.WithCleanUpInterval(time.Minute),
-			expirationcache.WithMaxSize(uint(cfg.PrefetchMaxItemsCount)),
+			expirationcache.WithCleanUpInterval[int](time.Minute),
+			expirationcache.WithMaxSize[int](uint(cfg.PrefetchMaxItemsCount)),
 		)
 
 		c.resultCache = expirationcache.NewCache(
@@ -102,10 +102,10 @@ func (r *CachingResolver) shouldPrefetch(cacheKey string) bool {
 
 	cnt, _ := r.prefetchingNameCache.Get(cacheKey)
 
-	return cnt != nil && cnt.(int) > r.cfg.PrefetchThreshold
+	return cnt != nil && *cnt > r.cfg.PrefetchThreshold
 }
 
-func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.Duration) {
+func (r *CachingResolver) onExpired(cacheKey string) (val *cacheValue, ttl time.Duration) {
 	qType, domainName := util.ExtractCacheKey(cacheKey)
 
 	if r.shouldPrefetch(cacheKey) {
@@ -120,7 +120,7 @@ func (r *CachingResolver) onExpired(cacheKey string) (val interface{}, ttl time.
 			if response.Res.Rcode == dns.RcodeSuccess {
 				r.publishMetricsIfEnabled(evt.CachingDomainPrefetched, domainName)
 
-				return cacheValue{response.Res, true}, r.adjustTTLs(response.Res.Answer)
+				return &cacheValue{response.Res, true}, r.adjustTTLs(response.Res.Answer)
 			}
 		} else {
 			util.LogOnError(fmt.Sprintf("can't prefetch '%s' ", domainName), err)
@@ -162,15 +162,14 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 
 			r.publishMetricsIfEnabled(evt.CachingResultCacheHit, domain)
 
-			v := val.(cacheValue)
-			if v.prefetch {
+			if val.prefetch {
 				// Hit from prefetch cache
 				r.publishMetricsIfEnabled(evt.CachingPrefetchCacheHit, domain)
 			}
 
-			resp := v.resultMsg.Copy()
+			resp := val.resultMsg.Copy()
 			resp.SetReply(request.Req)
-			resp.Rcode = v.resultMsg.Rcode
+			resp.Rcode = val.resultMsg.Rcode
 
 			// Adjust TTL
 			for _, rr := range resp.Answer {
@@ -201,10 +200,10 @@ func (r *CachingResolver) trackQueryDomainNameCount(domain, cacheKey string, log
 	if r.prefetchingNameCache != nil {
 		var domainCount int
 		if x, _ := r.prefetchingNameCache.Get(cacheKey); x != nil {
-			domainCount = x.(int)
+			domainCount = *x
 		}
 		domainCount++
-		r.prefetchingNameCache.Put(cacheKey, domainCount, r.cfg.PrefetchExpires.ToDuration())
+		r.prefetchingNameCache.Put(cacheKey, &domainCount, r.cfg.PrefetchExpires.ToDuration())
 		totalCount := r.prefetchingNameCache.TotalCount()
 
 		logger.Debugf("domain '%s' was requested %d times, "+
@@ -216,11 +215,11 @@ func (r *CachingResolver) trackQueryDomainNameCount(domain, cacheKey string, log
 func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, prefetch, publish bool) {
 	if response.Res.Rcode == dns.RcodeSuccess {
 		// put value into cache
-		r.resultCache.Put(cacheKey, cacheValue{response.Res, prefetch}, r.adjustTTLs(response.Res.Answer))
+		r.resultCache.Put(cacheKey, &cacheValue{response.Res, prefetch}, r.adjustTTLs(response.Res.Answer))
 	} else if response.Res.Rcode == dns.RcodeNameError {
 		if r.cfg.CacheTimeNegative > 0 {
 			// put negative cache if result code is NXDOMAIN
-			r.resultCache.Put(cacheKey, cacheValue{response.Res, prefetch}, r.cfg.CacheTimeNegative.ToDuration())
+			r.resultCache.Put(cacheKey, &cacheValue{response.Res, prefetch}, r.cfg.CacheTimeNegative.ToDuration())
 		}
 	}
 
