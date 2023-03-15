@@ -55,7 +55,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 			})
 
 			It("should use the system resolver", func() {
-				usedSystemResolver := make(chan bool, 10)
+				usedSystemResolver := make(chan bool, 100)
 
 				sut.systemResolver = &net.Resolver{
 					PreferGo: true,
