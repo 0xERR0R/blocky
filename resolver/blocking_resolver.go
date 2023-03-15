@@ -89,7 +89,7 @@ type BlockingResolver struct {
 	status              *status
 	clientGroupsBlock   map[string][]string
 	redisClient         *redis.Client
-	fqdnIPCache         expirationcache.ExpiringCache
+	fqdnIPCache         expirationcache.ExpiringCache[[]net.IP]
 }
 
 // NewBlockingResolver returns a new configured instance of the resolver
@@ -472,10 +472,9 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 		if util.CidrContainsIP(clientIdentifier, request.ClientIP) {
 			groups = append(groups, groupsByCidr...)
 		} else if isFQDN(clientIdentifier) && r.fqdnIPCache != nil {
-			clIps, _ := r.fqdnIPCache.Get(clientIdentifier)
-			if clIps != nil {
-				ips := clIps.([]net.IP)
-				for _, ip := range ips {
+			ips, _ := r.fqdnIPCache.Get(clientIdentifier)
+			if ips != nil {
+				for _, ip := range *ips {
 					if ip.Equal(request.ClientIP) {
 						groups = append(groups, groupsByCidr...)
 					}
@@ -569,8 +568,12 @@ func (b ipBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
 	}
 }
 
-func (r *BlockingResolver) queryForFQIdentifierIPs(identifier string) (result []net.IP, ttl time.Duration) {
+func (r *BlockingResolver) queryForFQIdentifierIPs(identifier string) (*[]net.IP, time.Duration) {
 	prefixedLog := log.WithPrefix(r.log(), "client_id_cache")
+
+	var result []net.IP
+
+	var ttl time.Duration
 
 	for _, qType := range []uint16{dns.TypeA, dns.TypeAAAA} {
 		resp, err := r.next.Resolve(&model.Request{
@@ -594,7 +597,7 @@ func (r *BlockingResolver) queryForFQIdentifierIPs(identifier string) (result []
 		}
 	}
 
-	return
+	return &result, ttl
 }
 
 func (r *BlockingResolver) initFQDNIPCache() {
@@ -607,8 +610,8 @@ func (r *BlockingResolver) initFQDNIPCache() {
 		identifiers = append(identifiers, identifier)
 	}
 
-	r.fqdnIPCache = expirationcache.NewCache(expirationcache.WithCleanUpInterval(defaultBlockingCleanUpInterval),
-		expirationcache.WithOnExpiredFn(func(key string) (val interface{}, ttl time.Duration) {
+	r.fqdnIPCache = expirationcache.NewCache(expirationcache.WithCleanUpInterval[[]net.IP](defaultBlockingCleanUpInterval),
+		expirationcache.WithOnExpiredFn(func(key string) (val *[]net.IP, ttl time.Duration) {
 			return r.queryForFQIdentifierIPs(key)
 		}))
 

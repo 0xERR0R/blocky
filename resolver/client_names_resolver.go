@@ -21,7 +21,7 @@ type ClientNamesResolver struct {
 	NextResolver
 	typed
 
-	cache            expirationcache.ExpiringCache
+	cache            expirationcache.ExpiringCache[[]string]
 	externalResolver Resolver
 }
 
@@ -41,7 +41,7 @@ func NewClientNamesResolver(
 		configurable: withConfig(&cfg),
 		typed:        withType("client_names"),
 
-		cache:            expirationcache.NewCache(expirationcache.WithCleanUpInterval(time.Hour)),
+		cache:            expirationcache.NewCache(expirationcache.WithCleanUpInterval[[]string](time.Hour)),
 		externalResolver: r,
 	}
 
@@ -78,14 +78,16 @@ func (r *ClientNamesResolver) getClientNames(request *model.Request) []string {
 
 	c, _ := r.cache.Get(ip.String())
 	if c != nil {
-		if t, ok := c.([]string); ok {
-			return t
-		}
+		// return copy here, since we can't control all usages here
+		cpy := make([]string, len(*c))
+		copy(cpy, *c)
+
+		return cpy
 	}
 
 	names := r.resolveClientNames(ip, log.WithPrefix(request.Log, "client_names_resolver"))
 
-	r.cache.Put(ip.String(), names, time.Hour)
+	r.cache.Put(ip.String(), &names, time.Hour)
 
 	return names
 }

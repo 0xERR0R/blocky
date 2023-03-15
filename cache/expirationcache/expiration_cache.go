@@ -11,21 +11,21 @@ const (
 	defaultSize            = 10_000
 )
 
-type element struct {
-	val            interface{}
+type element[T any] struct {
+	val            *T
 	expiresEpochMs int64
 }
 
-type ExpiringLRUCache struct {
+type ExpiringLRUCache[T any] struct {
 	cleanUpInterval time.Duration
-	preExpirationFn OnExpirationCallback
+	preExpirationFn OnExpirationCallback[T]
 	lru             *lru.Cache
 }
 
-type CacheOption func(c *ExpiringLRUCache)
+type CacheOption[T any] func(c *ExpiringLRUCache[T])
 
-func WithCleanUpInterval(d time.Duration) CacheOption {
-	return func(e *ExpiringLRUCache) {
+func WithCleanUpInterval[T any](d time.Duration) CacheOption[T] {
+	return func(e *ExpiringLRUCache[T]) {
 		e.cleanUpInterval = d
 	}
 }
@@ -33,16 +33,16 @@ func WithCleanUpInterval(d time.Duration) CacheOption {
 // OnExpirationCallback will be called just before an element gets expired and will
 // be removed from cache. This function can return new value and TTL to leave the
 // element in the cache or nil to remove it
-type OnExpirationCallback func(key string) (val interface{}, ttl time.Duration)
+type OnExpirationCallback[T any] func(key string) (val *T, ttl time.Duration)
 
-func WithOnExpiredFn(fn OnExpirationCallback) CacheOption {
-	return func(c *ExpiringLRUCache) {
+func WithOnExpiredFn[T any](fn OnExpirationCallback[T]) CacheOption[T] {
+	return func(c *ExpiringLRUCache[T]) {
 		c.preExpirationFn = fn
 	}
 }
 
-func WithMaxSize(size uint) CacheOption {
-	return func(c *ExpiringLRUCache) {
+func WithMaxSize[T any](size uint) CacheOption[T] {
+	return func(c *ExpiringLRUCache[T]) {
 		if size > 0 {
 			l, _ := lru.New(int(size))
 			c.lru = l
@@ -50,11 +50,11 @@ func WithMaxSize(size uint) CacheOption {
 	}
 }
 
-func NewCache(options ...CacheOption) *ExpiringLRUCache {
+func NewCache[T any](options ...CacheOption[T]) *ExpiringLRUCache[T] {
 	l, _ := lru.New(defaultSize)
-	c := &ExpiringLRUCache{
+	c := &ExpiringLRUCache[T]{
 		cleanUpInterval: defaultCleanUpInterval,
-		preExpirationFn: func(key string) (val interface{}, ttl time.Duration) {
+		preExpirationFn: func(key string) (val *T, ttl time.Duration) {
 			return nil, 0
 		},
 		lru: l,
@@ -69,7 +69,7 @@ func NewCache(options ...CacheOption) *ExpiringLRUCache {
 	return c
 }
 
-func periodicCleanup(c *ExpiringLRUCache) {
+func periodicCleanup[T any](c *ExpiringLRUCache[T]) {
 	ticker := time.NewTicker(c.cleanUpInterval)
 	defer ticker.Stop()
 
@@ -79,13 +79,13 @@ func periodicCleanup(c *ExpiringLRUCache) {
 	}
 }
 
-func (e *ExpiringLRUCache) cleanUp() {
+func (e *ExpiringLRUCache[T]) cleanUp() {
 	var expiredKeys []string
 
 	// check for expired items and collect expired keys
 	for _, k := range e.lru.Keys() {
 		if v, ok := e.lru.Peek(k); ok {
-			if isExpired(v.(*element)) {
+			if isExpired(v.(*element[T])) {
 				expiredKeys = append(expiredKeys, k.(string))
 			}
 		}
@@ -109,7 +109,7 @@ func (e *ExpiringLRUCache) cleanUp() {
 	}
 }
 
-func (e *ExpiringLRUCache) Put(key string, val interface{}, ttl time.Duration) {
+func (e *ExpiringLRUCache[T]) Put(key string, val *T, ttl time.Duration) {
 	if ttl <= 0 {
 		// entry should be considered as already expired
 		return
@@ -118,23 +118,23 @@ func (e *ExpiringLRUCache) Put(key string, val interface{}, ttl time.Duration) {
 	expiresEpochMs := time.Now().UnixMilli() + ttl.Milliseconds()
 
 	// add new item
-	e.lru.Add(key, &element{
+	e.lru.Add(key, &element[T]{
 		val:            val,
 		expiresEpochMs: expiresEpochMs,
 	})
 }
 
-func (e *ExpiringLRUCache) Get(key string) (val interface{}, ttl time.Duration) {
+func (e *ExpiringLRUCache[T]) Get(key string) (val *T, ttl time.Duration) {
 	el, found := e.lru.Get(key)
 
 	if found {
-		return el.(*element).val, calculateRemainTTL(el.(*element).expiresEpochMs)
+		return el.(*element[T]).val, calculateRemainTTL(el.(*element[T]).expiresEpochMs)
 	}
 
 	return nil, 0
 }
 
-func isExpired(el *element) bool {
+func isExpired[T any](el *element[T]) bool {
 	return el.expiresEpochMs > 0 && time.Now().UnixMilli() > el.expiresEpochMs
 }
 
@@ -146,10 +146,10 @@ func calculateRemainTTL(expiresEpoch int64) time.Duration {
 	return 0
 }
 
-func (e *ExpiringLRUCache) TotalCount() (count int) {
+func (e *ExpiringLRUCache[T]) TotalCount() (count int) {
 	return e.lru.Len()
 }
 
-func (e *ExpiringLRUCache) Clear() {
+func (e *ExpiringLRUCache[T]) Clear() {
 	e.lru.Purge()
 }

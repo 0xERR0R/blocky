@@ -81,7 +81,7 @@ var _ = Describe("CachingResolver", func() {
 				prefetchThreshold := 5
 				configureCaches(sut, &sutConfig)
 				sut.resultCache = expirationcache.NewCache(
-					expirationcache.WithCleanUpInterval(100*time.Millisecond),
+					expirationcache.WithCleanUpInterval[cacheValue](100*time.Millisecond),
 					expirationcache.WithOnExpiredFn(sut.onExpired))
 
 				domainPrefetched := make(chan string, 1)
