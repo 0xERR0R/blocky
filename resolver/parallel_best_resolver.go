@@ -15,7 +15,7 @@ import (
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 
-	"github.com/mroth/weightedrand"
+	"github.com/mroth/weightedrand/v2"
 	"github.com/sirupsen/logrus"
 )
 
@@ -264,7 +264,7 @@ func pickRandom(resolvers []*upstreamResolverStatus) (resolver1, resolver2 *upst
 func weightedRandom(in []*upstreamResolverStatus, exclude Resolver) *upstreamResolverStatus {
 	const errorWindowInSec = 60
 
-	var choices []weightedrand.Choice
+	var choices []weightedrand.Choice[*upstreamResolverStatus, uint]
 
 	for _, res := range in {
 		var weight float64 = errorWindowInSec
@@ -276,15 +276,12 @@ func weightedRandom(in []*upstreamResolverStatus, exclude Resolver) *upstreamRes
 		}
 
 		if exclude != res.resolver {
-			choices = append(choices, weightedrand.Choice{
-				Item:   res,
-				Weight: uint(weight),
-			})
+			choices = append(choices, weightedrand.NewChoice(res, uint(weight)))
 		}
 	}
 
 	c, err := weightedrand.NewChooser(choices...)
 	util.LogOnError("can't choose random weighted resolver: ", err)
 
-	return c.Pick().(*upstreamResolverStatus)
+	return c.Pick()
 }

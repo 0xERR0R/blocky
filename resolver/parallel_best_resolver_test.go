@@ -396,7 +396,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 				By("all resolvers have same weight for random -> equal distribution", func() {
 					resolverCount := make(map[Resolver]int)
 
-					for i := 0; i < 100; i++ {
+					for i := 0; i < 1000; i++ {
 						r1, r2 := pickRandom(sut.resolversForClient(newRequestWithClient(
 							"example.com", A, "123.123.100.100",
 						)))
@@ -408,8 +408,8 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 						resolverCount[res2]++
 					}
 					for _, v := range resolverCount {
-						// should be 50 ± 10
-						Expect(v).Should(BeNumerically("~", 50, 10))
+						// should be 500 ± 100
+						Expect(v).Should(BeNumerically("~", 500, 100))
 					}
 				})
 				By("perform 10 request, error upstream's weight will be reduced", func() {
