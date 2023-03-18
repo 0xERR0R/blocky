@@ -165,13 +165,7 @@ func FatalOnError(message string, err error) {
 
 // GenerateCacheKey return cacheKey by query type/domain
 func GenerateCacheKey(qType dns.Type, qName string) string {
-	const qTypeLength = 2
-	b := make([]byte, qTypeLength+len(qName))
-
-	binary.BigEndian.PutUint16(b, uint16(qType))
-	copy(b[2:], strings.ToLower(qName))
-
-	return string(b)
+	return dns.TypeToString[uint16(qType)] + ":" + qName
 }
 
 // ExtractCacheKey return query type/domain from cacheKey

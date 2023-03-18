@@ -232,16 +232,16 @@ type (
 
 // RedisConfig configuration for the redis connection
 type RedisConfig struct {
-	Address            string   `yaml:"address"`
-	Username           string   `yaml:"username" default:""`
-	Password           string   `yaml:"password" default:""`
-	Database           int      `yaml:"database" default:"0"`
-	Required           bool     `yaml:"required" default:"false"`
-	ConnectionAttempts int      `yaml:"connectionAttempts" default:"3"`
-	ConnectionCooldown Duration `yaml:"connectionCooldown" default:"1s"`
-	SentinelUsername   string   `yaml:"sentinelUsername" default:""`
-	SentinelPassword   string   `yaml:"sentinelPassword" default:""`
-	SentinelAddresses  []string `yaml:"sentinelAddresses"`
+	Addresses            []string `yaml:"addresses"`
+	Username             string   `yaml:"username" default:""`
+	Password             string   `yaml:"password" default:""`
+	Database             int      `yaml:"database" default:"0"`
+	SentinelUsername     string   `yaml:"sentinelUsername" default:""`
+	SentinelPassword     string   `yaml:"sentinelPassword" default:""`
+	SentinelMasterSet    string   `yaml:"sentinelMasterSet" default:""`
+	ClientMaxCachingTime Duration `yaml:"clientMaxCachingTime" default:"1h"`
+	ConnectionAttempts   int      `yaml:"connectionAttempts" default:"3"`
+	ConnectionCooldown   Duration `yaml:"connectionCooldown" default:"1s"`
 }
 
 type (

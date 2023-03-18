@@ -28,7 +28,7 @@ type CachingResolver struct {
 
 	emitMetricEvents bool // disabled by Bootstrap
 
-	resultCache          expirationcache.ExpiringCache[cacheValue]
+	resultCache          expirationcache.ExpiringCache[dns.Msg]
 	prefetchingNameCache expirationcache.ExpiringCache[int]
 	redisClient          *redis.Client
 }
@@ -55,30 +55,20 @@ func newCachingResolver(cfg config.CachingConfig, redis *redis.Client, emitMetri
 
 	configureCaches(c, &cfg)
 
-	if c.redisClient != nil {
-		setupRedisCacheSubscriber(c)
-		c.redisClient.GetRedisCache()
-	}
-
 	return c
 }
 
 func configureCaches(c *CachingResolver, cfg *config.CachingConfig) {
-	cleanupOption := expirationcache.WithCleanUpInterval[cacheValue](defaultCachingCleanUpInterval)
-	maxSizeOption := expirationcache.WithMaxSize[cacheValue](uint(cfg.MaxItemsCount))
+	rdb, err := redis.NewRedisClient(&config.GetConfig().Redis)
+	util.FatalOnError("can't create redis client", err)
 
-	if cfg.Prefetching {
-		c.prefetchingNameCache = expirationcache.NewCache(
-			expirationcache.WithCleanUpInterval[int](time.Minute),
-			expirationcache.WithMaxSize[int](uint(cfg.PrefetchMaxItemsCount)),
-		)
-
-		c.resultCache = expirationcache.NewCache(
-			cleanupOption,
-			maxSizeOption,
-			expirationcache.WithOnExpiredFn(c.onExpired),
-		)
+	if rdb != nil {
+		// redis
+		c.resultCache = expirationcache.NewRedisCache(rdb, "query")
 	} else {
+		// in-memory
+		cleanupOption := expirationcache.WithCleanUpInterval[dns.Msg](defaultCachingCleanUpInterval)
+		maxSizeOption := expirationcache.WithMaxSize[dns.Msg](uint(cfg.MaxItemsCount))
 		c.resultCache = expirationcache.NewCache(cleanupOption, maxSizeOption)
 	}
 }
@@ -162,14 +152,14 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 
 			r.publishMetricsIfEnabled(evt.CachingResultCacheHit, domain)
 
-			if val.prefetch {
-				// Hit from prefetch cache
-				r.publishMetricsIfEnabled(evt.CachingPrefetchCacheHit, domain)
-			}
+			//if val.prefetch {
+			//	// Hit from prefetch cache
+			//	r.publishMetricsIfEnabled(evt.CachingPrefetchCacheHit, domain)
+			//}
 
-			resp := val.resultMsg.Copy()
+			resp := val.Copy()
 			resp.SetReply(request.Req)
-			resp.Rcode = val.resultMsg.Rcode
+			resp.Rcode = val.Rcode
 
 			// Adjust TTL
 			for _, rr := range resp.Answer {
@@ -215,21 +205,15 @@ func (r *CachingResolver) trackQueryDomainNameCount(domain, cacheKey string, log
 func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, prefetch, publish bool) {
 	if response.Res.Rcode == dns.RcodeSuccess {
 		// put value into cache
-		r.resultCache.Put(cacheKey, &cacheValue{response.Res, prefetch}, r.adjustTTLs(response.Res.Answer))
+		r.resultCache.Put(cacheKey, response.Res, r.adjustTTLs(response.Res.Answer))
 	} else if response.Res.Rcode == dns.RcodeNameError {
 		if r.cfg.CacheTimeNegative > 0 {
 			// put negative cache if result code is NXDOMAIN
-			r.resultCache.Put(cacheKey, &cacheValue{response.Res, prefetch}, r.cfg.CacheTimeNegative.ToDuration())
+			r.resultCache.Put(cacheKey, response.Res, r.cfg.CacheTimeNegative.ToDuration())
 		}
 	}
 
 	r.publishMetricsIfEnabled(evt.CachingResultCacheChanged, r.resultCache.TotalCount())
-
-	if publish && r.redisClient != nil {
-		res := *response.Res
-		res.Answer = response.Res.Answer
-		r.redisClient.PublishCache(cacheKey, &res)
-	}
 }
 
 // adjustTTLs calculates and returns the max TTL (considers also the min and max cache time)

@@ -11,6 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/redis"
+	"github.com/0xERR0R/blocky/util"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/sirupsen/logrus"
 
@@ -70,11 +74,23 @@ func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeri
 		processingConcurrency = defaultProcessingConcurrency
 	}
 
-	b := &ListCache{
-		groupedCache: stringcache.NewChainedGroupedCache(
+	rdb, err := redis.NewRedisClient(&config.GetConfig().Redis)
+	util.FatalOnError("can't create redis client", err)
+	var groupedCache stringcache.GroupedStringCache
+	if rdb != nil {
+		// redis
+		groupedCache = stringcache.NewChainedGroupedCache(
+			stringcache.NewRedisGroupedStringCache(t.String(), rdb),
+			stringcache.NewInMemoryGroupedRegexCache())
+	} else {
+		// in-memory
+		groupedCache = stringcache.NewChainedGroupedCache(
 			stringcache.NewInMemoryGroupedStringCache(),
-			stringcache.NewInMemoryGroupedRegexCache(),
-		),
+			stringcache.NewInMemoryGroupedRegexCache())
+	}
+
+	b := &ListCache{
+		groupedCache:          groupedCache,
 		groupToLinks:          groupToLinks,
 		refreshPeriod:         refreshPeriod,
 		downloader:            downloader,

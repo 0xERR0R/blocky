@@ -3,23 +3,20 @@ package stringcache
 import (
 	"context"
 	"fmt"
+	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/rueian/rueidis"
 )
 
 type RedisGroupedStringCache struct {
-	rdb  *redis.Client
+	rdb  rueidis.Client
 	name string
 }
 
-func NewRedisGroupedStringCache(name string) *RedisGroupedStringCache {
+func NewRedisGroupedStringCache(name string, rdb rueidis.Client) *RedisGroupedStringCache {
 	return &RedisGroupedStringCache{
 		name: name,
-		rdb: redis.NewClient(&redis.Options{
-			Addr:     "localhost:6379",
-			Password: "", // no password set
-			DB:       0,  // use default DB
-		}),
+		rdb:  rdb,
 	}
 }
 
@@ -28,25 +25,28 @@ func (r *RedisGroupedStringCache) cacheKey(groupName string) string {
 }
 
 func (r *RedisGroupedStringCache) ElementCount(group string) int {
-	return int(r.rdb.SCard(context.Background(), r.cacheKey(group)).Val())
+	res, err := r.rdb.DoCache(context.Background(), r.rdb.B().Scard().Key(r.cacheKey(group)).Cache(), 600*time.Second).ToInt64()
+	if err != nil {
+		return 0
+	}
+	return int(res)
 }
 
 func (r *RedisGroupedStringCache) Contains(searchString string, groups []string) []string {
-	cmds, err := r.rdb.Pipelined(context.Background(), func(pipeline redis.Pipeliner) error {
-		for _, group := range groups {
-			pipeline.SIsMember(context.Background(), r.cacheKey(group), searchString)
-		}
-
-		return nil
-	})
-	if err != nil {
-		panic(err)
+	var cmds []rueidis.CacheableTTL
+	for _, group := range groups {
+		cmds = append(cmds, rueidis.CT(r.rdb.B().Sismember().Key(r.cacheKey(group)).Member(searchString).Cache(), time.Second))
 	}
+	resps := r.rdb.DoMultiCache(context.Background(), cmds...)
 
 	var result []string
 
 	for ix, group := range groups {
-		if cmds[ix].(*redis.BoolCmd).Val() {
+		r, err := resps[ix].AsBool()
+		if err != nil {
+			panic(err)
+		}
+		if r {
 			result = append(result, group)
 		}
 	}
@@ -55,30 +55,26 @@ func (r *RedisGroupedStringCache) Contains(searchString string, groups []string)
 }
 
 func (r *RedisGroupedStringCache) Refresh(group string) GroupFactory {
-	pipeline := r.rdb.Pipeline()
-	pipeline.Del(context.Background(), r.cacheKey(group))
+	cmds := rueidis.Commands{r.rdb.B().Del().Key(r.cacheKey(group)).Build()}
 
 	f := &RedisGroupFactory{
-		rdb:      r.rdb,
-		name:     r.cacheKey(group),
-		pipeline: pipeline,
+		rdb:  r.rdb,
+		name: r.cacheKey(group),
+		cmds: cmds,
 	}
 
 	return f
 }
 
 type RedisGroupFactory struct {
-	rdb      *redis.Client
-	name     string
-	pipeline redis.Pipeliner
-	cnt      int
+	rdb  rueidis.Client
+	name string
+	cmds rueidis.Commands
+	cnt  int
 }
 
 func (r *RedisGroupFactory) AddEntry(entry string) {
-	err := r.pipeline.SAdd(context.Background(), r.name, entry).Err()
-	if err != nil {
-		panic(err)
-	}
+	r.cmds = append(r.cmds, r.rdb.B().Sadd().Key(r.name).Member(entry).Build())
 
 	r.cnt++
 }
@@ -88,8 +84,5 @@ func (r *RedisGroupFactory) Count() int {
 }
 
 func (r *RedisGroupFactory) Finish() {
-	_, err := r.pipeline.Exec(context.Background())
-	if err != nil {
-		panic(err)
-	}
+	_ = r.rdb.DoMulti(context.Background(), r.cmds...)
 }

@@ -10,9 +10,7 @@ import (
 )
 
 var _ = Describe("BlockingConfig", func() {
-	var (
-		cfg BlockingConfig
-	)
+	var cfg BlockingConfig
 
 	suiteBeforeEach()
 

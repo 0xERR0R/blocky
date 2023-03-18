@@ -9,10 +9,8 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/go-redis/redis/v8"
-	"github.com/google/uuid"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 )
@@ -63,67 +61,6 @@ type Client struct {
 	sendBuffer     chan *bufferMessage
 	CacheChannel   chan *CacheMessage
 	EnabledChannel chan *EnabledMessage
-}
-
-// New creates a new redis client
-func New(cfg *config.RedisConfig) (*Client, error) {
-	// disable redis if no address is provided
-	if cfg == nil || len(cfg.Address) == 0 {
-		return nil, nil //nolint:nilnil
-	}
-
-	var rdb *redis.Client
-	if len(cfg.SentinelAddresses) > 0 {
-		rdb = redis.NewFailoverClient(&redis.FailoverOptions{
-			MasterName:       cfg.Address,
-			SentinelUsername: cfg.Username,
-			SentinelPassword: cfg.SentinelPassword,
-			SentinelAddrs:    cfg.SentinelAddresses,
-			Username:         cfg.Username,
-			Password:         cfg.Password,
-			DB:               cfg.Database,
-			MaxRetries:       cfg.ConnectionAttempts,
-			MaxRetryBackoff:  cfg.ConnectionCooldown.ToDuration(),
-		})
-	} else {
-		rdb = redis.NewClient(&redis.Options{
-			Addr:            cfg.Address,
-			Username:        cfg.Username,
-			Password:        cfg.Password,
-			DB:              cfg.Database,
-			MaxRetries:      cfg.ConnectionAttempts,
-			MaxRetryBackoff: cfg.ConnectionCooldown.ToDuration(),
-		})
-	}
-
-	ctx := context.Background()
-
-	_, err := rdb.Ping(ctx).Result()
-	if err == nil {
-		var id []byte
-
-		id, err = uuid.New().MarshalBinary()
-		if err == nil {
-			// construct client
-			res := &Client{
-				config:         cfg,
-				client:         rdb,
-				l:              log.PrefixedLog("redis"),
-				ctx:            ctx,
-				id:             id,
-				sendBuffer:     make(chan *bufferMessage, chanCap),
-				CacheChannel:   make(chan *CacheMessage, chanCap),
-				EnabledChannel: make(chan *EnabledMessage, chanCap),
-			}
-
-			// start channel handling go routine
-			err = res.startup()
-
-			return res, err
-		}
-	}
-
-	return nil, err
 }
 
 // PublishCache publish cache to redis async

@@ -151,12 +151,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 		return nil, err
 	}
 
-	redisClient, redisErr := redis.New(&cfg.Redis)
-	if redisErr != nil && cfg.Redis.Required {
-		return nil, redisErr
-	}
-
-	queryResolver, queryError := createQueryResolver(cfg, bootstrap, redisClient)
+	queryResolver, queryError := createQueryResolver(cfg, bootstrap, nil)
 	if queryError != nil {
 		return nil, queryError
 	}
