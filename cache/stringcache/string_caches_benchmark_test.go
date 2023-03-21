@@ -14,10 +14,10 @@ func BenchmarkStringCache(b *testing.B) {
 		factory := newStringCacheFactory()
 
 		for _, s := range testdata {
-			factory.AddEntry(s)
+			factory.addEntry(s)
 		}
 
-		factory.Create()
+		factory.create()
 	}
 }
 
