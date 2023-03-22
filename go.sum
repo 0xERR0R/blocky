@@ -427,8 +427,8 @@ github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO
 github.com/stretchr/testify v1.8.1/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o6fzry7u4=
 github.com/stretchr/testify v1.8.2 h1:+h33VjcLVPDHtOdpUCuF+7gSuG3yGIftsP1YvFihtJ8=
 github.com/stretchr/testify v1.8.2/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o6fzry7u4=
-github.com/swaggo/swag v1.8.10 h1:eExW4bFa52WOjqRzRD58bgWsWfdFJso50lpbeTcmTfo=
-github.com/swaggo/swag v1.8.10/go.mod h1:ezQVUUhly8dludpVk+/PuwJWvLLanB13ygV5Pr9enSk=
+github.com/swaggo/swag v1.8.11 h1:Fp1dNNtDvbCf+8kvehZbHQnlF6AxHGjmw6H/xAMrZfY=
+github.com/swaggo/swag v1.8.11/go.mod h1:2GXgpNI9iy5OdsYWu8zXfRAGnOAPxYxTWTyM0XOTYZQ=
 github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=
 github.com/testcontainers/testcontainers-go v0.19.0 h1:3bmFPuQRgVIQwxZJERyzB8AogmJW3Qzh8iDyfJbPhi8=
 github.com/testcontainers/testcontainers-go v0.19.0/go.mod h1:3YsSoxK0rGEUzbGD4gUVt1Nm3GJpCIq94GX+2LSf3d4=
