@@ -55,7 +55,7 @@ func (c *InMemoryGroupedCache) Contains(searchString string, groups []string) []
 func (c *InMemoryGroupedCache) Refresh(group string) GroupFactory {
 	return &inMemoryGroupFactory{
 		factory: c.factoryFn(),
-		callbackFn: func(sc stringCache) {
+		finishFn: func(sc stringCache) {
 			c.lock.Lock()
 			c.caches[group] = sc
 			c.lock.Unlock()
@@ -64,8 +64,8 @@ func (c *InMemoryGroupedCache) Refresh(group string) GroupFactory {
 }
 
 type inMemoryGroupFactory struct {
-	factory    cacheFactory
-	callbackFn func(stringCache)
+	factory  cacheFactory
+	finishFn func(stringCache)
 }
 
 func (c *inMemoryGroupFactory) AddEntry(entry string) {
@@ -78,5 +78,5 @@ func (c *inMemoryGroupFactory) Count() int {
 
 func (c *inMemoryGroupFactory) Finish() {
 	sc := c.factory.create()
-	c.callbackFn(sc)
+	c.finishFn(sc)
 }
