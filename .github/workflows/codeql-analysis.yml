@@ -13,10 +13,12 @@ name: "CodeQL"
 
 on:
   push:
-    branches: [ main ]
+    branches: 
+      - main
+      - fb-*
   pull_request:
-    # The branches below must be a subset of the branches above
-    branches: [ main ]
+    branches: 
+      - main
   schedule:
     - cron: '33 15 * * 1'
 
@@ -28,14 +30,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'go' ]
-        # CodeQL supports [ 'cpp', 'csharp', 'go', 'java', 'javascript', 'python' ]
-        # Learn more:
-        # https://docs.github.com/en/free-pro-team@latest/github/finding-security-vulnerabilities-and-errors-in-your-code/configuring-code-scanning#changing-the-languages-that-are-analyzed
-
+        language: 
+          - go
+  
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
+
+    # Use Golang cache
+    - name: Setup Golang
+        uses: actions/setup-go@v4
+        if: matrix.language == 'go'
+        with:
+          go-version-file: go.mod
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
@@ -49,8 +56,8 @@ jobs:
 
     # Autobuild attempts to build any compiled languages  (C/C++, C#, or Java).
     # If this step fails, then you should remove it and run the build manually (see below)
-    - name: Autobuild
-      uses: github/codeql-action/autobuild@v2
+    #- name: Autobuild
+    #  uses: github/codeql-action/autobuild@v2
 
     # ℹ️ Command-line programs to run using the OS shell.
     # 📚 https://git.io/JvXDl
@@ -62,6 +69,9 @@ jobs:
     #- run: |
     #   make bootstrap
     #   make release
+
+    - name: Build with Makefile
+      run: make build
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
