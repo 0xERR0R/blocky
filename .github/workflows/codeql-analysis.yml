@@ -26,12 +26,6 @@ jobs:
   analyze:
     name: Analyze
     runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        language: 
-          - go
   
     steps:
       - name: Checkout repository
@@ -40,7 +34,6 @@ jobs:
       # Use Golang cache
       - name: Setup Golang
         uses: actions/setup-go@v4
-        if: matrix.language == 'go'
         with:
           go-version-file: go.mod
 
@@ -48,7 +41,7 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
         with:
-          languages: ${{ matrix.language }}
+          languages: go
         # If you wish to specify custom queries, you can do so here or in a config file.
         # By default, queries listed here will override any specified in a config file.
         # Prefix the list here with "+" to use these queries and those in the config file.
