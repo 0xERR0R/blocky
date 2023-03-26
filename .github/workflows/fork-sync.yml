@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     env: 
       sync_token: ${{ secrets.FORK_SYNC_TOKEN }}
-    if: ${{ github.repository_owner != '0xERR0R' && env.sync_token == '' }}
+    if: github.repository_owner != '0xERR0R' && ${{ env.sync_token == '' }}
     steps:
       - uses: tgymnich/fork-sync@v1.8
         with:
