@@ -41,6 +41,8 @@ jobs:
 #          fetch-depth: 0
 #          ref: main
       - name: Enabled Check
+        env:
+          GH_TOKEN: ${{ secrets.FORK_SYNC_TOKEN }}
         shell: bash
         run: | 
           gh repo sync 0xERR0R/blocky -b main
