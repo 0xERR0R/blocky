@@ -9,16 +9,36 @@ concurrency:
   group: ${{ github.workflow }}
 
 jobs:
-  sync:
+  check:
+    name: Check if workflow should run 
     runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - name: Enabled Check
+        id: check
+        shell: bash
+        run: | 
+          if [[ "${{ github.repository_owner }}" != "0xERR0R" ]] && [[ "${{ secrets.FORK_SYNC_TOKEN }}" != "" ]]; then
+            echo "enabled=1" >> $GITHUB_OUTPUT
+
+            echo "Workflow is enabled"
+          else
+            echo "enabled=0" >> $GITHUB_OUTPUT
+
+            echo "Workflow is disabled"
+          fi
+
+  sync:
+    name: Sync with Upstream
+    runs-on: ubuntu-latest
+    needs: check
+    if: ${{ needs.check.outputs.enabled == 1 }}
     steps:
       - name: sync
-        env: 
-          sync_token: ${{ secrets.FORK_SYNC_TOKEN }}
-        if: github.repository_owner != '0xERR0R' && ${{ env.sync_token == '' }}
         uses: tgymnich/fork-sync@v1.8
         with:
-          token: ${{ env.sync_token }}
+          token: ${{ secrets.FORK_SYNC_TOKEN }}
           owner: 0xERR0R
           repo: blocky
           base: main
