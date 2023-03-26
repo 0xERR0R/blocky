@@ -11,12 +11,11 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    if: github.repository_owner != '0xERR0R'
-    permissions:
-      contents: write
+    if: github.repository_owner != '0xERR0R' && secrets.FORK_SYNC_TOKEN != ''
     steps:
       - uses: tgymnich/fork-sync@v1.8
         with:
+          token: ${{ secrets.FORK_SYNC_TOKEN }}
           owner: 0xERR0R
           repo: blocky
           base: main
