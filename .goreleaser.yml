@@ -24,7 +24,7 @@ builds:
       - goos: windows
         goarch: arm64
     ldflags:
-      - -w -s -X github.com/0xERR0R/blocky/util.Version={{.Version}} -X github.com/0xERR0R/blocky/util.BuildTime={{time "20060102-150405"}}
+      - -w -s -X github.com/0xERR0R/blocky/util.Version=v{{.Version}} -X github.com/0xERR0R/blocky/util.BuildTime={{time "20060102-150405"}}
 release:
   draft: true
 archives:
@@ -32,7 +32,7 @@ archives:
       - goos: windows
         format: zip
     name_template: >-
-      {{ .ProjectName }}_
+      {{ .ProjectName }}_v
       {{- .Version }}_
       {{- title .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
@@ -41,7 +41,7 @@ archives:
       {{- if .Arm }}v{{ .Arm }}{{ end }}
 
 snapshot:
-  name_template: "{{ .Tag }}-{{.ShortCommit}}"
+  name_template: "{{ .Version }}-{{.ShortCommit}}"
 checksum:
   name_template: "{{ .ProjectName }}_checksums.txt"
 changelog:
