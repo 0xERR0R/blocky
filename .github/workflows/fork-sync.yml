@@ -1,0 +1,23 @@
+name: Sync Fork
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+concurrency: 
+  group: ${{ github.workflow }}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    if: github.repository_owner != '0xERR0R'
+    permissions:
+      contents: write
+    steps:
+      - uses: tgymnich/fork-sync@v1.8
+        with:
+          owner: 0xERR0R
+          repo: blocky
+          base: main
+          head: main
