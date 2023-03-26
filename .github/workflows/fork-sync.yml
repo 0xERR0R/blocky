@@ -11,11 +11,12 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    env: 
-      sync_token: ${{ secrets.FORK_SYNC_TOKEN }}
-    if: github.repository_owner != '0xERR0R' && ${{ env.sync_token == '' }}
     steps:
-      - uses: tgymnich/fork-sync@v1.8
+      - name: sync
+        env: 
+          sync_token: ${{ secrets.FORK_SYNC_TOKEN }}
+        if: github.repository_owner != '0xERR0R' && ${{ env.sync_token == '' }}
+        uses: tgymnich/fork-sync@v1.8
         with:
           token: ${{ env.sync_token }}
           owner: 0xERR0R
