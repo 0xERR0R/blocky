@@ -29,5 +29,5 @@ jobs:
         run: mike deploy --push --update-aliases ${GITHUB_REF_NAME}
       - name: Deploy latest version for tag only
         if: ${{ github.ref != 'refs/heads/main' }}
-        run: mike deploy --push --update-aliases latest
+        run: mike deploy --push --update-aliases ${GITHUB_REF_NAME} latest
       - run: mike set-default --push latest
