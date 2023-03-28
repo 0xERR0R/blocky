@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - fb-*
 
 permissions:
   security-events: write
@@ -111,9 +112,15 @@ jobs:
           echo "build_time=${BUILD_TIME}" >> $GITHUB_OUTPUT
           echo "BUILD_TIME: ${BUILD_TIME}"
 
-          TAGS="ghcr.io/${REPOSITORY}:${BRANCH} , ghcr.io/${REPOSITORY}:development"
+          TAGS="ghcr.io/${REPOSITORY}:${BRANCH}"
+          if [[ "${BRANCH}" == "main" ]]; then
+            TAGS="${TAGS} , ghcr.io/${REPOSITORY}:development"
+          fi
           if [[ "${{ github.repository_owner }}" == "0xERR0R" ]]; then
-            TAGS="${TAGS} , spx01/blocky:${BRANCH} , spx01/blocky:development"
+            TAGS="${TAGS} , spx01/blocky:${BRANCH}"
+            if [[ "${BRANCH}" == "main" ]]; then
+              TAGS="${TAGS} , spx01/blocky:development"
+            fi
           fi
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
           echo "TAGS: ${TAGS}"
