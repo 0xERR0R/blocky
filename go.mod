@@ -25,7 +25,7 @@ require (
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cobra v1.6.1
 	github.com/stretchr/testify v1.8.2
-	github.com/swaggo/swag v1.8.11
+	github.com/swaggo/swag v1.8.12
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
 	golang.org/x/net v0.8.0
 	gopkg.in/yaml.v2 v2.4.0
