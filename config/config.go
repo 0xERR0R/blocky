@@ -181,24 +181,15 @@ type Config struct {
 	FqdnOnly            FqdnOnlyConfig            `yaml:",inline"`
 	Filtering           FilteringConfig           `yaml:"filtering"`
 	Ede                 EdeConfig                 `yaml:"ede"`
-	// Deprecated
-	DisableIPv6 bool `yaml:"disableIPv6" default:"false"`
-	// Deprecated
-	LogLevel log.Level `yaml:"logLevel" default:"info"`
-	// Deprecated
-	LogFormat log.FormatType `yaml:"logFormat" default:"text"`
-	// Deprecated
-	LogPrivacy bool `yaml:"logPrivacy" default:"false"`
-	// Deprecated
-	LogTimestamp bool `yaml:"logTimestamp" default:"true"`
-	// Deprecated
-	DNSPorts ListenConfig `yaml:"port" default:"53"`
-	// Deprecated
-	HTTPPorts ListenConfig `yaml:"httpPort"`
-	// Deprecated
-	HTTPSPorts ListenConfig `yaml:"httpsPort"`
-	// Deprecated
-	TLSPorts ListenConfig `yaml:"tlsPort"`
+	DisableIPv6         bool                      `yaml:"disableIPv6" default:"false"` // Deprecated: use Filtering with TypeAAAA
+	LogLevel            log.Level                 `yaml:"logLevel" default:"info"`     // Deprecated: use Log.Level
+	LogFormat           log.FormatType            `yaml:"logFormat" default:"text"`    // Deprecated: use Log.Format
+	LogPrivacy          bool                      `yaml:"logPrivacy" default:"false"`  // Deprecated: use Log.Privacy
+	LogTimestamp        bool                      `yaml:"logTimestamp" default:"true"` // Deprecated: use Log.Timestamp
+	DNSPorts            ListenConfig              `yaml:"port" default:"53"`           // Deprecated: use Ports.DNS
+	HTTPPorts           ListenConfig              `yaml:"httpPort"`                    // Deprecated: use Ports.HTTP
+	HTTPSPorts          ListenConfig              `yaml:"httpsPort"`                   // Deprecated: use Ports.HTTPS
+	TLSPorts            ListenConfig              `yaml:"tlsPort"`                     // Deprecated: use Ports.TLS
 }
 
 type PortsConfig struct {
