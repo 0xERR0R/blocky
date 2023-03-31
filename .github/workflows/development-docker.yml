@@ -30,6 +30,8 @@ jobs:
 
           if [[ "${{ github.repository_owner }}" == "0xERR0R" ]]; then
             ENABLED="true"
+          elif [[ "${GITHUB_REF#refs/heads/}" == "main" ]]; then
+            ENABLED="false"
           fi          
 
           if [[ "${ENABLED,,}" != "true" ]]; then
