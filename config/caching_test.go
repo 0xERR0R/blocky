@@ -9,9 +9,7 @@ import (
 )
 
 var _ = Describe("CachingConfig", func() {
-	var (
-		cfg CachingConfig
-	)
+	var cfg CachingConfig
 
 	suiteBeforeEach()
 
