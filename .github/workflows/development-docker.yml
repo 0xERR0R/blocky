@@ -30,21 +30,22 @@ jobs:
 
           if [[ "${{ github.repository_owner }}" == "0xERR0R" ]]; then
             ENABLED="true"
-          elif [[ "${GITHUB_REF#refs/heads/}" == "main" ]]; then
-            ENABLED="false"
           fi          
 
           if [[ "${ENABLED,,}" != "true" ]]; then
             echo "enabled=0" >> $GITHUB_OUTPUT
-
             echo "Workflow is disabled"
 
             echo "### Workflow is disabled" >> $GITHUB_STEP_SUMMARY
             echo "To enable this workflow by creating a secret 'DEVELOPMENT_DOCKER' with the value 'true'" >> $GITHUB_STEP_SUMMARY
           else
-            echo "enabled=1" >> $GITHUB_OUTPUT
-
-            echo "Workflow is enabled"
+            if [[ "${{ github.repository_owner }}" != "0xERR0R" && "${GITHUB_REF#refs/heads/}" == "main" ]]; then
+              echo "enabled=0" >> $GITHUB_OUTPUT
+              echo "Workflow is disabled for main branch on forks"
+            else 
+              echo "enabled=1" >> $GITHUB_OUTPUT
+              echo "Workflow is enabled"
+            fi
           fi
 
   docker:
