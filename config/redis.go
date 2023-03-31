@@ -17,6 +17,8 @@ type RedisConfig struct {
 	Database           int      `yaml:"database" default:"0"`
 	ConnectionAttempts int      `yaml:"connectionAttempts" default:"3"`
 	ConnectionCooldown Duration `yaml:"connectionCooldown" default:"1s"`
+	ConnRingScale      int      `yaml:"connRingScale" default:"10"`
+	ShuffleInit        bool     `yaml:"shuffleInit" default:"false"`
 	Required           bool     `yaml:"required" default:"false"`
 	Address            string   `yaml:"address"`           // Deprecated: use Addresses
 	SentinelAddresses  []string `yaml:"sentinelAddresses"` // Deprecated: use Addresses
