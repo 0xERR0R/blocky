@@ -221,20 +221,6 @@ type (
 	}
 )
 
-// RedisConfig configuration for the redis connection
-type RedisConfig struct {
-	Address            string   `yaml:"address"`
-	Username           string   `yaml:"username" default:""`
-	Password           string   `yaml:"password" default:""`
-	Database           int      `yaml:"database" default:"0"`
-	Required           bool     `yaml:"required" default:"false"`
-	ConnectionAttempts int      `yaml:"connectionAttempts" default:"3"`
-	ConnectionCooldown Duration `yaml:"connectionCooldown" default:"1s"`
-	SentinelUsername   string   `yaml:"sentinelUsername" default:""`
-	SentinelPassword   string   `yaml:"sentinelPassword" default:""`
-	SentinelAddresses  []string `yaml:"sentinelAddresses"`
-}
-
 type (
 	FqdnOnlyConfig = toEnable
 	EdeConfig      = toEnable
@@ -365,12 +351,10 @@ func unmarshalConfig(data []byte, cfg *Config) error {
 		return fmt.Errorf("wrong file structure: %w", err)
 	}
 
-	validateConfig(cfg)
-
-	return nil
+	return validateConfig(cfg)
 }
 
-func validateConfig(cfg *Config) {
+func validateConfig(cfg *Config) error {
 	if cfg.DisableIPv6 {
 		log.Log().Warnf("'disableIPv6' is deprecated. Please use 'filtering.queryTypes' with 'AAAA' instead.")
 
@@ -391,6 +375,8 @@ func validateConfig(cfg *Config) {
 	fixDeprecatedLog(cfg)
 
 	fixDeprecatedPorts(cfg)
+
+	return fixDeprecatedRedis(cfg)
 }
 
 // fixDeprecatedLog ensures backwards compatibility for logging options
