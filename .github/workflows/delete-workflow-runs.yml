@@ -9,25 +9,23 @@ jobs:
   del_runs:
     runs-on: ubuntu-latest
     steps:
-      - name: Delete skipped docs
+      - name: Delete skipped
         uses: Mattraks/delete-workflow-runs@v2
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
           retain_days: 1
           keep_minimum_runs: 1
-          delete_workflow_pattern: docs.yml
           delete_workflow_by_state_pattern: skipped
       
-      - name: Delete skipped Sync Fork
+      - name: Delete deleted
         uses: Mattraks/delete-workflow-runs@v2
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
           retain_days: 1
           keep_minimum_runs: 1
-          delete_workflow_pattern: fork-sync.yml
-          delete_workflow_by_state_pattern: skipped
+          delete_workflow_by_state_pattern: deleted
       
       - name: Delete workflow runs(older than a month)
         uses: Mattraks/delete-workflow-runs@v2
