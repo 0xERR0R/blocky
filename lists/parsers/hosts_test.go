@@ -401,11 +401,4 @@ var _ = Describe("HostList", func() {
 			})
 		})
 	})
-
-	Describe("normalizeHostsListEntry", func() {
-		It("Errors", func() {
-			_, err := normalizeHostsListEntry("-")
-			Expect(err).ShouldNot(Succeed())
-		})
-	})
 })
