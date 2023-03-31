@@ -303,6 +303,14 @@ var _ = Describe("HostList", func() {
 				"# comment",
 				"  ",
 				"domain.tld # comment",
+
+				// http://www.i18nguy.com/markup/idna-examples.html
+				"belgië.icom.museum",
+				"الأردن.icom.museum",
+				"한국.icom.museum",
+
+				// Domain name w/ rune not supported by `idna.Lookup`
+				"domain_underscore.tld",
 			)
 		})
 
@@ -317,11 +325,31 @@ var _ = Describe("HostList", func() {
 			Expect(entry.String()).Should(Equal("domain.tld"))
 			Expect(sut.Position()).Should(Equal("line 4"))
 
+			entry, err = sut.Next(context.Background())
+			Expect(err).Should(Succeed())
+			Expect(entry.String()).Should(Equal("xn--belgi-rsa.icom.museum"))
+			Expect(sut.Position()).Should(Equal("line 5"))
+
+			entry, err = sut.Next(context.Background())
+			Expect(err).Should(Succeed())
+			Expect(entry.String()).Should(Equal("xn--igbhzh7gpa.icom.museum"))
+			Expect(sut.Position()).Should(Equal("line 6"))
+
+			entry, err = sut.Next(context.Background())
+			Expect(err).Should(Succeed())
+			Expect(entry.String()).Should(Equal("xn--3e0b707e.icom.museum"))
+			Expect(sut.Position()).Should(Equal("line 7"))
+
+			entry, err = sut.Next(context.Background())
+			Expect(err).Should(Succeed())
+			Expect(entry.String()).Should(Equal("domain_underscore.tld"))
+			Expect(sut.Position()).Should(Equal("line 8"))
+
 			_, err = sut.Next(context.Background())
 			Expect(err).ShouldNot(Succeed())
 			Expect(err).Should(MatchError(io.EOF))
 			Expect(IsNonResumableErr(err)).Should(BeTrue())
-			Expect(sut.Position()).Should(Equal("line 5"))
+			Expect(sut.Position()).Should(Equal("line 9"))
 		})
 	})
 

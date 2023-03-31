@@ -12,6 +12,7 @@ import (
 
 	"github.com/asaskevich/govalidator"
 	"github.com/hashicorp/go-multierror"
+	"golang.org/x/net/idna"
 )
 
 const maxDomainNameLength = 255 // https://www.rfc-editor.org/rfc/rfc1034#section-3.1
@@ -92,7 +93,8 @@ func (e *HostListEntry) UnmarshalText(data []byte) error {
 
 	host := scanner.Text()
 
-	if err := validateHostsListEntry(host); err != nil {
+	host, err := normalizeHostsListEntry(host)
+	if err != nil {
 		return err
 	}
 
@@ -189,6 +191,25 @@ func (e HostsFileEntry) forEachHost(callback func(string) error) error {
 	}
 
 	return nil
+}
+
+func normalizeHostsListEntry(host string) (string, error) {
+	// Lookup is the profile preferred for DNS queries, we use Punycode here as it does less validation.
+	// That avoids rejecting domains in a list for reasons that amount to "that domain should not be used"
+	// since the goal of the list is to determine whether the domain should be used or not, we leave
+	// that decision to it.
+	idnaProfile := idna.Punycode
+
+	host, err := idnaProfile.ToASCII(host)
+	if err != nil {
+		return "", fmt.Errorf("%w: %s", err, host)
+	}
+
+	if err := validateHostsListEntry(host); err != nil {
+		return "", err
+	}
+
+	return host, nil
 }
 
 func validateDomainName(host string) error {
