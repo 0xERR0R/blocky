@@ -11,15 +11,17 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/miekg/dns"
+	"github.com/rueian/rueidis"
 	"github.com/sirupsen/logrus"
 )
 
 const (
 	SyncChannelName   = "blocky_sync"
-	CacheStorePrefix  = "blocky:cache:"
+	CacheStorePrefix  = "blocky:cache:response:"
 	chanCap           = 1000
 	cacheReason       = "EXTERNAL_CACHE"
 	defaultCacheTime  = 1 * time.Second
@@ -56,7 +58,7 @@ type EnabledMessage struct {
 // Client for redis communication
 type Client struct {
 	config         *config.RedisConfig
-	client         *redis.Client
+	client         rueidis.Client
 	l              *logrus.Entry
 	ctx            context.Context
 	id             []byte
@@ -68,60 +70,61 @@ type Client struct {
 // New creates a new redis client
 func New(cfg *config.RedisConfig) (*Client, error) {
 	// disable redis if no address is provided
-	if cfg == nil || len(cfg.Address) == 0 {
+	if cfg == nil || len(cfg.Addresses) == 0 {
 		return nil, nil //nolint:nilnil
 	}
 
-	var rdb *redis.Client
-	if len(cfg.SentinelAddresses) > 0 {
-		rdb = redis.NewFailoverClient(&redis.FailoverOptions{
-			MasterName:       cfg.Address,
-			SentinelUsername: cfg.Username,
-			SentinelPassword: cfg.SentinelPassword,
-			SentinelAddrs:    cfg.SentinelAddresses,
-			Username:         cfg.Username,
-			Password:         cfg.Password,
-			DB:               cfg.Database,
-			MaxRetries:       cfg.ConnectionAttempts,
-			MaxRetryBackoff:  cfg.ConnectionCooldown.ToDuration(),
-		})
-	} else {
-		rdb = redis.NewClient(&redis.Options{
-			Addr:            cfg.Address,
-			Username:        cfg.Username,
-			Password:        cfg.Password,
-			DB:              cfg.Database,
-			MaxRetries:      cfg.ConnectionAttempts,
-			MaxRetryBackoff: cfg.ConnectionCooldown.ToDuration(),
-		})
+	id, err := uuid.New().MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+
+	roption := rueidis.ClientOption{
+		InitAddress:           cfg.Addresses,
+		Password:              cfg.Password,
+		Username:              cfg.Username,
+		SelectDB:              cfg.Database,
+		RingScaleEachConn:     cfg.ConnRingScale,
+		CacheSizeEachConn:     cfg.LocalCacheSize,
+		ClientName:            fmt.Sprintf("blocky-%s", util.HostnameString()),
+		ClientTrackingOptions: []string{"PREFIX", "blocky:", "BCAST"},
+	}
+
+	if len(cfg.SentinelMasterSet) > 0 {
+		roption.Sentinel = rueidis.SentinelOption{
+			Username:  cfg.SentinelUsername,
+			Password:  cfg.SentinelPassword,
+			MasterSet: cfg.SentinelMasterSet,
+		}
+	}
+
+	var client rueidis.Client
+	for i := 0; i < cfg.ConnectionAttempts; i++ {
+		client, err = rueidis.NewClient(roption)
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Duration(cfg.ConnectionCooldown))
+	}
+
+	if err != nil {
+		return nil, err
 	}
 
 	ctx := context.Background()
 
-	_, err := rdb.Ping(ctx).Result()
-	if err == nil {
-		var id []byte
-
-		id, err = uuid.New().MarshalBinary()
-		if err == nil {
-			// construct client
-			res := &Client{
-				config:         cfg,
-				client:         rdb,
-				l:              log.PrefixedLog("redis"),
-				ctx:            ctx,
-				id:             id,
-				sendBuffer:     make(chan *bufferMessage, chanCap),
-				CacheChannel:   make(chan *CacheMessage, chanCap),
-				EnabledChannel: make(chan *EnabledMessage, chanCap),
-			}
-
-			// start channel handling go routine
-			err = res.startup()
-
-			return res, err
-		}
+	res := &Client{
+		config:         cfg,
+		client:         client,
+		l:              log.PrefixedLog("redis"),
+		ctx:            ctx,
+		id:             id,
+		sendBuffer:     make(chan *bufferMessage, chanCap),
+		CacheChannel:   make(chan *CacheMessage, chanCap),
+		EnabledChannel: make(chan *EnabledMessage, chanCap),
 	}
+
+	err = res.startup()
 
 	return nil, err
 }
@@ -146,7 +149,11 @@ func (c *Client) PublishEnabled(state *EnabledMessage) {
 		})
 
 		if mErr == nil {
-			c.client.Publish(c.ctx, SyncChannelName, binMsg)
+			c.client.Do(c.ctx,
+				c.client.B().Publish().
+					Channel(SyncChannelName).
+					Message(rueidis.BinaryString(binMsg)).
+					Build())
 		}
 	}
 }
@@ -212,13 +219,19 @@ func (c *Client) publishMessageFromBuffer(s *bufferMessage) {
 		})
 
 		if mErr == nil {
-			c.client.Publish(c.ctx, SyncChannelName, binMsg)
+			c.client.Do(c.ctx,
+				c.client.B().Publish().
+					Channel(SyncChannelName).
+					Message(rueidis.BinaryString(binMsg)).
+					Build())
 		}
 
-		c.client.Set(c.ctx,
-			prefixKey(s.Key),
-			binRes,
-			c.getTTL(origRes))
+		c.client.Do(c.ctx,
+			c.client.B().Setex().
+				Key(prefixKey(s.Key)).
+				Seconds(int64(c.getTTL(origRes).Seconds())).
+				Value(rueidis.BinaryString(binRes)).
+				Build())
 	}
 }
 
@@ -263,10 +276,13 @@ func (c *Client) processEnabledMessage(redisMsg *redisMessage) error {
 
 // getResponse returns model.Response for a key
 func (c *Client) getResponse(key string) (*CacheMessage, error) {
-	resp, err := c.client.Get(c.ctx, key).Result()
+	resp, err := c.client.Do(c.ctx, c.client.B().Get().Key(key).Build()).AsBytes()
 	if err == nil {
-		var ttl time.Duration
-		ttl, err = c.client.TTL(c.ctx, key).Result()
+		uittl, err := c.client.Do(c.ctx,
+			c.client.B().Ttl().
+				Key(key).
+				Build()).AsUint64()
+		ttl := time.Second * time.Duration(uittl)
 
 		if err == nil {
 			var result *CacheMessage

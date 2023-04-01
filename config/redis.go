@@ -20,6 +20,8 @@ type RedisConfig struct {
 	ConnRingScale      int      `yaml:"connRingScale" default:"10"`
 	ShuffleInit        bool     `yaml:"shuffleInit" default:"false"`
 	Required           bool     `yaml:"required" default:"false"`
+	LocalCacheTime     Duration `yaml:"localCacheTime" default:"10m"`
+	LocalCacheSize     int      `yaml:"localCacheSize" default:"1048576"`
 	Address            string   `yaml:"address"`           // Deprecated: use Addresses
 	SentinelAddresses  []string `yaml:"sentinelAddresses"` // Deprecated: use Addresses
 }
