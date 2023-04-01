@@ -20,7 +20,7 @@ import (
 
 const (
 	SyncChannelName   = "blocky_sync"
-	CacheStorePrefix  = "blocky:cache:response:"
+	CacheStorePrefix  = "blocky:cache:"
 	chanCap           = 1000
 	cacheReason       = "EXTERNAL_CACHE"
 	defaultCacheTime  = 1 * time.Second
@@ -78,33 +78,27 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 		return nil, err
 	}
 
-	roption := rueidis.ClientOption{
-		InitAddress:           cfg.Addresses,
-		Password:              cfg.Password,
-		Username:              cfg.Username,
-		SelectDB:              cfg.Database,
-		RingScaleEachConn:     cfg.ConnRingScale,
-		CacheSizeEachConn:     cfg.LocalCacheSize,
-		ClientName:            fmt.Sprintf("blocky-%s", util.HostnameString()),
-		ClientTrackingOptions: []string{"PREFIX", "blocky:", "BCAST"},
-	}
+	l := log.PrefixedLog("redis")
 
-	if len(cfg.SentinelMasterSet) > 0 {
-		roption.Sentinel = rueidis.SentinelOption{
-			Username:  cfg.SentinelUsername,
-			Password:  cfg.SentinelPassword,
-			MasterSet: cfg.SentinelMasterSet,
-		}
-	}
+	roption := generateClientOptions(cfg)
 
 	var client rueidis.Client
+
 	for i := 0; i < cfg.ConnectionAttempts; i++ {
+		l.Debugf("connection attempt %d", i)
+
 		client, err = rueidis.NewClient(roption)
+
 		if err == nil {
 			break
+		} else {
+			l.Debug(err)
 		}
+
 		time.Sleep(time.Duration(cfg.ConnectionCooldown))
 	}
+
+	l.Debug("should be created")
 
 	if err != nil {
 		return nil, err
@@ -115,7 +109,7 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 	res := &Client{
 		config:         cfg,
 		client:         client,
-		l:              log.PrefixedLog("redis"),
+		l:              l,
 		ctx:            ctx,
 		id:             id,
 		sendBuffer:     make(chan *bufferMessage, chanCap),
@@ -123,9 +117,9 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 		EnabledChannel: make(chan *EnabledMessage, chanCap),
 	}
 
-	err = res.startup()
+	res.startup()
 
-	return nil, err
+	return res, nil
 }
 
 // PublishCache publish cache to redis async
@@ -162,17 +156,25 @@ func (c *Client) GetRedisCache() {
 	c.l.Debug("GetRedisCache")
 
 	go func() {
-		searchKey := prefixKey("*")
-		for {
-			sres, err := c.client.Do(c.ctx, c.client.B().Scan().Cursor(0).Match(searchKey).Build()).AsScanEntry()
+		var cursor uint64
 
+		searchKey := prefixKey("*")
+
+		for {
+			sres, err := c.client.Do(c.ctx, c.client.B().Scan().Cursor(cursor).Match(searchKey).Count(1).Build()).AsScanEntry()
 			if err != nil {
 				c.l.Error("GetRedisCache ", err)
+
 				break
 			}
 
+			cursor = sres.Cursor
+
 			for _, key := range sres.Elements {
+				c.l.Debugf("GetRedisCache: %s", key)
+
 				resp := c.client.Do(c.ctx, c.client.B().Get().Key(key).Build())
+
 				if resp.Error() == nil {
 					str, err := resp.ToString()
 					if err == nil {
@@ -182,41 +184,69 @@ func (c *Client) GetRedisCache() {
 						}
 					}
 				}
-				fmt.Println("key", key)
 			}
 
-			if sres.Cursor == 0 { // no more keys
+			if cursor == 0 { // no more keys
 				break
 			}
 		}
 	}()
 }
 
-// startup starts a new goroutine for subscription and translation
-func (c *Client) startup() error {
-	err := c.client.Receive(c.ctx,
-		c.client.B().Subscribe().
-			Channel(SyncChannelName).Build(), func(msg rueidis.PubSubMessage) {
-			c.l.Debug("Received message: ", msg)
-
-			if len(msg.Message) > 0 {
-				// message is not empty
-				c.processReceivedMessage(msg.Message)
-			}
-		})
-	if err == nil {
-		go func() {
-			for {
-				select {
-				// publish message from buffer
-				case s := <-c.sendBuffer:
-					c.publishMessageFromBuffer(s)
-				}
-			}
-		}()
+func generateClientOptions(cfg *config.RedisConfig) rueidis.ClientOption {
+	res := rueidis.ClientOption{
+		InitAddress:           cfg.Addresses,
+		Password:              cfg.Password,
+		Username:              cfg.Username,
+		SelectDB:              cfg.Database,
+		RingScaleEachConn:     cfg.ConnRingScale,
+		CacheSizeEachConn:     cfg.LocalCacheSize,
+		ClientName:            fmt.Sprintf("blocky-%s", util.HostnameString()),
+		ClientTrackingOptions: []string{"PREFIX", "blocky:", "BCAST"},
 	}
 
-	return err
+	if len(cfg.SentinelMasterSet) > 0 {
+		res.Sentinel = rueidis.SentinelOption{
+			Username:  cfg.SentinelUsername,
+			Password:  cfg.SentinelPassword,
+			MasterSet: cfg.SentinelMasterSet,
+		}
+	}
+
+	return res
+}
+
+// startup starts a new goroutine for subscription and translation
+func (c *Client) startup() {
+	go func() {
+		dc, cancel := c.client.Dedicate()
+		defer cancel()
+
+		wait := dc.SetPubSubHooks(rueidis.PubSubHooks{
+			OnMessage: func(m rueidis.PubSubMessage) {
+				if m.Channel == SyncChannelName {
+					c.l.Debug("Received message: ", m)
+
+					if len(m.Message) > 0 {
+						// message is not empty
+						c.processReceivedMessage(m.Message)
+					}
+				}
+			},
+		})
+
+		dc.Do(c.ctx, dc.B().Subscribe().Channel(SyncChannelName).Build())
+
+		for {
+			select {
+			case <-wait:
+				return
+			// publish message from buffer
+			case s := <-c.sendBuffer:
+				c.publishMessageFromBuffer(s)
+			}
+		}
+	}()
 }
 
 func (c *Client) publishMessageFromBuffer(s *bufferMessage) {
@@ -303,7 +333,7 @@ func (c *Client) getResponse(key string) (*CacheMessage, error) {
 
 			result, err = convertMessage(&redisMessage{
 				Key:     cleanKey(key),
-				Message: []byte(resp),
+				Message: resp,
 			}, ttl)
 			if err != nil {
 				return nil, fmt.Errorf("conversion error: %w", err)
