@@ -12,7 +12,6 @@ import (
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
-	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/miekg/dns"
 	"github.com/rueian/rueidis"
@@ -163,15 +162,31 @@ func (c *Client) GetRedisCache() {
 	c.l.Debug("GetRedisCache")
 
 	go func() {
-		iter := c.client.Scan(c.ctx, 0, prefixKey("*"), 0).Iterator()
-		for iter.Next(c.ctx) {
-			response, err := c.getResponse(iter.Val())
-			if err == nil {
-				if response != nil {
-					c.CacheChannel <- response
-				}
-			} else {
+		searchKey := prefixKey("*")
+		for {
+			sres, err := c.client.Do(c.ctx, c.client.B().Scan().Cursor(0).Match(searchKey).Build()).AsScanEntry()
+
+			if err != nil {
 				c.l.Error("GetRedisCache ", err)
+				break
+			}
+
+			for _, key := range sres.Elements {
+				resp := c.client.Do(c.ctx, c.client.B().Get().Key(key).Build())
+				if resp.Error() == nil {
+					str, err := resp.ToString()
+					if err == nil {
+						response, err := c.getResponse(str)
+						if err == nil {
+							c.CacheChannel <- response
+						}
+					}
+				}
+				fmt.Println("key", key)
+			}
+
+			if sres.Cursor == 0 { // no more keys
+				break
 			}
 		}
 	}()
@@ -179,22 +194,21 @@ func (c *Client) GetRedisCache() {
 
 // startup starts a new goroutine for subscription and translation
 func (c *Client) startup() error {
-	ps := c.client.Subscribe(c.ctx, SyncChannelName)
+	err := c.client.Receive(c.ctx,
+		c.client.B().Subscribe().
+			Channel(SyncChannelName).Build(), func(msg rueidis.PubSubMessage) {
+			c.l.Debug("Received message: ", msg)
 
-	_, err := ps.Receive(c.ctx)
+			if len(msg.Message) > 0 {
+				// message is not empty
+				c.processReceivedMessage(msg.Message)
+			}
+		})
 	if err == nil {
 		go func() {
 			for {
 				select {
-				// received message from subscription
-				case msg := <-ps.Channel():
-					c.l.Debug("Received message: ", msg)
-
-					if msg != nil && len(msg.Payload) > 0 {
-						// message is not empty
-						c.processReceivedMessage(msg)
-					}
-					// publish message from buffer
+				// publish message from buffer
 				case s := <-c.sendBuffer:
 					c.publishMessageFromBuffer(s)
 				}
@@ -235,10 +249,10 @@ func (c *Client) publishMessageFromBuffer(s *bufferMessage) {
 	}
 }
 
-func (c *Client) processReceivedMessage(msg *redis.Message) {
+func (c *Client) processReceivedMessage(msgPayload string) {
 	var rm redisMessage
 
-	err := json.Unmarshal([]byte(msg.Payload), &rm)
+	err := json.Unmarshal([]byte(msgPayload), &rm)
 	if err == nil {
 		// message was sent from a different blocky instance
 		if !bytes.Equal(rm.Client, c.id) {
