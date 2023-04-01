@@ -156,7 +156,7 @@ func (b *BootstrappedUpstreamConfig) UnmarshalYAML(unmarshal func(interface{}) e
 
 // Config main configuration
 //
-//nolint:maligned
+//nolint:maligned,lll
 type Config struct {
 	Upstream            ParallelBestConfig        `yaml:"upstream"`
 	UpstreamTimeout     Duration                  `yaml:"upstreamTimeout" default:"2s"`

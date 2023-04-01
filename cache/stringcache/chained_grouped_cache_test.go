@@ -89,6 +89,5 @@ var _ = Describe("Chained grouped cache", func() {
 				Expect(cache.Contains("both", []string{"group1", "group2"})).Should(ConsistOf("group2"))
 			})
 		})
-
 	})
 })

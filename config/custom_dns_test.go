@@ -10,9 +10,7 @@ import (
 )
 
 var _ = Describe("CustomDNSConfig", func() {
-	var (
-		cfg CustomDNSConfig
-	)
+	var cfg CustomDNSConfig
 
 	suiteBeforeEach()
 

@@ -32,7 +32,6 @@ var _ = Describe("In-Memory grouped cache", func() {
 				Expect(cache.Contains("searchString", []string{"group1"})).Should(BeEmpty())
 			})
 		})
-
 	})
 	Describe("Cache creation", func() {
 		When("cache with 1 group was created", func() {
@@ -127,6 +126,5 @@ var _ = Describe("In-Memory grouped cache", func() {
 				Expect(cache.Contains("both", []string{"group1", "group2"})).Should(ConsistOf("group2"))
 			})
 		})
-
 	})
 })

@@ -11,9 +11,7 @@ import (
 
 var _ = Describe("errorFilter", func() {
 	Describe("AllowErrors", func() {
-		var (
-			parser SeriesParser[struct{}]
-		)
+		var parser SeriesParser[struct{}]
 
 		BeforeEach(func() {
 			parser = newMockParser(func(res chan<- struct{}, err chan<- error) {

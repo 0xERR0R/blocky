@@ -9,9 +9,7 @@ import (
 )
 
 var _ = Describe("ClientLookupConfig", func() {
-	var (
-		cfg ClientLookupConfig
-	)
+	var cfg ClientLookupConfig
 
 	suiteBeforeEach()
 

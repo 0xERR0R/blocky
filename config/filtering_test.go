@@ -9,9 +9,7 @@ import (
 )
 
 var _ = Describe("FilteringConfig", func() {
-	var (
-		cfg FilteringConfig
-	)
+	var cfg FilteringConfig
 
 	suiteBeforeEach()
 
