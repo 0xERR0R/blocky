@@ -376,7 +376,9 @@ func validateConfig(cfg *Config) error {
 
 	fixDeprecatedPorts(cfg)
 
-	return fixDeprecatedRedis(cfg)
+	fixDeprecatedRedis(cfg)
+
+	return validateRedisConfig(cfg)
 }
 
 // fixDeprecatedLog ensures backwards compatibility for logging options
