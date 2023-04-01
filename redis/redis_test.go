@@ -34,7 +34,7 @@ var _ = Describe("Redis client", func() {
 
 		Expect(err).Should(Succeed())
 
-		rcfg.Address = redisServer.Addr()
+		rcfg.Addresses = []string{redisServer.Addr()}
 		redisConfig = &rcfg
 		redisClient, err = New(redisConfig)
 
