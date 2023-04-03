@@ -9,9 +9,7 @@ import (
 )
 
 var _ = Describe("HostsFileConfig", func() {
-	var (
-		cfg HostsFileConfig
-	)
+	var cfg HostsFileConfig
 
 	suiteBeforeEach()
 

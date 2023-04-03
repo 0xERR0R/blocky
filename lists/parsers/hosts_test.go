@@ -86,9 +86,7 @@ var _ = Describe("Hosts", func() {
 	})
 
 	Describe("HostsIterator.ForEachHost", func() {
-		var (
-			entry *HostsIterator
-		)
+		var entry *HostsIterator
 
 		BeforeEach(func() {
 			sutReader = linesReader(
@@ -227,9 +225,7 @@ var _ = Describe("HostsFile", func() {
 	})
 
 	Describe("HostsFileEntry.forEachHost", func() {
-		var (
-			entry *HostsFileEntry
-		)
+		var entry *HostsFileEntry
 
 		BeforeEach(func() {
 			sutReader = linesReader(
@@ -374,9 +370,7 @@ var _ = Describe("HostList", func() {
 	})
 
 	Describe("HostListEntry.forEachHost", func() {
-		var (
-			entry *HostListEntry
-		)
+		var entry *HostListEntry
 
 		BeforeEach(func() {
 			sutReader = linesReader(

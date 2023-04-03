@@ -16,7 +16,7 @@ func TryAdapt[From, To any](inner SeriesParser[From], adapt func(From) (To, erro
 
 // TryAdaptMethod returns a parser that wraps `inner` and tries to convert each parsed value
 // using the given method with pointer receiver of `To`.
-func TryAdaptMethod[ToPtr *To, From any, To any](
+func TryAdaptMethod[ToPtr *To, From, To any](
 	inner SeriesParser[From], method func(ToPtr, From) error,
 ) SeriesParser[*To] {
 	return TryAdapt(inner, func(from From) (*To, error) {

@@ -7,9 +7,7 @@ import (
 )
 
 var _ = Describe("MetricsConfig", func() {
-	var (
-		cfg MetricsConfig
-	)
+	var cfg MetricsConfig
 
 	suiteBeforeEach()
 

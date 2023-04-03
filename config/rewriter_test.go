@@ -7,9 +7,7 @@ import (
 )
 
 var _ = Describe("RewriterConfig", func() {
-	var (
-		cfg RewriterConfig
-	)
+	var cfg RewriterConfig
 
 	suiteBeforeEach()
 

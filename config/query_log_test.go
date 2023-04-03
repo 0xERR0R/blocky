@@ -9,9 +9,7 @@ import (
 )
 
 var _ = Describe("QueryLogConfig", func() {
-	var (
-		cfg QueryLogConfig
-	)
+	var cfg QueryLogConfig
 
 	suiteBeforeEach()
 

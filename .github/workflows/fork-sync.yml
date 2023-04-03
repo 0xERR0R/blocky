@@ -1,0 +1,36 @@
+name: Sync Fork
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+concurrency: 
+  group: ${{ github.workflow }}
+
+jobs:
+  sync:
+    name: Sync with Upstream
+    runs-on: ubuntu-latest
+    if: github.repository_owner != '0xERR0R'
+    steps:
+      - name: Enabled Check
+        id: check
+        shell: bash
+        run: | 
+          if [[ "${{ secrets.FORK_SYNC_TOKEN }}" != "" ]]; then
+            echo "enabled=1" >> $GITHUB_OUTPUT
+
+            echo "Workflow is enabled"
+          else
+            echo "enabled=0" >> $GITHUB_OUTPUT
+
+            echo "Workflow is disabled(create FORK_SYNC_TOKEN secret with repo write permission to enable it)"
+          fi
+      - name: Sync
+        if: ${{ steps.check.outputs.enabled == 1 }}
+        env:
+          GH_TOKEN: ${{ secrets.FORK_SYNC_TOKEN }}
+        shell: bash
+        run: | 
+          gh repo sync ${{ github.repository }} -b main
