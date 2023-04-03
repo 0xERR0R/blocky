@@ -131,7 +131,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 		return nil, fmt.Errorf("server creation failed: %w", err)
 	}
 
-	httpRouter := createRouter(cfg)
+	httpRouter := createHTTPRouter(cfg)
 	httpsRouter := createHTTPSRouter(cfg)
 
 	httpListeners, httpsListeners, err := createHTTPListeners(cfg)

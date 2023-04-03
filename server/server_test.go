@@ -13,6 +13,7 @@ import (
 
 	"github.com/0xERR0R/blocky/api"
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/docs"
 	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
@@ -379,6 +380,20 @@ var _ = Describe("Running DNS server", func() {
 					SatisfyAll(
 						HaveHTTPStatus(http.StatusOK),
 						HaveHTTPHeaderWithValue("Content-type", "text/html; charset=UTF-8"),
+					))
+			})
+		})
+	})
+	Describe("Docs endpoints", func() {
+		When("OpenApi URL is called", func() {
+			It("should return openAPI definition file", func() {
+				resp, err := http.Get("http://localhost:4000/docs/openapi.yaml")
+				Expect(err).Should(Succeed())
+				Expect(resp).Should(
+					SatisfyAll(
+						HaveHTTPStatus(http.StatusOK),
+						HaveHTTPHeaderWithValue("Content-type", "text/yaml"),
+						HaveHTTPBody(docs.OpenAPI),
 					))
 			})
 		})
