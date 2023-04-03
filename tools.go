@@ -11,5 +11,6 @@ import (
 	_ "github.com/dosgo/zigtool/zigcpp"
 	_ "github.com/onsi/ginkgo/v2/ginkgo"
 	_ "github.com/swaggo/swag/cmd/swag"
+	_ "github.com/vektra/mockery/v2"
 	_ "mvdan.cc/gofumpt"
 )

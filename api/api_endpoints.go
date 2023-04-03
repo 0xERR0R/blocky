@@ -18,6 +18,8 @@ const (
 )
 
 // BlockingControl interface to control the blocking status
+//
+//go:generate go run github.com/vektra/mockery/v2 --name BlockingControl
 type BlockingControl interface {
 	EnableBlocking()
 	DisableBlocking(duration time.Duration, disableGroups []string) error
@@ -25,6 +27,8 @@ type BlockingControl interface {
 }
 
 // ListRefresher interface to control the list refresh
+//
+//go:generate go run github.com/vektra/mockery/v2 --name ListRefresher
 type ListRefresher interface {
 	RefreshLists()
 }
