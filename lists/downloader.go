@@ -32,6 +32,8 @@ func (e *TransientError) Unwrap() error {
 }
 
 // FileDownloader is able to download some text file
+//
+//go:generate go run github.com/vektra/mockery/v2 --name FileDownloader
 type FileDownloader interface {
 	DownloadFile(link string) (io.ReadCloser, error)
 }
