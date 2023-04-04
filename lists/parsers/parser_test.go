@@ -3,9 +3,7 @@ package parsers
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"github.com/0xERR0R/blocky/util"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -161,30 +159,4 @@ func iteratorToList[T any](forEach func(func(T) error) error) []T {
 	Expect(err).Should(Succeed())
 
 	return res
-}
-
-type mockParser[T any] struct{ util.MockCallSequence[T] }
-
-func newMockParser[T any](driver func(chan<- T, chan<- error)) SeriesParser[T] {
-	return &mockParser[T]{util.NewMockCallSequence(driver)}
-}
-
-func (m *mockParser[T]) Next(ctx context.Context) (_ T, rerr error) {
-	defer func() {
-		if rerr != nil && IsNonResumableErr(rerr) {
-			m.Close()
-		}
-	}()
-
-	if err := ctx.Err(); err != nil {
-		var zero T
-
-		return zero, NewNonResumableError(err)
-	}
-
-	return m.Call()
-}
-
-func (m *mockParser[T]) Position() string {
-	return fmt.Sprintf("call %d", m.CallCount())
 }

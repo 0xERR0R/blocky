@@ -8,6 +8,8 @@ import (
 )
 
 // SeriesParser parses a series of `T`.
+//
+//go:generate go run github.com/vektra/mockery/v2 --name SeriesParser
 type SeriesParser[T any] interface {
 	// Next advances the cursor in the underlying data source,
 	// and returns a `T`, or an error.

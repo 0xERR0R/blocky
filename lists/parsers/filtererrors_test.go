@@ -7,6 +7,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/mock"
 )
 
 var _ = Describe("errorFilter", func() {
@@ -14,86 +15,102 @@ var _ = Describe("errorFilter", func() {
 		var parser SeriesParser[struct{}]
 
 		BeforeEach(func() {
-			parser = newMockParser(func(res chan<- struct{}, err chan<- error) {
-				res <- struct{}{}
-				err <- errors.New("fail")
-				res <- struct{}{}
-				err <- errors.New("fail")
-				res <- struct{}{}
-				err <- errors.New("fail")
-				err <- NewNonResumableError(io.EOF)
-			})
+			//	mockParser := NewMockSeriesParser[struct{}](GinkgoT())
+			//	mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, nil).Once()
+			//	mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, errors.New("fail")).Once()
+			//	mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, nil).Once()
+			//	mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, errors.New("fail")).Once()
+			//	mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, nil).Once()
+			//	mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, errors.New("fail")).Once()
+			//	mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, NewNonResumableError(io.EOF)).Once()
+			//	parser = mockParser
+
 		})
 
 		When("0 errors are allowed", func() {
+			BeforeEach(func() {
+				mockParser := NewMockSeriesParser[struct{}](GinkgoT())
+				mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, nil).Once()
+				mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, errors.New("fail")).Once()
+				parser = mockParser
+			})
 			It("should fail on first error", func() {
 				parser = AllowErrors(parser, 0)
 
 				_, err := parser.Next(context.Background())
 				Expect(err).Should(Succeed())
-				Expect(parser.Position()).Should(Equal("call 1"))
 
 				_, err = parser.Next(context.Background())
 				Expect(err).ShouldNot(Succeed())
 				Expect(err).Should(MatchError(ErrTooManyErrors))
-				Expect(parser.Position()).Should(Equal("call 2"))
 			})
 		})
 
 		When("1 error is allowed", func() {
+			BeforeEach(func() {
+				mockParser := NewMockSeriesParser[struct{}](GinkgoT())
+				mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, nil).Once()
+				mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, errors.New("fail")).Once()
+				mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, nil).Once()
+				mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, errors.New("fail")).Once()
+				parser = mockParser
+			})
 			It("should fail on second error", func() {
 				parser = AllowErrors(parser, 1)
 
 				_, err := parser.Next(context.Background())
 				Expect(err).Should(Succeed())
-				Expect(parser.Position()).Should(Equal("call 1"))
 
 				_, err = parser.Next(context.Background())
 				Expect(err).Should(Succeed())
-				Expect(parser.Position()).Should(Equal("call 3"))
 
 				_, err = parser.Next(context.Background())
 				Expect(err).ShouldNot(Succeed())
 				Expect(err).Should(MatchError(ErrTooManyErrors))
-				Expect(parser.Position()).Should(Equal("call 4"))
 			})
 		})
 
 		When("using NoErrorLimit", func() {
+			BeforeEach(func() {
+				mockParser := NewMockSeriesParser[struct{}](GinkgoT())
+				mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, nil).Once()
+				mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, errors.New("fail")).Once()
+				mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, nil).Once()
+				mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, errors.New("fail")).Once()
+				mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, NewNonResumableError(io.EOF)).Once()
+				parser = mockParser
+			})
 			It("should ignore all resumable errors", func() {
 				parser = AllowErrors(parser, NoErrorLimit)
 
 				_, err := parser.Next(context.Background())
 				Expect(err).Should(Succeed())
-				Expect(parser.Position()).Should(Equal("call 1"))
 
 				_, err = parser.Next(context.Background())
 				Expect(err).Should(Succeed())
-				Expect(parser.Position()).Should(Equal("call 3"))
-
-				_, err = parser.Next(context.Background())
-				Expect(err).Should(Succeed())
-				Expect(parser.Position()).Should(Equal("call 5"))
 
 				_, err = parser.Next(context.Background())
 				Expect(err).ShouldNot(Succeed())
 				Expect(err).Should(MatchError(io.EOF))
 				Expect(IsNonResumableErr(err)).Should(BeTrue())
-				Expect(parser.Position()).Should(Equal("call 7"))
+
 			})
 		})
 	})
 
 	Describe("OnErr", func() {
+		var parser SeriesParser[string]
+		BeforeEach(func() {
+			inner := NewMockSeriesParser[string](GinkgoT())
+			inner.EXPECT().Next(mock.Anything).Return("", errors.New("fail")).Once()
+			inner.EXPECT().Next(mock.Anything).Return("ok", nil).Once()
+			inner.EXPECT().Position().Return("position")
+			inner.EXPECT().Next(mock.Anything).Return("", errors.New("fail")).Once()
+			inner.EXPECT().Next(mock.Anything).Return("", NewNonResumableError(io.EOF)).Once()
+			parser = inner
+		})
 		It("should be called for each error", func() {
-			inner := newMockParser(func(res chan<- string, err chan<- error) {
-				err <- errors.New("fail")
-				res <- "ok"
-				err <- errors.New("fail")
-				err <- NewNonResumableError(io.EOF)
-			})
-
-			parser := AllowErrors(inner, NoErrorLimit)
+			parser := AllowErrors(parser, NoErrorLimit)
 
 			errors := 0
 			parser.OnErr(func(err error) {
@@ -103,7 +120,6 @@ var _ = Describe("errorFilter", func() {
 			res, err := parser.Next(context.Background())
 			Expect(err).Should(Succeed())
 			Expect(res).Should(Equal("ok"))
-			Expect(parser.Position()).Should(Equal("call 2"))
 
 			_, err = parser.Next(context.Background())
 			Expect(err).ShouldNot(Succeed())
