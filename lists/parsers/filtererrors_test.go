@@ -24,7 +24,6 @@ var _ = Describe("errorFilter", func() {
 			//	mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, errors.New("fail")).Once()
 			//	mockParser.EXPECT().Next(mock.Anything).Return(struct{}{}, NewNonResumableError(io.EOF)).Once()
 			//	parser = mockParser
-
 		})
 
 		When("0 errors are allowed", func() {
@@ -93,7 +92,6 @@ var _ = Describe("errorFilter", func() {
 				Expect(err).ShouldNot(Succeed())
 				Expect(err).Should(MatchError(io.EOF))
 				Expect(IsNonResumableErr(err)).Should(BeTrue())
-
 			})
 		})
 	})

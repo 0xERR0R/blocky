@@ -46,43 +46,56 @@ var _ = BeforeSuite(func() {
 
 var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 	var (
-		sut        *BlockingResolver
-		sutConfig  config.BlockingConfig
-		m          *mockResolver
-		mockAnswer *dns.Msg
+		sut          *BlockingResolver
+		sutConfig    config.BlockingConfig
+		m1           *MockResolver
+		mockResponse *Response
 	)
 
 	Describe("Type", func() {
+		BeforeEach(func() {
+			sutConfig = config.BlockingConfig{
+				BlockType: "ZEROIP",
+				BlockTTL:  config.Duration(time.Minute),
+			}
+		})
+
 		It("follows conventions", func() {
 			expectValidResolverType(sut)
 		})
 	})
 
 	BeforeEach(func() {
-		sutConfig = config.BlockingConfig{
-			BlockType: "ZEROIP",
-			BlockTTL:  config.Duration(time.Minute),
-		}
-
-		mockAnswer = new(dns.Msg)
+		mockResponse = &Response{Res: new(dns.Msg)}
 	})
 
 	JustBeforeEach(func() {
 		var err error
-		m = &mockResolver{}
-		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
+		m1 = NewMockResolver(GinkgoT())
 		sut, err = NewBlockingResolver(sutConfig, nil, systemResolverBootstrap)
 		Expect(err).Should(Succeed())
-		sut.Next(m)
+		sut.Next(m1)
 	})
 
 	Describe("IsEnabled", func() {
+		BeforeEach(func() {
+			sutConfig = config.BlockingConfig{
+				BlockType: "ZEROIP",
+				BlockTTL:  config.Duration(time.Minute),
+			}
+		})
 		It("is false", func() {
 			Expect(sut.IsEnabled()).Should(BeFalse())
 		})
 	})
 
 	Describe("LogConfig", func() {
+		BeforeEach(func() {
+			sutConfig = config.BlockingConfig{
+				BlockType: "ZEROIP",
+				BlockTTL:  config.Duration(time.Minute),
+			}
+		})
 		It("should log something", func() {
 			logger, hook := log.NewMockEntry()
 
@@ -138,13 +151,16 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 		When("Full-qualified group name is used", func() {
 			It("should block request", func() {
-				m.AnswerFn = func(t dns.Type, qName string) (*dns.Msg, error) {
-					if t == dns.Type(dns.TypeA) && qName == "full.qualified.com." {
-						return util.NewMsgWithAnswer(qName, 60*60, A, "192.168.178.39")
+				m1.On("Resolve", mock.Anything).Return(func(req *Request) (*Response, error) {
+					question := req.Req.Question[0]
+					if question.Qtype == dns.TypeA && question.Name == "full.qualified.com." {
+						r, _ := util.NewMsgWithAnswer(question.Name, 60*60, A, "192.168.178.39")
+
+						return &Response{Res: r}, nil
 					}
 
-					return nil, nil //nolint:nilnil
-				}
+					return mockResponse, nil
+				})
 				Bus().Publish(ApplicationStarted, "")
 				Eventually(func(g Gomega) {
 					g.Expect(sut.Resolve(newRequestWithClient("blocked2.com.", A, "192.168.178.39", "client1"))).
@@ -176,6 +192,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 		When("Domain is on the black list", func() {
 			It("should block request", func() {
+				m1.EXPECT().Resolve(mock.Anything).Return(mockResponse, nil)
+
 				Eventually(sut.Resolve).
 					WithArguments(newRequestWithClient("regex.com.", dns.Type(dns.TypeA), "1.2.1.2", "client1")).
 					Should(
@@ -293,6 +311,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 		When("Client CIDR (10.43.8.64 - 10.43.8.79) is defined in client groups block", func() {
 			It("should not block the query for 10.43.8.63 if domain is on the black list", func() {
+				m1.EXPECT().Resolve(mock.Anything).Return(mockResponse, nil)
+
 				Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "10.43.8.63", "unknown"))).
 					Should(
 						SatisfyAll(
@@ -300,11 +320,10 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 							HaveResponseType(ResponseTypeRESOLVED),
 							HaveReturnCode(dns.RcodeSuccess),
 						))
-
-				// was delegated to next resolver
-				m.AssertExpectations(GinkgoT())
 			})
 			It("should not block the query for 10.43.8.80 if domain is on the black list", func() {
+				m1.EXPECT().Resolve(mock.Anything).Return(mockResponse, nil)
+
 				Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "10.43.8.80", "unknown"))).
 					Should(
 						SatisfyAll(
@@ -312,9 +331,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 							HaveResponseType(ResponseTypeRESOLVED),
 							HaveReturnCode(dns.RcodeSuccess),
 						))
-
-				// was delegated to next resolver
-				m.AssertExpectations(GinkgoT())
 			})
 		})
 
@@ -534,11 +550,11 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 		When("Blacklist contains IP", func() {
 			When("IP4", func() {
-				BeforeEach(func() {
-					// return defined IP as response
-					mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, A, "123.145.123.145")
-				})
 				It("should block query, if lookup result contains blacklisted IP", func() {
+					// return defined IP as response
+					mockAnswer, _ := util.NewMsgWithAnswer("example.com.", 300, A, "123.145.123.145")
+					m1.EXPECT().Resolve(mock.Anything).Return(&Response{Res: mockAnswer}, nil)
+
 					Expect(sut.Resolve(newRequestWithClient("example.com.", A, "1.2.1.2", "unknown"))).
 						Should(
 							SatisfyAll(
@@ -551,14 +567,14 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				})
 			})
 			When("IP6", func() {
-				BeforeEach(func() {
+				It("should block query, if lookup result contains blacklisted IP", func() {
 					// return defined IP as response
-					mockAnswer, _ = util.NewMsgWithAnswer(
+					mockAnswer, _ := util.NewMsgWithAnswer(
 						"example.com.", 300,
 						AAAA, "2001:0db8:85a3:08d3::0370:7344",
 					)
-				})
-				It("should block query, if lookup result contains blacklisted IP", func() {
+					m1.EXPECT().Resolve(mock.Anything).Return(&Response{Res: mockAnswer}, nil)
+
 					Expect(sut.Resolve(newRequestWithClient("example.com.", AAAA, "1.2.1.2", "unknown"))).
 						Should(
 							SatisfyAll(
@@ -573,15 +589,15 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 
 		When("blacklist contains domain which is CNAME in response", func() {
-			BeforeEach(func() {
+			It("should block the query, if response contains a CNAME with domain on a blacklist", func() {
 				// reconfigure mock, to return CNAMEs
 				rr1, _ := dns.NewRR("example.com 300 IN CNAME domain.com")
 				rr2, _ := dns.NewRR("domain.com 300 IN CNAME badcnamedomain.com")
 				rr3, _ := dns.NewRR("badcnamedomain.com 300 IN A 125.125.125.125")
-				mockAnswer = new(dns.Msg)
+				mockAnswer := new(dns.Msg)
 				mockAnswer.Answer = []dns.RR{rr1, rr2, rr3}
-			})
-			It("should block the query, if response contains a CNAME with domain on a blacklist", func() {
+				m1.EXPECT().Resolve(mock.Anything).Return(&Response{Res: mockAnswer}, nil)
+
 				Expect(sut.Resolve(newRequestWithClient("example.com.", A, "1.2.1.2", "unknown"))).
 					Should(
 						SatisfyAll(
@@ -609,6 +625,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				}
 			})
 			It("Should not be blocked", func() {
+				m1.EXPECT().Resolve(mock.Anything).Return(mockResponse, nil)
+
 				Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
 					Should(
 						SatisfyAll(
@@ -616,9 +634,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 							HaveResponseType(ResponseTypeRESOLVED),
 							HaveReturnCode(dns.RcodeSuccess),
 						))
-
-				// was delegated to next resolver
-				m.AssertExpectations(GinkgoT())
 			})
 		})
 
@@ -641,6 +656,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			})
 			It("should block everything else except domains on the white list with default group", func() {
 				By("querying domain on the whitelist", func() {
+					m1.EXPECT().Resolve(mock.Anything).Return(mockResponse, nil).Once()
+
 					Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
 						Should(
 							SatisfyAll(
@@ -648,9 +665,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 								HaveResponseType(ResponseTypeRESOLVED),
 								HaveReturnCode(dns.RcodeSuccess),
 							))
-
-					// was delegated to next resolver
-					m.AssertExpectations(GinkgoT())
 				})
 
 				By("querying another domain, which is not on the whitelist", func() {
@@ -663,13 +677,13 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 								HaveReturnCode(dns.RcodeSuccess),
 								HaveReason("BLOCKED (WHITELIST ONLY)"),
 							))
-
-					Expect(m.Calls).Should(HaveLen(1))
 				})
 			})
 			It("should block everything else except domains on the white list "+
 				"if multiple white list only groups are defined", func() {
 				By("querying domain on the whitelist", func() {
+					m1.EXPECT().Resolve(mock.Anything).Return(mockResponse, nil).Once()
+
 					Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "one-client"))).
 						Should(
 							SatisfyAll(
@@ -677,9 +691,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 								HaveResponseType(ResponseTypeRESOLVED),
 								HaveReturnCode(dns.RcodeSuccess),
 							))
-
-					// was delegated to next resolver
-					m.AssertExpectations(GinkgoT())
 				})
 
 				By("querying another domain, which is not on the whitelist", func() {
@@ -692,12 +703,13 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 								HaveReturnCode(dns.RcodeSuccess),
 								HaveReason("BLOCKED (WHITELIST ONLY)"),
 							))
-					Expect(m.Calls).Should(HaveLen(1))
 				})
 			})
 			It("should block everything else except domains on the white list "+
 				"if multiple white list only groups are defined", func() {
 				By("querying domain on the whitelist group 1", func() {
+					m1.EXPECT().Resolve(mock.Anything).Return(mockResponse, nil).Twice()
+
 					Expect(sut.Resolve(newRequestWithClient("domain1.com.", A, "1.2.1.2", "all-client"))).
 						Should(
 							SatisfyAll(
@@ -705,9 +717,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 								HaveResponseType(ResponseTypeRESOLVED),
 								HaveReturnCode(dns.RcodeSuccess),
 							))
-
-					// was delegated to next resolver
-					m.AssertExpectations(GinkgoT())
 				})
 
 				By("querying another domain, which is in the whitelist group 1", func() {
@@ -718,7 +727,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 								HaveResponseType(ResponseTypeRESOLVED),
 								HaveReturnCode(dns.RcodeSuccess),
 							))
-					Expect(m.Calls).Should(HaveLen(2))
 				})
 			})
 		})
@@ -734,9 +742,11 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 						"default": {"gr1"},
 					},
 				}
-				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, A, "123.145.123.145")
 			})
 			It("should not block if DNS answer contains IP from the white list", func() {
+				mockAnswer, _ := util.NewMsgWithAnswer("example.com.", 300, A, "123.145.123.145")
+				m1.EXPECT().Resolve(mock.Anything).Return(&Response{Res: mockAnswer}, nil)
+
 				Expect(sut.Resolve(newRequestWithClient("example.com.", A, "1.2.1.2", "unknown"))).
 					Should(
 						SatisfyAll(
@@ -744,8 +754,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 							HaveResponseType(ResponseTypeRESOLVED),
 							HaveReturnCode(dns.RcodeSuccess),
 						))
-				// was delegated to next resolver
-				m.AssertExpectations(GinkgoT())
 			})
 		})
 	})
@@ -761,12 +769,10 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				},
 			}
 		})
-		AfterEach(func() {
-			// was delegated to next resolver
-			m.AssertExpectations(GinkgoT())
-		})
 		When("domain is not on the black list", func() {
 			It("should delegate to next resolver", func() {
+				m1.EXPECT().Resolve(mock.Anything).Return(mockResponse, nil)
+
 				Expect(sut.Resolve(newRequestWithClient("example.com.", A, "1.2.1.2", "unknown"))).
 					Should(
 						SatisfyAll(
@@ -784,6 +790,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				}
 			})
 			It("should delegate to next resolver", func() {
+				m1.EXPECT().Resolve(mock.Anything).Return(mockResponse, nil)
+
 				Expect(sut.Resolve(newRequestWithClient("example.com.", A, "1.2.1.2", "unknown"))).
 					Should(
 						SatisfyAll(
@@ -810,6 +818,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 		When("Disable blocking is called", func() {
 			It("no query should be blocked", func() {
+				m1.EXPECT().Resolve(mock.Anything).Return(mockResponse, nil).Times(3)
+
 				By("Perform query to ensure that the blocking status is active (defaultGroup)", func() {
 					Expect(sut.Resolve(newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
 						Should(
@@ -847,8 +857,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 								HaveReturnCode(dns.RcodeSuccess),
 							))
 
-					m.AssertExpectations(GinkgoT())
-					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
+					m1.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
 				})
 
 				By("perform the same query again (group1)", func() {
@@ -861,8 +870,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 								HaveReturnCode(dns.RcodeSuccess),
 							))
 
-					m.AssertExpectations(GinkgoT())
-					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 2)
+					m1.AssertNumberOfCalls(GinkgoT(), "Resolve", 2)
 				})
 
 				By("Calling Rest API to deactivate only defaultGroup", func() {
@@ -880,8 +888,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 								HaveReturnCode(dns.RcodeSuccess),
 							))
 
-					m.AssertExpectations(GinkgoT())
-					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 3)
+					m1.AssertExpectations(GinkgoT())
+					m1.AssertNumberOfCalls(GinkgoT(), "Resolve", 3)
 				})
 
 				By("Perform query to ensure that the blocking status is active (group1)", func() {
@@ -899,6 +907,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 		When("Disable blocking for all groups is called with a duration parameter", func() {
 			It("No query should be blocked only for passed amount of time", func() {
+				m1.EXPECT().Resolve(mock.Anything).Return(mockResponse, nil).Twice()
+
 				By("Perform query to ensure that the blocking status is active (defaultGroup)", func() {
 					Expect(sut.Resolve(newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
 						Should(
@@ -941,8 +951,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 								HaveReturnCode(dns.RcodeSuccess),
 							))
 
-					m.AssertExpectations(GinkgoT())
-					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
+					m1.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
 				})
 				By("perform the same query again to ensure that this query will not be blocked (group1)", func() {
 					// now is blocking disabled, query the url again
@@ -953,9 +962,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 								HaveResponseType(ResponseTypeRESOLVED),
 								HaveReturnCode(dns.RcodeSuccess),
 							))
-
-					m.AssertExpectations(GinkgoT())
-					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 2)
+					m1.AssertNumberOfCalls(GinkgoT(), "Resolve", 2)
 				})
 
 				By("Wait 1 sec and perform the same query again, should be blocked now", func() {
@@ -989,6 +996,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 		When("Disable blocking for one group is called with a duration parameter", func() {
 			It("No query should be blocked only for passed amount of time", func() {
+				m1.EXPECT().Resolve(mock.Anything).Return(mockResponse, nil).Once()
 				By("Perform query to ensure that the blocking status is active (defaultGroup)", func() {
 					Expect(sut.Resolve(newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
 						Should(
@@ -1042,8 +1050,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 								HaveReturnCode(dns.RcodeSuccess),
 							))
 
-					m.AssertExpectations(GinkgoT())
-					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
+					m1.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
 				})
 
 				By("Wait 1 sec and perform the same query again, should be blocked now", func() {

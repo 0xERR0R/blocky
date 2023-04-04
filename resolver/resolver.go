@@ -68,6 +68,8 @@ func newRequestWithClientID(question string, rType dns.Type, ip, requestClientID
 }
 
 // Resolver generic interface for all resolvers
+//
+//go:generate go run github.com/vektra/mockery/v2 --name Resolver
 type Resolver interface {
 	config.Configurable
 
