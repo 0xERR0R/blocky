@@ -48,7 +48,7 @@ else
 	go generate ./...
 endif
 
-build: generate ## Build binary
+build: fmt generate ## Build binary
 	go build $(GO_BUILD_FLAGS) -ldflags="$(GO_BUILD_LD_FLAGS)" -o $(GO_BUILD_OUTPUT)
 ifdef BIN_USER
 	$(info setting owner of $(GO_BUILD_OUTPUT) to $(BIN_USER))
@@ -74,7 +74,7 @@ e2e-test: ## run e2e tests
 race: ## run tests with race detector
 	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --race ./...
 
-lint: ## run golangcli-lint checks
+lint: fmt ## run golangcli-lint checks
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANG_LINT_VERSION) run --timeout 5m
 
 run: build ## Build and run binary
@@ -82,7 +82,7 @@ run: build ## Build and run binary
 
 fmt: ## gofmt and goimports all go files
 	go run mvdan.cc/gofumpt -l -w -extra .
-	find . -name '*.go' -exec goimports -w {} +
+	find . -name '*.go' -exec go run golang.org/x/tools/cmd/goimports -w {} +
 
 docker-build: generate ## Build docker image 
 	docker buildx build \

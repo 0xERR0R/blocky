@@ -11,5 +11,6 @@ import (
 	_ "github.com/dosgo/zigtool/zigcpp"
 	_ "github.com/onsi/ginkgo/v2/ginkgo"
 	_ "github.com/swaggo/swag/cmd/swag"
+	_ "golang.org/x/tools/cmd/goimports"
 	_ "mvdan.cc/gofumpt"
 )
