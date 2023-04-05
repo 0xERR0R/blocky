@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/0xERR0R/blocky/helpertest"
 
@@ -44,4 +45,5 @@ var _ = BeforeSuite(func() {
 	tmpDir = helpertest.NewTmpFolder("config")
 	Expect(tmpDir.Error).Should(Succeed())
 	DeferCleanup(tmpDir.Clean)
+	SetDefaultEventuallyTimeout(5 * time.Second)
 })
