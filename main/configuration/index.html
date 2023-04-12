@@ -460,6 +460,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#max-errors-per-file" class="md-nav__link">
+    Max Errors per file
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#concurrency" class="md-nav__link">
     Concurrency
   </a>
@@ -843,6 +850,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#max-errors-per-file" class="md-nav__link">
+    Max Errors per file
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#concurrency" class="md-nav__link">
     Concurrency
   </a>
@@ -1059,6 +1073,10 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">  </span><span class="nt">downloadCooldown</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10s</span>
 <span class="w">  </span><span class="c1"># optional: if failOnError, application startup will fail if at least one list can&#39;t be downloaded / opened. Default: blocking</span>
 <span class="w">  </span><span class="nt">startStrategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">failOnError</span>
+<span class="w">  </span><span class="c1"># Number of errors allowed in a list before it is considered invalid.</span>
+<span class="w">  </span><span class="c1"># A value of -1 disables the limit.</span>
+<span class="w">  </span><span class="c1"># Default: 5</span>
+<span class="w">  </span><span class="nt">maxErrorsPerFile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
 
 <span class="c1"># optional: configuration for caching of DNS responses</span>
 <span class="nt">caching</span><span class="p">:</span>
@@ -1841,7 +1859,7 @@ Negative value will deactivate automatically refresh.</p>
 </div>
 <h3 id="start-strategy">Start strategy</h3>
 <p>You can configure the blocking behavior during application start of blocky.<br />
-If no starategy is selected blocking will be used.</p>
+If no strategy is selected blocking will be used.</p>
 <table>
 <thead>
 <tr>
@@ -1868,6 +1886,15 @@ If no starategy is selected blocking will be used.</p>
 <p class="admonition-title">Example</p>
 <div class="highlight"><pre><span></span><code><span class="nt">blocking</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">startStrategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">failOnError</span>
+</code></pre></div>
+</div>
+<h3 id="max-errors-per-file">Max Errors per file</h3>
+<p>Number of errors allowed in a list before it is considered invalid and parsing stops.<br />
+A value of -1 disables the limit.</p>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><pre><span></span><code><span class="nt">blocking</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">maxErrorsPerFile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
 </code></pre></div>
 </div>
 <h3 id="concurrency">Concurrency</h3>
