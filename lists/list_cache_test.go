@@ -58,7 +58,9 @@ var _ = Describe("ListCache", func() {
 				lists := map[string][]string{
 					"gr0": {emptyFile.Path},
 				}
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile)
+				sut, err := NewListCache(
+					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile,
+				)
 				Expect(err).Should(Succeed())
 
 				group := sut.Match("", []string{"gr0"})
@@ -71,7 +73,9 @@ var _ = Describe("ListCache", func() {
 				lists := map[string][]string{
 					"gr1": {emptyFile.Path},
 				}
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile)
+				sut, err := NewListCache(
+					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile,
+				)
 				Expect(err).Should(Succeed())
 
 				group := sut.Match("google.com", []string{"gr1"})
@@ -213,7 +217,9 @@ var _ = Describe("ListCache", func() {
 					"gr2": {server3.URL},
 				}
 
-				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile)
+				sut, _ := NewListCache(
+					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile,
+				)
 
 				group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
 				Expect(group).Should(ContainElement("gr1"))
@@ -232,7 +238,9 @@ var _ = Describe("ListCache", func() {
 					"gr2": {server3.URL, "someotherfile"},
 				}
 
-				sut, _ := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile)
+				sut, _ := NewListCache(
+					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile,
+				)
 
 				group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
 				Expect(group).Should(ContainElement("gr1"))
@@ -256,7 +264,9 @@ var _ = Describe("ListCache", func() {
 					resultCnt = cnt
 				})
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile)
+				sut, err := NewListCache(
+					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile,
+				)
 				Expect(err).Should(Succeed())
 
 				group := sut.Match("blocked1.com", []string{})
@@ -271,7 +281,9 @@ var _ = Describe("ListCache", func() {
 					"gr2": {"file://" + file3.Path},
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile)
+				sut, err := NewListCache(
+					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile,
+				)
 				Expect(err).Should(Succeed())
 
 				Expect(sut.groupedCache.ElementCount("gr1")).Should(Equal(3))
