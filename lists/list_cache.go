@@ -46,7 +46,7 @@ type ListCache struct {
 	downloader            FileDownloader
 	listType              ListCacheType
 	processingConcurrency uint
-	maxErrorsPerFile      uint
+	maxErrorsPerFile      int
 }
 
 // LogConfig implements `config.Configurable`.
@@ -64,7 +64,7 @@ func (b *ListCache) LogConfig(logger *logrus.Entry) {
 
 // NewListCache creates new list instance
 func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration,
-	downloader FileDownloader, processingConcurrency uint, async bool, maxErrorsPerFile uint,
+	downloader FileDownloader, processingConcurrency uint, async bool, maxErrorsPerFile int,
 ) (*ListCache, error) {
 	if processingConcurrency == 0 {
 		processingConcurrency = defaultProcessingConcurrency
@@ -262,7 +262,7 @@ func (b *ListCache) parseFile(ctx context.Context, name, link string, resultCh c
 	}
 	defer r.Close()
 
-	p := parsers.AllowErrors(parsers.Hosts(r), int(b.maxErrorsPerFile))
+	p := parsers.AllowErrors(parsers.Hosts(r), b.maxErrorsPerFile)
 	p.OnErr(func(err error) {
 		logger().Warnf("parse error: %s, trying to continue", err)
 	})

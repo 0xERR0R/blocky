@@ -112,6 +112,7 @@ blocking:
   # optional: if failOnError, application startup will fail if at least one list can't be downloaded / opened. Default: blocking
   startStrategy: failOnError
   # Number of errors allowed in a list before it is considered invalid.
+  # A value of -1 disables the limit.
   # Default: 5
   maxErrorsPerFile: 5
 

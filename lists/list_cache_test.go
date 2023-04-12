@@ -27,7 +27,7 @@ var _ = Describe("ListCache", func() {
 		tmpDir                         *TmpFolder
 		emptyFile, file1, file2, file3 *TmpFile
 		server1, server2, server3      *httptest.Server
-		maxErrorsPerFile               uint
+		maxErrorsPerFile               int
 	)
 	BeforeEach(func() {
 		maxErrorsPerFile = 5
@@ -361,7 +361,7 @@ var _ = Describe("ListCache", func() {
 				lists := map[string][]string{
 					"gr1": {
 						inlineList(
-							strings.Repeat("invaliddomain!\n", int(maxErrorsPerFile)+1), // too many errors
+							strings.Repeat("invaliddomain!\n", maxErrorsPerFile+1), // too many errors
 						),
 					},
 				}

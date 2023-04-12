@@ -21,7 +21,7 @@ type BlockingConfig struct {
 	FailStartOnListError  bool                `yaml:"failStartOnListError" default:"false"` // Deprecated
 	ProcessingConcurrency uint                `yaml:"processingConcurrency" default:"4"`
 	StartStrategy         StartStrategyType   `yaml:"startStrategy" default:"blocking"`
-	MaxErrorsPerFile      uint                `yaml:"maxErrorsPerFile" default:"5"`
+	MaxErrorsPerFile      int                 `yaml:"maxErrorsPerFile" default:"5"`
 }
 
 // IsEnabled implements `config.Configurable`.

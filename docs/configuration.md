@@ -513,7 +513,8 @@ If no strategy is selected blocking will be used.
 
 ### Max Errors per file
 
-Number of errors allowed in a list before it is considered invalid and parsing stops.
+Number of errors allowed in a list before it is considered invalid and parsing stops.  
+A value of -1 disables the limit.
 
 !!! example
 
