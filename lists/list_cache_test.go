@@ -360,7 +360,7 @@ var _ = Describe("ListCache", func() {
 			BeforeEach(func() {
 				maxErrorsPerFile = 0
 			})
-			FIt("should fail parsing", func() {
+			It("should fail parsing", func() {
 				lists := map[string][]string{
 					"gr1": {
 						inlineList("invaliddomain!"), // too many errors since `maxErrorsPerFile` is 0
