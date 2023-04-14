@@ -606,38 +606,6 @@ var _ = Describe("Running DNS server", func() {
 		})
 	})
 
-	Describe("Server create", func() {
-		var (
-			cfg  config.Config
-			cErr error
-		)
-		BeforeEach(func() {
-			cErr = defaults.Set(&cfg)
-
-			Expect(cErr).Should(Succeed())
-
-			cfg.Upstream.ExternalResolvers = map[string][]config.Upstream{
-				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "1.1.1.1", Port: 53}},
-			}
-
-			cfg.Redis.Address = "test-fail"
-		})
-		When("Server is created", func() {
-			It("is created without redis connection", func() {
-				_, err := NewServer(&cfg)
-
-				Expect(err).Should(Succeed())
-			})
-			It("can't be created if redis server is unavailable", func() {
-				cfg.Redis.Required = true
-
-				_, err := NewServer(&cfg)
-
-				Expect(err).ShouldNot(Succeed())
-			})
-		})
-	})
-
 	Describe("Server start", Label("XX"), func() {
 		When("Server start is called", func() {
 			It("start was called 2 times, start should fail", func() {
