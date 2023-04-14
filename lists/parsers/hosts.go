@@ -10,14 +10,21 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/asaskevich/govalidator"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/net/idna"
 )
 
-const maxDomainNameLength = 255 // https://www.rfc-editor.org/rfc/rfc1034#section-3.1
+const (
+	maxDomainNameLength = 255 // https://www.rfc-editor.org/rfc/rfc1034#section-3.1
 
-var domainNameRegex = regexp.MustCompile(govalidator.DNSName)
+	dnsLabelPattern = `[a-zA-Z0-9_-]{1,63}`
+)
+
+// Validate a domain name, but with extra flexibility:
+// - no restriction on the start or end of labels
+//
+// https://www.rfc-editor.org/rfc/rfc1034#section-3.5
+var domainNameRegex = regexp.MustCompile(`^` + dnsLabelPattern + `(\.` + dnsLabelPattern + `)*[\._]?$`)
 
 // Hosts parses `r` as a series of `HostsIterator`.
 // It supports both the hosts file and host list formats.
