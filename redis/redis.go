@@ -374,9 +374,9 @@ func convertMessage(message *redisMessage, ttl time.Duration) (*CacheMessage, er
 }
 
 // getTTL of dns message or return defaultCacheTime if 0
-func (c *Client) getTTL(dns *dns.Msg) time.Duration {
+func (c *Client) getTTL(msg *dns.Msg) time.Duration {
 	ttl := uint32(0)
-	for _, a := range dns.Answer {
+	for _, a := range msg.Answer {
 		if a.Header().Ttl > ttl {
 			ttl = a.Header().Ttl
 		}
