@@ -50,7 +50,8 @@ var _ = Describe("Redis configuration tests", func() {
 					"  default:",
 					"    - moka1",
 					"redis:",
-					"  address: redis:6379",
+					"  addresses:",
+					"    - redis:6379",
 				)
 
 				Expect(err).Should(Succeed())
@@ -63,7 +64,8 @@ var _ = Describe("Redis configuration tests", func() {
 					"  default:",
 					"    - moka1",
 					"redis:",
-					"  address: redis:6379",
+					"  addresses:",
+					"    - redis:6379",
 				)
 
 				Expect(err).Should(Succeed())
@@ -115,7 +117,8 @@ var _ = Describe("Redis configuration tests", func() {
 					"  default:",
 					"    - moka1",
 					"redis:",
-					"  address: redis:6379",
+					"  addresses:",
+					"    - redis:6379",
 				)
 
 				Expect(err).Should(Succeed())
@@ -144,7 +147,8 @@ var _ = Describe("Redis configuration tests", func() {
 						"  default:",
 						"    - moka1",
 						"redis:",
-						"  address: redis:6379",
+						"  addresses:",
+						"    - redis:6379",
 					)
 
 					Expect(err).Should(Succeed())
