@@ -19,17 +19,23 @@ type CustomDNSResolver struct {
 	NextResolver
 	typed
 
-	mapping          map[string][]net.IP
+	addressMapping   map[string][]net.IP
+	cnameMapping     map[string][]dns.CNAME
 	reverseAddresses map[string][]string
 }
 
 // NewCustomDNSResolver creates new resolver instance
 func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
-	m := make(map[string][]net.IP, len(cfg.Mapping.HostIPs))
+	mapAddr := make(map[string][]net.IP, len(cfg.Mapping.HostIPs))
+	mapCname := make(map[string][]dns.CNAME, len(cfg.Rewrite))
 	reverse := make(map[string][]string, len(cfg.Mapping.HostIPs))
 
+	for beforeDomain, afterDomain := range cfg.Rewrite {
+		mapCname[dns.Fqdn(strings.ToLower(beforeDomain))] = []dns.CNAME{{Target: dns.Fqdn(strings.ToLower(afterDomain))}}
+	}
+
 	for url, ips := range cfg.Mapping.HostIPs {
-		m[strings.ToLower(url)] = ips
+		mapAddr[strings.ToLower(url)] = ips
 
 		for _, ip := range ips {
 			r, _ := dns.ReverseAddr(ip.String())
@@ -41,7 +47,8 @@ func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
 		configurable: withConfig(&cfg),
 		typed:        withType("custom_dns"),
 
-		mapping:          m,
+		addressMapping:   mapAddr,
+		cnameMapping:     mapCname,
 		reverseAddresses: reverse,
 	}
 }
@@ -84,12 +91,24 @@ func (r *CustomDNSResolver) processRequest(request *model.Request) *model.Respon
 	domain := util.ExtractDomain(question)
 
 	for len(domain) > 0 {
-		ips, found := r.mapping[domain]
-		if found {
+		ips, foundAddr := r.addressMapping[domain]
+		cnames, foundCname := r.cnameMapping[dns.Fqdn(domain)]
+
+		if foundAddr || foundCname {
 			for _, ip := range ips {
 				if isSupportedType(ip, question) {
 					rr, _ := util.CreateAnswerFromQuestion(question, ip, r.cfg.CustomTTL.SecondsU32())
 					response.Answer = append(response.Answer, rr)
+				}
+			}
+
+			for _, cname := range cnames {
+				if question.Qtype == dns.TypeCNAME {
+					a := new(dns.CNAME)
+					a.Target = cname.Target
+					a.Hdr = util.CreateHeader(question, r.cfg.CustomTTL.SecondsU32())
+
+					response.Answer = append(response.Answer, a)
 				}
 			}
 
@@ -131,7 +150,7 @@ func (r *CustomDNSResolver) Resolve(request *model.Request) (*model.Response, er
 		return reverseResp, nil
 	}
 
-	if len(r.mapping) > 0 {
+	if len(r.addressMapping) > 0 || len(r.cnameMapping) > 0 {
 		resp := r.processRequest(request)
 		if resp != nil {
 			return resp, nil
