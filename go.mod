@@ -60,6 +60,7 @@ require (
 	github.com/jackc/pgx/v5 v5.3.0 // indirect
 	github.com/klauspost/compress v1.11.13 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
+	github.com/moby/moby v23.0.3+incompatible // indirect
 	github.com/moby/patternmatcher v0.5.0 // indirect
 	github.com/moby/sys/sequential v0.5.0 // indirect
 	github.com/moby/term v0.0.0-20221128092401-c43b287e0e0f // indirect

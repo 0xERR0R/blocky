@@ -49,6 +49,13 @@ func (x RequestProtocol) String() string {
 	return fmt.Sprintf("RequestProtocol(%d)", x)
 }
 
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
+func (x RequestProtocol) IsValid() bool {
+	_, ok := _RequestProtocolMap[x]
+	return ok
+}
+
 var _RequestProtocolValue = map[string]RequestProtocol{
 	_RequestProtocolName[0:3]: RequestProtocolTCP,
 	_RequestProtocolName[3:6]: RequestProtocolUDP,
@@ -149,6 +156,13 @@ func (x ResponseType) String() string {
 		return str
 	}
 	return fmt.Sprintf("ResponseType(%d)", x)
+}
+
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
+func (x ResponseType) IsValid() bool {
+	_, ok := _ResponseTypeMap[x]
+	return ok
 }
 
 var _ResponseTypeValue = map[string]ResponseType{

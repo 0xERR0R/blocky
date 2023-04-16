@@ -169,6 +169,7 @@ type Config struct {
 	QueryLog            QueryLogConfig            `yaml:"queryLog"`
 	Prometheus          MetricsConfig             `yaml:"prometheus"`
 	Redis               RedisConfig               `yaml:"redis"`
+	Resolvconf          ResolvconfConfig          `yaml:"resolvconf"`
 	Log                 log.Config                `yaml:"log"`
 	Ports               PortsConfig               `yaml:"ports"`
 	DoHUserAgent        string                    `yaml:"dohUserAgent"`

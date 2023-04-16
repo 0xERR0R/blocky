@@ -397,6 +397,7 @@ func createQueryResolver(
 	redisClient *redis.Client,
 ) (r resolver.Resolver, err error) {
 	blocking, blErr := resolver.NewBlockingResolver(cfg.Blocking, redisClient, bootstrap)
+	rErr := cfg.Upstream.AddResolvconfToConfig()
 	parallel, pErr := resolver.NewParallelBestResolver(cfg.Upstream, bootstrap, cfg.StartVerifyUpstream)
 	clientNames, cnErr := resolver.NewClientNamesResolver(cfg.ClientLookup, bootstrap, cfg.StartVerifyUpstream)
 	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(cfg.Conditional, bootstrap, cfg.StartVerifyUpstream)
@@ -404,6 +405,7 @@ func createQueryResolver(
 	mErr := multierror.Append(
 		multierror.Prefix(blErr, "blocking resolver: "),
 		multierror.Prefix(pErr, "parallel resolver: "),
+		multierror.Prefix(rErr, "resolvconf: "),
 		multierror.Prefix(cnErr, "client names resolver: "),
 		multierror.Prefix(cuErr, "conditional upstream resolver: "),
 	)
