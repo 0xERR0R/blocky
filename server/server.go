@@ -400,15 +400,17 @@ func createQueryResolver(
 	parallel, pErr := resolver.NewParallelBestResolver(cfg.Upstream, bootstrap, cfg.StartVerifyUpstream)
 	clientNames, cnErr := resolver.NewClientNamesResolver(cfg.ClientLookup, bootstrap, cfg.StartVerifyUpstream)
 	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(cfg.Conditional, bootstrap, cfg.StartVerifyUpstream)
+	hostsFile, hfErr := resolver.NewHostsFileResolver(cfg.HostsFile, bootstrap)
 
-	mErr := multierror.Append(
+	err = multierror.Append(
 		multierror.Prefix(blErr, "blocking resolver: "),
 		multierror.Prefix(pErr, "parallel resolver: "),
 		multierror.Prefix(cnErr, "client names resolver: "),
 		multierror.Prefix(cuErr, "conditional upstream resolver: "),
-	)
-	if mErr.ErrorOrNil() != nil {
-		return nil, mErr
+		multierror.Prefix(hfErr, "hosts file resolver: "),
+	).ErrorOrNil()
+	if err != nil {
+		return nil, err
 	}
 
 	r = resolver.Chain(
@@ -419,7 +421,7 @@ func createQueryResolver(
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
 		resolver.NewMetricsResolver(cfg.Prometheus),
 		resolver.NewRewriterResolver(cfg.CustomDNS.RewriterConfig, resolver.NewCustomDNSResolver(cfg.CustomDNS)),
-		resolver.NewHostsFileResolver(cfg.HostsFile),
+		hostsFile,
 		blocking,
 		resolver.NewCachingResolver(cfg.Caching, redisClient),
 		resolver.NewRewriterResolver(cfg.Conditional.RewriterConfig, condUpstream),

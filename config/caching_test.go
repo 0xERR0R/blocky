@@ -60,4 +60,20 @@ var _ = Describe("CachingConfig", func() {
 			})
 		})
 	})
+
+	Describe("EnablePrefetch", func() {
+		When("prefetching is enabled", func() {
+			BeforeEach(func() {
+				cfg = CachingConfig{}
+			})
+
+			It("should return configuration", func() {
+				cfg.EnablePrefetch()
+
+				Expect(cfg.Prefetching).Should(BeTrue())
+				Expect(cfg.PrefetchThreshold).Should(Equal(0))
+				Expect(cfg.MaxCachingTime).ShouldNot(BeZero())
+			})
+		})
+	})
 })

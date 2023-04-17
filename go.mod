@@ -37,6 +37,7 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
+	github.com/ThinkChaos/parcour v0.0.0-20230418015731-5c82efbe68f5
 	github.com/docker/go-connections v0.4.0
 	github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198
 	github.com/testcontainers/testcontainers-go v0.21.0
@@ -56,7 +57,7 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/go-logr/logr v1.2.4 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
+	github.com/google/pprof v0.0.0-20230309165930-d61513b1440d // indirect
 	github.com/jackc/pgx/v5 v5.3.1 // indirect
 	github.com/klauspost/compress v1.11.13 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect

@@ -2,6 +2,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
@@ -32,7 +34,7 @@ type Configurable interface {
 
 	// LogConfig logs the receiver's configuration.
 	//
-	// Calling this method when `IsEnabled` returns false is undefined.
+	// The behavior of this method is undefined when `IsEnabled` returns false.
 	LogConfig(*logrus.Entry)
 }
 
@@ -92,6 +94,30 @@ type QueryLogType int16
 // fast // asyncronously download blocking lists on startup
 // )
 type StartStrategyType uint16
+
+func (s *StartStrategyType) do(setup func() error, logErr func(error)) error {
+	if *s == StartStrategyTypeFast {
+		go func() {
+			err := setup()
+			if err != nil {
+				logErr(err)
+			}
+		}()
+
+		return nil
+	}
+
+	err := setup()
+	if err != nil {
+		logErr(err)
+
+		if *s == StartStrategyTypeFailOnError {
+			return err
+		}
+	}
+
+	return nil
+}
 
 // QueryLogField data field to be logged
 // ENUM(clientIP,clientName,responseReason,responseAnswer,question,duration)
@@ -259,6 +285,86 @@ func (c *toEnable) LogConfig(logger *logrus.Entry) {
 	logger.Info("enabled")
 }
 
+type SourceLoadingConfig struct {
+	Concurrency        uint              `yaml:"concurrency" default:"4"`
+	MaxErrorsPerSource int               `yaml:"maxErrorsPerSource" default:"5"`
+	RefreshPeriod      Duration          `yaml:"refreshPeriod" default:"4h"`
+	Strategy           StartStrategyType `yaml:"strategy" default:"blocking"`
+	Downloads          DownloaderConfig  `yaml:"downloads"`
+}
+
+func (c *SourceLoadingConfig) LogConfig(logger *logrus.Entry) {
+	logger.Infof("concurrency = %d", c.Concurrency)
+	logger.Debugf("maxErrorsPerSource = %d", c.MaxErrorsPerSource)
+	logger.Debugf("strategy = %s", c.Strategy)
+
+	if c.RefreshPeriod > 0 {
+		logger.Infof("refresh = every %s", c.RefreshPeriod)
+	} else {
+		logger.Debug("refresh = disabled")
+	}
+
+	logger.Info("downloads:")
+	log.WithIndent(logger, "  ", c.Downloads.LogConfig)
+}
+
+func (c *SourceLoadingConfig) StartPeriodicRefresh(refresh func(context.Context) error, logErr func(error)) error {
+	refreshAndRecover := func(ctx context.Context) (rerr error) {
+		defer func() {
+			if val := recover(); val != nil {
+				rerr = fmt.Errorf("refresh function panicked: %v", val)
+			}
+		}()
+
+		return refresh(ctx)
+	}
+
+	err := c.Strategy.do(func() error { return refreshAndRecover(context.Background()) }, logErr)
+	if err != nil {
+		return err
+	}
+
+	if c.RefreshPeriod > 0 {
+		go c.periodically(refreshAndRecover, logErr)
+	}
+
+	return nil
+}
+
+func (c *SourceLoadingConfig) periodically(refresh func(context.Context) error, logErr func(error)) {
+	ticker := time.NewTicker(c.RefreshPeriod.ToDuration())
+	defer ticker.Stop()
+
+	for range ticker.C {
+		err := refresh(context.Background())
+		if err != nil {
+			logErr(err)
+		}
+	}
+}
+
+type DownloaderConfig struct {
+	Timeout  Duration `yaml:"timeout" default:"5s"`
+	Attempts uint     `yaml:"attempts" default:"3"`
+	Cooldown Duration `yaml:"cooldown" default:"500ms"`
+}
+
+func (c *DownloaderConfig) LogConfig(logger *logrus.Entry) {
+	logger.Infof("timeout = %s", c.Timeout)
+	logger.Infof("attempts = %d", c.Attempts)
+	logger.Debugf("cooldown = %s", c.Cooldown)
+}
+
+func WithDefaults[T any]() (T, error) {
+	var cfg T
+
+	if err := defaults.Set(&cfg); err != nil {
+		return cfg, fmt.Errorf("can't apply %T defaults: %w", cfg, err)
+	}
+
+	return cfg, nil
+}
+
 //nolint:gochecknoglobals
 var (
 	config  = &Config{}
@@ -270,9 +376,9 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 
-	cfg := Config{}
-	if err := defaults.Set(&cfg); err != nil {
-		return nil, fmt.Errorf("can't apply default values: %w", err)
+	cfg, err := WithDefaults[Config]()
+	if err != nil {
+		return nil, err
 	}
 
 	fs, err := os.Stat(path)
@@ -398,6 +504,7 @@ func (cfg *Config) migrate(logger *logrus.Entry) bool {
 	})
 
 	usesDepredOpts = cfg.Blocking.migrate(logger) || usesDepredOpts
+	usesDepredOpts = cfg.HostsFile.migrate(logger) || usesDepredOpts
 
 	return usesDepredOpts
 }

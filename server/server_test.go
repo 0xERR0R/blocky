@@ -122,17 +122,17 @@ var _ = BeforeSuite(func() {
 			},
 		},
 		Blocking: config.BlockingConfig{
-			BlackLists: map[string][]string{
-				"ads": {
+			BlackLists: map[string][]config.BytesSource{
+				"ads": config.NewBytesSources(
 					doubleclickFile.Path,
 					bildFile.Path,
 					heiseFile.Path,
-				},
-				"youtube": {youtubeFile.Path},
+				),
+				"youtube": config.NewBytesSources(youtubeFile.Path),
 			},
-			WhiteLists: map[string][]string{
-				"ads":       {heiseFile.Path},
-				"whitelist": {heiseFile.Path},
+			WhiteLists: map[string][]config.BytesSource{
+				"ads":       config.NewBytesSources(heiseFile.Path),
+				"whitelist": config.NewBytesSources(heiseFile.Path),
 			},
 			ClientGroupsBlock: map[string][]string{
 				"default":         {"ads"},
