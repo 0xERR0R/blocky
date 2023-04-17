@@ -6,16 +6,10 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"time"
 
+	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/avast/retry-go/v4"
-)
-
-const (
-	defaultDownloadTimeout  = time.Second
-	defaultDownloadAttempts = uint(1)
-	defaultDownloadCooldown = 500 * time.Millisecond
 )
 
 // TransientError represents a temporary error like timeout, network errors...
@@ -36,74 +30,35 @@ type FileDownloader interface {
 	DownloadFile(link string) (io.ReadCloser, error)
 }
 
-// HTTPDownloader downloads files via HTTP protocol
-type HTTPDownloader struct {
-	downloadTimeout  time.Duration
-	downloadAttempts uint
-	downloadCooldown time.Duration
-	httpTransport    *http.Transport
+// httpDownloader downloads files via HTTP protocol
+type httpDownloader struct {
+	cfg config.DownloaderConfig
+
+	client http.Client
 }
 
-type DownloaderOption func(c *HTTPDownloader)
-
-func NewDownloader(options ...DownloaderOption) *HTTPDownloader {
-	d := &HTTPDownloader{
-		downloadTimeout:  defaultDownloadTimeout,
-		downloadAttempts: defaultDownloadAttempts,
-		downloadCooldown: defaultDownloadCooldown,
-		httpTransport:    &http.Transport{},
-	}
-
-	for _, opt := range options {
-		opt(d)
-	}
-
-	return d
+func NewDownloader(cfg config.DownloaderConfig, transport http.RoundTripper) FileDownloader {
+	return newDownloader(cfg, transport)
 }
 
-// WithTimeout sets the download timeout
-func WithTimeout(timeout time.Duration) DownloaderOption {
-	return func(d *HTTPDownloader) {
-		d.downloadTimeout = timeout
+func newDownloader(cfg config.DownloaderConfig, transport http.RoundTripper) *httpDownloader {
+	return &httpDownloader{
+		cfg: cfg,
+
+		client: http.Client{
+			Transport: transport,
+			Timeout:   cfg.Timeout.ToDuration(),
+		},
 	}
 }
 
-// WithTimeout sets the pause between 2 download attempts
-func WithCooldown(cooldown time.Duration) DownloaderOption {
-	return func(d *HTTPDownloader) {
-		d.downloadCooldown = cooldown
-	}
-}
-
-// WithTimeout sets the attempt number for retry
-func WithAttempts(downloadAttempts uint) DownloaderOption {
-	return func(d *HTTPDownloader) {
-		d.downloadAttempts = downloadAttempts
-	}
-}
-
-// WithTimeout sets the HTTP transport
-func WithTransport(httpTransport *http.Transport) DownloaderOption {
-	return func(d *HTTPDownloader) {
-		d.httpTransport = httpTransport
-	}
-}
-
-func (d *HTTPDownloader) DownloadFile(link string) (io.ReadCloser, error) {
-	client := http.Client{
-		Timeout:   d.downloadTimeout,
-		Transport: d.httpTransport,
-	}
-
-	logger().WithField("link", link).Info("starting download")
-
+func (d *httpDownloader) DownloadFile(link string) (io.ReadCloser, error) {
 	var body io.ReadCloser
 
 	err := retry.Do(
 		func() error {
-			var resp *http.Response
-			var httpErr error
-			if resp, httpErr = client.Get(link); httpErr == nil {
+			resp, httpErr := d.client.Get(link)
+			if httpErr == nil {
 				if resp.StatusCode == http.StatusOK {
 					body = resp.Body
 
@@ -121,17 +76,18 @@ func (d *HTTPDownloader) DownloadFile(link string) (io.ReadCloser, error) {
 
 			return httpErr
 		},
-		retry.Attempts(d.downloadAttempts),
+		retry.Attempts(d.cfg.Attempts),
 		retry.DelayType(retry.FixedDelay),
-		retry.Delay(d.downloadCooldown),
+		retry.Delay(d.cfg.Cooldown.ToDuration()),
 		retry.LastErrorOnly(true),
 		retry.OnRetry(func(n uint, err error) {
 			var transientErr *TransientError
 
 			var dnsErr *net.DNSError
 
-			logger := logger().WithField("link", link).WithField("attempt",
-				fmt.Sprintf("%d/%d", n+1, d.downloadAttempts))
+			logger := logger().
+				WithField("link", link).
+				WithField("attempt", fmt.Sprintf("%d/%d", n+1, d.cfg.Attempts))
 
 			switch {
 			case errors.As(err, &transientErr):

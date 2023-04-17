@@ -2,6 +2,7 @@ package lists
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -9,8 +10,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
-	"time"
 
+	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/lists/parsers"
 	"github.com/0xERR0R/blocky/log"
@@ -27,13 +28,28 @@ var _ = Describe("ListCache", func() {
 		tmpDir                         *TmpFolder
 		emptyFile, file1, file2, file3 *TmpFile
 		server1, server2, server3      *httptest.Server
-		maxErrorsPerFile               int
+
+		sut       *ListCache
+		sutConfig config.SourceLoadingConfig
+
+		listCacheType  ListCacheType
+		lists          map[string][]config.BytesSource
+		downloader     FileDownloader
+		mockDownloader *MockDownloader
 	)
+
 	BeforeEach(func() {
-		maxErrorsPerFile = 5
-		tmpDir = NewTmpFolder("ListCache")
-		Expect(tmpDir.Error).Should(Succeed())
-		DeferCleanup(tmpDir.Clean)
+		var err error
+
+		listCacheType = ListCacheTypeBlacklist
+
+		sutConfig, err = config.WithDefaults[config.SourceLoadingConfig]()
+		Expect(err).Should(Succeed())
+
+		sutConfig.RefreshPeriod = -1
+
+		downloader = NewDownloader(config.DownloaderConfig{}, nil)
+		mockDownloader = nil
 
 		server1 = TestServer("blocked1.com\nblocked1a.com\n192.168.178.55")
 		DeferCleanup(server1.Close)
@@ -41,6 +57,13 @@ var _ = Describe("ListCache", func() {
 		DeferCleanup(server2.Close)
 		server3 = TestServer("blocked3.com\nblocked1a.com")
 		DeferCleanup(server3.Close)
+
+		tmpDir = NewTmpFolder("ListCache")
+		Expect(tmpDir.Error).Should(Succeed())
+		DeferCleanup(tmpDir.Clean)
+
+		emptyFile = tmpDir.CreateStringFile("empty", "#empty file")
+		Expect(emptyFile.Error).Should(Succeed())
 
 		emptyFile = tmpDir.CreateStringFile("empty", "#empty file")
 		Expect(emptyFile.Error).Should(Succeed())
@@ -52,61 +75,56 @@ var _ = Describe("ListCache", func() {
 		Expect(file3.Error).Should(Succeed())
 	})
 
+	JustBeforeEach(func() {
+		var err error
+
+		Expect(lists).ShouldNot(BeNil(), "bad test: forgot to set `lists`")
+
+		if mockDownloader != nil {
+			downloader = mockDownloader
+		}
+
+		sut, err = NewListCache(listCacheType, sutConfig, lists, downloader)
+		Expect(err).Should(Succeed())
+	})
+
 	Describe("List cache and matching", func() {
-		When("Query with empty", func() {
-			It("should not panic", func() {
-				lists := map[string][]string{
-					"gr0": {emptyFile.Path},
-				}
-				sut, err := NewListCache(
-					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile,
-				)
-				Expect(err).Should(Succeed())
-
-				group := sut.Match("", []string{"gr0"})
-				Expect(group).Should(BeEmpty())
-			})
-		})
-
 		When("List is empty", func() {
-			It("should not match anything", func() {
-				lists := map[string][]string{
-					"gr1": {emptyFile.Path},
+			BeforeEach(func() {
+				lists = map[string][]config.BytesSource{
+					"gr0": config.NewBytesSources(emptyFile.Path),
 				}
-				sut, err := NewListCache(
-					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile,
-				)
-				Expect(err).Should(Succeed())
+			})
 
+			When("Query with empty", func() {
+				It("should not panic", func() {
+					group := sut.Match("", []string{"gr0"})
+					Expect(group).Should(BeEmpty())
+				})
+			})
+
+			It("should not match anything", func() {
 				group := sut.Match("google.com", []string{"gr1"})
 				Expect(group).Should(BeEmpty())
 			})
 		})
 		When("List becomes empty on refresh", func() {
-			It("should delete existing elements from group cache", func() {
-				mockDownloader := newMockDownloader(func(res chan<- string, err chan<- error) {
+			BeforeEach(func() {
+				mockDownloader = newMockDownloader(func(res chan<- string, err chan<- error) {
 					res <- "blocked1.com"
 					res <- "# nothing"
 				})
 
-				lists := map[string][]string{
+				lists = map[string][]config.BytesSource{
 					"gr1": {mockDownloader.ListSource()},
 				}
+			})
 
-				sut, err := NewListCache(
-					ListCacheTypeBlacklist, lists,
-					4*time.Hour,
-					mockDownloader,
-					defaultProcessingConcurrency,
-					false,
-					maxErrorsPerFile,
-				)
-				Expect(err).Should(Succeed())
-
+			It("should delete existing elements from group cache", func(ctx context.Context) {
 				group := sut.Match("blocked1.com", []string{"gr1"})
 				Expect(group).Should(ContainElement("gr1"))
 
-				err = sut.refresh(false)
+				err := sut.refresh(ctx)
 				Expect(err).Should(Succeed())
 
 				group = sut.Match("blocked1.com", []string{"gr1"})
@@ -114,21 +132,19 @@ var _ = Describe("ListCache", func() {
 			})
 		})
 		When("List has invalid lines", func() {
-			It("should still other domains", func() {
-				lists := map[string][]string{
+			BeforeEach(func() {
+				lists = map[string][]config.BytesSource{
 					"gr1": {
-						inlineList(
+						config.TextBytesSource(
 							"inlinedomain1.com",
 							"invaliddomain!",
 							"inlinedomain2.com",
 						),
 					},
 				}
+			})
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
-					defaultProcessingConcurrency, false, maxErrorsPerFile)
-				Expect(err).Should(Succeed())
-
+			It("should still other domains", func() {
 				group := sut.Match("inlinedomain1.com", []string{"gr1"})
 				Expect(group).Should(ContainElement("gr1"))
 
@@ -137,28 +153,20 @@ var _ = Describe("ListCache", func() {
 			})
 		})
 		When("a temporary/transient err occurs on download", func() {
-			It("should not delete existing elements from group cache", func() {
+			BeforeEach(func() {
 				// should produce a transient error on second and third attempt
-				mockDownloader := newMockDownloader(func(res chan<- string, err chan<- error) {
-					res <- "blocked1.com"
+				mockDownloader = newMockDownloader(func(res chan<- string, err chan<- error) {
+					res <- "blocked1.com\nblocked2.com\n"
 					err <- &TransientError{inner: errors.New("boom")}
 					err <- &TransientError{inner: errors.New("boom")}
 				})
 
-				lists := map[string][]string{
+				lists = map[string][]config.BytesSource{
 					"gr1": {mockDownloader.ListSource()},
 				}
+			})
 
-				sut, err := NewListCache(
-					ListCacheTypeBlacklist, lists,
-					4*time.Hour,
-					mockDownloader,
-					defaultProcessingConcurrency,
-					false,
-					maxErrorsPerFile,
-				)
-				Expect(err).Should(Succeed())
-
+			It("should not delete existing elements from group cache", func(ctx context.Context) {
 				By("Lists loaded without timeout", func() {
 					Eventually(func(g Gomega) {
 						group := sut.Match("blocked1.com", []string{"gr1"})
@@ -166,7 +174,7 @@ var _ = Describe("ListCache", func() {
 					}, "1s").Should(Succeed())
 				})
 
-				Expect(sut.refresh(false)).Should(HaveOccurred())
+				Expect(sut.refresh(ctx)).Should(HaveOccurred())
 
 				By("List couldn't be loaded due to timeout", func() {
 					group := sut.Match("blocked1.com", []string{"gr1"})
@@ -182,27 +190,25 @@ var _ = Describe("ListCache", func() {
 			})
 		})
 		When("non transient err occurs on download", func() {
-			It("should keep existing elements from group cache", func() {
+			BeforeEach(func() {
 				// should produce a non transient error on second attempt
-				mockDownloader := newMockDownloader(func(res chan<- string, err chan<- error) {
+				mockDownloader = newMockDownloader(func(res chan<- string, err chan<- error) {
 					res <- "blocked1.com"
 					err <- errors.New("boom")
 				})
 
-				lists := map[string][]string{
+				lists = map[string][]config.BytesSource{
 					"gr1": {mockDownloader.ListSource()},
 				}
+			})
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, mockDownloader,
-					defaultProcessingConcurrency, false, maxErrorsPerFile)
-				Expect(err).Should(Succeed())
-
+			It("should keep existing elements from group cache", func(ctx context.Context) {
 				By("Lists loaded without err", func() {
 					group := sut.Match("blocked1.com", []string{"gr1"})
 					Expect(group).Should(ContainElement("gr1"))
 				})
 
-				Expect(sut.refresh(false)).Should(HaveOccurred())
+				Expect(sut.refresh(ctx)).Should(HaveOccurred())
 
 				By("Lists from first load is kept", func() {
 					group := sut.Match("blocked1.com", []string{"gr1"})
@@ -211,16 +217,14 @@ var _ = Describe("ListCache", func() {
 			})
 		})
 		When("Configuration has 3 external working urls", func() {
-			It("should download the list and match against", func() {
-				lists := map[string][]string{
-					"gr1": {server1.URL, server2.URL},
-					"gr2": {server3.URL},
+			BeforeEach(func() {
+				lists = map[string][]config.BytesSource{
+					"gr1": config.NewBytesSources(server1.URL, server2.URL),
+					"gr2": config.NewBytesSources(server3.URL),
 				}
+			})
 
-				sut, _ := NewListCache(
-					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile,
-				)
-
+			It("should download the list and match against", func() {
 				group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
 				Expect(group).Should(ContainElement("gr1"))
 
@@ -232,16 +236,14 @@ var _ = Describe("ListCache", func() {
 			})
 		})
 		When("Configuration has some faulty urls", func() {
-			It("should download the list and match against", func() {
-				lists := map[string][]string{
-					"gr1": {server1.URL, server2.URL, "doesnotexist"},
-					"gr2": {server3.URL, "someotherfile"},
+			BeforeEach(func() {
+				lists = map[string][]config.BytesSource{
+					"gr1": config.NewBytesSources(server1.URL, server2.URL, "doesnotexist"),
+					"gr2": config.NewBytesSources(server3.URL, "someotherfile"),
 				}
+			})
 
-				sut, _ := NewListCache(
-					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile,
-				)
-
+			It("should download the list and match against", func() {
 				group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
 				Expect(group).Should(ContainElement("gr1"))
 
@@ -253,39 +255,33 @@ var _ = Describe("ListCache", func() {
 			})
 		})
 		When("List will be updated", func() {
-			It("event should be fired and contain count of elements in downloaded lists", func() {
-				lists := map[string][]string{
-					"gr1": {server1.URL},
-				}
+			resultCnt := 0
 
-				resultCnt := 0
+			BeforeEach(func() {
+				lists = map[string][]config.BytesSource{
+					"gr1": config.NewBytesSources(server1.URL),
+				}
 
 				_ = Bus().SubscribeOnce(BlockingCacheGroupChanged, func(listType ListCacheType, group string, cnt int) {
 					resultCnt = cnt
 				})
+			})
 
-				sut, err := NewListCache(
-					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile,
-				)
-				Expect(err).Should(Succeed())
-
+			It("event should be fired and contain count of elements in downloaded lists", func() {
 				group := sut.Match("blocked1.com", []string{})
 				Expect(group).Should(BeEmpty())
 				Expect(resultCnt).Should(Equal(3))
 			})
 		})
 		When("multiple groups are passed", func() {
-			It("should match", func() {
-				lists := map[string][]string{
-					"gr1": {file1.Path, file2.Path},
-					"gr2": {"file://" + file3.Path},
+			BeforeEach(func() {
+				lists = map[string][]config.BytesSource{
+					"gr1": config.NewBytesSources(file1.Path, file2.Path),
+					"gr2": config.NewBytesSources("file://" + file3.Path),
 				}
+			})
 
-				sut, err := NewListCache(
-					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile,
-				)
-				Expect(err).Should(Succeed())
-
+			It("should match", func() {
 				Expect(sut.groupedCache.ElementCount("gr1")).Should(Equal(3))
 				Expect(sut.groupedCache.ElementCount("gr2")).Should(Equal(2))
 
@@ -304,31 +300,28 @@ var _ = Describe("ListCache", func() {
 				file1, lines1 := createTestListFile(GinkgoT().TempDir(), 10000)
 				file2, lines2 := createTestListFile(GinkgoT().TempDir(), 15000)
 				file3, lines3 := createTestListFile(GinkgoT().TempDir(), 13000)
-				lists := map[string][]string{
-					"gr1": {file1, file2, file3},
+				lists := map[string][]config.BytesSource{
+					"gr1": config.NewBytesSources(file1, file2, file3),
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
-					defaultProcessingConcurrency, false, maxErrorsPerFile)
+				sut, err := NewListCache(ListCacheTypeBlacklist, sutConfig, lists, downloader)
 				Expect(err).Should(Succeed())
 
 				Expect(sut.groupedCache.ElementCount("gr1")).Should(Equal(lines1 + lines2 + lines3))
 			})
 		})
 		When("inline list content is defined", func() {
-			It("should match", func() {
-				lists := map[string][]string{
-					"gr1": {inlineList(
+			BeforeEach(func() {
+				lists = map[string][]config.BytesSource{
+					"gr1": {config.TextBytesSource(
 						"inlinedomain1.com",
 						"#some comment",
 						"inlinedomain2.com",
 					)},
 				}
+			})
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
-					defaultProcessingConcurrency, false, maxErrorsPerFile)
-				Expect(err).Should(Succeed())
-
+			It("should match", func() {
 				Expect(sut.groupedCache.ElementCount("gr1")).Should(Equal(2))
 				group := sut.Match("inlinedomain1.com", []string{"gr1"})
 				Expect(group).Should(ContainElement("gr1"))
@@ -338,65 +331,59 @@ var _ = Describe("ListCache", func() {
 			})
 		})
 		When("Text file can't be parsed", func() {
-			It("should still match already imported strings", func() {
-				lists := map[string][]string{
+			BeforeEach(func() {
+				lists = map[string][]config.BytesSource{
 					"gr1": {
-						inlineList(
+						config.TextBytesSource(
 							"inlinedomain1.com",
 							"lineTooLong"+strings.Repeat("x", bufio.MaxScanTokenSize), // too long
 						),
 					},
 				}
+			})
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
-					defaultProcessingConcurrency, false, maxErrorsPerFile)
-				Expect(err).Should(Succeed())
-
+			It("should still match already imported strings", func() {
 				group := sut.Match("inlinedomain1.com", []string{"gr1"})
 				Expect(group).Should(ContainElement("gr1"))
 			})
 		})
 		When("Text file has too many errors", func() {
 			BeforeEach(func() {
-				maxErrorsPerFile = 0
+				sutConfig.MaxErrorsPerSource = 0
+				sutConfig.Strategy = config.StartStrategyTypeFailOnError
 			})
 			It("should fail parsing", func() {
-				lists := map[string][]string{
+				lists := map[string][]config.BytesSource{
 					"gr1": {
-						inlineList("invaliddomain!"), // too many errors since `maxErrorsPerFile` is 0
+						config.TextBytesSource("invaliddomain!"), // too many errors since `maxErrorsPerSource` is 0
 					},
 				}
 
-				_, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
-					defaultProcessingConcurrency, false, maxErrorsPerFile)
+				_, err := NewListCache(ListCacheTypeBlacklist, sutConfig, lists, downloader)
 				Expect(err).ShouldNot(Succeed())
 				Expect(err).Should(MatchError(parsers.ErrTooManyErrors))
 			})
 		})
 		When("file has end of line comment", func() {
-			It("should still parse the domain", func() {
-				lists := map[string][]string{
-					"gr1": {inlineList("inlinedomain1.com#a comment")},
+			BeforeEach(func() {
+				lists = map[string][]config.BytesSource{
+					"gr1": {config.TextBytesSource("inlinedomain1.com#a comment")},
 				}
+			})
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
-					defaultProcessingConcurrency, false, maxErrorsPerFile)
-				Expect(err).Should(Succeed())
-
+			It("should still parse the domain", func() {
 				group := sut.Match("inlinedomain1.com", []string{"gr1"})
 				Expect(group).Should(ContainElement("gr1"))
 			})
 		})
 		When("inline regex content is defined", func() {
-			It("should match", func() {
-				lists := map[string][]string{
-					"gr1": {inlineList("/^apple\\.(de|com)$/")},
+			BeforeEach(func() {
+				lists = map[string][]config.BytesSource{
+					"gr1": {config.TextBytesSource("/^apple\\.(de|com)$/")},
 				}
+			})
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
-					defaultProcessingConcurrency, false, maxErrorsPerFile)
-				Expect(err).Should(Succeed())
-
+			It("should match", func() {
 				group := sut.Match("apple.com", []string{"gr1"})
 				Expect(group).Should(ContainElement("gr1"))
 
@@ -416,13 +403,12 @@ var _ = Describe("ListCache", func() {
 		})
 
 		It("should print list configuration", func() {
-			lists := map[string][]string{
-				"gr1": {server1.URL, server2.URL},
-				"gr2": {inlineList("inline", "definition")},
+			lists := map[string][]config.BytesSource{
+				"gr1": config.NewBytesSources(server1.URL, server2.URL),
+				"gr2": {config.TextBytesSource("inline", "definition")},
 			}
 
-			sut, err := NewListCache(ListCacheTypeBlacklist, lists, time.Hour, NewDownloader(),
-				defaultProcessingConcurrency, false, maxErrorsPerFile)
+			sut, err := NewListCache(ListCacheTypeBlacklist, sutConfig, lists, downloader)
 			Expect(err).Should(Succeed())
 
 			sut.LogConfig(logger)
@@ -435,13 +421,16 @@ var _ = Describe("ListCache", func() {
 
 	Describe("StartStrategy", func() {
 		When("async load is enabled", func() {
+			BeforeEach(func() {
+				sutConfig.Strategy = config.StartStrategyTypeFast
+			})
+
 			It("should never return an error", func() {
-				lists := map[string][]string{
-					"gr1": {"doesnotexist"},
+				lists := map[string][]config.BytesSource{
+					"gr1": config.NewBytesSources("doesnotexist"),
 				}
 
-				_, err := NewListCache(ListCacheTypeBlacklist, lists, -1, NewDownloader(),
-					defaultProcessingConcurrency, true, maxErrorsPerFile)
+				_, err := NewListCache(ListCacheTypeBlacklist, sutConfig, lists, downloader)
 				Expect(err).Should(Succeed())
 			})
 		})
@@ -465,8 +454,11 @@ func (m *MockDownloader) DownloadFile(_ string) (io.ReadCloser, error) {
 	return io.NopCloser(strings.NewReader(str)), nil
 }
 
-func (m *MockDownloader) ListSource() string {
-	return "http://mock"
+func (m *MockDownloader) ListSource() config.BytesSource {
+	return config.BytesSource{
+		Type: config.BytesSourceTypeHttp,
+		From: "http://mock-downloader",
+	}
 }
 
 func createTestListFile(dir string, totalLines int) (string, int) {
@@ -501,13 +493,4 @@ func RandStringBytes(n int) string {
 	}
 
 	return string(b)
-}
-
-func inlineList(lines ...string) string {
-	res := strings.Join(lines, "\n")
-
-	// ensure at least one line ending so it's parsed as an inline block
-	res += "\n"
-
-	return res
 }

@@ -1,11 +1,15 @@
 package config
 
 import (
+	"context"
+	"errors"
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/creasty/defaults"
 	"github.com/miekg/dns"
+	"github.com/sirupsen/logrus"
 
 	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
@@ -48,15 +52,17 @@ var _ = Describe("Config", func() {
 			BeforeEach(func() {
 				c.Blocking.Deprecated.FailStartOnListError = ptrOf(true)
 			})
-			It("should change StartStrategy blocking to failOnError", func() {
-				c.Blocking.StartStrategy = StartStrategyTypeBlocking
+			It("should change loading.strategy blocking to failOnError", func() {
+				c.Blocking.Loading.Strategy = StartStrategyTypeBlocking
 				c.migrate(logger)
-				Expect(c.Blocking.StartStrategy).Should(Equal(StartStrategyTypeFailOnError))
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("blocking.loading.strategy")))
+				Expect(c.Blocking.Loading.Strategy).Should(Equal(StartStrategyTypeFailOnError))
 			})
-			It("shouldn't change StartStrategy if set to fast", func() {
-				c.Blocking.StartStrategy = StartStrategyTypeFast
+			It("shouldn't change loading.strategy if set to fast", func() {
+				c.Blocking.Loading.Strategy = StartStrategyTypeFast
 				c.migrate(logger)
-				Expect(c.Blocking.StartStrategy).Should(Equal(StartStrategyTypeFast))
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("blocking.loading.strategy")))
+				Expect(c.Blocking.Loading.Strategy).Should(Equal(StartStrategyTypeFast))
 			})
 		})
 
@@ -206,8 +212,10 @@ var _ = Describe("Config", func() {
 		When("duration is in wrong format", func() {
 			It("should return error", func() {
 				cfg := Config{}
-				data := `blocking:
-  refreshPeriod: wrongduration`
+				data := `
+blocking:
+  loading:
+    refreshPeriod: wrongduration`
 				err := unmarshalConfig([]byte(data), &cfg)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("invalid duration \"wrongduration\""))
@@ -534,6 +542,222 @@ bootstrapDns:
 			"tcp-tls:[fd00::6cd4:d7e0:d99d:2952]",
 		),
 	)
+
+	Describe("SourceLoadingConfig", func() {
+		var cfg SourceLoadingConfig
+
+		BeforeEach(func() {
+			cfg = SourceLoadingConfig{
+				Concurrency:   12,
+				RefreshPeriod: Duration(time.Hour),
+			}
+		})
+
+		Describe("LogConfig", func() {
+			It("should log configuration", func() {
+				cfg.LogConfig(logger)
+
+				Expect(hook.Calls).ShouldNot(BeEmpty())
+				Expect(hook.Messages[0]).Should(Equal("concurrency = 12"))
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("refresh = every 1 hour")))
+			})
+			When("refresh is disabled", func() {
+				BeforeEach(func() {
+					cfg.RefreshPeriod = Duration(-1)
+				})
+
+				It("should reflect that", func() {
+					logger.Logger.Level = logrus.InfoLevel
+
+					cfg.LogConfig(logger)
+
+					Expect(hook.Calls).ShouldNot(BeEmpty())
+					Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("refresh = disabled")))
+
+					logger.Logger.Level = logrus.TraceLevel
+
+					cfg.LogConfig(logger)
+
+					Expect(hook.Calls).ShouldNot(BeEmpty())
+					Expect(hook.Messages).Should(ContainElement(ContainSubstring("refresh = disabled")))
+				})
+			})
+		})
+	})
+
+	Describe("StartStrategyType", func() {
+		Describe("StartStrategyTypeBlocking", func() {
+			It("runs in the current goroutine", func() {
+				sut := StartStrategyTypeBlocking
+				panicVal := new(int)
+
+				defer func() {
+					// recover will catch the panic if it happened in the same goroutine
+					Expect(recover()).Should(BeIdenticalTo(panicVal))
+				}()
+
+				_ = sut.do(func() error {
+					panic(panicVal)
+				}, nil)
+
+				Fail("unreachable")
+			})
+
+			It("logs errors and doesn't return them", func() {
+				sut := StartStrategyTypeBlocking
+				expectedErr := errors.New("test")
+
+				err := sut.do(func() error {
+					return expectedErr
+				}, func(err error) {
+					Expect(err).Should(MatchError(expectedErr))
+				})
+
+				Expect(err).Should(Succeed())
+			})
+		})
+
+		Describe("StartStrategyTypeFailOnError", func() {
+			It("runs in the current goroutine", func() {
+				sut := StartStrategyTypeBlocking
+				panicVal := new(int)
+
+				defer func() {
+					// recover will catch the panic if it happened in the same goroutine
+					Expect(recover()).Should(BeIdenticalTo(panicVal))
+				}()
+
+				_ = sut.do(func() error {
+					panic(panicVal)
+				}, nil)
+
+				Fail("unreachable")
+			})
+
+			It("logs errors and returns them", func() {
+				sut := StartStrategyTypeFailOnError
+				expectedErr := errors.New("test")
+
+				err := sut.do(func() error {
+					return expectedErr
+				}, func(err error) {
+					Expect(err).Should(MatchError(expectedErr))
+				})
+
+				Expect(err).Should(MatchError(expectedErr))
+			})
+		})
+
+		Describe("StartStrategyTypeFast", func() {
+			It("runs in a new goroutine", func() {
+				sut := StartStrategyTypeFast
+				events := make(chan string)
+				wait := make(chan struct{})
+
+				err := sut.do(func() error {
+					events <- "start"
+					<-wait
+					events <- "done"
+
+					return nil
+				}, nil)
+
+				Eventually(events, "50ms").Should(Receive(Equal("start")))
+				Expect(err).Should(Succeed())
+				Consistently(events).ShouldNot(Receive())
+				close(wait)
+				Eventually(events, "50ms").Should(Receive(Equal("done")))
+			})
+
+			It("logs errors", func() {
+				sut := StartStrategyTypeFast
+				expectedErr := errors.New("test")
+				wait := make(chan struct{})
+
+				err := sut.do(func() error {
+					return expectedErr
+				}, func(err error) {
+					Expect(err).Should(MatchError(expectedErr))
+					close(wait)
+				})
+
+				Expect(err).Should(Succeed())
+				Eventually(wait, "50ms").Should(BeClosed())
+			})
+		})
+	})
+
+	Describe("SourceLoadingConfig", func() {
+		It("handles panics", func() {
+			sut := SourceLoadingConfig{
+				Strategy: StartStrategyTypeFailOnError,
+			}
+
+			panicMsg := "panic value"
+
+			err := sut.StartPeriodicRefresh(func(context.Context) error {
+				panic(panicMsg)
+			}, func(err error) {
+				Expect(err).Should(MatchError(ContainSubstring(panicMsg)))
+			})
+
+			Expect(err).Should(MatchError(ContainSubstring(panicMsg)))
+		})
+
+		It("periodically calls refresh", func() {
+			sut := SourceLoadingConfig{
+				Strategy:      StartStrategyTypeFast,
+				RefreshPeriod: Duration(5 * time.Millisecond),
+			}
+
+			panicMsg := "panic value"
+			calls := make(chan int32)
+
+			var call atomic.Int32
+
+			err := sut.StartPeriodicRefresh(func(context.Context) error {
+				call := call.Add(1)
+				calls <- call
+
+				if call == 3 {
+					panic(panicMsg)
+				}
+
+				return nil
+			}, func(err error) {
+				defer GinkgoRecover()
+
+				Expect(err).Should(MatchError(ContainSubstring(panicMsg)))
+				Expect(call.Load()).Should(Equal(int32(3)))
+			})
+
+			Expect(err).Should(Succeed())
+			Eventually(calls, "50ms").Should(Receive(Equal(int32(1))))
+			Eventually(calls, "50ms").Should(Receive(Equal(int32(2))))
+			Eventually(calls, "50ms").Should(Receive(Equal(int32(3))))
+		})
+	})
+
+	Describe("WithDefaults", func() {
+		It("use valid defaults", func() {
+			type T struct {
+				X int `default:"1"`
+			}
+
+			t, err := WithDefaults[T]()
+			Expect(err).Should(Succeed())
+			Expect(t.X).Should(Equal(1))
+		})
+
+		It("return an error if the tag is invalid", func() {
+			type T struct {
+				X struct{} `default:"fail"`
+			}
+
+			_, err := WithDefaults[T]()
+			Expect(err).ShouldNot(Succeed())
+		})
+	})
 })
 
 func defaultTestFileConfig() {
@@ -557,7 +781,7 @@ func defaultTestFileConfig() {
 	Expect(config.Blocking.WhiteLists).Should(HaveLen(1))
 	Expect(config.Blocking.ClientGroupsBlock).Should(HaveLen(2))
 	Expect(config.Blocking.BlockTTL).Should(Equal(Duration(time.Minute)))
-	Expect(config.Blocking.RefreshPeriod).Should(Equal(Duration(2 * time.Hour)))
+	Expect(config.Blocking.Loading.RefreshPeriod).Should(Equal(Duration(2 * time.Hour)))
 	Expect(config.Filtering.QueryTypes).Should(HaveLen(2))
 	Expect(config.FqdnOnly.Enable).Should(BeTrue())
 
@@ -613,7 +837,8 @@ func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {
 		"    Laptop-D.fritz.box:",
 		"      - ads",
 		"  blockTTL: 1m",
-		"  refreshPeriod: 120",
+		"  loading:",
+		"    refreshPeriod: 120",
 		"clientLookup:",
 		"  upstream: 192.168.178.1",
 		"  singleNameOrder:",
@@ -629,7 +854,6 @@ func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {
 		"startVerifyUpstream: false")
 }
 
-//nolint:funlen
 func writeConfigDir(tmpDir *helpertest.TmpFolder) error {
 	f1 := tmpDir.CreateStringFile("config1.yaml",
 		"upstream:",
@@ -675,7 +899,8 @@ func writeConfigDir(tmpDir *helpertest.TmpFolder) error {
 		"    Laptop-D.fritz.box:",
 		"      - ads",
 		"  blockTTL: 1m",
-		"  refreshPeriod: 120",
+		"  loading:",
+		"    refreshPeriod: 120",
 		"clientLookup:",
 		"  upstream: 192.168.178.1",
 		"  singleNameOrder:",
