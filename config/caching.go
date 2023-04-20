@@ -20,7 +20,7 @@ type CachingConfig struct {
 
 // IsEnabled implements `config.Configurable`.
 func (c *CachingConfig) IsEnabled() bool {
-	return c.MaxCachingTime > 0
+	return c.MaxCachingTime.IsAboveZero()
 }
 
 // LogConfig implements `config.Configurable`.
@@ -42,7 +42,7 @@ func (c *CachingConfig) LogConfig(logger *logrus.Entry) {
 func (c *CachingConfig) EnablePrefetch() {
 	const day = Duration(24 * time.Hour)
 
-	if c.MaxCachingTime.IsZero() {
+	if !c.IsEnabled() {
 		// make sure resolver gets enabled
 		c.MaxCachingTime = day
 	}
