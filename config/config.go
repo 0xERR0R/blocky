@@ -298,7 +298,7 @@ func (c *SourceLoadingConfig) LogConfig(logger *logrus.Entry) {
 	logger.Debugf("maxErrorsPerSource = %d", c.MaxErrorsPerSource)
 	logger.Debugf("strategy = %s", c.Strategy)
 
-	if c.RefreshPeriod > 0 {
+	if c.RefreshPeriod.IsAboveZero() {
 		logger.Infof("refresh = every %s", c.RefreshPeriod)
 	} else {
 		logger.Debug("refresh = disabled")

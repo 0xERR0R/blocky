@@ -785,8 +785,8 @@ func defaultTestFileConfig() {
 	Expect(config.Filtering.QueryTypes).Should(HaveLen(2))
 	Expect(config.FqdnOnly.Enable).Should(BeTrue())
 
-	Expect(config.Caching.MaxCachingTime.IsZero()).Should(BeTrue())
-	Expect(config.Caching.MinCachingTime.IsZero()).Should(BeTrue())
+	Expect(config.Caching.MaxCachingTime).Should(BeZero())
+	Expect(config.Caching.MinCachingTime).Should(BeZero())
 
 	Expect(config.DoHUserAgent).Should(Equal("testBlocky"))
 	Expect(config.MinTLSServeVer).Should(Equal("1.3"))

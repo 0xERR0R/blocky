@@ -14,8 +14,8 @@ func (c Duration) ToDuration() time.Duration {
 	return time.Duration(c)
 }
 
-func (c Duration) IsZero() bool {
-	return c.ToDuration() == 0
+func (c Duration) IsAboveZero() bool {
+	return c.ToDuration() > 0
 }
 
 func (c Duration) Seconds() float64 {

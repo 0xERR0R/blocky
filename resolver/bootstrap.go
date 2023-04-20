@@ -78,7 +78,7 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 	cachingCfg := cfg.Caching
 	cachingCfg.EnablePrefetch()
 
-	if cachingCfg.MinCachingTime.IsZero() {
+	if !cachingCfg.MinCachingTime.IsAboveZero() {
 		// Set a min time in case the user didn't to avoid prefetching too often
 		cachingCfg.MinCachingTime = config.Duration(time.Hour)
 	}
@@ -116,7 +116,7 @@ func (b *Bootstrap) resolveUpstream(r Resolver, host string) ([]net.IP, error) {
 		ctx := context.Background()
 
 		timeout := cfg.UpstreamTimeout
-		if timeout.IsZero() {
+		if timeout.IsAboveZero() {
 			var cancel context.CancelFunc
 
 			ctx, cancel = context.WithTimeout(ctx, timeout.ToDuration())
