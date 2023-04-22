@@ -19,6 +19,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Pseudo git tag
+        shell: bash
+        run: | 
+          git tag v99.99
+
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
