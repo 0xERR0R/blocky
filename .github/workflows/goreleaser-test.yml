@@ -49,8 +49,8 @@ jobs:
     needs: build
     strategy:
       matrix:
-        distro: [ubuntu16.04, ubuntu18.04, ubuntu20.04, bullseye, buster, stretch]
-        arch: [armv7]
+        distro: [ubuntu16.04, ubuntu18.04, ubuntu20.04, ubuntu22.04, bullseye, buster, stretch]
+        arch: [armv7,aarch64]
         include:
           - distro: stretch
             arch: armv6
@@ -77,17 +77,15 @@ jobs:
           dockerRunArgs: |
             --volume "${PWD}/dist:/dist"
           shell: /bin/sh
-          install: |
+          run: |
             case "${{ matrix.arch }}" in
               aarch64)
-                ln -s /dist/blocky_linux_arm64/blocky /blocky
+                /dist/blocky_linux_arm64/blocky version
                 ;;
               armv6)
-                ln -s /dist/blocky_linux_arm_6/blocky /blocky
+                /dist/blocky_linux_arm_6/blocky version
                 ;;
               armv7)
-                ln -s /dist/blocky_linux_arm_7/blocky /blocky
+                /dist/blocky_linux_arm_7/blocky version
                 ;;
             esac
-          run: |
-            /blocky version
