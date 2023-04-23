@@ -89,10 +89,17 @@ jobs:
                 ;;
             esac
 
-  linux-test-ubuntu20:
-    name: Test amd64 binary on ubuntu 20.04
-    runs-on: ubuntu-20.04
+  linux-test-amd64:
+    name: Test amd64 binaries
+    runs-on: ${{matrix.runner}}
     needs: build
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-20.04
+            folder: blocky_linux_amd64_v1
+          - runner: ubuntu-22.04
+            folder: blocky_linux_amd64_v1
     steps:
       - name: Download dist folder
         id: download
@@ -103,22 +110,5 @@ jobs:
       - name: Test binary
         shell: bash
         run: |
-          chmod +x ${{steps.download.outputs.download-path}}/blocky_linux_amd64_v1/blocky
-          ${{steps.download.outputs.download-path}}/blocky_linux_amd64_v1/blocky version
-
-  linux-test-ubuntu22:
-    name: Test amd64 binary on ubuntu 22.04
-    runs-on: ubuntu-22.04
-    needs: build
-    steps:
-      - name: Download dist folder
-        id: download
-        uses: actions/download-artifact@v3
-        with:
-          name: dist_folder
-
-      - name: Test binary
-        shell: bash
-        run: |
-          chmod +x ${{steps.download.outputs.download-path}}/blocky_linux_amd64_v1/blocky
-          ${{steps.download.outputs.download-path}}/blocky_linux_amd64_v1/blocky version
+          chmod +x ${{steps.download.outputs.download-path}}/${{matrix.folder}}/blocky
+          ${{steps.download.outputs.download-path}}/${{matrix.folder}}/blocky version
