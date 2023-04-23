@@ -22,7 +22,7 @@ jobs:
       - name: Pseudo git tag
         shell: bash
         run: | 
-          git tag v99.99
+          git tag v999.999
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -42,4 +42,9 @@ jobs:
         uses: goreleaser/goreleaser-action@v4
         with:
           version: latest
-          args: build
+          args: build --clean --snapshot
+
+      - name: Test binary
+        shell: sh
+        run: | 
+          ./dist/blocky_linux_amd64_v1/blocky version
