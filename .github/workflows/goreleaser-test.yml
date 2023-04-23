@@ -63,6 +63,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: dist_folder
+          path: /tmp/dist
 
       - name: Test binary
         uses: uraimo/run-on-arch-action@v2
@@ -70,9 +71,10 @@ jobs:
           distro: ${{ matrix.distro }}
           arch: ${{ matrix.arch }}
           dockerRunArgs: |
-            --volume "${PWD}/dist:/dist"
+            --volume "/tmp/dist:/dist"
           shell: /bin/sh
           run: |
+            ls -R /dist
             case "${{ matrix.arch }}" in
               aarch64)
                 ./dist/blocky_linux_arm64/blocky version
@@ -94,11 +96,13 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: dist_folder
+          path: /tmp/dist
 
       - name: Test binary
         shell: bash
         run: |
-          ./dist/blocky_linux_amd64_v1/blocky version
+          ls -R /tmp/dist
+          ./tmp/dist/blocky_linux_amd64_v1/blocky version
 
   linux-test-ubuntu20:
     name: Test amd64 binary on ubuntu 20.04
@@ -109,11 +113,13 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: dist_folder
+          path: /tmp/dist
 
       - name: Test binary
         shell: bash
         run: |
-          ./dist/blocky_linux_amd64_v1/blocky version
+          ls -R /tmp/dist
+          ./tmp/dist/blocky_linux_amd64_v1/blocky version
 
   linux-test-ubuntu22:
     name: Test amd64 binary on ubuntu 22.04
@@ -124,8 +130,10 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: dist_folder
+          path: /tmp/dist
 
       - name: Test binary
         shell: bash
         run: |
-          ./dist/blocky_linux_amd64_v1/blocky version
+          ls -R /tmp/dist
+          ./tmp/dist/blocky_linux_amd64_v1/blocky version
