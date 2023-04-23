@@ -50,7 +50,7 @@ jobs:
     strategy:
       matrix:
         distro: [ubuntu16.04, ubuntu18.04, ubuntu20.04, bullseye, buster, stretch]
-        arch: [armv7, aarch64]
+        arch: [armv7]
         include:
           - distro: stretch
             arch: armv6
@@ -75,14 +75,14 @@ jobs:
           install: |
             case "${{ matrix.arch }}" in
               aarch64)
-                ln -s /dist/blocky_linux_arm64/blocky /dist/blocky
+                ln -s /dist/blocky_linux_arm64/blocky /blocky
                 ;;
               armv6)
-                ln -s /dist/blocky_linux_arm_6/blocky /dist/blocky
+                ln -s /dist/blocky_linux_arm_6/blocky /blocky
                 ;;
               armv7)
-                ln -s /dist/blocky_linux_arm_7/blocky /dist/blocky
+                ln -s /dist/blocky_linux_arm_7/blocky /blocky
                 ;;
             esac
           run: |
-            /dist/blocky version
+            /blocky version
