@@ -64,11 +64,6 @@ jobs:
         with:
           name: dist_folder
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-        with:
-          platforms: arm,arm64
-
       - name: Test binary
         uses: uraimo/run-on-arch-action@v2
         with:
@@ -80,12 +75,57 @@ jobs:
           run: |
             case "${{ matrix.arch }}" in
               aarch64)
-                /dist/blocky_linux_arm64/blocky version
+                ./dist/blocky_linux_arm64/blocky version
                 ;;
               armv6)
-                /dist/blocky_linux_arm_6/blocky version
+                ./dist/blocky_linux_arm_6/blocky version
                 ;;
               armv7)
-                /dist/blocky_linux_arm_7/blocky version
+                ./dist/blocky_linux_arm_7/blocky version
                 ;;
             esac
+
+  linux-test-ubuntu18:
+    name: Test amd64 binary on ubuntu 18.04
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - name: Download dist folder
+        uses: actions/download-artifact@v3
+        with:
+          name: dist_folder
+
+      - name: Test binary
+        shell: bash
+        run: |
+          ./dist/blocky_linux_amd64_v1/blocky version
+
+  linux-test-ubuntu20:
+    name: Test amd64 binary on ubuntu 20.04
+    runs-on: ubuntu-20.04
+    needs: build
+    steps:
+      - name: Download dist folder
+        uses: actions/download-artifact@v3
+        with:
+          name: dist_folder
+
+      - name: Test binary
+        shell: bash
+        run: |
+          ./dist/blocky_linux_amd64_v1/blocky version
+
+  linux-test-ubuntu22:
+    name: Test amd64 binary on ubuntu 22.04
+    runs-on: ubuntu-22.04
+    needs: build
+    steps:
+      - name: Download dist folder
+        uses: actions/download-artifact@v3
+        with:
+          name: dist_folder
+
+      - name: Test binary
+        shell: bash
+        run: |
+          ./dist/blocky_linux_amd64_v1/blocky version
