@@ -87,23 +87,6 @@ jobs:
                 ;;
             esac
 
-  linux-test-ubuntu18:
-    name: Test amd64 binary on ubuntu 18.04
-    runs-on: ubuntu-18.04
-    needs: build
-    steps:
-      - name: Download dist folder
-        uses: actions/download-artifact@v3
-        with:
-          name: dist_folder
-          path: /tmp/dist
-
-      - name: Test binary
-        shell: bash
-        run: |
-          ls -R /tmp/dist
-          ./tmp/dist/blocky_linux_amd64_v1/blocky version
-
   linux-test-ubuntu20:
     name: Test amd64 binary on ubuntu 20.04
     runs-on: ubuntu-20.04
