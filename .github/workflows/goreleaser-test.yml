@@ -60,10 +60,10 @@ jobs:
             arch: armv6   
     steps:
       - name: Download dist folder
+        id: download
         uses: actions/download-artifact@v3
         with:
           name: dist_folder
-          path: /tmp/dist
 
       - name: Test binary
         uses: uraimo/run-on-arch-action@v2
@@ -71,18 +71,20 @@ jobs:
           distro: ${{ matrix.distro }}
           arch: ${{ matrix.arch }}
           dockerRunArgs: |
-            --volume "/tmp/dist:/dist"
+            --volume "${{steps.download.outputs.download-path}}:/dist"
           shell: /bin/sh
           run: |
-            ls -R /dist
             case "${{ matrix.arch }}" in
               aarch64)
+                chmod +x /dist/blocky_linux_arm64/blocky
                 /dist/blocky_linux_arm64/blocky version
                 ;;
               armv6)
+                chmod +x /dist/blocky_linux_arm_6/blocky
                 /dist/blocky_linux_arm_6/blocky version
                 ;;
               armv7)
+                chmod +x /dist/blocky_linux_arm_7/blocky
                 /dist/blocky_linux_arm_7/blocky version
                 ;;
             esac
@@ -93,16 +95,16 @@ jobs:
     needs: build
     steps:
       - name: Download dist folder
+        id: download
         uses: actions/download-artifact@v3
         with:
           name: dist_folder
-          path: /tmp/dist
 
       - name: Test binary
         shell: bash
         run: |
-          ls -R /tmp/dist
-          /tmp/dist/blocky_linux_amd64_v1/blocky version
+          chmod +x ${{steps.download.outputs.download-path}}/blocky_linux_amd64_v1/blocky
+          ${{steps.download.outputs.download-path}}/blocky_linux_amd64_v1/blocky version
 
   linux-test-ubuntu22:
     name: Test amd64 binary on ubuntu 22.04
@@ -110,13 +112,13 @@ jobs:
     needs: build
     steps:
       - name: Download dist folder
+        id: download
         uses: actions/download-artifact@v3
         with:
           name: dist_folder
-          path: /tmp/dist
 
       - name: Test binary
         shell: bash
         run: |
-          ls -R /tmp/dist
-          /tmp/dist/blocky_linux_amd64_v1/blocky version
+          chmod +x ${{steps.download.outputs.download-path}}/blocky_linux_amd64_v1/blocky
+          ${{steps.download.outputs.download-path}}/blocky_linux_amd64_v1/blocky version
