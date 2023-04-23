@@ -64,6 +64,11 @@ jobs:
         with:
           name: dist_folder
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: arm,arm64
+
       - name: Test binary
         uses: uraimo/run-on-arch-action@v2
         with:
