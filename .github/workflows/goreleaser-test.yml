@@ -117,3 +117,19 @@ jobs:
         run: |
           chmod 755 ${{steps.download.outputs.download-path}}/${{matrix.folder}}/blocky
           ${{steps.download.outputs.download-path}}/${{matrix.folder}}/blocky version
+
+  windows-test:
+    name: Test windows binary
+    runs-on: windows-latest
+    needs: build
+    steps:
+      - name: Download dist folder
+        uses: actions/download-artifact@v3
+        with:
+          name: dist_folder
+          path: C:/dist
+      
+      - name: Test binary
+        shell: cmd
+        run: |
+          C:/dist/blocky_windows_amd64_v1/blocky.exe version
