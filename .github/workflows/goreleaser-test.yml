@@ -42,6 +42,7 @@ jobs:
         with:
           name: dist_folder
           path: dist
+          retention-days: 1
   
   linux-test-arm:
     name: Test linux arm binaries
@@ -100,6 +101,10 @@ jobs:
             folder: blocky_linux_amd64_v1
           - runner: ubuntu-22.04
             folder: blocky_linux_amd64_v1
+          - runner: macos-11
+            folder: blocky_darwin_amd64_v1
+          - runner: macos-12
+            folder: blocky_darwin_amd64_v1
     steps:
       - name: Download dist folder
         id: download
@@ -110,5 +115,5 @@ jobs:
       - name: Test binary
         shell: bash
         run: |
-          chmod +x ${{steps.download.outputs.download-path}}/${{matrix.folder}}/blocky
+          chmod 755 ${{steps.download.outputs.download-path}}/${{matrix.folder}}/blocky
           ${{steps.download.outputs.download-path}}/${{matrix.folder}}/blocky version
