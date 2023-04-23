@@ -77,13 +77,13 @@ jobs:
             ls -R /dist
             case "${{ matrix.arch }}" in
               aarch64)
-                ./dist/blocky_linux_arm64/blocky version
+                /dist/blocky_linux_arm64/blocky version
                 ;;
               armv6)
-                ./dist/blocky_linux_arm_6/blocky version
+                /dist/blocky_linux_arm_6/blocky version
                 ;;
               armv7)
-                ./dist/blocky_linux_arm_7/blocky version
+                /dist/blocky_linux_arm_7/blocky version
                 ;;
             esac
 
@@ -102,7 +102,7 @@ jobs:
         shell: bash
         run: |
           ls -R /tmp/dist
-          ./tmp/dist/blocky_linux_amd64_v1/blocky version
+          /tmp/dist/blocky_linux_amd64_v1/blocky version
 
   linux-test-ubuntu22:
     name: Test amd64 binary on ubuntu 22.04
@@ -119,4 +119,4 @@ jobs:
         shell: bash
         run: |
           ls -R /tmp/dist
-          ./tmp/dist/blocky_linux_amd64_v1/blocky version
+          /tmp/dist/blocky_linux_amd64_v1/blocky version
