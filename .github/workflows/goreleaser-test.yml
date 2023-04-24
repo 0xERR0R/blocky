@@ -46,7 +46,7 @@ jobs:
   
   tests:
     name: Test binaries
-    runs-on: ubuntu-latest
+    runs-on: ${{matrix.runner}}
     needs: build
     strategy:
       matrix:
@@ -111,7 +111,7 @@ jobs:
         if: matrix.os != 'windows'
         shell: bash
         run: |
-          chmod 755 ${{ steps.get_path.outputs.bin }}
+          chmod +x ${{ steps.get_path.outputs.bin }}
 
       - name: Test binary on ${{ matrix.arch }}
         if: matrix.arch != 'amd64' 
