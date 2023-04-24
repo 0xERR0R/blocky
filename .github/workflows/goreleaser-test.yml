@@ -45,7 +45,7 @@ jobs:
           retention-days: 1
   
   unix-tests:
-    name: Test linux arm binaries
+    name: Test unix binaries
     runs-on: ubuntu-latest
     needs: build
     strategy:
@@ -78,6 +78,7 @@ jobs:
           
     steps:
       - name: Download dist folder
+        id: download
         uses: actions/download-artifact@v3
         with:
           name: dist_folder
@@ -88,7 +89,7 @@ jobs:
         shell: bash
         run: |
           archs=(["aarch64"]="arm64" ["armv6"]="arm_6" ["armv7"]="arm_7" ["amd64"]="amd64_v1")
-          BINPATH="/dist/blocky_${{ matrix.os }}_${archs[ ${{ matrix.arch }} ]}/blocky"
+          BINPATH="${{steps.download.outputs.download-path}}/blocky_${{ matrix.os }}_${archs[ ${{ matrix.arch }} ]}/blocky"
           echo "bin=${BINPATH}" >> $GITHUB_OUTPUT
           echo "Binary path: ${BINPATH}"
 
@@ -104,7 +105,7 @@ jobs:
           distro: ${{ matrix.distro }}
           arch: ${{ matrix.arch }}
           dockerRunArgs: |
-            --volume "/dist:/dist"
+            --volume "${{steps.download.outputs.download-path}}:${{steps.download.outputs.download-path}}"
           shell: /bin/sh
           run: |
             ${{ steps.get_path.outputs.bin }} version
