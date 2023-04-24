@@ -97,13 +97,11 @@ jobs:
 
       - name: Get binary path
         id: get_path
+        if: matrix.os != 'windows'
         shell: bash
         run: |
           archs=(["aarch64"]="arm64" ["armv6"]="arm_6" ["armv7"]="arm_7" ["amd64"]="amd64_v1")
           BINPATH="${{steps.download.outputs.download-path}}/blocky_${{ matrix.os }}_${archs[ ${{ matrix.arch }} ]}/blocky"
-          if [[ "${{matrix.os}}" == "windows" ]]; then
-            BINPATH="${BINPATH}.exe"
-          fi
           echo "bin=${BINPATH}" >> $GITHUB_OUTPUT
           echo "Binary path: ${BINPATH}"
 
@@ -126,7 +124,13 @@ jobs:
             ${{ steps.get_path.outputs.bin }} version
       
       - name: Test binary on amd64
-        if: matrix.arch == 'amd64'
+        if: matrix.arch == 'amd64' && matrix.os != 'windows'
         shell: bash
         run: |
           ${{ steps.get_path.outputs.bin }} version
+
+      - name: Test windows binary
+        if: matrix.os == 'windows'
+        shell: cmd
+        run: |
+          ${{steps.download.outputs.download-path}}\blocky_windows_amd64_v1\blocky.exe version
