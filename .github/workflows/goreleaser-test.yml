@@ -44,8 +44,8 @@ jobs:
           path: dist
           retention-days: 1
   
-  unix-tests:
-    name: Test unix binaries
+  tests:
+    name: Test binaries
     runs-on: ubuntu-latest
     needs: build
     strategy:
@@ -56,17 +56,25 @@ jobs:
         runner: [ubuntu-latest]
         include:
           - distro: stretch
+            runner: ubuntu-latest
             arch: armv6
+            os: linux
           - distro: buster
+            runner: ubuntu-latest
             arch: armv6
+            os: linux
           - distro: bullseye
+            runner: ubuntu-latest
             arch: armv6
+            os: linux
           - distro: ubuntu20.04
-            arch: amd64
             runner: ubuntu-20.04
-          - distro: ubuntu22.04
             arch: amd64
+            os: linux
+          - distro: ubuntu22.04
             runner: ubuntu-22.04
+            arch: amd64
+            os: linux
           - distro: macos
             runner: macos-11
             arch: amd64
@@ -75,6 +83,10 @@ jobs:
             runner: macos-12
             arch: amd64
             os: darwin
+          - distro: windows
+            runner: windows-latest
+            arch: amd64
+            os: windows
           
     steps:
       - name: Download dist folder
@@ -89,10 +101,14 @@ jobs:
         run: |
           archs=(["aarch64"]="arm64" ["armv6"]="arm_6" ["armv7"]="arm_7" ["amd64"]="amd64_v1")
           BINPATH="${{steps.download.outputs.download-path}}/blocky_${{ matrix.os }}_${archs[ ${{ matrix.arch }} ]}/blocky"
+          if [[ "${{matrix.os}}" == "windows" ]]; then
+            BINPATH="${BINPATH}.exe"
+          fi
           echo "bin=${BINPATH}" >> $GITHUB_OUTPUT
           echo "Binary path: ${BINPATH}"
 
       - name: Enable execution
+        if: matrix.os != 'windows'
         shell: bash
         run: |
           chmod +x ${{ steps.get_path.outputs.bin }}
@@ -114,19 +130,3 @@ jobs:
         shell: bash
         run: |
           ${{ steps.get_path.outputs.bin }} version
-
-  windows-test:
-    name: Test windows binary
-    runs-on: windows-latest
-    needs: build
-    steps:
-      - name: Download dist folder
-        uses: actions/download-artifact@v3
-        with:
-          name: dist_folder
-          path: C:/dist
-      
-      - name: Test binary
-        shell: cmd
-        run: |
-          C:/dist/blocky_windows_amd64_v1/blocky.exe version
