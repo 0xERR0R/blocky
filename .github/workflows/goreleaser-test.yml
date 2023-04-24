@@ -82,7 +82,6 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: dist_folder
-          path: /dist
 
       - name: Get binary path
         id: get_path
