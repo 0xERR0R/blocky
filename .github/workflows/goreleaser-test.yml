@@ -111,7 +111,7 @@ jobs:
         if: matrix.os != 'windows'
         shell: bash
         run: |
-          chmod +x ${{ steps.get_path.outputs.bin }}
+          chmod 755 ${{ steps.get_path.outputs.bin }}
 
       - name: Test binary on ${{ matrix.arch }}
         if: matrix.arch != 'amd64' 
