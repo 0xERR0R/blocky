@@ -102,7 +102,7 @@ jobs:
         run: |
           archs=(["aarch64"]="arm64" ["armv6"]="arm_6" ["armv7"]="arm_7" ["amd64"]="amd64_v1")
           BINPATH="${{steps.download.outputs.download-path}}/blocky_${{ matrix.os }}_${archs[ ${{ matrix.arch }} ]}/blocky"
-          echo "bin=${BINPATH}" >> $GITHUB_OUTPUT
+          echo "bin=${BINPATH}" >> "$GITHUB_OUTPUT"
           echo "Binary path: ${BINPATH}"
 
       - name: Enable execution
