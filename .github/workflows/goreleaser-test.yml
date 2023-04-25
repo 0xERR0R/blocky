@@ -127,7 +127,7 @@ jobs:
         if: matrix.arch == 'amd64' && matrix.os != 'windows'
         shell: bash
         run: |
-          ${{ steps.get_path.outputs.bin }} version
+          '${{ steps.get_path.outputs.bin }}' version
 
       - name: Test windows binary
         if: matrix.os == 'windows'
