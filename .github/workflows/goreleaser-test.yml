@@ -121,7 +121,7 @@ jobs:
             --volume "${{steps.download.outputs.download-path}}:${{steps.download.outputs.download-path}}"
           shell: /bin/sh
           run: |
-            ${{ steps.get_path.outputs.bin }} version
+            '${{ steps.get_path.outputs.bin }}' version
       
       - name: Test binary on amd64
         if: matrix.arch == 'amd64' && matrix.os != 'windows'
