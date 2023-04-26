@@ -181,6 +181,7 @@ type Config struct {
 	FqdnOnly            FqdnOnlyConfig            `yaml:",inline"`
 	Filtering           FilteringConfig           `yaml:"filtering"`
 	Ede                 EdeConfig                 `yaml:"ede"`
+	Ecs                 EcsConfig                 `yaml:"ecs"`
 	// Deprecated
 	DisableIPv6 bool `yaml:"disableIPv6" default:"false"`
 	// Deprecated

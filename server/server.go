@@ -414,6 +414,7 @@ func createQueryResolver(
 	r = resolver.Chain(
 		resolver.NewFilteringResolver(cfg.Filtering),
 		resolver.NewFqdnOnlyResolver(cfg.FqdnOnly),
+		resolver.NewEcsResolver(cfg.Ecs),
 		clientNames,
 		resolver.NewEdeResolver(cfg.Ede),
 		resolver.NewQueryLoggingResolver(cfg.QueryLog),
