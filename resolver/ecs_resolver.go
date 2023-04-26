@@ -30,23 +30,38 @@ func (r *EcsResolver) Resolve(request *model.Request) (*model.Response, error) {
 }
 
 func (r *EcsResolver) setClientIP(request *model.Request) bool {
-	if edns := request.Req.IsEdns0(); edns != nil {
-		for _, o := range edns.Option {
-			switch sub := o.(type) {
-			case *dns.EDNS0_SUBNET:
-				// v4 and unmasked
-				if (sub.Family == 1 && sub.SourceNetmask == 32) ||
-					// v6 and unmasked
-					(sub.Family == 2 && sub.SourceNetmask == 128) {
-					request.ClientIP = sub.Address
-				}
+	edns := request.Req.IsEdns0()
+	if edns == nil {
+		return false
+	}
 
-				return true
+	result := false
+
+	newOpts := []dns.EDNS0{}
+
+	for _, o := range edns.Option {
+		switch so := o.(type) {
+		case *dns.EDNS0_SUBNET:
+			// v4 and mask
+			if (so.Family == 1 && so.SourceNetmask == 32) ||
+				// v6 and unmasked
+				(so.Family == 2 && so.SourceNetmask == 128) {
+				request.ClientIP = so.Address
 			}
+
+			if r.cfg.ForwardEcs {
+				newOpts = append(newOpts, o)
+			}
+
+			result = true
+		default:
+			newOpts = append(newOpts, o)
 		}
 	}
 
-	return false
+	edns.Option = newOpts
+
+	return result
 }
 
 func (r *EcsResolver) appendSubnet(request *model.Request) {
@@ -68,6 +83,10 @@ func (r *EcsResolver) appendSubnet(request *model.Request) {
 }
 
 func (r *EcsResolver) appendOption(request *model.Request, opt dns.EDNS0) {
+	if edns := request.Req.IsEdns0(); edns != nil {
+		edns.Option = append(edns.Option, opt)
+	}
+
 	o := new(dns.OPT)
 	o.Hdr.Name = "."
 	o.Hdr.Rrtype = dns.TypeOPT

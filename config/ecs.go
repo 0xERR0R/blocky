@@ -4,6 +4,7 @@ import "github.com/sirupsen/logrus"
 
 type EcsConfig struct {
 	UseEcsAsClient bool  `yaml:"useEcsAsClient" default:"false"`
+	ForwardEcs     bool  `yaml:"forwardEcs" default:"false"`
 	IPv4Mask       uint8 `yaml:"ipv4Mask" default:"0"`
 	IPv6Mask       uint8 `yaml:"ipv6Mask" default:"0"`
 }
