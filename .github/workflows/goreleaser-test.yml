@@ -1,6 +1,9 @@
 name: GoReleaser Test
 
 on:
+  push:
+    tags:
+      - v*
   workflow_dispatch:
 
 concurrency: 
