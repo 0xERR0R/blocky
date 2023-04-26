@@ -398,6 +398,8 @@ func validateConfig(cfg *Config) {
 		}
 	}
 
+	cfg.Ecs.validateConfig()
+
 	fixDeprecatedLog(cfg)
 
 	fixDeprecatedPorts(cfg)
