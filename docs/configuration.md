@@ -496,7 +496,7 @@ You can configure the list download attempts according to your internet connecti
 ### Start strategy
 
 You can configure the blocking behavior during application start of blocky.  
-If no starategy is selected blocking will be used.
+If no strategy is selected blocking will be used.
 
 | startStrategy | Description                                                                                           |
 |---------------|-------------------------------------------------------------------------------------------------------|
@@ -509,6 +509,18 @@ If no starategy is selected blocking will be used.
     ```yaml
     blocking:
       startStrategy: failOnError
+    ```
+
+### Max Errors per file
+
+Number of errors allowed in a list before it is considered invalid and parsing stops.  
+A value of -1 disables the limit.
+
+!!! example
+
+    ```yaml
+    blocking:
+      maxErrorsPerFile: 10
     ```
 
 ### Concurrency

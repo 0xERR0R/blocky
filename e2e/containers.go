@@ -6,9 +6,13 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
+	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/avast/retry-go/v4"
@@ -165,6 +169,11 @@ func createBlockyContainer(tmpDir *helpertest.TmpFolder, lines ...string) (testc
 		return nil, f1.Error
 	}
 
+	cfg, err := config.LoadConfig(f1.Path, true)
+	if err != nil {
+		return nil, fmt.Errorf("can't create config struct %w", err)
+	}
+
 	const modeOwner = 700
 
 	ctx := context.Background()
@@ -196,29 +205,86 @@ func createBlockyContainer(tmpDir *helpertest.TmpFolder, lines ...string) (testc
 				ginkgo.AddReportEntry("blocky container log", string(b))
 			}
 		}
+
+		return container, err
 	}
 
-	// check if DNS interface is working.
+	// check if DNS/HTTP interface is working.
 	// Sometimes the internal health check returns OK, but the container port is not mapped yet
+	err = checkBlockyReadiness(cfg, container)
+
+	if err != nil {
+		return container, fmt.Errorf("container not ready: %w", err)
+	}
+
+	return container, nil
+}
+
+func checkBlockyReadiness(cfg *config.Config, container testcontainers.Container) error {
+	var err error
+
 	const retryAttempts = 3
+
 	err = retry.Do(
 		func() error {
 			_, err = doDNSRequest(container, util.NewMsgWithQuestion("healthcheck.blocky.", dns.Type(dns.TypeA)))
 
 			return err
 		},
+		retry.OnRetry(func(n uint, err error) {
+			log.Infof("Performing retry DNS request #%d: %s\n", n, err)
+		}),
 		retry.Attempts(retryAttempts),
 		retry.DelayType(retry.BackOffDelay),
 		retry.Delay(time.Second))
 
 	if err != nil {
-		return container, fmt.Errorf("can't perform the healthcheck request: %w", err)
+		return fmt.Errorf("can't perform the DNS healthcheck request: %w", err)
 	}
 
-	return container, err
+	for _, httpPort := range cfg.Ports.HTTP {
+		parts := strings.Split(httpPort, ":")
+		port := parts[len(parts)-1]
+		err = retry.Do(
+			func() error {
+				return doHTTPRequest(container, port)
+			},
+			retry.OnRetry(func(n uint, err error) {
+				log.Infof("Performing retry HTTP request #%d: %s\n", n, err)
+			}),
+			retry.Attempts(retryAttempts),
+			retry.DelayType(retry.BackOffDelay),
+			retry.Delay(time.Second))
+
+		if err != nil {
+			return fmt.Errorf("can't perform the HTTP request: %w", err)
+		}
+	}
+
+	return nil
 }
 
-func doDNSRequest(blocky testcontainers.Container, message *dns.Msg) (*dns.Msg, error) {
+func doHTTPRequest(container testcontainers.Container, containerPort string) error {
+	host, port, err := getContainerHostPort(container, nat.Port(fmt.Sprintf("%s/tcp", containerPort)))
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.Get(fmt.Sprintf("http://%s", net.JoinHostPort(host, port)))
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("received not OK status: %d", resp.StatusCode)
+	}
+
+	return err
+}
+
+func doDNSRequest(container testcontainers.Container, message *dns.Msg) (*dns.Msg, error) {
 	const timeout = 5 * time.Second
 
 	c := &dns.Client{
@@ -226,7 +292,7 @@ func doDNSRequest(blocky testcontainers.Container, message *dns.Msg) (*dns.Msg, 
 		Timeout: timeout,
 	}
 
-	host, port, err := getContainerHostPort(blocky, "53/tcp")
+	host, port, err := getContainerHostPort(container, "53/tcp")
 	if err != nil {
 		return nil, err
 	}

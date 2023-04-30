@@ -105,10 +105,10 @@ func NewBlockingResolver(
 	downloader := createDownloader(cfg, bootstrap)
 	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists,
 		refreshPeriod, downloader, cfg.ProcessingConcurrency,
-		(cfg.StartStrategy == config.StartStrategyTypeFast))
+		(cfg.StartStrategy == config.StartStrategyTypeFast), cfg.MaxErrorsPerFile)
 	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists,
 		refreshPeriod, downloader, cfg.ProcessingConcurrency,
-		(cfg.StartStrategy == config.StartStrategyTypeFast))
+		(cfg.StartStrategy == config.StartStrategyTypeFast), cfg.MaxErrorsPerFile)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
 	err = multierror.Append(err, blErr, wlErr).ErrorOrNil()

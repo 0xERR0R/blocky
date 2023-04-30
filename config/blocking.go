@@ -21,6 +21,7 @@ type BlockingConfig struct {
 	FailStartOnListError  bool                `yaml:"failStartOnListError" default:"false"` // Deprecated
 	ProcessingConcurrency uint                `yaml:"processingConcurrency" default:"4"`
 	StartStrategy         StartStrategyType   `yaml:"startStrategy" default:"blocking"`
+	MaxErrorsPerFile      int                 `yaml:"maxErrorsPerFile" default:"5"`
 }
 
 // IsEnabled implements `config.Configurable`.
@@ -45,6 +46,8 @@ func (c *BlockingConfig) LogConfig(logger *logrus.Entry) {
 	logger.Infof("downloadTimeout = %s", c.DownloadTimeout)
 
 	logger.Infof("startStrategy = %s", c.StartStrategy)
+
+	logger.Infof("maxErrorsPerFile = %d", c.MaxErrorsPerFile)
 
 	if c.RefreshPeriod > 0 {
 		logger.Infof("refresh = every %s", c.RefreshPeriod)
