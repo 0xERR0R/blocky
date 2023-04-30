@@ -59,7 +59,6 @@ type Client struct {
 	config         *config.RedisConfig
 	client         rueidis.Client
 	l              *logrus.Entry
-	ctx            context.Context
 	id             []byte
 	sendBuffer     chan *bufferMessage
 	CacheChannel   chan *CacheMessage
@@ -67,7 +66,7 @@ type Client struct {
 }
 
 // New creates a new redis client
-func New(cfg *config.RedisConfig) (*Client, error) {
+func New(ctx context.Context, cfg *config.RedisConfig) (*Client, error) {
 	// disable redis if no address is provided
 	if cfg == nil || len(cfg.Addresses) == 0 {
 		return nil, nil //nolint:nilnil
@@ -104,22 +103,27 @@ func New(cfg *config.RedisConfig) (*Client, error) {
 		return nil, err
 	}
 
-	ctx := context.Background()
-
 	res := &Client{
 		config:         cfg,
 		client:         client,
 		l:              l,
-		ctx:            ctx,
 		id:             id,
 		sendBuffer:     make(chan *bufferMessage, chanCap),
 		CacheChannel:   make(chan *CacheMessage, chanCap),
 		EnabledChannel: make(chan *EnabledMessage, chanCap),
 	}
 
-	res.startup()
+	res.startup(ctx)
 
 	return res, nil
+}
+
+// Close all channels and client
+func (c *Client) Close() {
+	defer c.client.Close()
+	defer close(c.sendBuffer)
+	defer close(c.CacheChannel)
+	defer close(c.EnabledChannel)
 }
 
 // PublishCache publish cache to redis async
@@ -132,7 +136,7 @@ func (c *Client) PublishCache(key string, message *dns.Msg) {
 	}
 }
 
-func (c *Client) PublishEnabled(state *EnabledMessage) {
+func (c *Client) PublishEnabled(ctx context.Context, state *EnabledMessage) {
 	binState, sErr := json.Marshal(state)
 	if sErr == nil {
 		binMsg, mErr := json.Marshal(redisMessage{
@@ -142,7 +146,7 @@ func (c *Client) PublishEnabled(state *EnabledMessage) {
 		})
 
 		if mErr == nil {
-			c.client.Do(c.ctx,
+			c.client.Do(ctx,
 				c.client.B().Publish().
 					Channel(SyncChannelName).
 					Message(rueidis.BinaryString(binMsg)).
@@ -152,7 +156,7 @@ func (c *Client) PublishEnabled(state *EnabledMessage) {
 }
 
 // GetRedisCache reads the redis cache and publish it to the channel
-func (c *Client) GetRedisCache() {
+func (c *Client) GetRedisCache(ctx context.Context) {
 	c.l.Debug("GetRedisCache")
 
 	go func() {
@@ -161,7 +165,7 @@ func (c *Client) GetRedisCache() {
 		searchKey := prefixKey("*")
 
 		for {
-			sres, err := c.client.Do(c.ctx, c.client.B().Scan().Cursor(cursor).Match(searchKey).Count(1).Build()).AsScanEntry()
+			sres, err := c.client.Do(ctx, c.client.B().Scan().Cursor(cursor).Match(searchKey).Count(1).Build()).AsScanEntry()
 			if err != nil {
 				c.l.Error("GetRedisCache ", err)
 
@@ -173,12 +177,12 @@ func (c *Client) GetRedisCache() {
 			for _, key := range sres.Elements {
 				c.l.Debugf("GetRedisCache: %s", key)
 
-				resp := c.client.Do(c.ctx, c.client.B().Get().Key(key).Build())
+				resp := c.client.Do(ctx, c.client.B().Get().Key(key).Build())
 
 				if resp.Error() == nil {
 					str, err := resp.ToString()
 					if err == nil {
-						response, err := c.getResponse(str)
+						response, err := c.getResponse(ctx, str)
 						if err == nil {
 							c.CacheChannel <- response
 						}
@@ -217,7 +221,7 @@ func generateClientOptions(cfg *config.RedisConfig) rueidis.ClientOption {
 }
 
 // startup starts a new goroutine for subscription and translation
-func (c *Client) startup() {
+func (c *Client) startup(ctx context.Context) {
 	go func() {
 		dc, cancel := c.client.Dedicate()
 		defer cancel()
@@ -235,7 +239,7 @@ func (c *Client) startup() {
 			},
 		})
 
-		dc.Do(c.ctx, dc.B().Subscribe().Channel(SyncChannelName).Build())
+		dc.Do(ctx, dc.B().Subscribe().Channel(SyncChannelName).Build())
 
 		for {
 			select {
@@ -243,13 +247,13 @@ func (c *Client) startup() {
 				return
 			// publish message from buffer
 			case s := <-c.sendBuffer:
-				c.publishMessageFromBuffer(s)
+				c.publishMessageFromBuffer(ctx, s)
 			}
 		}
 	}()
 }
 
-func (c *Client) publishMessageFromBuffer(s *bufferMessage) {
+func (c *Client) publishMessageFromBuffer(ctx context.Context, s *bufferMessage) {
 	origRes := s.Message
 	origRes.Compress = true
 	binRes, pErr := origRes.Pack()
@@ -263,14 +267,14 @@ func (c *Client) publishMessageFromBuffer(s *bufferMessage) {
 		})
 
 		if mErr == nil {
-			c.client.Do(c.ctx,
+			c.client.Do(ctx,
 				c.client.B().Publish().
 					Channel(SyncChannelName).
 					Message(rueidis.BinaryString(binMsg)).
 					Build())
 		}
 
-		c.client.Do(c.ctx,
+		c.client.Do(ctx,
 			c.client.B().Setex().
 				Key(prefixKey(s.Key)).
 				Seconds(int64(c.getTTL(origRes).Seconds())).
@@ -319,10 +323,10 @@ func (c *Client) processEnabledMessage(redisMsg *redisMessage) error {
 }
 
 // getResponse returns model.Response for a key
-func (c *Client) getResponse(key string) (*CacheMessage, error) {
-	resp, err := c.client.Do(c.ctx, c.client.B().Get().Key(key).Build()).AsBytes()
+func (c *Client) getResponse(ctx context.Context, key string) (*CacheMessage, error) {
+	resp, err := c.client.Do(ctx, c.client.B().Get().Key(key).Build()).AsBytes()
 	if err == nil {
-		uittl, err := c.client.Do(c.ctx,
+		uittl, err := c.client.Do(ctx,
 			c.client.B().Ttl().
 				Key(key).
 				Build()).AsUint64()

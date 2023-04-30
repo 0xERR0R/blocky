@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sort"
@@ -214,7 +215,7 @@ func (r *BlockingResolver) EnableBlocking() {
 	r.internalEnableBlocking()
 
 	if r.redisClient != nil {
-		r.redisClient.PublishEnabled(&redis.EnabledMessage{State: true})
+		r.redisClient.PublishEnabled(context.Background(), &redis.EnabledMessage{State: true})
 	}
 }
 
@@ -233,7 +234,7 @@ func (r *BlockingResolver) internalEnableBlocking() {
 func (r *BlockingResolver) DisableBlocking(duration time.Duration, disableGroups []string) error {
 	err := r.internalDisableBlocking(duration, disableGroups)
 	if err == nil && r.redisClient != nil {
-		r.redisClient.PublishEnabled(&redis.EnabledMessage{
+		r.redisClient.PublishEnabled(context.Background(), &redis.EnabledMessage{
 			State:    false,
 			Duration: duration,
 			Groups:   disableGroups,

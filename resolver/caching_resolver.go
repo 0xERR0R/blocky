@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -57,7 +58,7 @@ func newCachingResolver(cfg config.CachingConfig, redis *redis.Client, emitMetri
 
 	if c.redisClient != nil {
 		setupRedisCacheSubscriber(c)
-		c.redisClient.GetRedisCache()
+		c.redisClient.GetRedisCache(context.Background())
 	}
 
 	return c
