@@ -31,8 +31,8 @@ configuration properties as [JSON](config.yml).
 
 All logging port are optional.
 
-| Parameter  | Type                   | Default value | Description                                                                                                                                                                                                                                       |
-|------------|------------------------|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Parameter   | Type                   | Default value | Description                                                                                                                                                                                                                                       |
+|-------------|------------------------|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ports.dns   | [IP]:port[,[IP]:port]* | 53            | Port(s) and optional bind ip address(es) to serve DNS endpoint (TCP and UDP). If you wish to specify a specific IP, you can do so such as `192.168.0.1:53`. Example: `53`, `:53`, `127.0.0.1:53,[::1]:53`                                         |
 | ports.tls   | [IP]:port[,[IP]:port]* |               | Port(s) and optional bind ip address(es) to serve DoT DNS endpoint (DNS-over-TLS). If you wish to specify a specific IP, you can do so such as `192.168.0.1:853`. Example: `83`, `:853`, `127.0.0.1:853,[::1]:853`                                |
 | ports.http  | [IP]:port[,[IP]:port]* |               | Port(s) and optional bind ip address(es) to serve HTTP used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:4000`. Example: `4000`, `:4000`, `127.0.0.1:4000,[::1]:4000` |
@@ -734,6 +734,25 @@ Configuration parameters:
     ```yaml
     ede:
       enable: true
+    ```
+
+## EDNS Client Subnet options
+
+Configuration parameters:
+
+| Parameter          | Type | Mandatory | Default value | Description                                                                   |
+|--------------------|------|-----------|---------------|-------------------------------------------------------------------------------|
+| ecs.useEcsAsClient | bool | no        | false         | Use ECS if it is present with a netmask is 32 for IPv4 or 128 for IPv6        |
+| ecs.forwardEcs     | bool | no        | false         | Forward ECS option to upstream                                                |
+| ecs.ipv4Mask       | int  | no        | 0             | Add ECS option for IPv4 requests if mask is greater than zero (max value 32)  |
+| ecs.ipv6Mask       | int  | no        | 0             | Add ECS option for IPv6 requests if mask is greater than zero (max value 128) |
+
+!!! example
+
+    ```yaml
+    ecs:
+      ipv4Mask: 32
+      ipv6Mask: 128
     ```
 
 ## SSL certificate configuration (DoH / TLS listener)
