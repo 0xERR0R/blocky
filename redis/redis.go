@@ -155,7 +155,7 @@ func (c *Client) PublishEnabled(ctx context.Context, state *EnabledMessage) {
 	}
 }
 
-// GetRedisCache reads the redis cache and publish it to the channel
+// GetRedisCache reads the redis cache and publishes it to the channel
 func (c *Client) GetRedisCache(ctx context.Context) {
 	c.l.Debug("GetRedisCache")
 
