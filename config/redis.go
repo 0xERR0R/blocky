@@ -5,6 +5,7 @@ import (
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/rueian/rueidis"
+	"github.com/sirupsen/logrus"
 )
 
 // RedisConfig configuration for the redis connection
@@ -49,23 +50,35 @@ func (cfg *RedisConfig) GetClientOptions() *rueidis.ClientOption {
 	return &res
 }
 
-func fixDeprecatedRedis(cfg *Config) {
-	if len(cfg.Redis.Addresses) == 0 && len(cfg.Redis.SentinelAddresses) > 0 {
-		log.Log().Warnln("'redis.sentinelAddresses' is deprecated. Please use 'redis.addresses' instead.")
+// IsEnabled implements `config.Configurable`.
+func (c *RedisConfig) IsEnabled() bool {
+	return len(c.Addresses) > 0
+}
 
-		cfg.Redis.Addresses = cfg.Redis.SentinelAddresses
-	} else if len(cfg.Redis.Addresses) == 0 && len(cfg.Redis.Address) > 0 {
-		log.Log().Warnln("'redis.address' is deprecated. Please use 'redis.addresses' instead.")
+// LogConfig implements `config.Configurable`.
+func (c *RedisConfig) LogConfig(logger *logrus.Entry) {
+	logger.Info("addresses:")
 
-		cfg.Redis.Addresses = []string{cfg.Redis.Address}
+	for _, a := range c.Addresses {
+		logger.Infof("  - %s", a)
 	}
 }
 
-func validateRedisConfig(cfg *Config) error {
-	if (len(cfg.Redis.SentinelUsername) > 0 ||
-		len(cfg.Redis.SentinelPassword) > 0 ||
-		len(cfg.Redis.SentinelAddresses) > 0) &&
-		len(cfg.Redis.SentinelMasterSet) == 0 {
+func (c *RedisConfig) validateConfig() error {
+	if len(c.Addresses) == 0 && len(c.SentinelAddresses) > 0 {
+		log.Log().Warnln("'redis.sentinelAddresses' is deprecated. Please use 'redis.addresses' instead.")
+
+		c.Addresses = c.SentinelAddresses
+	} else if len(c.Addresses) == 0 && len(c.Address) > 0 {
+		log.Log().Warnln("'redis.address' is deprecated. Please use 'redis.addresses' instead.")
+
+		c.Addresses = []string{c.Address}
+	}
+
+	if (len(c.SentinelUsername) > 0 ||
+		len(c.SentinelPassword) > 0 ||
+		len(c.SentinelAddresses) > 0) &&
+		len(c.SentinelMasterSet) == 0 {
 		return fmt.Errorf("'redis.sentinelMasterSet' has to be set if Redis Sentinel is used")
 	}
 
