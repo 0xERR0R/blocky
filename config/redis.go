@@ -28,22 +28,22 @@ type RedisConfig struct {
 	SentinelAddresses  []string `yaml:"sentinelAddresses"`        // Deprecated: use Addresses
 }
 
-func (cfg *RedisConfig) GetClientOptions() *rueidis.ClientOption {
+func (c *RedisConfig) GetClientOptions() *rueidis.ClientOption {
 	res := rueidis.ClientOption{
-		InitAddress:           cfg.Addresses,
-		Password:              cfg.Password,
-		Username:              cfg.Username,
-		SelectDB:              cfg.Database,
-		RingScaleEachConn:     cfg.ConnRingScale,
-		CacheSizeEachConn:     cfg.LocalCacheSize,
+		InitAddress:           c.Addresses,
+		Password:              c.Password,
+		Username:              c.Username,
+		SelectDB:              c.Database,
+		RingScaleEachConn:     c.ConnRingScale,
+		CacheSizeEachConn:     c.LocalCacheSize,
 		ClientTrackingOptions: []string{"PREFIX", "blocky:", "BCAST"},
 	}
 
-	if len(cfg.SentinelMasterSet) > 0 {
+	if len(c.SentinelMasterSet) > 0 {
 		res.Sentinel = rueidis.SentinelOption{
-			Username:  cfg.SentinelUsername,
-			Password:  cfg.SentinelPassword,
-			MasterSet: cfg.SentinelMasterSet,
+			Username:  c.SentinelUsername,
+			Password:  c.SentinelPassword,
+			MasterSet: c.SentinelMasterSet,
 		}
 	}
 
