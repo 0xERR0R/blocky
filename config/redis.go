@@ -65,6 +65,16 @@ func (c *RedisConfig) LogConfig(logger *logrus.Entry) {
 }
 
 func (c *RedisConfig) validateConfig() error {
+	if len(c.Addresses) > 0 && len(c.SentinelAddresses) > 0 {
+		log.Log().Warnln("'redis.addresses' and 'redis.sentinelAddresses' are both configured.")
+		log.Log().Warnln("'redis.sentinelAddresses' will be ignored.")
+	}
+
+	if len(c.Addresses) > 0 && len(c.Address) > 0 {
+		log.Log().Warnln("'redis.addresses' and 'redis.address' are both configured.")
+		log.Log().Warnln("'redis.address' will be ignored.")
+	}
+
 	if len(c.Addresses) == 0 && len(c.SentinelAddresses) > 0 {
 		log.Log().Warnln("'redis.sentinelAddresses' is deprecated. Please use 'redis.addresses' instead.")
 
