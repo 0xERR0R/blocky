@@ -326,6 +326,8 @@ func (c *Client) getResponse(ctx context.Context, key string) (*CacheMessage, er
 		}
 	}
 
+	c.l.Debugf("Error fetching %s: %w", key, err)
+
 	return nil, err
 }
 
