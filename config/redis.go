@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/0xERR0R/blocky/log"
+	"github.com/rueian/rueidis"
 )
 
 // RedisConfig configuration for the redis connection
@@ -24,6 +25,28 @@ type RedisConfig struct {
 	Required           bool     `yaml:"required" default:"false"` // Deprecated: always required if enabled
 	Address            string   `yaml:"address"`                  // Deprecated: use Addresses
 	SentinelAddresses  []string `yaml:"sentinelAddresses"`        // Deprecated: use Addresses
+}
+
+func (cfg *RedisConfig) GetClientOptions() *rueidis.ClientOption {
+	res := rueidis.ClientOption{
+		InitAddress:           cfg.Addresses,
+		Password:              cfg.Password,
+		Username:              cfg.Username,
+		SelectDB:              cfg.Database,
+		RingScaleEachConn:     cfg.ConnRingScale,
+		CacheSizeEachConn:     cfg.LocalCacheSize,
+		ClientTrackingOptions: []string{"PREFIX", "blocky:", "BCAST"},
+	}
+
+	if len(cfg.SentinelMasterSet) > 0 {
+		res.Sentinel = rueidis.SentinelOption{
+			Username:  cfg.SentinelUsername,
+			Password:  cfg.SentinelPassword,
+			MasterSet: cfg.SentinelMasterSet,
+		}
+	}
+
+	return &res
 }
 
 func fixDeprecatedRedis(cfg *Config) {

@@ -79,14 +79,16 @@ func New(ctx context.Context, cfg *config.RedisConfig) (*Client, error) {
 
 	l := log.PrefixedLog("redis")
 
-	roption := generateClientOptions(cfg)
+	roption := cfg.GetClientOptions()
+
+	roption.ClientName = fmt.Sprintf("blocky-%s", util.HostnameString())
 
 	var client rueidis.Client
 
 	for i := 0; i < cfg.ConnectionAttempts; i++ {
 		l.Debugf("connection attempt %d", i)
 
-		client, err = rueidis.NewClient(roption)
+		client, err = rueidis.NewClient(*roption)
 
 		if err == nil {
 			break
@@ -195,29 +197,6 @@ func (c *Client) GetRedisCache(ctx context.Context) {
 			}
 		}
 	}()
-}
-
-func generateClientOptions(cfg *config.RedisConfig) rueidis.ClientOption {
-	res := rueidis.ClientOption{
-		InitAddress:           cfg.Addresses,
-		Password:              cfg.Password,
-		Username:              cfg.Username,
-		SelectDB:              cfg.Database,
-		RingScaleEachConn:     cfg.ConnRingScale,
-		CacheSizeEachConn:     cfg.LocalCacheSize,
-		ClientName:            fmt.Sprintf("blocky-%s", util.HostnameString()),
-		ClientTrackingOptions: []string{"PREFIX", "blocky:", "BCAST"},
-	}
-
-	if len(cfg.SentinelMasterSet) > 0 {
-		res.Sentinel = rueidis.SentinelOption{
-			Username:  cfg.SentinelUsername,
-			Password:  cfg.SentinelPassword,
-			MasterSet: cfg.SentinelMasterSet,
-		}
-	}
-
-	return res
 }
 
 // startup starts a new goroutine for subscription and translation
