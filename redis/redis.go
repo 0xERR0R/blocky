@@ -157,7 +157,7 @@ func (c *Client) PublishEnabled(ctx context.Context, state *EnabledMessage) {
 	}
 }
 
-// GetRedisCache reads the redis cache and publish it to the channel
+// GetRedisCache reads the redis cache and publishes it to the channel
 func (c *Client) GetRedisCache(ctx context.Context) {
 	c.l.Debug("GetRedisCache")
 
@@ -169,7 +169,7 @@ func (c *Client) GetRedisCache(ctx context.Context) {
 		for {
 			sres, err := c.client.Do(ctx, c.client.B().Scan().Cursor(cursor).Match(searchKey).Count(1).Build()).AsScanEntry()
 			if err != nil {
-				c.l.Error("GetRedisCache ", err)
+				c.l.Errorf("could not start a searching through Redis cache: %s", err)
 
 				break
 			}
