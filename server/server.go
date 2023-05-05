@@ -451,6 +451,12 @@ func (s *Server) printConfiguration() {
 	logger().Info("listeners:")
 	log.WithIndent(logger(), "  ", s.cfg.Ports.LogConfig)
 
+	if s.redisClient != nil {
+		logger().Info("redis:")
+
+		s.cfg.Redis.LogConfig(logger())
+	}
+
 	logger().Info("runtime information:")
 
 	// force garbage collector

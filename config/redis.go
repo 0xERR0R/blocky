@@ -28,6 +28,7 @@ type RedisConfig struct {
 	SentinelAddresses  []string `yaml:"sentinelAddresses"`        // Deprecated: use Addresses
 }
 
+// GetClientOptions converts configuration to rueidis.ClientOption
 func (c *RedisConfig) GetClientOptions() *rueidis.ClientOption {
 	res := rueidis.ClientOption{
 		InitAddress:           c.Addresses,
@@ -62,8 +63,18 @@ func (c *RedisConfig) LogConfig(logger *logrus.Entry) {
 	for _, a := range c.Addresses {
 		logger.Infof("  - %s", a)
 	}
+
+	logger.Infof("username: %s", c.Username)
+	logger.Infof("database: %d", c.Database)
+
+	if len(c.SentinelMasterSet) > 0 {
+		logger.Info("sentinel:")
+		logger.Infof("  username: %s", c.SentinelUsername)
+		logger.Infof("  masterSet: %s", c.SentinelMasterSet)
+	}
 }
 
+// validateConfig tests and converts deprecated config values
 func (c *RedisConfig) validateConfig() error {
 	if len(c.Addresses) > 0 && len(c.SentinelAddresses) > 0 {
 		log.Log().Warnln("'redis.addresses' and 'redis.sentinelAddresses' are both configured.")
