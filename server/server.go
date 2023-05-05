@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -50,6 +51,7 @@ type Server struct {
 	httpMux        *chi.Mux
 	httpsMux       *chi.Mux
 	cert           tls.Certificate
+	redisClient    *redis.Client
 }
 
 func logger() *logrus.Entry {
@@ -151,7 +153,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 		return nil, err
 	}
 
-	redisClient, redisErr := redis.New(&cfg.Redis)
+	redisClient, redisErr := redis.New(context.Background(), &cfg.Redis)
 	if redisErr != nil && cfg.Redis.Required {
 		return nil, redisErr
 	}
@@ -170,6 +172,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 		httpMux:        httpRouter,
 		httpsMux:       httpsRouter,
 		cert:           cert,
+		redisClient:    redisClient,
 	}
 
 	server.printConfiguration()
@@ -448,6 +451,12 @@ func (s *Server) printConfiguration() {
 	logger().Info("listeners:")
 	log.WithIndent(logger(), "  ", s.cfg.Ports.LogConfig)
 
+	if s.redisClient != nil {
+		logger().Info("redis:")
+
+		s.cfg.Redis.LogConfig(logger())
+	}
+
 	logger().Info("runtime information:")
 
 	// force garbage collector
@@ -552,6 +561,10 @@ func (s *Server) Stop() error {
 		if err := server.Shutdown(); err != nil {
 			return fmt.Errorf("stop %s listener failed: %w", server.Net, err)
 		}
+	}
+
+	if s.redisClient != nil {
+		s.redisClient.Close()
 	}
 
 	return nil

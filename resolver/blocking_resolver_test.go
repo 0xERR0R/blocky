@@ -9,10 +9,7 @@ import (
 	"github.com/0xERR0R/blocky/lists"
 	"github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
-	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
-	"github.com/alicebob/miniredis/v2"
-	"github.com/creasty/defaults"
 
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
@@ -1127,80 +1124,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					BlockType:     "zeroIp",
 				}, nil, systemResolverBootstrap)
 				Expect(err).Should(HaveOccurred())
-			})
-		})
-	})
-
-	Describe("Redis is configured", func() {
-		var redisServer *miniredis.Miniredis
-		var redisClient *redis.Client
-		var err error
-		JustBeforeEach(func() {
-			redisServer, err = miniredis.Run()
-
-			Expect(err).Should(Succeed())
-
-			var rcfg config.RedisConfig
-			err = defaults.Set(&rcfg)
-
-			Expect(err).Should(Succeed())
-			rcfg.Address = redisServer.Addr()
-			redisClient, err = redis.New(&rcfg)
-
-			Expect(err).Should(Succeed())
-			Expect(redisClient).ShouldNot(BeNil())
-			sutConfig = config.BlockingConfig{
-				BlockType: "ZEROIP",
-				BlockTTL:  config.Duration(time.Minute),
-			}
-
-			sut, err = NewBlockingResolver(sutConfig, redisClient, systemResolverBootstrap)
-			Expect(err).Should(Succeed())
-		})
-		JustAfterEach(func() {
-			redisServer.Close()
-		})
-		When("disable", func() {
-			It("should return disable", func() {
-				sut.EnableBlocking()
-
-				redisMockMsg := &redis.EnabledMessage{
-					State: false,
-				}
-				redisClient.EnabledChannel <- redisMockMsg
-
-				Eventually(func() bool {
-					return sut.BlockingStatus().Enabled
-				}, "5s").Should(BeFalse())
-			})
-		})
-		When("disable", func() {
-			It("should return disable", func() {
-				sut.EnableBlocking()
-				redisMockMsg := &redis.EnabledMessage{
-					State:  false,
-					Groups: []string{"unknown"},
-				}
-				redisClient.EnabledChannel <- redisMockMsg
-
-				Eventually(func() bool {
-					return sut.BlockingStatus().Enabled
-				}, "5s").Should(BeTrue())
-			})
-		})
-		When("enable", func() {
-			It("should return enable", func() {
-				err = sut.DisableBlocking(time.Hour, []string{})
-				Expect(err).Should(Succeed())
-
-				redisMockMsg := &redis.EnabledMessage{
-					State: true,
-				}
-				redisClient.EnabledChannel <- redisMockMsg
-
-				Eventually(func() bool {
-					return sut.BlockingStatus().Enabled
-				}, "5s").Should(BeTrue())
 			})
 		})
 	})

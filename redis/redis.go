@@ -11,9 +11,11 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
-	"github.com/go-redis/redis/v8"
+	"github.com/0xERR0R/blocky/util"
+	"github.com/avast/retry-go/v4"
 	"github.com/google/uuid"
 	"github.com/miekg/dns"
+	"github.com/rueian/rueidis"
 	"github.com/sirupsen/logrus"
 )
 
@@ -56,9 +58,8 @@ type EnabledMessage struct {
 // Client for redis communication
 type Client struct {
 	config         *config.RedisConfig
-	client         *redis.Client
+	client         rueidis.Client
 	l              *logrus.Entry
-	ctx            context.Context
 	id             []byte
 	sendBuffer     chan *bufferMessage
 	CacheChannel   chan *CacheMessage
@@ -66,64 +67,64 @@ type Client struct {
 }
 
 // New creates a new redis client
-func New(cfg *config.RedisConfig) (*Client, error) {
+func New(ctx context.Context, cfg *config.RedisConfig) (*Client, error) {
 	// disable redis if no address is provided
-	if cfg == nil || len(cfg.Address) == 0 {
+	if cfg == nil || !cfg.IsEnabled() {
 		return nil, nil //nolint:nilnil
 	}
 
-	var rdb *redis.Client
-	if len(cfg.SentinelAddresses) > 0 {
-		rdb = redis.NewFailoverClient(&redis.FailoverOptions{
-			MasterName:       cfg.Address,
-			SentinelUsername: cfg.Username,
-			SentinelPassword: cfg.SentinelPassword,
-			SentinelAddrs:    cfg.SentinelAddresses,
-			Username:         cfg.Username,
-			Password:         cfg.Password,
-			DB:               cfg.Database,
-			MaxRetries:       cfg.ConnectionAttempts,
-			MaxRetryBackoff:  cfg.ConnectionCooldown.ToDuration(),
-		})
-	} else {
-		rdb = redis.NewClient(&redis.Options{
-			Addr:            cfg.Address,
-			Username:        cfg.Username,
-			Password:        cfg.Password,
-			DB:              cfg.Database,
-			MaxRetries:      cfg.ConnectionAttempts,
-			MaxRetryBackoff: cfg.ConnectionCooldown.ToDuration(),
-		})
+	id, err := uuid.New().MarshalBinary()
+	if err != nil {
+		return nil, err
 	}
 
-	ctx := context.Background()
+	l := log.PrefixedLog("redis")
 
-	_, err := rdb.Ping(ctx).Result()
-	if err == nil {
-		var id []byte
+	roption := cfg.GetClientOptions()
 
-		id, err = uuid.New().MarshalBinary()
-		if err == nil {
-			// construct client
-			res := &Client{
-				config:         cfg,
-				client:         rdb,
-				l:              log.PrefixedLog("redis"),
-				ctx:            ctx,
-				id:             id,
-				sendBuffer:     make(chan *bufferMessage, chanCap),
-				CacheChannel:   make(chan *CacheMessage, chanCap),
-				EnabledChannel: make(chan *EnabledMessage, chanCap),
-			}
+	roption.ClientName = fmt.Sprintf("blocky-%s", util.HostnameString())
 
-			// start channel handling go routine
-			err = res.startup()
+	var client rueidis.Client
 
-			return res, err
-		}
+	err = retry.Do(
+		func() error {
+			var ierr error
+
+			client, ierr = rueidis.NewClient(*roption)
+
+			return ierr
+		},
+		retry.Attempts(cfg.ConnectionAttempts),
+		retry.Delay(time.Duration(cfg.ConnectionCooldown)),
+	)
+
+	l.Debug("should be created")
+
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, err
+	res := &Client{
+		config:         cfg,
+		client:         client,
+		l:              l,
+		id:             id,
+		sendBuffer:     make(chan *bufferMessage, chanCap),
+		CacheChannel:   make(chan *CacheMessage, chanCap),
+		EnabledChannel: make(chan *EnabledMessage, chanCap),
+	}
+
+	res.startup(ctx)
+
+	return res, nil
+}
+
+// Close all channels and client
+func (c *Client) Close() {
+	defer c.client.Close()
+	defer close(c.sendBuffer)
+	defer close(c.CacheChannel)
+	defer close(c.EnabledChannel)
 }
 
 // PublishCache publish cache to redis async
@@ -136,7 +137,7 @@ func (c *Client) PublishCache(key string, message *dns.Msg) {
 	}
 }
 
-func (c *Client) PublishEnabled(state *EnabledMessage) {
+func (c *Client) PublishEnabled(ctx context.Context, state *EnabledMessage) {
 	binState, sErr := json.Marshal(state)
 	if sErr == nil {
 		binMsg, mErr := json.Marshal(redisMessage{
@@ -146,59 +147,91 @@ func (c *Client) PublishEnabled(state *EnabledMessage) {
 		})
 
 		if mErr == nil {
-			c.client.Publish(c.ctx, SyncChannelName, binMsg)
+			c.client.Do(ctx,
+				c.client.B().Publish().
+					Channel(SyncChannelName).
+					Message(rueidis.BinaryString(binMsg)).
+					Build())
 		}
 	}
 }
 
-// GetRedisCache reads the redis cache and publish it to the channel
-func (c *Client) GetRedisCache() {
+// GetRedisCache reads the redis cache and publishes it to the channel
+func (c *Client) GetRedisCache(ctx context.Context) {
 	c.l.Debug("GetRedisCache")
 
 	go func() {
-		iter := c.client.Scan(c.ctx, 0, prefixKey("*"), 0).Iterator()
-		for iter.Next(c.ctx) {
-			response, err := c.getResponse(iter.Val())
-			if err == nil {
-				if response != nil {
-					c.CacheChannel <- response
+		var cursor uint64
+
+		searchKey := prefixKey("*")
+
+		for {
+			sres, err := c.client.Do(ctx, c.client.B().Scan().Cursor(cursor).Match(searchKey).Count(1).Build()).AsScanEntry()
+			if err != nil {
+				c.l.Errorf("could not start a searching through Redis cache: %s", err)
+
+				break
+			}
+
+			cursor = sres.Cursor
+
+			for _, key := range sres.Elements {
+				c.l.Debugf("GetRedisCache: %s", key)
+
+				resp := c.client.Do(ctx, c.client.B().Get().Key(key).Build())
+
+				if resp.Error() == nil {
+					str, err := resp.ToString()
+					if err == nil {
+						response, err := c.getResponse(ctx, str)
+						if err == nil {
+							c.CacheChannel <- response
+						}
+					}
 				}
-			} else {
-				c.l.Error("GetRedisCache ", err)
+			}
+
+			if cursor == 0 { // no more keys
+				break
 			}
 		}
 	}()
 }
 
 // startup starts a new goroutine for subscription and translation
-func (c *Client) startup() error {
-	ps := c.client.Subscribe(c.ctx, SyncChannelName)
+func (c *Client) startup(ctx context.Context) {
+	go func() {
+		dc, cancel := c.client.Dedicate()
+		defer cancel()
 
-	_, err := ps.Receive(c.ctx)
-	if err == nil {
-		go func() {
-			for {
-				select {
-				// received message from subscription
-				case msg := <-ps.Channel():
-					c.l.Debug("Received message: ", msg)
+		wait := dc.SetPubSubHooks(rueidis.PubSubHooks{
+			OnMessage: func(m rueidis.PubSubMessage) {
+				if m.Channel == SyncChannelName {
+					c.l.Debug("Received message: ", m)
 
-					if msg != nil && len(msg.Payload) > 0 {
+					if len(m.Message) > 0 {
 						// message is not empty
-						c.processReceivedMessage(msg)
+						c.processReceivedMessage(m.Message)
 					}
-					// publish message from buffer
-				case s := <-c.sendBuffer:
-					c.publishMessageFromBuffer(s)
 				}
-			}
-		}()
-	}
+			},
+		})
 
-	return err
+		dc.Do(ctx, dc.B().Subscribe().Channel(SyncChannelName).Build())
+
+		for {
+			select {
+			case <-wait:
+				return
+			// publish message from buffer
+			case s := <-c.sendBuffer:
+				c.publishMessageFromBuffer(ctx, s)
+			}
+		}
+	}()
 }
 
-func (c *Client) publishMessageFromBuffer(s *bufferMessage) {
+func (c *Client) publishMessageFromBuffer(ctx context.Context, s *bufferMessage) {
 	origRes := s.Message
 	origRes.Compress = true
 	binRes, pErr := origRes.Pack()
@@ -212,20 +245,26 @@ func (c *Client) publishMessageFromBuffer(s *bufferMessage) {
 		})
 
 		if mErr == nil {
-			c.client.Publish(c.ctx, SyncChannelName, binMsg)
+			c.client.Do(ctx,
+				c.client.B().Publish().
+					Channel(SyncChannelName).
+					Message(rueidis.BinaryString(binMsg)).
+					Build())
 		}
 
-		c.client.Set(c.ctx,
-			prefixKey(s.Key),
-			binRes,
-			c.getTTL(origRes))
+		c.client.Do(ctx,
+			c.client.B().Setex().
+				Key(prefixKey(s.Key)).
+				Seconds(int64(c.getTTL(origRes).Seconds())).
+				Value(rueidis.BinaryString(binRes)).
+				Build())
 	}
 }
 
-func (c *Client) processReceivedMessage(msg *redis.Message) {
+func (c *Client) processReceivedMessage(msgPayload string) {
 	var rm redisMessage
 
-	err := json.Unmarshal([]byte(msg.Payload), &rm)
+	err := json.Unmarshal([]byte(msgPayload), &rm)
 	if err == nil {
 		// message was sent from a different blocky instance
 		if !bytes.Equal(rm.Client, c.id) {
@@ -262,18 +301,21 @@ func (c *Client) processEnabledMessage(redisMsg *redisMessage) error {
 }
 
 // getResponse returns model.Response for a key
-func (c *Client) getResponse(key string) (*CacheMessage, error) {
-	resp, err := c.client.Get(c.ctx, key).Result()
+func (c *Client) getResponse(ctx context.Context, key string) (*CacheMessage, error) {
+	resp, err := c.client.Do(ctx, c.client.B().Get().Key(key).Build()).AsBytes()
 	if err == nil {
-		var ttl time.Duration
-		ttl, err = c.client.TTL(c.ctx, key).Result()
+		uittl, err := c.client.Do(ctx,
+			c.client.B().Ttl().
+				Key(key).
+				Build()).AsUint64()
+		ttl := time.Second * time.Duration(uittl)
 
 		if err == nil {
 			var result *CacheMessage
 
 			result, err = convertMessage(&redisMessage{
 				Key:     cleanKey(key),
-				Message: []byte(resp),
+				Message: resp,
 			}, ttl)
 			if err != nil {
 				return nil, fmt.Errorf("conversion error: %w", err)
@@ -282,6 +324,8 @@ func (c *Client) getResponse(key string) (*CacheMessage, error) {
 			return result, nil
 		}
 	}
+
+	c.l.Debugf("Error fetching %s: %v", key, err)
 
 	return nil, err
 }
@@ -314,9 +358,9 @@ func convertMessage(message *redisMessage, ttl time.Duration) (*CacheMessage, er
 }
 
 // getTTL of dns message or return defaultCacheTime if 0
-func (c *Client) getTTL(dns *dns.Msg) time.Duration {
+func (c *Client) getTTL(msg *dns.Msg) time.Duration {
 	ttl := uint32(0)
-	for _, a := range dns.Answer {
+	for _, a := range msg.Answer {
 		if a.Header().Ttl > ttl {
 			ttl = a.Header().Ttl
 		}

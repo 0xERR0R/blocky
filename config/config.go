@@ -156,7 +156,7 @@ func (b *BootstrappedUpstreamConfig) UnmarshalYAML(unmarshal func(interface{}) e
 
 // Config main configuration
 //
-//nolint:maligned
+//nolint:maligned,lll
 type Config struct {
 	Upstream            ParallelBestConfig        `yaml:"upstream"`
 	UpstreamTimeout     Duration                  `yaml:"upstreamTimeout" default:"2s"`
@@ -181,24 +181,15 @@ type Config struct {
 	FqdnOnly            FqdnOnlyConfig            `yaml:",inline"`
 	Filtering           FilteringConfig           `yaml:"filtering"`
 	Ede                 EdeConfig                 `yaml:"ede"`
-	// Deprecated
-	DisableIPv6 bool `yaml:"disableIPv6" default:"false"`
-	// Deprecated
-	LogLevel log.Level `yaml:"logLevel" default:"info"`
-	// Deprecated
-	LogFormat log.FormatType `yaml:"logFormat" default:"text"`
-	// Deprecated
-	LogPrivacy bool `yaml:"logPrivacy" default:"false"`
-	// Deprecated
-	LogTimestamp bool `yaml:"logTimestamp" default:"true"`
-	// Deprecated
-	DNSPorts ListenConfig `yaml:"port" default:"53"`
-	// Deprecated
-	HTTPPorts ListenConfig `yaml:"httpPort"`
-	// Deprecated
-	HTTPSPorts ListenConfig `yaml:"httpsPort"`
-	// Deprecated
-	TLSPorts ListenConfig `yaml:"tlsPort"`
+	DisableIPv6         bool                      `yaml:"disableIPv6" default:"false"` // Deprecated: use Filtering with TypeAAAA
+	LogLevel            log.Level                 `yaml:"logLevel" default:"info"`     // Deprecated: use Log.Level
+	LogFormat           log.FormatType            `yaml:"logFormat" default:"text"`    // Deprecated: use Log.Format
+	LogPrivacy          bool                      `yaml:"logPrivacy" default:"false"`  // Deprecated: use Log.Privacy
+	LogTimestamp        bool                      `yaml:"logTimestamp" default:"true"` // Deprecated: use Log.Timestamp
+	DNSPorts            ListenConfig              `yaml:"port" default:"53"`           // Deprecated: use Ports.DNS
+	HTTPPorts           ListenConfig              `yaml:"httpPort"`                    // Deprecated: use Ports.HTTP
+	HTTPSPorts          ListenConfig              `yaml:"httpsPort"`                   // Deprecated: use Ports.HTTPS
+	TLSPorts            ListenConfig              `yaml:"tlsPort"`                     // Deprecated: use Ports.TLS
 }
 
 type PortsConfig struct {
@@ -229,20 +220,6 @@ type (
 		IPs      []net.IP `yaml:"ips"`
 	}
 )
-
-// RedisConfig configuration for the redis connection
-type RedisConfig struct {
-	Address            string   `yaml:"address"`
-	Username           string   `yaml:"username" default:""`
-	Password           string   `yaml:"password" default:""`
-	Database           int      `yaml:"database" default:"0"`
-	Required           bool     `yaml:"required" default:"false"`
-	ConnectionAttempts int      `yaml:"connectionAttempts" default:"3"`
-	ConnectionCooldown Duration `yaml:"connectionCooldown" default:"1s"`
-	SentinelUsername   string   `yaml:"sentinelUsername" default:""`
-	SentinelPassword   string   `yaml:"sentinelPassword" default:""`
-	SentinelAddresses  []string `yaml:"sentinelAddresses"`
-}
 
 type (
 	FqdnOnlyConfig = toEnable
@@ -374,12 +351,10 @@ func unmarshalConfig(data []byte, cfg *Config) error {
 		return fmt.Errorf("wrong file structure: %w", err)
 	}
 
-	validateConfig(cfg)
-
-	return nil
+	return validateConfig(cfg)
 }
 
-func validateConfig(cfg *Config) {
+func validateConfig(cfg *Config) error {
 	if cfg.DisableIPv6 {
 		log.Log().Warnf("'disableIPv6' is deprecated. Please use 'filtering.queryTypes' with 'AAAA' instead.")
 
@@ -400,6 +375,8 @@ func validateConfig(cfg *Config) {
 	fixDeprecatedLog(cfg)
 
 	fixDeprecatedPorts(cfg)
+
+	return cfg.Redis.validateConfig()
 }
 
 // fixDeprecatedLog ensures backwards compatibility for logging options

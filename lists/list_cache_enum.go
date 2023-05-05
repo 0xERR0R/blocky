@@ -49,6 +49,13 @@ func (x ListCacheType) String() string {
 	return fmt.Sprintf("ListCacheType(%d)", x)
 }
 
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
+func (x ListCacheType) IsValid() bool {
+	_, ok := _ListCacheTypeMap[x]
+	return ok
+}
+
 var _ListCacheTypeValue = map[string]ListCacheType{
 	_ListCacheTypeName[0:9]:  ListCacheTypeBlacklist,
 	_ListCacheTypeName[9:18]: ListCacheTypeWhitelist,

@@ -35,7 +35,8 @@ var _ = Describe("Config", func() {
 		When("parameter 'disableIPv6' is set", func() {
 			It("should add 'AAAA' to filter.queryTypes", func() {
 				c.DisableIPv6 = true
-				validateConfig(&c)
+				err = validateConfig(&c)
+				Expect(err).Should(Succeed())
 				Expect(c.Filtering.QueryTypes).Should(HaveKey(QType(dns.TypeAAAA)))
 				Expect(c.Filtering.QueryTypes.Contains(dns.Type(dns.TypeAAAA))).Should(BeTrue())
 			})
@@ -49,12 +50,14 @@ var _ = Describe("Config", func() {
 				}
 			})
 			It("should change StartStrategy blocking to failOnError", func() {
-				validateConfig(&c)
+				err = validateConfig(&c)
+				Expect(err).Should(Succeed())
 				Expect(c.Blocking.StartStrategy).Should(Equal(StartStrategyTypeFailOnError))
 			})
 			It("shouldn't change StartStrategy if set to fast", func() {
 				c.Blocking.StartStrategy = StartStrategyTypeFast
-				validateConfig(&c)
+				err = validateConfig(&c)
+				Expect(err).Should(Succeed())
 				Expect(c.Blocking.StartStrategy).Should(Equal(StartStrategyTypeFast))
 			})
 		})
@@ -62,7 +65,8 @@ var _ = Describe("Config", func() {
 		When("parameter 'logLevel' is set", func() {
 			It("should convert to log.level", func() {
 				c.LogLevel = log.LevelDebug
-				validateConfig(&c)
+				err = validateConfig(&c)
+				Expect(err).Should(Succeed())
 				Expect(c.Log.Level).Should(Equal(log.LevelDebug))
 			})
 		})
@@ -70,7 +74,8 @@ var _ = Describe("Config", func() {
 		When("parameter 'logFormat' is set", func() {
 			It("should convert to log.format", func() {
 				c.LogFormat = log.FormatTypeJson
-				validateConfig(&c)
+				err = validateConfig(&c)
+				Expect(err).Should(Succeed())
 				Expect(c.Log.Format).Should(Equal(log.FormatTypeJson))
 			})
 		})
@@ -78,7 +83,8 @@ var _ = Describe("Config", func() {
 		When("parameter 'logPrivacy' is set", func() {
 			It("should convert to log.privacy", func() {
 				c.LogPrivacy = true
-				validateConfig(&c)
+				err = validateConfig(&c)
+				Expect(err).Should(Succeed())
 				Expect(c.Log.Privacy).Should(BeTrue())
 			})
 		})
@@ -86,7 +92,8 @@ var _ = Describe("Config", func() {
 		When("parameter 'logTimestamp' is set", func() {
 			It("should convert to log.timestamp", func() {
 				c.LogTimestamp = false
-				validateConfig(&c)
+				err = validateConfig(&c)
+				Expect(err).Should(Succeed())
 				Expect(c.Log.Timestamp).Should(BeFalse())
 			})
 		})
@@ -95,7 +102,8 @@ var _ = Describe("Config", func() {
 			It("should convert to ports.dns", func() {
 				ports := ListenConfig([]string{"5333"})
 				c.DNSPorts = ports
-				validateConfig(&c)
+				err = validateConfig(&c)
+				Expect(err).Should(Succeed())
 				Expect(c.Ports.DNS).Should(Equal(ports))
 			})
 		})
@@ -104,7 +112,8 @@ var _ = Describe("Config", func() {
 			It("should convert to ports.http", func() {
 				ports := ListenConfig([]string{"5333"})
 				c.HTTPPorts = ports
-				validateConfig(&c)
+				err = validateConfig(&c)
+				Expect(err).Should(Succeed())
 				Expect(c.Ports.HTTP).Should(Equal(ports))
 			})
 		})
@@ -113,7 +122,8 @@ var _ = Describe("Config", func() {
 			It("should convert to ports.https", func() {
 				ports := ListenConfig([]string{"5333"})
 				c.HTTPSPorts = ports
-				validateConfig(&c)
+				err = validateConfig(&c)
+				Expect(err).Should(Succeed())
 				Expect(c.Ports.HTTPS).Should(Equal(ports))
 			})
 		})
@@ -122,7 +132,8 @@ var _ = Describe("Config", func() {
 			It("should convert to ports.tls", func() {
 				ports := ListenConfig([]string{"5333"})
 				c.TLSPorts = ports
-				validateConfig(&c)
+				err = validateConfig(&c)
+				Expect(err).Should(Succeed())
 				Expect(c.Ports.TLS).Should(Equal(ports))
 			})
 		})
