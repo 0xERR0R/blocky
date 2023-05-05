@@ -12,6 +12,7 @@ import (
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/avast/retry-go/v4"
 	"github.com/google/uuid"
 	"github.com/miekg/dns"
 	"github.com/rueian/rueidis"
@@ -85,19 +86,17 @@ func New(ctx context.Context, cfg *config.RedisConfig) (*Client, error) {
 
 	var client rueidis.Client
 
-	for i := 0; i < cfg.ConnectionAttempts; i++ {
-		l.Debugf("connection attempt %d", i)
+	err = retry.Do(
+		func() error {
+			var ierr error
 
-		client, err = rueidis.NewClient(*roption)
+			client, ierr = rueidis.NewClient(*roption)
 
-		if err == nil {
-			break
-		} else {
-			l.Debug(err)
-		}
-
-		time.Sleep(time.Duration(cfg.ConnectionCooldown))
-	}
+			return ierr
+		},
+		retry.Attempts(cfg.ConnectionAttempts),
+		retry.Delay(time.Duration(cfg.ConnectionCooldown)),
+	)
 
 	l.Debug("should be created")
 

@@ -17,7 +17,7 @@ type RedisConfig struct {
 	SentinelPassword   string   `yaml:"sentinelPassword" default:""`
 	SentinelMasterSet  string   `yaml:"sentinelMasterSet" default:""`
 	Database           int      `yaml:"database" default:"0"`
-	ConnectionAttempts int      `yaml:"connectionAttempts" default:"3"`
+	ConnectionAttempts uint     `yaml:"connectionAttempts" default:"3"`
 	ConnectionCooldown Duration `yaml:"connectionCooldown" default:"1s"`
 	ConnRingScale      int      `yaml:"connRingScale" default:"10"`
 	ShuffleInit        bool     `yaml:"shuffleInit" default:"false"`
