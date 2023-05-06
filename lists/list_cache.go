@@ -18,11 +18,14 @@ import (
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/lists/parsers"
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/redis"
 )
 
 const (
 	defaultProcessingConcurrency = 4
 	chanCap                      = 1000
+	listRefreshTickerName        = "listCacheRefresh"
 )
 
 // ListCacheType represents the type of cached list ENUM(
@@ -47,6 +50,7 @@ type ListCache struct {
 	listType              ListCacheType
 	processingConcurrency uint
 	maxErrorsPerFile      int
+	redis                 *redis.Client
 }
 
 // LogConfig implements `config.Configurable`.
@@ -65,6 +69,7 @@ func (b *ListCache) LogConfig(logger *logrus.Entry) {
 // NewListCache creates new list instance
 func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration,
 	downloader FileDownloader, processingConcurrency uint, async bool, maxErrorsPerFile int,
+	redisClient *redis.Client,
 ) (*ListCache, error) {
 	if processingConcurrency == 0 {
 		processingConcurrency = defaultProcessingConcurrency
@@ -81,6 +86,7 @@ func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeri
 		listType:              t,
 		processingConcurrency: processingConcurrency,
 		maxErrorsPerFile:      maxErrorsPerFile,
+		redis:                 redisClient,
 	}
 
 	var initError error
@@ -103,11 +109,17 @@ func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeri
 // periodicUpdate triggers periodical refresh (and download) of list entries
 func periodicUpdate(cache *ListCache) {
 	if cache.refreshPeriod > 0 {
-		ticker := time.NewTicker(cache.refreshPeriod)
+		var ticker model.TickerWrapper
+		if cache.redis != nil {
+			ticker, _ = cache.redis.GetTicker(listRefreshTickerName, cache.refreshPeriod)
+		} else {
+			ticker = model.NewTimeTicker(cache.refreshPeriod)
+		}
+
 		defer ticker.Stop()
 
 		for {
-			<-ticker.C
+			<-ticker.C()
 			cache.Refresh()
 		}
 	}

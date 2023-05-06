@@ -95,7 +95,7 @@ type BlockingResolver struct {
 
 // NewBlockingResolver returns a new configured instance of the resolver
 func NewBlockingResolver(
-	cfg config.BlockingConfig, redis *redis.Client, bootstrap *Bootstrap,
+	cfg config.BlockingConfig, redisClient *redis.Client, bootstrap *Bootstrap,
 ) (r *BlockingResolver, err error) {
 	blockHandler, err := createBlockHandler(cfg)
 	if err != nil {
@@ -106,10 +106,10 @@ func NewBlockingResolver(
 	downloader := createDownloader(cfg, bootstrap)
 	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists,
 		refreshPeriod, downloader, cfg.ProcessingConcurrency,
-		(cfg.StartStrategy == config.StartStrategyTypeFast), cfg.MaxErrorsPerFile)
+		(cfg.StartStrategy == config.StartStrategyTypeFast), cfg.MaxErrorsPerFile, redisClient)
 	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists,
 		refreshPeriod, downloader, cfg.ProcessingConcurrency,
-		(cfg.StartStrategy == config.StartStrategyTypeFast), cfg.MaxErrorsPerFile)
+		(cfg.StartStrategy == config.StartStrategyTypeFast), cfg.MaxErrorsPerFile, redisClient)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
 	err = multierror.Append(err, blErr, wlErr).ErrorOrNil()
@@ -143,7 +143,7 @@ func NewBlockingResolver(
 			enableTimer: time.NewTimer(0),
 		},
 		clientGroupsBlock: cgb,
-		redisClient:       redis,
+		redisClient:       redisClient,
 	}
 
 	if res.redisClient != nil {

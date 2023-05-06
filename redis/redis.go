@@ -16,10 +16,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/miekg/dns"
 	"github.com/rueian/rueidis"
+	"github.com/rueian/rueidis/rueidislock"
 	"github.com/sirupsen/logrus"
 )
 
 const (
+	blockyBaseKey     = "blocky"
+	blockyLockerKey   = "locker"
+	blockyTickerKey   = "ticker"
 	SyncChannelName   = "blocky_sync"
 	CacheStorePrefix  = "blocky:cache:"
 	chanCap           = 1000
@@ -55,10 +59,19 @@ type EnabledMessage struct {
 	Groups   []string      `json:"g,omitempty"`
 }
 
+// ClientKeys stores the primary redis keys
+type ClientKeys struct {
+	Base   *Key
+	Locker *Key
+	Ticker *Key
+}
+
 // Client for redis communication
 type Client struct {
+	Keys           *ClientKeys
 	config         *config.RedisConfig
 	client         rueidis.Client
+	locker         rueidislock.Locker
 	l              *logrus.Entry
 	id             []byte
 	sendBuffer     chan *bufferMessage
@@ -78,35 +91,33 @@ func New(ctx context.Context, cfg *config.RedisConfig) (*Client, error) {
 		return nil, err
 	}
 
+	bk := newKey(cfg.Database, blockyBaseKey)
+	lk := bk.NewSubkey(blockyLockerKey)
+	tk := bk.NewSubkey(blockyTickerKey)
+
 	l := log.PrefixedLog("redis")
 
-	roption := cfg.GetClientOptions()
-
-	roption.ClientName = fmt.Sprintf("blocky-%s", util.HostnameString())
-
-	var client rueidis.Client
-
-	err = retry.Do(
-		func() error {
-			var ierr error
-
-			client, ierr = rueidis.NewClient(*roption)
-
-			return ierr
-		},
-		retry.Attempts(cfg.ConnectionAttempts),
-		retry.Delay(time.Duration(cfg.ConnectionCooldown)),
-	)
-
-	l.Debug("should be created")
-
+	client, err := getRueidisClient(cfg)
 	if err != nil {
 		return nil, err
 	}
 
+	locker, err := getRueidisLocker(lk, cfg)
+	if err != nil {
+		defer client.Close()
+
+		return nil, err
+	}
+
 	res := &Client{
+		Keys: &ClientKeys{
+			Base:   bk,
+			Locker: lk,
+			Ticker: tk,
+		},
 		config:         cfg,
 		client:         client,
+		locker:         locker,
 		l:              l,
 		id:             id,
 		sendBuffer:     make(chan *bufferMessage, chanCap),
@@ -122,9 +133,15 @@ func New(ctx context.Context, cfg *config.RedisConfig) (*Client, error) {
 // Close all channels and client
 func (c *Client) Close() {
 	defer c.client.Close()
+	defer c.locker.Close()
 	defer close(c.sendBuffer)
 	defer close(c.CacheChannel)
 	defer close(c.EnabledChannel)
+}
+
+// GetTicker returns a named ticker
+func (c *Client) GetTicker(name string, d time.Duration) (*Ticker, error) {
+	return newTicker(TTL(d), name, c.Keys.Ticker, c.client, c.locker)
 }
 
 // PublishCache publish cache to redis async
@@ -381,4 +398,61 @@ func prefixKey(key string) string {
 // cleanKey trims CacheStorePrefix prefix
 func cleanKey(key string) string {
 	return strings.TrimPrefix(key, CacheStorePrefix)
+}
+
+func getRueidisClientOption(cfg *config.RedisConfig) *rueidis.ClientOption {
+	res := cfg.GetClientOptions()
+
+	res.ClientName = fmt.Sprintf("blocky-%s", util.HostnameString())
+
+	return res
+}
+
+func getRueidisClient(cfg *config.RedisConfig) (rueidis.Client, error) {
+	roption := getRueidisClientOption(cfg)
+
+	var client rueidis.Client
+
+	err := retry.Do(
+		func() error {
+			var ierr error
+
+			client, ierr = rueidis.NewClient(*roption)
+
+			return ierr
+		},
+		retry.Attempts(cfg.ConnectionAttempts),
+		retry.Delay(time.Duration(cfg.ConnectionCooldown)),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
+func getRueidisLocker(k *Key, cfg *config.RedisConfig) (rueidislock.Locker, error) {
+	loption := rueidislock.LockerOption{
+		ClientOption: *getRueidisClientOption(cfg),
+		KeyPrefix:    k.String(),
+	}
+
+	var locker rueidislock.Locker
+
+	err := retry.Do(
+		func() error {
+			var ierr error
+
+			locker, ierr = rueidislock.NewLocker(loption)
+
+			return ierr
+		},
+		retry.Attempts(cfg.ConnectionAttempts),
+		retry.Delay(time.Duration(cfg.ConnectionCooldown)),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return locker, nil
 }
