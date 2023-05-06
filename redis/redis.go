@@ -154,7 +154,9 @@ func (c *Client) GetTicker(name string, d time.Duration) (*Ticker, error) {
 
 func (c *Client) DoMulti(ctx context.Context, cmds rueidis.Commands) []rueidis.RedisResult {
 	chunkSize := doMultiChunkSize
+
 	var chunks []rueidis.Commands
+
 	for {
 		if len(cmds) == 0 {
 			break
@@ -171,6 +173,7 @@ func (c *Client) DoMulti(ctx context.Context, cmds rueidis.Commands) []rueidis.R
 	}
 
 	var res []rueidis.RedisResult
+
 	for _, chunk := range chunks {
 		r := c.Client.DoMulti(ctx, chunk...)
 

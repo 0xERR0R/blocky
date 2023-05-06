@@ -162,25 +162,6 @@ func createDownloader(cfg config.BlockingConfig, bootstrap *Bootstrap) *lists.HT
 	)
 }
 
-func setupRedisEnabledSubscriber(c *BlockingResolver) {
-	go func() {
-		for em := range c.redisClient.EnabledChannel {
-			if em != nil {
-				c.log().Debug("Received state from redis: ", em)
-
-				if em.State {
-					c.internalEnableBlocking()
-				} else {
-					err := c.internalDisableBlocking(em.Duration, em.Groups)
-					if err != nil {
-						c.log().Warn("Blocking couldn't be disabled:", err)
-					}
-				}
-			}
-		}
-	}()
-}
-
 // RefreshLists triggers the refresh of all black and white lists in the cache
 func (r *BlockingResolver) RefreshLists() {
 	r.blacklistMatcher.Refresh()

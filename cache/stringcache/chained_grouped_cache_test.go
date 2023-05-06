@@ -1,6 +1,8 @@
 package stringcache_test
 
 import (
+	"context"
+
 	"github.com/0xERR0R/blocky/cache/stringcache"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -40,7 +42,7 @@ var _ = Describe("Chained grouped cache", func() {
 			})
 
 			It("should have element count of 4", func() {
-				factory.Finish()
+				factory.Finish(context.Background())
 				Expect(cache.ElementCount("group1")).Should(BeNumerically("==", 4))
 			})
 

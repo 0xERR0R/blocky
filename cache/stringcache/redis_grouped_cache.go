@@ -33,6 +33,7 @@ func (r *RedisGroupedStringCache) ElementCount(group string) int {
 	if err != nil {
 		return 0
 	}
+
 	return int(res)
 }
 

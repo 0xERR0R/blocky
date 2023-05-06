@@ -144,12 +144,15 @@ func logger() *logrus.Entry {
 //nolint:funlen // will refactor in a later commit
 func (b *ListCache) createCacheForGroup(group string, links []string) (created bool, err error) {
 	var ctx context.Context
+
 	var cancel func()
+
 	if b.redis != nil {
 		ctx, cancel, err = b.redis.Locker.TryWithContext(context.Background(), fmt.Sprintf("refresh-%s", group))
 	} else {
 		ctx, cancel = context.WithCancel(context.Background())
 	}
+
 	defer cancel()
 
 	if b.redis != nil && err != nil {
