@@ -1,6 +1,7 @@
 package stringcache
 
 import (
+	"context"
 	"sort"
 
 	"golang.org/x/exp/maps"
@@ -71,8 +72,8 @@ func (c *chainedGroupFactory) Count() int {
 	return cnt
 }
 
-func (c *chainedGroupFactory) Finish() {
+func (c *chainedGroupFactory) Finish(ctx context.Context) {
 	for _, factory := range c.cacheFactories {
-		factory.Finish()
+		factory.Finish(ctx)
 	}
 }

@@ -143,6 +143,19 @@ func logger() *logrus.Entry {
 //
 //nolint:funlen // will refactor in a later commit
 func (b *ListCache) createCacheForGroup(group string, links []string) (created bool, err error) {
+	var ctx context.Context
+	var cancel func()
+	if b.redis != nil {
+		ctx, cancel, err = b.redis.Locker.TryWithContext(context.Background(), fmt.Sprintf("refresh-%s", group))
+	} else {
+		ctx, cancel = context.WithCancel(context.Background())
+	}
+	defer cancel()
+
+	if b.redis != nil && err != nil {
+		return true, nil
+	}
+
 	groupFactory := b.groupedCache.Refresh(group)
 
 	fileLinesChan := make(chan string, chanCap)
@@ -154,9 +167,6 @@ func (b *ListCache) createCacheForGroup(group string, links []string) (created b
 	guard := make(chan struct{}, b.processingConcurrency)
 
 	processingLinkJobs := len(links)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	// loop over links (http/local) or inline definitions
 	// start a new goroutine for each link, but limit to max. number (see processingConcurrency)
@@ -206,7 +216,7 @@ Loop:
 		return false, err
 	}
 
-	groupFactory.Finish()
+	groupFactory.Finish(ctx)
 
 	return true, err
 }
@@ -225,6 +235,11 @@ func (b *ListCache) refresh(isInit bool) error {
 	var err error
 
 	for group, links := range b.groupToLinks {
+		// skip initial refresh if group already contains elements in redis
+		if isInit && b.redis != nil && b.groupedCache.ElementCount(group) > 0 {
+			continue
+		}
+
 		created, e := b.createCacheForGroup(group, links)
 		if e != nil {
 			err = multierror.Append(err, multierror.Prefix(e, fmt.Sprintf("can't create cache group '%s':", group)))

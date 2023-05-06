@@ -1,5 +1,7 @@
 package stringcache
 
+import "context"
+
 type GroupedStringCache interface {
 	// Contains checks if one or more groups in the cache contains the search string.
 	// Returns group(s) containing the string or empty slice if string was not found
@@ -21,5 +23,5 @@ type GroupFactory interface {
 	Count() int
 
 	// Finish replaces the group in cache with factory's content
-	Finish()
+	Finish(ctx context.Context)
 }

@@ -1,6 +1,9 @@
 package stringcache
 
-import "sync"
+import (
+	"context"
+	"sync"
+)
 
 type stringCacheFactoryFn func() cacheFactory
 
@@ -76,7 +79,7 @@ func (c *inMemoryGroupFactory) Count() int {
 	return c.factory.count()
 }
 
-func (c *inMemoryGroupFactory) Finish() {
+func (c *inMemoryGroupFactory) Finish(_ context.Context) {
 	sc := c.factory.create()
 	c.finishFn(sc)
 }

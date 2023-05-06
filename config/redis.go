@@ -5,6 +5,7 @@ import (
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/rueian/rueidis"
+	"github.com/rueian/rueidis/rueidislock"
 	"github.com/sirupsen/logrus"
 )
 
@@ -29,7 +30,7 @@ type RedisConfig struct {
 }
 
 // GetClientOptions converts configuration to rueidis.ClientOption
-func (c *RedisConfig) GetClientOptions() *rueidis.ClientOption {
+func (c *RedisConfig) GetClientOptions(name string) rueidis.ClientOption {
 	res := rueidis.ClientOption{
 		InitAddress:           c.Addresses,
 		Password:              c.Password,
@@ -38,6 +39,7 @@ func (c *RedisConfig) GetClientOptions() *rueidis.ClientOption {
 		RingScaleEachConn:     c.ConnRingScale,
 		CacheSizeEachConn:     c.LocalCacheSize,
 		ClientTrackingOptions: []string{"PREFIX", "blocky:", "BCAST"},
+		ClientName:            name,
 	}
 
 	if len(c.SentinelMasterSet) > 0 {
@@ -48,7 +50,36 @@ func (c *RedisConfig) GetClientOptions() *rueidis.ClientOption {
 		}
 	}
 
-	return &res
+	return res
+}
+
+func (c *RedisConfig) GetLockerOptions(key, name string) rueidislock.LockerOption {
+	copt := rueidis.ClientOption{
+		InitAddress:       c.Addresses,
+		Password:          c.Password,
+		Username:          c.Username,
+		SelectDB:          c.Database,
+		RingScaleEachConn: c.ConnRingScale,
+		CacheSizeEachConn: c.LocalCacheSize,
+		ClientName:        name,
+	}
+
+	if len(c.SentinelMasterSet) > 0 {
+		copt.Sentinel = rueidis.SentinelOption{
+			Username:  c.SentinelUsername,
+			Password:  c.SentinelPassword,
+			MasterSet: c.SentinelMasterSet,
+		}
+	}
+
+	res := rueidislock.LockerOption{
+		ClientOption:   copt,
+		KeyPrefix:      key,
+		NoLoopTracking: true,
+		FallbackSETPX:  false,
+	}
+
+	return res
 }
 
 // IsEnabled implements `config.Configurable`.

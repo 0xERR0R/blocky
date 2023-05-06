@@ -22,9 +22,11 @@ import (
 
 const (
 	blockyBaseKey     = "blocky"
-	blockyLockerKey   = "locker"
+	blockyLockerKey   = "blocky_locks"
 	blockyTickerKey   = "ticker"
 	blockyCacheKey    = "cache"
+	blockyListsKey    = "lists"
+	doMultiChunkSize  = 100000
 	SyncChannelName   = "blocky_sync"
 	CacheStorePrefix  = "blocky:cache:"
 	chanCap           = 1000
@@ -66,6 +68,7 @@ type ClientKeys struct {
 	Locker *Key
 	Ticker *Key
 	Cache  *Key
+	Lists  *Key
 }
 
 // Client for redis communication
@@ -73,7 +76,7 @@ type Client struct {
 	Keys           *ClientKeys
 	config         *config.RedisConfig
 	Client         rueidis.Client
-	locker         rueidislock.Locker
+	Locker         rueidislock.Locker
 	l              *logrus.Entry
 	id             []byte
 	LocalCacheTime TTL
@@ -95,7 +98,7 @@ func New(ctx context.Context, cfg *config.RedisConfig) (*Client, error) {
 	}
 
 	bk := newKey(cfg.Database, blockyBaseKey)
-	lk := bk.NewSubkey(blockyLockerKey)
+	lk := newKey(cfg.Database, blockyLockerKey)
 
 	l := log.PrefixedLog("redis")
 
@@ -117,10 +120,11 @@ func New(ctx context.Context, cfg *config.RedisConfig) (*Client, error) {
 			Locker: lk,
 			Ticker: bk.NewSubkey(blockyTickerKey),
 			Cache:  bk.NewSubkey(blockyCacheKey),
+			Lists:  bk.NewSubkey(blockyListsKey),
 		},
 		config:         cfg,
 		Client:         client,
-		locker:         locker,
+		Locker:         locker,
 		l:              l,
 		id:             id,
 		LocalCacheTime: TTL(cfg.LocalCacheTime),
@@ -137,7 +141,7 @@ func New(ctx context.Context, cfg *config.RedisConfig) (*Client, error) {
 // Close all channels and client
 func (c *Client) Close() {
 	defer c.Client.Close()
-	defer c.locker.Close()
+	defer c.Locker.Close()
 	defer close(c.sendBuffer)
 	defer close(c.CacheChannel)
 	defer close(c.EnabledChannel)
@@ -145,31 +149,35 @@ func (c *Client) Close() {
 
 // GetTicker returns a named ticker
 func (c *Client) GetTicker(name string, d time.Duration) (*Ticker, error) {
-	return newTicker(TTL(d), name, c.Keys.Ticker, c.Client, c.locker)
+	return newTicker(TTL(d), name, c.Keys.Ticker, c.Client, c.Locker)
 }
 
-func (c *Client) RunLocked(ctx context.Context, wait bool, name string, ex func(context.Context)) bool {
-	var lctx context.Context
-	var lcancel func()
-	var lerr error
+func (c *Client) DoMulti(ctx context.Context, cmds rueidis.Commands) []rueidis.RedisResult {
+	chunkSize := doMultiChunkSize
+	var chunks []rueidis.Commands
+	for {
+		if len(cmds) == 0 {
+			break
+		}
 
-	if wait {
-		lctx, lcancel, lerr = c.locker.WithContext(ctx, name)
-	} else {
-		lctx, lcancel, lerr = c.locker.TryWithContext(ctx, name)
+		// necessary check to avoid slicing beyond
+		// slice capacity
+		if len(cmds) < chunkSize {
+			chunkSize = len(cmds)
+		}
+
+		chunks = append(chunks, cmds[0:chunkSize])
+		cmds = cmds[chunkSize:]
 	}
 
-	if lerr != nil {
-		c.l.Debug(lerr)
+	var res []rueidis.RedisResult
+	for _, chunk := range chunks {
+		r := c.Client.DoMulti(ctx, chunk...)
 
-		return false
+		res = append(res, r...)
 	}
 
-	defer lcancel()
-
-	ex(lctx)
-
-	return true
+	return res
 }
 
 // PublishCache publish cache to redis async
@@ -428,16 +436,8 @@ func cleanKey(key string) string {
 	return strings.TrimPrefix(key, CacheStorePrefix)
 }
 
-func getRueidisClientOption(cfg *config.RedisConfig) *rueidis.ClientOption {
-	res := cfg.GetClientOptions()
-
-	res.ClientName = fmt.Sprintf("blocky-%s", util.HostnameString())
-
-	return res
-}
-
 func getRueidisClient(cfg *config.RedisConfig) (rueidis.Client, error) {
-	roption := getRueidisClientOption(cfg)
+	coption := cfg.GetClientOptions(fmt.Sprintf("blocky-%s", util.HostnameString()))
 
 	var client rueidis.Client
 
@@ -445,7 +445,7 @@ func getRueidisClient(cfg *config.RedisConfig) (rueidis.Client, error) {
 		func() error {
 			var ierr error
 
-			client, ierr = rueidis.NewClient(*roption)
+			client, ierr = rueidis.NewClient(coption)
 
 			return ierr
 		},
@@ -460,10 +460,7 @@ func getRueidisClient(cfg *config.RedisConfig) (rueidis.Client, error) {
 }
 
 func getRueidisLocker(k *Key, cfg *config.RedisConfig) (rueidislock.Locker, error) {
-	loption := rueidislock.LockerOption{
-		ClientOption: *getRueidisClientOption(cfg),
-		KeyPrefix:    k.String(),
-	}
+	loption := cfg.GetLockerOptions(k.String(), fmt.Sprintf("blocky_locker-%s", util.HostnameString()))
 
 	var locker rueidislock.Locker
 

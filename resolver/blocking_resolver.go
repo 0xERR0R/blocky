@@ -146,10 +146,6 @@ func NewBlockingResolver(
 		redisClient:       redisClient,
 	}
 
-	if res.redisClient != nil {
-		setupRedisEnabledSubscriber(res)
-	}
-
 	_ = evt.Bus().Subscribe(evt.ApplicationStarted, func(_ ...string) {
 		go res.initFQDNIPCache()
 	})

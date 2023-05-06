@@ -10,10 +10,6 @@ import (
 	"github.com/rueian/rueidis"
 )
 
-const (
-	groupSubKey = "group"
-)
-
 type RedisGroupedStringCache struct {
 	rdb       *redis.Client
 	groupType string
@@ -27,14 +23,13 @@ func NewRedisGroupedStringCache(groupType string, rdb *redis.Client) *RedisGroup
 }
 
 func (r *RedisGroupedStringCache) groupKey(groupName string) string {
-	return r.rdb.Keys.Cache.NewSubkey(groupSubKey, groupName).String()
+	return r.rdb.Keys.Lists.NewSubkey(r.groupType, groupName).String()
 }
 
 func (r *RedisGroupedStringCache) ElementCount(group string) int {
 	res, err := r.rdb.Client.DoCache(context.Background(),
 		r.rdb.Client.B().Scard().Key(r.groupKey(group)).Cache(),
 		r.rdb.LocalCacheTime.Duration()).ToInt64()
-
 	if err != nil {
 		return 0
 	}
@@ -50,7 +45,6 @@ func (r *RedisGroupedStringCache) Contains(searchString string, groups []string)
 		res, err := r.rdb.Client.DoCache(context.Background(),
 			r.rdb.Client.B().Sismember().Key(r.groupKey(group)).Member(searchString).Cache(),
 			r.rdb.LocalCacheTime.Duration()).AsBool()
-
 		if err != nil {
 			panic(err)
 		}
@@ -67,7 +61,6 @@ func (r *RedisGroupedStringCache) Contains(searchString string, groups []string)
 }
 
 func (r *RedisGroupedStringCache) Refresh(group string) GroupFactory {
-
 	f := &RedisGroupFactory{
 		rdb:       r.rdb,
 		name:      group,
@@ -100,10 +93,10 @@ func (r *RedisGroupFactory) Count() int {
 	return r.cnt
 }
 
-func (r *RedisGroupFactory) Finish() {
-	_ = r.rdb.Client.DoMulti(context.Background(), r.cmds...)
+func (r *RedisGroupFactory) Finish(ctx context.Context) {
+	_ = r.rdb.DoMulti(ctx, r.cmds)
 }
 
 func (r *RedisGroupFactory) groupKey() string {
-	return r.rdb.Keys.Cache.NewSubkey(groupSubKey, r.name).String()
+	return r.rdb.Keys.Lists.NewSubkey(r.groupType, r.name).String()
 }

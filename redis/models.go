@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	second TTL = 10000000
+	second TTL = 1000 * 1000 * 1000
 )
 
 // A TTL is used for conversion of redis key experations.
