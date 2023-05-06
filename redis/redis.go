@@ -24,6 +24,7 @@ const (
 	blockyBaseKey     = "blocky"
 	blockyLockerKey   = "locker"
 	blockyTickerKey   = "ticker"
+	blockyCacheKey    = "cache"
 	SyncChannelName   = "blocky_sync"
 	CacheStorePrefix  = "blocky:cache:"
 	chanCap           = 1000
@@ -64,16 +65,18 @@ type ClientKeys struct {
 	Base   *Key
 	Locker *Key
 	Ticker *Key
+	Cache  *Key
 }
 
 // Client for redis communication
 type Client struct {
 	Keys           *ClientKeys
 	config         *config.RedisConfig
-	client         rueidis.Client
+	Client         rueidis.Client
 	locker         rueidislock.Locker
 	l              *logrus.Entry
 	id             []byte
+	LocalCacheTime TTL
 	sendBuffer     chan *bufferMessage
 	CacheChannel   chan *CacheMessage
 	EnabledChannel chan *EnabledMessage
@@ -93,7 +96,6 @@ func New(ctx context.Context, cfg *config.RedisConfig) (*Client, error) {
 
 	bk := newKey(cfg.Database, blockyBaseKey)
 	lk := bk.NewSubkey(blockyLockerKey)
-	tk := bk.NewSubkey(blockyTickerKey)
 
 	l := log.PrefixedLog("redis")
 
@@ -113,13 +115,15 @@ func New(ctx context.Context, cfg *config.RedisConfig) (*Client, error) {
 		Keys: &ClientKeys{
 			Base:   bk,
 			Locker: lk,
-			Ticker: tk,
+			Ticker: bk.NewSubkey(blockyTickerKey),
+			Cache:  bk.NewSubkey(blockyCacheKey),
 		},
 		config:         cfg,
-		client:         client,
+		Client:         client,
 		locker:         locker,
 		l:              l,
 		id:             id,
+		LocalCacheTime: TTL(cfg.LocalCacheTime),
 		sendBuffer:     make(chan *bufferMessage, chanCap),
 		CacheChannel:   make(chan *CacheMessage, chanCap),
 		EnabledChannel: make(chan *EnabledMessage, chanCap),
@@ -132,7 +136,7 @@ func New(ctx context.Context, cfg *config.RedisConfig) (*Client, error) {
 
 // Close all channels and client
 func (c *Client) Close() {
-	defer c.client.Close()
+	defer c.Client.Close()
 	defer c.locker.Close()
 	defer close(c.sendBuffer)
 	defer close(c.CacheChannel)
@@ -141,7 +145,31 @@ func (c *Client) Close() {
 
 // GetTicker returns a named ticker
 func (c *Client) GetTicker(name string, d time.Duration) (*Ticker, error) {
-	return newTicker(TTL(d), name, c.Keys.Ticker, c.client, c.locker)
+	return newTicker(TTL(d), name, c.Keys.Ticker, c.Client, c.locker)
+}
+
+func (c *Client) RunLocked(ctx context.Context, wait bool, name string, ex func(context.Context)) bool {
+	var lctx context.Context
+	var lcancel func()
+	var lerr error
+
+	if wait {
+		lctx, lcancel, lerr = c.locker.WithContext(ctx, name)
+	} else {
+		lctx, lcancel, lerr = c.locker.TryWithContext(ctx, name)
+	}
+
+	if lerr != nil {
+		c.l.Debug(lerr)
+
+		return false
+	}
+
+	defer lcancel()
+
+	ex(lctx)
+
+	return true
 }
 
 // PublishCache publish cache to redis async
@@ -164,8 +192,8 @@ func (c *Client) PublishEnabled(ctx context.Context, state *EnabledMessage) {
 		})
 
 		if mErr == nil {
-			c.client.Do(ctx,
-				c.client.B().Publish().
+			c.Client.Do(ctx,
+				c.Client.B().Publish().
 					Channel(SyncChannelName).
 					Message(rueidis.BinaryString(binMsg)).
 					Build())
@@ -183,7 +211,7 @@ func (c *Client) GetRedisCache(ctx context.Context) {
 		searchKey := prefixKey("*")
 
 		for {
-			sres, err := c.client.Do(ctx, c.client.B().Scan().Cursor(cursor).Match(searchKey).Count(1).Build()).AsScanEntry()
+			sres, err := c.Client.Do(ctx, c.Client.B().Scan().Cursor(cursor).Match(searchKey).Count(1).Build()).AsScanEntry()
 			if err != nil {
 				c.l.Errorf("could not start a searching through Redis cache: %s", err)
 
@@ -195,7 +223,7 @@ func (c *Client) GetRedisCache(ctx context.Context) {
 			for _, key := range sres.Elements {
 				c.l.Debugf("GetRedisCache: %s", key)
 
-				resp := c.client.Do(ctx, c.client.B().Get().Key(key).Build())
+				resp := c.Client.Do(ctx, c.Client.B().Get().Key(key).Build())
 
 				if resp.Error() == nil {
 					str, err := resp.ToString()
@@ -218,7 +246,7 @@ func (c *Client) GetRedisCache(ctx context.Context) {
 // startup starts a new goroutine for subscription and translation
 func (c *Client) startup(ctx context.Context) {
 	go func() {
-		dc, cancel := c.client.Dedicate()
+		dc, cancel := c.Client.Dedicate()
 		defer cancel()
 
 		wait := dc.SetPubSubHooks(rueidis.PubSubHooks{
@@ -262,15 +290,15 @@ func (c *Client) publishMessageFromBuffer(ctx context.Context, s *bufferMessage)
 		})
 
 		if mErr == nil {
-			c.client.Do(ctx,
-				c.client.B().Publish().
+			c.Client.Do(ctx,
+				c.Client.B().Publish().
 					Channel(SyncChannelName).
 					Message(rueidis.BinaryString(binMsg)).
 					Build())
 		}
 
-		c.client.Do(ctx,
-			c.client.B().Setex().
+		c.Client.Do(ctx,
+			c.Client.B().Setex().
 				Key(prefixKey(s.Key)).
 				Seconds(int64(c.getTTL(origRes).Seconds())).
 				Value(rueidis.BinaryString(binRes)).
@@ -319,10 +347,10 @@ func (c *Client) processEnabledMessage(redisMsg *redisMessage) error {
 
 // getResponse returns model.Response for a key
 func (c *Client) getResponse(ctx context.Context, key string) (*CacheMessage, error) {
-	resp, err := c.client.Do(ctx, c.client.B().Get().Key(key).Build()).AsBytes()
+	resp, err := c.Client.Do(ctx, c.Client.B().Get().Key(key).Build()).AsBytes()
 	if err == nil {
-		uittl, err := c.client.Do(ctx,
-			c.client.B().Ttl().
+		uittl, err := c.Client.Do(ctx,
+			c.Client.B().Ttl().
 				Key(key).
 				Build()).AsUint64()
 		ttl := time.Second * time.Duration(uittl)

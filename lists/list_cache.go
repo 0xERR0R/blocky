@@ -54,16 +54,16 @@ type ListCache struct {
 }
 
 // LogConfig implements `config.Configurable`.
-func (b *ListCache) LogConfig(logger *logrus.Entry) {
+func (b *ListCache) LogConfig(l *logrus.Entry) {
 	var total int
 
 	for group := range b.groupToLinks {
 		count := b.groupedCache.ElementCount(group)
-		logger.Infof("%s: %d entries", group, count)
+		l.Infof("%s: %d entries", group, count)
 		total += count
 	}
 
-	logger.Infof("TOTAL: %d entries", total)
+	l.Infof("TOTAL: %d entries", total)
 }
 
 // NewListCache creates new list instance
@@ -75,11 +75,21 @@ func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeri
 		processingConcurrency = defaultProcessingConcurrency
 	}
 
-	b := &ListCache{
-		groupedCache: stringcache.NewChainedGroupedCache(
+	var groupedCache stringcache.GroupedStringCache
+	if redisClient != nil {
+		// redis
+		groupedCache = stringcache.NewChainedGroupedCache(
+			stringcache.NewRedisGroupedStringCache(t.String(), redisClient),
+			stringcache.NewInMemoryGroupedRegexCache())
+	} else {
+		// in-memory
+		groupedCache = stringcache.NewChainedGroupedCache(
 			stringcache.NewInMemoryGroupedStringCache(),
-			stringcache.NewInMemoryGroupedRegexCache(),
-		),
+			stringcache.NewInMemoryGroupedRegexCache())
+	}
+
+	b := &ListCache{
+		groupedCache:          groupedCache,
 		groupToLinks:          groupToLinks,
 		refreshPeriod:         refreshPeriod,
 		downloader:            downloader,
@@ -223,15 +233,15 @@ func (b *ListCache) refresh(isInit bool) error {
 		count := b.groupedCache.ElementCount(group)
 
 		if !created {
-			logger := logger().WithFields(logrus.Fields{
+			l := logger().WithFields(logrus.Fields{
 				"group":       group,
 				"total_count": count,
 			})
 
 			if count == 0 || isInit {
-				logger.Warn("Populating of group cache failed, cache will be empty until refresh succeeds")
+				l.Warn("Populating of group cache failed, cache will be empty until refresh succeeds")
 			} else {
-				logger.Warn("Populating of group cache failed, using existing cache, if any")
+				l.Warn("Populating of group cache failed, using existing cache, if any")
 			}
 
 			continue
@@ -259,7 +269,7 @@ func readFile(file string) (io.ReadCloser, error) {
 func (b *ListCache) parseFile(ctx context.Context, name, link string, resultCh chan<- string) error {
 	count := 0
 
-	logger := func() *logrus.Entry {
+	l := func() *logrus.Entry {
 		return logger().WithFields(logrus.Fields{
 			"source": name,
 			"count":  count,
@@ -268,7 +278,7 @@ func (b *ListCache) parseFile(ctx context.Context, name, link string, resultCh c
 
 	r, err := b.newLinkReader(link)
 	if err != nil {
-		logger().Error("cannot open source: ", err)
+		l().Error("cannot open source: ", err)
 
 		return err
 	}
@@ -276,7 +286,7 @@ func (b *ListCache) parseFile(ctx context.Context, name, link string, resultCh c
 
 	p := parsers.AllowErrors(parsers.Hosts(r), b.maxErrorsPerFile)
 	p.OnErr(func(err error) {
-		logger().Warnf("parse error: %s, trying to continue", err)
+		l().Warnf("parse error: %s, trying to continue", err)
 	})
 
 	err = parsers.ForEach[*parsers.HostsIterator](ctx, p, func(hosts *parsers.HostsIterator) error {
@@ -298,7 +308,7 @@ func (b *ListCache) parseFile(ctx context.Context, name, link string, resultCh c
 	if err != nil {
 		// Don't log cancelation: it was caused by another goroutine failing
 		if !errors.Is(err, context.Canceled) {
-			logger().Error("parse error: ", err)
+			l().Error("parse error: ", err)
 		}
 
 		// Only propagate the error if no entries were parsed
@@ -311,7 +321,7 @@ func (b *ListCache) parseFile(ctx context.Context, name, link string, resultCh c
 		return nil
 	}
 
-	logger().Info("import succeeded")
+	l().Info("import succeeded")
 
 	return nil
 }
