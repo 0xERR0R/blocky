@@ -88,8 +88,8 @@ func initConfig() {
 
 	log.ConfigureLogger(&cfg.Log)
 
-	if len(cfg.HTTPPorts) != 0 {
-		split := strings.Split(cfg.HTTPPorts[0], ":")
+	if len(cfg.Ports.HTTP) != 0 {
+		split := strings.Split(cfg.Ports.HTTP[0], ":")
 
 		lastIdx := len(split) - 1
 
