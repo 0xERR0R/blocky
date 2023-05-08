@@ -6,7 +6,7 @@ func NewNoneWriter() *NoneWriter {
 	return &NoneWriter{}
 }
 
-func (d *NoneWriter) Write(entry *LogEntry) {
+func (d *NoneWriter) Write(*LogEntry) {
 	// Nothing to do
 }
 

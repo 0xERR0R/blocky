@@ -25,6 +25,7 @@ func NewHealthcheckCommand() *cobra.Command {
 }
 
 func healthcheck(cmd *cobra.Command, args []string) error {
+	_ = args
 	port, _ := cmd.Flags().GetUint16("port")
 
 	c := new(dns.Client)
