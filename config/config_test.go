@@ -550,6 +550,7 @@ func defaultTestFileConfig() {
 	Expect(config.Blocking.BlockTTL).Should(Equal(Duration(time.Minute)))
 	Expect(config.Blocking.RefreshPeriod).Should(Equal(Duration(2 * time.Hour)))
 	Expect(config.Filtering.QueryTypes).Should(HaveLen(2))
+	Expect(config.FqdnOnly.Enable).Should(BeTrue())
 
 	Expect(config.Caching.MaxCachingTime.IsZero()).Should(BeTrue())
 	Expect(config.Caching.MinCachingTime.IsZero()).Should(BeTrue())
@@ -580,6 +581,8 @@ func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {
 		"  queryTypes:",
 		"    - AAAA",
 		"    - A",
+		"fqdnOnly:",
+		"  enable: true",
 		"blocking:",
 		"  blackLists:",
 		"    ads:",
@@ -668,6 +671,8 @@ func writeConfigDir(tmpDir *helpertest.TmpFolder) error {
 		"  singleNameOrder:",
 		"    - 2",
 		"    - 1",
+		"fqdnOnly:",
+		"  enable: true",
 		"queryLog:",
 		"  type: csv-client",
 		"  target: /opt/log",
