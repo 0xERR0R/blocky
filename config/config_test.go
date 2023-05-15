@@ -620,6 +620,7 @@ func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {
 		"startVerifyUpstream: false")
 }
 
+//nolint:funlen
 func writeConfigDir(tmpDir *helpertest.TmpFolder) error {
 	f1 := tmpDir.CreateStringFile("config1.yaml",
 		"upstream:",
