@@ -17,7 +17,7 @@
         <link rel="next" href="../installation/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.9">
+      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.12">
     
     
       
@@ -1181,6 +1181,7 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="c1"># if https port &gt; 0: path to cert and key file for SSL encryption. if not set, self-signed certificate will be generated</span>
 <span class="c1">#certFile: server.crt</span>
 <span class="c1">#keyFile: server.key</span>
+
 <span class="c1"># optional: use these DNS servers to resolve blacklist urls and upstream DNS servers. It is useful if no system DNS resolver is configured, and/or to encrypt the bootstrap queries.</span>
 <span class="nt">bootstrapDns</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tcp+udp:1.1.1.1</span>
@@ -1193,6 +1194,11 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="nt">filtering</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">queryTypes</span><span class="p">:</span>
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AAAA</span>
+
+<span class="c1"># optional: return NXDOMAIN for queries that are not FQDNs.</span>
+<span class="nt">fqdnOnly</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># default: false</span>
+<span class="w">  </span><span class="nt">enable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 
 <span class="c1"># optional: if path defined, use this file for query resolution (A, AAAA and rDNS). Default: empty</span>
 <span class="nt">hostsFile</span><span class="p">:</span>
@@ -1544,7 +1550,8 @@ with <abbr title="Non-Existence Domain">NXDOMAIN</abbr> if the request is not a 
 Please be aware that by enabling it your hostname resolution will break unless every hostname is part of a domain.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><pre><span></span><code><span class="nt">fqdnOnly</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<div class="highlight"><pre><span></span><code><span class="nt">fqdnOnly</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
 </div>
 <h2 id="custom-dns">Custom <abbr title="Domain Name System">DNS</abbr></h2>
@@ -2409,7 +2416,7 @@ for detailed information, how to create and configure <abbr title="Secure Socket
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.208ed371.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.fac441b0.min.js"></script>
+      <script src="../assets/javascripts/bundle.c2be25ad.min.js"></script>
       
     
   </body>
