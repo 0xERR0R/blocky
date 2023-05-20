@@ -671,6 +671,24 @@ Configuration parameters:
       enable: true
     ```
 
+## Special Use Domain Names
+
+SUDN (Special Use Domain Names) are always enabled as they are required by various RFCs.  
+Some RFCs have optional recommendations, which are configurable as described below.
+
+Configuration parameters:
+
+| Parameter                           | Type | Mandatory | Default value | Description                                                                                   |
+|-------------------------------------|------|-----------|---------------|-----------------------------------------------------------------------------------------------|
+| specialUseDomains.rfc6762-appendixG | bool | no        | true          | Block TLDs listed in [RFC 6762 Appendix G](https://www.rfc-editor.org/rfc/rfc6762#appendix-G) |
+
+!!! example
+
+    ```yaml
+    specialUseDomains:
+      rfc6762-appendixG: true
+    ```
+
 ## SSL certificate configuration (DoH / TLS listener)
 
 See [Wiki - Configuration of HTTPS](https://github.com/0xERR0R/blocky/wiki/Configuration-of-HTTPS-for-DoH-and-Rest-API)

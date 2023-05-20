@@ -319,3 +319,9 @@ log:
 ede:
   # enabled if true, Default: false
   enable: true
+
+# optional: configure optional Special Use Domain Names (SUDN)
+specialUseDomains:
+  # optional: block recomended private TLDs
+  # default: true
+  rfc6762-appendixG: true

@@ -425,7 +425,7 @@ func createQueryResolver(
 		blocking,
 		resolver.NewCachingResolver(cfg.Caching, redisClient),
 		resolver.NewRewriterResolver(cfg.Conditional.RewriterConfig, condUpstream),
-		resolver.NewSpecialUseDomainNamesResolver(),
+		resolver.NewSpecialUseDomainNamesResolver(cfg.SUDN),
 		parallel,
 	)
 
