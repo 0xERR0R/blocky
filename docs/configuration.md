@@ -195,7 +195,8 @@ Please be aware that by enabling it your hostname resolution will break unless e
 !!! example
 
     ```yaml
-    fqdnOnly: true
+    fqdnOnly:
+      enable: true
     ```
 
 ## Custom DNS
