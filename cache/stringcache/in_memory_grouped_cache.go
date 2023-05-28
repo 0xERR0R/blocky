@@ -55,7 +55,7 @@ func (c *InMemoryGroupedCache) Contains(searchString string, groups []string) []
 	return result
 }
 
-func (c *InMemoryGroupedCache) Refresh(group string) GroupFactory {
+func (c *InMemoryGroupedCache) Refresh(_ context.Context, group string) GroupFactory {
 	return &inMemoryGroupFactory{
 		factory: c.factoryFn(),
 		finishFn: func(sc stringCache) {
@@ -79,7 +79,7 @@ func (c *inMemoryGroupFactory) Count() int {
 	return c.factory.count()
 }
 
-func (c *inMemoryGroupFactory) Finish(_ context.Context) {
+func (c *inMemoryGroupFactory) Finish() {
 	sc := c.factory.create()
 	c.finishFn(sc)
 }

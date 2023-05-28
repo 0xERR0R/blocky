@@ -9,7 +9,7 @@ type GroupedStringCache interface {
 
 	// Refresh creates new factory for the group to be refreshed.
 	// Calling Finish on the factory will perform the group refresh.
-	Refresh(group string) GroupFactory
+	Refresh(ctx context.Context, group string) GroupFactory
 
 	// ElementCount returns the amount of elements in the group
 	ElementCount(group string) int
@@ -23,5 +23,5 @@ type GroupFactory interface {
 	Count() int
 
 	// Finish replaces the group in cache with factory's content
-	Finish(ctx context.Context)
+	Finish()
 }

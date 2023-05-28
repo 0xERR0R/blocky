@@ -42,10 +42,10 @@ func (c *ChainedGroupedCache) Contains(searchString string, groups []string) []s
 	return matchedGroups
 }
 
-func (c *ChainedGroupedCache) Refresh(group string) GroupFactory {
+func (c *ChainedGroupedCache) Refresh(ctx context.Context, group string) GroupFactory {
 	cacheFactories := make([]GroupFactory, len(c.caches))
 	for i, cache := range c.caches {
-		cacheFactories[i] = cache.Refresh(group)
+		cacheFactories[i] = cache.Refresh(ctx, group)
 	}
 
 	return &chainedGroupFactory{
@@ -72,8 +72,8 @@ func (c *chainedGroupFactory) Count() int {
 	return cnt
 }
 
-func (c *chainedGroupFactory) Finish(ctx context.Context) {
+func (c *chainedGroupFactory) Finish() {
 	for _, factory := range c.cacheFactories {
-		factory.Finish(ctx)
+		factory.Finish()
 	}
 }

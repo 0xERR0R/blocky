@@ -2,12 +2,19 @@ package stringcache
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/redis"
 	"github.com/hako/durafmt"
 	"github.com/rueian/rueidis"
+)
+
+const (
+	workSubKey = "in_progress"
+	numWorkers = 10
+	chunkSize  = 100000
 )
 
 type RedisGroupedStringCache struct {
@@ -61,17 +68,23 @@ func (r *RedisGroupedStringCache) Contains(searchString string, groups []string)
 	return result
 }
 
-func (r *RedisGroupedStringCache) Refresh(group string) GroupFactory {
+func (r *RedisGroupedStringCache) Refresh(ctx context.Context, group string) GroupFactory {
 	f := &RedisGroupFactory{
 		rdb:       r.rdb,
 		name:      group,
-		cmds:      rueidis.Commands{},
+		cmds:      make(chan rueidis.Commands),
 		groupType: r.groupType,
+		key:       r.rdb.Keys.Lists.NewSubkey(r.groupType, group).String(),
+		workKey:   r.rdb.Keys.Lists.NewSubkey(r.groupType, workSubKey, group).String(),
+		ctx:       ctx,
+		cnt:       0,
+		wg:        sync.WaitGroup{},
 	}
 
-	f.cmds = append(f.cmds,
-		r.rdb.Client.B().Del().Key(f.groupKey()).Build(),
-		r.rdb.Client.B().Del().Key(r.groupKey(group)).Build())
+	f.rdb.Client.Do(f.ctx,
+		f.rdb.Client.B().Del().Key(f.workKey).Build())
+
+	f.startWorker()
 
 	return f
 }
@@ -80,13 +93,16 @@ type RedisGroupFactory struct {
 	rdb       *redis.Client
 	name      string
 	groupType string
-	cmds      rueidis.Commands
 	cnt       int
+	key       string
+	workKey   string
+	ctx       context.Context
+	cmds      chan rueidis.Commands
+	wg        sync.WaitGroup
 }
 
 func (r *RedisGroupFactory) AddEntry(entry string) {
-	r.cmds = append(r.cmds,
-		r.rdb.Client.B().Sadd().Key(r.groupKey()).Member(entry).Build())
+	r.cmds <- rueidis.Commands{r.rdb.Client.B().Sadd().Key(r.workKey).Member(entry).Build()}
 	r.cnt++
 }
 
@@ -94,10 +110,49 @@ func (r *RedisGroupFactory) Count() int {
 	return r.cnt
 }
 
-func (r *RedisGroupFactory) Finish(ctx context.Context) {
-	_ = r.rdb.DoMulti(ctx, r.cmds)
+func (r *RedisGroupFactory) Finish() {
+	close(r.cmds)
+
+	r.wg.Wait()
+
+	_ = r.rdb.Client.Do(r.ctx,
+		r.rdb.Client.B().Rename().Key(r.workKey).Newkey(r.key).Build())
 }
 
-func (r *RedisGroupFactory) groupKey() string {
-	return r.rdb.Keys.Lists.NewSubkey(r.groupType, r.name).String()
+func (r *RedisGroupFactory) startWorker() {
+	r.wg.Add(numWorkers)
+	for i := 0; i < numWorkers; i++ {
+		go r.worker()
+	}
+}
+
+func (r *RedisGroupFactory) worker() {
+	defer r.wg.Done()
+	wcmds := rueidis.Commands{}
+	for {
+		select {
+		case <-r.ctx.Done():
+			return
+		case cmd, ok := <-r.cmds:
+			wcmds = append(wcmds, cmd...)
+			if len(wcmds) >= chunkSize {
+				_ = r.rdb.Client.DoMulti(r.ctx, wcmds...)
+				wcmds = rueidis.Commands{}
+			}
+
+			if !ok {
+				if len(wcmds) > 0 {
+					_ = r.rdb.Client.DoMulti(r.ctx, wcmds...)
+				}
+				for cmd2 := range r.cmds {
+					wcmds = append(wcmds, cmd2...)
+					if len(wcmds) >= chunkSize {
+						_ = r.rdb.Client.DoMulti(r.ctx, wcmds...)
+						wcmds = rueidis.Commands{}
+					}
+				}
+				return
+			}
+		}
+	}
 }

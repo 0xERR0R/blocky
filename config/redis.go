@@ -77,6 +77,7 @@ func (c *RedisConfig) GetLockerOptions(key, name string) rueidislock.LockerOptio
 		KeyPrefix:      key,
 		NoLoopTracking: true,
 		FallbackSETPX:  false,
+		KeyMajority:    4,
 	}
 
 	return res

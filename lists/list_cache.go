@@ -159,7 +159,7 @@ func (b *ListCache) createCacheForGroup(group string, links []string) (created b
 		return true, nil
 	}
 
-	groupFactory := b.groupedCache.Refresh(group)
+	groupFactory := b.groupedCache.Refresh(ctx, group)
 
 	fileLinesChan := make(chan string, chanCap)
 	errChan := make(chan error, chanCap)
@@ -219,7 +219,7 @@ Loop:
 		return false, err
 	}
 
-	groupFactory.Finish(ctx)
+	groupFactory.Finish()
 
 	return true, err
 }
