@@ -18,11 +18,14 @@ import (
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/lists/parsers"
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/redis"
 )
 
 const (
 	defaultProcessingConcurrency = 4
 	chanCap                      = 1000
+	listRefreshTickerName        = "listCacheRefresh"
 )
 
 // ListCacheType represents the type of cached list ENUM(
@@ -47,40 +50,53 @@ type ListCache struct {
 	listType              ListCacheType
 	processingConcurrency uint
 	maxErrorsPerFile      int
+	redis                 *redis.Client
 }
 
 // LogConfig implements `config.Configurable`.
-func (b *ListCache) LogConfig(logger *logrus.Entry) {
+func (b *ListCache) LogConfig(l *logrus.Entry) {
 	var total int
 
 	for group := range b.groupToLinks {
 		count := b.groupedCache.ElementCount(group)
-		logger.Infof("%s: %d entries", group, count)
+		l.Infof("%s: %d entries", group, count)
 		total += count
 	}
 
-	logger.Infof("TOTAL: %d entries", total)
+	l.Infof("TOTAL: %d entries", total)
 }
 
 // NewListCache creates new list instance
 func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration,
 	downloader FileDownloader, processingConcurrency uint, async bool, maxErrorsPerFile int,
+	redisClient *redis.Client,
 ) (*ListCache, error) {
 	if processingConcurrency == 0 {
 		processingConcurrency = defaultProcessingConcurrency
 	}
 
-	b := &ListCache{
-		groupedCache: stringcache.NewChainedGroupedCache(
+	var groupedCache stringcache.GroupedStringCache
+	if redisClient != nil {
+		// redis
+		groupedCache = stringcache.NewChainedGroupedCache(
+			stringcache.NewRedisGroupedStringCache(t.String(), redisClient),
+			stringcache.NewInMemoryGroupedRegexCache())
+	} else {
+		// in-memory
+		groupedCache = stringcache.NewChainedGroupedCache(
 			stringcache.NewInMemoryGroupedStringCache(),
-			stringcache.NewInMemoryGroupedRegexCache(),
-		),
+			stringcache.NewInMemoryGroupedRegexCache())
+	}
+
+	b := &ListCache{
+		groupedCache:          groupedCache,
 		groupToLinks:          groupToLinks,
 		refreshPeriod:         refreshPeriod,
 		downloader:            downloader,
 		listType:              t,
 		processingConcurrency: processingConcurrency,
 		maxErrorsPerFile:      maxErrorsPerFile,
+		redis:                 redisClient,
 	}
 
 	var initError error
@@ -103,11 +119,17 @@ func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeri
 // periodicUpdate triggers periodical refresh (and download) of list entries
 func periodicUpdate(cache *ListCache) {
 	if cache.refreshPeriod > 0 {
-		ticker := time.NewTicker(cache.refreshPeriod)
+		var ticker model.TickerWrapper
+		if cache.redis != nil {
+			ticker, _ = cache.redis.GetTicker(listRefreshTickerName, cache.refreshPeriod)
+		} else {
+			ticker = model.NewTimeTicker(cache.refreshPeriod)
+		}
+
 		defer ticker.Stop()
 
 		for {
-			<-ticker.C
+			<-ticker.C()
 			cache.Refresh()
 		}
 	}
@@ -121,7 +143,23 @@ func logger() *logrus.Entry {
 //
 //nolint:funlen // will refactor in a later commit
 func (b *ListCache) createCacheForGroup(group string, links []string) (created bool, err error) {
-	groupFactory := b.groupedCache.Refresh(group)
+	var ctx context.Context
+
+	var cancel func()
+
+	if b.redis != nil {
+		ctx, cancel, err = b.redis.Locker.TryWithContext(context.Background(), fmt.Sprintf("refresh-%s", group))
+	} else {
+		ctx, cancel = context.WithCancel(context.Background())
+	}
+
+	defer cancel()
+
+	if b.redis != nil && err != nil {
+		return true, nil
+	}
+
+	groupFactory := b.groupedCache.Refresh(ctx, group)
 
 	fileLinesChan := make(chan string, chanCap)
 	errChan := make(chan error, chanCap)
@@ -132,9 +170,6 @@ func (b *ListCache) createCacheForGroup(group string, links []string) (created b
 	guard := make(chan struct{}, b.processingConcurrency)
 
 	processingLinkJobs := len(links)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	// loop over links (http/local) or inline definitions
 	// start a new goroutine for each link, but limit to max. number (see processingConcurrency)
@@ -203,6 +238,11 @@ func (b *ListCache) refresh(isInit bool) error {
 	var err error
 
 	for group, links := range b.groupToLinks {
+		// skip initial refresh if group already contains elements in redis
+		if isInit && b.redis != nil && b.groupedCache.ElementCount(group) > 0 {
+			continue
+		}
+
 		created, e := b.createCacheForGroup(group, links)
 		if e != nil {
 			err = multierror.Append(err, multierror.Prefix(e, fmt.Sprintf("can't create cache group '%s':", group)))
@@ -211,15 +251,15 @@ func (b *ListCache) refresh(isInit bool) error {
 		count := b.groupedCache.ElementCount(group)
 
 		if !created {
-			logger := logger().WithFields(logrus.Fields{
+			l := logger().WithFields(logrus.Fields{
 				"group":       group,
 				"total_count": count,
 			})
 
 			if count == 0 || isInit {
-				logger.Warn("Populating of group cache failed, cache will be empty until refresh succeeds")
+				l.Warn("Populating of group cache failed, cache will be empty until refresh succeeds")
 			} else {
-				logger.Warn("Populating of group cache failed, using existing cache, if any")
+				l.Warn("Populating of group cache failed, using existing cache, if any")
 			}
 
 			continue
@@ -247,7 +287,7 @@ func readFile(file string) (io.ReadCloser, error) {
 func (b *ListCache) parseFile(ctx context.Context, name, link string, resultCh chan<- string) error {
 	count := 0
 
-	logger := func() *logrus.Entry {
+	l := func() *logrus.Entry {
 		return logger().WithFields(logrus.Fields{
 			"source": name,
 			"count":  count,
@@ -256,7 +296,7 @@ func (b *ListCache) parseFile(ctx context.Context, name, link string, resultCh c
 
 	r, err := b.newLinkReader(link)
 	if err != nil {
-		logger().Error("cannot open source: ", err)
+		l().Error("cannot open source: ", err)
 
 		return err
 	}
@@ -264,7 +304,7 @@ func (b *ListCache) parseFile(ctx context.Context, name, link string, resultCh c
 
 	p := parsers.AllowErrors(parsers.Hosts(r), b.maxErrorsPerFile)
 	p.OnErr(func(err error) {
-		logger().Warnf("parse error: %s, trying to continue", err)
+		l().Warnf("parse error: %s, trying to continue", err)
 	})
 
 	err = parsers.ForEach[*parsers.HostsIterator](ctx, p, func(hosts *parsers.HostsIterator) error {
@@ -286,7 +326,7 @@ func (b *ListCache) parseFile(ctx context.Context, name, link string, resultCh c
 	if err != nil {
 		// Don't log cancelation: it was caused by another goroutine failing
 		if !errors.Is(err, context.Canceled) {
-			logger().Error("parse error: ", err)
+			l().Error("parse error: ", err)
 		}
 
 		// Only propagate the error if no entries were parsed
@@ -299,7 +339,7 @@ func (b *ListCache) parseFile(ctx context.Context, name, link string, resultCh c
 		return nil
 	}
 
-	logger().Info("import succeeded")
+	l().Info("import succeeded")
 
 	return nil
 }

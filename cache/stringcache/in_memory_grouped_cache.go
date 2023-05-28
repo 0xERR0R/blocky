@@ -1,6 +1,9 @@
 package stringcache
 
-import "sync"
+import (
+	"context"
+	"sync"
+)
 
 type stringCacheFactoryFn func() cacheFactory
 
@@ -52,7 +55,7 @@ func (c *InMemoryGroupedCache) Contains(searchString string, groups []string) []
 	return result
 }
 
-func (c *InMemoryGroupedCache) Refresh(group string) GroupFactory {
+func (c *InMemoryGroupedCache) Refresh(_ context.Context, group string) GroupFactory {
 	return &inMemoryGroupFactory{
 		factory: c.factoryFn(),
 		finishFn: func(sc stringCache) {

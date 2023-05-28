@@ -95,7 +95,7 @@ type BlockingResolver struct {
 
 // NewBlockingResolver returns a new configured instance of the resolver
 func NewBlockingResolver(
-	cfg config.BlockingConfig, redis *redis.Client, bootstrap *Bootstrap,
+	cfg config.BlockingConfig, redisClient *redis.Client, bootstrap *Bootstrap,
 ) (r *BlockingResolver, err error) {
 	blockHandler, err := createBlockHandler(cfg)
 	if err != nil {
@@ -106,10 +106,10 @@ func NewBlockingResolver(
 	downloader := createDownloader(cfg, bootstrap)
 	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists,
 		refreshPeriod, downloader, cfg.ProcessingConcurrency,
-		(cfg.StartStrategy == config.StartStrategyTypeFast), cfg.MaxErrorsPerFile)
+		(cfg.StartStrategy == config.StartStrategyTypeFast), cfg.MaxErrorsPerFile, redisClient)
 	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists,
 		refreshPeriod, downloader, cfg.ProcessingConcurrency,
-		(cfg.StartStrategy == config.StartStrategyTypeFast), cfg.MaxErrorsPerFile)
+		(cfg.StartStrategy == config.StartStrategyTypeFast), cfg.MaxErrorsPerFile, redisClient)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
 	err = multierror.Append(err, blErr, wlErr).ErrorOrNil()
@@ -143,11 +143,7 @@ func NewBlockingResolver(
 			enableTimer: time.NewTimer(0),
 		},
 		clientGroupsBlock: cgb,
-		redisClient:       redis,
-	}
-
-	if res.redisClient != nil {
-		setupRedisEnabledSubscriber(res)
+		redisClient:       redisClient,
 	}
 
 	_ = evt.Bus().Subscribe(evt.ApplicationStarted, func(_ ...string) {
@@ -164,25 +160,6 @@ func createDownloader(cfg config.BlockingConfig, bootstrap *Bootstrap) *lists.HT
 		lists.WithCooldown(cfg.DownloadCooldown.ToDuration()),
 		lists.WithTransport(bootstrap.NewHTTPTransport()),
 	)
-}
-
-func setupRedisEnabledSubscriber(c *BlockingResolver) {
-	go func() {
-		for em := range c.redisClient.EnabledChannel {
-			if em != nil {
-				c.log().Debug("Received state from redis: ", em)
-
-				if em.State {
-					c.internalEnableBlocking()
-				} else {
-					err := c.internalDisableBlocking(em.Duration, em.Groups)
-					if err != nil {
-						c.log().Warn("Blocking couldn't be disabled:", err)
-					}
-				}
-			}
-		}
-	}()
 }
 
 // RefreshLists triggers the refresh of all black and white lists in the cache

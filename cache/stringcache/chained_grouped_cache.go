@@ -1,6 +1,7 @@
 package stringcache
 
 import (
+	"context"
 	"sort"
 
 	"golang.org/x/exp/maps"
@@ -41,10 +42,10 @@ func (c *ChainedGroupedCache) Contains(searchString string, groups []string) []s
 	return matchedGroups
 }
 
-func (c *ChainedGroupedCache) Refresh(group string) GroupFactory {
+func (c *ChainedGroupedCache) Refresh(ctx context.Context, group string) GroupFactory {
 	cacheFactories := make([]GroupFactory, len(c.caches))
 	for i, cache := range c.caches {
-		cacheFactories[i] = cache.Refresh(group)
+		cacheFactories[i] = cache.Refresh(ctx, group)
 	}
 
 	return &chainedGroupFactory{

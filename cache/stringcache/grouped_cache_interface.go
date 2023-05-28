@@ -1,5 +1,7 @@
 package stringcache
 
+import "context"
+
 type GroupedStringCache interface {
 	// Contains checks if one or more groups in the cache contains the search string.
 	// Returns group(s) containing the string or empty slice if string was not found
@@ -7,7 +9,7 @@ type GroupedStringCache interface {
 
 	// Refresh creates new factory for the group to be refreshed.
 	// Calling Finish on the factory will perform the group refresh.
-	Refresh(group string) GroupFactory
+	Refresh(ctx context.Context, group string) GroupFactory
 
 	// ElementCount returns the amount of elements in the group
 	ElementCount(group string) int

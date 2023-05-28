@@ -454,7 +454,7 @@ func (s *Server) printConfiguration() {
 	if s.redisClient != nil {
 		logger().Info("redis:")
 
-		s.cfg.Redis.LogConfig(logger())
+		log.WithIndent(logger(), "  ", s.cfg.Redis.LogConfig)
 	}
 
 	logger().Info("runtime information:")

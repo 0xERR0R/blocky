@@ -59,7 +59,8 @@ var _ = Describe("ListCache", func() {
 					"gr0": {emptyFile.Path},
 				}
 				sut, err := NewListCache(
-					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile,
+					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency,
+					false, maxErrorsPerFile, nil,
 				)
 				Expect(err).Should(Succeed())
 
@@ -74,7 +75,8 @@ var _ = Describe("ListCache", func() {
 					"gr1": {emptyFile.Path},
 				}
 				sut, err := NewListCache(
-					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile,
+					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency,
+					false, maxErrorsPerFile, nil,
 				)
 				Expect(err).Should(Succeed())
 
@@ -100,6 +102,7 @@ var _ = Describe("ListCache", func() {
 					defaultProcessingConcurrency,
 					false,
 					maxErrorsPerFile,
+					nil,
 				)
 				Expect(err).Should(Succeed())
 
@@ -126,7 +129,7 @@ var _ = Describe("ListCache", func() {
 				}
 
 				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
-					defaultProcessingConcurrency, false, maxErrorsPerFile)
+					defaultProcessingConcurrency, false, maxErrorsPerFile, nil)
 				Expect(err).Should(Succeed())
 
 				group := sut.Match("inlinedomain1.com", []string{"gr1"})
@@ -156,6 +159,7 @@ var _ = Describe("ListCache", func() {
 					defaultProcessingConcurrency,
 					false,
 					maxErrorsPerFile,
+					nil,
 				)
 				Expect(err).Should(Succeed())
 
@@ -194,7 +198,7 @@ var _ = Describe("ListCache", func() {
 				}
 
 				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, mockDownloader,
-					defaultProcessingConcurrency, false, maxErrorsPerFile)
+					defaultProcessingConcurrency, false, maxErrorsPerFile, nil)
 				Expect(err).Should(Succeed())
 
 				By("Lists loaded without err", func() {
@@ -218,7 +222,8 @@ var _ = Describe("ListCache", func() {
 				}
 
 				sut, _ := NewListCache(
-					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile,
+					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency,
+					false, maxErrorsPerFile, nil,
 				)
 
 				group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
@@ -239,7 +244,8 @@ var _ = Describe("ListCache", func() {
 				}
 
 				sut, _ := NewListCache(
-					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile,
+					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency,
+					false, maxErrorsPerFile, nil,
 				)
 
 				group := sut.Match("blocked1.com", []string{"gr1", "gr2"})
@@ -265,7 +271,8 @@ var _ = Describe("ListCache", func() {
 				})
 
 				sut, err := NewListCache(
-					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile,
+					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency,
+					false, maxErrorsPerFile, nil,
 				)
 				Expect(err).Should(Succeed())
 
@@ -282,7 +289,8 @@ var _ = Describe("ListCache", func() {
 				}
 
 				sut, err := NewListCache(
-					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency, false, maxErrorsPerFile,
+					ListCacheTypeBlacklist, lists, 0, NewDownloader(), defaultProcessingConcurrency,
+					false, maxErrorsPerFile, nil,
 				)
 				Expect(err).Should(Succeed())
 
@@ -309,7 +317,7 @@ var _ = Describe("ListCache", func() {
 				}
 
 				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
-					defaultProcessingConcurrency, false, maxErrorsPerFile)
+					defaultProcessingConcurrency, false, maxErrorsPerFile, nil)
 				Expect(err).Should(Succeed())
 
 				Expect(sut.groupedCache.ElementCount("gr1")).Should(Equal(lines1 + lines2 + lines3))
@@ -326,7 +334,7 @@ var _ = Describe("ListCache", func() {
 				}
 
 				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
-					defaultProcessingConcurrency, false, maxErrorsPerFile)
+					defaultProcessingConcurrency, false, maxErrorsPerFile, nil)
 				Expect(err).Should(Succeed())
 
 				Expect(sut.groupedCache.ElementCount("gr1")).Should(Equal(2))
@@ -349,7 +357,7 @@ var _ = Describe("ListCache", func() {
 				}
 
 				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
-					defaultProcessingConcurrency, false, maxErrorsPerFile)
+					defaultProcessingConcurrency, false, maxErrorsPerFile, nil)
 				Expect(err).Should(Succeed())
 
 				group := sut.Match("inlinedomain1.com", []string{"gr1"})
@@ -368,7 +376,7 @@ var _ = Describe("ListCache", func() {
 				}
 
 				_, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
-					defaultProcessingConcurrency, false, maxErrorsPerFile)
+					defaultProcessingConcurrency, false, maxErrorsPerFile, nil)
 				Expect(err).ShouldNot(Succeed())
 				Expect(err).Should(MatchError(parsers.ErrTooManyErrors))
 			})
@@ -380,7 +388,7 @@ var _ = Describe("ListCache", func() {
 				}
 
 				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
-					defaultProcessingConcurrency, false, maxErrorsPerFile)
+					defaultProcessingConcurrency, false, maxErrorsPerFile, nil)
 				Expect(err).Should(Succeed())
 
 				group := sut.Match("inlinedomain1.com", []string{"gr1"})
@@ -394,7 +402,7 @@ var _ = Describe("ListCache", func() {
 				}
 
 				sut, err := NewListCache(ListCacheTypeBlacklist, lists, 0, NewDownloader(),
-					defaultProcessingConcurrency, false, maxErrorsPerFile)
+					defaultProcessingConcurrency, false, maxErrorsPerFile, nil)
 				Expect(err).Should(Succeed())
 
 				group := sut.Match("apple.com", []string{"gr1"})
@@ -422,7 +430,7 @@ var _ = Describe("ListCache", func() {
 			}
 
 			sut, err := NewListCache(ListCacheTypeBlacklist, lists, time.Hour, NewDownloader(),
-				defaultProcessingConcurrency, false, maxErrorsPerFile)
+				defaultProcessingConcurrency, false, maxErrorsPerFile, nil)
 			Expect(err).Should(Succeed())
 
 			sut.LogConfig(logger)
@@ -441,7 +449,7 @@ var _ = Describe("ListCache", func() {
 				}
 
 				_, err := NewListCache(ListCacheTypeBlacklist, lists, -1, NewDownloader(),
-					defaultProcessingConcurrency, true, maxErrorsPerFile)
+					defaultProcessingConcurrency, true, maxErrorsPerFile, nil)
 				Expect(err).Should(Succeed())
 			})
 		})
