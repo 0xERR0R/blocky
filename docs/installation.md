@@ -27,8 +27,9 @@ blocking:
   clientGroupsBlock:
     default:
       - ads
-port: 53
-httpPort: 4000
+ports:
+  dns: 53
+  http: 4000
 ```
 
 ## Run as standalone binary
