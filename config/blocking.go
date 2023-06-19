@@ -3,6 +3,7 @@ package config
 import (
 	"strings"
 
+	. "github.com/0xERR0R/blocky/config/migration" //nolint:revive,stylecheck
 	"github.com/0xERR0R/blocky/log"
 	"github.com/sirupsen/logrus"
 )
@@ -18,10 +19,24 @@ type BlockingConfig struct {
 	DownloadAttempts      uint                `yaml:"downloadAttempts" default:"3"`
 	DownloadCooldown      Duration            `yaml:"downloadCooldown" default:"1s"`
 	RefreshPeriod         Duration            `yaml:"refreshPeriod" default:"4h"`
-	FailStartOnListError  bool                `yaml:"failStartOnListError" default:"false"` // Deprecated
 	ProcessingConcurrency uint                `yaml:"processingConcurrency" default:"4"`
 	StartStrategy         StartStrategyType   `yaml:"startStrategy" default:"blocking"`
 	MaxErrorsPerFile      int                 `yaml:"maxErrorsPerFile" default:"5"`
+
+	// Deprecated options
+	Deprecated struct {
+		FailStartOnListError *bool `yaml:"failStartOnListError"`
+	} `yaml:",inline"`
+}
+
+func (c *BlockingConfig) migrate(logger *logrus.Entry) bool {
+	return Migrate(logger, "blocking", c.Deprecated, map[string]Migrator{
+		"failStartOnListError": Apply(To("startStrategy", c), func(oldValue bool) {
+			if oldValue && c.StartStrategy != StartStrategyTypeFast {
+				c.StartStrategy = StartStrategyTypeFailOnError
+			}
+		}),
+	})
 }
 
 // IsEnabled implements `config.Configurable`.

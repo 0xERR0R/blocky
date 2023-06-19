@@ -19,6 +19,8 @@ var _ = Describe("Config", func() {
 		err    error
 	)
 
+	suiteBeforeEach()
+
 	BeforeEach(func() {
 		tmpDir = helpertest.NewTmpFolder("config")
 		Expect(tmpDir.Error).Should(Succeed())
@@ -34,8 +36,9 @@ var _ = Describe("Config", func() {
 
 		When("parameter 'disableIPv6' is set", func() {
 			It("should add 'AAAA' to filter.queryTypes", func() {
-				c.DisableIPv6 = true
-				validateConfig(&c)
+				c.Deprecated.DisableIPv6 = ptrOf(true)
+				c.migrate(logger)
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("disableIPv6")))
 				Expect(c.Filtering.QueryTypes).Should(HaveKey(QType(dns.TypeAAAA)))
 				Expect(c.Filtering.QueryTypes.Contains(dns.Type(dns.TypeAAAA))).Should(BeTrue())
 			})
@@ -43,50 +46,52 @@ var _ = Describe("Config", func() {
 
 		When("parameter 'failStartOnListError' is set", func() {
 			BeforeEach(func() {
-				c.Blocking = BlockingConfig{
-					FailStartOnListError: true,
-					StartStrategy:        StartStrategyTypeBlocking,
-				}
+				c.Blocking.Deprecated.FailStartOnListError = ptrOf(true)
 			})
 			It("should change StartStrategy blocking to failOnError", func() {
-				validateConfig(&c)
+				c.Blocking.StartStrategy = StartStrategyTypeBlocking
+				c.migrate(logger)
 				Expect(c.Blocking.StartStrategy).Should(Equal(StartStrategyTypeFailOnError))
 			})
 			It("shouldn't change StartStrategy if set to fast", func() {
 				c.Blocking.StartStrategy = StartStrategyTypeFast
-				validateConfig(&c)
+				c.migrate(logger)
 				Expect(c.Blocking.StartStrategy).Should(Equal(StartStrategyTypeFast))
 			})
 		})
 
 		When("parameter 'logLevel' is set", func() {
 			It("should convert to log.level", func() {
-				c.LogLevel = log.LevelDebug
-				validateConfig(&c)
+				c.Deprecated.LogLevel = ptrOf(log.LevelDebug)
+				c.migrate(logger)
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("log.level")))
 				Expect(c.Log.Level).Should(Equal(log.LevelDebug))
 			})
 		})
 
 		When("parameter 'logFormat' is set", func() {
 			It("should convert to log.format", func() {
-				c.LogFormat = log.FormatTypeJson
-				validateConfig(&c)
+				c.Deprecated.LogFormat = ptrOf(log.FormatTypeJson)
+				c.migrate(logger)
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("log.format")))
 				Expect(c.Log.Format).Should(Equal(log.FormatTypeJson))
 			})
 		})
 
 		When("parameter 'logPrivacy' is set", func() {
 			It("should convert to log.privacy", func() {
-				c.LogPrivacy = true
-				validateConfig(&c)
+				c.Deprecated.LogPrivacy = ptrOf(true)
+				c.migrate(logger)
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("log.privacy")))
 				Expect(c.Log.Privacy).Should(BeTrue())
 			})
 		})
 
 		When("parameter 'logTimestamp' is set", func() {
 			It("should convert to log.timestamp", func() {
-				c.LogTimestamp = false
-				validateConfig(&c)
+				c.Deprecated.LogTimestamp = ptrOf(false)
+				c.migrate(logger)
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("log.timestamp")))
 				Expect(c.Log.Timestamp).Should(BeFalse())
 			})
 		})
@@ -94,8 +99,9 @@ var _ = Describe("Config", func() {
 		When("parameter 'port' is set", func() {
 			It("should convert to ports.dns", func() {
 				ports := ListenConfig([]string{"5333"})
-				c.DNSPorts = ports
-				validateConfig(&c)
+				c.Deprecated.DNSPorts = ptrOf(ports)
+				c.migrate(logger)
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("ports.dns")))
 				Expect(c.Ports.DNS).Should(Equal(ports))
 			})
 		})
@@ -103,8 +109,9 @@ var _ = Describe("Config", func() {
 		When("parameter 'httpPort' is set", func() {
 			It("should convert to ports.http", func() {
 				ports := ListenConfig([]string{"5333"})
-				c.HTTPPorts = ports
-				validateConfig(&c)
+				c.Deprecated.HTTPPorts = ptrOf(ports)
+				c.migrate(logger)
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("ports.http")))
 				Expect(c.Ports.HTTP).Should(Equal(ports))
 			})
 		})
@@ -112,8 +119,9 @@ var _ = Describe("Config", func() {
 		When("parameter 'httpsPort' is set", func() {
 			It("should convert to ports.https", func() {
 				ports := ListenConfig([]string{"5333"})
-				c.HTTPSPorts = ports
-				validateConfig(&c)
+				c.Deprecated.HTTPSPorts = ptrOf(ports)
+				c.migrate(logger)
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("ports.https")))
 				Expect(c.Ports.HTTPS).Should(Equal(ports))
 			})
 		})
@@ -121,8 +129,9 @@ var _ = Describe("Config", func() {
 		When("parameter 'tlsPort' is set", func() {
 			It("should convert to ports.tls", func() {
 				ports := ListenConfig([]string{"5333"})
-				c.TLSPorts = ports
-				validateConfig(&c)
+				c.Deprecated.TLSPorts = ptrOf(ports)
+				c.migrate(logger)
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("ports.tls")))
 				Expect(c.Ports.TLS).Should(Equal(ports))
 			})
 		})
@@ -315,7 +324,7 @@ bootstrapDns:
 				_, err = LoadConfig(tmpDir.JoinPath("config.yml"), false)
 
 				Expect(err).Should(Succeed())
-				Expect(config.LogLevel).Should(Equal(log.LevelInfo))
+				Expect(config.Log.Level).Should(Equal(log.LevelInfo))
 			})
 		})
 	})
@@ -528,7 +537,7 @@ bootstrapDns:
 })
 
 func defaultTestFileConfig() {
-	Expect(config.DNSPorts).Should(Equal(ListenConfig{"55553", ":55554", "[::1]:55555"}))
+	Expect(config.Ports.DNS).Should(Equal(ListenConfig{"55553", ":55554", "[::1]:55555"}))
 	Expect(config.Upstream.ExternalResolvers["default"]).Should(HaveLen(3))
 	Expect(config.Upstream.ExternalResolvers["default"][0].Host).Should(Equal("8.8.8.8"))
 	Expect(config.Upstream.ExternalResolvers["default"][1].Host).Should(Equal("8.8.4.4"))
@@ -684,4 +693,11 @@ func writeConfigDir(tmpDir *helpertest.TmpFolder) error {
 		"startVerifyUpstream: false")
 
 	return f2.Error
+}
+
+// Tiny helper to get a new pointer with a value.
+//
+// Avoids needing 2 lines: `x := new(T)` and `*x = val`
+func ptrOf[T any](val T) *T {
+	return &val
 }
