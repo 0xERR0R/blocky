@@ -1,0 +1,139 @@
+name: GoReleaser Test
+
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build binaries with goreleaser
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+
+      - name: Run GoReleaser check
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          version: latest
+          args: check
+      
+      - name: Run GoReleaser build
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          version: latest
+          args: build --clean --snapshot
+
+      - name: Upload dist folder
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist_folder
+          path: dist
+          retention-days: 1
+  
+  tests:
+    name: Test binaries
+    runs-on: ${{matrix.runner}}
+    needs: build
+    strategy:
+      matrix:
+        distro: [ubuntu16.04, ubuntu18.04, ubuntu20.04, ubuntu22.04, bullseye, buster, stretch]
+        arch: [armv7,aarch64]
+        os: [linux]
+        runner: [ubuntu-latest]
+        include:
+          - distro: stretch
+            runner: ubuntu-latest
+            arch: armv6
+            os: linux
+          - distro: buster
+            runner: ubuntu-latest
+            arch: armv6
+            os: linux
+          - distro: bullseye
+            runner: ubuntu-latest
+            arch: armv6
+            os: linux
+          - distro: ubuntu20.04
+            runner: ubuntu-20.04
+            arch: amd64
+            os: linux
+          - distro: ubuntu22.04
+            runner: ubuntu-22.04
+            arch: amd64
+            os: linux
+          - distro: macos
+            runner: macos-11
+            arch: amd64
+            os: darwin
+          - distro: macos
+            runner: macos-12
+            arch: amd64
+            os: darwin
+          - distro: windows
+            runner: windows-latest
+            arch: amd64
+            os: windows
+          
+    steps:
+      - name: Download dist folder
+        id: download
+        uses: actions/download-artifact@v3
+        with:
+          name: dist_folder
+
+      - name: Get binary path
+        id: get_path
+        if: matrix.os != 'windows'
+        shell: bash
+        run: |
+          archs=(["aarch64"]="arm64" ["armv6"]="arm_6" ["armv7"]="arm_7" ["amd64"]="amd64_v1")
+          BINPATH="${{steps.download.outputs.download-path}}/blocky_${{ matrix.os }}_${archs[ ${{ matrix.arch }} ]}/blocky"
+          echo "bin=${BINPATH}" >> "$GITHUB_OUTPUT"
+          echo "Binary path: ${BINPATH}"
+
+      - name: Enable execution
+        if: matrix.os != 'windows'
+        shell: bash
+        run: |
+          chmod +x '${{ steps.get_path.outputs.bin }}'
+
+      - name: Test binary on ${{ matrix.arch }}
+        if: matrix.arch != 'amd64' 
+        uses: uraimo/run-on-arch-action@v2
+        with:
+          distro: ${{ matrix.distro }}
+          arch: ${{ matrix.arch }}
+          dockerRunArgs: |
+            --volume "${{steps.download.outputs.download-path}}:${{steps.download.outputs.download-path}}"
+          shell: /bin/sh
+          run: |
+            '${{ steps.get_path.outputs.bin }}' version
+      
+      - name: Test binary on amd64
+        if: matrix.arch == 'amd64' && matrix.os != 'windows'
+        shell: bash
+        run: |
+          '${{ steps.get_path.outputs.bin }}' version
+
+      - name: Test windows binary
+        if: matrix.os == 'windows'
+        shell: cmd
+        run: |
+          ${{steps.download.outputs.download-path}}\blocky_windows_amd64_v1\blocky.exe version

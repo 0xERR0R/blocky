@@ -178,7 +178,7 @@ type Config struct {
 	KeyFile             string                    `yaml:"keyFile"`
 	BootstrapDNS        BootstrapDNSConfig        `yaml:"bootstrapDns"`
 	HostsFile           HostsFileConfig           `yaml:"hostsFile"`
-	FqdnOnly            FqdnOnlyConfig            `yaml:",inline"`
+	FqdnOnly            FqdnOnlyConfig            `yaml:"fqdnOnly"`
 	Filtering           FilteringConfig           `yaml:"filtering"`
 	Ede                 EdeConfig                 `yaml:"ede"`
 	// Deprecated

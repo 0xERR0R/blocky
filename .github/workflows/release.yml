@@ -80,6 +80,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v4
         with:
