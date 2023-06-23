@@ -39,7 +39,7 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/docker/go-connections v0.4.0
 	github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198
-	github.com/testcontainers/testcontainers-go v0.20.1
+	github.com/testcontainers/testcontainers-go v0.21.0
 	mvdan.cc/gofumpt v0.5.0
 )
 
@@ -62,7 +62,7 @@ require (
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/moby/patternmatcher v0.5.0 // indirect
 	github.com/moby/sys/sequential v0.5.0 // indirect
-	github.com/moby/term v0.0.0-20221128092401-c43b287e0e0f // indirect
+	github.com/moby/term v0.5.0 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0-rc2 // indirect
@@ -96,7 +96,7 @@ require (
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/huandu/xstrings v1.3.3 // indirect
-	github.com/imdario/mergo v0.3.13 // indirect
+	github.com/imdario/mergo v0.3.15 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
@@ -124,7 +124,7 @@ require (
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/yuin/gopher-lua v1.1.0 // indirect
 	golang.org/x/crypto v0.10.0 // indirect
-	golang.org/x/exp v0.0.0-20230307190834-24139beb5833
+	golang.org/x/exp v0.0.0-20230510235704-dd950f8aeaea
 	golang.org/x/mod v0.11.0 // indirect
 	golang.org/x/sys v0.9.0 // indirect
 	golang.org/x/term v0.9.0 // indirect
