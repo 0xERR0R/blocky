@@ -34,7 +34,7 @@ This dashboard shows all relevant statistics and allows enabling and disabling t
 ### Grafana configuration
 
 Please install `grafana-piechart-panel` and
-set [disable-sanitize-html](https://grafana.com/docs/grafana/latest/installation/configuration/#disable-sanitize-html)
+set [disable_sanitize_html](https://grafana.com/docs/grafana/latest/installation/configuration/#disable_sanitize_html)
 in config or as env to use control buttons to enable/disable the blocking status.
 
 ### Grafana and Prometheus example project
