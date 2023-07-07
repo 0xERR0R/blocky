@@ -40,15 +40,22 @@ var _ = Describe("HostsFileResolver", func() {
 		Expect(tmpFile.Error).Should(Succeed())
 
 		sutConfig = config.HostsFileConfig{
-			Filepath:       tmpFile.Path,
+			Sources:        config.NewBytesSources(tmpFile.Path),
 			HostsTTL:       config.Duration(time.Duration(TTL) * time.Second),
-			RefreshPeriod:  config.Duration(30 * time.Minute),
 			FilterLoopback: true,
+			Loading: config.SourceLoadingConfig{
+				RefreshPeriod:      -1,
+				MaxErrorsPerSource: 5,
+			},
 		}
 	})
 
 	JustBeforeEach(func() {
-		sut = NewHostsFileResolver(sutConfig)
+		var err error
+
+		sut, err = NewHostsFileResolver(sutConfig, systemResolverBootstrap)
+		Expect(err).Should(Succeed())
+
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
@@ -74,12 +81,12 @@ var _ = Describe("HostsFileResolver", func() {
 		When("Hosts file cannot be located", func() {
 			BeforeEach(func() {
 				sutConfig = config.HostsFileConfig{
-					Filepath: "/this/file/does/not/exist",
+					Sources:  config.NewBytesSources("/this/file/does/not/exist"),
 					HostsTTL: config.Duration(time.Duration(TTL) * time.Second),
 				}
 			})
 			It("should not parse any hosts", func() {
-				Expect(sut.cfg.Filepath).Should(BeEmpty())
+				Expect(sut.cfg.Sources).ShouldNot(BeEmpty())
 				Expect(sut.hosts.v4.hosts).Should(BeEmpty())
 				Expect(sut.hosts.v6.hosts).Should(BeEmpty())
 				Expect(sut.hosts.v4.aliases).Should(BeEmpty())
@@ -99,13 +106,15 @@ var _ = Describe("HostsFileResolver", func() {
 
 		When("Hosts file is not set", func() {
 			BeforeEach(func() {
-				sut = NewHostsFileResolver(config.HostsFileConfig{})
+				sutConfig.Deprecated.Filepath = new(config.BytesSource)
+				sutConfig.Sources = nil
+
 				m = &mockResolver{}
 				m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 				sut.Next(m)
 			})
 			It("should not return an error", func() {
-				err := sut.parseHostsFile(context.Background())
+				err := sut.loadSources(context.Background())
 				Expect(err).Should(Succeed())
 			})
 			It("should go to next resolver on query", func() {
@@ -156,12 +165,12 @@ var _ = Describe("HostsFileResolver", func() {
 				)
 				Expect(tmpFile.Error).Should(Succeed())
 
-				sutConfig.Filepath = tmpFile.Path
+				sutConfig.Sources = config.NewBytesSources(tmpFile.Path)
 			})
 
 			It("should not be used", func() {
 				Expect(sut).ShouldNot(BeNil())
-				Expect(sut.cfg.Filepath).Should(BeEmpty())
+				Expect(sut.cfg.Sources).ShouldNot(BeEmpty())
 				Expect(sut.hosts.v4.hosts).Should(BeEmpty())
 				Expect(sut.hosts.v6.hosts).Should(BeEmpty())
 				Expect(sut.hosts.v4.aliases).Should(BeEmpty())

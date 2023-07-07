@@ -31,14 +31,25 @@ var _ = Describe("Duration", func() {
 		})
 	})
 
-	Describe("IsZero", func() {
-		It("should be true for zero", func() {
-			Expect(d.IsZero()).Should(BeTrue())
-			Expect(Duration(0).IsZero()).Should(BeTrue())
+	Describe("IsAboveZero", func() {
+		It("should be false for zero", func() {
+			Expect(d.IsAboveZero()).Should(BeFalse())
+			Expect(Duration(0).IsAboveZero()).Should(BeFalse())
 		})
 
-		It("should be false for non-zero", func() {
-			Expect(Duration(time.Second).IsZero()).Should(BeFalse())
+		It("should be false for negative", func() {
+			Expect(Duration(-1).IsAboveZero()).Should(BeFalse())
+		})
+
+		It("should be true for positive", func() {
+			Expect(Duration(1).IsAboveZero()).Should(BeTrue())
+		})
+	})
+
+	Describe("SecondsU32", func() {
+		It("should return the seconds", func() {
+			Expect(Duration(time.Minute).SecondsU32()).Should(Equal(uint32(60)))
+			Expect(Duration(time.Hour).SecondsU32()).Should(Equal(uint32(3600)))
 		})
 	})
 })

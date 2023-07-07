@@ -41,7 +41,7 @@ func (r *mockResolver) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (r *mockResolver) LogConfig(logger *logrus.Entry) {
+func (r *mockResolver) LogConfig(*logrus.Entry) {
 	r.Called()
 }
 
@@ -193,11 +193,11 @@ var aMockConn = &mockConn{}
 
 type mockConn struct{}
 
-func (c *mockConn) Read(b []byte) (n int, err error) {
+func (c *mockConn) Read([]byte) (n int, err error) {
 	panic("not implemented")
 }
 
-func (c *mockConn) Write(b []byte) (n int, err error) {
+func (c *mockConn) Write([]byte) (n int, err error) {
 	panic("not implemented")
 }
 
@@ -213,14 +213,14 @@ func (c *mockConn) RemoteAddr() net.Addr {
 	panic("not implemented")
 }
 
-func (c *mockConn) SetDeadline(t time.Time) error {
+func (c *mockConn) SetDeadline(time.Time) error {
 	panic("not implemented")
 }
 
-func (c *mockConn) SetReadDeadline(t time.Time) error {
+func (c *mockConn) SetReadDeadline(time.Time) error {
 	panic("not implemented")
 }
 
-func (c *mockConn) SetWriteDeadline(t time.Time) error {
+func (c *mockConn) SetWriteDeadline(time.Time) error {
 	panic("not implemented")
 }

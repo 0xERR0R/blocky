@@ -330,20 +330,24 @@ contains a map of client name and multiple IP addresses.
 
 ## Blocking and whitelisting
 
-Blocky can download and use external lists with domains or IP addresses to block DNS query (e.g. advertisement, malware,
+Blocky can use lists of domains and IPs to block (e.g. advertisement, malware,
 trackers, adult sites). You can group several list sources together and define the blocking behavior per client.
-External blacklists must be either in the well-known [Hosts format](https://en.wikipedia.org/wiki/Hosts_(file)) or just
-a plain domain list (one domain per line). Blocky also supports regex as more powerful tool to define patterns to block.
+Blocking uses the [DNS sinkhole](https://en.wikipedia.org/wiki/DNS_sinkhole) approach. For each DNS query, the domain name from
+the request, IP address from the response, and any CNAME records will be checked to determine whether to block the query or not.
 
-Blocky uses [DNS sinkhole](https://en.wikipedia.org/wiki/DNS_sinkhole) approach to block a DNS query. Domain name from
-the request, IP address from the response, and the CNAME record will be checked against configured blacklists.
-
-To avoid over-blocking, you can define or use already existing whitelists.
+To avoid over-blocking, you can use whitelists.
 
 ### Definition black and whitelists
 
-Each black or whitelist can be either a path to the local file, a URL to download or inline list definition of a domains
-in hosts format (YAML literal block scalar style). All Urls must be grouped to a group name.
+Lists are defined in groups. This allows using different sets of lists for different clients.
+
+Each list in a group is a "source" and can be downloaded, read from a file, or inlined in the config. See [Sources](#sources) for details and configuring how those are loaded and reloaded/refreshed.
+
+The supported list formats are:
+
+1. the well-known [Hosts format](https://en.wikipedia.org/wiki/Hosts_(file))
+2. one domain per line (plain domain list)
+3. one regex per line
 
 !!! example
 
@@ -354,35 +358,38 @@ in hosts format (YAML literal block scalar style). All Urls must be grouped to a
           - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
           - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
           - |
-            # inline definition with YAML literal block scalar style
+            # inline definition using YAML literal block scalar style
+            # content is in plain domain list format
             someadsdomain.com
             anotheradsdomain.com
-            # this is a regex
+          - |
+            # inline definition with a regex
             /^banners?[_.-]/
         special:
           - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
       whiteLists:
         ads:
           - whitelist.txt
+          - /path/to/file.txt
           - |
             # inline definition with YAML literal block scalar style
             whitelistdomain.com
     ```
 
-    In this example you can see 2 groups: **ads** with 2 lists and **special** with one list. One local whitelist was defined for the **ads** group.
+    In this example you can see 2 groups: **ads** and **special** with one list. The **ads** group includes 2 inline lists.
 
 !!! warning
 
     If the same group has black and whitelists, whitelists will be used to disable particular blacklist entries.
     If a group has **only** whitelist entries -> this means only domains from this list are allowed, all other domains will
-    be blocked
+    be blocked.
 
-!!! note
-    Please define also client group mapping, otherwise you black and whitelist definition will have no effect
+!!! warning
+    You must also define client group mapping, otherwise you black and whitelist definition will have no effect.
 
 #### Regex support
 
-You can use regex to define patterns to block. A regex entry must start and end with the slash character (/). Some
+You can use regex to define patterns to block. A regex entry must start and end with the slash character (`/`). Some
 Examples:
 
 - `/baddomain/` will block `www.baddomain.com`, `baddomain.com`, but also `mybaddomain-sometext.com`
@@ -395,7 +402,7 @@ In this configuration section, you can define, which blocking group(s) should be
 Example: All clients should use the **ads** group, which blocks advertisement and kids devices should use the **adult**
 group, which blocky adult sites.
 
-Clients without a group assignment will use automatically the **default** group.
+Clients without an explicit group assignment will use the **default** group.
 
 You can use the client name (see [Client name lookup](#client-name-lookup)), client's IP address, client's full-qualified domain name
 or a client subnet as CIDR notation.
@@ -460,82 +467,9 @@ after receiving the custom value.
       blockTTL: 10s
     ```
 
-### List refresh period
+### Lists Loading
 
-To keep the list cache up-to-date, blocky will periodically download and reload all external lists. Default period is **
-4 hours**. You can configure this by setting the `blocking.refreshPeriod` parameter to a value in **duration format**.
-Negative value will deactivate automatically refresh.
-
-!!! example
-
-    ```yaml
-    blocking:
-      refreshPeriod: 60m
-    ```
-
-Refresh every hour.
-
-### Download
-
-You can configure the list download attempts according to your internet connection:
-
-| Parameter        | Type            | Mandatory | Default value | Description                                    |
-|------------------|-----------------|-----------|---------------|------------------------------------------------|
-| downloadTimeout  | duration format | no        | 60s           | Download attempt timeout                       |
-| downloadAttempts | int             | no        | 3             | How many download attempts should be performed |
-| downloadCooldown | duration format | no        | 1s            | Time between the download attempts             |
-
-!!! example
-
-    ```yaml
-    blocking:
-      downloadTimeout: 4m
-      downloadAttempts: 5
-      downloadCooldown: 10s
-    ```
-
-### Start strategy
-
-You can configure the blocking behavior during application start of blocky.  
-If no strategy is selected blocking will be used.
-
-| startStrategy | Description                                                                                           |
-|---------------|-------------------------------------------------------------------------------------------------------|
-| blocking      | all blocking lists will be loaded before DNS resolution starts                                        |
-| failOnError   | like blocking but blocky will shut down if any download fails                                         |
-| fast          | DNS resolution starts immediately without blocking which will be enabled after list load is completed |
-
-!!! example
-
-    ```yaml
-    blocking:
-      startStrategy: failOnError
-    ```
-
-### Max Errors per file
-
-Number of errors allowed in a list before it is considered invalid and parsing stops.  
-A value of -1 disables the limit.
-
-!!! example
-
-    ```yaml
-    blocking:
-      maxErrorsPerFile: 10
-    ```
-
-### Concurrency
-
-Blocky downloads and processes links in a single group concurrently. With parameter `processingConcurrency` you can adjust
-how many links can be processed in the same time. Higher value can reduce the overall list refresh time, but more parallel
- download and processing jobs need more RAM. Please consider to reduce this value on systems with limited memory. Default value is 4.
-
-!!! example
-
-    ```yaml
-    blocking:
-      processingConcurrency: 10
-    ```
+See [Sources Loading](#sources-loading).
 
 ## Caching
 
@@ -716,7 +650,7 @@ Configuration parameters:
     ```yaml
     hostsFile:
       filePath: /etc/hosts
-      hostsTTL: 60m
+      hostsTTL: 1h
       refreshPeriod: 30m
     ```
 
@@ -745,3 +679,127 @@ for detailed information, how to create and configure SSL certificates.
 DoH url: `https://host:port/dns-query`
 
 --8<-- "docs/includes/abbreviations.md"
+
+## Sources
+
+Sources are a concept shared by the blocking and hosts file resolvers. They represent where to load the files for each resolver.
+
+The supported source types are:
+
+- HTTP(S) URL (any source starting with `http`)
+- inline configuration (any source containing a newline)
+- local file path (any source not matching the above rules)
+
+!!! note
+
+    The format/content of the sources depends on the context: lists and hosts files have different, but overlapping, supported formats.
+
+!!! example
+
+    ```yaml
+    - https://example.com/a/source # blocky will download and parse the file
+    - /a/file/path # blocky will read the local file
+    - | # blocky will parse the content of this multi-line string
+      # inline configuration
+    ```
+
+### Sources Loading
+
+This sections covers `loading` configuration that applies to both the blocking and hosts file resolvers.
+These settings apply only to the resolver under which they are nested.
+
+!!! example
+
+    ```yaml
+    blocking:
+      loading:
+        # only applies to white/blacklists
+
+    hostsFile:
+      loading:
+        # only applies to hostsFile sources
+    ```
+
+#### Refresh / Reload
+
+To keep source contents up-to-date, blocky can periodically refresh and reparse them. Default period is **
+4 hours**. You can configure this by setting the `refreshPeriod` parameter to a value in **duration format**.  
+A value of zero or less will disable this feature.
+
+!!! example
+
+    ```yaml
+    loading:
+      refreshPeriod: 1h
+    ```
+
+    Refresh every hour.
+
+### Downloads
+
+Configures how HTTP(S) sources are downloaded:
+
+| Parameter | Type     | Mandatory | Default value | Description                                    |
+|-----------|----------|-----------|---------------|------------------------------------------------|
+| timeout   | duration | no        | 5s            | Download attempt timeout                       |
+| attempts  | int      | no        | 3             | How many download attempts should be performed |
+| cooldown  | duration | no        | 500ms         | Time between the download attempts             |
+
+!!! example
+
+    ```yaml
+    loading:
+      downloads:
+        timeout: 4m
+        attempts: 5
+        cooldown: 10s
+    ```
+
+### Strategy
+
+This configures how Blocky startup works.  
+The default strategy is blocking.
+
+| strategy    | Description                                                                                                                              |
+|-------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| blocking    | all sources are loaded before DNS resolution starts                                                                                      |
+| failOnError | like blocking but blocky will shut down if any source fails to load                                                                      |
+| fast        | blocky starts serving DNS immediately and sources are loaded asynchronously. The features requiring the sources should enable soon after |
+
+!!! example
+
+    ```yaml
+    loading:
+      strategy: failOnError
+    ```
+
+### Max Errors per Source
+
+Number of errors allowed when parsing a source before it is considered invalid and parsing stops.  
+A value of -1 disables the limit.
+
+!!! example
+
+    ```yaml
+    loading:
+      maxErrorsPerSource: 10
+    ```
+
+### Concurrency
+
+Blocky downloads and processes sources concurrently. This allows limiting how many can be processed in the same time.  
+Larger values can reduce the overall list refresh time at the cost of using more RAM. Please consider reducing this value on systems with limited memory.  
+Default value is 4.
+
+!!! example
+
+    ```yaml
+    loading:
+      concurrency: 10
+    ```
+
+!!! note
+
+    As with other settings under `loading`, the limit applies to the blocking and hosts file resolvers separately.
+    The total number of concurrent sources concurrently processed can reach the sum of both values.  
+    For example if blocking has a limit set to 8 and hosts file's is 4, there could be up to 12 concurrent jobs.

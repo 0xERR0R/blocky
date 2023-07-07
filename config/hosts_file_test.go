@@ -15,9 +15,12 @@ var _ = Describe("HostsFileConfig", func() {
 
 	BeforeEach(func() {
 		cfg = HostsFileConfig{
-			Filepath:       "/dev/null",
+			Sources: append(
+				NewBytesSources("/a/file/path"),
+				TextBytesSource("127.0.0.1 localhost"),
+			),
 			HostsTTL:       Duration(29 * time.Minute),
-			RefreshPeriod:  Duration(30 * time.Minute),
+			Loading:        SourceLoadingConfig{RefreshPeriod: Duration(30 * time.Minute)},
 			FilterLoopback: true,
 		}
 	})
@@ -50,7 +53,28 @@ var _ = Describe("HostsFileConfig", func() {
 			cfg.LogConfig(logger)
 
 			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("file path: /dev/null")))
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("- file:///a/file/path")))
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("- 127.0.0.1 lo...")))
+		})
+	})
+
+	Describe("migrate", func() {
+		It("should", func() {
+			cfg, err := WithDefaults[HostsFileConfig]()
+			Expect(err).Should(Succeed())
+
+			cfg.Deprecated.Filepath = ptrOf(newBytesSource("/a/file/path"))
+			cfg.Deprecated.RefreshPeriod = ptrOf(Duration(time.Hour))
+
+			migrated := cfg.migrate(logger)
+			Expect(migrated).Should(BeTrue())
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("hostsFile.loading.refreshPeriod")))
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("hostsFile.sources")))
+
+			Expect(cfg.Sources).Should(Equal([]BytesSource{*cfg.Deprecated.Filepath}))
+			Expect(cfg.Loading.RefreshPeriod).Should(Equal(*cfg.Deprecated.RefreshPeriod))
 		})
 	})
 })

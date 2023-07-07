@@ -217,7 +217,7 @@ func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, 
 		// put value into cache
 		r.resultCache.Put(cacheKey, &cacheValue{response.Res, prefetch}, r.adjustTTLs(response.Res.Answer))
 	} else if response.Res.Rcode == dns.RcodeNameError {
-		if r.cfg.CacheTimeNegative > 0 {
+		if r.cfg.CacheTimeNegative.IsAboveZero() {
 			// put negative cache if result code is NXDOMAIN
 			r.resultCache.Put(cacheKey, &cacheValue{response.Res, prefetch}, r.cfg.CacheTimeNegative.ToDuration())
 		}
@@ -244,13 +244,13 @@ func (r *CachingResolver) adjustTTLs(answer []dns.RR) (maxTTL time.Duration) {
 
 	for _, a := range answer {
 		// if TTL < mitTTL -> adjust the value, set minTTL
-		if r.cfg.MinCachingTime > 0 {
+		if r.cfg.MinCachingTime.IsAboveZero() {
 			if atomic.LoadUint32(&a.Header().Ttl) < r.cfg.MinCachingTime.SecondsU32() {
 				atomic.StoreUint32(&a.Header().Ttl, r.cfg.MinCachingTime.SecondsU32())
 			}
 		}
 
-		if r.cfg.MaxCachingTime > 0 {
+		if r.cfg.MaxCachingTime.IsAboveZero() {
 			if atomic.LoadUint32(&a.Header().Ttl) > r.cfg.MaxCachingTime.SecondsU32() {
 				atomic.StoreUint32(&a.Header().Ttl, r.cfg.MaxCachingTime.SecondsU32())
 			}
