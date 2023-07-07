@@ -441,36 +441,8 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#list-refresh-period" class="md-nav__link">
-    List refresh period
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#download" class="md-nav__link">
-    Download
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#start-strategy" class="md-nav__link">
-    Start strategy
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#max-errors-per-file" class="md-nav__link">
-    Max Errors per file
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#concurrency" class="md-nav__link">
-    Concurrency
+  <a href="#lists-loading" class="md-nav__link">
+    Lists Loading
   </a>
   
 </li>
@@ -546,6 +518,67 @@
   <a href="#ssl-certificate-configuration-doh-tls-listener" class="md-nav__link">
     SSL certificate configuration (DoH / TLS listener)
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sources" class="md-nav__link">
+    Sources
+  </a>
+  
+    <nav class="md-nav" aria-label="Sources">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sources-loading" class="md-nav__link">
+    Sources Loading
+  </a>
+  
+    <nav class="md-nav" aria-label="Sources Loading">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#refresh-reload" class="md-nav__link">
+    Refresh / Reload
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#downloads" class="md-nav__link">
+    Downloads
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#strategy" class="md-nav__link">
+    Strategy
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#max-errors-per-source" class="md-nav__link">
+    Max Errors per Source
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#concurrency" class="md-nav__link">
+    Concurrency
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -831,36 +864,8 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#list-refresh-period" class="md-nav__link">
-    List refresh period
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#download" class="md-nav__link">
-    Download
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#start-strategy" class="md-nav__link">
-    Start strategy
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#max-errors-per-file" class="md-nav__link">
-    Max Errors per file
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#concurrency" class="md-nav__link">
-    Concurrency
+  <a href="#lists-loading" class="md-nav__link">
+    Lists Loading
   </a>
   
 </li>
@@ -939,6 +944,67 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#sources" class="md-nav__link">
+    Sources
+  </a>
+  
+    <nav class="md-nav" aria-label="Sources">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sources-loading" class="md-nav__link">
+    Sources Loading
+  </a>
+  
+    <nav class="md-nav" aria-label="Sources Loading">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#refresh-reload" class="md-nav__link">
+    Refresh / Reload
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#downloads" class="md-nav__link">
+    Downloads
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#strategy" class="md-nav__link">
+    Strategy
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#max-errors-per-source" class="md-nav__link">
+    Max Errors per Source
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#concurrency" class="md-nav__link">
+    Concurrency
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -962,7 +1028,9 @@
 configuration properties as <a href="../config.yml">JSON</a>.</p>
 <details class="example">
 <summary>reference configuration file</summary>
-<div class="highlight"><pre><span></span><code><span class="nt">upstream</span><span class="p">:</span>
+<div class="highlight"><pre><span></span><code><span class="c1"># REVIEW: manual changelog entry</span>
+
+<span class="nt">upstream</span><span class="p">:</span>
 <span class="w">  </span><span class="c1"># these external DNS resolvers will be used. Blocky picks 2 random resolvers from the list for each query</span>
 <span class="w">  </span><span class="c1"># format for resolver: [net:]host:[port][/path]. net could be empty (default, shortcut for tcp+udp), tcp+udp, tcp, udp, tcp-tls or https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))</span>
 <span class="w">  </span><span class="c1"># this configuration is mandatory, please define at least one external DNS resolver</span>
@@ -1063,22 +1131,33 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">  </span><span class="c1"># optional: TTL for answers to blocked domains</span>
 <span class="w">  </span><span class="c1"># default: 6h</span>
 <span class="w">  </span><span class="nt">blockTTL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1m</span>
-<span class="w">  </span><span class="c1"># optional: automatically list refresh period (in duration format). Default: 4h.</span>
-<span class="w">  </span><span class="c1"># Negative value -&gt; deactivate automatically refresh.</span>
-<span class="w">  </span><span class="c1"># 0 value -&gt; use default</span>
-<span class="w">  </span><span class="nt">refreshPeriod</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4h</span>
-<span class="w">  </span><span class="c1"># optional: timeout for list download (each url). Default: 60s. Use large values for big lists or slow internet connections</span>
-<span class="w">  </span><span class="nt">downloadTimeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4m</span>
-<span class="w">  </span><span class="c1"># optional: Download attempt timeout. Default: 60s</span>
-<span class="w">  </span><span class="nt">downloadAttempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
-<span class="w">  </span><span class="c1"># optional: Time between the download attempts. Default: 1s</span>
-<span class="w">  </span><span class="nt">downloadCooldown</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10s</span>
-<span class="w">  </span><span class="c1"># optional: if failOnError, application startup will fail if at least one list can&#39;t be downloaded / opened. Default: blocking</span>
-<span class="w">  </span><span class="nt">startStrategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">failOnError</span>
-<span class="w">  </span><span class="c1"># Number of errors allowed in a list before it is considered invalid.</span>
-<span class="w">  </span><span class="c1"># A value of -1 disables the limit.</span>
-<span class="w">  </span><span class="c1"># Default: 5</span>
-<span class="w">  </span><span class="nt">maxErrorsPerFile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">  </span><span class="c1"># optional: Configure how lists, AKA sources, are loaded</span>
+<span class="w">  </span><span class="nt">loading</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># optional: list refresh period in duration format.</span>
+<span class="w">    </span><span class="c1"># Set to a value &lt;= 0 to disable.</span>
+<span class="w">    </span><span class="c1"># default: 4h</span>
+<span class="w">    </span><span class="nt">refreshPeriod</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">24h</span>
+<span class="w">    </span><span class="c1"># optional: Applies only to lists that are downloaded (HTTP URLs).</span>
+<span class="w">    </span><span class="nt">downloads</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># optional: timeout for list download (each url). Use large values for big lists or slow internet connections</span>
+<span class="w">      </span><span class="c1"># default: 5s</span>
+<span class="w">      </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60s</span>
+<span class="w">      </span><span class="c1"># optional: Maximum download attempts</span>
+<span class="w">      </span><span class="c1"># default: 3</span>
+<span class="w">      </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">      </span><span class="c1"># optional: Time between the download attempts</span>
+<span class="w">      </span><span class="c1"># default: 500ms</span>
+<span class="w">      </span><span class="nt">cooldown</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10s</span>
+<span class="w">    </span><span class="c1"># optional: Maximum number of lists to process in parallel.</span>
+<span class="w">    </span><span class="c1"># default: 4</span>
+<span class="w">    </span><span class="nt">concurrency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16</span>
+<span class="w">    </span><span class="c1"># optional: if failOnError, application startup will fail if at least one list can&#39;t be downloaded/opened</span>
+<span class="w">    </span><span class="c1"># default: blocking</span>
+<span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">failOnError</span>
+<span class="w">    </span><span class="c1"># Number of errors allowed in a list before it is considered invalid.</span>
+<span class="w">    </span><span class="c1"># A value of -1 disables the limit.</span>
+<span class="w">    </span><span class="c1"># default: 5</span>
+<span class="w">    </span><span class="nt">maxErrorsPerSource</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
 
 <span class="c1"># optional: configuration for caching of DNS responses</span>
 <span class="nt">caching</span><span class="p">:</span>
@@ -1125,6 +1204,7 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">  </span><span class="nt">clients</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">laptop</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.178.29</span>
+
 <span class="c1"># optional: configuration for prometheus metrics endpoint</span>
 <span class="nt">prometheus</span><span class="p">:</span>
 <span class="w">  </span><span class="c1"># enabled if true</span>
@@ -1178,6 +1258,7 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 
 <span class="c1"># optional: Mininal TLS version that the DoH and DoT server will use</span>
 <span class="nt">minTlsServeVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.3</span>
+
 <span class="c1"># if https port &gt; 0: path to cert and key file for SSL encryption. if not set, self-signed certificate will be generated</span>
 <span class="c1">#certFile: server.crt</span>
 <span class="c1">#keyFile: server.key</span>
@@ -1202,14 +1283,45 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 
 <span class="c1"># optional: if path defined, use this file for query resolution (A, AAAA and rDNS). Default: empty</span>
 <span class="nt">hostsFile</span><span class="p">:</span>
-<span class="w">  </span><span class="c1"># optional: Path to hosts file (e.g. /etc/hosts on Linux)</span>
-<span class="w">  </span><span class="nt">filePath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/etc/hosts</span>
+<span class="w">  </span><span class="c1"># optional: Hosts files to parse</span>
+<span class="w">  </span><span class="nt">sources</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/etc/hosts</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://example.com/hosts</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">      </span><span class="no"># inline hosts</span>
+<span class="w">      </span><span class="no">127.0.0.1 example.com</span>
 <span class="w">  </span><span class="c1"># optional: TTL, default: 1h</span>
-<span class="w">  </span><span class="nt">hostsTTL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60m</span>
-<span class="w">  </span><span class="c1"># optional: Time between hosts file refresh, default: 1h</span>
-<span class="w">  </span><span class="nt">refreshPeriod</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30m</span>
-<span class="w">  </span><span class="c1"># optional: Whether loopback hosts addresses (127.0.0.0/8 and ::1) should be filtered or not, default: false</span>
+<span class="w">  </span><span class="nt">hostsTTL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30m</span>
+<span class="w">  </span><span class="c1"># optional: Whether loopback hosts addresses (127.0.0.0/8 and ::1) should be filtered or not</span>
+<span class="w">  </span><span class="c1"># default: false</span>
 <span class="w">  </span><span class="nt">filterLoopback</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="c1"># optional: Configure how sources are loaded</span>
+<span class="w">  </span><span class="nt">loading</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># optional: file refresh period in duration format.</span>
+<span class="w">    </span><span class="c1"># Set to a value &lt;= 0 to disable.</span>
+<span class="w">    </span><span class="c1"># default: 4h</span>
+<span class="w">    </span><span class="nt">refreshPeriod</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">24h</span>
+<span class="w">    </span><span class="c1"># optional: Applies only to files that are downloaded (HTTP URLs).</span>
+<span class="w">    </span><span class="nt">downloads</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># optional: timeout for file download (each url). Use large values for big files or slow internet connections</span>
+<span class="w">      </span><span class="c1"># default: 5s</span>
+<span class="w">      </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60s</span>
+<span class="w">      </span><span class="c1"># optional: Maximum download attempts</span>
+<span class="w">      </span><span class="c1"># default: 3</span>
+<span class="w">      </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">      </span><span class="c1"># optional: Time between the download attempts</span>
+<span class="w">      </span><span class="c1"># default: 500ms</span>
+<span class="w">      </span><span class="nt">cooldown</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10s</span>
+<span class="w">    </span><span class="c1"># optional: Maximum number of files to process in parallel.</span>
+<span class="w">    </span><span class="c1"># default: 4</span>
+<span class="w">    </span><span class="nt">concurrency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16</span>
+<span class="w">    </span><span class="c1"># optional: if failOnError, application startup will fail if at least one file can&#39;t be downloaded/opened</span>
+<span class="w">    </span><span class="c1"># default: blocking</span>
+<span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">failOnError</span>
+<span class="w">    </span><span class="c1"># Number of errors allowed in a file before it is considered invalid.</span>
+<span class="w">    </span><span class="c1"># A value of -1 disables the limit.</span>
+<span class="w">    </span><span class="c1"># default: 5</span>
+<span class="w">    </span><span class="nt">maxErrorsPerSource</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
 
 <span class="c1"># optional: ports configuration</span>
 <span class="nt">ports</span><span class="p">:</span>
@@ -1681,16 +1793,20 @@ contains a map of client name and multiple IP addresses.</p>
 <p>Use <code>192.168.178.1</code> for <abbr title="Reverse DNS">rDNS</abbr> lookup. Take second name if present, if not take first name. IP address <code>192.168.178.29</code> is mapped to <code>laptop</code> as client name.</p>
 </div>
 <h2 id="blocking-and-whitelisting">Blocking and whitelisting</h2>
-<p>Blocky can download and use external lists with domains or IP addresses to block <abbr title="Domain Name System">DNS</abbr> query (e.g. advertisement, malware,
+<p>Blocky can use lists of domains and IPs to block (e.g. advertisement, malware,
 trackers, adult sites). You can group several list sources together and define the blocking behavior per client.
-External blacklists must be either in the well-known <a href="https://en.wikipedia.org/wiki/Hosts_(file)">Hosts format</a> or just
-a plain domain list (one domain per line). Blocky also supports <abbr title="Regular expression">regex</abbr> as more powerful tool to define patterns to block.</p>
-<p>Blocky uses <a href="https://en.wikipedia.org/wiki/DNS_sinkhole"><abbr title="Domain Name System">DNS</abbr> sinkhole</a> approach to block a <abbr title="Domain Name System">DNS</abbr> query. Domain name from
-the request, IP address from the response, and the <abbr title="Canonical Name">CNAME</abbr> record will be checked against configured blacklists.</p>
-<p>To avoid over-blocking, you can define or use already existing whitelists.</p>
+Blocking uses the <a href="https://en.wikipedia.org/wiki/DNS_sinkhole"><abbr title="Domain Name System">DNS</abbr> sinkhole</a> approach. For each <abbr title="Domain Name System">DNS</abbr> query, the domain name from
+the request, IP address from the response, and any <abbr title="Canonical Name">CNAME</abbr> records will be checked to determine whether to block the query or not.</p>
+<p>To avoid over-blocking, you can use whitelists.</p>
 <h3 id="definition-black-and-whitelists">Definition black and whitelists</h3>
-<p>Each black or whitelist can be either a path to the local file, a URL to download or inline list definition of a domains
-in hosts format (<abbr title="YAML Ain't Markup Language">YAML</abbr> literal block scalar style). All Urls must be grouped to a group name.</p>
+<p>Lists are defined in groups. This allows using different sets of lists for different clients.</p>
+<p>Each list in a group is a "source" and can be downloaded, read from a file, or inlined in the config. See <a href="#sources">Sources</a> for details and configuring how those are loaded and reloaded/refreshed.</p>
+<p>The supported list formats are:</p>
+<ol>
+<li>the well-known <a href="https://en.wikipedia.org/wiki/Hosts_(file)">Hosts format</a></li>
+<li>one domain per line (plain domain list)</li>
+<li>one <abbr title="Regular expression">regex</abbr> per line</li>
+</ol>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><pre><span></span><code><span class="nt">blocking</span><span class="p">:</span>
@@ -1699,34 +1815,37 @@ in hosts format (<abbr title="YAML Ain't Markup Language">YAML</abbr> literal bl
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">|</span>
-<span class="w">        </span><span class="no"># inline definition with YAML literal block scalar style</span>
+<span class="w">        </span><span class="no"># inline definition using YAML literal block scalar style</span>
+<span class="w">        </span><span class="no"># content is in plain domain list format</span>
 <span class="w">        </span><span class="no">someadsdomain.com</span>
 <span class="w">        </span><span class="no">anotheradsdomain.com</span>
-<span class="w">        </span><span class="no"># this is a regex</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">        </span><span class="no"># inline definition with a regex</span>
 <span class="w">        </span><span class="no">/^banners?[_.-]/</span>
 <span class="w">    </span><span class="nt">special</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts</span>
 <span class="w">  </span><span class="nt">whiteLists</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">ads</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">whitelist.txt</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/path/to/file.txt</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">|</span>
 <span class="w">        </span><span class="no"># inline definition with YAML literal block scalar style</span>
 <span class="w">        </span><span class="no">whitelistdomain.com</span>
 </code></pre></div>
-<p>In this example you can see 2 groups: <strong>ads</strong> with 2 lists and <strong>special</strong> with one list. One local whitelist was defined for the <strong>ads</strong> group.</p>
+<p>In this example you can see 2 groups: <strong>ads</strong> and <strong>special</strong> with one list. The <strong>ads</strong> group includes 2 inline lists.</p>
 </div>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>If the same group has black and whitelists, whitelists will be used to disable particular blacklist entries.
 If a group has <strong>only</strong> whitelist entries -&gt; this means only domains from this list are allowed, all other domains will
-be blocked</p>
+be blocked.</p>
 </div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Please define also client group mapping, otherwise you black and whitelist definition will have no effect</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>You must also define client group mapping, otherwise you black and whitelist definition will have no effect.</p>
 </div>
 <h4 id="regex-support">Regex support</h4>
-<p>You can use <abbr title="Regular expression">regex</abbr> to define patterns to block. A <abbr title="Regular expression">regex</abbr> entry must start and end with the slash character (/). Some
+<p>You can use <abbr title="Regular expression">regex</abbr> to define patterns to block. A <abbr title="Regular expression">regex</abbr> entry must start and end with the slash character (<code>/</code>). Some
 Examples:</p>
 <ul>
 <li><code>/baddomain/</code> will block <code>www.baddomain.com</code>, <code>baddomain.com</code>, but also <code>mybaddomain-sometext.com</code></li>
@@ -1737,7 +1856,7 @@ Examples:</p>
 <p>In this configuration section, you can define, which blocking group(s) should be used for which client in your network.
 Example: All clients should use the <strong>ads</strong> group, which blocks advertisement and kids devices should use the <strong>adult</strong>
 group, which blocky adult sites.</p>
-<p>Clients without a group assignment will use automatically the <strong>default</strong> group.</p>
+<p>Clients without an explicit group assignment will use the <strong>default</strong> group.</p>
 <p>You can use the client name (see <a href="#client-name-lookup">Client name lookup</a>), client's IP address, client's full-qualified domain name
 or a client subnet as <abbr title="Classless Inter-Domain Routing">CIDR</abbr> notation.</p>
 <p>If full-qualified domain name is used (for example "myclient.ddns.org"), blocky will try to resolve the IP address (A and AAAA records) of this domain.
@@ -1811,111 +1930,8 @@ after receiving the custom value.</p>
 <span class="w">  </span><span class="nt">blockTTL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10s</span>
 </code></pre></div>
 </div>
-<h3 id="list-refresh-period">List refresh period</h3>
-<p>To keep the list cache up-to-date, blocky will periodically download and reload all external lists. Default period is <strong>
-4 hours</strong>. You can configure this by setting the <code>blocking.refreshPeriod</code> parameter to a value in <strong><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></strong>.
-Negative value will deactivate automatically refresh.</p>
-<div class="admonition example">
-<p class="admonition-title">Example</p>
-<div class="highlight"><pre><span></span><code><span class="nt">blocking</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">refreshPeriod</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60m</span>
-</code></pre></div>
-</div>
-<p>Refresh every hour.</p>
-<h3 id="download">Download</h3>
-<p>You can configure the list download attempts according to your internet connection:</p>
-<table>
-<thead>
-<tr>
-<th>Parameter</th>
-<th>Type</th>
-<th>Mandatory</th>
-<th>Default value</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>downloadTimeout</td>
-<td><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></td>
-<td>no</td>
-<td>60s</td>
-<td>Download attempt timeout</td>
-</tr>
-<tr>
-<td>downloadAttempts</td>
-<td>int</td>
-<td>no</td>
-<td>3</td>
-<td>How many download attempts should be performed</td>
-</tr>
-<tr>
-<td>downloadCooldown</td>
-<td><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></td>
-<td>no</td>
-<td>1s</td>
-<td>Time between the download attempts</td>
-</tr>
-</tbody>
-</table>
-<div class="admonition example">
-<p class="admonition-title">Example</p>
-<div class="highlight"><pre><span></span><code><span class="nt">blocking</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">downloadTimeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4m</span>
-<span class="w">  </span><span class="nt">downloadAttempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
-<span class="w">  </span><span class="nt">downloadCooldown</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10s</span>
-</code></pre></div>
-</div>
-<h3 id="start-strategy">Start strategy</h3>
-<p>You can configure the blocking behavior during application start of blocky.<br />
-If no strategy is selected blocking will be used.</p>
-<table>
-<thead>
-<tr>
-<th>startStrategy</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>blocking</td>
-<td>all blocking lists will be loaded before <abbr title="Domain Name System">DNS</abbr> resolution starts</td>
-</tr>
-<tr>
-<td>failOnError</td>
-<td>like blocking but blocky will shut down if any download fails</td>
-</tr>
-<tr>
-<td>fast</td>
-<td><abbr title="Domain Name System">DNS</abbr> resolution starts immediately without blocking which will be enabled after list load is completed</td>
-</tr>
-</tbody>
-</table>
-<div class="admonition example">
-<p class="admonition-title">Example</p>
-<div class="highlight"><pre><span></span><code><span class="nt">blocking</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">startStrategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">failOnError</span>
-</code></pre></div>
-</div>
-<h3 id="max-errors-per-file">Max Errors per file</h3>
-<p>Number of errors allowed in a list before it is considered invalid and parsing stops.<br />
-A value of -1 disables the limit.</p>
-<div class="admonition example">
-<p class="admonition-title">Example</p>
-<div class="highlight"><pre><span></span><code><span class="nt">blocking</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">maxErrorsPerFile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
-</code></pre></div>
-</div>
-<h3 id="concurrency">Concurrency</h3>
-<p>Blocky downloads and processes links in a single group concurrently. With parameter <code>processingConcurrency</code> you can adjust
-how many links can be processed in the same time. Higher value can reduce the overall list refresh time, but more parallel
- download and processing jobs need more RAM. Please consider to reduce this value on systems with limited memory. Default value is 4.</p>
-<div class="admonition example">
-<p class="admonition-title">Example</p>
-<div class="highlight"><pre><span></span><code><span class="nt">blocking</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">processingConcurrency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
-</code></pre></div>
-</div>
+<h3 id="lists-loading">Lists Loading</h3>
+<p>See <a href="#sources-loading">Sources Loading</a>.</p>
 <h2 id="caching">Caching</h2>
 <p>Each <abbr title="Domain Name System">DNS</abbr> response has a <abbr title="Time-To-Live">TTL</abbr> (Time-to-live) value. This value defines, how long is the record valid in seconds. The
 values are maintained by domain owners, server administrators etc. Blocky caches the answers from all resolved queries
@@ -2302,7 +2318,7 @@ mounted (e.g. volume)</p>
 <p class="admonition-title">Example</p>
 <div class="highlight"><pre><span></span><code><span class="nt">hostsFile</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">filePath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/etc/hosts</span>
-<span class="w">  </span><span class="nt">hostsTTL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60m</span>
+<span class="w">  </span><span class="nt">hostsTTL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1h</span>
 <span class="w">  </span><span class="nt">refreshPeriod</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30m</span>
 </code></pre></div>
 </div>
@@ -2339,6 +2355,152 @@ mounted (e.g. volume)</p>
 <p>See <a href="https://github.com/0xERR0R/blocky/wiki/Configuration-of-HTTPS-for-DoH-and-Rest-API">Wiki - Configuration of <abbr title="Hypertext Transfer Protocol Secure">HTTPS</abbr></a>
 for detailed information, how to create and configure <abbr title="Secure Sockets Layer">SSL</abbr> certificates.</p>
 <p><abbr title="DNS-over-HTTPS">DoH</abbr> url: <code>https://host:port/dns-query</code></p>
+<h2 id="sources">Sources</h2>
+<p>Sources are a concept shared by the blocking and hosts file resolvers. They represent where to load the files for each resolver.</p>
+<p>The supported source types are:</p>
+<ul>
+<li><abbr title="Hypertext Transfer Protocol">HTTP</abbr>(S) URL (any source starting with <code>http</code>)</li>
+<li>inline configuration (any source containing a newline)</li>
+<li>local file path (any source not matching the above rules)</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The format/content of the sources depends on the context: lists and hosts files have different, but overlapping, supported formats.</p>
+</div>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><pre><span></span><code><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://example.com/a/source</span><span class="w"> </span><span class="c1"># blocky will download and parse the file</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/a/file/path</span><span class="w"> </span><span class="c1"># blocky will read the local file</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w"> </span><span class="c1"># blocky will parse the content of this multi-line string</span>
+<span class="w">  </span><span class="no"># inline configuration</span>
+</code></pre></div>
+</div>
+<h3 id="sources-loading">Sources Loading</h3>
+<p>This sections covers <code>loading</code> configuration that applies to both the blocking and hosts file resolvers.
+These settings apply only to the resolver under which they are nested.</p>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><pre><span></span><code><span class="nt">blocking</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">loading</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># only applies to white/blacklists</span>
+
+<span class="nt">hostsFile</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">loading</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># only applies to hostsFile sources</span>
+</code></pre></div>
+</div>
+<h4 id="refresh-reload">Refresh / Reload</h4>
+<p>To keep source contents up-to-date, blocky can periodically refresh and reparse them. Default period is <strong>
+4 hours</strong>. You can configure this by setting the <code>refreshPeriod</code> parameter to a value in <strong><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></strong>.<br />
+A value of zero or less will disable this feature.</p>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><pre><span></span><code><span class="nt">loading</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">refreshPeriod</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1h</span>
+</code></pre></div>
+<p>Refresh every hour.</p>
+</div>
+<h3 id="downloads">Downloads</h3>
+<p>Configures how <abbr title="Hypertext Transfer Protocol">HTTP</abbr>(S) sources are downloaded:</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Mandatory</th>
+<th>Default value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>timeout</td>
+<td>duration</td>
+<td>no</td>
+<td>5s</td>
+<td>Download attempt timeout</td>
+</tr>
+<tr>
+<td>attempts</td>
+<td>int</td>
+<td>no</td>
+<td>3</td>
+<td>How many download attempts should be performed</td>
+</tr>
+<tr>
+<td>cooldown</td>
+<td>duration</td>
+<td>no</td>
+<td>500ms</td>
+<td>Time between the download attempts</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><pre><span></span><code><span class="nt">loading</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">downloads</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4m</span>
+<span class="w">    </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">    </span><span class="nt">cooldown</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10s</span>
+</code></pre></div>
+</div>
+<h3 id="strategy">Strategy</h3>
+<p>This configures how Blocky startup works.<br />
+The default strategy is blocking.</p>
+<table>
+<thead>
+<tr>
+<th>strategy</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>blocking</td>
+<td>all sources are loaded before <abbr title="Domain Name System">DNS</abbr> resolution starts</td>
+</tr>
+<tr>
+<td>failOnError</td>
+<td>like blocking but blocky will shut down if any source fails to load</td>
+</tr>
+<tr>
+<td>fast</td>
+<td>blocky starts serving <abbr title="Domain Name System">DNS</abbr> immediately and sources are loaded asynchronously. The features requiring the sources should enable soon after</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><pre><span></span><code><span class="nt">loading</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">failOnError</span>
+</code></pre></div>
+</div>
+<h3 id="max-errors-per-source">Max Errors per Source</h3>
+<p>Number of errors allowed when parsing a source before it is considered invalid and parsing stops.<br />
+A value of -1 disables the limit.</p>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><pre><span></span><code><span class="nt">loading</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">maxErrorsPerSource</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+</code></pre></div>
+</div>
+<h3 id="concurrency">Concurrency</h3>
+<p>Blocky downloads and processes sources concurrently. This allows limiting how many can be processed in the same time.<br />
+Larger values can reduce the overall list refresh time at the cost of using more RAM. Please consider reducing this value on systems with limited memory.<br />
+Default value is 4.</p>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><pre><span></span><code><span class="nt">loading</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">concurrency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+</code></pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>As with other settings under <code>loading</code>, the limit applies to the blocking and hosts file resolvers separately.
+The total number of concurrent sources concurrently processed can reach the sum of both values.<br />
+For example if blocking has a limit set to 8 and hosts file's is 4, there could be up to 12 concurrent jobs.</p>
+</div>
 
 
 
