@@ -26,10 +26,11 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
-      - name: Deploy version for branch
-        if: ${{ startsWith(github.ref, 'refs/heads/') }}
-        run: mike deploy --push --update-aliases "$(sed 's:/:-:g' <<< "${GITHUB_REF_NAME}")"
-
-      - name: Deploy version for tag and update latest
-        if: ${{ startsWith(github.ref, 'refs/tags/') }}
-        run: mike deploy --push --update-aliases "${GITHUB_REF_NAME}" latest
+      - name: Deploy version
+        run: |
+          VERSION="$(sed 's:/:-:g' <<< "$GITHUB_REF_NAME")"
+          if [[ ${{github.ref}} =~ ^refs/tags/ ]]; then
+            EXTRA_ALIAS=latest
+          fi
+          mike deploy --push --update-aliases "$VERSION" $EXTRA_ALIAS
+          tr '[:upper:]' '[:lower:]' <<< "https://${{github.repository_owner}}.github.io/${{github.event.repository.name}}/$VERSION/" >> "$GITHUB_STEP_SUMMARY"
