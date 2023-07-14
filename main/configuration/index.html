@@ -515,6 +515,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#special-use-domain-names" class="md-nav__link">
+    Special Use Domain Names
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#ssl-certificate-configuration-doh-tls-listener" class="md-nav__link">
     SSL certificate configuration (DoH / TLS listener)
   </a>
@@ -938,6 +945,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#special-use-domain-names" class="md-nav__link">
+    Special Use Domain Names
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#ssl-certificate-configuration-doh-tls-listener" class="md-nav__link">
     SSL certificate configuration (DoH / TLS listener)
   </a>
@@ -1349,6 +1363,12 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="nt">ede</span><span class="p">:</span>
 <span class="w">  </span><span class="c1"># enabled if true, Default: false</span>
 <span class="w">  </span><span class="nt">enable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="c1"># optional: configure optional Special Use Domain Names (SUDN)</span>
+<span class="nt">specialUseDomains</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># optional: block recomended private TLDs</span>
+<span class="w">  </span><span class="c1"># default: true</span>
+<span class="w">  </span><span class="nt">rfc6762-appendixG</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
 </details>
 <h2 id="basic-configuration">Basic configuration</h2>
@@ -2349,6 +2369,36 @@ mounted (e.g. volume)</p>
 <p class="admonition-title">Example</p>
 <div class="highlight"><pre><span></span><code><span class="nt">ede</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">enable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</code></pre></div>
+</div>
+<h2 id="special-use-domain-names">Special Use Domain Names</h2>
+<p>SUDN (Special Use Domain Names) are always enabled as they are required by various RFCs.<br />
+Some RFCs have optional recommendations, which are configurable as described below.</p>
+<p>Configuration parameters:</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Mandatory</th>
+<th>Default value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>specialUseDomains.rfc6762-appendixG</td>
+<td>bool</td>
+<td>no</td>
+<td>true</td>
+<td>Block TLDs listed in <a href="https://www.rfc-editor.org/rfc/rfc6762#appendix-G">RFC 6762 Appendix G</a></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><pre><span></span><code><span class="nt">specialUseDomains</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">rfc6762-appendixG</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
 </div>
 <h2 id="ssl-certificate-configuration-doh-tls-listener"><abbr title="Secure Sockets Layer">SSL</abbr> certificate configuration (<abbr title="DNS-over-HTTPS">DoH</abbr> / TLS listener)</h2>
