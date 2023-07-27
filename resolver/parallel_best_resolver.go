@@ -56,12 +56,14 @@ func (r *upstreamResolverStatus) resolve(req *model.Request, ch chan<- requestRe
 	}
 
 	ch <- requestResponse{
+		resolver: &r.resolver,
 		response: resp,
 		err:      err,
 	}
 }
 
 type requestResponse struct {
+	resolver *Resolver
 	response *model.Response
 	err      error
 }
@@ -240,7 +242,7 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 				collectedErrors = append(collectedErrors, result.err)
 			} else {
 				logger.WithFields(logrus.Fields{
-					"resolver": r1.resolver,
+					"resolver": *result.resolver,
 					"answer":   util.AnswerToString(result.response.Res.Answer),
 				}).Debug("using response from resolver")
 
