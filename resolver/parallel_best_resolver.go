@@ -277,6 +277,7 @@ func weightedRandom(in []*upstreamResolverStatus, exclude Resolver) *upstreamRes
 			weight = math.Max(1, weight-(errorWindowInSec-time.Since(lastErrorTime).Minutes()))
 		}
 
+		// TODO: Is there a reason why this check isn't a the start of the loop?
 		if exclude != res.resolver {
 			choices = append(choices, weightedrand.NewChoice(res, uint(weight)))
 		}
