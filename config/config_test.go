@@ -762,10 +762,10 @@ bootstrapDns:
 
 func defaultTestFileConfig() {
 	Expect(config.Ports.DNS).Should(Equal(ListenConfig{"55553", ":55554", "[::1]:55555"}))
-	Expect(config.Upstream.ExternalResolvers["default"]).Should(HaveLen(3))
-	Expect(config.Upstream.ExternalResolvers["default"][0].Host).Should(Equal("8.8.8.8"))
-	Expect(config.Upstream.ExternalResolvers["default"][1].Host).Should(Equal("8.8.4.4"))
-	Expect(config.Upstream.ExternalResolvers["default"][2].Host).Should(Equal("1.1.1.1"))
+	Expect(config.Upstreams.Groups["default"]).Should(HaveLen(3))
+	Expect(config.Upstreams.Groups["default"][0].Host).Should(Equal("8.8.8.8"))
+	Expect(config.Upstreams.Groups["default"][1].Host).Should(Equal("8.8.4.4"))
+	Expect(config.Upstreams.Groups["default"][2].Host).Should(Equal("1.1.1.1"))
 	Expect(config.CustomDNS.Mapping.HostIPs).Should(HaveLen(2))
 	Expect(config.CustomDNS.Mapping.HostIPs["my.duckdns.org"][0]).Should(Equal(net.ParseIP("192.168.178.3")))
 	Expect(config.CustomDNS.Mapping.HostIPs["multiple.ips"][0]).Should(Equal(net.ParseIP("192.168.178.3")))
@@ -797,11 +797,12 @@ func defaultTestFileConfig() {
 
 func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {
 	return tmpDir.CreateStringFile("config.yml",
-		"upstream:",
-		"  default:",
-		"    - tcp+udp:8.8.8.8",
-		"    - tcp+udp:8.8.4.4",
-		"    - 1.1.1.1",
+		"upstreams:",
+		"  groups:",
+		"    default:",
+		"      - tcp+udp:8.8.8.8",
+		"      - tcp+udp:8.8.4.4",
+		"      - 1.1.1.1",
 		"customDNS:",
 		"  mapping:",
 		"    my.duckdns.org: 192.168.178.3",
@@ -856,11 +857,12 @@ func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {
 
 func writeConfigDir(tmpDir *helpertest.TmpFolder) error {
 	f1 := tmpDir.CreateStringFile("config1.yaml",
-		"upstream:",
-		"  default:",
-		"    - tcp+udp:8.8.8.8",
-		"    - tcp+udp:8.8.4.4",
-		"    - 1.1.1.1",
+		"upstreams:",
+		"  groups:",
+		"    default:",
+		"      - tcp+udp:8.8.8.8",
+		"      - tcp+udp:8.8.4.4",
+		"      - 1.1.1.1",
 		"customDNS:",
 		"  mapping:",
 		"    my.duckdns.org: 192.168.178.3",

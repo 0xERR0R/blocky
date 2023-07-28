@@ -185,8 +185,7 @@ func (b *BootstrappedUpstreamConfig) UnmarshalYAML(unmarshal func(interface{}) e
 //
 //nolint:maligned
 type Config struct {
-	Upstream            ParallelBestConfig        `yaml:"upstream"`
-	UpstreamTimeout     Duration                  `yaml:"upstreamTimeout" default:"2s"`
+	Upstreams           UpstreamsConfig           `yaml:"upstreams"`
 	ConnectIPVersion    IPVersion                 `yaml:"connectIPVersion"`
 	CustomDNS           CustomDNSConfig           `yaml:"customDNS"`
 	Conditional         ConditionalUpstreamConfig `yaml:"conditional"`
@@ -212,15 +211,17 @@ type Config struct {
 
 	// Deprecated options
 	Deprecated struct {
-		DisableIPv6  *bool           `yaml:"disableIPv6"`
-		LogLevel     *log.Level      `yaml:"logLevel"`
-		LogFormat    *log.FormatType `yaml:"logFormat"`
-		LogPrivacy   *bool           `yaml:"logPrivacy"`
-		LogTimestamp *bool           `yaml:"logTimestamp"`
-		DNSPorts     *ListenConfig   `yaml:"port"`
-		HTTPPorts    *ListenConfig   `yaml:"httpPort"`
-		HTTPSPorts   *ListenConfig   `yaml:"httpsPort"`
-		TLSPorts     *ListenConfig   `yaml:"tlsPort"`
+		Upstream        *UpstreamGroups `yaml:"upstream"`
+		UpstreamTimeout *Duration       `yaml:"upstreamTimeout"`
+		DisableIPv6     *bool           `yaml:"disableIPv6"`
+		LogLevel        *log.Level      `yaml:"logLevel"`
+		LogFormat       *log.FormatType `yaml:"logFormat"`
+		LogPrivacy      *bool           `yaml:"logPrivacy"`
+		LogTimestamp    *bool           `yaml:"logTimestamp"`
+		DNSPorts        *ListenConfig   `yaml:"port"`
+		HTTPPorts       *ListenConfig   `yaml:"httpPort"`
+		HTTPSPorts      *ListenConfig   `yaml:"httpsPort"`
+		TLSPorts        *ListenConfig   `yaml:"tlsPort"`
 	} `yaml:",inline"`
 }
 
@@ -489,6 +490,8 @@ func unmarshalConfig(data []byte, cfg *Config) error {
 
 func (cfg *Config) migrate(logger *logrus.Entry) bool {
 	usesDepredOpts := Migrate(logger, "", cfg.Deprecated, map[string]Migrator{
+		"upstream":        Move(To("upstreams.groups", &cfg.Upstreams)),
+		"upstreamTimeout": Move(To("upstreams.timeout", &cfg.Upstreams)),
 		"disableIPv6": Apply(To("filtering.queryTypes", &cfg.Filtering), func(oldValue bool) {
 			if oldValue {
 				cfg.Filtering.QueryTypes.Insert(dns.Type(dns.TypeAAAA))

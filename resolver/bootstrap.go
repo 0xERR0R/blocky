@@ -64,7 +64,7 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 
 	// Bootstrap doesn't have a `LogConfig` method, and since that's the only place
 	// where `ParallelBestResolver` uses its config, we can just use an empty one.
-	pbCfg := config.ParallelBestConfig{}
+	var pbCfg config.UpstreamsConfig
 
 	parallelResolver, err := newParallelBestResolver(pbCfg, bootstraped.ResolverGroups())
 	if err != nil {
@@ -115,7 +115,7 @@ func (b *Bootstrap) resolveUpstream(r Resolver, host string) ([]net.IP, error) {
 		cfg := config.GetConfig()
 		ctx := context.Background()
 
-		timeout := cfg.UpstreamTimeout
+		timeout := cfg.Upstreams.Timeout
 		if timeout.IsAboveZero() {
 			var cancel context.CancelFunc
 
