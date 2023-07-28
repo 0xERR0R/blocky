@@ -8,8 +8,9 @@ const UpstreamDefaultCfgName = "default"
 
 // UpstreamsConfig upstream servers configuration
 type UpstreamsConfig struct {
-	Timeout Duration       `yaml:"timeout" default:"2s"`
-	Groups  UpstreamGroups `yaml:"groups"`
+	Timeout  Duration         `yaml:"timeout" default:"2s"`
+	Groups   UpstreamGroups   `yaml:"groups"`
+	Strategy UpstreamStrategy `yaml:"strategy" default:"parallel_best"`
 }
 
 type UpstreamGroups map[string][]Upstream
