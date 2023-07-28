@@ -37,9 +37,10 @@ var _ = Describe("Metrics functional tests", func() {
 			DeferCleanup(httpServer2.Terminate)
 
 			blocky, err = createBlockyContainer(tmpDir,
-				"upstream:",
-				"  default:",
-				"    - moka1",
+				"upstreams:",
+				"  groups:",
+				"    default:",
+				"      - moka1",
 				"blocking:",
 				"  blackLists:",
 				"    group1:",

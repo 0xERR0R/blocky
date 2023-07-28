@@ -27,9 +27,10 @@ var _ = Describe("Basic functional tests", func() {
 		When("Minimal configuration is provided", func() {
 			BeforeEach(func() {
 				blocky, err = createBlockyContainer(tmpDir,
-					"upstream:",
-					"  default:",
-					"    - moka1",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - moka1",
 				)
 
 				Expect(err).Should(Succeed())
@@ -58,9 +59,10 @@ var _ = Describe("Basic functional tests", func() {
 			When("'httpPort' is not defined", func() {
 				BeforeEach(func() {
 					blocky, err = createBlockyContainer(tmpDir,
-						"upstream:",
-						"  default:",
-						"    - moka1",
+						"upstreams:",
+						"  groups:",
+						"    default:",
+						"      - moka1",
 					)
 
 					Expect(err).Should(Succeed())
@@ -78,9 +80,10 @@ var _ = Describe("Basic functional tests", func() {
 			When("'httpPort' is defined", func() {
 				BeforeEach(func() {
 					blocky, err = createBlockyContainer(tmpDir,
-						"upstream:",
-						"  default:",
-						"    - moka1",
+						"upstreams:",
+						"  groups:",
+						"    default:",
+						"      - moka1",
 						"ports:",
 						"  http: 4000",
 					)

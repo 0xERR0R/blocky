@@ -68,7 +68,7 @@ All logging options are optional.
       privacy: true
     ```
 
-## Upstream configuration
+## Upstreams configuration
 
 To resolve a DNS query, blocky needs external public or private DNS resolvers. Blocky supports DNS resolvers with
 following network protocols (net part of the resolver URL):
@@ -107,17 +107,18 @@ CIDR notation.
 !!! example
 
     ```yaml
-    upstream:
-      default:
-        - 5.9.164.112
-        - 1.1.1.1
-        - tcp-tls:fdns1.dismail.de:853
-        - https://dns.digitale-gesellschaft.ch/dns-query
-      laptop*:
-        - 123.123.123.123
-      10.43.8.67/28:
-        - 1.1.1.1
-        - 9.9.9.9
+    upstreams:
+      groups:
+        default:
+          - 5.9.164.112
+          - 1.1.1.1
+          - tcp-tls:fdns1.dismail.de:853
+          - https://dns.digitale-gesellschaft.ch/dns-query
+        laptop*:
+          - 123.123.123.123
+        10.43.8.67/28:
+          - 1.1.1.1
+          - 9.9.9.9
     ```
 
 Use `123.123.123.123` as single upstream DNS resolver for client laptop-home,
@@ -133,16 +134,17 @@ public free DNS server you could use.
 ### Upstream lookup timeout
 
 Blocky will wait 2 seconds (default value) for the response from the external upstream DNS server. You can change this
-value by setting the `upstreamTimeout` configuration parameter (in **duration format**).
+value by setting the `timeout` configuration parameter (in **duration format**).
 
 !!! example
 
     ```yaml
-    upstream:
-      default:
-        - 46.182.19.48
-        - 80.241.218.68
-    upstreamTimeout: 5s
+    upstreams:
+      timeout: 5s
+      groups:
+        default:
+          - 46.182.19.48
+          - 80.241.218.68
     ```
 
 ## Bootstrap DNS configuration

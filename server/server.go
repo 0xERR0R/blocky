@@ -397,7 +397,7 @@ func createQueryResolver(
 	redisClient *redis.Client,
 ) (r resolver.Resolver, err error) {
 	blocking, blErr := resolver.NewBlockingResolver(cfg.Blocking, redisClient, bootstrap)
-	parallel, pErr := resolver.NewParallelBestResolver(cfg.Upstream, bootstrap, cfg.StartVerifyUpstream)
+	parallel, pErr := resolver.NewParallelBestResolver(cfg.Upstreams, bootstrap, cfg.StartVerifyUpstream)
 	clientNames, cnErr := resolver.NewClientNamesResolver(cfg.ClientLookup, bootstrap, cfg.StartVerifyUpstream)
 	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(cfg.Conditional, bootstrap, cfg.StartVerifyUpstream)
 	hostsFile, hfErr := resolver.NewHostsFileResolver(cfg.HostsFile, bootstrap)

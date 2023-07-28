@@ -41,6 +41,10 @@ func Migrate(logger *logrus.Entry, optPrefix string, deprecated any, newOptions 
 			panic(fmt.Errorf("deprecated option %s must be a pointer", oldName))
 		}
 
+		if field.Tag.Get("default") != "" {
+			panic(fmt.Errorf("deprecated option %s must not have a default", oldName))
+		}
+
 		if val.IsNil() {
 			// Deprecated option is not defined in the user's config
 			continue
