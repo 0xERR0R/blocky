@@ -17,8 +17,8 @@ github.com/Masterminds/sprig/v3 v3.2.3/go.mod h1:rXcFaZ2zZbLRJv/xSysmlgIM1u11eBa
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=
 github.com/Microsoft/go-winio v0.6.1/go.mod h1:LRdKpFKfdobln8UmuiYcKPot9D2v6svN5+sAH+4kjUM=
 github.com/Microsoft/hcsshim v0.10.0-rc.8 h1:YSZVvlIIDD1UxQpJp0h+dnpLUw+TrY0cx8obKsp3bek=
-github.com/ThinkChaos/parcour v0.0.0-20230418015731-5c82efbe68f5 h1:3ubNg+3q/Y3lqxga0G90jste3i+HGDgrlPXK/feKUEI=
-github.com/ThinkChaos/parcour v0.0.0-20230418015731-5c82efbe68f5/go.mod h1:hkcYs23P9zbezt09v8168B4lt69PGuoxRPQ6IJHKpHo=
+github.com/ThinkChaos/parcour v0.0.0-20230710171753-fbf917c9eaef h1:lg6zRor4+PZN1Pxqtieo/NMhd61ZdV1Z/+bFURWIVfU=
+github.com/ThinkChaos/parcour v0.0.0-20230710171753-fbf917c9eaef/go.mod h1:hkcYs23P9zbezt09v8168B4lt69PGuoxRPQ6IJHKpHo=
 github.com/abice/go-enum v0.5.7 h1:vOrobjpce5D/x5hYNqrWRkFUXFk7A6BlsJyVy4BS1jM=
 github.com/abice/go-enum v0.5.7/go.mod h1:FBDp+2Ygv9ZZzgcd+Gx3XbyClH7xxFfw8ghMrOpwu+A=
 github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a h1:HbKu58rmZpUGpz5+4FfNmIU+FmZg2P3Xaj2v2bfNWmk=
