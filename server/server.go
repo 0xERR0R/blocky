@@ -396,15 +396,24 @@ func createQueryResolver(
 	bootstrap *resolver.Bootstrap,
 	redisClient *redis.Client,
 ) (r resolver.Resolver, err error) {
+	var upstream resolver.Resolver
+	var uErr error
+
+	switch cfg.UpstreamStrategy {
+	case config.UpstreamStrategyStrict:
+		upstream, uErr = resolver.NewStrictResolver(cfg.Upstream, bootstrap, cfg.StartVerifyUpstream)
+	default:
+		upstream, uErr = resolver.NewParallelBestResolver(cfg.Upstream, bootstrap, cfg.StartVerifyUpstream)
+	}
+
 	blocking, blErr := resolver.NewBlockingResolver(cfg.Blocking, redisClient, bootstrap)
-	parallel, pErr := resolver.NewParallelBestResolver(cfg.Upstreams, bootstrap, cfg.StartVerifyUpstream)
 	clientNames, cnErr := resolver.NewClientNamesResolver(cfg.ClientLookup, bootstrap, cfg.StartVerifyUpstream)
 	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(cfg.Conditional, bootstrap, cfg.StartVerifyUpstream)
 	hostsFile, hfErr := resolver.NewHostsFileResolver(cfg.HostsFile, bootstrap)
 
 	err = multierror.Append(
+		multierror.Prefix(uErr, "upstream resolver: "),
 		multierror.Prefix(blErr, "blocking resolver: "),
-		multierror.Prefix(pErr, "parallel resolver: "),
 		multierror.Prefix(cnErr, "client names resolver: "),
 		multierror.Prefix(cuErr, "conditional upstream resolver: "),
 		multierror.Prefix(hfErr, "hosts file resolver: "),
@@ -426,7 +435,7 @@ func createQueryResolver(
 		resolver.NewCachingResolver(cfg.Caching, redisClient),
 		resolver.NewRewriterResolver(cfg.Conditional.RewriterConfig, condUpstream),
 		resolver.NewSpecialUseDomainNamesResolver(cfg.SUDN),
-		parallel,
+		upstream,
 	)
 
 	return r, nil

@@ -235,19 +235,18 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 
 	//nolint: gosimple
 	for len(collectedErrors) < resolverCount {
-		select {
-		case result := <-ch:
-			if result.err != nil {
-				logger.Debug("resolution failed from resolver, cause: ", result.err)
-				collectedErrors = append(collectedErrors, result.err)
-			} else {
-				logger.WithFields(logrus.Fields{
-					"resolver": *result.resolver,
-					"answer":   util.AnswerToString(result.response.Res.Answer),
-				}).Debug("using response from resolver")
+		result := <-ch
 
-				return result.response, nil
-			}
+		if result.err != nil {
+			logger.Debug("resolution failed from resolver, cause: ", result.err)
+			collectedErrors = append(collectedErrors, result.err)
+		} else {
+			logger.WithFields(logrus.Fields{
+				"resolver": *result.resolver,
+				"answer":   util.AnswerToString(result.response.Res.Answer),
+			}).Debug("using response from resolver")
+
+			return result.response, nil
 		}
 	}
 
