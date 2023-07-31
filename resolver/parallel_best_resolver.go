@@ -83,7 +83,7 @@ func testResolver(r *UpstreamResolver) error {
 // NewParallelBestResolver creates new resolver instance
 func NewParallelBestResolver(
 	cfg config.UpstreamsConfig, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
-) (*ParallelBestResolver, error) {
+) (Resolver, error) {
 	logger := log.PrefixedLog(parallelResolverType)
 
 	upstreamResolvers := cfg.Groups

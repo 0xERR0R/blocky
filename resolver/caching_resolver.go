@@ -40,7 +40,7 @@ type cacheValue struct {
 }
 
 // NewCachingResolver creates a new resolver instance
-func NewCachingResolver(cfg config.CachingConfig, redis *redis.Client) *CachingResolver {
+func NewCachingResolver(cfg config.CachingConfig, redis *redis.Client) ChainedResolver {
 	return newCachingResolver(cfg, redis, true)
 }
 

@@ -43,7 +43,7 @@ var _ = Describe("CachingResolver", func() {
 	})
 
 	JustBeforeEach(func() {
-		sut = NewCachingResolver(sutConfig, nil)
+		sut = NewCachingResolver(sutConfig, nil).(*CachingResolver)
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		sut.Next(m)
@@ -565,7 +565,7 @@ var _ = Describe("CachingResolver", func() {
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1000, A, "1.1.1.1")
 
-				sut = NewCachingResolver(sutConfig, redisClient)
+				sut = NewCachingResolver(sutConfig, redisClient).(*CachingResolver)
 				m = &mockResolver{}
 				m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 				sut.Next(m)

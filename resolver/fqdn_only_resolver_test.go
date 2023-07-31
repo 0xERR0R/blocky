@@ -30,7 +30,7 @@ var _ = Describe("FqdnOnlyResolver", func() {
 	})
 
 	JustBeforeEach(func() {
-		sut = NewFqdnOnlyResolver(sutConfig)
+		sut = NewFqdnOnlyResolver(sutConfig).(*FqdnOnlyResolver)
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		sut.Next(m)

@@ -34,7 +34,7 @@ type HostsFileResolver struct {
 	downloader lists.FileDownloader
 }
 
-func NewHostsFileResolver(cfg config.HostsFileConfig, bootstrap *Bootstrap) (*HostsFileResolver, error) {
+func NewHostsFileResolver(cfg config.HostsFileConfig, bootstrap *Bootstrap) (ChainedResolver, error) {
 	r := HostsFileResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("hosts_file"),

@@ -27,20 +27,6 @@ type StrictResolver struct {
 	resolversPerClient map[string][]*upstreamResolverStatus
 }
 
-// func (r *upstreamResolverStatus) resolve(req *model.Request, ch chan<- requestResponse) {
-// 	resp, err := r.resolver.Resolve(req)
-// 	if err != nil && !errors.Is(err, context.Canceled) { // ignore `Canceled`: resolver lost the race, not an error
-// 		// update the last error time
-// 		r.lastErrorTime.Store(time.Now())
-// 	}
-
-// 	ch <- requestResponse{
-// 		resolver: &r.resolver,
-// 		response: resp,
-// 		err:      err,
-// 	}
-// }
-
 // NewStrictResolver creates new resolver instance
 func NewStrictResolver(
 	cfg config.UpstreamsConfig, bootstrap *Bootstrap, shouldVerifyUpstreams bool,

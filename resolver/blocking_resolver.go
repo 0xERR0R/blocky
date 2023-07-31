@@ -95,7 +95,7 @@ type BlockingResolver struct {
 // NewBlockingResolver returns a new configured instance of the resolver
 func NewBlockingResolver(
 	cfg config.BlockingConfig, redis *redis.Client, bootstrap *Bootstrap,
-) (r *BlockingResolver, err error) {
+) (r ChainedResolver, err error) {
 	blockHandler, err := createBlockHandler(cfg)
 	if err != nil {
 		return nil, err

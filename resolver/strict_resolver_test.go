@@ -1,7 +1,6 @@
 package resolver
 
 import (
-	"strings"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -21,6 +20,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 	)
 
 	var (
+		temp       Resolver
 		sut        *StrictResolver
 		sutMapping config.UpstreamGroups
 		sutVerify  bool
@@ -56,7 +56,10 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 	JustBeforeEach(func() {
 		sutConfig := config.UpstreamsConfig{Groups: sutMapping}
 
-		sut, err = NewStrictResolver(sutConfig, bootstrap, sutVerify)
+		temp, err = NewStrictResolver(sutConfig, bootstrap, sutVerify)
+		if temp != nil {
+			sut = temp.(*StrictResolver)
+		}
 	})
 
 	config.GetConfig().Upstreams.Timeout = config.Duration(1000 * time.Millisecond)
@@ -426,77 +429,6 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 								HaveResponseType(ResponseTypeRESOLVED),
 								HaveReturnCode(dns.RcodeSuccess),
 							))
-				})
-			})
-		})
-	})
-
-	Describe("Weighted random on resolver selection", func() {
-		When("5 upstream resolvers are defined", func() {
-			It("should use 2 random peeked resolvers, weighted with last error timestamp", func() {
-				withError1 := config.Upstream{Host: "wrong1"}
-				withError2 := config.Upstream{Host: "wrong2"}
-
-				mockUpstream1 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
-				DeferCleanup(mockUpstream1.Close)
-
-				mockUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
-				DeferCleanup(mockUpstream2.Close)
-
-				sut, _ := NewParallelBestResolver(config.ParallelBestConfig{ExternalResolvers: config.ParallelBestMapping{
-					upstreamDefaultCfgName: {withError1, mockUpstream1.Start(), mockUpstream2.Start(), withError2},
-				}}, systemResolverBootstrap, noVerifyUpstreams)
-
-				By("all resolvers have same weight for random -> equal distribution", func() {
-					resolverCount := make(map[Resolver]int)
-
-					for i := 0; i < 1000; i++ {
-						r1, r2 := pickRandom(sut.resolversForClient(newRequestWithClient(
-							"example.com", A, "123.123.100.100",
-						)))
-						res1 := r1.resolver
-						res2 := r2.resolver
-						Expect(res1).ShouldNot(Equal(res2))
-
-						resolverCount[res1]++
-						resolverCount[res2]++
-					}
-					for _, v := range resolverCount {
-						// should be 500 ± 100
-						Expect(v).Should(BeNumerically("~", 500, 100))
-					}
-				})
-				By("perform 10 request, error upstream's weight will be reduced", func() {
-					// perform 10 requests
-					for i := 0; i < 100; i++ {
-						request := newRequest("example.com.", A)
-						_, _ = sut.Resolve(request)
-					}
-				})
-
-				By("Resolvers without errors should be selected often", func() {
-					resolverCount := make(map[*UpstreamResolver]int)
-
-					for i := 0; i < 100; i++ {
-						r1, r2 := pickRandom(sut.resolversForClient(newRequestWithClient(
-							"example.com", A, "123.123.100.100",
-						)))
-						res1 := r1.resolver.(*UpstreamResolver)
-						res2 := r2.resolver.(*UpstreamResolver)
-						Expect(res1).ShouldNot(Equal(res2))
-
-						resolverCount[res1]++
-						resolverCount[res2]++
-					}
-					for k, v := range resolverCount {
-						if strings.Contains(k.String(), "wrong") {
-							// error resolvers: should be 0 - 10
-							Expect(v).Should(BeNumerically("~", 0, 10))
-						} else {
-							// should be 90 ± 10
-							Expect(v).Should(BeNumerically("~", 90, 10))
-						}
-					}
 				})
 			})
 		})

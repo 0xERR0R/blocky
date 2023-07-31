@@ -68,10 +68,10 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 	})
 
 	JustBeforeEach(func() {
-		var err error
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
-		sut, err = NewBlockingResolver(sutConfig, nil, systemResolverBootstrap)
+		temp, err := NewBlockingResolver(sutConfig, nil, systemResolverBootstrap)
+		sut = temp.(*BlockingResolver)
 		Expect(err).Should(Succeed())
 		sut.Next(m)
 	})
@@ -112,7 +112,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				Expect(err).Should(Succeed())
 
 				// recreate to trigger a reload
-				sut, err = NewBlockingResolver(sutConfig, nil, systemResolverBootstrap)
+				temp, err := NewBlockingResolver(sutConfig, nil, systemResolverBootstrap)
+				sut = temp.(*BlockingResolver)
 				Expect(err).Should(Succeed())
 
 				Eventually(groupCnt, "1s").Should(HaveLen(2))
@@ -1154,7 +1155,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				BlockTTL:  config.Duration(time.Minute),
 			}
 
-			sut, err = NewBlockingResolver(sutConfig, redisClient, systemResolverBootstrap)
+			temp, err := NewBlockingResolver(sutConfig, redisClient, systemResolverBootstrap)
+			sut = temp.(*BlockingResolver)
 			Expect(err).Should(Succeed())
 		})
 		JustAfterEach(func() {
