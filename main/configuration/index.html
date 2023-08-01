@@ -290,11 +290,11 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#upstream-configuration" class="md-nav__link">
-    Upstream configuration
+  <a href="#upstreams-configuration" class="md-nav__link">
+    Upstreams configuration
   </a>
   
-    <nav class="md-nav" aria-label="Upstream configuration">
+    <nav class="md-nav" aria-label="Upstreams configuration">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -720,11 +720,11 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#upstream-configuration" class="md-nav__link">
-    Upstream configuration
+  <a href="#upstreams-configuration" class="md-nav__link">
+    Upstreams configuration
   </a>
   
-    <nav class="md-nav" aria-label="Upstream configuration">
+    <nav class="md-nav" aria-label="Upstreams configuration">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1044,26 +1044,26 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <summary>reference configuration file</summary>
 <div class="highlight"><pre><span></span><code><span class="c1"># REVIEW: manual changelog entry</span>
 
-<span class="nt">upstream</span><span class="p">:</span>
-<span class="w">  </span><span class="c1"># these external DNS resolvers will be used. Blocky picks 2 random resolvers from the list for each query</span>
-<span class="w">  </span><span class="c1"># format for resolver: [net:]host:[port][/path]. net could be empty (default, shortcut for tcp+udp), tcp+udp, tcp, udp, tcp-tls or https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))</span>
-<span class="w">  </span><span class="c1"># this configuration is mandatory, please define at least one external DNS resolver</span>
-<span class="w">  </span><span class="nt">default</span><span class="p">:</span>
-<span class="w">    </span><span class="c1"># example for tcp+udp IPv4 server (https://digitalcourage.de/)</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5.9.164.112</span>
-<span class="w">    </span><span class="c1"># Cloudflare</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.1.1.1</span>
-<span class="w">    </span><span class="c1"># example for DNS-over-TLS server (DoT)</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tcp-tls:fdns1.dismail.de:853</span>
-<span class="w">    </span><span class="c1"># example for DNS-over-HTTPS (DoH)</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://dns.digitale-gesellschaft.ch/dns-query</span>
-<span class="w">  </span><span class="c1"># optional: use client name (with wildcard support: * - sequence of any characters, [0-9] - range)</span>
-<span class="w">  </span><span class="c1"># or single ip address / client subnet as CIDR notation</span>
-<span class="w">  </span><span class="nt">laptop*</span><span class="p">:</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">123.123.123.123</span>
-
-<span class="c1"># optional: timeout to query the upstream resolver. Default: 2s</span>
-<span class="nt">upstreamTimeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2s</span>
+<span class="nt">upstreams</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># these external DNS resolvers will be used. Blocky picks 2 random resolvers from the list for each query</span>
+<span class="w">    </span><span class="c1"># format for resolver: [net:]host:[port][/path]. net could be empty (default, shortcut for tcp+udp), tcp+udp, tcp, udp, tcp-tls or https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))</span>
+<span class="w">    </span><span class="c1"># this configuration is mandatory, please define at least one external DNS resolver</span>
+<span class="w">    </span><span class="nt">default</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># example for tcp+udp IPv4 server (https://digitalcourage.de/)</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5.9.164.112</span>
+<span class="w">      </span><span class="c1"># Cloudflare</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.1.1.1</span>
+<span class="w">      </span><span class="c1"># example for DNS-over-TLS server (DoT)</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tcp-tls:fdns1.dismail.de:853</span>
+<span class="w">      </span><span class="c1"># example for DNS-over-HTTPS (DoH)</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://dns.digitale-gesellschaft.ch/dns-query</span>
+<span class="w">    </span><span class="c1"># optional: use client name (with wildcard support: * - sequence of any characters, [0-9] - range)</span>
+<span class="w">    </span><span class="c1"># or single ip address / client subnet as CIDR notation</span>
+<span class="w">    </span><span class="nt">laptop*</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">123.123.123.123</span>
+<span class="w">  </span><span class="c1"># optional: timeout to query the upstream resolver. Default: 2s</span>
+<span class="w">  </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2s</span>
 
 <span class="c1"># optional: If true, blocky will fail to start unless at least one upstream server per group is reachable. Default: false</span>
 <span class="nt">startVerifyUpstream</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
@@ -1526,7 +1526,7 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">  </span><span class="nt">privacy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
 </div>
-<h2 id="upstream-configuration">Upstream configuration</h2>
+<h2 id="upstreams-configuration">Upstreams configuration</h2>
 <p>To resolve a <abbr title="Domain Name System">DNS</abbr> query, blocky needs external public or private <abbr title="Domain Name System">DNS</abbr> resolvers. Blocky supports <abbr title="Domain Name System">DNS</abbr> resolvers with
 following network protocols (net part of the resolver URL):</p>
 <ul>
@@ -1588,17 +1588,18 @@ specific resolver configuration is available.</p>
 </div>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><pre><span></span><code><span class="nt">upstream</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">default</span><span class="p">:</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5.9.164.112</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.1.1.1</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tcp-tls:fdns1.dismail.de:853</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://dns.digitale-gesellschaft.ch/dns-query</span>
-<span class="w">  </span><span class="nt">laptop*</span><span class="p">:</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">123.123.123.123</span>
-<span class="w">  </span><span class="nt">10.43.8.67/28</span><span class="p">:</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.1.1.1</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">9.9.9.9</span>
+<div class="highlight"><pre><span></span><code><span class="nt">upstreams</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">default</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5.9.164.112</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.1.1.1</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tcp-tls:fdns1.dismail.de:853</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://dns.digitale-gesellschaft.ch/dns-query</span>
+<span class="w">    </span><span class="nt">laptop*</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">123.123.123.123</span>
+<span class="w">    </span><span class="nt">10.43.8.67/28</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.1.1.1</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">9.9.9.9</span>
 </code></pre></div>
 </div>
 <p>Use <code>123.123.123.123</code> as single upstream <abbr title="Domain Name System">DNS</abbr> resolver for client laptop-home,
@@ -1611,14 +1612,15 @@ specific resolver configuration is available.</p>
 public free <abbr title="Domain Name System">DNS</abbr> server you could use.</p>
 <h3 id="upstream-lookup-timeout">Upstream lookup timeout</h3>
 <p>Blocky will wait 2 seconds (default value) for the response from the external upstream <abbr title="Domain Name System">DNS</abbr> server. You can change this
-value by setting the <code>upstreamTimeout</code> configuration parameter (in <strong><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></strong>).</p>
+value by setting the <code>timeout</code> configuration parameter (in <strong><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></strong>).</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="highlight"><pre><span></span><code><span class="nt">upstream</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">default</span><span class="p">:</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">46.182.19.48</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80.241.218.68</span>
-<span class="nt">upstreamTimeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5s</span>
+<div class="highlight"><pre><span></span><code><span class="nt">upstreams</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5s</span>
+<span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">default</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">46.182.19.48</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80.241.218.68</span>
 </code></pre></div>
 </div>
 <h2 id="bootstrap-dns-configuration">Bootstrap <abbr title="Domain Name System">DNS</abbr> configuration</h2>
