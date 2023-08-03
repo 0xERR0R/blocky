@@ -138,11 +138,6 @@ func newParallelBestResolver(
 		resolversPerClient[groupName] = resolverStatuses
 	}
 
-	if len(resolversPerClient[upstreamDefaultCfgName]) == 0 {
-		return nil, fmt.Errorf("no external DNS resolvers configured as default upstream resolvers. "+
-			"Please configure at least one under '%s' configuration name", upstreamDefaultCfgName)
-	}
-
 	r := ParallelBestResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType(parallelResolverType),
@@ -172,45 +167,15 @@ func (r *ParallelBestResolver) String() string {
 	return fmt.Sprintf("parallel upstreams '%s'", strings.Join(result, "; "))
 }
 
-func (r *ParallelBestResolver) resolversForClient(request *model.Request) (result []*upstreamResolverStatus) {
-	clientIP := request.ClientIP.String()
-
-	// try client names
-	for _, cName := range request.ClientNames {
-		for clientDefinition, upstreams := range r.resolversPerClient {
-			if cName != clientIP && util.ClientNameMatchesGroupName(clientDefinition, cName) {
-				result = append(result, upstreams...)
-			}
-		}
-	}
-
-	// try IP
-	upstreams, found := r.resolversPerClient[clientIP]
-
-	if found {
-		result = append(result, upstreams...)
-	}
-
-	// try CIDR
-	for cidr, upstreams := range r.resolversPerClient {
-		if util.CidrContainsIP(cidr, request.ClientIP) {
-			result = append(result, upstreams...)
-		}
-	}
-
-	if len(result) == 0 {
-		// return default
-		result = r.resolversPerClient[upstreamDefaultCfgName]
-	}
-
-	return result
-}
-
 // Resolve sends the query request to multiple upstream resolvers and returns the fastest result
 func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response, error) {
 	logger := log.WithPrefix(request.Log, parallelResolverType)
 
-	resolvers := r.resolversForClient(request)
+	var resolvers []*upstreamResolverStatus
+	for _, r := range r.resolversPerClient {
+		resolvers = r
+		break
+	}
 
 	if len(resolvers) == 1 {
 		logger.WithField("resolver", resolvers[0].resolver).Debug("delegating to resolver")

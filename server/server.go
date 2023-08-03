@@ -396,15 +396,28 @@ func createQueryResolver(
 	bootstrap *resolver.Bootstrap,
 	redisClient *redis.Client,
 ) (r resolver.Resolver, err error) {
-	var upstream resolver.Resolver
+	// TODO: create one resolver of `cfg.UpstreamStrategy` (after #1086 is merged `cfg.Upstreams.UpstreamStrategy`) for each upstream group
+	upstreamBranches := make(map[string]resolver.Resolver, len(cfg.Upstreams.Groups))
 	var uErr error
 
-	switch cfg.UpstreamStrategy {
-	case config.UpstreamStrategyStrict:
-		upstream, uErr = resolver.NewStrictResolver(cfg.Upstream, bootstrap, cfg.StartVerifyUpstream)
-	default:
-		upstream, uErr = resolver.NewParallelBestResolver(cfg.Upstream, bootstrap, cfg.StartVerifyUpstream)
+	for group, upstreams := range cfg.Upstreams.Groups {
+		var upstream resolver.Resolver
+		var err error
+
+		resolverCfg := config.UpstreamsConfig{Groups: config.UpstreamGroups{group: upstreams}}
+
+		switch cfg.Upstreams.Strategy {
+		case config.UpstreamStrategyStrict:
+			upstream, err = resolver.NewStrictResolver(resolverCfg, bootstrap, cfg.StartVerifyUpstream)
+		default: // UpstreamStrategyParallelBest
+			upstream, err = resolver.NewParallelBestResolver(resolverCfg, bootstrap, cfg.StartVerifyUpstream)
+		}
+
+		upstreamBranches[group] = upstream
+		uErr = multierror.Append(multierror.Prefix(err, fmt.Sprintf("group %s: ", group)))
 	}
+
+	upstreamTree, utErr := resolver.NewUpstreamTreeResolver(cfg.Upstreams, upstreamBranches)
 
 	blocking, blErr := resolver.NewBlockingResolver(cfg.Blocking, redisClient, bootstrap)
 	clientNames, cnErr := resolver.NewClientNamesResolver(cfg.ClientLookup, bootstrap, cfg.StartVerifyUpstream)
@@ -412,7 +425,8 @@ func createQueryResolver(
 	hostsFile, hfErr := resolver.NewHostsFileResolver(cfg.HostsFile, bootstrap)
 
 	err = multierror.Append(
-		multierror.Prefix(uErr, "upstream resolver: "),
+		multierror.Prefix(utErr, "upstream tree resolver: "),
+		multierror.Prefix(uErr, "upstream resolvers: "),
 		multierror.Prefix(blErr, "blocking resolver: "),
 		multierror.Prefix(cnErr, "client names resolver: "),
 		multierror.Prefix(cuErr, "conditional upstream resolver: "),
@@ -435,7 +449,7 @@ func createQueryResolver(
 		resolver.NewCachingResolver(cfg.Caching, redisClient),
 		resolver.NewRewriterResolver(cfg.Conditional.RewriterConfig, condUpstream),
 		resolver.NewSpecialUseDomainNamesResolver(cfg.SUDN),
-		upstream,
+		upstreamTree,
 	)
 
 	return r, nil
