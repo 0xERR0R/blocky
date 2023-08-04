@@ -66,10 +66,7 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 	// where `ParallelBestResolver` uses its config, we can just use an empty one.
 	var pbCfg config.UpstreamsConfig
 
-	parallelResolver, err := newParallelBestResolver(pbCfg, bootstraped.ResolverGroups())
-	if err != nil {
-		return nil, fmt.Errorf("could not create bootstrap ParallelBestResolver: %w", err)
-	}
+	parallelResolver := newParallelBestResolver(pbCfg, bootstraped.ResolverGroups())
 
 	// Always enable prefetching to avoid stalling user requests
 	// Otherwise, a request to blocky could end up waiting for 2 DNS requests:

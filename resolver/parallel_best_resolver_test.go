@@ -267,7 +267,8 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 				DeferCleanup(mockUpstream2.Close)
 
 				temp, _ := NewParallelBestResolver(config.UpstreamsConfig{Groups: config.UpstreamGroups{
-					upstreamDefaultCfgName: {withError1, mockUpstream1.Start(), mockUpstream2.Start(), withError2}}},
+					upstreamDefaultCfgName: {withError1, mockUpstream1.Start(), mockUpstream2.Start(), withError2},
+				}},
 					systemResolverBootstrap, noVerifyUpstreams)
 
 				sut = temp.(*ParallelBestResolver)

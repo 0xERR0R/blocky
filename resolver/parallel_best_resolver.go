@@ -120,12 +120,12 @@ func NewParallelBestResolver(
 		resolverGroups[name] = group
 	}
 
-	return newParallelBestResolver(cfg, resolverGroups)
+	return newParallelBestResolver(cfg, resolverGroups), nil
 }
 
 func newParallelBestResolver(
 	cfg config.UpstreamsConfig, resolverGroups map[string][]Resolver,
-) (*ParallelBestResolver, error) {
+) *ParallelBestResolver {
 	resolversPerClient := make(map[string][]*upstreamResolverStatus, len(resolverGroups))
 
 	for groupName, resolvers := range resolverGroups {
@@ -145,7 +145,7 @@ func newParallelBestResolver(
 		resolversPerClient: resolversPerClient,
 	}
 
-	return &r, nil
+	return &r
 }
 
 func (r *ParallelBestResolver) Name() string {
@@ -174,6 +174,7 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 	var resolvers []*upstreamResolverStatus
 	for _, r := range r.resolversPerClient {
 		resolvers = r
+
 		break
 	}
 
@@ -198,7 +199,6 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 
 	go r2.resolve(request, ch)
 
-	//nolint: gosimple
 	for len(collectedErrors) < resolverCount {
 		result := <-ch
 
@@ -230,9 +230,13 @@ func pickRandom(resolvers []*upstreamResolverStatus) (resolver1, resolver2 *upst
 func weightedRandom(in []*upstreamResolverStatus, exclude Resolver) *upstreamResolverStatus {
 	const errorWindowInSec = 60
 
-	var choices []weightedrand.Choice[*upstreamResolverStatus, uint]
+	choices := make([]weightedrand.Choice[*upstreamResolverStatus, uint], 0, len(in))
 
 	for _, res := range in {
+		if exclude == res.resolver {
+			continue
+		}
+
 		var weight float64 = errorWindowInSec
 
 		if time.Since(res.lastErrorTime.Load().(time.Time)) < time.Hour {
@@ -241,10 +245,7 @@ func weightedRandom(in []*upstreamResolverStatus, exclude Resolver) *upstreamRes
 			weight = math.Max(1, weight-(errorWindowInSec-time.Since(lastErrorTime).Minutes()))
 		}
 
-		// TODO: Is there a reason why this check isn't a the start of the loop?
-		if exclude != res.resolver {
-			choices = append(choices, weightedrand.NewChoice(res, uint(weight)))
-		}
+		choices = append(choices, weightedrand.NewChoice(res, uint(weight)))
 	}
 
 	c, err := weightedrand.NewChooser(choices...)

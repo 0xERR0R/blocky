@@ -23,7 +23,7 @@ func (c *UpstreamsConfig) IsEnabled() bool {
 // LogConfig implements `config.Configurable`.
 func (c *UpstreamsConfig) LogConfig(logger *logrus.Entry) {
 	logger.Info("timeout: ", c.Timeout)
-
+	logger.Info("strategy: ", c.Strategy)
 	logger.Info("groups:")
 
 	for name, upstreams := range c.Groups {

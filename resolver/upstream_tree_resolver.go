@@ -90,6 +90,7 @@ func (r *UpstreamTreeResolver) upstreamGroupByClient(request *model.Request) str
 				"groups":      groups,
 			}).Warn("client matches multiple groups")
 		}
+
 		return groups[0]
 	}
 

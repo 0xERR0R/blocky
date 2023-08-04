@@ -67,12 +67,12 @@ func NewStrictResolver(
 		resolverGroups[name] = group
 	}
 
-	return newStrictResolver(cfg, resolverGroups)
+	return newStrictResolver(cfg, resolverGroups), nil
 }
 
 func newStrictResolver(
 	cfg config.UpstreamsConfig, resolverGroups map[string][]Resolver,
-) (*StrictResolver, error) {
+) *StrictResolver {
 	resolversPerClient := make(map[string][]*upstreamResolverStatus, len(resolverGroups))
 
 	for groupName, resolvers := range resolverGroups {
@@ -92,7 +92,7 @@ func newStrictResolver(
 		resolversPerClient: resolversPerClient,
 	}
 
-	return &r, nil
+	return &r
 }
 
 func (r *StrictResolver) Name() string {
@@ -121,6 +121,7 @@ func (r *StrictResolver) Resolve(request *model.Request) (*model.Response, error
 	var resolvers []*upstreamResolverStatus
 	for _, r := range r.resolversPerClient {
 		resolvers = r
+
 		break
 	}
 
@@ -134,21 +135,23 @@ func (r *StrictResolver) Resolve(request *model.Request) (*model.Response, error
 
 		resolver := resolvers[i]
 		ch := make(chan requestResponse, resolverCount)
-		go func() {
-			resolver.resolve(request, ch)
-		}()
+
+		go resolver.resolve(request, ch)
 
 		select {
 		case <-ctx.Done():
 			// log debug/info that timeout exceeded, call `continue` to try next upstream
 			logger.WithField("resolver", resolvers[i].resolver).Debug("upstream exceeded timeout, trying next upstream")
+
 			continue
 		case result := <-ch:
 			if result.err != nil {
 				// log error & call `continue` to try next upstream
 				logger.Debug("resolution failed from resolver, cause: ", result.err)
+
 				continue
 			}
+
 			logger.WithFields(logrus.Fields{
 				"resolver": *result.resolver,
 				"answer":   util.AnswerToString(result.response.Res.Answer),
@@ -157,5 +160,6 @@ func (r *StrictResolver) Resolve(request *model.Request) (*model.Response, error
 			return result.response, nil
 		}
 	}
+
 	return nil, errors.New("resolution was not successful, no resolver returned an answer in time")
 }

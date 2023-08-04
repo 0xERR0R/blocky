@@ -98,6 +98,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 		It("should start normally", func() {
 			mockUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 				response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 123, A, "123.124.122.122")
+
 				return
 			})
 			defer mockUpstream.Close()
@@ -185,6 +186,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 							time.Sleep(time.Duration(config.GetConfig().Upstreams.Timeout) + 2*time.Second)
 
 							Expect(err).To(Succeed())
+
 							return response
 						})
 						DeferCleanup(testUpstream1.Close)
@@ -214,6 +216,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 							time.Sleep(config.GetConfig().Upstreams.Timeout.ToDuration() + 2*time.Second)
 
 							Expect(err).To(Succeed())
+
 							return response
 						})
 						DeferCleanup(testUpstream1.Close)
@@ -223,6 +226,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 							time.Sleep(config.GetConfig().Upstreams.Timeout.ToDuration() + 2*time.Second)
 
 							Expect(err).To(Succeed())
+
 							return response
 						})
 						DeferCleanup(testUpstream2.Close)

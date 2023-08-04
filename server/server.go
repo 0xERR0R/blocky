@@ -396,27 +396,7 @@ func createQueryResolver(
 	bootstrap *resolver.Bootstrap,
 	redisClient *redis.Client,
 ) (r resolver.Resolver, err error) {
-	// TODO: create one resolver of `cfg.UpstreamStrategy` (after #1086 is merged `cfg.Upstreams.UpstreamStrategy`) for each upstream group
-	upstreamBranches := make(map[string]resolver.Resolver, len(cfg.Upstreams.Groups))
-	var uErr error
-
-	for group, upstreams := range cfg.Upstreams.Groups {
-		var upstream resolver.Resolver
-		var err error
-
-		resolverCfg := config.UpstreamsConfig{Groups: config.UpstreamGroups{group: upstreams}}
-
-		switch cfg.Upstreams.Strategy {
-		case config.UpstreamStrategyStrict:
-			upstream, err = resolver.NewStrictResolver(resolverCfg, bootstrap, cfg.StartVerifyUpstream)
-		default: // UpstreamStrategyParallelBest
-			upstream, err = resolver.NewParallelBestResolver(resolverCfg, bootstrap, cfg.StartVerifyUpstream)
-		}
-
-		upstreamBranches[group] = upstream
-		uErr = multierror.Append(multierror.Prefix(err, fmt.Sprintf("group %s: ", group)))
-	}
-
+	upstreamBranches, uErr := createUpstreamBranches(cfg, bootstrap)
 	upstreamTree, utErr := resolver.NewUpstreamTreeResolver(cfg.Upstreams, upstreamBranches)
 
 	blocking, blErr := resolver.NewBlockingResolver(cfg.Blocking, redisClient, bootstrap)
@@ -453,6 +433,36 @@ func createQueryResolver(
 	)
 
 	return r, nil
+}
+
+func createUpstreamBranches(
+	cfg *config.Config,
+	bootstrap *resolver.Bootstrap,
+) (map[string]resolver.Resolver, error) {
+	upstreamBranches := make(map[string]resolver.Resolver, len(cfg.Upstreams.Groups))
+
+	var uErr error
+
+	for group, upstreams := range cfg.Upstreams.Groups {
+		var (
+			upstream resolver.Resolver
+			err      error
+		)
+
+		resolverCfg := config.UpstreamsConfig{Groups: config.UpstreamGroups{group: upstreams}}
+
+		switch cfg.Upstreams.Strategy {
+		case config.UpstreamStrategyStrict:
+			upstream, err = resolver.NewStrictResolver(resolverCfg, bootstrap, cfg.StartVerifyUpstream)
+		case config.UpstreamStrategyParallelBest: // UpstreamStrategyParallelBest
+			upstream, err = resolver.NewParallelBestResolver(resolverCfg, bootstrap, cfg.StartVerifyUpstream)
+		}
+
+		upstreamBranches[group] = upstream
+		uErr = multierror.Append(multierror.Prefix(err, fmt.Sprintf("group %s: ", group)))
+	}
+
+	return upstreamBranches, uErr
 }
 
 func (s *Server) registerDNSHandlers() {
