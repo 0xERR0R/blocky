@@ -18,6 +18,10 @@ upstreams:
     # or single ip address / client subnet as CIDR notation
     laptop*:
       - 123.123.123.123
+  # optional: Determines what strategy blocky uses to choose the upstream servers.
+  # accepted: parallel_best, strict
+  # default: parallel_best
+  strategy: parallel_best
   # optional: timeout to query the upstream resolver. Default: 2s
   timeout: 2s
 
