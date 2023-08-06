@@ -398,7 +398,7 @@ func createQueryResolver(
 ) (r resolver.Resolver, err error) {
 	upstreamBranches, uErr := createUpstreamBranches(cfg, bootstrap)
 	if uErr != nil {
-		return nil, fmt.Errorf("creation of upstream branches failed: %w", err)
+		return nil, fmt.Errorf("creation of upstream branches failed: %w", uErr)
 	}
 
 	upstreamTree, utErr := resolver.NewUpstreamTreeResolver(cfg.Upstreams, upstreamBranches)
