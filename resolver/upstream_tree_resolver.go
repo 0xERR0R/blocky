@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
@@ -27,6 +28,11 @@ func NewUpstreamTreeResolver(cfg config.UpstreamsConfig, branches map[string]Res
 			"Please configure at least one under '%s' configuration name", upstreamDefaultCfgName)
 	}
 
+	if len(branches) != len(cfg.Groups) {
+		return nil, fmt.Errorf("amount of passed in branches (%d) does not match amount of configured upstream groups (%d)",
+			len(branches), len(cfg.Groups))
+	}
+
 	if len(branches) == 1 {
 		for _, r := range branches {
 			return r, nil
@@ -42,6 +48,20 @@ func NewUpstreamTreeResolver(cfg config.UpstreamsConfig, branches map[string]Res
 	}
 
 	return &r, nil
+}
+
+func (r *UpstreamTreeResolver) Name() string {
+	return r.String()
+}
+
+func (r *UpstreamTreeResolver) String() string {
+	result := make([]string, 0, len(r.branches))
+
+	for group, res := range r.branches {
+		result = append(result, fmt.Sprintf("%s (%s)", group, res.Type()))
+	}
+
+	return fmt.Sprintf("%s upstreams %q", upstreamTreeResolverType, strings.Join(result, ", "))
 }
 
 func (r *UpstreamTreeResolver) Resolve(request *model.Request) (*model.Response, error) {

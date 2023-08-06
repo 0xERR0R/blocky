@@ -397,6 +397,10 @@ func createQueryResolver(
 	redisClient *redis.Client,
 ) (r resolver.Resolver, err error) {
 	upstreamBranches, uErr := createUpstreamBranches(cfg, bootstrap)
+	if uErr != nil {
+		return nil, fmt.Errorf("creation of upstream branches failed: %w", err)
+	}
+
 	upstreamTree, utErr := resolver.NewUpstreamTreeResolver(cfg.Upstreams, upstreamBranches)
 
 	blocking, blErr := resolver.NewBlockingResolver(cfg.Blocking, redisClient, bootstrap)
@@ -406,7 +410,6 @@ func createQueryResolver(
 
 	err = multierror.Append(
 		multierror.Prefix(utErr, "upstream tree resolver: "),
-		multierror.Prefix(uErr, "upstream resolvers: "),
 		multierror.Prefix(blErr, "blocking resolver: "),
 		multierror.Prefix(cnErr, "client names resolver: "),
 		multierror.Prefix(cuErr, "conditional upstream resolver: "),
@@ -454,12 +457,12 @@ func createUpstreamBranches(
 		switch cfg.Upstreams.Strategy {
 		case config.UpstreamStrategyStrict:
 			upstream, err = resolver.NewStrictResolver(resolverCfg, bootstrap, cfg.StartVerifyUpstream)
-		case config.UpstreamStrategyParallelBest: // UpstreamStrategyParallelBest
+		case config.UpstreamStrategyParallelBest:
 			upstream, err = resolver.NewParallelBestResolver(resolverCfg, bootstrap, cfg.StartVerifyUpstream)
 		}
 
 		upstreamBranches[group] = upstream
-		uErr = multierror.Append(multierror.Prefix(err, fmt.Sprintf("group %s: ", group)))
+		uErr = multierror.Append(multierror.Prefix(err, fmt.Sprintf("group %s: ", group))).ErrorOrNil()
 	}
 
 	return upstreamBranches, uErr
