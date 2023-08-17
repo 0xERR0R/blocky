@@ -728,6 +728,45 @@ var _ = Describe("Running DNS server", func() {
 		})
 	})
 
+	Describe("NewServer with strict upstream strategy", func() {
+		It("successfully returns upstream branches", func() {
+			branches, err := createUpstreamBranches(&config.Config{
+				Upstreams: config.UpstreamsConfig{
+					Strategy: config.UpstreamStrategyStrict,
+					Groups: config.UpstreamGroups{
+						"default": {{Host: "0.0.0.0"}},
+					},
+				},
+			},
+				nil)
+
+			Expect(err).ToNot(HaveOccurred())
+			Expect(branches).ToNot(BeNil())
+			Expect(branches).To(HaveLen(1))
+			_ = branches["default"].(*resolver.StrictResolver)
+		})
+	})
+
+	Describe("create query resolver", func() {
+		When("some upstream returns error", func() {
+			It("create query resolver should return error", func() {
+				r, err := createQueryResolver(&config.Config{
+					StartVerifyUpstream: true,
+					Upstreams: config.UpstreamsConfig{
+						Groups: config.UpstreamGroups{
+							"default": {{Host: "0.0.0.0"}},
+						},
+					},
+				},
+					nil, nil)
+
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(MatchError(ContainSubstring("creation of upstream branches failed: ")))
+				Expect(r).To(BeNil())
+			})
+		})
+	})
+
 	Describe("resolve client IP", func() {
 		Context("UDP address", func() {
 			It("should correct resolve client IP", func() {
