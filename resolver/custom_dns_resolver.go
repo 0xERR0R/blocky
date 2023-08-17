@@ -24,7 +24,7 @@ type CustomDNSResolver struct {
 }
 
 // NewCustomDNSResolver creates new resolver instance
-func NewCustomDNSResolver(cfg config.CustomDNSConfig) ChainedResolver {
+func NewCustomDNSResolver(cfg config.CustomDNSConfig) *CustomDNSResolver {
 	m := make(map[string][]net.IP, len(cfg.Mapping.HostIPs))
 	reverse := make(map[string][]string, len(cfg.Mapping.HostIPs))
 

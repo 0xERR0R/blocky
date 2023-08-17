@@ -30,7 +30,7 @@ type StrictResolver struct {
 // NewStrictResolver creates new resolver instance
 func NewStrictResolver(
 	cfg config.UpstreamsConfig, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
-) (Resolver, error) {
+) (*StrictResolver, error) {
 	logger := log.PrefixedLog(strictResolverType)
 
 	upstreamResolvers := cfg.Groups

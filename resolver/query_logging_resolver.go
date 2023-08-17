@@ -30,7 +30,7 @@ type QueryLoggingResolver struct {
 }
 
 // NewQueryLoggingResolver returns a new resolver instance
-func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
+func NewQueryLoggingResolver(cfg config.QueryLogConfig) *QueryLoggingResolver {
 	logger := log.PrefixedLog(queryLoggingResolverType)
 
 	var writer querylog.Writer

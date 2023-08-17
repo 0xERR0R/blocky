@@ -15,7 +15,7 @@ type FqdnOnlyResolver struct {
 	typed
 }
 
-func NewFqdnOnlyResolver(cfg config.FqdnOnlyConfig) ChainedResolver {
+func NewFqdnOnlyResolver(cfg config.FqdnOnlyConfig) *FqdnOnlyResolver {
 	return &FqdnOnlyResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("fqdn_only"),

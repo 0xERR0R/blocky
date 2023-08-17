@@ -53,8 +53,7 @@ var _ = Describe("HostsFileResolver", func() {
 	JustBeforeEach(func() {
 		var err error
 
-		temp, err := NewHostsFileResolver(sutConfig, systemResolverBootstrap)
-		sut = temp.(*HostsFileResolver)
+		sut, err = NewHostsFileResolver(sutConfig, systemResolverBootstrap)
 		Expect(err).Should(Succeed())
 
 		m = &mockResolver{}

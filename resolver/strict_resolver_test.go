@@ -20,7 +20,6 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 	)
 
 	var (
-		temp       Resolver
 		sut        *StrictResolver
 		sutMapping config.UpstreamGroups
 		sutVerify  bool
@@ -56,10 +55,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 	JustBeforeEach(func() {
 		sutConfig := config.UpstreamsConfig{Groups: sutMapping}
 
-		temp, err = NewStrictResolver(sutConfig, bootstrap, sutVerify)
-		if temp != nil {
-			sut = temp.(*StrictResolver)
-		}
+		sut, err = NewStrictResolver(sutConfig, bootstrap, sutVerify)
 	})
 
 	config.GetConfig().Upstreams.Timeout = config.Duration(1000 * time.Millisecond)

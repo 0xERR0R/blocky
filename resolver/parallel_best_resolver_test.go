@@ -21,7 +21,6 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 	)
 
 	var (
-		temp       Resolver
 		sut        *ParallelBestResolver
 		sutMapping config.UpstreamGroups
 		sutVerify  bool
@@ -60,10 +59,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 			Groups:  sutMapping,
 		}
 
-		temp, err = NewParallelBestResolver(sutConfig, bootstrap, sutVerify)
-		if temp != nil {
-			sut = temp.(*ParallelBestResolver)
-		}
+		sut, err = NewParallelBestResolver(sutConfig, bootstrap, sutVerify)
 	})
 
 	Describe("IsEnabled", func() {
@@ -266,12 +262,10 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 				mockUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
 				DeferCleanup(mockUpstream2.Close)
 
-				temp, _ := NewParallelBestResolver(config.UpstreamsConfig{Groups: config.UpstreamGroups{
+				sut, _ = NewParallelBestResolver(config.UpstreamsConfig{Groups: config.UpstreamGroups{
 					upstreamDefaultCfgName: {withError1, mockUpstream1.Start(), mockUpstream2.Start(), withError2},
 				}},
 					systemResolverBootstrap, noVerifyUpstreams)
-
-				sut = temp.(*ParallelBestResolver)
 
 				By("all resolvers have same weight for random -> equal distribution", func() {
 					resolverCount := make(map[Resolver]int)
