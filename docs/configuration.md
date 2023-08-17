@@ -129,9 +129,9 @@ The above example results in:
 - `1.1.1.1` and `9.9.9.9` for all clients in the subnet `10.43.8.67/28`
 - 4 resolvers (default) for all others clients.
 
-The logic determining what group a client belongs to follows a strict order: IP, CIDR, client name
+The logic determining what group a client belongs to follows a strict order: IP, client name, CIDR
 
-If a client matches multiple CIDR or client name groups, a warning is logged and the first found group is used.
+If a client matches multiple client name or CIDR groups, a warning is logged and the first found group is used.
 
 ### Upstream strategy
 

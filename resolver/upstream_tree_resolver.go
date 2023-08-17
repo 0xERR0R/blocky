@@ -84,20 +84,20 @@ func (r *UpstreamTreeResolver) upstreamGroupByClient(request *model.Request) str
 		return clientIP
 	}
 
-	// try CIDR
-	for cidr := range r.branches {
-		if util.CidrContainsIP(cidr, request.ClientIP) {
-			groups = append(groups, cidr)
+	// try client names
+	for _, name := range request.ClientNames {
+		for group := range r.branches {
+			if util.ClientNameMatchesGroupName(group, name) {
+				groups = append(groups, group)
+			}
 		}
 	}
 
-	// try client names (only if no CIDRs matched)
+	// try CIDR (only if no client name matched)
 	if len(groups) == 0 {
-		for _, name := range request.ClientNames {
-			for group := range r.branches {
-				if util.ClientNameMatchesGroupName(group, name) {
-					groups = append(groups, group)
-				}
+		for cidr := range r.branches {
+			if util.CidrContainsIP(cidr, request.ClientIP) {
+				groups = append(groups, cidr)
 			}
 		}
 	}
