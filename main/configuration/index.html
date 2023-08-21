@@ -298,6 +298,13 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#upstream-strategy" class="md-nav__link">
+    Upstream strategy
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#upstream-lookup-timeout" class="md-nav__link">
     Upstream lookup timeout
   </a>
@@ -728,6 +735,13 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#upstream-strategy" class="md-nav__link">
+    Upstream strategy
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#upstream-lookup-timeout" class="md-nav__link">
     Upstream lookup timeout
   </a>
@@ -1062,6 +1076,10 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">    </span><span class="c1"># or single ip address / client subnet as CIDR notation</span>
 <span class="w">    </span><span class="nt">laptop*</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">123.123.123.123</span>
+<span class="w">  </span><span class="c1"># optional: Determines what strategy blocky uses to choose the upstream servers.</span>
+<span class="w">  </span><span class="c1"># accepted: parallel_best, strict</span>
+<span class="w">  </span><span class="c1"># default: parallel_best</span>
+<span class="w">  </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">parallel_best</span>
 <span class="w">  </span><span class="c1"># optional: timeout to query the upstream resolver. Default: 2s</span>
 <span class="w">  </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2s</span>
 
@@ -1536,9 +1554,9 @@ following network protocols (net part of the resolver URL):</p>
 </ul>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
-<p>You can (and should!) configure multiple <abbr title="Domain Name System">DNS</abbr> resolvers. Blocky picks 2 random resolvers from the list for each query and
-returns the answer from the fastest one. This improves your network speed and increases your privacy - your <abbr title="Domain Name System">DNS</abbr> traffic
-will be distributed over multiple providers.</p>
+<p>You can (and should!) configure multiple <abbr title="Domain Name System">DNS</abbr> resolvers.<br />
+Per default blocky uses the <code>parallel_best</code> upstream strategy where blocky picks 2 random resolvers from the list for each query and
+returns the answer from the fastest one.  </p>
 </div>
 <p>Each resolver must be defined as a string in following format: <code>[net:]host:[port][/path][#commonName]</code>.</p>
 <table>
@@ -1577,11 +1595,14 @@ will be distributed over multiple providers.</p>
 </tr>
 </tbody>
 </table>
-<p>The commonName parameter overrides the expected certificate common name value used for verification.</p>
-<p>Blocky needs at least the configuration of the <strong>default</strong> group. This group will be used as a fallback, if no client
+<p>The <code>commonName</code> parameter overrides the expected certificate common name value used for verification.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Blocky needs at least the configuration of the <strong>default</strong> group with at least one upstream <abbr title="Domain Name System">DNS</abbr> server. This group will be used as a fallback, if no client
 specific resolver configuration is available.</p>
-<p>You can use the client name (see <a href="#client-name-lookup">Client name lookup</a>), client's IP address or a client subnet as
-<abbr title="Classless Inter-Domain Routing">CIDR</abbr> notation.</p>
+<p>See <a href="../additional_information/#list-of-public-dns-servers">List of public <abbr title="Domain Name System">DNS</abbr> servers</a> if you need some ideas, which public free <abbr title="Domain Name System">DNS</abbr> server you could use.</p>
+</div>
+<p>You can specify multiple upstream groups (additional to the <code>default</code> group) to use different upstream servers for different clients, based on client name (see <a href="#client-name-lookup">Client name lookup</a>), client IP address or client subnet (as <abbr title="Classless Inter-Domain Routing">CIDR</abbr>).</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>You can use <code>*</code> as wildcard for the sequence of any character or <code>[0-9]</code> as number range</p>
@@ -1602,14 +1623,34 @@ specific resolver configuration is available.</p>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">9.9.9.9</span>
 </code></pre></div>
 </div>
-<p>Use <code>123.123.123.123</code> as single upstream <abbr title="Domain Name System">DNS</abbr> resolver for client laptop-home,
-<code>1.1.1.1</code> and <code>9.9.9.9</code> for all clients in the sub-net <code>10.43.8.67/28</code> and 4 resolvers (default) for all others clients.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>** Blocky needs at least one upstream <abbr title="Domain Name System">DNS</abbr> server **</p>
+<p>The above example results in:</p>
+<ul>
+<li><code>123.123.123.123</code> as the only upstream <abbr title="Domain Name System">DNS</abbr> resolver for clients with a name starting with "laptop"</li>
+<li><code>1.1.1.1</code> and <code>9.9.9.9</code> for all clients in the subnet <code>10.43.8.67/28</code></li>
+<li>4 resolvers (default) for all others clients.</li>
+</ul>
+<p>The logic determining what group a client belongs to follows a strict order: IP, client name, <abbr title="Classless Inter-Domain Routing">CIDR</abbr></p>
+<p>If a client matches multiple client name or <abbr title="Classless Inter-Domain Routing">CIDR</abbr> groups, a warning is logged and the first found group is used.</p>
+<h3 id="upstream-strategy">Upstream strategy</h3>
+<p>Blocky supports different upstream strategies (default <code>parallel_best</code>) that determine how and to which upstream <abbr title="Domain Name System">DNS</abbr> servers requests are forwarded.</p>
+<p>Currently available strategies:</p>
+<ul>
+<li><code>parallel_best</code>: blocky picks 2 random (weighted) resolvers from the upstream group for each query and returns the answer from the fastest one.
+  If an upstream failed to answer within the last hour, it is less likely to be chosen for the race.<br />
+  This improves your network speed and increases your privacy - your <abbr title="Domain Name System">DNS</abbr> traffic will be distributed over multiple providers<br />
+  (When using 10 upstream servers, each upstream will get on average 20% of the <abbr title="Domain Name System">DNS</abbr> requests)</li>
+<li><code>strict</code>: blocky forwards the request in a strict order. If the first upstream does not respond, the second is asked, and so on.</li>
+</ul>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><pre><span></span><code><span class="nt">upstreams</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">strict</span>
+<span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">default</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.2.3.4</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">9.8.7.6</span>
+</code></pre></div>
 </div>
-<p>See <a href="../additional_information/#list-of-public-dns-servers">List of public <abbr title="Domain Name System">DNS</abbr> servers</a> if you need some ideas, which
-public free <abbr title="Domain Name System">DNS</abbr> server you could use.</p>
 <h3 id="upstream-lookup-timeout">Upstream lookup timeout</h3>
 <p>Blocky will wait 2 seconds (default value) for the response from the external upstream <abbr title="Domain Name System">DNS</abbr> server. You can change this
 value by setting the <code>timeout</code> configuration parameter (in <strong><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></strong>).</p>
