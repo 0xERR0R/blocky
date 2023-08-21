@@ -123,6 +123,10 @@ func (s *StartStrategyType) do(setup func() error, logErr func(error)) error {
 // ENUM(clientIP,clientName,responseReason,responseAnswer,question,duration)
 type QueryLogField string
 
+// UpstreamStrategy data field to be logged
+// ENUM(parallel_best,strict)
+type UpstreamStrategy uint8
+
 //nolint:gochecknoglobals
 var netDefaultPort = map[NetProtocol]uint16{
 	NetProtocolTcpUdp: udpPort,

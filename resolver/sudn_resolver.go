@@ -92,7 +92,7 @@ type SpecialUseDomainNamesResolver struct {
 	configurable[*config.SUDNConfig]
 }
 
-func NewSpecialUseDomainNamesResolver(cfg config.SUDNConfig) ChainedResolver {
+func NewSpecialUseDomainNamesResolver(cfg config.SUDNConfig) *SpecialUseDomainNamesResolver {
 	return &SpecialUseDomainNamesResolver{
 		typed:        withType("special_use_domains"),
 		configurable: withConfig(&cfg),

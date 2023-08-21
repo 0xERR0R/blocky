@@ -120,12 +120,12 @@ func NewParallelBestResolver(
 		resolverGroups[name] = group
 	}
 
-	return newParallelBestResolver(cfg, resolverGroups)
+	return newParallelBestResolver(cfg, resolverGroups), nil
 }
 
 func newParallelBestResolver(
 	cfg config.UpstreamsConfig, resolverGroups map[string][]Resolver,
-) (*ParallelBestResolver, error) {
+) *ParallelBestResolver {
 	resolversPerClient := make(map[string][]*upstreamResolverStatus, len(resolverGroups))
 
 	for groupName, resolvers := range resolverGroups {
@@ -138,11 +138,6 @@ func newParallelBestResolver(
 		resolversPerClient[groupName] = resolverStatuses
 	}
 
-	if len(resolversPerClient[upstreamDefaultCfgName]) == 0 {
-		return nil, fmt.Errorf("no external DNS resolvers configured as default upstream resolvers. "+
-			"Please configure at least one under '%s' configuration name", upstreamDefaultCfgName)
-	}
-
 	r := ParallelBestResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType(parallelResolverType),
@@ -150,7 +145,7 @@ func newParallelBestResolver(
 		resolversPerClient: resolversPerClient,
 	}
 
-	return &r, nil
+	return &r
 }
 
 func (r *ParallelBestResolver) Name() string {
@@ -172,45 +167,16 @@ func (r *ParallelBestResolver) String() string {
 	return fmt.Sprintf("parallel upstreams '%s'", strings.Join(result, "; "))
 }
 
-func (r *ParallelBestResolver) resolversForClient(request *model.Request) (result []*upstreamResolverStatus) {
-	clientIP := request.ClientIP.String()
-
-	// try client names
-	for _, cName := range request.ClientNames {
-		for clientDefinition, upstreams := range r.resolversPerClient {
-			if cName != clientIP && util.ClientNameMatchesGroupName(clientDefinition, cName) {
-				result = append(result, upstreams...)
-			}
-		}
-	}
-
-	// try IP
-	upstreams, found := r.resolversPerClient[clientIP]
-
-	if found {
-		result = append(result, upstreams...)
-	}
-
-	// try CIDR
-	for cidr, upstreams := range r.resolversPerClient {
-		if util.CidrContainsIP(cidr, request.ClientIP) {
-			result = append(result, upstreams...)
-		}
-	}
-
-	if len(result) == 0 {
-		// return default
-		result = r.resolversPerClient[upstreamDefaultCfgName]
-	}
-
-	return result
-}
-
 // Resolve sends the query request to multiple upstream resolvers and returns the fastest result
 func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response, error) {
 	logger := log.WithPrefix(request.Log, parallelResolverType)
 
-	resolvers := r.resolversForClient(request)
+	var resolvers []*upstreamResolverStatus
+	for _, r := range r.resolversPerClient {
+		resolvers = r
+
+		break
+	}
 
 	if len(resolvers) == 1 {
 		logger.WithField("resolver", resolvers[0].resolver).Debug("delegating to resolver")
@@ -233,21 +199,19 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 
 	go r2.resolve(request, ch)
 
-	//nolint: gosimple
 	for len(collectedErrors) < resolverCount {
-		select {
-		case result := <-ch:
-			if result.err != nil {
-				logger.Debug("resolution failed from resolver, cause: ", result.err)
-				collectedErrors = append(collectedErrors, result.err)
-			} else {
-				logger.WithFields(logrus.Fields{
-					"resolver": *result.resolver,
-					"answer":   util.AnswerToString(result.response.Res.Answer),
-				}).Debug("using response from resolver")
+		result := <-ch
 
-				return result.response, nil
-			}
+		if result.err != nil {
+			logger.Debug("resolution failed from resolver, cause: ", result.err)
+			collectedErrors = append(collectedErrors, result.err)
+		} else {
+			logger.WithFields(logrus.Fields{
+				"resolver": *result.resolver,
+				"answer":   util.AnswerToString(result.response.Res.Answer),
+			}).Debug("using response from resolver")
+
+			return result.response, nil
 		}
 	}
 
@@ -266,9 +230,13 @@ func pickRandom(resolvers []*upstreamResolverStatus) (resolver1, resolver2 *upst
 func weightedRandom(in []*upstreamResolverStatus, exclude Resolver) *upstreamResolverStatus {
 	const errorWindowInSec = 60
 
-	var choices []weightedrand.Choice[*upstreamResolverStatus, uint]
+	choices := make([]weightedrand.Choice[*upstreamResolverStatus, uint], 0, len(in))
 
 	for _, res := range in {
+		if exclude == res.resolver {
+			continue
+		}
+
 		var weight float64 = errorWindowInSec
 
 		if time.Since(res.lastErrorTime.Load().(time.Time)) < time.Hour {
@@ -277,9 +245,7 @@ func weightedRandom(in []*upstreamResolverStatus, exclude Resolver) *upstreamRes
 			weight = math.Max(1, weight-(errorWindowInSec-time.Since(lastErrorTime).Minutes()))
 		}
 
-		if exclude != res.resolver {
-			choices = append(choices, weightedrand.NewChoice(res, uint(weight)))
-		}
+		choices = append(choices, weightedrand.NewChoice(res, uint(weight)))
 	}
 
 	c, err := weightedrand.NewChooser(choices...)

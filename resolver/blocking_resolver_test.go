@@ -69,6 +69,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 	JustBeforeEach(func() {
 		var err error
+
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		sut, err = NewBlockingResolver(sutConfig, nil, systemResolverBootstrap)

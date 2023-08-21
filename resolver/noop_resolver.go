@@ -10,8 +10,8 @@ var NoResponse = &model.Response{} //nolint:gochecknoglobals
 // NoOpResolver is used to finish a resolver branch as created in RewriterResolver
 type NoOpResolver struct{}
 
-func NewNoOpResolver() Resolver {
-	return NoOpResolver{}
+func NewNoOpResolver() *NoOpResolver {
+	return &NoOpResolver{}
 }
 
 // Type implements `Resolver`.

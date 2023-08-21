@@ -31,7 +31,7 @@ var _ = Describe("FilteringResolver", func() {
 	})
 
 	JustBeforeEach(func() {
-		sut = NewFilteringResolver(sutConfig).(*FilteringResolver)
+		sut = NewFilteringResolver(sutConfig)
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		sut.Next(m)

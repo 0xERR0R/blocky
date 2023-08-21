@@ -8,7 +8,7 @@ import (
 )
 
 var _ = Describe("NoOpResolver", func() {
-	var sut NoOpResolver
+	var sut *NoOpResolver
 
 	Describe("Type", func() {
 		It("follows conventions", func() {
@@ -17,7 +17,7 @@ var _ = Describe("NoOpResolver", func() {
 	})
 
 	BeforeEach(func() {
-		sut = NewNoOpResolver().(NoOpResolver)
+		sut = NewNoOpResolver()
 	})
 
 	Describe("Resolving", func() {

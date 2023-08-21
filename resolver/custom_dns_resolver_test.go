@@ -18,7 +18,7 @@ var _ = Describe("CustomDNSResolver", func() {
 	var (
 		TTL = uint32(time.Now().Second())
 
-		sut ChainedResolver
+		sut *CustomDNSResolver
 		m   *mockResolver
 		cfg config.CustomDNSConfig
 	)

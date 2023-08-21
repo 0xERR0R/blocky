@@ -14,7 +14,7 @@ type FilteringResolver struct {
 	typed
 }
 
-func NewFilteringResolver(cfg config.FilteringConfig) ChainedResolver {
+func NewFilteringResolver(cfg config.FilteringConfig) *FilteringResolver {
 	return &FilteringResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("filtering"),
