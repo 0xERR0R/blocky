@@ -15,7 +15,7 @@ import (
 
 var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), func() {
 	var (
-		sut ChainedResolver
+		sut *ConditionalUpstreamResolver
 		m   *mockResolver
 	)
 

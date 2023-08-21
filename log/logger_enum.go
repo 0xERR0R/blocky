@@ -49,6 +49,13 @@ func (x FormatType) String() string {
 	return fmt.Sprintf("FormatType(%d)", x)
 }
 
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
+func (x FormatType) IsValid() bool {
+	_, ok := _FormatTypeMap[x]
+	return ok
+}
+
 var _FormatTypeValue = map[string]FormatType{
 	_FormatTypeName[0:4]: FormatTypeText,
 	_FormatTypeName[4:8]: FormatTypeJson,
@@ -128,6 +135,13 @@ func (x Level) String() string {
 		return str
 	}
 	return fmt.Sprintf("Level(%d)", x)
+}
+
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
+func (x Level) IsValid() bool {
+	_, ok := _LevelMap[x]
+	return ok
 }
 
 var _LevelValue = map[string]Level{

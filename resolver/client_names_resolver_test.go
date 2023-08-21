@@ -30,9 +30,10 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 	})
 
 	JustBeforeEach(func() {
-		res, err := NewClientNamesResolver(sutConfig, nil, false)
+		var err error
+
+		sut, err = NewClientNamesResolver(sutConfig, nil, false)
 		Expect(err).Should(Succeed())
-		sut = res
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)

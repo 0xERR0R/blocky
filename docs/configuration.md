@@ -79,9 +79,9 @@ following network protocols (net part of the resolver URL):
 
 !!! hint
 
-    You can (and should!) configure multiple DNS resolvers. Blocky picks 2 random resolvers from the list for each query and
-    returns the answer from the fastest one. This improves your network speed and increases your privacy - your DNS traffic
-    will be distributed over multiple providers.
+    You can (and should!) configure multiple DNS resolvers.  
+    Per default blocky uses the `parallel_best` upstream strategy where blocky picks 2 random resolvers from the list for each query and
+    returns the answer from the fastest one.  
 
 Each resolver must be defined as a string in following format: `[net:]host:[port][/path][#commonName]`.
 
@@ -92,13 +92,15 @@ Each resolver must be defined as a string in following format: `[net:]host:[port
 | port       | int (1 - 65535)                  | no        | 53 for udp/tcp, 853 for tcp-tls and 443 for https |
 | commonName | string                           | no        | the host value                                    |
 
-The commonName parameter overrides the expected certificate common name value used for verification.
+The `commonName` parameter overrides the expected certificate common name value used for verification.
 
-Blocky needs at least the configuration of the **default** group. This group will be used as a fallback, if no client
-specific resolver configuration is available.
+!!! note
+    Blocky needs at least the configuration of the **default** group with at least one upstream DNS server. This group will be used as a fallback, if no client
+    specific resolver configuration is available.
 
-You can use the client name (see [Client name lookup](#client-name-lookup)), client's IP address or a client subnet as
-CIDR notation.
+    See [List of public DNS servers](additional_information.md#list-of-public-dns-servers) if you need some ideas, which public free DNS server you could use.
+
+You can specify multiple upstream groups (additional to the `default` group) to use different upstream servers for different clients, based on client name (see [Client name lookup](#client-name-lookup)), client IP address or client subnet (as CIDR).
 
 !!! tip
 
@@ -121,15 +123,38 @@ CIDR notation.
           - 9.9.9.9
     ```
 
-Use `123.123.123.123` as single upstream DNS resolver for client laptop-home,
-`1.1.1.1` and `9.9.9.9` for all clients in the sub-net `10.43.8.67/28` and 4 resolvers (default) for all others clients.
+The above example results in:
 
-!!! note
+- `123.123.123.123` as the only upstream DNS resolver for clients with a name starting with "laptop"
+- `1.1.1.1` and `9.9.9.9` for all clients in the subnet `10.43.8.67/28`
+- 4 resolvers (default) for all others clients.
 
-    ** Blocky needs at least one upstream DNS server **
+The logic determining what group a client belongs to follows a strict order: IP, client name, CIDR
 
-See [List of public DNS servers](additional_information.md#list-of-public-dns-servers) if you need some ideas, which
-public free DNS server you could use.
+If a client matches multiple client name or CIDR groups, a warning is logged and the first found group is used.
+
+### Upstream strategy
+
+Blocky supports different upstream strategies (default `parallel_best`) that determine how and to which upstream DNS servers requests are forwarded.
+
+Currently available strategies:
+
+- `parallel_best`: blocky picks 2 random (weighted) resolvers from the upstream group for each query and returns the answer from the fastest one.
+  If an upstream failed to answer within the last hour, it is less likely to be chosen for the race.  
+  This improves your network speed and increases your privacy - your DNS traffic will be distributed over multiple providers  
+  (When using 10 upstream servers, each upstream will get on average 20% of the DNS requests)
+- `strict`: blocky forwards the request in a strict order. If the first upstream does not respond, the second is asked, and so on.
+
+!!! example
+
+    ```yaml
+    upstreams:
+      strategy: strict
+      groups:
+        default:
+          - 1.2.3.4
+          - 9.8.7.6
+    ```
 
 ### Upstream lookup timeout
 

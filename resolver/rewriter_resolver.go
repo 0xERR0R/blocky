@@ -30,6 +30,7 @@ func NewRewriterResolver(cfg config.RewriterConfig, inner ChainedResolver) Chain
 		return inner
 	}
 
+	// ensures that the rewrites map contains all rewrites in lower case
 	for k, v := range cfg.Rewrite {
 		cfg.Rewrite[strings.ToLower(k)] = strings.ToLower(v)
 	}

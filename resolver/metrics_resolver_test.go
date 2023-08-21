@@ -30,7 +30,7 @@ var _ = Describe("MetricResolver", func() {
 	})
 
 	BeforeEach(func() {
-		sut = NewMetricsResolver(config.MetricsConfig{Enable: true}).(*MetricsResolver)
+		sut = NewMetricsResolver(config.MetricsConfig{Enable: true})
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)

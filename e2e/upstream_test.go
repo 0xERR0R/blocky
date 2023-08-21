@@ -70,7 +70,9 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 			It("should not start", func() {
 				Expect(blocky.IsRunning()).Should(BeFalse())
 				Expect(getContainerLogs(blocky)).
-					Should(ContainElement(ContainSubstring("no valid upstream for group default")))
+					Should(ContainElements(
+						ContainSubstring("creation of upstream branches failed: "),
+						ContainSubstring("no valid upstream for group default")))
 			})
 		})
 		When("'startVerifyUpstream' is true and upstream server as host name is not reachable", func() {
@@ -89,7 +91,9 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 			It("should not start", func() {
 				Expect(blocky.IsRunning()).Should(BeFalse())
 				Expect(getContainerLogs(blocky)).
-					Should(ContainElement(ContainSubstring("no valid upstream for group default")))
+					Should(ContainElements(
+						ContainSubstring("creation of upstream branches failed: "),
+						ContainSubstring("no valid upstream for group default")))
 			})
 		})
 	})

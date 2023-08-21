@@ -58,7 +58,7 @@ func (r *MetricsResolver) Resolve(request *model.Request) (*model.Response, erro
 }
 
 // NewMetricsResolver creates a new intance of the MetricsResolver type
-func NewMetricsResolver(cfg config.MetricsConfig) ChainedResolver {
+func NewMetricsResolver(cfg config.MetricsConfig) *MetricsResolver {
 	m := MetricsResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("metrics"),

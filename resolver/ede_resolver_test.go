@@ -43,7 +43,7 @@ var _ = Describe("EdeResolver", func() {
 			}, nil)
 		}
 
-		sut = NewEdeResolver(sutConfig).(*EdeResolver)
+		sut = NewEdeResolver(sutConfig)
 		sut.Next(m)
 	})
 

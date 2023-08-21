@@ -12,7 +12,7 @@ type EdeResolver struct {
 	typed
 }
 
-func NewEdeResolver(cfg config.EdeConfig) ChainedResolver {
+func NewEdeResolver(cfg config.EdeConfig) *EdeResolver {
 	return &EdeResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("extended_error_code"),
