@@ -156,7 +156,7 @@ func (r *HostsFileResolver) loadSources(ctx context.Context) error {
 
 	r.log().Debug("loading hosts files")
 
-	//nolint:ineffassign,staticcheck // keep `ctx :=` so if we use ctx in the future, we use the correct one
+	//nolint:ineffassign,staticcheck,wastedassign // keep `ctx :=` so if we use ctx in the future, we use the correct one
 	consumersGrp, ctx := jobgroup.WithContext(ctx)
 	defer consumersGrp.Close()
 
