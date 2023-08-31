@@ -3,7 +3,6 @@ linters:
     - asciicheck
     - bidichk
     - bodyclose
-    - depguard
     - dogsled
     - dupl
     - durationcheck
@@ -63,7 +62,7 @@ linters:
     - deadcode
     - varcheck
     - forbidigo
-
+    - gosmopolitan
   disable-all: false
   presets:
     - bugs

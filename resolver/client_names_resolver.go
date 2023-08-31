@@ -112,7 +112,7 @@ func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry
 	// try client mapping first
 	result = r.getNameFromIPMapping(ip, result)
 	if len(result) > 0 {
-		return
+		return result
 	}
 
 	if r.externalResolver == nil {
