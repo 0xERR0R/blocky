@@ -172,9 +172,13 @@ func setupRedisEnabledSubscriber(c *BlockingResolver) {
 }
 
 // RefreshLists triggers the refresh of all black and white lists in the cache
-func (r *BlockingResolver) RefreshLists() {
-	r.blacklistMatcher.Refresh()
-	r.whitelistMatcher.Refresh()
+func (r *BlockingResolver) RefreshLists() error {
+	var err *multierror.Error
+
+	err = multierror.Append(err, r.blacklistMatcher.Refresh())
+	err = multierror.Append(err, r.whitelistMatcher.Refresh())
+
+	return err.ErrorOrNil()
 }
 
 //nolint:prealloc
@@ -283,7 +287,7 @@ func (r *BlockingResolver) BlockingStatus() api.BlockingStatus {
 	return api.BlockingStatus{
 		Enabled:         r.status.enabled,
 		DisabledGroups:  r.status.disabledGroups,
-		AutoEnableInSec: uint(autoEnableDuration.Seconds()),
+		AutoEnableInSec: int(autoEnableDuration.Seconds()),
 	}
 }
 

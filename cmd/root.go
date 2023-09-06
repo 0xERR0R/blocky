@@ -59,8 +59,8 @@ Complete documentation is available at https://github.com/0xERR0R/blocky`,
 	return c
 }
 
-func apiURL(path string) string {
-	return fmt.Sprintf("http://%s%s", net.JoinHostPort(apiHost, strconv.Itoa(int(apiPort))), path)
+func apiURL() string {
+	return fmt.Sprintf("http://%s%s", net.JoinHostPort(apiHost, strconv.Itoa(int(apiPort))), "/api")
 }
 
 //nolint:gochecknoinits

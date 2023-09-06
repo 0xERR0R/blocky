@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -47,16 +47,20 @@ func newBlockingCommand() *cobra.Command {
 }
 
 func enableBlocking(_ *cobra.Command, _ []string) error {
-	resp, err := http.Get(apiURL(api.PathBlockingEnablePath))
+	client, err := api.NewClientWithResponses(apiURL())
+	if err != nil {
+		return fmt.Errorf("can't create client: %w", err)
+	}
+
+	resp, err := client.EnableBlockingWithResponse(context.Background())
 	if err != nil {
 		return fmt.Errorf("can't execute %w", err)
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusOK {
+	if resp.StatusCode() == http.StatusOK {
 		log.Log().Info("OK")
 	} else {
-		return fmt.Errorf("response NOK, Status: %s", resp.Status)
+		return fmt.Errorf("response NOK, Status: %s", resp.Status())
 	}
 
 	return nil
@@ -66,48 +70,62 @@ func disableBlocking(cmd *cobra.Command, _ []string) error {
 	duration, _ := cmd.Flags().GetDuration("duration")
 	groups, _ := cmd.Flags().GetStringArray("groups")
 
-	resp, err := http.Get(fmt.Sprintf("%s?duration=%s&groups=%s",
-		apiURL(api.PathBlockingDisablePath), duration, strings.Join(groups, ",")))
+	durationString := duration.String()
+	groupsString := strings.Join(groups, ",")
+
+	client, err := api.NewClientWithResponses(apiURL())
+	if err != nil {
+		return fmt.Errorf("can't create client: %w", err)
+	}
+
+	resp, err := client.DisableBlockingWithResponse(context.Background(), &api.DisableBlockingParams{
+		Duration: &durationString,
+		Groups:   &groupsString,
+	})
 	if err != nil {
 		return fmt.Errorf("can't execute %w", err)
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusOK {
+	if resp.StatusCode() == http.StatusOK {
 		log.Log().Info("OK")
 	} else {
-		return fmt.Errorf("response NOK, Status: %s", resp.Status)
+		return fmt.Errorf("response NOK, Status: %s", resp.Status())
 	}
 
 	return nil
 }
 
 func statusBlocking(_ *cobra.Command, _ []string) error {
-	resp, err := http.Get(apiURL(api.PathBlockingStatusPath))
+	client, err := api.NewClientWithResponses(apiURL())
+	if err != nil {
+		return fmt.Errorf("can't create client: %w", err)
+	}
+
+	resp, err := client.BlockingStatusWithResponse(context.Background())
 	if err != nil {
 		return fmt.Errorf("can't execute %w", err)
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("response NOK, Status: %s", resp.Status)
+	if resp.StatusCode() != http.StatusOK {
+		return fmt.Errorf("response NOK, Status: %s", resp.Status())
 	}
-
-	var result api.BlockingStatus
-	err = json.NewDecoder(resp.Body).Decode(&result)
 
 	if err != nil {
 		return fmt.Errorf("can't parse response %w", err)
 	}
 
-	if result.Enabled {
+	if resp.JSON200.Enabled {
 		log.Log().Info("blocking enabled")
 	} else {
-		if result.AutoEnableInSec == 0 {
-			log.Log().Infof("blocking disabled for groups: %s", strings.Join(result.DisabledGroups, "; "))
+		var groupNames string
+		if resp.JSON200.DisabledGroups != nil {
+			groupNames = strings.Join(*resp.JSON200.DisabledGroups, "; ")
+		}
+		if resp.JSON200.AutoEnableInSec == nil || *resp.JSON200.AutoEnableInSec == 0 {
+			log.Log().Infof("blocking disabled for groups: %s", groupNames)
 		} else {
-			log.Log().Infof("blocking disabled for groups: %s, for %d seconds",
-				strings.Join(result.DisabledGroups, "; "), result.AutoEnableInSec)
+			log.Log().Infof("blocking disabled for groups: '%s', for %d seconds",
+				groupNames, *resp.JSON200.AutoEnableInSec)
 		}
 	}
 

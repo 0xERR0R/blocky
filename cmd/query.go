@@ -1,10 +1,8 @@
 package cmd
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/0xERR0R/blocky/api"
@@ -35,40 +33,30 @@ func query(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unknown query type '%s'", typeFlag)
 	}
 
-	apiRequest := api.QueryRequest{
+	client, err := api.NewClientWithResponses(apiURL())
+	if err != nil {
+		return fmt.Errorf("can't create client: %w", err)
+	}
+
+	req := api.ApiQueryRequest{
 		Query: args[0],
 		Type:  typeFlag,
 	}
 
-	jsonValue, err := json.Marshal(apiRequest)
+	resp, err := client.QueryWithResponse(context.Background(), req)
 	if err != nil {
-		return fmt.Errorf("can't marshal request: %w", err)
+		return fmt.Errorf("can't execute %w", err)
 	}
 
-	resp, err := http.Post(apiURL(api.PathQueryPath), "application/json", bytes.NewBuffer(jsonValue))
-	if err != nil {
-		return fmt.Errorf("can't execute: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-
-		return fmt.Errorf("response NOK, %s %s", resp.Status, string(body))
+	if resp.StatusCode() != http.StatusOK {
+		return fmt.Errorf("response NOK, %s %s", resp.Status(), string(resp.Body))
 	}
 
-	var result api.QueryResult
-	err = json.NewDecoder(resp.Body).Decode(&result)
-
-	if err != nil {
-		return fmt.Errorf("can't read response: %w", err)
-	}
-
-	log.Log().Infof("Query result for '%s' (%s):", apiRequest.Query, apiRequest.Type)
-	log.Log().Infof("\treason:        %20s", result.Reason)
-	log.Log().Infof("\tresponse type: %20s", result.ResponseType)
-	log.Log().Infof("\tresponse:      %20s", result.Response)
-	log.Log().Infof("\treturn code:   %20s", result.ReturnCode)
+	log.Log().Infof("Query result for '%s' (%s):", req.Query, req.Type)
+	log.Log().Infof("\treason:        %20s", resp.JSON200.Reason)
+	log.Log().Infof("\tresponse type: %20s", resp.JSON200.ResponseType)
+	log.Log().Infof("\tresponse:      %20s", resp.JSON200.Response)
+	log.Log().Infof("\treturn code:   %20s", resp.JSON200.ReturnCode)
 
 	return nil
 }

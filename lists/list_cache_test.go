@@ -181,7 +181,7 @@ var _ = Describe("ListCache", func() {
 					Expect(group).Should(ContainElement("gr1"))
 				})
 
-				sut.Refresh()
+				_ = sut.Refresh()
 
 				By("List couldn't be loaded due to timeout", func() {
 					group := sut.Match("blocked1.com", []string{"gr1"})

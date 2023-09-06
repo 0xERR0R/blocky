@@ -37,7 +37,7 @@ var _ = Describe("Blocking command", func() {
 	Describe("Call query command", func() {
 		BeforeEach(func() {
 			mockFn = func(w http.ResponseWriter, _ *http.Request) {
-				response, err := json.Marshal(api.QueryResult{
+				response, err := json.Marshal(api.ApiQueryResult{
 					Reason:       "Reason",
 					ResponseType: "Type",
 					Response:     "Response",
@@ -52,7 +52,8 @@ var _ = Describe("Blocking command", func() {
 		When("query command is called via REST", func() {
 			BeforeEach(func() {
 				mockFn = func(w http.ResponseWriter, _ *http.Request) {
-					response, err := json.Marshal(api.QueryResult{
+					w.Header().Add("Content-Type", "application/json")
+					response, err := json.Marshal(api.ApiQueryResult{
 						Reason:       "Reason",
 						ResponseType: "Type",
 						Response:     "Response",
