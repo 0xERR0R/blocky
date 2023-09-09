@@ -1,8 +1,8 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/0xERR0R/blocky/api"
@@ -32,16 +32,18 @@ func newRefreshCommand() *cobra.Command {
 }
 
 func refreshList(_ *cobra.Command, _ []string) error {
-	resp, err := http.Post(apiURL(api.PathListsRefresh), "application/json", nil)
+	client, err := api.NewClientWithResponses(apiURL())
+	if err != nil {
+		return fmt.Errorf("can't create client: %w", err)
+	}
+
+	resp, err := client.ListRefreshWithResponse(context.Background())
 	if err != nil {
 		return fmt.Errorf("can't execute %w", err)
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-
-		return fmt.Errorf("response NOK, %s %s", resp.Status, string(body))
+	if resp.StatusCode() != http.StatusOK {
+		return fmt.Errorf("response NOK, %s %s", resp.Status(), string(resp.Body))
 	}
 
 	log.Log().Info("OK")

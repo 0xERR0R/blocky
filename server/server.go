@@ -19,7 +19,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/0xERR0R/blocky/api"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/metrics"
@@ -45,7 +44,7 @@ type Server struct {
 	dnsServers     []*dns.Server
 	httpListeners  []net.Listener
 	httpsListeners []net.Listener
-	queryResolver  resolver.Resolver
+	queryResolver  resolver.ChainedResolver
 	cfg            *config.Config
 	httpMux        *chi.Mux
 	httpsMux       *chi.Mux
@@ -131,7 +130,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 		return nil, fmt.Errorf("server creation failed: %w", err)
 	}
 
-	httpRouter := createRouter(cfg)
+	httpRouter := createHTTPRouter(cfg)
 	httpsRouter := createHTTPSRouter(cfg)
 
 	httpListeners, httpsListeners, err := createHTTPListeners(cfg)
@@ -175,11 +174,17 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 	server.printConfiguration()
 
 	server.registerDNSHandlers()
-	server.registerAPIEndpoints(httpRouter)
-	server.registerAPIEndpoints(httpsRouter)
+	err = server.registerAPIEndpoints(httpRouter)
 
-	registerResolverAPIEndpoints(httpRouter, queryResolver)
-	registerResolverAPIEndpoints(httpsRouter, queryResolver)
+	if err != nil {
+		return nil, err
+	}
+
+	err = server.registerAPIEndpoints(httpsRouter)
+
+	if err != nil {
+		return nil, err
+	}
 
 	return server, err
 }
@@ -239,18 +244,6 @@ func newListeners(proto string, addresses config.ListenConfig) ([]net.Listener, 
 	}
 
 	return listeners, nil
-}
-
-func registerResolverAPIEndpoints(router chi.Router, res resolver.Resolver) {
-	for res != nil {
-		api.RegisterEndpoint(router, res)
-
-		if cr, ok := res.(resolver.ChainedResolver); ok {
-			res = cr.GetNext()
-		} else {
-			return
-		}
-	}
 }
 
 func createTLSServer(address string, cert tls.Certificate) (*dns.Server, error) {
@@ -395,7 +388,7 @@ func createQueryResolver(
 	cfg *config.Config,
 	bootstrap *resolver.Bootstrap,
 	redisClient *redis.Client,
-) (r resolver.Resolver, err error) {
+) (r resolver.ChainedResolver, err error) {
 	upstreamBranches, uErr := createUpstreamBranches(cfg, bootstrap)
 	if uErr != nil {
 		return nil, fmt.Errorf("creation of upstream branches failed: %w", uErr)

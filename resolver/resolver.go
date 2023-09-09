@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"fmt"
 	"net"
 	"time"
 
@@ -109,7 +110,7 @@ type NamedResolver interface {
 }
 
 // Chain creates a chain of resolvers
-func Chain(resolvers ...Resolver) Resolver {
+func Chain(resolvers ...Resolver) ChainedResolver {
 	for i, res := range resolvers {
 		if i+1 < len(resolvers) {
 			if cr, ok := res.(ChainedResolver); ok {
@@ -118,7 +119,23 @@ func Chain(resolvers ...Resolver) Resolver {
 		}
 	}
 
-	return resolvers[0]
+	return resolvers[0].(ChainedResolver)
+}
+
+func GetFromChainWithType[T any](resolver ChainedResolver) (result T, err error) {
+	for resolver != nil {
+		if result, found := resolver.(T); found {
+			return result, nil
+		}
+
+		if cr, ok := resolver.GetNext().(ChainedResolver); ok {
+			resolver = cr
+		} else {
+			break
+		}
+	}
+
+	return result, fmt.Errorf("type was not found in the chain")
 }
 
 // Name returns a user-friendly name of a resolver

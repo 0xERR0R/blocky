@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
@@ -11,8 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xERR0R/blocky/resolver"
+
 	"github.com/0xERR0R/blocky/api"
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/docs"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
@@ -30,6 +32,7 @@ const (
 	dnsContentType    = "application/dns-message"
 	jsonContentType   = "application/json"
 	htmlContentType   = "text/html; charset=UTF-8"
+	yamlContentType   = "text/yaml"
 	corsMaxAge        = 5 * time.Minute
 )
 
@@ -43,15 +46,38 @@ func secureHeader(next http.Handler) http.Handler {
 	})
 }
 
-func (s *Server) registerAPIEndpoints(router *chi.Mux) {
-	router.Post(api.PathQueryPath, s.apiQuery)
+func (s *Server) createOpenAPIInterfaceImpl() (impl api.StrictServerInterface, err error) {
+	bControl, err := resolver.GetFromChainWithType[api.BlockingControl](s.queryResolver)
+	if err != nil {
+		return nil, fmt.Errorf("no blocking API implementation found %w", err)
+	}
 
-	router.Get(api.PathDohQuery, s.dohGetRequestHandler)
-	router.Get(api.PathDohQuery+"/", s.dohGetRequestHandler)
-	router.Get(api.PathDohQuery+"/{clientID}", s.dohGetRequestHandler)
-	router.Post(api.PathDohQuery, s.dohPostRequestHandler)
-	router.Post(api.PathDohQuery+"/", s.dohPostRequestHandler)
-	router.Post(api.PathDohQuery+"/{clientID}", s.dohPostRequestHandler)
+	refresher, err := resolver.GetFromChainWithType[api.ListRefresher](s.queryResolver)
+	if err != nil {
+		return nil, fmt.Errorf("no refresh API implementation found %w", err)
+	}
+
+	return api.NewOpenAPIInterfaceImpl(bControl, s, refresher), nil
+}
+
+func (s *Server) registerAPIEndpoints(router *chi.Mux) error {
+	const pathDohQuery = "/dns-query"
+
+	openAPIImpl, err := s.createOpenAPIInterfaceImpl()
+	if err != nil {
+		return err
+	}
+
+	api.RegisterOpenAPIEndpoints(router, openAPIImpl)
+
+	router.Get(pathDohQuery, s.dohGetRequestHandler)
+	router.Get(pathDohQuery+"/", s.dohGetRequestHandler)
+	router.Get(pathDohQuery+"/{clientID}", s.dohGetRequestHandler)
+	router.Post(pathDohQuery, s.dohPostRequestHandler)
+	router.Post(pathDohQuery+"/", s.dohPostRequestHandler)
+	router.Post(pathDohQuery+"/{clientID}", s.dohPostRequestHandler)
+
+	return nil
 }
 
 func (s *Server) dohGetRequestHandler(rw http.ResponseWriter, req *http.Request) {
@@ -162,69 +188,11 @@ func extractIP(r *http.Request) string {
 	return hostPort
 }
 
-// apiQuery is the http endpoint to perform a DNS query
-// @Summary Performs DNS query
-// @Description Performs DNS query
-// @Tags query
-// @Accept  json
-// @Produce  json
-// @Param query body api.QueryRequest true "query data"
-// @Success 200 {object} api.QueryResult "query was executed"
-// @Failure 400   "Wrong request format"
-// @Router /query [post]
-func (s *Server) apiQuery(rw http.ResponseWriter, req *http.Request) {
-	var queryRequest api.QueryRequest
+func (s *Server) Query(question string, qType dns.Type) (*model.Response, error) {
+	dnsRequest := util.NewMsgWithQuestion(question, qType)
+	r := createResolverRequest(nil, dnsRequest)
 
-	rw.Header().Set(contentTypeHeader, jsonContentType)
-
-	err := json.NewDecoder(req.Body).Decode(&queryRequest)
-	if err != nil {
-		logAndResponseWithError(err, "can't read request: ", rw)
-
-		return
-	}
-
-	// validate query type
-	qType := dns.Type(dns.StringToType[queryRequest.Type])
-	if qType == dns.Type(dns.TypeNone) {
-		err = fmt.Errorf("unknown query type '%s'", queryRequest.Type)
-		logAndResponseWithError(err, "unknown query type: ", rw)
-
-		return
-	}
-
-	query := queryRequest.Query
-
-	// append dot
-	if !strings.HasSuffix(query, ".") {
-		query += "."
-	}
-
-	dnsRequest := util.NewMsgWithQuestion(query, qType)
-
-	r := newRequest(net.ParseIP(extractIP(req)), model.RequestProtocolTCP, "", dnsRequest)
-
-	response, err := s.queryResolver.Resolve(r)
-	if err != nil {
-		logAndResponseWithError(err, "unable to process query: ", rw)
-
-		return
-	}
-
-	jsonResponse, err := json.Marshal(api.QueryResult{
-		Reason:       response.Reason,
-		ResponseType: response.RType.String(),
-		Response:     util.AnswerToString(response.Res.Answer),
-		ReturnCode:   dns.RcodeToString[response.Res.Rcode],
-	})
-	if err != nil {
-		logAndResponseWithError(err, "unable to marshal response: ", rw)
-
-		return
-	}
-
-	_, err = rw.Write(jsonResponse)
-	logAndResponseWithError(err, "unable to write response: ", rw)
+	return s.queryResolver.Resolve(r)
 }
 
 func createHTTPSRouter(cfg *config.Config) *chi.Mux {
@@ -232,25 +200,45 @@ func createHTTPSRouter(cfg *config.Config) *chi.Mux {
 
 	configureSecureHeaderHandler(router)
 
-	configureCorsHandler(router)
-
-	configureDebugHandler(router)
-
-	configureRootHandler(cfg, router)
+	registerHandlers(cfg, router)
 
 	return router
 }
 
-func createRouter(cfg *config.Config) *chi.Mux {
+func createHTTPRouter(cfg *config.Config) *chi.Mux {
 	router := chi.NewRouter()
 
+	registerHandlers(cfg, router)
+
+	return router
+}
+
+func registerHandlers(cfg *config.Config, router *chi.Mux) {
 	configureCorsHandler(router)
 
 	configureDebugHandler(router)
 
-	configureRootHandler(cfg, router)
+	configureDocsHandler(router)
 
-	return router
+	configureStaticAssetsHandler(router)
+
+	configureRootHandler(cfg, router)
+}
+
+func configureDocsHandler(router *chi.Mux) {
+	router.Get("/docs/openapi.yaml", func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set(contentTypeHeader, yamlContentType)
+		_, err := writer.Write([]byte(docs.OpenAPI))
+		logAndResponseWithError(err, "can't write OpenAPI definition file: ", writer)
+	})
+}
+
+func configureStaticAssetsHandler(router *chi.Mux) {
+	assets, err := web.Assets()
+	util.FatalOnError("unable to load static asset files", err)
+
+	fs := http.FileServer(http.FS(assets))
+	router.Handle("/static/*", http.StripPrefix("/static/", fs))
 }
 
 func configureRootHandler(cfg *config.Config, router *chi.Mux) {
@@ -262,11 +250,6 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 		type HandlerLink struct {
 			URL   string
 			Title string
-		}
-
-		swaggerVersion := "main"
-		if util.Version != "undefined" {
-			swaggerVersion = util.Version
 		}
 
 		type PageData struct {
@@ -281,11 +264,12 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 		}
 		pd.Links = []HandlerLink{
 			{
-				URL: fmt.Sprintf(
-					"https://htmlpreview.github.io/?https://github.com/0xERR0R/blocky/blob/%s/docs/swagger.html",
-					swaggerVersion,
-				),
-				Title: "Swagger Rest API Documentation (Online @GitHub)",
+				URL:   "/docs/openapi.yaml",
+				Title: "Rest API Documentation (OpenAPI)",
+			},
+			{
+				URL:   "/static/rapidoc.html",
+				Title: "Interactive Rest API Documentation (RapiDoc)",
 			},
 			{
 				URL:   "/debug/",

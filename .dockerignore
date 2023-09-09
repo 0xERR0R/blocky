@@ -1,7 +1,6 @@
 bin
 dist
 site
-docs
 node_modules
 .git
 .idea

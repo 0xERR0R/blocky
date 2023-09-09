@@ -1,4 +1,4 @@
-.PHONY: all clean generate build swagger test e2e-test lint run fmt docker-build help
+.PHONY: all clean generate build test e2e-test lint run fmt docker-build help
 .DEFAULT_GOAL:=help
 
 VERSION?=$(shell git describe --always --tags)
@@ -30,12 +30,6 @@ all: build test lint ## Build binary (with tests)
 
 clean: ## cleans output directory
 	rm -rf $(BIN_OUT_DIR)/*
-
-swagger: ## creates swagger documentation as html file
-	npm install bootprint bootprint-openapi html-inline
-	go run github.com/swaggo/swag/cmd/swag init -g api/api.go
-	$(shell) node_modules/bootprint/bin/bootprint.js openapi docs/swagger.json /tmp/swagger/
-	$(shell) node_modules/html-inline/bin/cmd.js /tmp/swagger/index.html > docs/swagger.html
 
 serve_docs: ## serves online docs
 	pip install mkdocs-material

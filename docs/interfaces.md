@@ -2,8 +2,16 @@
 
 ## REST API
 
-If http listener is enabled, blocky provides REST API. You can browse the API documentation (Swagger) documentation
-under [https://0xERR0R.github.io/blocky/swagger.html](https://0xERR0R.github.io/blocky/swagger.html).
+
+??? abstract "OpenAPI specification"
+
+    ```yaml
+    --8<-- "docs/api/openapi.yaml"
+    ```
+
+If http listener is enabled, blocky provides REST API. You can download the [OpenAPI YAML](api/openapi.yaml) interface specification. 
+
+You can also browse the interactive API documentation (RapiDoc) documentation [online](rapidoc.html).
 
 ## CLI
 

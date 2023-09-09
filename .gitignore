@@ -5,8 +5,6 @@
 /*.pem
 bin/
 dist/
-docs/swagger.json
-docs/swagger.yaml
 docs/docs.go
 site/
 config.yml
