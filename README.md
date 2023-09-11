@@ -79,7 +79,7 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
 
 ## Quick start
 
-You can jump to [Installation](https://0xerr0r.github.io/blocky/installation/) chapter in the documentation.
+You can jump to [Installation](https://0xerr0r.github.io/blocky/latest/installation/) chapter in the documentation.
 
 ## Full documentation
 
