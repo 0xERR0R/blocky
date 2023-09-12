@@ -43,9 +43,11 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) *QueryLoggingResolver {
 			case config.QueryLogTypeCsvClient:
 				writer, err = querylog.NewCSVWriter(cfg.Target, true, cfg.LogRetentionDays)
 			case config.QueryLogTypeMysql:
-				writer, err = querylog.NewDatabaseWriter("mysql", cfg.Target, cfg.LogRetentionDays, cfg.FlushInterval.ToDuration())
+				writer, err = querylog.NewDatabaseWriter("mysql", cfg.Target, cfg.LogRetentionDays,
+					cfg.FlushInterval.ToDuration())
 			case config.QueryLogTypePostgresql:
-				writer, err = querylog.NewDatabaseWriter("postgresql", cfg.Target, cfg.LogRetentionDays, cfg.FlushInterval.ToDuration())
+				writer, err = querylog.NewDatabaseWriter("postgresql", cfg.Target, cfg.LogRetentionDays,
+					cfg.FlushInterval.ToDuration())
 			case config.QueryLogTypeConsole:
 				writer = querylog.NewLoggerWriter()
 			case config.QueryLogTypeNone:
