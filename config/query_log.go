@@ -12,6 +12,7 @@ type QueryLogConfig struct {
 	CreationAttempts int             `yaml:"creationAttempts" default:"3"`
 	CreationCooldown Duration        `yaml:"creationCooldown" default:"2s"`
 	Fields           []QueryLogField `yaml:"fields"`
+	FlushInterval    Duration        `yaml:"flushInterval" default:"30s"`
 }
 
 // SetDefaults implements `defaults.Setter`.
@@ -37,5 +38,6 @@ func (c *QueryLogConfig) LogConfig(logger *logrus.Entry) {
 	logger.Infof("logRetentionDays: %d", c.LogRetentionDays)
 	logger.Debugf("creationAttempts: %d", c.CreationAttempts)
 	logger.Debugf("creationCooldown: %s", c.CreationCooldown)
+	logger.Infof("flushInterval: %s", c.FlushInterval)
 	logger.Infof("fields: %s", c.Fields)
 }
