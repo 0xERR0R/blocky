@@ -84,7 +84,7 @@ jobs:
         uses: goto-bus-stop/setup-zig@v2
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v5
         with:
           version: latest
           args: release --clean

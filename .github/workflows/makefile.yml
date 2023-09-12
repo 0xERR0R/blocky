@@ -67,7 +67,7 @@ jobs:
         if: matrix.make == 'test'
 
       - name: Check GoReleaser configuration
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v5
         if: matrix.make == 'goreleaser' 
         with:
           args: check
