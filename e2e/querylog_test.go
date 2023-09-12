@@ -42,6 +42,7 @@ var _ = Describe("Query logs functional tests", func() {
 				"queryLog:",
 				"  type: mysql",
 				"  target: user:user@tcp(mariaDB:3306)/user?charset=utf8mb4&parseTime=True&loc=Local",
+				"  flushInterval: 1s",
 			)
 
 			Expect(err).Should(Succeed())
@@ -119,6 +120,7 @@ var _ = Describe("Query logs functional tests", func() {
 				"queryLog:",
 				"  type: postgresql",
 				"  target: postgres://user:user@postgres:5432/user",
+				"  flushInterval: 1s",
 			)
 
 			Expect(err).Should(Succeed())

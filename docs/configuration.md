@@ -628,8 +628,9 @@ Configuration parameters:
 | queryLog.target           | string                                                                               | no        |               | directory for writing the logs (for csv) or database url (for mysql or postgresql) |
 | queryLog.logRetentionDays | int                                                                                  | no        | 0             | if > 0, deletes log files/database entries which are older than ... days           |
 | queryLog.creationAttempts | int                                                                                  | no        | 3             | Max attempts to create specific query log writer                                   |
-| queryLog.CreationCooldown | duration format                                                                      | no        | 2             | Time between the creation attempts                                                 |
+| queryLog.CreationCooldown | duration format                                                                      | no        | 2s            | Time between the creation attempts                                                 |
 | queryLog.fields           | list enum (clientIP, clientName, responseReason, responseAnswer, question, duration) | no        | all           | which information should be logged                                                 |
+| queryLog.flushInterval    | duration format                                                                      | no        | 30s           | Interval to write data in bulk to the external database                            |
 
 !!! hint
 
@@ -647,6 +648,7 @@ example for CSV format with limited logging information
       fields:
       - clientIP
       - duration
+      flushInterval: 30s
     ```
 
 example for Database
