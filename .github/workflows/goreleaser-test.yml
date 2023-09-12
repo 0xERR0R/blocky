@@ -29,13 +29,13 @@ jobs:
         uses: goto-bus-stop/setup-zig@v2
 
       - name: Run GoReleaser check
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v5
         with:
           version: latest
           args: check
       
       - name: Run GoReleaser build
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v5
         with:
           version: latest
           args: build --clean --snapshot
