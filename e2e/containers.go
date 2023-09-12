@@ -16,6 +16,7 @@ import (
 	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/avast/retry-go/v4"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"
 	"github.com/miekg/dns"
 	"github.com/onsi/ginkgo/v2"
@@ -161,6 +162,11 @@ func createMariaDBContainer() (testcontainers.Container, error) {
 	return container, err
 }
 
+const (
+	modeOwner      = 700
+	startupTimeout = 30 * time.Second
+)
+
 func createBlockyContainer(tmpDir *helpertest.TmpFolder, lines ...string) (testcontainers.Container, error) {
 	f1 := tmpDir.CreateStringFile("config1.yaml",
 		lines...,
@@ -173,8 +179,6 @@ func createBlockyContainer(tmpDir *helpertest.TmpFolder, lines ...string) (testc
 	if err != nil {
 		return nil, fmt.Errorf("can't create config struct %w", err)
 	}
-
-	const modeOwner = 700
 
 	ctx := context.Background()
 	req := testcontainers.ContainerRequest{
@@ -190,8 +194,13 @@ func createBlockyContainer(tmpDir *helpertest.TmpFolder, lines ...string) (testc
 				FileMode:          modeOwner,
 			},
 		},
+		ConfigModifier: func(c *container.Config) {
+			c.Healthcheck = &container.HealthConfig{
+				Interval: time.Second,
+			}
+		},
 		// can't use forExposedPorts / forListeningPorts because it needs "/bin/sh" in container
-		WaitingFor: wait.NewExecStrategy([]string{"/app/blocky", "healthcheck"}),
+		WaitingFor: wait.NewExecStrategy([]string{"/app/blocky", "healthcheck"}).WithStartupTimeout(startupTimeout),
 	}
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
