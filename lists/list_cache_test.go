@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http/httptest"
 	"os"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/0xERR0R/blocky/lists/parsers"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 
 	. "github.com/0xERR0R/blocky/helpertest"
@@ -469,28 +469,9 @@ func createTestListFile(dir string, totalLines int) (string, int) {
 
 	w := bufio.NewWriter(file)
 	for i := 0; i < totalLines; i++ {
-		fmt.Fprintln(w, RandStringBytes(8+rand.Intn(10))+".com")
+		fmt.Fprintln(w, uuid.NewString()+".com")
 	}
 	w.Flush()
 
 	return file.Name(), totalLines
-}
-
-const (
-	initCharpool = "abcdefghijklmnopqrstuvwxyz"
-	contCharpool = initCharpool + "0123456789-"
-)
-
-func RandStringBytes(n int) string {
-	b := make([]byte, n)
-
-	pool := initCharpool
-
-	for i := range b {
-		b[i] = pool[rand.Intn(len(pool))]
-
-		pool = contCharpool
-	}
-
-	return string(b)
 }
