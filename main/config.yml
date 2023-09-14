@@ -203,6 +203,8 @@ queryLog:
   fields:
     - clientIP
     - duration
+  # optional: Interval to write data in bulk to the external database, default: 30s
+  flushInterval: 30s
 
 # optional: Blocky can synchronize its cache and blocking state between multiple instances through redis.
 redis:
