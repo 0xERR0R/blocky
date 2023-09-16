@@ -213,7 +213,7 @@ func (r *CachingResolver) trackQueryDomainNameCount(domain, cacheKey string, log
 }
 
 func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, prefetch, publish bool) {
-	if response.Res.Rcode == dns.RcodeSuccess {
+	if response.Res.Rcode == dns.RcodeSuccess && !response.Res.Truncated {
 		// put value into cache
 		r.resultCache.Put(cacheKey, &cacheValue{response.Res, prefetch}, r.adjustTTLs(response.Res.Answer))
 	} else if response.Res.Rcode == dns.RcodeNameError {
