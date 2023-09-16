@@ -108,7 +108,10 @@ func (r *ConditionalUpstreamResolver) internalResolve(reso Resolver, doFQ, do st
 	if err == nil {
 		response.Reason = "CONDITIONAL"
 		response.RType = model.ResponseTypeCONDITIONAL
-		response.Res.Question[0].Name = req.Req.Question[0].Name
+
+		if len(response.Res.Question) > 0 {
+			response.Res.Question[0].Name = req.Req.Question[0].Name
+		}
 	}
 
 	var answer string
