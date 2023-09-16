@@ -63,7 +63,7 @@ jobs:
           GO_SKIP_GENERATE: 1
 
       - name: Upload results to codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v3
         if: matrix.make == 'test'
 
       - name: Check GoReleaser configuration
