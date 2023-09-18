@@ -63,7 +63,7 @@ e2e-test: ## run e2e tests
 		-o type=docker \
 		-t blocky-e2e \
 		.
-	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="e2e" e2e
+	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="e2e" --timeout 15m --flake-attempts 1 e2e
 
 race: ## run tests with race detector
 	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --race ./...
