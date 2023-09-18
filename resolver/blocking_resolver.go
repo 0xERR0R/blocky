@@ -145,9 +145,13 @@ func NewBlockingResolver(
 		setupRedisEnabledSubscriber(res)
 	}
 
-	_ = evt.Bus().Subscribe(evt.ApplicationStarted, func(_ ...string) {
+	err = evt.Bus().SubscribeOnce(evt.ApplicationStarted, func(_ ...string) {
 		go res.initFQDNIPCache()
 	})
+
+	if err != nil {
+		return nil, err
+	}
 
 	return res, nil
 }
