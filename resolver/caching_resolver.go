@@ -212,21 +212,41 @@ func (r *CachingResolver) trackQueryDomainNameCount(domain, cacheKey string, log
 	}
 }
 
+// removes EDNS OPT records from message
+func removeEdns0Extra(msg *dns.Msg) {
+	if len(msg.Extra) > 0 {
+		extra := make([]dns.RR, 0, len(msg.Extra))
+
+		for _, rr := range msg.Extra {
+			if rr.Header().Rrtype != dns.TypeOPT {
+				extra = append(extra, rr)
+			}
+		}
+
+		msg.Extra = extra
+	}
+}
+
 func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, prefetch, publish bool) {
+	respCopy := response.Res.Copy()
+
+	// don't cache any EDNS OPT records
+	removeEdns0Extra(respCopy)
+
 	if response.Res.Rcode == dns.RcodeSuccess && !response.Res.Truncated {
 		// put value into cache
-		r.resultCache.Put(cacheKey, &cacheValue{response.Res, prefetch}, r.adjustTTLs(response.Res.Answer))
+		r.resultCache.Put(cacheKey, &cacheValue{respCopy, prefetch}, r.adjustTTLs(response.Res.Answer))
 	} else if response.Res.Rcode == dns.RcodeNameError {
 		if r.cfg.CacheTimeNegative.IsAboveZero() {
 			// put negative cache if result code is NXDOMAIN
-			r.resultCache.Put(cacheKey, &cacheValue{response.Res, prefetch}, r.cfg.CacheTimeNegative.ToDuration())
+			r.resultCache.Put(cacheKey, &cacheValue{respCopy, prefetch}, r.cfg.CacheTimeNegative.ToDuration())
 		}
 	}
 
 	r.publishMetricsIfEnabled(evt.CachingResultCacheChanged, r.resultCache.TotalCount())
 
 	if publish && r.redisClient != nil {
-		res := *response.Res
+		res := *respCopy
 		res.Answer = response.Res.Answer
 		r.redisClient.PublishCache(cacheKey, &res)
 	}

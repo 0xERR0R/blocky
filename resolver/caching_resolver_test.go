@@ -565,6 +565,56 @@ var _ = Describe("CachingResolver", func() {
 		})
 	})
 
+	Describe("EDNS pseudo records should not be cached", func() {
+		When("Some query returns EDNS OPT RRs", func() {
+			BeforeEach(func() {
+				mockAnswer, _ = util.NewMsgWithAnswer("google.de.", 180, A, "1.1.1.1")
+				opt := new(dns.OPT)
+				opt.Hdr.Name = "."
+				opt.Hdr.Rrtype = dns.TypeOPT
+				opt.Option = append(opt.Option, &dns.EDNS0_COOKIE{Code: dns.EDNS0COOKIE, Cookie: "someclientcookie"})
+				mockAnswer.Extra = append(mockAnswer.Extra, opt)
+			})
+			It("Should not be cached", func() {
+				By("first request", func() {
+					Expect(sut.Resolve(newRequest("google.de.", A))).
+						Should(SatisfyAll(
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+							BeDNSRecord("google.de.", A, "1.1.1.1"),
+							HaveTTL(BeNumerically("==", 180)),
+							// original response has one ENDS0 Opt
+							WithTransform(ToExtra,
+								SatisfyAll(
+									HaveLen(1),
+								)),
+						))
+
+					Expect(m.Calls).Should(HaveLen(1))
+				})
+
+				By("second request", func() {
+					Eventually(sut.Resolve).WithArguments(newRequest("google.de.", A)).
+						Should(SatisfyAll(
+							HaveResponseType(ResponseTypeCACHED),
+							HaveReason("CACHED"),
+							HaveReturnCode(dns.RcodeSuccess),
+							BeDNSRecord("google.de.", A, "1.1.1.1"),
+							HaveTTL(BeNumerically("<=", 179)),
+							// cached response is without EDNS RRs
+							WithTransform(ToExtra,
+								SatisfyAll(
+									BeEmpty(),
+								)),
+						))
+
+					// still one call to resolver
+					Expect(m.Calls).Should(HaveLen(1))
+				})
+			})
+		})
+	})
+
 	Describe("Redis is configured", func() {
 		var (
 			redisServer *miniredis.Miniredis
