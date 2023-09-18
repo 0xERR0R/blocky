@@ -215,7 +215,7 @@ func (r *CachingResolver) trackQueryDomainNameCount(domain, cacheKey string, log
 // removes EDNS OPT records from message
 func removeEdns0Extra(msg *dns.Msg) {
 	if len(msg.Extra) > 0 {
-		extra := make([]dns.RR, 0)
+		extra := make([]dns.RR, 0, len(msg.Extra))
 
 		for _, rr := range msg.Extra {
 			if rr.Header().Rrtype != dns.TypeOPT {
