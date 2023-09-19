@@ -199,8 +199,7 @@ func createBlockyContainer(tmpDir *helpertest.TmpFolder, lines ...string) (testc
 				Interval: time.Second,
 			}
 		},
-		// can't use forExposedPorts / forListeningPorts because it needs "/bin/sh" in container
-		WaitingFor: wait.NewExecStrategy([]string{"/app/blocky", "healthcheck"}).WithStartupTimeout(startupTimeout),
+		WaitingFor: wait.ForHealthCheck().WithStartupTimeout(startupTimeout),
 	}
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
