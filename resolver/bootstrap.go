@@ -19,6 +19,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	defaultTimeout = 5 * time.Second
+)
+
 // Bootstrap allows resolving hostnames using the configured bootstrap DNS.
 type Bootstrap struct {
 	log *logrus.Entry
@@ -48,7 +52,9 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 		connectIPVersion: cfg.ConnectIPVersion,
 
 		systemResolver: net.DefaultResolver,
-		dialer:         &net.Dialer{},
+		dialer: &net.Dialer{
+			Timeout: defaultTimeout,
+		},
 	}
 
 	bootstraped, err := newBootstrapedResolvers(b, cfg.BootstrapDNS)
@@ -112,13 +118,15 @@ func (b *Bootstrap) resolveUpstream(r Resolver, host string) ([]net.IP, error) {
 		cfg := config.GetConfig()
 		ctx := context.Background()
 
-		timeout := cfg.Upstreams.Timeout
-		if timeout.IsAboveZero() {
-			var cancel context.CancelFunc
-
-			ctx, cancel = context.WithTimeout(ctx, timeout.ToDuration())
-			defer cancel()
+		timeout := defaultTimeout
+		if cfg.Upstreams.Timeout.IsAboveZero() {
+			timeout = cfg.Upstreams.Timeout.ToDuration()
 		}
+
+		var cancel context.CancelFunc
+
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
 
 		return b.systemResolver.LookupIP(ctx, cfg.ConnectIPVersion.Net(), host)
 	}
@@ -134,7 +142,13 @@ func (b *Bootstrap) resolveUpstream(r Resolver, host string) ([]net.IP, error) {
 // NewHTTPTransport returns a new http.Transport that uses b to resolve hostnames
 func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 	if b.resolver == nil {
-		return &http.Transport{}
+		dialer := &net.Dialer{
+			Timeout: defaultTimeout,
+		}
+
+		return &http.Transport{
+			DialContext: dialer.DialContext,
+		}
 	}
 
 	return &http.Transport{
