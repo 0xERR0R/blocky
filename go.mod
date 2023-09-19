@@ -3,7 +3,7 @@ module github.com/0xERR0R/blocky
 go 1.21
 
 require (
-	github.com/abice/go-enum v0.5.7
+	github.com/abice/go-enum v0.5.8
 	github.com/alicebob/miniredis/v2 v2.30.5
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/avast/retry-go/v4 v4.5.0
@@ -133,7 +133,7 @@ require (
 	golang.org/x/sys v0.12.0 // indirect
 	golang.org/x/term v0.12.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
-	golang.org/x/tools v0.12.0
+	golang.org/x/tools v0.13.0
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
