@@ -84,14 +84,13 @@ var _ = Describe("Common function tests", func() {
 	})
 
 	Describe("Create answer from question", func() {
-		ip := net.ParseIP("192.168.178.1")
 		When("type A is provided", func() {
 			question := dns.Question{
 				Name:   "google.de",
 				Qtype:  dns.TypeA,
 				Qclass: dns.ClassINET,
 			}
-			answer, err := CreateAnswerFromQuestion(question, ip, 25)
+			answer, err := CreateAnswerFromQuestion(question, net.ParseIP("192.168.178.1"), 25)
 			Expect(err).Should(Succeed())
 			It("should return A record", func() {
 				Expect(answer.String()).Should(Equal("google.de	25	IN	A	192.168.178.1"))
@@ -103,10 +102,10 @@ var _ = Describe("Common function tests", func() {
 				Qtype:  dns.TypeAAAA,
 				Qclass: dns.ClassINET,
 			}
-			answer, err := CreateAnswerFromQuestion(question, ip, 25)
+			answer, err := CreateAnswerFromQuestion(question, net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334"), 25)
 			Expect(err).Should(Succeed())
 			It("should return AAAA record", func() {
-				Expect(answer.String()).Should(Equal("google.de	25	IN	AAAA	192.168.178.1"))
+				Expect(answer.String()).Should(Equal("google.de	25	IN	AAAA	2001:db8:85a3::8a2e:370:7334"))
 			})
 		})
 		When("type NS is provided", func() {
@@ -115,7 +114,7 @@ var _ = Describe("Common function tests", func() {
 				Qtype:  dns.TypeNS,
 				Qclass: dns.ClassINET,
 			}
-			answer, err := CreateAnswerFromQuestion(question, ip, 25)
+			answer, err := CreateAnswerFromQuestion(question, net.ParseIP("192.168.178.1"), 25)
 			Expect(err).Should(Succeed())
 			It("should return generic record as fallback", func() {
 				Expect(answer.String()).Should(Equal("google.de.	25	IN	NS	192.168.178.1."))
@@ -128,7 +127,7 @@ var _ = Describe("Common function tests", func() {
 				Qtype:  dns.TypeNS,
 				Qclass: dns.ClassINET,
 			}
-			_, err := CreateAnswerFromQuestion(question, ip, 25)
+			_, err := CreateAnswerFromQuestion(question, net.ParseIP("192.168.178.1"), 25)
 			It("should fail", func() {
 				Expect(err).Should(HaveOccurred())
 			})
