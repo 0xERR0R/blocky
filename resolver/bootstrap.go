@@ -31,6 +31,7 @@ type Bootstrap struct {
 	bootstraped bootstrapedResolvers
 
 	connectIPVersion config.IPVersion
+	timeout          time.Duration
 
 	// To allow replacing during tests
 	systemResolver *net.Resolver
@@ -42,18 +43,24 @@ type Bootstrap struct {
 // NewBootstrap creates and returns a new Bootstrap.
 // Internally, it uses a CachingResolver and an UpstreamResolver.
 func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
-	log := log.PrefixedLog("bootstrap")
+	logger := log.PrefixedLog("bootstrap")
+
+	timeout := defaultTimeout
+	if cfg.Upstreams.Timeout.IsAboveZero() {
+		timeout = cfg.Upstreams.Timeout.ToDuration()
+	}
 
 	// Create b in multiple steps: Bootstrap and UpstreamResolver have a cyclic dependency
 	// This also prevents the GC to clean up these two structs, but is not currently an
 	// issue since they stay allocated until the process terminates
 	b = &Bootstrap{
-		log:              log,
+		log:              logger,
 		connectIPVersion: cfg.ConnectIPVersion,
 
 		systemResolver: net.DefaultResolver,
+		timeout:        timeout,
 		dialer: &net.Dialer{
-			Timeout: defaultTimeout,
+			Timeout: timeout,
 		},
 	}
 
@@ -63,7 +70,7 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 	}
 
 	if len(bootstraped) == 0 {
-		log.Infof("bootstrapDns is not configured, will use system resolver")
+		logger.Infof("bootstrapDns is not configured, will use system resolver")
 
 		return b, nil
 	}
@@ -115,20 +122,10 @@ func (b *Bootstrap) UpstreamIPs(r *UpstreamResolver) (*IPSet, error) {
 func (b *Bootstrap) resolveUpstream(r Resolver, host string) ([]net.IP, error) {
 	// Use system resolver if no bootstrap is configured
 	if b.resolver == nil {
-		cfg := config.GetConfig()
-		ctx := context.Background()
-
-		timeout := defaultTimeout
-		if cfg.Upstreams.Timeout.IsAboveZero() {
-			timeout = cfg.Upstreams.Timeout.ToDuration()
-		}
-
-		var cancel context.CancelFunc
-
-		ctx, cancel = context.WithTimeout(ctx, timeout)
+		ctx, cancel := context.WithTimeout(context.Background(), b.timeout)
 		defer cancel()
 
-		return b.systemResolver.LookupIP(ctx, cfg.ConnectIPVersion.Net(), host)
+		return b.systemResolver.LookupIP(ctx, config.GetConfig().ConnectIPVersion.Net(), host)
 	}
 
 	if ips, ok := b.bootstraped[r]; ok {
@@ -142,12 +139,8 @@ func (b *Bootstrap) resolveUpstream(r Resolver, host string) ([]net.IP, error) {
 // NewHTTPTransport returns a new http.Transport that uses b to resolve hostnames
 func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 	if b.resolver == nil {
-		dialer := &net.Dialer{
-			Timeout: defaultTimeout,
-		}
-
 		return &http.Transport{
-			DialContext: dialer.DialContext,
+			DialContext: b.dialer.DialContext,
 		}
 	}
 
@@ -157,11 +150,11 @@ func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 }
 
 func (b *Bootstrap) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	log := b.log.WithField("network", network).WithField("addr", addr)
+	logger := b.log.WithField("network", network).WithField("addr", addr)
 
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.Errorf("dial error: %s", err)
+		logger.Errorf("dial error: %s", err)
 
 		return nil, err
 	}
@@ -182,14 +175,14 @@ func (b *Bootstrap) dialContext(ctx context.Context, network, addr string) (net.
 	// Resolve the host with the bootstrap DNS
 	ips, err := b.resolve(host, qTypes)
 	if err != nil {
-		log.Errorf("resolve error: %s", err)
+		logger.Errorf("resolve error: %s", err)
 
 		return nil, err
 	}
 
 	ip := ips[rand.Intn(len(ips))] //nolint:gosec
 
-	log.WithField("ip", ip).Tracef("dialing %s", host)
+	logger.WithField("ip", ip).Tracef("dialing %s", host)
 
 	// Use the standard dialer to actually connect
 	addrWithIP := net.JoinHostPort(ip.String(), port)
