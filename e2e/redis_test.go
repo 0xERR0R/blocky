@@ -2,7 +2,7 @@ package e2e
 
 import (
 	"context"
-	"net"
+	"strings"
 
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
@@ -10,10 +10,12 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
+	redisTc "github.com/testcontainers/testcontainers-go/modules/redis"
 )
 
 var _ = Describe("Redis configuration tests", func() {
-	var blocky1, blocky2, redisDB, moka testcontainers.Container
+	var blocky1, blocky2, moka testcontainers.Container
+	var redisDB *redisTc.RedisContainer
 	var redisClient *redis.Client
 	var err error
 
@@ -23,11 +25,13 @@ var _ = Describe("Redis configuration tests", func() {
 		Expect(err).Should(Succeed())
 		DeferCleanup(redisDB.Terminate)
 
-		dbHost, dbPort, err := getContainerHostPort(redisDB, "6379/tcp")
+		redisConnectionString, err := redisDB.ConnectionString(context.Background())
 		Expect(err).Should(Succeed())
 
+		redisConnectionString = strings.ReplaceAll(redisConnectionString, "redis://", "")
+
 		redisClient = redis.NewClient(&redis.Options{
-			Addr: net.JoinHostPort(dbHost, dbPort),
+			Addr: redisConnectionString,
 		})
 
 		Expect(dbSize(redisClient)).Should(BeNumerically("==", 0))
