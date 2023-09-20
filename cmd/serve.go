@@ -19,6 +19,7 @@ import (
 var (
 	done              = make(chan bool, 1)
 	isConfigMandatory = true
+	signals           = make(chan os.Signal, 1)
 )
 
 func newServeCommand() *cobra.Command {
@@ -40,8 +41,6 @@ func startServer(_ *cobra.Command, _ []string) error {
 
 	log.ConfigureLogger(&cfg.Log)
 
-	signals := make(chan os.Signal, 1)
-
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	srv, err := server.NewServer(cfg)
@@ -54,6 +53,8 @@ func startServer(_ *cobra.Command, _ []string) error {
 
 	srv.Start(errChan)
 
+	var terminationErr error
+
 	go func() {
 		select {
 		case <-signals:
@@ -63,6 +64,7 @@ func startServer(_ *cobra.Command, _ []string) error {
 
 		case err := <-errChan:
 			log.Log().Error("server start failed: ", err)
+			terminationErr = err
 			done <- true
 		}
 	}()
@@ -70,7 +72,7 @@ func startServer(_ *cobra.Command, _ []string) error {
 	evt.Bus().Publish(evt.ApplicationStarted, util.Version, util.BuildTime)
 	<-done
 
-	return nil
+	return terminationErr
 }
 
 func printBanner() {
