@@ -229,6 +229,11 @@ func removeEdns0Extra(msg *dns.Msg) {
 	}
 }
 
+func shouldBeCached(msg *dns.Msg) bool {
+	// we don't cache truncated responses and responses with CD flag
+	return !msg.Truncated && !msg.CheckingDisabled
+}
+
 func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, ttl time.Duration,
 	prefetch, publish bool,
 ) {
@@ -237,7 +242,7 @@ func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, 
 	// don't cache any EDNS OPT records
 	removeEdns0Extra(respCopy)
 
-	if response.Res.Rcode == dns.RcodeSuccess && !response.Res.Truncated {
+	if response.Res.Rcode == dns.RcodeSuccess && shouldBeCached(response.Res) {
 		// put value into cache
 		r.resultCache.Put(cacheKey, &cacheValue{respCopy, prefetch}, ttl)
 	} else if response.Res.Rcode == dns.RcodeNameError {
