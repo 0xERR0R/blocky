@@ -1,6 +1,8 @@
 package e2e
 
 import (
+	"context"
+
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
 	. "github.com/onsi/ginkgo/v2"
@@ -77,6 +79,12 @@ var _ = Describe("External lists and query blocking", func() {
 					)
 
 					Expect(err).Should(HaveOccurred())
+
+					// check container exit status
+					state, err := blocky.State(context.Background())
+					Expect(err).Should(Succeed())
+					Expect(state.ExitCode).Should(Equal(1))
+
 					DeferCleanup(blocky.Terminate)
 				})
 
