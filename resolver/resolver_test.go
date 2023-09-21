@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var systemResolverBootstrap = &Bootstrap{}
+var systemResolverBootstrap = &Bootstrap{dialer: newMockDialer()}
 
 var _ = Describe("Resolver", func() {
 	Describe("Chains", func() {
