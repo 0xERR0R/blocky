@@ -43,6 +43,9 @@ require (
 	github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198
 	github.com/oapi-codegen/runtime v1.0.0
 	github.com/testcontainers/testcontainers-go v0.24.1
+	github.com/testcontainers/testcontainers-go/modules/mariadb v0.24.0
+	github.com/testcontainers/testcontainers-go/modules/postgres v0.24.0
+	github.com/testcontainers/testcontainers-go/modules/redis v0.24.0
 	mvdan.cc/gofumpt v0.5.0
 )
 
@@ -102,7 +105,7 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/swag v0.22.3 // indirect
-	github.com/go-sql-driver/mysql v1.7.0 // indirect
+	github.com/go-sql-driver/mysql v1.7.1 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
