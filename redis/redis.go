@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -315,11 +316,9 @@ func convertMessage(message *redisMessage, ttl time.Duration) (*CacheMessage, er
 
 // getTTL of dns message or return defaultCacheTime if 0
 func (c *Client) getTTL(dns *dns.Msg) time.Duration {
-	ttl := uint32(0)
+	ttl := uint32(math.MaxInt32)
 	for _, a := range dns.Answer {
-		if a.Header().Ttl > ttl {
-			ttl = a.Header().Ttl
-		}
+		ttl = min(ttl, a.Header().Ttl)
 	}
 
 	if ttl == 0 {

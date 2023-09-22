@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/0xERR0R/blocky/cache/expirationcache"
@@ -133,6 +134,60 @@ var _ = Describe("CachingResolver", func() {
 
 				It("should always prefetch", func() {
 					Expect(sut.shouldPrefetch("domain.tld")).Should(BeTrue())
+				})
+			})
+		})
+		When("caching with default values is enabled", func() {
+			BeforeEach(func() {
+				rr1, err := dns.NewRR(fmt.Sprintf("%s\t%d\tIN\t%s\t%s", "example.com.", 600, A, "1.2.3.4"))
+				Expect(err).Should(Succeed())
+
+				rr2, err := dns.NewRR(fmt.Sprintf("%s\t%d\tIN\t%s\t%s", "example.com.", 950, CNAME, "cname.example.com"))
+				Expect(err).Should(Succeed())
+
+				msg := new(dns.Msg)
+				msg.Answer = []dns.RR{rr1, rr2}
+				mockAnswer = msg
+			})
+			It("should cache response and use response's TTL for multiple records", func() {
+				By("first request", func() {
+					result, err := sut.Resolve(newRequest("example.com.", A))
+					Expect(err).Should(Succeed())
+					Expect(result).
+						Should(
+							SatisfyAll(
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+								WithTransform(ToAnswer, SatisfyAll(
+									HaveLen(2),
+								)),
+							))
+
+					Expect(result.Res.Answer[0]).Should(HaveTTL(BeNumerically("==", 600)))
+					Expect(result.Res.Answer[1]).Should(HaveTTL(BeNumerically("==", 950)))
+
+					Expect(m.Calls).Should(HaveLen(1))
+				})
+
+				By("second request", func() {
+					Eventually(func(g Gomega) {
+						result, err := sut.Resolve(newRequest("example.com.", A))
+						g.Expect(err).Should(Succeed())
+						g.Expect(result).
+							Should(
+								SatisfyAll(
+									HaveResponseType(ResponseTypeCACHED),
+									HaveReturnCode(dns.RcodeSuccess),
+									WithTransform(ToAnswer, SatisfyAll(
+										HaveLen(2),
+									))))
+
+						g.Expect(result.Res.Answer[0]).Should(HaveTTL(BeNumerically("<=", 599)))
+						g.Expect(result.Res.Answer[1]).Should(HaveTTL(BeNumerically("<=", 949)))
+
+						// still one call to upstream
+						g.Expect(m.Calls).Should(HaveLen(1))
+					}, "1s").Should(Succeed())
 				})
 			})
 		})

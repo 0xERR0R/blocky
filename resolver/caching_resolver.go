@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"fmt"
+	"math"
 	"sync/atomic"
 	"time"
 
@@ -173,9 +174,7 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 			resp.Rcode = val.resultMsg.Rcode
 
 			// Adjust TTL
-			for _, rr := range resp.Answer {
-				rr.Header().Ttl = uint32(ttl.Seconds())
-			}
+			setTTLInCachedResponse(resp, ttl)
 
 			if resp.Rcode == dns.RcodeSuccess {
 				return &model.Response{Res: resp, RType: model.ResponseTypeCACHED, Reason: "CACHED"}, nil
@@ -196,6 +195,18 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 	}
 
 	return response, err
+}
+
+func setTTLInCachedResponse(resp *dns.Msg, ttl time.Duration) {
+	minTTL := uint32(math.MaxInt32)
+	// find smallest TTL first
+	for _, rr := range resp.Answer {
+		minTTL = min(minTTL, rr.Header().Ttl)
+	}
+
+	for _, rr := range resp.Answer {
+		rr.Header().Ttl = rr.Header().Ttl - minTTL + uint32(ttl.Seconds())
+	}
 }
 
 func (r *CachingResolver) trackQueryDomainNameCount(domain, cacheKey string, logger *logrus.Entry) {
@@ -256,16 +267,15 @@ func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, 
 
 	if publish && r.redisClient != nil {
 		res := *respCopy
-		res.Answer = response.Res.Answer
 		r.redisClient.PublishCache(cacheKey, &res)
 	}
 }
 
-// adjustTTLs calculates and returns the max TTL (considers also the min and max cache time)
+// adjustTTLs calculates and returns the min TTL (considers also the min and max cache time)
 // for all records from answer or a negative cache time for empty answer
 // adjust the TTL in the answer header accordingly
-func (r *CachingResolver) adjustTTLs(answer []dns.RR) (maxTTL time.Duration) {
-	var max uint32
+func (r *CachingResolver) adjustTTLs(answer []dns.RR) (ttl time.Duration) {
+	minTTL := uint32(math.MaxInt32)
 
 	if len(answer) == 0 {
 		return r.cfg.CacheTimeNegative.ToDuration()
@@ -286,12 +296,12 @@ func (r *CachingResolver) adjustTTLs(answer []dns.RR) (maxTTL time.Duration) {
 		}
 
 		headerTTL := atomic.LoadUint32(&a.Header().Ttl)
-		if max < headerTTL {
-			max = headerTTL
+		if minTTL > headerTTL {
+			minTTL = headerTTL
 		}
 	}
 
-	return time.Duration(max) * time.Second
+	return time.Duration(minTTL) * time.Second
 }
 
 func (r *CachingResolver) publishMetricsIfEnabled(event string, val interface{}) {
