@@ -71,3 +71,12 @@ var _ = Describe("EcsResolver", func() {
 		})
 	})
 })
+
+func getDefaultConfig() *config.EcsConfig {
+	var res config.EcsConfig
+	err := defaults.Set(&res)
+
+	Expect(err).Should(Succeed())
+
+	return &res
+}
