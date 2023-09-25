@@ -34,6 +34,8 @@ var _ = Describe("Hosts", func() {
 				"127.0.0.1 domain.tld # comment",
 				"::1 localhost alias",
 				`/domain\.(tld|local)/`,
+				`/^(.*\.)?2023\.xn--aptslabs-6fd\.net$/`,
+				`müller.com`,
 			)
 		})
 
@@ -58,11 +60,21 @@ var _ = Describe("Hosts", func() {
 			Expect(iteratorToList(it.ForEach)).Should(Equal([]string{`/domain\.(tld|local)/`}))
 			Expect(sut.Position()).Should(Equal("line 6"))
 
+			it, err = sut.Next(context.Background())
+			Expect(err).Should(Succeed())
+			Expect(iteratorToList(it.ForEach)).Should(Equal([]string{`/^(.*\.)?2023\.xn--aptslabs-6fd\.net$/`}))
+			Expect(sut.Position()).Should(Equal("line 7"))
+
+			it, err = sut.Next(context.Background())
+			Expect(err).Should(Succeed())
+			Expect(iteratorToList(it.ForEach)).Should(Equal([]string{`xn--mller-kva.com`}))
+			Expect(sut.Position()).Should(Equal("line 8"))
+
 			_, err = sut.Next(context.Background())
 			Expect(err).ShouldNot(Succeed())
 			Expect(err).Should(MatchError(io.EOF))
 			Expect(IsNonResumableErr(err)).Should(BeTrue())
-			Expect(sut.Position()).Should(Equal("line 7"))
+			Expect(sut.Position()).Should(Equal("line 9"))
 		})
 	})
 
@@ -71,6 +83,7 @@ var _ = Describe("Hosts", func() {
 			lines := []string{
 				"invalidIP localhost",
 				"!notadomain!",
+				"xn---mllerk1va.com",
 				`/invalid regex ??/`,
 			}
 

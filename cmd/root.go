@@ -59,8 +59,8 @@ Complete documentation is available at https://github.com/0xERR0R/blocky`,
 	return c
 }
 
-func apiURL(path string) string {
-	return fmt.Sprintf("http://%s%s", net.JoinHostPort(apiHost, strconv.Itoa(int(apiPort))), path)
+func apiURL() string {
+	return fmt.Sprintf("http://%s%s", net.JoinHostPort(apiHost, strconv.Itoa(int(apiPort))), "/api")
 }
 
 //nolint:gochecknoinits
@@ -88,8 +88,8 @@ func initConfig() {
 
 	log.ConfigureLogger(&cfg.Log)
 
-	if len(cfg.HTTPPorts) != 0 {
-		split := strings.Split(cfg.HTTPPorts[0], ":")
+	if len(cfg.Ports.HTTP) != 0 {
+		split := strings.Split(cfg.Ports.HTTP[0], ":")
 
 		lastIdx := len(split) - 1
 

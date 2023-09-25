@@ -37,9 +37,10 @@ var _ = Describe("root command", func() {
 			DeferCleanup(tmpDir.Clean)
 
 			tmpFile = tmpDir.CreateStringFile("config",
-				"upstream:",
-				"  default:",
-				"    - 1.1.1.1",
+				"upstreams:",
+				"  groups:",
+				"    default:",
+				"      - 1.1.1.1",
 				"blocking:",
 				"  blackLists:",
 				"    ads:",

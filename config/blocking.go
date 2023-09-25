@@ -1,27 +1,48 @@
 package config
 
 import (
-	"strings"
-
+	. "github.com/0xERR0R/blocky/config/migration" //nolint:revive,stylecheck
 	"github.com/0xERR0R/blocky/log"
 	"github.com/sirupsen/logrus"
 )
 
 // BlockingConfig configuration for query blocking
 type BlockingConfig struct {
-	BlackLists            map[string][]string `yaml:"blackLists"`
-	WhiteLists            map[string][]string `yaml:"whiteLists"`
-	ClientGroupsBlock     map[string][]string `yaml:"clientGroupsBlock"`
-	BlockType             string              `yaml:"blockType" default:"ZEROIP"`
-	BlockTTL              Duration            `yaml:"blockTTL" default:"6h"`
-	DownloadTimeout       Duration            `yaml:"downloadTimeout" default:"60s"`
-	DownloadAttempts      uint                `yaml:"downloadAttempts" default:"3"`
-	DownloadCooldown      Duration            `yaml:"downloadCooldown" default:"1s"`
-	RefreshPeriod         Duration            `yaml:"refreshPeriod" default:"4h"`
-	FailStartOnListError  bool                `yaml:"failStartOnListError" default:"false"` // Deprecated
-	ProcessingConcurrency uint                `yaml:"processingConcurrency" default:"4"`
-	StartStrategy         StartStrategyType   `yaml:"startStrategy" default:"blocking"`
-	MaxErrorsPerFile      int                 `yaml:"maxErrorsPerFile" default:"5"`
+	BlackLists        map[string][]BytesSource `yaml:"blackLists"`
+	WhiteLists        map[string][]BytesSource `yaml:"whiteLists"`
+	ClientGroupsBlock map[string][]string      `yaml:"clientGroupsBlock"`
+	BlockType         string                   `yaml:"blockType" default:"ZEROIP"`
+	BlockTTL          Duration                 `yaml:"blockTTL" default:"6h"`
+	Loading           SourceLoadingConfig      `yaml:"loading"`
+
+	// Deprecated options
+	Deprecated struct {
+		DownloadTimeout       *Duration          `yaml:"downloadTimeout"`
+		DownloadAttempts      *uint              `yaml:"downloadAttempts"`
+		DownloadCooldown      *Duration          `yaml:"downloadCooldown"`
+		RefreshPeriod         *Duration          `yaml:"refreshPeriod"`
+		FailStartOnListError  *bool              `yaml:"failStartOnListError"`
+		ProcessingConcurrency *uint              `yaml:"processingConcurrency"`
+		StartStrategy         *StartStrategyType `yaml:"startStrategy"`
+		MaxErrorsPerFile      *int               `yaml:"maxErrorsPerFile"`
+	} `yaml:",inline"`
+}
+
+func (c *BlockingConfig) migrate(logger *logrus.Entry) bool {
+	return Migrate(logger, "blocking", c.Deprecated, map[string]Migrator{
+		"downloadTimeout":  Move(To("loading.downloads.timeout", &c.Loading.Downloads)),
+		"downloadAttempts": Move(To("loading.downloads.attempts", &c.Loading.Downloads)),
+		"downloadCooldown": Move(To("loading.downloads.cooldown", &c.Loading.Downloads)),
+		"refreshPeriod":    Move(To("loading.refreshPeriod", &c.Loading)),
+		"failStartOnListError": Apply(To("loading.strategy", &c.Loading), func(oldValue bool) {
+			if oldValue {
+				c.Loading.Strategy = StartStrategyTypeFailOnError
+			}
+		}),
+		"processingConcurrency": Move(To("loading.concurrency", &c.Loading)),
+		"startStrategy":         Move(To("loading.strategy", &c.Loading)),
+		"maxErrorsPerFile":      Move(To("loading.maxErrorsPerSource", &c.Loading)),
+	})
 }
 
 // IsEnabled implements `config.Configurable`.
@@ -29,7 +50,7 @@ func (c *BlockingConfig) IsEnabled() bool {
 	return len(c.ClientGroupsBlock) != 0
 }
 
-// IsEnabled implements `config.Configurable`.
+// LogConfig implements `config.Configurable`.
 func (c *BlockingConfig) LogConfig(logger *logrus.Entry) {
 	logger.Info("clientGroupsBlock:")
 
@@ -43,17 +64,8 @@ func (c *BlockingConfig) LogConfig(logger *logrus.Entry) {
 		logger.Infof("blockTTL = %s", c.BlockTTL)
 	}
 
-	logger.Infof("downloadTimeout = %s", c.DownloadTimeout)
-
-	logger.Infof("startStrategy = %s", c.StartStrategy)
-
-	logger.Infof("maxErrorsPerFile = %d", c.MaxErrorsPerFile)
-
-	if c.RefreshPeriod > 0 {
-		logger.Infof("refresh = every %s", c.RefreshPeriod)
-	} else {
-		logger.Debug("refresh = disabled")
-	}
+	logger.Info("loading:")
+	log.WithIndent(logger, "  ", c.Loading.LogConfig)
 
 	logger.Info("blacklist:")
 	log.WithIndent(logger, "  ", func(logger *logrus.Entry) {
@@ -66,18 +78,12 @@ func (c *BlockingConfig) LogConfig(logger *logrus.Entry) {
 	})
 }
 
-func (c *BlockingConfig) logListGroups(logger *logrus.Entry, listGroups map[string][]string) {
-	for group, links := range listGroups {
+func (c *BlockingConfig) logListGroups(logger *logrus.Entry, listGroups map[string][]BytesSource) {
+	for group, sources := range listGroups {
 		logger.Infof("%s:", group)
 
-		for _, link := range links {
-			if idx := strings.IndexRune(link, '\n'); idx != -1 && idx < len(link) { // found and not last char
-				link = link[:idx] // first line only
-
-				logger.Infof("   - %s [...]", link)
-			} else {
-				logger.Infof("   - %s", link)
-			}
+		for _, source := range sources {
+			logger.Infof("   - %s", source)
 		}
 	}
 }

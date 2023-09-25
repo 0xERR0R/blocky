@@ -1,4 +1,4 @@
-.PHONY: all clean generate build swagger test e2e-test lint run fmt docker-build help
+.PHONY: all clean generate build test e2e-test lint run fmt docker-build help
 .DEFAULT_GOAL:=help
 
 VERSION?=$(shell git describe --always --tags)
@@ -22,7 +22,7 @@ GO_BUILD_LD_FLAGS:=\
 GO_BUILD_OUTPUT:=$(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 
 # define version of golangci-lint here. If defined in tools.go, go mod perfoms automatically downgrade to older version which doesn't work with golang >=1.18
-GOLANG_LINT_VERSION=v1.51.2
+GOLANG_LINT_VERSION=v1.54.2
 
 export PATH=$(shell go env GOPATH)/bin:$(shell echo $$PATH)
 
@@ -30,12 +30,6 @@ all: build test lint ## Build binary (with tests)
 
 clean: ## cleans output directory
 	rm -rf $(BIN_OUT_DIR)/*
-
-swagger: ## creates swagger documentation as html file
-	npm install bootprint bootprint-openapi html-inline
-	go run github.com/swaggo/swag/cmd/swag init -g api/api.go
-	$(shell) node_modules/bootprint/bin/bootprint.js openapi docs/swagger.json /tmp/swagger/
-	$(shell) node_modules/html-inline/bin/cmd.js /tmp/swagger/index.html > docs/swagger.html
 
 serve_docs: ## serves online docs
 	pip install mkdocs-material
@@ -69,7 +63,7 @@ e2e-test: ## run e2e tests
 		-o type=docker \
 		-t blocky-e2e \
 		.
-	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="e2e" ./...
+	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="e2e" --timeout 15m --flake-attempts 1 e2e
 
 race: ## run tests with race detector
 	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --race ./...

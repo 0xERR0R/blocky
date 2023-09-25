@@ -2,6 +2,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -10,10 +11,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 
+	. "github.com/0xERR0R/blocky/config/migration" //nolint:revive,stylecheck
 	"github.com/0xERR0R/blocky/log"
 	"github.com/creasty/defaults"
 	"gopkg.in/yaml.v2"
@@ -31,7 +34,7 @@ type Configurable interface {
 
 	// LogConfig logs the receiver's configuration.
 	//
-	// Calling this method when `IsEnabled` returns false is undefined.
+	// The behavior of this method is undefined when `IsEnabled` returns false.
 	LogConfig(*logrus.Entry)
 }
 
@@ -92,9 +95,37 @@ type QueryLogType int16
 // )
 type StartStrategyType uint16
 
+func (s *StartStrategyType) do(setup func() error, logErr func(error)) error {
+	if *s == StartStrategyTypeFast {
+		go func() {
+			err := setup()
+			if err != nil {
+				logErr(err)
+			}
+		}()
+
+		return nil
+	}
+
+	err := setup()
+	if err != nil {
+		logErr(err)
+
+		if *s == StartStrategyTypeFailOnError {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // QueryLogField data field to be logged
 // ENUM(clientIP,clientName,responseReason,responseAnswer,question,duration)
 type QueryLogField string
+
+// UpstreamStrategy data field to be logged
+// ENUM(parallel_best,strict)
+type UpstreamStrategy uint8
 
 //nolint:gochecknoglobals
 var netDefaultPort = map[NetProtocol]uint16{
@@ -158,8 +189,7 @@ func (b *BootstrappedUpstreamConfig) UnmarshalYAML(unmarshal func(interface{}) e
 //
 //nolint:maligned
 type Config struct {
-	Upstream            ParallelBestConfig        `yaml:"upstream"`
-	UpstreamTimeout     Duration                  `yaml:"upstreamTimeout" default:"2s"`
+	Upstreams           UpstreamsConfig           `yaml:"upstreams"`
 	ConnectIPVersion    IPVersion                 `yaml:"connectIPVersion"`
 	CustomDNS           CustomDNSConfig           `yaml:"customDNS"`
 	Conditional         ConditionalUpstreamConfig `yaml:"conditional"`
@@ -182,24 +212,22 @@ type Config struct {
 	Filtering           FilteringConfig           `yaml:"filtering"`
 	Ede                 EdeConfig                 `yaml:"ede"`
 	Ecs                 EcsConfig                 `yaml:"ecs"`
-	// Deprecated
-	DisableIPv6 bool `yaml:"disableIPv6" default:"false"`
-	// Deprecated
-	LogLevel log.Level `yaml:"logLevel" default:"info"`
-	// Deprecated
-	LogFormat log.FormatType `yaml:"logFormat" default:"text"`
-	// Deprecated
-	LogPrivacy bool `yaml:"logPrivacy" default:"false"`
-	// Deprecated
-	LogTimestamp bool `yaml:"logTimestamp" default:"true"`
-	// Deprecated
-	DNSPorts ListenConfig `yaml:"port" default:"53"`
-	// Deprecated
-	HTTPPorts ListenConfig `yaml:"httpPort"`
-	// Deprecated
-	HTTPSPorts ListenConfig `yaml:"httpsPort"`
-	// Deprecated
-	TLSPorts ListenConfig `yaml:"tlsPort"`
+	SUDN                SUDNConfig                `yaml:"specialUseDomains"`
+
+	// Deprecated options
+	Deprecated struct {
+		Upstream        *UpstreamGroups `yaml:"upstream"`
+		UpstreamTimeout *Duration       `yaml:"upstreamTimeout"`
+		DisableIPv6     *bool           `yaml:"disableIPv6"`
+		LogLevel        *log.Level      `yaml:"logLevel"`
+		LogFormat       *log.FormatType `yaml:"logFormat"`
+		LogPrivacy      *bool           `yaml:"logPrivacy"`
+		LogTimestamp    *bool           `yaml:"logTimestamp"`
+		DNSPorts        *ListenConfig   `yaml:"port"`
+		HTTPPorts       *ListenConfig   `yaml:"httpPort"`
+		HTTPSPorts      *ListenConfig   `yaml:"httpsPort"`
+		TLSPorts        *ListenConfig   `yaml:"tlsPort"`
+	} `yaml:",inline"`
 }
 
 type PortsConfig struct {
@@ -264,6 +292,86 @@ func (c *toEnable) LogConfig(logger *logrus.Entry) {
 	logger.Info("enabled")
 }
 
+type SourceLoadingConfig struct {
+	Concurrency        uint              `yaml:"concurrency" default:"4"`
+	MaxErrorsPerSource int               `yaml:"maxErrorsPerSource" default:"5"`
+	RefreshPeriod      Duration          `yaml:"refreshPeriod" default:"4h"`
+	Strategy           StartStrategyType `yaml:"strategy" default:"blocking"`
+	Downloads          DownloaderConfig  `yaml:"downloads"`
+}
+
+func (c *SourceLoadingConfig) LogConfig(logger *logrus.Entry) {
+	logger.Infof("concurrency = %d", c.Concurrency)
+	logger.Debugf("maxErrorsPerSource = %d", c.MaxErrorsPerSource)
+	logger.Debugf("strategy = %s", c.Strategy)
+
+	if c.RefreshPeriod.IsAboveZero() {
+		logger.Infof("refresh = every %s", c.RefreshPeriod)
+	} else {
+		logger.Debug("refresh = disabled")
+	}
+
+	logger.Info("downloads:")
+	log.WithIndent(logger, "  ", c.Downloads.LogConfig)
+}
+
+func (c *SourceLoadingConfig) StartPeriodicRefresh(refresh func(context.Context) error, logErr func(error)) error {
+	refreshAndRecover := func(ctx context.Context) (rerr error) {
+		defer func() {
+			if val := recover(); val != nil {
+				rerr = fmt.Errorf("refresh function panicked: %v", val)
+			}
+		}()
+
+		return refresh(ctx)
+	}
+
+	err := c.Strategy.do(func() error { return refreshAndRecover(context.Background()) }, logErr)
+	if err != nil {
+		return err
+	}
+
+	if c.RefreshPeriod > 0 {
+		go c.periodically(refreshAndRecover, logErr)
+	}
+
+	return nil
+}
+
+func (c *SourceLoadingConfig) periodically(refresh func(context.Context) error, logErr func(error)) {
+	ticker := time.NewTicker(c.RefreshPeriod.ToDuration())
+	defer ticker.Stop()
+
+	for range ticker.C {
+		err := refresh(context.Background())
+		if err != nil {
+			logErr(err)
+		}
+	}
+}
+
+type DownloaderConfig struct {
+	Timeout  Duration `yaml:"timeout" default:"5s"`
+	Attempts uint     `yaml:"attempts" default:"3"`
+	Cooldown Duration `yaml:"cooldown" default:"500ms"`
+}
+
+func (c *DownloaderConfig) LogConfig(logger *logrus.Entry) {
+	logger.Infof("timeout = %s", c.Timeout)
+	logger.Infof("attempts = %d", c.Attempts)
+	logger.Debugf("cooldown = %s", c.Cooldown)
+}
+
+func WithDefaults[T any]() (T, error) {
+	var cfg T
+
+	if err := defaults.Set(&cfg); err != nil {
+		return cfg, fmt.Errorf("can't apply %T defaults: %w", cfg, err)
+	}
+
+	return cfg, nil
+}
+
 //nolint:gochecknoglobals
 var (
 	config  = &Config{}
@@ -275,9 +383,9 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 
-	cfg := Config{}
-	if err := defaults.Set(&cfg); err != nil {
-		return nil, fmt.Errorf("can't apply default values: %w", err)
+	cfg, err := WithDefaults[Config]()
+	if err != nil {
+		return nil, err
 	}
 
 	fs, err := os.Stat(path)
@@ -375,90 +483,39 @@ func unmarshalConfig(data []byte, cfg *Config) error {
 		return fmt.Errorf("wrong file structure: %w", err)
 	}
 
-	validateConfig(cfg)
+	logger := logrus.NewEntry(log.Log())
+
+	usesDepredOpts := cfg.migrate(logger)
+	if usesDepredOpts {
+		logger.Error("configuration uses deprecated options, see warning logs for details")
+	}
 
 	return nil
 }
 
-func validateConfig(cfg *Config) {
-	if cfg.DisableIPv6 {
-		log.Log().Warnf("'disableIPv6' is deprecated. Please use 'filtering.queryTypes' with 'AAAA' instead.")
+func (cfg *Config) migrate(logger *logrus.Entry) bool {
+	usesDepredOpts := Migrate(logger, "", cfg.Deprecated, map[string]Migrator{
+		"upstream":        Move(To("upstreams.groups", &cfg.Upstreams)),
+		"upstreamTimeout": Move(To("upstreams.timeout", &cfg.Upstreams)),
+		"disableIPv6": Apply(To("filtering.queryTypes", &cfg.Filtering), func(oldValue bool) {
+			if oldValue {
+				cfg.Filtering.QueryTypes.Insert(dns.Type(dns.TypeAAAA))
+			}
+		}),
+		"port":         Move(To("ports.dns", &cfg.Ports)),
+		"httpPort":     Move(To("ports.http", &cfg.Ports)),
+		"httpsPort":    Move(To("ports.https", &cfg.Ports)),
+		"tlsPort":      Move(To("ports.tls", &cfg.Ports)),
+		"logLevel":     Move(To("log.level", &cfg.Log)),
+		"logFormat":    Move(To("log.format", &cfg.Log)),
+		"logPrivacy":   Move(To("log.privacy", &cfg.Log)),
+		"logTimestamp": Move(To("log.timestamp", &cfg.Log)),
+	})
 
-		cfg.Filtering.QueryTypes.Insert(dns.Type(dns.TypeAAAA))
-	}
+	usesDepredOpts = cfg.Blocking.migrate(logger) || usesDepredOpts
+	usesDepredOpts = cfg.HostsFile.migrate(logger) || usesDepredOpts
 
-	if cfg.Blocking.FailStartOnListError {
-		log.Log().Warnf("'blocking.failStartOnListError' is deprecated. Please use 'blocking.startStrategy'" +
-			" with 'failOnError' instead.")
-
-		if cfg.Blocking.StartStrategy == StartStrategyTypeBlocking {
-			cfg.Blocking.StartStrategy = StartStrategyTypeFailOnError
-		} else if cfg.Blocking.StartStrategy == StartStrategyTypeFast {
-			log.Log().Warnf("'blocking.startStrategy' with 'fast' will ignore 'blocking.failStartOnListError'.")
-		}
-	}
-
-	cfg.Ecs.validateConfig()
-
-	fixDeprecatedLog(cfg)
-
-	fixDeprecatedPorts(cfg)
-}
-
-// fixDeprecatedLog ensures backwards compatibility for logging options
-func fixDeprecatedLog(cfg *Config) {
-	if cfg.LogLevel != log.LevelInfo && cfg.Log.Level == log.LevelInfo {
-		log.Log().Warnf("'logLevel' is deprecated. Please use 'log.level' instead.")
-
-		cfg.Log.Level = cfg.LogLevel
-	}
-
-	if cfg.LogFormat != log.FormatTypeText && cfg.Log.Format == log.FormatTypeText {
-		log.Log().Warnf("'logFormat' is deprecated. Please use 'log.format' instead.")
-
-		cfg.Log.Format = cfg.LogFormat
-	}
-
-	if cfg.LogPrivacy && !cfg.Log.Privacy {
-		log.Log().Warnf("'logPrivacy' is deprecated. Please use 'log.privacy' instead.")
-
-		cfg.Log.Privacy = cfg.LogPrivacy
-	}
-
-	if !cfg.LogTimestamp && cfg.Log.Timestamp {
-		log.Log().Warnf("'logTimestamp' is deprecated. Please use 'log.timestamp' instead.")
-
-		cfg.Log.Timestamp = cfg.LogTimestamp
-	}
-}
-
-// fixDeprecatedPorts ensures backwards compatibility for ports options
-func fixDeprecatedPorts(cfg *Config) {
-	defaultDNSPort := ListenConfig([]string{"53"})
-	if (len(cfg.DNSPorts) > 1 || (len(cfg.DNSPorts) == 1 && cfg.DNSPorts[0] != defaultDNSPort[0])) &&
-		(len(cfg.Ports.DNS) == 1 && cfg.Ports.DNS[0] == defaultDNSPort[0]) {
-		log.Log().Warnf("'port' is deprecated. Please use 'ports.dns' instead.")
-
-		cfg.Ports.DNS = cfg.DNSPorts
-	}
-
-	if len(cfg.HTTPPorts) > 0 && len(cfg.Ports.HTTP) == 0 {
-		log.Log().Warnf("'httpPort' is deprecated. Please use 'ports.http' instead.")
-
-		cfg.Ports.HTTP = cfg.HTTPPorts
-	}
-
-	if len(cfg.HTTPSPorts) > 0 && len(cfg.Ports.HTTPS) == 0 {
-		log.Log().Warnf("'httpsPort' is deprecated. Please use 'ports.https' instead.")
-
-		cfg.Ports.HTTPS = cfg.HTTPSPorts
-	}
-
-	if len(cfg.TLSPorts) > 0 && len(cfg.Ports.TLS) == 0 {
-		log.Log().Warnf("'tlsPort' is deprecated. Please use 'ports.tls' instead.")
-
-		cfg.Ports.TLS = cfg.TLSPorts
-	}
+	return usesDepredOpts
 }
 
 // GetConfig returns the current config

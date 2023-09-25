@@ -16,10 +16,14 @@ import (
 	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/avast/retry-go/v4"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"
 	"github.com/miekg/dns"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/mariadb"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
@@ -28,8 +32,8 @@ var NetworkName = fmt.Sprintf("blocky-e2e-network_%d", time.Now().Unix())
 
 const (
 	redisImage        = "redis:7"
-	postgresImage     = "postgres:15"
-	mariaDBImage      = "mariadb:10"
+	postgresImage     = "postgres:15.2-alpine"
+	mariaDBImage      = "mariadb:11"
 	mokaImage         = "ghcr.io/0xerr0r/dns-mokka:0.2.0"
 	staticServerImage = "halverneus/static-file-server:latest"
 	blockyImage       = "blocky-e2e"
@@ -94,72 +98,58 @@ func createHTTPServerContainer(alias string, tmpDir *helpertest.TmpFolder,
 	})
 }
 
-func createRedisContainer() (testcontainers.Container, error) {
-	ctx := context.Background()
-
-	req := testcontainers.ContainerRequest{
-		Image:          redisImage,
-		Networks:       []string{NetworkName},
-		ExposedPorts:   []string{"6379/tcp"},
-		NetworkAliases: map[string][]string{NetworkName: {"redis"}},
-		WaitingFor:     wait.ForExposedPort(),
+func WithNetwork(network string) testcontainers.CustomizeRequestOption {
+	return func(req *testcontainers.GenericContainerRequest) {
+		req.NetworkAliases = map[string][]string{NetworkName: {network}}
+		req.Networks = []string{NetworkName}
 	}
-
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-
-	return container, err
 }
 
-func createPostgresContainer() (testcontainers.Container, error) {
+func createRedisContainer() (*redis.RedisContainer, error) {
 	ctx := context.Background()
 
-	req := testcontainers.ContainerRequest{
-		Image:          postgresImage,
-		Networks:       []string{NetworkName},
-		ExposedPorts:   []string{"5432/tcp"},
-		NetworkAliases: map[string][]string{NetworkName: {"postgres"}},
-		Env: map[string]string{
-			"POSTGRES_USER":     "user",
-			"POSTGRES_PASSWORD": "user",
-		},
-		WaitingFor: wait.ForExposedPort(),
-	}
-
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-
-	return container, err
+	return redis.RunContainer(ctx,
+		testcontainers.WithImage(redisImage),
+		redis.WithLogLevel(redis.LogLevelVerbose),
+		WithNetwork("redis"),
+	)
 }
 
-func createMariaDBContainer() (testcontainers.Container, error) {
+func createPostgresContainer() (*postgres.PostgresContainer, error) {
 	ctx := context.Background()
 
-	req := testcontainers.ContainerRequest{
-		Image:          mariaDBImage,
-		Networks:       []string{NetworkName},
-		ExposedPorts:   []string{"3306/tcp"},
-		NetworkAliases: map[string][]string{NetworkName: {"mariaDB"}},
-		Env: map[string]string{
-			"MARIADB_USER":          "user",
-			"MARIADB_PASSWORD":      "user",
-			"MARIADB_DATABASE":      "user",
-			"MARIADB_ROOT_PASSWORD": "user",
-		},
-		WaitingFor: wait.ForAll(wait.ForLog("ready for connections"), wait.ForExposedPort()),
-	}
+	const waitLogOccurrence = 2
 
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
+	return postgres.RunContainer(ctx,
+		testcontainers.WithImage(postgresImage),
 
-	return container, err
+		postgres.WithDatabase("user"),
+		postgres.WithUsername("user"),
+		postgres.WithPassword("user"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(waitLogOccurrence).
+				WithStartupTimeout(startupTimeout)),
+		WithNetwork("postgres"),
+	)
 }
+
+func createMariaDBContainer() (*mariadb.MariaDBContainer, error) {
+	ctx := context.Background()
+
+	return mariadb.RunContainer(ctx,
+		testcontainers.WithImage(mariaDBImage),
+		mariadb.WithDatabase("user"),
+		mariadb.WithUsername("user"),
+		mariadb.WithPassword("user"),
+		WithNetwork("mariaDB"),
+	)
+}
+
+const (
+	modeOwner      = 700
+	startupTimeout = 30 * time.Second
+)
 
 func createBlockyContainer(tmpDir *helpertest.TmpFolder, lines ...string) (testcontainers.Container, error) {
 	f1 := tmpDir.CreateStringFile("config1.yaml",
@@ -173,8 +163,6 @@ func createBlockyContainer(tmpDir *helpertest.TmpFolder, lines ...string) (testc
 	if err != nil {
 		return nil, fmt.Errorf("can't create config struct %w", err)
 	}
-
-	const modeOwner = 700
 
 	ctx := context.Background()
 	req := testcontainers.ContainerRequest{
@@ -190,8 +178,12 @@ func createBlockyContainer(tmpDir *helpertest.TmpFolder, lines ...string) (testc
 				FileMode:          modeOwner,
 			},
 		},
-		// can't use forExposedPorts / forListeningPorts because it needs "/bin/sh" in container
-		WaitingFor: wait.NewExecStrategy([]string{"/app/blocky", "healthcheck"}),
+		ConfigModifier: func(c *container.Config) {
+			c.Healthcheck = &container.HealthConfig{
+				Interval: time.Second,
+			}
+		},
+		WaitingFor: wait.ForHealthCheck().WithStartupTimeout(startupTimeout),
 	}
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{

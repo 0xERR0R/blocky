@@ -12,6 +12,7 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/onsi/gomega"
+	"github.com/onsi/gomega/gcustom"
 	"github.com/onsi/gomega/types"
 )
 
@@ -22,6 +23,7 @@ const (
 	MX    = dns.Type(dns.TypeMX)
 	PTR   = dns.Type(dns.TypePTR)
 	TXT   = dns.Type(dns.TypeTXT)
+	DS    = dns.Type(dns.TypeDS)
 )
 
 // TempFile creates temp file with passed data
@@ -76,21 +78,30 @@ func HaveNoAnswer() types.GomegaMatcher {
 }
 
 func HaveReason(reason string) types.GomegaMatcher {
-	return gomega.WithTransform(func(m *model.Response) string {
-		return m.Reason
-	}, gomega.Equal(reason))
+	return gcustom.MakeMatcher(func(m *model.Response) (bool, error) {
+		return m.Reason == reason, nil
+	}).WithTemplate(
+		"Expected:\n{{.Actual}}\n{{.To}} have reason:\n{{format .Data 1}}",
+		reason,
+	)
 }
 
 func HaveResponseType(c model.ResponseType) types.GomegaMatcher {
-	return gomega.WithTransform(func(m *model.Response) model.ResponseType {
-		return m.RType
-	}, gomega.Equal(c))
+	return gcustom.MakeMatcher(func(m *model.Response) (bool, error) {
+		return m.RType == c, nil
+	}).WithTemplate(
+		"Expected:\n{{.Actual}}\n{{.To}} have ResponseType:\n{{format .Data 1}}",
+		c.String(),
+	)
 }
 
 func HaveReturnCode(code int) types.GomegaMatcher {
-	return gomega.WithTransform(func(m *model.Response) int {
-		return m.Res.Rcode
-	}, gomega.Equal(code))
+	return gcustom.MakeMatcher(func(m *model.Response) (bool, error) {
+		return m.Res.Rcode == code, nil
+	}).WithTemplate(
+		"Expected:\n{{.Actual}}\n{{.To}} have RCode:\n{{format .Data 1}}",
+		fmt.Sprintf("%d (%s)", code, dns.RcodeToString[code]),
+	)
 }
 
 func toFirstRR(actual interface{}) (dns.RR, error) {

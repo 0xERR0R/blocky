@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
-	"time"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/lists"
 	"github.com/0xERR0R/blocky/lists/parsers"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/ThinkChaos/parcour"
+	"github.com/ThinkChaos/parcour/jobgroup"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 )
@@ -18,33 +19,37 @@ import (
 const (
 	// reduce initial capacity so we don't waste memory if there are less entries than before
 	memReleaseFactor = 2
+
+	producersBuffCap = 1000
 )
+
+type HostsFileEntry = parsers.HostsFileEntry
 
 type HostsFileResolver struct {
 	configurable[*config.HostsFileConfig]
 	NextResolver
 	typed
 
-	hosts splitHostsFileData
+	hosts      splitHostsFileData
+	downloader lists.FileDownloader
 }
 
-type HostsFileEntry = parsers.HostsFileEntry
-
-func NewHostsFileResolver(cfg config.HostsFileConfig) *HostsFileResolver {
+func NewHostsFileResolver(cfg config.HostsFileConfig, bootstrap *Bootstrap) (*HostsFileResolver, error) {
 	r := HostsFileResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("hosts_file"),
+
+		downloader: lists.NewDownloader(cfg.Loading.Downloads, bootstrap.NewHTTPTransport()),
 	}
 
-	if err := r.parseHostsFile(context.Background()); err != nil {
-		r.log().Errorf("disabling hosts file resolving due to error: %s", err)
-
-		r.cfg.Filepath = "" // don't try parsing the file again
-	} else {
-		go r.periodicUpdate()
+	err := cfg.Loading.StartPeriodicRefresh(r.loadSources, func(err error) {
+		r.log().WithError(err).Errorf("could not load hosts files")
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	return &r
+	return &r, nil
 }
 
 // LogConfig implements `config.Configurable`.
@@ -102,7 +107,7 @@ func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Resp
 }
 
 func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, error) {
-	if r.cfg.Filepath == "" {
+	if !r.IsEnabled() {
 		return r.next.Resolve(request)
 	}
 
@@ -144,27 +149,78 @@ func (r *HostsFileResolver) resolve(req *dns.Msg, question dns.Question, domain 
 	return response
 }
 
-func (r *HostsFileResolver) parseHostsFile(ctx context.Context) error {
-	const maxErrorsPerFile = 5
-
-	if r.cfg.Filepath == "" {
+func (r *HostsFileResolver) loadSources(ctx context.Context) error {
+	if !r.IsEnabled() {
 		return nil
 	}
 
-	f, err := os.Open(r.cfg.Filepath)
-	if err != nil {
-		return err
+	r.log().Debug("loading hosts files")
+
+	//nolint:ineffassign,staticcheck,wastedassign // keep `ctx :=` so if we use ctx in the future, we use the correct one
+	consumersGrp, ctx := jobgroup.WithContext(ctx)
+	defer consumersGrp.Close()
+
+	producersGrp := jobgroup.WithMaxConcurrency(consumersGrp, r.cfg.Loading.Concurrency)
+	defer producersGrp.Close()
+
+	producers := parcour.NewProducersWithBuffer[*HostsFileEntry](producersGrp, consumersGrp, producersBuffCap)
+	defer producers.Close()
+
+	for i, source := range r.cfg.Sources {
+		i, source := i, source
+
+		producers.GoProduce(func(ctx context.Context, hostsChan chan<- *HostsFileEntry) error {
+			locInfo := fmt.Sprintf("item #%d", i)
+
+			opener, err := lists.NewSourceOpener(locInfo, source, r.downloader)
+			if err != nil {
+				return err
+			}
+
+			err = r.parseFile(ctx, opener, hostsChan)
+			if err != nil {
+				return fmt.Errorf("error parsing %s: %w", opener, err) // err is parsers.ErrTooManyErrors
+			}
+
+			return nil
+		})
 	}
-	defer f.Close()
 
 	newHosts := newSplitHostsDataWithSameCapacity(r.hosts)
 
-	p := parsers.AllowErrors(parsers.HostsFile(f), maxErrorsPerFile)
-	p.OnErr(func(err error) {
-		r.log().Warnf("error parsing %s: %s, trying to continue", r.cfg.Filepath, err)
+	producers.GoConsume(func(ctx context.Context, ch <-chan *HostsFileEntry) error {
+		for entry := range ch {
+			newHosts.add(entry)
+		}
+
+		return nil
 	})
 
-	err = parsers.ForEach[*HostsFileEntry](ctx, p, func(entry *HostsFileEntry) error {
+	err := producers.Wait()
+	if err != nil {
+		return err
+	}
+
+	r.hosts = newHosts
+
+	return nil
+}
+
+func (r *HostsFileResolver) parseFile(
+	ctx context.Context, opener lists.SourceOpener, hostsChan chan<- *HostsFileEntry,
+) error {
+	reader, err := opener.Open()
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	p := parsers.AllowErrors(parsers.HostsFile(reader), r.cfg.Loading.MaxErrorsPerSource)
+	p.OnErr(func(err error) {
+		r.log().Warnf("error parsing %s: %s, trying to continue", opener, err)
+	})
+
+	return parsers.ForEach[*HostsFileEntry](ctx, p, func(entry *HostsFileEntry) error {
 		if len(entry.Interface) != 0 {
 			// Ignore entries with a specific interface: we don't restrict what clients/interfaces we serve entries to,
 			// so this avoids returning entries that can't be accessed by the client.
@@ -176,32 +232,10 @@ func (r *HostsFileResolver) parseHostsFile(ctx context.Context) error {
 			return nil
 		}
 
-		newHosts.add(entry)
+		hostsChan <- entry
 
 		return nil
 	})
-	if err != nil {
-		return fmt.Errorf("error parsing %s: %w", r.cfg.Filepath, err) // err is parsers.ErrTooManyErrors
-	}
-
-	r.hosts = newHosts
-
-	return nil
-}
-
-func (r *HostsFileResolver) periodicUpdate() {
-	if r.cfg.RefreshPeriod.ToDuration() > 0 {
-		ticker := time.NewTicker(r.cfg.RefreshPeriod.ToDuration())
-		defer ticker.Stop()
-
-		for {
-			<-ticker.C
-
-			r.log().WithField("file", r.cfg.Filepath).Debug("refreshing hosts file")
-
-			util.LogOnError("can't refresh hosts file: ", r.parseHostsFile(context.Background()))
-		}
-	}
 }
 
 // stores hosts file data for IP versions separately

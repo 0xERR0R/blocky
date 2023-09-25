@@ -69,6 +69,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 	JustBeforeEach(func() {
 		var err error
+
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		sut, err = NewBlockingResolver(sutConfig, nil, systemResolverBootstrap)
@@ -97,9 +98,9 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			sutConfig = config.BlockingConfig{
 				BlockType: "ZEROIP",
 				BlockTTL:  config.Duration(time.Minute),
-				BlackLists: map[string][]string{
-					"gr1": {group1File.Path},
-					"gr2": {group2File.Path},
+				BlackLists: map[string][]config.BytesSource{
+					"gr1": config.NewBytesSources(group1File.Path),
+					"gr2": config.NewBytesSources(group2File.Path),
 				},
 			}
 		})
@@ -125,9 +126,9 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			sutConfig = config.BlockingConfig{
 				BlockType: "ZEROIP",
 				BlockTTL:  config.Duration(time.Minute),
-				BlackLists: map[string][]string{
-					"gr1": {group1File.Path},
-					"gr2": {group2File.Path},
+				BlackLists: map[string][]config.BytesSource{
+					"gr1": config.NewBytesSources(group1File.Path),
+					"gr2": config.NewBytesSources(group2File.Path),
 				},
 				ClientGroupsBlock: map[string][]string{
 					"default":            {"gr1"},
@@ -164,13 +165,13 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			sutConfig = config.BlockingConfig{
 				BlockType: "ZEROIP",
 				BlockTTL:  config.Duration(time.Minute),
-				BlackLists: map[string][]string{
-					"gr1": {"\n/regex/"},
+				BlackLists: map[string][]config.BytesSource{
+					"gr1": {config.TextBytesSource("/regex/")},
 				},
 				ClientGroupsBlock: map[string][]string{
 					"default": {"gr1"},
 				},
-				StartStrategy: config.StartStrategyTypeFast,
+				Loading: config.SourceLoadingConfig{Strategy: config.StartStrategyTypeFast},
 			}
 		})
 
@@ -193,10 +194,10 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		BeforeEach(func() {
 			sutConfig = config.BlockingConfig{
 				BlockTTL: config.Duration(6 * time.Hour),
-				BlackLists: map[string][]string{
-					"gr1":          {group1File.Path},
-					"gr2":          {group2File.Path},
-					"defaultGroup": {defaultGroupFile.Path},
+				BlackLists: map[string][]config.BytesSource{
+					"gr1":          config.NewBytesSources(group1File.Path),
+					"gr2":          config.NewBytesSources(group2File.Path),
+					"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 				},
 				ClientGroupsBlock: map[string][]string{
 					"Client1":         {"gr1"},
@@ -399,8 +400,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			BeforeEach(func() {
 				sutConfig = config.BlockingConfig{
 					BlockTTL: config.Duration(time.Minute),
-					BlackLists: map[string][]string{
-						"defaultGroup": {defaultGroupFile.Path},
+					BlackLists: map[string][]config.BytesSource{
+						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
 					ClientGroupsBlock: map[string][]string{
 						"default": {"defaultGroup"},
@@ -425,8 +426,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			BeforeEach(func() {
 				sutConfig = config.BlockingConfig{
 					BlockType: "ZEROIP",
-					BlackLists: map[string][]string{
-						"defaultGroup": {defaultGroupFile.Path},
+					BlackLists: map[string][]config.BytesSource{
+						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
 					ClientGroupsBlock: map[string][]string{
 						"default": {"defaultGroup"},
@@ -470,8 +471,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			BeforeEach(func() {
 				sutConfig = config.BlockingConfig{
 					BlockTTL: config.Duration(6 * time.Hour),
-					BlackLists: map[string][]string{
-						"defaultGroup": {defaultGroupFile.Path},
+					BlackLists: map[string][]config.BytesSource{
+						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
 					ClientGroupsBlock: map[string][]string{
 						"default": {"defaultGroup"},
@@ -508,8 +509,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		When("BlockType is custom IP only for ipv4", func() {
 			BeforeEach(func() {
 				sutConfig = config.BlockingConfig{
-					BlackLists: map[string][]string{
-						"defaultGroup": {defaultGroupFile.Path},
+					BlackLists: map[string][]config.BytesSource{
+						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
 					ClientGroupsBlock: map[string][]string{
 						"default": {"defaultGroup"},
@@ -601,8 +602,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				sutConfig = config.BlockingConfig{
 					BlockType:  "ZEROIP",
 					BlockTTL:   config.Duration(time.Minute),
-					BlackLists: map[string][]string{"gr1": {group1File.Path}},
-					WhiteLists: map[string][]string{"gr1": {group1File.Path}},
+					BlackLists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
+					WhiteLists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
 					ClientGroupsBlock: map[string][]string{
 						"default": {"gr1"},
 					},
@@ -627,9 +628,9 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				sutConfig = config.BlockingConfig{
 					BlockType: "zeroIP",
 					BlockTTL:  config.Duration(60 * time.Second),
-					WhiteLists: map[string][]string{
-						"gr1": {group1File.Path},
-						"gr2": {group2File.Path},
+					WhiteLists: map[string][]config.BytesSource{
+						"gr1": config.NewBytesSources(group1File.Path),
+						"gr2": config.NewBytesSources(group2File.Path),
 					},
 					ClientGroupsBlock: map[string][]string{
 						"default":    {"gr1"},
@@ -728,8 +729,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				sutConfig = config.BlockingConfig{
 					BlockType:  "ZEROIP",
 					BlockTTL:   config.Duration(time.Minute),
-					BlackLists: map[string][]string{"gr1": {group1File.Path}},
-					WhiteLists: map[string][]string{"gr1": {defaultGroupFile.Path}},
+					BlackLists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
+					WhiteLists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(defaultGroupFile.Path)},
 					ClientGroupsBlock: map[string][]string{
 						"default": {"gr1"},
 					},
@@ -755,7 +756,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			sutConfig = config.BlockingConfig{
 				BlockType:  "ZEROIP",
 				BlockTTL:   config.Duration(time.Minute),
-				BlackLists: map[string][]string{"gr1": {group1File.Path}},
+				BlackLists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
 				ClientGroupsBlock: map[string][]string{
 					"default": {"gr1"},
 				},
@@ -798,9 +799,9 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 	Describe("Control status via API", func() {
 		BeforeEach(func() {
 			sutConfig = config.BlockingConfig{
-				BlackLists: map[string][]string{
-					"defaultGroup": {defaultGroupFile.Path},
-					"group1":       {group1File.Path},
+				BlackLists: map[string][]config.BytesSource{
+					"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
+					"group1":       config.NewBytesSources(group1File.Path),
 				},
 				ClientGroupsBlock: map[string][]string{
 					"default": {"defaultGroup", "group1"},
@@ -1118,13 +1119,13 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					MatchError("unknown blockType 'wrong', please use one of: ZeroIP, NxDomain or specify destination IP address(es)"))
 			})
 		})
-		When("startStrategy is failOnError", func() {
+		When("strategy is failOnError", func() {
 			It("should fail if lists can't be downloaded", func() {
 				_, err := NewBlockingResolver(config.BlockingConfig{
-					BlackLists:    map[string][]string{"gr1": {"wrongPath"}},
-					WhiteLists:    map[string][]string{"whitelist": {"wrongPath"}},
-					StartStrategy: config.StartStrategyTypeFailOnError,
-					BlockType:     "zeroIp",
+					BlackLists: map[string][]config.BytesSource{"gr1": config.NewBytesSources("wrongPath")},
+					WhiteLists: map[string][]config.BytesSource{"whitelist": config.NewBytesSources("wrongPath")},
+					Loading:    config.SourceLoadingConfig{Strategy: config.StartStrategyTypeFailOnError},
+					BlockType:  "zeroIp",
 				}, nil, systemResolverBootstrap)
 				Expect(err).Should(HaveOccurred())
 			})

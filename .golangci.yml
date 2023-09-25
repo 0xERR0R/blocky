@@ -3,7 +3,6 @@ linters:
     - asciicheck
     - bidichk
     - bodyclose
-    - depguard
     - dogsled
     - dupl
     - durationcheck
@@ -63,7 +62,7 @@ linters:
     - deadcode
     - varcheck
     - forbidigo
-
+    - gosmopolitan
   disable-all: false
   presets:
     - bugs
@@ -80,6 +79,7 @@ issues:
     # Exclude some linters from running on tests files.
     - path: _test\.go
       linters:
-        - gochecknoglobals
         - dupl
+        - funlen
+        - gochecknoglobals
         - gosec

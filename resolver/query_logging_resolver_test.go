@@ -63,7 +63,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 			sutConfig.SetDefaults() // not called when using a struct literal
 		}
 
-		sut = NewQueryLoggingResolver(sutConfig).(*QueryLoggingResolver)
+		sut = NewQueryLoggingResolver(sutConfig)
 		DeferCleanup(func() { close(sut.logChan) })
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer, Reason: "reason"}, nil)

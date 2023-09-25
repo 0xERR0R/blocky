@@ -1,19 +1,22 @@
 package config
 
 import (
+	"time"
+
 	"github.com/creasty/defaults"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("ParallelBestConfig", func() {
-	var cfg ParallelBestConfig
+	var cfg UpstreamsConfig
 
 	suiteBeforeEach()
 
 	BeforeEach(func() {
-		cfg = ParallelBestConfig{
-			ExternalResolvers: ParallelBestMapping{
+		cfg = UpstreamsConfig{
+			Timeout: Duration(5 * time.Second),
+			Groups: UpstreamGroups{
 				UpstreamDefaultCfgName: {
 					{Host: "host1"},
 					{Host: "host2"},
@@ -24,7 +27,7 @@ var _ = Describe("ParallelBestConfig", func() {
 
 	Describe("IsEnabled", func() {
 		It("should be false by default", func() {
-			cfg := ParallelBestConfig{}
+			cfg := UpstreamsConfig{}
 			Expect(defaults.Set(&cfg)).Should(Succeed())
 
 			Expect(cfg.IsEnabled()).Should(BeFalse())
@@ -38,7 +41,7 @@ var _ = Describe("ParallelBestConfig", func() {
 
 		When("disabled", func() {
 			It("should be false", func() {
-				cfg := ParallelBestConfig{}
+				cfg := UpstreamsConfig{}
 
 				Expect(cfg.IsEnabled()).Should(BeFalse())
 			})
@@ -50,7 +53,8 @@ var _ = Describe("ParallelBestConfig", func() {
 			cfg.LogConfig(logger)
 
 			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("upstream resolvers:")))
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("timeout:")))
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("groups:")))
 			Expect(hook.Messages).Should(ContainElement(ContainSubstring(":host2:")))
 		})
 	})

@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/evt"
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
@@ -20,11 +21,17 @@ import (
 
 var _ = Describe("Downloader", func() {
 	var (
-		sut                           *HTTPDownloader
+		sutConfig                     config.DownloaderConfig
+		sut                           *httpDownloader
 		failedDownloadCountEvtChannel chan string
 		loggerHook                    *test.Hook
 	)
 	BeforeEach(func() {
+		var err error
+
+		sutConfig, err = config.WithDefaults[config.DownloaderConfig]()
+		Expect(err).Should(Succeed())
+
 		failedDownloadCountEvtChannel = make(chan string, 5)
 		// collect received events in the channel
 		fn := func(url string) {
@@ -40,33 +47,27 @@ var _ = Describe("Downloader", func() {
 		DeferCleanup(loggerHook.Reset)
 	})
 
-	Describe("Construct downloader", func() {
-		When("No options are provided", func() {
-			BeforeEach(func() {
-				sut = NewDownloader()
-			})
-			It("Should provide default valus", func() {
-				Expect(sut.downloadAttempts).Should(BeNumerically("==", defaultDownloadAttempts))
-				Expect(sut.downloadTimeout).Should(BeNumerically("==", defaultDownloadTimeout))
-				Expect(sut.downloadCooldown).Should(BeNumerically("==", defaultDownloadCooldown))
-			})
-		})
-		When("Options are provided", func() {
+	JustBeforeEach(func() {
+		sut = newDownloader(sutConfig, nil)
+	})
+
+	Describe("NewDownloader", func() {
+		It("Should use provided parameters", func() {
 			transport := &http.Transport{}
-			BeforeEach(func() {
-				sut = NewDownloader(
-					WithAttempts(5),
-					WithCooldown(2*time.Second),
-					WithTimeout(5*time.Second),
-					WithTransport(transport),
-				)
-			})
-			It("Should use provided parameters", func() {
-				Expect(sut.downloadAttempts).Should(BeNumerically("==", 5))
-				Expect(sut.downloadTimeout).Should(BeNumerically("==", 5*time.Second))
-				Expect(sut.downloadCooldown).Should(BeNumerically("==", 2*time.Second))
-				Expect(sut.httpTransport).Should(BeIdenticalTo(transport))
-			})
+
+			sut = NewDownloader(
+				config.DownloaderConfig{
+					Attempts: 5,
+					Cooldown: config.Duration(2 * time.Second),
+					Timeout:  config.Duration(5 * time.Second),
+				},
+				transport,
+			).(*httpDownloader)
+
+			Expect(sut.cfg.Attempts).Should(BeNumerically("==", 5))
+			Expect(sut.cfg.Timeout).Should(BeNumerically("==", 5*time.Second))
+			Expect(sut.cfg.Cooldown).Should(BeNumerically("==", 2*time.Second))
+			Expect(sut.client.Transport).Should(BeIdenticalTo(transport))
 		})
 	})
 
@@ -77,7 +78,7 @@ var _ = Describe("Downloader", func() {
 				server = TestServer("line.one\nline.two")
 				DeferCleanup(server.Close)
 
-				sut = NewDownloader()
+				sut = newDownloader(sutConfig, nil)
 			})
 			It("Should return all lines from the file", func() {
 				reader, err := sut.DownloadFile(server.URL)
@@ -98,7 +99,7 @@ var _ = Describe("Downloader", func() {
 				}))
 				DeferCleanup(server.Close)
 
-				sut = NewDownloader(WithAttempts(3))
+				sutConfig.Attempts = 3
 			})
 			It("Should return error", func() {
 				reader, err := sut.DownloadFile(server.URL)
@@ -112,7 +113,7 @@ var _ = Describe("Downloader", func() {
 		})
 		When("Wrong URL is defined", func() {
 			BeforeEach(func() {
-				sut = NewDownloader()
+				sutConfig.Attempts = 1
 			})
 			It("Should return error", func() {
 				_, err := sut.DownloadFile("somewrongurl")
@@ -129,10 +130,11 @@ var _ = Describe("Downloader", func() {
 			var attempt uint64 = 1
 
 			BeforeEach(func() {
-				sut = NewDownloader(
-					WithTimeout(20*time.Millisecond),
-					WithAttempts(3),
-					WithCooldown(time.Millisecond))
+				sutConfig = config.DownloaderConfig{
+					Timeout:  config.Duration(20 * time.Millisecond),
+					Attempts: 3,
+					Cooldown: config.Duration(time.Millisecond),
+				}
 
 				// should produce a timeout on first attempt
 				server = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
@@ -166,24 +168,23 @@ var _ = Describe("Downloader", func() {
 		})
 		When("If timeout occurs on all request", func() {
 			BeforeEach(func() {
-				sut = NewDownloader(
-					WithTimeout(100*time.Millisecond),
-					WithAttempts(3),
-					WithCooldown(time.Millisecond))
+				sutConfig = config.DownloaderConfig{
+					Timeout:  config.Duration(10 * time.Millisecond),
+					Attempts: 3,
+					Cooldown: config.Duration(time.Millisecond),
+				}
 
 				// should always produce a timeout
 				server = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-					time.Sleep(200 * time.Millisecond)
+					time.Sleep(20 * time.Millisecond)
 				}))
 				DeferCleanup(server.Close)
 			})
 			It("Should perform a retry until max retry attempt count is reached and return TransientError", func() {
 				reader, err := sut.DownloadFile(server.URL)
 				Expect(err).Should(HaveOccurred())
-
-				err2 := unwrapTransientErr(err)
-
-				Expect(err2.Error()).Should(ContainSubstring("Timeout"))
+				Expect(errors.As(err, new(*TransientError))).Should(BeTrue())
+				Expect(err.Error()).Should(ContainSubstring("Timeout"))
 				Expect(reader).Should(BeNil())
 
 				// failed download event was emitted 3 times
@@ -193,19 +194,18 @@ var _ = Describe("Downloader", func() {
 		})
 		When("DNS resolution of passed URL fails", func() {
 			BeforeEach(func() {
-				sut = NewDownloader(
-					WithTimeout(500*time.Millisecond),
-					WithAttempts(3),
-					WithCooldown(200*time.Millisecond))
+				sutConfig = config.DownloaderConfig{
+					Timeout:  config.Duration(500 * time.Millisecond),
+					Attempts: 3,
+					Cooldown: 200 * config.Duration(time.Millisecond),
+				}
 			})
 			It("Should perform a retry until max retry attempt count is reached and return DNSError", func() {
 				reader, err := sut.DownloadFile("http://some.domain.which.does.not.exist")
 				Expect(err).Should(HaveOccurred())
 
-				err2 := unwrapTransientErr(err)
-
 				var dnsError *net.DNSError
-				Expect(errors.As(err2, &dnsError)).To(BeTrue(), "received error %w", err)
+				Expect(errors.As(err, &dnsError)).Should(BeTrue(), "received error %w", err)
 				Expect(reader).Should(BeNil())
 
 				// failed download event was emitted 3 times
@@ -216,12 +216,3 @@ var _ = Describe("Downloader", func() {
 		})
 	})
 })
-
-func unwrapTransientErr(origErr error) error {
-	var transientErr *TransientError
-	if errors.As(origErr, &transientErr) {
-		return transientErr.Unwrap()
-	}
-
-	return origErr
-}

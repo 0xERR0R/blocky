@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"encoding/base64"
-	"encoding/json"
 	"io"
 	"net"
 	"net/http"
@@ -11,8 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/0xERR0R/blocky/api"
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/docs"
 	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
@@ -122,17 +121,17 @@ var _ = BeforeSuite(func() {
 			},
 		},
 		Blocking: config.BlockingConfig{
-			BlackLists: map[string][]string{
-				"ads": {
+			BlackLists: map[string][]config.BytesSource{
+				"ads": config.NewBytesSources(
 					doubleclickFile.Path,
 					bildFile.Path,
 					heiseFile.Path,
-				},
-				"youtube": {youtubeFile.Path},
+				),
+				"youtube": config.NewBytesSources(youtubeFile.Path),
 			},
-			WhiteLists: map[string][]string{
-				"ads":       {heiseFile.Path},
-				"whitelist": {heiseFile.Path},
+			WhiteLists: map[string][]config.BytesSource{
+				"ads":       config.NewBytesSources(heiseFile.Path),
+				"whitelist": config.NewBytesSources(heiseFile.Path),
 			},
 			ClientGroupsBlock: map[string][]string{
 				"default":         {"ads"},
@@ -143,8 +142,8 @@ var _ = BeforeSuite(func() {
 			BlockType: "zeroIp",
 			BlockTTL:  config.Duration(6 * time.Hour),
 		},
-		Upstream: config.ParallelBestConfig{
-			ExternalResolvers: map[string][]config.Upstream{"default": {upstreamGoogle}},
+		Upstreams: config.UpstreamsConfig{
+			Groups: map[string][]config.Upstream{"default": {upstreamGoogle}},
 		},
 		ClientLookup: config.ClientLookupConfig{
 			Upstream: upstreamClient,
@@ -182,19 +181,10 @@ var _ = Describe("Running DNS server", func() {
 		BeforeEach(func() {
 			mockClientName.Store("")
 			// reset client cache
-			res := sut.queryResolver
-			for res != nil {
-				if t, ok := res.(*resolver.ClientNamesResolver); ok {
-					t.FlushCache()
+			clientNamesResolver, err := resolver.GetFromChainWithType[*resolver.ClientNamesResolver](sut.queryResolver)
+			Expect(err).Should(Succeed())
 
-					break
-				}
-				if c, ok := res.(resolver.ChainedResolver); ok {
-					res = c.GetNext()
-				} else {
-					break
-				}
-			}
+			clientNamesResolver.FlushCache()
 		})
 
 		Context("DNS query is resolvable via external DNS", func() {
@@ -383,76 +373,17 @@ var _ = Describe("Running DNS server", func() {
 			})
 		})
 	})
-
-	Describe("Query Rest API", func() {
-		When("Query API is called", func() {
-			It("Should process the query", func() {
-				req := api.QueryRequest{
-					Query: "google.de",
-					Type:  "A",
-				}
-				jsonValue, err := json.Marshal(req)
+	Describe("Docs endpoints", func() {
+		When("OpenApi URL is called", func() {
+			It("should return openAPI definition file", func() {
+				resp, err := http.Get("http://localhost:4000/docs/openapi.yaml")
 				Expect(err).Should(Succeed())
-
-				resp, err := http.Post("http://localhost:4000/api/query", "application/json", bytes.NewBuffer(jsonValue))
-
-				Expect(err).Should(Succeed())
-				defer resp.Body.Close()
-
 				Expect(resp).Should(
 					SatisfyAll(
 						HaveHTTPStatus(http.StatusOK),
-						HaveHTTPHeaderWithValue("Content-type", "application/json"),
+						HaveHTTPHeaderWithValue("Content-type", "text/yaml"),
+						HaveHTTPBody(docs.OpenAPI),
 					))
-
-				var result api.QueryResult
-				err = json.NewDecoder(resp.Body).Decode(&result)
-				Expect(err).Should(Succeed())
-				Expect(result.Response).Should(Equal("A (123.124.122.122)"))
-			})
-		})
-		When("Wrong request type is used", func() {
-			It("Should return internal error", func() {
-				req := api.QueryRequest{
-					Query: "google.de",
-					Type:  "WrongType",
-				}
-				jsonValue, err := json.Marshal(req)
-				Expect(err).Should(Succeed())
-
-				resp, err := http.Post("http://localhost:4000/api/query", "application/json", bytes.NewBuffer(jsonValue))
-
-				Expect(err).Should(Succeed())
-				DeferCleanup(resp.Body.Close)
-
-				Expect(resp.StatusCode).Should(Equal(http.StatusInternalServerError))
-			})
-		})
-		When("Internal error occurs", func() {
-			It("Should return internal error", func() {
-				req := api.QueryRequest{
-					Query: "error.",
-					Type:  "A",
-				}
-				jsonValue, err := json.Marshal(req)
-				Expect(err).Should(Succeed())
-
-				resp, err := http.Post("http://localhost:4000/api/query", "application/json", bytes.NewBuffer(jsonValue))
-				Expect(err).Should(Succeed())
-				DeferCleanup(resp.Body.Close)
-				Expect(resp.StatusCode).Should(Equal(http.StatusInternalServerError))
-			})
-		})
-		When("Request is malformed", func() {
-			It("Should return internal error", func() {
-				jsonValue := []byte("")
-
-				resp, err := http.Post("http://localhost:4000/api/query", "application/json", bytes.NewBuffer(jsonValue))
-
-				Expect(err).Should(Succeed())
-				DeferCleanup(resp.Body.Close)
-
-				Expect(resp.StatusCode).Should(Equal(http.StatusInternalServerError))
 			})
 		})
 	})
@@ -616,7 +547,7 @@ var _ = Describe("Running DNS server", func() {
 
 			Expect(cErr).Should(Succeed())
 
-			cfg.Upstream.ExternalResolvers = map[string][]config.Upstream{
+			cfg.Upstreams.Groups = map[string][]config.Upstream{
 				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "1.1.1.1", Port: 53}},
 			}
 
@@ -643,8 +574,8 @@ var _ = Describe("Running DNS server", func() {
 			It("start was called 2 times, start should fail", func() {
 				// create server
 				server, err := NewServer(&config.Config{
-					Upstream: config.ParallelBestConfig{
-						ExternalResolvers: map[string][]config.Upstream{
+					Upstreams: config.UpstreamsConfig{
+						Groups: map[string][]config.Upstream{
 							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}},
 						},
 					},
@@ -685,8 +616,8 @@ var _ = Describe("Running DNS server", func() {
 			It("stop was called 2 times, start should fail", func() {
 				// create server
 				server, err := NewServer(&config.Config{
-					Upstream: config.ParallelBestConfig{
-						ExternalResolvers: map[string][]config.Upstream{
+					Upstreams: config.UpstreamsConfig{
+						Groups: map[string][]config.Upstream{
 							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}},
 						},
 					},
@@ -728,6 +659,45 @@ var _ = Describe("Running DNS server", func() {
 		})
 	})
 
+	Describe("NewServer with strict upstream strategy", func() {
+		It("successfully returns upstream branches", func() {
+			branches, err := createUpstreamBranches(&config.Config{
+				Upstreams: config.UpstreamsConfig{
+					Strategy: config.UpstreamStrategyStrict,
+					Groups: config.UpstreamGroups{
+						"default": {{Host: "0.0.0.0"}},
+					},
+				},
+			},
+				nil)
+
+			Expect(err).ToNot(HaveOccurred())
+			Expect(branches).ToNot(BeNil())
+			Expect(branches).To(HaveLen(1))
+			_ = branches["default"].(*resolver.StrictResolver)
+		})
+	})
+
+	Describe("create query resolver", func() {
+		When("some upstream returns error", func() {
+			It("create query resolver should return error", func() {
+				r, err := createQueryResolver(&config.Config{
+					StartVerifyUpstream: true,
+					Upstreams: config.UpstreamsConfig{
+						Groups: config.UpstreamGroups{
+							"default": {{Host: "0.0.0.0"}},
+						},
+					},
+				},
+					nil, nil)
+
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(MatchError(ContainSubstring("creation of upstream branches failed: ")))
+				Expect(r).To(BeNil())
+			})
+		})
+	})
+
 	Describe("resolve client IP", func() {
 		Context("UDP address", func() {
 			It("should correct resolve client IP", func() {
@@ -755,7 +725,7 @@ var _ = Describe("Running DNS server", func() {
 
 			Expect(cErr).Should(Succeed())
 
-			cfg.Upstream.ExternalResolvers = map[string][]config.Upstream{
+			cfg.Upstreams.Groups = map[string][]config.Upstream{
 				"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "1.1.1.1", Port: 53}},
 			}
 		})

@@ -1,21 +1,24 @@
 package e2e
 
 import (
-	"fmt"
-	"net"
+	"context"
 
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
-	"gorm.io/driver/mysql"
-	"gorm.io/driver/postgres"
+	"github.com/testcontainers/testcontainers-go/modules/mariadb"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	mysqlDriver "gorm.io/driver/mysql"
+	postgresDriver "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 var _ = Describe("Query logs functional tests", func() {
-	var blocky, moka, database testcontainers.Container
+	var blocky, moka testcontainers.Container
+	var postgresDB *postgres.PostgresContainer
+	var mariaDB *mariadb.MariaDBContainer
 	var db *gorm.DB
 	var err error
 
@@ -28,35 +31,37 @@ var _ = Describe("Query logs functional tests", func() {
 
 	Describe("Query logging into the mariaDB database", func() {
 		BeforeEach(func() {
-			database, err = createMariaDBContainer()
+			mariaDB, err = createMariaDBContainer()
 			Expect(err).Should(Succeed())
-			DeferCleanup(database.Terminate)
+			DeferCleanup(mariaDB.Terminate)
 
 			blocky, err = createBlockyContainer(tmpDir,
 				"log:",
 				"  level: warn",
-				"upstream:",
-				"  default:",
-				"    - moka1",
+				"upstreams:",
+				"  groups:",
+				"    default:",
+				"      - moka1",
 				"queryLog:",
 				"  type: mysql",
 				"  target: user:user@tcp(mariaDB:3306)/user?charset=utf8mb4&parseTime=True&loc=Local",
+				"  flushInterval: 1s",
 			)
 
 			Expect(err).Should(Succeed())
 			DeferCleanup(blocky.Terminate)
 
-			dbHost, dbPort, err := getContainerHostPort(database, "3306/tcp")
-
 			Expect(err).Should(Succeed())
 
-			dsn := fmt.Sprintf("user:user@tcp(%s)/user?charset=utf8mb4&parseTime=True&loc=Local",
-				net.JoinHostPort(dbHost, dbPort))
+			connectionString, err := mariaDB.ConnectionString(context.Background(),
+				"tls=false", "charset=utf8mb4", "parseTime=True", "loc=Local")
+			Expect(err).Should(Succeed())
 
 			// database might be slow on first start, retry here if necessary
-			Eventually(gorm.Open, "10s", "1s").WithArguments(mysql.Open(dsn), &gorm.Config{}).Should(Not(BeNil()))
+			Eventually(gorm.Open, "10s", "1s").
+				WithArguments(mysqlDriver.Open(connectionString), &gorm.Config{}).Should(Not(BeNil()))
 
-			db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+			db, err = gorm.Open(mysqlDriver.Open(connectionString), &gorm.Config{})
 			Expect(err).Should(Succeed())
 
 			Eventually(countEntries).WithArguments(db).Should(BeNumerically("==", 0))
@@ -104,33 +109,34 @@ var _ = Describe("Query logs functional tests", func() {
 
 	Describe("Query logging into the postgres database", func() {
 		BeforeEach(func() {
-			database, err = createPostgresContainer()
+			postgresDB, err = createPostgresContainer()
 			Expect(err).Should(Succeed())
-			DeferCleanup(database.Terminate)
+			DeferCleanup(postgresDB.Terminate)
 
 			blocky, err = createBlockyContainer(tmpDir,
 				"log:",
 				"  level: warn",
-				"upstream:",
-				"  default:",
-				"    - moka1",
+				"upstreams:",
+				"  groups:",
+				"    default:",
+				"      - moka1",
 				"queryLog:",
 				"  type: postgresql",
 				"  target: postgres://user:user@postgres:5432/user",
+				"  flushInterval: 1s",
 			)
 
 			Expect(err).Should(Succeed())
 			DeferCleanup(blocky.Terminate)
 
-			dbHost, dbPort, err := getContainerHostPort(database, "5432/tcp")
+			connectionString, err := postgresDB.ConnectionString(context.Background(), "sslmode=disable")
 			Expect(err).Should(Succeed())
 
-			dsn := fmt.Sprintf("postgres://user:user@%s/user", net.JoinHostPort(dbHost, dbPort))
-
 			// database might be slow on first start, retry here if necessary
-			Eventually(gorm.Open, "10s", "1s").WithArguments(postgres.Open(dsn), &gorm.Config{}).Should(Not(BeNil()))
+			Eventually(gorm.Open, "10s", "1s").
+				WithArguments(postgresDriver.Open(connectionString), &gorm.Config{}).Should(Not(BeNil()))
 
-			db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+			db, err = gorm.Open(postgresDriver.Open(connectionString), &gorm.Config{})
 			Expect(err).Should(Succeed())
 
 			Eventually(countEntries).WithArguments(db).Should(BeNumerically("==", 0))

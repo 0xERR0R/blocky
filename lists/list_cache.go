@@ -5,25 +5,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net"
-	"os"
-	"strings"
-	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/sirupsen/logrus"
 
 	"github.com/0xERR0R/blocky/cache/stringcache"
+	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/lists/parsers"
 	"github.com/0xERR0R/blocky/log"
+	"github.com/ThinkChaos/parcour"
+	"github.com/ThinkChaos/parcour/jobgroup"
 )
 
-const (
-	defaultProcessingConcurrency = 4
-	chanCap                      = 1000
-)
+const groupProducersBufferCap = 1000
 
 // ListCacheType represents the type of cached list ENUM(
 // blacklist // is a list with blocked domains
@@ -41,19 +36,17 @@ type Matcher interface {
 type ListCache struct {
 	groupedCache stringcache.GroupedStringCache
 
-	groupToLinks          map[string][]string
-	refreshPeriod         time.Duration
-	downloader            FileDownloader
-	listType              ListCacheType
-	processingConcurrency uint
-	maxErrorsPerFile      int
+	cfg          config.SourceLoadingConfig
+	listType     ListCacheType
+	groupSources map[string][]config.BytesSource
+	downloader   FileDownloader
 }
 
 // LogConfig implements `config.Configurable`.
 func (b *ListCache) LogConfig(logger *logrus.Entry) {
 	var total int
 
-	for group := range b.groupToLinks {
+	for group := range b.groupSources {
 		count := b.groupedCache.ElementCount(group)
 		logger.Infof("%s: %d entries", group, count)
 		total += count
@@ -63,130 +56,34 @@ func (b *ListCache) LogConfig(logger *logrus.Entry) {
 }
 
 // NewListCache creates new list instance
-func NewListCache(t ListCacheType, groupToLinks map[string][]string, refreshPeriod time.Duration,
-	downloader FileDownloader, processingConcurrency uint, async bool, maxErrorsPerFile int,
+func NewListCache(
+	t ListCacheType, cfg config.SourceLoadingConfig,
+	groupSources map[string][]config.BytesSource, downloader FileDownloader,
 ) (*ListCache, error) {
-	if processingConcurrency == 0 {
-		processingConcurrency = defaultProcessingConcurrency
-	}
-
-	b := &ListCache{
+	c := &ListCache{
 		groupedCache: stringcache.NewChainedGroupedCache(
 			stringcache.NewInMemoryGroupedStringCache(),
 			stringcache.NewInMemoryGroupedRegexCache(),
 		),
-		groupToLinks:          groupToLinks,
-		refreshPeriod:         refreshPeriod,
-		downloader:            downloader,
-		listType:              t,
-		processingConcurrency: processingConcurrency,
-		maxErrorsPerFile:      maxErrorsPerFile,
+
+		cfg:          cfg,
+		listType:     t,
+		groupSources: groupSources,
+		downloader:   downloader,
 	}
 
-	var initError error
-	if async {
-		initError = nil
-
-		// start list refresh in the background
-		go b.Refresh()
-	} else {
-		initError = b.refresh(true)
+	err := cfg.StartPeriodicRefresh(c.refresh, func(err error) {
+		logger().WithError(err).Errorf("could not init %s", t)
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	if initError == nil {
-		go periodicUpdate(b)
-	}
-
-	return b, initError
-}
-
-// periodicUpdate triggers periodical refresh (and download) of list entries
-func periodicUpdate(cache *ListCache) {
-	if cache.refreshPeriod > 0 {
-		ticker := time.NewTicker(cache.refreshPeriod)
-		defer ticker.Stop()
-
-		for {
-			<-ticker.C
-			cache.Refresh()
-		}
-	}
+	return c, nil
 }
 
 func logger() *logrus.Entry {
 	return log.PrefixedLog("list_cache")
-}
-
-// downloads and reads files with domain names and creates cache for them
-//
-//nolint:funlen // will refactor in a later commit
-func (b *ListCache) createCacheForGroup(group string, links []string) (created bool, err error) {
-	groupFactory := b.groupedCache.Refresh(group)
-
-	fileLinesChan := make(chan string, chanCap)
-	errChan := make(chan error, chanCap)
-
-	workerDoneChan := make(chan bool, len(links))
-
-	// guard channel is used to limit the number of concurrent executions of the function
-	guard := make(chan struct{}, b.processingConcurrency)
-
-	processingLinkJobs := len(links)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// loop over links (http/local) or inline definitions
-	// start a new goroutine for each link, but limit to max. number (see processingConcurrency)
-	for idx, link := range links {
-		go func(idx int, link string) {
-			// try to write in this channel -> this will block if max amount of goroutines are being executed
-			guard <- struct{}{}
-
-			defer func() {
-				// remove from guard channel to allow other blocked goroutines to continue
-				<-guard
-				workerDoneChan <- true
-			}()
-
-			name := linkName(idx, link)
-
-			err := b.parseFile(ctx, name, link, fileLinesChan)
-			if err != nil {
-				errChan <- err
-			}
-		}(idx, link)
-	}
-
-Loop:
-	for {
-		select {
-		case line := <-fileLinesChan:
-			groupFactory.AddEntry(line)
-		case e := <-errChan:
-			var transientErr *TransientError
-
-			if errors.As(e, &transientErr) {
-				return false, e
-			}
-			err = multierror.Append(err, e)
-		case <-workerDoneChan:
-			processingLinkJobs--
-
-		default:
-			if processingLinkJobs == 0 {
-				break Loop
-			}
-		}
-	}
-
-	if groupFactory.Count() == 0 && err != nil {
-		return false, err
-	}
-
-	groupFactory.Finish()
-
-	return true, err
 }
 
 // Match matches passed domain name against cached list entries
@@ -195,66 +92,124 @@ func (b *ListCache) Match(domain string, groupsToCheck []string) (groups []strin
 }
 
 // Refresh triggers the refresh of a list
-func (b *ListCache) Refresh() {
-	_ = b.refresh(false)
+func (b *ListCache) Refresh() error {
+	return b.refresh(context.Background())
 }
 
-func (b *ListCache) refresh(isInit bool) error {
-	var err error
+func (b *ListCache) refresh(ctx context.Context) error {
+	unlimitedGrp, _ := jobgroup.WithContext(ctx)
+	defer unlimitedGrp.Close()
 
-	for group, links := range b.groupToLinks {
-		created, e := b.createCacheForGroup(group, links)
-		if e != nil {
-			err = multierror.Append(err, multierror.Prefix(e, fmt.Sprintf("can't create cache group '%s':", group)))
-		}
+	producersGrp := jobgroup.WithMaxConcurrency(unlimitedGrp, b.cfg.Concurrency)
+	defer producersGrp.Close()
 
-		count := b.groupedCache.ElementCount(group)
+	for group, sources := range b.groupSources {
+		group, sources := group, sources
 
-		if !created {
-			logger := logger().WithFields(logrus.Fields{
-				"group":       group,
-				"total_count": count,
-			})
+		unlimitedGrp.Go(func(ctx context.Context) error {
+			err := b.createCacheForGroup(producersGrp, unlimitedGrp, group, sources)
+			if err != nil {
+				count := b.groupedCache.ElementCount(group)
 
-			if count == 0 || isInit {
-				logger.Warn("Populating of group cache failed, cache will be empty until refresh succeeds")
-			} else {
-				logger.Warn("Populating of group cache failed, using existing cache, if any")
+				logger := logger().WithFields(logrus.Fields{
+					"group":       group,
+					"total_count": count,
+				})
+
+				if count == 0 {
+					logger.Warn("Populating of group cache failed, cache will be empty until refresh succeeds")
+				} else {
+					logger.Warn("Populating of group cache failed, using existing cache, if any")
+				}
+
+				return err
 			}
 
-			continue
-		}
+			count := b.groupedCache.ElementCount(group)
 
-		evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, count)
+			evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, count)
 
-		logger().WithFields(logrus.Fields{
-			"group":       group,
-			"total_count": count,
-		}).Info("group import finished")
+			logger().WithFields(logrus.Fields{
+				"group":       group,
+				"total_count": count,
+			}).Info("group import finished")
+
+			return nil
+		})
 	}
 
-	return err
+	return unlimitedGrp.Wait()
 }
 
-func readFile(file string) (io.ReadCloser, error) {
-	logger().WithField("file", file).Info("starting processing of file")
-	file = strings.TrimPrefix(file, "file://")
+func (b *ListCache) createCacheForGroup(
+	producersGrp, consumersGrp jobgroup.JobGroup, group string, sources []config.BytesSource,
+) error {
+	groupFactory := b.groupedCache.Refresh(group)
 
-	return os.Open(file)
+	producers := parcour.NewProducersWithBuffer[string](producersGrp, consumersGrp, groupProducersBufferCap)
+	defer producers.Close()
+
+	for i, source := range sources {
+		i, source := i, source
+
+		producers.GoProduce(func(ctx context.Context, hostsChan chan<- string) error {
+			locInfo := fmt.Sprintf("item #%d of group %s", i, group)
+
+			opener, err := NewSourceOpener(locInfo, source, b.downloader)
+			if err != nil {
+				return err
+			}
+
+			return b.parseFile(ctx, opener, hostsChan)
+		})
+	}
+
+	hasEntries := false
+
+	producers.GoConsume(func(ctx context.Context, ch <-chan string) error {
+		for host := range ch {
+			hasEntries = true
+
+			groupFactory.AddEntry(host)
+		}
+
+		return nil
+	})
+
+	err := producers.Wait()
+	if err != nil {
+		if !hasEntries {
+			// Always fail the group if no entries were parsed
+			return err
+		}
+
+		var transientErr *TransientError
+
+		if errors.As(err, &transientErr) {
+			// Temporary error: fail the whole group to retry later
+			return err
+		}
+	}
+
+	groupFactory.Finish()
+
+	return nil
 }
 
 // downloads file (or reads local file) and writes each line in the file to the result channel
-func (b *ListCache) parseFile(ctx context.Context, name, link string, resultCh chan<- string) error {
+func (b *ListCache) parseFile(ctx context.Context, opener SourceOpener, resultCh chan<- string) error {
 	count := 0
 
 	logger := func() *logrus.Entry {
 		return logger().WithFields(logrus.Fields{
-			"source": name,
+			"source": opener.String(),
 			"count":  count,
 		})
 	}
 
-	r, err := b.newLinkReader(link)
+	logger().Debug("starting processing of source")
+
+	r, err := opener.Open()
 	if err != nil {
 		logger().Error("cannot open source: ", err)
 
@@ -262,7 +217,7 @@ func (b *ListCache) parseFile(ctx context.Context, name, link string, resultCh c
 	}
 	defer r.Close()
 
-	p := parsers.AllowErrors(parsers.Hosts(r), b.maxErrorsPerFile)
+	p := parsers.AllowErrors(parsers.Hosts(r), b.cfg.MaxErrorsPerSource)
 	p.OnErr(func(err error) {
 		logger().Warnf("parse error: %s, trying to continue", err)
 	})
@@ -302,28 +257,4 @@ func (b *ListCache) parseFile(ctx context.Context, name, link string, resultCh c
 	logger().Info("import succeeded")
 
 	return nil
-}
-
-func linkName(linkIdx int, link string) string {
-	if strings.ContainsAny(link, "\n") {
-		return fmt.Sprintf("inline block (item #%d in group)", linkIdx)
-	}
-
-	return link
-}
-
-func (b *ListCache) newLinkReader(link string) (r io.ReadCloser, err error) {
-	switch {
-	// link contains a line break -> this is inline list definition in YAML (with literal style Block Scalar)
-	case strings.ContainsAny(link, "\n"):
-		r = io.NopCloser(strings.NewReader(link))
-	// link is http(s) -> download it
-	case strings.HasPrefix(link, "http"):
-		r, err = b.downloader.DownloadFile(link)
-	// probably path to a local file
-	default:
-		r, err = readFile(link)
-	}
-
-	return
 }

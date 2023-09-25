@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var systemResolverBootstrap = &Bootstrap{}
+var systemResolverBootstrap = &Bootstrap{dialer: newMockDialer()}
 
 var _ = Describe("Resolver", func() {
 	Describe("Chains", func() {
@@ -45,6 +45,22 @@ var _ = Describe("Resolver", func() {
 
 				Expect(r1.GetNext()).Should(Equal(r2))
 				Expect(r2.GetNext()).Should(BeNil())
+			})
+		})
+
+		Describe("GetFromChainWithType", func() {
+			It("should return resolver with type", func() {
+				ch := Chain(&CustomDNSResolver{}, &BlockingResolver{})
+				res, err := GetFromChainWithType[*BlockingResolver](ch)
+				var expectedResolver *BlockingResolver
+				Expect(err).Should(Succeed())
+				Expect(res).Should(BeAssignableToTypeOf(expectedResolver))
+			})
+			It("should fail if chain does not contain the desired type", func() {
+				ch := Chain(&CustomDNSResolver{}, &BlockingResolver{})
+				_, err := GetFromChainWithType[*FilteringResolver](ch)
+
+				Expect(err).Should(Not(Succeed()))
 			})
 		})
 

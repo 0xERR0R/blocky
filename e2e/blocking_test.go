@@ -1,6 +1,8 @@
 package e2e
 
 import (
+	"context"
+
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
 	. "github.com/onsi/ginkgo/v2"
@@ -19,16 +21,18 @@ var _ = Describe("External lists and query blocking", func() {
 	})
 	Describe("List download on startup", func() {
 		When("external blacklist ist not available", func() {
-			Context("startStrategy = blocking", func() {
+			Context("loading.strategy = blocking", func() {
 				BeforeEach(func() {
 					blocky, err = createBlockyContainer(tmpDir,
 						"log:",
 						"  level: warn",
-						"upstream:",
-						"  default:",
-						"    - moka",
+						"upstreams:",
+						"  groups:",
+						"    default:",
+						"      - moka",
 						"blocking:",
-						"  startStrategy: blocking",
+						"  loading:",
+						"    strategy: blocking",
 						"  blackLists:",
 						"    ads:",
 						"      - http://wrong.domain.url/list.txt",
@@ -54,16 +58,18 @@ var _ = Describe("External lists and query blocking", func() {
 					Expect(getContainerLogs(blocky)).Should(ContainElement(ContainSubstring("cannot open source: ")))
 				})
 			})
-			Context("startStrategy = failOnError", func() {
+			Context("loading.strategy = failOnError", func() {
 				BeforeEach(func() {
 					blocky, err = createBlockyContainer(tmpDir,
 						"log:",
 						"  level: warn",
-						"upstream:",
-						"  default:",
-						"    - moka",
+						"upstreams:",
+						"  groups:",
+						"    default:",
+						"      - moka",
 						"blocking:",
-						"  startStrategy: failOnError",
+						"  loading:",
+						"    strategy: failOnError",
 						"  blackLists:",
 						"    ads:",
 						"      - http://wrong.domain.url/list.txt",
@@ -73,6 +79,12 @@ var _ = Describe("External lists and query blocking", func() {
 					)
 
 					Expect(err).Should(HaveOccurred())
+
+					// check container exit status
+					state, err := blocky.State(context.Background())
+					Expect(err).Should(Succeed())
+					Expect(state.ExitCode).Should(Equal(1))
+
 					DeferCleanup(blocky.Terminate)
 				})
 
@@ -96,9 +108,10 @@ var _ = Describe("External lists and query blocking", func() {
 				blocky, err = createBlockyContainer(tmpDir,
 					"log:",
 					"  level: warn",
-					"upstream:",
-					"  default:",
-					"    - moka",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - moka",
 					"blocking:",
 					"  blackLists:",
 					"    ads:",

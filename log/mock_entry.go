@@ -10,6 +10,7 @@ import (
 func NewMockEntry() (*logrus.Entry, *MockLoggerHook) {
 	logger := logrus.New()
 	logger.Out = io.Discard
+	logger.Level = logrus.TraceLevel
 
 	entry := logrus.Entry{Logger: logger}
 	hook := MockLoggerHook{}

@@ -15,7 +15,7 @@ import (
 
 var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), func() {
 	var (
-		sut ChainedResolver
+		sut *ConditionalUpstreamResolver
 		m   *mockResolver
 	)
 
@@ -47,12 +47,23 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 		})
 		DeferCleanup(dotTestUpstream.Close)
 
+		refuseTestUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
+			response = new(dns.Msg)
+			response.Rcode = dns.RcodeRefused
+			// question section in response should be empty
+			request.Question = make([]dns.Question, 0)
+
+			return response
+		})
+		DeferCleanup(refuseTestUpstream.Close)
+
 		sut, _ = NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{
 			Mapping: config.ConditionalUpstreamMapping{
 				Upstreams: map[string][]config.Upstream{
-					"fritz.box": {fbTestUpstream.Start()},
-					"other.box": {otherTestUpstream.Start()},
-					".":         {dotTestUpstream.Start()},
+					"fritz.box":      {fbTestUpstream.Start()},
+					"other.box":      {otherTestUpstream.Start()},
+					"refused.domain": {refuseTestUpstream.Start()},
+					".":              {dotTestUpstream.Start()},
 				},
 			},
 		}, nil, false)
@@ -78,6 +89,21 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 	})
 
 	Describe("Resolve conditional DNS queries via defined DNS server", func() {
+		When("conditional resolver returns error code", func() {
+			It("Should be returned without changes", func() {
+				Expect(sut.Resolve(newRequest("refused.domain.", A))).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							HaveResponseType(ResponseTypeCONDITIONAL),
+							HaveReason("CONDITIONAL"),
+							HaveReturnCode(dns.RcodeRefused),
+						))
+
+				// no call to next resolver
+				Expect(m.Calls).Should(BeEmpty())
+			})
+		})
 		When("Query is exact equal defined condition in mapping", func() {
 			Context("first mapping entry", func() {
 				It("Should resolve the IP of conditional DNS", func() {

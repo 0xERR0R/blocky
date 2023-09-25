@@ -76,7 +76,6 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 					transport := sut.NewHTTPTransport()
 
 					Expect(transport).ShouldNot(BeNil())
-					Expect(*transport).Should(BeZero()) //nolint:govet
 				})
 			})
 

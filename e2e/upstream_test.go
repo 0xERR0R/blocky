@@ -19,9 +19,10 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 				blocky, err = createBlockyContainer(tmpDir,
 					"log:",
 					"  level: warn",
-					"upstream:",
-					"  default:",
-					"    - 192.192.192.192",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - 192.192.192.192",
 					"startVerifyUpstream: false",
 				)
 
@@ -38,9 +39,10 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 				blocky, err = createBlockyContainer(tmpDir,
 					"log:",
 					"  level: warn",
-					"upstream:",
-					"  default:",
-					"    - some.wrong.host",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - some.wrong.host",
 					"startVerifyUpstream: false",
 				)
 
@@ -55,9 +57,10 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 		When("'startVerifyUpstream' is true and upstream as IP address server is not reachable", func() {
 			BeforeEach(func() {
 				blocky, err = createBlockyContainer(tmpDir,
-					"upstream:",
-					"  default:",
-					"    - 192.192.192.192",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - 192.192.192.192",
 					"startVerifyUpstream: true",
 				)
 
@@ -67,15 +70,18 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 			It("should not start", func() {
 				Expect(blocky.IsRunning()).Should(BeFalse())
 				Expect(getContainerLogs(blocky)).
-					Should(ContainElement(ContainSubstring("no valid upstream for group default")))
+					Should(ContainElements(
+						ContainSubstring("creation of upstream branches failed: "),
+						ContainSubstring("no valid upstream for group default")))
 			})
 		})
 		When("'startVerifyUpstream' is true and upstream server as host name is not reachable", func() {
 			BeforeEach(func() {
 				blocky, err = createBlockyContainer(tmpDir,
-					"upstream:",
-					"  default:",
-					"    - some.wrong.host",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - some.wrong.host",
 					"startVerifyUpstream: true",
 				)
 
@@ -85,11 +91,13 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 			It("should not start", func() {
 				Expect(blocky.IsRunning()).Should(BeFalse())
 				Expect(getContainerLogs(blocky)).
-					Should(ContainElement(ContainSubstring("no valid upstream for group default")))
+					Should(ContainElements(
+						ContainSubstring("creation of upstream branches failed: "),
+						ContainSubstring("no valid upstream for group default")))
 			})
 		})
 	})
-	Describe("'upstreamTimeout' parameter handling", func() {
+	Describe("'upstreams.timeout' parameter handling", func() {
 		var moka testcontainers.Container
 		BeforeEach(func() {
 			moka, err = createDNSMokkaContainer("moka1",
@@ -100,10 +108,11 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 			DeferCleanup(moka.Terminate)
 
 			blocky, err = createBlockyContainer(tmpDir,
-				"upstream:",
-				"  default:",
-				"    - moka1",
-				"upstreamTimeout: 200ms",
+				"upstreams:",
+				"  groups:",
+				"    default:",
+				"      - moka1",
+				"  timeout: 200ms",
 			)
 
 			Expect(err).Should(Succeed())
@@ -121,7 +130,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 			})
 
 			By("query with timeout", func() {
-				msg := util.NewMsgWithQuestion("delay.com/.", A)
+				msg := util.NewMsgWithQuestion("delay.com.", A)
 
 				resp, err := doDNSRequest(blocky, msg)
 				Expect(err).Should(Succeed())

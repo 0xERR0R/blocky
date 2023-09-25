@@ -16,7 +16,6 @@ const (
 	cleanUpRunPeriod         = 12 * time.Hour
 	queryLoggingResolverType = "query_logging"
 	logChanCap               = 1000
-	defaultFlushPeriod       = 30 * time.Second
 )
 
 // QueryLoggingResolver writes query information (question, answer, duration, ...)
@@ -30,7 +29,7 @@ type QueryLoggingResolver struct {
 }
 
 // NewQueryLoggingResolver returns a new resolver instance
-func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
+func NewQueryLoggingResolver(cfg config.QueryLogConfig) *QueryLoggingResolver {
 	logger := log.PrefixedLog(queryLoggingResolverType)
 
 	var writer querylog.Writer
@@ -44,9 +43,11 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) ChainedResolver {
 			case config.QueryLogTypeCsvClient:
 				writer, err = querylog.NewCSVWriter(cfg.Target, true, cfg.LogRetentionDays)
 			case config.QueryLogTypeMysql:
-				writer, err = querylog.NewDatabaseWriter("mysql", cfg.Target, cfg.LogRetentionDays, defaultFlushPeriod)
+				writer, err = querylog.NewDatabaseWriter("mysql", cfg.Target, cfg.LogRetentionDays,
+					cfg.FlushInterval.ToDuration())
 			case config.QueryLogTypePostgresql:
-				writer, err = querylog.NewDatabaseWriter("postgresql", cfg.Target, cfg.LogRetentionDays, defaultFlushPeriod)
+				writer, err = querylog.NewDatabaseWriter("postgresql", cfg.Target, cfg.LogRetentionDays,
+					cfg.FlushInterval.ToDuration())
 			case config.QueryLogTypeConsole:
 				writer = querylog.NewLoggerWriter()
 			case config.QueryLogTypeNone:

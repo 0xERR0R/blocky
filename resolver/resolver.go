@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"fmt"
 	"net"
 	"time"
 
@@ -39,21 +40,17 @@ func newRequestWithClient(question string, rType dns.Type, ip string, clientName
 	}
 }
 
-// newResponseMsg creates a new dns.Msg as response for a request
-func newResponseMsg(request *model.Request) *dns.Msg {
+// newResponse creates a response to the given request
+func newResponse(request *model.Request, rcode int, rtype model.ResponseType, reason string) *model.Response {
 	response := new(dns.Msg)
 	response.SetReply(request.Req)
+	response.Rcode = rcode
 
-	return response
-}
-
-// returnResponseModel wrapps a dns.Msg into a model.Response
-func returnResponseModel(response *dns.Msg, rtype model.ResponseType, reason string) (*model.Response, error) {
 	return &model.Response{
 		Res:    response,
 		RType:  rtype,
 		Reason: reason,
-	}, nil
+	}
 }
 
 func newRequestWithClientID(question string, rType dns.Type, ip, requestClientID string) *model.Request {
@@ -113,7 +110,7 @@ type NamedResolver interface {
 }
 
 // Chain creates a chain of resolvers
-func Chain(resolvers ...Resolver) Resolver {
+func Chain(resolvers ...Resolver) ChainedResolver {
 	for i, res := range resolvers {
 		if i+1 < len(resolvers) {
 			if cr, ok := res.(ChainedResolver); ok {
@@ -122,7 +119,23 @@ func Chain(resolvers ...Resolver) Resolver {
 		}
 	}
 
-	return resolvers[0]
+	return resolvers[0].(ChainedResolver)
+}
+
+func GetFromChainWithType[T any](resolver ChainedResolver) (result T, err error) {
+	for resolver != nil {
+		if result, found := resolver.(T); found {
+			return result, nil
+		}
+
+		if cr, ok := resolver.GetNext().(ChainedResolver); ok {
+			resolver = cr
+		} else {
+			break
+		}
+	}
+
+	return result, fmt.Errorf("type was not found in the chain")
 }
 
 // Name returns a user-friendly name of a resolver

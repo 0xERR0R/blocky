@@ -2,32 +2,35 @@ name: docs
 on:
   push:
     branches:
-      - main
+      - '**'
     tags:
       - v*
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: github.repository_owner == '0xERR0R'
+    if: ${{ github.event.repository.has_pages && (github.repository_owner != '0xERR0R' || github.ref_type == 'tag' || github.ref_name == 'main') }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - uses: actions/setup-python@v4
         with:
           python-version: 3.x
-      
+
       - name: install tools
         run: pip install mkdocs-material mike
-            
+
       - name: Setup doc deploy
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
-      - name: Deploy version for tag/branch
-        run: mike deploy --push --update-aliases ${GITHUB_REF_NAME}
-      - name: Deploy latest version for tag only
-        if: ${{ github.ref != 'refs/heads/main' }}
-        run: mike deploy --push --update-aliases ${GITHUB_REF_NAME} latest
-      - run: mike set-default --push latest
+      - name: Deploy version
+        run: |
+          VERSION="$(sed 's:/:-:g' <<< "$GITHUB_REF_NAME")"
+          if [[ ${{github.ref}} =~ ^refs/tags/ ]]; then
+            EXTRA_ALIAS=latest
+          fi
+          mike deploy --push --update-aliases "$VERSION" $EXTRA_ALIAS
+          tr '[:upper:]' '[:lower:]' <<< "https://${{github.repository_owner}}.github.io/${{github.event.repository.name}}/$VERSION/" >> "$GITHUB_STEP_SUMMARY"

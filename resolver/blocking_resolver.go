@@ -101,18 +101,14 @@ func NewBlockingResolver(
 		return nil, err
 	}
 
-	refreshPeriod := cfg.RefreshPeriod.ToDuration()
-	downloader := createDownloader(cfg, bootstrap)
-	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.BlackLists,
-		refreshPeriod, downloader, cfg.ProcessingConcurrency,
-		(cfg.StartStrategy == config.StartStrategyTypeFast), cfg.MaxErrorsPerFile)
-	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.WhiteLists,
-		refreshPeriod, downloader, cfg.ProcessingConcurrency,
-		(cfg.StartStrategy == config.StartStrategyTypeFast), cfg.MaxErrorsPerFile)
+	downloader := lists.NewDownloader(cfg.Loading.Downloads, bootstrap.NewHTTPTransport())
+
+	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.Loading, cfg.BlackLists, downloader)
+	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.Loading, cfg.WhiteLists, downloader)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
 	err = multierror.Append(err, blErr, wlErr).ErrorOrNil()
-	if err != nil && cfg.StartStrategy == config.StartStrategyTypeFailOnError {
+	if err != nil {
 		return nil, err
 	}
 
@@ -149,20 +145,15 @@ func NewBlockingResolver(
 		setupRedisEnabledSubscriber(res)
 	}
 
-	_ = evt.Bus().Subscribe(evt.ApplicationStarted, func(_ ...string) {
+	err = evt.Bus().SubscribeOnce(evt.ApplicationStarted, func(_ ...string) {
 		go res.initFQDNIPCache()
 	})
 
-	return res, nil
-}
+	if err != nil {
+		return nil, err
+	}
 
-func createDownloader(cfg config.BlockingConfig, bootstrap *Bootstrap) *lists.HTTPDownloader {
-	return lists.NewDownloader(
-		lists.WithTimeout(cfg.DownloadTimeout.ToDuration()),
-		lists.WithAttempts(cfg.DownloadAttempts),
-		lists.WithCooldown(cfg.DownloadCooldown.ToDuration()),
-		lists.WithTransport(bootstrap.NewHTTPTransport()),
-	)
+	return res, nil
 }
 
 func setupRedisEnabledSubscriber(c *BlockingResolver) {
@@ -185,9 +176,13 @@ func setupRedisEnabledSubscriber(c *BlockingResolver) {
 }
 
 // RefreshLists triggers the refresh of all black and white lists in the cache
-func (r *BlockingResolver) RefreshLists() {
-	r.blacklistMatcher.Refresh()
-	r.whitelistMatcher.Refresh()
+func (r *BlockingResolver) RefreshLists() error {
+	var err *multierror.Error
+
+	err = multierror.Append(err, r.blacklistMatcher.Refresh())
+	err = multierror.Append(err, r.whitelistMatcher.Refresh())
+
+	return err.ErrorOrNil()
 }
 
 //nolint:prealloc
@@ -296,7 +291,7 @@ func (r *BlockingResolver) BlockingStatus() api.BlockingStatus {
 	return api.BlockingStatus{
 		Enabled:         r.status.enabled,
 		DisabledGroups:  r.status.disabledGroups,
-		AutoEnableInSec: uint(autoEnableDuration.Seconds()),
+		AutoEnableInSec: int(autoEnableDuration.Seconds()),
 	}
 }
 

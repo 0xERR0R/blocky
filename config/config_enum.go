@@ -63,6 +63,13 @@ func (x IPVersion) String() string {
 	return fmt.Sprintf("IPVersion(%d)", x)
 }
 
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
+func (x IPVersion) IsValid() bool {
+	_, ok := _IPVersionMap[x]
+	return ok
+}
+
 var _IPVersionValue = map[string]IPVersion{
 	_IPVersionName[0:4]: IPVersionDual,
 	_IPVersionName[4:6]: IPVersionV4,
@@ -145,6 +152,13 @@ func (x NetProtocol) String() string {
 	return fmt.Sprintf("NetProtocol(%d)", x)
 }
 
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
+func (x NetProtocol) IsValid() bool {
+	_, ok := _NetProtocolMap[x]
+	return ok
+}
+
 var _NetProtocolValue = map[string]NetProtocol{
 	_NetProtocolName[0:7]:   NetProtocolTcpUdp,
 	_NetProtocolName[7:14]:  NetProtocolTcpTls,
@@ -225,7 +239,8 @@ func (x QueryLogField) String() string {
 	return string(x)
 }
 
-// String implements the Stringer interface.
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
 func (x QueryLogField) IsValid() bool {
 	_, err := ParseQueryLogField(string(x))
 	return err == nil
@@ -333,6 +348,13 @@ func (x QueryLogType) String() string {
 	return fmt.Sprintf("QueryLogType(%d)", x)
 }
 
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
+func (x QueryLogType) IsValid() bool {
+	_, ok := _QueryLogTypeMap[x]
+	return ok
+}
+
 var _QueryLogTypeValue = map[string]QueryLogType{
 	_QueryLogTypeName[0:7]:   QueryLogTypeConsole,
 	_QueryLogTypeName[7:11]:  QueryLogTypeNone,
@@ -418,6 +440,13 @@ func (x StartStrategyType) String() string {
 	return fmt.Sprintf("StartStrategyType(%d)", x)
 }
 
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
+func (x StartStrategyType) IsValid() bool {
+	_, ok := _StartStrategyTypeMap[x]
+	return ok
+}
+
 var _StartStrategyTypeValue = map[string]StartStrategyType{
 	_StartStrategyTypeName[0:8]:   StartStrategyTypeBlocking,
 	_StartStrategyTypeName[8:19]:  StartStrategyTypeFailOnError,
@@ -441,6 +470,86 @@ func (x StartStrategyType) MarshalText() ([]byte, error) {
 func (x *StartStrategyType) UnmarshalText(text []byte) error {
 	name := string(text)
 	tmp, err := ParseStartStrategyType(name)
+	if err != nil {
+		return err
+	}
+	*x = tmp
+	return nil
+}
+
+const (
+	// UpstreamStrategyParallelBest is a UpstreamStrategy of type Parallel_best.
+	UpstreamStrategyParallelBest UpstreamStrategy = iota
+	// UpstreamStrategyStrict is a UpstreamStrategy of type Strict.
+	UpstreamStrategyStrict
+)
+
+var ErrInvalidUpstreamStrategy = fmt.Errorf("not a valid UpstreamStrategy, try [%s]", strings.Join(_UpstreamStrategyNames, ", "))
+
+const _UpstreamStrategyName = "parallel_beststrict"
+
+var _UpstreamStrategyNames = []string{
+	_UpstreamStrategyName[0:13],
+	_UpstreamStrategyName[13:19],
+}
+
+// UpstreamStrategyNames returns a list of possible string values of UpstreamStrategy.
+func UpstreamStrategyNames() []string {
+	tmp := make([]string, len(_UpstreamStrategyNames))
+	copy(tmp, _UpstreamStrategyNames)
+	return tmp
+}
+
+// UpstreamStrategyValues returns a list of the values for UpstreamStrategy
+func UpstreamStrategyValues() []UpstreamStrategy {
+	return []UpstreamStrategy{
+		UpstreamStrategyParallelBest,
+		UpstreamStrategyStrict,
+	}
+}
+
+var _UpstreamStrategyMap = map[UpstreamStrategy]string{
+	UpstreamStrategyParallelBest: _UpstreamStrategyName[0:13],
+	UpstreamStrategyStrict:       _UpstreamStrategyName[13:19],
+}
+
+// String implements the Stringer interface.
+func (x UpstreamStrategy) String() string {
+	if str, ok := _UpstreamStrategyMap[x]; ok {
+		return str
+	}
+	return fmt.Sprintf("UpstreamStrategy(%d)", x)
+}
+
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
+func (x UpstreamStrategy) IsValid() bool {
+	_, ok := _UpstreamStrategyMap[x]
+	return ok
+}
+
+var _UpstreamStrategyValue = map[string]UpstreamStrategy{
+	_UpstreamStrategyName[0:13]:  UpstreamStrategyParallelBest,
+	_UpstreamStrategyName[13:19]: UpstreamStrategyStrict,
+}
+
+// ParseUpstreamStrategy attempts to convert a string to a UpstreamStrategy.
+func ParseUpstreamStrategy(name string) (UpstreamStrategy, error) {
+	if x, ok := _UpstreamStrategyValue[name]; ok {
+		return x, nil
+	}
+	return UpstreamStrategy(0), fmt.Errorf("%s is %w", name, ErrInvalidUpstreamStrategy)
+}
+
+// MarshalText implements the text marshaller method.
+func (x UpstreamStrategy) MarshalText() ([]byte, error) {
+	return []byte(x.String()), nil
+}
+
+// UnmarshalText implements the text unmarshaller method.
+func (x *UpstreamStrategy) UnmarshalText(text []byte) error {
+	name := string(text)
+	tmp, err := ParseUpstreamStrategy(name)
 	if err != nil {
 		return err
 	}

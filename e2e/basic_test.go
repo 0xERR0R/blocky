@@ -24,12 +24,40 @@ var _ = Describe("Basic functional tests", func() {
 			Expect(err).Should(Succeed())
 			DeferCleanup(moka.Terminate)
 		})
+		When("wrong port configuration is provided", func() {
+			BeforeEach(func() {
+				blocky, err = createBlockyContainer(tmpDir,
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - moka1",
+					"ports:",
+					"  http: 4000",
+					"  dns: 4000",
+				)
+				Expect(err).Should(HaveOccurred())
+
+				// check container exit status
+				state, err := blocky.State(context.Background())
+				Expect(err).Should(Succeed())
+				Expect(state.ExitCode).Should(Equal(1))
+
+				DeferCleanup(blocky.Terminate)
+			})
+			It("should fail to start", func() {
+				Eventually(blocky.IsRunning, "5s", "2ms").Should(BeFalse())
+
+				Expect(getContainerLogs(blocky)).
+					Should(ContainElement(ContainSubstring("address already in use")))
+			})
+		})
 		When("Minimal configuration is provided", func() {
 			BeforeEach(func() {
 				blocky, err = createBlockyContainer(tmpDir,
-					"upstream:",
-					"  default:",
-					"    - moka1",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - moka1",
 				)
 
 				Expect(err).Should(Succeed())
@@ -58,9 +86,10 @@ var _ = Describe("Basic functional tests", func() {
 			When("'httpPort' is not defined", func() {
 				BeforeEach(func() {
 					blocky, err = createBlockyContainer(tmpDir,
-						"upstream:",
-						"  default:",
-						"    - moka1",
+						"upstreams:",
+						"  groups:",
+						"    default:",
+						"      - moka1",
 					)
 
 					Expect(err).Should(Succeed())
@@ -78,9 +107,10 @@ var _ = Describe("Basic functional tests", func() {
 			When("'httpPort' is defined", func() {
 				BeforeEach(func() {
 					blocky, err = createBlockyContainer(tmpDir,
-						"upstream:",
-						"  default:",
-						"    - moka1",
+						"upstreams:",
+						"  groups:",
+						"    default:",
+						"      - moka1",
 						"ports:",
 						"  http: 4000",
 					)
