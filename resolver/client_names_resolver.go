@@ -41,7 +41,9 @@ func NewClientNamesResolver(
 		configurable: withConfig(&cfg),
 		typed:        withType("client_names"),
 
-		cache:            expirationcache.NewCache(expirationcache.WithCleanUpInterval[[]string](time.Hour)),
+		cache: expirationcache.NewCache[[]string](expirationcache.Options{
+			CleanupInterval: time.Hour,
+		}),
 		externalResolver: r,
 	}
 

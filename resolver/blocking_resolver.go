@@ -603,10 +603,11 @@ func (r *BlockingResolver) initFQDNIPCache() {
 		identifiers = append(identifiers, identifier)
 	}
 
-	r.fqdnIPCache = expirationcache.NewCache(expirationcache.WithCleanUpInterval[[]net.IP](defaultBlockingCleanUpInterval),
-		expirationcache.WithOnExpiredFn(func(key string) (val *[]net.IP, ttl time.Duration) {
-			return r.queryForFQIdentifierIPs(key)
-		}))
+	r.fqdnIPCache = expirationcache.NewCacheWithOnExpired[[]net.IP](expirationcache.Options{
+		CleanupInterval: defaultBlockingCleanUpInterval,
+	}, func(key string) (val *[]net.IP, ttl time.Duration) {
+		return r.queryForFQIdentifierIPs(key)
+	})
 
 	for _, identifier := range identifiers {
 		if isFQDN(identifier) {
