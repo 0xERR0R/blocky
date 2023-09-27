@@ -57,13 +57,7 @@ func enableBlocking(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("can't execute %w", err)
 	}
 
-	if resp.StatusCode() == http.StatusOK {
-		log.Log().Info("OK")
-	} else {
-		return fmt.Errorf("response NOK, Status: %s", resp.Status())
-	}
-
-	return nil
+	return printOkOrError(resp, string(resp.Body))
 }
 
 func disableBlocking(cmd *cobra.Command, _ []string) error {
@@ -86,13 +80,7 @@ func disableBlocking(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("can't execute %w", err)
 	}
 
-	if resp.StatusCode() == http.StatusOK {
-		log.Log().Info("OK")
-	} else {
-		return fmt.Errorf("response NOK, Status: %s", resp.Status())
-	}
-
-	return nil
+	return printOkOrError(resp, string(resp.Body))
 }
 
 func statusBlocking(_ *cobra.Command, _ []string) error {

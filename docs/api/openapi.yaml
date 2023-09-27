@@ -180,6 +180,16 @@ paths:
               schema:
                 type: string
                 example: Bad request
+  /cache/flush:
+    post:
+      operationId: cacheFlush
+      tags:
+        - cache
+      summary: Clears the DNS response cache
+      description: Removes all DNS responses from cache
+      responses:
+        '200':
+          description: All caches cleared
 components:
   schemas:
     api.BlockingStatus:

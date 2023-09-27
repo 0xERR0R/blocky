@@ -124,4 +124,5 @@ func (e *PrefetchingExpiringLRUCache[T]) TotalCount() int {
 // Clear removes all cache entries
 func (e *PrefetchingExpiringLRUCache[T]) Clear() {
 	e.cache.Clear()
+	e.prefetchingNameCache.Clear()
 }

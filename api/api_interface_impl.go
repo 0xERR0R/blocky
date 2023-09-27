@@ -23,7 +23,7 @@ type BlockingStatus struct {
 	Enabled bool
 	// Disabled group names
 	DisabledGroups []string
-	// If blocking is temporary disabled: amount of seconds until blocking will be enabled
+	// If blocking is temporarily disabled: amount of seconds until blocking will be enabled
 	AutoEnableInSec int
 }
 
@@ -43,21 +43,31 @@ type Querier interface {
 	Query(question string, qType dns.Type) (*model.Response, error)
 }
 
+type CacheControl interface {
+	FlushCaches()
+}
+
 func RegisterOpenAPIEndpoints(router chi.Router, impl StrictServerInterface) {
 	HandlerFromMuxWithBaseURL(NewStrictHandler(impl, nil), router, "/api")
 }
 
 type OpenAPIInterfaceImpl struct {
-	control   BlockingControl
-	querier   Querier
-	refresher ListRefresher
+	control      BlockingControl
+	querier      Querier
+	refresher    ListRefresher
+	cacheControl CacheControl
 }
 
-func NewOpenAPIInterfaceImpl(control BlockingControl, querier Querier, refresher ListRefresher) *OpenAPIInterfaceImpl {
+func NewOpenAPIInterfaceImpl(control BlockingControl,
+	querier Querier,
+	refresher ListRefresher,
+	cacheControl CacheControl,
+) *OpenAPIInterfaceImpl {
 	return &OpenAPIInterfaceImpl{
-		control:   control,
-		querier:   querier,
-		refresher: refresher,
+		control:      control,
+		querier:      querier,
+		refresher:    refresher,
+		cacheControl: cacheControl,
 	}
 }
 
@@ -144,4 +154,12 @@ func (i *OpenAPIInterfaceImpl) Query(_ context.Context, request QueryRequestObje
 		Response:     util.AnswerToString(resp.Res.Answer),
 		ReturnCode:   dns.RcodeToString[resp.Res.Rcode],
 	}), nil
+}
+
+func (i *OpenAPIInterfaceImpl) CacheFlush(_ context.Context,
+	_ CacheFlushRequestObject,
+) (CacheFlushResponseObject, error) {
+	i.cacheControl.FlushCaches()
+
+	return CacheFlush200Response{}, nil
 }
