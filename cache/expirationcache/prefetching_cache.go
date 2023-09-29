@@ -1,12 +1,13 @@
 package expirationcache
 
 import (
+	"sync/atomic"
 	"time"
 )
 
 type PrefetchingExpiringLRUCache[T any] struct {
 	cache                   ExpiringCache[cacheValue[T]]
-	prefetchingNameCache    ExpiringCache[int]
+	prefetchingNameCache    ExpiringCache[atomic.Uint32]
 	reloadFn                ReloadEntryFn[T]
 	prefetchThreshold       int
 	prefetchExpires         time.Duration
@@ -40,7 +41,7 @@ type PrefetchingCacheOption[T any] func(c *PrefetchingExpiringLRUCache[cacheValu
 
 func NewPrefetchingCache[T any](options PrefetchingOptions[T]) *PrefetchingExpiringLRUCache[T] {
 	pc := &PrefetchingExpiringLRUCache[T]{
-		prefetchingNameCache: NewCache[int](Options{
+		prefetchingNameCache: NewCache[atomic.Uint32](Options{
 			CleanupInterval: time.Minute,
 			MaxSize:         uint(options.PrefetchMaxItemsCount),
 			OnAfterPutFn:    options.OnPrefetchAfterPut,
@@ -65,7 +66,7 @@ func (e *PrefetchingExpiringLRUCache[T]) shouldPrefetch(cacheKey string) bool {
 
 	cnt, _ := e.prefetchingNameCache.Get(cacheKey)
 
-	return cnt != nil && *cnt > e.prefetchThreshold
+	return cnt != nil && int(cnt.Load()) > e.prefetchThreshold
 }
 
 func (e *PrefetchingExpiringLRUCache[T]) onExpired(cacheKey string) (val *cacheValue[T], ttl time.Duration) {
@@ -84,12 +85,13 @@ func (e *PrefetchingExpiringLRUCache[T]) onExpired(cacheKey string) (val *cacheV
 }
 
 func (e *PrefetchingExpiringLRUCache[T]) trackCacheKeyQueryCount(cacheKey string) {
-	var count int
-	if x, _ := e.prefetchingNameCache.Get(cacheKey); x != nil {
-		count = *x
+	var x *atomic.Uint32
+	if x, _ = e.prefetchingNameCache.Get(cacheKey); x == nil {
+		x = &atomic.Uint32{}
 	}
-	count++
-	e.prefetchingNameCache.Put(cacheKey, &count, e.prefetchExpires)
+
+	x.Add(1)
+	e.prefetchingNameCache.Put(cacheKey, x, e.prefetchExpires)
 }
 
 func (e *PrefetchingExpiringLRUCache[T]) Put(key string, val *T, expiration time.Duration) {
