@@ -144,11 +144,12 @@ func NewBlockingResolver(
 		clientGroupsBlock: clientGroupsBlock(cfg),
 		redisClient:       redis,
 		fqdnIPCache:  expirationcache.NewCacheWithOnExpired[[]net.IP](expirationcache.Options{
-		CleanupInterval: defaultBlockingCleanUpInterval,
-	}, func(key string) (val *[]net.IP, ttl time.Duration) {
-		return r.queryForFQIdentifierIPs(key)
-	})
+			CleanupInterval: defaultBlockingCleanUpInterval,
+		}, func(key string) (val *[]net.IP, ttl time.Duration) {
+			return r.queryForFQIdentifierIPs(key)
+		})
 	}
+
 
 	if res.redisClient != nil {
 		setupRedisEnabledSubscriber(res)
