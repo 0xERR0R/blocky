@@ -653,6 +653,16 @@
 <span class="w">              </span><span class="nt">schema</span><span class="p">:</span>
 <span class="w">                </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span>
 <span class="w">                </span><span class="nt">example</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Bad request</span>
+<span class="w">  </span><span class="nt">/cache/flush</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">post</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">operationId</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cacheFlush</span>
+<span class="w">      </span><span class="nt">tags</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cache</span>
+<span class="w">      </span><span class="nt">summary</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Clears the DNS response cache</span>
+<span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Removes all DNS responses from cache</span>
+<span class="w">      </span><span class="nt">responses</span><span class="p">:</span>
+<span class="w">        </span><span class="s">&#39;200&#39;</span><span class="p p-Indicator">:</span>
+<span class="w">          </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">All caches cleared</span>
 <span class="nt">components</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">schemas</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">api.BlockingStatus</span><span class="p">:</span>
