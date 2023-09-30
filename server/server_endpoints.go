@@ -30,7 +30,6 @@ const (
 	dohMessageLimit   = 512
 	contentTypeHeader = "content-type"
 	dnsContentType    = "application/dns-message"
-	jsonContentType   = "application/json"
 	htmlContentType   = "text/html; charset=UTF-8"
 	yamlContentType   = "text/yaml"
 	corsMaxAge        = 5 * time.Minute
@@ -57,7 +56,12 @@ func (s *Server) createOpenAPIInterfaceImpl() (impl api.StrictServerInterface, e
 		return nil, fmt.Errorf("no refresh API implementation found %w", err)
 	}
 
-	return api.NewOpenAPIInterfaceImpl(bControl, s, refresher), nil
+	cacheControl, err := resolver.GetFromChainWithType[api.CacheControl](s.queryResolver)
+	if err != nil {
+		return nil, fmt.Errorf("no cache API implementation found %w", err)
+	}
+
+	return api.NewOpenAPIInterfaceImpl(bControl, s, refresher, cacheControl), nil
 }
 
 func (s *Server) registerAPIEndpoints(router *chi.Mux) error {

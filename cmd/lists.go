@@ -3,11 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"net/http"
 
 	"github.com/0xERR0R/blocky/api"
-	"github.com/0xERR0R/blocky/log"
-
 	"github.com/spf13/cobra"
 )
 
@@ -42,11 +39,5 @@ func refreshList(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("can't execute %w", err)
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return fmt.Errorf("response NOK, %s %s", resp.Status(), string(resp.Body))
-	}
-
-	log.Log().Info("OK")
-
-	return nil
+	return printOkOrError(resp, string(resp.Body))
 }

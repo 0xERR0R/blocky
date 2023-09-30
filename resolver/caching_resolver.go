@@ -277,3 +277,8 @@ func (r *CachingResolver) publishMetricsIfEnabled(event string, val interface{})
 		evt.Bus().Publish(event, val)
 	}
 }
+
+func (r *CachingResolver) FlushCaches() {
+	r.log().Debug("flush caches")
+	r.resultCache.Clear()
+}
