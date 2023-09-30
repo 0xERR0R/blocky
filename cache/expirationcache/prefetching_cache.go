@@ -66,7 +66,7 @@ func (e *PrefetchingExpiringLRUCache[T]) shouldPrefetch(cacheKey string) bool {
 
 	cnt, _ := e.prefetchingNameCache.Get(cacheKey)
 
-	return cnt != nil && int(cnt.Load()) > e.prefetchThreshold
+	return cnt != nil && int64(cnt.Load()) > e.prefetchThreshold
 }
 
 func (e *PrefetchingExpiringLRUCache[T]) onExpired(cacheKey string) (val *cacheValue[T], ttl time.Duration) {
