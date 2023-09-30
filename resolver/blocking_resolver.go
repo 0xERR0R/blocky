@@ -92,6 +92,23 @@ type BlockingResolver struct {
 	fqdnIPCache         expirationcache.ExpiringCache[[]net.IP]
 }
 
+func clientGroupsBlock(cfg config.BlockingConfig) map[string][]string {
+	cgb := make(map[string][]string, len(cfg.ClientGroupsBlock))
+
+	for identifier, cfgGroups := range cfg.ClientGroupsBlock {
+		for _, ipart := range strings.Split(strings.ToLower(identifier), ",") {
+			existingGroups, found := cgb[ipart]
+			if found {
+				cgb[ipart] = append(existingGroups, cfgGroups...)
+			} else {
+				cgb[ipart] = cfgGroups
+			}
+		}
+	}
+
+	return cgb
+}
+
 // NewBlockingResolver returns a new configured instance of the resolver
 func NewBlockingResolver(
 	cfg config.BlockingConfig, redis *redis.Client, bootstrap *Bootstrap,
@@ -112,19 +129,6 @@ func NewBlockingResolver(
 		return nil, err
 	}
 
-	cgb := make(map[string][]string, len(cfg.ClientGroupsBlock))
-
-	for identifier, cfgGroups := range cfg.ClientGroupsBlock {
-		for _, ipart := range strings.Split(strings.ToLower(identifier), ",") {
-			existingGroups, found := cgb[ipart]
-			if found {
-				cgb[ipart] = append(existingGroups, cfgGroups...)
-			} else {
-				cgb[ipart] = cfgGroups
-			}
-		}
-	}
-
 	res := &BlockingResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("blocking"),
@@ -137,9 +141,15 @@ func NewBlockingResolver(
 			enabled:     true,
 			enableTimer: time.NewTimer(0),
 		},
-		clientGroupsBlock: cgb,
+		clientGroupsBlock: clientGroupsBlock(cfg),
 		redisClient:       redis,
 	}
+
+	res.fqdnIPCache = expirationcache.NewCacheWithOnExpired[[]net.IP](expirationcache.Options{
+		CleanupInterval: defaultBlockingCleanUpInterval,
+	}, func(key string) (val *[]net.IP, ttl time.Duration) {
+		return res.queryForFQIdentifierIPs(key)
+	})
 
 	if res.redisClient != nil {
 		setupRedisEnabledSubscriber(res)
@@ -594,20 +604,11 @@ func (r *BlockingResolver) queryForFQIdentifierIPs(identifier string) (*[]net.IP
 }
 
 func (r *BlockingResolver) initFQDNIPCache() {
-	r.status.lock.Lock()
-	defer r.status.lock.Unlock()
-
 	identifiers := make([]string, 0)
 
 	for identifier := range r.clientGroupsBlock {
 		identifiers = append(identifiers, identifier)
 	}
-
-	r.fqdnIPCache = expirationcache.NewCacheWithOnExpired[[]net.IP](expirationcache.Options{
-		CleanupInterval: defaultBlockingCleanUpInterval,
-	}, func(key string) (val *[]net.IP, ttl time.Duration) {
-		return r.queryForFQIdentifierIPs(key)
-	})
 
 	for _, identifier := range identifiers {
 		if isFQDN(identifier) {
