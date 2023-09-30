@@ -1,10 +1,17 @@
 {
   "name": "blocky development",
-  "image": "mcr.microsoft.com/devcontainers/go:0-1.20",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
   "features": {
-    "ghcr.io/devcontainers/features/go:1": {},
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.20"
+    },
     "ghcr.io/jungaretti/features/make:1": {},
-    "ghcr.io/devcontainers/features/docker-outside-of-docker": {}
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "moby": true,
+      "installDockerBuildx": true,
+      "version": "latest",
+      "dockerDashComposeVersion": "v2"
+    }
   },
   "customizations": {
     "vscode": {
@@ -16,7 +23,6 @@
         "spmeesseman.vscode-taskexplorer"
       ],
       "settings": {
-        "telemetry.telemetryLevel": "off",
         "editor.tabSize": 2,
         "editor.insertSpaces": true,
         "editor.detectIndentation": false,
