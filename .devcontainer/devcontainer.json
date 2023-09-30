@@ -1,0 +1,27 @@
+{
+  "name": "blocky development",
+  "image": "mcr.microsoft.com/devcontainers/go:0-1.20",
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {},
+    "ghcr.io/jungaretti/features/make:1": {},
+    "ghcr.io/devcontainers/features/docker-outside-of-docker": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "ms-vscode.makefile-tools",
+        "DavidAnson.vscode-markdownlint",
+        "darkriszty.markdown-table-prettify",
+        "spmeesseman.vscode-taskexplorer"
+      ],
+      "settings": {
+        "telemetry.telemetryLevel": "off",
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true,
+        "editor.detectIndentation": false,
+        "editor.formatOnSave": true
+      }
+    }
+  }
+}
