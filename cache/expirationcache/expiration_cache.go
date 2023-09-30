@@ -19,15 +19,18 @@ type element[T any] struct {
 type ExpiringLRUCache[T any] struct {
 	cleanUpInterval time.Duration
 	preExpirationFn OnExpirationCallback[T]
+	onCacheHit      OnCacheHitCallback
+	onCacheMiss     OnCacheMissCallback
+	onAfterPut      OnAfterPutCallback
 	lru             *lru.Cache
 }
 
-type CacheOption[T any] func(c *ExpiringLRUCache[T])
-
-func WithCleanUpInterval[T any](d time.Duration) CacheOption[T] {
-	return func(e *ExpiringLRUCache[T]) {
-		e.cleanUpInterval = d
-	}
+type Options struct {
+	OnCacheHitFn    OnCacheHitCallback
+	OnCacheMissFn   OnCacheMissCallback
+	OnAfterPutFn    OnAfterPutCallback
+	CleanupInterval time.Duration
+	MaxSize         uint
 }
 
 // OnExpirationCallback will be called just before an element gets expired and will
@@ -35,33 +38,56 @@ func WithCleanUpInterval[T any](d time.Duration) CacheOption[T] {
 // element in the cache or nil to remove it
 type OnExpirationCallback[T any] func(key string) (val *T, ttl time.Duration)
 
-func WithOnExpiredFn[T any](fn OnExpirationCallback[T]) CacheOption[T] {
-	return func(c *ExpiringLRUCache[T]) {
-		c.preExpirationFn = fn
-	}
+// OnCacheHitCallback will be called on cache get if entry was found
+type OnCacheHitCallback func(key string)
+
+// OnCacheMissCallback will be called on cache get and entry was not found
+type OnCacheMissCallback func(key string)
+
+// OnAfterPutCallback will be called after put, receives new element count as parameter
+type OnAfterPutCallback func(newSize int)
+
+func NewCache[T any](options Options) *ExpiringLRUCache[T] {
+	return NewCacheWithOnExpired[T](options, nil)
 }
 
-func WithMaxSize[T any](size uint) CacheOption[T] {
-	return func(c *ExpiringLRUCache[T]) {
-		if size > 0 {
-			l, _ := lru.New(int(size))
-			c.lru = l
-		}
-	}
-}
-
-func NewCache[T any](options ...CacheOption[T]) *ExpiringLRUCache[T] {
+func NewCacheWithOnExpired[T any](options Options,
+	onExpirationFn OnExpirationCallback[T],
+) *ExpiringLRUCache[T] {
 	l, _ := lru.New(defaultSize)
 	c := &ExpiringLRUCache[T]{
 		cleanUpInterval: defaultCleanUpInterval,
 		preExpirationFn: func(key string) (val *T, ttl time.Duration) {
 			return nil, 0
 		},
-		lru: l,
+		onCacheHit:  func(key string) {},
+		onCacheMiss: func(key string) {},
+		lru:         l,
 	}
 
-	for _, opt := range options {
-		opt(c)
+	if options.CleanupInterval > 0 {
+		c.cleanUpInterval = options.CleanupInterval
+	}
+
+	if options.MaxSize > 0 {
+		l, _ := lru.New(int(options.MaxSize))
+		c.lru = l
+	}
+
+	if options.OnAfterPutFn != nil {
+		c.onAfterPut = options.OnAfterPutFn
+	}
+
+	if options.OnCacheHitFn != nil {
+		c.onCacheHit = options.OnCacheHitFn
+	}
+
+	if options.OnCacheMissFn != nil {
+		c.onCacheMiss = options.OnCacheMissFn
+	}
+
+	if onExpirationFn != nil {
+		c.preExpirationFn = onExpirationFn
 	}
 
 	go periodicCleanup(c)
@@ -122,14 +148,22 @@ func (e *ExpiringLRUCache[T]) Put(key string, val *T, ttl time.Duration) {
 		val:            val,
 		expiresEpochMs: expiresEpochMs,
 	})
+
+	if e.onAfterPut != nil {
+		e.onAfterPut(e.lru.Len())
+	}
 }
 
 func (e *ExpiringLRUCache[T]) Get(key string) (val *T, ttl time.Duration) {
 	el, found := e.lru.Get(key)
 
 	if found {
+		e.onCacheHit(key)
+
 		return el.(*element[T]).val, calculateRemainTTL(el.(*element[T]).expiresEpochMs)
 	}
+
+	e.onCacheMiss(key)
 
 	return nil, 0
 }

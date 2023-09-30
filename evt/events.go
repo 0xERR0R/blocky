@@ -20,10 +20,10 @@ const (
 	// CachingPrefetchCacheHit fires if a query result was found in the prefetch cache, Parameter: domain name
 	CachingPrefetchCacheHit = "caching:prefetchHit"
 
-	// CachingResultCacheHit fires, if a query result was found in the cache, Parameter: domain name
+	// CachingResultCacheHit fires, if a query result was found in the cache
 	CachingResultCacheHit = "caching:cacheHit"
 
-	// CachingResultCacheMiss fires, if a query result was not found in the cache, Parameter: domain name
+	// CachingResultCacheMiss fires, if a query result was not found in the cache
 	CachingResultCacheMiss = "caching:cacheMiss"
 
 	// CachingDomainsToPrefetchCountChanged fires, if a number of domains being prefetched changed, Parameter: new count
