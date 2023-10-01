@@ -8,7 +8,9 @@
       "go": true,
       "npm": false
     },
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "dockerDashComposeVersion": "v2"
+    }
   },
   "customizations": {
     "vscode": {
