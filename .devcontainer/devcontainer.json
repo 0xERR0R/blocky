@@ -16,7 +16,8 @@
         "golang.go",
         "ms-vscode.makefile-tools",
         "usernamehw.errorlens",
-        "esbenp.prettier-vscode"
+        "esbenp.prettier-vscode",
+        "yzhang.markdown-all-in-one"
       ],
       "settings": {
         "editor.tabSize": 2,
@@ -37,6 +38,7 @@
           "formatting.gofumpt": true,
           "build.standaloneTags": ["ignore", "tools"]
         },
+        "errorLens.excludePatterns": ["go.{mod,sum}", "tools.go"],
         "[go]": {
           "editor.defaultFormatter": "golang.go",
           "editor.formatOnSave": true,
@@ -53,7 +55,18 @@
         "[json][jsonc]": {
           "editor.defaultFormatter": "esbenp.prettier-vscode"
         },
-        "errorLens.excludePatterns": ["go.{mod,sum}", "tools.go"]
+        "[markdown]": {
+          "editor.defaultFormatter": "yzhang.markdown-all-in-one",
+          "editor.unicodeHighlight.ambiguousCharacters": false,
+          "editor.unicodeHighlight.invisibleCharacters": false,
+          "diffEditor.ignoreTrimWhitespace": false,
+          "editor.wordWrap": "on",
+          "editor.quickSuggestions": {
+            "comments": "off",
+            "strings": "off",
+            "other": "off"
+          }
+        }
       }
     }
   },

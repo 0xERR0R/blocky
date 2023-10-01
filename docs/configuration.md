@@ -12,7 +12,7 @@ configuration properties as [JSON](config.yml).
 ## Basic configuration
 
 | Parameter           | Type                | Mandatory | Default value | Description                                                                                                |
-|---------------------|---------------------|-----------|---------------|------------------------------------------------------------------------------------------------------------|
+| ------------------- | ------------------- | --------- | ------------- | ---------------------------------------------------------------------------------------------------------- |
 | certFile            | path                | no        |               | Path to cert and key file for SSL encryption (DoH and DoT); if empty, self-signed certificate is generated |
 | keyFile             | path                | no        |               | Path to cert and key file for SSL encryption (DoH and DoT); if empty, self-signed certificate is generated |
 | dohUserAgent        | string              | no        |               | HTTP User Agent for DoH upstreams                                                                          |
@@ -31,8 +31,8 @@ configuration properties as [JSON](config.yml).
 
 All logging port are optional.
 
-| Parameter  | Type                   | Default value | Description                                                                                                                                                                                                                                       |
-|------------|------------------------|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Parameter   | Type                   | Default value | Description                                                                                                                                                                                                                                       |
+| ----------- | ---------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ports.dns   | [IP]:port[,[IP]:port]* | 53            | Port(s) and optional bind ip address(es) to serve DNS endpoint (TCP and UDP). If you wish to specify a specific IP, you can do so such as `192.168.0.1:53`. Example: `53`, `:53`, `127.0.0.1:53,[::1]:53`                                         |
 | ports.tls   | [IP]:port[,[IP]:port]* |               | Port(s) and optional bind ip address(es) to serve DoT DNS endpoint (DNS-over-TLS). If you wish to specify a specific IP, you can do so such as `192.168.0.1:853`. Example: `83`, `:853`, `127.0.0.1:853,[::1]:853`                                |
 | ports.http  | [IP]:port[,[IP]:port]* |               | Port(s) and optional bind ip address(es) to serve HTTP used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:4000`. Example: `4000`, `:4000`, `127.0.0.1:4000,[::1]:4000` |
@@ -52,7 +52,7 @@ All logging port are optional.
 All logging options are optional.
 
 | Parameter     | Type                            | Default value | Description                                                                                                                                      |
-|---------------|---------------------------------|---------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| ------------- | ------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | log.level     | enum (debug, info, warn, error) | info          | Log level                                                                                                                                        |
 | log.format    | enum (text, json)               | text          | Log format (text or json).                                                                                                                       |
 | log.timestamp | bool                            | true          | Log time stamps (true or false).                                                                                                                 |
@@ -86,7 +86,7 @@ following network protocols (net part of the resolver URL):
 Each resolver must be defined as a string in following format: `[net:]host:[port][/path][#commonName]`.
 
 | Parameter  | Type                             | Mandatory | Default value                                     |
-|------------|----------------------------------|-----------|---------------------------------------------------|
+| ---------- | -------------------------------- | --------- | ------------------------------------------------- |
 | net        | enum (tcp+udp, tcp-tls or https) | no        | tcp+udp                                           |
 | host       | IP or hostname                   | yes       |                                                   |
 | port       | int (1 - 65535)                  | no        | 53 for udp/tcp, 853 for tcp-tls and 443 for https |
@@ -178,7 +178,7 @@ These DNS servers are used to resolve upstream DoH and DoT servers that are spec
 It is useful if no system DNS resolver is configured, and/or to encrypt the bootstrap queries.
 
 | Parameter | Type                 | Mandatory                   | Default value | Description                          |
-|-----------|----------------------|-----------------------------|---------------|--------------------------------------|
+| --------- | -------------------- | --------------------------- | ------------- | ------------------------------------ |
 | upstream  | Upstream (see above) | no                          |               |                                      |
 | ips       | List of IPs          | yes, if upstream is DoT/DoH |               | Only valid if upstream is DoH or DoT |
 
@@ -233,7 +233,7 @@ or define a domain name for your local device on order to use the HTTPS certific
 domain must be separated by a comma.
 
 | Parameter           | Type                                    | Mandatory | Default value |
-|---------------------|-----------------------------------------|-----------|---------------|
+| ------------------- | --------------------------------------- | --------- | ------------- |
 | customTTL           | duration (no unit is minutes)           | no        | 1h            |
 | rewrite             | string: string (domain: domain)         | no        |               |
 | mapping             | string: string (hostname: address list) | no        |               |
@@ -467,7 +467,7 @@ You can configure, which response should be sent to the client, if a requested q
 queries, NXDOMAIN for other types):
 
 | blockType  | Example                                                 | Description                                                                                                                                                                            |
-|------------|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ---------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | zeroIP     | zeroIP                                                  | This is the default block type. Server returns 0.0.0.0 (or :: for IPv6) as result for A and AAAA queries                                                                               |
 | nxDomain   | nxDomain                                                | return NXDOMAIN as return code                                                                                                                                                         |
 | custom IPs | 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344 | comma separated list of destination IP addresses. Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page. |
@@ -496,7 +496,91 @@ after receiving the custom value.
 
 ### Lists Loading
 
+To keep the list cache up-to-date, blocky will periodically download and reload all external lists. Default period is **
+4 hours**. You can configure this by setting the `blocking.refreshPeriod` parameter to a value in **duration format**.
+Negative value will deactivate automatically refresh.
+
+!!! example
+
+    ```yaml
+    blocking:
+      refreshPeriod: 60m
+    ```
+
+Refresh every hour.
+
+### Download
+
+You can configure the list download attempts according to your internet connection:
+
+| Parameter        | Type            | Mandatory | Default value | Description                                    |
+|------------------|-----------------|-----------|---------------|------------------------------------------------|
+| downloadTimeout  | duration format | no        | 60s           | Download attempt timeout                       |
+| downloadAttempts | int             | no        | 3             | How many download attempts should be performed |
+| downloadCooldown | duration format | no        | 1s            | Time between the download attempts             |
+
+!!! example
+
+    ```yaml
+    blocking:
+      downloadTimeout: 4m
+      downloadAttempts: 5
+      downloadCooldown: 10s
+    ```
+
+### Start strategy
+
+You can configure the blocking behavior during application start of blocky.  
+If no strategy is selected blocking will be used.
+
+| startStrategy | Description                                                                                           |
+|---------------|-------------------------------------------------------------------------------------------------------|
+| blocking      | all blocking lists will be loaded before DNS resolution starts                                        |
+| failOnError   | like blocking but blocky will shut down if any download fails                                         |
+| fast          | DNS resolution starts immediately without blocking which will be enabled after list load is completed |
 See [Sources Loading](#sources-loading).
+To keep the list cache up-to-date, blocky will periodically download and reload all external lists. Default period is **
+4 hours**. You can configure this by setting the `blocking.refreshPeriod` parameter to a value in **duration format**.
+Negative value will deactivate automatically refresh.
+
+!!! example
+
+    ```yaml
+    blocking:
+      refreshPeriod: 60m
+    ```
+
+Refresh every hour.
+
+### Download
+
+You can configure the list download attempts according to your internet connection:
+
+| Parameter        | Type            | Mandatory | Default value | Description                                    |
+| ---------------- | --------------- | --------- | ------------- | ---------------------------------------------- |
+| downloadTimeout  | duration format | no        | 60s           | Download attempt timeout                       |
+| downloadAttempts | int             | no        | 3             | How many download attempts should be performed |
+| downloadCooldown | duration format | no        | 1s            | Time between the download attempts             |
+
+!!! example
+
+    ```yaml
+    blocking:
+      downloadTimeout: 4m
+      downloadAttempts: 5
+      downloadCooldown: 10s
+    ```
+
+### Start strategy
+
+You can configure the blocking behavior during application start of blocky.  
+If no strategy is selected blocking will be used.
+
+| startStrategy | Description                                                                                           |
+| ------------- | ----------------------------------------------------------------------------------------------------- |
+| blocking      | all blocking lists will be loaded before DNS resolution starts                                        |
+| failOnError   | like blocking but blocky will shut down if any download fails                                         |
+| fast          | DNS resolution starts immediately without blocking which will be enabled after list load is completed |
 
 ## Caching
 
@@ -512,7 +596,7 @@ With following parameters you can tune the caching behavior:
     Wrong values can significantly increase external DNS traffic or memory consumption.
 
 | Parameter                     | Type            | Mandatory | Default value | Description                                                                                                                                                                                                                                                                                                                                                                                                    |
-|-------------------------------|-----------------|-----------|---------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ----------------------------- | --------------- | --------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | caching.minTime               | duration format | no        | 0 (use TTL)   | How long a response must be cached (min value). If <=0, use response's TTL, if >0 use this value, if TTL is smaller                                                                                                                                                                                                                                                                                            |
 | caching.maxTime               | duration format | no        | 0 (use TTL)   | How long a response must be cached (max value). If <0, do not cache responses. If 0, use TTL. If > 0, use this value, if TTL is greater                                                                                                                                                                                                                                                                        |
 | caching.maxItemsCount         | int             | no        | 0 (unlimited) | Max number of cache entries (responses) to be kept in cache (soft limit). Default (0): unlimited. Useful on systems with limited amount of RAM.                                                                                                                                                                                                                                                                |
@@ -537,7 +621,7 @@ Blocky can synchronize its cache and blocking state between multiple instances t
 Synchronization is disabled if no address is configured.
 
 | Parameter                | Type            | Mandatory | Default value | Description                                                         |
-|--------------------------|-----------------|-----------|---------------|---------------------------------------------------------------------|
+| ------------------------ | --------------- | --------- | ------------- | ------------------------------------------------------------------- |
 | redis.address            | string          | no        |               | Server address and port or master name if sentinel is used          |
 | redis.username           | string          | no        |               | Username if necessary                                               |
 | redis.password           | string          | no        |               | Password if necessary                                               |
@@ -574,7 +658,7 @@ Blocky can expose various metrics for prometheus. To use the prometheus feature,
 see [Basic Configuration](#basic-configuration)).
 
 | Parameter         | Mandatory | Default value | Description                         |
-|-------------------|-----------|---------------|-------------------------------------|
+| ----------------- | --------- | ------------- | ----------------------------------- |
 | prometheus.enable | no        | false         | If true, enables prometheus metrics |
 | prometheus.path   | no        | /metrics      | URL path to the metrics endpoint    |
 
@@ -623,7 +707,7 @@ You can choose which information from processed DNS request and response should 
 Configuration parameters:
 
 | Parameter                 | Type                                                                                 | Mandatory | Default value | Description                                                                        |
-|---------------------------|--------------------------------------------------------------------------------------|-----------|---------------|------------------------------------------------------------------------------------|
+| ------------------------- | ------------------------------------------------------------------------------------ | --------- | ------------- | ---------------------------------------------------------------------------------- |
 | queryLog.type             | enum (mysql, postgresql, csv, csv-client, console, none (see above))                 | no        |               | Type of logging target. Console if empty                                           |
 | queryLog.target           | string                                                                               | no        |               | directory for writing the logs (for csv) or database url (for mysql or postgresql) |
 | queryLog.logRetentionDays | int                                                                                  | no        | 0             | if > 0, deletes log files/database entries which are older than ... days           |
@@ -668,7 +752,7 @@ You can enable resolving of entries, located in local hosts file.
 Configuration parameters:
 
 | Parameter                | Type                           | Mandatory | Default value | Description                                     |
-|--------------------------|--------------------------------|-----------|---------------|-------------------------------------------------|
+| ------------------------ | ------------------------------ | --------- | ------------- | ----------------------------------------------- |
 | hostsFile.filePath       | string                         | no        |               | Path to hosts file (e.g. /etc/hosts on Linux)   |
 | hostsFile.hostsTTL       | duration (no units is minutes) | no        | 1h            | TTL                                             |
 | hostsFile.refreshPeriod  | duration format                | no        | 1h            | Time between hosts file refresh                 |
@@ -690,7 +774,7 @@ DNS responses can be extended with EDE codes according to [RFC8914](https://data
 Configuration parameters:
 
 | Parameter  | Type | Mandatory | Default value | Description                                        |
-|------------|------|-----------|---------------|----------------------------------------------------|
+| ---------- | ---- | --------- | ------------- | -------------------------------------------------- |
 | ede.enable | bool | no        | false         | If true, DNS responses are deliverd with EDE codes |
 
 !!! example
