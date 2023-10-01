@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"fmt"
+	"math"
 	"sync/atomic"
 	"time"
 
@@ -28,15 +29,9 @@ type CachingResolver struct {
 
 	emitMetricEvents bool // disabled by Bootstrap
 
-	resultCache          expirationcache.ExpiringCache[cacheValue]
-	prefetchingNameCache expirationcache.ExpiringCache[int]
-	redisClient          *redis.Client
-}
+	resultCache expirationcache.ExpiringCache[dns.Msg]
 
-// cacheValue includes query answer and prefetch flag
-type cacheValue struct {
-	resultMsg *dns.Msg
-	prefetch  bool
+	redisClient *redis.Client
 }
 
 // NewCachingResolver creates a new resolver instance
@@ -64,23 +59,62 @@ func newCachingResolver(cfg config.CachingConfig, redis *redis.Client, emitMetri
 }
 
 func configureCaches(c *CachingResolver, cfg *config.CachingConfig) {
-	cleanupOption := expirationcache.WithCleanUpInterval[cacheValue](defaultCachingCleanUpInterval)
-	maxSizeOption := expirationcache.WithMaxSize[cacheValue](uint(cfg.MaxItemsCount))
+	options := expirationcache.Options{
+		CleanupInterval: defaultCachingCleanUpInterval,
+		MaxSize:         uint(cfg.MaxItemsCount),
+		OnCacheHitFn: func(key string) {
+			c.publishMetricsIfEnabled(evt.CachingResultCacheHit, key)
+		},
+		OnCacheMissFn: func(key string) {
+			c.publishMetricsIfEnabled(evt.CachingResultCacheMiss, key)
+		},
+		OnAfterPutFn: func(newSize int) {
+			c.publishMetricsIfEnabled(evt.CachingResultCacheChanged, newSize)
+		},
+	}
 
 	if cfg.Prefetching {
-		c.prefetchingNameCache = expirationcache.NewCache(
-			expirationcache.WithCleanUpInterval[int](time.Minute),
-			expirationcache.WithMaxSize[int](uint(cfg.PrefetchMaxItemsCount)),
-		)
+		prefetchingOptions := expirationcache.PrefetchingOptions[dns.Msg]{
+			Options:               options,
+			PrefetchExpires:       time.Duration(cfg.PrefetchExpires),
+			PrefetchThreshold:     cfg.PrefetchThreshold,
+			PrefetchMaxItemsCount: cfg.PrefetchMaxItemsCount,
+			ReloadFn:              c.reloadCacheEntry,
+			OnPrefetchAfterPut: func(newSize int) {
+				c.publishMetricsIfEnabled(evt.CachingDomainsToPrefetchCountChanged, newSize)
+			},
+			OnPrefetchEntryReloaded: func(key string) {
+				c.publishMetricsIfEnabled(evt.CachingDomainPrefetched, key)
+			},
+			OnPrefetchCacheHit: func(key string) {
+				c.publishMetricsIfEnabled(evt.CachingPrefetchCacheHit, key)
+			},
+		}
 
-		c.resultCache = expirationcache.NewCache(
-			cleanupOption,
-			maxSizeOption,
-			expirationcache.WithOnExpiredFn(c.onExpired),
-		)
+		c.resultCache = expirationcache.NewPrefetchingCache(prefetchingOptions)
 	} else {
-		c.resultCache = expirationcache.NewCache(cleanupOption, maxSizeOption)
+		c.resultCache = expirationcache.NewCache[dns.Msg](options)
 	}
+}
+
+func (r *CachingResolver) reloadCacheEntry(cacheKey string) (*dns.Msg, time.Duration) {
+	qType, domainName := util.ExtractCacheKey(cacheKey)
+	logger := r.log()
+
+	logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), qType)
+
+	req := newRequest(fmt.Sprintf("%s.", domainName), qType, logger)
+	response, err := r.next.Resolve(req)
+
+	if err == nil {
+		if response.Res.Rcode == dns.RcodeSuccess {
+			return response.Res, r.adjustTTLs(response.Res.Answer)
+		}
+	} else {
+		util.LogOnError(fmt.Sprintf("can't prefetch '%s' ", domainName), err)
+	}
+
+	return nil, 0
 }
 
 func setupRedisCacheSubscriber(c *CachingResolver) {
@@ -89,46 +123,10 @@ func setupRedisCacheSubscriber(c *CachingResolver) {
 			if rc != nil {
 				c.log().Debug("Received key from redis: ", rc.Key)
 				ttl := c.adjustTTLs(rc.Response.Res.Answer)
-				c.putInCache(rc.Key, rc.Response, ttl, false, false)
+				c.putInCache(rc.Key, rc.Response, ttl, false)
 			}
 		}
 	}()
-}
-
-// check if domain was queried > threshold in the time window
-func (r *CachingResolver) shouldPrefetch(cacheKey string) bool {
-	if r.cfg.PrefetchThreshold == 0 {
-		return true
-	}
-
-	cnt, _ := r.prefetchingNameCache.Get(cacheKey)
-
-	return cnt != nil && *cnt > r.cfg.PrefetchThreshold
-}
-
-func (r *CachingResolver) onExpired(cacheKey string) (val *cacheValue, ttl time.Duration) {
-	qType, domainName := util.ExtractCacheKey(cacheKey)
-
-	if r.shouldPrefetch(cacheKey) {
-		logger := r.log()
-
-		logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), qType)
-
-		req := newRequest(fmt.Sprintf("%s.", domainName), qType, logger)
-		response, err := r.next.Resolve(req)
-
-		if err == nil {
-			if response.Res.Rcode == dns.RcodeSuccess {
-				r.publishMetricsIfEnabled(evt.CachingDomainPrefetched, domainName)
-
-				return &cacheValue{response.Res, true}, r.adjustTTLs(response.Res.Answer)
-			}
-		} else {
-			util.LogOnError(fmt.Sprintf("can't prefetch '%s' ", domainName), err)
-		}
-	}
-
-	return nil, 0
 }
 
 // LogConfig implements `config.Configurable`.
@@ -154,28 +152,17 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 		cacheKey := util.GenerateCacheKey(dns.Type(question.Qtype), domain)
 		logger := logger.WithField("domain", util.Obfuscate(domain))
 
-		r.trackQueryDomainNameCount(domain, cacheKey, logger)
-
 		val, ttl := r.resultCache.Get(cacheKey)
 
 		if val != nil {
 			logger.Debug("domain is cached")
 
-			r.publishMetricsIfEnabled(evt.CachingResultCacheHit, domain)
-
-			if val.prefetch {
-				// Hit from prefetch cache
-				r.publishMetricsIfEnabled(evt.CachingPrefetchCacheHit, domain)
-			}
-
-			resp := val.resultMsg.Copy()
+			resp := val.Copy()
 			resp.SetReply(request.Req)
-			resp.Rcode = val.resultMsg.Rcode
+			resp.Rcode = val.Rcode
 
 			// Adjust TTL
-			for _, rr := range resp.Answer {
-				rr.Header().Ttl = uint32(ttl.Seconds())
-			}
+			setTTLInCachedResponse(resp, ttl)
 
 			if resp.Rcode == dns.RcodeSuccess {
 				return &model.Response{Res: resp, RType: model.ResponseTypeCACHED, Reason: "CACHED"}, nil
@@ -184,33 +171,27 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 			return &model.Response{Res: resp, RType: model.ResponseTypeCACHED, Reason: "CACHED NEGATIVE"}, nil
 		}
 
-		r.publishMetricsIfEnabled(evt.CachingResultCacheMiss, domain)
-
 		logger.WithField("next_resolver", Name(r.next)).Debug("not in cache: go to next resolver")
 		response, err = r.next.Resolve(request)
 
 		if err == nil {
 			cacheTTL := r.adjustTTLs(response.Res.Answer)
-			r.putInCache(cacheKey, response, cacheTTL, false, true)
+			r.putInCache(cacheKey, response, cacheTTL, true)
 		}
 	}
 
 	return response, err
 }
 
-func (r *CachingResolver) trackQueryDomainNameCount(domain, cacheKey string, logger *logrus.Entry) {
-	if r.prefetchingNameCache != nil {
-		var domainCount int
-		if x, _ := r.prefetchingNameCache.Get(cacheKey); x != nil {
-			domainCount = *x
-		}
-		domainCount++
-		r.prefetchingNameCache.Put(cacheKey, &domainCount, r.cfg.PrefetchExpires.ToDuration())
-		totalCount := r.prefetchingNameCache.TotalCount()
+func setTTLInCachedResponse(resp *dns.Msg, ttl time.Duration) {
+	minTTL := uint32(math.MaxInt32)
+	// find smallest TTL first
+	for _, rr := range resp.Answer {
+		minTTL = min(minTTL, rr.Header().Ttl)
+	}
 
-		logger.Debugf("domain '%s' was requested %d times, "+
-			"total cache size: %d", util.Obfuscate(domain), domainCount, totalCount)
-		r.publishMetricsIfEnabled(evt.CachingDomainsToPrefetchCountChanged, totalCount)
+	for _, rr := range resp.Answer {
+		rr.Header().Ttl = rr.Header().Ttl - minTTL + uint32(ttl.Seconds())
 	}
 }
 
@@ -235,7 +216,7 @@ func shouldBeCached(msg *dns.Msg) bool {
 }
 
 func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, ttl time.Duration,
-	prefetch, publish bool,
+	publish bool,
 ) {
 	respCopy := response.Res.Copy()
 
@@ -244,28 +225,25 @@ func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, 
 
 	if response.Res.Rcode == dns.RcodeSuccess && shouldBeCached(response.Res) {
 		// put value into cache
-		r.resultCache.Put(cacheKey, &cacheValue{respCopy, prefetch}, ttl)
+		r.resultCache.Put(cacheKey, respCopy, ttl)
 	} else if response.Res.Rcode == dns.RcodeNameError {
 		if r.cfg.CacheTimeNegative.IsAboveZero() {
 			// put negative cache if result code is NXDOMAIN
-			r.resultCache.Put(cacheKey, &cacheValue{respCopy, prefetch}, r.cfg.CacheTimeNegative.ToDuration())
+			r.resultCache.Put(cacheKey, respCopy, r.cfg.CacheTimeNegative.ToDuration())
 		}
 	}
 
-	r.publishMetricsIfEnabled(evt.CachingResultCacheChanged, r.resultCache.TotalCount())
-
 	if publish && r.redisClient != nil {
 		res := *respCopy
-		res.Answer = response.Res.Answer
 		r.redisClient.PublishCache(cacheKey, &res)
 	}
 }
 
-// adjustTTLs calculates and returns the max TTL (considers also the min and max cache time)
+// adjustTTLs calculates and returns the min TTL (considers also the min and max cache time)
 // for all records from answer or a negative cache time for empty answer
 // adjust the TTL in the answer header accordingly
-func (r *CachingResolver) adjustTTLs(answer []dns.RR) (maxTTL time.Duration) {
-	var max uint32
+func (r *CachingResolver) adjustTTLs(answer []dns.RR) (ttl time.Duration) {
+	minTTL := uint32(math.MaxInt32)
 
 	if len(answer) == 0 {
 		return r.cfg.CacheTimeNegative.ToDuration()
@@ -286,16 +264,21 @@ func (r *CachingResolver) adjustTTLs(answer []dns.RR) (maxTTL time.Duration) {
 		}
 
 		headerTTL := atomic.LoadUint32(&a.Header().Ttl)
-		if max < headerTTL {
-			max = headerTTL
+		if minTTL > headerTTL {
+			minTTL = headerTTL
 		}
 	}
 
-	return time.Duration(max) * time.Second
+	return time.Duration(minTTL) * time.Second
 }
 
 func (r *CachingResolver) publishMetricsIfEnabled(event string, val interface{}) {
 	if r.emitMetricEvents {
 		evt.Bus().Publish(event, val)
 	}
+}
+
+func (r *CachingResolver) FlushCaches() {
+	r.log().Debug("flush caches")
+	r.resultCache.Clear()
 }

@@ -19,6 +19,7 @@ import (
 const (
 	A     = dns.Type(dns.TypeA)
 	AAAA  = dns.Type(dns.TypeAAAA)
+	CNAME = dns.Type(dns.TypeCNAME)
 	HTTPS = dns.Type(dns.TypeHTTPS)
 	MX    = dns.Type(dns.TypeMX)
 	PTR   = dns.Type(dns.TypePTR)

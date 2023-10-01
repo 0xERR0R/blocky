@@ -98,6 +98,9 @@ type ClientInterface interface {
 	// BlockingStatus request
 	BlockingStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CacheFlush request
+	CacheFlush(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListRefresh request
 	ListRefresh(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -133,6 +136,18 @@ func (c *Client) EnableBlocking(ctx context.Context, reqEditors ...RequestEditor
 
 func (c *Client) BlockingStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewBlockingStatusRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CacheFlush(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCacheFlushRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -298,6 +313,33 @@ func NewBlockingStatusRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewCacheFlushRequest generates requests for CacheFlush
+func NewCacheFlushRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/cache/flush")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListRefreshRequest generates requests for ListRefresh
 func NewListRefreshRequest(server string) (*http.Request, error) {
 	var err error
@@ -417,6 +459,9 @@ type ClientWithResponsesInterface interface {
 	// BlockingStatusWithResponse request
 	BlockingStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BlockingStatusResponse, error)
 
+	// CacheFlushWithResponse request
+	CacheFlushWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*CacheFlushResponse, error)
+
 	// ListRefreshWithResponse request
 	ListRefreshWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListRefreshResponse, error)
 
@@ -484,6 +529,27 @@ func (r BlockingStatusResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r BlockingStatusResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CacheFlushResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r CacheFlushResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CacheFlushResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -558,6 +624,15 @@ func (c *ClientWithResponses) BlockingStatusWithResponse(ctx context.Context, re
 		return nil, err
 	}
 	return ParseBlockingStatusResponse(rsp)
+}
+
+// CacheFlushWithResponse request returning *CacheFlushResponse
+func (c *ClientWithResponses) CacheFlushWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*CacheFlushResponse, error) {
+	rsp, err := c.CacheFlush(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCacheFlushResponse(rsp)
 }
 
 // ListRefreshWithResponse request returning *ListRefreshResponse
@@ -639,6 +714,22 @@ func ParseBlockingStatusResponse(rsp *http.Response) (*BlockingStatusResponse, e
 		}
 		response.JSON200 = &dest
 
+	}
+
+	return response, nil
+}
+
+// ParseCacheFlushResponse parses an HTTP response from a CacheFlushWithResponse call
+func ParseCacheFlushResponse(rsp *http.Response) (*CacheFlushResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CacheFlushResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
 	}
 
 	return response, nil

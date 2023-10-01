@@ -28,6 +28,10 @@ type QuerierMock struct {
 	mock.Mock
 }
 
+type CacheControlMock struct {
+	mock.Mock
+}
+
 func (m *ListRefreshMock) RefreshLists() error {
 	args := m.Called()
 
@@ -56,11 +60,16 @@ func (m *QuerierMock) Query(question string, qType dns.Type) (*model.Response, e
 	return args.Get(0).(*model.Response), args.Error(1)
 }
 
+func (m *CacheControlMock) FlushCaches() {
+	_ = m.Called()
+}
+
 var _ = Describe("API implementation tests", func() {
 	var (
 		blockingControlMock *BlockingControlMock
 		querierMock         *QuerierMock
 		listRefreshMock     *ListRefreshMock
+		cacheControlMock    *CacheControlMock
 		sut                 *OpenAPIInterfaceImpl
 	)
 
@@ -68,7 +77,8 @@ var _ = Describe("API implementation tests", func() {
 		blockingControlMock = &BlockingControlMock{}
 		querierMock = &QuerierMock{}
 		listRefreshMock = &ListRefreshMock{}
-		sut = NewOpenAPIInterfaceImpl(blockingControlMock, querierMock, listRefreshMock)
+		cacheControlMock = &CacheControlMock{}
+		sut = NewOpenAPIInterfaceImpl(blockingControlMock, querierMock, listRefreshMock, cacheControlMock)
 	})
 
 	AfterEach(func() {
@@ -210,6 +220,18 @@ var _ = Describe("API implementation tests", func() {
 				Expect(resp200.Enabled).Should(Equal(false))
 				Expect(resp200.DisabledGroups).Should(HaveValue(Equal([]string{"gr1", "gr2"})))
 				Expect(resp200.AutoEnableInSec).Should(HaveValue(BeNumerically("==", 47)))
+			})
+		})
+	})
+
+	Describe("Cache API", func() {
+		When("Cache flush is called", func() {
+			It("should return 200 on success", func() {
+				cacheControlMock.On("FlushCaches").Return()
+				resp, err := sut.CacheFlush(context.Background(), CacheFlushRequestObject{})
+				Expect(err).Should(Succeed())
+				var resp200 CacheFlush200Response
+				Expect(resp).Should(BeAssignableToTypeOf(resp200))
 			})
 		})
 	})

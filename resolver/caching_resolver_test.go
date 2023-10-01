@@ -1,9 +1,9 @@
 package resolver
 
 import (
+	"fmt"
 	"time"
 
-	"github.com/0xERR0R/blocky/cache/expirationcache"
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/evt"
 	. "github.com/0xERR0R/blocky/helpertest"
@@ -80,18 +80,15 @@ var _ = Describe("CachingResolver", func() {
 				// prepare resolver, set smaller caching times for testing
 				prefetchThreshold := 5
 				configureCaches(sut, &sutConfig)
-				sut.resultCache = expirationcache.NewCache(
-					expirationcache.WithCleanUpInterval[cacheValue](100*time.Millisecond),
-					expirationcache.WithOnExpiredFn(sut.onExpired))
 
-				domainPrefetched := make(chan string, 1)
-				prefetchHitDomain := make(chan string, 1)
+				domainPrefetched := make(chan bool, 1)
+				prefetchHitDomain := make(chan bool, 1)
 				prefetchedCnt := make(chan int, 1)
 				Expect(Bus().SubscribeOnce(CachingPrefetchCacheHit, func(domain string) {
-					prefetchHitDomain <- domain
+					prefetchHitDomain <- true
 				})).Should(Succeed())
 				Expect(Bus().SubscribeOnce(CachingDomainPrefetched, func(domain string) {
-					domainPrefetched <- domain
+					domainPrefetched <- true
 				})).Should(Succeed())
 
 				Expect(Bus().SubscribeOnce(CachingDomainsToPrefetchCountChanged, func(cnt int) {
@@ -114,7 +111,7 @@ var _ = Describe("CachingResolver", func() {
 				}
 
 				// now is this domain prefetched
-				Eventually(domainPrefetched, "4s").Should(Receive(Equal("example.com")))
+				Eventually(domainPrefetched, "10s").Should(Receive(Equal(true)))
 
 				// and it should hit from prefetch cache
 				Expect(sut.Resolve(newRequest("example.com.", A))).
@@ -124,15 +121,60 @@ var _ = Describe("CachingResolver", func() {
 							HaveReturnCode(dns.RcodeSuccess),
 							BeDNSRecord("example.com.", A, "123.122.121.120"),
 							HaveTTL(BeNumerically("<=", 2))))
-				Eventually(prefetchHitDomain, "4s").Should(Receive(Equal("example.com")))
+				Eventually(prefetchHitDomain, "10s").Should(Receive(Equal(true)))
 			})
-			When("threshold is 0", func() {
-				BeforeEach(func() {
-					sutConfig.PrefetchThreshold = 0
+		})
+		When("caching with default values is enabled", func() {
+			BeforeEach(func() {
+				rr1, err := dns.NewRR(fmt.Sprintf("%s\t%d\tIN\t%s\t%s", "example.com.", 600, A, "1.2.3.4"))
+				Expect(err).Should(Succeed())
+
+				rr2, err := dns.NewRR(fmt.Sprintf("%s\t%d\tIN\t%s\t%s", "example.com.", 950, CNAME, "cname.example.com"))
+				Expect(err).Should(Succeed())
+
+				msg := new(dns.Msg)
+				msg.Answer = []dns.RR{rr1, rr2}
+				mockAnswer = msg
+			})
+			It("should cache response and use response's TTL for multiple records", func() {
+				By("first request", func() {
+					result, err := sut.Resolve(newRequest("example.com.", A))
+					Expect(err).Should(Succeed())
+					Expect(result).
+						Should(
+							SatisfyAll(
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+								WithTransform(ToAnswer, SatisfyAll(
+									HaveLen(2),
+								)),
+							))
+
+					Expect(result.Res.Answer[0]).Should(HaveTTL(BeNumerically("==", 600)))
+					Expect(result.Res.Answer[1]).Should(HaveTTL(BeNumerically("==", 950)))
+
+					Expect(m.Calls).Should(HaveLen(1))
 				})
 
-				It("should always prefetch", func() {
-					Expect(sut.shouldPrefetch("domain.tld")).Should(BeTrue())
+				By("second request", func() {
+					Eventually(func(g Gomega) {
+						result, err := sut.Resolve(newRequest("example.com.", A))
+						g.Expect(err).Should(Succeed())
+						g.Expect(result).
+							Should(
+								SatisfyAll(
+									HaveResponseType(ResponseTypeCACHED),
+									HaveReturnCode(dns.RcodeSuccess),
+									WithTransform(ToAnswer, SatisfyAll(
+										HaveLen(2),
+									))))
+
+						g.Expect(result.Res.Answer[0]).Should(HaveTTL(BeNumerically("<=", 599)))
+						g.Expect(result.Res.Answer[1]).Should(HaveTTL(BeNumerically("<=", 949)))
+
+						// still one call to upstream
+						g.Expect(m.Calls).Should(HaveLen(1))
+					}, "1s").Should(Succeed())
 				})
 			})
 		})
@@ -149,9 +191,9 @@ var _ = Describe("CachingResolver", func() {
 
 				It("should cache response and use response's TTL", func() {
 					By("first request", func() {
-						domain := make(chan string, 1)
+						domain := make(chan bool, 1)
 						_ = Bus().SubscribeOnce(CachingResultCacheMiss, func(d string) {
-							domain <- d
+							domain <- true
 						})
 
 						totalCacheCount := make(chan int, 1)
@@ -168,15 +210,15 @@ var _ = Describe("CachingResolver", func() {
 
 						Expect(m.Calls).Should(HaveLen(1))
 
-						Expect(domain).Should(Receive(Equal("example.com")))
+						Expect(domain).Should(Receive(Equal(true)))
 						Expect(totalCacheCount).Should(Receive(Equal(1)))
 					})
 
 					By("second request", func() {
 						Eventually(func(g Gomega) {
-							domain := make(chan string, 1)
+							domain := make(chan bool, 1)
 							_ = Bus().SubscribeOnce(CachingResultCacheHit, func(d string) {
-								domain <- d
+								domain <- true
 							})
 
 							g.Expect(sut.Resolve(newRequest("example.com.", A))).
@@ -191,7 +233,7 @@ var _ = Describe("CachingResolver", func() {
 							// still one call to upstream
 							g.Expect(m.Calls).Should(HaveLen(1))
 
-							g.Expect(domain).Should(Receive(Equal("example.com")))
+							g.Expect(domain).Should(Receive(Equal(true)))
 						}, "1s").Should(Succeed())
 					})
 				})

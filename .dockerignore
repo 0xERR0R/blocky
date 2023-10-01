@@ -11,3 +11,4 @@ node_modules
 LICENSE
 vendor
 e2e/
+.devcontainer/

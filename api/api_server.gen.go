@@ -25,6 +25,9 @@ type ServerInterface interface {
 	// Blocking status
 	// (GET /blocking/status)
 	BlockingStatus(w http.ResponseWriter, r *http.Request)
+	// Clears the DNS response cache
+	// (POST /cache/flush)
+	CacheFlush(w http.ResponseWriter, r *http.Request)
 	// List refresh
 	// (POST /lists/refresh)
 	ListRefresh(w http.ResponseWriter, r *http.Request)
@@ -52,6 +55,12 @@ func (_ Unimplemented) EnableBlocking(w http.ResponseWriter, r *http.Request) {
 // Blocking status
 // (GET /blocking/status)
 func (_ Unimplemented) BlockingStatus(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Clears the DNS response cache
+// (POST /cache/flush)
+func (_ Unimplemented) CacheFlush(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -133,6 +142,21 @@ func (siw *ServerInterfaceWrapper) BlockingStatus(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.BlockingStatus(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// CacheFlush operation middleware
+func (siw *ServerInterfaceWrapper) CacheFlush(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CacheFlush(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -295,6 +319,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/blocking/status", wrapper.BlockingStatus)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/cache/flush", wrapper.CacheFlush)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/lists/refresh", wrapper.ListRefresh)
 	})
 	r.Group(func(r chi.Router) {
@@ -361,6 +388,21 @@ func (response BlockingStatus200JSONResponse) VisitBlockingStatusResponse(w http
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CacheFlushRequestObject struct {
+}
+
+type CacheFlushResponseObject interface {
+	VisitCacheFlushResponse(w http.ResponseWriter) error
+}
+
+type CacheFlush200Response struct {
+}
+
+func (response CacheFlush200Response) VisitCacheFlushResponse(w http.ResponseWriter) error {
+	w.WriteHeader(200)
+	return nil
+}
+
 type ListRefreshRequestObject struct {
 }
 
@@ -424,6 +466,9 @@ type StrictServerInterface interface {
 	// Blocking status
 	// (GET /blocking/status)
 	BlockingStatus(ctx context.Context, request BlockingStatusRequestObject) (BlockingStatusResponseObject, error)
+	// Clears the DNS response cache
+	// (POST /cache/flush)
+	CacheFlush(ctx context.Context, request CacheFlushRequestObject) (CacheFlushResponseObject, error)
 	// List refresh
 	// (POST /lists/refresh)
 	ListRefresh(ctx context.Context, request ListRefreshRequestObject) (ListRefreshResponseObject, error)
@@ -528,6 +573,30 @@ func (sh *strictHandler) BlockingStatus(w http.ResponseWriter, r *http.Request) 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(BlockingStatusResponseObject); ok {
 		if err := validResponse.VisitBlockingStatusResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CacheFlush operation middleware
+func (sh *strictHandler) CacheFlush(w http.ResponseWriter, r *http.Request) {
+	var request CacheFlushRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CacheFlush(ctx, request.(CacheFlushRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CacheFlush")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CacheFlushResponseObject); ok {
+		if err := validResponse.VisitCacheFlushResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
