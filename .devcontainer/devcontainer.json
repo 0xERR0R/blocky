@@ -2,32 +2,60 @@
   "name": "blocky development",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
   "features": {
-    "ghcr.io/devcontainers/features/go:1": {
-      "version": "1.20"
-    },
+    "ghcr.io/devcontainers/features/go:1": {},
     "ghcr.io/jungaretti/features/make:1": {},
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
-      "moby": true,
-      "installDockerBuildx": true,
-      "version": "latest",
-      "dockerDashComposeVersion": "v2"
-    }
+    "ghcr.io/kwitsch/devcontainer-features/shared-package-cache:1": {
+      "go": true,
+      "npm": false
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
   "customizations": {
     "vscode": {
       "extensions": [
         "golang.go",
         "ms-vscode.makefile-tools",
-        "DavidAnson.vscode-markdownlint",
-        "darkriszty.markdown-table-prettify",
-        "spmeesseman.vscode-taskexplorer"
+        "usernamehw.errorlens",
+        "esbenp.prettier-vscode"
       ],
       "settings": {
         "editor.tabSize": 2,
         "editor.insertSpaces": true,
         "editor.detectIndentation": false,
-        "editor.formatOnSave": true
+        "editor.formatOnSave": true,
+        "go.showWelcome": false,
+        "go.survey.prompt": false,
+        "go.useLanguageServer": true,
+        "go.formatTool": "gofumpt",
+        "go.lintTool": "golangci-lint",
+        "go.lintOnSave": "file",
+        "go.alternateTools": {
+          "go-langserver": "gopls"
+        },
+        "gopls": {
+          "ui.semanticTokens": true,
+          "formatting.gofumpt": true,
+          "build.standaloneTags": ["ignore", "tools"]
+        },
+        "[go]": {
+          "editor.defaultFormatter": "golang.go",
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": true
+          }
+        },
+        "[go.mod]": {
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": true
+          }
+        },
+        "[json][jsonc]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "errorLens.excludePatterns": ["go.{mod,sum}", "tools.go"]
       }
     }
-  }
+  },
+  "postCreateCommand": "go mod download"
 }
