@@ -1,0 +1,79 @@
+{
+  "name": "blocky development",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.21"
+    },
+    "ghcr.io/jungaretti/features/make:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "dockerDashComposeVersion": "v2"
+    },
+    "ghcr.io/devcontainers/features/python:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "ms-vscode.makefile-tools",
+        "usernamehw.errorlens",
+        "esbenp.prettier-vscode",
+        "yzhang.markdown-all-in-one"
+      ],
+      "settings": {
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true,
+        "editor.detectIndentation": false,
+        "editor.formatOnSave": true,
+        "go.showWelcome": false,
+        "go.survey.prompt": false,
+        "go.useLanguageServer": true,
+        "go.formatTool": "gofumpt",
+        "go.lintTool": "golangci-lint",
+        "go.lintOnSave": "file",
+        "go.alternateTools": {
+          "go-langserver": "gopls"
+        },
+        "gopls": {
+          "ui.semanticTokens": true,
+          "formatting.gofumpt": true,
+          "build.standaloneTags": ["ignore", "tools"]
+        },
+        "errorLens.excludePatterns": ["go.{mod,sum}", "tools.go"],
+        "[go]": {
+          "editor.defaultFormatter": "golang.go",
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": true
+          }
+        },
+        "[go.mod]": {
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": true
+          }
+        },
+        "[json][jsonc]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[markdown]": {
+          "editor.defaultFormatter": "yzhang.markdown-all-in-one",
+          "editor.unicodeHighlight.ambiguousCharacters": false,
+          "editor.unicodeHighlight.invisibleCharacters": false,
+          "diffEditor.ignoreTrimWhitespace": false,
+          "editor.wordWrap": "on",
+          "editor.quickSuggestions": {
+            "comments": "off",
+            "strings": "off",
+            "other": "off"
+          }
+        }
+      }
+    }
+  },
+  "mounts": [
+    "type=bind,readonly,source=/etc/localtime,target=/usr/share/host/localtime",
+    "type=bind,readonly,source=/etc/timezone,target=/usr/share/host/timezone"
+  ],
+  "postStartCommand": "sudo sh -c \"ln -sf /usr/share/host/localtime /etc/localtime && ln -sf /usr/share/host/timezone /etc/timezone\""
+}
