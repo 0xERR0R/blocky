@@ -44,7 +44,7 @@ require (
 	github.com/oapi-codegen/runtime v1.0.0
 	github.com/testcontainers/testcontainers-go v0.25.0
 	github.com/testcontainers/testcontainers-go/modules/mariadb v0.24.1
-	github.com/testcontainers/testcontainers-go/modules/postgres v0.24.1
+	github.com/testcontainers/testcontainers-go/modules/postgres v0.25.0
 	github.com/testcontainers/testcontainers-go/modules/redis v0.25.0
 	mvdan.cc/gofumpt v0.5.0
 )
