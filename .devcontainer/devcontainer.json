@@ -6,10 +6,6 @@
       "version": "1.21"
     },
     "ghcr.io/jungaretti/features/make:1": {},
-    "ghcr.io/kwitsch/devcontainer-features/shared-package-cache:1": {
-      "go": true,
-      "npm": false
-    },
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "dockerDashComposeVersion": "v2"
     },
