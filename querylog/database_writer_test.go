@@ -1,6 +1,7 @@
 package querylog
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -20,19 +21,26 @@ import (
 var err error
 
 var _ = Describe("DatabaseWriter", func() {
+	var (
+		ctx      context.Context
+		cancelFn context.CancelFunc
+	)
+	BeforeEach(func() {
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+	})
 	Describe("Database query log to sqlite", func() {
 		var (
 			sqliteDB gorm.Dialector
 			writer   *DatabaseWriter
 		)
-
 		BeforeEach(func() {
 			sqliteDB = sqlite.Open("file::memory:")
 		})
 
 		When("New log entry was created", func() {
 			BeforeEach(func() {
-				writer, err = newDatabaseWriter(sqliteDB, 7, time.Millisecond)
+				writer, err = newDatabaseWriter(ctx, sqliteDB, 7, time.Millisecond)
 				Expect(err).Should(Succeed())
 			})
 
@@ -78,7 +86,7 @@ var _ = Describe("DatabaseWriter", func() {
 
 		When("> 10000 Entries were created", func() {
 			BeforeEach(func() {
-				writer, err = newDatabaseWriter(sqliteDB, 7, time.Millisecond)
+				writer, err = newDatabaseWriter(ctx, sqliteDB, 7, time.Millisecond)
 				Expect(err).Should(Succeed())
 			})
 
@@ -109,7 +117,7 @@ var _ = Describe("DatabaseWriter", func() {
 
 		When("There are log entries with timestamp exceeding the retention period", func() {
 			BeforeEach(func() {
-				writer, err = newDatabaseWriter(sqliteDB, 1, time.Millisecond)
+				writer, err = newDatabaseWriter(ctx, sqliteDB, 1, time.Millisecond)
 				Expect(err).Should(Succeed())
 			})
 
@@ -157,7 +165,7 @@ var _ = Describe("DatabaseWriter", func() {
 	Describe("Database query log fails", func() {
 		When("mysql connection parameters wrong", func() {
 			It("should be log with fatal", func() {
-				_, err := NewDatabaseWriter("mysql", "wrong param", 7, 1)
+				_, err := NewDatabaseWriter(ctx, "mysql", "wrong param", 7, 1)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(HavePrefix("can't create database connection"))
 			})
@@ -165,7 +173,7 @@ var _ = Describe("DatabaseWriter", func() {
 
 		When("postgresql connection parameters wrong", func() {
 			It("should be log with fatal", func() {
-				_, err := NewDatabaseWriter("postgresql", "wrong param", 7, 1)
+				_, err := NewDatabaseWriter(ctx, "postgresql", "wrong param", 7, 1)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(HavePrefix("can't create database connection"))
 			})
@@ -173,7 +181,7 @@ var _ = Describe("DatabaseWriter", func() {
 
 		When("invalid database type is specified", func() {
 			It("should be log with fatal", func() {
-				_, err := NewDatabaseWriter("invalidsql", "", 7, 1)
+				_, err := NewDatabaseWriter(ctx, "invalidsql", "", 7, 1)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(HavePrefix("incorrect database type provided"))
 			})
@@ -220,7 +228,7 @@ var _ = Describe("DatabaseWriter", func() {
 					mock.ExpectExec(`ALTER TABLE log_entries ADD column if not exists id serial primary key`).WillReturnResult(sqlmock.NewResult(0, 0))
 				})
 
-				_, err = newDatabaseWriter(dlc, 1, time.Millisecond)
+				_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond)
 				Expect(err).Should(Succeed())
 			})
 		})
@@ -252,7 +260,7 @@ var _ = Describe("DatabaseWriter", func() {
 						mock.ExpectExec("ALTER TABLE `log_entries` ADD `id` INT PRIMARY KEY AUTO_INCREMENT").WillReturnResult(sqlmock.NewResult(0, 0))
 					})
 
-					_, err = newDatabaseWriter(dlc, 1, time.Millisecond)
+					_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond)
 					Expect(err).Should(Succeed())
 				})
 			})
@@ -268,7 +276,7 @@ var _ = Describe("DatabaseWriter", func() {
 						mock.ExpectExec("ALTER TABLE `log_entries` ADD `id` INT PRIMARY KEY AUTO_INCREMENT").WillReturnError(fmt.Errorf("error 1060: duplicate column name"))
 					})
 
-					_, err = newDatabaseWriter(dlc, 1, time.Millisecond)
+					_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond)
 					Expect(err).Should(Succeed())
 				})
 
@@ -281,7 +289,7 @@ var _ = Describe("DatabaseWriter", func() {
 						mock.ExpectExec("ALTER TABLE `log_entries` ADD `id` INT PRIMARY KEY AUTO_INCREMENT").WillReturnError(fmt.Errorf("error XXX: some index error"))
 					})
 
-					_, err = newDatabaseWriter(dlc, 1, time.Millisecond)
+					_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond)
 					Expect(err).Should(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("can't perform auto migration: error XXX: some index error"))
 				})
@@ -293,7 +301,7 @@ var _ = Describe("DatabaseWriter", func() {
 						mock.ExpectExec("CREATE TABLE `log_entries`").WillReturnError(fmt.Errorf("error XXX: some db error"))
 					})
 
-					_, err = newDatabaseWriter(dlc, 1, time.Millisecond)
+					_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond)
 					Expect(err).Should(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("can't perform auto migration: error XXX: some db error"))
 				})

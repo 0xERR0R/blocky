@@ -1,6 +1,7 @@
 package lists
 
 import (
+	"context"
 	"testing"
 
 	"github.com/0xERR0R/blocky/config"
@@ -19,7 +20,7 @@ func BenchmarkRefresh(b *testing.B) {
 		RefreshPeriod: config.Duration(-1),
 	}
 	downloader := NewDownloader(config.DownloaderConfig{}, nil)
-	cache, _ := NewListCache(ListCacheTypeBlacklist, cfg, lists, downloader)
+	cache, _ := NewListCache(context.Background(), ListCacheTypeBlacklist, cfg, lists, downloader)
 
 	b.ReportAllocs()
 

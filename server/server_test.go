@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"io"
 	"net"
@@ -32,6 +33,8 @@ var (
 
 var _ = BeforeSuite(func() {
 	var upstreamGoogle, upstreamFritzbox, upstreamClient config.Upstream
+	ctx, cancelFn := context.WithCancel(context.Background())
+	DeferCleanup(cancelFn)
 	googleMockUpstream := resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 		if request.Question[0].Name == "error." {
 			return nil
@@ -102,7 +105,7 @@ var _ = BeforeSuite(func() {
 	Expect(youtubeFile.Error).Should(Succeed())
 
 	// create server
-	sut, err = NewServer(&config.Config{
+	sut, err = NewServer(ctx, &config.Config{
 		CustomDNS: config.CustomDNSConfig{
 			CustomTTL: config.Duration(3600 * time.Second),
 			Mapping: config.CustomDNSMapping{
@@ -169,7 +172,7 @@ var _ = BeforeSuite(func() {
 
 	// start server
 	go func() {
-		sut.Start(errChan)
+		sut.Start(ctx, errChan)
 	}()
 	DeferCleanup(sut.Stop)
 
@@ -177,6 +180,14 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = Describe("Running DNS server", func() {
+	var (
+		ctx      context.Context
+		cancelFn context.CancelFunc
+	)
+	BeforeEach(func() {
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+	})
 	Describe("performing DNS request with running server", func() {
 		BeforeEach(func() {
 			mockClientName.Store("")
@@ -555,14 +566,14 @@ var _ = Describe("Running DNS server", func() {
 		})
 		When("Server is created", func() {
 			It("is created without redis connection", func() {
-				_, err := NewServer(&cfg)
+				_, err := NewServer(ctx, &cfg)
 
 				Expect(err).Should(Succeed())
 			})
 			It("can't be created if redis server is unavailable", func() {
 				cfg.Redis.Required = true
 
-				_, err := NewServer(&cfg)
+				_, err := NewServer(ctx, &cfg)
 
 				Expect(err).ShouldNot(Succeed())
 			})
@@ -573,7 +584,7 @@ var _ = Describe("Running DNS server", func() {
 		When("Server start is called", func() {
 			It("start was called 2 times, start should fail", func() {
 				// create server
-				server, err := NewServer(&config.Config{
+				server, err := NewServer(ctx, &config.Config{
 					Upstreams: config.UpstreamsConfig{
 						Groups: map[string][]config.Upstream{
 							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}},
@@ -598,14 +609,14 @@ var _ = Describe("Running DNS server", func() {
 				errChan := make(chan error, 10)
 
 				// start server
-				go server.Start(errChan)
+				go server.Start(ctx, errChan)
 
 				DeferCleanup(server.Stop)
 
 				Consistently(errChan, "1s").ShouldNot(Receive())
 
 				// start again -> should fail
-				server.Start(errChan)
+				server.Start(ctx, errChan)
 
 				Eventually(errChan).Should(Receive())
 			})
@@ -615,7 +626,7 @@ var _ = Describe("Running DNS server", func() {
 		When("Stop is called", func() {
 			It("stop was called 2 times, start should fail", func() {
 				// create server
-				server, err := NewServer(&config.Config{
+				server, err := NewServer(ctx, &config.Config{
 					Upstreams: config.UpstreamsConfig{
 						Groups: map[string][]config.Upstream{
 							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}},
@@ -641,7 +652,7 @@ var _ = Describe("Running DNS server", func() {
 
 				// start server
 				go func() {
-					server.Start(errChan)
+					server.Start(ctx, errChan)
 				}()
 
 				time.Sleep(100 * time.Millisecond)
@@ -681,7 +692,7 @@ var _ = Describe("Running DNS server", func() {
 	Describe("create query resolver", func() {
 		When("some upstream returns error", func() {
 			It("create query resolver should return error", func() {
-				r, err := createQueryResolver(&config.Config{
+				r, err := createQueryResolver(ctx, &config.Config{
 					StartVerifyUpstream: true,
 					Upstreams: config.UpstreamsConfig{
 						Groups: config.UpstreamGroups{
@@ -736,8 +747,7 @@ var _ = Describe("Running DNS server", func() {
 			cfg.Ports = config.PortsConfig{
 				HTTPS: []string{":14443"},
 			}
-
-			sut, err := NewServer(&cfg)
+			sut, err := NewServer(ctx, &cfg)
 			Expect(err).Should(Succeed())
 			Expect(sut.cert.Certificate).ShouldNot(BeNil())
 		})

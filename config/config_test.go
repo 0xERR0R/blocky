@@ -688,6 +688,14 @@ bootstrapDns:
 	})
 
 	Describe("SourceLoadingConfig", func() {
+		var (
+			ctx      context.Context
+			cancelFn context.CancelFunc
+		)
+		BeforeEach(func() {
+			ctx, cancelFn = context.WithCancel(context.Background())
+			DeferCleanup(cancelFn)
+		})
 		It("handles panics", func() {
 			sut := SourceLoadingConfig{
 				Strategy: StartStrategyTypeFailOnError,
@@ -695,7 +703,7 @@ bootstrapDns:
 
 			panicMsg := "panic value"
 
-			err := sut.StartPeriodicRefresh(func(context.Context) error {
+			err := sut.StartPeriodicRefresh(ctx, func(context.Context) error {
 				panic(panicMsg)
 			}, func(err error) {
 				Expect(err).Should(MatchError(ContainSubstring(panicMsg)))
@@ -715,7 +723,7 @@ bootstrapDns:
 
 			var call atomic.Int32
 
-			err := sut.StartPeriodicRefresh(func(context.Context) error {
+			err := sut.StartPeriodicRefresh(ctx, func(context.Context) error {
 				call := call.Add(1)
 				calls <- call
 

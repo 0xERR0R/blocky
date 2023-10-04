@@ -118,10 +118,10 @@ func autoAnswer(qType dns.Type, qName string) (*dns.Msg, error) {
 }
 
 // newTestBootstrap creates a test Bootstrap
-func newTestBootstrap(response *dns.Msg) *Bootstrap {
+func newTestBootstrap(ctx context.Context, response *dns.Msg) *Bootstrap {
 	bootstrapUpstream := &mockResolver{}
 
-	b, err := NewBootstrap(&config.Config{})
+	b, err := NewBootstrap(ctx, &config.Config{})
 	util.FatalOnError("can't create bootstrap", err)
 
 	b.resolver = bootstrapUpstream

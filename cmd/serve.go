@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -43,15 +44,19 @@ func startServer(_ *cobra.Command, _ []string) error {
 
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
-	srv, err := server.NewServer(cfg)
+	ctx, cancelFn := context.WithCancel(context.Background())
+
+	srv, err := server.NewServer(ctx, cfg)
 	if err != nil {
+		cancelFn()
+
 		return fmt.Errorf("can't start server: %w", err)
 	}
 
 	const errChanSize = 10
 	errChan := make(chan error, errChanSize)
 
-	srv.Start(errChan)
+	srv.Start(ctx, errChan)
 
 	var terminationErr error
 
@@ -71,6 +76,8 @@ func startServer(_ *cobra.Command, _ []string) error {
 
 	evt.Bus().Publish(evt.ApplicationStarted, util.Version, util.BuildTime)
 	<-done
+
+	cancelFn()
 
 	return terminationErr
 }

@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -29,7 +30,7 @@ type QueryLoggingResolver struct {
 }
 
 // NewQueryLoggingResolver returns a new resolver instance
-func NewQueryLoggingResolver(cfg config.QueryLogConfig) *QueryLoggingResolver {
+func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLogConfig) *QueryLoggingResolver {
 	logger := log.PrefixedLog(queryLoggingResolverType)
 
 	var writer querylog.Writer
@@ -43,10 +44,10 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) *QueryLoggingResolver {
 			case config.QueryLogTypeCsvClient:
 				writer, err = querylog.NewCSVWriter(cfg.Target, true, cfg.LogRetentionDays)
 			case config.QueryLogTypeMysql:
-				writer, err = querylog.NewDatabaseWriter("mysql", cfg.Target, cfg.LogRetentionDays,
+				writer, err = querylog.NewDatabaseWriter(ctx, "mysql", cfg.Target, cfg.LogRetentionDays,
 					cfg.FlushInterval.ToDuration())
 			case config.QueryLogTypePostgresql:
-				writer, err = querylog.NewDatabaseWriter("postgresql", cfg.Target, cfg.LogRetentionDays,
+				writer, err = querylog.NewDatabaseWriter(ctx, "postgresql", cfg.Target, cfg.LogRetentionDays,
 					cfg.FlushInterval.ToDuration())
 			case config.QueryLogTypeConsole:
 				writer = querylog.NewLoggerWriter()
@@ -81,23 +82,27 @@ func NewQueryLoggingResolver(cfg config.QueryLogConfig) *QueryLoggingResolver {
 		writer:  writer,
 	}
 
-	go resolver.writeLog()
+	go resolver.writeLog(ctx)
 
 	if cfg.LogRetentionDays > 0 {
-		go resolver.periodicCleanUp()
+		go resolver.periodicCleanUp(ctx)
 	}
 
 	return &resolver
 }
 
 // triggers periodically cleanup of old log files
-func (r *QueryLoggingResolver) periodicCleanUp() {
+func (r *QueryLoggingResolver) periodicCleanUp(ctx context.Context) {
 	ticker := time.NewTicker(cleanUpRunPeriod)
 	defer ticker.Stop()
 
 	for {
-		<-ticker.C
-		r.doCleanUp()
+		select {
+		case <-ticker.C:
+			r.doCleanUp()
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
@@ -164,18 +169,23 @@ func (r *QueryLoggingResolver) createLogEntry(request *model.Request, response *
 }
 
 // write entry: if log directory is configured, write to log file
-func (r *QueryLoggingResolver) writeLog() {
-	for logEntry := range r.logChan {
-		start := time.Now()
+func (r *QueryLoggingResolver) writeLog(ctx context.Context) {
+	for {
+		select {
+		case logEntry := <-r.logChan:
+			start := time.Now()
 
-		r.writer.Write(logEntry)
+			r.writer.Write(logEntry)
 
-		halfCap := cap(r.logChan) / 2 //nolint:gomnd
+			halfCap := cap(r.logChan) / 2 //nolint:gomnd
 
-		// if log channel is > 50% full, this could be a problem with slow writer (external storage over network etc.)
-		if len(r.logChan) > halfCap {
-			r.log().WithField("channel_len",
-				len(r.logChan)).Warnf("query log writer is too slow, write duration: %d ms", time.Since(start).Milliseconds())
+			// if log channel is > 50% full, this could be a problem with slow writer (external storage over network etc.)
+			if len(r.logChan) > halfCap {
+				r.log().WithField("channel_len",
+					len(r.logChan)).Warnf("query log writer is too slow, write duration: %d ms", time.Since(start).Milliseconds())
+			}
+		case <-ctx.Done():
+			return
 		}
 	}
 }
