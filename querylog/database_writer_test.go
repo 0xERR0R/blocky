@@ -34,6 +34,14 @@ var _ = Describe("DatabaseWriter", func() {
 			BeforeEach(func() {
 				writer, err = newDatabaseWriter(sqliteDB, 7, time.Millisecond)
 				Expect(err).Should(Succeed())
+
+				db, err := writer.db.DB()
+				Expect(err).Should(Succeed())
+				// sometimes db migration takes some time to makes changes visible to other db sessions
+				// this leads in sporadic errors -> first query log write attempt fails because db table does not exist
+				// to avoid it, use only 1 connection for test
+				db.SetMaxOpenConns(1)
+				DeferCleanup(db.Close)
 			})
 
 			It("should be persisted in the database", func() {
@@ -48,9 +56,6 @@ var _ = Describe("DatabaseWriter", func() {
 					Start:      time.Now().AddDate(0, 0, -2),
 					DurationMs: 20,
 				})
-
-				// force write
-				Expect(writer.doDBWrite()).Should(Succeed())
 
 				// 2 entries in the database
 				Eventually(func() int64 {
