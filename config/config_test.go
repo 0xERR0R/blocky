@@ -711,7 +711,7 @@ bootstrapDns:
 			}
 
 			panicMsg := "panic value"
-			calls := make(chan int32)
+			calls := make(chan int32, 3)
 
 			var call atomic.Int32
 
