@@ -4,13 +4,10 @@
   "features": {
     "ghcr.io/devcontainers/features/go:1": {},
     "ghcr.io/jungaretti/features/make:1": {},
-    "ghcr.io/kwitsch/devcontainer-features/shared-package-cache:1": {
-      "go": true,
-      "npm": false
-    },
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "dockerDashComposeVersion": "v2"
-    }
+    },
+    "ghcr.io/devcontainers/features/python:1": {}
   },
   "customizations": {
     "vscode": {
@@ -73,4 +70,9 @@
     }
   },
   "postCreateCommand": "go mod download"
+  "mounts": [
+    "type=bind,readonly,source=/etc/localtime,target=/usr/share/host/localtime",
+    "type=bind,readonly,source=/etc/timezone,target=/usr/share/host/timezone"
+  ],
+  "postStartCommand": "sudo sh -c \"ln -sf /usr/share/host/localtime /etc/localtime && ln -sf /usr/share/host/timezone /etc/timezone\""
 }
