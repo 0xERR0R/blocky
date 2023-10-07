@@ -45,11 +45,10 @@ func startServer(_ *cobra.Command, _ []string) error {
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	ctx, cancelFn := context.WithCancel(context.Background())
+	defer cancelFn()
 
 	srv, err := server.NewServer(ctx, cfg)
 	if err != nil {
-		cancelFn()
-
 		return fmt.Errorf("can't start server: %w", err)
 	}
 
@@ -76,8 +75,6 @@ func startServer(_ *cobra.Command, _ []string) error {
 
 	evt.Bus().Publish(evt.ApplicationStarted, util.Version, util.BuildTime)
 	<-done
-
-	cancelFn()
 
 	return terminationErr
 }
