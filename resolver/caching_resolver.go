@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sync/atomic"
@@ -35,11 +36,18 @@ type CachingResolver struct {
 }
 
 // NewCachingResolver creates a new resolver instance
-func NewCachingResolver(cfg config.CachingConfig, redis *redis.Client) *CachingResolver {
-	return newCachingResolver(cfg, redis, true)
+func NewCachingResolver(ctx context.Context,
+	cfg config.CachingConfig,
+	redis *redis.Client,
+) *CachingResolver {
+	return newCachingResolver(ctx, cfg, redis, true)
 }
 
-func newCachingResolver(cfg config.CachingConfig, redis *redis.Client, emitMetricEvents bool) *CachingResolver {
+func newCachingResolver(ctx context.Context,
+	cfg config.CachingConfig,
+	redis *redis.Client,
+	emitMetricEvents bool,
+) *CachingResolver {
 	c := &CachingResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("caching"),
@@ -48,17 +56,17 @@ func newCachingResolver(cfg config.CachingConfig, redis *redis.Client, emitMetri
 		emitMetricEvents: emitMetricEvents,
 	}
 
-	configureCaches(c, &cfg)
+	configureCaches(ctx, c, &cfg)
 
 	if c.redisClient != nil {
-		setupRedisCacheSubscriber(c)
+		setupRedisCacheSubscriber(ctx, c)
 		c.redisClient.GetRedisCache()
 	}
 
 	return c
 }
 
-func configureCaches(c *CachingResolver, cfg *config.CachingConfig) {
+func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.CachingConfig) {
 	options := expirationcache.Options{
 		CleanupInterval: defaultCachingCleanUpInterval,
 		MaxSize:         uint(cfg.MaxItemsCount),
@@ -91,9 +99,9 @@ func configureCaches(c *CachingResolver, cfg *config.CachingConfig) {
 			},
 		}
 
-		c.resultCache = expirationcache.NewPrefetchingCache(prefetchingOptions)
+		c.resultCache = expirationcache.NewPrefetchingCache(ctx, prefetchingOptions)
 	} else {
-		c.resultCache = expirationcache.NewCache[dns.Msg](options)
+		c.resultCache = expirationcache.NewCache[dns.Msg](ctx, options)
 	}
 }
 
@@ -117,13 +125,19 @@ func (r *CachingResolver) reloadCacheEntry(cacheKey string) (*dns.Msg, time.Dura
 	return nil, 0
 }
 
-func setupRedisCacheSubscriber(c *CachingResolver) {
+func setupRedisCacheSubscriber(ctx context.Context, c *CachingResolver) {
 	go func() {
-		for rc := range c.redisClient.CacheChannel {
-			if rc != nil {
-				c.log().Debug("Received key from redis: ", rc.Key)
-				ttl := c.adjustTTLs(rc.Response.Res.Answer)
-				c.putInCache(rc.Key, rc.Response, ttl, false)
+		for {
+			select {
+			case rc := <-c.redisClient.CacheChannel:
+				if rc != nil {
+					c.log().Debug("Received key from redis: ", rc.Key)
+					ttl := c.adjustTTLs(rc.Response.Res.Answer)
+					c.putInCache(rc.Key, rc.Response, ttl, false)
+				}
+
+			case <-ctx.Done():
+				return
 			}
 		}
 	}()

@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sort"
@@ -110,8 +111,10 @@ func clientGroupsBlock(cfg config.BlockingConfig) map[string][]string {
 }
 
 // NewBlockingResolver returns a new configured instance of the resolver
-func NewBlockingResolver(
-	cfg config.BlockingConfig, redis *redis.Client, bootstrap *Bootstrap,
+func NewBlockingResolver(ctx context.Context,
+	cfg config.BlockingConfig,
+	redis *redis.Client,
+	bootstrap *Bootstrap,
 ) (r *BlockingResolver, err error) {
 	blockHandler, err := createBlockHandler(cfg)
 	if err != nil {
@@ -120,8 +123,10 @@ func NewBlockingResolver(
 
 	downloader := lists.NewDownloader(cfg.Loading.Downloads, bootstrap.NewHTTPTransport())
 
-	blacklistMatcher, blErr := lists.NewListCache(lists.ListCacheTypeBlacklist, cfg.Loading, cfg.BlackLists, downloader)
-	whitelistMatcher, wlErr := lists.NewListCache(lists.ListCacheTypeWhitelist, cfg.Loading, cfg.WhiteLists, downloader)
+	blacklistMatcher, blErr := lists.NewListCache(ctx, lists.ListCacheTypeBlacklist,
+		cfg.Loading, cfg.BlackLists, downloader)
+	whitelistMatcher, wlErr := lists.NewListCache(ctx, lists.ListCacheTypeWhitelist,
+		cfg.Loading, cfg.WhiteLists, downloader)
 	whitelistOnlyGroups := determineWhitelistOnlyGroups(&cfg)
 
 	err = multierror.Append(err, blErr, wlErr).ErrorOrNil()
@@ -145,14 +150,14 @@ func NewBlockingResolver(
 		redisClient:       redis,
 	}
 
-	res.fqdnIPCache = expirationcache.NewCacheWithOnExpired[[]net.IP](expirationcache.Options{
+	res.fqdnIPCache = expirationcache.NewCacheWithOnExpired[[]net.IP](ctx, expirationcache.Options{
 		CleanupInterval: defaultBlockingCleanUpInterval,
 	}, func(key string) (val *[]net.IP, ttl time.Duration) {
 		return res.queryForFQIdentifierIPs(key)
 	})
 
 	if res.redisClient != nil {
-		setupRedisEnabledSubscriber(res)
+		setupRedisEnabledSubscriber(ctx, res)
 	}
 
 	err = evt.Bus().SubscribeOnce(evt.ApplicationStarted, func(_ ...string) {
@@ -166,20 +171,26 @@ func NewBlockingResolver(
 	return res, nil
 }
 
-func setupRedisEnabledSubscriber(c *BlockingResolver) {
+func setupRedisEnabledSubscriber(ctx context.Context, c *BlockingResolver) {
 	go func() {
-		for em := range c.redisClient.EnabledChannel {
-			if em != nil {
-				c.log().Debug("Received state from redis: ", em)
+		for {
+			select {
+			case em := <-c.redisClient.EnabledChannel:
+				if em != nil {
+					c.log().Debug("Received state from redis: ", em)
 
-				if em.State {
-					c.internalEnableBlocking()
-				} else {
-					err := c.internalDisableBlocking(em.Duration, em.Groups)
-					if err != nil {
-						c.log().Warn("Blocking couldn't be disabled:", err)
+					if em.State {
+						c.internalEnableBlocking()
+					} else {
+						err := c.internalDisableBlocking(em.Duration, em.Groups)
+						if err != nil {
+							c.log().Warn("Blocking couldn't be disabled:", err)
+						}
 					}
 				}
+
+			case <-ctx.Done():
+				return
 			}
 		}
 	}()

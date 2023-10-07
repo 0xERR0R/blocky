@@ -34,7 +34,10 @@ type HostsFileResolver struct {
 	downloader lists.FileDownloader
 }
 
-func NewHostsFileResolver(cfg config.HostsFileConfig, bootstrap *Bootstrap) (*HostsFileResolver, error) {
+func NewHostsFileResolver(ctx context.Context,
+	cfg config.HostsFileConfig,
+	bootstrap *Bootstrap,
+) (*HostsFileResolver, error) {
 	r := HostsFileResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("hosts_file"),
@@ -42,7 +45,7 @@ func NewHostsFileResolver(cfg config.HostsFileConfig, bootstrap *Bootstrap) (*Ho
 		downloader: lists.NewDownloader(cfg.Loading.Downloads, bootstrap.NewHTTPTransport()),
 	}
 
-	err := cfg.Loading.StartPeriodicRefresh(r.loadSources, func(err error) {
+	err := cfg.Loading.StartPeriodicRefresh(ctx, r.loadSources, func(err error) {
 		r.log().WithError(err).Errorf("could not load hosts files")
 	})
 	if err != nil {

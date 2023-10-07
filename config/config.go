@@ -314,7 +314,10 @@ func (c *SourceLoadingConfig) LogConfig(logger *logrus.Entry) {
 	log.WithIndent(logger, "  ", c.Downloads.LogConfig)
 }
 
-func (c *SourceLoadingConfig) StartPeriodicRefresh(refresh func(context.Context) error, logErr func(error)) error {
+func (c *SourceLoadingConfig) StartPeriodicRefresh(ctx context.Context,
+	refresh func(context.Context) error,
+	logErr func(error),
+) error {
 	refreshAndRecover := func(ctx context.Context) (rerr error) {
 		defer func() {
 			if val := recover(); val != nil {
@@ -331,20 +334,29 @@ func (c *SourceLoadingConfig) StartPeriodicRefresh(refresh func(context.Context)
 	}
 
 	if c.RefreshPeriod > 0 {
-		go c.periodically(refreshAndRecover, logErr)
+		go c.periodically(ctx, refreshAndRecover, logErr)
 	}
 
 	return nil
 }
 
-func (c *SourceLoadingConfig) periodically(refresh func(context.Context) error, logErr func(error)) {
+func (c *SourceLoadingConfig) periodically(ctx context.Context,
+	refresh func(context.Context) error,
+	logErr func(error),
+) {
 	ticker := time.NewTicker(c.RefreshPeriod.ToDuration())
 	defer ticker.Stop()
 
-	for range ticker.C {
-		err := refresh(context.Background())
-		if err != nil {
-			logErr(err)
+	for {
+		select {
+		case <-ticker.C:
+			err := refresh(ctx)
+			if err != nil {
+				logErr(err)
+			}
+
+		case <-ctx.Done():
+			return
 		}
 	}
 }

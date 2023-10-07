@@ -36,10 +36,15 @@ var _ = Describe("ListCache", func() {
 		lists          map[string][]config.BytesSource
 		downloader     FileDownloader
 		mockDownloader *MockDownloader
+		ctx            context.Context
+		cancelFn       context.CancelFunc
 	)
 
 	BeforeEach(func() {
 		var err error
+
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
 
 		listCacheType = ListCacheTypeBlacklist
 
@@ -84,7 +89,7 @@ var _ = Describe("ListCache", func() {
 			downloader = mockDownloader
 		}
 
-		sut, err = NewListCache(listCacheType, sutConfig, lists, downloader)
+		sut, err = NewListCache(ctx, listCacheType, sutConfig, lists, downloader)
 		Expect(err).Should(Succeed())
 	})
 
@@ -304,7 +309,7 @@ var _ = Describe("ListCache", func() {
 					"gr1": config.NewBytesSources(file1, file2, file3),
 				}
 
-				sut, err := NewListCache(ListCacheTypeBlacklist, sutConfig, lists, downloader)
+				sut, err := NewListCache(ctx, ListCacheTypeBlacklist, sutConfig, lists, downloader)
 				Expect(err).Should(Succeed())
 
 				Expect(sut.groupedCache.ElementCount("gr1")).Should(Equal(lines1 + lines2 + lines3))
@@ -359,7 +364,7 @@ var _ = Describe("ListCache", func() {
 					},
 				}
 
-				_, err := NewListCache(ListCacheTypeBlacklist, sutConfig, lists, downloader)
+				_, err := NewListCache(ctx, ListCacheTypeBlacklist, sutConfig, lists, downloader)
 				Expect(err).ShouldNot(Succeed())
 				Expect(err).Should(MatchError(parsers.ErrTooManyErrors))
 			})
@@ -408,7 +413,7 @@ var _ = Describe("ListCache", func() {
 				"gr2": {config.TextBytesSource("inline", "definition")},
 			}
 
-			sut, err := NewListCache(ListCacheTypeBlacklist, sutConfig, lists, downloader)
+			sut, err := NewListCache(ctx, ListCacheTypeBlacklist, sutConfig, lists, downloader)
 			Expect(err).Should(Succeed())
 
 			sut.LogConfig(logger)
@@ -430,7 +435,7 @@ var _ = Describe("ListCache", func() {
 					"gr1": config.NewBytesSources("doesnotexist"),
 				}
 
-				_, err := NewListCache(ListCacheTypeBlacklist, sutConfig, lists, downloader)
+				_, err := NewListCache(ctx, ListCacheTypeBlacklist, sutConfig, lists, downloader)
 				Expect(err).Should(Succeed())
 			})
 		})

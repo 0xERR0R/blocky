@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"context"
+
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
@@ -184,7 +186,9 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 
 	When("upstream is invalid", func() {
 		It("errors during construction", func() {
-			b := newTestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
+			ctx, cancelFn := context.WithCancel(context.Background())
+			DeferCleanup(cancelFn)
+			b := newTestBootstrap(ctx, &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
 			r, err := NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{
 				Mapping: config.ConditionalUpstreamMapping{

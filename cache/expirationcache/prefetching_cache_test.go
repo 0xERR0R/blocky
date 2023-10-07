@@ -1,6 +1,7 @@
 package expirationcache
 
 import (
+	"context"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -8,21 +9,29 @@ import (
 )
 
 var _ = Describe("Prefetching expiration cache", func() {
+	var (
+		ctx      context.Context
+		cancelFn context.CancelFunc
+	)
+	BeforeEach(func() {
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+	})
 	Describe("Basic operations", func() {
 		When("string cache was created", func() {
 			It("Initial cache should be empty", func() {
-				cache := NewPrefetchingCache[string](PrefetchingOptions[string]{})
+				cache := NewPrefetchingCache[string](ctx, PrefetchingOptions[string]{})
 				Expect(cache.TotalCount()).Should(Equal(0))
 			})
 			It("Initial cache should not contain any elements", func() {
-				cache := NewPrefetchingCache[string](PrefetchingOptions[string]{})
+				cache := NewPrefetchingCache[string](ctx, PrefetchingOptions[string]{})
 				val, expiration := cache.Get("key1")
 				Expect(val).Should(BeNil())
 				Expect(expiration).Should(Equal(time.Duration(0)))
 			})
 
 			It("Should work as cache (basic operations)", func() {
-				cache := NewPrefetchingCache[string](PrefetchingOptions[string]{})
+				cache := NewPrefetchingCache[string](ctx, PrefetchingOptions[string]{})
 				v := "v1"
 				cache.Put("key1", &v, 50*time.Millisecond)
 
@@ -39,7 +48,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 		})
 		Context("Prefetching", func() {
 			It("Should prefetch element", func() {
-				cache := NewPrefetchingCache[string](PrefetchingOptions[string]{
+				cache := NewPrefetchingCache[string](ctx, PrefetchingOptions[string]{
 					Options: Options{
 						CleanupInterval: 100 * time.Millisecond,
 					},
@@ -71,7 +80,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 				})
 			})
 			It("Should not prefetch element", func() {
-				cache := NewPrefetchingCache[string](PrefetchingOptions[string]{
+				cache := NewPrefetchingCache[string](ctx, PrefetchingOptions[string]{
 					Options: Options{
 						CleanupInterval: 100 * time.Millisecond,
 					},
@@ -100,7 +109,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 				})
 			})
 			It("With default config (threshold = 0) should always prefetch", func() {
-				cache := NewPrefetchingCache[string](PrefetchingOptions[string]{
+				cache := NewPrefetchingCache[string](ctx, PrefetchingOptions[string]{
 					Options: Options{
 						CleanupInterval: 100 * time.Millisecond,
 					},
@@ -128,7 +137,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 				onPrefetchAfterPutChannel := make(chan int, 10)
 				onPrefetchEntryReloaded := make(chan string, 10)
 				onnPrefetchCacheHit := make(chan string, 10)
-				cache := NewPrefetchingCache[string](PrefetchingOptions[string]{
+				cache := NewPrefetchingCache[string](ctx, PrefetchingOptions[string]{
 					Options: Options{
 						CleanupInterval: 100 * time.Millisecond,
 					},

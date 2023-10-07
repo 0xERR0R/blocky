@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -50,6 +51,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		sutConfig  config.BlockingConfig
 		m          *mockResolver
 		mockAnswer *dns.Msg
+		ctx        context.Context
+		cancelFn   context.CancelFunc
 	)
 
 	Describe("Type", func() {
@@ -59,6 +62,9 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 	})
 
 	BeforeEach(func() {
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+
 		sutConfig = config.BlockingConfig{
 			BlockType: "ZEROIP",
 			BlockTTL:  config.Duration(time.Minute),
@@ -72,7 +78,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
-		sut, err = NewBlockingResolver(sutConfig, nil, systemResolverBootstrap)
+
+		sut, err = NewBlockingResolver(ctx, sutConfig, nil, systemResolverBootstrap)
 		Expect(err).Should(Succeed())
 		sut.Next(m)
 	})
@@ -113,7 +120,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				Expect(err).Should(Succeed())
 
 				// recreate to trigger a reload
-				sut, err = NewBlockingResolver(sutConfig, nil, systemResolverBootstrap)
+				sut, err = NewBlockingResolver(ctx, sutConfig, nil, systemResolverBootstrap)
 				Expect(err).Should(Succeed())
 
 				Eventually(groupCnt, "1s").Should(HaveLen(2))
@@ -1111,7 +1118,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 	Describe("Create resolver with wrong parameter", func() {
 		When("Wrong blockType is used", func() {
 			It("should return error", func() {
-				_, err := NewBlockingResolver(config.BlockingConfig{
+				_, err := NewBlockingResolver(ctx, config.BlockingConfig{
 					BlockType: "wrong",
 				}, nil, systemResolverBootstrap)
 
@@ -1121,7 +1128,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 		When("strategy is failOnError", func() {
 			It("should fail if lists can't be downloaded", func() {
-				_, err := NewBlockingResolver(config.BlockingConfig{
+				_, err := NewBlockingResolver(ctx, config.BlockingConfig{
 					BlackLists: map[string][]config.BytesSource{"gr1": config.NewBytesSources("wrongPath")},
 					WhiteLists: map[string][]config.BytesSource{"whitelist": config.NewBytesSources("wrongPath")},
 					Loading:    config.SourceLoadingConfig{Strategy: config.StartStrategyTypeFailOnError},
@@ -1155,7 +1162,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				BlockTTL:  config.Duration(time.Minute),
 			}
 
-			sut, err = NewBlockingResolver(sutConfig, redisClient, systemResolverBootstrap)
+			sut, err = NewBlockingResolver(ctx, sutConfig, redisClient, systemResolverBootstrap)
 			Expect(err).Should(Succeed())
 		})
 		JustAfterEach(func() {
