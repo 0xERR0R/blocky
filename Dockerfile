@@ -52,7 +52,7 @@ LABEL org.opencontainers.image.title="blocky" \
   org.opencontainers.image.description="Fast and lightweight DNS proxy as ad-blocker for local network with many features" \
   org.opencontainers.image.url="https://github.com/0xERR0R/blocky#readme" \
   org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
-  org.opencontainers.image.documentation="https://0xerr0r.github.io/blocky"
+  org.opencontainers.image.documentation="https://0xerr0r.github.io/blocky/${VERSION}/"
 
 
 
