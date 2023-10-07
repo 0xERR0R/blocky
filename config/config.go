@@ -350,7 +350,7 @@ func (c *SourceLoadingConfig) periodically(ctx context.Context,
 	for {
 		select {
 		case <-ticker.C:
-			err := refresh(context.Background())
+			err := refresh(ctx)
 			if err != nil {
 				logErr(err)
 			}
