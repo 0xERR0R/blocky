@@ -12,13 +12,13 @@ permissions:
   contents: read
   packages: write
 
-concurrency: 
+concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   check:
-    name: Check if workflow should run 
+    name: Check if workflow should run
     runs-on: ubuntu-latest
     outputs:
       enabled: ${{ steps.check.outputs.enabled }}
@@ -26,7 +26,7 @@ jobs:
       - name: Enabled Check
         id: check
         shell: bash
-        run: | 
+        run: |
           ENABLED=${{ secrets.DEVELOPMENT_DOCKER }}
 
           if [[ "${{ github.repository_owner }}" == "0xERR0R" ]]; then
@@ -87,7 +87,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ steps.get_token.outputs.token }}
-      
+
       - name: Login to DockerHub
         if: github.repository_owner == '0xERR0R'
         uses: docker/login-action@v3
@@ -106,14 +106,18 @@ jobs:
           BRANCH=${GITHUB_REF#refs/heads/}
           echo "branch=${BRANCH}" >> $GITHUB_OUTPUT
           echo "Branch: ${BRANCH}"
-          
+
           VERSION=$(git describe --always --tags)
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "VERSION: ${VERSION}"
 
-          BUILD_TIME=$(date '+%Y%m%d-%H%M%S')
+          BUILD_TIME=$(date --iso-8601=seconds)
           echo "build_time=${BUILD_TIME}" >> $GITHUB_OUTPUT
           echo "BUILD_TIME: ${BUILD_TIME}"
+
+          DOC_PATH="main"
+          echo "doc_path=${DOC_PATH}" >> $GITHUB_OUTPUT
+          echo "DOC_PATH: ${DOC_PATH}"
 
           TAGS="ghcr.io/${REPOSITORY}:${BRANCH}"
           if [[ "${BRANCH}" == "main" ]]; then
@@ -127,7 +131,7 @@ jobs:
           fi
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
           echo "TAGS: ${TAGS}"
-      
+
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
@@ -138,6 +142,7 @@ jobs:
           build-args: |
             VERSION=${{ steps.get_vars.outputs.version }}
             BUILD_TIME=${{ steps.get_vars.outputs.build_time }}
+            DOC_PATH=${{ steps.get_vars.outputs.doc_path }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -153,16 +158,16 @@ jobs:
       - name: Run Trivy vulnerability scanner in repo mode
         uses: aquasecurity/trivy-action@master
         with:
-          scan-type: 'fs'
+          scan-type: "fs"
           ignore-unfixed: true
-          format: 'sarif'
-          output: 'trivy-repo-results.sarif'
-          severity: 'CRITICAL'
+          format: "sarif"
+          output: "trivy-repo-results.sarif"
+          severity: "CRITICAL"
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v2
         with:
-          sarif_file: 'trivy-repo-results.sarif'
+          sarif_file: "trivy-repo-results.sarif"
 
   image-scan:
     name: Image vulnerability scan
@@ -177,14 +182,14 @@ jobs:
       - name: Run Trivy vulnerability scanner on Docker image
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'ghcr.io/${{ needs.docker.outputs.repository }}:${{ needs.docker.outputs.branch }}'
-          format: 'sarif'
-          output: 'trivy-image-results.sarif'
+          image-ref: "ghcr.io/${{ needs.docker.outputs.repository }}:${{ needs.docker.outputs.branch }}"
+          format: "sarif"
+          output: "trivy-image-results.sarif"
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v2
         with:
-          sarif_file: 'trivy-image-results.sarif'
+          sarif_file: "trivy-image-results.sarif"
 
   image-test:
     name: Test docker images
@@ -198,7 +203,7 @@ jobs:
 
       - name: Test images
         shell: bash
-        run: | 
+        run: |
           echo '::group::Version for linux/amd64'
           docker run --rm ghcr.io/${{ needs.docker.outputs.repository }}:${{ needs.docker.outputs.branch }} version
           echo '::endgroup::'
