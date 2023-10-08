@@ -3,6 +3,7 @@
 
 VERSION?=$(shell git describe --always --tags)
 BUILD_TIME?=$(shell date --iso-8601=seconds)
+DOC_PATH?="main"
 DOCKER_IMAGE_NAME=spx01/blocky
 
 BINARY_NAME:=blocky
@@ -82,6 +83,7 @@ docker-build: generate ## Build docker image
 	docker buildx build \
 		--build-arg VERSION=${VERSION} \
 		--build-arg BUILD_TIME=${BUILD_TIME} \
+		--build-arg DOC_PATH=${DOC_PATH} \
 		--network=host \
 		-o type=docker \
 		-t ${DOCKER_IMAGE_NAME} \

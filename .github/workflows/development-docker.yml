@@ -115,6 +115,10 @@ jobs:
           echo "build_time=${BUILD_TIME}" >> $GITHUB_OUTPUT
           echo "BUILD_TIME: ${BUILD_TIME}"
 
+          DOC_PATH="main"
+          echo "doc_path=${DOC_PATH}" >> $GITHUB_OUTPUT
+          echo "DOC_PATH: ${DOC_PATH}"
+
           TAGS="ghcr.io/${REPOSITORY}:${BRANCH}"
           if [[ "${BRANCH}" == "main" ]]; then
             TAGS="${TAGS} , ghcr.io/${REPOSITORY}:development"
@@ -138,6 +142,7 @@ jobs:
           build-args: |
             VERSION=${{ steps.get_vars.outputs.version }}
             BUILD_TIME=${{ steps.get_vars.outputs.build_time }}
+            DOC_PATH=${{ steps.get_vars.outputs.doc_path }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

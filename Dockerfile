@@ -43,6 +43,7 @@ FROM scratch
 
 ARG VERSION
 ARG BUILD_TIME
+ARG DOC_PATH
 
 LABEL org.opencontainers.image.title="blocky" \
   org.opencontainers.image.vendor="0xERR0R" \
@@ -52,7 +53,7 @@ LABEL org.opencontainers.image.title="blocky" \
   org.opencontainers.image.description="Fast and lightweight DNS proxy as ad-blocker for local network with many features" \
   org.opencontainers.image.url="https://github.com/0xERR0R/blocky#readme" \
   org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
-  org.opencontainers.image.documentation="https://0xerr0r.github.io/blocky/${VERSION%%-*}/"
+  org.opencontainers.image.documentation="https://0xerr0r.github.io/blocky/${DOC_PATH}/"
 
 
 

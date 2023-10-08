@@ -66,6 +66,10 @@ jobs:
           echo "build_time=${BUILD_TIME}" >> $GITHUB_OUTPUT
           echo "BUILD_TIME: ${BUILD_TIME}"
 
+          DOC_PATH=${VERSION%%-*}
+          echo "doc_path=${DOC_PATH}" >> $GITHUB_OUTPUT
+          echo "DOC_PATH: ${DOC_PATH}"
+
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
@@ -77,6 +81,7 @@ jobs:
           build-args: |
             VERSION=${{ steps.get_vars.outputs.version }}
             BUILD_TIME=${{ steps.get_vars.outputs.build_time }}
+            DOC_PATH=${{ steps.get_vars.outputs.doc_path }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
