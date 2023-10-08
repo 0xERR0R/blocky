@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 # ----------- stage: ca-certs
 # get newest certificates in seperate stage for caching
 FROM --platform=$BUILDPLATFORM alpine:3.16 AS ca-certs
@@ -60,8 +62,8 @@ LABEL org.opencontainers.image.title="blocky" \
 USER 100
 WORKDIR /app
 
-COPY --from=ca-certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=build /bin/blocky /app/blocky
+COPY --link --from=ca-certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --link --from=build /bin/blocky /app/blocky
 
 ENV BLOCKY_CONFIG_FILE=/app/config.yml
 
