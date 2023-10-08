@@ -62,7 +62,7 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "VERSION: ${VERSION}"
 
-          BUILD_TIME=$(date '+%Y%m%d-%H%M%S')
+          BUILD_TIME=$(date --iso-8601=seconds)
           echo "build_time=${BUILD_TIME}" >> $GITHUB_OUTPUT
           echo "BUILD_TIME: ${BUILD_TIME}"
 
