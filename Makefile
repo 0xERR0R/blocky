@@ -2,7 +2,8 @@
 .DEFAULT_GOAL:=help
 
 VERSION?=$(shell git describe --always --tags)
-BUILD_TIME?=$(shell date '+%Y%m%d-%H%M%S')
+BUILD_TIME?=$(shell date --iso-8601=seconds)
+DOC_PATH?="main"
 DOCKER_IMAGE_NAME=spx01/blocky
 
 BINARY_NAME:=blocky
@@ -16,7 +17,7 @@ GO_BUILD_LD_FLAGS:=\
 	-w \
 	-s \
 	-X github.com/0xERR0R/blocky/util.Version=${VERSION} \
-	-X github.com/0xERR0R/blocky/util.BuildTime=${BUILD_TIME} \
+	-X github.com/0xERR0R/blocky/util.BuildTime=$(shell date -d "${BUILD_TIME}" '+%Y%m%d-%H%M%S') \
 	-X github.com/0xERR0R/blocky/util.Architecture=${GOARCH}${GOARM}
 
 GO_BUILD_OUTPUT:=$(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
@@ -82,6 +83,7 @@ docker-build: generate ## Build docker image
 	docker buildx build \
 		--build-arg VERSION=${VERSION} \
 		--build-arg BUILD_TIME=${BUILD_TIME} \
+		--build-arg DOC_PATH=${DOC_PATH} \
 		--network=host \
 		-o type=docker \
 		-t ${DOCKER_IMAGE_NAME} \

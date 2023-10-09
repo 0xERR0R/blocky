@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -113,7 +114,7 @@ func retrieveCertificate(cfg *config.Config) (cert tls.Certificate, err error) {
 // NewServer creates new server instance with passed config
 //
 //nolint:funlen
-func NewServer(cfg *config.Config) (server *Server, err error) {
+func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err error) {
 	log.ConfigureLogger(&cfg.Log)
 
 	var cert tls.Certificate
@@ -145,7 +146,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 
 	metrics.RegisterEventListeners()
 
-	bootstrap, err := resolver.NewBootstrap(cfg)
+	bootstrap, err := resolver.NewBootstrap(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +156,7 @@ func NewServer(cfg *config.Config) (server *Server, err error) {
 		return nil, redisErr
 	}
 
-	queryResolver, queryError := createQueryResolver(cfg, bootstrap, redisClient)
+	queryResolver, queryError := createQueryResolver(ctx, cfg, bootstrap, redisClient)
 	if queryError != nil {
 		return nil, queryError
 	}
@@ -385,6 +386,7 @@ func createSelfSignedCert() (tls.Certificate, error) {
 }
 
 func createQueryResolver(
+	ctx context.Context,
 	cfg *config.Config,
 	bootstrap *resolver.Bootstrap,
 	redisClient *redis.Client,
@@ -396,10 +398,10 @@ func createQueryResolver(
 
 	upstreamTree, utErr := resolver.NewUpstreamTreeResolver(cfg.Upstreams, upstreamBranches)
 
-	blocking, blErr := resolver.NewBlockingResolver(cfg.Blocking, redisClient, bootstrap)
-	clientNames, cnErr := resolver.NewClientNamesResolver(cfg.ClientLookup, bootstrap, cfg.StartVerifyUpstream)
+	blocking, blErr := resolver.NewBlockingResolver(ctx, cfg.Blocking, redisClient, bootstrap)
+	clientNames, cnErr := resolver.NewClientNamesResolver(ctx, cfg.ClientLookup, bootstrap, cfg.StartVerifyUpstream)
 	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(cfg.Conditional, bootstrap, cfg.StartVerifyUpstream)
-	hostsFile, hfErr := resolver.NewHostsFileResolver(cfg.HostsFile, bootstrap)
+	hostsFile, hfErr := resolver.NewHostsFileResolver(ctx, cfg.HostsFile, bootstrap)
 
 	err = multierror.Append(
 		multierror.Prefix(utErr, "upstream tree resolver: "),
@@ -418,12 +420,12 @@ func createQueryResolver(
 		resolver.NewEcsResolver(cfg.Ecs),
 		clientNames,
 		resolver.NewEdeResolver(cfg.Ede),
-		resolver.NewQueryLoggingResolver(cfg.QueryLog),
+		resolver.NewQueryLoggingResolver(ctx, cfg.QueryLog),
 		resolver.NewMetricsResolver(cfg.Prometheus),
 		resolver.NewRewriterResolver(cfg.CustomDNS.RewriterConfig, resolver.NewCustomDNSResolver(cfg.CustomDNS)),
 		hostsFile,
 		blocking,
-		resolver.NewCachingResolver(cfg.Caching, redisClient),
+		resolver.NewCachingResolver(ctx, cfg.Caching, redisClient),
 		resolver.NewRewriterResolver(cfg.Conditional.RewriterConfig, condUpstream),
 		resolver.NewSpecialUseDomainNamesResolver(cfg.SUDN),
 		upstreamTree,
@@ -514,7 +516,7 @@ const (
 )
 
 // Start starts the server
-func (s *Server) Start(errCh chan<- error) {
+func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 	logger().Info("Starting server")
 
 	for _, srv := range s.dnsServers {
@@ -573,7 +575,7 @@ func (s *Server) Start(errCh chan<- error) {
 		}()
 	}
 
-	registerPrintConfigurationTrigger(s)
+	registerPrintConfigurationTrigger(ctx, s)
 }
 
 // Stop stops the server

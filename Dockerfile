@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 # ----------- stage: ca-certs
 # get newest certificates in seperate stage for caching
 FROM --platform=$BUILDPLATFORM alpine:3.16 AS ca-certs
@@ -41,15 +43,27 @@ RUN --mount=type=bind,target=. \
 # ----------- stage: final
 FROM scratch
 
-LABEL org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
-  org.opencontainers.image.url="https://github.com/0xERR0R/blocky" \
-  org.opencontainers.image.title="DNS proxy as ad-blocker for local network"
+ARG VERSION
+ARG BUILD_TIME
+ARG DOC_PATH
+
+LABEL org.opencontainers.image.title="blocky" \
+  org.opencontainers.image.vendor="0xERR0R" \
+  org.opencontainers.image.licenses="Apache-2.0" \
+  org.opencontainers.image.version="${VERSION}" \
+  org.opencontainers.image.created="${BUILD_TIME}" \
+  org.opencontainers.image.description="Fast and lightweight DNS proxy as ad-blocker for local network with many features" \
+  org.opencontainers.image.url="https://github.com/0xERR0R/blocky#readme" \
+  org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
+  org.opencontainers.image.documentation="https://0xerr0r.github.io/blocky/${DOC_PATH}/"
+
+
 
 USER 100
 WORKDIR /app
 
-COPY --from=ca-certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=build /bin/blocky /app/blocky
+COPY --link --from=ca-certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --link --from=build /bin/blocky /app/blocky
 
 ENV BLOCKY_CONFIG_FILE=/app/config.yml
 

@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
@@ -109,16 +110,24 @@ var _ = Describe("Resolver", func() {
 	})
 
 	Describe("Name", func() {
+		var (
+			ctx      context.Context
+			cancelFn context.CancelFunc
+		)
+		BeforeEach(func() {
+			ctx, cancelFn = context.WithCancel(context.Background())
+			DeferCleanup(cancelFn)
+		})
 		When("'Name' is called", func() {
 			It("should return resolver name", func() {
-				br, _ := NewBlockingResolver(config.BlockingConfig{BlockType: "zeroIP"}, nil, systemResolverBootstrap)
+				br, _ := NewBlockingResolver(ctx, config.BlockingConfig{BlockType: "zeroIP"}, nil, systemResolverBootstrap)
 				name := Name(br)
 				Expect(name).Should(Equal("blocking"))
 			})
 		})
 		When("'Name' is called on a NamedResolver", func() {
 			It("should return its custom name", func() {
-				br, _ := NewBlockingResolver(config.BlockingConfig{BlockType: "zeroIP"}, nil, systemResolverBootstrap)
+				br, _ := NewBlockingResolver(ctx, config.BlockingConfig{BlockType: "zeroIP"}, nil, systemResolverBootstrap)
 
 				cfg := config.RewriterConfig{Rewrite: map[string]string{"not": "empty"}}
 				r := NewRewriterResolver(cfg, br)

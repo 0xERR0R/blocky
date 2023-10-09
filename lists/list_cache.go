@@ -56,7 +56,7 @@ func (b *ListCache) LogConfig(logger *logrus.Entry) {
 }
 
 // NewListCache creates new list instance
-func NewListCache(
+func NewListCache(ctx context.Context,
 	t ListCacheType, cfg config.SourceLoadingConfig,
 	groupSources map[string][]config.BytesSource, downloader FileDownloader,
 ) (*ListCache, error) {
@@ -72,7 +72,7 @@ func NewListCache(
 		downloader:   downloader,
 	}
 
-	err := cfg.StartPeriodicRefresh(c.refresh, func(err error) {
+	err := cfg.StartPeriodicRefresh(ctx, c.refresh, func(err error) {
 		logger().WithError(err).Errorf("could not init %s", t)
 	})
 	if err != nil {

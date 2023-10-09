@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -26,6 +27,8 @@ var _ = Describe("CachingResolver", func() {
 		sutConfig  config.CachingConfig
 		m          *mockResolver
 		mockAnswer *dns.Msg
+		ctx        context.Context
+		cancelFn   context.CancelFunc
 	)
 
 	Describe("Type", func() {
@@ -43,7 +46,10 @@ var _ = Describe("CachingResolver", func() {
 	})
 
 	JustBeforeEach(func() {
-		sut = NewCachingResolver(sutConfig, nil)
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+
+		sut = NewCachingResolver(ctx, sutConfig, nil)
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		sut.Next(m)
@@ -79,7 +85,7 @@ var _ = Describe("CachingResolver", func() {
 			It("should prefetch domain if query count > threshold", func() {
 				// prepare resolver, set smaller caching times for testing
 				prefetchThreshold := 5
-				configureCaches(sut, &sutConfig)
+				configureCaches(ctx, sut, &sutConfig)
 
 				domainPrefetched := make(chan bool, 1)
 				prefetchHitDomain := make(chan bool, 1)
@@ -725,7 +731,7 @@ var _ = Describe("CachingResolver", func() {
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1000, A, "1.1.1.1")
 
-				sut = NewCachingResolver(sutConfig, redisClient)
+				sut = NewCachingResolver(ctx, sutConfig, redisClient)
 				m = &mockResolver{}
 				m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 				sut.Next(m)

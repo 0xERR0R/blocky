@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"net"
 	"strings"
 	"time"
@@ -26,7 +27,7 @@ type ClientNamesResolver struct {
 }
 
 // NewClientNamesResolver creates new resolver instance
-func NewClientNamesResolver(
+func NewClientNamesResolver(ctx context.Context,
 	cfg config.ClientLookupConfig, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
 ) (cr *ClientNamesResolver, err error) {
 	var r Resolver
@@ -41,7 +42,7 @@ func NewClientNamesResolver(
 		configurable: withConfig(&cfg),
 		typed:        withType("client_names"),
 
-		cache: expirationcache.NewCache[[]string](expirationcache.Options{
+		cache: expirationcache.NewCache[[]string](ctx, expirationcache.Options{
 			CleanupInterval: time.Hour,
 		}),
 		externalResolver: r,

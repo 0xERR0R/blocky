@@ -93,7 +93,7 @@ var _ = Describe("Serve command", func() {
 
 			By("terminate with signal", func() {
 				var startError error
-				Eventually(errChan).Should(Receive(&startError))
+				Eventually(errChan, "10s").Should(Receive(&startError))
 				Expect(startError).ShouldNot(BeNil())
 				Expect(startError.Error()).Should(ContainSubstring("address already in use"))
 			})

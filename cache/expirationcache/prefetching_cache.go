@@ -1,6 +1,7 @@
 package expirationcache
 
 import (
+	"context"
 	"sync/atomic"
 	"time"
 )
@@ -39,9 +40,9 @@ type PrefetchingOptions[T any] struct {
 
 type PrefetchingCacheOption[T any] func(c *PrefetchingExpiringLRUCache[cacheValue[T]])
 
-func NewPrefetchingCache[T any](options PrefetchingOptions[T]) *PrefetchingExpiringLRUCache[T] {
+func NewPrefetchingCache[T any](ctx context.Context, options PrefetchingOptions[T]) *PrefetchingExpiringLRUCache[T] {
 	pc := &PrefetchingExpiringLRUCache[T]{
-		prefetchingNameCache: NewCache[atomic.Uint32](Options{
+		prefetchingNameCache: NewCache[atomic.Uint32](ctx, Options{
 			CleanupInterval: time.Minute,
 			MaxSize:         uint(options.PrefetchMaxItemsCount),
 			OnAfterPutFn:    options.OnPrefetchAfterPut,
@@ -53,7 +54,7 @@ func NewPrefetchingCache[T any](options PrefetchingOptions[T]) *PrefetchingExpir
 		onPrefetchCacheHit:      options.OnPrefetchCacheHit,
 	}
 
-	pc.cache = NewCacheWithOnExpired[cacheValue[T]](options.Options, pc.onExpired)
+	pc.cache = NewCacheWithOnExpired[cacheValue[T]](ctx, options.Options, pc.onExpired)
 
 	return pc
 }

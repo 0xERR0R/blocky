@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -24,6 +25,8 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 		sut        *ParallelBestResolver
 		sutMapping config.UpstreamGroups
 		sutVerify  bool
+		ctx        context.Context
+		cancelFn   context.CancelFunc
 
 		err error
 
@@ -37,6 +40,9 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 	})
 
 	BeforeEach(func() {
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+
 		sutMapping = config.UpstreamGroups{
 			upstreamDefaultCfgName: {
 				config.Upstream{
@@ -111,7 +117,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 	When("no upstream resolvers can be reached", func() {
 		BeforeEach(func() {
-			bootstrap = newTestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
+			bootstrap = newTestBootstrap(ctx, &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
 			sutMapping = config.UpstreamGroups{
 				upstreamDefaultCfgName: {
@@ -328,7 +334,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 	When("upstream is invalid", func() {
 		It("errors during construction", func() {
-			b := newTestBootstrap(&dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
+			b := newTestBootstrap(ctx, &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
 			r, err := NewParallelBestResolver(config.UpstreamsConfig{
 				Groups: config.UpstreamGroups{"test": {{Host: "example.com"}}},

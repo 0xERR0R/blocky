@@ -1,6 +1,7 @@
 package expirationcache
 
 import (
+	"context"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
@@ -47,11 +48,11 @@ type OnCacheMissCallback func(key string)
 // OnAfterPutCallback will be called after put, receives new element count as parameter
 type OnAfterPutCallback func(newSize int)
 
-func NewCache[T any](options Options) *ExpiringLRUCache[T] {
-	return NewCacheWithOnExpired[T](options, nil)
+func NewCache[T any](ctx context.Context, options Options) *ExpiringLRUCache[T] {
+	return NewCacheWithOnExpired[T](ctx, options, nil)
 }
 
-func NewCacheWithOnExpired[T any](options Options,
+func NewCacheWithOnExpired[T any](ctx context.Context, options Options,
 	onExpirationFn OnExpirationCallback[T],
 ) *ExpiringLRUCache[T] {
 	l, _ := lru.New(defaultSize)
@@ -90,18 +91,22 @@ func NewCacheWithOnExpired[T any](options Options,
 		c.preExpirationFn = onExpirationFn
 	}
 
-	go periodicCleanup(c)
+	go periodicCleanup(ctx, c)
 
 	return c
 }
 
-func periodicCleanup[T any](c *ExpiringLRUCache[T]) {
+func periodicCleanup[T any](ctx context.Context, c *ExpiringLRUCache[T]) {
 	ticker := time.NewTicker(c.cleanUpInterval)
 	defer ticker.Stop()
 
 	for {
-		<-ticker.C
-		c.cleanUp()
+		select {
+		case <-ticker.C:
+			c.cleanUp()
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 

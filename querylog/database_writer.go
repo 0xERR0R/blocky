@@ -1,6 +1,7 @@
 package querylog
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strings"
@@ -43,20 +44,20 @@ type DatabaseWriter struct {
 	dbFlushPeriod    time.Duration
 }
 
-func NewDatabaseWriter(dbType, target string, logRetentionDays uint64,
+func NewDatabaseWriter(ctx context.Context, dbType, target string, logRetentionDays uint64,
 	dbFlushPeriod time.Duration,
 ) (*DatabaseWriter, error) {
 	switch dbType {
 	case "mysql":
-		return newDatabaseWriter(mysql.Open(target), logRetentionDays, dbFlushPeriod)
+		return newDatabaseWriter(ctx, mysql.Open(target), logRetentionDays, dbFlushPeriod)
 	case "postgresql":
-		return newDatabaseWriter(postgres.Open(target), logRetentionDays, dbFlushPeriod)
+		return newDatabaseWriter(ctx, postgres.Open(target), logRetentionDays, dbFlushPeriod)
 	}
 
 	return nil, fmt.Errorf("incorrect database type provided: %s", dbType)
 }
 
-func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64,
+func newDatabaseWriter(ctx context.Context, target gorm.Dialector, logRetentionDays uint64,
 	dbFlushPeriod time.Duration,
 ) (*DatabaseWriter, error) {
 	db, err := gorm.Open(target, &gorm.Config{
@@ -84,7 +85,7 @@ func newDatabaseWriter(target gorm.Dialector, logRetentionDays uint64,
 		dbFlushPeriod:    dbFlushPeriod,
 	}
 
-	go w.periodicFlush()
+	go w.periodicFlush(ctx)
 
 	return w, nil
 }
@@ -118,16 +119,20 @@ func databaseMigration(db *gorm.DB) error {
 	return nil
 }
 
-func (d *DatabaseWriter) periodicFlush() {
+func (d *DatabaseWriter) periodicFlush(ctx context.Context) {
 	ticker := time.NewTicker(d.dbFlushPeriod)
 	defer ticker.Stop()
 
 	for {
-		<-ticker.C
+		select {
+		case <-ticker.C:
+			err := d.doDBWrite()
 
-		err := d.doDBWrite()
+			util.LogOnError("can't write entries to the database: ", err)
 
-		util.LogOnError("can't write entries to the database: ", err)
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 

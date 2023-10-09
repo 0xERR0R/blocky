@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"bufio"
+	"context"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -63,8 +64,10 @@ var _ = Describe("QueryLoggingResolver", func() {
 			sutConfig.SetDefaults() // not called when using a struct literal
 		}
 
-		sut = NewQueryLoggingResolver(sutConfig)
-		DeferCleanup(func() { close(sut.logChan) })
+		ctx, cancelFn := context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+
+		sut = NewQueryLoggingResolver(ctx, sutConfig)
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer, Reason: "reason"}, nil)
 		sut.Next(m)
@@ -151,7 +154,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 						g.Expect(csvLines[0][7]).Should(Equal("NOERROR"))
 						g.Expect(csvLines[0][8]).Should(Equal("RESOLVED"))
 						g.Expect(csvLines[0][9]).Should(Equal("A"))
-					}, "1s").Should(Succeed())
+					}).Should(Succeed())
 				})
 
 				By("check log for client2", func() {
@@ -169,7 +172,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 						g.Expect(csvLines[0][7]).Should(Equal("NOERROR"))
 						g.Expect(csvLines[0][8]).Should(Equal("RESOLVED"))
 						g.Expect(csvLines[0][9]).Should(Equal("A"))
-					}, "1s").Should(Succeed())
+					}).Should(Succeed())
 				})
 			})
 		})

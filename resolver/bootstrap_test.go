@@ -25,6 +25,8 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 	var (
 		sut       *Bootstrap
 		sutConfig *config.Config
+		ctx       context.Context
+		cancelFn  context.CancelFunc
 
 		err error
 	)
@@ -41,10 +43,13 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 				},
 			},
 		}
+
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
 	})
 
 	JustBeforeEach(func() {
-		sut, err = NewBootstrap(sutConfig)
+		sut, err = NewBootstrap(ctx, sutConfig)
 		Expect(err).Should(Succeed())
 	})
 
@@ -98,7 +103,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 						},
 					}
 
-					_, err := NewBootstrap(&cfg)
+					_, err := NewBootstrap(ctx, &cfg)
 					Expect(err).ShouldNot(Succeed())
 				})
 			})
@@ -140,7 +145,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 						},
 					}
 
-					_, err := NewBootstrap(&cfg)
+					_, err := NewBootstrap(ctx, &cfg)
 					Expect(err).ShouldNot(Succeed())
 					Expect(err.Error()).Should(ContainSubstring("must use IP instead of hostname"))
 				})
@@ -184,7 +189,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 						},
 					}
 
-					_, err := NewBootstrap(&cfg)
+					_, err := NewBootstrap(ctx, &cfg)
 					Expect(err).ShouldNot(Succeed())
 					Expect(err.Error()).Should(ContainSubstring("no IPs configured"))
 				})
@@ -203,7 +208,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 						},
 					}
 
-					_, err := NewBootstrap(&cfg)
+					_, err := NewBootstrap(ctx, &cfg)
 					Expect(err).Should(Succeed())
 				})
 			})

@@ -42,7 +42,7 @@ type Bootstrap struct {
 
 // NewBootstrap creates and returns a new Bootstrap.
 // Internally, it uses a CachingResolver and an UpstreamResolver.
-func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
+func NewBootstrap(ctx context.Context, cfg *config.Config) (b *Bootstrap, err error) {
 	logger := log.PrefixedLog("bootstrap")
 
 	timeout := defaultTimeout
@@ -97,7 +97,8 @@ func NewBootstrap(cfg *config.Config) (b *Bootstrap, err error) {
 
 	b.resolver = Chain(
 		NewFilteringResolver(cfg.Filtering),
-		newCachingResolver(cachingCfg, nil, false), // false: no metrics, to not overwrite the main blocking resolver ones
+		// false: no metrics, to not overwrite the main blocking resolver ones
+		newCachingResolver(ctx, cachingCfg, nil, false),
 		parallelResolver,
 	)
 
