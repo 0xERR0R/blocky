@@ -30,7 +30,7 @@ type CachingResolver struct {
 
 	emitMetricEvents bool // disabled by Bootstrap
 
-	resultCache expirationcache.ExpiringCache[dns.Msg]
+	resultCache expirationcache.ExpiringCache[[]byte]
 
 	redisClient *redis.Client
 }
@@ -82,7 +82,7 @@ func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Cachin
 	}
 
 	if cfg.Prefetching {
-		prefetchingOptions := expirationcache.PrefetchingOptions[dns.Msg]{
+		prefetchingOptions := expirationcache.PrefetchingOptions[[]byte]{
 			Options:               options,
 			PrefetchExpires:       time.Duration(cfg.PrefetchExpires),
 			PrefetchThreshold:     cfg.PrefetchThreshold,
@@ -101,22 +101,29 @@ func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Cachin
 
 		c.resultCache = expirationcache.NewPrefetchingCache(ctx, prefetchingOptions)
 	} else {
-		c.resultCache = expirationcache.NewCache[dns.Msg](ctx, options)
+		c.resultCache = expirationcache.NewCache[[]byte](ctx, options)
 	}
 }
 
-func (r *CachingResolver) reloadCacheEntry(cacheKey string) (*dns.Msg, time.Duration) {
+func (r *CachingResolver) reloadCacheEntry(cacheKey string) (*[]byte, time.Duration) {
 	qType, domainName := util.ExtractCacheKey(cacheKey)
 	logger := r.log()
 
 	logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), qType)
 
-	req := newRequest(fmt.Sprintf("%s.", domainName), qType, logger)
+	req := newRequest(dns.Fqdn(domainName), qType, logger)
 	response, err := r.next.Resolve(req)
 
 	if err == nil {
 		if response.Res.Rcode == dns.RcodeSuccess {
-			return response.Res, r.adjustTTLs(response.Res.Answer)
+			packed, err := response.Res.Pack()
+			if err != nil {
+				logger.Error("unable to pack response", err)
+
+				return nil, 0
+			}
+
+			return &packed, r.adjustTTLs(response.Res.Answer)
 		}
 	} else {
 		util.LogOnError(fmt.Sprintf("can't prefetch '%s' ", domainName), err)
@@ -166,23 +173,21 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 		cacheKey := util.GenerateCacheKey(dns.Type(question.Qtype), domain)
 		logger := logger.WithField("domain", util.Obfuscate(domain))
 
-		val, ttl := r.resultCache.Get(cacheKey)
+		val, ttl := r.getFromCache(cacheKey)
 
 		if val != nil {
 			logger.Debug("domain is cached")
 
-			resp := val.Copy()
-			resp.SetReply(request.Req)
-			resp.Rcode = val.Rcode
+			val.SetRcode(request.Req, val.Rcode)
 
 			// Adjust TTL
-			setTTLInCachedResponse(resp, ttl)
+			setTTLInCachedResponse(val, ttl)
 
-			if resp.Rcode == dns.RcodeSuccess {
-				return &model.Response{Res: resp, RType: model.ResponseTypeCACHED, Reason: "CACHED"}, nil
+			if val.Rcode == dns.RcodeSuccess {
+				return &model.Response{Res: val, RType: model.ResponseTypeCACHED, Reason: "CACHED"}, nil
 			}
 
-			return &model.Response{Res: resp, RType: model.ResponseTypeCACHED, Reason: "CACHED NEGATIVE"}, nil
+			return &model.Response{Res: val, RType: model.ResponseTypeCACHED, Reason: "CACHED NEGATIVE"}, nil
 		}
 
 		logger.WithField("next_resolver", Name(r.next)).Debug("not in cache: go to next resolver")
@@ -195,6 +200,24 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 	}
 
 	return response, err
+}
+
+func (r *CachingResolver) getFromCache(key string) (*dns.Msg, time.Duration) {
+	val, ttl := r.resultCache.Get(key)
+	if val != nil {
+		res := new(dns.Msg)
+
+		err := res.Unpack(*val)
+		if err != nil {
+			log.Log().Error("can't unpack cached entry. Cache malformed?", err)
+
+			return nil, 0
+		}
+
+		return res, ttl
+	}
+
+	return nil, 0
 }
 
 func setTTLInCachedResponse(resp *dns.Msg, ttl time.Duration) {
@@ -237,13 +260,18 @@ func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, 
 	// don't cache any EDNS OPT records
 	removeEdns0Extra(respCopy)
 
-	if response.Res.Rcode == dns.RcodeSuccess && shouldBeCached(response.Res) {
-		// put value into cache
-		r.resultCache.Put(cacheKey, respCopy, ttl)
-	} else if response.Res.Rcode == dns.RcodeNameError {
-		if r.cfg.CacheTimeNegative.IsAboveZero() {
-			// put negative cache if result code is NXDOMAIN
-			r.resultCache.Put(cacheKey, respCopy, r.cfg.CacheTimeNegative.ToDuration())
+	packed, err := respCopy.Pack()
+	util.LogOnError("error on packing", err)
+
+	if err == nil {
+		if response.Res.Rcode == dns.RcodeSuccess && shouldBeCached(response.Res) {
+			// put value into cache
+			r.resultCache.Put(cacheKey, &packed, ttl)
+		} else if response.Res.Rcode == dns.RcodeNameError {
+			if r.cfg.CacheTimeNegative.IsAboveZero() {
+				// put negative cache if result code is NXDOMAIN
+				r.resultCache.Put(cacheKey, &packed, r.cfg.CacheTimeNegative.ToDuration())
+			}
 		}
 	}
 
