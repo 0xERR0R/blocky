@@ -204,20 +204,20 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 
 func (r *CachingResolver) getFromCache(key string) (*dns.Msg, time.Duration) {
 	val, ttl := r.resultCache.Get(key)
-	if val != nil {
-		res := new(dns.Msg)
-
-		err := res.Unpack(*val)
-		if err != nil {
-			log.Log().Error("can't unpack cached entry. Cache malformed?", err)
-
-			return nil, 0
-		}
-
-		return res, ttl
+	if val == nil {
+		return nil, 0
 	}
 
-	return nil, 0
+	res := new(dns.Msg)
+
+	err := res.Unpack(*val)
+	if err != nil {
+		r.log().Error("can't unpack cached entry. Cache malformed?", err)
+
+		return nil, 0
+	}
+
+	return res, ttl
 }
 
 func setTTLInCachedResponse(resp *dns.Msg, ttl time.Duration) {
