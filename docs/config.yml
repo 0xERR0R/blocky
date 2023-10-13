@@ -331,3 +331,12 @@ specialUseDomains:
   # optional: block recomended private TLDs
   # default: true
   rfc6762-appendixG: true
+
+# optional: configuration for external interfaces
+interfaces:
+  rest:
+    # optional: if true and http port is defined, provides REST API to control blocky. Default: true
+    enable: false
+  dns-over-http:
+    # optional: if true and http port is defined, provides DNS-over-HTTP endpoint. Default: true
+    enable: true

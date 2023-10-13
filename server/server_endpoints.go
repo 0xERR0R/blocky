@@ -65,21 +65,38 @@ func (s *Server) createOpenAPIInterfaceImpl() (impl api.StrictServerInterface, e
 }
 
 func (s *Server) registerAPIEndpoints(router *chi.Mux) error {
+	if s.cfg.Interfaces.Rest.Enable {
+		err := s.registerOpenAPIEndpoints(router)
+		if err != nil {
+			return fmt.Errorf("unable to register OpenAPI endpoints %w", err)
+		}
+	}
+
+	s.registerDohEndpoints(router)
+
+	return nil
+}
+
+func (s *Server) registerDohEndpoints(router *chi.Mux) {
 	const pathDohQuery = "/dns-query"
 
+	if s.cfg.Interfaces.DoH.Enable {
+		router.Get(pathDohQuery, s.dohGetRequestHandler)
+		router.Get(pathDohQuery+"/", s.dohGetRequestHandler)
+		router.Get(pathDohQuery+"/{clientID}", s.dohGetRequestHandler)
+		router.Post(pathDohQuery, s.dohPostRequestHandler)
+		router.Post(pathDohQuery+"/", s.dohPostRequestHandler)
+		router.Post(pathDohQuery+"/{clientID}", s.dohPostRequestHandler)
+	}
+}
+
+func (s *Server) registerOpenAPIEndpoints(router *chi.Mux) error {
 	openAPIImpl, err := s.createOpenAPIInterfaceImpl()
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to create OpenAPI server implementation %w", err)
 	}
 
 	api.RegisterOpenAPIEndpoints(router, openAPIImpl)
-
-	router.Get(pathDohQuery, s.dohGetRequestHandler)
-	router.Get(pathDohQuery+"/", s.dohGetRequestHandler)
-	router.Get(pathDohQuery+"/{clientID}", s.dohGetRequestHandler)
-	router.Post(pathDohQuery, s.dohPostRequestHandler)
-	router.Post(pathDohQuery+"/", s.dohPostRequestHandler)
-	router.Post(pathDohQuery+"/{clientID}", s.dohPostRequestHandler)
 
 	return nil
 }

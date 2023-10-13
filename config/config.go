@@ -212,6 +212,7 @@ type Config struct {
 	Filtering           FilteringConfig           `yaml:"filtering"`
 	Ede                 EdeConfig                 `yaml:"ede"`
 	SUDN                SUDNConfig                `yaml:"specialUseDomains"`
+	Interfaces          InterfacesConfig          `yaml:"interfaces"`
 
 	// Deprecated options
 	Deprecated struct {

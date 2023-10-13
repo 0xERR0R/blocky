@@ -164,6 +164,14 @@ var _ = BeforeSuite(func() {
 			Enable: true,
 			Path:   "/metrics",
 		},
+		Interfaces: config.InterfacesConfig{
+			Rest: config.RESTConfig{
+				Enable: true,
+			},
+			DoH: config.DoHConfig{
+				Enable: true,
+			},
+		},
 	})
 
 	Expect(err).Should(Succeed())
