@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/abice/go-enum v0.5.8
-	github.com/alicebob/miniredis/v2 v2.30.5
+	github.com/alicebob/miniredis/v2 v2.31.0
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/avast/retry-go/v4 v4.5.0
 	github.com/creasty/defaults v1.7.0
@@ -19,19 +19,19 @@ require (
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/miekg/dns v1.1.56
 	github.com/mroth/weightedrand/v2 v2.1.0
-	github.com/onsi/ginkgo/v2 v2.12.1
+	github.com/onsi/ginkgo/v2 v2.13.0
 	github.com/onsi/gomega v1.28.0
 	github.com/prometheus/client_golang v1.17.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
-	golang.org/x/net v0.16.0
+	golang.org/x/net v0.17.0
 	gopkg.in/yaml.v2 v2.4.0
-	gorm.io/driver/mysql v1.5.0
-	gorm.io/driver/postgres v1.5.2
+	gorm.io/driver/mysql v1.5.2
+	gorm.io/driver/postgres v1.5.3
 	gorm.io/driver/sqlite v1.5.4
-	gorm.io/gorm v1.25.4
+	gorm.io/gorm v1.25.5
 )
 
 require (
@@ -68,7 +68,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/pprof v0.0.0-20230309165930-d61513b1440d // indirect
 	github.com/invopop/yaml v0.1.0 // indirect
-	github.com/jackc/pgx/v5 v5.3.1 // indirect
+	github.com/jackc/pgx/v5 v5.4.3 // indirect
 	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
