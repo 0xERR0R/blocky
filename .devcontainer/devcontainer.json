@@ -23,6 +23,13 @@
         "editor.insertSpaces": true,
         "editor.detectIndentation": false,
         "editor.formatOnSave": true,
+        "editor.formatOnPaste": true,
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": true,
+          "source.addMissingImports": true,
+          "source.fixAll": true
+        },
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
         "go.showWelcome": false,
         "go.survey.prompt": false,
         "go.useLanguageServer": true,
@@ -51,9 +58,6 @@
             "source.organizeImports": true
           }
         },
-        "[json][jsonc]": {
-          "editor.defaultFormatter": "esbenp.prettier-vscode"
-        },
         "[markdown]": {
           "editor.defaultFormatter": "yzhang.markdown-all-in-one",
           "editor.unicodeHighlight.ambiguousCharacters": false,
@@ -65,11 +69,17 @@
             "strings": "off",
             "other": "off"
           }
+        },
+        "[dockerfile]": {
+          "editor.defaultFormatter": "ms-azuretools.vscode-docker",
+          "editor.quickSuggestions": {
+            "strings": true
+          }
         }
       }
     }
   },
-  "postCreateCommand": "go mod download"
+  "postCreateCommand": "go mod download",
   "mounts": [
     "type=bind,readonly,source=/etc/localtime,target=/usr/share/host/localtime",
     "type=bind,readonly,source=/etc/timezone,target=/usr/share/host/timezone"
