@@ -23,17 +23,12 @@
         "editor.detectIndentation": false,
         "editor.formatOnSave": true,
         "editor.formatOnPaste": true,
-        "editor.codeActionsOnSave": {
-          "source.organizeImports": true,
-          "source.addMissingImports": true,
-          "source.fixAll": true
-        },
         "go.showWelcome": false,
         "go.survey.prompt": false,
         "go.useLanguageServer": true,
         "go.formatTool": "gofumpt",
         "go.lintTool": "golangci-lint",
-        "go.lintOnSave": "file",
+        "go.lintOnSave": "package",
         "go.alternateTools": {
           "go-langserver": "gopls"
         },
@@ -42,12 +37,13 @@
           "formatting.gofumpt": true,
           "build.standaloneTags": ["ignore", "tools"]
         },
-        "errorLens.excludePatterns": ["go.{mod,sum}", "tools.go"],
         "[go]": {
           "editor.defaultFormatter": "golang.go",
           "editor.formatOnSave": true,
           "editor.codeActionsOnSave": {
-            "source.organizeImports": true
+            "source.organizeImports": true,
+            "source.addMissingImports": true,
+            "source.fixAll": true
           }
         },
         "[go.mod]": {
