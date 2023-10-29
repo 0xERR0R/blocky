@@ -9,6 +9,9 @@
     },
     "ghcr.io/devcontainers/features/python:1": {}
   },
+  "remoteEnv": {
+    "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
+  },
   "customizations": {
     "vscode": {
       "extensions": [
@@ -29,6 +32,7 @@
         "go.formatTool": "gofumpt",
         "go.lintTool": "golangci-lint",
         "go.lintOnSave": "package",
+        "go.lintFlags": ["--config=${workspaceFolder}/.golangci.yml", "--fast"],
         "go.alternateTools": {
           "go-langserver": "gopls"
         },
