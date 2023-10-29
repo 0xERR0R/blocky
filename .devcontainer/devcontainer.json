@@ -32,7 +32,11 @@
         "go.formatTool": "gofumpt",
         "go.lintTool": "golangci-lint",
         "go.lintOnSave": "package",
-        "go.lintFlags": ["--config=${workspaceFolder}/.golangci.yml", "--fast"],
+        "go.lintFlags": [
+          "--config=${workspaceFolder}/.golangci.yml",
+          "--fast",
+          "--tests=false"
+        ],
         "go.alternateTools": {
           "go-langserver": "gopls"
         },
