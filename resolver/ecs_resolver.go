@@ -3,15 +3,18 @@ package resolver
 import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 )
 
+// A EcsResolver is responsible for adding the subnet information as EDNS0 option
 type EcsResolver struct {
 	configurable[*config.EcsConfig]
 	NextResolver
 	typed
 }
 
+// NewEcsResolver creates new resolver instance which adds the subnet information as EDNS0 option
 func NewEcsResolver(cfg config.EcsConfig) ChainedResolver {
 	return &EcsResolver{
 		configurable: withConfig(&cfg),
@@ -19,6 +22,9 @@ func NewEcsResolver(cfg config.EcsConfig) ChainedResolver {
 	}
 }
 
+// Resolve adds the subnet information as EDNS0 option to the request of the next resolver
+// and sets the client IP from the EDNS0 option to the request if the client IP is IPv4 or IPv6
+// and the corresponding mask is set in the configuration
 func (r *EcsResolver) Resolve(request *model.Request) (*model.Response, error) {
 	if r.cfg.IsEnabled() {
 		if !r.setClientIP(request) {
@@ -29,41 +35,31 @@ func (r *EcsResolver) Resolve(request *model.Request) (*model.Response, error) {
 	return r.next.Resolve(request)
 }
 
+// setClientIP sets the client IP from the EDNS0 option to the request if the
+// client IP is IPv4 or IPv6 and the corresponding mask is set in the configuration
 func (r *EcsResolver) setClientIP(request *model.Request) bool {
-	edns := request.Req.IsEdns0()
-	if edns == nil {
+	eso := util.GetEdns0Option(request.Req, dns.EDNS0SUBNET)
+	if eso == nil {
 		return false
 	}
 
-	result := false
-
-	newOpts := []dns.EDNS0{}
-
-	for _, o := range edns.Option {
-		switch so := o.(type) {
-		case *dns.EDNS0_SUBNET:
-			// v4 and mask
-			if (so.Family == 1 && so.SourceNetmask == 32) ||
-				// v6 and unmasked
-				(so.Family == 2 && so.SourceNetmask == 128) {
-				request.ClientIP = so.Address
-			}
-
-			if r.cfg.ForwardEcs {
-				newOpts = append(newOpts, o)
-			}
-
-			result = true
-		default:
-			newOpts = append(newOpts, o)
-		}
+	so := eso.(*dns.EDNS0_SUBNET)
+	// v4 and unmasked
+	if (so.Family == 1 && so.SourceNetmask == 32) ||
+		// v6 and unmasked
+		(so.Family == 2 && so.SourceNetmask == 128) {
+		request.ClientIP = so.Address
 	}
 
-	edns.Option = newOpts
+	if !r.cfg.ForwardEcs {
+		util.RemoveEdns0Option(request.Req, dns.EDNS0SUBNET)
+	}
 
-	return result
+	return true
 }
 
+// appendSubnet appends the subnet information to the request as EDNS0 option
+// if the client IP is IPv4 or IPv6 and the corresponding mask is set in the configuration
 func (r *EcsResolver) appendSubnet(request *model.Request) {
 	e := new(dns.EDNS0_SUBNET)
 	e.Code = dns.EDNS0SUBNET
@@ -73,24 +69,11 @@ func (r *EcsResolver) appendSubnet(request *model.Request) {
 		e.Family = 1
 		e.SourceNetmask = r.cfg.IPv4Mask
 		e.Address = ip
-		r.appendOption(request, e)
+		util.SetEdns0Option(request.Req, e)
 	} else if request.ClientIP.To16() != nil && r.cfg.IPv6Mask > 0 {
 		e.Family = 2
 		e.SourceNetmask = r.cfg.IPv6Mask
 		e.Address = ip
-		r.appendOption(request, e)
+		util.SetEdns0Option(request.Req, e)
 	}
-}
-
-func (r *EcsResolver) appendOption(request *model.Request, opt dns.EDNS0) {
-	if edns := request.Req.IsEdns0(); edns != nil {
-		edns.Option = append(edns.Option, opt)
-	}
-
-	o := new(dns.OPT)
-	o.Hdr.Name = "."
-	o.Hdr.Rrtype = dns.TypeOPT
-	o.Option = append(o.Option, opt)
-
-	request.Req.Extra = append(request.Req.Extra, o)
 }

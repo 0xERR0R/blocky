@@ -105,6 +105,25 @@ func HaveReturnCode(code int) types.GomegaMatcher {
 	)
 }
 
+// HaveEdnsOption checks if the given message contains an EDNS0 record with the given option code.
+func HaveEdnsOption(code uint16) types.GomegaMatcher {
+	return gcustom.MakeMatcher(func(m *model.Response) (bool, error) {
+		opt := m.Res.IsEdns0()
+		if opt != nil {
+			for _, o := range opt.Option {
+				if o.Option() == code {
+					return true, nil
+				}
+			}
+		}
+
+		return false, nil
+	}).WithTemplate(
+		"Expected:\n{{.Actual}}\n{{.To}} have EDNS option:\n{{format .Data 1}}",
+		code,
+	)
+}
+
 func toFirstRR(actual interface{}) (dns.RR, error) {
 	switch i := actual.(type) {
 	case *model.Response:

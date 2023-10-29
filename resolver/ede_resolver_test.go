@@ -1,3 +1,4 @@
+// Description: Tests for ede_resolver.go
 package resolver
 
 import (
@@ -60,7 +61,7 @@ var _ = Describe("EdeResolver", func() {
 						HaveNoAnswer(),
 						HaveResponseType(ResponseTypeCUSTOMDNS),
 						HaveReturnCode(dns.RcodeSuccess),
-						WithTransform(ToExtra, BeEmpty()),
+						Not(HaveEdnsOption(dns.EDNS0EDE)),
 					))
 
 			// delegated to next resolver
@@ -81,8 +82,17 @@ var _ = Describe("EdeResolver", func() {
 			}
 		})
 
-		extractFirstOptRecord := func(e []dns.RR) []dns.EDNS0 {
-			return e[0].(*dns.OPT).Option
+		extractEdeOption := func(res *Response) dns.EDNS0_EDE {
+			opt := res.Res.IsEdns0()
+			if opt != nil {
+				for _, o := range opt.Option {
+					if o.Option() == dns.EDNS0EDE {
+						return *o.(*dns.EDNS0_EDE)
+					}
+				}
+			}
+
+			return dns.EDNS0_EDE{}
 		}
 
 		It("should add EDE information", func() {
@@ -92,15 +102,11 @@ var _ = Describe("EdeResolver", func() {
 						HaveNoAnswer(),
 						HaveResponseType(ResponseTypeCUSTOMDNS),
 						HaveReturnCode(dns.RcodeSuccess),
-						// extra should contain one OPT record
-						WithTransform(ToExtra,
+						HaveEdnsOption(dns.EDNS0EDE),
+						WithTransform(extractEdeOption,
 							SatisfyAll(
-								HaveLen(1),
-								WithTransform(extractFirstOptRecord,
-									SatisfyAll(
-										ContainElement(HaveField("InfoCode", Equal(dns.ExtendedErrorCodeForgedAnswer))),
-										ContainElement(HaveField("ExtraText", Equal("Test"))),
-									)),
+								HaveField("InfoCode", Equal(dns.ExtendedErrorCodeForgedAnswer)),
+								HaveField("ExtraText", Equal("Test")),
 							)),
 					))
 		})
