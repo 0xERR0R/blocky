@@ -14,7 +14,6 @@
       "extensions": [
         "golang.go",
         "ms-vscode.makefile-tools",
-        "usernamehw.errorlens",
         "esbenp.prettier-vscode",
         "yzhang.markdown-all-in-one"
       ],
@@ -29,7 +28,6 @@
           "source.addMissingImports": true,
           "source.fixAll": true
         },
-        "editor.defaultFormatter": "esbenp.prettier-vscode",
         "go.showWelcome": false,
         "go.survey.prompt": false,
         "go.useLanguageServer": true,
@@ -75,6 +73,9 @@
           "editor.quickSuggestions": {
             "strings": true
           }
+        },
+        "[json][jsonc]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
         }
       }
     }
