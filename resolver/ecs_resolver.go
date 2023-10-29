@@ -45,7 +45,8 @@ func (r *EcsResolver) Resolve(request *model.Request) (*model.Response, error) {
 // setClientIP sets the client IP from the EDNS0 option to the request if the
 // client IP is IPv4 or IPv6 and the corresponding mask is set in the configuration
 func (r *EcsResolver) setClientIP(request *model.Request) bool {
-	if so := util.GetEdns0Option(request.Req, dns.EDNS0SUBNET).(*dns.EDNS0_SUBNET); so != nil {
+	if eso := util.GetEdns0Option(request.Req, dns.EDNS0SUBNET); eso != nil {
+		so := eso.(*dns.EDNS0_SUBNET)
 		if (so.Family == ecsIpv4Family && so.SourceNetmask == ecsIpv4Mask) ||
 			(so.Family == ecsIpv6Family && so.SourceNetmask == ecsIpv6Mask) {
 			request.ClientIP = so.Address
