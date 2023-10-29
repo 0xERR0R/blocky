@@ -19,7 +19,7 @@ var _ = Describe("EcsConfig", func() {
 				Expect(c.IPv4Mask).Should(BeNumerically(">", ipv4MaskMax))
 			})
 			It("should be disabled", func() {
-				c.validateConfig()
+				c.ValidateConfig(logger)
 				Expect(c.IPv4Mask).Should(BeNumerically("==", 0))
 			})
 		})
@@ -29,7 +29,7 @@ var _ = Describe("EcsConfig", func() {
 				Expect(c.IPv6Mask).Should(BeNumerically(">", ipv6MaskMax))
 			})
 			It("should be disabled", func() {
-				c.validateConfig()
+				c.ValidateConfig(logger)
 				Expect(c.IPv6Mask).Should(BeNumerically("==", 0))
 			})
 		})

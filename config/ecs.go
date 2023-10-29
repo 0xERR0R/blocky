@@ -1,7 +1,6 @@
 package config
 
 import (
-	"github.com/0xERR0R/blocky/log"
 	"github.com/sirupsen/logrus"
 )
 
@@ -27,16 +26,16 @@ func (c *EcsConfig) LogConfig(logger *logrus.Entry) {
 	logger.Infof("IPv6 netmask      = %d", c.IPv6Mask)
 }
 
-func (c *EcsConfig) validateConfig() {
+func (c *EcsConfig) ValidateConfig(logger *logrus.Entry) {
 	if c.IPv4Mask > ipv4MaskMax {
-		log.Log().Errorf("the current value %d of ipv4Mask is above the maxvalue of %d",
+		logger.Errorf("the current value %d of ipv4Mask is above the maxvalue of %d",
 			c.IPv4Mask, ipv4MaskMax)
 
 		c.IPv4Mask = 0
 	}
 
 	if c.IPv6Mask > ipv6MaskMax {
-		log.Log().Errorf("the current value %d of ipv6Mask is above the maxvalue of %d",
+		logger.Errorf("the current value %d of ipv6Mask is above the maxvalue of %d",
 			c.IPv6Mask, ipv6MaskMax)
 
 		c.IPv6Mask = 0
