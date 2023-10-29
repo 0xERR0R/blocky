@@ -7,6 +7,13 @@ import (
 	"github.com/miekg/dns"
 )
 
+const (
+	ecsIpv4Family = 1
+	ecsIpv4Mask   = 32
+	ecsIpv6Family = 2
+	ecsIpv6Mask   = 128
+)
+
 // A EcsResolver is responsible for adding the subnet information as EDNS0 option
 type EcsResolver struct {
 	configurable[*config.EcsConfig]
@@ -38,17 +45,11 @@ func (r *EcsResolver) Resolve(request *model.Request) (*model.Response, error) {
 // setClientIP sets the client IP from the EDNS0 option to the request if the
 // client IP is IPv4 or IPv6 and the corresponding mask is set in the configuration
 func (r *EcsResolver) setClientIP(request *model.Request) bool {
-	eso := util.GetEdns0Option(request.Req, dns.EDNS0SUBNET)
-	if eso == nil {
-		return false
-	}
-
-	so := eso.(*dns.EDNS0_SUBNET)
-	// v4 and unmasked
-	if (so.Family == 1 && so.SourceNetmask == 32) ||
-		// v6 and unmasked
-		(so.Family == 2 && so.SourceNetmask == 128) {
-		request.ClientIP = so.Address
+	if so := util.GetEdns0Option(request.Req, dns.EDNS0SUBNET).(*dns.EDNS0_SUBNET); so != nil {
+		if (so.Family == ecsIpv4Family && so.SourceNetmask == ecsIpv4Mask) ||
+			(so.Family == ecsIpv6Family && so.SourceNetmask == ecsIpv6Mask) {
+			request.ClientIP = so.Address
+		}
 	}
 
 	if !r.cfg.ForwardEcs {
