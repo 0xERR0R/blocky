@@ -41,6 +41,7 @@ require (
 	github.com/docker/docker v24.0.6+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198
+	github.com/jandelgado/gcov2lcov v1.0.6
 	github.com/oapi-codegen/runtime v1.0.0
 	github.com/testcontainers/testcontainers-go v0.26.0
 	github.com/testcontainers/testcontainers-go/modules/mariadb v0.26.0
@@ -70,7 +71,6 @@ require (
 	github.com/google/pprof v0.0.0-20230309165930-d61513b1440d // indirect
 	github.com/invopop/yaml v0.1.0 // indirect
 	github.com/jackc/pgx/v5 v5.4.3 // indirect
-	github.com/jandelgado/gcov2lcov v1.0.6 // indirect
 	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
