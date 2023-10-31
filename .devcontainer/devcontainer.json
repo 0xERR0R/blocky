@@ -11,7 +11,8 @@
   },
   "remoteEnv": {
     "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}",
-    "WORKSPACE_FOLDER": "${containerWorkspaceFolder}"
+    "WORKSPACE_FOLDER": "${containerWorkspaceFolder}",
+    "GENERATE_LCOV": "true"
   },
   "customizations": {
     "vscode": {
