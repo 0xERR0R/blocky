@@ -111,6 +111,31 @@ var _ = Describe("EdeResolver", func() {
 					))
 		})
 
+		When("resolver returns other", func() {
+			BeforeEach(func() {
+				m = &mockResolver{}
+				m.On("Resolve", mock.Anything).Return(&Response{
+					Res:    mockAnswer,
+					RType:  ResponseTypeOTHER,
+					Reason: "Test",
+				}, nil)
+			})
+
+			It("shouldn't add EDE information", func() {
+				Expect(sut.Resolve(newRequest("example.com.", A))).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							HaveResponseType(ResponseTypeOTHER),
+							HaveReturnCode(dns.RcodeSuccess),
+							Not(HaveEdnsOption(dns.EDNS0EDE)),
+						))
+
+				// delegated to next resolver
+				Expect(m.Calls).Should(HaveLen(1))
+			})
+		})
+
 		When("resolver returns an error", func() {
 			resolveErr := errors.New("test")
 
