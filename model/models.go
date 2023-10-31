@@ -19,6 +19,7 @@ import (
 // FILTERED // the query was filtered by query type
 // NOTFQDN // the query was filtered as it is not fqdn conform
 // SPECIAL // the query was resolved by the special use domain name resolver
+// OTHER // won't be used for EDE option
 // )
 type ResponseType int
 
@@ -42,6 +43,8 @@ func (t ResponseType) ToExtendedErrorCode() uint16 {
 		return dns.ExtendedErrorCodeFiltered
 	case ResponseTypeSPECIAL:
 		return dns.ExtendedErrorCodeFiltered
+	case ResponseTypeOTHER:
+		return dns.ExtendedErrorCodeOther
 	default:
 		return dns.ExtendedErrorCodeOther
 	}
