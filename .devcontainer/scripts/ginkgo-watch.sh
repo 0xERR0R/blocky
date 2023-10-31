@@ -1,28 +1,15 @@
-#!/bin/bash
+#!/bin/bash -e
 
-set -e
-
-# Install required tools
-go install github.com/onsi/ginkgo/v2/ginkgo@latest
-go install github.com/jandelgado/gcov2lcov@latest
-
-COVERAGE_DIR="${WORKSPACE_FOLDER}/.coverage"
-GCOV_FILE="${COVERAGE_DIR}/coverage.gcov"
-LCOV_FILE="${COVERAGE_DIR}/coverage.lcov"
-
-mkdir -p "${COVERAGE_DIR}"
-
-function getFileName(){
-  echo "${COVERAGE_DIR}/coverage_${1}.${2}"
-}
-
+# Watch function for seperate folders to run ginkgo and convert gcov to lcov
 function watch(){
-  local gcovFilename="coverage.gcov"
-  local lcovFile="${COVERAGE_DIR}/${1}_coverage.lcov"
-  local gcovFile="${COVERAGE_DIR}/${1}_${gcovFilename}"
-  ginkgo watch --output-dir="${COVERAGE_DIR}" --coverprofile="${gcovFilename}" --cover --after-run-hook="gcov2lcov -infile=${gcovFile} -outfile=${lcovFile}" "${WORKSPACE_FOLDER}/${1}" &
+  local gcovFilename=".coverage.gcov"
+  local watchDir="${WORKSPACE_FOLDER}/${1}"
+  local lcovFile="${watchDir}/.coverage.lcov"
+  local gcovFile="${watchDir}/${gcovFilename}"
+  go run github.com/onsi/ginkgo/v2/ginkgo watch --no-color --coverprofile="${gcovFilename}" --keep-separate-coverprofiles --cover --after-run-hook="go run github.com/jandelgado/gcov2lcov -infile=${gcovFile} -outfile=${lcovFile}" "${watchDir}" &
 }
 
+# Watch for changes in the following folders
 watch api
 watch cmd
 watch config
@@ -32,3 +19,5 @@ watch redis
 watch resolver
 watch server
 watch util
+
+echo "Setup complete."

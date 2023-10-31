@@ -19,7 +19,8 @@
         "golang.go",
         "esbenp.prettier-vscode",
         "yzhang.markdown-all-in-one",
-        "markis.code-coverage"
+        "ryanluker.vscode-coverage-gutters",
+        "joselitofilho.ginkgotestexplorer"
       ],
       "settings": {
         "editor.tabSize": 2,
@@ -37,6 +38,7 @@
         "go.formatTool": "gofumpt",
         "go.lintTool": "golangci-lint",
         "go.lintOnSave": "workspace",
+        "go.lintFlags": ["--config=${containerWorkspaceFolder}/.golangci.yml"],
         "go.alternateTools": {
           "go-langserver": "gopls"
         },
@@ -45,9 +47,8 @@
           "formatting.gofumpt": true,
           "build.standaloneTags": ["ignore", "tools"]
         },
-        "markiscodecoverage.showCoverageOnEditor": true,
-        "markiscodecoverage.enableOnStartup": true,
-        "markiscodecoverage.searchCriteria": "*.lcov",
+        "coverage-gutters.coverageFileNames": [".coverage.lcov", "lcov.info"],
+        "ginkgotestexplorer.ginkgoPath": "${containerWorkspaceFolder}/.devcontainer/scripts/ginkgo.sh",
         "[go]": {
           "editor.defaultFormatter": "golang.go"
         },

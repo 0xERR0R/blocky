@@ -1,9 +1,14 @@
-#!/bin/bash
-
-set -e
+#!/bin/bash -e
 
 # Use the host's timezone and time
 sudo ln -sf /usr/share/host/localtime /etc/localtime
 sudo ln -sf /usr/share/host/timezone /etc/timezone
 
-bash -c "\"${WORKSPACE_FOLDER}/.devcontainer/scripts/ginkgo-watch.sh\""
+echo "Downloading Go modules..."
+go mod download
+
+echo "Removing nohup output from previous run..."
+rm -f nohup.out || true
+
+echo "Setting up watchers..."
+nohup bash -c "\"${WORKSPACE_FOLDER}/.devcontainer/scripts/ginkgo-watch.sh\""
