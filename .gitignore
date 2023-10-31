@@ -1,5 +1,4 @@
 .idea/
-.vscode/
 *.iml
 *.test
 /*.pem
@@ -13,7 +12,6 @@ todo.txt
 node_modules
 package-lock.json
 vendor/
-nohup.out
 coverage.txt
 .coverage.gcov
 .coverage.lcov
