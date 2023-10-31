@@ -9,26 +9,34 @@
     },
     "ghcr.io/devcontainers/features/python:1": {}
   },
+  "remoteEnv": {
+    "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}",
+    "WORKSPACE_FOLDER": "${containerWorkspaceFolder}"
+  },
   "customizations": {
     "vscode": {
       "extensions": [
         "golang.go",
-        "ms-vscode.makefile-tools",
-        "usernamehw.errorlens",
         "esbenp.prettier-vscode",
-        "yzhang.markdown-all-in-one"
+        "yzhang.markdown-all-in-one",
+        "markis.code-coverage"
       ],
       "settings": {
         "editor.tabSize": 2,
         "editor.insertSpaces": true,
         "editor.detectIndentation": false,
         "editor.formatOnSave": true,
+        "editor.formatOnPaste": true,
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": true,
+          "source.fixAll": true
+        },
         "go.showWelcome": false,
         "go.survey.prompt": false,
         "go.useLanguageServer": true,
         "go.formatTool": "gofumpt",
         "go.lintTool": "golangci-lint",
-        "go.lintOnSave": "file",
+        "go.lintOnSave": "workspace",
         "go.alternateTools": {
           "go-langserver": "gopls"
         },
@@ -37,19 +45,11 @@
           "formatting.gofumpt": true,
           "build.standaloneTags": ["ignore", "tools"]
         },
-        "errorLens.excludePatterns": ["go.{mod,sum}", "tools.go"],
+        "markiscodecoverage.showCoverageOnEditor": true,
+        "markiscodecoverage.enableOnStartup": true,
+        "markiscodecoverage.searchCriteria": "*.lcov",
         "[go]": {
-          "editor.defaultFormatter": "golang.go",
-          "editor.formatOnSave": true,
-          "editor.codeActionsOnSave": {
-            "source.organizeImports": true
-          }
-        },
-        "[go.mod]": {
-          "editor.formatOnSave": true,
-          "editor.codeActionsOnSave": {
-            "source.organizeImports": true
-          }
+          "editor.defaultFormatter": "golang.go"
         },
         "[json][jsonc]": {
           "editor.defaultFormatter": "esbenp.prettier-vscode"
@@ -73,5 +73,6 @@
     "type=bind,readonly,source=/etc/localtime,target=/usr/share/host/localtime",
     "type=bind,readonly,source=/etc/timezone,target=/usr/share/host/timezone"
   ],
-  "postStartCommand": "sudo sh -c \"ln -sf /usr/share/host/localtime /etc/localtime && ln -sf /usr/share/host/timezone /etc/timezone\""
+  "postCreateCommand": "sudo chmod +x .devcontainer/scripts/*.sh",
+  "postStartCommand": "sh .devcontainer/scripts/postStart.sh"
 }
