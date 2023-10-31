@@ -70,6 +70,7 @@ require (
 	github.com/google/pprof v0.0.0-20230309165930-d61513b1440d // indirect
 	github.com/invopop/yaml v0.1.0 // indirect
 	github.com/jackc/pgx/v5 v5.4.3 // indirect
+	github.com/jandelgado/gcov2lcov v1.0.6 // indirect
 	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect

@@ -10,6 +10,7 @@ import (
 	_ "github.com/deepmap/oapi-codegen/cmd/oapi-codegen"
 	_ "github.com/dosgo/zigtool/zigcc"
 	_ "github.com/dosgo/zigtool/zigcpp"
+	_ "github.com/jandelgado/gcov2lcov"
 	_ "github.com/onsi/ginkgo/v2/ginkgo"
 	_ "golang.org/x/tools/cmd/goimports"
 	_ "mvdan.cc/gofumpt"
