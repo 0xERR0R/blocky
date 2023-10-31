@@ -72,7 +72,8 @@
   },
   "mounts": [
     "type=bind,readonly,source=/etc/localtime,target=/usr/share/host/localtime",
-    "type=bind,readonly,source=/etc/timezone,target=/usr/share/host/timezone"
+    "type=bind,readonly,source=/etc/timezone,target=/usr/share/host/timezone",
+    "source=blocky-mod_cache,target=/go/pkg/mod,type=volume"
   ],
   "postCreateCommand": "sudo chmod +x .devcontainer/scripts/*.sh",
   "postStartCommand": "sh .devcontainer/scripts/postStart.sh"
