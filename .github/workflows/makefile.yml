@@ -9,7 +9,7 @@ permissions:
   actions: read
   contents: read
 
-concurrency: 
+concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
@@ -58,16 +58,16 @@ jobs:
 
       - name: make ${{ matrix.make }}
         run: make ${{ matrix.make }}
-        if: matrix.make != 'goreleaser'  
+        if: matrix.make != 'goreleaser'
         env:
           GO_SKIP_GENERATE: 1
 
       - name: Upload results to codecov
         uses: codecov/codecov-action@v3
-        if: matrix.make == 'test'
+        if: matrix.make == 'test' && github.repository_owner == '0xERR0R'
 
       - name: Check GoReleaser configuration
         uses: goreleaser/goreleaser-action@v5
-        if: matrix.make == 'goreleaser' 
+        if: matrix.make == 'goreleaser'
         with:
           args: check

@@ -56,6 +56,9 @@ endif
 
 test: ## run tests
 	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --coverprofile=coverage.txt --covermode=atomic -cover ./...
+ifdef GENERATE_LCOV
+	go run github.com/jandelgado/gcov2lcov -infile=coverage.txt -outfile=lcov.info || echo "no coverage file found"
+endif
 
 e2e-test: ## run e2e tests
 	docker buildx build \

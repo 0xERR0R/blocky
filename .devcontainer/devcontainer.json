@@ -10,15 +10,18 @@
     "ghcr.io/devcontainers/features/python:1": {}
   },
   "remoteEnv": {
-    "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
+    "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}",
+    "WORKSPACE_FOLDER": "${containerWorkspaceFolder}",
+    "GENERATE_LCOV": "true"
   },
   "customizations": {
     "vscode": {
       "extensions": [
         "golang.go",
-        "ms-vscode.makefile-tools",
         "esbenp.prettier-vscode",
-        "yzhang.markdown-all-in-one"
+        "yzhang.markdown-all-in-one",
+        "ryanluker.vscode-coverage-gutters",
+        "joselitofilho.ginkgotestexplorer"
       ],
       "settings": {
         "editor.tabSize": 2,
@@ -26,17 +29,17 @@
         "editor.detectIndentation": false,
         "editor.formatOnSave": true,
         "editor.formatOnPaste": true,
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": true,
+          "source.fixAll": true
+        },
         "go.showWelcome": false,
         "go.survey.prompt": false,
         "go.useLanguageServer": true,
         "go.formatTool": "gofumpt",
         "go.lintTool": "golangci-lint",
-        "go.lintOnSave": "package",
-        "go.lintFlags": [
-          "--config=${workspaceFolder}/.golangci.yml",
-          "--fast",
-          "--tests=false"
-        ],
+        "go.lintOnSave": "workspace",
+        "go.lintFlags": ["--config=${containerWorkspaceFolder}/.golangci.yml"],
         "go.alternateTools": {
           "go-langserver": "gopls"
         },
@@ -45,20 +48,10 @@
           "formatting.gofumpt": true,
           "build.standaloneTags": ["ignore", "tools"]
         },
+        "coverage-gutters.coverageFileNames": [".coverage.lcov", "lcov.info"],
+        "ginkgotestexplorer.ginkgoPath": "${containerWorkspaceFolder}/.devcontainer/scripts/ginkgo.sh",
         "[go]": {
-          "editor.defaultFormatter": "golang.go",
-          "editor.formatOnSave": true,
-          "editor.codeActionsOnSave": {
-            "source.organizeImports": true,
-            "source.addMissingImports": true,
-            "source.fixAll": true
-          }
-        },
-        "[go.mod]": {
-          "editor.formatOnSave": true,
-          "editor.codeActionsOnSave": {
-            "source.organizeImports": true
-          }
+          "editor.defaultFormatter": "golang.go"
         },
         "[markdown]": {
           "editor.defaultFormatter": "yzhang.markdown-all-in-one",
@@ -84,10 +77,11 @@
       }
     }
   },
-  "postCreateCommand": "go mod download",
   "mounts": [
     "type=bind,readonly,source=/etc/localtime,target=/usr/share/host/localtime",
-    "type=bind,readonly,source=/etc/timezone,target=/usr/share/host/timezone"
+    "type=bind,readonly,source=/etc/timezone,target=/usr/share/host/timezone",
+    "source=blocky-mod_cache,target=/go/pkg/mod,type=volume"
   ],
-  "postStartCommand": "sudo sh -c \"ln -sf /usr/share/host/localtime /etc/localtime && ln -sf /usr/share/host/timezone /etc/timezone\""
+  "postCreateCommand": "sudo chmod +x .devcontainer/scripts/*.sh",
+  "postStartCommand": "sh .devcontainer/scripts/postStart.sh"
 }
