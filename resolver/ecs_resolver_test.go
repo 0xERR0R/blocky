@@ -89,7 +89,7 @@ var _ = Describe("EcsResolver", func() {
 				m.ResolveFn = func(req *Request) (*Response, error) {
 					Expect(req.ClientIP).Should(Equal(ecsIP))
 
-					return respondWith(req, mockAnswer), nil
+					return respondWith(mockAnswer), nil
 				}
 
 				Expect(sut.Resolve(request)).
@@ -110,7 +110,7 @@ var _ = Describe("EcsResolver", func() {
 				m.ResolveFn = func(req *Request) (*Response, error) {
 					Expect(req.ClientIP).Should(Equal(origIP))
 
-					return respondWith(req, mockAnswer), nil
+					return respondWith(mockAnswer), nil
 				}
 
 				Expect(sut.Resolve(request)).
@@ -137,6 +137,6 @@ func addEcsOption(req *dns.Msg, ip net.IP, netmask uint8) {
 }
 
 // respondWith creates a new Response with the given request and message
-func respondWith(req *Request, res *dns.Msg) *Response {
+func respondWith(res *dns.Msg) *Response {
 	return &Response{Res: res, RType: ResponseTypeRESOLVED, Reason: "Test"}
 }
