@@ -123,6 +123,28 @@ var _ = Describe("EcsResolver", func() {
 			})
 		})
 	})
+
+	Describe("getMask", func() {
+		When("ECSv4Mask", func() {
+			It("should return 32 when input is 32", func() {
+				Expect(getMask(ecsIpv4Mask, ecsIpv4Mask)).Should(Equal(ecsIpv4Mask))
+			})
+
+			It("should return 0 when input is 33", func() {
+				Expect(getMask(ecsIpv4Mask+1, ecsIpv4Mask)).Should(Equal(uint8(0)))
+			})
+		})
+
+		When("ECSv6Mask", func() {
+			It("should return 128 when input is 128", func() {
+				Expect(getMask(ecsIpv6Mask, ecsIpv6Mask)).Should(Equal(ecsIpv6Mask))
+			})
+
+			It("should return 0 when input is 129", func() {
+				Expect(getMask(ecsIpv4Mask+1, ecsIpv6Mask)).Should(Equal(uint8(0)))
+			})
+		})
+	})
 })
 
 // addEcsOption adds the subnet information to the request as EDNS0 option

@@ -8,11 +8,11 @@ import (
 )
 
 const (
-	ecsSourceScope = 0
-	ecsIpv4Family  = 1
-	ecsIpv4Mask    = 32
-	ecsIpv6Family  = 2
-	ecsIpv6Mask    = 128
+	ecsSourceScope = uint8(0)
+	ecsIpv4Family  = uint16(1)
+	ecsIpv4Mask    = uint8(32)
+	ecsIpv6Family  = uint16(2)
+	ecsIpv6Mask    = uint8(128)
 )
 
 // A EcsResolver is responsible for adding the subnet information as EDNS0 option
@@ -31,11 +31,12 @@ func NewEcsResolver(cfg config.EcsConfig) ChainedResolver {
 }
 
 // Resolve adds the subnet information as EDNS0 option to the request of the next resolver
-// and sets the client IP from the EDNS0 option to the request if the client IP is IPv4 or IPv6
-// and the corresponding mask is set in the configuration
+// and sets the client IP from the EDNS0 option to the request if this option is enabled
 func (r *EcsResolver) Resolve(request *model.Request) (*model.Response, error) {
 	if r.cfg.IsEnabled() {
-		r.setClientIP(request)
+		if r.cfg.UseEcsAsClient {
+			r.setClientIP(request)
+		}
 
 		if r.shouldAppendEcs(request) {
 			r.appendSubnet(request)
@@ -75,15 +76,28 @@ func (r *EcsResolver) appendSubnet(request *model.Request) {
 	e.Code = dns.EDNS0SUBNET
 	e.SourceScope = ecsSourceScope
 
-	if ip := request.ClientIP.To4(); ip != nil && r.cfg.IPv4Mask > 0 {
-		e.Family = ecsIpv4Family
-		e.SourceNetmask = r.cfg.IPv4Mask
-		e.Address = ip
-		util.SetEdns0Option(request.Req, e)
-	} else if request.ClientIP.To16() != nil && r.cfg.IPv6Mask > 0 {
-		e.Family = ecsIpv6Family
-		e.SourceNetmask = r.cfg.IPv6Mask
-		e.Address = ip
-		util.SetEdns0Option(request.Req, e)
+	if ip := request.ClientIP.To4(); ip != nil {
+		if mask := getMask(uint8(r.cfg.IPv4Mask), ecsIpv4Mask); mask > 0 {
+			e.Family = ecsIpv4Family
+			e.SourceNetmask = mask
+			e.Address = ip
+			util.SetEdns0Option(request.Req, e)
+		}
+	} else if request.ClientIP.To16() != nil {
+		if mask := getMask(uint8(r.cfg.IPv6Mask), ecsIpv6Mask); mask > 0 {
+			e.Family = ecsIpv6Family
+			e.SourceNetmask = mask
+			e.Address = ip
+			util.SetEdns0Option(request.Req, e)
+		}
 	}
+}
+
+// getMask returns the subnet mask from the configuration if it is valid and 0 otherwise
+func getMask(input, mask uint8) uint8 {
+	if input > mask {
+		return 0
+	}
+
+	return input
 }
