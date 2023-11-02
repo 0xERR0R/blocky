@@ -497,10 +497,6 @@ func unmarshalConfig(data []byte, cfg *Config) error {
 
 	logger := logrus.NewEntry(log.Log())
 
-	if cfg.Ecs.IsEnabled() {
-		cfg.Ecs.ValidateConfig(logger)
-	}
-
 	usesDepredOpts := cfg.migrate(logger)
 	if usesDepredOpts {
 		logger.Error("configuration uses deprecated options, see warning logs for details")

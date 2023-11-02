@@ -12,25 +12,43 @@ var _ = Describe("EcsConfig", func() {
 		err := defaults.Set(&c)
 		Expect(err).Should(Succeed())
 	})
-	Describe("validate config", func() {
-		When("IPv4Mask is invalid", func() {
-			BeforeEach(func() {
-				c.IPv4Mask = ipv4MaskMax + 1
-				Expect(c.IPv4Mask).Should(BeNumerically(">", ipv4MaskMax))
-			})
+
+	Describe("IsEnabled", func() {
+		When("all fields are default", func() {
 			It("should be disabled", func() {
-				c.ValidateConfig(logger)
-				Expect(c.IPv4Mask).Should(BeNumerically("==", 0))
+				Expect(c.IsEnabled()).Should(BeFalse())
 			})
 		})
-		When("IPv6Mask is invalid", func() {
+		When("UseEcsAsClient is true", func() {
 			BeforeEach(func() {
-				c.IPv6Mask = ipv6MaskMax + 1
-				Expect(c.IPv6Mask).Should(BeNumerically(">", ipv6MaskMax))
+				c.UseEcsAsClient = true
 			})
-			It("should be disabled", func() {
-				c.ValidateConfig(logger)
-				Expect(c.IPv6Mask).Should(BeNumerically("==", 0))
+			It("should be enabled", func() {
+				Expect(c.IsEnabled()).Should(BeTrue())
+			})
+		})
+		When("ForwardEcs is true", func() {
+			BeforeEach(func() {
+				c.ForwardEcs = true
+			})
+			It("should be enabled", func() {
+				Expect(c.IsEnabled()).Should(BeTrue())
+			})
+		})
+		When("IPv4Mask is set", func() {
+			BeforeEach(func() {
+				c.IPv4Mask = 24
+			})
+			It("should be enabled", func() {
+				Expect(c.IsEnabled()).Should(BeTrue())
+			})
+		})
+		When("IPv6Mask is set", func() {
+			BeforeEach(func() {
+				c.IPv6Mask = 64
+			})
+			It("should be enabled", func() {
+				Expect(c.IsEnabled()).Should(BeTrue())
 			})
 		})
 	})
