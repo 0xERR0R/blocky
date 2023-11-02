@@ -16,3 +16,4 @@ coverage.txt
 .coverage.gcov
 .coverage.lcov
 lcov.info
+ginkgo.report
