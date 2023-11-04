@@ -214,3 +214,36 @@ func (c *configurable[T]) IsEnabled() bool {
 func (c *configurable[T]) LogConfig(logger *logrus.Entry) {
 	c.cfg.LogConfig(logger)
 }
+
+func createResolvers(
+	logger *logrus.Entry, cfg config.UpstreamGroup, bootstrap *Bootstrap, shoudVerifyUpstreams bool,
+) ([]Resolver, error) {
+	resolvers := make([]Resolver, 0, len(cfg.Upstreams))
+	hasValidResolvers := false
+
+	for _, u := range cfg.Upstreams {
+		resolver, err := NewUpstreamResolver(u, bootstrap, shoudVerifyUpstreams)
+		if err != nil {
+			logger.Warnf("upstream group %s: %v", cfg.Name, err)
+
+			continue
+		}
+
+		if shoudVerifyUpstreams {
+			err = testResolver(resolver)
+			if err != nil {
+				logger.Warn(err)
+			} else {
+				hasValidResolvers = true
+			}
+		}
+
+		resolvers = append(resolvers, resolver)
+	}
+
+	if shoudVerifyUpstreams && !hasValidResolvers {
+		return nil, fmt.Errorf("no valid upstream for group %s", cfg.Name)
+	}
+
+	return resolvers, nil
+}

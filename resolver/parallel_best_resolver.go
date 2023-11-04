@@ -25,10 +25,11 @@ const (
 
 // ParallelBestResolver delegates the DNS message to 2 upstream resolvers and returns the fastest answer
 type ParallelBestResolver struct {
-	configurable[*config.UpstreamsConfig]
+	configurable[*config.UpstreamGroup]
 	typed
 
-	resolversPerClient map[string][]*upstreamResolverStatus
+	groupName string
+	resolvers []*upstreamResolverStatus
 }
 
 type upstreamResolverStatus struct {
@@ -80,67 +81,33 @@ func testResolver(r *UpstreamResolver) error {
 
 // NewParallelBestResolver creates new resolver instance
 func NewParallelBestResolver(
-	cfg config.UpstreamsConfig, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
+	cfg config.UpstreamGroup, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
 ) (*ParallelBestResolver, error) {
 	logger := log.PrefixedLog(parallelResolverType)
 
-	upstreamResolvers := cfg.Groups
-	resolverGroups := make(map[string][]Resolver, len(upstreamResolvers))
-
-	for name, upstreamCfgs := range upstreamResolvers {
-		group := make([]Resolver, 0, len(upstreamCfgs))
-		hasValidResolver := false
-
-		for _, u := range upstreamCfgs {
-			resolver, err := NewUpstreamResolver(u, bootstrap, shouldVerifyUpstreams)
-			if err != nil {
-				logger.Warnf("upstream group %s: %v", name, err)
-
-				continue
-			}
-
-			if shouldVerifyUpstreams {
-				err = testResolver(resolver)
-				if err != nil {
-					logger.Warn(err)
-				} else {
-					hasValidResolver = true
-				}
-			}
-
-			group = append(group, resolver)
-		}
-
-		if shouldVerifyUpstreams && !hasValidResolver {
-			return nil, fmt.Errorf("no valid upstream for group %s", name)
-		}
-
-		resolverGroups[name] = group
+	resolvers, err := createResolvers(logger, cfg, bootstrap, shouldVerifyUpstreams)
+	if err != nil {
+		return nil, err
 	}
 
-	return newParallelBestResolver(cfg, resolverGroups), nil
+	return newParallelBestResolver(cfg, resolvers), nil
 }
 
 func newParallelBestResolver(
-	cfg config.UpstreamsConfig, resolverGroups map[string][]Resolver,
+	cfg config.UpstreamGroup, resolvers []Resolver,
 ) *ParallelBestResolver {
-	resolversPerClient := make(map[string][]*upstreamResolverStatus, len(resolverGroups))
+	resolverStatuses := make([]*upstreamResolverStatus, 0, len(resolvers))
 
-	for groupName, resolvers := range resolverGroups {
-		resolverStatuses := make([]*upstreamResolverStatus, 0, len(resolvers))
-
-		for _, r := range resolvers {
-			resolverStatuses = append(resolverStatuses, newUpstreamResolverStatus(r))
-		}
-
-		resolversPerClient[groupName] = resolverStatuses
+	for _, r := range resolvers {
+		resolverStatuses = append(resolverStatuses, newUpstreamResolverStatus(r))
 	}
 
 	r := ParallelBestResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType(parallelResolverType),
 
-		resolversPerClient: resolversPerClient,
+		groupName: cfg.Name,
+		resolvers: resolverStatuses,
 	}
 
 	return &r
@@ -151,38 +118,25 @@ func (r *ParallelBestResolver) Name() string {
 }
 
 func (r *ParallelBestResolver) String() string {
-	result := make([]string, 0, len(r.resolversPerClient))
-
-	for name, res := range r.resolversPerClient {
-		tmp := make([]string, len(res))
-		for i, s := range res {
-			tmp[i] = fmt.Sprintf("%s", s.resolver)
-		}
-
-		result = append(result, fmt.Sprintf("%s (%s)", name, strings.Join(tmp, ",")))
+	result := make([]string, len(r.resolvers))
+	for i, s := range r.resolvers {
+		result[i] = fmt.Sprintf("%s", s.resolver)
 	}
 
-	return fmt.Sprintf("parallel upstreams '%s'", strings.Join(result, "; "))
+	return fmt.Sprintf("%s upstreams '%s (%s)'", parallelResolverType, r.groupName, strings.Join(result, ","))
 }
 
 // Resolve sends the query request to multiple upstream resolvers and returns the fastest result
 func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response, error) {
 	logger := log.WithPrefix(request.Log, parallelResolverType)
 
-	var resolvers []*upstreamResolverStatus
-	for _, r := range r.resolversPerClient {
-		resolvers = r
+	if len(r.resolvers) == 1 {
+		logger.WithField("resolver", r.resolvers[0].resolver).Debug("delegating to resolver")
 
-		break
+		return r.resolvers[0].resolver.Resolve(request)
 	}
 
-	if len(resolvers) == 1 {
-		logger.WithField("resolver", resolvers[0].resolver).Debug("delegating to resolver")
-
-		return resolvers[0].resolver.Resolve(request)
-	}
-
-	r1, r2 := pickRandom(resolvers)
+	r1, r2 := pickRandom(r.resolvers)
 	logger.Debugf("using %s and %s as resolver", r1.resolver, r2.resolver)
 
 	ch := make(chan requestResponse, resolverCount)

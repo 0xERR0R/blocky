@@ -45,12 +45,8 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 		sutMapping = config.UpstreamGroups{
 			upstreamDefaultCfgName: {
-				config.Upstream{
-					Host: "wrong",
-				},
-				config.Upstream{
-					Host: "127.0.0.2",
-				},
+				{Host: "wrong"},
+				{Host: "127.0.0.2"},
 			},
 		}
 
@@ -60,9 +56,9 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 	})
 
 	JustBeforeEach(func() {
-		sutConfig := config.UpstreamsConfig{
-			Timeout: config.Duration(1000 * time.Millisecond),
-			Groups:  sutMapping,
+		sutConfig := config.UpstreamGroup{
+			Name:      upstreamDefaultCfgName,
+			Upstreams: sutMapping[upstreamDefaultCfgName],
 		}
 
 		sut, err = NewParallelBestResolver(sutConfig, bootstrap, sutVerify)
@@ -85,8 +81,9 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 	})
 
 	Describe("Name", func() {
-		It("should not be empty", func() {
+		It("should contain correct resolver", func() {
 			Expect(sut.Name()).ShouldNot(BeEmpty())
+			Expect(sut.Name()).Should(ContainSubstring(parallelResolverType))
 		})
 	})
 
@@ -99,18 +96,16 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 			})
 			defer mockUpstream.Close()
 
-			upstream := config.UpstreamGroups{
-				upstreamDefaultCfgName: {
-					config.Upstream{
-						Host: "wrong",
-					},
-					mockUpstream.Start(),
-				},
+			upstreams := []config.Upstream{
+				{Host: "wrong"},
+				mockUpstream.Start(),
 			}
 
-			_, err := NewParallelBestResolver(config.UpstreamsConfig{
-				Groups: upstream,
-			}, systemResolverBootstrap, verifyUpstreams)
+			_, err := NewParallelBestResolver(config.UpstreamGroup{
+				Name:      upstreamDefaultCfgName,
+				Upstreams: upstreams,
+			},
+				systemResolverBootstrap, verifyUpstreams)
 			Expect(err).Should(Not(HaveOccurred()))
 		})
 	})
@@ -267,20 +262,17 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 				mockUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
 				DeferCleanup(mockUpstream2.Close)
 
-				sut, _ = NewParallelBestResolver(config.UpstreamsConfig{Groups: config.UpstreamGroups{
-					upstreamDefaultCfgName: {withError1, mockUpstream1.Start(), mockUpstream2.Start(), withError2},
-				}},
+				sut, _ = NewParallelBestResolver(config.UpstreamGroup{
+					Name:      upstreamDefaultCfgName,
+					Upstreams: []config.Upstream{withError1, mockUpstream1.Start(), mockUpstream2.Start(), withError2},
+				},
 					systemResolverBootstrap, noVerifyUpstreams)
 
 				By("all resolvers have same weight for random -> equal distribution", func() {
 					resolverCount := make(map[Resolver]int)
 
 					for i := 0; i < 1000; i++ {
-						var resolvers []*upstreamResolverStatus
-						for _, r := range sut.resolversPerClient {
-							resolvers = r
-						}
-						r1, r2 := pickRandom(resolvers)
+						r1, r2 := pickRandom(sut.resolvers)
 						res1 := r1.resolver
 						res2 := r2.resolver
 						Expect(res1).ShouldNot(Equal(res2))
@@ -305,11 +297,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					resolverCount := make(map[*UpstreamResolver]int)
 
 					for i := 0; i < 100; i++ {
-						var resolvers []*upstreamResolverStatus
-						for _, r := range sut.resolversPerClient {
-							resolvers = r
-						}
-						r1, r2 := pickRandom(resolvers)
+						r1, r2 := pickRandom(sut.resolvers)
 						res1 := r1.resolver.(*UpstreamResolver)
 						res2 := r2.resolver.(*UpstreamResolver)
 						Expect(res1).ShouldNot(Equal(res2))
@@ -335,8 +323,9 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 		It("errors during construction", func() {
 			b := newTestBootstrap(ctx, &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
-			r, err := NewParallelBestResolver(config.UpstreamsConfig{
-				Groups: config.UpstreamGroups{"test": {{Host: "example.com"}}},
+			r, err := NewParallelBestResolver(config.UpstreamGroup{
+				Name:      "test",
+				Upstreams: []config.Upstream{{Host: "example.com"}},
 			}, b, verifyUpstreams)
 
 			Expect(err).ShouldNot(Succeed())

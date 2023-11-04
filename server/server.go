@@ -447,13 +447,16 @@ func createUpstreamBranches(
 			err      error
 		)
 
-		resolverCfg := config.UpstreamsConfig{Groups: config.UpstreamGroups{group: upstreams}}
+		groupConfig := config.UpstreamGroup{
+			Name:      group,
+			Upstreams: upstreams,
+		}
 
 		switch cfg.Upstreams.Strategy {
-		case config.UpstreamStrategyStrict:
-			upstream, err = resolver.NewStrictResolver(resolverCfg, bootstrap, cfg.StartVerifyUpstream)
 		case config.UpstreamStrategyParallelBest:
-			upstream, err = resolver.NewParallelBestResolver(resolverCfg, bootstrap, cfg.StartVerifyUpstream)
+			upstream, err = resolver.NewParallelBestResolver(groupConfig, bootstrap, cfg.StartVerifyUpstream)
+		case config.UpstreamStrategyStrict:
+			upstream, err = resolver.NewStrictResolver(groupConfig, bootstrap, cfg.StartVerifyUpstream)
 		}
 
 		upstreamBranches[group] = upstream

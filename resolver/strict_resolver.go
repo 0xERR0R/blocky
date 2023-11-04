@@ -21,75 +21,42 @@ const (
 // StrictResolver delegates the DNS message strictly to the first configured upstream resolver
 // if it can't provide the answer in time the next resolver is used
 type StrictResolver struct {
-	configurable[*config.UpstreamsConfig]
+	configurable[*config.UpstreamGroup]
 	typed
 
-	resolversPerClient map[string][]*upstreamResolverStatus
+	groupName string
+	resolvers []*upstreamResolverStatus
 }
 
 // NewStrictResolver creates a new strict resolver instance
 func NewStrictResolver(
-	cfg config.UpstreamsConfig, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
+	cfg config.UpstreamGroup, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
 ) (*StrictResolver, error) {
 	logger := log.PrefixedLog(strictResolverType)
 
-	upstreamResolvers := cfg.Groups
-	resolverGroups := make(map[string][]Resolver, len(upstreamResolvers))
-
-	for name, upstreamCfgs := range upstreamResolvers {
-		group := make([]Resolver, 0, len(upstreamCfgs))
-		hasValidResolver := false
-
-		for _, u := range upstreamCfgs {
-			resolver, err := NewUpstreamResolver(u, bootstrap, shouldVerifyUpstreams)
-			if err != nil {
-				logger.Warnf("upstream group %s: %v", name, err)
-
-				continue
-			}
-
-			if shouldVerifyUpstreams {
-				err = testResolver(resolver)
-				if err != nil {
-					logger.Warn(err)
-				} else {
-					hasValidResolver = true
-				}
-			}
-
-			group = append(group, resolver)
-		}
-
-		if shouldVerifyUpstreams && !hasValidResolver {
-			return nil, fmt.Errorf("no valid upstream for group %s", name)
-		}
-
-		resolverGroups[name] = group
+	resolvers, err := createResolvers(logger, cfg, bootstrap, shouldVerifyUpstreams)
+	if err != nil {
+		return nil, err
 	}
 
-	return newStrictResolver(cfg, resolverGroups), nil
+	return newStrictResolver(cfg, resolvers), nil
 }
 
 func newStrictResolver(
-	cfg config.UpstreamsConfig, resolverGroups map[string][]Resolver,
+	cfg config.UpstreamGroup, resolvers []Resolver,
 ) *StrictResolver {
-	resolversPerClient := make(map[string][]*upstreamResolverStatus, len(resolverGroups))
+	resolverStatuses := make([]*upstreamResolverStatus, 0, len(resolvers))
 
-	for groupName, resolvers := range resolverGroups {
-		resolverStatuses := make([]*upstreamResolverStatus, 0, len(resolvers))
-
-		for _, r := range resolvers {
-			resolverStatuses = append(resolverStatuses, newUpstreamResolverStatus(r))
-		}
-
-		resolversPerClient[groupName] = resolverStatuses
+	for _, r := range resolvers {
+		resolverStatuses = append(resolverStatuses, newUpstreamResolverStatus(r))
 	}
 
 	r := StrictResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType(strictResolverType),
 
-		resolversPerClient: resolversPerClient,
+		groupName: cfg.Name,
+		resolvers: resolverStatuses,
 	}
 
 	return &r
@@ -100,39 +67,26 @@ func (r *StrictResolver) Name() string {
 }
 
 func (r *StrictResolver) String() string {
-	result := make([]string, 0, len(r.resolversPerClient))
-
-	for name, res := range r.resolversPerClient {
-		tmp := make([]string, len(res))
-		for i, s := range res {
-			tmp[i] = fmt.Sprintf("%s", s.resolver)
-		}
-
-		result = append(result, fmt.Sprintf("%s (%s)", name, strings.Join(tmp, ",")))
+	result := make([]string, len(r.resolvers))
+	for i, s := range r.resolvers {
+		result[i] = fmt.Sprintf("%s", s.resolver)
 	}
 
-	return fmt.Sprintf("%s upstreams %q", strictResolverType, strings.Join(result, "; "))
+	return fmt.Sprintf("%s upstreams '%s (%s)'", strictResolverType, r.groupName, strings.Join(result, ","))
 }
 
 // Resolve sends the query request in a strict order to the upstream resolvers
 func (r *StrictResolver) Resolve(request *model.Request) (*model.Response, error) {
 	logger := log.WithPrefix(request.Log, strictResolverType)
 
-	var resolvers []*upstreamResolverStatus
-	for _, r := range r.resolversPerClient {
-		resolvers = r
-
-		break
-	}
-
 	// start with first resolver
-	for i := range resolvers {
+	for i := range r.resolvers {
 		timeout := config.GetConfig().Upstreams.Timeout.ToDuration()
 
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 
-		resolver := resolvers[i]
+		resolver := r.resolvers[i]
 		logger.Debugf("using %s as resolver", resolver.resolver)
 
 		ch := make(chan requestResponse, 1)
@@ -142,7 +96,7 @@ func (r *StrictResolver) Resolve(request *model.Request) (*model.Response, error
 		select {
 		case <-ctx.Done():
 			// log debug/info that timeout exceeded, call `continue` to try next upstream
-			logger.WithField("resolver", resolvers[i].resolver).Debug("upstream exceeded timeout, trying next upstream")
+			logger.WithField("resolver", r.resolvers[i].resolver).Debug("upstream exceeded timeout, trying next upstream")
 
 			continue
 		case result := <-ch:
