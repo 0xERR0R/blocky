@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -12,9 +13,17 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const (
+	basePort = 5000
+)
+
 var _ = Describe("Serve command", func() {
-	var tmpDir *helpertest.TmpFolder
+	var (
+		tmpDir *helpertest.TmpFolder
+		port   string
+	)
 	BeforeEach(func() {
+		port = fmt.Sprintf("%d", basePort+GinkgoParallelProcess())
 		tmpDir = helpertest.NewTmpFolder("config")
 		Expect(tmpDir.Error).Should(Succeed())
 		DeferCleanup(tmpDir.Clean)
@@ -30,7 +39,7 @@ var _ = Describe("Serve command", func() {
 					"    default:",
 					"      - 1.1.1.1",
 					"ports:",
-					"  dns: 55555")
+					"  dns: "+port)
 				Expect(cfgFile.Error).Should(Succeed())
 				os.Setenv(configFileEnvVar, cfgFile.Path)
 				DeferCleanup(func() { os.Unsetenv(configFileEnvVar) })
@@ -47,7 +56,7 @@ var _ = Describe("Serve command", func() {
 
 			By("check DNS port is open", func() {
 				Eventually(func(g Gomega) {
-					conn, err := net.DialTimeout("tcp", "127.0.0.1:55555", 200*time.Millisecond)
+					conn, err := net.DialTimeout("tcp", "127.0.0.1:"+port, 200*time.Millisecond)
 					g.Expect(err).Should(Succeed())
 					defer conn.Close()
 				}).Should(Succeed())
@@ -64,19 +73,19 @@ var _ = Describe("Serve command", func() {
 
 	When("Serve command is called with valid config", func() {
 		It("should fail if server start fails", func() {
-			By("start http server on port 5555", func() {
+			By("start http server on port "+port, func() {
 				go func() {
-					Expect(http.ListenAndServe(":55555", nil)).Should(Succeed())
+					Expect(http.ListenAndServe(":"+port, nil)).Should(Succeed())
 				}()
 			})
-			By("initialize config with blocked port 55555", func() {
+			By("initialize config with blocked port "+port, func() {
 				cfgFile := tmpDir.CreateStringFile("config.yaml",
 					"upstreams:",
 					"  groups:",
 					"    default:",
 					"      - 1.1.1.1",
 					"ports:",
-					"  dns: 55555")
+					"  dns: "+port)
 				Expect(cfgFile.Error).Should(Succeed())
 				os.Setenv(configFileEnvVar, cfgFile.Path)
 				DeferCleanup(func() { os.Unsetenv(configFileEnvVar) })
