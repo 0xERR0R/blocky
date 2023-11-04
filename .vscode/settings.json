@@ -1,0 +1,11 @@
+{
+  "runItOn": {
+    "commands": [
+      {
+        "match": "\\.go$",
+        "cmd": "cd ${workspaceFolder} && make lcov",
+        "silent": true
+      }
+    ]
+  }
+}

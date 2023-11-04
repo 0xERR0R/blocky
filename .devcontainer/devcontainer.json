@@ -20,8 +20,9 @@
         "golang.go",
         "esbenp.prettier-vscode",
         "yzhang.markdown-all-in-one",
-        "ryanluker.vscode-coverage-gutters",
-        "joselitofilho.ginkgotestexplorer"
+        "joselitofilho.ginkgotestexplorer",
+        "fsevenm.run-it-on",
+        "markis.code-coverage"
       ],
       "settings": {
         "editor.tabSize": 2,
@@ -48,7 +49,6 @@
           "formatting.gofumpt": true,
           "build.standaloneTags": ["ignore", "tools"]
         },
-        "coverage-gutters.coverageFileNames": [".coverage.lcov", "lcov.info"],
         "ginkgotestexplorer.ginkgoPath": "${containerWorkspaceFolder}/.devcontainer/scripts/ginkgo.sh",
         "[go]": {
           "editor.defaultFormatter": "golang.go"

@@ -53,15 +53,6 @@
       }
     },
     {
-      "label": "Ginkgo Watch",
-      "type": "shell",
-      "command": ".devcontainer/scripts/ginkgo-watch.sh",
-      "group": "none",
-      "presentation": {
-        "reveal": "always"
-      }
-    },
-    {
       "label": "FMT",
       "type": "shell",
       "command": "make fmt",

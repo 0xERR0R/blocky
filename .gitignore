@@ -13,6 +13,4 @@ node_modules
 package-lock.json
 vendor/
 coverage.txt
-.coverage.gcov
-.coverage.lcov
 lcov.info
