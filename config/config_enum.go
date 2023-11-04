@@ -482,15 +482,18 @@ const (
 	UpstreamStrategyParallelBest UpstreamStrategy = iota
 	// UpstreamStrategyStrict is a UpstreamStrategy of type Strict.
 	UpstreamStrategyStrict
+	// UpstreamStrategyRandom is a UpstreamStrategy of type Random.
+	UpstreamStrategyRandom
 )
 
 var ErrInvalidUpstreamStrategy = fmt.Errorf("not a valid UpstreamStrategy, try [%s]", strings.Join(_UpstreamStrategyNames, ", "))
 
-const _UpstreamStrategyName = "parallel_beststrict"
+const _UpstreamStrategyName = "parallel_beststrictrandom"
 
 var _UpstreamStrategyNames = []string{
 	_UpstreamStrategyName[0:13],
 	_UpstreamStrategyName[13:19],
+	_UpstreamStrategyName[19:25],
 }
 
 // UpstreamStrategyNames returns a list of possible string values of UpstreamStrategy.
@@ -505,12 +508,14 @@ func UpstreamStrategyValues() []UpstreamStrategy {
 	return []UpstreamStrategy{
 		UpstreamStrategyParallelBest,
 		UpstreamStrategyStrict,
+		UpstreamStrategyRandom,
 	}
 }
 
 var _UpstreamStrategyMap = map[UpstreamStrategy]string{
 	UpstreamStrategyParallelBest: _UpstreamStrategyName[0:13],
 	UpstreamStrategyStrict:       _UpstreamStrategyName[13:19],
+	UpstreamStrategyRandom:       _UpstreamStrategyName[19:25],
 }
 
 // String implements the Stringer interface.
@@ -531,6 +536,7 @@ func (x UpstreamStrategy) IsValid() bool {
 var _UpstreamStrategyValue = map[string]UpstreamStrategy{
 	_UpstreamStrategyName[0:13]:  UpstreamStrategyParallelBest,
 	_UpstreamStrategyName[13:19]: UpstreamStrategyStrict,
+	_UpstreamStrategyName[19:25]: UpstreamStrategyRandom,
 }
 
 // ParseUpstreamStrategy attempts to convert a string to a UpstreamStrategy.

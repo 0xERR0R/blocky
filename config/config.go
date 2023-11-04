@@ -124,7 +124,7 @@ func (s *StartStrategyType) do(setup func() error, logErr func(error)) error {
 type QueryLogField string
 
 // UpstreamStrategy data field to be logged
-// ENUM(parallel_best,strict)
+// ENUM(parallel_best,strict,random)
 type UpstreamStrategy uint8
 
 //nolint:gochecknoglobals
