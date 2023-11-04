@@ -220,9 +220,9 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					sutMapping = config.UpstreamGroups{
 						upstreamDefaultCfgName: {withError1, withError2},
 					}
-					Expect(err).Should(Succeed())
 				})
 				It("Should return error", func() {
+					Expect(err).Should(Succeed())
 					request := newRequest("example.com.", A)
 					_, err = sut.Resolve(request)
 
