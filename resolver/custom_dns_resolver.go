@@ -138,7 +138,7 @@ func (r *CustomDNSResolver) Resolve(request *model.Request) (*model.Response, er
 		}
 	}
 
-	logger.WithField("resolver", Name(r.next)).Trace("go to next resolver")
+	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
 
 	return r.next.Resolve(request)
 }

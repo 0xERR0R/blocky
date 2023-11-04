@@ -1,8 +1,6 @@
 package resolver
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -50,7 +48,7 @@ func newUpstreamResolverStatus(resolver Resolver) *upstreamResolverStatus {
 
 func (r *upstreamResolverStatus) resolve(req *model.Request, ch chan<- requestResponse) {
 	resp, err := r.resolver.Resolve(req)
-	if err != nil && !errors.Is(err, context.Canceled) { // ignore `Canceled`: resolver lost the race, not an error
+	if err != nil {
 		// update the last error time
 		r.lastErrorTime.Store(time.Now())
 	}

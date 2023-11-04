@@ -190,7 +190,7 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 			return &model.Response{Res: val, RType: model.ResponseTypeCACHED, Reason: "CACHED NEGATIVE"}, nil
 		}
 
-		logger.WithField("next_resolver", Name(r.next)).Debug("not in cache: go to next resolver")
+		logger.WithField("next_resolver", Name(r.next)).Trace("not in cache: go to next resolver")
 		response, err = r.next.Resolve(request)
 
 		if err == nil {

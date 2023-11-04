@@ -27,7 +27,7 @@ type StrictResolver struct {
 	resolversPerClient map[string][]*upstreamResolverStatus
 }
 
-// NewStrictResolver creates new resolver instance
+// NewStrictResolver creates a new strict resolver instance
 func NewStrictResolver(
 	cfg config.UpstreamsConfig, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
 ) (*StrictResolver, error) {
@@ -114,7 +114,7 @@ func (r *StrictResolver) String() string {
 	return fmt.Sprintf("%s upstreams %q", strictResolverType, strings.Join(result, "; "))
 }
 
-// Resolve sends the query request to multiple upstream resolvers and returns the fastest result
+// Resolve sends the query request in a strict order to the upstream resolvers
 func (r *StrictResolver) Resolve(request *model.Request) (*model.Response, error) {
 	logger := log.WithPrefix(request.Log, strictResolverType)
 
@@ -131,10 +131,11 @@ func (r *StrictResolver) Resolve(request *model.Request) (*model.Response, error
 
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
-		// start in new go routine and cancel if
 
 		resolver := resolvers[i]
-		ch := make(chan requestResponse, resolverCount)
+		logger.Debugf("using %s as resolver", resolver.resolver)
+
+		ch := make(chan requestResponse, 1)
 
 		go resolver.resolve(request, ch)
 
