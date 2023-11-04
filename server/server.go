@@ -457,6 +457,8 @@ func createUpstreamBranches(
 			upstream, err = resolver.NewParallelBestResolver(groupConfig, bootstrap, cfg.StartVerifyUpstream)
 		case config.UpstreamStrategyStrict:
 			upstream, err = resolver.NewStrictResolver(groupConfig, bootstrap, cfg.StartVerifyUpstream)
+		case config.UpstreamStrategyRandom:
+			upstream, err = resolver.NewRandomResolver(groupConfig, bootstrap, cfg.StartVerifyUpstream)
 		}
 
 		upstreamBranches[group] = upstream
