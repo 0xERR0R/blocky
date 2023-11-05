@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -23,7 +22,7 @@ var _ = Describe("Serve command", func() {
 		port   string
 	)
 	BeforeEach(func() {
-		port = fmt.Sprintf("%d", basePort+GinkgoParallelProcess())
+		_, port = helpertest.GetProcessPort(basePort)
 		tmpDir = helpertest.NewTmpFolder("config")
 		Expect(tmpDir.Error).Should(Succeed())
 		DeferCleanup(tmpDir.Clean)
