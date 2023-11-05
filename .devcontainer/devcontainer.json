@@ -25,31 +25,10 @@
         "markis.code-coverage"
       ],
       "settings": {
-        "editor.tabSize": 2,
-        "editor.insertSpaces": true,
-        "editor.detectIndentation": false,
-        "editor.formatOnSave": true,
-        "editor.formatOnPaste": true,
-        "editor.codeActionsOnSave": {
-          "source.organizeImports": true,
-          "source.fixAll": true
-        },
-        "go.showWelcome": false,
-        "go.survey.prompt": false,
-        "go.useLanguageServer": true,
-        "go.formatTool": "gofumpt",
-        "go.lintTool": "golangci-lint",
-        "go.lintOnSave": "workspace",
         "go.lintFlags": ["--config=${containerWorkspaceFolder}/.golangci.yml"],
         "go.alternateTools": {
           "go-langserver": "gopls"
         },
-        "gopls": {
-          "ui.semanticTokens": true,
-          "formatting.gofumpt": true,
-          "build.standaloneTags": ["ignore", "tools"]
-        },
-        "ginkgotestexplorer.ginkgoPath": "${containerWorkspaceFolder}/.devcontainer/scripts/ginkgo.sh",
         "[go]": {
           "editor.defaultFormatter": "golang.go"
         },
@@ -74,7 +53,7 @@
   "mounts": [
     "type=bind,readonly,source=/etc/localtime,target=/usr/share/host/localtime",
     "type=bind,readonly,source=/etc/timezone,target=/usr/share/host/timezone",
-    "source=blocky-mod_cache,target=/go/pkg/mod,type=volume"
+    "source=blocky-pkg_cache,target=/go/pkg,type=volume"
   ],
   "postCreateCommand": "sudo chmod +x .devcontainer/scripts/*.sh",
   "postStartCommand": "sh .devcontainer/scripts/postStart.sh"
