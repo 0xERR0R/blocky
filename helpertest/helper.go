@@ -28,13 +28,18 @@ const (
 	DS    = dns.Type(dns.TypeDS)
 )
 
-// GetProcessPort returns an port for the current testing
+// GetIntPort returns an port for the current testing
 // process by adding the current ginkgo parallel process to
-// the base port and returning it as int and string
-func GetProcessPort(port int) (int, string) {
-	res := port + ginkgo.GinkgoParallelProcess()
+// the base port and returning it as int
+func GetIntPort(port int) int {
+	return port + ginkgo.GinkgoParallelProcess()
+}
 
-	return res, fmt.Sprintf("%d", res)
+// GetStringPort returns an port for the current testing
+// process by adding the current ginkgo parallel process to
+// the base port and returning it as string
+func GetStringPort(port int) string {
+	return fmt.Sprintf("%d", GetIntPort(port))
 }
 
 // TempFile creates temp file with passed data

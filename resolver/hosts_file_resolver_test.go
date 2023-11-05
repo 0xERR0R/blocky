@@ -109,12 +109,9 @@ var _ = Describe("HostsFileResolver", func() {
 		When("Hosts file is not set", func() {
 			BeforeEach(func() {
 				sutConfig.Deprecated.Filepath = new(config.BytesSource)
-				sutConfig.Sources = nil
-
-				m = &mockResolver{}
-				m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
-				sut.Next(m)
-
+				sutConfig.Sources = make([]config.BytesSource, 0)
+			})
+			JustBeforeEach(func() {
 				err = sut.loadSources(context.Background())
 				Expect(err).Should(Succeed())
 			})

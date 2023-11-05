@@ -22,7 +22,7 @@ var _ = Describe("Serve command", func() {
 		port   string
 	)
 	BeforeEach(func() {
-		_, port = helpertest.GetProcessPort(basePort)
+		port = helpertest.GetStringPort(basePort)
 		tmpDir = helpertest.NewTmpFolder("config")
 		Expect(tmpDir.Error).Should(Succeed())
 		DeferCleanup(tmpDir.Clean)
