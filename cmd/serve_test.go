@@ -73,9 +73,9 @@ var _ = Describe("Serve command", func() {
 	When("Serve command is called with valid config", func() {
 		It("should fail if server start fails", func() {
 			By("start http server on port "+port, func() {
-				go func() {
-					Expect(http.ListenAndServe(":"+port, nil)).Should(Succeed())
-				}()
+				go func(p string) {
+					Expect(http.ListenAndServe(":"+p, nil)).Should(Succeed())
+				}(port)
 			})
 			By("initialize config with blocked port "+port, func() {
 				cfgFile := tmpDir.CreateStringFile("config.yaml",
