@@ -1,1 +1,24 @@
-[{"version": "v0.22", "title": "v0.22", "aliases": ["latest"]}, {"version": "v0.21", "title": "v0.21", "aliases": []}, {"version": "v0.20", "title": "v0.20", "aliases": []}, {"version": "main", "title": "main", "aliases": []}]
+[
+  {
+    "version": "main",
+    "title": "main",
+    "aliases": []
+  },
+  {
+    "version": "v0.22",
+    "title": "v0.22",
+    "aliases": [
+      "latest"
+    ]
+  },
+  {
+    "version": "v0.21",
+    "title": "v0.21",
+    "aliases": []
+  },
+  {
+    "version": "v0.20",
+    "title": "v0.20",
+    "aliases": []
+  }
+]
