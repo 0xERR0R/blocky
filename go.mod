@@ -23,7 +23,7 @@ require (
 	github.com/onsi/gomega v1.29.0
 	github.com/prometheus/client_golang v1.17.0
 	github.com/sirupsen/logrus v1.9.3
-	github.com/spf13/cobra v1.7.0
+	github.com/spf13/cobra v1.8.0
 	github.com/stretchr/testify v1.8.4
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
 	golang.org/x/net v0.17.0
@@ -38,13 +38,13 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/ThinkChaos/parcour v0.0.0-20230710171753-fbf917c9eaef
 	github.com/deepmap/oapi-codegen v1.16.2
-	github.com/docker/docker v24.0.6+incompatible
+	github.com/docker/docker v24.0.7+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198
 	github.com/oapi-codegen/runtime v1.0.0
 	github.com/testcontainers/testcontainers-go v0.26.0
 	github.com/testcontainers/testcontainers-go/modules/mariadb v0.26.0
-	github.com/testcontainers/testcontainers-go/modules/postgres v0.25.0
+	github.com/testcontainers/testcontainers-go/modules/postgres v0.26.0
 	github.com/testcontainers/testcontainers-go/modules/redis v0.26.0
 	mvdan.cc/gofumpt v0.5.0
 )
@@ -101,7 +101,7 @@ require (
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
