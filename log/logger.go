@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/mattn/go-colorable"
 	"github.com/sirupsen/logrus"
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
 	"golang.org/x/exp/maps"
@@ -110,6 +111,9 @@ func ConfigureLogger(cfg *Config) {
 		})
 
 		logger.SetFormatter(logFormatter)
+
+		// Windows does not support ANSI colors
+		logger.SetOutput(colorable.NewColorableStdout())
 
 	case FormatTypeJson:
 		logger.SetFormatter(&logrus.JSONFormatter{})
