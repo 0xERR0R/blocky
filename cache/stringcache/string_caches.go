@@ -121,51 +121,78 @@ func isRegex(s string) bool {
 	return strings.HasPrefix(s, "/") && strings.HasSuffix(s, "/")
 }
 
-type regexCache []*regexp.Regexp
+type regexCache struct {
+	rgx regexp.Regexp
+	cnt int
+}
 
 func (cache regexCache) elementCount() int {
-	return len(cache)
+	return cache.cnt
 }
 
 func (cache regexCache) contains(searchString string) bool {
-	for _, regex := range cache {
-		if regex.MatchString(searchString) {
-			log.PrefixedLog("regexCache").Debugf("regex '%s' matched with '%s'", regex, searchString)
-
-			return true
-		}
+	if cache.cnt == 0 {
+		return false // avoid calling uninitialized `.rgx`
 	}
 
-	return false
+	return cache.rgx.MatchString(searchString)
 }
 
 type regexCacheFactory struct {
-	cache regexCache
+	pattern strings.Builder
+	cnt     int
 }
 
 func (r *regexCacheFactory) addEntry(entry string) {
-	if isRegex(entry) {
-		entry = strings.TrimSpace(entry[1 : len(entry)-1])
-		compile, err := regexp.Compile(entry)
-
-		if err != nil {
-			log.Log().Warnf("invalid regex '%s'", entry)
-		} else {
-			r.cache = append(r.cache, compile)
-		}
+	if !isRegex(entry) {
+		return
 	}
+
+	// Trim slashes (see isRegex)
+	entry = strings.TrimSpace(entry[1 : len(entry)-1])
+
+	_, err := regexp.Compile(entry)
+	if err != nil {
+		log.Log().Warnf("invalid regex '%s'", entry)
+
+		return
+	}
+
+	if r.pattern.Len() == 0 {
+		r.pattern.WriteRune('(')
+	} else {
+		r.pattern.WriteRune('|')
+	}
+
+	r.pattern.WriteString("(?:")
+	r.pattern.WriteString(entry)
+	r.pattern.WriteString(")")
+	r.cnt++
 }
 
 func (r *regexCacheFactory) count() int {
-	return len(r.cache)
+	return r.cnt
 }
 
 func (r *regexCacheFactory) create() stringCache {
-	return r.cache
+	if r.pattern.Len() == 0 {
+		return nil
+	}
+
+	r.pattern.WriteRune(')')
+
+	pat := r.pattern.String()
+
+	rgx, err := regexp.Compile(pat)
+	if err != nil {
+		log.Log().Errorf("combination of regexes is invalid '%s'", err)
+
+		return nil
+	}
+
+	return regexCache{*rgx, r.cnt}
 }
 
 func newRegexCacheFactory() cacheFactory {
-	return &regexCacheFactory{
-		cache: make(regexCache, 0),
-	}
+	return new(regexCacheFactory)
 }
