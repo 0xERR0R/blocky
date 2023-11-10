@@ -434,13 +434,13 @@ var _ = Describe("ListCache", func() {
 		When("async load is enabled", func() {
 			BeforeEach(func() {
 				sutConfig.Strategy = config.StartStrategyTypeFast
+
+				lists = map[string][]config.BytesSource{
+					"gr1": config.NewBytesSources("doesnotexist"),
+				}
 			})
 
 			It("should never return an error", func() {
-				lists := map[string][]config.BytesSource{
-					"gr1": config.NewBytesSources("doesnotexist"),
-				}
-
 				_, err := NewListCache(ctx, ListCacheTypeBlacklist, sutConfig, lists, downloader)
 				Expect(err).Should(Succeed())
 			})
