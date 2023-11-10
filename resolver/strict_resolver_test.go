@@ -266,11 +266,10 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 					sutMapping = config.UpstreamGroups{
 						upstreamDefaultCfgName: {config.Upstream{Host: "wrong"}, config.Upstream{Host: "wrong"}},
 					}
-					Expect(err).Should(Succeed())
 				})
 				It("Should return error", func() {
 					request := newRequest("example.com.", A)
-					_, err := sut.Resolve(request)
+					_, err = sut.Resolve(request)
 					Expect(err).Should(HaveOccurred())
 				})
 			})
