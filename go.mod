@@ -41,7 +41,6 @@ require (
 	github.com/docker/docker v24.0.7+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198
-	github.com/jandelgado/gcov2lcov v1.0.6
 	github.com/oapi-codegen/runtime v1.0.0
 	github.com/testcontainers/testcontainers-go v0.26.0
 	github.com/testcontainers/testcontainers-go/modules/mariadb v0.26.0
