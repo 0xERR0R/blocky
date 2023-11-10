@@ -472,13 +472,17 @@ var _ = Describe("Running DNS server", func() {
 			})
 		})
 		Context("DOH over POST (RFC 8484)", func() {
+			var (
+				resp *http.Response
+				msg  *dns.Msg
+			)
 			When("DOH post request with 'example.com' is performed", func() {
 				It("should get a valid response", func() {
-					msg := util.NewMsgWithQuestion("www.example.com.", A)
+					msg = util.NewMsgWithQuestion("www.example.com.", A)
 					rawDNSMessage, err := msg.Pack()
 					Expect(err).Should(Succeed())
 
-					resp, err := http.Post(baseURL+"dns-query",
+					resp, err = http.Post(baseURL+"dns-query",
 						"application/dns-message", bytes.NewReader(rawDNSMessage))
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
@@ -499,11 +503,11 @@ var _ = Describe("Running DNS server", func() {
 					Expect(msg.Answer).Should(BeDNSRecord("www.example.com.", A, "123.124.122.122"))
 				})
 				It("should get a valid response, clientId is passed", func() {
-					msg := util.NewMsgWithQuestion("www.example.com.", A)
+					msg = util.NewMsgWithQuestion("www.example.com.", A)
 					rawDNSMessage, err := msg.Pack()
 					Expect(err).Should(Succeed())
 
-					resp, err := http.Post(baseURL+"dns-query/client123",
+					resp, err = http.Post(baseURL+"dns-query/client123",
 						"application/dns-message", bytes.NewReader(rawDNSMessage))
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
@@ -527,7 +531,7 @@ var _ = Describe("Running DNS server", func() {
 				It("should return 'Payload Too Large'", func() {
 					largeMessage := []byte(strings.Repeat("t", 513))
 
-					resp, err := http.Post(baseURL+"dns-query", "application/dns-message", bytes.NewReader(largeMessage))
+					resp, err = http.Post(baseURL+"dns-query", "application/dns-message", bytes.NewReader(largeMessage))
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
 
@@ -536,7 +540,7 @@ var _ = Describe("Running DNS server", func() {
 			})
 			When("Request has wrong type", func() {
 				It("should return 'Unsupported Media Type'", func() {
-					resp, err := http.Post(baseURL+"dns-query", "application/text", bytes.NewReader([]byte("a")))
+					resp, err = http.Post(baseURL+"dns-query", "application/text", bytes.NewReader([]byte("a")))
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
 
@@ -545,11 +549,11 @@ var _ = Describe("Running DNS server", func() {
 			})
 			When("Internal error occurs", func() {
 				It("should return 'Internal server error'", func() {
-					msg := util.NewMsgWithQuestion("error.", A)
+					msg = util.NewMsgWithQuestion("error.", A)
 					rawDNSMessage, err := msg.Pack()
 					Expect(err).Should(Succeed())
 
-					resp, err := http.Post(baseURL+"dns-query",
+					resp, err = http.Post(baseURL+"dns-query",
 						"application/dns-message", bytes.NewReader(rawDNSMessage))
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
@@ -578,14 +582,14 @@ var _ = Describe("Running DNS server", func() {
 		})
 		When("Server is created", func() {
 			It("is created without redis connection", func() {
-				_, err := NewServer(ctx, &cfg)
+				_, err = NewServer(ctx, &cfg)
 
 				Expect(err).Should(Succeed())
 			})
 			It("can't be created if redis server is unavailable", func() {
 				cfg.Redis.Required = true
 
-				_, err := NewServer(ctx, &cfg)
+				_, err = NewServer(ctx, &cfg)
 
 				Expect(err).ShouldNot(Succeed())
 			})
