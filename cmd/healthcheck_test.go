@@ -22,7 +22,7 @@ var _ = Describe("Healthcheck command", func() {
 		})
 
 		It("shoul succeed", func() {
-			port := helpertest.GetStringPort(1000)
+			port := helpertest.GetStringPort(5100)
 			srv := createMockServer(port)
 			go func() {
 				defer GinkgoRecover()
