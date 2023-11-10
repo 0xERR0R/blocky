@@ -317,7 +317,7 @@ var _ = Describe("ListCache", func() {
 				}
 			})
 			It("should match", func() {
-				sut, err := NewListCache(ctx, ListCacheTypeBlacklist, sutConfig, lists, downloader)
+				sut, err = NewListCache(ctx, ListCacheTypeBlacklist, sutConfig, lists, downloader)
 				Expect(err).Should(Succeed())
 
 				Expect(sut.groupedCache.ElementCount("gr1")).Should(Equal(lines1 + lines2 + lines3))
@@ -411,15 +411,15 @@ var _ = Describe("ListCache", func() {
 
 		BeforeEach(func() {
 			logger, hook = log.NewMockEntry()
-		})
 
-		It("should print list configuration", func() {
-			lists := map[string][]config.BytesSource{
+			lists = map[string][]config.BytesSource{
 				"gr1": config.NewBytesSources(server1.URL, server2.URL),
 				"gr2": {config.TextBytesSource("inline", "definition")},
 			}
+		})
 
-			sut, err := NewListCache(ctx, ListCacheTypeBlacklist, sutConfig, lists, downloader)
+		It("should print list configuration", func() {
+			sut, err = NewListCache(ctx, ListCacheTypeBlacklist, sutConfig, lists, downloader)
 			Expect(err).Should(Succeed())
 
 			sut.LogConfig(logger)
