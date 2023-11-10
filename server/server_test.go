@@ -29,15 +29,17 @@ import (
 const (
 	httpBasePort  = 4000
 	dnsBasePort   = 5000
+	dnsBasePort2  = 55000
 	httpsBasePort = 6000
 	tlsBasePort   = 8000
 )
 
 var (
-	mockClientName atomic.Value
-	sut            *Server
-	err            error
-	baseURL        string
+	mockClientName                                               atomic.Value
+	sut                                                          *Server
+	err                                                          error
+	baseURL                                                      string
+	googleMockUpstream, fritzboxMockUpstream, clientMockUpstream *resolver.MockUDPUpstreamServer
 )
 
 var _ = BeforeSuite(func() {
@@ -45,7 +47,7 @@ var _ = BeforeSuite(func() {
 	var upstreamGoogle, upstreamFritzbox, upstreamClient config.Upstream
 	ctx, cancelFn := context.WithCancel(context.Background())
 	DeferCleanup(cancelFn)
-	googleMockUpstream := resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
+	googleMockUpstream = resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 		if request.Question[0].Name == "error." {
 			return nil
 		}
@@ -59,7 +61,7 @@ var _ = BeforeSuite(func() {
 	})
 	DeferCleanup(googleMockUpstream.Close)
 
-	fritzboxMockUpstream := resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
+	fritzboxMockUpstream = resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 		response, err := util.NewMsgWithAnswer(
 			util.ExtractDomain(request.Question[0]), 3600, A, "192.168.178.2",
 		)
@@ -70,7 +72,7 @@ var _ = BeforeSuite(func() {
 	})
 	DeferCleanup(fritzboxMockUpstream.Close)
 
-	clientMockUpstream := resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
+	clientMockUpstream = resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 		var clientName string
 		client := mockClientName.Load()
 
@@ -592,9 +594,13 @@ var _ = Describe("Running DNS server", func() {
 
 	Describe("Server start", Label("XX"), func() {
 		When("Server start is called", func() {
-			It("start was called 2 times, start should fail", func() {
+			var (
+				server  *Server
+				errChan chan error
+			)
+			BeforeEach(func() {
 				// create server
-				server, err := NewServer(ctx, &config.Config{
+				server, err = NewServer(ctx, &config.Config{
 					Upstreams: config.UpstreamsConfig{
 						Groups: map[string][]config.Upstream{
 							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}},
@@ -610,19 +616,19 @@ var _ = Describe("Running DNS server", func() {
 					},
 					Blocking: config.BlockingConfig{BlockType: "zeroIp"},
 					Ports: config.PortsConfig{
-						DNS: config.ListenConfig{":55556"},
+						DNS: config.ListenConfig{"127.0.0.1:" + GetStringPort(dnsBasePort2)},
 					},
 				})
 
 				Expect(err).Should(Succeed())
 
-				errChan := make(chan error, 10)
-
+				errChan = make(chan error, 10)
 				// start server
 				go server.Start(ctx, errChan)
 
 				DeferCleanup(server.Stop)
-
+			})
+			It("start was called 2 times, start should fail", func() {
 				Consistently(errChan, "1s").ShouldNot(Receive())
 
 				// start again -> should fail
@@ -634,9 +640,13 @@ var _ = Describe("Running DNS server", func() {
 	})
 	Describe("Server stop", func() {
 		When("Stop is called", func() {
-			It("stop was called 2 times, start should fail", func() {
+			var (
+				server  *Server
+				errChan chan error
+			)
+			BeforeEach(func() {
 				// create server
-				server, err := NewServer(ctx, &config.Config{
+				server, err = NewServer(ctx, &config.Config{
 					Upstreams: config.UpstreamsConfig{
 						Groups: map[string][]config.Upstream{
 							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}},
@@ -652,18 +662,17 @@ var _ = Describe("Running DNS server", func() {
 					},
 					Blocking: config.BlockingConfig{BlockType: "zeroIp"},
 					Ports: config.PortsConfig{
-						DNS: config.ListenConfig{"127.0.0.1:55557"},
+						DNS: config.ListenConfig{"127.0.0.1:" + GetStringPort(dnsBasePort2)},
 					},
 				})
 
 				Expect(err).Should(Succeed())
 
-				errChan := make(chan error, 10)
-
+				errChan = make(chan error, 10)
+			})
+			It("stop was called 2 times, start should fail", func() {
 				// start server
-				go func() {
-					server.Start(ctx, errChan)
-				}()
+				go server.Start(ctx, errChan)
 
 				time.Sleep(100 * time.Millisecond)
 
