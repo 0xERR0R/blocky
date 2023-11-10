@@ -58,7 +58,8 @@ test: ## run tests
 	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --coverprofile=coverage.txt --covermode=atomic --cover -r -p
 
 lcov: ## run tests and generate lcov.info
-	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --no-color --keep-going --timeout=30s --coverprofile=lcov.work --covermode=set --cover -r -p
+	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --no-color --keep-going --timeout=5m --coverprofile=lcov.work --covermode=set --cover -r -p
+	sleep 2
 	go run github.com/jandelgado/gcov2lcov -infile=lcov.work -outfile=lcov.info
 	rm -r -f lcov.work
 
