@@ -1,4 +1,6 @@
 package server
 
-func registerPrintConfigurationTrigger(s *Server) {
+import "context"
+
+func registerPrintConfigurationTrigger(ctx context.Context, s *Server) {
 }
