@@ -25,6 +25,8 @@ GO_BUILD_OUTPUT:=$(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 # define version of golangci-lint here. If defined in tools.go, go mod perfoms automatically downgrade to older version which doesn't work with golang >=1.18
 GOLANG_LINT_VERSION=v1.54.2
 
+GINKGO_PROCS?=-p
+
 export PATH=$(shell go env GOPATH)/bin:$(shell echo $$PATH)
 
 all: build test lint ## Build binary (with tests)
@@ -55,7 +57,7 @@ ifdef BIN_AUTOCAB
 endif
 
 test: ## run tests
-	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --coverprofile=coverage.txt --covermode=atomic -cover ./...
+	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --coverprofile=coverage.txt --covermode=atomic --cover -r ${GINKGO_PROCS}
 
 e2e-test: ## run e2e tests
 	docker buildx build \
@@ -67,7 +69,7 @@ e2e-test: ## run e2e tests
 	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="e2e" --timeout 15m --flake-attempts 1 e2e
 
 race: ## run tests with race detector
-	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --race ./...
+	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --race -r ${GINKGO_PROCS}
 
 lint: fmt ## run golangcli-lint checks
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANG_LINT_VERSION) run --timeout 5m

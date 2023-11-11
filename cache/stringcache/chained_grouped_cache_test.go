@@ -7,9 +7,15 @@ import (
 )
 
 var _ = Describe("Chained grouped cache", func() {
+	var (
+		cache   *stringcache.ChainedGroupedCache
+		factory stringcache.GroupFactory
+	)
 	Describe("Empty cache", func() {
 		When("empty cache was created", func() {
-			cache := stringcache.NewChainedGroupedCache()
+			BeforeEach(func() {
+				cache = stringcache.NewChainedGroupedCache()
+			})
 
 			It("should have element count of 0", func() {
 				Expect(cache.ElementCount("someGroup")).Should(BeNumerically("==", 0))
@@ -22,14 +28,16 @@ var _ = Describe("Chained grouped cache", func() {
 	})
 	Describe("Delegation", func() {
 		When("Chained cache contains delegates", func() {
-			inMemoryCache1 := stringcache.NewInMemoryGroupedStringCache()
-			inMemoryCache2 := stringcache.NewInMemoryGroupedStringCache()
-			cache := stringcache.NewChainedGroupedCache(inMemoryCache1, inMemoryCache2)
+			BeforeEach(func() {
+				inMemoryCache1 := stringcache.NewInMemoryGroupedStringCache()
+				inMemoryCache2 := stringcache.NewInMemoryGroupedStringCache()
+				cache = stringcache.NewChainedGroupedCache(inMemoryCache1, inMemoryCache2)
 
-			factory := cache.Refresh("group1")
+				factory = cache.Refresh("group1")
 
-			factory.AddEntry("string1")
-			factory.AddEntry("string2")
+				factory.AddEntry("string1")
+				factory.AddEntry("string2")
+			})
 
 			It("cache should still have 0 element, since finish was not executed", func() {
 				Expect(cache.ElementCount("group1")).Should(BeNumerically("==", 0))
@@ -45,6 +53,7 @@ var _ = Describe("Chained grouped cache", func() {
 			})
 
 			It("should find strings", func() {
+				factory.Finish()
 				Expect(cache.Contains("string1", []string{"group1"})).Should(ConsistOf("group1"))
 				Expect(cache.Contains("string2", []string{"group1", "someOtherGroup"})).Should(ConsistOf("group1"))
 			})
@@ -53,20 +62,22 @@ var _ = Describe("Chained grouped cache", func() {
 
 	Describe("Cache refresh", func() {
 		When("cache with 2 groups was created", func() {
-			inMemoryCache1 := stringcache.NewInMemoryGroupedStringCache()
-			inMemoryCache2 := stringcache.NewInMemoryGroupedStringCache()
-			cache := stringcache.NewChainedGroupedCache(inMemoryCache1, inMemoryCache2)
+			BeforeEach(func() {
+				inMemoryCache1 := stringcache.NewInMemoryGroupedStringCache()
+				inMemoryCache2 := stringcache.NewInMemoryGroupedStringCache()
+				cache = stringcache.NewChainedGroupedCache(inMemoryCache1, inMemoryCache2)
 
-			factory := cache.Refresh("group1")
+				factory = cache.Refresh("group1")
 
-			factory.AddEntry("g1")
-			factory.AddEntry("both")
-			factory.Finish()
+				factory.AddEntry("g1")
+				factory.AddEntry("both")
+				factory.Finish()
 
-			factory = cache.Refresh("group2")
-			factory.AddEntry("g2")
-			factory.AddEntry("both")
-			factory.Finish()
+				factory = cache.Refresh("group2")
+				factory.AddEntry("g2")
+				factory.AddEntry("both")
+				factory.Finish()
+			})
 
 			It("should contain 4 elements in 2 groups", func() {
 				Expect(cache.ElementCount("group1")).Should(BeNumerically("==", 4))
@@ -77,7 +88,7 @@ var _ = Describe("Chained grouped cache", func() {
 			})
 
 			It("Should replace group content on refresh", func() {
-				factory := cache.Refresh("group1")
+				factory = cache.Refresh("group1")
 				factory.AddEntry("newString")
 				factory.Finish()
 

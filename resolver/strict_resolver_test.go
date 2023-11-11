@@ -263,17 +263,13 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 			})
 			When("None are working", func() {
 				BeforeEach(func() {
-					testUpstream1 := config.Upstream{Host: "wrong"}
-					testUpstream2 := config.Upstream{Host: "wrong"}
-
 					sutMapping = config.UpstreamGroups{
-						upstreamDefaultCfgName: {testUpstream1, testUpstream2},
+						upstreamDefaultCfgName: {config.Upstream{Host: "wrong"}, config.Upstream{Host: "wrong"}},
 					}
-					Expect(err).Should(Succeed())
 				})
 				It("Should return error", func() {
 					request := newRequest("example.com.", A)
-					_, err := sut.Resolve(request)
+					_, err = sut.Resolve(request)
 					Expect(err).Should(HaveOccurred())
 				})
 			})

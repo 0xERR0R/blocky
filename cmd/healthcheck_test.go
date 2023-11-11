@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/miekg/dns"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -13,7 +14,7 @@ var _ = Describe("Healthcheck command", func() {
 	Describe("Call healthcheck command", func() {
 		It("should fail", func() {
 			c := NewHealthcheckCommand()
-			c.SetArgs([]string{"-p", "5344"})
+			c.SetArgs([]string{"-p", "533"})
 
 			err := c.Execute()
 
@@ -21,7 +22,8 @@ var _ = Describe("Healthcheck command", func() {
 		})
 
 		It("shoul succeed", func() {
-			srv := createMockServer()
+			port := helpertest.GetStringPort(5100)
+			srv := createMockServer(port)
 			go func() {
 				defer GinkgoRecover()
 				err := srv.ListenAndServe()
@@ -31,7 +33,7 @@ var _ = Describe("Healthcheck command", func() {
 
 			Eventually(func() error {
 				c := NewHealthcheckCommand()
-				c.SetArgs([]string{"-p", "5333"})
+				c.SetArgs([]string{"-p", port})
 
 				return c.Execute()
 			}, "1s").Should(Succeed())
@@ -39,9 +41,9 @@ var _ = Describe("Healthcheck command", func() {
 	})
 })
 
-func createMockServer() *dns.Server {
+func createMockServer(port string) *dns.Server {
 	res := &dns.Server{
-		Addr:    "127.0.0.1:5333",
+		Addr:    "127.0.0.1:" + port,
 		Net:     "tcp",
 		Handler: dns.NewServeMux(),
 		NotifyStartedFunc: func() {
