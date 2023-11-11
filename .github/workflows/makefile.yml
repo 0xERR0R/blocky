@@ -13,6 +13,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+environment:
+  GINKGO_PROCS: --procs=1
+
 jobs:
   make:
     name: make
