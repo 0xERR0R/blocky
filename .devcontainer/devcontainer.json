@@ -26,12 +26,17 @@
         "tooltitudeteam.tooltitude"
       ],
       "settings": {
-        "go.lintOnSave": "workspace",
         "go.lintFlags": [
           "--config=${containerWorkspaceFolder}/.golangci.yml"
         ],
         "go.alternateTools": {
           "go-langserver": "gopls"
+        },
+        "[go]": {
+          "editor.defaultFormatter": "golang.go"
+        },
+        "[json][jsonc]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
         },
         "[markdown]": {
           "editor.defaultFormatter": "yzhang.markdown-all-in-one",
