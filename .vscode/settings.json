@@ -23,7 +23,7 @@
     "commands": [
       {
         "match": "\\.go$",
-        "cmd": "cd ${workspaceFolder} && make lcov",
+        "cmd": "./.devcontainer/scripts/generate-lcov.sh",
         "silent": true
       }
     ]
