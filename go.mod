@@ -61,6 +61,7 @@ require (
 	github.com/containerd/containerd v1.7.7 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/cpuguy83/dockercfg v0.3.1 // indirect
+	github.com/dghubble/trie v0.0.0-20230729160116-2bc358f28a8b // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/getkin/kin-openapi v0.118.0 // indirect
@@ -82,6 +83,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.0-rc5 // indirect
 	github.com/opencontainers/runc v1.1.5 // indirect
 	github.com/perimeterx/marshmallow v1.1.4 // indirect
+	github.com/porfirion/trie v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/shirou/gopsutil/v3 v3.23.9 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect

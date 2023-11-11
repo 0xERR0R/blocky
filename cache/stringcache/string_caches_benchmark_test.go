@@ -72,6 +72,8 @@ func init() { //nolint:gochecknoinits
 // BenchmarkRegexFactory-8                1     1 253 023 507 ns/op   430.60 fact_heap_MB   430.60 peak_heap_MB   1 792 669 024 B/op   9 826 986 allocs/op
 // BenchmarkStringFactory-8               7       163 969 933 ns/op    11.79 fact_heap_MB    26.91 peak_heap_MB      67 613 890 B/op       1 306 allocs/op
 // BenchmarkWildcardFactory-8            19        60 592 988 ns/op    16.60 fact_heap_MB    16.60 peak_heap_MB      26 740 317 B/op      92 245 allocs/op
+// BenchmarkDGHubbleWildcardFactory-8    15        72 133 047 ns/op    23.67 fact_heap_MB    23.67 peak_heap_MB      34 131 090 B/op     301 855 allocs/op
+// BenchmarkPorfirionWildcardFactory-8    5       234 585 112 ns/op   183.30 fact_heap_MB   183.30 peak_heap_MB     200 634 500 B/op     811 260 allocs/op
 
 func BenchmarkRegexFactory(b *testing.B) {
 	benchmarkRegexFactory(b, newRegexCacheFactory)
@@ -83,6 +85,14 @@ func BenchmarkStringFactory(b *testing.B) {
 
 func BenchmarkWildcardFactory(b *testing.B) {
 	benchmarkWildcardFactory(b, newWildcardCacheFactory)
+}
+
+func BenchmarkDGHubbleWildcardFactory(b *testing.B) {
+	benchmarkWildcardFactory(b, newDGHubbleWildcardCacheFactory)
+}
+
+func BenchmarkPorfirionWildcardFactory(b *testing.B) {
+	benchmarkWildcardFactory(b, newPorfirionWildcardCacheFactory)
 }
 
 func benchmarkRegexFactory(b *testing.B, newFactory func() cacheFactory) {
@@ -133,6 +143,8 @@ func benchmarkFactory(b *testing.B, data []string, newFactory func() cacheFactor
 //nolint:lll
 // BenchmarkStringCache-8                 6       204 754 798 ns/op    15.11 cache_heap_MB              0 B/op          0 allocs/op
 // BenchmarkWildcardCache-8              14        76 186 334 ns/op    16.61 cache_heap_MB              0 B/op          0 allocs/op
+// BenchmarkDGHubbleWildcardCache-8      14        78 111 098 ns/op    23.65 cache_heap_MB              0 B/op          0 allocs/op
+// BenchmarkPorfirionWildcardCache-8      4       304 584 455 ns/op   183.30 cache_heap_MB     26 797 744 B/op    305 718 allocs/op
 
 // Regex search is too slow to even complete
 // func BenchmarkRegexCache(b *testing.B) {
@@ -145,6 +157,14 @@ func BenchmarkStringCache(b *testing.B) {
 
 func BenchmarkWildcardCache(b *testing.B) {
 	benchmarkWildcardCache(b, newWildcardCacheFactory)
+}
+
+func BenchmarkDGHubbleWildcardCache(b *testing.B) {
+	benchmarkWildcardCache(b, newDGHubbleWildcardCacheFactory)
+}
+
+func BenchmarkPorfirionWildcardCache(b *testing.B) {
+	benchmarkWildcardCache(b, newPorfirionWildcardCacheFactory)
 }
 
 // func benchmarkRegexCache(b *testing.B, newFactory func() cacheFactory) {
