@@ -65,13 +65,14 @@ func init() { //nolint:gochecknoinits
 
 // --- Cache Building ---
 //
-// Most memory efficient: Wildcard (blocky/trie) because of peak
-// Fastest:               Wildcard (blocky/trie)
+// Most memory efficient: Wildcard (blocky/trie    radix) because of peak
+// Fastest:               Wildcard (blocky/trie original)
 //
 //nolint:lll
 // BenchmarkRegexFactory-8                1     1 253 023 507 ns/op   430.60 fact_heap_MB   430.60 peak_heap_MB   1 792 669 024 B/op   9 826 986 allocs/op
 // BenchmarkStringFactory-8               7       163 969 933 ns/op    11.79 fact_heap_MB    26.91 peak_heap_MB      67 613 890 B/op       1 306 allocs/op
-// BenchmarkWildcardFactory-8            19        60 592 988 ns/op    16.60 fact_heap_MB    16.60 peak_heap_MB      26 740 317 B/op      92 245 allocs/op
+// BenchmarkWildcardFactory-8            19        60 592 988 ns/op    16.60 fact_heap_MB    16.60 peak_heap_MB      26 740 317 B/op      92 245 allocs/op (original)
+// BenchmarkWildcardFactory-8            16        65 179 284 ns/op    14.92 fact_heap_MB    14.92 peak_heap_MB      27 997 734 B/op      52 937 allocs/op (radix)
 // BenchmarkDGHubbleWildcardFactory-8    15        72 133 047 ns/op    23.67 fact_heap_MB    23.67 peak_heap_MB      34 131 090 B/op     301 855 allocs/op
 // BenchmarkPorfirionWildcardFactory-8    5       234 585 112 ns/op   183.30 fact_heap_MB   183.30 peak_heap_MB     200 634 500 B/op     811 260 allocs/op
 
@@ -137,12 +138,13 @@ func benchmarkFactory(b *testing.B, data []string, newFactory func() cacheFactor
 
 // --- Cache Querying ---
 //
-// Most memory efficient:   String (map)
-// Fastest:               Wildcard (blocky/trie)
+// Most memory efficient: Wildcard (blocky/trie radix)
+// Fastest:               Wildcard (blocky/trie original)
 //
 //nolint:lll
 // BenchmarkStringCache-8                 6       204 754 798 ns/op    15.11 cache_heap_MB              0 B/op          0 allocs/op
-// BenchmarkWildcardCache-8              14        76 186 334 ns/op    16.61 cache_heap_MB              0 B/op          0 allocs/op
+// BenchmarkWildcardCache-8              14        76 186 334 ns/op    16.61 cache_heap_MB              0 B/op          0 allocs/op (original)
+// BenchmarkWildcardCache-8              12        95 316 121 ns/op    14.91 cache_heap_MB              0 B/op          0 allocs/op (radix)
 // BenchmarkDGHubbleWildcardCache-8      14        78 111 098 ns/op    23.65 cache_heap_MB              0 B/op          0 allocs/op
 // BenchmarkPorfirionWildcardCache-8      4       304 584 455 ns/op   183.30 cache_heap_MB     26 797 744 B/op    305 718 allocs/op
 
