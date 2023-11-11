@@ -23,3 +23,5 @@ echo "  - golangci-lint"
 go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 echo "  - gofumpt"
 go install mvdan.cc/gofumpt@latest
+echo "  - gcov2lcov"
+go install github.com/jandelgado/gcov2lcov@latest
