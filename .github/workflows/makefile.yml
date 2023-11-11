@@ -13,7 +13,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-environment:
+env:
   GINKGO_PROCS: --procs=1
 
 jobs:
