@@ -38,11 +38,12 @@ var _ = Describe("ListCache", func() {
 		mockDownloader *MockDownloader
 		ctx            context.Context
 		cancelFn       context.CancelFunc
+		err            error
+		expectFail     bool
 	)
 
 	BeforeEach(func() {
-		var err error
-
+		expectFail = false
 		ctx, cancelFn = context.WithCancel(context.Background())
 		DeferCleanup(cancelFn)
 
@@ -81,8 +82,6 @@ var _ = Describe("ListCache", func() {
 	})
 
 	JustBeforeEach(func() {
-		var err error
-
 		Expect(lists).ShouldNot(BeNil(), "bad test: forgot to set `lists`")
 
 		if mockDownloader != nil {
@@ -90,7 +89,11 @@ var _ = Describe("ListCache", func() {
 		}
 
 		sut, err = NewListCache(ctx, listCacheType, sutConfig, lists, downloader)
-		Expect(err).Should(Succeed())
+		if expectFail {
+			Expect(err).Should(HaveOccurred())
+		} else {
+			Expect(err).Should(Succeed())
+		}
 	})
 
 	Describe("List cache and matching", func() {
@@ -301,15 +304,20 @@ var _ = Describe("ListCache", func() {
 			})
 		})
 		When("group with bigger files", func() {
-			It("should match", func() {
-				file1, lines1 := createTestListFile(GinkgoT().TempDir(), 10000)
-				file2, lines2 := createTestListFile(GinkgoT().TempDir(), 15000)
-				file3, lines3 := createTestListFile(GinkgoT().TempDir(), 13000)
-				lists := map[string][]config.BytesSource{
+			var (
+				file1, file2, file3    string
+				lines1, lines2, lines3 int
+			)
+			BeforeEach(func() {
+				file1, lines1 = createTestListFile(GinkgoT().TempDir(), 10000)
+				file2, lines2 = createTestListFile(GinkgoT().TempDir(), 15000)
+				file3, lines3 = createTestListFile(GinkgoT().TempDir(), 13000)
+				lists = map[string][]config.BytesSource{
 					"gr1": config.NewBytesSources(file1, file2, file3),
 				}
-
-				sut, err := NewListCache(ctx, ListCacheTypeBlacklist, sutConfig, lists, downloader)
+			})
+			It("should match", func() {
+				sut, err = NewListCache(ctx, ListCacheTypeBlacklist, sutConfig, lists, downloader)
 				Expect(err).Should(Succeed())
 
 				Expect(sut.groupedCache.ElementCount("gr1")).Should(Equal(lines1 + lines2 + lines3))
@@ -356,16 +364,14 @@ var _ = Describe("ListCache", func() {
 			BeforeEach(func() {
 				sutConfig.MaxErrorsPerSource = 0
 				sutConfig.Strategy = config.StartStrategyTypeFailOnError
-			})
-			It("should fail parsing", func() {
-				lists := map[string][]config.BytesSource{
+				lists = map[string][]config.BytesSource{
 					"gr1": {
 						config.TextBytesSource("invaliddomain!"), // too many errors since `maxErrorsPerSource` is 0
 					},
 				}
-
-				_, err := NewListCache(ctx, ListCacheTypeBlacklist, sutConfig, lists, downloader)
-				Expect(err).ShouldNot(Succeed())
+				expectFail = true
+			})
+			It("should fail parsing", func() {
 				Expect(err).Should(MatchError(parsers.ErrTooManyErrors))
 			})
 		})
@@ -405,15 +411,15 @@ var _ = Describe("ListCache", func() {
 
 		BeforeEach(func() {
 			logger, hook = log.NewMockEntry()
-		})
 
-		It("should print list configuration", func() {
-			lists := map[string][]config.BytesSource{
+			lists = map[string][]config.BytesSource{
 				"gr1": config.NewBytesSources(server1.URL, server2.URL),
 				"gr2": {config.TextBytesSource("inline", "definition")},
 			}
+		})
 
-			sut, err := NewListCache(ctx, ListCacheTypeBlacklist, sutConfig, lists, downloader)
+		It("should print list configuration", func() {
+			sut, err = NewListCache(ctx, ListCacheTypeBlacklist, sutConfig, lists, downloader)
 			Expect(err).Should(Succeed())
 
 			sut.LogConfig(logger)
@@ -428,13 +434,13 @@ var _ = Describe("ListCache", func() {
 		When("async load is enabled", func() {
 			BeforeEach(func() {
 				sutConfig.Strategy = config.StartStrategyTypeFast
+
+				lists = map[string][]config.BytesSource{
+					"gr1": config.NewBytesSources("doesnotexist"),
+				}
 			})
 
 			It("should never return an error", func() {
-				lists := map[string][]config.BytesSource{
-					"gr1": config.NewBytesSources("doesnotexist"),
-				}
-
 				_, err := NewListCache(ctx, ListCacheTypeBlacklist, sutConfig, lists, downloader)
 				Expect(err).Should(Succeed())
 			})

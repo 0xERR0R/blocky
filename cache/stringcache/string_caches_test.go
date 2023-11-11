@@ -6,16 +6,22 @@ import (
 )
 
 var _ = Describe("Caches", func() {
+	var (
+		cache   stringCache
+		factory cacheFactory
+	)
 	Describe("String StringCache", func() {
 		When("string StringCache was created", func() {
-			factory := newStringCacheFactory()
-			factory.addEntry("google.com")
-			factory.addEntry("apple.com")
-			factory.addEntry("")
-			factory.addEntry("google.com")
-			factory.addEntry("APPLe.com")
+			BeforeEach(func() {
+				factory = newStringCacheFactory()
+				factory.addEntry("google.com")
+				factory.addEntry("apple.com")
+				factory.addEntry("")
+				factory.addEntry("google.com")
+				factory.addEntry("APPLe.com")
 
-			cache := factory.create()
+				cache = factory.create()
+			})
 
 			It("should match if StringCache contains exact string", func() {
 				Expect(cache.contains("apple.com")).Should(BeTrue())
@@ -37,14 +43,16 @@ var _ = Describe("Caches", func() {
 
 	Describe("Regex StringCache", func() {
 		When("regex StringCache was created", func() {
-			factory := newRegexCacheFactory()
-			factory.addEntry("/.*google.com/")
-			factory.addEntry("/^apple\\.(de|com)$/")
-			factory.addEntry("/amazon/")
-			// this is not a regex, will be ignored
-			factory.addEntry("/(wrongRegex/")
-			factory.addEntry("plaintext")
-			cache := factory.create()
+			BeforeEach(func() {
+				factory = newRegexCacheFactory()
+				factory.addEntry("/.*google.com/")
+				factory.addEntry("/^apple\\.(de|com)$/")
+				factory.addEntry("/amazon/")
+				// this is not a regex, will be ignored
+				factory.addEntry("/(wrongRegex/")
+				factory.addEntry("plaintext")
+				cache = factory.create()
+			})
 			It("should match if one regex in StringCache matches string", func() {
 				Expect(cache.contains("google.com")).Should(BeTrue())
 				Expect(cache.contains("google.coma")).Should(BeTrue())

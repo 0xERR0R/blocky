@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -25,17 +26,28 @@ import (
 	"github.com/miekg/dns"
 )
 
+const (
+	httpBasePort  = 4000
+	dnsBasePort   = 5000
+	dnsBasePort2  = 55000
+	httpsBasePort = 6000
+	tlsBasePort   = 8000
+)
+
 var (
-	mockClientName atomic.Value
-	sut            *Server
-	err            error
+	mockClientName                                               atomic.Value
+	sut                                                          *Server
+	err                                                          error
+	baseURL                                                      string
+	googleMockUpstream, fritzboxMockUpstream, clientMockUpstream *resolver.MockUDPUpstreamServer
 )
 
 var _ = BeforeSuite(func() {
+	baseURL = "http://localhost:" + GetStringPort(httpBasePort) + "/"
 	var upstreamGoogle, upstreamFritzbox, upstreamClient config.Upstream
 	ctx, cancelFn := context.WithCancel(context.Background())
 	DeferCleanup(cancelFn)
-	googleMockUpstream := resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
+	googleMockUpstream = resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 		if request.Question[0].Name == "error." {
 			return nil
 		}
@@ -49,7 +61,7 @@ var _ = BeforeSuite(func() {
 	})
 	DeferCleanup(googleMockUpstream.Close)
 
-	fritzboxMockUpstream := resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
+	fritzboxMockUpstream = resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 		response, err := util.NewMsgWithAnswer(
 			util.ExtractDomain(request.Question[0]), 3600, A, "192.168.178.2",
 		)
@@ -60,7 +72,7 @@ var _ = BeforeSuite(func() {
 	})
 	DeferCleanup(fritzboxMockUpstream.Close)
 
-	clientMockUpstream := resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
+	clientMockUpstream = resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 		var clientName string
 		client := mockClientName.Load()
 
@@ -153,10 +165,10 @@ var _ = BeforeSuite(func() {
 		},
 
 		Ports: config.PortsConfig{
-			DNS:   config.ListenConfig{"55555"},
-			TLS:   config.ListenConfig{"8853"},
-			HTTP:  config.ListenConfig{"4000"},
-			HTTPS: config.ListenConfig{"4443"},
+			DNS:   config.ListenConfig{GetStringPort(dnsBasePort)},
+			TLS:   config.ListenConfig{GetStringPort(tlsBasePort)},
+			HTTP:  config.ListenConfig{GetStringPort(httpBasePort)},
+			HTTPS: config.ListenConfig{GetStringPort(httpsBasePort)},
 		},
 		CertFile: certPem.Path,
 		KeyFile:  keyPem.Path,
@@ -365,7 +377,7 @@ var _ = Describe("Running DNS server", func() {
 	Describe("Prometheus endpoint", func() {
 		When("Prometheus URL is called", func() {
 			It("should return prometheus data", func() {
-				resp, err := http.Get("http://localhost:4000/metrics")
+				resp, err := http.Get(baseURL + "metrics")
 				Expect(err).Should(Succeed())
 				Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
 			})
@@ -374,7 +386,7 @@ var _ = Describe("Running DNS server", func() {
 	Describe("Root endpoint", func() {
 		When("Root URL is called", func() {
 			It("should return root page", func() {
-				resp, err := http.Get("http://localhost:4000/")
+				resp, err := http.Get(baseURL)
 				Expect(err).Should(Succeed())
 				Expect(resp).Should(
 					SatisfyAll(
@@ -387,7 +399,7 @@ var _ = Describe("Running DNS server", func() {
 	Describe("Docs endpoints", func() {
 		When("OpenApi URL is called", func() {
 			It("should return openAPI definition file", func() {
-				resp, err := http.Get("http://localhost:4000/docs/openapi.yaml")
+				resp, err := http.Get(baseURL + "docs/openapi.yaml")
 				Expect(err).Should(Succeed())
 				Expect(resp).Should(
 					SatisfyAll(
@@ -403,7 +415,7 @@ var _ = Describe("Running DNS server", func() {
 		Context("DOH over GET (RFC 8484)", func() {
 			When("DOH get request with 'example.com' is performed", func() {
 				It("should get a valid response", func() {
-					resp, err := http.Get("http://localhost:4000/dns-query?dns=AAABAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB")
+					resp, err := http.Get(baseURL + "dns-query?dns=AAABAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB")
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
 
@@ -422,7 +434,7 @@ var _ = Describe("Running DNS server", func() {
 			})
 			When("Request does not contain a valid DNS message", func() {
 				It("should return 'Bad Request'", func() {
-					resp, err := http.Get("http://localhost:4000/dns-query?dns=xxxx")
+					resp, err := http.Get(baseURL + "dns-query?dns=xxxx")
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
 
@@ -431,7 +443,7 @@ var _ = Describe("Running DNS server", func() {
 			})
 			When("Request's parameter does not contain a valid base64'", func() {
 				It("should return 'Bad Request'", func() {
-					resp, err := http.Get("http://localhost:4000/dns-query?dns=äöä")
+					resp, err := http.Get(baseURL + "dns-query?dns=äöä")
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
 
@@ -440,7 +452,7 @@ var _ = Describe("Running DNS server", func() {
 			})
 			When("Request does not contain a dns parameter", func() {
 				It("should return 'Bad Request'", func() {
-					resp, err := http.Get("http://localhost:4000/dns-query?test")
+					resp, err := http.Get(baseURL + "dns-query?test")
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
 
@@ -451,7 +463,7 @@ var _ = Describe("Running DNS server", func() {
 				It("should return 'URI Too Long'", func() {
 					longBase64msg := base64.StdEncoding.EncodeToString([]byte(strings.Repeat("t", 513)))
 
-					resp, err := http.Get("http://localhost:4000/dns-query?dns=" + longBase64msg)
+					resp, err := http.Get(baseURL + "dns-query?dns=" + longBase64msg)
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
 
@@ -460,13 +472,17 @@ var _ = Describe("Running DNS server", func() {
 			})
 		})
 		Context("DOH over POST (RFC 8484)", func() {
+			var (
+				resp *http.Response
+				msg  *dns.Msg
+			)
 			When("DOH post request with 'example.com' is performed", func() {
 				It("should get a valid response", func() {
-					msg := util.NewMsgWithQuestion("www.example.com.", A)
+					msg = util.NewMsgWithQuestion("www.example.com.", A)
 					rawDNSMessage, err := msg.Pack()
 					Expect(err).Should(Succeed())
 
-					resp, err := http.Post("http://localhost:4000/dns-query",
+					resp, err = http.Post(baseURL+"dns-query",
 						"application/dns-message", bytes.NewReader(rawDNSMessage))
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
@@ -487,11 +503,11 @@ var _ = Describe("Running DNS server", func() {
 					Expect(msg.Answer).Should(BeDNSRecord("www.example.com.", A, "123.124.122.122"))
 				})
 				It("should get a valid response, clientId is passed", func() {
-					msg := util.NewMsgWithQuestion("www.example.com.", A)
+					msg = util.NewMsgWithQuestion("www.example.com.", A)
 					rawDNSMessage, err := msg.Pack()
 					Expect(err).Should(Succeed())
 
-					resp, err := http.Post("http://localhost:4000/dns-query/client123",
+					resp, err = http.Post(baseURL+"dns-query/client123",
 						"application/dns-message", bytes.NewReader(rawDNSMessage))
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
@@ -515,7 +531,7 @@ var _ = Describe("Running DNS server", func() {
 				It("should return 'Payload Too Large'", func() {
 					largeMessage := []byte(strings.Repeat("t", 513))
 
-					resp, err := http.Post("http://localhost:4000/dns-query", "application/dns-message", bytes.NewReader(largeMessage))
+					resp, err = http.Post(baseURL+"dns-query", "application/dns-message", bytes.NewReader(largeMessage))
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
 
@@ -524,7 +540,7 @@ var _ = Describe("Running DNS server", func() {
 			})
 			When("Request has wrong type", func() {
 				It("should return 'Unsupported Media Type'", func() {
-					resp, err := http.Post("http://localhost:4000/dns-query", "application/text", bytes.NewReader([]byte("a")))
+					resp, err = http.Post(baseURL+"dns-query", "application/text", bytes.NewReader([]byte("a")))
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
 
@@ -533,11 +549,11 @@ var _ = Describe("Running DNS server", func() {
 			})
 			When("Internal error occurs", func() {
 				It("should return 'Internal server error'", func() {
-					msg := util.NewMsgWithQuestion("error.", A)
+					msg = util.NewMsgWithQuestion("error.", A)
 					rawDNSMessage, err := msg.Pack()
 					Expect(err).Should(Succeed())
 
-					resp, err := http.Post("http://localhost:4000/dns-query",
+					resp, err = http.Post(baseURL+"dns-query",
 						"application/dns-message", bytes.NewReader(rawDNSMessage))
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
@@ -566,14 +582,14 @@ var _ = Describe("Running DNS server", func() {
 		})
 		When("Server is created", func() {
 			It("is created without redis connection", func() {
-				_, err := NewServer(ctx, &cfg)
+				_, err = NewServer(ctx, &cfg)
 
 				Expect(err).Should(Succeed())
 			})
 			It("can't be created if redis server is unavailable", func() {
 				cfg.Redis.Required = true
 
-				_, err := NewServer(ctx, &cfg)
+				_, err = NewServer(ctx, &cfg)
 
 				Expect(err).ShouldNot(Succeed())
 			})
@@ -582,9 +598,13 @@ var _ = Describe("Running DNS server", func() {
 
 	Describe("Server start", Label("XX"), func() {
 		When("Server start is called", func() {
-			It("start was called 2 times, start should fail", func() {
+			var (
+				server  *Server
+				errChan chan error
+			)
+			BeforeEach(func() {
 				// create server
-				server, err := NewServer(ctx, &config.Config{
+				server, err = NewServer(ctx, &config.Config{
 					Upstreams: config.UpstreamsConfig{
 						Groups: map[string][]config.Upstream{
 							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}},
@@ -600,19 +620,19 @@ var _ = Describe("Running DNS server", func() {
 					},
 					Blocking: config.BlockingConfig{BlockType: "zeroIp"},
 					Ports: config.PortsConfig{
-						DNS: config.ListenConfig{":55556"},
+						DNS: config.ListenConfig{"127.0.0.1:" + GetStringPort(dnsBasePort2)},
 					},
 				})
 
 				Expect(err).Should(Succeed())
 
-				errChan := make(chan error, 10)
-
+				errChan = make(chan error, 10)
 				// start server
 				go server.Start(ctx, errChan)
 
 				DeferCleanup(server.Stop)
-
+			})
+			It("start was called 2 times, start should fail", func() {
 				Consistently(errChan, "1s").ShouldNot(Receive())
 
 				// start again -> should fail
@@ -624,9 +644,13 @@ var _ = Describe("Running DNS server", func() {
 	})
 	Describe("Server stop", func() {
 		When("Stop is called", func() {
-			It("stop was called 2 times, start should fail", func() {
+			var (
+				server  *Server
+				errChan chan error
+			)
+			BeforeEach(func() {
 				// create server
-				server, err := NewServer(ctx, &config.Config{
+				server, err = NewServer(ctx, &config.Config{
 					Upstreams: config.UpstreamsConfig{
 						Groups: map[string][]config.Upstream{
 							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}},
@@ -642,18 +666,17 @@ var _ = Describe("Running DNS server", func() {
 					},
 					Blocking: config.BlockingConfig{BlockType: "zeroIp"},
 					Ports: config.PortsConfig{
-						DNS: config.ListenConfig{"127.0.0.1:55557"},
+						DNS: config.ListenConfig{"127.0.0.1:" + GetStringPort(dnsBasePort2)},
 					},
 				})
 
 				Expect(err).Should(Succeed())
 
-				errChan := make(chan error, 10)
-
+				errChan = make(chan error, 10)
+			})
+			It("stop was called 2 times, start should fail", func() {
 				// start server
-				go func() {
-					server.Start(ctx, errChan)
-				}()
+				go server.Start(ctx, errChan)
 
 				time.Sleep(100 * time.Millisecond)
 
@@ -745,7 +768,7 @@ var _ = Describe("Running DNS server", func() {
 			cfg.KeyFile = ""
 			cfg.CertFile = ""
 			cfg.Ports = config.PortsConfig{
-				HTTPS: []string{":14443"},
+				HTTPS: []string{fmt.Sprintf(":%d", GetIntPort(httpsBasePort)+100)},
 			}
 			sut, err := NewServer(ctx, &cfg)
 			Expect(err).Should(Succeed())
@@ -755,7 +778,7 @@ var _ = Describe("Running DNS server", func() {
 })
 
 func requestServer(request *dns.Msg) *dns.Msg {
-	conn, err := net.Dial("udp", ":55555")
+	conn, err := net.Dial("udp", ":"+GetStringPort(dnsBasePort))
 	if err != nil {
 		Log().Fatal("could not connect to server: ", err)
 	}

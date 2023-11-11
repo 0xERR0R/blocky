@@ -11,6 +11,7 @@ import (
 	"github.com/0xERR0R/blocky/model"
 
 	"github.com/miekg/dns"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/gcustom"
 	"github.com/onsi/gomega/types"
@@ -26,6 +27,20 @@ const (
 	TXT   = dns.Type(dns.TypeTXT)
 	DS    = dns.Type(dns.TypeDS)
 )
+
+// GetIntPort returns an port for the current testing
+// process by adding the current ginkgo parallel process to
+// the base port and returning it as int
+func GetIntPort(port int) int {
+	return port + ginkgo.GinkgoParallelProcess()
+}
+
+// GetStringPort returns an port for the current testing
+// process by adding the current ginkgo parallel process to
+// the base port and returning it as string
+func GetStringPort(port int) string {
+	return fmt.Sprintf("%d", GetIntPort(port))
+}
 
 // TempFile creates temp file with passed data
 func TempFile(data string) *os.File {
