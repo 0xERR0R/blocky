@@ -14,7 +14,7 @@ type stringCache interface {
 }
 
 type cacheFactory interface {
-	addEntry(entry string)
+	addEntry(entry string) bool
 	create() stringCache
 	count() int
 }
@@ -86,7 +86,7 @@ func (s *stringCacheFactory) insertString(entry string) {
 	ix := sort.SearchStrings(bucket, normalized)
 
 	if !(ix < len(bucket) && bucket[ix] == normalized) {
-		// extent internal bucket
+		// extend internal bucket
 		bucket = append(s.getBucket(entryLen), "")
 
 		// move elements to make place for the insertion
@@ -98,12 +98,15 @@ func (s *stringCacheFactory) insertString(entry string) {
 	}
 }
 
-func (s *stringCacheFactory) addEntry(entry string) {
-	// skip empty strings and regex
-	if len(entry) > 0 && !isRegex(entry) {
-		s.cnt++
-		s.insertString(entry)
+func (s *stringCacheFactory) addEntry(entry string) bool {
+	if len(entry) == 0 {
+		return true // invalid but handled
 	}
+
+	s.cnt++
+	s.insertString(entry)
+
+	return true
 }
 
 func (s *stringCacheFactory) create() stringCache {
@@ -119,10 +122,6 @@ func (s *stringCacheFactory) create() stringCache {
 	s.tmp = nil
 
 	return cache
-}
-
-func isRegex(s string) bool {
-	return strings.HasPrefix(s, "/") && strings.HasSuffix(s, "/")
 }
 
 type regexCache []*regexp.Regexp
@@ -147,17 +146,24 @@ type regexCacheFactory struct {
 	cache regexCache
 }
 
-func (r *regexCacheFactory) addEntry(entry string) {
-	if isRegex(entry) {
-		entry = strings.TrimSpace(entry[1 : len(entry)-1])
-		compile, err := regexp.Compile(entry)
-
-		if err != nil {
-			log.Log().Warnf("invalid regex '%s'", entry)
-		} else {
-			r.cache = append(r.cache, compile)
-		}
+func (r *regexCacheFactory) addEntry(entry string) bool {
+	if !strings.HasPrefix(entry, "/") || !strings.HasSuffix(entry, "/") {
+		return false
 	}
+
+	// Trim slashes
+	entry = strings.TrimSpace(entry[1 : len(entry)-1])
+
+	compile, err := regexp.Compile(entry)
+	if err != nil {
+		log.Log().Warnf("invalid regex '%s'", entry)
+
+		return true // invalid but handled
+	}
+
+	r.cache = append(r.cache, compile)
+
+	return true
 }
 
 func (r *regexCacheFactory) count() int {

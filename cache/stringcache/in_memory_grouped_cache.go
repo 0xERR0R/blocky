@@ -73,8 +73,8 @@ type inMemoryGroupFactory struct {
 	finishFn func(stringCache)
 }
 
-func (c *inMemoryGroupFactory) AddEntry(entry string) {
-	c.factory.addEntry(entry)
+func (c *inMemoryGroupFactory) AddEntry(entry string) bool {
+	return c.factory.addEntry(entry)
 }
 
 func (c *inMemoryGroupFactory) Count() int {

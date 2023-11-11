@@ -10,6 +10,7 @@ var _ = Describe("Caches", func() {
 		cache   stringCache
 		factory cacheFactory
 	)
+
 	Describe("String StringCache", func() {
 		It("should not return a cache when empty", func() {
 			Expect(newStringCacheFactory().create()).Should(BeNil())
@@ -18,7 +19,7 @@ var _ = Describe("Caches", func() {
 		It("should recognise the empty string", func() {
 			factory := newStringCacheFactory()
 
-			factory.addEntry("")
+			Expect(factory.addEntry("")).Should(BeTrue())
 
 			Expect(factory.count()).Should(BeNumerically("==", 0))
 			Expect(factory.create()).Should(BeNil())
@@ -27,11 +28,11 @@ var _ = Describe("Caches", func() {
 		When("string StringCache was created", func() {
 			BeforeEach(func() {
 				factory = newStringCacheFactory()
-				factory.addEntry("google.com")
-				factory.addEntry("apple.com")
-				factory.addEntry("")
-				factory.addEntry("google.com")
-				factory.addEntry("APPLe.com")
+				Expect(factory.addEntry("google.com")).Should(BeTrue())
+				Expect(factory.addEntry("apple.com")).Should(BeTrue())
+				Expect(factory.addEntry("")).Should(BeTrue()) // invalid, but handled
+				Expect(factory.addEntry("google.com")).Should(BeTrue())
+				Expect(factory.addEntry("APPLe.com")).Should(BeTrue())
 
 				cache = factory.create()
 			})
@@ -42,13 +43,16 @@ var _ = Describe("Caches", func() {
 				Expect(cache.contains("www.google.com")).Should(BeFalse())
 				Expect(cache.contains("")).Should(BeFalse())
 			})
+
 			It("should match case-insensitive", func() {
 				Expect(cache.contains("aPPle.com")).Should(BeTrue())
 				Expect(cache.contains("google.COM")).Should(BeTrue())
 				Expect(cache.contains("www.google.com")).Should(BeFalse())
 				Expect(cache.contains("")).Should(BeFalse())
 			})
+
 			It("should return correct element count", func() {
+				Expect(factory.count()).Should(Equal(4))
 				Expect(cache.elementCount()).Should(Equal(2))
 			})
 		})
@@ -62,10 +66,10 @@ var _ = Describe("Caches", func() {
 		It("should recognise invalid regexes", func() {
 			factory := newRegexCacheFactory()
 
-			factory.addEntry("/*/")
-			factory.addEntry("/?/")
-			factory.addEntry("/+/")
-			factory.addEntry("/[/")
+			Expect(factory.addEntry("/*/")).Should(BeTrue())
+			Expect(factory.addEntry("/?/")).Should(BeTrue())
+			Expect(factory.addEntry("/+/")).Should(BeTrue())
+			Expect(factory.addEntry("/[/")).Should(BeTrue())
 
 			Expect(factory.count()).Should(BeNumerically("==", 0))
 			Expect(factory.create()).Should(BeNil())
@@ -74,14 +78,15 @@ var _ = Describe("Caches", func() {
 		When("regex StringCache was created", func() {
 			BeforeEach(func() {
 				factory = newRegexCacheFactory()
-				factory.addEntry("/.*google.com/")
-				factory.addEntry("/^apple\\.(de|com)$/")
-				factory.addEntry("/amazon/")
-				// this is not a regex, will be ignored
-				factory.addEntry("/(wrongRegex/")
-				factory.addEntry("plaintext")
+				Expect(factory.addEntry("/.*google.com/")).Should(BeTrue())
+				Expect(factory.addEntry("/^apple\\.(de|com)$/")).Should(BeTrue())
+				Expect(factory.addEntry("/amazon/")).Should(BeTrue())
+				Expect(factory.addEntry("/(wrongRegex/")).Should(BeTrue()) // recognized as regex but ignored because invalid
+				Expect(factory.addEntry("plaintext")).Should(BeFalse())
+
 				cache = factory.create()
 			})
+
 			It("should match if one regex in StringCache matches string", func() {
 				Expect(cache.contains("google.com")).Should(BeTrue())
 				Expect(cache.contains("google.coma")).Should(BeTrue())
@@ -96,6 +101,7 @@ var _ = Describe("Caches", func() {
 				Expect(cache.contains("amazon.com")).Should(BeTrue())
 				Expect(cache.contains("myamazon.com")).Should(BeTrue())
 			})
+
 			It("should return correct element count", func() {
 				Expect(factory.count()).Should(Equal(3))
 				Expect(cache.elementCount()).Should(Equal(3))

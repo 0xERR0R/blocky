@@ -14,7 +14,9 @@ func BenchmarkStringCache(b *testing.B) {
 		factory := newStringCacheFactory()
 
 		for _, s := range testdata {
-			factory.addEntry(s)
+			if !factory.addEntry(s) {
+				b.Fatalf("cache didn't insert value: %s", s)
+			}
 		}
 
 		factory.create()

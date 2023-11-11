@@ -62,8 +62,8 @@ func NewListCache(ctx context.Context,
 ) (*ListCache, error) {
 	c := &ListCache{
 		groupedCache: stringcache.NewChainedGroupedCache(
-			stringcache.NewInMemoryGroupedStringCache(),
 			stringcache.NewInMemoryGroupedRegexCache(),
+			stringcache.NewInMemoryGroupedStringCache(),   // accepts all values, must be last
 		),
 
 		cfg:          cfg,
@@ -168,9 +168,11 @@ func (b *ListCache) createCacheForGroup(
 
 	producers.GoConsume(func(ctx context.Context, ch <-chan string) error {
 		for host := range ch {
-			hasEntries = true
-
-			groupFactory.AddEntry(host)
+			if groupFactory.AddEntry(host) {
+				hasEntries = true
+			} else {
+				logger().WithField("host", host).Warn("no list cache was able to use host")
+			}
 		}
 
 		return nil
