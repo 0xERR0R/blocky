@@ -45,7 +45,7 @@ else
 	go generate ./...
 endif
 
-build: fmt generate ## Build binary
+build: generate ## Build binary
 	go build $(GO_BUILD_FLAGS) -ldflags="$(GO_BUILD_LD_FLAGS)" -o $(GO_BUILD_OUTPUT)
 ifdef BIN_USER
 	$(info setting owner of $(GO_BUILD_OUTPUT) to $(BIN_USER))
@@ -81,7 +81,7 @@ fmt: ## gofmt and goimports all go files
 	go run mvdan.cc/gofumpt -l -w -extra .
 	find . -name '*.go' -exec go run golang.org/x/tools/cmd/goimports -w {} +
 
-docker-build: generate ## Build docker image 
+docker-build: generate ## Build docker image
 	docker buildx build \
 		--build-arg VERSION=${VERSION} \
 		--build-arg BUILD_TIME=${BUILD_TIME} \
