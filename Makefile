@@ -58,6 +58,7 @@ endif
 
 test: ## run tests
 	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --coverprofile=coverage.txt --covermode=atomic --cover -r ${GINKGO_PROCS}
+	go tool cover -html coverage.txt -o coverage.html
 
 e2e-test: ## run e2e tests
 	docker buildx build \
