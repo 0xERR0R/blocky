@@ -57,8 +57,13 @@ func (c *InMemoryGroupedCache) Refresh(group string) GroupFactory {
 		factory: c.factoryFn(),
 		finishFn: func(sc stringCache) {
 			c.lock.Lock()
-			c.caches[group] = sc
-			c.lock.Unlock()
+			defer c.lock.Unlock()
+
+			if sc != nil {
+				c.caches[group] = sc
+			} else {
+				delete(c.caches, group)
+			}
 		},
 	}
 }

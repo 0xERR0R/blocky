@@ -107,6 +107,10 @@ func (s *stringCacheFactory) addEntry(entry string) {
 }
 
 func (s *stringCacheFactory) create() stringCache {
+	if len(s.tmp) == 0 {
+		return nil
+	}
+
 	cache := make(stringMap, len(s.tmp))
 	for k, v := range s.tmp {
 		cache[k] = strings.Join(v, "")
@@ -161,6 +165,10 @@ func (r *regexCacheFactory) count() int {
 }
 
 func (r *regexCacheFactory) create() stringCache {
+	if len(r.cache) == 0 {
+		return nil
+	}
+
 	return r.cache
 }
 

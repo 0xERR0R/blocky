@@ -11,6 +11,19 @@ var _ = Describe("Caches", func() {
 		factory cacheFactory
 	)
 	Describe("String StringCache", func() {
+		It("should not return a cache when empty", func() {
+			Expect(newStringCacheFactory().create()).Should(BeNil())
+		})
+
+		It("should recognise the empty string", func() {
+			factory := newStringCacheFactory()
+
+			factory.addEntry("")
+
+			Expect(factory.count()).Should(BeNumerically("==", 0))
+			Expect(factory.create()).Should(BeNil())
+		})
+
 		When("string StringCache was created", func() {
 			BeforeEach(func() {
 				factory = newStringCacheFactory()
@@ -42,6 +55,22 @@ var _ = Describe("Caches", func() {
 	})
 
 	Describe("Regex StringCache", func() {
+		It("should not return a cache when empty", func() {
+			Expect(newRegexCacheFactory().create()).Should(BeNil())
+		})
+
+		It("should recognise invalid regexes", func() {
+			factory := newRegexCacheFactory()
+
+			factory.addEntry("/*/")
+			factory.addEntry("/?/")
+			factory.addEntry("/+/")
+			factory.addEntry("/[/")
+
+			Expect(factory.count()).Should(BeNumerically("==", 0))
+			Expect(factory.create()).Should(BeNil())
+		})
+
 		When("regex StringCache was created", func() {
 			BeforeEach(func() {
 				factory = newRegexCacheFactory()

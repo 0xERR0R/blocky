@@ -87,7 +87,7 @@ var _ = Describe("Chained grouped cache", func() {
 				Expect(cache.Contains("both", []string{"group1", "group2"})).Should(ConsistOf("group1", "group2"))
 			})
 
-			It("Should replace group content on refresh", func() {
+			It("should replace group content on refresh", func() {
 				factory = cache.Refresh("group1")
 				factory.AddEntry("newString")
 				factory.Finish()
@@ -98,6 +98,19 @@ var _ = Describe("Chained grouped cache", func() {
 				Expect(cache.Contains("newString", []string{"group1", "group2"})).Should(ConsistOf("group1"))
 				Expect(cache.Contains("g2", []string{"group1", "group2"})).Should(ConsistOf("group2"))
 				Expect(cache.Contains("both", []string{"group1", "group2"})).Should(ConsistOf("group2"))
+			})
+
+			It("should replace empty groups on refresh", func() {
+				factory = cache.Refresh("group")
+				factory.AddEntry("begone")
+				factory.Finish()
+
+				Expect(cache.ElementCount("group")).Should(BeNumerically("==", 2))
+
+				factory = cache.Refresh("group")
+				factory.Finish()
+
+				Expect(cache.ElementCount("group")).Should(BeNumerically("==", 0))
 			})
 		})
 	})
