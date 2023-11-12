@@ -34,7 +34,7 @@
         "[go]": {
           "editor.defaultFormatter": "golang.go"
         },
-        "[json][jsonc]": {
+        "[json][jsonc][github-actions-workflow]": {
           "editor.defaultFormatter": "esbenp.prettier-vscode"
         },
         "[markdown]": {
