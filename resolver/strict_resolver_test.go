@@ -54,7 +54,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 		sut, err = NewStrictResolver(sutConfig, bootstrap, sutVerify)
 	})
 
-	config.GetConfig().Upstreams.Timeout = config.Duration(1000 * time.Millisecond)
+	config.GetConfig().Upstreams.Timeout = config.Duration(time.Second)
 
 	Describe("IsEnabled", func() {
 		It("is true", func() {

@@ -727,7 +727,7 @@ var _ = Describe("Running DNS server", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(branches).ToNot(BeNil())
 			Expect(branches).To(HaveLen(1))
-			_ = branches["default"].(*resolver.RandomResolver)
+			_ = branches["default"].(*resolver.ParallelBestResolver)
 		})
 	})
 
