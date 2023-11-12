@@ -18,7 +18,10 @@ import (
 	"github.com/ThinkChaos/parcour/jobgroup"
 )
 
-const groupProducersBufferCap = 1000
+const (
+	groupProducersBufferCap = 1000
+	regexWarningThreshold   = 500
+)
 
 // ListCacheType represents the type of cached list ENUM(
 // blacklist // is a list with blocked domains
@@ -35,6 +38,7 @@ type Matcher interface {
 // ListCache generic cache of strings divided in groups
 type ListCache struct {
 	groupedCache stringcache.GroupedStringCache
+	regexCache   stringcache.GroupedStringCache
 
 	cfg          config.SourceLoadingConfig
 	listType     ListCacheType
@@ -44,12 +48,21 @@ type ListCache struct {
 
 // LogConfig implements `config.Configurable`.
 func (b *ListCache) LogConfig(logger *logrus.Entry) {
-	var total int
+	total := 0
+	regexes := 0
 
 	for group := range b.groupSources {
 		count := b.groupedCache.ElementCount(group)
 		logger.Infof("%s: %d entries", group, count)
 		total += count
+		regexes += b.regexCache.ElementCount(group)
+	}
+
+	if regexes > regexWarningThreshold {
+		logger.Warnf(
+			"REGEXES: %d !! High use of regexes is not recommended: they use a lot of memory and are very slow to search",
+			regexes,
+		)
 	}
 
 	logger.Infof("TOTAL: %d entries", total)
@@ -60,12 +73,15 @@ func NewListCache(ctx context.Context,
 	t ListCacheType, cfg config.SourceLoadingConfig,
 	groupSources map[string][]config.BytesSource, downloader FileDownloader,
 ) (*ListCache, error) {
+	regexCache := stringcache.NewInMemoryGroupedRegexCache()
+
 	c := &ListCache{
 		groupedCache: stringcache.NewChainedGroupedCache(
-			stringcache.NewInMemoryGroupedRegexCache(),
+			regexCache,
 			stringcache.NewInMemoryGroupedWildcardCache(), // must be after regex which can contain '*'
 			stringcache.NewInMemoryGroupedStringCache(),   // accepts all values, must be last
 		),
+		regexCache: regexCache,
 
 		cfg:          cfg,
 		listType:     t,
