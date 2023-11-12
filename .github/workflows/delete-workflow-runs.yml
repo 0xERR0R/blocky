@@ -5,6 +5,9 @@ on:
     - cron: "0 1 * * *"
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
 jobs:
   del_runs:
     name: Delete workflow runs
@@ -27,11 +30,3 @@ jobs:
           retain_days: 0
           keep_minimum_runs: 0
           delete_run_by_conclusion_pattern: cancelled
-
-      - name: Delete workflow runs(older than a month)
-        uses: Mattraks/delete-workflow-runs@v2
-        with:
-          token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          retain_days: 30
-          keep_minimum_runs: 6

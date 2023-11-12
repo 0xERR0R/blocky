@@ -1,18 +1,31 @@
 name: mirror git repo
+
 on:
   push:
     branches:
       - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
 jobs:
   mirror:
     runs-on: ubuntu-latest
     if: github.repository_owner == '0xERR0R'
     steps:
-       - uses: actions/checkout@v4
-         with:
-           fetch-depth: 0
-       - uses: yesolutions/mirror-action@master
-         with:
-           REMOTE: 'https://codeberg.org/0xERR0R/blocky.git'
-           GIT_USERNAME: 0xERR0R
-           GIT_PASSWORD: ${{ secrets.CODEBERG_TOKEN }}
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: yesolutions/mirror-action@master
+        with:
+          REMOTE: "https://codeberg.org/0xERR0R/blocky.git"
+          GIT_USERNAME: 0xERR0R
+          GIT_PASSWORD: ${{ secrets.CODEBERG_TOKEN }}
+
+      - name: Delete old runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          delete_workflow_pattern: mirror-repo.yml
