@@ -14,7 +14,6 @@ import (
 	. "github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/lists/parsers"
 	"github.com/0xERR0R/blocky/log"
-	"github.com/0xERR0R/blocky/util"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 
@@ -449,11 +448,11 @@ var _ = Describe("ListCache", func() {
 })
 
 type MockDownloader struct {
-	util.MockCallSequence[string]
+	MockCallSequence[string]
 }
 
 func newMockDownloader(driver func(res chan<- string, err chan<- error)) *MockDownloader {
-	return &MockDownloader{util.NewMockCallSequence(driver)}
+	return &MockDownloader{NewMockCallSequence(driver)}
 }
 
 func (m *MockDownloader) DownloadFile(_ string) (io.ReadCloser, error) {

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/0xERR0R/blocky/util"
+	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -163,10 +163,10 @@ func iteratorToList[T any](forEach func(func(T) error) error) []T {
 	return res
 }
 
-type mockParser[T any] struct{ util.MockCallSequence[T] }
+type mockParser[T any] struct{ MockCallSequence[T] }
 
 func newMockParser[T any](driver func(chan<- T, chan<- error)) SeriesParser[T] {
-	return &mockParser[T]{util.NewMockCallSequence(driver)}
+	return &mockParser[T]{NewMockCallSequence(driver)}
 }
 
 func (m *mockParser[T]) Next(ctx context.Context) (_ T, rerr error) {
