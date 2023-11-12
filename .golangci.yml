@@ -54,6 +54,7 @@ linters:
     - wastedassign
     - whitespace
     - wsl
+    - ginkgolinter
   disable:
     - noctx
     - contextcheck
@@ -72,7 +73,24 @@ linters:
 linters-settings:
   gomnd:
     ignored-numbers:
-      - '0666'
+      - "0666"
+  ginkgolinter:
+    # Suppress the wrong length assertion warning.
+    suppress-len-assertion: true
+    # Suppress the wrong nil assertion warning.
+    suppress-nil-assertion: true
+    # Suppress the wrong error assertion warning.
+    suppress-err-assertion: true
+    # Suppress the wrong comparison assertion warning.
+    suppress-compare-assertion: true
+    # Suppress the function all in async assertion warning.
+    suppress-async-assertion: true
+    # Suppress warning for comparing values from different types, like int32 and uint32
+    suppress-type-compare-assertion: true
+    # Trigger warning for ginkgo focus containers like FDescribe, FContext, FWhen or FIt
+    forbid-focus-container: true
+    # Don't trigger warnings for HaveLen(0)
+    allow-havelen-zero: true
 
 issues:
   exclude-rules:

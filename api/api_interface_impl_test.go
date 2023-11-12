@@ -217,7 +217,7 @@ var _ = Describe("API implementation tests", func() {
 				var resp200 BlockingStatus200JSONResponse
 				Expect(resp).Should(BeAssignableToTypeOf(resp200))
 				resp200 = resp.(BlockingStatus200JSONResponse)
-				Expect(resp200.Enabled).Should(Equal(false))
+				Expect(resp200.Enabled).Should(BeFalse())
 				Expect(resp200.DisabledGroups).Should(HaveValue(Equal([]string{"gr1", "gr2"})))
 				Expect(resp200.AutoEnableInSec).Should(HaveValue(BeNumerically("==", 47)))
 			})
