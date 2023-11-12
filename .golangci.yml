@@ -76,28 +76,20 @@ linters-settings:
       - "0666"
   ginkgolinter:
     # Suppress the wrong length assertion warning.
-    # Default: false
     suppress-len-assertion: true
     # Suppress the wrong nil assertion warning.
-    # Default: false
     suppress-nil-assertion: true
     # Suppress the wrong error assertion warning.
-    # Default: false
     suppress-err-assertion: true
     # Suppress the wrong comparison assertion warning.
-    # Default: false
     suppress-compare-assertion: true
     # Suppress the function all in async assertion warning.
-    # Default: false
     suppress-async-assertion: true
     # Suppress warning for comparing values from different types, like int32 and uint32
-    # Default: false
     suppress-type-compare-assertion: true
     # Trigger warning for ginkgo focus containers like FDescribe, FContext, FWhen or FIt
-    # Default: false
     forbid-focus-container: true
     # Don't trigger warnings for HaveLen(0)
-    # Default: false
     allow-havelen-zero: true
 
 issues:
