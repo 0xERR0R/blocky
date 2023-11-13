@@ -23,8 +23,7 @@
     "commands": [
       {
         "match": "\\.go$",
-        "cmd": "./.devcontainer/scripts/generate-lcov.sh",
-        "silent": true
+        "cmd": "${workspaceRoot}/.devcontainer/scripts/runItOnGo.sh ${fileDirname} ${workspaceRoot}"
       }
     ]
   }
