@@ -31,4 +31,4 @@ time gcov2lcov -infile="$FILE_PATH" -outfile="$FOLDER_PATH/lcov.info"
 TIMEFORMAT=' - cleanup finished in: %R seconds'
 time rm "$FILE_PATH"
 
-echo "-- Finished ($(date '+%T')) --"
+echo "-- Finished $FOLDER_NAME ($(date '+%T')) --"
