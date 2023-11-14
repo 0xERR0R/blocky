@@ -26,6 +26,9 @@
         "tooltitudeteam.tooltitude"
       ],
       "settings": {
+        "files.exclude": {
+          "**/lcov.info": true
+        },
         "go.lintFlags": ["--config=${containerWorkspaceFolder}/.golangci.yml"],
         "go.alternateTools": {
           "go-langserver": "gopls"
