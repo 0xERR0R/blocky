@@ -90,9 +90,18 @@ var _ = Describe("EcsConfig", func() {
 					Expect(ipmask).Should(Equal(ECSv4Mask(24)))
 				})
 			})
+			When("Parse NaN value", func() {
+				BeforeEach(func() {
+					data = []byte("FALSE")
+					err = yaml.Unmarshal(data, &ipmask)
+				})
+				It("should be error", func() {
+					Expect(err).Should(HaveOccurred())
+				})
+			})
 			When("Parse incorrect value", func() {
 				BeforeEach(func() {
-					data = []byte("256")
+					data = []byte("35")
 					err = yaml.Unmarshal(data, &ipmask)
 				})
 				It("should be error", func() {
@@ -112,9 +121,18 @@ var _ = Describe("EcsConfig", func() {
 					Expect(ipmask).Should(Equal(ECSv6Mask(64)))
 				})
 			})
+			When("Parse NaN value", func() {
+				BeforeEach(func() {
+					data = []byte("FALSE")
+					err = yaml.Unmarshal(data, &ipmask)
+				})
+				It("should be error", func() {
+					Expect(err).Should(HaveOccurred())
+				})
+			})
 			When("Parse incorrect value", func() {
 				BeforeEach(func() {
-					data = []byte("256")
+					data = []byte("130")
 					err = yaml.Unmarshal(data, &ipmask)
 				})
 				It("should be error", func() {
