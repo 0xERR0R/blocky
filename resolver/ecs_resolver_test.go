@@ -141,7 +141,7 @@ var _ = Describe("EcsResolver", func() {
 			})
 
 			It("should return 0 when input is 129", func() {
-				Expect(getMask(ecsIpv4Mask+1, ecsIpv6Mask)).Should(Equal(uint8(0)))
+				Expect(getMask(ecsIpv6Mask+1, ecsIpv6Mask)).Should(Equal(uint8(0)))
 			})
 		})
 	})
