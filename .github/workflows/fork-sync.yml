@@ -2,10 +2,10 @@ name: Sync Fork
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
-concurrency: 
+concurrency:
   group: ${{ github.workflow }}
 
 jobs:
@@ -17,7 +17,7 @@ jobs:
       - name: Enabled Check
         id: check
         shell: bash
-        run: | 
+        run: |
           if [[ "${{ secrets.FORK_SYNC_TOKEN }}" != "" ]]; then
             echo "enabled=1" >> $GITHUB_OUTPUT
 
@@ -27,10 +27,18 @@ jobs:
 
             echo "Workflow is disabled(create FORK_SYNC_TOKEN secret with repo write permission to enable it)"
           fi
+
       - name: Sync
         if: ${{ steps.check.outputs.enabled == 1 }}
         env:
           GH_TOKEN: ${{ secrets.FORK_SYNC_TOKEN }}
         shell: bash
-        run: | 
+        run: |
           gh repo sync ${{ github.repository }} -b main
+
+      - name: Delete old runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          delete_workflow_pattern: fork-sync.yml

@@ -74,11 +74,6 @@ linters-settings:
   gomnd:
     ignored-numbers:
       - "0666"
-  stylecheck:
-    dot-import-whitelist:
-      - "github.com/onsi/ginkgo"
-      - "github.com/onsi/gomega"
-      - "github.com/0xERR0R/blocky/helpertest"
   ginkgolinter:
     # Suppress the wrong length assertion warning.
     suppress-len-assertion: true
@@ -96,6 +91,12 @@ linters-settings:
     forbid-focus-container: true
     # Don't trigger warnings for HaveLen(0)
     allow-havelen-zero: true
+  stylecheck:
+    # Whietlist dot imports for test packages.
+    dot-import-whitelist:
+      - "github.com/onsi/ginkgo"
+      - "github.com/onsi/gomega"
+      - "github.com/0xERR0R/blocky/helpertest"
 
 issues:
   exclude-rules:
