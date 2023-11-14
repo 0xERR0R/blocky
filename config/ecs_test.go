@@ -1,6 +1,7 @@
 package config
 
 import (
+	"github.com/0xERR0R/blocky/log"
 	"github.com/creasty/defaults"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -59,6 +60,9 @@ var _ = Describe("EcsConfig", func() {
 	})
 
 	Describe("LogConfig", func() {
+		BeforeEach(func() {
+			logger, hook = log.NewMockEntry()
+		})
 		It("should log configuration", func() {
 			c.LogConfig(logger)
 
