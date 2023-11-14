@@ -17,14 +17,15 @@
   "customizations": {
     "vscode": {
       "extensions": [
-		"golang.go",
-		"esbenp.prettier-vscode",
-		"yzhang.markdown-all-in-one",
-		"joselitofilho.ginkgotestexplorer",
-		"fsevenm.run-it-on",
-		"markis.code-coverage",
-		"tooltitudeteam.tooltitude"
-	],
+        "golang.go",
+        "esbenp.prettier-vscode",
+        "yzhang.markdown-all-in-one",
+        "joselitofilho.ginkgotestexplorer",
+        "fsevenm.run-it-on",
+        "markis.code-coverage",
+        "tooltitudeteam.tooltitude",
+        "GitHub.vscode-github-actions"
+      ],
       "settings": {
         "go.lintFlags": ["--config=${containerWorkspaceFolder}/.golangci.yml"],
         "go.alternateTools": {
@@ -33,20 +34,11 @@
         "[go]": {
           "editor.defaultFormatter": "golang.go"
         },
-        "[json][jsonc]": {
+        "[json][jsonc][github-actions-workflow]": {
           "editor.defaultFormatter": "esbenp.prettier-vscode"
         },
         "[markdown]": {
-          "editor.defaultFormatter": "yzhang.markdown-all-in-one",
-          "editor.unicodeHighlight.ambiguousCharacters": false,
-          "editor.unicodeHighlight.invisibleCharacters": false,
-          "diffEditor.ignoreTrimWhitespace": false,
-          "editor.wordWrap": "on",
-          "editor.quickSuggestions": {
-            "comments": "off",
-            "strings": "off",
-            "other": "off"
-          }
+          "editor.defaultFormatter": "yzhang.markdown-all-in-one"
         }
       }
     }
