@@ -39,7 +39,7 @@ var _ = Describe("Downloader", func() {
 		}
 		Expect(Bus().Subscribe(CachingFailedDownloadChanged, fn)).Should(Succeed())
 		DeferCleanup(func() {
-			Expect(Bus().Unsubscribe(CachingFailedDownloadChanged, fn))
+			Expect(Bus().Unsubscribe(CachingFailedDownloadChanged, fn)).Should(Succeed())
 		})
 
 		loggerHook = test.NewGlobal()
