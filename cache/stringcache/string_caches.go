@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/trie"
 )
 
 type stringCache interface {
@@ -119,8 +120,6 @@ func (s *stringCacheFactory) create() stringCache {
 		cache[k] = strings.Join(v, "")
 	}
 
-	s.tmp = nil
-
 	return cache
 }
 
@@ -182,4 +181,69 @@ func newRegexCacheFactory() cacheFactory {
 	return &regexCacheFactory{
 		cache: make(regexCache, 0),
 	}
+}
+
+type wildcardCache struct {
+	trie trie.Trie
+	cnt  int
+}
+
+func (cache wildcardCache) elementCount() int {
+	return cache.cnt
+}
+
+func (cache wildcardCache) contains(domain string) bool {
+	return cache.trie.HasParentOf(domain)
+}
+
+type wildcardCacheFactory struct {
+	trie *trie.Trie
+	cnt  int
+}
+
+func newWildcardCacheFactory() cacheFactory {
+	return &wildcardCacheFactory{
+		trie: trie.NewTrie(trie.SplitTLD),
+	}
+}
+
+func (r *wildcardCacheFactory) addEntry(entry string) bool {
+	globCount := strings.Count(entry, "*")
+	if globCount == 0 {
+		return false
+	}
+
+	if !strings.HasPrefix(entry, "*.") || globCount > 1 {
+		log.Log().Warnf("unsupported wildcard '%s': must start with '*.' and contain no other '*'", entry)
+
+		return true // invalid but handled
+	}
+
+	entry = normalizeWildcard(entry)
+
+	r.trie.Insert(entry)
+	r.cnt++
+
+	return true
+}
+
+func (r *wildcardCacheFactory) count() int {
+	return r.cnt
+}
+
+func (r *wildcardCacheFactory) create() stringCache {
+	if r.cnt == 0 {
+		return nil
+	}
+
+	return wildcardCache{*r.trie, r.cnt}
+}
+
+func normalizeWildcard(domain string) string {
+	domain = normalizeEntry(domain)
+	domain = strings.TrimLeft(domain, "*")
+	domain = strings.Trim(domain, ".")
+	domain = strings.ToLower(domain)
+
+	return domain
 }

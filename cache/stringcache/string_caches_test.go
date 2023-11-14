@@ -108,4 +108,66 @@ var _ = Describe("Caches", func() {
 			})
 		})
 	})
+
+	Describe("Wildcard StringCache", func() {
+		It("should not return a cache when empty", func() {
+			Expect(newWildcardCacheFactory().create()).Should(BeNil())
+		})
+
+		It("should recognise invalid wildcards", func() {
+			factory := newWildcardCacheFactory()
+
+			Expect(factory.addEntry("example.*.com")).Should(BeTrue())
+			Expect(factory.addEntry("example.*")).Should(BeTrue())
+			Expect(factory.addEntry("sub.*.example.com")).Should(BeTrue())
+			Expect(factory.addEntry("*.example.*")).Should(BeTrue())
+
+			Expect(factory.count()).Should(BeNumerically("==", 0))
+			Expect(factory.create()).Should(BeNil())
+		})
+
+		When("cache was created", func() {
+			BeforeEach(func() {
+				factory = newWildcardCacheFactory()
+
+				Expect(factory.addEntry("*.example.com")).Should(BeTrue())
+				Expect(factory.addEntry("*.example.org")).Should(BeTrue())
+				Expect(factory.addEntry("*.blocked")).Should(BeTrue())
+				Expect(factory.addEntry("*.sub.blocked")).Should(BeTrue()) // already handled by above
+
+				cache = factory.create()
+			})
+
+			It("should match if one regex in StringCache matches string", func() {
+				// first entry
+				Expect(cache.contains("example.com")).Should(BeTrue())
+				Expect(cache.contains("www.example.com")).Should(BeTrue())
+
+				// look alikes
+				Expect(cache.contains("com")).Should(BeFalse())
+				Expect(cache.contains("example.coma")).Should(BeFalse())
+				Expect(cache.contains("an-example.com")).Should(BeFalse())
+				Expect(cache.contains("examplecom")).Should(BeFalse())
+
+				// other entry
+				Expect(cache.contains("example.org")).Should(BeTrue())
+				Expect(cache.contains("www.example.org")).Should(BeTrue())
+
+				// unrelated
+				Expect(cache.contains("example.net")).Should(BeFalse())
+				Expect(cache.contains("www.example.net")).Should(BeFalse())
+
+				// third entry
+				Expect(cache.contains("blocked")).Should(BeTrue())
+				Expect(cache.contains("sub.blocked")).Should(BeTrue())
+				Expect(cache.contains("sub.sub.blocked")).Should(BeTrue())
+				Expect(cache.contains("example.blocked")).Should(BeTrue())
+			})
+
+			It("should return correct element count", func() {
+				Expect(factory.count()).Should(Equal(4))
+				Expect(cache.elementCount()).Should(Equal(4))
+			})
+		})
+	})
 })

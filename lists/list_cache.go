@@ -63,6 +63,7 @@ func NewListCache(ctx context.Context,
 	c := &ListCache{
 		groupedCache: stringcache.NewChainedGroupedCache(
 			stringcache.NewInMemoryGroupedRegexCache(),
+			stringcache.NewInMemoryGroupedWildcardCache(), // must be after regex which can contain '*'
 			stringcache.NewInMemoryGroupedStringCache(),   // accepts all values, must be last
 		),
 

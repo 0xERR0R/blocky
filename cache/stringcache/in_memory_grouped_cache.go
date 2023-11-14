@@ -24,6 +24,13 @@ func NewInMemoryGroupedRegexCache() *InMemoryGroupedCache {
 	}
 }
 
+func NewInMemoryGroupedWildcardCache() *InMemoryGroupedCache {
+	return &InMemoryGroupedCache{
+		caches:    make(map[string]stringCache),
+		factoryFn: newWildcardCacheFactory,
+	}
+}
+
 func (c *InMemoryGroupedCache) ElementCount(group string) int {
 	c.lock.RLock()
 	cache, found := c.caches[group]

@@ -36,6 +36,7 @@ var _ = Describe("Hosts", func() {
 				`/domain\.(tld|local)/`,
 				`/^(.*\.)?2023\.xn--aptslabs-6fd\.net$/`,
 				`müller.com`,
+				`*.example.com`,
 			)
 		})
 
@@ -70,11 +71,16 @@ var _ = Describe("Hosts", func() {
 			Expect(iteratorToList(it.ForEach)).Should(Equal([]string{`xn--mller-kva.com`}))
 			Expect(sut.Position()).Should(Equal("line 8"))
 
+			it, err = sut.Next(context.Background())
+			Expect(err).Should(Succeed())
+			Expect(iteratorToList(it.ForEach)).Should(Equal([]string{"*.example.com"}))
+			Expect(sut.Position()).Should(Equal("line 9"))
+
 			_, err = sut.Next(context.Background())
 			Expect(err).ShouldNot(Succeed())
 			Expect(err).Should(MatchError(io.EOF))
 			Expect(IsNonResumableErr(err)).Should(BeTrue())
-			Expect(sut.Position()).Should(Equal("line 9"))
+			Expect(sut.Position()).Should(Equal("line 10"))
 		})
 	})
 
@@ -85,6 +91,7 @@ var _ = Describe("Hosts", func() {
 				"!notadomain!",
 				"xn---mllerk1va.com",
 				`/invalid regex ??/`,
+				"invalid.*.wildcard",
 			}
 
 			for _, line := range lines {

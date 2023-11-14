@@ -374,7 +374,8 @@ The supported list formats are:
 
 1. the well-known [Hosts format](https://en.wikipedia.org/wiki/Hosts_(file))
 2. one domain per line (plain domain list)
-3. one regex per line
+3. one wildcard per line
+4. one regex per line
 
 !!! example
 
@@ -389,6 +390,7 @@ The supported list formats are:
             # content is in plain domain list format
             someadsdomain.com
             anotheradsdomain.com
+            *.wildcard.example.com # blocks wildcard.example.com and all subdomains
           - |
             # inline definition with a regex
             /^banners?[_.-]/
@@ -414,6 +416,11 @@ The supported list formats are:
 !!! warning
     You must also define client group mapping, otherwise you black and whitelist definition will have no effect.
 
+#### Wildcard support
+
+You can use wildcards to block a domain and all its subdomains.
+Example: `*.example.com` will block `example.com` and `any.subdomains.example.com`.
+
 #### Regex support
 
 You can use regex to define patterns to block. A regex entry must start and end with the slash character (`/`). Some
@@ -422,6 +429,9 @@ Examples:
 - `/baddomain/` will block `www.baddomain.com`, `baddomain.com`, but also `mybaddomain-sometext.com`
 - `/^baddomain/` will block `baddomain.com`, but not `www.baddomain.com`
 - `/^apple\.(de|com)$/` will only block `apple.de` and `apple.com`
+
+!!! warning
+    Regexes use more a lot more memory and are much slower than wildcards, you should use them as a last resort.
 
 ### Client groups
 

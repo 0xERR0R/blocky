@@ -86,6 +86,25 @@ var _ = Describe("In-Memory grouped cache", func() {
 				Expect(cache.Contains("shouldalsomatchstring2", []string{"group1"})).Should(ConsistOf("group1"))
 			})
 		})
+		When("Wildcard grouped cache is used", func() {
+			BeforeEach(func() {
+				cache = stringcache.NewInMemoryGroupedWildcardCache()
+				factory = cache.Refresh("group1")
+
+				Expect(factory.AddEntry("string1")).Should(BeFalse())
+				Expect(factory.AddEntry("/string2/")).Should(BeFalse())
+				Expect(factory.AddEntry("*.string3")).Should(BeTrue())
+				factory.Finish()
+			})
+
+			It("should ignore non-wildcard", func() {
+				Expect(cache.ElementCount("group1")).Should(BeNumerically("==", 1))
+				Expect(cache.Contains("string1", []string{"group1"})).Should(BeEmpty())
+				Expect(cache.Contains("string2", []string{"group1"})).Should(BeEmpty())
+				Expect(cache.Contains("string3", []string{"group1"})).Should(ConsistOf("group1"))
+				Expect(cache.Contains("shouldalsomatch.string3", []string{"group1"})).Should(ConsistOf("group1"))
+			})
+		})
 	})
 
 	Describe("Cache refresh", func() {
