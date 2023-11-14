@@ -26,5 +26,6 @@
         "cmd": "${workspaceRoot}/.devcontainer/scripts/runItOnGo.sh ${fileDirname} ${workspaceRoot}"
       }
     ]
-  }
+  },
+  "markiscodecoverage.searchCriteria": "**/lcov.info"
 }
