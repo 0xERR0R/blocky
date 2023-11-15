@@ -11,8 +11,8 @@ if [ -z "${BASE_PATH}" ]; then
 fi
 
 if [ "$FOLDER_PATH" = "$BASE_PATH" ]; then
-    echo "Skipping lcov creation for base path"
-    exit 1
+  echo "Skipping lcov creation for base path"
+  exit 1
 fi
 
 FOLDER_NAME=${FOLDER_PATH#"$BASE_PATH/"}
