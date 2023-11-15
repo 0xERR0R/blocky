@@ -18,14 +18,5 @@
     "ui.semanticTokens": true,
     "formatting.gofumpt": true,
     "build.standaloneTags": ["ignore", "tools"]
-  },
-  "runItOn": {
-    "commands": [
-      {
-        "match": "\\.go$",
-        "cmd": "./.devcontainer/scripts/generate-lcov.sh",
-        "silent": true
-      }
-    ]
   }
 }

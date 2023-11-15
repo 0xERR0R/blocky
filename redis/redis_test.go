@@ -14,6 +14,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const (
+	exampleComKey = CacheStorePrefix + "example.com"
+)
+
 var (
 	redisServer *miniredis.Miniredis
 	redisClient *Client
@@ -100,10 +104,10 @@ var _ = Describe("Redis client", func() {
 
 				By("Database has one entry with correct TTL", func() {
 					Eventually(func() bool {
-						return redisServer.DB(redisConfig.Database).Exists(CacheStorePrefix + "example.com")
+						return redisServer.DB(redisConfig.Database).Exists(exampleComKey)
 					}).Should(BeTrue())
 
-					ttl := redisServer.DB(redisConfig.Database).TTL(CacheStorePrefix + "example.com")
+					ttl := redisServer.DB(redisConfig.Database).TTL(exampleComKey)
 					Expect(ttl.Seconds()).Should(BeNumerically("~", 123))
 				})
 			})
@@ -125,10 +129,10 @@ var _ = Describe("Redis client", func() {
 
 				By("Database has one entry with default TTL", func() {
 					Eventually(func() bool {
-						return redisServer.DB(redisConfig.Database).Exists(CacheStorePrefix + "example.com")
+						return redisServer.DB(redisConfig.Database).Exists(exampleComKey)
 					}).Should(BeTrue())
 
-					ttl := redisServer.DB(redisConfig.Database).TTL(CacheStorePrefix + "example.com")
+					ttl := redisServer.DB(redisConfig.Database).TTL(exampleComKey)
 					Expect(ttl.Seconds()).Should(BeNumerically("~", defaultCacheTime.Seconds()))
 				})
 			})

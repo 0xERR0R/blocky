@@ -7,7 +7,11 @@
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "dockerDashComposeVersion": "v2"
     },
-    "ghcr.io/devcontainers/features/python:1": {}
+    "ghcr.io/devcontainers/features/python:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
+      "packages": "dnsutils "
+    }
   },
   "remoteEnv": {
     "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}",
@@ -27,7 +31,9 @@
         "GitHub.vscode-github-actions"
       ],
       "settings": {
-        "go.lintFlags": ["--config=${containerWorkspaceFolder}/.golangci.yml"],
+        "go.lintFlags": [
+          "--config=${containerWorkspaceFolder}/.golangci.yml"
+        ],
         "go.alternateTools": {
           "go-langserver": "gopls"
         },
@@ -39,6 +45,15 @@
         },
         "[markdown]": {
           "editor.defaultFormatter": "yzhang.markdown-all-in-one"
+        },
+        "markiscodecoverage.searchCriteria": "**/*.lcov",
+        "runItOn": {
+          "commands": [
+            {
+              "match": "\\.go$",
+              "cmd": "${workspaceRoot}/.devcontainer/scripts/runItOnGo.sh ${fileDirname} ${workspaceRoot}"
+            }
+          ]
         }
       }
     }

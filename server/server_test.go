@@ -39,11 +39,13 @@ var (
 	sut                                                          *Server
 	err                                                          error
 	baseURL                                                      string
+	queryURL                                                     string
 	googleMockUpstream, fritzboxMockUpstream, clientMockUpstream *resolver.MockUDPUpstreamServer
 )
 
 var _ = BeforeSuite(func() {
 	baseURL = "http://localhost:" + GetStringPort(httpBasePort) + "/"
+	queryURL = baseURL + "dns-query"
 	var upstreamGoogle, upstreamFritzbox, upstreamClient config.Upstream
 	ctx, cancelFn := context.WithCancel(context.Background())
 	DeferCleanup(cancelFn)
@@ -415,7 +417,7 @@ var _ = Describe("Running DNS server", func() {
 		Context("DOH over GET (RFC 8484)", func() {
 			When("DOH get request with 'example.com' is performed", func() {
 				It("should get a valid response", func() {
-					resp, err := http.Get(baseURL + "dns-query?dns=AAABAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB")
+					resp, err := http.Get(queryURL + "?dns=AAABAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB")
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
 
@@ -434,7 +436,7 @@ var _ = Describe("Running DNS server", func() {
 			})
 			When("Request does not contain a valid DNS message", func() {
 				It("should return 'Bad Request'", func() {
-					resp, err := http.Get(baseURL + "dns-query?dns=xxxx")
+					resp, err := http.Get(queryURL + "?dns=xxxx")
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
 
@@ -443,7 +445,7 @@ var _ = Describe("Running DNS server", func() {
 			})
 			When("Request's parameter does not contain a valid base64'", func() {
 				It("should return 'Bad Request'", func() {
-					resp, err := http.Get(baseURL + "dns-query?dns=äöä")
+					resp, err := http.Get(queryURL + "?dns=äöä")
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
 
@@ -452,7 +454,7 @@ var _ = Describe("Running DNS server", func() {
 			})
 			When("Request does not contain a dns parameter", func() {
 				It("should return 'Bad Request'", func() {
-					resp, err := http.Get(baseURL + "dns-query?test")
+					resp, err := http.Get(queryURL + "?test")
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
 
@@ -463,7 +465,7 @@ var _ = Describe("Running DNS server", func() {
 				It("should return 'URI Too Long'", func() {
 					longBase64msg := base64.StdEncoding.EncodeToString([]byte(strings.Repeat("t", 513)))
 
-					resp, err := http.Get(baseURL + "dns-query?dns=" + longBase64msg)
+					resp, err := http.Get(queryURL + "?dns=" + longBase64msg)
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
 
@@ -482,7 +484,7 @@ var _ = Describe("Running DNS server", func() {
 					rawDNSMessage, err := msg.Pack()
 					Expect(err).Should(Succeed())
 
-					resp, err = http.Post(baseURL+"dns-query",
+					resp, err = http.Post(queryURL,
 						"application/dns-message", bytes.NewReader(rawDNSMessage))
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
@@ -507,7 +509,7 @@ var _ = Describe("Running DNS server", func() {
 					rawDNSMessage, err := msg.Pack()
 					Expect(err).Should(Succeed())
 
-					resp, err = http.Post(baseURL+"dns-query/client123",
+					resp, err = http.Post(queryURL+"/client123",
 						"application/dns-message", bytes.NewReader(rawDNSMessage))
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
@@ -531,7 +533,7 @@ var _ = Describe("Running DNS server", func() {
 				It("should return 'Payload Too Large'", func() {
 					largeMessage := []byte(strings.Repeat("t", 513))
 
-					resp, err = http.Post(baseURL+"dns-query", "application/dns-message", bytes.NewReader(largeMessage))
+					resp, err = http.Post(queryURL, "application/dns-message", bytes.NewReader(largeMessage))
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
 
@@ -540,7 +542,7 @@ var _ = Describe("Running DNS server", func() {
 			})
 			When("Request has wrong type", func() {
 				It("should return 'Unsupported Media Type'", func() {
-					resp, err = http.Post(baseURL+"dns-query", "application/text", bytes.NewReader([]byte("a")))
+					resp, err = http.Post(queryURL, "application/text", bytes.NewReader([]byte("a")))
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
 
@@ -553,7 +555,7 @@ var _ = Describe("Running DNS server", func() {
 					rawDNSMessage, err := msg.Pack()
 					Expect(err).Should(Succeed())
 
-					resp, err = http.Post(baseURL+"dns-query",
+					resp, err = http.Post(queryURL,
 						"application/dns-message", bytes.NewReader(rawDNSMessage))
 					Expect(err).Should(Succeed())
 					DeferCleanup(resp.Body.Close)
