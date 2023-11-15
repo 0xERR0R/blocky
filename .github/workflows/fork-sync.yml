@@ -7,6 +7,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}
+  cancel-in-progress: true
 
 jobs:
   sync:
@@ -35,10 +36,3 @@ jobs:
         shell: bash
         run: |
           gh repo sync ${{ github.repository }} -b main
-
-      - name: Delete old runs
-        uses: Mattraks/delete-workflow-runs@v2
-        with:
-          token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          delete_workflow_pattern: fork-sync.yml

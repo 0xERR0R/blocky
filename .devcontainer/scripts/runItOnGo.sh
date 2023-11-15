@@ -16,19 +16,24 @@ if [ "$FOLDER_PATH" = "$BASE_PATH" ]; then
 fi
 
 FOLDER_NAME=${FOLDER_PATH#"$BASE_PATH/"}
-FILE_NAME="$(echo "$FOLDER_NAME" | sed 's/\//-/g').ginkgo"
-FILE_PATH="/tmp/$FILE_NAME"
+WORK_NAME="$(echo "$FOLDER_NAME" | sed 's/\//-/g')"
+WORK_FILE_NAME="$WORK_NAME.ginkgo"
+WORK_FILE_PATH="/tmp/$WORK_FILE_NAME"
+OUTPUT_FOLDER="$BASE_PATH/coverage"
+OUTPUT_FILE_PATH="$OUTPUT_FOLDER/$WORK_NAME.lcov"
 
+
+mkdir -p "$OUTPUT_FOLDER"
 
 echo "-- Start $FOLDER_NAME ($(date '+%T')) --"
 
 TIMEFORMAT=' - Ginkgo tests finished in: %R seconds'
-time ginkgo --label-filter="!e2e" --keep-going --timeout=5m --output-dir=/tmp --coverprofile="$FILE_NAME" --covermode=atomic --cover -r -p "$FOLDER_PATH" || true
+time ginkgo --label-filter="!e2e" --keep-going --timeout=5m --output-dir=/tmp --coverprofile="$WORK_FILE_NAME" --covermode=atomic --cover -r -p "$FOLDER_PATH" || true
 
 TIMEFORMAT=' - lcov convert finished in: %R seconds'
-time gcov2lcov -infile="$FILE_PATH" -outfile="$FOLDER_PATH/lcov.info"
+time gcov2lcov -infile="$WORK_FILE_PATH" -outfile="$OUTPUT_FILE_PATH" || true
 
 TIMEFORMAT=' - cleanup finished in: %R seconds'
-time rm "$FILE_PATH"
+time rm "$WORK_FILE_PATH" || true
 
 echo "-- Finished $FOLDER_NAME ($(date '+%T')) --"
