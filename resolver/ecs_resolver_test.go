@@ -80,7 +80,7 @@ var _ = Describe("EcsResolver", func() {
 				sutConfig.UseEcsAsClient = true
 			})
 
-			It("should add Ecs information with subnet 32", func() {
+			It("should change ClientIP with subnet 32", func() {
 				request := newRequest("example.com.", A)
 				request.ClientIP = origIP
 
@@ -101,7 +101,7 @@ var _ = Describe("EcsResolver", func() {
 							HaveReason("Test")))
 			})
 
-			It("should add Ecs information with subnet 24", func() {
+			It("shouldn't change ClientIP with subnet 24", func() {
 				request := newRequest("example.com.", A)
 				request.ClientIP = origIP
 
@@ -109,6 +109,53 @@ var _ = Describe("EcsResolver", func() {
 
 				m.ResolveFn = func(req *Request) (*Response, error) {
 					Expect(req.ClientIP).Should(Equal(origIP))
+
+					return respondWith(mockAnswer), nil
+				}
+
+				Expect(sut.Resolve(request)).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+							HaveReason("Test")))
+			})
+		})
+
+		When("forward ecs is enabled", func() {
+			BeforeEach(func() {
+				sutConfig.ForwardEcs = true
+				sutConfig.IPv4Mask = 32
+				sutConfig.IPv6Mask = 128
+			})
+
+			It("should add Ecs information with subnet 32", func() {
+				request := newRequest("example.com.", A)
+				request.ClientIP = origIP
+
+				m.ResolveFn = func(req *Request) (*Response, error) {
+					Expect(req.ClientIP).Should(Equal(origIP))
+					Expect(req.Req).Should(HaveEdnsOption(dns.EDNS0SUBNET))
+
+					return respondWith(mockAnswer), nil
+				}
+
+				Expect(sut.Resolve(request)).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+							HaveReason("Test")))
+			})
+
+			It("should add Ecs information with subnet 128", func() {
+				request := newRequest("example.com.", AAAA)
+				request.ClientIP = net.ParseIP("2001:db8::68")
+
+				m.ResolveFn = func(req *Request) (*Response, error) {
+					Expect(req.Req).Should(HaveEdnsOption(dns.EDNS0SUBNET))
 
 					return respondWith(mockAnswer), nil
 				}
