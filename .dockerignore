@@ -13,4 +13,4 @@ vendor
 e2e/
 .devcontainer/
 coverage.txt
-lcov.info
+coverage/

@@ -38,6 +38,15 @@
         },
         "[markdown]": {
           "editor.defaultFormatter": "yzhang.markdown-all-in-one"
+        },
+        "markiscodecoverage.searchCriteria": "**/*.lcov",
+        "runItOn": {
+          "commands": [
+            {
+              "match": "\\.go$",
+              "cmd": "${workspaceRoot}/.devcontainer/scripts/runItOnGo.sh ${fileDirname} ${workspaceRoot}"
+            }
+          ]
         }
       }
     }
