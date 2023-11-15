@@ -2,12 +2,12 @@
 
 FOLDER_PATH=$1
 if [ -z "${FOLDER_PATH}" ]; then
-    FOLDER_PATH=$PWD
+  FOLDER_PATH=$PWD
 fi
 
 BASE_PATH=$2
 if [ -z "${BASE_PATH}" ]; then
-    BASE_PATH=$WORKSPACE_FOLDER
+  BASE_PATH=$WORKSPACE_FOLDER
 fi
 
 if [ "$FOLDER_PATH" = "$BASE_PATH" ]; then
