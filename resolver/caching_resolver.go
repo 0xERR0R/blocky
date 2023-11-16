@@ -157,7 +157,7 @@ func (r *CachingResolver) LogConfig(logger *logrus.Entry) {
 	logger.Infof("cache entries = %d", r.resultCache.TotalCount())
 }
 
-// Resolve checks if the current query should use the cache and if theresult is already in
+// Resolve checks if the current query should use the cache and if the result is already in
 // the cache and returns it or delegates to the next resolver
 func (r *CachingResolver) Resolve(request *model.Request) (response *model.Response, err error) {
 	logger := log.WithPrefix(request.Log, "caching_resolver")
