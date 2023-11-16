@@ -129,8 +129,6 @@ func HaveEdnsOption(code uint16) types.GomegaMatcher {
 			opt = msg.Res.IsEdns0()
 		case *dns.Msg:
 			opt = msg.IsEdns0()
-		default:
-			opt = nil
 		}
 
 		if opt != nil {
