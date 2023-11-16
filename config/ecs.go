@@ -74,9 +74,7 @@ func unmarshalInternal(text []byte, maxvalue uint8, name string) (uint8, error) 
 	}
 
 	if uiVal > uint64(maxvalue) {
-		err = errors.New("mask value(" + strVal + ") is too large for " + name + "(max: " + strconv.Itoa(int(maxvalue)) + ")")
-
-		return 0, err
+		return 0, fmt.Errorf("mask value (%s) is too large for (max: %d)", strVal, name, maxvalue)
 	}
 
 	return uint8(uiVal), nil
