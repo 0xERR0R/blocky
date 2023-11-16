@@ -95,15 +95,13 @@ func RemoveEdns0Option(msg *dns.Msg, code uint16) {
 	}
 
 	opt := GetEdns0Record(msg)
-	newOpts := make([]dns.EDNS0, 0, len(opt.Option))
+	for i, o := range opt.Option {
+		if o.Option() == code {
+			opt.Option = slices.Delete(opt.Option, i, i+1)
 
-	for _, o := range opt.Option {
-		if o.Option() != code {
-			newOpts = append(newOpts, o)
+			break
 		}
 	}
-
-	opt.Option = newOpts
 
 	if len(opt.Option) == 0 {
 		RemoveEdns0Record(msg)
