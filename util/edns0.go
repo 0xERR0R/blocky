@@ -12,16 +12,16 @@ func RemoveEdns0Record(msg *dns.Msg) {
 		return
 	}
 
-	if len(msg.Extra) > 0 {
-		extra := make([]dns.RR, 0, len(msg.Extra))
+	if len(msg.Extra) == 0 {
+		return
+	}
 
-		for _, rr := range msg.Extra {
-			if rr.Header().Rrtype != dns.TypeOPT {
-				extra = append(extra, rr)
-			}
+	for i, rr := range msg.Extra {
+		if rr.Header().Rrtype == dns.TypeOPT {
+			msg.Extra = slices.Delete(msg.Extra, i, i+1)
+
+			break
 		}
-
-		msg.Extra = extra
 	}
 }
 
