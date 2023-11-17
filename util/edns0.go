@@ -104,7 +104,7 @@ func SetEdns0Option(msg *dns.Msg, opt dns.EDNS0) {
 
 	optRecord := GetEdns0Record(msg)
 
-	newOpts := make([]dns.EDNS0, 0, len(optRecord.Option))
+	newOpts := make([]dns.EDNS0, 0, len(optRecord.Option) + 1)
 
 	for _, o := range optRecord.Option {
 		if o.Option() != opt.Option() {
