@@ -7,12 +7,19 @@ import (
 	"github.com/miekg/dns"
 )
 
+// https://www.rfc-editor.org/rfc/rfc7871.html#section-6
 const (
 	ecsSourceScope = uint8(0)
-	ecsIpv4Family  = uint16(1)
-	ecsIpv4Mask    = uint8(32)
-	ecsIpv6Family  = uint16(2)
-	ecsIpv6Mask    = uint8(128)
+
+	ecsMaskIPv4 = config.ECSv4Mask(net.IPv4len * 8)
+	ecsMaskIPv6 = config.ECSv6Mask(net.IPv6len * 8)
+)
+
+// https://www.iana.org/assignments/address-family-numbers/address-family-numbers.xhtml
+const (
+	ecsFamilyIPv4 = uint16(iota + 1)
+	ecsFamilyIPv6
+)
 )
 
 // A EcsResolver is responsible for adding the subnet information as EDNS0 option
