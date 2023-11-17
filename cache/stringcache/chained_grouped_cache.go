@@ -56,10 +56,14 @@ type chainedGroupFactory struct {
 	cacheFactories []GroupFactory
 }
 
-func (c *chainedGroupFactory) AddEntry(entry string) {
+func (c *chainedGroupFactory) AddEntry(entry string) bool {
 	for _, factory := range c.cacheFactories {
-		factory.AddEntry(entry)
+		if factory.AddEntry(entry) {
+			return true
+		}
 	}
+
+	return false
 }
 
 func (c *chainedGroupFactory) Count() int {

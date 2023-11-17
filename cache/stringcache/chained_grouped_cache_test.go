@@ -24,6 +24,10 @@ var _ = Describe("Chained grouped cache", func() {
 			It("should not find any string", func() {
 				Expect(cache.Contains("searchString", []string{"someGroup"})).Should(BeEmpty())
 			})
+
+			It("should not add entries", func() {
+				Expect(cache.Refresh("group").AddEntry("test")).Should(BeFalse())
+			})
 		})
 	})
 	Describe("Delegation", func() {
@@ -44,12 +48,12 @@ var _ = Describe("Chained grouped cache", func() {
 			})
 
 			It("factory has 4 elements (both caches)", func() {
-				Expect(factory.Count()).Should(BeNumerically("==", 4))
+				Expect(factory.Count()).Should(BeNumerically("==", 2))
 			})
 
 			It("should have element count of 4", func() {
 				factory.Finish()
-				Expect(cache.ElementCount("group1")).Should(BeNumerically("==", 4))
+				Expect(cache.ElementCount("group1")).Should(BeNumerically("==", 2))
 			})
 
 			It("should find strings", func() {
@@ -80,24 +84,37 @@ var _ = Describe("Chained grouped cache", func() {
 			})
 
 			It("should contain 4 elements in 2 groups", func() {
-				Expect(cache.ElementCount("group1")).Should(BeNumerically("==", 4))
-				Expect(cache.ElementCount("group2")).Should(BeNumerically("==", 4))
+				Expect(cache.ElementCount("group1")).Should(BeNumerically("==", 2))
+				Expect(cache.ElementCount("group2")).Should(BeNumerically("==", 2))
 				Expect(cache.Contains("g1", []string{"group1", "group2"})).Should(ConsistOf("group1"))
 				Expect(cache.Contains("g2", []string{"group1", "group2"})).Should(ConsistOf("group2"))
 				Expect(cache.Contains("both", []string{"group1", "group2"})).Should(ConsistOf("group1", "group2"))
 			})
 
-			It("Should replace group content on refresh", func() {
+			It("should replace group content on refresh", func() {
 				factory = cache.Refresh("group1")
 				factory.AddEntry("newString")
 				factory.Finish()
 
-				Expect(cache.ElementCount("group1")).Should(BeNumerically("==", 2))
-				Expect(cache.ElementCount("group2")).Should(BeNumerically("==", 4))
+				Expect(cache.ElementCount("group1")).Should(BeNumerically("==", 1))
+				Expect(cache.ElementCount("group2")).Should(BeNumerically("==", 2))
 				Expect(cache.Contains("g1", []string{"group1", "group2"})).Should(BeEmpty())
 				Expect(cache.Contains("newString", []string{"group1", "group2"})).Should(ConsistOf("group1"))
 				Expect(cache.Contains("g2", []string{"group1", "group2"})).Should(ConsistOf("group2"))
 				Expect(cache.Contains("both", []string{"group1", "group2"})).Should(ConsistOf("group2"))
+			})
+
+			It("should replace empty groups on refresh", func() {
+				factory = cache.Refresh("group")
+				factory.AddEntry("begone")
+				factory.Finish()
+
+				Expect(cache.ElementCount("group")).Should(BeNumerically("==", 1))
+
+				factory = cache.Refresh("group")
+				factory.Finish()
+
+				Expect(cache.ElementCount("group")).Should(BeNumerically("==", 0))
 			})
 		})
 	})

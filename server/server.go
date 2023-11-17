@@ -496,10 +496,9 @@ func (s *Server) printConfiguration() {
 	runtime.ReadMemStats(&m)
 
 	logger().Infof("  memory:")
-	logger().Infof("    alloc =        %10v MB", toMB(m.Alloc))
-	logger().Infof("    heapAlloc =    %10v MB", toMB(m.HeapAlloc))
-	logger().Infof("    sys =          %10v MB", toMB(m.Sys))
-	logger().Infof("    numGC =        %10v", m.NumGC)
+	logger().Infof("    heap =     %10v MB", toMB(m.HeapAlloc))
+	logger().Infof("    sys =      %10v MB", toMB(m.Sys))
+	logger().Infof("    numGC =    %10v", m.NumGC)
 }
 
 func toMB(b uint64) uint64 {
