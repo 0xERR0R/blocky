@@ -84,7 +84,7 @@ var _ = Describe("EcsResolver", func() {
 				request := newRequest("example.com.", A)
 				request.ClientIP = origIP
 
-				addEcsOption(request.Req, ecsIP, ecsIpv4Mask)
+				addEcsOption(request.Req, ecsIP, ecsMaskIPv4)
 
 				m.ResolveFn = func(req *Request) (*Response, error) {
 					Expect(req.ClientIP).Should(Equal(ecsIP))
@@ -177,7 +177,7 @@ func addEcsOption(req *dns.Msg, ip net.IP, netmask uint8) {
 	e := new(dns.EDNS0_SUBNET)
 	e.Code = dns.EDNS0SUBNET
 	e.SourceScope = ecsSourceScope
-	e.Family = ecsIpv4Family
+	e.Family = ecsFamilyIPv4
 	e.SourceNetmask = netmask
 	e.Address = ip
 	util.SetEdns0Option(req, e)

@@ -236,8 +236,8 @@ func setTTLInCachedResponse(resp *dns.Msg, ttl time.Duration) {
 func shouldRequestNotUseCache(request *model.Request) bool {
 	// don't cache responses with EDNS Client Subnet option with masks that include more than one client
 	if so := util.GetEdns0Option[*dns.EDNS0_SUBNET](request.Req); so != nil {
-		if (so.Family == ecsIpv4Family && so.SourceNetmask != ecsIpv4Mask) ||
-			(so.Family == ecsIpv6Family && so.SourceNetmask != ecsIpv6Mask) {
+		if (so.Family == ecsFamilyIPv4 && so.SourceNetmask != ecsMaskIPv4) ||
+			(so.Family == ecsFamilyIPv6 && so.SourceNetmask != ecsMaskIPv6) {
 			return true
 		}
 	}
