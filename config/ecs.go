@@ -1,7 +1,7 @@
 package config
 
 import (
-	"errors"
+	"fmt"
 	"strconv"
 
 	"github.com/sirupsen/logrus"
@@ -74,7 +74,7 @@ func unmarshalInternal(text []byte, maxvalue uint8, name string) (uint8, error) 
 	}
 
 	if uiVal > uint64(maxvalue) {
-		return 0, fmt.Errorf("mask value (%s) is too large for (max: %d)", strVal, name, maxvalue)
+		return 0, fmt.Errorf("mask value (%s) is too large for %s(max: %d)", strVal, name, maxvalue)
 	}
 
 	return uint8(uiVal), nil
