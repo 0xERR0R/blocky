@@ -126,9 +126,8 @@ func (r *RewriterResolver) rewriteRequest(logger *logrus.Entry, request *dns.Msg
 			rewritten.Question[i].Name = dns.Fqdn(domainRewritten)
 
 			logger.WithFields(logrus.Fields{
-				"domain":  util.Obfuscate(domainOriginal),
-				"rewrite": rewriteKey + ":" + r.cfg.Rewrite[rewriteKey],
-			}).Debugf("rewriting %q to %q", domainOriginal, domainRewritten)
+				"rewrite": util.Obfuscate(rewriteKey) + ":" + util.Obfuscate(r.cfg.Rewrite[rewriteKey]),
+			}).Debugf("rewriting %q to %q", util.Obfuscate(domainOriginal), util.Obfuscate(domainRewritten))
 		}
 	}
 
