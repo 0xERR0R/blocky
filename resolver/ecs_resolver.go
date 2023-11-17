@@ -13,8 +13,8 @@ import (
 const (
 	ecsSourceScope = uint8(0)
 
-	ecsMaskIPv4 = uint8(config.ECSv4Mask(net.IPv4len * 8))
-	ecsMaskIPv6 = uint8(config.ECSv6Mask(net.IPv6len * 8))
+	ecsMaskIPv4 = uint8(net.IPv4len * 8)
+	ecsMaskIPv6 = uint8(net.IPv6len * 8)
 )
 
 // https://www.iana.org/assignments/address-family-numbers/address-family-numbers.xhtml
