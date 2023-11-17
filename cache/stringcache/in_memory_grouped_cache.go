@@ -24,6 +24,13 @@ func NewInMemoryGroupedRegexCache() *InMemoryGroupedCache {
 	}
 }
 
+func NewInMemoryGroupedWildcardCache() *InMemoryGroupedCache {
+	return &InMemoryGroupedCache{
+		caches:    make(map[string]stringCache),
+		factoryFn: newWildcardCacheFactory,
+	}
+}
+
 func (c *InMemoryGroupedCache) ElementCount(group string) int {
 	c.lock.RLock()
 	cache, found := c.caches[group]
@@ -57,8 +64,13 @@ func (c *InMemoryGroupedCache) Refresh(group string) GroupFactory {
 		factory: c.factoryFn(),
 		finishFn: func(sc stringCache) {
 			c.lock.Lock()
-			c.caches[group] = sc
-			c.lock.Unlock()
+			defer c.lock.Unlock()
+
+			if sc != nil {
+				c.caches[group] = sc
+			} else {
+				delete(c.caches, group)
+			}
 		},
 	}
 }
@@ -68,8 +80,8 @@ type inMemoryGroupFactory struct {
 	finishFn func(stringCache)
 }
 
-func (c *inMemoryGroupFactory) AddEntry(entry string) {
-	c.factory.addEntry(entry)
+func (c *inMemoryGroupFactory) AddEntry(entry string) bool {
+	return c.factory.addEntry(entry)
 }
 
 func (c *inMemoryGroupFactory) Count() int {

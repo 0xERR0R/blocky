@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/trie"
 )
 
 type stringCache interface {
@@ -14,7 +15,7 @@ type stringCache interface {
 }
 
 type cacheFactory interface {
-	addEntry(entry string)
+	addEntry(entry string) bool
 	create() stringCache
 	count() int
 }
@@ -86,7 +87,7 @@ func (s *stringCacheFactory) insertString(entry string) {
 	ix := sort.SearchStrings(bucket, normalized)
 
 	if !(ix < len(bucket) && bucket[ix] == normalized) {
-		// extent internal bucket
+		// extend internal bucket
 		bucket = append(s.getBucket(entryLen), "")
 
 		// move elements to make place for the insertion
@@ -98,27 +99,28 @@ func (s *stringCacheFactory) insertString(entry string) {
 	}
 }
 
-func (s *stringCacheFactory) addEntry(entry string) {
-	// skip empty strings and regex
-	if len(entry) > 0 && !isRegex(entry) {
-		s.cnt++
-		s.insertString(entry)
+func (s *stringCacheFactory) addEntry(entry string) bool {
+	if len(entry) == 0 {
+		return true // invalid but handled
 	}
+
+	s.cnt++
+	s.insertString(entry)
+
+	return true
 }
 
 func (s *stringCacheFactory) create() stringCache {
+	if len(s.tmp) == 0 {
+		return nil
+	}
+
 	cache := make(stringMap, len(s.tmp))
 	for k, v := range s.tmp {
 		cache[k] = strings.Join(v, "")
 	}
 
-	s.tmp = nil
-
 	return cache
-}
-
-func isRegex(s string) bool {
-	return strings.HasPrefix(s, "/") && strings.HasSuffix(s, "/")
 }
 
 type regexCache []*regexp.Regexp
@@ -143,17 +145,24 @@ type regexCacheFactory struct {
 	cache regexCache
 }
 
-func (r *regexCacheFactory) addEntry(entry string) {
-	if isRegex(entry) {
-		entry = strings.TrimSpace(entry[1 : len(entry)-1])
-		compile, err := regexp.Compile(entry)
-
-		if err != nil {
-			log.Log().Warnf("invalid regex '%s'", entry)
-		} else {
-			r.cache = append(r.cache, compile)
-		}
+func (r *regexCacheFactory) addEntry(entry string) bool {
+	if !strings.HasPrefix(entry, "/") || !strings.HasSuffix(entry, "/") {
+		return false
 	}
+
+	// Trim slashes
+	entry = strings.TrimSpace(entry[1 : len(entry)-1])
+
+	compile, err := regexp.Compile(entry)
+	if err != nil {
+		log.Log().Warnf("invalid regex '%s'", entry)
+
+		return true // invalid but handled
+	}
+
+	r.cache = append(r.cache, compile)
+
+	return true
 }
 
 func (r *regexCacheFactory) count() int {
@@ -161,6 +170,10 @@ func (r *regexCacheFactory) count() int {
 }
 
 func (r *regexCacheFactory) create() stringCache {
+	if len(r.cache) == 0 {
+		return nil
+	}
+
 	return r.cache
 }
 
@@ -168,4 +181,69 @@ func newRegexCacheFactory() cacheFactory {
 	return &regexCacheFactory{
 		cache: make(regexCache, 0),
 	}
+}
+
+type wildcardCache struct {
+	trie trie.Trie
+	cnt  int
+}
+
+func (cache wildcardCache) elementCount() int {
+	return cache.cnt
+}
+
+func (cache wildcardCache) contains(domain string) bool {
+	return cache.trie.HasParentOf(domain)
+}
+
+type wildcardCacheFactory struct {
+	trie *trie.Trie
+	cnt  int
+}
+
+func newWildcardCacheFactory() cacheFactory {
+	return &wildcardCacheFactory{
+		trie: trie.NewTrie(trie.SplitTLD),
+	}
+}
+
+func (r *wildcardCacheFactory) addEntry(entry string) bool {
+	globCount := strings.Count(entry, "*")
+	if globCount == 0 {
+		return false
+	}
+
+	if !strings.HasPrefix(entry, "*.") || globCount > 1 {
+		log.Log().Warnf("unsupported wildcard '%s': must start with '*.' and contain no other '*'", entry)
+
+		return true // invalid but handled
+	}
+
+	entry = normalizeWildcard(entry)
+
+	r.trie.Insert(entry)
+	r.cnt++
+
+	return true
+}
+
+func (r *wildcardCacheFactory) count() int {
+	return r.cnt
+}
+
+func (r *wildcardCacheFactory) create() stringCache {
+	if r.cnt == 0 {
+		return nil
+	}
+
+	return wildcardCache{*r.trie, r.cnt}
+}
+
+func normalizeWildcard(domain string) string {
+	domain = normalizeEntry(domain)
+	domain = strings.TrimLeft(domain, "*")
+	domain = strings.Trim(domain, ".")
+	domain = strings.ToLower(domain)
+
+	return domain
 }

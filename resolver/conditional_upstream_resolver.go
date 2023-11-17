@@ -121,7 +121,7 @@ func (r *ConditionalUpstreamResolver) internalResolve(reso Resolver, doFQ, do st
 
 	logger.WithFields(logrus.Fields{
 		"answer":   answer,
-		"domain":   do,
+		"domain":   util.Obfuscate(do),
 		"upstream": reso,
 	}).Debugf("received response from conditional upstream")
 

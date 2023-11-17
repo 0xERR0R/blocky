@@ -12,5 +12,6 @@ todo.txt
 node_modules
 package-lock.json
 vendor/
+coverage.html
 coverage.txt
 coverage/

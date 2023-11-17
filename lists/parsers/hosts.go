@@ -57,6 +57,7 @@ func (h *HostsIterator) UnmarshalText(data []byte) error {
 	entries := []hostsIterator{
 		new(HostListEntry),
 		new(HostsFileEntry),
+		new(WildcardEntry),
 	}
 
 	for _, entry := range entries {
@@ -198,6 +199,37 @@ func (e HostsFileEntry) forEachHost(callback func(string) error) error {
 	}
 
 	return nil
+}
+
+// WildcardEntry is single domain wildcard.
+type WildcardEntry string
+
+func (e WildcardEntry) String() string {
+	return string(e)
+}
+
+// We assume this is used with `Lines`:
+// - data will never be empty
+// - comments are stripped
+func (e *WildcardEntry) UnmarshalText(data []byte) error {
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	scanner.Split(bufio.ScanWords)
+
+	_ = scanner.Scan() // data is not empty
+
+	entry := scanner.Text()
+
+	if !strings.HasPrefix(entry, "*.") || strings.Count(entry, "*") > 1 {
+		return fmt.Errorf("unsupported wildcard '%s': must start with '*.' and contain no other '*'", entry)
+	}
+
+	*e = WildcardEntry(entry)
+
+	return nil
+}
+
+func (e WildcardEntry) forEachHost(callback func(string) error) error {
+	return callback(e.String())
 }
 
 func normalizeHostsListEntry(host string) (string, error) {

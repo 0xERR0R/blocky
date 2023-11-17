@@ -15,7 +15,7 @@ type GroupedStringCache interface {
 
 type GroupFactory interface {
 	// AddEntry adds a new string to the factory to be added later to the cache groups.
-	AddEntry(entry string)
+	AddEntry(entry string) bool
 
 	// Count returns amount of processed string in the factory
 	Count() int

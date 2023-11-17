@@ -140,4 +140,50 @@ var _ = Describe("Basic functional tests", func() {
 			})
 		})
 	})
+
+	Describe("Logging", func() {
+		BeforeEach(func() {
+			moka, err = createDNSMokkaContainer("moka1", `A google/NOERROR("A 1.2.3.4 123")`)
+
+			Expect(err).Should(Succeed())
+			DeferCleanup(moka.Terminate)
+		})
+		When("log privacy is enabled", func() {
+			BeforeEach(func() {
+				blocky, err = createBlockyContainer(tmpDir,
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - moka1",
+					"log:",
+					"  level: trace",
+					"  privacy: true",
+				)
+				Expect(err).Should(Succeed())
+				DeferCleanup(blocky.Terminate)
+			})
+			It("should not log answers and questions", func() {
+				msg := util.NewMsgWithQuestion("google.com.", A)
+
+				// do 2 requests
+
+				Expect(doDNSRequest(blocky, msg)).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("google.com.", A, "1.2.3.4"),
+							HaveTTL(BeNumerically("==", 123)),
+						))
+
+				Expect(doDNSRequest(blocky, msg)).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("google.com.", A, "1.2.3.4"),
+							HaveTTL(BeNumerically("<=", 123)),
+						))
+
+				Expect(getContainerLogs(blocky)).Should(Not(ContainElement(ContainSubstring("google.com"))))
+				Expect(getContainerLogs(blocky)).Should(Not(ContainElement(ContainSubstring("1.2.3.4"))))
+			})
+		})
+	})
 })

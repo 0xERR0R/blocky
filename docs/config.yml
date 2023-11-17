@@ -71,8 +71,8 @@ blocking:
       - https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt
       - |
         # inline definition with YAML literal block scalar style
-        # hosts format
         someadsdomain.com
+        *.example.com
     special:
       - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
   # definition of whitelist groups. Attention: if the same group has black and whitelists, whitelists will be used to disable particular blacklist entries. If a group has only whitelist entries -> this means only domains from this list are allowed, all other domains will be blocked
