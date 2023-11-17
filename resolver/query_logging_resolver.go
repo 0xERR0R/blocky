@@ -157,7 +157,7 @@ func (r *QueryLoggingResolver) createLogEntry(request *model.Request, response *
 			entry.Answer = util.AnswerToString(response.Res.Answer)
 
 		case config.QueryLogFieldQuestion:
-			entry.QuestionName = request.Req.Question[0].Name
+			entry.QuestionName = util.Obfuscate(request.Req.Question[0].Name)
 			entry.QuestionType = dns.TypeToString[request.Req.Question[0].Qtype]
 
 		case config.QueryLogFieldDuration:

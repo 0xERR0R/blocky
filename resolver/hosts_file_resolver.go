@@ -126,7 +126,7 @@ func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, er
 	if response != nil {
 		r.log().WithFields(logrus.Fields{
 			"answer": util.AnswerToString(response.Answer),
-			"domain": domain,
+			"domain": util.Obfuscate(domain),
 		}).Debugf("returning hosts file entry")
 
 		return &model.Response{Res: response, RType: model.ResponseTypeHOSTSFILE, Reason: "HOSTS FILE"}, nil
