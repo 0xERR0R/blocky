@@ -33,21 +33,17 @@ var _ = Describe("EDNS0 utils", func() {
 			opt.Hdr.Rrtype = dns.TypeOPT
 			baseMsg.Extra = append(baseMsg.Extra, opt)
 
-			RemoveEdns0Record(baseMsg)
+			Expect(RemoveEdns0Record(baseMsg)).Should(BeTrue())
 
 			Expect(baseMsg.IsEdns0()).Should(BeNil())
 		})
 
 		It("should do nothing if OPT record is not present", func() {
-			Expect(func() {
-				RemoveEdns0Record(baseMsg)
-			}).NotTo(Panic())
+			Expect(RemoveEdns0Record(baseMsg)).Should(BeFalse())
 		})
 
 		It("should do nothing if message is nil", func() {
-			Expect(func() {
-				RemoveEdns0Record(nil)
-			}).NotTo(Panic())
+			Expect(RemoveEdns0Record(nil)).Should(BeFalse())
 		})
 	})
 
@@ -88,35 +84,6 @@ var _ = Describe("EDNS0 utils", func() {
 		})
 	})
 
-	Describe("HasEdns0Option", func() {
-		It("should return true if option is present", func() {
-			opt := new(dns.OPT)
-			opt.Hdr.Name = "."
-			opt.Hdr.Rrtype = dns.TypeOPT
-			opt.Option = append(opt.Option, new(dns.EDNS0_SUBNET))
-			baseMsg.Extra = append(baseMsg.Extra, opt)
-
-			Expect(HasEdns0Option(baseMsg, dns.EDNS0SUBNET)).Should(BeTrue())
-		})
-
-		It("should return false if option is not present", func() {
-			opt := new(dns.OPT)
-			opt.Hdr.Name = "."
-			opt.Hdr.Rrtype = dns.TypeOPT
-			opt.Option = append(opt.Option, new(dns.EDNS0_EDE))
-			baseMsg.Extra = append(baseMsg.Extra, opt)
-			Expect(HasEdns0Option(baseMsg, dns.EDNS0SUBNET)).Should(BeFalse())
-		})
-
-		It("should return false if OPT record is not present", func() {
-			Expect(HasEdns0Option(baseMsg, dns.EDNS0SUBNET)).Should(BeFalse())
-		})
-
-		It("should do nothing if message is nil", func() {
-			Expect(HasEdns0Option(nil, dns.EDNS0SUBNET)).Should(BeFalse())
-		})
-	})
-
 	Describe("GetEdns0Option", func() {
 		It("should return option if present", func() {
 			opt := new(dns.OPT)
@@ -127,7 +94,7 @@ var _ = Describe("EDNS0 utils", func() {
 			opt.Option = append(opt.Option, eso)
 			baseMsg.Extra = append(baseMsg.Extra, opt)
 
-			Expect(GetEdns0Option(baseMsg, dns.EDNS0SUBNET)).Should(Equal(eso))
+			Expect(GetEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(Equal(eso))
 		})
 
 		It("should return nil if option is not present", func() {
@@ -136,15 +103,15 @@ var _ = Describe("EDNS0 utils", func() {
 			opt.Hdr.Rrtype = dns.TypeOPT
 			opt.Option = append(opt.Option, new(dns.EDNS0_EDE))
 			baseMsg.Extra = append(baseMsg.Extra, opt)
-			Expect(GetEdns0Option(baseMsg, dns.EDNS0SUBNET)).Should(BeNil())
+			Expect(GetEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(BeNil())
 		})
 
 		It("should return nil if OPT record is not present", func() {
-			Expect(GetEdns0Option(baseMsg, dns.EDNS0SUBNET)).Should(BeNil())
+			Expect(GetEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(BeNil())
 		})
 
 		It("should do nothing if message is nil", func() {
-			Expect(GetEdns0Option(nil, dns.EDNS0SUBNET)).Should(BeNil())
+			Expect(GetEdns0Option[*dns.EDNS0_SUBNET](nil)).Should(BeNil())
 		})
 	})
 
@@ -158,7 +125,7 @@ var _ = Describe("EDNS0 utils", func() {
 			opt.Option = append(opt.Option, eso)
 			baseMsg.Extra = append(baseMsg.Extra, opt)
 
-			RemoveEdns0Option(baseMsg, dns.EDNS0SUBNET)
+			Expect(RemoveEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(BeTrue())
 
 			Expect(baseMsg).ShouldNot(HaveEdnsOption(dns.EDNS0SUBNET))
 		})
@@ -169,21 +136,15 @@ var _ = Describe("EDNS0 utils", func() {
 			opt.Hdr.Rrtype = dns.TypeOPT
 			opt.Option = append(opt.Option, new(dns.EDNS0_EDE))
 			baseMsg.Extra = append(baseMsg.Extra, opt)
-			Expect(func() {
-				RemoveEdns0Option(baseMsg, dns.EDNS0SUBNET)
-			}).NotTo(Panic())
+			Expect(RemoveEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(BeFalse())
 		})
 
 		It("should do nothing if OPT record is not present", func() {
-			Expect(func() {
-				RemoveEdns0Option(baseMsg, dns.EDNS0SUBNET)
-			}).NotTo(Panic())
+			Expect(RemoveEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(BeFalse())
 		})
 
 		It("should do nothing if message is nil", func() {
-			Expect(func() {
-				RemoveEdns0Option(nil, dns.EDNS0SUBNET)
-			}).NotTo(Panic())
+			Expect(RemoveEdns0Option[*dns.EDNS0_SUBNET](nil)).Should(BeFalse())
 		})
 	})
 
