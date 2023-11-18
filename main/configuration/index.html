@@ -1299,7 +1299,7 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">    </span><span class="nt">laptop*</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">123.123.123.123</span>
 <span class="w">  </span><span class="c1"># optional: Determines what strategy blocky uses to choose the upstream servers.</span>
-<span class="w">  </span><span class="c1"># accepted: parallel_best, strict</span>
+<span class="w">  </span><span class="c1"># accepted: parallel_best, strict, random</span>
 <span class="w">  </span><span class="c1"># default: parallel_best</span>
 <span class="w">  </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">parallel_best</span>
 <span class="w">  </span><span class="c1"># optional: timeout to query the upstream resolver. Default: 2s</span>
@@ -1859,10 +1859,14 @@ specific resolver configuration is available.</p>
 <p>Blocky supports different upstream strategies (default <code>parallel_best</code>) that determine how and to which upstream <abbr title="Domain Name System">DNS</abbr> servers requests are forwarded.</p>
 <p>Currently available strategies:</p>
 <ul>
-<li><code>parallel_best</code>: blocky picks 2 random (weighted) resolvers from the upstream group for each query and returns the answer from the fastest one.
+<li><code>parallel_best</code>: blocky picks 2 random (weighted) resolvers from the upstream group for each query and returns the answer from the fastest one.<br />
   If an upstream failed to answer within the last hour, it is less likely to be chosen for the race.<br />
-  This improves your network speed and increases your privacy - your <abbr title="Domain Name System">DNS</abbr> traffic will be distributed over multiple providers<br />
+  This improves your network speed and increases your privacy - your <abbr title="Domain Name System">DNS</abbr> traffic will be distributed over multiple providers.<br />
   (When using 10 upstream servers, each upstream will get on average 20% of the <abbr title="Domain Name System">DNS</abbr> requests)</li>
+<li><code>random</code>: blocky picks one random (weighted) resolver from the upstream group for each query and if successful, returns its response.<br />
+  If the selected resolver fails to respond, a second one is picked to which the query is sent.<br />
+  The weighting is identical to the <code>parallel_best</code> strategy.<br />
+  Although the <code>random</code> strategy might be slower than the <code>parallel_best</code> strategy, it offers more privacy since each request is sent to a single upstream.</li>
 <li><code>strict</code>: blocky forwards the request in a strict order. If the first upstream does not respond, the second is asked, and so on.</li>
 </ul>
 <div class="admonition example">
