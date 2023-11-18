@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/cache/expirationcache"
+	"golang.org/x/exp/maps"
 
 	"github.com/hashicorp/go-multierror"
 
@@ -206,21 +208,11 @@ func (r *BlockingResolver) RefreshLists() error {
 	return err.ErrorOrNil()
 }
 
-//nolint:prealloc
 func (r *BlockingResolver) retrieveAllBlockingGroups() []string {
-	groups := make(map[string]bool, len(r.cfg.BlackLists))
-
-	for group := range r.cfg.BlackLists {
-		groups[group] = true
-	}
-
-	var result []string
-	for k := range groups {
-		result = append(result, k)
-	}
+	result := maps.Keys(r.cfg.BlackLists)
 
 	result = append(result, "default")
-	sort.Strings(result)
+	slices.Sort(result)
 
 	return result
 }
@@ -615,11 +607,7 @@ func (r *BlockingResolver) queryForFQIdentifierIPs(identifier string) (*[]net.IP
 }
 
 func (r *BlockingResolver) initFQDNIPCache() {
-	identifiers := make([]string, 0)
-
-	for identifier := range r.clientGroupsBlock {
-		identifiers = append(identifiers, identifier)
-	}
+	identifiers := maps.Keys(r.clientGroupsBlock)
 
 	for _, identifier := range identifiers {
 		if isFQDN(identifier) {

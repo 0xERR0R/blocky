@@ -146,8 +146,7 @@ Currently available strategies:
 - `random`: blocky picks one random (weighted) resolver from the upstream group for each query and if successful, returns its response.  
   If the selected resolver fails to respond, a second one is picked to which the query is sent.  
   The weighting is identical to the `parallel_best` strategy.  
-  Although the `random` strategy might be slower than the `parallel_best` strategy, it offers a larger increase of privacy.  
-  (When using 10 upstream servers, each upstream will get on average 10% of the DNS requests)
+  Although the `random` strategy might be slower than the `parallel_best` strategy, it offers more privacy since each request is sent to a single upstream.
 - `strict`: blocky forwards the request in a strict order. If the first upstream does not respond, the second is asked, and so on.
 
 !!! example

@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 )
 
 const (
@@ -301,13 +302,7 @@ func newBootstrapedResolvers(b *Bootstrap, cfg config.BootstrapDNSConfig) (boots
 }
 
 func (br bootstrapedResolvers) Resolvers() []Resolver {
-	resolvers := make([]Resolver, 0, len(br))
-
-	for resolver := range br {
-		resolvers = append(resolvers, resolver)
-	}
-
-	return resolvers
+	return maps.Keys(br)
 }
 
 type IPSet struct {

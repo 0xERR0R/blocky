@@ -56,8 +56,12 @@ func newUpstreamResolverStatus(resolver Resolver) *upstreamResolverStatus {
 func (r *upstreamResolverStatus) resolve(req *model.Request, ch chan<- requestResponse) {
 	resp, err := r.resolver.Resolve(req)
 	if err != nil {
-		// update the last error time
-		r.lastErrorTime.Store(time.Now())
+		// Ignore `Canceled`: resolver lost the race, not an error
+		if !errors.Is(err, context.Canceled) {
+			r.lastErrorTime.Store(time.Now())
+		}
+
+		err = fmt.Errorf("%s: %w", r.resolver, err)
 	}
 
 	ch <- requestResponse{
@@ -134,14 +138,14 @@ func (r *ParallelBestResolver) Name() string {
 	return r.String()
 }
 
-// TODO: add resolverCount & retryWithDifferentResolver to output
 func (r *ParallelBestResolver) String() string {
 	result := make([]string, len(r.resolvers))
 	for i, s := range r.resolvers {
 		result[i] = fmt.Sprintf("%s", s.resolver)
 	}
 
-	return fmt.Sprintf("%s upstreams '%s (%s)'", parallelResolverType, r.groupName, strings.Join(result, ","))
+	return fmt.Sprintf("%s (resolverCount: %d, retryWithDifferentResolver: %t) upstreams '%s (%s)'",
+		parallelResolverType, r.resolverCount, r.retryWithDifferentResolver, r.groupName, strings.Join(result, ","))
 }
 
 // Resolve sends the query request to multiple upstream resolvers and returns the fastest result
@@ -170,16 +174,6 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 	resolvers := pickRandom(r.resolvers, r.resolverCount)
 	ch := make(chan requestResponse, len(resolvers))
 
-	// build usedResolver log string
-	var usedResolvers string
-	for _, resolver := range resolvers {
-		usedResolvers += fmt.Sprintf("%q,", resolver.resolver)
-	}
-
-	usedResolvers = strings.TrimSuffix(usedResolvers, ",")
-
-	logger.Debug("using " + usedResolvers + " as resolver")
-
 	for _, resolver := range resolvers {
 		logger.WithField("resolver", resolver.resolver).Debug("delegating to resolver")
 
@@ -192,8 +186,7 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 	}
 
 	if !r.retryWithDifferentResolver {
-		return nil, fmt.Errorf("resolution was not successful, used resolvers: %s errors: %v",
-			usedResolvers, collectedErrors)
+		return nil, fmt.Errorf("resolution failed: %w", errors.Join(collectedErrors...))
 	}
 
 	return r.retryWithDifferent(logger, request, resolvers)
@@ -202,21 +195,21 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 func evaluateResponses(
 	ctx context.Context, logger *logrus.Entry, ch chan requestResponse, resolvers []*upstreamResolverStatus,
 ) (*model.Response, []error) {
-	var collectedErrors []error
+	collectedErrors := make([]error, 0, len(resolvers))
 
 	for len(collectedErrors) < len(resolvers) {
 		select {
 		case <-ctx.Done():
-			// this context is currently only set & canceled if resolverCount == 1
-			field := logrus.Fields{"resolver": resolvers[0].resolver}
+			// this context currently only has a deadline when resolverCount == 1
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				logger.WithFields(field).Debug("upstream exceeded timeout, trying other upstream")
+				logger.WithField("resolver", resolvers[0].resolver).
+					Debug("upstream exceeded timeout, trying other upstream")
 				resolvers[0].lastErrorTime.Store(time.Now())
 			}
 		case result := <-ch:
 			if result.err != nil {
 				logger.Debug("resolution failed from resolver, cause: ", result.err)
-				collectedErrors = append(collectedErrors, result.err)
+				collectedErrors = append(collectedErrors, fmt.Errorf("resolver: %q error: %w", *result.resolver, result.err))
 			} else {
 				logger.WithFields(logrus.Fields{
 					"resolver": *result.resolver,
@@ -244,9 +237,7 @@ func (r *ParallelBestResolver) retryWithDifferent(
 
 	result := <-ch
 	if result.err != nil {
-		logger.Debug("resolution failed from resolver, cause: ", result.err)
-
-		return nil, errors.New("resolution was not successful, no resolver returned answer in time")
+		return nil, fmt.Errorf("resolution retry failed: %w", result.err)
 	}
 
 	logger.WithFields(logrus.Fields{
@@ -258,12 +249,14 @@ func (r *ParallelBestResolver) retryWithDifferent(
 }
 
 // pickRandom picks n (resolverCount) different random resolvers from the given resolver pool
-func pickRandom(resolvers []*upstreamResolverStatus, resolverCount int) (choosenResolvers []*upstreamResolverStatus) {
+func pickRandom(resolvers []*upstreamResolverStatus, resolverCount int) []*upstreamResolverStatus {
+	chosenResolvers := make([]*upstreamResolverStatus, 0, resolverCount)
+
 	for i := 0; i < resolverCount; i++ {
-		choosenResolvers = append(choosenResolvers, weightedRandom(resolvers, choosenResolvers))
+		chosenResolvers = append(chosenResolvers, weightedRandom(resolvers, chosenResolvers))
 	}
 
-	return
+	return chosenResolvers
 }
 
 func weightedRandom(in, excludedResolvers []*upstreamResolverStatus) *upstreamResolverStatus {
