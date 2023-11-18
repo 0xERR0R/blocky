@@ -313,9 +313,11 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 	})
 
 	Describe("random resolver strategy", func() {
+		const timeout = config.Duration(time.Second)
+
 		BeforeEach(func() {
 			config.GetConfig().Upstreams.Strategy = config.UpstreamStrategyRandom
-			config.GetConfig().Upstreams.Timeout = config.Duration(time.Second)
+			config.GetConfig().Upstreams.Timeout = timeout
 		})
 
 		Describe("Name", func() {
@@ -356,7 +358,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 						BeforeEach(func() {
 							testUpstream1 := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 								response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.1")
-								time.Sleep(time.Duration(config.GetConfig().Upstreams.Timeout) + 2*time.Second)
+								time.Sleep(time.Duration(timeout) + 2*time.Second)
 
 								Expect(err).To(Succeed())
 
@@ -384,7 +386,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 						BeforeEach(func() {
 							testUpstream1 := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 								response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.1")
-								time.Sleep(config.GetConfig().Upstreams.Timeout.ToDuration() + 2*time.Second)
+								time.Sleep(timeout.ToDuration() + 2*time.Second)
 
 								Expect(err).To(Succeed())
 
@@ -394,7 +396,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 							testUpstream2 := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 								response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.2")
-								time.Sleep(config.GetConfig().Upstreams.Timeout.ToDuration() + 2*time.Second)
+								time.Sleep(timeout.ToDuration() + 2*time.Second)
 
 								Expect(err).To(Succeed())
 
