@@ -34,3 +34,24 @@ func (c *UpstreamsConfig) LogConfig(logger *logrus.Entry) {
 		}
 	}
 }
+
+// UpstreamGroup represents the config for one group (upstream branch)
+type UpstreamGroup struct {
+	Name      string
+	Upstreams []Upstream
+}
+
+// IsEnabled implements `config.Configurable`.
+func (c *UpstreamGroup) IsEnabled() bool {
+	return len(c.Upstreams) != 0
+}
+
+// LogConfig implements `config.Configurable`.
+func (c *UpstreamGroup) LogConfig(logger *logrus.Entry) {
+	logger.Info("group: ", c.Name)
+	logger.Info("upstreams:")
+
+	for _, upstream := range c.Upstreams {
+		logger.Infof("  - %s", upstream)
+	}
+}

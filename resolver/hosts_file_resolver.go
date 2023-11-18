@@ -132,7 +132,7 @@ func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, er
 		return &model.Response{Res: response, RType: model.ResponseTypeHOSTSFILE, Reason: "HOSTS FILE"}, nil
 	}
 
-	r.log().WithField("resolver", Name(r.next)).Trace("go to next resolver")
+	r.log().WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
 
 	return r.next.Resolve(request)
 }

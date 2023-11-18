@@ -139,10 +139,14 @@ Blocky supports different upstream strategies (default `parallel_best`) that det
 
 Currently available strategies:
 
-- `parallel_best`: blocky picks 2 random (weighted) resolvers from the upstream group for each query and returns the answer from the fastest one.
+- `parallel_best`: blocky picks 2 random (weighted) resolvers from the upstream group for each query and returns the answer from the fastest one.  
   If an upstream failed to answer within the last hour, it is less likely to be chosen for the race.  
-  This improves your network speed and increases your privacy - your DNS traffic will be distributed over multiple providers  
+  This improves your network speed and increases your privacy - your DNS traffic will be distributed over multiple providers.  
   (When using 10 upstream servers, each upstream will get on average 20% of the DNS requests)
+- `random`: blocky picks one random (weighted) resolver from the upstream group for each query and if successful, returns its response.  
+  If the selected resolver fails to respond, a second one is picked to which the query is sent.  
+  The weighting is identical to the `parallel_best` strategy.  
+  Although the `random` strategy might be slower than the `parallel_best` strategy, it offers more privacy since each request is sent to a single upstream.
 - `strict`: blocky forwards the request in a strict order. If the first upstream does not respond, the second is asked, and so on.
 
 !!! example

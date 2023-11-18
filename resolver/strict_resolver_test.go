@@ -20,9 +20,9 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 	)
 
 	var (
-		sut        *StrictResolver
-		sutMapping config.UpstreamGroups
-		sutVerify  bool
+		sut       *StrictResolver
+		upstreams []config.Upstream
+		sutVerify bool
 
 		err error
 
@@ -36,15 +36,9 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 	})
 
 	BeforeEach(func() {
-		sutMapping = config.UpstreamGroups{
-			upstreamDefaultCfgName: {
-				config.Upstream{
-					Host: "wrong",
-				},
-				config.Upstream{
-					Host: "127.0.0.2",
-				},
-			},
+		upstreams = []config.Upstream{
+			{Host: "wrong"},
+			{Host: "127.0.0.2"},
 		}
 
 		sutVerify = noVerifyUpstreams
@@ -53,12 +47,14 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 	})
 
 	JustBeforeEach(func() {
-		sutConfig := config.UpstreamsConfig{Groups: sutMapping}
-
+		sutConfig := config.UpstreamGroup{
+			Name:      upstreamDefaultCfgName,
+			Upstreams: upstreams,
+		}
 		sut, err = NewStrictResolver(sutConfig, bootstrap, sutVerify)
 	})
 
-	config.GetConfig().Upstreams.Timeout = config.Duration(1000 * time.Millisecond)
+	config.GetConfig().Upstreams.Timeout = config.Duration(time.Second)
 
 	Describe("IsEnabled", func() {
 		It("is true", func() {
@@ -99,33 +95,25 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 			})
 			defer mockUpstream.Close()
 
-			upstream := config.UpstreamGroups{
-				upstreamDefaultCfgName: {
-					config.Upstream{
-						Host: "wrong",
-					},
-					mockUpstream.Start(),
-				},
+			upstreams := []config.Upstream{
+				{Host: "wrong"},
+				mockUpstream.Start(),
 			}
 
-			_, err := NewStrictResolver(config.UpstreamsConfig{
-				Groups: upstream,
-			}, systemResolverBootstrap, verifyUpstreams)
+			_, err := NewStrictResolver(config.UpstreamGroup{
+				Name:      upstreamDefaultCfgName,
+				Upstreams: upstreams,
+			},
+				systemResolverBootstrap, verifyUpstreams)
 			Expect(err).Should(Not(HaveOccurred()))
 		})
 	})
 
 	When("no upstream resolvers can be reached", func() {
 		BeforeEach(func() {
-			sutMapping = config.UpstreamGroups{
-				upstreamDefaultCfgName: {
-					config.Upstream{
-						Host: "wrong",
-					},
-					config.Upstream{
-						Host: "127.0.0.2",
-					},
-				},
+			upstreams = []config.Upstream{
+				{Host: "wrong"},
+				{Host: "127.0.0.2"},
 			}
 		})
 
@@ -159,9 +147,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 						testUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.123")
 						DeferCleanup(testUpstream2.Close)
 
-						sutMapping = config.UpstreamGroups{
-							upstreamDefaultCfgName: {testUpstream1.Start(), testUpstream2.Start()},
-						}
+						upstreams = []config.Upstream{testUpstream1.Start(), testUpstream2.Start()}
 					})
 					It("Should use result from first one", func() {
 						request := newRequest("example.com.", A)
@@ -190,9 +176,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 						testUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.2")
 						DeferCleanup(testUpstream2.Close)
 
-						sutMapping = config.UpstreamGroups{
-							upstreamDefaultCfgName: {testUpstream1.Start(), testUpstream2.Start()},
-						}
+						upstreams = []config.Upstream{testUpstream1.Start(), testUpstream2.Start()}
 					})
 					It("should return response from next upstream", func() {
 						request := newRequest("example.com", A)
@@ -226,10 +210,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 							return response
 						})
 						DeferCleanup(testUpstream2.Close)
-
-						sutMapping = config.UpstreamGroups{
-							upstreamDefaultCfgName: {testUpstream1.Start(), testUpstream2.Start()},
-						}
+						upstreams = []config.Upstream{testUpstream1.Start(), testUpstream2.Start()}
 					})
 					It("should return error", func() {
 						request := newRequest("example.com", A)
@@ -245,9 +226,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 					testUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.123")
 					DeferCleanup(testUpstream2.Close)
 
-					sutMapping = config.UpstreamGroups{
-						upstreamDefaultCfgName: {testUpstream1, testUpstream2.Start()},
-					}
+					upstreams = []config.Upstream{testUpstream1, testUpstream2.Start()}
 				})
 				It("Should use result from second one", func() {
 					request := newRequest("example.com.", A)
@@ -263,9 +242,8 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 			})
 			When("None are working", func() {
 				BeforeEach(func() {
-					sutMapping = config.UpstreamGroups{
-						upstreamDefaultCfgName: {config.Upstream{Host: "wrong"}, config.Upstream{Host: "wrong"}},
-					}
+					upstreams = []config.Upstream{{Host: "wrong"}, {Host: "wrong"}}
+					Expect(err).Should(Succeed())
 				})
 				It("Should return error", func() {
 					request := newRequest("example.com.", A)
@@ -279,11 +257,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 				mockUpstream := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
 				DeferCleanup(mockUpstream.Close)
 
-				sutMapping = config.UpstreamGroups{
-					upstreamDefaultCfgName: {
-						mockUpstream.Start(),
-					},
-				}
+				upstreams = []config.Upstream{mockUpstream.Start()}
 			})
 			It("Should use result from defined resolver", func() {
 				request := newRequest("example.com.", A)

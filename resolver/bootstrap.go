@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 )
 
 const (
@@ -77,9 +78,9 @@ func NewBootstrap(ctx context.Context, cfg *config.Config) (b *Bootstrap, err er
 
 	// Bootstrap doesn't have a `LogConfig` method, and since that's the only place
 	// where `ParallelBestResolver` uses its config, we can just use an empty one.
-	var pbCfg config.UpstreamsConfig
+	pbCfg := config.UpstreamGroup{Name: upstreamDefaultCfgName}
 
-	parallelResolver := newParallelBestResolver(pbCfg, bootstraped.ResolverGroups())
+	parallelResolver := newParallelBestResolver(pbCfg, bootstraped.Resolvers())
 
 	// Always enable prefetching to avoid stalling user requests
 	// Otherwise, a request to blocky could end up waiting for 2 DNS requests:
@@ -300,16 +301,8 @@ func newBootstrapedResolvers(b *Bootstrap, cfg config.BootstrapDNSConfig) (boots
 	return upstreamIPs, nil
 }
 
-func (br bootstrapedResolvers) ResolverGroups() map[string][]Resolver {
-	resolvers := make([]Resolver, 0, len(br))
-
-	for resolver := range br {
-		resolvers = append(resolvers, resolver)
-	}
-
-	return map[string][]Resolver{
-		upstreamDefaultCfgName: resolvers,
-	}
+func (br bootstrapedResolvers) Resolvers() []Resolver {
+	return maps.Keys(br)
 }
 
 type IPSet struct {
