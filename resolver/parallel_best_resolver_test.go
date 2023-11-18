@@ -232,7 +232,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 	Describe("Weighted random on resolver selection", func() {
 		When("5 upstream resolvers are defined", func() {
-			FIt("should use 2 random peeked resolvers, weighted with last error timestamp", func() {
+			It("should use 2 random peeked resolvers, weighted with last error timestamp", func() {
 				withError1 := config.Upstream{Host: "wrong1"}
 				withError2 := config.Upstream{Host: "wrong2"}
 
@@ -473,7 +473,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 		Describe("Weighted random on resolver selection", func() {
 			When("4 upstream resolvers are defined", func() {
-				FIt("should use 2 random peeked resolvers, weighted with last error timestamp", func() {
+				It("should use 2 random peeked resolvers, weighted with last error timestamp", func() {
 					withError1 := config.Upstream{Host: "wrong1"}
 					withError2 := config.Upstream{Host: "wrong2"}
 
