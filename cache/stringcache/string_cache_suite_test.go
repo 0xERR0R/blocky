@@ -9,8 +9,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestCache(t *testing.T) {
+func init() {
 	log.Silence()
+}
+
+func TestCache(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "String cache suite")
 }

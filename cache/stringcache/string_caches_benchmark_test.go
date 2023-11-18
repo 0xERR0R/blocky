@@ -33,7 +33,7 @@ var (
 	baseMemStats runtime.MemStats
 )
 
-func init() { //nolint:gochecknoinits
+func init() {
 	// If you update either list, make sure both are the list version (see file header).
 	stringTestData = loadTestdata("../../helpertest/data/oisd-big-plain.txt")
 

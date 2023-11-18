@@ -9,8 +9,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestTrie(t *testing.T) {
+func init() {
 	log.Silence()
+}
+
+func TestTrie(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Trie Suite")
 }

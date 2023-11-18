@@ -9,7 +9,6 @@ import (
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -20,8 +19,6 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 		sut       Resolver
 		sutConfig config.UpstreamsConfig
 		branches  map[string]Resolver
-
-		loggerHook *test.Hook
 
 		err error
 	)
@@ -143,9 +140,6 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 
 		When("client specific resolvers are defined", func() {
 			BeforeEach(func() {
-				loggerHook = test.NewGlobal()
-				log.Log().AddHook(loggerHook)
-
 				sutConfig = config.UpstreamsConfig{Groups: config.UpstreamGroups{
 					upstreamDefaultCfgName: {config.Upstream{}},
 					"laptop":               {config.Upstream{}},
@@ -192,10 +186,6 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 				}
 
 				Expect(branches).To(HaveLen(8))
-			})
-
-			AfterEach(func() {
-				loggerHook.Reset()
 			})
 
 			It("Should use default if client name or IP don't match", func() {
@@ -298,7 +288,10 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 						))
 			})
 			It("Should use one of the matching resolvers & log warning", func() {
+				logger, hook := log.NewMockEntry()
+
 				request := newRequestWithClient("example.com.", A, "0.0.0.0", "name-matches1")
+				request.Log = logger
 
 				Expect(sut.Resolve(request)).
 					Should(
@@ -311,7 +304,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 							HaveReturnCode(dns.RcodeSuccess),
 						))
 
-				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("client matches multiple groups"))
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("client matches multiple groups")))
 			})
 		})
 	})

@@ -12,9 +12,12 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestResolver(t *testing.T) {
+func init() {
 	log.Silence()
 	redis.SetLogger(NoLogs{})
+}
+
+func TestResolver(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Resolver Suite")
 }
