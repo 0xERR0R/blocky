@@ -20,11 +20,22 @@ var _ = Describe("CachingConfig", func() {
 	})
 
 	Describe("IsEnabled", func() {
-		It("should be false by default", func() {
+		It("should be true by default", func() {
 			cfg := CachingConfig{}
 			Expect(defaults.Set(&cfg)).Should(Succeed())
 
-			Expect(cfg.IsEnabled()).Should(BeFalse())
+			Expect(cfg.IsEnabled()).Should(BeTrue())
+		})
+
+		When("the config is disabled", func() {
+			BeforeEach(func() {
+				cfg = CachingConfig{
+					MaxCachingTime: Duration(time.Hour * -1),
+				}
+			})
+			It("should be false", func() {
+				Expect(cfg.IsEnabled()).Should(BeFalse())
+			})
 		})
 
 		When("the config is enabled", func() {
@@ -72,7 +83,7 @@ var _ = Describe("CachingConfig", func() {
 
 				Expect(cfg.Prefetching).Should(BeTrue())
 				Expect(cfg.PrefetchThreshold).Should(Equal(0))
-				Expect(cfg.MaxCachingTime).ShouldNot(BeZero())
+				Expect(cfg.MaxCachingTime).Should(BeZero())
 			})
 		})
 	})
