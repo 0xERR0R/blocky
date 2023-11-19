@@ -238,7 +238,7 @@ func shouldRequestNotUseCache(request *model.Request) bool {
 	if so := util.GetEdns0Option[*dns.EDNS0_SUBNET](request.Req); so != nil {
 		if (so.Family == ecsFamilyIPv4 && so.SourceNetmask != ecsMaskIPv4) ||
 			(so.Family == ecsFamilyIPv6 && so.SourceNetmask != ecsMaskIPv6) {
-			return true
+			return false
 		}
 	}
 
