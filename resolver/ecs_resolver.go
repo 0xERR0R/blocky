@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/0xERR0R/blocky/config"
@@ -22,6 +23,11 @@ const (
 	ecsFamilyIPv4 = uint16(iota + 1)
 	ecsFamilyIPv6
 )
+
+// ECSMask is an interface for all ECS subnet masks as type constraint for generics
+type ECSMask interface {
+	config.ECSv4Mask | config.ECSv6Mask
+}
 
 // A EcsResolver is responsible for adding the subnet information as EDNS0 option
 type EcsResolver struct {
@@ -72,14 +78,27 @@ func (r *EcsResolver) setSubnet(request *model.Request) {
 	e.SourceScope = ecsSourceScope
 
 	if ip := request.ClientIP.To4(); ip != nil && r.cfg.IPv4Mask > 0 {
-		e.Family = ecsFamilyIPv4
-		e.SourceNetmask = uint8(r.cfg.IPv4Mask)
-		e.Address = ip
-		util.SetEdns0Option(request.Req, e)
+		mip, err := maskIP(ip, r.cfg.IPv4Mask)
+		if err == nil {
+			e.Family = ecsFamilyIPv4
+			e.SourceNetmask = uint8(r.cfg.IPv4Mask)
+			e.Address = mip
+			util.SetEdns0Option(request.Req, e)
+		}
 	} else if ip := request.ClientIP.To16(); ip != nil && r.cfg.IPv6Mask > 0 {
-		e.Family = ecsFamilyIPv6
-		e.SourceNetmask = uint8(r.cfg.IPv6Mask)
-		e.Address = ip
-		util.SetEdns0Option(request.Req, e)
+		mip, err := maskIP(ip, r.cfg.IPv6Mask)
+		if err == nil {
+			e.Family = ecsFamilyIPv6
+			e.SourceNetmask = uint8(r.cfg.IPv6Mask)
+			e.Address = mip
+			util.SetEdns0Option(request.Req, e)
+		}
 	}
+}
+
+// maskIP masks the IP with the given mask and return an error if the mask is invalid
+func maskIP[maskType ECSMask](ip net.IP, mask maskType) (net.IP, error) {
+	_, mip, err := net.ParseCIDR(fmt.Sprintf("%s/%d", ip.String(), mask))
+
+	return mip.IP, err
 }

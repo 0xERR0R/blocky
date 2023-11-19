@@ -170,6 +170,17 @@ var _ = Describe("EcsResolver", func() {
 			})
 		})
 	})
+
+	Context("maskIP", func() {
+		It("should mask IPv4", func() {
+			ip := net.ParseIP("192.168.10.123")
+			mask := config.ECSv4Mask(24)
+
+			mip, err := maskIP(ip, mask)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(mip).Should(Equal(net.ParseIP("192.168.10.0").To4()))
+		})
+	})
 })
 
 // addEcsOption adds the subnet information to the request as EDNS0 option
