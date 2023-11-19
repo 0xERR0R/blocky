@@ -3,7 +3,7 @@ package resolver
 
 import (
 	"errors"
-  "github.com/0xERROR/blocky/util"
+        "github.com/0xERR0R/blocky/util"
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
