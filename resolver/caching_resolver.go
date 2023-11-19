@@ -242,7 +242,7 @@ func shouldRequestNotUseCache(request *model.Request) bool {
 		}
 	}
 
-	return false
+	return true
 }
 
 // shouldResponseBeCached returns true if the response is not truncated and isn't CD flaged
