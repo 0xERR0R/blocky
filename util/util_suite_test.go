@@ -8,8 +8,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestLists(t *testing.T) {
+func init() {
 	log.Silence()
+}
+
+func TestLists(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Util Suite")
 }

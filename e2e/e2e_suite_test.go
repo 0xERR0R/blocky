@@ -14,8 +14,11 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 )
 
-func TestLists(t *testing.T) {
+func init() {
 	log.Silence()
+}
+
+func TestLists(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "e2e Suite", Label("e2e"))
 }

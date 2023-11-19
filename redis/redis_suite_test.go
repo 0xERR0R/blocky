@@ -10,9 +10,12 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestRedisClient(t *testing.T) {
+func init() {
 	log.Silence()
 	redis.SetLogger(NoLogs{})
+}
+
+func TestRedisClient(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Redis Suite")
 }

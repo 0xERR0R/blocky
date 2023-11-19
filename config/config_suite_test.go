@@ -14,8 +14,11 @@ var (
 	hook   *log.MockLoggerHook
 )
 
-func TestConfig(t *testing.T) {
+func init() {
 	log.Silence()
+}
+
+func TestConfig(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Config Suite")
 }
