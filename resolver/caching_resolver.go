@@ -263,7 +263,7 @@ func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, 
 	util.LogOnError("error on packing", err)
 
 	if err == nil {
-		if response.Res.Rcode == dns.RcodeSuccess && shouldResponseBeCached(response.Res) {
+		if response.Res.Rcode == dns.RcodeSuccess && isResponseCacheable(response.Res) {
 			// put value into cache
 			r.resultCache.Put(cacheKey, &packed, ttl)
 		} else if response.Res.Rcode == dns.RcodeNameError {
