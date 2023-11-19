@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"context"
+
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
@@ -94,7 +96,7 @@ var _ = Describe("RewriterResolver", func() {
 				return res
 			}
 
-			resp, err := sut.Resolve(request)
+			resp, err := sut.Resolve(context.Background(), request)
 			Expect(err).Should(Succeed())
 			if resp != mNextResponse {
 				Expect(resp.Res.Question[0].Name).Should(Equal(fqdnOriginal))
@@ -132,18 +134,18 @@ var _ = Describe("RewriterResolver", func() {
 			expectNilAnswer = true
 
 			// Make inner call the NoOpResolver
-			mInner.ResolveFn = func(req *model.Request) (*model.Response, error) {
+			mInner.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
 				Expect(req).Should(Equal(request))
 
 				// Inner should see fqdnRewritten
 				Expect(req.Req.Question[0].Name).Should(Equal(fqdnRewritten))
 
-				return mInner.next.Resolve(req)
+				return mInner.next.Resolve(ctx, req)
 			}
 
 			// Resolver after RewriterResolver should see `fqdnOriginal`
 			mNext.On("Resolve", mock.Anything)
-			mNext.ResolveFn = func(req *model.Request) (*model.Response, error) {
+			mNext.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
 				Expect(req.Req.Question[0].Name).Should(Equal(fqdnOriginal))
 
 				return mNextResponse, nil
@@ -156,7 +158,7 @@ var _ = Describe("RewriterResolver", func() {
 			expectNilAnswer = true
 
 			// Make inner return a nil Answer but not an empty Response
-			mInner.ResolveFn = func(req *model.Request) (*model.Response, error) {
+			mInner.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
 				Expect(req).Should(Equal(request))
 
 				// Inner should see fqdnRewritten
@@ -179,7 +181,7 @@ var _ = Describe("RewriterResolver", func() {
 				fqdnRewritten = sampleRewritten
 
 				// Make inner return a nil Answer but not an empty Response
-				mInner.ResolveFn = func(req *model.Request) (*model.Response, error) {
+				mInner.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
 					Expect(req).Should(Equal(request))
 
 					// Inner should see fqdnRewritten
@@ -190,7 +192,7 @@ var _ = Describe("RewriterResolver", func() {
 
 				// Resolver after RewriterResolver should see `fqdnOriginal`
 				mNext.On("Resolve", mock.Anything)
-				mNext.ResolveFn = func(req *model.Request) (*model.Response, error) {
+				mNext.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
 					Expect(req.Req.Question[0].Name).Should(Equal(fqdnOriginal))
 
 					return mNextResponse, nil

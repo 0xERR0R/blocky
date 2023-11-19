@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"net"
 
 	"github.com/0xERR0R/blocky/config"
@@ -25,6 +26,9 @@ var _ = Describe("EcsResolver", func() {
 		err        error
 		origIP     net.IP
 		ecsIP      net.IP
+
+		ctx      context.Context
+		cancelFn context.CancelFunc
 	)
 
 	Describe("Type", func() {
@@ -34,6 +38,9 @@ var _ = Describe("EcsResolver", func() {
 	})
 
 	BeforeEach(func() {
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+
 		err = defaults.Set(&sutConfig)
 		Expect(err).ShouldNot(HaveOccurred())
 
@@ -86,13 +93,13 @@ var _ = Describe("EcsResolver", func() {
 
 				addEcsOption(request.Req, ecsIP, ecsMaskIPv4)
 
-				m.ResolveFn = func(req *Request) (*Response, error) {
+				m.ResolveFn = func(ctx context.Context, req *Request) (*Response, error) {
 					Expect(req.ClientIP).Should(Equal(ecsIP))
 
 					return respondWith(mockAnswer), nil
 				}
 
-				Expect(sut.Resolve(request)).
+				Expect(sut.Resolve(ctx, request)).
 					Should(
 						SatisfyAll(
 							HaveNoAnswer(),
@@ -107,13 +114,13 @@ var _ = Describe("EcsResolver", func() {
 
 				addEcsOption(request.Req, ecsIP, 24)
 
-				m.ResolveFn = func(req *Request) (*Response, error) {
+				m.ResolveFn = func(ctx context.Context, req *Request) (*Response, error) {
 					Expect(req.ClientIP).Should(Equal(origIP))
 
 					return respondWith(mockAnswer), nil
 				}
 
-				Expect(sut.Resolve(request)).
+				Expect(sut.Resolve(ctx, request)).
 					Should(
 						SatisfyAll(
 							HaveNoAnswer(),
@@ -134,14 +141,14 @@ var _ = Describe("EcsResolver", func() {
 				request := newRequest("example.com.", A)
 				request.ClientIP = origIP
 
-				m.ResolveFn = func(req *Request) (*Response, error) {
+				m.ResolveFn = func(ctx context.Context, req *Request) (*Response, error) {
 					Expect(req.ClientIP).Should(Equal(origIP))
 					Expect(req.Req).Should(HaveEdnsOption(dns.EDNS0SUBNET))
 
 					return respondWith(mockAnswer), nil
 				}
 
-				Expect(sut.Resolve(request)).
+				Expect(sut.Resolve(ctx, request)).
 					Should(
 						SatisfyAll(
 							HaveNoAnswer(),
@@ -154,13 +161,13 @@ var _ = Describe("EcsResolver", func() {
 				request := newRequest("example.com.", AAAA)
 				request.ClientIP = net.ParseIP("2001:db8::68")
 
-				m.ResolveFn = func(req *Request) (*Response, error) {
+				m.ResolveFn = func(ctx context.Context, req *Request) (*Response, error) {
 					Expect(req.Req).Should(HaveEdnsOption(dns.EDNS0SUBNET))
 
 					return respondWith(mockAnswer), nil
 				}
 
-				Expect(sut.Resolve(request)).
+				Expect(sut.Resolve(ctx, request)).
 					Should(
 						SatisfyAll(
 							HaveNoAnswer(),

@@ -149,7 +149,7 @@ var _ = Describe("Expiration cache", func() {
 	Describe("preExpiration function", func() {
 		When("function is defined", func() {
 			It("should update the value and TTL if function returns values", func() {
-				fn := func(key string) (val *string, ttl time.Duration) {
+				fn := func(ctx context.Context, key string) (val *string, ttl time.Duration) {
 					v2 := "v2"
 
 					return &v2, time.Second
@@ -169,7 +169,7 @@ var _ = Describe("Expiration cache", func() {
 			})
 
 			It("should update the value and TTL if function returns values on cleanup if element is expired", func() {
-				fn := func(key string) (val *string, ttl time.Duration) {
+				fn := func(ctx context.Context, key string) (val *string, ttl time.Duration) {
 					v2 := "val2"
 
 					return &v2, time.Second
@@ -192,7 +192,7 @@ var _ = Describe("Expiration cache", func() {
 			})
 
 			It("should delete the key if function returns nil", func() {
-				fn := func(key string) (val *string, ttl time.Duration) {
+				fn := func(ctx context.Context, key string) (val *string, ttl time.Duration) {
 					return nil, 0
 				}
 				cache := NewCacheWithOnExpired[string](ctx, Options{CleanupInterval: 100 * time.Microsecond}, fn)

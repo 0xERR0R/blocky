@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
@@ -23,14 +24,14 @@ type ConditionalUpstreamResolver struct {
 
 // NewConditionalUpstreamResolver returns new resolver instance
 func NewConditionalUpstreamResolver(
-	cfg config.ConditionalUpstreamConfig, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
+	ctx context.Context, cfg config.ConditionalUpstreamConfig, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
 ) (*ConditionalUpstreamResolver, error) {
 	m := make(map[string]Resolver, len(cfg.Mapping.Upstreams))
 
 	for domain, upstreams := range cfg.Mapping.Upstreams {
 		cfg := config.UpstreamGroup{Name: upstreamDefaultCfgName, Upstreams: upstreams}
 
-		r, err := NewParallelBestResolver(cfg, bootstrap, shouldVerifyUpstreams)
+		r, err := NewParallelBestResolver(ctx, cfg, bootstrap, shouldVerifyUpstreams)
 		if err != nil {
 			return nil, err
 		}
@@ -48,7 +49,9 @@ func NewConditionalUpstreamResolver(
 	return &r, nil
 }
 
-func (r *ConditionalUpstreamResolver) processRequest(request *model.Request) (bool, *model.Response, error) {
+func (r *ConditionalUpstreamResolver) processRequest(
+	ctx context.Context, request *model.Request,
+) (bool, *model.Response, error) {
 	domainFromQuestion := util.ExtractDomain(request.Req.Question[0])
 	domain := domainFromQuestion
 
@@ -56,7 +59,7 @@ func (r *ConditionalUpstreamResolver) processRequest(request *model.Request) (bo
 		// try with domain with and without sub-domains
 		for len(domain) > 0 {
 			if resolver, found := r.mapping[domain]; found {
-				resp, err := r.internalResolve(resolver, domainFromQuestion, domain, request)
+				resp, err := r.internalResolve(ctx, resolver, domainFromQuestion, domain, request)
 
 				return true, resp, err
 			}
@@ -68,7 +71,7 @@ func (r *ConditionalUpstreamResolver) processRequest(request *model.Request) (bo
 			}
 		}
 	} else if resolver, found := r.mapping["."]; found {
-		resp, err := r.internalResolve(resolver, domainFromQuestion, domain, request)
+		resp, err := r.internalResolve(ctx, resolver, domainFromQuestion, domain, request)
 
 		return true, resp, err
 	}
@@ -77,11 +80,11 @@ func (r *ConditionalUpstreamResolver) processRequest(request *model.Request) (bo
 }
 
 // Resolve uses the conditional resolver to resolve the query
-func (r *ConditionalUpstreamResolver) Resolve(request *model.Request) (*model.Response, error) {
+func (r *ConditionalUpstreamResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	logger := log.WithPrefix(request.Log, "conditional_resolver")
 
 	if len(r.mapping) > 0 {
-		resolved, resp, err := r.processRequest(request)
+		resolved, resp, err := r.processRequest(ctx, request)
 		if resolved {
 			return resp, err
 		}
@@ -89,17 +92,17 @@ func (r *ConditionalUpstreamResolver) Resolve(request *model.Request) (*model.Re
 
 	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
 
-	return r.next.Resolve(request)
+	return r.next.Resolve(ctx, request)
 }
 
-func (r *ConditionalUpstreamResolver) internalResolve(reso Resolver, doFQ, do string,
+func (r *ConditionalUpstreamResolver) internalResolve(ctx context.Context, reso Resolver, doFQ, do string,
 	req *model.Request,
 ) (*model.Response, error) {
 	// internal request resolution
 	logger := log.WithPrefix(req.Log, "conditional_resolver")
 
 	req.Req.Question[0].Name = dns.Fqdn(doFQ)
-	response, err := reso.Resolve(req)
+	response, err := reso.Resolve(ctx, req)
 
 	if err == nil {
 		response.Reason = "CONDITIONAL"

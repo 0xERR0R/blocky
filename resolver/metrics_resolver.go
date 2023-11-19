@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -25,8 +26,8 @@ type MetricsResolver struct {
 }
 
 // Resolve resolves the passed request
-func (r *MetricsResolver) Resolve(request *model.Request) (*model.Response, error) {
-	response, err := r.next.Resolve(request)
+func (r *MetricsResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
+	response, err := r.next.Resolve(ctx, request)
 
 	if r.cfg.Enable {
 		r.totalQueries.With(prometheus.Labels{

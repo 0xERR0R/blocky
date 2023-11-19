@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"context"
+
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
@@ -25,12 +27,12 @@ func NewEDEResolver(cfg config.EDE) *EDEResolver {
 
 // Resolve adds the reason as EDNS0 option to the response of the next resolver
 // if it is enabled in the configuration
-func (r *EDEResolver) Resolve(request *model.Request) (*model.Response, error) {
+func (r *EDEResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	if !r.cfg.Enable {
-		return r.next.Resolve(request)
+		return r.next.Resolve(ctx, request)
 	}
 
-	resp, err := r.next.Resolve(request)
+	resp, err := r.next.Resolve(ctx, request)
 	if err != nil {
 		return nil, err
 	}

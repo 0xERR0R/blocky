@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -27,6 +28,9 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 		err error
 
 		bootstrap *Bootstrap
+
+		ctx      context.Context
+		cancelFn context.CancelFunc
 	)
 
 	Describe("Type", func() {
@@ -36,6 +40,9 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 	})
 
 	BeforeEach(func() {
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+
 		upstreams = []config.Upstream{
 			{Host: "wrong"},
 			{Host: "127.0.0.2"},
@@ -51,7 +58,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 			Name:      upstreamDefaultCfgName,
 			Upstreams: upstreams,
 		}
-		sut, err = NewStrictResolver(sutConfig, bootstrap, sutVerify)
+		sut, err = NewStrictResolver(ctx, sutConfig, bootstrap, sutVerify)
 	})
 
 	config.GetConfig().Upstreams.Timeout = config.Duration(time.Second)
@@ -100,7 +107,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 				mockUpstream.Start(),
 			}
 
-			_, err := NewStrictResolver(config.UpstreamGroup{
+			_, err := NewStrictResolver(ctx, config.UpstreamGroup{
 				Name:      upstreamDefaultCfgName,
 				Upstreams: upstreams,
 			},
@@ -151,7 +158,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 					})
 					It("Should use result from first one", func() {
 						request := newRequest("example.com.", A)
-						Expect(sut.Resolve(request)).
+						Expect(sut.Resolve(ctx, request)).
 							Should(
 								SatisfyAll(
 									BeDNSRecord("example.com.", A, "123.124.122.122"),
@@ -180,7 +187,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 					})
 					It("should return response from next upstream", func() {
 						request := newRequest("example.com", A)
-						Expect(sut.Resolve(request)).Should(
+						Expect(sut.Resolve(ctx, request)).Should(
 							SatisfyAll(
 								BeDNSRecord("example.com.", A, "123.124.122.2"),
 								HaveTTL(BeNumerically("==", 123)),
@@ -214,7 +221,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 					})
 					It("should return error", func() {
 						request := newRequest("example.com", A)
-						_, err := sut.Resolve(request)
+						_, err := sut.Resolve(ctx, request)
 						Expect(err).To(HaveOccurred())
 					})
 				})
@@ -230,7 +237,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 				})
 				It("Should use result from second one", func() {
 					request := newRequest("example.com.", A)
-					Expect(sut.Resolve(request)).
+					Expect(sut.Resolve(ctx, request)).
 						Should(
 							SatisfyAll(
 								BeDNSRecord("example.com.", A, "123.124.122.123"),
@@ -247,7 +254,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 				})
 				It("Should return error", func() {
 					request := newRequest("example.com.", A)
-					_, err = sut.Resolve(request)
+					_, err = sut.Resolve(ctx, request)
 					Expect(err).Should(HaveOccurred())
 				})
 			})
@@ -262,7 +269,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 			It("Should use result from defined resolver", func() {
 				request := newRequest("example.com.", A)
 
-				Expect(sut.Resolve(request)).
+				Expect(sut.Resolve(ctx, request)).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("example.com.", A, "123.124.122.122"),

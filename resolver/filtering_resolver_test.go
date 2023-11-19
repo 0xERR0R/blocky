@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"context"
+
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
@@ -18,6 +20,9 @@ var _ = Describe("FilteringResolver", func() {
 		sutConfig  config.FilteringConfig
 		m          *mockResolver
 		mockAnswer *dns.Msg
+
+		ctx      context.Context
+		cancelFn context.CancelFunc
 	)
 
 	Describe("Type", func() {
@@ -27,6 +32,9 @@ var _ = Describe("FilteringResolver", func() {
 	})
 
 	BeforeEach(func() {
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+
 		mockAnswer = new(dns.Msg)
 	})
 
@@ -60,7 +68,7 @@ var _ = Describe("FilteringResolver", func() {
 			}
 		})
 		It("Should delegate to next resolver if request query has other type", func() {
-			Expect(sut.Resolve(newRequest("example.com.", A))).
+			Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
 				Should(
 					SatisfyAll(
 						HaveNoAnswer(),
@@ -72,7 +80,7 @@ var _ = Describe("FilteringResolver", func() {
 			Expect(m.Calls).Should(HaveLen(1))
 		})
 		It("Should return empty answer for defined query type", func() {
-			Expect(sut.Resolve(newRequest("example.com.", AAAA))).
+			Expect(sut.Resolve(ctx, newRequest("example.com.", AAAA))).
 				Should(
 					SatisfyAll(
 						HaveNoAnswer(),
@@ -90,7 +98,7 @@ var _ = Describe("FilteringResolver", func() {
 			sutConfig = config.FilteringConfig{}
 		})
 		It("Should return empty answer without error", func() {
-			Expect(sut.Resolve(newRequest("example.com.", AAAA))).
+			Expect(sut.Resolve(ctx, newRequest("example.com.", AAAA))).
 				Should(
 					SatisfyAll(
 						HaveNoAnswer(),

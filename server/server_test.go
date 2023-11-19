@@ -76,10 +76,9 @@ var _ = BeforeSuite(func() {
 
 	clientMockUpstream = resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 		var clientName string
-		client := mockClientName.Load()
 
-		if client != nil {
-			clientName = mockClientName.Load().(string)
+		if name, ok := mockClientName.Load().(string); ok {
+			clientName = name
 		}
 
 		response, err := util.NewMsgWithAnswer(
@@ -118,8 +117,7 @@ var _ = BeforeSuite(func() {
 	youtubeFile := tmpDir.CreateStringFile("youtube.com.txt", "youtube.com")
 	Expect(youtubeFile.Error).Should(Succeed())
 
-	// create server
-	sut, err = NewServer(ctx, &config.Config{
+	cfg := &config.Config{
 		CustomDNS: config.CustomDNSConfig{
 			CustomTTL: config.Duration(3600 * time.Second),
 			Mapping: config.CustomDNSMapping{
@@ -160,7 +158,8 @@ var _ = BeforeSuite(func() {
 			BlockTTL:  config.Duration(6 * time.Hour),
 		},
 		Upstreams: config.UpstreamsConfig{
-			Groups: map[string][]config.Upstream{"default": {upstreamGoogle}},
+			Timeout: config.Duration(250 * time.Millisecond),
+			Groups:  map[string][]config.Upstream{"default": {upstreamGoogle}},
 		},
 		ClientLookup: config.ClientLookupConfig{
 			Upstream: upstreamClient,
@@ -178,16 +177,19 @@ var _ = BeforeSuite(func() {
 			Enable: true,
 			Path:   "/metrics",
 		},
-	})
+	}
 
+	// Hacky but needed to update the global since we still have code that reads it
+	*config.GetConfig() = *cfg
+
+	// create server
+	sut, err = NewServer(ctx, cfg)
 	Expect(err).Should(Succeed())
 
 	errChan := make(chan error, 10)
 
 	// start server
-	go func() {
-		sut.Start(ctx, errChan)
-	}()
+	go sut.Start(ctx, errChan)
 	DeferCleanup(sut.Stop)
 
 	Consistently(errChan, "1s").ShouldNot(Receive())
@@ -697,7 +699,7 @@ var _ = Describe("Running DNS server", func() {
 
 	Describe("NewServer with strict upstream strategy", func() {
 		It("successfully returns upstream branches", func() {
-			branches, err := createUpstreamBranches(&config.Config{
+			branches, err := createUpstreamBranches(context.Background(), &config.Config{
 				Upstreams: config.UpstreamsConfig{
 					Strategy: config.UpstreamStrategyStrict,
 					Groups: config.UpstreamGroups{
@@ -715,7 +717,7 @@ var _ = Describe("Running DNS server", func() {
 
 	Describe("NewServer with random upstream strategy", func() {
 		It("successfully returns upstream branches", func() {
-			branches, err := createUpstreamBranches(&config.Config{
+			branches, err := createUpstreamBranches(context.Background(), &config.Config{
 				Upstreams: config.UpstreamsConfig{
 					Strategy: config.UpstreamStrategyRandom,
 					Groups: config.UpstreamGroups{

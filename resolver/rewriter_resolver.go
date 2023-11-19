@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -57,7 +58,7 @@ func (r *RewriterResolver) LogConfig(logger *logrus.Entry) {
 }
 
 // Resolve uses the inner resolver to resolve the rewritten query
-func (r *RewriterResolver) Resolve(request *model.Request) (*model.Response, error) {
+func (r *RewriterResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	logger := log.WithPrefix(request.Log, "rewriter_resolver")
 
 	original := request.Req
@@ -69,7 +70,7 @@ func (r *RewriterResolver) Resolve(request *model.Request) (*model.Response, err
 
 	logger.WithField("resolver", Name(r.inner)).Trace("go to inner resolver")
 
-	response, err := r.inner.Resolve(request)
+	response, err := r.inner.Resolve(ctx, request)
 	// Test for error after checking for fallbackUpstream
 
 	// Revert the request: must be done before calling r.next
@@ -80,7 +81,7 @@ func (r *RewriterResolver) Resolve(request *model.Request) (*model.Response, err
 		// Inner resolver had no answer, configuration requests fallback, continue with the normal chain
 		logger.WithField("next_resolver", Name(r.next)).Trace("fallback to next resolver")
 
-		return r.next.Resolve(request)
+		return r.next.Resolve(ctx, request)
 	}
 
 	if err != nil {
@@ -91,7 +92,7 @@ func (r *RewriterResolver) Resolve(request *model.Request) (*model.Response, err
 		// Inner resolver had no response, continue with the normal chain
 		logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
 
-		return r.next.Resolve(request)
+		return r.next.Resolve(ctx, request)
 	}
 
 	// Revert the rewrite in r.inner's response

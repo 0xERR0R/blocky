@@ -40,11 +40,11 @@ type ListRefresher interface {
 }
 
 type Querier interface {
-	Query(question string, qType dns.Type) (*model.Response, error)
+	Query(ctx context.Context, question string, qType dns.Type) (*model.Response, error)
 }
 
 type CacheControl interface {
-	FlushCaches()
+	FlushCaches(ctx context.Context)
 }
 
 func RegisterOpenAPIEndpoints(router chi.Router, impl StrictServerInterface) {
@@ -137,13 +137,13 @@ func (i *OpenAPIInterfaceImpl) ListRefresh(_ context.Context,
 	return ListRefresh200Response{}, nil
 }
 
-func (i *OpenAPIInterfaceImpl) Query(_ context.Context, request QueryRequestObject) (QueryResponseObject, error) {
+func (i *OpenAPIInterfaceImpl) Query(ctx context.Context, request QueryRequestObject) (QueryResponseObject, error) {
 	qType := dns.Type(dns.StringToType[request.Body.Type])
 	if qType == dns.Type(dns.TypeNone) {
 		return Query400TextResponse(fmt.Sprintf("unknown query type '%s'", request.Body.Type)), nil
 	}
 
-	resp, err := i.querier.Query(dns.Fqdn(request.Body.Query), qType)
+	resp, err := i.querier.Query(ctx, dns.Fqdn(request.Body.Query), qType)
 	if err != nil {
 		return nil, err
 	}
@@ -156,10 +156,10 @@ func (i *OpenAPIInterfaceImpl) Query(_ context.Context, request QueryRequestObje
 	}), nil
 }
 
-func (i *OpenAPIInterfaceImpl) CacheFlush(_ context.Context,
+func (i *OpenAPIInterfaceImpl) CacheFlush(ctx context.Context,
 	_ CacheFlushRequestObject,
 ) (CacheFlushResponseObject, error) {
-	i.cacheControl.FlushCaches()
+	i.cacheControl.FlushCaches(ctx)
 
 	return CacheFlush200Response{}, nil
 }

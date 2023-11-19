@@ -106,14 +106,14 @@ func NewBootstrap(ctx context.Context, cfg *config.Config) (b *Bootstrap, err er
 	return b, nil
 }
 
-func (b *Bootstrap) UpstreamIPs(r *UpstreamResolver) (*IPSet, error) {
+func (b *Bootstrap) UpstreamIPs(ctx context.Context, r *UpstreamResolver) (*IPSet, error) {
 	hostname := r.upstream.Host
 
 	if ip := net.ParseIP(hostname); ip != nil { // nil-safe when hostname is an IP: makes writing test easier
 		return newIPSet([]net.IP{ip}), nil
 	}
 
-	ips, err := b.resolveUpstream(r, hostname)
+	ips, err := b.resolveUpstream(ctx, r, hostname)
 	if err != nil {
 		return nil, err
 	}
@@ -121,10 +121,10 @@ func (b *Bootstrap) UpstreamIPs(r *UpstreamResolver) (*IPSet, error) {
 	return newIPSet(ips), nil
 }
 
-func (b *Bootstrap) resolveUpstream(r Resolver, host string) ([]net.IP, error) {
+func (b *Bootstrap) resolveUpstream(ctx context.Context, r Resolver, host string) ([]net.IP, error) {
 	// Use system resolver if no bootstrap is configured
 	if b.resolver == nil {
-		ctx, cancel := context.WithTimeout(context.Background(), b.timeout)
+		ctx, cancel := context.WithTimeout(ctx, b.timeout)
 		defer cancel()
 
 		return b.systemResolver.LookupIP(ctx, config.GetConfig().ConnectIPVersion.Net(), host)
@@ -135,7 +135,7 @@ func (b *Bootstrap) resolveUpstream(r Resolver, host string) ([]net.IP, error) {
 		return ips, nil
 	}
 
-	return b.resolve(host, b.connectIPVersion.QTypes())
+	return b.resolve(ctx, host, b.connectIPVersion.QTypes())
 }
 
 // NewHTTPTransport returns a new http.Transport that uses b to resolve hostnames
@@ -175,7 +175,7 @@ func (b *Bootstrap) dialContext(ctx context.Context, network, addr string) (net.
 	}
 
 	// Resolve the host with the bootstrap DNS
-	ips, err := b.resolve(host, qTypes)
+	ips, err := b.resolve(ctx, host, qTypes)
 	if err != nil {
 		logger.Errorf("resolve error: %s", err)
 
@@ -192,11 +192,11 @@ func (b *Bootstrap) dialContext(ctx context.Context, network, addr string) (net.
 	return b.dialer.DialContext(ctx, network, addrWithIP)
 }
 
-func (b *Bootstrap) resolve(hostname string, qTypes []dns.Type) (ips []net.IP, err error) {
+func (b *Bootstrap) resolve(ctx context.Context, hostname string, qTypes []dns.Type) (ips []net.IP, err error) {
 	ips = make([]net.IP, 0, len(qTypes))
 
 	for _, qType := range qTypes {
-		qIPs, qErr := b.resolveType(hostname, qType)
+		qIPs, qErr := b.resolveType(ctx, hostname, qType)
 		if qErr != nil {
 			err = multierror.Append(err, qErr)
 
@@ -213,7 +213,7 @@ func (b *Bootstrap) resolve(hostname string, qTypes []dns.Type) (ips []net.IP, e
 	return
 }
 
-func (b *Bootstrap) resolveType(hostname string, qType dns.Type) (ips []net.IP, err error) {
+func (b *Bootstrap) resolveType(ctx context.Context, hostname string, qType dns.Type) (ips []net.IP, err error) {
 	if ip := net.ParseIP(hostname); ip != nil {
 		return []net.IP{ip}, nil
 	}
@@ -223,7 +223,7 @@ func (b *Bootstrap) resolveType(hostname string, qType dns.Type) (ips []net.IP, 
 		Log: b.log,
 	}
 
-	rsp, err := b.resolver.Resolve(&req)
+	rsp, err := b.resolver.Resolve(ctx, &req)
 	if err != nil {
 		return nil, err
 	}

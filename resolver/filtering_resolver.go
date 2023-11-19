@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"context"
+
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/miekg/dns"
@@ -21,7 +23,7 @@ func NewFilteringResolver(cfg config.FilteringConfig) *FilteringResolver {
 	}
 }
 
-func (r *FilteringResolver) Resolve(request *model.Request) (*model.Response, error) {
+func (r *FilteringResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	qType := request.Req.Question[0].Qtype
 	if r.cfg.QueryTypes.Contains(dns.Type(qType)) {
 		response := new(dns.Msg)
@@ -30,5 +32,5 @@ func (r *FilteringResolver) Resolve(request *model.Request) (*model.Response, er
 		return &model.Response{Res: response, RType: model.ResponseTypeFILTERED}, nil
 	}
 
-	return r.next.Resolve(request)
+	return r.next.Resolve(ctx, request)
 }

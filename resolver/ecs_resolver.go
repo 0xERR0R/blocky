@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 	"net"
 
@@ -46,7 +47,7 @@ func NewECSResolver(cfg config.ECS) ChainedResolver {
 
 // Resolve adds the subnet information as EDNS0 option to the request of the next resolver
 // and sets the client IP from the EDNS0 option to the request if this option is enabled
-func (r *ECSResolver) Resolve(request *model.Request) (*model.Response, error) {
+func (r *ECSResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	if r.cfg.IsEnabled() {
 		so := util.GetEdns0Option[*dns.EDNS0_SUBNET](request.Req)
 		// Set the client IP from the Edns0 subnet option if the option is enabled and the correct subnet mask is set
@@ -67,7 +68,7 @@ func (r *ECSResolver) Resolve(request *model.Request) (*model.Response, error) {
 		}
 	}
 
-	return r.next.Resolve(request)
+	return r.next.Resolve(ctx, request)
 }
 
 // setSubnet appends the subnet information to the request as EDNS0 option

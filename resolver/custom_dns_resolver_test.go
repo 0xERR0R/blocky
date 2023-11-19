@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"net"
 	"time"
 
@@ -21,6 +22,9 @@ var _ = Describe("CustomDNSResolver", func() {
 		sut *CustomDNSResolver
 		m   *mockResolver
 		cfg config.CustomDNSConfig
+
+		ctx      context.Context
+		cancelFn context.CancelFunc
 	)
 
 	Describe("Type", func() {
@@ -30,6 +34,9 @@ var _ = Describe("CustomDNSResolver", func() {
 	})
 
 	BeforeEach(func() {
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+
 		cfg = config.CustomDNSConfig{
 			Mapping: config.CustomDNSMapping{HostIPs: map[string][]net.IP{
 				"custom.domain": {net.ParseIP("192.168.143.123")},
@@ -73,7 +80,7 @@ var _ = Describe("CustomDNSResolver", func() {
 			Context("filterUnmappedTypes is true", func() {
 				BeforeEach(func() { cfg.FilterUnmappedTypes = true })
 				It("defined ip4 query should be resolved", func() {
-					Expect(sut.Resolve(newRequest("custom.domain.", A))).
+					Expect(sut.Resolve(ctx, newRequest("custom.domain.", A))).
 						Should(
 							SatisfyAll(
 								BeDNSRecord("custom.domain.", A, "192.168.143.123"),
@@ -86,7 +93,7 @@ var _ = Describe("CustomDNSResolver", func() {
 					m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
 				})
 				It("TXT query for defined mapping should return NOERROR and empty result", func() {
-					Expect(sut.Resolve(newRequest("custom.domain.", TXT))).
+					Expect(sut.Resolve(ctx, newRequest("custom.domain.", TXT))).
 						Should(
 							SatisfyAll(
 								HaveNoAnswer(),
@@ -98,7 +105,7 @@ var _ = Describe("CustomDNSResolver", func() {
 					m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
 				})
 				It("ip6 query should return NOERROR and empty result", func() {
-					Expect(sut.Resolve(newRequest("custom.domain.", AAAA))).
+					Expect(sut.Resolve(ctx, newRequest("custom.domain.", AAAA))).
 						Should(
 							SatisfyAll(
 								HaveNoAnswer(),
@@ -114,7 +121,7 @@ var _ = Describe("CustomDNSResolver", func() {
 			Context("filterUnmappedTypes is false", func() {
 				BeforeEach(func() { cfg.FilterUnmappedTypes = false })
 				It("defined ip4 query should be resolved", func() {
-					Expect(sut.Resolve(newRequest("custom.domain.", A))).
+					Expect(sut.Resolve(ctx, newRequest("custom.domain.", A))).
 						Should(
 							SatisfyAll(
 								BeDNSRecord("custom.domain.", A, "192.168.143.123"),
@@ -127,7 +134,7 @@ var _ = Describe("CustomDNSResolver", func() {
 					m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
 				})
 				It("TXT query for defined mapping should be delegated to next resolver", func() {
-					Expect(sut.Resolve(newRequest("custom.domain.", TXT))).
+					Expect(sut.Resolve(ctx, newRequest("custom.domain.", TXT))).
 						Should(
 							SatisfyAll(
 								HaveNoAnswer(),
@@ -139,7 +146,7 @@ var _ = Describe("CustomDNSResolver", func() {
 					m.AssertExpectations(GinkgoT())
 				})
 				It("ip6 query should return NOERROR and empty result", func() {
-					Expect(sut.Resolve(newRequest("custom.domain.", AAAA))).
+					Expect(sut.Resolve(ctx, newRequest("custom.domain.", AAAA))).
 						Should(
 							SatisfyAll(
 								HaveNoAnswer(),
@@ -154,7 +161,7 @@ var _ = Describe("CustomDNSResolver", func() {
 		})
 		When("Ip 6 mapping is defined for custom domain ", func() {
 			It("ip6 query should be resolved", func() {
-				Expect(sut.Resolve(newRequest("ip6.domain.", AAAA))).
+				Expect(sut.Resolve(ctx, newRequest("ip6.domain.", AAAA))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("ip6.domain.", AAAA, "2001:db8:85a3::8a2e:370:7334"),
@@ -170,7 +177,7 @@ var _ = Describe("CustomDNSResolver", func() {
 		When("Multiple IPs are defined for custom domain ", func() {
 			It("all IPs for the current type should be returned", func() {
 				By("IPv6 query", func() {
-					Expect(sut.Resolve(newRequest("multiple.ips.", AAAA))).
+					Expect(sut.Resolve(ctx, newRequest("multiple.ips.", AAAA))).
 						Should(
 							SatisfyAll(
 								BeDNSRecord("multiple.ips.", AAAA, "2001:db8:85a3::8a2e:370:7334"),
@@ -185,7 +192,7 @@ var _ = Describe("CustomDNSResolver", func() {
 				})
 
 				By("IPv4 query", func() {
-					Expect(sut.Resolve(newRequest("multiple.ips.", A))).
+					Expect(sut.Resolve(ctx, newRequest("multiple.ips.", A))).
 						Should(
 							SatisfyAll(
 								WithTransform(ToAnswer, SatisfyAll(
@@ -207,7 +214,7 @@ var _ = Describe("CustomDNSResolver", func() {
 		When("Reverse DNS request is received", func() {
 			It("should resolve the defined domain name", func() {
 				By("ipv4", func() {
-					Expect(sut.Resolve(newRequest("123.143.168.192.in-addr.arpa.", PTR))).
+					Expect(sut.Resolve(ctx, newRequest("123.143.168.192.in-addr.arpa.", PTR))).
 						Should(
 							SatisfyAll(
 								WithTransform(ToAnswer, SatisfyAll(
@@ -226,7 +233,7 @@ var _ = Describe("CustomDNSResolver", func() {
 				})
 
 				By("ipv6", func() {
-					Expect(sut.Resolve(newRequest("4.3.3.7.0.7.3.0.e.2.a.8.0.0.0.0.0.0.0.0.3.a.5.8.8.b.d.0.1.0.0.2.ip6.arpa.",
+					Expect(sut.Resolve(ctx, newRequest("4.3.3.7.0.7.3.0.e.2.a.8.0.0.0.0.0.0.0.0.3.a.5.8.8.b.d.0.1.0.0.2.ip6.arpa.",
 						PTR))).
 						Should(
 							SatisfyAll(
@@ -250,7 +257,7 @@ var _ = Describe("CustomDNSResolver", func() {
 		})
 		When("Domain mapping is defined", func() {
 			It("subdomain must also match", func() {
-				Expect(sut.Resolve(newRequest("ABC.CUSTOM.DOMAIN.", A))).
+				Expect(sut.Resolve(ctx, newRequest("ABC.CUSTOM.DOMAIN.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("ABC.CUSTOM.DOMAIN.", A, "192.168.143.123"),
@@ -268,7 +275,7 @@ var _ = Describe("CustomDNSResolver", func() {
 	Describe("Delegating to next resolver", func() {
 		When("no mapping for domain exist", func() {
 			It("should delegate to next resolver", func() {
-				Expect(sut.Resolve(newRequest("example.com.", A))).
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
 					Should(
 						SatisfyAll(
 							HaveResponseType(ResponseTypeRESOLVED),

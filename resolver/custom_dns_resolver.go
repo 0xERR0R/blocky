@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"net"
 	"strings"
 
@@ -123,7 +124,7 @@ func (r *CustomDNSResolver) processRequest(request *model.Request) *model.Respon
 }
 
 // Resolve uses internal mapping to resolve the query
-func (r *CustomDNSResolver) Resolve(request *model.Request) (*model.Response, error) {
+func (r *CustomDNSResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	logger := log.WithPrefix(request.Log, "custom_dns_resolver")
 
 	reverseResp := r.handleReverseDNS(request)
@@ -140,5 +141,5 @@ func (r *CustomDNSResolver) Resolve(request *model.Request) (*model.Response, er
 
 	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
 
-	return r.next.Resolve(request)
+	return r.next.Resolve(ctx, request)
 }

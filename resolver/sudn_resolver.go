@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"net"
 	"strings"
 
@@ -99,7 +100,7 @@ func NewSpecialUseDomainNamesResolver(cfg config.SUDN) *SpecialUseDomainNamesRes
 	}
 }
 
-func (r *SpecialUseDomainNamesResolver) Resolve(request *model.Request) (*model.Response, error) {
+func (r *SpecialUseDomainNamesResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	handler := r.handler(request)
 	if handler != nil {
 		resp := handler(request, r.cfg)
@@ -108,7 +109,7 @@ func (r *SpecialUseDomainNamesResolver) Resolve(request *model.Request) (*model.
 		}
 	}
 
-	return r.next.Resolve(request)
+	return r.next.Resolve(ctx, request)
 }
 
 func (r *SpecialUseDomainNamesResolver) handler(request *model.Request) sudnHandler {

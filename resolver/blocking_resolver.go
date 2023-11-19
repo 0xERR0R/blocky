@@ -154,16 +154,16 @@ func NewBlockingResolver(ctx context.Context,
 
 	res.fqdnIPCache = expirationcache.NewCacheWithOnExpired[[]net.IP](ctx, expirationcache.Options{
 		CleanupInterval: defaultBlockingCleanUpInterval,
-	}, func(key string) (val *[]net.IP, ttl time.Duration) {
-		return res.queryForFQIdentifierIPs(key)
+	}, func(ctx context.Context, key string) (val *[]net.IP, ttl time.Duration) {
+		return res.queryForFQIdentifierIPs(ctx, key)
 	})
 
 	if res.redisClient != nil {
-		setupRedisEnabledSubscriber(ctx, res)
+		go res.redisSubscriber(ctx)
 	}
 
 	err = evt.Bus().SubscribeOnce(evt.ApplicationStarted, func(_ ...string) {
-		go res.initFQDNIPCache()
+		go res.initFQDNIPCache(ctx)
 	})
 
 	if err != nil {
@@ -173,29 +173,27 @@ func NewBlockingResolver(ctx context.Context,
 	return res, nil
 }
 
-func setupRedisEnabledSubscriber(ctx context.Context, c *BlockingResolver) {
-	go func() {
-		for {
-			select {
-			case em := <-c.redisClient.EnabledChannel:
-				if em != nil {
-					c.log().Debug("Received state from redis: ", em)
+func (r *BlockingResolver) redisSubscriber(ctx context.Context) {
+	for {
+		select {
+		case em := <-r.redisClient.EnabledChannel:
+			if em != nil {
+				r.log().Debug("Received state from redis: ", em)
 
-					if em.State {
-						c.internalEnableBlocking()
-					} else {
-						err := c.internalDisableBlocking(em.Duration, em.Groups)
-						if err != nil {
-							c.log().Warn("Blocking couldn't be disabled:", err)
-						}
+				if em.State {
+					r.internalEnableBlocking()
+				} else {
+					err := r.internalDisableBlocking(em.Duration, em.Groups)
+					if err != nil {
+						r.log().Warn("Blocking couldn't be disabled:", err)
 					}
 				}
-
-			case <-ctx.Done():
-				return
 			}
+
+		case <-ctx.Done():
+			return
 		}
-	}()
+	}
 }
 
 // RefreshLists triggers the refresh of all black and white lists in the cache
@@ -358,7 +356,7 @@ func (r *BlockingResolver) hasWhiteListOnlyAllowed(groupsToCheck []string) bool 
 	return false
 }
 
-func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
+func (r *BlockingResolver) handleBlacklist(ctx context.Context, groupsToCheck []string,
 	request *model.Request, logger *logrus.Entry,
 ) (bool, *model.Response, error) {
 	logger.WithField("groupsToCheck", strings.Join(groupsToCheck, "; ")).Debug("checking groups for request")
@@ -371,7 +369,7 @@ func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
 		if groups := r.matches(groupsToCheck, r.whitelistMatcher, domain); len(groups) > 0 {
 			logger.WithField("groups", groups).Debugf("domain is whitelisted")
 
-			resp, err := r.next.Resolve(request)
+			resp, err := r.next.Resolve(ctx, request)
 
 			return true, resp, err
 		}
@@ -393,18 +391,18 @@ func (r *BlockingResolver) handleBlacklist(groupsToCheck []string,
 }
 
 // Resolve checks the query against the blacklist and delegates to next resolver if domain is not blocked
-func (r *BlockingResolver) Resolve(request *model.Request) (*model.Response, error) {
+func (r *BlockingResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	logger := log.WithPrefix(request.Log, "blacklist_resolver")
 	groupsToCheck := r.groupsToCheckForClient(request)
 
 	if len(groupsToCheck) > 0 {
-		handled, resp, err := r.handleBlacklist(groupsToCheck, request, logger)
+		handled, resp, err := r.handleBlacklist(ctx, groupsToCheck, request, logger)
 		if handled {
 			return resp, err
 		}
 	}
 
-	respFromNext, err := r.next.Resolve(request)
+	respFromNext, err := r.next.Resolve(ctx, request)
 
 	if err == nil && len(groupsToCheck) > 0 && respFromNext.Res != nil {
 		for _, rr := range respFromNext.Res.Answer {
@@ -574,7 +572,7 @@ func (b ipBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
 	}
 }
 
-func (r *BlockingResolver) queryForFQIdentifierIPs(identifier string) (*[]net.IP, time.Duration) {
+func (r *BlockingResolver) queryForFQIdentifierIPs(ctx context.Context, identifier string) (*[]net.IP, time.Duration) {
 	prefixedLog := log.WithPrefix(r.log(), "client_id_cache")
 
 	var result []net.IP
@@ -582,7 +580,7 @@ func (r *BlockingResolver) queryForFQIdentifierIPs(identifier string) (*[]net.IP
 	var ttl time.Duration
 
 	for _, qType := range []uint16{dns.TypeA, dns.TypeAAAA} {
-		resp, err := r.next.Resolve(&model.Request{
+		resp, err := r.next.Resolve(ctx, &model.Request{
 			Req: util.NewMsgWithQuestion(identifier, dns.Type(qType)),
 			Log: prefixedLog,
 		})
@@ -606,12 +604,12 @@ func (r *BlockingResolver) queryForFQIdentifierIPs(identifier string) (*[]net.IP
 	return &result, ttl
 }
 
-func (r *BlockingResolver) initFQDNIPCache() {
+func (r *BlockingResolver) initFQDNIPCache(ctx context.Context) {
 	identifiers := maps.Keys(r.clientGroupsBlock)
 
 	for _, identifier := range identifiers {
 		if isFQDN(identifier) {
-			iPs, ttl := r.queryForFQIdentifierIPs(identifier)
+			iPs, ttl := r.queryForFQIdentifierIPs(ctx, identifier)
 			r.fqdnIPCache.Put(identifier, iPs, ttl)
 		}
 	}

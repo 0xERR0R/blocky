@@ -54,7 +54,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 					},
 					PrefetchThreshold: 2,
 					PrefetchExpires:   100 * time.Millisecond,
-					ReloadFn: func(cacheKey string) (*string, time.Duration) {
+					ReloadFn: func(ctx context.Context, cacheKey string) (*string, time.Duration) {
 						v := "v2"
 
 						return &v, 50 * time.Millisecond
@@ -86,7 +86,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 					},
 					PrefetchThreshold: 2,
 					PrefetchExpires:   100 * time.Millisecond,
-					ReloadFn: func(cacheKey string) (*string, time.Duration) {
+					ReloadFn: func(ctx context.Context, cacheKey string) (*string, time.Duration) {
 						v := "v2"
 
 						return &v, 50 * time.Millisecond
@@ -113,7 +113,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 					Options: Options{
 						CleanupInterval: 100 * time.Millisecond,
 					},
-					ReloadFn: func(cacheKey string) (*string, time.Duration) {
+					ReloadFn: func(ctx context.Context, cacheKey string) (*string, time.Duration) {
 						v := "v2"
 
 						return &v, 50 * time.Millisecond
@@ -143,7 +143,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 					},
 					PrefetchThreshold: 2,
 					PrefetchExpires:   100 * time.Millisecond,
-					ReloadFn: func(cacheKey string) (*string, time.Duration) {
+					ReloadFn: func(ctx context.Context, cacheKey string) (*string, time.Duration) {
 						v := "v2"
 
 						return &v, 50 * time.Millisecond

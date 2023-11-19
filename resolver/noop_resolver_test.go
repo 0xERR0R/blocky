@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"context"
+
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
 	. "github.com/onsi/ginkgo/v2"
@@ -8,7 +10,12 @@ import (
 )
 
 var _ = Describe("NoOpResolver", func() {
-	var sut *NoOpResolver
+	var (
+		sut *NoOpResolver
+
+		ctx      context.Context
+		cancelFn context.CancelFunc
+	)
 
 	Describe("Type", func() {
 		It("follows conventions", func() {
@@ -17,12 +24,15 @@ var _ = Describe("NoOpResolver", func() {
 	})
 
 	BeforeEach(func() {
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+
 		sut = NewNoOpResolver()
 	})
 
 	Describe("Resolving", func() {
 		It("returns no response", func() {
-			resp, err := sut.Resolve(newRequest("test.tld", A))
+			resp, err := sut.Resolve(ctx, newRequest("test.tld", A))
 			Expect(err).Should(Succeed())
 			Expect(resp).Should(Equal(NoResponse))
 		})

@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"context"
+
 	"github.com/0xERR0R/blocky/model"
 	"github.com/sirupsen/logrus"
 )
@@ -28,6 +30,6 @@ func (NoOpResolver) IsEnabled() bool {
 func (NoOpResolver) LogConfig(*logrus.Entry) {
 }
 
-func (NoOpResolver) Resolve(*model.Request) (*model.Response, error) {
+func (NoOpResolver) Resolve(context.Context, *model.Request) (*model.Response, error) {
 	return NoResponse, nil
 }

@@ -2,6 +2,7 @@
 package resolver
 
 import (
+	"context"
 	"errors"
 	"math"
 
@@ -24,6 +25,9 @@ var _ = Describe("EdeResolver", func() {
 		sutConfig  config.EDE
 		m          *mockResolver
 		mockAnswer *dns.Msg
+
+		ctx      context.Context
+		cancelFn context.CancelFunc
 	)
 
 	Describe("Type", func() {
@@ -33,6 +37,9 @@ var _ = Describe("EdeResolver", func() {
 	})
 
 	BeforeEach(func() {
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+
 		mockAnswer = new(dns.Msg)
 	})
 
@@ -57,7 +64,7 @@ var _ = Describe("EdeResolver", func() {
 			}
 		})
 		It("shouldn't add EDE information", func() {
-			Expect(sut.Resolve(newRequest("example.com.", A))).
+			Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
 				Should(
 					SatisfyAll(
 						HaveNoAnswer(),
@@ -89,7 +96,7 @@ var _ = Describe("EdeResolver", func() {
 		}
 
 		It("should add EDE information", func() {
-			Expect(sut.Resolve(newRequest("example.com.", A))).
+			Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
 				Should(
 					SatisfyAll(
 						HaveNoAnswer(),
@@ -115,7 +122,7 @@ var _ = Describe("EdeResolver", func() {
 			})
 
 			It("shouldn't add EDE information", func() {
-				Expect(sut.Resolve(newRequest("example.com.", A))).
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
 					Should(
 						SatisfyAll(
 							HaveNoAnswer(),
@@ -137,7 +144,7 @@ var _ = Describe("EdeResolver", func() {
 			})
 
 			It("should return it", func() {
-				resp, err := sut.Resolve(newRequest("example.com", A))
+				resp, err := sut.Resolve(ctx, newRequest("example.com", A))
 				Expect(resp).To(BeNil())
 				Expect(err).To(Equal(resolveErr))
 			})
