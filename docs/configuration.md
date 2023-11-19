@@ -716,7 +716,7 @@ Configuration parameters:
 
 ## EDNS Client Subnet options
 
-Configuration parameters:
+EDNS Client Subnet (ECS) configuration parameters:
 
 | Parameter          | Type | Mandatory | Default value | Description                                                                   |
 |--------------------|------|-----------|---------------|-------------------------------------------------------------------------------|
