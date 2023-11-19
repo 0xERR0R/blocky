@@ -58,7 +58,10 @@ func GetEdns0Option[T EDNS0Option](msg *dns.Msg) T {
 	opt := GetEdns0Record(msg)
 	for _, o := range opt.Option {
 		if o.Option() == code {
-			return o.(T)
+			t, ok := o.(T)
+			if !ok {
+				panic(fmt.Errorf("dns option with code %d is not of type %T", code, t))
+			}
 		}
 	}
 
