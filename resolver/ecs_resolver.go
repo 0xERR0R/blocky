@@ -76,7 +76,7 @@ func (r *EcsResolver) setSubnet(request *model.Request) {
 		e.SourceNetmask = uint8(r.cfg.IPv4Mask)
 		e.Address = ip
 		util.SetEdns0Option(request.Req, e)
-	} else if request.ClientIP.To16() != nil && r.cfg.IPv6Mask > 0 {
+	} else if ip := request.ClientIP.To16(); ip != nil && r.cfg.IPv6Mask > 0 {
 		e.Family = ecsFamilyIPv6
 		e.SourceNetmask = uint8(r.cfg.IPv6Mask)
 		e.Address = ip
