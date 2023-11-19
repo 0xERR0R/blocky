@@ -56,8 +56,19 @@ var _ = Describe("CachingResolver", func() {
 	})
 
 	Describe("IsEnabled", func() {
-		It("is false", func() {
-			Expect(sut.IsEnabled()).Should(BeFalse())
+		It("is true", func() {
+			Expect(sut.IsEnabled()).Should(BeTrue())
+		})
+
+		When("max caching time is negative", func() {
+			BeforeEach(func() {
+				sutConfig = config.CachingConfig{
+					MaxCachingTime: config.Duration(time.Minute * -1),
+				}
+			})
+			It("is false", func() {
+				Expect(sut.IsEnabled()).Should(BeFalse())
+			})
 		})
 	})
 
