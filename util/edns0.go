@@ -127,7 +127,7 @@ func getCode[T EDNS0Option](msg *dns.Msg) uint16 {
 		return 0
 	}
 
-	ref := *new(T)
+	var t T
 
-	return ref.Option()
+	return t.Option()
 }
