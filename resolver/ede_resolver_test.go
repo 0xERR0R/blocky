@@ -83,16 +83,7 @@ var _ = Describe("EdeResolver", func() {
 		})
 
 		extractEdeOption := func(res *Response) dns.EDNS0_EDE {
-			opt := res.Res.IsEdns0()
-			if opt != nil {
-				for _, o := range opt.Option {
-					if o.Option() == dns.EDNS0EDE {
-						return *o.(*dns.EDNS0_EDE)
-					}
-				}
-			}
-
-			return dns.EDNS0_EDE{}
+			return utils.GetEdns0Option[dns.EDNS0_EDE](res.Res)
 		}
 
 		It("should add EDE information", func() {
