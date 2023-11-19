@@ -1,6 +1,7 @@
 package util
 
 import (
+	"fmt"
 	"slices"
 
 	"github.com/miekg/dns"
