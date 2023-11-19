@@ -323,7 +323,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 		Describe("Name", func() {
 			It("should contain correct resolver", func() {
 				Expect(sut.Name()).ShouldNot(BeEmpty())
-				Expect(sut.Name()).Should(ContainSubstring(parallelResolverType))
+				Expect(sut.Name()).Should(ContainSubstring(randomResolverType))
 			})
 		})
 
