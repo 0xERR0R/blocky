@@ -38,7 +38,16 @@ var _ = Describe("EDNS0 utils", func() {
 			Expect(baseMsg.IsEdns0()).Should(BeNil())
 		})
 
+		It("should do nothing if no extra record exists", func() {
+			Expect(RemoveEdns0Record(baseMsg)).Should(BeFalse())
+		})
+
 		It("should do nothing if OPT record is not present", func() {
+			baseTxt := new(dns.TXT)
+			baseTxt.Hdr.Name = "."
+			baseTxt.Hdr.Rrtype = dns.TypeTXT
+			baseMsg.Extra = append(baseMsg.Extra, baseTxt)
+
 			Expect(RemoveEdns0Record(baseMsg)).Should(BeFalse())
 		})
 
