@@ -80,21 +80,18 @@ func createUpstreamClient(cfg config.Upstream) upstreamClient {
 	case config.NetProtocolTcpTls:
 		return &dnsUpstreamClient{
 			tcpClient: &dns.Client{
-				TLSConfig:      &tlsConfig,
-				Net:            cfg.Net.String(),
-				SingleInflight: true,
+				TLSConfig: &tlsConfig,
+				Net:       cfg.Net.String(),
 			},
 		}
 
 	case config.NetProtocolTcpUdp:
 		return &dnsUpstreamClient{
 			tcpClient: &dns.Client{
-				Net:            "tcp",
-				SingleInflight: true,
+				Net: "tcp",
 			},
 			udpClient: &dns.Client{
-				Net:            "udp",
-				SingleInflight: true,
+				Net: "udp",
 			},
 		}
 
