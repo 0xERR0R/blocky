@@ -232,8 +232,8 @@ func setTTLInCachedResponse(resp *dns.Msg, ttl time.Duration) {
 	}
 }
 
-// shouldRequestNotUseCache returns true if the request should be cached
-func shouldRequestNotUseCache(request *model.Request) bool {
+// isRequestCacheable returns true if the request should be cached
+func isRequestCacheable(request *model.Request) bool {
 	// don't cache responses with EDNS Client Subnet option with masks that include more than one client
 	if so := util.GetEdns0Option[*dns.EDNS0_SUBNET](request.Req); so != nil {
 		if (so.Family == ecsFamilyIPv4 && so.SourceNetmask != ecsMaskIPv4) ||
