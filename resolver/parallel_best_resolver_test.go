@@ -19,6 +19,8 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 	const (
 		verifyUpstreams   = true
 		noVerifyUpstreams = false
+
+		timeout = 50 * time.Millisecond
 	)
 
 	var (
@@ -40,6 +42,10 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 	})
 
 	BeforeEach(func() {
+		old := config.GetConfig().Upstreams.Timeout
+		DeferCleanup(func() { config.GetConfig().Upstreams.Timeout = old })
+
+		config.GetConfig().Upstreams.Timeout = config.Duration(timeout)
 		config.GetConfig().Upstreams.Strategy = config.UpstreamStrategyParallelBest
 
 		ctx, cancelFn = context.WithCancel(context.Background())
@@ -58,7 +64,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 			Upstreams: upstreams,
 		}
 
-		sut, err = NewParallelBestResolver(sutConfig, bootstrap, sutVerify)
+		sut, err = NewParallelBestResolver(ctx, sutConfig, bootstrap, sutVerify)
 	})
 
 	Describe("IsEnabled", func() {
@@ -98,7 +104,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 				mockUpstream.Start(),
 			}
 
-			_, err := NewParallelBestResolver(config.UpstreamGroup{
+			_, err := NewParallelBestResolver(ctx, config.UpstreamGroup{
 				Name:      upstreamDefaultCfgName,
 				Upstreams: upstreams,
 			},
@@ -133,6 +139,43 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 		})
 	})
 
+	When("upstream is too slow", func() {
+		BeforeEach(func() {
+			timeoutUpstream := NewMockUDPUpstreamServer().
+				WithAnswerRR("example.com 123 IN A 123.124.122.1").
+				WithDelay(2 * timeout)
+			DeferCleanup(timeoutUpstream.Close)
+
+			upstreams = []config.Upstream{timeoutUpstream.Start()}
+		})
+
+		When("strict checking is enabled", func() {
+			BeforeEach(func() {
+				sutVerify = verifyUpstreams
+			})
+			It("should fail to start", func() {
+				Expect(err).Should(HaveOccurred())
+			})
+		})
+
+		When("strict checking is disabled", func() {
+			BeforeEach(func() {
+				sutVerify = noVerifyUpstreams
+			})
+			It("should start", func() {
+				Expect(err).Should(Succeed())
+			})
+			It("should not resolve", func() {
+				Expect(err).Should(Succeed())
+
+				request := newRequest("example.com.", A)
+				_, err := sut.Resolve(ctx, request)
+				Expect(err).Should(HaveOccurred())
+				Expect(isTimeout(err)).Should(BeTrue())
+			})
+		})
+	})
+
 	Describe("Resolving result from fastest upstream resolver", func() {
 		When("2 Upstream resolvers are defined", func() {
 			When("one resolver is fast and another is slow", func() {
@@ -140,21 +183,16 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					fastTestUpstream := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
 					DeferCleanup(fastTestUpstream.Close)
 
-					slowTestUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
-						response, err := util.NewMsgWithAnswer("example.com.", 123, A, "123.124.122.123")
-						time.Sleep(50 * time.Millisecond)
-
-						Expect(err).Should(Succeed())
-
-						return response
-					})
+					slowTestUpstream := NewMockUDPUpstreamServer().
+						WithAnswerRR("example.com 123 IN A 123.124.122.123").
+						WithDelay(timeout / 2)
 					DeferCleanup(slowTestUpstream.Close)
 
 					upstreams = []config.Upstream{fastTestUpstream.Start(), slowTestUpstream.Start()}
 				})
 				It("Should use result from fastest one", func() {
 					request := newRequest("example.com.", A)
-					Expect(sut.Resolve(request)).
+					Expect(sut.Resolve(ctx, request)).
 						Should(
 							SatisfyAll(
 								BeDNSRecord("example.com.", A, "123.124.122.122"),
@@ -167,21 +205,16 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 			When("one resolver is slow, but another returns an error", func() {
 				var slowTestUpstream *MockUDPUpstreamServer
 				BeforeEach(func() {
-					slowTestUpstream = NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
-						response, err := util.NewMsgWithAnswer("example.com.", 123, A, "123.124.122.123")
-						time.Sleep(50 * time.Millisecond)
-
-						Expect(err).Should(Succeed())
-
-						return response
-					})
+					slowTestUpstream = NewMockUDPUpstreamServer().
+						WithAnswerRR("example.com 123 IN A 123.124.122.123").
+						WithDelay(timeout / 2)
 					DeferCleanup(slowTestUpstream.Close)
 					upstreams = []config.Upstream{{Host: "wrong"}, slowTestUpstream.Start()}
 					Expect(err).Should(Succeed())
 				})
 				It("Should use result from successful resolver", func() {
 					request := newRequest("example.com.", A)
-					Expect(sut.Resolve(request)).
+					Expect(sut.Resolve(ctx, request)).
 						Should(
 							SatisfyAll(
 								BeDNSRecord("example.com.", A, "123.124.122.123"),
@@ -202,7 +235,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 				It("Should return error", func() {
 					Expect(err).Should(Succeed())
 					request := newRequest("example.com.", A)
-					_, err = sut.Resolve(request)
+					_, err = sut.Resolve(ctx, request)
 
 					Expect(err).Should(HaveOccurred())
 				})
@@ -218,7 +251,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 			It("Should use result from defined resolver", func() {
 				request := newRequest("example.com.", A)
 
-				Expect(sut.Resolve(request)).
+				Expect(sut.Resolve(ctx, request)).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("example.com.", A, "123.124.122.122"),
@@ -242,7 +275,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 				mockUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
 				DeferCleanup(mockUpstream2.Close)
 
-				sut, _ = NewParallelBestResolver(config.UpstreamGroup{
+				sut, _ = NewParallelBestResolver(ctx, config.UpstreamGroup{
 					Name:      upstreamDefaultCfgName,
 					Upstreams: []config.Upstream{withError1, mockUpstream1.Start(), mockUpstream2.Start(), withError2},
 				},
@@ -268,7 +301,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 				By("perform 100 request, error upstream's weight will be reduced", func() {
 					for i := 0; i < 100; i++ {
 						request := newRequest("example.com.", A)
-						_, _ = sut.Resolve(request)
+						_, _ = sut.Resolve(ctx, request)
 					}
 				})
 
@@ -302,7 +335,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 		It("errors during construction", func() {
 			b := newTestBootstrap(ctx, &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
-			r, err := NewParallelBestResolver(config.UpstreamGroup{
+			r, err := NewParallelBestResolver(ctx, config.UpstreamGroup{
 				Name:      "test",
 				Upstreams: []config.Upstream{{Host: "example.com"}},
 			}, b, verifyUpstreams)
@@ -313,11 +346,8 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 	})
 
 	Describe("random resolver strategy", func() {
-		const timeout = config.Duration(time.Second)
-
 		BeforeEach(func() {
 			config.GetConfig().Upstreams.Strategy = config.UpstreamStrategyRandom
-			config.GetConfig().Upstreams.Timeout = timeout
 		})
 
 		Describe("Name", func() {
@@ -342,7 +372,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 						})
 						It("Should return result from either one", func() {
 							request := newRequest("example.com.", A)
-							Expect(sut.Resolve(request)).
+							Expect(sut.Resolve(ctx, request)).
 								Should(SatisfyAll(
 									HaveTTL(BeNumerically("==", 123)),
 									HaveResponseType(ResponseTypeRESOLVED),
@@ -356,24 +386,19 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					})
 					When("one upstream exceeds timeout", func() {
 						BeforeEach(func() {
-							testUpstream1 := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
-								response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.1")
-								time.Sleep(time.Duration(timeout) + 2*time.Second)
-
-								Expect(err).To(Succeed())
-
-								return response
-							})
-							DeferCleanup(testUpstream1.Close)
+							timeoutUpstream := NewMockUDPUpstreamServer().
+								WithAnswerRR("example.com 123 IN A 123.124.122.1").
+								WithDelay(2 * timeout)
+							DeferCleanup(timeoutUpstream.Close)
 
 							testUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.2")
 							DeferCleanup(testUpstream2.Close)
 
-							upstreams = []config.Upstream{testUpstream1.Start(), testUpstream2.Start()}
+							upstreams = []config.Upstream{timeoutUpstream.Start(), testUpstream2.Start()}
 						})
-						It("should ask a other random upstream and return its response", func() {
+						It("should ask another random upstream and return its response", func() {
 							request := newRequest("example.com", A)
-							Expect(sut.Resolve(request)).Should(
+							Expect(sut.Resolve(ctx, request)).Should(
 								SatisfyAll(
 									BeDNSRecord("example.com.", A, "123.124.122.2"),
 									HaveTTL(BeNumerically("==", 123)),
@@ -382,57 +407,25 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 								))
 						})
 					})
-					When("two upstreams exceed timeout", func() {
+					When("all upstreams exceed timeout", func() {
 						BeforeEach(func() {
-							testUpstream1 := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
-								response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.1")
-								time.Sleep(timeout.ToDuration() + 2*time.Second)
-
-								Expect(err).To(Succeed())
-
-								return response
-							})
+							testUpstream1 := NewMockUDPUpstreamServer().
+								WithAnswerRR("example.com 123 IN A 123.124.122.1").
+								WithDelay(2 * timeout)
 							DeferCleanup(testUpstream1.Close)
 
-							testUpstream2 := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
-								response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.2")
-								time.Sleep(timeout.ToDuration() + 2*time.Second)
-
-								Expect(err).To(Succeed())
-
-								return response
-							})
+							testUpstream2 := NewMockUDPUpstreamServer().
+								WithAnswerRR("example.com 123 IN A 123.124.122.2").
+								WithDelay(2 * timeout)
 							DeferCleanup(testUpstream2.Close)
 
-							testUpstream3 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.3")
-							DeferCleanup(testUpstream3.Close)
-
-							upstreams = []config.Upstream{testUpstream1.Start(), testUpstream2.Start(), testUpstream3.Start()}
+							upstreams = []config.Upstream{testUpstream1.Start(), testUpstream2.Start()}
 						})
-						// These two tests are flaky -_- (maybe recreate the RandomResolver )
-						It("should not return error (due to random selection the request could to through)", func() {
-							Eventually(func() error {
-								request := newRequest("example.com", A)
-								_, err := sut.Resolve(request)
-
-								return err
-							}).WithTimeout(30 * time.Second).
-								Should(Not(HaveOccurred()))
-						})
-						It("should return error (because it can be possible that the two broken upstreams are chosen)", func() {
-							Eventually(func() error {
-								sutConfig := config.UpstreamGroup{
-									Name:      upstreamDefaultCfgName,
-									Upstreams: upstreams,
-								}
-								sut, err = NewParallelBestResolver(sutConfig, bootstrap, sutVerify)
-
-								request := newRequest("example.com", A)
-								_, err := sut.Resolve(request)
-
-								return err
-							}).WithTimeout(30 * time.Second).
-								Should(HaveOccurred())
+						It("Should return error", func() {
+							request := newRequest("example.com.", A)
+							_, err := sut.Resolve(ctx, request)
+							Expect(err).Should(HaveOccurred())
+							Expect(isTimeout(err)).Should(BeTrue())
 						})
 					})
 				})
@@ -446,7 +439,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					})
 					It("Should return error", func() {
 						request := newRequest("example.com.", A)
-						_, err := sut.Resolve(request)
+						_, err := sut.Resolve(ctx, request)
 						Expect(err).Should(HaveOccurred())
 					})
 				})
@@ -461,7 +454,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 				It("Should use result from defined resolver", func() {
 					request := newRequest("example.com.", A)
 
-					Expect(sut.Resolve(request)).
+					Expect(sut.Resolve(ctx, request)).
 						Should(
 							SatisfyAll(
 								BeDNSRecord("example.com.", A, "123.124.122.122"),
@@ -485,7 +478,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					mockUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
 					DeferCleanup(mockUpstream2.Close)
 
-					sut, _ = NewParallelBestResolver(config.UpstreamGroup{
+					sut, _ = NewParallelBestResolver(ctx, config.UpstreamGroup{
 						Name:      upstreamDefaultCfgName,
 						Upstreams: []config.Upstream{withError1, mockUpstream1.Start(), mockUpstream2.Start(), withError2},
 					},
@@ -506,7 +499,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					By("perform 100 request, error upstream's weight will be reduced", func() {
 						for i := 0; i < 100; i++ {
 							request := newRequest("example.com.", A)
-							_, _ = sut.Resolve(request)
+							_, _ = sut.Resolve(ctx, request)
 						}
 					})
 

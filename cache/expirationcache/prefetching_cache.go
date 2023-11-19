@@ -25,11 +25,11 @@ type cacheValue[T any] struct {
 type OnEntryReloadedCallback func(key string)
 
 // ReloadEntryFn reloads a prefetched entry by key
-type ReloadEntryFn[T any] func(key string) (*T, time.Duration)
+type ReloadEntryFn[T any] func(ctx context.Context, key string) (*T, time.Duration)
 
 type PrefetchingOptions[T any] struct {
 	Options
-	ReloadFn                func(cacheKey string) (*T, time.Duration)
+	ReloadFn                ReloadEntryFn[T]
 	PrefetchThreshold       int
 	PrefetchExpires         time.Duration
 	PrefetchMaxItemsCount   int
@@ -70,9 +70,11 @@ func (e *PrefetchingExpiringLRUCache[T]) shouldPrefetch(cacheKey string) bool {
 	return cnt != nil && int64(cnt.Load()) > int64(e.prefetchThreshold)
 }
 
-func (e *PrefetchingExpiringLRUCache[T]) onExpired(cacheKey string) (val *cacheValue[T], ttl time.Duration) {
+func (e *PrefetchingExpiringLRUCache[T]) onExpired(
+	ctx context.Context, cacheKey string,
+) (val *cacheValue[T], ttl time.Duration) {
 	if e.shouldPrefetch(cacheKey) {
-		loadedVal, ttl := e.reloadFn(cacheKey)
+		loadedVal, ttl := e.reloadFn(ctx, cacheKey)
 		if loadedVal != nil {
 			if e.onPrefetchEntryReloaded != nil {
 				e.onPrefetchEntryReloaded(cacheKey)

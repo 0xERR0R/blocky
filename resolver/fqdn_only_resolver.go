@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
@@ -22,7 +23,7 @@ func NewFQDNOnlyResolver(cfg config.FQDNOnly) *FQDNOnlyResolver {
 	}
 }
 
-func (r *FQDNOnlyResolver) Resolve(request *model.Request) (*model.Response, error) {
+func (r *FQDNOnlyResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	if r.IsEnabled() {
 		domainFromQuestion := util.ExtractDomain(request.Req.Question[0])
 		if !strings.Contains(domainFromQuestion, ".") {
@@ -33,5 +34,5 @@ func (r *FQDNOnlyResolver) Resolve(request *model.Request) (*model.Response, err
 		}
 	}
 
-	return r.next.Resolve(request)
+	return r.next.Resolve(ctx, request)
 }

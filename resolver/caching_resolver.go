@@ -59,7 +59,7 @@ func newCachingResolver(ctx context.Context,
 	configureCaches(ctx, c, &cfg)
 
 	if c.redisClient != nil {
-		setupRedisCacheSubscriber(ctx, c)
+		go c.redisSubscriber(ctx)
 		c.redisClient.GetRedisCache()
 	}
 
@@ -105,14 +105,14 @@ func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Cachin
 	}
 }
 
-func (r *CachingResolver) reloadCacheEntry(cacheKey string) (*[]byte, time.Duration) {
+func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string) (*[]byte, time.Duration) {
 	qType, domainName := util.ExtractCacheKey(cacheKey)
 	logger := r.log()
 
 	logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), qType)
 
 	req := newRequest(dns.Fqdn(domainName), qType, logger)
-	response, err := r.next.Resolve(req)
+	response, err := r.next.Resolve(ctx, req)
 
 	if err == nil {
 		if response.Res.Rcode == dns.RcodeSuccess {
@@ -132,22 +132,20 @@ func (r *CachingResolver) reloadCacheEntry(cacheKey string) (*[]byte, time.Durat
 	return nil, 0
 }
 
-func setupRedisCacheSubscriber(ctx context.Context, c *CachingResolver) {
-	go func() {
-		for {
-			select {
-			case rc := <-c.redisClient.CacheChannel:
-				if rc != nil {
-					c.log().Debug("Received key from redis: ", rc.Key)
-					ttl := c.adjustTTLs(rc.Response.Res.Answer)
-					c.putInCache(rc.Key, rc.Response, ttl, false)
-				}
-
-			case <-ctx.Done():
-				return
+func (r *CachingResolver) redisSubscriber(ctx context.Context) {
+	for {
+		select {
+		case rc := <-r.redisClient.CacheChannel:
+			if rc != nil {
+				r.log().Debug("Received key from redis: ", rc.Key)
+				ttl := r.adjustTTLs(rc.Response.Res.Answer)
+				r.putInCache(rc.Key, rc.Response, ttl, false)
 			}
+
+		case <-ctx.Done():
+			return
 		}
-	}()
+	}
 }
 
 // LogConfig implements `config.Configurable`.
@@ -159,13 +157,13 @@ func (r *CachingResolver) LogConfig(logger *logrus.Entry) {
 
 // Resolve checks if the current query should use the cache and if the result is already in
 // the cache and returns it or delegates to the next resolver
-func (r *CachingResolver) Resolve(request *model.Request) (response *model.Response, err error) {
+func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (response *model.Response, err error) {
 	logger := log.WithPrefix(request.Log, "caching_resolver")
 
 	if !r.IsEnabled() || !isRequestCacheable(request) {
 		logger.Debug("skip cache")
 
-		return r.next.Resolve(request)
+		return r.next.Resolve(ctx, request)
 	}
 
 	for _, question := range request.Req.Question {
@@ -191,7 +189,7 @@ func (r *CachingResolver) Resolve(request *model.Request) (response *model.Respo
 		}
 
 		logger.WithField("next_resolver", Name(r.next)).Trace("not in cache: go to next resolver")
-		response, err = r.next.Resolve(request)
+		response, err = r.next.Resolve(ctx, request)
 
 		if err == nil {
 			cacheTTL := r.adjustTTLs(response.Res.Answer)
@@ -319,7 +317,7 @@ func (r *CachingResolver) publishMetricsIfEnabled(event string, val interface{})
 	}
 }
 
-func (r *CachingResolver) FlushCaches() {
+func (r *CachingResolver) FlushCaches(context.Context) {
 	r.log().Debug("flush caches")
 	r.resultCache.Clear()
 }

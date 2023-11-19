@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/0xERR0R/blocky/config"
@@ -19,6 +20,9 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 		sut       *SpecialUseDomainNamesResolver
 		sutConfig config.SUDN
 		m         *mockResolver
+
+		ctx      context.Context
+		cancelFn context.CancelFunc
 	)
 
 	Describe("Type", func() {
@@ -29,6 +33,9 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 
 	BeforeEach(func() {
 		var err error
+
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
 
 		sutConfig, err = config.WithDefaults[config.SUDN]()
 		Expect(err).Should(Succeed())
@@ -48,7 +55,7 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 	Describe("handlers", func() {
 		It("should have correct response type", func() {
 			for domain, handler := range sudnHandlers {
-				resp, err := sut.Resolve(newRequest(domain, A))
+				resp, err := sut.Resolve(ctx, newRequest(domain, A))
 				Expect(err).Should(Succeed())
 
 				if handler == nil {
@@ -90,7 +97,7 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 
 		DescribeTable("handled domains",
 			func(qType dns.Type, qName string, expectedRCode int, extraMatchers ...types.GomegaMatcher) {
-				resp, err := sut.Resolve(newRequest(qName, qType))
+				resp, err := sut.Resolve(ctx, newRequest(qName, qType))
 				Expect(err).Should(Succeed())
 				Expect(resp).Should(SatisfyAll(
 					HaveResponseType(ResponseTypeSPECIAL),
@@ -133,7 +140,7 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 
 			DescribeTable("",
 				func(qType dns.Type, qName string, expectedRCode int) {
-					resp, err := sut.Resolve(newRequest(qName, qType))
+					resp, err := sut.Resolve(ctx, newRequest(qName, qType))
 					Expect(err).Should(Succeed())
 					Expect(resp).Should(HaveReturnCode(expectedRCode))
 					Expect(resp).ShouldNot(HaveResponseType(ResponseTypeSPECIAL))
@@ -150,7 +157,7 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 		})
 
 		It("should forward example.com", func() {
-			Expect(sut.Resolve(newRequest("example.com", A))).
+			Expect(sut.Resolve(ctx, newRequest("example.com", A))).
 				Should(
 					SatisfyAll(
 						BeDNSRecord("example.com.", A, "123.145.123.145"),
@@ -161,7 +168,7 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 		})
 
 		It("should forward home.arpa. IN DS", func() {
-			Expect(sut.Resolve(newRequest("something.home.arpa.", DS))).
+			Expect(sut.Resolve(ctx, newRequest("something.home.arpa.", DS))).
 				Should(
 					SatisfyAll(
 						// setup code doesn't care about the question
@@ -173,7 +180,7 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 		})
 
 		It("should forward non special use domains", func() {
-			resp, err := sut.Resolve(newRequest("something.not-special.", AAAA))
+			resp, err := sut.Resolve(ctx, newRequest("something.not-special.", AAAA))
 			Expect(err).Should(Succeed())
 			Expect(resp).ShouldNot(HaveResponseType(ResponseTypeSPECIAL))
 		})

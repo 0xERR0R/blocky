@@ -30,11 +30,11 @@ type StrictResolver struct {
 
 // NewStrictResolver creates a new strict resolver instance
 func NewStrictResolver(
-	cfg config.UpstreamGroup, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
+	ctx context.Context, cfg config.UpstreamGroup, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
 ) (*StrictResolver, error) {
 	logger := log.PrefixedLog(strictResolverType)
 
-	resolvers, err := createResolvers(logger, cfg, bootstrap, shouldVerifyUpstreams)
+	resolvers, err := createResolvers(ctx, logger, cfg, bootstrap, shouldVerifyUpstreams)
 	if err != nil {
 		return nil, err
 	}
@@ -76,44 +76,27 @@ func (r *StrictResolver) String() string {
 }
 
 // Resolve sends the query request in a strict order to the upstream resolvers
-func (r *StrictResolver) Resolve(request *model.Request) (*model.Response, error) {
+func (r *StrictResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	logger := log.WithPrefix(request.Log, strictResolverType)
 
 	// start with first resolver
-	for i := range r.resolvers {
-		timeout := config.GetConfig().Upstreams.Timeout.ToDuration()
-
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-
-		resolver := r.resolvers[i]
+	for _, resolver := range r.resolvers {
 		logger.Debugf("using %s as resolver", resolver.resolver)
 
-		ch := make(chan requestResponse, 1)
-
-		go resolver.resolve(request, ch)
-
-		select {
-		case <-ctx.Done():
-			// log debug/info that timeout exceeded, call `continue` to try next upstream
-			logger.WithField("resolver", r.resolvers[i].resolver).Debug("upstream exceeded timeout, trying next upstream")
+		resp, err := resolver.resolve(ctx, request)
+		if err != nil {
+			// log error and try next upstream
+			logger.WithField("resolver", resolver.resolver).Debug("resolution failed from resolver, cause: ", err)
 
 			continue
-		case result := <-ch:
-			if result.err != nil {
-				// log error & call `continue` to try next upstream
-				logger.Debug("resolution failed from resolver, cause: ", result.err)
-
-				continue
-			}
-
-			logger.WithFields(logrus.Fields{
-				"resolver": *result.resolver,
-				"answer":   util.AnswerToString(result.response.Res.Answer),
-			}).Debug("using response from resolver")
-
-			return result.response, nil
 		}
+
+		logger.WithFields(logrus.Fields{
+			"resolver": *resolver,
+			"answer":   util.AnswerToString(resp.Res.Answer),
+		}).Debug("using response from resolver")
+
+		return resp, nil
 	}
 
 	return nil, errors.New("resolution was not successful, no resolver returned an answer in time")

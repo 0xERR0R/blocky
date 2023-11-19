@@ -4,6 +4,7 @@ import (
 	"net"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/util"
@@ -58,6 +59,21 @@ func (t *MockUDPUpstreamServer) WithAnswerError(errorCode int) *MockUDPUpstreamS
 
 func (t *MockUDPUpstreamServer) WithAnswerFn(fn func(request *dns.Msg) (response *dns.Msg)) *MockUDPUpstreamServer {
 	t.answerFn = fn
+
+	return t
+}
+
+func (t *MockUDPUpstreamServer) WithDelay(delay time.Duration) *MockUDPUpstreamServer {
+	answerFn := t.answerFn
+	if answerFn == nil {
+		panic("WithDelay must be called after a WithAnswer function")
+	}
+
+	t.answerFn = func(request *dns.Msg) *dns.Msg {
+		time.Sleep(delay)
+
+		return answerFn(request)
+	}
 
 	return t
 }

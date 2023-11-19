@@ -32,7 +32,7 @@ func NewClientNamesResolver(ctx context.Context,
 ) (cr *ClientNamesResolver, err error) {
 	var r Resolver
 	if !cfg.Upstream.IsDefault() {
-		r, err = NewUpstreamResolver(cfg.Upstream, bootstrap, shouldVerifyUpstreams)
+		r, err = NewUpstreamResolver(ctx, cfg.Upstream, bootstrap, shouldVerifyUpstreams)
 		if err != nil {
 			return nil, err
 		}
@@ -59,17 +59,17 @@ func (r *ClientNamesResolver) LogConfig(logger *logrus.Entry) {
 }
 
 // Resolve tries to resolve the client name from the ip address
-func (r *ClientNamesResolver) Resolve(request *model.Request) (*model.Response, error) {
-	clientNames := r.getClientNames(request)
+func (r *ClientNamesResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
+	clientNames := r.getClientNames(ctx, request)
 
 	request.ClientNames = clientNames
 	request.Log = request.Log.WithField("client_names", strings.Join(clientNames, "; "))
 
-	return r.next.Resolve(request)
+	return r.next.Resolve(ctx, request)
 }
 
 // returns names of client
-func (r *ClientNamesResolver) getClientNames(request *model.Request) []string {
+func (r *ClientNamesResolver) getClientNames(ctx context.Context, request *model.Request) []string {
 	if request.RequestClientID != "" {
 		return []string{request.RequestClientID}
 	}
@@ -88,7 +88,7 @@ func (r *ClientNamesResolver) getClientNames(request *model.Request) []string {
 		return cpy
 	}
 
-	names := r.resolveClientNames(ip, log.WithPrefix(request.Log, "client_names_resolver"))
+	names := r.resolveClientNames(ctx, ip, log.WithPrefix(request.Log, "client_names_resolver"))
 
 	r.cache.Put(ip.String(), &names, time.Hour)
 
@@ -111,7 +111,9 @@ func extractClientNamesFromAnswer(answer []dns.RR, fallbackIP net.IP) (clientNam
 }
 
 // tries to resolve client name from mapping, performs reverse DNS lookup otherwise
-func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry) (result []string) {
+func (r *ClientNamesResolver) resolveClientNames(
+	ctx context.Context, ip net.IP, logger *logrus.Entry,
+) (result []string) {
 	// try client mapping first
 	result = r.getNameFromIPMapping(ip, result)
 	if len(result) > 0 {
@@ -124,7 +126,7 @@ func (r *ClientNamesResolver) resolveClientNames(ip net.IP, logger *logrus.Entry
 
 	reverse, _ := dns.ReverseAddr(ip.String())
 
-	resp, err := r.externalResolver.Resolve(&model.Request{
+	resp, err := r.externalResolver.Resolve(ctx, &model.Request{
 		Req: util.NewMsgWithQuestion(reverse, dns.Type(dns.TypePTR)),
 		Log: logger,
 	})

@@ -19,6 +19,9 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 	var (
 		sut *ConditionalUpstreamResolver
 		m   *mockResolver
+
+		ctx      context.Context
+		cancelFn context.CancelFunc
 	)
 
 	Describe("Type", func() {
@@ -28,6 +31,9 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 	})
 
 	BeforeEach(func() {
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+
 		fbTestUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 			response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 123, A, "123.124.122.122")
 
@@ -59,7 +65,7 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 		})
 		DeferCleanup(refuseTestUpstream.Close)
 
-		sut, _ = NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{
+		sut, _ = NewConditionalUpstreamResolver(ctx, config.ConditionalUpstreamConfig{
 			Mapping: config.ConditionalUpstreamMapping{
 				Upstreams: map[string][]config.Upstream{
 					"fritz.box":      {fbTestUpstream.Start()},
@@ -93,7 +99,7 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 	Describe("Resolve conditional DNS queries via defined DNS server", func() {
 		When("conditional resolver returns error code", func() {
 			It("Should be returned without changes", func() {
-				Expect(sut.Resolve(newRequest("refused.domain.", A))).
+				Expect(sut.Resolve(ctx, newRequest("refused.domain.", A))).
 					Should(
 						SatisfyAll(
 							HaveNoAnswer(),
@@ -109,7 +115,7 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 		When("Query is exact equal defined condition in mapping", func() {
 			Context("first mapping entry", func() {
 				It("Should resolve the IP of conditional DNS", func() {
-					Expect(sut.Resolve(newRequest("fritz.box.", A))).
+					Expect(sut.Resolve(ctx, newRequest("fritz.box.", A))).
 						Should(
 							SatisfyAll(
 								BeDNSRecord("fritz.box.", A, "123.124.122.122"),
@@ -125,7 +131,7 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 			})
 			Context("last mapping entry", func() {
 				It("Should resolve the IP of conditional DNS", func() {
-					Expect(sut.Resolve(newRequest("other.box.", A))).
+					Expect(sut.Resolve(ctx, newRequest("other.box.", A))).
 						Should(
 							SatisfyAll(
 								BeDNSRecord("other.box.", A, "192.192.192.192"),
@@ -141,7 +147,7 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 		})
 		When("Query is a subdomain of defined condition in mapping", func() {
 			It("Should resolve the IP of subdomain", func() {
-				Expect(sut.Resolve(newRequest("test.fritz.box.", A))).
+				Expect(sut.Resolve(ctx, newRequest("test.fritz.box.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("test.fritz.box.", A, "123.124.122.122"),
@@ -156,7 +162,7 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 		})
 		When("Query is not fqdn and . condition is defined in mapping", func() {
 			It("Should resolve the IP of .", func() {
-				Expect(sut.Resolve(newRequest("test.", A))).
+				Expect(sut.Resolve(ctx, newRequest("test.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("test.", A, "168.168.168.168"),
@@ -173,7 +179,7 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 	Describe("Delegation to next resolver", func() {
 		When("Query doesn't match defined mapping", func() {
 			It("should delegate to next resolver", func() {
-				Expect(sut.Resolve(newRequest("google.com.", A))).
+				Expect(sut.Resolve(ctx, newRequest("google.com.", A))).
 					Should(
 						SatisfyAll(
 							HaveResponseType(ResponseTypeRESOLVED),
@@ -186,11 +192,9 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 
 	When("upstream is invalid", func() {
 		It("errors during construction", func() {
-			ctx, cancelFn := context.WithCancel(context.Background())
-			DeferCleanup(cancelFn)
 			b := newTestBootstrap(ctx, &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
-			r, err := NewConditionalUpstreamResolver(config.ConditionalUpstreamConfig{
+			r, err := NewConditionalUpstreamResolver(ctx, config.ConditionalUpstreamConfig{
 				Mapping: config.ConditionalUpstreamMapping{
 					Upstreams: map[string][]config.Upstream{
 						".": {config.Upstream{Host: "example.com"}},

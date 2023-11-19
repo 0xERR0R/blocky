@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"context"
+
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
@@ -139,7 +141,15 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 		})
 
 		When("client specific resolvers are defined", func() {
+			var (
+				ctx      context.Context
+				cancelFn context.CancelFunc
+			)
+
 			BeforeEach(func() {
+				ctx, cancelFn = context.WithCancel(context.Background())
+				DeferCleanup(cancelFn)
+
 				sutConfig = config.UpstreamsConfig{Groups: config.UpstreamGroups{
 					upstreamDefaultCfgName: {config.Upstream{}},
 					"laptop":               {config.Upstream{}},
@@ -191,7 +201,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 			It("Should use default if client name or IP don't match", func() {
 				request := newRequestWithClient("example.com.", A, "192.168.178.55", "test")
 
-				Expect(sut.Resolve(request)).
+				Expect(sut.Resolve(ctx, request)).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("example.com.", A, "default"),
@@ -202,7 +212,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 			It("Should use client specific resolver if client name matches exact", func() {
 				request := newRequestWithClient("example.com.", A, "192.168.178.55", "laptop")
 
-				Expect(sut.Resolve(request)).
+				Expect(sut.Resolve(ctx, request)).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("example.com.", A, "laptop"),
@@ -213,7 +223,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 			It("Should use client specific resolver if client name matches with wildcard", func() {
 				request := newRequestWithClient("example.com.", A, "192.168.178.55", "client-test-m")
 
-				Expect(sut.Resolve(request)).
+				Expect(sut.Resolve(ctx, request)).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("example.com.", A, "client-*-m"),
@@ -224,7 +234,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 			It("Should use client specific resolver if client name matches with range wildcard", func() {
 				request := newRequestWithClient("example.com.", A, "192.168.178.55", "client7")
 
-				Expect(sut.Resolve(request)).
+				Expect(sut.Resolve(ctx, request)).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("example.com.", A, "client[0-9]"),
@@ -235,7 +245,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 			It("Should use client specific resolver if client IP matches", func() {
 				request := newRequestWithClient("example.com.", A, "192.168.178.33", "noname")
 
-				Expect(sut.Resolve(request)).
+				Expect(sut.Resolve(ctx, request)).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("example.com.", A, "192.168.178.33"),
@@ -246,7 +256,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 			It("Should use client specific resolver if client name (containing IP) matches", func() {
 				request := newRequestWithClient("example.com.", A, "0.0.0.0", "192.168.178.33")
 
-				Expect(sut.Resolve(request)).
+				Expect(sut.Resolve(ctx, request)).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("example.com.", A, "192.168.178.33"),
@@ -257,7 +267,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 			It("Should use client specific resolver if client's CIDR (10.43.8.64 - 10.43.8.79) matches", func() {
 				request := newRequestWithClient("example.com.", A, "10.43.8.70", "noname")
 
-				Expect(sut.Resolve(request)).
+				Expect(sut.Resolve(ctx, request)).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("example.com.", A, "10.43.8.67/28"),
@@ -268,7 +278,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 			It("Should use exact IP match before client name match", func() {
 				request := newRequestWithClient("example.com.", A, "192.168.178.33", "laptop")
 
-				Expect(sut.Resolve(request)).
+				Expect(sut.Resolve(ctx, request)).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("example.com.", A, "192.168.178.33"),
@@ -279,7 +289,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 			It("Should use client name match before CIDR match", func() {
 				request := newRequestWithClient("example.com.", A, "10.43.8.70", "laptop")
 
-				Expect(sut.Resolve(request)).
+				Expect(sut.Resolve(ctx, request)).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("example.com.", A, "laptop"),
@@ -293,7 +303,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 				request := newRequestWithClient("example.com.", A, "0.0.0.0", "name-matches1")
 				request.Log = logger
 
-				Expect(sut.Resolve(request)).
+				Expect(sut.Resolve(ctx, request)).
 					Should(
 						SatisfyAll(
 							SatisfyAny(

@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"time"
@@ -74,7 +75,7 @@ type Resolver interface {
 	Type() string
 
 	// Resolve performs resolution of a DNS request
-	Resolve(req *model.Request) (*model.Response, error)
+	Resolve(ctx context.Context, req *model.Request) (*model.Response, error)
 }
 
 // ChainedResolver represents a resolver, which can delegate result to the next one
@@ -216,13 +217,14 @@ func (c *configurable[T]) LogConfig(logger *logrus.Entry) {
 }
 
 func createResolvers(
-	logger *logrus.Entry, cfg config.UpstreamGroup, bootstrap *Bootstrap, shoudVerifyUpstreams bool,
+	ctx context.Context, logger *logrus.Entry,
+	cfg config.UpstreamGroup, bootstrap *Bootstrap, shoudVerifyUpstreams bool,
 ) ([]Resolver, error) {
 	resolvers := make([]Resolver, 0, len(cfg.Upstreams))
 	hasValidResolvers := false
 
 	for _, u := range cfg.Upstreams {
-		resolver, err := NewUpstreamResolver(u, bootstrap, shoudVerifyUpstreams)
+		resolver, err := NewUpstreamResolver(ctx, u, bootstrap, shoudVerifyUpstreams)
 		if err != nil {
 			logger.Warnf("upstream group %s: %v", cfg.Name, err)
 
@@ -230,7 +232,7 @@ func createResolvers(
 		}
 
 		if shoudVerifyUpstreams {
-			err = testResolver(resolver)
+			err = testResolver(ctx, resolver)
 			if err != nil {
 				logger.Warn(err)
 			} else {

@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -64,7 +65,7 @@ func (r *UpstreamTreeResolver) String() string {
 	return fmt.Sprintf("%s upstreams %q", upstreamTreeResolverType, strings.Join(result, ", "))
 }
 
-func (r *UpstreamTreeResolver) Resolve(request *model.Request) (*model.Response, error) {
+func (r *UpstreamTreeResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	logger := log.WithPrefix(request.Log, upstreamTreeResolverType)
 
 	group := r.upstreamGroupByClient(request)
@@ -72,7 +73,7 @@ func (r *UpstreamTreeResolver) Resolve(request *model.Request) (*model.Response,
 	// delegate request to group resolver
 	logger.WithField("resolver", fmt.Sprintf("%s (%s)", group, r.branches[group].Type())).Debug("delegating to resolver")
 
-	return r.branches[group].Resolve(request)
+	return r.branches[group].Resolve(ctx, request)
 }
 
 func (r *UpstreamTreeResolver) upstreamGroupByClient(request *model.Request) string {

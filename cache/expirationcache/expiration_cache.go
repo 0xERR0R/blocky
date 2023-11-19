@@ -37,7 +37,7 @@ type Options struct {
 // OnExpirationCallback will be called just before an element gets expired and will
 // be removed from cache. This function can return new value and TTL to leave the
 // element in the cache or nil to remove it
-type OnExpirationCallback[T any] func(key string) (val *T, ttl time.Duration)
+type OnExpirationCallback[T any] func(ctx context.Context, key string) (val *T, ttl time.Duration)
 
 // OnCacheHitCallback will be called on cache get if entry was found
 type OnCacheHitCallback func(key string)
@@ -58,7 +58,7 @@ func NewCacheWithOnExpired[T any](ctx context.Context, options Options,
 	l, _ := lru.New(defaultSize)
 	c := &ExpiringLRUCache[T]{
 		cleanUpInterval: defaultCleanUpInterval,
-		preExpirationFn: func(key string) (val *T, ttl time.Duration) {
+		preExpirationFn: func(ctx context.Context, key string) (val *T, ttl time.Duration) {
 			return nil, 0
 		},
 		onCacheHit:  func(key string) {},
@@ -126,7 +126,7 @@ func (e *ExpiringLRUCache[T]) cleanUp() {
 		var keysToDelete []string
 
 		for _, key := range expiredKeys {
-			newVal, newTTL := e.preExpirationFn(key)
+			newVal, newTTL := e.preExpirationFn(context.Background(), key)
 			if newVal != nil {
 				e.Put(key, newVal, newTTL)
 			} else {

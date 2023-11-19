@@ -53,16 +53,22 @@ func newUpstreamResolverStatus(resolver Resolver) *upstreamResolverStatus {
 	return status
 }
 
-func (r *upstreamResolverStatus) resolve(req *model.Request, ch chan<- requestResponse) {
-	resp, err := r.resolver.Resolve(req)
+func (r *upstreamResolverStatus) resolve(ctx context.Context, req *model.Request) (*model.Response, error) {
+	resp, err := r.resolver.Resolve(ctx, req)
 	if err != nil {
 		// Ignore `Canceled`: resolver lost the race, not an error
 		if !errors.Is(err, context.Canceled) {
 			r.lastErrorTime.Store(time.Now())
 		}
 
-		err = fmt.Errorf("%s: %w", r.resolver, err)
+		return nil, fmt.Errorf("%s: %w", r.resolver, err)
 	}
+
+	return resp, nil
+}
+
+func (r *upstreamResolverStatus) resolveToChan(ctx context.Context, req *model.Request, ch chan<- requestResponse) {
+	resp, err := r.resolve(ctx, req)
 
 	ch <- requestResponse{
 		resolver: &r.resolver,
@@ -78,10 +84,10 @@ type requestResponse struct {
 }
 
 // testResolver sends a test query to verify the resolver is reachable and working
-func testResolver(r *UpstreamResolver) error {
+func testResolver(ctx context.Context, r *UpstreamResolver) error {
 	request := newRequest("github.com.", dns.Type(dns.TypeA))
 
-	resp, err := r.Resolve(request)
+	resp, err := r.Resolve(ctx, request)
 	if err != nil || resp.RType != model.ResponseTypeRESOLVED {
 		return fmt.Errorf("test resolve of upstream server failed: %w", err)
 	}
@@ -91,11 +97,11 @@ func testResolver(r *UpstreamResolver) error {
 
 // NewParallelBestResolver creates new resolver instance
 func NewParallelBestResolver(
-	cfg config.UpstreamGroup, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
+	ctx context.Context, cfg config.UpstreamGroup, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
 ) (*ParallelBestResolver, error) {
 	logger := log.PrefixedLog(parallelResolverType)
 
-	resolvers, err := createResolvers(logger, cfg, bootstrap, shouldVerifyUpstreams)
+	resolvers, err := createResolvers(ctx, logger, cfg, bootstrap, shouldVerifyUpstreams)
 	if err != nil {
 		return nil, err
 	}
@@ -150,26 +156,18 @@ func (r *ParallelBestResolver) String() string {
 }
 
 // Resolve sends the query request to multiple upstream resolvers and returns the fastest result
-func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response, error) {
+func (r *ParallelBestResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	logger := log.WithPrefix(request.Log, parallelResolverType)
 
 	if len(r.resolvers) == 1 {
-		logger.WithField("resolver", r.resolvers[0].resolver).Debug("delegating to resolver")
+		resolver := r.resolvers[0]
+		logger.WithField("resolver", resolver.resolver).Debug("delegating to resolver")
 
-		return r.resolvers[0].resolver.Resolve(request)
+		return resolver.resolve(ctx, request)
 	}
 
-	ctx := context.Background()
-
-	// using context with timeout for random upstream strategy
-	if r.resolverCount == 1 {
-		var cancel context.CancelFunc
-
-		timeout := config.GetConfig().Upstreams.Timeout
-
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout))
-		defer cancel()
-	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel() // abort requests to resolvers that lost the race
 
 	resolvers := pickRandom(r.resolvers, r.resolverCount)
 	ch := make(chan requestResponse, len(resolvers))
@@ -177,10 +175,10 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 	for _, resolver := range resolvers {
 		logger.WithField("resolver", resolver.resolver).Debug("delegating to resolver")
 
-		go resolver.resolve(request, ch)
+		go resolver.resolveToChan(ctx, request, ch)
 	}
 
-	response, collectedErrors := evaluateResponses(ctx, logger, ch, resolvers)
+	response, collectedErrors := evaluateResponses(logger, ch, resolvers)
 	if response != nil {
 		return response, nil
 	}
@@ -189,63 +187,51 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 		return nil, fmt.Errorf("resolution failed: %w", errors.Join(collectedErrors...))
 	}
 
-	return r.retryWithDifferent(logger, request, resolvers)
+	return r.retryWithDifferent(ctx, logger, request, resolvers)
 }
 
 func evaluateResponses(
-	ctx context.Context, logger *logrus.Entry, ch chan requestResponse, resolvers []*upstreamResolverStatus,
+	logger *logrus.Entry, ch chan requestResponse, resolvers []*upstreamResolverStatus,
 ) (*model.Response, []error) {
 	collectedErrors := make([]error, 0, len(resolvers))
 
 	for len(collectedErrors) < len(resolvers) {
-		select {
-		case <-ctx.Done():
-			// this context currently only has a deadline when resolverCount == 1
-			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				logger.WithField("resolver", resolvers[0].resolver).
-					Debug("upstream exceeded timeout, trying other upstream")
-				resolvers[0].lastErrorTime.Store(time.Now())
-			}
-		case result := <-ch:
-			if result.err != nil {
-				logger.Debug("resolution failed from resolver, cause: ", result.err)
-				collectedErrors = append(collectedErrors, fmt.Errorf("resolver: %q error: %w", *result.resolver, result.err))
-			} else {
-				logger.WithFields(logrus.Fields{
-					"resolver": *result.resolver,
-					"answer":   util.AnswerToString(result.response.Res.Answer),
-				}).Debug("using response from resolver")
+		result := <-ch
+		logger := logger.WithField("resolver", *result.resolver)
 
-				return result.response, nil
-			}
+		if result.err != nil {
+			logger.Debug("resolution failed from resolver, cause: ", result.err)
+			collectedErrors = append(collectedErrors, fmt.Errorf("resolver: %q error: %w", *result.resolver, result.err))
+
+			continue
 		}
+
+		logger.WithField("answer", util.AnswerToString(result.response.Res.Answer)).Debug("using response from resolver")
+
+		return result.response, nil
 	}
 
 	return nil, collectedErrors
 }
 
 func (r *ParallelBestResolver) retryWithDifferent(
-	logger *logrus.Entry, request *model.Request, resolvers []*upstreamResolverStatus,
+	ctx context.Context, logger *logrus.Entry, request *model.Request, resolvers []*upstreamResolverStatus,
 ) (*model.Response, error) {
 	// second try (if retryWithDifferentResolver == true)
 	resolver := weightedRandom(r.resolvers, resolvers)
 	logger.Debugf("using %s as second resolver", resolver.resolver)
 
-	ch := make(chan requestResponse, 1)
-
-	resolver.resolve(request, ch)
-
-	result := <-ch
-	if result.err != nil {
-		return nil, fmt.Errorf("resolution retry failed: %w", result.err)
+	resp, err := resolver.resolve(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("resolution retry failed: %w", err)
 	}
 
 	logger.WithFields(logrus.Fields{
-		"resolver": *result.resolver,
-		"answer":   util.AnswerToString(result.response.Res.Answer),
+		"resolver": *resolver,
+		"answer":   util.AnswerToString(resp.Res.Answer),
 	}).Debug("using response from resolver")
 
-	return result.response, nil
+	return resp, nil
 }
 
 // pickRandom picks n (resolverCount) different random resolvers from the given resolver pool

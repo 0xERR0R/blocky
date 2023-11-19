@@ -22,8 +22,9 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 		sut       *ClientNamesResolver
 		sutConfig config.ClientLookupConfig
 		m         *mockResolver
-		ctx       context.Context
-		cancelFn  context.CancelFunc
+
+		ctx      context.Context
+		cancelFn context.CancelFunc
 	)
 
 	Describe("Type", func() {
@@ -34,6 +35,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 
 	JustBeforeEach(func() {
 		var err error
+
 		ctx, cancelFn = context.WithCancel(context.Background())
 		DeferCleanup(cancelFn)
 
@@ -71,7 +73,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 
 		It("should use clientID if set", func() {
 			request := newRequestWithClientID("google1.de.", dns.Type(dns.TypeA), "1.2.3.4", "client123")
-			Expect(sut.Resolve(request)).
+			Expect(sut.Resolve(ctx, request)).
 				Should(
 					SatisfyAll(
 						HaveResponseType(ResponseTypeRESOLVED),
@@ -82,7 +84,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 		})
 		It("should use IP as fallback if clientID not set", func() {
 			request := newRequestWithClientID("google2.de.", dns.Type(dns.TypeA), "1.2.3.4", "")
-			Expect(sut.Resolve(request)).
+			Expect(sut.Resolve(ctx, request)).
 				Should(
 					SatisfyAll(
 						HaveResponseType(ResponseTypeRESOLVED),
@@ -112,7 +114,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 
 		It("should resolve defined name with ipv4 address", func() {
 			request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "1.2.3.4")
-			Expect(sut.Resolve(request)).
+			Expect(sut.Resolve(ctx, request)).
 				Should(
 					SatisfyAll(
 						HaveResponseType(ResponseTypeRESOLVED),
@@ -124,7 +126,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 
 		It("should resolve defined name with ipv6 address", func() {
 			request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "2a02:590:505:4700:2e4f:1503:ce74:df78")
-			Expect(sut.Resolve(request)).
+			Expect(sut.Resolve(ctx, request)).
 				Should(
 					SatisfyAll(
 						HaveResponseType(ResponseTypeRESOLVED),
@@ -135,7 +137,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 		})
 		It("should resolve multiple names defined names", func() {
 			request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "1.2.3.5")
-			Expect(sut.Resolve(request)).
+			Expect(sut.Resolve(ctx, request)).
 				Should(
 					SatisfyAll(
 						HaveResponseType(ResponseTypeRESOLVED),
@@ -168,7 +170,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 				It("should resolve client name", func() {
 					By("first request", func() {
 						request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
-						Expect(sut.Resolve(request)).
+						Expect(sut.Resolve(ctx, request)).
 							Should(
 								SatisfyAll(
 									HaveResponseType(ResponseTypeRESOLVED),
@@ -180,7 +182,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 
 					By("second request", func() {
 						request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
-						Expect(sut.Resolve(request)).
+						Expect(sut.Resolve(ctx, request)).
 							Should(
 								SatisfyAll(
 									HaveResponseType(ResponseTypeRESOLVED),
@@ -198,7 +200,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 
 					By("third request", func() {
 						request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
-						Expect(sut.Resolve(request)).
+						Expect(sut.Resolve(ctx, request)).
 							Should(
 								SatisfyAll(
 									HaveResponseType(ResponseTypeRESOLVED),
@@ -223,7 +225,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 
 				It("should resolve all client names", func() {
 					request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
-					Expect(sut.Resolve(request)).
+					Expect(sut.Resolve(ctx, request)).
 						Should(
 							SatisfyAll(
 								HaveResponseType(ResponseTypeRESOLVED),
@@ -251,7 +253,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 
 				It("should resolve client name", func() {
 					request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
-					Expect(sut.Resolve(request)).
+					Expect(sut.Resolve(ctx, request)).
 						Should(
 							SatisfyAll(
 								HaveResponseType(ResponseTypeRESOLVED),
@@ -272,7 +274,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 
 				It("should resolve the client name depending to defined order", func() {
 					request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
-					Expect(sut.Resolve(request)).
+					Expect(sut.Resolve(ctx, request)).
 						Should(
 							SatisfyAll(
 								HaveResponseType(ResponseTypeRESOLVED),
@@ -298,7 +300,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 
 				It("should use fallback for client name", func() {
 					request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
-					Expect(sut.Resolve(request)).
+					Expect(sut.Resolve(ctx, request)).
 						Should(
 							SatisfyAll(
 								HaveResponseType(ResponseTypeRESOLVED),
@@ -318,7 +320,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 				})
 				It("should use fallback for client name", func() {
 					request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
-					Expect(sut.Resolve(request)).
+					Expect(sut.Resolve(ctx, request)).
 						Should(
 							SatisfyAll(
 								HaveResponseType(ResponseTypeRESOLVED),
@@ -335,7 +337,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 				})
 				It("should resolve no names", func() {
 					request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "")
-					Expect(sut.Resolve(request)).
+					Expect(sut.Resolve(ctx, request)).
 						Should(
 							SatisfyAll(
 								HaveResponseType(ResponseTypeRESOLVED),
@@ -351,7 +353,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 				})
 				It("should use fallback for client name", func() {
 					request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
-					Expect(sut.Resolve(request)).
+					Expect(sut.Resolve(ctx, request)).
 						Should(
 							SatisfyAll(
 								HaveResponseType(ResponseTypeRESOLVED),

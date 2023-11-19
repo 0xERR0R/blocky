@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"errors"
 
 	"github.com/0xERR0R/blocky/config"
@@ -21,6 +22,9 @@ var _ = Describe("MetricResolver", func() {
 	var (
 		sut *MetricsResolver
 		m   *mockResolver
+
+		ctx      context.Context
+		cancelFn context.CancelFunc
 	)
 
 	Describe("Type", func() {
@@ -30,6 +34,9 @@ var _ = Describe("MetricResolver", func() {
 	})
 
 	BeforeEach(func() {
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+
 		sut = NewMetricsResolver(config.MetricsConfig{Enable: true})
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
@@ -56,7 +63,7 @@ var _ = Describe("MetricResolver", func() {
 		Context("Recording request metrics", func() {
 			When("Request will be performed", func() {
 				It("Should record metrics", func() {
-					Expect(sut.Resolve(newRequestWithClient("example.com.", A, "", "client"))).
+					Expect(sut.Resolve(ctx, newRequestWithClient("example.com.", A, "", "client"))).
 						Should(
 							SatisfyAll(
 								HaveResponseType(ResponseTypeRESOLVED),
@@ -77,7 +84,7 @@ var _ = Describe("MetricResolver", func() {
 					sut.Next(m)
 				})
 				It("Error should be recorded", func() {
-					_, err := sut.Resolve(newRequestWithClient("example.com.", A, "", "client"))
+					_, err := sut.Resolve(ctx, newRequestWithClient("example.com.", A, "", "client"))
 
 					Expect(err).Should(HaveOccurred())
 

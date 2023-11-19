@@ -389,7 +389,7 @@ func createQueryResolver(
 	bootstrap *resolver.Bootstrap,
 	redisClient *redis.Client,
 ) (r resolver.ChainedResolver, err error) {
-	upstreamBranches, uErr := createUpstreamBranches(cfg, bootstrap)
+	upstreamBranches, uErr := createUpstreamBranches(ctx, cfg, bootstrap)
 	if uErr != nil {
 		return nil, fmt.Errorf("creation of upstream branches failed: %w", uErr)
 	}
@@ -398,7 +398,9 @@ func createQueryResolver(
 
 	blocking, blErr := resolver.NewBlockingResolver(ctx, cfg.Blocking, redisClient, bootstrap)
 	clientNames, cnErr := resolver.NewClientNamesResolver(ctx, cfg.ClientLookup, bootstrap, cfg.StartVerifyUpstream)
-	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(cfg.Conditional, bootstrap, cfg.StartVerifyUpstream)
+	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(
+		ctx, cfg.Conditional, bootstrap, cfg.StartVerifyUpstream,
+	)
 	hostsFile, hfErr := resolver.NewHostsFileResolver(ctx, cfg.HostsFile, bootstrap)
 
 	err = multierror.Append(
@@ -433,6 +435,7 @@ func createQueryResolver(
 }
 
 func createUpstreamBranches(
+	ctx context.Context,
 	cfg *config.Config,
 	bootstrap *resolver.Bootstrap,
 ) (map[string]resolver.Resolver, error) {
@@ -453,11 +456,11 @@ func createUpstreamBranches(
 
 		switch cfg.Upstreams.Strategy {
 		case config.UpstreamStrategyParallelBest:
-			upstream, err = resolver.NewParallelBestResolver(groupConfig, bootstrap, cfg.StartVerifyUpstream)
+			upstream, err = resolver.NewParallelBestResolver(ctx, groupConfig, bootstrap, cfg.StartVerifyUpstream)
 		case config.UpstreamStrategyStrict:
-			upstream, err = resolver.NewStrictResolver(groupConfig, bootstrap, cfg.StartVerifyUpstream)
+			upstream, err = resolver.NewStrictResolver(ctx, groupConfig, bootstrap, cfg.StartVerifyUpstream)
 		case config.UpstreamStrategyRandom:
-			upstream, err = resolver.NewParallelBestResolver(groupConfig, bootstrap, cfg.StartVerifyUpstream)
+			upstream, err = resolver.NewParallelBestResolver(ctx, groupConfig, bootstrap, cfg.StartVerifyUpstream)
 		}
 
 		upstreamBranches[group] = upstream
@@ -643,7 +646,7 @@ func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
 
 	r := createResolverRequest(w, request)
 
-	response, err := s.queryResolver.Resolve(r)
+	response, err := s.queryResolver.Resolve(context.Background(), r)
 
 	if err != nil {
 		logger().Error("error on processing request:", err)

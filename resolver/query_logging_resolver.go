@@ -111,12 +111,12 @@ func (r *QueryLoggingResolver) doCleanUp() {
 }
 
 // Resolve logs the query, duration and the result
-func (r *QueryLoggingResolver) Resolve(request *model.Request) (*model.Response, error) {
+func (r *QueryLoggingResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	logger := log.WithPrefix(request.Log, queryLoggingResolverType)
 
 	start := time.Now()
 
-	resp, err := r.next.Resolve(request)
+	resp, err := r.next.Resolve(ctx, request)
 
 	duration := time.Since(start).Milliseconds()
 

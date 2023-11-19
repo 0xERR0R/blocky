@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -21,9 +22,15 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 	var (
 		sut       *UpstreamResolver
 		sutConfig config.Upstream
+
+		ctx      context.Context
+		cancelFn context.CancelFunc
 	)
 
 	BeforeEach(func() {
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+
 		sutConfig = config.Upstream{Host: "localhost"}
 	})
 
@@ -62,7 +69,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				upstream := mockUpstream.Start()
 				sut := newUpstreamResolverUnchecked(upstream, nil)
 
-				Expect(sut.Resolve(newRequest("example.com.", A))).
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("example.com.", A, "123.124.122.122"),
@@ -81,7 +88,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				upstream := mockUpstream.Start()
 				sut := newUpstreamResolverUnchecked(upstream, nil)
 
-				Expect(sut.Resolve(newRequest("example.com.", A))).
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
 					Should(
 						SatisfyAll(
 							HaveNoAnswer(),
@@ -100,7 +107,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				upstream := mockUpstream.Start()
 				sut := newUpstreamResolverUnchecked(upstream, nil)
 
-				_, err := sut.Resolve(newRequest("example.com.", A))
+				_, err := sut.Resolve(ctx, newRequest("example.com.", A))
 				Expect(err).Should(HaveOccurred())
 			})
 		})
@@ -133,7 +140,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 					atomic.StoreInt32(&counter, 0)
 					atomic.StoreInt32(&attemptsWithTimeout, 2)
 
-					Expect(sut.Resolve(newRequest("example.com.", A))).
+					Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
 						Should(
 							SatisfyAll(
 								BeDNSRecord("example.com.", A, "123.124.122.122"),
@@ -146,9 +153,34 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				By("3 attempts with timeout -> should return error", func() {
 					atomic.StoreInt32(&counter, 0)
 					atomic.StoreInt32(&attemptsWithTimeout, 3)
-					_, err := sut.Resolve(newRequest("example.com.", A))
+					_, err := sut.Resolve(ctx, newRequest("example.com.", A))
 					Expect(err).Should(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("i/o timeout"))
+				})
+			})
+		})
+
+		When("user request is TCP", func() {
+			When("TCP upstream connection fails", func() {
+				BeforeEach(func() {
+					mockUpstream := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
+					DeferCleanup(mockUpstream.Close)
+
+					sutConfig = mockUpstream.Start()
+				})
+
+				It("should retry with UDP", func() {
+					req := newRequest("example.com.", A)
+					req.Protocol = RequestProtocolTCP
+
+					Expect(sut.Resolve(ctx, req)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("example.com.", A, "123.124.122.122"),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+								HaveTTL(BeNumerically("==", 123)),
+							))
 				})
 			})
 		})
@@ -185,7 +217,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 		})
 		When("Configured DOH resolver can resolve query", func() {
 			It("should return answer from DNS upstream", func() {
-				Expect(sut.Resolve(newRequest("example.com.", A))).
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("example.com.", A, "123.124.122.122"),
@@ -203,7 +235,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				}
 			})
 			It("should return error", func() {
-				_, err := sut.Resolve(newRequest("example.com.", A))
+				_, err := sut.Resolve(ctx, newRequest("example.com.", A))
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("http return code should be 200, but received 500"))
 			})
@@ -215,7 +247,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				}
 			})
 			It("should return error", func() {
-				_, err := sut.Resolve(newRequest("example.com.", A))
+				_, err := sut.Resolve(ctx, newRequest("example.com.", A))
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(
 					ContainSubstring("http return content type should be 'application/dns-message', but was 'text'"))
@@ -228,7 +260,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				}
 			})
 			It("should return error", func() {
-				_, err := sut.Resolve(newRequest("example.com.", A))
+				_, err := sut.Resolve(ctx, newRequest("example.com.", A))
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("can't unpack message"))
 			})
@@ -241,7 +273,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				}, systemResolverBootstrap)
 			})
 			It("should return error", func() {
-				_, err := sut.Resolve(newRequest("example.com.", A))
+				_, err := sut.Resolve(ctx, newRequest("example.com.", A))
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(Or(
 					ContainSubstring("no such host"),

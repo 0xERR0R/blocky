@@ -109,9 +109,9 @@ func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Resp
 	return nil
 }
 
-func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, error) {
+func (r *HostsFileResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	if !r.IsEnabled() {
-		return r.next.Resolve(request)
+		return r.next.Resolve(ctx, request)
 	}
 
 	reverseResp := r.handleReverseDNS(request)
@@ -134,7 +134,7 @@ func (r *HostsFileResolver) Resolve(request *model.Request) (*model.Response, er
 
 	r.log().WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
 
-	return r.next.Resolve(request)
+	return r.next.Resolve(ctx, request)
 }
 
 func (r *HostsFileResolver) resolve(req *dns.Msg, question dns.Question, domain string) *dns.Msg {

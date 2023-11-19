@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"html/template"
@@ -149,7 +150,7 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 
 	r := newRequest(net.ParseIP(extractIP(req)), model.RequestProtocolTCP, clientID, msg)
 
-	resResponse, err := s.queryResolver.Resolve(r)
+	resResponse, err := s.queryResolver.Resolve(req.Context(), r)
 	if err != nil {
 		logAndResponseWithError(err, "unable to process query: ", rw)
 
@@ -192,11 +193,11 @@ func extractIP(r *http.Request) string {
 	return hostPort
 }
 
-func (s *Server) Query(question string, qType dns.Type) (*model.Response, error) {
+func (s *Server) Query(ctx context.Context, question string, qType dns.Type) (*model.Response, error) {
 	dnsRequest := util.NewMsgWithQuestion(question, qType)
 	r := createResolverRequest(nil, dnsRequest)
 
-	return s.queryResolver.Resolve(r)
+	return s.queryResolver.Resolve(ctx, r)
 }
 
 func createHTTPSRouter(cfg *config.Config) *chi.Mux {

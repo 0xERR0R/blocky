@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	//	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
@@ -54,14 +53,14 @@ func (m *BlockingControlMock) BlockingStatus() BlockingStatus {
 	return args.Get(0).(BlockingStatus)
 }
 
-func (m *QuerierMock) Query(question string, qType dns.Type) (*model.Response, error) {
-	args := m.Called(question, qType)
+func (m *QuerierMock) Query(ctx context.Context, question string, qType dns.Type) (*model.Response, error) {
+	args := m.Called(ctx, question, qType)
 
 	return args.Get(0).(*model.Response), args.Error(1)
 }
 
-func (m *CacheControlMock) FlushCaches() {
-	_ = m.Called()
+func (m *CacheControlMock) FlushCaches(ctx context.Context) {
+	_ = m.Called(ctx)
 }
 
 var _ = Describe("API implementation tests", func() {
@@ -71,9 +70,15 @@ var _ = Describe("API implementation tests", func() {
 		listRefreshMock     *ListRefreshMock
 		cacheControlMock    *CacheControlMock
 		sut                 *OpenAPIInterfaceImpl
+
+		ctx      context.Context
+		cancelFn context.CancelFunc
 	)
 
 	BeforeEach(func() {
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+
 		blockingControlMock = &BlockingControlMock{}
 		querierMock = &QuerierMock{}
 		listRefreshMock = &ListRefreshMock{}
@@ -95,12 +100,12 @@ var _ = Describe("API implementation tests", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				querierMock.On("Query", "google.com.", A).Return(&model.Response{
+				querierMock.On("Query", ctx, "google.com.", A).Return(&model.Response{
 					Res:    queryResponse,
 					Reason: "reason",
 				}, nil)
 
-				resp, err := sut.Query(context.Background(), QueryRequestObject{
+				resp, err := sut.Query(ctx, QueryRequestObject{
 					Body: &ApiQueryRequest{
 						Query: "google.com", Type: "A",
 					},
@@ -116,7 +121,7 @@ var _ = Describe("API implementation tests", func() {
 			})
 
 			It("should return 400 on wrong parameter", func() {
-				resp, err := sut.Query(context.Background(), QueryRequestObject{
+				resp, err := sut.Query(ctx, QueryRequestObject{
 					Body: &ApiQueryRequest{
 						Query: "google.com",
 						Type:  "WRONGTYPE",
@@ -135,7 +140,7 @@ var _ = Describe("API implementation tests", func() {
 			It("should return 200 on success", func() {
 				listRefreshMock.On("RefreshLists").Return(nil)
 
-				resp, err := sut.ListRefresh(context.Background(), ListRefreshRequestObject{})
+				resp, err := sut.ListRefresh(ctx, ListRefreshRequestObject{})
 				Expect(err).Should(Succeed())
 				var resp200 ListRefresh200Response
 				Expect(resp).Should(BeAssignableToTypeOf(resp200))
@@ -144,7 +149,7 @@ var _ = Describe("API implementation tests", func() {
 			It("should return 500 on failure", func() {
 				listRefreshMock.On("RefreshLists").Return(errors.New("failed"))
 
-				resp, err := sut.ListRefresh(context.Background(), ListRefreshRequestObject{})
+				resp, err := sut.ListRefresh(ctx, ListRefreshRequestObject{})
 				Expect(err).Should(Succeed())
 				var resp500 ListRefresh500TextResponse
 				Expect(resp).Should(BeAssignableToTypeOf(resp500))
@@ -160,7 +165,7 @@ var _ = Describe("API implementation tests", func() {
 				duration := "3s"
 				grroups := "gr1,gr2"
 
-				resp, err := sut.DisableBlocking(context.Background(), DisableBlockingRequestObject{
+				resp, err := sut.DisableBlocking(ctx, DisableBlockingRequestObject{
 					Params: DisableBlockingParams{
 						Duration: &duration,
 						Groups:   &grroups,
@@ -173,7 +178,7 @@ var _ = Describe("API implementation tests", func() {
 
 			It("should return 400 on failure", func() {
 				blockingControlMock.On("DisableBlocking", mock.Anything, mock.Anything).Return(errors.New("failed"))
-				resp, err := sut.DisableBlocking(context.Background(), DisableBlockingRequestObject{})
+				resp, err := sut.DisableBlocking(ctx, DisableBlockingRequestObject{})
 				Expect(err).Should(Succeed())
 				var resp400 DisableBlocking400TextResponse
 				Expect(resp).Should(BeAssignableToTypeOf(resp400))
@@ -182,7 +187,7 @@ var _ = Describe("API implementation tests", func() {
 
 			It("should return 400 on wrong duration parameter", func() {
 				wrongDuration := "4sds"
-				resp, err := sut.DisableBlocking(context.Background(), DisableBlockingRequestObject{
+				resp, err := sut.DisableBlocking(ctx, DisableBlockingRequestObject{
 					Params: DisableBlockingParams{
 						Duration: &wrongDuration,
 					},
@@ -197,7 +202,7 @@ var _ = Describe("API implementation tests", func() {
 			It("should return 200 on success", func() {
 				blockingControlMock.On("EnableBlocking").Return()
 
-				resp, err := sut.EnableBlocking(context.Background(), EnableBlockingRequestObject{})
+				resp, err := sut.EnableBlocking(ctx, EnableBlockingRequestObject{})
 				Expect(err).Should(Succeed())
 				var resp200 EnableBlocking200Response
 				Expect(resp).Should(BeAssignableToTypeOf(resp200))
@@ -212,7 +217,7 @@ var _ = Describe("API implementation tests", func() {
 					AutoEnableInSec: 47,
 				})
 
-				resp, err := sut.BlockingStatus(context.Background(), BlockingStatusRequestObject{})
+				resp, err := sut.BlockingStatus(ctx, BlockingStatusRequestObject{})
 				Expect(err).Should(Succeed())
 				var resp200 BlockingStatus200JSONResponse
 				Expect(resp).Should(BeAssignableToTypeOf(resp200))
@@ -227,8 +232,8 @@ var _ = Describe("API implementation tests", func() {
 	Describe("Cache API", func() {
 		When("Cache flush is called", func() {
 			It("should return 200 on success", func() {
-				cacheControlMock.On("FlushCaches").Return()
-				resp, err := sut.CacheFlush(context.Background(), CacheFlushRequestObject{})
+				cacheControlMock.On("FlushCaches", ctx).Return()
+				resp, err := sut.CacheFlush(ctx, CacheFlushRequestObject{})
 				Expect(err).Should(Succeed())
 				var resp200 CacheFlush200Response
 				Expect(resp).Should(BeAssignableToTypeOf(resp200))
