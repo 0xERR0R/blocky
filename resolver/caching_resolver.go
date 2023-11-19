@@ -162,7 +162,7 @@ func (r *CachingResolver) LogConfig(logger *logrus.Entry) {
 func (r *CachingResolver) Resolve(request *model.Request) (response *model.Response, err error) {
 	logger := log.WithPrefix(request.Log, "caching_resolver")
 
-	if r.cfg.MaxCachingTime < 0 || shouldRequestNotUseCache(request) {
+	if !r.IsEnabled() || !isRequestCacheable(request) {
 		logger.Debug("skip cache")
 
 		return r.next.Resolve(request)
