@@ -245,8 +245,8 @@ func isRequestCacheable(request *model.Request) bool {
 	return true
 }
 
-// shouldResponseBeCached returns true if the response is not truncated and isn't CD flaged
-func shouldResponseBeCached(msg *dns.Msg) bool {
+// isResponseCacheable returns true if the response is not truncated and its CD flag isn't set.
+func isResponseCacheable(msg *dns.Msg) bool {
 	// we don't cache truncated responses and responses with CD flag
 	return !msg.Truncated && !msg.CheckingDisabled
 }
