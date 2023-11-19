@@ -115,8 +115,6 @@ func retrieveCertificate(cfg *config.Config) (cert tls.Certificate, err error) {
 //
 //nolint:funlen
 func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err error) {
-	log.ConfigureLogger(&cfg.Log)
-
 	var cert tls.Certificate
 
 	if len(cfg.Ports.HTTPS) > 0 || len(cfg.Ports.TLS) > 0 {

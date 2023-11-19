@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/mattn/go-colorable"
 	"github.com/sirupsen/logrus"
@@ -19,7 +20,10 @@ const prefixField = "prefix"
 // Logger is the global logging instance
 //
 //nolint:gochecknoglobals
-var logger *logrus.Logger
+var (
+	logger   *logrus.Logger
+	initDone atomic.Bool
+)
 
 // FormatType format for logging ENUM(
 // text // logging as text
@@ -47,6 +51,10 @@ type Config struct {
 
 //nolint:gochecknoinits
 func init() {
+	if !initDone.CompareAndSwap(false, true) {
+		return
+	}
+
 	logger = logrus.New()
 
 	defaultConfig := &Config{
@@ -122,7 +130,20 @@ func ConfigureLogger(cfg *Config) {
 
 // Silence disables the logger output
 func Silence() {
-	logger.Out = io.Discard
+	initDone.Store(true)
+
+	logger = logrus.New()
+
+	logger.SetFormatter(nopFormatter{}) // skip expensive formatting
+
+	// not actually needed but doesn't hurt
+	logger.SetOutput(io.Discard)
+}
+
+type nopFormatter struct{}
+
+func (f nopFormatter) Format(*logrus.Entry) ([]byte, error) {
+	return nil, nil
 }
 
 func WithIndent(log *logrus.Entry, prefix string, callback func(*logrus.Entry)) {

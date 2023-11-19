@@ -104,7 +104,7 @@ func (r *UpstreamTreeResolver) upstreamGroupByClient(request *model.Request) str
 
 	if len(groups) > 0 {
 		if len(groups) > 1 {
-			r.log().WithFields(logrus.Fields{
+			request.Log.WithFields(logrus.Fields{
 				"clientNames": request.ClientNames,
 				"clientIP":    clientIP,
 				"groups":      groups,

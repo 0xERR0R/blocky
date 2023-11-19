@@ -105,5 +105,6 @@ issues:
       linters:
         - dupl
         - funlen
+        - gochecknoinits
         - gochecknoglobals
         - gosec

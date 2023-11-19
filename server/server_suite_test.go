@@ -8,8 +8,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestDNSServer(t *testing.T) {
+func init() {
 	log.Silence()
+}
+
+func TestDNSServer(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Server Suite")
 }

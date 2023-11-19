@@ -1,15 +1,13 @@
 package log
 
 import (
-	"io"
-
 	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/mock"
 )
 
 func NewMockEntry() (*logrus.Entry, *MockLoggerHook) {
-	logger := logrus.New()
-	logger.Out = io.Discard
+	logger, _ := test.NewNullLogger()
 	logger.Level = logrus.TraceLevel
 
 	entry := logrus.Entry{Logger: logger}
