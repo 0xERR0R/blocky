@@ -29,7 +29,7 @@ type ECSMask interface {
 	config.ECSv4Mask | config.ECSv6Mask
 }
 
-// A EcsResolver is responsible for adding the subnet information as EDNS0 option
+// EcsResolver is responsible for adding the EDNS Client Subnet information as EDNS0 option.
 type EcsResolver struct {
 	configurable[*config.EcsConfig]
 	NextResolver
