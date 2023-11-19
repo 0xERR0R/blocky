@@ -112,17 +112,19 @@ func newParallelBestResolver(
 		resolverStatuses = append(resolverStatuses, newUpstreamResolverStatus(r))
 	}
 
+	typeName := "parallel_best"
 	resolverCount := parallelBestResolverCount
 	retryWithDifferentResolver := false
 
 	if config.GetConfig().Upstreams.Strategy == config.UpstreamStrategyRandom {
+		typeName = "random"
 		resolverCount = 1
 		retryWithDifferentResolver = true
 	}
 
 	r := ParallelBestResolver{
 		configurable: withConfig(&cfg),
-		typed:        withType(parallelResolverType),
+		typed:        withType(typeName),
 
 		groupName: cfg.Name,
 		resolvers: resolverStatuses,
@@ -144,8 +146,7 @@ func (r *ParallelBestResolver) String() string {
 		result[i] = fmt.Sprintf("%s", s.resolver)
 	}
 
-	return fmt.Sprintf("%s (resolverCount: %d, retryWithDifferentResolver: %t) upstreams '%s (%s)'",
-		parallelResolverType, r.resolverCount, r.retryWithDifferentResolver, r.groupName, strings.Join(result, ","))
+	return fmt.Sprintf("%s upstreams '%s (%s)'", r.Type(), r.groupName, strings.Join(result, ","))
 }
 
 // Resolve sends the query request to multiple upstream resolvers and returns the fastest result
@@ -164,7 +165,6 @@ func (r *ParallelBestResolver) Resolve(request *model.Request) (*model.Response,
 	if r.resolverCount == 1 {
 		var cancel context.CancelFunc
 
-		logger = log.WithPrefix(logger, "random")
 		timeout := config.GetConfig().Upstreams.Timeout
 
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout))
