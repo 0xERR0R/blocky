@@ -90,7 +90,6 @@ var _ = Describe("EDNS0 utils", func() {
 			opt.Hdr.Name = "."
 			opt.Hdr.Rrtype = dns.TypeOPT
 			eso := new(dns.EDNS0_SUBNET)
-			eso.Code = dns.EDNS0SUBNET
 			opt.Option = append(opt.Option, eso)
 			baseMsg.Extra = append(baseMsg.Extra, opt)
 
