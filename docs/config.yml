@@ -19,7 +19,7 @@ upstreams:
     laptop*:
       - 123.123.123.123
   # optional: Determines what strategy blocky uses to choose the upstream servers.
-  # accepted: parallel_best, strict
+  # accepted: parallel_best, strict, random
   # default: parallel_best
   strategy: parallel_best
   # optional: timeout to query the upstream resolver. Default: 2s

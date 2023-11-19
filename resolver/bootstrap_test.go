@@ -32,6 +32,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 	)
 
 	BeforeEach(func() {
+		config.GetConfig().Upstreams.Strategy = config.UpstreamStrategyParallelBest
 		sutConfig = &config.Config{
 			BootstrapDNS: []config.BootstrappedUpstreamConfig{
 				{

@@ -27,14 +27,10 @@ func NewConditionalUpstreamResolver(
 ) (*ConditionalUpstreamResolver, error) {
 	m := make(map[string]Resolver, len(cfg.Mapping.Upstreams))
 
-	for domain, upstream := range cfg.Mapping.Upstreams {
-		pbCfg := config.UpstreamsConfig{
-			Groups: config.UpstreamGroups{
-				upstreamDefaultCfgName: upstream,
-			},
-		}
+	for domain, upstreams := range cfg.Mapping.Upstreams {
+		cfg := config.UpstreamGroup{Name: upstreamDefaultCfgName, Upstreams: upstreams}
 
-		r, err := NewParallelBestResolver(pbCfg, bootstrap, shouldVerifyUpstreams)
+		r, err := NewParallelBestResolver(cfg, bootstrap, shouldVerifyUpstreams)
 		if err != nil {
 			return nil, err
 		}
