@@ -19,7 +19,7 @@ import (
 var _ = Describe("EcsResolver", func() {
 	var (
 		sut        *ECSResolver
-		sutConfig  config.ECSConfig
+		sutConfig  config.ECS
 		m          *mockResolver
 		mockAnswer *dns.Msg
 		err        error

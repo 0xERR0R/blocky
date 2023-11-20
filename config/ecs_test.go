@@ -8,9 +8,9 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var _ = Describe("ECSConfig", func() {
+var _ = Describe("ECS", func() {
 	var (
-		c   ECSConfig
+		c   ECS
 		err error
 	)
 
@@ -26,7 +26,7 @@ var _ = Describe("ECSConfig", func() {
 			})
 		})
 
-		When("UseEcsAsClient is true", func() {
+		When("UseAsClient is true", func() {
 			BeforeEach(func() {
 				c.UseAsClient = true
 			})
@@ -36,7 +36,7 @@ var _ = Describe("ECSConfig", func() {
 			})
 		})
 
-		When("ForwardEcs is true", func() {
+		When("Forward is true", func() {
 			BeforeEach(func() {
 				c.Forward = true
 			})

@@ -211,7 +211,7 @@ type Config struct {
 	FqdnOnly            FqdnOnlyConfig            `yaml:"fqdnOnly"`
 	Filtering           FilteringConfig           `yaml:"filtering"`
 	Ede                 EdeConfig                 `yaml:"ede"`
-	ECS                 ECSConfig                 `yaml:"ecs"`
+	ECS                 ECS                       `yaml:"ecs"`
 	SUDN                SUDNConfig                `yaml:"specialUseDomains"`
 
 	// Deprecated options

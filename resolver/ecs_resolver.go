@@ -31,13 +31,13 @@ type ECSMask interface {
 
 // ECSResolver is responsible for adding the EDNS Client Subnet information as EDNS0 option.
 type ECSResolver struct {
-	configurable[*config.ECSConfig]
+	configurable[*config.ECS]
 	NextResolver
 	typed
 }
 
 // NewECSResolver creates new resolver instance which adds the subnet information as EDNS0 option
-func NewECSResolver(cfg config.ECSConfig) ChainedResolver {
+func NewECSResolver(cfg config.ECS) ChainedResolver {
 	return &ECSResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("extended_client_subnet"),

@@ -42,8 +42,8 @@ func (x *ECSv6Mask) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// ECSConfig is the configuration of the ECS resolver
-type ECSConfig struct {
+// ECS is the configuration of the ECS resolver
+type ECS struct {
 	UseAsClient bool      `yaml:"useAsClient" default:"false"`
 	Forward     bool      `yaml:"forward" default:"false"`
 	IPv4Mask    ECSv4Mask `yaml:"ipv4Mask" default:"0"`
@@ -51,12 +51,12 @@ type ECSConfig struct {
 }
 
 // IsEnabled returns true if the ECS resolver is enabled
-func (c *ECSConfig) IsEnabled() bool {
+func (c *ECS) IsEnabled() bool {
 	return c.UseAsClient || c.Forward || c.IPv4Mask > 0 || c.IPv6Mask > 0
 }
 
 // LogConfig logs the configuration
-func (c *ECSConfig) LogConfig(logger *logrus.Entry) {
+func (c *ECS) LogConfig(logger *logrus.Entry) {
 	logger.Infof("Use as client = %t", c.UseAsClient)
 	logger.Infof("Forward       = %t", c.Forward)
 	logger.Infof("IPv4 netmask  = %d", c.IPv4Mask)
