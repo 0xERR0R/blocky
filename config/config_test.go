@@ -681,6 +681,31 @@ bootstrapDns:
 		})
 	})
 
+	Describe("BootstrapDNSConfig", func() {
+		It("is not enabled when empty", func() {
+			var sut BootstrapDNSConfig
+
+			Expect(sut.IsEnabled()).Should(BeFalse())
+		})
+
+		It("is enabled if non empty", func() {
+			sut := BootstrapDNSConfig{
+				BootstrappedUpstreamConfig{},
+				BootstrappedUpstreamConfig{},
+			}
+
+			Expect(sut.IsEnabled()).Should(BeTrue())
+		})
+
+		It("LogConfig panics", func() {
+			sut := BootstrapDNSConfig{}
+
+			Expect(func() {
+				sut.LogConfig(logger)
+			}).Should(Panic())
+		})
+	})
+
 	Describe("SourceLoadingConfig", func() {
 		var (
 			ctx      context.Context

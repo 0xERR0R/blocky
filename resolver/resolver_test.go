@@ -12,7 +12,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var systemResolverBootstrap = &Bootstrap{dialer: newMockDialer()}
+var systemResolverBootstrap = &Bootstrap{
+	dialer:       newMockDialer(),
+	configurable: withConfig(newBootstrapConfig(&config.Config{Upstreams: defaultUpstreamsConfig})),
+}
 
 var _ = Describe("Resolver", func() {
 	Describe("Chains", func() {
