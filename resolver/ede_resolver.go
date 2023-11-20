@@ -9,14 +9,14 @@ import (
 
 // A EdeResolver is responsible for adding the reason for the response as EDNS0 option
 type EdeResolver struct {
-	configurable[*config.EdeConfig]
+	configurable[*config.EDE]
 	NextResolver
 	typed
 }
 
 // NewEdeResolver creates new resolver instance which adds the reason for
 // the response as EDNS0 option to the response if it is enabled in the configuration
-func NewEdeResolver(cfg config.EdeConfig) *EdeResolver {
+func NewEdeResolver(cfg config.EDE) *EdeResolver {
 	return &EdeResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("extended_error_code"),

@@ -210,7 +210,7 @@ type Config struct {
 	HostsFile           HostsFileConfig           `yaml:"hostsFile"`
 	FqdnOnly            FqdnOnlyConfig            `yaml:"fqdnOnly"`
 	Filtering           FilteringConfig           `yaml:"filtering"`
-	Ede                 EdeConfig                 `yaml:"ede"`
+	EDE                 EDE                       `yaml:"ede"`
 	ECS                 ECS                       `yaml:"ecs"`
 	SUDN                SUDNConfig                `yaml:"specialUseDomains"`
 
@@ -275,7 +275,7 @@ type RedisConfig struct {
 
 type (
 	FqdnOnlyConfig = toEnable
-	EdeConfig      = toEnable
+	EDE            = toEnable
 )
 
 type toEnable struct {
