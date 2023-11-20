@@ -20,7 +20,7 @@ import (
 
 var _ = Describe("EdeResolver", func() {
 	var (
-		sut        *EdeResolver
+		sut        *EDEResolver
 		sutConfig  config.EDE
 		m          *mockResolver
 		mockAnswer *dns.Msg
@@ -46,7 +46,7 @@ var _ = Describe("EdeResolver", func() {
 			}, nil)
 		}
 
-		sut = NewEdeResolver(sutConfig)
+		sut = NewEDEResolver(sutConfig)
 		sut.Next(m)
 	})
 
