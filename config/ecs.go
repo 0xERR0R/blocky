@@ -42,25 +42,25 @@ func (x *ECSv6Mask) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// EcsConfig is the configuration of the ECS resolver
-type EcsConfig struct {
-	UseEcsAsClient bool      `yaml:"useEcsAsClient" default:"false"`
-	ForwardEcs     bool      `yaml:"forwardEcs" default:"false"`
-	IPv4Mask       ECSv4Mask `yaml:"ipv4Mask" default:"0"`
-	IPv6Mask       ECSv6Mask `yaml:"ipv6Mask" default:"0"`
+// ECSConfig is the configuration of the ECS resolver
+type ECSConfig struct {
+	UseAsClient bool      `yaml:"useAsClient" default:"false"`
+	Forward     bool      `yaml:"forward" default:"false"`
+	IPv4Mask    ECSv4Mask `yaml:"ipv4Mask" default:"0"`
+	IPv6Mask    ECSv6Mask `yaml:"ipv6Mask" default:"0"`
 }
 
 // IsEnabled returns true if the ECS resolver is enabled
-func (c *EcsConfig) IsEnabled() bool {
-	return c.UseEcsAsClient || c.ForwardEcs || c.IPv4Mask > 0 || c.IPv6Mask > 0
+func (c *ECSConfig) IsEnabled() bool {
+	return c.UseAsClient || c.Forward || c.IPv4Mask > 0 || c.IPv6Mask > 0
 }
 
 // LogConfig logs the configuration
-func (c *EcsConfig) LogConfig(logger *logrus.Entry) {
-	logger.Infof("Use ECS as client = %t", c.UseEcsAsClient)
-	logger.Infof("Forward ECS       = %t", c.ForwardEcs)
-	logger.Infof("IPv4 netmask      = %d", c.IPv4Mask)
-	logger.Infof("IPv6 netmask      = %d", c.IPv6Mask)
+func (c *ECSConfig) LogConfig(logger *logrus.Entry) {
+	logger.Infof("Use as client = %t", c.UseAsClient)
+	logger.Infof("Forward       = %t", c.Forward)
+	logger.Infof("IPv4 netmask  = %d", c.IPv4Mask)
+	logger.Infof("IPv6 netmask  = %d", c.IPv6Mask)
 }
 
 // unmarshalInternal unmarshals the subnet mask from the given text and checks if the value is valid

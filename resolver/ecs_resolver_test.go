@@ -18,8 +18,8 @@ import (
 
 var _ = Describe("EcsResolver", func() {
 	var (
-		sut        *EcsResolver
-		sutConfig  config.EcsConfig
+		sut        *ECSResolver
+		sutConfig  config.ECSConfig
 		m          *mockResolver
 		mockAnswer *dns.Msg
 		err        error
@@ -52,7 +52,7 @@ var _ = Describe("EcsResolver", func() {
 			}, nil)
 		}
 
-		sut = NewEcsResolver(sutConfig).(*EcsResolver)
+		sut = NewECSResolver(sutConfig).(*ECSResolver)
 		sut.Next(m)
 	})
 
@@ -66,7 +66,7 @@ var _ = Describe("EcsResolver", func() {
 
 	When("ecs is enabled", func() {
 		BeforeEach(func() {
-			sutConfig.UseEcsAsClient = true
+			sutConfig.UseAsClient = true
 		})
 
 		Describe("IsEnabled", func() {
@@ -77,7 +77,7 @@ var _ = Describe("EcsResolver", func() {
 
 		When("use ecs client ip is enabled", func() {
 			BeforeEach(func() {
-				sutConfig.UseEcsAsClient = true
+				sutConfig.UseAsClient = true
 			})
 
 			It("should change ClientIP with subnet 32", func() {
@@ -125,7 +125,7 @@ var _ = Describe("EcsResolver", func() {
 
 		When("forward ecs is enabled", func() {
 			BeforeEach(func() {
-				sutConfig.ForwardEcs = true
+				sutConfig.Forward = true
 				sutConfig.IPv4Mask = 32
 				sutConfig.IPv6Mask = 128
 			})

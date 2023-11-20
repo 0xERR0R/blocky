@@ -29,16 +29,16 @@ type ECSMask interface {
 	config.ECSv4Mask | config.ECSv6Mask
 }
 
-// EcsResolver is responsible for adding the EDNS Client Subnet information as EDNS0 option.
-type EcsResolver struct {
-	configurable[*config.EcsConfig]
+// ECSResolver is responsible for adding the EDNS Client Subnet information as EDNS0 option.
+type ECSResolver struct {
+	configurable[*config.ECSConfig]
 	NextResolver
 	typed
 }
 
-// NewEcsResolver creates new resolver instance which adds the subnet information as EDNS0 option
-func NewEcsResolver(cfg config.EcsConfig) ChainedResolver {
-	return &EcsResolver{
+// NewECSResolver creates new resolver instance which adds the subnet information as EDNS0 option
+func NewECSResolver(cfg config.ECSConfig) ChainedResolver {
+	return &ECSResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("extended_client_subnet"),
 	}
@@ -46,11 +46,11 @@ func NewEcsResolver(cfg config.EcsConfig) ChainedResolver {
 
 // Resolve adds the subnet information as EDNS0 option to the request of the next resolver
 // and sets the client IP from the EDNS0 option to the request if this option is enabled
-func (r *EcsResolver) Resolve(request *model.Request) (*model.Response, error) {
+func (r *ECSResolver) Resolve(request *model.Request) (*model.Response, error) {
 	if r.cfg.IsEnabled() {
 		so := util.GetEdns0Option[*dns.EDNS0_SUBNET](request.Req)
 		// Set the client IP from the Edns0 subnet option if the option is enabled and the correct subnet mask is set
-		if r.cfg.UseEcsAsClient && so != nil && ((so.Family == ecsFamilyIPv4 && so.SourceNetmask == ecsMaskIPv4) ||
+		if r.cfg.UseAsClient && so != nil && ((so.Family == ecsFamilyIPv4 && so.SourceNetmask == ecsMaskIPv4) ||
 			(so.Family == ecsFamilyIPv6 && so.SourceNetmask == ecsMaskIPv6)) {
 			request.ClientIP = so.Address
 		}
@@ -62,7 +62,7 @@ func (r *EcsResolver) Resolve(request *model.Request) (*model.Response, error) {
 
 		// Remove the Edns0 subnet option if the client IP is IPv4 or IPv6 and the corresponding mask is not set
 		// and the forwardEcs option is not enabled
-		if r.cfg.IPv4Mask == 0 && r.cfg.IPv6Mask == 0 && so != nil && !r.cfg.ForwardEcs {
+		if r.cfg.IPv4Mask == 0 && r.cfg.IPv6Mask == 0 && so != nil && !r.cfg.Forward {
 			util.RemoveEdns0Option[*dns.EDNS0_SUBNET](request.Req)
 		}
 	}
@@ -72,7 +72,7 @@ func (r *EcsResolver) Resolve(request *model.Request) (*model.Response, error) {
 
 // setSubnet appends the subnet information to the request as EDNS0 option
 // if the client IP is IPv4 or IPv6 and the corresponding mask is set in the configuration
-func (r *EcsResolver) setSubnet(request *model.Request) {
+func (r *ECSResolver) setSubnet(request *model.Request) {
 	e := new(dns.EDNS0_SUBNET)
 	e.Code = dns.EDNS0SUBNET
 	e.SourceScope = ecsSourceScope
