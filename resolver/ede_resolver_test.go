@@ -3,10 +3,11 @@ package resolver
 
 import (
 	"errors"
-        "github.com/0xERR0R/blocky/util"
+
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/util"
 
 	. "github.com/0xERR0R/blocky/model"
 
@@ -83,7 +84,7 @@ var _ = Describe("EdeResolver", func() {
 		})
 
 		extractEdeOption := func(res *Response) dns.EDNS0_EDE {
-			return util.GetEdns0Option[*dns.EDNS0_EDE](res.Res)
+			return *util.GetEdns0Option[*dns.EDNS0_EDE](res.Res)
 		}
 
 		It("should add EDE information", func() {
