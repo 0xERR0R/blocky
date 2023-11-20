@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -56,8 +57,19 @@ var _ = Describe("CachingResolver", func() {
 	})
 
 	Describe("IsEnabled", func() {
-		It("is false", func() {
-			Expect(sut.IsEnabled()).Should(BeFalse())
+		It("is true", func() {
+			Expect(sut.IsEnabled()).Should(BeTrue())
+		})
+
+		When("max caching time is negative", func() {
+			BeforeEach(func() {
+				sutConfig = config.CachingConfig{
+					MaxCachingTime: config.Duration(time.Minute * -1),
+				}
+			})
+			It("is false", func() {
+				Expect(sut.IsEnabled()).Should(BeFalse())
+			})
 		})
 	})
 
@@ -766,6 +778,41 @@ var _ = Describe("CachingResolver", func() {
 							HaveResponseType(ResponseTypeCACHED),
 							HaveTTL(BeNumerically("<=", 10)),
 						))
+			})
+		})
+	})
+	Context("isRequestCacheable", func() {
+		var request *Request
+		When("request is not cacheable", func() {
+			BeforeEach(func() {
+				request = newRequest("example.com.", A)
+				e := new(dns.EDNS0_SUBNET)
+				e.SourceScope = 0
+				e.Address = net.ParseIP("192.168.0.0")
+				e.Family = 1
+				e.SourceNetmask = 24
+				util.SetEdns0Option(request.Req, e)
+			})
+
+			It("should return false", func() {
+				Expect(isRequestCacheable(request)).
+					Should(BeFalse())
+			})
+		})
+		When("request is cacheable", func() {
+			BeforeEach(func() {
+				request = newRequest("example.com.", A)
+				e := new(dns.EDNS0_SUBNET)
+				e.SourceScope = 0
+				e.Address = net.ParseIP("192.168.0.10")
+				e.Family = 1
+				e.SourceNetmask = 32
+				util.SetEdns0Option(request.Req, e)
+			})
+
+			It("should return true", func() {
+				Expect(isRequestCacheable(request)).
+					Should(BeTrue())
 			})
 		})
 	})

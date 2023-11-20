@@ -3,15 +3,19 @@ package resolver
 import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 )
 
+// A EdeResolver is responsible for adding the reason for the response as EDNS0 option
 type EdeResolver struct {
 	configurable[*config.EdeConfig]
 	NextResolver
 	typed
 }
 
+// NewEdeResolver creates new resolver instance which adds the reason for
+// the response as EDNS0 option to the response if it is enabled in the configuration
 func NewEdeResolver(cfg config.EdeConfig) *EdeResolver {
 	return &EdeResolver{
 		configurable: withConfig(&cfg),
@@ -19,6 +23,8 @@ func NewEdeResolver(cfg config.EdeConfig) *EdeResolver {
 	}
 }
 
+// Resolve adds the reason as EDNS0 option to the response of the next resolver
+// if it is enabled in the configuration
 func (r *EdeResolver) Resolve(request *model.Request) (*model.Response, error) {
 	if !r.cfg.Enable {
 		return r.next.Resolve(request)
@@ -34,6 +40,7 @@ func (r *EdeResolver) Resolve(request *model.Request) (*model.Response, error) {
 	return resp, nil
 }
 
+// addExtraReasoning adds the reason for the response as EDNS0 option
 func (r *EdeResolver) addExtraReasoning(res *model.Response) {
 	infocode := res.RType.ToExtendedErrorCode()
 
@@ -42,12 +49,9 @@ func (r *EdeResolver) addExtraReasoning(res *model.Response) {
 		return
 	}
 
-	opt := new(dns.OPT)
-	opt.Hdr.Name = "."
-	opt.Hdr.Rrtype = dns.TypeOPT
-	opt.Option = append(opt.Option, &dns.EDNS0_EDE{
-		InfoCode:  infocode,
-		ExtraText: res.Reason,
-	})
-	res.Res.Extra = append(res.Res.Extra, opt)
+	edeOption := new(dns.EDNS0_EDE)
+	edeOption.InfoCode = infocode
+	edeOption.ExtraText = res.Reason
+
+	util.SetEdns0Option(res.Res, edeOption)
 }

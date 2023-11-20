@@ -20,7 +20,7 @@ type CachingConfig struct {
 
 // IsEnabled implements `config.Configurable`.
 func (c *CachingConfig) IsEnabled() bool {
-	return c.MaxCachingTime.IsAboveZero()
+	return c.MaxCachingTime.IsAtLeastZero()
 }
 
 // LogConfig implements `config.Configurable`.

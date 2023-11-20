@@ -157,12 +157,12 @@ func (r *CachingResolver) LogConfig(logger *logrus.Entry) {
 	logger.Infof("cache entries = %d", r.resultCache.TotalCount())
 }
 
-// Resolve checks if the current query result is already in the cache and returns it
-// or delegates to the next resolver
+// Resolve checks if the current query should use the cache and if the result is already in
+// the cache and returns it or delegates to the next resolver
 func (r *CachingResolver) Resolve(request *model.Request) (response *model.Response, err error) {
 	logger := log.WithPrefix(request.Log, "caching_resolver")
 
-	if r.cfg.MaxCachingTime < 0 {
+	if !r.IsEnabled() || !isRequestCacheable(request) {
 		logger.Debug("skip cache")
 
 		return r.next.Resolve(request)
@@ -232,22 +232,21 @@ func setTTLInCachedResponse(resp *dns.Msg, ttl time.Duration) {
 	}
 }
 
-// removes EDNS OPT records from message
-func removeEdns0Extra(msg *dns.Msg) {
-	if len(msg.Extra) > 0 {
-		extra := make([]dns.RR, 0, len(msg.Extra))
-
-		for _, rr := range msg.Extra {
-			if rr.Header().Rrtype != dns.TypeOPT {
-				extra = append(extra, rr)
-			}
+// isRequestCacheable returns true if the request should be cached
+func isRequestCacheable(request *model.Request) bool {
+	// don't cache responses with EDNS Client Subnet option with masks that include more than one client
+	if so := util.GetEdns0Option[*dns.EDNS0_SUBNET](request.Req); so != nil {
+		if (so.Family == ecsFamilyIPv4 && so.SourceNetmask != ecsMaskIPv4) ||
+			(so.Family == ecsFamilyIPv6 && so.SourceNetmask != ecsMaskIPv6) {
+			return false
 		}
-
-		msg.Extra = extra
 	}
+
+	return true
 }
 
-func shouldBeCached(msg *dns.Msg) bool {
+// isResponseCacheable returns true if the response is not truncated and its CD flag isn't set.
+func isResponseCacheable(msg *dns.Msg) bool {
 	// we don't cache truncated responses and responses with CD flag
 	return !msg.Truncated && !msg.CheckingDisabled
 }
@@ -258,13 +257,13 @@ func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, 
 	respCopy := response.Res.Copy()
 
 	// don't cache any EDNS OPT records
-	removeEdns0Extra(respCopy)
+	util.RemoveEdns0Record(respCopy)
 
 	packed, err := respCopy.Pack()
 	util.LogOnError("error on packing", err)
 
 	if err == nil {
-		if response.Res.Rcode == dns.RcodeSuccess && shouldBeCached(response.Res) {
+		if response.Res.Rcode == dns.RcodeSuccess && isResponseCacheable(response.Res) {
 			// put value into cache
 			r.resultCache.Put(cacheKey, &packed, ttl)
 		} else if response.Res.Rcode == dns.RcodeNameError {
