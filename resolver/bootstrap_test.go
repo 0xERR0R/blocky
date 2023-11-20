@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync/atomic"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
@@ -24,7 +25,7 @@ import (
 var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 	var (
 		sut       *Bootstrap
-		sutConfig *config.Config
+		sutConfig config.Config
 		ctx       context.Context
 		cancelFn  context.CancelFunc
 
@@ -32,7 +33,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 	)
 
 	BeforeEach(func() {
-		sutConfig = &config.Config{
+		sutConfig = config.Config{
 			BootstrapDNS: []config.BootstrappedUpstreamConfig{
 				{
 					Upstream: config.Upstream{
@@ -50,23 +51,23 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 	})
 
 	JustBeforeEach(func() {
-		sut, err = NewBootstrap(ctx, sutConfig)
+		sut, err = NewBootstrap(ctx, &sutConfig)
 		Expect(err).Should(Succeed())
 	})
 
 	Describe("configuration", func() {
 		When("is not specified", func() {
 			BeforeEach(func() {
-				sutConfig = &config.Config{}
+				sutConfig.BootstrapDNS = config.BootstrapDNSConfig{}
 			})
 
 			It("should use the system resolver", func() {
-				usedSystemResolver := make(chan bool, 100)
+				var usedSystemResolver atomic.Bool
 
 				sut.systemResolver = &net.Resolver{
 					PreferGo: true,
 					Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-						usedSystemResolver <- true
+						usedSystemResolver.Store(true)
 
 						return nil, errors.New("don't actually do anything")
 					},
@@ -74,7 +75,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 				_, err := sut.resolveUpstream(ctx, nil, "example.com")
 				Expect(err).Should(HaveOccurred())
-				Expect(usedSystemResolver).Should(Receive(BeTrue()))
+				Expect(usedSystemResolver.Load()).Should(BeTrue())
 			})
 
 			Describe("HTTP transport", func() {
@@ -113,7 +114,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 		Context("using TCP UDP", func() {
 			When("hostname is an IP", func() {
 				BeforeEach(func() {
-					sutConfig = &config.Config{
+					sutConfig = config.Config{
 						BootstrapDNS: []config.BootstrappedUpstreamConfig{
 							{
 								Upstream: config.Upstream{
@@ -154,7 +155,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 			When("extra IPs are configured", func() {
 				BeforeEach(func() {
-					sutConfig = &config.Config{
+					sutConfig = config.Config{
 						BootstrapDNS: []config.BootstrappedUpstreamConfig{
 							{
 								Upstream: config.Upstream{
@@ -333,6 +334,29 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 				Expect(mockUpstreamServer.GetCallCount()).Should(Equal(1))
 				Expect(rsp.Res.Question[0].Name).Should(Equal("example.com."))
 				Expect(rsp.Res.Id).ShouldNot(Equal(bootstrapResponse.Id))
+			})
+
+			Describe("Resolve", func() {
+				It("calls the usptream resolver", func(ctx context.Context) {
+					expected := new(model.Response)
+
+					bootstrapUpstream.On("Resolve", mock.Anything).Return(expected, nil)
+
+					Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+						Should(BeIdenticalTo(expected))
+				})
+
+				When("using the system resolver", func() {
+					JustBeforeEach(func() {
+						sut = systemResolverBootstrap
+					})
+
+					It("can't resolve arbitrary requests", func(ctx context.Context) {
+						_, err := sut.Resolve(ctx, newRequest("example.com.", A))
+						Expect(err).
+							Should(MatchError(errArbitrarySystemResolverRequest))
+					})
+				})
 			})
 		})
 

@@ -26,7 +26,8 @@ const (
 
 // Bootstrap allows resolving hostnames using the configured bootstrap DNS.
 type Bootstrap struct {
-	log *logrus.Entry
+	configurable[*config.BootstrapDNSConfig]
+	typed
 
 	resolver    Resolver
 	bootstraped bootstrapedResolvers
@@ -44,8 +45,6 @@ type Bootstrap struct {
 // NewBootstrap creates and returns a new Bootstrap.
 // Internally, it uses a CachingResolver and an UpstreamResolver.
 func NewBootstrap(ctx context.Context, cfg *config.Config) (b *Bootstrap, err error) {
-	logger := log.PrefixedLog("bootstrap")
-
 	timeout := defaultTimeout
 	if cfg.Upstreams.Timeout.IsAboveZero() {
 		timeout = cfg.Upstreams.Timeout.ToDuration()
@@ -55,7 +54,9 @@ func NewBootstrap(ctx context.Context, cfg *config.Config) (b *Bootstrap, err er
 	// This also prevents the GC to clean up these two structs, but is not currently an
 	// issue since they stay allocated until the process terminates
 	b = &Bootstrap{
-		log:              logger,
+		configurable: withConfig(&cfg.BootstrapDNS),
+		typed:        withType("bootstrap"),
+
 		connectIPVersion: cfg.ConnectIPVersion,
 
 		systemResolver: net.DefaultResolver,
@@ -71,7 +72,7 @@ func NewBootstrap(ctx context.Context, cfg *config.Config) (b *Bootstrap, err er
 	}
 
 	if len(bootstraped) == 0 {
-		logger.Infof("bootstrapDns is not configured, will use system resolver")
+		b.log().Info("bootstrapDns is not configured, will use system resolver")
 
 		return b, nil
 	}
@@ -103,6 +104,20 @@ func NewBootstrap(ctx context.Context, cfg *config.Config) (b *Bootstrap, err er
 	return b, nil
 }
 
+func (b *Bootstrap) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
+	if b.resolver == nil {
+		// We could implement most queries using the `b.systemResolver.Lookup*` functions,
+		// but that requires a lot of boilerplate to translate from `dns` to `net` and back.
+		return nil, errors.New("cannot resolve arbitrary requests using the system resolver")
+	}
+
+	// Add bootstrap prefix to all inner resolver logs
+	req := *request
+	req.Log = log.WithPrefix(req.Log, b.Type())
+
+	return b.resolver.Resolve(ctx, &req)
+}
+
 func (b *Bootstrap) UpstreamIPs(ctx context.Context, r *UpstreamResolver) (*IPSet, error) {
 	hostname := r.cfg.Host
 
@@ -112,7 +127,7 @@ func (b *Bootstrap) UpstreamIPs(ctx context.Context, r *UpstreamResolver) (*IPSe
 
 	ips, err := b.resolveUpstream(ctx, r, hostname)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not resolve IPs for upstream %s: %w", hostname, err)
 	}
 
 	return newIPSet(ips), nil
@@ -149,7 +164,7 @@ func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 }
 
 func (b *Bootstrap) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	logger := b.log.WithField("network", network).WithField("addr", addr)
+	logger := b.log().WithFields(logrus.Fields{"network": network, "addr": addr})
 
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -217,7 +232,7 @@ func (b *Bootstrap) resolveType(ctx context.Context, hostname string, qType dns.
 
 	req := model.Request{
 		Req: util.NewMsgWithQuestion(hostname, qType),
-		Log: b.log,
+		Log: b.log(),
 	}
 
 	rsp, err := b.resolver.Resolve(ctx, &req)
@@ -243,7 +258,7 @@ func (b *Bootstrap) resolveType(ctx context.Context, hostname string, qType dns.
 	return ips, nil
 }
 
-// map of bootstraped resolvers their hardcoded IPs
+// map of bootstraped resolvers to their hardcoded IPs
 type bootstrapedResolvers map[Resolver][]net.IP
 
 func newBootstrapedResolvers(
@@ -267,7 +282,7 @@ func newBootstrapedResolvers(
 			continue
 		}
 
-		var ips []net.IP
+		ips := make([]net.IP, 0, len(upstreamCfg.IPs)+1)
 
 		if ip := net.ParseIP(upstream.Host); ip != nil {
 			ips = append(ips, ip)

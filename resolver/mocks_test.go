@@ -12,6 +12,7 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 
 	"github.com/0xERR0R/blocky/model"
 
@@ -119,13 +120,22 @@ func autoAnswer(qType dns.Type, qName string) (*dns.Msg, error) {
 
 // newTestBootstrap creates a test Bootstrap
 func newTestBootstrap(ctx context.Context, response *dns.Msg) *Bootstrap {
+	const cfgTxt = `
+upstream: https://mock
+ips:
+  - 0.0.0.0
+`
+
 	bootstrapUpstream := &mockResolver{}
 
-	b, err := NewBootstrap(ctx, &config.Config{})
+	var bCfg config.BootstrapDNSConfig
+	err := yaml.UnmarshalStrict([]byte(cfgTxt), &bCfg)
+	util.FatalOnError("test bootstrap config is broken, did you change the struct?", err)
+
+	b, err := NewBootstrap(ctx, &config.Config{BootstrapDNS: bCfg})
 	util.FatalOnError("can't create bootstrap", err)
 
 	b.resolver = bootstrapUpstream
-	b.bootstraped = bootstrapedResolvers{bootstrapUpstream: []net.IP{}}
 
 	if response != nil {
 		bootstrapUpstream.

@@ -271,6 +271,16 @@ type (
 	bootstrapDNSConfig []BootstrappedUpstreamConfig
 )
 
+func (b *BootstrapDNSConfig) IsEnabled() bool {
+	return len(*b) != 0
+}
+
+func (b *BootstrapDNSConfig) LogConfig(*logrus.Entry) {
+	// This should not be called, at least for now:
+	// The Boostrap resolver is not in the chain and thus its config is not logged
+	panic("not implemented")
+}
+
 // split in two types to avoid infinite recursion. See `BootstrappedUpstreamConfig.UnmarshalYAML`.
 type (
 	BootstrappedUpstreamConfig bootstrappedUpstreamConfig
