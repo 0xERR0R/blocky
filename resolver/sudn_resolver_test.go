@@ -17,7 +17,7 @@ import (
 var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 	var (
 		sut       *SpecialUseDomainNamesResolver
-		sutConfig config.SUDNConfig
+		sutConfig config.SUDN
 		m         *mockResolver
 	)
 
@@ -30,7 +30,7 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 	BeforeEach(func() {
 		var err error
 
-		sutConfig, err = config.WithDefaults[config.SUDNConfig]()
+		sutConfig, err = config.WithDefaults[config.SUDN]()
 		Expect(err).Should(Succeed())
 	})
 

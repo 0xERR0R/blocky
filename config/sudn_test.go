@@ -6,14 +6,14 @@ import (
 )
 
 var _ = Describe("SUDNConfig", func() {
-	var cfg SUDNConfig
+	var cfg SUDN
 
 	suiteBeforeEach()
 
 	BeforeEach(func() {
 		var err error
 
-		cfg, err = WithDefaults[SUDNConfig]()
+		cfg, err = WithDefaults[SUDN]()
 		Expect(err).Should(Succeed())
 	})
 

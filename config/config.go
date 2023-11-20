@@ -212,7 +212,7 @@ type Config struct {
 	Filtering           FilteringConfig           `yaml:"filtering"`
 	EDE                 EDE                       `yaml:"ede"`
 	ECS                 ECS                       `yaml:"ecs"`
-	SUDN                SUDNConfig                `yaml:"specialUseDomains"`
+	SUDN                SUDN                      `yaml:"specialUseDomains"`
 
 	// Deprecated options
 	Deprecated struct {

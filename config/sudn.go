@@ -4,8 +4,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// SUDNConfig configuration for Special Use Domain Names
-type SUDNConfig struct {
+// SUDN configuration for Special Use Domain Names
+type SUDN struct {
 	// These are "recommended for private use" but not mandatory.
 	// If a user wishes to use one, it will most likely be via conditional
 	// upstream or custom DNS, which come before SUDN in the resolver chain.
@@ -14,12 +14,12 @@ type SUDNConfig struct {
 }
 
 // IsEnabled implements `config.Configurable`.
-func (c *SUDNConfig) IsEnabled() bool {
+func (c *SUDN) IsEnabled() bool {
 	// The Special Use RFCs are always active
 	return true
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *SUDNConfig) LogConfig(logger *logrus.Entry) {
+func (c *SUDN) LogConfig(logger *logrus.Entry) {
 	logger.Debugf("rfc6762-appendixG = %v", c.RFC6762AppendixG)
 }
