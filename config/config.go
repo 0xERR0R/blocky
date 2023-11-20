@@ -208,7 +208,7 @@ type Config struct {
 	KeyFile             string                    `yaml:"keyFile"`
 	BootstrapDNS        BootstrapDNSConfig        `yaml:"bootstrapDns"`
 	HostsFile           HostsFileConfig           `yaml:"hostsFile"`
-	FqdnOnly            FqdnOnlyConfig            `yaml:"fqdnOnly"`
+	FQDNOnly            FQDNOnly                  `yaml:"fqdnOnly"`
 	Filtering           FilteringConfig           `yaml:"filtering"`
 	EDE                 EDE                       `yaml:"ede"`
 	ECS                 ECS                       `yaml:"ecs"`
@@ -274,8 +274,8 @@ type RedisConfig struct {
 }
 
 type (
-	FqdnOnlyConfig = toEnable
-	EDE            = toEnable
+	FQDNOnly = toEnable
+	EDE      = toEnable
 )
 
 type toEnable struct {

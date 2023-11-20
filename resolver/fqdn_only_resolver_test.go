@@ -14,7 +14,7 @@ import (
 var _ = Describe("FqdnOnlyResolver", func() {
 	var (
 		sut        *FqdnOnlyResolver
-		sutConfig  config.FqdnOnlyConfig
+		sutConfig  config.FQDNOnly
 		m          *mockResolver
 		mockAnswer *dns.Msg
 	)
@@ -54,7 +54,7 @@ var _ = Describe("FqdnOnlyResolver", func() {
 
 	When("Fqdn only is enabled", func() {
 		BeforeEach(func() {
-			sutConfig = config.FqdnOnlyConfig{Enable: true}
+			sutConfig = config.FQDNOnly{Enable: true}
 		})
 		It("Should delegate to next resolver if request query is fqdn", func() {
 			Expect(sut.Resolve(newRequest("example.com", A))).
@@ -100,7 +100,7 @@ var _ = Describe("FqdnOnlyResolver", func() {
 
 	When("Fqdn only is disabled", func() {
 		BeforeEach(func() {
-			sutConfig = config.FqdnOnlyConfig{Enable: false}
+			sutConfig = config.FQDNOnly{Enable: false}
 		})
 		It("Should delegate to next resolver if request query is fqdn", func() {
 			Expect(sut.Resolve(newRequest("example.com", A))).
