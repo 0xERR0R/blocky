@@ -27,177 +27,204 @@ var _ = Describe("EDNS0 utils", func() {
 	})
 
 	Describe("RemoveEdns0Record", func() {
-		It("should remove OPT record", func() {
-			opt := new(dns.OPT)
-			opt.Hdr.Name = "."
-			opt.Hdr.Rrtype = dns.TypeOPT
-			baseMsg.Extra = append(baseMsg.Extra, opt)
+		When("OPT record is present", func() {
+			BeforeEach(func() {
+				opt := new(dns.OPT)
+				opt.Hdr.Name = "."
+				opt.Hdr.Rrtype = dns.TypeOPT
+				baseMsg.Extra = append(baseMsg.Extra, opt)
+			})
 
-			Expect(RemoveEdns0Record(baseMsg)).Should(BeTrue())
+			It("should remove it", func() {
+				Expect(RemoveEdns0Record(baseMsg)).Should(BeTrue())
 
-			Expect(baseMsg.IsEdns0()).Should(BeNil())
+				Expect(baseMsg.IsEdns0()).Should(BeNil())
+			})
 		})
 
-		It("should do nothing if no extra record exists", func() {
-			Expect(RemoveEdns0Record(baseMsg)).Should(BeFalse())
+		When("OPT record is not present", func() {
+			It("should do nothing ", func() {
+				Expect(RemoveEdns0Record(baseMsg)).Should(BeFalse())
+			})
 		})
 
-		It("should do nothing if OPT record is not present", func() {
-			baseTxt := new(dns.TXT)
-			baseTxt.Hdr.Name = "."
-			baseTxt.Hdr.Rrtype = dns.TypeTXT
-			baseMsg.Extra = append(baseMsg.Extra, baseTxt)
+		When("Extra is nil", func() {
+			BeforeEach(func() {
+				baseMsg.Extra = nil
+			})
 
-			Expect(RemoveEdns0Record(baseMsg)).Should(BeFalse())
+			It("should do nothing", func() {
+				Expect(RemoveEdns0Record(baseMsg)).Should(BeFalse())
+			})
 		})
 
-		It("should do nothing if message is nil", func() {
-			Expect(RemoveEdns0Record(nil)).Should(BeFalse())
-		})
-	})
-
-	Describe("GetEdns0Record", func() {
-		It("should return OPT record if present", func() {
-			baseOpt := new(dns.OPT)
-			baseOpt.Hdr.Name = "."
-			baseOpt.Hdr.Rrtype = dns.TypeOPT
-			baseMsg.Extra = append(baseMsg.Extra, baseOpt)
-
-			opt := GetEdns0Record(baseMsg)
-
-			Expect(opt).Should(Equal(baseOpt))
-		})
-
-		It("should return OPT record if not present", func() {
-			opt := GetEdns0Record(baseMsg)
-
-			Expect(opt).ShouldNot(BeNil())
-			Expect(opt.Hdr.Name).Should(Equal("."))
-			Expect(opt.Hdr.Rrtype).Should(Equal(dns.TypeOPT))
-		})
-
-		It("should add OPT record if not present", func() {
-			baseMsg.Extra = nil
-
-			opt := GetEdns0Record(baseMsg)
-
-			Expect(opt).ShouldNot(BeNil())
-			Expect(opt.Hdr.Name).Should(Equal("."))
-			Expect(opt.Hdr.Rrtype).Should(Equal(dns.TypeOPT))
-		})
-
-		It("should do nothing if message is nil", func() {
-			Expect(func() {
-				GetEdns0Record(nil)
-			}).NotTo(Panic())
+		When("message is nil", func() {
+			It("should do nothing", func() {
+				Expect(RemoveEdns0Record(nil)).Should(BeFalse())
+			})
 		})
 	})
 
 	Describe("GetEdns0Option", func() {
-		It("should return option if present", func() {
-			opt := new(dns.OPT)
-			opt.Hdr.Name = "."
-			opt.Hdr.Rrtype = dns.TypeOPT
-			eso := new(dns.EDNS0_SUBNET)
-			opt.Option = append(opt.Option, eso)
-			baseMsg.Extra = append(baseMsg.Extra, opt)
+		When("Option is present", func() {
+			var eso *dns.EDNS0_SUBNET
 
-			Expect(GetEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(Equal(eso))
+			BeforeEach(func() {
+				opt := new(dns.OPT)
+				opt.Hdr.Name = "."
+				opt.Hdr.Rrtype = dns.TypeOPT
+				eso = new(dns.EDNS0_SUBNET)
+				eso.Code = dns.EDNS0SUBNET
+				eso.Address = net.ParseIP("192.168.0.0")
+				eso.Family = 1
+				eso.SourceNetmask = 24
+				opt.Option = append(opt.Option, eso)
+				baseMsg.Extra = append(baseMsg.Extra, opt)
+			})
+
+			It("should return it", func() {
+				Expect(GetEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(Equal(eso))
+			})
 		})
 
-		It("should return nil if option is not present", func() {
-			opt := new(dns.OPT)
-			opt.Hdr.Name = "."
-			opt.Hdr.Rrtype = dns.TypeOPT
-			opt.Option = append(opt.Option, new(dns.EDNS0_EDE))
-			baseMsg.Extra = append(baseMsg.Extra, opt)
-			Expect(GetEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(BeNil())
+		When("Option is not present", func() {
+			BeforeEach(func() {
+				opt := new(dns.OPT)
+				opt.Hdr.Name = "."
+				opt.Hdr.Rrtype = dns.TypeOPT
+				opt.Option = append(opt.Option, new(dns.EDNS0_EDE))
+				baseMsg.Extra = append(baseMsg.Extra, opt)
+			})
+
+			It("should return nil", func() {
+				Expect(GetEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(BeNil())
+			})
 		})
 
-		It("should return nil if OPT record is not present", func() {
-			Expect(GetEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(BeNil())
+		When("Extra is nil", func() {
+			BeforeEach(func() {
+				baseMsg.Extra = nil
+			})
+
+			It("should return nil", func() {
+				Expect(GetEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(BeNil())
+			})
 		})
 
-		It("should do nothing if message is nil", func() {
-			Expect(GetEdns0Option[*dns.EDNS0_SUBNET](nil)).Should(BeNil())
+		When("message is nil", func() {
+			It("should return nil", func() {
+				Expect(GetEdns0Option[*dns.EDNS0_SUBNET](nil)).Should(BeNil())
+			})
 		})
 	})
 
 	Describe("RemoveEdns0Option", func() {
-		It("should remove option if present", func() {
-			opt := new(dns.OPT)
-			opt.Hdr.Name = "."
-			opt.Hdr.Rrtype = dns.TypeOPT
-			eso := new(dns.EDNS0_SUBNET)
-			eso.Code = dns.EDNS0SUBNET
-			opt.Option = append(opt.Option, eso)
-			baseMsg.Extra = append(baseMsg.Extra, opt)
+		When("Option is present", func() {
+			BeforeEach(func() {
+				opt := new(dns.OPT)
+				opt.Hdr.Name = "."
+				opt.Hdr.Rrtype = dns.TypeOPT
+				eso := new(dns.EDNS0_SUBNET)
+				eso.Code = dns.EDNS0SUBNET
+				opt.Option = append(opt.Option, eso)
+				baseMsg.Extra = append(baseMsg.Extra, opt)
+			})
 
-			Expect(RemoveEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(BeTrue())
+			It("should remove it", func() {
+				Expect(RemoveEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(BeTrue())
 
-			Expect(baseMsg).ShouldNot(HaveEdnsOption(dns.EDNS0SUBNET))
+				Expect(baseMsg).ShouldNot(HaveEdnsOption(dns.EDNS0SUBNET))
+			})
 		})
 
-		It("should do nothing if option is not present", func() {
-			opt := new(dns.OPT)
-			opt.Hdr.Name = "."
-			opt.Hdr.Rrtype = dns.TypeOPT
-			opt.Option = append(opt.Option, new(dns.EDNS0_EDE))
-			baseMsg.Extra = append(baseMsg.Extra, opt)
-			Expect(RemoveEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(BeFalse())
+		When("Option is not present", func() {
+			BeforeEach(func() {
+				opt := new(dns.OPT)
+				opt.Hdr.Name = "."
+				opt.Hdr.Rrtype = dns.TypeOPT
+				opt.Option = append(opt.Option, new(dns.EDNS0_EDE))
+				baseMsg.Extra = append(baseMsg.Extra, opt)
+			})
+			It("should return false", func() {
+				Expect(RemoveEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(BeFalse())
+			})
 		})
 
-		It("should do nothing if OPT record is not present", func() {
-			Expect(RemoveEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(BeFalse())
+		When("Extra is nil", func() {
+			BeforeEach(func() {
+				baseMsg.Extra = nil
+			})
+
+			It("should return false", func() {
+				Expect(RemoveEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(BeFalse())
+			})
 		})
 
-		It("should do nothing if message is nil", func() {
-			Expect(RemoveEdns0Option[*dns.EDNS0_SUBNET](nil)).Should(BeFalse())
+		When("message is nil", func() {
+			It("should return false", func() {
+				Expect(RemoveEdns0Option[*dns.EDNS0_SUBNET](nil)).Should(BeFalse())
+			})
 		})
 	})
 
 	Describe("SetEdns0Option", func() {
-		It("should add option if not present", func() {
-			eso := new(dns.EDNS0_SUBNET)
-			eso.Code = dns.EDNS0SUBNET
+		When("Option is not present", func() {
+			var eso *dns.EDNS0_SUBNET
 
-			SetEdns0Option(baseMsg, eso)
+			BeforeEach(func() {
+				Expect(baseMsg).ShouldNot(HaveEdnsOption(dns.EDNS0SUBNET))
+				Expect(SetEdns0Option(baseMsg, new(dns.EDNS0_EDE))).Should(BeTrue())
 
-			Expect(baseMsg).Should(HaveEdnsOption(dns.EDNS0SUBNET))
+				eso = new(dns.EDNS0_SUBNET)
+				eso.Code = dns.EDNS0SUBNET
+			})
+
+			It("should add the option", func() {
+				Expect(SetEdns0Option(baseMsg, eso)).Should(BeTrue())
+
+				Expect(baseMsg).Should(HaveEdnsOption(dns.EDNS0SUBNET))
+			})
 		})
 
-		It("should replace option if present", func() {
-			opt := new(dns.OPT)
-			opt.Hdr.Name = "."
-			opt.Hdr.Rrtype = dns.TypeOPT
-			opt.Option = append(opt.Option, new(dns.EDNS0_EDE))
-			eso := new(dns.EDNS0_SUBNET)
-			eso.Code = dns.EDNS0SUBNET
-			eso.Address = net.ParseIP("1.1.1.1")
-			opt.Option = append(opt.Option, eso)
-			baseMsg.Extra = append(baseMsg.Extra, opt)
+		When("Option is present", func() {
+			var (
+				eso  *dns.EDNS0_SUBNET
+				eso2 *dns.EDNS0_SUBNET
+			)
 
-			eso2 := new(dns.EDNS0_SUBNET)
-			eso2.Code = dns.EDNS0SUBNET
-			eso2.Address = net.ParseIP("2.2.2.2")
+			BeforeEach(func() {
+				eso = new(dns.EDNS0_SUBNET)
+				eso.Code = dns.EDNS0SUBNET
+				eso.Address = net.ParseIP("1.1.1.1")
+				eso.Family = 1
+				eso.SourceNetmask = 32
 
-			SetEdns0Option(baseMsg, eso2)
-			Expect(baseMsg).Should(HaveEdnsOption(dns.EDNS0SUBNET))
+				eso2 = new(dns.EDNS0_SUBNET)
+				eso2.Code = dns.EDNS0SUBNET
+				eso2.Address = net.ParseIP("2.2.2.2")
+				eso2.Family = 1
+				eso2.SourceNetmask = 32
+
+				Expect(SetEdns0Option(baseMsg, eso)).Should(BeTrue())
+			})
+
+			It("should replace it", func() {
+				Expect(GetEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(Equal(eso))
+				Expect(SetEdns0Option(baseMsg, eso2)).Should(BeTrue())
+				Expect(GetEdns0Option[*dns.EDNS0_SUBNET](baseMsg)).Should(Equal(eso2))
+			})
 		})
 
-		It("should do nothing if message is nil", func() {
-			eso := new(dns.EDNS0_SUBNET)
-			eso.Code = dns.EDNS0SUBNET
-
-			Expect(func() {
-				SetEdns0Option(nil, eso)
-			}).NotTo(Panic())
+		When("message is nil", func() {
+			It("should return false", func() {
+				Expect(SetEdns0Option(nil, new(dns.EDNS0_SUBNET))).Should(BeFalse())
+			})
 		})
 
-		It("should do nothing if option is nil", func() {
-			Expect(func() {
-				SetEdns0Option(baseMsg, nil)
-			}).NotTo(Panic())
+		When("option is nil", func() {
+			It("should do nothing if option is nil", func() {
+				Expect(SetEdns0Option(baseMsg, nil)).Should(BeFalse())
+			})
 		})
 	})
 })

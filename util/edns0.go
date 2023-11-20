@@ -14,8 +14,9 @@ type EDNS0Option interface {
 }
 
 // RemoveEdns0Record removes the OPT record from the Extra section of the given message.
+// If the OPT record is removed, true will be returned.
 func RemoveEdns0Record(msg *dns.Msg) bool {
-	if msg == nil || msg.IsEdns0() == nil || len(msg.Extra) == 0 {
+	if msg == nil || msg.IsEdns0() == nil {
 		return false
 	}
 
@@ -30,39 +31,29 @@ func RemoveEdns0Record(msg *dns.Msg) bool {
 	return false
 }
 
-// GetEdns0Record returns the OPT record from the Extra section of the given message.
-func GetEdns0Record(msg *dns.Msg) *dns.OPT {
+// GetEdns0Option returns the option with the given code from the OPT record in the
+// Extra section of the given message.
+// If the option is not found, nil will be returned.
+func GetEdns0Option[T EDNS0Option](msg *dns.Msg) T {
 	if msg == nil {
 		return nil
 	}
 
-	if res := msg.IsEdns0(); res != nil {
-		return res
-	}
-
-	res := new(dns.OPT)
-	res.Hdr.Name = "."
-	res.Hdr.Rrtype = dns.TypeOPT
-	msg.Extra = append(msg.Extra, res)
-
-	return res
-}
-
-// GetEdns0Option returns the option with the given code from the OPT record in the
-// Extra section of the given message.
-func GetEdns0Option[T EDNS0Option](msg *dns.Msg) T {
-	code := getCode[T](msg)
-	if code == 0 {
+	opt := msg.IsEdns0()
+	if opt == nil {
 		return nil
 	}
 
-	opt := GetEdns0Record(msg)
+	var t T
+
 	for _, o := range opt.Option {
-		if o.Option() == code {
+		if o.Option() == t.Option() {
 			t, ok := o.(T)
 			if !ok {
-				panic(fmt.Errorf("dns option with code %d is not of type %T", code, t))
+				panic(fmt.Errorf("dns option with code %d is not of type %T", t.Option(), t))
 			}
+
+			return t
 		}
 	}
 
@@ -71,18 +62,24 @@ func GetEdns0Option[T EDNS0Option](msg *dns.Msg) T {
 
 // RemoveEdns0Option removes the option according to the given type from the OPT record
 // in the Extra section of the given message.
-// If the option doesn't exist, false will be returned.
+// If there are no more options in the OPT record, the OPT record will be removed.
+// If the option is successfully removed, true will be returned.
 func RemoveEdns0Option[T EDNS0Option](msg *dns.Msg) bool {
-	code := getCode[T](msg)
-	if code == 0 {
+	if msg == nil {
+		return false
+	}
+
+	opt := msg.IsEdns0()
+	if opt == nil {
 		return false
 	}
 
 	res := false
 
-	opt := GetEdns0Record(msg)
+	var t T
+
 	for i, o := range opt.Option {
-		if o.Option() == code {
+		if o.Option() == t.Option() {
 			opt.Option = slices.Delete(opt.Option, i, i+1)
 
 			res = true
@@ -101,12 +98,20 @@ func RemoveEdns0Option[T EDNS0Option](msg *dns.Msg) bool {
 // SetEdns0Option adds the given option to the OPT record in the Extra section of the
 // given message.
 // If the option already exists, it will be replaced.
-func SetEdns0Option(msg *dns.Msg, opt dns.EDNS0) {
-	if msg == nil {
-		return
+// If the option is successfully set, true will be returned.
+func SetEdns0Option(msg *dns.Msg, opt dns.EDNS0) bool {
+	if msg == nil || opt == nil {
+		return false
 	}
 
-	optRecord := GetEdns0Record(msg)
+	optRecord := msg.IsEdns0()
+
+	if optRecord == nil {
+		optRecord = new(dns.OPT)
+		optRecord.Hdr.Name = "."
+		optRecord.Hdr.Rrtype = dns.TypeOPT
+		msg.Extra = append(msg.Extra, optRecord)
+	}
 
 	newOpts := make([]dns.EDNS0, 0, len(optRecord.Option)+1)
 
@@ -118,17 +123,6 @@ func SetEdns0Option(msg *dns.Msg, opt dns.EDNS0) {
 
 	newOpts = append(newOpts, opt)
 	optRecord.Option = newOpts
-}
 
-// getCode returns the option code for the given option type.
-// It is used to get the option code as uint16 for generics.
-// If the given message is nil or doesn't contain an OPT record, 0 will be returned.
-func getCode[T EDNS0Option](msg *dns.Msg) uint16 {
-	if msg == nil || msg.IsEdns0() == nil {
-		return 0
-	}
-
-	var t T
-
-	return t.Option()
+	return true
 }
