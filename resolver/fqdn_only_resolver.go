@@ -9,20 +9,20 @@ import (
 	"github.com/miekg/dns"
 )
 
-type FqdnOnlyResolver struct {
+type FQDNOnlyResolver struct {
 	configurable[*config.FQDNOnly]
 	NextResolver
 	typed
 }
 
-func NewFqdnOnlyResolver(cfg config.FQDNOnly) *FqdnOnlyResolver {
-	return &FqdnOnlyResolver{
+func NewFQDNOnlyResolver(cfg config.FQDNOnly) *FQDNOnlyResolver {
+	return &FQDNOnlyResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("fqdn_only"),
 	}
 }
 
-func (r *FqdnOnlyResolver) Resolve(request *model.Request) (*model.Response, error) {
+func (r *FQDNOnlyResolver) Resolve(request *model.Request) (*model.Response, error) {
 	if r.IsEnabled() {
 		domainFromQuestion := util.ExtractDomain(request.Req.Question[0])
 		if !strings.Contains(domainFromQuestion, ".") {

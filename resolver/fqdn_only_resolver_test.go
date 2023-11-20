@@ -13,7 +13,7 @@ import (
 
 var _ = Describe("FqdnOnlyResolver", func() {
 	var (
-		sut        *FqdnOnlyResolver
+		sut        *FQDNOnlyResolver
 		sutConfig  config.FQDNOnly
 		m          *mockResolver
 		mockAnswer *dns.Msg
@@ -30,7 +30,7 @@ var _ = Describe("FqdnOnlyResolver", func() {
 	})
 
 	JustBeforeEach(func() {
-		sut = NewFqdnOnlyResolver(sutConfig)
+		sut = NewFQDNOnlyResolver(sutConfig)
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		sut.Next(m)
