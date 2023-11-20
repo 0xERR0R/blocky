@@ -8,7 +8,6 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
-	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
 	. "github.com/0xERR0R/blocky/model"
@@ -110,7 +109,7 @@ var _ = Describe("EdeResolver", func() {
 				m = &mockResolver{}
 				m.On("Resolve", mock.Anything).Return(&Response{
 					Res:    mockAnswer,
-					RType:  model.ResponseType(math.MaxInt),
+					RType:  ResponseType(math.MaxInt),
 					Reason: "Test",
 				}, nil)
 			})
