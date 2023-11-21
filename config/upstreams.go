@@ -6,8 +6,8 @@ import (
 
 const UpstreamDefaultCfgName = "default"
 
-// UpstreamsConfig upstream servers configuration
-type UpstreamsConfig struct {
+// Upstreams upstream servers configuration
+type Upstreams struct {
 	Timeout  Duration         `yaml:"timeout" default:"2s"`
 	Groups   UpstreamGroups   `yaml:"groups"`
 	Strategy UpstreamStrategy `yaml:"strategy" default:"parallel_best"`
@@ -16,12 +16,12 @@ type UpstreamsConfig struct {
 type UpstreamGroups map[string][]Upstream
 
 // IsEnabled implements `config.Configurable`.
-func (c *UpstreamsConfig) IsEnabled() bool {
+func (c *Upstreams) IsEnabled() bool {
 	return len(c.Groups) != 0
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *UpstreamsConfig) LogConfig(logger *logrus.Entry) {
+func (c *Upstreams) LogConfig(logger *logrus.Entry) {
 	logger.Info("timeout: ", c.Timeout)
 	logger.Info("strategy: ", c.Strategy)
 	logger.Info("groups:")

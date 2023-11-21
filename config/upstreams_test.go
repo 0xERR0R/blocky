@@ -12,10 +12,10 @@ var _ = Describe("ParallelBestConfig", func() {
 	suiteBeforeEach()
 
 	Context("UpstreamsConfig", func() {
-		var cfg UpstreamsConfig
+		var cfg Upstreams
 
 		BeforeEach(func() {
-			cfg = UpstreamsConfig{
+			cfg = Upstreams{
 				Timeout: Duration(5 * time.Second),
 				Groups: UpstreamGroups{
 					UpstreamDefaultCfgName: {
@@ -28,7 +28,7 @@ var _ = Describe("ParallelBestConfig", func() {
 
 		Describe("IsEnabled", func() {
 			It("should be false by default", func() {
-				cfg := UpstreamsConfig{}
+				cfg := Upstreams{}
 				Expect(defaults.Set(&cfg)).Should(Succeed())
 
 				Expect(cfg.IsEnabled()).Should(BeFalse())
@@ -42,7 +42,7 @@ var _ = Describe("ParallelBestConfig", func() {
 
 			When("disabled", func() {
 				It("should be false", func() {
-					cfg := UpstreamsConfig{}
+					cfg := Upstreams{}
 
 					Expect(cfg.IsEnabled()).Should(BeFalse())
 				})

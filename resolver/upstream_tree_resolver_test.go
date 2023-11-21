@@ -19,7 +19,7 @@ var mockRes *mockResolver
 var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 	var (
 		sut       Resolver
-		sutConfig config.UpstreamsConfig
+		sutConfig config.Upstreams
 		branches  map[string]Resolver
 
 		err error
@@ -35,7 +35,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 
 	When("has no configuration", func() {
 		BeforeEach(func() {
-			sutConfig = config.UpstreamsConfig{}
+			sutConfig = config.Upstreams{}
 		})
 
 		It("should return error", func() {
@@ -47,7 +47,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 
 	When("amount of passed in resolvers doesn't match amount of groups", func() {
 		BeforeEach(func() {
-			sutConfig = config.UpstreamsConfig{
+			sutConfig = config.Upstreams{
 				Groups: config.UpstreamGroups{
 					upstreamDefaultCfgName: {
 						{Host: "wrong"},
@@ -68,7 +68,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 
 	When("has only default group", func() {
 		BeforeEach(func() {
-			sutConfig = config.UpstreamsConfig{
+			sutConfig = config.Upstreams{
 				Groups: config.UpstreamGroups{
 					upstreamDefaultCfgName: {
 						{Host: "wrong"},
@@ -93,7 +93,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 
 	When("has multiple groups", func() {
 		BeforeEach(func() {
-			sutConfig = config.UpstreamsConfig{
+			sutConfig = config.Upstreams{
 				Groups: config.UpstreamGroups{
 					upstreamDefaultCfgName: {
 						{Host: "wrong"},
@@ -150,7 +150,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 				ctx, cancelFn = context.WithCancel(context.Background())
 				DeferCleanup(cancelFn)
 
-				sutConfig = config.UpstreamsConfig{Groups: config.UpstreamGroups{
+				sutConfig = config.Upstreams{Groups: config.UpstreamGroups{
 					upstreamDefaultCfgName: {config.Upstream{}},
 					"laptop":               {config.Upstream{}},
 					"client-*-m":           {config.Upstream{}},
@@ -320,7 +320,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 	})
 })
 
-func createBranchesMock(cfg config.UpstreamsConfig) map[string]Resolver {
+func createBranchesMock(cfg config.Upstreams) map[string]Resolver {
 	branches := make(map[string]Resolver, len(cfg.Groups))
 
 	for name := range cfg.Groups {

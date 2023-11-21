@@ -157,7 +157,7 @@ var _ = BeforeSuite(func() {
 			BlockType: "zeroIp",
 			BlockTTL:  config.Duration(6 * time.Hour),
 		},
-		Upstreams: config.UpstreamsConfig{
+		Upstreams: config.Upstreams{
 			Timeout: config.Duration(250 * time.Millisecond),
 			Groups:  map[string][]config.Upstream{"default": {upstreamGoogle}},
 		},
@@ -609,7 +609,7 @@ var _ = Describe("Running DNS server", func() {
 			BeforeEach(func() {
 				// create server
 				server, err = NewServer(ctx, &config.Config{
-					Upstreams: config.UpstreamsConfig{
+					Upstreams: config.Upstreams{
 						Groups: map[string][]config.Upstream{
 							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}},
 						},
@@ -655,7 +655,7 @@ var _ = Describe("Running DNS server", func() {
 			BeforeEach(func() {
 				// create server
 				server, err = NewServer(ctx, &config.Config{
-					Upstreams: config.UpstreamsConfig{
+					Upstreams: config.Upstreams{
 						Groups: map[string][]config.Upstream{
 							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}},
 						},
@@ -700,7 +700,7 @@ var _ = Describe("Running DNS server", func() {
 	Describe("NewServer with strict upstream strategy", func() {
 		It("successfully returns upstream branches", func() {
 			branches, err := createUpstreamBranches(context.Background(), &config.Config{
-				Upstreams: config.UpstreamsConfig{
+				Upstreams: config.Upstreams{
 					Strategy: config.UpstreamStrategyStrict,
 					Groups: config.UpstreamGroups{
 						"default": {{Host: "0.0.0.0"}},
@@ -718,7 +718,7 @@ var _ = Describe("Running DNS server", func() {
 	Describe("NewServer with random upstream strategy", func() {
 		It("successfully returns upstream branches", func() {
 			branches, err := createUpstreamBranches(context.Background(), &config.Config{
-				Upstreams: config.UpstreamsConfig{
+				Upstreams: config.Upstreams{
 					Strategy: config.UpstreamStrategyRandom,
 					Groups: config.UpstreamGroups{
 						"default": {{Host: "0.0.0.0"}},
@@ -738,7 +738,7 @@ var _ = Describe("Running DNS server", func() {
 			It("create query resolver should return error", func() {
 				r, err := createQueryResolver(ctx, &config.Config{
 					StartVerifyUpstream: true,
-					Upstreams: config.UpstreamsConfig{
+					Upstreams: config.Upstreams{
 						Groups: config.UpstreamGroups{
 							"default": {{Host: "0.0.0.0"}},
 						},

@@ -17,13 +17,13 @@ const (
 )
 
 type UpstreamTreeResolver struct {
-	configurable[*config.UpstreamsConfig]
+	configurable[*config.Upstreams]
 	typed
 
 	branches map[string]Resolver
 }
 
-func NewUpstreamTreeResolver(cfg config.UpstreamsConfig, branches map[string]Resolver) (Resolver, error) {
+func NewUpstreamTreeResolver(cfg config.Upstreams, branches map[string]Resolver) (Resolver, error) {
 	if len(cfg.Groups[upstreamDefaultCfgName]) == 0 {
 		return nil, fmt.Errorf("no external DNS resolvers configured as default upstream resolvers. "+
 			"Please configure at least one under '%s' configuration name", upstreamDefaultCfgName)
