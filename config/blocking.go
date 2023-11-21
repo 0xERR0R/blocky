@@ -6,8 +6,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// BlockingConfig configuration for query blocking
-type BlockingConfig struct {
+// Blocking configuration for query blocking
+type Blocking struct {
 	BlackLists        map[string][]BytesSource `yaml:"blackLists"`
 	WhiteLists        map[string][]BytesSource `yaml:"whiteLists"`
 	ClientGroupsBlock map[string][]string      `yaml:"clientGroupsBlock"`
@@ -28,7 +28,7 @@ type BlockingConfig struct {
 	} `yaml:",inline"`
 }
 
-func (c *BlockingConfig) migrate(logger *logrus.Entry) bool {
+func (c *Blocking) migrate(logger *logrus.Entry) bool {
 	return Migrate(logger, "blocking", c.Deprecated, map[string]Migrator{
 		"downloadTimeout":  Move(To("loading.downloads.timeout", &c.Loading.Downloads)),
 		"downloadAttempts": Move(To("loading.downloads.attempts", &c.Loading.Downloads)),
@@ -46,12 +46,12 @@ func (c *BlockingConfig) migrate(logger *logrus.Entry) bool {
 }
 
 // IsEnabled implements `config.Configurable`.
-func (c *BlockingConfig) IsEnabled() bool {
+func (c *Blocking) IsEnabled() bool {
 	return len(c.ClientGroupsBlock) != 0
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *BlockingConfig) LogConfig(logger *logrus.Entry) {
+func (c *Blocking) LogConfig(logger *logrus.Entry) {
 	logger.Info("clientGroupsBlock:")
 
 	for key, val := range c.ClientGroupsBlock {
@@ -78,7 +78,7 @@ func (c *BlockingConfig) LogConfig(logger *logrus.Entry) {
 	})
 }
 
-func (c *BlockingConfig) logListGroups(logger *logrus.Entry, listGroups map[string][]BytesSource) {
+func (c *Blocking) logListGroups(logger *logrus.Entry, listGroups map[string][]BytesSource) {
 	for group, sources := range listGroups {
 		logger.Infof("%s:", group)
 

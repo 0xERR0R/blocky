@@ -135,7 +135,7 @@ var _ = BeforeSuite(func() {
 				},
 			},
 		},
-		Blocking: config.BlockingConfig{
+		Blocking: config.Blocking{
 			BlackLists: map[string][]config.BytesSource{
 				"ads": config.NewBytesSources(
 					doubleclickFile.Path,
@@ -622,7 +622,7 @@ var _ = Describe("Running DNS server", func() {
 							},
 						},
 					},
-					Blocking: config.BlockingConfig{BlockType: "zeroIp"},
+					Blocking: config.Blocking{BlockType: "zeroIp"},
 					Ports: config.PortsConfig{
 						DNS: config.ListenConfig{"127.0.0.1:" + GetStringPort(dnsBasePort2)},
 					},
@@ -668,7 +668,7 @@ var _ = Describe("Running DNS server", func() {
 							},
 						},
 					},
-					Blocking: config.BlockingConfig{BlockType: "zeroIp"},
+					Blocking: config.Blocking{BlockType: "zeroIp"},
 					Ports: config.PortsConfig{
 						DNS: config.ListenConfig{"127.0.0.1:" + GetStringPort(dnsBasePort2)},
 					},

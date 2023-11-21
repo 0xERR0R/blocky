@@ -31,7 +31,7 @@ import (
 
 const defaultBlockingCleanUpInterval = 5 * time.Second
 
-func createBlockHandler(cfg config.BlockingConfig) (blockHandler, error) {
+func createBlockHandler(cfg config.Blocking) (blockHandler, error) {
 	cfgBlockType := cfg.BlockType
 
 	if strings.EqualFold(cfgBlockType, "NXDOMAIN") {
@@ -81,7 +81,7 @@ type status struct {
 
 // BlockingResolver checks request's question (domain name) against black and white lists
 type BlockingResolver struct {
-	configurable[*config.BlockingConfig]
+	configurable[*config.Blocking]
 	NextResolver
 	typed
 
@@ -95,7 +95,7 @@ type BlockingResolver struct {
 	fqdnIPCache         expirationcache.ExpiringCache[[]net.IP]
 }
 
-func clientGroupsBlock(cfg config.BlockingConfig) map[string][]string {
+func clientGroupsBlock(cfg config.Blocking) map[string][]string {
 	cgb := make(map[string][]string, len(cfg.ClientGroupsBlock))
 
 	for identifier, cfgGroups := range cfg.ClientGroupsBlock {
@@ -114,7 +114,7 @@ func clientGroupsBlock(cfg config.BlockingConfig) map[string][]string {
 
 // NewBlockingResolver returns a new configured instance of the resolver
 func NewBlockingResolver(ctx context.Context,
-	cfg config.BlockingConfig,
+	cfg config.Blocking,
 	redis *redis.Client,
 	bootstrap *Bootstrap,
 ) (r *BlockingResolver, err error) {
@@ -307,7 +307,7 @@ func (r *BlockingResolver) BlockingStatus() api.BlockingStatus {
 }
 
 // returns groups, which have only whitelist entries
-func determineWhitelistOnlyGroups(cfg *config.BlockingConfig) (result map[string]bool) {
+func determineWhitelistOnlyGroups(cfg *config.Blocking) (result map[string]bool) {
 	result = make(map[string]bool, len(cfg.WhiteLists))
 
 	for g, links := range cfg.WhiteLists {
