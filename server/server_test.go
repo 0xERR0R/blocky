@@ -118,7 +118,7 @@ var _ = BeforeSuite(func() {
 	Expect(youtubeFile.Error).Should(Succeed())
 
 	cfg := &config.Config{
-		CustomDNS: config.CustomDNSConfig{
+		CustomDNS: config.CustomDNS{
 			CustomTTL: config.Duration(3600 * time.Second),
 			Mapping: config.CustomDNSMapping{
 				HostIPs: map[string][]net.IP{
@@ -614,7 +614,7 @@ var _ = Describe("Running DNS server", func() {
 							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}},
 						},
 					},
-					CustomDNS: config.CustomDNSConfig{
+					CustomDNS: config.CustomDNS{
 						Mapping: config.CustomDNSMapping{
 							HostIPs: map[string][]net.IP{
 								"custom.lan": {net.ParseIP("192.168.178.55")},
@@ -660,7 +660,7 @@ var _ = Describe("Running DNS server", func() {
 							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "4.4.4.4", Port: 53}},
 						},
 					},
-					CustomDNS: config.CustomDNSConfig{
+					CustomDNS: config.CustomDNS{
 						Mapping: config.CustomDNSMapping{
 							HostIPs: map[string][]net.IP{
 								"custom.lan": {net.ParseIP("192.168.178.55")},
