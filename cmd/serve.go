@@ -40,7 +40,7 @@ func startServer(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("unable to load configuration: %w", err)
 	}
 
-	log.ConfigureLogger(&cfg.Log)
+	log.Configure(&cfg.Log)
 
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 

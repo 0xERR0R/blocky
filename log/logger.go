@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/creasty/defaults"
 	"github.com/mattn/go-colorable"
 	"github.com/sirupsen/logrus"
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
@@ -49,22 +50,26 @@ type Config struct {
 	Timestamp bool       `yaml:"timestamp" default:"true"`
 }
 
+// DefaultConfig returns a new Config initialized with default values.
+func DefaultConfig() *Config {
+	cfg := new(Config)
+
+	defaults.MustSet(cfg)
+
+	return cfg
+}
+
 //nolint:gochecknoinits
 func init() {
 	if !initDone.CompareAndSwap(false, true) {
 		return
 	}
 
-	logger = logrus.New()
+	newLogger := logrus.New()
 
-	defaultConfig := &Config{
-		Level:     LevelInfo,
-		Format:    FormatTypeText,
-		Privacy:   false,
-		Timestamp: true,
-	}
+	ConfigureLogger(newLogger, DefaultConfig())
 
-	ConfigureLogger(defaultConfig)
+	logger = newLogger
 }
 
 // Log returns the global logger
@@ -94,8 +99,13 @@ func EscapeInput(input string) string {
 	return result
 }
 
-// ConfigureLogger applies configuration to the global logger
-func ConfigureLogger(cfg *Config) {
+// Configure applies configuration to the global logger.
+func Configure(cfg *Config) {
+	ConfigureLogger(logger, cfg)
+}
+
+// Configure applies configuration to the given logger.
+func ConfigureLogger(logger *logrus.Logger, cfg *Config) {
 	if level, err := logrus.ParseLevel(cfg.Level.String()); err != nil {
 		logger.Fatalf("invalid log level %s %v", cfg.Level, err)
 	} else {

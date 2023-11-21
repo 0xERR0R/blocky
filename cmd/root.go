@@ -88,7 +88,7 @@ func initConfig() {
 		util.FatalOnError("unable to load configuration: ", err)
 	}
 
-	log.ConfigureLogger(&cfg.Log)
+	log.Configure(&cfg.Log)
 
 	if len(cfg.Ports.HTTP) != 0 {
 		split := strings.Split(cfg.Ports.HTTP[0], ":")
