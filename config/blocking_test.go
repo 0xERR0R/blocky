@@ -9,12 +9,12 @@ import (
 )
 
 var _ = Describe("BlockingConfig", func() {
-	var cfg BlockingConfig
+	var cfg Blocking
 
 	suiteBeforeEach()
 
 	BeforeEach(func() {
-		cfg = BlockingConfig{
+		cfg = Blocking{
 			BlockType: "ZEROIP",
 			BlockTTL:  Duration(time.Minute),
 			BlackLists: map[string][]BytesSource{
@@ -28,7 +28,7 @@ var _ = Describe("BlockingConfig", func() {
 
 	Describe("IsEnabled", func() {
 		It("should be false by default", func() {
-			cfg := BlockingConfig{}
+			cfg := Blocking{}
 			Expect(defaults.Set(&cfg)).Should(Succeed())
 
 			Expect(cfg.IsEnabled()).Should(BeFalse())
@@ -42,7 +42,7 @@ var _ = Describe("BlockingConfig", func() {
 
 		When("disabled", func() {
 			It("should be false", func() {
-				cfg := BlockingConfig{
+				cfg := Blocking{
 					BlockTTL: Duration(-1),
 				}
 

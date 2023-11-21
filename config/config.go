@@ -193,7 +193,7 @@ type Config struct {
 	ConnectIPVersion    IPVersion           `yaml:"connectIPVersion"`
 	CustomDNS           CustomDNS           `yaml:"customDNS"`
 	Conditional         ConditionalUpstream `yaml:"conditional"`
-	Blocking            BlockingConfig      `yaml:"blocking"`
+	Blocking            Blocking            `yaml:"blocking"`
 	ClientLookup        ClientLookupConfig  `yaml:"clientLookup"`
 	Caching             CachingConfig       `yaml:"caching"`
 	QueryLog            QueryLogConfig      `yaml:"queryLog"`
