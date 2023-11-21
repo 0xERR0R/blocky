@@ -189,30 +189,30 @@ func (b *BootstrappedUpstreamConfig) UnmarshalYAML(unmarshal func(interface{}) e
 //
 //nolint:maligned
 type Config struct {
-	Upstreams           Upstreams                 `yaml:"upstreams"`
-	ConnectIPVersion    IPVersion                 `yaml:"connectIPVersion"`
-	CustomDNS           CustomDNS                 `yaml:"customDNS"`
-	Conditional         ConditionalUpstreamConfig `yaml:"conditional"`
-	Blocking            BlockingConfig            `yaml:"blocking"`
-	ClientLookup        ClientLookupConfig        `yaml:"clientLookup"`
-	Caching             CachingConfig             `yaml:"caching"`
-	QueryLog            QueryLogConfig            `yaml:"queryLog"`
-	Prometheus          MetricsConfig             `yaml:"prometheus"`
-	Redis               RedisConfig               `yaml:"redis"`
-	Log                 log.Config                `yaml:"log"`
-	Ports               PortsConfig               `yaml:"ports"`
-	DoHUserAgent        string                    `yaml:"dohUserAgent"`
-	MinTLSServeVer      string                    `yaml:"minTlsServeVersion" default:"1.2"`
-	StartVerifyUpstream bool                      `yaml:"startVerifyUpstream" default:"false"`
-	CertFile            string                    `yaml:"certFile"`
-	KeyFile             string                    `yaml:"keyFile"`
-	BootstrapDNS        BootstrapDNSConfig        `yaml:"bootstrapDns"`
-	HostsFile           HostsFileConfig           `yaml:"hostsFile"`
-	FQDNOnly            FQDNOnly                  `yaml:"fqdnOnly"`
-	Filtering           FilteringConfig           `yaml:"filtering"`
-	EDE                 EDE                       `yaml:"ede"`
-	ECS                 ECS                       `yaml:"ecs"`
-	SUDN                SUDN                      `yaml:"specialUseDomains"`
+	Upstreams           Upstreams           `yaml:"upstreams"`
+	ConnectIPVersion    IPVersion           `yaml:"connectIPVersion"`
+	CustomDNS           CustomDNS           `yaml:"customDNS"`
+	Conditional         ConditionalUpstream `yaml:"conditional"`
+	Blocking            BlockingConfig      `yaml:"blocking"`
+	ClientLookup        ClientLookupConfig  `yaml:"clientLookup"`
+	Caching             CachingConfig       `yaml:"caching"`
+	QueryLog            QueryLogConfig      `yaml:"queryLog"`
+	Prometheus          MetricsConfig       `yaml:"prometheus"`
+	Redis               RedisConfig         `yaml:"redis"`
+	Log                 log.Config          `yaml:"log"`
+	Ports               PortsConfig         `yaml:"ports"`
+	DoHUserAgent        string              `yaml:"dohUserAgent"`
+	MinTLSServeVer      string              `yaml:"minTlsServeVersion" default:"1.2"`
+	StartVerifyUpstream bool                `yaml:"startVerifyUpstream" default:"false"`
+	CertFile            string              `yaml:"certFile"`
+	KeyFile             string              `yaml:"keyFile"`
+	BootstrapDNS        BootstrapDNSConfig  `yaml:"bootstrapDns"`
+	HostsFile           HostsFileConfig     `yaml:"hostsFile"`
+	FQDNOnly            FQDNOnly            `yaml:"fqdnOnly"`
+	Filtering           FilteringConfig     `yaml:"filtering"`
+	EDE                 EDE                 `yaml:"ede"`
+	ECS                 ECS                 `yaml:"ecs"`
+	SUDN                SUDN                `yaml:"specialUseDomains"`
 
 	// Deprecated options
 	Deprecated struct {

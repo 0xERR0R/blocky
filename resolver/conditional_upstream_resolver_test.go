@@ -65,7 +65,7 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 		})
 		DeferCleanup(refuseTestUpstream.Close)
 
-		sut, _ = NewConditionalUpstreamResolver(ctx, config.ConditionalUpstreamConfig{
+		sut, _ = NewConditionalUpstreamResolver(ctx, config.ConditionalUpstream{
 			Mapping: config.ConditionalUpstreamMapping{
 				Upstreams: map[string][]config.Upstream{
 					"fritz.box":      {fbTestUpstream.Start()},
@@ -194,7 +194,7 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 		It("errors during construction", func() {
 			b := newTestBootstrap(ctx, &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
-			r, err := NewConditionalUpstreamResolver(ctx, config.ConditionalUpstreamConfig{
+			r, err := NewConditionalUpstreamResolver(ctx, config.ConditionalUpstream{
 				Mapping: config.ConditionalUpstreamMapping{
 					Upstreams: map[string][]config.Upstream{
 						".": {config.Upstream{Host: "example.com"}},

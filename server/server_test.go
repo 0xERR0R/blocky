@@ -127,7 +127,7 @@ var _ = BeforeSuite(func() {
 				},
 			},
 		},
-		Conditional: config.ConditionalUpstreamConfig{
+		Conditional: config.ConditionalUpstream{
 			Mapping: config.ConditionalUpstreamMapping{
 				Upstreams: map[string][]config.Upstream{
 					"net.cn":    {upstreamClient},

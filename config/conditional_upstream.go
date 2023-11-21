@@ -7,8 +7,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// ConditionalUpstreamConfig conditional upstream configuration
-type ConditionalUpstreamConfig struct {
+// ConditionalUpstream conditional upstream configuration
+type ConditionalUpstream struct {
 	RewriterConfig `yaml:",inline"`
 	Mapping        ConditionalUpstreamMapping `yaml:"mapping"`
 }
@@ -19,12 +19,12 @@ type ConditionalUpstreamMapping struct {
 }
 
 // IsEnabled implements `config.Configurable`.
-func (c *ConditionalUpstreamConfig) IsEnabled() bool {
+func (c *ConditionalUpstream) IsEnabled() bool {
 	return len(c.Mapping.Upstreams) != 0
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *ConditionalUpstreamConfig) LogConfig(logger *logrus.Entry) {
+func (c *ConditionalUpstream) LogConfig(logger *logrus.Entry) {
 	for key, val := range c.Mapping.Upstreams {
 		logger.Infof("%s = %v", key, val)
 	}
