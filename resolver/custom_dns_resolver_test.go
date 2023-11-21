@@ -21,7 +21,7 @@ var _ = Describe("CustomDNSResolver", func() {
 
 		sut *CustomDNSResolver
 		m   *mockResolver
-		cfg config.CustomDNSConfig
+		cfg config.CustomDNS
 
 		ctx      context.Context
 		cancelFn context.CancelFunc
@@ -37,7 +37,7 @@ var _ = Describe("CustomDNSResolver", func() {
 		ctx, cancelFn = context.WithCancel(context.Background())
 		DeferCleanup(cancelFn)
 
-		cfg = config.CustomDNSConfig{
+		cfg = config.CustomDNS{
 			Mapping: config.CustomDNSMapping{HostIPs: map[string][]net.IP{
 				"custom.domain": {net.ParseIP("192.168.143.123")},
 				"ip6.domain":    {net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")},

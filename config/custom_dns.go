@@ -8,8 +8,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// CustomDNSConfig custom DNS configuration
-type CustomDNSConfig struct {
+// CustomDNS custom DNS configuration
+type CustomDNS struct {
 	RewriterConfig      `yaml:",inline"`
 	CustomTTL           Duration         `yaml:"customTTL" default:"1h"`
 	Mapping             CustomDNSMapping `yaml:"mapping"`
@@ -22,12 +22,12 @@ type CustomDNSMapping struct {
 }
 
 // IsEnabled implements `config.Configurable`.
-func (c *CustomDNSConfig) IsEnabled() bool {
+func (c *CustomDNS) IsEnabled() bool {
 	return len(c.Mapping.HostIPs) != 0
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *CustomDNSConfig) LogConfig(logger *logrus.Entry) {
+func (c *CustomDNS) LogConfig(logger *logrus.Entry) {
 	logger.Debugf("TTL = %s", c.CustomTTL)
 	logger.Debugf("filterUnmappedTypes = %t", c.FilterUnmappedTypes)
 

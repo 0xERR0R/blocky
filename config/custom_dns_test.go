@@ -10,12 +10,12 @@ import (
 )
 
 var _ = Describe("CustomDNSConfig", func() {
-	var cfg CustomDNSConfig
+	var cfg CustomDNS
 
 	suiteBeforeEach()
 
 	BeforeEach(func() {
-		cfg = CustomDNSConfig{
+		cfg = CustomDNS{
 			Mapping: CustomDNSMapping{
 				HostIPs: map[string][]net.IP{
 					"custom.domain": {net.ParseIP("192.168.143.123")},
@@ -32,7 +32,7 @@ var _ = Describe("CustomDNSConfig", func() {
 
 	Describe("IsEnabled", func() {
 		It("should be false by default", func() {
-			cfg := CustomDNSConfig{}
+			cfg := CustomDNS{}
 			Expect(defaults.Set(&cfg)).Should(Succeed())
 
 			Expect(cfg.IsEnabled()).Should(BeFalse())
@@ -46,7 +46,7 @@ var _ = Describe("CustomDNSConfig", func() {
 
 		When("disabled", func() {
 			It("should be false", func() {
-				cfg := CustomDNSConfig{}
+				cfg := CustomDNS{}
 
 				Expect(cfg.IsEnabled()).Should(BeFalse())
 			})

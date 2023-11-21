@@ -16,7 +16,7 @@ import (
 
 // CustomDNSResolver resolves passed domain name to ip address defined in domain-IP map
 type CustomDNSResolver struct {
-	configurable[*config.CustomDNSConfig]
+	configurable[*config.CustomDNS]
 	NextResolver
 	typed
 
@@ -25,7 +25,7 @@ type CustomDNSResolver struct {
 }
 
 // NewCustomDNSResolver creates new resolver instance
-func NewCustomDNSResolver(cfg config.CustomDNSConfig) *CustomDNSResolver {
+func NewCustomDNSResolver(cfg config.CustomDNS) *CustomDNSResolver {
 	m := make(map[string][]net.IP, len(cfg.Mapping.HostIPs))
 	reverse := make(map[string][]string, len(cfg.Mapping.HostIPs))
 

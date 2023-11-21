@@ -191,7 +191,7 @@ func (b *BootstrappedUpstreamConfig) UnmarshalYAML(unmarshal func(interface{}) e
 type Config struct {
 	Upstreams           Upstreams                 `yaml:"upstreams"`
 	ConnectIPVersion    IPVersion                 `yaml:"connectIPVersion"`
-	CustomDNS           CustomDNSConfig           `yaml:"customDNS"`
+	CustomDNS           CustomDNS                 `yaml:"customDNS"`
 	Conditional         ConditionalUpstreamConfig `yaml:"conditional"`
 	Blocking            BlockingConfig            `yaml:"blocking"`
 	ClientLookup        ClientLookupConfig        `yaml:"clientLookup"`
