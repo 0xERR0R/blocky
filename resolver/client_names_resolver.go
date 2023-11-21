@@ -18,7 +18,7 @@ import (
 
 // ClientNamesResolver tries to determine client name by asking responsible DNS server via rDNS (reverse lookup)
 type ClientNamesResolver struct {
-	configurable[*config.ClientLookupConfig]
+	configurable[*config.ClientLookup]
 	NextResolver
 	typed
 
@@ -28,7 +28,7 @@ type ClientNamesResolver struct {
 
 // NewClientNamesResolver creates new resolver instance
 func NewClientNamesResolver(ctx context.Context,
-	cfg config.ClientLookupConfig, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
+	cfg config.ClientLookup, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
 ) (cr *ClientNamesResolver, err error) {
 	var r Resolver
 	if !cfg.Upstream.IsDefault() {

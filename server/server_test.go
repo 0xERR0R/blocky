@@ -161,7 +161,7 @@ var _ = BeforeSuite(func() {
 			Timeout: config.Duration(250 * time.Millisecond),
 			Groups:  map[string][]config.Upstream{"default": {upstreamGoogle}},
 		},
-		ClientLookup: config.ClientLookupConfig{
+		ClientLookup: config.ClientLookup{
 			Upstream: upstreamClient,
 		},
 

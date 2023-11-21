@@ -6,20 +6,20 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// ClientLookupConfig configuration for the client lookup
-type ClientLookupConfig struct {
+// ClientLookup configuration for the client lookup
+type ClientLookup struct {
 	ClientnameIPMapping map[string][]net.IP `yaml:"clients"`
 	Upstream            Upstream            `yaml:"upstream"`
 	SingleNameOrder     []uint              `yaml:"singleNameOrder"`
 }
 
 // IsEnabled implements `config.Configurable`.
-func (c *ClientLookupConfig) IsEnabled() bool {
+func (c *ClientLookup) IsEnabled() bool {
 	return !c.Upstream.IsDefault() || len(c.ClientnameIPMapping) != 0
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *ClientLookupConfig) LogConfig(logger *logrus.Entry) {
+func (c *ClientLookup) LogConfig(logger *logrus.Entry) {
 	if !c.Upstream.IsDefault() {
 		logger.Infof("upstream = %s", c.Upstream)
 	}
