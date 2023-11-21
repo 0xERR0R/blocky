@@ -20,7 +20,7 @@ import (
 var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 	var (
 		sut       *ClientNamesResolver
-		sutConfig config.ClientLookupConfig
+		sutConfig config.ClientLookup
 		m         *mockResolver
 
 		ctx      context.Context
@@ -64,7 +64,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 
 	Describe("Resolve client name from request clientID", func() {
 		BeforeEach(func() {
-			sutConfig = config.ClientLookupConfig{}
+			sutConfig = config.ClientLookup{}
 		})
 		AfterEach(func() {
 			// next resolver will be called
@@ -96,7 +96,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 	})
 	Describe("Resolve client name with custom name mapping", Label("XXX"), func() {
 		BeforeEach(func() {
-			sutConfig = config.ClientLookupConfig{
+			sutConfig = config.ClientLookup{
 				ClientnameIPMapping: map[string][]net.IP{
 					"client7": {
 						net.ParseIP("1.2.3.4"), net.ParseIP("1.2.3.5"), net.ParseIP("2a02:590:505:4700:2e4f:1503:ce74:df78"),
@@ -162,7 +162,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 					testUpstream = NewMockUDPUpstreamServer().
 						WithAnswerRR("25.178.168.192.in-addr.arpa. 600 IN PTR host1")
 					DeferCleanup(testUpstream.Close)
-					sutConfig = config.ClientLookupConfig{
+					sutConfig = config.ClientLookup{
 						Upstream: testUpstream.Start(),
 					}
 				})
@@ -218,7 +218,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 					testUpstream = NewMockUDPUpstreamServer().
 						WithAnswerRR("25.178.168.192.in-addr.arpa. 600 IN PTR myhost1", "25.178.168.192.in-addr.arpa. 600 IN PTR myhost2")
 					DeferCleanup(testUpstream.Close)
-					sutConfig = config.ClientLookupConfig{
+					sutConfig = config.ClientLookup{
 						Upstream: testUpstream.Start(),
 					}
 				})
@@ -239,7 +239,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 		})
 		Context("with order", func() {
 			BeforeEach(func() {
-				sutConfig = config.ClientLookupConfig{
+				sutConfig = config.ClientLookup{
 					SingleNameOrder: []uint{2, 1},
 				}
 			})
@@ -293,7 +293,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 					testUpstream = NewMockUDPUpstreamServer().
 						WithAnswerError(dns.RcodeNameError)
 					DeferCleanup(testUpstream.Close)
-					sutConfig = config.ClientLookupConfig{
+					sutConfig = config.ClientLookup{
 						Upstream: testUpstream.Start(),
 					}
 				})
@@ -313,7 +313,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 			})
 			When("Upstream produces error", func() {
 				JustBeforeEach(func() {
-					sutConfig = config.ClientLookupConfig{}
+					sutConfig = config.ClientLookup{}
 					clientMockResolver := &mockResolver{}
 					clientMockResolver.On("Resolve", mock.Anything).Return(nil, errors.New("error"))
 					sut.externalResolver = clientMockResolver
@@ -333,7 +333,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 
 			When("Client has no IP", func() {
 				BeforeEach(func() {
-					sutConfig = config.ClientLookupConfig{}
+					sutConfig = config.ClientLookup{}
 				})
 				It("should resolve no names", func() {
 					request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "")
@@ -349,7 +349,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 
 			When("No upstream is defined", func() {
 				BeforeEach(func() {
-					sutConfig = config.ClientLookupConfig{}
+					sutConfig = config.ClientLookup{}
 				})
 				It("should use fallback for client name", func() {
 					request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
@@ -370,7 +370,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 			It("errors during construction", func() {
 				b := newTestBootstrap(ctx, &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
-				r, err := NewClientNamesResolver(ctx, config.ClientLookupConfig{
+				r, err := NewClientNamesResolver(ctx, config.ClientLookup{
 					Upstream: config.Upstream{Host: "example.com"},
 				}, b, true)
 

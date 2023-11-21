@@ -9,12 +9,12 @@ import (
 )
 
 var _ = Describe("ClientLookupConfig", func() {
-	var cfg ClientLookupConfig
+	var cfg ClientLookup
 
 	suiteBeforeEach()
 
 	BeforeEach(func() {
-		cfg = ClientLookupConfig{
+		cfg = ClientLookup{
 			Upstream:        Upstream{Net: NetProtocolTcpUdp, Host: "host"},
 			SingleNameOrder: []uint{1, 2},
 			ClientnameIPMapping: map[string][]net.IP{
@@ -25,7 +25,7 @@ var _ = Describe("ClientLookupConfig", func() {
 
 	Describe("IsEnabled", func() {
 		It("should be false by default", func() {
-			cfg = ClientLookupConfig{}
+			cfg = ClientLookup{}
 			Expect(defaults.Set(&cfg)).Should(Succeed())
 
 			Expect(cfg.IsEnabled()).Should(BeFalse())
@@ -34,7 +34,7 @@ var _ = Describe("ClientLookupConfig", func() {
 		When("enabled", func() {
 			It("should be true", func() {
 				By("upstream", func() {
-					cfg := ClientLookupConfig{
+					cfg := ClientLookup{
 						Upstream:            Upstream{Net: NetProtocolTcpUdp, Host: "host"},
 						ClientnameIPMapping: nil,
 					}
@@ -43,7 +43,7 @@ var _ = Describe("ClientLookupConfig", func() {
 				})
 
 				By("mapping", func() {
-					cfg := ClientLookupConfig{
+					cfg := ClientLookup{
 						ClientnameIPMapping: map[string][]net.IP{
 							"client8": {net.ParseIP("1.2.3.5")},
 						},

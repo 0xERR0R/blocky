@@ -194,7 +194,7 @@ type Config struct {
 	CustomDNS           CustomDNS           `yaml:"customDNS"`
 	Conditional         ConditionalUpstream `yaml:"conditional"`
 	Blocking            Blocking            `yaml:"blocking"`
-	ClientLookup        ClientLookupConfig  `yaml:"clientLookup"`
+	ClientLookup        ClientLookup        `yaml:"clientLookup"`
 	Caching             CachingConfig       `yaml:"caching"`
 	QueryLog            QueryLogConfig      `yaml:"queryLog"`
 	Prometheus          MetricsConfig       `yaml:"prometheus"`
