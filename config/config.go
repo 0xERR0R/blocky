@@ -208,11 +208,11 @@ type Config struct {
 	KeyFile             string                    `yaml:"keyFile"`
 	BootstrapDNS        BootstrapDNSConfig        `yaml:"bootstrapDns"`
 	HostsFile           HostsFileConfig           `yaml:"hostsFile"`
-	FqdnOnly            FqdnOnlyConfig            `yaml:"fqdnOnly"`
+	FQDNOnly            FQDNOnly                  `yaml:"fqdnOnly"`
 	Filtering           FilteringConfig           `yaml:"filtering"`
-	Ede                 EdeConfig                 `yaml:"ede"`
-	ECS                 ECSConfig                 `yaml:"ecs"`
-	SUDN                SUDNConfig                `yaml:"specialUseDomains"`
+	EDE                 EDE                       `yaml:"ede"`
+	ECS                 ECS                       `yaml:"ecs"`
+	SUDN                SUDN                      `yaml:"specialUseDomains"`
 
 	// Deprecated options
 	Deprecated struct {
@@ -274,8 +274,8 @@ type RedisConfig struct {
 }
 
 type (
-	FqdnOnlyConfig = toEnable
-	EdeConfig      = toEnable
+	FQDNOnly = toEnable
+	EDE      = toEnable
 )
 
 type toEnable struct {

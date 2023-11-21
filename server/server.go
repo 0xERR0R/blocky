@@ -414,10 +414,10 @@ func createQueryResolver(
 
 	r = resolver.Chain(
 		resolver.NewFilteringResolver(cfg.Filtering),
-		resolver.NewFqdnOnlyResolver(cfg.FqdnOnly),
+		resolver.NewFQDNOnlyResolver(cfg.FQDNOnly),
 		resolver.NewECSResolver(cfg.ECS),
 		clientNames,
-		resolver.NewEdeResolver(cfg.Ede),
+		resolver.NewEDEResolver(cfg.EDE),
 		resolver.NewQueryLoggingResolver(ctx, cfg.QueryLog),
 		resolver.NewMetricsResolver(cfg.Prometheus),
 		resolver.NewRewriterResolver(cfg.CustomDNS.RewriterConfig, resolver.NewCustomDNSResolver(cfg.CustomDNS)),

@@ -7,17 +7,17 @@ import (
 	"github.com/miekg/dns"
 )
 
-// A EdeResolver is responsible for adding the reason for the response as EDNS0 option
-type EdeResolver struct {
-	configurable[*config.EdeConfig]
+// A EDEResolver is responsible for adding the reason for the response as EDNS0 option
+type EDEResolver struct {
+	configurable[*config.EDE]
 	NextResolver
 	typed
 }
 
-// NewEdeResolver creates new resolver instance which adds the reason for
+// NewEDEResolver creates new resolver instance which adds the reason for
 // the response as EDNS0 option to the response if it is enabled in the configuration
-func NewEdeResolver(cfg config.EdeConfig) *EdeResolver {
-	return &EdeResolver{
+func NewEDEResolver(cfg config.EDE) *EDEResolver {
+	return &EDEResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("extended_error_code"),
 	}
@@ -25,7 +25,7 @@ func NewEdeResolver(cfg config.EdeConfig) *EdeResolver {
 
 // Resolve adds the reason as EDNS0 option to the response of the next resolver
 // if it is enabled in the configuration
-func (r *EdeResolver) Resolve(request *model.Request) (*model.Response, error) {
+func (r *EDEResolver) Resolve(request *model.Request) (*model.Response, error) {
 	if !r.cfg.Enable {
 		return r.next.Resolve(request)
 	}
@@ -41,7 +41,7 @@ func (r *EdeResolver) Resolve(request *model.Request) (*model.Response, error) {
 }
 
 // addExtraReasoning adds the reason for the response as EDNS0 option
-func (r *EdeResolver) addExtraReasoning(res *model.Response) {
+func (r *EDEResolver) addExtraReasoning(res *model.Response) {
 	infocode := res.RType.ToExtendedErrorCode()
 
 	if infocode == dns.ExtendedErrorCodeOther {

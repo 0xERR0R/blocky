@@ -791,7 +791,7 @@ func defaultTestFileConfig() {
 	Expect(config.Blocking.BlockTTL).Should(Equal(Duration(time.Minute)))
 	Expect(config.Blocking.Loading.RefreshPeriod).Should(Equal(Duration(2 * time.Hour)))
 	Expect(config.Filtering.QueryTypes).Should(HaveLen(2))
-	Expect(config.FqdnOnly.Enable).Should(BeTrue())
+	Expect(config.FQDNOnly.Enable).Should(BeTrue())
 
 	Expect(config.Caching.MaxCachingTime).Should(BeZero())
 	Expect(config.Caching.MinCachingTime).Should(BeZero())

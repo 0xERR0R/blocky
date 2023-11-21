@@ -20,8 +20,8 @@ import (
 
 var _ = Describe("EdeResolver", func() {
 	var (
-		sut        *EdeResolver
-		sutConfig  config.EdeConfig
+		sut        *EDEResolver
+		sutConfig  config.EDE
 		m          *mockResolver
 		mockAnswer *dns.Msg
 	)
@@ -46,13 +46,13 @@ var _ = Describe("EdeResolver", func() {
 			}, nil)
 		}
 
-		sut = NewEdeResolver(sutConfig)
+		sut = NewEDEResolver(sutConfig)
 		sut.Next(m)
 	})
 
 	When("ede is disabled", func() {
 		BeforeEach(func() {
-			sutConfig = config.EdeConfig{
+			sutConfig = config.EDE{
 				Enable: false,
 			}
 		})
@@ -79,7 +79,7 @@ var _ = Describe("EdeResolver", func() {
 
 	When("ede is enabled", func() {
 		BeforeEach(func() {
-			sutConfig = config.EdeConfig{
+			sutConfig = config.EDE{
 				Enable: true,
 			}
 		})
