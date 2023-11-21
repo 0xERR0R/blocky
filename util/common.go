@@ -3,6 +3,7 @@ package util
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"path/filepath"
 	"regexp"
@@ -159,7 +160,14 @@ func LogOnErrorWithEntry(logEntry *logrus.Entry, message string, err error) {
 // FatalOnError logs the message only if error is not nil and exits the program execution
 func FatalOnError(message string, err error) {
 	if err != nil {
-		log.Log().Fatal(message, err)
+		logger := log.Log()
+
+		// Make sure the error is printend even if the log has been silenced
+		if logger.Out == io.Discard {
+			log.ConfigureLogger(logger, log.DefaultConfig())
+		}
+
+		logger.Fatal(message, err)
 	}
 }
 
