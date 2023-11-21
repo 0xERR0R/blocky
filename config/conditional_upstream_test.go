@@ -9,12 +9,12 @@ import (
 )
 
 var _ = Describe("ConditionalUpstreamConfig", func() {
-	var cfg ConditionalUpstreamConfig
+	var cfg ConditionalUpstream
 
 	suiteBeforeEach()
 
 	BeforeEach(func() {
-		cfg = ConditionalUpstreamConfig{
+		cfg = ConditionalUpstream{
 			Mapping: ConditionalUpstreamMapping{
 				Upstreams: map[string][]Upstream{
 					"fritz.box": {Upstream{Net: NetProtocolTcpUdp, Host: "fbTest"}},
@@ -27,7 +27,7 @@ var _ = Describe("ConditionalUpstreamConfig", func() {
 
 	Describe("IsEnabled", func() {
 		It("should be false by default", func() {
-			cfg := ConditionalUpstreamConfig{}
+			cfg := ConditionalUpstream{}
 			Expect(defaults.Set(&cfg)).Should(Succeed())
 
 			Expect(cfg.IsEnabled()).Should(BeFalse())
@@ -41,7 +41,7 @@ var _ = Describe("ConditionalUpstreamConfig", func() {
 
 		When("disabled", func() {
 			It("should be false", func() {
-				cfg := ConditionalUpstreamConfig{
+				cfg := ConditionalUpstream{
 					Mapping: ConditionalUpstreamMapping{Upstreams: map[string][]Upstream{}},
 				}
 
