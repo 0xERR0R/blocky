@@ -771,6 +771,7 @@ bootstrapDns:
 func defaultTestFileConfig() {
 	Expect(config.Ports.DNS).Should(Equal(ListenConfig{"55553", ":55554", "[::1]:55555"}))
 	Expect(config.Upstreams.StartVerify).Should(BeFalse())
+	Expect(config.Upstreams.UserAgent).Should(Equal("testBlocky"))
 	Expect(config.Upstreams.Groups["default"]).Should(HaveLen(3))
 	Expect(config.Upstreams.Groups["default"][0].Host).Should(Equal("8.8.8.8"))
 	Expect(config.Upstreams.Groups["default"][1].Host).Should(Equal("8.8.4.4"))
@@ -797,7 +798,6 @@ func defaultTestFileConfig() {
 	Expect(config.Caching.MaxCachingTime).Should(BeZero())
 	Expect(config.Caching.MinCachingTime).Should(BeZero())
 
-	Expect(config.DoHUserAgent).Should(Equal("testBlocky"))
 	Expect(config.MinTLSServeVer).Should(Equal("1.3"))
 
 	Expect(GetConfig()).Should(Not(BeNil()))
@@ -807,6 +807,7 @@ func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {
 	return tmpDir.CreateStringFile("config.yml",
 		"upstreams:",
 		"  startVerify: false",
+		"  userAgent: testBlocky",
 		"  groups:",
 		"    default:",
 		"      - tcp+udp:8.8.8.8",
@@ -859,7 +860,6 @@ func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {
 		"  target: /opt/log",
 		"port: 55553,:55554,[::1]:55555",
 		"logLevel: debug",
-		"dohUserAgent: testBlocky",
 		"minTlsServeVersion: 1.3",
 	)
 }
@@ -868,6 +868,7 @@ func writeConfigDir(tmpDir *helpertest.TmpFolder) error {
 	f1 := tmpDir.CreateStringFile("config1.yaml",
 		"upstreams:",
 		"  startVerify: false",
+		"  userAgent: testBlocky",
 		"  groups:",
 		"    default:",
 		"      - tcp+udp:8.8.8.8",
@@ -884,7 +885,8 @@ func writeConfigDir(tmpDir *helpertest.TmpFolder) error {
 		"filtering:",
 		"  queryTypes:",
 		"    - AAAA",
-		"    - A")
+		"    - A",
+	)
 	if f1.Error != nil {
 		return f1.Error
 	}
@@ -925,7 +927,6 @@ func writeConfigDir(tmpDir *helpertest.TmpFolder) error {
 		"  target: /opt/log",
 		"port: 55553,:55554,[::1]:55555",
 		"logLevel: debug",
-		"dohUserAgent: testBlocky",
 		"minTlsServeVersion: 1.3",
 	)
 

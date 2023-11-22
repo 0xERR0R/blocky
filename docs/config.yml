@@ -26,6 +26,8 @@ upstreams:
   timeout: 2s
   # optional: If true, blocky will fail to start unless at least one upstream server per group is reachable. Default: false
   startVerify: false
+  # optional: HTTP User Agent when connecting to upstreams. Default: none
+  userAgent: "custom UA"
 
 # optional: Determines how blocky will create outgoing connections. This impacts both upstreams, and lists.
 # accepted: dual, v4, v6

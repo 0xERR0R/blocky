@@ -201,7 +201,6 @@ type Config struct {
 	Redis            RedisConfig         `yaml:"redis"`
 	Log              log.Config          `yaml:"log"`
 	Ports            PortsConfig         `yaml:"ports"`
-	DoHUserAgent     string              `yaml:"dohUserAgent"`
 	MinTLSServeVer   string              `yaml:"minTlsServeVersion" default:"1.2"`
 	CertFile         string              `yaml:"certFile"`
 	KeyFile          string              `yaml:"keyFile"`
@@ -227,6 +226,7 @@ type Config struct {
 		HTTPSPorts          *ListenConfig   `yaml:"httpsPort"`
 		TLSPorts            *ListenConfig   `yaml:"tlsPort"`
 		StartVerifyUpstream *bool           `yaml:"startVerifyUpstream"`
+		DoHUserAgent        *string         `yaml:"dohUserAgent"`
 	} `yaml:",inline"`
 }
 
@@ -523,6 +523,7 @@ func (cfg *Config) migrate(logger *logrus.Entry) bool {
 		"logPrivacy":          Move(To("log.privacy", &cfg.Log)),
 		"logTimestamp":        Move(To("log.timestamp", &cfg.Log)),
 		"startVerifyUpstream": Move(To("upstreams.startVerify", &cfg.Upstreams)),
+		"dohUserAgent":        Move(To("upstreams.userAgent", &cfg.Upstreams)),
 	})
 
 	usesDepredOpts = cfg.Blocking.migrate(logger) || usesDepredOpts
