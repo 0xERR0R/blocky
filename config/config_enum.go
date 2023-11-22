@@ -478,6 +478,98 @@ func (x *StartStrategyType) UnmarshalText(text []byte) error {
 }
 
 const (
+	// TLSVersion10 is a TLSVersion of type 1.0.
+	TLSVersion10 TLSVersion = iota + 769
+	// TLSVersion11 is a TLSVersion of type 1.1.
+	TLSVersion11
+	// TLSVersion12 is a TLSVersion of type 1.2.
+	TLSVersion12
+	// TLSVersion13 is a TLSVersion of type 1.3.
+	TLSVersion13
+)
+
+var ErrInvalidTLSVersion = fmt.Errorf("not a valid TLSVersion, try [%s]", strings.Join(_TLSVersionNames, ", "))
+
+const _TLSVersionName = "1.01.11.21.3"
+
+var _TLSVersionNames = []string{
+	_TLSVersionName[0:3],
+	_TLSVersionName[3:6],
+	_TLSVersionName[6:9],
+	_TLSVersionName[9:12],
+}
+
+// TLSVersionNames returns a list of possible string values of TLSVersion.
+func TLSVersionNames() []string {
+	tmp := make([]string, len(_TLSVersionNames))
+	copy(tmp, _TLSVersionNames)
+	return tmp
+}
+
+// TLSVersionValues returns a list of the values for TLSVersion
+func TLSVersionValues() []TLSVersion {
+	return []TLSVersion{
+		TLSVersion10,
+		TLSVersion11,
+		TLSVersion12,
+		TLSVersion13,
+	}
+}
+
+var _TLSVersionMap = map[TLSVersion]string{
+	TLSVersion10: _TLSVersionName[0:3],
+	TLSVersion11: _TLSVersionName[3:6],
+	TLSVersion12: _TLSVersionName[6:9],
+	TLSVersion13: _TLSVersionName[9:12],
+}
+
+// String implements the Stringer interface.
+func (x TLSVersion) String() string {
+	if str, ok := _TLSVersionMap[x]; ok {
+		return str
+	}
+	return fmt.Sprintf("TLSVersion(%d)", x)
+}
+
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
+func (x TLSVersion) IsValid() bool {
+	_, ok := _TLSVersionMap[x]
+	return ok
+}
+
+var _TLSVersionValue = map[string]TLSVersion{
+	_TLSVersionName[0:3]:  TLSVersion10,
+	_TLSVersionName[3:6]:  TLSVersion11,
+	_TLSVersionName[6:9]:  TLSVersion12,
+	_TLSVersionName[9:12]: TLSVersion13,
+}
+
+// ParseTLSVersion attempts to convert a string to a TLSVersion.
+func ParseTLSVersion(name string) (TLSVersion, error) {
+	if x, ok := _TLSVersionValue[name]; ok {
+		return x, nil
+	}
+	return TLSVersion(0), fmt.Errorf("%s is %w", name, ErrInvalidTLSVersion)
+}
+
+// MarshalText implements the text marshaller method.
+func (x TLSVersion) MarshalText() ([]byte, error) {
+	return []byte(x.String()), nil
+}
+
+// UnmarshalText implements the text unmarshaller method.
+func (x *TLSVersion) UnmarshalText(text []byte) error {
+	name := string(text)
+	tmp, err := ParseTLSVersion(name)
+	if err != nil {
+		return err
+	}
+	*x = tmp
+	return nil
+}
+
+const (
 	// UpstreamStrategyParallelBest is a UpstreamStrategy of type Parallel_best.
 	UpstreamStrategyParallelBest UpstreamStrategy = iota
 	// UpstreamStrategyStrict is a UpstreamStrategy of type Strict.

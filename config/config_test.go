@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"net"
 	"sync/atomic"
@@ -800,7 +801,8 @@ func defaultTestFileConfig(config *Config) {
 	Expect(config.Caching.MaxCachingTime).Should(BeZero())
 	Expect(config.Caching.MinCachingTime).Should(BeZero())
 
-	Expect(config.MinTLSServeVer).Should(Equal("1.3"))
+	Expect(config.MinTLSServeVer).Should(Equal(TLSVersion13))
+	Expect(config.MinTLSServeVer).Should(BeEquivalentTo(tls.VersionTLS13))
 }
 
 func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {
