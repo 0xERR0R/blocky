@@ -24,9 +24,8 @@ upstreams:
   strategy: parallel_best
   # optional: timeout to query the upstream resolver. Default: 2s
   timeout: 2s
-
-# optional: If true, blocky will fail to start unless at least one upstream server per group is reachable. Default: false
-startVerifyUpstream: true
+  # optional: If true, blocky will fail to start unless at least one upstream server per group is reachable. Default: false
+  startVerify: false
 
 # optional: Determines how blocky will create outgoing connections. This impacts both upstreams, and lists.
 # accepted: dual, v4, v6

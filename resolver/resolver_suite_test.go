@@ -1,20 +1,33 @@
-package resolver_test
+package resolver
 
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
-
 	"github.com/go-redis/redis/v8"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
+var defaultUpstreamsConfig config.Upstreams
+
 func init() {
 	log.Silence()
 	redis.SetLogger(NoLogs{})
+
+	var err error
+
+	defaultUpstreamsConfig, err = config.WithDefaults[config.Upstreams]()
+	if err != nil {
+		panic(err)
+	}
+
+	// Shorter timeout for tests
+	defaultUpstreamsConfig.Timeout = config.Duration(50 * time.Millisecond)
 }
 
 func TestResolver(t *testing.T) {

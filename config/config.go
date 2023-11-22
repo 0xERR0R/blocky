@@ -189,44 +189,44 @@ func (b *BootstrappedUpstreamConfig) UnmarshalYAML(unmarshal func(interface{}) e
 //
 //nolint:maligned
 type Config struct {
-	Upstreams           Upstreams           `yaml:"upstreams"`
-	ConnectIPVersion    IPVersion           `yaml:"connectIPVersion"`
-	CustomDNS           CustomDNS           `yaml:"customDNS"`
-	Conditional         ConditionalUpstream `yaml:"conditional"`
-	Blocking            Blocking            `yaml:"blocking"`
-	ClientLookup        ClientLookup        `yaml:"clientLookup"`
-	Caching             CachingConfig       `yaml:"caching"`
-	QueryLog            QueryLogConfig      `yaml:"queryLog"`
-	Prometheus          MetricsConfig       `yaml:"prometheus"`
-	Redis               RedisConfig         `yaml:"redis"`
-	Log                 log.Config          `yaml:"log"`
-	Ports               PortsConfig         `yaml:"ports"`
-	DoHUserAgent        string              `yaml:"dohUserAgent"`
-	MinTLSServeVer      string              `yaml:"minTlsServeVersion" default:"1.2"`
-	StartVerifyUpstream bool                `yaml:"startVerifyUpstream" default:"false"`
-	CertFile            string              `yaml:"certFile"`
-	KeyFile             string              `yaml:"keyFile"`
-	BootstrapDNS        BootstrapDNSConfig  `yaml:"bootstrapDns"`
-	HostsFile           HostsFileConfig     `yaml:"hostsFile"`
-	FQDNOnly            FQDNOnly            `yaml:"fqdnOnly"`
-	Filtering           FilteringConfig     `yaml:"filtering"`
-	EDE                 EDE                 `yaml:"ede"`
-	ECS                 ECS                 `yaml:"ecs"`
-	SUDN                SUDN                `yaml:"specialUseDomains"`
+	Upstreams        Upstreams           `yaml:"upstreams"`
+	ConnectIPVersion IPVersion           `yaml:"connectIPVersion"`
+	CustomDNS        CustomDNS           `yaml:"customDNS"`
+	Conditional      ConditionalUpstream `yaml:"conditional"`
+	Blocking         Blocking            `yaml:"blocking"`
+	ClientLookup     ClientLookup        `yaml:"clientLookup"`
+	Caching          CachingConfig       `yaml:"caching"`
+	QueryLog         QueryLogConfig      `yaml:"queryLog"`
+	Prometheus       MetricsConfig       `yaml:"prometheus"`
+	Redis            RedisConfig         `yaml:"redis"`
+	Log              log.Config          `yaml:"log"`
+	Ports            PortsConfig         `yaml:"ports"`
+	DoHUserAgent     string              `yaml:"dohUserAgent"`
+	MinTLSServeVer   string              `yaml:"minTlsServeVersion" default:"1.2"`
+	CertFile         string              `yaml:"certFile"`
+	KeyFile          string              `yaml:"keyFile"`
+	BootstrapDNS     BootstrapDNSConfig  `yaml:"bootstrapDns"`
+	HostsFile        HostsFileConfig     `yaml:"hostsFile"`
+	FQDNOnly         FQDNOnly            `yaml:"fqdnOnly"`
+	Filtering        FilteringConfig     `yaml:"filtering"`
+	EDE              EDE                 `yaml:"ede"`
+	ECS              ECS                 `yaml:"ecs"`
+	SUDN             SUDN                `yaml:"specialUseDomains"`
 
 	// Deprecated options
 	Deprecated struct {
-		Upstream        *UpstreamGroups `yaml:"upstream"`
-		UpstreamTimeout *Duration       `yaml:"upstreamTimeout"`
-		DisableIPv6     *bool           `yaml:"disableIPv6"`
-		LogLevel        *log.Level      `yaml:"logLevel"`
-		LogFormat       *log.FormatType `yaml:"logFormat"`
-		LogPrivacy      *bool           `yaml:"logPrivacy"`
-		LogTimestamp    *bool           `yaml:"logTimestamp"`
-		DNSPorts        *ListenConfig   `yaml:"port"`
-		HTTPPorts       *ListenConfig   `yaml:"httpPort"`
-		HTTPSPorts      *ListenConfig   `yaml:"httpsPort"`
-		TLSPorts        *ListenConfig   `yaml:"tlsPort"`
+		Upstream            *UpstreamGroups `yaml:"upstream"`
+		UpstreamTimeout     *Duration       `yaml:"upstreamTimeout"`
+		DisableIPv6         *bool           `yaml:"disableIPv6"`
+		LogLevel            *log.Level      `yaml:"logLevel"`
+		LogFormat           *log.FormatType `yaml:"logFormat"`
+		LogPrivacy          *bool           `yaml:"logPrivacy"`
+		LogTimestamp        *bool           `yaml:"logTimestamp"`
+		DNSPorts            *ListenConfig   `yaml:"port"`
+		HTTPPorts           *ListenConfig   `yaml:"httpPort"`
+		HTTPSPorts          *ListenConfig   `yaml:"httpsPort"`
+		TLSPorts            *ListenConfig   `yaml:"tlsPort"`
+		StartVerifyUpstream *bool           `yaml:"startVerifyUpstream"`
 	} `yaml:",inline"`
 }
 
@@ -514,14 +514,15 @@ func (cfg *Config) migrate(logger *logrus.Entry) bool {
 				cfg.Filtering.QueryTypes.Insert(dns.Type(dns.TypeAAAA))
 			}
 		}),
-		"port":         Move(To("ports.dns", &cfg.Ports)),
-		"httpPort":     Move(To("ports.http", &cfg.Ports)),
-		"httpsPort":    Move(To("ports.https", &cfg.Ports)),
-		"tlsPort":      Move(To("ports.tls", &cfg.Ports)),
-		"logLevel":     Move(To("log.level", &cfg.Log)),
-		"logFormat":    Move(To("log.format", &cfg.Log)),
-		"logPrivacy":   Move(To("log.privacy", &cfg.Log)),
-		"logTimestamp": Move(To("log.timestamp", &cfg.Log)),
+		"port":                Move(To("ports.dns", &cfg.Ports)),
+		"httpPort":            Move(To("ports.http", &cfg.Ports)),
+		"httpsPort":           Move(To("ports.https", &cfg.Ports)),
+		"tlsPort":             Move(To("ports.tls", &cfg.Ports)),
+		"logLevel":            Move(To("log.level", &cfg.Log)),
+		"logFormat":           Move(To("log.format", &cfg.Log)),
+		"logPrivacy":          Move(To("log.privacy", &cfg.Log)),
+		"logTimestamp":        Move(To("log.timestamp", &cfg.Log)),
+		"startVerifyUpstream": Move(To("upstreams.startVerify", &cfg.Upstreams)),
 	})
 
 	usesDepredOpts = cfg.Blocking.migrate(logger) || usesDepredOpts

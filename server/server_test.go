@@ -697,62 +697,6 @@ var _ = Describe("Running DNS server", func() {
 		})
 	})
 
-	Describe("NewServer with strict upstream strategy", func() {
-		It("successfully returns upstream branches", func() {
-			branches, err := createUpstreamBranches(context.Background(), &config.Config{
-				Upstreams: config.Upstreams{
-					Strategy: config.UpstreamStrategyStrict,
-					Groups: config.UpstreamGroups{
-						"default": {{Host: "0.0.0.0"}},
-					},
-				},
-			}, nil)
-
-			Expect(err).ToNot(HaveOccurred())
-			Expect(branches).ToNot(BeNil())
-			Expect(branches).To(HaveLen(1))
-			_ = branches["default"].(*resolver.StrictResolver)
-		})
-	})
-
-	Describe("NewServer with random upstream strategy", func() {
-		It("successfully returns upstream branches", func() {
-			branches, err := createUpstreamBranches(context.Background(), &config.Config{
-				Upstreams: config.Upstreams{
-					Strategy: config.UpstreamStrategyRandom,
-					Groups: config.UpstreamGroups{
-						"default": {{Host: "0.0.0.0"}},
-					},
-				},
-			}, nil)
-
-			Expect(err).ToNot(HaveOccurred())
-			Expect(branches).ToNot(BeNil())
-			Expect(branches).To(HaveLen(1))
-			_ = branches["default"].(*resolver.ParallelBestResolver)
-		})
-	})
-
-	Describe("create query resolver", func() {
-		When("some upstream returns error", func() {
-			It("create query resolver should return error", func() {
-				r, err := createQueryResolver(ctx, &config.Config{
-					StartVerifyUpstream: true,
-					Upstreams: config.Upstreams{
-						Groups: config.UpstreamGroups{
-							"default": {{Host: "0.0.0.0"}},
-						},
-					},
-				},
-					nil, nil)
-
-				Expect(err).To(HaveOccurred())
-				Expect(err).To(MatchError(ContainSubstring("creation of upstream branches failed: ")))
-				Expect(r).To(BeNil())
-			})
-		})
-	})
-
 	Describe("resolve client IP", func() {
 		Context("UDP address", func() {
 			It("should correct resolve client IP", func() {

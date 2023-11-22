@@ -9,7 +9,6 @@ import (
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
-	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -17,18 +16,19 @@ import (
 
 var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 	const (
+		timeout = 50 * time.Millisecond
+
 		verifyUpstreams   = true
 		noVerifyUpstreams = false
-
-		timeout = 50 * time.Millisecond
 	)
 
 	var (
-		sut       *ParallelBestResolver
-		upstreams []config.Upstream
-		sutVerify bool
-		ctx       context.Context
-		cancelFn  context.CancelFunc
+		sut         *ParallelBestResolver
+		sutStrategy config.UpstreamStrategy
+		upstreams   []config.Upstream
+		sutVerify   bool
+		ctx         context.Context
+		cancelFn    context.CancelFunc
 
 		err error
 
@@ -42,29 +42,27 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 	})
 
 	BeforeEach(func() {
-		old := config.GetConfig().Upstreams.Timeout
-		DeferCleanup(func() { config.GetConfig().Upstreams.Timeout = old })
-
-		config.GetConfig().Upstreams.Timeout = config.Duration(timeout)
-		config.GetConfig().Upstreams.Strategy = config.UpstreamStrategyParallelBest
-
 		ctx, cancelFn = context.WithCancel(context.Background())
 		DeferCleanup(cancelFn)
 
 		upstreams = []config.Upstream{{Host: "wrong"}, {Host: "127.0.0.2"}}
 
+		sutStrategy = config.UpstreamStrategyParallelBest
 		sutVerify = noVerifyUpstreams
 
 		bootstrap = systemResolverBootstrap
 	})
 
 	JustBeforeEach(func() {
-		sutConfig := config.UpstreamGroup{
-			Name:      upstreamDefaultCfgName,
-			Upstreams: upstreams,
+		upstreamsCfg := config.Upstreams{
+			StartVerify: sutVerify,
+			Strategy:    sutStrategy,
+			Timeout:     config.Duration(timeout),
 		}
 
-		sut, err = NewParallelBestResolver(ctx, sutConfig, bootstrap, sutVerify)
+		sutConfig := config.NewUpstreamGroup("test", upstreamsCfg, upstreams)
+
+		sut, err = NewParallelBestResolver(ctx, sutConfig, bootstrap)
 	})
 
 	Describe("IsEnabled", func() {
@@ -90,26 +88,14 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 		})
 	})
 
-	When("some default upstream resolvers cannot be reached", func() {
-		It("should start normally", func() {
-			mockUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
-				response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 123, A, "123.124.122.122")
+	When("default upstream resolvers are not defined", func() {
+		BeforeEach(func() {
+			upstreams = []config.Upstream{}
+		})
 
-				return
-			})
-			defer mockUpstream.Close()
-
-			upstreams := []config.Upstream{
-				{Host: "wrong"},
-				mockUpstream.Start(),
-			}
-
-			_, err := NewParallelBestResolver(ctx, config.UpstreamGroup{
-				Name:      upstreamDefaultCfgName,
-				Upstreams: upstreams,
-			},
-				systemResolverBootstrap, verifyUpstreams)
-			Expect(err).Should(Not(HaveOccurred()))
+		It("should fail on startup", func() {
+			Expect(err).Should(HaveOccurred())
+			Expect(err).Should(MatchError(ContainSubstring("no external DNS resolvers configured")))
 		})
 	})
 
@@ -230,13 +216,12 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					withError2 := config.Upstream{Host: "wrong"}
 
 					upstreams = []config.Upstream{withError1, withError2}
-					Expect(err).Should(Succeed())
 				})
 				It("Should return error", func() {
 					Expect(err).Should(Succeed())
 					request := newRequest("example.com.", A)
-					_, err = sut.Resolve(ctx, request)
 
+					_, err = sut.Resolve(ctx, request)
 					Expect(err).Should(HaveOccurred())
 				})
 			})
@@ -265,7 +250,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 	Describe("Weighted random on resolver selection", func() {
 		When("5 upstream resolvers are defined", func() {
-			It("should use 2 random peeked resolvers, weighted with last error timestamp", func() {
+			BeforeEach(func() {
 				withError1 := config.Upstream{Host: "wrong1"}
 				withError2 := config.Upstream{Host: "wrong2"}
 
@@ -275,12 +260,10 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 				mockUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
 				DeferCleanup(mockUpstream2.Close)
 
-				sut, _ = NewParallelBestResolver(ctx, config.UpstreamGroup{
-					Name:      upstreamDefaultCfgName,
-					Upstreams: []config.Upstream{withError1, mockUpstream1.Start(), mockUpstream2.Start(), withError2},
-				},
-					systemResolverBootstrap, noVerifyUpstreams)
+				upstreams = []config.Upstream{withError1, mockUpstream1.Start(), mockUpstream2.Start(), withError2}
+			})
 
+			It("should use 2 random peeked resolvers, weighted with last error timestamp", func() {
 				By("all resolvers have same weight for random -> equal distribution", func() {
 					resolverCount := make(map[Resolver]int)
 
@@ -335,11 +318,12 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 		It("errors during construction", func() {
 			b := newTestBootstrap(ctx, &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
-			r, err := NewParallelBestResolver(ctx, config.UpstreamGroup{
-				Name:      "test",
-				Upstreams: []config.Upstream{{Host: "example.com"}},
-			}, b, verifyUpstreams)
+			upstreamsCfg := sut.cfg.Upstreams
+			upstreamsCfg.StartVerify = true
 
+			group := config.NewUpstreamGroup("test", upstreamsCfg, []config.Upstream{{Host: "example.com"}})
+
+			r, err := NewParallelBestResolver(ctx, group, b)
 			Expect(err).ShouldNot(Succeed())
 			Expect(r).Should(BeNil())
 		})
@@ -347,7 +331,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 	Describe("random resolver strategy", func() {
 		BeforeEach(func() {
-			config.GetConfig().Upstreams.Strategy = config.UpstreamStrategyRandom
+			sutStrategy = config.UpstreamStrategyRandom
 		})
 
 		Describe("Name", func() {
@@ -468,7 +452,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 		Describe("Weighted random on resolver selection", func() {
 			When("4 upstream resolvers are defined", func() {
-				It("should use 2 random peeked resolvers, weighted with last error timestamp", func() {
+				BeforeEach(func() {
 					withError1 := config.Upstream{Host: "wrong1"}
 					withError2 := config.Upstream{Host: "wrong2"}
 
@@ -478,12 +462,10 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					mockUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
 					DeferCleanup(mockUpstream2.Close)
 
-					sut, _ = NewParallelBestResolver(ctx, config.UpstreamGroup{
-						Name:      upstreamDefaultCfgName,
-						Upstreams: []config.Upstream{withError1, mockUpstream1.Start(), mockUpstream2.Start(), withError2},
-					},
-						systemResolverBootstrap, noVerifyUpstreams)
+					upstreams = []config.Upstream{withError1, mockUpstream1.Start(), mockUpstream2.Start(), withError2}
+				})
 
+				It("should use 2 random peeked resolvers, weighted with last error timestamp", func() {
 					By("all resolvers have same weight for random -> equal distribution", func() {
 						resolverCount := make(map[Resolver]int)
 

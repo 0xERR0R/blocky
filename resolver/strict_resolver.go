@@ -24,17 +24,16 @@ type StrictResolver struct {
 	configurable[*config.UpstreamGroup]
 	typed
 
-	groupName string
 	resolvers []*upstreamResolverStatus
 }
 
 // NewStrictResolver creates a new strict resolver instance
 func NewStrictResolver(
-	ctx context.Context, cfg config.UpstreamGroup, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
+	ctx context.Context, cfg config.UpstreamGroup, bootstrap *Bootstrap,
 ) (*StrictResolver, error) {
 	logger := log.PrefixedLog(strictResolverType)
 
-	resolvers, err := createResolvers(ctx, logger, cfg, bootstrap, shouldVerifyUpstreams)
+	resolvers, err := createResolvers(ctx, logger, cfg, bootstrap)
 	if err != nil {
 		return nil, err
 	}
@@ -45,18 +44,11 @@ func NewStrictResolver(
 func newStrictResolver(
 	cfg config.UpstreamGroup, resolvers []Resolver,
 ) *StrictResolver {
-	resolverStatuses := make([]*upstreamResolverStatus, 0, len(resolvers))
-
-	for _, r := range resolvers {
-		resolverStatuses = append(resolverStatuses, newUpstreamResolverStatus(r))
-	}
-
 	r := StrictResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType(strictResolverType),
 
-		groupName: cfg.Name,
-		resolvers: resolverStatuses,
+		resolvers: newUpstreamResolverStatuses(resolvers),
 	}
 
 	return &r
@@ -72,7 +64,7 @@ func (r *StrictResolver) String() string {
 		result[i] = fmt.Sprintf("%s", s.resolver)
 	}
 
-	return fmt.Sprintf("%s upstreams '%s (%s)'", strictResolverType, r.groupName, strings.Join(result, ","))
+	return fmt.Sprintf("%s upstreams '%s (%s)'", strictResolverType, r.cfg.Name, strings.Join(result, ","))
 }
 
 // Resolve sends the query request in a strict order to the upstream resolvers

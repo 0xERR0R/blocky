@@ -218,21 +218,25 @@ func (c *configurable[T]) LogConfig(logger *logrus.Entry) {
 
 func createResolvers(
 	ctx context.Context, logger *logrus.Entry,
-	cfg config.UpstreamGroup, bootstrap *Bootstrap, shoudVerifyUpstreams bool,
+	cfg config.UpstreamGroup, bootstrap *Bootstrap,
 ) ([]Resolver, error) {
-	resolvers := make([]Resolver, 0, len(cfg.Upstreams))
+	if len(cfg.GroupUpstreams()) == 0 {
+		return nil, fmt.Errorf("no external DNS resolvers configured for group %s", cfg.Name)
+	}
+
+	resolvers := make([]Resolver, 0, len(cfg.GroupUpstreams()))
 	hasValidResolvers := false
 
-	for _, u := range cfg.Upstreams {
-		resolver, err := NewUpstreamResolver(ctx, u, bootstrap, shoudVerifyUpstreams)
+	for _, u := range cfg.GroupUpstreams() {
+		resolver, err := NewUpstreamResolver(ctx, newUpstreamConfig(u, cfg.Upstreams), bootstrap)
 		if err != nil {
 			logger.Warnf("upstream group %s: %v", cfg.Name, err)
 
 			continue
 		}
 
-		if shoudVerifyUpstreams {
-			err = testResolver(ctx, resolver)
+		if cfg.StartVerify {
+			err = resolver.testResolve(ctx)
 			if err != nil {
 				logger.Warn(err)
 			} else {
@@ -243,7 +247,7 @@ func createResolvers(
 		resolvers = append(resolvers, resolver)
 	}
 
-	if shoudVerifyUpstreams && !hasValidResolvers {
+	if cfg.StartVerify && !hasValidResolvers {
 		return nil, fmt.Errorf("no valid upstream for group %s", cfg.Name)
 	}
 

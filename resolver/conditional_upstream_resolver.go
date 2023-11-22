@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
@@ -24,14 +25,15 @@ type ConditionalUpstreamResolver struct {
 
 // NewConditionalUpstreamResolver returns new resolver instance
 func NewConditionalUpstreamResolver(
-	ctx context.Context, cfg config.ConditionalUpstream, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
+	ctx context.Context, cfg config.ConditionalUpstream, upstreamsCfg config.Upstreams, bootstrap *Bootstrap,
 ) (*ConditionalUpstreamResolver, error) {
 	m := make(map[string]Resolver, len(cfg.Mapping.Upstreams))
 
 	for domain, upstreams := range cfg.Mapping.Upstreams {
-		cfg := config.UpstreamGroup{Name: upstreamDefaultCfgName, Upstreams: upstreams}
+		name := fmt.Sprintf("<conditional in %s>", domain)
+		cfg := config.NewUpstreamGroup(name, upstreamsCfg, upstreams)
 
-		r, err := NewParallelBestResolver(ctx, cfg, bootstrap, shouldVerifyUpstreams)
+		r, err := NewParallelBestResolver(ctx, cfg, bootstrap)
 		if err != nil {
 			return nil, err
 		}

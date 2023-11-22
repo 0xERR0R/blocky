@@ -29,11 +29,34 @@ const (
 	retryAttempts              = 3
 )
 
+type upstreamConfig struct {
+	config.Upstreams
+	config.Upstream
+}
+
+func newUpstreamConfig(upstream config.Upstream, cfg config.Upstreams) upstreamConfig {
+	return upstreamConfig{cfg, upstream}
+}
+
+func (c upstreamConfig) String() string {
+	return c.Upstream.String()
+}
+
+// IsEnabled implements `config.Configurable`.
+func (c upstreamConfig) IsEnabled() bool {
+	return true
+}
+
+// LogConfig implements `config.Configurable`.
+func (c upstreamConfig) LogConfig(logger *logrus.Entry) {
+	logger.Info(c.Upstream)
+}
+
 // UpstreamResolver sends request to external DNS server
 type UpstreamResolver struct {
 	typed
+	configurable[upstreamConfig]
 
-	upstream       config.Upstream
 	upstreamClient upstreamClient
 	bootstrap      *Bootstrap
 }
@@ -54,7 +77,7 @@ type httpUpstreamClient struct {
 	host   string
 }
 
-func createUpstreamClient(cfg config.Upstream) upstreamClient {
+func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 	tlsConfig := tls.Config{
 		ServerName: cfg.Host,
 		MinVersion: tls.VersionTLS12,
@@ -187,11 +210,11 @@ func (r *dnsUpstreamClient) callExternal(
 
 // NewUpstreamResolver creates new resolver instance
 func NewUpstreamResolver(
-	ctx context.Context, upstream config.Upstream, bootstrap *Bootstrap, verify bool,
+	ctx context.Context, cfg upstreamConfig, bootstrap *Bootstrap,
 ) (*UpstreamResolver, error) {
-	r := newUpstreamResolverUnchecked(upstream, bootstrap)
+	r := newUpstreamResolverUnchecked(cfg, bootstrap)
 
-	if verify {
+	if cfg.StartVerify {
 		_, err := r.bootstrap.UpstreamIPs(ctx, r)
 		if err != nil {
 			return nil, err
@@ -202,30 +225,34 @@ func NewUpstreamResolver(
 }
 
 // newUpstreamResolverUnchecked creates new resolver instance without validating the upstream
-func newUpstreamResolverUnchecked(upstream config.Upstream, bootstrap *Bootstrap) *UpstreamResolver {
-	upstreamClient := createUpstreamClient(upstream)
+func newUpstreamResolverUnchecked(cfg upstreamConfig, bootstrap *Bootstrap) *UpstreamResolver {
+	upstreamClient := createUpstreamClient(cfg)
 
 	return &UpstreamResolver{
-		typed: withType("upstream"),
+		typed:        withType("upstream"),
+		configurable: withConfig(cfg),
 
-		upstream:       upstream,
 		upstreamClient: upstreamClient,
 		bootstrap:      bootstrap,
 	}
 }
 
-// IsEnabled implements `config.Configurable`.
-func (r *UpstreamResolver) IsEnabled() bool {
-	return true
-}
-
-// LogConfig implements `config.Configurable`.
-func (r *UpstreamResolver) LogConfig(logger *logrus.Entry) {
-	logger.Info(r.upstream)
-}
-
 func (r UpstreamResolver) String() string {
-	return fmt.Sprintf("%s '%s'", r.Type(), r.upstream)
+	return fmt.Sprintf("%s '%s'", r.Type(), r.cfg)
+}
+
+func (r *UpstreamResolver) log() *logrus.Entry {
+	return r.typed.log().WithField("upstream", r.cfg.String())
+}
+
+// testResolve sends a test query to verify the upstream is reachable and working
+func (r *UpstreamResolver) testResolve(ctx context.Context) error {
+	// example.com MUST always resolve. See SUDN resolver
+	request := newRequest("example.com.", dns.Type(dns.TypeA))
+
+	_, err := r.Resolve(ctx, request)
+
+	return err
 }
 
 // Resolve calls external resolver
@@ -242,15 +269,21 @@ func (r *UpstreamResolver) Resolve(ctx context.Context, request *model.Request) 
 
 	err = retry.Do(
 		func() error {
-			ctx, cancel := context.WithTimeout(ctx, config.GetConfig().Upstreams.Timeout.ToDuration())
-			defer cancel()
-
 			ip = ips.Current()
-			upstreamURL := r.upstreamClient.fmtURL(ip, r.upstream.Port, r.upstream.Path)
+			upstreamURL := r.upstreamClient.fmtURL(ip, r.cfg.Port, r.cfg.Path)
+
+			ctx := ctx // make sure we don't overwrite the outer function's context
+
+			if r.cfg.Timeout.IsAboveZero() {
+				var cancel context.CancelFunc
+
+				ctx, cancel = context.WithTimeout(ctx, r.cfg.Timeout.ToDuration())
+				defer cancel()
+			}
 
 			response, rtt, err := r.upstreamClient.callExternal(ctx, request.Req, upstreamURL, request.Protocol)
 			if err != nil {
-				return fmt.Errorf("can't resolve request via upstream server %s (%s): %w", r.upstream, upstreamURL, err)
+				return fmt.Errorf("can't resolve request via upstream server %s (%s): %w", r.cfg, upstreamURL, err)
 			}
 
 			resp = response
@@ -266,7 +299,7 @@ func (r *UpstreamResolver) Resolve(ctx context.Context, request *model.Request) 
 		retry.RetryIf(isTimeout),
 		retry.OnRetry(func(n uint, err error) {
 			r.log().WithFields(logrus.Fields{
-				"upstream":    r.upstream.String(),
+				"upstream":    r.cfg.String(),
 				"upstream_ip": ip.String(),
 				"question":    util.QuestionToString(request.Req.Question),
 				"attempt":     fmt.Sprintf("%d/%d", n+1, retryAttempts),
@@ -275,25 +308,20 @@ func (r *UpstreamResolver) Resolve(ctx context.Context, request *model.Request) 
 			ips.Next()
 		}))
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			// Make the error more user friendly than just "context deadline exceeded"
-			err = fmt.Errorf("timeout (%w)", err)
-		}
-
 		return nil, err
 	}
 
-	return &model.Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.upstream)}, nil
+	return &model.Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.cfg)}, nil
 }
 
 func (r *UpstreamResolver) logResponse(request *model.Request, resp *dns.Msg, ip net.IP, rtt time.Duration) {
 	r.log().WithFields(logrus.Fields{
 		"answer":           util.AnswerToString(resp.Answer),
 		"return_code":      dns.RcodeToString[resp.Rcode],
-		"upstream":         r.upstream.String(),
+		"upstream":         r.cfg.String(),
 		"upstream_ip":      ip.String(),
 		"protocol":         request.Protocol,
-		"net":              r.upstream.Net,
+		"net":              r.cfg.Net,
 		"response_time_ms": rtt.Milliseconds(),
 	}).Debugf("received response from upstream")
 }
