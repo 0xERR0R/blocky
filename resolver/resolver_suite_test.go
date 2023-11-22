@@ -13,6 +13,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const (
+	timeout = 50 * time.Millisecond
+)
+
 var defaultUpstreamsConfig config.Upstreams
 
 func init() {
@@ -27,7 +31,7 @@ func init() {
 	}
 
 	// Shorter timeout for tests
-	defaultUpstreamsConfig.Timeout = config.Duration(50 * time.Millisecond)
+	defaultUpstreamsConfig.Timeout = config.Duration(timeout)
 }
 
 func TestResolver(t *testing.T) {

@@ -3,7 +3,6 @@ package resolver
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
@@ -16,8 +15,6 @@ import (
 
 var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 	const (
-		timeout = 50 * time.Millisecond
-
 		verifyUpstreams   = true
 		noVerifyUpstreams = false
 	)

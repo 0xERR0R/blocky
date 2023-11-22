@@ -164,7 +164,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 								))
 					})
 				})
-				When("first upstream exceeds upstreamTimeout", func() {
+				When("first upstream times-out", func() {
 					BeforeEach(func() {
 						testUpstream1 = NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 							response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.1")
@@ -190,7 +190,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 							))
 					})
 				})
-				When("all upstreams exceed upsteamTimeout", func() {
+				When("all upstreams timeout", func() {
 					JustBeforeEach(func() {
 						testUpstream1 = NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 							response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.1")

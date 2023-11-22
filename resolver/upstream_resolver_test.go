@@ -113,8 +113,6 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 			var counter int32
 			var attemptsWithTimeout int32
 			BeforeEach(func() {
-				timeout := sutConfig.Timeout.ToDuration() // avoid data race
-
 				resolveFn := func(request *dns.Msg) *dns.Msg {
 					// timeout on first x attempts
 					if atomic.AddInt32(&counter, 1) <= atomic.LoadInt32(&attemptsWithTimeout) {
