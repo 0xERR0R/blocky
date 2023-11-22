@@ -3,6 +3,7 @@ package config
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -76,6 +77,26 @@ func (ipv IPVersion) QTypes() []dns.Type {
 	}
 
 	panic(fmt.Errorf("bad value: %s", ipv))
+}
+
+// TLSVersion represents a TLS protocol version. ENUM(
+// 1.0 = 769
+// 1.1
+// 1.2
+// 1.3
+// )
+type TLSVersion int // values MUST match `tls.VersionTLS*`
+
+func (v *TLSVersion) validate(logger *logrus.Entry) {
+	// So we get a linting error if it is considered insecure in the future
+	minAllowed := tls.Config{MinVersion: tls.VersionTLS12}.MinVersion
+
+	if *v < TLSVersion(minAllowed) {
+		def := mustDefault[Config]().MinTLSServeVer
+
+		logger.Warnf("TLS version %s is insecure, using %s instead", v, def)
+		*v = def
+	}
 }
 
 // QueryLogType type of the query log ENUM(
@@ -201,7 +222,7 @@ type Config struct {
 	Redis            RedisConfig         `yaml:"redis"`
 	Log              log.Config          `yaml:"log"`
 	Ports            PortsConfig         `yaml:"ports"`
-	MinTLSServeVer   string              `yaml:"minTlsServeVersion" default:"1.2"`
+	MinTLSServeVer   TLSVersion          `yaml:"minTlsServeVersion" default:"1.2"`
 	CertFile         string              `yaml:"certFile"`
 	KeyFile          string              `yaml:"keyFile"`
 	BootstrapDNS     BootstrapDNSConfig  `yaml:"bootstrapDns"`
@@ -384,6 +405,15 @@ func WithDefaults[T any]() (T, error) {
 	return cfg, nil
 }
 
+func mustDefault[T any]() T {
+	cfg, err := WithDefaults[T]()
+	if err != nil {
+		util.FatalOnError("broken defaults", err)
+	}
+
+	return cfg
+}
+
 // LoadConfig creates new config from YAML file or a directory containing YAML files
 func LoadConfig(path string, mandatory bool) (rCfg *Config, rerr error) {
 	cfg, err := WithDefaults[Config]()
@@ -495,6 +525,8 @@ func unmarshalConfig(data []byte, cfg *Config) error {
 		logger.Error("configuration uses deprecated options, see warning logs for details")
 	}
 
+	cfg.validate(logger)
+
 	return nil
 }
 
@@ -523,6 +555,10 @@ func (cfg *Config) migrate(logger *logrus.Entry) bool {
 	usesDepredOpts = cfg.HostsFile.migrate(logger) || usesDepredOpts
 
 	return usesDepredOpts
+}
+
+func (cfg *Config) validate(logger *logrus.Entry) {
+	cfg.MinTLSServeVer.validate(logger)
 }
 
 // ConvertPort converts string representation into a valid port (0 - 65535)
