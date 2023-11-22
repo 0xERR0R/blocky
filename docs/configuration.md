@@ -15,7 +15,6 @@ configuration properties as [JSON](config.yml).
 | ------------------- | ------------------- | --------- | ------------- | ---------------------------------------------------------------------------------------------------------- |
 | certFile            | path                | no        |               | Path to cert and key file for SSL encryption (DoH and DoT); if empty, self-signed certificate is generated |
 | keyFile             | path                | no        |               | Path to cert and key file for SSL encryption (DoH and DoT); if empty, self-signed certificate is generated |
-| dohUserAgent        | string              | no        |               | HTTP User Agent for DoH upstreams                                                                          |
 | minTlsServeVersion  | string              | no        | 1.2           | Minimum TLS version that the DoT and DoH server use to serve those encrypted DNS requests                  |
 | connectIPVersion    | enum (dual, v4, v6) | no        | dual          | IP version to use for outgoing connections (dual, v4, v6)                                                  |
 
@@ -75,6 +74,7 @@ All logging options are optional.
 | usptreams.startVerify | bool                                 | no        | false         | If true, blocky will fail to start unless at least one upstream server per group is functional. |
 | usptreams.strategy    | enum (parallel_best, random, strict) | no        | parallel_best | Upstream server usage strategy.                                                                 |
 | usptreams.timeout     | duration                             | no        | 2s            | Upstream connection timeout.                                                                    |
+| usptreams.userAgent   | string                               | no        |               | HTTP User Agent when connecting to upstreams.                                                   |
 
 
 ### Upstream Groups

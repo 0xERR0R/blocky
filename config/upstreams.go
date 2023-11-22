@@ -12,6 +12,7 @@ type Upstreams struct {
 	Groups      UpstreamGroups   `yaml:"groups"`
 	Strategy    UpstreamStrategy `yaml:"strategy" default:"parallel_best"`
 	StartVerify bool             `yaml:"startVerify" default:"false"`
+	UserAgent   string           `yaml:"userAgent"`
 }
 
 type UpstreamGroups map[string][]Upstream

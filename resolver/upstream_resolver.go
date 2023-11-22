@@ -73,8 +73,9 @@ type dnsUpstreamClient struct {
 }
 
 type httpUpstreamClient struct {
-	client *http.Client
-	host   string
+	client    *http.Client
+	host      string
+	userAgent string
 }
 
 func createUpstreamClient(cfg upstreamConfig) upstreamClient {
@@ -90,6 +91,7 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 	switch cfg.Net {
 	case config.NetProtocolHttps:
 		return &httpUpstreamClient{
+			userAgent: cfg.UserAgent,
 			client: &http.Client{
 				Transport: &http.Transport{
 					TLSClientConfig:     &tlsConfig,
@@ -143,7 +145,7 @@ func (r *httpUpstreamClient) callExternal(
 		return nil, 0, fmt.Errorf("can't create the new request %w", err)
 	}
 
-	req.Header.Set("User-Agent", config.GetConfig().DoHUserAgent)
+	req.Header.Set("User-Agent", r.userAgent)
 	req.Header.Set("Content-Type", dnsContentType)
 	req.Host = r.host
 
