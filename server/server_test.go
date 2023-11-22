@@ -179,9 +179,6 @@ var _ = BeforeSuite(func() {
 		},
 	}
 
-	// Hacky but needed to update the global since we still have code that reads it
-	*config.GetConfig() = *cfg
-
 	// create server
 	sut, err = NewServer(ctx, cfg)
 	Expect(err).Should(Succeed())

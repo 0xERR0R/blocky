@@ -124,7 +124,7 @@ func (b *Bootstrap) resolveUpstream(ctx context.Context, r Resolver, host string
 		ctx, cancel := context.WithTimeout(ctx, b.timeout)
 		defer cancel()
 
-		return b.systemResolver.LookupIP(ctx, config.GetConfig().ConnectIPVersion.Net(), host)
+		return b.systemResolver.LookupIP(ctx, b.connectIPVersion.Net(), host)
 	}
 
 	if ips, ok := b.bootstraped[r]; ok {

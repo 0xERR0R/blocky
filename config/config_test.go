@@ -799,8 +799,6 @@ func defaultTestFileConfig() {
 	Expect(config.Caching.MinCachingTime).Should(BeZero())
 
 	Expect(config.MinTLSServeVer).Should(Equal("1.3"))
-
-	Expect(GetConfig()).Should(Not(BeNil()))
 }
 
 func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {

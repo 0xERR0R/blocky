@@ -538,14 +538,6 @@ func (cfg *Config) migrate(logger *logrus.Entry) bool {
 	return usesDepredOpts
 }
 
-// GetConfig returns the current config
-func GetConfig() *Config {
-	cfgLock.RLock()
-	defer cfgLock.RUnlock()
-
-	return config
-}
-
 // ConvertPort converts string representation into a valid port (0 - 65535)
 func ConvertPort(in string) (uint16, error) {
 	const (

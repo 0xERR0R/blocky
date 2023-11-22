@@ -56,8 +56,8 @@ func logger() *logrus.Entry {
 	return log.PrefixedLog("server")
 }
 
-func minTLSVersion() uint16 {
-	minTLSVer := config.GetConfig().MinTLSServeVer
+func minTLSVersion(cfg *config.Config) uint16 {
+	minTLSVer := cfg.MinTLSServeVer
 	switch minTLSVer {
 	case "1.2":
 		return tls.VersionTLS12
@@ -210,7 +210,7 @@ func createServers(cfg *config.Config, cert tls.Certificate) ([]*dns.Server, err
 		addServers(createUDPServer, cfg.Ports.DNS),
 		addServers(createTCPServer, cfg.Ports.DNS),
 		addServers(func(address string) (*dns.Server, error) {
-			return createTLSServer(address, cert)
+			return createTLSServer(cfg, address, cert)
 		}, cfg.Ports.TLS))
 
 	return dnsServers, err.ErrorOrNil()
@@ -245,14 +245,14 @@ func newListeners(proto string, addresses config.ListenConfig) ([]net.Listener, 
 	return listeners, nil
 }
 
-func createTLSServer(address string, cert tls.Certificate) (*dns.Server, error) {
+func createTLSServer(cfg *config.Config, address string, cert tls.Certificate) (*dns.Server, error) {
 	return &dns.Server{
 		Addr: address,
 		Net:  "tcp-tls",
 		//nolint:gosec
 		TLSConfig: &tls.Config{
 			Certificates: []tls.Certificate{cert},
-			MinVersion:   minTLSVersion(),
+			MinVersion:   minTLSVersion(cfg),
 			CipherSuites: tlsCipherSuites(),
 		},
 		Handler: dns.NewServeMux(),
@@ -524,7 +524,7 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 				WriteTimeout:      writeTimeout,
 				//nolint:gosec
 				TLSConfig: &tls.Config{
-					MinVersion:   minTLSVersion(),
+					MinVersion:   minTLSVersion(s.cfg),
 					CipherSuites: tlsCipherSuites(),
 					Certificates: []tls.Certificate{s.cert},
 				},
