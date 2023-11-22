@@ -11,7 +11,7 @@ Following metrics will be exported:
 | name                                             |   Description                                            |
 | ------------------------------------------------ | -------------------------------------------------------- |
 | blocky_blacklist_cache / blocky_whitelist_cache  | Number of entries in blacklist/whitelist cache, partitioned by group |
-| blocky_error_total                | Counter for internal errors |
+| blocky_error_total                | Number of total queries that ended in error for any reason |
 | blocky_query_total                | Number of total queries, partitioned by client and DNS request type (A, AAAA, PTR, etc) |
 | blocky_request_duration_ms_bucket | Request duration histogram, partitioned by response type (Blocked, cached, etc)  |
 | blocky_response_total             | Number of responses, partitioned by response type (Blocked, cached, etc), DNS response code, and reason |
