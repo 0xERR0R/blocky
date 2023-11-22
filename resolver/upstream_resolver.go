@@ -24,9 +24,8 @@ import (
 )
 
 const (
-	dnsContentType             = "application/dns-message"
-	defaultTLSHandshakeTimeout = 5 * time.Second
-	retryAttempts              = 3
+	dnsContentType = "application/dns-message"
+	retryAttempts  = 3
 )
 
 type upstreamConfig struct {
@@ -94,9 +93,8 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 			userAgent: cfg.UserAgent,
 			client: &http.Client{
 				Transport: &http.Transport{
-					TLSClientConfig:     &tlsConfig,
-					TLSHandshakeTimeout: defaultTLSHandshakeTimeout,
-					ForceAttemptHTTP2:   true,
+					TLSClientConfig:   &tlsConfig,
+					ForceAttemptHTTP2: true,
 				},
 			},
 			host: cfg.Host,
