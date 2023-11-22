@@ -18,6 +18,7 @@ import (
 
 	. "github.com/0xERR0R/blocky/config/migration" //nolint:revive,stylecheck
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/util"
 	"github.com/creasty/defaults"
 	"gopkg.in/yaml.v2"
 )
@@ -391,7 +392,7 @@ var (
 )
 
 // LoadConfig creates new config from YAML file or a directory containing YAML files
-func LoadConfig(path string, mandatory bool) (*Config, error) {
+func LoadConfig(path string, mandatory bool) (rCfg *Config, rerr error) {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 
@@ -400,14 +401,21 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 		return nil, err
 	}
 
+	defer func() {
+		if rerr == nil {
+			util.LogPrivacy.Store(rCfg.Log.Privacy)
+
+			// We're still holding the lock
+			config = rCfg
+		}
+	}()
+
 	fs, err := os.Stat(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) && !mandatory {
 			// config file does not exist
 			// return config with default values
-			config = &cfg
-
-			return config, nil
+			return &cfg, nil
 		}
 
 		return nil, fmt.Errorf("can't read config file(s): %w", err)
@@ -432,8 +440,6 @@ func LoadConfig(path string, mandatory bool) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	config = &cfg
 
 	return &cfg, nil
 }
