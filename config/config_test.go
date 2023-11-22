@@ -19,6 +19,8 @@ import (
 
 var _ = Describe("Config", func() {
 	var (
+		c *Config
+
 		tmpDir *helpertest.TmpFolder
 		err    error
 	)
@@ -32,9 +34,9 @@ var _ = Describe("Config", func() {
 	})
 
 	Describe("Deprecated parameters are converted", func() {
-		var c Config
 		BeforeEach(func() {
-			err := defaults.Set(&c)
+			c = new(Config)
+			err := defaults.Set(c)
 			Expect(err).Should(Succeed())
 		})
 
@@ -149,10 +151,10 @@ var _ = Describe("Config", func() {
 				confFile := writeConfigYml(tmpDir)
 				Expect(confFile.Error).Should(Succeed())
 
-				_, err = LoadConfig(confFile.Path, true)
+				c, err = LoadConfig(confFile.Path, true)
 				Expect(err).Should(Succeed())
 
-				defaultTestFileConfig()
+				defaultTestFileConfig(c)
 			})
 		})
 		When("Test file does not exist", func() {
@@ -169,7 +171,7 @@ var _ = Describe("Config", func() {
 				_, err := LoadConfig(tmpDir.Path, true)
 				Expect(err).Should(Succeed())
 
-				defaultTestFileConfig()
+				defaultTestFileConfig(c)
 			})
 
 			It("should ignore non YAML files", func() {
@@ -204,7 +206,7 @@ var _ = Describe("Config", func() {
 				cfgFile := tmpDir.CreateStringFile("config.yml", "malformed_config")
 				Expect(cfgFile.Error).Should(Succeed())
 
-				_, err = LoadConfig(cfgFile.Path, true)
+				c, err = LoadConfig(cfgFile.Path, true)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("wrong file structure"))
 			})
@@ -323,16 +325,16 @@ bootstrapDns:
 
 		When("config directory does not exist", func() {
 			It("should return error", func() {
-				_, err = LoadConfig(tmpDir.JoinPath("config.yml"), true)
+				c, err = LoadConfig(tmpDir.JoinPath("config.yml"), true)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("no such file or directory"))
 			})
 
 			It("should use default config if config is not mandatory", func() {
-				_, err = LoadConfig(tmpDir.JoinPath("config.yml"), false)
+				c, err = LoadConfig(tmpDir.JoinPath("config.yml"), false)
 
 				Expect(err).Should(Succeed())
-				Expect(config.Log.Level).Should(Equal(log.LevelInfo))
+				Expect(c.Log.Level).Should(Equal(log.LevelInfo))
 			})
 		})
 	})
@@ -768,7 +770,7 @@ bootstrapDns:
 	})
 })
 
-func defaultTestFileConfig() {
+func defaultTestFileConfig(config *Config) {
 	Expect(config.Ports.DNS).Should(Equal(ListenConfig{"55553", ":55554", "[::1]:55555"}))
 	Expect(config.Upstreams.StartVerify).Should(BeFalse())
 	Expect(config.Upstreams.UserAgent).Should(Equal("testBlocky"))

@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/miekg/dns"
@@ -385,17 +384,8 @@ func WithDefaults[T any]() (T, error) {
 	return cfg, nil
 }
 
-//nolint:gochecknoglobals
-var (
-	config  = &Config{}
-	cfgLock sync.RWMutex
-)
-
 // LoadConfig creates new config from YAML file or a directory containing YAML files
 func LoadConfig(path string, mandatory bool) (rCfg *Config, rerr error) {
-	cfgLock.Lock()
-	defer cfgLock.Unlock()
-
 	cfg, err := WithDefaults[Config]()
 	if err != nil {
 		return nil, err
@@ -404,9 +394,6 @@ func LoadConfig(path string, mandatory bool) (rCfg *Config, rerr error) {
 	defer func() {
 		if rerr == nil {
 			util.LogPrivacy.Store(rCfg.Log.Privacy)
-
-			// We're still holding the lock
-			config = rCfg
 		}
 	}()
 
