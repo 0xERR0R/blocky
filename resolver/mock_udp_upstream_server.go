@@ -122,36 +122,34 @@ func (t *MockUDPUpstreamServer) Start() config.Upstream {
 				break
 			}
 
-			msg := new(dns.Msg)
-			err = msg.Unpack(buffer[0 : n-1])
+			go func() {
+				msg := new(dns.Msg)
+				err = msg.Unpack(buffer[0 : n-1])
 
-			util.FatalOnError("can't deserialize message: ", err)
+				util.FatalOnError("can't deserialize message: ", err)
 
-			response := t.answerFn(msg)
+				response := t.answerFn(msg)
 
-			atomic.AddInt32(&t.callCount, 1)
-			// nil should indicate an error
-			if response == nil {
-				_, _ = ln.WriteToUDP([]byte("dummy"), addr)
+				atomic.AddInt32(&t.callCount, 1)
+				// nil should indicate an error
+				if response == nil {
+					_, _ = ln.WriteToUDP([]byte("dummy"), addr)
 
-				continue
-			}
+					return
+				}
 
-			rCode := response.Rcode
-			response.SetReply(msg)
+				rCode := response.Rcode
+				response.SetReply(msg)
 
-			if rCode != 0 {
-				response.Rcode = rCode
-			}
+				if rCode != 0 {
+					response.Rcode = rCode
+				}
 
-			b, err := response.Pack()
-			util.FatalOnError("can't serialize message: ", err)
+				b, err := response.Pack()
+				util.FatalOnError("can't serialize message: ", err)
 
-			_, err = ln.WriteToUDP(b, addr)
-			if err != nil {
-				// closed
-				break
-			}
+				_, _ = ln.WriteToUDP(b, addr)
+			}()
 		}
 	}()
 
