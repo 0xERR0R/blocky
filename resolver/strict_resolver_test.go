@@ -61,8 +61,6 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 		sut, err = NewStrictResolver(ctx, sutConfig, bootstrap)
 	})
 
-	config.GetConfig().Upstreams.Timeout = config.Duration(time.Second)
-
 	Describe("IsEnabled", func() {
 		It("is true", func() {
 			Expect(sut.IsEnabled()).Should(BeTrue())
@@ -167,9 +165,10 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 				})
 				When("first upstream exceeds upstreamTimeout", func() {
 					BeforeEach(func() {
+						timeout := sut.cfg.Timeout.ToDuration()
 						testUpstream1 := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 							response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.1")
-							time.Sleep(time.Duration(config.GetConfig().Upstreams.Timeout) + 2*time.Second)
+							time.Sleep(2 * timeout)
 
 							Expect(err).To(Succeed())
 
@@ -195,9 +194,10 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 				})
 				When("all upstreams exceed upsteamTimeout", func() {
 					BeforeEach(func() {
+						timeout := sut.cfg.Timeout.ToDuration()
 						testUpstream1 := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 							response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.1")
-							time.Sleep(config.GetConfig().Upstreams.Timeout.ToDuration() + 2*time.Second)
+							time.Sleep(2 * timeout)
 
 							Expect(err).To(Succeed())
 
@@ -207,7 +207,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 
 						testUpstream2 := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 							response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.2")
-							time.Sleep(config.GetConfig().Upstreams.Timeout.ToDuration() + 2*time.Second)
+							time.Sleep(2 * timeout)
 
 							Expect(err).To(Succeed())
 
