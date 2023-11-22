@@ -578,6 +578,7 @@ func (cfg *Config) migrate(logger *logrus.Entry) bool {
 
 func (cfg *Config) validate(logger *logrus.Entry) {
 	cfg.MinTLSServeVer.validate(logger)
+	cfg.Upstreams.validate(logger)
 }
 
 // ConvertPort converts string representation into a valid port (0 - 65535)
