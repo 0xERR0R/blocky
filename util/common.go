@@ -9,19 +9,29 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync/atomic"
 
-	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 )
 
-var alphanumeric = regexp.MustCompile("[a-zA-Z0-9]")
+//nolint:gochecknoglobals
+var (
+	// To avoid making this package depend on config, we use a global
+	// that is set at config load.
+	// Ideally we'd move the obfuscate code somewhere else (maybe into `log`),
+	// but that would require also moving all its dependencies.
+	// This is good enough for now.
+	LogPrivacy atomic.Bool
+
+	alphanumeric = regexp.MustCompile("[a-zA-Z0-9]")
+)
 
 // Obfuscate replaces all alphanumeric characters with * to obfuscate user sensitive data if LogPrivacy is enabled
 func Obfuscate(in string) string {
-	if config.GetConfig().Log.Privacy {
+	if LogPrivacy.Load() {
 		return alphanumeric.ReplaceAllString(in, "*")
 	}
 
