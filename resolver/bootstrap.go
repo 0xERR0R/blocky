@@ -143,12 +143,8 @@ func (b *Bootstrap) resolveUpstream(ctx context.Context, r Resolver, host string
 		return ips, nil
 	}
 
-	if b.cfg.timeout.IsAboveZero() {
-		var cancel context.CancelFunc
-
-		ctx, cancel = context.WithTimeout(ctx, b.cfg.timeout.ToDuration())
-		defer cancel()
-	}
+	ctx, cancel := context.WithTimeout(ctx, b.cfg.timeout.ToDuration())
+	defer cancel()
 
 	// Use system resolver if no bootstrap is configured
 	if b.resolver == nil {

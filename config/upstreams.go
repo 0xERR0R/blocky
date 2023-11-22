@@ -10,13 +10,22 @@ const UpstreamDefaultCfgName = "default"
 // Upstreams upstream servers configuration
 type Upstreams struct {
 	Init      Init             `yaml:"init"`
-	Timeout   Duration         `yaml:"timeout" default:"2s"`
+	Timeout   Duration         `yaml:"timeout" default:"2s"` // always > 0
 	Groups    UpstreamGroups   `yaml:"groups"`
 	Strategy  UpstreamStrategy `yaml:"strategy" default:"parallel_best"`
 	UserAgent string           `yaml:"userAgent"`
 }
 
 type UpstreamGroups map[string][]Upstream
+
+func (c *Upstreams) validate(logger *logrus.Entry) {
+	defaults := mustDefault[Upstreams]()
+
+	if !c.Timeout.IsAboveZero() {
+		logger.Warnf("upstreams.timeout <= 0, setting to %s", defaults.Timeout)
+		c.Timeout = defaults.Timeout
+	}
+}
 
 // IsEnabled implements `config.Configurable`.
 func (c *Upstreams) IsEnabled() bool {

@@ -61,6 +61,25 @@ var _ = Describe("ParallelBestConfig", func() {
 				))
 			})
 		})
+
+		Describe("validate", func() {
+			It("should compute defaults", func() {
+				cfg.Timeout = -1
+
+				cfg.validate(logger)
+
+				Expect(cfg.Timeout).Should(BeNumerically(">", 0))
+
+				Expect(hook.Calls).ShouldNot(BeEmpty())
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("timeout")))
+			})
+
+			It("should not override valid user values", func() {
+				cfg.validate(logger)
+
+				Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("timeout")))
+			})
+		})
 	})
 
 	Context("UpstreamGroupConfig", func() {

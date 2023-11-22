@@ -274,14 +274,8 @@ func (r *UpstreamResolver) Resolve(ctx context.Context, request *model.Request) 
 			ip = ips.Current()
 			upstreamURL := r.upstreamClient.fmtURL(ip, r.cfg.Port, r.cfg.Path)
 
-			ctx := ctx // make sure we don't overwrite the outer function's context
-
-			if r.cfg.Timeout.IsAboveZero() {
-				var cancel context.CancelFunc
-
-				ctx, cancel = context.WithTimeout(ctx, r.cfg.Timeout.ToDuration())
-				defer cancel()
-			}
+			ctx, cancel := context.WithTimeout(ctx, r.cfg.Timeout.ToDuration())
+			defer cancel()
 
 			response, rtt, err := r.upstreamClient.callExternal(ctx, request.Req, upstreamURL, request.Protocol)
 			if err != nil {
