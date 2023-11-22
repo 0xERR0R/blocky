@@ -243,6 +243,10 @@ func (r UpstreamResolver) String() string {
 	return fmt.Sprintf("%s '%s'", r.Type(), r.cfg)
 }
 
+func (r UpstreamResolver) Upstream() config.Upstream {
+	return r.cfg.Upstream
+}
+
 func (r *UpstreamResolver) log() *logrus.Entry {
 	return r.typed.log().WithField("upstream", r.cfg.String())
 }

@@ -123,7 +123,7 @@ func (b *Bootstrap) Resolve(ctx context.Context, request *model.Request) (*model
 }
 
 func (b *Bootstrap) UpstreamIPs(ctx context.Context, r *UpstreamResolver) (*IPSet, error) {
-	hostname := r.cfg.Host
+	hostname := r.Upstream().Host
 
 	if ip := net.ParseIP(hostname); ip != nil { // nil-safe when hostname is an IP: makes writing tests easier
 		return newIPSet([]net.IP{ip}), nil
