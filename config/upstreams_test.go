@@ -11,7 +11,7 @@ import (
 var _ = Describe("ParallelBestConfig", func() {
 	suiteBeforeEach()
 
-	Context("UpstreamsConfig", func() {
+	Context("Upstreams", func() {
 		var cfg Upstreams
 
 		BeforeEach(func() {
@@ -65,13 +65,13 @@ var _ = Describe("ParallelBestConfig", func() {
 		var cfg UpstreamGroup
 
 		BeforeEach(func() {
-			cfg = UpstreamGroup{
-				Name: UpstreamDefaultCfgName,
-				Upstreams: []Upstream{
-					{Host: "host1"},
-					{Host: "host2"},
-				},
-			}
+			upstreamsCfg, err := WithDefaults[Upstreams]()
+			Expect(err).Should(Succeed())
+
+			cfg = NewUpstreamGroup("test", upstreamsCfg, []Upstream{
+				{Host: "host1"},
+				{Host: "host2"},
+			})
 		})
 
 		Describe("IsEnabled", func() {
@@ -102,7 +102,7 @@ var _ = Describe("ParallelBestConfig", func() {
 				cfg.LogConfig(logger)
 
 				Expect(hook.Calls).ShouldNot(BeEmpty())
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("group: default")))
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("group: test")))
 				Expect(hook.Messages).Should(ContainElement(ContainSubstring("upstreams:")))
 				Expect(hook.Messages).Should(ContainElement(ContainSubstring(":host1:")))
 				Expect(hook.Messages).Should(ContainElement(ContainSubstring(":host2:")))

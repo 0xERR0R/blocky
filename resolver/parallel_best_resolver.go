@@ -13,7 +13,6 @@ import (
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
-	"github.com/miekg/dns"
 
 	"github.com/mroth/weightedrand/v2"
 	"github.com/sirupsen/logrus"
@@ -31,7 +30,6 @@ type ParallelBestResolver struct {
 	configurable[*config.UpstreamGroup]
 	typed
 
-	groupName string
 	resolvers []*upstreamResolverStatus
 
 	resolverCount              int
@@ -51,6 +49,16 @@ func newUpstreamResolverStatus(resolver Resolver) *upstreamResolverStatus {
 	status.lastErrorTime.Store(time.Unix(0, 0))
 
 	return status
+}
+
+func newUpstreamResolverStatuses(resolvers []Resolver) []*upstreamResolverStatus {
+	statuses := make([]*upstreamResolverStatus, 0, len(resolvers))
+
+	for _, r := range resolvers {
+		statuses = append(statuses, newUpstreamResolverStatus(r))
+	}
+
+	return statuses
 }
 
 func (r *upstreamResolverStatus) resolve(ctx context.Context, req *model.Request) (*model.Response, error) {
@@ -83,25 +91,13 @@ type requestResponse struct {
 	err      error
 }
 
-// testResolver sends a test query to verify the resolver is reachable and working
-func testResolver(ctx context.Context, r *UpstreamResolver) error {
-	request := newRequest("github.com.", dns.Type(dns.TypeA))
-
-	resp, err := r.Resolve(ctx, request)
-	if err != nil || resp.RType != model.ResponseTypeRESOLVED {
-		return fmt.Errorf("test resolve of upstream server failed: %w", err)
-	}
-
-	return nil
-}
-
 // NewParallelBestResolver creates new resolver instance
 func NewParallelBestResolver(
-	ctx context.Context, cfg config.UpstreamGroup, bootstrap *Bootstrap, shouldVerifyUpstreams bool,
+	ctx context.Context, cfg config.UpstreamGroup, bootstrap *Bootstrap,
 ) (*ParallelBestResolver, error) {
 	logger := log.PrefixedLog(parallelResolverType)
 
-	resolvers, err := createResolvers(ctx, logger, cfg, bootstrap, shouldVerifyUpstreams)
+	resolvers, err := createResolvers(ctx, logger, cfg, bootstrap)
 	if err != nil {
 		return nil, err
 	}
@@ -109,20 +105,12 @@ func NewParallelBestResolver(
 	return newParallelBestResolver(cfg, resolvers), nil
 }
 
-func newParallelBestResolver(
-	cfg config.UpstreamGroup, resolvers []Resolver,
-) *ParallelBestResolver {
-	resolverStatuses := make([]*upstreamResolverStatus, 0, len(resolvers))
-
-	for _, r := range resolvers {
-		resolverStatuses = append(resolverStatuses, newUpstreamResolverStatus(r))
-	}
-
+func newParallelBestResolver(cfg config.UpstreamGroup, resolvers []Resolver) *ParallelBestResolver {
 	typeName := "parallel_best"
 	resolverCount := parallelBestResolverCount
 	retryWithDifferentResolver := false
 
-	if config.GetConfig().Upstreams.Strategy == config.UpstreamStrategyRandom {
+	if cfg.Strategy == config.UpstreamStrategyRandom {
 		typeName = "random"
 		resolverCount = 1
 		retryWithDifferentResolver = true
@@ -132,11 +120,9 @@ func newParallelBestResolver(
 		configurable: withConfig(&cfg),
 		typed:        withType(typeName),
 
-		groupName: cfg.Name,
-		resolvers: resolverStatuses,
-
 		resolverCount:              resolverCount,
 		retryWithDifferentResolver: retryWithDifferentResolver,
+		resolvers:                  newUpstreamResolverStatuses(resolvers),
 	}
 
 	return &r
@@ -147,12 +133,12 @@ func (r *ParallelBestResolver) Name() string {
 }
 
 func (r *ParallelBestResolver) String() string {
-	result := make([]string, len(r.resolvers))
+	resolvers := make([]string, len(r.resolvers))
 	for i, s := range r.resolvers {
-		result[i] = fmt.Sprintf("%s", s.resolver)
+		resolvers[i] = fmt.Sprintf("%s", s.resolver)
 	}
 
-	return fmt.Sprintf("%s upstreams '%s (%s)'", r.Type(), r.groupName, strings.Join(result, ","))
+	return fmt.Sprintf("%s upstreams '%s (%s)'", r.Type(), r.cfg.Name, strings.Join(resolvers, ","))
 }
 
 // Resolve sends the query request to multiple upstream resolvers and returns the fastest result

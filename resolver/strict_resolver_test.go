@@ -54,11 +54,11 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 	})
 
 	JustBeforeEach(func() {
-		sutConfig := config.UpstreamGroup{
-			Name:      upstreamDefaultCfgName,
-			Upstreams: upstreams,
-		}
-		sut, err = NewStrictResolver(ctx, sutConfig, bootstrap, sutVerify)
+		upstreamsCfg := defaultUpstreamsConfig
+		upstreamsCfg.StartVerify = sutVerify
+
+		sutConfig := config.NewUpstreamGroup("test", upstreamsCfg, upstreams)
+		sut, err = NewStrictResolver(ctx, sutConfig, bootstrap)
 	})
 
 	config.GetConfig().Upstreams.Timeout = config.Duration(time.Second)
@@ -94,24 +94,21 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 	})
 
 	When("some default upstream resolvers cannot be reached", func() {
-		It("should start normally", func() {
+		BeforeEach(func() {
 			mockUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 				response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 123, A, "123.124.122.122")
 
 				return
 			})
-			defer mockUpstream.Close()
+			DeferCleanup(mockUpstream.Close)
 
-			upstreams := []config.Upstream{
+			upstreams = []config.Upstream{
 				{Host: "wrong"},
 				mockUpstream.Start(),
 			}
+		})
 
-			_, err := NewStrictResolver(ctx, config.UpstreamGroup{
-				Name:      upstreamDefaultCfgName,
-				Upstreams: upstreams,
-			},
-				systemResolverBootstrap, verifyUpstreams)
+		It("should start normally", func() {
 			Expect(err).Should(Not(HaveOccurred()))
 		})
 	})

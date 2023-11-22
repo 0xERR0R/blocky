@@ -17,8 +17,10 @@ import (
 
 var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), func() {
 	var (
-		sut *ConditionalUpstreamResolver
-		m   *mockResolver
+		sut       *ConditionalUpstreamResolver
+		sutConfig config.ConditionalUpstream
+
+		m *mockResolver
 
 		ctx      context.Context
 		cancelFn context.CancelFunc
@@ -65,7 +67,7 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 		})
 		DeferCleanup(refuseTestUpstream.Close)
 
-		sut, _ = NewConditionalUpstreamResolver(ctx, config.ConditionalUpstream{
+		sutConfig = config.ConditionalUpstream{
 			Mapping: config.ConditionalUpstreamMapping{
 				Upstreams: map[string][]config.Upstream{
 					"fritz.box":      {fbTestUpstream.Start()},
@@ -74,7 +76,11 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 					".":              {dotTestUpstream.Start()},
 				},
 			},
-		}, nil, false)
+		}
+	})
+
+	JustBeforeEach(func() {
+		sut, _ = NewConditionalUpstreamResolver(ctx, sutConfig, defaultUpstreamsConfig, systemResolverBootstrap)
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)
@@ -194,14 +200,19 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 		It("errors during construction", func() {
 			b := newTestBootstrap(ctx, &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
-			r, err := NewConditionalUpstreamResolver(ctx, config.ConditionalUpstream{
+			upstreamsCfg := config.Upstreams{
+				StartVerify: true,
+			}
+
+			sutConfig := config.ConditionalUpstream{
 				Mapping: config.ConditionalUpstreamMapping{
 					Upstreams: map[string][]config.Upstream{
 						".": {config.Upstream{Host: "example.com"}},
 					},
 				},
-			}, b, true)
+			}
 
+			r, err := NewConditionalUpstreamResolver(ctx, sutConfig, upstreamsCfg, b)
 			Expect(err).ShouldNot(Succeed())
 			Expect(r).Should(BeNil())
 		})

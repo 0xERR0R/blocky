@@ -17,7 +17,6 @@ configuration properties as [JSON](config.yml).
 | keyFile             | path                | no        |               | Path to cert and key file for SSL encryption (DoH and DoT); if empty, self-signed certificate is generated |
 | dohUserAgent        | string              | no        |               | HTTP User Agent for DoH upstreams                                                                          |
 | minTlsServeVersion  | string              | no        | 1.2           | Minimum TLS version that the DoT and DoH server use to serve those encrypted DNS requests                  |
-| startVerifyUpstream | bool                | no        | false         | If true, blocky will fail to start unless at least one upstream server per group is reachable.             |
 | connectIPVersion    | enum (dual, v4, v6) | no        | dual          | IP version to use for outgoing connections (dual, v4, v6)                                                  |
 
 !!! example
@@ -69,6 +68,16 @@ All logging options are optional.
     ```
 
 ## Upstreams configuration
+
+| Parameter             | Type                                 | Mandatory | Default value | Description                                                                                     |
+| --------------------- | ------------------------------------ | --------- | ------------- | ----------------------------------------------------------------------------------------------- |
+| usptreams.groups      | map of name to upstream              | yes       |               | Upstream DNS servers to use, in groups.                                                         |
+| usptreams.startVerify | bool                                 | no        | false         | If true, blocky will fail to start unless at least one upstream server per group is functional. |
+| usptreams.strategy    | enum (parallel_best, random, strict) | no        | parallel_best | Upstream server usage strategy.                                                                 |
+| usptreams.timeout     | duration                             | no        | 2s            | Upstream connection timeout.                                                                    |
+
+
+### Upstream Groups
 
 To resolve a DNS query, blocky needs external public or private DNS resolvers. Blocky supports DNS resolvers with
 following network protocols (net part of the resolver URL):
@@ -133,6 +142,22 @@ The logic determining what group a client belongs to follows a strict order: IP,
 
 If a client matches multiple client name or CIDR groups, a warning is logged and the first found group is used.
 
+### Upstream connection timeout
+
+Blocky will wait 2 seconds (default value) for the response from the external upstream DNS server. You can change this
+value by setting the `timeout` configuration parameter (in **duration format**).
+
+!!! example
+
+    ```yaml
+    upstreams:
+      timeout: 5s
+      groups:
+        default:
+          - 46.182.19.48
+          - 80.241.218.68
+    ```
+
 ### Upstream strategy
 
 Blocky supports different upstream strategies (default `parallel_best`) that determine how and to which upstream DNS servers requests are forwarded.
@@ -160,21 +185,6 @@ Currently available strategies:
           - 9.8.7.6
     ```
 
-### Upstream lookup timeout
-
-Blocky will wait 2 seconds (default value) for the response from the external upstream DNS server. You can change this
-value by setting the `timeout` configuration parameter (in **duration format**).
-
-!!! example
-
-    ```yaml
-    upstreams:
-      timeout: 5s
-      groups:
-        default:
-          - 46.182.19.48
-          - 80.241.218.68
-    ```
 
 ## Bootstrap DNS configuration
 

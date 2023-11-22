@@ -65,7 +65,7 @@ func NewBootstrap(ctx context.Context, cfg *config.Config) (b *Bootstrap, err er
 		},
 	}
 
-	bootstraped, err := newBootstrapedResolvers(b, cfg.BootstrapDNS)
+	bootstraped, err := newBootstrapedResolvers(b, cfg.BootstrapDNS, cfg.Upstreams)
 	if err != nil {
 		return nil, err
 	}
@@ -76,11 +76,8 @@ func NewBootstrap(ctx context.Context, cfg *config.Config) (b *Bootstrap, err er
 		return b, nil
 	}
 
-	// Bootstrap doesn't have a `LogConfig` method, and since that's the only place
-	// where `ParallelBestResolver` uses its config, we can just use an empty one.
-	pbCfg := config.UpstreamGroup{Name: upstreamDefaultCfgName}
-
-	parallelResolver := newParallelBestResolver(pbCfg, bootstraped.Resolvers())
+	pbCfg := config.NewUpstreamGroup("<bootstrap>", cfg.Upstreams, nil)
+	pbCfg.Upstreams.Groups = nil // To be on the safe side it doesn't try to use anything besides the bootstrap
 
 	// Always enable prefetching to avoid stalling user requests
 	// Otherwise, a request to blocky could end up waiting for 2 DNS requests:
@@ -100,14 +97,14 @@ func NewBootstrap(ctx context.Context, cfg *config.Config) (b *Bootstrap, err er
 		NewFilteringResolver(cfg.Filtering),
 		// false: no metrics, to not overwrite the main blocking resolver ones
 		newCachingResolver(ctx, cachingCfg, nil, false),
-		parallelResolver,
+		newParallelBestResolver(pbCfg, bootstraped.Resolvers()),
 	)
 
 	return b, nil
 }
 
 func (b *Bootstrap) UpstreamIPs(ctx context.Context, r *UpstreamResolver) (*IPSet, error) {
-	hostname := r.upstream.Host
+	hostname := r.cfg.Host
 
 	if ip := net.ParseIP(hostname); ip != nil { // nil-safe when hostname is an IP: makes writing test easier
 		return newIPSet([]net.IP{ip}), nil
@@ -249,7 +246,9 @@ func (b *Bootstrap) resolveType(ctx context.Context, hostname string, qType dns.
 // map of bootstraped resolvers their hardcoded IPs
 type bootstrapedResolvers map[Resolver][]net.IP
 
-func newBootstrapedResolvers(b *Bootstrap, cfg config.BootstrapDNSConfig) (bootstrapedResolvers, error) {
+func newBootstrapedResolvers(
+	b *Bootstrap, cfg config.BootstrapDNSConfig, upstreamsCfg config.Upstreams,
+) (bootstrapedResolvers, error) {
 	upstreamIPs := make(bootstrapedResolvers, len(cfg))
 
 	var multiErr *multierror.Error
@@ -289,7 +288,7 @@ func newBootstrapedResolvers(b *Bootstrap, cfg config.BootstrapDNSConfig) (boots
 			continue
 		}
 
-		resolver := newUpstreamResolverUnchecked(upstream, b)
+		resolver := newUpstreamResolverUnchecked(newUpstreamConfig(upstream, upstreamsCfg), b)
 
 		upstreamIPs[resolver] = ips
 	}

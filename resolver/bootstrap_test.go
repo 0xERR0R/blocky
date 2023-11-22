@@ -32,7 +32,6 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 	)
 
 	BeforeEach(func() {
-		config.GetConfig().Upstreams.Strategy = config.UpstreamStrategyParallelBest
 		sutConfig = &config.Config{
 			BootstrapDNS: []config.BootstrappedUpstreamConfig{
 				{
@@ -43,6 +42,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 					IPs: []net.IP{net.IPv4zero},
 				},
 			},
+			Upstreams: defaultUpstreamsConfig,
 		}
 
 		ctx, cancelFn = context.WithCancel(context.Background())
@@ -327,7 +327,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 				upstream.Host = "localhost" // force bootstrap to do resolve, and not just return the IP as is
 
-				r := newUpstreamResolverUnchecked(upstream, sut)
+				r := newUpstreamResolverUnchecked(newUpstreamConfig(upstream, sutConfig.Upstreams), sut)
 
 				rsp, err := r.Resolve(ctx, mainReq)
 				Expect(err).Should(Succeed())

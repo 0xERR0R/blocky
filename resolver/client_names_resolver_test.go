@@ -39,7 +39,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 		ctx, cancelFn = context.WithCancel(context.Background())
 		DeferCleanup(cancelFn)
 
-		sut, err = NewClientNamesResolver(ctx, sutConfig, nil, false)
+		sut, err = NewClientNamesResolver(ctx, sutConfig, defaultUpstreamsConfig, nil)
 		Expect(err).Should(Succeed())
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
@@ -370,9 +370,12 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 			It("errors during construction", func() {
 				b := newTestBootstrap(ctx, &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
+				upstreamsCfg := defaultUpstreamsConfig
+				upstreamsCfg.StartVerify = true
+
 				r, err := NewClientNamesResolver(ctx, config.ClientLookup{
 					Upstream: config.Upstream{Host: "example.com"},
-				}, b, true)
+				}, upstreamsCfg, b)
 
 				Expect(err).ShouldNot(Succeed())
 				Expect(r).Should(BeNil())
