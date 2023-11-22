@@ -16,7 +16,7 @@ import (
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 
-	. "github.com/0xERR0R/blocky/config/migration" //nolint:revive,stylecheck
+	. "github.com/0xERR0R/blocky/config/migration"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/creasty/defaults"

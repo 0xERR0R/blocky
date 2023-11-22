@@ -96,7 +96,12 @@ linters-settings:
     dot-import-whitelist:
       - "github.com/onsi/ginkgo"
       - "github.com/onsi/gomega"
+      - "github.com/0xERR0R/blocky/config/migration"
       - "github.com/0xERR0R/blocky/helpertest"
+  revive:
+    rules:
+      - name: dot-imports
+        disabled: true # prefer stylecheck since it's more configurable
 
 issues:
   exclude-rules:
