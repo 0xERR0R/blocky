@@ -219,7 +219,7 @@ type Config struct {
 	Caching          CachingConfig       `yaml:"caching"`
 	QueryLog         QueryLogConfig      `yaml:"queryLog"`
 	Prometheus       MetricsConfig       `yaml:"prometheus"`
-	Redis            RedisConfig         `yaml:"redis"`
+	Redis            Redis               `yaml:"redis"`
 	Log              log.Config          `yaml:"log"`
 	Ports            PortsConfig         `yaml:"ports"`
 	MinTLSServeVer   TLSVersion          `yaml:"minTlsServeVersion" default:"1.2"`
@@ -280,8 +280,8 @@ type (
 	}
 )
 
-// RedisConfig configuration for the redis connection
-type RedisConfig struct {
+// Redis configuration for the redis connection
+type Redis struct {
 	Address            string   `yaml:"address"`
 	Username           string   `yaml:"username" default:""`
 	Password           string   `yaml:"password" default:""`

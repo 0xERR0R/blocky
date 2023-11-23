@@ -56,7 +56,7 @@ type EnabledMessage struct {
 
 // Client for redis communication
 type Client struct {
-	config         *config.RedisConfig
+	config         *config.Redis
 	client         *redis.Client
 	l              *logrus.Entry
 	ctx            context.Context
@@ -67,7 +67,7 @@ type Client struct {
 }
 
 // New creates a new redis client
-func New(cfg *config.RedisConfig) (*Client, error) {
+func New(cfg *config.Redis) (*Client, error) {
 	// disable redis if no address is provided
 	if cfg == nil || len(cfg.Address) == 0 {
 		return nil, nil //nolint:nilnil

@@ -21,7 +21,7 @@ const (
 var (
 	redisServer *miniredis.Miniredis
 	redisClient *Client
-	redisConfig *config.RedisConfig
+	redisConfig *config.Redis
 	err         error
 )
 
@@ -33,7 +33,7 @@ var _ = Describe("Redis client", func() {
 
 		DeferCleanup(redisServer.Close)
 
-		var rcfg config.RedisConfig
+		var rcfg config.Redis
 		err = defaults.Set(&rcfg)
 
 		Expect(err).Should(Succeed())
@@ -48,7 +48,7 @@ var _ = Describe("Redis client", func() {
 	Describe("Client creation", func() {
 		When("redis configuration has no address", func() {
 			It("should return nil without error", func() {
-				var rcfg config.RedisConfig
+				var rcfg config.Redis
 				err = defaults.Set(&rcfg)
 
 				Expect(err).Should(Succeed())
@@ -58,7 +58,7 @@ var _ = Describe("Redis client", func() {
 		})
 		When("redis configuration has invalid address", func() {
 			It("should fail with error", func() {
-				var rcfg config.RedisConfig
+				var rcfg config.Redis
 				err = defaults.Set(&rcfg)
 				Expect(err).Should(Succeed())
 
@@ -71,7 +71,7 @@ var _ = Describe("Redis client", func() {
 		})
 		When("redis configuration has invalid password", func() {
 			It("should fail with error", func() {
-				var rcfg config.RedisConfig
+				var rcfg config.Redis
 				err = defaults.Set(&rcfg)
 				Expect(err).Should(Succeed())
 

@@ -1149,7 +1149,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 			Expect(err).Should(Succeed())
 
-			var rcfg config.RedisConfig
+			var rcfg config.Redis
 			err = defaults.Set(&rcfg)
 
 			Expect(err).Should(Succeed())
