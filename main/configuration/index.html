@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.4.10">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.4.11">
     
     
       
@@ -330,18 +330,27 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#upstream-strategy" class="md-nav__link">
+  <a href="#upstream-groups" class="md-nav__link">
     <span class="md-ellipsis">
-      Upstream strategy
+      Upstream Groups
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#upstream-lookup-timeout" class="md-nav__link">
+  <a href="#upstream-connection-timeout" class="md-nav__link">
     <span class="md-ellipsis">
-      Upstream lookup timeout
+      Upstream connection timeout
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upstream-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Upstream strategy
     </span>
   </a>
   
@@ -885,18 +894,27 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#upstream-strategy" class="md-nav__link">
+  <a href="#upstream-groups" class="md-nav__link">
     <span class="md-ellipsis">
-      Upstream strategy
+      Upstream Groups
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#upstream-lookup-timeout" class="md-nav__link">
+  <a href="#upstream-connection-timeout" class="md-nav__link">
     <span class="md-ellipsis">
-      Upstream lookup timeout
+      Upstream connection timeout
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upstream-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Upstream strategy
     </span>
   </a>
   
@@ -1322,9 +1340,10 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">  </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">parallel_best</span>
 <span class="w">  </span><span class="c1"># optional: timeout to query the upstream resolver. Default: 2s</span>
 <span class="w">  </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2s</span>
-
-<span class="c1"># optional: If true, blocky will fail to start unless at least one upstream server per group is reachable. Default: false</span>
-<span class="nt">startVerifyUpstream</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="c1"># optional: If true, blocky will fail to start unless at least one upstream server per group is reachable. Default: false</span>
+<span class="w">  </span><span class="nt">startVerify</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="c1"># optional: HTTP User Agent when connecting to upstreams. Default: none</span>
+<span class="w">  </span><span class="nt">userAgent</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;custom</span><span class="nv"> </span><span class="s">UA&quot;</span>
 
 <span class="c1"># optional: Determines how blocky will create outgoing connections. This impacts both upstreams, and lists.</span>
 <span class="c1"># accepted: dual, v4, v6</span>
@@ -1658,25 +1677,11 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <td>Path to cert and key file for <abbr title="Secure Sockets Layer">SSL</abbr> encryption (<abbr title="DNS-over-HTTPS">DoH</abbr> and <abbr title="DNS-over-TLS">DoT</abbr>); if empty, self-signed certificate is generated</td>
 </tr>
 <tr>
-<td>dohUserAgent</td>
-<td>string</td>
-<td>no</td>
-<td></td>
-<td><abbr title="Hypertext Transfer Protocol">HTTP</abbr> User Agent for <abbr title="DNS-over-HTTPS">DoH</abbr> upstreams</td>
-</tr>
-<tr>
 <td>minTlsServeVersion</td>
 <td>string</td>
 <td>no</td>
 <td>1.2</td>
 <td>Minimum TLS version that the <abbr title="DNS-over-TLS">DoT</abbr> and <abbr title="DNS-over-HTTPS">DoH</abbr> server use to serve those encrypted <abbr title="Domain Name System">DNS</abbr> requests</td>
-</tr>
-<tr>
-<td>startVerifyUpstream</td>
-<td>bool</td>
-<td>no</td>
-<td>false</td>
-<td>If true, blocky will fail to start unless at least one upstream server per group is reachable.</td>
 </tr>
 <tr>
 <td>connectIPVersion</td>
@@ -1787,6 +1792,55 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 </code></pre></div>
 </div>
 <h2 id="upstreams-configuration">Upstreams configuration</h2>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Mandatory</th>
+<th>Default value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>usptreams.groups</td>
+<td>map of name to upstream</td>
+<td>yes</td>
+<td></td>
+<td>Upstream <abbr title="Domain Name System">DNS</abbr> servers to use, in groups.</td>
+</tr>
+<tr>
+<td>usptreams.startVerify</td>
+<td>bool</td>
+<td>no</td>
+<td>false</td>
+<td>If true, blocky will fail to start unless at least one upstream server per group is functional.</td>
+</tr>
+<tr>
+<td>usptreams.strategy</td>
+<td>enum (parallel_best, random, strict)</td>
+<td>no</td>
+<td>parallel_best</td>
+<td>Upstream server usage strategy.</td>
+</tr>
+<tr>
+<td>usptreams.timeout</td>
+<td>duration</td>
+<td>no</td>
+<td>2s</td>
+<td>Upstream connection timeout.</td>
+</tr>
+<tr>
+<td>usptreams.userAgent</td>
+<td>string</td>
+<td>no</td>
+<td></td>
+<td><abbr title="Hypertext Transfer Protocol">HTTP</abbr> User Agent when connecting to upstreams.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="upstream-groups">Upstream Groups</h3>
 <p>To resolve a <abbr title="Domain Name System">DNS</abbr> query, blocky needs external public or private <abbr title="Domain Name System">DNS</abbr> resolvers. Blocky supports <abbr title="Domain Name System">DNS</abbr> resolvers with
 following network protocols (net part of the resolver URL):</p>
 <ul>
@@ -1873,6 +1927,19 @@ specific resolver configuration is available.</p>
 </ul>
 <p>The logic determining what group a client belongs to follows a strict order: IP, client name, <abbr title="Classless Inter-Domain Routing">CIDR</abbr></p>
 <p>If a client matches multiple client name or <abbr title="Classless Inter-Domain Routing">CIDR</abbr> groups, a warning is logged and the first found group is used.</p>
+<h3 id="upstream-connection-timeout">Upstream connection timeout</h3>
+<p>Blocky will wait 2 seconds (default value) for the response from the external upstream <abbr title="Domain Name System">DNS</abbr> server. You can change this
+value by setting the <code>timeout</code> configuration parameter (in <strong><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></strong>).</p>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><pre><span></span><code><span class="nt">upstreams</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5s</span>
+<span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">default</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">46.182.19.48</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80.241.218.68</span>
+</code></pre></div>
+</div>
 <h3 id="upstream-strategy">Upstream strategy</h3>
 <p>Blocky supports different upstream strategies (default <code>parallel_best</code>) that determine how and to which upstream <abbr title="Domain Name System">DNS</abbr> servers requests are forwarded.</p>
 <p>Currently available strategies:</p>
@@ -1895,19 +1962,6 @@ specific resolver configuration is available.</p>
 <span class="w">    </span><span class="nt">default</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.2.3.4</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">9.8.7.6</span>
-</code></pre></div>
-</div>
-<h3 id="upstream-lookup-timeout">Upstream lookup timeout</h3>
-<p>Blocky will wait 2 seconds (default value) for the response from the external upstream <abbr title="Domain Name System">DNS</abbr> server. You can change this
-value by setting the <code>timeout</code> configuration parameter (in <strong><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></strong>).</p>
-<div class="admonition example">
-<p class="admonition-title">Example</p>
-<div class="highlight"><pre><span></span><code><span class="nt">upstreams</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5s</span>
-<span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">default</span><span class="p">:</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">46.182.19.48</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80.241.218.68</span>
 </code></pre></div>
 </div>
 <h2 id="bootstrap-dns-configuration">Bootstrap <abbr title="Domain Name System">DNS</abbr> configuration</h2>
