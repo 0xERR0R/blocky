@@ -423,9 +423,11 @@ var _ = Describe("ListCache", func() {
 
 			sut.LogConfig(logger)
 			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("gr1:")))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("gr2:")))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("TOTAL:")))
+			Expect(hook.Messages).Should(ContainElements(
+				ContainSubstring("gr1:"),
+				ContainSubstring("gr2:"),
+				ContainSubstring("TOTAL:"),
+			))
 		})
 	})
 

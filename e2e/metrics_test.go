@@ -78,12 +78,11 @@ var _ = Describe("Metrics functional tests", func() {
 		When("Some query results are cached", func() {
 			BeforeEach(func(ctx context.Context) {
 				Eventually(fetchBlockyMetrics).WithArguments(ctx, metricsURL).
-					Should(
-						SatisfyAll(
-							ContainElement("blocky_cache_entry_count 0"),
-							ContainElement("blocky_cache_hit_count 0"),
-							ContainElement("blocky_cache_miss_count 0"),
-						))
+					Should(ContainElements(
+						"blocky_cache_entry_count 0",
+						"blocky_cache_hit_count 0",
+						"blocky_cache_miss_count 0",
+					))
 			})
 
 			It("Should increment cache counts", func(ctx context.Context) {
@@ -98,12 +97,11 @@ var _ = Describe("Metrics functional tests", func() {
 							))
 
 					Eventually(fetchBlockyMetrics).WithArguments(ctx, metricsURL).
-						Should(
-							SatisfyAll(
-								ContainElement("blocky_cache_entry_count 1"),
-								ContainElement("blocky_cache_hit_count 0"),
-								ContainElement("blocky_cache_miss_count 1"),
-							))
+						Should(ContainElements(
+							"blocky_cache_entry_count 1",
+							"blocky_cache_hit_count 0",
+							"blocky_cache_miss_count 1",
+						))
 				})
 
 				By("Same query again, should increment the cache hit count", func() {
@@ -115,12 +113,11 @@ var _ = Describe("Metrics functional tests", func() {
 							))
 
 					Eventually(fetchBlockyMetrics).WithArguments(ctx, metricsURL).
-						Should(
-							SatisfyAll(
-								ContainElement("blocky_cache_entry_count 1"),
-								ContainElement("blocky_cache_hit_count 1"),
-								ContainElement("blocky_cache_miss_count 1"),
-							))
+						Should(ContainElements(
+							"blocky_cache_entry_count 1",
+							"blocky_cache_hit_count 1",
+							"blocky_cache_miss_count 1",
+						))
 				})
 			})
 		})
@@ -128,11 +125,10 @@ var _ = Describe("Metrics functional tests", func() {
 		When("Lists are loaded", func() {
 			It("Should expose list cache sizes per group as metrics", func(ctx context.Context) {
 				Eventually(fetchBlockyMetrics).WithArguments(ctx, metricsURL).
-					Should(
-						SatisfyAll(
-							ContainElement("blocky_blacklist_cache{group=\"group1\"} 1"),
-							ContainElement("blocky_blacklist_cache{group=\"group2\"} 3"),
-						))
+					Should(ContainElements(
+						"blocky_blacklist_cache{group=\"group1\"} 1",
+						"blocky_blacklist_cache{group=\"group2\"} 3",
+					))
 			})
 		})
 	})
