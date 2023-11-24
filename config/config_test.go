@@ -169,7 +169,7 @@ var _ = Describe("Config", func() {
 				err = writeConfigDir(tmpDir)
 				Expect(err).Should(Succeed())
 
-				_, err := LoadConfig(tmpDir.Path, true)
+				c, err = LoadConfig(tmpDir.Path, true)
 				Expect(err).Should(Succeed())
 
 				defaultTestFileConfig(c)
