@@ -748,7 +748,7 @@ var _ = Describe("CachingResolver", func() {
 
 			rcfg.Address = redisServer.Addr()
 			redisConfig = &rcfg
-			redisClient, err = redis.New(redisConfig)
+			redisClient, err = redis.New(context.TODO(), redisConfig)
 
 			Expect(err).Should(Succeed())
 			Expect(redisClient).ShouldNot(BeNil())
