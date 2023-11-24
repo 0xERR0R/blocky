@@ -42,7 +42,7 @@ var _ = Describe("EcsResolver", func() {
 		DeferCleanup(cancelFn)
 
 		err = defaults.Set(&sutConfig)
-		Expect(err).ShouldNot(HaveOccurred())
+		Expect(err).Should(Succeed())
 
 		mockAnswer = new(dns.Msg)
 		origIP = net.ParseIP("1.2.3.4")
@@ -184,7 +184,7 @@ var _ = Describe("EcsResolver", func() {
 			mask := config.ECSv4Mask(24)
 
 			mip, err := maskIP(ip, mask)
-			Expect(err).ShouldNot(HaveOccurred())
+			Expect(err).Should(Succeed())
 			Expect(mip).Should(Equal(net.ParseIP("192.168.10.0").To4()))
 		})
 	})
