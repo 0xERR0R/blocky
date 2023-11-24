@@ -278,7 +278,7 @@ blocking:
 				data := "bootstrapDns: 0.0.0.0"
 
 				err := unmarshalConfig([]byte(data), &cfg)
-				Expect(err).ShouldNot(HaveOccurred())
+				Expect(err).Should(Succeed())
 				Expect(cfg.BootstrapDNS[0].Upstream.Host).Should(Equal("0.0.0.0"))
 			})
 			It("should be backwards compatible to 'single item definition'", func() {
@@ -290,7 +290,7 @@ bootstrapDns:
     - 0.0.0.0
 `
 				err := unmarshalConfig([]byte(data), &cfg)
-				Expect(err).ShouldNot(HaveOccurred())
+				Expect(err).Should(Succeed())
 				Expect(cfg.BootstrapDNS[0].Upstream.Host).Should(Equal("dns.example.com"))
 				Expect(cfg.BootstrapDNS[0].IPs).Should(HaveLen(1))
 			})
@@ -304,7 +304,7 @@ bootstrapDns:
   - upstream: 1.2.3.4
 `
 				err := unmarshalConfig([]byte(data), &cfg)
-				Expect(err).ShouldNot(HaveOccurred())
+				Expect(err).Should(Succeed())
 				Expect(cfg.BootstrapDNS).Should(HaveLen(2))
 				Expect(cfg.BootstrapDNS[0].Upstream.Host).Should(Equal("dns.example.com"))
 				Expect(cfg.BootstrapDNS[0].Upstream.Net).Should(Equal(NetProtocolTcpTls))
