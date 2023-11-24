@@ -156,7 +156,7 @@ func (c *Client) GetRedisCache(ctx context.Context) {
 	go func() {
 		iter := c.client.Scan(ctx, 0, prefixKey("*"), 0).Iterator()
 		for iter.Next(ctx) {
-			response, err := c.getResponse(iter.Val())
+			response, err := c.getResponse(ctx, iter.Val())
 			if err == nil {
 				if response != nil {
 					c.CacheChannel <- response
@@ -170,7 +170,7 @@ func (c *Client) GetRedisCache(ctx context.Context) {
 
 // startup starts a new goroutine for subscription and translation
 func (c *Client) startup(ctx context.Context) error {
-	ps := c.client.Subscribe(c.ctx, SyncChannelName)
+	ps := c.client.Subscribe(ctx, SyncChannelName)
 
 	_, err := ps.Receive(ctx)
 	if err == nil {
@@ -187,7 +187,7 @@ func (c *Client) startup(ctx context.Context) error {
 					}
 					// publish message from buffer
 				case s := <-c.sendBuffer:
-					c.publishMessageFromBuffer(s)
+					c.publishMessageFromBuffer(ctx, s)
 				}
 			}
 		}()
@@ -196,7 +196,7 @@ func (c *Client) startup(ctx context.Context) error {
 	return err
 }
 
-func (c *Client) publishMessageFromBuffer(s *bufferMessage) {
+func (c *Client) publishMessageFromBuffer(ctx context.Context, s *bufferMessage) {
 	origRes := s.Message
 	origRes.Compress = true
 	binRes, pErr := origRes.Pack()
@@ -210,10 +210,10 @@ func (c *Client) publishMessageFromBuffer(s *bufferMessage) {
 		})
 
 		if mErr == nil {
-			c.client.Publish(c.ctx, SyncChannelName, binMsg)
+			c.client.Publish(ctx, SyncChannelName, binMsg)
 		}
 
-		c.client.Set(c.ctx,
+		c.client.Set(ctx,
 			prefixKey(s.Key),
 			binRes,
 			c.getTTL(origRes))
@@ -260,11 +260,11 @@ func (c *Client) processEnabledMessage(redisMsg *redisMessage) error {
 }
 
 // getResponse returns model.Response for a key
-func (c *Client) getResponse(key string) (*CacheMessage, error) {
-	resp, err := c.client.Get(c.ctx, key).Result()
+func (c *Client) getResponse(ctx context.Context, key string) (*CacheMessage, error) {
+	resp, err := c.client.Get(ctx, key).Result()
 	if err == nil {
 		var ttl time.Duration
-		ttl, err = c.client.TTL(c.ctx, key).Result()
+		ttl, err = c.client.TTL(ctx, key).Result()
 
 		if err == nil {
 			var result *CacheMessage
