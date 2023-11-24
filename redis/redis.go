@@ -59,7 +59,6 @@ type Client struct {
 	config         *config.Redis
 	client         *redis.Client
 	l              *logrus.Entry
-	ctx            context.Context
 	id             []byte
 	sendBuffer     chan *bufferMessage
 	CacheChannel   chan *CacheMessage
