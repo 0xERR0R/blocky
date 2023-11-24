@@ -423,6 +423,11 @@ func (s *Server) registerDNSHandlers() {
 func (s *Server) printConfiguration() {
 	logger().Info("current configuration:")
 
+	if s.cfg.Redis.IsEnabled() {
+		logger().Info("Redis:")
+		log.WithIndent(logger(), "  ", s.cfg.Redis.LogConfig)
+	}
+
 	resolver.ForEach(s.queryResolver, func(res resolver.Resolver) {
 		resolver.LogResolverConfig(res, logger())
 	})
