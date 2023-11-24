@@ -148,7 +148,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 							fmt.Sprintf("%s_client1.log", time.Now().Format("2006-01-02"))))
 
 						g.Expect(err).Should(Succeed())
-						g.Expect(csvLines).Should(Not(BeEmpty()))
+						g.Expect(csvLines).ShouldNot(BeEmpty())
 						g.Expect(csvLines[0][1]).Should(Equal("192.168.178.25"))
 						g.Expect(csvLines[0][2]).Should(Equal("client1"))
 						g.Expect(csvLines[0][4]).Should(Equal("reason"))

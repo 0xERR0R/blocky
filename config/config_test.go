@@ -165,7 +165,7 @@ var _ = Describe("Config", func() {
 		When("Test file does not exist", func() {
 			It("should fail", func() {
 				_, err := LoadConfig(tmpDir.JoinPath("config-does-not-exist.yaml"), true)
-				Expect(err).Should(Not(Succeed()))
+				Expect(err).ShouldNot(Succeed())
 			})
 		})
 		When("Multiple config files are used", func() {
@@ -199,7 +199,7 @@ var _ = Describe("Config", func() {
 		When("Config folder does not exist", func() {
 			It("should fail", func() {
 				_, err := LoadConfig(tmpDir.JoinPath("does-not-exist-config/"), true)
-				Expect(err).Should(Not(Succeed()))
+				Expect(err).ShouldNot(Succeed())
 			})
 		})
 		When("config file is malformed", func() {

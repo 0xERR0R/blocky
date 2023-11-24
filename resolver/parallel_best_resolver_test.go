@@ -120,7 +120,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 				sutVerify = noVerifyUpstreams
 			})
 			It("should start", func() {
-				Expect(err).Should(Not(HaveOccurred()))
+				Expect(err).ShouldNot(HaveOccurred())
 			})
 		})
 	})

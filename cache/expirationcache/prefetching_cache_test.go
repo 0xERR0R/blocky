@@ -155,17 +155,17 @@ var _ = Describe("Prefetching expiration cache", func() {
 				By("put a value", func() {
 					v := "v1"
 					cache.Put("key1", &v, 50*time.Millisecond)
-					Expect(onPrefetchAfterPutChannel).Should(Not(Receive()))
-					Expect(onPrefetchEntryReloaded).Should(Not(Receive()))
-					Expect(onnPrefetchCacheHit).Should(Not(Receive()))
+					Expect(onPrefetchAfterPutChannel).ShouldNot(Receive())
+					Expect(onPrefetchEntryReloaded).ShouldNot(Receive())
+					Expect(onnPrefetchCacheHit).ShouldNot(Receive())
 				})
 				By("get a value 3 times to trigger prefetching", func() {
 					// first get
 					cache.Get("key1")
 
 					Expect(onPrefetchAfterPutChannel).Should(Receive(Equal(1)))
-					Expect(onnPrefetchCacheHit).Should(Not(Receive()))
-					Expect(onPrefetchEntryReloaded).Should(Not(Receive()))
+					Expect(onnPrefetchCacheHit).ShouldNot(Receive())
+					Expect(onPrefetchEntryReloaded).ShouldNot(Receive())
 
 					// secont get
 					val, _ := cache.Get("key1")
@@ -176,7 +176,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 
 					// reload was executed
 					Eventually(onPrefetchEntryReloaded).Should(Receive(Equal("key1")))
-					Expect(onnPrefetchCacheHit).Should(Not(Receive()))
+					Expect(onnPrefetchCacheHit).ShouldNot(Receive())
 					// has new value
 					Eventually(func(g Gomega) {
 						val, _ := cache.Get("key1")

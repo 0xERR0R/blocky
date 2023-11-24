@@ -59,7 +59,7 @@ var _ = Describe("Query logs functional tests", func() {
 
 			// database might be slow on first start, retry here if necessary
 			Eventually(gorm.Open, "10s", "1s").
-				WithArguments(mysqlDriver.Open(connectionString), &gorm.Config{}).Should(Not(BeNil()))
+				WithArguments(mysqlDriver.Open(connectionString), &gorm.Config{}).ShouldNot(BeNil())
 
 			db, err = gorm.Open(mysqlDriver.Open(connectionString), &gorm.Config{})
 			Expect(err).Should(Succeed())
@@ -70,9 +70,9 @@ var _ = Describe("Query logs functional tests", func() {
 			It("Should store query log in the mariaDB database", func(ctx context.Context) {
 				By("Performing 2 queries", func() {
 					Expect(doDNSRequest(ctx, blocky,
-						util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)))).Should(Not(BeNil()))
+						util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)))).ShouldNot(BeNil())
 					Expect(doDNSRequest(ctx, blocky,
-						util.NewMsgWithQuestion("unknown.domain.", dns.Type(dns.TypeA)))).Should(Not(BeNil()))
+						util.NewMsgWithQuestion("unknown.domain.", dns.Type(dns.TypeA)))).ShouldNot(BeNil())
 				})
 
 				By("check entries count asynchronously, since blocky flushes log entries in bulk", func() {
@@ -136,7 +136,7 @@ var _ = Describe("Query logs functional tests", func() {
 
 			// database might be slow on first start, retry here if necessary
 			Eventually(gorm.Open, "10s", "1s").
-				WithArguments(postgresDriver.Open(connectionString), &gorm.Config{}).Should(Not(BeNil()))
+				WithArguments(postgresDriver.Open(connectionString), &gorm.Config{}).ShouldNot(BeNil())
 
 			db, err = gorm.Open(postgresDriver.Open(connectionString), &gorm.Config{})
 			Expect(err).Should(Succeed())
@@ -147,8 +147,8 @@ var _ = Describe("Query logs functional tests", func() {
 			msg := util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA))
 			It("Should store query log in the postgres database", func(ctx context.Context) {
 				By("Performing 2 queries", func() {
-					Expect(doDNSRequest(ctx, blocky, msg)).Should(Not(BeNil()))
-					Expect(doDNSRequest(ctx, blocky, msg)).Should(Not(BeNil()))
+					Expect(doDNSRequest(ctx, blocky, msg)).ShouldNot(BeNil())
+					Expect(doDNSRequest(ctx, blocky, msg)).ShouldNot(BeNil())
 				})
 
 				By("check entries count asynchronously, since blocky flushes log entries in bulk", func() {

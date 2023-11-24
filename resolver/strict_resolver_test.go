@@ -112,7 +112,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 		})
 
 		It("should start normally", func() {
-			Expect(err).Should(Not(HaveOccurred()))
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 	})
 
@@ -138,7 +138,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 				sutVerify = noVerifyUpstreams
 			})
 			It("should start", func() {
-				Expect(err).Should(Not(HaveOccurred()))
+				Expect(err).ShouldNot(HaveOccurred())
 			})
 		})
 	})
