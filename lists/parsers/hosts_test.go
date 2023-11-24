@@ -77,7 +77,7 @@ var _ = Describe("Hosts", func() {
 			Expect(sut.Position()).Should(Equal("line 9"))
 
 			_, err = sut.Next(context.Background())
-			Expect(err).ShouldNot(Succeed())
+			Expect(err).Should(HaveOccurred())
 			Expect(err).Should(MatchError(io.EOF))
 			Expect(IsNonResumableErr(err)).Should(BeTrue())
 			Expect(sut.Position()).Should(Equal("line 10"))
@@ -98,7 +98,7 @@ var _ = Describe("Hosts", func() {
 				sut := Hosts(strings.NewReader(line))
 
 				_, err := sut.Next(context.Background())
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 				Expect(IsNonResumableErr(err)).ShouldNot(BeTrue())
 				Expect(sut.Position()).Should(Equal("line 1"))
 			}
@@ -138,7 +138,7 @@ var _ = Describe("Hosts", func() {
 				err := entry.forEachHost(func(host string) error {
 					return expectedErr
 				})
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 				Expect(err).Should(MatchError(expectedErr))
 			})
 		})
@@ -193,7 +193,7 @@ var _ = Describe("HostsFile", func() {
 			Expect(sut.Position()).Should(Equal("line 5"))
 
 			_, err = sut.Next(context.Background())
-			Expect(err).ShouldNot(Succeed())
+			Expect(err).Should(HaveOccurred())
 			Expect(err).Should(MatchError(io.EOF))
 			Expect(IsNonResumableErr(err)).Should(BeTrue())
 			Expect(sut.Position()).Should(Equal("line 6"))
@@ -215,7 +215,7 @@ var _ = Describe("HostsFile", func() {
 				Expect(sut.Position()).Should(Equal("line 1"))
 
 				_, err = sut.Next(context.Background())
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 				Expect(err).Should(MatchError(io.EOF))
 				Expect(IsNonResumableErr(err)).Should(BeTrue())
 				Expect(sut.Position()).Should(Equal("line 2"))
@@ -237,7 +237,7 @@ var _ = Describe("HostsFile", func() {
 				sut := HostsFile(strings.NewReader(line))
 
 				_, err := sut.Next(context.Background())
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 				Expect(IsNonResumableErr(err)).ShouldNot(BeTrue())
 				Expect(sut.Position()).Should(Equal("line 1"))
 			}
@@ -271,7 +271,7 @@ var _ = Describe("HostsFile", func() {
 				err := entry.forEachHost(func(host string) error {
 					return expectedErr
 				})
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 				Expect(err).Should(MatchError(expectedErr))
 			})
 		})
@@ -291,7 +291,7 @@ var _ = Describe("HostsFile", func() {
 
 					return expectedErr
 				})
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 				Expect(err).Should(MatchError(expectedErr))
 			})
 		})
@@ -376,7 +376,7 @@ var _ = Describe("HostList", func() {
 			Expect(sut.Position()).Should(Equal("line 10"))
 
 			_, err = sut.Next(context.Background())
-			Expect(err).ShouldNot(Succeed())
+			Expect(err).Should(HaveOccurred())
 			Expect(err).Should(MatchError(io.EOF))
 			Expect(IsNonResumableErr(err)).Should(BeTrue())
 			Expect(sut.Position()).Should(Equal("line 11"))
@@ -396,7 +396,7 @@ var _ = Describe("HostList", func() {
 				sut := HostList(strings.NewReader(line))
 
 				_, err := sut.Next(context.Background())
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 				Expect(IsNonResumableErr(err)).ShouldNot(BeTrue())
 				Expect(sut.Position()).Should(Equal("line 1"))
 			}
@@ -430,7 +430,7 @@ var _ = Describe("HostList", func() {
 				err := entry.forEachHost(func(host string) error {
 					return expectedErr
 				})
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 				Expect(err).Should(MatchError(expectedErr))
 			})
 		})

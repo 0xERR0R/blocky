@@ -34,7 +34,7 @@ var _ = Describe("errorFilter", func() {
 				Expect(parser.Position()).Should(Equal("call 1"))
 
 				_, err = parser.Next(context.Background())
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 				Expect(err).Should(MatchError(ErrTooManyErrors))
 				Expect(parser.Position()).Should(Equal("call 2"))
 			})
@@ -53,7 +53,7 @@ var _ = Describe("errorFilter", func() {
 				Expect(parser.Position()).Should(Equal("call 3"))
 
 				_, err = parser.Next(context.Background())
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 				Expect(err).Should(MatchError(ErrTooManyErrors))
 				Expect(parser.Position()).Should(Equal("call 4"))
 			})
@@ -76,7 +76,7 @@ var _ = Describe("errorFilter", func() {
 				Expect(parser.Position()).Should(Equal("call 5"))
 
 				_, err = parser.Next(context.Background())
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 				Expect(err).Should(MatchError(io.EOF))
 				Expect(IsNonResumableErr(err)).Should(BeTrue())
 				Expect(parser.Position()).Should(Equal("call 7"))
@@ -106,7 +106,7 @@ var _ = Describe("errorFilter", func() {
 			Expect(parser.Position()).Should(Equal("call 2"))
 
 			_, err = parser.Next(context.Background())
-			Expect(err).ShouldNot(Succeed())
+			Expect(err).Should(HaveOccurred())
 			Expect(err).Should(MatchError(io.EOF))
 			Expect(IsNonResumableErr(err)).Should(BeTrue())
 

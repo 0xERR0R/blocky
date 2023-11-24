@@ -35,7 +35,7 @@ var _ = Describe("ForEach", func() {
 		err := ForEach(context.Background(), lines, func(line string) error {
 			return expectedErr
 		})
-		Expect(err).ShouldNot(Succeed())
+		Expect(err).Should(HaveOccurred())
 		Expect(err).Should(MatchError(expectedErr))
 		Expect(err.Error()).Should(HavePrefix("line 1: "))
 	})
@@ -50,7 +50,7 @@ var _ = Describe("ForEach", func() {
 
 			return nil
 		})
-		Expect(err).ShouldNot(Succeed())
+		Expect(err).Should(HaveOccurred())
 		Expect(err.Error()).Should(HavePrefix("line 1: "))
 	})
 
@@ -66,7 +66,7 @@ var _ = Describe("ForEach", func() {
 
 			return nil
 		})
-		Expect(err).ShouldNot(Succeed())
+		Expect(err).Should(HaveOccurred())
 		Expect(err).Should(MatchError(context.Canceled))
 		Expect(err.Error()).Should(HavePrefix("line 1: "))
 	})
@@ -80,7 +80,7 @@ var _ = Describe("ForEach", func() {
 
 			return nil
 		})
-		Expect(err).ShouldNot(Succeed())
+		Expect(err).Should(HaveOccurred())
 		Expect(err).Should(MatchError(context.Canceled))
 		Expect(err.Error()).Should(HavePrefix("line 0: "))
 	})
@@ -99,14 +99,14 @@ var _ = Describe("ErrWithPosition", func() {
 			Expect(err).Should(Succeed())
 
 			err = ErrWithPosition(lines, inner)
-			Expect(err).ShouldNot(Succeed())
+			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(Equal("line 1: inner"))
 
 			_, err = lines.Next(context.Background())
 			Expect(err).Should(Succeed())
 
 			err = ErrWithPosition(lines, inner)
-			Expect(err).ShouldNot(Succeed())
+			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(Equal("line 2: inner"))
 		})
 	})
