@@ -58,8 +58,10 @@ var _ = Describe("CustomDNSConfig", func() {
 			cfg.LogConfig(logger)
 
 			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("custom.domain = ")))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("multiple.ips = ")))
+			Expect(hook.Messages).Should(ContainElements(
+				ContainSubstring("custom.domain = "),
+				ContainSubstring("multiple.ips = "),
+			))
 		})
 	})
 

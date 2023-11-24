@@ -54,9 +54,11 @@ var _ = Describe("ParallelBestConfig", func() {
 				cfg.LogConfig(logger)
 
 				Expect(hook.Calls).ShouldNot(BeEmpty())
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("timeout:")))
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("groups:")))
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring(":host2:")))
+				Expect(hook.Messages).Should(ContainElements(
+					ContainSubstring("timeout:"),
+					ContainSubstring("groups:"),
+					ContainSubstring(":host2:"),
+				))
 			})
 		})
 	})
@@ -102,10 +104,12 @@ var _ = Describe("ParallelBestConfig", func() {
 				cfg.LogConfig(logger)
 
 				Expect(hook.Calls).ShouldNot(BeEmpty())
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("group: test")))
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("upstreams:")))
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring(":host1:")))
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring(":host2:")))
+				Expect(hook.Messages).Should(ContainElements(
+					ContainSubstring("group: test"),
+					ContainSubstring("upstreams:"),
+					ContainSubstring(":host1:"),
+					ContainSubstring(":host2:"),
+				))
 			})
 		})
 	})

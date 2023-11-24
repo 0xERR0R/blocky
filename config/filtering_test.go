@@ -47,9 +47,11 @@ var _ = Describe("FilteringConfig", func() {
 			cfg.LogConfig(logger)
 
 			Expect(hook.Calls).Should(HaveLen(3))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("query types:")))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("  - AAAA")))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("  - MX")))
+			Expect(hook.Messages).Should(ContainElements(
+				ContainSubstring("query types:"),
+				ContainSubstring("  - AAAA"),
+				ContainSubstring("  - MX"),
+			))
 		})
 	})
 })

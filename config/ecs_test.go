@@ -76,11 +76,11 @@ var _ = Describe("ECS", func() {
 			c.LogConfig(logger)
 
 			Expect(hook.Calls).Should(HaveLen(4))
-			Expect(hook.Messages).Should(SatisfyAll(
-				ContainElement(ContainSubstring("Use as client")),
-				ContainElement(ContainSubstring("Forward")),
-				ContainElement(ContainSubstring("IPv4 netmask")),
-				ContainElement(ContainSubstring("IPv6 netmask")),
+			Expect(hook.Messages).Should(ContainElements(
+				ContainSubstring("Use as client"),
+				ContainSubstring("Forward"),
+				ContainSubstring("IPv4 netmask"),
+				ContainSubstring("IPv6 netmask"),
 			))
 		})
 	})
