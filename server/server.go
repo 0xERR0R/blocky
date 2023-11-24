@@ -135,7 +135,7 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		return nil, err
 	}
 
-	redisClient, redisErr := redis.New(&cfg.Redis)
+	redisClient, redisErr := redis.New(ctx, &cfg.Redis)
 	if redisErr != nil && cfg.Redis.Required {
 		return nil, redisErr
 	}

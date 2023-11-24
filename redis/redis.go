@@ -67,7 +67,7 @@ type Client struct {
 }
 
 // New creates a new redis client
-func New(cfg *config.Redis) (*Client, error) {
+func New(ctx context.Context, cfg *config.Redis) (*Client, error) {
 	// disable redis if no address is provided
 	if cfg == nil || len(cfg.Address) == 0 {
 		return nil, nil //nolint:nilnil
@@ -97,8 +97,6 @@ func New(cfg *config.Redis) (*Client, error) {
 		})
 	}
 
-	ctx := context.Background()
-
 	_, err := rdb.Ping(ctx).Result()
 	if err == nil {
 		var id []byte
@@ -110,7 +108,6 @@ func New(cfg *config.Redis) (*Client, error) {
 				config:         cfg,
 				client:         rdb,
 				l:              log.PrefixedLog("redis"),
-				ctx:            ctx,
 				id:             id,
 				sendBuffer:     make(chan *bufferMessage, chanCap),
 				CacheChannel:   make(chan *CacheMessage, chanCap),
@@ -118,7 +115,7 @@ func New(cfg *config.Redis) (*Client, error) {
 			}
 
 			// start channel handling go routine
-			err = res.startup()
+			err = res.startup(ctx)
 
 			return res, err
 		}
@@ -172,10 +169,10 @@ func (c *Client) GetRedisCache(ctx context.Context) {
 }
 
 // startup starts a new goroutine for subscription and translation
-func (c *Client) startup() error {
+func (c *Client) startup(ctx context.Context) error {
 	ps := c.client.Subscribe(c.ctx, SyncChannelName)
 
-	_, err := ps.Receive(c.ctx)
+	_, err := ps.Receive(ctx)
 	if err == nil {
 		go func() {
 			for {

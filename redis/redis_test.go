@@ -41,7 +41,7 @@ var _ = Describe("Redis client", func() {
 
 		rcfg.Address = redisServer.Addr()
 		redisConfig = &rcfg
-		redisClient, err = New(redisConfig)
+		redisClient, err = New(context.TODO(), redisConfig)
 
 		Expect(err).Should(Succeed())
 		Expect(redisClient).ShouldNot(BeNil())
@@ -54,7 +54,7 @@ var _ = Describe("Redis client", func() {
 
 				Expect(err).Should(Succeed())
 
-				Expect(New(&rcfg)).Should(BeNil())
+				Expect(New(context.TODO(), &rcfg)).Should(BeNil())
 			})
 		})
 		When("redis configuration has invalid address", func() {
@@ -65,7 +65,7 @@ var _ = Describe("Redis client", func() {
 
 				rcfg.Address = "127.0.0.1:0"
 
-				_, err = New(&rcfg)
+				_, err = New(context.TODO(), &rcfg)
 
 				Expect(err).Should(HaveOccurred())
 			})
@@ -79,7 +79,7 @@ var _ = Describe("Redis client", func() {
 				rcfg.Address = redisServer.Addr()
 				rcfg.Password = "wrong"
 
-				_, err = New(&rcfg)
+				_, err = New(context.TODO(), &rcfg)
 
 				Expect(err).Should(HaveOccurred())
 			})
