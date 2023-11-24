@@ -187,6 +187,14 @@ func (c *Client) startup(ctx context.Context) error {
 					// publish message from buffer
 				case s := <-c.sendBuffer:
 					c.publishMessageFromBuffer(ctx, s)
+					// context is done
+				case <-ctx.Done():
+					close(c.sendBuffer)
+					close(c.CacheChannel)
+					close(c.EnabledChannel)
+					c.client.Close()
+
+					return
 				}
 			}
 		}()
