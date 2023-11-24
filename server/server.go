@@ -135,9 +135,12 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		return nil, err
 	}
 
-	redisClient, redisErr := redis.New(ctx, &cfg.Redis)
-	if redisErr != nil && cfg.Redis.Required {
-		return nil, redisErr
+	var redisClient *redis.Client
+	if cfg.Redis.IsEnabled() {
+		redisClient, err = redis.New(ctx, &cfg.Redis)
+		if err != nil && cfg.Redis.Required {
+			return nil, err
+		}
 	}
 
 	queryResolver, queryError := createQueryResolver(ctx, cfg, bootstrap, redisClient)
