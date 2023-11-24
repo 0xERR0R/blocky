@@ -181,8 +181,8 @@ var _ = Describe("Basic functional tests", func() {
 							HaveTTL(BeNumerically("<=", 123)),
 						))
 
-				Expect(getContainerLogs(ctx, blocky)).Should(Not(ContainElement(ContainSubstring("google.com"))))
-				Expect(getContainerLogs(ctx, blocky)).Should(Not(ContainElement(ContainSubstring("1.2.3.4"))))
+				Expect(getContainerLogs(ctx, blocky)).ShouldNot(ContainElement(ContainSubstring("google.com")))
+				Expect(getContainerLogs(ctx, blocky)).ShouldNot(ContainElement(ContainSubstring("1.2.3.4")))
 			})
 		})
 	})

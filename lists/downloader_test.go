@@ -85,7 +85,7 @@ var _ = Describe("Downloader", func() {
 				reader, err := sut.DownloadFile(ctx, server.URL)
 
 				Expect(err).Should(Succeed())
-				Expect(reader).Should(Not(BeNil()))
+				Expect(reader).ShouldNot(BeNil())
 				DeferCleanup(reader.Close)
 				buf := new(strings.Builder)
 				_, err = io.Copy(buf, reader)
@@ -153,7 +153,7 @@ var _ = Describe("Downloader", func() {
 			It("Should perform a retry and return file content", func(ctx context.Context) {
 				reader, err := sut.DownloadFile(ctx, server.URL)
 				Expect(err).Should(Succeed())
-				Expect(reader).Should(Not(BeNil()))
+				Expect(reader).ShouldNot(BeNil())
 				DeferCleanup(reader.Close)
 
 				buf := new(strings.Builder)

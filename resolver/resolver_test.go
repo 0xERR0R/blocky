@@ -61,7 +61,7 @@ var _ = Describe("Resolver", func() {
 				ch := Chain(&CustomDNSResolver{}, &BlockingResolver{})
 				_, err := GetFromChainWithType[*FilteringResolver](ch)
 
-				Expect(err).Should(Not(Succeed()))
+				Expect(err).ShouldNot(Succeed())
 			})
 		})
 

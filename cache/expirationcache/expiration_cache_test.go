@@ -123,15 +123,15 @@ var _ = Describe("Expiration cache", func() {
 					Expect(val).Should(BeNil())
 
 					Expect(onCacheMissChannel).Should(Receive(Equal("notExists")))
-					Expect(onCacheHitChannel).Should(Not(Receive()))
-					Expect(onAfterPutChannel).Should(Not(Receive()))
+					Expect(onCacheHitChannel).ShouldNot(Receive())
+					Expect(onAfterPutChannel).ShouldNot(Receive())
 				})
 
 				By("Put new cache entry", func() {
 					v1 := "v1"
 					cache.Put("key1", &v1, time.Second)
-					Expect(onCacheMissChannel).Should(Not(Receive()))
-					Expect(onCacheMissChannel).Should(Not(Receive()))
+					Expect(onCacheMissChannel).ShouldNot(Receive())
+					Expect(onCacheMissChannel).ShouldNot(Receive())
 					Expect(onAfterPutChannel).Should(Receive(Equal(1)))
 				})
 
@@ -139,9 +139,9 @@ var _ = Describe("Expiration cache", func() {
 					val, _ := cache.Get("key1")
 					Expect(val).Should(HaveValue(Equal("v1")))
 
-					Expect(onCacheMissChannel).Should(Not(Receive()))
+					Expect(onCacheMissChannel).ShouldNot(Receive())
 					Expect(onCacheHitChannel).Should(Receive(Equal("key1")))
-					Expect(onAfterPutChannel).Should(Not(Receive()))
+					Expect(onAfterPutChannel).ShouldNot(Receive())
 				})
 			})
 		})
