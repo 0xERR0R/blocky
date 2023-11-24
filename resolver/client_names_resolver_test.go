@@ -377,7 +377,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 					Upstream: config.Upstream{Host: "example.com"},
 				}, upstreamsCfg, b)
 
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 				Expect(r).Should(BeNil())
 			})
 		})

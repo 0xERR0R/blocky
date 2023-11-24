@@ -73,7 +73,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 				}
 
 				_, err := sut.resolveUpstream(ctx, nil, "example.com")
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 				Expect(usedSystemResolver).Should(Receive(BeTrue()))
 			})
 
@@ -105,7 +105,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 					}
 
 					_, err := NewBootstrap(ctx, &cfg)
-					Expect(err).ShouldNot(Succeed())
+					Expect(err).Should(HaveOccurred())
 				})
 			})
 		})
@@ -147,7 +147,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 					}
 
 					_, err := NewBootstrap(ctx, &cfg)
-					Expect(err).ShouldNot(Succeed())
+					Expect(err).Should(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("must use IP instead of hostname"))
 				})
 			})
@@ -191,7 +191,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 					}
 
 					_, err := NewBootstrap(ctx, &cfg)
-					Expect(err).ShouldNot(Succeed())
+					Expect(err).Should(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("no IPs configured"))
 				})
 			})
@@ -285,7 +285,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 				ips, err := sut.resolve(ctx, "localhost", []dns.Type{A})
 
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring(resolveErr.Error()))
 				Expect(ips).Should(BeEmpty())
 			})
@@ -299,7 +299,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 				ips, err := sut.resolve(ctx, "unknownhost.invalid", []dns.Type{A})
 
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("no such host"))
 				Expect(ips).Should(BeEmpty())
 			})
@@ -374,7 +374,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 				// implicit expectation of 0 bootstrapUpstream.Resolve calls
 
 				_, err = t.DialContext(ctx, "ip", "!bad-addr!")
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 			})
 
 			It("returns upstream errors", func() {
@@ -386,7 +386,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 				_, err = t.DialContext(ctx, "ip", "abc:123")
 
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring(resolveErr.Error()))
 			})
 
@@ -399,7 +399,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 				_, err = t.DialContext(ctx, "ip", "abc:123")
 
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("no such host"))
 			})
 		})

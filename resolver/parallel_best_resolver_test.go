@@ -323,7 +323,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 			group := config.NewUpstreamGroup("test", upstreamsCfg, []config.Upstream{{Host: "example.com"}})
 
 			r, err := NewParallelBestResolver(ctx, group, b)
-			Expect(err).ShouldNot(Succeed())
+			Expect(err).Should(HaveOccurred())
 			Expect(r).Should(BeNil())
 		})
 	})

@@ -213,7 +213,7 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 			}
 
 			r, err := NewConditionalUpstreamResolver(ctx, sutConfig, upstreamsCfg, b)
-			Expect(err).ShouldNot(Succeed())
+			Expect(err).Should(HaveOccurred())
 			Expect(r).Should(BeNil())
 		})
 	})

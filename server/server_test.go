@@ -592,7 +592,7 @@ var _ = Describe("Running DNS server", func() {
 
 				_, err = NewServer(ctx, &cfg)
 
-				Expect(err).ShouldNot(Succeed())
+				Expect(err).Should(HaveOccurred())
 			})
 		})
 	})

@@ -56,7 +56,7 @@ var _ = Describe("Lines", func() {
 			Expect(sut.Position()).Should(Equal("line 3"))
 
 			_, err = sut.Next(context.Background())
-			Expect(err).ShouldNot(Succeed())
+			Expect(err).Should(HaveOccurred())
 			Expect(err).Should(MatchError(io.EOF))
 			Expect(IsNonResumableErr(err)).Should(BeTrue())
 			Expect(sut.Position()).Should(Equal("line 4"))
@@ -75,7 +75,7 @@ var _ = Describe("Lines", func() {
 
 		It("skips them", func() {
 			_, err := sut.Next(context.Background())
-			Expect(err).ShouldNot(Succeed())
+			Expect(err).Should(HaveOccurred())
 			Expect(err).Should(MatchError(io.EOF))
 			Expect(IsNonResumableErr(err)).Should(BeTrue())
 			Expect(sut.Position()).Should(Equal("line 5"))
@@ -135,7 +135,7 @@ var _ = Describe("Lines", func() {
 
 		It("fails", func() {
 			_, err := sut.Next(context.Background())
-			Expect(err).ShouldNot(Succeed())
+			Expect(err).Should(HaveOccurred())
 			Expect(sut.Position()).Should(Equal("line 1"))
 		})
 	})
@@ -160,7 +160,7 @@ var _ = Describe("Lines", func() {
 			cancel()
 
 			_, err = sut.Next(ctx)
-			Expect(err).ShouldNot(Succeed())
+			Expect(err).Should(HaveOccurred())
 			Expect(IsNonResumableErr(err)).Should(BeTrue())
 			Expect(sut.Position()).Should(Equal("line 2"))
 		})
