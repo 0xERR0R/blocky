@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -299,7 +300,7 @@ var _ = Describe("Redis client", func() {
 				})
 
 				By("call GetRedisCache - It should read one entry from redis and propagate it via channel", func() {
-					redisClient.GetRedisCache()
+					redisClient.GetRedisCache(context.TODO())
 
 					Eventually(redisClient.CacheChannel).Should(HaveLen(1))
 				})
@@ -308,7 +309,7 @@ var _ = Describe("Redis client", func() {
 		When("GetRedisCache is called and database contains not valid entry", func() {
 			It("Should do nothing (only log error)", func() {
 				Expect(redisServer.DB(redisConfig.Database).Set(CacheStorePrefix+"test", "test")).Should(Succeed())
-				redisClient.GetRedisCache()
+				redisClient.GetRedisCache(context.TODO())
 				Consistently(redisClient.CacheChannel).Should(BeEmpty())
 			})
 		})

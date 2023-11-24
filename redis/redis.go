@@ -153,12 +153,12 @@ func (c *Client) PublishEnabled(state *EnabledMessage) {
 }
 
 // GetRedisCache reads the redis cache and publish it to the channel
-func (c *Client) GetRedisCache() {
+func (c *Client) GetRedisCache(ctx context.Context) {
 	c.l.Debug("GetRedisCache")
 
 	go func() {
-		iter := c.client.Scan(c.ctx, 0, prefixKey("*"), 0).Iterator()
-		for iter.Next(c.ctx) {
+		iter := c.client.Scan(ctx, 0, prefixKey("*"), 0).Iterator()
+		for iter.Next(ctx) {
 			response, err := c.getResponse(iter.Val())
 			if err == nil {
 				if response != nil {
