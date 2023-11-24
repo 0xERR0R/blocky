@@ -211,8 +211,6 @@ func (b *BootstrappedUpstreamConfig) UnmarshalYAML(unmarshal func(interface{}) e
 }
 
 // Config main configuration
-//
-//nolint:maligned
 type Config struct {
 	Upstreams        Upstreams           `yaml:"upstreams"`
 	ConnectIPVersion IPVersion           `yaml:"connectIPVersion"`
