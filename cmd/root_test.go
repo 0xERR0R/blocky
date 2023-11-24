@@ -33,8 +33,6 @@ var _ = Describe("root command", func() {
 			configPath = defaultConfigPath
 
 			tmpDir = NewTmpFolder("RootCommand")
-			Expect(tmpDir.Error).Should(Succeed())
-
 			tmpFile = tmpDir.CreateStringFile("config",
 				"upstreams:",
 				"  groups:",
@@ -49,7 +47,6 @@ var _ = Describe("root command", func() {
 				"      - ads",
 				"port: 5333",
 			)
-			Expect(tmpFile.Error).Should(Succeed())
 		})
 
 		It("should accept old env var", func() {

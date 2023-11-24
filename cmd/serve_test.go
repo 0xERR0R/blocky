@@ -24,7 +24,7 @@ var _ = Describe("Serve command", func() {
 	BeforeEach(func() {
 		port = helpertest.GetStringPort(basePort)
 		tmpDir = helpertest.NewTmpFolder("config")
-		Expect(tmpDir.Error).Should(Succeed())
+
 		configPath = defaultConfigPath
 	})
 
@@ -38,9 +38,10 @@ var _ = Describe("Serve command", func() {
 					"      - 1.1.1.1",
 					"ports:",
 					"  dns: "+port)
-				Expect(cfgFile.Error).Should(Succeed())
+
 				os.Setenv(configFileEnvVar, cfgFile.Path)
 				DeferCleanup(func() { os.Unsetenv(configFileEnvVar) })
+
 				initConfig()
 			})
 
@@ -84,9 +85,10 @@ var _ = Describe("Serve command", func() {
 					"      - 1.1.1.1",
 					"ports:",
 					"  dns: "+port)
-				Expect(cfgFile.Error).Should(Succeed())
+
 				os.Setenv(configFileEnvVar, cfgFile.Path)
 				DeferCleanup(func() { os.Unsetenv(configFileEnvVar) })
+
 				initConfig()
 			})
 
