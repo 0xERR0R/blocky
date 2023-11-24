@@ -28,20 +28,13 @@ var (
 
 var _ = BeforeSuite(func() {
 	tmpDir = NewTmpFolder("BlockingResolver")
-	Expect(tmpDir.Error).Should(Succeed())
-
 	group1File = tmpDir.CreateStringFile("group1File", "DOMAIN1.com")
-	Expect(group1File.Error).Should(Succeed())
-
 	group2File = tmpDir.CreateStringFile("group2File", "blocked2.com")
-	Expect(group2File.Error).Should(Succeed())
-
 	defaultGroupFile = tmpDir.CreateStringFile("defaultGroupFile",
 		"blocked3.com",
 		"123.145.123.145",
 		"2001:db8:85a3:08d3::370:7344",
 		"badcnamedomain.com")
-	Expect(defaultGroupFile.Error).Should(Succeed())
 })
 
 var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {

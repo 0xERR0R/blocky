@@ -30,7 +30,6 @@ var _ = Describe("Config", func() {
 
 	BeforeEach(func() {
 		tmpDir = helpertest.NewTmpFolder("config")
-		Expect(tmpDir.Error).Should(Succeed())
 	})
 
 	Describe("Deprecated parameters are converted", func() {
@@ -147,14 +146,9 @@ var _ = Describe("Config", func() {
 
 	Describe("Creation of Config", func() {
 		When("Test config file will be parsed", func() {
-			var confFile *helpertest.TmpFile
-
-			BeforeEach(func() {
-				confFile = writeConfigYml(tmpDir)
-				Expect(confFile.Error).Should(Succeed())
-			})
-
 			It("should return a valid config struct", func() {
+				confFile := writeConfigYml(tmpDir)
+
 				c, err = LoadConfig(confFile.Path, true)
 				Expect(err).Should(Succeed())
 
@@ -169,8 +163,7 @@ var _ = Describe("Config", func() {
 		})
 		When("Multiple config files are used", func() {
 			BeforeEach(func() {
-				err = writeConfigDir(tmpDir)
-				Expect(err).Should(Succeed())
+				writeConfigDir(tmpDir)
 			})
 
 			It("should return a valid config struct", func() {
@@ -204,7 +197,6 @@ var _ = Describe("Config", func() {
 		When("config file is malformed", func() {
 			It("should return error", func() {
 				cfgFile := tmpDir.CreateStringFile("config.yml", "malformed_config")
-				Expect(cfgFile.Error).Should(Succeed())
 
 				c, err = LoadConfig(cfgFile.Path, true)
 				Expect(err).Should(HaveOccurred())
@@ -865,8 +857,8 @@ func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {
 	)
 }
 
-func writeConfigDir(tmpDir *helpertest.TmpFolder) error {
-	f1 := tmpDir.CreateStringFile("config1.yaml",
+func writeConfigDir(tmpDir *helpertest.TmpFolder) {
+	tmpDir.CreateStringFile("config1.yaml",
 		"upstreams:",
 		"  startVerify: false",
 		"  userAgent: testBlocky",
@@ -888,11 +880,8 @@ func writeConfigDir(tmpDir *helpertest.TmpFolder) error {
 		"    - AAAA",
 		"    - A",
 	)
-	if f1.Error != nil {
-		return f1.Error
-	}
 
-	f2 := tmpDir.CreateStringFile("config2.yaml",
+	tmpDir.CreateStringFile("config2.yaml",
 		"blocking:",
 		"  blackLists:",
 		"    ads:",
@@ -930,8 +919,6 @@ func writeConfigDir(tmpDir *helpertest.TmpFolder) error {
 		"logLevel: debug",
 		"minTlsServeVersion: 1.3",
 	)
-
-	return f2.Error
 }
 
 // Tiny helper to get a new pointer with a value.

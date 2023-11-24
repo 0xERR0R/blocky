@@ -61,20 +61,13 @@ var _ = Describe("ListCache", func() {
 		server3 = TestServer("blocked3.com\nblocked1a.com")
 
 		tmpDir = NewTmpFolder("ListCache")
-		Expect(tmpDir.Error).Should(Succeed())
 		DeferCleanup(tmpDir.Clean)
 
 		emptyFile = tmpDir.CreateStringFile("empty", "#empty file")
-		Expect(emptyFile.Error).Should(Succeed())
-
 		emptyFile = tmpDir.CreateStringFile("empty", "#empty file")
-		Expect(emptyFile.Error).Should(Succeed())
 		file1 = tmpDir.CreateStringFile("file1", "blocked1.com", "blocked1a.com")
-		Expect(file1.Error).Should(Succeed())
 		file2 = tmpDir.CreateStringFile("file2", "blocked2.com")
-		Expect(file2.Error).Should(Succeed())
 		file3 = tmpDir.CreateStringFile("file3", "blocked3.com", "blocked1a.com")
-		Expect(file3.Error).Should(Succeed())
 	})
 
 	JustBeforeEach(func() {

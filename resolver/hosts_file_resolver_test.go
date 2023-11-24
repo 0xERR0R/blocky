@@ -41,10 +41,7 @@ var _ = Describe("HostsFileResolver", func() {
 		DeferCleanup(cancelFn)
 
 		tmpDir = NewTmpFolder("HostsFileResolver")
-		Expect(tmpDir.Error).Should(Succeed())
-
 		tmpFile = writeHostFile(tmpDir)
-		Expect(tmpFile.Error).Should(Succeed())
 
 		sutConfig = config.HostsFileConfig{
 			Sources:        config.NewBytesSources(tmpFile.Path),
@@ -164,7 +161,6 @@ var _ = Describe("HostsFileResolver", func() {
 					"127.0.0.x localhost",
 					"256.0.0.1 localhost",
 				)
-				Expect(tmpFile.Error).Should(Succeed())
 
 				sutConfig.Sources = config.NewBytesSources(tmpFile.Path)
 			})

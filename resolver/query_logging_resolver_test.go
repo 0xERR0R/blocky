@@ -61,7 +61,6 @@ var _ = Describe("QueryLoggingResolver", func() {
 
 		mockAnswer = new(dns.Msg)
 		tmpDir = NewTmpFolder("queryLoggingResolver")
-		Expect(tmpDir.Error).Should(Succeed())
 	})
 
 	JustBeforeEach(func() {
@@ -338,21 +337,13 @@ var _ = Describe("QueryLoggingResolver", func() {
 				dateBefore9Days := time.Now().AddDate(0, 0, -9)
 
 				f1 := tmpDir.CreateEmptyFile(fmt.Sprintf("%s-test.log", dateBefore7Days.Format("2006-01-02")))
-				Expect(f1.Error).Should(Succeed())
-
 				f2 := tmpDir.CreateEmptyFile(fmt.Sprintf("%s-test.log", dateBefore9Days.Format("2006-01-02")))
-				Expect(f2.Error).Should(Succeed())
 
 				sut.doCleanUp()
 
 				Eventually(func(g Gomega) {
-					// file 1 exist
-					g.Expect(f1.Stat()).Should(Succeed())
-
-					// file 2 was deleted
-					ierr2 := f2.Stat()
-					g.Expect(ierr2).Should(HaveOccurred())
-					g.Expect(os.IsNotExist(ierr2)).Should(BeTrue())
+					g.Expect(f1.Path).Should(BeAnExistingFile())
+					g.Expect(f2.Path).ShouldNot(BeAnExistingFile())
 				}).Should(Succeed())
 			})
 		})

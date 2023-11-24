@@ -79,9 +79,6 @@ func createHTTPServerContainer(ctx context.Context, alias string, tmpDir *helper
 	f1 := tmpDir.CreateStringFile(filename,
 		lines...,
 	)
-	if f1.Error != nil {
-		return nil, f1.Error
-	}
 
 	const modeOwner = 700
 
@@ -160,9 +157,6 @@ func createBlockyContainer(ctx context.Context, tmpDir *helpertest.TmpFolder,
 	f1 := tmpDir.CreateStringFile("config1.yaml",
 		lines...,
 	)
-	if f1.Error != nil {
-		return nil, f1.Error
-	}
 
 	cfg, err := config.LoadConfig(f1.Path, true)
 	if err != nil {

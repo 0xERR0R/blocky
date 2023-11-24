@@ -93,25 +93,12 @@ var _ = BeforeSuite(func() {
 	upstreamGoogle = googleMockUpstream.Start()
 
 	tmpDir := NewTmpFolder("server")
-	Expect(tmpDir.Error).Should(Succeed())
-
 	certPem := writeCertPem(tmpDir)
-	Expect(certPem.Error).Should(Succeed())
-
 	keyPem := writeKeyPem(tmpDir)
-	Expect(keyPem.Error).Should(Succeed())
-
 	doubleclickFile := tmpDir.CreateStringFile("doubleclick.net.txt", "doubleclick.net", "doubleclick.net.cn")
-	Expect(doubleclickFile.Error).Should(Succeed())
-
 	bildFile := tmpDir.CreateStringFile("www.bild.de.txt", "www.bild.de")
-	Expect(bildFile.Error).Should(Succeed())
-
 	heiseFile := tmpDir.CreateStringFile("heise.de.txt", "heise.de")
-	Expect(heiseFile.Error).Should(Succeed())
-
 	youtubeFile := tmpDir.CreateStringFile("youtube.com.txt", "youtube.com")
-	Expect(youtubeFile.Error).Should(Succeed())
 
 	cfg := &config.Config{
 		CustomDNS: config.CustomDNS{
