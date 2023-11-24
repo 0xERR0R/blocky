@@ -249,7 +249,9 @@ func (r *BlockingResolver) DisableBlocking(ctx context.Context, duration time.Du
 	return err
 }
 
-func (r *BlockingResolver) internalDisableBlocking(ctx context.Context, duration time.Duration, disableGroups []string) error {
+func (r *BlockingResolver) internalDisableBlocking(ctx context.Context, duration time.Duration,
+	disableGroups []string,
+) error {
 	s := r.status
 	s.lock.Lock()
 	defer s.lock.Unlock()
