@@ -18,5 +18,8 @@
     "ui.semanticTokens": true,
     "formatting.gofumpt": true,
     "build.standaloneTags": ["ignore", "tools"]
+  },
+  "[go]": {
+    "editor.rulers": [111]
   }
 }
