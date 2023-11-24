@@ -842,7 +842,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				})
 
 				By("Calling Rest API to deactivate all groups", func() {
-					err := sut.DisableBlocking(0, []string{})
+					err := sut.DisableBlocking(context.TODO(), 0, []string{})
 					Expect(err).Should(Succeed())
 				})
 
@@ -875,7 +875,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				})
 
 				By("Calling Rest API to deactivate only defaultGroup", func() {
-					err := sut.DisableBlocking(0, []string{"defaultGroup"})
+					err := sut.DisableBlocking(context.TODO(), 0, []string{"defaultGroup"})
 					Expect(err).Should(Succeed())
 				})
 
@@ -935,7 +935,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 						enabled <- state
 					})
 					Expect(err).Should(Succeed())
-					err = sut.DisableBlocking(500*time.Millisecond, []string{})
+					err = sut.DisableBlocking(context.TODO(), 500*time.Millisecond, []string{})
 					Expect(err).Should(Succeed())
 					Eventually(enabled, "1s").Should(Receive(BeFalse()))
 				})
@@ -1025,7 +1025,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 						enabled <- false
 					})
 					Expect(err).Should(Succeed())
-					err = sut.DisableBlocking(500*time.Millisecond, []string{"group1"})
+					err = sut.DisableBlocking(context.TODO(), 500*time.Millisecond, []string{"group1"})
 					Expect(err).Should(Succeed())
 					Eventually(enabled, "1s").Should(Receive(BeFalse()))
 				})
@@ -1086,7 +1086,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 		When("Disable blocking is called with wrong group name", func() {
 			It("should fail", func() {
-				err := sut.DisableBlocking(500*time.Millisecond, []string{"unknownGroupName"})
+				err := sut.DisableBlocking(context.TODO(), 500*time.Millisecond, []string{"unknownGroupName"})
 				Expect(err).Should(HaveOccurred())
 			})
 		})
@@ -1094,7 +1094,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		When("Blocking status is called", func() {
 			It("should return correct status", func() {
 				By("enable blocking via API", func() {
-					sut.EnableBlocking()
+					sut.EnableBlocking(context.TODO())
 				})
 
 				By("Query blocking status via API should return 'enabled'", func() {
@@ -1103,7 +1103,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				})
 
 				By("disable blocking via API", func() {
-					err := sut.DisableBlocking(500*time.Millisecond, []string{})
+					err := sut.DisableBlocking(context.TODO(), 500*time.Millisecond, []string{})
 					Expect(err).Should(Succeed())
 				})
 
@@ -1154,7 +1154,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 			Expect(err).Should(Succeed())
 			rcfg.Address = redisServer.Addr()
-			redisClient, err = redis.New(&rcfg)
+			redisClient, err = redis.New(context.TODO(), &rcfg)
 
 			Expect(err).Should(Succeed())
 			Expect(redisClient).ShouldNot(BeNil())
@@ -1171,7 +1171,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 		When("disable", func() {
 			It("should return disable", func() {
-				sut.EnableBlocking()
+				sut.EnableBlocking(context.TODO())
 
 				redisMockMsg := &redis.EnabledMessage{
 					State: false,
@@ -1185,7 +1185,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 		When("disable", func() {
 			It("should return disable", func() {
-				sut.EnableBlocking()
+				sut.EnableBlocking(context.TODO())
 				redisMockMsg := &redis.EnabledMessage{
 					State:  false,
 					Groups: []string{"unknown"},
@@ -1199,7 +1199,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 		When("enable", func() {
 			It("should return enable", func() {
-				err = sut.DisableBlocking(time.Hour, []string{})
+				err = sut.DisableBlocking(context.TODO(), time.Hour, []string{})
 				Expect(err).Should(Succeed())
 
 				redisMockMsg := &redis.EnabledMessage{

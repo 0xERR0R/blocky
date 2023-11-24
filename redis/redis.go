@@ -134,7 +134,7 @@ func (c *Client) PublishCache(key string, message *dns.Msg) {
 	}
 }
 
-func (c *Client) PublishEnabled(state *EnabledMessage) {
+func (c *Client) PublishEnabled(ctx context.Context, state *EnabledMessage) {
 	binState, sErr := json.Marshal(state)
 	if sErr == nil {
 		binMsg, mErr := json.Marshal(redisMessage{
@@ -144,7 +144,7 @@ func (c *Client) PublishEnabled(state *EnabledMessage) {
 		})
 
 		if mErr == nil {
-			c.client.Publish(c.ctx, SyncChannelName, binMsg)
+			c.client.Publish(ctx, SyncChannelName, binMsg)
 		}
 	}
 }

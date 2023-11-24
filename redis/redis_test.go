@@ -140,7 +140,7 @@ var _ = Describe("Redis client", func() {
 		})
 		When("Redis client publishes 'enabled' message", func() {
 			It("should propagate the message over redis", func() {
-				redisClient.PublishEnabled(&EnabledMessage{
+				redisClient.PublishEnabled(context.TODO(), &EnabledMessage{
 					State: true,
 				})
 				Eventually(func() map[string]int {
