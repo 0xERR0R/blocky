@@ -31,6 +31,10 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 
 		ctx      context.Context
 		cancelFn context.CancelFunc
+		timeout  = 2 * time.Second
+
+		testUpstream1 *MockUDPUpstreamServer
+		testUpstream2 *MockUDPUpstreamServer
 	)
 
 	Describe("Type", func() {
@@ -58,6 +62,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 		upstreamsCfg.StartVerify = sutVerify
 
 		sutConfig := config.NewUpstreamGroup("test", upstreamsCfg, upstreams)
+		sutConfig.Timeout = config.Duration(timeout)
 		sut, err = NewStrictResolver(ctx, sutConfig, bootstrap)
 	})
 
@@ -143,10 +148,10 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 			When("Both are responding", func() {
 				When("they respond in time", func() {
 					BeforeEach(func() {
-						testUpstream1 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
+						testUpstream1 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
 						DeferCleanup(testUpstream1.Close)
 
-						testUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.123")
+						testUpstream2 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.123")
 						DeferCleanup(testUpstream2.Close)
 
 						upstreams = []config.Upstream{testUpstream1.Start(), testUpstream2.Start()}
@@ -165,8 +170,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 				})
 				When("first upstream exceeds upstreamTimeout", func() {
 					BeforeEach(func() {
-						timeout := sut.cfg.Timeout.ToDuration()
-						testUpstream1 := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
+						testUpstream1 = NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 							response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.1")
 							time.Sleep(2 * timeout)
 
@@ -176,7 +180,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 						})
 						DeferCleanup(testUpstream1.Close)
 
-						testUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.2")
+						testUpstream2 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.2")
 						DeferCleanup(testUpstream2.Close)
 
 						upstreams = []config.Upstream{testUpstream1.Start(), testUpstream2.Start()}
@@ -193,9 +197,8 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 					})
 				})
 				When("all upstreams exceed upsteamTimeout", func() {
-					BeforeEach(func() {
-						timeout := sut.cfg.Timeout.ToDuration()
-						testUpstream1 := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
+					JustBeforeEach(func() {
+						testUpstream1 = NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 							response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.1")
 							time.Sleep(2 * timeout)
 
@@ -205,7 +208,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 						})
 						DeferCleanup(testUpstream1.Close)
 
-						testUpstream2 := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
+						testUpstream2 = NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 							response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.2")
 							time.Sleep(2 * timeout)
 
@@ -225,12 +228,10 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 			})
 			When("Only second is working", func() {
 				BeforeEach(func() {
-					testUpstream1 := config.Upstream{Host: "wrong"}
-
-					testUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.123")
+					testUpstream2 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.123")
 					DeferCleanup(testUpstream2.Close)
 
-					upstreams = []config.Upstream{testUpstream1, testUpstream2.Start()}
+					upstreams = []config.Upstream{{Host: "wrong"}, testUpstream2.Start()}
 				})
 				It("Should use result from second one", func() {
 					request := newRequest("example.com.", A)

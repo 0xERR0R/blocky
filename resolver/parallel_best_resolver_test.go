@@ -452,14 +452,18 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 		Describe("Weighted random on resolver selection", func() {
 			When("4 upstream resolvers are defined", func() {
+				var (
+					mockUpstream1 *MockUDPUpstreamServer
+					mockUpstream2 *MockUDPUpstreamServer
+				)
 				BeforeEach(func() {
 					withError1 := config.Upstream{Host: "wrong1"}
 					withError2 := config.Upstream{Host: "wrong2"}
 
-					mockUpstream1 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
+					mockUpstream1 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
 					DeferCleanup(mockUpstream1.Close)
 
-					mockUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
+					mockUpstream2 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
 					DeferCleanup(mockUpstream2.Close)
 
 					upstreams = []config.Upstream{withError1, mockUpstream1.Start(), mockUpstream2.Start(), withError2}
