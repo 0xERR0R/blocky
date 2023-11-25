@@ -8,6 +8,7 @@
     "source.organizeImports": true,
     "source.fixAll": true
   },
+  "editor.rulers": [120],
   "go.showWelcome": false,
   "go.survey.prompt": false,
   "go.useLanguageServer": true,
@@ -18,8 +19,5 @@
     "ui.semanticTokens": true,
     "formatting.gofumpt": true,
     "build.standaloneTags": ["ignore", "tools"]
-  },
-  "[go]": {
-    "editor.rulers": [120]
   }
 }
