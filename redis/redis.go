@@ -70,11 +70,15 @@ func New(ctx context.Context, cfg *config.Redis) (*Client, error) {
 	// disable redis if no address is provided
 	if cfg == nil || len(cfg.Address) == 0 {
 		return nil, nil //nolint:nilnil
+	} else if ctx == nil {
+		return nil, fmt.Errorf("context is nil")
+	} else if ctx.Err() != nil {
+		return nil, fmt.Errorf("context is done")
 	}
 
-	var rdb *redis.Client
+	var baseClient *redis.Client
 	if len(cfg.SentinelAddresses) > 0 {
-		rdb = redis.NewFailoverClient(&redis.FailoverOptions{
+		baseClient = redis.NewFailoverClient(&redis.FailoverOptions{
 			MasterName:       cfg.Address,
 			SentinelUsername: cfg.Username,
 			SentinelPassword: cfg.SentinelPassword,
@@ -86,7 +90,7 @@ func New(ctx context.Context, cfg *config.Redis) (*Client, error) {
 			MaxRetryBackoff:  cfg.ConnectionCooldown.ToDuration(),
 		})
 	} else {
-		rdb = redis.NewClient(&redis.Options{
+		baseClient = redis.NewClient(&redis.Options{
 			Addr:            cfg.Address,
 			Username:        cfg.Username,
 			Password:        cfg.Password,
@@ -95,6 +99,8 @@ func New(ctx context.Context, cfg *config.Redis) (*Client, error) {
 			MaxRetryBackoff: cfg.ConnectionCooldown.ToDuration(),
 		})
 	}
+
+	rdb := baseClient.WithContext(ctx)
 
 	_, err := rdb.Ping(ctx).Result()
 	if err == nil {
@@ -187,7 +193,7 @@ func (c *Client) startup(ctx context.Context) error {
 					// publish message from buffer
 				case s := <-c.sendBuffer:
 					c.publishMessageFromBuffer(ctx, s)
-					// context is done
+				// context is done
 				case <-ctx.Done():
 					close(c.sendBuffer)
 					close(c.CacheChannel)

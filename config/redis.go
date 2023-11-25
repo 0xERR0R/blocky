@@ -1,7 +1,7 @@
 package config
 
 import (
-	"regexp"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 )
