@@ -53,11 +53,5 @@ func (c *Redis) LogConfig(logger *logrus.Entry) {
 
 // obfuscatePassword replaces all characters of a password except the first and last with *
 func obfuscatePassword(pass string) string {
-	if pass == "" {
-		return ""
-	}
-
-	re := regexp.MustCompile(`^(.).*(.)$`)
-
-	return re.ReplaceAllString(pass, `$1*****$2`)
+	return strings.Repeat("*", len(pass))
 }
