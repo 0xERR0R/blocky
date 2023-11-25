@@ -66,7 +66,7 @@ var _ = Describe("Redis", func() {
 			It("should log address", func() {
 				c.LogConfig(logger)
 
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("Address: localhost:6379")))
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("address: localhost:6379")))
 			})
 		})
 
