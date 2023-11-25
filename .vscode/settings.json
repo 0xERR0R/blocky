@@ -20,6 +20,6 @@
     "build.standaloneTags": ["ignore", "tools"]
   },
   "[go]": {
-    "editor.rulers": [111]
+    "editor.rulers": [120]
   }
 }
