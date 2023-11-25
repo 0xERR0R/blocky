@@ -97,7 +97,7 @@ var _ = Describe("Redis", func() {
 
 		When("password is not empty", func() {
 			It("should return obfuscated password", func() {
-				Expect(obfuscatePassword("test123")).Should(Equal("t*****3"))
+				Expect(obfuscatePassword("test123")).Should(Equal("*******"))
 			})
 		})
 	})
