@@ -80,8 +80,8 @@ var _ = Describe("Redis", func() {
 
 				Expect(hook.Messages).Should(
 					SatisfyAll(
-						ContainElement(ContainSubstring("Sentinel:")),
-						ContainElement(ContainSubstring("  Addresses:")),
+						ContainElement(ContainSubstring("sentinel:")),
+						ContainElement(ContainSubstring("  addresses:")),
 						ContainElement(ContainSubstring("  - localhost:26379")),
 						ContainElement(ContainSubstring("  - localhost:26380"))))
 			})
