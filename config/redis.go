@@ -28,22 +28,22 @@ func (c *Redis) IsEnabled() bool {
 // LogConfig implements `config.Configurable`
 func (c *Redis) LogConfig(logger *logrus.Entry) {
 	if len(c.SentinelAddresses) == 0 {
-		logger.Info("Address: ", c.Address)
+		logger.Info("address: ", c.Address)
 	}
 
-	logger.Info("Username: ", c.Username)
-	logger.Info("Password: ", obfuscatePassword(c.Password))
-	logger.Info("Database: ", c.Database)
-	logger.Info("Required: ", c.Required)
-	logger.Info("ConnectionAttempts: ", c.ConnectionAttempts)
-	logger.Info("ConnectionCooldown: ", c.ConnectionCooldown)
+	logger.Info("username: ", c.Username)
+	logger.Info("password: ", obfuscatePassword(c.Password))
+	logger.Info("database: ", c.Database)
+	logger.Info("required: ", c.Required)
+	logger.Info("connectionAttempts: ", c.ConnectionAttempts)
+	logger.Info("connectionCooldown: ", c.ConnectionCooldown)
 
 	if len(c.SentinelAddresses) > 0 {
-		logger.Info("Sentinel:")
-		logger.Info("  MasterName: ", c.Address)
-		logger.Info("  Username: ", c.SentinelUsername)
-		logger.Info("  Password: ", obfuscatePassword(c.SentinelPassword))
-		logger.Info("  Addresses:")
+		logger.Info("sentinel:")
+		logger.Info("  master: ", c.Address)
+		logger.Info("  username: ", c.SentinelUsername)
+		logger.Info("  password: ", obfuscatePassword(c.SentinelPassword))
+		logger.Info("  addresses:")
 
 		for _, addr := range c.SentinelAddresses {
 			logger.Info("    - ", addr)
