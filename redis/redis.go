@@ -70,10 +70,6 @@ func New(ctx context.Context, cfg *config.Redis) (*Client, error) {
 	// disable redis if no address is provided
 	if cfg == nil || len(cfg.Address) == 0 {
 		return nil, nil //nolint:nilnil
-	} else if ctx == nil {
-		return nil, fmt.Errorf("context is nil")
-	} else if ctx.Err() != nil {
-		return nil, fmt.Errorf("context is done")
 	}
 
 	var baseClient *redis.Client
