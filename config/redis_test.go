@@ -48,13 +48,13 @@ var _ = Describe("Redis", func() {
 				c.LogConfig(logger)
 
 				Expect(hook.Messages).Should(
-					SatisfyAll(ContainElement(ContainSubstring("Address: ")),
-						ContainElement(ContainSubstring("Username: ")),
-						ContainElement(ContainSubstring("Password: ")),
-						ContainElement(ContainSubstring("Database: ")),
-						ContainElement(ContainSubstring("Required: ")),
-						ContainElement(ContainSubstring("ConnectionAttempts: ")),
-						ContainElement(ContainSubstring("ConnectionCooldown: "))))
+					SatisfyAll(ContainElement(ContainSubstring("address: ")),
+						ContainElement(ContainSubstring("username: ")),
+						ContainElement(ContainSubstring("password: ")),
+						ContainElement(ContainSubstring("database: ")),
+						ContainElement(ContainSubstring("required: ")),
+						ContainElement(ContainSubstring("connectionAttempts: ")),
+						ContainElement(ContainSubstring("connectionCooldown: "))))
 			})
 		})
 
