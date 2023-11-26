@@ -102,8 +102,7 @@ var _ = Describe("Serve command", func() {
 			By("terminate with signal", func() {
 				var startError error
 				Eventually(errChan, "10s").Should(Receive(&startError))
-				Expect(startError).ShouldNot(BeNil())
-				Expect(startError.Error()).Should(ContainSubstring("address already in use"))
+				Expect(startError).Should(MatchError(ContainSubstring("address already in use")))
 			})
 		})
 	})
@@ -121,8 +120,7 @@ var _ = Describe("Serve command", func() {
 			By("server should terminate with error", func() {
 				var startError error
 				Eventually(errChan).Should(Receive(&startError))
-				Expect(startError).ShouldNot(BeNil())
-				Expect(startError.Error()).Should(ContainSubstring("unable to load configuration"))
+				Expect(startError).Should(MatchError(ContainSubstring("unable to load configuration")))
 			})
 		})
 	})
