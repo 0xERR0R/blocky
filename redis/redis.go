@@ -169,8 +169,7 @@ func (c *Client) GetRedisCache(ctx context.Context) {
 					select {
 					case <-ctx.Done():
 						return
-					default:
-						c.CacheChannel <- response
+					case c.CacheChannel <- response:
 					}
 				}
 			} else {
@@ -238,12 +237,6 @@ func (c *Client) publishMessageFromBuffer(ctx context.Context, s *bufferMessage)
 }
 
 func (c *Client) processReceivedMessage(ctx context.Context, msg *redis.Message) {
-	select {
-	case <-ctx.Done():
-		return
-	default:
-	}
-
 	var rm redisMessage
 
 	if err := json.Unmarshal([]byte(msg.Payload), &rm); err != nil {
@@ -267,9 +260,7 @@ func (c *Client) processReceivedMessage(ctx context.Context, msg *redis.Message)
 
 			select {
 			case <-ctx.Done():
-				return
-			default:
-				c.CacheChannel <- cm
+			case c.CacheChannel <- cm:
 			}
 		case messageTypeEnable:
 			var msg EnabledMessage
@@ -282,9 +273,7 @@ func (c *Client) processReceivedMessage(ctx context.Context, msg *redis.Message)
 
 			select {
 			case <-ctx.Done():
-				return
-			default:
-				c.EnabledChannel <- &msg
+			case c.EnabledChannel <- &msg:
 			}
 		default:
 			c.l.Warn("Unknown message type: ", rm.Type)
