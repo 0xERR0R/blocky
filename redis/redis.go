@@ -155,13 +155,13 @@ func (c *Client) GetRedisCache(ctx context.Context) {
 	c.l.Debug("GetRedisCache")
 
 	go func() {
-		select {
-		case <-ctx.Done():
+		iter := c.client.Scan(ctx, 0, prefixKey("*"), 0).Iterator()
+		if err := iter.Err(); err != nil {
+			c.l.Error("GetRedisCache ", err)
+
 			return
-		default:
 		}
 
-		iter := c.client.Scan(ctx, 0, prefixKey("*"), 0).Iterator()
 		for iter.Next(ctx) {
 			response, err := c.getResponse(ctx, iter.Val())
 			if err == nil {
