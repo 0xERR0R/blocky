@@ -317,9 +317,12 @@ var _ = Describe("Redis client", func() {
 				})
 
 				By("call GetRedisCache - It should read one entry from redis and propagate it via channel", func() {
-					redisClient.GetRedisCache(ctx)
+     redisClient2, err := New(ctx, redisConfig)
+				 Expect(err).Should(Succeed())
 
-					Eventually(redisClient.CacheChannel).Should(HaveLen(1))
+					redisClient2.GetRedisCache(ctx)
+
+					Eventually(redisClient2.CacheChannel).Should(HaveLen(1))
 				})
 			})
 		})
