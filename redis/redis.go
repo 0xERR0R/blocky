@@ -159,26 +159,22 @@ func (c *Client) GetRedisCache(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			iter := c.client.Scan(ctx, 0, prefixKey("*"), 0).Iterator()
-			for iter.Next(ctx) {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-					response, err := c.getResponse(ctx, iter.Val())
-					if err == nil {
-						if response != nil {
-							select {
-							case <-ctx.Done():
-								return
-							default:
-								c.CacheChannel <- response
-							}
-						}
-					} else {
-						c.l.Error("GetRedisCache ", err)
+		}
+
+		iter := c.client.Scan(ctx, 0, prefixKey("*"), 0).Iterator()
+		for iter.Next(ctx) {
+			response, err := c.getResponse(ctx, iter.Val())
+			if err == nil {
+				if response != nil {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+						c.CacheChannel <- response
 					}
 				}
+			} else {
+				c.l.Error("GetRedisCache ", err)
 			}
 		}
 	}()
