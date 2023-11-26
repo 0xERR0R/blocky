@@ -52,6 +52,18 @@ var _ = Describe("Redis client", func() {
 			})
 		})
 
+		When("sentinel is enabled without servers", func() {
+			BeforeEach(func() {
+				redisConfig.Address = "test"
+				redisConfig.SentinelAddresses = []string{"127.0.0.1:0"}
+			})
+
+			It("should fail with error", func(ctx context.Context) {
+				_, err = New(ctx, redisConfig)
+				Expect(err).Should(HaveOccurred())
+			})
+		})
+
 		When("redis configuration has invalid password", func() {
 			BeforeEach(func() {
 				setupRedisServer(redisConfig)
@@ -60,7 +72,6 @@ var _ = Describe("Redis client", func() {
 
 			It("should fail with error", func(ctx context.Context) {
 				_, err = New(ctx, redisConfig)
-
 				Expect(err).Should(HaveOccurred())
 			})
 		})
