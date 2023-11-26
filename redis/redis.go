@@ -155,15 +155,30 @@ func (c *Client) GetRedisCache(ctx context.Context) {
 	c.l.Debug("GetRedisCache")
 
 	go func() {
-		iter := c.client.Scan(ctx, 0, prefixKey("*"), 0).Iterator()
-		for iter.Next(ctx) {
-			response, err := c.getResponse(ctx, iter.Val())
-			if err == nil {
-				if response != nil {
-					c.CacheChannel <- response
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			iter := c.client.Scan(ctx, 0, prefixKey("*"), 0).Iterator()
+			for iter.Next(ctx) {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					response, err := c.getResponse(ctx, iter.Val())
+					if err == nil {
+						if response != nil {
+							select {
+							case <-ctx.Done():
+								return
+							default:
+								c.CacheChannel <- response
+							}
+						}
+					} else {
+						c.l.Error("GetRedisCache ", err)
+					}
 				}
-			} else {
-				c.l.Error("GetRedisCache ", err)
 			}
 		}
 	}()
@@ -184,16 +199,13 @@ func (c *Client) startup(ctx context.Context) error {
 
 					if msg != nil && len(msg.Payload) > 0 {
 						// message is not empty
-						c.processReceivedMessage(msg)
+						c.processReceivedMessage(ctx, msg)
 					}
 					// publish message from buffer
 				case s := <-c.sendBuffer:
 					c.publishMessageFromBuffer(ctx, s)
 				// context is done
 				case <-ctx.Done():
-					close(c.sendBuffer)
-					close(c.CacheChannel)
-					close(c.EnabledChannel)
 					c.client.Close()
 
 					return
@@ -229,43 +241,59 @@ func (c *Client) publishMessageFromBuffer(ctx context.Context, s *bufferMessage)
 	}
 }
 
-func (c *Client) processReceivedMessage(msg *redis.Message) {
+func (c *Client) processReceivedMessage(ctx context.Context, msg *redis.Message) {
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
+
 	var rm redisMessage
 
-	err := json.Unmarshal([]byte(msg.Payload), &rm)
-	if err == nil {
-		// message was sent from a different blocky instance
-		if !bytes.Equal(rm.Client, c.id) {
-			switch rm.Type {
-			case messageTypeCache:
-				var cm *CacheMessage
+	if err := json.Unmarshal([]byte(msg.Payload), &rm); err != nil {
+		c.l.Error("Processing error: ", err)
 
-				cm, err = convertMessage(&rm, 0)
-				if err == nil {
-					c.CacheChannel <- cm
-				}
-			case messageTypeEnable:
-				err = c.processEnabledMessage(&rm)
-			default:
-				c.l.Warn("Unknown message type: ", rm.Type)
+		return
+	}
+
+	// message was sent from a different blocky instance
+	if !bytes.Equal(rm.Client, c.id) {
+		switch rm.Type {
+		case messageTypeCache:
+			var cm *CacheMessage
+
+			cm, err := convertMessage(&rm, 0)
+			if err != nil {
+				c.l.Error("Processing CacheMessage error: ", err)
+
+				return
 			}
+
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				c.CacheChannel <- cm
+			}
+		case messageTypeEnable:
+			var msg EnabledMessage
+
+			if err := json.Unmarshal(rm.Message, &msg); err != nil {
+				c.l.Error("Processing EnabledMessage error: ", err)
+
+				return
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				c.EnabledChannel <- &msg
+			}
+		default:
+			c.l.Warn("Unknown message type: ", rm.Type)
 		}
 	}
-
-	if err != nil {
-		c.l.Error("Processing error: ", err)
-	}
-}
-
-func (c *Client) processEnabledMessage(redisMsg *redisMessage) error {
-	var msg EnabledMessage
-
-	err := json.Unmarshal(redisMsg.Message, &msg)
-	if err == nil {
-		c.EnabledChannel <- &msg
-	}
-
-	return err
 }
 
 // getResponse returns model.Response for a key

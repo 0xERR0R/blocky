@@ -317,14 +317,11 @@ var _ = Describe("Redis client", func() {
 				})
 
 				By("call GetRedisCache - It should read one entry from redis and propagate it via channel", func() {
-     redisClient2, err := New(ctx, redisConfig)
-				 Expect(err).Should(Succeed())
+					redisClient.GetRedisCache(ctx)
 
-					redisClient2.GetRedisCache(ctx)
-
-					Eventually(redisClient2.CacheChannel).Should(HaveLen(1))
+					Eventually(redisClient.CacheChannel).Should(HaveLen(1))
 				})
-			})
+			}, SpecTimeout(time.Second*4))
 		})
 		When("GetRedisCache is called and database contains not valid entry", func() {
 			It("Should do nothing (only log error)", func(ctx context.Context) {
