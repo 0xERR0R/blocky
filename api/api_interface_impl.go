@@ -29,8 +29,8 @@ type BlockingStatus struct {
 
 // BlockingControl interface to control the blocking status
 type BlockingControl interface {
-	EnableBlocking()
-	DisableBlocking(duration time.Duration, disableGroups []string) error
+	EnableBlocking(ctx context.Context)
+	DisableBlocking(ctx context.Context, duration time.Duration, disableGroups []string) error
 	BlockingStatus() BlockingStatus
 }
 
@@ -71,7 +71,7 @@ func NewOpenAPIInterfaceImpl(control BlockingControl,
 	}
 }
 
-func (i *OpenAPIInterfaceImpl) DisableBlocking(_ context.Context,
+func (i *OpenAPIInterfaceImpl) DisableBlocking(ctx context.Context,
 	request DisableBlockingRequestObject,
 ) (DisableBlockingResponseObject, error) {
 	var (
@@ -91,7 +91,7 @@ func (i *OpenAPIInterfaceImpl) DisableBlocking(_ context.Context,
 		groups = strings.Split(*request.Params.Groups, ",")
 	}
 
-	err = i.control.DisableBlocking(duration, groups)
+	err = i.control.DisableBlocking(ctx, duration, groups)
 
 	if err != nil {
 		return DisableBlocking400TextResponse(log.EscapeInput(err.Error())), nil
@@ -100,9 +100,9 @@ func (i *OpenAPIInterfaceImpl) DisableBlocking(_ context.Context,
 	return DisableBlocking200Response{}, nil
 }
 
-func (i *OpenAPIInterfaceImpl) EnableBlocking(_ context.Context, _ EnableBlockingRequestObject,
+func (i *OpenAPIInterfaceImpl) EnableBlocking(ctx context.Context, _ EnableBlockingRequestObject,
 ) (EnableBlockingResponseObject, error) {
-	i.control.EnableBlocking()
+	i.control.EnableBlocking(ctx)
 
 	return EnableBlocking200Response{}, nil
 }

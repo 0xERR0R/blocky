@@ -183,7 +183,7 @@ func (r *BlockingResolver) redisSubscriber(ctx context.Context) {
 				if em.State {
 					r.internalEnableBlocking()
 				} else {
-					err := r.internalDisableBlocking(em.Duration, em.Groups)
+					err := r.internalDisableBlocking(ctx, em.Duration, em.Groups)
 					if err != nil {
 						r.log().Warn("Blocking couldn't be disabled:", err)
 					}
@@ -216,11 +216,11 @@ func (r *BlockingResolver) retrieveAllBlockingGroups() []string {
 }
 
 // EnableBlocking enables the blocking against the blacklists
-func (r *BlockingResolver) EnableBlocking() {
+func (r *BlockingResolver) EnableBlocking(ctx context.Context) {
 	r.internalEnableBlocking()
 
 	if r.redisClient != nil {
-		r.redisClient.PublishEnabled(&redis.EnabledMessage{State: true})
+		r.redisClient.PublishEnabled(ctx, &redis.EnabledMessage{State: true})
 	}
 }
 
@@ -236,10 +236,10 @@ func (r *BlockingResolver) internalEnableBlocking() {
 }
 
 // DisableBlocking deactivates the blocking for a particular duration (or forever if 0).
-func (r *BlockingResolver) DisableBlocking(duration time.Duration, disableGroups []string) error {
-	err := r.internalDisableBlocking(duration, disableGroups)
+func (r *BlockingResolver) DisableBlocking(ctx context.Context, duration time.Duration, disableGroups []string) error {
+	err := r.internalDisableBlocking(ctx, duration, disableGroups)
 	if err == nil && r.redisClient != nil {
-		r.redisClient.PublishEnabled(&redis.EnabledMessage{
+		r.redisClient.PublishEnabled(ctx, &redis.EnabledMessage{
 			State:    false,
 			Duration: duration,
 			Groups:   disableGroups,
@@ -249,7 +249,9 @@ func (r *BlockingResolver) DisableBlocking(duration time.Duration, disableGroups
 	return err
 }
 
-func (r *BlockingResolver) internalDisableBlocking(duration time.Duration, disableGroups []string) error {
+func (r *BlockingResolver) internalDisableBlocking(ctx context.Context, duration time.Duration,
+	disableGroups []string,
+) error {
 	s := r.status
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -280,7 +282,7 @@ func (r *BlockingResolver) internalDisableBlocking(duration time.Duration, disab
 		log.Log().Infof("disable blocking for %s for group(s) '%s'", duration,
 			log.EscapeInput(strings.Join(s.disabledGroups, "; ")))
 		s.enableTimer = time.AfterFunc(duration, func() {
-			r.EnableBlocking()
+			r.EnableBlocking(ctx)
 			log.Log().Info("blocking enabled again")
 		})
 	}
