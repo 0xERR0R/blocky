@@ -65,6 +65,9 @@ var _ = Describe("Context utils", func() {
 				go startReader(ctx, ch)
 				ctx, cancel := context.WithCancel(ctx)
 				cancel()
+				// wait for context to properly be done
+				timer := time.NewTimer(time.Millisecond)
+				<-timer.C
 				Expect(CtxSend(ctx, ch, testMessage)).Should(BeFalse())
 			}, SpecTimeout(time.Second))
 		})
