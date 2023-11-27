@@ -165,7 +165,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 				})
 				When("first upstream exceeds upstreamTimeout", func() {
 					BeforeEach(func() {
-						timeout := sut.cfg.Timeout.ToDuration()
+						timeout := defaultUpstreamsConfig.Timeout.ToDuration()
 						testUpstream1 := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 							response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.1")
 							time.Sleep(2 * timeout)
@@ -194,7 +194,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 				})
 				When("all upstreams exceed upsteamTimeout", func() {
 					BeforeEach(func() {
-						timeout := sut.cfg.Timeout.ToDuration()
+						timeout := defaultUpstreamsConfig.Timeout.ToDuration()
 						testUpstream1 := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 							response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.1")
 							time.Sleep(2 * timeout)

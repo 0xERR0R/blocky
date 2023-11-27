@@ -148,10 +148,14 @@ var _ = Describe("Config", func() {
 
 	Describe("Creation of Config", func() {
 		When("Test config file will be parsed", func() {
-			It("should return a valid config struct", func() {
-				confFile := writeConfigYml(tmpDir)
-				Expect(confFile.Error).Should(Succeed())
+			var confFile *helpertest.TmpFile
 
+			BeforeEach(func() {
+				confFile = writeConfigYml(tmpDir)
+				Expect(confFile.Error).Should(Succeed())
+			})
+
+			It("should return a valid config struct", func() {
 				c, err = LoadConfig(confFile.Path, true)
 				Expect(err).Should(Succeed())
 
@@ -165,20 +169,19 @@ var _ = Describe("Config", func() {
 			})
 		})
 		When("Multiple config files are used", func() {
-			It("should return a valid config struct", func() {
+			BeforeEach(func() {
 				err = writeConfigDir(tmpDir)
 				Expect(err).Should(Succeed())
+			})
 
-				_, err := LoadConfig(tmpDir.Path, true)
+			It("should return a valid config struct", func() {
+				c, err := LoadConfig(tmpDir.Path, true)
 				Expect(err).Should(Succeed())
 
 				defaultTestFileConfig(c)
 			})
 
 			It("should ignore non YAML files", func() {
-				err = writeConfigDir(tmpDir)
-				Expect(err).Should(Succeed())
-
 				tmpDir.CreateStringFile("ignore-me.txt", "THIS SHOULD BE IGNORED!")
 
 				_, err := LoadConfig(tmpDir.Path, true)
@@ -186,9 +189,6 @@ var _ = Describe("Config", func() {
 			})
 
 			It("should ignore non regular files", func() {
-				err = writeConfigDir(tmpDir)
-				Expect(err).Should(Succeed())
-
 				tmpDir.CreateSubFolder("subfolder")
 				tmpDir.CreateSubFolder("subfolder.yml")
 
