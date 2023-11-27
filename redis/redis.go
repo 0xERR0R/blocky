@@ -12,6 +12,7 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/miekg/dns"
@@ -166,10 +167,8 @@ func (c *Client) GetRedisCache(ctx context.Context) {
 			response, err := c.getResponse(ctx, iter.Val())
 			if err == nil {
 				if response != nil {
-					select {
-					case <-ctx.Done():
+					if !util.CtxSend(ctx, c.CacheChannel, response) {
 						return
-					case c.CacheChannel <- response:
 					}
 				}
 			} else {
@@ -258,10 +257,7 @@ func (c *Client) processReceivedMessage(ctx context.Context, msg *redis.Message)
 				return
 			}
 
-			select {
-			case <-ctx.Done():
-			case c.CacheChannel <- cm:
-			}
+			util.CtxSend(ctx, c.CacheChannel, cm)
 		case messageTypeEnable:
 			var msg EnabledMessage
 
@@ -271,10 +267,7 @@ func (c *Client) processReceivedMessage(ctx context.Context, msg *redis.Message)
 				return
 			}
 
-			select {
-			case <-ctx.Done():
-			case c.EnabledChannel <- &msg:
-			}
+			util.CtxSend(ctx, c.EnabledChannel, &msg)
 		default:
 			c.l.Warn("Unknown message type: ", rm.Type)
 		}
