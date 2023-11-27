@@ -526,11 +526,11 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 }
 
 // Stop stops the server
-func (s *Server) Stop() error {
+func (s *Server) Stop(ctx context.Context) error {
 	logger().Info("Stopping server")
 
 	for _, server := range s.dnsServers {
-		if err := server.Shutdown(); err != nil {
+		if err := server.ShutdownContext(ctx); err != nil {
 			return fmt.Errorf("stop %s listener failed: %w", server.Net, err)
 		}
 	}
