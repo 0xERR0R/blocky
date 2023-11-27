@@ -31,18 +31,12 @@
         "GitHub.vscode-github-actions"
       ],
       "settings": {
-        "go.lintFlags": ["--config=${containerWorkspaceFolder}/.golangci.yml"],
+        "go.lintFlags": [
+          "--config=${containerWorkspaceFolder}/.golangci.yml",
+          "--fast"
+        ],
         "go.alternateTools": {
           "go-langserver": "gopls"
-        },
-        "[go]": {
-          "editor.defaultFormatter": "golang.go"
-        },
-        "[json][jsonc][github-actions-workflow]": {
-          "editor.defaultFormatter": "esbenp.prettier-vscode"
-        },
-        "[markdown]": {
-          "editor.defaultFormatter": "yzhang.markdown-all-in-one"
         },
         "markiscodecoverage.searchCriteria": "**/*.lcov",
         "runItOn": {
@@ -52,6 +46,15 @@
               "cmd": "${workspaceRoot}/.devcontainer/scripts/runItOnGo.sh ${fileDirname} ${workspaceRoot}"
             }
           ]
+        },
+        "[go]": {
+          "editor.defaultFormatter": "golang.go"
+        },
+        "[json][jsonc][github-actions-workflow]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[markdown]": {
+          "editor.defaultFormatter": "yzhang.markdown-all-in-one"
         }
       }
     }

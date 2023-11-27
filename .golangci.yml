@@ -98,3 +98,7 @@ issues:
         - gochecknoinits
         - gochecknoglobals
         - gosec
+    - path: _test\.go
+      linters:
+        - staticcheck
+      text: "SA1012:"

@@ -733,7 +733,7 @@ var _ = Describe("CachingResolver", func() {
 		var (
 			redisServer *miniredis.Miniredis
 			redisClient *redis.Client
-			redisConfig *config.RedisConfig
+			redisConfig *config.Redis
 			err         error
 		)
 		BeforeEach(func() {
@@ -741,14 +741,14 @@ var _ = Describe("CachingResolver", func() {
 
 			Expect(err).Should(Succeed())
 
-			var rcfg config.RedisConfig
+			var rcfg config.Redis
 			err = defaults.Set(&rcfg)
 
 			Expect(err).Should(Succeed())
 
 			rcfg.Address = redisServer.Addr()
 			redisConfig = &rcfg
-			redisClient, err = redis.New(redisConfig)
+			redisClient, err = redis.New(context.TODO(), redisConfig)
 
 			Expect(err).Should(Succeed())
 			Expect(redisClient).ShouldNot(BeNil())

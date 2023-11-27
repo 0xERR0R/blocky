@@ -60,7 +60,7 @@ func newCachingResolver(ctx context.Context,
 
 	if c.redisClient != nil {
 		go c.redisSubscriber(ctx)
-		c.redisClient.GetRedisCache()
+		c.redisClient.GetRedisCache(ctx)
 	}
 
 	return c

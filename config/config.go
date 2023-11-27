@@ -219,7 +219,7 @@ type Config struct {
 	Caching          CachingConfig       `yaml:"caching"`
 	QueryLog         QueryLogConfig      `yaml:"queryLog"`
 	Prometheus       MetricsConfig       `yaml:"prometheus"`
-	Redis            RedisConfig         `yaml:"redis"`
+	Redis            Redis               `yaml:"redis"`
 	Log              log.Config          `yaml:"log"`
 	Ports            PortsConfig         `yaml:"ports"`
 	MinTLSServeVer   TLSVersion          `yaml:"minTlsServeVersion" default:"1.2"`
@@ -279,20 +279,6 @@ type (
 		IPs      []net.IP `yaml:"ips"`
 	}
 )
-
-// RedisConfig configuration for the redis connection
-type RedisConfig struct {
-	Address            string   `yaml:"address"`
-	Username           string   `yaml:"username" default:""`
-	Password           string   `yaml:"password" default:""`
-	Database           int      `yaml:"database" default:"0"`
-	Required           bool     `yaml:"required" default:"false"`
-	ConnectionAttempts int      `yaml:"connectionAttempts" default:"3"`
-	ConnectionCooldown Duration `yaml:"connectionCooldown" default:"1s"`
-	SentinelUsername   string   `yaml:"sentinelUsername" default:""`
-	SentinelPassword   string   `yaml:"sentinelPassword" default:""`
-	SentinelAddresses  []string `yaml:"sentinelAddresses"`
-}
 
 type (
 	FQDNOnly = toEnable

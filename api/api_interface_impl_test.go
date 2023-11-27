@@ -37,11 +37,11 @@ func (m *ListRefreshMock) RefreshLists() error {
 	return args.Error(0)
 }
 
-func (m *BlockingControlMock) EnableBlocking() {
+func (m *BlockingControlMock) EnableBlocking(_ context.Context) {
 	_ = m.Called()
 }
 
-func (m *BlockingControlMock) DisableBlocking(t time.Duration, g []string) error {
+func (m *BlockingControlMock) DisableBlocking(_ context.Context, t time.Duration, g []string) error {
 	args := m.Called(t, g)
 
 	return args.Error(0)
