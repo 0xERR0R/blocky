@@ -187,7 +187,7 @@ var _ = BeforeSuite(func() {
 
 	// start server
 	go sut.Start(ctx, errChan)
-	DeferCleanup(func() { sut.Stop(ctx) })
+	DeferCleanup(func() { Expect(sut.Stop(ctx)).Should(Succeed()) })
 
 	Consistently(errChan, "1s").ShouldNot(Receive())
 })
