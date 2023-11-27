@@ -196,7 +196,6 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 						WithDelay(timeout / 2)
 					DeferCleanup(slowTestUpstream.Close)
 					upstreams = []config.Upstream{{Host: "wrong"}, slowTestUpstream.Start()}
-					Expect(err).Should(Succeed())
 				})
 				It("Should use result from successful resolver", func() {
 					request := newRequest("example.com.", A)
