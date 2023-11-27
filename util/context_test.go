@@ -13,7 +13,7 @@ const (
 )
 
 var _ = Describe("Context utils", func() {
-	Describe("ctxSend", func() {
+	Describe("CtxSend", func() {
 		var ch chan int
 		BeforeEach(func() {
 			ch = make(chan int, 1)
@@ -26,7 +26,7 @@ var _ = Describe("Context utils", func() {
 		When("channel is not closed", func() {
 			It("should send value to channel", func(ctx context.Context) {
 				go startReader(ctx, ch)
-				Expect(ctxSend(ctx, ch, testMessage)).Should(BeTrue())
+				Expect(CtxSend(ctx, ch, testMessage)).Should(BeTrue())
 			}, SpecTimeout(time.Second))
 		})
 
@@ -34,13 +34,13 @@ var _ = Describe("Context utils", func() {
 			It("should return false", func(ctx context.Context) {
 				go startReader(ctx, ch)
 				close(ch)
-				Expect(ctxSend(ctx, ch, testMessage)).Should(BeFalse())
+				Expect(CtxSend(ctx, ch, testMessage)).Should(BeFalse())
 			}, SpecTimeout(time.Second))
 		})
 
 		When("channel is nil", func() {
 			It("should return false", func(ctx context.Context) {
-				Expect(ctxSend(ctx, nil, testMessage)).Should(BeFalse())
+				Expect(CtxSend(ctx, nil, testMessage)).Should(BeFalse())
 			}, SpecTimeout(time.Second))
 		})
 
@@ -56,7 +56,7 @@ var _ = Describe("Context utils", func() {
 						return
 					}
 				}(ctx, ch)
-				Expect(ctxSend(ctx, ch, testMessage)).Should(BeTrue())
+				Expect(CtxSend(ctx, ch, testMessage)).Should(BeTrue())
 			}, SpecTimeout(time.Second))
 		})
 
@@ -65,19 +65,19 @@ var _ = Describe("Context utils", func() {
 				go startReader(ctx, ch)
 				ctx, cancel := context.WithCancel(ctx)
 				cancel()
-				Expect(ctxSend(ctx, ch, testMessage)).Should(BeFalse())
+				Expect(CtxSend(ctx, ch, testMessage)).Should(BeFalse())
 			}, SpecTimeout(time.Second))
 		})
 
 		When("context is nil", func() {
 			It("should return false", func(ctx context.Context) {
-				Expect(ctxSend(nil, ch, testMessage)).Should(BeFalse())
+				Expect(CtxSend(nil, ch, testMessage)).Should(BeFalse())
 			}, SpecTimeout(time.Second))
 		})
 
 		When("context and channel are nil", func() {
 			It("should return false", func(ctx context.Context) {
-				Expect(ctxSend(nil, nil, testMessage)).Should(BeFalse())
+				Expect(CtxSend(nil, nil, testMessage)).Should(BeFalse())
 			}, SpecTimeout(time.Second))
 		})
 
@@ -87,7 +87,7 @@ var _ = Describe("Context utils", func() {
 				ctx, cancel := context.WithCancel(ctx)
 				cancel()
 				close(ch)
-				Expect(ctxSend(ctx, ch, testMessage)).Should(BeFalse())
+				Expect(CtxSend(ctx, ch, testMessage)).Should(BeFalse())
 			}, SpecTimeout(time.Second))
 		})
 	})
