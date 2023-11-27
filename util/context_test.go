@@ -63,12 +63,27 @@ var _ = Describe("Context utils", func() {
 		When("context is done", func() {
 			It("should return false", func(ctx context.Context) {
 				go startReader(ctx, ch)
-				ctx, cancel := context.WithCancel(ctx)
+				cCtx, cancel := context.WithCancel(ctx)
 				cancel()
-				// wait for context to properly be done
-				timer := time.NewTimer(time.Millisecond)
-				<-timer.C
-				Expect(CtxSend(ctx, ch, testMessage)).Should(BeFalse())
+				<-cCtx.Done()
+				Expect(CtxSend(cCtx, ch, testMessage)).Should(BeFalse())
+			}, SpecTimeout(time.Second))
+		})
+
+		When("context is terminated", func() {
+			It("should return false", func(ctx context.Context) {
+				ch <- testMessage
+				cCtx, cancel := context.WithCancel(ctx)
+				go func(ctx context.Context, cancel context.CancelFunc) {
+					timer := time.NewTimer(time.Millisecond * 200)
+					select {
+					case <-timer.C:
+						cancel()
+					case <-ctx.Done():
+						return
+					}
+				}(ctx, cancel)
+				Expect(CtxSend(cCtx, ch, testMessage)).Should(BeFalse())
 			}, SpecTimeout(time.Second))
 		})
 

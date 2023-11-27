@@ -6,8 +6,10 @@ import "context"
 // If the message is sent, it returns true.
 // If the context is done or the channel is closed, it returns false.
 func CtxSend[T any](ctx context.Context, ch chan T, val T) (ok bool) {
-	if ctx == nil || ch == nil {
-		return false
+	if ctx == nil || ch == nil || ctx.Err() != nil {
+		ok = false
+
+		return
 	}
 
 	defer func() {
