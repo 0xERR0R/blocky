@@ -416,6 +416,7 @@ func (s *Server) registerDNSHandlers(ctx context.Context) {
 	wrappedOnRequest := func(w dns.ResponseWriter, request *dns.Msg) {
 		s.OnRequest(ctx, w, request)
 	}
+
 	for _, server := range s.dnsServers {
 		handler := server.Handler.(*dns.ServeMux)
 		handler.HandleFunc(".", wrappedOnRequest)
