@@ -63,7 +63,7 @@ func startServer(_ *cobra.Command, _ []string) error {
 		select {
 		case <-signals:
 			log.Log().Infof("Terminating...")
-			util.LogOnError("can't stop server: ", srv.Stop())
+			util.LogOnError("can't stop server: ", srv.Stop(ctx))
 			done <- true
 
 		case err := <-errChan:

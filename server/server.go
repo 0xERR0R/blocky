@@ -161,7 +161,7 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 
 	server.printConfiguration()
 
-	server.registerDNSHandlers()
+	server.registerDNSHandlers(ctx)
 	err = server.registerAPIEndpoints(httpRouter)
 
 	if err != nil {
@@ -415,10 +415,14 @@ func createQueryResolver(
 	return r, nil
 }
 
-func (s *Server) registerDNSHandlers() {
+func (s *Server) registerDNSHandlers(ctx context.Context) {
+	wrappedOnRequest := func(w dns.ResponseWriter, request *dns.Msg) {
+		s.OnRequest(ctx, w, request)
+	}
+
 	for _, server := range s.dnsServers {
 		handler := server.Handler.(*dns.ServeMux)
-		handler.HandleFunc(".", s.OnRequest)
+		handler.HandleFunc(".", wrappedOnRequest)
 		handler.HandleFunc("healthcheck.blocky", s.OnHealthCheck)
 	}
 }
@@ -534,11 +538,11 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 }
 
 // Stop stops the server
-func (s *Server) Stop() error {
+func (s *Server) Stop(ctx context.Context) error {
 	logger().Info("Stopping server")
 
 	for _, server := range s.dnsServers {
-		if err := server.Shutdown(); err != nil {
+		if err := server.ShutdownContext(ctx); err != nil {
 			return fmt.Errorf("stop %s listener failed: %w", server.Net, err)
 		}
 	}
@@ -591,12 +595,12 @@ func newRequest(clientIP net.IP, protocol model.RequestProtocol,
 }
 
 // OnRequest will be executed if a new DNS request is received
-func (s *Server) OnRequest(w dns.ResponseWriter, request *dns.Msg) {
+func (s *Server) OnRequest(ctx context.Context, w dns.ResponseWriter, request *dns.Msg) {
 	logger().Debug("new request")
 
 	r := createResolverRequest(w, request)
 
-	response, err := s.queryResolver.Resolve(context.Background(), r)
+	response, err := s.queryResolver.Resolve(ctx, r)
 
 	if err != nil {
 		logger().Error("error on processing request:", err)

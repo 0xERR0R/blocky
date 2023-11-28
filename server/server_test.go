@@ -187,7 +187,7 @@ var _ = BeforeSuite(func() {
 
 	// start server
 	go sut.Start(ctx, errChan)
-	DeferCleanup(sut.Stop)
+	DeferCleanup(func() { Expect(sut.Stop(ctx)).Should(Succeed()) })
 
 	Consistently(errChan, "1s").ShouldNot(Receive())
 })
@@ -681,13 +681,13 @@ var _ = Describe("Running DNS server", func() {
 
 				time.Sleep(100 * time.Millisecond)
 
-				err = server.Stop()
+				err = server.Stop(ctx)
 
 				// stop server, should be ok
 				Expect(err).Should(Succeed())
 
 				// stop again, should raise error
-				err = server.Stop()
+				err = server.Stop(ctx)
 
 				Expect(err).Should(HaveOccurred())
 			})
