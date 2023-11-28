@@ -46,8 +46,8 @@ var _ = Describe("Redis configuration tests", func() {
 
 	Describe("Cache sharing between blocky instances", func() {
 		When("Redis and 2 blocky instances are configured", func() {
-			BeforeEach(func() {
-				blocky1, err = createBlockyContainer(tmpDir,
+			BeforeEach(func(ctx context.Context) {
+				blocky1, err = createBlockyContainer(ctx, tmpDir,
 					"log:",
 					"  level: warn",
 					"upstreams:",
@@ -61,7 +61,7 @@ var _ = Describe("Redis configuration tests", func() {
 				Expect(err).Should(Succeed())
 				DeferCleanup(blocky1.Terminate)
 
-				blocky2, err = createBlockyContainer(tmpDir,
+				blocky2, err = createBlockyContainer(ctx, tmpDir,
 					"log:",
 					"  level: warn",
 					"upstreams:",
@@ -113,8 +113,8 @@ var _ = Describe("Redis configuration tests", func() {
 
 	Describe("Cache loading on startup", func() {
 		When("Redis and 1 blocky instance are configured", func() {
-			BeforeEach(func() {
-				blocky1, err = createBlockyContainer(tmpDir,
+			BeforeEach(func(ctx context.Context) {
+				blocky1, err = createBlockyContainer(ctx, tmpDir,
 					"log:",
 					"  level: warn",
 					"upstreams:",
@@ -128,7 +128,7 @@ var _ = Describe("Redis configuration tests", func() {
 				Expect(err).Should(Succeed())
 				DeferCleanup(blocky1.Terminate)
 			})
-			It("should load cache from redis after start", func() {
+			It("should load cache from redis after start", func(ctx context.Context) {
 				msg := util.NewMsgWithQuestion("google.de.", A)
 				By("Query first blocky instance, should store cache in redis\"", func() {
 					Eventually(doDNSRequest, "5s", "2ms").WithArguments(blocky1, msg).
@@ -144,7 +144,7 @@ var _ = Describe("Redis configuration tests", func() {
 				})
 
 				By("start other instance of blocky now -> it should load the cache from redis", func() {
-					blocky2, err = createBlockyContainer(tmpDir,
+					blocky2, err = createBlockyContainer(ctx, tmpDir,
 						"log:",
 						"  level: warn",
 						"upstreams:",

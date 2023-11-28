@@ -22,8 +22,8 @@ var _ = Describe("External lists and query blocking", func() {
 	Describe("List download on startup", func() {
 		When("external blacklist ist not available", func() {
 			Context("loading.strategy = blocking", func() {
-				BeforeEach(func() {
-					blocky, err = createBlockyContainer(tmpDir,
+				BeforeEach(func(ctx context.Context) {
+					blocky, err = createBlockyContainer(ctx, tmpDir,
 						"log:",
 						"  level: warn",
 						"upstreams:",
@@ -45,10 +45,10 @@ var _ = Describe("External lists and query blocking", func() {
 					DeferCleanup(blocky.Terminate)
 				})
 
-				It("should start with warning in log work without errors", func() {
+				It("should start with warning in log work without errors", func(ctx context.Context) {
 					msg := util.NewMsgWithQuestion("google.com.", A)
 
-					Expect(doDNSRequest(blocky, msg)).
+					Expect(doDNSRequest(ctx, blocky, msg)).
 						Should(
 							SatisfyAll(
 								BeDNSRecord("google.com.", A, "1.2.3.4"),
@@ -59,8 +59,8 @@ var _ = Describe("External lists and query blocking", func() {
 				})
 			})
 			Context("loading.strategy = failOnError", func() {
-				BeforeEach(func() {
-					blocky, err = createBlockyContainer(tmpDir,
+				BeforeEach(func(ctx context.Context) {
+					blocky, err = createBlockyContainer(ctx, tmpDir,
 						"log:",
 						"  level: warn",
 						"upstreams:",
@@ -99,13 +99,13 @@ var _ = Describe("External lists and query blocking", func() {
 	})
 	Describe("Query blocking against external blacklists", func() {
 		When("external blacklists are defined and available", func() {
-			BeforeEach(func() {
+			BeforeEach(func(ctx context.Context) {
 				httpServer, err = createHTTPServerContainer("httpserver", tmpDir, "list.txt", "blockeddomain.com")
 
 				Expect(err).Should(Succeed())
 				DeferCleanup(httpServer.Terminate)
 
-				blocky, err = createBlockyContainer(tmpDir,
+				blocky, err = createBlockyContainer(ctx, tmpDir,
 					"log:",
 					"  level: warn",
 					"upstreams:",
@@ -124,10 +124,10 @@ var _ = Describe("External lists and query blocking", func() {
 				Expect(err).Should(Succeed())
 				DeferCleanup(blocky.Terminate)
 			})
-			It("should download external list on startup and block queries", func() {
+			It("should download external list on startup and block queries", func(ctx context.Context) {
 				msg := util.NewMsgWithQuestion("blockeddomain.com.", A)
 
-				Expect(doDNSRequest(blocky, msg)).
+				Expect(doDNSRequest(ctx, blocky, msg)).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("blockeddomain.com.", A, "0.0.0.0"),

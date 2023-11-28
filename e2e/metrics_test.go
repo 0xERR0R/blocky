@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -20,7 +21,7 @@ var _ = Describe("Metrics functional tests", func() {
 	var metricsURL string
 
 	Describe("Metrics", func() {
-		BeforeEach(func() {
+		BeforeEach(func(ctx context.Context) {
 			moka, err = createDNSMokkaContainer("moka1", `A google/NOERROR("A 1.2.3.4 123")`)
 
 			Expect(err).Should(Succeed())
@@ -36,7 +37,7 @@ var _ = Describe("Metrics functional tests", func() {
 			Expect(err).Should(Succeed())
 			DeferCleanup(httpServer2.Terminate)
 
-			blocky, err = createBlockyContainer(tmpDir,
+			blocky, err = createBlockyContainer(ctx, tmpDir,
 				"upstreams:",
 				"  groups:",
 				"    default:",
@@ -56,7 +57,7 @@ var _ = Describe("Metrics functional tests", func() {
 			Expect(err).Should(Succeed())
 			DeferCleanup(blocky.Terminate)
 
-			host, port, err := getContainerHostPort(blocky, "4000/tcp")
+			host, port, err := getContainerHostPort(ctx, blocky, "4000/tcp")
 			Expect(err).Should(Succeed())
 
 			metricsURL = fmt.Sprintf("http://%s/metrics", net.JoinHostPort(host, port))
@@ -84,11 +85,11 @@ var _ = Describe("Metrics functional tests", func() {
 						))
 			})
 
-			It("Should increment cache counts", func() {
+			It("Should increment cache counts", func(ctx context.Context) {
 				msg := util.NewMsgWithQuestion("google.de.", A)
 
 				By("first query, should increment the cache miss count and the total count", func() {
-					Expect(doDNSRequest(blocky, msg)).
+					Expect(doDNSRequest(ctx, blocky, msg)).
 						Should(
 							SatisfyAll(
 								BeDNSRecord("google.de.", A, "1.2.3.4"),
@@ -105,7 +106,7 @@ var _ = Describe("Metrics functional tests", func() {
 				})
 
 				By("Same query again, should increment the cache hit count", func() {
-					Expect(doDNSRequest(blocky, msg)).
+					Expect(doDNSRequest(ctx, blocky, msg)).
 						Should(
 							SatisfyAll(
 								BeDNSRecord("google.de.", A, "1.2.3.4"),

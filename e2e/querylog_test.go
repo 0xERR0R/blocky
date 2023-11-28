@@ -30,12 +30,12 @@ var _ = Describe("Query logs functional tests", func() {
 	})
 
 	Describe("Query logging into the mariaDB database", func() {
-		BeforeEach(func() {
+		BeforeEach(func(ctx context.Context) {
 			mariaDB, err = createMariaDBContainer()
 			Expect(err).Should(Succeed())
 			DeferCleanup(mariaDB.Terminate)
 
-			blocky, err = createBlockyContainer(tmpDir,
+			blocky, err = createBlockyContainer(ctx, tmpDir,
 				"log:",
 				"  level: warn",
 				"upstreams:",
@@ -67,10 +67,12 @@ var _ = Describe("Query logs functional tests", func() {
 			Eventually(countEntries).WithArguments(db).Should(BeNumerically("==", 0))
 		})
 		When("Some queries were performed", func() {
-			It("Should store query log in the mariaDB database", func() {
+			It("Should store query log in the mariaDB database", func(ctx context.Context) {
 				By("Performing 2 queries", func() {
-					Expect(doDNSRequest(blocky, util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)))).Should(Not(BeNil()))
-					Expect(doDNSRequest(blocky, util.NewMsgWithQuestion("unknown.domain.", dns.Type(dns.TypeA)))).Should(Not(BeNil()))
+					Expect(doDNSRequest(ctx, blocky,
+						util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)))).Should(Not(BeNil()))
+					Expect(doDNSRequest(ctx, blocky,
+						util.NewMsgWithQuestion("unknown.domain.", dns.Type(dns.TypeA)))).Should(Not(BeNil()))
 				})
 
 				By("check entries count asynchronously, since blocky flushes log entries in bulk", func() {
@@ -108,12 +110,12 @@ var _ = Describe("Query logs functional tests", func() {
 	})
 
 	Describe("Query logging into the postgres database", func() {
-		BeforeEach(func() {
+		BeforeEach(func(ctx context.Context) {
 			postgresDB, err = createPostgresContainer()
 			Expect(err).Should(Succeed())
 			DeferCleanup(postgresDB.Terminate)
 
-			blocky, err = createBlockyContainer(tmpDir,
+			blocky, err = createBlockyContainer(ctx, tmpDir,
 				"log:",
 				"  level: warn",
 				"upstreams:",
@@ -143,10 +145,10 @@ var _ = Describe("Query logs functional tests", func() {
 		})
 		When("Some queries were performed", func() {
 			msg := util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA))
-			It("Should store query log in the postgres database", func() {
+			It("Should store query log in the postgres database", func(ctx context.Context) {
 				By("Performing 2 queries", func() {
-					Expect(doDNSRequest(blocky, msg)).Should(Not(BeNil()))
-					Expect(doDNSRequest(blocky, msg)).Should(Not(BeNil()))
+					Expect(doDNSRequest(ctx, blocky, msg)).Should(Not(BeNil()))
+					Expect(doDNSRequest(ctx, blocky, msg)).Should(Not(BeNil()))
 				})
 
 				By("check entries count asynchronously, since blocky flushes log entries in bulk", func() {

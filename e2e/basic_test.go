@@ -25,8 +25,8 @@ var _ = Describe("Basic functional tests", func() {
 			DeferCleanup(moka.Terminate)
 		})
 		When("wrong port configuration is provided", func() {
-			BeforeEach(func() {
-				blocky, err = createBlockyContainer(tmpDir,
+			BeforeEach(func(ctx context.Context) {
+				blocky, err = createBlockyContainer(ctx, tmpDir,
 					"upstreams:",
 					"  groups:",
 					"    default:",
@@ -52,8 +52,8 @@ var _ = Describe("Basic functional tests", func() {
 			})
 		})
 		When("Minimal configuration is provided", func() {
-			BeforeEach(func() {
-				blocky, err = createBlockyContainer(tmpDir,
+			BeforeEach(func(ctx context.Context) {
+				blocky, err = createBlockyContainer(ctx, tmpDir,
 					"upstreams:",
 					"  groups:",
 					"    default:",
@@ -63,10 +63,10 @@ var _ = Describe("Basic functional tests", func() {
 				Expect(err).Should(Succeed())
 				DeferCleanup(blocky.Terminate)
 			})
-			It("Should start and answer DNS queries", func() {
+			It("Should start and answer DNS queries", func(ctx context.Context) {
 				msg := util.NewMsgWithQuestion("google.de.", A)
 
-				Expect(doDNSRequest(blocky, msg)).
+				Expect(doDNSRequest(ctx, blocky, msg)).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("google.de.", A, "1.2.3.4"),
@@ -84,8 +84,8 @@ var _ = Describe("Basic functional tests", func() {
 		})
 		Context("http port configuration", func() {
 			When("'httpPort' is not defined", func() {
-				BeforeEach(func() {
-					blocky, err = createBlockyContainer(tmpDir,
+				BeforeEach(func(ctx context.Context) {
+					blocky, err = createBlockyContainer(ctx, tmpDir,
 						"upstreams:",
 						"  groups:",
 						"    default:",
@@ -96,8 +96,8 @@ var _ = Describe("Basic functional tests", func() {
 					DeferCleanup(blocky.Terminate)
 				})
 
-				It("should not open http port", func() {
-					host, port, err := getContainerHostPort(blocky, "4000/tcp")
+				It("should not open http port", func(ctx context.Context) {
+					host, port, err := getContainerHostPort(ctx, blocky, "4000/tcp")
 					Expect(err).Should(Succeed())
 
 					_, err = http.Get(fmt.Sprintf("http://%s", net.JoinHostPort(host, port)))
@@ -105,8 +105,8 @@ var _ = Describe("Basic functional tests", func() {
 				})
 			})
 			When("'httpPort' is defined", func() {
-				BeforeEach(func() {
-					blocky, err = createBlockyContainer(tmpDir,
+				BeforeEach(func(ctx context.Context) {
+					blocky, err = createBlockyContainer(ctx, tmpDir,
 						"upstreams:",
 						"  groups:",
 						"    default:",
@@ -118,8 +118,8 @@ var _ = Describe("Basic functional tests", func() {
 					Expect(err).Should(Succeed())
 					DeferCleanup(blocky.Terminate)
 				})
-				It("should serve http content", func() {
-					host, port, err := getContainerHostPort(blocky, "4000/tcp")
+				It("should serve http content", func(ctx context.Context) {
+					host, port, err := getContainerHostPort(ctx, blocky, "4000/tcp")
 					Expect(err).Should(Succeed())
 					url := fmt.Sprintf("http://%s", net.JoinHostPort(host, port))
 
@@ -149,8 +149,8 @@ var _ = Describe("Basic functional tests", func() {
 			DeferCleanup(moka.Terminate)
 		})
 		When("log privacy is enabled", func() {
-			BeforeEach(func() {
-				blocky, err = createBlockyContainer(tmpDir,
+			BeforeEach(func(ctx context.Context) {
+				blocky, err = createBlockyContainer(ctx, tmpDir,
 					"upstreams:",
 					"  groups:",
 					"    default:",
@@ -162,19 +162,19 @@ var _ = Describe("Basic functional tests", func() {
 				Expect(err).Should(Succeed())
 				DeferCleanup(blocky.Terminate)
 			})
-			It("should not log answers and questions", func() {
+			It("should not log answers and questions", func(ctx context.Context) {
 				msg := util.NewMsgWithQuestion("google.com.", A)
 
 				// do 2 requests
 
-				Expect(doDNSRequest(blocky, msg)).
+				Expect(doDNSRequest(ctx, blocky, msg)).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("google.com.", A, "1.2.3.4"),
 							HaveTTL(BeNumerically("==", 123)),
 						))
 
-				Expect(doDNSRequest(blocky, msg)).
+				Expect(doDNSRequest(ctx, blocky, msg)).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("google.com.", A, "1.2.3.4"),
