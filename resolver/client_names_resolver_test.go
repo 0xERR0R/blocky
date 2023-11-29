@@ -161,7 +161,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 				BeforeEach(func() {
 					testUpstream = NewMockUDPUpstreamServer().
 						WithAnswerRR("25.178.168.192.in-addr.arpa. 600 IN PTR host1")
-					DeferCleanup(testUpstream.Close)
+
 					sutConfig = config.ClientLookup{
 						Upstream: testUpstream.Start(),
 					}
@@ -217,7 +217,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 				BeforeEach(func() {
 					testUpstream = NewMockUDPUpstreamServer().
 						WithAnswerRR("25.178.168.192.in-addr.arpa. 600 IN PTR myhost1", "25.178.168.192.in-addr.arpa. 600 IN PTR myhost2")
-					DeferCleanup(testUpstream.Close)
+
 					sutConfig = config.ClientLookup{
 						Upstream: testUpstream.Start(),
 					}
@@ -247,7 +247,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 				BeforeEach(func() {
 					testUpstream = NewMockUDPUpstreamServer().
 						WithAnswerRR("25.178.168.192.in-addr.arpa. 600 IN PTR host1")
-					DeferCleanup(testUpstream.Close)
+
 					sutConfig.Upstream = testUpstream.Start()
 				})
 
@@ -268,7 +268,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 				BeforeEach(func() {
 					testUpstream = NewMockUDPUpstreamServer().
 						WithAnswerRR("25.178.168.192.in-addr.arpa. 600 IN PTR myhost1", "25.178.168.192.in-addr.arpa. 600 IN PTR myhost2")
-					DeferCleanup(testUpstream.Close)
+
 					sutConfig.Upstream = testUpstream.Start()
 				})
 
@@ -292,7 +292,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 				BeforeEach(func() {
 					testUpstream = NewMockUDPUpstreamServer().
 						WithAnswerError(dns.RcodeNameError)
-					DeferCleanup(testUpstream.Close)
+
 					sutConfig = config.ClientLookup{
 						Upstream: testUpstream.Start(),
 					}

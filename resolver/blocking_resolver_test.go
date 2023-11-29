@@ -29,7 +29,6 @@ var (
 var _ = BeforeSuite(func() {
 	tmpDir = NewTmpFolder("BlockingResolver")
 	Expect(tmpDir.Error).Should(Succeed())
-	DeferCleanup(tmpDir.Clean)
 
 	group1File = tmpDir.CreateStringFile("group1File", "DOMAIN1.com")
 	Expect(group1File.Error).Should(Succeed())

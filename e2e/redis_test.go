@@ -10,20 +10,16 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
-	redisTc "github.com/testcontainers/testcontainers-go/modules/redis"
 )
 
 var _ = Describe("Redis configuration tests", func() {
-	var blocky1, blocky2, moka testcontainers.Container
-	var redisDB *redisTc.RedisContainer
+	var blocky1, blocky2, mokka testcontainers.Container
 	var redisClient *redis.Client
 	var err error
 
 	BeforeEach(func(ctx context.Context) {
-		redisDB, err = createRedisContainer(ctx)
-
+		redisDB, err := createRedisContainer(ctx)
 		Expect(err).Should(Succeed())
-		DeferCleanup(redisDB.Terminate)
 
 		redisConnectionString, err := redisDB.ConnectionString(ctx)
 		Expect(err).Should(Succeed())
@@ -36,12 +32,8 @@ var _ = Describe("Redis configuration tests", func() {
 
 		Expect(dbSize(ctx, redisClient)).Should(BeNumerically("==", 0))
 
-		moka, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`)
-
+		mokka, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`)
 		Expect(err).Should(Succeed())
-		DeferCleanup(func(ctx context.Context) {
-			_ = moka.Terminate(ctx)
-		})
 	})
 
 	Describe("Cache sharing between blocky instances", func() {
@@ -57,9 +49,7 @@ var _ = Describe("Redis configuration tests", func() {
 					"redis:",
 					"  address: redis:6379",
 				)
-
 				Expect(err).Should(Succeed())
-				DeferCleanup(blocky1.Terminate)
 
 				blocky2, err = createBlockyContainer(ctx, tmpDir,
 					"log:",
@@ -71,9 +61,7 @@ var _ = Describe("Redis configuration tests", func() {
 					"redis:",
 					"  address: redis:6379",
 				)
-
 				Expect(err).Should(Succeed())
-				DeferCleanup(blocky2.Terminate)
 			})
 			It("2nd instance of blocky should use cache from redis", func(ctx context.Context) {
 				msg := util.NewMsgWithQuestion("google.de.", A)
@@ -91,7 +79,7 @@ var _ = Describe("Redis configuration tests", func() {
 				})
 
 				By("Shutdown the upstream DNS server", func() {
-					Expect(moka.Terminate(ctx)).Should(Succeed())
+					Expect(mokka.Terminate(ctx)).Should(Succeed())
 				})
 
 				By("Query second blocky instance, should use cache from redis", func() {
@@ -124,9 +112,7 @@ var _ = Describe("Redis configuration tests", func() {
 					"redis:",
 					"  address: redis:6379",
 				)
-
 				Expect(err).Should(Succeed())
-				DeferCleanup(blocky1.Terminate)
 			})
 			It("should load cache from redis after start", func(ctx context.Context) {
 				msg := util.NewMsgWithQuestion("google.de.", A)
@@ -154,13 +140,11 @@ var _ = Describe("Redis configuration tests", func() {
 						"redis:",
 						"  address: redis:6379",
 					)
-
 					Expect(err).Should(Succeed())
-					DeferCleanup(blocky2.Terminate)
 				})
 
 				By("Shutdown the upstream DNS server", func() {
-					Expect(moka.Terminate(ctx)).Should(Succeed())
+					Expect(mokka.Terminate(ctx)).Should(Succeed())
 				})
 
 				By("Query second blocky instance", func() {

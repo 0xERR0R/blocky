@@ -54,6 +54,6 @@ var _ = BeforeSuite(func(ctx context.Context) {
 
 	tmpDir = helpertest.NewTmpFolder("config")
 	Expect(tmpDir.Error).Should(Succeed())
-	DeferCleanup(tmpDir.Clean)
+
 	SetDefaultEventuallyTimeout(5 * time.Second)
 })

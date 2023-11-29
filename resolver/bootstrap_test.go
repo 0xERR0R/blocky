@@ -313,7 +313,6 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 				}
 
 				mockUpstreamServer := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
-				DeferCleanup(mockUpstreamServer.Close)
 				upstream := mockUpstreamServer.Start()
 
 				upstreamIP := upstream.Host
@@ -571,10 +570,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 		BeforeEach(func() {
 			mockUpstream1 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
-			DeferCleanup(mockUpstream1.Close)
-
 			mockUpstream2 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
-			DeferCleanup(mockUpstream1.Close)
 
 			sutConfig.BootstrapDNS = []config.BootstrappedUpstreamConfig{
 				{Upstream: mockUpstream1.Start()},

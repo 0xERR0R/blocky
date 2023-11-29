@@ -26,7 +26,6 @@ var _ = Describe("FileWriter", func() {
 	JustBeforeEach(func() {
 		tmpDir = helpertest.NewTmpFolder("fileWriter")
 		Expect(tmpDir.Error).Should(Succeed())
-		DeferCleanup(tmpDir.Clean)
 	})
 
 	Describe("CSV writer", func() {

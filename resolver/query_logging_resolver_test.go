@@ -62,7 +62,6 @@ var _ = Describe("QueryLoggingResolver", func() {
 		mockAnswer = new(dns.Msg)
 		tmpDir = NewTmpFolder("queryLoggingResolver")
 		Expect(tmpDir.Error).Should(Succeed())
-		DeferCleanup(tmpDir.Clean)
 	})
 
 	JustBeforeEach(func() {

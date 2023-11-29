@@ -34,7 +34,6 @@ var _ = Describe("root command", func() {
 
 			tmpDir = NewTmpFolder("RootCommand")
 			Expect(tmpDir.Error).Should(Succeed())
-			DeferCleanup(tmpDir.Clean)
 
 			tmpFile = tmpDir.CreateStringFile("config",
 				"upstreams:",

@@ -42,7 +42,6 @@ var _ = Describe("HostsFileResolver", func() {
 
 		tmpDir = NewTmpFolder("HostsFileResolver")
 		Expect(tmpDir.Error).Should(Succeed())
-		DeferCleanup(tmpDir.Clean)
 
 		tmpFile = writeHostFile(tmpDir)
 		Expect(tmpFile.Error).Should(Succeed())

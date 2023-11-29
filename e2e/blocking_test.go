@@ -11,13 +11,11 @@ import (
 )
 
 var _ = Describe("External lists and query blocking", func() {
-	var blocky, httpServer, moka testcontainers.Container
+	var blocky testcontainers.Container
 	var err error
 	BeforeEach(func(ctx context.Context) {
-		moka, err = createDNSMokkaContainer(ctx, "moka", `A google/NOERROR("A 1.2.3.4 123")`)
-
+		_, err = createDNSMokkaContainer(ctx, "moka", `A google/NOERROR("A 1.2.3.4 123")`)
 		Expect(err).Should(Succeed())
-		DeferCleanup(moka.Terminate)
 	})
 	Describe("List download on startup", func() {
 		When("external blacklist ist not available", func() {
@@ -40,9 +38,7 @@ var _ = Describe("External lists and query blocking", func() {
 						"    default:",
 						"      - ads",
 					)
-
 					Expect(err).Should(Succeed())
-					DeferCleanup(blocky.Terminate)
 				})
 
 				It("should start with warning in log work without errors", func(ctx context.Context) {
@@ -77,15 +73,12 @@ var _ = Describe("External lists and query blocking", func() {
 						"    default:",
 						"      - ads",
 					)
-
 					Expect(err).Should(HaveOccurred())
 
 					// check container exit status
 					state, err := blocky.State(ctx)
 					Expect(err).Should(Succeed())
 					Expect(state.ExitCode).Should(Equal(1))
-
-					DeferCleanup(blocky.Terminate)
 				})
 
 				It("should fail to start", func(ctx context.Context) {
@@ -100,10 +93,8 @@ var _ = Describe("External lists and query blocking", func() {
 	Describe("Query blocking against external blacklists", func() {
 		When("external blacklists are defined and available", func() {
 			BeforeEach(func(ctx context.Context) {
-				httpServer, err = createHTTPServerContainer(ctx, "httpserver", tmpDir, "list.txt", "blockeddomain.com")
-
+				_, err = createHTTPServerContainer(ctx, "httpserver", tmpDir, "list.txt", "blockeddomain.com")
 				Expect(err).Should(Succeed())
-				DeferCleanup(httpServer.Terminate)
 
 				blocky, err = createBlockyContainer(ctx, tmpDir,
 					"log:",
@@ -122,7 +113,6 @@ var _ = Describe("External lists and query blocking", func() {
 				)
 
 				Expect(err).Should(Succeed())
-				DeferCleanup(blocky.Terminate)
 			})
 			It("should download external list on startup and block queries", func(ctx context.Context) {
 				msg := util.NewMsgWithQuestion("blockeddomain.com.", A)

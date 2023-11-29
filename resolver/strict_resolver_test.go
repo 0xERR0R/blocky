@@ -103,7 +103,6 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 
 				return
 			})
-			DeferCleanup(mockUpstream.Close)
 
 			upstreams = []config.Upstream{
 				{Host: "wrong"},
@@ -148,11 +147,8 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 			When("Both are responding", func() {
 				When("they respond in time", func() {
 					BeforeEach(func() {
-						testUpstream1 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
-						DeferCleanup(testUpstream1.Close)
-
-						testUpstream2 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.123")
-						DeferCleanup(testUpstream2.Close)
+						testUpstream1 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
+						testUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.123")
 
 						upstreams = []config.Upstream{testUpstream1.Start(), testUpstream2.Start()}
 					})
@@ -178,10 +174,8 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 
 							return response
 						})
-						DeferCleanup(testUpstream1.Close)
 
-						testUpstream2 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.2")
-						DeferCleanup(testUpstream2.Close)
+						testUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.2")
 
 						upstreams = []config.Upstream{testUpstream1.Start(), testUpstream2.Start()}
 					})
@@ -206,7 +200,6 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 
 							return response
 						})
-						DeferCleanup(testUpstream1.Close)
 
 						testUpstream2 = NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 							response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.2")
@@ -216,7 +209,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 
 							return response
 						})
-						DeferCleanup(testUpstream2.Close)
+
 						upstreams = []config.Upstream{testUpstream1.Start(), testUpstream2.Start()}
 					})
 					It("should return error", func() {
@@ -228,8 +221,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 			})
 			When("Only second is working", func() {
 				BeforeEach(func() {
-					testUpstream2 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.123")
-					DeferCleanup(testUpstream2.Close)
+					testUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.123")
 
 					upstreams = []config.Upstream{{Host: "wrong"}, testUpstream2.Start()}
 				})
@@ -260,7 +252,6 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 		When("only 1 upstream resolvers is defined", func() {
 			BeforeEach(func() {
 				mockUpstream := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
-				DeferCleanup(mockUpstream.Close)
 
 				upstreams = []config.Upstream{mockUpstream.Start()}
 			})

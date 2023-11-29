@@ -16,7 +16,6 @@ var _ = Describe("Hostname function tests", func() {
 		BeforeEach(func() {
 			tmpDir = helpertest.NewTmpFolder("hostname")
 			Expect(tmpDir.Error).Should(Succeed())
-			DeferCleanup(tmpDir.Clean)
 		})
 
 		It("should be used", func() {

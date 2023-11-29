@@ -61,7 +61,6 @@ var _ = BeforeSuite(func() {
 
 		return response
 	})
-	DeferCleanup(googleMockUpstream.Close)
 
 	fritzboxMockUpstream = resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 		response, err := util.NewMsgWithAnswer(
@@ -72,7 +71,6 @@ var _ = BeforeSuite(func() {
 
 		return response
 	})
-	DeferCleanup(fritzboxMockUpstream.Close)
 
 	clientMockUpstream = resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 		var clientName string
@@ -89,7 +87,6 @@ var _ = BeforeSuite(func() {
 
 		return response
 	})
-	DeferCleanup(clientMockUpstream.Close)
 
 	upstreamClient = clientMockUpstream.Start()
 	upstreamFritzbox = fritzboxMockUpstream.Start()
@@ -97,7 +94,6 @@ var _ = BeforeSuite(func() {
 
 	tmpDir := NewTmpFolder("server")
 	Expect(tmpDir.Error).Should(Succeed())
-	DeferCleanup(tmpDir.Clean)
 
 	certPem := writeCertPem(tmpDir)
 	Expect(certPem.Error).Should(Succeed())

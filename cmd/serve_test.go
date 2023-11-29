@@ -25,7 +25,6 @@ var _ = Describe("Serve command", func() {
 		port = helpertest.GetStringPort(basePort)
 		tmpDir = helpertest.NewTmpFolder("config")
 		Expect(tmpDir.Error).Should(Succeed())
-		DeferCleanup(tmpDir.Clean)
 		configPath = defaultConfigPath
 	})
 

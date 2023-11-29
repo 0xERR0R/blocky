@@ -5,6 +5,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+
+	"github.com/onsi/ginkgo/v2"
 )
 
 type TmpFolder struct {
@@ -33,6 +35,8 @@ func NewTmpFolder(prefix string) *TmpFolder {
 		Error:  err,
 		prefix: ipref,
 	}
+
+	ginkgo.DeferCleanup(res.Clean)
 
 	return res
 }
