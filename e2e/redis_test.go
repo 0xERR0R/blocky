@@ -87,7 +87,7 @@ var _ = Describe("Redis configuration tests", func() {
 				})
 
 				By("Check redis, must contain one cache entry", func() {
-					Eventually(dbSize, "5s", "2ms").WithArguments(redisClient).Should(BeNumerically("==", 1))
+					Eventually(dbSize, "5s", "2ms").WithArguments(ctx, redisClient).Should(BeNumerically("==", 1))
 				})
 
 				By("Shutdown the upstream DNS server", func() {
@@ -131,7 +131,7 @@ var _ = Describe("Redis configuration tests", func() {
 			It("should load cache from redis after start", func(ctx context.Context) {
 				msg := util.NewMsgWithQuestion("google.de.", A)
 				By("Query first blocky instance, should store cache in redis\"", func() {
-					Eventually(doDNSRequest, "5s", "2ms").WithArguments(blocky1, msg).
+					Eventually(doDNSRequest, "5s", "2ms").WithArguments(ctx, blocky1, msg).
 						Should(
 							SatisfyAll(
 								BeDNSRecord("google.de.", A, "1.2.3.4"),
@@ -140,7 +140,7 @@ var _ = Describe("Redis configuration tests", func() {
 				})
 
 				By("Check redis, must contain one cache entry", func() {
-					Eventually(dbSize).WithArguments(redisClient).Should(BeNumerically("==", 1))
+					Eventually(dbSize).WithArguments(ctx, redisClient).Should(BeNumerically("==", 1))
 				})
 
 				By("start other instance of blocky now -> it should load the cache from redis", func() {
@@ -164,7 +164,7 @@ var _ = Describe("Redis configuration tests", func() {
 				})
 
 				By("Query second blocky instance", func() {
-					Eventually(doDNSRequest, "5s", "2ms").WithArguments(blocky2, msg).
+					Eventually(doDNSRequest, "5s", "2ms").WithArguments(ctx, blocky2, msg).
 						Should(
 							SatisfyAll(
 								BeDNSRecord("google.de.", A, "1.2.3.4"),
