@@ -1,6 +1,7 @@
 package lists
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -27,7 +28,7 @@ func (e *TransientError) Unwrap() error {
 
 // FileDownloader is able to download some text file
 type FileDownloader interface {
-	DownloadFile(link string) (io.ReadCloser, error)
+	DownloadFile(ctx context.Context, link string) (io.ReadCloser, error)
 }
 
 // httpDownloader downloads files via HTTP protocol
@@ -52,12 +53,17 @@ func newDownloader(cfg config.DownloaderConfig, transport http.RoundTripper) *ht
 	}
 }
 
-func (d *httpDownloader) DownloadFile(link string) (io.ReadCloser, error) {
+func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.ReadCloser, error) {
 	var body io.ReadCloser
 
 	err := retry.Do(
 		func() error {
-			resp, httpErr := d.client.Get(link)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
+			if err != nil {
+				return err
+			}
+
+			resp, httpErr := d.client.Do(req)
 			if httpErr == nil {
 				if resp.StatusCode == http.StatusOK {
 					body = resp.Body

@@ -1,6 +1,7 @@
 package lists
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -12,7 +13,7 @@ import (
 type SourceOpener interface {
 	fmt.Stringer
 
-	Open() (io.ReadCloser, error)
+	Open(ctx context.Context) (io.ReadCloser, error)
 }
 
 func NewSourceOpener(txtLocInfo string, source config.BytesSource, downloader FileDownloader) (SourceOpener, error) {
@@ -35,7 +36,7 @@ type textOpener struct {
 	locInfo string
 }
 
-func (o *textOpener) Open() (io.ReadCloser, error) {
+func (o *textOpener) Open(_ context.Context) (io.ReadCloser, error) {
 	return io.NopCloser(strings.NewReader(o.source.From)), nil
 }
 
@@ -48,8 +49,8 @@ type httpOpener struct {
 	downloader FileDownloader
 }
 
-func (o *httpOpener) Open() (io.ReadCloser, error) {
-	return o.downloader.DownloadFile(o.source.From)
+func (o *httpOpener) Open(ctx context.Context) (io.ReadCloser, error) {
+	return o.downloader.DownloadFile(ctx, o.source.From)
 }
 
 func (o *httpOpener) String() string {
@@ -60,7 +61,7 @@ type fileOpener struct {
 	source config.BytesSource
 }
 
-func (o *fileOpener) Open() (io.ReadCloser, error) {
+func (o *fileOpener) Open(_ context.Context) (io.ReadCloser, error) {
 	return os.Open(o.source.From)
 }
 

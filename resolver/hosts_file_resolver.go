@@ -212,7 +212,7 @@ func (r *HostsFileResolver) loadSources(ctx context.Context) error {
 func (r *HostsFileResolver) parseFile(
 	ctx context.Context, opener lists.SourceOpener, hostsChan chan<- *HostsFileEntry,
 ) error {
-	reader, err := opener.Open()
+	reader, err := opener.Open(ctx)
 	if err != nil {
 		return err
 	}

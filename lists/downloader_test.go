@@ -1,6 +1,7 @@
 package lists
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -80,8 +81,8 @@ var _ = Describe("Downloader", func() {
 
 				sut = newDownloader(sutConfig, nil)
 			})
-			It("Should return all lines from the file", func() {
-				reader, err := sut.DownloadFile(server.URL)
+			It("Should return all lines from the file", func(ctx context.Context) {
+				reader, err := sut.DownloadFile(ctx, server.URL)
 
 				Expect(err).Should(Succeed())
 				Expect(reader).Should(Not(BeNil()))
@@ -101,8 +102,8 @@ var _ = Describe("Downloader", func() {
 
 				sutConfig.Attempts = 3
 			})
-			It("Should return error", func() {
-				reader, err := sut.DownloadFile(server.URL)
+			It("Should return error", func(ctx context.Context) {
+				reader, err := sut.DownloadFile(ctx, server.URL)
 
 				Expect(err).Should(HaveOccurred())
 				Expect(reader).Should(BeNil())
@@ -115,8 +116,8 @@ var _ = Describe("Downloader", func() {
 			BeforeEach(func() {
 				sutConfig.Attempts = 1
 			})
-			It("Should return error", func() {
-				_, err := sut.DownloadFile("somewrongurl")
+			It("Should return error", func(ctx context.Context) {
+				_, err := sut.DownloadFile(ctx, "somewrongurl")
 
 				Expect(err).Should(HaveOccurred())
 				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("Can't download file: "))
@@ -149,8 +150,8 @@ var _ = Describe("Downloader", func() {
 				}))
 				DeferCleanup(server.Close)
 			})
-			It("Should perform a retry and return file content", func() {
-				reader, err := sut.DownloadFile(server.URL)
+			It("Should perform a retry and return file content", func(ctx context.Context) {
+				reader, err := sut.DownloadFile(ctx, server.URL)
 				Expect(err).Should(Succeed())
 				Expect(reader).Should(Not(BeNil()))
 				DeferCleanup(reader.Close)
@@ -180,17 +181,18 @@ var _ = Describe("Downloader", func() {
 				}))
 				DeferCleanup(server.Close)
 			})
-			It("Should perform a retry until max retry attempt count is reached and return TransientError", func() {
-				reader, err := sut.DownloadFile(server.URL)
-				Expect(err).Should(HaveOccurred())
-				Expect(errors.As(err, new(*TransientError))).Should(BeTrue())
-				Expect(err.Error()).Should(ContainSubstring("Timeout"))
-				Expect(reader).Should(BeNil())
+			It("Should perform a retry until max retry attempt count is reached and return TransientError",
+				func(ctx context.Context) {
+					reader, err := sut.DownloadFile(ctx, server.URL)
+					Expect(err).Should(HaveOccurred())
+					Expect(errors.As(err, new(*TransientError))).Should(BeTrue())
+					Expect(err.Error()).Should(ContainSubstring("Timeout"))
+					Expect(reader).Should(BeNil())
 
-				// failed download event was emitted 3 times
-				Expect(failedDownloadCountEvtChannel).Should(HaveLen(3))
-				Expect(failedDownloadCountEvtChannel).Should(Receive(Equal(server.URL)))
-			})
+					// failed download event was emitted 3 times
+					Expect(failedDownloadCountEvtChannel).Should(HaveLen(3))
+					Expect(failedDownloadCountEvtChannel).Should(Receive(Equal(server.URL)))
+				})
 		})
 		When("DNS resolution of passed URL fails", func() {
 			BeforeEach(func() {
@@ -200,19 +202,20 @@ var _ = Describe("Downloader", func() {
 					Cooldown: 200 * config.Duration(time.Millisecond),
 				}
 			})
-			It("Should perform a retry until max retry attempt count is reached and return DNSError", func() {
-				reader, err := sut.DownloadFile("http://some.domain.which.does.not.exist")
-				Expect(err).Should(HaveOccurred())
+			It("Should perform a retry until max retry attempt count is reached and return DNSError",
+				func(ctx context.Context) {
+					reader, err := sut.DownloadFile(ctx, "http://some.domain.which.does.not.exist")
+					Expect(err).Should(HaveOccurred())
 
-				var dnsError *net.DNSError
-				Expect(errors.As(err, &dnsError)).Should(BeTrue(), "received error %w", err)
-				Expect(reader).Should(BeNil())
+					var dnsError *net.DNSError
+					Expect(errors.As(err, &dnsError)).Should(BeTrue(), "received error %w", err)
+					Expect(reader).Should(BeNil())
 
-				// failed download event was emitted 3 times
-				Expect(failedDownloadCountEvtChannel).Should(HaveLen(3))
-				Expect(failedDownloadCountEvtChannel).Should(Receive(Equal("http://some.domain.which.does.not.exist")))
-				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("Name resolution err: "))
-			})
+					// failed download event was emitted 3 times
+					Expect(failedDownloadCountEvtChannel).Should(HaveLen(3))
+					Expect(failedDownloadCountEvtChannel).Should(Receive(Equal("http://some.domain.which.does.not.exist")))
+					Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("Name resolution err: "))
+				})
 		})
 	})
 })
