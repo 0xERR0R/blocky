@@ -166,14 +166,9 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 				})
 				When("first upstream times-out", func() {
 					BeforeEach(func() {
-						testUpstream1 = NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
-							response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.1")
-							time.Sleep(2 * timeout)
-
-							Expect(err).To(Succeed())
-
-							return response
-						})
+						testUpstream1 = NewMockUDPUpstreamServer().
+							WithAnswerRR("example.com 123 IN A 123.124.122.1").
+							WithDelay(2 * timeout)
 
 						testUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.2")
 
@@ -192,23 +187,13 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 				})
 				When("all upstreams timeout", func() {
 					JustBeforeEach(func() {
-						testUpstream1 = NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
-							response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.1")
-							time.Sleep(2 * timeout)
+						testUpstream1 = NewMockUDPUpstreamServer().
+							WithAnswerRR("example.com 123 IN A 123.124.122.1").
+							WithDelay(2 * timeout)
 
-							Expect(err).To(Succeed())
-
-							return response
-						})
-
-						testUpstream2 = NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
-							response, err := util.NewMsgWithAnswer("example.com", 123, A, "123.124.122.2")
-							time.Sleep(2 * timeout)
-
-							Expect(err).To(Succeed())
-
-							return response
-						})
+						testUpstream2 = NewMockUDPUpstreamServer().
+							WithAnswerRR("example.com 123 IN A 123.124.122.2").
+							WithDelay(2 * timeout)
 
 						upstreams = []config.Upstream{testUpstream1.Start(), testUpstream2.Start()}
 					})
