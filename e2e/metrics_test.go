@@ -16,27 +16,24 @@ import (
 )
 
 var _ = Describe("Metrics functional tests", func() {
-	var blocky, moka, httpServer1, httpServer2 testcontainers.Container
+	var blocky testcontainers.Container
 	var err error
 	var metricsURL string
 
 	Describe("Metrics", func() {
 		BeforeEach(func(ctx context.Context) {
-			moka, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`)
-
+			_, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`)
 			Expect(err).Should(Succeed())
-			DeferCleanup(moka.Terminate)
 
-			httpServer1, err = createHTTPServerContainer(ctx, "httpserver1", tmpDir, "list1.txt", "domain1.com")
-
+			_, err = createHTTPServerContainer(ctx, "httpserver1", tmpDir, "list1.txt", "domain1.com")
 			Expect(err).Should(Succeed())
-			DeferCleanup(httpServer1.Terminate)
 
-			httpServer2, err = createHTTPServerContainer(ctx, "httpserver2", tmpDir, "list2.txt",
+			_, err = createHTTPServerContainer(ctx, "httpserver2", tmpDir, "list2.txt",
 				"domain1.com", "domain2", "domain3")
-
 			Expect(err).Should(Succeed())
-			DeferCleanup(httpServer2.Terminate)
+
+			_, err = createHTTPServerContainer(ctx, "httpserver2", tmpDir, "list2.txt", "domain1.com", "domain2", "domain3")
+			Expect(err).Should(Succeed())
 
 			blocky, err = createBlockyContainer(ctx, tmpDir,
 				"upstreams:",
@@ -54,9 +51,7 @@ var _ = Describe("Metrics functional tests", func() {
 				"prometheus:",
 				"  enable: true",
 			)
-
 			Expect(err).Should(Succeed())
-			DeferCleanup(blocky.Terminate)
 
 			host, port, err := getContainerHostPort(ctx, blocky, "4000/tcp")
 			Expect(err).Should(Succeed())

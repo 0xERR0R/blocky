@@ -64,7 +64,6 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 		When("Configured DNS resolver can resolve query", func() {
 			It("should return answer from DNS upstream", func() {
 				mockUpstream := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
-				DeferCleanup(mockUpstream.Close)
 
 				sutConfig.Upstream = mockUpstream.Start()
 				sut := newUpstreamResolverUnchecked(sutConfig, nil)
@@ -83,7 +82,6 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 		When("Configured DNS resolver can't resolve query", func() {
 			It("should return response code from DNS upstream", func() {
 				mockUpstream := NewMockUDPUpstreamServer().WithAnswerError(dns.RcodeNameError)
-				DeferCleanup(mockUpstream.Close)
 
 				sutConfig.Upstream = mockUpstream.Start()
 				sut := newUpstreamResolverUnchecked(sutConfig, nil)
@@ -103,7 +101,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				mockUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 					return nil
 				})
-				DeferCleanup(mockUpstream.Close)
+
 				sutConfig.Upstream = mockUpstream.Start()
 				sut := newUpstreamResolverUnchecked(sutConfig, nil)
 
@@ -130,7 +128,6 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				}
 
 				mockUpstream := NewMockUDPUpstreamServer().WithAnswerFn(resolveFn)
-				DeferCleanup(mockUpstream.Close)
 
 				sutConfig.Upstream = mockUpstream.Start()
 			})
@@ -164,7 +161,6 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 			When("TCP upstream connection fails", func() {
 				BeforeEach(func() {
 					mockUpstream := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
-					DeferCleanup(mockUpstream.Close)
 
 					sutConfig.Upstream = mockUpstream.Start()
 				})

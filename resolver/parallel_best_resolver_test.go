@@ -130,7 +130,6 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 			timeoutUpstream := NewMockUDPUpstreamServer().
 				WithAnswerRR("example.com 123 IN A 123.124.122.1").
 				WithDelay(2 * timeout)
-			DeferCleanup(timeoutUpstream.Close)
 
 			upstreams = []config.Upstream{timeoutUpstream.Start()}
 		})
@@ -167,12 +166,10 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 			When("one resolver is fast and another is slow", func() {
 				BeforeEach(func() {
 					fastTestUpstream := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
-					DeferCleanup(fastTestUpstream.Close)
 
 					slowTestUpstream := NewMockUDPUpstreamServer().
 						WithAnswerRR("example.com 123 IN A 123.124.122.123").
 						WithDelay(timeout / 2)
-					DeferCleanup(slowTestUpstream.Close)
 
 					upstreams = []config.Upstream{fastTestUpstream.Start(), slowTestUpstream.Start()}
 				})
@@ -194,7 +191,6 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					slowTestUpstream = NewMockUDPUpstreamServer().
 						WithAnswerRR("example.com 123 IN A 123.124.122.123").
 						WithDelay(timeout / 2)
-					DeferCleanup(slowTestUpstream.Close)
 					upstreams = []config.Upstream{{Host: "wrong"}, slowTestUpstream.Start()}
 				})
 				It("Should use result from successful resolver", func() {
@@ -228,7 +224,6 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 		When("only 1 upstream resolvers is defined", func() {
 			BeforeEach(func() {
 				mockUpstream := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
-				DeferCleanup(mockUpstream.Close)
 
 				upstreams = []config.Upstream{mockUpstream.Start()}
 			})
@@ -254,10 +249,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 				withError2 := config.Upstream{Host: "wrong2"}
 
 				mockUpstream1 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
-				DeferCleanup(mockUpstream1.Close)
-
 				mockUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
-				DeferCleanup(mockUpstream2.Close)
 
 				upstreams = []config.Upstream{withError1, mockUpstream1.Start(), mockUpstream2.Start(), withError2}
 			})
@@ -346,10 +338,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					When("Both respond in time", func() {
 						BeforeEach(func() {
 							testUpstream1 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
-							DeferCleanup(testUpstream1.Close)
-
 							testUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.123")
-							DeferCleanup(testUpstream2.Close)
 
 							upstreams = []config.Upstream{testUpstream1.Start(), testUpstream2.Start()}
 						})
@@ -372,10 +361,8 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 							timeoutUpstream := NewMockUDPUpstreamServer().
 								WithAnswerRR("example.com 123 IN A 123.124.122.1").
 								WithDelay(2 * timeout)
-							DeferCleanup(timeoutUpstream.Close)
 
 							testUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.2")
-							DeferCleanup(testUpstream2.Close)
 
 							upstreams = []config.Upstream{timeoutUpstream.Start(), testUpstream2.Start()}
 						})
@@ -395,12 +382,10 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 							testUpstream1 := NewMockUDPUpstreamServer().
 								WithAnswerRR("example.com 123 IN A 123.124.122.1").
 								WithDelay(2 * timeout)
-							DeferCleanup(testUpstream1.Close)
 
 							testUpstream2 := NewMockUDPUpstreamServer().
 								WithAnswerRR("example.com 123 IN A 123.124.122.2").
 								WithDelay(2 * timeout)
-							DeferCleanup(testUpstream2.Close)
 
 							upstreams = []config.Upstream{testUpstream1.Start(), testUpstream2.Start()}
 						})
@@ -430,7 +415,6 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 			When("only 1 upstream resolvers is defined", func() {
 				BeforeEach(func() {
 					mockUpstream := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
-					DeferCleanup(mockUpstream.Close)
 
 					upstreams = []config.Upstream{mockUpstream.Start()}
 				})
@@ -451,19 +435,13 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 		Describe("Weighted random on resolver selection", func() {
 			When("4 upstream resolvers are defined", func() {
-				var (
-					mockUpstream1 *MockUDPUpstreamServer
-					mockUpstream2 *MockUDPUpstreamServer
-				)
 				BeforeEach(func() {
 					withError1 := config.Upstream{Host: "wrong1"}
 					withError2 := config.Upstream{Host: "wrong2"}
 
-					mockUpstream1 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
-					DeferCleanup(mockUpstream1.Close)
+					mockUpstream1 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
 
-					mockUpstream2 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
-					DeferCleanup(mockUpstream2.Close)
+					mockUpstream2 := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
 
 					upstreams = []config.Upstream{withError1, mockUpstream1.Start(), mockUpstream2.Start(), withError2}
 				})

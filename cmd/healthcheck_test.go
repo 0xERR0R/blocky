@@ -29,7 +29,6 @@ var _ = Describe("Healthcheck command", func() {
 				err := srv.ListenAndServe()
 				Expect(err).Should(Succeed())
 			}()
-			DeferCleanup(srv.Shutdown)
 
 			Eventually(func() error {
 				c := NewHealthcheckCommand()
@@ -60,6 +59,8 @@ func createMockServer(port string) *dns.Server {
 		err := w.WriteMsg(resp)
 		Expect(err).Should(Succeed())
 	})
+
+	DeferCleanup(res.Shutdown)
 
 	return res
 }

@@ -14,15 +14,14 @@ import (
 )
 
 var _ = Describe("Basic functional tests", func() {
-	var blocky, moka testcontainers.Container
+	var blocky testcontainers.Container
 	var err error
 
 	Describe("Container start", func() {
 		BeforeEach(func(ctx context.Context) {
-			moka, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`)
+			_, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`)
 
 			Expect(err).Should(Succeed())
-			DeferCleanup(moka.Terminate)
 		})
 		When("wrong port configuration is provided", func() {
 			BeforeEach(func(ctx context.Context) {
@@ -41,8 +40,6 @@ var _ = Describe("Basic functional tests", func() {
 				state, err := blocky.State(ctx)
 				Expect(err).Should(Succeed())
 				Expect(state.ExitCode).Should(Equal(1))
-
-				DeferCleanup(blocky.Terminate)
 			})
 			It("should fail to start", func(ctx context.Context) {
 				Eventually(blocky.IsRunning, "5s", "2ms").Should(BeFalse())
@@ -61,7 +58,6 @@ var _ = Describe("Basic functional tests", func() {
 				)
 
 				Expect(err).Should(Succeed())
-				DeferCleanup(blocky.Terminate)
 			})
 			It("Should start and answer DNS queries", func(ctx context.Context) {
 				msg := util.NewMsgWithQuestion("google.de.", A)
@@ -93,7 +89,6 @@ var _ = Describe("Basic functional tests", func() {
 					)
 
 					Expect(err).Should(Succeed())
-					DeferCleanup(blocky.Terminate)
 				})
 
 				It("should not open http port", func(ctx context.Context) {
@@ -116,7 +111,6 @@ var _ = Describe("Basic functional tests", func() {
 					)
 
 					Expect(err).Should(Succeed())
-					DeferCleanup(blocky.Terminate)
 				})
 				It("should serve http content", func(ctx context.Context) {
 					host, port, err := getContainerHostPort(ctx, blocky, "4000/tcp")
@@ -143,10 +137,8 @@ var _ = Describe("Basic functional tests", func() {
 
 	Describe("Logging", func() {
 		BeforeEach(func(ctx context.Context) {
-			moka, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`)
-
+			_, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`)
 			Expect(err).Should(Succeed())
-			DeferCleanup(moka.Terminate)
 		})
 		When("log privacy is enabled", func() {
 			BeforeEach(func(ctx context.Context) {
@@ -160,7 +152,6 @@ var _ = Describe("Basic functional tests", func() {
 					"  privacy: true",
 				)
 				Expect(err).Should(Succeed())
-				DeferCleanup(blocky.Terminate)
 			})
 			It("should not log answers and questions", func(ctx context.Context) {
 				msg := util.NewMsgWithQuestion("google.com.", A)

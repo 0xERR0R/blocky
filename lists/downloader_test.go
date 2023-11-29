@@ -77,8 +77,6 @@ var _ = Describe("Downloader", func() {
 		When("Download was successful", func() {
 			BeforeEach(func() {
 				server = TestServer("line.one\nline.two")
-				DeferCleanup(server.Close)
-
 				sut = newDownloader(sutConfig, nil)
 			})
 			It("Should return all lines from the file", func(ctx context.Context) {
@@ -98,7 +96,6 @@ var _ = Describe("Downloader", func() {
 				server = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 					rw.WriteHeader(http.StatusNotFound)
 				}))
-				DeferCleanup(server.Close)
 
 				sutConfig.Attempts = 3
 			})
@@ -148,7 +145,6 @@ var _ = Describe("Downloader", func() {
 						Expect(err).Should(Succeed())
 					}
 				}))
-				DeferCleanup(server.Close)
 			})
 			It("Should perform a retry and return file content", func(ctx context.Context) {
 				reader, err := sut.DownloadFile(ctx, server.URL)
@@ -179,7 +175,6 @@ var _ = Describe("Downloader", func() {
 				server = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 					time.Sleep(20 * time.Millisecond)
 				}))
-				DeferCleanup(server.Close)
 			})
 			It("Should perform a retry until max retry attempt count is reached and return TransientError",
 				func(ctx context.Context) {

@@ -27,9 +27,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 					"      - 192.192.192.192",
 					"  startVerify: false",
 				)
-
 				Expect(err).Should(Succeed())
-				DeferCleanup(blocky.Terminate)
 			})
 			It("should start even if upstream server is not reachable", func(ctx context.Context) {
 				Expect(blocky.IsRunning()).Should(BeTrue())
@@ -47,9 +45,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 					"      - some.wrong.host",
 					"  startVerify: false",
 				)
-
 				Expect(err).Should(Succeed())
-				DeferCleanup(blocky.Terminate)
 			})
 			It("should start even if upstream server is not reachable", func(ctx context.Context) {
 				Expect(blocky.IsRunning()).Should(BeTrue())
@@ -65,9 +61,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 					"      - 192.192.192.192",
 					"  startVerify: true",
 				)
-
 				Expect(err).Should(HaveOccurred())
-				DeferCleanup(blocky.Terminate)
 			})
 			It("should not start", func(ctx context.Context) {
 				Expect(blocky.IsRunning()).Should(BeFalse())
@@ -84,9 +78,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 					"      - some.wrong.host",
 					"  startVerify: true",
 				)
-
 				Expect(err).Should(HaveOccurred())
-				DeferCleanup(blocky.Terminate)
 			})
 			It("should not start", func(ctx context.Context) {
 				Expect(blocky.IsRunning()).Should(BeFalse())
@@ -96,14 +88,11 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 		})
 	})
 	Describe("'upstreams.timeout' parameter handling", func() {
-		var moka testcontainers.Container
 		BeforeEach(func(ctx context.Context) {
-			moka, err = createDNSMokkaContainer(ctx, "moka1",
+			_, err = createDNSMokkaContainer(ctx, "moka1",
 				`A example.com/NOERROR("A 1.2.3.4 123")`,
 				`A delay.com/delay(NOERROR("A 1.1.1.1 100"), "300ms")`)
-
 			Expect(err).Should(Succeed())
-			DeferCleanup(moka.Terminate)
 
 			blocky, err = createBlockyContainer(ctx, tmpDir,
 				"upstreams:",
@@ -112,9 +101,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 				"      - moka1",
 				"  timeout: 200ms",
 			)
-
 			Expect(err).Should(Succeed())
-			DeferCleanup(blocky.Terminate)
 		})
 		It("should consider the timeout parameter", func(ctx context.Context) {
 			By("query without timeout", func() {

@@ -31,7 +31,6 @@ var _ = Describe("Config", func() {
 	BeforeEach(func() {
 		tmpDir = helpertest.NewTmpFolder("config")
 		Expect(tmpDir.Error).Should(Succeed())
-		DeferCleanup(tmpDir.Clean)
 	})
 
 	Describe("Deprecated parameters are converted", func() {

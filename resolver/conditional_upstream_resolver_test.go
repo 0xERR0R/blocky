@@ -41,21 +41,18 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 
 			return response
 		})
-		DeferCleanup(fbTestUpstream.Close)
 
 		otherTestUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 			response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 250, A, "192.192.192.192")
 
 			return response
 		})
-		DeferCleanup(otherTestUpstream.Close)
 
 		dotTestUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 			response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 223, A, "168.168.168.168")
 
 			return response
 		})
-		DeferCleanup(dotTestUpstream.Close)
 
 		refuseTestUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 			response = new(dns.Msg)
@@ -65,7 +62,6 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 
 			return response
 		})
-		DeferCleanup(refuseTestUpstream.Close)
 
 		sutConfig = config.ConditionalUpstream{
 			Mapping: config.ConditionalUpstreamMapping{

@@ -39,6 +39,18 @@ const (
 	blockyImage       = "blocky-e2e"
 )
 
+func deferTerminate[T testcontainers.Container](container T, err error) (T, error) {
+	ginkgo.DeferCleanup(func(ctx context.Context) error {
+		if container.IsRunning() {
+			return container.Terminate(ctx)
+		}
+
+		return nil
+	})
+
+	return container, err
+}
+
 func createDNSMokkaContainer(ctx context.Context, alias string, rules ...string) (testcontainers.Container, error) {
 	mokaRules := make(map[string]string)
 
@@ -55,10 +67,10 @@ func createDNSMokkaContainer(ctx context.Context, alias string, rules ...string)
 		Env:            mokaRules,
 	}
 
-	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+	return deferTerminate(testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Started:          true,
-	})
+	}))
 }
 
 func createHTTPServerContainer(ctx context.Context, alias string, tmpDir *helpertest.TmpFolder,
@@ -89,10 +101,10 @@ func createHTTPServerContainer(ctx context.Context, alias string, tmpDir *helper
 		},
 	}
 
-	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+	return deferTerminate(testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Started:          true,
-	})
+	}))
 }
 
 func WithNetwork(network string) testcontainers.CustomizeRequestOption {
@@ -103,17 +115,17 @@ func WithNetwork(network string) testcontainers.CustomizeRequestOption {
 }
 
 func createRedisContainer(ctx context.Context) (*redis.RedisContainer, error) {
-	return redis.RunContainer(ctx,
+	return deferTerminate(redis.RunContainer(ctx,
 		testcontainers.WithImage(redisImage),
 		redis.WithLogLevel(redis.LogLevelVerbose),
 		WithNetwork("redis"),
-	)
+	))
 }
 
 func createPostgresContainer(ctx context.Context) (*postgres.PostgresContainer, error) {
 	const waitLogOccurrence = 2
 
-	return postgres.RunContainer(ctx,
+	return deferTerminate(postgres.RunContainer(ctx,
 		testcontainers.WithImage(postgresImage),
 
 		postgres.WithDatabase("user"),
@@ -124,17 +136,17 @@ func createPostgresContainer(ctx context.Context) (*postgres.PostgresContainer, 
 				WithOccurrence(waitLogOccurrence).
 				WithStartupTimeout(startupTimeout)),
 		WithNetwork("postgres"),
-	)
+	))
 }
 
 func createMariaDBContainer(ctx context.Context) (*mariadb.MariaDBContainer, error) {
-	return mariadb.RunContainer(ctx,
+	return deferTerminate(mariadb.RunContainer(ctx,
 		testcontainers.WithImage(mariaDBImage),
 		mariadb.WithDatabase("user"),
 		mariadb.WithUsername("user"),
 		mariadb.WithPassword("user"),
 		WithNetwork("mariaDB"),
-	)
+	))
 }
 
 const (
@@ -178,10 +190,10 @@ func createBlockyContainer(ctx context.Context, tmpDir *helpertest.TmpFolder,
 		WaitingFor: wait.ForHealthCheck().WithStartupTimeout(startupTimeout),
 	}
 
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+	container, err := deferTerminate(testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Started:          true,
-	})
+	}))
 	if err != nil {
 		// attach container log if error occurs
 		if r, err := container.Logs(ctx); err == nil {
@@ -196,7 +208,6 @@ func createBlockyContainer(ctx context.Context, tmpDir *helpertest.TmpFolder,
 	// check if DNS/HTTP interface is working.
 	// Sometimes the internal health check returns OK, but the container port is not mapped yet
 	err = checkBlockyReadiness(ctx, cfg, container)
-
 	if err != nil {
 		return container, fmt.Errorf("container not ready: %w", err)
 	}

@@ -60,12 +60,16 @@ func TempFile(data string) *os.File {
 
 // TestServer creates temp http server with passed data
 func TestServer(data string) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		_, err := rw.Write([]byte(data))
 		if err != nil {
 			log.Log().Fatal("can't write to buffer:", err)
 		}
 	}))
+
+	ginkgo.DeferCleanup(srv.Close)
+
+	return srv
 }
 
 // DoGetRequest performs a GET request

@@ -57,11 +57,8 @@ var _ = Describe("ListCache", func() {
 		mockDownloader = nil
 
 		server1 = TestServer("blocked1.com\nblocked1a.com\n192.168.178.55")
-		DeferCleanup(server1.Close)
 		server2 = TestServer("blocked2.com")
-		DeferCleanup(server2.Close)
 		server3 = TestServer("blocked3.com\nblocked1a.com")
-		DeferCleanup(server3.Close)
 
 		tmpDir = NewTmpFolder("ListCache")
 		Expect(tmpDir.Error).Should(Succeed())
