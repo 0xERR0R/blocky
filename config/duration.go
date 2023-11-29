@@ -16,12 +16,12 @@ func (c Duration) ToDuration() time.Duration {
 	return time.Duration(c)
 }
 
-// IsAboveZero returns true if duration is above zero
+// IsAboveZero returns true if duration is strictly greater than zero.
 func (c Duration) IsAboveZero() bool {
 	return c.ToDuration() > 0
 }
 
-// IsAtLeastZero returns true if duration is at least zero
+// IsAtLeastZero returns true if duration is greater or equal to zero.
 func (c Duration) IsAtLeastZero() bool {
 	return c.ToDuration() >= 0
 }
