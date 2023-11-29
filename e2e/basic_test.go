@@ -18,8 +18,8 @@ var _ = Describe("Basic functional tests", func() {
 	var err error
 
 	Describe("Container start", func() {
-		BeforeEach(func() {
-			moka, err = createDNSMokkaContainer("moka1", `A google/NOERROR("A 1.2.3.4 123")`)
+		BeforeEach(func(ctx context.Context) {
+			moka, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`)
 
 			Expect(err).Should(Succeed())
 			DeferCleanup(moka.Terminate)
@@ -38,16 +38,16 @@ var _ = Describe("Basic functional tests", func() {
 				Expect(err).Should(HaveOccurred())
 
 				// check container exit status
-				state, err := blocky.State(context.Background())
+				state, err := blocky.State(ctx)
 				Expect(err).Should(Succeed())
 				Expect(state.ExitCode).Should(Equal(1))
 
 				DeferCleanup(blocky.Terminate)
 			})
-			It("should fail to start", func() {
+			It("should fail to start", func(ctx context.Context) {
 				Eventually(blocky.IsRunning, "5s", "2ms").Should(BeFalse())
 
-				Expect(getContainerLogs(blocky)).
+				Expect(getContainerLogs(ctx, blocky)).
 					Should(ContainElement(ContainSubstring("address already in use")))
 			})
 		})
@@ -73,9 +73,9 @@ var _ = Describe("Basic functional tests", func() {
 							HaveTTL(BeNumerically("==", 123)),
 						))
 			})
-			It("should return 'healthy' container status (healthcheck)", func() {
+			It("should return 'healthy' container status (healthcheck)", func(ctx context.Context) {
 				Eventually(func(g Gomega) string {
-					state, err := blocky.State(context.Background())
+					state, err := blocky.State(ctx)
 					g.Expect(err).NotTo(HaveOccurred())
 
 					return state.Health.Status
@@ -142,8 +142,8 @@ var _ = Describe("Basic functional tests", func() {
 	})
 
 	Describe("Logging", func() {
-		BeforeEach(func() {
-			moka, err = createDNSMokkaContainer("moka1", `A google/NOERROR("A 1.2.3.4 123")`)
+		BeforeEach(func(ctx context.Context) {
+			moka, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`)
 
 			Expect(err).Should(Succeed())
 			DeferCleanup(moka.Terminate)
@@ -181,8 +181,8 @@ var _ = Describe("Basic functional tests", func() {
 							HaveTTL(BeNumerically("<=", 123)),
 						))
 
-				Expect(getContainerLogs(blocky)).Should(Not(ContainElement(ContainSubstring("google.com"))))
-				Expect(getContainerLogs(blocky)).Should(Not(ContainElement(ContainSubstring("1.2.3.4"))))
+				Expect(getContainerLogs(ctx, blocky)).Should(Not(ContainElement(ContainSubstring("google.com"))))
+				Expect(getContainerLogs(ctx, blocky)).Should(Not(ContainElement(ContainSubstring("1.2.3.4"))))
 			})
 		})
 	})

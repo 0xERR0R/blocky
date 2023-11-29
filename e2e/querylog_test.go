@@ -22,8 +22,8 @@ var _ = Describe("Query logs functional tests", func() {
 	var db *gorm.DB
 	var err error
 
-	BeforeEach(func() {
-		moka, err = createDNSMokkaContainer("moka1", `A google/NOERROR("A 1.2.3.4 123")`, `A unknown/NXDOMAIN()`)
+	BeforeEach(func(ctx context.Context) {
+		moka, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`, `A unknown/NXDOMAIN()`)
 
 		Expect(err).Should(Succeed())
 		DeferCleanup(moka.Terminate)
@@ -31,7 +31,7 @@ var _ = Describe("Query logs functional tests", func() {
 
 	Describe("Query logging into the mariaDB database", func() {
 		BeforeEach(func(ctx context.Context) {
-			mariaDB, err = createMariaDBContainer()
+			mariaDB, err = createMariaDBContainer(ctx)
 			Expect(err).Should(Succeed())
 			DeferCleanup(mariaDB.Terminate)
 
@@ -53,7 +53,7 @@ var _ = Describe("Query logs functional tests", func() {
 
 			Expect(err).Should(Succeed())
 
-			connectionString, err := mariaDB.ConnectionString(context.Background(),
+			connectionString, err := mariaDB.ConnectionString(ctx,
 				"tls=false", "charset=utf8mb4", "parseTime=True", "loc=Local")
 			Expect(err).Should(Succeed())
 
@@ -111,7 +111,7 @@ var _ = Describe("Query logs functional tests", func() {
 
 	Describe("Query logging into the postgres database", func() {
 		BeforeEach(func(ctx context.Context) {
-			postgresDB, err = createPostgresContainer()
+			postgresDB, err = createPostgresContainer(ctx)
 			Expect(err).Should(Succeed())
 			DeferCleanup(postgresDB.Terminate)
 
@@ -131,7 +131,7 @@ var _ = Describe("Query logs functional tests", func() {
 			Expect(err).Should(Succeed())
 			DeferCleanup(blocky.Terminate)
 
-			connectionString, err := postgresDB.ConnectionString(context.Background(), "sslmode=disable")
+			connectionString, err := postgresDB.ConnectionString(ctx, "sslmode=disable")
 			Expect(err).Should(Succeed())
 
 			// database might be slow on first start, retry here if necessary

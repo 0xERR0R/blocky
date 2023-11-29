@@ -39,9 +39,7 @@ const (
 	blockyImage       = "blocky-e2e"
 )
 
-func createDNSMokkaContainer(alias string, rules ...string) (testcontainers.Container, error) {
-	ctx := context.Background()
-
+func createDNSMokkaContainer(ctx context.Context, alias string, rules ...string) (testcontainers.Container, error) {
 	mokaRules := make(map[string]string)
 
 	for i, rule := range rules {
@@ -63,7 +61,7 @@ func createDNSMokkaContainer(alias string, rules ...string) (testcontainers.Cont
 	})
 }
 
-func createHTTPServerContainer(alias string, tmpDir *helpertest.TmpFolder,
+func createHTTPServerContainer(ctx context.Context, alias string, tmpDir *helpertest.TmpFolder,
 	filename string, lines ...string,
 ) (testcontainers.Container, error) {
 	f1 := tmpDir.CreateStringFile(filename,
@@ -75,7 +73,6 @@ func createHTTPServerContainer(alias string, tmpDir *helpertest.TmpFolder,
 
 	const modeOwner = 700
 
-	ctx := context.Background()
 	req := testcontainers.ContainerRequest{
 		Image:          staticServerImage,
 		Networks:       []string{NetworkName},
@@ -105,9 +102,7 @@ func WithNetwork(network string) testcontainers.CustomizeRequestOption {
 	}
 }
 
-func createRedisContainer() (*redis.RedisContainer, error) {
-	ctx := context.Background()
-
+func createRedisContainer(ctx context.Context) (*redis.RedisContainer, error) {
 	return redis.RunContainer(ctx,
 		testcontainers.WithImage(redisImage),
 		redis.WithLogLevel(redis.LogLevelVerbose),
@@ -115,9 +110,7 @@ func createRedisContainer() (*redis.RedisContainer, error) {
 	)
 }
 
-func createPostgresContainer() (*postgres.PostgresContainer, error) {
-	ctx := context.Background()
-
+func createPostgresContainer(ctx context.Context) (*postgres.PostgresContainer, error) {
 	const waitLogOccurrence = 2
 
 	return postgres.RunContainer(ctx,
@@ -134,9 +127,7 @@ func createPostgresContainer() (*postgres.PostgresContainer, error) {
 	)
 }
 
-func createMariaDBContainer() (*mariadb.MariaDBContainer, error) {
-	ctx := context.Background()
-
+func createMariaDBContainer(ctx context.Context) (*mariadb.MariaDBContainer, error) {
 	return mariadb.RunContainer(ctx,
 		testcontainers.WithImage(mariaDBImage),
 		mariadb.WithDatabase("user"),
@@ -316,8 +307,8 @@ func getContainerHostPort(ctx context.Context, c testcontainers.Container, p nat
 	return host, res.Port(), err
 }
 
-func getContainerLogs(c testcontainers.Container) (lines []string, err error) {
-	if r, err := c.Logs(context.Background()); err == nil {
+func getContainerLogs(ctx context.Context, c testcontainers.Container) (lines []string, err error) {
+	if r, err := c.Logs(ctx); err == nil {
 		scanner := bufio.NewScanner(r)
 		for scanner.Scan() {
 			line := scanner.Text()

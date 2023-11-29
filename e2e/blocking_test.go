@@ -13,8 +13,8 @@ import (
 var _ = Describe("External lists and query blocking", func() {
 	var blocky, httpServer, moka testcontainers.Container
 	var err error
-	BeforeEach(func() {
-		moka, err = createDNSMokkaContainer("moka", `A google/NOERROR("A 1.2.3.4 123")`)
+	BeforeEach(func(ctx context.Context) {
+		moka, err = createDNSMokkaContainer(ctx, "moka", `A google/NOERROR("A 1.2.3.4 123")`)
 
 		Expect(err).Should(Succeed())
 		DeferCleanup(moka.Terminate)
@@ -55,7 +55,7 @@ var _ = Describe("External lists and query blocking", func() {
 								HaveTTL(BeNumerically("==", 123)),
 							))
 
-					Expect(getContainerLogs(blocky)).Should(ContainElement(ContainSubstring("cannot open source: ")))
+					Expect(getContainerLogs(ctx, blocky)).Should(ContainElement(ContainSubstring("cannot open source: ")))
 				})
 			})
 			Context("loading.strategy = failOnError", func() {
@@ -81,17 +81,17 @@ var _ = Describe("External lists and query blocking", func() {
 					Expect(err).Should(HaveOccurred())
 
 					// check container exit status
-					state, err := blocky.State(context.Background())
+					state, err := blocky.State(ctx)
 					Expect(err).Should(Succeed())
 					Expect(state.ExitCode).Should(Equal(1))
 
 					DeferCleanup(blocky.Terminate)
 				})
 
-				It("should fail to start", func() {
+				It("should fail to start", func(ctx context.Context) {
 					Eventually(blocky.IsRunning, "5s", "2ms").Should(BeFalse())
 
-					Expect(getContainerLogs(blocky)).
+					Expect(getContainerLogs(ctx, blocky)).
 						Should(ContainElement(ContainSubstring("Error: can't start server: 1 error occurred")))
 				})
 			})
@@ -100,7 +100,7 @@ var _ = Describe("External lists and query blocking", func() {
 	Describe("Query blocking against external blacklists", func() {
 		When("external blacklists are defined and available", func() {
 			BeforeEach(func(ctx context.Context) {
-				httpServer, err = createHTTPServerContainer("httpserver", tmpDir, "list.txt", "blockeddomain.com")
+				httpServer, err = createHTTPServerContainer(ctx, "httpserver", tmpDir, "list.txt", "blockeddomain.com")
 
 				Expect(err).Should(Succeed())
 				DeferCleanup(httpServer.Terminate)
@@ -134,7 +134,7 @@ var _ = Describe("External lists and query blocking", func() {
 							HaveTTL(BeNumerically("==", 6*60*60)),
 						))
 
-				Expect(getContainerLogs(blocky)).Should(BeEmpty())
+				Expect(getContainerLogs(ctx, blocky)).Should(BeEmpty())
 			})
 		})
 	})
