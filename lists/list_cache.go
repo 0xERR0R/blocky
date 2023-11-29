@@ -228,7 +228,7 @@ func (b *ListCache) parseFile(ctx context.Context, opener SourceOpener, resultCh
 
 	logger().Debug("starting processing of source")
 
-	r, err := opener.Open()
+	r, err := opener.Open(ctx)
 	if err != nil {
 		logger().Error("cannot open source: ", err)
 

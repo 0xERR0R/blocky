@@ -55,9 +55,10 @@ linters:
     - whitespace
     - wsl
     - ginkgolinter
-  disable:
     - noctx
+    - containedctx
     - contextcheck
+  disable:
     - scopelint
     - structcheck
     - deadcode

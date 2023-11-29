@@ -28,10 +28,10 @@ var (
 	tmpDir  *helpertest.TmpFolder
 )
 
-var _ = BeforeSuite(func() {
+var _ = BeforeSuite(func(ctx context.Context) {
 	var err error
 
-	network, err = testcontainers.GenericNetwork(context.Background(), testcontainers.GenericNetworkRequest{
+	network, err = testcontainers.GenericNetwork(ctx, testcontainers.GenericNetworkRequest{
 		NetworkRequest: testcontainers.NetworkRequest{
 			Name:           NetworkName,
 			CheckDuplicate: false,
@@ -41,10 +41,10 @@ var _ = BeforeSuite(func() {
 
 	Expect(err).Should(Succeed())
 
-	DeferCleanup(func() {
+	DeferCleanup(func(ctx context.Context) {
 		err := retry.Do(
 			func() error {
-				return network.Remove(context.Background())
+				return network.Remove(ctx)
 			},
 			retry.Attempts(3),
 			retry.DelayType(retry.BackOffDelay),

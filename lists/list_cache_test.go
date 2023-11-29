@@ -455,7 +455,7 @@ func newMockDownloader(driver func(res chan<- string, err chan<- error)) *MockDo
 	return &MockDownloader{NewMockCallSequence(driver)}
 }
 
-func (m *MockDownloader) DownloadFile(_ string) (io.ReadCloser, error) {
+func (m *MockDownloader) DownloadFile(_ context.Context, _ string) (io.ReadCloser, error) {
 	str, err := m.Call()
 	if err != nil {
 		return nil, err

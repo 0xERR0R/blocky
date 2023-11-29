@@ -39,9 +39,7 @@ const (
 	blockyImage       = "blocky-e2e"
 )
 
-func createDNSMokkaContainer(alias string, rules ...string) (testcontainers.Container, error) {
-	ctx := context.Background()
-
+func createDNSMokkaContainer(ctx context.Context, alias string, rules ...string) (testcontainers.Container, error) {
 	mokaRules := make(map[string]string)
 
 	for i, rule := range rules {
@@ -63,7 +61,7 @@ func createDNSMokkaContainer(alias string, rules ...string) (testcontainers.Cont
 	})
 }
 
-func createHTTPServerContainer(alias string, tmpDir *helpertest.TmpFolder,
+func createHTTPServerContainer(ctx context.Context, alias string, tmpDir *helpertest.TmpFolder,
 	filename string, lines ...string,
 ) (testcontainers.Container, error) {
 	f1 := tmpDir.CreateStringFile(filename,
@@ -75,7 +73,6 @@ func createHTTPServerContainer(alias string, tmpDir *helpertest.TmpFolder,
 
 	const modeOwner = 700
 
-	ctx := context.Background()
 	req := testcontainers.ContainerRequest{
 		Image:          staticServerImage,
 		Networks:       []string{NetworkName},
@@ -105,9 +102,7 @@ func WithNetwork(network string) testcontainers.CustomizeRequestOption {
 	}
 }
 
-func createRedisContainer() (*redis.RedisContainer, error) {
-	ctx := context.Background()
-
+func createRedisContainer(ctx context.Context) (*redis.RedisContainer, error) {
 	return redis.RunContainer(ctx,
 		testcontainers.WithImage(redisImage),
 		redis.WithLogLevel(redis.LogLevelVerbose),
@@ -115,9 +110,7 @@ func createRedisContainer() (*redis.RedisContainer, error) {
 	)
 }
 
-func createPostgresContainer() (*postgres.PostgresContainer, error) {
-	ctx := context.Background()
-
+func createPostgresContainer(ctx context.Context) (*postgres.PostgresContainer, error) {
 	const waitLogOccurrence = 2
 
 	return postgres.RunContainer(ctx,
@@ -134,9 +127,7 @@ func createPostgresContainer() (*postgres.PostgresContainer, error) {
 	)
 }
 
-func createMariaDBContainer() (*mariadb.MariaDBContainer, error) {
-	ctx := context.Background()
-
+func createMariaDBContainer(ctx context.Context) (*mariadb.MariaDBContainer, error) {
 	return mariadb.RunContainer(ctx,
 		testcontainers.WithImage(mariaDBImage),
 		mariadb.WithDatabase("user"),
@@ -151,7 +142,9 @@ const (
 	startupTimeout = 30 * time.Second
 )
 
-func createBlockyContainer(tmpDir *helpertest.TmpFolder, lines ...string) (testcontainers.Container, error) {
+func createBlockyContainer(ctx context.Context, tmpDir *helpertest.TmpFolder,
+	lines ...string,
+) (testcontainers.Container, error) {
 	f1 := tmpDir.CreateStringFile("config1.yaml",
 		lines...,
 	)
@@ -164,7 +157,6 @@ func createBlockyContainer(tmpDir *helpertest.TmpFolder, lines ...string) (testc
 		return nil, fmt.Errorf("can't create config struct %w", err)
 	}
 
-	ctx := context.Background()
 	req := testcontainers.ContainerRequest{
 		Image:    blockyImage,
 		Networks: []string{NetworkName},
@@ -192,7 +184,7 @@ func createBlockyContainer(tmpDir *helpertest.TmpFolder, lines ...string) (testc
 	})
 	if err != nil {
 		// attach container log if error occurs
-		if r, err := container.Logs(context.Background()); err == nil {
+		if r, err := container.Logs(ctx); err == nil {
 			if b, err := io.ReadAll(r); err == nil {
 				ginkgo.AddReportEntry("blocky container log", string(b))
 			}
@@ -203,7 +195,7 @@ func createBlockyContainer(tmpDir *helpertest.TmpFolder, lines ...string) (testc
 
 	// check if DNS/HTTP interface is working.
 	// Sometimes the internal health check returns OK, but the container port is not mapped yet
-	err = checkBlockyReadiness(cfg, container)
+	err = checkBlockyReadiness(ctx, cfg, container)
 
 	if err != nil {
 		return container, fmt.Errorf("container not ready: %w", err)
@@ -212,14 +204,14 @@ func createBlockyContainer(tmpDir *helpertest.TmpFolder, lines ...string) (testc
 	return container, nil
 }
 
-func checkBlockyReadiness(cfg *config.Config, container testcontainers.Container) error {
+func checkBlockyReadiness(ctx context.Context, cfg *config.Config, container testcontainers.Container) error {
 	var err error
 
 	const retryAttempts = 3
 
 	err = retry.Do(
 		func() error {
-			_, err = doDNSRequest(container, util.NewMsgWithQuestion("healthcheck.blocky.", dns.Type(dns.TypeA)))
+			_, err = doDNSRequest(ctx, container, util.NewMsgWithQuestion("healthcheck.blocky.", dns.Type(dns.TypeA)))
 
 			return err
 		},
@@ -239,7 +231,7 @@ func checkBlockyReadiness(cfg *config.Config, container testcontainers.Container
 		port := parts[len(parts)-1]
 		err = retry.Do(
 			func() error {
-				return doHTTPRequest(container, port)
+				return doHTTPRequest(ctx, container, port)
 			},
 			retry.OnRetry(func(n uint, err error) {
 				log.Infof("Performing retry HTTP request #%d: %s\n", n, err)
@@ -256,13 +248,19 @@ func checkBlockyReadiness(cfg *config.Config, container testcontainers.Container
 	return nil
 }
 
-func doHTTPRequest(container testcontainers.Container, containerPort string) error {
-	host, port, err := getContainerHostPort(container, nat.Port(fmt.Sprintf("%s/tcp", containerPort)))
+func doHTTPRequest(ctx context.Context, container testcontainers.Container, containerPort string) error {
+	host, port, err := getContainerHostPort(ctx, container, nat.Port(fmt.Sprintf("%s/tcp", containerPort)))
 	if err != nil {
 		return err
 	}
 
-	resp, err := http.Get(fmt.Sprintf("http://%s", net.JoinHostPort(host, port)))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		fmt.Sprintf("http://%s", net.JoinHostPort(host, port)), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -276,7 +274,7 @@ func doHTTPRequest(container testcontainers.Container, containerPort string) err
 	return err
 }
 
-func doDNSRequest(container testcontainers.Container, message *dns.Msg) (*dns.Msg, error) {
+func doDNSRequest(ctx context.Context, container testcontainers.Container, message *dns.Msg) (*dns.Msg, error) {
 	const timeout = 5 * time.Second
 
 	c := &dns.Client{
@@ -284,7 +282,7 @@ func doDNSRequest(container testcontainers.Container, message *dns.Msg) (*dns.Ms
 		Timeout: timeout,
 	}
 
-	host, port, err := getContainerHostPort(container, "53/tcp")
+	host, port, err := getContainerHostPort(ctx, container, "53/tcp")
 	if err != nil {
 		return nil, err
 	}
@@ -294,13 +292,13 @@ func doDNSRequest(container testcontainers.Container, message *dns.Msg) (*dns.Ms
 	return msg, err
 }
 
-func getContainerHostPort(c testcontainers.Container, p nat.Port) (host, port string, err error) {
-	res, err := c.MappedPort(context.Background(), p)
+func getContainerHostPort(ctx context.Context, c testcontainers.Container, p nat.Port) (host, port string, err error) {
+	res, err := c.MappedPort(ctx, p)
 	if err != nil {
 		return "", "", err
 	}
 
-	host, err = c.Host(context.Background())
+	host, err = c.Host(ctx)
 
 	if err != nil {
 		return "", "", err
@@ -309,8 +307,8 @@ func getContainerHostPort(c testcontainers.Container, p nat.Port) (host, port st
 	return host, res.Port(), err
 }
 
-func getContainerLogs(c testcontainers.Container) (lines []string, err error) {
-	if r, err := c.Logs(context.Background()); err == nil {
+func getContainerLogs(ctx context.Context, c testcontainers.Container) (lines []string, err error) {
+	if r, err := c.Logs(ctx); err == nil {
 		scanner := bufio.NewScanner(r)
 		for scanner.Scan() {
 			line := scanner.Text()

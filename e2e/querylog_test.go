@@ -22,20 +22,20 @@ var _ = Describe("Query logs functional tests", func() {
 	var db *gorm.DB
 	var err error
 
-	BeforeEach(func() {
-		moka, err = createDNSMokkaContainer("moka1", `A google/NOERROR("A 1.2.3.4 123")`, `A unknown/NXDOMAIN()`)
+	BeforeEach(func(ctx context.Context) {
+		moka, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`, `A unknown/NXDOMAIN()`)
 
 		Expect(err).Should(Succeed())
 		DeferCleanup(moka.Terminate)
 	})
 
 	Describe("Query logging into the mariaDB database", func() {
-		BeforeEach(func() {
-			mariaDB, err = createMariaDBContainer()
+		BeforeEach(func(ctx context.Context) {
+			mariaDB, err = createMariaDBContainer(ctx)
 			Expect(err).Should(Succeed())
 			DeferCleanup(mariaDB.Terminate)
 
-			blocky, err = createBlockyContainer(tmpDir,
+			blocky, err = createBlockyContainer(ctx, tmpDir,
 				"log:",
 				"  level: warn",
 				"upstreams:",
@@ -53,7 +53,7 @@ var _ = Describe("Query logs functional tests", func() {
 
 			Expect(err).Should(Succeed())
 
-			connectionString, err := mariaDB.ConnectionString(context.Background(),
+			connectionString, err := mariaDB.ConnectionString(ctx,
 				"tls=false", "charset=utf8mb4", "parseTime=True", "loc=Local")
 			Expect(err).Should(Succeed())
 
@@ -67,10 +67,12 @@ var _ = Describe("Query logs functional tests", func() {
 			Eventually(countEntries).WithArguments(db).Should(BeNumerically("==", 0))
 		})
 		When("Some queries were performed", func() {
-			It("Should store query log in the mariaDB database", func() {
+			It("Should store query log in the mariaDB database", func(ctx context.Context) {
 				By("Performing 2 queries", func() {
-					Expect(doDNSRequest(blocky, util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)))).Should(Not(BeNil()))
-					Expect(doDNSRequest(blocky, util.NewMsgWithQuestion("unknown.domain.", dns.Type(dns.TypeA)))).Should(Not(BeNil()))
+					Expect(doDNSRequest(ctx, blocky,
+						util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA)))).Should(Not(BeNil()))
+					Expect(doDNSRequest(ctx, blocky,
+						util.NewMsgWithQuestion("unknown.domain.", dns.Type(dns.TypeA)))).Should(Not(BeNil()))
 				})
 
 				By("check entries count asynchronously, since blocky flushes log entries in bulk", func() {
@@ -108,12 +110,12 @@ var _ = Describe("Query logs functional tests", func() {
 	})
 
 	Describe("Query logging into the postgres database", func() {
-		BeforeEach(func() {
-			postgresDB, err = createPostgresContainer()
+		BeforeEach(func(ctx context.Context) {
+			postgresDB, err = createPostgresContainer(ctx)
 			Expect(err).Should(Succeed())
 			DeferCleanup(postgresDB.Terminate)
 
-			blocky, err = createBlockyContainer(tmpDir,
+			blocky, err = createBlockyContainer(ctx, tmpDir,
 				"log:",
 				"  level: warn",
 				"upstreams:",
@@ -129,7 +131,7 @@ var _ = Describe("Query logs functional tests", func() {
 			Expect(err).Should(Succeed())
 			DeferCleanup(blocky.Terminate)
 
-			connectionString, err := postgresDB.ConnectionString(context.Background(), "sslmode=disable")
+			connectionString, err := postgresDB.ConnectionString(ctx, "sslmode=disable")
 			Expect(err).Should(Succeed())
 
 			// database might be slow on first start, retry here if necessary
@@ -143,10 +145,10 @@ var _ = Describe("Query logs functional tests", func() {
 		})
 		When("Some queries were performed", func() {
 			msg := util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA))
-			It("Should store query log in the postgres database", func() {
+			It("Should store query log in the postgres database", func(ctx context.Context) {
 				By("Performing 2 queries", func() {
-					Expect(doDNSRequest(blocky, msg)).Should(Not(BeNil()))
-					Expect(doDNSRequest(blocky, msg)).Should(Not(BeNil()))
+					Expect(doDNSRequest(ctx, blocky, msg)).Should(Not(BeNil()))
+					Expect(doDNSRequest(ctx, blocky, msg)).Should(Not(BeNil()))
 				})
 
 				By("check entries count asynchronously, since blocky flushes log entries in bulk", func() {

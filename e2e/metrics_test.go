@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -20,23 +21,24 @@ var _ = Describe("Metrics functional tests", func() {
 	var metricsURL string
 
 	Describe("Metrics", func() {
-		BeforeEach(func() {
-			moka, err = createDNSMokkaContainer("moka1", `A google/NOERROR("A 1.2.3.4 123")`)
+		BeforeEach(func(ctx context.Context) {
+			moka, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`)
 
 			Expect(err).Should(Succeed())
 			DeferCleanup(moka.Terminate)
 
-			httpServer1, err = createHTTPServerContainer("httpserver1", tmpDir, "list1.txt", "domain1.com")
+			httpServer1, err = createHTTPServerContainer(ctx, "httpserver1", tmpDir, "list1.txt", "domain1.com")
 
 			Expect(err).Should(Succeed())
 			DeferCleanup(httpServer1.Terminate)
 
-			httpServer2, err = createHTTPServerContainer("httpserver2", tmpDir, "list2.txt", "domain1.com", "domain2", "domain3")
+			httpServer2, err = createHTTPServerContainer(ctx, "httpserver2", tmpDir, "list2.txt",
+				"domain1.com", "domain2", "domain3")
 
 			Expect(err).Should(Succeed())
 			DeferCleanup(httpServer2.Terminate)
 
-			blocky, err = createBlockyContainer(tmpDir,
+			blocky, err = createBlockyContainer(ctx, tmpDir,
 				"upstreams:",
 				"  groups:",
 				"    default:",
@@ -56,26 +58,26 @@ var _ = Describe("Metrics functional tests", func() {
 			Expect(err).Should(Succeed())
 			DeferCleanup(blocky.Terminate)
 
-			host, port, err := getContainerHostPort(blocky, "4000/tcp")
+			host, port, err := getContainerHostPort(ctx, blocky, "4000/tcp")
 			Expect(err).Should(Succeed())
 
 			metricsURL = fmt.Sprintf("http://%s/metrics", net.JoinHostPort(host, port))
 		})
 		When("Blocky is started", func() {
-			It("Should provide 'blocky_build_info' prometheus metrics", func() {
-				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).
+			It("Should provide 'blocky_build_info' prometheus metrics", func(ctx context.Context) {
+				Eventually(fetchBlockyMetrics).WithArguments(ctx, metricsURL).
 					Should(ContainElement(ContainSubstring("blocky_build_info")))
 			})
 
-			It("Should provide 'blocky_blocking_enabled' prometheus metrics", func() {
-				Eventually(fetchBlockyMetrics, "30s", "2ms").WithArguments(metricsURL).
+			It("Should provide 'blocky_blocking_enabled' prometheus metrics", func(ctx context.Context) {
+				Eventually(fetchBlockyMetrics, "30s", "2ms").WithArguments(ctx, metricsURL).
 					Should(ContainElement("blocky_blocking_enabled 1"))
 			})
 		})
 
 		When("Some query results are cached", func() {
-			BeforeEach(func() {
-				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).
+			BeforeEach(func(ctx context.Context) {
+				Eventually(fetchBlockyMetrics).WithArguments(ctx, metricsURL).
 					Should(
 						SatisfyAll(
 							ContainElement("blocky_cache_entry_count 0"),
@@ -84,18 +86,18 @@ var _ = Describe("Metrics functional tests", func() {
 						))
 			})
 
-			It("Should increment cache counts", func() {
+			It("Should increment cache counts", func(ctx context.Context) {
 				msg := util.NewMsgWithQuestion("google.de.", A)
 
 				By("first query, should increment the cache miss count and the total count", func() {
-					Expect(doDNSRequest(blocky, msg)).
+					Expect(doDNSRequest(ctx, blocky, msg)).
 						Should(
 							SatisfyAll(
 								BeDNSRecord("google.de.", A, "1.2.3.4"),
 								HaveTTL(BeNumerically("==", 123)),
 							))
 
-					Eventually(fetchBlockyMetrics).WithArguments(metricsURL).
+					Eventually(fetchBlockyMetrics).WithArguments(ctx, metricsURL).
 						Should(
 							SatisfyAll(
 								ContainElement("blocky_cache_entry_count 1"),
@@ -105,14 +107,14 @@ var _ = Describe("Metrics functional tests", func() {
 				})
 
 				By("Same query again, should increment the cache hit count", func() {
-					Expect(doDNSRequest(blocky, msg)).
+					Expect(doDNSRequest(ctx, blocky, msg)).
 						Should(
 							SatisfyAll(
 								BeDNSRecord("google.de.", A, "1.2.3.4"),
 								HaveTTL(BeNumerically("<=", 123)),
 							))
 
-					Eventually(fetchBlockyMetrics).WithArguments(metricsURL).
+					Eventually(fetchBlockyMetrics).WithArguments(ctx, metricsURL).
 						Should(
 							SatisfyAll(
 								ContainElement("blocky_cache_entry_count 1"),
@@ -124,8 +126,8 @@ var _ = Describe("Metrics functional tests", func() {
 		})
 
 		When("Lists are loaded", func() {
-			It("Should expose list cache sizes per group as metrics", func() {
-				Eventually(fetchBlockyMetrics).WithArguments(metricsURL).
+			It("Should expose list cache sizes per group as metrics", func(ctx context.Context) {
+				Eventually(fetchBlockyMetrics).WithArguments(ctx, metricsURL).
 					Should(
 						SatisfyAll(
 							ContainElement("blocky_blacklist_cache{group=\"group1\"} 1"),
@@ -136,10 +138,15 @@ var _ = Describe("Metrics functional tests", func() {
 	})
 })
 
-func fetchBlockyMetrics(url string) ([]string, error) {
+func fetchBlockyMetrics(ctx context.Context, url string) ([]string, error) {
 	var metrics []string
 
-	r, err := http.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
