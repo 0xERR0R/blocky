@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"time"
 
@@ -115,11 +116,15 @@ var _ = Describe("FileWriter", func() {
 					})
 				})
 
-				Expect(tmpDir.ReadDir()).Should(HaveLen(2))
+				Eventually(func(g Gomega) ([]fs.DirEntry, error) {
+					return os.ReadDir(tmpDir.Path)
+				}, "20s", "1s").Should(HaveLen(2))
 
 				writer.CleanUp()
 
-				Expect(tmpDir.ReadDir()).Should(HaveLen(1))
+				Eventually(func(g Gomega) ([]fs.DirEntry, error) {
+					return os.ReadDir(tmpDir.Path)
+				}, "20s", "1s").Should(HaveLen(1))
 			})
 		})
 	})

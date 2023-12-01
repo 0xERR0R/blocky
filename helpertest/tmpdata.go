@@ -105,13 +105,6 @@ func (tf *TmpFolder) JoinPath(name string) string {
 	return filepath.Join(tf.Path, name)
 }
 
-func (tf *TmpFolder) ReadDir() []fs.DirEntry {
-	files, err := os.ReadDir(tf.Path)
-	Expect(err).Should(Succeed())
-
-	return files
-}
-
 func (tf *TmpFolder) createFile(name string) (*os.File, *TmpFile) {
 	var (
 		f   *os.File
