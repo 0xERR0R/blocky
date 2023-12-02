@@ -280,8 +280,8 @@ domain must be separated by a comma.
         otherdevice.lan: 192.168.178.15,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
     ```
 
-This configuration will also resolve any subdomain of the defined domain. For example a query "printer.lan" or "
-my.printer.lan" will return 192.168.178.3 as IP address.
+This configuration will also resolve any subdomain of the defined domain, recursively. For example querying any of
+`printer.lan`, `my.printer.lan` or `i.love.my.printer.lan` will return 192.168.178.3.
 
 With the optional parameter `rewrite` you can replace domain part of the query with the defined part **before** the
 resolver lookup is performed.
