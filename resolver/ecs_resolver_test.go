@@ -26,9 +26,6 @@ var _ = Describe("EcsResolver", func() {
 		err        error
 		origIP     net.IP
 		ecsIP      net.IP
-
-		ctx      context.Context
-		cancelFn context.CancelFunc
 	)
 
 	Describe("Type", func() {
@@ -38,15 +35,12 @@ var _ = Describe("EcsResolver", func() {
 	})
 
 	BeforeEach(func() {
-		ctx, cancelFn = context.WithCancel(context.Background())
-		DeferCleanup(cancelFn)
-
 		err = defaults.Set(&sutConfig)
 		Expect(err).Should(Succeed())
 
 		mockAnswer = new(dns.Msg)
-		origIP = net.ParseIP("1.2.3.4")
-		ecsIP = net.ParseIP("4.3.2.1")
+		origIP = net.ParseIP("1.2.3.4").To4()
+		ecsIP = net.ParseIP("4.3.2.1").To4()
 	})
 
 	JustBeforeEach(func() {
@@ -63,7 +57,7 @@ var _ = Describe("EcsResolver", func() {
 		sut.Next(m)
 	})
 
-	When("ecs is disabled", func() {
+	When("ECS is disabled", func() {
 		Describe("IsEnabled", func() {
 			It("is false", func() {
 				Expect(sut.IsEnabled()).Should(BeFalse())
@@ -71,7 +65,7 @@ var _ = Describe("EcsResolver", func() {
 		})
 	})
 
-	When("ecs is enabled", func() {
+	When("ECS is enabled", func() {
 		BeforeEach(func() {
 			sutConfig.UseAsClient = true
 		})
@@ -82,12 +76,12 @@ var _ = Describe("EcsResolver", func() {
 			})
 		})
 
-		When("use ecs client ip is enabled", func() {
+		When("use ECS client ip is enabled", func() {
 			BeforeEach(func() {
 				sutConfig.UseAsClient = true
 			})
 
-			It("should change ClientIP with subnet 32", func() {
+			It("should change ClientIP with subnet 32", func(ctx context.Context) {
 				request := newRequest("example.com.", A)
 				request.ClientIP = origIP
 
@@ -108,7 +102,7 @@ var _ = Describe("EcsResolver", func() {
 							HaveReason("Test")))
 			})
 
-			It("shouldn't change ClientIP with subnet 24", func() {
+			It("shouldn't change ClientIP with subnet 24", func(ctx context.Context) {
 				request := newRequest("example.com.", A)
 				request.ClientIP = origIP
 
@@ -130,14 +124,13 @@ var _ = Describe("EcsResolver", func() {
 			})
 		})
 
-		When("forward ecs is enabled", func() {
+		When("add ECS information", func() {
 			BeforeEach(func() {
-				sutConfig.Forward = true
 				sutConfig.IPv4Mask = 32
 				sutConfig.IPv6Mask = 128
 			})
 
-			It("should add Ecs information with subnet 32", func() {
+			It("should add ECS information with subnet 32", func(ctx context.Context) {
 				request := newRequest("example.com.", A)
 				request.ClientIP = origIP
 
@@ -157,12 +150,100 @@ var _ = Describe("EcsResolver", func() {
 							HaveReason("Test")))
 			})
 
-			It("should add Ecs information with subnet 128", func() {
+			It("should add ECS information with subnet 128", func(ctx context.Context) {
 				request := newRequest("example.com.", AAAA)
 				request.ClientIP = net.ParseIP("2001:db8::68")
 
 				m.ResolveFn = func(ctx context.Context, req *Request) (*Response, error) {
 					Expect(req.Req).Should(HaveEdnsOption(dns.EDNS0SUBNET))
+
+					return respondWith(mockAnswer), nil
+				}
+
+				Expect(sut.Resolve(ctx, request)).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+							HaveReason("Test")))
+			})
+		})
+
+		When("forward ECS information", func() {
+			BeforeEach(func() {
+				sutConfig.IPv4Mask = 32
+				sutConfig.IPv6Mask = 128
+				sutConfig.Forward = true
+			})
+
+			It("should forward ECS information with subnet 32", func(ctx context.Context) {
+				request := newRequest("example.com.", A)
+				request.ClientIP = origIP
+
+				addEcsOption(request.Req, ecsIP, ecsMaskIPv4)
+
+				m.ResolveFn = func(ctx context.Context, req *Request) (*Response, error) {
+					Expect(req.ClientIP).Should(Equal(ecsIP))
+					Expect(req.Req).Should(HaveEdnsOption(dns.EDNS0SUBNET))
+
+					so := util.GetEdns0Option[*dns.EDNS0_SUBNET](req.Req)
+					Expect(so.Address).Should(Equal(ecsIP))
+
+					return respondWith(mockAnswer), nil
+				}
+
+				Expect(sut.Resolve(ctx, request)).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+							HaveReason("Test")))
+			})
+
+			When("subnet mask is 24", func() {
+				BeforeEach(func() {
+					sutConfig.IPv4Mask = 24
+				})
+
+				It("should modify ECS information", func(ctx context.Context) {
+					request := newRequest("example.com.", A)
+					request.ClientIP = origIP
+
+					addEcsOption(request.Req, ecsIP, ecsMaskIPv4)
+
+					m.ResolveFn = func(ctx context.Context, req *Request) (*Response, error) {
+						Expect(req.ClientIP).Should(Equal(ecsIP))
+						Expect(req.Req).Should(HaveEdnsOption(dns.EDNS0SUBNET))
+
+						so := util.GetEdns0Option[*dns.EDNS0_SUBNET](req.Req)
+						Expect(so.Address).Should(Equal(net.ParseIP("4.3.2.0").To4()))
+
+						return respondWith(mockAnswer), nil
+					}
+
+					Expect(sut.Resolve(ctx, request)).
+						Should(
+							SatisfyAll(
+								HaveNoAnswer(),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+								HaveReason("Test")))
+				})
+			})
+
+			It("should forward ECS information with subnet 128", func(ctx context.Context) {
+				request := newRequest("example.com.", AAAA)
+				request.ClientIP = net.ParseIP("2001:db8::68")
+
+				addEcsOption(request.Req, net.ParseIP("2001:db8::68"), 128)
+
+				m.ResolveFn = func(ctx context.Context, req *Request) (*Response, error) {
+					Expect(req.Req).Should(HaveEdnsOption(dns.EDNS0SUBNET))
+
+					so := util.GetEdns0Option[*dns.EDNS0_SUBNET](req.Req)
+					Expect(so.Address).Should(Equal(net.ParseIP("2001:db8::68")))
 
 					return respondWith(mockAnswer), nil
 				}
