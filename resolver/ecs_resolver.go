@@ -53,7 +53,7 @@ func (r *ECSResolver) Resolve(ctx context.Context, request *model.Request) (*mod
 		// Set the client IP from the Edns0 subnet option if the option is enabled and the correct subnet mask is set
 		if r.cfg.UseAsClient && so != nil && ((so.Family == ecsFamilyIPv4 && so.SourceNetmask == ecsMaskIPv4) ||
 			(so.Family == ecsFamilyIPv6 && so.SourceNetmask == ecsMaskIPv6)) {
-			request.Log.Debugf("set client IP from edns0 subnet option: %s", so.Address)
+			request.Log.Debugf("using request's edns0 address as internal client IP: %s", so.Address)
 			request.ClientIP = so.Address
 		}
 
