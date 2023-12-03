@@ -1655,6 +1655,13 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">  </span><span class="c1"># optional: block recomended private TLDs</span>
 <span class="w">  </span><span class="c1"># default: true</span>
 <span class="w">  </span><span class="nt">rfc6762-appendixG</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="c1"># optional: configure extended client subnet (ECS) support</span>
+<span class="nt">ecs</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># optional: if the request ecs option with a max sice mask the address will be used as client ip</span>
+<span class="w">  </span><span class="nt">useAsClient</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="c1"># optional: if the request contains a ecs option it will be forwarded to the upstream resolver</span>
+<span class="w">  </span><span class="nt">forward</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
 </details>
 <h2 id="basic-configuration">Basic configuration</h2>
