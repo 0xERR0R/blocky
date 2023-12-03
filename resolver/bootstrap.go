@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -22,6 +23,10 @@ import (
 
 const (
 	defaultTimeout = 5 * time.Second
+)
+
+var errArbitrarySystemResolverRequest = errors.New(
+	"cannot resolve arbitrary requests using the system resolver",
 )
 
 // Bootstrap allows resolving hostnames using the configured bootstrap DNS.
@@ -108,7 +113,7 @@ func (b *Bootstrap) Resolve(ctx context.Context, request *model.Request) (*model
 	if b.resolver == nil {
 		// We could implement most queries using the `b.systemResolver.Lookup*` functions,
 		// but that requires a lot of boilerplate to translate from `dns` to `net` and back.
-		return nil, errors.New("cannot resolve arbitrary requests using the system resolver")
+		return nil, errArbitrarySystemResolverRequest
 	}
 
 	// Add bootstrap prefix to all inner resolver logs

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
@@ -24,21 +25,19 @@ type StrictResolver struct {
 	configurable[*config.UpstreamGroup]
 	typed
 
-	resolvers []*upstreamResolverStatus
+	resolvers atomic.Pointer[[]*upstreamResolverStatus]
 }
 
 // NewStrictResolver creates a new strict resolver instance
 func NewStrictResolver(
 	ctx context.Context, cfg config.UpstreamGroup, bootstrap *Bootstrap,
 ) (*StrictResolver, error) {
-	logger := log.PrefixedLog(strictResolverType)
+	r := newStrictResolver(
+		cfg,
+		[]Resolver{bootstrap}, // if start strategy is fast, use bootstrap until init finishes
+	)
 
-	resolvers, err := createResolvers(ctx, logger, cfg, bootstrap)
-	if err != nil {
-		return nil, err
-	}
-
-	return newStrictResolver(cfg, resolvers), nil
+	return initGroupResolvers(ctx, r, cfg, bootstrap)
 }
 
 func newStrictResolver(
@@ -47,11 +46,15 @@ func newStrictResolver(
 	r := StrictResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType(strictResolverType),
-
-		resolvers: newUpstreamResolverStatuses(resolvers),
 	}
 
+	r.setResolvers(newUpstreamResolverStatuses(resolvers))
+
 	return &r
+}
+
+func (r *StrictResolver) setResolvers(resolvers []*upstreamResolverStatus) {
+	r.resolvers.Store(&resolvers)
 }
 
 func (r *StrictResolver) Name() string {
@@ -59,12 +62,14 @@ func (r *StrictResolver) Name() string {
 }
 
 func (r *StrictResolver) String() string {
-	result := make([]string, len(r.resolvers))
-	for i, s := range r.resolvers {
-		result[i] = fmt.Sprintf("%s", s.resolver)
+	resolvers := *r.resolvers.Load()
+
+	upstreams := make([]string, len(resolvers))
+	for i, s := range resolvers {
+		upstreams[i] = fmt.Sprintf("%s", s.resolver)
 	}
 
-	return fmt.Sprintf("%s upstreams '%s (%s)'", strictResolverType, r.cfg.Name, strings.Join(result, ","))
+	return fmt.Sprintf("%s upstreams '%s (%s)'", strictResolverType, r.cfg.Name, strings.Join(upstreams, ","))
 }
 
 // Resolve sends the query request in a strict order to the upstream resolvers
@@ -72,7 +77,7 @@ func (r *StrictResolver) Resolve(ctx context.Context, request *model.Request) (*
 	logger := log.WithPrefix(request.Log, strictResolverType)
 
 	// start with first resolver
-	for _, resolver := range r.resolvers {
+	for _, resolver := range *r.resolvers.Load() {
 		logger.Debugf("using %s as resolver", resolver.resolver)
 
 		resp, err := resolver.resolve(ctx, request)

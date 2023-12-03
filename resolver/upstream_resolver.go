@@ -216,11 +216,13 @@ func NewUpstreamResolver(
 ) (*UpstreamResolver, error) {
 	r := newUpstreamResolverUnchecked(cfg, bootstrap)
 
-	if cfg.StartVerify {
-		_, err := r.bootstrap.UpstreamIPs(ctx, r)
-		if err != nil {
-			return nil, err
-		}
+	onErr := func(err error) {
+		r.log().WithError(err).Warn("initial resolver test failed")
+	}
+
+	err := cfg.Init.Strategy.Do(ctx, r.testResolve, onErr)
+	if err != nil {
+		return nil, err
 	}
 
 	return r, nil

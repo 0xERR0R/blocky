@@ -216,38 +216,55 @@ func (c *configurable[T]) LogConfig(logger *logrus.Entry) {
 	c.cfg.LogConfig(logger)
 }
 
-func createResolvers(
-	ctx context.Context, logger *logrus.Entry,
-	cfg config.UpstreamGroup, bootstrap *Bootstrap,
-) ([]Resolver, error) {
-	if len(cfg.GroupUpstreams()) == 0 {
-		return nil, fmt.Errorf("no external DNS resolvers configured for group %s", cfg.Name)
-	}
+type initializable interface {
+	log() *logrus.Entry
+	setResolvers([]*upstreamResolverStatus)
+}
 
-	resolvers := make([]Resolver, 0, len(cfg.GroupUpstreams()))
-	hasValidResolvers := false
-
-	for _, u := range cfg.GroupUpstreams() {
-		resolver, err := NewUpstreamResolver(ctx, newUpstreamConfig(u, cfg.Upstreams), bootstrap)
+func initGroupResolvers[T initializable](
+	ctx context.Context, r T, cfg config.UpstreamGroup, bootstrap *Bootstrap,
+) (T, error) {
+	init := func(ctx context.Context) error {
+		resolvers, err := createGroupResolvers(ctx, cfg, bootstrap)
 		if err != nil {
-			logger.Warnf("upstream group %s: %v", cfg.Name, err)
-
-			continue
+			return err
 		}
 
-		if cfg.StartVerify {
-			err = resolver.testResolve(ctx)
-			if err != nil {
-				logger.Warn(err)
-			} else {
-				hasValidResolvers = true
-			}
-		}
+		r.setResolvers(resolvers)
 
-		resolvers = append(resolvers, resolver)
+		return nil
 	}
 
-	if cfg.StartVerify && !hasValidResolvers {
+	onErr := func(err error) {
+		r.log().WithError(err).Error("upstream verification error, will continue to use bootstrap DNS")
+	}
+
+	err := cfg.Init.Strategy.Do(ctx, init, onErr)
+	if err != nil {
+		var zero T
+
+		return zero, err
+	}
+
+	return r, nil
+}
+
+func createGroupResolvers(
+	ctx context.Context, cfg config.UpstreamGroup, bootstrap *Bootstrap,
+) ([]*upstreamResolverStatus, error) {
+	upstreams := cfg.GroupUpstreams()
+	resolvers := make([]*upstreamResolverStatus, 0, len(upstreams))
+
+	for _, upstream := range upstreams {
+		resolver, err := NewUpstreamResolver(ctx, newUpstreamConfig(upstream, cfg.Upstreams), bootstrap)
+		if err != nil {
+			continue // err was already logged
+		}
+
+		resolvers = append(resolvers, newUpstreamResolverStatus(resolver))
+	}
+
+	if len(resolvers) == 0 {
 		return nil, fmt.Errorf("no valid upstream for group %s", cfg.Name)
 	}
 

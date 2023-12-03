@@ -30,7 +30,7 @@ type ParallelBestResolver struct {
 	configurable[*config.UpstreamGroup]
 	typed
 
-	resolvers []*upstreamResolverStatus
+	resolvers atomic.Pointer[[]*upstreamResolverStatus]
 
 	resolverCount              int
 	retryWithDifferentResolver bool
@@ -95,14 +95,12 @@ type requestResponse struct {
 func NewParallelBestResolver(
 	ctx context.Context, cfg config.UpstreamGroup, bootstrap *Bootstrap,
 ) (*ParallelBestResolver, error) {
-	logger := log.PrefixedLog(parallelResolverType)
+	r := newParallelBestResolver(
+		cfg,
+		[]Resolver{bootstrap}, // if start strategy is fast, use bootstrap until init finishes
+	)
 
-	resolvers, err := createResolvers(ctx, logger, cfg, bootstrap)
-	if err != nil {
-		return nil, err
-	}
-
-	return newParallelBestResolver(cfg, resolvers), nil
+	return initGroupResolvers(ctx, r, cfg, bootstrap)
 }
 
 func newParallelBestResolver(cfg config.UpstreamGroup, resolvers []Resolver) *ParallelBestResolver {
@@ -122,10 +120,15 @@ func newParallelBestResolver(cfg config.UpstreamGroup, resolvers []Resolver) *Pa
 
 		resolverCount:              resolverCount,
 		retryWithDifferentResolver: retryWithDifferentResolver,
-		resolvers:                  newUpstreamResolverStatuses(resolvers),
 	}
 
+	r.setResolvers(newUpstreamResolverStatuses(resolvers))
+
 	return &r
+}
+
+func (r *ParallelBestResolver) setResolvers(resolvers []*upstreamResolverStatus) {
+	r.resolvers.Store(&resolvers)
 }
 
 func (r *ParallelBestResolver) Name() string {
@@ -133,20 +136,24 @@ func (r *ParallelBestResolver) Name() string {
 }
 
 func (r *ParallelBestResolver) String() string {
-	resolvers := make([]string, len(r.resolvers))
-	for i, s := range r.resolvers {
-		resolvers[i] = fmt.Sprintf("%s", s.resolver)
+	resolvers := *r.resolvers.Load()
+
+	upstreams := make([]string, len(resolvers))
+	for i, s := range resolvers {
+		upstreams[i] = fmt.Sprintf("%s", s.resolver)
 	}
 
-	return fmt.Sprintf("%s upstreams '%s (%s)'", r.Type(), r.cfg.Name, strings.Join(resolvers, ","))
+	return fmt.Sprintf("%s upstreams '%s (%s)'", r.Type(), r.cfg.Name, strings.Join(upstreams, ","))
 }
 
 // Resolve sends the query request to multiple upstream resolvers and returns the fastest result
 func (r *ParallelBestResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	logger := log.WithPrefix(request.Log, parallelResolverType)
 
-	if len(r.resolvers) == 1 {
-		resolver := r.resolvers[0]
+	allResolvers := *r.resolvers.Load()
+
+	if len(allResolvers) == 1 {
+		resolver := allResolvers[0]
 		logger.WithField("resolver", resolver.resolver).Debug("delegating to resolver")
 
 		return resolver.resolve(ctx, request)
@@ -155,7 +162,7 @@ func (r *ParallelBestResolver) Resolve(ctx context.Context, request *model.Reque
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel() // abort requests to resolvers that lost the race
 
-	resolvers := pickRandom(r.resolvers, r.resolverCount)
+	resolvers := pickRandom(allResolvers, r.resolverCount)
 	ch := make(chan requestResponse, len(resolvers))
 
 	for _, resolver := range resolvers {
@@ -204,7 +211,7 @@ func (r *ParallelBestResolver) retryWithDifferent(
 	ctx context.Context, logger *logrus.Entry, request *model.Request, resolvers []*upstreamResolverStatus,
 ) (*model.Response, error) {
 	// second try (if retryWithDifferentResolver == true)
-	resolver := weightedRandom(r.resolvers, resolvers)
+	resolver := weightedRandom(*r.resolvers.Load(), resolvers)
 	logger.Debugf("using %s as second resolver", resolver.resolver)
 
 	resp, err := resolver.resolve(ctx, request)

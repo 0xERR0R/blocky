@@ -142,6 +142,15 @@ var _ = Describe("Config", func() {
 				Expect(c.Ports.TLS).Should(Equal(ports))
 			})
 		})
+
+		When("parameter 'startVerifyUpstream' is set", func() {
+			It("should convert to upstreams.init.strategy", func() {
+				c.Deprecated.StartVerifyUpstream = ptrOf(true)
+				c.migrate(logger)
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("startVerifyUpstream")))
+				Expect(c.Upstreams.Init.Strategy).Should(Equal(StartStrategyTypeFailOnError))
+			})
+		})
 	})
 
 	Describe("Creation of Config", func() {
@@ -552,8 +561,10 @@ bootstrapDns:
 				cfg.LogConfig(logger)
 
 				Expect(hook.Calls).ShouldNot(BeEmpty())
-				Expect(hook.Messages[0]).Should(Equal("concurrency = 12"))
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("refresh = every 1 hour")))
+				Expect(hook.Messages).Should(ContainElements(
+					ContainSubstring("concurrency = 12"),
+					ContainSubstring("refresh = every 1 hour"),
+				))
 			})
 			When("refresh is disabled", func() {
 				BeforeEach(func() {
@@ -590,9 +601,11 @@ bootstrapDns:
 					Expect(recover()).Should(BeIdenticalTo(panicVal))
 				}()
 
-				_ = sut.do(func() error {
+				_ = sut.Do(context.Background(), func(context.Context) error {
+					return errors.New("trigger `logErr`")
+				}, func(err error) {
 					panic(panicVal)
-				}, nil)
+				})
 
 				Fail("unreachable")
 			})
@@ -601,7 +614,7 @@ bootstrapDns:
 				sut := StartStrategyTypeBlocking
 				expectedErr := errors.New("test")
 
-				err := sut.do(func() error {
+				err := sut.Do(context.Background(), func(context.Context) error {
 					return expectedErr
 				}, func(err error) {
 					Expect(err).Should(MatchError(expectedErr))
@@ -609,11 +622,26 @@ bootstrapDns:
 
 				Expect(err).Should(Succeed())
 			})
+
+			It("logs panics and doesn't convert them to errors", func() {
+				sut := StartStrategyTypeBlocking
+
+				logged := false
+				err := sut.Do(context.Background(), func(context.Context) error {
+					panic(struct{}{})
+				}, func(err error) {
+					logged = true
+					Expect(err).Should(MatchError(ContainSubstring("panic")))
+				})
+
+				Expect(err).Should(Succeed())
+				Expect(logged).Should(BeTrue())
+			})
 		})
 
 		Describe("StartStrategyTypeFailOnError", func() {
 			It("runs in the current goroutine", func() {
-				sut := StartStrategyTypeBlocking
+				sut := StartStrategyTypeFailOnError
 				panicVal := new(int)
 
 				defer func() {
@@ -621,9 +649,11 @@ bootstrapDns:
 					Expect(recover()).Should(BeIdenticalTo(panicVal))
 				}()
 
-				_ = sut.do(func() error {
+				_ = sut.Do(context.Background(), func(context.Context) error {
+					return errors.New("trigger `logErr`")
+				}, func(err error) {
 					panic(panicVal)
-				}, nil)
+				})
 
 				Fail("unreachable")
 			})
@@ -632,13 +662,28 @@ bootstrapDns:
 				sut := StartStrategyTypeFailOnError
 				expectedErr := errors.New("test")
 
-				err := sut.do(func() error {
+				err := sut.Do(context.Background(), func(context.Context) error {
 					return expectedErr
 				}, func(err error) {
 					Expect(err).Should(MatchError(expectedErr))
 				})
 
 				Expect(err).Should(MatchError(expectedErr))
+			})
+
+			It("returns logs panics and converts them to errors", func() {
+				sut := StartStrategyTypeFailOnError
+
+				logged := false
+				err := sut.Do(context.Background(), func(context.Context) error {
+					panic(struct{}{})
+				}, func(err error) {
+					logged = true
+					Expect(err).Should(MatchError(ContainSubstring("panic")))
+				})
+
+				Expect(err).Should(HaveOccurred())
+				Expect(logged).Should(BeTrue())
 			})
 		})
 
@@ -648,7 +693,7 @@ bootstrapDns:
 				events := make(chan string)
 				wait := make(chan struct{})
 
-				err := sut.do(func() error {
+				err := sut.Do(context.Background(), func(context.Context) error {
 					events <- "start"
 					<-wait
 					events <- "done"
@@ -668,7 +713,23 @@ bootstrapDns:
 				expectedErr := errors.New("test")
 				wait := make(chan struct{})
 
-				err := sut.do(func() error {
+				err := sut.Do(context.Background(), func(context.Context) error {
+					return expectedErr
+				}, func(err error) {
+					Expect(err).Should(MatchError(expectedErr))
+					close(wait)
+				})
+
+				Expect(err).Should(Succeed())
+				Eventually(wait, "50ms").Should(BeClosed())
+			})
+
+			It("logs panics", func() {
+				sut := StartStrategyTypeFast
+				expectedErr := errors.New("test")
+				wait := make(chan struct{})
+
+				err := sut.Do(context.Background(), func(context.Context) error {
 					return expectedErr
 				}, func(err error) {
 					Expect(err).Should(MatchError(expectedErr))
@@ -717,7 +778,7 @@ bootstrapDns:
 		})
 		It("handles panics", func() {
 			sut := SourceLoadingConfig{
-				Strategy: StartStrategyTypeFailOnError,
+				Init: Init{Strategy: StartStrategyTypeFailOnError},
 			}
 
 			panicMsg := "panic value"
@@ -733,7 +794,7 @@ bootstrapDns:
 
 		It("periodically calls refresh", func() {
 			sut := SourceLoadingConfig{
-				Strategy:      StartStrategyTypeFast,
+				Init:          Init{Strategy: StartStrategyTypeFast},
 				RefreshPeriod: Duration(5 * time.Millisecond),
 			}
 
@@ -789,7 +850,7 @@ bootstrapDns:
 
 func defaultTestFileConfig(config *Config) {
 	Expect(config.Ports.DNS).Should(Equal(ListenConfig{"55553", ":55554", "[::1]:55555"}))
-	Expect(config.Upstreams.StartVerify).Should(BeFalse())
+	Expect(config.Upstreams.Init.Strategy).Should(Equal(StartStrategyTypeFailOnError))
 	Expect(config.Upstreams.UserAgent).Should(Equal("testBlocky"))
 	Expect(config.Upstreams.Groups["default"]).Should(HaveLen(3))
 	Expect(config.Upstreams.Groups["default"][0].Host).Should(Equal("8.8.8.8"))
@@ -824,8 +885,9 @@ func defaultTestFileConfig(config *Config) {
 func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {
 	return tmpDir.CreateStringFile("config.yml",
 		"upstreams:",
-		"  startVerify: false",
 		"  userAgent: testBlocky",
+		"  init:",
+		"    strategy: failOnError",
 		"  groups:",
 		"    default:",
 		"      - tcp+udp:8.8.8.8",
@@ -885,8 +947,9 @@ func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {
 func writeConfigDir(tmpDir *helpertest.TmpFolder) {
 	tmpDir.CreateStringFile("config1.yaml",
 		"upstreams:",
-		"  startVerify: false",
 		"  userAgent: testBlocky",
+		"  init:",
+		"    strategy: failOnError",
 		"  groups:",
 		"    default:",
 		"      - tcp+udp:8.8.8.8",

@@ -196,9 +196,8 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 		It("errors during construction", func() {
 			b := newTestBootstrap(ctx, &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
-			upstreamsCfg := config.Upstreams{
-				StartVerify: true,
-			}
+			upstreamsCfg := defaultUpstreamsConfig
+			upstreamsCfg.Init.Strategy = config.StartStrategyTypeFailOnError
 
 			sutConfig := config.ConditionalUpstream{
 				Mapping: config.ConditionalUpstreamMapping{
