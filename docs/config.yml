@@ -332,3 +332,10 @@ specialUseDomains:
   # optional: block recomended private TLDs
   # default: true
   rfc6762-appendixG: true
+
+# optional: configure extended client subnet (ECS) support
+ecs:
+  # optional: if the request ecs option with a max sice mask the address will be used as client ip
+  useAsClient: true
+  # optional: if the request contains a ecs option it will be forwarded to the upstream resolver
+  forward: true
