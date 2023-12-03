@@ -92,7 +92,7 @@ func (r *ECSResolver) setSubnet(so *dns.EDNS0_SUBNET, request *model.Request) {
 		}
 	} else if ip := subIP.To16(); ip != nil && r.cfg.IPv6Mask > 0 {
 		if mip, err := maskIP(ip, r.cfg.IPv6Mask); err == nil {
-			e := getEdnsSubnetOption(mip, ecsFamilyIPv6, r.cfg.IPv6Mask)
+			e := newEdnsSubnetOption((mip, ecsFamilyIPv6, r.cfg.IPv6Mask)
 			util.SetEdns0Option(request.Req, e)
 		}
 	}
