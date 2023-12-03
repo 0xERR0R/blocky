@@ -83,18 +83,20 @@ func (r *ECSResolver) setSubnet(so *dns.EDNS0_SUBNET, request *model.Request) {
 		subIP = request.ClientIP
 	}
 
-	request.Log.Debugf("set edns0 subnet option: %s", subIP)
-
+	var edsOption *dns.EDNS0_SUBNET
 	if ip := subIP.To4(); ip != nil && r.cfg.IPv4Mask > 0 {
 		if mip, err := maskIP(ip, r.cfg.IPv4Mask); err == nil {
-			e := newEdnsSubnetOption(mip, ecsFamilyIPv4, r.cfg.IPv4Mask)
-			util.SetEdns0Option(request.Req, e)
+			edsOption = newEdnsSubnetOption(mip, ecsFamilyIPv4, r.cfg.IPv4Mask)
 		}
 	} else if ip := subIP.To16(); ip != nil && r.cfg.IPv6Mask > 0 {
 		if mip, err := maskIP(ip, r.cfg.IPv6Mask); err == nil {
-			e := newEdnsSubnetOption((mip, ecsFamilyIPv6, r.cfg.IPv6Mask)
-			util.SetEdns0Option(request.Req, e)
+			edsOption = newEdnsSubnetOption(mip, ecsFamilyIPv6, r.cfg.IPv6Mask)
 		}
+	}
+
+	if edsOption != nil {
+		request.Log.Debugf("set edns0 subnet option address: %s", edsOption.Address)
+		util.SetEdns0Option(request.Req, edsOption)
 	}
 }
 
@@ -106,7 +108,7 @@ func maskIP[maskType ECSMask](ip net.IP, mask maskType) (net.IP, error) {
 }
 
 // newEdnsSubnetOption( creates a new EDNS0 subnet option with the given IP, family and mask
-func newEdnsSubnetOption([maskType ECSMask](ip net.IP, family uint16, mask maskType) *dns.EDNS0_SUBNET {
+func newEdnsSubnetOption[maskType ECSMask](ip net.IP, family uint16, mask maskType) *dns.EDNS0_SUBNET {
 	return &dns.EDNS0_SUBNET{
 		Code:          dns.EDNS0SUBNET,
 		SourceScope:   ecsSourceScope,
