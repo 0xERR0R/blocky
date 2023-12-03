@@ -105,8 +105,8 @@ func maskIP[maskType ECSMask](ip net.IP, mask maskType) (net.IP, error) {
 	return mip.IP, err
 }
 
-// getEdnsSubnetOption creates a new EDNS0 subnet option with the given IP, family and mask
-func getEdnsSubnetOption[maskType ECSMask](ip net.IP, family uint16, mask maskType) *dns.EDNS0_SUBNET {
+// newEdnsSubnetOption( creates a new EDNS0 subnet option with the given IP, family and mask
+func newEdnsSubnetOption([maskType ECSMask](ip net.IP, family uint16, mask maskType) *dns.EDNS0_SUBNET {
 	return &dns.EDNS0_SUBNET{
 		Code:          dns.EDNS0SUBNET,
 		SourceScope:   ecsSourceScope,
