@@ -116,10 +116,14 @@ type QueryLogType int16
 // )
 type StartStrategyType uint16
 
-func (s *StartStrategyType) do(setup func() error, logErr func(error)) error {
-	if *s == StartStrategyTypeFast {
+func (s StartStrategyType) Do(ctx context.Context, init func(context.Context) error, logErr func(error)) error {
+	init = recoverToError(init, func(panicVal any) error {
+		return fmt.Errorf("panic during initialization: %v", panicVal)
+	})
+
+	if s == StartStrategyTypeFast {
 		go func() {
-			err := setup()
+			err := init(ctx)
 			if err != nil {
 				logErr(err)
 			}
@@ -128,11 +132,11 @@ func (s *StartStrategyType) do(setup func() error, logErr func(error)) error {
 		return nil
 	}
 
-	err := setup()
+	err := init(ctx)
 	if err != nil {
 		logErr(err)
 
-		if *s == StartStrategyTypeFailOnError {
+		if s == StartStrategyTypeFailOnError {
 			return err
 		}
 	}
@@ -309,18 +313,27 @@ func (c *toEnable) LogConfig(logger *logrus.Entry) {
 	logger.Info("enabled")
 }
 
+type Init struct {
+	Strategy StartStrategyType `yaml:"strategy" default:"blocking"`
+}
+
+func (c *Init) LogConfig(logger *logrus.Entry) {
+	logger.Debugf("strategy = %s", c.Strategy)
+}
+
 type SourceLoadingConfig struct {
-	Concurrency        uint              `yaml:"concurrency" default:"4"`
-	MaxErrorsPerSource int               `yaml:"maxErrorsPerSource" default:"5"`
-	RefreshPeriod      Duration          `yaml:"refreshPeriod" default:"4h"`
-	Strategy           StartStrategyType `yaml:"strategy" default:"blocking"`
-	Downloads          DownloaderConfig  `yaml:"downloads"`
+	Init `yaml:",inline"`
+
+	Concurrency        uint             `yaml:"concurrency" default:"4"`
+	MaxErrorsPerSource int              `yaml:"maxErrorsPerSource" default:"5"`
+	RefreshPeriod      Duration         `yaml:"refreshPeriod" default:"4h"`
+	Downloads          DownloaderConfig `yaml:"downloads"`
 }
 
 func (c *SourceLoadingConfig) LogConfig(logger *logrus.Entry) {
+	c.Init.LogConfig(logger)
 	logger.Infof("concurrency = %d", c.Concurrency)
 	logger.Debugf("maxErrorsPerSource = %d", c.MaxErrorsPerSource)
-	logger.Debugf("strategy = %s", c.Strategy)
 
 	if c.RefreshPeriod.IsAboveZero() {
 		logger.Infof("refresh = every %s", c.RefreshPeriod)
@@ -332,36 +345,28 @@ func (c *SourceLoadingConfig) LogConfig(logger *logrus.Entry) {
 	log.WithIndent(logger, "  ", c.Downloads.LogConfig)
 }
 
-func (c *SourceLoadingConfig) StartPeriodicRefresh(ctx context.Context,
-	refresh func(context.Context) error,
-	logErr func(error),
+func (c *SourceLoadingConfig) StartPeriodicRefresh(
+	ctx context.Context, refresh func(context.Context) error, logErr func(error),
 ) error {
-	refreshAndRecover := func(ctx context.Context) (rerr error) {
-		defer func() {
-			if val := recover(); val != nil {
-				rerr = fmt.Errorf("refresh function panicked: %v", val)
-			}
-		}()
-
-		return refresh(ctx)
-	}
-
-	err := c.Strategy.do(func() error { return refreshAndRecover(context.Background()) }, logErr)
+	err := c.Strategy.Do(ctx, refresh, logErr)
 	if err != nil {
 		return err
 	}
 
 	if c.RefreshPeriod > 0 {
-		go c.periodically(ctx, refreshAndRecover, logErr)
+		go c.periodically(ctx, refresh, logErr)
 	}
 
 	return nil
 }
 
-func (c *SourceLoadingConfig) periodically(ctx context.Context,
-	refresh func(context.Context) error,
-	logErr func(error),
+func (c *SourceLoadingConfig) periodically(
+	ctx context.Context, refresh func(context.Context) error, logErr func(error),
 ) {
+	refresh = recoverToError(refresh, func(panicVal any) error {
+		return fmt.Errorf("panic during refresh: %v", panicVal)
+	})
+
 	ticker := time.NewTicker(c.RefreshPeriod.ToDuration())
 	defer ticker.Stop()
 
@@ -376,6 +381,18 @@ func (c *SourceLoadingConfig) periodically(ctx context.Context,
 		case <-ctx.Done():
 			return
 		}
+	}
+}
+
+func recoverToError(do func(context.Context) error, onPanic func(any) error) func(context.Context) error {
+	return func(ctx context.Context) (rerr error) {
+		defer func() {
+			if val := recover(); val != nil {
+				rerr = onPanic(val)
+			}
+		}()
+
+		return do(ctx)
 	}
 }
 
@@ -535,16 +552,22 @@ func (cfg *Config) migrate(logger *logrus.Entry) bool {
 				cfg.Filtering.QueryTypes.Insert(dns.Type(dns.TypeAAAA))
 			}
 		}),
-		"port":                Move(To("ports.dns", &cfg.Ports)),
-		"httpPort":            Move(To("ports.http", &cfg.Ports)),
-		"httpsPort":           Move(To("ports.https", &cfg.Ports)),
-		"tlsPort":             Move(To("ports.tls", &cfg.Ports)),
-		"logLevel":            Move(To("log.level", &cfg.Log)),
-		"logFormat":           Move(To("log.format", &cfg.Log)),
-		"logPrivacy":          Move(To("log.privacy", &cfg.Log)),
-		"logTimestamp":        Move(To("log.timestamp", &cfg.Log)),
-		"startVerifyUpstream": Move(To("upstreams.startVerify", &cfg.Upstreams)),
-		"dohUserAgent":        Move(To("upstreams.userAgent", &cfg.Upstreams)),
+		"port":         Move(To("ports.dns", &cfg.Ports)),
+		"httpPort":     Move(To("ports.http", &cfg.Ports)),
+		"httpsPort":    Move(To("ports.https", &cfg.Ports)),
+		"tlsPort":      Move(To("ports.tls", &cfg.Ports)),
+		"logLevel":     Move(To("log.level", &cfg.Log)),
+		"logFormat":    Move(To("log.format", &cfg.Log)),
+		"logPrivacy":   Move(To("log.privacy", &cfg.Log)),
+		"logTimestamp": Move(To("log.timestamp", &cfg.Log)),
+		"dohUserAgent": Move(To("upstreams.userAgent", &cfg.Upstreams)),
+		"startVerifyUpstream": Apply(To("upstreams.init.strategy", &cfg.Upstreams.Init), func(value bool) {
+			if value {
+				cfg.Upstreams.Init.Strategy = StartStrategyTypeFailOnError
+			} else {
+				cfg.Upstreams.Init.Strategy = StartStrategyTypeFast
+			}
+		}),
 	})
 
 	usesDepredOpts = cfg.Blocking.migrate(logger) || usesDepredOpts

@@ -132,9 +132,9 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 			})
 		})
 
-		When("start verify is enabled", func() {
+		When("start strategy is failOnError", func() {
 			BeforeEach(func() {
-				sutConfig.StartVerify = true
+				sutConfig.Init.Strategy = config.StartStrategyTypeFailOnError
 			})
 
 			It("should fail", func() {

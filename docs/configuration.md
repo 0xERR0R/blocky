@@ -66,15 +66,28 @@ All logging options are optional.
       privacy: true
     ```
 
+## Init Strategy
+
+A couple of features use an "init/loading strategy" which configures behavior at Blocky startup.  
+This applies to all of them. The default strategy is blocking.
+
+| strategy    | Description                                                                                                                                                     |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| blocking    | Initialization happens before DNS resolution starts. Any errors are logged, but Blocky continues running if possible.                                           |
+| failOnError | Like blocking but Blocky will exit with an error if initialization fails.                                                                                       |
+| fast        | Blocky starts serving DNS immediately and initialization happens in the background. The feature requiring initialization will enable later on (if it succeeds). |
+
 ## Upstreams configuration
 
-| Parameter             | Type                                 | Mandatory | Default value | Description                                                                                     |
-| --------------------- | ------------------------------------ | --------- | ------------- | ----------------------------------------------------------------------------------------------- |
-| usptreams.groups      | map of name to upstream              | yes       |               | Upstream DNS servers to use, in groups.                                                         |
-| usptreams.startVerify | bool                                 | no        | false         | If true, blocky will fail to start unless at least one upstream server per group is functional. |
-| usptreams.strategy    | enum (parallel_best, random, strict) | no        | parallel_best | Upstream server usage strategy.                                                                 |
-| usptreams.timeout     | duration                             | no        | 2s            | Upstream connection timeout.                                                                    |
-| usptreams.userAgent   | string                               | no        |               | HTTP User Agent when connecting to upstreams.                                                   |
+| Parameter               | Type                                 | Mandatory | Default value | Description                                    |
+| ----------------------- | ------------------------------------ | --------- | ------------- | ---------------------------------------------- |
+| usptreams.groups        | map of name to upstream              | yes       |               | Upstream DNS servers to use, in groups.        |
+| usptreams.init.strategy | enum (blocking, failOnError, fast)   | no        | blocking      | See [Init Strategy](#init-strategy) and below. |
+| usptreams.strategy      | enum (parallel_best, random, strict) | no        | parallel_best | Upstream server usage strategy.                |
+| usptreams.timeout       | duration                             | no        | 2s            | Upstream connection timeout.                   |
+| usptreams.userAgent     | string                               | no        |               | HTTP User Agent when connecting to upstreams.  |
+
+For `init.strategy`, the "init" is testing the given resolvers for each group. The potentially fatal error, depending on the strategy, is if a group has no functional resolvers.
 
 
 ### Upstream Groups
@@ -847,14 +860,8 @@ Configures how HTTP(S) sources are downloaded:
 
 ### Strategy
 
-This configures how Blocky startup works.  
-The default strategy is blocking.
-
-| strategy    | Description                                                                                                                              |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| blocking    | all sources are loaded before DNS resolution starts                                                                                      |
-| failOnError | like blocking but blocky will shut down if any source fails to load                                                                      |
-| fast        | blocky starts serving DNS immediately and sources are loaded asynchronously. The features requiring the sources should enable soon after |
+See [Init Strategy](#init-strategy).  
+In this context, "init" is loading and parsing each source, and an error is a single source failing to load/parse.
 
 !!! example
 

@@ -15,8 +15,8 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 	var blocky testcontainers.Container
 	var err error
 
-	Describe("'upstreams.startVerify' parameter handling", func() {
-		When("'upstreams.startVerify' is false and upstream server as IP is not reachable", func() {
+	Describe("'upstreams.init.strategy' parameter handling", func() {
+		When("'upstreams.init.strategy' is fast and upstream server as IP is not reachable", func() {
 			BeforeEach(func(ctx context.Context) {
 				blocky, err = createBlockyContainer(ctx, tmpDir,
 					"log:",
@@ -25,16 +25,19 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 					"  groups:",
 					"    default:",
 					"      - 192.192.192.192",
-					"  startVerify: false",
+					"  init:",
+					"    strategy: fast",
 				)
 				Expect(err).Should(Succeed())
 			})
 			It("should start even if upstream server is not reachable", func(ctx context.Context) {
 				Expect(blocky.IsRunning()).Should(BeTrue())
-				Expect(getContainerLogs(ctx, blocky)).Should(BeEmpty())
+				Eventually(ctx, func() ([]string, error) {
+					return getContainerLogs(ctx, blocky)
+				}).Should(ContainElement(ContainSubstring("initial resolver test failed")))
 			})
 		})
-		When("'upstreams.startVerify' is false and upstream server as host name is not reachable", func() {
+		When("'upstreams.init.strategy' is fast and upstream server as host name is not reachable", func() {
 			BeforeEach(func(ctx context.Context) {
 				blocky, err = createBlockyContainer(ctx, tmpDir,
 					"log:",
@@ -43,23 +46,25 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 					"  groups:",
 					"    default:",
 					"      - some.wrong.host",
-					"  startVerify: false",
+					"  init:",
+					"    strategy: fast",
 				)
 				Expect(err).Should(Succeed())
 			})
 			It("should start even if upstream server is not reachable", func(ctx context.Context) {
 				Expect(blocky.IsRunning()).Should(BeTrue())
-				Expect(getContainerLogs(ctx, blocky)).Should(BeEmpty())
+				Expect(getContainerLogs(ctx, blocky)).Should(ContainElement(ContainSubstring("initial resolver test failed")))
 			})
 		})
-		When("'upstreams.startVerify' is true and upstream as IP address server is not reachable", func() {
+		When("'upstreams.init.strategy' is failOnError and upstream as IP address server is not reachable", func() {
 			BeforeEach(func(ctx context.Context) {
 				blocky, err = createBlockyContainer(ctx, tmpDir,
 					"upstreams:",
 					"  groups:",
 					"    default:",
 					"      - 192.192.192.192",
-					"  startVerify: true",
+					"  init:",
+					"    strategy: failOnError",
 				)
 				Expect(err).Should(HaveOccurred())
 			})
@@ -69,14 +74,15 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 					Should(ContainElement(ContainSubstring("no valid upstream for group default")))
 			})
 		})
-		When("'upstreams.startVerify' is true and upstream server as host name is not reachable", func() {
+		When("'upstreams.init.strategy' is failOnError and upstream server as host name is not reachable", func() {
 			BeforeEach(func(ctx context.Context) {
 				blocky, err = createBlockyContainer(ctx, tmpDir,
 					"upstreams:",
 					"  groups:",
 					"    default:",
 					"      - some.wrong.host",
-					"  startVerify: true",
+					"  init:",
+					"    strategy: failOnError",
 				)
 				Expect(err).Should(HaveOccurred())
 			})

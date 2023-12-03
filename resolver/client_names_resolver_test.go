@@ -167,6 +167,11 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 					}
 				})
 
+				JustBeforeEach(func() {
+					// Don't count the resolver test
+					testUpstream.ResetCallCount()
+				})
+
 				It("should resolve client name", func() {
 					By("first request", func() {
 						request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
@@ -209,6 +214,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 
 						// no cache -> call count 2
 						Expect(request.ClientNames).Should(ConsistOf("host1"))
+						Expect(testUpstream.GetCallCount()).Should(Equal(2))
 					})
 				})
 			})
@@ -221,6 +227,11 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 					sutConfig = config.ClientLookup{
 						Upstream: testUpstream.Start(),
 					}
+				})
+
+				JustBeforeEach(func() {
+					// Don't count the resolver test
+					testUpstream.ResetCallCount()
 				})
 
 				It("should resolve all client names", func() {
@@ -251,6 +262,11 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 					sutConfig.Upstream = testUpstream.Start()
 				})
 
+				JustBeforeEach(func() {
+					// Don't count the resolver test
+					testUpstream.ResetCallCount()
+				})
+
 				It("should resolve client name", func() {
 					request := newRequestWithClient("google.de.", dns.Type(dns.TypeA), "192.168.178.25")
 					Expect(sut.Resolve(ctx, request)).
@@ -270,6 +286,11 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 						WithAnswerRR("25.178.168.192.in-addr.arpa. 600 IN PTR myhost1", "25.178.168.192.in-addr.arpa. 600 IN PTR myhost2")
 
 					sutConfig.Upstream = testUpstream.Start()
+				})
+
+				JustBeforeEach(func() {
+					// Don't count the resolver test
+					testUpstream.ResetCallCount()
 				})
 
 				It("should resolve the client name depending to defined order", func() {
@@ -296,6 +317,11 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 					sutConfig = config.ClientLookup{
 						Upstream: testUpstream.Start(),
 					}
+				})
+
+				JustBeforeEach(func() {
+					// Don't count the resolver test
+					testUpstream.ResetCallCount()
 				})
 
 				It("should use fallback for client name", func() {
@@ -371,7 +397,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 				b := newTestBootstrap(ctx, &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
 				upstreamsCfg := defaultUpstreamsConfig
-				upstreamsCfg.StartVerify = true
+				upstreamsCfg.Init.Strategy = config.StartStrategyTypeFailOnError
 
 				r, err := NewClientNamesResolver(ctx, config.ClientLookup{
 					Upstream: config.Upstream{Host: "example.com"},

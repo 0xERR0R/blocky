@@ -15,15 +15,10 @@ import (
 )
 
 var _ = Describe("StrictResolver", Label("strictResolver"), func() {
-	const (
-		verifyUpstreams   = true
-		noVerifyUpstreams = false
-	)
-
 	var (
-		sut       *StrictResolver
-		upstreams []config.Upstream
-		sutVerify bool
+		sut              *StrictResolver
+		sutStartStrategy config.StartStrategyType
+		upstreams        []config.Upstream
 
 		err error
 
@@ -52,14 +47,14 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 			{Host: "127.0.0.2"},
 		}
 
-		sutVerify = noVerifyUpstreams
+		sutStartStrategy = config.StartStrategyTypeBlocking
 
 		bootstrap = systemResolverBootstrap
 	})
 
 	JustBeforeEach(func() {
 		upstreamsCfg := defaultUpstreamsConfig
-		upstreamsCfg.StartVerify = sutVerify
+		upstreamsCfg.Init.Strategy = sutStartStrategy
 
 		sutConfig := config.NewUpstreamGroup("test", upstreamsCfg, upstreams)
 		sutConfig.Timeout = config.Duration(timeout)
@@ -125,7 +120,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 
 		When("strict checking is enabled", func() {
 			BeforeEach(func() {
-				sutVerify = verifyUpstreams
+				sutStartStrategy = config.StartStrategyTypeFailOnError
 			})
 			It("should fail to start", func() {
 				Expect(err).Should(HaveOccurred())
@@ -134,7 +129,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 
 		When("strict checking is disabled", func() {
 			BeforeEach(func() {
-				sutVerify = noVerifyUpstreams
+				sutStartStrategy = config.StartStrategyTypeBlocking
 			})
 			It("should start", func() {
 				Expect(err).Should(Succeed())

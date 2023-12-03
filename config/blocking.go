@@ -34,13 +34,13 @@ func (c *Blocking) migrate(logger *logrus.Entry) bool {
 		"downloadAttempts": Move(To("loading.downloads.attempts", &c.Loading.Downloads)),
 		"downloadCooldown": Move(To("loading.downloads.cooldown", &c.Loading.Downloads)),
 		"refreshPeriod":    Move(To("loading.refreshPeriod", &c.Loading)),
-		"failStartOnListError": Apply(To("loading.strategy", &c.Loading), func(oldValue bool) {
+		"failStartOnListError": Apply(To("loading.strategy", &c.Loading.Init), func(oldValue bool) {
 			if oldValue {
 				c.Loading.Strategy = StartStrategyTypeFailOnError
 			}
 		}),
 		"processingConcurrency": Move(To("loading.concurrency", &c.Loading)),
-		"startStrategy":         Move(To("loading.strategy", &c.Loading)),
+		"startStrategy":         Move(To("loading.strategy", &c.Loading.Init)),
 		"maxErrorsPerFile":      Move(To("loading.maxErrorsPerSource", &c.Loading)),
 	})
 }

@@ -87,6 +87,10 @@ func (t *MockUDPUpstreamServer) GetCallCount() int {
 	return int(atomic.LoadInt32(&t.callCount))
 }
 
+func (t *MockUDPUpstreamServer) ResetCallCount() {
+	atomic.StoreInt32(&t.callCount, 0)
+}
+
 func (t *MockUDPUpstreamServer) Close() {
 	if t.ln != nil {
 		_ = t.ln.Close()
