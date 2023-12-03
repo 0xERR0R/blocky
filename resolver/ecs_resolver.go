@@ -87,7 +87,7 @@ func (r *ECSResolver) setSubnet(so *dns.EDNS0_SUBNET, request *model.Request) {
 
 	if ip := subIP.To4(); ip != nil && r.cfg.IPv4Mask > 0 {
 		if mip, err := maskIP(ip, r.cfg.IPv4Mask); err == nil {
-			e := getEdnsSubnetOption(mip, ecsFamilyIPv4, r.cfg.IPv4Mask)
+			e := newEdnsSubnetOption(mip, ecsFamilyIPv4, r.cfg.IPv4Mask)
 			util.SetEdns0Option(request.Req, e)
 		}
 	} else if ip := subIP.To16(); ip != nil && r.cfg.IPv6Mask > 0 {
