@@ -101,6 +101,95 @@ func (x *IPVersion) UnmarshalText(text []byte) error {
 }
 
 const (
+	// InitStrategyBlocking is a InitStrategy of type Blocking.
+	// synchronously download blocking lists on startup
+	InitStrategyBlocking InitStrategy = iota
+	// InitStrategyFailOnError is a InitStrategy of type FailOnError.
+	// synchronously download blocking lists on startup and shutdown on error
+	InitStrategyFailOnError
+	// InitStrategyFast is a InitStrategy of type Fast.
+	// asyncronously download blocking lists on startup
+	InitStrategyFast
+)
+
+var ErrInvalidInitStrategy = fmt.Errorf("not a valid InitStrategy, try [%s]", strings.Join(_InitStrategyNames, ", "))
+
+const _InitStrategyName = "blockingfailOnErrorfast"
+
+var _InitStrategyNames = []string{
+	_InitStrategyName[0:8],
+	_InitStrategyName[8:19],
+	_InitStrategyName[19:23],
+}
+
+// InitStrategyNames returns a list of possible string values of InitStrategy.
+func InitStrategyNames() []string {
+	tmp := make([]string, len(_InitStrategyNames))
+	copy(tmp, _InitStrategyNames)
+	return tmp
+}
+
+// InitStrategyValues returns a list of the values for InitStrategy
+func InitStrategyValues() []InitStrategy {
+	return []InitStrategy{
+		InitStrategyBlocking,
+		InitStrategyFailOnError,
+		InitStrategyFast,
+	}
+}
+
+var _InitStrategyMap = map[InitStrategy]string{
+	InitStrategyBlocking:    _InitStrategyName[0:8],
+	InitStrategyFailOnError: _InitStrategyName[8:19],
+	InitStrategyFast:        _InitStrategyName[19:23],
+}
+
+// String implements the Stringer interface.
+func (x InitStrategy) String() string {
+	if str, ok := _InitStrategyMap[x]; ok {
+		return str
+	}
+	return fmt.Sprintf("InitStrategy(%d)", x)
+}
+
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
+func (x InitStrategy) IsValid() bool {
+	_, ok := _InitStrategyMap[x]
+	return ok
+}
+
+var _InitStrategyValue = map[string]InitStrategy{
+	_InitStrategyName[0:8]:   InitStrategyBlocking,
+	_InitStrategyName[8:19]:  InitStrategyFailOnError,
+	_InitStrategyName[19:23]: InitStrategyFast,
+}
+
+// ParseInitStrategy attempts to convert a string to a InitStrategy.
+func ParseInitStrategy(name string) (InitStrategy, error) {
+	if x, ok := _InitStrategyValue[name]; ok {
+		return x, nil
+	}
+	return InitStrategy(0), fmt.Errorf("%s is %w", name, ErrInvalidInitStrategy)
+}
+
+// MarshalText implements the text marshaller method.
+func (x InitStrategy) MarshalText() ([]byte, error) {
+	return []byte(x.String()), nil
+}
+
+// UnmarshalText implements the text unmarshaller method.
+func (x *InitStrategy) UnmarshalText(text []byte) error {
+	name := string(text)
+	tmp, err := ParseInitStrategy(name)
+	if err != nil {
+		return err
+	}
+	*x = tmp
+	return nil
+}
+
+const (
 	// NetProtocolTcpUdp is a NetProtocol of type Tcp+Udp.
 	// TCP and UDP protocols
 	NetProtocolTcpUdp NetProtocol = iota
@@ -381,95 +470,6 @@ func (x QueryLogType) MarshalText() ([]byte, error) {
 func (x *QueryLogType) UnmarshalText(text []byte) error {
 	name := string(text)
 	tmp, err := ParseQueryLogType(name)
-	if err != nil {
-		return err
-	}
-	*x = tmp
-	return nil
-}
-
-const (
-	// StartStrategyTypeBlocking is a StartStrategyType of type Blocking.
-	// synchronously download blocking lists on startup
-	StartStrategyTypeBlocking StartStrategyType = iota
-	// StartStrategyTypeFailOnError is a StartStrategyType of type FailOnError.
-	// synchronously download blocking lists on startup and shutdown on error
-	StartStrategyTypeFailOnError
-	// StartStrategyTypeFast is a StartStrategyType of type Fast.
-	// asyncronously download blocking lists on startup
-	StartStrategyTypeFast
-)
-
-var ErrInvalidStartStrategyType = fmt.Errorf("not a valid StartStrategyType, try [%s]", strings.Join(_StartStrategyTypeNames, ", "))
-
-const _StartStrategyTypeName = "blockingfailOnErrorfast"
-
-var _StartStrategyTypeNames = []string{
-	_StartStrategyTypeName[0:8],
-	_StartStrategyTypeName[8:19],
-	_StartStrategyTypeName[19:23],
-}
-
-// StartStrategyTypeNames returns a list of possible string values of StartStrategyType.
-func StartStrategyTypeNames() []string {
-	tmp := make([]string, len(_StartStrategyTypeNames))
-	copy(tmp, _StartStrategyTypeNames)
-	return tmp
-}
-
-// StartStrategyTypeValues returns a list of the values for StartStrategyType
-func StartStrategyTypeValues() []StartStrategyType {
-	return []StartStrategyType{
-		StartStrategyTypeBlocking,
-		StartStrategyTypeFailOnError,
-		StartStrategyTypeFast,
-	}
-}
-
-var _StartStrategyTypeMap = map[StartStrategyType]string{
-	StartStrategyTypeBlocking:    _StartStrategyTypeName[0:8],
-	StartStrategyTypeFailOnError: _StartStrategyTypeName[8:19],
-	StartStrategyTypeFast:        _StartStrategyTypeName[19:23],
-}
-
-// String implements the Stringer interface.
-func (x StartStrategyType) String() string {
-	if str, ok := _StartStrategyTypeMap[x]; ok {
-		return str
-	}
-	return fmt.Sprintf("StartStrategyType(%d)", x)
-}
-
-// IsValid provides a quick way to determine if the typed value is
-// part of the allowed enumerated values
-func (x StartStrategyType) IsValid() bool {
-	_, ok := _StartStrategyTypeMap[x]
-	return ok
-}
-
-var _StartStrategyTypeValue = map[string]StartStrategyType{
-	_StartStrategyTypeName[0:8]:   StartStrategyTypeBlocking,
-	_StartStrategyTypeName[8:19]:  StartStrategyTypeFailOnError,
-	_StartStrategyTypeName[19:23]: StartStrategyTypeFast,
-}
-
-// ParseStartStrategyType attempts to convert a string to a StartStrategyType.
-func ParseStartStrategyType(name string) (StartStrategyType, error) {
-	if x, ok := _StartStrategyTypeValue[name]; ok {
-		return x, nil
-	}
-	return StartStrategyType(0), fmt.Errorf("%s is %w", name, ErrInvalidStartStrategyType)
-}
-
-// MarshalText implements the text marshaller method.
-func (x StartStrategyType) MarshalText() ([]byte, error) {
-	return []byte(x.String()), nil
-}
-
-// UnmarshalText implements the text unmarshaller method.
-func (x *StartStrategyType) UnmarshalText(text []byte) error {
-	name := string(text)
-	tmp, err := ParseStartStrategyType(name)
 	if err != nil {
 		return err
 	}

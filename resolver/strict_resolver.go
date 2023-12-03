@@ -34,7 +34,7 @@ func NewStrictResolver(
 ) (*StrictResolver, error) {
 	r := newStrictResolver(
 		cfg,
-		[]Resolver{bootstrap}, // if start strategy is fast, use bootstrap until init finishes
+		[]Resolver{bootstrap}, // if init strategy is fast, use bootstrap until init finishes
 	)
 
 	return initGroupResolvers(ctx, r, cfg, bootstrap)

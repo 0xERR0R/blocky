@@ -17,14 +17,14 @@ type Blocking struct {
 
 	// Deprecated options
 	Deprecated struct {
-		DownloadTimeout       *Duration          `yaml:"downloadTimeout"`
-		DownloadAttempts      *uint              `yaml:"downloadAttempts"`
-		DownloadCooldown      *Duration          `yaml:"downloadCooldown"`
-		RefreshPeriod         *Duration          `yaml:"refreshPeriod"`
-		FailStartOnListError  *bool              `yaml:"failStartOnListError"`
-		ProcessingConcurrency *uint              `yaml:"processingConcurrency"`
-		StartStrategy         *StartStrategyType `yaml:"startStrategy"`
-		MaxErrorsPerFile      *int               `yaml:"maxErrorsPerFile"`
+		DownloadTimeout       *Duration     `yaml:"downloadTimeout"`
+		DownloadAttempts      *uint         `yaml:"downloadAttempts"`
+		DownloadCooldown      *Duration     `yaml:"downloadCooldown"`
+		RefreshPeriod         *Duration     `yaml:"refreshPeriod"`
+		FailStartOnListError  *bool         `yaml:"failStartOnListError"`
+		ProcessingConcurrency *uint         `yaml:"processingConcurrency"`
+		StartStrategy         *InitStrategy `yaml:"startStrategy"`
+		MaxErrorsPerFile      *int          `yaml:"maxErrorsPerFile"`
 	} `yaml:",inline"`
 }
 
@@ -36,7 +36,7 @@ func (c *Blocking) migrate(logger *logrus.Entry) bool {
 		"refreshPeriod":    Move(To("loading.refreshPeriod", &c.Loading)),
 		"failStartOnListError": Apply(To("loading.strategy", &c.Loading.Init), func(oldValue bool) {
 			if oldValue {
-				c.Loading.Strategy = StartStrategyTypeFailOnError
+				c.Loading.Strategy = InitStrategyFailOnError
 			}
 		}),
 		"processingConcurrency": Move(To("loading.concurrency", &c.Loading)),

@@ -54,16 +54,16 @@ var _ = Describe("Config", func() {
 				c.Blocking.Deprecated.FailStartOnListError = ptrOf(true)
 			})
 			It("should change loading.strategy blocking to failOnError", func() {
-				c.Blocking.Loading.Strategy = StartStrategyTypeBlocking
+				c.Blocking.Loading.Strategy = InitStrategyBlocking
 				c.migrate(logger)
 				Expect(hook.Messages).Should(ContainElement(ContainSubstring("blocking.loading.strategy")))
-				Expect(c.Blocking.Loading.Strategy).Should(Equal(StartStrategyTypeFailOnError))
+				Expect(c.Blocking.Loading.Strategy).Should(Equal(InitStrategyFailOnError))
 			})
 			It("shouldn't change loading.strategy if set to fast", func() {
-				c.Blocking.Loading.Strategy = StartStrategyTypeFast
+				c.Blocking.Loading.Strategy = InitStrategyFast
 				c.migrate(logger)
 				Expect(hook.Messages).Should(ContainElement(ContainSubstring("blocking.loading.strategy")))
-				Expect(c.Blocking.Loading.Strategy).Should(Equal(StartStrategyTypeFast))
+				Expect(c.Blocking.Loading.Strategy).Should(Equal(InitStrategyFast))
 			})
 		})
 
@@ -148,7 +148,7 @@ var _ = Describe("Config", func() {
 				c.Deprecated.StartVerifyUpstream = ptrOf(true)
 				c.migrate(logger)
 				Expect(hook.Messages).Should(ContainElement(ContainSubstring("startVerifyUpstream")))
-				Expect(c.Upstreams.Init.Strategy).Should(Equal(StartStrategyTypeFailOnError))
+				Expect(c.Upstreams.Init.Strategy).Should(Equal(InitStrategyFailOnError))
 			})
 		})
 	})
@@ -590,10 +590,10 @@ bootstrapDns:
 		})
 	})
 
-	Describe("StartStrategyType", func() {
-		Describe("StartStrategyTypeBlocking", func() {
+	Describe("InitStrategy", func() {
+		Describe("InitStrategyBlocking", func() {
 			It("runs in the current goroutine", func() {
-				sut := StartStrategyTypeBlocking
+				sut := InitStrategyBlocking
 				panicVal := new(int)
 
 				defer func() {
@@ -611,7 +611,7 @@ bootstrapDns:
 			})
 
 			It("logs errors and doesn't return them", func() {
-				sut := StartStrategyTypeBlocking
+				sut := InitStrategyBlocking
 				expectedErr := errors.New("test")
 
 				err := sut.Do(context.Background(), func(context.Context) error {
@@ -624,7 +624,7 @@ bootstrapDns:
 			})
 
 			It("logs panics and doesn't convert them to errors", func() {
-				sut := StartStrategyTypeBlocking
+				sut := InitStrategyBlocking
 
 				logged := false
 				err := sut.Do(context.Background(), func(context.Context) error {
@@ -639,9 +639,9 @@ bootstrapDns:
 			})
 		})
 
-		Describe("StartStrategyTypeFailOnError", func() {
+		Describe("InitStrategyFailOnError", func() {
 			It("runs in the current goroutine", func() {
-				sut := StartStrategyTypeFailOnError
+				sut := InitStrategyFailOnError
 				panicVal := new(int)
 
 				defer func() {
@@ -659,7 +659,7 @@ bootstrapDns:
 			})
 
 			It("logs errors and returns them", func() {
-				sut := StartStrategyTypeFailOnError
+				sut := InitStrategyFailOnError
 				expectedErr := errors.New("test")
 
 				err := sut.Do(context.Background(), func(context.Context) error {
@@ -672,7 +672,7 @@ bootstrapDns:
 			})
 
 			It("returns logs panics and converts them to errors", func() {
-				sut := StartStrategyTypeFailOnError
+				sut := InitStrategyFailOnError
 
 				logged := false
 				err := sut.Do(context.Background(), func(context.Context) error {
@@ -687,9 +687,9 @@ bootstrapDns:
 			})
 		})
 
-		Describe("StartStrategyTypeFast", func() {
+		Describe("InitStrategyFast", func() {
 			It("runs in a new goroutine", func() {
-				sut := StartStrategyTypeFast
+				sut := InitStrategyFast
 				events := make(chan string)
 				wait := make(chan struct{})
 
@@ -709,7 +709,7 @@ bootstrapDns:
 			})
 
 			It("logs errors", func() {
-				sut := StartStrategyTypeFast
+				sut := InitStrategyFast
 				expectedErr := errors.New("test")
 				wait := make(chan struct{})
 
@@ -725,7 +725,7 @@ bootstrapDns:
 			})
 
 			It("logs panics", func() {
-				sut := StartStrategyTypeFast
+				sut := InitStrategyFast
 				expectedErr := errors.New("test")
 				wait := make(chan struct{})
 
@@ -778,7 +778,7 @@ bootstrapDns:
 		})
 		It("handles panics", func() {
 			sut := SourceLoadingConfig{
-				Init: Init{Strategy: StartStrategyTypeFailOnError},
+				Init: Init{Strategy: InitStrategyFailOnError},
 			}
 
 			panicMsg := "panic value"
@@ -794,7 +794,7 @@ bootstrapDns:
 
 		It("periodically calls refresh", func() {
 			sut := SourceLoadingConfig{
-				Init:          Init{Strategy: StartStrategyTypeFast},
+				Init:          Init{Strategy: InitStrategyFast},
 				RefreshPeriod: Duration(5 * time.Millisecond),
 			}
 
@@ -850,7 +850,7 @@ bootstrapDns:
 
 func defaultTestFileConfig(config *Config) {
 	Expect(config.Ports.DNS).Should(Equal(ListenConfig{"55553", ":55554", "[::1]:55555"}))
-	Expect(config.Upstreams.Init.Strategy).Should(Equal(StartStrategyTypeFailOnError))
+	Expect(config.Upstreams.Init.Strategy).Should(Equal(InitStrategyFailOnError))
 	Expect(config.Upstreams.UserAgent).Should(Equal("testBlocky"))
 	Expect(config.Upstreams.Groups["default"]).Should(HaveLen(3))
 	Expect(config.Upstreams.Groups["default"][0].Host).Should(Equal("8.8.8.8"))

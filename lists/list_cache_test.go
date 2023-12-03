@@ -352,7 +352,7 @@ var _ = Describe("ListCache", func() {
 		When("Text file has too many errors", func() {
 			BeforeEach(func() {
 				sutConfig.MaxErrorsPerSource = 0
-				sutConfig.Strategy = config.StartStrategyTypeFailOnError
+				sutConfig.Strategy = config.InitStrategyFailOnError
 				lists = map[string][]config.BytesSource{
 					"gr1": {
 						config.TextBytesSource("invaliddomain!"), // too many errors since `maxErrorsPerSource` is 0
@@ -421,10 +421,10 @@ var _ = Describe("ListCache", func() {
 		})
 	})
 
-	Describe("StartStrategy", func() {
+	Describe("loading strategy", func() {
 		When("async load is enabled", func() {
 			BeforeEach(func() {
-				sutConfig.Strategy = config.StartStrategyTypeFast
+				sutConfig.Strategy = config.InitStrategyFast
 
 				lists = map[string][]config.BytesSource{
 					"gr1": config.NewBytesSources("doesnotexist"),
