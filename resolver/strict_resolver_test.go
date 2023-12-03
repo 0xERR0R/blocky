@@ -16,9 +16,9 @@ import (
 
 var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 	var (
-		sut              *StrictResolver
-		sutStartStrategy config.StartStrategyType
-		upstreams        []config.Upstream
+		sut             *StrictResolver
+		sutInitStrategy config.InitStrategy
+		upstreams       []config.Upstream
 
 		err error
 
@@ -47,14 +47,14 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 			{Host: "127.0.0.2"},
 		}
 
-		sutStartStrategy = config.StartStrategyTypeBlocking
+		sutInitStrategy = config.InitStrategyBlocking
 
 		bootstrap = systemResolverBootstrap
 	})
 
 	JustBeforeEach(func() {
 		upstreamsCfg := defaultUpstreamsConfig
-		upstreamsCfg.Init.Strategy = sutStartStrategy
+		upstreamsCfg.Init.Strategy = sutInitStrategy
 
 		sutConfig := config.NewUpstreamGroup("test", upstreamsCfg, upstreams)
 		sutConfig.Timeout = config.Duration(timeout)
@@ -120,7 +120,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 
 		When("strict checking is enabled", func() {
 			BeforeEach(func() {
-				sutStartStrategy = config.StartStrategyTypeFailOnError
+				sutInitStrategy = config.InitStrategyFailOnError
 			})
 			It("should fail to start", func() {
 				Expect(err).Should(HaveOccurred())
@@ -129,7 +129,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 
 		When("strict checking is disabled", func() {
 			BeforeEach(func() {
-				sutStartStrategy = config.StartStrategyTypeBlocking
+				sutInitStrategy = config.InitStrategyBlocking
 			})
 			It("should start", func() {
 				Expect(err).Should(Succeed())

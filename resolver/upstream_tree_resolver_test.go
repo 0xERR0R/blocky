@@ -132,9 +132,9 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 			})
 		})
 
-		When("start strategy is failOnError", func() {
+		When("init strategy is failOnError", func() {
 			BeforeEach(func() {
-				sutConfig.Init.Strategy = config.StartStrategyTypeFailOnError
+				sutConfig.Init.Strategy = config.InitStrategyFailOnError
 			})
 
 			It("should fail", func() {

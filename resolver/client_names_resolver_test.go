@@ -397,7 +397,7 @@ var _ = Describe("ClientResolver", Label("clientNamesResolver"), func() {
 				b := newTestBootstrap(ctx, &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
 				upstreamsCfg := defaultUpstreamsConfig
-				upstreamsCfg.Init.Strategy = config.StartStrategyTypeFailOnError
+				upstreamsCfg.Init.Strategy = config.InitStrategyFailOnError
 
 				r, err := NewClientNamesResolver(ctx, config.ClientLookup{
 					Upstream: config.Upstream{Host: "example.com"},

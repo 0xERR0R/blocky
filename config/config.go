@@ -109,19 +109,19 @@ func (v *TLSVersion) validate(logger *logrus.Entry) {
 // )
 type QueryLogType int16
 
-// StartStrategyType upstart strategy ENUM(
+// InitStrategy startup strategy ENUM(
 // blocking // synchronously download blocking lists on startup
 // failOnError // synchronously download blocking lists on startup and shutdown on error
 // fast // asyncronously download blocking lists on startup
 // )
-type StartStrategyType uint16
+type InitStrategy uint16
 
-func (s StartStrategyType) Do(ctx context.Context, init func(context.Context) error, logErr func(error)) error {
+func (s InitStrategy) Do(ctx context.Context, init func(context.Context) error, logErr func(error)) error {
 	init = recoverToError(init, func(panicVal any) error {
 		return fmt.Errorf("panic during initialization: %v", panicVal)
 	})
 
-	if s == StartStrategyTypeFast {
+	if s == InitStrategyFast {
 		go func() {
 			err := init(ctx)
 			if err != nil {
@@ -136,7 +136,7 @@ func (s StartStrategyType) Do(ctx context.Context, init func(context.Context) er
 	if err != nil {
 		logErr(err)
 
-		if s == StartStrategyTypeFailOnError {
+		if s == InitStrategyFailOnError {
 			return err
 		}
 	}
@@ -314,7 +314,7 @@ func (c *toEnable) LogConfig(logger *logrus.Entry) {
 }
 
 type Init struct {
-	Strategy StartStrategyType `yaml:"strategy" default:"blocking"`
+	Strategy InitStrategy `yaml:"strategy" default:"blocking"`
 }
 
 func (c *Init) LogConfig(logger *logrus.Entry) {
@@ -563,9 +563,9 @@ func (cfg *Config) migrate(logger *logrus.Entry) bool {
 		"dohUserAgent": Move(To("upstreams.userAgent", &cfg.Upstreams)),
 		"startVerifyUpstream": Apply(To("upstreams.init.strategy", &cfg.Upstreams.Init), func(value bool) {
 			if value {
-				cfg.Upstreams.Init.Strategy = StartStrategyTypeFailOnError
+				cfg.Upstreams.Init.Strategy = InitStrategyFailOnError
 			} else {
-				cfg.Upstreams.Init.Strategy = StartStrategyTypeFast
+				cfg.Upstreams.Init.Strategy = InitStrategyFast
 			}
 		}),
 	})

@@ -15,10 +15,10 @@ import (
 
 var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 	var (
-		sut              *ParallelBestResolver
-		sutStrategy      config.UpstreamStrategy
-		sutStartStrategy config.StartStrategyType
-		upstreams        []config.Upstream
+		sut             *ParallelBestResolver
+		sutStrategy     config.UpstreamStrategy
+		sutInitStrategy config.InitStrategy
+		upstreams       []config.Upstream
 
 		ctx      context.Context
 		cancelFn context.CancelFunc
@@ -40,7 +40,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 		upstreams = []config.Upstream{{Host: "wrong"}, {Host: "127.0.0.2"}}
 
-		sutStartStrategy = config.StartStrategyTypeBlocking
+		sutInitStrategy = config.InitStrategyBlocking
 		sutStrategy = config.UpstreamStrategyParallelBest
 
 		bootstrap = systemResolverBootstrap
@@ -49,7 +49,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 	JustBeforeEach(func() {
 		upstreamsCfg := config.Upstreams{
 			Init: config.Init{
-				Strategy: sutStartStrategy,
+				Strategy: sutInitStrategy,
 			},
 			Strategy: sutStrategy,
 			Timeout:  config.Duration(timeout),
@@ -90,7 +90,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 		When("using InitStrategyFailOnError", func() {
 			BeforeEach(func() {
-				sutStartStrategy = config.StartStrategyTypeFailOnError
+				sutInitStrategy = config.InitStrategyFailOnError
 			})
 			It("should fail to start", func() {
 				Expect(err).Should(HaveOccurred())
@@ -99,7 +99,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 		When("using InitStrategyBlocking", func() {
 			BeforeEach(func() {
-				sutStartStrategy = config.StartStrategyTypeBlocking
+				sutInitStrategy = config.InitStrategyBlocking
 			})
 			It("should start", func() {
 				Expect(err).Should(Succeed())
@@ -125,7 +125,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 		When("using InitStrategyFailOnError", func() {
 			BeforeEach(func() {
-				sutStartStrategy = config.StartStrategyTypeFailOnError
+				sutInitStrategy = config.InitStrategyFailOnError
 			})
 			It("should fail to start", func() {
 				Expect(err).Should(HaveOccurred())
@@ -134,7 +134,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 		When("using InitStrategyBlocking", func() {
 			BeforeEach(func() {
-				sutStartStrategy = config.StartStrategyTypeBlocking
+				sutInitStrategy = config.InitStrategyBlocking
 			})
 			It("should start", func() {
 				Expect(err).Should(Succeed())
@@ -162,7 +162,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 		When("using InitStrategyFailOnError", func() {
 			BeforeEach(func() {
-				sutStartStrategy = config.StartStrategyTypeFailOnError
+				sutInitStrategy = config.InitStrategyFailOnError
 			})
 			It("should fail to start", func() {
 				Expect(err).Should(HaveOccurred())
@@ -171,7 +171,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 		When("using InitStrategyBlocking", func() {
 			BeforeEach(func() {
-				sutStartStrategy = config.StartStrategyTypeBlocking
+				sutInitStrategy = config.InitStrategyBlocking
 			})
 			It("should start", func() {
 				Expect(err).Should(Succeed())
@@ -357,7 +357,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 			b := newTestBootstrap(ctx, &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
 			upstreamsCfg := sut.cfg.Upstreams
-			upstreamsCfg.Init.Strategy = config.StartStrategyTypeFailOnError
+			upstreamsCfg.Init.Strategy = config.InitStrategyFailOnError
 
 			group := config.NewUpstreamGroup("test", upstreamsCfg, []config.Upstream{{Host: "example.com"}})
 

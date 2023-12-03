@@ -159,7 +159,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 	})
 
-	Describe("Blocking with fast start strategy", func() {
+	Describe("Blocking with fast init strategy", func() {
 		BeforeEach(func() {
 			sutConfig = config.Blocking{
 				BlockType: "ZEROIP",
@@ -171,7 +171,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					"default": {"gr1"},
 				},
 				Loading: config.SourceLoadingConfig{
-					Init: config.Init{Strategy: config.StartStrategyTypeFast},
+					Init: config.Init{Strategy: config.InitStrategyFast},
 				},
 			}
 		})
@@ -1127,7 +1127,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					BlackLists: map[string][]config.BytesSource{"gr1": config.NewBytesSources("wrongPath")},
 					WhiteLists: map[string][]config.BytesSource{"whitelist": config.NewBytesSources("wrongPath")},
 					Loading: config.SourceLoadingConfig{
-						Init: config.Init{Strategy: config.StartStrategyTypeFailOnError},
+						Init: config.Init{Strategy: config.InitStrategyFailOnError},
 					},
 					BlockType: "zeroIp",
 				}, nil, systemResolverBootstrap)
