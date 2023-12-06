@@ -322,6 +322,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#init-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Init Strategy
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#upstreams-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       Upstreams configuration
@@ -891,6 +900,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#init-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Init Strategy
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#upstreams-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       Upstreams configuration
@@ -1321,9 +1339,12 @@
 configuration properties as <a href="../config.yml">JSON</a>.</p>
 <details class="example">
 <summary>reference configuration file</summary>
-<div class="highlight"><pre><span></span><code><span class="c1"># REVIEW: manual changelog entry</span>
-
-<span class="nt">upstreams</span><span class="p">:</span>
+<div class="highlight"><pre><span></span><code><span class="nt">upstreams</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">init</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># Configure startup behavior.</span>
+<span class="w">    </span><span class="c1"># accepted: blocking, failOnError, fast</span>
+<span class="w">    </span><span class="c1"># default: blocking</span>
+<span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fast</span>
 <span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
 <span class="w">    </span><span class="c1"># these external DNS resolvers will be used. Blocky picks 2 random resolvers from the list for each query</span>
 <span class="w">    </span><span class="c1"># format for resolver: [net:]host:[port][/path]. net could be empty (default, shortcut for tcp+udp), tcp+udp, tcp, udp, tcp-tls or https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))</span>
@@ -1347,8 +1368,6 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">  </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">parallel_best</span>
 <span class="w">  </span><span class="c1"># optional: timeout to query the upstream resolver. Default: 2s</span>
 <span class="w">  </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2s</span>
-<span class="w">  </span><span class="c1"># optional: If true, blocky will fail to start unless at least one upstream server per group is reachable. Default: false</span>
-<span class="w">  </span><span class="nt">startVerify</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
 <span class="w">  </span><span class="c1"># optional: HTTP User Agent when connecting to upstreams. Default: none</span>
 <span class="w">  </span><span class="nt">userAgent</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;custom</span><span class="nv"> </span><span class="s">UA&quot;</span>
 
@@ -1449,7 +1468,8 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">    </span><span class="c1"># optional: Maximum number of lists to process in parallel.</span>
 <span class="w">    </span><span class="c1"># default: 4</span>
 <span class="w">    </span><span class="nt">concurrency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16</span>
-<span class="w">    </span><span class="c1"># optional: if failOnError, application startup will fail if at least one list can&#39;t be downloaded/opened</span>
+<span class="w">    </span><span class="c1"># Configure startup behavior.</span>
+<span class="w">    </span><span class="c1"># accepted: blocking, failOnError, fast</span>
 <span class="w">    </span><span class="c1"># default: blocking</span>
 <span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">failOnError</span>
 <span class="w">    </span><span class="c1"># Number of errors allowed in a list before it is considered invalid.</span>
@@ -1615,7 +1635,8 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">    </span><span class="c1"># optional: Maximum number of files to process in parallel.</span>
 <span class="w">    </span><span class="c1"># default: 4</span>
 <span class="w">    </span><span class="nt">concurrency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16</span>
-<span class="w">    </span><span class="c1"># optional: if failOnError, application startup will fail if at least one file can&#39;t be downloaded/opened</span>
+<span class="w">    </span><span class="c1"># Configure startup behavior.</span>
+<span class="w">    </span><span class="c1"># accepted: blocking, failOnError, fast</span>
 <span class="w">    </span><span class="c1"># default: blocking</span>
 <span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">failOnError</span>
 <span class="w">    </span><span class="c1"># Number of errors allowed in a file before it is considered invalid.</span>
@@ -1805,6 +1826,31 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">  </span><span class="nt">privacy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
 </div>
+<h2 id="init-strategy">Init Strategy</h2>
+<p>A couple of features use an "init/loading strategy" which configures behavior at Blocky startup.<br />
+This applies to all of them. The default strategy is blocking.</p>
+<table>
+<thead>
+<tr>
+<th>strategy</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>blocking</td>
+<td>Initialization happens before <abbr title="Domain Name System">DNS</abbr> resolution starts. Any errors are logged, but Blocky continues running if possible.</td>
+</tr>
+<tr>
+<td>failOnError</td>
+<td>Like blocking but Blocky will exit with an error if initialization fails.</td>
+</tr>
+<tr>
+<td>fast</td>
+<td>Blocky starts serving <abbr title="Domain Name System">DNS</abbr> immediately and initialization happens in the background. The feature requiring initialization will enable later on (if it succeeds).</td>
+</tr>
+</tbody>
+</table>
 <h2 id="upstreams-configuration">Upstreams configuration</h2>
 <table>
 <thead>
@@ -1825,11 +1871,11 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <td>Upstream <abbr title="Domain Name System">DNS</abbr> servers to use, in groups.</td>
 </tr>
 <tr>
-<td>usptreams.startVerify</td>
-<td>bool</td>
+<td>usptreams.init.strategy</td>
+<td>enum (blocking, failOnError, fast)</td>
 <td>no</td>
-<td>false</td>
-<td>If true, blocky will fail to start unless at least one upstream server per group is functional.</td>
+<td>blocking</td>
+<td>See <a href="#init-strategy">Init Strategy</a> and below.</td>
 </tr>
 <tr>
 <td>usptreams.strategy</td>
@@ -1854,6 +1900,7 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 </tr>
 </tbody>
 </table>
+<p>For <code>init.strategy</code>, the "init" is testing the given resolvers for each group. The potentially fatal error, depending on the strategy, is if a group has no functional resolvers.</p>
 <h3 id="upstream-groups">Upstream Groups</h3>
 <p>To resolve a <abbr title="Domain Name System">DNS</abbr> query, blocky needs external public or private <abbr title="Domain Name System">DNS</abbr> resolvers. Blocky supports <abbr title="Domain Name System">DNS</abbr> resolvers with
 following network protocols (net part of the resolver URL):</p>
@@ -2096,8 +2143,8 @@ domain must be separated by a comma.</p>
 <span class="w">    </span><span class="nt">otherdevice.lan</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.178.15,2001:0db8:85a3:08d3:1319:8a2e:0370:7344</span>
 </code></pre></div>
 </div>
-<p>This configuration will also resolve any subdomain of the defined domain. For example a query "printer.lan" or "
-my.printer.lan" will return 192.168.178.3 as IP address.</p>
+<p>This configuration will also resolve any subdomain of the defined domain, recursively. For example querying any of
+<code>printer.lan</code>, <code>my.printer.lan</code> or <code>i.love.my.printer.lan</code> will return 192.168.178.3.</p>
 <p>With the optional parameter <code>rewrite</code> you can replace domain part of the query with the defined part <strong>before</strong> the
 resolver lookup is performed.
 The query "printer.home" will be rewritten to "printer.lan" and return 192.168.178.3.</p>
@@ -2679,11 +2726,11 @@ mounted (e.g. volume)</p>
 </thead>
 <tbody>
 <tr>
-<td>hostsFile.filePath</td>
-<td>string</td>
+<td>hostsFile.sources</td>
+<td>list of string</td>
 <td>no</td>
 <td></td>
-<td>Path to hosts file (e.g. /etc/hosts on Linux)</td>
+<td>Host files (e.g. /etc/hosts on Linux)</td>
 </tr>
 <tr>
 <td>hostsFile.hostsTTL</td>
@@ -2706,6 +2753,13 @@ mounted (e.g. volume)</p>
 <td>false</td>
 <td>Filter loopback addresses (127.0.0.0/8 and ::1)</td>
 </tr>
+<tr>
+<td>hostsFile.loading</td>
+<td></td>
+<td>no</td>
+<td></td>
+<td>See <a href="#sources-loading">Sources Loading</a></td>
+</tr>
 </tbody>
 </table>
 <div class="admonition example">
@@ -2714,6 +2768,8 @@ mounted (e.g. volume)</p>
 <span class="w">  </span><span class="nt">filePath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/etc/hosts</span>
 <span class="w">  </span><span class="nt">hostsTTL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1h</span>
 <span class="w">  </span><span class="nt">refreshPeriod</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30m</span>
+<span class="w">  </span><span class="nt">loading</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fast</span>
 </code></pre></div>
 </div>
 <h2 id="deliver-ede-codes-as-edns0-option">Deliver EDE codes as EDNS0 option</h2>
@@ -2920,30 +2976,8 @@ A value of zero or less will disable this feature.</p>
 </code></pre></div>
 </div>
 <h3 id="strategy">Strategy</h3>
-<p>This configures how Blocky startup works.<br />
-The default strategy is blocking.</p>
-<table>
-<thead>
-<tr>
-<th>strategy</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>blocking</td>
-<td>all sources are loaded before <abbr title="Domain Name System">DNS</abbr> resolution starts</td>
-</tr>
-<tr>
-<td>failOnError</td>
-<td>like blocking but blocky will shut down if any source fails to load</td>
-</tr>
-<tr>
-<td>fast</td>
-<td>blocky starts serving <abbr title="Domain Name System">DNS</abbr> immediately and sources are loaded asynchronously. The features requiring the sources should enable soon after</td>
-</tr>
-</tbody>
-</table>
+<p>See <a href="#init-strategy">Init Strategy</a>.<br />
+In this context, "init" is loading and parsing each source, and an error is a single source failing to load/parse.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><pre><span></span><code><span class="nt">loading</span><span class="p">:</span>

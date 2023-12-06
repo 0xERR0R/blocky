@@ -1,6 +1,9 @@
-# REVIEW: manual changelog entry
-
 upstreams:
+  init:
+    # Configure startup behavior.
+    # accepted: blocking, failOnError, fast
+    # default: blocking
+    strategy: fast
   groups:
     # these external DNS resolvers will be used. Blocky picks 2 random resolvers from the list for each query
     # format for resolver: [net:]host:[port][/path]. net could be empty (default, shortcut for tcp+udp), tcp+udp, tcp, udp, tcp-tls or https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))
@@ -24,8 +27,6 @@ upstreams:
   strategy: parallel_best
   # optional: timeout to query the upstream resolver. Default: 2s
   timeout: 2s
-  # optional: If true, blocky will fail to start unless at least one upstream server per group is reachable. Default: false
-  startVerify: false
   # optional: HTTP User Agent when connecting to upstreams. Default: none
   userAgent: "custom UA"
 
@@ -126,7 +127,8 @@ blocking:
     # optional: Maximum number of lists to process in parallel.
     # default: 4
     concurrency: 16
-    # optional: if failOnError, application startup will fail if at least one list can't be downloaded/opened
+    # Configure startup behavior.
+    # accepted: blocking, failOnError, fast
     # default: blocking
     strategy: failOnError
     # Number of errors allowed in a list before it is considered invalid.
@@ -292,7 +294,8 @@ hostsFile:
     # optional: Maximum number of files to process in parallel.
     # default: 4
     concurrency: 16
-    # optional: if failOnError, application startup will fail if at least one file can't be downloaded/opened
+    # Configure startup behavior.
+    # accepted: blocking, failOnError, fast
     # default: blocking
     strategy: failOnError
     # Number of errors allowed in a file before it is considered invalid.
