@@ -50,7 +50,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Golang
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         if: matrix.go == true
         with:
           go-version-file: go.mod
