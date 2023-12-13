@@ -613,7 +613,7 @@ func (s *Server) OnRequest(ctx context.Context, w dns.ResponseWriter, request *d
 		response.Res.MsgHdr.RecursionAvailable = request.MsgHdr.RecursionDesired
 
 		// truncate if necessary
-		response.Res.Truncate(getMaxResponseSize(w.LocalAddr().Network(), request))
+		response.Res.Truncate(getMaxResponseSize(r))
 
 		// enable compression
 		response.Res.Compress = true
@@ -624,13 +624,13 @@ func (s *Server) OnRequest(ctx context.Context, w dns.ResponseWriter, request *d
 }
 
 // returns EDNS UDP size or if not present, 512 for UDP and 64K for TCP
-func getMaxResponseSize(network string, request *dns.Msg) int {
-	edns := request.IsEdns0()
+func getMaxResponseSize(req *model.Request) int {
+	edns := req.Req.IsEdns0()
 	if edns != nil && edns.UDPSize() > 0 {
 		return int(edns.UDPSize())
 	}
 
-	if network == "tcp" {
+	if req.Protocol == model.RequestProtocolTCP {
 		return dns.MaxMsgSize
 	}
 
