@@ -163,7 +163,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 					sutConfig.Upstream = mockUpstream.Start()
 				})
 
-				It("should retry with UDP", func() {
+				It("should also try with UDP", func() {
 					req := newRequest("example.com.", A)
 					req.Protocol = RequestProtocolTCP
 
