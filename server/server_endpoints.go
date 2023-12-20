@@ -147,9 +147,9 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 		clientID = extractClientIDFromHost(req.Host)
 	}
 
-	r := newRequest(util.HTTPClientIP(req), model.RequestProtocolTCP, clientID, msg)
+	r := newRequest(util.HTTPClientIP(req), clientID, model.RequestProtocolTCP, msg)
 
-	resResponse, err := s.queryResolver.Resolve(req.Context(), r)
+	resResponse, err := s.resolve(req.Context(), r)
 	if err != nil {
 		logAndResponseWithError(err, "unable to process query: ", rw)
 
@@ -173,9 +173,9 @@ func (s *Server) Query(
 	ctx context.Context, serverHost string, clientIP net.IP, question string, qType dns.Type,
 ) (*model.Response, error) {
 	dnsRequest := util.NewMsgWithQuestion(question, qType)
-	r := newRequest(clientIP, model.RequestProtocolTCP, extractClientIDFromHost(serverHost), dnsRequest)
+	r := newRequest(clientIP, extractClientIDFromHost(serverHost), model.RequestProtocolTCP, dnsRequest)
 
-	return s.queryResolver.Resolve(ctx, r)
+	return s.resolve(ctx, r)
 }
 
 func createHTTPSRouter(cfg *config.Config) *chi.Mux {
