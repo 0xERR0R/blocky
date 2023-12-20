@@ -182,7 +182,7 @@ func (b *BootstrapDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	// bootstrapDNSConfig is used to avoid infinite recursion:
 	// if we used BootstrapDNS, unmarshal would just call us again.
-	var c bootstrapDNSConfig
+	var c bootstrapDNS
 	if err := unmarshal(&c); err != nil {
 		return err
 	}
@@ -269,8 +269,8 @@ func (c *Ports) LogConfig(logger *logrus.Entry) {
 
 // split in two types to avoid infinite recursion. See `BootstrapDNS.UnmarshalYAML`.
 type (
-	BootstrapDNS       bootstrapDNSConfig
-	bootstrapDNSConfig []BootstrappedUpstream
+	BootstrapDNS bootstrapDNS
+	bootstrapDNS []BootstrappedUpstream
 )
 
 func (b *BootstrapDNS) IsEnabled() bool {
