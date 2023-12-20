@@ -200,7 +200,7 @@ func (b *BootstrappedUpstream) UnmarshalYAML(unmarshal func(interface{}) error) 
 
 	// bootstrapConfig is used to avoid infinite recursion:
 	// if we used BootstrapConfig, unmarshal would just call us again.
-	var c bootstrappedUpstreamConfig
+	var c bootstrappedUpstream
 	if err := unmarshal(&c); err != nil {
 		return err
 	}
@@ -285,8 +285,8 @@ func (b *BootstrapDNS) LogConfig(*logrus.Entry) {
 
 // split in two types to avoid infinite recursion. See `BootstrappedUpstream.UnmarshalYAML`.
 type (
-	BootstrappedUpstream       bootstrappedUpstreamConfig
-	bootstrappedUpstreamConfig struct {
+	BootstrappedUpstream bootstrappedUpstream
+	bootstrappedUpstream struct {
 		Upstream Upstream `yaml:"upstream"`
 		IPs      []net.IP `yaml:"ips"`
 	}
