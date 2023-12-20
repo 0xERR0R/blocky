@@ -7,6 +7,8 @@ package api
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/http"
 	"strings"
 	"time"
 
@@ -16,6 +18,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/miekg/dns"
 )
+
+type httpReqCtxKey struct{}
 
 // BlockingStatus represents the current blocking status
 type BlockingStatus struct {
@@ -40,7 +44,9 @@ type ListRefresher interface {
 }
 
 type Querier interface {
-	Query(ctx context.Context, question string, qType dns.Type) (*model.Response, error)
+	Query(
+		ctx context.Context, serverHost string, clientIP net.IP, question string, qType dns.Type,
+	) (*model.Response, error)
 }
 
 type CacheControl interface {
@@ -48,7 +54,17 @@ type CacheControl interface {
 }
 
 func RegisterOpenAPIEndpoints(router chi.Router, impl StrictServerInterface) {
-	HandlerFromMuxWithBaseURL(NewStrictHandler(impl, nil), router, "/api")
+	middleware := []StrictMiddlewareFunc{ctxWithHTTPRequestMiddleware}
+
+	HandlerFromMuxWithBaseURL(NewStrictHandler(impl, middleware), router, "/api")
+}
+
+func ctxWithHTTPRequestMiddleware(handler StrictHandlerFunc, operationID string) StrictHandlerFunc {
+	return func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (response any, err error) {
+		ctx = context.WithValue(ctx, httpReqCtxKey{}, r)
+
+		return handler(ctx, w, r, request)
+	}
 }
 
 type OpenAPIInterfaceImpl struct {
@@ -143,7 +159,18 @@ func (i *OpenAPIInterfaceImpl) Query(ctx context.Context, request QueryRequestOb
 		return Query400TextResponse(fmt.Sprintf("unknown query type '%s'", request.Body.Type)), nil
 	}
 
-	resp, err := i.querier.Query(ctx, dns.Fqdn(request.Body.Query), qType)
+	var (
+		serverHost string
+		clientIP   net.IP
+	)
+
+	httpReq, ok := ctx.Value(httpReqCtxKey{}).(*http.Request)
+	if ok {
+		serverHost = httpReq.Host
+		clientIP = util.HTTPClientIP(httpReq)
+	}
+
+	resp, err := i.querier.Query(ctx, serverHost, clientIP, dns.Fqdn(request.Body.Query), qType)
 	if err != nil {
 		return nil, err
 	}

@@ -3,10 +3,13 @@ package api
 import (
 	"context"
 	"errors"
+	"net"
+	"net/http"
 	"time"
 
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/go-chi/chi/v5"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/mock"
 
@@ -53,10 +56,17 @@ func (m *BlockingControlMock) BlockingStatus() BlockingStatus {
 	return args.Get(0).(BlockingStatus)
 }
 
-func (m *QuerierMock) Query(ctx context.Context, question string, qType dns.Type) (*model.Response, error) {
-	args := m.Called(ctx, question, qType)
+func (m *QuerierMock) Query(
+	ctx context.Context, serverHost string, clientIP net.IP, question string, qType dns.Type,
+) (*model.Response, error) {
+	args := m.Called(ctx, serverHost, clientIP, question, qType)
 
-	return args.Get(0).(*model.Response), args.Error(1)
+	err := args.Error(1)
+	if err != nil {
+		return nil, err
+	}
+
+	return args.Get(0).(*model.Response), nil
 }
 
 func (m *CacheControlMock) FlushCaches(ctx context.Context) {
@@ -92,6 +102,34 @@ var _ = Describe("API implementation tests", func() {
 		listRefreshMock.AssertExpectations(GinkgoT())
 	})
 
+	Describe("RegisterOpenAPIEndpoints", func() {
+		It("adds routes", func() {
+			rtr := chi.NewRouter()
+			RegisterOpenAPIEndpoints(rtr, sut)
+
+			Expect(rtr.Routes()).ShouldNot(BeEmpty())
+		})
+	})
+
+	Describe("ctxWithHTTPRequestMiddleware", func() {
+		It("adds the request to the context", func() {
+			handler := func(ctx context.Context, _ http.ResponseWriter, r *http.Request, _ any) (any, error) {
+				Expect(ctx.Value(httpReqCtxKey{})).Should(BeIdenticalTo(r))
+
+				return nil, nil //nolint:nilnil
+			}
+
+			handler = ctxWithHTTPRequestMiddleware(handler, "operation-id")
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://example.com", nil)
+			Expect(err).Should(Succeed())
+
+			resp, err := handler(ctx, nil, req, nil)
+			Expect(err).Should(Succeed())
+			Expect(resp).Should(BeNil())
+		})
+	})
+
 	Describe("Query API", func() {
 		When("Query is called", func() {
 			It("should return 200 on success", func() {
@@ -100,7 +138,7 @@ var _ = Describe("API implementation tests", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				querierMock.On("Query", ctx, "google.com.", A).Return(&model.Response{
+				querierMock.On("Query", ctx, "", net.IP(nil), "google.com.", A).Return(&model.Response{
 					Res:    queryResponse,
 					Reason: "reason",
 				}, nil)
@@ -118,6 +156,26 @@ var _ = Describe("API implementation tests", func() {
 				Expect(resp200.Response).Should(Equal("A (0.0.0.0)"))
 				Expect(resp200.ResponseType).Should(Equal("RESOLVED"))
 				Expect(resp200.ReturnCode).Should(Equal("NOERROR"))
+			})
+
+			It("extracts metadata from the HTTP request", func() {
+				r, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://blocky.localhost", nil)
+				Expect(err).Should(Succeed())
+
+				clientIP := net.IPv4allrouter
+				r.RemoteAddr = net.JoinHostPort(clientIP.String(), "89685")
+
+				ctx = context.WithValue(ctx, httpReqCtxKey{}, r)
+
+				expectedErr := errors.New("test")
+				querierMock.On("Query", ctx, "blocky.localhost", clientIP, "example.com.", A).Return(nil, expectedErr)
+
+				_, err = sut.Query(ctx, QueryRequestObject{
+					Body: &ApiQueryRequest{
+						Query: "example.com", Type: "A",
+					},
+				})
+				Expect(err).Should(MatchError(expectedErr))
 			})
 
 			It("should return 400 on wrong parameter", func() {
