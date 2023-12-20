@@ -192,7 +192,7 @@ func (b *BootstrapDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-// UnmarshalYAML creates BootstrapConfig from YAML
+// UnmarshalYAML creates BootstrappedUpstream from YAML
 func (b *BootstrappedUpstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&b.Upstream); err == nil {
 		return nil
