@@ -4,17 +4,17 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type FilteringConfig struct {
+type Filtering struct {
 	QueryTypes QTypeSet `yaml:"queryTypes"`
 }
 
 // IsEnabled implements `config.Configurable`.
-func (c *FilteringConfig) IsEnabled() bool {
+func (c *Filtering) IsEnabled() bool {
 	return len(c.QueryTypes) != 0
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *FilteringConfig) LogConfig(logger *logrus.Entry) {
+func (c *Filtering) LogConfig(logger *logrus.Entry) {
 	logger.Info("query types:")
 
 	for qType := range c.QueryTypes {

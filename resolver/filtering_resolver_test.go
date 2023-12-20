@@ -17,7 +17,7 @@ import (
 var _ = Describe("FilteringResolver", func() {
 	var (
 		sut        *FilteringResolver
-		sutConfig  config.FilteringConfig
+		sutConfig  config.Filtering
 		m          *mockResolver
 		mockAnswer *dns.Msg
 
@@ -63,7 +63,7 @@ var _ = Describe("FilteringResolver", func() {
 
 	When("Filtering query types are defined", func() {
 		BeforeEach(func() {
-			sutConfig = config.FilteringConfig{
+			sutConfig = config.Filtering{
 				QueryTypes: config.NewQTypeSet(AAAA, MX),
 			}
 		})
@@ -95,7 +95,7 @@ var _ = Describe("FilteringResolver", func() {
 
 	When("No filtering query types are defined", func() {
 		BeforeEach(func() {
-			sutConfig = config.FilteringConfig{}
+			sutConfig = config.Filtering{}
 		})
 		It("Should return empty answer without error", func() {
 			Expect(sut.Resolve(ctx, newRequest("example.com.", AAAA))).

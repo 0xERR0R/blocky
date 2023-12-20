@@ -9,19 +9,19 @@ import (
 )
 
 var _ = Describe("FilteringConfig", func() {
-	var cfg FilteringConfig
+	var cfg Filtering
 
 	suiteBeforeEach()
 
 	BeforeEach(func() {
-		cfg = FilteringConfig{
+		cfg = Filtering{
 			QueryTypes: NewQTypeSet(AAAA, MX),
 		}
 	})
 
 	Describe("IsEnabled", func() {
 		It("should be false by default", func() {
-			cfg := FilteringConfig{}
+			cfg := Filtering{}
 			Expect(defaults.Set(&cfg)).Should(Succeed())
 
 			Expect(cfg.IsEnabled()).Should(BeFalse())
@@ -35,7 +35,7 @@ var _ = Describe("FilteringConfig", func() {
 
 		When("disabled", func() {
 			It("should be false", func() {
-				cfg := FilteringConfig{}
+				cfg := Filtering{}
 
 				Expect(cfg.IsEnabled()).Should(BeFalse())
 			})

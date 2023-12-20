@@ -230,7 +230,7 @@ type Config struct {
 	BootstrapDNS     BootstrapDNSConfig  `yaml:"bootstrapDns"`
 	HostsFile        HostsFileConfig     `yaml:"hostsFile"`
 	FQDNOnly         FQDNOnly            `yaml:"fqdnOnly"`
-	Filtering        FilteringConfig     `yaml:"filtering"`
+	Filtering        Filtering           `yaml:"filtering"`
 	EDE              EDE                 `yaml:"ede"`
 	ECS              ECS                 `yaml:"ecs"`
 	SUDN             SUDN                `yaml:"specialUseDomains"`

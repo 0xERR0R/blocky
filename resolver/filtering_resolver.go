@@ -11,12 +11,12 @@ import (
 // FilteringResolver filters DNS queries (for example can drop all AAAA query)
 // returns empty ANSWER with NOERROR
 type FilteringResolver struct {
-	configurable[*config.FilteringConfig]
+	configurable[*config.Filtering]
 	NextResolver
 	typed
 }
 
-func NewFilteringResolver(cfg config.FilteringConfig) *FilteringResolver {
+func NewFilteringResolver(cfg config.Filtering) *FilteringResolver {
 	return &FilteringResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("filtering"),
