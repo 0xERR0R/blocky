@@ -4,8 +4,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// QueryLogConfig configuration for the query logging
-type QueryLogConfig struct {
+// QueryLog configuration for the query logging
+type QueryLog struct {
 	Target           string          `yaml:"target"`
 	Type             QueryLogType    `yaml:"type"`
 	LogRetentionDays uint64          `yaml:"logRetentionDays"`
@@ -16,19 +16,19 @@ type QueryLogConfig struct {
 }
 
 // SetDefaults implements `defaults.Setter`.
-func (c *QueryLogConfig) SetDefaults() {
+func (c *QueryLog) SetDefaults() {
 	// Since the default depends on the enum values, set it dynamically
 	// to avoid having to repeat the values in the annotation.
 	c.Fields = QueryLogFieldValues()
 }
 
 // IsEnabled implements `config.Configurable`.
-func (c *QueryLogConfig) IsEnabled() bool {
+func (c *QueryLog) IsEnabled() bool {
 	return c.Type != QueryLogTypeNone
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *QueryLogConfig) LogConfig(logger *logrus.Entry) {
+func (c *QueryLog) LogConfig(logger *logrus.Entry) {
 	logger.Infof("type: %s", c.Type)
 
 	if c.Target != "" {

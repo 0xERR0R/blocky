@@ -219,7 +219,7 @@ type Config struct {
 	Blocking         Blocking            `yaml:"blocking"`
 	ClientLookup     ClientLookup        `yaml:"clientLookup"`
 	Caching          Caching             `yaml:"caching"`
-	QueryLog         QueryLogConfig      `yaml:"queryLog"`
+	QueryLog         QueryLog            `yaml:"queryLog"`
 	Prometheus       MetricsConfig       `yaml:"prometheus"`
 	Redis            Redis               `yaml:"redis"`
 	Log              log.Config          `yaml:"log"`

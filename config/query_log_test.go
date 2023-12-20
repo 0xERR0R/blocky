@@ -9,12 +9,12 @@ import (
 )
 
 var _ = Describe("QueryLogConfig", func() {
-	var cfg QueryLogConfig
+	var cfg QueryLog
 
 	suiteBeforeEach()
 
 	BeforeEach(func() {
-		cfg = QueryLogConfig{
+		cfg = QueryLog{
 			Target:           "/dev/null",
 			Type:             QueryLogTypeCsvClient,
 			LogRetentionDays: 0,
@@ -25,7 +25,7 @@ var _ = Describe("QueryLogConfig", func() {
 
 	Describe("IsEnabled", func() {
 		It("should be true by default", func() {
-			cfg := QueryLogConfig{}
+			cfg := QueryLog{}
 			Expect(defaults.Set(&cfg)).Should(Succeed())
 
 			Expect(cfg.IsEnabled()).Should(BeTrue())
@@ -39,7 +39,7 @@ var _ = Describe("QueryLogConfig", func() {
 
 		When("disabled", func() {
 			It("should be false", func() {
-				cfg := QueryLogConfig{
+				cfg := QueryLog{
 					Type: QueryLogTypeNone,
 				}
 
@@ -59,7 +59,7 @@ var _ = Describe("QueryLogConfig", func() {
 
 	Describe("SetDefaults", func() {
 		It("should log configuration", func() {
-			cfg := QueryLogConfig{}
+			cfg := QueryLog{}
 			Expect(cfg.Fields).Should(BeEmpty())
 
 			Expect(defaults.Set(&cfg)).Should(Succeed())
