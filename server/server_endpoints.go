@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/0xERR0R/blocky/resolver"
@@ -148,7 +147,7 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 		clientID = extractClientIDFromHost(req.Host)
 	}
 
-	r := newRequest(net.ParseIP(extractIP(req)), model.RequestProtocolTCP, clientID, msg)
+	r := newRequest(util.HTTPClientIP(req), model.RequestProtocolTCP, clientID, msg)
 
 	resResponse, err := s.queryResolver.Resolve(req.Context(), r)
 	if err != nil {
@@ -156,11 +155,6 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 
 		return
 	}
-
-	response := new(dns.Msg)
-	response.SetReply(msg)
-	// enable compression
-	resResponse.Res.Compress = true
 
 	b, err := resResponse.Res.Pack()
 	if err != nil {
@@ -175,27 +169,11 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 	logAndResponseWithError(err, "can't write response: ", rw)
 }
 
-func extractIP(r *http.Request) string {
-	hostPort := r.Header.Get("X-FORWARDED-FOR")
-
-	if hostPort == "" {
-		hostPort = r.RemoteAddr
-	}
-
-	hostPort = strings.ReplaceAll(hostPort, "[", "")
-	hostPort = strings.ReplaceAll(hostPort, "]", "")
-	index := strings.LastIndex(hostPort, ":")
-
-	if index >= 0 {
-		return hostPort[:index]
-	}
-
-	return hostPort
-}
-
-func (s *Server) Query(ctx context.Context, question string, qType dns.Type) (*model.Response, error) {
+func (s *Server) Query(
+	ctx context.Context, serverHost string, clientIP net.IP, question string, qType dns.Type,
+) (*model.Response, error) {
 	dnsRequest := util.NewMsgWithQuestion(question, qType)
-	r := createResolverRequest(nil, dnsRequest)
+	r := newRequest(clientIP, model.RequestProtocolTCP, extractClientIDFromHost(serverHost), dnsRequest)
 
 	return s.queryResolver.Resolve(ctx, r)
 }
