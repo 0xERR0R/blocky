@@ -180,7 +180,7 @@ func (b *BootstrapDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return nil
 	}
 
-	// bootstrapDNSConfig is used to avoid infinite recursion:
+	// bootstrapDNS is used to avoid infinite recursion:
 	// if we used BootstrapDNS, unmarshal would just call us again.
 	var c bootstrapDNS
 	if err := unmarshal(&c); err != nil {
