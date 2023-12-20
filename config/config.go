@@ -171,9 +171,9 @@ func (l *ListenConfig) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// UnmarshalYAML creates BootstrapDNSConfig from YAML
+// UnmarshalYAML creates BootstrapDNS from YAML
 func (b *BootstrapDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var single BootstrappedUpstreamConfig
+	var single BootstrappedUpstream
 	if err := unmarshal(&single); err == nil {
 		*b = BootstrapDNS{single}
 
@@ -181,7 +181,7 @@ func (b *BootstrapDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	// bootstrapDNSConfig is used to avoid infinite recursion:
-	// if we used BootstrapDNSConfig, unmarshal would just call us again.
+	// if we used BootstrapDNS, unmarshal would just call us again.
 	var c bootstrapDNSConfig
 	if err := unmarshal(&c); err != nil {
 		return err
@@ -193,7 +193,7 @@ func (b *BootstrapDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // UnmarshalYAML creates BootstrapConfig from YAML
-func (b *BootstrappedUpstreamConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (b *BootstrappedUpstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&b.Upstream); err == nil {
 		return nil
 	}
@@ -205,7 +205,7 @@ func (b *BootstrappedUpstreamConfig) UnmarshalYAML(unmarshal func(interface{}) e
 		return err
 	}
 
-	*b = BootstrappedUpstreamConfig(c)
+	*b = BootstrappedUpstream(c)
 
 	return nil
 }
@@ -270,7 +270,7 @@ func (c *Ports) LogConfig(logger *logrus.Entry) {
 // split in two types to avoid infinite recursion. See `BootstrapDNS.UnmarshalYAML`.
 type (
 	BootstrapDNS       bootstrapDNSConfig
-	bootstrapDNSConfig []BootstrappedUpstreamConfig
+	bootstrapDNSConfig []BootstrappedUpstream
 )
 
 func (b *BootstrapDNS) IsEnabled() bool {
@@ -283,9 +283,9 @@ func (b *BootstrapDNS) LogConfig(*logrus.Entry) {
 	panic("not implemented")
 }
 
-// split in two types to avoid infinite recursion. See `BootstrappedUpstreamConfig.UnmarshalYAML`.
+// split in two types to avoid infinite recursion. See `BootstrappedUpstream.UnmarshalYAML`.
 type (
-	BootstrappedUpstreamConfig bootstrappedUpstreamConfig
+	BootstrappedUpstream       bootstrappedUpstreamConfig
 	bootstrappedUpstreamConfig struct {
 		Upstream Upstream `yaml:"upstream"`
 		IPs      []net.IP `yaml:"ips"`

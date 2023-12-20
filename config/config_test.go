@@ -751,8 +751,8 @@ bootstrapDns:
 
 		It("is enabled if non empty", func() {
 			sut := BootstrapDNS{
-				BootstrappedUpstreamConfig{},
-				BootstrappedUpstreamConfig{},
+				BootstrappedUpstream{},
+				BootstrappedUpstream{},
 			}
 
 			Expect(sut.IsEnabled()).Should(BeTrue())
