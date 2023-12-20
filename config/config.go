@@ -198,8 +198,8 @@ func (b *BootstrappedUpstream) UnmarshalYAML(unmarshal func(interface{}) error) 
 		return nil
 	}
 
-	// bootstrapConfig is used to avoid infinite recursion:
-	// if we used BootstrapConfig, unmarshal would just call us again.
+	// bootstrappedUpstream is used to avoid infinite recursion:
+	// if we used BootstrappedUpstream, unmarshal would just call us again.
 	var c bootstrappedUpstream
 	if err := unmarshal(&c); err != nil {
 		return err
