@@ -148,7 +148,7 @@ var _ = BeforeSuite(func() {
 			Upstream: upstreamClient,
 		},
 
-		Ports: config.PortsConfig{
+		Ports: config.Ports{
 			DNS:   config.ListenConfig{GetStringPort(dnsBasePort)},
 			TLS:   config.ListenConfig{GetStringPort(tlsBasePort)},
 			HTTP:  config.ListenConfig{GetStringPort(httpBasePort)},
@@ -603,7 +603,7 @@ var _ = Describe("Running DNS server", func() {
 						},
 					},
 					Blocking: config.Blocking{BlockType: "zeroIp"},
-					Ports: config.PortsConfig{
+					Ports: config.Ports{
 						DNS: config.ListenConfig{"127.0.0.1:" + GetStringPort(dnsBasePort2)},
 					},
 				})
@@ -649,7 +649,7 @@ var _ = Describe("Running DNS server", func() {
 						},
 					},
 					Blocking: config.Blocking{BlockType: "zeroIp"},
-					Ports: config.PortsConfig{
+					Ports: config.Ports{
 						DNS: config.ListenConfig{"127.0.0.1:" + GetStringPort(dnsBasePort2)},
 					},
 				})
@@ -712,7 +712,7 @@ var _ = Describe("Running DNS server", func() {
 		It("should create self-signed certificate if key/cert files are not provided", func() {
 			cfg.KeyFile = ""
 			cfg.CertFile = ""
-			cfg.Ports = config.PortsConfig{
+			cfg.Ports = config.Ports{
 				HTTPS: []string{fmt.Sprintf(":%d", GetIntPort(httpsBasePort)+100)},
 			}
 			sut, err := NewServer(ctx, &cfg)

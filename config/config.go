@@ -223,7 +223,7 @@ type Config struct {
 	Prometheus       Metrics             `yaml:"prometheus"`
 	Redis            Redis               `yaml:"redis"`
 	Log              log.Config          `yaml:"log"`
-	Ports            PortsConfig         `yaml:"ports"`
+	Ports            Ports               `yaml:"ports"`
 	MinTLSServeVer   TLSVersion          `yaml:"minTlsServeVersion" default:"1.2"`
 	CertFile         string              `yaml:"certFile"`
 	KeyFile          string              `yaml:"keyFile"`
@@ -253,14 +253,14 @@ type Config struct {
 	} `yaml:",inline"`
 }
 
-type PortsConfig struct {
+type Ports struct {
 	DNS   ListenConfig `yaml:"dns" default:"53"`
 	HTTP  ListenConfig `yaml:"http"`
 	HTTPS ListenConfig `yaml:"https"`
 	TLS   ListenConfig `yaml:"tls"`
 }
 
-func (c *PortsConfig) LogConfig(logger *logrus.Entry) {
+func (c *Ports) LogConfig(logger *logrus.Entry) {
 	logger.Infof("DNS   = %s", c.DNS)
 	logger.Infof("TLS   = %s", c.TLS)
 	logger.Infof("HTTP  = %s", c.HTTP)
