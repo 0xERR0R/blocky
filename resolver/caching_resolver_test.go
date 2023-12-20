@@ -25,7 +25,7 @@ import (
 var _ = Describe("CachingResolver", func() {
 	var (
 		sut        *CachingResolver
-		sutConfig  config.CachingConfig
+		sutConfig  config.Caching
 		m          *mockResolver
 		mockAnswer *dns.Msg
 		ctx        context.Context
@@ -39,7 +39,7 @@ var _ = Describe("CachingResolver", func() {
 	})
 
 	BeforeEach(func() {
-		sutConfig = config.CachingConfig{}
+		sutConfig = config.Caching{}
 		if err := defaults.Set(&sutConfig); err != nil {
 			panic(err)
 		}
@@ -63,7 +63,7 @@ var _ = Describe("CachingResolver", func() {
 
 		When("max caching time is negative", func() {
 			BeforeEach(func() {
-				sutConfig = config.CachingConfig{
+				sutConfig = config.Caching{
 					MaxCachingTime: config.Duration(time.Minute * -1),
 				}
 			})
@@ -86,7 +86,7 @@ var _ = Describe("CachingResolver", func() {
 	Describe("Caching responses", func() {
 		When("prefetching is enabled", func() {
 			BeforeEach(func() {
-				sutConfig = config.CachingConfig{
+				sutConfig = config.Caching{
 					Prefetching:       true,
 					PrefetchExpires:   config.Duration(time.Minute * 120),
 					PrefetchThreshold: 5,
@@ -198,7 +198,7 @@ var _ = Describe("CachingResolver", func() {
 		})
 		When("min caching time is defined", func() {
 			BeforeEach(func() {
-				sutConfig = config.CachingConfig{
+				sutConfig = config.Caching{
 					MinCachingTime: config.Duration(time.Minute * 5),
 				}
 			})
@@ -341,7 +341,7 @@ var _ = Describe("CachingResolver", func() {
 			})
 			Context("max caching time is negative -> caching is disabled", func() {
 				BeforeEach(func() {
-					sutConfig = config.CachingConfig{
+					sutConfig = config.Caching{
 						MaxCachingTime: config.Duration(time.Minute * -1),
 					}
 				})
@@ -378,7 +378,7 @@ var _ = Describe("CachingResolver", func() {
 
 			Context("max caching time is positive", func() {
 				BeforeEach(func() {
-					sutConfig = config.CachingConfig{
+					sutConfig = config.Caching{
 						MaxCachingTime: config.Duration(time.Minute * 4),
 					}
 				})
@@ -419,7 +419,7 @@ var _ = Describe("CachingResolver", func() {
 			})
 			Context("max caching time is defined", func() {
 				BeforeEach(func() {
-					sutConfig = config.CachingConfig{
+					sutConfig = config.Caching{
 						MaxCachingTime: config.Duration(time.Minute * 1),
 					}
 				})
@@ -500,7 +500,7 @@ var _ = Describe("CachingResolver", func() {
 			When("Upstream resolver returns NXDOMAIN without caching", func() {
 				BeforeEach(func() {
 					mockAnswer.Rcode = dns.RcodeNameError
-					sutConfig = config.CachingConfig{
+					sutConfig = config.Caching{
 						CacheTimeNegative: config.Duration(time.Minute * -1),
 					}
 				})
@@ -758,7 +758,7 @@ var _ = Describe("CachingResolver", func() {
 		})
 		When("cache", func() {
 			JustBeforeEach(func() {
-				sutConfig = config.CachingConfig{
+				sutConfig = config.Caching{
 					MaxCachingTime: config.Duration(time.Second * 10),
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1000, A, "1.1.1.1")

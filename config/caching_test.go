@@ -9,19 +9,19 @@ import (
 )
 
 var _ = Describe("CachingConfig", func() {
-	var cfg CachingConfig
+	var cfg Caching
 
 	suiteBeforeEach()
 
 	BeforeEach(func() {
-		cfg = CachingConfig{
+		cfg = Caching{
 			MaxCachingTime: Duration(time.Hour),
 		}
 	})
 
 	Describe("IsEnabled", func() {
 		It("should be true by default", func() {
-			cfg := CachingConfig{}
+			cfg := Caching{}
 			Expect(defaults.Set(&cfg)).Should(Succeed())
 
 			Expect(cfg.IsEnabled()).Should(BeTrue())
@@ -29,7 +29,7 @@ var _ = Describe("CachingConfig", func() {
 
 		When("the config is disabled", func() {
 			BeforeEach(func() {
-				cfg = CachingConfig{
+				cfg = Caching{
 					MaxCachingTime: Duration(time.Hour * -1),
 				}
 			})
@@ -46,7 +46,7 @@ var _ = Describe("CachingConfig", func() {
 
 		When("the config is disabled", func() {
 			It("should be false", func() {
-				cfg := CachingConfig{
+				cfg := Caching{
 					MaxCachingTime: Duration(-1),
 				}
 
@@ -58,7 +58,7 @@ var _ = Describe("CachingConfig", func() {
 	Describe("LogConfig", func() {
 		When("prefetching is enabled", func() {
 			BeforeEach(func() {
-				cfg = CachingConfig{
+				cfg = Caching{
 					Prefetching: true,
 				}
 			})
@@ -75,7 +75,7 @@ var _ = Describe("CachingConfig", func() {
 	Describe("EnablePrefetch", func() {
 		When("prefetching is enabled", func() {
 			BeforeEach(func() {
-				cfg = CachingConfig{}
+				cfg = Caching{}
 			})
 
 			It("should return configuration", func() {

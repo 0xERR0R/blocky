@@ -6,8 +6,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// CachingConfig configuration for domain caching
-type CachingConfig struct {
+// Caching configuration for domain caching
+type Caching struct {
 	MinCachingTime        Duration `yaml:"minTime"`
 	MaxCachingTime        Duration `yaml:"maxTime"`
 	CacheTimeNegative     Duration `yaml:"cacheTimeNegative" default:"30m"`
@@ -19,12 +19,12 @@ type CachingConfig struct {
 }
 
 // IsEnabled implements `config.Configurable`.
-func (c *CachingConfig) IsEnabled() bool {
+func (c *Caching) IsEnabled() bool {
 	return c.MaxCachingTime.IsAtLeastZero()
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *CachingConfig) LogConfig(logger *logrus.Entry) {
+func (c *Caching) LogConfig(logger *logrus.Entry) {
 	logger.Infof("minTime = %s", c.MinCachingTime)
 	logger.Infof("maxTime = %s", c.MaxCachingTime)
 	logger.Infof("cacheTimeNegative = %s", c.CacheTimeNegative)
@@ -39,7 +39,7 @@ func (c *CachingConfig) LogConfig(logger *logrus.Entry) {
 	}
 }
 
-func (c *CachingConfig) EnablePrefetch() {
+func (c *Caching) EnablePrefetch() {
 	const day = Duration(24 * time.Hour)
 
 	if !c.IsEnabled() {

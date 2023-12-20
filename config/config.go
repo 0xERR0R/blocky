@@ -218,7 +218,7 @@ type Config struct {
 	Conditional      ConditionalUpstream `yaml:"conditional"`
 	Blocking         Blocking            `yaml:"blocking"`
 	ClientLookup     ClientLookup        `yaml:"clientLookup"`
-	Caching          CachingConfig       `yaml:"caching"`
+	Caching          Caching             `yaml:"caching"`
 	QueryLog         QueryLogConfig      `yaml:"queryLog"`
 	Prometheus       MetricsConfig       `yaml:"prometheus"`
 	Redis            Redis               `yaml:"redis"`
