@@ -29,7 +29,7 @@ var _ = Describe("ListCache", func() {
 		server1, server2, server3      *httptest.Server
 
 		sut       *ListCache
-		sutConfig config.SourceLoadingConfig
+		sutConfig config.SourceLoading
 
 		listCacheType  ListCacheType
 		lists          map[string][]config.BytesSource
@@ -48,7 +48,7 @@ var _ = Describe("ListCache", func() {
 
 		listCacheType = ListCacheTypeBlacklist
 
-		sutConfig, err = config.WithDefaults[config.SourceLoadingConfig]()
+		sutConfig, err = config.WithDefaults[config.SourceLoading]()
 		Expect(err).Should(Succeed())
 
 		sutConfig.RefreshPeriod = -1

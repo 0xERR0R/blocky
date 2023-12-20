@@ -319,7 +319,7 @@ func (c *Init) LogConfig(logger *logrus.Entry) {
 	logger.Debugf("strategy = %s", c.Strategy)
 }
 
-type SourceLoadingConfig struct {
+type SourceLoading struct {
 	Init `yaml:",inline"`
 
 	Concurrency        uint             `yaml:"concurrency" default:"4"`
@@ -328,7 +328,7 @@ type SourceLoadingConfig struct {
 	Downloads          DownloaderConfig `yaml:"downloads"`
 }
 
-func (c *SourceLoadingConfig) LogConfig(logger *logrus.Entry) {
+func (c *SourceLoading) LogConfig(logger *logrus.Entry) {
 	c.Init.LogConfig(logger)
 	logger.Infof("concurrency = %d", c.Concurrency)
 	logger.Debugf("maxErrorsPerSource = %d", c.MaxErrorsPerSource)
@@ -343,7 +343,7 @@ func (c *SourceLoadingConfig) LogConfig(logger *logrus.Entry) {
 	log.WithIndent(logger, "  ", c.Downloads.LogConfig)
 }
 
-func (c *SourceLoadingConfig) StartPeriodicRefresh(
+func (c *SourceLoading) StartPeriodicRefresh(
 	ctx context.Context, refresh func(context.Context) error, logErr func(error),
 ) error {
 	err := c.Strategy.Do(ctx, refresh, logErr)
@@ -358,7 +358,7 @@ func (c *SourceLoadingConfig) StartPeriodicRefresh(
 	return nil
 }
 
-func (c *SourceLoadingConfig) periodically(
+func (c *SourceLoading) periodically(
 	ctx context.Context, refresh func(context.Context) error, logErr func(error),
 ) {
 	refresh = recoverToError(refresh, func(panicVal any) error {

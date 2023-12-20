@@ -7,10 +7,10 @@ import (
 )
 
 type HostsFile struct {
-	Sources        []BytesSource       `yaml:"sources"`
-	HostsTTL       Duration            `yaml:"hostsTTL" default:"1h"`
-	FilterLoopback bool                `yaml:"filterLoopback"`
-	Loading        SourceLoadingConfig `yaml:"loading"`
+	Sources        []BytesSource `yaml:"sources"`
+	HostsTTL       Duration      `yaml:"hostsTTL" default:"1h"`
+	FilterLoopback bool          `yaml:"filterLoopback"`
+	Loading        SourceLoading `yaml:"loading"`
 
 	// Deprecated options
 	Deprecated struct {

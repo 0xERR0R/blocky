@@ -170,7 +170,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				ClientGroupsBlock: map[string][]string{
 					"default": {"gr1"},
 				},
-				Loading: config.SourceLoadingConfig{
+				Loading: config.SourceLoading{
 					Init: config.Init{Strategy: config.InitStrategyFast},
 				},
 			}
@@ -1126,7 +1126,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				_, err := NewBlockingResolver(ctx, config.Blocking{
 					BlackLists: map[string][]config.BytesSource{"gr1": config.NewBytesSources("wrongPath")},
 					WhiteLists: map[string][]config.BytesSource{"whitelist": config.NewBytesSources("wrongPath")},
-					Loading: config.SourceLoadingConfig{
+					Loading: config.SourceLoading{
 						Init: config.Init{Strategy: config.InitStrategyFailOnError},
 					},
 					BlockType: "zeroIp",

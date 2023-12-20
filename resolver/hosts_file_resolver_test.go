@@ -47,7 +47,7 @@ var _ = Describe("HostsFileResolver", func() {
 			Sources:        config.NewBytesSources(tmpFile.Path),
 			HostsTTL:       config.Duration(time.Duration(TTL) * time.Second),
 			FilterLoopback: true,
-			Loading: config.SourceLoadingConfig{
+			Loading: config.SourceLoading{
 				RefreshPeriod:      -1,
 				MaxErrorsPerSource: 5,
 			},

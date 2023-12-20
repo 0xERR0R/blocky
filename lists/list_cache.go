@@ -40,7 +40,7 @@ type ListCache struct {
 	groupedCache stringcache.GroupedStringCache
 	regexCache   stringcache.GroupedStringCache
 
-	cfg          config.SourceLoadingConfig
+	cfg          config.SourceLoading
 	listType     ListCacheType
 	groupSources map[string][]config.BytesSource
 	downloader   FileDownloader
@@ -70,7 +70,7 @@ func (b *ListCache) LogConfig(logger *logrus.Entry) {
 
 // NewListCache creates new list instance
 func NewListCache(ctx context.Context,
-	t ListCacheType, cfg config.SourceLoadingConfig,
+	t ListCacheType, cfg config.SourceLoading,
 	groupSources map[string][]config.BytesSource, downloader FileDownloader,
 ) (*ListCache, error) {
 	regexCache := stringcache.NewInMemoryGroupedRegexCache()

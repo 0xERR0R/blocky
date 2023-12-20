@@ -20,7 +20,7 @@ var _ = Describe("HostsFileConfig", func() {
 				TextBytesSource("127.0.0.1 localhost"),
 			),
 			HostsTTL:       Duration(29 * time.Minute),
-			Loading:        SourceLoadingConfig{RefreshPeriod: Duration(30 * time.Minute)},
+			Loading:        SourceLoading{RefreshPeriod: Duration(30 * time.Minute)},
 			FilterLoopback: true,
 		}
 	})

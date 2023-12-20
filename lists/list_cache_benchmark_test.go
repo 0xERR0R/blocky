@@ -15,7 +15,7 @@ func BenchmarkRefresh(b *testing.B) {
 		"gr1": config.NewBytesSources(file1, file2, file3),
 	}
 
-	cfg := config.SourceLoadingConfig{
+	cfg := config.SourceLoading{
 		Concurrency:   5,
 		RefreshPeriod: config.Duration(-1),
 	}
