@@ -37,7 +37,7 @@ var _ = Describe("MetricResolver", func() {
 		ctx, cancelFn = context.WithCancel(context.Background())
 		DeferCleanup(cancelFn)
 
-		sut = NewMetricsResolver(config.MetricsConfig{Enable: true})
+		sut = NewMetricsResolver(config.Metrics{Enable: true})
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)

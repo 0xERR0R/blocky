@@ -220,7 +220,7 @@ type Config struct {
 	ClientLookup     ClientLookup        `yaml:"clientLookup"`
 	Caching          Caching             `yaml:"caching"`
 	QueryLog         QueryLog            `yaml:"queryLog"`
-	Prometheus       MetricsConfig       `yaml:"prometheus"`
+	Prometheus       Metrics             `yaml:"prometheus"`
 	Redis            Redis               `yaml:"redis"`
 	Log              log.Config          `yaml:"log"`
 	Ports            PortsConfig         `yaml:"ports"`

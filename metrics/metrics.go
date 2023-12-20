@@ -18,7 +18,7 @@ func RegisterMetric(c prometheus.Collector) {
 }
 
 // Start starts prometheus endpoint
-func Start(router *chi.Mux, cfg config.MetricsConfig) {
+func Start(router *chi.Mux, cfg config.Metrics) {
 	if cfg.Enable {
 		_ = reg.Register(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 		_ = reg.Register(collectors.NewGoCollector())

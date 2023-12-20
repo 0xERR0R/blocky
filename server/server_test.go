@@ -156,7 +156,7 @@ var _ = BeforeSuite(func() {
 		},
 		CertFile: certPem.Path,
 		KeyFile:  keyPem.Path,
-		Prometheus: config.MetricsConfig{
+		Prometheus: config.Metrics{
 			Enable: true,
 			Path:   "/metrics",
 		},

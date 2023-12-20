@@ -15,7 +15,7 @@ import (
 
 // MetricsResolver resolver that records metrics about requests/response
 type MetricsResolver struct {
-	configurable[*config.MetricsConfig]
+	configurable[*config.Metrics]
 	NextResolver
 	typed
 
@@ -59,7 +59,7 @@ func (r *MetricsResolver) Resolve(ctx context.Context, request *model.Request) (
 }
 
 // NewMetricsResolver creates a new intance of the MetricsResolver type
-func NewMetricsResolver(cfg config.MetricsConfig) *MetricsResolver {
+func NewMetricsResolver(cfg config.Metrics) *MetricsResolver {
 	m := MetricsResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("metrics"),
