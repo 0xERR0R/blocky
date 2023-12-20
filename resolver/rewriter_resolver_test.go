@@ -67,17 +67,14 @@ var _ = Describe("RewriterResolver", func() {
 	})
 
 	When("has rewrite", func() {
-		var request *model.Request
-		var expectNilAnswer bool
+		var (
+			request         *model.Request
+			expectNilAnswer bool
+		)
 
 		BeforeEach(func() {
 			expectNilAnswer = false
-		})
 
-		AfterEach(func() {
-			request = newRequest(fqdnOriginal, dns.Type(dns.TypeA))
-
-			mInner.On("Resolve", mock.Anything)
 			mInner.ResponseFn = func(req *dns.Msg) *dns.Msg {
 				Expect(req).Should(Equal(request.Req))
 
@@ -95,11 +92,19 @@ var _ = Describe("RewriterResolver", func() {
 
 				return res
 			}
+		})
+
+		AfterEach(func() {
+			request = newRequest(fqdnOriginal, dns.Type(dns.TypeA))
+
+			mInner.On("Resolve", mock.Anything)
 
 			resp, err := sut.Resolve(context.Background(), request)
 			Expect(err).Should(Succeed())
 			if resp != mNextResponse {
-				Expect(resp.Res.Question[0].Name).Should(Equal(fqdnOriginal))
+				if len(resp.Res.Question) != 0 {
+					Expect(resp.Res.Question[0].Name).Should(Equal(fqdnOriginal))
+				}
 				if expectNilAnswer {
 					Expect(resp.Res.Answer).Should(BeEmpty())
 				} else {
@@ -126,6 +131,19 @@ var _ = Describe("RewriterResolver", func() {
 		It("should not modify name if subdomain", func() {
 			fqdnOriginal = "test.original.untouched."
 			fqdnRewritten = fqdnOriginal
+		})
+
+		It("should support a reply without the question", func() {
+			fqdnOriginal = sampleOriginal
+			fqdnRewritten = sampleRewritten
+
+			origResponseFn := mInner.ResponseFn
+			mInner.ResponseFn = func(req *dns.Msg) *dns.Msg {
+				res := origResponseFn(req)
+				res.Question = nil
+
+				return res
+			}
 		})
 
 		It("should call next resolver", func() {
