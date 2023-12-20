@@ -228,7 +228,7 @@ type Config struct {
 	CertFile         string              `yaml:"certFile"`
 	KeyFile          string              `yaml:"keyFile"`
 	BootstrapDNS     BootstrapDNSConfig  `yaml:"bootstrapDns"`
-	HostsFile        HostsFileConfig     `yaml:"hostsFile"`
+	HostsFile        HostsFile           `yaml:"hostsFile"`
 	FQDNOnly         FQDNOnly            `yaml:"fqdnOnly"`
 	Filtering        Filtering           `yaml:"filtering"`
 	EDE              EDE                 `yaml:"ede"`
