@@ -322,10 +322,10 @@ func (c *Init) LogConfig(logger *logrus.Entry) {
 type SourceLoading struct {
 	Init `yaml:",inline"`
 
-	Concurrency        uint             `yaml:"concurrency" default:"4"`
-	MaxErrorsPerSource int              `yaml:"maxErrorsPerSource" default:"5"`
-	RefreshPeriod      Duration         `yaml:"refreshPeriod" default:"4h"`
-	Downloads          DownloaderConfig `yaml:"downloads"`
+	Concurrency        uint       `yaml:"concurrency" default:"4"`
+	MaxErrorsPerSource int        `yaml:"maxErrorsPerSource" default:"5"`
+	RefreshPeriod      Duration   `yaml:"refreshPeriod" default:"4h"`
+	Downloads          Downloader `yaml:"downloads"`
 }
 
 func (c *SourceLoading) LogConfig(logger *logrus.Entry) {
@@ -394,13 +394,13 @@ func recoverToError(do func(context.Context) error, onPanic func(any) error) fun
 	}
 }
 
-type DownloaderConfig struct {
+type Downloader struct {
 	Timeout  Duration `yaml:"timeout" default:"5s"`
 	Attempts uint     `yaml:"attempts" default:"3"`
 	Cooldown Duration `yaml:"cooldown" default:"500ms"`
 }
 
-func (c *DownloaderConfig) LogConfig(logger *logrus.Entry) {
+func (c *Downloader) LogConfig(logger *logrus.Entry) {
 	logger.Infof("timeout = %s", c.Timeout)
 	logger.Infof("attempts = %d", c.Attempts)
 	logger.Debugf("cooldown = %s", c.Cooldown)

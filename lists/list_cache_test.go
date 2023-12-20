@@ -53,7 +53,7 @@ var _ = Describe("ListCache", func() {
 
 		sutConfig.RefreshPeriod = -1
 
-		downloader = NewDownloader(config.DownloaderConfig{}, nil)
+		downloader = NewDownloader(config.Downloader{}, nil)
 		mockDownloader = nil
 
 		server1 = TestServer("blocked1.com\nblocked1a.com\n192.168.178.55")

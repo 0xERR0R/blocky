@@ -22,7 +22,7 @@ import (
 
 var _ = Describe("Downloader", func() {
 	var (
-		sutConfig                     config.DownloaderConfig
+		sutConfig                     config.Downloader
 		sut                           *httpDownloader
 		failedDownloadCountEvtChannel chan string
 		loggerHook                    *test.Hook
@@ -30,7 +30,7 @@ var _ = Describe("Downloader", func() {
 	BeforeEach(func() {
 		var err error
 
-		sutConfig, err = config.WithDefaults[config.DownloaderConfig]()
+		sutConfig, err = config.WithDefaults[config.Downloader]()
 		Expect(err).Should(Succeed())
 
 		failedDownloadCountEvtChannel = make(chan string, 5)
@@ -57,7 +57,7 @@ var _ = Describe("Downloader", func() {
 			transport := &http.Transport{}
 
 			sut = NewDownloader(
-				config.DownloaderConfig{
+				config.Downloader{
 					Attempts: 5,
 					Cooldown: config.Duration(2 * time.Second),
 					Timeout:  config.Duration(5 * time.Second),
@@ -128,7 +128,7 @@ var _ = Describe("Downloader", func() {
 			var attempt uint64 = 1
 
 			BeforeEach(func() {
-				sutConfig = config.DownloaderConfig{
+				sutConfig = config.Downloader{
 					Timeout:  config.Duration(20 * time.Millisecond),
 					Attempts: 3,
 					Cooldown: config.Duration(time.Millisecond),
@@ -165,7 +165,7 @@ var _ = Describe("Downloader", func() {
 		})
 		When("If timeout occurs on all request", func() {
 			BeforeEach(func() {
-				sutConfig = config.DownloaderConfig{
+				sutConfig = config.Downloader{
 					Timeout:  config.Duration(10 * time.Millisecond),
 					Attempts: 3,
 					Cooldown: config.Duration(time.Millisecond),
@@ -191,7 +191,7 @@ var _ = Describe("Downloader", func() {
 		})
 		When("DNS resolution of passed URL fails", func() {
 			BeforeEach(func() {
-				sutConfig = config.DownloaderConfig{
+				sutConfig = config.Downloader{
 					Timeout:  config.Duration(500 * time.Millisecond),
 					Attempts: 3,
 					Cooldown: 200 * config.Duration(time.Millisecond),
