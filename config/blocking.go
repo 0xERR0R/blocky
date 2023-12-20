@@ -13,7 +13,7 @@ type Blocking struct {
 	ClientGroupsBlock map[string][]string      `yaml:"clientGroupsBlock"`
 	BlockType         string                   `yaml:"blockType" default:"ZEROIP"`
 	BlockTTL          Duration                 `yaml:"blockTTL" default:"6h"`
-	Loading           SourceLoadingConfig      `yaml:"loading"`
+	Loading           SourceLoading            `yaml:"loading"`
 
 	// Deprecated options
 	Deprecated struct {

@@ -9,25 +9,25 @@ import (
 )
 
 var _ = Describe("HostsFileConfig", func() {
-	var cfg HostsFileConfig
+	var cfg HostsFile
 
 	suiteBeforeEach()
 
 	BeforeEach(func() {
-		cfg = HostsFileConfig{
+		cfg = HostsFile{
 			Sources: append(
 				NewBytesSources("/a/file/path"),
 				TextBytesSource("127.0.0.1 localhost"),
 			),
 			HostsTTL:       Duration(29 * time.Minute),
-			Loading:        SourceLoadingConfig{RefreshPeriod: Duration(30 * time.Minute)},
+			Loading:        SourceLoading{RefreshPeriod: Duration(30 * time.Minute)},
 			FilterLoopback: true,
 		}
 	})
 
 	Describe("IsEnabled", func() {
 		It("should be false by default", func() {
-			cfg := HostsFileConfig{}
+			cfg := HostsFile{}
 			Expect(defaults.Set(&cfg)).Should(Succeed())
 
 			Expect(cfg.IsEnabled()).Should(BeFalse())
@@ -41,7 +41,7 @@ var _ = Describe("HostsFileConfig", func() {
 
 		When("disabled", func() {
 			It("should be false", func() {
-				cfg := HostsFileConfig{}
+				cfg := HostsFile{}
 
 				Expect(cfg.IsEnabled()).Should(BeFalse())
 			})
@@ -62,7 +62,7 @@ var _ = Describe("HostsFileConfig", func() {
 
 	Describe("migrate", func() {
 		It("should", func() {
-			cfg, err := WithDefaults[HostsFileConfig]()
+			cfg, err := WithDefaults[HostsFile]()
 			Expect(err).Should(Succeed())
 
 			cfg.Deprecated.Filepath = ptrOf(newBytesSource("/a/file/path"))

@@ -128,7 +128,7 @@ ips:
 
 	bootstrapUpstream := &mockResolver{}
 
-	var bCfg config.BootstrapDNSConfig
+	var bCfg config.BootstrapDNS
 	err := yaml.UnmarshalStrict([]byte(cfgTxt), &bCfg)
 	util.FatalOnError("test bootstrap config is broken, did you change the struct?", err)
 

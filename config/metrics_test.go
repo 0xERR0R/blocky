@@ -7,12 +7,12 @@ import (
 )
 
 var _ = Describe("MetricsConfig", func() {
-	var cfg MetricsConfig
+	var cfg Metrics
 
 	suiteBeforeEach()
 
 	BeforeEach(func() {
-		cfg = MetricsConfig{
+		cfg = Metrics{
 			Enable: true,
 			Path:   "/custom/path",
 		}
@@ -20,7 +20,7 @@ var _ = Describe("MetricsConfig", func() {
 
 	Describe("IsEnabled", func() {
 		It("should be false by default", func() {
-			cfg := MetricsConfig{}
+			cfg := Metrics{}
 			Expect(defaults.Set(&cfg)).Should(Succeed())
 
 			Expect(cfg.IsEnabled()).Should(BeFalse())
@@ -34,7 +34,7 @@ var _ = Describe("MetricsConfig", func() {
 
 		When("disabled", func() {
 			It("should be false", func() {
-				cfg := MetricsConfig{}
+				cfg := Metrics{}
 
 				Expect(cfg.IsEnabled()).Should(BeFalse())
 			})

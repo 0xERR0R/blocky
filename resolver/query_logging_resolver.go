@@ -21,7 +21,7 @@ const (
 
 // QueryLoggingResolver writes query information (question, answer, duration, ...)
 type QueryLoggingResolver struct {
-	configurable[*config.QueryLogConfig]
+	configurable[*config.QueryLog]
 	NextResolver
 	typed
 
@@ -30,7 +30,7 @@ type QueryLoggingResolver struct {
 }
 
 // NewQueryLoggingResolver returns a new resolver instance
-func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLogConfig) *QueryLoggingResolver {
+func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) *QueryLoggingResolver {
 	logger := log.PrefixedLog(queryLoggingResolverType)
 
 	var writer querylog.Writer

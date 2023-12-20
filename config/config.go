@@ -171,41 +171,41 @@ func (l *ListenConfig) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// UnmarshalYAML creates BootstrapDNSConfig from YAML
-func (b *BootstrapDNSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var single BootstrappedUpstreamConfig
+// UnmarshalYAML creates BootstrapDNS from YAML
+func (b *BootstrapDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var single BootstrappedUpstream
 	if err := unmarshal(&single); err == nil {
-		*b = BootstrapDNSConfig{single}
+		*b = BootstrapDNS{single}
 
 		return nil
 	}
 
-	// bootstrapDNSConfig is used to avoid infinite recursion:
-	// if we used BootstrapDNSConfig, unmarshal would just call us again.
-	var c bootstrapDNSConfig
+	// bootstrapDNS is used to avoid infinite recursion:
+	// if we used BootstrapDNS, unmarshal would just call us again.
+	var c bootstrapDNS
 	if err := unmarshal(&c); err != nil {
 		return err
 	}
 
-	*b = BootstrapDNSConfig(c)
+	*b = BootstrapDNS(c)
 
 	return nil
 }
 
-// UnmarshalYAML creates BootstrapConfig from YAML
-func (b *BootstrappedUpstreamConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+// UnmarshalYAML creates BootstrappedUpstream from YAML
+func (b *BootstrappedUpstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&b.Upstream); err == nil {
 		return nil
 	}
 
-	// bootstrapConfig is used to avoid infinite recursion:
-	// if we used BootstrapConfig, unmarshal would just call us again.
-	var c bootstrappedUpstreamConfig
+	// bootstrappedUpstream is used to avoid infinite recursion:
+	// if we used BootstrappedUpstream, unmarshal would just call us again.
+	var c bootstrappedUpstream
 	if err := unmarshal(&c); err != nil {
 		return err
 	}
 
-	*b = BootstrappedUpstreamConfig(c)
+	*b = BootstrappedUpstream(c)
 
 	return nil
 }
@@ -218,19 +218,19 @@ type Config struct {
 	Conditional      ConditionalUpstream `yaml:"conditional"`
 	Blocking         Blocking            `yaml:"blocking"`
 	ClientLookup     ClientLookup        `yaml:"clientLookup"`
-	Caching          CachingConfig       `yaml:"caching"`
-	QueryLog         QueryLogConfig      `yaml:"queryLog"`
-	Prometheus       MetricsConfig       `yaml:"prometheus"`
+	Caching          Caching             `yaml:"caching"`
+	QueryLog         QueryLog            `yaml:"queryLog"`
+	Prometheus       Metrics             `yaml:"prometheus"`
 	Redis            Redis               `yaml:"redis"`
 	Log              log.Config          `yaml:"log"`
-	Ports            PortsConfig         `yaml:"ports"`
+	Ports            Ports               `yaml:"ports"`
 	MinTLSServeVer   TLSVersion          `yaml:"minTlsServeVersion" default:"1.2"`
 	CertFile         string              `yaml:"certFile"`
 	KeyFile          string              `yaml:"keyFile"`
-	BootstrapDNS     BootstrapDNSConfig  `yaml:"bootstrapDns"`
-	HostsFile        HostsFileConfig     `yaml:"hostsFile"`
+	BootstrapDNS     BootstrapDNS        `yaml:"bootstrapDns"`
+	HostsFile        HostsFile           `yaml:"hostsFile"`
 	FQDNOnly         FQDNOnly            `yaml:"fqdnOnly"`
-	Filtering        FilteringConfig     `yaml:"filtering"`
+	Filtering        Filtering           `yaml:"filtering"`
 	EDE              EDE                 `yaml:"ede"`
 	ECS              ECS                 `yaml:"ecs"`
 	SUDN             SUDN                `yaml:"specialUseDomains"`
@@ -253,40 +253,40 @@ type Config struct {
 	} `yaml:",inline"`
 }
 
-type PortsConfig struct {
+type Ports struct {
 	DNS   ListenConfig `yaml:"dns" default:"53"`
 	HTTP  ListenConfig `yaml:"http"`
 	HTTPS ListenConfig `yaml:"https"`
 	TLS   ListenConfig `yaml:"tls"`
 }
 
-func (c *PortsConfig) LogConfig(logger *logrus.Entry) {
+func (c *Ports) LogConfig(logger *logrus.Entry) {
 	logger.Infof("DNS   = %s", c.DNS)
 	logger.Infof("TLS   = %s", c.TLS)
 	logger.Infof("HTTP  = %s", c.HTTP)
 	logger.Infof("HTTPS = %s", c.HTTPS)
 }
 
-// split in two types to avoid infinite recursion. See `BootstrapDNSConfig.UnmarshalYAML`.
+// split in two types to avoid infinite recursion. See `BootstrapDNS.UnmarshalYAML`.
 type (
-	BootstrapDNSConfig bootstrapDNSConfig
-	bootstrapDNSConfig []BootstrappedUpstreamConfig
+	BootstrapDNS bootstrapDNS
+	bootstrapDNS []BootstrappedUpstream
 )
 
-func (b *BootstrapDNSConfig) IsEnabled() bool {
+func (b *BootstrapDNS) IsEnabled() bool {
 	return len(*b) != 0
 }
 
-func (b *BootstrapDNSConfig) LogConfig(*logrus.Entry) {
+func (b *BootstrapDNS) LogConfig(*logrus.Entry) {
 	// This should not be called, at least for now:
 	// The Boostrap resolver is not in the chain and thus its config is not logged
 	panic("not implemented")
 }
 
-// split in two types to avoid infinite recursion. See `BootstrappedUpstreamConfig.UnmarshalYAML`.
+// split in two types to avoid infinite recursion. See `BootstrappedUpstream.UnmarshalYAML`.
 type (
-	BootstrappedUpstreamConfig bootstrappedUpstreamConfig
-	bootstrappedUpstreamConfig struct {
+	BootstrappedUpstream bootstrappedUpstream
+	bootstrappedUpstream struct {
 		Upstream Upstream `yaml:"upstream"`
 		IPs      []net.IP `yaml:"ips"`
 	}
@@ -319,16 +319,16 @@ func (c *Init) LogConfig(logger *logrus.Entry) {
 	logger.Debugf("strategy = %s", c.Strategy)
 }
 
-type SourceLoadingConfig struct {
+type SourceLoading struct {
 	Init `yaml:",inline"`
 
-	Concurrency        uint             `yaml:"concurrency" default:"4"`
-	MaxErrorsPerSource int              `yaml:"maxErrorsPerSource" default:"5"`
-	RefreshPeriod      Duration         `yaml:"refreshPeriod" default:"4h"`
-	Downloads          DownloaderConfig `yaml:"downloads"`
+	Concurrency        uint       `yaml:"concurrency" default:"4"`
+	MaxErrorsPerSource int        `yaml:"maxErrorsPerSource" default:"5"`
+	RefreshPeriod      Duration   `yaml:"refreshPeriod" default:"4h"`
+	Downloads          Downloader `yaml:"downloads"`
 }
 
-func (c *SourceLoadingConfig) LogConfig(logger *logrus.Entry) {
+func (c *SourceLoading) LogConfig(logger *logrus.Entry) {
 	c.Init.LogConfig(logger)
 	logger.Infof("concurrency = %d", c.Concurrency)
 	logger.Debugf("maxErrorsPerSource = %d", c.MaxErrorsPerSource)
@@ -343,7 +343,7 @@ func (c *SourceLoadingConfig) LogConfig(logger *logrus.Entry) {
 	log.WithIndent(logger, "  ", c.Downloads.LogConfig)
 }
 
-func (c *SourceLoadingConfig) StartPeriodicRefresh(
+func (c *SourceLoading) StartPeriodicRefresh(
 	ctx context.Context, refresh func(context.Context) error, logErr func(error),
 ) error {
 	err := c.Strategy.Do(ctx, refresh, logErr)
@@ -358,7 +358,7 @@ func (c *SourceLoadingConfig) StartPeriodicRefresh(
 	return nil
 }
 
-func (c *SourceLoadingConfig) periodically(
+func (c *SourceLoading) periodically(
 	ctx context.Context, refresh func(context.Context) error, logErr func(error),
 ) {
 	refresh = recoverToError(refresh, func(panicVal any) error {
@@ -394,13 +394,13 @@ func recoverToError(do func(context.Context) error, onPanic func(any) error) fun
 	}
 }
 
-type DownloaderConfig struct {
+type Downloader struct {
 	Timeout  Duration `yaml:"timeout" default:"5s"`
 	Attempts uint     `yaml:"attempts" default:"3"`
 	Cooldown Duration `yaml:"cooldown" default:"500ms"`
 }
 
-func (c *DownloaderConfig) LogConfig(logger *logrus.Entry) {
+func (c *Downloader) LogConfig(logger *logrus.Entry) {
 	logger.Infof("timeout = %s", c.Timeout)
 	logger.Infof("attempts = %d", c.Attempts)
 	logger.Debugf("cooldown = %s", c.Cooldown)

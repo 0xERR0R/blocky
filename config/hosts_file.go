@@ -6,11 +6,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type HostsFileConfig struct {
-	Sources        []BytesSource       `yaml:"sources"`
-	HostsTTL       Duration            `yaml:"hostsTTL" default:"1h"`
-	FilterLoopback bool                `yaml:"filterLoopback"`
-	Loading        SourceLoadingConfig `yaml:"loading"`
+type HostsFile struct {
+	Sources        []BytesSource `yaml:"sources"`
+	HostsTTL       Duration      `yaml:"hostsTTL" default:"1h"`
+	FilterLoopback bool          `yaml:"filterLoopback"`
+	Loading        SourceLoading `yaml:"loading"`
 
 	// Deprecated options
 	Deprecated struct {
@@ -19,7 +19,7 @@ type HostsFileConfig struct {
 	} `yaml:",inline"`
 }
 
-func (c *HostsFileConfig) migrate(logger *logrus.Entry) bool {
+func (c *HostsFile) migrate(logger *logrus.Entry) bool {
 	return Migrate(logger, "hostsFile", c.Deprecated, map[string]Migrator{
 		"refreshPeriod": Move(To("loading.refreshPeriod", &c.Loading)),
 		"filePath": Apply(To("sources", c), func(value BytesSource) {
@@ -29,12 +29,12 @@ func (c *HostsFileConfig) migrate(logger *logrus.Entry) bool {
 }
 
 // IsEnabled implements `config.Configurable`.
-func (c *HostsFileConfig) IsEnabled() bool {
+func (c *HostsFile) IsEnabled() bool {
 	return len(c.Sources) != 0
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *HostsFileConfig) LogConfig(logger *logrus.Entry) {
+func (c *HostsFile) LogConfig(logger *logrus.Entry) {
 	logger.Infof("TTL: %s", c.HostsTTL)
 	logger.Infof("filter loopback addresses: %t", c.FilterLoopback)
 

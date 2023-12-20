@@ -15,11 +15,11 @@ func BenchmarkRefresh(b *testing.B) {
 		"gr1": config.NewBytesSources(file1, file2, file3),
 	}
 
-	cfg := config.SourceLoadingConfig{
+	cfg := config.SourceLoading{
 		Concurrency:   5,
 		RefreshPeriod: config.Duration(-1),
 	}
-	downloader := NewDownloader(config.DownloaderConfig{}, nil)
+	downloader := NewDownloader(config.Downloader{}, nil)
 	cache, _ := NewListCache(context.Background(), ListCacheTypeBlacklist, cfg, lists, downloader)
 
 	b.ReportAllocs()

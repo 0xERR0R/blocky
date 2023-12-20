@@ -24,7 +24,7 @@ const defaultCachingCleanUpInterval = 5 * time.Second
 // CachingResolver caches answers from dns queries with their TTL time,
 // to avoid external resolver calls for recurrent queries
 type CachingResolver struct {
-	configurable[*config.CachingConfig]
+	configurable[*config.Caching]
 	NextResolver
 	typed
 
@@ -37,14 +37,14 @@ type CachingResolver struct {
 
 // NewCachingResolver creates a new resolver instance
 func NewCachingResolver(ctx context.Context,
-	cfg config.CachingConfig,
+	cfg config.Caching,
 	redis *redis.Client,
 ) *CachingResolver {
 	return newCachingResolver(ctx, cfg, redis, true)
 }
 
 func newCachingResolver(ctx context.Context,
-	cfg config.CachingConfig,
+	cfg config.Caching,
 	redis *redis.Client,
 	emitMetricEvents bool,
 ) *CachingResolver {
@@ -66,7 +66,7 @@ func newCachingResolver(ctx context.Context,
 	return c
 }
 
-func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.CachingConfig) {
+func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Caching) {
 	options := expirationcache.Options{
 		CleanupInterval: defaultCachingCleanUpInterval,
 		MaxSize:         uint(cfg.MaxItemsCount),

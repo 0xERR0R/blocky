@@ -34,7 +34,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 	BeforeEach(func() {
 		sutConfig = config.Config{
-			BootstrapDNS: []config.BootstrappedUpstreamConfig{
+			BootstrapDNS: []config.BootstrappedUpstream{
 				{
 					Upstream: config.Upstream{
 						Net:  config.NetProtocolTcpTls,
@@ -58,7 +58,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 	Describe("configuration", func() {
 		When("is not specified", func() {
 			BeforeEach(func() {
-				sutConfig.BootstrapDNS = config.BootstrapDNSConfig{}
+				sutConfig.BootstrapDNS = config.BootstrapDNS{}
 			})
 
 			It("should use the system resolver", func() {
@@ -89,7 +89,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 			When("one of multiple upstreams is invalid", func() {
 				It("errors", func() {
 					cfg := config.Config{
-						BootstrapDNS: []config.BootstrappedUpstreamConfig{
+						BootstrapDNS: []config.BootstrappedUpstream{
 							{
 								Upstream: config.Upstream{ // valid
 									Net:  config.NetProtocolTcpUdp,
@@ -115,7 +115,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 			When("hostname is an IP", func() {
 				BeforeEach(func() {
 					sutConfig = config.Config{
-						BootstrapDNS: []config.BootstrappedUpstreamConfig{
+						BootstrapDNS: []config.BootstrappedUpstream{
 							{
 								Upstream: config.Upstream{
 									Net:  config.NetProtocolTcpUdp,
@@ -137,7 +137,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 			When("using non IP hostname", func() {
 				It("errors", func() {
 					cfg := config.Config{
-						BootstrapDNS: []config.BootstrappedUpstreamConfig{
+						BootstrapDNS: []config.BootstrappedUpstream{
 							{
 								Upstream: config.Upstream{
 									Net:  config.NetProtocolTcpUdp,
@@ -156,7 +156,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 			When("extra IPs are configured", func() {
 				BeforeEach(func() {
 					sutConfig = config.Config{
-						BootstrapDNS: []config.BootstrappedUpstreamConfig{
+						BootstrapDNS: []config.BootstrappedUpstream{
 							{
 								Upstream: config.Upstream{
 									Net:  config.NetProtocolTcpUdp,
@@ -181,7 +181,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 			When("IPs are missing", func() {
 				It("errors", func() {
 					cfg := config.Config{
-						BootstrapDNS: []config.BootstrappedUpstreamConfig{
+						BootstrapDNS: []config.BootstrappedUpstream{
 							{
 								Upstream: config.Upstream{
 									Net:  config.NetProtocolTcpTls,
@@ -200,7 +200,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 			When("hostname is IP", func() {
 				It("doesn't require extra IPs", func() {
 					cfg := config.Config{
-						BootstrapDNS: []config.BootstrappedUpstreamConfig{
+						BootstrapDNS: []config.BootstrappedUpstream{
 							{
 								Upstream: config.Upstream{
 									Net:  config.NetProtocolTcpTls,
@@ -223,7 +223,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 		BeforeEach(func() {
 			bootstrapUpstream = &mockResolver{}
 
-			sutConfig.BootstrapDNS = []config.BootstrappedUpstreamConfig{
+			sutConfig.BootstrapDNS = []config.BootstrappedUpstream{
 				{
 					Upstream: config.Upstream{
 						Net:  config.NetProtocolTcpTls,
@@ -596,7 +596,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 			mockUpstream1 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
 			mockUpstream2 = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
 
-			sutConfig.BootstrapDNS = []config.BootstrappedUpstreamConfig{
+			sutConfig.BootstrapDNS = []config.BootstrappedUpstream{
 				{Upstream: mockUpstream1.Start()},
 				{Upstream: mockUpstream2.Start()},
 			}

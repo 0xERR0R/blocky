@@ -26,7 +26,7 @@ var errArbitrarySystemResolverRequest = errors.New(
 )
 
 type bootstrapConfig struct {
-	config.BootstrapDNSConfig
+	config.BootstrapDNS
 
 	connectIPVersion config.IPVersion
 	timeout          config.Duration
@@ -34,7 +34,7 @@ type bootstrapConfig struct {
 
 func newBootstrapConfig(cfg *config.Config) *bootstrapConfig {
 	return &bootstrapConfig{
-		BootstrapDNSConfig: cfg.BootstrapDNS,
+		BootstrapDNS: cfg.BootstrapDNS,
 
 		connectIPVersion: cfg.ConnectIPVersion,
 		timeout:          cfg.Upstreams.Timeout,
@@ -266,7 +266,7 @@ func (b *Bootstrap) resolveType(ctx context.Context, hostname string, qType dns.
 type bootstrapedResolvers map[Resolver][]net.IP
 
 func newBootstrapedResolvers(
-	b *Bootstrap, cfg config.BootstrapDNSConfig, upstreamsCfg config.Upstreams,
+	b *Bootstrap, cfg config.BootstrapDNS, upstreamsCfg config.Upstreams,
 ) (bootstrapedResolvers, error) {
 	upstreamIPs := make(bootstrapedResolvers, len(cfg))
 

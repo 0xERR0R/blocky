@@ -547,10 +547,10 @@ bootstrapDns:
 	)
 
 	Describe("SourceLoadingConfig", func() {
-		var cfg SourceLoadingConfig
+		var cfg SourceLoading
 
 		BeforeEach(func() {
-			cfg = SourceLoadingConfig{
+			cfg = SourceLoading{
 				Concurrency:   12,
 				RefreshPeriod: Duration(time.Hour),
 			}
@@ -744,22 +744,22 @@ bootstrapDns:
 
 	Describe("BootstrapDNSConfig", func() {
 		It("is not enabled when empty", func() {
-			var sut BootstrapDNSConfig
+			var sut BootstrapDNS
 
 			Expect(sut.IsEnabled()).Should(BeFalse())
 		})
 
 		It("is enabled if non empty", func() {
-			sut := BootstrapDNSConfig{
-				BootstrappedUpstreamConfig{},
-				BootstrappedUpstreamConfig{},
+			sut := BootstrapDNS{
+				BootstrappedUpstream{},
+				BootstrappedUpstream{},
 			}
 
 			Expect(sut.IsEnabled()).Should(BeTrue())
 		})
 
 		It("LogConfig panics", func() {
-			sut := BootstrapDNSConfig{}
+			sut := BootstrapDNS{}
 
 			Expect(func() {
 				sut.LogConfig(logger)
@@ -777,7 +777,7 @@ bootstrapDns:
 			DeferCleanup(cancelFn)
 		})
 		It("handles panics", func() {
-			sut := SourceLoadingConfig{
+			sut := SourceLoading{
 				Init: Init{Strategy: InitStrategyFailOnError},
 			}
 
@@ -793,7 +793,7 @@ bootstrapDns:
 		})
 
 		It("periodically calls refresh", func() {
-			sut := SourceLoadingConfig{
+			sut := SourceLoading{
 				Init:          Init{Strategy: InitStrategyFast},
 				RefreshPeriod: Duration(5 * time.Millisecond),
 			}
