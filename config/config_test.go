@@ -744,13 +744,13 @@ bootstrapDns:
 
 	Describe("BootstrapDNSConfig", func() {
 		It("is not enabled when empty", func() {
-			var sut BootstrapDNSConfig
+			var sut BootstrapDNS
 
 			Expect(sut.IsEnabled()).Should(BeFalse())
 		})
 
 		It("is enabled if non empty", func() {
-			sut := BootstrapDNSConfig{
+			sut := BootstrapDNS{
 				BootstrappedUpstreamConfig{},
 				BootstrappedUpstreamConfig{},
 			}
@@ -759,7 +759,7 @@ bootstrapDns:
 		})
 
 		It("LogConfig panics", func() {
-			sut := BootstrapDNSConfig{}
+			sut := BootstrapDNS{}
 
 			Expect(func() {
 				sut.LogConfig(logger)

@@ -58,7 +58,7 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 	Describe("configuration", func() {
 		When("is not specified", func() {
 			BeforeEach(func() {
-				sutConfig.BootstrapDNS = config.BootstrapDNSConfig{}
+				sutConfig.BootstrapDNS = config.BootstrapDNS{}
 			})
 
 			It("should use the system resolver", func() {

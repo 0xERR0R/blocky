@@ -172,10 +172,10 @@ func (l *ListenConfig) UnmarshalText(data []byte) error {
 }
 
 // UnmarshalYAML creates BootstrapDNSConfig from YAML
-func (b *BootstrapDNSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (b *BootstrapDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var single BootstrappedUpstreamConfig
 	if err := unmarshal(&single); err == nil {
-		*b = BootstrapDNSConfig{single}
+		*b = BootstrapDNS{single}
 
 		return nil
 	}
@@ -187,7 +187,7 @@ func (b *BootstrapDNSConfig) UnmarshalYAML(unmarshal func(interface{}) error) er
 		return err
 	}
 
-	*b = BootstrapDNSConfig(c)
+	*b = BootstrapDNS(c)
 
 	return nil
 }
@@ -227,7 +227,7 @@ type Config struct {
 	MinTLSServeVer   TLSVersion          `yaml:"minTlsServeVersion" default:"1.2"`
 	CertFile         string              `yaml:"certFile"`
 	KeyFile          string              `yaml:"keyFile"`
-	BootstrapDNS     BootstrapDNSConfig  `yaml:"bootstrapDns"`
+	BootstrapDNS     BootstrapDNS        `yaml:"bootstrapDns"`
 	HostsFile        HostsFile           `yaml:"hostsFile"`
 	FQDNOnly         FQDNOnly            `yaml:"fqdnOnly"`
 	Filtering        Filtering           `yaml:"filtering"`
@@ -267,17 +267,17 @@ func (c *Ports) LogConfig(logger *logrus.Entry) {
 	logger.Infof("HTTPS = %s", c.HTTPS)
 }
 
-// split in two types to avoid infinite recursion. See `BootstrapDNSConfig.UnmarshalYAML`.
+// split in two types to avoid infinite recursion. See `BootstrapDNS.UnmarshalYAML`.
 type (
-	BootstrapDNSConfig bootstrapDNSConfig
+	BootstrapDNS       bootstrapDNSConfig
 	bootstrapDNSConfig []BootstrappedUpstreamConfig
 )
 
-func (b *BootstrapDNSConfig) IsEnabled() bool {
+func (b *BootstrapDNS) IsEnabled() bool {
 	return len(*b) != 0
 }
 
-func (b *BootstrapDNSConfig) LogConfig(*logrus.Entry) {
+func (b *BootstrapDNS) LogConfig(*logrus.Entry) {
 	// This should not be called, at least for now:
 	// The Boostrap resolver is not in the chain and thus its config is not logged
 	panic("not implemented")
