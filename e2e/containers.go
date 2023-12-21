@@ -44,6 +44,9 @@ const (
 	startupTimeout = 30 * time.Second
 )
 
+// createDNSMokkaContainer creates a DNS mokka container with the given rules attached to the test network
+// under the given alias.
+// It is automatically terminated when the test is finished.
 func createDNSMokkaContainer(ctx context.Context, alias string, rules ...string) (testcontainers.Container, error) {
 	mokaRules := make(map[string]string)
 
@@ -61,6 +64,9 @@ func createDNSMokkaContainer(ctx context.Context, alias string, rules ...string)
 	return startContainerWithNetwork(ctx, req, alias)
 }
 
+// createHTTPServerContainer creates a static HTTP server container that serves one file with the given lines
+// and is attached to the test network under the given alias.
+// It is automatically terminated when the test is finished.
 func createHTTPServerContainer(ctx context.Context, alias string, filename string, lines ...string,
 ) (testcontainers.Container, error) {
 	file := createTempFile(lines...)
@@ -82,6 +88,8 @@ func createHTTPServerContainer(ctx context.Context, alias string, filename strin
 	return startContainerWithNetwork(ctx, req, alias)
 }
 
+// createRedisContainer creates a redis container attached to the test network under the alias 'redis'.
+// It is automatically terminated when the test is finished.
 func createRedisContainer(ctx context.Context) (*redis.RedisContainer, error) {
 	return deferTerminate(redis.RunContainer(ctx,
 		testcontainers.WithImage(redisImage),
@@ -90,6 +98,9 @@ func createRedisContainer(ctx context.Context) (*redis.RedisContainer, error) {
 	))
 }
 
+// createPostgresContainer creates a postgres container attached to the test network under the alias 'postgres'.
+// It creates a database 'user' with user 'user' and password 'user'.
+// It is automatically terminated when the test is finished.
 func createPostgresContainer(ctx context.Context) (*postgres.PostgresContainer, error) {
 	const waitLogOccurrence = 2
 
@@ -107,6 +118,9 @@ func createPostgresContainer(ctx context.Context) (*postgres.PostgresContainer, 
 	))
 }
 
+// createMariaDBContainer creates a mariadb container attached to the test network under the alias 'mariaDB'.
+// It creates a database 'user' with user 'user' and password 'user'.
+// It is automatically terminated when the test is finished.
 func createMariaDBContainer(ctx context.Context) (*mariadb.MariaDBContainer, error) {
 	return deferTerminate(mariadb.RunContainer(ctx,
 		testcontainers.WithImage(mariaDBImage),
@@ -117,6 +131,9 @@ func createMariaDBContainer(ctx context.Context) (*mariadb.MariaDBContainer, err
 	))
 }
 
+// createBlockyContainer creates a blocky container with a config provided by the given lines.
+// It is attached to the test network under the alias 'blocky'.
+// It is automatically terminated when the test is finished.
 func createBlockyContainer(ctx context.Context,
 	lines ...string,
 ) (testcontainers.Container, error) {
@@ -239,6 +256,8 @@ func doHTTPRequest(ctx context.Context, container testcontainers.Container, cont
 	return err
 }
 
+// createTempFile creates a temporary file with the given lines which is deleted after the test
+// Each created file is prefixed with 'blocky_e2e_file-'
 func createTempFile(lines ...string) string {
 	file, err := os.CreateTemp("", "blocky_e2e_file-")
 	Expect(err).Should(Succeed())
