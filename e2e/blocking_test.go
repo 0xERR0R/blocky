@@ -93,7 +93,7 @@ var _ = Describe("External lists and query blocking", func() {
 	Describe("Query blocking against external blacklists", func() {
 		When("external blacklists are defined and available", func() {
 			BeforeEach(func(ctx context.Context) {
-				_, err = createHTTPServerContainer(ctx, "httpserver", tmpDir, "list.txt", "blockeddomain.com")
+				_, err = createHTTPServerContainer(ctx, "httpserver", "list.txt", "blockeddomain.com")
 				Expect(err).Should(Succeed())
 
 				blocky, err = createBlockyContainer(ctx,

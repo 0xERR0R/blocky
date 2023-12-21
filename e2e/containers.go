@@ -14,7 +14,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/avast/retry-go/v4"
 	"github.com/docker/docker/api/types/container"
@@ -62,12 +61,9 @@ func createDNSMokkaContainer(ctx context.Context, alias string, rules ...string)
 	return startContainerWithNetwork(ctx, req, alias)
 }
 
-func createHTTPServerContainer(ctx context.Context, alias string, tmpDir *helpertest.TmpFolder,
-	filename string, lines ...string,
+func createHTTPServerContainer(ctx context.Context, alias string, filename string, lines ...string,
 ) (testcontainers.Container, error) {
-	f1 := tmpDir.CreateStringFile(filename,
-		lines...,
-	)
+	file := createTempFile(lines...)
 
 	req := testcontainers.ContainerRequest{
 		Image: staticServerImage,
@@ -76,7 +72,7 @@ func createHTTPServerContainer(ctx context.Context, alias string, tmpDir *helper
 		Env:          map[string]string{"FOLDER": "/"},
 		Files: []testcontainers.ContainerFile{
 			{
-				HostFilePath:      f1.Path,
+				HostFilePath:      file,
 				ContainerFilePath: fmt.Sprintf("/%s", filename),
 				FileMode:          modeOwner,
 			},
@@ -244,7 +240,7 @@ func doHTTPRequest(ctx context.Context, container testcontainers.Container, cont
 }
 
 func createTempFile(lines ...string) string {
-	file, err := os.CreateTemp("", "blocky_e2e")
+	file, err := os.CreateTemp("", "blocky_e2e_file-")
 	Expect(err).Should(Succeed())
 
 	DeferCleanup(func() error {
