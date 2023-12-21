@@ -32,7 +32,7 @@ var _ = Describe("Query logs functional tests", func() {
 			mariaDB, err = createMariaDBContainer(ctx)
 			Expect(err).Should(Succeed())
 
-			blocky, err = createBlockyContainer(ctx, tmpDir,
+			blocky, err = createBlockyContainer(ctx,
 				"log:",
 				"  level: warn",
 				"upstreams:",
@@ -107,7 +107,7 @@ var _ = Describe("Query logs functional tests", func() {
 			postgresDB, err = createPostgresContainer(ctx)
 			Expect(err).Should(Succeed())
 
-			blocky, err = createBlockyContainer(ctx, tmpDir,
+			blocky, err = createBlockyContainer(ctx,
 				"log:",
 				"  level: warn",
 				"upstreams:",

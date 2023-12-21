@@ -39,7 +39,7 @@ var _ = Describe("Redis configuration tests", func() {
 	Describe("Cache sharing between blocky instances", func() {
 		When("Redis and 2 blocky instances are configured", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky1, err = createBlockyContainer(ctx, tmpDir,
+				blocky1, err = createBlockyContainer(ctx,
 					"log:",
 					"  level: warn",
 					"upstreams:",
@@ -51,7 +51,7 @@ var _ = Describe("Redis configuration tests", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				blocky2, err = createBlockyContainer(ctx, tmpDir,
+				blocky2, err = createBlockyContainer(ctx,
 					"log:",
 					"  level: warn",
 					"upstreams:",
@@ -102,7 +102,7 @@ var _ = Describe("Redis configuration tests", func() {
 	Describe("Cache loading on startup", func() {
 		When("Redis and 1 blocky instance are configured", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky1, err = createBlockyContainer(ctx, tmpDir,
+				blocky1, err = createBlockyContainer(ctx,
 					"log:",
 					"  level: warn",
 					"upstreams:",
@@ -130,7 +130,7 @@ var _ = Describe("Redis configuration tests", func() {
 				})
 
 				By("start other instance of blocky now -> it should load the cache from redis", func() {
-					blocky2, err = createBlockyContainer(ctx, tmpDir,
+					blocky2, err = createBlockyContainer(ctx,
 						"log:",
 						"  level: warn",
 						"upstreams:",

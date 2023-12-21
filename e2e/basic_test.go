@@ -25,7 +25,7 @@ var _ = Describe("Basic functional tests", func() {
 		})
 		When("wrong port configuration is provided", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, tmpDir,
+				blocky, err = createBlockyContainer(ctx,
 					"upstreams:",
 					"  groups:",
 					"    default:",
@@ -50,7 +50,7 @@ var _ = Describe("Basic functional tests", func() {
 		})
 		When("Minimal configuration is provided", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, tmpDir,
+				blocky, err = createBlockyContainer(ctx,
 					"upstreams:",
 					"  groups:",
 					"    default:",
@@ -81,7 +81,7 @@ var _ = Describe("Basic functional tests", func() {
 		Context("http port configuration", func() {
 			When("'httpPort' is not defined", func() {
 				BeforeEach(func(ctx context.Context) {
-					blocky, err = createBlockyContainer(ctx, tmpDir,
+					blocky, err = createBlockyContainer(ctx,
 						"upstreams:",
 						"  groups:",
 						"    default:",
@@ -101,7 +101,7 @@ var _ = Describe("Basic functional tests", func() {
 			})
 			When("'httpPort' is defined", func() {
 				BeforeEach(func(ctx context.Context) {
-					blocky, err = createBlockyContainer(ctx, tmpDir,
+					blocky, err = createBlockyContainer(ctx,
 						"upstreams:",
 						"  groups:",
 						"    default:",
@@ -142,7 +142,7 @@ var _ = Describe("Basic functional tests", func() {
 		})
 		When("log privacy is enabled", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, tmpDir,
+				blocky, err = createBlockyContainer(ctx,
 					"upstreams:",
 					"  groups:",
 					"    default:",

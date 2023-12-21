@@ -35,7 +35,7 @@ var _ = Describe("Metrics functional tests", func() {
 			_, err = createHTTPServerContainer(ctx, "httpserver2", tmpDir, "list2.txt", "domain1.com", "domain2", "domain3")
 			Expect(err).Should(Succeed())
 
-			blocky, err = createBlockyContainer(ctx, tmpDir,
+			blocky, err = createBlockyContainer(ctx,
 				"upstreams:",
 				"  groups:",
 				"    default:",

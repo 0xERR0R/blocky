@@ -1,11 +1,13 @@
 package e2e
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -18,7 +20,8 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"
 	"github.com/miekg/dns"
-	"github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/mariadb"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -118,14 +121,12 @@ func createMariaDBContainer(ctx context.Context) (*mariadb.MariaDBContainer, err
 	))
 }
 
-func createBlockyContainer(ctx context.Context, tmpDir *helpertest.TmpFolder,
+func createBlockyContainer(ctx context.Context,
 	lines ...string,
 ) (testcontainers.Container, error) {
-	f1 := tmpDir.CreateStringFile("config1.yaml",
-		lines...,
-	)
+	confFile := createTempFile(lines...)
 
-	cfg, err := config.LoadConfig(f1.Path, true)
+	cfg, err := config.LoadConfig(confFile, true)
 	if err != nil {
 		return nil, fmt.Errorf("can't create config struct %w", err)
 	}
@@ -137,7 +138,7 @@ func createBlockyContainer(ctx context.Context, tmpDir *helpertest.TmpFolder,
 
 		Files: []testcontainers.ContainerFile{
 			{
-				HostFilePath:      f1.Path,
+				HostFilePath:      confFile,
 				ContainerFilePath: "/app/config.yml",
 				FileMode:          modeOwner,
 			},
@@ -155,7 +156,7 @@ func createBlockyContainer(ctx context.Context, tmpDir *helpertest.TmpFolder,
 		// attach container log if error occurs
 		if r, err := container.Logs(ctx); err == nil {
 			if b, err := io.ReadAll(r); err == nil {
-				ginkgo.AddReportEntry("blocky container log", string(b))
+				AddReportEntry("blocky container log", string(b))
 			}
 		}
 
@@ -240,4 +241,32 @@ func doHTTPRequest(ctx context.Context, container testcontainers.Container, cont
 	}
 
 	return err
+}
+
+func createTempFile(lines ...string) string {
+	file, err := os.CreateTemp("", "blocky_e2e")
+	Expect(err).Should(Succeed())
+
+	DeferCleanup(func() error {
+		return os.Remove(file.Name())
+	})
+
+	first := true
+	w := bufio.NewWriter(file)
+
+	for _, l := range lines {
+		if first {
+			first = false
+		} else {
+			_, err := w.WriteString("\n")
+			Expect(err).Should(Succeed())
+		}
+
+		_, err := w.WriteString(l)
+		Expect(err).Should(Succeed())
+	}
+
+	w.Flush()
+
+	return file.Name()
 }

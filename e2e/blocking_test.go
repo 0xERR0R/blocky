@@ -21,7 +21,7 @@ var _ = Describe("External lists and query blocking", func() {
 		When("external blacklist ist not available", func() {
 			Context("loading.strategy = blocking", func() {
 				BeforeEach(func(ctx context.Context) {
-					blocky, err = createBlockyContainer(ctx, tmpDir,
+					blocky, err = createBlockyContainer(ctx,
 						"log:",
 						"  level: warn",
 						"upstreams:",
@@ -56,7 +56,7 @@ var _ = Describe("External lists and query blocking", func() {
 			})
 			Context("loading.strategy = failOnError", func() {
 				BeforeEach(func(ctx context.Context) {
-					blocky, err = createBlockyContainer(ctx, tmpDir,
+					blocky, err = createBlockyContainer(ctx,
 						"log:",
 						"  level: warn",
 						"upstreams:",
@@ -96,7 +96,7 @@ var _ = Describe("External lists and query blocking", func() {
 				_, err = createHTTPServerContainer(ctx, "httpserver", tmpDir, "list.txt", "blockeddomain.com")
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, tmpDir,
+				blocky, err = createBlockyContainer(ctx,
 					"log:",
 					"  level: warn",
 					"upstreams:",
