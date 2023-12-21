@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -27,9 +26,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-//nolint:gochecknoglobals
-var NetworkName = fmt.Sprintf("blocky-e2e-network_%d", time.Now().Unix())
-
+// container image names
 const (
 	redisImage        = "redis:7"
 	postgresImage     = "postgres:15.2-alpine"
@@ -39,17 +36,11 @@ const (
 	blockyImage       = "blocky-e2e"
 )
 
-func deferTerminate[T testcontainers.Container](container T, err error) (T, error) {
-	ginkgo.DeferCleanup(func(ctx context.Context) error {
-		if container.IsRunning() {
-			return container.Terminate(ctx)
-		}
-
-		return nil
-	})
-
-	return container, err
-}
+// helper constants
+const (
+	modeOwner      = 700
+	startupTimeout = 30 * time.Second
+)
 
 func createDNSMokkaContainer(ctx context.Context, alias string, rules ...string) (testcontainers.Container, error) {
 	mokaRules := make(map[string]string)
@@ -59,18 +50,13 @@ func createDNSMokkaContainer(ctx context.Context, alias string, rules ...string)
 	}
 
 	req := testcontainers.ContainerRequest{
-		Image:          mokaImage,
-		Networks:       []string{NetworkName},
-		ExposedPorts:   []string{"53/tcp", "53/udp"},
-		NetworkAliases: map[string][]string{NetworkName: {alias}},
-		WaitingFor:     wait.ForExposedPort(),
-		Env:            mokaRules,
+		Image:        mokaImage,
+		ExposedPorts: []string{"53/tcp", "53/udp"},
+		WaitingFor:   wait.ForExposedPort(),
+		Env:          mokaRules,
 	}
 
-	return deferTerminate(testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	}))
+	return startContainerWithNetwork(ctx, req, alias)
 }
 
 func createHTTPServerContainer(ctx context.Context, alias string, tmpDir *helpertest.TmpFolder,
@@ -80,12 +66,8 @@ func createHTTPServerContainer(ctx context.Context, alias string, tmpDir *helper
 		lines...,
 	)
 
-	const modeOwner = 700
-
 	req := testcontainers.ContainerRequest{
-		Image:          staticServerImage,
-		Networks:       []string{NetworkName},
-		NetworkAliases: map[string][]string{NetworkName: {alias}},
+		Image: staticServerImage,
 
 		ExposedPorts: []string{"8080/tcp"},
 		Env:          map[string]string{"FOLDER": "/"},
@@ -98,24 +80,14 @@ func createHTTPServerContainer(ctx context.Context, alias string, tmpDir *helper
 		},
 	}
 
-	return deferTerminate(testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	}))
-}
-
-func WithNetwork(network string) testcontainers.CustomizeRequestOption {
-	return func(req *testcontainers.GenericContainerRequest) {
-		req.NetworkAliases = map[string][]string{NetworkName: {network}}
-		req.Networks = []string{NetworkName}
-	}
+	return startContainerWithNetwork(ctx, req, alias)
 }
 
 func createRedisContainer(ctx context.Context) (*redis.RedisContainer, error) {
 	return deferTerminate(redis.RunContainer(ctx,
 		testcontainers.WithImage(redisImage),
 		redis.WithLogLevel(redis.LogLevelVerbose),
-		WithNetwork("redis"),
+		WithNetwork(ctx, "redis"),
 	))
 }
 
@@ -132,7 +104,7 @@ func createPostgresContainer(ctx context.Context) (*postgres.PostgresContainer, 
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(waitLogOccurrence).
 				WithStartupTimeout(startupTimeout)),
-		WithNetwork("postgres"),
+		WithNetwork(ctx, "postgres"),
 	))
 }
 
@@ -142,14 +114,9 @@ func createMariaDBContainer(ctx context.Context) (*mariadb.MariaDBContainer, err
 		mariadb.WithDatabase("user"),
 		mariadb.WithUsername("user"),
 		mariadb.WithPassword("user"),
-		WithNetwork("mariaDB"),
+		WithNetwork(ctx, "mariaDB"),
 	))
 }
-
-const (
-	modeOwner      = 700
-	startupTimeout = 30 * time.Second
-)
 
 func createBlockyContainer(ctx context.Context, tmpDir *helpertest.TmpFolder,
 	lines ...string,
@@ -164,8 +131,7 @@ func createBlockyContainer(ctx context.Context, tmpDir *helpertest.TmpFolder,
 	}
 
 	req := testcontainers.ContainerRequest{
-		Image:    blockyImage,
-		Networks: []string{NetworkName},
+		Image: blockyImage,
 
 		ExposedPorts: []string{"53/tcp", "53/udp", "4000/tcp"},
 
@@ -184,10 +150,7 @@ func createBlockyContainer(ctx context.Context, tmpDir *helpertest.TmpFolder,
 		WaitingFor: wait.ForHealthCheck().WithStartupTimeout(startupTimeout),
 	}
 
-	container, err := deferTerminate(testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	}))
+	container, err := startContainerWithNetwork(ctx, req, "blocky")
 	if err != nil {
 		// attach container log if error occurs
 		if r, err := container.Logs(ctx); err == nil {
@@ -277,57 +240,4 @@ func doHTTPRequest(ctx context.Context, container testcontainers.Container, cont
 	}
 
 	return err
-}
-
-func doDNSRequest(ctx context.Context, container testcontainers.Container, message *dns.Msg) (*dns.Msg, error) {
-	const timeout = 5 * time.Second
-
-	c := &dns.Client{
-		Net:     "tcp",
-		Timeout: timeout,
-	}
-
-	host, port, err := getContainerHostPort(ctx, container, "53/tcp")
-	if err != nil {
-		return nil, err
-	}
-
-	msg, _, err := c.Exchange(message, net.JoinHostPort(host, port))
-
-	return msg, err
-}
-
-func getContainerHostPort(ctx context.Context, c testcontainers.Container, p nat.Port) (host, port string, err error) {
-	res, err := c.MappedPort(ctx, p)
-	if err != nil {
-		return "", "", err
-	}
-
-	host, err = c.Host(ctx)
-
-	if err != nil {
-		return "", "", err
-	}
-
-	return host, res.Port(), err
-}
-
-func getContainerLogs(ctx context.Context, c testcontainers.Container) (lines []string, err error) {
-	if r, err := c.Logs(ctx); err == nil {
-		scanner := bufio.NewScanner(r)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if len(strings.TrimSpace(line)) > 0 {
-				lines = append(lines, line)
-			}
-		}
-
-		if err := scanner.Err(); err != nil {
-			return nil, err
-		}
-
-		return lines, nil
-	}
-
-	return nil, err
 }
