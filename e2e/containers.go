@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -266,22 +265,15 @@ func createTempFile(lines ...string) string {
 		return os.Remove(file.Name())
 	})
 
-	first := true
-	w := bufio.NewWriter(file)
-
-	for _, l := range lines {
-		if first {
-			first = false
-		} else {
-			_, err := w.WriteString("\n")
+	for i, l := range lines {
+		if i != 0 {
+			_, err := file.WriteString("\n")
 			Expect(err).Should(Succeed())
 		}
 
-		_, err := w.WriteString(l)
+		_, err := file.WriteString(l)
 		Expect(err).Should(Succeed())
 	}
-
-	w.Flush()
 
 	return file.Name()
 }
