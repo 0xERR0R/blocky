@@ -160,7 +160,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": false,
-          "expr": "sum(up{job=\"blocky\"})",
+          "expr": "sum(up{job=~\"$job\"})",
           "format": "table",
           "instant": true,
           "interval": "",
@@ -487,7 +487,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "sum(blocky_blacklist_cache) / sum(up{job=\"blocky\"})",
+          "expr": "sum(blocky_blacklist_cache) / sum(up{job=~\"$job\"})",
           "format": "table",
           "instant": false,
           "interval": "",
@@ -561,7 +561,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "sum(go_memstats_sys_bytes{job=\"blocky\"})/sum(up{job=\"blocky\"})",
+          "expr": "sum(go_memstats_sys_bytes{job=~\"$job\"})/sum(up{job=~\"$job\"})",
           "format": "table",
           "instant": false,
           "interval": "",
@@ -778,7 +778,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "sum(blocky_cache_entry_count)/ sum(up{job=\"blocky\"})",
+          "expr": "sum(blocky_cache_entry_count)/ sum(up{job=~\"$job\"})",
           "format": "table",
           "instant": false,
           "interval": "",
@@ -1178,7 +1178,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": false,
-          "expr": "sum(time() -blocky_last_list_group_refresh)/ sum(up{job=\"blocky\"})",
+          "expr": "sum(time() -blocky_last_list_group_refresh)/ sum(up{job=~\"$job\"})",
           "format": "table",
           "instant": true,
           "interval": "",
@@ -1239,7 +1239,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "sum(blocky_prefetch_domain_name_cache_count)/ sum(up{job=\"blocky\"})",
+          "expr": "sum(blocky_prefetch_domain_name_cache_count)/ sum(up{job=~\"$job\"})",
           "format": "table",
           "interval": "",
           "legendFormat": "",
@@ -1929,6 +1929,29 @@
             "selected": false
           }
         ]
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "prometheus"
+        },
+        "definition": "label_values(blocky_blocking_enabled,job)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "job",
+        "multi": false,
+        "name": "job",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(blocky_blocking_enabled,job)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
       }
     ]
   },
