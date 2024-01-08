@@ -427,6 +427,12 @@ func mustDefault[T any]() T {
 
 // LoadConfig creates new config from YAML file or a directory containing YAML files
 func LoadConfig(path string, mandatory bool) (rCfg *Config, rerr error) {
+	logger := logrus.NewEntry(log.Log())
+
+	return loadConfig(logger, path, mandatory)
+}
+
+func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config, rerr error) {
 	cfg, err := WithDefaults[Config]()
 	if err != nil {
 		return nil, err
@@ -464,7 +470,7 @@ func LoadConfig(path string, mandatory bool) (rCfg *Config, rerr error) {
 		}
 	}
 
-	err = unmarshalConfig(data, &cfg)
+	err = unmarshalConfig(logger, data, &cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -523,13 +529,11 @@ func isRegularFile(path string) (bool, error) {
 	return isRegular, nil
 }
 
-func unmarshalConfig(data []byte, cfg *Config) error {
+func unmarshalConfig(logger *logrus.Entry, data []byte, cfg *Config) error {
 	err := yaml.UnmarshalStrict(data, cfg)
 	if err != nil {
 		return fmt.Errorf("wrong file structure: %w", err)
 	}
-
-	logger := logrus.NewEntry(log.Log())
 
 	usesDepredOpts := cfg.migrate(logger)
 	if usesDepredOpts {
