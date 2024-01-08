@@ -219,7 +219,7 @@ var _ = Describe("Config", func() {
 blocking:
   loading:
     refreshPeriod: wrongduration`
-				err := unmarshalConfig([]byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("invalid duration \"wrongduration\""))
 			})
@@ -230,7 +230,7 @@ blocking:
 				data := `customDNS:
   mapping:
     someDomain: 192.168.178.WRONG`
-				err := unmarshalConfig([]byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("invalid IP address '192.168.178.WRONG'"))
 			})
@@ -241,7 +241,7 @@ blocking:
 				data := `conditional:
   mapping:
     multiple.resolvers: 192.168.178.1,wrongprotocol:4.4.4.4:53`
-				err := unmarshalConfig([]byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("wrong host name 'wrongprotocol:4.4.4.4:53'"))
 			})
@@ -254,7 +254,7 @@ blocking:
     - 8.8.8.8
     - wrongprotocol:8.8.4.4
     - 1.1.1.1`
-				err := unmarshalConfig([]byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("can't convert upstream 'wrongprotocol:8.8.4.4'"))
 			})
@@ -266,7 +266,7 @@ blocking:
   queryTypes:
     - invalidqtype
 `
-				err := unmarshalConfig([]byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("unknown DNS query type: 'invalidqtype'"))
 			})
@@ -277,7 +277,7 @@ blocking:
 				cfg := Config{}
 				data := "bootstrapDns: 0.0.0.0"
 
-				err := unmarshalConfig([]byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg)
 				Expect(err).Should(Succeed())
 				Expect(cfg.BootstrapDNS[0].Upstream.Host).Should(Equal("0.0.0.0"))
 			})
@@ -289,7 +289,7 @@ bootstrapDns:
   ips:
     - 0.0.0.0
 `
-				err := unmarshalConfig([]byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg)
 				Expect(err).Should(Succeed())
 				Expect(cfg.BootstrapDNS[0].Upstream.Host).Should(Equal("dns.example.com"))
 				Expect(cfg.BootstrapDNS[0].IPs).Should(HaveLen(1))
@@ -303,7 +303,7 @@ bootstrapDns:
       - 0.0.0.0
   - upstream: 1.2.3.4
 `
-				err := unmarshalConfig([]byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg)
 				Expect(err).Should(Succeed())
 				Expect(cfg.BootstrapDNS).Should(HaveLen(2))
 				Expect(cfg.BootstrapDNS[0].Upstream.Host).Should(Equal("dns.example.com"))
@@ -318,7 +318,7 @@ bootstrapDns:
 			It("should return error", func() {
 				cfg := Config{}
 				data := `///`
-				err := unmarshalConfig([]byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("cannot unmarshal !!str `///`"))
 			})
@@ -844,6 +844,16 @@ bootstrapDns:
 
 			_, err := WithDefaults[T]()
 			Expect(err).Should(HaveOccurred())
+		})
+	})
+
+	Describe("Documentation config", func() {
+		It("should not use deprecated options", func() {
+			logger, hook := log.NewMockEntry()
+
+			_, err := loadConfig(logger, "../docs/config.yml", true)
+			Expect(err).Should(Succeed())
+			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("deprecated")))
 		})
 	})
 })
