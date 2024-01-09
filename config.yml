@@ -1,26 +1,34 @@
-upstream:
-  # these external DNS resolvers will be used. Blocky picks 2 random resolvers from the list for each query
-  # format for resolver: [net:]host:[port][/path]. net could be empty (default, shortcut for tcp+udp), tcp+udp, tcp, udp, tcp-tls or https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))
-  # this configuration is mandatory, please define at least one external DNS resolver
-  default:
-    # example for tcp+udp IPv4 server (https://digitalcourage.de/)
-    - 5.9.164.112
-    # Cloudflare
-    - 1.1.1.1
-    # example for DNS-over-TLS server (DoT)
-    - tcp-tls:fdns1.dismail.de:853
-    # example for DNS-over-HTTPS (DoH)
-    - https://dns.digitale-gesellschaft.ch/dns-query
-  # optional: use client name (with wildcard support: * - sequence of any characters, [0-9] - range)
-  # or single ip address / client subnet as CIDR notation
-  laptop*:
-    - 123.123.123.123
-
-# optional: timeout to query the upstream resolver. Default: 2s
-upstreamTimeout: 2s
-
-# optional: If true, blocky will fail to start unless at least one upstream server per group is reachable. Default: false
-startVerifyUpstream: true
+upstreams:
+  init:
+    # Configure startup behavior.
+    # accepted: blocking, failOnError, fast
+    # default: blocking
+    strategy: fast
+  groups:
+    # these external DNS resolvers will be used. Blocky picks 2 random resolvers from the list for each query
+    # format for resolver: [net:]host:[port][/path]. net could be empty (default, shortcut for tcp+udp), tcp+udp, tcp, udp, tcp-tls or https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))
+    # this configuration is mandatory, please define at least one external DNS resolver
+    default:
+      # example for tcp+udp IPv4 server (https://digitalcourage.de/)
+      - 5.9.164.112
+      # Cloudflare
+      - 1.1.1.1
+      # example for DNS-over-TLS server (DoT)
+      - tcp-tls:fdns1.dismail.de:853
+      # example for DNS-over-HTTPS (DoH)
+      - https://dns.digitale-gesellschaft.ch/dns-query
+    # optional: use client name (with wildcard support: * - sequence of any characters, [0-9] - range)
+    # or single ip address / client subnet as CIDR notation
+    laptop*:
+      - 123.123.123.123
+  # optional: Determines what strategy blocky uses to choose the upstream servers.
+  # accepted: parallel_best, strict, random
+  # default: parallel_best
+  strategy: parallel_best
+  # optional: timeout to query the upstream resolver. Default: 2s
+  timeout: 2s
+  # optional: HTTP User Agent when connecting to upstreams. Default: none
+  userAgent: "custom UA"
 
 # optional: Determines how blocky will create outgoing connections. This impacts both upstreams, and lists.
 # accepted: dual, v4, v6
@@ -65,8 +73,8 @@ blocking:
       - https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt
       - |
         # inline definition with YAML literal block scalar style
-        # hosts format
         someadsdomain.com
+        *.example.com
     special:
       - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
   # definition of whitelist groups. Attention: if the same group has black and whitelists, whitelists will be used to disable particular blacklist entries. If a group has only whitelist entries -> this means only domains from this list are allowed, all other domains will be blocked
@@ -99,18 +107,34 @@ blocking:
   # optional: TTL for answers to blocked domains
   # default: 6h
   blockTTL: 1m
-  # optional: automatically list refresh period (in duration format). Default: 4h.
-  # Negative value -> deactivate automatically refresh.
-  # 0 value -> use default
-  refreshPeriod: 4h
-  # optional: timeout for list download (each url). Default: 60s. Use large values for big lists or slow internet connections
-  downloadTimeout: 4m
-  # optional: Download attempt timeout. Default: 60s
-  downloadAttempts: 5
-  # optional: Time between the download attempts. Default: 1s
-  downloadCooldown: 10s
-  # optional: if failOnError, application startup will fail if at least one list can't be downloaded / opened. Default: blocking
-  startStrategy: failOnError
+  # optional: Configure how lists, AKA sources, are loaded
+  loading:
+    # optional: list refresh period in duration format.
+    # Set to a value <= 0 to disable.
+    # default: 4h
+    refreshPeriod: 24h
+    # optional: Applies only to lists that are downloaded (HTTP URLs).
+    downloads:
+      # optional: timeout for list download (each url). Use large values for big lists or slow internet connections
+      # default: 5s
+      timeout: 60s
+      # optional: Maximum download attempts
+      # default: 3
+      attempts: 5
+      # optional: Time between the download attempts
+      # default: 500ms
+      cooldown: 10s
+    # optional: Maximum number of lists to process in parallel.
+    # default: 4
+    concurrency: 16
+    # Configure startup behavior.
+    # accepted: blocking, failOnError, fast
+    # default: blocking
+    strategy: failOnError
+    # Number of errors allowed in a list before it is considered invalid.
+    # A value of -1 disables the limit.
+    # default: 5
+    maxErrorsPerSource: 5
 
 # optional: configuration for caching of DNS responses
 caching:
@@ -157,6 +181,7 @@ clientLookup:
   clients:
     laptop:
       - 192.168.178.29
+
 # optional: configuration for prometheus metrics endpoint
 prometheus:
   # enabled if true
@@ -181,6 +206,8 @@ queryLog:
   fields:
     - clientIP
     - duration
+  # optional: Interval to write data in bulk to the external database, default: 30s
+  flushInterval: 30s
 
 # optional: Blocky can synchronize its cache and blocking state between multiple instances through redis.
 redis:
@@ -210,9 +237,11 @@ redis:
 
 # optional: Mininal TLS version that the DoH and DoT server will use
 minTlsServeVersion: 1.3
+
 # if https port > 0: path to cert and key file for SSL encryption. if not set, self-signed certificate will be generated
 #certFile: server.crt
 #keyFile: server.key
+
 # optional: use these DNS servers to resolve blacklist urls and upstream DNS servers. It is useful if no system DNS resolver is configured, and/or to encrypt the bootstrap queries.
 bootstrapDns:
   - tcp+udp:1.1.1.1
@@ -226,16 +255,53 @@ filtering:
   queryTypes:
     - AAAA
 
+# optional: return NXDOMAIN for queries that are not FQDNs.
+fqdnOnly:
+  # default: false
+  enable: true
+
 # optional: if path defined, use this file for query resolution (A, AAAA and rDNS). Default: empty
 hostsFile:
-  # optional: Path to hosts file (e.g. /etc/hosts on Linux)
-  filePath: /etc/hosts
+  # optional: Hosts files to parse
+  sources:
+    - /etc/hosts
+    - https://example.com/hosts
+    - |
+      # inline hosts
+      127.0.0.1 example.com
   # optional: TTL, default: 1h
-  hostsTTL: 60m
-  # optional: Time between hosts file refresh, default: 1h
-  refreshPeriod: 30m
-  # optional: Whether loopback hosts addresses (127.0.0.0/8 and ::1) should be filtered or not, default: false
+  hostsTTL: 30m
+  # optional: Whether loopback hosts addresses (127.0.0.0/8 and ::1) should be filtered or not
+  # default: false
   filterLoopback: true
+  # optional: Configure how sources are loaded
+  loading:
+    # optional: file refresh period in duration format.
+    # Set to a value <= 0 to disable.
+    # default: 4h
+    refreshPeriod: 24h
+    # optional: Applies only to files that are downloaded (HTTP URLs).
+    downloads:
+      # optional: timeout for file download (each url). Use large values for big files or slow internet connections
+      # default: 5s
+      timeout: 60s
+      # optional: Maximum download attempts
+      # default: 3
+      attempts: 5
+      # optional: Time between the download attempts
+      # default: 500ms
+      cooldown: 10s
+    # optional: Maximum number of files to process in parallel.
+    # default: 4
+    concurrency: 16
+    # Configure startup behavior.
+    # accepted: blocking, failOnError, fast
+    # default: blocking
+    strategy: failOnError
+    # Number of errors allowed in a file before it is considered invalid.
+    # A value of -1 disables the limit.
+    # default: 5
+    maxErrorsPerSource: 5
 
 # optional: ports configuration
 ports:
@@ -263,3 +329,16 @@ log:
 ede:
   # enabled if true, Default: false
   enable: true
+
+# optional: configure optional Special Use Domain Names (SUDN)
+specialUseDomains:
+  # optional: block recomended private TLDs
+  # default: true
+  rfc6762-appendixG: true
+
+# optional: configure extended client subnet (ECS) support
+ecs:
+  # optional: if the request ecs option with a max sice mask the address will be used as client ip
+  useAsClient: true
+  # optional: if the request contains a ecs option it will be forwarded to the upstream resolver
+  forward: true
