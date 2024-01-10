@@ -81,11 +81,11 @@ This applies to all of them. The default strategy is blocking.
 
 | Parameter               | Type                                 | Mandatory | Default value | Description                                    |
 | ----------------------- | ------------------------------------ | --------- | ------------- | ---------------------------------------------- |
-| usptreams.groups        | map of name to upstream              | yes       |               | Upstream DNS servers to use, in groups.        |
-| usptreams.init.strategy | enum (blocking, failOnError, fast)   | no        | blocking      | See [Init Strategy](#init-strategy) and below. |
-| usptreams.strategy      | enum (parallel_best, random, strict) | no        | parallel_best | Upstream server usage strategy.                |
-| usptreams.timeout       | duration                             | no        | 2s            | Upstream connection timeout.                   |
-| usptreams.userAgent     | string                               | no        |               | HTTP User Agent when connecting to upstreams.  |
+| upstreams.groups        | map of name to upstream              | yes       |               | Upstream DNS servers to use, in groups.        |
+| upstreams.init.strategy | enum (blocking, failOnError, fast)   | no        | blocking      | See [Init Strategy](#init-strategy) and below. |
+| upstreams.strategy      | enum (parallel_best, random, strict) | no        | parallel_best | Upstream server usage strategy.                |
+| upstreams.timeout       | duration                             | no        | 2s            | Upstream connection timeout.                   |
+| upstreams.userAgent     | string                               | no        |               | HTTP User Agent when connecting to upstreams.  |
 
 For `init.strategy`, the "init" is testing the given resolvers for each group. The potentially fatal error, depending on the strategy, is if a group has no functional resolvers.
 
@@ -829,8 +829,8 @@ These settings apply only to the resolver under which they are nested.
 
 #### Refresh / Reload
 
-To keep source contents up-to-date, blocky can periodically refresh and reparse them. Default period is **
-4 hours**. You can configure this by setting the `refreshPeriod` parameter to a value in **duration format**.  
+To keep source contents up-to-date, blocky can periodically refresh and reparse them. Default period is
+**4 hours**. You can configure this by setting the `refreshPeriod` parameter to a value in **duration format**.  
 A value of zero or less will disable this feature.
 
 !!! example
