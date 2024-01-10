@@ -1864,35 +1864,35 @@ This applies to all of them. The default strategy is blocking.</p>
 </thead>
 <tbody>
 <tr>
-<td>usptreams.groups</td>
+<td>upstreams.groups</td>
 <td>map of name to upstream</td>
 <td>yes</td>
 <td></td>
 <td>Upstream <abbr title="Domain Name System">DNS</abbr> servers to use, in groups.</td>
 </tr>
 <tr>
-<td>usptreams.init.strategy</td>
+<td>upstreams.init.strategy</td>
 <td>enum (blocking, failOnError, fast)</td>
 <td>no</td>
 <td>blocking</td>
 <td>See <a href="#init-strategy">Init Strategy</a> and below.</td>
 </tr>
 <tr>
-<td>usptreams.strategy</td>
+<td>upstreams.strategy</td>
 <td>enum (parallel_best, random, strict)</td>
 <td>no</td>
 <td>parallel_best</td>
 <td>Upstream server usage strategy.</td>
 </tr>
 <tr>
-<td>usptreams.timeout</td>
+<td>upstreams.timeout</td>
 <td>duration</td>
 <td>no</td>
 <td>2s</td>
 <td>Upstream connection timeout.</td>
 </tr>
 <tr>
-<td>usptreams.userAgent</td>
+<td>upstreams.userAgent</td>
 <td>string</td>
 <td>no</td>
 <td></td>
@@ -2920,8 +2920,8 @@ These settings apply only to the resolver under which they are nested.</p>
 </code></pre></div>
 </div>
 <h4 id="refresh-reload">Refresh / Reload</h4>
-<p>To keep source contents up-to-date, blocky can periodically refresh and reparse them. Default period is **
-4 hours<strong>. You can configure this by setting the <code>refreshPeriod</code> parameter to a value in </strong><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr>**.<br />
+<p>To keep source contents up-to-date, blocky can periodically refresh and reparse them. Default period is
+<strong>4 hours</strong>. You can configure this by setting the <code>refreshPeriod</code> parameter to a value in <strong><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></strong>.<br />
 A value of zero or less will disable this feature.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
