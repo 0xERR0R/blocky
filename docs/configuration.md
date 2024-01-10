@@ -829,8 +829,8 @@ These settings apply only to the resolver under which they are nested.
 
 #### Refresh / Reload
 
-To keep source contents up-to-date, blocky can periodically refresh and reparse them. Default period is **
-4 hours**. You can configure this by setting the `refreshPeriod` parameter to a value in **duration format**.  
+To keep source contents up-to-date, blocky can periodically refresh and reparse them. Default period is
+**4 hours**. You can configure this by setting the `refreshPeriod` parameter to a value in **duration format**.  
 A value of zero or less will disable this feature.
 
 !!! example
