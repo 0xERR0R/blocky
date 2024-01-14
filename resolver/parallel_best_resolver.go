@@ -140,7 +140,7 @@ func (r *ParallelBestResolver) String() string {
 
 	upstreams := make([]string, len(resolvers))
 	for i, s := range resolvers {
-		upstreams[i] = fmt.Sprintf("%s", s.resolver)
+		upstreams[i] = s.resolver.String()
 	}
 
 	return fmt.Sprintf("%s upstreams '%s (%s)'", r.Type(), r.cfg.Name, strings.Join(upstreams, ","))

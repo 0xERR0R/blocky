@@ -21,6 +21,11 @@ func (NoOpResolver) Type() string {
 	return "noop"
 }
 
+// String implements `fmt.Stringer`.
+func (r NoOpResolver) String() string {
+	return r.Type()
+}
+
 // IsEnabled implements `config.Configurable`.
 func (NoOpResolver) IsEnabled() bool {
 	return true
