@@ -240,7 +240,7 @@ type Config struct {
 		Upstream            *UpstreamGroups `yaml:"upstream"`
 		UpstreamTimeout     *Duration       `yaml:"upstreamTimeout"`
 		DisableIPv6         *bool           `yaml:"disableIPv6"`
-		LogLevel            *log.Level      `yaml:"logLevel"`
+		LogLevel            *logrus.Level   `yaml:"logLevel"`
 		LogFormat           *log.FormatType `yaml:"logFormat"`
 		LogPrivacy          *bool           `yaml:"logPrivacy"`
 		LogTimestamp        *bool           `yaml:"logTimestamp"`
