@@ -68,6 +68,7 @@ func newRequestWithClientID(question string, rType dns.Type, ip, requestClientID
 // Resolver generic interface for all resolvers
 type Resolver interface {
 	config.Configurable
+	fmt.Stringer
 
 	// Type returns a short, user-friendly, name for the resolver.
 	//
@@ -191,6 +192,11 @@ func withType(t string) typed {
 // Type implements `Resolver`.
 func (t *typed) Type() string {
 	return t.typeName
+}
+
+// String implements `fmt.Stringer`.
+func (t *typed) String() string {
+	return t.Type()
 }
 
 func (t *typed) log() *logrus.Entry {
