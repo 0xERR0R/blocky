@@ -32,22 +32,12 @@ var (
 // )
 type FormatType int
 
-// Level log level ENUM(
-// info
-// trace
-// debug
-// warn
-// error
-// fatal
-// )
-type Level int
-
 // Config defines all logging configurations
 type Config struct {
-	Level     Level      `yaml:"level" default:"info"`
-	Format    FormatType `yaml:"format" default:"text"`
-	Privacy   bool       `yaml:"privacy" default:"false"`
-	Timestamp bool       `yaml:"timestamp" default:"true"`
+	Level     logrus.Level `yaml:"level" default:"info"`
+	Format    FormatType   `yaml:"format" default:"text"`
+	Privacy   bool         `yaml:"privacy" default:"false"`
+	Timestamp bool         `yaml:"timestamp" default:"true"`
 }
 
 // DefaultConfig returns a new Config initialized with default values.
@@ -106,11 +96,7 @@ func Configure(cfg *Config) {
 
 // Configure applies configuration to the given logger.
 func ConfigureLogger(logger *logrus.Logger, cfg *Config) {
-	if level, err := logrus.ParseLevel(cfg.Level.String()); err != nil {
-		logger.Fatalf("invalid log level %s %v", cfg.Level, err)
-	} else {
-		logger.SetLevel(level)
-	}
+	logger.SetLevel(cfg.Level)
 
 	switch cfg.Format {
 	case FormatTypeText:

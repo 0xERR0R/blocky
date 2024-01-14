@@ -69,10 +69,10 @@ var _ = Describe("Config", func() {
 
 		When("parameter 'logLevel' is set", func() {
 			It("should convert to log.level", func() {
-				c.Deprecated.LogLevel = ptrOf(log.LevelDebug)
+				c.Deprecated.LogLevel = ptrOf(logrus.DebugLevel)
 				c.migrate(logger)
 				Expect(hook.Messages).Should(ContainElement(ContainSubstring("log.level")))
-				Expect(c.Log.Level).Should(Equal(log.LevelDebug))
+				Expect(c.Log.Level).Should(Equal(logrus.DebugLevel))
 			})
 		})
 
@@ -434,7 +434,7 @@ bootstrapDns:
 				c, err = LoadConfig(tmpDir.JoinPath("config.yml"), false)
 
 				Expect(err).Should(Succeed())
-				Expect(c.Log.Level).Should(Equal(log.LevelInfo))
+				Expect(c.Log.Level).Should(Equal(logrus.InfoLevel))
 			})
 		})
 	})

@@ -49,12 +49,12 @@ All logging port are optional.
 
 All logging options are optional.
 
-| Parameter     | Type                            | Default value | Description                                                                                                                                      |
-| ------------- | ------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| log.level     | enum (debug, info, warn, error) | info          | Log level                                                                                                                                        |
-| log.format    | enum (text, json)               | text          | Log format (text or json).                                                                                                                       |
-| log.timestamp | bool                            | true          | Log time stamps (true or false).                                                                                                                 |
-| log.privacy   | bool                            | false         | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy. |
+| Parameter     | Type                                   | Default value | Description                                                                                                                                      |
+| ------------- | -------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| log.level     | enum (trace, debug, info, warn, error) | info          | Log level                                                                                                                                        |
+| log.format    | enum (text, json)                      | text          | Log format (text or json).                                                                                                                       |
+| log.timestamp | bool                                   | true          | Log timestamps (true or false).                                                                                                                 |
+| log.privacy   | bool                                   | false         | Obfuscate log output (replace all alphanumeric characters with *) for user sensitive data like request domains or responses to increase privacy. |
 
 !!! example
 
