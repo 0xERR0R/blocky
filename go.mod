@@ -42,8 +42,8 @@ require (
 	github.com/docker/go-connections v0.5.0
 	github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198
 	github.com/oapi-codegen/runtime v1.1.1
-	github.com/testcontainers/testcontainers-go v0.26.0
-	github.com/testcontainers/testcontainers-go/modules/mariadb v0.26.0
+	github.com/testcontainers/testcontainers-go v0.27.0
+	github.com/testcontainers/testcontainers-go/modules/mariadb v0.27.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.26.0
 	github.com/testcontainers/testcontainers-go/modules/redis v0.26.0
 	mvdan.cc/gofumpt v0.5.0
@@ -84,7 +84,7 @@ require (
 	github.com/opencontainers/runc v1.1.5 // indirect
 	github.com/perimeterx/marshmallow v1.1.4 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
-	github.com/shirou/gopsutil/v3 v3.23.9 // indirect
+	github.com/shirou/gopsutil/v3 v3.23.11 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/shopspring/decimal v1.2.0 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
