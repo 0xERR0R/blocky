@@ -18,7 +18,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 	Describe("'upstreams.init.strategy' parameter handling", func() {
 		When("'upstreams.init.strategy' is fast and upstream server as IP is not reachable", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, tmpDir,
+				blocky, err = createBlockyContainer(ctx,
 					"log:",
 					"  level: warn",
 					"upstreams:",
@@ -39,7 +39,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 		})
 		When("'upstreams.init.strategy' is fast and upstream server as host name is not reachable", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, tmpDir,
+				blocky, err = createBlockyContainer(ctx,
 					"log:",
 					"  level: warn",
 					"upstreams:",
@@ -58,7 +58,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 		})
 		When("'upstreams.init.strategy' is failOnError and upstream as IP address server is not reachable", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, tmpDir,
+				blocky, err = createBlockyContainer(ctx,
 					"upstreams:",
 					"  groups:",
 					"    default:",
@@ -76,7 +76,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 		})
 		When("'upstreams.init.strategy' is failOnError and upstream server as host name is not reachable", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, tmpDir,
+				blocky, err = createBlockyContainer(ctx,
 					"upstreams:",
 					"  groups:",
 					"    default:",
@@ -100,7 +100,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 				`A delay.com/delay(NOERROR("A 1.1.1.1 100"), "300ms")`)
 			Expect(err).Should(Succeed())
 
-			blocky, err = createBlockyContainer(ctx, tmpDir,
+			blocky, err = createBlockyContainer(ctx,
 				"upstreams:",
 				"  groups:",
 				"    default:",

@@ -1,25 +1,25 @@
 package e2e
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/avast/retry-go/v4"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"
 	"github.com/miekg/dns"
-	"github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/mariadb"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -27,9 +27,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-//nolint:gochecknoglobals
-var NetworkName = fmt.Sprintf("blocky-e2e-network_%d", time.Now().Unix())
-
+// container image names
 const (
 	redisImage        = "redis:7"
 	postgresImage     = "postgres:15.2-alpine"
@@ -39,18 +37,15 @@ const (
 	blockyImage       = "blocky-e2e"
 )
 
-func deferTerminate[T testcontainers.Container](container T, err error) (T, error) {
-	ginkgo.DeferCleanup(func(ctx context.Context) error {
-		if container.IsRunning() {
-			return container.Terminate(ctx)
-		}
+// helper constants
+const (
+	modeOwner      = 700
+	startupTimeout = 30 * time.Second
+)
 
-		return nil
-	})
-
-	return container, err
-}
-
+// createDNSMokkaContainer creates a DNS mokka container with the given rules attached to the test network
+// under the given alias.
+// It is automatically terminated when the test is finished.
 func createDNSMokkaContainer(ctx context.Context, alias string, rules ...string) (testcontainers.Container, error) {
 	mokaRules := make(map[string]string)
 
@@ -59,66 +54,52 @@ func createDNSMokkaContainer(ctx context.Context, alias string, rules ...string)
 	}
 
 	req := testcontainers.ContainerRequest{
-		Image:          mokaImage,
-		Networks:       []string{NetworkName},
-		ExposedPorts:   []string{"53/tcp", "53/udp"},
-		NetworkAliases: map[string][]string{NetworkName: {alias}},
-		WaitingFor:     wait.ForExposedPort(),
-		Env:            mokaRules,
+		Image:        mokaImage,
+		ExposedPorts: []string{"53/tcp", "53/udp"},
+		WaitingFor:   wait.ForExposedPort(),
+		Env:          mokaRules,
 	}
 
-	return deferTerminate(testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	}))
+	return startContainerWithNetwork(ctx, req, alias)
 }
 
-func createHTTPServerContainer(ctx context.Context, alias string, tmpDir *helpertest.TmpFolder,
-	filename string, lines ...string,
+// createHTTPServerContainer creates a static HTTP server container that serves one file with the given lines
+// and is attached to the test network under the given alias.
+// It is automatically terminated when the test is finished.
+func createHTTPServerContainer(ctx context.Context, alias string, filename string, lines ...string,
 ) (testcontainers.Container, error) {
-	f1 := tmpDir.CreateStringFile(filename,
-		lines...,
-	)
-
-	const modeOwner = 700
+	file := createTempFile(lines...)
 
 	req := testcontainers.ContainerRequest{
-		Image:          staticServerImage,
-		Networks:       []string{NetworkName},
-		NetworkAliases: map[string][]string{NetworkName: {alias}},
+		Image: staticServerImage,
 
 		ExposedPorts: []string{"8080/tcp"},
 		Env:          map[string]string{"FOLDER": "/"},
 		Files: []testcontainers.ContainerFile{
 			{
-				HostFilePath:      f1.Path,
+				HostFilePath:      file,
 				ContainerFilePath: fmt.Sprintf("/%s", filename),
 				FileMode:          modeOwner,
 			},
 		},
 	}
 
-	return deferTerminate(testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	}))
+	return startContainerWithNetwork(ctx, req, alias)
 }
 
-func WithNetwork(network string) testcontainers.CustomizeRequestOption {
-	return func(req *testcontainers.GenericContainerRequest) {
-		req.NetworkAliases = map[string][]string{NetworkName: {network}}
-		req.Networks = []string{NetworkName}
-	}
-}
-
+// createRedisContainer creates a redis container attached to the test network under the alias 'redis'.
+// It is automatically terminated when the test is finished.
 func createRedisContainer(ctx context.Context) (*redis.RedisContainer, error) {
 	return deferTerminate(redis.RunContainer(ctx,
 		testcontainers.WithImage(redisImage),
 		redis.WithLogLevel(redis.LogLevelVerbose),
-		WithNetwork("redis"),
+		WithNetwork(ctx, "redis"),
 	))
 }
 
+// createPostgresContainer creates a postgres container attached to the test network under the alias 'postgres'.
+// It creates a database 'user' with user 'user' and password 'user'.
+// It is automatically terminated when the test is finished.
 func createPostgresContainer(ctx context.Context) (*postgres.PostgresContainer, error) {
 	const waitLogOccurrence = 2
 
@@ -132,46 +113,44 @@ func createPostgresContainer(ctx context.Context) (*postgres.PostgresContainer, 
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(waitLogOccurrence).
 				WithStartupTimeout(startupTimeout)),
-		WithNetwork("postgres"),
+		WithNetwork(ctx, "postgres"),
 	))
 }
 
+// createMariaDBContainer creates a mariadb container attached to the test network under the alias 'mariaDB'.
+// It creates a database 'user' with user 'user' and password 'user'.
+// It is automatically terminated when the test is finished.
 func createMariaDBContainer(ctx context.Context) (*mariadb.MariaDBContainer, error) {
 	return deferTerminate(mariadb.RunContainer(ctx,
 		testcontainers.WithImage(mariaDBImage),
 		mariadb.WithDatabase("user"),
 		mariadb.WithUsername("user"),
 		mariadb.WithPassword("user"),
-		WithNetwork("mariaDB"),
+		WithNetwork(ctx, "mariaDB"),
 	))
 }
 
-const (
-	modeOwner      = 700
-	startupTimeout = 30 * time.Second
-)
-
-func createBlockyContainer(ctx context.Context, tmpDir *helpertest.TmpFolder,
+// createBlockyContainer creates a blocky container with a config provided by the given lines.
+// It is attached to the test network under the alias 'blocky'.
+// It is automatically terminated when the test is finished.
+func createBlockyContainer(ctx context.Context,
 	lines ...string,
 ) (testcontainers.Container, error) {
-	f1 := tmpDir.CreateStringFile("config1.yaml",
-		lines...,
-	)
+	confFile := createTempFile(lines...)
 
-	cfg, err := config.LoadConfig(f1.Path, true)
+	cfg, err := config.LoadConfig(confFile, true)
 	if err != nil {
 		return nil, fmt.Errorf("can't create config struct %w", err)
 	}
 
 	req := testcontainers.ContainerRequest{
-		Image:    blockyImage,
-		Networks: []string{NetworkName},
+		Image: blockyImage,
 
 		ExposedPorts: []string{"53/tcp", "53/udp", "4000/tcp"},
 
 		Files: []testcontainers.ContainerFile{
 			{
-				HostFilePath:      f1.Path,
+				HostFilePath:      confFile,
 				ContainerFilePath: "/app/config.yml",
 				FileMode:          modeOwner,
 			},
@@ -184,15 +163,12 @@ func createBlockyContainer(ctx context.Context, tmpDir *helpertest.TmpFolder,
 		WaitingFor: wait.ForHealthCheck().WithStartupTimeout(startupTimeout),
 	}
 
-	container, err := deferTerminate(testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	}))
+	container, err := startContainerWithNetwork(ctx, req, "blocky")
 	if err != nil {
 		// attach container log if error occurs
 		if r, err := container.Logs(ctx); err == nil {
 			if b, err := io.ReadAll(r); err == nil {
-				ginkgo.AddReportEntry("blocky container log", string(b))
+				AddReportEntry("blocky container log", string(b))
 			}
 		}
 
@@ -279,55 +255,25 @@ func doHTTPRequest(ctx context.Context, container testcontainers.Container, cont
 	return err
 }
 
-func doDNSRequest(ctx context.Context, container testcontainers.Container, message *dns.Msg) (*dns.Msg, error) {
-	const timeout = 5 * time.Second
+// createTempFile creates a temporary file with the given lines which is deleted after the test
+// Each created file is prefixed with 'blocky_e2e_file-'
+func createTempFile(lines ...string) string {
+	file, err := os.CreateTemp("", "blocky_e2e_file-")
+	Expect(err).Should(Succeed())
 
-	c := &dns.Client{
-		Net:     "tcp",
-		Timeout: timeout,
-	}
+	DeferCleanup(func() error {
+		return os.Remove(file.Name())
+	})
 
-	host, port, err := getContainerHostPort(ctx, container, "53/tcp")
-	if err != nil {
-		return nil, err
-	}
-
-	msg, _, err := c.Exchange(message, net.JoinHostPort(host, port))
-
-	return msg, err
-}
-
-func getContainerHostPort(ctx context.Context, c testcontainers.Container, p nat.Port) (host, port string, err error) {
-	res, err := c.MappedPort(ctx, p)
-	if err != nil {
-		return "", "", err
-	}
-
-	host, err = c.Host(ctx)
-
-	if err != nil {
-		return "", "", err
-	}
-
-	return host, res.Port(), err
-}
-
-func getContainerLogs(ctx context.Context, c testcontainers.Container) (lines []string, err error) {
-	if r, err := c.Logs(ctx); err == nil {
-		scanner := bufio.NewScanner(r)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if len(strings.TrimSpace(line)) > 0 {
-				lines = append(lines, line)
-			}
+	for i, l := range lines {
+		if i != 0 {
+			_, err := file.WriteString("\n")
+			Expect(err).Should(Succeed())
 		}
 
-		if err := scanner.Err(); err != nil {
-			return nil, err
-		}
-
-		return lines, nil
+		_, err := file.WriteString(l)
+		Expect(err).Should(Succeed())
 	}
 
-	return nil, err
+	return file.Name()
 }

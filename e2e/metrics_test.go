@@ -25,17 +25,17 @@ var _ = Describe("Metrics functional tests", func() {
 			_, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`)
 			Expect(err).Should(Succeed())
 
-			_, err = createHTTPServerContainer(ctx, "httpserver1", tmpDir, "list1.txt", "domain1.com")
+			_, err = createHTTPServerContainer(ctx, "httpserver1", "list1.txt", "domain1.com")
 			Expect(err).Should(Succeed())
 
-			_, err = createHTTPServerContainer(ctx, "httpserver2", tmpDir, "list2.txt",
+			_, err = createHTTPServerContainer(ctx, "httpserver2", "list2.txt",
 				"domain1.com", "domain2", "domain3")
 			Expect(err).Should(Succeed())
 
-			_, err = createHTTPServerContainer(ctx, "httpserver2", tmpDir, "list2.txt", "domain1.com", "domain2", "domain3")
+			_, err = createHTTPServerContainer(ctx, "httpserver2", "list2.txt", "domain1.com", "domain2", "domain3")
 			Expect(err).Should(Succeed())
 
-			blocky, err = createBlockyContainer(ctx, tmpDir,
+			blocky, err = createBlockyContainer(ctx,
 				"upstreams:",
 				"  groups:",
 				"    default:",
