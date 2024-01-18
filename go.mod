@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/abice/go-enum v0.6.0
-	github.com/alicebob/miniredis/v2 v2.31.0
+	github.com/alicebob/miniredis/v2 v2.31.1
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/avast/retry-go/v4 v4.5.1
 	github.com/creasty/defaults v1.7.0
