@@ -28,6 +28,15 @@ const (
 	retryAttempts  = 3
 )
 
+// UpstreamServerError wraps a response with RCode ServFail so no other resolver tries to use it.
+type UpstreamServerError struct {
+	Msg *dns.Msg
+}
+
+func (e *UpstreamServerError) Error() string {
+	return "upstream server failed"
+}
+
 type upstreamConfig struct {
 	config.Upstreams
 	config.Upstream
@@ -195,27 +204,31 @@ func (r *dnsUpstreamClient) callExternal(
 	return r.raceClients(ctx, msg, upstreamURL, protocol)
 }
 
+type exchangeResult struct {
+	proto model.RequestProtocol
+	msg   *dns.Msg
+	rtt   time.Duration
+	err   error
+}
+
 func (r *dnsUpstreamClient) raceClients(
 	ctx context.Context, msg *dns.Msg, upstreamURL string, protocol model.RequestProtocol,
 ) (response *dns.Msg, rtt time.Duration, err error) {
-	type result struct {
-		proto model.RequestProtocol
-		msg   *dns.Msg
-		rtt   time.Duration
-		err   error
-	}
-
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	// We don't explicitly close the channel, but since the buffer is big enough for all goroutines,
 	// it will be GC'ed and closed automatically.
-	ch := make(chan result, 2) //nolint:gomnd // TCP and UDP
+	ch := make(chan exchangeResult, 2) //nolint:gomnd // TCP and UDP
 
 	exchange := func(client *dns.Client, proto model.RequestProtocol) {
 		msg, rtt, err := client.ExchangeContext(ctx, msg, upstreamURL)
 
-		ch <- result{proto, msg, rtt, err}
+		if err == nil && msg.Rcode == dns.RcodeServerFailure {
+			err = &UpstreamServerError{msg}
+		}
+
+		ch <- exchangeResult{proto, msg, rtt, err}
 	}
 
 	go exchange(r.tcpClient, model.RequestProtocolTCP)
@@ -234,7 +247,7 @@ func (r *dnsUpstreamClient) raceClients(
 		return res2.msg, res2.rtt, nil
 	}
 
-	resWhere := func(pred func(*result) bool) *result {
+	resWhere := func(pred func(*exchangeResult) bool) *exchangeResult {
 		if pred(&res1) {
 			return &res1
 		}
@@ -244,13 +257,13 @@ func (r *dnsUpstreamClient) raceClients(
 
 	// When both failed, return the result that used the same protocol as the downstream request
 	if res1.err != nil && res2.err != nil {
-		sameProto := resWhere(func(r *result) bool { return r.proto == protocol })
+		sameProto := resWhere(func(r *exchangeResult) bool { return r.proto == protocol })
 
 		return sameProto.msg, sameProto.rtt, sameProto.err
 	}
 
 	// Only a single one failed, use the one that succeeded
-	successful := resWhere(func(r *result) bool { return r.err == nil })
+	successful := resWhere(func(r *exchangeResult) bool { return r.err == nil })
 
 	return successful.msg, successful.rtt, nil
 }
