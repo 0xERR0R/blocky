@@ -20,20 +20,27 @@ type CustomDNSResolver struct {
 	NextResolver
 	typed
 
-	mapping          map[string][]net.IP
+	mapping          map[string][]dns.RR
 	reverseAddresses map[string][]string
 }
 
 // NewCustomDNSResolver creates new resolver instance
 func NewCustomDNSResolver(cfg config.CustomDNS) *CustomDNSResolver {
-	m := make(map[string][]net.IP, len(cfg.Mapping.HostIPs))
-	reverse := make(map[string][]string, len(cfg.Mapping.HostIPs))
+	m := make(map[string][]dns.RR, len(cfg.Mapping.Entries))
+	reverse := make(map[string][]string, len(cfg.Mapping.Entries))
 
-	for url, ips := range cfg.Mapping.HostIPs {
-		m[strings.ToLower(url)] = ips
+	for url, entries := range cfg.Mapping.Entries {
+		m[strings.ToLower(url)] = entries
 
-		for _, ip := range ips {
-			r, _ := dns.ReverseAddr(ip.String())
+		for _, entry := range entries {
+			_, isA := entry.(*dns.A)
+			_, isAAAA := entry.(*dns.AAAA)
+
+			if !isA && !isAAAA {
+				continue
+			}
+
+			r, _ := dns.ReverseAddr(entry.String())
 			reverse[r] = append(reverse[r], url)
 		}
 	}
@@ -82,15 +89,47 @@ func (r *CustomDNSResolver) processRequest(request *model.Request) *model.Respon
 	response.SetReply(request.Req)
 
 	question := request.Req.Question[0]
+	remainingTTL := r.cfg.CustomTTL.SecondsU32()
 	domain := util.ExtractDomain(question)
 
 	for len(domain) > 0 {
-		ips, found := r.mapping[domain]
+		entries, found := r.mapping[domain]
+		processA := func(ip net.IP) {
+			if isSupportedType(ip, question) {
+				rr, _ := util.CreateAnswerFromQuestion(question, ip, remainingTTL)
+				response.Answer = append(response.Answer, rr)
+			}
+		}
 		if found {
-			for _, ip := range ips {
-				if isSupportedType(ip, question) {
-					rr, _ := util.CreateAnswerFromQuestion(question, ip, r.cfg.CustomTTL.SecondsU32())
-					response.Answer = append(response.Answer, rr)
+			for _, entry := range entries {
+				var ip net.IP
+				switch v := entry.(type) {
+				case *dns.A:
+					ip = net.ParseIP(v.A.String())
+					processA(ip)
+				case *dns.AAAA:
+					ip = net.ParseIP(v.AAAA.String())
+					processA(ip)
+				case *dns.CNAME:
+					cname := new(dns.CNAME)
+					cname.Hdr = dns.RR_Header{Class: dns.ClassINET, Ttl: remainingTTL, Rrtype: dns.TypeCNAME, Name: question.Name}
+					cname.Target = dns.Fqdn(v.Target)
+					response.Answer = append(response.Answer, cname)
+
+					targetWithoutDot := strings.TrimSuffix(v.Target, ".")
+					if r.mapping[targetWithoutDot] != nil {
+						_r := r.processRequest(newRequestWithClientID(targetWithoutDot, dns.Type(dns.TypeA), request.ClientIP.String(), request.RequestClientID))
+
+						response.Answer = append(response.Answer, _r.Res.Answer...)
+					} else {
+						_r, err := r.next.Resolve(context.Background(), newRequestWithClientID(targetWithoutDot, dns.Type(dns.TypeA), request.ClientIP.String(), request.RequestClientID))
+						if err != nil {
+							return nil
+						}
+
+						response.Answer = append(response.Answer, _r.Res.Answer...)
+					}
+				default:
 				}
 			}
 

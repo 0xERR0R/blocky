@@ -5,6 +5,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 )
 
@@ -16,14 +17,13 @@ type CustomDNS struct {
 	FilterUnmappedTypes bool             `yaml:"filterUnmappedTypes" default:"true"`
 }
 
-// CustomDNSMapping mapping for the custom DNS configuration
 type CustomDNSMapping struct {
-	HostIPs map[string][]net.IP `yaml:"hostIPs"`
+	Entries map[string][]dns.RR `yaml:"entries"`
 }
 
 // IsEnabled implements `config.Configurable`.
 func (c *CustomDNS) IsEnabled() bool {
-	return len(c.Mapping.HostIPs) != 0
+	return len(c.Mapping.Entries) != 0
 }
 
 // LogConfig implements `config.Configurable`.
@@ -33,7 +33,7 @@ func (c *CustomDNS) LogConfig(logger *logrus.Entry) {
 
 	logger.Info("mapping:")
 
-	for key, val := range c.Mapping.HostIPs {
+	for key, val := range c.Mapping.Entries {
 		logger.Infof("  %s = %s", key, val)
 	}
 }
@@ -44,25 +44,41 @@ func (c *CustomDNSMapping) UnmarshalYAML(unmarshal func(interface{}) error) erro
 	if err := unmarshal(&input); err != nil {
 		return err
 	}
-
-	result := make(map[string][]net.IP, len(input))
+	result := make(map[string][]dns.RR, len(input))
 
 	for k, v := range input {
-		var ips []net.IP
-
 		for _, part := range strings.Split(v, ",") {
-			ip := net.ParseIP(strings.TrimSpace(part))
-			if ip == nil {
-				return fmt.Errorf("invalid IP address '%s'", part)
+			if strings.HasPrefix(v, "CNAME:") {
+				domain := strings.TrimSpace(strings.TrimPrefix(v, "CNAME:"))
+				domain = dns.Fqdn(domain)
+				cname := &dns.CNAME{Target: domain}
+
+				if _, ok := result[k]; !ok {
+					result[k] = []dns.RR{cname}
+				} else {
+					result[k] = append(result[k], cname)
+				}
+			} else {
+				v = strings.TrimPrefix(v, "A:")
+				ip := net.ParseIP(strings.TrimSpace(v))
+
+				if ip == nil {
+					return fmt.Errorf("invalid IP address '%s'", part)
+				}
+
+				a := new(dns.A)
+				a.A = ip
+
+				if _, ok := result[k]; !ok {
+					result[k] = []dns.RR{a}
+				} else {
+					result[k] = append(result[k], a)
+				}
 			}
-
-			ips = append(ips, ip)
 		}
-
-		result[k] = ips
 	}
 
-	c.HostIPs = result
+	c.Entries = result
 
 	return nil
 }
