@@ -91,25 +91,23 @@ func (r *CustomDNSResolver) processRequest(request *model.Request) *model.Respon
 	question := request.Req.Question[0]
 	remainingTTL := r.cfg.CustomTTL.SecondsU32()
 	domain := util.ExtractDomain(question)
+	processA := func(ipStr string) {
+		ip := net.ParseIP(ipStr)
+		if isSupportedType(ip, question) {
+			rr, _ := util.CreateAnswerFromQuestion(question, ip, remainingTTL)
+			response.Answer = append(response.Answer, rr)
+		}
+	}
 
 	for len(domain) > 0 {
 		entries, found := r.mapping[domain]
-		processA := func(ip net.IP) {
-			if isSupportedType(ip, question) {
-				rr, _ := util.CreateAnswerFromQuestion(question, ip, remainingTTL)
-				response.Answer = append(response.Answer, rr)
-			}
-		}
 		if found {
 			for _, entry := range entries {
-				var ip net.IP
 				switch v := entry.(type) {
 				case *dns.A:
-					ip = net.ParseIP(v.A.String())
-					processA(ip)
+					processA(v.A.String())
 				case *dns.AAAA:
-					ip = net.ParseIP(v.AAAA.String())
-					processA(ip)
+					processA(v.AAAA.String())
 				case *dns.CNAME:
 					cname := new(dns.CNAME)
 					cname.Hdr = dns.RR_Header{Class: dns.ClassINET, Ttl: remainingTTL, Rrtype: dns.TypeCNAME, Name: question.Name}
@@ -118,10 +116,12 @@ func (r *CustomDNSResolver) processRequest(request *model.Request) *model.Respon
 
 					targetWithoutDot := strings.TrimSuffix(v.Target, ".")
 					if r.mapping[targetWithoutDot] != nil {
+						// If the target is in our local mappings, resolve it recursively
 						_r := r.processRequest(newRequestWithClientID(targetWithoutDot, dns.Type(dns.TypeA), request.ClientIP.String(), request.RequestClientID))
 
 						response.Answer = append(response.Answer, _r.Res.Answer...)
 					} else {
+						// If the target is _not_ in our local mappings, resolve it with the next resolver
 						_r, err := r.next.Resolve(context.Background(), newRequestWithClientID(targetWithoutDot, dns.Type(dns.TypeA), request.ClientIP.String(), request.RequestClientID))
 						if err != nil {
 							return nil
