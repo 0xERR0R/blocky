@@ -40,6 +40,9 @@ RUN --mount=type=bind,target=. \
   --mount=type=cache,target=/go/pkg \
   make build
 
+# set capability for privileged ports
+RUN setcap cap_net_bind_service=+ep /bin/blocky
+
 # ----------- stage: final
 FROM scratch
 
