@@ -18,7 +18,7 @@ type CustomDNS struct {
 }
 
 type CustomDNSMapping struct {
-	Entries map[string][]dns.RR `yaml:"entries"`
+	Entries map[string][]dns.RR
 }
 
 // IsEnabled implements `config.Configurable`.
