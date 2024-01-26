@@ -278,6 +278,7 @@ domain must be separated by a comma.
       mapping:
         printer.lan: 192.168.178.3
         otherdevice.lan: 192.168.178.15,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
+        anothername.lan: CNAME(otherdevice.lan)
     ```
 
 This configuration will also resolve any subdomain of the defined domain, recursively. For example querying any of
