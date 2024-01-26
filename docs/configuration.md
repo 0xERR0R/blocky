@@ -259,12 +259,12 @@ You can define your own domain name to IP mappings. For example, you can use a u
 or define a domain name for your local device on order to use the HTTPS certificate. Multiple IP addresses for one
 domain must be separated by a comma.
 
-| Parameter           | Type                                    | Mandatory | Default value |
-| ------------------- | --------------------------------------- | --------- | ------------- |
-| customTTL           | duration (no unit is minutes)           | no        | 1h            |
-| rewrite             | string: string (domain: domain)         | no        |               |
-| mapping             | string: string (hostname: address list) | no        |               |
-| filterUnmappedTypes | boolean                                 | no        | true          |
+| Parameter           | Type                                        | Mandatory | Default value |
+| ------------------- | ------------------------------------------- | --------- | ------------- |
+| customTTL           | duration (no unit is minutes)               | no        | 1h            |
+| rewrite             | string: string (domain: domain)             | no        |               |
+| mapping             | string: string (hostname: address or CNAME) | no        |               |
+| filterUnmappedTypes | boolean                                     | no        | true          |
 
 !!! example
 
