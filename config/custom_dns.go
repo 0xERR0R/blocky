@@ -76,7 +76,7 @@ func (c *CustomDNSMapping) UnmarshalYAML(unmarshal func(interface{}) error) erro
 					ip := net.ParseIP(ipStr)
 
 					if ip == nil {
-						return fmt.Errorf("inpartalid IP address '%s'", part)
+						return fmt.Errorf("invalid IP address '%s'", part)
 					}
 
 					a := new(dns.A)

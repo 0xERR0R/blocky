@@ -5,6 +5,7 @@ import (
 	"net"
 
 	"github.com/creasty/defaults"
+	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -17,13 +18,13 @@ var _ = Describe("CustomDNSConfig", func() {
 	BeforeEach(func() {
 		cfg = CustomDNS{
 			Mapping: CustomDNSMapping{
-				HostIPs: map[string][]net.IP{
-					"custom.domain": {net.ParseIP("192.168.143.123")},
-					"ip6.domain":    {net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")},
+				Entries: map[string][]dns.RR{
+					"custom.domain": {&dns.A{A: net.ParseIP("192.168.143.123")}},
+					"ip6.domain":    {&dns.AAAA{AAAA: net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")}},
 					"multiple.ips": {
-						net.ParseIP("192.168.143.123"),
-						net.ParseIP("192.168.143.125"),
-						net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334"),
+						&dns.A{A: net.ParseIP("192.168.143.123")},
+						&dns.A{A: net.ParseIP("192.168.143.125")},
+						&dns.AAAA{AAAA: net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")},
 					},
 				},
 			},
@@ -74,9 +75,10 @@ var _ = Describe("CustomDNSConfig", func() {
 				return nil
 			})
 			Expect(err).Should(Succeed())
-			Expect(c.HostIPs).Should(HaveLen(1))
-			Expect(c.HostIPs["key"]).Should(HaveLen(1))
-			Expect(c.HostIPs["key"][0]).Should(Equal(net.ParseIP("1.2.3.4")))
+			Expect(c.Entries).Should(HaveLen(1))
+			Expect(c.Entries["key"]).Should(HaveLen(1))
+			aRecord := c.Entries["key"][0].(*dns.A)
+			Expect(aRecord.A).Should(Equal(net.ParseIP("1.2.3.4")))
 		})
 
 		It("should fail if wrong YAML format", func() {

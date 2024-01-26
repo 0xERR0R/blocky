@@ -38,13 +38,13 @@ var _ = Describe("CustomDNSResolver", func() {
 		DeferCleanup(cancelFn)
 
 		cfg = config.CustomDNS{
-			Mapping: config.CustomDNSMapping{HostIPs: map[string][]net.IP{
-				"custom.domain": {net.ParseIP("192.168.143.123")},
-				"ip6.domain":    {net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")},
+			Mapping: config.CustomDNSMapping{Entries: map[string][]dns.RR{
+				"custom.domain": {&dns.A{A: net.ParseIP("192.168.143.123")}},
+				"ip6.domain":    {&dns.AAAA{AAAA: net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")}},
 				"multiple.ips": {
-					net.ParseIP("192.168.143.123"),
-					net.ParseIP("192.168.143.125"),
-					net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334"),
+					&dns.A{A: net.ParseIP("192.168.143.123")},
+					&dns.A{A: net.ParseIP("192.168.143.125")},
+					&dns.AAAA{AAAA: net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")},
 				},
 			}},
 			CustomTTL:           config.Duration(time.Duration(TTL) * time.Second),
