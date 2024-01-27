@@ -97,10 +97,16 @@ func (r *CustomDNSResolver) processRequest(ctx context.Context, request *model.R
 			for _, entry := range entries {
 				switch v := entry.(type) {
 				case *dns.A:
-					result := r.processIP(v.A, question)
+					result, err := r.processIP(v.A, question)
+					if err != nil {
+						return nil, err
+					}
 					response.Answer = append(response.Answer, result...)
 				case *dns.AAAA:
-					result := r.processIP(v.AAAA, question)
+					result, err := r.processIP(v.AAAA, question)
+					if err != nil {
+						return nil, err
+					}
 					response.Answer = append(response.Answer, result...)
 				case *dns.CNAME:
 					result, err := r.processCNAME(ctx, request, *v, question)
@@ -163,15 +169,18 @@ func (r *CustomDNSResolver) Resolve(ctx context.Context, request *model.Request)
 	return resp, nil
 }
 
-func (r *CustomDNSResolver) processIP(ip net.IP, question dns.Question) (result []dns.RR) {
+func (r *CustomDNSResolver) processIP(ip net.IP, question dns.Question) (result []dns.RR, err error) {
 	result = make([]dns.RR, 0)
 
 	if isSupportedType(ip, question) {
-		rr, _ := util.CreateAnswerFromQuestion(question, ip, r.cfg.CustomTTL.SecondsU32())
+		rr, err := util.CreateAnswerFromQuestion(question, ip, r.cfg.CustomTTL.SecondsU32())
+		if err != nil {
+			return nil, err
+		}
 		result = append(result, rr)
 	}
 
-	return result
+	return result, nil
 }
 
 func (r *CustomDNSResolver) processCNAME(ctx context.Context, request *model.Request, targetCname dns.CNAME, question dns.Question) (result []dns.RR, err error) {
