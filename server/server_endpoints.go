@@ -132,7 +132,7 @@ func (s *Server) dohPostRequestHandler(rw http.ResponseWriter, req *http.Request
 	s.processDohMessage(rawMsg, rw, req)
 }
 
-func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *http.Request) {
+func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, httpReq *http.Request) {
 	msg := new(dns.Msg)
 	if err := msg.Unpack(rawMsg); err != nil {
 		logger().Error("can't deserialize message: ", err)
@@ -141,57 +141,40 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 		return
 	}
 
-	rw.Header().Set("content-type", dnsContentType)
+	ctx, dnsReq := newRequestFromHTTP(httpReq.Context(), httpReq, msg)
 
-	writeErr := func(err error) {
-		log.Log().Error(err)
+	s.handleReq(ctx, dnsReq, httpMsgWriter{rw})
+}
 
-		msg := new(dns.Msg)
-		msg.SetRcode(msg, dns.RcodeServerFailure)
+type httpMsgWriter struct {
+	rw http.ResponseWriter
+}
 
-		buff, err := msg.Pack()
-		if err != nil {
-			return
-		}
-
-		// https://www.rfc-editor.org/rfc/rfc8484#section-4.2.1
-		rw.WriteHeader(http.StatusOK)
-
-		_, _ = rw.Write(buff)
-	}
-
-	clientID := chi.URLParam(req, "clientID")
-	if clientID == "" {
-		clientID = extractClientIDFromHost(req.Host)
-	}
-
-	ctx, r := newRequest(req.Context(), util.HTTPClientIP(req), clientID, model.RequestProtocolTCP, msg)
-
-	resResponse, err := s.resolve(ctx, r)
+func (r httpMsgWriter) WriteMsg(msg *dns.Msg) error {
+	b, err := msg.Pack()
 	if err != nil {
-		writeErr(fmt.Errorf("unable to process query: %w", err))
-
-		return
+		return err
 	}
 
-	b, err := resResponse.Res.Pack()
-	if err != nil {
-		writeErr(fmt.Errorf("can't serialize message: %w", err))
+	r.rw.Header().Set("content-type", dnsContentType)
 
-		return
-	}
+	// https://www.rfc-editor.org/rfc/rfc8484#section-4.2.1
+	r.rw.WriteHeader(http.StatusOK)
 
-	_, err = rw.Write(b)
-	log.Log().Error(fmt.Errorf("can't write response: %w", err))
+	_, err = r.rw.Write(b)
+
+	return err
 }
 
 func (s *Server) Query(
 	ctx context.Context, serverHost string, clientIP net.IP, question string, qType dns.Type,
 ) (*model.Response, error) {
-	dnsRequest := util.NewMsgWithQuestion(question, qType)
-	ctx, r := newRequest(ctx, clientIP, extractClientIDFromHost(serverHost), model.RequestProtocolTCP, dnsRequest)
+	msg := util.NewMsgWithQuestion(question, qType)
+	clientID := extractClientIDFromHost(serverHost)
 
-	return s.resolve(ctx, r)
+	ctx, req := newRequest(ctx, clientIP, clientID, model.RequestProtocolTCP, msg)
+
+	return s.resolve(ctx, req)
 }
 
 func createHTTPSRouter(cfg *config.Config) *chi.Mux {
