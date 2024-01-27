@@ -97,12 +97,10 @@ func (r *CustomDNSResolver) processRequest(ctx context.Context, request *model.R
 			for _, entry := range entries {
 				switch v := entry.(type) {
 				case *dns.A:
-					ip := net.ParseIP(v.A.String())
-					result := r.processIP(ip, question)
+					result := r.processIP(v.A, question)
 					response.Answer = append(response.Answer, result...)
 				case *dns.AAAA:
-					ip := net.ParseIP(v.AAAA.String())
-					result := r.processIP(ip, question)
+					result := r.processIP(v.AAAA, question)
 					response.Answer = append(response.Answer, result...)
 				case *dns.CNAME:
 					result, err := r.processCNAME(ctx, request, *v, question)
