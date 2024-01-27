@@ -110,7 +110,7 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 
 	logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), qType)
 
-	req := newRequest(dns.Fqdn(domainName), qType, logger)
+	req := newRequest(dns.Fqdn(domainName), qType)
 	response, err := r.next.Resolve(ctx, req)
 
 	if err == nil {

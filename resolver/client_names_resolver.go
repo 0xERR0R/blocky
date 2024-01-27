@@ -63,7 +63,7 @@ func (r *ClientNamesResolver) Resolve(ctx context.Context, request *model.Reques
 	clientNames := r.getClientNames(ctx, request)
 
 	request.ClientNames = clientNames
-	ctx, request.Log = log.CtxWithFields(ctx, logrus.Fields{"client_names": strings.Join(clientNames, "; ")})
+	ctx, _ = log.CtxWithFields(ctx, logrus.Fields{"client_names": strings.Join(clientNames, "; ")})
 
 	return r.next.Resolve(ctx, request)
 }
@@ -128,7 +128,6 @@ func (r *ClientNamesResolver) resolveClientNames(ctx context.Context, ip net.IP)
 
 	resp, err := r.externalResolver.Resolve(ctx, &model.Request{
 		Req: util.NewMsgWithQuestion(reverse, dns.Type(dns.TypePTR)),
-		Log: logger,
 	})
 	if err != nil {
 		logger.Error("can't resolve client name: ", err)

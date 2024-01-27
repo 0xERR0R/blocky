@@ -583,7 +583,6 @@ func newRequest(
 		RequestClientID: clientID,
 		Protocol:        protocol,
 		Req:             request,
-		Log:             logger,
 		RequestTS:       time.Now(),
 	}
 
