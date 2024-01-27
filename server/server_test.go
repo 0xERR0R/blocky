@@ -104,10 +104,8 @@ var _ = BeforeSuite(func() {
 		CustomDNS: config.CustomDNS{
 			CustomTTL: config.Duration(3600 * time.Second),
 			Mapping: config.CustomDNSMapping{
-				Entries: map[string][]dns.RR{
-					"custom.lan": {&dns.A{A: net.ParseIP("192.168.178.55")}},
-					"lan.home":   {&dns.A{A: net.ParseIP("192.168.178.56")}},
-				},
+				"custom.lan": {&dns.A{A: net.ParseIP("192.168.178.55")}},
+				"lan.home":   {&dns.A{A: net.ParseIP("192.168.178.56")}},
 			},
 		},
 		Conditional: config.ConditionalUpstream{
@@ -596,10 +594,8 @@ var _ = Describe("Running DNS server", func() {
 					},
 					CustomDNS: config.CustomDNS{
 						Mapping: config.CustomDNSMapping{
-							Entries: map[string][]dns.RR{
-								"custom.lan": {&dns.A{A: net.ParseIP("192.168.178.55")}},
-								"lan.home":   {&dns.A{A: net.ParseIP("192.168.178.56")}},
-							},
+							"custom.lan": {&dns.A{A: net.ParseIP("192.168.178.55")}},
+							"lan.home":   {&dns.A{A: net.ParseIP("192.168.178.56")}},
 						},
 					},
 					Blocking: config.Blocking{BlockType: "zeroIp"},
@@ -642,10 +638,8 @@ var _ = Describe("Running DNS server", func() {
 					},
 					CustomDNS: config.CustomDNS{
 						Mapping: config.CustomDNSMapping{
-							Entries: map[string][]dns.RR{
-								"custom.lan": {&dns.A{A: net.ParseIP("192.168.178.55")}},
-								"lan.home":   {&dns.A{A: net.ParseIP("192.168.178.56")}},
-							},
+							"custom.lan": {&dns.A{A: net.ParseIP("192.168.178.55")}},
+							"lan.home":   {&dns.A{A: net.ParseIP("192.168.178.56")}},
 						},
 					},
 					Blocking: config.Blocking{BlockType: "zeroIp"},

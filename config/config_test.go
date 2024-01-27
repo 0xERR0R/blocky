@@ -866,21 +866,21 @@ func defaultTestFileConfig(config *Config) {
 	Expect(config.Upstreams.Groups["default"][0].Host).Should(Equal("8.8.8.8"))
 	Expect(config.Upstreams.Groups["default"][1].Host).Should(Equal("8.8.4.4"))
 	Expect(config.Upstreams.Groups["default"][2].Host).Should(Equal("1.1.1.1"))
-	Expect(config.CustomDNS.Mapping.Entries).Should(HaveLen(2))
+	Expect(config.CustomDNS.Mapping).Should(HaveLen(2))
 
-	duckDnsEntry := config.CustomDNS.Mapping.Entries["my.duckdns.org"][0]
-	duckDnsA := duckDnsEntry.(*dns.A)
-	Expect(duckDnsA.A).Should(Equal(net.ParseIP("192.168.178.3")))
+	duckDNSEntry := config.CustomDNS.Mapping["my.duckdns.org"][0]
+	duckDNSA := duckDNSEntry.(*dns.A)
+	Expect(duckDNSA.A).Should(Equal(net.ParseIP("192.168.178.3")))
 
-	multipleIpsEntry := config.CustomDNS.Mapping.Entries["multiple.ips"][0]
+	multipleIpsEntry := config.CustomDNS.Mapping["multiple.ips"][0]
 	multipleIpsA := multipleIpsEntry.(*dns.A)
 	Expect(multipleIpsA.A).Should(Equal(net.ParseIP("192.168.178.3")))
 
-	multipleIpsEntry = config.CustomDNS.Mapping.Entries["multiple.ips"][1]
+	multipleIpsEntry = config.CustomDNS.Mapping["multiple.ips"][1]
 	multipleIpsA = multipleIpsEntry.(*dns.A)
 	Expect(multipleIpsA.A).Should(Equal(net.ParseIP("192.168.178.4")))
 
-	multipleIpsEntry = config.CustomDNS.Mapping.Entries["multiple.ips"][2]
+	multipleIpsEntry = config.CustomDNS.Mapping["multiple.ips"][2]
 	multipleIpsAAAA := multipleIpsEntry.(*dns.AAAA)
 	Expect(multipleIpsAAAA.AAAA).Should(Equal(net.ParseIP("2001:db8:85a3:8d3:1319:8a2e:370:7344")))
 

@@ -18,14 +18,12 @@ var _ = Describe("CustomDNSConfig", func() {
 	BeforeEach(func() {
 		cfg = CustomDNS{
 			Mapping: CustomDNSMapping{
-				Entries: map[string][]dns.RR{
-					"custom.domain": {&dns.A{A: net.ParseIP("192.168.143.123")}},
-					"ip6.domain":    {&dns.AAAA{AAAA: net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")}},
-					"multiple.ips": {
-						&dns.A{A: net.ParseIP("192.168.143.123")},
-						&dns.A{A: net.ParseIP("192.168.143.125")},
-						&dns.AAAA{AAAA: net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")},
-					},
+				"custom.domain": {&dns.A{A: net.ParseIP("192.168.143.123")}},
+				"ip6.domain":    {&dns.AAAA{AAAA: net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")}},
+				"multiple.ips": {
+					&dns.A{A: net.ParseIP("192.168.143.123")},
+					&dns.A{A: net.ParseIP("192.168.143.125")},
+					&dns.AAAA{AAAA: net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")},
 				},
 			},
 		}
@@ -68,21 +66,21 @@ var _ = Describe("CustomDNSConfig", func() {
 
 	Describe("UnmarshalYAML", func() {
 		It("Should parse config as map", func() {
-			c := &CustomDNSMapping{}
+			c := CustomDNSEntries{}
 			err := c.UnmarshalYAML(func(i interface{}) error {
 				*i.(*map[string]string) = map[string]string{"key": "1.2.3.4"}
 
 				return nil
 			})
 			Expect(err).Should(Succeed())
-			Expect(c.Entries).Should(HaveLen(1))
-			Expect(c.Entries["key"]).Should(HaveLen(1))
-			aRecord := c.Entries["key"][0].(*dns.A)
+			Expect(c).Should(HaveLen(1))
+
+			aRecord := c[0].(*dns.A)
 			Expect(aRecord.A).Should(Equal(net.ParseIP("1.2.3.4")))
 		})
 
 		It("should fail if wrong YAML format", func() {
-			c := &CustomDNSMapping{}
+			c := &CustomDNSEntries{}
 			err := c.UnmarshalYAML(func(i interface{}) error {
 				return errors.New("some err")
 			})

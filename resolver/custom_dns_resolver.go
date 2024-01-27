@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"strings"
 
@@ -95,31 +96,17 @@ func (r *CustomDNSResolver) processRequest(ctx context.Context, request *model.R
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
+
 		entries, found := r.mapping[domain]
+
 		if found {
 			for _, entry := range entries {
-				switch v := entry.(type) {
-				case *dns.A:
-					result, err := r.processIP(v.A, question)
-					if err != nil {
-						return nil, err
-					}
-					response.Answer = append(response.Answer, result...)
-				case *dns.AAAA:
-					result, err := r.processIP(v.AAAA, question)
-					if err != nil {
-						return nil, err
-					}
-					response.Answer = append(response.Answer, result...)
-				case *dns.CNAME:
-					result, err := r.processCNAME(ctx, request, *v, question)
-					if err != nil {
-						return nil, err
-					}
-
-					response.Answer = append(response.Answer, result...)
-				default:
+				result, err := r.processDNSEntry(ctx, request, question, entry)
+				if err != nil {
+					return nil, err
 				}
+
+				response.Answer = append(response.Answer, result...)
 			}
 
 			if len(response.Answer) > 0 {
@@ -149,12 +136,31 @@ func (r *CustomDNSResolver) processRequest(ctx context.Context, request *model.R
 	}
 
 	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
+
 	forwardResponse, err := r.next.Resolve(ctx, request)
 	if err != nil {
 		return nil, err
 	}
 
 	return forwardResponse, nil
+}
+
+func (r *CustomDNSResolver) processDNSEntry(
+	ctx context.Context,
+	request *model.Request,
+	question dns.Question,
+	entry dns.RR,
+) ([]dns.RR, error) {
+	switch v := entry.(type) {
+	case *dns.A:
+		return r.processIP(v.A, question)
+	case *dns.AAAA:
+		return r.processIP(v.AAAA, question)
+	case *dns.CNAME:
+		return r.processCNAME(ctx, request, *v, question)
+	}
+
+	return nil, fmt.Errorf("unsupported type %T", entry)
 }
 
 // Resolve uses internal mapping to resolve the query
@@ -180,32 +186,46 @@ func (r *CustomDNSResolver) processIP(ip net.IP, question dns.Question) (result 
 		if err != nil {
 			return nil, err
 		}
+
 		result = append(result, rr)
 	}
 
 	return result, nil
 }
 
-func (r *CustomDNSResolver) processCNAME(ctx context.Context, request *model.Request, targetCname dns.CNAME, question dns.Question) (result []dns.RR, err error) {
+func (r *CustomDNSResolver) processCNAME(
+	ctx context.Context,
+	request *model.Request,
+	targetCname dns.CNAME,
+	question dns.Question,
+) (result []dns.RR, err error) {
 	cname := new(dns.CNAME)
-	cname.Hdr = dns.RR_Header{Class: dns.ClassINET, Ttl: r.cfg.CustomTTL.SecondsU32(), Rrtype: dns.TypeCNAME, Name: question.Name}
+	ttl := r.cfg.CustomTTL.SecondsU32()
+	cname.Hdr = dns.RR_Header{Class: dns.ClassINET, Ttl: ttl, Rrtype: dns.TypeCNAME, Name: question.Name}
 	cname.Target = dns.Fqdn(targetCname.Target)
 	result = append(result, cname)
 
 	targetWithoutDot := strings.TrimSuffix(targetCname.Target, ".")
 
+	clientIP := request.ClientIP.String()
+	clientID := request.RequestClientID
+	aRequest := newRequestWithClientID(targetWithoutDot, dns.Type(dns.TypeA), clientIP, clientID)
+	aaaaRequest := newRequestWithClientID(targetWithoutDot, dns.Type(dns.TypeAAAA), clientIP, clientID)
+
 	// Resolve target recursively
-	targetResp, err := r.processRequest(ctx, newRequestWithClientID(targetWithoutDot, dns.Type(dns.TypeA), request.ClientIP.String(), request.RequestClientID))
+	targetResp, err := r.processRequest(ctx, aRequest)
 	if err != nil {
 		return nil, err
 	}
+
 	result = append(result, targetResp.Res.Answer...)
 
 	// Resolve ipv6 target recursively
-	targetResp, err = r.processRequest(ctx, newRequestWithClientID(targetWithoutDot, dns.Type(dns.TypeAAAA), request.ClientIP.String(), request.RequestClientID))
+	targetResp, err = r.processRequest(ctx, aaaaRequest)
 	if err != nil {
 		return nil, err
 	}
+
 	result = append(result, targetResp.Res.Answer...)
 
 	return result, nil
