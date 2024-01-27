@@ -112,7 +112,7 @@ func (r *QueryLoggingResolver) doCleanUp() {
 
 // Resolve logs the query, duration and the result
 func (r *QueryLoggingResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
-	logger := log.WithPrefix(request.Log, queryLoggingResolverType)
+	ctx, logger := r.log(ctx)
 
 	start := time.Now()
 
@@ -170,6 +170,8 @@ func (r *QueryLoggingResolver) createLogEntry(request *model.Request, response *
 
 // write entry: if log directory is configured, write to log file
 func (r *QueryLoggingResolver) writeLog(ctx context.Context) {
+	ctx, logger := r.log(ctx)
+
 	for {
 		select {
 		case logEntry := <-r.logChan:
@@ -181,8 +183,9 @@ func (r *QueryLoggingResolver) writeLog(ctx context.Context) {
 
 			// if log channel is > 50% full, this could be a problem with slow writer (external storage over network etc.)
 			if len(r.logChan) > halfCap {
-				r.log().WithField("channel_len",
-					len(r.logChan)).Warnf("query log writer is too slow, write duration: %d ms", time.Since(start).Milliseconds())
+				logger.
+					WithField("channel_len", len(r.logChan)).
+					Warnf("query log writer is too slow, write duration: %d ms", time.Since(start).Milliseconds())
 			}
 		case <-ctx.Done():
 			return

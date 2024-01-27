@@ -147,9 +147,9 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 		clientID = extractClientIDFromHost(req.Host)
 	}
 
-	r := newRequest(util.HTTPClientIP(req), clientID, model.RequestProtocolTCP, msg)
+	ctx, r := newRequest(req.Context(), util.HTTPClientIP(req), clientID, model.RequestProtocolTCP, msg)
 
-	resResponse, err := s.resolve(req.Context(), r)
+	resResponse, err := s.resolve(ctx, r)
 	if err != nil {
 		logAndResponseWithError(err, "unable to process query: ", rw)
 
@@ -173,7 +173,7 @@ func (s *Server) Query(
 	ctx context.Context, serverHost string, clientIP net.IP, question string, qType dns.Type,
 ) (*model.Response, error) {
 	dnsRequest := util.NewMsgWithQuestion(question, qType)
-	r := newRequest(clientIP, extractClientIDFromHost(serverHost), model.RequestProtocolTCP, dnsRequest)
+	ctx, r := newRequest(ctx, clientIP, extractClientIDFromHost(serverHost), model.RequestProtocolTCP, dnsRequest)
 
 	return s.resolve(ctx, r)
 }

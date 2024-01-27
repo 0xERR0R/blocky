@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
@@ -148,7 +147,7 @@ func (r *ParallelBestResolver) String() string {
 
 // Resolve sends the query request to multiple upstream resolvers and returns the fastest result
 func (r *ParallelBestResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
-	logger := log.WithPrefix(request.Log, parallelResolverType)
+	ctx, logger := r.log(ctx)
 
 	allResolvers := *r.resolvers.Load()
 

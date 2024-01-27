@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
@@ -83,7 +82,7 @@ func (r *ConditionalUpstreamResolver) processRequest(
 
 // Resolve uses the conditional resolver to resolve the query
 func (r *ConditionalUpstreamResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
-	logger := log.WithPrefix(request.Log, "conditional_resolver")
+	ctx, logger := r.log(ctx)
 
 	if len(r.mapping) > 0 {
 		resolved, resp, err := r.processRequest(ctx, request)
@@ -101,7 +100,7 @@ func (r *ConditionalUpstreamResolver) internalResolve(ctx context.Context, reso 
 	req *model.Request,
 ) (*model.Response, error) {
 	// internal request resolution
-	logger := log.WithPrefix(req.Log, "conditional_resolver")
+	ctx, logger := r.log(ctx)
 
 	req.Req.Question[0].Name = dns.Fqdn(doFQ)
 	response, err := reso.Resolve(ctx, req)

@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
@@ -105,28 +104,12 @@ func (r *CustomDNSResolver) handleReverseDNS(request *model.Request) *model.Resp
 	return nil
 }
 
-func (r *CustomDNSResolver) forwardResponse(
-	logger *logrus.Entry,
-	ctx context.Context,
-	request *model.Request,
-) (*model.Response, error) {
-	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
-
-	forwardResponse, err := r.next.Resolve(ctx, request)
-	if err != nil {
-		return nil, err
-	}
-
-	return forwardResponse, nil
-}
-
 func (r *CustomDNSResolver) processRequest(
 	ctx context.Context,
+	logger *logrus.Entry,
 	request *model.Request,
 	resolvedCnames []string,
 ) (*model.Response, error) {
-	logger := log.WithPrefix(request.Log, "custom_dns_resolver")
-
 	response := new(dns.Msg)
 	response.SetReply(request.Req)
 
@@ -142,7 +125,7 @@ func (r *CustomDNSResolver) processRequest(
 
 		if found {
 			for _, entry := range entries {
-				result, err := r.processDNSEntry(ctx, request, resolvedCnames, question, entry)
+				result, err := r.processDNSEntry(ctx, logger, request, resolvedCnames, question, entry)
 				if err != nil {
 					return nil, err
 				}
@@ -169,18 +152,21 @@ func (r *CustomDNSResolver) processRequest(
 			return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}, nil
 		}
 
-		if i := strings.Index(domain, "."); i >= 0 {
+		if i := strings.IndexRune(domain, '.'); i >= 0 {
 			domain = domain[i+1:]
 		} else {
 			break
 		}
 	}
 
-	return r.forwardResponse(logger, ctx, request)
+	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
+
+	return r.next.Resolve(ctx, request)
 }
 
 func (r *CustomDNSResolver) processDNSEntry(
 	ctx context.Context,
+	logger *logrus.Entry,
 	request *model.Request,
 	resolvedCnames []string,
 	question dns.Question,
@@ -192,7 +178,7 @@ func (r *CustomDNSResolver) processDNSEntry(
 	case *dns.AAAA:
 		return r.processIP(v.AAAA, question, v.Header().Ttl)
 	case *dns.CNAME:
-		return r.processCNAME(ctx, request, *v, resolvedCnames, question, v.Header().Ttl)
+		return r.processCNAME(ctx, logger, request, *v, resolvedCnames, question, v.Header().Ttl)
 	}
 
 	return nil, fmt.Errorf("unsupported customDNS RR type %T", entry)
@@ -200,17 +186,14 @@ func (r *CustomDNSResolver) processDNSEntry(
 
 // Resolve uses internal mapping to resolve the query
 func (r *CustomDNSResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
+	ctx, logger := r.log(ctx)
+
 	reverseResp := r.handleReverseDNS(request)
 	if reverseResp != nil {
 		return reverseResp, nil
 	}
 
-	resp, err := r.processRequest(ctx, request, make([]string, 0, len(r.cfg.Mapping)))
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
+	return r.processRequest(ctx, logger, request, make([]string, 0, len(r.cfg.Mapping)))
 }
 
 func (r *CustomDNSResolver) processIP(ip net.IP, question dns.Question, ttl uint32) (result []dns.RR, err error) {
@@ -230,6 +213,7 @@ func (r *CustomDNSResolver) processIP(ip net.IP, question dns.Question, ttl uint
 
 func (r *CustomDNSResolver) processCNAME(
 	ctx context.Context,
+	logger *logrus.Entry,
 	request *model.Request,
 	targetCname dns.CNAME,
 	resolvedCnames []string,
@@ -259,7 +243,7 @@ func (r *CustomDNSResolver) processCNAME(
 	targetRequest := newRequestWithClientID(targetWithoutDot, dns.Type(question.Qtype), clientIP, clientID)
 
 	// resolve the target recursively
-	targetResp, err := r.processRequest(ctx, targetRequest, cnames)
+	targetResp, err := r.processRequest(ctx, logger, targetRequest, cnames)
 	if err != nil {
 		return nil, err
 	}

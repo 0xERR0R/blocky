@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
@@ -59,7 +58,7 @@ func (r *RewriterResolver) LogConfig(logger *logrus.Entry) {
 
 // Resolve uses the inner resolver to resolve the rewritten query
 func (r *RewriterResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
-	logger := log.WithPrefix(request.Log, "rewriter_resolver")
+	ctx, logger := r.log(ctx)
 
 	original := request.Req
 

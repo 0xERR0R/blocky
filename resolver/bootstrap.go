@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/hashicorp/go-multierror"
@@ -70,13 +69,15 @@ func NewBootstrap(ctx context.Context, cfg *config.Config) (b *Bootstrap, err er
 		dialer:         new(net.Dialer),
 	}
 
+	ctx, logger := b.log(ctx)
+
 	bootstraped, err := newBootstrapedResolvers(b, cfg.BootstrapDNS, cfg.Upstreams)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(bootstraped) == 0 {
-		b.log().Info("bootstrapDns is not configured, will use system resolver")
+		logger.Info("bootstrapDns is not configured, will use system resolver")
 
 		return b, nil
 	}
@@ -116,10 +117,9 @@ func (b *Bootstrap) Resolve(ctx context.Context, request *model.Request) (*model
 	}
 
 	// Add bootstrap prefix to all inner resolver logs
-	req := *request
-	req.Log = log.WithPrefix(req.Log, b.Type())
+	ctx, _ = b.log(ctx)
 
-	return b.resolver.Resolve(ctx, &req)
+	return b.resolver.Resolve(ctx, request)
 }
 
 func (b *Bootstrap) UpstreamIPs(ctx context.Context, r *UpstreamResolver) (*IPSet, error) {
@@ -168,7 +168,7 @@ func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 }
 
 func (b *Bootstrap) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	logger := b.log().WithFields(logrus.Fields{"network": network, "addr": addr})
+	ctx, logger := b.logWithFields(ctx, logrus.Fields{"network": network, "addr": addr})
 
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -234,9 +234,10 @@ func (b *Bootstrap) resolveType(ctx context.Context, hostname string, qType dns.
 		return []net.IP{ip}, nil
 	}
 
+	ctx, _ = b.log(ctx)
+
 	req := model.Request{
 		Req: util.NewMsgWithQuestion(hostname, qType),
-		Log: b.log(),
 	}
 
 	rsp, err := b.resolver.Resolve(ctx, &req)

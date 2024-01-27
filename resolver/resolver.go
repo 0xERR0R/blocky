@@ -199,8 +199,22 @@ func (t *typed) String() string {
 	return t.Type()
 }
 
-func (t *typed) log() *logrus.Entry {
-	return log.PrefixedLog(t.Type())
+func (t *typed) log(ctx context.Context) (context.Context, *logrus.Entry) {
+	return t.logWith(ctx, func(logger *logrus.Entry) *logrus.Entry { return logger })
+}
+
+func (t *typed) logWithFields(ctx context.Context, fields logrus.Fields) (context.Context, *logrus.Entry) {
+	return t.logWith(ctx, func(logger *logrus.Entry) *logrus.Entry {
+		return logger.WithFields(fields)
+	})
+}
+
+func (t *typed) logWith(ctx context.Context, wrap func(*logrus.Entry) *logrus.Entry) (context.Context, *logrus.Entry) {
+	return log.WrapCtx(ctx, func(logger *logrus.Entry) *logrus.Entry {
+		logger = log.WithPrefix(logger, t.Type())
+
+		return wrap(logger)
+	})
 }
 
 // Should be embedded in a Resolver to auto-implement `config.Configurable`.
@@ -223,7 +237,7 @@ func (c *configurable[T]) LogConfig(logger *logrus.Entry) {
 }
 
 type initializable interface {
-	log() *logrus.Entry
+	log(context.Context) (context.Context, *logrus.Entry)
 	setResolvers([]*upstreamResolverStatus)
 }
 
@@ -242,7 +256,9 @@ func initGroupResolvers[T initializable](
 	}
 
 	onErr := func(err error) {
-		r.log().WithError(err).Error("upstream verification error, will continue to use bootstrap DNS")
+		_, logger := r.log(ctx)
+
+		logger.WithError(err).Error("upstream verification error, will continue to use bootstrap DNS")
 	}
 
 	err := cfg.Init.Strategy.Do(ctx, init, onErr)

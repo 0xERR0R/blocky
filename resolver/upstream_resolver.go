@@ -275,7 +275,9 @@ func NewUpstreamResolver(
 	r := newUpstreamResolverUnchecked(cfg, bootstrap)
 
 	onErr := func(err error) {
-		r.log().WithError(err).Warn("initial resolver test failed")
+		_, logger := r.log(ctx)
+
+		logger.WithError(err).Warn("initial resolver test failed")
 	}
 
 	err := cfg.Init.Strategy.Do(ctx, r.testResolve, onErr)
@@ -307,8 +309,10 @@ func (r UpstreamResolver) Upstream() config.Upstream {
 	return r.cfg.Upstream
 }
 
-func (r *UpstreamResolver) log() *logrus.Entry {
-	return r.typed.log().WithField("upstream", r.cfg.String())
+func (r *UpstreamResolver) log(ctx context.Context) (context.Context, *logrus.Entry) {
+	return r.logWithFields(ctx, logrus.Fields{
+		"upstream": r.cfg.String(),
+	})
 }
 
 // testResolve sends a test query to verify the upstream is reachable and working
@@ -322,7 +326,9 @@ func (r *UpstreamResolver) testResolve(ctx context.Context) error {
 }
 
 // Resolve calls external resolver
-func (r *UpstreamResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
+func (r *UpstreamResolver) Resolve(ctx context.Context, request *model.Request) (response *model.Response, err error) {
+	ctx, logger := r.log(ctx)
+
 	ips, err := r.bootstrap.UpstreamIPs(ctx, r)
 	if err != nil {
 		return nil, err
@@ -347,7 +353,7 @@ func (r *UpstreamResolver) Resolve(ctx context.Context, request *model.Request) 
 			}
 
 			resp = response
-			r.logResponse(request, response, ip, rtt)
+			r.logResponse(logger, request, response, ip, rtt)
 
 			return nil
 		},
@@ -358,7 +364,7 @@ func (r *UpstreamResolver) Resolve(ctx context.Context, request *model.Request) 
 		retry.LastErrorOnly(true),
 		retry.RetryIf(isTimeout),
 		retry.OnRetry(func(n uint, err error) {
-			r.log().WithFields(logrus.Fields{
+			logger.WithFields(logrus.Fields{
 				"upstream":    r.cfg.String(),
 				"upstream_ip": ip.String(),
 				"question":    util.QuestionToString(request.Req.Question),
@@ -374,8 +380,10 @@ func (r *UpstreamResolver) Resolve(ctx context.Context, request *model.Request) 
 	return &model.Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.cfg)}, nil
 }
 
-func (r *UpstreamResolver) logResponse(request *model.Request, resp *dns.Msg, ip net.IP, rtt time.Duration) {
-	r.log().WithFields(logrus.Fields{
+func (r *UpstreamResolver) logResponse(
+	logger *logrus.Entry, request *model.Request, resp *dns.Msg, ip net.IP, rtt time.Duration,
+) {
+	logger.WithFields(logrus.Fields{
 		"answer":           util.AnswerToString(resp.Answer),
 		"return_code":      dns.RcodeToString[resp.Rcode],
 		"upstream":         r.cfg.String(),
