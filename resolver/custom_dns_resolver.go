@@ -196,7 +196,13 @@ func (r *CustomDNSResolver) processCNAME(ctx context.Context, request *model.Req
 	if err != nil {
 		return nil, err
 	}
+	result = append(result, targetResp.Res.Answer...)
 
+	// Resolve ipv6 target recursively
+	targetResp, err = r.processRequest(ctx, newRequestWithClientID(targetWithoutDot, dns.Type(dns.TypeAAAA), request.ClientIP.String(), request.RequestClientID))
+	if err != nil {
+		return nil, err
+	}
 	result = append(result, targetResp.Res.Answer...)
 
 	return result, nil
