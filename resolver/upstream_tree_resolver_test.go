@@ -269,10 +269,9 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 			It("Should use one of the matching resolvers & log warning", func() {
 				logger, hook := log.NewMockEntry()
 
-				request := newRequestWithClient("example.com.", A, "0.0.0.0", "name-matches1")
-				request.Log = logger
+				ctx, _ = log.NewCtx(ctx, logger)
 
-				Expect(sut.Resolve(ctx, request)).
+				Expect(sut.Resolve(ctx, newRequestWithClient("example.com.", A, "0.0.0.0", "name-matches1"))).
 					Should(
 						SatisfyAll(
 							SatisfyAny(

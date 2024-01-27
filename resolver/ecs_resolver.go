@@ -9,6 +9,7 @@ import (
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
+	"github.com/sirupsen/logrus"
 )
 
 // https://www.rfc-editor.org/rfc/rfc7871.html#section-6
@@ -49,23 +50,26 @@ func NewECSResolver(cfg config.ECS) ChainedResolver {
 // and sets the client IP from the EDNS0 option to the request if this option is enabled
 func (r *ECSResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	if r.cfg.IsEnabled() {
+		ctx, logger := r.log(ctx)
+		_ = ctx
+
 		so := util.GetEdns0Option[*dns.EDNS0_SUBNET](request.Req)
 		// Set the client IP from the Edns0 subnet option if the option is enabled and the correct subnet mask is set
 		if r.cfg.UseAsClient && so != nil && ((so.Family == ecsFamilyIPv4 && so.SourceNetmask == ecsMaskIPv4) ||
 			(so.Family == ecsFamilyIPv6 && so.SourceNetmask == ecsMaskIPv6)) {
-			request.Log.Debugf("using request's edns0 address as internal client IP: %s", so.Address)
+			logger.Debugf("using request's edns0 address as internal client IP: %s", so.Address)
 			request.ClientIP = so.Address
 		}
 
 		// Set the Edns0 subnet option if the client IP is IPv4 or IPv6 and the masks are set in the configuration
 		if r.cfg.IPv4Mask > 0 || r.cfg.IPv6Mask > 0 {
-			r.setSubnet(so, request)
+			r.setSubnet(so, request, logger)
 		}
 
 		// Remove the Edns0 subnet option if the client IP is IPv4 or IPv6 and the corresponding mask is not set
 		// and the forwardEcs option is not enabled
 		if r.cfg.IPv4Mask == 0 && r.cfg.IPv6Mask == 0 && so != nil && !r.cfg.Forward {
-			request.Log.Debug("remove edns0 subnet option")
+			logger.Debug("remove edns0 subnet option")
 			util.RemoveEdns0Option[*dns.EDNS0_SUBNET](request.Req)
 		}
 	}
@@ -75,7 +79,7 @@ func (r *ECSResolver) Resolve(ctx context.Context, request *model.Request) (*mod
 
 // setSubnet appends the subnet information to the request as EDNS0 option
 // if the client IP is IPv4 or IPv6 and the corresponding mask is set in the configuration
-func (r *ECSResolver) setSubnet(so *dns.EDNS0_SUBNET, request *model.Request) {
+func (r *ECSResolver) setSubnet(so *dns.EDNS0_SUBNET, request *model.Request, logger *logrus.Entry) {
 	var subIP net.IP
 	if so != nil && r.cfg.Forward && so.Address != nil {
 		subIP = so.Address
@@ -96,7 +100,7 @@ func (r *ECSResolver) setSubnet(so *dns.EDNS0_SUBNET, request *model.Request) {
 	}
 
 	if edsOption != nil {
-		request.Log.Debugf("set edns0 subnet option address: %s", edsOption.Address)
+		logger.Debugf("set edns0 subnet option address: %s", edsOption.Address)
 		util.SetEdns0Option(request.Req, edsOption)
 	}
 }

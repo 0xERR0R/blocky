@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
 )
 
 // ResponseType represents the type of the response ENUM(
@@ -67,6 +66,5 @@ type Request struct {
 	Protocol        RequestProtocol
 	ClientNames     []string
 	Req             *dns.Msg
-	Log             *logrus.Entry
 	RequestTS       time.Time
 }

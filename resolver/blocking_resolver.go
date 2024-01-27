@@ -588,7 +588,6 @@ func (r *BlockingResolver) queryForFQIdentifierIPs(ctx context.Context, identifi
 	for _, qType := range []uint16{dns.TypeA, dns.TypeAAAA} {
 		resp, err := r.next.Resolve(ctx, &model.Request{
 			Req: util.NewMsgWithQuestion(identifier, dns.Type(qType)),
-			Log: logger,
 		})
 
 		if err == nil && resp.Res.Rcode == dns.RcodeSuccess {

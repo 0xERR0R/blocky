@@ -15,17 +15,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func newRequest(question string, rType dns.Type, logger ...*logrus.Entry) *model.Request {
-	var loggerEntry *logrus.Entry
-	if len(logger) == 1 {
-		loggerEntry = logger[0]
-	} else {
-		loggerEntry = logrus.NewEntry(log.Log())
-	}
-
+func newRequest(question string, rType dns.Type) *model.Request {
 	return &model.Request{
 		Req:      util.NewMsgWithQuestion(question, rType),
-		Log:      loggerEntry,
 		Protocol: model.RequestProtocolUDP,
 	}
 }
@@ -35,7 +27,6 @@ func newRequestWithClient(question string, rType dns.Type, ip string, clientName
 		ClientIP:    net.ParseIP(ip),
 		ClientNames: clientNames,
 		Req:         util.NewMsgWithQuestion(question, rType),
-		Log:         logrus.NewEntry(log.Log()),
 		RequestTS:   time.Time{},
 		Protocol:    model.RequestProtocolUDP,
 	}
@@ -59,7 +50,6 @@ func newRequestWithClientID(question string, rType dns.Type, ip, requestClientID
 		ClientIP:        net.ParseIP(ip),
 		RequestClientID: requestClientID,
 		Req:             util.NewMsgWithQuestion(question, rType),
-		Log:             logrus.NewEntry(log.Log()),
 		RequestTS:       time.Time{},
 		Protocol:        model.RequestProtocolUDP,
 	}
