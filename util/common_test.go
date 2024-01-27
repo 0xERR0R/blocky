@@ -1,6 +1,7 @@
 package util
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -153,11 +154,11 @@ var _ = Describe("Common function tests", func() {
 	Describe("Logging functions", func() {
 		When("LogOnError is called with error", func() {
 			err := errors.New("test")
-			It("should log", func() {
+			It("should log", func(ctx context.Context) {
 				hook := test.NewGlobal()
 				Log().AddHook(hook)
 				defer hook.Reset()
-				LogOnError("message ", err)
+				LogOnError(ctx, "message ", err)
 				Expect(hook.LastEntry().Message).Should(Equal("message test"))
 			})
 		})

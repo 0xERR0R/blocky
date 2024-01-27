@@ -162,7 +162,7 @@ func (r *httpUpstreamClient) callExternal(
 	}
 
 	defer func() {
-		util.LogOnError("can't close response body ", httpResponse.Body.Close())
+		util.LogOnError(ctx, "can't close response body ", httpResponse.Body.Close())
 	}()
 
 	if httpResponse.StatusCode != http.StatusOK {

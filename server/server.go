@@ -426,7 +426,9 @@ func (s *Server) registerDNSHandlers(ctx context.Context) {
 	for _, server := range s.dnsServers {
 		handler := server.Handler.(*dns.ServeMux)
 		handler.HandleFunc(".", wrappedOnRequest)
-		handler.HandleFunc("healthcheck.blocky", s.OnHealthCheck)
+		handler.HandleFunc("healthcheck.blocky", func(w dns.ResponseWriter, m *dns.Msg) {
+			s.OnHealthCheck(ctx, w, m)
+		})
 	}
 }
 
@@ -606,10 +608,10 @@ func (s *Server) OnRequest(
 		m := new(dns.Msg)
 		m.SetRcode(request, dns.RcodeServerFailure)
 		err := w.WriteMsg(m)
-		util.LogOnError("can't write message: ", err)
+		util.LogOnError(ctx, "can't write message: ", err)
 	} else {
 		err := w.WriteMsg(response.Res)
-		util.LogOnError("can't write message: ", err)
+		util.LogOnError(ctx, "can't write message: ", err)
 	}
 }
 
@@ -672,13 +674,13 @@ func getMaxResponseSize(req *model.Request) int {
 }
 
 // OnHealthCheck Handler for docker health check. Just returns OK code without delegating to resolver chain
-func (s *Server) OnHealthCheck(w dns.ResponseWriter, request *dns.Msg) {
+func (s *Server) OnHealthCheck(ctx context.Context, w dns.ResponseWriter, request *dns.Msg) {
 	resp := new(dns.Msg)
 	resp.SetReply(request)
 	resp.Rcode = dns.RcodeSuccess
 
 	err := w.WriteMsg(resp)
-	util.LogOnError("can't write message: ", err)
+	util.LogOnError(ctx, "can't write message: ", err)
 }
 
 func resolveClientIPAndProtocol(addr net.Addr) (ip net.IP, protocol model.RequestProtocol) {
