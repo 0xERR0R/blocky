@@ -48,6 +48,7 @@ var _ = Describe("CustomDNSResolver", func() {
 				},
 				"cname.domain":  {&dns.CNAME{Target: "custom.domain"}},
 				"cname.example": {&dns.CNAME{Target: "example.com"}},
+				"mx.domain":     {&dns.MX{Mx: "mx.domain"}},
 			},
 			CustomTTL:           config.Duration(time.Duration(TTL) * time.Second),
 			FilterUnmappedTypes: true,
@@ -250,6 +251,15 @@ var _ = Describe("CustomDNSResolver", func() {
 
 					// will delegate to next resolver
 					m.AssertCalled(GinkgoT(), "Resolve", mock.Anything)
+				})
+			})
+		})
+		When("An unsupported DNS query type is queried from the resolver but found in the config mapping ", func() {
+			It("an error should be returned", func() {
+				By("MX query", func() {
+					_, err := sut.Resolve(ctx, newRequest("mx.domain", MX))
+					Expect(err).Should(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("unsupported type *dns.MX"))
 				})
 			})
 		})
