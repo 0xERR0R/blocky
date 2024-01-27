@@ -68,7 +68,7 @@ var _ = Describe("CustomDNSConfig", func() {
 		It("Should parse config as map", func() {
 			c := CustomDNSEntries{}
 			err := c.UnmarshalYAML(func(i interface{}) error {
-				*i.(*map[string]string) = map[string]string{"key": "1.2.3.4"}
+				*i.(*string) = "1.2.3.4"
 
 				return nil
 			})
