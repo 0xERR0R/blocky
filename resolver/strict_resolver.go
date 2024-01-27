@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
@@ -74,7 +73,7 @@ func (r *StrictResolver) String() string {
 
 // Resolve sends the query request in a strict order to the upstream resolvers
 func (r *StrictResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
-	logger := log.WithPrefix(request.Log, strictResolverType)
+	ctx, logger := r.log(ctx)
 
 	// start with first resolver
 	for _, resolver := range *r.resolvers.Load() {

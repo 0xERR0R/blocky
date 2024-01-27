@@ -63,7 +63,7 @@ func (r *ClientNamesResolver) Resolve(ctx context.Context, request *model.Reques
 	clientNames := r.getClientNames(ctx, request)
 
 	request.ClientNames = clientNames
-	request.Log = request.Log.WithField("client_names", strings.Join(clientNames, "; "))
+	ctx, request.Log = log.CtxWithFields(ctx, logrus.Fields{"client_names": strings.Join(clientNames, "; ")})
 
 	return r.next.Resolve(ctx, request)
 }
@@ -88,7 +88,7 @@ func (r *ClientNamesResolver) getClientNames(ctx context.Context, request *model
 		return cpy
 	}
 
-	names := r.resolveClientNames(ctx, ip, log.WithPrefix(request.Log, "client_names_resolver"))
+	names := r.resolveClientNames(ctx, ip)
 
 	r.cache.Put(ip.String(), &names, time.Hour)
 
@@ -111,9 +111,9 @@ func extractClientNamesFromAnswer(answer []dns.RR, fallbackIP net.IP) (clientNam
 }
 
 // tries to resolve client name from mapping, performs reverse DNS lookup otherwise
-func (r *ClientNamesResolver) resolveClientNames(
-	ctx context.Context, ip net.IP, logger *logrus.Entry,
-) (result []string) {
+func (r *ClientNamesResolver) resolveClientNames(ctx context.Context, ip net.IP) (result []string) {
+	ctx, logger := r.log(ctx)
+
 	// try client mapping first
 	result = r.getNameFromIPMapping(ip, result)
 	if len(result) > 0 {

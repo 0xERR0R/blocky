@@ -174,18 +174,20 @@ func NewBlockingResolver(ctx context.Context,
 }
 
 func (r *BlockingResolver) redisSubscriber(ctx context.Context) {
+	ctx, logger := r.log(ctx)
+
 	for {
 		select {
 		case em := <-r.redisClient.EnabledChannel:
 			if em != nil {
-				r.log().Debug("Received state from redis: ", em)
+				logger.Debug("Received state from redis: ", em)
 
 				if em.State {
 					r.internalEnableBlocking()
 				} else {
 					err := r.internalDisableBlocking(ctx, em.Duration, em.Groups)
 					if err != nil {
-						r.log().Warn("Blocking couldn't be disabled:", err)
+						logger.Warn("Blocking couldn't be disabled:", err)
 					}
 				}
 			}
@@ -394,7 +396,7 @@ func (r *BlockingResolver) handleBlacklist(ctx context.Context, groupsToCheck []
 
 // Resolve checks the query against the blacklist and delegates to next resolver if domain is not blocked
 func (r *BlockingResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
-	logger := log.WithPrefix(request.Log, "blacklist_resolver")
+	ctx, logger := r.log(ctx)
 	groupsToCheck := r.groupsToCheckForClient(request)
 
 	if len(groupsToCheck) > 0 {
@@ -575,7 +577,9 @@ func (b ipBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
 }
 
 func (r *BlockingResolver) queryForFQIdentifierIPs(ctx context.Context, identifier string) (*[]net.IP, time.Duration) {
-	prefixedLog := log.WithPrefix(r.log(), "client_id_cache")
+	ctx, logger := r.logWith(ctx, func(logger *logrus.Entry) *logrus.Entry {
+		return log.WithPrefix(logger, "client_id_cache")
+	})
 
 	var result []net.IP
 
@@ -584,7 +588,7 @@ func (r *BlockingResolver) queryForFQIdentifierIPs(ctx context.Context, identifi
 	for _, qType := range []uint16{dns.TypeA, dns.TypeAAAA} {
 		resp, err := r.next.Resolve(ctx, &model.Request{
 			Req: util.NewMsgWithQuestion(identifier, dns.Type(qType)),
-			Log: prefixedLog,
+			Log: logger,
 		})
 
 		if err == nil && resp.Res.Rcode == dns.RcodeSuccess {
@@ -598,9 +602,14 @@ func (r *BlockingResolver) queryForFQIdentifierIPs(ctx context.Context, identifi
 					result = append(result, v.AAAA)
 				}
 			}
-
-			prefixedLog.Debugf("resolved IPs '%v' for fq identifier '%s'", result, identifier)
 		}
+	}
+
+	if len(result) != 0 {
+		logger.WithFields(logrus.Fields{
+			"ips":       result,
+			"client_id": identifier,
+		}).Debug("resolved client IPs")
 	}
 
 	return &result, ttl

@@ -563,19 +563,22 @@ func extractClientIDFromHost(hostName string) string {
 }
 
 func newRequest(
+	ctx context.Context,
 	clientIP net.IP, clientID string,
 	protocol model.RequestProtocol, request *dns.Msg,
-) *model.Request {
-	return &model.Request{
+) (context.Context, *model.Request) {
+	ctx, logger := log.CtxWithFields(ctx, logrus.Fields{
+		"question":  util.QuestionToString(request.Question),
+		"client_ip": clientIP,
+	})
+
+	return ctx, &model.Request{
 		ClientIP:        clientIP,
 		RequestClientID: clientID,
 		Protocol:        protocol,
 		Req:             request,
-		Log: log.Log().WithFields(logrus.Fields{
-			"question":  util.QuestionToString(request.Question),
-			"client_ip": clientIP,
-		}),
-		RequestTS: time.Now(),
+		Log:             logger,
+		RequestTS:       time.Now(),
 	}
 }
 
@@ -594,7 +597,7 @@ func (s *Server) OnRequest(
 		hostName = con.ConnectionState().ServerName
 	}
 
-	req := newRequest(clientIP, extractClientIDFromHost(hostName), protocol, request)
+	ctx, req := newRequest(ctx, clientIP, extractClientIDFromHost(hostName), protocol, request)
 
 	response, err := s.resolve(ctx, req)
 	if err != nil {

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/sirupsen/logrus"
@@ -106,9 +105,9 @@ func (r *UpstreamTreeResolver) String() string {
 }
 
 func (r *UpstreamTreeResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
-	logger := log.WithPrefix(request.Log, upstreamTreeResolverType)
+	ctx, logger := r.log(ctx)
 
-	group := r.upstreamGroupByClient(request)
+	group := r.upstreamGroupByClient(logger, request)
 
 	// delegate request to group resolver
 	logger.WithField("resolver", fmt.Sprintf("%s (%s)", group, r.branches[group].Type())).Debug("delegating to resolver")
@@ -116,7 +115,7 @@ func (r *UpstreamTreeResolver) Resolve(ctx context.Context, request *model.Reque
 	return r.branches[group].Resolve(ctx, request)
 }
 
-func (r *UpstreamTreeResolver) upstreamGroupByClient(request *model.Request) string {
+func (r *UpstreamTreeResolver) upstreamGroupByClient(logger *logrus.Entry, request *model.Request) string {
 	groups := make([]string, 0, len(r.branches))
 	clientIP := request.ClientIP.String()
 
@@ -145,7 +144,7 @@ func (r *UpstreamTreeResolver) upstreamGroupByClient(request *model.Request) str
 
 	if len(groups) > 0 {
 		if len(groups) > 1 {
-			request.Log.WithFields(logrus.Fields{
+			logger.WithFields(logrus.Fields{
 				"clientNames": request.ClientNames,
 				"clientIP":    clientIP,
 				"groups":      groups,

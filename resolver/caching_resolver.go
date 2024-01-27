@@ -10,7 +10,6 @@ import (
 	"github.com/0xERR0R/blocky/cache/expirationcache"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
-	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
@@ -107,7 +106,7 @@ func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Cachin
 
 func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string) (*[]byte, time.Duration) {
 	qType, domainName := util.ExtractCacheKey(cacheKey)
-	logger := r.log()
+	ctx, logger := r.log(ctx)
 
 	logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), qType)
 
@@ -133,11 +132,13 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 }
 
 func (r *CachingResolver) redisSubscriber(ctx context.Context) {
+	ctx, logger := r.log(ctx)
+
 	for {
 		select {
 		case rc := <-r.redisClient.CacheChannel:
 			if rc != nil {
-				r.log().Debug("Received key from redis: ", rc.Key)
+				logger.Debug("Received key from redis: ", rc.Key)
 				ttl := r.adjustTTLs(rc.Response.Res.Answer)
 				r.putInCache(rc.Key, rc.Response, ttl, false)
 			}
@@ -158,7 +159,7 @@ func (r *CachingResolver) LogConfig(logger *logrus.Entry) {
 // Resolve checks if the current query should use the cache and if the result is already in
 // the cache and returns it or delegates to the next resolver
 func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (response *model.Response, err error) {
-	logger := log.WithPrefix(request.Log, "caching_resolver")
+	ctx, logger := r.log(ctx)
 
 	if !r.IsEnabled() || !isRequestCacheable(request) {
 		logger.Debug("skip cache")
@@ -171,7 +172,7 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 		cacheKey := util.GenerateCacheKey(dns.Type(question.Qtype), domain)
 		logger := logger.WithField("domain", util.Obfuscate(domain))
 
-		val, ttl := r.getFromCache(cacheKey)
+		val, ttl := r.getFromCache(logger, cacheKey)
 
 		if val != nil {
 			logger.Debug("domain is cached")
@@ -200,7 +201,7 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 	return response, err
 }
 
-func (r *CachingResolver) getFromCache(key string) (*dns.Msg, time.Duration) {
+func (r *CachingResolver) getFromCache(logger *logrus.Entry, key string) (*dns.Msg, time.Duration) {
 	val, ttl := r.resultCache.Get(key)
 	if val == nil {
 		return nil, 0
@@ -210,7 +211,7 @@ func (r *CachingResolver) getFromCache(key string) (*dns.Msg, time.Duration) {
 
 	err := res.Unpack(*val)
 	if err != nil {
-		r.log().Error("can't unpack cached entry. Cache malformed?", err)
+		logger.Error("can't unpack cached entry. Cache malformed?", err)
 
 		return nil, 0
 	}
@@ -317,7 +318,9 @@ func (r *CachingResolver) publishMetricsIfEnabled(event string, val interface{})
 	}
 }
 
-func (r *CachingResolver) FlushCaches(context.Context) {
-	r.log().Debug("flush caches")
+func (r *CachingResolver) FlushCaches(ctx context.Context) {
+	_, logger := r.log(ctx)
+
+	logger.Debug("flush caches")
 	r.resultCache.Clear()
 }

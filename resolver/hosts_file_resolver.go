@@ -46,7 +46,8 @@ func NewHostsFileResolver(ctx context.Context,
 	}
 
 	err := cfg.Loading.StartPeriodicRefresh(ctx, r.loadSources, func(err error) {
-		r.log().WithError(err).Errorf("could not load hosts files")
+		_, logger := r.log(ctx)
+		logger.WithError(err).Errorf("could not load hosts files")
 	})
 	if err != nil {
 		return nil, err
@@ -114,6 +115,8 @@ func (r *HostsFileResolver) Resolve(ctx context.Context, request *model.Request)
 		return r.next.Resolve(ctx, request)
 	}
 
+	ctx, logger := r.log(ctx)
+
 	reverseResp := r.handleReverseDNS(request)
 	if reverseResp != nil {
 		return reverseResp, nil
@@ -124,7 +127,7 @@ func (r *HostsFileResolver) Resolve(ctx context.Context, request *model.Request)
 
 	response := r.resolve(request.Req, question, domain)
 	if response != nil {
-		r.log().WithFields(logrus.Fields{
+		logger.WithFields(logrus.Fields{
 			"answer": util.AnswerToString(response.Answer),
 			"domain": util.Obfuscate(domain),
 		}).Debugf("returning hosts file entry")
@@ -132,7 +135,7 @@ func (r *HostsFileResolver) Resolve(ctx context.Context, request *model.Request)
 		return &model.Response{Res: response, RType: model.ResponseTypeHOSTSFILE, Reason: "HOSTS FILE"}, nil
 	}
 
-	r.log().WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
+	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
 
 	return r.next.Resolve(ctx, request)
 }
@@ -157,7 +160,9 @@ func (r *HostsFileResolver) loadSources(ctx context.Context) error {
 		return nil
 	}
 
-	r.log().Debug("loading hosts files")
+	ctx, logger := r.log(ctx)
+
+	logger.Debug("loading hosts files")
 
 	//nolint:ineffassign,staticcheck,wastedassign // keep `ctx :=` so if we use ctx in the future, we use the correct one
 	consumersGrp, ctx := jobgroup.WithContext(ctx)
@@ -220,7 +225,9 @@ func (r *HostsFileResolver) parseFile(
 
 	p := parsers.AllowErrors(parsers.HostsFile(reader), r.cfg.Loading.MaxErrorsPerSource)
 	p.OnErr(func(err error) {
-		r.log().Warnf("error parsing %s: %s, trying to continue", opener, err)
+		_, logger := r.log(ctx)
+
+		logger.Warnf("error parsing %s: %s, trying to continue", opener, err)
 	})
 
 	return parsers.ForEach[*HostsFileEntry](ctx, p, func(entry *HostsFileEntry) error {
