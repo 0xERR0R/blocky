@@ -125,7 +125,7 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 			return &packed, r.adjustTTLs(response.Res.Answer)
 		}
 	} else {
-		util.LogOnError(fmt.Sprintf("can't prefetch '%s' ", domainName), err)
+		util.LogOnError(ctx, fmt.Sprintf("can't prefetch '%s' ", domainName), err)
 	}
 
 	return nil, 0
@@ -140,7 +140,7 @@ func (r *CachingResolver) redisSubscriber(ctx context.Context) {
 			if rc != nil {
 				logger.Debug("Received key from redis: ", rc.Key)
 				ttl := r.adjustTTLs(rc.Response.Res.Answer)
-				r.putInCache(rc.Key, rc.Response, ttl, false)
+				r.putInCache(ctx, rc.Key, rc.Response, ttl, false)
 			}
 
 		case <-ctx.Done():
@@ -194,7 +194,7 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 
 		if err == nil {
 			cacheTTL := r.adjustTTLs(response.Res.Answer)
-			r.putInCache(cacheKey, response, cacheTTL, true)
+			r.putInCache(ctx, cacheKey, response, cacheTTL, true)
 		}
 	}
 
@@ -250,8 +250,8 @@ func isResponseCacheable(msg *dns.Msg) bool {
 	return !msg.Truncated && !msg.CheckingDisabled
 }
 
-func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, ttl time.Duration,
-	publish bool,
+func (r *CachingResolver) putInCache(
+	ctx context.Context, cacheKey string, response *model.Response, ttl time.Duration, publish bool,
 ) {
 	respCopy := response.Res.Copy()
 
@@ -259,7 +259,7 @@ func (r *CachingResolver) putInCache(cacheKey string, response *model.Response, 
 	util.RemoveEdns0Record(respCopy)
 
 	packed, err := respCopy.Pack()
-	util.LogOnError("error on packing", err)
+	util.LogOnError(ctx, "error on packing", err)
 
 	if err == nil {
 		if response.Res.Rcode == dns.RcodeSuccess && isResponseCacheable(response.Res) {

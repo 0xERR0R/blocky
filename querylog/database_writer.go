@@ -128,7 +128,7 @@ func (d *DatabaseWriter) periodicFlush(ctx context.Context) {
 		case <-ticker.C:
 			err := d.doDBWrite()
 
-			util.LogOnError("can't write entries to the database: ", err)
+			util.LogOnError(ctx, "can't write entries to the database: ", err)
 
 		case <-ctx.Done():
 			return

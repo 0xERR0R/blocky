@@ -1,6 +1,7 @@
 package util
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -154,9 +155,9 @@ func IterateValueSorted(in map[string]int, fn func(string, int)) {
 }
 
 // LogOnError logs the message only if error is not nil
-func LogOnError(message string, err error) {
+func LogOnError(ctx context.Context, message string, err error) {
 	if err != nil {
-		log.Log().Error(message, err)
+		log.FromCtx(ctx).Error(message, err)
 	}
 }
 
