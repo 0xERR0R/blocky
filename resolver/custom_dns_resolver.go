@@ -34,15 +34,19 @@ func NewCustomDNSResolver(cfg config.CustomDNS) *CustomDNSResolver {
 		m[strings.ToLower(url)] = entries
 
 		for _, entry := range entries {
-			_, isA := entry.(*dns.A)
-			_, isAAAA := entry.(*dns.AAAA)
+			a, isA := entry.(*dns.A)
 
-			if !isA && !isAAAA {
-				continue
+			if isA {
+				r, _ := dns.ReverseAddr(a.A.String())
+				reverse[r] = append(reverse[r], url)
 			}
 
-			r, _ := dns.ReverseAddr(entry.String())
-			reverse[r] = append(reverse[r], url)
+			aaaa, isAAAA := entry.(*dns.AAAA)
+
+			if isAAAA {
+				r, _ := dns.ReverseAddr(aaaa.AAAA.String())
+				reverse[r] = append(reverse[r], url)
+			}
 		}
 	}
 
