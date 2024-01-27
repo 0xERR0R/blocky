@@ -25,6 +25,7 @@ var _ = Describe("CustomDNSConfig", func() {
 					&dns.A{A: net.ParseIP("192.168.143.125")},
 					&dns.AAAA{AAAA: net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")},
 				},
+				"cname.domain": {&dns.CNAME{Target: "custom.domain"}},
 			},
 		}
 	})
@@ -59,7 +60,9 @@ var _ = Describe("CustomDNSConfig", func() {
 			Expect(hook.Calls).ShouldNot(BeEmpty())
 			Expect(hook.Messages).Should(ContainElements(
 				ContainSubstring("custom.domain = "),
+				ContainSubstring("ip6.domain = "),
 				ContainSubstring("multiple.ips = "),
+				ContainSubstring("cname.domain = "),
 			))
 		})
 	})

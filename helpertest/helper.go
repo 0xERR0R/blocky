@@ -212,6 +212,8 @@ func (matcher *dnsRecordMatcher) matchSingle(rr dns.RR) (success bool, err error
 		return v.A.String() == matcher.answer, nil
 	case *dns.AAAA:
 		return v.AAAA.String() == matcher.answer, nil
+	case *dns.CNAME:
+		return v.Target == matcher.answer, nil
 	case *dns.PTR:
 		return v.Ptr == matcher.answer, nil
 	case *dns.MX:

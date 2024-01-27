@@ -46,6 +46,8 @@ var _ = Describe("CustomDNSResolver", func() {
 					&dns.A{A: net.ParseIP("192.168.143.125")},
 					&dns.AAAA{AAAA: net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")},
 				},
+				"cname.domain":  {&dns.CNAME{Target: "custom.domain"}},
+				"cname.example": {&dns.CNAME{Target: "example.com"}},
 			},
 			CustomTTL:           config.Duration(time.Duration(TTL) * time.Second),
 			FilterUnmappedTypes: true,
@@ -208,6 +210,46 @@ var _ = Describe("CustomDNSResolver", func() {
 
 					// will not delegate to next resolver
 					m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
+				})
+			})
+		})
+		When("A CNAME record is defined for custom domain ", func() {
+			It("all CNAMES for the current type should be returned when relying on other Mappings", func() {
+				By("CNAME query", func() {
+					Expect(sut.Resolve(ctx, newRequest("cname.domain", CNAME))).
+						Should(
+							SatisfyAll(
+								WithTransform(ToAnswer, SatisfyAll(
+									HaveLen(2),
+									ContainElements(
+										BeDNSRecord("cname.domain.", CNAME, "custom.domain."),
+										BeDNSRecord("custom.domain.", A, "192.168.143.123")),
+								)),
+								HaveResponseType(ResponseTypeCUSTOMDNS),
+								HaveReason("CUSTOM DNS"),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
+
+					// will not delegate to next resolver
+					m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
+				})
+			})
+			It("all CNAMES for the current type should be returned when relying on public DNS", func() {
+				By("CNAME query", func() {
+					Expect(sut.Resolve(ctx, newRequest("cname.example", CNAME))).
+						Should(
+							SatisfyAll(
+								WithTransform(ToAnswer, SatisfyAll(
+									ContainElements(
+										BeDNSRecord("cname.example.", CNAME, "example.com.")),
+								)),
+								HaveResponseType(ResponseTypeCUSTOMDNS),
+								HaveReason("CUSTOM DNS"),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
+
+					// will delegate to next resolver
+					m.AssertCalled(GinkgoT(), "Resolve", mock.Anything)
 				})
 			})
 		})
