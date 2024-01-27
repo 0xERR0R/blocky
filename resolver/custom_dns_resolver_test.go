@@ -79,6 +79,17 @@ var _ = Describe("CustomDNSResolver", func() {
 	})
 
 	Describe("Resolving custom name via CustomDNSResolver", func() {
+		When("The parent context has an error ", func() {
+			It("should return the error", func() {
+				cancelledCtx, cancel := context.WithCancel(context.Background())
+				cancel()
+
+				_, err := sut.Resolve(cancelledCtx, newRequest("custom.domain.", A))
+
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("context canceled"))
+			})
+		})
 		When("Ip 4 mapping is defined for custom domain and", func() {
 			Context("filterUnmappedTypes is true", func() {
 				BeforeEach(func() { cfg.FilterUnmappedTypes = true })
