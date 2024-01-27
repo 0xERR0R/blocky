@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"time"
 
@@ -88,6 +89,23 @@ var _ = Describe("CustomDNSResolver", func() {
 
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("context canceled"))
+			})
+		})
+
+		When("The forward request returns an error ", func() {
+			JustBeforeEach(func() {
+				err := fmt.Errorf("forward error")
+				m = &mockResolver{}
+				m.On("Resolve", mock.Anything).Return(nil, err)
+
+				sut.Next(m)
+			})
+
+			It("should return the error", func() {
+				_, err := sut.Resolve(ctx, newRequest("cname.example.", CNAME))
+
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("forward error"))
 			})
 		})
 		When("Ip 4 mapping is defined for custom domain and", func() {
