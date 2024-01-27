@@ -611,6 +611,8 @@ func (s *Server) OnRequest(
 
 func (s *Server) resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	var response *model.Response
+	ctx, cancel := context.WithTimeout(ctx, 100*s.cfg.Upstreams.Timeout.ToDuration())
+	defer cancel()
 
 	switch {
 	case len(request.Req.Question) == 0:

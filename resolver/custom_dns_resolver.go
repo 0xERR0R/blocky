@@ -92,6 +92,9 @@ func (r *CustomDNSResolver) processRequest(ctx context.Context, request *model.R
 	domain := util.ExtractDomain(question)
 
 	for len(domain) > 0 {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		entries, found := r.mapping[domain]
 		if found {
 			for _, entry := range entries {
