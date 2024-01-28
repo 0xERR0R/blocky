@@ -110,7 +110,8 @@ var _ = Describe("CustomDNSResolver", func() {
 				m = &mockResolver{}
 
 				// The first call is for ipv4, the second for ipv6
-				m.On("Resolve", mock.Anything).Once().Return(&Response{Res: new(dns.Msg)}, nil).Return(nil, err)
+				m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil).Once()
+				m.On("Resolve", mock.Anything).Return(nil, err).Once()
 
 				sut.Next(m)
 				_, err = sut.Resolve(ctx, newRequest("cname.example.", CNAME))
