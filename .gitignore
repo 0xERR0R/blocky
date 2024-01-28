@@ -15,4 +15,4 @@ vendor/
 coverage.html
 coverage.txt
 coverage/
-./blocky
+blocky
