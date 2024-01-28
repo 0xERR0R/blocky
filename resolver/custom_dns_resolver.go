@@ -15,10 +15,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type createAnswerFunc func(question dns.Question, ip net.IP, ttl uint32) (dns.RR, error)
+
 // CustomDNSResolver resolves passed domain name to ip address defined in domain-IP map
 type CustomDNSResolver struct {
 	configurable[*config.CustomDNS]
-	CreateAnswerFromQuestion func(question dns.Question, ip net.IP, ttl uint32) (dns.RR, error)
+	createAnswerFromQuestion createAnswerFunc
 	NextResolver
 	typed
 
@@ -53,7 +55,7 @@ func NewCustomDNSResolver(cfg config.CustomDNS) *CustomDNSResolver {
 
 	return &CustomDNSResolver{
 		configurable:             withConfig(&cfg),
-		CreateAnswerFromQuestion: util.CreateAnswerFromQuestion,
+		createAnswerFromQuestion: util.CreateAnswerFromQuestion,
 		typed:                    withType("custom_dns"),
 
 		mapping:          m,
@@ -188,7 +190,7 @@ func (r *CustomDNSResolver) processIP(ip net.IP, question dns.Question) (result 
 	result = make([]dns.RR, 0)
 
 	if isSupportedType(ip, question) {
-		rr, err := r.CreateAnswerFromQuestion(question, ip, r.cfg.CustomTTL.SecondsU32())
+		rr, err := r.createAnswerFromQuestion(question, ip, r.cfg.CustomTTL.SecondsU32())
 		if err != nil {
 			return nil, err
 		}
@@ -235,4 +237,8 @@ func (r *CustomDNSResolver) processCNAME(
 	result = append(result, targetResp.Res.Answer...)
 
 	return result, nil
+}
+
+func (r *CustomDNSResolver) CreateAnswerFromQuestion(newFunc createAnswerFunc) {
+	r.createAnswerFromQuestion = newFunc
 }

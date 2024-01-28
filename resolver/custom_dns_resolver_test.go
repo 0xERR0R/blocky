@@ -97,7 +97,7 @@ var _ = Describe("CustomDNSResolver", func() {
 					return nil, fmt.Errorf("create answer error")
 				}
 
-				sut.CreateAnswerFromQuestion = createAnswerMock
+				sut.CreateAnswerFromQuestion(createAnswerMock)
 
 				_, err := sut.Resolve(ctx, newRequest("custom.domain.", A))
 
