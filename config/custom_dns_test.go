@@ -90,7 +90,7 @@ var _ = Describe("CustomDNSConfig", func() {
 				return nil
 			})
 			Expect(err).Should(HaveOccurred())
-			Expect(err).Should(MatchError("When a CNAME record is present, it must be the only record in the mapping"))
+			Expect(err).Should(MatchError("when a CNAME record is present, it must be the only record in the mapping"))
 		})
 
 		It("should fail if wrong YAML format", func() {

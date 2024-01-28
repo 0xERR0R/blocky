@@ -45,7 +45,7 @@ func (c *CustomDNSEntries) UnmarshalYAML(unmarshal func(interface{}) error) erro
 	}
 
 	if containsCNAME && len(result) > 1 {
-		return fmt.Errorf("When a CNAME record is present, it must be the only record in the mapping")
+		return fmt.Errorf("when a CNAME record is present, it must be the only record in the mapping")
 	}
 
 	*c = result
