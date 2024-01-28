@@ -93,16 +93,27 @@ var _ = Describe("CustomDNSResolver", func() {
 		})
 
 		When("The forward request returns an error ", func() {
-			JustBeforeEach(func() {
+			It("should return the error if the error occurs when checking ipv4 forward addresses", func() {
 				err := fmt.Errorf("forward error")
 				m = &mockResolver{}
+
 				m.On("Resolve", mock.Anything).Return(nil, err)
 
 				sut.Next(m)
-			})
+				_, err = sut.Resolve(ctx, newRequest("cname.example.", CNAME))
 
-			It("should return the error", func() {
-				_, err := sut.Resolve(ctx, newRequest("cname.example.", CNAME))
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("forward error"))
+			})
+			It("should return the error if the error occurs when checking ipv6 forward addresses", func() {
+				err := fmt.Errorf("forward error")
+				m = &mockResolver{}
+
+				// The first call is for ipv4, the second for ipv6
+				m.On("Resolve", mock.Anything).Once().Return(&Response{Res: new(dns.Msg)}, nil).Return(nil, err)
+
+				sut.Next(m)
+				_, err = sut.Resolve(ctx, newRequest("cname.example.", CNAME))
 
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("forward error"))
