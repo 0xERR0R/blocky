@@ -30,6 +30,7 @@ func (c *CustomDNSEntries) UnmarshalYAML(unmarshal func(interface{}) error) erro
 
 	parts := strings.Split(input, ",")
 	result := make(CustomDNSEntries, len(parts))
+	containsCNAME := false
 
 	for i, part := range parts {
 		rr, err := configToRR(part)
@@ -37,7 +38,14 @@ func (c *CustomDNSEntries) UnmarshalYAML(unmarshal func(interface{}) error) erro
 			return err
 		}
 
+		_, isCNAME := rr.(*dns.CNAME)
+		containsCNAME = containsCNAME || isCNAME
+
 		result[i] = rr
+	}
+
+	if containsCNAME && len(result) > 1 {
+		return fmt.Errorf("When a CNAME record is present, it must be the only record in the mapping")
 	}
 
 	*c = result
