@@ -615,8 +615,12 @@ func (s *Server) OnRequest(
 	}
 }
 
-func (s *Server) resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
-	var response *model.Response
+func (s *Server) resolve(ctx context.Context, request *model.Request) (response *model.Response, rerr error) {
+	defer func() {
+		if val := recover(); val != nil {
+			rerr = fmt.Errorf("panic occurred: %v", val)
+		}
+	}()
 
 	contextUpstreamTimeoutMultiplier := 100
 	timeoutDuration := time.Duration(contextUpstreamTimeoutMultiplier) * s.cfg.Upstreams.Timeout.ToDuration()

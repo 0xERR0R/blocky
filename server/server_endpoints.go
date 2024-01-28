@@ -134,12 +134,30 @@ func (s *Server) dohPostRequestHandler(rw http.ResponseWriter, req *http.Request
 
 func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *http.Request) {
 	msg := new(dns.Msg)
-
 	if err := msg.Unpack(rawMsg); err != nil {
 		logger().Error("can't deserialize message: ", err)
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 
 		return
+	}
+
+	rw.Header().Set("content-type", dnsContentType)
+
+	writeErr := func(err error) {
+		log.Log().Error(err)
+
+		msg := new(dns.Msg)
+		msg.SetRcode(msg, dns.RcodeServerFailure)
+
+		buff, err := msg.Pack()
+		if err != nil {
+			return
+		}
+
+		// https://www.rfc-editor.org/rfc/rfc8484#section-4.2.1
+		rw.WriteHeader(http.StatusOK)
+
+		_, _ = rw.Write(buff)
 	}
 
 	clientID := chi.URLParam(req, "clientID")
@@ -151,22 +169,20 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, req *h
 
 	resResponse, err := s.resolve(ctx, r)
 	if err != nil {
-		logAndResponseWithError(err, "unable to process query: ", rw)
+		writeErr(fmt.Errorf("unable to process query: %w", err))
 
 		return
 	}
 
 	b, err := resResponse.Res.Pack()
 	if err != nil {
-		logAndResponseWithError(err, "can't serialize message: ", rw)
+		writeErr(fmt.Errorf("can't serialize message: %w", err))
 
 		return
 	}
 
-	rw.Header().Set("content-type", dnsContentType)
-
 	_, err = rw.Write(b)
-	logAndResponseWithError(err, "can't write response: ", rw)
+	log.Log().Error(fmt.Errorf("can't write response: %w", err))
 }
 
 func (s *Server) Query(
