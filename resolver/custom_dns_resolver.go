@@ -21,13 +21,13 @@ type CustomDNSResolver struct {
 	NextResolver
 	typed
 
-	mapping          map[string][]dns.RR
+	mapping          config.CustomDNSMapping
 	reverseAddresses map[string][]string
 }
 
 // NewCustomDNSResolver creates new resolver instance
 func NewCustomDNSResolver(cfg config.CustomDNS) *CustomDNSResolver {
-	m := make(map[string][]dns.RR, len(cfg.Mapping))
+	m := make(config.CustomDNSMapping, len(cfg.Mapping))
 	reverse := make(map[string][]string, len(cfg.Mapping))
 
 	for url, entries := range cfg.Mapping {
