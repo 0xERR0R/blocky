@@ -242,22 +242,25 @@ func (r *CustomDNSResolver) processCNAME(
 	cnames := resolvedCnames
 	cnames = append(cnames, targetWithoutDot)
 
-	// Resolve target recursively
-	targetResp, err := r.processRequest(ctx, aRequest, cnames)
-	if err != nil {
-		return nil, err
+	if question.Qtype == dns.TypeA {
+		// Resolve target recursively
+		targetResp, err := r.processRequest(ctx, aRequest, cnames)
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, targetResp.Res.Answer...)
 	}
 
-	result = append(result, targetResp.Res.Answer...)
+	if question.Qtype == dns.TypeAAAA {
+		// Resolve ipv6 target recursively
+		targetResp, err := r.processRequest(ctx, aaaaRequest, cnames)
+		if err != nil {
+			return nil, err
+		}
 
-	// Resolve ipv6 target recursively
-	// Ignore the returned list of cnames, as the error would have been returned already
-	targetResp, err = r.processRequest(ctx, aaaaRequest, cnames)
-	if err != nil {
-		return nil, err
+		result = append(result, targetResp.Res.Answer...)
 	}
-
-	result = append(result, targetResp.Res.Answer...)
 
 	return result, nil
 }
