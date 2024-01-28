@@ -235,6 +235,17 @@ blocking:
 				Expect(err.Error()).Should(ContainSubstring("invalid IP address '192.168.178.WRONG'"))
 			})
 		})
+		When("CustomDNS hast wrong IPv6 defined", func() {
+			It("should return error", func() {
+				cfg := Config{}
+				data := `customDNS:
+  mapping:
+    someDomain: 2001:MALFORMED:IP:ADDRESS:0000:8a2e:0370:7334`
+				err := unmarshalConfig(logger, []byte(data), &cfg)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("invalid IP address '2001:MALFORMED:IP:ADDRESS:0000:8a2e:0370:7334'"))
+			})
+		})
 		When("Conditional mapping hast wrong defined upstreams", func() {
 			It("should return error", func() {
 				cfg := Config{}
