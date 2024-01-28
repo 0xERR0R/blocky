@@ -284,7 +284,7 @@ domain must be separated by a comma.
 This configuration will also resolve any subdomain of the defined domain, recursively. For example querying any of
 `printer.lan`, `my.printer.lan` or `i.love.my.printer.lan` will return 192.168.178.3.
 
-CNAME records are supported by setting the value of the mapping to `CNAME(target)`. Note that the target will be recursively resolved and there are no checks for CNAME loops, meaning that it is possible for CNAMES to never resolve due to a loop.
+CNAME records are supported by setting the value of the mapping to `CNAME(target)`. Note that the target will be recursively resolved and will return an error if a loop is detected.
 
 With the optional parameter `rewrite` you can replace domain part of the query with the defined part **before** the
 resolver lookup is performed.
