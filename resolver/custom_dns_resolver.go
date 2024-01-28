@@ -92,7 +92,11 @@ func (r *CustomDNSResolver) handleReverseDNS(request *model.Request) *model.Resp
 	return nil
 }
 
-func (r *CustomDNSResolver) processRequestTrackingCnames(ctx context.Context, request *model.Request, resolvedCnames []string) (*model.Response, []string, error) {
+func (r *CustomDNSResolver) processRequestTrackingCnames(
+	ctx context.Context,
+	request *model.Request,
+	resolvedCnames []string,
+) (*model.Response, []string, error) {
 	logger := log.WithPrefix(request.Log, "custom_dns_resolver")
 
 	response := new(dns.Msg)
@@ -144,6 +148,15 @@ func (r *CustomDNSResolver) processRequestTrackingCnames(ctx context.Context, re
 		}
 	}
 
+	return r.forwardResponse(logger, ctx, request, resolvedCnames)
+}
+
+func (r *CustomDNSResolver) forwardResponse(
+	logger *logrus.Entry,
+	ctx context.Context,
+	request *model.Request,
+	resolvedCnames []string,
+) (*model.Response, []string, error) {
 	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
 
 	forwardResponse, err := r.next.Resolve(ctx, request)
@@ -156,6 +169,7 @@ func (r *CustomDNSResolver) processRequestTrackingCnames(ctx context.Context, re
 
 func (r *CustomDNSResolver) processRequest(ctx context.Context, request *model.Request) (*model.Response, error) {
 	response, _, err := r.processRequestTrackingCnames(ctx, request, make([]string, 0))
+
 	return response, err
 }
 
@@ -232,8 +246,11 @@ func (r *CustomDNSResolver) processCNAME(
 	aRequest := newRequestWithClientID(targetWithoutDot, dns.Type(dns.TypeA), clientIP, clientID)
 	aaaaRequest := newRequestWithClientID(targetWithoutDot, dns.Type(dns.TypeAAAA), clientIP, clientID)
 
+	cnames := resolvedCnames
+	cnames = append(cnames, targetWithoutDot)
+
 	// Resolve target recursively
-	targetResp, resolvedCnames, err := r.processRequestTrackingCnames(ctx, aRequest, append(resolvedCnames, targetWithoutDot))
+	targetResp, cnames, err := r.processRequestTrackingCnames(ctx, aRequest, cnames)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +258,8 @@ func (r *CustomDNSResolver) processCNAME(
 	result = append(result, targetResp.Res.Answer...)
 
 	// Resolve ipv6 target recursively
-	targetResp, resolvedCnames, err = r.processRequestTrackingCnames(ctx, aaaaRequest, append(resolvedCnames, targetWithoutDot))
+	// Ignore the returned list of cnames, as the error would have been returned already
+	targetResp, _, err = r.processRequestTrackingCnames(ctx, aaaaRequest, cnames)
 	if err != nil {
 		return nil, err
 	}
