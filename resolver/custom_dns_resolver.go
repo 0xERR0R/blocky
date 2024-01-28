@@ -21,12 +21,12 @@ type createAnswerFunc func(question dns.Question, ip net.IP, ttl uint32) (dns.RR
 // CustomDNSResolver resolves passed domain name to ip address defined in domain-IP map
 type CustomDNSResolver struct {
 	configurable[*config.CustomDNS]
-	createAnswerFromQuestion createAnswerFunc
 	NextResolver
 	typed
 
-	mapping          config.CustomDNSMapping
-	reverseAddresses map[string][]string
+	createAnswerFromQuestion createAnswerFunc
+	mapping                  config.CustomDNSMapping
+	reverseAddresses         map[string][]string
 }
 
 // NewCustomDNSResolver creates new resolver instance
@@ -55,12 +55,12 @@ func NewCustomDNSResolver(cfg config.CustomDNS) *CustomDNSResolver {
 	}
 
 	return &CustomDNSResolver{
-		configurable:             withConfig(&cfg),
-		createAnswerFromQuestion: util.CreateAnswerFromQuestion,
-		typed:                    withType("custom_dns"),
+		configurable: withConfig(&cfg),
+		typed:        withType("custom_dns"),
 
-		mapping:          m,
-		reverseAddresses: reverse,
+		createAnswerFromQuestion: util.CreateAnswerFromQuestion,
+		mapping:                  m,
+		reverseAddresses:         reverse,
 	}
 }
 
@@ -228,39 +228,30 @@ func (r *CustomDNSResolver) processCNAME(
 	cname.Target = dns.Fqdn(targetCname.Target)
 	result = append(result, cname)
 
+	if question.Qtype == dns.TypeCNAME {
+		return result, nil
+	}
+
 	targetWithoutDot := strings.TrimSuffix(targetCname.Target, ".")
 
 	if slices.Contains(resolvedCnames, targetWithoutDot) {
 		return nil, fmt.Errorf("CNAME loop detected: %v", append(resolvedCnames, targetWithoutDot))
 	}
 
-	clientIP := request.ClientIP.String()
-	clientID := request.RequestClientID
-	aRequest := newRequestWithClientID(targetWithoutDot, dns.Type(dns.TypeA), clientIP, clientID)
-	aaaaRequest := newRequestWithClientID(targetWithoutDot, dns.Type(dns.TypeAAAA), clientIP, clientID)
-
 	cnames := resolvedCnames
 	cnames = append(cnames, targetWithoutDot)
 
-	if question.Qtype == dns.TypeA {
-		// Resolve target recursively
-		targetResp, err := r.processRequest(ctx, aRequest, cnames)
-		if err != nil {
-			return nil, err
-		}
+	clientIP := request.ClientIP.String()
+	clientID := request.RequestClientID
+	targetRequest := newRequestWithClientID(targetWithoutDot, dns.Type(question.Qtype), clientIP, clientID)
 
-		result = append(result, targetResp.Res.Answer...)
+	// resolve the target recursively
+	targetResp, err := r.processRequest(ctx, targetRequest, cnames)
+	if err != nil {
+		return nil, err
 	}
 
-	if question.Qtype == dns.TypeAAAA {
-		// Resolve ipv6 target recursively
-		targetResp, err := r.processRequest(ctx, aaaaRequest, cnames)
-		if err != nil {
-			return nil, err
-		}
-
-		result = append(result, targetResp.Res.Answer...)
-	}
+	result = append(result, targetResp.Res.Answer...)
 
 	return result, nil
 }
