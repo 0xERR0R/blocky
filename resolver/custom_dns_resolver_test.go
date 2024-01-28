@@ -47,9 +47,10 @@ var _ = Describe("CustomDNSResolver", func() {
 					&dns.A{A: net.ParseIP("192.168.143.125")},
 					&dns.AAAA{AAAA: net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")},
 				},
-				"cname.domain":  {&dns.CNAME{Target: "custom.domain"}},
-				"cname.example": {&dns.CNAME{Target: "example.com"}},
-				"mx.domain":     {&dns.MX{Mx: "mx.domain"}},
+				"cname.domain":    {&dns.CNAME{Target: "custom.domain"}},
+				"cname.example":   {&dns.CNAME{Target: "example.com"}},
+				"cname.recursive": {&dns.CNAME{Target: "cname.recursive"}},
+				"mx.domain":       {&dns.MX{Mx: "mx.domain"}},
 			},
 			CustomTTL:           config.Duration(time.Duration(TTL) * time.Second),
 			FilterUnmappedTypes: true,
@@ -285,6 +286,15 @@ var _ = Describe("CustomDNSResolver", func() {
 								HaveReturnCode(dns.RcodeSuccess),
 							))
 
+					// will not delegate to next resolver
+					m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
+				})
+			})
+			It("should return an error when the CNAME is recursive", func() {
+				By("CNAME query", func() {
+					_, err := sut.Resolve(ctx, newRequest("cname.recursive", CNAME))
+					Expect(err).Should(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("circular reference detected"))
 					// will not delegate to next resolver
 					m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
 				})
