@@ -92,11 +92,26 @@ func (r *CustomDNSResolver) handleReverseDNS(request *model.Request) *model.Resp
 	return nil
 }
 
-func (r *CustomDNSResolver) processRequestTrackingCnames(
+func (r *CustomDNSResolver) forwardResponse(
+	logger *logrus.Entry,
+	ctx context.Context,
+	request *model.Request,
+) (*model.Response, error) {
+	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
+
+	forwardResponse, err := r.next.Resolve(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+
+	return forwardResponse, nil
+}
+
+func (r *CustomDNSResolver) processRequest(
 	ctx context.Context,
 	request *model.Request,
 	resolvedCnames []string,
-) (*model.Response, []string, error) {
+) (*model.Response, error) {
 	logger := log.WithPrefix(request.Log, "custom_dns_resolver")
 
 	response := new(dns.Msg)
@@ -107,7 +122,7 @@ func (r *CustomDNSResolver) processRequestTrackingCnames(
 
 	for len(domain) > 0 {
 		if err := ctx.Err(); err != nil {
-			return nil, resolvedCnames, err
+			return nil, err
 		}
 
 		entries, found := r.mapping[domain]
@@ -116,7 +131,7 @@ func (r *CustomDNSResolver) processRequestTrackingCnames(
 			for _, entry := range entries {
 				result, err := r.processDNSEntry(ctx, request, resolvedCnames, question, entry)
 				if err != nil {
-					return nil, resolvedCnames, err
+					return nil, err
 				}
 
 				response.Answer = append(response.Answer, result...)
@@ -128,7 +143,7 @@ func (r *CustomDNSResolver) processRequestTrackingCnames(
 					"domain": domain,
 				}).Debugf("returning custom dns entry")
 
-				return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}, resolvedCnames, nil
+				return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}, nil
 			}
 
 			// Mapping exists for this domain, but for another type
@@ -138,7 +153,7 @@ func (r *CustomDNSResolver) processRequestTrackingCnames(
 			}
 
 			// return NOERROR with empty result
-			return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}, resolvedCnames, nil
+			return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}, nil
 		}
 
 		if i := strings.Index(domain, "."); i >= 0 {
@@ -148,29 +163,7 @@ func (r *CustomDNSResolver) processRequestTrackingCnames(
 		}
 	}
 
-	return r.forwardResponse(logger, ctx, request, resolvedCnames)
-}
-
-func (r *CustomDNSResolver) forwardResponse(
-	logger *logrus.Entry,
-	ctx context.Context,
-	request *model.Request,
-	resolvedCnames []string,
-) (*model.Response, []string, error) {
-	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
-
-	forwardResponse, err := r.next.Resolve(ctx, request)
-	if err != nil {
-		return nil, resolvedCnames, err
-	}
-
-	return forwardResponse, resolvedCnames, nil
-}
-
-func (r *CustomDNSResolver) processRequest(ctx context.Context, request *model.Request) (*model.Response, error) {
-	response, _, err := r.processRequestTrackingCnames(ctx, request, make([]string, 0))
-
-	return response, err
+	return r.forwardResponse(logger, ctx, request)
 }
 
 func (r *CustomDNSResolver) processDNSEntry(
@@ -189,7 +182,7 @@ func (r *CustomDNSResolver) processDNSEntry(
 		return r.processCNAME(ctx, request, *v, resolvedCnames, question)
 	}
 
-	return nil, fmt.Errorf("unsupported type %T", entry)
+	return nil, fmt.Errorf("unsupported customDNS RR type %T", entry)
 }
 
 // Resolve uses internal mapping to resolve the query
@@ -199,7 +192,7 @@ func (r *CustomDNSResolver) Resolve(ctx context.Context, request *model.Request)
 		return reverseResp, nil
 	}
 
-	resp, err := r.processRequest(ctx, request)
+	resp, err := r.processRequest(ctx, request, make([]string, 0, len(r.cfg.Mapping)))
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +231,7 @@ func (r *CustomDNSResolver) processCNAME(
 	targetWithoutDot := strings.TrimSuffix(targetCname.Target, ".")
 
 	if slices.Contains(resolvedCnames, targetWithoutDot) {
-		return nil, fmt.Errorf("circular reference detected for domain %s", targetWithoutDot)
+		return nil, fmt.Errorf("CNAME loop detected: %v", append(resolvedCnames, targetWithoutDot))
 	}
 
 	clientIP := request.ClientIP.String()
@@ -250,7 +243,7 @@ func (r *CustomDNSResolver) processCNAME(
 	cnames = append(cnames, targetWithoutDot)
 
 	// Resolve target recursively
-	targetResp, cnames, err := r.processRequestTrackingCnames(ctx, aRequest, cnames)
+	targetResp, err := r.processRequest(ctx, aRequest, cnames)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +252,7 @@ func (r *CustomDNSResolver) processCNAME(
 
 	// Resolve ipv6 target recursively
 	// Ignore the returned list of cnames, as the error would have been returned already
-	targetResp, _, err = r.processRequestTrackingCnames(ctx, aaaaRequest, cnames)
+	targetResp, err = r.processRequest(ctx, aaaaRequest, cnames)
 	if err != nil {
 		return nil, err
 	}

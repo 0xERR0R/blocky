@@ -294,7 +294,7 @@ var _ = Describe("CustomDNSResolver", func() {
 				By("CNAME query", func() {
 					_, err := sut.Resolve(ctx, newRequest("cname.recursive", CNAME))
 					Expect(err).Should(HaveOccurred())
-					Expect(err.Error()).Should(ContainSubstring("circular reference detected"))
+					Expect(err.Error()).Should(ContainSubstring("CNAME loop detected:"))
 					// will not delegate to next resolver
 					m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
 				})
@@ -323,7 +323,7 @@ var _ = Describe("CustomDNSResolver", func() {
 				By("MX query", func() {
 					_, err := sut.Resolve(ctx, newRequest("mx.domain", MX))
 					Expect(err).Should(HaveOccurred())
-					Expect(err.Error()).Should(ContainSubstring("unsupported type *dns.MX"))
+					Expect(err.Error()).Should(ContainSubstring("unsupported customDNS RR type *dns.MX"))
 				})
 			})
 		})
