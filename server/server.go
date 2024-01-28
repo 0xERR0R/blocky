@@ -9,6 +9,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -632,7 +633,13 @@ func (s *Server) resolve(ctx context.Context, request *model.Request) (*model.Re
 
 		response, err = s.queryResolver.Resolve(ctx, request)
 		if err != nil {
-			return nil, err
+			var upstreamErr *resolver.UpstreamServerError
+
+			if errors.As(err, &upstreamErr) {
+				response = &model.Response{Res: upstreamErr.Msg, RType: model.ResponseTypeRESOLVED, Reason: upstreamErr.Error()}
+			} else {
+				return nil, err
+			}
 		}
 	}
 
