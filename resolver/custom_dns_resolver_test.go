@@ -91,7 +91,20 @@ var _ = Describe("CustomDNSResolver", func() {
 				Expect(err.Error()).Should(ContainSubstring("context canceled"))
 			})
 		})
+		When("Creating the IP response returns an error ", func() {
+			It("should return the error", func() {
+				createAnswerMock := func(_ dns.Question, _ net.IP, _ uint32) (dns.RR, error) {
+					return nil, fmt.Errorf("create answer error")
+				}
 
+				sut.CreateAnswerFromQuestion = createAnswerMock
+
+				_, err := sut.Resolve(ctx, newRequest("custom.domain.", A))
+
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("create answer error"))
+			})
+		})
 		When("The forward request returns an error ", func() {
 			It("should return the error if the error occurs when checking ipv4 forward addresses", func() {
 				err := fmt.Errorf("forward error")
