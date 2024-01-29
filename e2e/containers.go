@@ -66,7 +66,7 @@ func createDNSMokkaContainer(ctx context.Context, alias string, rules ...string)
 // createHTTPServerContainer creates a static HTTP server container that serves one file with the given lines
 // and is attached to the test network under the given alias.
 // It is automatically terminated when the test is finished.
-func createHTTPServerContainer(ctx context.Context, alias string, filename string, lines ...string,
+func createHTTPServerContainer(ctx context.Context, alias, filename string, lines ...string,
 ) (testcontainers.Container, error) {
 	file := createTempFile(lines...)
 

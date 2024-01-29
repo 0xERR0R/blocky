@@ -47,6 +47,7 @@ customDNS:
     example.com: printer.lan
   mapping:
     printer.lan: 192.168.178.3,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
+    second-printer-address.lan: CNAME(printer.lan)
 
 # optional: definition, which DNS resolver(s) should be used for queries to the domain (with all sub-domains). Multiple resolvers must be separated by a comma
 # Example: Query client.fritz.box will ask DNS server 192.168.178.1. This is necessary for local network, to resolve clients by host name

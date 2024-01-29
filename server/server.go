@@ -613,6 +613,13 @@ func (s *Server) OnRequest(
 func (s *Server) resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	var response *model.Response
 
+	contextUpstreamTimeoutMultiplier := 100
+	timeoutDuration := time.Duration(contextUpstreamTimeoutMultiplier) * s.cfg.Upstreams.Timeout.ToDuration()
+
+	ctx, cancel := context.WithTimeout(ctx, timeoutDuration)
+
+	defer cancel()
+
 	switch {
 	case len(request.Req.Question) == 0:
 		m := new(dns.Msg)

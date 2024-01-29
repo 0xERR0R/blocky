@@ -259,12 +259,12 @@ You can define your own domain name to IP mappings. For example, you can use a u
 or define a domain name for your local device on order to use the HTTPS certificate. Multiple IP addresses for one
 domain must be separated by a comma.
 
-| Parameter           | Type                                    | Mandatory | Default value |
-| ------------------- | --------------------------------------- | --------- | ------------- |
-| customTTL           | duration (no unit is minutes)           | no        | 1h            |
-| rewrite             | string: string (domain: domain)         | no        |               |
-| mapping             | string: string (hostname: address list) | no        |               |
-| filterUnmappedTypes | boolean                                 | no        | true          |
+| Parameter           | Type                                        | Mandatory | Default value |
+| ------------------- | ------------------------------------------- | --------- | ------------- |
+| customTTL           | duration (no unit is minutes)               | no        | 1h            |
+| rewrite             | string: string (domain: domain)             | no        |               |
+| mapping             | string: string (hostname: address or CNAME) | no        |               |
+| filterUnmappedTypes | boolean                                     | no        | true          |
 
 !!! example
 
@@ -278,10 +278,13 @@ domain must be separated by a comma.
       mapping:
         printer.lan: 192.168.178.3
         otherdevice.lan: 192.168.178.15,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
+        anothername.lan: CNAME(otherdevice.lan)
     ```
 
 This configuration will also resolve any subdomain of the defined domain, recursively. For example querying any of
 `printer.lan`, `my.printer.lan` or `i.love.my.printer.lan` will return 192.168.178.3.
+
+CNAME records are supported by setting the value of the mapping to `CNAME(target)`. Note that the target will be recursively resolved and will return an error if a loop is detected.
 
 With the optional parameter `rewrite` you can replace domain part of the query with the defined part **before** the
 resolver lookup is performed.

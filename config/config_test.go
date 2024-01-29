@@ -235,6 +235,17 @@ blocking:
 				Expect(err.Error()).Should(ContainSubstring("invalid IP address '192.168.178.WRONG'"))
 			})
 		})
+		When("CustomDNS hast wrong IPv6 defined", func() {
+			It("should return error", func() {
+				cfg := Config{}
+				data := `customDNS:
+  mapping:
+    someDomain: 2001:MALFORMED:IP:ADDRESS:0000:8a2e:0370:7334`
+				err := unmarshalConfig(logger, []byte(data), &cfg)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("invalid IP address '2001:MALFORMED:IP:ADDRESS:0000:8a2e:0370:7334'"))
+			})
+		})
 		When("Conditional mapping hast wrong defined upstreams", func() {
 			It("should return error", func() {
 				cfg := Config{}
@@ -866,12 +877,24 @@ func defaultTestFileConfig(config *Config) {
 	Expect(config.Upstreams.Groups["default"][0].Host).Should(Equal("8.8.8.8"))
 	Expect(config.Upstreams.Groups["default"][1].Host).Should(Equal("8.8.4.4"))
 	Expect(config.Upstreams.Groups["default"][2].Host).Should(Equal("1.1.1.1"))
-	Expect(config.CustomDNS.Mapping.HostIPs).Should(HaveLen(2))
-	Expect(config.CustomDNS.Mapping.HostIPs["my.duckdns.org"][0]).Should(Equal(net.ParseIP("192.168.178.3")))
-	Expect(config.CustomDNS.Mapping.HostIPs["multiple.ips"][0]).Should(Equal(net.ParseIP("192.168.178.3")))
-	Expect(config.CustomDNS.Mapping.HostIPs["multiple.ips"][1]).Should(Equal(net.ParseIP("192.168.178.4")))
-	Expect(config.CustomDNS.Mapping.HostIPs["multiple.ips"][2]).Should(Equal(
-		net.ParseIP("2001:0db8:85a3:08d3:1319:8a2e:0370:7344")))
+	Expect(config.CustomDNS.Mapping).Should(HaveLen(2))
+
+	duckDNSEntry := config.CustomDNS.Mapping["my.duckdns.org"][0]
+	duckDNSA := duckDNSEntry.(*dns.A)
+	Expect(duckDNSA.A).Should(Equal(net.ParseIP("192.168.178.3")))
+
+	multipleIpsEntry := config.CustomDNS.Mapping["multiple.ips"][0]
+	multipleIpsA := multipleIpsEntry.(*dns.A)
+	Expect(multipleIpsA.A).Should(Equal(net.ParseIP("192.168.178.3")))
+
+	multipleIpsEntry = config.CustomDNS.Mapping["multiple.ips"][1]
+	multipleIpsA = multipleIpsEntry.(*dns.A)
+	Expect(multipleIpsA.A).Should(Equal(net.ParseIP("192.168.178.4")))
+
+	multipleIpsEntry = config.CustomDNS.Mapping["multiple.ips"][2]
+	multipleIpsAAAA := multipleIpsEntry.(*dns.AAAA)
+	Expect(multipleIpsAAAA.AAAA).Should(Equal(net.ParseIP("2001:db8:85a3:8d3:1319:8a2e:370:7344")))
+
 	Expect(config.Conditional.Mapping.Upstreams).Should(HaveLen(2))
 	Expect(config.Conditional.Mapping.Upstreams["fritz.box"]).Should(HaveLen(1))
 	Expect(config.Conditional.Mapping.Upstreams["multiple.resolvers"]).Should(HaveLen(2))
