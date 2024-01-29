@@ -1388,6 +1388,7 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">    </span><span class="nt">example.com</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">printer.lan</span>
 <span class="w">  </span><span class="nt">mapping</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">printer.lan</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.178.3,2001:0db8:85a3:08d3:1319:8a2e:0370:7344</span>
+<span class="w">    </span><span class="nt">second-printer-address.lan</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CNAME(printer.lan)</span>
 
 <span class="c1"># optional: definition, which DNS resolver(s) should be used for queries to the domain (with all sub-domains). Multiple resolvers must be separated by a comma</span>
 <span class="c1"># Example: Query client.fritz.box will ask DNS server 192.168.178.1. This is necessary for local network, to resolve clients by host name</span>
@@ -2118,7 +2119,7 @@ domain must be separated by a comma.</p>
 </tr>
 <tr>
 <td>mapping</td>
-<td>string: string (hostname: address list)</td>
+<td>string: string (hostname: address or <abbr title="Canonical Name">CNAME</abbr>)</td>
 <td>no</td>
 <td></td>
 </tr>
@@ -2141,10 +2142,12 @@ domain must be separated by a comma.</p>
 <span class="w">  </span><span class="nt">mapping</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">printer.lan</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.178.3</span>
 <span class="w">    </span><span class="nt">otherdevice.lan</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.178.15,2001:0db8:85a3:08d3:1319:8a2e:0370:7344</span>
+<span class="w">    </span><span class="nt">anothername.lan</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CNAME(otherdevice.lan)</span>
 </code></pre></div>
 </div>
 <p>This configuration will also resolve any subdomain of the defined domain, recursively. For example querying any of
 <code>printer.lan</code>, <code>my.printer.lan</code> or <code>i.love.my.printer.lan</code> will return 192.168.178.3.</p>
+<p><abbr title="Canonical Name">CNAME</abbr> records are supported by setting the value of the mapping to <code>CNAME(target)</code>. Note that the target will be recursively resolved and will return an error if a loop is detected.</p>
 <p>With the optional parameter <code>rewrite</code> you can replace domain part of the query with the defined part <strong>before</strong> the
 resolver lookup is performed.
 The query "printer.home" will be rewritten to "printer.lan" and return 192.168.178.3.</p>
