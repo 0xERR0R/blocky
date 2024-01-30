@@ -181,6 +181,10 @@ See [https://github.com/m0zgen/blocky-installer](https://github.com/m0zgen/block
 
 See [https://www.freebsd.org/cgi/ports.cgi?query=blocky&stype=all](https://www.freebsd.org/cgi/ports.cgi?query=blocky&stype=all)
 
+### Package for Gentoo
+
+See [Gentoo wiki page](https://wiki.gentoo.org/wiki/Project:GURU/Information_for_End_Users) to enable GURU repository then run `emerge net-dns/blocky`
+
 ### Homebrew package for MacOS
 
 See [https://formulae.brew.sh/formula/blocky](https://formulae.brew.sh/formula/blocky)
