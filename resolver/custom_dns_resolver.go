@@ -31,12 +31,21 @@ type CustomDNSResolver struct {
 
 // NewCustomDNSResolver creates new resolver instance
 func NewCustomDNSResolver(cfg config.CustomDNS) *CustomDNSResolver {
-	m := make(config.CustomDNSMapping, len(cfg.Mapping))
-	reverse := make(map[string][]string, len(cfg.Mapping))
+	dnsRecords := make(config.CustomDNSMapping, len(cfg.Mapping)+len(cfg.ZoneFileMapping))
 
 	for url, entries := range cfg.Mapping {
-		m[strings.ToLower(url)] = entries
+		url = util.ExtractDomainOnly(url)
+		dnsRecords[url] = entries
+	}
 
+	for url, entries := range cfg.ZoneFileMapping {
+		url = util.ExtractDomainOnly(url)
+		dnsRecords[url] = entries
+	}
+
+	reverse := make(map[string][]string, len(dnsRecords))
+
+	for url, entries := range dnsRecords {
 		for _, entry := range entries {
 			a, isA := entry.(*dns.A)
 
@@ -59,7 +68,7 @@ func NewCustomDNSResolver(cfg config.CustomDNS) *CustomDNSResolver {
 		typed:        withType("custom_dns"),
 
 		createAnswerFromQuestion: util.CreateAnswerFromQuestion,
-		mapping:                  m,
+		mapping:                  dnsRecords,
 		reverseAddresses:         reverse,
 	}
 }

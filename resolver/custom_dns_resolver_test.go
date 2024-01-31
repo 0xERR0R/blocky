@@ -53,6 +53,9 @@ var _ = Describe("CustomDNSResolver", func() {
 				"cname.recursive": {&dns.CNAME{Target: "cname.recursive"}},
 				"mx.domain":       {&dns.MX{Mx: "mx.domain"}},
 			},
+			ZoneFileMapping: config.ZoneFileDNS{
+				"example.zone.": {&dns.A{A: net.ParseIP("1.2.3.4")}},
+			},
 			CustomTTL:           config.Duration(time.Duration(TTL) * time.Second),
 			FilterUnmappedTypes: true,
 		}
@@ -136,6 +139,19 @@ var _ = Describe("CustomDNSResolver", func() {
 		When("Ip 4 mapping is defined for custom domain and", func() {
 			Context("filterUnmappedTypes is true", func() {
 				BeforeEach(func() { cfg.FilterUnmappedTypes = true })
+				It("defined ip4 query should be resolved from zone mappings", func() {
+					Expect(sut.Resolve(ctx, newRequest("example.zone.", A))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("example.zone.", A, "1.2.3.4"),
+								HaveTTL(BeNumerically("==", TTL)),
+								HaveResponseType(ResponseTypeCUSTOMDNS),
+								HaveReason("CUSTOM DNS"),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
+					// will not delegate to next resolver
+					m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
+				})
 				It("defined ip4 query should be resolved", func() {
 					Expect(sut.Resolve(ctx, newRequest("custom.domain.", A))).
 						Should(
