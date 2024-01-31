@@ -60,6 +60,7 @@ func (z *ZoneFileDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	*z = result
+
 	return nil
 }
 
