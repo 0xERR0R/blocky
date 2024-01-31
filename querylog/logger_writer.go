@@ -1,14 +1,14 @@
 package querylog
 
 import (
-	"strings"
+	_ "strings"
 
 	"github.com/0xERR0R/blocky/log"
-	"github.com/0xERR0R/blocky/util"
+	_ "github.com/0xERR0R/blocky/util"
 	"github.com/sirupsen/logrus"
 )
 
-const loggerPrefixLoggerWriter = "queryLog"
+const loggerPrefixLoggerWriter = "query"
 
 type LoggerWriter struct {
 	logger *logrus.Entry
@@ -21,18 +21,15 @@ func NewLoggerWriter() *LoggerWriter {
 func (d *LoggerWriter) Write(entry *LogEntry) {
 	d.logger.WithFields(
 		logrus.Fields{
-			"client_ip":       entry.ClientIP,
-			"client_names":    strings.Join(entry.ClientNames, "; "),
-			"response_reason": entry.ResponseReason,
-			"response_type":   entry.ResponseType,
-			"response_code":   entry.ResponseCode,
-			"question_name":   entry.QuestionName,
-			"question_type":   entry.QuestionType,
-			"answer":          entry.Answer,
-			"duration_ms":     entry.DurationMs,
-			"hostname":        util.HostnameString(),
+			"cli_ip":  entry.ClientIP,
+			"reason":  entry.ResponseReason,
+			"rcode":   entry.ResponseCode,
+			"qname":   entry.QuestionName,
+			"qtype":   entry.QuestionType,
+			"answer":  entry.Answer,
+			"time_ms": entry.DurationMs,
 		},
-	).Infof("query resolved")
+	).Infof("")
 }
 
 func (d *LoggerWriter) CleanUp() {
