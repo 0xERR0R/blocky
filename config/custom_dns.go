@@ -38,13 +38,14 @@ func (z *ZoneFileDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		zoneParser.SetIncludeAllowed(true)
 
 		for {
-			zoneRR, good := zoneParser.Next()
+			zoneRR, ok := zoneParser.Next()
 
-			if !good {
+			if !ok {
 				if zoneParser.Err() != nil {
 					return zoneParser.Err()
 				}
 
+				// Done
 				break
 			}
 
