@@ -74,7 +74,6 @@ func (c *CustomDNSEntries) UnmarshalYAML(unmarshal func(interface{}) error) erro
 
 	parts := strings.Split(input, ",")
 	result := make(CustomDNSEntries, len(parts))
-	containsCNAME := false
 
 	for i, part := range parts {
 		rr, err := configToRR(part)
@@ -82,14 +81,7 @@ func (c *CustomDNSEntries) UnmarshalYAML(unmarshal func(interface{}) error) erro
 			return err
 		}
 
-		_, isCNAME := rr.(*dns.CNAME)
-		containsCNAME = containsCNAME || isCNAME
-
 		result[i] = rr
-	}
-
-	if containsCNAME && len(result) > 1 {
-		return fmt.Errorf("when a CNAME record is present, it must be the only record in the mapping")
 	}
 
 	*c = result
@@ -114,47 +106,21 @@ func (c *CustomDNS) LogConfig(logger *logrus.Entry) {
 	}
 }
 
-func removePrefixSuffix(in, prefix string) string {
-	in = strings.TrimPrefix(in, fmt.Sprintf("%s(", prefix))
-	in = strings.TrimSuffix(in, ")")
-
-	return strings.TrimSpace(in)
-}
-
-func configToRR(part string) (dns.RR, error) {
-	if strings.HasPrefix(part, "CNAME(") {
-		domain := removePrefixSuffix(part, "CNAME")
-		domain = dns.Fqdn(domain)
-		cname := &dns.CNAME{Target: domain}
-
-		return cname, nil
+func configToRR(ipStr string) (dns.RR, error) {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return nil, fmt.Errorf("invalid IP address '%s'", ipStr)
 	}
 
-	// Fall back to A/AAAA records to maintain backwards compatibility in config.yml
-	// We will still remove the A() or AAAA() if it exists
-	if strings.Contains(part, ".") { // IPV4 address
-		ipStr := removePrefixSuffix(part, "A")
-		ip := net.ParseIP(ipStr)
-
-		if ip == nil {
-			return nil, fmt.Errorf("invalid IP address '%s'", part)
-		}
-
+	if ip.To4() != nil {
 		a := new(dns.A)
 		a.A = ip
 
 		return a, nil
-	} else { // IPV6 address
-		ipStr := removePrefixSuffix(part, "AAAA")
-		ip := net.ParseIP(ipStr)
-
-		if ip == nil {
-			return nil, fmt.Errorf("invalid IP address '%s'", part)
-		}
-
-		aaaa := new(dns.AAAA)
-		aaaa.AAAA = ip
-
-		return aaaa, nil
 	}
+
+	aaaa := new(dns.AAAA)
+	aaaa.AAAA = ip
+
+	return aaaa, nil
 }

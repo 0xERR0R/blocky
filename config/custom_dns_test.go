@@ -27,7 +27,6 @@ var _ = Describe("CustomDNSConfig", func() {
 					&dns.A{A: net.ParseIP("192.168.143.125")},
 					&dns.AAAA{AAAA: net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")},
 				},
-				"cname.domain": {&dns.CNAME{Target: "custom.domain"}},
 			},
 		}
 	})
@@ -64,7 +63,6 @@ var _ = Describe("CustomDNSConfig", func() {
 				ContainSubstring("custom.domain = "),
 				ContainSubstring("ip6.domain = "),
 				ContainSubstring("multiple.ips = "),
-				ContainSubstring("cname.domain = "),
 			))
 		})
 	})
@@ -82,17 +80,6 @@ var _ = Describe("CustomDNSConfig", func() {
 
 			aRecord := c[0].(*dns.A)
 			Expect(aRecord.A).Should(Equal(net.ParseIP("1.2.3.4")))
-		})
-
-		It("Should return an error if a CNAME is accomanied by any other record", func() {
-			c := CustomDNSEntries{}
-			err := c.UnmarshalYAML(func(i interface{}) error {
-				*i.(*string) = "CNAME(example.com),A(1.2.3.4)"
-
-				return nil
-			})
-			Expect(err).Should(HaveOccurred())
-			Expect(err).Should(MatchError("when a CNAME record is present, it must be the only record in the mapping"))
 		})
 
 		It("should fail if wrong YAML format", func() {
