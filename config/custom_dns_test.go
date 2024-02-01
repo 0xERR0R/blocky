@@ -149,6 +149,19 @@ www A 1.2.3.4
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring("dns: missing TTL with no previous value"))
 		})
+		It("Should return an error if a relative record is provided without an origin", func() {
+			z := ZoneFileDNS{}
+			err := z.UnmarshalYAML(func(i interface{}) error {
+				*i.(*string) = strings.TrimSpace(`
+$TTL 3600
+www A 1.2.3.4
+				`)
+
+				return nil
+			})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("dns: bad owner name: \"www\""))
+		})
 		It("Should return an error if the unmarshall function returns an error", func() {
 			z := ZoneFileDNS{}
 			err := z.UnmarshalYAML(func(i interface{}) error {
