@@ -18,7 +18,8 @@ import (
 
 var _ = Describe("CustomDNSResolver", func() {
 	var (
-		TTL = uint32(time.Now().Second())
+		TTL     = uint32(time.Now().Second())
+		zoneTTL = uint32(time.Now().Second() * 2)
 
 		sut *CustomDNSResolver
 		m   *mockResolver
@@ -38,6 +39,8 @@ var _ = Describe("CustomDNSResolver", func() {
 		ctx, cancelFn = context.WithCancel(context.Background())
 		DeferCleanup(cancelFn)
 
+		zoneHdr := dns.RR_Header{Ttl: zoneTTL}
+
 		cfg = config.CustomDNS{
 			Mapping: config.CustomDNSMapping{
 				"custom.domain": {&dns.A{A: net.ParseIP("192.168.143.123")}},
@@ -49,12 +52,12 @@ var _ = Describe("CustomDNSResolver", func() {
 				},
 			},
 			ZoneFileMapping: config.ZoneFileDNS{
-				"example.zone.":    {&dns.A{A: net.ParseIP("1.2.3.4")}},
-				"cname.domain.":    {&dns.CNAME{Target: "custom.domain"}},
-				"cname.ip6.":       {&dns.CNAME{Target: "ip6.domain"}},
-				"cname.example.":   {&dns.CNAME{Target: "example.com"}},
-				"cname.recursive.": {&dns.CNAME{Target: "cname.recursive"}},
-				"mx.domain.":       {&dns.MX{Mx: "mx.domain"}},
+				"example.zone.":    {&dns.A{A: net.ParseIP("1.2.3.4"), Hdr: zoneHdr}},
+				"cname.domain.":    {&dns.CNAME{Target: "custom.domain", Hdr: zoneHdr}},
+				"cname.ip6.":       {&dns.CNAME{Target: "ip6.domain", Hdr: zoneHdr}},
+				"cname.example.":   {&dns.CNAME{Target: "example.com", Hdr: zoneHdr}},
+				"cname.recursive.": {&dns.CNAME{Target: "cname.recursive", Hdr: zoneHdr}},
+				"mx.domain.":       {&dns.MX{Mx: "mx.domain", Hdr: zoneHdr}},
 			},
 			CustomTTL:           config.Duration(time.Duration(TTL) * time.Second),
 			FilterUnmappedTypes: true,
@@ -139,12 +142,12 @@ var _ = Describe("CustomDNSResolver", func() {
 		When("Ip 4 mapping is defined for custom domain and", func() {
 			Context("filterUnmappedTypes is true", func() {
 				BeforeEach(func() { cfg.FilterUnmappedTypes = true })
-				It("defined ip4 query should be resolved from zone mappings", func() {
+				It("defined ip4 query should be resolved from zone mappings and should use the TTL defined in the zone", func() {
 					Expect(sut.Resolve(ctx, newRequest("example.zone.", A))).
 						Should(
 							SatisfyAll(
 								BeDNSRecord("example.zone.", A, "1.2.3.4"),
-								HaveTTL(BeNumerically("==", TTL)),
+								HaveTTL(BeNumerically("==", zoneTTL)),
 								HaveResponseType(ResponseTypeCUSTOMDNS),
 								HaveReason("CUSTOM DNS"),
 								HaveReturnCode(dns.RcodeSuccess),

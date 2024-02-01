@@ -36,6 +36,10 @@ func NewCustomDNSResolver(cfg config.CustomDNS) *CustomDNSResolver {
 	for url, entries := range cfg.Mapping {
 		url = util.ExtractDomainOnly(url)
 		dnsRecords[url] = entries
+
+		for _, entry := range entries {
+			entry.Header().Ttl = cfg.CustomTTL.SecondsU32()
+		}
 	}
 
 	for url, entries := range cfg.ZoneFileMapping {
@@ -184,11 +188,11 @@ func (r *CustomDNSResolver) processDNSEntry(
 ) ([]dns.RR, error) {
 	switch v := entry.(type) {
 	case *dns.A:
-		return r.processIP(v.A, question)
+		return r.processIP(v.A, question, v.Header().Ttl)
 	case *dns.AAAA:
-		return r.processIP(v.AAAA, question)
+		return r.processIP(v.AAAA, question, v.Header().Ttl)
 	case *dns.CNAME:
-		return r.processCNAME(ctx, request, *v, resolvedCnames, question)
+		return r.processCNAME(ctx, request, *v, resolvedCnames, question, v.Header().Ttl)
 	}
 
 	return nil, fmt.Errorf("unsupported customDNS RR type %T", entry)
@@ -209,11 +213,11 @@ func (r *CustomDNSResolver) Resolve(ctx context.Context, request *model.Request)
 	return resp, nil
 }
 
-func (r *CustomDNSResolver) processIP(ip net.IP, question dns.Question) (result []dns.RR, err error) {
+func (r *CustomDNSResolver) processIP(ip net.IP, question dns.Question, ttl uint32) (result []dns.RR, err error) {
 	result = make([]dns.RR, 0)
 
 	if isSupportedType(ip, question) {
-		rr, err := r.createAnswerFromQuestion(question, ip, r.cfg.CustomTTL.SecondsU32())
+		rr, err := r.createAnswerFromQuestion(question, ip, ttl)
 		if err != nil {
 			return nil, err
 		}
@@ -230,9 +234,9 @@ func (r *CustomDNSResolver) processCNAME(
 	targetCname dns.CNAME,
 	resolvedCnames []string,
 	question dns.Question,
+	ttl uint32,
 ) (result []dns.RR, err error) {
 	cname := new(dns.CNAME)
-	ttl := r.cfg.CustomTTL.SecondsU32()
 	cname.Hdr = dns.RR_Header{Class: dns.ClassINET, Ttl: ttl, Rrtype: dns.TypeCNAME, Name: question.Name}
 	cname.Target = dns.Fqdn(targetCname.Target)
 	result = append(result, cname)
