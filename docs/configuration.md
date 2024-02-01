@@ -288,7 +288,7 @@ domain must be separated by a comma.
 This configuration will also resolve any subdomain of the defined domain, recursively. For example querying any of
 `printer.lan`, `my.printer.lan` or `i.love.my.printer.lan` will return 192.168.178.3.
 
-CNAME records are supported by utilizing the `zone` parameter. The zone file is a multiline string containing a DNS Zone File.
+CNAME records are supported by utilizing the `zone` parameter. The zone file is a multiline string containing a [DNS Zone File](https://en.wikipedia.org/wiki/Zone_file#Example_file).
 For records defined using the `zone` parameter, the `customTTL` parameter is unused. Instead, the TTL is defined in the zone directly.
 The following directives are supported in the zone file:
 * `$ORIGIN` - sets the origin for relative domain names
