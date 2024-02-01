@@ -33,31 +33,28 @@ func (z *ZoneFileDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	result := make(ZoneFileDNS, 1)
 
-	if input != "" {
-		zoneParser := dns.NewZoneParser(strings.NewReader(input), "", "<YAML config>")
-		zoneParser.SetIncludeAllowed(true)
+	zoneParser := dns.NewZoneParser(strings.NewReader(input), "", "<YAML config>")
+	zoneParser.SetIncludeAllowed(true)
 
-		for {
-			zoneRR, ok := zoneParser.Next()
+	for {
+		zoneRR, ok := zoneParser.Next()
 
-			if !ok {
-				if zoneParser.Err() != nil {
-					return zoneParser.Err()
-				}
-
-				// Done
-				break
+		if !ok {
+			if zoneParser.Err() != nil {
+				return zoneParser.Err()
 			}
 
-			domain := zoneRR.Header().Name
+			// Done
+			break
+		}
 
-			if _, ok := result[domain]; !ok {
-				result[domain] = make(CustomDNSEntries, 1)
-				result[domain][0] = zoneRR
-			} else {
-				result[domain] = append(result[domain], zoneRR)
-			}
+		domain := zoneRR.Header().Name
 
+		if _, ok := result[domain]; !ok {
+			result[domain] = make(CustomDNSEntries, 1)
+			result[domain][0] = zoneRR
+		} else {
+			result[domain] = append(result[domain], zoneRR)
 		}
 	}
 
