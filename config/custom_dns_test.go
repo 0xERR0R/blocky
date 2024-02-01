@@ -6,6 +6,7 @@ import (
 	"net"
 	"strings"
 
+	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/creasty/defaults"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
@@ -130,6 +131,37 @@ cname 3600 CNAME www
 
 					Expect(isCNAME).Should(BeTrue())
 					Expect(record.Target).Should(Equal("www.example.com."))
+				} else {
+					Fail("unexpected record")
+				}
+			}
+		})
+
+		It("Should support the $INCLUDE directive", func() {
+			folder := NewTmpFolder("zones")
+			file := folder.CreateStringFile("other.zone", `
+www 3600 A 1.2.3.4
+			`)
+
+			z := ZoneFileDNS{}
+			err := z.UnmarshalYAML(func(i interface{}) error {
+				*i.(*string) = strings.TrimSpace(`
+$ORIGIN example.com.
+$INCLUDE ` + file.Path)
+
+				return nil
+			})
+			Expect(err).Should(Succeed())
+			Expect(z).Should(HaveLen(1))
+
+			for url, records := range z {
+				if url == "www.example.com." {
+					Expect(records).Should(HaveLen(1))
+
+					record, isA := records[0].(*dns.A)
+
+					Expect(isA).Should(BeTrue())
+					Expect(record.A).Should(Equal(net.ParseIP("1.2.3.4")))
 				} else {
 					Fail("unexpected record")
 				}
