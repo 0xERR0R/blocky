@@ -100,6 +100,7 @@ var _ = Describe("CustomDNSConfig", func() {
 				*i.(*string) = strings.TrimSpace(`
 $ORIGIN example.com.
 www 3600 A 1.2.3.4
+www 3600 AAAA 2001:0db8:85a3:0000:0000:8a2e:0370:7334
 www6 3600 AAAA 2001:0db8:85a3:0000:0000:8a2e:0370:7334
 cname 3600 CNAME www
 				`)
@@ -111,12 +112,18 @@ cname 3600 CNAME www
 
 			for url, records := range z {
 				if url == "www.example.com." {
-					Expect(records).Should(HaveLen(1))
+					Expect(records).Should(HaveLen(2))
 
-					record, isA := records[0].(*dns.A)
-
-					Expect(isA).Should(BeTrue())
-					Expect(record.A).Should(Equal(net.ParseIP("1.2.3.4")))
+					for _, record := range records {
+						switch r := record.(type) {
+						case *dns.A:
+							Expect(r.A).Should(Equal(net.ParseIP("1.2.3.4")))
+						case *dns.AAAA:
+							Expect(r.AAAA).Should(Equal(net.ParseIP("2001:db8:85a3::8a2e:370:7334")))
+						default:
+							Fail("unexpected record")
+						}
+					}
 				} else if url == "www6.example.com." {
 					Expect(records).Should(HaveLen(1))
 
