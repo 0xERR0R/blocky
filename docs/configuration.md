@@ -264,7 +264,7 @@ domain must be separated by a comma.
 | customTTL           | duration (no unit is minutes)               | no        | 1h            |
 | rewrite             | string: string (domain: domain)             | no        |               |
 | mapping             | string: string (hostname: address or CNAME) | no        |               |
-| zoneFileMapping     | multiline string containing a DNS Zone File | no        |               |
+| zone                | multiline string containing a DNS Zone File | no        |               |
 | filterUnmappedTypes | boolean                                     | no        | true          |
 
 !!! example
@@ -280,7 +280,7 @@ domain must be separated by a comma.
         printer.lan: 192.168.178.3
         otherdevice.lan: 192.168.178.15,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
         anothername.lan: CNAME(otherdevice.lan)
-      zoneFileMapping: |
+      zone: |
         $ORIGIN example.com.
         www 3600 A 1.2.3.4
         @ 3600 CNAME www

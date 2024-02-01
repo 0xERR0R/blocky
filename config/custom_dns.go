@@ -14,7 +14,7 @@ type CustomDNS struct {
 	RewriterConfig      `yaml:",inline"`
 	CustomTTL           Duration         `yaml:"customTTL" default:"1h"`
 	Mapping             CustomDNSMapping `yaml:"mapping"`
-	ZoneFileMapping     ZoneFileDNS      `yaml:"zoneFileMapping" default:""`
+	ZoneFileMapping     ZoneFileDNS      `yaml:"zone" default:""`
 	FilterUnmappedTypes bool             `yaml:"filterUnmappedTypes" default:"true"`
 }
 
@@ -31,10 +31,10 @@ func (z *ZoneFileDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	result := make(ZoneFileDNS, len(input))
+	result := make(ZoneFileDNS, 1)
 
 	if input != "" {
-		zoneParser := dns.NewZoneParser(strings.NewReader(input), "", "")
+		zoneParser := dns.NewZoneParser(strings.NewReader(input), "", "<YAML config>")
 		zoneParser.SetIncludeAllowed(true)
 
 		for {
@@ -52,10 +52,12 @@ func (z *ZoneFileDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			domain := zoneRR.Header().Name
 
 			if _, ok := result[domain]; !ok {
-				result[domain] = make(CustomDNSEntries, 0)
+				result[domain] = make(CustomDNSEntries, 1)
+				result[domain][0] = zoneRR
+			} else {
+				result[domain] = append(result[domain], zoneRR)
 			}
 
-			result[domain] = append(result[domain], zoneRR)
 		}
 	}
 
