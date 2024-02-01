@@ -69,7 +69,7 @@ var _ = Describe("CustomDNSConfig", func() {
 		})
 	})
 
-	Describe("#CustomDNSEntries UnmarshalYAML", func() {
+	Describe("CustomDNSEntries UnmarshalYAML", func() {
 		It("Should parse config as map", func() {
 			c := CustomDNSEntries{}
 			err := c.UnmarshalYAML(func(i interface{}) error {
@@ -105,7 +105,7 @@ var _ = Describe("CustomDNSConfig", func() {
 		})
 	})
 
-	Describe("#ZoneFileDNS UnmarshalYAML", func() {
+	Describe("ZoneFileDNS UnmarshalYAML", func() {
 		It("Should parse config as map", func() {
 			z := ZoneFileDNS{}
 			err := z.UnmarshalYAML(func(i interface{}) error {
