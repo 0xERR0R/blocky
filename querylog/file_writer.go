@@ -85,7 +85,7 @@ func (d *FileWriter) CleanUp() {
 	// search for log files, which names starts with date
 	for _, f := range files {
 		if strings.HasSuffix(f.Name(), ".log") && len(f.Name()) > 10 {
-			t, err := time.Parse("2006-01-02", f.Name()[:10])
+			t, err := time.ParseInLocation("2006-01-02", f.Name()[:10], time.Local)
 			if err == nil {
 				differenceDays := uint64(time.Since(t).Hours() / hoursPerDay)
 				if d.logRetentionDays > 0 && differenceDays > d.logRetentionDays {
