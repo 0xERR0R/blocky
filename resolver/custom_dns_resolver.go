@@ -31,7 +31,7 @@ type CustomDNSResolver struct {
 
 // NewCustomDNSResolver creates new resolver instance
 func NewCustomDNSResolver(cfg config.CustomDNS) *CustomDNSResolver {
-	dnsRecords := make(config.CustomDNSMapping, len(cfg.Mapping)+len(cfg.Zone))
+	dnsRecords := make(config.CustomDNSMapping, len(cfg.Mapping)+len(cfg.Zone.RRs))
 
 	for url, entries := range cfg.Mapping {
 		url = util.ExtractDomainOnly(url)
@@ -42,7 +42,7 @@ func NewCustomDNSResolver(cfg config.CustomDNS) *CustomDNSResolver {
 		}
 	}
 
-	for url, entries := range cfg.Zone {
+	for url, entries := range cfg.Zone.RRs {
 		url = util.ExtractDomainOnly(url)
 		dnsRecords[url] = entries
 	}

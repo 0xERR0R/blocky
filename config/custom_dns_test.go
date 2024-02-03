@@ -108,9 +108,9 @@ cname 3600 CNAME www
 				return nil
 			})
 			Expect(err).Should(Succeed())
-			Expect(z).Should(HaveLen(3))
+			Expect(z.RRs).Should(HaveLen(3))
 
-			Expect(z["www.example.com."]).
+			Expect(z.RRs["www.example.com."]).
 				Should(SatisfyAll(
 					HaveLen(2),
 					ContainElements(
@@ -123,7 +123,7 @@ cname 3600 CNAME www
 							HaveTTL(BeNumerically("==", 3600)),
 						))))
 
-			Expect(z["www6.example.com."]).
+			Expect(z.RRs["www6.example.com."]).
 				Should(SatisfyAll(
 					HaveLen(1),
 					ContainElements(
@@ -132,7 +132,7 @@ cname 3600 CNAME www
 							HaveTTL(BeNumerically("==", 3600)),
 						))))
 
-			Expect(z["cname.example.com."]).
+			Expect(z.RRs["cname.example.com."]).
 				Should(SatisfyAll(
 					HaveLen(1),
 					ContainElements(
@@ -157,9 +157,9 @@ $INCLUDE ` + file.Path)
 				return nil
 			})
 			Expect(err).Should(Succeed())
-			Expect(z).Should(HaveLen(1))
+			Expect(z.RRs).Should(HaveLen(1))
 
-			Expect(z["www.example.com."]).
+			Expect(z.RRs["www.example.com."]).
 				Should(SatisfyAll(
 
 					HaveLen(1),

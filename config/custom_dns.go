@@ -22,7 +22,10 @@ type (
 	CustomDNSMapping map[string]CustomDNSEntries
 	CustomDNSEntries []dns.RR
 
-	ZoneFileDNS CustomDNSMapping
+	ZoneFileDNS struct {
+		RRs        CustomDNSMapping
+		configPath string
+	}
 )
 
 func (z *ZoneFileDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -31,9 +34,10 @@ func (z *ZoneFileDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	result := make(ZoneFileDNS, 1)
+	z.RRs = make(CustomDNSMapping)
+	result := z.RRs
 
-	zoneParser := dns.NewZoneParser(strings.NewReader(input), "", "<YAML config>")
+	zoneParser := dns.NewZoneParser(strings.NewReader(input), "", z.configPath)
 	zoneParser.SetIncludeAllowed(true)
 
 	for {
@@ -56,8 +60,6 @@ func (z *ZoneFileDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 		result[domain] = append(result[domain], zoneRR)
 	}
-
-	*z = result
 
 	return nil
 }
