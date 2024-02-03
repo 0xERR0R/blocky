@@ -169,7 +169,7 @@ var _ = Describe("Config", func() {
 				It("Should support the $INCLUDE directive with a bare filename", func() {
 					folder := helpertest.NewTmpFolder("zones")
 					folder.CreateStringFile("other.zone", "www 3600 A 1.2.3.4")
-					cfgFile := writeConfigYmlWithLocalZoneFile(folder, "./other.zone")
+					cfgFile := writeConfigYmlWithLocalZoneFile(folder, "other.zone")
 
 					c, err = LoadConfig(cfgFile.Path, true)
 
@@ -212,7 +212,7 @@ var _ = Describe("Config", func() {
 				It("Should support the $INCLUDE directive with a bare filename", func() {
 					folder := helpertest.NewTmpFolder("zones")
 					folder.CreateStringFile("other.zone", "www 3600 A 1.2.3.4")
-					writeConfigYmlWithLocalZoneFile(folder, "./other.zone")
+					writeConfigYmlWithLocalZoneFile(folder, "other.zone")
 
 					c, err = LoadConfig(folder.Path, true)
 
