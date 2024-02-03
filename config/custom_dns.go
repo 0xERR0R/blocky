@@ -34,8 +34,7 @@ func (z *ZoneFileDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	z.RRs = make(CustomDNSMapping)
-	result := z.RRs
+	result := make(CustomDNSMapping)
 
 	zoneParser := dns.NewZoneParser(strings.NewReader(input), "", z.configPath)
 	zoneParser.SetIncludeAllowed(true)
@@ -60,6 +59,8 @@ func (z *ZoneFileDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 		result[domain] = append(result[domain], zoneRR)
 	}
+
+	z.RRs = result
 
 	return nil
 }
