@@ -143,7 +143,7 @@ cname 3600 CNAME www
 						))))
 		})
 
-		It("Should support the $INCLUDE directive with a bare filename, located in the same directory as the config path", func() {
+		It("Should support the $INCLUDE directive with a bare filename", func() {
 			folder := NewTmpFolder("zones")
 			folder.CreateStringFile("other.zone", `
 www 3600 A 1.2.3.4
