@@ -51,7 +51,7 @@ var _ = Describe("CustomDNSResolver", func() {
 					&dns.AAAA{AAAA: net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")},
 				},
 			},
-			ZoneFileMapping: config.ZoneFileDNS{
+			Zone: config.ZoneFileDNS{
 				"example.zone.":    {&dns.A{A: net.ParseIP("1.2.3.4"), Hdr: zoneHdr}},
 				"cname.domain.":    {&dns.CNAME{Target: "custom.domain", Hdr: zoneHdr}},
 				"cname.ip6.":       {&dns.CNAME{Target: "ip6.domain", Hdr: zoneHdr}},

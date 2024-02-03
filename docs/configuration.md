@@ -264,7 +264,7 @@ domain must be separated by a comma.
 | customTTL           | duration used for simple mappings (no unit is minutes) | no        | 1h            |
 | rewrite             | string: string (domain: domain)                        | no        |               |
 | mapping             | string: string (hostname: address or CNAME)            | no        |               |
-| zone                | multiline string containing a DNS Zone File            | no        |               |
+| zone                | string containing a DNS Zone                           | no        |               |
 | filterUnmappedTypes | boolean                                                | no        | true          |
 
 !!! example

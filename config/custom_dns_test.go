@@ -110,38 +110,36 @@ cname 3600 CNAME www
 			Expect(err).Should(Succeed())
 			Expect(z).Should(HaveLen(3))
 
-			for url, records := range z {
-				if url == "www.example.com." {
-					Expect(records).Should(HaveLen(2))
+			Expect(z["www.example.com."]).
+				Should(SatisfyAll(
+					HaveLen(2),
+					ContainElements(
+						SatisfyAll(
+							BeDNSRecord("www.example.com.", A, "1.2.3.4"),
+							HaveTTL(BeNumerically("==", 3600)),
+						),
+						SatisfyAll(
+							BeDNSRecord("www.example.com.", AAAA, "2001:db8:85a3::8a2e:370:7334"),
+							HaveTTL(BeNumerically("==", 3600)),
+						))))
 
-					for _, record := range records {
-						switch r := record.(type) {
-						case *dns.A:
-							Expect(r.A).Should(Equal(net.ParseIP("1.2.3.4")))
-						case *dns.AAAA:
-							Expect(r.AAAA).Should(Equal(net.ParseIP("2001:db8:85a3::8a2e:370:7334")))
-						default:
-							Fail("unexpected record")
-						}
-					}
-				} else if url == "www6.example.com." {
-					Expect(records).Should(HaveLen(1))
+			Expect(z["www6.example.com."]).
+				Should(SatisfyAll(
+					HaveLen(1),
+					ContainElements(
+						SatisfyAll(
+							BeDNSRecord("www6.example.com.", AAAA, "2001:db8:85a3::8a2e:370:7334"),
+							HaveTTL(BeNumerically("==", 3600)),
+						))))
 
-					record, isAAAA := records[0].(*dns.AAAA)
-
-					Expect(isAAAA).Should(BeTrue())
-					Expect(record.AAAA).Should(Equal(net.ParseIP("2001:db8:85a3::8a2e:370:7334")))
-				} else if url == "cname.example.com." {
-					Expect(records).Should(HaveLen(1))
-
-					record, isCNAME := records[0].(*dns.CNAME)
-
-					Expect(isCNAME).Should(BeTrue())
-					Expect(record.Target).Should(Equal("www.example.com."))
-				} else {
-					Fail("unexpected record")
-				}
-			}
+			Expect(z["cname.example.com."]).
+				Should(SatisfyAll(
+					HaveLen(1),
+					ContainElements(
+						SatisfyAll(
+							BeDNSRecord("cname.example.com.", CNAME, "www.example.com."),
+							HaveTTL(BeNumerically("==", 3600)),
+						))))
 		})
 
 		It("Should support the $INCLUDE directive", func() {
@@ -161,18 +159,16 @@ $INCLUDE ` + file.Path)
 			Expect(err).Should(Succeed())
 			Expect(z).Should(HaveLen(1))
 
-			for url, records := range z {
-				if url == "www.example.com." {
-					Expect(records).Should(HaveLen(1))
+			Expect(z["www.example.com."]).
+				Should(SatisfyAll(
 
-					record, isA := records[0].(*dns.A)
-
-					Expect(isA).Should(BeTrue())
-					Expect(record.A).Should(Equal(net.ParseIP("1.2.3.4")))
-				} else {
-					Fail("unexpected record")
-				}
-			}
+					HaveLen(1),
+					ContainElements(
+						SatisfyAll(
+							BeDNSRecord("www.example.com.", A, "1.2.3.4"),
+							HaveTTL(BeNumerically("==", 3600)),
+						)),
+				))
 		})
 
 		It("Should return an error if the zone file is malformed", func() {
