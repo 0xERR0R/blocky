@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"path/filepath"
 	"strings"
 
 	. "github.com/0xERR0R/blocky/helpertest"
@@ -143,67 +142,9 @@ cname 3600 CNAME www
 						))))
 		})
 
-		It("Should support the $INCLUDE directive with a bare filename", func() {
-			folder := NewTmpFolder("zones")
-			folder.CreateStringFile("other.zone", `
-www 3600 A 1.2.3.4
-			`)
-
-			z := ZoneFileDNS{configPath: filepath.Join(folder.Path, "*")}
-			err := z.UnmarshalYAML(func(i interface{}) error {
-				*i.(*string) = strings.TrimSpace(`
-$ORIGIN example.com.
-$INCLUDE other.zone`)
-
-				return nil
-			})
-			Expect(err).Should(Succeed())
-			Expect(z.RRs).Should(HaveLen(1))
-
-			Expect(z.RRs["www.example.com."]).
-				Should(SatisfyAll(
-
-					HaveLen(1),
-					ContainElements(
-						SatisfyAll(
-							BeDNSRecord("www.example.com.", A, "1.2.3.4"),
-							HaveTTL(BeNumerically("==", 3600)),
-						)),
-				))
-		})
-		It("Should support the $INCLUDE directive with a relative filename", func() {
-			folder := NewTmpFolder("zones")
-			folder.CreateStringFile("other.zone", `
-www 3600 A 1.2.3.4
-			`)
-
-			z := ZoneFileDNS{configPath: filepath.Join(folder.Path, "*")}
-			err := z.UnmarshalYAML(func(i interface{}) error {
-				*i.(*string) = strings.TrimSpace(`
-$ORIGIN example.com.
-$INCLUDE ./other.zone`)
-
-				return nil
-			})
-			Expect(err).Should(Succeed())
-			Expect(z.RRs).Should(HaveLen(1))
-
-			Expect(z.RRs["www.example.com."]).
-				Should(SatisfyAll(
-
-					HaveLen(1),
-					ContainElements(
-						SatisfyAll(
-							BeDNSRecord("www.example.com.", A, "1.2.3.4"),
-							HaveTTL(BeNumerically("==", 3600)),
-						)),
-				))
-		})
 		It("Should support the $INCLUDE directive with an absolute path", func() {
 			folder := NewTmpFolder("zones")
-			file := folder.CreateStringFile("other.zone", `
-www 3600 A 1.2.3.4
-			`)
+			file := folder.CreateStringFile("other.zone", "www 3600 A 1.2.3.4")
 
 			z := ZoneFileDNS{}
 			err := z.UnmarshalYAML(func(i interface{}) error {

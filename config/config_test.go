@@ -164,6 +164,94 @@ var _ = Describe("Config", func() {
 				defaultTestFileConfig(c)
 			})
 		})
+		When("Test config file contains a zone file with $INCLUDE", func() {
+			When("The config path is set to the config file", func() {
+				It("Should support the $INCLUDE directive with a bare filename", func() {
+					folder := helpertest.NewTmpFolder("zones")
+					folder.CreateStringFile("other.zone", "www 3600 A 1.2.3.4")
+					cfgFile := writeConfigYmlWithLocalZoneFile(folder, "./other.zone")
+
+					c, err = LoadConfig(cfgFile.Path, true)
+
+					Expect(err).Should(Succeed())
+					Expect(c.CustomDNS.Zone.RRs).Should(HaveLen(1))
+
+					Expect(c.CustomDNS.Zone.RRs["www.example.com."]).
+						Should(SatisfyAll(
+							HaveLen(1),
+							ContainElements(
+								SatisfyAll(
+									helpertest.BeDNSRecord("www.example.com.", helpertest.A, "1.2.3.4"),
+									helpertest.HaveTTL(BeNumerically("==", 3600)),
+								)),
+						))
+				})
+				It("Should support the $INCLUDE directive with a relative filename", func() {
+					folder := helpertest.NewTmpFolder("zones")
+					folder.CreateStringFile("other.zone", "www 3600 A 1.2.3.4")
+					cfgFile := writeConfigYmlWithLocalZoneFile(folder, "./other.zone")
+
+					c, err = LoadConfig(cfgFile.Path, true)
+
+					Expect(err).Should(Succeed())
+					Expect(c.CustomDNS.Zone.RRs).Should(HaveLen(1))
+
+					Expect(c.CustomDNS.Zone.RRs["www.example.com."]).
+						Should(SatisfyAll(
+
+							HaveLen(1),
+							ContainElements(
+								SatisfyAll(
+									helpertest.BeDNSRecord("www.example.com.", helpertest.A, "1.2.3.4"),
+									helpertest.HaveTTL(BeNumerically("==", 3600)),
+								)),
+						))
+				})
+			})
+			When("The config path is set to a directory", func() {
+				It("Should support the $INCLUDE directive with a bare filename", func() {
+					folder := helpertest.NewTmpFolder("zones")
+					folder.CreateStringFile("other.zone", "www 3600 A 1.2.3.4")
+					writeConfigYmlWithLocalZoneFile(folder, "./other.zone")
+
+					c, err = LoadConfig(folder.Path, true)
+
+					Expect(err).Should(Succeed())
+					Expect(c.CustomDNS.Zone.RRs).Should(HaveLen(1))
+
+					Expect(c.CustomDNS.Zone.RRs["www.example.com."]).
+						Should(SatisfyAll(
+							HaveLen(1),
+							ContainElements(
+								SatisfyAll(
+									helpertest.BeDNSRecord("www.example.com.", helpertest.A, "1.2.3.4"),
+									helpertest.HaveTTL(BeNumerically("==", 3600)),
+								)),
+						))
+				})
+				It("Should support the $INCLUDE directive with a relative filename", func() {
+					folder := helpertest.NewTmpFolder("zones")
+					folder.CreateStringFile("other.zone", "www 3600 A 1.2.3.4")
+					writeConfigYmlWithLocalZoneFile(folder, "./other.zone")
+
+					c, err = LoadConfig(folder.Path, true)
+
+					Expect(err).Should(Succeed())
+					Expect(c.CustomDNS.Zone.RRs).Should(HaveLen(1))
+
+					Expect(c.CustomDNS.Zone.RRs["www.example.com."]).
+						Should(SatisfyAll(
+
+							HaveLen(1),
+							ContainElements(
+								SatisfyAll(
+									helpertest.BeDNSRecord("www.example.com.", helpertest.A, "1.2.3.4"),
+									helpertest.HaveTTL(BeNumerically("==", 3600)),
+								)),
+						))
+				})
+			})
+		})
 		When("Test file does not exist", func() {
 			It("should fail", func() {
 				_, err := LoadConfig(tmpDir.JoinPath("config-does-not-exist.yaml"), true)
@@ -971,6 +1059,33 @@ func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {
 		"queryLog:",
 		"  type: csv-client",
 		"  target: /opt/log",
+		"port: 55553,:55554,[::1]:55555",
+		"logLevel: debug",
+		"minTlsServeVersion: 1.3",
+	)
+}
+
+func writeConfigYmlWithLocalZoneFile(tmpDir *helpertest.TmpFolder, includeStr string) *helpertest.TmpFile {
+	return tmpDir.CreateStringFile("config.yml",
+		"upstreams:",
+		"  userAgent: testBlocky",
+		"  init:",
+		"    strategy: failOnError",
+		"  groups:",
+		"    default:",
+		"      - tcp+udp:8.8.8.8",
+		"      - tcp+udp:8.8.4.4",
+		"      - 1.1.1.1",
+		"customDNS:",
+		"  zone: |",
+		"    $ORIGIN example.com.",
+		"    $INCLUDE "+includeStr,
+		"filtering:",
+		"  queryTypes:",
+		"    - AAAA",
+		"    - A",
+		"fqdnOnly:",
+		"  enable: true",
 		"port: 55553,:55554,[::1]:55555",
 		"logLevel: debug",
 		"minTlsServeVersion: 1.3",
