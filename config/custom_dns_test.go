@@ -2,8 +2,11 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"net"
+	"strings"
 
+	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/creasty/defaults"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
@@ -25,7 +28,6 @@ var _ = Describe("CustomDNSConfig", func() {
 					&dns.A{A: net.ParseIP("192.168.143.125")},
 					&dns.AAAA{AAAA: net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")},
 				},
-				"cname.domain": {&dns.CNAME{Target: "custom.domain"}},
 			},
 		}
 	})
@@ -62,12 +64,11 @@ var _ = Describe("CustomDNSConfig", func() {
 				ContainSubstring("custom.domain = "),
 				ContainSubstring("ip6.domain = "),
 				ContainSubstring("multiple.ips = "),
-				ContainSubstring("cname.domain = "),
 			))
 		})
 	})
 
-	Describe("UnmarshalYAML", func() {
+	Describe("CustomDNSEntries UnmarshalYAML", func() {
 		It("Should parse config as map", func() {
 			c := CustomDNSEntries{}
 			err := c.UnmarshalYAML(func(i interface{}) error {
@@ -82,17 +83,6 @@ var _ = Describe("CustomDNSConfig", func() {
 			Expect(aRecord.A).Should(Equal(net.ParseIP("1.2.3.4")))
 		})
 
-		It("Should return an error if a CNAME is accomanied by any other record", func() {
-			c := CustomDNSEntries{}
-			err := c.UnmarshalYAML(func(i interface{}) error {
-				*i.(*string) = "CNAME(example.com),A(1.2.3.4)"
-
-				return nil
-			})
-			Expect(err).Should(HaveOccurred())
-			Expect(err).Should(MatchError("when a CNAME record is present, it must be the only record in the mapping"))
-		})
-
 		It("should fail if wrong YAML format", func() {
 			c := &CustomDNSEntries{}
 			err := c.UnmarshalYAML(func(i interface{}) error {
@@ -100,6 +90,118 @@ var _ = Describe("CustomDNSConfig", func() {
 			})
 			Expect(err).Should(HaveOccurred())
 			Expect(err).Should(MatchError("some err"))
+		})
+	})
+
+	Describe("ZoneFileDNS UnmarshalYAML", func() {
+		It("Should parse config as map", func() {
+			z := ZoneFileDNS{}
+			err := z.UnmarshalYAML(func(i interface{}) error {
+				*i.(*string) = strings.TrimSpace(`
+$ORIGIN example.com.
+www 3600 A 1.2.3.4
+www 3600 AAAA 2001:0db8:85a3:0000:0000:8a2e:0370:7334
+www6 3600 AAAA 2001:0db8:85a3:0000:0000:8a2e:0370:7334
+cname 3600 CNAME www
+				`)
+
+				return nil
+			})
+			Expect(err).Should(Succeed())
+			Expect(z.RRs).Should(HaveLen(3))
+
+			Expect(z.RRs["www.example.com."]).
+				Should(SatisfyAll(
+					HaveLen(2),
+					ContainElements(
+						SatisfyAll(
+							BeDNSRecord("www.example.com.", A, "1.2.3.4"),
+							HaveTTL(BeNumerically("==", 3600)),
+						),
+						SatisfyAll(
+							BeDNSRecord("www.example.com.", AAAA, "2001:db8:85a3::8a2e:370:7334"),
+							HaveTTL(BeNumerically("==", 3600)),
+						))))
+
+			Expect(z.RRs["www6.example.com."]).
+				Should(SatisfyAll(
+					HaveLen(1),
+					ContainElements(
+						SatisfyAll(
+							BeDNSRecord("www6.example.com.", AAAA, "2001:db8:85a3::8a2e:370:7334"),
+							HaveTTL(BeNumerically("==", 3600)),
+						))))
+
+			Expect(z.RRs["cname.example.com."]).
+				Should(SatisfyAll(
+					HaveLen(1),
+					ContainElements(
+						SatisfyAll(
+							BeDNSRecord("cname.example.com.", CNAME, "www.example.com."),
+							HaveTTL(BeNumerically("==", 3600)),
+						))))
+		})
+
+		It("Should support the $INCLUDE directive with an absolute path", func() {
+			folder := NewTmpFolder("zones")
+			file := folder.CreateStringFile("other.zone", "www 3600 A 1.2.3.4")
+
+			z := ZoneFileDNS{}
+			err := z.UnmarshalYAML(func(i interface{}) error {
+				*i.(*string) = strings.TrimSpace(`
+$ORIGIN example.com.
+$INCLUDE ` + file.Path)
+
+				return nil
+			})
+			Expect(err).Should(Succeed())
+			Expect(z.RRs).Should(HaveLen(1))
+
+			Expect(z.RRs["www.example.com."]).
+				Should(SatisfyAll(
+
+					HaveLen(1),
+					ContainElements(
+						SatisfyAll(
+							BeDNSRecord("www.example.com.", A, "1.2.3.4"),
+							HaveTTL(BeNumerically("==", 3600)),
+						)),
+				))
+		})
+
+		It("Should return an error if the zone file is malformed", func() {
+			z := ZoneFileDNS{}
+			err := z.UnmarshalYAML(func(i interface{}) error {
+				*i.(*string) = strings.TrimSpace(`
+$ORIGIN example.com.
+www A 1.2.3.4
+				`)
+
+				return nil
+			})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("dns: missing TTL with no previous value"))
+		})
+		It("Should return an error if a relative record is provided without an origin", func() {
+			z := ZoneFileDNS{}
+			err := z.UnmarshalYAML(func(i interface{}) error {
+				*i.(*string) = strings.TrimSpace(`
+$TTL 3600
+www A 1.2.3.4
+				`)
+
+				return nil
+			})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("dns: bad owner name: \"www\""))
+		})
+		It("Should return an error if the unmarshall function returns an error", func() {
+			z := ZoneFileDNS{}
+			err := z.UnmarshalYAML(func(i interface{}) error {
+				return fmt.Errorf("Failed to unmarshal")
+			})
+			Expect(err).Should(HaveOccurred())
+			Expect(err).Should(MatchError("Failed to unmarshal"))
 		})
 	})
 })

@@ -455,20 +455,29 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 		return nil, fmt.Errorf("can't read config file(s): %w", err)
 	}
 
-	var data []byte
+	var (
+		data       []byte
+		prettyPath string
+	)
 
 	if fs.IsDir() {
+		prettyPath = filepath.Join(path, "*")
+
 		data, err = readFromDir(path, data)
 
 		if err != nil {
 			return nil, fmt.Errorf("can't read config files: %w", err)
 		}
 	} else {
+		prettyPath = path
+
 		data, err = os.ReadFile(path)
 		if err != nil {
 			return nil, fmt.Errorf("can't read config file: %w", err)
 		}
 	}
+
+	cfg.CustomDNS.Zone.configPath = prettyPath
 
 	err = unmarshalConfig(logger, data, &cfg)
 	if err != nil {
