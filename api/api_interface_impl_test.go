@@ -219,7 +219,8 @@ var _ = Describe("API implementation tests", func() {
 	Describe("Control blocking status via API", func() {
 		When("Disable blocking is called", func() {
 			It("should return a success when receiving no groups", func() {
-				blockingControlMock.On("DisableBlocking", 3*time.Second, []string{}).Return(nil)
+				var emptySlice []string
+				blockingControlMock.On("DisableBlocking", 3*time.Second, emptySlice).Return(nil)
 				duration := "3s"
 				grroups := ""
 

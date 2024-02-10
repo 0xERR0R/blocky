@@ -105,8 +105,6 @@ func (i *OpenAPIInterfaceImpl) DisableBlocking(ctx context.Context,
 
 	if request.Params.Groups != nil && len(*request.Params.Groups) > 0 {
 		groups = strings.Split(*request.Params.Groups, ",")
-	} else {
-		groups = []string{}
 	}
 
 	err = i.control.DisableBlocking(ctx, duration, groups)
