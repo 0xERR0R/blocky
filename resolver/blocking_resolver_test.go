@@ -840,6 +840,11 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					Expect(err).Should(Succeed())
 				})
 
+				By("Calling Rest API to deactivate all groups, from the CLI, which passes an empty parameter", func() {
+					err := sut.DisableBlocking(context.TODO(), 0, []string{""})
+					Expect(err).Should(Succeed())
+				})
+
 				By("perform the same query again (defaultGroup)", func() {
 					// now is blocking disabled, query the url again
 					Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).

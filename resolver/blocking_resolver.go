@@ -257,18 +257,26 @@ func (r *BlockingResolver) internalDisableBlocking(ctx context.Context, duration
 	defer s.lock.Unlock()
 	s.enableTimer.Stop()
 
+	filteredDisableGroups := make([]string, 0, len(disableGroups))
+
+	for _, g := range disableGroups {
+		if len(g) > 0 {
+			filteredDisableGroups = append(filteredDisableGroups, g)
+		}
+	}
+
 	allBlockingGroups := r.retrieveAllBlockingGroups()
 
-	if len(disableGroups) == 0 {
+	if len(filteredDisableGroups) == 0 {
 		s.disabledGroups = allBlockingGroups
 	} else {
-		for _, g := range disableGroups {
+		for _, g := range filteredDisableGroups {
 			i := sort.SearchStrings(allBlockingGroups, g)
 			if !(i < len(allBlockingGroups) && allBlockingGroups[i] == g) {
 				return fmt.Errorf("group '%s' is unknown", g)
 			}
 		}
-		s.disabledGroups = disableGroups
+		s.disabledGroups = filteredDisableGroups
 	}
 
 	s.enabled = false
