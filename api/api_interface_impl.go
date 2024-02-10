@@ -103,7 +103,7 @@ func (i *OpenAPIInterfaceImpl) DisableBlocking(ctx context.Context,
 		}
 	}
 
-	if len(*request.Params.Groups) > 0 {
+	if request.Params.Groups != nil && len(*request.Params.Groups) > 0 {
 		groups = strings.Split(*request.Params.Groups, ",")
 	}
 
