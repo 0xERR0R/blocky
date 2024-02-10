@@ -218,6 +218,23 @@ var _ = Describe("API implementation tests", func() {
 
 	Describe("Control blocking status via API", func() {
 		When("Disable blocking is called", func() {
+			It("should return a success when receiving no groups", func() {
+				var emptySlice []string
+				blockingControlMock.On("DisableBlocking", 3*time.Second, emptySlice).Return(nil)
+				duration := "3s"
+				grroups := ""
+
+				resp, err := sut.DisableBlocking(ctx, DisableBlockingRequestObject{
+					Params: DisableBlockingParams{
+						Duration: &duration,
+						Groups:   &grroups,
+					},
+				})
+				Expect(err).Should(Succeed())
+				var resp200 DisableBlocking200Response
+				Expect(resp).Should(BeAssignableToTypeOf(resp200))
+			})
+
 			It("should return 200 on success", func() {
 				blockingControlMock.On("DisableBlocking", 3*time.Second, []string{"gr1", "gr2"}).Return(nil)
 				duration := "3s"
