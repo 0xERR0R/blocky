@@ -21,6 +21,8 @@ var (
 )
 
 // WithNetwork attaches the container with the given alias to the test network
+//
+//nolint:staticcheck
 func WithNetwork(ctx context.Context, alias string) testcontainers.CustomizeRequestOption {
 	return func(req *testcontainers.GenericContainerRequest) {
 		networkName := currentNetwork.Name()
