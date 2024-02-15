@@ -45,7 +45,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.28.0
 	github.com/testcontainers/testcontainers-go/modules/mariadb v0.27.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.27.0
-	github.com/testcontainers/testcontainers-go/modules/redis v0.27.0
+	github.com/testcontainers/testcontainers-go/modules/redis v0.28.0
 	mvdan.cc/gofumpt v0.5.0
 )
 
