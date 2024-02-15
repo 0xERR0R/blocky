@@ -44,7 +44,7 @@ require (
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/testcontainers/testcontainers-go v0.28.0
 	github.com/testcontainers/testcontainers-go/modules/mariadb v0.28.0
-	github.com/testcontainers/testcontainers-go/modules/postgres v0.27.0
+	github.com/testcontainers/testcontainers-go/modules/postgres v0.28.0
 	github.com/testcontainers/testcontainers-go/modules/redis v0.28.0
 	mvdan.cc/gofumpt v0.5.0
 )
@@ -71,7 +71,8 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/pprof v0.0.0-20230309165930-d61513b1440d // indirect
 	github.com/invopop/yaml v0.1.0 // indirect
-	github.com/jackc/pgx/v5 v5.4.3 // indirect
+	github.com/jackc/pgx/v5 v5.5.3 // indirect
+	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
