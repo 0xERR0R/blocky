@@ -288,8 +288,8 @@ github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsT
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
 github.com/testcontainers/testcontainers-go v0.29.1 h1:z8kxdFlovA2y97RWx98v/TQ+tR+SXZm6p35M+xB92zk=
 github.com/testcontainers/testcontainers-go v0.29.1/go.mod h1:SnKnKQav8UcgtKqjp/AD8bE1MqZm+3TDb/B8crE3XnI=
-github.com/testcontainers/testcontainers-go/modules/mariadb v0.28.0 h1:XpzO28DGxPaxYvX8Z6cmifxE7A4Y4j8vK9fcQMJ5ubI=
-github.com/testcontainers/testcontainers-go/modules/mariadb v0.28.0/go.mod h1:E7YQMwQUa08AtQBYl1RgmOsyCAYO4sYIYRkrkrxDZqw=
+github.com/testcontainers/testcontainers-go/modules/mariadb v0.29.1 h1:knuFGRg2lHj6S9GqN6gzbrz7YoH2adxNhppYLtRRH7M=
+github.com/testcontainers/testcontainers-go/modules/mariadb v0.29.1/go.mod h1:AfGjicjdwt9Rw+WSx4ehkuGuzBKqLvxBWwOPHiaynmw=
 github.com/testcontainers/testcontainers-go/modules/postgres v0.28.0 h1:ff0s4JdYIdNAVSi/SrpN2Pdt1f+IjIw3AKjbHau8Un4=
 github.com/testcontainers/testcontainers-go/modules/postgres v0.28.0/go.mod h1:fXgcYpbyrduNdiz2qRZuYkmvqLnEqsjbQiBNYH1ystI=
 github.com/testcontainers/testcontainers-go/modules/redis v0.28.0 h1:TXmpkmVL4ZXbtmLCKQoL7gFL0Wfw8M9jV2LcdFx1IyY=
