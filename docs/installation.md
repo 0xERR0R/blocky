@@ -4,7 +4,6 @@ You can choose one of the following installation options:
 
 * Run as standalone binary
 * Run as docker container
-* Kubernetes with helm chart
 
 ## Prepare your configuration
 
@@ -147,46 +146,54 @@ For complex setups, splitting the configuration between multiple YAML files migh
 
 !!! warning
 
-    These projects are maintained by other people.
+    These projects are not associated with Blocky devs and are listed here for convenience.
 
 ### Web UI
 
-[Blocky Frontend](https://github.com/Mozart409/blocky-frontend) provides a Web UI to control blocky. See linked project for installation instructions.
+[Blocky Frontend](https://github.com/Mozart409/blocky-frontend) by [@Mozart409](https://github.com/Mozart409) provides a Web UI to control blocky.
+See linked project for installation instructions.
 
-### Run with helm chart on Kubernetes
-
-See [this repo](https://github.com/truecharts/charts/tree/master/charts/enterprise/blocky),
-the [documentation](https://truecharts.org/docs/charts/enterprise/blocky/)
-and [the configuration instructions](https://truecharts.org/docs/charts/enterprise/blocky/installation-notes) for details about running blocky via helm in kubernetes.
-
-### Run as an App for TrueNAS SCALE
-
-You can find the App in the TrueCharts [App Catalog](https://truecharts.org/docs/manual/SCALE%20Apps/Adding-TrueCharts)
-or read the [documentation](https://truecharts.org/docs/charts/enterprise/blocky/)
-and [ configuration instructions](https://truecharts.org/docs/charts/enterprise/blocky/installation-notes) for details about running blocky as a native TrueNAS SCALE App.
-
-### AUR package for Arch Linux
+### Arch Linux via AUR
 
 See [https://aur.archlinux.org/packages/blocky/](https://aur.archlinux.org/packages/blocky/)
 
-### Package for Alpine Linux
+### Alpine Linux
 
 See [https://pkgs.alpinelinux.org/package/edge/testing/x86/blocky](https://pkgs.alpinelinux.org/package/edge/testing/x86/blocky)
 
-### Installation script for CentOS/Fedora
+### CentOS/Debian/Fedora install script
 
 See [https://github.com/m0zgen/blocky-installer](https://github.com/m0zgen/blocky-installer)
 
-### Package for FreeBSD
+### FreeBSD
 
 See [https://www.freebsd.org/cgi/ports.cgi?query=blocky&stype=all](https://www.freebsd.org/cgi/ports.cgi?query=blocky&stype=all)
 
-### Package for Gentoo
+### Gentoo
 
-See [Gentoo wiki page](https://wiki.gentoo.org/wiki/Project:GURU/Information_for_End_Users) to enable GURU repository then run `emerge net-dns/blocky`
+See the [Gentoo Wiki](https://wiki.gentoo.org/wiki/Project:GURU/Information_for_End_Users) to enable the GURU repository, then run `emerge net-dns/blocky`.
 
-### Homebrew package for MacOS
+### NixOS
+
+As `pkgs.blocky` and a module:
+
+```nix
+services.blocky = {
+  enable = true;
+
+  settings = {
+    # anything from config.yml
+  };
+};
+```
+
+### macOS via Homebrew
 
 See [https://formulae.brew.sh/formula/blocky](https://formulae.brew.sh/formula/blocky)
+
+### TrueNAS SCALE via TrueCharts
+
+See [https://truecharts.org/charts/enterprise/blocky/](https://truecharts.org/charts/enterprise/blocky/)  
+(TrueCharts is not an official TrueNAS project)
 
 --8<-- "docs/includes/abbreviations.md"
