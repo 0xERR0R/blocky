@@ -7,8 +7,8 @@ You can choose one of the following installation options:
 
 ## Prepare your configuration
 
-Blocky supports single or multiple YAML files as configuration. Create new `config.yaml` with your configuration (
-see [Configuration](configuration.md) for more details and all configuration options).
+Blocky supports single or multiple YAML files as configuration. Create new `config.yml` with your configuration
+(see [Configuration](configuration.md) for more details and all configuration options).
 
 Simple configuration file, which enables only basic features:
 
@@ -38,26 +38,25 @@ run `./blocky --config config.yml`.
 
 !!! warning
 
-    Please be aware, if you want to use port 53 or 953 on Linux you should add CAP_NET_BIND_SERVICE capability
-    to the binary or run with root privileges (running as root is not recommended).
+    Please be aware, if you want to use port 53 or 953 on Linux you should add `CAP_NET_BIND_SERVICE` capability
+    to the binary with `setcap 'cap_net_bind_service=+ep' ./blocky`, or run as root (not recommended).
 
 ## Run with docker
 
 ### Alternative registry
 
-Blocky docker images are deployed to DockerHub (`spx01/blocky`) and GitHub Container Registry (`ghcr.io/0xerr0r/blocky`)
-.
+Blocky docker images are deployed to DockerHub (`spx01/blocky`) and GitHub Container Registry (`ghcr.io/0xerr0r/blocky`).
 
 ### Parameters
 
-You can define the location of the config file in the container with environment variable "BLOCKY_CONFIG_FILE".
-Default value is "/app/config.yml".
+You can define the location of the config file in the container with environment variable `BLOCKY_CONFIG_FILE`.
+Default value is `/app/config.yml`.
 
 ### Docker from command line
 
 Execute following command from the command line:
 
-```    
+```sh
 docker run --name blocky -v /path/to/config.yml:/app/config.yml -p 4000:4000 -p 53:53/udp spx01/blocky
 ```
 
@@ -89,7 +88,7 @@ services:
 
 and start docker container with
 
-```
+```sh
 docker-compose up -d
 ```
 
@@ -111,7 +110,7 @@ services:
     ports:
       - "53:53/tcp"
       - "53:53/udp"
-      - "4000:4000/tcp" # Prometheus stats (if enabled).
+      - "4000:4000/tcp" # Prometheus stats (if enabled)
     environment:
       - TZ=Europe/Berlin
     volumes:
@@ -136,11 +135,13 @@ volumes:
 
 For complex setups, splitting the configuration between multiple YAML files might be desired. In this case, folder containing YAML files is passed on startup, Blocky will join all the files.
 
-`./blocky --config ./config/`
+```sh
+./blocky --config ./config/
+```
 
 !!! warning
 
-    Blocky simply joins the multiple YAML files. If a directive (e.g. `upstream`) is repeated in multiple files, the configuration will not load and start will fail.
+    Blocky simply joins the multiple YAML files. If an option (e.g. `upstream`) is present in multiple files, the configuration will not load and start will fail.
 
 ## Other installation types
 
