@@ -148,11 +148,6 @@ For complex setups, splitting the configuration between multiple YAML files migh
 
     These projects are not associated with Blocky devs and are listed here for convenience.
 
-### Web UI
-
-[Blocky Frontend](https://github.com/Mozart409/blocky-frontend) by [@Mozart409](https://github.com/Mozart409) provides a Web UI to control blocky.
-See linked project for installation instructions.
-
 ### Arch Linux via AUR
 
 See [https://aur.archlinux.org/packages/blocky/](https://aur.archlinux.org/packages/blocky/)
@@ -195,5 +190,20 @@ See [https://formulae.brew.sh/formula/blocky](https://formulae.brew.sh/formula/b
 
 See [https://truecharts.org/charts/enterprise/blocky/](https://truecharts.org/charts/enterprise/blocky/)  
 (TrueCharts is not an official TrueNAS project)
+
+## Companion projects
+
+!!! warning
+
+    These projects are not associated with Blocky devs and are listed here for convenience.
+
+### Lists updater
+
+[Blocky lists updater](https://github.com/shizunge/blocky-lists-updater) updates list related configuration without restarting blocky DNS.
+
+### Web UI
+
+[Blocky Frontend](https://github.com/Mozart409/blocky-frontend) provides a Web UI to control blocky.
+See linked project for installation instructions.
 
 --8<-- "docs/includes/abbreviations.md"
