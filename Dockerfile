@@ -18,9 +18,6 @@ FROM --platform=$BUILDPLATFORM ghcr.io/kwitsch/ziggoimg AS build
 ARG VERSION
 ARG BUILD_TIME
 
-# set working directory
-WORKDIR /go/src
-
 # download packages
 # bind mount go.mod and go.sum
 # use cache for go packages
