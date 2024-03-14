@@ -10,7 +10,6 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/mariadb"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/network"
 	mysqlDriver "gorm.io/driver/mysql"
 	postgresDriver "gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -27,11 +26,7 @@ var _ = Describe("Query logs functional tests", func() {
 	)
 
 	BeforeEach(func(ctx context.Context) {
-		e2eNet, err = network.New(ctx)
-		Expect(err).Should(Succeed())
-		DeferCleanup(func(ctx context.Context) {
-			Expect(e2eNet.Remove(ctx)).Should(Succeed())
-		})
+		e2eNet = getRandomNetwork(ctx)
 
 		_, err = createDNSMokkaContainer(ctx, "moka1", e2eNet, `A google/NOERROR("A 1.2.3.4 123")`,
 			`A unknown/NXDOMAIN()`)

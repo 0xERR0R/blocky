@@ -24,7 +24,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/mariadb"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/modules/redis"
-	"github.com/testcontainers/testcontainers-go/network"
+	testNet "github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
@@ -98,7 +98,7 @@ func createRedisContainer(ctx context.Context, e2eNet *testcontainers.DockerNetw
 	return deferTerminate(redis.RunContainer(ctx,
 		testcontainers.WithImage(redisImage),
 		redis.WithLogLevel(redis.LogLevelVerbose),
-		network.WithNetwork([]string{"redis"}, e2eNet),
+		testNet.WithNetwork([]string{"redis"}, e2eNet),
 	))
 }
 
@@ -119,7 +119,7 @@ func createPostgresContainer(ctx context.Context, e2eNet *testcontainers.DockerN
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(waitLogOccurrence).
 				WithStartupTimeout(startupTimeout)),
-		network.WithNetwork([]string{"postgres"}, e2eNet),
+		testNet.WithNetwork([]string{"postgres"}, e2eNet),
 	))
 }
 
@@ -133,7 +133,7 @@ func createMariaDBContainer(ctx context.Context, e2eNet *testcontainers.DockerNe
 		mariadb.WithDatabase("user"),
 		mariadb.WithUsername("user"),
 		mariadb.WithPassword("user"),
-		network.WithNetwork([]string{"mariaDB"}, e2eNet),
+		testNet.WithNetwork([]string{"mariaDB"}, e2eNet),
 	))
 }
 
@@ -216,6 +216,7 @@ func checkBlockyReadiness(ctx context.Context, cfg *config.Config, container tes
 	for _, httpPort := range cfg.Ports.HTTP {
 		parts := strings.Split(httpPort, ":")
 		port := parts[len(parts)-1]
+
 		err = retry.Do(
 			func() error {
 				return doHTTPRequest(ctx, container, port)

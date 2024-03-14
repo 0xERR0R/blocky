@@ -9,14 +9,26 @@ import (
 
 	"github.com/docker/go-connections/nat"
 	"github.com/miekg/dns"
-	"github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/network"
+	testNet "github.com/testcontainers/testcontainers-go/network"
 )
+
+// getRandomNetwork returns a new test network which is used for the tests and removed afterwards.
+func getRandomNetwork(ctx context.Context) *testcontainers.DockerNetwork {
+	e2eNet, err := testNet.New(ctx)
+	Expect(err).Should(Succeed())
+	DeferCleanup(func(ctx context.Context) {
+		Expect(e2eNet.Remove(ctx)).Should(Succeed())
+	})
+
+	return e2eNet
+}
 
 // deferTerminate is a helper function to terminate the container when the test is finished.
 func deferTerminate[T testcontainers.Container](container T, err error) (T, error) {
-	ginkgo.DeferCleanup(func(ctx context.Context) error {
+	DeferCleanup(func(ctx context.Context) error {
 		if container.IsRunning() {
 			return container.Terminate(ctx)
 		}
@@ -36,7 +48,7 @@ func startContainerWithNetwork(ctx context.Context, req testcontainers.Container
 		ContainerRequest: req,
 		Started:          true,
 	}
-	network.WithNetwork([]string{alias}, e2eNet).Customize(&greq)
+	testNet.WithNetwork([]string{alias}, e2eNet).Customize(&greq)
 
 	return deferTerminate(testcontainers.GenericContainer(ctx, greq))
 }

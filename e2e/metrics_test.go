@@ -13,7 +13,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/network"
 )
 
 var _ = Describe("Metrics functional tests", func() {
@@ -25,11 +24,7 @@ var _ = Describe("Metrics functional tests", func() {
 	)
 
 	BeforeEach(func(ctx context.Context) {
-		e2eNet, err = network.New(ctx)
-		Expect(err).Should(Succeed())
-		DeferCleanup(func(ctx context.Context) {
-			Expect(e2eNet.Remove(ctx)).Should(Succeed())
-		})
+		e2eNet = getRandomNetwork(ctx)
 	})
 
 	Describe("Metrics", func() {
