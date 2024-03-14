@@ -20,12 +20,12 @@ ARG BUILD_TIME
 WORKDIR /go/src
 
 # download packages
-COPY go.mod go.sum ./
-RUN --mount=type=cache,target=/go/pkg \
+# bind mount go.mod and go.sum
+# use cache for go packages
+RUN --mount=type=bind,source=go.sum,target=go.sum \
+  --mount=type=bind,source=go.mod,target=go.mod \
+  --mount=type=cache,target=/go/pkg \
   go mod download
-
-# add source
-COPY . .
 
 # setup go
 ENV GO_SKIP_GENERATE=1\
@@ -35,6 +35,8 @@ ENV GO_SKIP_GENERATE=1\
   BIN_OUT_DIR="/bin"
 
 # build binary 
+# bind mount source code
+# use cache for go packages
 RUN --mount=type=bind,target=. \
   --mount=type=cache,target=/root/.cache/go-build \ 
   --mount=type=cache,target=/go/pkg \
