@@ -5,7 +5,7 @@
 FROM --platform=$BUILDPLATFORM alpine:3 AS ca-certs
 RUN --mount=type=cache,target=/var/cache/apk \
   apk update && \
-  apk add --no-cache ca-certificates
+  apk add ca-certificates
 
 # update certificates and use the apk ones if update fails
 RUN --mount=type=cache,target=/etc/ssl/certs \
@@ -23,6 +23,7 @@ ARG BUILD_TIME
 # use cache for go packages
 RUN --mount=type=bind,source=go.sum,target=go.sum \
   --mount=type=bind,source=go.mod,target=go.mod \
+  --mount=type=cache,target=/root/.cache/go-build \ 
   --mount=type=cache,target=/go/pkg \
   go mod download
 
