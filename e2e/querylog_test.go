@@ -10,29 +10,40 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/mariadb"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/network"
 	mysqlDriver "gorm.io/driver/mysql"
 	postgresDriver "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 var _ = Describe("Query logs functional tests", func() {
-	var blocky testcontainers.Container
-	var postgresDB *postgres.PostgresContainer
-	var mariaDB *mariadb.MariaDBContainer
-	var db *gorm.DB
-	var err error
+	var (
+		e2eNet     *testcontainers.DockerNetwork
+		blocky     testcontainers.Container
+		postgresDB *postgres.PostgresContainer
+		mariaDB    *mariadb.MariaDBContainer
+		db         *gorm.DB
+		err        error
+	)
 
 	BeforeEach(func(ctx context.Context) {
-		_, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`, `A unknown/NXDOMAIN()`)
+		e2eNet, err = network.New(ctx)
+		Expect(err).Should(Succeed())
+		DeferCleanup(func(ctx context.Context) {
+			Expect(e2eNet.Remove(ctx)).Should(Succeed())
+		})
+
+		_, err = createDNSMokkaContainer(ctx, "moka1", e2eNet, `A google/NOERROR("A 1.2.3.4 123")`,
+			`A unknown/NXDOMAIN()`)
 		Expect(err).Should(Succeed())
 	})
 
 	Describe("Query logging into the mariaDB database", func() {
 		BeforeEach(func(ctx context.Context) {
-			mariaDB, err = createMariaDBContainer(ctx)
+			mariaDB, err = createMariaDBContainer(ctx, e2eNet)
 			Expect(err).Should(Succeed())
 
-			blocky, err = createBlockyContainer(ctx,
+			blocky, err = createBlockyContainer(ctx, e2eNet,
 				"log:",
 				"  level: warn",
 				"upstreams:",
@@ -104,10 +115,10 @@ var _ = Describe("Query logs functional tests", func() {
 
 	Describe("Query logging into the postgres database", func() {
 		BeforeEach(func(ctx context.Context) {
-			postgresDB, err = createPostgresContainer(ctx)
+			postgresDB, err = createPostgresContainer(ctx, e2eNet)
 			Expect(err).Should(Succeed())
 
-			blocky, err = createBlockyContainer(ctx,
+			blocky, err = createBlockyContainer(ctx, e2eNet,
 				"log:",
 				"  level: warn",
 				"upstreams:",

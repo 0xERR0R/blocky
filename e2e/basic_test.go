@@ -11,21 +11,30 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/network"
 )
 
 var _ = Describe("Basic functional tests", func() {
-	var blocky testcontainers.Container
-	var err error
+	var (
+		e2eNet *testcontainers.DockerNetwork
+		blocky testcontainers.Container
+		err    error
+	)
 
 	Describe("Container start", func() {
 		BeforeEach(func(ctx context.Context) {
-			_, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`)
+			e2eNet, err = network.New(ctx)
+			Expect(err).Should(Succeed())
+			DeferCleanup(func(ctx context.Context) {
+				Expect(e2eNet.Remove(ctx)).Should(Succeed())
+			})
 
+			_, err = createDNSMokkaContainer(ctx, "moka1", e2eNet, `A google/NOERROR("A 1.2.3.4 123")`)
 			Expect(err).Should(Succeed())
 		})
 		When("wrong port configuration is provided", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx,
+				blocky, err = createBlockyContainer(ctx, e2eNet,
 					"upstreams:",
 					"  groups:",
 					"    default:",
@@ -50,7 +59,7 @@ var _ = Describe("Basic functional tests", func() {
 		})
 		When("Minimal configuration is provided", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx,
+				blocky, err = createBlockyContainer(ctx, e2eNet,
 					"upstreams:",
 					"  groups:",
 					"    default:",
@@ -81,7 +90,7 @@ var _ = Describe("Basic functional tests", func() {
 		Context("http port configuration", func() {
 			When("'httpPort' is not defined", func() {
 				BeforeEach(func(ctx context.Context) {
-					blocky, err = createBlockyContainer(ctx,
+					blocky, err = createBlockyContainer(ctx, e2eNet,
 						"upstreams:",
 						"  groups:",
 						"    default:",
@@ -101,7 +110,7 @@ var _ = Describe("Basic functional tests", func() {
 			})
 			When("'httpPort' is defined", func() {
 				BeforeEach(func(ctx context.Context) {
-					blocky, err = createBlockyContainer(ctx,
+					blocky, err = createBlockyContainer(ctx, e2eNet,
 						"upstreams:",
 						"  groups:",
 						"    default:",
@@ -137,12 +146,18 @@ var _ = Describe("Basic functional tests", func() {
 
 	Describe("Logging", func() {
 		BeforeEach(func(ctx context.Context) {
-			_, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`)
+			e2eNet, err = network.New(ctx)
+			Expect(err).Should(Succeed())
+			DeferCleanup(func(ctx context.Context) {
+				Expect(e2eNet.Remove(ctx)).Should(Succeed())
+			})
+
+			_, err = createDNSMokkaContainer(ctx, "moka1", e2eNet, `A google/NOERROR("A 1.2.3.4 123")`)
 			Expect(err).Should(Succeed())
 		})
 		When("log privacy is enabled", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx,
+				blocky, err = createBlockyContainer(ctx, e2eNet,
 					"upstreams:",
 					"  groups:",
 					"    default:",

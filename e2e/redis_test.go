@@ -10,15 +10,24 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/network"
 )
 
 var _ = Describe("Redis configuration tests", func() {
-	var blocky1, blocky2, mokka testcontainers.Container
-	var redisClient *redis.Client
-	var err error
+	var (
+		e2eNet                  *testcontainers.DockerNetwork
+		blocky1, blocky2, mokka testcontainers.Container
+		redisClient             *redis.Client
+		err                     error
+	)
 
 	BeforeEach(func(ctx context.Context) {
-		redisDB, err := createRedisContainer(ctx)
+		e2eNet, err = network.New(ctx)
+		Expect(err).Should(Succeed())
+		DeferCleanup(func(ctx context.Context) {
+			Expect(e2eNet.Remove(ctx)).Should(Succeed())
+		})
+		redisDB, err := createRedisContainer(ctx, e2eNet)
 		Expect(err).Should(Succeed())
 
 		redisConnectionString, err := redisDB.ConnectionString(ctx)
@@ -32,14 +41,14 @@ var _ = Describe("Redis configuration tests", func() {
 
 		Expect(dbSize(ctx, redisClient)).Should(BeNumerically("==", 0))
 
-		mokka, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`)
+		mokka, err = createDNSMokkaContainer(ctx, "moka1", e2eNet, `A google/NOERROR("A 1.2.3.4 123")`)
 		Expect(err).Should(Succeed())
 	})
 
 	Describe("Cache sharing between blocky instances", func() {
 		When("Redis and 2 blocky instances are configured", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky1, err = createBlockyContainer(ctx,
+				blocky1, err = createBlockyContainer(ctx, e2eNet,
 					"log:",
 					"  level: warn",
 					"upstreams:",
@@ -51,7 +60,7 @@ var _ = Describe("Redis configuration tests", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				blocky2, err = createBlockyContainer(ctx,
+				blocky2, err = createBlockyContainer(ctx, e2eNet,
 					"log:",
 					"  level: warn",
 					"upstreams:",
@@ -102,7 +111,7 @@ var _ = Describe("Redis configuration tests", func() {
 	Describe("Cache loading on startup", func() {
 		When("Redis and 1 blocky instance are configured", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky1, err = createBlockyContainer(ctx,
+				blocky1, err = createBlockyContainer(ctx, e2eNet,
 					"log:",
 					"  level: warn",
 					"upstreams:",
@@ -130,7 +139,7 @@ var _ = Describe("Redis configuration tests", func() {
 				})
 
 				By("start other instance of blocky now -> it should load the cache from redis", func() {
-					blocky2, err = createBlockyContainer(ctx,
+					blocky2, err = createBlockyContainer(ctx, e2eNet,
 						"log:",
 						"  level: warn",
 						"upstreams:",

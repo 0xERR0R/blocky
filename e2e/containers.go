@@ -24,6 +24,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/mariadb"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/modules/redis"
+	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
@@ -46,7 +47,9 @@ const (
 // createDNSMokkaContainer creates a DNS mokka container with the given rules attached to the test network
 // under the given alias.
 // It is automatically terminated when the test is finished.
-func createDNSMokkaContainer(ctx context.Context, alias string, rules ...string) (testcontainers.Container, error) {
+func createDNSMokkaContainer(ctx context.Context, alias string, e2eNet *testcontainers.DockerNetwork,
+	rules ...string,
+) (testcontainers.Container, error) {
 	mokaRules := make(map[string]string)
 
 	for i, rule := range rules {
@@ -60,13 +63,14 @@ func createDNSMokkaContainer(ctx context.Context, alias string, rules ...string)
 		Env:          mokaRules,
 	}
 
-	return startContainerWithNetwork(ctx, req, alias)
+	return startContainerWithNetwork(ctx, req, alias, e2eNet)
 }
 
 // createHTTPServerContainer creates a static HTTP server container that serves one file with the given lines
 // and is attached to the test network under the given alias.
 // It is automatically terminated when the test is finished.
-func createHTTPServerContainer(ctx context.Context, alias, filename string, lines ...string,
+func createHTTPServerContainer(ctx context.Context, alias string, e2eNet *testcontainers.DockerNetwork,
+	filename string, lines ...string,
 ) (testcontainers.Container, error) {
 	file := createTempFile(lines...)
 
@@ -84,23 +88,25 @@ func createHTTPServerContainer(ctx context.Context, alias, filename string, line
 		},
 	}
 
-	return startContainerWithNetwork(ctx, req, alias)
+	return startContainerWithNetwork(ctx, req, alias, e2eNet)
 }
 
 // createRedisContainer creates a redis container attached to the test network under the alias 'redis'.
 // It is automatically terminated when the test is finished.
-func createRedisContainer(ctx context.Context) (*redis.RedisContainer, error) {
+func createRedisContainer(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
+) (*redis.RedisContainer, error) {
 	return deferTerminate(redis.RunContainer(ctx,
 		testcontainers.WithImage(redisImage),
 		redis.WithLogLevel(redis.LogLevelVerbose),
-		WithNetwork(ctx, "redis"),
+		network.WithNetwork([]string{"redis"}, e2eNet),
 	))
 }
 
 // createPostgresContainer creates a postgres container attached to the test network under the alias 'postgres'.
 // It creates a database 'user' with user 'user' and password 'user'.
 // It is automatically terminated when the test is finished.
-func createPostgresContainer(ctx context.Context) (*postgres.PostgresContainer, error) {
+func createPostgresContainer(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
+) (*postgres.PostgresContainer, error) {
 	const waitLogOccurrence = 2
 
 	return deferTerminate(postgres.RunContainer(ctx,
@@ -113,27 +119,28 @@ func createPostgresContainer(ctx context.Context) (*postgres.PostgresContainer, 
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(waitLogOccurrence).
 				WithStartupTimeout(startupTimeout)),
-		WithNetwork(ctx, "postgres"),
+		network.WithNetwork([]string{"postgres"}, e2eNet),
 	))
 }
 
 // createMariaDBContainer creates a mariadb container attached to the test network under the alias 'mariaDB'.
 // It creates a database 'user' with user 'user' and password 'user'.
 // It is automatically terminated when the test is finished.
-func createMariaDBContainer(ctx context.Context) (*mariadb.MariaDBContainer, error) {
+func createMariaDBContainer(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
+) (*mariadb.MariaDBContainer, error) {
 	return deferTerminate(mariadb.RunContainer(ctx,
 		testcontainers.WithImage(mariaDBImage),
 		mariadb.WithDatabase("user"),
 		mariadb.WithUsername("user"),
 		mariadb.WithPassword("user"),
-		WithNetwork(ctx, "mariaDB"),
+		network.WithNetwork([]string{"mariaDB"}, e2eNet),
 	))
 }
 
 // createBlockyContainer creates a blocky container with a config provided by the given lines.
 // It is attached to the test network under the alias 'blocky'.
 // It is automatically terminated when the test is finished.
-func createBlockyContainer(ctx context.Context,
+func createBlockyContainer(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
 	lines ...string,
 ) (testcontainers.Container, error) {
 	confFile := createTempFile(lines...)
@@ -163,7 +170,7 @@ func createBlockyContainer(ctx context.Context,
 		WaitingFor: wait.ForHealthCheck().WithStartupTimeout(startupTimeout),
 	}
 
-	container, err := startContainerWithNetwork(ctx, req, "blocky")
+	container, err := startContainerWithNetwork(ctx, req, "blocky", e2eNet)
 	if err != nil {
 		// attach container log if error occurs
 		if r, err := container.Logs(ctx); err == nil {
@@ -202,7 +209,6 @@ func checkBlockyReadiness(ctx context.Context, cfg *config.Config, container tes
 		retry.Attempts(retryAttempts),
 		retry.DelayType(retry.BackOffDelay),
 		retry.Delay(time.Second))
-
 	if err != nil {
 		return fmt.Errorf("can't perform the DNS healthcheck request: %w", err)
 	}
@@ -220,7 +226,6 @@ func checkBlockyReadiness(ctx context.Context, cfg *config.Config, container tes
 			retry.Attempts(retryAttempts),
 			retry.DelayType(retry.BackOffDelay),
 			retry.Delay(time.Second))
-
 		if err != nil {
 			return fmt.Errorf("can't perform the HTTP request: %w", err)
 		}
