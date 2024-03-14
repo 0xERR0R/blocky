@@ -2,7 +2,7 @@
 
 # ----------- stage: ca-certs
 # get newest certificates in seperate stage for caching
-FROM --platform=$BUILDPLATFORM alpine:3.16 AS ca-certs
+FROM --platform=$BUILDPLATFORM alpine:3 AS ca-certs
 RUN apk add --no-cache ca-certificates
 
 # update certificates and use the apk ones if update fails
