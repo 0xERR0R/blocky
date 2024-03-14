@@ -24,7 +24,6 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/mariadb"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/modules/redis"
-	testNet "github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
@@ -98,7 +97,7 @@ func createRedisContainer(ctx context.Context, e2eNet *testcontainers.DockerNetw
 	return deferTerminate(redis.RunContainer(ctx,
 		testcontainers.WithImage(redisImage),
 		redis.WithLogLevel(redis.LogLevelVerbose),
-		testNet.WithNetwork([]string{"redis"}, e2eNet),
+		withNetwork("redis", e2eNet),
 	))
 }
 
@@ -119,7 +118,7 @@ func createPostgresContainer(ctx context.Context, e2eNet *testcontainers.DockerN
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(waitLogOccurrence).
 				WithStartupTimeout(startupTimeout)),
-		testNet.WithNetwork([]string{"postgres"}, e2eNet),
+		withNetwork("postgres", e2eNet),
 	))
 }
 
@@ -133,7 +132,7 @@ func createMariaDBContainer(ctx context.Context, e2eNet *testcontainers.DockerNe
 		mariadb.WithDatabase("user"),
 		mariadb.WithUsername("user"),
 		mariadb.WithPassword("user"),
-		testNet.WithNetwork([]string{"mariaDB"}, e2eNet),
+		withNetwork("mariaDB", e2eNet),
 	))
 }
 

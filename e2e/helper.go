@@ -48,7 +48,7 @@ func startContainerWithNetwork(ctx context.Context, req testcontainers.Container
 		ContainerRequest: req,
 		Started:          true,
 	}
-	testNet.WithNetwork([]string{alias}, e2eNet).Customize(&greq)
+	withNetwork(alias, e2eNet).Customize(&greq)
 
 	return deferTerminate(testcontainers.GenericContainer(ctx, greq))
 }
@@ -106,4 +106,9 @@ func getContainerLogs(ctx context.Context, c testcontainers.Container) (lines []
 	}
 
 	return nil, err
+}
+
+// withNetwork returns a CustomizeRequestOption which attaches the container to the given network with the given alias.
+func withNetwork(alias string, e2eNet *testcontainers.DockerNetwork) testcontainers.CustomizeRequestOption {
+	return testNet.WithNetwork([]string{alias}, e2eNet)
 }
