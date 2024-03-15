@@ -2,8 +2,10 @@
 
 # ----------- stage: ca-certs
 # get newest certificates in seperate stage for caching
-FROM --platform=$BUILDPLATFORM alpine:3.16 AS ca-certs
-RUN apk add --no-cache ca-certificates
+FROM --platform=$BUILDPLATFORM alpine:3 AS ca-certs
+RUN --mount=type=cache,target=/var/cache/apk \
+  apk update && \
+  apk add ca-certificates
 
 # update certificates and use the apk ones if update fails
 RUN --mount=type=cache,target=/etc/ssl/certs \
@@ -16,16 +18,14 @@ FROM --platform=$BUILDPLATFORM ghcr.io/kwitsch/ziggoimg AS build
 ARG VERSION
 ARG BUILD_TIME
 
-# set working directory
-WORKDIR /go/src
-
 # download packages
-COPY go.mod go.sum ./
-RUN --mount=type=cache,target=/go/pkg \
+# bind mount go.mod and go.sum
+# use cache for go packages
+RUN --mount=type=bind,source=go.sum,target=go.sum \
+  --mount=type=bind,source=go.mod,target=go.mod \
+  --mount=type=cache,target=/root/.cache/go-build \ 
+  --mount=type=cache,target=/go/pkg \
   go mod download
-
-# add source
-COPY . .
 
 # setup go
 ENV GO_SKIP_GENERATE=1\
@@ -35,6 +35,8 @@ ENV GO_SKIP_GENERATE=1\
   BIN_OUT_DIR="/bin"
 
 # build binary 
+# bind mount source code
+# use cache for go packages
 RUN --mount=type=bind,target=. \
   --mount=type=cache,target=/root/.cache/go-build \ 
   --mount=type=cache,target=/go/pkg \
