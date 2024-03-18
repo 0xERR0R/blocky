@@ -16,26 +16,34 @@ import (
 )
 
 var _ = Describe("Metrics functional tests", func() {
-	var blocky testcontainers.Container
-	var err error
-	var metricsURL string
+	var (
+		e2eNet     *testcontainers.DockerNetwork
+		blocky     testcontainers.Container
+		err        error
+		metricsURL string
+	)
+
+	BeforeEach(func(ctx context.Context) {
+		e2eNet = getRandomNetwork(ctx)
+	})
 
 	Describe("Metrics", func() {
 		BeforeEach(func(ctx context.Context) {
-			_, err = createDNSMokkaContainer(ctx, "moka1", `A google/NOERROR("A 1.2.3.4 123")`)
+			_, err = createDNSMokkaContainer(ctx, "moka1", e2eNet, `A google/NOERROR("A 1.2.3.4 123")`)
 			Expect(err).Should(Succeed())
 
-			_, err = createHTTPServerContainer(ctx, "httpserver1", "list1.txt", "domain1.com")
+			_, err = createHTTPServerContainer(ctx, "httpserver1", e2eNet, "list1.txt", "domain1.com")
 			Expect(err).Should(Succeed())
 
-			_, err = createHTTPServerContainer(ctx, "httpserver2", "list2.txt",
+			_, err = createHTTPServerContainer(ctx, "httpserver2", e2eNet, "list2.txt",
 				"domain1.com", "domain2", "domain3")
 			Expect(err).Should(Succeed())
 
-			_, err = createHTTPServerContainer(ctx, "httpserver2", "list2.txt", "domain1.com", "domain2", "domain3")
+			_, err = createHTTPServerContainer(ctx, "httpserver2", e2eNet, "list2.txt",
+				"domain1.com", "domain2", "domain3")
 			Expect(err).Should(Succeed())
 
-			blocky, err = createBlockyContainer(ctx,
+			blocky, err = createBlockyContainer(ctx, e2eNet,
 				"upstreams:",
 				"  groups:",
 				"    default:",

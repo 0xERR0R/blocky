@@ -11,17 +11,23 @@ import (
 )
 
 var _ = Describe("External lists and query blocking", func() {
-	var blocky testcontainers.Container
-	var err error
+	var (
+		e2eNet *testcontainers.DockerNetwork
+		blocky testcontainers.Container
+		err    error
+	)
+
 	BeforeEach(func(ctx context.Context) {
-		_, err = createDNSMokkaContainer(ctx, "moka", `A google/NOERROR("A 1.2.3.4 123")`)
+		e2eNet = getRandomNetwork(ctx)
+
+		_, err = createDNSMokkaContainer(ctx, "moka", e2eNet, `A google/NOERROR("A 1.2.3.4 123")`)
 		Expect(err).Should(Succeed())
 	})
 	Describe("List download on startup", func() {
 		When("external blacklist ist not available", func() {
 			Context("loading.strategy = blocking", func() {
 				BeforeEach(func(ctx context.Context) {
-					blocky, err = createBlockyContainer(ctx,
+					blocky, err = createBlockyContainer(ctx, e2eNet,
 						"log:",
 						"  level: warn",
 						"upstreams:",
@@ -56,7 +62,7 @@ var _ = Describe("External lists and query blocking", func() {
 			})
 			Context("loading.strategy = failOnError", func() {
 				BeforeEach(func(ctx context.Context) {
-					blocky, err = createBlockyContainer(ctx,
+					blocky, err = createBlockyContainer(ctx, e2eNet,
 						"log:",
 						"  level: warn",
 						"upstreams:",
@@ -93,10 +99,10 @@ var _ = Describe("External lists and query blocking", func() {
 	Describe("Query blocking against external blacklists", func() {
 		When("external blacklists are defined and available", func() {
 			BeforeEach(func(ctx context.Context) {
-				_, err = createHTTPServerContainer(ctx, "httpserver", "list.txt", "blockeddomain.com")
+				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blockeddomain.com")
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx,
+				blocky, err = createBlockyContainer(ctx, e2eNet,
 					"log:",
 					"  level: warn",
 					"upstreams:",

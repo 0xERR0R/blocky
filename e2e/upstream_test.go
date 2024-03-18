@@ -12,13 +12,20 @@ import (
 )
 
 var _ = Describe("Upstream resolver configuration tests", func() {
-	var blocky testcontainers.Container
-	var err error
+	var (
+		e2eNet *testcontainers.DockerNetwork
+		blocky testcontainers.Container
+		err    error
+	)
+
+	BeforeEach(func(ctx context.Context) {
+		e2eNet = getRandomNetwork(ctx)
+	})
 
 	Describe("'upstreams.init.strategy' parameter handling", func() {
 		When("'upstreams.init.strategy' is fast and upstream server as IP is not reachable", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx,
+				blocky, err = createBlockyContainer(ctx, e2eNet,
 					"log:",
 					"  level: warn",
 					"upstreams:",
@@ -39,7 +46,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 		})
 		When("'upstreams.init.strategy' is fast and upstream server as host name is not reachable", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx,
+				blocky, err = createBlockyContainer(ctx, e2eNet,
 					"log:",
 					"  level: warn",
 					"upstreams:",
@@ -58,7 +65,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 		})
 		When("'upstreams.init.strategy' is failOnError and upstream as IP address server is not reachable", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx,
+				blocky, err = createBlockyContainer(ctx, e2eNet,
 					"upstreams:",
 					"  groups:",
 					"    default:",
@@ -76,7 +83,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 		})
 		When("'upstreams.init.strategy' is failOnError and upstream server as host name is not reachable", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx,
+				blocky, err = createBlockyContainer(ctx, e2eNet,
 					"upstreams:",
 					"  groups:",
 					"    default:",
@@ -95,12 +102,12 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 	})
 	Describe("'upstreams.timeout' parameter handling", func() {
 		BeforeEach(func(ctx context.Context) {
-			_, err = createDNSMokkaContainer(ctx, "moka1",
+			_, err = createDNSMokkaContainer(ctx, "moka1", e2eNet,
 				`A example.com/NOERROR("A 1.2.3.4 123")`,
 				`A delay.com/delay(NOERROR("A 1.1.1.1 100"), "300ms")`)
 			Expect(err).Should(Succeed())
 
-			blocky, err = createBlockyContainer(ctx,
+			blocky, err = createBlockyContainer(ctx, e2eNet,
 				"upstreams:",
 				"  groups:",
 				"    default:",

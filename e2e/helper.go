@@ -3,74 +3,32 @@ package e2e
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"net"
 	"strings"
 	"time"
 
 	"github.com/docker/go-connections/nat"
 	"github.com/miekg/dns"
-	"github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
+	testNet "github.com/testcontainers/testcontainers-go/network"
 )
 
-//nolint:gochecknoglobals
-var (
-	// currentNetwork is the global test network instance.
-	currentNetwork = testNetwork{}
-)
+// getRandomNetwork returns a new test network which is used for the tests and removed afterwards.
+func getRandomNetwork(ctx context.Context) *testcontainers.DockerNetwork {
+	e2eNet, err := testNet.New(ctx)
+	Expect(err).Should(Succeed())
+	DeferCleanup(func(ctx context.Context) {
+		Expect(e2eNet.Remove(ctx)).Should(Succeed())
+	})
 
-// WithNetwork attaches the container with the given alias to the test network
-//
-//nolint:staticcheck
-func WithNetwork(ctx context.Context, alias string) testcontainers.CustomizeRequestOption {
-	return func(req *testcontainers.GenericContainerRequest) {
-		networkName := currentNetwork.Name()
-		network, err := testcontainers.GenericNetwork(ctx, testcontainers.GenericNetworkRequest{
-			NetworkRequest: testcontainers.NetworkRequest{
-				Name:           networkName,
-				CheckDuplicate: true, // force the Docker provider to reuse an existing network
-				Attachable:     true,
-			},
-		})
-
-		if err != nil && !strings.Contains(err.Error(), "already exists") {
-			ginkgo.Fail(fmt.Sprintf("Failed to create network '%s'. Container won't be attached to this network: %v",
-				networkName, err))
-
-			return
-		}
-
-		// decrement the network counter when the test is finished and remove the network if it is not used anymore.
-		ginkgo.DeferCleanup(func(ctx context.Context) error {
-			if currentNetwork.Detach() {
-				if err := network.Remove(ctx); err != nil &&
-					!strings.Contains(err.Error(), "removing") &&
-					!strings.Contains(err.Error(), "not found") {
-					return err
-				}
-			}
-
-			return nil
-		})
-
-		// increment the network counter when the container is created.
-		currentNetwork.Attach()
-
-		// attaching to the network because it was created with success or it already existed.
-		req.Networks = append(req.Networks, networkName)
-
-		if req.NetworkAliases == nil {
-			req.NetworkAliases = make(map[string][]string)
-		}
-
-		req.NetworkAliases[networkName] = []string{alias}
-	}
+	return e2eNet
 }
 
 // deferTerminate is a helper function to terminate the container when the test is finished.
 func deferTerminate[T testcontainers.Container](container T, err error) (T, error) {
-	ginkgo.DeferCleanup(func(ctx context.Context) error {
+	DeferCleanup(func(ctx context.Context) error {
 		if container.IsRunning() {
 			return container.Terminate(ctx)
 		}
@@ -84,12 +42,13 @@ func deferTerminate[T testcontainers.Container](container T, err error) (T, erro
 // startContainerWithNetwork starts the container with the given alias and attaches it to the test network.
 // The container is wrapped with deferTerminate to terminate the container when the test is finished.
 func startContainerWithNetwork(ctx context.Context, req testcontainers.ContainerRequest, alias string,
+	e2eNet *testcontainers.DockerNetwork,
 ) (testcontainers.Container, error) {
 	greq := testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Started:          true,
 	}
-	WithNetwork(ctx, alias).Customize(&greq)
+	withNetwork(alias, e2eNet).Customize(&greq)
 
 	return deferTerminate(testcontainers.GenericContainer(ctx, greq))
 }
@@ -121,7 +80,6 @@ func getContainerHostPort(ctx context.Context, c testcontainers.Container, p nat
 	}
 
 	host, err = c.Host(ctx)
-
 	if err != nil {
 		return "", "", err
 	}
@@ -148,4 +106,9 @@ func getContainerLogs(ctx context.Context, c testcontainers.Container) (lines []
 	}
 
 	return nil, err
+}
+
+// withNetwork returns a CustomizeRequestOption which attaches the container to the given network with the given alias.
+func withNetwork(alias string, e2eNet *testcontainers.DockerNetwork) testcontainers.CustomizeRequestOption {
+	return testNet.WithNetwork([]string{alias}, e2eNet)
 }
