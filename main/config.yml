@@ -316,7 +316,7 @@ ports:
 
 # optional: logging configuration
 log:
-  # optional: Log level (one from debug, info, warn, error). Default: info
+  # optional: Log level (one from trace, debug, info, warn, error). Default: info
   level: info
   # optional: Log format (text or json). Default: text
   format: text
