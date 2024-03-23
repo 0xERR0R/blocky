@@ -156,18 +156,17 @@ func (b *Bootstrap) resolveUpstream(ctx context.Context, r Resolver, host string
 
 // NewHTTPTransport returns a new http.Transport that uses b to resolve hostnames
 func (b *Bootstrap) NewHTTPTransport() *http.Transport {
-	if b.resolver == nil {
-		return &http.Transport{
-			DialContext: b.dialer.DialContext,
-		}
-	}
+	transport := util.DefaultHTTPTransport()
+	transport.DialContext = b.dialContext
 
-	return &http.Transport{
-		DialContext: b.dialContext,
-	}
+	return transport
 }
 
 func (b *Bootstrap) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	if b.resolver == nil {
+		return b.dialer.DialContext(ctx, network, addr)
+	}
+
 	ctx, logger := b.logWithFields(ctx, logrus.Fields{"network": network, "addr": addr})
 
 	host, port, err := net.SplitHostPort(addr)

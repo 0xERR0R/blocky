@@ -98,13 +98,13 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 
 	switch cfg.Net {
 	case config.NetProtocolHttps:
+		transport := util.DefaultHTTPTransport()
+		transport.TLSClientConfig = &tlsConfig
+
 		return &httpUpstreamClient{
 			userAgent: cfg.UserAgent,
 			client: &http.Client{
-				Transport: &http.Transport{
-					TLSClientConfig:   &tlsConfig,
-					ForceAttemptHTTP2: true,
-				},
+				Transport: transport,
 			},
 			host: cfg.Host,
 		}

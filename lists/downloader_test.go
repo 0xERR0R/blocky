@@ -54,7 +54,7 @@ var _ = Describe("Downloader", func() {
 
 	Describe("NewDownloader", func() {
 		It("Should use provided parameters", func() {
-			transport := &http.Transport{}
+			transport := new(http.Transport)
 
 			sut = NewDownloader(
 				config.Downloader{
@@ -96,6 +96,7 @@ var _ = Describe("Downloader", func() {
 				server = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 					rw.WriteHeader(http.StatusNotFound)
 				}))
+				DeferCleanup(server.Close)
 
 				sutConfig.Attempts = 3
 			})
@@ -211,6 +212,18 @@ var _ = Describe("Downloader", func() {
 					Expect(failedDownloadCountEvtChannel).Should(Receive(Equal("http://some.domain.which.does.not.exist")))
 					Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("Name resolution err: "))
 				})
+		})
+		When("a proxy is configured", func() {
+			It("should be used", func(ctx context.Context) {
+				proxy := TestHTTPProxy()
+
+				sut.client.Transport = &http.Transport{Proxy: proxy.ReqURL}
+
+				_, err := sut.DownloadFile(ctx, "http://example.com")
+				Expect(err).Should(HaveOccurred())
+
+				Expect(proxy.RequestTarget()).Should(Equal("example.com"))
+			})
 		})
 	})
 })
