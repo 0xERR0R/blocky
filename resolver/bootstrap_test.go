@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"sync/atomic"
 
 	"github.com/0xERR0R/blocky/config"
@@ -77,10 +78,15 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 			})
 
 			Describe("HTTP transport", func() {
-				It("should use the system resolver", func() {
+				It("should use Go default values", func() {
 					transport := sut.NewHTTPTransport()
-
 					Expect(transport).ShouldNot(BeNil())
+
+					Expect(
+						reflect.ValueOf(transport.Proxy).Pointer(),
+					).Should(Equal(
+						reflect.ValueOf(http.ProxyFromEnvironment).Pointer(),
+					))
 				})
 			})
 
