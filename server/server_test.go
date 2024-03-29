@@ -745,7 +745,7 @@ var _ = Describe("Running DNS server", func() {
 			}
 			sut, err := NewServer(ctx, &cfg)
 			Expect(err).Should(Succeed())
-			Expect(sut.cert.Certificate).ShouldNot(BeNil())
+			Expect(sut.tlsCfg.Certificates).ShouldNot(BeEmpty())
 		})
 	})
 })
