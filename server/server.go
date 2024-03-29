@@ -50,7 +50,6 @@ type Server struct {
 	queryResolver  resolver.ChainedResolver
 	cfg            *config.Config
 	httpMux        *chi.Mux
-	httpsMux       *chi.Mux
 	cert           tls.Certificate
 }
 
@@ -117,17 +116,9 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		return nil, fmt.Errorf("server creation failed: %w", err)
 	}
 
-	httpRouter := createHTTPRouter(cfg)
-	httpsRouter := createHTTPSRouter(cfg)
-
 	httpListeners, httpsListeners, err := createHTTPListeners(cfg)
 	if err != nil {
 		return nil, err
-	}
-
-	if len(httpListeners) != 0 || len(httpsListeners) != 0 {
-		metrics.Start(httpRouter, cfg.Prometheus)
-		metrics.Start(httpsRouter, cfg.Prometheus)
 	}
 
 	metrics.RegisterEventListeners()
@@ -156,25 +147,20 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		cfg:            cfg,
 		httpListeners:  httpListeners,
 		httpsListeners: httpsListeners,
-		httpMux:        httpRouter,
-		httpsMux:       httpsRouter,
 		cert:           cert,
 	}
 
 	server.printConfiguration()
 
 	server.registerDNSHandlers(ctx)
-	err = server.registerAPIEndpoints(httpRouter)
 
+	openAPIImpl, err := server.createOpenAPIInterfaceImpl()
 	if err != nil {
 		return nil, err
 	}
 
-	err = server.registerAPIEndpoints(httpsRouter)
-
-	if err != nil {
-		return nil, err
-	}
+	server.httpMux = createHTTPRouter(cfg, openAPIImpl)
+	server.registerDoHEndpoints(server.httpMux)
 
 	return server, err
 }
@@ -518,7 +504,7 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 			logger().Infof("https server is up and running on addr/port %s", address)
 
 			server := http.Server{
-				Handler:           s.httpsMux,
+				Handler:           s.httpMux,
 				ReadTimeout:       readTimeout,
 				ReadHeaderTimeout: readHeaderTimeout,
 				WriteTimeout:      writeTimeout,

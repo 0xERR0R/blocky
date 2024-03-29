@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/resolver"
 
 	"github.com/0xERR0R/blocky/api"
@@ -37,10 +38,13 @@ const (
 
 func secureHeader(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("strict-transport-security", "max-age=63072000")
-		w.Header().Set("x-frame-options", "DENY")
-		w.Header().Set("x-content-type-options", "nosniff")
-		w.Header().Set("x-xss-protection", "1; mode=block")
+		if r.TLS != nil {
+			w.Header().Set("strict-transport-security", "max-age=63072000")
+			w.Header().Set("x-frame-options", "DENY")
+			w.Header().Set("x-content-type-options", "nosniff")
+			w.Header().Set("x-xss-protection", "1; mode=block")
+		}
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -64,15 +68,8 @@ func (s *Server) createOpenAPIInterfaceImpl() (impl api.StrictServerInterface, e
 	return api.NewOpenAPIInterfaceImpl(bControl, s, refresher, cacheControl), nil
 }
 
-func (s *Server) registerAPIEndpoints(router *chi.Mux) error {
+func (s *Server) registerDoHEndpoints(router *chi.Mux) {
 	const pathDohQuery = "/dns-query"
-
-	openAPIImpl, err := s.createOpenAPIInterfaceImpl()
-	if err != nil {
-		return err
-	}
-
-	api.RegisterOpenAPIEndpoints(router, openAPIImpl)
 
 	router.Get(pathDohQuery, s.dohGetRequestHandler)
 	router.Get(pathDohQuery+"/", s.dohGetRequestHandler)
@@ -80,8 +77,6 @@ func (s *Server) registerAPIEndpoints(router *chi.Mux) error {
 	router.Post(pathDohQuery, s.dohPostRequestHandler)
 	router.Post(pathDohQuery+"/", s.dohPostRequestHandler)
 	router.Post(pathDohQuery+"/{clientID}", s.dohPostRequestHandler)
-
-	return nil
 }
 
 func (s *Server) dohGetRequestHandler(rw http.ResponseWriter, req *http.Request) {
@@ -177,26 +172,14 @@ func (s *Server) Query(
 	return s.resolve(ctx, req)
 }
 
-func createHTTPSRouter(cfg *config.Config) *chi.Mux {
+func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface) *chi.Mux {
 	router := chi.NewRouter()
 
 	configureSecureHeaderHandler(router)
 
-	registerHandlers(cfg, router)
-
-	return router
-}
-
-func createHTTPRouter(cfg *config.Config) *chi.Mux {
-	router := chi.NewRouter()
-
-	registerHandlers(cfg, router)
-
-	return router
-}
-
-func registerHandlers(cfg *config.Config, router *chi.Mux) {
 	configureCorsHandler(router)
+
+	api.RegisterOpenAPIEndpoints(router, openAPIImpl)
 
 	configureDebugHandler(router)
 
@@ -205,6 +188,10 @@ func registerHandlers(cfg *config.Config, router *chi.Mux) {
 	configureStaticAssetsHandler(router)
 
 	configureRootHandler(cfg, router)
+
+	metrics.Start(router, cfg.Prometheus)
+
+	return router
 }
 
 func configureDocsHandler(router *chi.Mux) {
