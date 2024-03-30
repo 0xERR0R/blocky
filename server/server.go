@@ -60,14 +60,6 @@ func tlsCipherSuites() []uint16 {
 	return tlsCipherSuites
 }
 
-func getServerAddress(addr string) string {
-	if !strings.Contains(addr, ":") {
-		addr = fmt.Sprintf(":%s", addr)
-	}
-
-	return addr
-}
-
 type NewServerFunc func(address string) (*dns.Server, error)
 
 func retrieveCertificate(cfg *config.Config) (cert tls.Certificate, err error) {
@@ -195,7 +187,7 @@ func createServers(cfg *config.Config, tlsCfg *tls.Config) ([]*dns.Server, error
 
 	addServers := func(newServer NewServerFunc, addresses config.ListenConfig) error {
 		for _, address := range addresses {
-			server, err := newServer(getServerAddress(address))
+			server, err := newServer(address)
 			if err != nil {
 				return err
 			}
@@ -236,7 +228,7 @@ func newTCPListeners(proto string, addresses config.ListenConfig) ([]net.Listene
 	listeners := make([]net.Listener, 0, len(addresses))
 
 	for _, address := range addresses {
-		listener, err := net.Listen("tcp", getServerAddress(address))
+		listener, err := net.Listen("tcp", address)
 		if err != nil {
 			return nil, fmt.Errorf("start %s listener on %s failed: %w", proto, address, err)
 		}

@@ -171,6 +171,13 @@ func (l *ListenConfig) UnmarshalText(data []byte) error {
 
 	*l = strings.Split(addresses, ",")
 
+	// Prefix all ports with :
+	for i, addr := range *l {
+		if !strings.ContainsRune(addr, ':') {
+			(*l)[i] = ":" + addr
+		}
+	}
+
 	return nil
 }
 
