@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -31,18 +32,25 @@ const (
 	DS    = dns.Type(dns.TypeDS)
 )
 
-// GetIntPort returns an port for the current testing
+// GetIntPort returns a port for the current testing
 // process by adding the current ginkgo parallel process to
-// the base port and returning it as int
+// the base port and returning it as int.
 func GetIntPort(port int) int {
 	return port + ginkgo.GinkgoParallelProcess()
 }
 
-// GetStringPort returns an port for the current testing
+// GetStringPort returns a port for the current testing
 // process by adding the current ginkgo parallel process to
-// the base port and returning it as string
+// the base port and returning it as string.
 func GetStringPort(port int) string {
 	return fmt.Sprintf("%d", GetIntPort(port))
+}
+
+// GetHostPort returns a host:port string for the current testing
+// process by adding the current ginkgo parallel process to
+// the base port and returning it as string.
+func GetHostPort(host string, port int) string {
+	return net.JoinHostPort(host, GetStringPort(port))
 }
 
 // TempFile creates temp file with passed data

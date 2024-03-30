@@ -462,7 +462,7 @@ bootstrapDns:
 				err := l.UnmarshalText([]byte("55,:56"))
 				Expect(err).Should(Succeed())
 				Expect(*l).Should(HaveLen(2))
-				Expect(*l).Should(ContainElements("55", ":56"))
+				Expect(*l).Should(ContainElements(":55", ":56"))
 			})
 		})
 	})
@@ -958,7 +958,7 @@ bootstrapDns:
 })
 
 func defaultTestFileConfig(config *Config) {
-	Expect(config.Ports.DNS).Should(Equal(ListenConfig{"55553", ":55554", "[::1]:55555"}))
+	Expect(config.Ports.DNS).Should(Equal(ListenConfig{":55553", ":55554", "[::1]:55555"}))
 	Expect(config.Upstreams.Init.Strategy).Should(Equal(InitStrategyFailOnError))
 	Expect(config.Upstreams.UserAgent).Should(Equal("testBlocky"))
 	Expect(config.Upstreams.Groups["default"]).Should(HaveLen(3))
