@@ -9,10 +9,6 @@ permissions:
   actions: read
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 env:
   GINKGO_PROCS: --procs=1
 
