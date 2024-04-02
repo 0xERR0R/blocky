@@ -1,6 +1,9 @@
 package config
 
 import (
+	"net/url"
+	"strings"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -32,7 +35,7 @@ func (c *QueryLog) LogConfig(logger *logrus.Entry) {
 	logger.Infof("type: %s", c.Type)
 
 	if c.Target != "" {
-		logger.Infof("target: %s", c.Target)
+		logger.Infof("target: %s", c.censoredTarget())
 	}
 
 	logger.Infof("logRetentionDays: %d", c.LogRetentionDays)
@@ -40,4 +43,28 @@ func (c *QueryLog) LogConfig(logger *logrus.Entry) {
 	logger.Debugf("creationCooldown: %s", c.CreationCooldown)
 	logger.Infof("flushInterval: %s", c.FlushInterval)
 	logger.Infof("fields: %s", c.Fields)
+}
+
+func (c *QueryLog) censoredTarget() string {
+	// Make sure there's a scheme, otherwise the user is parsed as the scheme
+	targetStr := c.Target
+	if !strings.Contains(targetStr, "://") {
+		targetStr = c.Type.String() + "://" + targetStr
+	}
+
+	target, err := url.Parse(targetStr)
+	if err != nil {
+		return c.Target
+	}
+
+	if target.User == nil {
+		return c.Target
+	}
+
+	// Drop the password since special chars like * get URL escaped
+	if pass, hasPass :=target.User.Password(); hasPass {
+		return strings.Replace(target.String(), pass, strings.Repeat("*", len(pass)), 1)
+	}
+
+	return target.String()
 }
