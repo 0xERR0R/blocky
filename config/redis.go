@@ -1,8 +1,6 @@
 package config
 
 import (
-	"strings"
-
 	"github.com/sirupsen/logrus"
 )
 
@@ -32,7 +30,7 @@ func (c *Redis) LogConfig(logger *logrus.Entry) {
 	}
 
 	logger.Info("username: ", c.Username)
-	logger.Info("password: ", obfuscatePassword(c.Password))
+	logger.Info("password: ", secretObfuscator)
 	logger.Info("database: ", c.Database)
 	logger.Info("required: ", c.Required)
 	logger.Info("connectionAttempts: ", c.ConnectionAttempts)
@@ -42,16 +40,11 @@ func (c *Redis) LogConfig(logger *logrus.Entry) {
 		logger.Info("sentinel:")
 		logger.Info("  master: ", c.Address)
 		logger.Info("  username: ", c.SentinelUsername)
-		logger.Info("  password: ", obfuscatePassword(c.SentinelPassword))
+		logger.Info("  password: ", secretObfuscator)
 		logger.Info("  addresses:")
 
 		for _, addr := range c.SentinelAddresses {
 			logger.Info("    - ", addr)
 		}
 	}
-}
-
-// obfuscatePassword replaces all characters of a password except the first and last with *
-func obfuscatePassword(pass string) string {
-	return strings.Repeat("*", len(pass))
 }

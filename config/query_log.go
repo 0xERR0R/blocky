@@ -57,14 +57,10 @@ func (c *QueryLog) censoredTarget() string {
 		return c.Target
 	}
 
-	if target.User == nil {
+	pass, ok := target.User.Password()
+	if !ok {
 		return c.Target
 	}
 
-	// Drop the password since special chars like * get URL escaped
-	if pass, hasPass :=target.User.Password(); hasPass {
-		return strings.Replace(target.String(), pass, strings.Repeat("*", len(pass)), 1)
-	}
-
-	return target.String()
+	return strings.ReplaceAll(c.Target, pass, secretObfuscator)
 }
