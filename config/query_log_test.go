@@ -55,6 +55,21 @@ var _ = Describe("QueryLogConfig", func() {
 			Expect(hook.Calls).ShouldNot(BeEmpty())
 			Expect(hook.Messages).Should(ContainElement(ContainSubstring("logRetentionDays:")))
 		})
+
+		DescribeTable("doesn't print the target password", func(target string) {
+			cfg.Type = QueryLogTypeMysql
+			cfg.Target = target
+
+			cfg.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("password")))
+		},
+			Entry("without scheme", "user:password@localhost"),
+			Entry("with scheme", "scheme://user:password@localhost"),
+			Entry("no password", "localhost"),
+			Entry("not a URL", "invalid!://"),
+		)
 	})
 
 	Describe("SetDefaults", func() {
