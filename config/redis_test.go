@@ -86,19 +86,23 @@ var _ = Describe("Redis", func() {
 						ContainElement(ContainSubstring("  - localhost:26380"))))
 			})
 		})
-	})
 
-	Describe("obfuscatePassword", func() {
-		When("password is empty", func() {
-			It("should return empty string", func() {
-				Expect(obfuscatePassword("")).Should(Equal(""))
-			})
+		const secretValue = "secret-value"
+
+		It("should not log the password", func() {
+			c.Password = secretValue
+			c.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring(secretValue)))
 		})
 
-		When("password is not empty", func() {
-			It("should return obfuscated password", func() {
-				Expect(obfuscatePassword("test123")).Should(Equal("*******"))
-			})
+		It("should not log the sentinel password", func() {
+			c.SentinelPassword = secretValue
+			c.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring(secretValue)))
 		})
 	})
 })

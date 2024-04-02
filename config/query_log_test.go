@@ -56,7 +56,7 @@ var _ = Describe("QueryLogConfig", func() {
 			Expect(hook.Messages).Should(ContainElement(ContainSubstring("logRetentionDays:")))
 		})
 
-		DescribeTable("doesn't print the target password", func(target string) {
+		DescribeTable("secret censoring", func(target string) {
 			cfg.Type = QueryLogTypeMysql
 			cfg.Target = target
 

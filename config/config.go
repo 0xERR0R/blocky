@@ -27,6 +27,8 @@ const (
 	udpPort   = 53
 	tlsPort   = 853
 	httpsPort = 443
+
+	secretObfuscator = "********"
 )
 
 type Configurable interface {
