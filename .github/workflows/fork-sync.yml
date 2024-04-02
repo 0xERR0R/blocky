@@ -26,7 +26,12 @@ jobs:
           else
             echo "enabled=0" >> $GITHUB_OUTPUT
 
-            echo "Workflow is disabled(create FORK_SYNC_TOKEN secret with repo write permission to enable it)"
+            (
+              echo 'Workflow is disabled (create `FORK_SYNC_TOKEN` secret with repo write permission to enable it)'
+              echo
+              echo 'Alternatively, you can disable it for your repo from the web UI:'
+              echo 'https://docs.github.com/en/actions/using-workflows/disabling-and-enabling-a-workflow'
+            ) | tee "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Sync
