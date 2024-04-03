@@ -109,8 +109,6 @@ func newTLSConfig(cfg *config.Config) (*tls.Config, error) {
 }
 
 // NewServer creates new server instance with passed config
-//
-//nolint:funlen
 func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err error) {
 	cfg.CopyPortsToServices()
 
@@ -132,8 +130,6 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 	if err != nil {
 		return nil, err
 	}
-
-	metrics.RegisterEventListeners()
 
 	bootstrap, err := resolver.NewBootstrap(ctx, cfg)
 	if err != nil {
@@ -185,6 +181,7 @@ func (s *Server) createServices() ([]service.Service, error) {
 	res := []service.Service{
 		newHTTPMiscService(s.cfg, openAPIImpl),
 		newDoHService(s.cfg.Services.DoH, s.handleReq),
+		metrics.NewService(s.cfg.Services.Metrics, s.cfg.Prometheus),
 	}
 
 	// Remove services the user has not enabled
@@ -235,6 +232,8 @@ func createListeners(ctx context.Context, cfg *config.Config, tlsCfg *tls.Config
 		newListeners(ctx, service.HTTPSProtocol, cfg.Ports.HTTPS, listenTLS, res),
 		newListeners(ctx, service.HTTPProtocol, cfg.Services.DoH.Addrs.HTTP, service.ListenTCP, res),
 		newListeners(ctx, service.HTTPSProtocol, cfg.Services.DoH.Addrs.HTTPS, listenTLS, res),
+		newListeners(ctx, service.HTTPProtocol, cfg.Services.Metrics.Addrs.HTTP, service.ListenTCP, res),
+		newListeners(ctx, service.HTTPSProtocol, cfg.Services.Metrics.Addrs.HTTPS, listenTLS, res),
 	)
 	if err != nil {
 		return nil, err

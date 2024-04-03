@@ -272,7 +272,8 @@ type Config struct {
 // The `yaml` struct tags are just for manual testing,
 // and require replacing `yaml:"-"` in Config to work.
 type Services struct {
-	DoH DoHService `yaml:"dns-over-https"`
+	DoH     DoHService     `yaml:"dns-over-https"`
+	Metrics MetricsService `yaml:"metrics"`
 }
 
 type Ports struct {
@@ -618,11 +619,14 @@ func (cfg *Config) validate(logger *logrus.Entry) {
 // This should be replaced with a migration once everything from Ports is supported in Services.
 // Done this way for now to avoid creating temporary generic services and updating all Ports related code at once.
 func (cfg *Config) CopyPortsToServices() {
+	httpAddrs := AllHTTPAddrs{
+		HTTPAddrs:  HTTPAddrs{HTTP: cfg.Ports.HTTP},
+		HTTPSAddrs: HTTPSAddrs{HTTPS: cfg.Ports.HTTPS},
+	}
+
 	cfg.Services = Services{
-		DoH: DoHService{Addrs: DoHAddrs{
-			HTTPAddrs:  HTTPAddrs{HTTP: cfg.Ports.HTTP},
-			HTTPSAddrs: HTTPSAddrs{HTTPS: cfg.Ports.HTTPS},
-		}},
+		DoH:     DoHService{Addrs: httpAddrs},
+		Metrics: MetricsService{Addrs: httpAddrs},
 	}
 }
 
