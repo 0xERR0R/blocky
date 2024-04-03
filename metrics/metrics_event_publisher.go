@@ -11,8 +11,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// RegisterEventListeners registers all metric handlers by the event bus
-func RegisterEventListeners() {
+// registerEventListeners registers all metric handlers on the event bus
+func registerEventListeners() {
 	registerBlockingEventListeners()
 	registerCachingEventListeners()
 	registerApplicationEventListeners()

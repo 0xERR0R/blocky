@@ -10,6 +10,7 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/server"
 	"github.com/0xERR0R/blocky/util"
 
@@ -48,6 +49,10 @@ func startServer(_ *cobra.Command, _ []string) error {
 
 	ctx, cancelFn := context.WithCancel(context.Background())
 	defer cancelFn()
+
+	if cfg.Prometheus.Enable {
+		metrics.StartCollection()
+	}
 
 	srv, err := server.NewServer(ctx, cfg)
 	if err != nil {
