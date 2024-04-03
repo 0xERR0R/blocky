@@ -501,7 +501,7 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 				ReadTimeout:       readTimeout,
 				ReadHeaderTimeout: readHeaderTimeout,
 				WriteTimeout:      writeTimeout,
-				Handler:           s.httpsMux,
+				Handler:           s.httpMux,
 			}
 
 			if err := srv.Serve(listener); err != nil {
