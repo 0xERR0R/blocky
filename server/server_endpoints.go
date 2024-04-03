@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/resolver"
 
 	"github.com/0xERR0R/blocky/api"
@@ -73,8 +72,6 @@ func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface)
 	configureStaticAssetsHandler(router)
 
 	configureRootHandler(cfg, router)
-
-	metrics.Start(router, cfg.Prometheus)
 
 	return router
 }

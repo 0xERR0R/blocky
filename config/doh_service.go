@@ -1,10 +1,16 @@
 package config
 
-type DoHService struct {
-	Addrs DoHAddrs `yaml:"addrs"`
+type (
+	DoHService     httpService
+	MetricsService httpService
+)
+
+// httpService can be used by any service that uses HTTP(S).
+type httpService struct {
+	Addrs httpAddrs `yaml:"addrs"`
 }
 
-type DoHAddrs struct {
+type httpAddrs struct {
 	HTTPAddrs  `yaml:",inline"`
 	HTTPSAddrs `yaml:",inline"`
 }
