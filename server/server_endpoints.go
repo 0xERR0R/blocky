@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"time"
 
 	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/resolver"
@@ -23,7 +22,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/cors"
 	"github.com/miekg/dns"
 )
 
@@ -33,21 +31,7 @@ const (
 	dnsContentType    = "application/dns-message"
 	htmlContentType   = "text/html; charset=UTF-8"
 	yamlContentType   = "text/yaml"
-	corsMaxAge        = 5 * time.Minute
 )
-
-func secureHeader(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS != nil {
-			w.Header().Set("strict-transport-security", "max-age=63072000")
-			w.Header().Set("x-frame-options", "DENY")
-			w.Header().Set("x-content-type-options", "nosniff")
-			w.Header().Set("x-xss-protection", "1; mode=block")
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
 
 func (s *Server) createOpenAPIInterfaceImpl() (impl api.StrictServerInterface, err error) {
 	bControl, err := resolver.GetFromChainWithType[api.BlockingControl](s.queryResolver)
@@ -175,10 +159,6 @@ func (s *Server) Query(
 func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface) *chi.Mux {
 	router := chi.NewRouter()
 
-	configureSecureHeaderHandler(router)
-
-	configureCorsHandler(router)
-
 	api.RegisterOpenAPIEndpoints(router, openAPIImpl)
 
 	configureDebugHandler(router)
@@ -269,22 +249,6 @@ func logAndResponseWithError(err error, message string, writer http.ResponseWrit
 	}
 }
 
-func configureSecureHeaderHandler(router *chi.Mux) {
-	router.Use(secureHeader)
-}
-
 func configureDebugHandler(router *chi.Mux) {
 	router.Mount("/debug", middleware.Profiler())
-}
-
-func configureCorsHandler(router *chi.Mux) {
-	crs := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: true,
-		MaxAge:           int(corsMaxAge.Seconds()),
-	})
-	router.Use(crs.Handler)
 }
