@@ -45,19 +45,19 @@ func svcString(s Service) string {
 
 // Info can be embedded in structs to help implement Service.
 type Info struct {
-	Name      string
-	Endpoints []Endpoint
+	name      string
+	endpoints []Endpoint
 }
 
 func NewInfo(name string, endpoints []Endpoint) Info {
 	return Info{
-		Name:      name,
-		Endpoints: endpoints,
+		name:      name,
+		endpoints: endpoints,
 	}
 }
 
-func (i *Info) ServiceName() string  { return i.Name }
-func (i *Info) ExposeOn() []Endpoint { return i.Endpoints }
+func (i *Info) ServiceName() string  { return i.name }
+func (i *Info) ExposeOn() []Endpoint { return i.endpoints }
 func (i *Info) String() string       { return svcString(i) }
 
 // GroupByListener returns a map of listener and services grouped by configured address.

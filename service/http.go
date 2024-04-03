@@ -27,18 +27,18 @@ type HTTPService interface {
 type HTTPInfo struct {
 	Info
 
-	Mux *chi.Mux
+	mux *chi.Mux
 }
 
 func NewHTTPInfo(name string, endpoints []Endpoint) HTTPInfo {
 	return HTTPInfo{
 		Info: NewInfo(name, endpoints),
 
-		Mux: chi.NewMux(),
+		mux: chi.NewMux(),
 	}
 }
 
-func (i *HTTPInfo) Router() chi.Router { return i.Mux }
+func (i *HTTPInfo) Router() chi.Router { return i.mux }
 
 var _ HTTPService = (*SimpleHTTP)(nil)
 

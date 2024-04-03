@@ -30,7 +30,7 @@ func newDoHService(cfg config.DoHService, handler dnsHandler) *dohService {
 		handler: handler,
 	}
 
-	s.Mux.Route("/dns-query", func(mux chi.Router) {
+	s.Router().Route("/dns-query", func(mux chi.Router) {
 		// Handlers for / also handle /dns-query without trailing slash
 
 		mux.Get("/", s.handleGET)

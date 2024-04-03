@@ -27,7 +27,7 @@ func NewService(cfg config.MetricsService, metricsCfg config.Metrics) *Service {
 		SimpleHTTP: service.NewSimpleHTTP("Metrics", endpoints),
 	}
 
-	s.Mux.Handle(
+	s.Router().Handle(
 		metricsCfg.Path,
 		promhttp.InstrumentMetricHandler(reg, promhttp.HandlerFor(reg, promhttp.HandlerOpts{})),
 	)
