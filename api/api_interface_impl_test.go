@@ -105,7 +105,7 @@ var _ = Describe("API implementation tests", func() {
 	Describe("RegisterOpenAPIEndpoints", func() {
 		It("adds routes", func() {
 			rtr := chi.NewRouter()
-			RegisterOpenAPIEndpoints(rtr, sut)
+			registerOpenAPIEndpoints(rtr, sut)
 
 			Expect(rtr.Routes()).ShouldNot(BeEmpty())
 		})

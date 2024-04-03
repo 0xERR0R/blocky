@@ -53,7 +53,7 @@ type CacheControl interface {
 	FlushCaches(ctx context.Context)
 }
 
-func RegisterOpenAPIEndpoints(router chi.Router, impl StrictServerInterface) {
+func registerOpenAPIEndpoints(router chi.Router, impl StrictServerInterface) {
 	middleware := []StrictMiddlewareFunc{ctxWithHTTPRequestMiddleware}
 
 	HandlerFromMuxWithBaseURL(NewStrictHandler(impl, middleware), router, "/api")

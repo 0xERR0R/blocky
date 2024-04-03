@@ -272,6 +272,7 @@ type Config struct {
 // The `yaml` struct tags are just for manual testing,
 // and require replacing `yaml:"-"` in Config to work.
 type Services struct {
+	API     APIService     `yaml:"control-api"`
 	DoH     DoHService     `yaml:"dns-over-https"`
 	Metrics MetricsService `yaml:"metrics"`
 }
@@ -625,6 +626,7 @@ func (cfg *Config) CopyPortsToServices() {
 	}
 
 	cfg.Services = Services{
+		API:     APIService{Addrs: httpAddrs},
 		DoH:     DoHService{Addrs: httpAddrs},
 		Metrics: MetricsService{Addrs: httpAddrs},
 	}

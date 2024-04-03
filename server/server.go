@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xERR0R/blocky/api"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/metrics"
@@ -179,8 +180,9 @@ func (s *Server) createServices() ([]service.Service, error) {
 	}
 
 	res := []service.Service{
-		newHTTPMiscService(s.cfg, openAPIImpl),
+		newHTTPMiscService(s.cfg),
 		newDoHService(s.cfg.Services.DoH, s.handleReq),
+		api.NewService(s.cfg.Services.API, openAPIImpl),
 		metrics.NewService(s.cfg.Services.Metrics, s.cfg.Prometheus),
 	}
 

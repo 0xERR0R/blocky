@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/0xERR0R/blocky/api"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/service"
 	"github.com/0xERR0R/blocky/util"
@@ -23,7 +22,7 @@ type httpMiscService struct {
 	service.HTTPInfo
 }
 
-func newHTTPMiscService(cfg *config.Config, openAPIImpl api.StrictServerInterface) *httpMiscService {
+func newHTTPMiscService(cfg *config.Config) *httpMiscService {
 	endpoints := util.ConcatSlices(
 		service.EndpointsFromAddrs(service.HTTPProtocol, cfg.Ports.HTTP),
 		service.EndpointsFromAddrs(service.HTTPSProtocol, cfg.Ports.HTTPS),
@@ -36,7 +35,7 @@ func newHTTPMiscService(cfg *config.Config, openAPIImpl api.StrictServerInterfac
 				Endpoints: endpoints,
 			},
 
-			Mux: createHTTPRouter(cfg, openAPIImpl),
+			Mux: createHTTPRouter(cfg),
 		},
 	}
 }
