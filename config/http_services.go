@@ -1,6 +1,7 @@
 package config
 
 type (
+	APIService     HTTPService
 	DoHService     HTTPService
 	MetricsService HTTPService
 )
