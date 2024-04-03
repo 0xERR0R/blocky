@@ -23,9 +23,7 @@ type httpMiscService struct {
 	service.HTTPInfo
 }
 
-func newHTTPMiscService(
-	cfg *config.Config, openAPIImpl api.StrictServerInterface, dnsHandler dnsHandler,
-) *httpMiscService {
+func newHTTPMiscService(cfg *config.Config, openAPIImpl api.StrictServerInterface) *httpMiscService {
 	endpoints := util.ConcatSlices(
 		service.EndpointsFromAddrs(service.HTTPProtocol, cfg.Ports.HTTP),
 		service.EndpointsFromAddrs(service.HTTPSProtocol, cfg.Ports.HTTPS),
@@ -38,7 +36,7 @@ func newHTTPMiscService(
 				Endpoints: endpoints,
 			},
 
-			Mux: createHTTPRouter(cfg, openAPIImpl, dnsHandler),
+			Mux: createHTTPRouter(cfg, openAPIImpl),
 		},
 	}
 }
