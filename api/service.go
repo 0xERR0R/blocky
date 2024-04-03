@@ -21,7 +21,7 @@ func NewService(cfg config.APIService, server StrictServerInterface) *Service {
 		SimpleHTTP: service.NewSimpleHTTP("API", endpoints),
 	}
 
-	registerOpenAPIEndpoints(s.Mux, server)
+	registerOpenAPIEndpoints(s.Router(), server)
 
 	return s
 }
