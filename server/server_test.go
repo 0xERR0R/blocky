@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -741,11 +740,12 @@ var _ = Describe("Running DNS server", func() {
 			cfg.KeyFile = ""
 			cfg.CertFile = ""
 			cfg.Ports = config.Ports{
-				HTTPS: []string{fmt.Sprintf(":%d", GetIntPort(httpsBasePort)+100)},
+				HTTPS: []string{":0"},
 			}
-			sut, err := NewServer(ctx, &cfg)
+
+			sut, err := newTLSConfig(&cfg)
 			Expect(err).Should(Succeed())
-			Expect(sut.tlsCfg.Certificates).ShouldNot(BeEmpty())
+			Expect(sut.Certificates).ShouldNot(BeEmpty())
 		})
 	})
 })
