@@ -19,7 +19,7 @@ import (
 // that expose everything. The goal is to split it up
 // and remove it.
 type httpMiscService struct {
-	service.HTTPInfo
+	service.SimpleHTTP
 }
 
 func newHTTPMiscService(cfg *config.Config) *httpMiscService {
@@ -28,20 +28,13 @@ func newHTTPMiscService(cfg *config.Config) *httpMiscService {
 		service.EndpointsFromAddrs(service.HTTPSProtocol, cfg.Ports.HTTPS),
 	)
 
-	return &httpMiscService{
-		HTTPInfo: service.HTTPInfo{
-			Info: service.Info{
-				Name:      "HTTP",
-				Endpoints: endpoints,
-			},
-
-			Mux: createHTTPRouter(cfg),
-		},
+	s := &httpMiscService{
+		SimpleHTTP: service.NewSimpleHTTP("API", endpoints),
 	}
-}
 
-func (s *httpMiscService) Merge(other service.Service) (service.Merger, error) {
-	return service.MergeHTTP(s, other)
+	configureHTTPRouter(s.Router(), cfg)
+
+	return s
 }
 
 // httpServer implements subServer for HTTP.
