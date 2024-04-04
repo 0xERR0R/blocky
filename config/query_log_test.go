@@ -54,6 +54,7 @@ var _ = Describe("QueryLogConfig", func() {
 
 			Expect(hook.Calls).ShouldNot(BeEmpty())
 			Expect(hook.Messages).Should(ContainElement(ContainSubstring("logRetentionDays:")))
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("sudn:")))
 		})
 
 		DescribeTable("secret censoring", func(target string) {

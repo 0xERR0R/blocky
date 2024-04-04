@@ -13,6 +13,8 @@ import (
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/querylog"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/model"
@@ -21,7 +23,6 @@ import (
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/stretchr/testify/mock"
 )
 
 type SlowMockWriter struct {
@@ -43,6 +44,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 		sutConfig  config.QueryLog
 		m          *mockResolver
 		tmpDir     *TmpFolder
+		mockRType  ResponseType
 		mockAnswer *dns.Msg
 
 		ctx      context.Context
@@ -59,6 +61,12 @@ var _ = Describe("QueryLoggingResolver", func() {
 		ctx, cancelFn = context.WithCancel(context.Background())
 		DeferCleanup(cancelFn)
 
+		var err error
+
+		sutConfig, err = config.WithDefaults[config.QueryLog]()
+		Expect(err).Should(Succeed())
+
+		mockRType = ResponseTypeRESOLVED
 		mockAnswer = new(dns.Msg)
 		tmpDir = NewTmpFolder("queryLoggingResolver")
 	})
@@ -69,8 +77,15 @@ var _ = Describe("QueryLoggingResolver", func() {
 		}
 
 		sut = NewQueryLoggingResolver(ctx, sutConfig)
-		m = &mockResolver{}
-		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer, Reason: "reason"}, nil)
+
+		m = &mockResolver{
+			ResolveFn: func(context.Context, *Request) (*Response, error) {
+				return &Response{RType: mockRType, Res: mockAnswer, Reason: "reason"}, nil
+			},
+		}
+
+		m.On("Resolve", mock.Anything).Return(autoAnswer, nil)
+
 		sut.Next(m)
 	})
 
@@ -109,6 +124,57 @@ var _ = Describe("QueryLoggingResolver", func() {
 				m.AssertExpectations(GinkgoT())
 			})
 		})
+
+		Describe("ignore", func() {
+			var ignored *log.MockLoggerHook
+
+			JustBeforeEach(func() {
+				// Stop background goroutines
+				cancelFn()
+
+				ctx, cancelFn = context.WithCancel(context.Background())
+				DeferCleanup(cancelFn)
+
+				// Capture written logs
+				sut.logChan = make(chan *querylog.LogEntry, 16)
+
+				// Capture ignored logs
+				{
+					var logger *logrus.Entry
+
+					logger, ignored = log.NewMockEntry()
+					ctx, _ = log.NewCtx(ctx, logger)
+				}
+			})
+
+			Describe("SUDN", func() {
+				JustBeforeEach(func() {
+					sut.cfg.Ignore.SUDN = true
+				})
+
+				It("should not log SUDN responses", func() {
+					mockRType = ResponseTypeSPECIAL
+
+					_, err := sut.Resolve(ctx, newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))
+					Expect(err).Should(Succeed())
+
+					Expect(sut.logChan).Should(BeEmpty())
+					Expect(ignored.Calls).Should(HaveLen(1))
+					Expect(ignored.Messages).Should(ContainElement(ContainSubstring("ignored querylog entry")))
+				})
+
+				It("should log other responses", func() {
+					mockRType = ResponseTypeBLOCKED
+
+					_, err := sut.Resolve(ctx, newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))
+					Expect(err).Should(Succeed())
+
+					Expect(sut.logChan).ShouldNot(BeEmpty())
+					Expect(ignored.Calls).Should(BeEmpty())
+				})
+			})
+		})
+
 		When("Configuration with logging per client", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLog{
