@@ -89,7 +89,6 @@ This applies to all of them. The default strategy is blocking.
 
 For `init.strategy`, the "init" is testing the given resolvers for each group. The potentially fatal error, depending on the strategy, is if a group has no functional resolvers.
 
-
 ### Upstream Groups
 
 To resolve a DNS query, blocky needs external public or private DNS resolvers. Blocky supports DNS resolvers with
@@ -198,7 +197,6 @@ Currently available strategies:
           - 9.8.7.6
     ```
 
-
 ## Bootstrap DNS configuration
 
 These DNS servers are used to resolve upstream DoH and DoT servers that are specified as host names, and list domains.
@@ -291,10 +289,11 @@ This configuration will also resolve any subdomain of the defined domain, recurs
 CNAME records are supported by utilizing the `zone` parameter. The zone file is a multiline string containing a [DNS Zone File](https://en.wikipedia.org/wiki/Zone_file#Example_file).
 For records defined using the `zone` parameter, the `customTTL` parameter is unused. Instead, the TTL is defined in the zone directly.
 The following directives are supported in the zone file:
-* `$ORIGIN` - sets the origin for relative domain names
-* `$TTL` - sets the default TTL for records in the zone
-* `$INCLUDE` - includes another zone file relative to the blocky executable
-* `$GENERATE` - generates a range of records
+
+- `$ORIGIN` - sets the origin for relative domain names
+- `$TTL` - sets the default TTL for records in the zone
+- `$INCLUDE` - includes another zone file relative to the blocky executable
+- `$GENERATE` - generates a range of records
 
 With the optional parameter `rewrite` you can replace domain part of the query with the defined part **before** the
 resolver lookup is performed.
@@ -454,6 +453,54 @@ The supported list formats are:
 
 !!! warning
     You must also define a client group mapping, otherwise the allow/denylist definitions will have no effect.
+
+#### Schedules for blacklists
+
+It's possible to create schedules for your blacklists. When the schedule is active, the blocking will occur, when inactive, the blacklist will be skipped.
+
+!!! example
+
+    ```yaml
+    blocking:
+      blackLists:
+        ads:
+          - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
+          - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+          - |
+            # inline definition using YAML literal block scalar style
+            # content is in plain domain list format
+            someadsdomain.com
+            anotheradsdomain.com
+            *.wildcard.example.com # blocks wildcard.example.com and all subdomains
+          - |
+            # inline definition with a regex
+            /^banners?[_.-]/
+        special:
+          - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
+        youtube:
+          - https://raw.githubusercontent.com/gieljnssns/Social-media-Blocklists/master/pihole-youtube.txt
+      whiteLists:
+        ads:
+          - whitelist.txt
+          - /path/to/file.txt
+          - |
+            # inline definition with YAML literal block scalar style
+            whitelistdomain.com
+      schedules:
+         youtube:
+          - days: ["Mon", "Tue", "Wed", "Thu"]
+            hoursRanges:
+              - "06:45-08:30"
+              - "19:00-23:30"
+          - days: ["Sun"]
+            hoursRanges:
+              - "20:00-23:30"  
+    ```
+
+In this example, the **youtube** blacklist will be active at the specified days, between the specified hours ranges.
+
+!!! note
+    Whitelists is respected when a sheduled blacklist is active.
 
 #### Wildcard support
 
@@ -734,7 +781,6 @@ Configuration parameters:
       loading:
         strategy: fast
     ```
-
 
 ## Deliver EDE codes as EDNS0 option
 

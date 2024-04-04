@@ -134,4 +134,92 @@ var _ = Describe("External lists and query blocking", func() {
 			})
 		})
 	})
+	Describe("Query blocking against external blacklists with schedule inactive", func() {
+		When("external blacklists are defined and available", func() {
+			BeforeEach(func(ctx context.Context) {
+				e2eNet = getRandomNetwork(ctx)
+				_, err = createDNSMokkaContainer(ctx, "moka", e2eNet, `A blockeddomain.com/NOERROR("A 1.2.3.4 123")`)
+				Expect(err).Should(Succeed())
+
+				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blockeddomain.com")
+				Expect(err).Should(Succeed())
+
+				blocky, err = createBlockyContainer(ctx, e2eNet,
+					"log:",
+					"  level: warn",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - moka",
+					"blocking:",
+					"  blackLists:",
+					"    ads:",
+					"      - http://httpserver:8080/list.txt",
+					"  schedules:",
+					"    ads:",
+					"      - days: [\"Sun\",]",
+					"        hoursRanges: [\"00:00-00:01\"]",
+					"  clientGroupsBlock:",
+					"    default:",
+					"      - ads",
+				)
+
+				Expect(err).Should(Succeed())
+			})
+			It("should download external list on startup and resolve queries", func(ctx context.Context) {
+				msg := util.NewMsgWithQuestion("blockeddomain.com.", A)
+
+				Expect(doDNSRequest(ctx, blocky, msg)).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("blockeddomain.com.", A, "1.2.3.4"),
+							HaveTTL(BeNumerically("==", 123)),
+						))
+
+				Expect(getContainerLogs(ctx, blocky)).Should(BeEmpty())
+			})
+		})
+	})
+	Describe("Query blocking against external blacklists with schedule active", func() {
+		When("external blacklists are defined and available", func() {
+			BeforeEach(func(ctx context.Context) {
+				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blockeddomain.com")
+				Expect(err).Should(Succeed())
+
+				blocky, err = createBlockyContainer(ctx, e2eNet,
+					"log:",
+					"  level: warn",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - moka",
+					"blocking:",
+					"  blackLists:",
+					"    ads:",
+					"      - http://httpserver:8080/list.txt",
+					"  schedules:",
+					"    ads:",
+					"      - days: [\"Sun\", \"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\", \"Sat\"]",
+					"        hoursRanges: [\"00:00-23:59\"]",
+					"  clientGroupsBlock:",
+					"    default:",
+					"      - ads",
+				)
+
+				Expect(err).Should(Succeed())
+			})
+			It("should download external list on startup and block queries", func(ctx context.Context) {
+				msg := util.NewMsgWithQuestion("blockeddomain.com.", A)
+
+				Expect(doDNSRequest(ctx, blocky, msg)).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("blockeddomain.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 6*60*60)),
+						))
+
+				Expect(getContainerLogs(ctx, blocky)).Should(BeEmpty())
+			})
+		})
+	})
 })

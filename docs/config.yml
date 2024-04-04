@@ -77,6 +77,8 @@ blocking:
         *.example.com
     special:
       - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
+    youtube:
+      - https://raw.githubusercontent.com/gieljnssns/Social-media-Blocklists/master/pihole-youtube.txt
   # definition of allowlist groups.
   # Note: if the same group has both allow/denylists, allowlists take precedence. Meaning if a domain is both blocked and allowed, it will be allowed.
   # If a group has only allowlist entries, only domains from this list are allowed, and all others be blocked.
@@ -89,6 +91,16 @@ blocking:
         allowlistdomain.com
         # this is a regex
         /^banners?[_.-]/
+  # definition of the blacklist schedules. These define the active schedule (blocking). When inactive, the list will be skipped.
+  schedules:
+    youtube:
+      - days: ["Mon", "Tue", "Wed", "Thu"]
+        hoursRanges:
+          - "06:45-08:30"
+          - "19:00-23:30"
+      - days: ["Sun"]
+        hoursRanges:
+          - "20:00-23:30"  
   # definition: which groups should be applied for which client
   clientGroupsBlock:
     # default will be used, if no special definition for a client name exists
@@ -101,6 +113,7 @@ blocking:
       - ads
     192.168.178.1/24:
       - special
+      - youtube
   # which response will be sent, if query is blocked:
   # zeroIp: 0.0.0.0 will be returned (default)
   # nxDomain: return NXDOMAIN as return code

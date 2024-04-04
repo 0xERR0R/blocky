@@ -131,6 +131,13 @@ func NewBlockingResolver(ctx context.Context,
 		cfg.Loading, cfg.Allowlists, downloader)
 	allowlistOnlyGroups := determineAllowlistOnlyGroups(&cfg)
 
+	schedulesCount := len(cfg.Schedules)
+	if schedulesCount > 0 {
+		evt.Bus().Publish(evt.SchedulesTotal, schedulesCount)
+
+		go cfg.Schedules.Refresh(ctx, nil)
+	}
+
 	err = multierror.Append(err, blErr, wlErr).ErrorOrNil()
 	if err != nil {
 		return nil, err
@@ -386,6 +393,23 @@ func (r *BlockingResolver) handleDenylist(ctx context.Context, groupsToCheck []s
 		}
 
 		if groups := r.matches(groupsToCheck, r.denylistMatcher, domain); len(groups) > 0 {
+			for group := range r.cfg.Schedules {
+				if slices.Contains(groups, group) {
+					if r.cfg.Schedules.IsActive(group, time.Now) {
+						resp, err := r.handleBlocked(logger, request, question, fmt.Sprintf("BLOCKED (SCHEDULE %s active)",
+							strings.Join(groups, ",")))
+
+						return true, resp, err
+					}
+
+					logger.WithField("groups", groups).Infof("domain is in an inactive schedule")
+
+					resp, err := r.next.Resolve(ctx, request)
+
+					return true, resp, err
+				}
+			}
+
 			resp, err := r.handleBlocked(logger, request, question, fmt.Sprintf("BLOCKED (%s)", strings.Join(groups, ",")))
 
 			return true, resp, err
