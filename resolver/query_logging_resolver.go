@@ -115,20 +115,40 @@ func (r *QueryLoggingResolver) Resolve(ctx context.Context, request *model.Reque
 	ctx, logger := r.log(ctx)
 
 	start := time.Now()
-
 	resp, err := r.next.Resolve(ctx, request)
-
 	duration := time.Since(start).Milliseconds()
 
-	if err == nil {
+	if err != nil {
+		return nil, err
+	}
+
+	entry := r.createLogEntry(request, resp, start, duration)
+
+	if r.ignore(resp) {
+		// Log to the console for debugging purposes
+		logger.WithFields(querylog.LogEntryFields(entry)).Debug("ignored querylog entry")
+	} else {
 		select {
-		case r.logChan <- r.createLogEntry(request, resp, start, duration):
+		case r.logChan <- entry:
 		default:
 			logger.Error("query log writer is too slow, log entry will be dropped")
 		}
 	}
 
-	return resp, err
+	return resp, nil
+}
+
+func (r *QueryLoggingResolver) ignore(response *model.Response) bool {
+	cfg := r.cfg.Ignore
+
+	if cfg.SUDN && response.RType == model.ResponseTypeSPECIAL {
+		return true
+	}
+
+	// If we add more ways to ignore entries, it would be nice to log why it's ignored in the debug log
+	// Probably make this func return a (string, bool).
+
+	return false
 }
 
 func (r *QueryLoggingResolver) createLogEntry(request *model.Request, response *model.Response,

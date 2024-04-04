@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/0xERR0R/blocky/log"
 	"github.com/sirupsen/logrus"
 )
 
@@ -16,6 +17,11 @@ type QueryLog struct {
 	CreationCooldown Duration        `yaml:"creationCooldown" default:"2s"`
 	Fields           []QueryLogField `yaml:"fields"`
 	FlushInterval    Duration        `yaml:"flushInterval" default:"30s"`
+	Ignore           QueryLogIgnore  `yaml:"ignore"`
+}
+
+type QueryLogIgnore struct {
+	SUDN bool `yaml:"sudn" default:"false"`
 }
 
 // SetDefaults implements `defaults.Setter`.
@@ -43,6 +49,11 @@ func (c *QueryLog) LogConfig(logger *logrus.Entry) {
 	logger.Debugf("creationCooldown: %s", c.CreationCooldown)
 	logger.Infof("flushInterval: %s", c.FlushInterval)
 	logger.Infof("fields: %s", c.Fields)
+
+	logger.Infof("ignore:")
+	log.WithIndent(logger, "  ", func(e *logrus.Entry) {
+		logger.Infof("sudn: %t", c.Ignore.SUDN)
+	})
 }
 
 func (c *QueryLog) censoredTarget() string {
