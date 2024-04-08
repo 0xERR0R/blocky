@@ -49,7 +49,7 @@ var _ = Describe("Metrics functional tests", func() {
 				"    default:",
 				"      - moka1",
 				"blocking:",
-				"  blackLists:",
+				"  denylists:",
 				"    group1:",
 				"      - http://httpserver1:8080/list1.txt",
 				"    group2:",
@@ -129,8 +129,8 @@ var _ = Describe("Metrics functional tests", func() {
 			It("Should expose list cache sizes per group as metrics", func(ctx context.Context) {
 				Eventually(fetchBlockyMetrics).WithArguments(ctx, metricsURL).
 					Should(ContainElements(
-						"blocky_blacklist_cache{group=\"group1\"} 1",
-						"blocky_blacklist_cache{group=\"group2\"} 3",
+						"blocky_denylist_cache{group=\"group1\"} 1",
+						"blocky_denylist_cache{group=\"group2\"} 3",
 					))
 			})
 		})

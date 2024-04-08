@@ -46,7 +46,7 @@ var _ = Describe("ListCache", func() {
 		ctx, cancelFn = context.WithCancel(context.Background())
 		DeferCleanup(cancelFn)
 
-		listCacheType = ListCacheTypeBlacklist
+		listCacheType = ListCacheTypeDenylist
 
 		sutConfig, err = config.WithDefaults[config.SourceLoading]()
 		Expect(err).Should(Succeed())
@@ -306,7 +306,7 @@ var _ = Describe("ListCache", func() {
 				}
 			})
 			It("should match", func() {
-				sut, err = NewListCache(ctx, ListCacheTypeBlacklist, sutConfig, lists, downloader)
+				sut, err = NewListCache(ctx, ListCacheTypeDenylist, sutConfig, lists, downloader)
 				Expect(err).Should(Succeed())
 
 				Expect(sut.groupedCache.ElementCount("gr1")).Should(Equal(lines1 + lines2 + lines3))
@@ -408,7 +408,7 @@ var _ = Describe("ListCache", func() {
 		})
 
 		It("should print list configuration", func() {
-			sut, err = NewListCache(ctx, ListCacheTypeBlacklist, sutConfig, lists, downloader)
+			sut, err = NewListCache(ctx, ListCacheTypeDenylist, sutConfig, lists, downloader)
 			Expect(err).Should(Succeed())
 
 			sut.LogConfig(logger)
@@ -432,7 +432,7 @@ var _ = Describe("ListCache", func() {
 			})
 
 			It("should never return an error", func() {
-				_, err := NewListCache(ctx, ListCacheTypeBlacklist, sutConfig, lists, downloader)
+				_, err := NewListCache(ctx, ListCacheTypeDenylist, sutConfig, lists, downloader)
 				Expect(err).Should(Succeed())
 			})
 		})

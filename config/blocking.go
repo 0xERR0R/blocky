@@ -8,8 +8,8 @@ import (
 
 // Blocking configuration for query blocking
 type Blocking struct {
-	BlackLists        map[string][]BytesSource `yaml:"blackLists"`
-	WhiteLists        map[string][]BytesSource `yaml:"whiteLists"`
+	Denylists         map[string][]BytesSource `yaml:"denylists"`
+	Allowlists        map[string][]BytesSource `yaml:"allowlists"`
 	ClientGroupsBlock map[string][]string      `yaml:"clientGroupsBlock"`
 	BlockType         string                   `yaml:"blockType" default:"ZEROIP"`
 	BlockTTL          Duration                 `yaml:"blockTTL" default:"6h"`
@@ -17,19 +17,23 @@ type Blocking struct {
 
 	// Deprecated options
 	Deprecated struct {
-		DownloadTimeout       *Duration     `yaml:"downloadTimeout"`
-		DownloadAttempts      *uint         `yaml:"downloadAttempts"`
-		DownloadCooldown      *Duration     `yaml:"downloadCooldown"`
-		RefreshPeriod         *Duration     `yaml:"refreshPeriod"`
-		FailStartOnListError  *bool         `yaml:"failStartOnListError"`
-		ProcessingConcurrency *uint         `yaml:"processingConcurrency"`
-		StartStrategy         *InitStrategy `yaml:"startStrategy"`
-		MaxErrorsPerFile      *int          `yaml:"maxErrorsPerFile"`
+		BlackLists            *map[string][]BytesSource `yaml:"blackLists"`
+		WhiteLists            *map[string][]BytesSource `yaml:"whiteLists"`
+		DownloadTimeout       *Duration                 `yaml:"downloadTimeout"`
+		DownloadAttempts      *uint                     `yaml:"downloadAttempts"`
+		DownloadCooldown      *Duration                 `yaml:"downloadCooldown"`
+		RefreshPeriod         *Duration                 `yaml:"refreshPeriod"`
+		FailStartOnListError  *bool                     `yaml:"failStartOnListError"`
+		ProcessingConcurrency *uint                     `yaml:"processingConcurrency"`
+		StartStrategy         *InitStrategy             `yaml:"startStrategy"`
+		MaxErrorsPerFile      *int                      `yaml:"maxErrorsPerFile"`
 	} `yaml:",inline"`
 }
 
 func (c *Blocking) migrate(logger *logrus.Entry) bool {
 	return Migrate(logger, "blocking", c.Deprecated, map[string]Migrator{
+		"blackLists":       Move(To("denylists", c)),
+		"whiteLists":       Move(To("allowlists", c)),
 		"downloadTimeout":  Move(To("loading.downloads.timeout", &c.Loading.Downloads)),
 		"downloadAttempts": Move(To("loading.downloads.attempts", &c.Loading.Downloads)),
 		"downloadCooldown": Move(To("loading.downloads.cooldown", &c.Loading.Downloads)),
@@ -67,14 +71,14 @@ func (c *Blocking) LogConfig(logger *logrus.Entry) {
 	logger.Info("loading:")
 	log.WithIndent(logger, "  ", c.Loading.LogConfig)
 
-	logger.Info("blacklist:")
+	logger.Info("denylists:")
 	log.WithIndent(logger, "  ", func(logger *logrus.Entry) {
-		c.logListGroups(logger, c.BlackLists)
+		c.logListGroups(logger, c.Denylists)
 	})
 
-	logger.Info("whitelist:")
+	logger.Info("allowlists:")
 	log.WithIndent(logger, "  ", func(logger *logrus.Entry) {
-		c.logListGroups(logger, c.WhiteLists)
+		c.logListGroups(logger, c.Allowlists)
 	})
 }
 

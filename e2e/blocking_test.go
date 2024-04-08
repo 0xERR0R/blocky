@@ -24,7 +24,7 @@ var _ = Describe("External lists and query blocking", func() {
 		Expect(err).Should(Succeed())
 	})
 	Describe("List download on startup", func() {
-		When("external blacklist ist not available", func() {
+		When("external denylist ist not available", func() {
 			Context("loading.strategy = blocking", func() {
 				BeforeEach(func(ctx context.Context) {
 					blocky, err = createBlockyContainer(ctx, e2eNet,
@@ -37,7 +37,7 @@ var _ = Describe("External lists and query blocking", func() {
 						"blocking:",
 						"  loading:",
 						"    strategy: blocking",
-						"  blackLists:",
+						"  denylists:",
 						"    ads:",
 						"      - http://wrong.domain.url/list.txt",
 						"  clientGroupsBlock:",
@@ -72,7 +72,7 @@ var _ = Describe("External lists and query blocking", func() {
 						"blocking:",
 						"  loading:",
 						"    strategy: failOnError",
-						"  blackLists:",
+						"  denylists:",
 						"    ads:",
 						"      - http://wrong.domain.url/list.txt",
 						"  clientGroupsBlock:",
@@ -96,8 +96,8 @@ var _ = Describe("External lists and query blocking", func() {
 			})
 		})
 	})
-	Describe("Query blocking against external blacklists", func() {
-		When("external blacklists are defined and available", func() {
+	Describe("Query blocking against external denylists", func() {
+		When("external denylists are defined and available", func() {
 			BeforeEach(func(ctx context.Context) {
 				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blockeddomain.com")
 				Expect(err).Should(Succeed())
@@ -110,7 +110,7 @@ var _ = Describe("External lists and query blocking", func() {
 					"    default:",
 					"      - moka",
 					"blocking:",
-					"  blackLists:",
+					"  denylists:",
 					"    ads:",
 					"      - http://httpserver:8080/list.txt",
 					"  clientGroupsBlock:",

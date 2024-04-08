@@ -97,7 +97,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			sutConfig = config.Blocking{
 				BlockType: "ZEROIP",
 				BlockTTL:  config.Duration(time.Minute),
-				BlackLists: map[string][]config.BytesSource{
+				Denylists: map[string][]config.BytesSource{
 					"gr1": config.NewBytesSources(group1File.Path),
 					"gr2": config.NewBytesSources(group2File.Path),
 				},
@@ -125,7 +125,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			sutConfig = config.Blocking{
 				BlockType: "ZEROIP",
 				BlockTTL:  config.Duration(time.Minute),
-				BlackLists: map[string][]config.BytesSource{
+				Denylists: map[string][]config.BytesSource{
 					"gr1": config.NewBytesSources(group1File.Path),
 					"gr2": config.NewBytesSources(group2File.Path),
 				},
@@ -164,7 +164,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			sutConfig = config.Blocking{
 				BlockType: "ZEROIP",
 				BlockTTL:  config.Duration(time.Minute),
-				BlackLists: map[string][]config.BytesSource{
+				Denylists: map[string][]config.BytesSource{
 					"gr1": {config.TextBytesSource("/regex/")},
 				},
 				ClientGroupsBlock: map[string][]string{
@@ -176,7 +176,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			}
 		})
 
-		When("Domain is on the black list", func() {
+		When("Domain is on the denylist", func() {
 			It("should block request", func() {
 				Eventually(sut.Resolve).
 					WithContext(ctx).
@@ -196,7 +196,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		BeforeEach(func() {
 			sutConfig = config.Blocking{
 				BlockTTL: config.Duration(6 * time.Hour),
-				BlackLists: map[string][]config.BytesSource{
+				Denylists: map[string][]config.BytesSource{
 					"gr1":          config.NewBytesSources(group1File.Path),
 					"gr2":          config.NewBytesSources(group2File.Path),
 					"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
@@ -216,7 +216,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 
 		When("client name is defined in client groups block", func() {
-			It("should block the A query if domain is on the black list (single)", func() {
+			It("should block the A query if domain is on the denylist (single)", func() {
 				Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "1.2.1.2", "client1"))).
 					Should(
 						SatisfyAll(
@@ -227,7 +227,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 							HaveReturnCode(dns.RcodeSuccess),
 						))
 			})
-			It("should block the A query if domain is on the black list (multipart 1)", func() {
+			It("should block the A query if domain is on the denylist (multipart 1)", func() {
 				Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "1.2.1.2", "client2"))).
 					Should(
 						SatisfyAll(
@@ -238,7 +238,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 							HaveReturnCode(dns.RcodeSuccess),
 						))
 			})
-			It("should block the A query if domain is on the black list (multipart 2)", func() {
+			It("should block the A query if domain is on the denylist (multipart 2)", func() {
 				Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "1.2.1.2", "client3"))).
 					Should(
 						SatisfyAll(
@@ -249,7 +249,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 							HaveReturnCode(dns.RcodeSuccess),
 						))
 			})
-			It("should block the A query if domain is on the black list (merged)", func() {
+			It("should block the A query if domain is on the denylist (merged)", func() {
 				Expect(sut.Resolve(ctx, newRequestWithClient("blocked2.com.", A, "1.2.1.2", "client3"))).
 					Should(
 						SatisfyAll(
@@ -260,7 +260,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 							HaveReturnCode(dns.RcodeSuccess),
 						))
 			})
-			It("should block the AAAA query if domain is on the black list", func() {
+			It("should block the AAAA query if domain is on the denylist", func() {
 				Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", AAAA, "1.2.1.2", "client1"))).
 					Should(
 						SatisfyAll(
@@ -271,18 +271,18 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 							HaveReturnCode(dns.RcodeSuccess),
 						))
 			})
-			It("should block the HTTPS query if domain is on the black list", func() {
+			It("should block the HTTPS query if domain is on the denylist", func() {
 				Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", HTTPS, "1.2.1.2", "client1"))).
 					Should(HaveReturnCode(dns.RcodeNameError))
 			})
-			It("should block the MX query if domain is on the black list", func() {
+			It("should block the MX query if domain is on the denylist", func() {
 				Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", MX, "1.2.1.2", "client1"))).
 					Should(HaveReturnCode(dns.RcodeNameError))
 			})
 		})
 
 		When("Client ip is defined in client groups block", func() {
-			It("should block the query if domain is on the black list", func() {
+			It("should block the query if domain is on the denylist", func() {
 				Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "192.168.178.55", "unknown"))).
 					Should(
 						SatisfyAll(
@@ -295,7 +295,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			})
 		})
 		When("Client CIDR (10.43.8.64 - 10.43.8.79) is defined in client groups block", func() {
-			It("should not block the query for 10.43.8.63 if domain is on the black list", func() {
+			It("should not block the query for 10.43.8.63 if domain is on the denylist", func() {
 				Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "10.43.8.63", "unknown"))).
 					Should(
 						SatisfyAll(
@@ -307,7 +307,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				// was delegated to next resolver
 				m.AssertExpectations(GinkgoT())
 			})
-			It("should not block the query for 10.43.8.80 if domain is on the black list", func() {
+			It("should not block the query for 10.43.8.80 if domain is on the denylist", func() {
 				Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "10.43.8.80", "unknown"))).
 					Should(
 						SatisfyAll(
@@ -322,7 +322,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 
 		When("Client CIDR (10.43.8.64 - 10.43.8.79) is defined in client groups block", func() {
-			It("should block the query for 10.43.8.64 if domain is on the black list", func() {
+			It("should block the query for 10.43.8.64 if domain is on the denylist", func() {
 				Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "10.43.8.64", "unknown"))).
 					Should(
 						SatisfyAll(
@@ -333,7 +333,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 							HaveReturnCode(dns.RcodeSuccess),
 						))
 			})
-			It("should block the query for 10.43.8.79 if domain is on the black list", func() {
+			It("should block the query for 10.43.8.79 if domain is on the denylist", func() {
 				Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "10.43.8.79", "unknown"))).
 					Should(
 						SatisfyAll(
@@ -402,7 +402,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			BeforeEach(func() {
 				sutConfig = config.Blocking{
 					BlockTTL: config.Duration(time.Minute),
-					BlackLists: map[string][]config.BytesSource{
+					Denylists: map[string][]config.BytesSource{
 						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
 					ClientGroupsBlock: map[string][]string{
@@ -428,7 +428,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			BeforeEach(func() {
 				sutConfig = config.Blocking{
 					BlockType: "ZEROIP",
-					BlackLists: map[string][]config.BytesSource{
+					Denylists: map[string][]config.BytesSource{
 						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
 					ClientGroupsBlock: map[string][]string{
@@ -473,7 +473,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			BeforeEach(func() {
 				sutConfig = config.Blocking{
 					BlockTTL: config.Duration(6 * time.Hour),
-					BlackLists: map[string][]config.BytesSource{
+					Denylists: map[string][]config.BytesSource{
 						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
 					ClientGroupsBlock: map[string][]string{
@@ -511,7 +511,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		When("BlockType is custom IP only for ipv4", func() {
 			BeforeEach(func() {
 				sutConfig = config.Blocking{
-					BlackLists: map[string][]config.BytesSource{
+					Denylists: map[string][]config.BytesSource{
 						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
 					ClientGroupsBlock: map[string][]string{
@@ -535,13 +535,13 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			})
 		})
 
-		When("Blacklist contains IP", func() {
+		When("Denylist contains IP", func() {
 			When("IP4", func() {
 				BeforeEach(func() {
 					// return defined IP as response
 					mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, A, "123.145.123.145")
 				})
-				It("should block query, if lookup result contains blacklisted IP", func() {
+				It("should block query, if lookup result contains denylisted IP", func() {
 					Expect(sut.Resolve(ctx, newRequestWithClient("example.com.", A, "1.2.1.2", "unknown"))).
 						Should(
 							SatisfyAll(
@@ -561,7 +561,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 						AAAA, "2001:0db8:85a3:08d3::0370:7344",
 					)
 				})
-				It("should block query, if lookup result contains blacklisted IP", func() {
+				It("should block query, if lookup result contains denylisted IP", func() {
 					Expect(sut.Resolve(ctx, newRequestWithClient("example.com.", AAAA, "1.2.1.2", "unknown"))).
 						Should(
 							SatisfyAll(
@@ -575,7 +575,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			})
 		})
 
-		When("blacklist contains domain which is CNAME in response", func() {
+		When("denylist contains domain which is CNAME in response", func() {
 			BeforeEach(func() {
 				// reconfigure mock, to return CNAMEs
 				rr1, _ := dns.NewRR("example.com 300 IN CNAME domain.com")
@@ -584,7 +584,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				mockAnswer = new(dns.Msg)
 				mockAnswer.Answer = []dns.RR{rr1, rr2, rr3}
 			})
-			It("should block the query, if response contains a CNAME with domain on a blacklist", func() {
+			It("should block the query, if response contains a CNAME with domain on a denylist", func() {
 				Expect(sut.Resolve(ctx, newRequestWithClient("example.com.", A, "1.2.1.2", "unknown"))).
 					Should(
 						SatisfyAll(
@@ -598,14 +598,14 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 	})
 
-	Describe("Whitelisting", func() {
-		When("Requested domain is on black and white list", func() {
+	Describe("Allowlisting", func() {
+		When("Requested domain is on black and allowlist", func() {
 			BeforeEach(func() {
 				sutConfig = config.Blocking{
 					BlockType:  "ZEROIP",
 					BlockTTL:   config.Duration(time.Minute),
-					BlackLists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
-					WhiteLists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
+					Denylists:  map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
+					Allowlists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
 					ClientGroupsBlock: map[string][]string{
 						"default": {"gr1"},
 					},
@@ -625,12 +625,12 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			})
 		})
 
-		When("Only whitelist is defined", func() {
+		When("Only allowlist is defined", func() {
 			BeforeEach(func() {
 				sutConfig = config.Blocking{
 					BlockType: "zeroIP",
 					BlockTTL:  config.Duration(60 * time.Second),
-					WhiteLists: map[string][]config.BytesSource{
+					Allowlists: map[string][]config.BytesSource{
 						"gr1": config.NewBytesSources(group1File.Path),
 						"gr2": config.NewBytesSources(group2File.Path),
 					},
@@ -642,8 +642,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					},
 				}
 			})
-			It("should block everything else except domains on the white list with default group", func() {
-				By("querying domain on the whitelist", func() {
+			It("should block everything else except domains on the allowlist with default group", func() {
+				By("querying domain on the allowlist", func() {
 					Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
 						Should(
 							SatisfyAll(
@@ -656,7 +656,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					m.AssertExpectations(GinkgoT())
 				})
 
-				By("querying another domain, which is not on the whitelist", func() {
+				By("querying another domain, which is not on the allowlist", func() {
 					Expect(sut.Resolve(ctx, newRequestWithClient("google.com.", A, "1.2.1.2", "unknown"))).
 						Should(
 							SatisfyAll(
@@ -664,15 +664,15 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 								HaveTTL(BeNumerically("==", 60)),
 								HaveResponseType(ResponseTypeBLOCKED),
 								HaveReturnCode(dns.RcodeSuccess),
-								HaveReason("BLOCKED (WHITELIST ONLY)"),
+								HaveReason("BLOCKED (ALLOWLIST ONLY)"),
 							))
 
 					Expect(m.Calls).Should(HaveLen(1))
 				})
 			})
-			It("should block everything else except domains on the white list "+
-				"if multiple white list only groups are defined", func() {
-				By("querying domain on the whitelist", func() {
+			It("should block everything else except domains on the allowlist "+
+				"if multiple allowlist only groups are defined", func() {
+				By("querying domain on the allowlist", func() {
 					Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "1.2.1.2", "one-client"))).
 						Should(
 							SatisfyAll(
@@ -685,7 +685,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					m.AssertExpectations(GinkgoT())
 				})
 
-				By("querying another domain, which is not on the whitelist", func() {
+				By("querying another domain, which is not on the allowlist", func() {
 					Expect(sut.Resolve(ctx, newRequestWithClient("blocked2.com.", A, "1.2.1.2", "one-client"))).
 						Should(
 							SatisfyAll(
@@ -693,14 +693,14 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 								HaveTTL(BeNumerically("==", 60)),
 								HaveResponseType(ResponseTypeBLOCKED),
 								HaveReturnCode(dns.RcodeSuccess),
-								HaveReason("BLOCKED (WHITELIST ONLY)"),
+								HaveReason("BLOCKED (ALLOWLIST ONLY)"),
 							))
 					Expect(m.Calls).Should(HaveLen(1))
 				})
 			})
-			It("should block everything else except domains on the white list "+
-				"if multiple white list only groups are defined", func() {
-				By("querying domain on the whitelist group 1", func() {
+			It("should block everything else except domains on the allowlist "+
+				"if multiple allowlist only groups are defined", func() {
+				By("querying domain on the allowlist group 1", func() {
 					Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "1.2.1.2", "all-client"))).
 						Should(
 							SatisfyAll(
@@ -713,7 +713,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					m.AssertExpectations(GinkgoT())
 				})
 
-				By("querying another domain, which is in the whitelist group 1", func() {
+				By("querying another domain, which is in the allowlist group 1", func() {
 					Expect(sut.Resolve(ctx, newRequestWithClient("blocked2.com.", A, "1.2.1.2", "all-client"))).
 						Should(
 							SatisfyAll(
@@ -726,20 +726,20 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			})
 		})
 
-		When("IP address is on black and white list", func() {
+		When("IP address is on black and allowlist", func() {
 			BeforeEach(func() {
 				sutConfig = config.Blocking{
 					BlockType:  "ZEROIP",
 					BlockTTL:   config.Duration(time.Minute),
-					BlackLists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
-					WhiteLists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(defaultGroupFile.Path)},
+					Denylists:  map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
+					Allowlists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(defaultGroupFile.Path)},
 					ClientGroupsBlock: map[string][]string{
 						"default": {"gr1"},
 					},
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, A, "123.145.123.145")
 			})
-			It("should not block if DNS answer contains IP from the white list", func() {
+			It("should not block if DNS answer contains IP from the allowlist", func() {
 				Expect(sut.Resolve(ctx, newRequestWithClient("example.com.", A, "1.2.1.2", "unknown"))).
 					Should(
 						SatisfyAll(
@@ -756,9 +756,9 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 	Describe("Delegate request to next resolver", func() {
 		BeforeEach(func() {
 			sutConfig = config.Blocking{
-				BlockType:  "ZEROIP",
-				BlockTTL:   config.Duration(time.Minute),
-				BlackLists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
+				BlockType: "ZEROIP",
+				BlockTTL:  config.Duration(time.Minute),
+				Denylists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
 				ClientGroupsBlock: map[string][]string{
 					"default": {"gr1"},
 				},
@@ -768,7 +768,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			// was delegated to next resolver
 			m.AssertExpectations(GinkgoT())
 		})
-		When("domain is not on the black list", func() {
+		When("domain is not on the denylist", func() {
 			It("should delegate to next resolver", func() {
 				Expect(sut.Resolve(ctx, newRequestWithClient("example.com.", A, "1.2.1.2", "unknown"))).
 					Should(
@@ -801,7 +801,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 	Describe("Control status via API", func() {
 		BeforeEach(func() {
 			sutConfig = config.Blocking{
-				BlackLists: map[string][]config.BytesSource{
+				Denylists: map[string][]config.BytesSource{
 					"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					"group1":       config.NewBytesSources(group1File.Path),
 				},
@@ -1124,8 +1124,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		When("strategy is failOnError", func() {
 			It("should fail if lists can't be downloaded", func() {
 				_, err := NewBlockingResolver(ctx, config.Blocking{
-					BlackLists: map[string][]config.BytesSource{"gr1": config.NewBytesSources("wrongPath")},
-					WhiteLists: map[string][]config.BytesSource{"whitelist": config.NewBytesSources("wrongPath")},
+					Denylists:  map[string][]config.BytesSource{"gr1": config.NewBytesSources("wrongPath")},
+					Allowlists: map[string][]config.BytesSource{"allowlist": config.NewBytesSources("wrongPath")},
 					Loading: config.SourceLoading{
 						Init: config.Init{Strategy: config.InitStrategyFailOnError},
 					},

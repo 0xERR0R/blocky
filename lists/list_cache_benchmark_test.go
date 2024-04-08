@@ -20,7 +20,7 @@ func BenchmarkRefresh(b *testing.B) {
 		RefreshPeriod: config.Duration(-1),
 	}
 	downloader := NewDownloader(config.Downloader{}, nil)
-	cache, _ := NewListCache(context.Background(), ListCacheTypeBlacklist, cfg, lists, downloader)
+	cache, _ := NewListCache(context.Background(), ListCacheTypeDenylist, cfg, lists, downloader)
 
 	b.ReportAllocs()
 

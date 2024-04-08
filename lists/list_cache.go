@@ -24,8 +24,8 @@ const (
 )
 
 // ListCacheType represents the type of cached list ENUM(
-// blacklist // is a list with blocked domains
-// whitelist // is a list with whitelisted domains / IPs
+// denylist // is a list with blocked domains
+// allowlist // is a list with allowlisted domains / IPs
 // )
 type ListCacheType int
 

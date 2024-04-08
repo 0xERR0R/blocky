@@ -12,21 +12,21 @@ import (
 )
 
 const (
-	// ListCacheTypeBlacklist is a ListCacheType of type Blacklist.
+	// ListCacheTypeDenylist is a ListCacheType of type Denylist.
 	// is a list with blocked domains
-	ListCacheTypeBlacklist ListCacheType = iota
-	// ListCacheTypeWhitelist is a ListCacheType of type Whitelist.
-	// is a list with whitelisted domains / IPs
-	ListCacheTypeWhitelist
+	ListCacheTypeDenylist ListCacheType = iota
+	// ListCacheTypeAllowlist is a ListCacheType of type Allowlist.
+	// is a list with allowlisted domains / IPs
+	ListCacheTypeAllowlist
 )
 
 var ErrInvalidListCacheType = fmt.Errorf("not a valid ListCacheType, try [%s]", strings.Join(_ListCacheTypeNames, ", "))
 
-const _ListCacheTypeName = "blacklistwhitelist"
+const _ListCacheTypeName = "denylistallowlist"
 
 var _ListCacheTypeNames = []string{
-	_ListCacheTypeName[0:9],
-	_ListCacheTypeName[9:18],
+	_ListCacheTypeName[0:8],
+	_ListCacheTypeName[8:17],
 }
 
 // ListCacheTypeNames returns a list of possible string values of ListCacheType.
@@ -37,8 +37,8 @@ func ListCacheTypeNames() []string {
 }
 
 var _ListCacheTypeMap = map[ListCacheType]string{
-	ListCacheTypeBlacklist: _ListCacheTypeName[0:9],
-	ListCacheTypeWhitelist: _ListCacheTypeName[9:18],
+	ListCacheTypeDenylist:  _ListCacheTypeName[0:8],
+	ListCacheTypeAllowlist: _ListCacheTypeName[8:17],
 }
 
 // String implements the Stringer interface.
@@ -57,8 +57,8 @@ func (x ListCacheType) IsValid() bool {
 }
 
 var _ListCacheTypeValue = map[string]ListCacheType{
-	_ListCacheTypeName[0:9]:  ListCacheTypeBlacklist,
-	_ListCacheTypeName[9:18]: ListCacheTypeWhitelist,
+	_ListCacheTypeName[0:8]:  ListCacheTypeDenylist,
+	_ListCacheTypeName[8:17]: ListCacheTypeAllowlist,
 }
 
 // ParseListCacheType attempts to convert a string to a ListCacheType.
