@@ -62,10 +62,10 @@ conditional:
     fritz.box: 192.168.178.1
     lan.net: 192.168.178.1,192.168.178.2
 
-# optional: use black and white lists to block queries (for example ads, trackers, adult pages etc.)
+# optional: use allow/denylists to block queries (for example ads, trackers, adult pages etc.)
 blocking:
-  # definition of blacklist groups. Can be external link (http/https) or local file
-  blackLists:
+  # definition of denylist groups. Can be external link (http/https) or local file
+  denylists:
     ads:
       - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
       - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
@@ -77,14 +77,16 @@ blocking:
         *.example.com
     special:
       - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
-  # definition of whitelist groups. Attention: if the same group has black and whitelists, whitelists will be used to disable particular blacklist entries. If a group has only whitelist entries -> this means only domains from this list are allowed, all other domains will be blocked
-  whiteLists:
+  # definition of allowlist groups.
+  # Note: if the same group has both allow/denylists, allowlists take precedence. Meaning if a domain is both blocked and allowed, it will be allowed.
+  # If a group has only allowlist entries, only domains from this list are allowed, and all others be blocked.
+  allowlists:
     ads:
-      - whitelist.txt
+      - allowlist.txt
       - |
         # inline definition with YAML literal block scalar style
         # hosts format
-        whitelistdomain.com
+        allowlistdomain.com
         # this is a regex
         /^banners?[_.-]/
   # definition: which groups should be applied for which client
@@ -242,7 +244,7 @@ minTlsServeVersion: 1.3
 #certFile: server.crt
 #keyFile: server.key
 
-# optional: use these DNS servers to resolve blacklist urls and upstream DNS servers. It is useful if no system DNS resolver is configured, and/or to encrypt the bootstrap queries.
+# optional: use these DNS servers to resolve denylist urls and upstream DNS servers. It is useful if no system DNS resolver is configured, and/or to encrypt the bootstrap queries.
 bootstrapDns:
   - tcp+udp:1.1.1.1
   - https://1.1.1.1/dns-query

@@ -39,7 +39,7 @@ var _ = Describe("root command", func() {
 				"    default:",
 				"      - 1.1.1.1",
 				"blocking:",
-				"  blackLists:",
+				"  denylists:",
 				"    ads:",
 				"      - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt",
 				"  clientGroupsBlock:",

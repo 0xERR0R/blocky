@@ -395,16 +395,16 @@ contains a map of client name and multiple IP addresses.
 
     Use `192.168.178.1` for rDNS lookup. Take second name if present, if not take first name. IP address `192.168.178.29` is mapped to `laptop` as client name.
 
-## Blocking and whitelisting
+## Blocking and allowlisting
 
 Blocky can use lists of domains and IPs to block (e.g. advertisement, malware,
 trackers, adult sites). You can group several list sources together and define the blocking behavior per client.
 Blocking uses the [DNS sinkhole](https://en.wikipedia.org/wiki/DNS_sinkhole) approach. For each DNS query, the domain name from
 the request, IP address from the response, and any CNAME records will be checked to determine whether to block the query or not.
 
-To avoid over-blocking, you can use whitelists.
+To avoid over-blocking, you can use allowlists.
 
-### Definition black and whitelists
+### Definition allow/denylists
 
 Lists are defined in groups. This allows using different sets of lists for different clients.
 
@@ -421,7 +421,7 @@ The supported list formats are:
 
     ```yaml
     blocking:
-      blackLists:
+      denylists:
         ads:
           - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
           - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
@@ -436,25 +436,24 @@ The supported list formats are:
             /^banners?[_.-]/
         special:
           - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
-      whiteLists:
+      allowlists:
         ads:
-          - whitelist.txt
+          - allowlist.txt
           - /path/to/file.txt
           - |
             # inline definition with YAML literal block scalar style
-            whitelistdomain.com
+            allowlistdomain.com
     ```
 
     In this example you can see 2 groups: **ads** and **special** with one list. The **ads** group includes 2 inline lists.
 
 !!! warning
 
-    If the same group has black and whitelists, whitelists will be used to disable particular blacklist entries.
-    If a group has **only** whitelist entries -> this means only domains from this list are allowed, all other domains will
-    be blocked.
+    If the same group has **both** allow/denylists, allowlists take precedence. Meaning if a domain is both blocked and allowed, it will be allowed.
+    If a group has **only allowlist** entries, only domains from this list are allowed, and all others be blocked.
 
 !!! warning
-    You must also define client group mapping, otherwise you black and whitelist definition will have no effect.
+    You must also define a client group mapping, otherwise the allow/denylist definitions will have no effect.
 
 #### Wildcard support
 
@@ -833,7 +832,7 @@ These settings apply only to the resolver under which they are nested.
     ```yaml
     blocking:
       loading:
-        # only applies to white/blacklists
+        # only applies to allow/denylists
 
     hostsFile:
       loading:

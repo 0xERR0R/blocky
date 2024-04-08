@@ -988,8 +988,8 @@ func defaultTestFileConfig(config *Config) {
 	Expect(config.Conditional.Mapping.Upstreams["multiple.resolvers"]).Should(HaveLen(2))
 	Expect(config.ClientLookup.Upstream.Host).Should(Equal("192.168.178.1"))
 	Expect(config.ClientLookup.SingleNameOrder).Should(Equal([]uint{2, 1}))
-	Expect(config.Blocking.BlackLists).Should(HaveLen(2))
-	Expect(config.Blocking.WhiteLists).Should(HaveLen(1))
+	Expect(config.Blocking.Denylists).Should(HaveLen(2))
+	Expect(config.Blocking.Allowlists).Should(HaveLen(1))
 	Expect(config.Blocking.ClientGroupsBlock).Should(HaveLen(2))
 	Expect(config.Blocking.BlockTTL).Should(Equal(Duration(time.Minute)))
 	Expect(config.Blocking.Loading.RefreshPeriod).Should(Equal(Duration(2 * time.Hour)))
@@ -1029,7 +1029,7 @@ func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {
 		"fqdnOnly:",
 		"  enable: true",
 		"blocking:",
-		"  blackLists:",
+		"  denylists:",
 		"    ads:",
 		"      - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt",
 		"      - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
@@ -1039,9 +1039,9 @@ func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {
 		"      - https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt",
 		"    special:",
 		"      - https://hosts-file.net/ad_servers.txt",
-		"  whiteLists:",
+		"  allowlists:",
 		"    ads:",
-		"      - whitelist.txt",
+		"      - allowlist.txt",
 		"  clientGroupsBlock:",
 		"    default:",
 		"      - ads",
@@ -1119,7 +1119,7 @@ func writeConfigDir(tmpDir *helpertest.TmpFolder) {
 
 	tmpDir.CreateStringFile("config2.yaml",
 		"blocking:",
-		"  blackLists:",
+		"  denylists:",
 		"    ads:",
 		"      - https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt",
 		"      - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
@@ -1129,9 +1129,9 @@ func writeConfigDir(tmpDir *helpertest.TmpFolder) {
 		"      - https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt",
 		"    special:",
 		"      - https://hosts-file.net/ad_servers.txt",
-		"  whiteLists:",
+		"  allowlists:",
 		"    ads:",
-		"      - whitelist.txt",
+		"      - allowlist.txt",
 		"  clientGroupsBlock:",
 		"    default:",
 		"      - ads",

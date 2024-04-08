@@ -20,7 +20,7 @@ upstream:
     - tcp-tls:fdns1.dismail.de:853
     - https://dns.digitale-gesellschaft.ch/dns-query
 blocking:
-  blackLists:
+  denylists:
     ads:
       - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
   clientGroupsBlock:
@@ -95,8 +95,8 @@ docker-compose up -d
 ### Advanced setup
 
 Following example shows, how to run blocky in a docker container and store query logs on a SAMBA share. Local black and
-whitelists directories are mounted as volume. You can create own black or whitelists in these directories and define the
-path like '/app/whitelists/whitelist.txt' in the config file.
+allowlists directories are mounted as volume. You can create own black or allowlists in these directories and define the
+path like '/app/allowlists/allowlist.txt' in the config file.
 
 !!! example
 
@@ -118,9 +118,9 @@ services:
       - ./config.yml:/app/config.yml
       # write query logs in this volume
       - queryLogs:/logs
-      # put your custom white and blacklists in these directories
-      - ./blacklists:/app/blacklists/
-      - ./whitelists:/app/whitelists/
+      # put your custom allow/denylists in these directories
+      - ./denylists:/app/denylists/
+      - ./allowlists:/app/allowlists/
 
 volumes:
   queryLogs:

@@ -117,7 +117,7 @@ var _ = BeforeSuite(func() {
 			},
 		},
 		Blocking: config.Blocking{
-			BlackLists: map[string][]config.BytesSource{
+			Denylists: map[string][]config.BytesSource{
 				"ads": config.NewBytesSources(
 					doubleclickFile.Path,
 					bildFile.Path,
@@ -125,13 +125,13 @@ var _ = BeforeSuite(func() {
 				),
 				"youtube": config.NewBytesSources(youtubeFile.Path),
 			},
-			WhiteLists: map[string][]config.BytesSource{
+			Allowlists: map[string][]config.BytesSource{
 				"ads":       config.NewBytesSources(heiseFile.Path),
-				"whitelist": config.NewBytesSources(heiseFile.Path),
+				"allowlist": config.NewBytesSources(heiseFile.Path),
 			},
 			ClientGroupsBlock: map[string][]string{
 				"default":         {"ads"},
-				"clWhitelistOnly": {"whitelist"},
+				"clAllowlistOnly": {"allowlist"},
 				"clAdsAndYoutube": {"ads", "youtube"},
 				"clYoutubeOnly":   {"youtube"},
 			},
@@ -263,7 +263,7 @@ var _ = Describe("Running DNS server", func() {
 			})
 		})
 		Context("no blocking default group with sub domain", func() {
-			It("Query with should not be blocked, sub domain is not in blacklist", func() {
+			It("Query with should not be blocked, sub domain is not in denylist", func() {
 				Expect(requestServer(util.NewMsgWithQuestion("bild.de.", A))).
 					Should(
 						SatisfyAll(
@@ -272,8 +272,8 @@ var _ = Describe("Running DNS server", func() {
 						))
 			})
 		})
-		Context("domain is on white and blacklist default group", func() {
-			It("Query with should not be blocked, domain is on white and blacklist", func() {
+		Context("domain is on allow/denylist default group", func() {
+			It("Query with should not be blocked, domain is on allow/denylist", func() {
 				Expect(requestServer(util.NewMsgWithQuestion("heise.de.", A))).
 					Should(
 						SatisfyAll(
@@ -282,9 +282,9 @@ var _ = Describe("Running DNS server", func() {
 						))
 			})
 		})
-		Context("domain is on client specific white list", func() {
-			It("Query with should not be blocked, domain is on client's white list", func() {
-				mockClientName.Store("clWhitelistOnly")
+		Context("domain is on client specific allowlist", func() {
+			It("Query with should not be blocked, domain is on client's allowlist", func() {
+				mockClientName.Store("clAllowlistOnly")
 				Expect(requestServer(util.NewMsgWithQuestion("heise.de.", A))).
 					Should(
 						SatisfyAll(
@@ -293,9 +293,9 @@ var _ = Describe("Running DNS server", func() {
 						))
 			})
 		})
-		Context("block client whitelist only", func() {
-			It("Query with should be blocked, client has only whitelist, domain is not on client's white list", func() {
-				mockClientName.Store("clWhitelistOnly")
+		Context("block client allowlist only", func() {
+			It("Query with should be blocked, client has only allowlist, domain is not on client's allowlist", func() {
+				mockClientName.Store("clAllowlistOnly")
 				Expect(requestServer(util.NewMsgWithQuestion("google.de.", A))).
 					Should(
 						SatisfyAll(

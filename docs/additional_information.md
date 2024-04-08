@@ -33,7 +33,6 @@ To print runtime configuration / statistics, you can send `SIGUSR1` signal to ru
     INFO server: MEM NumGC =              1533
     INFO server: RUN NumCPU =                4
     INFO server: RUN NumGoroutine =         18
-    
     ```
 
 !!! hint
@@ -49,7 +48,7 @@ automatically.
 
 Some links/ideas for lists:
 
-### Blacklists
+### Denylists
 
 * [https://github.com/StevenBlack/hosts](https://github.com/StevenBlack/hosts)
 * [https://github.com/nickspaargaren/no-google](https://github.com/nickspaargaren/no-google)
@@ -60,11 +59,11 @@ Some links/ideas for lists:
 
 !!! warning
 
-    Use only blacklists from the sources you trust!
+    Use only denylists from the sources you trust!
 
-### Whitelists
+### Allowlists
 
-* [https://github.com/anudeepND/whitelist](https://github.com/anudeepND/whitelist)
+* [https://github.com/anudeepND/whitelist](https://github.com/anudeepND/allowlist)
 
 ## List of public DNS servers
 
@@ -74,7 +73,7 @@ Some links/ideas for lists:
 
     Please read the description before using the DNS server as upstream. Some of them provide already an ad-blocker, some
     filters other content. If you use external DNS server with included ad-blocker, you can't choose which domains should be
-    blocked, and you can't use whitelisting.
+    blocked, and you can't use allowlisting.
 
 This is only a small excerpt of all free available DNS servers and should only be understood as an idee.
 
