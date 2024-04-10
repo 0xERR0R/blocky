@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - v*
+
+    branches:
+      - '**'
     paths:
       - .github/workflows/**
       - mkdocs.yml
