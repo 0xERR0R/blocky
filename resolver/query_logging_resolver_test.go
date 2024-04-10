@@ -135,9 +135,6 @@ var _ = Describe("QueryLoggingResolver", func() {
 				ctx, cancelFn = context.WithCancel(context.Background())
 				DeferCleanup(cancelFn)
 
-				// Capture written logs
-				sut.logChan = make(chan *querylog.LogEntry, 16)
-
 				// Capture ignored logs
 				{
 					var logger *logrus.Entry
