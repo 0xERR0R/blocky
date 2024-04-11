@@ -496,10 +496,10 @@
 
 <span class="w">    </span><span class="no">## Features</span>
 
-<span class="w">    </span><span class="no">- **Blocking** - Blocking of DNS queries with external lists (Ad-block, malware) and whitelisting</span>
+<span class="w">    </span><span class="no">- **Blocking** - Blocking of DNS queries with external lists (Ad-block, malware) and allowlisting</span>
 
-<span class="w">      </span><span class="no">- Definition of black and white lists per client group (Kids, Smart home devices, etc.)</span>
-<span class="w">      </span><span class="no">- Periodical reload of external black and white lists</span>
+<span class="w">      </span><span class="no">- Definition of allow/denylists per client group (Kids, Smart home devices, etc.)</span>
+<span class="w">      </span><span class="no">- Periodical reload of external allow/denylists</span>
 <span class="w">      </span><span class="no">- Regex support</span>
 <span class="w">      </span><span class="no">- Blocking of request domain, response CNAME (deep CNAME inspection) and response IP addresses (against IP lists)</span>
 
@@ -747,7 +747,7 @@
 <li><code>./blocky blocking status</code> to print current status of blocking</li>
 <li><code>./blocky query &lt;domain&gt;</code> execute <abbr title="Domain Name System">DNS</abbr> query (A) (simple replacement for dig, useful for debug purposes)</li>
 <li><code>./blocky query &lt;domain&gt; --type &lt;queryType&gt;</code> execute <abbr title="Domain Name System">DNS</abbr> query with passed query type (A, AAAA, MX, ...)</li>
-<li><code>./blocky lists refresh</code> reloads all white and blacklists</li>
+<li><code>./blocky lists refresh</code> reloads all allow/denylists</li>
 </ul>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>

@@ -889,7 +889,7 @@
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tcp-tls:fdns1.dismail.de:853</span>
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://dns.digitale-gesellschaft.ch/dns-query</span>
 <span class="nt">blocking</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">blackLists</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">denylists</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">ads</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts</span>
 <span class="w">  </span><span class="nt">clientGroupsBlock</span><span class="p">:</span>
@@ -944,8 +944,8 @@ Default value is <code>/app/config.yml</code>.</p>
 </code></pre></div>
 <h3 id="advanced-setup">Advanced setup</h3>
 <p>Following example shows, how to run blocky in a docker container and store query logs on a <abbr title="Server Message Block Protocol (Windows Network File System)">SAMBA</abbr> share. Local black and
-whitelists directories are mounted as volume. You can create own black or whitelists in these directories and define the
-path like '/app/whitelists/whitelist.txt' in the config file.</p>
+allowlists directories are mounted as volume. You can create own black or allowlists in these directories and define the
+path like '/app/allowlists/allowlist.txt' in the config file.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 </div>
@@ -966,9 +966,9 @@ path like '/app/whitelists/whitelist.txt' in the config file.</p>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./config.yml:/app/config.yml</span>
 <span class="w">      </span><span class="c1"># write query logs in this volume</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">queryLogs:/logs</span>
-<span class="w">      </span><span class="c1"># put your custom white and blacklists in these directories</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./blacklists:/app/blacklists/</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./whitelists:/app/whitelists/</span>
+<span class="w">      </span><span class="c1"># put your custom allow/denylists in these directories</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./denylists:/app/denylists/</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./allowlists:/app/allowlists/</span>
 
 <span class="nt">volumes</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">queryLogs</span><span class="p">:</span>

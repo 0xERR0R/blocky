@@ -598,8 +598,8 @@
 </thead>
 <tbody>
 <tr>
-<td>blocky_blacklist_cache / blocky_whitelist_cache</td>
-<td>Number of entries in blacklist/whitelist cache, partitioned by group</td>
+<td>blocky_denylist_cache / blocky_allowlist_cache</td>
+<td>Number of entries in denylist/allowlist cache, partitioned by group</td>
 </tr>
 <tr>
 <td>blocky_error_total</td>
@@ -645,7 +645,7 @@
 </table>
 <h3 id="grafana-dashboard">Grafana dashboard</h3>
 <p>Example <a href="https://grafana.com/">Grafana</a> dashboard
-definition <a href="https://github.com/0xERR0R/blocky/blob/main/docs/blocky-grafana.json">as JSON</a>
+definition <a href="../blocky-grafana.json">as JSON</a>
 or <a href="https://grafana.com/grafana/dashboards/13768">at grafana.com</a>
 <img alt="grafana-dashboard" src="../grafana-dashboard.png" />.</p>
 <p>This dashboard shows all relevant statistics and allows enabling and disabling the blocking status.</p>
@@ -658,12 +658,12 @@ in config or as env to use control buttons to enable/disable the blocking status
 blocky, prometheus (with configured scraper for blocky) and grafana with prometheus datasource.</p>
 <h2 id="mysql-mariadb">MySQL / MariaDB</h2>
 <p>If database query logging is activated (see <a href="../configuration/#query-logging">Query logging</a>), you can use following
-Grafana Dashboard <a href="https://github.com/0xERR0R/blocky/blob/main/docs/blocky-query-grafana.json">as JSON</a>
+Grafana Dashboard <a href="../blocky-query-grafana.json">as JSON</a>
 or <a href="https://grafana.com/grafana/dashboards/14980">at grafana.com</a></p>
 <p><img alt="grafana-dashboard" src="../grafana-query-dashboard.png" />.</p>
 <p>Please define the MySQL source in Grafana, which points to the database with blocky's log entries.</p>
 <h2 id="postgres">Postgres</h2>
-<p>The JSON for a Grafana dashboard equivalent to the MySQL/MariaDB version is located <a href="https://github.com/0xERR0R/blocky/blob/main/docs/blocky-query-grafana-postgres.json">here</a></p>
+<p>The JSON for a Grafana dashboard equivalent to the MySQL/MariaDB version is located <a href="../blocky-query-grafana-postgres.json">here</a></p>
 
 
 

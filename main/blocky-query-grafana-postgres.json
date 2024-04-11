@@ -243,7 +243,7 @@
           ]
         }
       ],
-      "title": "Blocked by Blacklist",
+      "title": "Blocked by Denylist",
       "type": "piechart"
     },
     {

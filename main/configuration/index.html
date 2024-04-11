@@ -475,23 +475,23 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#blocking-and-whitelisting" class="md-nav__link">
+  <a href="#blocking-and-allowlisting" class="md-nav__link">
     <span class="md-ellipsis">
-      Blocking and whitelisting
+      Blocking and allowlisting
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Blocking and whitelisting">
+    <nav class="md-nav" aria-label="Blocking and allowlisting">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#definition-black-and-whitelists" class="md-nav__link">
+  <a href="#definition-allowdenylists" class="md-nav__link">
     <span class="md-ellipsis">
-      Definition black and whitelists
+      Definition allow/denylists
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Definition black and whitelists">
+    <nav class="md-nav" aria-label="Definition allow/denylists">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1053,23 +1053,23 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#blocking-and-whitelisting" class="md-nav__link">
+  <a href="#blocking-and-allowlisting" class="md-nav__link">
     <span class="md-ellipsis">
-      Blocking and whitelisting
+      Blocking and allowlisting
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Blocking and whitelisting">
+    <nav class="md-nav" aria-label="Blocking and allowlisting">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#definition-black-and-whitelists" class="md-nav__link">
+  <a href="#definition-allowdenylists" class="md-nav__link">
     <span class="md-ellipsis">
-      Definition black and whitelists
+      Definition allow/denylists
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Definition black and whitelists">
+    <nav class="md-nav" aria-label="Definition allow/denylists">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1403,10 +1403,10 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">    </span><span class="nt">fritz.box</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.178.1</span>
 <span class="w">    </span><span class="nt">lan.net</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.178.1,192.168.178.2</span>
 
-<span class="c1"># optional: use black and white lists to block queries (for example ads, trackers, adult pages etc.)</span>
+<span class="c1"># optional: use allow/denylists to block queries (for example ads, trackers, adult pages etc.)</span>
 <span class="nt">blocking</span><span class="p">:</span>
-<span class="w">  </span><span class="c1"># definition of blacklist groups. Can be external link (http/https) or local file</span>
-<span class="w">  </span><span class="nt">blackLists</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># definition of denylist groups. Can be external link (http/https) or local file</span>
+<span class="w">  </span><span class="nt">denylists</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">ads</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts</span>
@@ -1418,14 +1418,16 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">        </span><span class="no">*.example.com</span>
 <span class="w">    </span><span class="nt">special</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts</span>
-<span class="w">  </span><span class="c1"># definition of whitelist groups. Attention: if the same group has black and whitelists, whitelists will be used to disable particular blacklist entries. If a group has only whitelist entries -&gt; this means only domains from this list are allowed, all other domains will be blocked</span>
-<span class="w">  </span><span class="nt">whiteLists</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># definition of allowlist groups.</span>
+<span class="w">  </span><span class="c1"># Note: if the same group has both allow/denylists, allowlists take precedence. Meaning if a domain is both blocked and allowed, it will be allowed.</span>
+<span class="w">  </span><span class="c1"># If a group has only allowlist entries, only domains from this list are allowed, and all others be blocked.</span>
+<span class="w">  </span><span class="nt">allowlists</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">ads</span><span class="p">:</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">whitelist.txt</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">allowlist.txt</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">|</span>
 <span class="w">        </span><span class="no"># inline definition with YAML literal block scalar style</span>
 <span class="w">        </span><span class="no"># hosts format</span>
-<span class="w">        </span><span class="no">whitelistdomain.com</span>
+<span class="w">        </span><span class="no">allowlistdomain.com</span>
 <span class="w">        </span><span class="no"># this is a regex</span>
 <span class="w">        </span><span class="no">/^banners?[_.-]/</span>
 <span class="w">  </span><span class="c1"># definition: which groups should be applied for which client</span>
@@ -1583,7 +1585,7 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="c1">#certFile: server.crt</span>
 <span class="c1">#keyFile: server.key</span>
 
-<span class="c1"># optional: use these DNS servers to resolve blacklist urls and upstream DNS servers. It is useful if no system DNS resolver is configured, and/or to encrypt the bootstrap queries.</span>
+<span class="c1"># optional: use these DNS servers to resolve denylist urls and upstream DNS servers. It is useful if no system DNS resolver is configured, and/or to encrypt the bootstrap queries.</span>
 <span class="nt">bootstrapDns</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tcp+udp:1.1.1.1</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://1.1.1.1/dns-query</span>
@@ -2233,13 +2235,13 @@ contains a map of client name and multiple IP addresses.</p>
 </code></pre></div>
 <p>Use <code>192.168.178.1</code> for <abbr title="Reverse DNS">rDNS</abbr> lookup. Take second name if present, if not take first name. IP address <code>192.168.178.29</code> is mapped to <code>laptop</code> as client name.</p>
 </div>
-<h2 id="blocking-and-whitelisting">Blocking and whitelisting</h2>
+<h2 id="blocking-and-allowlisting">Blocking and allowlisting</h2>
 <p>Blocky can use lists of domains and IPs to block (e.g. advertisement, malware,
 trackers, adult sites). You can group several list sources together and define the blocking behavior per client.
 Blocking uses the <a href="https://en.wikipedia.org/wiki/DNS_sinkhole"><abbr title="Domain Name System">DNS</abbr> sinkhole</a> approach. For each <abbr title="Domain Name System">DNS</abbr> query, the domain name from
 the request, IP address from the response, and any <abbr title="Canonical Name">CNAME</abbr> records will be checked to determine whether to block the query or not.</p>
-<p>To avoid over-blocking, you can use whitelists.</p>
-<h3 id="definition-black-and-whitelists">Definition black and whitelists</h3>
+<p>To avoid over-blocking, you can use allowlists.</p>
+<h3 id="definition-allowdenylists">Definition allow/denylists</h3>
 <p>Lists are defined in groups. This allows using different sets of lists for different clients.</p>
 <p>Each list in a group is a "source" and can be downloaded, read from a file, or inlined in the config. See <a href="#sources">Sources</a> for details and configuring how those are loaded and reloaded/refreshed.</p>
 <p>The supported list formats are:</p>
@@ -2252,7 +2254,7 @@ the request, IP address from the response, and any <abbr title="Canonical Name">
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><pre><span></span><code><span class="nt">blocking</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">blackLists</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">denylists</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">ads</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts</span>
@@ -2267,25 +2269,24 @@ the request, IP address from the response, and any <abbr title="Canonical Name">
 <span class="w">        </span><span class="no">/^banners?[_.-]/</span>
 <span class="w">    </span><span class="nt">special</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts</span>
-<span class="w">  </span><span class="nt">whiteLists</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">allowlists</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">ads</span><span class="p">:</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">whitelist.txt</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">allowlist.txt</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/path/to/file.txt</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">|</span>
 <span class="w">        </span><span class="no"># inline definition with YAML literal block scalar style</span>
-<span class="w">        </span><span class="no">whitelistdomain.com</span>
+<span class="w">        </span><span class="no">allowlistdomain.com</span>
 </code></pre></div>
 <p>In this example you can see 2 groups: <strong>ads</strong> and <strong>special</strong> with one list. The <strong>ads</strong> group includes 2 inline lists.</p>
 </div>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>If the same group has black and whitelists, whitelists will be used to disable particular blacklist entries.
-If a group has <strong>only</strong> whitelist entries -&gt; this means only domains from this list are allowed, all other domains will
-be blocked.</p>
+<p>If the same group has <strong>both</strong> allow/denylists, allowlists take precedence. Meaning if a domain is both blocked and allowed, it will be allowed.
+If a group has <strong>only allowlist</strong> entries, only domains from this list are allowed, and all others be blocked.</p>
 </div>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>You must also define client group mapping, otherwise you black and whitelist definition will have no effect.</p>
+<p>You must also define a client group mapping, otherwise the allow/denylist definitions will have no effect.</p>
 </div>
 <h4 id="wildcard-support">Wildcard support</h4>
 <p>You can use wildcards to block a domain and all its subdomains.
@@ -2929,7 +2930,7 @@ These settings apply only to the resolver under which they are nested.</p>
 <p class="admonition-title">Example</p>
 <div class="highlight"><pre><span></span><code><span class="nt">blocking</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">loading</span><span class="p">:</span>
-<span class="w">    </span><span class="c1"># only applies to white/blacklists</span>
+<span class="w">    </span><span class="c1"># only applies to allow/denylists</span>
 
 <span class="nt">hostsFile</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">loading</span><span class="p">:</span>
