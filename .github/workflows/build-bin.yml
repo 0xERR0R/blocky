@@ -41,8 +41,10 @@ jobs:
         id: check
         run: |
           if [[ "${{ inputs.goos }}" == "windows" && "${{ inputs.goarch }}" == "arm" ]] || \
-            [[ "${{ inputs.goos }}" == "windows" && "${{ inputs.goarch }}" == "arm64" ]]; then
-            echo "Unsupported input: Combination goos=windows goarch=${{ inputs.goarch }} is not supported" \
+            [[ "${{ inputs.goos }}" == "windows" && "${{ inputs.goarch }}" == "arm64" ]] || \
+            [[ "${{ inputs.goos }}" == "netbsd" && "${{ inputs.goarch }}" == "arm64" ]] || \
+            [[ "${{ inputs.goos }}" == "darwin" && "${{ inputs.goarch }}" == "arm" ]]; then
+            echo "## Unsupported input: Combination goos=${{ inputs.goarch }} goarch=${{ inputs.goarch }} is not supported" \
               >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
