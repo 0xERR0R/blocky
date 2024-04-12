@@ -40,11 +40,10 @@ jobs:
       - name: Input Check
         id: check
         run: |
-          if [[ "${{ inputs.goos }}" == "windows" && "${{ inputs.goarch }}" == "arm" ]]; then
-            echo "Combination goos=windows goarch=arm is not supported"
-            exit 1
-          elif [[ "${{ inputs.goos }}" == "windows" && "${{ inputs.goarch }}" == "arm64" ]]; then
-            echo "Combination goos=windows goarch=arm64 is not supported"
+          if [[ "${{ inputs.goos }}" == "windows" && "${{ inputs.goarch }}" == "arm" ]] || \
+            [[ "${{ inputs.goos }}" == "windows" && "${{ inputs.goarch }}" == "arm64" ]]; then
+            echo "::error title='Unsupported input'::Combination goos=windows goarch=${{ inputs.goarch }} is not supported" \
+              >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 
@@ -72,13 +71,11 @@ jobs:
       - name: Get variables
         id: get_vars
         run: |
-          if [[ "${{ github.repository_owner }}" == "0xERR0R" ]]; then
-            echo "version=$(git describe --always --tags)" >> $GITHUB_OUTPUT
-          else
+          if [[ "${{ github.repository_owner }}" != "0xERR0R" ]]; then
             git remote add upstream https://github.com/0xERR0R/blocky.git
             git fetch upstream
-            echo "version=$(git describe --always --tags upstream/main)" >> $GITHUB_OUTPUT
           fi
+          echo "version=$(git describe --always --tags)" >> $GITHUB_OUTPUT
           if [[ "${{ inputs.goarch }}" == "arm" ]]; then
             echo "arch=${{ inputs.goarch }}${{ inputs.goarm }}" >> $GITHUB_OUTPUT
           else
@@ -102,16 +99,12 @@ jobs:
           make build
 
       - name: Rename binary
-        run: |
-          if [[ "${{ inputs.goos }}" == "windows" ]]; then
-            mv bin/blocky bin/blocky.exe
-          else
-            mv bin/blocky bin/blocky-${{ inputs.goos }}-${{ steps.get_vars.outputs.arch }}
-          fi
+        if: inputs.goos  == 'windows'
+        run: mv bin/blocky bin/blocky.exe
 
       - name: Store build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: blocky-${{ steps.get_vars.outputs.version }}-${{ inputs.goos }}-${{ steps.get_vars.outputs.arch }}
+          name: blocky_${{ steps.get_vars.outputs.version }}_${{ inputs.goos }}_${{ steps.get_vars.outputs.arch }}
           path: bin/blocky*
           retention-days: 5
