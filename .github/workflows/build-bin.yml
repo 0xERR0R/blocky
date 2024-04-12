@@ -83,6 +83,7 @@ jobs:
           GOARCH: ${{ inputs.goarch }}
           GOARM: ${{ inputs.goarm }}
         run: |
+          export VERSION=$(git describe --tags --always origin/main)
           if [[ "${{ inputs.goarch }}" != "arm" ]]; then
             unset GOARM
           fi
