@@ -80,8 +80,19 @@ jobs:
           GOARM: ${{ inputs.goarm }}
         run: make build
 
+      - name: Rename binary
+        run: |
+          if [[ "${{ inputs.goos }}" == "windows" ]]; then
+            mv build/blocky.exe build/blocky.exe
+          else if [[ "${{ inputs.goarch }}" == "arm" ]]; then
+            mv build/blocky build/blocky-${{ inputs.goos }}-${{ inputs.goarch }}${{ inputs.goarm }}
+          else
+            mv build/blocky build/blocky-${{ inputs.goos }}-${{ inputs.goarch }}
+          fi
+
       - name: Store build artifact
         uses: actions/upload-artifact@v2
         with:
           name: blocky
-          path: build/blocky
+          path: build/blocky*
+          retention-days: 5
