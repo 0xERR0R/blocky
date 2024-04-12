@@ -45,7 +45,9 @@ jobs:
             [[ "${{ inputs.goos }}" == "darwin" && "${{ inputs.goarch }}" == "arm" ]]; then
             echo "## Unsupported input" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Combination goos=${{ inputs.goarch }} goarch=${{ inputs.goarch }} is not supported" >> $GITHUB_STEP_SUMMARY
+            echo "Combination not supported: ">> $GITHUB_STEP_SUMMARY
+            echo " - goos=${{ inputs.goos }}" >> $GITHUB_STEP_SUMMARY
+            echo " - goarch=${{ inputs.goarch }}" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 
