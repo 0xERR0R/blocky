@@ -81,7 +81,7 @@ jobs:
           else
             git remote add upstream https://github.com/0xERR0R/blocky.git
             git fetch upstream
-            echo "version=$(git describe --always --tags upstream)" >> $GITHUB_OUTPUT
+            echo "version=$(git describe --always --tags upstream/main)" >> $GITHUB_OUTPUT
           fi
           if [[ "${{ inputs.goarch }}" == "arm" ]]; then
             echo "arch=${{ inputs.goarch }}${{ inputs.goarm }}" >> $GITHUB_OUTPUT
