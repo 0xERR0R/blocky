@@ -111,21 +111,33 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 	logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), qType)
 
 	req := newRequest(dns.Fqdn(domainName), qType)
+
 	response, err := r.next.Resolve(ctx, req)
-
-	if err == nil {
-		if response.Res.Rcode == dns.RcodeSuccess {
-			packed, err := response.Res.Pack()
-			if err != nil {
-				logger.Error("unable to pack response", err)
-
-				return nil, 0
-			}
-
-			return &packed, r.adjustTTLs(response.Res.Answer)
-		}
-	} else {
+	if err != nil {
 		util.LogOnError(ctx, fmt.Sprintf("can't prefetch '%s' ", domainName), err)
+
+		return nil, 0
+	}
+
+	if response.Res.Rcode == dns.RcodeSuccess {
+		respCopy := response.Res.Copy()
+
+		// don't cache any EDNS OPT records
+		util.RemoveEdns0Record(respCopy)
+
+		packed, err := respCopy.Pack()
+		if err != nil {
+			logger.Error("unable to pack response", err)
+
+			return nil, 0
+		}
+
+		if r.redisClient != nil {
+			res := *respCopy
+			r.redisClient.PublishCache(cacheKey, &res)
+		}
+
+		return &packed, r.adjustTTLs(response.Res.Answer)
 	}
 
 	return nil, 0
