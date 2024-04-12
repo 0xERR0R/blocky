@@ -38,6 +38,7 @@ func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) *QueryLog
 	err := retry.Do(
 		func() error {
 			var err error
+
 			switch cfg.Type {
 			case config.QueryLogTypeCsv:
 				writer, err = querylog.NewCSVWriter(cfg.Target, false, cfg.LogRetentionDays)

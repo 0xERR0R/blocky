@@ -226,7 +226,9 @@ func configureStaticAssetsHandler(router *chi.Mux) {
 func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 	router.Get("/", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set(contentTypeHeader, htmlContentType)
+
 		t := template.New("index")
+
 		_, _ = t.Parse(web.IndexTmpl)
 
 		type HandlerLink struct {
@@ -239,11 +241,13 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 			Version   string
 			BuildTime string
 		}
+
 		pd := PageData{
 			Links:     nil,
 			Version:   util.Version,
 			BuildTime: util.BuildTime,
 		}
+
 		pd.Links = []HandlerLink{
 			{
 				URL:   "/docs/openapi.yaml",

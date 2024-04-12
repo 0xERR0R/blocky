@@ -165,7 +165,6 @@ func NewBlockingResolver(ctx context.Context,
 	err = evt.Bus().SubscribeOnce(evt.ApplicationStarted, func(_ ...string) {
 		go res.initFQDNIPCache(ctx)
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -270,6 +269,7 @@ func (r *BlockingResolver) internalDisableBlocking(ctx context.Context, duration
 				return fmt.Errorf("group '%s' is unknown", g)
 			}
 		}
+
 		s.disabledGroups = disableGroups
 	}
 
@@ -283,6 +283,7 @@ func (r *BlockingResolver) internalDisableBlocking(ctx context.Context, duration
 	} else {
 		log.Log().Infof("disable blocking for %s for group(s) '%s'", duration,
 			log.EscapeInput(strings.Join(s.disabledGroups, "; ")))
+
 		s.enableTimer = time.AfterFunc(duration, func() {
 			r.EnableBlocking(ctx)
 			log.Log().Info("blocking enabled again")
