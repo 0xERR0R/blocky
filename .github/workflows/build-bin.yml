@@ -42,7 +42,7 @@ jobs:
         run: |
           if [[ "${{ inputs.goos }}" == "windows" && "${{ inputs.goarch }}" == "arm" ]] || \
             [[ "${{ inputs.goos }}" == "windows" && "${{ inputs.goarch }}" == "arm64" ]]; then
-            echo "::error title='Unsupported input'::Combination goos=windows goarch=${{ inputs.goarch }} is not supported" \
+            echo "Unsupported input: Combination goos=windows goarch=${{ inputs.goarch }} is not supported" \
               >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
