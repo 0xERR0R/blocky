@@ -34,7 +34,7 @@ on:
           - 7
 
 jobs:
-  check:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Input Check
@@ -48,10 +48,6 @@ jobs:
             exit 1
           fi
 
-  build:
-    runs-on: ubuntu-latest
-    needs: check
-    steps:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v4
         with:
