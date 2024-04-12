@@ -73,6 +73,22 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
+      - name: Get variables
+        id: get_vars
+        run: |
+          if [[ "${{ github.repository_owner }}" == "0xERR0R" ]]; then
+            echo "version=$(git describe --always --tags)" >> $GITHUB_OUTPUT
+          else
+            git remote add upstream https://github.com/0xERR0R/blocky.git
+            git fetch upstream
+            echo "version=$(git describe --always --tags upstream)" >> $GITHUB_OUTPUT
+          fi
+          if [[ "${{ inputs.goarch }}" == "arm" ]]; then
+            echo "arch=${{ inputs.goarch }}${{ inputs.goarm }}" >> $GITHUB_OUTPUT
+          else
+            echo "arch=${{ inputs.goarch }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build
         env:
           GO_SKIP_GENERATE: 1
@@ -82,8 +98,8 @@ jobs:
           GOOS: ${{ inputs.goos }}
           GOARCH: ${{ inputs.goarch }}
           GOARM: ${{ inputs.goarm }}
+          VERSION: ${{ steps.get_vars.outputs.version }}
         run: |
-          export VERSION=$(git describe --tags --always origin/main)
           if [[ "${{ inputs.goarch }}" != "arm" ]]; then
             unset GOARM
           fi
@@ -93,15 +109,13 @@ jobs:
         run: |
           if [[ "${{ inputs.goos }}" == "windows" ]]; then
             mv bin/blocky bin/blocky.exe
-          elif [[ "${{ inputs.goarch }}" == "arm" ]]; then
-            mv bin/blocky bin/blocky-${{ inputs.goos }}-${{ inputs.goarch }}${{ inputs.goarm }}
           else
-            mv bin/blocky bin/blocky-${{ inputs.goos }}-${{ inputs.goarch }}
+            mv bin/blocky bin/blocky-${{ inputs.goos }}-${{ steps.get_vars.outputs.arch }}
           fi
 
       - name: Store build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: blocky
+          name: blocky-${{ steps.get_vars.outputs.version }}-${{ inputs.goos }}-${{ steps.get_vars.outputs.arch }}
           path: bin/blocky*
           retention-days: 5
