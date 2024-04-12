@@ -1,0 +1,87 @@
+name: Build binary
+
+on:
+  workflow_dispatch:
+    inputs:
+      goos:
+        description: "GOOS"
+        required: true
+        default: "linux"
+        type: choice
+        options:
+          - linux
+          - windows
+          - freebsd
+          - netbsd
+          - openbsd
+          - darwin
+      goarch:
+        description: "GOARCH"
+        required: true
+        default: "amd64"
+        type: choice
+        options:
+          - amd64
+          - arm
+          - arm64
+      goarm:
+        description: "GOARM"
+        required: true
+        default: "7"
+        type: choice
+        options:
+          - 6
+          - 7
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Input Check
+        id: check
+        run: |
+          if [[ "${{ inputs.goos }}" == "windows" && "${{ inputs.goarch }}" == "arm" ]]; then
+            echo "Combination goos=windows goarch=arm is not supported"
+            exit 1
+          elif [[ "${{ inputs.goos }}" == "windows" && "${{ inputs.goarch }}" == "arm64" ]]; then
+            echo "Combination goos=windows goarch=arm64 is not supported"
+            exit 1
+          fi
+
+  build:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v4
+
+      - name: Setup Golang
+        uses: actions/setup-go@v5
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+
+      - name: Setup ZigCC & ZigCPP
+        run: |
+          go install github.com/dosgo/zigtool/zigcc@latest
+          go install github.com/dosgo/zigtool/zigcpp@latest
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build
+        env:
+          GO_SKIP_GENERATE: 1
+          CGO_ENABLED: 0
+          CC: zigcc
+          CXX: zigcpp
+          GOOS: ${{ inputs.goos }}
+          GOARCH: ${{ inputs.goarch }}
+          GOARM: ${{ inputs.goarm }}
+        run: make build
+
+      - name: Store build artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: blocky
+          path: build/blocky
