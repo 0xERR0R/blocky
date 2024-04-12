@@ -57,6 +57,8 @@ jobs:
 
       - name: Setup Golang
         uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
 
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2
@@ -83,8 +85,8 @@ jobs:
       - name: Rename binary
         run: |
           if [[ "${{ inputs.goos }}" == "windows" ]]; then
-            mv build/blocky.exe build/blocky.exe
-          else if [[ "${{ inputs.goarch }}" == "arm" ]]; then
+            mv build/blocky build/blocky.exe
+          elif [[ "${{ inputs.goarch }}" == "arm" ]]; then
             mv build/blocky build/blocky-${{ inputs.goos }}-${{ inputs.goarch }}${{ inputs.goarm }}
           else
             mv build/blocky build/blocky-${{ inputs.goos }}-${{ inputs.goarch }}
