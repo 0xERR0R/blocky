@@ -75,6 +75,7 @@ func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.Read
 
 				return fmt.Errorf("got status code %d", resp.StatusCode)
 			}
+
 			var netErr net.Error
 			if errors.As(httpErr, &netErr) && netErr.Timeout() {
 				return &TransientError{inner: netErr}

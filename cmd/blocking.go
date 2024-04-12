@@ -109,6 +109,7 @@ func statusBlocking(_ *cobra.Command, _ []string) error {
 		if resp.JSON200.DisabledGroups != nil {
 			groupNames = strings.Join(*resp.JSON200.DisabledGroups, "; ")
 		}
+
 		if resp.JSON200.AutoEnableInSec == nil || *resp.JSON200.AutoEnableInSec == 0 {
 			log.Log().Infof("blocking disabled for groups: %s", groupNames)
 		} else {

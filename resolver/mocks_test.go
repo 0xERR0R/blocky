@@ -173,6 +173,7 @@ func newTestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg),
 				f(w)
 			}
 		}
+
 		_, err = w.Write(b)
 
 		util.FatalOnError("can't write response: ", err)

@@ -222,6 +222,7 @@ func (r *wildcardCacheFactory) addEntry(entry string) bool {
 	entry = normalizeWildcard(entry)
 
 	r.trie.Insert(entry)
+
 	r.cnt++
 
 	return true

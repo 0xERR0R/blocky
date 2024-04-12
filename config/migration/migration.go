@@ -102,6 +102,7 @@ func Apply[T any](dest *Dest, apply func(oldValue T)) Migrator {
 	return newMigrator(dest, func(oldName string, oldValue reflect.Value) {
 		valItf := oldValue.Interface()
 		valTyped, ok := valItf.(T)
+
 		if !ok {
 			panic(fmt.Errorf("%q migration types don't match: cannot convert %v to %T", oldName, valItf, valTyped))
 		}
