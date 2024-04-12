@@ -3,12 +3,12 @@ name: Makefile
 on:
   push:
     paths:
-      - .github/workflows/**
+      - .github/workflows/makefile.yml
       - Dockerfile
       - Makefile
-      - '**.go'
-      - 'go.*'
-      - 'helpertest/data/**'
+      - "**.go"
+      - "go.*"
+      - "helpertest/data/**"
   pull_request:
 
 permissions:
