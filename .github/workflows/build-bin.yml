@@ -1,0 +1,113 @@
+name: Build binary
+
+on:
+  workflow_dispatch:
+    inputs:
+      goos:
+        description: "Target OS"
+        required: true
+        default: "linux"
+        type: choice
+        options:
+          - linux
+          - windows
+          - freebsd
+          - netbsd
+          - openbsd
+          - darwin
+      goarch:
+        description: "Target architecture"
+        required: true
+        default: "amd64"
+        type: choice
+        options:
+          - amd64
+          - arm
+          - arm64
+      goarm:
+        description: "Target ARM version(only used with arm architecture)"
+        required: true
+        default: "7"
+        type: choice
+        options:
+          - 6
+          - 7
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Input Check
+        run: |
+          if [[ "${{ inputs.goos }}" == "windows" && "${{ inputs.goarch }}" == "arm" ]] || \
+            [[ "${{ inputs.goos }}" == "windows" && "${{ inputs.goarch }}" == "arm64" ]] || \
+            [[ "${{ inputs.goos }}" == "netbsd" && "${{ inputs.goarch }}" == "arm64" ]] || \
+            [[ "${{ inputs.goos }}" == "darwin" && "${{ inputs.goarch }}" == "arm" ]]; then
+            echo "## Unsupported input" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Combination not supported: ">> $GITHUB_STEP_SUMMARY
+            echo " - goos=${{ inputs.goos }}" >> $GITHUB_STEP_SUMMARY
+            echo " - goarch=${{ inputs.goarch }}" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Golang
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+
+      - name: Setup ZigCC & ZigCPP
+        run: |
+          go install github.com/dosgo/zigtool/zigcc@latest
+          go install github.com/dosgo/zigtool/zigcpp@latest
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Get variables
+        id: get_vars
+        run: |
+          # Check if the repository is forked and add upstream for correct versioning
+          if [[ "${{ github.repository_owner }}" != "0xERR0R" ]]; then
+            git remote add upstream https://github.com/0xERR0R/blocky.git
+            git fetch upstream
+          fi
+          echo "version=$(git describe --always --tags)" >> $GITHUB_OUTPUT
+          if [[ "${{ inputs.goarch }}" == "arm" ]]; then
+            echo "arch=${{ inputs.goarch }}${{ inputs.goarm }}" >> $GITHUB_OUTPUT
+            echo "arm=${{ inputs.goarm }}" >> $GITHUB_OUTPUT
+          else
+            echo "arch=${{ inputs.goarch }}" >> $GITHUB_OUTPUT
+            echo "arm=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build
+        env:
+          GO_SKIP_GENERATE: 1
+          CGO_ENABLED: 0
+          CC: zigcc
+          CXX: zigcpp
+          GOOS: ${{ inputs.goos }}
+          GOARCH: ${{ inputs.goarch }}
+          GOARM: ${{ steps.get_vars.outputs.arm }}
+          VERSION: ${{ steps.get_vars.outputs.version }}
+        run: make build
+
+      - name: Rename binary
+        if: inputs.goos  == 'windows'
+        run: mv bin/blocky bin/blocky.exe
+
+      - name: Store build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blocky_${{ steps.get_vars.outputs.version }}_${{ inputs.goos }}_${{ steps.get_vars.outputs.arch }}
+          path: bin/blocky*
+          retention-days: 5
