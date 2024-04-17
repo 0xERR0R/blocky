@@ -129,12 +129,11 @@ func GetAnswerMinTTL(msg *dns.Msg) uint32 {
 //
 // If the adjustment is zero, the TTL is not changed.
 func AdjustAnswerTTL[T TTLInput](msg *dns.Msg, adjustment T) {
-	if adjustmentTTL := ToTTL(adjustment); adjustmentTTL != 0 {
-		minTTL := GetAnswerMinTTL(msg)
+	adjustmentTTL := ToTTL(adjustment)
+	minTTL := GetAnswerMinTTL(msg)
 
-		for _, answer := range msg.Answer {
-			headerTTL := atomic.LoadUint32(&answer.Header().Ttl)
-			atomic.StoreUint32(&answer.Header().Ttl, headerTTL-minTTL+adjustmentTTL)
-		}
+	for _, answer := range msg.Answer {
+		headerTTL := atomic.LoadUint32(&answer.Header().Ttl)
+		atomic.StoreUint32(&answer.Header().Ttl, headerTTL-minTTL+adjustmentTTL)
 	}
 }
