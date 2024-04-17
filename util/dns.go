@@ -50,9 +50,7 @@ func ToTTL[T TTLInput](input T) uint32 {
 
 // ToTTLDuration converts the input to a time.Duration.
 //
-// If the input is of underlying type time.Duration, the value is returned as is.
-//
-// Otherwise the value is converted to seconds and returned as time.Duration.
+// The input is converted to a TTL of seconds as uint32 and then to a time.Duration.
 func ToTTLDuration[T TTLInput](input T) time.Duration {
 	return time.Duration(ToTTL(input)) * time.Second
 }
@@ -98,11 +96,12 @@ func SetAnswerMinMaxTTL[T TTLInput, TT TTLInput](msg *dns.Msg, min T, max TT) {
 		// only maximum TTL specified
 		SetAnswerMaxTTL(msg, max)
 	default:
+		// both minimum and maximum TTL specified
 		for _, answer := range msg.Answer {
 			headerTTL := atomic.LoadUint32(&answer.Header().Ttl)
 			if headerTTL < minTTL {
 				atomic.StoreUint32(&answer.Header().Ttl, minTTL)
-			} else if headerTTL > maxTTL && maxTTL != 0 {
+			} else if headerTTL > maxTTL {
 				atomic.StoreUint32(&answer.Header().Ttl, maxTTL)
 			}
 		}
@@ -127,12 +126,15 @@ func GetAnswerMinTTL(msg *dns.Msg) uint32 {
 
 // AdjustAnswerTTL adjusts the TTL of all answers in the message by the difference between the lowest TTL
 // and the answer's TTL plus the specified adjustment.
+//
+// If the adjustment is zero, the TTL is not changed.
 func AdjustAnswerTTL[T TTLInput](msg *dns.Msg, adjustment T) {
-	minTTL := GetAnswerMinTTL(msg)
-	adjustmentTTL := ToTTL(adjustment)
+	if adjustmentTTL := ToTTL(adjustment); adjustmentTTL != 0 {
+		minTTL := GetAnswerMinTTL(msg)
 
-	for _, answer := range msg.Answer {
-		headerTTL := atomic.LoadUint32(&answer.Header().Ttl)
-		atomic.StoreUint32(&answer.Header().Ttl, headerTTL-minTTL+adjustmentTTL)
+		for _, answer := range msg.Answer {
+			headerTTL := atomic.LoadUint32(&answer.Header().Ttl)
+			atomic.StoreUint32(&answer.Header().Ttl, headerTTL-minTTL+adjustmentTTL)
+		}
 	}
 }
