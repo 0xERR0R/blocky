@@ -3,6 +3,7 @@ package util
 import (
 	"math"
 	"sync/atomic"
+	"time"
 
 	"github.com/miekg/dns"
 )
@@ -40,6 +41,15 @@ func ToTTL[T TTLInput](input T) uint32 {
 
 	// return the value as uint32
 	return uint32(res)
+}
+
+// ToTTLDuration converts the input to a time.Duration.
+//
+// If the input is of underlying type time.Duration, the value is returned as is.
+//
+// Otherwise the value is converted to seconds and returned as time.Duration.
+func ToTTLDuration[T TTLInput](input T) time.Duration {
+	return time.Duration(ToTTL(input)) * time.Second
 }
 
 // SetAnswerMinTTL sets the TTL of all answers in the message that are less than the specified minimum TTL to

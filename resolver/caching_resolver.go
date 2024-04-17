@@ -137,7 +137,7 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 		r.redisClient.PublishCache(cacheKey, cacheCopy)
 	}
 
-	return &packed, time.Duration(ttl) * time.Second
+	return &packed, util.ToTTLDuration(ttl)
 }
 
 func (r *CachingResolver) redisSubscriber(ctx context.Context) {
@@ -263,7 +263,7 @@ func (r *CachingResolver) putInCache(logger *logrus.Entry, cacheKey string, resp
 		return nil
 	}
 
-	r.resultCache.Put(cacheKey, &packed, time.Duration(ttl)*time.Second)
+	r.resultCache.Put(cacheKey, &packed, util.ToTTLDuration(ttl))
 
 	return cacheCopy
 }
