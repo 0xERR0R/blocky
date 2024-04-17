@@ -14,8 +14,11 @@ type TTLInput interface {
 }
 
 // ToTTL converts the input to a TTL of seconds as uint32.
+//
 // If the input is of underlying type time.Duration, the value is converted to seconds.
+//
 // If the input is negative, the TTL is set to 0.
+//
 // If the input is greater than the maximum value of uint32, the TTL is set to math.MaxUint32.
 func ToTTL[T TTLInput](input T) uint32 {
 	// use int64 as the intermediate type
