@@ -18,7 +18,7 @@ import (
 const (
 	defaultCachingCleanUpInterval = 5 * time.Second
 	// noCacheTTL indicates that a response should not be cached
-	noCacheTTL = time.Duration(-1)
+	noCacheTTL = uint32(0)
 )
 
 // CachingResolver caches answers from dns queries with their TTL time,
@@ -122,7 +122,7 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 	}
 
 	cacheCopy, ttl := r.createCacheEntry(logger, response.Res)
-	if cacheCopy == nil || !cacheableTTL(ttl) {
+	if cacheCopy == nil || ttl == noCacheTTL {
 		return nil, 0
 	}
 
@@ -137,7 +137,7 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 		r.redisClient.PublishCache(cacheKey, cacheCopy)
 	}
 
-	return &packed, ttl
+	return &packed, time.Duration(ttl) * time.Second
 }
 
 func (r *CachingResolver) redisSubscriber(ctx context.Context) {
@@ -204,7 +204,7 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 		response, err = r.next.Resolve(ctx, request)
 		if err == nil {
 			ttl := r.modifyResponseTTL(response.Res)
-			if cacheableTTL(ttl) {
+			if ttl > noCacheTTL {
 				cacheCopy := r.putInCache(logger, cacheKey, response)
 				if cacheCopy != nil && r.redisClient != nil {
 					r.redisClient.PublishCache(cacheKey, cacheCopy)
@@ -232,7 +232,7 @@ func (r *CachingResolver) getFromCache(logger *logrus.Entry, key string) *dns.Ms
 	}
 
 	// Adjust TTL
-	util.AdjustAnswerTTL(res, uint32(ttl.Seconds()))
+	util.AdjustAnswerTTL(res, ttl)
 
 	return res
 }
@@ -252,7 +252,7 @@ func isRequestCacheable(request *model.Request) bool {
 
 func (r *CachingResolver) putInCache(logger *logrus.Entry, cacheKey string, response *model.Response) *dns.Msg {
 	cacheCopy, ttl := r.createCacheEntry(logger, response.Res)
-	if cacheCopy == nil || !cacheableTTL(ttl) {
+	if cacheCopy == nil || ttl == noCacheTTL {
 		return nil
 	}
 
@@ -263,42 +263,42 @@ func (r *CachingResolver) putInCache(logger *logrus.Entry, cacheKey string, resp
 		return nil
 	}
 
-	r.resultCache.Put(cacheKey, &packed, ttl)
+	r.resultCache.Put(cacheKey, &packed, time.Duration(ttl)*time.Second)
 
 	return cacheCopy
 }
 
-func (r *CachingResolver) modifyResponseTTL(response *dns.Msg) time.Duration {
+func (r *CachingResolver) modifyResponseTTL(response *dns.Msg) uint32 {
 	// if response is empty or negative, return negative cache time from config
 	if len(response.Answer) == 0 || response.Rcode == dns.RcodeNameError {
-		return r.cfg.CacheTimeNegative.ToDuration()
+		return util.ToTTL(r.cfg.CacheTimeNegative)
 	}
 
 	// if response is truncated or CD flag is set, return noCacheTTL since we don't cache these responses
 	if response.Truncated || response.CheckingDisabled {
-		return noCacheTTL
+		return 0
 	}
 
 	// if response is not successful, return noCacheTTL since we don't cache these responses
 	if response.Rcode != dns.RcodeSuccess {
-		return noCacheTTL
+		return 0
 	}
 
 	// adjust TTLs of all answers to match the configured min and max caching times
-	util.SetAnswerMinMaxTTL(response, r.cfg.MinCachingTime.SecondsU32(), r.cfg.MaxCachingTime.SecondsU32())
+	util.SetAnswerMinMaxTTL(response, r.cfg.MinCachingTime, r.cfg.MaxCachingTime)
 
-	return time.Duration(util.GetAnswerMinTTL(response)) * time.Second
+	return util.GetAnswerMinTTL(response)
 }
 
 func (r *CachingResolver) createCacheEntry(logger *logrus.Entry, input *dns.Msg,
-) (*dns.Msg, time.Duration) {
+) (*dns.Msg, uint32) {
 	response := input.Copy()
 
 	ttl := r.modifyResponseTTL(response)
-	if !cacheableTTL(ttl) {
+	if ttl == noCacheTTL {
 		logger.Debug("response is not cacheable")
 
-		return nil, noCacheTTL
+		return nil, 0
 	}
 
 	// don't cache any EDNS OPT records
@@ -318,8 +318,4 @@ func (r *CachingResolver) FlushCaches(ctx context.Context) {
 
 	logger.Debug("flush caches")
 	r.resultCache.Clear()
-}
-
-func cacheableTTL(ttl time.Duration) bool {
-	return ttl > 0
 }
