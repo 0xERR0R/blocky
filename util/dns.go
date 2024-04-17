@@ -22,7 +22,12 @@ type TTLInput interface {
 //
 // If the input is greater than the maximum value of uint32, the TTL is set to math.MaxUint32.
 func ToTTL[T TTLInput](input T) uint32 {
-	// use int64 as the intermediate type
+	// fast return if the input is already of type uint32
+	if ui32Type, ok := any(input).(uint32); ok {
+		return ui32Type
+	}
+
+	// use int64 as the intermediate type for conversion
 	res := int64(input)
 
 	// check if the input is of underlying type time.Duration
@@ -55,10 +60,11 @@ func ToTTLDuration[T TTLInput](input T) time.Duration {
 // SetAnswerMinTTL sets the TTL of all answers in the message that are less than the specified minimum TTL to
 // the minimum TTL.
 func SetAnswerMinTTL[T TTLInput](msg *dns.Msg, min T) {
-	minTTL := ToTTL(min)
-	for _, answer := range msg.Answer {
-		if atomic.LoadUint32(&answer.Header().Ttl) < minTTL {
-			atomic.StoreUint32(&answer.Header().Ttl, minTTL)
+	if minTTL := ToTTL(min); minTTL != 0 {
+		for _, answer := range msg.Answer {
+			if atomic.LoadUint32(&answer.Header().Ttl) < minTTL {
+				atomic.StoreUint32(&answer.Header().Ttl, minTTL)
+			}
 		}
 	}
 }
@@ -66,10 +72,11 @@ func SetAnswerMinTTL[T TTLInput](msg *dns.Msg, min T) {
 // SetAnswerMaxTTL sets the TTL of all answers in the message that are greater than the specified maximum TTL
 // to the maximum TTL.
 func SetAnswerMaxTTL[T TTLInput](msg *dns.Msg, max T) {
-	maxTTL := ToTTL(max)
-	for _, answer := range msg.Answer {
-		if atomic.LoadUint32(&answer.Header().Ttl) > maxTTL && maxTTL != 0 {
-			atomic.StoreUint32(&answer.Header().Ttl, maxTTL)
+	if maxTTL := ToTTL(max); maxTTL != 0 {
+		for _, answer := range msg.Answer {
+			if atomic.LoadUint32(&answer.Header().Ttl) > maxTTL {
+				atomic.StoreUint32(&answer.Header().Ttl, maxTTL)
+			}
 		}
 	}
 }
@@ -80,12 +87,24 @@ func SetAnswerMinMaxTTL[T TTLInput, TT TTLInput](msg *dns.Msg, min T, max TT) {
 	minTTL := ToTTL(min)
 	maxTTL := ToTTL(max)
 
-	for _, answer := range msg.Answer {
-		headerTTL := atomic.LoadUint32(&answer.Header().Ttl)
-		if headerTTL < minTTL {
-			atomic.StoreUint32(&answer.Header().Ttl, minTTL)
-		} else if headerTTL > maxTTL && maxTTL != 0 {
-			atomic.StoreUint32(&answer.Header().Ttl, maxTTL)
+	switch {
+	case minTTL == 0 && maxTTL == 0:
+		// no TTL specified, fast return
+		return
+	case minTTL != 0 && maxTTL == 0:
+		// only minimum TTL specified
+		SetAnswerMinTTL(msg, min)
+	case minTTL == 0 && maxTTL != 0:
+		// only maximum TTL specified
+		SetAnswerMaxTTL(msg, max)
+	default:
+		for _, answer := range msg.Answer {
+			headerTTL := atomic.LoadUint32(&answer.Header().Ttl)
+			if headerTTL < minTTL {
+				atomic.StoreUint32(&answer.Header().Ttl, minTTL)
+			} else if headerTTL > maxTTL && maxTTL != 0 {
+				atomic.StoreUint32(&answer.Header().Ttl, maxTTL)
+			}
 		}
 	}
 }
