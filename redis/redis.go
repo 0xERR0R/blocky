@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
@@ -31,8 +30,9 @@ const (
 
 // sendBuffer message
 type bufferMessage struct {
+	TTL     uint32
 	Key     string
-	Message *dns.Msg
+	Message []byte
 }
 
 // redis pubsub message
@@ -126,10 +126,11 @@ func New(ctx context.Context, cfg *config.Redis) (*Client, error) {
 	return nil, err
 }
 
-// PublishCache publish cache to redis async
-func (c *Client) PublishCache(key string, message *dns.Msg) {
-	if len(key) > 0 && message != nil {
+// PublishCache publish cache entry to redis if key and message are not empty and ttl > 0
+func (c *Client) PublishCache(key string, ttl uint32, message []byte) {
+	if len(key) > 0 && len(message) > 0 && ttl > 0 {
 		c.sendBuffer <- &bufferMessage{
+			TTL:     ttl,
 			Key:     key,
 			Message: message,
 		}
@@ -212,27 +213,20 @@ func (c *Client) startup(ctx context.Context) error {
 }
 
 func (c *Client) publishMessageFromBuffer(ctx context.Context, s *bufferMessage) {
-	origRes := s.Message
-	origRes.Compress = true
-	binRes, pErr := origRes.Pack()
-
-	if pErr == nil {
-		binMsg, mErr := json.Marshal(redisMessage{
-			Key:     s.Key,
-			Type:    messageTypeCache,
-			Message: binRes,
-			Client:  c.id,
-		})
-
-		if mErr == nil {
-			c.client.Publish(ctx, SyncChannelName, binMsg)
-		}
-
-		c.client.Set(ctx,
-			prefixKey(s.Key),
-			binRes,
-			c.getTTL(origRes))
+	psMsg, err := json.Marshal(redisMessage{
+		Key:     s.Key,
+		Type:    messageTypeCache,
+		Message: s.Message,
+		Client:  c.id,
+	})
+	if err == nil {
+		c.client.Publish(ctx, SyncChannelName, psMsg)
 	}
+
+	c.client.Set(ctx,
+		prefixKey(s.Key),
+		s.Message,
+		util.ToTTLDuration(s.TTL))
 }
 
 func (c *Client) processReceivedMessage(ctx context.Context, msg *redis.Message) {
@@ -324,20 +318,6 @@ func convertMessage(message *redisMessage, ttl time.Duration) (*CacheMessage, er
 	}
 
 	return nil, err
-}
-
-// getTTL of dns message or return defaultCacheTime if 0
-func (c *Client) getTTL(dns *dns.Msg) time.Duration {
-	ttl := uint32(math.MaxInt32)
-	for _, a := range dns.Answer {
-		ttl = min(ttl, a.Header().Ttl)
-	}
-
-	if ttl == 0 {
-		return defaultCacheTime
-	}
-
-	return time.Duration(ttl) * time.Second
 }
 
 // prefixKey with CacheStorePrefix
