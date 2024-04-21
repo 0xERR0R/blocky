@@ -146,7 +146,7 @@ func (r *CachingResolver) redisSubscriber(ctx context.Context) {
 
 				dlogger.Debug("received from redis")
 
-				// TODO: Add to cache
+				r.resultCache.Put(rc.Key, &rc.Entry, util.ToTTLDuration(rc.TTL))
 			}
 
 		case <-ctx.Done():

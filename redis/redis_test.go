@@ -196,7 +196,7 @@ var _ = Describe("Redis client", func() {
 				rec := redisServer.Publish(SyncChannelName, string(binMsg))
 				Expect(rec).Should(Equal(1))
 
-				Eventually(func() chan *CacheMessage {
+				Eventually(func() chan *CacheEntry {
 					return redisClient.CacheChannel
 				}).Should(HaveLen(lenE + 1))
 			}, SpecTimeout(time.Second*6))
@@ -229,7 +229,7 @@ var _ = Describe("Redis client", func() {
 					return redisClient.EnabledChannel
 				}).Should(HaveLen(lenE))
 
-				Eventually(func() chan *CacheMessage {
+				Eventually(func() chan *CacheEntry {
 					return redisClient.CacheChannel
 				}).Should(HaveLen(lenC))
 			}, SpecTimeout(time.Second*6))
@@ -262,7 +262,7 @@ var _ = Describe("Redis client", func() {
 					return redisClient.EnabledChannel
 				}).Should(HaveLen(lenE))
 
-				Eventually(func() chan *CacheMessage {
+				Eventually(func() chan *CacheEntry {
 					return redisClient.CacheChannel
 				}).Should(HaveLen(lenC))
 			}, SpecTimeout(time.Second*6))
