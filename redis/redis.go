@@ -204,6 +204,7 @@ func (c *Client) startup(ctx context.Context) error {
 	return err
 }
 
+// publishMessageFromBuffer publishes a message from the buffer to the redis channel and stores it in the cache
 func (c *Client) publishMessageFromBuffer(ctx context.Context, s *CacheEntry) {
 	psMsg, err := json.Marshal(redisMessage{
 		Key:     s.Key,
@@ -234,16 +235,14 @@ func (c *Client) processReceivedMessage(ctx context.Context, msg *redis.Message)
 	if !bytes.Equal(rm.Client, c.id) {
 		switch rm.Type {
 		case messageTypeCache:
-			var cm *CacheEntry
-
-			cm, err := convertMessage(&rm, 0)
+			cm, err := convertMessage(0, rm.Key, rm.Message)
 			if err != nil {
-				c.l.Error("Processing CacheMessage error: ", err)
+				c.l.Error(err)
 
 				return
 			}
 
-			util.CtxSend(ctx, c.CacheChannel, cm)
+			util.CtxSend(ctx, c.CacheChannel, &cm)
 		case messageTypeEnable:
 			var msg EnabledMessage
 
@@ -272,39 +271,32 @@ func (c *Client) getResponse(ctx context.Context, key string) (*CacheEntry, erro
 		return nil, err
 	}
 
-	result := CacheEntry{
-		TTL:   util.ToTTL(ttl),
-		Key:   cleanKey(key),
-		Entry: []byte(resp),
+	result, err := convertMessage(ttl, cleanKey(key), []byte(resp))
+	if err != nil {
+		return nil, err
 	}
 
 	return &result, nil
 }
 
 // convertMessage converts redisMessage to CacheMessage
-func convertMessage(message *redisMessage, ttl time.Duration) (*CacheEntry, error) {
+func convertMessage[T util.TTLInput](ttl T, key string, message []byte) (CacheEntry, error) {
 	res := CacheEntry{
 		TTL:   util.ToTTL(ttl),
-		Key:   message.Key,
-		Entry: message.Message,
+		Key:   key,
+		Entry: message,
 	}
 
-	// if ttl is set, use it
-	if res.TTL > 0 {
-		return &res, nil
-	}
-
-	// try to extract ttl from message
 	var msg *dns.Msg
-
-	err := msg.Unpack(message.Message)
-	if err != nil {
-		return nil, err
+	if err := msg.Unpack(message); err != nil {
+		return res, fmt.Errorf("invalid message for key %s", key)
 	}
 
-	res.TTL = util.GetAnswerMinTTL(msg)
+	if ttl == 0 {
+		res.TTL = util.GetAnswerMinTTL(msg)
+	}
 
-	return &res, nil
+	return res, nil
 }
 
 // prefixKey with CacheStorePrefix
