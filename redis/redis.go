@@ -287,9 +287,14 @@ func convertMessage[T util.TTLInput](ttl T, key string, message []byte) (CacheEn
 		Entry: message,
 	}
 
+	packErr := fmt.Errorf("invalid message for key %s", key)
+	if len(message) == 0 {
+		return res, packErr
+	}
+
 	var msg *dns.Msg
 	if err := msg.Unpack(message); err != nil {
-		return res, fmt.Errorf("invalid message for key %s", key)
+		return res, packErr
 	}
 
 	if ttl == 0 {
