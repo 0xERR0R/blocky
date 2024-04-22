@@ -22,6 +22,11 @@ type TTLInput interface {
 //
 // If the input is greater than the maximum value of uint32, the TTL is set to math.MaxUint32.
 func ToTTL[T TTLInput](input T) uint32 {
+	// fast return if the input is zero or below
+	if input <= 0 {
+		return 0
+	}
+
 	// fast return if the input is already of type uint32
 	if ui32Type, ok := any(input).(uint32); ok {
 		return ui32Type
