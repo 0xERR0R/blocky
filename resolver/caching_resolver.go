@@ -17,8 +17,6 @@ import (
 
 const (
 	defaultCachingCleanUpInterval = 5 * time.Second
-	// noCacheTTL indicates that a response should not be cached
-	noCacheTTL = uint32(0)
 )
 
 // CachingResolver caches answers from dns queries with their TTL time,
@@ -122,7 +120,7 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 	}
 
 	ttl, res := r.createCacheEntry(logger, response.Res)
-	if ttl == noCacheTTL || len(res) == 0 {
+	if ttl == 0 || len(res) == 0 {
 		return nil, 0
 	}
 
@@ -142,9 +140,7 @@ func (r *CachingResolver) redisSubscriber(ctx context.Context) {
 			if rc != nil {
 				_, domain := util.ExtractCacheKey(rc.Key)
 
-				dlogger := logger.WithField("domain", util.Obfuscate(domain))
-
-				dlogger.Debug("received from redis")
+				logger.WithField("domain", util.Obfuscate(domain)).Debug("received from redis")
 
 				r.resultCache.Put(rc.Key, &rc.Entry, util.ToTTLDuration(rc.TTL))
 			}
@@ -197,7 +193,7 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 		response, err = r.next.Resolve(ctx, request)
 		if err == nil {
 			ttl, cacheEntry := r.createCacheEntry(logger, response.Res)
-			if ttl != noCacheTTL && len(cacheEntry) > 0 {
+			if ttl != 0 && len(cacheEntry) > 0 {
 				r.resultCache.Put(cacheKey, &cacheEntry, util.ToTTLDuration(ttl))
 
 				if r.redisClient != nil {
@@ -268,7 +264,7 @@ func (r *CachingResolver) modifyResponseTTL(response *dns.Msg) uint32 {
 
 func (r *CachingResolver) createCacheEntry(logger *logrus.Entry, input *dns.Msg) (uint32, []byte) {
 	ttl := r.modifyResponseTTL(input)
-	if ttl == noCacheTTL {
+	if ttl == 0 {
 		logger.Debug("response is not cacheable")
 
 		return 0, nil
