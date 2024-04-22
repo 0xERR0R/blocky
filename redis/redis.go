@@ -244,15 +244,15 @@ func (c *Client) processReceivedMessage(ctx context.Context, msg *redis.Message)
 
 			util.CtxSend(ctx, c.CacheChannel, &cm)
 		case messageTypeEnable:
-			var msg EnabledMessage
+			msg := new(EnabledMessage)
 
-			if err := json.Unmarshal(rm.Message, &msg); err != nil {
+			if err := json.Unmarshal(rm.Message, msg); err != nil {
 				c.l.Error("Processing EnabledMessage error: ", err)
 
 				return
 			}
 
-			util.CtxSend(ctx, c.EnabledChannel, &msg)
+			util.CtxSend(ctx, c.EnabledChannel, msg)
 		default:
 			c.l.Warn("Unknown message type: ", rm.Type)
 		}
@@ -292,7 +292,7 @@ func convertMessage[T util.TTLInput](ttl T, key string, message []byte) (CacheEn
 		return res, packErr
 	}
 
-	var msg *dns.Msg
+	msg := new(dns.Msg)
 	if err := msg.Unpack(message); err != nil {
 		return res, packErr
 	}
