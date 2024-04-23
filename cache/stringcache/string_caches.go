@@ -50,7 +50,11 @@ func (cache stringMap) contains(searchString string) bool {
 	})
 
 	if idx < searchBucketLen {
-		return cache[searchLen][idx*searchLen:idx*searchLen+searchLen] == strings.ToLower(normalized)
+		blockRule := cache[searchLen][idx*searchLen : idx*searchLen+searchLen]
+		if blockRule == normalized {
+			log.PrefixedLog("stringMap").Debugf("block rule '%s' matched with '%s'", blockRule, searchString)
+			return true
+		}
 	}
 
 	return false
