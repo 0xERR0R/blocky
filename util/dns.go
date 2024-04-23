@@ -86,7 +86,7 @@ func SetAnswerMaxTTL[T TTLInput](msg *dns.Msg, max T) {
 
 // SetAnswerMinMaxTTL sets the TTL of all answers in the message that are less than the specified minimum TTL
 // to the minimum TTL and the TTL of all answers that are greater than the specified maximum TTL to the maximum TTL.
-func SetAnswerMinMaxTTL[T TTLInput, TT TTLInput](msg *dns.Msg, min T, max TT) {
+func SetAnswerMinMaxTTL[T, TT TTLInput](msg *dns.Msg, min T, max TT) {
 	minTTL := ToTTL(min)
 	maxTTL := ToTTL(max)
 
