@@ -1,5 +1,10 @@
 package trie
 
+import (
+	"github.com/0xERR0R/blocky/log"
+	"strings"
+)
+
 // Trie stores a set of strings and can quickly check
 // if it contains an element, or one of its parents.
 //
@@ -108,8 +113,12 @@ func (n *parent) insert(key string, split SplitFunc) {
 }
 
 func (n *parent) hasParentOf(key string, split SplitFunc) bool {
+	searchString := key
+	rule := ""
+
 	for {
 		label, rest := split(key)
+		rule = strings.Join([]string{label, rule}, ".")
 
 		child, ok := n.children[label]
 		if !ok {
@@ -132,7 +141,14 @@ func (n *parent) hasParentOf(key string, split SplitFunc) bool {
 
 		case terminal:
 			// Continue down the trie
-			return child.hasParentOf(rest, split)
+			matched := child.hasParentOf(rest, split)
+			if matched {
+				rule = strings.Join([]string{child.String(), rule}, ".")
+				rule = strings.Trim(rule, ".")
+				log.PrefixedLog("trie").Debugf("wildcard block rule '%s' matched with '%s'", rule, searchString)
+			}
+
+			return matched
 		}
 	}
 }

@@ -50,7 +50,12 @@ func (cache stringMap) contains(searchString string) bool {
 	})
 
 	if idx < searchBucketLen {
-		return cache[searchLen][idx*searchLen:idx*searchLen+searchLen] == strings.ToLower(normalized)
+		blockRule := cache[searchLen][idx*searchLen : idx*searchLen+searchLen]
+		if blockRule == normalized {
+			log.PrefixedLog("string_map").Debugf("block rule '%s' matched with '%s'", blockRule, searchString)
+
+			return true
+		}
 	}
 
 	return false
@@ -132,7 +137,7 @@ func (cache regexCache) elementCount() int {
 func (cache regexCache) contains(searchString string) bool {
 	for _, regex := range cache {
 		if regex.MatchString(searchString) {
-			log.PrefixedLog("regexCache").Debugf("regex '%s' matched with '%s'", regex, searchString)
+			log.PrefixedLog("regex_cache").Debugf("regex '%s' matched with '%s'", regex, searchString)
 
 			return true
 		}
