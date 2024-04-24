@@ -115,6 +115,7 @@ func (n *parent) insert(key string, split SplitFunc) {
 func (n *parent) hasParentOf(key string, split SplitFunc) bool {
 	searchString := key
 	rule := ""
+
 	for {
 		label, rest := split(key)
 		rule = strings.Join([]string{label, rule}, ".")
@@ -144,8 +145,9 @@ func (n *parent) hasParentOf(key string, split SplitFunc) bool {
 			if matched {
 				rule = strings.Join([]string{child.String(), rule}, ".")
 				rule = strings.Trim(rule, ".")
-				log.PrefixedLog("Trie").Debugf("wildcard block rule '%s' matched with '%s'", rule, searchString)
+				log.PrefixedLog("trie").Debugf("wildcard block rule '%s' matched with '%s'", rule, searchString)
 			}
+
 			return matched
 		}
 	}
