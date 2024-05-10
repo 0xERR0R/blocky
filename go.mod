@@ -42,9 +42,9 @@ require (
 	github.com/docker/go-connections v0.5.0
 	github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198
 	github.com/oapi-codegen/runtime v1.1.1
-	github.com/testcontainers/testcontainers-go v0.30.0
+	github.com/testcontainers/testcontainers-go v0.31.0
 	github.com/testcontainers/testcontainers-go/modules/mariadb v0.30.0
-	github.com/testcontainers/testcontainers-go/modules/postgres v0.30.0
+	github.com/testcontainers/testcontainers-go/modules/postgres v0.31.0
 	github.com/testcontainers/testcontainers-go/modules/redis v0.30.0
 	mvdan.cc/gofumpt v0.5.0
 )
@@ -58,7 +58,7 @@ require (
 	github.com/Microsoft/hcsshim v0.11.4 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
-	github.com/containerd/containerd v1.7.12 // indirect
+	github.com/containerd/containerd v1.7.15 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/cpuguy83/dockercfg v0.3.1 // indirect
 	github.com/distribution/reference v0.5.0 // indirect
@@ -101,7 +101,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.24.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/tools/cmd/cover v0.1.0-deprecated // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230731190214-cbb8c96f2d6d // indirect
 	google.golang.org/grpc v1.58.3 // indirect
 )
 
@@ -117,7 +117,7 @@ require (
 	github.com/go-openapi/swag v0.22.3 // indirect
 	github.com/go-sql-driver/mysql v1.7.1 // indirect
 	github.com/golang/mock v1.6.0 // indirect
-	github.com/golang/protobuf v1.5.3 // indirect
+	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/go-cmp v0.6.0
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/huandu/xstrings v1.3.3 // indirect
