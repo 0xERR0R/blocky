@@ -37,13 +37,16 @@ var _ = Describe("Trie", func() {
 			)
 
 			BeforeEach(func() {
-				Expect(sut.HasParentOf(domainOk)).Should(BeFalse())
+				hasParent, _ := sut.HasParentOf(domainOk)
+				Expect(hasParent).Should(BeFalse())
 				sut.Insert(domainOk)
-				Expect(sut.HasParentOf(domainOk)).Should(BeTrue())
+				hasParent, _ = sut.HasParentOf(domainOk)
+				Expect(hasParent).Should(BeTrue())
 			})
 
 			AfterEach(func() {
-				Expect(sut.HasParentOf(domainOk)).Should(BeTrue())
+				hasParent, _ := sut.HasParentOf(domainOk)
+				Expect(hasParent).Should(BeTrue())
 			})
 
 			It("should be found", func() {})
@@ -51,41 +54,49 @@ var _ = Describe("Trie", func() {
 			It("should contain subdomains", func() {
 				subdomain := "www." + domainOk
 
-				Expect(sut.HasParentOf(subdomain)).Should(BeTrue())
+				hasParent, _ := sut.HasParentOf(subdomain)
+				Expect(hasParent).Should(BeTrue())
 			})
 
 			It("should support inserting subdomains", func() {
 				subdomain := "www." + domainOk
 
-				Expect(sut.HasParentOf(subdomain)).Should(BeTrue())
+				hasParent, _ := sut.HasParentOf(subdomain)
+				Expect(hasParent).Should(BeTrue())
 				sut.Insert(subdomain)
-				Expect(sut.HasParentOf(subdomain)).Should(BeTrue())
+				hasParent, _ = sut.HasParentOf(subdomain)
+				Expect(hasParent).Should(BeTrue())
 			})
 
 			It("should not find unrelated", func() {
-				Expect(sut.HasParentOf(domainKo)).Should(BeFalse())
+				hasParent, _ := sut.HasParentOf(domainKo)
+				Expect(hasParent).Should(BeFalse())
 			})
 
 			It("should not find uninserted parent", func() {
-				Expect(sut.HasParentOf(domainOkTLD)).Should(BeFalse())
+				hasParent, _ := sut.HasParentOf(domainOkTLD)
+				Expect(hasParent).Should(BeFalse())
 			})
 
 			It("should not find deep uninserted parent", func() {
 				sut.Insert("sub.sub.sub.test")
 
-				Expect(sut.HasParentOf("sub.sub.test")).Should(BeFalse())
+				hasParent, _ := sut.HasParentOf("sub.sub.test")
+				Expect(hasParent).Should(BeFalse())
 			})
 
 			It("should find inserted parent", func() {
 				sut.Insert(domainOkTLD)
-				Expect(sut.HasParentOf(domainOkTLD)).Should(BeTrue())
+				hasParent, _ := sut.HasParentOf(domainOkTLD)
+				Expect(hasParent).Should(BeTrue())
 			})
 
 			It("should insert sibling", func() {
 				sibling := "other." + domainOkTLD
 
 				sut.Insert(sibling)
-				Expect(sut.HasParentOf(sibling)).Should(BeTrue())
+				hasParent, _ := sut.HasParentOf(sibling)
+				Expect(hasParent).Should(BeTrue())
 			})
 
 			It("should insert grand-children siblings", func() {
@@ -94,14 +105,20 @@ var _ = Describe("Trie", func() {
 				xyzSub := "xyz." + base
 
 				sut.Insert(abcSub)
-				Expect(sut.HasParentOf(abcSub)).Should(BeTrue())
-				Expect(sut.HasParentOf(xyzSub)).Should(BeFalse())
-				Expect(sut.HasParentOf(base)).Should(BeFalse())
+				hasParent, _ := sut.HasParentOf(abcSub)
+				Expect(hasParent).Should(BeTrue())
+				hasParent, _ = sut.HasParentOf(xyzSub)
+				Expect(hasParent).Should(BeFalse())
+				hasParent, _ = sut.HasParentOf(base)
+				Expect(hasParent).Should(BeFalse())
 
 				sut.Insert(xyzSub)
-				Expect(sut.HasParentOf(xyzSub)).Should(BeTrue())
-				Expect(sut.HasParentOf(abcSub)).Should(BeTrue())
-				Expect(sut.HasParentOf(base)).Should(BeFalse())
+				hasParent, _ = sut.HasParentOf(xyzSub)
+				Expect(hasParent).Should(BeTrue())
+				hasParent, _ = sut.HasParentOf(abcSub)
+				Expect(hasParent).Should(BeTrue())
+				hasParent, _ = sut.HasParentOf(base)
+				Expect(hasParent).Should(BeFalse())
 			})
 		})
 	})

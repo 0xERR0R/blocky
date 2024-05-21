@@ -11,7 +11,7 @@ import (
 
 type stringCache interface {
 	elementCount() int
-	contains(searchString string) bool
+	contains(searchString string) (bool, string)
 }
 
 type cacheFactory interface {
@@ -36,12 +36,12 @@ func (cache stringMap) elementCount() int {
 	return count
 }
 
-func (cache stringMap) contains(searchString string) bool {
+func (cache stringMap) contains(searchString string) (bool, string) {
 	normalized := normalizeEntry(searchString)
 	searchLen := len(normalized)
 
 	if searchLen == 0 {
-		return false
+		return false, ""
 	}
 
 	searchBucketLen := len(cache[searchLen]) / searchLen
@@ -54,11 +54,11 @@ func (cache stringMap) contains(searchString string) bool {
 		if blockRule == normalized {
 			log.PrefixedLog("string_map").Debugf("block rule '%s' matched with '%s'", blockRule, searchString)
 
-			return true
+			return true, blockRule
 		}
 	}
 
-	return false
+	return false, ""
 }
 
 type stringCacheFactory struct {
@@ -134,16 +134,16 @@ func (cache regexCache) elementCount() int {
 	return len(cache)
 }
 
-func (cache regexCache) contains(searchString string) bool {
+func (cache regexCache) contains(searchString string) (bool, string) {
 	for _, regex := range cache {
 		if regex.MatchString(searchString) {
 			log.PrefixedLog("regex_cache").Debugf("regex '%s' matched with '%s'", regex, searchString)
 
-			return true
+			return true, regex.String()
 		}
 	}
 
-	return false
+	return false, ""
 }
 
 type regexCacheFactory struct {
@@ -197,7 +197,7 @@ func (cache wildcardCache) elementCount() int {
 	return cache.cnt
 }
 
-func (cache wildcardCache) contains(domain string) bool {
+func (cache wildcardCache) contains(domain string) (bool, string) {
 	return cache.trie.HasParentOf(domain)
 }
 
