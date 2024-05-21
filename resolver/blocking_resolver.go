@@ -390,6 +390,7 @@ func (r *BlockingResolver) handleDenylist(ctx context.Context, groupsToCheck []s
 			for group, rule := range matches {
 				entries = append(entries, strings.Join([]string{group, rule}, ":"))
 			}
+
 			msg := fmt.Sprintf("BLOCKED (%s)", strings.Join(entries, ", "))
 			resp, err := r.handleBlocked(logger, request, question, msg)
 
@@ -427,7 +428,9 @@ func (r *BlockingResolver) Resolve(ctx context.Context, request *model.Request) 
 					for group, rule := range matches {
 						entries = append(entries, strings.Join([]string{group, rule}, ":"))
 					}
+
 					msg := fmt.Sprintf("BLOCKED %s (%s)", tName, strings.Join(entries, ", "))
+
 					return r.handleBlocked(logger, request, request.Req.Question[0], msg)
 				}
 			}

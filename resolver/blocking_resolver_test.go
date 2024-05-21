@@ -934,7 +934,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					Eventually(enabled, "1s").Should(Receive(BeFalse()))
 				})
 
-				By("perform the same query again to ensure that this query will not be BLOCKED (defaultGroup:blocked3.com)", func() {
+				By("perform the same query again to ensure that this query will not be blocked (defaultGroup:blocked3.com)", func() {
 					// now is blocking disabled, query the url again
 					Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
 						Should(
@@ -947,7 +947,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					m.AssertExpectations(GinkgoT())
 					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
 				})
-				By("perform the same query again to ensure that this query will not be BLOCKED (group1:domain1.com)", func() {
+				By("perform the same query again to ensure that this query will not be blocked (group1:domain1.com)", func() {
 					// now is blocking disabled, query the url again
 					Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
 						Should(
@@ -1024,7 +1024,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					Eventually(enabled, "1s").Should(Receive(BeFalse()))
 				})
 
-				By("perform the same query again to ensure that this query will not be BLOCKED (defaultGroup:blocked3.com)", func() {
+				By("perform the same query again to ensure that this query will not be blocked (defaultGroup:blocked3.com)", func() {
 					// now is blocking disabled, query the url again
 					Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
 						Should(
@@ -1035,7 +1035,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 								HaveReturnCode(dns.RcodeSuccess),
 							))
 				})
-				By("perform the same query again to ensure that this query will not be BLOCKED (group1:domain1.com)", func() {
+				By("perform the same query again to ensure that this query will not be blocked (group1:domain1.com)", func() {
 					// now is blocking disabled, query the url again
 					Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
 						Should(

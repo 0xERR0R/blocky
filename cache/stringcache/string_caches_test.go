@@ -44,8 +44,8 @@ var _ = Describe("Caches", func() {
 				Expect(contains).Should(BeTrue())
 				contains, _ = cache.contains("www.google.com")
 				Expect(contains).Should(BeFalse())
-				contains, _ = cache.contains("www.google.com")
-				Expect(cache.contains("")).Should(BeFalse())
+				contains, _ = cache.contains("")
+				Expect(contains).Should(BeFalse())
 			})
 
 			It("should match case-insensitive", func() {
