@@ -115,7 +115,7 @@ func (n *parent) insert(key string, split SplitFunc) {
 
 func (n *parent) hasParentOf(key string, split SplitFunc) (bool, string) {
 	searchString := key
-	rule := ""
+	rule := make([]string, 0, len(key)) // over-allocating is better than allocating in a loop
 
 	for {
 		label, rest := split(key)
