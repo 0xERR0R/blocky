@@ -532,7 +532,7 @@ func (r *BlockingResolver) matches(groupsToCheck []string, m lists.Matcher,
 		return m.Match(domain, groupsToCheck)
 	}
 
-	return map[string]string{}
+	return nil
 }
 
 type blockHandler interface {
