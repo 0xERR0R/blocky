@@ -44,7 +44,7 @@ func (c *InMemoryGroupedCache) ElementCount(group string) int {
 }
 
 func (c *InMemoryGroupedCache) Contains(searchString string, groups []string) map[string]string {
-	result := make(map[string]string)
+	result := make(map[string]string, len(groups))
 
 	for _, group := range groups {
 		c.lock.RLock()
