@@ -135,6 +135,7 @@ func (n *parent) hasParentOf(key string, split SplitFunc) (bool, []string) {
 			// Continue down the trie
 			key = rest
 			n = child
+
 			path = append(path, label)
 
 			continue
@@ -145,6 +146,7 @@ func (n *parent) hasParentOf(key string, split SplitFunc) (bool, []string) {
 			if matched {
 				path = append(path, child.String())
 				log.PrefixedLog("trie").Debugf("wildcard path '%v' matched with '%s'", path, searchString)
+
 				return matched, path
 			}
 
