@@ -198,7 +198,11 @@ func (cache wildcardCache) elementCount() int {
 }
 
 func (cache wildcardCache) contains(domain string) (bool, string) {
-	return cache.trie.HasParentOf(domain)
+	contains, path := cache.trie.HasParentOf(domain)
+	rule := strings.Join(path, ".")
+	rule = strings.Trim(rule, ".")
+
+	return contains, rule
 }
 
 type wildcardCacheFactory struct {
