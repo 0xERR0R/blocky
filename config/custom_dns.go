@@ -75,7 +75,7 @@ func (c *CustomDNSEntries) UnmarshalYAML(unmarshal func(interface{}) error) erro
 	result := make(CustomDNSEntries, len(parts))
 
 	for i, part := range parts {
-		rr, err := configToRR(part)
+		rr, err := configToRR(strings.TrimSpace(part))
 		if err != nil {
 			return err
 		}
