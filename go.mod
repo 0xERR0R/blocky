@@ -1,6 +1,6 @@
 module github.com/0xERR0R/blocky
 
-go 1.21
+go 1.22
 
 require (
 	github.com/abice/go-enum v0.6.0
