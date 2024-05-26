@@ -28,6 +28,7 @@ To run the CLI, please ensure, that blocky DNS server is running, then execute `
 - `./blocky query <domain>` execute DNS query (A) (simple replacement for dig, useful for debug purposes)
 - `./blocky query <domain> --type <queryType>` execute DNS query with passed query type (A, AAAA, MX, ...)
 - `./blocky lists refresh` reloads all allow/denylists
+- `./blocky validate [--config /path/to/config.yaml]` validates configuration file
 
 !!! tip 
 

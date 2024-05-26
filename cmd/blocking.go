@@ -13,9 +13,10 @@ import (
 
 func newBlockingCommand() *cobra.Command {
 	c := &cobra.Command{
-		Use:     "blocking",
-		Aliases: []string{"block"},
-		Short:   "Control status of blocking resolver",
+		Use:               "blocking",
+		Aliases:           []string{"block"},
+		Short:             "Control status of blocking resolver",
+		PersistentPreRunE: initConfigPreRun,
 	}
 	c.AddCommand(&cobra.Command{
 		Use:     "enable",

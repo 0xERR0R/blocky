@@ -42,7 +42,7 @@ var _ = Describe("Serve command", func() {
 				os.Setenv(configFileEnvVar, cfgFile.Path)
 				DeferCleanup(func() { os.Unsetenv(configFileEnvVar) })
 
-				initConfig()
+				Expect(initConfig()).Should(Succeed())
 			})
 
 			errChan := make(chan error)
@@ -89,7 +89,7 @@ var _ = Describe("Serve command", func() {
 				os.Setenv(configFileEnvVar, cfgFile.Path)
 				DeferCleanup(func() { os.Unsetenv(configFileEnvVar) })
 
-				initConfig()
+				Expect(initConfig()).Should(Succeed())
 			})
 
 			errChan := make(chan error)
