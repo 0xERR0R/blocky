@@ -10,8 +10,9 @@ import (
 
 func newCacheCommand() *cobra.Command {
 	c := &cobra.Command{
-		Use:   "cache",
-		Short: "Performs cache operations",
+		Use:               "cache",
+		Short:             "Performs cache operations",
+		PersistentPreRunE: initConfigPreRun,
 	}
 	c.AddCommand(&cobra.Command{
 		Use:     "flush",

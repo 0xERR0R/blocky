@@ -10,8 +10,6 @@ import (
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
-	"github.com/0xERR0R/blocky/util"
-
 	"github.com/spf13/cobra"
 )
 
@@ -39,6 +37,7 @@ func NewRootCommand() *cobra.Command {
 and ad-blocker for local network.
 
 Complete documentation is available at https://github.com/0xERR0R/blocky`,
+		PreRunE: initConfigPreRun,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return newServeCommand().RunE(cmd, args)
 		},
@@ -56,7 +55,8 @@ Complete documentation is available at https://github.com/0xERR0R/blocky`,
 		newBlockingCommand(),
 		NewListsCommand(),
 		NewHealthcheckCommand(),
-		newCacheCommand())
+		newCacheCommand(),
+		NewValidateCommand())
 
 	return c
 }
@@ -65,12 +65,11 @@ func apiURL() string {
 	return fmt.Sprintf("http://%s%s", net.JoinHostPort(apiHost, strconv.Itoa(int(apiPort))), "/api")
 }
 
-//nolint:gochecknoinits
-func init() {
-	cobra.OnInitialize(initConfig)
+func initConfigPreRun(cmd *cobra.Command, args []string) error {
+	return initConfig()
 }
 
-func initConfig() {
+func initConfig() error {
 	if configPath == defaultConfigPath {
 		val, present := os.LookupEnv(configFileEnvVar)
 		if present {
@@ -85,7 +84,7 @@ func initConfig() {
 
 	cfg, err := config.LoadConfig(configPath, false)
 	if err != nil {
-		util.FatalOnError("unable to load configuration: ", err)
+		return fmt.Errorf("unable to load configuration file '%s': %w", configPath, err)
 	}
 
 	log.Configure(&cfg.Log)
@@ -99,13 +98,13 @@ func initConfig() {
 
 		port, err := config.ConvertPort(split[lastIdx])
 		if err != nil {
-			util.FatalOnError("can't convert port to number (1 - 65535)", err)
-
-			return
+			return fmt.Errorf("can't convert port '%s' to number (1 - 65535): %w", split[lastIdx], err)
 		}
 
 		apiPort = port
 	}
+
+	return nil
 }
 
 // Execute starts the command
