@@ -83,6 +83,35 @@ var _ = Describe("CustomDNSConfig", func() {
 			Expect(aRecord.A).Should(Equal(net.ParseIP("1.2.3.4")))
 		})
 
+		It("Should parse multiple ips as comma separated string", func() {
+			c := CustomDNSEntries{}
+			err := c.UnmarshalYAML(func(i interface{}) error {
+				*i.(*string) = "1.2.3.4,2.3.4.5"
+
+				return nil
+			})
+			Expect(err).Should(Succeed())
+			Expect(c).Should(HaveLen(2))
+
+			Expect(c[0].(*dns.A).A).Should(Equal(net.ParseIP("1.2.3.4")))
+			Expect(c[1].(*dns.A).A).Should(Equal(net.ParseIP("2.3.4.5")))
+		})
+
+		It("Should parse multiple ips as comma separated string with whitespace", func() {
+			c := CustomDNSEntries{}
+			err := c.UnmarshalYAML(func(i interface{}) error {
+				*i.(*string) = "1.2.3.4, 2.3.4.5 ,   3.4.5.6"
+
+				return nil
+			})
+			Expect(err).Should(Succeed())
+			Expect(c).Should(HaveLen(3))
+
+			Expect(c[0].(*dns.A).A).Should(Equal(net.ParseIP("1.2.3.4")))
+			Expect(c[1].(*dns.A).A).Should(Equal(net.ParseIP("2.3.4.5")))
+			Expect(c[2].(*dns.A).A).Should(Equal(net.ParseIP("3.4.5.6")))
+		})
+
 		It("should fail if wrong YAML format", func() {
 			c := &CustomDNSEntries{}
 			err := c.UnmarshalYAML(func(i interface{}) error {

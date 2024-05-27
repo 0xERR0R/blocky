@@ -53,7 +53,7 @@ var _ = Describe("root command", func() {
 			os.Setenv(configFileEnvVarOld, tmpFile.Path)
 			DeferCleanup(func() { os.Unsetenv(configFileEnvVarOld) })
 
-			initConfig()
+			Expect(initConfig()).Should(Succeed())
 
 			Expect(configPath).Should(Equal(tmpFile.Path))
 		})
@@ -62,7 +62,7 @@ var _ = Describe("root command", func() {
 			os.Setenv(configFileEnvVar, tmpFile.Path)
 			DeferCleanup(func() { os.Unsetenv(configFileEnvVar) })
 
-			initConfig()
+			Expect(initConfig()).Should(Succeed())
 
 			Expect(configPath).Should(Equal(tmpFile.Path))
 		})

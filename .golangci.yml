@@ -21,7 +21,7 @@ linters:
     - godox
     - gofmt
     - goimports
-    - gomnd
+    - mnd
     - gomodguard
     - gosec
     - gosimple
@@ -72,7 +72,7 @@ linters:
   fast: false
 
 linters-settings:
-  gomnd:
+  mnd:
     ignored-numbers:
       - "0666"
   ginkgolinter:

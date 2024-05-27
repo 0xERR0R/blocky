@@ -25,10 +25,12 @@ var (
 
 func newServeCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "serve",
-		Args:  cobra.NoArgs,
-		Short: "start blocky DNS server (default command)",
-		RunE:  startServer,
+		Use:               "serve",
+		Args:              cobra.NoArgs,
+		Short:             "start blocky DNS server (default command)",
+		RunE:              startServer,
+		PersistentPreRunE: initConfigPreRun,
+		SilenceUsage:      true,
 	}
 }
 

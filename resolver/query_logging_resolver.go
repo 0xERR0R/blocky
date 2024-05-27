@@ -200,7 +200,7 @@ func (r *QueryLoggingResolver) writeLog(ctx context.Context) {
 
 			r.writer.Write(logEntry)
 
-			halfCap := cap(r.logChan) / 2 //nolint:gomnd
+			halfCap := cap(r.logChan) / 2 //nolint:mnd
 
 			// if log channel is > 50% full, this could be a problem with slow writer (external storage over network etc.)
 			if len(r.logChan) > halfCap {
