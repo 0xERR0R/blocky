@@ -48,7 +48,7 @@ func startContainerWithNetwork(ctx context.Context, req testcontainers.Container
 		ContainerRequest: req,
 		Started:          true,
 	}
-	withNetwork(alias, e2eNet).Customize(&greq)
+	Expect(withNetwork(alias, e2eNet).Customize(&greq)).Should(Succeed())
 
 	return deferTerminate(testcontainers.GenericContainer(ctx, greq))
 }
