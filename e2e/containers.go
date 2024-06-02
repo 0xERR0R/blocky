@@ -31,6 +31,7 @@ import (
 const (
 	redisImage        = "redis:7"
 	postgresImage     = "postgres:15.2-alpine"
+	timescaleImage    = "timescale/timescaledb:latest-pg15"
 	mariaDBImage      = "mariadb:11"
 	mokaImage         = "ghcr.io/0xerr0r/dns-mokka:0.2.0"
 	staticServerImage = "halverneus/static-file-server:latest"
@@ -119,6 +120,27 @@ func createPostgresContainer(ctx context.Context, e2eNet *testcontainers.DockerN
 				WithOccurrence(waitLogOccurrence).
 				WithStartupTimeout(startupTimeout)),
 		withNetwork("postgres", e2eNet),
+	))
+}
+
+// createTimescaleContainer creates a postgres container with timescale extension attached to the test network under the
+// alias 'timescale'. It creates a database 'user' with user 'user' and password 'user'.
+// It is automatically terminated when the test is finished.
+func createTimescaleContainer(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
+) (*postgres.PostgresContainer, error) {
+	const waitLogOccurrence = 2
+
+	return deferTerminate(postgres.RunContainer(ctx,
+		testcontainers.WithImage(timescaleImage),
+
+		postgres.WithDatabase("user"),
+		postgres.WithUsername("user"),
+		postgres.WithPassword("user"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(waitLogOccurrence).
+				WithStartupTimeout(startupTimeout)),
+		withNetwork("timescale", e2eNet),
 	))
 }
 
