@@ -108,6 +108,7 @@ func (v *TLSVersion) validate(logger *logrus.Entry) {
 // postgresql // PostgreSQL database
 // csv // CSV file per day
 // csv-client // CSV file per day and client
+// timescale // Timescale database
 // )
 type QueryLogType int16
 
@@ -466,7 +467,6 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 		prettyPath = filepath.Join(path, "*")
 
 		data, err = readFromDir(path, data)
-
 		if err != nil {
 			return nil, fmt.Errorf("can't read config files: %w", err)
 		}

@@ -650,6 +650,7 @@ You can select one of following query log types:
 
 - `mysql` - log each query in the external MySQL/MariaDB database
 - `postgresql` - log each query in the external PostgreSQL database
+- `timescale` - log each query in the external Timescale database
 - `csv` - log into CSV file (one per day)
 - `csv-client` - log into CSV file (one per day and per client)
 - `console` - log into console output
@@ -671,15 +672,15 @@ You can choose which information from processed DNS request and response should 
 
 Configuration parameters:
 
-| Parameter                 | Type                                                                                 | Mandatory | Default value | Description                                                                        |
-| ------------------------- | ------------------------------------------------------------------------------------ | --------- | ------------- | ---------------------------------------------------------------------------------- |
-| queryLog.type             | enum (mysql, postgresql, csv, csv-client, console, none (see above))                 | no        |               | Type of logging target. Console if empty                                           |
-| queryLog.target           | string                                                                               | no        |               | directory for writing the logs (for csv) or database url (for mysql or postgresql) |
-| queryLog.logRetentionDays | int                                                                                  | no        | 0             | if > 0, deletes log files/database entries which are older than ... days           |
-| queryLog.creationAttempts | int                                                                                  | no        | 3             | Max attempts to create specific query log writer                                   |
-| queryLog.creationCooldown | duration format                                                                      | no        | 2s            | Time between the creation attempts                                                 |
-| queryLog.fields           | list enum (clientIP, clientName, responseReason, responseAnswer, question, duration) | no        | all           | which information should be logged                                                 |
-| queryLog.flushInterval    | duration format                                                                      | no        | 30s           | Interval to write data in bulk to the external database                            |
+| Parameter                 | Type                                                                                 | Mandatory | Default value | Description                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------ | --------- | ------------- | --------------------------------------------------------------------------------------------- |
+| queryLog.type             | enum (mysql, postgresql, timescale, csv, csv-client, console, none (see above))      | no        |               | Type of logging target. Console if empty                                                      |
+| queryLog.target           | string                                                                               | no        |               | directory for writing the logs (for csv) or database url (for mysql, postgresql or timescale) |
+| queryLog.logRetentionDays | int                                                                                  | no        | 0             | if > 0, deletes log files/database entries which are older than ... days                      |
+| queryLog.creationAttempts | int                                                                                  | no        | 3             | Max attempts to create specific query log writer                                              |
+| queryLog.creationCooldown | duration format                                                                      | no        | 2s            | Time between the creation attempts                                                            |
+| queryLog.fields           | list enum (clientIP, clientName, responseReason, responseAnswer, question, duration) | no        | all           | which information should be logged                                                            |
+| queryLog.flushInterval    | duration format                                                                      | no        | 30s           | Interval to write data in bulk to the external database                                       |
 
 !!! hint
 

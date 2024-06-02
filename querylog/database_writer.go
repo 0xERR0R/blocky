@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -49,16 +50,16 @@ func NewDatabaseWriter(ctx context.Context, dbType, target string, logRetentionD
 ) (*DatabaseWriter, error) {
 	switch dbType {
 	case "mysql":
-		return newDatabaseWriter(ctx, mysql.Open(target), logRetentionDays, dbFlushPeriod)
-	case "postgresql":
-		return newDatabaseWriter(ctx, postgres.Open(target), logRetentionDays, dbFlushPeriod)
+		return newDatabaseWriter(ctx, mysql.Open(target), logRetentionDays, dbFlushPeriod, dbType)
+	case "postgresql", "timescale":
+		return newDatabaseWriter(ctx, postgres.Open(target), logRetentionDays, dbFlushPeriod, dbType)
 	}
 
 	return nil, fmt.Errorf("incorrect database type provided: %s", dbType)
 }
 
 func newDatabaseWriter(ctx context.Context, target gorm.Dialector, logRetentionDays uint64,
-	dbFlushPeriod time.Duration,
+	dbFlushPeriod time.Duration, dbType string,
 ) (*DatabaseWriter, error) {
 	db, err := gorm.Open(target, &gorm.Config{
 		Logger: logger.New(
@@ -75,7 +76,7 @@ func newDatabaseWriter(ctx context.Context, target gorm.Dialector, logRetentionD
 	}
 
 	// Migrate the schema
-	if err := databaseMigration(db); err != nil {
+	if err := databaseMigration(db, dbType, logRetentionDays); err != nil {
 		return nil, fmt.Errorf("can't perform auto migration: %w", err)
 	}
 
@@ -90,7 +91,7 @@ func newDatabaseWriter(ctx context.Context, target gorm.Dialector, logRetentionD
 	return w, nil
 }
 
-func databaseMigration(db *gorm.DB) error {
+func databaseMigration(db *gorm.DB, dbType string, logRetentionDays uint64) error {
 	if err := db.AutoMigrate(&logEntry{}); err != nil {
 		return err
 	}
@@ -98,7 +99,7 @@ func databaseMigration(db *gorm.DB) error {
 	tableName := db.NamingStrategy.TableName(reflect.TypeOf(logEntry{}).Name())
 
 	// create unmapped primary key
-	switch db.Config.Name() {
+	switch dbType {
 	case "mysql":
 		tx := db.Exec("ALTER TABLE `" + tableName + "` ADD `id` INT PRIMARY KEY AUTO_INCREMENT")
 		if tx.Error != nil {
@@ -113,7 +114,30 @@ func databaseMigration(db *gorm.DB) error {
 		}
 
 	case "postgres":
-		return db.Exec("ALTER TABLE " + tableName + " ADD column if not exists id serial primary key").Error
+		return db.Exec("ALTER TABLE " + tableName + " ADD column if not exists id bigserial primary key").Error
+
+	case "timescale":
+		requestTSColName := db.NamingStrategy.ColumnName(reflect.TypeOf(logEntry{}).Name(), "RequestTS")
+
+		// Create a Timescale hypertable
+		tx := db.Exec(`SELECT create_hypertable(
+			'` + tableName + `',
+			by_range('` + requestTSColName + `'),
+			if_not_exists => TRUE
+		)`)
+		if tx.Error != nil {
+			return tx.Error
+		}
+
+		// Create a retention policy for the hypertable
+		tx = db.Exec(`SELECT add_retention_policy(
+			'` + tableName + `',
+			drop_after => INTERVAL '` + strconv.FormatUint(logRetentionDays, 10) + ` days',
+			if_not_exists => TRUE
+		)`)
+		if tx.Error != nil {
+			return tx.Error
+		}
 	}
 
 	return nil

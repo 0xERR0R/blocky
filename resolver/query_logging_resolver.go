@@ -50,6 +50,9 @@ func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) *QueryLog
 			case config.QueryLogTypePostgresql:
 				writer, err = querylog.NewDatabaseWriter(ctx, "postgresql", cfg.Target, cfg.LogRetentionDays,
 					cfg.FlushInterval.ToDuration())
+			case config.QueryLogTypeTimescale:
+				writer, err = querylog.NewDatabaseWriter(ctx, "timescale", cfg.Target, cfg.LogRetentionDays,
+					cfg.FlushInterval.ToDuration())
 			case config.QueryLogTypeConsole:
 				writer = querylog.NewLoggerWriter()
 			case config.QueryLogTypeNone:
@@ -85,7 +88,8 @@ func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) *QueryLog
 
 	go resolver.writeLog(ctx)
 
-	if cfg.LogRetentionDays > 0 {
+	// Timescale uses database features for retention
+	if cfg.LogRetentionDays > 0 && cfg.Type != config.QueryLogTypeTimescale {
 		go resolver.periodicCleanUp(ctx)
 	}
 
