@@ -77,7 +77,7 @@ jobs:
         if: matrix.make == 'test' && github.repository_owner == '0xERR0R'
 
       - name: Check GoReleaser configuration
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v6
         if: matrix.make == 'goreleaser'
         with:
           args: check
