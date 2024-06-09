@@ -112,11 +112,14 @@ func clientGroupsBlock(cfg config.Blocking) map[string][]string {
 	return cgb
 }
 
+func newListCache(ctx context.Context, t lists.ListCacheType, sourceLoading config.SourceLoading,
+	groupSources map[string][]config.BytesSource, downloader lists.FileDownloader,
+) (*lists.ListCache, error) {
+	return lists.NewListCache(ctx, t, sourceLoading, groupSources, downloader)
+}
+
 // NewBlockingResolver returns a new configured instance of the resolver
-func NewBlockingResolver(ctx context.Context,
-	cfg config.Blocking,
-	redis *redis.Client,
-	bootstrap *Bootstrap,
+func NewBlockingResolver(ctx context.Context, cfg config.Blocking, redis *redis.Client, bootstrap *Bootstrap,
 ) (r *BlockingResolver, err error) {
 	blockHandler, err := createBlockHandler(cfg)
 	if err != nil {
@@ -125,10 +128,8 @@ func NewBlockingResolver(ctx context.Context,
 
 	downloader := lists.NewDownloader(cfg.Loading.Downloads, bootstrap.NewHTTPTransport())
 
-	denylistMatcher, blErr := lists.NewListCache(ctx, lists.ListCacheTypeDenylist,
-		cfg.Loading, cfg.Denylists, downloader)
-	allowlistMatcher, wlErr := lists.NewListCache(ctx, lists.ListCacheTypeAllowlist,
-		cfg.Loading, cfg.Allowlists, downloader)
+	denylistMatcher, blErr := newListCache(ctx, lists.ListCacheTypeDenylist, cfg.Loading, cfg.Denylists, downloader)
+	allowlistMatcher, wlErr := newListCache(ctx, lists.ListCacheTypeAllowlist, cfg.Loading, cfg.Allowlists, downloader)
 	allowlistOnlyGroups := determineAllowlistOnlyGroups(&cfg)
 
 	schedulesCount := len(cfg.Schedules)
@@ -159,11 +160,11 @@ func NewBlockingResolver(ctx context.Context,
 		redisClient:       redis,
 	}
 
-	res.fqdnIPCache = expirationcache.NewCacheWithOnExpired[[]net.IP](ctx, expirationcache.Options{
-		CleanupInterval: defaultBlockingCleanUpInterval,
-	}, func(ctx context.Context, key string) (val *[]net.IP, ttl time.Duration) {
-		return res.queryForFQIdentifierIPs(ctx, key)
-	})
+	expirationCacheOptions := expirationcache.Options{CleanupInterval: defaultBlockingCleanUpInterval}
+	res.fqdnIPCache = expirationcache.NewCacheWithOnExpired[[]net.IP](ctx, expirationCacheOptions,
+		func(ctx context.Context, key string) (val *[]net.IP, ttl time.Duration) {
+			return res.queryForFQIdentifierIPs(ctx, key)
+		})
 
 	if res.redisClient != nil {
 		go res.redisSubscriber(ctx)
