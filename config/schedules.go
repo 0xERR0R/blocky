@@ -17,19 +17,22 @@ const (
 type Schedules map[string][]Schedule
 
 // Refresh update Schedule to set the Active field boolean
-func (s Schedules) Refresh(ctx context.Context, nowFunc func() time.Time) {
+func (s Schedules) Refresh(ctx context.Context, nowFn func() time.Time) {
 	logger := log.PrefixedLog("refresh_schedules")
 
-	s.setActive(nowFunc, logger) // initial schedules refresh (after blocky start)
-	syncSchedulesWithSystemTime(s, nowFunc, logger)
+	s.setActive(nowFn, logger) // initial schedules refresh (after blocky start)
+	if isNowFnSet(nowFn) {
+		return
+	}
 
+	syncSchedulesWithSystemTime(s, nowFn, logger)
 	ticker := time.NewTicker(refreshInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			s.setActive(nowFunc, logger)
+			s.setActive(nowFn, logger)
 
 		case <-ctx.Done():
 			return
@@ -37,11 +40,22 @@ func (s Schedules) Refresh(ctx context.Context, nowFunc func() time.Time) {
 	}
 }
 
-func syncSchedulesWithSystemTime(s Schedules, nowFunc func() time.Time, logger *logrus.Entry) {
+func isNowFnSet(nowFn func() time.Time) bool {
+	return nowFn != nil
+}
+
+func setNowFnWhenNil(nowFn func() time.Time) func() time.Time {
+	if nowFn == nil {
+		return time.Now
+	}
+	return nowFn
+}
+
+func syncSchedulesWithSystemTime(s Schedules, nowFn func() time.Time, logger *logrus.Entry) {
 	waitTime := getWaitTimeBeforeNextMinute()
 	time.Sleep(waitTime)
 
-	s.setActive(nowFunc, logger) // now in sync with system time
+	s.setActive(nowFn, logger) // now in sync with system time
 }
 
 func getWaitTimeBeforeNextMinute() time.Duration {
@@ -51,23 +65,21 @@ func getWaitTimeBeforeNextMinute() time.Duration {
 			time.Now().Month(),
 			time.Now().Day(),
 			time.Now().Hour(),
-			time.Now().Minute()+1, 0, 0,
+			time.Now().Minute()+1, 0, 0, // next minute
 			time.Now().Location(),
 		),
 	)
 }
 
-func (s Schedules) setActive(nowFunc func() time.Time, logger *logrus.Entry) {
-	if nowFunc == nil {
-		nowFunc = time.Now
-	}
+func (s Schedules) setActive(nowFn func() time.Time, logger *logrus.Entry) {
+	nowFn = setNowFnWhenNil(nowFn)
 
 	for group, schedList := range s {
 		for i, schedule := range schedList {
 			active := false
 			activeStr := "inactive"
 
-			if schedule.isActive(nowFunc) {
+			if schedule.isActive(nowFn) {
 				active = true
 				activeStr = "active"
 			}
@@ -92,13 +104,11 @@ func (s Schedules) setActive(nowFunc func() time.Time, logger *logrus.Entry) {
 }
 
 // IsActive checks if the schedules of the group is active at the current time
-func (s Schedules) IsActive(group string, nowFunc func() time.Time) bool {
-	if nowFunc == nil {
-		nowFunc = time.Now
-	}
+func (s Schedules) IsActive(group string, nowFn func() time.Time) bool {
+	nowFn = setNowFnWhenNil(nowFn)
 
 	for _, schedule := range s[group] {
-		if schedule.isActive(nowFunc) {
+		if schedule.isActive(nowFn) {
 			return true
 		}
 	}

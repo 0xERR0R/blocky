@@ -16,12 +16,12 @@ var _ = Describe("Schedules", func() {
 	var (
 		schedules Schedules
 		ctx       context.Context
-		cancel    context.CancelFunc
+		cancelFn  context.CancelFunc
 	)
 
 	BeforeEach(func() {
 		schedules = make(Schedules)
-		ctx, cancel = context.WithCancel(context.Background())
+		ctx, cancelFn = context.WithCancel(context.Background())
 
 		hr, _ := parseHoursRange("09:00-17:00")
 
@@ -34,44 +34,35 @@ var _ = Describe("Schedules", func() {
 	})
 
 	AfterEach(func() {
-		cancel()
+		cancelFn()
 	})
 
-	Describe("Refresh", func() {
-		When("refresh loop running", func() {
+	Describe("refresh schedules loop", func() {
+		It("should set the Active field", func() {
 			go schedules.Refresh(ctx, nil)
-
 			time.Sleep(time.Second)
 
-			It("should set the Active field", func() {
-				now := time.Now()
-				weekDay := now.Weekday()
-				hour := now.Hour()
+			now := time.Now()
+			weekDay := now.Weekday()
+			hour := now.Hour()
 
-				if weekDay == time.Saturday && hour >= 9 && hour < 17 {
-					Expect(schedules[group][0].Active).To(BeTrue())
-				} else {
-					Expect(schedules[group][0].Active).To(BeFalse())
-				}
-			})
+			if weekDay == time.Saturday && hour >= 9 && hour < 17 {
+				Expect(schedules[group][0].Active).To(BeTrue())
+			} else {
+				Expect(schedules[group][0].Active).To(BeFalse())
+			}
 		})
 
 		It("should set the Active field to true when schedule is active", func() {
 			fakeTime := getFakeTime(time.Saturday, "10:00")
-
-			go schedules.Refresh(ctx, fakeTime)
-			time.Sleep(time.Second)
-
+			schedules.Refresh(ctx, fakeTime)
 			Expect(schedules[group][0].Active).To(BeTrue())
 		})
 
 		It("should set the Active field to false when schedule is inactive", func() {
 			fakeTime := getFakeTime(time.Saturday, "19:00")
 			schedules[group][0].Active = true
-
-			go schedules.Refresh(ctx, fakeTime)
-			time.Sleep(time.Second)
-
+			schedules.Refresh(ctx, fakeTime)
 			Expect(schedules[group][0].Active).To(BeFalse())
 		})
 	})
