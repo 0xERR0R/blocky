@@ -19,13 +19,14 @@ type Schedules map[string][]Schedule
 // Refresh update Schedule to set the Active field boolean
 func (s Schedules) Refresh(ctx context.Context, nowFn func() time.Time) {
 	logger := log.PrefixedLog("refresh_schedules")
-
 	s.setActive(nowFn, logger) // initial schedules refresh (after blocky start)
+
 	if isNowFnSet(nowFn) {
 		return
 	}
 
 	syncSchedulesWithSystemTime(s, nowFn, logger)
+
 	ticker := time.NewTicker(refreshInterval)
 	defer ticker.Stop()
 
@@ -48,6 +49,7 @@ func setNowFnWhenNil(nowFn func() time.Time) func() time.Time {
 	if nowFn == nil {
 		return time.Now
 	}
+
 	return nowFn
 }
 
