@@ -18,15 +18,20 @@ import (
 	"net/http"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/0xERR0R/blocky/api"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/resolver"
+	"github.com/0xERR0R/blocky/service"
+	"golang.org/x/exp/maps"
+
 	"github.com/0xERR0R/blocky/util"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
@@ -44,14 +49,18 @@ const (
 
 // Server controls the endpoints for DNS and HTTP
 type Server struct {
-	dnsServers     []*dns.Server
-	httpListeners  []net.Listener
-	httpsListeners []net.Listener
-	queryResolver  resolver.ChainedResolver
-	cfg            *config.Config
-	httpMux        *chi.Mux
-	httpsMux       *chi.Mux
-	cert           tls.Certificate
+	dnsServers    []*dns.Server
+	queryResolver resolver.ChainedResolver
+	cfg           *config.Config
+
+	services map[service.Listener]service.Service
+}
+
+type subServer interface {
+	fmt.Stringer
+	service.Service
+
+	Serve(context.Context, net.Listener) error
 }
 
 func logger() *logrus.Entry {
@@ -69,14 +78,6 @@ func tlsCipherSuites() []uint16 {
 	}
 
 	return tlsCipherSuites
-}
-
-func getServerAddress(addr string) string {
-	if !strings.Contains(addr, ":") {
-		addr = fmt.Sprintf(":%s", addr)
-	}
-
-	return addr
 }
 
 type NewServerFunc func(address string) (*dns.Server, error)
@@ -99,38 +100,46 @@ func retrieveCertificate(cfg *config.Config) (cert tls.Certificate, err error) {
 	return
 }
 
-// NewServer creates new server instance with passed config
-//
-//nolint:funlen
-func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err error) {
+func newTLSConfig(cfg *config.Config) (*tls.Config, error) {
 	var cert tls.Certificate
 
+	cert, err := retrieveCertificate(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("can't retrieve cert: %w", err)
+	}
+
+	// #nosec G402 // See TLSVersion.validate
+	res := &tls.Config{
+		MinVersion:   uint16(cfg.MinTLSServeVer),
+		CipherSuites: tlsCipherSuites(),
+		Certificates: []tls.Certificate{cert},
+	}
+
+	return res, nil
+}
+
+// NewServer creates new server instance with passed config
+func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err error) {
+	cfg.CopyPortsToServices()
+
+	var tlsCfg *tls.Config
+
 	if len(cfg.Ports.HTTPS) > 0 || len(cfg.Ports.TLS) > 0 {
-		cert, err = retrieveCertificate(cfg)
+		tlsCfg, err = newTLSConfig(cfg)
 		if err != nil {
-			return nil, fmt.Errorf("can't retrieve cert: %w", err)
+			return nil, err
 		}
 	}
 
-	dnsServers, err := createServers(cfg, cert)
+	dnsServers, err := createServers(cfg, tlsCfg)
 	if err != nil {
 		return nil, fmt.Errorf("server creation failed: %w", err)
 	}
 
-	httpRouter := createHTTPRouter(cfg)
-	httpsRouter := createHTTPSRouter(cfg)
-
-	httpListeners, httpsListeners, err := createHTTPListeners(cfg)
+	listeners, err := createListeners(ctx, cfg, tlsCfg)
 	if err != nil {
 		return nil, err
 	}
-
-	if len(httpListeners) != 0 || len(httpsListeners) != 0 {
-		metrics.Start(httpRouter, cfg.Prometheus)
-		metrics.Start(httpsRouter, cfg.Prometheus)
-	}
-
-	metrics.RegisterEventListeners()
 
 	bootstrap, err := resolver.NewBootstrap(ctx, cfg)
 	if err != nil {
@@ -151,27 +160,21 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 	}
 
 	server = &Server{
-		dnsServers:     dnsServers,
-		queryResolver:  queryResolver,
-		cfg:            cfg,
-		httpListeners:  httpListeners,
-		httpsListeners: httpsListeners,
-		httpMux:        httpRouter,
-		httpsMux:       httpsRouter,
-		cert:           cert,
+		dnsServers:    dnsServers,
+		queryResolver: queryResolver,
+		cfg:           cfg,
 	}
 
 	server.printConfiguration()
 
 	server.registerDNSHandlers(ctx)
-	err = server.registerAPIEndpoints(httpRouter)
 
+	services, err := server.createServices()
 	if err != nil {
 		return nil, err
 	}
 
-	err = server.registerAPIEndpoints(httpsRouter)
-
+	server.services, err = service.GroupByListener(services, listeners)
 	if err != nil {
 		return nil, err
 	}
@@ -179,14 +182,35 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 	return server, err
 }
 
-func createServers(cfg *config.Config, cert tls.Certificate) ([]*dns.Server, error) {
+func (s *Server) createServices() ([]service.Service, error) {
+	openAPIImpl, err := s.createOpenAPIInterfaceImpl()
+	if err != nil {
+		return nil, err
+	}
+
+	res := []service.Service{
+		newHTTPMiscService(s.cfg),
+		newDoHService(s.cfg.Services.DoH, s.handleReq),
+		api.NewService(s.cfg.Services.API, openAPIImpl),
+		metrics.NewService(s.cfg.Services.Metrics, s.cfg.Prometheus),
+	}
+
+	// Remove services the user has not enabled
+	res = slices.DeleteFunc(res, func(svc service.Service) bool {
+		return len(svc.ExposeOn()) == 0
+	})
+
+	return res, nil
+}
+
+func createServers(cfg *config.Config, tlsCfg *tls.Config) ([]*dns.Server, error) {
 	var dnsServers []*dns.Server
 
 	var err *multierror.Error
 
 	addServers := func(newServer NewServerFunc, addresses config.ListenConfig) error {
 		for _, address := range addresses {
-			server, err := newServer(getServerAddress(address))
+			server, err := newServer(address)
 			if err != nil {
 				return err
 			}
@@ -201,52 +225,69 @@ func createServers(cfg *config.Config, cert tls.Certificate) ([]*dns.Server, err
 		addServers(createUDPServer, cfg.Ports.DNS),
 		addServers(createTCPServer, cfg.Ports.DNS),
 		addServers(func(address string) (*dns.Server, error) {
-			return createTLSServer(cfg, address, cert)
+			return createTLSServer(address, tlsCfg)
 		}, cfg.Ports.TLS))
 
 	return dnsServers, err.ErrorOrNil()
 }
 
-func createHTTPListeners(cfg *config.Config) (httpListeners, httpsListeners []net.Listener, err error) {
-	httpListeners, err = newListeners("http", cfg.Ports.HTTP)
-	if err != nil {
-		return nil, nil, err
+func createListeners(ctx context.Context, cfg *config.Config, tlsCfg *tls.Config) ([]service.Listener, error) {
+	res := make(map[string]service.Listener)
+
+	listenTLS := func(ctx context.Context, endpoint service.Endpoint) (service.Listener, error) {
+		return service.ListenTLS(ctx, endpoint, tlsCfg)
 	}
 
-	httpsListeners, err = newListeners("https", cfg.Ports.HTTPS)
+	err := errors.Join(
+		newListeners(ctx, service.HTTPProtocol, cfg.Ports.HTTP, service.ListenTCP, res),
+		newListeners(ctx, service.HTTPSProtocol, cfg.Ports.HTTPS, listenTLS, res),
+		newListeners(ctx, service.HTTPProtocol, cfg.Services.DoH.Addrs.HTTP, service.ListenTCP, res),
+		newListeners(ctx, service.HTTPSProtocol, cfg.Services.DoH.Addrs.HTTPS, listenTLS, res),
+		newListeners(ctx, service.HTTPProtocol, cfg.Services.Metrics.Addrs.HTTP, service.ListenTCP, res),
+		newListeners(ctx, service.HTTPSProtocol, cfg.Services.Metrics.Addrs.HTTPS, listenTLS, res),
+	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return httpListeners, httpsListeners, nil
+	return maps.Values(res), nil
 }
 
-func newListeners(proto string, addresses config.ListenConfig) ([]net.Listener, error) {
-	listeners := make([]net.Listener, 0, len(addresses))
+type listenFunc[T service.Listener] func(context.Context, service.Endpoint) (T, error)
 
-	for _, address := range addresses {
-		listener, err := net.Listen("tcp", getServerAddress(address))
-		if err != nil {
-			return nil, fmt.Errorf("start %s listener on %s failed: %w", proto, address, err)
+func newListeners[T service.Listener](
+	ctx context.Context, proto string, addrs config.ListenConfig, listen listenFunc[T], out map[string]service.Listener,
+) error {
+	for _, addr := range addrs {
+		key := fmt.Sprintf("%s:%s", proto, addr)
+		if _, ok := out[key]; ok {
+			// Avoid "address already in use"
+			// We instead try to merge services, see services.GroupByListener
+			continue
 		}
 
-		listeners = append(listeners, listener)
+		endpoint := service.Endpoint{
+			Protocol: proto,
+			AddrConf: addr,
+		}
+
+		l, err := listen(ctx, endpoint)
+		if err != nil {
+			return err // already has all info
+		}
+
+		out[key] = l
 	}
 
-	return listeners, nil
+	return nil
 }
 
-func createTLSServer(cfg *config.Config, address string, cert tls.Certificate) (*dns.Server, error) {
+func createTLSServer(address string, tlsCfg *tls.Config) (*dns.Server, error) {
 	return &dns.Server{
-		Addr: address,
-		Net:  "tcp-tls",
-		//nolint:gosec
-		TLSConfig: &tls.Config{
-			Certificates: []tls.Certificate{cert},
-			MinVersion:   uint16(cfg.MinTLSServeVer),
-			CipherSuites: tlsCipherSuites(),
-		},
-		Handler: dns.NewServeMux(),
+		Addr:      address,
+		Net:       "tcp-tls",
+		TLSConfig: tlsCfg,
+		Handler:   dns.NewServeMux(),
 		NotifyStartedFunc: func() {
 			logger().Infof("TLS server is up and running on address %s", address)
 		},
@@ -470,11 +511,15 @@ func toMB(b uint64) uint64 {
 	return b / bytesInKB / bytesInKB
 }
 
-const (
-	readHeaderTimeout = 20 * time.Second
-	readTimeout       = 20 * time.Second
-	writeTimeout      = 20 * time.Second
-)
+func newSubServer(svc service.Service) (subServer, error) {
+	switch svc := svc.(type) {
+	case service.HTTPService:
+		return newHTTPServer(svc), nil
+
+	default:
+		return nil, fmt.Errorf("unsupported service type: %T (%s)", svc, svc)
+	}
+}
 
 // Start starts the server
 func (s *Server) Start(ctx context.Context, errCh chan<- error) {
@@ -490,48 +535,22 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 		}()
 	}
 
-	for i, listener := range s.httpListeners {
-		listener := listener
-		address := s.cfg.Ports.HTTP[i]
+	for listener, svc := range s.services {
+		listener, svc := listener, svc
+
+		srv, err := newSubServer(svc)
+		if err != nil {
+			errCh <- fmt.Errorf("%s on %s: %w", svc.ServiceName(), listener.Exposes(), err)
+
+			return
+		}
 
 		go func() {
-			logger().Infof("http server is up and running on addr/port %s", address)
+			logger().Infof("%s server is up and running on %s", svc.ServiceName(), listener.Exposes())
 
-			srv := &http.Server{
-				ReadTimeout:       readTimeout,
-				ReadHeaderTimeout: readHeaderTimeout,
-				WriteTimeout:      writeTimeout,
-				Handler:           s.httpsMux,
-			}
-
-			if err := srv.Serve(listener); err != nil {
-				errCh <- fmt.Errorf("start http listener failed: %w", err)
-			}
-		}()
-	}
-
-	for i, listener := range s.httpsListeners {
-		listener := listener
-		address := s.cfg.Ports.HTTPS[i]
-
-		go func() {
-			logger().Infof("https server is up and running on addr/port %s", address)
-
-			server := http.Server{
-				Handler:           s.httpsMux,
-				ReadTimeout:       readTimeout,
-				ReadHeaderTimeout: readHeaderTimeout,
-				WriteTimeout:      writeTimeout,
-				//nolint:gosec
-				TLSConfig: &tls.Config{
-					MinVersion:   uint16(s.cfg.MinTLSServeVer),
-					CipherSuites: tlsCipherSuites(),
-					Certificates: []tls.Certificate{s.cert},
-				},
-			}
-
-			if err := server.ServeTLS(listener, "", ""); err != nil {
-				errCh <- fmt.Errorf("start https listener failed: %w", err)
+			err := srv.Serve(ctx, listener)
+			if err != nil {
+				errCh <- fmt.Errorf("%s on %s: %w", srv, listener.Addr(), err)
 			}
 		}()
 	}
@@ -629,6 +648,8 @@ func (s *Server) OnRequest(ctx context.Context, w dns.ResponseWriter, msg *dns.M
 type msgWriter interface {
 	WriteMsg(msg *dns.Msg) error
 }
+
+type dnsHandler func(context.Context, *model.Request, msgWriter)
 
 func (s *Server) handleReq(ctx context.Context, request *model.Request, w msgWriter) {
 	response, err := s.resolve(ctx, request)

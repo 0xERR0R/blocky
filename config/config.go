@@ -170,6 +170,13 @@ func (l *ListenConfig) UnmarshalText(data []byte) error {
 
 	*l = strings.Split(addresses, ",")
 
+	// Prefix all ports with :
+	for i, addr := range *l {
+		if !strings.ContainsRune(addr, ':') {
+			(*l)[i] = ":" + addr
+		}
+	}
+
 	return nil
 }
 
@@ -226,6 +233,7 @@ type Config struct {
 	Redis            Redis               `yaml:"redis"`
 	Log              log.Config          `yaml:"log"`
 	Ports            Ports               `yaml:"ports"`
+	Services         Services            `yaml:"-"` // not user exposed yet
 	MinTLSServeVer   TLSVersion          `yaml:"minTlsServeVersion" default:"1.2"`
 	CertFile         string              `yaml:"certFile"`
 	KeyFile          string              `yaml:"keyFile"`
@@ -253,6 +261,19 @@ type Config struct {
 		StartVerifyUpstream *bool           `yaml:"startVerifyUpstream"`
 		DoHUserAgent        *string         `yaml:"dohUserAgent"`
 	} `yaml:",inline"`
+}
+
+// Services holds network service related configuration.
+//
+// The actual config layout is not decided yet.
+// See https://github.com/0xERR0R/blocky/issues/1206
+//
+// The `yaml` struct tags are just for manual testing,
+// and require replacing `yaml:"-"` in Config to work.
+type Services struct {
+	API     APIService     `yaml:"control-api"`
+	DoH     DoHService     `yaml:"dns-over-https"`
+	Metrics MetricsService `yaml:"metrics"`
 }
 
 type Ports struct {
@@ -592,6 +613,23 @@ func (cfg *Config) migrate(logger *logrus.Entry) bool {
 func (cfg *Config) validate(logger *logrus.Entry) {
 	cfg.MinTLSServeVer.validate(logger)
 	cfg.Upstreams.validate(logger)
+}
+
+// CopyPortsToServices sets Services values to match Ports.
+//
+// This should be replaced with a migration once everything from Ports is supported in Services.
+// Done this way for now to avoid creating temporary generic services and updating all Ports related code at once.
+func (cfg *Config) CopyPortsToServices() {
+	httpAddrs := httpAddrs{
+		HTTPAddrs:  HTTPAddrs{HTTP: cfg.Ports.HTTP},
+		HTTPSAddrs: HTTPSAddrs{HTTPS: cfg.Ports.HTTPS},
+	}
+
+	cfg.Services = Services{
+		API:     APIService{Addrs: httpAddrs},
+		DoH:     DoHService{Addrs: httpAddrs},
+		Metrics: MetricsService{Addrs: httpAddrs},
+	}
 }
 
 // ConvertPort converts string representation into a valid port (0 - 65535)
