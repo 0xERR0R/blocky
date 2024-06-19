@@ -74,7 +74,7 @@ jobs:
           echo "DOC_PATH: ${DOC_PATH}"
 
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
