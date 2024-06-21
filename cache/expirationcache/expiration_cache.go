@@ -103,14 +103,14 @@ func periodicCleanup[T any](ctx context.Context, c *ExpiringLRUCache[T]) {
 	for {
 		select {
 		case <-ticker.C:
-			c.cleanUp()
+			c.cleanUp(ctx)
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func (e *ExpiringLRUCache[T]) cleanUp() {
+func (e *ExpiringLRUCache[T]) cleanUp(ctx context.Context) {
 	var expiredKeys []string
 
 	// check for expired items and collect expired keys
@@ -126,7 +126,7 @@ func (e *ExpiringLRUCache[T]) cleanUp() {
 		var keysToDelete []string
 
 		for _, key := range expiredKeys {
-			newVal, newTTL := e.preExpirationFn(context.Background(), key)
+			newVal, newTTL := e.preExpirationFn(ctx, key)
 			if newVal != nil {
 				e.Put(key, newVal, newTTL)
 			} else {
