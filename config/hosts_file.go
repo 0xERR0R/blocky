@@ -11,6 +11,7 @@ type HostsFile struct {
 	HostsTTL       Duration      `yaml:"hostsTTL" default:"1h"`
 	FilterLoopback bool          `yaml:"filterLoopback"`
 	Loading        SourceLoading `yaml:"loading"`
+	WatchUpdates   bool          `yaml:"watchUpdates" default:"false"`
 
 	// Deprecated options
 	Deprecated struct {
