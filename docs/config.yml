@@ -193,7 +193,7 @@ prometheus:
 
 # optional: write query information (question, answer, client, duration etc.) to daily csv file
 queryLog:
-  # optional one of: mysql, postgresql, csv, csv-client. If empty, log to console
+  # optional one of: mysql, postgresql, timescale, csv, csv-client. If empty, log to console
   type: mysql
   # directory (should be mounted as volume in docker) for csv, db connection string for mysql/postgresql
   target: db_user:db_password@tcp(db_host_or_ip:3306)/db_name?charset=utf8mb4&parseTime=True&loc=Local
