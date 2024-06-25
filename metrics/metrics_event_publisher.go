@@ -15,6 +15,7 @@ import (
 func RegisterEventListeners() {
 	registerBlockingEventListeners()
 	registerCachingEventListeners()
+	registerSchedulesEventListeners()
 	registerApplicationEventListeners()
 }
 
@@ -36,6 +37,22 @@ func versionNumberGauge() *prometheus.GaugeVec {
 	)
 
 	return denylistCnt
+}
+
+func registerSchedulesEventListeners() {
+	schedulesActiveGaugeVec := schedulesActiveGaugeVec()
+	schedulesTotalGauge := schedulesTotalGauge()
+
+	RegisterMetric(schedulesActiveGaugeVec)
+	RegisterMetric(schedulesTotalGauge)
+
+	subscribe(evt.SchedulesActive, func(group string, activeCnt int) {
+		schedulesActiveGaugeVec.With(prometheus.Labels{"group": group}).Set(float64(activeCnt))
+	})
+
+	subscribe(evt.SchedulesTotal, func(cnt int) {
+		schedulesTotalGauge.Set(float64(cnt))
+	})
 }
 
 func registerBlockingEventListeners() {
@@ -81,6 +98,24 @@ func enabledGauge() prometheus.Gauge {
 	enabledGauge.Set(1)
 
 	return enabledGauge
+}
+
+func schedulesActiveGaugeVec() *prometheus.GaugeVec {
+	schedulesActiveGaugeVec := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "blocky_schedules_active",
+		Help: "Active schedules",
+	}, []string{"group"})
+
+	return schedulesActiveGaugeVec
+}
+
+func schedulesTotalGauge() prometheus.Gauge {
+	schedulesTotal := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "blocky_schedules_total",
+		Help: "Total number of schedules",
+	})
+
+	return schedulesTotal
 }
 
 func denylistGauge() *prometheus.GaugeVec {

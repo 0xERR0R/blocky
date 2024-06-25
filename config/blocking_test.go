@@ -14,6 +14,8 @@ var _ = Describe("BlockingConfig", func() {
 	suiteBeforeEach()
 
 	BeforeEach(func() {
+		hr, _ := parseHoursRange("09:00-17:00")
+
 		cfg = Blocking{
 			BlockType: "ZEROIP",
 			BlockTTL:  Duration(time.Minute),
@@ -22,6 +24,15 @@ var _ = Describe("BlockingConfig", func() {
 			},
 			ClientGroupsBlock: map[string][]string{
 				"default": {"gr1"},
+			},
+			Schedules: Schedules{
+				"gr1": []Schedule{
+					{
+						Days:        []day{day(time.Monday)},
+						HoursRanges: []hoursRange{hr},
+					},
+				},
+				"gr2": []Schedule{},
 			},
 		}
 	})
@@ -57,6 +68,9 @@ var _ = Describe("BlockingConfig", func() {
 
 			Expect(hook.Calls).ShouldNot(BeEmpty())
 			Expect(hook.Messages[0]).Should(Equal("clientGroupsBlock:"))
+			Expect(hook.Messages).Should(ContainElement(Equal("schedules:")))
+			Expect(hook.Messages).Should(ContainElement(Equal("   - days: [Monday] hoursRanges: [09:00-17:00]")))
+			Expect(hook.Messages).Should(ContainElement(Equal("   !! gr2 not found in denylists, schedule will have no effect")))
 			Expect(hook.Messages).Should(ContainElement(Equal("blockType = ZEROIP")))
 		})
 	})

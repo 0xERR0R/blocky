@@ -34,6 +34,12 @@ const (
 
 	// ApplicationStarted fires on start of the application. Parameter: version number, build time
 	ApplicationStarted = "application:started"
+
+	// SchedulesActive fires, if a schedule is active. Parameter: schedule name, active counter (0/1)
+	SchedulesActive = "schedules:active"
+
+	// schedulesTotal fires, if a schedules is enabled. Parameter: total number of schedules
+	SchedulesTotal = "schedules:total"
 )
 
 //nolint:gochecknoglobals

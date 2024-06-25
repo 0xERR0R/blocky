@@ -11,6 +11,7 @@ type Blocking struct {
 	Denylists         map[string][]BytesSource `yaml:"denylists"`
 	Allowlists        map[string][]BytesSource `yaml:"allowlists"`
 	ClientGroupsBlock map[string][]string      `yaml:"clientGroupsBlock"`
+	Schedules         Schedules                `yaml:"schedules"`
 	BlockType         string                   `yaml:"blockType" default:"ZEROIP"`
 	BlockTTL          Duration                 `yaml:"blockTTL" default:"6h"`
 	Loading           SourceLoading            `yaml:"loading"`
@@ -80,6 +81,26 @@ func (c *Blocking) LogConfig(logger *logrus.Entry) {
 	log.WithIndent(logger, "  ", func(logger *logrus.Entry) {
 		c.logListGroups(logger, c.Allowlists)
 	})
+
+	logger.Info("schedules:")
+	log.WithIndent(logger, "  ", func(logger *logrus.Entry) {
+		c.logSchedules(logger, c.Schedules)
+	})
+}
+
+func (c *Blocking) logSchedules(logger *logrus.Entry, schedules map[string][]Schedule) {
+	for group, schedulesList := range schedules {
+		logger.Infof("%s:", group)
+
+		for _, schedule := range schedulesList {
+			logger.Infof("   - days: %s hoursRanges: %s", schedule.Days, schedule.HoursRanges)
+		}
+
+		_, ok := c.Denylists[group]
+		if !ok {
+			logger.Warnf("   !! %s not found in denylists, schedule will have no effect", group)
+		}
+	}
 }
 
 func (c *Blocking) logListGroups(logger *logrus.Entry, listGroups map[string][]BytesSource) {
