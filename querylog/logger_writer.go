@@ -36,7 +36,7 @@ func LogEntryFields(entry *LogEntry) logrus.Fields {
 		"response_reason": entry.ResponseReason,
 		"response_type":   entry.ResponseType,
 		"response_code":   entry.ResponseCode,
-		"question_name":   entry.QuestionName,
+		"question_name":   util.Obfuscate(entry.QuestionName),
 		"question_type":   entry.QuestionType,
 		"answer":          entry.Answer,
 		"duration_ms":     entry.DurationMs,
