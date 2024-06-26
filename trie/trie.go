@@ -2,7 +2,6 @@ package trie
 
 import (
 	"github.com/0xERR0R/blocky/log"
-	"strings"
 )
 
 // Trie stores a set of strings and can quickly check
@@ -36,12 +35,12 @@ func (t *Trie) Insert(key string) {
 	t.root.insert(key, t.split)
 }
 
-func (t *Trie) HasParentOf(key string) bool {
+func (t *Trie) HasParentOf(key string) (bool, []string) {
 	return t.root.hasParentOf(key, t.split)
 }
 
 type node interface {
-	hasParentOf(key string, split SplitFunc) bool
+	hasParentOf(key string, split SplitFunc) (bool, []string)
 }
 
 // We save memory by not keeping track of children of
@@ -96,7 +95,8 @@ func (n *parent) insert(key string, split SplitFunc) {
 			continue
 
 		case terminal:
-			if child.hasParentOf(rest, split) {
+			hasParent, _ := child.hasParentOf(rest, split)
+			if hasParent {
 				// Found a parent/"prefix" in the set
 				return
 			}
@@ -112,17 +112,16 @@ func (n *parent) insert(key string, split SplitFunc) {
 	}
 }
 
-func (n *parent) hasParentOf(key string, split SplitFunc) bool {
+func (n *parent) hasParentOf(key string, split SplitFunc) (bool, []string) {
 	searchString := key
-	rule := ""
+	path := make([]string, 0, len(key)) // over-allocating is better than allocating in a loop
 
 	for {
 		label, rest := split(key)
-		rule = strings.Join([]string{label, rule}, ".")
 
 		child, ok := n.children[label]
 		if !ok {
-			return false
+			return false, nil
 		}
 
 		switch child := child.(type) {
@@ -130,25 +129,28 @@ func (n *parent) hasParentOf(key string, split SplitFunc) bool {
 			if len(rest) == 0 {
 				// The trie only contains children/"suffixes" of the
 				// key we're searching for
-				return false
+				return false, nil
 			}
 
 			// Continue down the trie
 			key = rest
 			n = child
 
+			path = append(path, label)
+
 			continue
 
 		case terminal:
 			// Continue down the trie
-			matched := child.hasParentOf(rest, split)
+			matched, _ := child.hasParentOf(rest, split)
 			if matched {
-				rule = strings.Join([]string{child.String(), rule}, ".")
-				rule = strings.Trim(rule, ".")
-				log.PrefixedLog("trie").Debugf("wildcard block rule '%s' matched with '%s'", rule, searchString)
+				path = append(path, child.String())
+				log.PrefixedLog("trie").Debugf("wildcard path '%v' matched with '%s'", path, searchString)
+
+				return matched, path
 			}
 
-			return matched
+			return false, nil
 		}
 	}
 }
@@ -159,10 +161,10 @@ func (t terminal) String() string {
 	return string(t)
 }
 
-func (t terminal) hasParentOf(searchKey string, split SplitFunc) bool {
+func (t terminal) hasParentOf(searchKey string, split SplitFunc) (bool, []string) {
 	tKey := t.String()
 	if tKey == "" {
-		return true
+		return true, nil
 	}
 
 	for {
@@ -170,18 +172,18 @@ func (t terminal) hasParentOf(searchKey string, split SplitFunc) bool {
 
 		searchLabel, searchRest := split(searchKey)
 		if searchLabel != tLabel {
-			return false
+			return false, nil
 		}
 
 		if len(tRest) == 0 {
 			// Found a parent/"prefix" in the set
-			return true
+			return true, nil
 		}
 
 		if len(searchRest) == 0 {
 			// The trie only contains children/"suffixes" of the
 			// key we're searching for
-			return false
+			return false, nil
 		}
 
 		// Continue down the trie

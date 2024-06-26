@@ -1,11 +1,5 @@
 package stringcache
 
-import (
-	"sort"
-
-	"golang.org/x/exp/maps"
-)
-
 type ChainedGroupedCache struct {
 	caches []GroupedStringCache
 }
@@ -25,20 +19,16 @@ func (c *ChainedGroupedCache) ElementCount(group string) int {
 	return sum
 }
 
-func (c *ChainedGroupedCache) Contains(searchString string, groups []string) []string {
-	groupMatchedMap := make(map[string]struct{}, len(groups))
+func (c *ChainedGroupedCache) Contains(searchString string, groups []string) map[string]string {
+	result := make(map[string]string, len(groups))
 
 	for _, cache := range c.caches {
-		for _, group := range cache.Contains(searchString, groups) {
-			groupMatchedMap[group] = struct{}{}
+		for group, rule := range cache.Contains(searchString, groups) {
+			result[group] = rule
 		}
 	}
 
-	matchedGroups := maps.Keys(groupMatchedMap)
-
-	sort.Strings(matchedGroups)
-
-	return matchedGroups
+	return result
 }
 
 func (c *ChainedGroupedCache) Refresh(group string) GroupFactory {
