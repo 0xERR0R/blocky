@@ -29,6 +29,34 @@ type QueryLoggingResolver struct {
 	writer  querylog.Writer
 }
 
+func GetQueryLoggingWriter(ctx context.Context, cfg config.QueryLog) (querylog.Writer, error) {
+	var writer querylog.Writer
+
+	var err error
+
+	switch cfg.Type {
+	case config.QueryLogTypeCsv:
+		writer, err = querylog.NewCSVWriter(cfg.Target, false, cfg.LogRetentionDays)
+	case config.QueryLogTypeCsvClient:
+		writer, err = querylog.NewCSVWriter(cfg.Target, true, cfg.LogRetentionDays)
+	case config.QueryLogTypeMysql:
+		writer, err = querylog.NewDatabaseWriter(ctx, "mysql", cfg.Target, cfg.LogRetentionDays,
+			cfg.FlushInterval.ToDuration())
+	case config.QueryLogTypePostgresql:
+		writer, err = querylog.NewDatabaseWriter(ctx, "postgresql", cfg.Target, cfg.LogRetentionDays,
+			cfg.FlushInterval.ToDuration())
+	case config.QueryLogTypeTimescale:
+		writer, err = querylog.NewDatabaseWriter(ctx, "timescale", cfg.Target, cfg.LogRetentionDays,
+			cfg.FlushInterval.ToDuration())
+	case config.QueryLogTypeConsole:
+		writer = querylog.NewLoggerWriter()
+	case config.QueryLogTypeNone:
+		writer = querylog.NewNoneWriter()
+	}
+
+	return writer, err
+}
+
 // NewQueryLoggingResolver returns a new resolver instance
 func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) *QueryLoggingResolver {
 	logger := log.PrefixedLog(queryLoggingResolverType)
@@ -39,22 +67,7 @@ func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) *QueryLog
 		func() error {
 			var err error
 
-			switch cfg.Type {
-			case config.QueryLogTypeCsv:
-				writer, err = querylog.NewCSVWriter(cfg.Target, false, cfg.LogRetentionDays)
-			case config.QueryLogTypeCsvClient:
-				writer, err = querylog.NewCSVWriter(cfg.Target, true, cfg.LogRetentionDays)
-			case config.QueryLogTypeMysql:
-				writer, err = querylog.NewDatabaseWriter(ctx, "mysql", cfg.Target, cfg.LogRetentionDays,
-					cfg.FlushInterval.ToDuration())
-			case config.QueryLogTypePostgresql:
-				writer, err = querylog.NewDatabaseWriter(ctx, "postgresql", cfg.Target, cfg.LogRetentionDays,
-					cfg.FlushInterval.ToDuration())
-			case config.QueryLogTypeConsole:
-				writer = querylog.NewLoggerWriter()
-			case config.QueryLogTypeNone:
-				writer = querylog.NewNoneWriter()
-			}
+			writer, err = GetQueryLoggingWriter(ctx, cfg)
 
 			return err
 		},
@@ -85,7 +98,8 @@ func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) *QueryLog
 
 	go resolver.writeLog(ctx)
 
-	if cfg.LogRetentionDays > 0 {
+	// Timescale uses database features for retention
+	if cfg.LogRetentionDays > 0 && cfg.Type != config.QueryLogTypeTimescale {
 		go resolver.periodicCleanUp(ctx)
 	}
 

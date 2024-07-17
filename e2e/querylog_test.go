@@ -180,6 +180,79 @@ var _ = Describe("Query logs functional tests", func() {
 			})
 		})
 	})
+
+	Describe("Query logging into the timescale database", func() {
+		BeforeEach(func(ctx context.Context) {
+			postgresDB, err = createTimescaleContainer(ctx, e2eNet)
+			Expect(err).Should(Succeed())
+
+			blocky, err = createBlockyContainer(ctx, e2eNet,
+				"log:",
+				"  level: warn",
+				"upstreams:",
+				"  groups:",
+				"    default:",
+				"      - moka1",
+				"queryLog:",
+				"  type: timescale",
+				"  target: postgres://user:user@timescale:5432/user",
+				"  flushInterval: 1s",
+			)
+			Expect(err).Should(Succeed())
+
+			connectionString, err := postgresDB.ConnectionString(ctx, "sslmode=disable")
+			Expect(err).Should(Succeed())
+
+			// database might be slow on first start, retry here if necessary
+			Eventually(gorm.Open, "10s", "1s").
+				WithArguments(postgresDriver.Open(connectionString), &gorm.Config{}).ShouldNot(BeNil())
+
+			db, err = gorm.Open(postgresDriver.Open(connectionString), &gorm.Config{})
+			Expect(err).Should(Succeed())
+
+			Eventually(countEntries).WithArguments(db).Should(BeNumerically("==", 0))
+		})
+		When("Some queries were performed", func() {
+			msg := util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA))
+			It("Should store query log in the timescale database", func(ctx context.Context) {
+				By("Performing 2 queries", func() {
+					Expect(doDNSRequest(ctx, blocky, msg)).ShouldNot(BeNil())
+					Expect(doDNSRequest(ctx, blocky, msg)).ShouldNot(BeNil())
+				})
+
+				By("check entries count asynchronously, since blocky flushes log entries in bulk", func() {
+					Eventually(countEntries, "60s", "1s").WithArguments(db).Should(BeNumerically("==", 2))
+				})
+
+				By("check entry content", func() {
+					entries, err := queryEntries(db)
+					Expect(err).Should(Succeed())
+
+					Expect(entries).Should(HaveLen(2))
+
+					Expect(entries[0]).
+						Should(
+							SatisfyAll(
+								HaveField("ResponseType", "RESOLVED"),
+								HaveField("QuestionType", "A"),
+								HaveField("QuestionName", "google.de"),
+								HaveField("Answer", "A (1.2.3.4)"),
+								HaveField("ResponseCode", "NOERROR"),
+							))
+
+					Expect(entries[1]).
+						Should(
+							SatisfyAll(
+								HaveField("ResponseType", "CACHED"),
+								HaveField("QuestionType", "A"),
+								HaveField("QuestionName", "google.de"),
+								HaveField("Answer", "A (1.2.3.4)"),
+								HaveField("ResponseCode", "NOERROR"),
+							))
+				})
+			})
+		})
+	})
 })
 
 type logEntry struct {

@@ -386,11 +386,14 @@ const (
 	// QueryLogTypeCsvClient is a QueryLogType of type Csv-Client.
 	// CSV file per day and client
 	QueryLogTypeCsvClient
+	// QueryLogTypeTimescale is a QueryLogType of type Timescale.
+	// Timescale database
+	QueryLogTypeTimescale
 )
 
 var ErrInvalidQueryLogType = fmt.Errorf("not a valid QueryLogType, try [%s]", strings.Join(_QueryLogTypeNames, ", "))
 
-const _QueryLogTypeName = "consolenonemysqlpostgresqlcsvcsv-client"
+const _QueryLogTypeName = "consolenonemysqlpostgresqlcsvcsv-clienttimescale"
 
 var _QueryLogTypeNames = []string{
 	_QueryLogTypeName[0:7],
@@ -399,6 +402,7 @@ var _QueryLogTypeNames = []string{
 	_QueryLogTypeName[16:26],
 	_QueryLogTypeName[26:29],
 	_QueryLogTypeName[29:39],
+	_QueryLogTypeName[39:48],
 }
 
 // QueryLogTypeNames returns a list of possible string values of QueryLogType.
@@ -417,6 +421,7 @@ func QueryLogTypeValues() []QueryLogType {
 		QueryLogTypePostgresql,
 		QueryLogTypeCsv,
 		QueryLogTypeCsvClient,
+		QueryLogTypeTimescale,
 	}
 }
 
@@ -427,6 +432,7 @@ var _QueryLogTypeMap = map[QueryLogType]string{
 	QueryLogTypePostgresql: _QueryLogTypeName[16:26],
 	QueryLogTypeCsv:        _QueryLogTypeName[26:29],
 	QueryLogTypeCsvClient:  _QueryLogTypeName[29:39],
+	QueryLogTypeTimescale:  _QueryLogTypeName[39:48],
 }
 
 // String implements the Stringer interface.
@@ -451,6 +457,7 @@ var _QueryLogTypeValue = map[string]QueryLogType{
 	_QueryLogTypeName[16:26]: QueryLogTypePostgresql,
 	_QueryLogTypeName[26:29]: QueryLogTypeCsv,
 	_QueryLogTypeName[29:39]: QueryLogTypeCsvClient,
+	_QueryLogTypeName[39:48]: QueryLogTypeTimescale,
 }
 
 // ParseQueryLogType attempts to convert a string to a QueryLogType.

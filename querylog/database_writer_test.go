@@ -40,7 +40,7 @@ var _ = Describe("DatabaseWriter", func() {
 
 		When("New log entry was created", func() {
 			BeforeEach(func() {
-				writer, err = newDatabaseWriter(ctx, sqliteDB, 7, time.Millisecond)
+				writer, err = newDatabaseWriter(ctx, sqliteDB, 7, time.Millisecond, "sqlite")
 				Expect(err).Should(Succeed())
 
 				db, err := writer.db.DB()
@@ -91,7 +91,7 @@ var _ = Describe("DatabaseWriter", func() {
 
 		When("> 10000 Entries were created", func() {
 			BeforeEach(func() {
-				writer, err = newDatabaseWriter(ctx, sqliteDB, 7, time.Millisecond)
+				writer, err = newDatabaseWriter(ctx, sqliteDB, 7, time.Millisecond, "sqlite")
 				Expect(err).Should(Succeed())
 			})
 
@@ -122,7 +122,7 @@ var _ = Describe("DatabaseWriter", func() {
 
 		When("There are log entries with timestamp exceeding the retention period", func() {
 			BeforeEach(func() {
-				writer, err = newDatabaseWriter(ctx, sqliteDB, 1, time.Millisecond)
+				writer, err = newDatabaseWriter(ctx, sqliteDB, 1, time.Millisecond, "sqlite")
 				Expect(err).Should(Succeed())
 			})
 
@@ -230,10 +230,10 @@ var _ = Describe("DatabaseWriter", func() {
 				})
 
 				By("create postgres specific manually defined primary key", func() {
-					mock.ExpectExec(`ALTER TABLE log_entries ADD column if not exists id serial primary key`).WillReturnResult(sqlmock.NewResult(0, 0))
+					mock.ExpectExec(`ALTER TABLE log_entries ADD column if not exists id bigserial primary key`).WillReturnResult(sqlmock.NewResult(0, 0))
 				})
 
-				_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond)
+				_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond, "postgres")
 				Expect(err).Should(Succeed())
 			})
 		})
@@ -265,7 +265,7 @@ var _ = Describe("DatabaseWriter", func() {
 						mock.ExpectExec("ALTER TABLE `log_entries` ADD `id` INT PRIMARY KEY AUTO_INCREMENT").WillReturnResult(sqlmock.NewResult(0, 0))
 					})
 
-					_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond)
+					_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond, "mysql")
 					Expect(err).Should(Succeed())
 				})
 			})
@@ -281,7 +281,7 @@ var _ = Describe("DatabaseWriter", func() {
 						mock.ExpectExec("ALTER TABLE `log_entries` ADD `id` INT PRIMARY KEY AUTO_INCREMENT").WillReturnError(fmt.Errorf("error 1060: duplicate column name"))
 					})
 
-					_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond)
+					_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond, "mysql")
 					Expect(err).Should(Succeed())
 				})
 
@@ -294,7 +294,7 @@ var _ = Describe("DatabaseWriter", func() {
 						mock.ExpectExec("ALTER TABLE `log_entries` ADD `id` INT PRIMARY KEY AUTO_INCREMENT").WillReturnError(fmt.Errorf("error XXX: some index error"))
 					})
 
-					_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond)
+					_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond, "mysql")
 					Expect(err).Should(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("can't perform auto migration: error XXX: some index error"))
 				})
@@ -306,7 +306,7 @@ var _ = Describe("DatabaseWriter", func() {
 						mock.ExpectExec("CREATE TABLE `log_entries`").WillReturnError(fmt.Errorf("error XXX: some db error"))
 					})
 
-					_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond)
+					_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond, "mysql")
 					Expect(err).Should(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("can't perform auto migration: error XXX: some db error"))
 				})
