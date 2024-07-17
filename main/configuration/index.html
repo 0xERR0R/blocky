@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.27">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.29">
     
     
       
@@ -26,7 +26,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.6543a935.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.76a95c52.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
@@ -1534,7 +1534,7 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 
 <span class="c1"># optional: write query information (question, answer, client, duration etc.) to daily csv file</span>
 <span class="nt">queryLog</span><span class="p">:</span>
-<span class="w">  </span><span class="c1"># optional one of: mysql, postgresql, csv, csv-client. If empty, log to console</span>
+<span class="w">  </span><span class="c1"># optional one of: mysql, postgresql, timescale, csv, csv-client. If empty, log to console</span>
 <span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
 <span class="w">  </span><span class="c1"># directory (should be mounted as volume in docker) for csv, db connection string for mysql/postgresql</span>
 <span class="w">  </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">db_user:db_password@tcp(db_host_or_ip:3306)/db_name?charset=utf8mb4&amp;parseTime=True&amp;loc=Local</span>
@@ -2620,6 +2620,7 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <ul>
 <li><code>mysql</code> - log each query in the external MySQL/MariaDB database</li>
 <li><code>postgresql</code> - log each query in the external PostgreSQL database</li>
+<li><code>timescale</code> - log each query in the external Timescale database</li>
 <li><code>csv</code> - log into <abbr title="Comma-separated values">CSV</abbr> file (one per day)</li>
 <li><code>csv-client</code> - log into <abbr title="Comma-separated values">CSV</abbr> file (one per day and per client)</li>
 <li><code>console</code> - log into console output</li>
@@ -2653,7 +2654,7 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <tbody>
 <tr>
 <td>queryLog.type</td>
-<td>enum (mysql, postgresql, csv, csv-client, console, none (see above))</td>
+<td>enum (mysql, postgresql, timescale, csv, csv-client, console, none (see above))</td>
 <td>no</td>
 <td></td>
 <td>Type of logging target. Console if empty</td>
@@ -2663,7 +2664,7 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <td>string</td>
 <td>no</td>
 <td></td>
-<td>directory for writing the logs (for csv) or database url (for mysql or postgresql)</td>
+<td>directory for writing the logs (for csv) or database url (for mysql, postgresql or timescale)</td>
 </tr>
 <tr>
 <td>queryLog.logRetentionDays</td>
@@ -3113,7 +3114,7 @@ For example if blocking has a limit set to 8 and hosts file's is 4, there could 
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.ad660dcc.min.js"></script>
+      <script src="../assets/javascripts/bundle.fe8b6f2b.min.js"></script>
       
     
   </body>
