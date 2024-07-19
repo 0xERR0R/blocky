@@ -256,7 +256,7 @@ Please be aware that by enabling it your hostname resolution will break unless e
 ## Custom DNS
 
 You can define your own domain name to IP mappings. For example, you can use a user-friendly name for a network printer
-or define a domain name for your local device on order to use the HTTPS certificate. Multiple IP addresses for one
+or define a domain name for your local device in order to use the HTTPS certificate. Multiple IP addresses for one
 domain must be separated by a comma.
 
 | Parameter           | Type                                                   | Mandatory | Default value |
