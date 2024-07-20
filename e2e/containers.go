@@ -95,8 +95,8 @@ func createHTTPServerContainer(ctx context.Context, alias string, e2eNet *testco
 // It is automatically terminated when the test is finished.
 func createRedisContainer(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
 ) (*redis.RedisContainer, error) {
-	return deferTerminate(redis.RunContainer(ctx,
-		testcontainers.WithImage(redisImage),
+	return deferTerminate(redis.Run(ctx,
+		redisImage,
 		redis.WithLogLevel(redis.LogLevelVerbose),
 		withNetwork("redis", e2eNet),
 	))
@@ -109,8 +109,8 @@ func createPostgresContainer(ctx context.Context, e2eNet *testcontainers.DockerN
 ) (*postgres.PostgresContainer, error) {
 	const waitLogOccurrence = 2
 
-	return deferTerminate(postgres.RunContainer(ctx,
-		testcontainers.WithImage(postgresImage),
+	return deferTerminate(postgres.Run(ctx,
+		postgresImage,
 
 		postgres.WithDatabase("user"),
 		postgres.WithUsername("user"),
@@ -130,8 +130,8 @@ func createTimescaleContainer(ctx context.Context, e2eNet *testcontainers.Docker
 ) (*postgres.PostgresContainer, error) {
 	const waitLogOccurrence = 2
 
-	return deferTerminate(postgres.RunContainer(ctx,
-		testcontainers.WithImage(timescaleImage),
+	return deferTerminate(postgres.Run(ctx,
+		timescaleImage,
 
 		postgres.WithDatabase("user"),
 		postgres.WithUsername("user"),
@@ -149,8 +149,8 @@ func createTimescaleContainer(ctx context.Context, e2eNet *testcontainers.Docker
 // It is automatically terminated when the test is finished.
 func createMariaDBContainer(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
 ) (*mariadb.MariaDBContainer, error) {
-	return deferTerminate(mariadb.RunContainer(ctx,
-		testcontainers.WithImage(mariaDBImage),
+	return deferTerminate(mariadb.Run(ctx,
+		mariaDBImage,
 		mariadb.WithDatabase("user"),
 		mariadb.WithUsername("user"),
 		mariadb.WithPassword("user"),
