@@ -44,7 +44,7 @@ var (
 )
 
 var _ = BeforeSuite(func() {
-	baseURL = "http://localhost:" + GetStringPort(httpBasePort) + "/"
+	baseURL = fmt.Sprintf("http://%s/", GetHostPort("localhost", httpBasePort))
 	queryURL = baseURL + "dns-query"
 	var upstreamGoogle, upstreamFritzbox, upstreamClient config.Upstream
 	ctx, cancelFn := context.WithCancel(context.Background())
@@ -147,10 +147,10 @@ var _ = BeforeSuite(func() {
 		},
 
 		Ports: config.Ports{
-			DNS:   config.ListenConfig{GetStringPort(dnsBasePort)},
-			TLS:   config.ListenConfig{GetStringPort(tlsBasePort)},
-			HTTP:  config.ListenConfig{GetStringPort(httpBasePort)},
-			HTTPS: config.ListenConfig{GetStringPort(httpsBasePort)},
+			DNS:   config.ListenConfig{GetHostPort("", dnsBasePort)},
+			TLS:   config.ListenConfig{GetHostPort("", tlsBasePort)},
+			HTTP:  config.ListenConfig{GetHostPort("", httpBasePort)},
+			HTTPS: config.ListenConfig{GetHostPort("", httpsBasePort)},
 		},
 		CertFile: certPem.Path,
 		KeyFile:  keyPem.Path,
@@ -634,7 +634,7 @@ var _ = Describe("Running DNS server", func() {
 					},
 					Blocking: config.Blocking{BlockType: "zeroIp"},
 					Ports: config.Ports{
-						DNS: config.ListenConfig{"127.0.0.1:" + GetStringPort(dnsBasePort2)},
+						DNS: config.ListenConfig{GetHostPort("127.0.0.1", dnsBasePort2)},
 					},
 				})
 
@@ -678,7 +678,7 @@ var _ = Describe("Running DNS server", func() {
 					},
 					Blocking: config.Blocking{BlockType: "zeroIp"},
 					Ports: config.Ports{
-						DNS: config.ListenConfig{"127.0.0.1:" + GetStringPort(dnsBasePort2)},
+						DNS: config.ListenConfig{GetHostPort("127.0.0.1", dnsBasePort2)},
 					},
 				})
 
@@ -741,17 +741,18 @@ var _ = Describe("Running DNS server", func() {
 			cfg.KeyFile = ""
 			cfg.CertFile = ""
 			cfg.Ports = config.Ports{
-				HTTPS: []string{fmt.Sprintf(":%d", GetIntPort(httpsBasePort)+100)},
+				HTTPS: []string{":0"},
 			}
-			sut, err := NewServer(ctx, &cfg)
+
+			sut, err := newTLSConfig(&cfg)
 			Expect(err).Should(Succeed())
-			Expect(sut.cert.Certificate).ShouldNot(BeNil())
+			Expect(sut.Certificates).ShouldNot(BeEmpty())
 		})
 	})
 })
 
 func requestServer(request *dns.Msg) *dns.Msg {
-	conn, err := net.Dial("udp", ":"+GetStringPort(dnsBasePort))
+	conn, err := net.Dial("udp", GetHostPort("", dnsBasePort))
 	if err != nil {
 		Log().Fatal("could not connect to server: ", err)
 	}
