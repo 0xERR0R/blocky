@@ -325,7 +325,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": false,
-          "expr": "blocky_build_info ",
+          "expr": "blocky_build_info",
           "format": "table",
           "instant": true,
           "interval": "",
@@ -378,7 +378,7 @@
               }
             ]
           },
-          "unit": "ms"
+          "unit": "s"
         },
         "overrides": []
       },
@@ -413,7 +413,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "sum(increase(blocky_request_duration_ms_sum[$__range])) / sum(increase(blocky_request_duration_ms_count[$__range]))",
+          "expr": "(histogram_avg(rate(blocky_blocky_request_duration_seconds[$__rate_interval]))\nor\n(sum(rate(blocky_blocky_request_duration_seconds_sum[$__rate_interval])) / sum(rate(blocky_blocky_request_duration_seconds_count[$__rate_interval])))\nor\n(sum(rate(blocky_request_duration_ms_sum[$__rate_interval])) / sum(rate(blocky_request_duration_ms_count[$__rate_interval])) / 1000)",
           "format": "table",
           "instant": false,
           "interval": "",
@@ -487,7 +487,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "sum(blocky_denylist_cache) / sum(up{job=~\"$job\"})",
+          "expr": "(sum(blocky_denylist_cache_entries) or sum(blocky_denylist_cache)) / sum(up{job=~\"$job\"})",
           "format": "table",
           "instant": false,
           "interval": "",
@@ -642,7 +642,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "sum(increase(blocky_response_total{response_type=\"BLOCKED\"}[$__range])) / sum(increase(blocky_query_total[$__range])) ",
+          "expr": "sum(rate(blocky_response_total{response_type=\"BLOCKED\"}[$__rate_interval])) / sum(rate(blocky_query_total[$__rate_interval])) ",
           "format": "table",
           "instant": false,
           "interval": "",
@@ -717,9 +717,9 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "ceil(sum(increase(blocky_query_total[$__range]))) ",
+          "expr": "ceil(sum(increase(blocky_query_total[$__range])))",
           "format": "table",
-          "instant": false,
+          "instant": true,
           "interval": "",
           "legendFormat": "",
           "refId": "A"
@@ -778,7 +778,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "sum(blocky_cache_entry_count)/ sum(up{job=~\"$job\"})",
+          "expr": "(sum(blocky_cache_entries) or sum(blocky_cache_entry_count)) / sum(up{job=~\"$job\"})",
           "format": "table",
           "instant": false,
           "interval": "",
@@ -845,7 +845,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "sum(increase(blocky_cache_hit_count[$__range])) / (sum(increase(blocky_cache_hit_count[$__range])) + sum(increase(blocky_cache_miss_count[$__range])))",
+          "expr": "(\n  sum(rate(blocky_cache_hits_total[$__rate_interval]))\n  /\n  (sum(rate(blocky_cache_hits_total[$__rate_interval])) + sum(rate(blocky_cache_misses_total[$__rate_interval]))\n)\nor\n(\n  sum(rate(blocky_cache_hit_count[$__rate_interval]))\n  /\n  (sum(rate(blocky_cache_hit_count[$__rate_interval])) + sum(rate(blocky_cache_miss_count[$__rate_interval]))\n)",
           "format": "table",
           "instant": false,
           "interval": "",
@@ -929,7 +929,7 @@
           "exemplar": true,
           "expr": "sum(increase(blocky_error_total[$__range]))",
           "format": "table",
-          "instant": false,
+          "instant": true,
           "interval": "",
           "legendFormat": "",
           "refId": "A"
@@ -988,8 +988,9 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "ceil(sum(increase(blocky_prefetch_count[$__range])))",
+          "expr": "ceil(sum(increase(blocky_prefetches_total[$__range]) or sum(increase(blocky_prefetch_count[$__range])))",
           "format": "table",
+          "instant": true,
           "interval": "",
           "legendFormat": "",
           "refId": "A"
@@ -1052,8 +1053,9 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "sum(rate(blocky_prefetch_count[5m])) * 60",
+          "expr": "(sum(rate(blocky_prefetchs_total[$__range])) or sum(rate(blocky_prefetch_count[$__range]))) * 60",
           "format": "table",
+          "instant": true,
           "interval": "",
           "legendFormat": "",
           "refId": "A"
