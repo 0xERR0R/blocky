@@ -13,6 +13,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// nativeHistogramBucketFactor controls the resolution of native histograms.
+// The value of 1.05 is slightly higher accuracy than the default of 1.1.
+const nativeHistogramBucketFactor = 1.05
+
 // MetricsResolver resolver that records metrics about requests/response
 type MetricsResolver struct {
 	configurable[*config.Metrics]
@@ -35,14 +39,14 @@ func (r *MetricsResolver) Resolve(ctx context.Context, request *model.Request) (
 			"type":   dns.TypeToString[request.Req.Question[0].Qtype],
 		}).Inc()
 
-		reqDurationMs := float64(time.Since(request.RequestTS).Milliseconds())
+		reqDuration := time.Since(request.RequestTS)
 		responseType := "err"
 
 		if response != nil {
 			responseType = response.RType.String()
 		}
 
-		r.durationHistogram.WithLabelValues(responseType).Observe(reqDurationMs)
+		r.durationHistogram.WithLabelValues(responseType).Observe(reqDuration.Seconds())
 
 		if err != nil {
 			r.totalErrors.Inc()
@@ -103,9 +107,10 @@ func totalErrorMetric() prometheus.Counter {
 func durationHistogram() *prometheus.HistogramVec {
 	return prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "blocky_request_duration_ms",
-			Help:    "Request duration distribution",
-			Buckets: []float64{5, 10, 20, 30, 50, 75, 100, 200, 500, 1000, 2000},
+			Name:                        "blocky_request_duration_seconds",
+			Help:                        "Request duration distribution",
+			Buckets:                     []float64{0.005, 0.01, 0.02, 0.03, 0.05, 0.075, 0.1, 0.2, 0.5, 1.0, 2.0},
+			NativeHistogramBucketFactor: nativeHistogramBucketFactor,
 		},
 		[]string{"response_type"},
 	)

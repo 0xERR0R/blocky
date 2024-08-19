@@ -82,9 +82,9 @@ var _ = Describe("Metrics functional tests", func() {
 			BeforeEach(func(ctx context.Context) {
 				Eventually(fetchBlockyMetrics).WithArguments(ctx, metricsURL).
 					Should(ContainElements(
-						"blocky_cache_entry_count 0",
-						"blocky_cache_hit_count 0",
-						"blocky_cache_miss_count 0",
+						"blocky_cache_entries 0",
+						"blocky_cache_hits_total 0",
+						"blocky_cache_misses_total 0",
 					))
 			})
 
@@ -101,9 +101,9 @@ var _ = Describe("Metrics functional tests", func() {
 
 					Eventually(fetchBlockyMetrics).WithArguments(ctx, metricsURL).
 						Should(ContainElements(
-							"blocky_cache_entry_count 1",
-							"blocky_cache_hit_count 0",
-							"blocky_cache_miss_count 1",
+							"blocky_cache_entries 1",
+							"blocky_cache_hits_total 0",
+							"blocky_cache_misses_total 1",
 						))
 				})
 
@@ -117,9 +117,9 @@ var _ = Describe("Metrics functional tests", func() {
 
 					Eventually(fetchBlockyMetrics).WithArguments(ctx, metricsURL).
 						Should(ContainElements(
-							"blocky_cache_entry_count 1",
-							"blocky_cache_hit_count 1",
-							"blocky_cache_miss_count 1",
+							"blocky_cache_entries 1",
+							"blocky_cache_hits_total 1",
+							"blocky_cache_misses_total 1",
 						))
 				})
 			})
@@ -129,8 +129,8 @@ var _ = Describe("Metrics functional tests", func() {
 			It("Should expose list cache sizes per group as metrics", func(ctx context.Context) {
 				Eventually(fetchBlockyMetrics).WithArguments(ctx, metricsURL).
 					Should(ContainElements(
-						"blocky_denylist_cache{group=\"group1\"} 1",
-						"blocky_denylist_cache{group=\"group2\"} 3",
+						"blocky_denylist_cache_entries{group=\"group1\"} 1",
+						"blocky_denylist_cache_entries{group=\"group2\"} 3",
 					))
 			})
 		})
