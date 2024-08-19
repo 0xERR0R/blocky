@@ -473,7 +473,8 @@ func createTestListFile(dir string, totalLines int) (string, int) {
 	for i := 0; i < totalLines; i++ {
 		fmt.Fprintln(w, uuid.NewString()+".com")
 	}
-	w.Flush()
+
+	Expect(w.Flush()).Should(Succeed())
 
 	return file.Name(), totalLines
 }
