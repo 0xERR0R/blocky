@@ -53,16 +53,11 @@ linters:
     - usestdlibvars
     - wastedassign
     - whitespace
-    - wsl
     - ginkgolinter
     - noctx
     - containedctx
     - contextcheck
   disable:
-    - scopelint
-    - structcheck
-    - deadcode
-    - varcheck
     - forbidigo
     - gosmopolitan
   disable-all: false

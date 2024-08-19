@@ -23,7 +23,7 @@ GO_BUILD_LD_FLAGS:=\
 GO_BUILD_OUTPUT:=$(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 
 # define version of golangci-lint here. If defined in tools.go, go mod perfoms automatically downgrade to older version which doesn't work with golang >=1.18
-GOLANG_LINT_VERSION=v1.58.2
+GOLANG_LINT_VERSION=v1.60.1
 
 GINKGO_PROCS?=-p
 
