@@ -117,30 +117,18 @@ func lastListGroupRefresh() prometheus.Gauge {
 func registerCachingEventListeners() {
 	entryCount := cacheEntryCount()
 	prefetchDomainCount := prefetchDomainCacheCount()
-	hitCount := cacheHitCount()
-	missCount := cacheMissCount()
 	prefetchCount := domainPrefetchCount()
 	prefetchHitCount := domainPrefetchHitCount()
 	failedDownloadCount := failedDownloadCount()
 
 	RegisterMetric(entryCount)
 	RegisterMetric(prefetchDomainCount)
-	RegisterMetric(hitCount)
-	RegisterMetric(missCount)
 	RegisterMetric(prefetchCount)
 	RegisterMetric(prefetchHitCount)
 	RegisterMetric(failedDownloadCount)
 
 	subscribe(evt.CachingDomainsToPrefetchCountChanged, func(cnt int) {
 		prefetchDomainCount.Set(float64(cnt))
-	})
-
-	subscribe(evt.CachingResultCacheMiss, func(_ string) {
-		missCount.Inc()
-	})
-
-	subscribe(evt.CachingResultCacheHit, func(_ string) {
-		hitCount.Inc()
 	})
 
 	subscribe(evt.CachingDomainPrefetched, func(_ string) {
@@ -165,24 +153,6 @@ func failedDownloadCount() prometheus.Counter {
 		Name: "blocky_failed_downloads_total",
 		Help: "Failed download counter",
 	})
-}
-
-func cacheHitCount() prometheus.Counter {
-	return prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "blocky_cache_hits_total",
-			Help: "Cache hit counter",
-		},
-	)
-}
-
-func cacheMissCount() prometheus.Counter {
-	return prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "blocky_cache_misses_total",
-			Help: "Cache miss counter",
-		},
-	)
 }
 
 func domainPrefetchCount() prometheus.Counter {

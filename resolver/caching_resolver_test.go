@@ -209,11 +209,6 @@ var _ = Describe("CachingResolver", func() {
 
 				It("should cache response and use response's TTL", func() {
 					By("first request", func() {
-						domain := make(chan bool, 1)
-						_ = Bus().SubscribeOnce(CachingResultCacheMiss, func(d string) {
-							domain <- true
-						})
-
 						totalCacheCount := make(chan int, 1)
 						_ = Bus().SubscribeOnce(CachingResultCacheChanged, func(d int) {
 							totalCacheCount <- d
@@ -228,17 +223,11 @@ var _ = Describe("CachingResolver", func() {
 
 						Expect(m.Calls).Should(HaveLen(1))
 
-						Expect(domain).Should(Receive(Equal(true)))
 						Expect(totalCacheCount).Should(Receive(Equal(1)))
 					})
 
 					By("second request", func() {
 						Eventually(func(g Gomega) {
-							domain := make(chan bool, 1)
-							_ = Bus().SubscribeOnce(CachingResultCacheHit, func(d string) {
-								domain <- true
-							})
-
 							g.Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
 								Should(
 									SatisfyAll(
@@ -251,7 +240,6 @@ var _ = Describe("CachingResolver", func() {
 							// still one call to upstream
 							g.Expect(m.Calls).Should(HaveLen(1))
 
-							g.Expect(domain).Should(Receive(Equal(true)))
 						}, "1s").Should(Succeed())
 					})
 				})
