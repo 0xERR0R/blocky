@@ -222,10 +222,15 @@ func (r *CustomDNSResolver) processTXT(value []string, question dns.Question, tt
 		txt.Txt = value
 		result = append(result, txt)
 	}
+
 	return result, nil
 }
 
-func (r *CustomDNSResolver) processSRV(targetSRV dns.SRV, question dns.Question, ttl uint32) (result []dns.RR, err error) {
+func (r *CustomDNSResolver) processSRV(
+	targetSRV dns.SRV,
+	question dns.Question,
+	ttl uint32,
+) (result []dns.RR, err error) {
 	if question.Qtype == dns.TypeSRV {
 		srv := new(dns.SRV)
 		srv.Hdr = dns.RR_Header{Class: dns.ClassINET, Ttl: ttl, Rrtype: dns.TypeSRV, Name: question.Name}
@@ -235,6 +240,7 @@ func (r *CustomDNSResolver) processSRV(targetSRV dns.SRV, question dns.Question,
 		srv.Target = targetSRV.Target
 		result = append(result, srv)
 	}
+
 	return result, nil
 }
 
