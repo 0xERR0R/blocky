@@ -177,6 +177,10 @@ func (r *CustomDNSResolver) processDNSEntry(
 		return r.processIP(v.A, question, v.Header().Ttl)
 	case *dns.AAAA:
 		return r.processIP(v.AAAA, question, v.Header().Ttl)
+	case *dns.TXT:
+		return r.processTXT(v.Txt, question, v.Header().Ttl)
+	case *dns.SRV:
+		return r.processSRV(*v, question, v.Header().Ttl)
 	case *dns.CNAME:
 		return r.processCNAME(ctx, logger, request, *v, resolvedCnames, question, v.Header().Ttl)
 	}
@@ -206,6 +210,35 @@ func (r *CustomDNSResolver) processIP(ip net.IP, question dns.Question, ttl uint
 		}
 
 		result = append(result, rr)
+	}
+
+	return result, nil
+}
+
+func (r *CustomDNSResolver) processTXT(value []string, question dns.Question, ttl uint32) (result []dns.RR, err error) {
+	if question.Qtype == dns.TypeTXT {
+		txt := new(dns.TXT)
+		txt.Hdr = dns.RR_Header{Class: dns.ClassINET, Ttl: ttl, Rrtype: dns.TypeTXT, Name: question.Name}
+		txt.Txt = value
+		result = append(result, txt)
+	}
+
+	return result, nil
+}
+
+func (r *CustomDNSResolver) processSRV(
+	targetSRV dns.SRV,
+	question dns.Question,
+	ttl uint32,
+) (result []dns.RR, err error) {
+	if question.Qtype == dns.TypeSRV {
+		srv := new(dns.SRV)
+		srv.Hdr = dns.RR_Header{Class: dns.ClassINET, Ttl: ttl, Rrtype: dns.TypeSRV, Name: question.Name}
+		srv.Priority = targetSRV.Priority
+		srv.Weight = targetSRV.Weight
+		srv.Port = targetSRV.Port
+		srv.Target = targetSRV.Target
+		result = append(result, srv)
 	}
 
 	return result, nil

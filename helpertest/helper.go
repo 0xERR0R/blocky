@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
@@ -25,6 +26,7 @@ const (
 	HTTPS = dns.Type(dns.TypeHTTPS)
 	MX    = dns.Type(dns.TypeMX)
 	PTR   = dns.Type(dns.TypePTR)
+	SRV   = dns.Type(dns.TypeSRV)
 	TXT   = dns.Type(dns.TypeTXT)
 	DS    = dns.Type(dns.TypeDS)
 )
@@ -216,6 +218,10 @@ func (matcher *dnsRecordMatcher) matchSingle(rr dns.RR) (success bool, err error
 		return v.Target == matcher.answer, nil
 	case *dns.PTR:
 		return v.Ptr == matcher.answer, nil
+	case *dns.SRV:
+		return fmt.Sprintf("%d %d %d %s", v.Priority, v.Weight, v.Port, v.Target) == matcher.answer, nil
+	case *dns.TXT:
+		return strings.Join(v.Txt, " ") == matcher.answer, nil
 	case *dns.MX:
 		return v.Mx == matcher.answer, nil
 	}

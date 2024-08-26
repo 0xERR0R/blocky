@@ -58,6 +58,8 @@ var _ = Describe("CustomDNSResolver", func() {
 					"cname.ip6.":       {&dns.CNAME{Target: "ip6.domain", Hdr: zoneHdr}},
 					"cname.example.":   {&dns.CNAME{Target: "example.com", Hdr: zoneHdr}},
 					"cname.recursive.": {&dns.CNAME{Target: "cname.recursive", Hdr: zoneHdr}},
+					"srv.":             {&dns.SRV{Priority: 0, Weight: 5, Port: 12345, Target: "service", Hdr: zoneHdr}},
+					"txt.":             {&dns.TXT{Txt: []string{"space", "separated", "value"}, Hdr: zoneHdr}},
 					"mx.domain.":       {&dns.MX{Mx: "mx.domain", Hdr: zoneHdr}},
 				},
 			},
@@ -373,6 +375,34 @@ var _ = Describe("CustomDNSResolver", func() {
 					// will delegate to next resolver
 					m.AssertCalled(GinkgoT(), "Resolve", mock.Anything)
 				})
+			})
+		})
+		When("Querying other record types", func() {
+			It("Returns an SRV response", func() {
+				Expect(sut.Resolve(ctx, newRequest("srv", SRV))).
+					Should(
+						SatisfyAll(
+							WithTransform(ToAnswer, SatisfyAll(
+								ContainElements(
+									BeDNSRecord("srv.", SRV, "0 5 12345 service")),
+							)),
+							HaveResponseType(ResponseTypeCUSTOMDNS),
+							HaveReason("CUSTOM DNS"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+			It("Returns a TXT response", func() {
+				Expect(sut.Resolve(ctx, newRequest("txt", TXT))).
+					Should(
+						SatisfyAll(
+							WithTransform(ToAnswer, SatisfyAll(
+								ContainElements(
+									BeDNSRecord("txt.", TXT, "space separated value")),
+							)),
+							HaveResponseType(ResponseTypeCUSTOMDNS),
+							HaveReason("CUSTOM DNS"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
 			})
 		})
 		When("An unsupported DNS query type is queried from the resolver but found in the config mapping ", func() {
