@@ -648,24 +648,24 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.
 
 You can select one of following query log types:
 
-- `mysql` - log each query in the external MySQL/MariaDB database
-- `postgresql` - log each query in the external PostgreSQL database
-- `timescale` - log each query in the external Timescale database
-- `csv` - log into CSV file (one per day)
-- `csv-client` - log into CSV file (one per day and per client)
-- `console` - log into console output
-- `none` - do not log any queries
+- `mysql`: log each query in the external MySQL/MariaDB database
+- `postgresql`: log each query in the external PostgreSQL database
+- `timescale`: log each query in the external Timescale database
+- `csv`: log into CSV file (one per day)
+- `csv-client`: log into CSV file (one per day and per client)
+- `console`: log into console output
+- `none`: do not log any queries
 
 ### Query log fields
 
 You can choose which information from processed DNS request and response should be logged in the target system. You can define one or more of following fields:
 
-- `clientIP` - origin IP address from the request
-- `clientName` - resolved client name(s) from the origins request
-- `responseReason` - reason for the response (e.g. from which upstream resolver), response type and code
-- `responseAnswer` - returned DNS answer
-- `question` - DNS question from the request
-- `duration` - request processing time in milliseconds
+- `clientIP`: origin IP address from the request
+- `clientName`: resolved client name(s) from the origins request
+- `responseReason`: reason for the response (e.g. from which upstream resolver), response type and code
+- `responseAnswer`: returned DNS answer
+- `question`: DNS question from the request
+- `duration`: request processing time in milliseconds
 
 !!! hint
     If not defined, blocky will log all available information
@@ -687,8 +687,25 @@ Configuration parameters:
     Please ensure, that the log directory is writable or database exists. If you use docker, please ensure, that the directory is properly
     mounted (e.g. volume)
 
-example for CSV format with limited logging information
+### Database URLs
+
+To connect to a database, you must provide a URL like value for `target`. The exact format and supported parameters depends on the DB type.
+Parsing is handled not by Blocky, but third-party libraries, therefore the full documentation is external.
+
+| Database   | Full docs                                                                                       | Format                                                                                  | Example                                                             |
+| ---------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| MySQL      | [Go MySQL driver Data Source Name](https://github.com/go-sql-driver/mysql#dsn-data-source-name) | `[username[:password]@][protocol[(host[:port])]]/dbname[?param1=value1[&paramN=valueN]]`| `username:password@tcp(localhost:3306)/blocky_query_log?timeout=15s`|
+| PostgreSQL | [pgx.ParseConfig](https://pkg.go.dev/github.com/jackc/pgx/v5/pgconn#ParseConfig)                | `postgres://[username[:password]@][host[:port]]/dbname[?param1=value1[&paramN=valueN]]` | `postgres://username@localhost:5432/blocky_query_log`               |
+| Timescale  | See PostgreSQL above                                                                            |                                                                                         |                                                                     |
+
+!!! note
+
+  For increased security, it is recommended to configure the password for a PostgreSQL/Timescale connection via the `PGPASSFILE` environment variable.  
+
+### Examples
+
 !!! example
+    **CSV format with limited logging information**
 
     ```yaml
     queryLog:
@@ -701,13 +718,13 @@ example for CSV format with limited logging information
       flushInterval: 30s
     ```
 
-example for Database
 !!! example
+    **MySQL Database**
 
     ```yaml
     queryLog:
       type: mysql
-      target: db_user:db_password@tcp(db_host_or_ip:3306)/db_user?charset=utf8mb4&parseTime=True&loc=Local
+      target: 'username:password@tcp(localhost:3306)/blocky_query_log?charset=utf8mb4&parseTime=True&loc=Local&timeout=15s'
       logRetentionDays: 7
     ```
 
