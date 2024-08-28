@@ -10,19 +10,19 @@ import (
 )
 
 //nolint:gochecknoglobals
-var reg = prometheus.NewRegistry()
+var Reg = prometheus.NewRegistry()
 
 // RegisterMetric registers prometheus collector
 func RegisterMetric(c prometheus.Collector) {
-	_ = reg.Register(c)
+	_ = Reg.Register(c)
 }
 
 // Start starts prometheus endpoint
 func Start(router *chi.Mux, cfg config.Metrics) {
 	if cfg.Enable {
-		_ = reg.Register(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-		_ = reg.Register(collectors.NewGoCollector())
-		router.Handle(cfg.Path, promhttp.InstrumentMetricHandler(reg,
-			promhttp.HandlerFor(reg, promhttp.HandlerOpts{})))
+		_ = Reg.Register(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+		_ = Reg.Register(collectors.NewGoCollector())
+		router.Handle(cfg.Path, promhttp.InstrumentMetricHandler(Reg,
+			promhttp.HandlerFor(Reg, promhttp.HandlerOpts{})))
 	}
 }

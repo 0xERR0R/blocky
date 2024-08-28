@@ -10,6 +10,7 @@ import (
 	"github.com/0xERR0R/blocky/cache/expirationcache"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
@@ -24,13 +25,13 @@ const defaultCachingCleanUpInterval = 5 * time.Second
 
 //nolint:gochecknoglobals
 var (
-	cacheHits = promauto.NewCounter(
+	cacheHits = promauto.With(metrics.Reg).NewCounter(
 		prometheus.CounterOpts{
 			Name: "blocky_cache_hits_total",
 			Help: "Cache hit counter",
 		},
 	)
-	cacheMisses = promauto.NewCounter(
+	cacheMisses = promauto.With(metrics.Reg).NewCounter(
 		prometheus.CounterOpts{
 			Name: "blocky_cache_misses_total",
 			Help: "Cache miss counter",
