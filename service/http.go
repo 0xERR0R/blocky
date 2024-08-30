@@ -82,6 +82,14 @@ func (m *httpMerger) Merge(other Service) (Merger, error) {
 	_ = chi.Walk(httpSvc.Router(), func(method, route string, handler http.Handler, middlewares ...middleware) error {
 		m.router.With(middlewares...).Method(method, route, handler)
 
+		// Expose /example/ as /example too
+		// Workaround for chi.Walk missing the second form https://github.com/go-chi/chi/issues/830
+		// The main point of this is for DoH's `/dns-query` endpoint.
+		if strings.HasSuffix(route, "/") {
+			route := strings.TrimSuffix(route, "/")
+			m.router.With(middlewares...).Method(method, route, handler)
+		}
+
 		return nil
 	})
 
