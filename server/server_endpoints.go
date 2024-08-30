@@ -2,10 +2,8 @@ package server
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"html/template"
-	"io"
 	"net"
 	"net/http"
 
@@ -52,103 +50,6 @@ func (s *Server) createOpenAPIInterfaceImpl() (impl api.StrictServerInterface, e
 	return api.NewOpenAPIInterfaceImpl(bControl, s, refresher, cacheControl), nil
 }
 
-func registerDoHEndpoints(router *chi.Mux, dnsHandler dnsHandler) {
-	const pathDohQuery = "/dns-query"
-
-	s := &dohServer{dnsHandler}
-
-	router.Get(pathDohQuery, s.dohGetRequestHandler)
-	router.Get(pathDohQuery+"/", s.dohGetRequestHandler)
-	router.Get(pathDohQuery+"/{clientID}", s.dohGetRequestHandler)
-	router.Post(pathDohQuery, s.dohPostRequestHandler)
-	router.Post(pathDohQuery+"/", s.dohPostRequestHandler)
-	router.Post(pathDohQuery+"/{clientID}", s.dohPostRequestHandler)
-}
-
-type dohServer struct{ handler dnsHandler }
-
-func (s *dohServer) dohGetRequestHandler(rw http.ResponseWriter, req *http.Request) {
-	dnsParam, ok := req.URL.Query()["dns"]
-	if !ok || len(dnsParam[0]) < 1 {
-		http.Error(rw, "dns param is missing", http.StatusBadRequest)
-
-		return
-	}
-
-	rawMsg, err := base64.RawURLEncoding.DecodeString(dnsParam[0])
-	if err != nil {
-		http.Error(rw, "wrong message format", http.StatusBadRequest)
-
-		return
-	}
-
-	if len(rawMsg) > dohMessageLimit {
-		http.Error(rw, "URI Too Long", http.StatusRequestURITooLong)
-
-		return
-	}
-
-	s.processDohMessage(rawMsg, rw, req)
-}
-
-func (s *dohServer) dohPostRequestHandler(rw http.ResponseWriter, req *http.Request) {
-	contentType := req.Header.Get("Content-type")
-	if contentType != dnsContentType {
-		http.Error(rw, "unsupported content type", http.StatusUnsupportedMediaType)
-
-		return
-	}
-
-	rawMsg, err := io.ReadAll(req.Body)
-	if err != nil {
-		http.Error(rw, err.Error(), http.StatusBadRequest)
-
-		return
-	}
-
-	if len(rawMsg) > dohMessageLimit {
-		http.Error(rw, "Payload Too Large", http.StatusRequestEntityTooLarge)
-
-		return
-	}
-
-	s.processDohMessage(rawMsg, rw, req)
-}
-
-func (s *dohServer) processDohMessage(rawMsg []byte, rw http.ResponseWriter, httpReq *http.Request) {
-	msg := new(dns.Msg)
-	if err := msg.Unpack(rawMsg); err != nil {
-		logger().Error("can't deserialize message: ", err)
-		http.Error(rw, err.Error(), http.StatusBadRequest)
-
-		return
-	}
-
-	ctx, dnsReq := newRequestFromHTTP(httpReq.Context(), httpReq, msg)
-
-	s.handler(ctx, dnsReq, httpMsgWriter{rw})
-}
-
-type httpMsgWriter struct {
-	rw http.ResponseWriter
-}
-
-func (r httpMsgWriter) WriteMsg(msg *dns.Msg) error {
-	b, err := msg.Pack()
-	if err != nil {
-		return err
-	}
-
-	r.rw.Header().Set("content-type", dnsContentType)
-
-	// https://www.rfc-editor.org/rfc/rfc8484#section-4.2.1
-	r.rw.WriteHeader(http.StatusOK)
-
-	_, err = r.rw.Write(b)
-
-	return err
-}
-
 func (s *Server) Query(
 	ctx context.Context, serverHost string, clientIP net.IP, question string, qType dns.Type,
 ) (*model.Response, error) {
@@ -160,7 +61,7 @@ func (s *Server) Query(
 	return s.resolve(ctx, req)
 }
 
-func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface, dnsHandler dnsHandler) *chi.Mux {
+func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface) *chi.Mux {
 	router := chi.NewRouter()
 
 	api.RegisterOpenAPIEndpoints(router, openAPIImpl)
@@ -172,8 +73,6 @@ func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface,
 	configureStaticAssetsHandler(router)
 
 	configureRootHandler(cfg, router)
-
-	registerDoHEndpoints(router, dnsHandler)
 
 	metrics.Start(router, cfg.Prometheus)
 

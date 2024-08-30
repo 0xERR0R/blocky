@@ -1,6 +1,8 @@
 package service
 
 import (
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -65,6 +67,40 @@ var _ = Describe("Service HTTP", func() {
 		It("cannot merge a non HTTP service", func() {
 			_, err = sut.Merge(nonHTTPSvc)
 			Expect(err).Should(MatchError(ContainSubstring("not an HTTPService")))
+		})
+
+		It("doesn't modify what HTTP routes match", func() {
+			apiSvc := newFakeHTTPService("API", ":443")
+			apiSvc.Router().Post("/api", nil)
+			apiSvc.Router().Get("/api/get/", nil)
+
+			dohSvc := newFakeHTTPService("DoH", ":443")
+			dohSvc.Router().Route("/dns-query", func(mux chi.Router) {
+				mux.Get("/", nil)
+				mux.Post("/", nil)
+			})
+
+			merged, err := apiSvc.Merge(dohSvc)
+			Expect(err).Should(Succeed())
+
+			casted, ok := merged.(HTTPService)
+			Expect(ok).Should(BeTrue())
+
+			chiCtx := chi.NewRouteContext()
+			mux := casted.Router()
+
+			Expect(mux.Match(chiCtx, http.MethodPost, "/api")).Should(BeTrue())
+			Expect(mux.Match(chiCtx, http.MethodPost, "/api/")).Should(BeFalse())
+			Expect(mux.Match(chiCtx, http.MethodGet, "/api")).Should(BeFalse())
+
+			Expect(mux.Match(chiCtx, http.MethodGet, "/api/get/")).Should(BeTrue())
+			Expect(mux.Match(chiCtx, http.MethodGet, "/api/get")).Should(BeFalse())
+			Expect(mux.Match(chiCtx, http.MethodPost, "/api/get/")).Should(BeFalse())
+
+			Expect(mux.Match(chiCtx, http.MethodGet, "/dns-query")).Should(BeTrue())
+			Expect(mux.Match(chiCtx, http.MethodGet, "/dns-query/")).Should(BeTrue())
+			Expect(mux.Match(chiCtx, http.MethodPost, "/dns-query")).Should(BeTrue())
+			Expect(mux.Match(chiCtx, http.MethodPost, "/dns-query/")).Should(BeTrue())
 		})
 	})
 })

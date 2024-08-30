@@ -109,7 +109,11 @@ func newTLSConfig(cfg *config.Config) (*tls.Config, error) {
 }
 
 // NewServer creates new server instance with passed config
+//
+//nolint:funlen
 func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err error) {
+	cfg.CopyPortsToServices()
+
 	var tlsCfg *tls.Config
 
 	if len(cfg.Ports.HTTPS) > 0 || len(cfg.Ports.TLS) > 0 {
@@ -179,7 +183,8 @@ func (s *Server) createServices() ([]service.Service, error) {
 	}
 
 	res := []service.Service{
-		newHTTPMiscService(s.cfg, openAPIImpl, s.handleReq),
+		newHTTPMiscService(s.cfg, openAPIImpl),
+		newDoHService(s.cfg.Services.DoH, s.handleReq),
 	}
 
 	// Remove services the user has not enabled
@@ -228,6 +233,8 @@ func createListeners(ctx context.Context, cfg *config.Config, tlsCfg *tls.Config
 	err := errors.Join(
 		newListeners(ctx, service.HTTPProtocol, cfg.Ports.HTTP, service.ListenTCP, res),
 		newListeners(ctx, service.HTTPSProtocol, cfg.Ports.HTTPS, listenTLS, res),
+		newListeners(ctx, service.HTTPProtocol, cfg.Services.DoH.Addrs.HTTP, service.ListenTCP, res),
+		newListeners(ctx, service.HTTPSProtocol, cfg.Services.DoH.Addrs.HTTPS, listenTLS, res),
 	)
 	if err != nil {
 		return nil, err
