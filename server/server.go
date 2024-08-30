@@ -72,7 +72,7 @@ type NewServerFunc func(address string) (*dns.Server, error)
 
 func retrieveCertificate(cfg *config.Config) (cert tls.Certificate, err error) {
 	if cfg.CertFile == "" && cfg.KeyFile == "" {
-		cert, err = util.CreateSelfSignedCert()
+		cert, err = util.TLSGenerateSelfSignedCert([]string{"blocky.invalid", "*"})
 		if err != nil {
 			return tls.Certificate{}, fmt.Errorf("unable to generate self-signed certificate: %w", err)
 		}
