@@ -60,9 +60,7 @@ func (s *Server) Query(
 	return s.resolve(ctx, req)
 }
 
-func createHTTPRouter(cfg *config.Config) *chi.Mux {
-	router := chi.NewRouter()
-
+func configureHTTPRouter(router chi.Router, cfg *config.Config) {
 	configureDebugHandler(router)
 
 	configureDocsHandler(router)
@@ -70,11 +68,9 @@ func createHTTPRouter(cfg *config.Config) *chi.Mux {
 	configureStaticAssetsHandler(router)
 
 	configureRootHandler(cfg, router)
-
-	return router
 }
 
-func configureDocsHandler(router *chi.Mux) {
+func configureDocsHandler(router chi.Router) {
 	router.Get("/docs/openapi.yaml", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set(contentTypeHeader, yamlContentType)
 		_, err := writer.Write([]byte(docs.OpenAPI))
@@ -82,7 +78,7 @@ func configureDocsHandler(router *chi.Mux) {
 	})
 }
 
-func configureStaticAssetsHandler(router *chi.Mux) {
+func configureStaticAssetsHandler(router chi.Router) {
 	assets, err := web.Assets()
 	util.FatalOnError("unable to load static asset files", err)
 
@@ -90,7 +86,7 @@ func configureStaticAssetsHandler(router *chi.Mux) {
 	router.Handle("/static/*", http.StripPrefix("/static/", fs))
 }
 
-func configureRootHandler(cfg *config.Config, router *chi.Mux) {
+func configureRootHandler(cfg *config.Config, router chi.Router) {
 	router.Get("/", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set(contentTypeHeader, htmlContentType)
 
@@ -149,6 +145,6 @@ func logAndResponseWithError(err error, message string, writer http.ResponseWrit
 	}
 }
 
-func configureDebugHandler(router *chi.Mux) {
+func configureDebugHandler(router chi.Router) {
 	router.Mount("/debug", middleware.Profiler())
 }

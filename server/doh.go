@@ -13,7 +13,7 @@ import (
 )
 
 type dohService struct {
-	service.HTTPInfo
+	service.SimpleHTTP
 
 	handler dnsHandler
 }
@@ -25,14 +25,7 @@ func newDoHService(cfg config.DoHService, handler dnsHandler) *dohService {
 	)
 
 	s := &dohService{
-		HTTPInfo: service.HTTPInfo{
-			Info: service.Info{
-				Name:      "DoH",
-				Endpoints: endpoints,
-			},
-
-			Mux: chi.NewMux(),
-		},
+		SimpleHTTP: service.NewSimpleHTTP("DoH", endpoints),
 
 		handler: handler,
 	}
@@ -48,10 +41,6 @@ func newDoHService(cfg config.DoHService, handler dnsHandler) *dohService {
 	})
 
 	return s
-}
-
-func (s *dohService) Merge(other service.Service) (service.Merger, error) {
-	return service.MergeHTTP(s, other)
 }
 
 func (s *dohService) handleGET(rw http.ResponseWriter, req *http.Request) {

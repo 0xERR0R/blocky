@@ -30,7 +30,28 @@ type HTTPInfo struct {
 	Mux *chi.Mux
 }
 
+func NewHTTPInfo(name string, endpoints []Endpoint) HTTPInfo {
+	return HTTPInfo{
+		Info: NewInfo(name, endpoints),
+
+		Mux: chi.NewMux(),
+	}
+}
+
 func (i *HTTPInfo) Router() chi.Router { return i.Mux }
+
+var _ HTTPService = (*SimpleHTTP)(nil)
+
+// SimpleHTTP implements HTTPService usinig the default HTTP merger.
+type SimpleHTTP struct{ HTTPInfo }
+
+func NewSimpleHTTP(name string, endpoints []Endpoint) SimpleHTTP {
+	return SimpleHTTP{HTTPInfo: NewHTTPInfo(name, endpoints)}
+}
+
+func (s *SimpleHTTP) Merge(other Service) (Merger, error) {
+	return MergeHTTP(s, other)
+}
 
 // MergeHTTP merges two compatible HTTPServices.
 //

@@ -10,7 +10,7 @@ var _ = Describe("Service", func() {
 
 	Describe("Info", func() {
 		endpoints := EndpointsFromAddrs("proto", []string{":1", "localhost:2"})
-		sut := Info{"name", endpoints}
+		sut := NewInfo("name", endpoints)
 
 		It("implements Service", func() {
 			var svc Service = &sut
