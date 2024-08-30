@@ -4,13 +4,12 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/service"
 	"github.com/0xERR0R/blocky/util"
-	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // Service implements service.HTTPService.
 type Service struct {
-	service.HTTPInfo
+	service.SimpleHTTP
 }
 
 func NewService(cfg config.MetricsService, metricsCfg config.Metrics) *Service {
@@ -25,14 +24,7 @@ func NewService(cfg config.MetricsService, metricsCfg config.Metrics) *Service {
 	}
 
 	s := &Service{
-		HTTPInfo: service.HTTPInfo{
-			Info: service.Info{
-				Name:      "Metrics",
-				Endpoints: endpoints,
-			},
-
-			Mux: chi.NewMux(),
-		},
+		SimpleHTTP: service.NewSimpleHTTP("Metrics", endpoints),
 	}
 
 	s.Mux.Handle(
@@ -41,8 +33,4 @@ func NewService(cfg config.MetricsService, metricsCfg config.Metrics) *Service {
 	)
 
 	return s
-}
-
-func (s *Service) Merge(other service.Service) (service.Merger, error) {
-	return service.MergeHTTP(s, other)
 }

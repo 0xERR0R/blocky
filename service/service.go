@@ -49,6 +49,13 @@ type Info struct {
 	Endpoints []Endpoint
 }
 
+func NewInfo(name string, endpoints []Endpoint) Info {
+	return Info{
+		Name:      name,
+		Endpoints: endpoints,
+	}
+}
+
 func (i *Info) ServiceName() string  { return i.Name }
 func (i *Info) ExposeOn() []Endpoint { return i.Endpoints }
 func (i *Info) String() string       { return svcString(i) }

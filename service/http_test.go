@@ -14,7 +14,7 @@ var _ = Describe("Service HTTP", func() {
 	Describe("HTTPInfo", func() {
 		It("returns the expected router", func() {
 			endpoints := EndpointsFromAddrs("proto", []string{":1", "localhost:2"})
-			sut := HTTPInfo{Info{"name", endpoints}, chi.NewMux()}
+			sut := NewHTTPInfo("name", endpoints)
 
 			Expect(sut.ServiceName()).Should(Equal("name"))
 			Expect(sut.ExposeOn()).Should(Equal(endpoints))
@@ -70,17 +70,17 @@ var _ = Describe("Service HTTP", func() {
 		})
 
 		It("doesn't modify what HTTP routes match", func() {
-			apiSvc := newFakeHTTPService("API", ":443")
+			apiSvc := NewSimpleHTTP("API", EndpointsFromAddrs("https", []string{":443"}))
 			apiSvc.Router().Post("/api", nil)
 			apiSvc.Router().Get("/api/get/", nil)
 
-			dohSvc := newFakeHTTPService("DoH", ":443")
+			dohSvc := NewSimpleHTTP("DoH", EndpointsFromAddrs("https", []string{":443"}))
 			dohSvc.Router().Route("/dns-query", func(mux chi.Router) {
 				mux.Get("/", nil)
 				mux.Post("/", nil)
 			})
 
-			merged, err := apiSvc.Merge(dohSvc)
+			merged, err := apiSvc.Merge(&dohSvc)
 			Expect(err).Should(Succeed())
 
 			casted, ok := merged.(HTTPService)
@@ -105,20 +105,9 @@ var _ = Describe("Service HTTP", func() {
 	})
 })
 
-type fakeHTTPService struct {
-	HTTPInfo
-}
+func newFakeHTTPService(name string, addrs ...string) HTTPService {
+	svc := NewSimpleHTTP(name, EndpointsFromAddrs("http", addrs))
+	svc.Router().Get("/"+name, nil)
 
-func newFakeHTTPService(name string, addrs ...string) *fakeHTTPService {
-	mux := chi.NewMux()
-	mux.Get("/"+name, nil)
-
-	return &fakeHTTPService{HTTPInfo{
-		Info: Info{Name: name, Endpoints: EndpointsFromAddrs("http", addrs)},
-		Mux:  mux,
-	}}
-}
-
-func (s *fakeHTTPService) Merge(other Service) (Merger, error) {
-	return MergeHTTP(s, other)
+	return &svc
 }
