@@ -1,9 +1,10 @@
-package util
+package util_test
 
 import (
 	"net"
 
 	. "github.com/0xERR0R/blocky/helpertest"
+	. "github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
