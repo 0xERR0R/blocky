@@ -52,8 +52,10 @@ func (s *Server) createOpenAPIInterfaceImpl() (impl api.StrictServerInterface, e
 	return api.NewOpenAPIInterfaceImpl(bControl, s, refresher, cacheControl), nil
 }
 
-func (s *Server) registerDoHEndpoints(router *chi.Mux) {
+func registerDoHEndpoints(router *chi.Mux, dnsHandler dnsHandler) {
 	const pathDohQuery = "/dns-query"
+
+	s := &dohServer{dnsHandler}
 
 	router.Get(pathDohQuery, s.dohGetRequestHandler)
 	router.Get(pathDohQuery+"/", s.dohGetRequestHandler)
@@ -63,7 +65,9 @@ func (s *Server) registerDoHEndpoints(router *chi.Mux) {
 	router.Post(pathDohQuery+"/{clientID}", s.dohPostRequestHandler)
 }
 
-func (s *Server) dohGetRequestHandler(rw http.ResponseWriter, req *http.Request) {
+type dohServer struct{ handler dnsHandler }
+
+func (s *dohServer) dohGetRequestHandler(rw http.ResponseWriter, req *http.Request) {
 	dnsParam, ok := req.URL.Query()["dns"]
 	if !ok || len(dnsParam[0]) < 1 {
 		http.Error(rw, "dns param is missing", http.StatusBadRequest)
@@ -87,7 +91,7 @@ func (s *Server) dohGetRequestHandler(rw http.ResponseWriter, req *http.Request)
 	s.processDohMessage(rawMsg, rw, req)
 }
 
-func (s *Server) dohPostRequestHandler(rw http.ResponseWriter, req *http.Request) {
+func (s *dohServer) dohPostRequestHandler(rw http.ResponseWriter, req *http.Request) {
 	contentType := req.Header.Get("Content-type")
 	if contentType != dnsContentType {
 		http.Error(rw, "unsupported content type", http.StatusUnsupportedMediaType)
@@ -111,7 +115,7 @@ func (s *Server) dohPostRequestHandler(rw http.ResponseWriter, req *http.Request
 	s.processDohMessage(rawMsg, rw, req)
 }
 
-func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, httpReq *http.Request) {
+func (s *dohServer) processDohMessage(rawMsg []byte, rw http.ResponseWriter, httpReq *http.Request) {
 	msg := new(dns.Msg)
 	if err := msg.Unpack(rawMsg); err != nil {
 		logger().Error("can't deserialize message: ", err)
@@ -122,7 +126,7 @@ func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, httpRe
 
 	ctx, dnsReq := newRequestFromHTTP(httpReq.Context(), httpReq, msg)
 
-	s.handleReq(ctx, dnsReq, httpMsgWriter{rw})
+	s.handler(ctx, dnsReq, httpMsgWriter{rw})
 }
 
 type httpMsgWriter struct {
@@ -156,7 +160,7 @@ func (s *Server) Query(
 	return s.resolve(ctx, req)
 }
 
-func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface) *chi.Mux {
+func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface, dnsHandler dnsHandler) *chi.Mux {
 	router := chi.NewRouter()
 
 	api.RegisterOpenAPIEndpoints(router, openAPIImpl)
@@ -168,6 +172,8 @@ func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface)
 	configureStaticAssetsHandler(router)
 
 	configureRootHandler(cfg, router)
+
+	registerDoHEndpoints(router, dnsHandler)
 
 	metrics.Start(router, cfg.Prometheus)
 
