@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/0xERR0R/blocky/log"
-	"github.com/0xERR0R/blocky/util"
 	"github.com/sirupsen/logrus"
 )
 
@@ -40,7 +39,7 @@ func LogEntryFields(entry *LogEntry) logrus.Fields {
 		"question_type":   entry.QuestionType,
 		"answer":          entry.Answer,
 		"duration_ms":     entry.DurationMs,
-		"hostname":        util.HostnameString(),
+		"instance":        entry.BlockyInstance,
 	})
 }
 

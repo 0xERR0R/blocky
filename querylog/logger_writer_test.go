@@ -51,7 +51,6 @@ var _ = Describe("LoggerWriter", func() {
 			Expect(fields).Should(HaveKeyWithValue("duration_ms", entry.DurationMs))
 			Expect(fields).Should(HaveKeyWithValue("question_type", entry.QuestionType))
 			Expect(fields).Should(HaveKeyWithValue("response_code", entry.ResponseCode))
-			Expect(fields).Should(HaveKey("hostname"))
 
 			Expect(fields).ShouldNot(HaveKey("client_names"))
 			Expect(fields).ShouldNot(HaveKey("question_name"))
