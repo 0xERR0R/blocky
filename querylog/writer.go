@@ -15,6 +15,7 @@ type LogEntry struct {
 	QuestionType   string
 	QuestionName   string
 	Answer         string
+	BlockyInstance string
 }
 
 type Writer interface {

@@ -42,6 +42,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 	var (
 		sut        *QueryLoggingResolver
 		sutConfig  config.QueryLog
+		err        error
 		m          *mockResolver
 		tmpDir     *TmpFolder
 		mockRType  ResponseType
@@ -61,8 +62,6 @@ var _ = Describe("QueryLoggingResolver", func() {
 		ctx, cancelFn = context.WithCancel(context.Background())
 		DeferCleanup(cancelFn)
 
-		var err error
-
 		sutConfig, err = config.WithDefaults[config.QueryLog]()
 		Expect(err).Should(Succeed())
 
@@ -76,7 +75,8 @@ var _ = Describe("QueryLoggingResolver", func() {
 			sutConfig.SetDefaults() // not called when using a struct literal
 		}
 
-		sut = NewQueryLoggingResolver(ctx, sutConfig)
+		sut, err = NewQueryLoggingResolver(ctx, sutConfig)
+		Expect(err).Should(Succeed())
 
 		m = &mockResolver{
 			ResolveFn: func(context.Context, *Request) (*Response, error) {
@@ -439,6 +439,22 @@ var _ = Describe("QueryLoggingResolver", func() {
 			It("should use fallback", func() {
 				Expect(sut.cfg.Type).Should(Equal(config.QueryLogTypeConsole))
 			})
+		})
+	})
+
+	Describe("Hostname function tests", func() {
+		It("should use the given file if it exists", func() {
+			expected := "TestName"
+			tmpFile := NewTmpFolder("hostname").CreateStringFile("filetest1", expected+" \n")
+
+			Expect(readInstanceID(tmpFile.Path)).Should(Equal(expected))
+		})
+
+		It("should fallback to os.Hostname", func() {
+			expected, err := os.Hostname()
+			Expect(err).Should(Succeed())
+
+			Expect(readInstanceID("/var/empty/nonexistent")).Should(Equal(expected))
 		})
 	})
 })

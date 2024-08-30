@@ -176,7 +176,7 @@ func (d *DatabaseWriter) Write(entry *LogEntry) {
 		EffectiveTLDP: eTLD,
 		Answer:        entry.Answer,
 		ResponseCode:  entry.ResponseCode,
-		Hostname:      util.HostnameString(),
+		Hostname:      entry.BlockyInstance,
 	}
 
 	d.lock.Lock()

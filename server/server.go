@@ -304,12 +304,14 @@ func createQueryResolver(
 	upstreamTree, utErr := resolver.NewUpstreamTreeResolver(ctx, cfg.Upstreams, bootstrap)
 	blocking, blErr := resolver.NewBlockingResolver(ctx, cfg.Blocking, redisClient, bootstrap)
 	clientNames, cnErr := resolver.NewClientNamesResolver(ctx, cfg.ClientLookup, cfg.Upstreams, bootstrap)
+	queryLogging, qlErr := resolver.NewQueryLoggingResolver(ctx, cfg.QueryLog)
 	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(ctx, cfg.Conditional, cfg.Upstreams, bootstrap)
 	hostsFile, hfErr := resolver.NewHostsFileResolver(ctx, cfg.HostsFile, bootstrap)
 
 	err := multierror.Append(
 		multierror.Prefix(utErr, "upstream tree resolver: "),
 		multierror.Prefix(blErr, "blocking resolver: "),
+		multierror.Prefix(qlErr, "query logging resolver: "),
 		multierror.Prefix(cnErr, "client names resolver: "),
 		multierror.Prefix(cuErr, "conditional upstream resolver: "),
 		multierror.Prefix(hfErr, "hosts file resolver: "),
@@ -324,7 +326,7 @@ func createQueryResolver(
 		resolver.NewECSResolver(cfg.ECS),
 		clientNames,
 		resolver.NewEDEResolver(cfg.EDE),
-		resolver.NewQueryLoggingResolver(ctx, cfg.QueryLog),
+		queryLogging,
 		resolver.NewMetricsResolver(cfg.Prometheus),
 		resolver.NewRewriterResolver(cfg.CustomDNS.RewriterConfig, resolver.NewCustomDNSResolver(cfg.CustomDNS)),
 		hostsFile,
