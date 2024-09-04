@@ -10,15 +10,34 @@ import (
 	"github.com/0xERR0R/blocky/cache/expirationcache"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sirupsen/logrus"
 )
 
 const defaultCachingCleanUpInterval = 5 * time.Second
+
+//nolint:gochecknoglobals
+var (
+	cacheHits = promauto.With(metrics.Reg).NewCounter(
+		prometheus.CounterOpts{
+			Name: "blocky_cache_hits_total",
+			Help: "Cache hit counter",
+		},
+	)
+	cacheMisses = promauto.With(metrics.Reg).NewCounter(
+		prometheus.CounterOpts{
+			Name: "blocky_cache_misses_total",
+			Help: "Cache miss counter",
+		},
+	)
+)
 
 // CachingResolver caches answers from dns queries with their TTL time,
 // to avoid external resolver calls for recurrent queries
@@ -70,10 +89,10 @@ func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Cachin
 		CleanupInterval: defaultCachingCleanUpInterval,
 		MaxSize:         uint(cfg.MaxItemsCount),
 		OnCacheHitFn: func(key string) {
-			c.publishMetricsIfEnabled(evt.CachingResultCacheHit, key)
+			cacheHits.Inc()
 		},
 		OnCacheMissFn: func(key string) {
-			c.publishMetricsIfEnabled(evt.CachingResultCacheMiss, key)
+			cacheMisses.Inc()
 		},
 		OnAfterPutFn: func(newSize int) {
 			c.publishMetricsIfEnabled(evt.CachingResultCacheChanged, newSize)
