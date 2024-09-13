@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
-	. "github.com/0xERR0R/blocky/evt"
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
 	. "github.com/onsi/ginkgo/v2"
@@ -22,26 +21,15 @@ import (
 
 var _ = Describe("Downloader", func() {
 	var (
-		sutConfig                     config.Downloader
-		sut                           *httpDownloader
-		failedDownloadCountEvtChannel chan string
-		loggerHook                    *test.Hook
+		sutConfig  config.Downloader
+		sut        *httpDownloader
+		loggerHook *test.Hook
 	)
 	BeforeEach(func() {
 		var err error
 
 		sutConfig, err = config.WithDefaults[config.Downloader]()
 		Expect(err).Should(Succeed())
-
-		failedDownloadCountEvtChannel = make(chan string, 5)
-		// collect received events in the channel
-		fn := func(url string) {
-			failedDownloadCountEvtChannel <- url
-		}
-		Expect(Bus().Subscribe(CachingFailedDownloadChanged, fn)).Should(Succeed())
-		DeferCleanup(func() {
-			Expect(Bus().Unsubscribe(CachingFailedDownloadChanged, fn)).Should(Succeed())
-		})
 
 		loggerHook = test.NewGlobal()
 		log.Log().AddHook(loggerHook)
@@ -106,8 +94,6 @@ var _ = Describe("Downloader", func() {
 				Expect(err).Should(HaveOccurred())
 				Expect(reader).Should(BeNil())
 				Expect(err.Error()).Should(Equal("got status code 404"))
-				Expect(failedDownloadCountEvtChannel).Should(HaveLen(3))
-				Expect(failedDownloadCountEvtChannel).Should(Receive(Equal(server.URL)))
 			})
 		})
 		When("Wrong URL is defined", func() {
@@ -119,9 +105,6 @@ var _ = Describe("Downloader", func() {
 
 				Expect(err).Should(HaveOccurred())
 				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("Can't download file: "))
-				// failed download event was emitted only once
-				Expect(failedDownloadCountEvtChannel).Should(HaveLen(1))
-				Expect(failedDownloadCountEvtChannel).Should(Receive(Equal("somewrongurl")))
 			})
 		})
 
@@ -158,9 +141,6 @@ var _ = Describe("Downloader", func() {
 				Expect(err).Should(Succeed())
 				Expect(buf.String()).Should(Equal("blocked1.com"))
 
-				// failed download event was emitted only once
-				Expect(failedDownloadCountEvtChannel).Should(HaveLen(1))
-				Expect(failedDownloadCountEvtChannel).Should(Receive(Equal(server.URL)))
 				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("Temporary network err / Timeout occurred: "))
 			})
 		})
@@ -184,10 +164,6 @@ var _ = Describe("Downloader", func() {
 					Expect(errors.As(err, new(*TransientError))).Should(BeTrue())
 					Expect(err.Error()).Should(ContainSubstring("Timeout"))
 					Expect(reader).Should(BeNil())
-
-					// failed download event was emitted 3 times
-					Expect(failedDownloadCountEvtChannel).Should(HaveLen(3))
-					Expect(failedDownloadCountEvtChannel).Should(Receive(Equal(server.URL)))
 				})
 		})
 		When("DNS resolution of passed URL fails", func() {
@@ -206,10 +182,6 @@ var _ = Describe("Downloader", func() {
 					var dnsError *net.DNSError
 					Expect(errors.As(err, &dnsError)).Should(BeTrue(), "received error %w", err)
 					Expect(reader).Should(BeNil())
-
-					// failed download event was emitted 3 times
-					Expect(failedDownloadCountEvtChannel).Should(HaveLen(3))
-					Expect(failedDownloadCountEvtChannel).Should(Receive(Equal("http://some.domain.which.does.not.exist")))
 					Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("Name resolution err: "))
 				})
 		})

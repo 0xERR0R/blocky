@@ -8,9 +8,6 @@ const (
 	// BlockingEnabledEvent fires if blocking status will be changed. Parameter: boolean (enabled = true)
 	BlockingEnabledEvent = "blocking:enabled"
 
-	// BlockingCacheGroupChanged fires, if a list group is changed. Parameter: list type, group name, element count
-	BlockingCacheGroupChanged = "blocking:cachingGroupChanged"
-
 	// CachingDomainPrefetched fires if a domain will be prefetched, Parameter: domain name
 	CachingDomainPrefetched = "caching:prefetched"
 
@@ -22,9 +19,6 @@ const (
 
 	// CachingDomainsToPrefetchCountChanged fires, if a number of domains being prefetched changed, Parameter: new count
 	CachingDomainsToPrefetchCountChanged = "caching:domainsToPrefetchCountChanged"
-
-	// CachingFailedDownloadChanged fires, if a download of a blocking list or hosts file fails
-	CachingFailedDownloadChanged = "caching:failedDownload"
 
 	// ApplicationStarted fires on start of the application. Parameter: version number, build time
 	ApplicationStarted = "application:started"

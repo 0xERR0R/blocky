@@ -7,7 +7,6 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/evt"
 	. "github.com/0xERR0R/blocky/helpertest"
-	"github.com/0xERR0R/blocky/lists"
 	"github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/redis"
@@ -105,17 +104,9 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 		When("List is refreshed", func() {
 			It("event should be fired", func() {
-				groupCnt := make(map[string]int)
-				err := Bus().Subscribe(BlockingCacheGroupChanged, func(listType lists.ListCacheType, group string, cnt int) {
-					groupCnt[group] = cnt
-				})
-				Expect(err).Should(Succeed())
-
 				// recreate to trigger a reload
-				sut, err = NewBlockingResolver(ctx, sutConfig, nil, systemResolverBootstrap)
+				_, err := NewBlockingResolver(ctx, sutConfig, nil, systemResolverBootstrap)
 				Expect(err).Should(Succeed())
-
-				Eventually(groupCnt, "1s").Should(HaveLen(2))
 			})
 		})
 	})

@@ -6,21 +6,46 @@ import (
 	"errors"
 	"fmt"
 	"net"
-
-	"github.com/sirupsen/logrus"
+	"time"
 
 	"github.com/0xERR0R/blocky/cache/stringcache"
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/lists/parsers"
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/metrics"
+
 	"github.com/ThinkChaos/parcour"
 	"github.com/ThinkChaos/parcour/jobgroup"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/sirupsen/logrus"
 )
 
 const (
 	groupProducersBufferCap = 1000
 	regexWarningThreshold   = 500
+)
+
+//nolint:gochecknoglobals
+var (
+	lastListGroupRefreshTimestamp = promauto.With(metrics.Reg).NewGauge(
+		prometheus.GaugeOpts{
+			Name: "blocky_last_list_group_refresh_timestamp_seconds",
+			Help: "Timestamp of last list refresh",
+		},
+	)
+	denylistEntries = promauto.With(metrics.Reg).NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "blocky_denylist_cache_entries",
+			Help: "Number of entries in the denylist cache",
+		}, []string{"group"},
+	)
+	allowlistEntries = promauto.With(metrics.Reg).NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "blocky_allowlist_cache_entries",
+			Help: "Number of entries in the allowlist cache",
+		}, []string{"group"},
+	)
 )
 
 // ListCacheType represents the type of cached list ENUM(
@@ -144,7 +169,7 @@ func (b *ListCache) refresh(ctx context.Context) error {
 
 			count := b.groupedCache.ElementCount(group)
 
-			evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, count)
+			updateGroupMetrics(b.listType, group, count)
 
 			logger().WithFields(logrus.Fields{
 				"group":       group,
@@ -276,4 +301,15 @@ func (b *ListCache) parseFile(ctx context.Context, opener SourceOpener, resultCh
 	logger().Info("import succeeded")
 
 	return nil
+}
+
+func updateGroupMetrics(listType ListCacheType, group string, count int) {
+	lastListGroupRefreshTimestamp.Set(float64(time.Now().Unix()))
+
+	switch listType {
+	case ListCacheTypeDenylist:
+		denylistEntries.WithLabelValues(group).Set(float64(count))
+	case ListCacheTypeAllowlist:
+		allowlistEntries.WithLabelValues(group).Set(float64(count))
+	}
 }
