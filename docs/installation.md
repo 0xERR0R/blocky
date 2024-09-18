@@ -13,12 +13,13 @@ Blocky supports single or multiple YAML files as configuration. Create new `conf
 Simple configuration file, which enables only basic features:
 
 ```yaml
-upstream:
-  default:
-    - 46.182.19.48
-    - 80.241.218.68
-    - tcp-tls:fdns1.dismail.de:853
-    - https://dns.digitale-gesellschaft.ch/dns-query
+upstreams:
+  groups:
+    default:
+      - 46.182.19.48
+      - 80.241.218.68
+      - tcp-tls:fdns1.dismail.de:853
+      - https://dns.digitale-gesellschaft.ch/dns-query
 blocking:
   denylists:
     ads:
