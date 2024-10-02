@@ -4,6 +4,7 @@ import (
 	"github.com/0xERR0R/blocky/cache/stringcache"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"golang.org/x/exp/maps"
 )
 
 var _ = Describe("Chained grouped cache", func() {
@@ -58,8 +59,8 @@ var _ = Describe("Chained grouped cache", func() {
 
 			It("should find strings", func() {
 				factory.Finish()
-				Expect(cache.Contains("string1", []string{"group1"})).Should(ConsistOf("group1"))
-				Expect(cache.Contains("string2", []string{"group1", "someOtherGroup"})).Should(ConsistOf("group1"))
+				Expect(maps.Keys(cache.Contains("string1", []string{"group1"}))).Should(ConsistOf("group1"))
+				Expect(maps.Keys(cache.Contains("string2", []string{"group1", "someOtherGroup"}))).Should(ConsistOf("group1"))
 			})
 		})
 	})
@@ -86,9 +87,9 @@ var _ = Describe("Chained grouped cache", func() {
 			It("should contain 4 elements in 2 groups", func() {
 				Expect(cache.ElementCount("group1")).Should(BeNumerically("==", 2))
 				Expect(cache.ElementCount("group2")).Should(BeNumerically("==", 2))
-				Expect(cache.Contains("g1", []string{"group1", "group2"})).Should(ConsistOf("group1"))
-				Expect(cache.Contains("g2", []string{"group1", "group2"})).Should(ConsistOf("group2"))
-				Expect(cache.Contains("both", []string{"group1", "group2"})).Should(ConsistOf("group1", "group2"))
+				Expect(maps.Keys(cache.Contains("g1", []string{"group1", "group2"}))).Should(ConsistOf("group1"))
+				Expect(maps.Keys(cache.Contains("g2", []string{"group1", "group2"}))).Should(ConsistOf("group2"))
+				Expect(maps.Keys(cache.Contains("both", []string{"group1", "group2"}))).Should(ConsistOf("group1", "group2"))
 			})
 
 			It("should replace group content on refresh", func() {
@@ -98,10 +99,10 @@ var _ = Describe("Chained grouped cache", func() {
 
 				Expect(cache.ElementCount("group1")).Should(BeNumerically("==", 1))
 				Expect(cache.ElementCount("group2")).Should(BeNumerically("==", 2))
-				Expect(cache.Contains("g1", []string{"group1", "group2"})).Should(BeEmpty())
-				Expect(cache.Contains("newString", []string{"group1", "group2"})).Should(ConsistOf("group1"))
-				Expect(cache.Contains("g2", []string{"group1", "group2"})).Should(ConsistOf("group2"))
-				Expect(cache.Contains("both", []string{"group1", "group2"})).Should(ConsistOf("group2"))
+				Expect(maps.Keys(cache.Contains("g1", []string{"group1", "group2"}))).Should(BeEmpty())
+				Expect(maps.Keys(cache.Contains("newString", []string{"group1", "group2"}))).Should(ConsistOf("group1"))
+				Expect(maps.Keys(cache.Contains("g2", []string{"group1", "group2"}))).Should(ConsistOf("group2"))
+				Expect(maps.Keys(cache.Contains("both", []string{"group1", "group2"}))).Should(ConsistOf("group2"))
 			})
 
 			It("should replace empty groups on refresh", func() {
