@@ -16,7 +16,6 @@ type SUDN struct {
 
 // IsEnabled implements `config.Configurable`.
 func (c *SUDN) IsEnabled() bool {
-	
 	return c.Enable
 }
 
