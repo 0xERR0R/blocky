@@ -21,7 +21,7 @@ require (
 	github.com/mroth/weightedrand/v2 v2.1.0
 	github.com/onsi/ginkgo/v2 v2.20.2
 	github.com/onsi/gomega v1.34.2
-	github.com/prometheus/client_golang v1.20.3
+	github.com/prometheus/client_golang v1.20.4
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.9.0
@@ -38,7 +38,7 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/ThinkChaos/parcour v0.0.0-20230710171753-fbf917c9eaef
 	github.com/deepmap/oapi-codegen v1.16.3
-	github.com/docker/docker v27.2.1+incompatible
+	github.com/docker/docker v27.3.1+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198
 	github.com/oapi-codegen/runtime v1.1.1
