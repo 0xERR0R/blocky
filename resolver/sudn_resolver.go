@@ -101,6 +101,10 @@ func NewSpecialUseDomainNamesResolver(cfg config.SUDN) *SpecialUseDomainNamesRes
 }
 
 func (r *SpecialUseDomainNamesResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
+	if !r.cfg.Enable {
+		return r.next.Resolve(ctx, request)
+	}
+
 	handler := r.handler(request)
 	if handler != nil {
 		resp := handler(request, r.cfg)
