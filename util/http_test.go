@@ -1,4 +1,4 @@
-package util
+package util_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"reflect"
 
+	. "github.com/0xERR0R/blocky/util"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo/v2"
