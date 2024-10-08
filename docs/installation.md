@@ -84,7 +84,7 @@ services:
       # Optional to synchronize the log timestamp with host
       - /etc/localtime:/etc/localtime:ro
       # config file
-      - ./config.yml:/app/config.yml
+      - ./config.yml:/app/config.yml:ro
 ```
 
 and start docker container with
@@ -116,7 +116,7 @@ services:
       - TZ=Europe/Berlin
     volumes:
       # config file
-      - ./config.yml:/app/config.yml
+      - ./config.yml:/app/config.yml:ro
       # write query logs in this volume
       - queryLogs:/logs
       # put your custom allow/denylists in these directories
