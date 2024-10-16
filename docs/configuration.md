@@ -792,7 +792,8 @@ EDNS Client Subnet (ECS) configuration parameters:
 
 SUDN (Special Use Domain Names) are always enabled by default as they are required by various RFCs.  
 Some RFCs have optional recommendations, which are configurable as described below.
-However, you can completely deactivate the blocking of SUDN by setting enable to false
+However, you can completely deactivate the blocking of SUDN by setting enable to false.
+Warning! You should only disable this if your upstream DNS server is local, as it shouldn't be disabled for remote upstreams.
 
 Configuration parameters:
 
