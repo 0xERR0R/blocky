@@ -6,17 +6,45 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/service"
+	"github.com/0xERR0R/blocky/util"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 )
 
-type httpServer struct {
-	inner http.Server
-
-	name string
+// httpMiscService implements service.HTTPService.
+//
+// This supports the existing single HTTP/HTTPS endpoints
+// that expose everything. The goal is to split it up
+// and remove it.
+type httpMiscService struct {
+	service.SimpleHTTP
 }
 
-func newHTTPServer(name string, handler http.Handler) *httpServer {
+func newHTTPMiscService(cfg *config.Config) *httpMiscService {
+	endpoints := util.ConcatSlices(
+		service.EndpointsFromAddrs(service.HTTPProtocol, cfg.Ports.HTTP),
+		service.EndpointsFromAddrs(service.HTTPSProtocol, cfg.Ports.HTTPS),
+	)
+
+	s := &httpMiscService{
+		SimpleHTTP: service.NewSimpleHTTP("HTTP", endpoints),
+	}
+
+	configureHTTPRouter(s.Router(), cfg)
+
+	return s
+}
+
+// httpServer implements subServer for HTTP.
+type httpServer struct {
+	service.HTTPService
+
+	inner http.Server
+}
+
+func newHTTPServer(svc service.HTTPService) *httpServer {
 	const (
 		readHeaderTimeout = 20 * time.Second
 		readTimeout       = 20 * time.Second
@@ -24,20 +52,15 @@ func newHTTPServer(name string, handler http.Handler) *httpServer {
 	)
 
 	return &httpServer{
+		HTTPService: svc,
+
 		inner: http.Server{
-			ReadTimeout:       readTimeout,
+			Handler:           withCommonMiddleware(svc.Router()),
 			ReadHeaderTimeout: readHeaderTimeout,
+			ReadTimeout:       readTimeout,
 			WriteTimeout:      writeTimeout,
-
-			Handler: withCommonMiddleware(handler),
 		},
-
-		name: name,
 	}
-}
-
-func (s *httpServer) String() string {
-	return s.name
 }
 
 func (s *httpServer) Serve(ctx context.Context, l net.Listener) error {

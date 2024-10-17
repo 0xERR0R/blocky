@@ -1,4 +1,4 @@
-package util_test
+package service
 
 import (
 	"testing"
@@ -14,5 +14,5 @@ func init() {
 
 func TestLists(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Util Suite")
+	RunSpecs(t, "Service Suite")
 }

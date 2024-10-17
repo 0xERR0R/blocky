@@ -9,15 +9,19 @@ import (
 	"net/http"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/0xERR0R/blocky/api"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/resolver"
+	"github.com/0xERR0R/blocky/service"
+	"golang.org/x/exp/maps"
 
 	"github.com/0xERR0R/blocky/util"
 	"github.com/google/uuid"
@@ -40,7 +44,14 @@ type Server struct {
 	queryResolver resolver.ChainedResolver
 	cfg           *config.Config
 
-	servers map[net.Listener]*httpServer
+	services map[service.Listener]service.Service
+}
+
+type subServer interface {
+	fmt.Stringer
+	service.Service
+
+	Serve(context.Context, net.Listener) error
 }
 
 func logger() *logrus.Entry {
@@ -99,9 +110,9 @@ func newTLSConfig(cfg *config.Config) (*tls.Config, error) {
 }
 
 // NewServer creates new server instance with passed config
-//
-//nolint:funlen
 func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err error) {
+	cfg.CopyPortsToServices()
+
 	var tlsCfg *tls.Config
 
 	if len(cfg.Ports.HTTPS) > 0 || len(cfg.Ports.TLS) > 0 {
@@ -116,12 +127,10 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		return nil, fmt.Errorf("server creation failed: %w", err)
 	}
 
-	httpListeners, httpsListeners, err := createHTTPListeners(cfg, tlsCfg)
+	listeners, err := createListeners(ctx, cfg, tlsCfg)
 	if err != nil {
 		return nil, err
 	}
-
-	metrics.RegisterEventListeners()
 
 	bootstrap, err := resolver.NewBootstrap(ctx, cfg)
 	if err != nil {
@@ -145,39 +154,44 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		dnsServers:    dnsServers,
 		queryResolver: queryResolver,
 		cfg:           cfg,
-
-		servers: make(map[net.Listener]*httpServer),
 	}
 
 	server.printConfiguration()
 
 	server.registerDNSHandlers(ctx)
 
-	openAPIImpl, err := server.createOpenAPIInterfaceImpl()
+	services, err := server.createServices()
 	if err != nil {
 		return nil, err
 	}
 
-	httpRouter := createHTTPRouter(cfg, openAPIImpl)
-	server.registerDoHEndpoints(httpRouter)
-
-	if len(cfg.Ports.HTTP) != 0 {
-		srv := newHTTPServer("http", httpRouter)
-
-		for _, l := range httpListeners {
-			server.servers[l] = srv
-		}
-	}
-
-	if len(cfg.Ports.HTTPS) != 0 {
-		srv := newHTTPServer("https", httpRouter)
-
-		for _, l := range httpsListeners {
-			server.servers[l] = srv
-		}
+	server.services, err = service.GroupByListener(services, listeners)
+	if err != nil {
+		return nil, err
 	}
 
 	return server, err
+}
+
+func (s *Server) createServices() ([]service.Service, error) {
+	openAPIImpl, err := s.createOpenAPIInterfaceImpl()
+	if err != nil {
+		return nil, err
+	}
+
+	res := []service.Service{
+		newHTTPMiscService(s.cfg),
+		newDoHService(s.cfg.Services.DoH, s.handleReq),
+		api.NewService(s.cfg.Services.API, openAPIImpl),
+		metrics.NewService(s.cfg.Services.Metrics, s.cfg.Prometheus),
+	}
+
+	// Remove services the user has not enabled
+	res = slices.DeleteFunc(res, func(svc service.Service) bool {
+		return len(svc.ExposeOn()) == 0
+	})
+
+	return res, nil
 }
 
 func createServers(cfg *config.Config, tlsCfg *tls.Config) ([]*dns.Server, error) {
@@ -208,48 +222,55 @@ func createServers(cfg *config.Config, tlsCfg *tls.Config) ([]*dns.Server, error
 	return dnsServers, err.ErrorOrNil()
 }
 
-func createHTTPListeners(
-	cfg *config.Config, tlsCfg *tls.Config,
-) (httpListeners, httpsListeners []net.Listener, err error) {
-	httpListeners, err = newTCPListeners("http", cfg.Ports.HTTP)
-	if err != nil {
-		return nil, nil, err
+func createListeners(ctx context.Context, cfg *config.Config, tlsCfg *tls.Config) ([]service.Listener, error) {
+	res := make(map[string]service.Listener)
+
+	listenTLS := func(ctx context.Context, endpoint service.Endpoint) (service.Listener, error) {
+		return service.ListenTLS(ctx, endpoint, tlsCfg)
 	}
 
-	httpsListeners, err = newTLSListeners("https", cfg.Ports.HTTPS, tlsCfg)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return httpListeners, httpsListeners, nil
-}
-
-func newTCPListeners(proto string, addresses config.ListenConfig) ([]net.Listener, error) {
-	listeners := make([]net.Listener, 0, len(addresses))
-
-	for _, address := range addresses {
-		listener, err := net.Listen("tcp", address)
-		if err != nil {
-			return nil, fmt.Errorf("start %s listener on %s failed: %w", proto, address, err)
-		}
-
-		listeners = append(listeners, listener)
-	}
-
-	return listeners, nil
-}
-
-func newTLSListeners(proto string, addresses config.ListenConfig, tlsCfg *tls.Config) ([]net.Listener, error) {
-	listeners, err := newTCPListeners(proto, addresses)
+	err := errors.Join(
+		newListeners(ctx, service.HTTPProtocol, cfg.Ports.HTTP, service.ListenTCP, res),
+		newListeners(ctx, service.HTTPSProtocol, cfg.Ports.HTTPS, listenTLS, res),
+		newListeners(ctx, service.HTTPProtocol, cfg.Services.DoH.Addrs.HTTP, service.ListenTCP, res),
+		newListeners(ctx, service.HTTPSProtocol, cfg.Services.DoH.Addrs.HTTPS, listenTLS, res),
+		newListeners(ctx, service.HTTPProtocol, cfg.Services.Metrics.Addrs.HTTP, service.ListenTCP, res),
+		newListeners(ctx, service.HTTPSProtocol, cfg.Services.Metrics.Addrs.HTTPS, listenTLS, res),
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	for i, inner := range listeners {
-		listeners[i] = tls.NewListener(inner, tlsCfg)
+	return maps.Values(res), nil
+}
+
+type listenFunc[T service.Listener] func(context.Context, service.Endpoint) (T, error)
+
+func newListeners[T service.Listener](
+	ctx context.Context, proto string, addrs config.ListenConfig, listen listenFunc[T], out map[string]service.Listener,
+) error {
+	for _, addr := range addrs {
+		key := fmt.Sprintf("%s:%s", proto, addr)
+		if _, ok := out[key]; ok {
+			// Avoid "address already in use"
+			// We instead try to merge services, see services.GroupByListener
+			continue
+		}
+
+		endpoint := service.Endpoint{
+			Protocol: proto,
+			AddrConf: addr,
+		}
+
+		l, err := listen(ctx, endpoint)
+		if err != nil {
+			return err // already has all info
+		}
+
+		out[key] = l
 	}
 
-	return listeners, nil
+	return nil
 }
 
 func createTLSServer(address string, tlsCfg *tls.Config) (*dns.Server, error) {
@@ -385,6 +406,16 @@ func toMB(b uint64) uint64 {
 	return b / bytesInKB / bytesInKB
 }
 
+func newSubServer(svc service.Service) (subServer, error) {
+	switch svc := svc.(type) {
+	case service.HTTPService:
+		return newHTTPServer(svc), nil
+
+	default:
+		return nil, fmt.Errorf("unsupported service type: %T (%s)", svc, svc)
+	}
+}
+
 // Start starts the server
 func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 	logger().Info("Starting server")
@@ -399,11 +430,18 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 		}()
 	}
 
-	for listener, srv := range s.servers {
-		listener, srv := listener, srv
+	for listener, svc := range s.services {
+		listener, svc := listener, svc
+
+		srv, err := newSubServer(svc)
+		if err != nil {
+			errCh <- fmt.Errorf("%s on %s: %w", svc.ServiceName(), listener.Exposes(), err)
+
+			return
+		}
 
 		go func() {
-			logger().Infof("%s server is up and running on addr/port %s", srv, listener.Addr())
+			logger().Infof("%s server is up and running on %s", svc.ServiceName(), listener.Exposes())
 
 			err := srv.Serve(ctx, listener)
 			if err != nil {
@@ -505,6 +543,8 @@ func (s *Server) OnRequest(ctx context.Context, w dns.ResponseWriter, msg *dns.M
 type msgWriter interface {
 	WriteMsg(msg *dns.Msg) error
 }
+
+type dnsHandler func(context.Context, *model.Request, msgWriter)
 
 func (s *Server) handleReq(ctx context.Context, request *model.Request, w msgWriter) {
 	response, err := s.resolve(ctx, request)
