@@ -11,12 +11,12 @@ type SUDN struct {
 	// upstream or custom DNS, which come before SUDN in the resolver chain.
 	// Thus defaulting to `true` and returning NXDOMAIN here should not conflict.
 	RFC6762AppendixG bool `yaml:"rfc6762-appendixG" default:"true"`
+	Enable           bool `yaml:"enable" default:"true"`
 }
 
 // IsEnabled implements `config.Configurable`.
 func (c *SUDN) IsEnabled() bool {
-	// The Special Use RFCs are always active
-	return true
+	return c.Enable
 }
 
 // LogConfig implements `config.Configurable`.
