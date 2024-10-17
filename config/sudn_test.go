@@ -24,12 +24,18 @@ var _ = Describe("SUDNConfig", func() {
 
 		When("enabled", func() {
 			It("should be true", func() {
+				cfg := SUDN{
+					Enable: true,
+				}
 				Expect(cfg.IsEnabled()).Should(BeTrue())
 			})
 		})
 
 		When("disabled", func() {
 			It("should be false", func() {
+				cfg := SUDN{
+					Enable: false,
+				}
 				Expect(cfg.IsEnabled()).Should(BeFalse())
 			})
 		})
