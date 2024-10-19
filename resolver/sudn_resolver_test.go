@@ -95,6 +95,24 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 			return Entry(description, args...)
 		}
 
+		It("should be true by default", func() {
+			Expect(sutConfig.IsEnabled()).Should(BeTrue())
+		})
+
+		When("enabled", func() {
+			It("should be true", func() {
+				sutConfig.Enable = true
+				Expect(sutConfig.IsEnabled()).Should(BeTrue())
+			})
+		})
+
+		When("disabled", func() {
+			It("should be false", func() {
+				sutConfig.Enable = false
+				Expect(sutConfig.IsEnabled()).Should(BeFalse())
+			})
+		})
+
 		DescribeTable("handled domains",
 			func(qType dns.Type, qName string, expectedRCode int, extraMatchers ...types.GomegaMatcher) {
 				resp, err := sut.Resolve(ctx, newRequest(qName, qType))
