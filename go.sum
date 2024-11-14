@@ -286,8 +286,8 @@ github.com/testcontainers/testcontainers-go v0.34.0 h1:5fbgF0vIN5u+nD3IWabQwRybu
 github.com/testcontainers/testcontainers-go v0.34.0/go.mod h1:6P/kMkQe8yqPHfPWNulFGdFHTD8HB2vLq/231xY2iPQ=
 github.com/testcontainers/testcontainers-go/modules/mariadb v0.34.0 h1:x4tWQM3rRnhnbY0rD184usZu/FBmuqiwT3aUhxF6IG8=
 github.com/testcontainers/testcontainers-go/modules/mariadb v0.34.0/go.mod h1:zIrkrM3wn3l1ZPjo77zLqg0YIz7w2GLhhKwJRopKCzY=
-github.com/testcontainers/testcontainers-go/modules/postgres v0.33.0 h1:c+Gt+XLJjqFAejgX4hSpnHIpC9eAhvgI/TFWL/PbrFI=
-github.com/testcontainers/testcontainers-go/modules/postgres v0.33.0/go.mod h1:I4DazHBoWDyf69ByOIyt3OdNjefiUx372459txOpQ3o=
+github.com/testcontainers/testcontainers-go/modules/postgres v0.34.0 h1:c51aBXT3v2HEBVarmaBnsKzvgZjC5amn0qsj8Naqi50=
+github.com/testcontainers/testcontainers-go/modules/postgres v0.34.0/go.mod h1:EWP75ogLQU4M4L8U+20mFipjV4WIR9WtlMXSB6/wiuc=
 github.com/testcontainers/testcontainers-go/modules/redis v0.33.0 h1:S/QvMOwpr00MM2aWH+krzP73Erlp/Ug0dr2rkgZYI5s=
 github.com/testcontainers/testcontainers-go/modules/redis v0.33.0/go.mod h1:gudb3+6uZ9SsAysOVoLs7nazbjGlkHegBW8nqPXvDMI=
 github.com/tklauser/go-sysconf v0.3.12 h1:0QaGUFOdQaIVdPgfITYzaTegZvdCjmYO52cSFAEVmqU=
