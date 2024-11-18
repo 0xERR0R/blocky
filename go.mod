@@ -20,7 +20,7 @@ require (
 	github.com/miekg/dns v1.1.62
 	github.com/mroth/weightedrand/v2 v2.1.0
 	github.com/onsi/ginkgo/v2 v2.20.2
-	github.com/onsi/gomega v1.34.2
+	github.com/onsi/gomega v1.35.1
 	github.com/prometheus/client_golang v1.20.5
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
@@ -44,8 +44,8 @@ require (
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/testcontainers/testcontainers-go v0.34.0
 	github.com/testcontainers/testcontainers-go/modules/mariadb v0.34.0
-	github.com/testcontainers/testcontainers-go/modules/postgres v0.33.0
-	github.com/testcontainers/testcontainers-go/modules/redis v0.33.0
+	github.com/testcontainers/testcontainers-go/modules/postgres v0.34.0
+	github.com/testcontainers/testcontainers-go/modules/redis v0.34.0
 	mvdan.cc/gofumpt v0.7.0
 )
 
@@ -143,7 +143,7 @@ require (
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.55.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
-	github.com/ramr/go-reaper v0.2.1
+	github.com/ramr/go-reaper v0.2.3
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
@@ -157,6 +157,6 @@ require (
 	golang.org/x/term v0.25.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
 	golang.org/x/tools v0.24.0
-	google.golang.org/protobuf v1.34.2 // indirect
+	google.golang.org/protobuf v1.35.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
