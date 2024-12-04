@@ -1,4 +1,4 @@
-package util
+package util_test
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 
 	. "github.com/0xERR0R/blocky/log"
+	. "github.com/0xERR0R/blocky/util"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

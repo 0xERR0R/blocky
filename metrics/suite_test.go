@@ -1,4 +1,4 @@
-package util_test
+package metrics_test
 
 import (
 	"testing"
@@ -12,7 +12,7 @@ func init() {
 	log.Silence()
 }
 
-func TestLists(t *testing.T) {
+func TestResolver(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Util Suite")
+	RunSpecs(t, "Metrics Suite")
 }
