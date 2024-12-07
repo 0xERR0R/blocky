@@ -116,8 +116,8 @@ Each resolver must be defined as a string in following format: `[net:]host:[port
 The `commonName` parameter overrides the expected certificate common name value used for verification.
 
 !!! note
-Blocky needs at least the configuration of the **default** group with at least one upstream DNS server. This group will be used as a fallback, if no client
-specific resolver configuration is available.
+    Blocky needs at least the configuration of the **default** group with at least one upstream DNS server. This group will be used as a fallback, if no client
+    specific resolver configuration is available.
 
     See [List of public DNS servers](additional_information.md#list-of-public-dns-servers) if you need some ideas, which public free DNS server you could use.
 
@@ -452,7 +452,7 @@ The supported list formats are:
     If a group has **only allowlist** entries, only domains from this list are allowed, and all others be blocked.
 
 !!! warning
-You must also define a client group mapping, otherwise the allow/denylist definitions will have no effect.
+    You must also define a client group mapping, otherwise the allow/denylist definitions will have no effect.
 
 #### Wildcard support
 
@@ -469,7 +469,7 @@ Examples:
 - `/^apple\.(de|com)$/` will only block `apple.de` and `apple.com`
 
 !!! warning
-Regexes use more a lot more memory and are much slower than wildcards, you should use them as a last resort.
+    Regexes use more a lot more memory and are much slower than wildcards, you should use them as a last resort.
 
 ### Client groups
 
@@ -667,7 +667,7 @@ You can choose which information from processed DNS request and response should 
 - `duration`: request processing time in milliseconds
 
 !!! hint
-If not defined, blocky will log all available information
+    If not defined, blocky will log all available information
 
 Configuration parameters:
 
@@ -699,7 +699,7 @@ Parsing is handled not by Blocky, but third-party libraries, therefore the full 
 
 !!! note
 
-For increased security, it is recommended to configure the password for a PostgreSQL/Timescale connection via the `PGPASSFILE` environment variable.
+    For increased security, it is recommended to configure the password for a PostgreSQL/Timescale connection via the `PGPASSFILE` environment variable.
 
 ### Examples
 
@@ -718,7 +718,7 @@ For increased security, it is recommended to configure the password for a Postgr
     ```
 
 !!! example
-**MySQL Database**
+    **MySQL Database**
 
     ```yaml
     queryLog:
