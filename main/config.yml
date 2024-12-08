@@ -337,6 +337,7 @@ specialUseDomains:
   # optional: block recomended private TLDs
   # default: true
   rfc6762-appendixG: true
+  enable: true
 
 # optional: configure extended client subnet (ECS) support
 ecs:
