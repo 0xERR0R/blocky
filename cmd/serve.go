@@ -10,9 +10,12 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/server"
 	"github.com/0xERR0R/blocky/util"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/spf13/cobra"
 )
 
@@ -21,6 +24,13 @@ var (
 	done              = make(chan bool, 1)
 	isConfigMandatory = true
 	signals           = make(chan os.Signal, 1)
+
+	versionInfoMetric = promauto.With(metrics.Reg).NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "blocky_build_info",
+			Help: "Version number and build info",
+		}, []string{"version", "build_time"},
+	)
 )
 
 func newServeCommand() *cobra.Command {
@@ -76,6 +86,7 @@ func startServer(_ *cobra.Command, _ []string) error {
 	}()
 
 	evt.Bus().Publish(evt.ApplicationStarted, util.Version, util.BuildTime)
+	versionInfoMetric.WithLabelValues(util.Version, util.BuildTime).Set(1)
 	<-done
 
 	return terminationErr
