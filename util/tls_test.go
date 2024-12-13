@@ -1,8 +1,9 @@
-package util
+package util_test
 
 import (
 	"crypto/x509"
 
+	. "github.com/0xERR0R/blocky/util"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
