@@ -24,7 +24,7 @@ func newHTTPServer(name string, handler http.Handler, cfg *config.Config) *httpS
 	)
 
 	var (
-		readTimeout       = cfg.Blocking.Loading.Downloads.ReadTimeout
+		readTimeout = cfg.Blocking.Loading.Downloads.ReadTimeout
 	)
 
 	return &httpServer{
