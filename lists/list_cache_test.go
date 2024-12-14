@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
-	. "github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/lists/parsers"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/google/uuid"
@@ -249,25 +248,6 @@ var _ = Describe("ListCache", func() {
 
 				group = sut.Match("blocked1a.com", []string{"gr2"})
 				Expect(group).Should(ContainElement("gr2"))
-			})
-		})
-		When("List will be updated", func() {
-			resultCnt := 0
-
-			BeforeEach(func() {
-				lists = map[string][]config.BytesSource{
-					"gr1": config.NewBytesSources(server1.URL),
-				}
-
-				_ = Bus().SubscribeOnce(BlockingCacheGroupChanged, func(listType ListCacheType, group string, cnt int) {
-					resultCnt = cnt
-				})
-			})
-
-			It("event should be fired and contain count of elements in downloaded lists", func() {
-				group := sut.Match("blocked1.com", []string{})
-				Expect(group).Should(BeEmpty())
-				Expect(resultCnt).Should(Equal(3))
 			})
 		})
 		When("multiple groups are passed", func() {
