@@ -9,8 +9,8 @@ import (
 )
 
 const (
-  defaultDNSPort = 53
-  defaultIPAddress = "127.0.0.1"
+	defaultDNSPort   = 53
+	defaultIPAddress = "127.0.0.1"
 )
 
 func NewHealthcheckCommand() *cobra.Command {
@@ -21,7 +21,7 @@ func NewHealthcheckCommand() *cobra.Command {
 	}
 
 	c.Flags().Uint16P("port", "p", defaultDNSPort, "blocky port")
-	c.Flags().String("bindip", defaultIPAddress, "blocky host binding ip address")
+	c.Flags().StringP("bindip", "b", defaultIPAddress, "blocky host binding ip address")
 
 	return c
 }

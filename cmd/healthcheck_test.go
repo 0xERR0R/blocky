@@ -31,9 +31,10 @@ var _ = Describe("Healthcheck command", func() {
 		})
 
 		It("should succeed", func() {
-			port := helpertest.GetStringPort(5100)
-      ip := "127.0.0.1"
-			srv := createMockServer(ip, port)
+			ip := "127.0.0.1"
+			hostPort := helpertest.GetHostPort(ip, 65100)
+			port := helpertest.GetStringPort(65100)
+			srv := createMockServer(hostPort)
 			go func() {
 				defer GinkgoRecover()
 				err := srv.ListenAndServe()
@@ -42,8 +43,7 @@ var _ = Describe("Healthcheck command", func() {
 
 			Eventually(func() error {
 				c := NewHealthcheckCommand()
-				c.SetArgs([]string{"-p", port})
-				c.SetArgs([]string{"--bindip", ip})
+				c.SetArgs([]string{"-p", port, "-b", ip})
 
 				return c.Execute()
 			}, "1s").Should(Succeed())
@@ -51,13 +51,13 @@ var _ = Describe("Healthcheck command", func() {
 	})
 })
 
-func createMockServer(ip string, port string) *dns.Server {
+func createMockServer(hostPort string) *dns.Server {
 	res := &dns.Server{
-		Addr:    ip + ":" + port,
+		Addr:    hostPort,
 		Net:     "tcp",
 		Handler: dns.NewServeMux(),
 		NotifyStartedFunc: func() {
-			fmt.Println("Mock healthcheck server is up")
+			fmt.Printf("Mock healthcheck server is up: %s\n", hostPort)
 		},
 	}
 
