@@ -20,16 +20,16 @@ type httpServer struct {
 func newHTTPServer(name string, handler http.Handler, cfg *config.Config) *httpServer {
 	const (
 		readHeaderTimeout = 20 * time.Second
-		readTimeout       = 20 * time.Second
 	)
 
 	var (
 		writeTimeout = cfg.Blocking.Loading.Downloads.WriteTimeout
+		readTimeout  = cfg.Blocking.Loading.Downloads.ReadTimeout
 	)
 
 	return &httpServer{
 		inner: http.Server{
-			ReadTimeout:       readTimeout,
+			ReadTimeout:       time.Duration(readTimeout),
 			ReadHeaderTimeout: readHeaderTimeout,
 			WriteTimeout:      time.Duration(writeTimeout),
 

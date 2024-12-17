@@ -123,6 +123,10 @@ blocking:
       # optional: timeout for list write to disk (each url). Use larger values for big lists or in constrained environments
       # default: 20s
       writeTimeout: 60s
+      # optional: timeout for reading the download (each url). Use large values for big lists or in constrained environments
+      # To disable this timeout, set to 0.
+      # default: 20s
+      readTimeout: 60s
       # optional: Maximum download attempts
       # default: 3
       attempts: 5
