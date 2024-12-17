@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/0xERR0R/blocky/config"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 )
@@ -16,18 +17,21 @@ type httpServer struct {
 	name string
 }
 
-func newHTTPServer(name string, handler http.Handler) *httpServer {
+func newHTTPServer(name string, handler http.Handler, cfg *config.Config) *httpServer {
 	const (
 		readHeaderTimeout = 20 * time.Second
 		readTimeout       = 20 * time.Second
-		writeTimeout      = 20 * time.Second
+	)
+
+	var (
+		writeTimeout = cfg.Blocking.Loading.Downloads.WriteTimeout
 	)
 
 	return &httpServer{
 		inner: http.Server{
 			ReadTimeout:       readTimeout,
 			ReadHeaderTimeout: readHeaderTimeout,
-			WriteTimeout:      writeTimeout,
+			WriteTimeout:      time.Duration(writeTimeout),
 
 			Handler: withCommonMiddleware(handler),
 		},

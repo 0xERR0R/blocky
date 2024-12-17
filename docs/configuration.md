@@ -884,11 +884,12 @@ A value of zero or less will disable this feature.
 
 Configures how HTTP(S) sources are downloaded:
 
-| Parameter | Type     | Mandatory | Default value | Description                                    |
-| --------- | -------- | --------- | ------------- | ---------------------------------------------- |
-| timeout   | duration | no        | 5s            | Download attempt timeout                       |
-| attempts  | int      | no        | 3             | How many download attempts should be performed |
-| cooldown  | duration | no        | 500ms         | Time between the download attempts             |
+| Parameter    | Type     | Mandatory | Default value | Description                                    |
+| ------------ | -------- | --------- | ------------- | ---------------------------------------------- |
+| timeout      | duration | no        | 5s            | Download attempt timeout                       |
+| writeTimeout | duration | no        | 20s           | File write attempt timeout                     |
+| attempts     | int      | no        | 3             | How many download attempts should be performed |
+| cooldown     | duration | no        | 500ms         | Time between the download attempts             |
 
 !!! example
 
