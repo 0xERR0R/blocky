@@ -26,7 +26,7 @@ require (
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.10.0
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
-	golang.org/x/net v0.32.0
+	golang.org/x/net v0.33.0
 	gopkg.in/yaml.v2 v2.4.0
 	gorm.io/driver/mysql v1.5.7
 	gorm.io/driver/postgres v1.5.11
