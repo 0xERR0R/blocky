@@ -4,11 +4,11 @@ go 1.22
 
 require (
 	github.com/abice/go-enum v0.6.0
-	github.com/alicebob/miniredis/v2 v2.33.0
+	github.com/alicebob/miniredis/v2 v2.34.0
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/avast/retry-go/v4 v4.6.0
 	github.com/creasty/defaults v1.8.0
-	github.com/go-chi/chi/v5 v5.1.0
+	github.com/go-chi/chi/v5 v5.2.0
 	github.com/go-chi/cors v1.2.1
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/google/uuid v1.6.0
@@ -111,7 +111,7 @@ require (
 
 require (
 	github.com/Masterminds/goutils v1.1.1 // indirect
-	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
+	github.com/alicebob/gopher-json v0.0.0-20230218143504-906a9b012302 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
@@ -150,7 +150,7 @@ require (
 	github.com/urfave/cli/v2 v2.26.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
-	golang.org/x/crypto v0.30.0 // indirect
+	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
 	golang.org/x/mod v0.20.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
