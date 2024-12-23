@@ -888,6 +888,7 @@ Configures how HTTP(S) sources are downloaded:
 | ------------ | -------- | --------- | ------------- | ---------------------------------------------- |
 | timeout      | duration | no        | 5s            | Download attempt timeout                       |
 | writeTimeout | duration | no        | 20s           | File write attempt timeout                     |
+| readTimeout  | duration | no        | 20s           | Download request read timeout                  |
 | attempts     | int      | no        | 3             | How many download attempts should be performed |
 | cooldown     | duration | no        | 500ms         | Time between the download attempts             |
 
