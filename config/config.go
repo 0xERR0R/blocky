@@ -406,7 +406,9 @@ func recoverToError(do func(context.Context) error, onPanic func(any) error) fun
 
 type Downloader struct {
 	Timeout           Duration `yaml:"timeout" default:"5s"`
+	ReadTimeout       Duration `yaml:"readTimeout" default:"20s"`
 	ReadHeaderTimeout Duration `yaml:"readHeaderTimeout" default:"20s"`
+	WriteTimeout      Duration `yaml:"writeTimeout" default:"20s"`
 	Attempts          uint     `yaml:"attempts" default:"3"`
 	Cooldown          Duration `yaml:"cooldown" default:"500ms"`
 }

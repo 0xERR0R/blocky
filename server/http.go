@@ -18,22 +18,18 @@ type httpServer struct {
 }
 
 func newHTTPServer(name string, handler http.Handler, cfg *config.Config) *httpServer {
-	const (
-		readTimeout       = 20 * time.Second
-		writeTimeout      = 20 * time.Second
-	)
-
 	var (
+		writeTimeout      = cfg.Blocking.Loading.Downloads.WriteTimeout
+		readTimeout       = cfg.Blocking.Loading.Downloads.ReadTimeout
 		readHeaderTimeout = cfg.Blocking.Loading.Downloads.ReadHeaderTimeout
 	)
 
 	return &httpServer{
 		inner: http.Server{
-			ReadTimeout:       readTimeout,
+			ReadTimeout:       time.Duration(readTimeout),
 			ReadHeaderTimeout: time.Duration(readHeaderTimeout),
-			WriteTimeout:      writeTimeout,
-
-			Handler: withCommonMiddleware(handler),
+			WriteTimeout:      time.Duration(writeTimeout),
+			Handler:           withCommonMiddleware(handler),
 		},
 
 		name: name,
