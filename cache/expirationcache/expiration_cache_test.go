@@ -181,7 +181,7 @@ var _ = Describe("Expiration cache", func() {
 				time.Sleep(2 * time.Millisecond)
 
 				// trigger cleanUp manually -> onExpiredFn will be executed, because element is expired
-				cache.cleanUp()
+				cache.cleanUp(ctx)
 
 				// wait for expiration
 				val, ttl := cache.Get("key1")
