@@ -1504,6 +1504,10 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">      </span><span class="c1"># To disable this timeout, set to 0.</span>
 <span class="w">      </span><span class="c1"># default: 20s</span>
 <span class="w">      </span><span class="nt">readTimeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60s</span>
+<span class="w">      </span><span class="c1"># optional: timeout for reading request headers for the download (each url). Use large values for slow internet connections</span>
+<span class="w">      </span><span class="c1"># to disable, set to -1.</span>
+<span class="w">      </span><span class="c1"># default: 20s</span>
+<span class="w">      </span><span class="nt">readHeaderTimeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60s</span>
 <span class="w">      </span><span class="c1"># optional: Maximum download attempts</span>
 <span class="w">      </span><span class="c1"># default: 3</span>
 <span class="w">      </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
@@ -3083,6 +3087,13 @@ A value of zero or less will disable this feature.</p>
 <td>no</td>
 <td>20s</td>
 <td>Download request read timeout</td>
+</tr>
+<tr>
+<td>readHeaderTimeout</td>
+<td>duration</td>
+<td>no</td>
+<td>20s</td>
+<td>Download request header read timeout</td>
 </tr>
 <tr>
 <td>attempts</td>
