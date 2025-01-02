@@ -32,7 +32,7 @@ type ListCacheType int
 // Matcher checks if a domain is in a list
 type Matcher interface {
 	// Match matches passed domain name against cached list entries
-	Match(domain string, groupsToCheck []string) (groups []string)
+	Match(domain string, groupsToCheck []string) (matches map[string]string)
 }
 
 // ListCache generic cache of strings divided in groups
@@ -104,7 +104,8 @@ func logger() *logrus.Entry {
 }
 
 // Match matches passed domain name against cached list entries
-func (b *ListCache) Match(domain string, groupsToCheck []string) (groups []string) {
+// Returns group(s) containing the string as keys, and the rule that caused the block as value
+func (b *ListCache) Match(domain string, groupsToCheck []string) (matches map[string]string) {
 	return b.groupedCache.Contains(domain, groupsToCheck)
 }
 
