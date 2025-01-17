@@ -37,10 +37,10 @@ require (
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/ThinkChaos/parcour v0.0.0-20230710171753-fbf917c9eaef
-	github.com/deepmap/oapi-codegen v1.16.3
 	github.com/docker/docker v27.5.0+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198
+	github.com/oapi-codegen/oapi-codegen/v2 v2.4.1
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/testcontainers/testcontainers-go v0.35.0
 	github.com/testcontainers/testcontainers-go/modules/mariadb v0.35.0
@@ -63,16 +63,17 @@ require (
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
+	github.com/dprotaso/go-yit v0.0.0-20220510233725-9ba8df137936 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
-	github.com/getkin/kin-openapi v0.118.0 // indirect
+	github.com/getkin/kin-openapi v0.127.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/pprof v0.0.0-20240827171923-fa2c70bbbfe5 // indirect
-	github.com/invopop/yaml v0.1.0 // indirect
+	github.com/invopop/yaml v0.3.1 // indirect
 	github.com/jackc/pgx/v5 v5.5.5 // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
@@ -90,14 +91,16 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0 // indirect
-	github.com/perimeterx/marshmallow v1.1.4 // indirect
+	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/shirou/gopsutil/v3 v3.23.12 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/shopspring/decimal v1.2.0 // indirect
+	github.com/speakeasy-api/openapi-overlay v0.9.0 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
+	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.49.0 // indirect
 	go.opentelemetry.io/otel v1.24.0 // indirect
@@ -117,8 +120,8 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
-	github.com/go-openapi/jsonpointer v0.19.5 // indirect
-	github.com/go-openapi/swag v0.22.3 // indirect
+	github.com/go-openapi/jsonpointer v0.21.0 // indirect
+	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-sql-driver/mysql v1.7.1 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/go-cmp v0.6.0

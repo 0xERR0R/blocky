@@ -7,9 +7,9 @@ package tools
 
 import (
 	_ "github.com/abice/go-enum"
-	_ "github.com/deepmap/oapi-codegen/cmd/oapi-codegen"
 	_ "github.com/dosgo/zigtool/zigcc"
 	_ "github.com/dosgo/zigtool/zigcpp"
+	_ "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen"
 	_ "github.com/onsi/ginkgo/v2/ginkgo"
 	_ "golang.org/x/tools/cmd/goimports"
 	_ "mvdan.cc/gofumpt"
