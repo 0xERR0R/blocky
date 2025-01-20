@@ -1,6 +1,6 @@
 module github.com/0xERR0R/blocky
 
-go 1.22
+go 1.23
 
 require (
 	github.com/abice/go-enum v0.6.0
@@ -37,6 +37,7 @@ require (
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/ThinkChaos/parcour v0.0.0-20230710171753-fbf917c9eaef
+	github.com/breml/rootcerts v0.2.19
 	github.com/docker/docker v27.5.0+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198
