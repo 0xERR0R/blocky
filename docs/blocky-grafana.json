@@ -883,7 +883,7 @@
           },
           "editorMode": "code",
           "exemplar": true,
-          "expr": "sum(increase(blocky_cache_hit_count[$__range])) / (sum(increase(blocky_cache_hit_count[$__range])) + sum(increase(blocky_cache_miss_count[$__range])))",
+          "expr": "sum(increase(blocky_cache_hits_total[$__range])) / (sum(increase(blocky_cache_hits_total[$__range])) + sum(increase(blocky_cache_misses_total[$__range])))",
           "format": "table",
           "instant": false,
           "interval": "",
@@ -1085,7 +1085,7 @@
           },
           "editorMode": "code",
           "exemplar": true,
-          "expr": "(sum(rate(blocky_prefetchs_total[$__range])) or sum(rate(blocky_prefetch_count[$__range]))) * 60",
+          "expr": "(sum(rate(blocky_prefetches_total[$__range])) or sum(rate(blocky_prefetch_count[$__range]))) * 60",
           "format": "table",
           "interval": "",
           "legendFormat": "",
@@ -1156,7 +1156,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "sum(increase(blocky_prefetch_hit_count[$__range])) / (sum(increase(blocky_cache_hit_count[$__range])))",
+          "expr": "sum(increase(blocky_prefetch_hits_total[$__range])) / (sum(increase(blocky_cache_hits_total[$__range])))",
           "format": "table",
           "instant": false,
           "interval": "",
@@ -1594,7 +1594,7 @@
         "yAxis": {
           "axisPlacement": "left",
           "reverse": false,
-          "unit": "ms"
+          "unit": "s"
         }
       },
       "pluginVersion": "11.3.1",
@@ -1605,7 +1605,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "sum(increase(blocky_request_duration_ms_bucket{response_type=\"RESOLVED\"}[$__range])) by (le)",
+          "expr": "sum(increase(blocky_request_duration_seconds_bucket{response_type=\"RESOLVED\"}[$__range])) by (le)",
           "format": "heatmap",
           "instant": false,
           "interval": "",
