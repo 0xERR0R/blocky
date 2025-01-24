@@ -4,6 +4,7 @@
 package main
 
 import (
+	_ "github.com/breml/rootcerts"
 	"os"
 	"time"
 	_ "time/tzdata"
