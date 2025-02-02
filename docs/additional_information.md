@@ -63,7 +63,7 @@ Some links/ideas for lists:
 
 ### Allowlists
 
-* [https://github.com/anudeepND/whitelist](https://github.com/anudeepND/allowlist)
+* [https://github.com/anudeepND/whitelist](https://github.com/anudeepND/whitelist)
 
 ## List of public DNS servers
 
@@ -111,12 +111,12 @@ Mirror: [:material-github:GitHub Container Registry](https://ghcr.io/0xerr0r/blo
 
 ### Docker Images
 
-To enable Docker image creation on a GitHub fork create a secret with the name `DEVELOPMENT_DOCKER` and the value `true`.  
+To enable Docker image creation on a GitHub fork create a secret with the name `DEVELOPMENT_DOCKER` and the value `true`.
 This will trigger a workflow on every push of a branch starting with `fb-` and create an image with the branch name.
 
 ### Automatic fork sync
 
-To enable automatic fork synchronisation create a secret with the name `FORK_SYNC_TOKEN` with an access token that has write permission to the fork repository.  
+To enable automatic fork synchronisation create a secret with the name `FORK_SYNC_TOKEN` with an access token that has write permission to the fork repository.
 The enabled workflow will sync the main branch every 30 minutes with its upstream.
 
 --8<-- "docs/includes/abbreviations.md"
