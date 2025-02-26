@@ -9,8 +9,21 @@ import (
 	"net/http"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/metrics"
+
 	"github.com/avast/retry-go/v4"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+//nolint:gochecknoglobals
+var (
+	failedDownloadsTotal = promauto.With(metrics.Reg).NewCounter(
+		prometheus.CounterOpts{
+			Name: "blocky_failed_downloads_total",
+			Help: "Failed download counter",
+		},
+	)
 )
 
 // TransientError represents a temporary error like timeout, network errors...
@@ -105,12 +118,8 @@ func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.Read
 				logger.Warnf("Can't download file: %s", err)
 			}
 
-			onDownloadError(link)
+			failedDownloadsTotal.Inc()
 		}))
 
 	return body, err
-}
-
-func onDownloadError(link string) {
-	evt.Bus().Publish(evt.CachingFailedDownloadChanged, link)
 }
