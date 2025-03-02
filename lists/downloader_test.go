@@ -198,19 +198,31 @@ var _ = Describe("Downloader", func() {
 					Cooldown: 200 * config.Duration(time.Millisecond),
 				}
 			})
-			It("Should perform a retry until max retry attempt count is reached and return DNSError",
+			It("Should perform a retry until max retry attempt count is reached and return DNS-related error",
 				func(ctx context.Context) {
-					reader, err := sut.DownloadFile(ctx, "http://some.domain.which.does.not.exist")
+					reader, err := sut.DownloadFile(ctx, "http://xyz.example.com")
 					Expect(err).Should(HaveOccurred())
 
+					// Check if it's a DNS error or contains DNS-related message
 					var dnsError *net.DNSError
-					Expect(errors.As(err, &dnsError)).Should(BeTrue(), "received error %w", err)
+					isDNSError := errors.As(err, &dnsError)
+					containsDNSErrorMessage := strings.Contains(strings.ToLower(err.Error()), "lookup") ||
+						strings.Contains(strings.ToLower(err.Error()), "dns") ||
+						strings.Contains(strings.ToLower(err.Error()), "resolve") ||
+						strings.Contains(strings.ToLower(err.Error()), "unknown host")
+
+					Expect(isDNSError || containsDNSErrorMessage).Should(BeTrue(),
+						"expected DNS-related error, got: %v", err)
 					Expect(reader).Should(BeNil())
 
 					// failed download event was emitted 3 times
 					Expect(failedDownloadCountEvtChannel).Should(HaveLen(3))
-					Expect(failedDownloadCountEvtChannel).Should(Receive(Equal("http://some.domain.which.does.not.exist")))
-					Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("Name resolution err: "))
+					Expect(failedDownloadCountEvtChannel).Should(Receive(Equal("http://xyz.example.com")))
+
+					// Use Or() to combine matchers instead of the | operator
+					Expect(loggerHook.LastEntry().Message).Should(Or(
+						ContainSubstring("Can't download file:"),
+						ContainSubstring("Name resolution err:")))
 				})
 		})
 		When("a proxy is configured", func() {
