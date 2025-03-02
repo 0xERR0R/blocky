@@ -1,4 +1,4 @@
-.PHONY: all clean generate build test e2e-test lint run fmt docker-build help
+.PHONY: all clean generate build test e2e-test lint run fmt docker-build help check-tools
 .DEFAULT_GOAL:=help
 
 VERSION?=$(shell git describe --always --tags)
@@ -29,23 +29,42 @@ GINKGO_PROCS?=-p
 
 export PATH=$(shell go env GOPATH)/bin:$(shell echo $$PATH)
 
+# Tool check functions
+define check_command
+	@which $(1) > /dev/null 2>&1 || { echo "Error: $(1) is required but not installed. $(2)"; exit 1; }
+endef
+
+define check_go_tool
+	@go list -f "{{.ImportPath}}" $(1) > /dev/null 2>&1 || { echo "Error: $(1) is required but not installed. Run: go install $(1)@latest"; exit 1; }
+endef
+
+check-go:
+	$(call check_command,go,"Please install Go from https://golang.org/doc/install")
+
+check-docker:
+	$(call check_command,docker,"Please install Docker from https://docs.docker.com/get-docker/")
+	@docker buildx version > /dev/null 2>&1 || { echo "Error: docker buildx is required but not installed. See https://docs.docker.com/buildx/working-with-buildx/"; exit 1; }
+
+check-pip:
+	$(call check_command,pip,"Please install pip from https://pip.pypa.io/en/stable/installation/")
+
 all: build test lint ## Build binary (with tests)
 
 clean: ## cleans output directory
 	rm -rf $(BIN_OUT_DIR)/*
 
-serve_docs: ## serves online docs
+serve_docs: check-pip ## serves online docs
 	pip install mkdocs-material
 	mkdocs serve
 
-generate: ## Go generate
+generate: check-go ## Go generate
 ifdef GO_SKIP_GENERATE
 	$(info skipping go generate)
 else
 	go generate ./...
 endif
 
-build: generate ## Build binary
+build: check-go generate ## Build binary
 	go build $(GO_BUILD_FLAGS) -ldflags="$(GO_BUILD_LD_FLAGS)" -o $(GO_BUILD_OUTPUT)
 ifdef BIN_USER
 	$(info setting owner of $(GO_BUILD_OUTPUT) to $(BIN_USER))
@@ -56,33 +75,34 @@ ifdef BIN_AUTOCAB
 	setcap 'cap_net_bind_service=+ep' $(GO_BUILD_OUTPUT)
 endif
 
-test: ## run tests
+test: check-go ## run tests
 	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --coverprofile=coverage.txt --covermode=atomic --cover -r ${GINKGO_PROCS}
 	go tool cover -html coverage.txt -o coverage.html
 
-e2e-test: ## run e2e tests
+e2e-test: check-go check-docker ## run e2e tests
 	docker buildx build \
 		--build-arg VERSION=blocky-e2e \
+		--build-arg BUILD_TIME=${BUILD_TIME} \
 		--network=host \
 		-o type=docker \
 		-t blocky-e2e \
 		.
 	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="e2e" --timeout 15m --flake-attempts 1 e2e
 
-race: ## run tests with race detector
+race: check-go ## run tests with race detector
 	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --race -r ${GINKGO_PROCS}
 
-lint: fmt ## run golangcli-lint checks
+lint: check-go fmt ## run golangcli-lint checks
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANG_LINT_VERSION) run --timeout 5m
 
 run: build ## Build and run binary
 	./$(BIN_OUT_DIR)/$(BINARY_NAME)
 
-fmt: ## gofmt and goimports all go files
+fmt: check-go ## gofmt and goimports all go files
 	go run mvdan.cc/gofumpt -l -w -extra .
 	find . -name '*.go' -exec go run golang.org/x/tools/cmd/goimports -w {} +
 
-docker-build: generate ## Build docker image
+docker-build: check-docker generate ## Build docker image
 	docker buildx build \
 		--build-arg VERSION=${VERSION} \
 		--build-arg BUILD_TIME=${BUILD_TIME} \
@@ -91,6 +111,8 @@ docker-build: generate ## Build docker image
 		-o type=docker \
 		-t ${DOCKER_IMAGE_NAME} \
 		.
+
+check-tools: check-go check-docker check-pip ## Check if all required tools are installed
 
 help:  ## Shows help
 	@grep -E '^[0-9a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
