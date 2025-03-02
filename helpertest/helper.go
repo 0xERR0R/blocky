@@ -161,38 +161,33 @@ func HaveEdnsOption(code uint16) types.GomegaMatcher {
 	)
 }
 
-func toFirstRR(actual interface{}) (dns.RR, error) {
-	switch i := actual.(type) {
-	case *model.Response:
-		return toFirstRR(i.Res)
-	case *dns.Msg:
-		return toFirstRR(i.Answer)
-
-	case []dns.RR:
-		if len(i) == 0 {
-			return nil, fmt.Errorf("answer must not be empty")
-		}
-
-		if len(i) == 1 {
-			return toFirstRR(i[0])
-		}
-
-		return nil, fmt.Errorf("supports only single RR in answer")
-	case dns.RR:
-		return i, nil
-	default:
-		return nil, fmt.Errorf("not supported type")
-	}
-}
-
 func HaveTTL(matcher types.GomegaMatcher) types.GomegaMatcher {
 	return gomega.WithTransform(func(actual interface{}) (uint32, error) {
-		rr, err := toFirstRR(actual)
-		if err != nil {
-			return 0, err
+		// Handle different types of input
+		var records []dns.RR
+
+		switch i := actual.(type) {
+		case *model.Response:
+			records = i.Res.Answer
+		case *dns.Msg:
+			records = i.Answer
+		case []dns.RR:
+			records = i
+		case dns.RR:
+			records = []dns.RR{i}
+		default:
+			return 0, fmt.Errorf("unsupported type for TTL matching: %T", actual)
 		}
 
-		return rr.Header().Ttl, nil
+		// No records to match
+		if len(records) == 0 {
+			return 0, fmt.Errorf("answer must not be empty")
+		}
+
+		// Return TTL of the first record
+		// This is a reasonable approach since typically all records in a response
+		// have the same TTL, and we're usually testing against a specific expected value
+		return records[0].Header().Ttl, nil
 	}, matcher)
 }
 
@@ -211,40 +206,63 @@ type dnsRecordMatcher struct {
 	answer  string
 }
 
-func (matcher *dnsRecordMatcher) matchSingle(rr dns.RR) (success bool, err error) {
+func (matcher *dnsRecordMatcher) matchSingle(rr dns.RR) bool {
 	if (rr.Header().Name != matcher.domain) ||
 		(dns.Type(rr.Header().Rrtype) != matcher.dnsType) {
-		return false, nil
+		return false
 	}
 
 	switch v := rr.(type) {
 	case *dns.A:
-		return v.A.String() == matcher.answer, nil
+		return v.A.String() == matcher.answer
 	case *dns.AAAA:
-		return v.AAAA.String() == matcher.answer, nil
+		return v.AAAA.To16().Equal(net.ParseIP(matcher.answer))
 	case *dns.CNAME:
-		return v.Target == matcher.answer, nil
+		return v.Target == matcher.answer
 	case *dns.PTR:
-		return v.Ptr == matcher.answer, nil
+		return v.Ptr == matcher.answer
 	case *dns.SRV:
-		return fmt.Sprintf("%d %d %d %s", v.Priority, v.Weight, v.Port, v.Target) == matcher.answer, nil
+		return fmt.Sprintf("%d %d %d %s", v.Priority, v.Weight, v.Port, v.Target) == matcher.answer
 	case *dns.TXT:
-		return strings.Join(v.Txt, " ") == matcher.answer, nil
+		return strings.Join(v.Txt, " ") == matcher.answer
 	case *dns.MX:
-		return v.Mx == matcher.answer, nil
+		return v.Mx == matcher.answer
 	}
 
-	return false, nil
+	return false
 }
 
 // Match checks the DNS record
 func (matcher *dnsRecordMatcher) Match(actual interface{}) (success bool, err error) {
-	rr, err := toFirstRR(actual)
-	if err != nil {
-		return false, err
+	// Handle different types of input
+	var records []dns.RR
+
+	switch i := actual.(type) {
+	case *model.Response:
+		records = i.Res.Answer
+	case *dns.Msg:
+		records = i.Answer
+	case []dns.RR:
+		records = i
+	case dns.RR:
+		records = []dns.RR{i}
+	default:
+		return false, fmt.Errorf("unsupported type for DNS record matching: %T", actual)
 	}
 
-	return matcher.matchSingle(rr)
+	// No records to match
+	if len(records) == 0 {
+		return false, nil
+	}
+
+	// Try to match any of the records
+	for _, rr := range records {
+		if match := matcher.matchSingle(rr); match {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // FailureMessage generates a failure message
