@@ -161,30 +161,6 @@ func HaveEdnsOption(code uint16) types.GomegaMatcher {
 	)
 }
 
-func toFirstRR(actual interface{}) (dns.RR, error) {
-	switch i := actual.(type) {
-	case *model.Response:
-		return toFirstRR(i.Res)
-	case *dns.Msg:
-		return toFirstRR(i.Answer)
-
-	case []dns.RR:
-		if len(i) == 0 {
-			return nil, fmt.Errorf("answer must not be empty")
-		}
-
-		if len(i) == 1 {
-			return toFirstRR(i[0])
-		}
-
-		return nil, fmt.Errorf("supports only single RR in answer")
-	case dns.RR:
-		return i, nil
-	default:
-		return nil, fmt.Errorf("not supported type")
-	}
-}
-
 func HaveTTL(matcher types.GomegaMatcher) types.GomegaMatcher {
 	return gomega.WithTransform(func(actual interface{}) (uint32, error) {
 		// Handle different types of input
@@ -230,30 +206,30 @@ type dnsRecordMatcher struct {
 	answer  string
 }
 
-func (matcher *dnsRecordMatcher) matchSingle(rr dns.RR) (success bool, err error) {
+func (matcher *dnsRecordMatcher) matchSingle(rr dns.RR) bool {
 	if (rr.Header().Name != matcher.domain) ||
 		(dns.Type(rr.Header().Rrtype) != matcher.dnsType) {
-		return false, nil
+		return false
 	}
 
 	switch v := rr.(type) {
 	case *dns.A:
-		return v.A.String() == matcher.answer, nil
+		return v.A.String() == matcher.answer
 	case *dns.AAAA:
-		return v.AAAA.To16().Equal(net.ParseIP(matcher.answer)), nil
+		return v.AAAA.To16().Equal(net.ParseIP(matcher.answer))
 	case *dns.CNAME:
-		return v.Target == matcher.answer, nil
+		return v.Target == matcher.answer
 	case *dns.PTR:
-		return v.Ptr == matcher.answer, nil
+		return v.Ptr == matcher.answer
 	case *dns.SRV:
-		return fmt.Sprintf("%d %d %d %s", v.Priority, v.Weight, v.Port, v.Target) == matcher.answer, nil
+		return fmt.Sprintf("%d %d %d %s", v.Priority, v.Weight, v.Port, v.Target) == matcher.answer
 	case *dns.TXT:
-		return strings.Join(v.Txt, " ") == matcher.answer, nil
+		return strings.Join(v.Txt, " ") == matcher.answer
 	case *dns.MX:
-		return v.Mx == matcher.answer, nil
+		return v.Mx == matcher.answer
 	}
 
-	return false, nil
+	return false
 }
 
 // Match checks the DNS record
@@ -281,7 +257,7 @@ func (matcher *dnsRecordMatcher) Match(actual interface{}) (success bool, err er
 
 	// Try to match any of the records
 	for _, rr := range records {
-		if match, _ := matcher.matchSingle(rr); match {
+		if match := matcher.matchSingle(rr); match {
 			return true, nil
 		}
 	}
