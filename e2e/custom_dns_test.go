@@ -2,8 +2,10 @@ package e2e
 
 import (
 	"context"
+
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
@@ -139,7 +141,6 @@ var _ = Describe("Custom DNS tests", func() {
 		})
 
 		When("Zone file is configured", func() {
-
 			BeforeEach(func(ctx context.Context) {
 				Expect(err).Should(Succeed())
 
@@ -266,6 +267,64 @@ var _ = Describe("Custom DNS tests", func() {
 					// This should return empty since we only defined A record
 					// and filterUnmappedTypes is true (default)
 					msg := util.NewMsgWithQuestion("printer.lan.", AAAA)
+					resp, err := doDNSRequest(ctx, blocky, msg)
+					Expect(err).Should(Succeed())
+					Expect(resp.Answer).Should(BeEmpty())
+				})
+			})
+		})
+
+		When("Reverse DNS lookup is performed", func() {
+			BeforeEach(func(ctx context.Context) {
+				blocky, err = createBlockyContainer(ctx, e2eNet,
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - moka1",
+					"customDNS:",
+					"  customTTL: 1h",
+					"  mapping:",
+					"    printer.lan: 192.168.178.3",
+					"    multi.lan: 192.168.178.4,192.168.178.5",
+				)
+				Expect(err).Should(Succeed())
+			})
+
+			It("Should resolve PTR records for defined IP addresses", func(ctx context.Context) {
+				By("Resolving PTR record for a single IP mapping", func() {
+					// Create a PTR query for 192.168.178.3
+					ptrName, err := dns.ReverseAddr("192.168.178.3")
+					Expect(err).Should(Succeed())
+
+					msg := util.NewMsgWithQuestion(ptrName, PTR)
+					Expect(doDNSRequest(ctx, blocky, msg)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord(ptrName, PTR, "printer.lan."),
+								HaveTTL(BeNumerically("==", 3600)), // 1h = 3600s
+							))
+				})
+
+				By("Resolving PTR record for an IP with multiple domains", func() {
+					// Create a PTR query for 192.168.178.4
+					ptrName, err := dns.ReverseAddr("192.168.178.4")
+					Expect(err).Should(Succeed())
+
+					msg := util.NewMsgWithQuestion(ptrName, PTR)
+					Expect(doDNSRequest(ctx, blocky, msg)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord(ptrName, PTR, "multi.lan."),
+								HaveTTL(BeNumerically("==", 3600)),
+							))
+				})
+
+				By("Returning empty result for undefined IP address", func() {
+					// Create a PTR query for 192.168.178.10 (not defined)
+					ptrName, err := dns.ReverseAddr("192.168.178.10")
+					Expect(err).Should(Succeed())
+
+					msg := util.NewMsgWithQuestion(ptrName, PTR)
 					resp, err := doDNSRequest(ctx, blocky, msg)
 					Expect(err).Should(Succeed())
 					Expect(resp.Answer).Should(BeEmpty())
