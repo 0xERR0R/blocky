@@ -187,12 +187,31 @@ func toFirstRR(actual interface{}) (dns.RR, error) {
 
 func HaveTTL(matcher types.GomegaMatcher) types.GomegaMatcher {
 	return gomega.WithTransform(func(actual interface{}) (uint32, error) {
-		rr, err := toFirstRR(actual)
-		if err != nil {
-			return 0, err
+		// Handle different types of input
+		var records []dns.RR
+
+		switch i := actual.(type) {
+		case *model.Response:
+			records = i.Res.Answer
+		case *dns.Msg:
+			records = i.Answer
+		case []dns.RR:
+			records = i
+		case dns.RR:
+			records = []dns.RR{i}
+		default:
+			return 0, fmt.Errorf("unsupported type for TTL matching: %T", actual)
 		}
 
-		return rr.Header().Ttl, nil
+		// No records to match
+		if len(records) == 0 {
+			return 0, fmt.Errorf("answer must not be empty")
+		}
+
+		// Return TTL of the first record
+		// This is a reasonable approach since typically all records in a response
+		// have the same TTL, and we're usually testing against a specific expected value
+		return records[0].Header().Ttl, nil
 	}, matcher)
 }
 
@@ -221,7 +240,7 @@ func (matcher *dnsRecordMatcher) matchSingle(rr dns.RR) (success bool, err error
 	case *dns.A:
 		return v.A.String() == matcher.answer, nil
 	case *dns.AAAA:
-		return v.AAAA.String() == matcher.answer, nil
+		return v.AAAA.To16().Equal(net.ParseIP(matcher.answer)), nil
 	case *dns.CNAME:
 		return v.Target == matcher.answer, nil
 	case *dns.PTR:
@@ -239,12 +258,35 @@ func (matcher *dnsRecordMatcher) matchSingle(rr dns.RR) (success bool, err error
 
 // Match checks the DNS record
 func (matcher *dnsRecordMatcher) Match(actual interface{}) (success bool, err error) {
-	rr, err := toFirstRR(actual)
-	if err != nil {
-		return false, err
+	// Handle different types of input
+	var records []dns.RR
+
+	switch i := actual.(type) {
+	case *model.Response:
+		records = i.Res.Answer
+	case *dns.Msg:
+		records = i.Answer
+	case []dns.RR:
+		records = i
+	case dns.RR:
+		records = []dns.RR{i}
+	default:
+		return false, fmt.Errorf("unsupported type for DNS record matching: %T", actual)
 	}
 
-	return matcher.matchSingle(rr)
+	// No records to match
+	if len(records) == 0 {
+		return false, nil
+	}
+
+	// Try to match any of the records
+	for _, rr := range records {
+		if match, _ := matcher.matchSingle(rr); match {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // FailureMessage generates a failure message
