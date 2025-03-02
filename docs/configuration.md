@@ -320,9 +320,6 @@ For more complex configurations, you can use the `zone` parameter to define a DN
         www 3600 A 1.2.3.4
         www 3600 AAAA 2001:db8:85a3::8a2e:370:7334
         @ 3600 CNAME www
-        mail 3600 A 5.6.7.8
-        _sip._tcp 3600 SRV 10 60 5060 sip-server
-        txt 3600 TXT "This is a TXT record"
     ```
 
 The zone file supports standard DNS zone file syntax including:
