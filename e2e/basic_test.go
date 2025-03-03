@@ -13,7 +13,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 )
 
-var _ = Describe("Basic functional tests", func() {
+var _ = Describe("Basic functionality", func() {
 	var (
 		e2eNet *testcontainers.DockerNetwork
 		blocky testcontainers.Container
@@ -21,71 +21,80 @@ var _ = Describe("Basic functional tests", func() {
 	)
 
 	BeforeEach(func(ctx context.Context) {
+		// Create a fresh network for each test
 		e2eNet = getRandomNetwork(ctx)
 	})
 
-	Describe("Container start", func() {
+	Context("with upstream DNS server", func() {
 		BeforeEach(func(ctx context.Context) {
+			// Setup mock DNS server that will respond to queries
 			_, err = createDNSMokkaContainer(ctx, "moka1", e2eNet, `A google/NOERROR("A 1.2.3.4 123")`)
 			Expect(err).Should(Succeed())
 		})
-		When("wrong port configuration is provided", func() {
-			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"ports:",
-					"  http: 4000",
-					"  dns: 4000",
-				)
-				Expect(err).Should(HaveOccurred())
 
-				// check container exit status
-				state, err := blocky.State(ctx)
-				Expect(err).Should(Succeed())
-				Expect(state.ExitCode).Should(Equal(1))
-			})
-			It("should fail to start", func(ctx context.Context) {
-				Eventually(blocky.IsRunning, "5s", "2ms").Should(BeFalse())
+		Describe("Container startup", func() {
+			Context("with conflicting port configuration", func() {
+				BeforeEach(func(ctx context.Context) {
+					// Create blocky with the same port for HTTP and DNS
+					blocky, err = createBlockyContainer(ctx, e2eNet,
+						"upstreams:",
+						"  groups:",
+						"    default:",
+						"      - moka1",
+						"ports:",
+						"  http: 4000",
+						"  dns: 4000",
+					)
+					Expect(err).Should(HaveOccurred())
 
-				Expect(getContainerLogs(ctx, blocky)).
-					Should(ContainElement(ContainSubstring("address already in use")))
-			})
-		})
-		When("Minimal configuration is provided", func() {
-			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-				)
-
-				Expect(err).Should(Succeed())
-			})
-			It("Should start and answer DNS queries", func(ctx context.Context) {
-				msg := util.NewMsgWithQuestion("google.de.", A)
-
-				Expect(doDNSRequest(ctx, blocky, msg)).
-					Should(
-						SatisfyAll(
-							BeDNSRecord("google.de.", A, "1.2.3.4"),
-							HaveTTL(BeNumerically("==", 123)),
-						))
-			})
-			It("should return 'healthy' container status (healthcheck)", func(ctx context.Context) {
-				Eventually(func(g Gomega) string {
+					// Verify container exit status
 					state, err := blocky.State(ctx)
-					g.Expect(err).NotTo(HaveOccurred())
+					Expect(err).Should(Succeed())
+					Expect(state.ExitCode).Should(Equal(1))
+				})
 
-					return state.Health.Status
-				}, "2m", "1s").Should(Equal("healthy"))
+				It("fails to start with appropriate error message", func(ctx context.Context) {
+					Eventually(blocky.IsRunning, "5s", "2ms").Should(BeFalse())
+					Expect(getContainerLogs(ctx, blocky)).
+						Should(ContainElement(ContainSubstring("address already in use")))
+				})
+			})
+
+			Context("with minimal configuration", func() {
+				BeforeEach(func(ctx context.Context) {
+					// Create blocky with minimal config
+					blocky, err = createBlockyContainer(ctx, e2eNet,
+						"upstreams:",
+						"  groups:",
+						"    default:",
+						"      - moka1",
+					)
+					Expect(err).Should(Succeed())
+				})
+
+				It("starts successfully and resolves DNS queries", func(ctx context.Context) {
+					msg := util.NewMsgWithQuestion("google.de.", A)
+
+					Expect(doDNSRequest(ctx, blocky, msg)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("google.de.", A, "1.2.3.4"),
+								HaveTTL(BeNumerically("==", 123)),
+							))
+				})
+
+				It("reports 'healthy' status via container healthcheck", func(ctx context.Context) {
+					Eventually(func(g Gomega) string {
+						state, err := blocky.State(ctx)
+						g.Expect(err).NotTo(HaveOccurred())
+						return state.Health.Status
+					}, "2m", "1s").Should(Equal("healthy"))
+				})
 			})
 		})
-		Context("http port configuration", func() {
-			When("'httpPort' is not defined", func() {
+
+		Describe("HTTP port configuration", func() {
+			Context("when HTTP port is not defined", func() {
 				BeforeEach(func(ctx context.Context) {
 					blocky, err = createBlockyContainer(ctx, e2eNet,
 						"upstreams:",
@@ -93,11 +102,10 @@ var _ = Describe("Basic functional tests", func() {
 						"    default:",
 						"      - moka1",
 					)
-
 					Expect(err).Should(Succeed())
 				})
 
-				It("should not open http port", func(ctx context.Context) {
+				It("does not expose HTTP service", func(ctx context.Context) {
 					host, port, err := getContainerHostPort(ctx, blocky, "4000/tcp")
 					Expect(err).Should(Succeed())
 
@@ -105,7 +113,8 @@ var _ = Describe("Basic functional tests", func() {
 					Expect(err).Should(HaveOccurred())
 				})
 			})
-			When("'httpPort' is defined", func() {
+
+			Context("when HTTP port is defined", func() {
 				BeforeEach(func(ctx context.Context) {
 					blocky, err = createBlockyContainer(ctx, e2eNet,
 						"upstreams:",
@@ -115,24 +124,27 @@ var _ = Describe("Basic functional tests", func() {
 						"ports:",
 						"  http: 4000",
 					)
-
 					Expect(err).Should(Succeed())
 				})
-				It("should serve http content", func(ctx context.Context) {
+
+				It("serves HTTP content on configured port", func(ctx context.Context) {
 					host, port, err := getContainerHostPort(ctx, blocky, "4000/tcp")
 					Expect(err).Should(Succeed())
 					url := fmt.Sprintf("http://%s", net.JoinHostPort(host, port))
 
-					By("serve static html content", func() {
+					By("serving static HTML content", func() {
 						Eventually(http.Get).WithArguments(url).Should(HaveHTTPStatus(http.StatusOK))
 					})
-					By("serve pprof endpoint", func() {
+
+					By("serving pprof debugging endpoint", func() {
 						Eventually(http.Get).WithArguments(url + "/debug/").Should(HaveHTTPStatus(http.StatusOK))
 					})
-					By("prometheus endpoint should be disabled", func() {
+
+					By("not exposing prometheus metrics by default", func() {
 						Eventually(http.Get).WithArguments(url + "/metrics").Should(HaveHTTPStatus(http.StatusNotFound))
 					})
-					By("serve DoH endpoint", func() {
+
+					By("serving DNS-over-HTTPS endpoint", func() {
 						Eventually(http.Get).WithArguments(url +
 							"/dns-query?dns=q80BAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB").Should(HaveHTTPStatus(http.StatusOK))
 					})
@@ -141,12 +153,13 @@ var _ = Describe("Basic functional tests", func() {
 		})
 	})
 
-	Describe("Logging", func() {
+	Describe("Logging privacy", func() {
 		BeforeEach(func(ctx context.Context) {
 			_, err = createDNSMokkaContainer(ctx, "moka1", e2eNet, `A google/NOERROR("A 1.2.3.4 123")`)
 			Expect(err).Should(Succeed())
 		})
-		When("log privacy is enabled", func() {
+
+		Context("when privacy mode is enabled", func() {
 			BeforeEach(func(ctx context.Context) {
 				blocky, err = createBlockyContainer(ctx, e2eNet,
 					"upstreams:",
@@ -159,11 +172,11 @@ var _ = Describe("Basic functional tests", func() {
 				)
 				Expect(err).Should(Succeed())
 			})
-			It("should not log answers and questions", func(ctx context.Context) {
+
+			It("redacts sensitive information from logs", func(ctx context.Context) {
 				msg := util.NewMsgWithQuestion("google.com.", A)
 
-				// do 2 requests
-
+				// Make two requests to ensure consistent behavior
 				Expect(doDNSRequest(ctx, blocky, msg)).
 					Should(
 						SatisfyAll(
@@ -178,6 +191,7 @@ var _ = Describe("Basic functional tests", func() {
 							HaveTTL(BeNumerically("<=", 123)),
 						))
 
+				// Verify logs don't contain sensitive information
 				Expect(getContainerLogs(ctx, blocky)).ShouldNot(ContainElement(ContainSubstring("google.com")))
 				Expect(getContainerLogs(ctx, blocky)).ShouldNot(ContainElement(ContainSubstring("1.2.3.4")))
 			})
