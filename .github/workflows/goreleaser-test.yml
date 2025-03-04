@@ -116,7 +116,7 @@ jobs:
 
       - name: Test binary on ${{ matrix.arch }}
         if: matrix.arch != 'amd64' 
-        uses: uraimo/run-on-arch-action@v2
+        uses: uraimo/run-on-arch-action@v3
         with:
           distro: ${{ matrix.distro }}
           arch: ${{ matrix.arch }}
