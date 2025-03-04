@@ -2,8 +2,8 @@ package stringcache
 
 type GroupedStringCache interface {
 	// Contains checks if one or more groups in the cache contains the search string.
-	// Returns group(s) containing the string or empty slice if string was not found
-	Contains(searchString string, groups []string) []string
+	// Returns group(s) containing the string as keys, and the rule that caused the block as value, empty map if string was not found
+	Contains(searchString string, groups []string) map[string]string
 
 	// Refresh creates new factory for the group to be refreshed.
 	// Calling Finish on the factory will perform the group refresh.

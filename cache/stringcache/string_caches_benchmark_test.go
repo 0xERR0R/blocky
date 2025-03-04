@@ -180,7 +180,7 @@ func benchmarkCache(b *testing.B, data []string, newFactory func() cacheFactory)
 		// - wildcards and regexes need a plain string query
 		// - all benchmarks will do the same number of queries
 		for _, s := range stringTestData {
-			if !cache.contains(s) {
+			if contains, _ := cache.contains(s); !contains {
 				b.Fatalf("cache is missing value from stringTestData: %s", s)
 			}
 		}

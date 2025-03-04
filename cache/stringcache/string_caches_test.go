@@ -38,17 +38,25 @@ var _ = Describe("Caches", func() {
 			})
 
 			It("should match if StringCache contains exact string", func() {
-				Expect(cache.contains("apple.com")).Should(BeTrue())
-				Expect(cache.contains("google.com")).Should(BeTrue())
-				Expect(cache.contains("www.google.com")).Should(BeFalse())
-				Expect(cache.contains("")).Should(BeFalse())
+				contains, _ := cache.contains("apple.com")
+				Expect(contains).Should(BeTrue())
+				contains, _ = cache.contains("google.com")
+				Expect(contains).Should(BeTrue())
+				contains, _ = cache.contains("www.google.com")
+				Expect(contains).Should(BeFalse())
+				contains, _ = cache.contains("")
+				Expect(contains).Should(BeFalse())
 			})
 
 			It("should match case-insensitive", func() {
-				Expect(cache.contains("aPPle.com")).Should(BeTrue())
-				Expect(cache.contains("google.COM")).Should(BeTrue())
-				Expect(cache.contains("www.google.com")).Should(BeFalse())
-				Expect(cache.contains("")).Should(BeFalse())
+				contains, _ := cache.contains("aPPle.com")
+				Expect(contains).Should(BeTrue())
+				contains, _ = cache.contains("google.COM")
+				Expect(contains).Should(BeTrue())
+				contains, _ = cache.contains("www.google.com")
+				Expect(contains).Should(BeFalse())
+				contains, _ = cache.contains("")
+				Expect(contains).Should(BeFalse())
 			})
 
 			It("should return correct element count", func() {
@@ -88,18 +96,30 @@ var _ = Describe("Caches", func() {
 			})
 
 			It("should match if one regex in StringCache matches string", func() {
-				Expect(cache.contains("google.com")).Should(BeTrue())
-				Expect(cache.contains("google.coma")).Should(BeTrue())
-				Expect(cache.contains("agoogle.com")).Should(BeTrue())
-				Expect(cache.contains("www.google.com")).Should(BeTrue())
-				Expect(cache.contains("apple.com")).Should(BeTrue())
-				Expect(cache.contains("apple.de")).Should(BeTrue())
-				Expect(cache.contains("apple.it")).Should(BeFalse())
-				Expect(cache.contains("www.apple.com")).Should(BeFalse())
-				Expect(cache.contains("applecom")).Should(BeFalse())
-				Expect(cache.contains("www.amazon.com")).Should(BeTrue())
-				Expect(cache.contains("amazon.com")).Should(BeTrue())
-				Expect(cache.contains("myamazon.com")).Should(BeTrue())
+				contains, _ := cache.contains("google.com")
+				Expect(contains).Should(BeTrue())
+				contains, _ = cache.contains("google.coma")
+				Expect(contains).Should(BeTrue())
+				contains, _ = cache.contains("agoogle.com")
+				Expect(contains).Should(BeTrue())
+				contains, _ = cache.contains("www.google.com")
+				Expect(contains).Should(BeTrue())
+				contains, _ = cache.contains("apple.com")
+				Expect(contains).Should(BeTrue())
+				contains, _ = cache.contains("apple.de")
+				Expect(contains).Should(BeTrue())
+				contains, _ = cache.contains("apple.it")
+				Expect(contains).Should(BeFalse())
+				contains, _ = cache.contains("www.apple.com")
+				Expect(contains).Should(BeFalse())
+				contains, _ = cache.contains("applecom")
+				Expect(contains).Should(BeFalse())
+				contains, _ = cache.contains("www.amazon.com")
+				Expect(contains).Should(BeTrue())
+				contains, _ = cache.contains("amazon.com")
+				Expect(contains).Should(BeTrue())
+				contains, _ = cache.contains("myamazon.com")
+				Expect(contains).Should(BeTrue())
 			})
 
 			It("should return correct element count", func() {
@@ -140,28 +160,42 @@ var _ = Describe("Caches", func() {
 
 			It("should match if one regex in StringCache matches string", func() {
 				// first entry
-				Expect(cache.contains("example.com")).Should(BeTrue())
-				Expect(cache.contains("www.example.com")).Should(BeTrue())
+				contains, _ := cache.contains("example.com")
+				Expect(contains).Should(BeTrue())
+				contains, _ = cache.contains("www.example.com")
+				Expect(contains).Should(BeTrue())
 
 				// look alikes
-				Expect(cache.contains("com")).Should(BeFalse())
-				Expect(cache.contains("example.coma")).Should(BeFalse())
-				Expect(cache.contains("an-example.com")).Should(BeFalse())
-				Expect(cache.contains("examplecom")).Should(BeFalse())
+				contains, _ = cache.contains("com")
+				Expect(contains).Should(BeFalse())
+				contains, _ = cache.contains("example.coma")
+				Expect(contains).Should(BeFalse())
+				contains, _ = cache.contains("an-example.com")
+				Expect(contains).Should(BeFalse())
+				contains, _ = cache.contains("examplecom")
+				Expect(contains).Should(BeFalse())
 
 				// other entry
-				Expect(cache.contains("example.org")).Should(BeTrue())
-				Expect(cache.contains("www.example.org")).Should(BeTrue())
+				contains, _ = cache.contains("example.org")
+				Expect(contains).Should(BeTrue())
+				contains, _ = cache.contains("www.example.org")
+				Expect(contains).Should(BeTrue())
 
 				// unrelated
-				Expect(cache.contains("example.net")).Should(BeFalse())
-				Expect(cache.contains("www.example.net")).Should(BeFalse())
+				contains, _ = cache.contains("example.net")
+				Expect(contains).Should(BeFalse())
+				contains, _ = cache.contains("www.example.net")
+				Expect(contains).Should(BeFalse())
 
 				// third entry
-				Expect(cache.contains("blocked")).Should(BeTrue())
-				Expect(cache.contains("sub.blocked")).Should(BeTrue())
-				Expect(cache.contains("sub.sub.blocked")).Should(BeTrue())
-				Expect(cache.contains("example.blocked")).Should(BeTrue())
+				contains, _ = cache.contains("blocked")
+				Expect(contains).Should(BeTrue())
+				contains, _ = cache.contains("sub.blocked")
+				Expect(contains).Should(BeTrue())
+				contains, _ = cache.contains("sub.sub.blocked")
+				Expect(contains).Should(BeTrue())
+				contains, _ = cache.contains("example.blocked")
+				Expect(contains).Should(BeTrue())
 			})
 
 			It("should return correct element count", func() {
