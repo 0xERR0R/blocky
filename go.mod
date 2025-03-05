@@ -23,7 +23,7 @@ require (
 	github.com/onsi/gomega v1.36.2
 	github.com/prometheus/client_golang v1.21.1
 	github.com/sirupsen/logrus v1.9.3
-	github.com/spf13/cobra v1.8.1
+	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
 	golang.org/x/net v0.35.0
@@ -119,7 +119,7 @@ require (
 	github.com/alicebob/gopher-json v0.0.0-20230218143504-906a9b012302 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.6 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
@@ -150,7 +150,7 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/ramr/go-reaper v0.2.3
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/urfave/cli/v2 v2.26.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
