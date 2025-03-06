@@ -17,7 +17,7 @@ var _ = Describe("root command", func() {
 		log.Log().ExitFunc = nil
 		It("should execute without error", func() {
 			c := NewRootCommand()
-			c.SetOutput(io.Discard)
+			c.SetOut(io.Discard)
 			c.SetArgs([]string{"help"})
 			err := c.Execute()
 			Expect(err).Should(Succeed())
