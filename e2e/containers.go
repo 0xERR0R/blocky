@@ -228,6 +228,7 @@ func checkBlockyReadiness(ctx context.Context, cfg *config.Config, container tes
 			if err != nil {
 				return fmt.Errorf("DNS request failed: %w", err)
 			}
+
 			return nil
 		},
 		retry.OnRetry(func(n uint, err error) {

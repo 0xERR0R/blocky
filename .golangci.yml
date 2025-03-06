@@ -70,6 +70,8 @@ linters-settings:
   mnd:
     ignored-numbers:
       - "0666"
+      - "2"
+      - "5"
   ginkgolinter:
     forbid-focus-container: true
   stylecheck:
