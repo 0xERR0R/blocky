@@ -1,7 +1,6 @@
 module github.com/0xERR0R/blocky
 
 go 1.23
-
 require (
 	github.com/abice/go-enum v0.6.0
 	github.com/alicebob/miniredis/v2 v2.34.0
@@ -19,7 +18,7 @@ require (
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/miekg/dns v1.1.63
 	github.com/mroth/weightedrand/v2 v2.1.0
-	github.com/onsi/ginkgo/v2 v2.22.2
+	github.com/onsi/ginkgo/v2 v2.23.0
 	github.com/onsi/gomega v1.36.2
 	github.com/prometheus/client_golang v1.21.1
 	github.com/sirupsen/logrus v1.9.3
