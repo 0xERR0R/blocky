@@ -774,7 +774,6 @@ func requestServer(request *dns.Msg) *dns.Msg {
 		response := new(dns.Msg)
 
 		err = response.Unpack(out)
-
 		if err != nil {
 			Log().Fatal("can't unpack response: ", err)
 		}

@@ -1,8 +1,9 @@
 package trie
 
 import (
-	"github.com/0xERR0R/blocky/log"
 	"strings"
+
+	"github.com/0xERR0R/blocky/log"
 )
 
 // Trie stores a set of strings and can quickly check

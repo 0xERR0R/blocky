@@ -182,7 +182,6 @@ func (r *httpUpstreamClient) callExternal(
 
 	response := dns.Msg{}
 	err = response.Unpack(body)
-
 	if err != nil {
 		return nil, 0, fmt.Errorf("can't unpack message: %w", err)
 	}
@@ -219,7 +218,7 @@ func (r *dnsUpstreamClient) raceClients(
 
 	// We don't explicitly close the channel, but since the buffer is big enough for all goroutines,
 	// it will be GC'ed and closed automatically.
-	ch := make(chan exchangeResult, 2) //nolint:mnd // TCP and UDP
+	ch := make(chan exchangeResult, 2) // TCP and UDP
 
 	exchange := func(client *dns.Client, proto model.RequestProtocol) {
 		msg, rtt, err := client.ExchangeContext(ctx, msg, upstreamURL)

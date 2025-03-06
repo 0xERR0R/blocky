@@ -4,10 +4,11 @@
 package main
 
 import (
-	_ "github.com/breml/rootcerts"
 	"os"
 	"time"
 	_ "time/tzdata"
+
+	_ "github.com/breml/rootcerts"
 
 	reaper "github.com/ramr/go-reaper"
 )

@@ -108,7 +108,6 @@ func (i *OpenAPIInterfaceImpl) DisableBlocking(ctx context.Context,
 	}
 
 	err = i.control.DisableBlocking(ctx, duration, groups)
-
 	if err != nil {
 		return DisableBlocking400TextResponse(log.EscapeInput(err.Error())), nil
 	}

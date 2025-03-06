@@ -239,7 +239,6 @@ var _ = Describe("CachingResolver", func() {
 
 							// still one call to upstream
 							g.Expect(m.Calls).Should(HaveLen(1))
-
 						}, "1s").Should(Succeed())
 					})
 				})
