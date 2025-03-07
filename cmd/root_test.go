@@ -1,10 +1,11 @@
 package cmd
 
 import (
-	"github.com/0xERR0R/blocky/log"
 	"io"
 	"net/http"
 	"os"
+
+	"github.com/0xERR0R/blocky/log"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -145,7 +146,7 @@ var _ = Describe("root command", func() {
 			}
 
 			err := printOkOrError(resp, "")
-			Expect(err).Should(BeNil())
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("should return error for non-OK status", func() {
@@ -178,7 +179,10 @@ var _ = Describe("root command", func() {
 				subCmdNames = append(subCmdNames, subCmd.Name())
 			}
 
-			expectedCmds := []string{"refresh", "query", "version", "serve", "blocking", "lists", "healthcheck", "cache", "validate"}
+			expectedCmds := []string{
+				"refresh", "query", "version", "serve",
+				"blocking", "lists", "healthcheck", "cache", "validate",
+			}
 			for _, expected := range expectedCmds {
 				Expect(subCmdNames).Should(ContainElement(expected))
 			}
