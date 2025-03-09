@@ -76,7 +76,7 @@ ifdef BIN_AUTOCAB
 endif
 
 test: check-go ## run tests
-	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --coverprofile=coverage.txt --covermode=atomic --cover -r ${GINKGO_PROCS}
+	go tool ginkgo --label-filter="!e2e" --coverprofile=coverage.txt --covermode=atomic --cover -r ${GINKGO_PROCS}
 	go tool cover -html coverage.txt -o coverage.html
 
 e2e-test: check-go check-docker ## run e2e tests
@@ -87,10 +87,10 @@ e2e-test: check-go check-docker ## run e2e tests
 		-o type=docker \
 		-t blocky-e2e \
 		.
-	go run github.com/onsi/ginkgo/v2/ginkgo -p --label-filter="e2e" --timeout 15m --flake-attempts 1 e2e
+	go tool ginkgo -p --label-filter="e2e" --timeout 15m --flake-attempts 1 e2e
 
 race: check-go ## run tests with race detector
-	go run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!e2e" --race -r ${GINKGO_PROCS}
+	go tool ginkgo --label-filter="!e2e" --race -r ${GINKGO_PROCS}
 
 lint: check-go fmt ## run golangcli-lint checks
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANG_LINT_VERSION) run --timeout 5m
@@ -99,8 +99,8 @@ run: build ## Build and run binary
 	./$(BIN_OUT_DIR)/$(BINARY_NAME)
 
 fmt: check-go ## gofmt and goimports all go files
-	go run mvdan.cc/gofumpt -l -w -extra .
-	find . -name '*.go' -exec go run golang.org/x/tools/cmd/goimports -w {} +
+	go tool gofumpt -l -w -extra .
+	find . -name '*.go' -exec go tool goimports -w {} +
 
 docker-build: check-docker generate ## Build docker image
 	docker buildx build \

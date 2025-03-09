@@ -1,4 +1,4 @@
-//go:generate go run github.com/abice/go-enum -f=$GOFILE --marshal --names --values
+//go:generate go tool go-enum -f=$GOFILE --marshal --names --values
 package config
 
 import (

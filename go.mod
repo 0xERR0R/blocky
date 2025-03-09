@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/ThinkChaos/parcour v0.0.0-20230710171753-fbf917c9eaef
-	github.com/abice/go-enum v0.6.0
+	github.com/abice/go-enum v0.6.0 // indirect
 	github.com/alicebob/miniredis/v2 v2.34.0
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/avast/retry-go/v4 v4.6.1
@@ -13,7 +13,7 @@ require (
 	github.com/creasty/defaults v1.8.0
 	github.com/docker/docker v28.0.1+incompatible
 	github.com/docker/go-connections v0.5.0
-	github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198
+	github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198 // indirect
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/go-chi/cors v1.2.1
 	github.com/go-redis/redis/v8 v8.11.5
@@ -25,7 +25,7 @@ require (
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/miekg/dns v1.1.63
 	github.com/mroth/weightedrand/v2 v2.1.0
-	github.com/oapi-codegen/oapi-codegen/v2 v2.4.1
+	github.com/oapi-codegen/oapi-codegen/v2 v2.4.1 // indirect
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/onsi/ginkgo/v2 v2.23.0
 	github.com/onsi/gomega v1.36.2
@@ -44,7 +44,7 @@ require (
 	gorm.io/driver/postgres v1.5.11
 	gorm.io/driver/sqlite v1.5.7
 	gorm.io/gorm v1.25.12
-	mvdan.cc/gofumpt v0.7.0
+	mvdan.cc/gofumpt v0.7.0 // indirect
 )
 
 require (
@@ -125,6 +125,7 @@ require (
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/ramr/go-reaper v0.2.3
+	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
@@ -153,8 +154,22 @@ require (
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/term v0.30.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
-	golang.org/x/tools v0.31.0
+	golang.org/x/time v0.9.0 // indirect
+	golang.org/x/tools v0.31.0 // indirect
 	golang.org/x/tools/cmd/cover v0.1.0-deprecated // indirect
-	google.golang.org/protobuf v1.36.1 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20241209162323-e6fa225c2576 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250127172529-29210b9bc287 // indirect
+	google.golang.org/grpc v1.70.0 // indirect
+	google.golang.org/protobuf v1.36.4 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+)
+
+tool (
+	github.com/abice/go-enum
+	github.com/dosgo/zigtool/zigcc
+	github.com/dosgo/zigtool/zigcpp
+	github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen
+	github.com/onsi/ginkgo/v2/ginkgo
+	golang.org/x/tools/cmd/goimports
+	mvdan.cc/gofumpt
 )
