@@ -403,6 +403,7 @@ var _ = Describe("Running DNS server", func() {
 
 					Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
 					Expect(resp).Should(HaveHTTPHeaderWithValue("Content-type", "application/dns-message"))
+					Expect(resp).Should(HaveHTTPHeaderWithValue("cache-control", "max-age=123"))
 
 					rawMsg, err := io.ReadAll(resp.Body)
 					Expect(err).Should(Succeed())

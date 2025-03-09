@@ -26,11 +26,12 @@ import (
 )
 
 const (
-	dohMessageLimit   = 512
-	contentTypeHeader = "content-type"
-	dnsContentType    = "application/dns-message"
-	htmlContentType   = "text/html; charset=UTF-8"
-	yamlContentType   = "text/yaml"
+	dohMessageLimit    = 512
+	contentTypeHeader  = "content-type"
+	cacheControlHeader = "cache-control"
+	dnsContentType     = "application/dns-message"
+	htmlContentType    = "text/html; charset=UTF-8"
+	yamlContentType    = "text/yaml"
 )
 
 func (s *Server) createOpenAPIInterfaceImpl() (impl api.StrictServerInterface, err error) {
@@ -88,7 +89,7 @@ func (s *Server) dohGetRequestHandler(rw http.ResponseWriter, req *http.Request)
 }
 
 func (s *Server) dohPostRequestHandler(rw http.ResponseWriter, req *http.Request) {
-	contentType := req.Header.Get("Content-type")
+	contentType := req.Header.Get(contentTypeHeader)
 	if contentType != dnsContentType {
 		http.Error(rw, "unsupported content type", http.StatusUnsupportedMediaType)
 
@@ -135,7 +136,11 @@ func (r httpMsgWriter) WriteMsg(msg *dns.Msg) error {
 		return err
 	}
 
-	r.rw.Header().Set("content-type", dnsContentType)
+	r.rw.Header().Set(contentTypeHeader, dnsContentType)
+
+	// https://www.rfc-editor.org/rfc/rfc8484#section-5.1
+	// get the smallest TTL from answer
+	r.rw.Header().Set(cacheControlHeader, fmt.Sprintf("max-age=%d", getSmallestTTlFromAnswer(msg)))
 
 	// https://www.rfc-editor.org/rfc/rfc8484#section-4.2.1
 	r.rw.WriteHeader(http.StatusOK)
@@ -143,6 +148,17 @@ func (r httpMsgWriter) WriteMsg(msg *dns.Msg) error {
 	_, err = r.rw.Write(b)
 
 	return err
+}
+
+func getSmallestTTlFromAnswer(msg *dns.Msg) uint32 {
+	var ttl uint32 = 0
+	for _, a := range msg.Answer {
+		if a.Header().Ttl < ttl || ttl == 0 {
+			ttl = a.Header().Ttl
+		}
+	}
+
+	return ttl
 }
 
 func (s *Server) Query(
