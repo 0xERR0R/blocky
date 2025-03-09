@@ -140,7 +140,7 @@ func (r httpMsgWriter) WriteMsg(msg *dns.Msg) error {
 
 	// https://www.rfc-editor.org/rfc/rfc8484#section-5.1
 	// get the smallest TTL from answer
-	r.rw.Header().Set(cacheControlHeader, fmt.Sprintf("max-age=%d", getSmallestTTlFromAnswer(msg)))
+	r.rw.Header().Set(cacheControlHeader, fmt.Sprintf("max-age=%d", getSmallestTTLFromAnswer(msg)))
 
 	// https://www.rfc-editor.org/rfc/rfc8484#section-4.2.1
 	r.rw.WriteHeader(http.StatusOK)
@@ -150,7 +150,7 @@ func (r httpMsgWriter) WriteMsg(msg *dns.Msg) error {
 	return err
 }
 
-func getSmallestTTlFromAnswer(msg *dns.Msg) uint32 {
+func getSmallestTTLFromAnswer(msg *dns.Msg) uint32 {
 	var ttl uint32 = 0
 	for _, a := range msg.Answer {
 		if a.Header().Ttl < ttl || ttl == 0 {
