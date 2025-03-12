@@ -10,7 +10,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 )
 
-var _ = Describe("External lists and query blocking", func() {
+var _ = Describe("Domain blocking functionality", func() {
 	var (
 		e2eNet *testcontainers.DockerNetwork
 		blocky testcontainers.Container
@@ -20,12 +20,14 @@ var _ = Describe("External lists and query blocking", func() {
 	BeforeEach(func(ctx context.Context) {
 		e2eNet = getRandomNetwork(ctx)
 
+		// Setup mock DNS server for all tests
 		_, err = createDNSMokkaContainer(ctx, "moka", e2eNet, `A google/NOERROR("A 1.2.3.4 123")`)
 		Expect(err).Should(Succeed())
 	})
-	Describe("List download on startup", func() {
-		When("external denylist ist not available", func() {
-			Context("loading.strategy = blocking", func() {
+
+	Describe("External blocklist loading", func() {
+		Context("when blocklist is unavailable", func() {
+			Context("with loading.strategy = blocking", func() {
 				BeforeEach(func(ctx context.Context) {
 					blocky, err = createBlockyContainer(ctx, e2eNet,
 						"log:",
@@ -47,9 +49,9 @@ var _ = Describe("External lists and query blocking", func() {
 					Expect(err).Should(Succeed())
 				})
 
-				It("should start with warning in log work without errors", func(ctx context.Context) {
+				It("starts with warning and continues to function", func(ctx context.Context) {
+					// Verify DNS resolution still works
 					msg := util.NewMsgWithQuestion("google.com.", A)
-
 					Expect(doDNSRequest(ctx, blocky, msg)).
 						Should(
 							SatisfyAll(
@@ -57,10 +59,12 @@ var _ = Describe("External lists and query blocking", func() {
 								HaveTTL(BeNumerically("==", 123)),
 							))
 
+					// Verify warning in logs
 					Expect(getContainerLogs(ctx, blocky)).Should(ContainElement(ContainSubstring("cannot open source: ")))
 				})
 			})
-			Context("loading.strategy = failOnError", func() {
+
+			Context("with loading.strategy = failOnError", func() {
 				BeforeEach(func(ctx context.Context) {
 					blocky, err = createBlockyContainer(ctx, e2eNet,
 						"log:",
@@ -81,24 +85,25 @@ var _ = Describe("External lists and query blocking", func() {
 					)
 					Expect(err).Should(HaveOccurred())
 
-					// check container exit status
+					// Verify container exit status
 					state, err := blocky.State(ctx)
 					Expect(err).Should(Succeed())
 					Expect(state.ExitCode).Should(Equal(1))
 				})
 
-				It("should fail to start", func(ctx context.Context) {
+				It("fails to start with appropriate error message", func(ctx context.Context) {
 					Eventually(blocky.IsRunning, "5s", "2ms").Should(BeFalse())
-
 					Expect(getContainerLogs(ctx, blocky)).
 						Should(ContainElement(ContainSubstring("Error: can't start server: 1 error occurred")))
 				})
 			})
 		})
 	})
-	Describe("Query blocking against external denylists", func() {
-		When("external denylists are defined and available", func() {
+
+	Describe("Domain blocking", func() {
+		Context("with available external blocklists", func() {
 			BeforeEach(func(ctx context.Context) {
+				// Create HTTP server with blocklist
 				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blockeddomain.com")
 				Expect(err).Should(Succeed())
 
@@ -117,10 +122,10 @@ var _ = Describe("External lists and query blocking", func() {
 					"    default:",
 					"      - ads",
 				)
-
 				Expect(err).Should(Succeed())
 			})
-			It("should download external list on startup and block queries", func(ctx context.Context) {
+
+			It("blocks domains listed in external blocklists", func(ctx context.Context) {
 				msg := util.NewMsgWithQuestion("blockeddomain.com.", A)
 
 				Expect(doDNSRequest(ctx, blocky, msg)).
@@ -130,6 +135,7 @@ var _ = Describe("External lists and query blocking", func() {
 							HaveTTL(BeNumerically("==", 6*60*60)),
 						))
 
+				// No errors should be logged
 				Expect(getContainerLogs(ctx, blocky)).Should(BeEmpty())
 			})
 		})

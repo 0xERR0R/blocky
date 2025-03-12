@@ -1,6 +1,6 @@
 package model
 
-//go:generate go run github.com/abice/go-enum -f=$GOFILE --marshal --names
+//go:generate go tool go-enum -f=$GOFILE --marshal --names
 import (
 	"net"
 	"time"

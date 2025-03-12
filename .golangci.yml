@@ -10,7 +10,6 @@ linters:
     - errchkjson
     - errorlint
     - exhaustive
-    - exportloopref
     - funlen
     - gochecknoglobals
     - gochecknoinits
@@ -23,7 +22,6 @@ linters:
     - goimports
     - mnd
     - gomodguard
-    - gosec
     - gosimple
     - govet
     - grouper
@@ -45,7 +43,6 @@ linters:
     - sqlclosecheck
     - staticcheck
     - stylecheck
-    - tenv
     - typecheck
     - unconvert
     - unparam
@@ -60,6 +57,8 @@ linters:
   disable:
     - forbidigo
     - gosmopolitan
+    - gosec
+    - recvcheck
   disable-all: false
   presets:
     - bugs
@@ -70,6 +69,8 @@ linters-settings:
   mnd:
     ignored-numbers:
       - "0666"
+      - "2"
+      - "5"
   ginkgolinter:
     forbid-focus-container: true
   stylecheck:

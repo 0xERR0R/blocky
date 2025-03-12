@@ -1,6 +1,6 @@
-//go:generate go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen --config=types.cfg.yaml ../docs/api/openapi.yaml
-//go:generate go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen --config=server.cfg.yaml ../docs/api/openapi.yaml
-//go:generate go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen --config=client.cfg.yaml ../docs/api/openapi.yaml
+//go:generate go tool oapi-codegen --config=types.cfg.yaml ../docs/api/openapi.yaml
+//go:generate go tool oapi-codegen --config=server.cfg.yaml ../docs/api/openapi.yaml
+//go:generate go tool oapi-codegen --config=client.cfg.yaml ../docs/api/openapi.yaml
 
 package api
 
@@ -108,7 +108,6 @@ func (i *OpenAPIInterfaceImpl) DisableBlocking(ctx context.Context,
 	}
 
 	err = i.control.DisableBlocking(ctx, duration, groups)
-
 	if err != nil {
 		return DisableBlocking400TextResponse(log.EscapeInput(err.Error())), nil
 	}

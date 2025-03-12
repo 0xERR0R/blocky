@@ -25,9 +25,7 @@ func init() {
 // DefaultHTTPTransport returns a new Transport with the same defaults as net/http.
 func DefaultHTTPTransport() *http.Transport {
 	return &http.Transport{
-		Dial:                   baseTransport.Dial,
 		DialContext:            baseTransport.DialContext,
-		DialTLS:                baseTransport.DialTLS,
 		DialTLSContext:         baseTransport.DialTLSContext,
 		DisableCompression:     baseTransport.DisableCompression,
 		DisableKeepAlives:      baseTransport.DisableKeepAlives,
