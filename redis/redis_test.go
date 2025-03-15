@@ -96,10 +96,12 @@ var _ = Describe("Redis client", func() {
 
 				By("publish new message with TTL > 0", func() {
 					res, err := util.NewMsgWithAnswer("example.com.", 123, dns.Type(dns.TypeA), "123.124.122.123")
-
 					Expect(err).Should(Succeed())
 
-					redisClient.PublishCache("example.com", res)
+					binRes, err := res.Pack()
+					Expect(err).Should(Succeed())
+
+					redisClient.PublishCache("example.com", 123, binRes)
 				})
 
 				By("Database has one entry with correct TTL", func() {
@@ -109,34 +111,6 @@ var _ = Describe("Redis client", func() {
 
 					ttl := redisServer.DB(redisConfig.Database).TTL(exampleComKey)
 					Expect(ttl.Seconds()).Should(BeNumerically("~", 123))
-				})
-			})
-
-			It("One new entry with default TTL should be persisted in the database", func(ctx context.Context) {
-				redisClient, err = New(ctx, redisConfig)
-				Expect(err).Should(Succeed())
-
-				By("Database is empty", func() {
-					Eventually(func() []string {
-						return redisServer.DB(redisConfig.Database).Keys()
-					}).Should(BeEmpty())
-				})
-
-				By("publish new message with TTL = 0", func() {
-					res, err := util.NewMsgWithAnswer("example.com.", 0, dns.Type(dns.TypeA), "123.124.122.123")
-
-					Expect(err).Should(Succeed())
-
-					redisClient.PublishCache("example.com", res)
-				})
-
-				By("Database has one entry with default TTL", func() {
-					Eventually(func() bool {
-						return redisServer.DB(redisConfig.Database).Exists(exampleComKey)
-					}).Should(BeTrue())
-
-					ttl := redisServer.DB(redisConfig.Database).TTL(exampleComKey)
-					Expect(ttl.Seconds()).Should(BeNumerically("~", defaultCacheTime.Seconds()))
 				})
 			})
 		})
@@ -222,7 +196,7 @@ var _ = Describe("Redis client", func() {
 				rec := redisServer.Publish(SyncChannelName, string(binMsg))
 				Expect(rec).Should(Equal(1))
 
-				Eventually(func() chan *CacheMessage {
+				Eventually(func() chan *CacheEntry {
 					return redisClient.CacheChannel
 				}).Should(HaveLen(lenE + 1))
 			}, SpecTimeout(time.Second*6))
@@ -255,7 +229,7 @@ var _ = Describe("Redis client", func() {
 					return redisClient.EnabledChannel
 				}).Should(HaveLen(lenE))
 
-				Eventually(func() chan *CacheMessage {
+				Eventually(func() chan *CacheEntry {
 					return redisClient.CacheChannel
 				}).Should(HaveLen(lenC))
 			}, SpecTimeout(time.Second*6))
@@ -288,7 +262,7 @@ var _ = Describe("Redis client", func() {
 					return redisClient.EnabledChannel
 				}).Should(HaveLen(lenE))
 
-				Eventually(func() chan *CacheMessage {
+				Eventually(func() chan *CacheEntry {
 					return redisClient.CacheChannel
 				}).Should(HaveLen(lenC))
 			}, SpecTimeout(time.Second*6))
@@ -312,13 +286,13 @@ var _ = Describe("Redis client", func() {
 				})
 
 				By("Put valid data in Redis by publishing the cache entry", func() {
-					var res *dns.Msg
-
-					res, err = util.NewMsgWithAnswer("example.com.", 123, dns.Type(dns.TypeA), "123.124.122.123")
-
+					res, err := util.NewMsgWithAnswer("example.com.", 123, dns.Type(dns.TypeA), "123.124.122.123")
 					Expect(err).Should(Succeed())
 
-					redisClient.PublishCache("example.com", res)
+					binRes, err := res.Pack()
+					Expect(err).Should(Succeed())
+
+					redisClient.PublishCache("example.com", 123, binRes)
 				})
 
 				By("Database has one entry now", func() {
