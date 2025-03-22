@@ -247,6 +247,10 @@ func normalizeHostsListEntry(host string) (string, error) {
 		}
 	}
 
+	// remove optional start and end markers for ABP styled lists
+	host = strings.TrimPrefix(host, "||")
+	host = strings.TrimSuffix(host, "^")
+
 	if err := validateHostsListEntry(host); err != nil {
 		return "", err
 	}
