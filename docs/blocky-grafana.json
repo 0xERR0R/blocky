@@ -1605,7 +1605,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "sum(increase(blocky_request_duration_seconds_bucket{response_type=\"RESOLVED\",pod=~\"$pod\"}[$__range])) by (le)",
+          "expr": "sum(increase(blocky_request_duration_seconds_bucket{response_type=\"RESOLVED\",pod=~\"$pod\"}[$__range]) or increase(blocky_request_duration_seconds{response_type=\"RESOLVED\",pod=~\"$pod\"}[$__range])) by (le)",
           "format": "heatmap",
           "instant": false,
           "interval": "",
