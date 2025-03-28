@@ -269,7 +269,7 @@
     {
       "description": "Enable Ad disable blocking",
       "gridPos": {
-        "h": 5,
+        "h": 6,
         "w": 12,
         "x": 12,
         "y": 0
@@ -1419,7 +1419,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "sum(rate(blocky_query_total[5m])) * 60",
+          "expr": "sum(rate(blocky_query_total{pod=~\"$pod\"}[5m])) * 60",
           "format": "time_series",
           "instant": false,
           "interval": "",
@@ -1520,7 +1520,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "sum by (client) (rate(blocky_query_total[5m])) * 60",
+          "expr": "sum by (client) (rate(blocky_query_total{pod=~\"$pod\"}[5m])) * 60",
           "format": "time_series",
           "instant": false,
           "interval": "",
@@ -1605,7 +1605,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "sum(increase(blocky_request_duration_seconds_bucket{response_type=\"RESOLVED\"}[$__range]) or increase(blocky_request_duration_seconds{response_type=\"RESOLVED\"}[$__range])) by (le)",
+          "expr": "sum(increase(blocky_request_duration_seconds_bucket{response_type=\"RESOLVED\",pod=~\"$pod\"}[$__range]) or increase(blocky_request_duration_seconds{response_type=\"RESOLVED\",pod=~\"$pod\"}[$__range])) by (le)",
           "format": "heatmap",
           "instant": false,
           "interval": "",
@@ -1680,7 +1680,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": false,
-          "expr": " sort_desc(sum by (type) (ceil(increase(blocky_query_total[$__range]))))",
+          "expr": " sort_desc(sum by (type) (ceil(increase(blocky_query_total{pod=~\"$pod\"}[$__range]))))",
           "format": "time_series",
           "instant": true,
           "interval": "",
@@ -1755,7 +1755,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": false,
-          "expr": "sort_desc(sum by (client) (ceil(increase(blocky_query_total[$__range]))))",
+          "expr": "sort_desc(sum by (client) (ceil(increase(blocky_query_total{pod=~\"$pod\"}[$__range]))))",
           "format": "time_series",
           "instant": true,
           "interval": "",
@@ -1830,7 +1830,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "topk(1, blocky_denylist_cache_entries) by (group)",
+          "expr": "topk(1, blocky_denylist_cache_entries{pod=~\"$pod\"}) by (group)",
           "format": "time_series",
           "instant": true,
           "interval": "",
@@ -1905,7 +1905,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": false,
-          "expr": " sort_desc(sum by (reason) (ceil(increase(blocky_response_total[$__range]))))",
+          "expr": " sort_desc(sum by (reason) (ceil(increase(blocky_response_total{pod=~\"$pod\"}[$__range]))))",
           "format": "time_series",
           "instant": true,
           "interval": "",
@@ -1980,7 +1980,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": false,
-          "expr": " sort_desc(sum by (response_type) (ceil(increase(blocky_response_total[$__range]))))",
+          "expr": " sort_desc(sum by (response_type) (ceil(increase(blocky_response_total{pod=~\"$pod\"}[$__range]))))",
           "format": "time_series",
           "instant": true,
           "interval": "",
@@ -2055,7 +2055,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": false,
-          "expr": " sort_desc(sum by (response_code) (ceil(increase(blocky_response_total[$__range]))))",
+          "expr": " sort_desc(sum by (response_code) (ceil(increase(blocky_response_total{pod=~\"$pod\"}[$__range]))))",
           "format": "time_series",
           "instant": true,
           "interval": "",
@@ -2070,7 +2070,10 @@
   ],
   "refresh": "",
   "schemaVersion": 40,
-  "tags": [],
+  "tags": [
+      "dns",
+      "adblock"
+    ],
   "templating": {
     "list": [
       {
@@ -2094,6 +2097,19 @@
         ]
       },
       {
+        "current": {
+          "text": "Default",
+          "value": "default"
+        },
+        "label": "datasource",
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      },
+      {
         "current": {},
         "datasource": {
           "type": "prometheus",
@@ -2113,6 +2129,25 @@
         "regex": "",
         "sort": 1,
         "type": "query"
+      },
+	    {
+        "allowCustomValue": false,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "definition": "label_values(blocky_blocking_enabled,pod)",
+        "includeAll": true,
+        "name": "pod",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(blocky_blocking_enabled,pod)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
       }
     ]
   },
@@ -2122,7 +2157,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "blocky1",
+  "title": "Blocky",
   "uid": "JvOqE4gR1",
   "version": 5,
   "weekStart": ""
