@@ -30,6 +30,7 @@ var _ = Describe("CachingResolver", func() {
 		mockAnswer *dns.Msg
 		ctx        context.Context
 		cancelFn   context.CancelFunc
+		cacheMock  *mockExpiringCache
 	)
 
 	Describe("Type", func() {
@@ -52,6 +53,7 @@ var _ = Describe("CachingResolver", func() {
 
 		sut = NewCachingResolver(ctx, sutConfig, nil)
 		m = &mockResolver{}
+		cacheMock = &mockExpiringCache{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		sut.Next(m)
 	})
@@ -804,7 +806,7 @@ var _ = Describe("CachingResolver", func() {
 			})
 
 			It("should return false", func() {
-				Expect(isRequestCacheable(request)).
+				Expect(sut.isRequestCacheable(request)).
 					Should(BeFalse())
 			})
 		})
@@ -820,8 +822,62 @@ var _ = Describe("CachingResolver", func() {
 			})
 
 			It("should return true", func() {
-				Expect(isRequestCacheable(request)).
+				Expect(sut.isRequestCacheable(request)).
 					Should(BeTrue())
+			})
+		})
+	})
+
+	Describe("Request with exluded suffix should not be cached", func() {
+		var domain string
+		var request *Request
+		var exclude []string
+
+		JustBeforeEach(func() {
+			sutConfig = config.Caching{Exclude: exclude}
+			mockAnswer, _ = util.NewMsgWithAnswer(domain, 1000, A, "10.0.0.1")
+			request = newRequest(domain, A)
+			sut = NewCachingResolver(ctx, sutConfig, nil)
+			m.On("Resolve", mock.Anything, mock.Anything).Return(&Response{Res: mockAnswer}, nil)
+			cacheMock.On("Get", mock.Anything).Return([]byte{}, config.Duration(time.Second*10))
+			cacheMock.On("Put", mock.Anything, mock.Anything, mock.Anything).Return()
+			sut.Next(m)
+			sut.resultCache = cacheMock
+		})
+
+		When("Query name has suffix equal to any in Exclude setting", func() {
+			BeforeEach(func() {
+				domain = "internal.lan."
+				exclude = []string{"lan"}
+			})
+			It("should not call cache", func() {
+				Expect(sut.Resolve(ctx, request)).Should(HaveResponseType(ResponseTypeRESOLVED))
+				Expect(m.Calls).Should(HaveLen(1))
+				Expect(cacheMock.Calls).Should(BeEmpty())
+			})
+		})
+
+		When("Query name hasn't suffix equal to any in Exclude setting", func() {
+			BeforeEach(func() {
+				domain = "example.com."
+				exclude = []string{"lan"}
+			})
+			It("should call cache", func() {
+				Expect(sut.Resolve(ctx, request)).Should(HaveResponseType(ResponseTypeRESOLVED))
+				Expect(m.Calls).Should(HaveLen(1))
+				Expect(cacheMock.Calls).Should(HaveLen(2))
+			})
+		})
+
+		When("There is no suffix in Exclude setting", func() {
+			BeforeEach(func() {
+				domain = "internal.lan."
+				exclude = []string{}
+			})
+			It("should call cache", func() {
+				Expect(sut.Resolve(ctx, request)).Should(HaveResponseType(ResponseTypeRESOLVED))
+				Expect(m.Calls).Should(HaveLen(1))
+				Expect(cacheMock.Calls).Should(HaveLen(2))
 			})
 		})
 	})
