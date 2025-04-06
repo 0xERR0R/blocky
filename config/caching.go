@@ -16,6 +16,7 @@ type Caching struct {
 	PrefetchExpires       Duration `yaml:"prefetchExpires" default:"2h"`
 	PrefetchThreshold     int      `yaml:"prefetchThreshold" default:"5"`
 	PrefetchMaxItemsCount int      `yaml:"prefetchMaxItemsCount"`
+	Exclude               []string `yaml:"exclude"`
 }
 
 // IsEnabled implements `config.Configurable`.
