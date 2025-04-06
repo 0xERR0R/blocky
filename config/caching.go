@@ -29,6 +29,10 @@ func (c *Caching) LogConfig(logger *logrus.Entry) {
 	logger.Infof("minTime = %s", c.MinCachingTime)
 	logger.Infof("maxTime = %s", c.MaxCachingTime)
 	logger.Infof("cacheTimeNegative = %s", c.CacheTimeNegative)
+	logger.Infof("exclude:")
+	for _, val := range c.Exclude {
+		logger.Infof("- %v", val)
+	}
 
 	if c.Prefetching {
 		logger.Infof("prefetching:")
