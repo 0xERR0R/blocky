@@ -853,7 +853,7 @@ var _ = Describe("CachingResolver", func() {
 			It("should not call cache", func() {
 				Expect(sut.Resolve(ctx, request)).Should(HaveResponseType(ResponseTypeRESOLVED))
 				Expect(m.Calls).Should(HaveLen(1))
-				Expect(cacheMock.Calls).Should(HaveLen(0))
+				Expect(cacheMock.Calls).Should(BeEmpty())
 			})
 		})
 
