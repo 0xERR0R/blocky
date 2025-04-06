@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"strings"
 	"math"
 	"sync/atomic"
 	"time"
@@ -180,7 +181,7 @@ func (r *CachingResolver) LogConfig(logger *logrus.Entry) {
 func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (response *model.Response, err error) {
 	ctx, logger := r.log(ctx)
 
-	if !r.IsEnabled() || !isRequestCacheable(request) {
+	if !r.IsEnabled() || !r.isRequestCacheable(request) {
 		logger.Debug("skip cache")
 
 		return r.next.Resolve(ctx, request)
@@ -251,7 +252,11 @@ func setTTLInCachedResponse(resp *dns.Msg, ttl time.Duration) {
 }
 
 // isRequestCacheable returns true if the request should be cached
-func isRequestCacheable(request *model.Request) bool {
+func (r *CachingResolver) isRequestCacheable(request *model.Request) bool {
+	// don't cache response if name ends with any exclution
+	if questionsEndsWithAnyExcludedElement(request.Req.Question, r.cfg.Exclude) {
+		return false
+	}
 	// don't cache responses with EDNS Client Subnet option with masks that include more than one client
 	if so := util.GetEdns0Option[*dns.EDNS0_SUBNET](request.Req); so != nil {
 		if (so.Family == ecsFamilyIPv4 && so.SourceNetmask != ecsMaskIPv4) ||
@@ -259,8 +264,25 @@ func isRequestCacheable(request *model.Request) bool {
 			return false
 		}
 	}
-
 	return true
+}
+
+func questionsEndsWithAnyExcludedElement(questions []dns.Question, exclutions []string) bool {
+    for _, q := range questions {
+        if endsWithAnyElementOfArray(q.Name[:len(q.Name)-1], exclutions) {
+            return true
+        }
+    }
+    return false
+}
+
+func endsWithAnyElementOfArray(givingText string, arr []string) bool {
+    for _, s := range arr {
+        if strings.HasSuffix(strings.ToLower(givingText), strings.ToLower(s)) {
+            return true
+        }
+    }
+    return false
 }
 
 // isResponseCacheable returns true if the response is not truncated and its CD flag isn't set.
