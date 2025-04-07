@@ -1,6 +1,7 @@
 module github.com/0xERR0R/blocky
 
 go 1.24.0
+
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/ThinkChaos/parcour v0.0.0-20230710171753-fbf917c9eaef
@@ -22,7 +23,7 @@ require (
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/mattn/go-colorable v0.1.14
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
-	github.com/miekg/dns v1.1.64
+	github.com/miekg/dns v1.1.65
 	github.com/mroth/weightedrand/v2 v2.1.0
 	github.com/oapi-codegen/oapi-codegen/v2 v2.4.1 // indirect
 	github.com/oapi-codegen/runtime v1.1.1
