@@ -1,6 +1,7 @@
 module github.com/0xERR0R/blocky
 
 go 1.24.0
+
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/ThinkChaos/parcour v0.0.0-20230710171753-fbf917c9eaef
@@ -22,7 +23,7 @@ require (
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/mattn/go-colorable v0.1.14
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
-	github.com/miekg/dns v1.1.64
+	github.com/miekg/dns v1.1.66
 	github.com/mroth/weightedrand/v2 v2.1.0
 	github.com/oapi-codegen/oapi-codegen/v2 v2.4.1 // indirect
 	github.com/oapi-codegen/runtime v1.1.1
@@ -37,7 +38,7 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.35.0
 	github.com/testcontainers/testcontainers-go/modules/redis v0.35.0
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
-	golang.org/x/net v0.38.0
+	golang.org/x/net v0.39.0
 	gopkg.in/yaml.v2 v2.4.0
 	gorm.io/driver/mysql v1.5.7
 	gorm.io/driver/postgres v1.5.11
@@ -146,15 +147,15 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.19.0 // indirect
 	go.opentelemetry.io/otel/metric v1.35.0 // indirect
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
-	golang.org/x/crypto v0.36.0 // indirect
+	golang.org/x/crypto v0.37.0 // indirect
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394
 	golang.org/x/mod v0.24.0 // indirect
-	golang.org/x/sync v0.12.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/term v0.30.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/sync v0.13.0 // indirect
+	golang.org/x/sys v0.32.0 // indirect
+	golang.org/x/term v0.31.0 // indirect
+	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/time v0.9.0 // indirect
-	golang.org/x/tools v0.31.0 // indirect
+	golang.org/x/tools v0.32.0 // indirect
 	golang.org/x/tools/cmd/cover v0.1.0-deprecated // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20241209162323-e6fa225c2576 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250127172529-29210b9bc287 // indirect
