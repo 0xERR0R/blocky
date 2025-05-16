@@ -5,13 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
-	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
@@ -29,10 +27,10 @@ const (
 	messageTypeEnable = 1
 )
 
-// sendBuffer message
-type bufferMessage struct {
-	Key     string
-	Message *dns.Msg
+type CacheEntry struct {
+	TTL   uint32
+	Key   string
+	Entry []byte
 }
 
 // redis pubsub message
@@ -41,12 +39,6 @@ type redisMessage struct {
 	Type    int    `json:"t"`
 	Message []byte `json:"m"`
 	Client  []byte `json:"c"`
-}
-
-// CacheChannel message
-type CacheMessage struct {
-	Key      string
-	Response *model.Response
 }
 
 type EnabledMessage struct {
@@ -61,8 +53,8 @@ type Client struct {
 	client         *redis.Client
 	l              *logrus.Entry
 	id             []byte
-	sendBuffer     chan *bufferMessage
-	CacheChannel   chan *CacheMessage
+	sendBuffer     chan *CacheEntry
+	CacheChannel   chan *CacheEntry
 	EnabledChannel chan *EnabledMessage
 }
 
@@ -100,55 +92,63 @@ func New(ctx context.Context, cfg *config.Redis) (*Client, error) {
 	rdb := baseClient.WithContext(ctx)
 
 	_, err := rdb.Ping(ctx).Result()
-	if err == nil {
-		var id []byte
-
-		id, err = uuid.New().MarshalBinary()
-		if err == nil {
-			// construct client
-			res := &Client{
-				config:         cfg,
-				client:         rdb,
-				l:              log.PrefixedLog("redis"),
-				id:             id,
-				sendBuffer:     make(chan *bufferMessage, chanCap),
-				CacheChannel:   make(chan *CacheMessage, chanCap),
-				EnabledChannel: make(chan *EnabledMessage, chanCap),
-			}
-
-			// start channel handling go routine
-			err = res.startup(ctx)
-
-			return res, err
-		}
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, err
+	var id []byte
+
+	id, err = uuid.New().MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	// construct client
+	res := &Client{
+		config:         cfg,
+		client:         rdb,
+		l:              log.PrefixedLog("redis"),
+		id:             id,
+		sendBuffer:     make(chan *CacheEntry, chanCap),
+		CacheChannel:   make(chan *CacheEntry, chanCap),
+		EnabledChannel: make(chan *EnabledMessage, chanCap),
+	}
+
+	// start channel handling go routine
+	err = res.startup(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
 }
 
-// PublishCache publish cache to redis async
-func (c *Client) PublishCache(key string, message *dns.Msg) {
-	if len(key) > 0 && message != nil {
-		c.sendBuffer <- &bufferMessage{
-			Key:     key,
-			Message: message,
+// PublishCache publish cache entry to redis if key and message are not empty and ttl > 0
+func (c *Client) PublishCache(key string, ttl uint32, message []byte) {
+	if len(key) > 0 && len(message) > 0 && ttl > 0 {
+		c.sendBuffer <- &CacheEntry{
+			TTL:   ttl,
+			Key:   key,
+			Entry: message,
 		}
 	}
 }
 
 func (c *Client) PublishEnabled(ctx context.Context, state *EnabledMessage) {
-	binState, sErr := json.Marshal(state)
-	if sErr == nil {
-		binMsg, mErr := json.Marshal(redisMessage{
-			Type:    messageTypeEnable,
-			Message: binState,
-			Client:  c.id,
-		})
-
-		if mErr == nil {
-			c.client.Publish(ctx, SyncChannelName, binMsg)
-		}
+	binState, err := json.Marshal(state)
+	if err != nil {
+		return
 	}
+
+	binMsg, err := json.Marshal(redisMessage{
+		Type:    messageTypeEnable,
+		Message: binState,
+		Client:  c.id,
+	})
+	if err != nil {
+		return
+	}
+
+	c.client.Publish(ctx, SyncChannelName, binMsg)
 }
 
 // GetRedisCache reads the redis cache and publish it to the channel
@@ -183,56 +183,53 @@ func (c *Client) startup(ctx context.Context) error {
 	ps := c.client.Subscribe(ctx, SyncChannelName)
 
 	_, err := ps.Receive(ctx)
-	if err == nil {
-		go func() {
-			for {
-				select {
-				// received message from subscription
-				case msg := <-ps.Channel():
-					c.l.Debug("Received message: ", msg)
-
-					if msg != nil && len(msg.Payload) > 0 {
-						// message is not empty
-						c.processReceivedMessage(ctx, msg)
-					}
-					// publish message from buffer
-				case s := <-c.sendBuffer:
-					c.publishMessageFromBuffer(ctx, s)
-				// context is done
-				case <-ctx.Done():
-					c.client.Close()
-
-					return
-				}
-			}
-		}()
+	if err != nil {
+		return err
 	}
 
-	return err
+	go func() {
+		defer ps.Close()
+		defer c.client.Close()
+
+		for {
+			select {
+			// received message from subscription
+			case msg := <-ps.Channel():
+				c.l.Debug("Received message: ", msg)
+
+				if msg != nil && len(msg.Payload) > 0 {
+					// message is not empty
+					c.processReceivedMessage(ctx, msg)
+				}
+				// publish message from buffer
+			case s := <-c.sendBuffer:
+				c.publishMessageFromBuffer(ctx, s)
+			// context is done
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return nil
 }
 
-func (c *Client) publishMessageFromBuffer(ctx context.Context, s *bufferMessage) {
-	origRes := s.Message
-	origRes.Compress = true
-	binRes, pErr := origRes.Pack()
-
-	if pErr == nil {
-		binMsg, mErr := json.Marshal(redisMessage{
-			Key:     s.Key,
-			Type:    messageTypeCache,
-			Message: binRes,
-			Client:  c.id,
-		})
-
-		if mErr == nil {
-			c.client.Publish(ctx, SyncChannelName, binMsg)
-		}
-
-		c.client.Set(ctx,
-			prefixKey(s.Key),
-			binRes,
-			c.getTTL(origRes))
+// publishMessageFromBuffer publishes a message from the buffer to the redis channel and stores it in the cache
+func (c *Client) publishMessageFromBuffer(ctx context.Context, s *CacheEntry) {
+	psMsg, err := json.Marshal(redisMessage{
+		Key:     s.Key,
+		Type:    messageTypeCache,
+		Message: s.Entry,
+		Client:  c.id,
+	})
+	if err == nil {
+		c.client.Publish(ctx, SyncChannelName, psMsg)
 	}
+
+	c.client.Set(ctx,
+		prefixKey(s.Key),
+		s.Entry,
+		util.ToTTLDuration(s.TTL))
 }
 
 func (c *Client) processReceivedMessage(ctx context.Context, msg *redis.Message) {
@@ -248,26 +245,24 @@ func (c *Client) processReceivedMessage(ctx context.Context, msg *redis.Message)
 	if !bytes.Equal(rm.Client, c.id) {
 		switch rm.Type {
 		case messageTypeCache:
-			var cm *CacheMessage
-
-			cm, err := convertMessage(&rm, 0)
+			cm, err := convertMessage(0, rm.Key, rm.Message)
 			if err != nil {
-				c.l.Error("Processing CacheMessage error: ", err)
+				c.l.Error(err)
 
 				return
 			}
 
-			util.CtxSend(ctx, c.CacheChannel, cm)
+			util.CtxSend(ctx, c.CacheChannel, &cm)
 		case messageTypeEnable:
-			var msg EnabledMessage
+			msg := new(EnabledMessage)
 
-			if err := json.Unmarshal(rm.Message, &msg); err != nil {
+			if err := json.Unmarshal(rm.Message, msg); err != nil {
 				c.l.Error("Processing EnabledMessage error: ", err)
 
 				return
 			}
 
-			util.CtxSend(ctx, c.EnabledChannel, &msg)
+			util.CtxSend(ctx, c.EnabledChannel, msg)
 		default:
 			c.l.Warn("Unknown message type: ", rm.Type)
 		}
@@ -275,69 +270,48 @@ func (c *Client) processReceivedMessage(ctx context.Context, msg *redis.Message)
 }
 
 // getResponse returns model.Response for a key
-func (c *Client) getResponse(ctx context.Context, key string) (*CacheMessage, error) {
+func (c *Client) getResponse(ctx context.Context, key string) (*CacheEntry, error) {
 	resp, err := c.client.Get(ctx, key).Result()
-	if err == nil {
-		var ttl time.Duration
-		ttl, err = c.client.TTL(ctx, key).Result()
-
-		if err == nil {
-			var result *CacheMessage
-
-			result, err = convertMessage(&redisMessage{
-				Key:     cleanKey(key),
-				Message: []byte(resp),
-			}, ttl)
-			if err != nil {
-				return nil, fmt.Errorf("conversion error: %w", err)
-			}
-
-			return result, nil
-		}
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, err
+	ttl, err := c.client.TTL(ctx, key).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := convertMessage(ttl, cleanKey(key), []byte(resp))
+	if err != nil {
+		return nil, err
+	}
+
+	return &result, nil
 }
 
 // convertMessage converts redisMessage to CacheMessage
-func convertMessage(message *redisMessage, ttl time.Duration) (*CacheMessage, error) {
-	msg := dns.Msg{}
-
-	err := msg.Unpack(message.Message)
-	if err == nil {
-		if ttl > 0 {
-			for _, a := range msg.Answer {
-				a.Header().Ttl = uint32(ttl.Seconds())
-			}
-		}
-
-		res := &CacheMessage{
-			Key: message.Key,
-			Response: &model.Response{
-				RType:  model.ResponseTypeCACHED,
-				Reason: cacheReason,
-				Res:    &msg,
-			},
-		}
-
-		return res, nil
+func convertMessage[T util.TTLInput](ttl T, key string, message []byte) (CacheEntry, error) {
+	res := CacheEntry{
+		TTL:   util.ToTTL(ttl),
+		Key:   key,
+		Entry: message,
 	}
 
-	return nil, err
-}
+	packErr := fmt.Errorf("invalid message for key %s", key)
+	if len(message) == 0 {
+		return res, packErr
+	}
 
-// getTTL of dns message or return defaultCacheTime if 0
-func (c *Client) getTTL(dns *dns.Msg) time.Duration {
-	ttl := uint32(math.MaxInt32)
-	for _, a := range dns.Answer {
-		ttl = min(ttl, a.Header().Ttl)
+	msg := new(dns.Msg)
+	if err := msg.Unpack(message); err != nil {
+		return res, packErr
 	}
 
 	if ttl == 0 {
-		return defaultCacheTime
+		res.TTL = util.GetAnswerMinTTL(msg)
 	}
 
-	return time.Duration(ttl) * time.Second
+	return res, nil
 }
 
 // prefixKey with CacheStorePrefix

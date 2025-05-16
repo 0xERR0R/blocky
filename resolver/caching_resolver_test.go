@@ -769,13 +769,13 @@ var _ = Describe("CachingResolver", func() {
 				request := newRequest("example2.com.", A)
 				domain := util.ExtractDomain(request.Req.Question[0])
 				cacheKey := util.GenerateCacheKey(A, domain)
-				redisMockMsg := &redis.CacheMessage{
-					Key: cacheKey,
-					Response: &Response{
-						RType:  ResponseTypeCACHED,
-						Reason: "MOCK_REDIS",
-						Res:    mockAnswer,
-					},
+				binMsg, err := mockAnswer.Pack()
+				Expect(err).Should(Succeed())
+
+				redisMockMsg := &redis.CacheEntry{
+					TTL:   123,
+					Key:   cacheKey,
+					Entry: binMsg,
 				}
 				redisClient.CacheChannel <- redisMockMsg
 
