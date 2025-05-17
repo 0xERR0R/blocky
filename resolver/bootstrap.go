@@ -98,11 +98,12 @@ func NewBootstrap(ctx context.Context, cfg *config.Config) (b *Bootstrap, err er
 	}
 
 	b.bootstraped = bootstraped
+	cachingResolver, _ := newCachingResolver(ctx, cachingCfg, nil, false)
 
 	b.resolver = Chain(
 		NewFilteringResolver(cfg.Filtering),
 		// false: no metrics, to not overwrite the main blocking resolver ones
-		newCachingResolver(ctx, cachingCfg, nil, false),
+		cachingResolver,
 		newParallelBestResolver(pbCfg, bootstraped.Resolvers()),
 	)
 
