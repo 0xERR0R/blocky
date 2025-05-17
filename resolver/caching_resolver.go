@@ -3,8 +3,9 @@ package resolver
 import (
 	"context"
 	"fmt"
-	"strings"
 	"math"
+	"regexp"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -254,7 +255,7 @@ func setTTLInCachedResponse(resp *dns.Msg, ttl time.Duration) {
 // isRequestCacheable returns true if the request should be cached
 func (r *CachingResolver) isRequestCacheable(request *model.Request) bool {
 	// don't cache response if name ends with any exclution
-	if questionsEndsWithAnyExcludedElement(request.Req.Question, r.cfg.Exclude) {
+	if questionsMatchAnyExcludedElement(request.Req.Question, r.cfg.Exclude) {
 		return false
 	}
 	// don't cache responses with EDNS Client Subnet option with masks that include more than one client
@@ -267,22 +268,24 @@ func (r *CachingResolver) isRequestCacheable(request *model.Request) bool {
 	return true
 }
 
-func questionsEndsWithAnyExcludedElement(questions []dns.Question, exclutions []string) bool {
-    for _, q := range questions {
-        if endsWithAnyElementOfArray(q.Name[:len(q.Name)-1], exclutions) {
-            return true
-        }
-    }
-    return false
+func questionsMatchAnyExcludedElement(questions []dns.Question, exclutions []string) bool {
+	for _, q := range questions {
+		if matchAnyElementOfArray(q.Name[:len(q.Name)-1], exclutions) {
+			return true
+		}
+	}
+	return false
 }
 
-func endsWithAnyElementOfArray(givingText string, arr []string) bool {
-    for _, s := range arr {
-        if strings.HasSuffix(strings.ToLower(givingText), strings.ToLower(s)) {
-            return true
-        }
-    }
-    return false
+func matchAnyElementOfArray(givingText string, arr []string) bool {
+	loweredGivingText := strings.ToLower(givingText)
+	for _, s := range arr {
+		match, _ := regexp.MatchString(s, loweredGivingText)
+		if match {
+			return true
+		}
+	}
+	return false
 }
 
 // isResponseCacheable returns true if the response is not truncated and its CD flag isn't set.
