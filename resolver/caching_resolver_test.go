@@ -847,16 +847,24 @@ var _ = Describe("CachingResolver", func() {
 
 		When("Exclude settings are wrong", func() {
 			It("should fail", func() {
-				_, err := NewCachingResolver(ctx, config.Caching{Exclude: []string{"[]"}}, nil)
+				_, err := NewCachingResolver(ctx, config.Caching{Exclude: []string{"/[]/"}}, nil)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("Cache exclusion configuration '[]' fail because"))
+				Expect(err.Error()).To(ContainSubstring("Cache exclusion configuration '/[]/' fail because"))
+			})
+		})
+
+		When("Exclude settings are wrong because of missing slashes", func() {
+			It("should fail", func() {
+				_, err := NewCachingResolver(ctx, config.Caching{Exclude: []string{"lan"}}, nil)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("Cache exclusion configuration 'lan' fail because of missing slashes"))
 			})
 		})
 
 		When("Query name match any in Exclude setting", func() {
 			BeforeEach(func() {
 				domain = "internal.lan."
-				exclude = []string{"lan"}
+				exclude = []string{"/lan/"}
 			})
 			It("should not call cache", func() {
 				Expect(sut.Resolve(ctx, request)).Should(HaveResponseType(ResponseTypeRESOLVED))
@@ -868,7 +876,7 @@ var _ = Describe("CachingResolver", func() {
 		When("Query match any regex Exclude setting", func() {
 			BeforeEach(func() {
 				domain = "api.company.com.jp."
-				exclude = []string{"^.*\\.company\\.(net|com)\\.(jp|es|fr)$"}
+				exclude = []string{"/^.*\\.company\\.(net|com)\\.(jp|es|fr)$/"}
 			})
 			It("should not call cache", func() {
 				Expect(sut.Resolve(ctx, request)).Should(HaveResponseType(ResponseTypeRESOLVED))
@@ -880,7 +888,7 @@ var _ = Describe("CachingResolver", func() {
 		When("Query name doesn't match any in Exclude setting", func() {
 			BeforeEach(func() {
 				domain = "example.com."
-				exclude = []string{"lan"}
+				exclude = []string{"/lan/"}
 			})
 			It("should call cache", func() {
 				Expect(sut.Resolve(ctx, request)).Should(HaveResponseType(ResponseTypeRESOLVED))

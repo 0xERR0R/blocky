@@ -131,10 +131,13 @@ func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Cachin
 
 func configureExclusions(c *CachingResolver, cfg *config.Caching) error {
 	var compiled []*regexp.Regexp
-	for _, s := range cfg.Exclude {
-		re, err := regexp.Compile(s)
+	for _, expStr := range cfg.Exclude {
+		if !strings.HasPrefix(expStr, "/") || !strings.HasSuffix(expStr, "/") {
+			return errors.New(fmt.Sprintf("Cache exclusion configuration '%s' fail because of missing slashes", expStr))
+		}
+		re, err := regexp.Compile(strings.TrimSpace(expStr[1 : len(expStr)-1]))
 		if err != nil {
-			return errors.New(fmt.Sprintf("Cache exclusion configuration '%s' fail because '%s'", s, err.Error()))
+			return errors.New(fmt.Sprintf("Cache exclusion configuration '%s' fail because '%s'", expStr, err.Error()))
 		}
 		compiled = append(compiled, re)
 	}
