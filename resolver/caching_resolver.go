@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -53,13 +54,15 @@ type CachingResolver struct {
 	resultCache expirationcache.ExpiringCache[[]byte]
 
 	redisClient *redis.Client
+
+	compiledExclusions []*regexp.Regexp
 }
 
 // NewCachingResolver creates a new resolver instance
 func NewCachingResolver(ctx context.Context,
 	cfg config.Caching,
 	redis *redis.Client,
-) *CachingResolver {
+) (*CachingResolver, error) {
 	return newCachingResolver(ctx, cfg, redis, true)
 }
 
@@ -67,7 +70,7 @@ func newCachingResolver(ctx context.Context,
 	cfg config.Caching,
 	redis *redis.Client,
 	emitMetricEvents bool,
-) *CachingResolver {
+) (*CachingResolver, error) {
 	c := &CachingResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("caching"),
@@ -77,13 +80,14 @@ func newCachingResolver(ctx context.Context,
 	}
 
 	configureCaches(ctx, c, &cfg)
+	err := configureExclusions(c, &cfg)
 
 	if c.redisClient != nil {
 		go c.redisSubscriber(ctx)
 		c.redisClient.GetRedisCache(ctx)
 	}
 
-	return c
+	return c, err
 }
 
 func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Caching) {
@@ -123,6 +127,19 @@ func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Cachin
 	} else {
 		c.resultCache = expirationcache.NewCache[[]byte](ctx, options)
 	}
+}
+
+func configureExclusions(c *CachingResolver, cfg *config.Caching) error {
+	var compiled []*regexp.Regexp
+	for _, s := range cfg.Exclude {
+		re, err := regexp.Compile(s)
+		if err != nil {
+			return errors.New(fmt.Sprintf("Cache exclusion configuration '%s' fail because '%s'", s, err.Error()))
+		}
+		compiled = append(compiled, re)
+	}
+	c.compiledExclusions = compiled
+	return nil
 }
 
 func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string) (*[]byte, time.Duration) {
@@ -255,7 +272,7 @@ func setTTLInCachedResponse(resp *dns.Msg, ttl time.Duration) {
 // isRequestCacheable returns true if the request should be cached
 func (r *CachingResolver) isRequestCacheable(request *model.Request) bool {
 	// don't cache response if name ends with any exclution
-	if questionsMatchAnyExcludedElement(request.Req.Question, r.cfg.Exclude) {
+	if questionsMatchAnyExcludedElement(request.Req.Question, r.compiledExclusions) {
 		return false
 	}
 	// don't cache responses with EDNS Client Subnet option with masks that include more than one client
@@ -268,7 +285,7 @@ func (r *CachingResolver) isRequestCacheable(request *model.Request) bool {
 	return true
 }
 
-func questionsMatchAnyExcludedElement(questions []dns.Question, exclutions []string) bool {
+func questionsMatchAnyExcludedElement(questions []dns.Question, exclutions []*regexp.Regexp) bool {
 	for _, q := range questions {
 		if matchAnyElementOfArray(q.Name[:len(q.Name)-1], exclutions) {
 			return true
@@ -277,11 +294,10 @@ func questionsMatchAnyExcludedElement(questions []dns.Question, exclutions []str
 	return false
 }
 
-func matchAnyElementOfArray(givingText string, arr []string) bool {
+func matchAnyElementOfArray(givingText string, arr []*regexp.Regexp) bool {
 	loweredGivingText := strings.ToLower(givingText)
 	for _, s := range arr {
-		match, _ := regexp.MatchString(s, loweredGivingText)
-		if match {
+		if s.MatchString(loweredGivingText) {
 			return true
 		}
 	}
