@@ -857,6 +857,18 @@ var _ = Describe("CachingResolver", func() {
 			})
 		})
 
+		When("Query match any regex Exclude setting", func() {
+			BeforeEach(func() {
+				domain = "api.company.com.jp."
+				exclude = []string{"/^.*\\.company\\.(net|com).(jp|es|fr)$/"}
+			})
+			It("should not call cache", func() {
+				Expect(sut.Resolve(ctx, request)).Should(HaveResponseType(ResponseTypeRESOLVED))
+				Expect(m.Calls).Should(HaveLen(1))
+				Expect(cacheMock.Calls).Should(BeEmpty())
+			})
+		})
+
 		When("Query name hasn't suffix equal to any in Exclude setting", func() {
 			BeforeEach(func() {
 				domain = "example.com."
