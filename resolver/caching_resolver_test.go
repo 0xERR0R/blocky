@@ -849,7 +849,7 @@ var _ = Describe("CachingResolver", func() {
 			It("should fail", func() {
 				_, err := NewCachingResolver(ctx, config.Caching{Exclude: []string{"/[]/"}}, nil)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("Cache exclusion configuration '/[]/' fail because"))
+				Expect(err.Error()).To(ContainSubstring("cache exclusion configuration '/[]/' fail because"))
 			})
 		})
 
@@ -857,7 +857,7 @@ var _ = Describe("CachingResolver", func() {
 			It("should fail", func() {
 				_, err := NewCachingResolver(ctx, config.Caching{Exclude: []string{"lan"}}, nil)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("Cache exclusion configuration 'lan' fail because of missing slashes"))
+				Expect(err.Error()).To(ContainSubstring("cache exclusion configuration 'lan' fail because of missing slashes"))
 			})
 		})
 

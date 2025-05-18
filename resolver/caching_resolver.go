@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -130,18 +129,19 @@ func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Cachin
 }
 
 func configureExclusions(c *CachingResolver, cfg *config.Caching) error {
-	var compiled []*regexp.Regexp
+	compiled := []*regexp.Regexp{}
 	for _, expStr := range cfg.Exclude {
 		if !strings.HasPrefix(expStr, "/") || !strings.HasSuffix(expStr, "/") {
-			return errors.New(fmt.Sprintf("Cache exclusion configuration '%s' fail because of missing slashes", expStr))
+			return fmt.Errorf("cache exclusion configuration '%s' fail because of missing slashes", expStr)
 		}
 		re, err := regexp.Compile(strings.TrimSpace(expStr[1 : len(expStr)-1]))
 		if err != nil {
-			return errors.New(fmt.Sprintf("Cache exclusion configuration '%s' fail because '%s'", expStr, err.Error()))
+			return fmt.Errorf("cache exclusion configuration '%s' fail because '%s'", expStr, err.Error())
 		}
 		compiled = append(compiled, re)
 	}
 	c.compiledExclusions = compiled
+
 	return nil
 }
 
@@ -285,6 +285,7 @@ func (r *CachingResolver) isRequestCacheable(request *model.Request) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -294,6 +295,7 @@ func questionsMatchAnyExcludedElement(questions []dns.Question, exclutions []*re
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -304,6 +306,7 @@ func matchAnyElementOfArray(givingText string, arr []*regexp.Regexp) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
