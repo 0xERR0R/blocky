@@ -30,6 +30,7 @@ var _ = Describe("CachingResolver", func() {
 		mockAnswer *dns.Msg
 		ctx        context.Context
 		cancelFn   context.CancelFunc
+		cacheMock  *mockExpiringCache
 	)
 
 	Describe("Type", func() {
@@ -50,8 +51,9 @@ var _ = Describe("CachingResolver", func() {
 		ctx, cancelFn = context.WithCancel(context.Background())
 		DeferCleanup(cancelFn)
 
-		sut = NewCachingResolver(ctx, sutConfig, nil)
+		sut, _ = NewCachingResolver(ctx, sutConfig, nil)
 		m = &mockResolver{}
+		cacheMock = &mockExpiringCache{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		sut.Next(m)
 	})
@@ -750,7 +752,7 @@ var _ = Describe("CachingResolver", func() {
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1000, A, "1.1.1.1")
 
-				sut = NewCachingResolver(ctx, sutConfig, redisClient)
+				sut, _ = NewCachingResolver(ctx, sutConfig, redisClient)
 				m = &mockResolver{}
 				m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 				sut.Next(m)
@@ -804,7 +806,7 @@ var _ = Describe("CachingResolver", func() {
 			})
 
 			It("should return false", func() {
-				Expect(isRequestCacheable(request)).
+				Expect(sut.isRequestCacheable(request)).
 					Should(BeFalse())
 			})
 		})
@@ -820,8 +822,90 @@ var _ = Describe("CachingResolver", func() {
 			})
 
 			It("should return true", func() {
-				Expect(isRequestCacheable(request)).
+				Expect(sut.isRequestCacheable(request)).
 					Should(BeTrue())
+			})
+		})
+	})
+
+	Describe("Request with exluded suffix should not be cached", func() {
+		var domain string
+		var request *Request
+		var exclude []string
+
+		JustBeforeEach(func() {
+			sutConfig = config.Caching{Exclude: exclude}
+			mockAnswer, _ = util.NewMsgWithAnswer(domain, 1000, A, "10.0.0.1")
+			request = newRequest(domain, A)
+			sut, _ = NewCachingResolver(ctx, sutConfig, nil)
+			m.On("Resolve", mock.Anything, mock.Anything).Return(&Response{Res: mockAnswer}, nil)
+			cacheMock.On("Get", mock.Anything).Return([]byte{}, config.Duration(time.Second*10))
+			cacheMock.On("Put", mock.Anything, mock.Anything, mock.Anything).Return()
+			sut.Next(m)
+			sut.resultCache = cacheMock
+		})
+
+		When("Exclude settings are wrong", func() {
+			It("should fail", func() {
+				_, err := NewCachingResolver(ctx, config.Caching{Exclude: []string{"/[]/"}}, nil)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("cache exclusion configuration '/[]/' fail because"))
+			})
+		})
+
+		When("Exclude settings are wrong because of missing slashes", func() {
+			It("should fail", func() {
+				_, err := NewCachingResolver(ctx, config.Caching{Exclude: []string{"lan"}}, nil)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("cache exclusion configuration 'lan' fail because of missing slashes"))
+			})
+		})
+
+		When("Query name match any in Exclude setting", func() {
+			BeforeEach(func() {
+				domain = "internal.lan."
+				exclude = []string{"/lan/"}
+			})
+			It("should not call cache", func() {
+				Expect(sut.Resolve(ctx, request)).Should(HaveResponseType(ResponseTypeRESOLVED))
+				Expect(m.Calls).Should(HaveLen(1))
+				Expect(cacheMock.Calls).Should(BeEmpty())
+			})
+		})
+
+		When("Query match any regex Exclude setting", func() {
+			BeforeEach(func() {
+				domain = "api.company.com.jp."
+				exclude = []string{"/^.*\\.company\\.(net|com)\\.(jp|es|fr)$/"}
+			})
+			It("should not call cache", func() {
+				Expect(sut.Resolve(ctx, request)).Should(HaveResponseType(ResponseTypeRESOLVED))
+				Expect(m.Calls).Should(HaveLen(1))
+				Expect(cacheMock.Calls).Should(BeEmpty())
+			})
+		})
+
+		When("Query name doesn't match any in Exclude setting", func() {
+			BeforeEach(func() {
+				domain = "example.com."
+				exclude = []string{"/lan/"}
+			})
+			It("should call cache", func() {
+				Expect(sut.Resolve(ctx, request)).Should(HaveResponseType(ResponseTypeRESOLVED))
+				Expect(m.Calls).Should(HaveLen(1))
+				Expect(cacheMock.Calls).Should(HaveLen(2))
+			})
+		})
+
+		When("There is no expressions in Exclude setting", func() {
+			BeforeEach(func() {
+				domain = "internal.lan."
+				exclude = []string{}
+			})
+			It("should call cache", func() {
+				Expect(sut.Resolve(ctx, request)).Should(HaveResponseType(ResponseTypeRESOLVED))
+				Expect(m.Calls).Should(HaveLen(1))
+				Expect(cacheMock.Calls).Should(HaveLen(2))
 			})
 		})
 	})

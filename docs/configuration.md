@@ -613,6 +613,7 @@ With following parameters you can tune the caching behavior:
 | caching.prefetchThreshold     | int             | no        | 5             | Name queries threshold for prefetch                                                                                                                                                                                                                                                                                                                                                                            |
 | caching.prefetchMaxItemsCount | int             | no        | 0 (unlimited) | Max number of domains to be kept in cache for prefetching (soft limit). Default (0): unlimited. Useful on systems with limited amount of RAM.                                                                                                                                                                                                                                                                  |
 | caching.cacheTimeNegative     | duration format | no        | 30m           | Time how long negative results (NXDOMAIN response or empty result) are cached. A value of -1 will disable caching for negative results.                                                                                                                                                                                                                                                                        |
+| caching.exclude               | Regex list      | no        |               | Exclusions rules as regex expressions of domains that won't be cached at all. Such as: /lan$/ or /^.*\.host\.com$/                                                                                                                                                                                                                                                                                                 |
 
 !!! example
 
@@ -621,6 +622,10 @@ With following parameters you can tune the caching behavior:
       minTime: 5m
       maxTime: 30m
       prefetching: true
+      exclude:
+        - /.*\.lan$/
+        - /.*\.local$/
+        - /.*\.host\.com\.(jp|fr)$/
     ```
 
 ## Redis

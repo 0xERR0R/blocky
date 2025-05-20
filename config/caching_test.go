@@ -70,6 +70,29 @@ var _ = Describe("CachingConfig", func() {
 				Expect(hook.Messages).Should(ContainElement(ContainSubstring("prefetching:")))
 			})
 		})
+		When("has any settings", func() {
+			BeforeEach(func() {
+				cfg = Caching{}
+			})
+			It("should return Exclude", func() {
+				cfg.LogConfig(logger)
+
+				Expect(hook.Calls).ShouldNot(BeEmpty())
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("exclude:")))
+			})
+		})
+		When("Exclude any settings", func() {
+			BeforeEach(func() {
+				cfg = Caching{Exclude: []string{"local"}}
+			})
+			It("should return Exclude and a list with values in it", func() {
+				cfg.LogConfig(logger)
+
+				Expect(hook.Calls).ShouldNot(BeEmpty())
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("exclude:")))
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("- local")))
+			})
+		})
 	})
 
 	Describe("EnablePrefetch", func() {
@@ -85,6 +108,15 @@ var _ = Describe("CachingConfig", func() {
 				Expect(cfg.PrefetchThreshold).Should(Equal(0))
 				Expect(cfg.MaxCachingTime).Should(BeZero())
 			})
+		})
+	})
+
+	Describe("Exclude", func() {
+		It("should be empty by default", func() {
+			cfg := Caching{}
+			Expect(defaults.Set(&cfg)).Should(Succeed())
+
+			Expect(cfg.Exclude).Should(BeEmpty())
 		})
 	})
 })
