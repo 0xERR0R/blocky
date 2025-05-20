@@ -156,7 +156,7 @@ See [https://aur.archlinux.org/packages/blocky/](https://aur.archlinux.org/packa
 
 ### Alpine Linux
 
-See [https://pkgs.alpinelinux.org/package/edge/testing/x86/blocky](https://pkgs.alpinelinux.org/package/edge/testing/x86/blocky)
+See [https://pkgs.alpinelinux.org/packages?name=blocky&branch=edge&repo=&arch=](https://pkgs.alpinelinux.org/packages?name=blocky&branch=edge&repo=&arch=)
 
 ### CentOS/Debian/Fedora install script
 
