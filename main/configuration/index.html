@@ -2699,6 +2699,13 @@ blocky can serve the result immediately from the cache.</p>
 <td>30m</td>
 <td>Time how long negative results (<abbr title="Non-Existence Domain">NXDOMAIN</abbr> response or empty result) are cached. A value of -1 will disable caching for negative results.</td>
 </tr>
+<tr>
+<td>caching.exclude</td>
+<td>Regex list</td>
+<td>no</td>
+<td></td>
+<td>Exclusions rules as <abbr title="Regular expression">regex</abbr> expressions of domains that won't be cached at all. Such as: /lan$/ or /^.*.host.com$/</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition example">
@@ -2707,6 +2714,10 @@ blocky can serve the result immediately from the cache.</p>
 <span class="w">  </span><span class="nt">minTime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5m</span>
 <span class="w">  </span><span class="nt">maxTime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30m</span>
 <span class="w">  </span><span class="nt">prefetching</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">exclude</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/.*\.lan$/</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/.*\.local$/</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/.*\.host\.com\.(jp|fr)$/</span>
 </code></pre></div>
 </div>
 <h2 id="redis">Redis</h2>
