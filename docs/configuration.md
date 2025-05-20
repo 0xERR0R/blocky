@@ -625,7 +625,7 @@ With following parameters you can tune the caching behavior:
       exclude:
         - /.*\.lan$/
         - /.*\.local$/
-        - /.*\.host\.com.(jp|fr)$/
+        - /.*\.host\.com\.(jp|fr)$/
     ```
 
 ## Redis
