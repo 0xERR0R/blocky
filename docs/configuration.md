@@ -623,9 +623,9 @@ With following parameters you can tune the caching behavior:
       maxTime: 30m
       prefetching: true
       exclude:
-        - lan
-        - local
-        - /^.*\.host\.com$/
+        - /.*\.lan$/
+        - /.*\.local$/
+        - /.*\.host\.com.(jp|fr)$/
     ```
 
 ## Redis
