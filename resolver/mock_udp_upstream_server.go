@@ -132,6 +132,7 @@ func (t *MockUDPUpstreamServer) Start() config.Upstream {
 			}
 
 			go func() {
+				defer ginkgo.GinkgoRecover()
 				msg := new(dns.Msg)
 				err = msg.Unpack(buffer[0 : n-1])
 

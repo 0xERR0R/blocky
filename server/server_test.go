@@ -44,6 +44,7 @@ var (
 )
 
 var _ = BeforeSuite(func() {
+	mockClientName.Store("")
 	baseURL = fmt.Sprintf("http://%s/", GetHostPort("localhost", httpBasePort))
 	queryURL = baseURL + "dns-query"
 	var upstreamGoogle, upstreamFritzbox, upstreamClient config.Upstream
@@ -75,8 +76,10 @@ var _ = BeforeSuite(func() {
 	clientMockUpstream = resolver.NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 		var clientName string
 
-		if name, ok := mockClientName.Load().(string); ok {
+		if name, ok := mockClientName.Load().(string); ok && name != "" {
 			clientName = name
+		} else {
+			clientName = "localhost"
 		}
 
 		response, err := util.NewMsgWithAnswer(
