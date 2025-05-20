@@ -244,6 +244,7 @@ type mockExpiringCache struct {
 
 func (ec *mockExpiringCache) Get(key string) (val *[]byte, expiration time.Duration) {
 	ec.Called(key)
+
 	return val, expiration
 }
 

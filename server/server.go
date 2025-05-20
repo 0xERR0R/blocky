@@ -299,6 +299,7 @@ func createQueryResolver(
 	queryLogging, qlErr := resolver.NewQueryLoggingResolver(ctx, cfg.QueryLog)
 	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(ctx, cfg.Conditional, cfg.Upstreams, bootstrap)
 	hostsFile, hfErr := resolver.NewHostsFileResolver(ctx, cfg.HostsFile, bootstrap)
+	cachingResolver, crErr := resolver.NewCachingResolver(ctx, cfg.Caching, redisClient)
 
 	err := multierror.Append(
 		multierror.Prefix(utErr, "upstream tree resolver: "),
@@ -307,6 +308,7 @@ func createQueryResolver(
 		multierror.Prefix(cnErr, "client names resolver: "),
 		multierror.Prefix(cuErr, "conditional upstream resolver: "),
 		multierror.Prefix(hfErr, "hosts file resolver: "),
+		multierror.Prefix(crErr, "caching resolver: "),
 	).ErrorOrNil()
 	if err != nil {
 		return nil, err
@@ -323,7 +325,7 @@ func createQueryResolver(
 		resolver.NewRewriterResolver(cfg.CustomDNS.RewriterConfig, resolver.NewCustomDNSResolver(cfg.CustomDNS)),
 		hostsFile,
 		blocking,
-		resolver.NewCachingResolver(ctx, cfg.Caching, redisClient),
+		cachingResolver,
 		resolver.NewRewriterResolver(cfg.Conditional.RewriterConfig, condUpstream),
 		resolver.NewSpecialUseDomainNamesResolver(cfg.SUDN),
 		upstreamTree,

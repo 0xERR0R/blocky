@@ -3,8 +3,9 @@ package resolver
 import (
 	"context"
 	"fmt"
-	"strings"
 	"math"
+	"regexp"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -52,13 +53,15 @@ type CachingResolver struct {
 	resultCache expirationcache.ExpiringCache[[]byte]
 
 	redisClient *redis.Client
+
+	compiledExclusions []*regexp.Regexp
 }
 
 // NewCachingResolver creates a new resolver instance
 func NewCachingResolver(ctx context.Context,
 	cfg config.Caching,
 	redis *redis.Client,
-) *CachingResolver {
+) (*CachingResolver, error) {
 	return newCachingResolver(ctx, cfg, redis, true)
 }
 
@@ -66,7 +69,7 @@ func newCachingResolver(ctx context.Context,
 	cfg config.Caching,
 	redis *redis.Client,
 	emitMetricEvents bool,
-) *CachingResolver {
+) (*CachingResolver, error) {
 	c := &CachingResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("caching"),
@@ -76,13 +79,14 @@ func newCachingResolver(ctx context.Context,
 	}
 
 	configureCaches(ctx, c, &cfg)
+	err := configureExclusions(c, &cfg)
 
 	if c.redisClient != nil {
 		go c.redisSubscriber(ctx)
 		c.redisClient.GetRedisCache(ctx)
 	}
 
-	return c
+	return c, err
 }
 
 func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Caching) {
@@ -122,6 +126,23 @@ func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Cachin
 	} else {
 		c.resultCache = expirationcache.NewCache[[]byte](ctx, options)
 	}
+}
+
+func configureExclusions(c *CachingResolver, cfg *config.Caching) error {
+	compiled := []*regexp.Regexp{}
+	for _, expStr := range cfg.Exclude {
+		if !strings.HasPrefix(expStr, "/") || !strings.HasSuffix(expStr, "/") {
+			return fmt.Errorf("cache exclusion configuration '%s' fail because of missing slashes", expStr)
+		}
+		re, err := regexp.Compile(strings.TrimSpace(expStr[1 : len(expStr)-1]))
+		if err != nil {
+			return fmt.Errorf("cache exclusion configuration '%s' fail because '%s'", expStr, err.Error())
+		}
+		compiled = append(compiled, re)
+	}
+	c.compiledExclusions = compiled
+
+	return nil
 }
 
 func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string) (*[]byte, time.Duration) {
@@ -254,7 +275,7 @@ func setTTLInCachedResponse(resp *dns.Msg, ttl time.Duration) {
 // isRequestCacheable returns true if the request should be cached
 func (r *CachingResolver) isRequestCacheable(request *model.Request) bool {
 	// don't cache response if name ends with any exclution
-	if questionsEndsWithAnyExcludedElement(request.Req.Question, r.cfg.Exclude) {
+	if questionsMatchAnyExcludedElement(request.Req.Question, r.compiledExclusions) {
 		return false
 	}
 	// don't cache responses with EDNS Client Subnet option with masks that include more than one client
@@ -264,25 +285,29 @@ func (r *CachingResolver) isRequestCacheable(request *model.Request) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
-func questionsEndsWithAnyExcludedElement(questions []dns.Question, exclutions []string) bool {
-    for _, q := range questions {
-        if endsWithAnyElementOfArray(q.Name[:len(q.Name)-1], exclutions) {
-            return true
-        }
-    }
-    return false
+func questionsMatchAnyExcludedElement(questions []dns.Question, exclutions []*regexp.Regexp) bool {
+	for _, q := range questions {
+		if matchAnyElementOfArray(q.Name[:len(q.Name)-1], exclutions) {
+			return true
+		}
+	}
+
+	return false
 }
 
-func endsWithAnyElementOfArray(givingText string, arr []string) bool {
-    for _, s := range arr {
-        if strings.HasSuffix(strings.ToLower(givingText), strings.ToLower(s)) {
-            return true
-        }
-    }
-    return false
+func matchAnyElementOfArray(givingText string, arr []*regexp.Regexp) bool {
+	loweredGivingText := strings.ToLower(givingText)
+	for _, s := range arr {
+		if s.MatchString(loweredGivingText) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // isResponseCacheable returns true if the response is not truncated and its CD flag isn't set.
