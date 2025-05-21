@@ -3,8 +3,6 @@ project_name: blocky
 before:
   hooks:
     - go mod tidy
-    - go install github.com/dosgo/zigtool/zigcc@latest
-    - go install github.com/dosgo/zigtool/zigcpp@latest
 builds:
   - goos:
       - linux
@@ -33,8 +31,6 @@ builds:
       - -X github.com/0xERR0R/blocky/util.Architecture={{.Arch}}{{.Arm}}
     env:
       - CGO_ENABLED=0
-      - CC=zigcc
-      - CXX=zigcpp
 release:
   draft: true
 archives:

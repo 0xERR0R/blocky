@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ----------- stage: build
-FROM --platform=$BUILDPLATFORM golang:alpine AS build
+FROM golang:alpine AS build
 RUN apk add --no-cache make coreutils libcap
 
 # required arguments
@@ -14,9 +14,7 @@ ENV GO_SKIP_GENERATE=1\
   GO_BUILD_FLAGS="-tags static -v " \
   BIN_USER=100\
   BIN_AUTOCAB=1 \
-  BIN_OUT_DIR="/bin" \
-  GOCACHE=/go-cache \
-  GOMODCACHE=/gomod-cache
+  BIN_OUT_DIR="/bin"
 
 RUN make build
 
@@ -42,7 +40,7 @@ LABEL org.opencontainers.image.title="blocky" \
 USER 100
 WORKDIR /app
 
-COPY --link --from=build /bin/blocky /app/blocky
+COPY --from=build /bin/blocky /app/blocky
 
 ENV BLOCKY_CONFIG_FILE=/app/config.yml
 
