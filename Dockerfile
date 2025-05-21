@@ -18,8 +18,7 @@ ENV GO_SKIP_GENERATE=1\
   GOCACHE=/go-cache \
   GOMODCACHE=/gomod-cache
 
-RUN  --mount=type=cache,target=/gomod-cache --mount=type=cache,target=/go-cache \
-     make build
+RUN make build
 
 # ----------- stage: final
 FROM scratch
