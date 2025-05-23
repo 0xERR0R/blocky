@@ -15,7 +15,9 @@ import (
 
 //nolint:gochecknoinits
 func init() {
-	go reaper.Reap()
+	go reaper.Start(reaper.Config{
+		DisablePid1Check: true,
+	})
 
 	setLocaltime()
 }
