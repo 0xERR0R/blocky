@@ -203,9 +203,11 @@ See [https://truecharts.org/charts/enterprise/blocky/](https://truecharts.org/ch
 
 [Blocky lists updater](https://github.com/shizunge/blocky-lists-updater) updates list related configuration without restarting blocky DNS.
 
-### Web UI
+### Web UIs
 
-[Blocky Frontend](https://github.com/Mozart409/blocky-frontend) provides a Web UI to control blocky.
+- [Blocky Frontend](https://github.com/Mozart409/blocky-frontend) provides a Web UI to control blocky.
 See linked project for installation instructions.
+
+- [BlockyUI](https://github.com/GabeDuarteM/blocky-ui) provides a fully featured and modern Web UI for managing your Blocky DNS server.
 
 --8<-- "docs/includes/abbreviations.md"
