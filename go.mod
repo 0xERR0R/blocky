@@ -11,7 +11,7 @@ require (
 	github.com/avast/retry-go/v4 v4.6.1
 	github.com/breml/rootcerts v0.2.21
 	github.com/creasty/defaults v1.8.0
-	github.com/docker/docker v28.1.1+incompatible
+	github.com/docker/docker v28.2.2+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198 // indirect
 	github.com/go-chi/chi/v5 v5.2.1
@@ -160,6 +160,8 @@ require (
 )
 
 require (
+	github.com/containerd/errdefs v1.0.0 // indirect
+	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/ebitengine/purego v0.8.2 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.16.0 // indirect
 	github.com/mdelapenya/tlscert v0.2.0 // indirect
