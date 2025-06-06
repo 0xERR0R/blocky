@@ -154,6 +154,8 @@ For complex setups, splitting the configuration between multiple YAML files migh
 
 See [https://aur.archlinux.org/packages/blocky/](https://aur.archlinux.org/packages/blocky/)
 
+Or, if you are using OpenRC: [https://aur.archlinux.org/packages/blocky-openrc/](https://aur.archlinux.org/packages/blocky-openrc/)
+
 ### Alpine Linux
 
 See [https://pkgs.alpinelinux.org/packages?name=blocky&branch=edge&repo=&arch=](https://pkgs.alpinelinux.org/packages?name=blocky&branch=edge&repo=&arch=)
