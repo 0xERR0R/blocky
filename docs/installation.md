@@ -174,7 +174,7 @@ See the [Gentoo Wiki](https://wiki.gentoo.org/wiki/Project:GURU/Information_for_
 
 ### NixOS
 
-As `pkgs.blocky` and a module:
+Add `pkgs.blocky` and a module:
 
 ```nix
 services.blocky = {
