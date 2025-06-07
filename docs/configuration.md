@@ -240,9 +240,9 @@ This configuration will drop all 'AAAA' (IPv6) queries.
 
 ## FQDN only
 
-In domain environments, it may be useful to only response to FQDN requests. If this option is enabled blocky respond immediately
-with NXDOMAIN if the request is not a valid FQDN. The request is therefore not further processed by other options like custom or conditional.
-Please be aware that by enabling it your hostname resolution will break unless every hostname is part of a domain.
+In domain environments, it may be useful to only respond to FQDN requests. If this option is enabled blocky will respond immediately
+with NXDOMAIN if the request is not a valid FQDN. The request is therefore not processed further by other options like custom or conditional.
+Please be aware that by enabling this your resolution will break unless every query is for a fully qualified domain name.
 
 !!! example
 
