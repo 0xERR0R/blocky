@@ -997,7 +997,7 @@ path like '/app/allowlists/allowlist.txt' in the config file.</p>
 <span class="w">    </span><span class="nt">driver_opts</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cifs</span>
 <span class="w">      </span><span class="nt">o</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">username=USER,password=PASSWORD,rw</span>
-<span class="w">      </span><span class="nt">device</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">//NAS_HOSTNAME/blocky</span><span class="w">  </span>
+<span class="w">      </span><span class="nt">device</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">//NAS_HOSTNAME/blocky</span>
 </code></pre></div>
 <h4 id="multiple-configuration-files">Multiple configuration files</h4>
 <p>For complex setups, splitting the configuration between multiple <abbr title="YAML Ain't Markup Language">YAML</abbr> files might be desired. In this case, folder containing <abbr title="YAML Ain't Markup Language">YAML</abbr> files is passed on startup, Blocky will join all the files.</p>
@@ -1023,7 +1023,7 @@ path like '/app/allowlists/allowlist.txt' in the config file.</p>
 <h3 id="gentoo">Gentoo</h3>
 <p>See the <a href="https://wiki.gentoo.org/wiki/Project:GURU/Information_for_End_Users">Gentoo Wiki</a> to enable the GURU repository, then run <code>emerge net-dns/blocky</code>.</p>
 <h3 id="nixos">NixOS</h3>
-<p>As <code>pkgs.blocky</code> and a module:</p>
+<p>Add <code>pkgs.blocky</code> as a module:</p>
 <div class="highlight"><pre><span></span><code>services<span class="o">.</span><span class="ss">blocky</span> <span class="o">=</span> <span class="p">{</span>
   <span class="ss">enable</span> <span class="o">=</span> <span class="no">true</span><span class="p">;</span>
 
@@ -1035,7 +1035,7 @@ path like '/app/allowlists/allowlist.txt' in the config file.</p>
 <h3 id="macos-via-homebrew">macOS via Homebrew</h3>
 <p>See <a href="https://formulae.brew.sh/formula/blocky">https://formulae.brew.sh/formula/blocky</a></p>
 <h3 id="truenas-scale-via-truecharts">TrueNAS SCALE via TrueCharts</h3>
-<p>See <a href="https://truecharts.org/charts/enterprise/blocky/">https://truecharts.org/charts/enterprise/blocky/</a><br />
+<p>See <a href="https://truecharts.org/charts/enterprise/blocky/">https://truecharts.org/charts/enterprise/blocky/</a>
 (TrueCharts is not an official TrueNAS project)</p>
 <h2 id="companion-projects">Companion projects</h2>
 <div class="admonition warning">
