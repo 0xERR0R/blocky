@@ -129,7 +129,7 @@ volumes:
     driver_opts:
       type: cifs
       o: username=USER,password=PASSWORD,rw
-      device: //NAS_HOSTNAME/blocky  
+      device: //NAS_HOSTNAME/blocky
 ```
 
 #### Multiple configuration files
@@ -172,7 +172,7 @@ See the [Gentoo Wiki](https://wiki.gentoo.org/wiki/Project:GURU/Information_for_
 
 ### NixOS
 
-As `pkgs.blocky` and a module:
+Add `pkgs.blocky` as a module:
 
 ```nix
 services.blocky = {
@@ -190,7 +190,7 @@ See [https://formulae.brew.sh/formula/blocky](https://formulae.brew.sh/formula/b
 
 ### TrueNAS SCALE via TrueCharts
 
-See [https://truecharts.org/charts/enterprise/blocky/](https://truecharts.org/charts/enterprise/blocky/)  
+See [https://truecharts.org/charts/enterprise/blocky/](https://truecharts.org/charts/enterprise/blocky/)
 (TrueCharts is not an official TrueNAS project)
 
 ## Companion projects
