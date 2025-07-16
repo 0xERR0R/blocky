@@ -36,7 +36,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.38.0
 	github.com/testcontainers/testcontainers-go/modules/mariadb v0.37.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.38.0
-	github.com/testcontainers/testcontainers-go/modules/redis v0.37.0
+	github.com/testcontainers/testcontainers-go/modules/redis v0.38.0
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
 	golang.org/x/net v0.42.0
 	gopkg.in/yaml.v2 v2.4.0
