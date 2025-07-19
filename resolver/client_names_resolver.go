@@ -6,12 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/0xERR0R/blocky/cache/expirationcache"
+	"github.com/0xERR0R/blocky/cache"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
+	expirationcache "github.com/0xERR0R/expiration-cache"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 )
@@ -22,7 +23,7 @@ type ClientNamesResolver struct {
 	NextResolver
 	typed
 
-	cache            expirationcache.ExpiringCache[[]string]
+	cache            cache.ExpiringCache[[]string]
 	externalResolver Resolver
 }
 

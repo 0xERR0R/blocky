@@ -11,12 +11,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/0xERR0R/blocky/cache/expirationcache"
 	"golang.org/x/exp/maps"
 
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/0xERR0R/blocky/api"
+	"github.com/0xERR0R/blocky/cache"
+	expirationcache "github.com/0xERR0R/expiration-cache"
+
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/lists"
@@ -92,7 +94,7 @@ type BlockingResolver struct {
 	status              *status
 	clientGroupsBlock   map[string][]string
 	redisClient         *redis.Client
-	fqdnIPCache         expirationcache.ExpiringCache[[]net.IP]
+	fqdnIPCache         cache.ExpiringCache[[]net.IP]
 }
 
 func clientGroupsBlock(cfg config.Blocking) map[string][]string {

@@ -1,4 +1,4 @@
-package expirationcache_test
+package prefetching_test
 
 import (
 	"testing"

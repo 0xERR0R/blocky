@@ -1,19 +1,23 @@
-package expirationcache
+package prefetching
 
 import (
 	"context"
 	"sync/atomic"
 	"time"
+
+	expirationcache "github.com/0xERR0R/expiration-cache"
+
+	"github.com/0xERR0R/blocky/cache"
 )
 
 type PrefetchingExpiringLRUCache[T any] struct {
-	cache                   ExpiringCache[cacheValue[T]]
-	prefetchingNameCache    ExpiringCache[atomic.Uint32]
+	cache                   cache.ExpiringCache[cacheValue[T]]
+	prefetchingNameCache    cache.ExpiringCache[atomic.Uint32]
 	reloadFn                ReloadEntryFn[T]
 	prefetchThreshold       int
 	prefetchExpires         time.Duration
 	onPrefetchEntryReloaded OnEntryReloadedCallback
-	onPrefetchCacheHit      OnCacheHitCallback
+	onPrefetchCacheHit      expirationcache.OnCacheHitCallback
 }
 
 type cacheValue[T any] struct {
@@ -28,21 +32,21 @@ type OnEntryReloadedCallback func(key string)
 type ReloadEntryFn[T any] func(ctx context.Context, key string) (*T, time.Duration)
 
 type PrefetchingOptions[T any] struct {
-	Options
+	expirationcache.Options
 	ReloadFn                ReloadEntryFn[T]
 	PrefetchThreshold       int
 	PrefetchExpires         time.Duration
 	PrefetchMaxItemsCount   int
-	OnPrefetchAfterPut      OnAfterPutCallback
+	OnPrefetchAfterPut      expirationcache.OnAfterPutCallback
 	OnPrefetchEntryReloaded OnEntryReloadedCallback
-	OnPrefetchCacheHit      OnCacheHitCallback
+	OnPrefetchCacheHit      expirationcache.OnCacheHitCallback
 }
 
 type PrefetchingCacheOption[T any] func(c *PrefetchingExpiringLRUCache[cacheValue[T]])
 
 func NewPrefetchingCache[T any](ctx context.Context, options PrefetchingOptions[T]) *PrefetchingExpiringLRUCache[T] {
 	pc := &PrefetchingExpiringLRUCache[T]{
-		prefetchingNameCache: NewCache[atomic.Uint32](ctx, Options{
+		prefetchingNameCache: expirationcache.NewCache[atomic.Uint32](ctx, expirationcache.Options{
 			CleanupInterval: time.Minute,
 			MaxSize:         uint(options.PrefetchMaxItemsCount),
 			OnAfterPutFn:    options.OnPrefetchAfterPut,
@@ -54,7 +58,7 @@ func NewPrefetchingCache[T any](ctx context.Context, options PrefetchingOptions[
 		onPrefetchCacheHit:      options.OnPrefetchCacheHit,
 	}
 
-	pc.cache = NewCacheWithOnExpired[cacheValue[T]](ctx, options.Options, pc.onExpired)
+	pc.cache = expirationcache.NewCacheWithOnExpired[cacheValue[T]](ctx, options.Options, pc.onExpired)
 
 	return pc
 }

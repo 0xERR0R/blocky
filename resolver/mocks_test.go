@@ -14,7 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
-	"github.com/0xERR0R/blocky/cache/expirationcache"
+	"github.com/0xERR0R/blocky/cache"
 	"github.com/0xERR0R/blocky/model"
 
 	"github.com/miekg/dns"
@@ -239,7 +239,7 @@ func (c *mockConn) SetWriteDeadline(time.Time) error {
 
 type mockExpiringCache struct {
 	mock.Mock
-	expirationcache.ExpiringCache[[]byte]
+	cache.ExpiringCache[[]byte]
 }
 
 func (ec *mockExpiringCache) Get(key string) (val *[]byte, expiration time.Duration) {
