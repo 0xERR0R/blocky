@@ -9,14 +9,16 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/0xERR0R/blocky/cache/expirationcache"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
+	expirationcache "github.com/0xERR0R/expiration-cache"
 
+	"github.com/0xERR0R/blocky/cache"
+	"github.com/0xERR0R/blocky/cache/prefetching"
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -50,7 +52,7 @@ type CachingResolver struct {
 
 	emitMetricEvents bool // disabled by Bootstrap
 
-	resultCache expirationcache.ExpiringCache[[]byte]
+	resultCache cache.ExpiringCache[[]byte]
 
 	redisClient *redis.Client
 
@@ -105,7 +107,7 @@ func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Cachin
 	}
 
 	if cfg.Prefetching {
-		prefetchingOptions := expirationcache.PrefetchingOptions[[]byte]{
+		prefetchingOptions := prefetching.PrefetchingOptions[[]byte]{
 			Options:               options,
 			PrefetchExpires:       time.Duration(cfg.PrefetchExpires),
 			PrefetchThreshold:     cfg.PrefetchThreshold,
@@ -122,7 +124,7 @@ func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Cachin
 			},
 		}
 
-		c.resultCache = expirationcache.NewPrefetchingCache(ctx, prefetchingOptions)
+		c.resultCache = prefetching.NewPrefetchingCache(ctx, prefetchingOptions)
 	} else {
 		c.resultCache = expirationcache.NewCache[[]byte](ctx, options)
 	}
