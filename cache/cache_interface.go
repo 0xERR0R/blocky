@@ -1,4 +1,4 @@
-package expirationcache
+package cache
 
 import "time"
 

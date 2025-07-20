@@ -1,9 +1,10 @@
-package expirationcache
+package prefetching
 
 import (
 	"context"
 	"time"
 
+	cache "github.com/0xERR0R/expiration-cache"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -49,7 +50,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 		Context("Prefetching", func() {
 			It("Should prefetch element", func() {
 				cache := NewPrefetchingCache[string](ctx, PrefetchingOptions[string]{
-					Options: Options{
+					Options: cache.Options{
 						CleanupInterval: 100 * time.Millisecond,
 					},
 					PrefetchThreshold: 2,
@@ -81,7 +82,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 			})
 			It("Should not prefetch element", func() {
 				cache := NewPrefetchingCache[string](ctx, PrefetchingOptions[string]{
-					Options: Options{
+					Options: cache.Options{
 						CleanupInterval: 100 * time.Millisecond,
 					},
 					PrefetchThreshold: 2,
@@ -110,7 +111,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 			})
 			It("With default config (threshold = 0) should always prefetch", func() {
 				cache := NewPrefetchingCache[string](ctx, PrefetchingOptions[string]{
-					Options: Options{
+					Options: cache.Options{
 						CleanupInterval: 100 * time.Millisecond,
 					},
 					ReloadFn: func(ctx context.Context, cacheKey string) (*string, time.Duration) {
@@ -138,7 +139,7 @@ var _ = Describe("Prefetching expiration cache", func() {
 				onPrefetchEntryReloaded := make(chan string, 10)
 				onnPrefetchCacheHit := make(chan string, 10)
 				cache := NewPrefetchingCache[string](ctx, PrefetchingOptions[string]{
-					Options: Options{
+					Options: cache.Options{
 						CleanupInterval: 100 * time.Millisecond,
 					},
 					PrefetchThreshold: 2,
