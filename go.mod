@@ -11,7 +11,7 @@ require (
 	github.com/avast/retry-go/v4 v4.6.1
 	github.com/breml/rootcerts v0.3.1
 	github.com/creasty/defaults v1.8.0
-	github.com/docker/docker v28.3.2+incompatible
+	github.com/docker/docker v28.3.3+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/go-chi/chi/v5 v5.2.2
 	github.com/go-chi/cors v1.2.2
@@ -27,7 +27,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.38.0
 	github.com/prometheus/client_golang v1.22.0
-	github.com/ramr/go-reaper v0.3.0
+	github.com/ramr/go-reaper v0.3.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
