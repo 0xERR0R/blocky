@@ -48,7 +48,7 @@ type hostsIterator interface {
 }
 
 func (h *HostsIterator) ForEach(callback func(string) error) error {
-	return h.hostsIterator.forEachHost(callback)
+	return h.forEachHost(callback)
 }
 
 func (h *HostsIterator) UnmarshalText(data []byte) error {

@@ -267,7 +267,7 @@ func (r *BlockingResolver) internalDisableBlocking(ctx context.Context, duration
 	} else {
 		for _, g := range disableGroups {
 			i := sort.SearchStrings(allBlockingGroups, g)
-			if !(i < len(allBlockingGroups) && allBlockingGroups[i] == g) {
+			if i >= len(allBlockingGroups) || allBlockingGroups[i] != g {
 				return fmt.Errorf("group '%s' is unknown", g)
 			}
 		}

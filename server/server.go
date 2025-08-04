@@ -560,7 +560,7 @@ func (s *Server) resolve(ctx context.Context, request *model.Request) (response 
 		}
 	}
 
-	response.Res.MsgHdr.RecursionAvailable = request.Req.MsgHdr.RecursionDesired
+	response.Res.RecursionAvailable = request.Req.RecursionDesired
 
 	// truncate if necessary
 	response.Res.Truncate(getMaxResponseSize(request))

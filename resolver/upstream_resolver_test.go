@@ -234,7 +234,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				_, err := sut.Resolve(ctx, newRequest("example.com.", A))
 				Expect(err).Should(HaveOccurred())
 
-				upstreamHostPort := net.JoinHostPort(sutConfig.Upstream.Host, fmt.Sprint(sutConfig.Port))
+				upstreamHostPort := net.JoinHostPort(sutConfig.Host, fmt.Sprint(sutConfig.Port))
 				Expect(proxy.RequestTarget()).Should(Equal(upstreamHostPort))
 			})
 		})

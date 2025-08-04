@@ -91,7 +91,7 @@ func (s *stringCacheFactory) insertString(entry string) {
 	bucket := s.getBucket(entryLen)
 	ix := sort.SearchStrings(bucket, normalized)
 
-	if !(ix < len(bucket) && bucket[ix] == normalized) {
+	if ix >= len(bucket) || bucket[ix] != normalized {
 		// extend internal bucket
 		bucket = append(s.getBucket(entryLen), "")
 

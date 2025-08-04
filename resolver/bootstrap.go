@@ -83,7 +83,7 @@ func NewBootstrap(ctx context.Context, cfg *config.Config) (b *Bootstrap, err er
 	}
 
 	pbCfg := config.NewUpstreamGroup("<bootstrap>", cfg.Upstreams, nil)
-	pbCfg.Upstreams.Groups = nil // To be on the safe side it doesn't try to use anything besides the bootstrap
+	pbCfg.Groups = nil // To be on the safe side it doesn't try to use anything besides the bootstrap
 
 	// Always enable prefetching to avoid stalling user requests
 	// Otherwise, a request to blocky could end up waiting for 2 DNS requests:
