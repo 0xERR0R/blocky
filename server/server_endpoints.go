@@ -72,6 +72,12 @@ func (s *Server) dohGetRequestHandler(rw http.ResponseWriter, req *http.Request)
 		return
 	}
 
+	if len(dnsParam[0]) > base64.RawURLEncoding.EncodedLen(dohMessageLimit) {
+		http.Error(rw, "URI Too Long", http.StatusRequestURITooLong)
+
+		return
+	}
+
 	rawMsg, err := base64.RawURLEncoding.DecodeString(dnsParam[0])
 	if err != nil {
 		http.Error(rw, "wrong message format", http.StatusBadRequest)
@@ -96,7 +102,7 @@ func (s *Server) dohPostRequestHandler(rw http.ResponseWriter, req *http.Request
 		return
 	}
 
-	rawMsg, err := io.ReadAll(req.Body)
+	rawMsg, err := io.ReadAll(io.LimitReader(req.Body, int64(dohMessageLimit)+1))
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 
