@@ -82,7 +82,7 @@ func createHTTPServerContainer(ctx context.Context, alias string, e2eNet *testco
 		Files: []testcontainers.ContainerFile{
 			{
 				HostFilePath:      file,
-				ContainerFilePath: fmt.Sprintf("/%s", filename),
+				ContainerFilePath: "/" + filename,
 				FileMode:          modeOwner,
 			},
 		},
@@ -264,7 +264,7 @@ func checkBlockyReadiness(ctx context.Context, cfg *config.Config, container tes
 }
 
 func doHTTPRequest(ctx context.Context, container testcontainers.Container, containerPort string) error {
-	host, port, err := getContainerHostPort(ctx, container, nat.Port(fmt.Sprintf("%s/tcp", containerPort)))
+	host, port, err := getContainerHostPort(ctx, container, nat.Port(containerPort+"/tcp"))
 	if err != nil {
 		return err
 	}
@@ -274,7 +274,7 @@ func doHTTPRequest(ctx context.Context, container testcontainers.Container, cont
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		fmt.Sprintf("http://%s", net.JoinHostPort(host, port)), nil)
+		"http://"+net.JoinHostPort(host, port), nil)
 	if err != nil {
 		return err
 	}

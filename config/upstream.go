@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -50,7 +51,7 @@ func (u Upstream) String() string {
 
 	if u.Port != netDefaultPort[u.Net] {
 		sb.WriteRune(':')
-		sb.WriteString(fmt.Sprint(u.Port))
+		sb.WriteString(strconv.FormatUint(uint64(u.Port), 10))
 	}
 
 	if u.Path != "" {

@@ -470,7 +470,7 @@ func createTestListFile(dir string, totalLines int) (string, int) {
 	}
 
 	w := bufio.NewWriter(file)
-	for i := 0; i < totalLines; i++ {
+	for range totalLines {
 		fmt.Fprintln(w, uuid.NewString()+".com")
 	}
 

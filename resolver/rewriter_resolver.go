@@ -101,7 +101,7 @@ func (r *RewriterResolver) Resolve(ctx context.Context, request *model.Request) 
 	// Revert the rewrite in r.inner's response
 
 	n := max(len(response.Res.Question), len(response.Res.Answer))
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if i < len(response.Res.Question) {
 			original, ok := originalNames[response.Res.Question[i].Name]
 			if ok {

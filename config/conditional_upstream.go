@@ -10,7 +10,8 @@ import (
 // ConditionalUpstream conditional upstream configuration
 type ConditionalUpstream struct {
 	RewriterConfig `yaml:",inline"`
-	Mapping        ConditionalUpstreamMapping `yaml:"mapping"`
+
+	Mapping ConditionalUpstreamMapping `yaml:"mapping"`
 }
 
 // ConditionalUpstreamMapping mapping for conditional configuration

@@ -12,7 +12,7 @@ import (
 
 type HTTPProxy struct {
 	Addr          net.Addr
-	requestTarget atomic.Value // string: HTTP Host of latest request
+	requestTarget atomic.Pointer[string] // string: HTTP Host of latest request
 }
 
 // TestHTTPProxy returns a new HTTPProxy server.
@@ -61,11 +61,11 @@ func (p *HTTPProxy) RequestTarget() string {
 		ginkgo.Fail(fmt.Sprintf("http proxy %s received no requests", p.Addr))
 	}
 
-	return val.(string)
+	return *val
 }
 
 func (p *HTTPProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	p.requestTarget.Store(req.Host)
+	p.requestTarget.Store(&req.Host)
 
 	w.WriteHeader(http.StatusNotImplemented)
 }

@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/csv"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"time"
@@ -206,7 +205,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 				By("check log for client1", func() {
 					Eventually(func(g Gomega) {
 						csvLines, err := readCsv(tmpDir.JoinPath(
-							fmt.Sprintf("%s_client1.log", time.Now().Format("2006-01-02"))))
+							time.Now().Format("2006-01-02") + "_client1.log"))
 
 						g.Expect(err).Should(Succeed())
 						g.Expect(csvLines).ShouldNot(BeEmpty())
@@ -224,7 +223,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 				By("check log for client2", func() {
 					Eventually(func(g Gomega) {
 						csvLines, err := readCsv(tmpDir.JoinPath(
-							fmt.Sprintf("%s_cl_ient2_test.log", time.Now().Format("2006-01-02"))))
+							time.Now().Format("2006-01-02") + "_cl_ient2_test.log"))
 
 						g.Expect(err).Should(Succeed())
 						g.Expect(csvLines).Should(HaveLen(1))
@@ -273,7 +272,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 				By("check log", func() {
 					Eventually(func(g Gomega) {
 						csvLines, err := readCsv(tmpDir.JoinPath(
-							fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02"))))
+							time.Now().Format("2006-01-02") + "_ALL.log"))
 
 						g.Expect(err).Should(Succeed())
 						g.Expect(csvLines).Should(HaveLen(2))
@@ -326,7 +325,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 				By("check log", func() {
 					Eventually(func(g Gomega) {
 						csvLines, err := readCsv(tmpDir.JoinPath(
-							fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02"))))
+							time.Now().Format("2006-01-02") + "_ALL.log"))
 
 						g.Expect(err).Should(Succeed())
 						g.Expect(csvLines).Should(HaveLen(1))
@@ -399,8 +398,8 @@ var _ = Describe("QueryLoggingResolver", func() {
 				dateBefore7Days := time.Now().AddDate(0, 0, -7)
 				dateBefore9Days := time.Now().AddDate(0, 0, -9)
 
-				f1 := tmpDir.CreateEmptyFile(fmt.Sprintf("%s-test.log", dateBefore7Days.Format("2006-01-02")))
-				f2 := tmpDir.CreateEmptyFile(fmt.Sprintf("%s-test.log", dateBefore9Days.Format("2006-01-02")))
+				f1 := tmpDir.CreateEmptyFile(dateBefore7Days.Format("2006-01-02") + "-test.log")
+				f2 := tmpDir.CreateEmptyFile(dateBefore9Days.Format("2006-01-02") + "-test.log")
 
 				sut.doCleanUp()
 

@@ -13,15 +13,15 @@ type QueryLog struct {
 	Target           string          `yaml:"target"`
 	Type             QueryLogType    `yaml:"type"`
 	LogRetentionDays uint64          `yaml:"logRetentionDays"`
-	CreationAttempts int             `yaml:"creationAttempts" default:"3"`
-	CreationCooldown Duration        `yaml:"creationCooldown" default:"2s"`
+	CreationAttempts int             `default:"3"             yaml:"creationAttempts"`
+	CreationCooldown Duration        `default:"2s"            yaml:"creationCooldown"`
 	Fields           []QueryLogField `yaml:"fields"`
-	FlushInterval    Duration        `yaml:"flushInterval" default:"30s"`
+	FlushInterval    Duration        `default:"30s"           yaml:"flushInterval"`
 	Ignore           QueryLogIgnore  `yaml:"ignore"`
 }
 
 type QueryLogIgnore struct {
-	SUDN bool `yaml:"sudn" default:"false"`
+	SUDN bool `default:"false" yaml:"sudn"`
 }
 
 // SetDefaults implements `defaults.Setter`.

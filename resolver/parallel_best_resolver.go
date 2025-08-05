@@ -232,7 +232,7 @@ func (r *ParallelBestResolver) retryWithDifferent(
 func pickRandom(ctx context.Context, resolvers []*upstreamResolverStatus, resolverCount int) []*upstreamResolverStatus {
 	chosenResolvers := make([]*upstreamResolverStatus, 0, resolverCount)
 
-	for i := 0; i < resolverCount; i++ {
+	for range resolverCount {
 		chosenResolvers = append(chosenResolvers, weightedRandom(ctx, resolvers, chosenResolvers))
 	}
 

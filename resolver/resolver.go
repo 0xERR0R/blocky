@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -127,7 +128,7 @@ func GetFromChainWithType[T any](resolver ChainedResolver) (result T, err error)
 		}
 	}
 
-	return result, fmt.Errorf("type was not found in the chain")
+	return result, errors.New("type was not found in the chain")
 }
 
 // Name returns a user-friendly name of a resolver
@@ -227,8 +228,8 @@ func (c *configurable[T]) LogConfig(logger *logrus.Entry) {
 }
 
 type initializable interface {
-	log(context.Context) (context.Context, *logrus.Entry)
-	setResolvers([]*upstreamResolverStatus)
+	log(ctx context.Context) (context.Context, *logrus.Entry)
+	setResolvers(resolvers []*upstreamResolverStatus)
 }
 
 func initGroupResolvers[T initializable](

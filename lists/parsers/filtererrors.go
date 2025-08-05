@@ -14,7 +14,7 @@ type FilteredSeriesParser[T any] interface {
 	SeriesParser[T]
 
 	// OnErr registers a callback invoked for each error encountered.
-	OnErr(func(error))
+	OnErr(onErrFn func(error))
 }
 
 // AllowErrors returns a parser that wraps `inner` and tries to continue parsing.

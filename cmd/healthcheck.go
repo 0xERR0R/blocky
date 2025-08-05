@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"net"
+	"strconv"
 
 	"github.com/miekg/dns"
 	"github.com/spf13/cobra"
@@ -36,7 +37,7 @@ func healthcheck(cmd *cobra.Command, args []string) error {
 	m := new(dns.Msg)
 	m.SetQuestion("healthcheck.blocky.", dns.TypeA)
 
-	_, _, err := c.Exchange(m, net.JoinHostPort(bindIP, fmt.Sprintf("%d", port)))
+	_, _, err := c.Exchange(m, net.JoinHostPort(bindIP, strconv.FormatUint(uint64(port), 10)))
 
 	if err == nil {
 		fmt.Println("OK")

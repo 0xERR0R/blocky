@@ -11,11 +11,12 @@ import (
 
 // CustomDNS custom DNS configuration
 type CustomDNS struct {
-	RewriterConfig      `yaml:",inline"`
-	CustomTTL           Duration         `yaml:"customTTL" default:"1h"`
+	RewriterConfig `yaml:",inline"`
+
+	CustomTTL           Duration         `default:"1h"   yaml:"customTTL"`
 	Mapping             CustomDNSMapping `yaml:"mapping"`
-	Zone                ZoneFileDNS      `yaml:"zone" default:""`
-	FilterUnmappedTypes bool             `yaml:"filterUnmappedTypes" default:"true"`
+	Zone                ZoneFileDNS      `default:""     yaml:"zone"`
+	FilterUnmappedTypes bool             `default:"true" yaml:"filterUnmappedTypes"`
 }
 
 type (

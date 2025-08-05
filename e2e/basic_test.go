@@ -2,7 +2,6 @@ package e2e
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 
@@ -110,7 +109,7 @@ var _ = Describe("Basic functionality", func() {
 					host, port, err := getContainerHostPort(ctx, blocky, "4000/tcp")
 					Expect(err).Should(Succeed())
 
-					_, err = http.Get(fmt.Sprintf("http://%s", net.JoinHostPort(host, port)))
+					_, err = http.Get("http://" + net.JoinHostPort(host, port))
 					Expect(err).Should(HaveOccurred())
 				})
 			})
@@ -131,7 +130,7 @@ var _ = Describe("Basic functionality", func() {
 				It("serves HTTP content on configured port", func(ctx context.Context) {
 					host, port, err := getContainerHostPort(ctx, blocky, "4000/tcp")
 					Expect(err).Should(Succeed())
-					url := fmt.Sprintf("http://%s", net.JoinHostPort(host, port))
+					url := "http://" + net.JoinHostPort(host, port)
 
 					By("serving static HTML content", func() {
 						Eventually(http.Get).WithArguments(url).Should(HaveHTTPStatus(http.StatusOK))

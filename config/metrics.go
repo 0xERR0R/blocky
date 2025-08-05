@@ -4,8 +4,8 @@ import "github.com/sirupsen/logrus"
 
 // Metrics contains the config values for prometheus
 type Metrics struct {
-	Enable bool   `yaml:"enable" default:"false"`
-	Path   string `yaml:"path" default:"/metrics"`
+	Enable bool   `default:"false"    yaml:"enable"`
+	Path   string `default:"/metrics" yaml:"path"`
 }
 
 // IsEnabled implements `config.Configurable`.

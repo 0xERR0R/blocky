@@ -121,8 +121,6 @@ func (b *ListCache) refresh(ctx context.Context) error {
 	defer producersGrp.Close()
 
 	for group, sources := range b.groupSources {
-		group, sources := group, sources
-
 		unlimitedGrp.Go(func(ctx context.Context) error {
 			err := b.createCacheForGroup(producersGrp, unlimitedGrp, group, sources)
 			if err != nil {
@@ -167,8 +165,6 @@ func (b *ListCache) createCacheForGroup(
 	defer producers.Close()
 
 	for i, source := range sources {
-		i, source := i, source
-
 		producers.GoProduce(func(ctx context.Context, hostsChan chan<- string) error {
 			locInfo := fmt.Sprintf("item #%d of group %s", i, group)
 

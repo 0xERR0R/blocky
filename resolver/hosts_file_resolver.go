@@ -175,8 +175,6 @@ func (r *HostsFileResolver) loadSources(ctx context.Context) error {
 	defer producers.Close()
 
 	for i, source := range r.cfg.Sources {
-		i, source := i, source
-
 		producers.GoProduce(func(ctx context.Context, hostsChan chan<- *HostsFileEntry) error {
 			locInfo := fmt.Sprintf("item #%d", i)
 

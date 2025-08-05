@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -172,7 +173,7 @@ func (e *HostsFileEntry) UnmarshalText(data []byte) error {
 	}
 
 	if len(hosts) == 0 {
-		return fmt.Errorf("expected at least one host following IP")
+		return errors.New("expected at least one host following IP")
 	}
 
 	*e = HostsFileEntry{

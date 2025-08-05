@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -108,7 +109,7 @@ func createQueryLogRow(logEntry *LogEntry) []string {
 		logEntry.Start.Format("2006-01-02 15:04:05"),
 		logEntry.ClientIP,
 		strings.Join(logEntry.ClientNames, "; "),
-		fmt.Sprintf("%d", logEntry.DurationMs),
+		strconv.FormatInt(logEntry.DurationMs, 10),
 		logEntry.ResponseReason,
 		logEntry.QuestionName,
 		logEntry.Answer,

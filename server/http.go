@@ -70,9 +70,9 @@ type httpMiddleware = func(http.Handler) http.Handler
 func secureHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.TLS != nil {
-			w.Header().Set("strict-transport-security", "max-age=63072000")
-			w.Header().Set("x-frame-options", "DENY")
-			w.Header().Set("x-content-type-options", "nosniff")
+			w.Header().Set("Strict-Transport-Security", "max-age=63072000")
+			w.Header().Set("X-Frame-Options", "DENY")
+			w.Header().Set("X-Content-Type-Options", "nosniff")
 			w.Header().Set("x-xss-protection", "1; mode=block")
 		}
 
