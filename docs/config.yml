@@ -318,13 +318,22 @@ hostsFile:
 
 # optional: ports configuration
 ports:
-  # optional: DNS listener port(s) and bind ip address(es), default 53 (UDP and TCP). Example: 53, :53, "127.0.0.1:5353,[::1]:5353"
-  dns: 53
-  # optional: Port(s) and bind ip address(es) for DoT (DNS-over-TLS) listener. Example: 853, 127.0.0.1:853
+  # optional: DNS listener port(s) and bind ip address(es)
+  # default: 53 (UDP and TCP)
+  # example: [53, :53, 127.0.0.1:53, [::1]:53]
+  dns:
+    - 53
+    - localhost:5353
+  # optional: Port(s) and bind ip address(es) for DoT (DNS-over-TLS) listener.
+  #           Supports the same formats as `dns` above.
+  # default: none
+  # example: [853, :853, 127.0.0.1:853, [::1]:853]
   tls: 853
-  # optional: Port(s) and optional bind ip address(es) to serve HTTPS used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as 192.168.0.1:443. Example: 443, :443, 127.0.0.1:443,[::1]:443
+  # optional: Port(s) and optional bind ip address(es) to serve HTTPS used for prometheus metrics, pprof, REST API, DoH...
+  # example: [443, :443, 127.0.0.1:443, [::1]:443]
   https: 443
-  # optional: Port(s) and optional bind ip address(es) to serve HTTP used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as 192.168.0.1:4000. Example: 4000, :4000, 127.0.0.1:4000,[::1]:4000
+  # optional: Port(s) and optional bind ip address(es) to serve HTTP used for prometheus metrics, pprof, REST API, DoH...
+  # example: [4000, :4000, 127.0.0.1:4000, [::1]:4000]
   http: 4000
 
 # optional: logging configuration

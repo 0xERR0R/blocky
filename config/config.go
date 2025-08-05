@@ -171,14 +171,37 @@ func (l *ListenConfig) UnmarshalText(data []byte) error {
 
 	*l = strings.Split(addresses, ",")
 
-	// Prefix all ports with :
+	l.prefixPorts()
+
+	return nil
+}
+
+// UnmarshalYAML creates a ListenConfig from YAML
+func (l *ListenConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// Try parsing as a native YAML array...
+	if unmarshal((*[]string)(l)) == nil {
+		l.prefixPorts()
+
+		return nil
+	}
+
+	// ...if it fails, it should be a comma separated string
+	var str string
+
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	return l.UnmarshalText([]byte(str))
+}
+
+// prefixPorts ensures all ports have a : prefix
+func (l *ListenConfig) prefixPorts() {
 	for i, addr := range *l {
 		if !strings.ContainsRune(addr, ':') {
 			(*l)[i] = ":" + addr
 		}
 	}
-
-	return nil
 }
 
 // UnmarshalYAML creates BootstrapDNS from YAML

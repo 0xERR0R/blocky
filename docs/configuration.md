@@ -25,23 +25,26 @@ configuration properties as [JSON](config.yml).
     connectIPVersion: v4
     ```
 
-## Ports configuration
+## Ports & addresses configuration
 
-All logging port are optional.
+All values in this section are optional.
 
-| Parameter   | Type                    | Default value | Description                                                                                                                                                                                                                                       |
-| ----------- | ----------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ports.dns   | [IP]:port[,[IP]:port]\* | 53            | Port(s) and optional bind ip address(es) to serve DNS endpoint (TCP and UDP). If you wish to specify a specific IP, you can do so such as `192.168.0.1:53`. Example: `53`, `:53`, `127.0.0.1:53,[::1]:53`                                         |
-| ports.tls   | [IP]:port[,[IP]:port]\* |               | Port(s) and optional bind ip address(es) to serve DoT DNS endpoint (DNS-over-TLS). If you wish to specify a specific IP, you can do so such as `192.168.0.1:853`. Example: `83`, `:853`, `127.0.0.1:853,[::1]:853`                                |
-| ports.http  | [IP]:port[,[IP]:port]\* |               | Port(s) and optional bind ip address(es) to serve HTTP used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:4000`. Example: `4000`, `:4000`, `127.0.0.1:4000,[::1]:4000` |
-| ports.https | [IP]:port[,[IP]:port]\* |               | Port(s) and optional bind ip address(es) to serve HTTPS used for prometheus metrics, pprof, REST API, DoH... If you wish to specify a specific IP, you can do so such as `192.168.0.1:443`. Example: `443`, `:443`, `127.0.0.1:443,[::1]:443`     |
+| Parameter   | Type                  | Default value | Description                                                                                                                                       |
+| ----------- | --------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ports.dns   | One or more [IP]:Port | 53            | Listen address for DNS (TCP and UDP). Example: `53`, `:53`, `192.168.0.1:53`, `[53, "[::1]:53"]`                                                  |
+| ports.tls   | One or more [IP]:Port |               | Listen address for DoT (DNS-over-TLS). Example: `83`, `:853`, `192.168.0.1:853`, `[853, "[::1]:853"]`                                             |
+| ports.http  | One or more [IP]:Port |               | Listen address for HTTP used for prometheus metrics, pprof, REST API, DoH... Example: `4000`, `:4000`, `192.168.0.1:4000`, `[4000, "[::1]:4000"]` |
+| ports.https | One or more [IP]:Port |               | Listen address for HTTPS used for prometheus metrics, pprof, REST API, DoH... Example: `443`, `:443`, `192.168.0.1:443`, `[443, "[::1]:443"]`     |
 
 !!! example
 
     ```yaml
     ports:
       dns: 53
-      http: 4000
+      tls: [853, "[::1]:853"]
+      http:
+        - 80
+        - 4000
       https: 443
     ```
 
