@@ -959,6 +959,7 @@ bootstrapDns:
 
 func defaultTestFileConfig(config *Config) {
 	Expect(config.Ports.DNS).Should(Equal(ListenConfig{":55553", ":55554", "[::1]:55555"}))
+	Expect(config.Ports.HTTP).Should(Equal(ListenConfig{":4000"}))
 	Expect(config.Upstreams.Init.Strategy).Should(Equal(InitStrategyFailOnError))
 	Expect(config.Upstreams.UserAgent).Should(Equal("testBlocky"))
 	Expect(config.Upstreams.Groups["default"]).Should(HaveLen(3))
@@ -1059,7 +1060,10 @@ func writeConfigYml(tmpDir *helpertest.TmpFolder) *helpertest.TmpFile {
 		"queryLog:",
 		"  type: csv-client",
 		"  target: /opt/log",
-		"port: 55553,:55554,[::1]:55555",
+		"ports:",
+		"  dns: 55553,:55554,[::1]:55555",
+		"  http:",
+		"    - 4000",
 		"logLevel: debug",
 		"minTlsServeVersion: 1.3",
 	)
@@ -1086,7 +1090,10 @@ func writeConfigYmlWithLocalZoneFile(tmpDir *helpertest.TmpFolder, includeStr st
 		"    - A",
 		"fqdnOnly:",
 		"  enable: true",
-		"port: 55553,:55554,[::1]:55555",
+		"ports:",
+		"  dns: 55553,:55554,[::1]:55555",
+		"  http:",
+		"    - 4000",
 		"logLevel: debug",
 		"minTlsServeVersion: 1.3",
 	)
@@ -1151,7 +1158,10 @@ func writeConfigDir(tmpDir *helpertest.TmpFolder) {
 		"queryLog:",
 		"  type: csv-client",
 		"  target: /opt/log",
-		"port: 55553,:55554,[::1]:55555",
+		"ports:",
+		"  dns: 55553,:55554,[::1]:55555",
+		"  http:",
+		"    - 4000",
 		"logLevel: debug",
 		"minTlsServeVersion: 1.3",
 	)
