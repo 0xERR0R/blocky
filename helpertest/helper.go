@@ -3,11 +3,13 @@ package helpertest
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/0xERR0R/blocky/log"
@@ -43,7 +45,7 @@ func GetIntPort(port int) int {
 // process by adding the current ginkgo parallel process to
 // the base port and returning it as string.
 func GetStringPort(port int) string {
-	return fmt.Sprintf("%d", GetIntPort(port))
+	return strconv.Itoa(GetIntPort(port))
 }
 
 // GetHostPort returns a host:port string for the current testing
@@ -181,7 +183,7 @@ func HaveTTL(matcher types.GomegaMatcher) types.GomegaMatcher {
 
 		// No records to match
 		if len(records) == 0 {
-			return 0, fmt.Errorf("answer must not be empty")
+			return 0, errors.New("answer must not be empty")
 		}
 
 		// Return TTL of the first record

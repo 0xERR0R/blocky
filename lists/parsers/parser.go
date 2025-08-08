@@ -16,7 +16,7 @@ type SeriesParser[T any] interface {
 	// be made are of type `NonResumableError`.
 	// Other errors apply to the item being parsed, and have no
 	// impact on the rest of the series.
-	Next(context.Context) (T, error)
+	Next(ctx context.Context) (T, error)
 
 	// Position returns a string that gives an user readable indication
 	// as to where in the parser's underlying data source the cursor is.
@@ -85,7 +85,7 @@ func NewNonResumableError(inner error) error {
 }
 
 func (e *NonResumableError) Error() string {
-	return fmt.Sprintf("non resumable parse error: %s", e.inner.Error())
+	return "non resumable parse error: " + e.inner.Error()
 }
 
 func (e *NonResumableError) Unwrap() error {

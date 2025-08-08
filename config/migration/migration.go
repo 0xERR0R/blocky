@@ -5,12 +5,12 @@ package migration
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"strings"
 
 	"github.com/creasty/defaults"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 )
 
 // Migrate checks each field of `deprecated` to see if a migration can and should be run.

@@ -54,7 +54,7 @@ func AnswerToString(answer []dns.RR) string {
 		case *dns.PTR:
 			answers[i] = fmt.Sprintf("PTR (%s)", v.Ptr)
 		default:
-			answers[i] = fmt.Sprint(record.String())
+			answers[i] = record.String()
 		}
 	}
 

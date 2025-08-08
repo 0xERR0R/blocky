@@ -2,7 +2,6 @@ package config
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"strings"
 
@@ -227,7 +226,7 @@ www A 1.2.3.4
 		It("Should return an error if the unmarshall function returns an error", func() {
 			z := ZoneFileDNS{}
 			err := z.UnmarshalYAML(func(i interface{}) error {
-				return fmt.Errorf("Failed to unmarshal")
+				return errors.New("Failed to unmarshal")
 			})
 			Expect(err).Should(HaveOccurred())
 			Expect(err).Should(MatchError("Failed to unmarshal"))

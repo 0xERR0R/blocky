@@ -2,7 +2,7 @@ package resolver
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net"
 	"time"
 
@@ -106,7 +106,7 @@ var _ = Describe("CustomDNSResolver", func() {
 		When("Creating the IP response returns an error ", func() {
 			It("should return the error", func() {
 				createAnswerMock := func(_ dns.Question, _ net.IP, _ uint32) (dns.RR, error) {
-					return nil, fmt.Errorf("create answer error")
+					return nil, errors.New("create answer error")
 				}
 
 				sut.CreateAnswerFromQuestion(createAnswerMock)
@@ -119,7 +119,7 @@ var _ = Describe("CustomDNSResolver", func() {
 		})
 		When("The forward request returns an error ", func() {
 			It("should return the error if the error occurs when checking ipv4 forward addresses", func() {
-				err := fmt.Errorf("forward error")
+				err := errors.New("forward error")
 				m = &mockResolver{}
 
 				m.On("Resolve", mock.Anything).Return(nil, err)
@@ -131,7 +131,7 @@ var _ = Describe("CustomDNSResolver", func() {
 				Expect(err.Error()).Should(ContainSubstring("forward error"))
 			})
 			It("should return the error if the error occurs when checking ipv6 forward addresses", func() {
-				err := fmt.Errorf("forward error")
+				err := errors.New("forward error")
 				m = &mockResolver{}
 
 				m.On("Resolve", mock.Anything).Return(nil, err)

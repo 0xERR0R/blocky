@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -234,7 +235,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				_, err := sut.Resolve(ctx, newRequest("example.com.", A))
 				Expect(err).Should(HaveOccurred())
 
-				upstreamHostPort := net.JoinHostPort(sutConfig.Host, fmt.Sprint(sutConfig.Port))
+				upstreamHostPort := net.JoinHostPort(sutConfig.Host, strconv.FormatUint(uint64(sutConfig.Port), 10))
 				Expect(proxy.RequestTarget()).Should(Equal(upstreamHostPort))
 			})
 		})
@@ -266,7 +267,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 		When("Configured DoH resolver returns wrong content type", func() {
 			BeforeEach(func() {
 				modifyHTTPRespFn = func(w http.ResponseWriter) {
-					w.Header().Set("content-type", "text")
+					w.Header().Set("Content-Type", "text")
 				}
 			})
 			It("should return error", func() {

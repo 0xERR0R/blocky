@@ -167,7 +167,7 @@ func newTestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg),
 
 		util.FatalOnError("can't serialize message: ", err)
 
-		w.Header().Set("content-type", "application/dns-message")
+		w.Header().Set("Content-Type", "application/dns-message")
 
 		for _, f := range reqFn {
 			if f != nil {

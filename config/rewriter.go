@@ -7,7 +7,7 @@ import (
 // RewriterConfig custom DNS configuration
 type RewriterConfig struct {
 	Rewrite          map[string]string `yaml:"rewrite"`
-	FallbackUpstream bool              `yaml:"fallbackUpstream" default:"false"`
+	FallbackUpstream bool              `default:"false" yaml:"fallbackUpstream"`
 }
 
 // IsEnabled implements `config.Configurable`.

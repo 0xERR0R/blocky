@@ -3,7 +3,7 @@ package querylog
 import (
 	"context"
 	"database/sql"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -98,7 +98,7 @@ var _ = Describe("DatabaseWriter", func() {
 			It("should be persisted in the database in bulk", func() {
 				const count = 10_123
 
-				for i := 0; i < count; i++ {
+				for range count {
 					writer.Write(&LogEntry{
 						Start:      time.Now(),
 						DurationMs: 20,
@@ -278,7 +278,7 @@ var _ = Describe("DatabaseWriter", func() {
 					})
 
 					By("create mysql specific manually defined primary key should be skipped if already exists (error 1060)", func() {
-						mock.ExpectExec("ALTER TABLE `log_entries` ADD `id` INT PRIMARY KEY AUTO_INCREMENT").WillReturnError(fmt.Errorf("error 1060: duplicate column name"))
+						mock.ExpectExec("ALTER TABLE `log_entries` ADD `id` INT PRIMARY KEY AUTO_INCREMENT").WillReturnError(errors.New("error 1060: duplicate column name"))
 					})
 
 					_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond, "mysql")
@@ -291,7 +291,7 @@ var _ = Describe("DatabaseWriter", func() {
 					})
 
 					By("create mysql specific manually defined primary key should be skipped if already exists", func() {
-						mock.ExpectExec("ALTER TABLE `log_entries` ADD `id` INT PRIMARY KEY AUTO_INCREMENT").WillReturnError(fmt.Errorf("error XXX: some index error"))
+						mock.ExpectExec("ALTER TABLE `log_entries` ADD `id` INT PRIMARY KEY AUTO_INCREMENT").WillReturnError(errors.New("error XXX: some index error"))
 					})
 
 					_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond, "mysql")
@@ -303,7 +303,7 @@ var _ = Describe("DatabaseWriter", func() {
 			Context("table can't be created", func() {
 				It("should create the database schema automatically without errors", func() {
 					By("create table with indexes", func() {
-						mock.ExpectExec("CREATE TABLE `log_entries`").WillReturnError(fmt.Errorf("error XXX: some db error"))
+						mock.ExpectExec("CREATE TABLE `log_entries`").WillReturnError(errors.New("error XXX: some db error"))
 					})
 
 					_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond, "mysql")

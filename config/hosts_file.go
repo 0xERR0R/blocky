@@ -8,7 +8,7 @@ import (
 
 type HostsFile struct {
 	Sources        []BytesSource `yaml:"sources"`
-	HostsTTL       Duration      `yaml:"hostsTTL" default:"1h"`
+	HostsTTL       Duration      `default:"1h"          yaml:"hostsTTL"`
 	FilterLoopback bool          `yaml:"filterLoopback"`
 	Loading        SourceLoading `yaml:"loading"`
 

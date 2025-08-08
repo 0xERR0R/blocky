@@ -10,9 +10,9 @@ const UpstreamDefaultCfgName = "default"
 // Upstreams upstream servers configuration
 type Upstreams struct {
 	Init      Init             `yaml:"init"`
-	Timeout   Duration         `yaml:"timeout" default:"2s"` // always > 0
+	Timeout   Duration         `default:"2s"            yaml:"timeout"` // always > 0
 	Groups    UpstreamGroups   `yaml:"groups"`
-	Strategy  UpstreamStrategy `yaml:"strategy" default:"parallel_best"`
+	Strategy  UpstreamStrategy `default:"parallel_best" yaml:"strategy"`
 	UserAgent string           `yaml:"userAgent"`
 }
 

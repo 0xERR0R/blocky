@@ -5,6 +5,7 @@ package log
 import (
 	"fmt"
 	"io"
+	"maps"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -13,7 +14,6 @@ import (
 	"github.com/mattn/go-colorable"
 	"github.com/sirupsen/logrus"
 	prefixed "github.com/x-cray/logrus-prefixed-formatter"
-	"golang.org/x/exp/maps"
 )
 
 const prefixField = "prefix"
@@ -34,10 +34,10 @@ type FormatType int
 
 // Config defines all logging configurations
 type Config struct {
-	Level     logrus.Level `yaml:"level" default:"info"`
-	Format    FormatType   `yaml:"format" default:"text"`
-	Privacy   bool         `yaml:"privacy" default:"false"`
-	Timestamp bool         `yaml:"timestamp" default:"true"`
+	Level     logrus.Level `default:"info"  yaml:"level"`
+	Format    FormatType   `default:"text"  yaml:"format"`
+	Privacy   bool         `default:"false" yaml:"privacy"`
+	Timestamp bool         `default:"true"  yaml:"timestamp"`
 }
 
 // DefaultConfig returns a new Config initialized with default values.

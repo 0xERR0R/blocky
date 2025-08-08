@@ -33,6 +33,7 @@ type ReloadEntryFn[T any] func(ctx context.Context, key string) (*T, time.Durati
 
 type PrefetchingOptions[T any] struct {
 	expirationcache.Options
+
 	ReloadFn                ReloadEntryFn[T]
 	PrefetchThreshold       int
 	PrefetchExpires         time.Duration

@@ -392,8 +392,6 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 	logger().Info("Starting server")
 
 	for _, srv := range s.dnsServers {
-		srv := srv
-
 		go func() {
 			if err := srv.ListenAndServe(); err != nil {
 				errCh <- fmt.Errorf("start %s listener failed: %w", srv.Net, err)
@@ -402,8 +400,6 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 	}
 
 	for listener, srv := range s.servers {
-		listener, srv := listener, srv
-
 		go func() {
 			logger().Infof("%s server is up and running on addr/port %s", srv, listener.Addr())
 

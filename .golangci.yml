@@ -5,32 +5,44 @@ linters:
     - asciicheck
     - bidichk
     - bodyclose
+    - canonicalheader
     - containedctx
     - contextcheck
+    - copyloopvar
+    - decorder
     - dogsled
     - dupl
     - durationcheck
+    - embeddedstructfieldcheck
     - errchkjson
     - errorlint
     - exhaustive
     - funlen
+    - forbidigo
     - ginkgolinter
     - gocheckcompilerdirectives
     - gochecknoglobals
     - gochecknoinits
     - gochecksumtype
+    - gomoddirectives
+    - goprintffuncname
     - gocognit
     - goconst
     - gocritic
     - gocyclo
+    - gosmopolitan
     - godox
     - gomodguard
     - grouper
     - importas
+    - iface
+    - inamedparam
+    - interfacebloat
     - lll
     - loggercheck
     - makezero
     - misspell
+    - mirror
     - mnd
     - musttag
     - nakedret
@@ -42,20 +54,24 @@ linters:
     - noctx
     - nolintlint
     - nosprintfhostport
+    - perfsprint
     - prealloc
     - predeclared
     - protogetter
     - reassign
     - revive
     - rowserrcheck
+    - sloglint
     - spancheck
     - sqlclosecheck
     - staticcheck
+    - tagalign
     - testifylint
     - unconvert
     - unparam
     - usestdlibvars
     - wastedassign
+    #- wrapcheck
     - whitespace
     - zerologlint
   disable:
@@ -94,11 +110,12 @@ linters:
           - gochecknoglobals
           - gochecknoinits
           - gosec
+          - forcetypeassert
         path: _test\.go
       - linters:
           - staticcheck
         path: _test\.go
-        text: 'SA1012:'
+        text: "SA1012:"
     paths:
       - third_party$
       - builtin$

@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
@@ -162,7 +161,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 				for group, ip := range groups {
 					Expect(ip).ShouldNot(BeNil())
 
-					server := NewMockUDPUpstreamServer().WithAnswerRR(fmt.Sprintf("example.com 123 IN A %s", ip))
+					server := NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A " + ip)
 					sutConfig.Groups[group] = []config.Upstream{server.Start()}
 				}
 			})

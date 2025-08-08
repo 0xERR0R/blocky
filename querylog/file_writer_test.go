@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/csv"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -59,7 +58,7 @@ var _ = Describe("FileWriter", func() {
 
 				Eventually(func(g Gomega) int {
 					return len(readCsv(tmpDir.JoinPath(
-						fmt.Sprintf("%s_ALL.log", time.Now().Format("2006-01-02")))))
+						time.Now().Format("2006-01-02") + "_ALL.log")))
 				}).Should(Equal(2))
 			})
 
@@ -86,12 +85,12 @@ var _ = Describe("FileWriter", func() {
 
 				Eventually(func(g Gomega) int {
 					return len(readCsv(tmpDir.JoinPath(
-						fmt.Sprintf("%s_client1.log", time.Now().Format("2006-01-02")))))
+						time.Now().Format("2006-01-02") + "_client1.log")))
 				}).Should(Equal(1))
 
 				Eventually(func(g Gomega) int {
 					return len(readCsv(tmpDir.JoinPath(
-						fmt.Sprintf("%s_client2.log", time.Now().Format("2006-01-02")))))
+						time.Now().Format("2006-01-02") + "_client2.log")))
 				}).Should(Equal(1))
 			})
 		})

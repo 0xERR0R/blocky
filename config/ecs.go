@@ -44,10 +44,10 @@ func (x *ECSv6Mask) UnmarshalText(text []byte) error {
 
 // ECS is the configuration of the ECS resolver
 type ECS struct {
-	UseAsClient bool      `yaml:"useAsClient" default:"false"`
-	Forward     bool      `yaml:"forward" default:"false"`
-	IPv4Mask    ECSv4Mask `yaml:"ipv4Mask" default:"0"`
-	IPv6Mask    ECSv6Mask `yaml:"ipv6Mask" default:"0"`
+	UseAsClient bool      `default:"false" yaml:"useAsClient"`
+	Forward     bool      `default:"false" yaml:"forward"`
+	IPv4Mask    ECSv4Mask `default:"0"     yaml:"ipv4Mask"`
+	IPv6Mask    ECSv6Mask `default:"0"     yaml:"ipv6Mask"`
 }
 
 // IsEnabled returns true if the ECS resolver is enabled

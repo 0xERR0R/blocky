@@ -169,7 +169,7 @@ func (r *httpUpstreamClient) callExternal(
 		return nil, 0, fmt.Errorf("http return code should be %d, but received %d", http.StatusOK, httpResponse.StatusCode)
 	}
 
-	contentType := httpResponse.Header.Get("content-type")
+	contentType := httpResponse.Header.Get("Content-Type")
 	if contentType != dnsContentType {
 		return nil, 0, fmt.Errorf("http return content type should be '%s', but was '%s'",
 			dnsContentType, contentType)

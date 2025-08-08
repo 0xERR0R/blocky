@@ -7,14 +7,14 @@ import (
 // Redis configuration for the redis connection
 type Redis struct {
 	Address            string   `yaml:"address"`
-	Username           string   `yaml:"username" default:""`
-	Password           string   `yaml:"password" default:""`
-	Database           int      `yaml:"database" default:"0"`
-	Required           bool     `yaml:"required" default:"false"`
-	ConnectionAttempts int      `yaml:"connectionAttempts" default:"3"`
-	ConnectionCooldown Duration `yaml:"connectionCooldown" default:"1s"`
-	SentinelUsername   string   `yaml:"sentinelUsername" default:""`
-	SentinelPassword   string   `yaml:"sentinelPassword" default:""`
+	Username           string   `default:""               yaml:"username"`
+	Password           string   `default:""               yaml:"password"`
+	Database           int      `default:"0"              yaml:"database"`
+	Required           bool     `default:"false"          yaml:"required"`
+	ConnectionAttempts int      `default:"3"              yaml:"connectionAttempts"`
+	ConnectionCooldown Duration `default:"1s"             yaml:"connectionCooldown"`
+	SentinelUsername   string   `default:""               yaml:"sentinelUsername"`
+	SentinelPassword   string   `default:""               yaml:"sentinelPassword"`
 	SentinelAddresses  []string `yaml:"sentinelAddresses"`
 }
 

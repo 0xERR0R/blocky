@@ -11,8 +11,8 @@ type Blocking struct {
 	Denylists         map[string][]BytesSource `yaml:"denylists"`
 	Allowlists        map[string][]BytesSource `yaml:"allowlists"`
 	ClientGroupsBlock map[string][]string      `yaml:"clientGroupsBlock"`
-	BlockType         string                   `yaml:"blockType" default:"ZEROIP"`
-	BlockTTL          Duration                 `yaml:"blockTTL" default:"6h"`
+	BlockType         string                   `default:"ZEROIP"         yaml:"blockType"`
+	BlockTTL          Duration                 `default:"6h"             yaml:"blockTTL"`
 	Loading           SourceLoading            `yaml:"loading"`
 
 	// Deprecated options

@@ -50,7 +50,7 @@ func DefaultHTTPTransport() *http.Transport {
 }
 
 func HTTPClientIP(r *http.Request) net.IP {
-	addr := r.Header.Get("X-FORWARDED-FOR")
+	addr := r.Header.Get("X-Forwarded-For")
 	if addr == "" {
 		addr = r.RemoteAddr
 	}

@@ -10,8 +10,8 @@ type SUDN struct {
 	// If a user wishes to use one, it will most likely be via conditional
 	// upstream or custom DNS, which come before SUDN in the resolver chain.
 	// Thus defaulting to `true` and returning NXDOMAIN here should not conflict.
-	RFC6762AppendixG bool `yaml:"rfc6762-appendixG" default:"true"`
-	Enable           bool `yaml:"enable" default:"true"`
+	RFC6762AppendixG bool `default:"true" yaml:"rfc6762-appendixG"`
+	Enable           bool `default:"true" yaml:"enable"`
 }
 
 // IsEnabled implements `config.Configurable`.

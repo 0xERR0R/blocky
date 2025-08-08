@@ -305,7 +305,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 				By("all resolvers have same weight for random -> equal distribution", func() {
 					resolverCount := make(map[Resolver]int)
 
-					for i := 0; i < 1000; i++ {
+					for range 1000 {
 						resolvers := pickRandom(ctx, *sut.resolvers.Load(), parallelBestResolverCount)
 						res1 := resolvers[0].resolver
 						res2 := resolvers[1].resolver
@@ -320,7 +320,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					}
 				})
 				By("perform 100 request, error upstream's weight will be reduced", func() {
-					for i := 0; i < 100; i++ {
+					for range 100 {
 						request := newRequest("example.com.", A)
 						_, _ = sut.Resolve(ctx, request)
 					}
@@ -329,7 +329,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 				By("Resolvers without errors should be selected often", func() {
 					resolverCount := make(map[*UpstreamResolver]int)
 
-					for i := 0; i < 100; i++ {
+					for range 100 {
 						resolvers := pickRandom(ctx, *sut.resolvers.Load(), parallelBestResolverCount)
 						res1 := resolvers[0].resolver.(*UpstreamResolver)
 						res2 := resolvers[1].resolver.(*UpstreamResolver)
@@ -497,7 +497,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					By("all resolvers have same weight for random -> equal distribution", func() {
 						resolverCount := make(map[Resolver]int)
 
-						for i := 0; i < 2000; i++ {
+						for range 2000 {
 							r := weightedRandom(ctx, *sut.resolvers.Load(), nil)
 							resolverCount[r.resolver]++
 						}
@@ -507,7 +507,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 						}
 					})
 					By("perform 100 request, error upstream's weight will be reduced", func() {
-						for i := 0; i < 100; i++ {
+						for range 100 {
 							request := newRequest("example.com.", A)
 							_, _ = sut.Resolve(ctx, request)
 						}
@@ -516,7 +516,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					By("Resolvers without errors should be selected often", func() {
 						resolverCount := make(map[*UpstreamResolver]int)
 
-						for i := 0; i < 200; i++ {
+						for range 200 {
 							r := weightedRandom(ctx, *sut.resolvers.Load(), nil)
 							res := r.resolver.(*UpstreamResolver)
 

@@ -125,7 +125,7 @@ var _ = Describe("CachingResolver", func() {
 				Expect(prefetchedCnt).Should(Receive(Equal(1)))
 
 				// now query again > threshold
-				for i := 0; i < prefetchThreshold+1; i++ {
+				for range prefetchThreshold + 1 {
 					_, err := sut.Resolve(ctx, newRequest("example.com.", A))
 					Expect(err).Should(Succeed())
 				}
