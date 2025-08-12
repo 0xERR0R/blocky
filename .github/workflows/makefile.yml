@@ -50,7 +50,7 @@ jobs:
 
     steps:
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Golang
         uses: actions/setup-go@v5
