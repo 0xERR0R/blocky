@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event.repository.has_pages && (github.repository_owner != '0xERR0R' || github.ref_type == 'tag' || github.ref_name == 'main') }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
