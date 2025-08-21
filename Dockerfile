@@ -8,13 +8,17 @@ RUN apk add --no-cache make coreutils libcap
 ARG VERSION
 ARG BUILD_TIME
 
+ARG GOPROXY=""
+
 COPY . .
 # setup go
 ENV GO_SKIP_GENERATE=1\
   GO_BUILD_FLAGS="-tags static -v " \
   BIN_USER=100\
   BIN_AUTOCAB=1 \
-  BIN_OUT_DIR="/bin"
+  BIN_OUT_DIR="/bin" \
+  GOPROXY=$GOPROXY
+
 
 RUN make build
 

@@ -83,6 +83,7 @@ e2e-test: check-go check-docker ## run e2e tests
 	docker buildx build \
 		--build-arg VERSION=blocky-e2e \
 		--build-arg BUILD_TIME=${BUILD_TIME} \
+		--build-arg GOPROXY \
 		--network=host \
 		-o type=docker \
 		-t blocky-e2e \
@@ -106,6 +107,7 @@ docker-build: check-docker generate ## Build docker image
 	docker buildx build \
 		--build-arg VERSION=${VERSION} \
 		--build-arg BUILD_TIME=${BUILD_TIME} \
+		--build-arg GOPROXY \
 		--build-arg DOC_PATH=${DOC_PATH} \
 		--network=host \
 		-o type=docker \
