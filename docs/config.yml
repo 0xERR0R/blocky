@@ -335,6 +335,9 @@ ports:
   # optional: Port(s) and optional bind ip address(es) to serve HTTP used for prometheus metrics, pprof, REST API, DoH...
   # example: [4000, :4000, 127.0.0.1:4000, [::1]:4000]
   http: 4000
+  # optional: URL path for DoH queries.
+  # default: /dns-query
+  dohPath: /dns-query
 
 # optional: logging configuration
 log:

@@ -150,10 +150,11 @@ var _ = BeforeSuite(func() {
 		},
 
 		Ports: config.Ports{
-			DNS:   config.ListenConfig{GetHostPort("", dnsBasePort)},
-			TLS:   config.ListenConfig{GetHostPort("", tlsBasePort)},
-			HTTP:  config.ListenConfig{GetHostPort("", httpBasePort)},
-			HTTPS: config.ListenConfig{GetHostPort("", httpsBasePort)},
+			DNS:     config.ListenConfig{GetHostPort("", dnsBasePort)},
+			TLS:     config.ListenConfig{GetHostPort("", tlsBasePort)},
+			HTTP:    config.ListenConfig{GetHostPort("", httpBasePort)},
+			HTTPS:   config.ListenConfig{GetHostPort("", httpsBasePort)},
+			DOHPath: "/dns-query",
 		},
 		CertFile: certPem.Path,
 		KeyFile:  keyPem.Path,
@@ -638,7 +639,8 @@ var _ = Describe("Running DNS server", func() {
 					},
 					Blocking: config.Blocking{BlockType: "zeroIp"},
 					Ports: config.Ports{
-						DNS: config.ListenConfig{GetHostPort("127.0.0.1", dnsBasePort2)},
+						DNS:     config.ListenConfig{GetHostPort("127.0.0.1", dnsBasePort2)},
+						DOHPath: "/dns-query",
 					},
 				})
 
@@ -682,7 +684,8 @@ var _ = Describe("Running DNS server", func() {
 					},
 					Blocking: config.Blocking{BlockType: "zeroIp"},
 					Ports: config.Ports{
-						DNS: config.ListenConfig{GetHostPort("127.0.0.1", dnsBasePort2)},
+						DNS:     config.ListenConfig{GetHostPort("127.0.0.1", dnsBasePort2)},
+						DOHPath: "/dns-query",
 					},
 				})
 

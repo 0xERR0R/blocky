@@ -27,7 +27,7 @@ import (
 
 const (
 	dohMessageLimit    = 512
-	contentTypeHeader  = "content-type"
+	contentTypeHeader  = "Content-Type"
 	cacheControlHeader = "cache-control"
 	dnsContentType     = "application/dns-message"
 	htmlContentType    = "text/html; charset=UTF-8"
@@ -53,8 +53,8 @@ func (s *Server) createOpenAPIInterfaceImpl() (impl api.StrictServerInterface, e
 	return api.NewOpenAPIInterfaceImpl(bControl, s, refresher, cacheControl), nil
 }
 
-func (s *Server) registerDoHEndpoints(router *chi.Mux) {
-	const pathDohQuery = "/dns-query"
+func (s *Server) registerDoHEndpoints(router *chi.Mux, cfg *config.Config) {
+	pathDohQuery := cfg.Ports.DOHPath
 
 	router.Get(pathDohQuery, s.dohGetRequestHandler)
 	router.Get(pathDohQuery+"/", s.dohGetRequestHandler)

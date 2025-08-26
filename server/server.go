@@ -159,7 +159,7 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 	}
 
 	httpRouter := createHTTPRouter(cfg, openAPIImpl)
-	server.registerDoHEndpoints(httpRouter)
+	server.registerDoHEndpoints(httpRouter, cfg)
 
 	if len(cfg.Ports.HTTP) != 0 {
 		srv := newHTTPServer("http", httpRouter, cfg)
