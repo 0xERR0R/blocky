@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.17">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.18">
     
     
       
@@ -1870,6 +1870,9 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">  </span><span class="c1"># optional: Port(s) and optional bind ip address(es) to serve HTTP used for prometheus metrics, pprof, REST API, DoH...</span>
 <span class="w">  </span><span class="c1"># example: [4000, :4000, 127.0.0.1:4000, [::1]:4000]</span>
 <span class="w">  </span><span class="nt">http</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4000</span>
+<span class="w">  </span><span class="c1"># optional: URL path for DoH queries.</span>
+<span class="w">  </span><span class="c1"># default: /dns-query</span>
+<span class="w">  </span><span class="nt">dohPath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/dns-query</span>
 
 <span class="c1"># optional: logging configuration</span>
 <span class="nt">log</span><span class="p">:</span>
@@ -1985,6 +1988,12 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <td>One or more [IP]:Port</td>
 <td></td>
 <td>Listen address for <abbr title="Hypertext Transfer Protocol Secure">HTTPS</abbr> used for prometheus metrics, pprof, <abbr title="Representational State Transfer">REST</abbr> <abbr title="Application Programming Interface">API</abbr>, <abbr title="DNS-over-HTTPS">DoH</abbr>... Example: <code>443</code>, <code>:443</code>, <code>192.168.0.1:443</code>, <code>[443, "[::1]:443"]</code></td>
+</tr>
+<tr>
+<td>ports.dohPath</td>
+<td>string</td>
+<td>/dns-query</td>
+<td>URL path for <abbr title="DNS-over-HTTPS">DoH</abbr> queries.</td>
 </tr>
 </tbody>
 </table>
@@ -3402,7 +3411,8 @@ For example if blocking has a limit set to 8 and hosts file's is 4, there could 
   
 </div>
       
-        <div class="md-social">
+        
+<div class="md-social">
   
     
     
