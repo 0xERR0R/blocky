@@ -287,10 +287,11 @@ type Config struct {
 }
 
 type Ports struct {
-	DNS   ListenConfig `default:"53" yaml:"dns"`
-	HTTP  ListenConfig `yaml:"http"`
-	HTTPS ListenConfig `yaml:"https"`
-	TLS   ListenConfig `yaml:"tls"`
+	DNS     ListenConfig `default:"53"         yaml:"dns"`
+	HTTP    ListenConfig `yaml:"http"`
+	HTTPS   ListenConfig `yaml:"https"`
+	TLS     ListenConfig `yaml:"tls"`
+	DOHPath string       `default:"/dns-query" yaml:"dohPath"`
 }
 
 func (c *Ports) LogConfig(logger *logrus.Entry) {

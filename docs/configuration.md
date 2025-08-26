@@ -35,6 +35,7 @@ All values in this section are optional.
 | ports.tls   | One or more [IP]:Port |               | Listen address for DoT (DNS-over-TLS). Example: `83`, `:853`, `192.168.0.1:853`, `[853, "[::1]:853"]`                                             |
 | ports.http  | One or more [IP]:Port |               | Listen address for HTTP used for prometheus metrics, pprof, REST API, DoH... Example: `4000`, `:4000`, `192.168.0.1:4000`, `[4000, "[::1]:4000"]` |
 | ports.https | One or more [IP]:Port |               | Listen address for HTTPS used for prometheus metrics, pprof, REST API, DoH... Example: `443`, `:443`, `192.168.0.1:443`, `[443, "[::1]:443"]`     |
+| ports.dohPath | string | /dns-query | URL path for DoH queries.
 
 !!! example
 
