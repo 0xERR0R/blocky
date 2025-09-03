@@ -29,7 +29,7 @@ require (
 	github.com/prometheus/client_golang v1.23.0
 	github.com/ramr/go-reaper v0.3.1
 	github.com/sirupsen/logrus v1.9.3
-	github.com/spf13/cobra v1.9.1
+	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.38.0
 	github.com/testcontainers/testcontainers-go/modules/mariadb v0.38.0
@@ -135,7 +135,7 @@ require (
 	github.com/shopspring/decimal v1.2.0 // indirect
 	github.com/speakeasy-api/openapi-overlay v0.9.0 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
-	github.com/spf13/pflag v1.0.7 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
