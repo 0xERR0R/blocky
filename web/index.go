@@ -13,6 +13,9 @@ var IndexTmpl string
 //go:embed all:static
 var static embed.FS
 
+//go:embed robots.txt
+var WebFs embed.FS
+
 func Assets() (fs.FS, error) {
 	return fs.Sub(static, "static")
 }

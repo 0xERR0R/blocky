@@ -191,6 +191,8 @@ func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface)
 
 	configureRootHandler(cfg, router)
 
+	configureRobotsHandler(router)
+
 	metrics.Start(router, cfg.Prometheus)
 
 	return router
@@ -210,6 +212,10 @@ func configureStaticAssetsHandler(router *chi.Mux) {
 
 	fs := http.FileServer(http.FS(assets))
 	router.Handle("/static/*", http.StripPrefix("/static/", fs))
+}
+
+func configureRobotsHandler(router *chi.Mux) {
+	router.Handle("/robots.txt", http.FileServer(http.FS(web.WebFs)))
 }
 
 func configureRootHandler(cfg *config.Config, router *chi.Mux) {
