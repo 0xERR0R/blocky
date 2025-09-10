@@ -136,6 +136,13 @@ var _ = Describe("Basic functionality", func() {
 						Eventually(http.Get).WithArguments(url).Should(HaveHTTPStatus(http.StatusOK))
 					})
 
+					By("serving robots.txt", func() {
+						Eventually(http.Get).WithArguments(url + "/robots.txt").Should(And(
+							HaveHTTPStatus(http.StatusOK),
+							HaveHTTPBody(ContainSubstring("User-agent: *\nDisallow: /")),
+						))
+					})
+
 					By("serving pprof debugging endpoint", func() {
 						Eventually(http.Get).WithArguments(url + "/debug/").Should(HaveHTTPStatus(http.StatusOK))
 					})
