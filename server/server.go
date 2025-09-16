@@ -314,6 +314,15 @@ func createQueryResolver(
 		return nil, err
 	}
 
+	nameResolver := resolver.Chain(
+		hostsFile,
+		blocking,
+		cachingResolver,
+		resolver.NewRewriterResolver(cfg.Conditional.RewriterConfig, condUpstream),
+		resolver.NewSpecialUseDomainNamesResolver(cfg.SUDN),
+		upstreamTree,
+	)
+
 	r := resolver.Chain(
 		resolver.NewFilteringResolver(cfg.Filtering),
 		resolver.NewFQDNOnlyResolver(cfg.FQDNOnly),
@@ -322,13 +331,8 @@ func createQueryResolver(
 		resolver.NewEDEResolver(cfg.EDE),
 		queryLogging,
 		resolver.NewMetricsResolver(cfg.Prometheus),
-		resolver.NewRewriterResolver(cfg.CustomDNS.RewriterConfig, resolver.NewCustomDNSResolver(cfg.CustomDNS)),
-		hostsFile,
-		blocking,
-		cachingResolver,
-		resolver.NewRewriterResolver(cfg.Conditional.RewriterConfig, condUpstream),
-		resolver.NewSpecialUseDomainNamesResolver(cfg.SUDN),
-		upstreamTree,
+		resolver.NewRewriterResolver(cfg.CustomDNS.RewriterConfig, resolver.NewCustomDNSResolver(cfg.CustomDNS, nameResolver)),
+		nameResolver,
 	)
 
 	return r, nil

@@ -20,10 +20,9 @@ import (
 	"github.com/0xERR0R/blocky/resolver"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/creasty/defaults"
+	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"github.com/miekg/dns"
 )
 
 const (
@@ -105,10 +104,13 @@ var _ = BeforeSuite(func() {
 
 	cfg := &config.Config{
 		CustomDNS: config.CustomDNS{
-			CustomTTL: config.Duration(3600 * time.Second),
+			RewriterConfig: config.RewriterConfig{Rewrite: map[string]string{"foo": "bar"}},
+			CustomTTL:      config.Duration(3600 * time.Second),
 			Mapping: config.CustomDNSMapping{
-				"custom.lan": {&dns.A{A: net.ParseIP("192.168.178.55")}},
-				"lan.home":   {&dns.A{A: net.ParseIP("192.168.178.56")}},
+				"custom.lan":       {&dns.A{A: net.ParseIP("192.168.178.55")}},
+				"lan.home":         {&dns.A{A: net.ParseIP("192.168.178.56")}},
+				"custom.cname.lan": {&dns.CNAME{Target: "custom.lan."}},
+				"google.de.lan":    {&dns.CNAME{Target: "google.de."}},
 			},
 		},
 		Conditional: config.ConditionalUpstream{
@@ -222,6 +224,30 @@ var _ = Describe("Running DNS server", func() {
 					Should(
 						SatisfyAll(
 							BeDNSRecord("host.lan.home.", A, "192.168.178.56"),
+							HaveTTL(BeNumerically("==", 3600)),
+						))
+			})
+		})
+		Context("Custom DNS CNAME entry to another entry", func() {
+			It("should return valid answer", func() {
+				Expect(
+					requestServer(util.NewMsgWithQuestion("custom.cname.lan", A))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("custom.cname.lan.", CNAME, "custom.lan."),
+							BeDNSRecord("custom.lan.", A, "192.168.178.55"),
+							HaveTTL(BeNumerically("==", 3600)),
+						))
+			})
+		})
+		Context("Custom DNS CNAME entry to external entry", func() {
+			It("should return valid answer", func() {
+				Expect(
+					requestServer(util.NewMsgWithQuestion("google.de.lan", A))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("google.de.lan.", CNAME, "google.de."),
+							BeDNSRecord("google.de.", A, "123.124.122.122"),
 							HaveTTL(BeNumerically("==", 3600)),
 						))
 			})

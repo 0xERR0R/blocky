@@ -69,9 +69,10 @@ var _ = Describe("CustomDNSResolver", func() {
 	})
 
 	JustBeforeEach(func() {
-		sut = NewCustomDNSResolver(cfg)
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
+
+		sut = NewCustomDNSResolver(cfg, m)
 		sut.Next(m)
 	})
 
@@ -125,6 +126,7 @@ var _ = Describe("CustomDNSResolver", func() {
 				m.On("Resolve", mock.Anything).Return(nil, err)
 
 				sut.Next(m)
+				sut.cnameResolver = m
 				_, err = sut.Resolve(ctx, newRequest("cname.example.", A))
 
 				Expect(err).Should(HaveOccurred())
@@ -137,6 +139,7 @@ var _ = Describe("CustomDNSResolver", func() {
 				m.On("Resolve", mock.Anything).Return(nil, err)
 
 				sut.Next(m)
+				sut.cnameResolver = m
 				_, err = sut.Resolve(ctx, newRequest("cname.example.", AAAA))
 
 				Expect(err).Should(HaveOccurred())
