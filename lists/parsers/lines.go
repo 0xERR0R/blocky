@@ -70,6 +70,10 @@ func (l *lines) Next(ctx context.Context) (string, error) {
 			continue // empty line
 		}
 
+		if text[0:1] == "!" || (l.lineNo == 1 && len(text) >= 8 && text[0:8] == "[Adblock") {
+			continue // Adblock comment or identifier header
+		}
+
 		if idx := strings.IndexRune(text, '#'); idx != -1 {
 			if idx == 0 {
 				continue // commented line
