@@ -242,6 +242,10 @@ func normalizeHostsListEntry(host string) (string, error) {
 	// that decision to it.
 	idnaProfile := idna.Punycode
 
+	// remove optional start and end markers for ABP styled lists
+	host = strings.TrimPrefix(host, "||")
+	host = strings.TrimSuffix(host, "^")
+
 	if !isRegex(host) {
 		hostUnicode, err = idnaProfile.ToUnicode(host)
 		if err != nil || hostUnicode == host {
@@ -251,10 +255,6 @@ func normalizeHostsListEntry(host string) (string, error) {
 			}
 		}
 	}
-
-	// remove optional start and end markers for ABP styled lists
-	host = strings.TrimPrefix(host, "||")
-	host = strings.TrimSuffix(host, "^")
 
 	if err := validateHostsListEntry(host); err != nil {
 		return "", err
