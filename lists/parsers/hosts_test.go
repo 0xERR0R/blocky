@@ -38,6 +38,7 @@ var _ = Describe("Hosts", func() {
 				`müller.com`,
 				`*.example.com`,
 				`||0-c1j0.lat^`,
+				"xn----7sbhlqiujscje.xn--p1ai",
 			)
 		})
 
@@ -82,11 +83,16 @@ var _ = Describe("Hosts", func() {
 			Expect(iteratorToList(it.ForEach)).Should(Equal([]string{"0-c1j0.lat"}))
 			Expect(sut.Position()).Should(Equal("line 10"))
 
+			it, err = sut.Next(context.Background())
+			Expect(err).Should(Succeed())
+			Expect(iteratorToList(it.ForEach)).Should(Equal([]string{"xn----7sbhlqiujscje.xn--p1ai"}))
+			Expect(sut.Position()).Should(Equal("line 11"))
+
 			_, err = sut.Next(context.Background())
 			Expect(err).Should(HaveOccurred())
 			Expect(err).Should(MatchError(io.EOF))
 			Expect(IsNonResumableErr(err)).Should(BeTrue())
-			Expect(sut.Position()).Should(Equal("line 11"))
+			Expect(sut.Position()).Should(Equal("line 12"))
 		})
 	})
 

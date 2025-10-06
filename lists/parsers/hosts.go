@@ -235,22 +235,26 @@ func (e WildcardEntry) forEachHost(callback func(string) error) error {
 
 func normalizeHostsListEntry(host string) (string, error) {
 	var err error
+	var hostUnicode string
 	// Lookup is the profile preferred for DNS queries, we use Punycode here as it does less validation.
 	// That avoids rejecting domains in a list for reasons that amount to "that domain should not be used"
 	// since the goal of the list is to determine whether the domain should be used or not, we leave
 	// that decision to it.
 	idnaProfile := idna.Punycode
 
-	if !isRegex(host) {
-		host, err = idnaProfile.ToASCII(host)
-		if err != nil {
-			return "", fmt.Errorf("%w: %s", err, host)
-		}
-	}
-
 	// remove optional start and end markers for ABP styled lists
 	host = strings.TrimPrefix(host, "||")
 	host = strings.TrimSuffix(host, "^")
+
+	if !isRegex(host) {
+		hostUnicode, err = idnaProfile.ToUnicode(host)
+		if err != nil || hostUnicode == host {
+			host, err = idnaProfile.ToASCII(host)
+			if err != nil {
+				return "", fmt.Errorf("%w: %s", err, host)
+			}
+		}
+	}
 
 	if err := validateHostsListEntry(host); err != nil {
 		return "", err
