@@ -28,7 +28,7 @@ import (
 const (
 	dohMessageLimit    = 512
 	contentTypeHeader  = "Content-Type"
-	cacheControlHeader = "cache-control"
+	cacheControlHeader = "Cache-Control"
 	dnsContentType     = "application/dns-message"
 	htmlContentType    = "text/html; charset=UTF-8"
 	yamlContentType    = "text/yaml"
