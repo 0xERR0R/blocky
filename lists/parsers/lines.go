@@ -70,7 +70,7 @@ func (l *lines) Next(ctx context.Context) (string, error) {
 			continue // empty line
 		}
 
-		if text[0:1] == "!" || (l.lineNo == 1 && len(text) >= 8 && text[0:8] == "[Adblock") {
+		if strings.HasPrefix(text, "!") || (l.lineNo == 1 && strings.HasPrefix(text, "[Adblock" {
 			continue // Adblock comment or identifier header
 		}
 
