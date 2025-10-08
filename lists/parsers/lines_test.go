@@ -183,6 +183,24 @@ var _ = Describe("Lines", func() {
 			Expect(sut.Position()).Should(Equal("line 2"))
 		})
 	})
+
+	When("it has Adblock identifier or comments", func() {
+		BeforeEach(func() {
+			sutReader = linesReader(
+				"[Adblock",
+				"! comment 1",
+				"! comment 2",
+				"second",
+			)
+		})
+
+		It("skips them", func() {
+			str, err := sut.Next(context.Background())
+			Expect(err).Should(Succeed())
+			Expect(str).Should(Equal("second"))
+			Expect(sut.Position()).Should(Equal("line 4"))
+		})
+	})
 })
 
 func linesReader(lines ...string) io.Reader {

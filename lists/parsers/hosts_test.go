@@ -100,7 +100,6 @@ var _ = Describe("Hosts", func() {
 		It("fails", func() {
 			lines := []string{
 				"invalidIP localhost",
-				"!notadomain!",
 				"xn---mllerk1va.com",
 				`/invalid regex ??/`,
 				"invalid.*.wildcard",
