@@ -37,7 +37,7 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/redis v0.39.0
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
 	golang.org/x/exp v0.0.0-20250718183923-645b1fa84792
-	golang.org/x/net v0.44.0
+	golang.org/x/net v0.45.0
 	gopkg.in/yaml.v2 v2.4.0
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/postgres v1.6.0
