@@ -11,7 +11,7 @@ require (
 	github.com/avast/retry-go/v4 v4.6.1
 	github.com/breml/rootcerts v0.3.1
 	github.com/creasty/defaults v1.8.0
-	github.com/docker/docker v28.5.0+incompatible
+	github.com/docker/docker v28.5.1+incompatible
 	github.com/docker/go-connections v0.6.0
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/go-chi/cors v1.2.2
