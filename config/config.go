@@ -520,6 +520,10 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 		return nil, err
 	}
 
+	// Normalize rewrite keys to lowercase after unmarshaling
+	cfg.CustomDNS.NormalizeRewrites()
+	cfg.Conditional.NormalizeRewrites()
+
 	return &cfg, nil
 }
 

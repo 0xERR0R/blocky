@@ -376,6 +376,34 @@ var _ = Describe("CustomDNSResolver", func() {
 					m.AssertCalled(GinkgoT(), "Resolve", mock.Anything)
 				})
 			})
+			It("should not panic when CNAME points to external domain and next resolver returns NoResponse", func() {
+				// This reproduces issue #1867: panic when CNAME points to external domain
+				// When CustomDNSResolver is wrapped by RewriterResolver (as it is in server.go),
+				// the next resolver is set to NoOpResolver, which returns NoResponse.
+				// The bug occurs because processCNAME tries to access targetResp.Res.Answer
+				// when targetResp is NoResponse (where Res is nil).
+
+				// Set next resolver to NoOpResolver to simulate RewriterResolver wrapping
+				sut.Next(NewNoOpResolver())
+
+				// This should not panic, even though NoOpResolver returns NoResponse
+				resp, err := sut.Resolve(ctx, newRequest("cname.example", A))
+
+				// Should not panic or error
+				Expect(err).ShouldNot(HaveOccurred())
+
+				// Should return the CNAME record (but not the target A record since next resolver has no answer)
+				Expect(resp).Should(
+					SatisfyAll(
+						WithTransform(ToAnswer, SatisfyAll(
+							ContainElements(
+								BeDNSRecord("cname.example.", CNAME, "example.com.")),
+						)),
+						HaveResponseType(ResponseTypeCUSTOMDNS),
+						HaveReason("CUSTOM DNS"),
+						HaveReturnCode(dns.RcodeSuccess),
+					))
+			})
 		})
 		When("Querying other record types", func() {
 			It("Returns an SRV response", func() {
