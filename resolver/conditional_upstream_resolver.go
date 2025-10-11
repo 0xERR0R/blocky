@@ -84,16 +84,37 @@ func (r *ConditionalUpstreamResolver) processRequest(
 func (r *ConditionalUpstreamResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	ctx, logger := r.log(ctx)
 
-	if len(r.mapping) > 0 {
-		resolved, resp, err := r.processRequest(ctx, request)
-		if resolved {
-			return resp, err
-		}
+	// Apply domain rewrites if configured
+	original := request.Req
+	rewritten, originalNames := rewriteRequest(logger, original, r.cfg.Rewrite)
+	if rewritten != nil {
+		request.Req = rewritten
 	}
 
-	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
+	var response *model.Response
+	var err error
 
-	return r.next.Resolve(ctx, request)
+	if len(r.mapping) > 0 {
+		var resolved bool
+		resolved, response, err = r.processRequest(ctx, request)
+		if !resolved {
+			logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
+			response, err = r.next.Resolve(ctx, request)
+		}
+	} else {
+		logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
+		response, err = r.next.Resolve(ctx, request)
+	}
+
+	// Revert the request
+	request.Req = original
+
+	// Revert rewrites in the response
+	if rewritten != nil && response != NoResponse && response != nil && response.Res != nil {
+		revertRewritesInResponse(response.Res, originalNames)
+	}
+
+	return response, err
 }
 
 func (r *ConditionalUpstreamResolver) internalResolve(ctx context.Context, reso Resolver, doFQ, do string,

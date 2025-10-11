@@ -1,6 +1,8 @@
 package config
 
 import (
+	"strings"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -8,6 +10,17 @@ import (
 type RewriterConfig struct {
 	Rewrite          map[string]string `yaml:"rewrite"`
 	FallbackUpstream bool              `default:"false" yaml:"fallbackUpstream"`
+}
+
+// NormalizeRewrites normalizes the rewrite keys to lowercase
+func (c *RewriterConfig) NormalizeRewrites() {
+	if len(c.Rewrite) > 0 {
+		normalized := make(map[string]string, len(c.Rewrite))
+		for k, v := range c.Rewrite {
+			normalized[strings.ToLower(k)] = strings.ToLower(v)
+		}
+		c.Rewrite = normalized
+	}
 }
 
 // IsEnabled implements `config.Configurable`.

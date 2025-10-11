@@ -197,7 +197,28 @@ func (r *CustomDNSResolver) Resolve(ctx context.Context, request *model.Request)
 		return reverseResp, nil
 	}
 
-	return r.processRequest(ctx, logger, request, make([]string, 0, len(r.cfg.Mapping)))
+	// Apply domain rewrites if configured
+	original := request.Req
+	rewritten, originalNames := rewriteRequest(logger, original, r.cfg.Rewrite)
+	if rewritten != nil {
+		request.Req = rewritten
+	}
+
+	response, err := r.processRequest(ctx, logger, request, make([]string, 0, len(r.cfg.Mapping)))
+
+	// Revert the request
+	request.Req = original
+
+	if err != nil {
+		return response, err
+	}
+
+	// Revert rewrites in the response
+	if rewritten != nil && response != NoResponse && response.Res != nil {
+		revertRewritesInResponse(response.Res, originalNames)
+	}
+
+	return response, nil
 }
 
 func (r *CustomDNSResolver) processIP(ip net.IP, question dns.Question, ttl uint32) (result []dns.RR, err error) {
@@ -279,6 +300,11 @@ func (r *CustomDNSResolver) processCNAME(
 	targetResp, err := r.processRequest(ctx, logger, targetRequest, cnames)
 	if err != nil {
 		return nil, err
+	}
+
+	// If target resolution returns NoResponse, just return the CNAME record itself
+	if targetResp == NoResponse {
+		return result, nil
 	}
 
 	result = append(result, targetResp.Res.Answer...)

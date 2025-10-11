@@ -322,11 +322,11 @@ func createQueryResolver(
 		resolver.NewEDEResolver(cfg.EDE),
 		queryLogging,
 		resolver.NewMetricsResolver(cfg.Prometheus),
-		resolver.NewRewriterResolver(cfg.CustomDNS.RewriterConfig, resolver.NewCustomDNSResolver(cfg.CustomDNS)),
+		resolver.NewCustomDNSResolver(cfg.CustomDNS),
 		hostsFile,
 		blocking,
 		cachingResolver,
-		resolver.NewRewriterResolver(cfg.Conditional.RewriterConfig, condUpstream),
+		condUpstream,
 		resolver.NewSpecialUseDomainNamesResolver(cfg.SUDN),
 		upstreamTree,
 	)

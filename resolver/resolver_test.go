@@ -128,17 +128,7 @@ var _ = Describe("Resolver", func() {
 				Expect(name).Should(Equal("blocking"))
 			})
 		})
-		When("'Name' is called on a NamedResolver", func() {
-			It("should return its custom name", func() {
-				br, _ := NewBlockingResolver(ctx, config.Blocking{BlockType: "zeroIP"}, nil, systemResolverBootstrap)
-
-				cfg := config.RewriterConfig{Rewrite: map[string]string{"not": "empty"}}
-				r := NewRewriterResolver(cfg, br)
-
-				name := Name(r)
-				Expect(name).Should(Equal("blocking w/ rewrite"))
-			})
-		})
+		// Note: RewriterResolver test removed as it's no longer used in the resolver chain
 	})
 })
 
