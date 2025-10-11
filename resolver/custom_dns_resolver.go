@@ -26,10 +26,11 @@ type CustomDNSResolver struct {
 	createAnswerFromQuestion createAnswerFunc
 	mapping                  config.CustomDNSMapping
 	reverseAddresses         map[string][]string
+	cnameResolver            Resolver
 }
 
 // NewCustomDNSResolver creates new resolver instance
-func NewCustomDNSResolver(cfg config.CustomDNS) *CustomDNSResolver {
+func NewCustomDNSResolver(cfg config.CustomDNS, cnameResolver Resolver) *CustomDNSResolver {
 	dnsRecords := make(config.CustomDNSMapping, len(cfg.Mapping)+len(cfg.Zone.RRs))
 
 	for url, entries := range cfg.Mapping {
@@ -73,6 +74,7 @@ func NewCustomDNSResolver(cfg config.CustomDNS) *CustomDNSResolver {
 		createAnswerFromQuestion: util.CreateAnswerFromQuestion,
 		mapping:                  dnsRecords,
 		reverseAddresses:         reverse,
+		cnameResolver:            cnameResolver,
 	}
 }
 
@@ -110,6 +112,34 @@ func (r *CustomDNSResolver) processRequest(
 	request *model.Request,
 	resolvedCnames []string,
 ) (*model.Response, error) {
+	m, err, ok := r.processDNSEntries(ctx, logger, request, resolvedCnames)
+	if ok {
+		return m, err
+	}
+
+	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
+
+	return r.next.Resolve(ctx, request)
+}
+
+func (r *CustomDNSResolver) processCNAMEResolution(
+	ctx context.Context,
+	logger *logrus.Entry,
+	request *model.Request,
+	resolvedCnames []string,
+) (*model.Response, error) {
+	m, err, ok := r.processDNSEntries(ctx, logger, request, resolvedCnames)
+	if ok {
+		return m, err
+	}
+
+	logger.WithField("next_resolver", Name(r.next)).Trace("go to cname resolver")
+
+	m, err = r.cnameResolver.Resolve(ctx, request)
+	return m, err
+}
+
+func (r *CustomDNSResolver) processDNSEntries(ctx context.Context, logger *logrus.Entry, request *model.Request, resolvedCnames []string) (*model.Response, error, bool) {
 	response := new(dns.Msg)
 	response.SetReply(request.Req)
 
@@ -118,7 +148,7 @@ func (r *CustomDNSResolver) processRequest(
 
 	for len(domain) > 0 {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return nil, err, true
 		}
 
 		entries, found := r.mapping[domain]
@@ -127,7 +157,7 @@ func (r *CustomDNSResolver) processRequest(
 			for _, entry := range entries {
 				result, err := r.processDNSEntry(ctx, logger, request, resolvedCnames, question, entry)
 				if err != nil {
-					return nil, err
+					return nil, err, true
 				}
 
 				response.Answer = append(response.Answer, result...)
@@ -139,7 +169,7 @@ func (r *CustomDNSResolver) processRequest(
 					"domain": domain,
 				}).Debugf("returning custom dns entry")
 
-				return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}, nil
+				return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}, nil, true
 			}
 
 			// Mapping exists for this domain, but for another type
@@ -149,7 +179,7 @@ func (r *CustomDNSResolver) processRequest(
 			}
 
 			// return NOERROR with empty result
-			return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}, nil
+			return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}, nil, true
 		}
 
 		if i := strings.IndexRune(domain, '.'); i >= 0 {
@@ -158,10 +188,7 @@ func (r *CustomDNSResolver) processRequest(
 			break
 		}
 	}
-
-	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
-
-	return r.next.Resolve(ctx, request)
+	return nil, nil, false
 }
 
 func (r *CustomDNSResolver) processDNSEntry(
@@ -276,7 +303,7 @@ func (r *CustomDNSResolver) processCNAME(
 	targetRequest := newRequestWithClientID(targetWithoutDot, dns.Type(question.Qtype), clientIP, clientID)
 
 	// resolve the target recursively
-	targetResp, err := r.processRequest(ctx, logger, targetRequest, cnames)
+	targetResp, err := r.processCNAMEResolution(ctx, logger, targetRequest, cnames)
 	if err != nil {
 		return nil, err
 	}
