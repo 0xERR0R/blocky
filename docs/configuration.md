@@ -790,7 +790,6 @@ Configuration parameters:
 | ------------------------ | ------------------------------ | --------- | ------------- | ----------------------------------------------- |
 | hostsFile.sources        | list of string                 | no        |               | Host files (e.g. /etc/hosts on Linux)           |
 | hostsFile.hostsTTL       | duration (no units is minutes) | no        | 1h            | TTL                                             |
-| hostsFile.refreshPeriod  | duration format                | no        | 1h            | Time between hosts file refresh                 |
 | hostsFile.filterLoopback | bool                           | no        | false         | Filter loopback addresses (127.0.0.0/8 and ::1) |
 | hostsFile.loading        |                                | no        |               | See [Sources Loading](#sources-loading)         |
 
@@ -798,10 +797,11 @@ Configuration parameters:
 
     ```yaml
     hostsFile:
-      filePath: /etc/hosts
+      sources:
+        - /etc/hosts
       hostsTTL: 1h
-      refreshPeriod: 30m
       loading:
+        refreshPeriod: 30m
         strategy: fast
     ```
 
