@@ -3070,13 +3070,6 @@ queryLog:
 <td><abbr title="Time-To-Live">TTL</abbr></td>
 </tr>
 <tr>
-<td>hostsFile.refreshPeriod</td>
-<td><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></td>
-<td>no</td>
-<td>1h</td>
-<td>Time between hosts file refresh</td>
-</tr>
-<tr>
 <td>hostsFile.filterLoopback</td>
 <td>bool</td>
 <td>no</td>
@@ -3095,10 +3088,11 @@ queryLog:
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><pre><span></span><code><span class="nt">hostsFile</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">filePath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/etc/hosts</span>
+<span class="w">  </span><span class="nt">sources</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/etc/hosts</span>
 <span class="w">  </span><span class="nt">hostsTTL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1h</span>
-<span class="w">  </span><span class="nt">refreshPeriod</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30m</span>
 <span class="w">  </span><span class="nt">loading</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">refreshPeriod</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30m</span>
 <span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fast</span>
 </code></pre></div>
 </div>
