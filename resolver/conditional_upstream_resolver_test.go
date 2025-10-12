@@ -212,4 +212,64 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 			Expect(r).Should(BeNil())
 		})
 	})
+
+	Describe("Domain rewriting", func() {
+		BeforeEach(func() {
+			sutConfig.Rewrite = map[string]string{
+				"source.test": "fritz.box",
+			}
+
+			// Recreate resolver with rewrite configuration
+			sut, _ = NewConditionalUpstreamResolver(ctx, sutConfig, defaultUpstreamsConfig, systemResolverBootstrap)
+			m = &mockResolver{}
+			m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
+			sut.Next(m)
+		})
+
+		When("request matches rewrite rule and conditional mapping", func() {
+			It("should rewrite subdomain and resolve via conditional upstream", func() {
+				// www.source.test -> www.fritz.box (which has conditional upstream)
+				Expect(sut.Resolve(ctx, newRequest("www.source.test.", A))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("www.source.test.", A, "123.124.122.122"),
+							HaveTTL(BeNumerically("==", 123)),
+							HaveResponseType(ResponseTypeCONDITIONAL),
+							HaveReason("CONDITIONAL"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+
+				// no call to next resolver
+				Expect(m.Calls).Should(BeEmpty())
+			})
+
+			It("should preserve original domain name in response", func() {
+				resp, err := sut.Resolve(ctx, newRequest("www.source.test.", A))
+				Expect(err).ShouldNot(HaveOccurred())
+
+				// Question should have original name, not rewritten name
+				Expect(resp.Res.Question[0].Name).Should(Equal("www.source.test."))
+				// Answer should have original name, not rewritten name
+				Expect(resp.Res.Answer[0].Header().Name).Should(Equal("www.source.test."))
+			})
+		})
+
+		When("request does not match rewrite rule but matches conditional mapping", func() {
+			It("should not rewrite and resolve via conditional upstream", func() {
+				// Direct request to fritz.box (no rewrite)
+				Expect(sut.Resolve(ctx, newRequest("fritz.box.", A))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("fritz.box.", A, "123.124.122.122"),
+							HaveTTL(BeNumerically("==", 123)),
+							HaveResponseType(ResponseTypeCONDITIONAL),
+							HaveReason("CONDITIONAL"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+
+				// no call to next resolver
+				Expect(m.Calls).Should(BeEmpty())
+			})
+		})
+	})
 })

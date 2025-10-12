@@ -518,4 +518,95 @@ var _ = Describe("CustomDNSResolver", func() {
 			})
 		})
 	})
+
+	Describe("Domain rewriting", func() {
+		BeforeEach(func() {
+			cfg.Rewrite = map[string]string{
+				"source.test": "custom.domain",
+				"ip6.test":    "ip6.domain",
+			}
+			// Recreate resolver with rewrite configuration
+			sut = NewCustomDNSResolver(cfg)
+			m = &mockResolver{}
+			m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
+			sut.Next(m)
+		})
+
+		When("request matches rewrite rule", func() {
+			It("should rewrite subdomain and resolve from mapping", func() {
+				// Request for www.source.test should be rewritten to www.custom.domain
+				// and resolved from the mapping (custom.domain matches)
+				Expect(sut.Resolve(ctx, newRequest("www.source.test.", A))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("www.source.test.", A, "192.168.143.123"),
+							HaveTTL(BeNumerically("==", TTL)),
+							HaveResponseType(ResponseTypeCUSTOMDNS),
+							HaveReason("CUSTOM DNS"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+
+				// will not delegate to next resolver
+				m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
+			})
+
+			It("should rewrite nested subdomain and resolve from mapping", func() {
+				// Nested subdomain should also be rewritten
+				Expect(sut.Resolve(ctx, newRequest("api.www.source.test.", A))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("api.www.source.test.", A, "192.168.143.123"),
+							HaveTTL(BeNumerically("==", TTL)),
+							HaveResponseType(ResponseTypeCUSTOMDNS),
+							HaveReason("CUSTOM DNS"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+
+				// will not delegate to next resolver
+				m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
+			})
+
+			It("should rewrite to IPv6 mapping", func() {
+				Expect(sut.Resolve(ctx, newRequest("www.ip6.test.", AAAA))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("www.ip6.test.", AAAA, "2001:db8:85a3::8a2e:370:7334"),
+							HaveTTL(BeNumerically("==", TTL)),
+							HaveResponseType(ResponseTypeCUSTOMDNS),
+							HaveReason("CUSTOM DNS"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+
+				// will not delegate to next resolver
+				m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
+			})
+
+			It("should preserve original domain name in response", func() {
+				resp, err := sut.Resolve(ctx, newRequest("www.source.test.", A))
+				Expect(err).ShouldNot(HaveOccurred())
+
+				// Question should have original name, not rewritten name
+				Expect(resp.Res.Question[0].Name).Should(Equal("www.source.test."))
+				// Answer should have original name, not rewritten name
+				Expect(resp.Res.Answer[0].Header().Name).Should(Equal("www.source.test."))
+			})
+		})
+
+		When("request does not match rewrite rule", func() {
+			It("should not rewrite and handle normally", func() {
+				Expect(sut.Resolve(ctx, newRequest("custom.domain.", A))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("custom.domain.", A, "192.168.143.123"),
+							HaveTTL(BeNumerically("==", TTL)),
+							HaveResponseType(ResponseTypeCUSTOMDNS),
+							HaveReason("CUSTOM DNS"),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+
+				// will not delegate to next resolver
+				m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
+			})
+		})
+	})
 })
