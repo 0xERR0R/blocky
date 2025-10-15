@@ -193,7 +193,7 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 	})
 
 	When("upstream is invalid", func() {
-		It("errors during construction", func() {
+		It("succeeds with bootstrap resolver during construction", func() {
 			b := newTestBootstrap(ctx, &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeServerFailure}})
 
 			upstreamsCfg := defaultUpstreamsConfig
@@ -207,9 +207,12 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 				},
 			}
 
+			// Conditional upstreams should always succeed during construction to ensure
+			// they remain available even when default upstreams are unreachable.
+			// See: https://github.com/0xERR0R/blocky/issues/1639
 			r, err := NewConditionalUpstreamResolver(ctx, sutConfig, upstreamsCfg, b)
-			Expect(err).Should(HaveOccurred())
-			Expect(r).Should(BeNil())
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(r).ShouldNot(BeNil())
 		})
 	})
 
