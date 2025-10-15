@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync/atomic"
 
 	"github.com/sirupsen/logrus"
 
@@ -165,6 +166,8 @@ func (b *ListCache) createCacheForGroup(
 	defer producers.Close()
 
 	for i, source := range sources {
+		i := i
+		source := source
 		producers.GoProduce(func(ctx context.Context, hostsChan chan<- string) error {
 			locInfo := fmt.Sprintf("item #%d of group %s", i, group)
 
@@ -177,12 +180,12 @@ func (b *ListCache) createCacheForGroup(
 		})
 	}
 
-	hasEntries := false
+	var hasEntries atomic.Bool
 
 	producers.GoConsume(func(ctx context.Context, ch <-chan string) error {
 		for host := range ch {
 			if groupFactory.AddEntry(host) {
-				hasEntries = true
+				hasEntries.Store(true)
 			} else {
 				logger().WithField("host", host).Warn("no list cache was able to use host")
 			}
@@ -192,7 +195,7 @@ func (b *ListCache) createCacheForGroup(
 	})
 
 	err := producers.Wait()
-	if err != nil && !hasEntries {
+	if err != nil && !hasEntries.Load() {
 		// Only fail the group if no entries were parsed at all
 		// If we have entries from some sources, proceed even if other sources had errors
 		// Transient errors will be retried on the next refresh cycle
