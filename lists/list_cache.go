@@ -192,18 +192,11 @@ func (b *ListCache) createCacheForGroup(
 	})
 
 	err := producers.Wait()
-	if err != nil {
-		if !hasEntries {
-			// Always fail the group if no entries were parsed
-			return err
-		}
-
-		var transientErr *TransientError
-
-		if errors.As(err, &transientErr) {
-			// Temporary error: fail the whole group to retry later
-			return err
-		}
+	if err != nil && !hasEntries {
+		// Only fail the group if no entries were parsed at all
+		// If we have entries from some sources, proceed even if other sources had errors
+		// Transient errors will be retried on the next refresh cycle
+		return err
 	}
 
 	groupFactory.Finish()
