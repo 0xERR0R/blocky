@@ -30,9 +30,15 @@ func NewConditionalUpstreamResolver(
 
 	for domain, upstreams := range cfg.Mapping.Upstreams {
 		name := fmt.Sprintf("<conditional in %s>", domain)
-		cfg := config.NewUpstreamGroup(name, upstreamsCfg, upstreams)
+		groupCfg := config.NewUpstreamGroup(name, upstreamsCfg, upstreams)
 
-		r, err := NewParallelBestResolver(ctx, cfg, bootstrap)
+		// Override init strategy for conditional upstreams to always use blocking initialization.
+		// This ensures conditional upstreams are always ready to resolve their domains,
+		// even if the default upstream is unreachable during async initialization.
+		// See: https://github.com/0xERR0R/blocky/issues/1639
+		groupCfg.Init.Strategy = config.InitStrategyBlocking
+
+		r, err := NewParallelBestResolver(ctx, groupCfg, bootstrap)
 		if err != nil {
 			return nil, err
 		}
