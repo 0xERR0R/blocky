@@ -8,7 +8,7 @@ require (
 	github.com/ThinkChaos/parcour v0.0.0-20230710171753-fbf917c9eaef
 	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
-	github.com/avast/retry-go/v4 v4.6.1
+	github.com/avast/retry-go/v4 v4.7.0
 	github.com/breml/rootcerts v0.3.1
 	github.com/creasty/defaults v1.8.0
 	github.com/docker/docker v28.5.1+incompatible
