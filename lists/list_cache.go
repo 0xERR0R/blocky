@@ -166,8 +166,6 @@ func (b *ListCache) createCacheForGroup(
 	defer producers.Close()
 
 	for i, source := range sources {
-		i := i
-		source := source
 		producers.GoProduce(func(ctx context.Context, hostsChan chan<- string) error {
 			locInfo := fmt.Sprintf("item #%d of group %s", i, group)
 
