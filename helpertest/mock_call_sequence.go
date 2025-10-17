@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -13,7 +14,7 @@ type MockCallSequence[T any] struct {
 	driver    func(chan<- T, chan<- error)
 	res       chan T
 	err       chan error
-	callCount uint
+	callCount atomic.Uint32
 	initOnce  sync.Once
 	closeOnce sync.Once
 }
@@ -25,7 +26,7 @@ func NewMockCallSequence[T any](driver func(chan<- T, chan<- error)) MockCallSeq
 }
 
 func (m *MockCallSequence[T]) Call() (T, error) {
-	m.callCount++
+	m.callCount.Add(1)
 
 	m.initOnce.Do(func() {
 		m.res = make(chan T)
@@ -67,7 +68,7 @@ func (m *MockCallSequence[T]) Call() (T, error) {
 }
 
 func (m *MockCallSequence[T]) CallCount() uint {
-	return m.callCount
+	return uint(m.callCount.Load())
 }
 
 func (m *MockCallSequence[T]) Close() {

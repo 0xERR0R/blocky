@@ -437,6 +437,68 @@ var _ = Describe("ListCache", func() {
 			})
 		})
 	})
+
+	Describe("multiple sources with transient error (issue #1825)", func() {
+		When("one source succeeds and another has a transient error", func() {
+			BeforeEach(func() {
+				// First source succeeds, second source has transient error (timeout)
+				mockDownloader = newMockDownloader(func(res chan<- string, err chan<- error) {
+					res <- "blocked1.com\nblocked2.com\n"
+					err <- &TransientError{inner: errors.New("Client.Timeout exceeded while awaiting headers")}
+				})
+
+				sutConfig.Strategy = config.InitStrategyFailOnError
+
+				lists = map[string][]config.BytesSource{
+					"gr1": {
+						mockDownloader.ListSource(), // First call succeeds with entries
+						mockDownloader.ListSource(), // Second call has transient error
+					},
+				}
+			})
+
+			It("should succeed with entries from the successful source", func() {
+				// This test reproduces the bug reported in issue #1825
+				// Currently this FAILS because transient errors cause the entire group to fail
+				// even when other sources loaded successfully
+				Expect(err).Should(Succeed(), "initialization should succeed when at least one source loads")
+				Expect(sut).ShouldNot(BeNil())
+
+				// Verify the successful source's entries are available
+				group := sut.Match("blocked1.com", []string{"gr1"})
+				Expect(group).Should(ContainElement("gr1"), "entries from successful source should be available")
+
+				group = sut.Match("blocked2.com", []string{"gr1"})
+				Expect(group).Should(ContainElement("gr1"), "entries from successful source should be available")
+			})
+		})
+
+		When("one source succeeds and another has a transient error with blocking strategy", func() {
+			BeforeEach(func() {
+				mockDownloader = newMockDownloader(func(res chan<- string, err chan<- error) {
+					res <- "blocked1.com\nblocked2.com\n"
+					err <- &TransientError{inner: errors.New("Client.Timeout exceeded while awaiting headers")}
+				})
+
+				sutConfig.Strategy = config.InitStrategyBlocking
+
+				lists = map[string][]config.BytesSource{
+					"gr1": {
+						mockDownloader.ListSource(),
+						mockDownloader.ListSource(),
+					},
+				}
+			})
+
+			It("should succeed with entries from the successful source", func() {
+				Expect(err).Should(Succeed(), "initialization should succeed when at least one source loads")
+				Expect(sut).ShouldNot(BeNil())
+
+				group := sut.Match("blocked1.com", []string{"gr1"})
+				Expect(group).Should(ContainElement("gr1"))
+			})
+		})
+	})
 })
 
 type MockDownloader struct {
