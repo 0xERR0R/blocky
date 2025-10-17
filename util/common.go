@@ -92,8 +92,13 @@ func CreateAnswerFromQuestion(question dns.Question, ip net.IP, remainingTTL uin
 
 	log.Log().Errorf("Using fallback for unsupported query type %s", dns.TypeToString[question.Qtype])
 
-	return dns.NewRR(fmt.Sprintf("%s %d %s %s %s",
+	rr, err := dns.NewRR(fmt.Sprintf("%s %d %s %s %s",
 		question.Name, remainingTTL, "IN", dns.TypeToString[question.Qtype], ip))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create DNS RR for type %s: %w", dns.TypeToString[question.Qtype], err)
+	}
+
+	return rr, nil
 }
 
 // CreateHeader creates DNS header for passed question
@@ -123,7 +128,7 @@ func NewMsgWithQuestion(question string, qType dns.Type) *dns.Msg {
 func NewMsgWithAnswer(domain string, ttl uint, dnsType dns.Type, address string) (*dns.Msg, error) {
 	rr, err := dns.NewRR(fmt.Sprintf("%s\t%d\tIN\t%s\t%s", domain, ttl, dnsType, address))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create DNS RR for domain '%s' (type %s): %w", domain, dnsType, err)
 	}
 
 	msg := new(dns.Msg)

@@ -19,7 +19,7 @@ type ECSv4Mask uint8
 func (x *ECSv4Mask) UnmarshalText(text []byte) error {
 	res, err := unmarshalInternal(text, ecsIpv4MaskMax, "IPv4")
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid IPv4 ECS mask '%s': %w", string(text), err)
 	}
 
 	*x = ECSv4Mask(res)
@@ -34,7 +34,7 @@ type ECSv6Mask uint8
 func (x *ECSv6Mask) UnmarshalText(text []byte) error {
 	res, err := unmarshalInternal(text, ecsIpv6MaskMax, "IPv6")
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid IPv6 ECS mask '%s': %w", string(text), err)
 	}
 
 	*x = ECSv6Mask(res)
@@ -70,7 +70,7 @@ func unmarshalInternal(text []byte, maxvalue uint8, name string) (uint8, error) 
 
 	uiVal, err := strconv.ParseUint(strVal, 10, 8)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("invalid %s mask value '%s': %w", name, strVal, err)
 	}
 
 	if uiVal > uint64(maxvalue) {

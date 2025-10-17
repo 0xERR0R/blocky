@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
@@ -32,5 +33,10 @@ func (r *FilteringResolver) Resolve(ctx context.Context, request *model.Request)
 		return &model.Response{Res: response, RType: model.ResponseTypeFILTERED}, nil
 	}
 
-	return r.next.Resolve(ctx, request)
+	resp, err := r.next.Resolve(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("resolution via next resolver failed (filtering): %w", err)
+	}
+
+	return resp, nil
 }

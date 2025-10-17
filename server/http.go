@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -47,7 +48,11 @@ func (s *httpServer) Serve(ctx context.Context, l net.Listener) error {
 		s.inner.Close()
 	}()
 
-	return s.inner.Serve(l)
+	if err := s.inner.Serve(l); err != nil {
+		return fmt.Errorf("HTTP server '%s' failed to serve: %w", s.name, err)
+	}
+
+	return nil
 }
 
 func withCommonMiddleware(inner http.Handler) *chi.Mux {

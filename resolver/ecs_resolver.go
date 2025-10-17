@@ -74,7 +74,12 @@ func (r *ECSResolver) Resolve(ctx context.Context, request *model.Request) (*mod
 		}
 	}
 
-	return r.next.Resolve(ctx, request)
+	resp, err := r.next.Resolve(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("resolution via next resolver failed (ECS): %w", err)
+	}
+
+	return resp, nil
 }
 
 // setSubnet appends the subnet information to the request as EDNS0 option
@@ -108,8 +113,11 @@ func (r *ECSResolver) setSubnet(so *dns.EDNS0_SUBNET, request *model.Request, lo
 // maskIP masks the IP with the given mask and return an error if the mask is invalid
 func maskIP[maskType ECSMask](ip net.IP, mask maskType) (net.IP, error) {
 	_, mip, err := net.ParseCIDR(fmt.Sprintf("%s/%d", ip.String(), mask))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse CIDR for ECS mask (IP: %s, mask: %d): %w", ip, mask, err)
+	}
 
-	return mip.IP, err
+	return mip.IP, nil
 }
 
 // newEdnsSubnetOption( creates a new EDNS0 subnet option with the given IP, family and mask

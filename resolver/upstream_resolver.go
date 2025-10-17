@@ -197,7 +197,12 @@ func (r *dnsUpstreamClient) callExternal(
 	ctx context.Context, msg *dns.Msg, upstreamURL string, protocol model.RequestProtocol,
 ) (response *dns.Msg, rtt time.Duration, err error) {
 	if r.udpClient == nil {
-		return r.tcpClient.ExchangeContext(ctx, msg, upstreamURL)
+		resp, rtt, err := r.tcpClient.ExchangeContext(ctx, msg, upstreamURL)
+		if err != nil {
+			return nil, 0, fmt.Errorf("TCP DNS exchange failed to %s: %w", upstreamURL, err)
+		}
+
+		return resp, rtt, nil
 	}
 
 	return r.raceClients(ctx, msg, upstreamURL, protocol)
@@ -281,7 +286,7 @@ func NewUpstreamResolver(
 
 	err := cfg.Init.Strategy.Do(ctx, r.testResolve, onErr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("upstream %s failed initialization test: %w", cfg.String(), err)
 	}
 
 	return r, nil
@@ -320,8 +325,11 @@ func (r *UpstreamResolver) testResolve(ctx context.Context) error {
 	request := newRequest("example.com.", dns.Type(dns.TypeA))
 
 	_, err := r.Resolve(ctx, request)
+	if err != nil {
+		return fmt.Errorf("test query to example.com failed: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // Resolve calls external resolver
@@ -330,7 +338,7 @@ func (r *UpstreamResolver) Resolve(ctx context.Context, request *model.Request) 
 
 	ips, err := r.bootstrap.UpstreamIPs(ctx, r)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to resolve upstream IPs for %s: %w", r.cfg.String(), err)
 	}
 
 	var (
@@ -373,7 +381,7 @@ func (r *UpstreamResolver) Resolve(ctx context.Context, request *model.Request) 
 			ips.Next()
 		}))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("all %d attempts to resolve via upstream %s failed: %w", retryAttempts, r.cfg.String(), err)
 	}
 
 	return &model.Response{Res: resp, Reason: fmt.Sprintf("RESOLVED (%s)", r.cfg)}, nil

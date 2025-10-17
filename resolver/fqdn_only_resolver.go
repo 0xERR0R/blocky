@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
@@ -34,5 +35,10 @@ func (r *FQDNOnlyResolver) Resolve(ctx context.Context, request *model.Request) 
 		}
 	}
 
-	return r.next.Resolve(ctx, request)
+	resp, err := r.next.Resolve(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("resolution via next resolver failed (FQDN only): %w", err)
+	}
+
+	return resp, nil
 }

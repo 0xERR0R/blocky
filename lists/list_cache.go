@@ -94,7 +94,7 @@ func NewListCache(ctx context.Context,
 		logger().WithError(err).Errorf("could not init %s", t)
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to start periodic refresh for %s: %w", t, err)
 	}
 
 	return c, nil
@@ -138,7 +138,7 @@ func (b *ListCache) refresh(ctx context.Context) error {
 					logger.Warn("Populating of group cache failed, using existing cache, if any")
 				}
 
-				return err
+				return fmt.Errorf("failed to create cache for group %s: %w", group, err)
 			}
 
 			count := b.groupedCache.ElementCount(group)
@@ -154,7 +154,11 @@ func (b *ListCache) refresh(ctx context.Context) error {
 		})
 	}
 
-	return unlimitedGrp.Wait()
+	if err := unlimitedGrp.Wait(); err != nil {
+		return fmt.Errorf("failed to refresh %s list cache: %w", b.listType, err)
+	}
+
+	return nil
 }
 
 func (b *ListCache) createCacheForGroup(
@@ -171,7 +175,7 @@ func (b *ListCache) createCacheForGroup(
 
 			opener, err := NewSourceOpener(locInfo, source, b.downloader)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to create source opener for %s: %w", locInfo, err)
 			}
 
 			return b.parseFile(ctx, opener, hostsChan)
@@ -197,7 +201,7 @@ func (b *ListCache) createCacheForGroup(
 		// Only fail the group if no entries were parsed at all
 		// If we have entries from some sources, proceed even if other sources had errors
 		// Transient errors will be retried on the next refresh cycle
-		return err
+		return fmt.Errorf("failed to parse any entries for group %s: %w", group, err)
 	}
 
 	groupFactory.Finish()
@@ -222,7 +226,7 @@ func (b *ListCache) parseFile(ctx context.Context, opener SourceOpener, resultCh
 	if err != nil {
 		logger().Error("cannot open source: ", err)
 
-		return err
+		return fmt.Errorf("failed to open list source %s: %w", opener, err)
 	}
 	defer r.Close()
 
@@ -257,7 +261,7 @@ func (b *ListCache) parseFile(ctx context.Context, opener SourceOpener, resultCh
 		// If the file was partially parsed, we'll settle for that
 
 		if count == 0 {
-			return err
+			return fmt.Errorf("failed to parse list source %s (no entries parsed): %w", opener, err)
 		}
 
 		return nil

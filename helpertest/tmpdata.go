@@ -2,6 +2,7 @@ package helpertest
 
 import (
 	"bufio"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -42,7 +43,9 @@ func NewTmpFolder(prefix string) *TmpFolder {
 
 func (tf *TmpFolder) Clean() error {
 	if len(tf.Path) > 0 {
-		return os.RemoveAll(tf.Path)
+		if err := os.RemoveAll(tf.Path); err != nil {
+			return fmt.Errorf("failed to remove temp folder %s: %w", tf.Path, err)
+		}
 	}
 
 	return nil

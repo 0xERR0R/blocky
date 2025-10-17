@@ -27,7 +27,7 @@ var _ = Describe("Duration", func() {
 		It("should fail if duration is in wrong format", func() {
 			err := d.UnmarshalText([]byte("wrong"))
 			Expect(err).Should(HaveOccurred())
-			Expect(err).Should(MatchError("time: invalid duration \"wrong\""))
+			Expect(err).Should(MatchError("invalid duration 'wrong': time: invalid duration \"wrong\""))
 		})
 	})
 

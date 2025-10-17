@@ -118,7 +118,7 @@ func (r *CustomDNSResolver) processRequest(
 
 	for len(domain) > 0 {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("context cancelled during custom DNS resolution: %w", err)
 		}
 
 		entries, found := r.mapping[domain]
@@ -161,7 +161,12 @@ func (r *CustomDNSResolver) processRequest(
 
 	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
 
-	return r.next.Resolve(ctx, request)
+	resp, err := r.next.Resolve(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("resolution via next resolver failed (custom DNS): %w", err)
+	}
+
+	return resp, nil
 }
 
 func (r *CustomDNSResolver) processDNSEntry(

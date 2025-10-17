@@ -71,7 +71,7 @@ linters:
     - unparam
     - usestdlibvars
     - wastedassign
-    #- wrapcheck
+    - wrapcheck
     - whitespace
     - zerologlint
   disable:
@@ -111,11 +111,15 @@ linters:
           - gochecknoinits
           - gosec
           - forcetypeassert
+          - wrapcheck
         path: _test\.go
       - linters:
           - staticcheck
         path: _test\.go
         text: "SA1012:"
+      - linters:
+          - wrapcheck
+        path: e2e
     paths:
       - third_party$
       - builtin$

@@ -37,13 +37,16 @@ func healthcheck(cmd *cobra.Command, args []string) error {
 	m := new(dns.Msg)
 	m.SetQuestion("healthcheck.blocky.", dns.TypeA)
 
-	_, _, err := c.Exchange(m, net.JoinHostPort(bindIP, strconv.FormatUint(uint64(port), 10)))
+	addr := net.JoinHostPort(bindIP, strconv.FormatUint(uint64(port), 10))
+	_, _, err := c.Exchange(m, addr)
 
 	if err == nil {
 		fmt.Println("OK")
 	} else {
 		fmt.Println("NOT OK")
+
+		return fmt.Errorf("healthcheck failed for %s: %w", addr, err)
 	}
 
-	return err
+	return nil
 }

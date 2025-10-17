@@ -97,7 +97,8 @@ var _ = Describe("Domain blocking functionality", func() {
 				It("fails to start with appropriate error message", func(ctx context.Context) {
 					Eventually(blocky.IsRunning, "5s", "2ms").Should(BeFalse())
 					Expect(getContainerLogs(ctx, blocky)).
-						Should(ContainElement(ContainSubstring("Error: can't start server: 1 error occurred")))
+						Should(ContainElement(SatisfyAll(ContainSubstring("Error: can't start server:"),
+							ContainSubstring("1 error occurred"))))
 				})
 			})
 		})

@@ -256,7 +256,8 @@ func initGroupResolvers[T initializable](
 	if err != nil {
 		var zero T
 
-		return zero, err
+		return zero, fmt.Errorf("failed to initialize upstream group '%s' with strategy %s: %w",
+			cfg.Name, cfg.Init.Strategy, err)
 	}
 
 	return r, nil

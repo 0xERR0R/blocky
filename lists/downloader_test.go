@@ -105,7 +105,7 @@ var _ = Describe("Downloader", func() {
 
 				Expect(err).Should(HaveOccurred())
 				Expect(reader).Should(BeNil())
-				Expect(err.Error()).Should(Equal("got status code 404"))
+				Expect(err.Error()).Should(ContainSubstring("got status code 404"))
 				Expect(failedDownloadCountEvtChannel).Should(HaveLen(3))
 				Expect(failedDownloadCountEvtChannel).Should(Receive(Equal(server.URL)))
 			})

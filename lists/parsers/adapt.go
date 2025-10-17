@@ -1,6 +1,9 @@
 package parsers
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // Adapt returns a parser that wraps `inner` converting each parsed value.
 func Adapt[From, To any](inner SeriesParser[From], adapt func(From) To) SeriesParser[To] {
@@ -49,7 +52,7 @@ func (a *adapter[From, To]) Next(ctx context.Context) (To, error) {
 	if err != nil {
 		var zero To
 
-		return zero, err
+		return zero, fmt.Errorf("inner parser failed: %w", err)
 	}
 
 	res, err := a.adapt(from)

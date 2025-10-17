@@ -60,7 +60,7 @@ func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.Read
 		func() error {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to create HTTP request for '%s': %w", link, err)
 			}
 
 			resp, httpErr := d.client.Do(req)
@@ -81,7 +81,7 @@ func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.Read
 				return &TransientError{inner: netErr}
 			}
 
-			return httpErr
+			return fmt.Errorf("HTTP request to '%s' failed: %w", link, httpErr)
 		},
 		retry.Attempts(d.cfg.Attempts),
 		retry.DelayType(retry.FixedDelay),
@@ -107,8 +107,11 @@ func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.Read
 
 			onDownloadError(link)
 		}))
+	if err != nil {
+		return nil, fmt.Errorf("failed to download file from '%s': %w", link, err)
+	}
 
-	return body, err
+	return body, nil
 }
 
 func onDownloadError(link string) {

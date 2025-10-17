@@ -74,7 +74,12 @@ func (h *HostsIterator) UnmarshalText(data []byte) error {
 		return nil
 	}
 
-	return multierror.Flatten(mErr)
+	flatErr := multierror.Flatten(mErr)
+	if flatErr != nil {
+		return fmt.Errorf("failed to parse hosts entry: %w", flatErr)
+	}
+
+	return nil
 }
 
 // HostList parses `r` as a series of `HostListEntry`.
@@ -285,9 +290,11 @@ func validateHostsListEntry(host string) error {
 	}
 
 	if isRegex(host) {
-		_, err := regexp.Compile(host)
+		if _, err := regexp.Compile(host); err != nil {
+			return fmt.Errorf("invalid regex in hosts entry '%s': %w", host, err)
+		}
 
-		return err
+		return nil
 	}
 
 	return validateDomainName(host)

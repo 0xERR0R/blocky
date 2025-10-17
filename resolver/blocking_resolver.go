@@ -122,7 +122,7 @@ func NewBlockingResolver(ctx context.Context,
 ) (r *BlockingResolver, err error) {
 	blockHandler, err := createBlockHandler(cfg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create block handler: %w", err)
 	}
 
 	downloader := lists.NewDownloader(cfg.Loading.Downloads, bootstrap.NewHTTPTransport())
@@ -135,7 +135,7 @@ func NewBlockingResolver(ctx context.Context,
 
 	err = multierror.Append(err, blErr, wlErr).ErrorOrNil()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create denylist/allowlist cache: %w", err)
 	}
 
 	res := &BlockingResolver{
@@ -168,7 +168,7 @@ func NewBlockingResolver(ctx context.Context,
 		go res.initFQDNIPCache(ctx)
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to subscribe to ApplicationStarted event: %w", err)
 	}
 
 	return res, nil
@@ -206,7 +206,11 @@ func (r *BlockingResolver) RefreshLists() error {
 	err = multierror.Append(err, r.denylistMatcher.Refresh())
 	err = multierror.Append(err, r.allowlistMatcher.Refresh())
 
-	return err.ErrorOrNil()
+	if multiErr := err.ErrorOrNil(); multiErr != nil {
+		return fmt.Errorf("failed to refresh blocking lists: %w", multiErr)
+	}
+
+	return nil
 }
 
 func (r *BlockingResolver) retrieveAllBlockingGroups() []string {
@@ -377,12 +381,18 @@ func (r *BlockingResolver) handleDenylist(ctx context.Context, groupsToCheck []s
 			logger.WithField("groups", groups).Debugf("domain is allowlisted")
 
 			resp, err := r.next.Resolve(ctx, request)
+			if err != nil {
+				err = fmt.Errorf("failed to resolve allowlisted domain %s: %w", domain, err)
+			}
 
 			return true, resp, err
 		}
 
 		if allowlistOnlyAllowed {
 			resp, err := r.handleBlocked(logger, request, question, "BLOCKED (ALLOWLIST ONLY)")
+			if err != nil {
+				err = fmt.Errorf("failed to handle allowlist-only block for %s: %w", domain, err)
+			}
 
 			return true, resp, err
 		}
@@ -427,7 +437,11 @@ func (r *BlockingResolver) Resolve(ctx context.Context, request *model.Request) 
 		}
 	}
 
-	return respFromNext, err
+	if err != nil {
+		return nil, fmt.Errorf("resolution via next resolver failed: %w", err)
+	}
+
+	return respFromNext, nil
 }
 
 func extractEntryToCheckFromResponse(rr dns.RR) (entryToCheck, tName string) {

@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"strings"
 
@@ -102,7 +103,12 @@ func NewSpecialUseDomainNamesResolver(cfg config.SUDN) *SpecialUseDomainNamesRes
 
 func (r *SpecialUseDomainNamesResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	if !r.cfg.Enable {
-		return r.next.Resolve(ctx, request)
+		resp, err := r.next.Resolve(ctx, request)
+		if err != nil {
+			return nil, fmt.Errorf("resolution via next resolver failed (SUDN disabled): %w", err)
+		}
+
+		return resp, nil
 	}
 
 	handler := r.handler(request)
@@ -113,7 +119,12 @@ func (r *SpecialUseDomainNamesResolver) Resolve(ctx context.Context, request *mo
 		}
 	}
 
-	return r.next.Resolve(ctx, request)
+	resp, err := r.next.Resolve(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("resolution via next resolver failed (SUDN): %w", err)
+	}
+
+	return resp, nil
 }
 
 func (r *SpecialUseDomainNamesResolver) handler(request *model.Request) sudnHandler {

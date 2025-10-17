@@ -1117,8 +1117,9 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					BlockType: "wrong",
 				}, nil, systemResolverBootstrap)
 
-				Expect(err).Should(
-					MatchError("unknown blockType 'wrong', please use one of: ZeroIP, NxDomain or specify destination IP address(es)"))
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring(
+					"unknown blockType 'wrong', please use one of: ZeroIP, NxDomain or specify destination IP address(es)"))
 			})
 		})
 		When("strategy is failOnError", func() {

@@ -40,7 +40,7 @@ func NewConditionalUpstreamResolver(
 
 		r, err := NewParallelBestResolver(ctx, groupCfg, bootstrap)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create conditional upstream resolver for domain %s: %w", domain, err)
 		}
 
 		m[strings.ToLower(domain)] = r
@@ -100,16 +100,20 @@ func (r *ConditionalUpstreamResolver) Resolve(ctx context.Context, request *mode
 	var response *model.Response
 	var err error
 
+	resolved := false
 	if len(r.mapping) > 0 {
-		var resolved bool
 		resolved, response, err = r.processRequest(ctx, request)
-		if !resolved {
-			logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
-			response, err = r.next.Resolve(ctx, request)
+		if err != nil {
+			return nil, err
 		}
-	} else {
+	}
+
+	if !resolved {
 		logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
 		response, err = r.next.Resolve(ctx, request)
+		if err != nil {
+			return nil, fmt.Errorf("resolution via next resolver failed (conditional upstream): %w", err)
+		}
 	}
 
 	// Revert the request
@@ -120,7 +124,7 @@ func (r *ConditionalUpstreamResolver) Resolve(ctx context.Context, request *mode
 		revertRewritesInResponse(response.Res, originalNames)
 	}
 
-	return response, err
+	return response, nil
 }
 
 func (r *ConditionalUpstreamResolver) internalResolve(ctx context.Context, reso Resolver, doFQ, do string,
@@ -139,6 +143,8 @@ func (r *ConditionalUpstreamResolver) internalResolve(ctx context.Context, reso 
 		if len(response.Res.Question) > 0 {
 			response.Res.Question[0].Name = req.Req.Question[0].Name
 		}
+	} else {
+		return nil, fmt.Errorf("conditional upstream resolution failed for domain '%s': %w", do, err)
 	}
 
 	var answer string
@@ -152,5 +158,5 @@ func (r *ConditionalUpstreamResolver) internalResolve(ctx context.Context, reso 
 		"upstream": reso,
 	}).Debugf("received response from conditional upstream")
 
-	return response, err
+	return response, nil
 }

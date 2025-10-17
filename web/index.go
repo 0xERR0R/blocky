@@ -2,6 +2,7 @@ package web
 
 import (
 	"embed"
+	"fmt"
 	"io/fs"
 )
 
@@ -17,5 +18,10 @@ var static embed.FS
 var WebFs embed.FS
 
 func Assets() (fs.FS, error) {
-	return fs.Sub(static, "static")
+	subFS, err := fs.Sub(static, "static")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get static assets sub-filesystem: %w", err)
+	}
+
+	return subFS, nil
 }
