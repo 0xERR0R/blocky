@@ -7,8 +7,14 @@ updates:
   open-pull-requests-limit: 10
   assignees:
   - 0xERR0R
+  labels:
+  - "dependencies"
+  - "go"
 
 - package-ecosystem: github-actions
   directory: "/"
   schedule:
     interval: daily
+  labels:
+  - "dependencies"
+  - "github-actions"
