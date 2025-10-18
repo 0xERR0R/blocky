@@ -412,7 +412,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				}
 			})
 
-			It("should return NXDOMAIN if query is blocked", func() {
+			It("should return NXDOMAIN with SOA if query is blocked", func() {
 				Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
 					Should(
 						SatisfyAll(
@@ -420,6 +420,36 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 							HaveResponseType(ResponseTypeBLOCKED),
 							HaveReturnCode(dns.RcodeNameError),
 							HaveReason("BLOCKED (defaultGroup)"),
+							HaveAuthority(),
+							HaveSOARecord(60, 60), // 1 minute = 60 seconds
+						))
+			})
+		})
+
+		When("BlockType is NXDOMAIN with custom BlockTTL", func() {
+			BeforeEach(func() {
+				sutConfig = config.Blocking{
+					BlockType: "NxDomain",
+					BlockTTL:  config.Duration(time.Hour * 2), // 2 hours = 7200 seconds
+					Denylists: map[string][]config.BytesSource{
+						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
+					},
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup"},
+					},
+				}
+			})
+
+			It("should return NXDOMAIN with SOA containing custom TTL", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeNameError),
+							HaveReason("BLOCKED (defaultGroup)"),
+							HaveAuthority(),
+							HaveSOARecord(7200, 7200), // 2 hours in seconds
 						))
 			})
 		})

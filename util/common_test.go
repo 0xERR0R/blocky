@@ -235,4 +235,82 @@ var _ = Describe("Common function tests", func() {
 			Expect(c).Should(BeFalse())
 		})
 	})
+
+	Describe("CreateSOAForNegativeResponse", func() {
+		When("A valid question and blockTTL are provided", func() {
+			question := dns.Question{
+				Name:   "example.com.",
+				Qtype:  dns.TypeA,
+				Qclass: dns.ClassINET,
+			}
+			blockTTL := uint32(3600)
+
+			It("should create SOA with correct TTL and MINTTL", func() {
+				soa := CreateSOAForNegativeResponse(question, blockTTL)
+
+				Expect(soa).ShouldNot(BeNil())
+				Expect(soa.Header().Ttl).Should(Equal(blockTTL))
+				Expect(soa.Minttl).Should(Equal(blockTTL))
+			})
+
+			It("should create SOA with correct domain name", func() {
+				soa := CreateSOAForNegativeResponse(question, blockTTL)
+
+				Expect(soa.Header().Name).Should(Equal("example.com."))
+				Expect(soa.Header().Rrtype).Should(Equal(dns.TypeSOA))
+			})
+
+			It("should create SOA with proper nameserver and mailbox", func() {
+				soa := CreateSOAForNegativeResponse(question, blockTTL)
+
+				Expect(soa.Ns).Should(Equal("blocky.local."))
+				Expect(soa.Mbox).Should(Equal("hostmaster.blocky.local."))
+			})
+
+			It("should create SOA with standard timing values", func() {
+				soa := CreateSOAForNegativeResponse(question, blockTTL)
+
+				Expect(soa.Serial).Should(Equal(uint32(1)))
+				Expect(soa.Refresh).Should(Equal(uint32(86400))) // 24 hours
+				Expect(soa.Retry).Should(Equal(uint32(7200)))    // 2 hours
+				Expect(soa.Expire).Should(Equal(uint32(604800))) // 7 days
+			})
+		})
+
+		When("Domain name is not FQDN", func() {
+			question := dns.Question{
+				Name:   "example.com", // Without trailing dot
+				Qtype:  dns.TypeA,
+				Qclass: dns.ClassINET,
+			}
+
+			It("should handle non-FQDN domain names", func() {
+				soa := CreateSOAForNegativeResponse(question, 60)
+
+				Expect(soa.Header().Name).Should(Equal("example.com.")) // Should add trailing dot
+			})
+		})
+
+		When("Different TTL values are provided", func() {
+			question := dns.Question{
+				Name:   "test.com.",
+				Qtype:  dns.TypeA,
+				Qclass: dns.ClassINET,
+			}
+
+			It("should respect blockTTL of 60 seconds", func() {
+				soa := CreateSOAForNegativeResponse(question, 60)
+
+				Expect(soa.Header().Ttl).Should(Equal(uint32(60)))
+				Expect(soa.Minttl).Should(Equal(uint32(60)))
+			})
+
+			It("should respect blockTTL of 7200 seconds", func() {
+				soa := CreateSOAForNegativeResponse(question, 7200)
+
+				Expect(soa.Header().Ttl).Should(Equal(uint32(7200)))
+				Expect(soa.Minttl).Should(Equal(uint32(7200)))
+			})
+		})
+	})
 })

@@ -35,12 +35,13 @@ const defaultBlockingCleanUpInterval = 5 * time.Second
 
 func createBlockHandler(cfg config.Blocking) (blockHandler, error) {
 	cfgBlockType := cfg.BlockType
+	blockTime := cfg.BlockTTL.SecondsU32()
 
 	if strings.EqualFold(cfgBlockType, "NXDOMAIN") {
-		return nxDomainBlockHandler{}, nil
+		return nxDomainBlockHandler{
+			BlockTimeSec: blockTime,
+		}, nil
 	}
-
-	blockTime := cfg.BlockTTL.SecondsU32()
 
 	if strings.EqualFold(cfgBlockType, "ZEROIP") {
 		return zeroIPBlockHandler{
@@ -547,7 +548,9 @@ type zeroIPBlockHandler struct {
 	BlockTimeSec uint32
 }
 
-type nxDomainBlockHandler struct{}
+type nxDomainBlockHandler struct {
+	BlockTimeSec uint32
+}
 
 type ipBlockHandler struct {
 	destinations    []net.IP
@@ -574,8 +577,12 @@ func (b zeroIPBlockHandler) handleBlock(question dns.Question, response *dns.Msg
 	response.Answer = append(response.Answer, rr)
 }
 
-func (b nxDomainBlockHandler) handleBlock(_ dns.Question, response *dns.Msg) {
+func (b nxDomainBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {
 	response.Rcode = dns.RcodeNameError
+
+	// Add SOA to authority section per RFC 2308
+	soa := util.CreateSOAForNegativeResponse(question, b.BlockTimeSec)
+	response.Ns = []dns.RR{soa}
 }
 
 func (b ipBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {

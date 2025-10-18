@@ -63,10 +63,7 @@ func (c *Blocking) LogConfig(logger *logrus.Entry) {
 	}
 
 	logger.Infof("blockType = %s", c.BlockType)
-
-	if c.BlockType != "NXDOMAIN" {
-		logger.Infof("blockTTL = %s", c.BlockTTL)
-	}
+	logger.Infof("blockTTL = %s", c.BlockTTL)
 
 	logger.Info("loading:")
 	log.WithIndent(logger, "  ", c.Loading.LogConfig)

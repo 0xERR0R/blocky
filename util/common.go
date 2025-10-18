@@ -30,6 +30,13 @@ var (
 	alphanumeric = regexp.MustCompile("[a-zA-Z0-9]")
 )
 
+// SOA record timing defaults for negative responses (RFC 2308)
+const (
+	soaRefresh = 86400  // 24 hours
+	soaRetry   = 7200   // 2 hours
+	soaExpire  = 604800 // 7 days
+)
+
 // Obfuscate replaces all alphanumeric characters with * to obfuscate user sensitive data if LogPrivacy is enabled
 func Obfuscate(in string) string {
 	if LogPrivacy.Load() {
@@ -104,6 +111,30 @@ func CreateAnswerFromQuestion(question dns.Question, ip net.IP, remainingTTL uin
 // CreateHeader creates DNS header for passed question
 func CreateHeader(question dns.Question, remainingTTL uint32) dns.RR_Header {
 	return dns.RR_Header{Name: question.Name, Rrtype: question.Qtype, Class: dns.ClassINET, Ttl: remainingTTL}
+}
+
+// CreateSOAForNegativeResponse creates an SOA record for NXDOMAIN responses
+// per RFC 2308. The TTL and MINTTL are both set to blockTTL to ensure
+// proper negative caching behavior.
+func CreateSOAForNegativeResponse(question dns.Question, blockTTL uint32) *dns.SOA {
+	// Use the queried domain as the zone name
+	zoneName := dns.Fqdn(question.Name)
+
+	return &dns.SOA{
+		Hdr: dns.RR_Header{
+			Name:   zoneName,
+			Rrtype: dns.TypeSOA,
+			Class:  dns.ClassINET,
+			Ttl:    blockTTL,
+		},
+		Ns:      "blocky.local.",            // Name server
+		Mbox:    "hostmaster.blocky.local.", // Mailbox (admin contact)
+		Serial:  1,                          // Serial number
+		Refresh: soaRefresh,                 // 24 hours
+		Retry:   soaRetry,                   // 2 hours
+		Expire:  soaExpire,                  // 7 days
+		Minttl:  blockTTL,                   // Negative caching TTL (RFC 2308)
+	}
 }
 
 // ExtractDomain returns domain string from the question

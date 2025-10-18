@@ -409,12 +409,33 @@ var _ = Describe("Domain blocking functionality", func() {
 				Expect(err).Should(Succeed())
 			})
 
-			It("returns NXDOMAIN for blocked domains", func(ctx context.Context) {
+			It("returns NXDOMAIN with SOA record for blocked domains", func(ctx context.Context) {
 				msg := util.NewMsgWithQuestion("blocked.com.", A)
 				resp, err := doDNSRequest(ctx, blocky, msg)
 				Expect(err).Should(Succeed())
-				Expect(resp.Rcode).Should(Equal(dns.RcodeNameError))
-				Expect(resp.Answer).Should(BeEmpty())
+
+				By("returning NXDOMAIN response code", func() {
+					Expect(resp.Rcode).Should(Equal(dns.RcodeNameError))
+				})
+
+				By("having no answer section", func() {
+					Expect(resp.Answer).Should(BeEmpty())
+				})
+
+				By("including SOA record in authority section per RFC 2308", func() {
+					Expect(resp.Ns).Should(HaveLen(1))
+
+					soa, ok := resp.Ns[0].(*dns.SOA)
+					Expect(ok).Should(BeTrue(), "Authority record should be SOA type")
+
+					// Verify SOA record fields
+					Expect(soa.Header().Name).Should(Equal("blocked.com."))
+					Expect(soa.Header().Rrtype).Should(Equal(dns.TypeSOA))
+					Expect(soa.Header().Ttl).Should(Equal(uint32(6 * 60 * 60))) // Default 6 hours
+					Expect(soa.Ns).Should(Equal("blocky.local."))
+					Expect(soa.Mbox).Should(Equal("hostmaster.blocky.local."))
+					Expect(soa.Minttl).Should(Equal(uint32(6 * 60 * 60))) // RFC 2308 negative caching TTL
+				})
 			})
 		})
 
@@ -459,7 +480,7 @@ var _ = Describe("Domain blocking functionality", func() {
 	})
 
 	Describe("Block TTL", func() {
-		Context("with custom blockTTL", func() {
+		Context("with custom blockTTL and zeroIP", func() {
 			BeforeEach(func(ctx context.Context) {
 				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blocked.com")
 				Expect(err).Should(Succeed())
@@ -491,6 +512,47 @@ var _ = Describe("Domain blocking functionality", func() {
 							BeDNSRecord("blocked.com.", A, "0.0.0.0"),
 							HaveTTL(BeNumerically("==", 60)), // 1m = 60s
 						))
+			})
+		})
+
+		Context("with custom blockTTL and nxDomain", func() {
+			BeforeEach(func(ctx context.Context) {
+				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blocked.com")
+				Expect(err).Should(Succeed())
+
+				blocky, err = createBlockyContainer(ctx, e2eNet,
+					"log:",
+					"  level: warn",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - moka",
+					"blocking:",
+					"  blockType: nxDomain",
+					"  blockTTL: 2m",
+					"  denylists:",
+					"    ads:",
+					"      - http://httpserver:8080/list.txt",
+					"  clientGroupsBlock:",
+					"    default:",
+					"      - ads",
+				)
+				Expect(err).Should(Succeed())
+			})
+
+			It("uses the configured TTL in SOA record for NXDOMAIN responses", func(ctx context.Context) {
+				msg := util.NewMsgWithQuestion("blocked.com.", A)
+				resp, err := doDNSRequest(ctx, blocky, msg)
+				Expect(err).Should(Succeed())
+
+				Expect(resp.Rcode).Should(Equal(dns.RcodeNameError))
+				Expect(resp.Answer).Should(BeEmpty())
+				Expect(resp.Ns).Should(HaveLen(1))
+
+				soa, ok := resp.Ns[0].(*dns.SOA)
+				Expect(ok).Should(BeTrue(), "Authority record should be SOA type")
+				Expect(soa.Header().Ttl).Should(Equal(uint32(120))) // 2m = 120s
+				Expect(soa.Minttl).Should(Equal(uint32(120)))       // RFC 2308 negative caching TTL
 			})
 		})
 	})

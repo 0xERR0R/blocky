@@ -72,7 +72,7 @@ All logging options are optional.
 
 ## Init Strategy
 
-A couple of features use an "init/loading strategy" which configures behavior at Blocky startup.  
+A couple of features use an "init/loading strategy" which configures behavior at Blocky startup.
 This applies to all of them. The default strategy is blocking.
 
 | strategy    | Description                                                                                                                                                     |
@@ -180,13 +180,13 @@ Blocky supports different upstream strategies (default `parallel_best`) that det
 
 Currently available strategies:
 
-- `parallel_best`: blocky picks 2 random (weighted) resolvers from the upstream group for each query and returns the answer from the fastest one.  
-  If an upstream failed to answer within the last hour, it is less likely to be chosen for the race.  
-  This improves your network speed and increases your privacy - your DNS traffic will be distributed over multiple providers.  
+- `parallel_best`: blocky picks 2 random (weighted) resolvers from the upstream group for each query and returns the answer from the fastest one.
+  If an upstream failed to answer within the last hour, it is less likely to be chosen for the race.
+  This improves your network speed and increases your privacy - your DNS traffic will be distributed over multiple providers.
   (When using 10 upstream servers, each upstream will get on average 20% of the DNS requests)
-- `random`: blocky picks one random (weighted) resolver from the upstream group for each query and if successful, returns its response.  
-  If the selected resolver fails to respond, a second one is picked to which the query is sent.  
-  The weighting is identical to the `parallel_best` strategy.  
+- `random`: blocky picks one random (weighted) resolver from the upstream group for each query and if successful, returns its response.
+  If the selected resolver fails to respond, a second one is picked to which the query is sent.
+  The weighting is identical to the `parallel_best` strategy.
   Although the `random` strategy might be slower than the `parallel_best` strategy, it offers more privacy since each request is sent to a single upstream.
 - `strict`: blocky forwards the request in a strict order. If the first upstream does not respond, the second is asked, and so on.
 
@@ -578,9 +578,15 @@ queries, NXDOMAIN for other types):
 ### Block TTL
 
 TTL for answers to blocked domains can be set to customize the time (in **duration format**) clients ask for those
-domains again. Default Block TTL is **6hours**. This setting only makes sense when `blockType` is set to `nxDomain` or
-`zeroIP`, and will affect how much time it could take for a client to be able to see the real IP address for a domain
-after receiving the custom value.
+domains again. Default Block TTL is **6 hours**. This setting applies to all blocking modes and will affect how much
+time it could take for a client to be able to see the real IP address for a domain after receiving the blocked response.
+
+**For `zeroIP` and custom IP modes:** The TTL is applied to the returned A/AAAA records in the answer section.
+
+**For `nxDomain` mode:** The TTL is applied to the SOA record in the authority section. Per [RFC 2308](https://www.rfc-editor.org/rfc/rfc2308),
+Blocky includes an SOA record in NXDOMAIN responses to enable proper negative caching by stub resolvers.
+The blockTTL value is used for both the SOA's TTL and its MINIMUM field, ensuring clients cache the
+NXDOMAIN response for the configured duration.
 
 !!! example
 
@@ -843,7 +849,7 @@ EDNS Client Subnet (ECS) configuration parameters:
 
 ## Special Use Domain Names
 
-SUDN (Special Use Domain Names) are always enabled by default as they are required by various RFCs.  
+SUDN (Special Use Domain Names) are always enabled by default as they are required by various RFCs.
 Some RFCs have optional recommendations, which are configurable as described below.
 However, you can completely deactivate the blocking of SUDN by setting enable to false.
 Warning! You should only disable this if your upstream DNS server is local, as it shouldn't be disabled for remote upstreams.
@@ -921,7 +927,7 @@ These settings apply only to the resolver under which they are nested.
 #### Refresh / Reload
 
 To keep source contents up-to-date, blocky can periodically refresh and reparse them. Default period is
-**4 hours**. You can configure this by setting the `refreshPeriod` parameter to a value in **duration format**.  
+**4 hours**. You can configure this by setting the `refreshPeriod` parameter to a value in **duration format**.
 A value of zero or less will disable this feature.
 
 !!! example
@@ -958,7 +964,7 @@ Configures how HTTP(S) sources are downloaded:
 
 ### Strategy
 
-See [Init Strategy](#init-strategy).  
+See [Init Strategy](#init-strategy).
 In this context, "init" is loading and parsing each source, and an error is a single source failing to load/parse.
 
 !!! example
@@ -970,7 +976,7 @@ In this context, "init" is loading and parsing each source, and an error is a si
 
 ### Max Errors per Source
 
-Number of errors allowed when parsing a source before it is considered invalid and parsing stops.  
+Number of errors allowed when parsing a source before it is considered invalid and parsing stops.
 A value of -1 disables the limit.
 
 !!! example
@@ -982,8 +988,8 @@ A value of -1 disables the limit.
 
 ### Concurrency
 
-Blocky downloads and processes sources concurrently. This allows limiting how many can be processed in the same time.  
-Larger values can reduce the overall list refresh time at the cost of using more RAM. Please consider reducing this value on systems with limited memory.  
+Blocky downloads and processes sources concurrently. This allows limiting how many can be processed in the same time.
+Larger values can reduce the overall list refresh time at the cost of using more RAM. Please consider reducing this value on systems with limited memory.
 Default value is 4.
 
 !!! example
