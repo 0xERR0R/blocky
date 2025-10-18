@@ -206,9 +206,11 @@ func (c *Client) startup(ctx context.Context) error {
 				}
 			}
 		}()
+	} else {
+		return fmt.Errorf("failed to receive from Redis subscription channel '%s': %w", SyncChannelName, err)
 	}
 
-	return err
+	return nil
 }
 
 func (c *Client) publishMessageFromBuffer(ctx context.Context, s *bufferMessage) {
@@ -323,7 +325,7 @@ func convertMessage(message *redisMessage, ttl time.Duration) (*CacheMessage, er
 		return res, nil
 	}
 
-	return nil, err
+	return nil, fmt.Errorf("failed to unpack DNS message from Redis for key '%s': %w", message.Key, err)
 }
 
 // getTTL of dns message or return defaultCacheTime if 0

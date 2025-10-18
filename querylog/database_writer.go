@@ -93,7 +93,7 @@ func newDatabaseWriter(ctx context.Context, target gorm.Dialector, logRetentionD
 
 func databaseMigration(db *gorm.DB, dbType string, logRetentionDays uint64) error {
 	if err := db.AutoMigrate(&logEntry{}); err != nil {
-		return err
+		return fmt.Errorf("failed to auto-migrate database schema for querylog: %w", err)
 	}
 
 	tableName := db.NamingStrategy.TableName(reflect.TypeOf(logEntry{}).Name())
@@ -216,7 +216,9 @@ func (d *DatabaseWriter) doDBWrite() error {
 		// clear the slice with pending entries
 		d.pendingEntries = nil
 
-		return err.ErrorOrNil()
+		if multiErr := err.ErrorOrNil(); multiErr != nil {
+			return fmt.Errorf("failed to write querylog entries to database: %w", multiErr)
+		}
 	}
 
 	return nil

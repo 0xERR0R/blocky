@@ -140,7 +140,7 @@ func (s InitStrategy) Do(ctx context.Context, init func(context.Context) error, 
 		logErr(err)
 
 		if s == InitStrategyFailOnError {
-			return err
+			return fmt.Errorf("initialization failed with strategy %s: %w", s, err)
 		}
 	}
 
@@ -189,7 +189,7 @@ func (l *ListenConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 
 	if err := unmarshal(&str); err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal listen config: %w", err)
 	}
 
 	return l.UnmarshalText([]byte(str))
@@ -217,7 +217,7 @@ func (b *BootstrapDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	// if we used BootstrapDNS, unmarshal would just call us again.
 	var c bootstrapDNS
 	if err := unmarshal(&c); err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal bootstrap DNS configuration: %w", err)
 	}
 
 	*b = BootstrapDNS(c)
@@ -235,7 +235,7 @@ func (b *BootstrappedUpstream) UnmarshalYAML(unmarshal func(interface{}) error) 
 	// if we used BootstrappedUpstream, unmarshal would just call us again.
 	var c bootstrappedUpstream
 	if err := unmarshal(&c); err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal bootstrapped upstream configuration: %w", err)
 	}
 
 	*b = BootstrappedUpstream(c)
@@ -382,7 +382,7 @@ func (c *SourceLoading) StartPeriodicRefresh(
 ) error {
 	err := c.Strategy.Do(ctx, refresh, logErr)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to start periodic refresh: %w", err)
 	}
 
 	if c.RefreshPeriod > 0 {
@@ -472,7 +472,7 @@ func LoadConfig(path string, mandatory bool) (rCfg *Config, rerr error) {
 func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config, rerr error) {
 	cfg, err := WithDefaults[Config]()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to apply default configuration: %w", err)
 	}
 
 	defer func() {
@@ -517,7 +517,7 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 
 	err = unmarshalConfig(logger, data, &cfg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal config from %s: %w", prettyPath, err)
 	}
 
 	// Normalize rewrite keys to lowercase after unmarshaling
@@ -530,7 +530,7 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 func readFromDir(path string, data []byte) ([]byte, error) {
 	err := filepath.WalkDir(path, func(filePath string, d os.DirEntry, err error) error {
 		if err != nil {
-			return err
+			return fmt.Errorf("error accessing %s: %w", filePath, err)
 		}
 
 		if path == filePath {
@@ -544,7 +544,7 @@ func readFromDir(path string, data []byte) ([]byte, error) {
 
 		isRegular, err := isRegularFile(filePath)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to stat file %s: %w", filePath, err)
 		}
 
 		// Ignore non regular files (directories, sockets, etc.)
@@ -554,7 +554,7 @@ func readFromDir(path string, data []byte) ([]byte, error) {
 
 		fileData, err := os.ReadFile(filePath)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to read config file %s: %w", filePath, err)
 		}
 
 		data = append(data, []byte("\n")...)
@@ -562,15 +562,18 @@ func readFromDir(path string, data []byte) ([]byte, error) {
 
 		return nil
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to walk directory %s: %w", path, err)
+	}
 
-	return data, err
+	return data, nil
 }
 
 // isRegularFile follows symlinks, so the result is `true` for a symlink to a regular file.
 func isRegularFile(path string) (bool, error) {
 	stat, err := os.Stat(path)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to stat %s: %w", path, err)
 	}
 
 	isRegular := stat.Mode()&os.ModeType == 0
@@ -641,7 +644,7 @@ func ConvertPort(in string) (uint16, error) {
 
 	p, err := strconv.ParseUint(strings.TrimSpace(in), base, bitSize)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("invalid port number '%s': %w", in, err)
 	}
 
 	return uint16(p), nil

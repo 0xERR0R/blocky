@@ -296,7 +296,7 @@ var _ = Describe("DatabaseWriter", func() {
 
 					_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond, "mysql")
 					Expect(err).Should(HaveOccurred())
-					Expect(err.Error()).Should(ContainSubstring("can't perform auto migration: error XXX: some index error"))
+					Expect(err.Error()).Should(ContainSubstring("error XXX: some index error"))
 				})
 			})
 
@@ -308,7 +308,7 @@ var _ = Describe("DatabaseWriter", func() {
 
 					_, err = newDatabaseWriter(ctx, dlc, 1, time.Millisecond, "mysql")
 					Expect(err).Should(HaveOccurred())
-					Expect(err.Error()).Should(ContainSubstring("can't perform auto migration: error XXX: some db error"))
+					Expect(err.Error()).Should(ContainSubstring("error XXX: some db error"))
 				})
 			})
 		})

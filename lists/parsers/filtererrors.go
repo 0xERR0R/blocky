@@ -3,6 +3,7 @@ package parsers
 import (
 	"context"
 	"errors"
+	"fmt"
 )
 
 // NoErrorLimit can be used to continue parsing until EOF.
@@ -76,7 +77,7 @@ func (f *errorFilter[T]) Next(ctx context.Context) (T, error) {
 		if err != nil {
 			if IsNonResumableErr(err) {
 				// bypass the filter, and just propagate the error
-				return zero, err
+				return zero, fmt.Errorf("non-resumable parse error: %w", err)
 			}
 
 			err = f.filter(err)

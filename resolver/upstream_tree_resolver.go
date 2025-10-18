@@ -112,7 +112,12 @@ func (r *UpstreamTreeResolver) Resolve(ctx context.Context, request *model.Reque
 	// delegate request to group resolver
 	logger.WithField("resolver", fmt.Sprintf("%s (%s)", group, r.branches[group].Type())).Debug("delegating to resolver")
 
-	return r.branches[group].Resolve(ctx, request)
+	resp, err := r.branches[group].Resolve(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("upstream resolution failed for group '%s': %w", group, err)
+	}
+
+	return resp, nil
 }
 
 func (r *UpstreamTreeResolver) upstreamGroupByClient(logger *logrus.Entry, request *model.Request) string {

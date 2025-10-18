@@ -73,7 +73,7 @@ func NewBootstrap(ctx context.Context, cfg *config.Config) (b *Bootstrap, err er
 
 	bootstraped, err := newBootstrapedResolvers(b, cfg.BootstrapDNS, cfg.Upstreams)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create bootstrap resolvers: %w", err)
 	}
 
 	if len(bootstraped) == 0 {
@@ -120,7 +120,12 @@ func (b *Bootstrap) Resolve(ctx context.Context, request *model.Request) (*model
 	// Add bootstrap prefix to all inner resolver logs
 	ctx, _ = b.log(ctx)
 
-	return b.resolver.Resolve(ctx, request)
+	resp, err := b.resolver.Resolve(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("bootstrap DNS resolution failed: %w", err)
+	}
+
+	return resp, nil
 }
 
 func (b *Bootstrap) UpstreamIPs(ctx context.Context, r *UpstreamResolver) (*IPSet, error) {
@@ -149,7 +154,12 @@ func (b *Bootstrap) resolveUpstream(ctx context.Context, r Resolver, host string
 
 	// Use system resolver if no bootstrap is configured
 	if b.resolver == nil {
-		return b.systemResolver.LookupIP(ctx, b.cfg.connectIPVersion.Net(), host)
+		ips, err := b.systemResolver.LookupIP(ctx, b.cfg.connectIPVersion.Net(), host)
+		if err != nil {
+			return nil, fmt.Errorf("system resolver lookup failed for '%s': %w", host, err)
+		}
+
+		return ips, nil
 	}
 
 	return b.resolve(ctx, host, b.cfg.connectIPVersion.QTypes())
@@ -165,7 +175,12 @@ func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 
 func (b *Bootstrap) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	if b.resolver == nil {
-		return b.dialer.DialContext(ctx, network, addr)
+		conn, err := b.dialer.DialContext(ctx, network, addr)
+		if err != nil {
+			return nil, fmt.Errorf("system dialer failed to connect to '%s': %w", addr, err)
+		}
+
+		return conn, nil
 	}
 
 	ctx, logger := b.logWithFields(ctx, logrus.Fields{"network": network, "addr": addr})
@@ -174,7 +189,7 @@ func (b *Bootstrap) dialContext(ctx context.Context, network, addr string) (net.
 	if err != nil {
 		logger.Errorf("dial error: %s", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to parse dial address '%s': %w", addr, err)
 	}
 
 	var qTypes []dns.Type
@@ -195,7 +210,7 @@ func (b *Bootstrap) dialContext(ctx context.Context, network, addr string) (net.
 	if err != nil {
 		logger.Errorf("resolve error: %s", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to resolve host '%s' via bootstrap DNS: %w", host, err)
 	}
 
 	ip := ips[rand.Intn(len(ips))] //nolint:gosec
@@ -205,7 +220,12 @@ func (b *Bootstrap) dialContext(ctx context.Context, network, addr string) (net.
 	// Use the standard dialer to actually connect
 	addrWithIP := net.JoinHostPort(ip.String(), port)
 
-	return b.dialer.DialContext(ctx, network, addrWithIP)
+	conn, err := b.dialer.DialContext(ctx, network, addrWithIP)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial '%s' (resolved from '%s'): %w", addrWithIP, host, err)
+	}
+
+	return conn, nil
 }
 
 func (b *Bootstrap) resolve(ctx context.Context, hostname string, qTypes []dns.Type) (ips []net.IP, err error) {
@@ -242,7 +262,7 @@ func (b *Bootstrap) resolveType(ctx context.Context, hostname string, qType dns.
 
 	rsp, err := b.resolver.Resolve(ctx, &req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("DNS query failed for %s (type %s): %w", hostname, qType, err)
 	}
 
 	if rsp.Res.Rcode != dns.RcodeSuccess {

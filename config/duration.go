@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
@@ -61,5 +62,5 @@ func (c *Duration) UnmarshalText(data []byte) error {
 		return nil
 	}
 
-	return err
+	return fmt.Errorf("invalid duration '%s': %w", input, err)
 }

@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"strings"
 	"time"
@@ -35,7 +36,7 @@ func NewClientNamesResolver(ctx context.Context,
 	if !cfg.Upstream.IsDefault() {
 		r, err = NewUpstreamResolver(ctx, newUpstreamConfig(cfg.Upstream, upstreamsCfg), bootstrap)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create upstream resolver for client names lookup: %w", err)
 		}
 	}
 
@@ -66,7 +67,12 @@ func (r *ClientNamesResolver) Resolve(ctx context.Context, request *model.Reques
 	request.ClientNames = clientNames
 	ctx, _ = log.CtxWithFields(ctx, logrus.Fields{"client_names": strings.Join(clientNames, "; ")})
 
-	return r.next.Resolve(ctx, request)
+	resp, err := r.next.Resolve(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("resolution via next resolver failed (client names): %w", err)
+	}
+
+	return resp, nil
 }
 
 // returns names of client

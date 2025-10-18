@@ -171,7 +171,7 @@ func (i *OpenAPIInterfaceImpl) Query(ctx context.Context, request QueryRequestOb
 
 	resp, err := i.querier.Query(ctx, serverHost, clientIP, dns.Fqdn(request.Body.Query), qType)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query failed for '%s' (type %s): %w", request.Body.Query, request.Body.Type, err)
 	}
 
 	return Query200JSONResponse(ApiQueryResult{

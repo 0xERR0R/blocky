@@ -117,7 +117,7 @@ var _ = Describe("CustomDNSConfig", func() {
 				return errors.New("some err")
 			})
 			Expect(err).Should(HaveOccurred())
-			Expect(err).Should(MatchError("some err"))
+			Expect(err.Error()).Should(ContainSubstring("some err"))
 		})
 	})
 
@@ -229,7 +229,7 @@ www A 1.2.3.4
 				return errors.New("Failed to unmarshal")
 			})
 			Expect(err).Should(HaveOccurred())
-			Expect(err).Should(MatchError("Failed to unmarshal"))
+			Expect(err.Error()).Should(ContainSubstring("Failed to unmarshal"))
 		})
 	})
 })

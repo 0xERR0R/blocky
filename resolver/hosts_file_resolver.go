@@ -50,7 +50,7 @@ func NewHostsFileResolver(ctx context.Context,
 		logger.WithError(err).Errorf("could not load hosts files")
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to start periodic refresh for hosts files: %w", err)
 	}
 
 	return &r, nil
@@ -112,7 +112,12 @@ func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Resp
 
 func (r *HostsFileResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	if !r.IsEnabled() {
-		return r.next.Resolve(ctx, request)
+		resp, err := r.next.Resolve(ctx, request)
+		if err != nil {
+			return nil, fmt.Errorf("resolution via next resolver failed (hosts file disabled): %w", err)
+		}
+
+		return resp, nil
 	}
 
 	ctx, logger := r.log(ctx)
@@ -137,7 +142,12 @@ func (r *HostsFileResolver) Resolve(ctx context.Context, request *model.Request)
 
 	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
 
-	return r.next.Resolve(ctx, request)
+	resp, err := r.next.Resolve(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("resolution via next resolver failed (hosts file): %w", err)
+	}
+
+	return resp, nil
 }
 
 func (r *HostsFileResolver) resolve(req *dns.Msg, question dns.Question, domain string) *dns.Msg {
@@ -180,7 +190,7 @@ func (r *HostsFileResolver) loadSources(ctx context.Context) error {
 
 			opener, err := lists.NewSourceOpener(locInfo, source, r.downloader)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to create source opener for %s: %w", locInfo, err)
 			}
 
 			err = r.parseFile(ctx, opener, hostsChan)
@@ -204,7 +214,7 @@ func (r *HostsFileResolver) loadSources(ctx context.Context) error {
 
 	err := producers.Wait()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load hosts file sources: %w", err)
 	}
 
 	r.hosts = newHosts
@@ -217,7 +227,7 @@ func (r *HostsFileResolver) parseFile(
 ) error {
 	reader, err := opener.Open(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open hosts file source %s: %w", opener, err)
 	}
 	defer reader.Close()
 

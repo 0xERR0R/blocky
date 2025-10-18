@@ -24,7 +24,7 @@ func TLSGenerateSelfSignedCert(domains []string) (tls.Certificate, error) {
 	serialMax := new(big.Int).Lsh(big.NewInt(1), certSerialMaxBits)
 	serial, err := rand.Int(rand.Reader, serialMax)
 	if err != nil {
-		return tls.Certificate{}, err
+		return tls.Certificate{}, fmt.Errorf("failed to generate random serial number for certificate: %w", err)
 	}
 
 	template := &x509.Certificate{

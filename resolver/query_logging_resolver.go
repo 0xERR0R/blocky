@@ -59,7 +59,11 @@ func GetQueryLoggingWriter(ctx context.Context, cfg config.QueryLog) (querylog.W
 		writer = querylog.NewNoneWriter()
 	}
 
-	return writer, err
+	if err != nil {
+		return nil, fmt.Errorf("failed to create query log writer (type: %s): %w", cfg.Type, err)
+	}
+
+	return writer, nil
 }
 
 // NewQueryLoggingResolver returns a new resolver instance
@@ -93,7 +97,7 @@ func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) (*QueryLo
 
 	instanceID, err := readInstanceID("/etc/hostname")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to determine instance ID for query logging: %w", err)
 	}
 
 	logChan := make(chan *querylog.LogEntry, logChanCap)
@@ -145,7 +149,7 @@ func (r *QueryLoggingResolver) Resolve(ctx context.Context, request *model.Reque
 	duration := time.Since(start).Milliseconds()
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query logging: resolution failed: %w", err)
 	}
 
 	entry := r.createLogEntry(request, resp, start, duration)

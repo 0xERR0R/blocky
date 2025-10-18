@@ -45,7 +45,7 @@ func parseIPv4FromArpaAddr(arpa string) (net.IP, error) {
 	for i := len(parts) - 1; i >= 0; i-- {
 		part, err := strconv.ParseUint(parts[i], base10, byteBits)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse IPv4 octet '%s' in arpa address '%s': %w", parts[i], arpa, err)
 		}
 
 		buf = append(buf, byte(part))
@@ -74,12 +74,12 @@ func parseIPv6FromArpaAddr(arpa string) (net.IP, error) {
 	for i := len(parts) - 1; i >= 0; i -= 2 {
 		msNibble, err := strconv.ParseUint(parts[i], base16, byteBits)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse IPv6 nibble '%s' in arpa address '%s': %w", parts[i], arpa, err)
 		}
 
 		lsNibble, err := strconv.ParseUint(parts[i-1], base16, byteBits)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse IPv6 nibble '%s' in arpa address '%s': %w", parts[i-1], arpa, err)
 		}
 
 		part := msNibble<<nibbleBits | lsNibble

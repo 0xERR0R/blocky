@@ -32,7 +32,7 @@ type (
 func (z *ZoneFileDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var input string
 	if err := unmarshal(&input); err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal zone file DNS: %w", err)
 	}
 
 	result := make(CustomDNSMapping)
@@ -45,7 +45,7 @@ func (z *ZoneFileDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 		if !ok {
 			if zoneParser.Err() != nil {
-				return zoneParser.Err()
+				return fmt.Errorf("zone file parsing error: %w", zoneParser.Err())
 			}
 
 			// Done
@@ -69,7 +69,7 @@ func (z *ZoneFileDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 func (c *CustomDNSEntries) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var input string
 	if err := unmarshal(&input); err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal custom DNS entries: %w", err)
 	}
 
 	parts := strings.Split(input, ",")
@@ -78,7 +78,7 @@ func (c *CustomDNSEntries) UnmarshalYAML(unmarshal func(interface{}) error) erro
 	for i, part := range parts {
 		rr, err := configToRR(strings.TrimSpace(part))
 		if err != nil {
-			return err
+			return fmt.Errorf("invalid custom DNS entry '%s': %w", part, err)
 		}
 
 		result[i] = rr

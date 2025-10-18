@@ -139,7 +139,7 @@ type httpMsgWriter struct {
 func (r httpMsgWriter) WriteMsg(msg *dns.Msg) error {
 	b, err := msg.Pack()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to pack DNS message for DoH response: %w", err)
 	}
 
 	r.rw.Header().Set(contentTypeHeader, dnsContentType)
@@ -152,8 +152,11 @@ func (r httpMsgWriter) WriteMsg(msg *dns.Msg) error {
 	r.rw.WriteHeader(http.StatusOK)
 
 	_, err = r.rw.Write(b)
+	if err != nil {
+		return fmt.Errorf("failed to write DoH response: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 func getSmallestTTLFromAnswer(msg *dns.Msg) uint32 {

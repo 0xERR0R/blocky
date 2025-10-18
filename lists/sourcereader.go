@@ -50,7 +50,12 @@ type httpOpener struct {
 }
 
 func (o *httpOpener) Open(ctx context.Context) (io.ReadCloser, error) {
-	return o.downloader.DownloadFile(ctx, o.source.From)
+	rc, err := o.downloader.DownloadFile(ctx, o.source.From)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download file from '%s': %w", o.source.From, err)
+	}
+
+	return rc, nil
 }
 
 func (o *httpOpener) String() string {
@@ -62,7 +67,12 @@ type fileOpener struct {
 }
 
 func (o *fileOpener) Open(_ context.Context) (io.ReadCloser, error) {
-	return os.Open(o.source.From)
+	file, err := os.Open(o.source.From)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file '%s': %w", o.source.From, err)
+	}
+
+	return file, nil
 }
 
 func (o *fileOpener) String() string {

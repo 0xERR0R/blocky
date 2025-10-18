@@ -107,7 +107,7 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 	if len(cfg.Ports.HTTPS) > 0 || len(cfg.Ports.TLS) > 0 {
 		tlsCfg, err = newTLSConfig(cfg)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create TLS configuration: %w", err)
 		}
 	}
 
@@ -118,21 +118,21 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 
 	httpListeners, httpsListeners, err := createHTTPListeners(cfg, tlsCfg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create HTTP/HTTPS listeners: %w", err)
 	}
 
 	metrics.RegisterEventListeners()
 
 	bootstrap, err := resolver.NewBootstrap(ctx, cfg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create bootstrap resolver: %w", err)
 	}
 
 	var redisClient *redis.Client
 	if cfg.Redis.IsEnabled() {
 		redisClient, err = redis.New(ctx, &cfg.Redis)
 		if err != nil && cfg.Redis.Required {
-			return nil, err
+			return nil, fmt.Errorf("failed to create required Redis client: %w", err)
 		}
 	}
 
@@ -155,7 +155,7 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 
 	openAPIImpl, err := server.createOpenAPIInterfaceImpl()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create OpenAPI interface implementation: %w", err)
 	}
 
 	httpRouter := createHTTPRouter(cfg, openAPIImpl)
@@ -205,7 +205,11 @@ func createServers(cfg *config.Config, tlsCfg *tls.Config) ([]*dns.Server, error
 			return createTLSServer(address, tlsCfg)
 		}, cfg.Ports.TLS))
 
-	return dnsServers, err.ErrorOrNil()
+	if multiErr := err.ErrorOrNil(); multiErr != nil {
+		return nil, fmt.Errorf("failed to create DNS servers: %w", multiErr)
+	}
+
+	return dnsServers, nil
 }
 
 func createHTTPListeners(
@@ -213,12 +217,12 @@ func createHTTPListeners(
 ) (httpListeners, httpsListeners []net.Listener, err error) {
 	httpListeners, err = newTCPListeners("http", cfg.Ports.HTTP)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to create HTTP listeners: %w", err)
 	}
 
 	httpsListeners, err = newTLSListeners("https", cfg.Ports.HTTPS, tlsCfg)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to create HTTPS listeners: %w", err)
 	}
 
 	return httpListeners, httpsListeners, nil
@@ -242,7 +246,7 @@ func newTCPListeners(proto string, addresses config.ListenConfig) ([]net.Listene
 func newTLSListeners(proto string, addresses config.ListenConfig, tlsCfg *tls.Config) ([]net.Listener, error) {
 	listeners, err := newTCPListeners(proto, addresses)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create TCP listeners for TLS: %w", err)
 	}
 
 	for i, inner := range listeners {
@@ -301,7 +305,7 @@ func createQueryResolver(
 	hostsFile, hfErr := resolver.NewHostsFileResolver(ctx, cfg.HostsFile, bootstrap)
 	cachingResolver, crErr := resolver.NewCachingResolver(ctx, cfg.Caching, redisClient)
 
-	err := multierror.Append(
+	multiErr := multierror.Append(
 		multierror.Prefix(utErr, "upstream tree resolver: "),
 		multierror.Prefix(blErr, "blocking resolver: "),
 		multierror.Prefix(qlErr, "query logging resolver: "),
@@ -310,8 +314,8 @@ func createQueryResolver(
 		multierror.Prefix(hfErr, "hosts file resolver: "),
 		multierror.Prefix(crErr, "caching resolver: "),
 	).ErrorOrNil()
-	if err != nil {
-		return nil, err
+	if multiErr != nil {
+		return nil, fmt.Errorf("failed to create query resolver components: %w", multiErr)
 	}
 
 	r := resolver.Chain(
@@ -551,7 +555,7 @@ func (s *Server) resolve(ctx context.Context, request *model.Request) (response 
 			if errors.As(err, &upstreamErr) {
 				response = &model.Response{Res: upstreamErr.Msg, RType: model.ResponseTypeRESOLVED, Reason: upstreamErr.Error()}
 			} else {
-				return nil, err
+				return nil, fmt.Errorf("query resolution failed: %w", err)
 			}
 		}
 	}

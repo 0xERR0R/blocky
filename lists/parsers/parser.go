@@ -39,7 +39,7 @@ func ForEach[T any](ctx context.Context, parser SeriesParser[T], callback func(T
 
 	for {
 		if err := ctx.Err(); err != nil {
-			return err
+			return fmt.Errorf("context cancelled during parsing: %w", err)
 		}
 
 		res, err := parser.Next(ctx)
@@ -48,7 +48,7 @@ func ForEach[T any](ctx context.Context, parser SeriesParser[T], callback func(T
 				return nil
 			}
 
-			return err
+			return fmt.Errorf("failed to get next item from parser: %w", err)
 		}
 
 		err = callback(res)

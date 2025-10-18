@@ -146,7 +146,7 @@ var _ = Describe("EdeResolver", func() {
 			It("should return it", func() {
 				resp, err := sut.Resolve(ctx, newRequest("example.com", A))
 				Expect(resp).To(BeNil())
-				Expect(err).To(Equal(resolveErr))
+				Expect(err).To(MatchError(ContainSubstring(resolveErr.Error())))
 			})
 		})
 
