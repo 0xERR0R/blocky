@@ -2056,7 +2056,7 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 </code></pre></div>
 </div>
 <h2 id="init-strategy">Init Strategy</h2>
-<p>A couple of features use an "init/loading strategy" which configures behavior at Blocky startup.<br />
+<p>A couple of features use an "init/loading strategy" which configures behavior at Blocky startup.
 This applies to all of them. The default strategy is blocking.</p>
 <table>
 <thead>
@@ -2234,13 +2234,13 @@ value by setting the <code>timeout</code> configuration parameter (in <strong><a
 <p>Blocky supports different upstream strategies (default <code>parallel_best</code>) that determine how and to which upstream <abbr title="Domain Name System">DNS</abbr> servers requests are forwarded.</p>
 <p>Currently available strategies:</p>
 <ul>
-<li><code>parallel_best</code>: blocky picks 2 random (weighted) resolvers from the upstream group for each query and returns the answer from the fastest one.<br />
-  If an upstream failed to answer within the last hour, it is less likely to be chosen for the race.<br />
-  This improves your network speed and increases your privacy - your <abbr title="Domain Name System">DNS</abbr> traffic will be distributed over multiple providers.<br />
+<li><code>parallel_best</code>: blocky picks 2 random (weighted) resolvers from the upstream group for each query and returns the answer from the fastest one.
+  If an upstream failed to answer within the last hour, it is less likely to be chosen for the race.
+  This improves your network speed and increases your privacy - your <abbr title="Domain Name System">DNS</abbr> traffic will be distributed over multiple providers.
   (When using 10 upstream servers, each upstream will get on average 20% of the <abbr title="Domain Name System">DNS</abbr> requests)</li>
-<li><code>random</code>: blocky picks one random (weighted) resolver from the upstream group for each query and if successful, returns its response.<br />
-  If the selected resolver fails to respond, a second one is picked to which the query is sent.<br />
-  The weighting is identical to the <code>parallel_best</code> strategy.<br />
+<li><code>random</code>: blocky picks one random (weighted) resolver from the upstream group for each query and if successful, returns its response.
+  If the selected resolver fails to respond, a second one is picked to which the query is sent.
+  The weighting is identical to the <code>parallel_best</code> strategy.
   Although the <code>random</code> strategy might be slower than the <code>parallel_best</code> strategy, it offers more privacy since each request is sent to a single upstream.</li>
 <li><code>strict</code>: blocky forwards the request in a strict order. If the first upstream does not respond, the second is asked, and so on.</li>
 </ul>
@@ -2631,9 +2631,13 @@ queries, <abbr title="Non-Existence Domain">NXDOMAIN</abbr> for other types):</p
 </div>
 <h3 id="block-ttl">Block <abbr title="Time-To-Live">TTL</abbr></h3>
 <p><abbr title="Time-To-Live">TTL</abbr> for answers to blocked domains can be set to customize the time (in <strong><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></strong>) clients ask for those
-domains again. Default Block <abbr title="Time-To-Live">TTL</abbr> is <strong>6hours</strong>. This setting only makes sense when <code>blockType</code> is set to <code>nxDomain</code> or
-<code>zeroIP</code>, and will affect how much time it could take for a client to be able to see the real IP address for a domain
-after receiving the custom value.</p>
+domains again. Default Block <abbr title="Time-To-Live">TTL</abbr> is <strong>6 hours</strong>. This setting applies to all blocking modes and will affect how much
+time it could take for a client to be able to see the real IP address for a domain after receiving the blocked response.</p>
+<p><strong>For <code>zeroIP</code> and custom IP modes:</strong> The <abbr title="Time-To-Live">TTL</abbr> is applied to the returned A/AAAA records in the answer section.</p>
+<p><strong>For <code>nxDomain</code> mode:</strong> The <abbr title="Time-To-Live">TTL</abbr> is applied to the SOA record in the authority section. Per <a href="https://www.rfc-editor.org/rfc/rfc2308">RFC 2308</a>,
+Blocky includes an SOA record in <abbr title="Non-Existence Domain">NXDOMAIN</abbr> responses to enable proper negative caching by stub resolvers.
+The blockTTL value is used for both the SOA's <abbr title="Time-To-Live">TTL</abbr> and its MINIMUM field, ensuring clients cache the
+<abbr title="Non-Existence Domain">NXDOMAIN</abbr> response for the configured duration.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><pre><span></span><code><span class="nt">blocking</span><span class="p">:</span>
@@ -3176,7 +3180,7 @@ queryLog:
 </code></pre></div>
 </div>
 <h2 id="special-use-domain-names">Special Use Domain Names</h2>
-<p>SUDN (Special Use Domain Names) are always enabled by default as they are required by various RFCs.<br />
+<p>SUDN (Special Use Domain Names) are always enabled by default as they are required by various RFCs.
 Some RFCs have optional recommendations, which are configurable as described below.
 However, you can completely deactivate the blocking of SUDN by setting enable to false.
 Warning! You should only disable this if your upstream <abbr title="Domain Name System">DNS</abbr> server is local, as it shouldn't be disabled for remote upstreams.</p>
@@ -3260,7 +3264,7 @@ These settings apply only to the resolver under which they are nested.</p>
 </div>
 <h4 id="refresh-reload">Refresh / Reload</h4>
 <p>To keep source contents up-to-date, blocky can periodically refresh and reparse them. Default period is
-<strong>4 hours</strong>. You can configure this by setting the <code>refreshPeriod</code> parameter to a value in <strong><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></strong>.<br />
+<strong>4 hours</strong>. You can configure this by setting the <code>refreshPeriod</code> parameter to a value in <strong><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></strong>.
 A value of zero or less will disable this feature.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
@@ -3336,7 +3340,7 @@ A value of zero or less will disable this feature.</p>
 </code></pre></div>
 </div>
 <h3 id="strategy">Strategy</h3>
-<p>See <a href="#init-strategy">Init Strategy</a>.<br />
+<p>See <a href="#init-strategy">Init Strategy</a>.
 In this context, "init" is loading and parsing each source, and an error is a single source failing to load/parse.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
@@ -3345,7 +3349,7 @@ In this context, "init" is loading and parsing each source, and an error is a si
 </code></pre></div>
 </div>
 <h3 id="max-errors-per-source">Max Errors per Source</h3>
-<p>Number of errors allowed when parsing a source before it is considered invalid and parsing stops.<br />
+<p>Number of errors allowed when parsing a source before it is considered invalid and parsing stops.
 A value of -1 disables the limit.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
@@ -3354,8 +3358,8 @@ A value of -1 disables the limit.</p>
 </code></pre></div>
 </div>
 <h3 id="concurrency">Concurrency</h3>
-<p>Blocky downloads and processes sources concurrently. This allows limiting how many can be processed in the same time.<br />
-Larger values can reduce the overall list refresh time at the cost of using more RAM. Please consider reducing this value on systems with limited memory.<br />
+<p>Blocky downloads and processes sources concurrently. This allows limiting how many can be processed in the same time.
+Larger values can reduce the overall list refresh time at the cost of using more RAM. Please consider reducing this value on systems with limited memory.
 Default value is 4.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
