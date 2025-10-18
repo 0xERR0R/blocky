@@ -3,8 +3,24 @@ site_description: blocky Documentation
 theme:
   name: material
   palette:
-    primary: teal
-    accent: teal
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+        # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
 extra:
   version:
     provider: mike
@@ -29,10 +45,10 @@ markdown_extensions:
   - pymdownx.details
 
 nav:
-  - 'Welcome': 'index.md'
-  - 'Configuration': 'configuration.md'
-  - 'Installation': 'installation.md'
-  - 'Prometheus / Grafana': 'prometheus_grafana.md'
-  - 'Interfaces': 'interfaces.md'
-  - 'Network configuration': 'network_configuration.md'
-  - 'Additional information': 'additional_information.md'
+  - "Welcome": "index.md"
+  - "Configuration": "configuration.md"
+  - "Installation": "installation.md"
+  - "Prometheus / Grafana": "prometheus_grafana.md"
+  - "Interfaces": "interfaces.md"
+  - "Network configuration": "network_configuration.md"
+  - "Additional information": "additional_information.md"
