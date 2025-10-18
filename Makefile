@@ -45,17 +45,13 @@ check-docker:
 	$(call check_command,docker,"Please install Docker from https://docs.docker.com/get-docker/")
 	@docker buildx version > /dev/null 2>&1 || { echo "Error: docker buildx is required but not installed. See https://docs.docker.com/buildx/working-with-buildx/"; exit 1; }
 
-check-pip:
-	$(call check_command,pip,"Please install pip from https://pip.pypa.io/en/stable/installation/")
-
 all: build test lint ## Build binary (with tests)
 
 clean: ## cleans output directory
 	rm -rf $(BIN_OUT_DIR)/*
 
-serve_docs: check-pip ## serves online docs
-	pip install mkdocs-material
-	mkdocs serve
+serve_docs: check-docker ## serves online docs using Docker
+	docker run --rm -p 8000:8000 -v $(PWD):/docs squidfunk/mkdocs-material:latest
 
 generate: check-go ## Go generate
 ifdef GO_SKIP_GENERATE
@@ -114,7 +110,7 @@ docker-build: check-docker generate ## Build docker image
 		-t ${DOCKER_IMAGE_NAME} \
 		.
 
-check-tools: check-go check-docker check-pip ## Check if all required tools are installed
+check-tools: check-go check-docker ## Check if all required tools are installed
 
 help:  ## Shows help
 	@grep -E '^[0-9a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
