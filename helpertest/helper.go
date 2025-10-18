@@ -106,8 +106,48 @@ func ToExtra(m *model.Response) []dns.RR {
 	return m.Res.Extra
 }
 
+func ToAuthority(m *model.Response) []dns.RR {
+	return m.Res.Ns
+}
+
 func HaveNoAnswer() types.GomegaMatcher {
 	return gomega.WithTransform(ToAnswer, gomega.BeEmpty())
+}
+
+func HaveAuthority() types.GomegaMatcher {
+	return gomega.WithTransform(ToAuthority, gomega.Not(gomega.BeEmpty()))
+}
+
+func HaveSOARecord(ttl, minTTL uint32) types.GomegaMatcher {
+	return gcustom.MakeMatcher(func(m *model.Response) (bool, error) {
+		if len(m.Res.Ns) == 0 {
+			return false, errors.New("no authority section records")
+		}
+
+		for _, rr := range m.Res.Ns {
+			if soa, ok := rr.(*dns.SOA); ok {
+				if soa.Header().Ttl != ttl {
+					return false, fmt.Errorf("SOA TTL is %d, expected %d", soa.Header().Ttl, ttl)
+				}
+
+				if soa.Minttl != minTTL {
+					return false, fmt.Errorf("SOA MINTTL is %d, expected %d", soa.Minttl, minTTL)
+				}
+
+				// Verify basic structure
+				if soa.Ns == "" || soa.Mbox == "" {
+					return false, errors.New("SOA record has empty nameserver or mailbox")
+				}
+
+				return true, nil
+			}
+		}
+
+		return false, errors.New("no SOA record found in authority section")
+	}).WithTemplate(
+		"Expected:\n{{.Actual}}\n{{.To}} have SOA record with TTL={{index .Data 0}} and MINTTL={{index .Data 1}}",
+		ttl, minTTL,
+	)
 }
 
 func HaveReason(reason string) types.GomegaMatcher {
