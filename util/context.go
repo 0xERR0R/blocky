@@ -9,7 +9,7 @@ func CtxSend[T any](ctx context.Context, ch chan T, val T) (ok bool) {
 	if ctx == nil || ch == nil || ctx.Err() != nil {
 		ok = false
 
-		return
+		return ok
 	}
 
 	defer func() {
@@ -25,5 +25,5 @@ func CtxSend[T any](ctx context.Context, ch chan T, val T) (ok bool) {
 		ok = true
 	}
 
-	return
+	return ok
 }

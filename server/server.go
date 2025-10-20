@@ -77,7 +77,7 @@ func retrieveCertificate(cfg *config.Config) (cert tls.Certificate, err error) {
 		}
 	}
 
-	return
+	return cert, nil
 }
 
 func newTLSConfig(cfg *config.Config) (*tls.Config, error) {

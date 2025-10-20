@@ -142,7 +142,7 @@ func extractPath(in string) (path, upstream string) {
 		upstream = in
 	}
 
-	return
+	return path, upstream
 }
 
 func extractNet(upstream string) (NetProtocol, string) {
