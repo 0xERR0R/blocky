@@ -68,7 +68,6 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/dosgo/zigtool v0.0.0-20210923085854-9c6fc1d62198 // indirect
 	github.com/dprotaso/go-yit v0.0.0-20220510233725-9ba8df137936 // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -171,8 +170,6 @@ require (
 
 tool (
 	github.com/abice/go-enum
-	github.com/dosgo/zigtool/zigcc
-	github.com/dosgo/zigtool/zigcpp
 	github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen
 	github.com/onsi/ginkgo/v2/ginkgo
 	golang.org/x/tools/cmd/goimports
