@@ -25,9 +25,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
-
       - name: Run GoReleaser check
         uses: goreleaser/goreleaser-action@v5
         with:
