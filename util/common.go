@@ -236,7 +236,7 @@ func ExtractCacheKey(key string) (qType dns.Type, qName string) {
 	qType = dns.Type(binary.BigEndian.Uint16(b))
 	qName = string(b[2:])
 
-	return
+	return qType, qName
 }
 
 // CidrContainsIP checks if CIDR contains a single IP
