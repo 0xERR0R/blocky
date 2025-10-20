@@ -10,8 +10,7 @@ ARG BUILD_TIME
 
 ARG GOPROXY=""
 
-COPY . .
-# setup go
+# setup go environment
 ENV GO_SKIP_GENERATE=1\
   GO_BUILD_FLAGS="-tags static -v " \
   BIN_USER=100\
@@ -19,6 +18,14 @@ ENV GO_SKIP_GENERATE=1\
   BIN_OUT_DIR="/bin" \
   GOPROXY=$GOPROXY
 
+# Copy dependency files first for better caching
+COPY go.mod go.sum ./
+
+# Download dependencies (cached layer unless go.mod/go.sum change)
+RUN go mod download
+
+# Copy source code after dependencies are cached
+COPY . .
 
 RUN make build
 
