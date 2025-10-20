@@ -175,8 +175,15 @@ func createBlockyContainer(ctx context.Context, e2eNet *testcontainers.DockerNet
 		return nil, fmt.Errorf("can't create config struct %w", err)
 	}
 
+	// Check if coverage collection is enabled
+	coverDir := os.Getenv("GOCOVERDIR")
+	image := blockyImage
+	if coverImageOverride := os.Getenv("BLOCKY_IMAGE"); coverImageOverride != "" {
+		image = coverImageOverride
+	}
+
 	req := testcontainers.ContainerRequest{
-		Image: blockyImage,
+		Image: image,
 
 		ExposedPorts: []string{"53/tcp", "53/udp", "4000/tcp"},
 
@@ -191,8 +198,19 @@ func createBlockyContainer(ctx context.Context, e2eNet *testcontainers.DockerNet
 			c.Healthcheck = &container.HealthConfig{
 				Interval: time.Second,
 			}
+			// Enable coverage collection if GOCOVERDIR is set
+			if coverDir != "" {
+				c.Env = append(c.Env, "GOCOVERDIR=/tmp/coverage")
+			}
 		},
 		WaitingFor: wait.ForHealthCheck().WithStartupTimeout(startupTimeout),
+	}
+
+	// Mount coverage directory if enabled
+	if coverDir != "" {
+		req.Mounts = testcontainers.Mounts(
+			testcontainers.BindMount(coverDir, "/tmp/coverage"),
+		)
 	}
 
 	container, err := startContainerWithNetwork(ctx, req, "blocky", e2eNet)

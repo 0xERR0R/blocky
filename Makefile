@@ -1,4 +1,4 @@
-.PHONY: all clean generate build test e2e-test lint run fmt docker-build help check-tools
+.PHONY: all clean generate build test e2e-test e2e-test-coverage lint run fmt docker-build help check-tools
 .DEFAULT_GOAL:=help
 
 VERSION?=$(shell git describe --always --tags)
@@ -85,6 +85,57 @@ e2e-test: check-go check-docker ## run e2e tests
 		-t blocky-e2e \
 		.
 	go tool ginkgo -p --label-filter="e2e" --timeout 15m --flake-attempts 1 e2e
+
+e2e-test-coverage: check-go check-docker ## run e2e tests with code coverage
+	@echo "Building coverage-instrumented Docker image..."
+	docker buildx build \
+		--build-arg VERSION=blocky-e2e-coverage \
+		--build-arg BUILD_TIME=${BUILD_TIME} \
+		--build-arg GOPROXY \
+		--build-arg OPTS="-cover" \
+		--network=host \
+		-o type=docker \
+		-t blocky-e2e-coverage \
+		.
+	@echo "Running e2e tests with coverage collection..."
+	@mkdir -p coverage/e2e
+	@rm -rf coverage/e2e/*
+	@chmod 777 coverage/e2e
+	BLOCKY_IMAGE=blocky-e2e-coverage GOCOVERDIR=$(PWD)/coverage/e2e \
+		go tool ginkgo -p --label-filter="e2e" --timeout 15m --flake-attempts 1 e2e
+	@echo "Converting coverage data..."
+	go tool covdata textfmt -i=./coverage/e2e -o=coverage/e2e-coverage.out
+	@echo ""
+	@echo "Coverage report generated!"
+	@echo "===================="
+	@go tool cover -func=coverage/e2e-coverage.out | awk '\
+		BEGIN { print "\nCoverage by package:" } \
+		/^total:/ { total = $$3; next } \
+		/:/ { \
+			split($$1, parts, ":"); \
+			file = parts[1]; \
+			n = split(file, path, "/"); \
+			if (n > 1) { \
+				pkg = path[1]; \
+				for (i = 2; i < n; i++) pkg = pkg "/" path[i]; \
+			} else { \
+				pkg = "."; \
+			} \
+			gsub(/%/, "", $$3); \
+			sum[pkg] += $$3; \
+			count[pkg]++; \
+		} \
+		END { \
+			for (pkg in sum) { \
+				printf "%-60s %6.1f%%\n", pkg, sum[pkg]/count[pkg]; \
+			} \
+			print "------------------------------------------------------------"; \
+			printf "%-60s %s\n", "TOTAL", total; \
+		}' | sort
+	@echo ""
+	@echo "View full coverage report:"
+	@echo "  - HTML: go tool cover -html=coverage/e2e-coverage.out"
+	@echo "  - Text: go tool cover -func=coverage/e2e-coverage.out"
 
 race: check-go ## run tests with race detector
 	go tool ginkgo --label-filter="!e2e" --race -r ${GINKGO_PROCS}
