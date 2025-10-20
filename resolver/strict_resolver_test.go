@@ -96,7 +96,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 			mockUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
 				response, _ = util.NewMsgWithAnswer(request.Question[0].Name, 123, A, "123.124.122.122")
 
-				return
+				return response
 			})
 
 			upstreams = []config.Upstream{

@@ -50,7 +50,7 @@ func NewClientNamesResolver(ctx context.Context,
 		externalResolver: r,
 	}
 
-	return
+	return cr, err
 }
 
 // LogConfig implements `config.Configurable`.
@@ -114,7 +114,7 @@ func extractClientNamesFromAnswer(answer []dns.RR, fallbackIP net.IP) (clientNam
 		clientNames = []string{fallbackIP.String()}
 	}
 
-	return
+	return clientNames
 }
 
 // tries to resolve client name from mapping, performs reverse DNS lookup otherwise

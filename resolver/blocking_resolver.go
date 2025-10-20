@@ -330,7 +330,7 @@ func determineAllowlistOnlyGroups(cfg *config.Blocking) (result map[string]bool)
 		}
 	}
 
-	return
+	return result
 }
 
 // sets answer and/or return code for DNS response, if request should be blocked
@@ -458,7 +458,7 @@ func extractEntryToCheckFromResponse(rr dns.RR) (entryToCheck, tName string) {
 		tName = "CNAME"
 	}
 
-	return
+	return entryToCheck, tName
 }
 
 func (r *BlockingResolver) isGroupDisabled(group string) bool {
