@@ -4,15 +4,13 @@
 FROM golang:alpine AS build
 RUN apk add --no-cache make coreutils libcap
 
-# required arguments
-ARG VERSION
-ARG BUILD_TIME
-
+# Arguments needed for dependency download
 ARG GOPROXY=""
+ARG OPTS=""
 
 # setup go environment
 ENV GO_SKIP_GENERATE=1\
-  GO_BUILD_FLAGS="-tags static -v " \
+  GO_BUILD_FLAGS="-tags static -v ${OPTS}" \
   BIN_USER=100\
   BIN_AUTOCAB=1 \
   BIN_OUT_DIR="/bin" \
@@ -26,6 +24,10 @@ RUN go mod download
 
 # Copy source code after dependencies are cached
 COPY . .
+
+# Arguments needed for build step only
+ARG VERSION
+ARG BUILD_TIME
 
 RUN make build
 
