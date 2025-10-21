@@ -158,6 +158,45 @@ func createMariaDBContainer(ctx context.Context, e2eNet *testcontainers.DockerNe
 	))
 }
 
+// buildBlockyContainerRequest builds a container request for blocky with the given config file.
+func buildBlockyContainerRequest(confFile string) testcontainers.ContainerRequest {
+	coverDir := os.Getenv("GOCOVERDIR")
+	image := blockyImage
+	if coverImageOverride := os.Getenv("BLOCKY_IMAGE"); coverImageOverride != "" {
+		image = coverImageOverride
+	}
+
+	req := testcontainers.ContainerRequest{
+		Image:        image,
+		ExposedPorts: []string{"53/tcp", "53/udp", "4000/tcp"},
+		Files: []testcontainers.ContainerFile{
+			{
+				HostFilePath:      confFile,
+				ContainerFilePath: "/app/config.yml",
+				FileMode:          modeOwner,
+			},
+		},
+		ConfigModifier: func(c *container.Config) {
+			c.Healthcheck = &container.HealthConfig{
+				Interval: time.Second,
+			}
+			// Enable coverage collection if GOCOVERDIR is set
+			if coverDir != "" {
+				c.Env = append(c.Env, "GOCOVERDIR=/tmp/coverage")
+			}
+		},
+		HostConfigModifier: func(hc *container.HostConfig) {
+			// Mount coverage directory if enabled
+			if coverDir != "" {
+				hc.Binds = append(hc.Binds, coverDir+":/tmp/coverage")
+			}
+		},
+		WaitingFor: wait.ForHealthCheck().WithStartupTimeout(startupTimeout),
+	}
+
+	return req
+}
+
 // createBlockyContainer creates a blocky container with a config provided by the given lines.
 // It is attached to the test network under the alias 'blocky'.
 // It is automatically terminated when the test is finished.
@@ -175,43 +214,7 @@ func createBlockyContainer(ctx context.Context, e2eNet *testcontainers.DockerNet
 		return nil, fmt.Errorf("can't create config struct %w", err)
 	}
 
-	// Check if coverage collection is enabled
-	coverDir := os.Getenv("GOCOVERDIR")
-	image := blockyImage
-	if coverImageOverride := os.Getenv("BLOCKY_IMAGE"); coverImageOverride != "" {
-		image = coverImageOverride
-	}
-
-	req := testcontainers.ContainerRequest{
-		Image: image,
-
-		ExposedPorts: []string{"53/tcp", "53/udp", "4000/tcp"},
-
-		Files: []testcontainers.ContainerFile{
-			{
-				HostFilePath:      confFile,
-				ContainerFilePath: "/app/config.yml",
-				FileMode:          modeOwner,
-			},
-		},
-		ConfigModifier: func(c *container.Config) {
-			c.Healthcheck = &container.HealthConfig{
-				Interval: time.Second,
-			}
-			// Enable coverage collection if GOCOVERDIR is set
-			if coverDir != "" {
-				c.Env = append(c.Env, "GOCOVERDIR=/tmp/coverage")
-			}
-		},
-		WaitingFor: wait.ForHealthCheck().WithStartupTimeout(startupTimeout),
-	}
-
-	// Mount coverage directory if enabled
-	if coverDir != "" {
-		req.Mounts = testcontainers.Mounts(
-			testcontainers.BindMount(coverDir, "/tmp/coverage"),
-		)
-	}
+	req := buildBlockyContainerRequest(confFile)
 
 	container, err := startContainerWithNetwork(ctx, req, "blocky", e2eNet)
 	if err != nil {
