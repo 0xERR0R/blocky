@@ -571,15 +571,16 @@ func (s *Server) resolve(ctx context.Context, request *model.Request) (response 
 	return response, nil
 }
 
-// returns EDNS UDP size or if not present, 512 for UDP and 64K for TCP
+// For TCP returns 64k
+// For UDP returns EDNS UDP size or if not present, 512
 func getMaxResponseSize(req *model.Request) int {
+	if req.Protocol == model.RequestProtocolTCP {
+		return dns.MaxMsgSize
+	}
+
 	edns := req.Req.IsEdns0()
 	if edns != nil && edns.UDPSize() > 0 {
 		return int(edns.UDPSize())
-	}
-
-	if req.Protocol == model.RequestProtocolTCP {
-		return dns.MaxMsgSize
 	}
 
 	return dns.MinMsgSize
