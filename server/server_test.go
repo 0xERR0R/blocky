@@ -729,6 +729,82 @@ var _ = Describe("Running DNS server", func() {
 		})
 	})
 
+	Describe("getMaxResponseSize", func() {
+		Context("TCP protocol", func() {
+			It("should return maximum DNS message size", func() {
+				msg := new(dns.Msg)
+				msg.SetQuestion("example.com.", dns.TypeA)
+
+				req := &model.Request{
+					Protocol: model.RequestProtocolTCP,
+					Req:      msg,
+				}
+
+				size := getMaxResponseSize(req)
+				Expect(size).Should(Equal(dns.MaxMsgSize)) // 65535 bytes
+			})
+
+			It("should ignore EDNS UDP size for TCP", func() {
+				msg := new(dns.Msg)
+				msg.SetQuestion("example.com.", dns.TypeA)
+				msg.SetEdns0(1232, false) // Set EDNS UDP size
+
+				req := &model.Request{
+					Protocol: model.RequestProtocolTCP,
+					Req:      msg,
+				}
+
+				size := getMaxResponseSize(req)
+				Expect(size).Should(Equal(dns.MaxMsgSize)) // Should still return 65535, not 1232
+			})
+		})
+
+		Context("UDP protocol with EDNS", func() {
+			It("should return EDNS UDP size", func() {
+				msg := new(dns.Msg)
+				msg.SetQuestion("example.com.", dns.TypeA)
+				msg.SetEdns0(1232, false)
+
+				req := &model.Request{
+					Protocol: model.RequestProtocolUDP,
+					Req:      msg,
+				}
+
+				size := getMaxResponseSize(req)
+				Expect(size).Should(Equal(1232))
+			})
+
+			It("should handle different EDNS buffer sizes", func() {
+				msg := new(dns.Msg)
+				msg.SetQuestion("example.com.", dns.TypeA)
+				msg.SetEdns0(4096, false)
+
+				req := &model.Request{
+					Protocol: model.RequestProtocolUDP,
+					Req:      msg,
+				}
+
+				size := getMaxResponseSize(req)
+				Expect(size).Should(Equal(4096))
+			})
+		})
+
+		Context("UDP protocol without EDNS", func() {
+			It("should return minimum DNS message size", func() {
+				msg := new(dns.Msg)
+				msg.SetQuestion("example.com.", dns.TypeA)
+
+				req := &model.Request{
+					Protocol: model.RequestProtocolUDP,
+					Req:      msg,
+				}
+
+				size := getMaxResponseSize(req)
+				Expect(size).Should(Equal(dns.MinMsgSize)) // 512 bytes
+			})
+		})
+	})
+
 	Describe("self-signed certificate creation", func() {
 		var (
 			cfg  config.Config
