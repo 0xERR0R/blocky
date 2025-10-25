@@ -10,21 +10,25 @@ Following metrics will be exported:
 
 | name                                             |   Description                                            |
 | ------------------------------------------------ | -------------------------------------------------------- |
+| blocky_build_info                                | Version number and build info                            |
 | blocky_denylist_cache_entries                    | Gauge of entries in the denylist cache, partitioned by group |
 | blocky_allowlist_cache_entries                   | Gauge of entries in the allowlist cache, partitioned by group |
 | blocky_error_total                               | Counter of total queries that ended in error for any reason |
 | blocky_query_total                               | Counter of total queries, partitioned by client and DNS request type (A, AAAA, PTR, etc) |
-| blocky_blocky_request_duration_seconds           | Histogram of request duration, partitioned by response type (Blocked, cached, etc)  |
+| blocky_request_duration_seconds                  | Histogram of request duration, partitioned by response type (Blocked, cached, etc)  |
 | blocky_response_total                            | Counter of responses, partitioned by response type (Blocked, cached, etc), DNS response code, and reason |
 | blocky_blocking_enabled                          | Boolean 1 if blocking is enabled, 0 otherwise |
 | blocky_cache_entries                             | Gauge of entries in cache |
 | blocky_cache_hits_total                          | Counter of the number of cache hits |
-| blocky_cache_miss_count                          | Counter of the number of Cache misses |
+| blocky_cache_misses_total                        | Counter of the number of Cache misses |
 | blocky_last_list_group_refresh_timestamp_seconds | Timestamp of last list refresh |
 | blocky_prefetches_total                          | Counter of prefetched DNS responses |
 | blocky_prefetch_hits_total                       | Counter of requests that hit the prefetch cache |
 | blocky_prefetch_domain_name_cache_entries        | Gauge of domain names being prefetched |
 | blocky_failed_downloads_total                    | Counter of failed list downloads |
+| blocky_dnssec_validation_total                   | Counter of DNSSEC validations, partitioned by result (secure, insecure, bogus, indeterminate) |
+| blocky_dnssec_cache_hits_total                   | Counter of DNSSEC validation cache hits |
+| blocky_dnssec_validation_duration_seconds        | Histogram of DNSSEC validation duration, partitioned by result |
 
 ### Grafana dashboard
 

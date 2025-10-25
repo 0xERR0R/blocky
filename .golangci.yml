@@ -107,6 +107,7 @@ linters:
       - linters:
           - dupl
           - funlen
+          - goconst
           - gochecknoglobals
           - gochecknoinits
           - gosec

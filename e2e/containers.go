@@ -33,7 +33,7 @@ const (
 	postgresImage     = "postgres:15.2-alpine"
 	timescaleImage    = "timescale/timescaledb:latest-pg15"
 	mariaDBImage      = "mariadb:11"
-	mokaImage         = "ghcr.io/0xerr0r/dns-mokka:0.2.0"
+	mokaImage         = "ghcr.io/0xerr0r/dns-mokka:0.4.0"
 	staticServerImage = "halverneus/static-file-server:latest"
 	blockyImage       = "blocky-e2e"
 )

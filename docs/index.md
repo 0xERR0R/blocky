@@ -38,6 +38,7 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
 - **Security and Privacy** - :dark_sunglasses: Secure communication
 
     * Supports modern DNS extensions: DNSSEC, eDNS, ...
+    * DNSSEC validation of upstream resolvers
     * Free configurable blocking lists - no hidden filtering etc.
     * Provides DoH Endpoint
     * Uses random upstream resolvers from the configuration - increases your privacy through the distribution of your DNS
