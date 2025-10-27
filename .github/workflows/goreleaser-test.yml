@@ -38,7 +38,7 @@ jobs:
           args: build --clean --snapshot
 
       - name: Upload dist folder
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: dist_folder
           path: dist
