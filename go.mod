@@ -9,7 +9,7 @@ require (
 	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/avast/retry-go/v4 v4.7.0
-	github.com/breml/rootcerts v0.3.2
+	github.com/breml/rootcerts v0.3.3
 	github.com/creasty/defaults v1.8.0
 	github.com/docker/docker v28.5.1+incompatible
 	github.com/docker/go-connections v0.6.0
