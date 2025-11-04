@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -100,6 +101,9 @@ func ConfigureLogger(logger *logrus.Logger, cfg *Config) {
 
 	switch cfg.Format {
 	case FormatTypeText:
+		// Respect NO_COLOR env var (https://no-color.org/)
+		noColor := os.Getenv("NO_COLOR") != ""
+
 		logFormatter := &prefixed.TextFormatter{
 			TimestampFormat:  "2006-01-02 15:04:05",
 			FullTimestamp:    true,
@@ -107,6 +111,7 @@ func ConfigureLogger(logger *logrus.Logger, cfg *Config) {
 			ForceColors:      false,
 			QuoteEmptyFields: true,
 			DisableTimestamp: !cfg.Timestamp,
+			DisableColors: noColor,
 		}
 
 		logFormatter.SetColorScheme(&prefixed.ColorScheme{
@@ -116,8 +121,12 @@ func ConfigureLogger(logger *logrus.Logger, cfg *Config) {
 
 		logger.SetFormatter(logFormatter)
 
-		// Windows does not support ANSI colors
-		logger.SetOutput(colorable.NewColorableStdout())
+		if noColor {
+			logger.SetOutput(os.Stdout)
+		} else {
+			// Windows does not support ANSI colors
+			logger.SetOutput(colorable.NewColorableStdout())
+		}
 
 	case FormatTypeJson:
 		logger.SetFormatter(&logrus.JSONFormatter{})
