@@ -6,6 +6,7 @@ import (
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/resolver/dnssec"
 	"github.com/miekg/dns"
 )
 
@@ -20,7 +21,7 @@ type DNSSECResolver struct {
 	NextResolver
 	typed
 
-	validator *DNSSECValidator
+	validator *dnssec.Validator
 }
 
 // NewDNSSECResolver creates a new DNSSEC resolver instance
@@ -34,7 +35,7 @@ func NewDNSSECResolver(ctx context.Context, cfg config.DNSSEC, upstream Resolver
 	// Only initialize validator if DNSSEC is enabled
 	if cfg.IsEnabled() {
 		// Load trust anchors
-		trustAnchors, err := NewTrustAnchorStore(cfg.TrustAnchors)
+		trustAnchors, err := dnssec.NewTrustAnchorStore(cfg.TrustAnchors)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load trust anchors: %w", err)
 		}
@@ -43,7 +44,7 @@ func NewDNSSECResolver(ctx context.Context, cfg config.DNSSEC, upstream Resolver
 		_, logger := r.log(ctx)
 
 		// Create validator with upstream resolver and config values
-		r.validator = NewDNSSECValidator(
+		r.validator = dnssec.NewValidator(
 			ctx,
 			trustAnchors,
 			logger,
@@ -98,20 +99,20 @@ func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*
 			request.Req.Question[0].Name, result.String())
 
 		switch result {
-		case ValidationResultBogus:
+		case dnssec.ValidationResultBogus:
 			// Invalid DNSSEC - return SERVFAIL
 			logger.Warnf("DNSSEC validation failed for %s - returning SERVFAIL",
 				request.Req.Question[0].Name)
 
 			return createServFailResponseDNSSEC(request.Req, "DNSSEC validation failed: bogus signatures"), nil
 
-		case ValidationResultSecure:
+		case dnssec.ValidationResultSecure:
 			// Valid DNSSEC - set AD flag
 			response.Res.AuthenticatedData = true
 			logger.Debugf("DNSSEC validation succeeded for %s - AD flag set",
 				request.Req.Question[0].Name)
 
-		case ValidationResultInsecure, ValidationResultIndeterminate:
+		case dnssec.ValidationResultInsecure, dnssec.ValidationResultIndeterminate:
 			// No DNSSEC or cannot validate - clear AD flag
 			response.Res.AuthenticatedData = false
 			logger.Debugf("DNSSEC validation result %s for %s - AD flag cleared",
