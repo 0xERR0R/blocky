@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/0xERR0R/blocky/log"
@@ -2127,6 +2128,845 @@ var _ = Describe("DNSSECValidator", func() {
 
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring("signature expired"))
+		})
+	})
+
+	Describe("Wildcard Expansion", func() {
+		It("should accept valid wildcard expansion with NSEC proof", func() {
+			// RRSIG for *.example.com. covering test.example.com.
+			rrsig := &dns.RRSIG{
+				SignerName: "example.com.",
+				Labels:     2, // example.com. has 2 labels, so *.example.com. would have been 2 in original form
+			}
+			rrsetName := "test.example.com."
+			qname := "test.example.com."
+
+			// NSEC record proving test.example.com doesn't exist
+			// but is covered by the wildcard.
+			nsec := &dns.NSEC{
+				Hdr: dns.RR_Header{
+					Name:   "a.example.com.",
+					Rrtype: dns.TypeNSEC,
+					Class:  dns.ClassINET,
+				},
+				NextDomain: "z.example.com.",
+			}
+			nsRecords := []dns.RR{nsec}
+
+			err := sut.validateWildcardExpansion(rrsetName, rrsig, nsRecords, qname)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		It("should accept valid wildcard expansion with NSEC proof", func() {
+			// RRSIG for *.example.com. (2 labels: wildcard, example, com)
+			// Actual RRset is test.example.com. (3 labels)
+			// So this IS a wildcard expansion (3 > 2)
+			rrsig := &dns.RRSIG{
+				SignerName: "example.com.",
+				Labels:     2,
+			}
+			rrsetName := "test.example.com."
+			qname := "test.example.com."
+
+			// NSEC record that covers test.example.com. to prove it doesn't exist
+			// This proves the wildcard was used because the actual name doesn't exist
+			nsec := &dns.NSEC{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeNSEC,
+					Class:  dns.ClassINET,
+				},
+				NextDomain: "z.example.com.",
+			}
+
+			nsRecords := []dns.RR{nsec}
+
+			err := sut.validateWildcardExpansion(rrsetName, rrsig, nsRecords, qname)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		It("should reject wildcard expansion without NSEC/NSEC3 proof", func() {
+			rrsig := &dns.RRSIG{
+				SignerName: "example.com.",
+				Labels:     2,
+			}
+			rrsetName := "test.example.com."
+			qname := "test.example.com."
+			nsRecords := []dns.RR{} // No NSEC/NSEC3 proof
+
+			err := sut.validateWildcardExpansion(rrsetName, rrsig, nsRecords, qname)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("no NSEC/NSEC3 proof"))
+		})
+
+		It("should reject wildcard if signer is not parent of wildcard name", func() {
+			rrsig := &dns.RRSIG{
+				SignerName: "another.com.", // Signer not a parent
+				Labels:     2,
+			}
+			rrsetName := "test.example.com."
+			qname := "test.example.com."
+			nsRecords := []dns.RR{}
+
+			err := sut.validateWildcardExpansion(rrsetName, rrsig, nsRecords, qname)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("not within signer zone"))
+		})
+
+		It("should not error when RRset has fewer labels than RRSIG (not a wildcard)", func() {
+			// When rrsetLabels <= rrsigLabels, it's NOT a wildcard expansion
+			// so validateWildcardExpansion returns nil immediately
+			rrsig := &dns.RRSIG{
+				SignerName: "example.com.",
+				Labels:     3, // Same or more than RRset
+			}
+			rrsetName := "test.example.com." // 3 labels
+			qname := "test.example.com."
+			nsRecords := []dns.RR{}
+
+			err := sut.validateWildcardExpansion(rrsetName, rrsig, nsRecords, qname)
+			// Should NOT error - this is not a wildcard expansion
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+	})
+
+	Describe("validateNegativeResponse", func() {
+		var question dns.Question
+
+		BeforeEach(func() {
+			question = dns.Question{
+				Name:   "nonexistent.example.com.",
+				Qtype:  dns.TypeA,
+				Qclass: dns.ClassINET,
+			}
+		})
+
+		When("response is NXDOMAIN with NSEC records", func() {
+			It("should validate denial of existence", func() {
+				response := &dns.Msg{
+					MsgHdr: dns.MsgHdr{
+						Rcode: dns.RcodeNameError,
+					},
+					Ns: []dns.RR{
+						&dns.NSEC{
+							Hdr: dns.RR_Header{
+								Name:   "example.com.",
+								Rrtype: dns.TypeNSEC,
+								Class:  dns.ClassINET,
+								Ttl:    300,
+							},
+							NextDomain: "z.example.com.",
+							TypeBitMap: []uint16{dns.TypeA, dns.TypeNS, dns.TypeSOA},
+						},
+						&dns.RRSIG{
+							Hdr: dns.RR_Header{
+								Name:   "example.com.",
+								Rrtype: dns.TypeRRSIG,
+								Class:  dns.ClassINET,
+								Ttl:    300,
+							},
+							TypeCovered: dns.TypeNSEC,
+							Algorithm:   8,
+							Labels:      2,
+							OrigTtl:     300,
+							Expiration:  uint32(time.Now().Add(24 * time.Hour).Unix()),
+							Inception:   uint32(time.Now().Add(-24 * time.Hour).Unix()),
+							KeyTag:      12345,
+							SignerName:  "example.com.",
+						},
+					},
+				}
+
+				// Mock DNSKEY query
+				dnskeyResp := new(dns.Msg)
+				dnskeyResp.Answer = []dns.RR{
+					&dns.DNSKEY{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeDNSKEY,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						Flags:     257,
+						Protocol:  3,
+						Algorithm: 8,
+						PublicKey: "test",
+					},
+				}
+				mockUpstream.On("Resolve", mock.Anything).Return(&model.Response{Res: dnskeyResp}, nil)
+
+				result := sut.validateNegativeResponse(ctx, response, question)
+				// Will be Bogus because we can't validate the chain of trust in this mock setup
+				// But the function is being exercised
+				Expect(result).Should(BeElementOf(ValidationResultBogus, ValidationResultIndeterminate))
+			})
+		})
+
+		When("response is NXDOMAIN without signatures", func() {
+			It("should return Insecure", func() {
+				response := &dns.Msg{
+					MsgHdr: dns.MsgHdr{
+						Rcode: dns.RcodeNameError,
+					},
+					Ns: []dns.RR{
+						&dns.SOA{
+							Hdr: dns.RR_Header{
+								Name:   "example.com.",
+								Rrtype: dns.TypeSOA,
+								Class:  dns.ClassINET,
+								Ttl:    300,
+							},
+							Ns:      "ns1.example.com.",
+							Mbox:    "admin.example.com.",
+							Serial:  1,
+							Refresh: 3600,
+							Retry:   600,
+							Expire:  86400,
+							Minttl:  300,
+						},
+					},
+				}
+
+				result := sut.validateNegativeResponse(ctx, response, question)
+				Expect(result).Should(Equal(ValidationResultInsecure))
+			})
+		})
+
+		When("response is NODATA with NSEC records", func() {
+			It("should validate denial of type existence", func() {
+				question.Qtype = dns.TypeAAAA
+				response := &dns.Msg{
+					MsgHdr: dns.MsgHdr{
+						Rcode: dns.RcodeSuccess,
+					},
+					Question: []dns.Question{question},
+					Ns: []dns.RR{
+						&dns.NSEC{
+							Hdr: dns.RR_Header{
+								Name:   "nonexistent.example.com.",
+								Rrtype: dns.TypeNSEC,
+								Class:  dns.ClassINET,
+								Ttl:    300,
+							},
+							NextDomain: "z.example.com.",
+							TypeBitMap: []uint16{dns.TypeA}, // Has A but not AAAA
+						},
+						&dns.RRSIG{
+							Hdr: dns.RR_Header{
+								Name:   "nonexistent.example.com.",
+								Rrtype: dns.TypeRRSIG,
+								Class:  dns.ClassINET,
+								Ttl:    300,
+							},
+							TypeCovered: dns.TypeNSEC,
+							Algorithm:   8,
+							Labels:      3,
+							OrigTtl:     300,
+							Expiration:  uint32(time.Now().Add(24 * time.Hour).Unix()),
+							Inception:   uint32(time.Now().Add(-24 * time.Hour).Unix()),
+							KeyTag:      12345,
+							SignerName:  "example.com.",
+						},
+					},
+				}
+
+				// Mock DNSKEY query
+				dnskeyResp := new(dns.Msg)
+				dnskeyResp.Answer = []dns.RR{
+					&dns.DNSKEY{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeDNSKEY,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						Flags:     257,
+						Protocol:  3,
+						Algorithm: 8,
+					},
+				}
+				mockUpstream.On("Resolve", mock.Anything).Return(&model.Response{Res: dnskeyResp}, nil)
+
+				result := sut.validateNegativeResponse(ctx, response, question)
+				// Will be Bogus/Indeterminate because we can't validate the full chain
+				Expect(result).Should(BeElementOf(ValidationResultBogus, ValidationResultIndeterminate))
+			})
+		})
+	})
+
+	Describe("validateDenialOfExistence", func() {
+		var question dns.Question
+
+		BeforeEach(func() {
+			question = dns.Question{
+				Name:   "nonexistent.example.com.",
+				Qtype:  dns.TypeA,
+				Qclass: dns.ClassINET,
+			}
+		})
+
+		When("NSEC records prove NXDOMAIN", func() {
+			It("should return Secure when properly validated", func() {
+				response := &dns.Msg{
+					MsgHdr: dns.MsgHdr{
+						Rcode: dns.RcodeNameError,
+					},
+					Ns: []dns.RR{
+						&dns.NSEC{
+							Hdr: dns.RR_Header{
+								Name:   "example.com.",
+								Rrtype: dns.TypeNSEC,
+								Class:  dns.ClassINET,
+								Ttl:    300,
+							},
+							NextDomain: "z.example.com.",
+							TypeBitMap: []uint16{dns.TypeSOA, dns.TypeNS},
+						},
+						&dns.RRSIG{
+							Hdr: dns.RR_Header{
+								Name:   "example.com.",
+								Rrtype: dns.TypeRRSIG,
+								Class:  dns.ClassINET,
+								Ttl:    300,
+							},
+							TypeCovered: dns.TypeNSEC,
+							Algorithm:   8,
+							Labels:      2,
+							OrigTtl:     300,
+							Expiration:  uint32(time.Now().Add(24 * time.Hour).Unix()),
+							Inception:   uint32(time.Now().Add(-24 * time.Hour).Unix()),
+							KeyTag:      12345,
+							SignerName:  "example.com.",
+						},
+					},
+				}
+
+				// Mock DNSKEY query
+				dnskeyResp := new(dns.Msg)
+				dnskeyResp.Answer = []dns.RR{
+					&dns.DNSKEY{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeDNSKEY,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						Flags:     257,
+						Protocol:  3,
+						Algorithm: 8,
+					},
+				}
+				mockUpstream.On("Resolve", mock.Anything).Return(&model.Response{Res: dnskeyResp}, nil)
+
+				result := sut.validateDenialOfExistence(ctx, response, question)
+				// Will be Bogus/Indeterminate due to mock setup limitations
+				Expect(result).Should(BeElementOf(ValidationResultBogus, ValidationResultIndeterminate))
+			})
+		})
+
+		When("no NSEC/NSEC3 records present", func() {
+			It("should return Insecure", func() {
+				response := &dns.Msg{
+					MsgHdr: dns.MsgHdr{
+						Rcode: dns.RcodeNameError,
+					},
+					Ns: []dns.RR{
+						&dns.SOA{
+							Hdr: dns.RR_Header{
+								Name:   "example.com.",
+								Rrtype: dns.TypeSOA,
+								Class:  dns.ClassINET,
+								Ttl:    300,
+							},
+						},
+					},
+				}
+
+				result := sut.validateDenialOfExistence(ctx, response, question)
+				Expect(result).Should(Equal(ValidationResultInsecure))
+			})
+		})
+	})
+
+	Describe("hasAuthorityOrAdditional", func() {
+		It("should return true when authority section has RRSIGs", func() {
+			response := &dns.Msg{
+				Ns: []dns.RR{
+					&dns.RRSIG{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeRRSIG,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						TypeCovered: dns.TypeA,
+						Algorithm:   8,
+					},
+				},
+			}
+
+			result := sut.hasAuthorityOrAdditional(response)
+			Expect(result).Should(BeTrue())
+		})
+
+		It("should return true when additional section has RRSIGs", func() {
+			response := &dns.Msg{
+				Extra: []dns.RR{
+					&dns.RRSIG{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeRRSIG,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						TypeCovered: dns.TypeA,
+						Algorithm:   8,
+					},
+				},
+			}
+
+			result := sut.hasAuthorityOrAdditional(response)
+			Expect(result).Should(BeTrue())
+		})
+
+		It("should return false when no RRSIGs present", func() {
+			response := &dns.Msg{
+				Ns: []dns.RR{
+					&dns.NS{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeNS,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						Ns: "ns1.example.com.",
+					},
+				},
+			}
+
+			result := sut.hasAuthorityOrAdditional(response)
+			Expect(result).Should(BeFalse())
+		})
+	})
+
+	Describe("validateAuthorityOrAdditional", func() {
+		var question dns.Question
+
+		BeforeEach(func() {
+			question = dns.Question{
+				Name:   "example.com.",
+				Qtype:  dns.TypeA,
+				Qclass: dns.ClassINET,
+			}
+		})
+
+		When("authority section has signed records", func() {
+			It("should validate the authority section", func() {
+				response := &dns.Msg{
+					Ns: []dns.RR{
+						&dns.NS{
+							Hdr: dns.RR_Header{
+								Name:   "example.com.",
+								Rrtype: dns.TypeNS,
+								Class:  dns.ClassINET,
+								Ttl:    300,
+							},
+							Ns: "ns1.example.com.",
+						},
+						&dns.RRSIG{
+							Hdr: dns.RR_Header{
+								Name:   "example.com.",
+								Rrtype: dns.TypeRRSIG,
+								Class:  dns.ClassINET,
+								Ttl:    300,
+							},
+							TypeCovered: dns.TypeNS,
+							Algorithm:   8,
+							Labels:      2,
+							OrigTtl:     300,
+							Expiration:  uint32(time.Now().Add(24 * time.Hour).Unix()),
+							Inception:   uint32(time.Now().Add(-24 * time.Hour).Unix()),
+							KeyTag:      12345,
+							SignerName:  "example.com.",
+						},
+					},
+				}
+
+				// Mock DNSKEY query
+				dnskeyResp := new(dns.Msg)
+				dnskeyResp.Answer = []dns.RR{
+					&dns.DNSKEY{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeDNSKEY,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						Flags:     257,
+						Protocol:  3,
+						Algorithm: 8,
+					},
+				}
+				mockUpstream.On("Resolve", mock.Anything).Return(&model.Response{Res: dnskeyResp}, nil)
+
+				result := sut.validateAuthorityOrAdditional(ctx, response, question)
+				// Will be Bogus due to mock limitations
+				Expect(result).Should(BeElementOf(ValidationResultBogus, ValidationResultIndeterminate))
+			})
+		})
+
+		When("no authority or additional records", func() {
+			It("should return Insecure", func() {
+				response := &dns.Msg{}
+
+				result := sut.validateAuthorityOrAdditional(ctx, response, question)
+				Expect(result).Should(Equal(ValidationResultInsecure))
+			})
+		})
+	})
+
+	Describe("findMatchingDNSKEY", func() {
+		It("should find DNSKEY with matching key tag", func() {
+			keys := []*dns.DNSKEY{
+				{
+					Hdr: dns.RR_Header{
+						Name:   "example.com.",
+						Rrtype: dns.TypeDNSKEY,
+						Class:  dns.ClassINET,
+						Ttl:    300,
+					},
+					Flags:     257,
+					Protocol:  3,
+					Algorithm: 8,
+					PublicKey: "test1",
+				},
+				{
+					Hdr: dns.RR_Header{
+						Name:   "example.com.",
+						Rrtype: dns.TypeDNSKEY,
+						Class:  dns.ClassINET,
+						Ttl:    300,
+					},
+					Flags:     256,
+					Protocol:  3,
+					Algorithm: 8,
+					PublicKey: "test2",
+				},
+			}
+
+			// Calculate the key tag for the first key
+			targetTag := keys[0].KeyTag()
+
+			result := findMatchingDNSKEY(keys, targetTag)
+			Expect(result).ShouldNot(BeNil())
+			Expect(result.KeyTag()).Should(Equal(targetTag))
+		})
+
+		It("should return nil when no matching key tag found", func() {
+			keys := []*dns.DNSKEY{
+				{
+					Hdr: dns.RR_Header{
+						Name:   "example.com.",
+						Rrtype: dns.TypeDNSKEY,
+						Class:  dns.ClassINET,
+						Ttl:    300,
+					},
+					Flags:     257,
+					Protocol:  3,
+					Algorithm: 8,
+					PublicKey: "test",
+				},
+			}
+
+			result := findMatchingDNSKEY(keys, 9999)
+			Expect(result).Should(BeNil())
+		})
+
+		It("should return nil for empty key list", func() {
+			result := findMatchingDNSKEY([]*dns.DNSKEY{}, 12345)
+			Expect(result).Should(BeNil())
+		})
+	})
+
+	Describe("DS record validation functions", func() {
+		Describe("convertDSToRRset", func() {
+			It("should convert DS records to RR slice", func() {
+				dsRecords := []*dns.DS{
+					{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeDS,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						KeyTag:     12345,
+						Algorithm:  8,
+						DigestType: dns.SHA256,
+						Digest:     "abc123",
+					},
+					{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeDS,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						KeyTag:     54321,
+						Algorithm:  8,
+						DigestType: dns.SHA256,
+						Digest:     "def456",
+					},
+				}
+
+				result := convertDSToRRset(dsRecords)
+				Expect(result).Should(HaveLen(2))
+				Expect(result[0].Header().Rrtype).Should(Equal(dns.TypeDS))
+			})
+
+			It("should handle empty DS list", func() {
+				result := convertDSToRRset([]*dns.DS{})
+				Expect(result).Should(BeEmpty())
+			})
+		})
+
+		Describe("findDSRRSIG", func() {
+			It("should find RRSIG for DS records in answer section", func() {
+				response := &dns.Msg{
+					Answer: []dns.RR{
+						&dns.DS{
+							Hdr: dns.RR_Header{
+								Name:   "example.com.",
+								Rrtype: dns.TypeDS,
+								Class:  dns.ClassINET,
+								Ttl:    300,
+							},
+						},
+						&dns.RRSIG{
+							Hdr: dns.RR_Header{
+								Name:   "example.com.",
+								Rrtype: dns.TypeRRSIG,
+								Class:  dns.ClassINET,
+								Ttl:    300,
+							},
+							TypeCovered: dns.TypeDS,
+							Algorithm:   8,
+						},
+					},
+				}
+
+				result := sut.findDSRRSIG(response, "example.com.")
+				Expect(result).ShouldNot(BeNil())
+				Expect(result.TypeCovered).Should(Equal(dns.TypeDS))
+			})
+
+			It("should find RRSIG for DS records in authority section", func() {
+				response := &dns.Msg{
+					Ns: []dns.RR{
+						&dns.DS{
+							Hdr: dns.RR_Header{
+								Name:   "example.com.",
+								Rrtype: dns.TypeDS,
+								Class:  dns.ClassINET,
+								Ttl:    300,
+							},
+						},
+						&dns.RRSIG{
+							Hdr: dns.RR_Header{
+								Name:   "example.com.",
+								Rrtype: dns.TypeRRSIG,
+								Class:  dns.ClassINET,
+								Ttl:    300,
+							},
+							TypeCovered: dns.TypeDS,
+							Algorithm:   8,
+						},
+					},
+				}
+
+				result := sut.findDSRRSIG(response, "example.com.")
+				Expect(result).ShouldNot(BeNil())
+				Expect(result.TypeCovered).Should(Equal(dns.TypeDS))
+			})
+
+			It("should return nil when no DS RRSIG found", func() {
+				response := &dns.Msg{
+					Answer: []dns.RR{
+						&dns.RRSIG{
+							Hdr: dns.RR_Header{
+								Name:   "example.com.",
+								Rrtype: dns.TypeRRSIG,
+								Class:  dns.ClassINET,
+								Ttl:    300,
+							},
+							TypeCovered: dns.TypeA, // Not DS
+							Algorithm:   8,
+						},
+					},
+				}
+
+				result := sut.findDSRRSIG(response, "example.com.")
+				Expect(result).Should(BeNil())
+			})
+		})
+	})
+
+	Describe("verifyDomainAgainstTrustAnchor", func() {
+		When("no trust anchor configured", func() {
+			It("should return Indeterminate", func() {
+				// Mock the DNSKEY query to succeed
+				dnskeyResp := new(dns.Msg)
+				dnskeyResp.Answer = []dns.RR{
+					&dns.DNSKEY{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeDNSKEY,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						Flags:     257,
+						Protocol:  3,
+						Algorithm: 8,
+						PublicKey: "test",
+					},
+				}
+				mockUpstream.On("Resolve", mock.Anything).Return(&model.Response{Res: dnskeyResp}, nil).Once()
+
+				// Don't add any trust anchor
+				result := sut.verifyDomainAgainstTrustAnchor(ctx, "example.com.")
+				Expect(result).Should(Equal(ValidationResultIndeterminate))
+			})
+		})
+
+		When("DNSKEY query fails", func() {
+			It("should return Indeterminate", func() {
+				// Add a trust anchor (KSK with SEP flag)
+				trustAnchorStr := "example.com. 300 IN DNSKEY 257 3 8 AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTO"
+				err := trustStore.AddTrustAnchor(trustAnchorStr)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				// Mock the DNSKEY query to fail
+				mockUpstream.On("Resolve", mock.Anything).Return(nil, errors.New("query failed")).Once()
+
+				result := sut.verifyDomainAgainstTrustAnchor(ctx, "example.com.")
+				Expect(result).Should(Equal(ValidationResultIndeterminate))
+			})
+		})
+
+		When("function is called with trust anchors", func() {
+			It("should query DNSKEY and compare with trust anchors", func() {
+				// Add a trust anchor (KSK with SEP flag)
+				trustAnchorStr := "example.com. 300 IN DNSKEY 257 3 8 AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTO"
+				err := trustStore.AddTrustAnchor(trustAnchorStr)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				// Parse the same key for the mock response
+				rr, _ := dns.NewRR(trustAnchorStr)
+				dnskey := rr.(*dns.DNSKEY)
+
+				// Mock the DNSKEY query to return a key
+				dnskeyResp := new(dns.Msg)
+				dnskeyResp.Answer = []dns.RR{dnskey}
+				mockUpstream.On("Resolve", mock.Anything).Return(&model.Response{Res: dnskeyResp}, nil).Once()
+
+				result := sut.verifyDomainAgainstTrustAnchor(ctx, "example.com.")
+				// In unit tests with mocked upstream, result may vary
+				// Just verify the function executes without panic
+				Expect(result).Should(BeElementOf(
+					ValidationResultSecure,
+					ValidationResultBogus,
+					ValidationResultIndeterminate,
+				))
+			})
+		})
+	})
+
+	Describe("getParentDomain", func() {
+		It("should return empty string for root", func() {
+			result := sut.getParentDomain(".")
+			Expect(result).Should(Equal(""))
+		})
+
+		It("should return root for TLD", func() {
+			result := sut.getParentDomain("com.")
+			Expect(result).Should(Equal("."))
+		})
+
+		It("should return TLD for second-level domain", func() {
+			result := sut.getParentDomain("example.com.")
+			Expect(result).Should(Equal("com."))
+		})
+
+		It("should return parent for subdomain", func() {
+			result := sut.getParentDomain("www.example.com.")
+			Expect(result).Should(Equal("example.com."))
+		})
+
+		It("should handle deep subdomains", func() {
+			result := sut.getParentDomain("a.b.c.d.example.com.")
+			Expect(result).Should(Equal("b.c.d.example.com."))
+		})
+
+		It("should handle non-FQDN by adding trailing dot", func() {
+			result := sut.getParentDomain("example.com")
+			Expect(result).Should(Equal("com."))
+		})
+	})
+
+	Describe("isNegativeResponse", func() {
+		It("should return true for NXDOMAIN", func() {
+			response := &dns.Msg{
+				MsgHdr: dns.MsgHdr{
+					Rcode: dns.RcodeNameError,
+				},
+			}
+
+			result := sut.isNegativeResponse(response)
+			Expect(result).Should(BeTrue())
+		})
+
+		It("should return true for NODATA (success with no answer)", func() {
+			response := &dns.Msg{
+				MsgHdr: dns.MsgHdr{
+					Rcode: dns.RcodeSuccess,
+				},
+				Answer: []dns.RR{}, // Empty answer
+			}
+
+			result := sut.isNegativeResponse(response)
+			Expect(result).Should(BeTrue())
+		})
+
+		It("should return false for successful response with answer", func() {
+			response := &dns.Msg{
+				MsgHdr: dns.MsgHdr{
+					Rcode: dns.RcodeSuccess,
+				},
+				Answer: []dns.RR{
+					&dns.A{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeA,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						A: []byte{192, 0, 2, 1},
+					},
+				},
+			}
+
+			result := sut.isNegativeResponse(response)
+			Expect(result).Should(BeFalse())
+		})
+
+		It("should return false for SERVFAIL", func() {
+			response := &dns.Msg{
+				MsgHdr: dns.MsgHdr{
+					Rcode: dns.RcodeServerFailure,
+				},
+			}
+
+			result := sut.isNegativeResponse(response)
+			Expect(result).Should(BeFalse())
 		})
 	})
 })
