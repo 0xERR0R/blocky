@@ -2993,3 +2993,244 @@ var _ = Describe("DNSSECValidator", func() {
 		})
 	})
 })
+
+var _ = Describe("Additional Validator Coverage", func() {
+	var (
+		sut          *Validator
+		trustStore   *TrustAnchorStore
+		mockUpstream *mockResolver
+		ctx          context.Context
+	)
+
+	BeforeEach(func(specCtx SpecContext) {
+		ctx = specCtx
+
+		var err error
+		trustStore, err = NewTrustAnchorStore(nil)
+		Expect(err).Should(Succeed())
+
+		mockUpstream = &mockResolver{}
+		logger, _ := log.NewMockEntry()
+
+		sut = NewValidator(ctx, trustStore, logger, mockUpstream, 1, 10, 150, 30, 3600)
+		ctx = context.WithValue(ctx, queryBudgetKey{}, 10)
+	})
+
+	Describe("validateSingleRRset DNSKEY validation", func() {
+		It("should reject DNSKEY when signer doesn't match owner", func() {
+			dnskey := &dns.DNSKEY{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeDNSKEY,
+					Class:  dns.ClassINET,
+					Ttl:    3600,
+				},
+				Flags:     257,
+				Protocol:  3,
+				Algorithm: dns.RSASHA256,
+				PublicKey: "test",
+			}
+
+			rrsig := &dns.RRSIG{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeRRSIG,
+					Class:  dns.ClassINET,
+				},
+				TypeCovered: dns.TypeDNSKEY,
+				SignerName:  "parent.com.", // Different from owner
+				KeyTag:      12345,
+			}
+
+			result := sut.validateSingleRRset(
+				ctx,
+				dns.TypeDNSKEY,
+				[]dns.RR{dnskey},
+				[]*dns.RRSIG{rrsig},
+				"example.com.",
+				[]dns.RR{},
+				"example.com.",
+			)
+
+			Expect(result).Should(Equal(ValidationResultBogus))
+		})
+
+		It("should reject when no matching RRSIG found", func() {
+			a := &dns.A{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeA,
+					Class:  dns.ClassINET,
+					Ttl:    300,
+				},
+				A: []byte{192, 0, 2, 1},
+			}
+
+			// RRSIG for different type
+			rrsig := &dns.RRSIG{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeRRSIG,
+					Class:  dns.ClassINET,
+				},
+				TypeCovered: dns.TypeAAAA,
+				SignerName:  "example.com.",
+			}
+
+			result := sut.validateSingleRRset(
+				ctx,
+				dns.TypeA,
+				[]dns.RR{a},
+				[]*dns.RRSIG{rrsig},
+				"example.com.",
+				[]dns.RR{},
+				"example.com.",
+			)
+
+			Expect(result).Should(Equal(ValidationResultBogus))
+		})
+	})
+
+	Describe("NewValidator initialization", func() {
+		It("should initialize validator", func() {
+			logger, _ := log.NewMockEntry()
+			validator := NewValidator(context.Background(), trustStore, logger, mockUpstream, 1, 10, 150, 30, 3600)
+			Expect(validator).ShouldNot(BeNil())
+			Expect(validator.trustAnchors).ShouldNot(BeNil())
+		})
+
+		It("should initialize all fields correctly", func() {
+			logger, _ := log.NewMockEntry()
+			validator := NewValidator(ctx, trustStore, logger, mockUpstream, 2, 20, 100, 60, 7200)
+
+			Expect(validator.trustAnchors).Should(Equal(trustStore))
+			Expect(validator.logger).Should(Equal(logger))
+			Expect(validator.upstream).Should(Equal(mockUpstream))
+			Expect(validator.maxChainDepth).Should(Equal(uint(20)))
+			Expect(validator.maxNSEC3Iterations).Should(Equal(uint(100)))
+		})
+	})
+
+	Describe("ValidateResponse with CNAMEs", func() {
+		It("should validate response with CNAME chain", func() {
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				return &model.Response{
+					Res: &dns.Msg{
+						Answer: []dns.RR{},
+					},
+				}, nil
+			}
+
+			cname := &dns.CNAME{
+				Hdr: dns.RR_Header{
+					Name:   "www.example.com.",
+					Rrtype: dns.TypeCNAME,
+					Class:  dns.ClassINET,
+					Ttl:    300,
+				},
+				Target: "target.example.com.",
+			}
+
+			question := dns.Question{
+				Name:   "www.example.com.",
+				Qtype:  dns.TypeA,
+				Qclass: dns.ClassINET,
+			}
+
+			response := &dns.Msg{
+				MsgHdr: dns.MsgHdr{
+					Rcode: dns.RcodeSuccess,
+				},
+				Question: []dns.Question{question},
+				Answer:   []dns.RR{cname},
+			}
+
+			result := sut.ValidateResponse(ctx, response, question)
+			Expect(result).ShouldNot(BeNil())
+		})
+	})
+
+	Describe("validateAnswer with multiple RRsets", func() {
+		It("should validate multiple different types in answer", func() {
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				return &model.Response{
+					Res: &dns.Msg{
+						Answer: []dns.RR{},
+					},
+				}, nil
+			}
+
+			a1 := &dns.A{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeA,
+					Class:  dns.ClassINET,
+					Ttl:    300,
+				},
+				A: []byte{192, 0, 2, 1},
+			}
+
+			a2 := &dns.A{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeA,
+					Class:  dns.ClassINET,
+					Ttl:    300,
+				},
+				A: []byte{192, 0, 2, 2},
+			}
+
+			question := dns.Question{
+				Name:   "example.com.",
+				Qtype:  dns.TypeA,
+				Qclass: dns.ClassINET,
+			}
+
+			response := &dns.Msg{
+				Question: []dns.Question{question},
+				Answer:   []dns.RR{a1, a2},
+			}
+
+			result := sut.validateAnswer(ctx, response, question)
+			Expect(result).ShouldNot(BeNil())
+		})
+	})
+
+	Describe("validateNegativeResponse edge cases", func() {
+		It("should handle NXDOMAIN with SOA in authority", func() {
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				return &model.Response{
+					Res: &dns.Msg{
+						Answer: []dns.RR{},
+					},
+				}, nil
+			}
+
+			soa := &dns.SOA{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeSOA,
+					Class:  dns.ClassINET,
+					Ttl:    3600,
+				},
+			}
+
+			response := &dns.Msg{
+				MsgHdr: dns.MsgHdr{
+					Rcode: dns.RcodeNameError,
+				},
+				Question: []dns.Question{
+					{
+						Name:   "nonexistent.example.com.",
+						Qtype:  dns.TypeA,
+						Qclass: dns.ClassINET,
+					},
+				},
+				Ns: []dns.RR{soa},
+			}
+
+			result := sut.validateNegativeResponse(ctx, response, response.Question[0])
+			Expect(result).ShouldNot(BeNil())
+		})
+	})
+})

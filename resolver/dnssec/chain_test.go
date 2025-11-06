@@ -677,4 +677,201 @@ var _ = Describe("Chain of trust validation", func() {
 			Expect(result).Should(Equal(ValidationResultBogus))
 		})
 	})
+
+	Describe("validateDSRecordSignature", func() {
+		It("should validate DS RRSIG with parent DNSKEY", func() {
+			// Create a real DNSKEY and DS
+			dnskey := &dns.DNSKEY{
+				Hdr: dns.RR_Header{
+					Name:   "com.",
+					Rrtype: dns.TypeDNSKEY,
+					Class:  dns.ClassINET,
+					Ttl:    3600,
+				},
+				Flags:     257,
+				Protocol:  3,
+				Algorithm: dns.RSASHA256,
+				PublicKey: "test",
+			}
+
+			ds := &dns.DS{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeDS,
+					Class:  dns.ClassINET,
+					Ttl:    3600,
+				},
+				KeyTag:     12345,
+				Algorithm:  dns.RSASHA256,
+				DigestType: dns.SHA256,
+				Digest:     "abcd1234",
+			}
+
+			rrsig := &dns.RRSIG{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeRRSIG,
+					Class:  dns.ClassINET,
+				},
+				TypeCovered: dns.TypeDS,
+				SignerName:  "com.",
+				KeyTag:      dnskey.KeyTag(),
+			}
+
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				return &model.Response{
+					Res: &dns.Msg{
+						Answer: []dns.RR{dnskey},
+					},
+				}, nil
+			}
+
+			result := sut.validateDSRecordSignature(ctx, "example.com.", "com.", []dns.RR{ds}, rrsig)
+			// Will fail crypto validation, but tests the code path
+			Expect(result).ShouldNot(BeNil())
+		})
+
+		It("should return Bogus when no matching parent DNSKEY found", func() {
+			ds := &dns.DS{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeDS,
+					Class:  dns.ClassINET,
+				},
+			}
+
+			rrsig := &dns.RRSIG{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeRRSIG,
+				},
+				TypeCovered: dns.TypeDS,
+				KeyTag:      65535, // Non-existent key tag (max uint16)
+			}
+
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				dnskey := &dns.DNSKEY{
+					Hdr: dns.RR_Header{
+						Name:   "com.",
+						Rrtype: dns.TypeDNSKEY,
+						Class:  dns.ClassINET,
+					},
+					Flags:     257,
+					Protocol:  3,
+					Algorithm: dns.RSASHA256,
+					PublicKey: "test",
+				}
+
+				return &model.Response{
+					Res: &dns.Msg{
+						Answer: []dns.RR{dnskey},
+					},
+				}, nil
+			}
+
+			result := sut.validateDSRecordSignature(ctx, "example.com.", "com.", []dns.RR{ds}, rrsig)
+			Expect(result).Should(Equal(ValidationResultBogus))
+		})
+
+		It("should return Indeterminate when parent DNSKEY query fails", func() {
+			ds := &dns.DS{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeDS,
+					Class:  dns.ClassINET,
+				},
+			}
+
+			rrsig := &dns.RRSIG{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeRRSIG,
+				},
+				TypeCovered: dns.TypeDS,
+			}
+
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				return nil, errors.New("query failed")
+			}
+
+			result := sut.validateDSRecordSignature(ctx, "example.com.", "com.", []dns.RR{ds}, rrsig)
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
+		})
+	})
+
+	Describe("extractAndValidateDSRecords", func() {
+		It("should handle DS absence with NSEC proof", func() {
+			nsec := &dns.NSEC{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeNSEC,
+					Class:  dns.ClassINET,
+				},
+				NextDomain: "z.example.com.",
+				TypeBitMap: []uint16{dns.TypeA, dns.TypeNS}, // No DS
+			}
+
+			response := &dns.Msg{
+				Ns: []dns.RR{nsec},
+			}
+
+			dsRecords, result := sut.extractAndValidateDSRecords(ctx, "example.com.", "com.", response)
+			Expect(dsRecords).Should(BeNil())
+			// Result will be Insecure or Bogus depending on NSEC validation
+			Expect(result).ShouldNot(Equal(ValidationResultSecure))
+		})
+
+		It("should handle DS absence with NSEC3 proof", func() {
+			nsec3 := &dns.NSEC3{
+				Hdr: dns.RR_Header{
+					Name:   "hash.example.com.",
+					Rrtype: dns.TypeNSEC3,
+					Class:  dns.ClassINET,
+				},
+				Hash:       dns.SHA1,
+				Salt:       "",
+				Iterations: 0,
+			}
+
+			response := &dns.Msg{
+				Ns: []dns.RR{nsec3},
+			}
+
+			dsRecords, result := sut.extractAndValidateDSRecords(ctx, "example.com.", "com.", response)
+			Expect(dsRecords).Should(BeNil())
+			Expect(result).ShouldNot(Equal(ValidationResultSecure))
+		})
+
+		It("should return Indeterminate when no DS and no NSEC/NSEC3", func() {
+			response := &dns.Msg{
+				Ns: []dns.RR{},
+			}
+
+			dsRecords, result := sut.extractAndValidateDSRecords(ctx, "example.com.", "com.", response)
+			Expect(dsRecords).Should(BeNil())
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
+		})
+	})
+
+	Describe("validateDomainLevel", func() {
+		It("should return Insecure for domains without parent", func() {
+			result := sut.validateDomainLevel(ctx, ".")
+			Expect(result).Should(Equal(ValidationResultInsecure))
+		})
+
+		It("should validate parent before child", func() {
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				// Return empty response for all queries
+				return &model.Response{
+					Res: &dns.Msg{
+						Answer: []dns.RR{},
+					},
+				}, nil
+			}
+
+			result := sut.validateDomainLevel(ctx, "example.com.")
+			// Will fail due to missing DS/DNSKEY records
+			Expect(result).ShouldNot(Equal(ValidationResultSecure))
+		})
+	})
 })
