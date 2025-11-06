@@ -1,0 +1,680 @@
+package dnssec
+
+import (
+	"context"
+	"errors"
+
+	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/model"
+	"github.com/miekg/dns"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+)
+
+var _ = Describe("Chain of trust validation", func() {
+	var (
+		sut          *Validator
+		trustStore   *TrustAnchorStore
+		mockUpstream *mockResolver
+		ctx          context.Context
+	)
+
+	BeforeEach(func(specCtx SpecContext) {
+		ctx = specCtx
+
+		var err error
+		trustStore, err = NewTrustAnchorStore(nil)
+		Expect(err).Should(Succeed())
+
+		mockUpstream = &mockResolver{}
+		logger, _ := log.NewMockEntry()
+
+		sut = NewValidator(ctx, trustStore, logger, mockUpstream, 1, 10, 150, 30, 3600)
+		ctx = context.WithValue(ctx, queryBudgetKey{}, 10)
+	})
+
+	Describe("getCachedValidation", func() {
+		It("should return cached result when present", func() {
+			domain := "example.com."
+			expectedResult := ValidationResultSecure
+
+			sut.setCachedValidation(domain, expectedResult)
+
+			result, found := sut.getCachedValidation(domain)
+			Expect(found).Should(BeTrue())
+			Expect(result).Should(Equal(expectedResult))
+		})
+
+		It("should return false when not cached", func() {
+			result, found := sut.getCachedValidation("notcached.com.")
+			Expect(found).Should(BeFalse())
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
+		})
+
+		It("should cache different results for different domains", func() {
+			sut.setCachedValidation("secure.com.", ValidationResultSecure)
+			sut.setCachedValidation("insecure.com.", ValidationResultInsecure)
+			sut.setCachedValidation("bogus.com.", ValidationResultBogus)
+
+			result1, found1 := sut.getCachedValidation("secure.com.")
+			Expect(found1).Should(BeTrue())
+			Expect(result1).Should(Equal(ValidationResultSecure))
+
+			result2, found2 := sut.getCachedValidation("insecure.com.")
+			Expect(found2).Should(BeTrue())
+			Expect(result2).Should(Equal(ValidationResultInsecure))
+
+			result3, found3 := sut.getCachedValidation("bogus.com.")
+			Expect(found3).Should(BeTrue())
+			Expect(result3).Should(Equal(ValidationResultBogus))
+		})
+	})
+
+	Describe("setCachedValidation", func() {
+		It("should store validation result in cache", func() {
+			domain := "example.com."
+			result := ValidationResultSecure
+
+			sut.setCachedValidation(domain, result)
+
+			cached, found := sut.getCachedValidation(domain)
+			Expect(found).Should(BeTrue())
+			Expect(cached).Should(Equal(result))
+		})
+
+		It("should overwrite existing cache entries", func() {
+			domain := "example.com."
+
+			sut.setCachedValidation(domain, ValidationResultSecure)
+			sut.setCachedValidation(domain, ValidationResultBogus)
+
+			cached, found := sut.getCachedValidation(domain)
+			Expect(found).Should(BeTrue())
+			Expect(cached).Should(Equal(ValidationResultBogus))
+		})
+	})
+
+	Describe("getParentDomain", func() {
+		It("should return parent for subdomain", func() {
+			parent := sut.getParentDomain("sub.example.com.")
+			Expect(parent).Should(Equal("example.com."))
+		})
+
+		It("should return root for TLD", func() {
+			parent := sut.getParentDomain("com.")
+			Expect(parent).Should(Equal("."))
+		})
+
+		It("should return empty string for root", func() {
+			parent := sut.getParentDomain(".")
+			Expect(parent).Should(BeEmpty())
+		})
+
+		It("should handle multi-level domains", func() {
+			parent := sut.getParentDomain("a.b.c.d.example.com.")
+			Expect(parent).Should(Equal("b.c.d.example.com."))
+		})
+
+		It("should normalize domain to FQDN", func() {
+			parent := sut.getParentDomain("sub.example.com")
+			Expect(parent).Should(Equal("example.com."))
+		})
+	})
+
+	Describe("validateDNSKEY", func() {
+		It("should validate matching DNSKEY against DS", func() {
+			dnskey := &dns.DNSKEY{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeDNSKEY,
+					Class:  dns.ClassINET,
+				},
+				Flags:     257, // KSK
+				Protocol:  3,
+				Algorithm: dns.RSASHA256,
+				PublicKey: "AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTOiW1vkIbzxeF3+/4RgWOq7HrxRixHlFlExOLAJr5emLvN7SWXgnLh4+B5x" +
+					"QlNVz8Og8kvArMtNROxVQuCaSnIDdD5LKyWbRd2n9WGe2R8PzgCmr3EgVLrjyBxWezF0jLHwVN8efS3rCj/EWgvIWgb9tarpVUDK/b5" +
+					"8Da+sqqls3eNbuv7pr+eoZG+SrDK6nWeL3c6H5Apxz7LjVc1uTIdsIXxuOLYA4/ilBmSVIzuDWfdRUfhHdY6+cn8HFRm+2hM8AnXGXws" +
+					"9555KrUB5qihylGa8subX2Nn6UwNR1AkUTV74bU=",
+			}
+
+			ds := dnskey.ToDS(dns.SHA256)
+			Expect(ds).ShouldNot(BeNil())
+
+			err := sut.validateDNSKEY(dnskey, ds)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		It("should fail when algorithm mismatch", func() {
+			dnskey := &dns.DNSKEY{
+				Algorithm: dns.RSASHA256,
+			}
+			ds := &dns.DS{
+				Algorithm: dns.RSASHA1,
+			}
+
+			err := sut.validateDNSKEY(dnskey, ds)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("algorithm mismatch"))
+		})
+
+		It("should fail when digest mismatch", func() {
+			dnskey := &dns.DNSKEY{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeDNSKEY,
+				},
+				Flags:     257,
+				Protocol:  3,
+				Algorithm: dns.RSASHA256,
+				PublicKey: "test",
+			}
+
+			ds := &dns.DS{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeDS,
+				},
+				KeyTag:     12345,
+				Algorithm:  dns.RSASHA256,
+				DigestType: dns.SHA256,
+				Digest:     "wrongdigest",
+			}
+
+			err := sut.validateDNSKEY(dnskey, ds)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("digest mismatch"))
+		})
+
+		It("should fail for unsupported digest type", func() {
+			dnskey := &dns.DNSKEY{
+				Algorithm: dns.RSASHA256,
+			}
+			ds := &dns.DS{
+				Algorithm:  dns.RSASHA256,
+				DigestType: 99, // Unsupported
+			}
+
+			err := sut.validateDNSKEY(dnskey, ds)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("unsupported DS digest type"))
+		})
+	})
+
+	Describe("validateAnyDNSKEY", func() {
+		It("should return true when at least one DNSKEY validates", func() {
+			validKey := &dns.DNSKEY{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeDNSKEY,
+					Class:  dns.ClassINET,
+				},
+				Flags:     257,
+				Protocol:  3,
+				Algorithm: dns.RSASHA256,
+				PublicKey: "AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTOiW1vkIbzxeF3+/4RgWOq7HrxRixHlFlExOLAJr5emLvN7SWXgnLh4+B5x" +
+					"QlNVz8Og8kvArMtNROxVQuCaSnIDdD5LKyWbRd2n9WGe2R8PzgCmr3EgVLrjyBxWezF0jLHwVN8efS3rCj/EWgvIWgb9tarpVUDK/b5" +
+					"8Da+sqqls3eNbuv7pr+eoZG+SrDK6nWeL3c6H5Apxz7LjVc1uTIdsIXxuOLYA4/ilBmSVIzuDWfdRUfhHdY6+cn8HFRm+2hM8AnXGXws" +
+					"9555KrUB5qihylGa8subX2Nn6UwNR1AkUTV74bU=",
+			}
+
+			invalidKey := &dns.DNSKEY{
+				Flags:     256, // ZSK
+				Protocol:  3,
+				Algorithm: dns.RSASHA256,
+				PublicKey: "invalid",
+			}
+
+			ds := validKey.ToDS(dns.SHA256)
+
+			result := sut.validateAnyDNSKEY([]*dns.DNSKEY{invalidKey, validKey}, []*dns.DS{ds}, "example.com.")
+			Expect(result).Should(BeTrue())
+		})
+
+		It("should return false when no DNSKEY validates", func() {
+			key := &dns.DNSKEY{
+				Flags:     257,
+				Algorithm: dns.RSASHA256,
+				PublicKey: "test",
+			}
+
+			ds := &dns.DS{
+				Algorithm:  dns.RSASHA256,
+				DigestType: dns.SHA256,
+				Digest:     "wrongdigest",
+			}
+
+			result := sut.validateAnyDNSKEY([]*dns.DNSKEY{key}, []*dns.DS{ds}, "example.com.")
+			Expect(result).Should(BeFalse())
+		})
+
+		It("should skip keys without ZONE flag", func() {
+			keyWithoutZone := &dns.DNSKEY{
+				Flags:     0, // No ZONE flag
+				Protocol:  3,
+				Algorithm: dns.RSASHA256,
+				PublicKey: "test",
+			}
+
+			ds := &dns.DS{
+				Algorithm:  dns.RSASHA256,
+				DigestType: dns.SHA256,
+				Digest:     "somedigest",
+			}
+
+			result := sut.validateAnyDNSKEY([]*dns.DNSKEY{keyWithoutZone}, []*dns.DS{ds}, "example.com.")
+			Expect(result).Should(BeFalse())
+		})
+
+		It("should skip revoked keys", func() {
+			revokedKey := &dns.DNSKEY{
+				Flags:     257 | 0x0080, // KSK with REVOKE flag
+				Protocol:  3,
+				Algorithm: dns.RSASHA256,
+				PublicKey: "test",
+			}
+
+			ds := &dns.DS{
+				Algorithm:  dns.RSASHA256,
+				DigestType: dns.SHA256,
+				Digest:     "somedigest",
+			}
+
+			result := sut.validateAnyDNSKEY([]*dns.DNSKEY{revokedKey}, []*dns.DS{ds}, "example.com.")
+			Expect(result).Should(BeFalse())
+		})
+
+		It("should handle empty key list", func() {
+			ds := &dns.DS{
+				Algorithm:  dns.RSASHA256,
+				DigestType: dns.SHA256,
+				Digest:     "somedigest",
+			}
+
+			result := sut.validateAnyDNSKEY([]*dns.DNSKEY{}, []*dns.DS{ds}, "example.com.")
+			Expect(result).Should(BeFalse())
+		})
+
+		It("should handle empty DS list", func() {
+			key := &dns.DNSKEY{
+				Flags:     257,
+				Protocol:  3,
+				Algorithm: dns.RSASHA256,
+				PublicKey: "test",
+			}
+
+			result := sut.validateAnyDNSKEY([]*dns.DNSKEY{key}, []*dns.DS{}, "example.com.")
+			Expect(result).Should(BeFalse())
+		})
+	})
+
+	Describe("convertDSToRRset", func() {
+		It("should convert DS records to RR slice", func() {
+			ds1 := &dns.DS{
+				Hdr:        dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeDS},
+				KeyTag:     1234,
+				Algorithm:  dns.RSASHA256,
+				DigestType: dns.SHA256,
+				Digest:     "abcd",
+			}
+			ds2 := &dns.DS{
+				Hdr:        dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeDS},
+				KeyTag:     5678,
+				Algorithm:  dns.RSASHA256,
+				DigestType: dns.SHA256,
+				Digest:     "efgh",
+			}
+
+			rrset := convertDSToRRset([]*dns.DS{ds1, ds2})
+			Expect(rrset).Should(HaveLen(2))
+			Expect(rrset[0]).Should(Equal(dns.RR(ds1)))
+			Expect(rrset[1]).Should(Equal(dns.RR(ds2)))
+		})
+
+		It("should handle empty DS list", func() {
+			rrset := convertDSToRRset([]*dns.DS{})
+			Expect(rrset).Should(BeEmpty())
+		})
+
+		It("should handle nil DS list", func() {
+			rrset := convertDSToRRset(nil)
+			Expect(rrset).ShouldNot(BeNil())
+			Expect(rrset).Should(BeEmpty())
+		})
+	})
+
+	Describe("extractTypedRecords", func() {
+		It("should extract DS records from answer section", func() {
+			ds1 := &dns.DS{
+				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeDS},
+			}
+			ds2 := &dns.DS{
+				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeDS},
+			}
+			a := &dns.A{
+				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeA},
+			}
+
+			dsRecords, err := extractTypedRecords[*dns.DS]([]dns.RR{ds1, a, ds2})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(dsRecords).Should(HaveLen(2))
+			Expect(dsRecords[0]).Should(Equal(ds1))
+			Expect(dsRecords[1]).Should(Equal(ds2))
+		})
+
+		It("should extract from multiple RR slices", func() {
+			ds1 := &dns.DS{
+				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeDS},
+			}
+			ds2 := &dns.DS{
+				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeDS},
+			}
+
+			dsRecords, err := extractTypedRecords[*dns.DS]([]dns.RR{ds1}, []dns.RR{ds2})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(dsRecords).Should(HaveLen(2))
+		})
+
+		It("should return error when no records found", func() {
+			a := &dns.A{
+				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeA},
+			}
+
+			_, err := extractTypedRecords[*dns.DS]([]dns.RR{a})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("no records of requested type found"))
+		})
+
+		It("should handle empty RR slices", func() {
+			_, err := extractTypedRecords[*dns.DS]([]dns.RR{})
+			Expect(err).Should(HaveOccurred())
+		})
+
+		It("should work with other record types", func() {
+			dnskey := &dns.DNSKEY{
+				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeDNSKEY},
+			}
+			a := &dns.A{
+				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeA},
+			}
+
+			keys, err := extractTypedRecords[*dns.DNSKEY]([]dns.RR{a, dnskey})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(keys).Should(HaveLen(1))
+			Expect(keys[0]).Should(Equal(dnskey))
+		})
+	})
+
+	Describe("findDSRRSIG", func() {
+		It("should find RRSIG for DS records in answer section", func() {
+			rrsig := &dns.RRSIG{
+				Hdr:         dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeRRSIG},
+				TypeCovered: dns.TypeDS,
+			}
+
+			response := &dns.Msg{
+				Answer: []dns.RR{rrsig},
+			}
+
+			result := sut.findDSRRSIG(response, "example.com.")
+			Expect(result).Should(Equal(rrsig))
+		})
+
+		It("should find RRSIG for DS records in authority section", func() {
+			rrsig := &dns.RRSIG{
+				Hdr:         dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeRRSIG},
+				TypeCovered: dns.TypeDS,
+			}
+
+			response := &dns.Msg{
+				Ns: []dns.RR{rrsig},
+			}
+
+			result := sut.findDSRRSIG(response, "example.com.")
+			Expect(result).Should(Equal(rrsig))
+		})
+
+		It("should return nil when no DS RRSIG found", func() {
+			rrsig := &dns.RRSIG{
+				Hdr:         dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeRRSIG},
+				TypeCovered: dns.TypeA, // Not DS
+			}
+
+			response := &dns.Msg{
+				Answer: []dns.RR{rrsig},
+			}
+
+			result := sut.findDSRRSIG(response, "example.com.")
+			Expect(result).Should(BeNil())
+		})
+
+		It("should return nil for empty response", func() {
+			response := &dns.Msg{}
+
+			result := sut.findDSRRSIG(response, "example.com.")
+			Expect(result).Should(BeNil())
+		})
+
+		It("should prefer first DS RRSIG when multiple present", func() {
+			rrsig1 := &dns.RRSIG{
+				Hdr:         dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeRRSIG},
+				TypeCovered: dns.TypeDS,
+				KeyTag:      1,
+			}
+			rrsig2 := &dns.RRSIG{
+				Hdr:         dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeRRSIG},
+				TypeCovered: dns.TypeDS,
+				KeyTag:      2,
+			}
+
+			response := &dns.Msg{
+				Answer: []dns.RR{rrsig1, rrsig2},
+			}
+
+			result := sut.findDSRRSIG(response, "example.com.")
+			Expect(result).Should(Equal(rrsig1))
+		})
+	})
+
+	Describe("walkChainOfTrust", func() {
+		It("should return cached result if available", func() {
+			domain := "example.com."
+			sut.setCachedValidation(domain, ValidationResultSecure)
+
+			result := sut.walkChainOfTrust(ctx, domain)
+			Expect(result).Should(Equal(ValidationResultSecure))
+		})
+
+		It("should reject domains exceeding max chain depth", func() {
+			// Create a very deep domain name
+			deepDomain := "a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z.example.com."
+
+			// Set a low max depth
+			sut.maxChainDepth = 5
+
+			result := sut.walkChainOfTrust(ctx, deepDomain)
+			Expect(result).Should(Equal(ValidationResultBogus))
+		})
+
+		It("should normalize domain to FQDN", func() {
+			domain := "example.com"
+			sut.setCachedValidation("example.com.", ValidationResultSecure)
+
+			result := sut.walkChainOfTrust(ctx, domain)
+			Expect(result).Should(Equal(ValidationResultSecure))
+		})
+
+		It("should handle root domain", func() {
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				// Return empty DNSKEY response
+				return &model.Response{
+					Res: &dns.Msg{
+						Answer: []dns.RR{},
+					},
+				}, nil
+			}
+
+			result := sut.walkChainOfTrust(ctx, ".")
+			// Will return Indeterminate because DNSKEY query succeeded but returned no keys
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
+		})
+
+		It("should cache validation results", func() {
+			domain := "test.example.com."
+
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				return nil, errors.New("mock error")
+			}
+
+			// First call
+			result1 := sut.walkChainOfTrust(ctx, domain)
+
+			// Second call should use cache (not call upstream again)
+			result2 := sut.walkChainOfTrust(ctx, domain)
+			Expect(result2).Should(Equal(result1))
+		})
+	})
+
+	Describe("verifyAgainstTrustAnchors", func() {
+		It("should return Indeterminate when DNSKEY query fails", func() {
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				return nil, errors.New("query failed")
+			}
+
+			result := sut.verifyAgainstTrustAnchors(ctx)
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
+		})
+
+		It("should return Indeterminate when no trust anchors configured", func() {
+			// Create validator with empty trust store
+			emptyTrustStore, err := NewTrustAnchorStore(nil)
+			Expect(err).Should(Succeed())
+			emptyTrustStore.anchors["."] = []*TrustAnchor{} // Clear root anchors
+
+			logger, _ := log.NewMockEntry()
+			validator := NewValidator(ctx, emptyTrustStore, logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				return &model.Response{
+					Res: &dns.Msg{
+						Answer: []dns.RR{},
+					},
+				}, nil
+			}
+
+			result := validator.verifyAgainstTrustAnchors(ctx)
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
+		})
+
+		It("should skip revoked DNSKEYs", func() {
+			revokedKey := &dns.DNSKEY{
+				Hdr: dns.RR_Header{
+					Name:   ".",
+					Rrtype: dns.TypeDNSKEY,
+					Class:  dns.ClassINET,
+				},
+				Flags:     257 | 0x0080, // REVOKE flag set
+				Protocol:  3,
+				Algorithm: dns.RSASHA256,
+				PublicKey: "test",
+			}
+
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				return &model.Response{
+					Res: &dns.Msg{
+						Answer: []dns.RR{revokedKey},
+					},
+				}, nil
+			}
+
+			result := sut.verifyAgainstTrustAnchors(ctx)
+			Expect(result).Should(Equal(ValidationResultBogus))
+		})
+	})
+
+	Describe("verifyDomainAgainstTrustAnchor", func() {
+		It("should return Indeterminate when DNSKEY query fails", func() {
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				return nil, errors.New("query failed")
+			}
+
+			result := sut.verifyDomainAgainstTrustAnchor(ctx, "example.com.")
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
+		})
+
+		It("should return Indeterminate when no trust anchors for domain", func() {
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				return &model.Response{
+					Res: &dns.Msg{
+						Answer: []dns.RR{},
+					},
+				}, nil
+			}
+
+			result := sut.verifyDomainAgainstTrustAnchor(ctx, "example.com.")
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
+		})
+
+		It("should skip keys without ZONE flag", func() {
+			keyWithoutZone := &dns.DNSKEY{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeDNSKEY,
+					Class:  dns.ClassINET,
+				},
+				Flags:     0, // No ZONE flag
+				Protocol:  3,
+				Algorithm: dns.RSASHA256,
+				PublicKey: "test",
+			}
+
+			trustStore.anchors["example.com."] = []*TrustAnchor{
+				{
+					Key: keyWithoutZone,
+				},
+			}
+
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				return &model.Response{
+					Res: &dns.Msg{
+						Answer: []dns.RR{keyWithoutZone},
+					},
+				}, nil
+			}
+
+			result := sut.verifyDomainAgainstTrustAnchor(ctx, "example.com.")
+			Expect(result).Should(Equal(ValidationResultBogus))
+		})
+
+		It("should skip revoked keys", func() {
+			revokedKey := &dns.DNSKEY{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeDNSKEY,
+					Class:  dns.ClassINET,
+				},
+				Flags:     257 | 0x0080, // REVOKE flag
+				Protocol:  3,
+				Algorithm: dns.RSASHA256,
+				PublicKey: "test",
+			}
+
+			trustStore.anchors["example.com."] = []*TrustAnchor{
+				{
+					Key: revokedKey,
+				},
+			}
+
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				return &model.Response{
+					Res: &dns.Msg{
+						Answer: []dns.RR{revokedKey},
+					},
+				}, nil
+			}
+
+			result := sut.verifyDomainAgainstTrustAnchor(ctx, "example.com.")
+			Expect(result).Should(Equal(ValidationResultBogus))
+		})
+	})
+})
