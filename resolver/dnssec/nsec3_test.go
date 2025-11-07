@@ -925,6 +925,110 @@ var _ = Describe("NSEC3 validation", func() {
 			// Should return Secure if all conditions are met
 			Expect(result).ShouldNot(Equal(ValidationResultIndeterminate))
 		})
+
+		It("should return Bogus when next closer cannot be computed (qname same as closest encloser)", func() {
+			// Edge case: when qname equals closest encloser, getNextCloser returns ""
+			// This happens when qname has same or fewer labels than closest encloser
+			hashZone, err := sut.computeNSEC3Hash("example.com.", dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			nsec3Zone := &dns.NSEC3{
+				Hdr: dns.RR_Header{
+					Name:   hashZone + ".example.com.",
+					Rrtype: dns.TypeNSEC3,
+				},
+				Hash:       dns.SHA1,
+				Salt:       "",
+				Iterations: 0,
+			}
+
+			// Try to validate with qname equal to zone (no next closer possible)
+			result := sut.validateNSEC3NXDOMAIN(
+				[]*dns.NSEC3{nsec3Zone}, "example.com.", "example.com.", dns.SHA1, "", 0,
+			)
+			Expect(result).Should(Equal(ValidationResultBogus))
+		})
+
+		It("should return Bogus when wildcard hash computation fails", func() {
+			// This tests the error path when computing wildcard hash fails
+			// Using unsupported hash algorithm to trigger error
+			hashZone, err := sut.computeNSEC3Hash("example.com.", dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			nsec3Zone := &dns.NSEC3{
+				Hdr: dns.RR_Header{
+					Name:   hashZone + ".example.com.",
+					Rrtype: dns.TypeNSEC3,
+				},
+				Hash:       dns.SHA1,
+				Salt:       "",
+				Iterations: 0,
+			}
+
+			// NSEC3 covering next closer
+			nsec3Cover := &dns.NSEC3{
+				Hdr: dns.RR_Header{
+					Name:   "00000000.example.com.",
+					Rrtype: dns.TypeNSEC3,
+				},
+				Hash:       dns.SHA1,
+				Salt:       "",
+				Iterations: 0,
+				NextDomain: "ZZZZZZZZ",
+			}
+
+			// Use unsupported hash algorithm (0) to trigger error
+			result := sut.validateNSEC3NXDOMAIN(
+				[]*dns.NSEC3{nsec3Zone, nsec3Cover}, "test.example.com.", "example.com.", 0, "", 0,
+			)
+			Expect(result).Should(Equal(ValidationResultBogus))
+		})
+
+		It("should return Insecure when next closer is covered by opt-out NSEC3", func() {
+			// Create NSEC3 for zone apex
+			hashZone, err := sut.computeNSEC3Hash("example.com.", dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			nsec3Zone := &dns.NSEC3{
+				Hdr: dns.RR_Header{
+					Name:   hashZone + ".example.com.",
+					Rrtype: dns.TypeNSEC3,
+				},
+				Hash:       dns.SHA1,
+				Salt:       "",
+				Iterations: 0,
+			}
+
+			// Compute next closer hash to ensure opt-out NSEC3 covers it
+			nextCloserHash, err := sut.computeNSEC3Hash("sub.example.com.", dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			// Create opt-out NSEC3 that covers next closer
+			// The hash range needs to actually cover the next closer hash
+			nsec3OptOut := &dns.NSEC3{
+				Hdr: dns.RR_Header{
+					Name:   "00000000.example.com.",
+					Rrtype: dns.TypeNSEC3,
+				},
+				Flags:      0x01, // Opt-Out flag
+				Hash:       dns.SHA1,
+				Salt:       "",
+				Iterations: 0,
+				NextDomain: "ZZZZZZZZ", // Large hash to cover next closer
+			}
+
+			// Verify next closer is actually covered
+			if !sut.nsec3Covers([]*dns.NSEC3{nsec3OptOut}, nextCloserHash) {
+				Skip("Test setup: next closer not in opt-out range")
+			}
+
+			result := sut.validateNSEC3NXDOMAIN(
+				[]*dns.NSEC3{nsec3Zone, nsec3OptOut}, "sub.example.com.", "example.com.", dns.SHA1, "", 0,
+			)
+
+			// When next closer is covered by opt-out NSEC3, should return Insecure
+			Expect(result).Should(Equal(ValidationResultInsecure))
+		})
 	})
 
 	Describe("checkWildcardNSEC3Match", func() {
@@ -1080,6 +1184,108 @@ var _ = Describe("NSEC3 validation", func() {
 			)
 			// Should return Bogus since wildcard has MX in bitmap
 			Expect(result).Should(Equal(ValidationResultBogus))
+		})
+
+		It("should return Bogus when wildcard hash computation fails", func() {
+			// Create NSEC3 for zone apex (closest encloser)
+			hashZone, err := sut.computeNSEC3Hash("example.com.", dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			nsec3Zone := &dns.NSEC3{
+				Hdr: dns.RR_Header{
+					Name:   hashZone + ".example.com.",
+					Rrtype: dns.TypeNSEC3,
+				},
+				Hash:       dns.SHA1,
+				Salt:       "",
+				Iterations: 0,
+			}
+
+			hashQuery, err := sut.computeNSEC3Hash("test.example.com.", dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			// Use unsupported hash algorithm to trigger wildcard hash error
+			result := sut.checkWildcardNSEC3Match(
+				[]*dns.NSEC3{nsec3Zone}, "test.example.com.", dns.TypeA,
+				"example.com.", 0, "", 0, hashQuery, // hash algorithm 0 is unsupported
+			)
+			Expect(result).Should(Equal(ValidationResultBogus))
+		})
+
+		It("should return Insecure for DS query with opt-out when closest encloser not found", func() {
+			// Create opt-out NSEC3
+			nsec3OptOut := &dns.NSEC3{
+				Hdr: dns.RR_Header{
+					Name:   "0000.example.com.",
+					Rrtype: dns.TypeNSEC3,
+				},
+				Flags:      0x01, // Opt-Out
+				Hash:       dns.SHA1,
+				Salt:       "",
+				Iterations: 0,
+				NextDomain: "ZZZZ",
+			}
+
+			hashDS, err := sut.computeNSEC3Hash("sub.example.com.", dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			// Verify it covers the DS hash
+			if !sut.nsec3Covers([]*dns.NSEC3{nsec3OptOut}, hashDS) {
+				Skip("Test setup: DS hash not in opt-out range")
+			}
+
+			// For DS query with opt-out covering the hash, should return Insecure
+			result := sut.checkWildcardNSEC3Match(
+				[]*dns.NSEC3{nsec3OptOut}, "sub.example.com.", dns.TypeDS, "example.com.",
+				dns.SHA1, "", 0, hashDS,
+			)
+			// When opt-out covers DS query, should return Insecure (unsigned delegation)
+			Expect(result).Should(Equal(ValidationResultInsecure))
+		})
+
+		It("should return Insecure for DS query with opt-out when wildcard not found", func() {
+			// Create NSEC3 for zone apex (closest encloser)
+			hashZone, err := sut.computeNSEC3Hash("example.com.", dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			nsec3Zone := &dns.NSEC3{
+				Hdr: dns.RR_Header{
+					Name:   hashZone + ".example.com.",
+					Rrtype: dns.TypeNSEC3,
+				},
+				Hash:       dns.SHA1,
+				Salt:       "",
+				Iterations: 0,
+			}
+
+			// Create opt-out NSEC3 covering DS hash
+			nsec3OptOut := &dns.NSEC3{
+				Hdr: dns.RR_Header{
+					Name:   "00000000.example.com.",
+					Rrtype: dns.TypeNSEC3,
+				},
+				Flags:      0x01, // Opt-Out
+				Hash:       dns.SHA1,
+				Salt:       "",
+				Iterations: 0,
+				NextDomain: "ZZZZZZZZ",
+			}
+
+			hashDS, err := sut.computeNSEC3Hash("test.example.com.", dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			// Verify DS hash is covered by opt-out
+			if !sut.nsec3Covers([]*dns.NSEC3{nsec3OptOut}, hashDS) {
+				Skip("Test setup: DS hash not in opt-out range")
+			}
+
+			// DS query with opt-out covering, no wildcard NSEC3 found
+			result := sut.checkWildcardNSEC3Match(
+				[]*dns.NSEC3{nsec3Zone, nsec3OptOut}, "test.example.com.", dns.TypeDS,
+				"example.com.", dns.SHA1, "", 0, hashDS,
+			)
+			// Should return Insecure for DS query covered by opt-out
+			Expect(result).Should(Equal(ValidationResultInsecure))
 		})
 	})
 
