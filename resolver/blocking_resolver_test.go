@@ -154,7 +154,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 							HaveResponseType(ResponseTypeBLOCKED),
 							HaveReturnCode(dns.RcodeSuccess),
 						))
-				}, "10s", "1s").Should(Succeed())
+				}, "3s", "100ms").Should(Succeed())
 			})
 		})
 	})

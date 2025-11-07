@@ -131,7 +131,7 @@ var _ = Describe("CachingResolver", func() {
 				}
 
 				// now is this domain prefetched
-				Eventually(domainPrefetched, "10s").Should(Receive(Equal(true)))
+				Eventually(domainPrefetched, "6s").Should(Receive(Equal(true)))
 
 				// and it should hit from prefetch cache
 				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
@@ -141,7 +141,7 @@ var _ = Describe("CachingResolver", func() {
 							HaveReturnCode(dns.RcodeSuccess),
 							BeDNSRecord("example.com.", A, "123.122.121.120"),
 							HaveTTL(BeNumerically("<=", 2))))
-				Eventually(prefetchHitDomain, "10s").Should(Receive(Equal(true)))
+				Eventually(prefetchHitDomain, "6s").Should(Receive(Equal(true)))
 			})
 		})
 		When("caching with default values is enabled", func() {

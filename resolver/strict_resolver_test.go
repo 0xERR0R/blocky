@@ -26,7 +26,7 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 
 		ctx      context.Context
 		cancelFn context.CancelFunc
-		timeout  = 2 * time.Second
+		timeout  = 200 * time.Millisecond
 
 		testUpstream1 *MockUDPUpstreamServer
 		testUpstream2 *MockUDPUpstreamServer
