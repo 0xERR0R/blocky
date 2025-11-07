@@ -778,6 +778,7 @@ var _ = Describe("NSEC3 validation", func() {
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
+				NextDomain: hashZone, // Points to itself
 			}
 
 			// Create opt-out NSEC3 that might cover next closer
@@ -820,7 +821,7 @@ var _ = Describe("NSEC3 validation", func() {
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
-				NextDomain: hashZone, // Points to itself, won't cover next closer
+				// Don't set NextDomain so it doesn't accidentally cover the next closer
 			}
 
 			result := sut.validateNSEC3NXDOMAIN(
@@ -849,16 +850,17 @@ var _ = Describe("NSEC3 validation", func() {
 				NextDomain: hashNextCloser,
 			}
 
-			// NSEC3 that covers next closer but not wildcard
+			// NSEC3 that proves next closer is covered but wildcard is not
+			// Don't set NextDomain so it only provides a hash match, not coverage
 			nsec3Cover := &dns.NSEC3{
 				Hdr: dns.RR_Header{
-					Name:   "00000000.example.com.",
+					Name:   hashNextCloser + ".example.com.",
 					Rrtype: dns.TypeNSEC3,
 				},
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
-				NextDomain: "ZZZZZZZZ", // Covers next closer but not wildcard
+				// No NextDomain - won't cover wildcard
 			}
 
 			result := sut.validateNSEC3NXDOMAIN(
@@ -940,6 +942,7 @@ var _ = Describe("NSEC3 validation", func() {
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
+				NextDomain: hashZone, // Points to itself
 			}
 
 			// Try to validate with qname equal to zone (no next closer possible)
@@ -963,6 +966,7 @@ var _ = Describe("NSEC3 validation", func() {
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
+				NextDomain: hashZone, // Points to itself
 			}
 
 			// NSEC3 covering next closer
@@ -997,29 +1001,21 @@ var _ = Describe("NSEC3 validation", func() {
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
+				NextDomain: hashZone, // Points to itself
 			}
 
-			// Compute next closer hash to ensure opt-out NSEC3 covers it
-			nextCloserHash, err := sut.computeNSEC3Hash("sub.example.com.", dns.SHA1, "", 0)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			// Create opt-out NSEC3 that covers next closer
-			// The hash range needs to actually cover the next closer hash
+			// Create opt-out NSEC3 that covers entire hash space
+			// Use minimum and maximum base32hex-encoded hashes (32 chars for SHA1)
 			nsec3OptOut := &dns.NSEC3{
 				Hdr: dns.RR_Header{
-					Name:   "00000000.example.com.",
+					Name:   "00000000000000000000000000000000.example.com.", // Minimum hash
 					Rrtype: dns.TypeNSEC3,
 				},
 				Flags:      0x01, // Opt-Out flag
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
-				NextDomain: "ZZZZZZZZ", // Large hash to cover next closer
-			}
-
-			// Verify next closer is actually covered
-			if !sut.nsec3Covers([]*dns.NSEC3{nsec3OptOut}, nextCloserHash) {
-				Skip("Test setup: next closer not in opt-out range")
+				NextDomain: "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV", // Maximum hash
 			}
 
 			result := sut.validateNSEC3NXDOMAIN(
@@ -1089,6 +1085,7 @@ var _ = Describe("NSEC3 validation", func() {
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
+				NextDomain: hashZone, // Points to itself
 			}
 
 			hashQuery, err := sut.computeNSEC3Hash("nonexist.example.com.", dns.SHA1, "", 0)
@@ -1119,6 +1116,7 @@ var _ = Describe("NSEC3 validation", func() {
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
+				NextDomain: hashZone, // Points to itself
 			}
 
 			// Wildcard NSEC3 with type bitmap that doesn't include requested type
@@ -1161,6 +1159,7 @@ var _ = Describe("NSEC3 validation", func() {
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
+				NextDomain: hashZone, // Points to itself
 			}
 
 			// Wildcard NSEC3 with type bitmap that includes requested type
@@ -1199,6 +1198,7 @@ var _ = Describe("NSEC3 validation", func() {
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
+				NextDomain: hashZone, // Points to itself
 			}
 
 			hashQuery, err := sut.computeNSEC3Hash("test.example.com.", dns.SHA1, "", 0)
@@ -1213,25 +1213,21 @@ var _ = Describe("NSEC3 validation", func() {
 		})
 
 		It("should return Insecure for DS query with opt-out when closest encloser not found", func() {
-			// Create opt-out NSEC3
+			// Compute DS hash first
+			hashDS, err := sut.computeNSEC3Hash("sub.example.com.", dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			// Create opt-out NSEC3 that covers entire hash space
 			nsec3OptOut := &dns.NSEC3{
 				Hdr: dns.RR_Header{
-					Name:   "0000.example.com.",
+					Name:   "00000000000000000000000000000000.example.com.", // Minimum hash
 					Rrtype: dns.TypeNSEC3,
 				},
 				Flags:      0x01, // Opt-Out
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
-				NextDomain: "ZZZZ",
-			}
-
-			hashDS, err := sut.computeNSEC3Hash("sub.example.com.", dns.SHA1, "", 0)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			// Verify it covers the DS hash
-			if !sut.nsec3Covers([]*dns.NSEC3{nsec3OptOut}, hashDS) {
-				Skip("Test setup: DS hash not in opt-out range")
+				NextDomain: "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV", // Maximum hash
 			}
 
 			// For DS query with opt-out covering the hash, should return Insecure
@@ -1256,27 +1252,24 @@ var _ = Describe("NSEC3 validation", func() {
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
+				NextDomain: hashZone, // Points to itself
 			}
 
-			// Create opt-out NSEC3 covering DS hash
+			// Compute DS hash first
+			hashDS, err := sut.computeNSEC3Hash("test.example.com.", dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			// Create opt-out NSEC3 that covers entire hash space
 			nsec3OptOut := &dns.NSEC3{
 				Hdr: dns.RR_Header{
-					Name:   "00000000.example.com.",
+					Name:   "00000000000000000000000000000000.example.com.", // Minimum hash
 					Rrtype: dns.TypeNSEC3,
 				},
 				Flags:      0x01, // Opt-Out
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
-				NextDomain: "ZZZZZZZZ",
-			}
-
-			hashDS, err := sut.computeNSEC3Hash("test.example.com.", dns.SHA1, "", 0)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			// Verify DS hash is covered by opt-out
-			if !sut.nsec3Covers([]*dns.NSEC3{nsec3OptOut}, hashDS) {
-				Skip("Test setup: DS hash not in opt-out range")
+				NextDomain: "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV", // Maximum hash
 			}
 
 			// DS query with opt-out covering, no wildcard NSEC3 found
@@ -1488,6 +1481,7 @@ var _ = Describe("NSEC3 validation", func() {
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
+				NextDomain: hashZone, // Points to itself
 			}
 
 			nsec3Wildcard := &dns.NSEC3{
@@ -1530,6 +1524,7 @@ var _ = Describe("NSEC3 validation", func() {
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
+				NextDomain: hashZone, // Points to itself
 			}
 
 			nsec3Wildcard := &dns.NSEC3{
@@ -1837,6 +1832,7 @@ var _ = Describe("NSEC3 validation", func() {
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
+				NextDomain: hashZone, // Points to itself
 			}
 
 			// No wildcard NSEC3 record present
@@ -1863,6 +1859,7 @@ var _ = Describe("NSEC3 validation", func() {
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
+				NextDomain: hashZone, // Points to itself
 			}
 
 			// Opt-out NSEC3 that covers the query
@@ -1919,14 +1916,8 @@ var _ = Describe("NSEC3 validation", func() {
 			qname := "nonexistent.example.com."
 			zoneName := "example.com."
 
-			// Compute all required hashes
+			// Compute zone hash for closest encloser
 			hashZone, err := sut.computeNSEC3Hash(zoneName, dns.SHA1, "AABBCCDD", 10)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			hashNextCloser, err := sut.computeNSEC3Hash("nonexistent.example.com.", dns.SHA1, "AABBCCDD", 10)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			hashWildcard, err := sut.computeNSEC3Hash("*.example.com.", dns.SHA1, "AABBCCDD", 10)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Create NSEC3 for zone apex (closest encloser) - direct match
@@ -1944,11 +1935,10 @@ var _ = Describe("NSEC3 validation", func() {
 				NextDomain: hashZone, // Points to itself for simplicity
 			}
 
-			// Create NSEC3 that covers the next closer
-			// We need owner < nextCloser < NextDomain
+			// Create NSEC3 that covers entire hash space (for next closer)
 			nsec3NextCloserCover := &dns.NSEC3{
 				Hdr: dns.RR_Header{
-					Name:   "0000000000000000.example.com.",
+					Name:   "00000000000000000000000000000000.example.com.", // Minimum hash
 					Rrtype: dns.TypeNSEC3,
 					Class:  dns.ClassINET,
 					Ttl:    3600,
@@ -1957,13 +1947,14 @@ var _ = Describe("NSEC3 validation", func() {
 				Salt:       "AABBCCDD",
 				Iterations: 10,
 				Flags:      0,
-				NextDomain: "ZZZZZZZZZZZZZZZZ", // Large hash to ensure coverage
+				NextDomain: "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV", // Maximum hash
 			}
 
-			// Create NSEC3 that covers the wildcard
+			// Create NSEC3 that covers entire hash space (for wildcard)
+			// Use a different owner to avoid duplicate records
 			nsec3WildcardCover := &dns.NSEC3{
 				Hdr: dns.RR_Header{
-					Name:   "1111111111111111.example.com.",
+					Name:   "00000000000000000000000000000001.example.com.", // Slightly different
 					Rrtype: dns.TypeNSEC3,
 					Class:  dns.ClassINET,
 					Ttl:    3600,
@@ -1972,15 +1963,7 @@ var _ = Describe("NSEC3 validation", func() {
 				Salt:       "AABBCCDD",
 				Iterations: 10,
 				Flags:      0,
-				NextDomain: "ZZZZZZZZZZZZZZZZ",
-			}
-
-			// Verify that next closer and wildcard are actually covered
-			if !sut.nsec3Covers([]*dns.NSEC3{nsec3NextCloserCover}, hashNextCloser) {
-				Skip("Test setup: next closer not covered by NSEC3")
-			}
-			if !sut.nsec3Covers([]*dns.NSEC3{nsec3WildcardCover}, hashWildcard) {
-				Skip("Test setup: wildcard not covered by NSEC3")
+				NextDomain: "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV", // Maximum hash
 			}
 
 			result := sut.validateNSEC3NXDOMAIN(
@@ -2009,7 +1992,7 @@ var _ = Describe("NSEC3 validation", func() {
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
-				NextDomain: hashZone,
+				// Don't set NextDomain - let it remain empty
 			}
 
 			// Next closer and wildcard coverage are missing, so will return Bogus
@@ -2042,6 +2025,7 @@ var _ = Describe("NSEC3 validation", func() {
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
+				NextDomain: hashZone, // Points to itself
 			}
 
 			// NSEC3 covering next closer (no opt-out flag)
@@ -2138,6 +2122,7 @@ var _ = Describe("NSEC3 validation", func() {
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
+				NextDomain: hashZone, // Points to itself
 			}
 
 			// NSEC3 that doesn't cover the query (no opt-out)
@@ -2177,6 +2162,7 @@ var _ = Describe("NSEC3 validation", func() {
 				Hash:       dns.SHA1,
 				Salt:       "",
 				Iterations: 0,
+				NextDomain: hashZone, // Points to itself
 			}
 
 			// Use unsupported hash algorithm to trigger error
