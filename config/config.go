@@ -267,6 +267,7 @@ type Config struct {
 	EDE              EDE                 `yaml:"ede"`
 	ECS              ECS                 `yaml:"ecs"`
 	SUDN             SUDN                `yaml:"specialUseDomains"`
+	DNSSEC           DNSSEC              `yaml:"dnssec"`
 
 	// Deprecated options
 	Deprecated struct {

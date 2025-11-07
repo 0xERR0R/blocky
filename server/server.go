@@ -304,6 +304,8 @@ func createQueryResolver(
 	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(ctx, cfg.Conditional, cfg.Upstreams, bootstrap)
 	hostsFile, hfErr := resolver.NewHostsFileResolver(ctx, cfg.HostsFile, bootstrap)
 	cachingResolver, crErr := resolver.NewCachingResolver(ctx, cfg.Caching, redisClient)
+	// Pass upstreamTree to DNSSEC resolver so it can query for DNSKEY/DS records
+	dnssecResolver, dsErr := resolver.NewDNSSECResolver(ctx, cfg.DNSSEC, upstreamTree)
 
 	multiErr := multierror.Append(
 		multierror.Prefix(utErr, "upstream tree resolver: "),
@@ -313,6 +315,7 @@ func createQueryResolver(
 		multierror.Prefix(cuErr, "conditional upstream resolver: "),
 		multierror.Prefix(hfErr, "hosts file resolver: "),
 		multierror.Prefix(crErr, "caching resolver: "),
+		multierror.Prefix(dsErr, "dnssec resolver: "),
 	).ErrorOrNil()
 	if multiErr != nil {
 		return nil, fmt.Errorf("failed to create query resolver components: %w", multiErr)
@@ -329,6 +332,7 @@ func createQueryResolver(
 		resolver.NewCustomDNSResolver(cfg.CustomDNS),
 		hostsFile,
 		blocking,
+		dnssecResolver, // DNSSEC validation BEFORE caching - validates all responses before they are cached
 		cachingResolver,
 		condUpstream,
 		resolver.NewSpecialUseDomainNamesResolver(cfg.SUDN),

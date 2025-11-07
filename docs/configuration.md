@@ -29,13 +29,13 @@ configuration properties as [JSON](config.yml).
 
 All values in this section are optional.
 
-| Parameter   | Type                  | Default value | Description                                                                                                                                       |
-| ----------- | --------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ports.dns   | One or more [IP]:Port | 53            | Listen address for DNS (TCP and UDP). Example: `53`, `:53`, `192.168.0.1:53`, `[53, "[::1]:53"]`                                                  |
-| ports.tls   | One or more [IP]:Port |               | Listen address for DoT (DNS-over-TLS). Example: `83`, `:853`, `192.168.0.1:853`, `[853, "[::1]:853"]`                                             |
-| ports.http  | One or more [IP]:Port |               | Listen address for HTTP used for prometheus metrics, pprof, REST API, DoH... Example: `4000`, `:4000`, `192.168.0.1:4000`, `[4000, "[::1]:4000"]` |
-| ports.https | One or more [IP]:Port |               | Listen address for HTTPS used for prometheus metrics, pprof, REST API, DoH... Example: `443`, `:443`, `192.168.0.1:443`, `[443, "[::1]:443"]`     |
-| ports.dohPath | string | /dns-query | URL path for DoH queries.
+| Parameter     | Type                  | Default value | Description                                                                                                                                       |
+|---------------|-----------------------|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| ports.dns     | One or more [IP]:Port | 53            | Listen address for DNS (TCP and UDP). Example: `53`, `:53`, `192.168.0.1:53`, `[53, "[::1]:53"]`                                                  |
+| ports.tls     | One or more [IP]:Port |               | Listen address for DoT (DNS-over-TLS). Example: `83`, `:853`, `192.168.0.1:853`, `[853, "[::1]:853"]`                                             |
+| ports.http    | One or more [IP]:Port |               | Listen address for HTTP used for prometheus metrics, pprof, REST API, DoH... Example: `4000`, `:4000`, `192.168.0.1:4000`, `[4000, "[::1]:4000"]` |
+| ports.https   | One or more [IP]:Port |               | Listen address for HTTPS used for prometheus metrics, pprof, REST API, DoH... Example: `443`, `:443`, `192.168.0.1:443`, `[443, "[::1]:443"]`     |
+| ports.dohPath | string                | /dns-query    | URL path for DoH queries.                                                                                                                         |
 
 !!! example
 
@@ -874,6 +874,259 @@ Configuration parameters:
     specialUseDomains:
       enable: false
     ```
+
+## DNSSEC validation
+
+DNSSEC (Domain Name System Security Extensions) provides cryptographic authentication of DNS data to protect against cache poisoning, man-in-the-middle attacks, and DNS spoofing. When enabled, Blocky validates DNSSEC signatures on DNS responses and ensures the chain of trust from the root zone to the queried domain.
+
+### Overview
+
+When DNSSEC validation is enabled, Blocky will:
+
+- Set the DNSSEC OK (DO) bit on all upstream queries to request DNSSEC records
+- Validate cryptographic signatures (RRSIG records) in DNS responses
+- Verify the chain of trust from root to the queried domain using DNSKEY and DS records
+- Validate authenticated denial of existence using NSEC/NSEC3 records for NXDOMAIN and NODATA responses
+- Validate wildcard expansions according to RFC 4035 §5.3.4
+- Return SERVFAIL for responses with invalid DNSSEC signatures (Bogus)
+- Set the Authenticated Data (AD) flag only after successful validation
+- Add Extended DNS Error (EDE) codes per RFC 8914 when validation fails
+
+### RFC Compliance
+
+Blocky's DNSSEC implementation complies with the following RFCs:
+
+- **RFC 4033/4034/4035** (DNSSEC core specifications): Fully implemented
+- **RFC 5155** (NSEC3): Implemented with configurable iteration limits
+- **RFC 6840** (DNSSEC clarifications): Implemented including algorithm downgrade protection
+- **RFC 8624** (Algorithm implementation requirements): Supports recommended algorithms
+- **RFC 8914** (Extended DNS Errors): Provides detailed error information
+
+### Security Benefits
+
+DNSSEC validation protects against:
+
+- **Cache poisoning attacks**: Prevents attackers from injecting false DNS records into the cache
+- **Man-in-the-middle attacks**: Ensures DNS responses haven't been tampered with in transit
+- **DNS spoofing**: Verifies that DNS responses come from authoritative sources
+- **Forged denial-of-existence**: Validates that NXDOMAIN responses are authentic
+
+### Configuration Parameters
+
+| Parameter                 | Type          | Mandatory | Default value | Description                                                                                       |
+| ------------------------- | ------------- | --------- | ------------- | ------------------------------------------------------------------------------------------------- |
+| dnssec.validate           | bool          | no        | false         | Enable DNSSEC validation                                                                          |
+| dnssec.maxChainDepth      | uint          | no        | 10            | Maximum domain label depth for chain of trust validation (DoS protection)                         |
+| dnssec.cacheExpirationHours | uint        | no        | 1             | How long to cache validation results in hours                                                     |
+| dnssec.maxUpstreamQueries | uint          | no        | 30            | Maximum upstream DNS queries per validation request (DoS protection)                              |
+| dnssec.maxNSEC3Iterations | uint          | no        | 150           | Maximum NSEC3 hash iterations allowed (DoS protection, per RFC 5155 §10.3)                        |
+| dnssec.clockSkewToleranceSec | uint       | no        | 3600          | Clock skew tolerance in seconds for signature validation (per RFC 6781 §4.1.2)                    |
+| dnssec.trustAnchors       | string array  | no        | []            | Custom trust anchors (DNSKEY or DS records). Empty array uses built-in root trust anchors         |
+
+### DoS Protection
+
+DNSSEC validation can be computationally expensive and requires additional DNS queries. Blocky includes several protections against DoS attacks:
+
+- **maxChainDepth**: Limits validation depth for deeply nested domains (e.g., prevents validation of `a.b.c.d.e.f.g.h.i.j.example.com`)
+- **maxUpstreamQueries**: Limits the number of upstream queries (DNSKEY/DS lookups) per validation to prevent query amplification
+- **maxNSEC3Iterations**: Limits NSEC3 hash iterations to prevent CPU exhaustion attacks
+- **Validation caching**: Caches validation results to avoid repeated expensive validations
+
+### Clock Skew Tolerance
+
+DNSSEC signatures have inception and expiration timestamps. Blocky validates that the current time falls within this validity window. However, in real-world deployments, system clocks may not be perfectly synchronized, which can cause valid signatures to be rejected.
+
+The `clockSkewToleranceSec` parameter (default: 3600 seconds = 1 hour) allows validation to succeed even if the system clock is off by the specified amount. This matches the behavior of industry-standard validators like Unbound and BIND.
+
+**Common scenarios where clock skew tolerance is important:**
+
+- **Virtual machines**: Clock drift after suspend/resume or snapshot restore operations
+- **Containers**: Clock synchronization issues with the host system
+- **IoT/embedded devices**: Systems without NTP or with battery-backed RTCs that lose time
+- **Systems during NTP sync**: Time adjustment in progress when DNSSEC validation is needed
+- **Raspberry Pi and similar SBCs**: Devices that lose time on power loss
+
+**Recommended values:**
+
+- **300 seconds (5 minutes)**: Conservative setting, handles typical NTP drift
+- **3600 seconds (1 hour)**: Default, handles timezone/DST issues and matches Unbound/BIND
+- **7200 seconds (2 hours)**: Lenient setting for systems with significant clock problems
+
+!!! warning "Security vs. Robustness Tradeoff"
+    Larger clock skew tolerance values increase the risk of accepting signatures that are actually expired or not yet valid. Smaller values increase the risk of false negatives from clock drift. For production deployments, ensure NTP or systemd-timesyncd is properly configured and use the default 1-hour tolerance.
+
+### Validation Results
+
+Blocky classifies DNSSEC validation results into four categories:
+
+| Result          | Description                                                          | Response Handling                        |
+| --------------- | -------------------------------------------------------------------- | ---------------------------------------- |
+| **Secure**      | Valid DNSSEC signatures and complete chain of trust                  | AD flag set, response returned           |
+| **Insecure**    | Domain is not signed with DNSSEC (no RRSIG records)                  | AD flag cleared, response returned       |
+| **Bogus**       | Invalid DNSSEC signatures or broken chain of trust                   | SERVFAIL returned with EDE code          |
+| **Indeterminate** | Validation could not be completed (e.g., network errors, budget exceeded) | AD flag cleared, response returned |
+
+### Trust Anchors
+
+By default, Blocky uses the latest IANA root trust anchors (KSK-2017 and KSK-2024) for DNSSEC validation. These are the same trust anchors used by major DNS resolvers and are embedded in the Blocky binary.
+
+#### Custom Trust Anchors
+
+You can override the default trust anchors for:
+
+- Testing DNSSEC in lab environments
+- Validating private/internal DNSSEC-signed zones
+- Using specific trust anchors for organizational requirements
+
+Trust anchors can be specified in two formats:
+
+1. **DNSKEY format**: Full DNSKEY record in zone file format
+2. **DS format**: DS record pointing to a DNSKEY in the child zone
+
+!!! warning
+    Specifying custom trust anchors **replaces** the default root trust anchors. If you need to validate both public domains and private zones, you must include both the root trust anchors and your custom anchors.
+
+### Supported Algorithms
+
+Blocky supports the following DNSSEC algorithms per RFC 8624:
+
+| Algorithm | ID | Status | Security Level |
+| --------- | -- | ------ | -------------- |
+| RSASHA1   | 5  | Deprecated (still supported) | Weak |
+| RSASHA256 | 8  | Recommended | Moderate |
+| RSASHA512 | 10 | Recommended | Moderate |
+| ECDSAP256SHA256 | 13 | Recommended | Strong |
+| ECDSAP384SHA384 | 14 | Recommended | Strong |
+| ED25519   | 15 | Recommended | Very Strong |
+| ED448     | 16 | Recommended | Strongest |
+
+Blocky automatically selects the strongest available algorithm when multiple signatures are present, providing protection against algorithm downgrade attacks per RFC 6840 §5.11.
+
+### Performance Considerations
+
+DNSSEC validation adds overhead to DNS resolution:
+
+- **Additional queries**: Each validation may require 2-4 additional queries for DNSKEY and DS records
+- **Cryptographic operations**: Signature verification requires CPU time
+- **Caching helps significantly**: The validation cache reduces overhead for frequently queried domains
+
+Recommendations:
+
+- Start with `cacheExpirationHours: 1` and increase if validation overhead is acceptable
+- Monitor upstream query count with the `maxUpstreamQueries` metric
+- Use `prefetching` in the caching resolver to pre-validate popular domains
+- Consider disabling for high-volume recursive resolvers if performance is critical
+
+### Examples
+
+!!! example "Basic DNSSEC validation"
+
+    ```yaml
+    dnssec:
+      validate: true
+    ```
+
+    This enables DNSSEC validation with all default settings. Blocky will validate all DNSSEC-signed domains using the built-in root trust anchors.
+
+!!! example "DNSSEC validation with custom DoS protection"
+
+    ```yaml
+    dnssec:
+      validate: true
+      maxChainDepth: 15
+      maxUpstreamQueries: 50
+      maxNSEC3Iterations: 100
+      cacheExpirationHours: 2
+    ```
+
+    This configuration increases the allowed chain depth and upstream queries for complex delegation scenarios, while reducing NSEC3 iterations for better DoS protection and doubling the cache duration.
+
+!!! example "DNSSEC validation with clock skew tolerance for embedded systems"
+
+    ```yaml
+    dnssec:
+      validate: true
+      clockSkewToleranceSec: 7200  # 2 hours tolerance for systems with clock drift
+    ```
+
+    This configuration is suitable for embedded devices, Raspberry Pi, or systems without reliable NTP. The 2-hour tolerance allows validation to succeed even with significant clock drift, while still providing DNSSEC security.
+
+!!! example "DNSSEC validation with custom trust anchor for private zone"
+
+    ```yaml
+    dnssec:
+      validate: true
+      trustAnchors:
+        # Root KSK-2024 (required for public domains)
+        - ". 172800 IN DNSKEY 257 3 8 AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTOiW1vkIbzxeF3..."
+        # Custom DNSKEY for internal zone
+        - "corp.internal. 86400 IN DNSKEY 257 3 13 mdsswUyr3DPW132mOi8V9xESWE8jTo0dxCjjnopKl+GqJxpVXckHAeF..."
+    ```
+
+    This configuration validates both public internet domains (using the root trust anchor) and a private `corp.internal` zone using a custom trust anchor.
+
+!!! example "Testing DNSSEC validation"
+
+    ```yaml
+    dnssec:
+      validate: true
+    log:
+      level: debug
+    ```
+
+    Enable debug logging to see detailed DNSSEC validation information for troubleshooting.
+
+### Monitoring
+
+Blocky exposes Prometheus metrics for DNSSEC validation:
+
+- `blocky_dnssec_validation_total{result="secure|insecure|bogus|indeterminate"}`: Total validations by result
+- `blocky_dnssec_cache_hits_total`: Number of validation cache hits
+- `blocky_dnssec_validation_duration_seconds{result="..."}`: Validation duration histogram
+
+### Troubleshooting
+
+**Problem**: All DNSSEC-signed domains return SERVFAIL
+
+- Check that your upstream DNS servers support DNSSEC and return DNSSEC records
+- Verify the DO bit is being set on upstream queries (check logs with `log.level: debug`)
+- Ensure your upstream servers are not stripping DNSSEC records
+
+**Problem**: Specific domain fails DNSSEC validation
+
+- Check if the domain's DNSSEC is properly configured using online validators like [DNSViz](https://dnsviz.net/) or [Verisign DNSSEC Debugger](https://dnssec-debugger.verisignlabs.com/)
+- Enable debug logging to see detailed validation failure reasons
+- Check for expired RRSIG records or missing DNSKEY records
+
+**Problem**: High CPU usage after enabling DNSSEC
+
+- Increase `cacheExpirationHours` to reduce validation frequency
+- Lower `maxNSEC3Iterations` if validating many NSEC3-signed zones
+- Consider disabling DNSSEC validation for internal-only resolvers
+
+**Problem**: Validation fails with "budget exhausted"
+
+- Increase `maxUpstreamQueries` for domains with complex delegation chains
+- Check if upstream servers are slow to respond (may require multiple retries)
+- Increase `maxChainDepth` for deeply nested subdomains
+
+**Problem**: Signatures rejected as "expired" or "not yet valid" despite being valid
+
+- Check your system clock is synchronized with NTP (`timedatectl status` on Linux)
+- Increase `clockSkewToleranceSec` if your system has known clock drift issues (VMs, containers, embedded devices)
+- Verify RRSIG inception/expiration times are reasonable using online validators
+- For systems without NTP, consider using a larger tolerance (e.g., 7200 seconds = 2 hours)
+
+### References
+
+- [RFC 4033 - DNS Security Introduction and Requirements](https://www.rfc-editor.org/rfc/rfc4033.html)
+- [RFC 4034 - Resource Records for DNSSEC](https://www.rfc-editor.org/rfc/rfc4034.html)
+- [RFC 4035 - Protocol Modifications for DNSSEC](https://www.rfc-editor.org/rfc/rfc4035.html)
+- [RFC 5155 - DNSSEC Hashed Authenticated Denial of Existence](https://www.rfc-editor.org/rfc/rfc5155.html)
+- [RFC 6781 - DNSSEC Operational Practices, Version 2](https://www.rfc-editor.org/rfc/rfc6781.html)
+- [RFC 8624 - Algorithm Implementation Requirements for DNSSEC](https://www.rfc-editor.org/rfc/rfc8624.html)
+- [RFC 8914 - Extended DNS Errors](https://www.rfc-editor.org/rfc/rfc8914.html)
+- [DNSSEC Best Practices](https://www.icann.org/resources/pages/dnssec-qaa-2014-01-29-en)
 
 ## SSL certificate configuration (DoH / TLS listener)
 

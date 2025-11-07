@@ -368,3 +368,70 @@ ecs:
   useAsClient: true
   # optional: if the request contains a ecs option it will be forwarded to the upstream resolver
   forward: true
+
+# optional: DNSSEC validation configuration
+# DNSSEC (Domain Name System Security Extensions) provides cryptographic authentication
+# of DNS data to protect against cache poisoning and man-in-the-middle attacks
+dnssec:
+  # Enable DNSSEC validation. When enabled, Blocky will:
+  # - Set the DNSSEC OK (DO) bit on upstream queries
+  # - Validate cryptographic signatures (RRSIG) in DNS responses
+  # - Verify the chain of trust from root to queried domain
+  # - Validate authenticated denial of existence (NSEC/NSEC3 for NXDOMAIN/NODATA)
+  # - Validate wildcard expansions per RFC 4035 §5.3.4
+  # - Return SERVFAIL for responses with invalid DNSSEC signatures (Bogus)
+  # - Set the Authenticated Data (AD) flag only after successful validation
+  #
+  # default: false
+  validate: true
+
+  # Maximum domain label depth for chain of trust validation
+  # Prevents DoS with deeply nested domains (e.g., a.b.c.d.e.f.g.h.i.j.example.com)
+  # default: 10
+  maxChainDepth: 10
+
+  # How long to cache validation results (in hours)
+  # Improves performance by avoiding repeated validation of the same domains
+  # default: 1
+  cacheExpirationHours: 1
+
+  # Maximum upstream DNS queries per validation request
+  # Protects against DoS attacks with queries requiring many upstream lookups
+  # (e.g., deeply nested delegation chains requiring DNSKEY + DS queries per level)
+  # Validation will fail if budget is exhausted
+  # default: 30
+  maxUpstreamQueries: 30
+
+  # Maximum NSEC3 hash iterations allowed during validation
+  # NSEC3 is used for authenticated denial of existence in DNSSEC zones
+  # Higher iteration counts increase CPU cost, making DoS attacks possible
+  # RFC 5155 §10.3 recommends rejecting responses with excessive iterations
+  # default: 150
+  maxNSEC3Iterations: 150
+
+  # Clock skew tolerance in seconds for signature timestamp validation
+  # Allows validation to succeed even if the system clock is off by this amount
+  # RFC 6781 §4.1.2 recommends accounting for clock skew in deployment environments
+  # This is especially important for:
+  # - Virtual machines (clock drift after suspend/resume)
+  # - Containers (clock sync with host)
+  # - IoT/embedded devices (no NTP, battery-backed RTC)
+  # - Systems during NTP synchronization
+  # Default matches industry standard validators (Unbound, BIND)
+  # - 300 (5 minutes): Conservative, handles typical NTP drift
+  # - 3600 (1 hour): Lenient, handles timezone/DST issues (default)
+  # - 7200 (2 hours): Very lenient, for systems with significant clock problems
+  # default: 3600 (1 hour)
+  clockSkewToleranceSec: 3600
+
+  # optional: Custom trust anchors (DNSKEY records) for DNSSEC validation
+  # By default, Blocky uses the latest IANA root trust anchors (KSK-2017 and KSK-2024)
+  # Only override this for testing, private zones, or lab environments
+  # Format: DNS record format (DNSKEY or DS records)
+  # WARNING: Specifying custom trust anchors replaces the default root trust anchors
+  # default: [] (use built-in root trust anchors)
+  trustAnchors:
+    # Example: Custom DNSKEY record for a private zone
+    - "example.com. 86400 IN DNSKEY 257 3 8 AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTO..."
+    # Example: DS record format (for parent zone validation)
+    - "subdomain.example.com. 3600 IN DS 12345 8 2 1234567890ABCDEF..."

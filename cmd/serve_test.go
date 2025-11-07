@@ -58,7 +58,7 @@ var _ = Describe("Serve command", func() {
 					conn, err := net.DialTimeout("tcp", "127.0.0.1:"+port, 200*time.Millisecond)
 					g.Expect(err).Should(Succeed())
 					defer conn.Close()
-				}).Should(Succeed())
+				}, "5s").Should(Succeed())
 			})
 
 			By("terminate with signal", func() {

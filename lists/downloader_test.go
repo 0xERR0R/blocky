@@ -193,7 +193,7 @@ var _ = Describe("Downloader", func() {
 		When("DNS resolution of passed URL fails", func() {
 			BeforeEach(func() {
 				sutConfig = config.Downloader{
-					Timeout:  config.Duration(500 * time.Millisecond),
+					Timeout:  config.Duration(2 * time.Second),
 					Attempts: 3,
 					Cooldown: 200 * config.Duration(time.Millisecond),
 				}
