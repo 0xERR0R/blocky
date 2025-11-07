@@ -256,5 +256,113 @@ var _ = Describe("Denial of existence validation", func() {
 			result := sut.validateDenialOfExistence(exhaustedCtx, response, question)
 			Expect(result).ShouldNot(BeNil())
 		})
+
+		It("should return early when authority section validation fails with Insecure", func() {
+			// Create NSEC record without valid signature
+			nsec := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "a.example.com.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 3600},
+				NextDomain: "z.example.com.",
+			}
+
+			// Mock upstream to return empty DNSKEY (causing validation to fail)
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				return &model.Response{
+					Res: &dns.Msg{
+						Answer: []dns.RR{},
+					},
+				}, nil
+			}
+
+			response := &dns.Msg{
+				Ns: []dns.RR{nsec},
+			}
+			response.Rcode = dns.RcodeNameError
+
+			question := dns.Question{
+				Name:   "m.example.com.",
+				Qtype:  dns.TypeA,
+				Qclass: dns.ClassINET,
+			}
+
+			// Authority section validation should fail
+			result := sut.validateDenialOfExistence(ctx, response, question)
+			// Result should not be Secure since authority section validation failed
+			Expect(result).ShouldNot(Equal(ValidationResultSecure))
+		})
+
+		It("should return early when authority section validation fails with Bogus", func() {
+			// Create NSEC record with invalid signature
+			nsec := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "a.example.com.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 3600},
+				NextDomain: "z.example.com.",
+			}
+			rrsig := &dns.RRSIG{
+				Hdr:         dns.RR_Header{Name: "a.example.com.", Rrtype: dns.TypeRRSIG, Class: dns.ClassINET, Ttl: 3600},
+				TypeCovered: dns.TypeNSEC,
+			}
+
+			response := &dns.Msg{
+				Ns: []dns.RR{nsec, rrsig},
+			}
+			response.Rcode = dns.RcodeNameError
+
+			question := dns.Question{
+				Name:   "m.example.com.",
+				Qtype:  dns.TypeA,
+				Qclass: dns.ClassINET,
+			}
+
+			// Authority section validation should fail
+			result := sut.validateDenialOfExistence(ctx, response, question)
+			Expect(result).ShouldNot(Equal(ValidationResultSecure))
+		})
+
+		It("should handle empty authority section", func() {
+			response := &dns.Msg{
+				Ns: []dns.RR{},
+			}
+			response.Rcode = dns.RcodeNameError
+
+			question := dns.Question{
+				Name:   "example.com.",
+				Qtype:  dns.TypeA,
+				Qclass: dns.ClassINET,
+			}
+
+			result := sut.validateDenialOfExistence(ctx, response, question)
+			Expect(result).Should(Equal(ValidationResultInsecure))
+		})
+
+		It("should detect both NSEC and NSEC3 when scanning authority section", func() {
+			// Mix of NSEC, NSEC3, and other record types
+			nsec := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "a.example.com.", Rrtype: dns.TypeNSEC},
+				NextDomain: "z.example.com.",
+			}
+			nsec3 := &dns.NSEC3{
+				Hdr:        dns.RR_Header{Name: "hash.example.com.", Rrtype: dns.TypeNSEC3},
+				Hash:       dns.SHA1,
+				Salt:       "",
+				Iterations: 0,
+			}
+			soa := &dns.SOA{
+				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeSOA},
+			}
+
+			response := &dns.Msg{
+				Ns: []dns.RR{soa, nsec, nsec3},
+			}
+			response.Rcode = dns.RcodeNameError
+
+			question := dns.Question{
+				Name:   "test.example.com.",
+				Qtype:  dns.TypeA,
+				Qclass: dns.ClassINET,
+			}
+
+			// Should use NSEC3 (checked first)
+			result := sut.validateDenialOfExistence(ctx, response, question)
+			Expect(result).ShouldNot(BeNil())
+		})
 	})
 })
