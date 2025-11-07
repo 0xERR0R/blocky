@@ -33,7 +33,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.40.0
 	github.com/testcontainers/testcontainers-go/modules/mariadb v0.39.0
-	github.com/testcontainers/testcontainers-go/modules/postgres v0.39.0
+	github.com/testcontainers/testcontainers-go/modules/postgres v0.40.0
 	github.com/testcontainers/testcontainers-go/modules/redis v0.39.0
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
 	golang.org/x/exp v0.0.0-20250718183923-645b1fa84792
