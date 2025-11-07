@@ -1,3 +1,48 @@
+// Package resolver implements DNS resolution with support for DNSSEC validation.
+//
+// # DNSSEC Validation Implementation
+//
+// This file implements DNSSEC (Domain Name System Security Extensions) validation
+// according to the following RFCs:
+//   - RFC 4033: DNS Security Introduction and Requirements
+//   - RFC 4034: Resource Records for DNS Security Extensions
+//   - RFC 4035: Protocol Modifications for DNS Security Extensions
+//   - RFC 5155: DNS Security (DNSSEC) Hashed Authenticated Denial of Existence
+//   - RFC 6840: Clarifications and Implementation Notes for DNSSEC
+//   - RFC 6781: DNSSEC Operational Practices, Version 2
+//   - RFC 8080: Edwards-Curve Digital Security Algorithm (EdDSA) for DNSSEC
+//   - RFC 8624: Algorithm Implementation Requirements and Usage Guidance for DNSSEC
+//
+// Key Features:
+//
+// 1. Full Chain of Trust Validation
+//   - Validates DNSSEC signatures from trust anchors (root keys) down to zone data
+//   - Supports both NSEC and NSEC3 authenticated denial of existence
+//   - Handles wildcard expansion validation per RFC 4035 §5.3.4
+//
+// 2. DoS Protection
+//   - Configurable maximum chain depth to prevent excessive recursion
+//   - Maximum NSEC3 iteration limit (default 150, per RFC 5155 §10.3)
+//   - Maximum upstream query budget to prevent query amplification attacks
+//   - Request-scoped query counting to track and limit validation overhead
+//
+// 3. Security Best Practices
+//   - Algorithm downgrade attack prevention (RFC 6840 §5.11)
+//   - Clock skew tolerance for signature validation (RFC 6781 §4.1.2)
+//   - Support for modern algorithms including EdDSA (RFC 8080)
+//   - Comprehensive validation result caching to reduce load
+//
+// 4. Performance Optimizations
+//   - Expiring cache for validation results
+//   - NSEC3 hash computation caching
+//   - Prometheus metrics for monitoring validation performance
+//   - Parallel validation where applicable
+//
+// The validator returns one of four results:
+//   - Secure: Valid DNSSEC signatures and complete chain of trust
+//   - Insecure: No DNSSEC (unsigned zone, valid delegation)
+//   - Bogus: Invalid DNSSEC (failed validation, security threat)
+//   - Indeterminate: Validation could not be completed (network/system errors)
 package resolver
 
 //go:generate go tool go-enum -f=$GOFILE --marshal --names --values
