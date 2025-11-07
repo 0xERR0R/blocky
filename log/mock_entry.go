@@ -46,6 +46,9 @@ func (h *MockLoggerHook) Fire(entry *logrus.Entry) error {
 	return nil
 }
 
+// Reset clears the Messages slice, removing all logged messages.
+// It is safe to call concurrently with other methods on MockLoggerHook,
+// as all access to Messages is protected by a mutex.
 func (h *MockLoggerHook) Reset() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
