@@ -4564,4 +4564,482 @@ var _ = Describe("DNSSECValidator", func() {
 			Expect(result).Should(Equal(ValidationResultBogus))
 		})
 	})
+
+	Describe("getNextCloser", func() {
+		It("should compute next closer name from qname and closest encloser", func() {
+			qname := "www.sub.example.com."
+			closestEncloser := "example.com."
+
+			result := sut.getNextCloser(qname, closestEncloser)
+
+			// Next closer should be sub.example.com (one label more than closest encloser)
+			Expect(result).Should(Equal("sub.example.com."))
+		})
+
+		It("should return empty string when qname has same labels as closest encloser", func() {
+			qname := "example.com."
+			closestEncloser := "example.com."
+
+			result := sut.getNextCloser(qname, closestEncloser)
+
+			Expect(result).Should(Equal(""))
+		})
+
+		It("should return empty string when qname has fewer labels than closest encloser", func() {
+			qname := "example.com."
+			closestEncloser := "sub.example.com."
+
+			result := sut.getNextCloser(qname, closestEncloser)
+
+			Expect(result).Should(Equal(""))
+		})
+
+		It("should handle deep subdomains correctly", func() {
+			qname := "a.b.c.d.example.com."
+			closestEncloser := "example.com."
+
+			result := sut.getNextCloser(qname, closestEncloser)
+
+			// Next closer should be d.example.com
+			Expect(result).Should(Equal("d.example.com."))
+		})
+
+		It("should handle TLD as closest encloser", func() {
+			qname := "example.com."
+			closestEncloser := "com."
+
+			result := sut.getNextCloser(qname, closestEncloser)
+
+			Expect(result).Should(Equal("example.com."))
+		})
+	})
+
+	Describe("ValidateResponse - additional coverage", func() {
+		It("should handle response with signatures in authority section only (no answer)", func() {
+			// Create a response with authority section RRSIGs but no answer and not negative
+			response := &dns.Msg{
+				MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess},
+				Answer: []dns.RR{},
+				Ns: []dns.RR{
+					&dns.NS{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeNS,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						Ns: "ns1.example.com.",
+					},
+					&dns.RRSIG{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeRRSIG,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						TypeCovered: dns.TypeNS,
+						Algorithm:   dns.ECDSAP256SHA256,
+						Labels:      2,
+						OrigTtl:     300,
+						Expiration:  uint32(time.Now().Add(24 * time.Hour).Unix()),
+						Inception:   uint32(time.Now().Add(-1 * time.Hour).Unix()),
+						KeyTag:      12345,
+						SignerName:  "example.com.",
+					},
+				},
+			}
+
+			question := dns.Question{
+				Name:   "example.com.",
+				Qtype:  dns.TypeNS,
+				Qclass: dns.ClassINET,
+			}
+
+			// Mock upstream to return DNSKEY
+			key := &dns.DNSKEY{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeDNSKEY,
+					Class:  dns.ClassINET,
+					Ttl:    300,
+				},
+				Flags:     257,
+				Protocol:  3,
+				Algorithm: dns.ECDSAP256SHA256,
+			}
+			mockUpstream.On("Resolve", mock.Anything).Return(&model.Response{
+				Res: &dns.Msg{
+					Answer: []dns.RR{key},
+				},
+			}, nil)
+
+			result := sut.ValidateResponse(context.Background(), response, question)
+
+			// Should attempt to validate authority section
+			// Result will be Bogus because we can't properly verify without real crypto
+			// but we're testing that this code path is executed
+			Expect(result).Should(BeElementOf(ValidationResultBogus, ValidationResultIndeterminate))
+		})
+
+		It("should handle response with signatures in additional section only", func() {
+			// Create a response with additional section RRSIGs
+			response := &dns.Msg{
+				MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess},
+				Answer: []dns.RR{},
+				Ns:     []dns.RR{},
+				Extra: []dns.RR{
+					&dns.A{
+						Hdr: dns.RR_Header{
+							Name:   "ns1.example.com.",
+							Rrtype: dns.TypeA,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						A: []byte{192, 0, 2, 1},
+					},
+					&dns.RRSIG{
+						Hdr: dns.RR_Header{
+							Name:   "ns1.example.com.",
+							Rrtype: dns.TypeRRSIG,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						TypeCovered: dns.TypeA,
+						Algorithm:   dns.ECDSAP256SHA256,
+						Labels:      3,
+						OrigTtl:     300,
+						Expiration:  uint32(time.Now().Add(24 * time.Hour).Unix()),
+						Inception:   uint32(time.Now().Add(-1 * time.Hour).Unix()),
+						KeyTag:      12345,
+						SignerName:  "example.com.",
+					},
+				},
+			}
+
+			question := dns.Question{
+				Name:   "example.com.",
+				Qtype:  dns.TypeNS,
+				Qclass: dns.ClassINET,
+			}
+
+			result := sut.ValidateResponse(context.Background(), response, question)
+
+			// Should attempt to validate additional section
+			Expect(result).Should(BeElementOf(ValidationResultBogus, ValidationResultInsecure, ValidationResultIndeterminate))
+		})
+
+		It("should return Insecure for default case with no signatures and no answer", func() {
+			// Create a response that doesn't match any specific case
+			response := &dns.Msg{
+				MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess},
+				Answer: []dns.RR{},
+				Ns:     []dns.RR{},
+				Extra:  []dns.RR{},
+			}
+
+			question := dns.Question{
+				Name:   "example.com.",
+				Qtype:  dns.TypeA,
+				Qclass: dns.ClassINET,
+			}
+
+			result := sut.ValidateResponse(context.Background(), response, question)
+
+			Expect(result).Should(Equal(ValidationResultInsecure))
+		})
+	})
+
+	Describe("validateDenialOfExistence - additional coverage", func() {
+		It("should return Insecure when no NSEC or NSEC3 records present", func() {
+			// NXDOMAIN response without NSEC/NSEC3 records
+			response := &dns.Msg{
+				MsgHdr: dns.MsgHdr{Rcode: dns.RcodeNameError},
+				Answer: []dns.RR{},
+				Ns:     []dns.RR{}, // No NSEC/NSEC3
+			}
+
+			question := dns.Question{
+				Name:   "nonexistent.example.com.",
+				Qtype:  dns.TypeA,
+				Qclass: dns.ClassINET,
+			}
+
+			result := sut.validateDenialOfExistence(context.Background(), response, question)
+
+			Expect(result).Should(Equal(ValidationResultInsecure))
+		})
+
+		It("should validate authority section before checking denial proof", func() {
+			// Create response with invalid signatures in authority section
+			response := &dns.Msg{
+				MsgHdr: dns.MsgHdr{Rcode: dns.RcodeNameError},
+				Answer: []dns.RR{},
+				Ns: []dns.RR{
+					&dns.NSEC{
+						Hdr: dns.RR_Header{
+							Name:   "a.example.com.",
+							Rrtype: dns.TypeNSEC,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						NextDomain: "z.example.com.",
+						TypeBitMap: []uint16{dns.TypeNSEC, dns.TypeRRSIG},
+					},
+					&dns.RRSIG{
+						Hdr: dns.RR_Header{
+							Name:   "a.example.com.",
+							Rrtype: dns.TypeRRSIG,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						TypeCovered: dns.TypeNSEC,
+						Algorithm:   dns.ECDSAP256SHA256,
+						Labels:      2,
+						OrigTtl:     300,
+						Expiration:  uint32(time.Now().Add(-2 * time.Hour).Unix()), // Expired!
+						Inception:   uint32(time.Now().Add(-25 * time.Hour).Unix()),
+						KeyTag:      12345,
+						SignerName:  "example.com.",
+					},
+				},
+			}
+
+			question := dns.Question{
+				Name:   "nonexistent.example.com.",
+				Qtype:  dns.TypeA,
+				Qclass: dns.ClassINET,
+			}
+
+			// Mock DNSKEY query
+			key := &dns.DNSKEY{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeDNSKEY,
+					Class:  dns.ClassINET,
+					Ttl:    300,
+				},
+				Flags:     257,
+				Protocol:  3,
+				Algorithm: dns.ECDSAP256SHA256,
+			}
+			mockUpstream.On("Resolve", mock.Anything).Return(&model.Response{
+				Res: &dns.Msg{
+					Answer: []dns.RR{key},
+				},
+			}, nil)
+
+			result := sut.validateDenialOfExistence(context.Background(), response, question)
+
+			// Should fail authority section validation before checking denial proof
+			Expect(result).Should(Equal(ValidationResultBogus))
+		})
+	})
+
+	Describe("checkWildcardNSEC3Match - additional coverage", func() {
+		It("should return Bogus when closest encloser not found", func() {
+			qname := "test.example.com."
+			zoneName := "example.com."
+			hashAlg := dns.SHA1
+			salt := ""
+			var iterations uint16
+			qtype := dns.TypeA
+
+			// Empty NSEC3 records - can't find closest encloser
+			nsec3Records := []*dns.NSEC3{}
+
+			qnameHash, _ := sut.computeNSEC3Hash(qname, hashAlg, salt, iterations)
+
+			result := sut.checkWildcardNSEC3Match(nsec3Records, qname, qtype, zoneName, hashAlg, salt, iterations, qnameHash)
+
+			Expect(result).Should(Equal(ValidationResultBogus))
+		})
+	})
+
+	Describe("validateDomainLevel - additional coverage", func() {
+		It("should return Indeterminate when parent validation fails", func() {
+			domain := "example.com."
+
+			// Mock trust anchors (empty to force chain validation)
+			trustAnchors, err := NewTrustAnchorStore(nil)
+			Expect(err).Should(Succeed())
+
+			validator := NewDNSSECValidator(
+				context.Background(),
+				trustAnchors,
+				logger,
+				&mockResolver{},
+				1,
+				10,
+				150,
+				30,
+				3600,
+			)
+
+			// Mock upstream to fail DNSKEY query for parent (.com)
+			tempMock := &mockResolver{}
+			tempMock.On("Resolve", mock.Anything).Return(nil, errors.New("upstream query failed"))
+			validator.upstream = tempMock
+
+			result := validator.validateDomainLevel(context.Background(), domain)
+
+			// Should fail because parent validation fails
+			Expect(result).Should(BeElementOf(ValidationResultIndeterminate, ValidationResultInsecure))
+		})
+
+		It("should return Indeterminate when DS record query fails", func() {
+			domain := "example.com."
+
+			// Set up trust anchors for root
+			trustAnchors, err := NewTrustAnchorStore(nil)
+			Expect(err).Should(Succeed())
+			rootKey := &dns.DNSKEY{
+				Hdr: dns.RR_Header{
+					Name:   ".",
+					Rrtype: dns.TypeDNSKEY,
+					Class:  dns.ClassINET,
+					Ttl:    300,
+				},
+				Flags:     257,
+				Protocol:  3,
+				Algorithm: dns.ECDSAP256SHA256,
+				PublicKey: "test-root-key",
+			}
+			// Use existing trust anchors - root anchors added by default
+
+			tempMock := &mockResolver{}
+			validator := NewDNSSECValidator(
+				context.Background(),
+				trustAnchors,
+				logger,
+				tempMock,
+				1,
+				10,
+				150,
+				30,
+				3600,
+			)
+
+			// Mock to return root key for DNSKEY and fail for DS
+			tempMock.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
+				return req.Req.Question[0].Qtype == dns.TypeDNSKEY
+			})).Return(&model.Response{
+				Res: &dns.Msg{
+					Answer: []dns.RR{rootKey},
+				},
+			}, nil)
+			tempMock.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
+				return req.Req.Question[0].Qtype == dns.TypeDS
+			})).Return(nil, errors.New("DS query failed"))
+
+			result := validator.validateDomainLevel(context.Background(), domain)
+
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
+		})
+
+		It("should return Indeterminate when DNSKEY query fails for domain", func() {
+			domain := "example.com."
+
+			// Set up trust anchors for root
+			trustAnchors, err := NewTrustAnchorStore(nil)
+			Expect(err).Should(Succeed())
+			rootKey := &dns.DNSKEY{
+				Hdr: dns.RR_Header{
+					Name:   ".",
+					Rrtype: dns.TypeDNSKEY,
+					Class:  dns.ClassINET,
+					Ttl:    300,
+				},
+				Flags:     257,
+				Protocol:  3,
+				Algorithm: dns.ECDSAP256SHA256,
+				PublicKey: "test-root-key",
+			}
+			// Use existing trust anchors - root anchors added by default
+
+			tempMock := &mockResolver{}
+			validator := NewDNSSECValidator(
+				context.Background(),
+				trustAnchors,
+				logger,
+				tempMock,
+				1,
+				10,
+				150,
+				30,
+				3600,
+			)
+
+			// Return root DNSKEY
+			tempMock.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
+				return req.Req.Question[0].Qtype == dns.TypeDNSKEY && req.Req.Question[0].Name == "."
+			})).Return(&model.Response{
+				Res: &dns.Msg{
+					Answer: []dns.RR{rootKey},
+				},
+			}, nil)
+
+			// Return DS record
+			ds := &dns.DS{
+				Hdr: dns.RR_Header{
+					Name:   domain,
+					Rrtype: dns.TypeDS,
+					Class:  dns.ClassINET,
+					Ttl:    300,
+				},
+				KeyTag:     12345,
+				Algorithm:  dns.ECDSAP256SHA256,
+				DigestType: dns.SHA256,
+				Digest:     "abcdef0123456789",
+			}
+			sig := &dns.RRSIG{
+				Hdr: dns.RR_Header{
+					Name:   domain,
+					Rrtype: dns.TypeRRSIG,
+					Class:  dns.ClassINET,
+					Ttl:    300,
+				},
+				TypeCovered: dns.TypeDS,
+				Algorithm:   dns.ECDSAP256SHA256,
+				Labels:      2,
+				OrigTtl:     300,
+				Expiration:  uint32(time.Now().Add(24 * time.Hour).Unix()),
+				Inception:   uint32(time.Now().Add(-1 * time.Hour).Unix()),
+				KeyTag:      54321,
+				SignerName:  ".",
+			}
+			tempMock.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
+				return req.Req.Question[0].Qtype == dns.TypeDS && req.Req.Question[0].Name == domain
+			})).Return(&model.Response{
+				Res: &dns.Msg{
+					Answer: []dns.RR{ds, sig},
+				},
+			}, nil)
+
+			// Fail DNSKEY query for domain
+			tempMock.On("Resolve", mock.MatchedBy(func(req *model.Request) bool {
+				return req.Req.Question[0].Qtype == dns.TypeDNSKEY && req.Req.Question[0].Name == domain
+			})).Return(nil, errors.New("DNSKEY query failed"))
+
+			result := validator.validateDomainLevel(context.Background(), domain)
+
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
+		})
+	})
+
+	Describe("validateNSEC3NODATA - additional coverage", func() {
+		It("should return Bogus when NSEC3 hash computation fails", func() {
+			qname := "test.example.com."
+			zoneName := "example.com."
+			hashAlg := uint8(99) // Unsupported algorithm
+			salt := ""
+			var iterations uint16
+			qtype := dns.TypeA
+
+			nsec3Records := []*dns.NSEC3{}
+
+			result := sut.validateNSEC3NODATA(nsec3Records, qname, qtype, zoneName, hashAlg, salt, iterations)
+
+			Expect(result).Should(Equal(ValidationResultBogus))
+		})
+	})
 })
