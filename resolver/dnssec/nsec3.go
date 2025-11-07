@@ -335,6 +335,13 @@ func (v *Validator) findClosestEncloser(qname, zoneName string, nsec3Records []*
 			}
 		}
 
+		// Don't go above the zone
+		// Check this BEFORE moving up to ensure we check the zone apex itself
+		if zoneName != "" && name == zoneName {
+			// We're at the zone apex and didn't find a match - stop here
+			break
+		}
+
 		// Move up one label
 		labels := dns.SplitDomainName(name)
 		if len(labels) <= 1 {
@@ -350,7 +357,7 @@ func (v *Validator) findClosestEncloser(qname, zoneName string, nsec3Records []*
 		}
 
 		// Don't go above the zone
-		if zoneName != "" && (name == zoneName || !dns.IsSubDomain(zoneName, name)) {
+		if zoneName != "" && !dns.IsSubDomain(zoneName, name) {
 			break
 		}
 	}
