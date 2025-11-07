@@ -31,7 +31,7 @@ type SlowMockWriter struct {
 func (m *SlowMockWriter) Write(entry *querylog.LogEntry) {
 	m.entries = append(m.entries, entry)
 
-	time.Sleep(time.Second)
+	time.Sleep(100 * time.Millisecond)
 }
 
 func (m *SlowMockWriter) CleanUp() {
@@ -364,7 +364,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 					Expect(ierr).Should(Succeed())
 
 					return len(sut.logChan)
-				}, "20s", "1µs").Should(Equal(cap(sut.logChan)))
+				}, "3s", "1µs").Should(Equal(cap(sut.logChan)))
 			})
 		})
 	})

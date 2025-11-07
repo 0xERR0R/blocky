@@ -151,7 +151,7 @@ var _ = Describe("Redis client", func() {
 				Eventually(func() map[string]int {
 					return redisServer.PubSubNumSub(SyncChannelName)
 				}).Should(HaveLen(1))
-			}, SpecTimeout(time.Second*6))
+			}, SpecTimeout(time.Second*3))
 		})
 	})
 
@@ -225,7 +225,7 @@ var _ = Describe("Redis client", func() {
 				Eventually(func() chan *CacheMessage {
 					return redisClient.CacheChannel
 				}).Should(HaveLen(lenE + 1))
-			}, SpecTimeout(time.Second*6))
+			}, SpecTimeout(time.Second*3))
 		})
 		When("wrong data is received", func() {
 			It("should not propagate the message over the channel if data is wrong", func(ctx context.Context) {
@@ -258,7 +258,7 @@ var _ = Describe("Redis client", func() {
 				Eventually(func() chan *CacheMessage {
 					return redisClient.CacheChannel
 				}).Should(HaveLen(lenC))
-			}, SpecTimeout(time.Second*6))
+			}, SpecTimeout(time.Second*3))
 			It("should not propagate the message over the channel if type is wrong", func(ctx context.Context) {
 				redisClient, err = New(ctx, redisConfig)
 				Expect(err).Should(Succeed())
@@ -282,16 +282,15 @@ var _ = Describe("Redis client", func() {
 				rec := redisServer.Publish(SyncChannelName, string(binMsg))
 				Expect(rec).Should(Equal(1))
 
-				time.Sleep(2 * time.Second)
+				// Use Consistently to verify channels don't receive invalid messages
+				Consistently(func() int {
+					return len(redisClient.EnabledChannel)
+				}, "200ms", "50ms").Should(Equal(lenE))
 
-				Eventually(func() chan *EnabledMessage {
-					return redisClient.EnabledChannel
-				}).Should(HaveLen(lenE))
-
-				Eventually(func() chan *CacheMessage {
-					return redisClient.CacheChannel
-				}).Should(HaveLen(lenC))
-			}, SpecTimeout(time.Second*6))
+				Consistently(func() int {
+					return len(redisClient.CacheChannel)
+				}, "200ms", "50ms").Should(Equal(lenC))
+			}, SpecTimeout(time.Second*3))
 		})
 	})
 

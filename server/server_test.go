@@ -697,7 +697,8 @@ var _ = Describe("Running DNS server", func() {
 				// start server
 				go server.Start(ctx, errChan)
 
-				time.Sleep(100 * time.Millisecond)
+				// Wait for server to start successfully (no errors)
+				Consistently(errChan, "200ms").ShouldNot(Receive())
 
 				err = server.Stop(ctx)
 
