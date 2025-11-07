@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.22">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.23">
     
     
       
@@ -646,6 +646,10 @@
 </thead>
 <tbody>
 <tr>
+<td>blocky_build_info</td>
+<td>Version number and build info</td>
+</tr>
+<tr>
 <td>blocky_denylist_cache_entries</td>
 <td>Gauge of entries in the denylist cache, partitioned by group</td>
 </tr>
@@ -662,7 +666,7 @@
 <td>Counter of total queries, partitioned by client and <abbr title="Domain Name System">DNS</abbr> request type (A, AAAA, PTR, etc)</td>
 </tr>
 <tr>
-<td>blocky_blocky_request_duration_seconds</td>
+<td>blocky_request_duration_seconds</td>
 <td>Histogram of request duration, partitioned by response type (Blocked, cached, etc)</td>
 </tr>
 <tr>
@@ -682,7 +686,7 @@
 <td>Counter of the number of cache hits</td>
 </tr>
 <tr>
-<td>blocky_cache_miss_count</td>
+<td>blocky_cache_misses_total</td>
 <td>Counter of the number of Cache misses</td>
 </tr>
 <tr>
@@ -704,6 +708,18 @@
 <tr>
 <td>blocky_failed_downloads_total</td>
 <td>Counter of failed list downloads</td>
+</tr>
+<tr>
+<td>blocky_dnssec_validation_total</td>
+<td>Counter of <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> validations, partitioned by result (secure, insecure, bogus, indeterminate)</td>
+</tr>
+<tr>
+<td>blocky_dnssec_cache_hits_total</td>
+<td>Counter of <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> validation cache hits</td>
+</tr>
+<tr>
+<td>blocky_dnssec_validation_duration_seconds</td>
+<td>Histogram of <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> validation duration, partitioned by result</td>
 </tr>
 </tbody>
 </table>
