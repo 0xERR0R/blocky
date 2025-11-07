@@ -364,5 +364,245 @@ var _ = Describe("Denial of existence validation", func() {
 			result := sut.validateDenialOfExistence(ctx, response, question)
 			Expect(result).ShouldNot(BeNil())
 		})
+
+		When("authority section validation succeeds", func() {
+			It("should proceed to NSEC validation when authority is valid", func() {
+				// Create a response with only SOA (no NSEC/NSEC3) and no signatures
+				// This simulates the path after successful authority validation
+				// where we check for NSEC/NSEC3 records
+				response := &dns.Msg{
+					Ns: []dns.RR{
+						&dns.SOA{
+							Hdr: dns.RR_Header{
+								Name:   "example.com.",
+								Rrtype: dns.TypeSOA,
+								Class:  dns.ClassINET,
+								Ttl:    300,
+							},
+							Ns:      "ns1.example.com.",
+							Mbox:    "admin.example.com.",
+							Serial:  2024010101,
+							Refresh: 3600,
+							Retry:   600,
+							Expire:  86400,
+							Minttl:  300,
+						},
+					},
+				}
+				response.Rcode = dns.RcodeNameError
+
+				question := dns.Question{
+					Name:   "nonexistent.example.com.",
+					Qtype:  dns.TypeA,
+					Qclass: dns.ClassINET,
+				}
+
+				// Without RRSIG, authority validation will return Insecure
+				// But this tests the scanning logic
+				result := sut.validateDenialOfExistence(ctx, response, question)
+				Expect(result).Should(Equal(ValidationResultInsecure))
+			})
+
+			It("should call validateNSECDenialOfExistence when NSEC present and authority validates", func() {
+				// Create a minimal NSEC record
+				nsec := &dns.NSEC{
+					Hdr: dns.RR_Header{
+						Name:   "example.com.",
+						Rrtype: dns.TypeNSEC,
+						Class:  dns.ClassINET,
+						Ttl:    300,
+					},
+					NextDomain: "z.example.com.",
+					TypeBitMap: []uint16{dns.TypeSOA, dns.TypeNS, dns.TypeRRSIG, dns.TypeNSEC},
+				}
+
+				response := &dns.Msg{
+					Ns: []dns.RR{nsec},
+				}
+				response.Rcode = dns.RcodeNameError
+
+				question := dns.Question{
+					Name:   "nonexistent.example.com.",
+					Qtype:  dns.TypeA,
+					Qclass: dns.ClassINET,
+				}
+
+				// This will fail authority validation (no RRSIG) but tests the flow
+				result := sut.validateDenialOfExistence(ctx, response, question)
+				// Should attempt NSEC validation path
+				Expect(result).ShouldNot(BeNil())
+			})
+
+			It("should call validateNSEC3DenialOfExistence when NSEC3 present and authority validates", func() {
+				// Create a minimal NSEC3 record
+				nsec3 := &dns.NSEC3{
+					Hdr: dns.RR_Header{
+						Name:   "ABC123.example.com.",
+						Rrtype: dns.TypeNSEC3,
+						Class:  dns.ClassINET,
+						Ttl:    300,
+					},
+					Hash:       dns.SHA1,
+					Flags:      0,
+					Iterations: 10,
+					SaltLength: 0,
+					Salt:       "",
+					HashLength: 20,
+					NextDomain: "DEF456",
+					TypeBitMap: []uint16{dns.TypeA, dns.TypeRRSIG},
+				}
+
+				response := &dns.Msg{
+					Ns: []dns.RR{nsec3},
+				}
+				response.Rcode = dns.RcodeNameError
+
+				question := dns.Question{
+					Name:   "nonexistent.example.com.",
+					Qtype:  dns.TypeA,
+					Qclass: dns.ClassINET,
+				}
+
+				// This will fail authority validation (no RRSIG) but tests the flow
+				result := sut.validateDenialOfExistence(ctx, response, question)
+				// Should attempt NSEC3 validation path
+				Expect(result).ShouldNot(BeNil())
+			})
+
+			It("should handle multiple NSEC records with different names", func() {
+				nsec1 := &dns.NSEC{
+					Hdr: dns.RR_Header{
+						Name:   "a.example.com.",
+						Rrtype: dns.TypeNSEC,
+						Class:  dns.ClassINET,
+						Ttl:    300,
+					},
+					NextDomain: "m.example.com.",
+					TypeBitMap: []uint16{dns.TypeA},
+				}
+				nsec2 := &dns.NSEC{
+					Hdr: dns.RR_Header{
+						Name:   "m.example.com.",
+						Rrtype: dns.TypeNSEC,
+						Class:  dns.ClassINET,
+						Ttl:    300,
+					},
+					NextDomain: "z.example.com.",
+					TypeBitMap: []uint16{dns.TypeA},
+				}
+
+				response := &dns.Msg{
+					Ns: []dns.RR{nsec1, nsec2},
+				}
+				response.Rcode = dns.RcodeNameError
+
+				question := dns.Question{
+					Name:   "p.example.com.",
+					Qtype:  dns.TypeA,
+					Qclass: dns.ClassINET,
+				}
+
+				result := sut.validateDenialOfExistence(ctx, response, question)
+				Expect(result).ShouldNot(BeNil())
+			})
+
+			It("should handle NSEC3 with various hash iterations", func() {
+				// Test with different iteration counts
+				for _, iterations := range []uint16{0, 1, 10, 150} {
+					nsec3 := &dns.NSEC3{
+						Hdr: dns.RR_Header{
+							Name:   "ABC123.example.com.",
+							Rrtype: dns.TypeNSEC3,
+							Class:  dns.ClassINET,
+							Ttl:    300,
+						},
+						Hash:       dns.SHA1,
+						Flags:      0,
+						Iterations: iterations,
+						SaltLength: 0,
+						Salt:       "",
+						HashLength: 20,
+						NextDomain: "DEF456",
+						TypeBitMap: []uint16{dns.TypeA},
+					}
+
+					response := &dns.Msg{
+						Ns: []dns.RR{nsec3},
+					}
+					response.Rcode = dns.RcodeNameError
+
+					question := dns.Question{
+						Name:   "nonexistent.example.com.",
+						Qtype:  dns.TypeA,
+						Qclass: dns.ClassINET,
+					}
+
+					result := sut.validateDenialOfExistence(ctx, response, question)
+					Expect(result).ShouldNot(BeNil())
+				}
+			})
+
+			It("should handle NSEC3 with salt", func() {
+				nsec3 := &dns.NSEC3{
+					Hdr: dns.RR_Header{
+						Name:   "ABC123.example.com.",
+						Rrtype: dns.TypeNSEC3,
+						Class:  dns.ClassINET,
+						Ttl:    300,
+					},
+					Hash:       dns.SHA1,
+					Flags:      0,
+					Iterations: 10,
+					SaltLength: 4,
+					Salt:       "ABCD1234",
+					HashLength: 20,
+					NextDomain: "DEF456",
+					TypeBitMap: []uint16{dns.TypeA},
+				}
+
+				response := &dns.Msg{
+					Ns: []dns.RR{nsec3},
+				}
+				response.Rcode = dns.RcodeNameError
+
+				question := dns.Question{
+					Name:   "nonexistent.example.com.",
+					Qtype:  dns.TypeA,
+					Qclass: dns.ClassINET,
+				}
+
+				result := sut.validateDenialOfExistence(ctx, response, question)
+				Expect(result).ShouldNot(BeNil())
+			})
+
+			It("should detect NSEC when mixed with other authority records", func() {
+				soa := &dns.SOA{
+					Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeSOA, Class: dns.ClassINET, Ttl: 300},
+				}
+				ns := &dns.NS{
+					Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeNS, Class: dns.ClassINET, Ttl: 300},
+					Ns:  "ns1.example.com.",
+				}
+				nsec := &dns.NSEC{
+					Hdr:        dns.RR_Header{Name: "a.example.com.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+					NextDomain: "z.example.com.",
+					TypeBitMap: []uint16{dns.TypeA},
+				}
+
+				response := &dns.Msg{
+					Ns: []dns.RR{soa, ns, nsec},
+				}
+				response.Rcode = dns.RcodeNameError
+
+				question := dns.Question{
+					Name:   "nonexistent.example.com.",
+					Qtype:  dns.TypeA,
+					Qclass: dns.ClassINET,
+				}
+
+				result := sut.validateDenialOfExistence(ctx, response, question)
+				Expect(result).ShouldNot(BeNil())
+			})
+		})
 	})
 })

@@ -111,7 +111,7 @@ func ConfigureLogger(logger *logrus.Logger, cfg *Config) {
 			ForceColors:      false,
 			QuoteEmptyFields: true,
 			DisableTimestamp: !cfg.Timestamp,
-			DisableColors: noColor,
+			DisableColors:    noColor,
 		}
 
 		logFormatter.SetColorScheme(&prefixed.ColorScheme{
