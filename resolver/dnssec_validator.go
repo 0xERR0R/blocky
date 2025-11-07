@@ -1,4 +1,4 @@
-// Package resolver implements DNS resolution with support for DNSSEC validation.
+// This file implements DNSSEC validation for DNS resolution.
 //
 // # DNSSEC Validation Implementation
 //
