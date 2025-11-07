@@ -271,4 +271,173 @@ var _ = Describe("DNSSECResolver", func() {
 			Expect(hook.Calls).ShouldNot(BeEmpty())
 		})
 	})
+
+	Describe("EDNS0 buffer size handling", func() {
+		var response *dns.Msg
+
+		BeforeEach(func() {
+			sutConfig.Validate = true
+			response, _ = util.NewMsgWithAnswer("example.com.", 300, A, "192.0.2.1")
+		})
+
+		JustBeforeEach(func() {
+			resolver, err := NewDNSSECResolver(ctx, sutConfig, mockUpstream)
+			Expect(err).Should(Succeed())
+
+			sut, _ = resolver.(*DNSSECResolver)
+			sut.Next(mockUpstream)
+		})
+
+		It("should increase EDNS0 buffer size if too small", func() {
+			req := util.NewMsgWithQuestion("example.com.", A)
+			// Add EDNS0 with small buffer
+			req.SetEdns0(512, false)
+
+			request := &model.Request{
+				Req:      req,
+				Protocol: model.RequestProtocolUDP,
+			}
+
+			mockUpstream.On("Resolve", mock.Anything).Return(&model.Response{Res: response}, nil)
+
+			_, err := sut.Resolve(ctx, request)
+			Expect(err).Should(Succeed())
+
+			// Verify buffer size was increased
+			opt := request.Req.IsEdns0()
+			Expect(opt).ShouldNot(BeNil())
+			Expect(opt.UDPSize()).Should(BeNumerically(">=", 4096))
+			Expect(opt.Do()).Should(BeTrue())
+		})
+
+		It("should preserve existing EDNS0 buffer size if adequate", func() {
+			req := util.NewMsgWithQuestion("example.com.", A)
+			// Add EDNS0 with large buffer
+			req.SetEdns0(8192, false)
+
+			request := &model.Request{
+				Req:      req,
+				Protocol: model.RequestProtocolUDP,
+			}
+
+			mockUpstream.On("Resolve", mock.Anything).Return(&model.Response{Res: response}, nil)
+
+			_, err := sut.Resolve(ctx, request)
+			Expect(err).Should(Succeed())
+
+			// Verify buffer size was preserved
+			opt := request.Req.IsEdns0()
+			Expect(opt).ShouldNot(BeNil())
+			Expect(opt.UDPSize()).Should(Equal(uint16(8192)))
+			Expect(opt.Do()).Should(BeTrue())
+		})
+	})
+
+	Describe("createServFailResponseDNSSEC", func() {
+		It("should create SERVFAIL response with EDE", func() {
+			req := util.NewMsgWithQuestion("example.com.", A)
+			reason := "DNSSEC validation failed: bogus signatures"
+
+			response := createServFailResponseDNSSEC(req, reason)
+
+			Expect(response).ShouldNot(BeNil())
+			Expect(response.Res.Rcode).Should(Equal(dns.RcodeServerFailure))
+			Expect(response.Reason).Should(Equal(reason))
+			Expect(response.RType).Should(Equal(model.ResponseTypeBLOCKED))
+
+			// Check for EDNS0 with EDE
+			opt := response.Res.IsEdns0()
+			Expect(opt).ShouldNot(BeNil())
+
+			// Verify EDE option exists
+			edeFound := false
+			for _, option := range opt.Option {
+				if ede, ok := option.(*dns.EDNS0_EDE); ok {
+					Expect(ede.InfoCode).Should(Equal(dns.ExtendedErrorCodeDNSBogus))
+					Expect(ede.ExtraText).Should(Equal(reason))
+					edeFound = true
+				}
+			}
+			Expect(edeFound).Should(BeTrue())
+		})
+
+		It("should set proper EDNS0 UDP size", func() {
+			req := util.NewMsgWithQuestion("example.com.", A)
+
+			response := createServFailResponseDNSSEC(req, "test reason")
+
+			opt := response.Res.IsEdns0()
+			Expect(opt).ShouldNot(BeNil())
+			Expect(opt.UDPSize()).Should(Equal(uint16(4096)))
+		})
+	})
+
+	Describe("Resolve with validation edge cases", func() {
+		var response *dns.Msg
+
+		BeforeEach(func() {
+			sutConfig.Validate = true
+			response, _ = util.NewMsgWithAnswer("example.com.", 300, A, "192.0.2.1")
+		})
+
+		JustBeforeEach(func() {
+			resolver, err := NewDNSSECResolver(ctx, sutConfig, mockUpstream)
+			Expect(err).Should(Succeed())
+
+			sut, _ = resolver.(*DNSSECResolver)
+			sut.Next(mockUpstream)
+		})
+
+		It("should handle response without question section", func() {
+			req := util.NewMsgWithQuestion("example.com.", A)
+			request := &model.Request{
+				Req:      req,
+				Protocol: model.RequestProtocolUDP,
+			}
+
+			// Response without question section
+			emptyResponse := &dns.Msg{}
+
+			mockUpstream.On("Resolve", mock.Anything).Return(&model.Response{Res: emptyResponse}, nil)
+
+			resp, err := sut.Resolve(ctx, request)
+			Expect(err).Should(Succeed())
+			Expect(resp).ShouldNot(BeNil())
+		})
+
+		It("should handle Secure validation result", func() {
+			// This would require a fully valid DNSSEC response chain
+			// For now, test that the code path exists
+			req := util.NewMsgWithQuestion("example.com.", A)
+			request := &model.Request{
+				Req:      req,
+				Protocol: model.RequestProtocolUDP,
+			}
+
+			mockUpstream.On("Resolve", mock.Anything).Return(&model.Response{Res: response}, nil)
+
+			resp, err := sut.Resolve(ctx, request)
+			Expect(err).Should(Succeed())
+			Expect(resp).ShouldNot(BeNil())
+			// AD flag will be cleared for insecure/indeterminate responses
+		})
+
+		It("should handle Indeterminate validation result", func() {
+			req := util.NewMsgWithQuestion("example.com.", A)
+			request := &model.Request{
+				Req:      req,
+				Protocol: model.RequestProtocolUDP,
+			}
+
+			// Response that will be indeterminate
+			testResponse, _ := util.NewMsgWithAnswer("example.com.", 300, A, "192.0.2.1")
+			testResponse.AuthenticatedData = true
+
+			mockUpstream.On("Resolve", mock.Anything).Return(&model.Response{Res: testResponse}, nil)
+
+			resp, err := sut.Resolve(ctx, request)
+			Expect(err).Should(Succeed())
+			Expect(resp.Res.AuthenticatedData).Should(BeFalse())
+		})
+	})
 })

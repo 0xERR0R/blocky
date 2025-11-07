@@ -873,5 +873,144 @@ var _ = Describe("Chain of trust validation", func() {
 			// Will fail due to missing DS/DNSKEY records
 			Expect(result).ShouldNot(Equal(ValidationResultSecure))
 		})
+
+		It("should return Indeterminate when DS query fails", func() {
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				// Simulate query failure
+				return nil, errors.New("query failed")
+			}
+
+			result := sut.validateDomainLevel(ctx, "example.com.")
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
+		})
+
+		It("should return Indeterminate when DNSKEY query fails", func() {
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				// Return DS records successfully, but fail DNSKEY query
+				qtype := req.Req.Question[0].Qtype
+				if qtype == dns.TypeDS {
+					ds := &dns.DS{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeDS,
+							Class:  dns.ClassINET,
+							Ttl:    3600,
+						},
+						KeyTag:     12345,
+						Algorithm:  8,
+						DigestType: 2,
+						Digest:     "abcdef",
+					}
+					rrsig := &dns.RRSIG{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeRRSIG,
+							Class:  dns.ClassINET,
+							Ttl:    3600,
+						},
+						TypeCovered: dns.TypeDS,
+					}
+
+					return &model.Response{
+						Res: &dns.Msg{
+							Answer: []dns.RR{ds, rrsig},
+						},
+					}, nil
+				}
+				// Fail DNSKEY query
+				return nil, errors.New("DNSKEY query failed")
+			}
+
+			result := sut.validateDomainLevel(ctx, "example.com.")
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
+		})
+
+		It("should return Bogus when DNSKEY doesn't match DS", func() {
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				qtype := req.Req.Question[0].Qtype
+				if qtype == dns.TypeDS {
+					// Return valid DS record
+					ds := &dns.DS{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeDS,
+							Class:  dns.ClassINET,
+							Ttl:    3600,
+						},
+						KeyTag:     12345,
+						Algorithm:  8,
+						DigestType: 2,
+						Digest:     "abcdef0123456789",
+					}
+					rrsig := &dns.RRSIG{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeRRSIG,
+							Class:  dns.ClassINET,
+							Ttl:    3600,
+						},
+						TypeCovered: dns.TypeDS,
+					}
+
+					return &model.Response{
+						Res: &dns.Msg{
+							Answer: []dns.RR{ds, rrsig},
+						},
+					}, nil
+				}
+				if qtype == dns.TypeDNSKEY {
+					// Return DNSKEY that doesn't match the DS
+					dnskey := &dns.DNSKEY{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeDNSKEY,
+							Class:  dns.ClassINET,
+							Ttl:    3600,
+						},
+						Flags:     257, // KSK
+						Protocol:  3,
+						Algorithm: 8,
+						PublicKey: "differentkey",
+					}
+
+					return &model.Response{
+						Res: &dns.Msg{
+							Answer: []dns.RR{dnskey},
+						},
+					}, nil
+				}
+
+				return &model.Response{Res: &dns.Msg{}}, nil
+			}
+
+			result := sut.validateDomainLevel(ctx, "example.com.")
+			Expect(result).Should(Equal(ValidationResultBogus))
+		})
+	})
+
+	Describe("extractAndValidateDSRecords - additional cases", func() {
+		It("should return Bogus when DS records exist but no RRSIG", func() {
+			ds := &dns.DS{
+				Hdr: dns.RR_Header{
+					Name:   "example.com.",
+					Rrtype: dns.TypeDS,
+					Class:  dns.ClassINET,
+					Ttl:    3600,
+				},
+				KeyTag:     12345,
+				Algorithm:  8,
+				DigestType: 2,
+				Digest:     "abcdef",
+			}
+
+			response := &dns.Msg{
+				Answer: []dns.RR{ds},
+				// No RRSIG - should be Bogus
+			}
+
+			dsRecords, result := sut.extractAndValidateDSRecords(ctx, "example.com.", "com.", response)
+			Expect(dsRecords).Should(BeNil())
+			Expect(result).Should(Equal(ValidationResultBogus))
+		})
 	})
 })
