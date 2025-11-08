@@ -955,6 +955,163 @@ bootstrapDns:
 			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("deprecated")))
 		})
 	})
+
+	Describe("DNS Stamp Upstreams", func() {
+		When("Config contains DNS stamps", func() {
+			It("should parse DNS stamp upstreams correctly", func() {
+				confFile := tmpDir.CreateStringFile("config.yml",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - sdns://AgcAAAAAAAAABzEuMC4wLjGgENk8mGSlIfMGXMOlIlCcKvq7AVgcrZxtjon911-ep0cg63Ul-I8NlFj4GplQGb_TTLiczclX57DvMV8Q-JdjgRgSZG5zLmNsb3VkZmxhcmUuY29tCi9kbnMtcXVlcnk", // Cloudflare DoH
+					"      - sdns://AAcAAAAAAAAABzguOC44Ljg", // Google DNS Plain
+				)
+
+				c, err = LoadConfig(confFile.Path, true)
+				Expect(err).Should(Succeed())
+
+				// Verify default group
+				defaultUpstreams := c.Upstreams.Groups["default"]
+				Expect(defaultUpstreams).Should(HaveLen(2))
+
+				// Verify Cloudflare DoH
+				Expect(defaultUpstreams[0].Net).Should(Equal(NetProtocolHttps))
+				Expect(defaultUpstreams[0].Host).Should(Equal("dns.cloudflare.com"))
+				Expect(defaultUpstreams[0].Port).Should(Equal(uint16(443)))
+				Expect(defaultUpstreams[0].Path).Should(Equal("/dns-query"))
+				Expect(defaultUpstreams[0].CommonName).Should(Equal("dns.cloudflare.com"))
+				Expect(defaultUpstreams[0].CertificateFingerprints).ShouldNot(BeEmpty())
+
+				// Verify Google Plain DNS
+				Expect(defaultUpstreams[1].Net).Should(Equal(NetProtocolTcpUdp))
+				Expect(defaultUpstreams[1].Host).Should(Equal("8.8.8.8"))
+				Expect(defaultUpstreams[1].Port).Should(Equal(uint16(53)))
+			})
+
+			It("should support mixed DNS stamp and traditional format", func() {
+				confFile := tmpDir.CreateStringFile("config.yml",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - 8.8.8.8",                        // Traditional
+					"      - https://dns.google/dns-query",   // Traditional DoH
+					"      - sdns://AAcAAAAAAAAABzguOC44Ljg", // DNS Stamp
+					"      - sdns://AgcAAAAAAAAABzEuMC4wLjGgENk8mGSlIfMGXMOlIlCcKvq7AVgcrZxtjon911-ep0cg63Ul-I8NlFj4GplQGb_TTLiczclX57DvMV8Q-JdjgRgSZG5zLmNsb3VkZmxhcmUuY29tCi9kbnMtcXVlcnk", // DNS Stamp DoH
+				)
+
+				c, err = LoadConfig(confFile.Path, true)
+				Expect(err).Should(Succeed())
+
+				defaultUpstreams := c.Upstreams.Groups["default"]
+				Expect(defaultUpstreams).Should(HaveLen(4))
+
+				// All should be parsed correctly
+				Expect(defaultUpstreams[0].Host).Should(Equal("8.8.8.8"))
+				Expect(defaultUpstreams[0].Net).Should(Equal(NetProtocolTcpUdp))
+
+				Expect(defaultUpstreams[1].Host).Should(Equal("dns.google"))
+				Expect(defaultUpstreams[1].Net).Should(Equal(NetProtocolHttps))
+
+				Expect(defaultUpstreams[2].Host).Should(Equal("8.8.8.8"))
+				Expect(defaultUpstreams[2].Net).Should(Equal(NetProtocolTcpUdp))
+
+				Expect(defaultUpstreams[3].Host).Should(Equal("dns.cloudflare.com"))
+				Expect(defaultUpstreams[3].Net).Should(Equal(NetProtocolHttps))
+			})
+
+			It("should reject unsupported protocol in DNS stamp", func() {
+				confFile := tmpDir.CreateStringFile("config.yml",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - sdns://AQMAAAAAAAAAETk0Ljc2Ljc2LjE6ODQ0MyAK-Y3YBV0rO9yqiOWp6OMQNvPPRMfOqCvQV7C8BmOW6hnSZG5zY3J5cHQuZGU", // DNSCrypt
+				)
+
+				_, err = LoadConfig(confFile.Path, true)
+				Expect(err).Should(HaveOccurred())
+				// May fail with various error messages depending on stamp validity
+			})
+
+			It("should reject invalid DNS stamp", func() {
+				confFile := tmpDir.CreateStringFile("config.yml",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - sdns://invalid!!!", // Invalid stamp
+				)
+
+				_, err = LoadConfig(confFile.Path, true)
+				Expect(err).Should(HaveOccurred())
+			})
+
+			It("should preserve certificate fingerprints from DNS stamps", func() {
+				confFile := tmpDir.CreateStringFile("config.yml",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - sdns://AgcAAAAAAAAABzEuMC4wLjGgENk8mGSlIfMGXMOlIlCcKvq7AVgcrZxtjon911-ep0cg63Ul-I8NlFj4GplQGb_TTLiczclX57DvMV8Q-JdjgRgSZG5zLmNsb3VkZmxhcmUuY29tCi9kbnMtcXVlcnk", // Cloudflare with certs
+				)
+
+				c, err = LoadConfig(confFile.Path, true)
+				Expect(err).Should(Succeed())
+
+				upstream := c.Upstreams.Groups["default"][0]
+				Expect(upstream.CertificateFingerprints).Should(HaveLen(2))
+
+				// Each fingerprint should be 32 bytes (SHA256)
+				for _, fp := range upstream.CertificateFingerprints {
+					Expect(fp).Should(HaveLen(32))
+				}
+			})
+
+			It("should handle IPv6 in DNS stamps", func() {
+				confFile := tmpDir.CreateStringFile("config.yml",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - sdns://AAcAAAAAAAAAKVsyMDAxOjBkYjg6ODVhMzowMDAwOjAwMDA6OGEyZTowMzcwOjczMzRd",
+				)
+
+				c, err = LoadConfig(confFile.Path, true)
+				Expect(err).Should(Succeed())
+
+				upstream := c.Upstreams.Groups["default"][0]
+
+				// All should be parsed correctly
+				Expect(upstream.Host).Should(Equal("2001:0db8:85a3:0000:0000:8a2e:0370:7334"))
+				Expect(upstream.Net).Should(Equal(NetProtocolTcpUdp))
+			})
+		})
+
+		When("Config uses conditional upstream with DNS stamps", func() {
+			It("should parse DNS stamps in conditional mapping", func() {
+				confFile := tmpDir.CreateStringFile("config.yml",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - 8.8.8.8",
+					"conditional:",
+					"  mapping:",
+					"    example.com: sdns://AgcAAAAAAAAABzEuMC4wLjGgENk8mGSlIfMGXMOlIlCcKvq7AVgcrZxtjon911-ep0cg63Ul-I8NlFj4GplQGb_TTLiczclX57DvMV8Q-JdjgRgSZG5zLmNsb3VkZmxhcmUuY29tCi9kbnMtcXVlcnk",
+					"    test.com: 1.1.1.1", // Traditional format
+				)
+
+				c, err = LoadConfig(confFile.Path, true)
+				Expect(err).Should(Succeed())
+
+				// Verify conditional mapping parsed DNS stamp
+				exampleUpstreams := c.Conditional.Mapping.Upstreams["example.com"]
+				Expect(exampleUpstreams).Should(HaveLen(1))
+				Expect(exampleUpstreams[0].Host).Should(Equal("dns.cloudflare.com"))
+				Expect(exampleUpstreams[0].Net).Should(Equal(NetProtocolHttps))
+
+				// Verify traditional format still works
+				testUpstreams := c.Conditional.Mapping.Upstreams["test.com"]
+				Expect(testUpstreams).Should(HaveLen(1))
+				Expect(testUpstreams[0].Host).Should(Equal("1.1.1.1"))
+			})
+		})
+	})
 })
 
 func defaultTestFileConfig(config *Config) {

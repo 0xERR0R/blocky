@@ -3,7 +3,10 @@ package resolver
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -24,8 +27,9 @@ import (
 )
 
 const (
-	dnsContentType = "application/dns-message"
-	retryAttempts  = 3
+	dnsContentType   = "application/dns-message"
+	retryAttempts    = 3
+	sha256HashLength = 32
 )
 
 // UpstreamServerError wraps a response with RCode ServFail so no other resolver tries to use it.
@@ -57,7 +61,14 @@ func (c upstreamConfig) IsEnabled() bool {
 
 // LogConfig implements `config.Configurable`.
 func (c upstreamConfig) LogConfig(logger *logrus.Entry) {
-	logger.Info(c.Upstream)
+	if len(c.CertificateFingerprints) > 0 {
+		logger.WithFields(logrus.Fields{
+			"cert_pinning":  true,
+			"pinned_hashes": len(c.CertificateFingerprints),
+		}).Info(c.Upstream)
+	} else {
+		logger.Info(c.Upstream)
+	}
 }
 
 // UpstreamResolver sends request to external DNS server
@@ -86,14 +97,68 @@ type httpUpstreamClient struct {
 	userAgent string
 }
 
+// createCertificatePinningVerifier creates a certificate verifier that validates
+// against provided SHA256 hashes from DNS stamp
+func createCertificatePinningVerifier(
+	pinnedHashes []config.CertificateFingerprint,
+) func([][]byte, [][]*x509.Certificate) error {
+	// Pre-filter hashes to only include valid SHA-256 hashes (32 bytes)
+	validHashes := make([][]byte, 0, len(pinnedHashes))
+	for _, h := range pinnedHashes {
+		if len(h) == sha256HashLength {
+			validHashes = append(validHashes, []byte(h))
+		}
+	}
+
+	return func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+		// If no verified chains, fail
+		if len(verifiedChains) == 0 {
+			return errors.New("no verified certificate chains")
+		}
+
+		// Count total certificates for better error message
+		certCount := 0
+
+		// Check each certificate in the chain
+		for _, chain := range verifiedChains {
+			for _, cert := range chain {
+				certCount++
+				certHash := sha256.Sum256(cert.Raw)
+
+				// Check if this certificate matches any pinned hash
+				for _, pinnedHash := range validHashes {
+					// Use constant-time comparison to prevent timing attacks
+					if subtle.ConstantTimeCompare(certHash[:], pinnedHash) == 1 {
+						// Match found! Certificate is pinned
+						return nil
+					}
+				}
+			}
+		}
+
+		// No matching certificate found in any chain
+		return fmt.Errorf(
+			"certificate pinning failed: checked %d certificates across %d chains, none matched %d pinned hashes "+
+				"(server certificate may have rotated - try updating DNS stamp)",
+			certCount, len(verifiedChains), len(validHashes),
+		)
+	}
+}
+
 func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 	tlsConfig := tls.Config{
 		ServerName: cfg.Host,
 		MinVersion: tls.VersionTLS12,
 	}
 
+	// Use ProviderName from DNS stamp if available (stored in CommonName)
 	if cfg.CommonName != "" {
 		tlsConfig.ServerName = cfg.CommonName
+	}
+
+	// Add certificate pinning if hashes are provided from DNS stamp
+	if len(cfg.CertificateFingerprints) > 0 {
+		tlsConfig.VerifyPeerCertificate = createCertificatePinningVerifier(cfg.CertificateFingerprints)
 	}
 
 	switch cfg.Net {

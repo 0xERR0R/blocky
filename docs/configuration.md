@@ -119,6 +119,101 @@ Each resolver must be defined as a string in following format: `[net:]host:[port
 
 The `commonName` parameter overrides the expected certificate common name value used for verification.
 
+#### DNS Stamp Format
+
+As an alternative to the traditional format, Blocky supports **DNS Stamps** (`sdns://...`), which encode all connection parameters in a compact, shareable format.
+
+DNS Stamps are standardized URIs (following IETF draft-denis-dns-stamps) that include protocol, address, hostname, path, and optional certificate hashes in a single string.
+
+**Format:** `sdns://base64url(payload)`
+
+**Supported Protocols:**
+
+- Plain DNS (`sdns://AA...`)
+- DNS-over-HTTPS (`sdns://Ag...`)
+- DNS-over-TLS (`sdns://Aw...`)
+
+**Benefits:**
+
+- **Compact**: Single string encodes all parameters
+- **Portable**: Easy to share and copy
+- **Secure**: Includes certificate hashes for automatic certificate pinning
+- **Standardized**: Following IETF specification
+
+**Examples:**
+
+```yaml
+upstreams:
+  groups:
+    default:
+      # Traditional format
+      - 8.8.8.8
+      - https://dns.google/dns-query
+      - tcp-tls:1.1.1.1:853
+
+      # DNS Stamp format (equivalent servers)
+      - sdns://AAcAAAAAAAAABzguOC44Ljg  # Google DNS
+      - sdns://AgcAAAAAAAAABzEuMC4wLjGgENk8mGSlIfMGXMOlIlCcKvq7AVgcrZxtjon911-ep0cg63Ul-I8NlFj4GplQGb_TTLiczclX57DvMV8Q-JdjgRgSZG5zLmNsb3VkZmxhcmUuY29tCi9kbnMtcXVlcnk  # Cloudflare DoH
+      - sdns://AwAAAAAAAAAADTE0OS4xMTIuMTEyLjkgIINqrLwxXg3E7t8E8DTYfvzaJI-U3WvkQgHQj8JBJgkJcXVhZDkubmV0  # Quad9 DoT
+```
+
+**Certificate Pinning:**
+
+Blocky supports **certificate pinning** through DNS stamps. When a DNS stamp includes SHA256 certificate hashes, Blocky validates the server's certificate against these hashes, providing protection against MITM attacks even if a Certificate Authority is compromised.
+
+!!! warning "Trade-offs and Maintenance Requirements"
+    While certificate pinning provides enhanced security, it comes with significant **maintenance overhead**:
+
+    - **Frequent rotation required**: DNS providers typically rotate TLS certificates every 30-90 days
+    - **Connection failures**: When certificates rotate, DNS stamps with outdated hashes will fail with "certificate pinning failed" errors
+    - **Manual updates needed**: You must regenerate and update DNS stamps whenever providers rotate certificates
+    - **Limited security benefit**: Modern TLS with reputable DNS providers (Google, Cloudflare, Quad9) already provides strong security
+
+    **Recommendation**: For most users, DNS stamps **without certificate hashes** provide the best balance of security and convenience.
+
+**Creating DNS Stamps:**
+
+Use the [DNS Stamp Calculator](https://dnscrypt.info/stamps/) to create stamps for your DNS servers.
+
+For stamps **without certificate pinning** (recommended):
+- Leave the "Provider public key" field **empty**
+- This provides standard TLS security without maintenance burden
+
+For stamps **with certificate pinning** (advanced users only):
+
+1. Get the current certificate hash using OpenSSL:
+   ```bash
+   echo | openssl s_client -connect dns.google:443 -servername dns.google 2>/dev/null \
+     | openssl x509 -outform DER | sha256sum | cut -d' ' -f1
+   ```
+
+2. Enter the hash in the "Provider public key" field at https://dnscrypt.info/stamps/
+
+3. **Important**: Set a reminder to regenerate this stamp before the certificate expires (check expiry with):
+   ```bash
+   echo | openssl s_client -connect dns.google:443 -servername dns.google 2>/dev/null \
+     | openssl x509 -noout -dates
+   ```
+
+Example configuration:
+
+```yaml
+upstreams:
+  groups:
+    default:
+      # Recommended: DNS stamp without pinning (no maintenance)
+      - sdns://AgcAAAAAAAAABzguOC44LjgAC2Rucy5nb29nbGUKL2Rucy1xdWVyeQ
+
+      # Advanced: DNS stamp with pinning (requires regular updates)
+      # This will fail when Google rotates their certificate!
+      - sdns://AgcAAAAAAAAABzguOC44Ljigz054xaWNECYPpTa5xMRLSUxLZNsoTO19Bg5LxD0DR40AC2Rucy5nb29nbGUKL2Rucy1xdWVyeQ
+```
+
+!!! note
+    - DNSCrypt and DNS-over-QUIC protocols are not yet supported
+    - Traditional and DNS stamp formats can be mixed in the same configuration
+    - Certificate pinning is **optional** - stamps work perfectly without it
+
 !!! note
     Blocky needs at least the configuration of the **default** group with at least one upstream DNS server. This group will be used as a fallback, if no client
     specific resolver configuration is available.

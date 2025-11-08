@@ -113,6 +113,7 @@ linters:
           - gosec
           - forcetypeassert
           - wrapcheck
+          - lll
         path: _test\.go
       - linters:
           - staticcheck
