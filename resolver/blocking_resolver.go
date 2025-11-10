@@ -438,11 +438,7 @@ func (r *BlockingResolver) Resolve(ctx context.Context, request *model.Request) 
 		}
 	}
 
-	if err != nil {
-		return nil, fmt.Errorf("resolution via next resolver failed: %w", err)
-	}
-
-	return respFromNext, nil
+	return respFromNext, err
 }
 
 func extractEntryToCheckFromResponse(rr dns.RR) (entryToCheck, tName string) {

@@ -207,12 +207,7 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 	if !r.IsEnabled() || !r.isRequestCacheable(request) {
 		logger.Debug("skip cache")
 
-		resp, err := r.next.Resolve(ctx, request)
-		if err != nil {
-			return nil, fmt.Errorf("resolution via next resolver failed (cache skipped): %w", err)
-		}
-
-		return resp, nil
+		return r.next.Resolve(ctx, request)
 	}
 
 	for _, question := range request.Req.Question {
@@ -244,7 +239,7 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 			cacheTTL := r.adjustTTLs(response.Res.Answer)
 			r.putInCache(ctx, cacheKey, response, cacheTTL, true)
 		} else {
-			return nil, fmt.Errorf("resolution via next resolver failed (caching): %w", err)
+			return nil, err
 		}
 	}
 

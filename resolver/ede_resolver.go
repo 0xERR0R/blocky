@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
@@ -30,17 +29,12 @@ func NewEDEResolver(cfg config.EDE) *EDEResolver {
 // if it is enabled in the configuration
 func (r *EDEResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	if !r.cfg.Enable {
-		resp, err := r.next.Resolve(ctx, request)
-		if err != nil {
-			return nil, fmt.Errorf("resolution via next resolver failed (EDE disabled): %w", err)
-		}
-
-		return resp, nil
+		return r.next.Resolve(ctx, request)
 	}
 
 	resp, err := r.next.Resolve(ctx, request)
 	if err != nil {
-		return nil, fmt.Errorf("resolution via next resolver failed (EDE): %w", err)
+		return nil, err
 	}
 
 	r.addExtraReasoning(resp)

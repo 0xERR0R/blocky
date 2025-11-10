@@ -67,12 +67,7 @@ func (r *ClientNamesResolver) Resolve(ctx context.Context, request *model.Reques
 	request.ClientNames = clientNames
 	ctx, _ = log.CtxWithFields(ctx, logrus.Fields{"client_names": strings.Join(clientNames, "; ")})
 
-	resp, err := r.next.Resolve(ctx, request)
-	if err != nil {
-		return nil, fmt.Errorf("resolution via next resolver failed (client names): %w", err)
-	}
-
-	return resp, nil
+	return r.next.Resolve(ctx, request)
 }
 
 // returns names of client

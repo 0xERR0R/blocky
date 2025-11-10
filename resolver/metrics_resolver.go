@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -60,11 +59,7 @@ func (r *MetricsResolver) Resolve(ctx context.Context, request *model.Request) (
 		}
 	}
 
-	if err != nil {
-		return nil, fmt.Errorf("resolution via next resolver failed (metrics): %w", err)
-	}
-
-	return response, nil
+	return response, err
 }
 
 // NewMetricsResolver creates a new intance of the MetricsResolver type

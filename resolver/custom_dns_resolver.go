@@ -161,12 +161,7 @@ func (r *CustomDNSResolver) processRequest(
 
 	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
 
-	resp, err := r.next.Resolve(ctx, request)
-	if err != nil {
-		return nil, fmt.Errorf("resolution via next resolver failed (custom DNS): %w", err)
-	}
-
-	return resp, nil
+	return r.next.Resolve(ctx, request)
 }
 
 func (r *CustomDNSResolver) processDNSEntry(
