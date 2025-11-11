@@ -384,6 +384,21 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Upstream Groups">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dns-stamp-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      DNS Stamp Format
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -1215,6 +1230,21 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Upstream Groups">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dns-stamp-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      DNS Stamp Format
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -1881,7 +1911,8 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fast</span>
 <span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
 <span class="w">    </span><span class="c1"># these external DNS resolvers will be used. Blocky picks 2 random resolvers from the list for each query</span>
-<span class="w">    </span><span class="c1"># format for resolver: [net:]host:[port][/path]. net could be empty (default, shortcut for tcp+udp), tcp+udp, tcp, udp, tcp-tls or https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))</span>
+<span class="w">    </span><span class="c1"># format for resolver: [net:]host:[port][/path][#commonname]. net could be empty (default, shortcut for tcp+udp), tcp+udp, tcp, udp, tcp-tls or https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))</span>
+<span class="w">    </span><span class="c1"># alternative format: DNS Stamp (sdns://...) - compact format that encodes all parameters including optional certificate hashes for automatic certificate pinning</span>
 <span class="w">    </span><span class="c1"># this configuration is mandatory, please define at least one external DNS resolver</span>
 <span class="w">    </span><span class="nt">default</span><span class="p">:</span>
 <span class="w">      </span><span class="c1"># example for tcp+udp IPv4 server (https://digitalcourage.de/)</span>
@@ -1892,6 +1923,10 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tcp-tls:fdns1.dismail.de:853</span>
 <span class="w">      </span><span class="c1"># example for DNS-over-HTTPS (DoH)</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://dns.digitale-gesellschaft.ch/dns-query</span>
+<span class="w">      </span><span class="c1"># example for DNS Stamp format (Plain DNS - Google 8.8.8.8)</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sdns://AAcAAAAAAAAABzguOC44Ljg</span>
+<span class="w">      </span><span class="c1"># example for DNS Stamp format (DoH - Digitale Gesellschaft)</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sdns://AgcAAAAAAAAADTE4NS45NS4yMTguNDKg9_WvKIAeh31986K-KP4UnzJ0p-0p8Tb9UDzjmMuoCw2g9XV9eG8XP2q1MZfsnCKQisBtKuTqoqW29Y678AOXod-gs14FlQz72CWfk3W6EBhwuMPEwOxaUpdX5jFn6d4mqeig7PBiC_ww1ETe9Xetxlw3UFpzui0v2eb_QcPtOtDWWg-gouMnQ2N22OdkBavp_siMtB3i1NA1DU6CkqUxGMS431ugkHjSGlbA4IkdkGIhtpkjMb3RcXLrDzPdoH1cZcbhTDmg1q1wTTQXThIIyVKqq5g16xwGaw3No7Ta1A9FE-jhglqgsl8vNpZ_c5TwmTeIWzM_qjVtcZ_qzzjM6fA1UADz4XSg5kS6aWPjNf52XLmXaxKxDrVClLQkd3ZMyzo6zKOssvygKq4_t78F5MgcQZTcpEUR1PmvMEeG7BrnIYQJz2Kgg1Wg1h2W6_s_oZCW4sAC42A79_2q77InBNqGaAYrvobtS5MgnUgyu0yNdyB7Jd4XWSaC78PKRfV53GZKDtXySPXJM5gcZG5zLmRpZ2l0YWxlLWdlc2VsbHNjaGFmdC5jaAovZG5zLXF1ZXJ5</span>
 <span class="w">    </span><span class="c1"># optional: use client name (with wildcard support: * - sequence of any characters, [0-9] - range)</span>
 <span class="w">    </span><span class="c1"># or single ip address / client subnet as CIDR notation</span>
 <span class="w">    </span><span class="nt">laptop*</span><span class="p">:</span>
@@ -2589,6 +2624,49 @@ returns the answer from the fastest one.</p>
 </tbody>
 </table>
 <p>The <code>commonName</code> parameter overrides the expected certificate common name value used for verification.</p>
+<h4 id="dns-stamp-format"><abbr title="Domain Name System">DNS</abbr> Stamp Format</h4>
+<p>As an alternative to the traditional format, Blocky supports <strong><abbr title="Domain Name System">DNS</abbr> Stamps</strong> (<code>sdns://...</code>), which encode all connection parameters in a compact, shareable format.</p>
+<p><abbr title="Domain Name System">DNS</abbr> Stamps are standardized URIs (following IETF draft-denis-dns-stamps) that include protocol, address, hostname, path, and optional certificate hashes in a single string.</p>
+<p><strong>Format:</strong> <code>sdns://base64url(payload)</code></p>
+<p><strong>Supported Protocols:</strong></p>
+<ul>
+<li>Plain <abbr title="Domain Name System">DNS</abbr> (<code>sdns://AA...</code>)</li>
+<li><abbr title="Domain Name System">DNS</abbr>-over-<abbr title="Hypertext Transfer Protocol Secure">HTTPS</abbr> (<code>sdns://Ag...</code>)</li>
+<li><abbr title="Domain Name System">DNS</abbr>-over-TLS (<code>sdns://Aw...</code>)</li>
+</ul>
+<p><strong>Benefits:</strong></p>
+<ul>
+<li><strong>Compact</strong>: Single string encodes all parameters</li>
+<li><strong>Portable</strong>: Easy to share and copy</li>
+<li><strong>Secure</strong>: Includes certificate hashes for automatic certificate pinning</li>
+<li><strong>Standardized</strong>: Following IETF specification</li>
+</ul>
+<p><strong>Examples:</strong></p>
+<div class="highlight"><pre><span></span><code><span class="nt">upstreams</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">default</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># Traditional format</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8.8.8.8</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://dns.google/dns-query</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tcp-tls:1.1.1.1:853</span>
+
+<span class="w">      </span><span class="c1"># DNS Stamp format (equivalent servers)</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sdns://AAcAAAAAAAAABzguOC44Ljg</span><span class="w">  </span><span class="c1"># Google DNS</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sdns://AgcAAAAAAAAADTE4NS45NS4yMTguNDKg9_WvKIAeh31986K-KP4UnzJ0p-0p8Tb9UDzjmMuoCw2g9XV9eG8XP2q1MZfsnCKQisBtKuTqoqW29Y678AOXod-gs14FlQz72CWfk3W6EBhwuMPEwOxaUpdX5jFn6d4mqeig7PBiC_ww1ETe9Xetxlw3UFpzui0v2eb_QcPtOtDWWg-gouMnQ2N22OdkBavp_siMtB3i1NA1DU6CkqUxGMS431ugkHjSGlbA4IkdkGIhtpkjMb3RcXLrDzPdoH1cZcbhTDmg1q1wTTQXThIIyVKqq5g16xwGaw3No7Ta1A9FE-jhglqgsl8vNpZ_c5TwmTeIWzM_qjVtcZ_qzzjM6fA1UADz4XSg5kS6aWPjNf52XLmXaxKxDrVClLQkd3ZMyzo6zKOssvygKq4_t78F5MgcQZTcpEUR1PmvMEeG7BrnIYQJz2Kgg1Wg1h2W6_s_oZCW4sAC42A79_2q77InBNqGaAYrvobtS5MgnUgyu0yNdyB7Jd4XWSaC78PKRfV53GZKDtXySPXJM5gcZG5zLmRpZ2l0YWxlLWdlc2VsbHNjaGFmdC5jaAovZG5zLXF1ZXJ5</span><span class="w">  </span><span class="c1"># Digitale Gesellschaft DoH</span>
+</code></pre></div>
+<p><strong>Certificate Pinning:</strong></p>
+<p><abbr title="Domain Name System">DNS</abbr> stamps can include SHA256 certificate hashes for enhanced security. When present, Blocky automatically validates the server's certificate against these hashes, preventing MITM attacks even if a Certificate Authority is compromised.</p>
+<p>This is transparent to the user - if a <abbr title="Domain Name System">DNS</abbr> stamp includes certificate hashes, pinning is automatically enabled.</p>
+<p><strong>Creating <abbr title="Domain Name System">DNS</abbr> Stamps:</strong></p>
+<p>Use the <a href="https://dnscrypt.info/stamps/"><abbr title="Domain Name System">DNS</abbr> Stamp Calculator</a> to create stamps for your <abbr title="Domain Name System">DNS</abbr> servers.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<ul>
+<li>DNSCrypt and <abbr title="Domain Name System">DNS</abbr>-over-QUIC protocols are not yet supported</li>
+<li>Traditional and <abbr title="Domain Name System">DNS</abbr> stamp formats can be mixed in the same configuration</li>
+<li><abbr title="Domain Name System">DNS</abbr> stamps with certificate hashes provide additional security through automatic certificate pinning</li>
+</ul>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Blocky needs at least the configuration of the <strong>default</strong> group with at least one upstream <abbr title="Domain Name System">DNS</abbr> server. This group will be used as a fallback, if no client

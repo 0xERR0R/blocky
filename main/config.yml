@@ -6,7 +6,8 @@ upstreams:
     strategy: fast
   groups:
     # these external DNS resolvers will be used. Blocky picks 2 random resolvers from the list for each query
-    # format for resolver: [net:]host:[port][/path]. net could be empty (default, shortcut for tcp+udp), tcp+udp, tcp, udp, tcp-tls or https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))
+    # format for resolver: [net:]host:[port][/path][#commonname]. net could be empty (default, shortcut for tcp+udp), tcp+udp, tcp, udp, tcp-tls or https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))
+    # alternative format: DNS Stamp (sdns://...) - compact format that encodes all parameters including optional certificate hashes for automatic certificate pinning
     # this configuration is mandatory, please define at least one external DNS resolver
     default:
       # example for tcp+udp IPv4 server (https://digitalcourage.de/)
@@ -17,6 +18,10 @@ upstreams:
       - tcp-tls:fdns1.dismail.de:853
       # example for DNS-over-HTTPS (DoH)
       - https://dns.digitale-gesellschaft.ch/dns-query
+      # example for DNS Stamp format (Plain DNS - Google 8.8.8.8)
+      - sdns://AAcAAAAAAAAABzguOC44Ljg
+      # example for DNS Stamp format (DoH - Digitale Gesellschaft)
+      - sdns://AgcAAAAAAAAADTE4NS45NS4yMTguNDKg9_WvKIAeh31986K-KP4UnzJ0p-0p8Tb9UDzjmMuoCw2g9XV9eG8XP2q1MZfsnCKQisBtKuTqoqW29Y678AOXod-gs14FlQz72CWfk3W6EBhwuMPEwOxaUpdX5jFn6d4mqeig7PBiC_ww1ETe9Xetxlw3UFpzui0v2eb_QcPtOtDWWg-gouMnQ2N22OdkBavp_siMtB3i1NA1DU6CkqUxGMS431ugkHjSGlbA4IkdkGIhtpkjMb3RcXLrDzPdoH1cZcbhTDmg1q1wTTQXThIIyVKqq5g16xwGaw3No7Ta1A9FE-jhglqgsl8vNpZ_c5TwmTeIWzM_qjVtcZ_qzzjM6fA1UADz4XSg5kS6aWPjNf52XLmXaxKxDrVClLQkd3ZMyzo6zKOssvygKq4_t78F5MgcQZTcpEUR1PmvMEeG7BrnIYQJz2Kgg1Wg1h2W6_s_oZCW4sAC42A79_2q77InBNqGaAYrvobtS5MgnUgyu0yNdyB7Jd4XWSaC78PKRfV53GZKDtXySPXJM5gcZG5zLmRpZ2l0YWxlLWdlc2VsbHNjaGFmdC5jaAovZG5zLXF1ZXJ5
     # optional: use client name (with wildcard support: * - sequence of any characters, [0-9] - range)
     # or single ip address / client subnet as CIDR notation
     laptop*:
