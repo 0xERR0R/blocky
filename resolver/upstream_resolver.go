@@ -227,6 +227,9 @@ func (r *httpUpstreamClient) callExternal(
 	}
 
 	defer func() {
+		// Drain body before closing to allow connection reuse
+		// See: https://pkg.go.dev/net/http#Response.Body
+		_, _ = io.Copy(io.Discard, httpResponse.Body)
 		util.LogOnError(ctx, "can't close response body ", httpResponse.Body.Close())
 	}()
 
