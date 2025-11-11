@@ -78,6 +78,7 @@ linters:
     - forbidigo
     - gosmopolitan
     - recvcheck
+    - wrapcheck
   settings:
     ginkgolinter:
       forbid-focus-container: true
@@ -113,6 +114,7 @@ linters:
           - gosec
           - forcetypeassert
           - wrapcheck
+          - lll
         path: _test\.go
       - linters:
           - staticcheck

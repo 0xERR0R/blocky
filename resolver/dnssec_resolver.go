@@ -88,7 +88,7 @@ func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*
 	// Get response from next resolver (upstream)
 	response, err := r.next.Resolve(ctx, request)
 	if err != nil {
-		return nil, fmt.Errorf("resolution via next resolver failed (DNSSEC): %w", err)
+		return nil, err
 	}
 
 	// Validate DNSSEC if enabled and validator is available

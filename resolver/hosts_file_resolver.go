@@ -112,12 +112,7 @@ func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Resp
 
 func (r *HostsFileResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	if !r.IsEnabled() {
-		resp, err := r.next.Resolve(ctx, request)
-		if err != nil {
-			return nil, fmt.Errorf("resolution via next resolver failed (hosts file disabled): %w", err)
-		}
-
-		return resp, nil
+		return r.next.Resolve(ctx, request)
 	}
 
 	ctx, logger := r.log(ctx)
@@ -142,12 +137,7 @@ func (r *HostsFileResolver) Resolve(ctx context.Context, request *model.Request)
 
 	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
 
-	resp, err := r.next.Resolve(ctx, request)
-	if err != nil {
-		return nil, fmt.Errorf("resolution via next resolver failed (hosts file): %w", err)
-	}
-
-	return resp, nil
+	return r.next.Resolve(ctx, request)
 }
 
 func (r *HostsFileResolver) resolve(req *dns.Msg, question dns.Question, domain string) *dns.Msg {

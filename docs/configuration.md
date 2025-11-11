@@ -119,6 +119,58 @@ Each resolver must be defined as a string in following format: `[net:]host:[port
 
 The `commonName` parameter overrides the expected certificate common name value used for verification.
 
+#### DNS Stamp Format
+
+As an alternative to the traditional format, Blocky supports **DNS Stamps** (`sdns://...`), which encode all connection parameters in a compact, shareable format.
+
+DNS Stamps are standardized URIs (following IETF draft-denis-dns-stamps) that include protocol, address, hostname, path, and optional certificate hashes in a single string.
+
+**Format:** `sdns://base64url(payload)`
+
+**Supported Protocols:**
+
+- Plain DNS (`sdns://AA...`)
+- DNS-over-HTTPS (`sdns://Ag...`)
+- DNS-over-TLS (`sdns://Aw...`)
+
+**Benefits:**
+
+- **Compact**: Single string encodes all parameters
+- **Portable**: Easy to share and copy
+- **Secure**: Includes certificate hashes for automatic certificate pinning
+- **Standardized**: Following IETF specification
+
+**Examples:**
+
+```yaml
+upstreams:
+  groups:
+    default:
+      # Traditional format
+      - 8.8.8.8
+      - https://dns.google/dns-query
+      - tcp-tls:1.1.1.1:853
+
+      # DNS Stamp format (equivalent servers)
+      - sdns://AAcAAAAAAAAABzguOC44Ljg  # Google DNS
+      - sdns://AgcAAAAAAAAADTE4NS45NS4yMTguNDKg9_WvKIAeh31986K-KP4UnzJ0p-0p8Tb9UDzjmMuoCw2g9XV9eG8XP2q1MZfsnCKQisBtKuTqoqW29Y678AOXod-gs14FlQz72CWfk3W6EBhwuMPEwOxaUpdX5jFn6d4mqeig7PBiC_ww1ETe9Xetxlw3UFpzui0v2eb_QcPtOtDWWg-gouMnQ2N22OdkBavp_siMtB3i1NA1DU6CkqUxGMS431ugkHjSGlbA4IkdkGIhtpkjMb3RcXLrDzPdoH1cZcbhTDmg1q1wTTQXThIIyVKqq5g16xwGaw3No7Ta1A9FE-jhglqgsl8vNpZ_c5TwmTeIWzM_qjVtcZ_qzzjM6fA1UADz4XSg5kS6aWPjNf52XLmXaxKxDrVClLQkd3ZMyzo6zKOssvygKq4_t78F5MgcQZTcpEUR1PmvMEeG7BrnIYQJz2Kgg1Wg1h2W6_s_oZCW4sAC42A79_2q77InBNqGaAYrvobtS5MgnUgyu0yNdyB7Jd4XWSaC78PKRfV53GZKDtXySPXJM5gcZG5zLmRpZ2l0YWxlLWdlc2VsbHNjaGFmdC5jaAovZG5zLXF1ZXJ5  # Digitale Gesellschaft DoH
+```
+
+**Certificate Pinning:**
+
+DNS stamps can include SHA256 certificate hashes for enhanced security. When present, Blocky automatically validates the server's certificate against these hashes, preventing MITM attacks even if a Certificate Authority is compromised.
+
+This is transparent to the user - if a DNS stamp includes certificate hashes, pinning is automatically enabled.
+
+**Creating DNS Stamps:**
+
+Use the [DNS Stamp Calculator](https://dnscrypt.info/stamps/) to create stamps for your DNS servers.
+
+!!! note
+    - DNSCrypt and DNS-over-QUIC protocols are not yet supported
+    - Traditional and DNS stamp formats can be mixed in the same configuration
+    - DNS stamps with certificate hashes provide additional security through automatic certificate pinning
+
 !!! note
     Blocky needs at least the configuration of the **default** group with at least one upstream DNS server. This group will be used as a fallback, if no client
     specific resolver configuration is available.

@@ -2,6 +2,8 @@ package resolver
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -305,6 +307,178 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 					ContainSubstring("no such host"),
 					ContainSubstring("i/o timeout"),
 					ContainSubstring("Temporary failure in name resolution")))
+			})
+		})
+	})
+
+	Describe("Certificate Pinning", Label("certificatePinning"), func() {
+		var (
+			testCert        *x509.Certificate
+			testCertHash    [32]byte
+			testCertHashB64 config.CertificateFingerprint
+			wrongHash       [32]byte
+			wrongHashB64    config.CertificateFingerprint
+		)
+
+		BeforeEach(func() {
+			// Create a test certificate with TBSCertificate data
+			// DNS stamps hash the RawTBSCertificate (To-Be-Signed Certificate), not the full certificate
+			tbsData := []byte("test certificate data for pinning validation")
+			testCert = &x509.Certificate{
+				RawTBSCertificate: tbsData,
+			}
+			testCertHash = sha256.Sum256(testCert.RawTBSCertificate)
+			testCertHashB64 = config.CertificateFingerprint(testCertHash[:])
+
+			wrongHash = sha256.Sum256([]byte("wrong certificate data"))
+			wrongHashB64 = config.CertificateFingerprint(wrongHash[:])
+		})
+
+		When("Certificate matches pinned hash", func() {
+			It("should accept the certificate", func() {
+				verifier := createCertificatePinningVerifier([]config.CertificateFingerprint{testCertHashB64})
+				chains := [][]*x509.Certificate{{testCert}}
+
+				err := verifier(nil, chains)
+				Expect(err).ShouldNot(HaveOccurred())
+			})
+		})
+
+		When("Certificate does not match pinned hash", func() {
+			It("should reject the certificate", func() {
+				verifier := createCertificatePinningVerifier([]config.CertificateFingerprint{wrongHashB64})
+				chains := [][]*x509.Certificate{{testCert}}
+
+				err := verifier(nil, chains)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("certificate pinning failed"))
+			})
+		})
+
+		When("Certificate chain contains pinned intermediate", func() {
+			It("should accept the chain", func() {
+				// DNS stamps hash RawTBSCertificate, not the full certificate
+				leafCert := &x509.Certificate{RawTBSCertificate: []byte("leaf certificate")}
+				intermediateCert := &x509.Certificate{RawTBSCertificate: []byte("intermediate certificate")}
+				rootCert := &x509.Certificate{RawTBSCertificate: []byte("root certificate")}
+
+				intermediateHash := sha256.Sum256(intermediateCert.RawTBSCertificate)
+				intermediateHashB64 := config.CertificateFingerprint(intermediateHash[:])
+
+				verifier := createCertificatePinningVerifier([]config.CertificateFingerprint{intermediateHashB64})
+				chains := [][]*x509.Certificate{{leafCert, intermediateCert, rootCert}}
+
+				err := verifier(nil, chains)
+				Expect(err).ShouldNot(HaveOccurred())
+			})
+		})
+
+		When("No verified chains are provided", func() {
+			It("should reject", func() {
+				verifier := createCertificatePinningVerifier([]config.CertificateFingerprint{testCertHashB64})
+				chains := [][]*x509.Certificate{}
+
+				err := verifier(nil, chains)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("no verified certificate chains"))
+			})
+		})
+
+		When("Pinned hashes contain invalid lengths", func() {
+			It("should pre-filter and only use valid hashes", func() {
+				invalidHash := config.CertificateFingerprint([]byte("invalid short hash"))
+				verifier := createCertificatePinningVerifier([]config.CertificateFingerprint{
+					invalidHash,     // Invalid (too short)
+					testCertHashB64, // Valid (32 bytes)
+				})
+				chains := [][]*x509.Certificate{{testCert}}
+
+				// Should succeed because the valid hash matches
+				err := verifier(nil, chains)
+				Expect(err).ShouldNot(HaveOccurred())
+			})
+		})
+
+		When("Multiple valid hashes are pinned", func() {
+			It("should accept if any hash matches", func() {
+				// DNS stamps hash RawTBSCertificate
+				cert1 := &x509.Certificate{RawTBSCertificate: []byte("certificate 1")}
+				cert2 := &x509.Certificate{RawTBSCertificate: []byte("certificate 2")}
+
+				hash1 := sha256.Sum256(cert1.RawTBSCertificate)
+				hash2 := sha256.Sum256(cert2.RawTBSCertificate)
+
+				verifier := createCertificatePinningVerifier([]config.CertificateFingerprint{
+					config.CertificateFingerprint(hash1[:]),
+					config.CertificateFingerprint(hash2[:]),
+				})
+
+				// Should accept cert1
+				chains1 := [][]*x509.Certificate{{cert1}}
+				err := verifier(nil, chains1)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				// Should also accept cert2
+				chains2 := [][]*x509.Certificate{{cert2}}
+				err = verifier(nil, chains2)
+				Expect(err).ShouldNot(HaveOccurred())
+			})
+		})
+
+		When("Multiple chains are provided", func() {
+			It("should accept if any chain contains a pinned certificate", func() {
+				// DNS stamps hash RawTBSCertificate
+				cert1 := &x509.Certificate{RawTBSCertificate: []byte("certificate 1")}
+				cert2 := &x509.Certificate{RawTBSCertificate: []byte("certificate 2")}
+
+				hash2 := sha256.Sum256(cert2.RawTBSCertificate)
+				hash2B64 := config.CertificateFingerprint(hash2[:])
+
+				verifier := createCertificatePinningVerifier([]config.CertificateFingerprint{hash2B64})
+
+				// First chain has cert1 (no match), second chain has cert2 (match)
+				chains := [][]*x509.Certificate{
+					{cert1},
+					{cert2},
+				}
+
+				err := verifier(nil, chains)
+				Expect(err).ShouldNot(HaveOccurred())
+			})
+		})
+
+		When("Enhanced error messages for pinning failures", func() {
+			It("should provide detailed information when pinning fails", func() {
+				// Create multiple certificates in a chain
+				cert1 := &x509.Certificate{Raw: []byte("certificate 1")}
+				cert2 := &x509.Certificate{Raw: []byte("certificate 2")}
+				cert3 := &x509.Certificate{Raw: []byte("certificate 3")}
+
+				// Wrong hash that won't match any certificate
+				wrongHash := sha256.Sum256([]byte("wrong certificate"))
+				wrongHashB64 := config.CertificateFingerprint(wrongHash[:])
+
+				verifier := createCertificatePinningVerifier([]config.CertificateFingerprint{wrongHashB64})
+
+				// Multiple chains with multiple certs
+				chains := [][]*x509.Certificate{
+					{cert1, cert2},
+					{cert1, cert3},
+				}
+
+				err := verifier(nil, chains)
+
+				// Should fail with detailed error message
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("certificate pinning failed"))
+				// Should mention certificate count
+				Expect(err.Error()).Should(ContainSubstring("checked 4 certificates"))
+				// Should mention chain count
+				Expect(err.Error()).Should(ContainSubstring("across 2 chains"))
+				// Should mention pinned hash count
+				Expect(err.Error()).Should(ContainSubstring("1 pinned hash"))
+				// Should suggest updating DNS stamp
+				Expect(err.Error()).Should(ContainSubstring("try updating DNS stamp"))
 			})
 		})
 	})

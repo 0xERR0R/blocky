@@ -74,12 +74,7 @@ func (r *ECSResolver) Resolve(ctx context.Context, request *model.Request) (*mod
 		}
 	}
 
-	resp, err := r.next.Resolve(ctx, request)
-	if err != nil {
-		return nil, fmt.Errorf("resolution via next resolver failed (ECS): %w", err)
-	}
-
-	return resp, nil
+	return r.next.Resolve(ctx, request)
 }
 
 // setSubnet appends the subnet information to the request as EDNS0 option

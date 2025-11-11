@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/docker/go-connections/nat"
+	"github.com/jedisct1/go-dnsstamps"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -111,4 +112,44 @@ func getContainerLogs(ctx context.Context, c testcontainers.Container) (lines []
 // withNetwork returns a CustomizeRequestOption which attaches the container to the given network with the given alias.
 func withNetwork(alias string, e2eNet *testcontainers.DockerNetwork) testcontainers.CustomizeRequestOption {
 	return testNet.WithNetwork([]string{alias}, e2eNet)
+}
+
+// generatePlainDNSStamp generates a Plain DNS stamp for the given IP address.
+// This is used to test DNS stamp format in e2e tests with mokka containers.
+// Note: For Plain DNS stamps, the library requires an IP address, not a hostname.
+// The serverIP should be just the IP address; port 53 will be appended automatically.
+func generatePlainDNSStamp(serverIP string) string {
+	stamp := dnsstamps.ServerStamp{
+		Proto:         dnsstamps.StampProtoTypePlain,
+		ServerAddrStr: serverIP + ":53",
+	}
+
+	return stamp.String()
+}
+
+// getContainerNetworkIP gets the IP address of a container in the specified docker network.
+func getContainerNetworkIP(
+	ctx context.Context, container testcontainers.Container, networkName string,
+) (string, error) {
+	networks, err := container.Networks(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	for _, network := range networks {
+		if network == networkName {
+			// Get the container's network settings
+			inspect, err := container.Inspect(ctx)
+			if err != nil {
+				return "", err
+			}
+
+			// Get the IP for this network
+			if netSettings, ok := inspect.NetworkSettings.Networks[network]; ok {
+				return netSettings.IPAddress, nil
+			}
+		}
+	}
+
+	return "", nil
 }

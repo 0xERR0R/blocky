@@ -149,7 +149,7 @@ func (r *QueryLoggingResolver) Resolve(ctx context.Context, request *model.Reque
 	duration := time.Since(start).Milliseconds()
 
 	if err != nil {
-		return nil, fmt.Errorf("query logging: resolution failed: %w", err)
+		return nil, err
 	}
 
 	entry := r.createLogEntry(request, resp, start, duration)

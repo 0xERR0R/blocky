@@ -112,7 +112,7 @@ func (r *ConditionalUpstreamResolver) Resolve(ctx context.Context, request *mode
 		logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
 		response, err = r.next.Resolve(ctx, request)
 		if err != nil {
-			return nil, fmt.Errorf("resolution via next resolver failed (conditional upstream): %w", err)
+			return nil, err
 		}
 	}
 

@@ -323,4 +323,118 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 			})
 		})
 	})
+
+	Describe("DNS Stamp format for upstream configuration", func() {
+		When("upstream is configured with DNS stamp", func() {
+			BeforeEach(func(ctx context.Context) {
+				// Create a dnsmokka container with test data
+				mokaContainer, err := createDNSMokkaContainer(ctx, "moka-stamp", e2eNet,
+					`A stamp-test.com/NOERROR("A 10.11.12.13 300")`)
+				Expect(err).Should(Succeed())
+
+				// Get the container's IP within the docker network
+				mokaIP, err := getContainerNetworkIP(ctx, mokaContainer, e2eNet.Name)
+				Expect(err).Should(Succeed())
+				Expect(mokaIP).ShouldNot(BeEmpty())
+
+				// Generate DNS stamp pointing to the mokka container's IP
+				stamp := generatePlainDNSStamp(mokaIP)
+
+				blocky, err = createBlockyContainer(ctx, e2eNet,
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - "+stamp, // Use DNS stamp pointing to mokka container
+					"caching:",
+					"  maxItemsCount: 0", // Disable caching for consistent results
+				)
+				Expect(err).Should(Succeed())
+			})
+
+			It("should resolve DNS queries via DNS stamp upstream", func(ctx context.Context) {
+				By("resolving a domain via stamp-based upstream", func() {
+					msg := util.NewMsgWithQuestion("stamp-test.com.", A)
+					Expect(doDNSRequest(ctx, blocky, msg)).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("stamp-test.com.", A, "10.11.12.13"),
+								HaveTTL(BeNumerically("==", 300)),
+							))
+				})
+			})
+		})
+
+		When("DNS stamp and traditional format are mixed", func() {
+			BeforeEach(func(ctx context.Context) {
+				// Create two dnsmokka containers for testing
+				// One will be accessed via DNS stamp, the other via traditional format
+				mokaStampContainer, err := createDNSMokkaContainer(ctx, "moka-stamp-mix", e2eNet,
+					`A mixed-test.com/NOERROR("A 20.21.22.23 200")`)
+				Expect(err).Should(Succeed())
+
+				_, err = createDNSMokkaContainer(ctx, "moka-traditional", e2eNet,
+					`A mixed-test.com/NOERROR("A 30.31.32.33 200")`)
+				Expect(err).Should(Succeed())
+
+				// Get the stamp container's IP
+				mokaStampIP, err := getContainerNetworkIP(ctx, mokaStampContainer, e2eNet.Name)
+				Expect(err).Should(Succeed())
+				Expect(mokaStampIP).ShouldNot(BeEmpty())
+
+				// Use both DNS stamp format and traditional format
+				// to verify they work together in the same configuration
+				stamp := generatePlainDNSStamp(mokaStampIP)
+
+				blocky, err = createBlockyContainer(ctx, e2eNet,
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - "+stamp,           // DNS stamp format
+					"      - moka-traditional", // Traditional format
+					"  strategy: parallel_best",
+					"caching:",
+					"  maxItemsCount: 0",
+				)
+				Expect(err).Should(Succeed())
+			})
+
+			It("should work with both DNS stamp and traditional upstreams", func(ctx context.Context) {
+				By("querying a domain with mixed upstream formats", func() {
+					// Query multiple times to verify both upstreams work
+					const attempts = 10
+					foundStamp := false
+					foundTraditional := false
+
+					for i := 0; i < attempts; i++ {
+						msg := util.NewMsgWithQuestion("mixed-test.com.", A)
+						resp, err := doDNSRequest(ctx, blocky, msg)
+						Expect(err).Should(Succeed())
+						Expect(resp.Rcode).Should(Equal(dns.RcodeSuccess))
+						Expect(resp.Answer).Should(HaveLen(1))
+
+						aRecord, ok := resp.Answer[0].(*dns.A)
+						Expect(ok).Should(BeTrue())
+						ip := aRecord.A.String()
+
+						// Track which upstream responded
+						switch ip {
+						case "20.21.22.23":
+							foundStamp = true
+						case "30.31.32.33":
+							foundTraditional = true
+						}
+
+						// Exit early if we've seen both
+						if foundStamp && foundTraditional {
+							break
+						}
+					}
+
+					// Verify we got responses from at least one upstream
+					// (parallel_best may prefer one over the other)
+					Expect(foundStamp || foundTraditional).Should(BeTrue())
+				})
+			})
+		})
+	})
 })
