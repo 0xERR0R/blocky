@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/0xERR0R/blocky/api"
@@ -29,13 +28,13 @@ func newRefreshCommand() *cobra.Command {
 	}
 }
 
-func refreshList(_ *cobra.Command, _ []string) error {
+func refreshList(cmd *cobra.Command, _ []string) error {
 	client, err := api.NewClientWithResponses(apiURL())
 	if err != nil {
 		return fmt.Errorf("can't create client: %w", err)
 	}
 
-	resp, err := client.ListRefreshWithResponse(context.Background())
+	resp, err := client.ListRefreshWithResponse(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("can't execute %w", err)
 	}

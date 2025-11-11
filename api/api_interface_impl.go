@@ -40,7 +40,7 @@ type BlockingControl interface {
 
 // ListRefresher interface to control the list refresh
 type ListRefresher interface {
-	RefreshLists() error
+	RefreshLists(ctx context.Context) error
 }
 
 type Querier interface {
@@ -141,10 +141,10 @@ func (i *OpenAPIInterfaceImpl) BlockingStatus(_ context.Context, _ BlockingStatu
 	return BlockingStatus200JSONResponse(result), nil
 }
 
-func (i *OpenAPIInterfaceImpl) ListRefresh(_ context.Context,
+func (i *OpenAPIInterfaceImpl) ListRefresh(ctx context.Context,
 	_ ListRefreshRequestObject,
 ) (ListRefreshResponseObject, error) {
-	err := i.refresher.RefreshLists()
+	err := i.refresher.RefreshLists(ctx)
 	if err != nil {
 		return ListRefresh500TextResponse(log.EscapeInput(err.Error())), nil
 	}

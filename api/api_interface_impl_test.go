@@ -34,7 +34,7 @@ type CacheControlMock struct {
 	mock.Mock
 }
 
-func (m *ListRefreshMock) RefreshLists() error {
+func (m *ListRefreshMock) RefreshLists(_ context.Context) error {
 	args := m.Called()
 
 	return args.Error(0)

@@ -25,6 +25,6 @@ func BenchmarkRefresh(b *testing.B) {
 	b.ReportAllocs()
 
 	for range b.N {
-		_ = cache.Refresh()
+		_ = cache.Refresh(context.Background())
 	}
 }

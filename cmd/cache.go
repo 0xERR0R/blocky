@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/0xERR0R/blocky/api"
@@ -25,13 +24,13 @@ func newCacheCommand() *cobra.Command {
 	return c
 }
 
-func flushCache(_ *cobra.Command, _ []string) error {
+func flushCache(cmd *cobra.Command, _ []string) error {
 	client, err := api.NewClientWithResponses(apiURL())
 	if err != nil {
 		return fmt.Errorf("can't create client: %w", err)
 	}
 
-	resp, err := client.CacheFlushWithResponse(context.Background())
+	resp, err := client.CacheFlushWithResponse(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("can't execute %w", err)
 	}

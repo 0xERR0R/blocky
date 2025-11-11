@@ -201,11 +201,11 @@ func (r *BlockingResolver) redisSubscriber(ctx context.Context) {
 }
 
 // RefreshLists triggers the refresh of all allow/denylists in the cache
-func (r *BlockingResolver) RefreshLists() error {
+func (r *BlockingResolver) RefreshLists(ctx context.Context) error {
 	var err *multierror.Error
 
-	err = multierror.Append(err, r.denylistMatcher.Refresh())
-	err = multierror.Append(err, r.allowlistMatcher.Refresh())
+	err = multierror.Append(err, r.denylistMatcher.Refresh(ctx))
+	err = multierror.Append(err, r.allowlistMatcher.Refresh(ctx))
 
 	if multiErr := err.ErrorOrNil(); multiErr != nil {
 		return fmt.Errorf("failed to refresh blocking lists: %w", multiErr)
