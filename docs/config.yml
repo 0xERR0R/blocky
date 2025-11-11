@@ -20,8 +20,8 @@ upstreams:
       - https://dns.digitale-gesellschaft.ch/dns-query
       # example for DNS Stamp format (Plain DNS - Google 8.8.8.8)
       - sdns://AAcAAAAAAAAABzguOC44Ljg
-      # example for DNS Stamp format (DoT - Quad9)
-      - sdns://AwAAAAAAAAAADTE0OS4xMTIuMTEyLjkgIINqrLwxXg3E7t8E8DTYfvzaJI-U3WvkQgHQj8JBJgkJcXVhZDkubmV0
+      # example for DNS Stamp format (DoH - Digitale Gesellschaft)
+      - sdns://AgcAAAAAAAAADTE4NS45NS4yMTguNDKg9_WvKIAeh31986K-KP4UnzJ0p-0p8Tb9UDzjmMuoCw2g9XV9eG8XP2q1MZfsnCKQisBtKuTqoqW29Y678AOXod-gs14FlQz72CWfk3W6EBhwuMPEwOxaUpdX5jFn6d4mqeig7PBiC_ww1ETe9Xetxlw3UFpzui0v2eb_QcPtOtDWWg-gouMnQ2N22OdkBavp_siMtB3i1NA1DU6CkqUxGMS431ugkHjSGlbA4IkdkGIhtpkjMb3RcXLrDzPdoH1cZcbhTDmg1q1wTTQXThIIyVKqq5g16xwGaw3No7Ta1A9FE-jhglqgsl8vNpZ_c5TwmTeIWzM_qjVtcZ_qzzjM6fA1UADz4XSg5kS6aWPjNf52XLmXaxKxDrVClLQkd3ZMyzo6zKOssvygKq4_t78F5MgcQZTcpEUR1PmvMEeG7BrnIYQJz2Kgg1Wg1h2W6_s_oZCW4sAC42A79_2q77InBNqGaAYrvobtS5MgnUgyu0yNdyB7Jd4XWSaC78PKRfV53GZKDtXySPXJM5gcZG5zLmRpZ2l0YWxlLWdlc2VsbHNjaGFmdC5jaAovZG5zLXF1ZXJ5
     # optional: use client name (with wildcard support: * - sequence of any characters, [0-9] - range)
     # or single ip address / client subnet as CIDR notation
     laptop*:

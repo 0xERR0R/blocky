@@ -321,11 +321,13 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 		)
 
 		BeforeEach(func() {
-			// Create a test certificate
+			// Create a test certificate with TBSCertificate data
+			// DNS stamps hash the RawTBSCertificate (To-Be-Signed Certificate), not the full certificate
+			tbsData := []byte("test certificate data for pinning validation")
 			testCert = &x509.Certificate{
-				Raw: []byte("test certificate data for pinning validation"),
+				RawTBSCertificate: tbsData,
 			}
-			testCertHash = sha256.Sum256(testCert.Raw)
+			testCertHash = sha256.Sum256(testCert.RawTBSCertificate)
 			testCertHashB64 = config.CertificateFingerprint(testCertHash[:])
 
 			wrongHash = sha256.Sum256([]byte("wrong certificate data"))
@@ -355,11 +357,12 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 
 		When("Certificate chain contains pinned intermediate", func() {
 			It("should accept the chain", func() {
-				leafCert := &x509.Certificate{Raw: []byte("leaf certificate")}
-				intermediateCert := &x509.Certificate{Raw: []byte("intermediate certificate")}
-				rootCert := &x509.Certificate{Raw: []byte("root certificate")}
+				// DNS stamps hash RawTBSCertificate, not the full certificate
+				leafCert := &x509.Certificate{RawTBSCertificate: []byte("leaf certificate")}
+				intermediateCert := &x509.Certificate{RawTBSCertificate: []byte("intermediate certificate")}
+				rootCert := &x509.Certificate{RawTBSCertificate: []byte("root certificate")}
 
-				intermediateHash := sha256.Sum256(intermediateCert.Raw)
+				intermediateHash := sha256.Sum256(intermediateCert.RawTBSCertificate)
 				intermediateHashB64 := config.CertificateFingerprint(intermediateHash[:])
 
 				verifier := createCertificatePinningVerifier([]config.CertificateFingerprint{intermediateHashB64})
@@ -398,11 +401,12 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 
 		When("Multiple valid hashes are pinned", func() {
 			It("should accept if any hash matches", func() {
-				cert1 := &x509.Certificate{Raw: []byte("certificate 1")}
-				cert2 := &x509.Certificate{Raw: []byte("certificate 2")}
+				// DNS stamps hash RawTBSCertificate
+				cert1 := &x509.Certificate{RawTBSCertificate: []byte("certificate 1")}
+				cert2 := &x509.Certificate{RawTBSCertificate: []byte("certificate 2")}
 
-				hash1 := sha256.Sum256(cert1.Raw)
-				hash2 := sha256.Sum256(cert2.Raw)
+				hash1 := sha256.Sum256(cert1.RawTBSCertificate)
+				hash2 := sha256.Sum256(cert2.RawTBSCertificate)
 
 				verifier := createCertificatePinningVerifier([]config.CertificateFingerprint{
 					config.CertificateFingerprint(hash1[:]),
@@ -423,10 +427,11 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 
 		When("Multiple chains are provided", func() {
 			It("should accept if any chain contains a pinned certificate", func() {
-				cert1 := &x509.Certificate{Raw: []byte("certificate 1")}
-				cert2 := &x509.Certificate{Raw: []byte("certificate 2")}
+				// DNS stamps hash RawTBSCertificate
+				cert1 := &x509.Certificate{RawTBSCertificate: []byte("certificate 1")}
+				cert2 := &x509.Certificate{RawTBSCertificate: []byte("certificate 2")}
 
-				hash2 := sha256.Sum256(cert2.Raw)
+				hash2 := sha256.Sum256(cert2.RawTBSCertificate)
 				hash2B64 := config.CertificateFingerprint(hash2[:])
 
 				verifier := createCertificatePinningVerifier([]config.CertificateFingerprint{hash2B64})

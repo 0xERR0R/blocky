@@ -123,7 +123,7 @@ func createCertificatePinningVerifier(
 		for _, chain := range verifiedChains {
 			for _, cert := range chain {
 				certCount++
-				certHash := sha256.Sum256(cert.Raw)
+				certHash := sha256.Sum256(cert.RawTBSCertificate)
 
 				// Check if this certificate matches any pinned hash
 				for _, pinnedHash := range validHashes {
