@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 
@@ -44,7 +43,7 @@ func query(cmd *cobra.Command, args []string) error {
 		Type:  typeFlag,
 	}
 
-	resp, err := client.QueryWithResponse(context.Background(), req)
+	resp, err := client.QueryWithResponse(cmd.Context(), req)
 	if err != nil {
 		return fmt.Errorf("can't execute %w", err)
 	}

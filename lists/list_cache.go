@@ -110,8 +110,8 @@ func (b *ListCache) Match(domain string, groupsToCheck []string) (groups []strin
 }
 
 // Refresh triggers the refresh of a list
-func (b *ListCache) Refresh() error {
-	return b.refresh(context.Background())
+func (b *ListCache) Refresh(ctx context.Context) error {
+	return b.refresh(ctx)
 }
 
 func (b *ListCache) refresh(ctx context.Context) error {

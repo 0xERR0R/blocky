@@ -39,14 +39,14 @@ var _ = Describe("Blocking command", func() {
 	Describe("enable blocking", func() {
 		When("Enable blocking is called via REST", func() {
 			It("should enable the blocking status", func() {
-				Expect(disableBlocking(newBlockingCommand(), []string{})).Should(Succeed())
+				Expect(disableBlocking(withContext(newBlockingCommand()), []string{})).Should(Succeed())
 				Expect(loggerHook.LastEntry().Message).Should(Equal("OK"))
 			})
 		})
 		When("Wrong url is used", func() {
 			It("Should end with error", func() {
 				apiPort = 0
-				err := enableBlocking(newBlockingCommand(), []string{})
+				err := enableBlocking(withContext(newBlockingCommand()), []string{})
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("connection refused"))
 			})
@@ -58,7 +58,7 @@ var _ = Describe("Blocking command", func() {
 				}
 			})
 			It("Should end with error", func() {
-				err := enableBlocking(newBlockingCommand(), []string{})
+				err := enableBlocking(withContext(newBlockingCommand()), []string{})
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("500 Internal Server Error"))
 			})
@@ -67,14 +67,14 @@ var _ = Describe("Blocking command", func() {
 	Describe("disable blocking", func() {
 		When("disable blocking is called via REST", func() {
 			It("should enable the blocking status", func() {
-				Expect(disableBlocking(newBlockingCommand(), []string{})).Should(Succeed())
+				Expect(disableBlocking(withContext(newBlockingCommand()), []string{})).Should(Succeed())
 				Expect(loggerHook.LastEntry().Message).Should(Equal("OK"))
 			})
 		})
 		When("Wrong url is used", func() {
 			It("Should end with error", func() {
 				apiPort = 0
-				err := disableBlocking(newBlockingCommand(), []string{})
+				err := disableBlocking(withContext(newBlockingCommand()), []string{})
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("connection refused"))
 			})
@@ -86,7 +86,7 @@ var _ = Describe("Blocking command", func() {
 				}
 			})
 			It("Should end with error", func() {
-				err := disableBlocking(newBlockingCommand(), []string{})
+				err := disableBlocking(withContext(newBlockingCommand()), []string{})
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("500 Internal Server Error"))
 			})
@@ -109,7 +109,7 @@ var _ = Describe("Blocking command", func() {
 				}
 			})
 			It("should query the blocking status", func() {
-				Expect(statusBlocking(newBlockingCommand(), []string{})).Should(Succeed())
+				Expect(statusBlocking(withContext(newBlockingCommand()), []string{})).Should(Succeed())
 				Expect(loggerHook.LastEntry().Message).Should(Equal("blocking enabled"))
 			})
 		})
@@ -132,19 +132,19 @@ var _ = Describe("Blocking command", func() {
 			})
 			It("should show the blocking status with time", func() {
 				autoEnable = 5
-				Expect(statusBlocking(newBlockingCommand(), []string{})).Should(Succeed())
+				Expect(statusBlocking(withContext(newBlockingCommand()), []string{})).Should(Succeed())
 				Expect(loggerHook.LastEntry().Message).Should(Equal("blocking disabled for groups: 'abc', for 5 seconds"))
 			})
 			It("should show the blocking status", func() {
 				autoEnable = 0
-				Expect(statusBlocking(newBlockingCommand(), []string{})).Should(Succeed())
+				Expect(statusBlocking(withContext(newBlockingCommand()), []string{})).Should(Succeed())
 				Expect(loggerHook.LastEntry().Message).Should(Equal("blocking disabled for groups: abc"))
 			})
 		})
 		When("Wrong url is used", func() {
 			It("Should end with error", func() {
 				apiPort = 0
-				err := statusBlocking(newBlockingCommand(), []string{})
+				err := statusBlocking(withContext(newBlockingCommand()), []string{})
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("connection refused"))
 			})
@@ -156,7 +156,7 @@ var _ = Describe("Blocking command", func() {
 				}
 			})
 			It("Should end with error", func() {
-				err := statusBlocking(newBlockingCommand(), []string{})
+				err := statusBlocking(withContext(newBlockingCommand()), []string{})
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("500 Internal Server Error"))
 			})

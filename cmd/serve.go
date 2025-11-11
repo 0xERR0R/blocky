@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
@@ -22,6 +23,8 @@ var (
 	isConfigMandatory = true
 	signals           = make(chan os.Signal, 1)
 )
+
+const shutdownTimeout = 10 * time.Second
 
 func newServeCommand() *cobra.Command {
 	return &cobra.Command{
@@ -65,7 +68,15 @@ func startServer(_ *cobra.Command, _ []string) error {
 		select {
 		case <-signals:
 			log.Log().Infof("Terminating...")
-			util.LogOnError(ctx, "can't stop server: ", srv.Stop(ctx))
+
+			// Cancel background operations (periodic refresh, etc.)
+			cancelFn()
+
+			// Create timeout context for graceful shutdown
+			stopCtx, stopCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+			defer stopCancel()
+
+			util.LogOnError(stopCtx, "can't stop server: ", srv.Stop(stopCtx))
 			done <- true
 
 		case err := <-errChan:

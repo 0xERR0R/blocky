@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -47,13 +46,13 @@ func newBlockingCommand() *cobra.Command {
 	return c
 }
 
-func enableBlocking(_ *cobra.Command, _ []string) error {
+func enableBlocking(cmd *cobra.Command, _ []string) error {
 	client, err := api.NewClientWithResponses(apiURL())
 	if err != nil {
 		return fmt.Errorf("can't create client: %w", err)
 	}
 
-	resp, err := client.EnableBlockingWithResponse(context.Background())
+	resp, err := client.EnableBlockingWithResponse(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("can't execute %w", err)
 	}
@@ -73,7 +72,7 @@ func disableBlocking(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("can't create client: %w", err)
 	}
 
-	resp, err := client.DisableBlockingWithResponse(context.Background(), &api.DisableBlockingParams{
+	resp, err := client.DisableBlockingWithResponse(cmd.Context(), &api.DisableBlockingParams{
 		Duration: &durationString,
 		Groups:   &groupsString,
 	})
@@ -84,13 +83,13 @@ func disableBlocking(cmd *cobra.Command, _ []string) error {
 	return printOkOrError(resp, string(resp.Body))
 }
 
-func statusBlocking(_ *cobra.Command, _ []string) error {
+func statusBlocking(cmd *cobra.Command, _ []string) error {
 	client, err := api.NewClientWithResponses(apiURL())
 	if err != nil {
 		return fmt.Errorf("can't create client: %w", err)
 	}
 
-	resp, err := client.BlockingStatusWithResponse(context.Background())
+	resp, err := client.BlockingStatusWithResponse(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("can't execute %w", err)
 	}

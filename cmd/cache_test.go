@@ -35,14 +35,14 @@ var _ = Describe("Cache command", func() {
 	Describe("flush cache", func() {
 		When("flush cache is called via REST", func() {
 			It("should flush caches", func() {
-				Expect(flushCache(newCacheCommand(), []string{})).Should(Succeed())
+				Expect(flushCache(withContext(newCacheCommand()), []string{})).Should(Succeed())
 				Expect(loggerHook.LastEntry().Message).Should(Equal("OK"))
 			})
 		})
 		When("Wrong url is used", func() {
 			It("Should end with error", func() {
 				apiPort = 0
-				err := flushCache(newCacheCommand(), []string{})
+				err := flushCache(withContext(newCacheCommand()), []string{})
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("connection refused"))
 			})

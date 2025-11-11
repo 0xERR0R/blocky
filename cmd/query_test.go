@@ -66,7 +66,7 @@ var _ = Describe("Blocking command", func() {
 				}
 			})
 			It("should print result", func() {
-				Expect(query(NewQueryCommand(), []string{"google.de"})).Should(Succeed())
+				Expect(query(withContext(NewQueryCommand()), []string{"google.de"})).Should(Succeed())
 				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("NOERROR"))
 			})
 		})
@@ -77,7 +77,7 @@ var _ = Describe("Blocking command", func() {
 				}
 			})
 			It("should end with error", func() {
-				err := query(NewQueryCommand(), []string{"google.de"})
+				err := query(withContext(NewQueryCommand()), []string{"google.de"})
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("500 Internal Server Error"))
 			})
@@ -94,7 +94,7 @@ var _ = Describe("Blocking command", func() {
 		When("Url is wrong", func() {
 			It("should end with error", func() {
 				apiPort = 0
-				err := query(NewQueryCommand(), []string{"google.de"})
+				err := query(withContext(NewQueryCommand()), []string{"google.de"})
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("connection refused"))
 			})
