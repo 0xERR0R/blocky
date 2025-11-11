@@ -476,7 +476,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				// Should mention chain count
 				Expect(err.Error()).Should(ContainSubstring("across 2 chains"))
 				// Should mention pinned hash count
-				Expect(err.Error()).Should(ContainSubstring("1 pinned hashes"))
+				Expect(err.Error()).Should(ContainSubstring("1 pinned hash"))
 				// Should suggest updating DNS stamp
 				Expect(err.Error()).Should(ContainSubstring("try updating DNS stamp"))
 			})
