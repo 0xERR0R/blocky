@@ -71,6 +71,9 @@ func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.Read
 					return nil
 				}
 
+				// Drain body before closing to allow connection reuse
+				// See: https://pkg.go.dev/net/http#Response.Body
+				_, _ = io.Copy(io.Discard, resp.Body)
 				_ = resp.Body.Close()
 
 				return fmt.Errorf("got status code %d", resp.StatusCode)
