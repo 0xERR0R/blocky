@@ -53,6 +53,18 @@ checksum:
 changelog:
   use: github
   sort: asc
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: "Bug fixes"
+      regexp: '^.*?bug(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: "Build and dependencies"
+      regexp: '^.*?build(\([[:word:]]+\))??!?:.+$'
+      order: 30
+    - title: Misc
+      order: 999
   filters:
     exclude:
       - '^docs:'
