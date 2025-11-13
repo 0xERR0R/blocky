@@ -15,20 +15,28 @@ builds:
       - amd64
       - arm
       - arm64
+      - mipsle
+      - mips
     goarm:
       - 6
       - 7
+    gomips:
+      - softfloat
     ignore:
       - goos: windows
         goarch: arm
       - goos: windows
         goarch: arm64
+      - goos: windows
+        goarch: mipsle
+      - goos: windows
+        goarch: mips
     ldflags:
       - -w
       - -s
       - -X github.com/0xERR0R/blocky/util.Version=v{{.Version}}
       - -X github.com/0xERR0R/blocky/util.BuildTime={{time "20060102-150405"}}
-      - -X github.com/0xERR0R/blocky/util.Architecture={{.Arch}}{{.Arm}}
+      - -X github.com/0xERR0R/blocky/util.Architecture={{.Arch}}{{.Arm}}{{.Mips}}
     env:
       - CGO_ENABLED=0
 release:
@@ -45,6 +53,7 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
+      {{- if .Mips }}_{{ .Mips }}{{ end }}
 
 snapshot:
   name_template: "{{ .Version }}-{{.ShortCommit}}"
