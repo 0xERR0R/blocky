@@ -3261,9 +3261,9 @@ var _ = Describe("Additional Validator Coverage", func() {
 				Answer:   []dns.RR{cname, a},
 			}
 
-			// Before the fix, if there were any RRSIGs in the response, this would return Bogus
-			// because the CNAME has no RRSIG. After the fix, it should check if the zone is unsigned
-			// and return Insecure (acceptable per RFC 4035)
+			// This test checks that when a response contains only unsigned CNAME and A records (no RRSIGs)
+			// in an unsigned zone, the validator returns Insecure (acceptable per RFC 4035).
+			// This ensures that unsigned responses in unsigned zones are not incorrectly marked as Bogus.
 			result := sut.ValidateResponse(ctx, response, question)
 
 			// The key assertion: should be Insecure since the response has no DNSSEC signatures
