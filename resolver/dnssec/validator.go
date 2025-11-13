@@ -564,13 +564,17 @@ func (v *Validator) handleNoDSRecords(
 		if parentResult == ValidationResultSecure {
 			// Parent is signed, so this non-delegation should have been signed too
 			v.logger.Debugf("Parent zone %s is secure but %s has no DS - treating as indeterminate", parentDomain, domain)
+			result := ValidationResultIndeterminate
+			v.setCachedValidation(domain, result)
 
-			return ValidationResultIndeterminate
+			return result
 		}
 	}
 
 	// No DS and no proof - indeterminate
 	v.logger.Debugf("Zone %s security status indeterminate (no DS, no proof)", domain)
+	result := ValidationResultIndeterminate
+	v.setCachedValidation(domain, result)
 
-	return ValidationResultIndeterminate
+	return result
 }
