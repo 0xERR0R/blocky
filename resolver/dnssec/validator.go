@@ -362,14 +362,41 @@ func (v *Validator) validateRRsets(
 	// Group RRs by type
 	rrsets := groupRRsetsByType(rrs)
 
+	// Track mixed security statuses (can occur in CNAME chains crossing zone boundaries)
+	hasSecure := false
+	hasInsecure := false
+
 	// Validate each RRset
 	for rrType, rrset := range rrsets {
 		result := v.validateSingleRRset(ctx, rrType, rrset, sigs, domain, nsRecords, qname)
-		if result != ValidationResultSecure {
-			return result
+
+		switch result {
+		case ValidationResultBogus:
+			// Bogus always fails validation
+			return ValidationResultBogus
+		case ValidationResultIndeterminate:
+			// Indeterminate always fails validation
+			return ValidationResultIndeterminate
+		case ValidationResultSecure:
+			hasSecure = true
+		case ValidationResultInsecure:
+			hasInsecure = true
 		}
 	}
 
+	// Per RFC 4035 §5.2: A mix of Secure and Insecure RRsets is acceptable
+	// This happens with CNAME chains crossing from unsigned to signed zones (or vice versa)
+	if hasSecure {
+		// At least one RRset is validated with DNSSEC signatures
+		return ValidationResultSecure
+	}
+
+	if hasInsecure {
+		// All RRsets are from unsigned (insecure) zones - no DNSSEC validation possible
+		return ValidationResultInsecure
+	}
+
+	// Shouldn't reach here, but return Secure as fallback
 	return ValidationResultSecure
 }
 
@@ -383,7 +410,30 @@ func (v *Validator) validateSingleRRset(
 	matchingRRSIGs := findMatchingRRSIGsForType(sigs, rrType)
 
 	if len(matchingRRSIGs) == 0 {
-		v.logger.Warnf("No RRSIG found for RRset type %d in %s", rrType, domain)
+		// RFC 4035 §5.2: Before treating missing RRSIG as Bogus, check if the zone is insecure (unsigned)
+		// This handles cases where CNAME chains cross zone boundaries with different security statuses
+		// e.g., CNAME in unsigned zone pointing to A records in signed zone
+		rrsetName := dns.Fqdn(rrset[0].Header().Name)
+
+		// Check if this zone is unsigned by checking for DS records
+		zoneSecurityStatus := v.checkZoneSecurityStatus(ctx, rrsetName)
+
+		if zoneSecurityStatus == ValidationResultInsecure {
+			// Zone is unsigned/insecure - unsigned RRsets are acceptable per RFC 4035 §5.2
+			v.logger.Debugf("RRset type %d in %s has no RRSIG, but zone is insecure - acceptable", rrType, rrsetName)
+
+			return ValidationResultInsecure
+		}
+
+		if zoneSecurityStatus == ValidationResultIndeterminate {
+			// Cannot determine zone security status - treat conservatively as Indeterminate
+			v.logger.Warnf("Cannot determine security status for zone of %s - treating as indeterminate", rrsetName)
+
+			return ValidationResultIndeterminate
+		}
+
+		// Zone is secure (has DS records) but RRSIG missing - this is Bogus
+		v.logger.Warnf("No RRSIG found for RRset type %d in %s (zone is secure)", rrType, rrsetName)
 
 		return ValidationResultBogus
 	}
@@ -430,4 +480,97 @@ func (v *Validator) validateSingleRRset(
 
 	// Now validate the DNSKEY itself by walking the chain of trust
 	return v.walkChainOfTrust(ctx, signerName)
+}
+
+// checkZoneSecurityStatus determines if a zone is signed (Secure) or unsigned (Insecure)
+// by checking for DS records in the parent zone.
+// Per RFC 4035 §5.2: A zone is insecure if there's an authenticated NSEC/NSEC3 proving no DS exists.
+// A zone is secure if DS records exist.
+// Returns: Secure, Insecure, or Indeterminate
+func (v *Validator) checkZoneSecurityStatus(ctx context.Context, domain string) ValidationResult {
+	domain = dns.Fqdn(domain)
+
+	// Check cache first - we may have already validated this zone
+	if cached, found := v.getCachedValidation(domain); found {
+		v.logger.Debugf("Using cached security status for %s: %s", domain, cached.String())
+
+		return cached
+	}
+
+	// Get parent domain to query for DS records
+	parentDomain := v.getParentDomain(domain)
+	if parentDomain == "" {
+		// Root or TLD with no parent - treat as insecure for this check
+		// (actual validation would go through trust anchors)
+		v.logger.Debugf("Domain %s has no parent for DS lookup", domain)
+
+		return ValidationResultInsecure
+	}
+
+	// Query DS records for this domain from the parent zone
+	ctx, dsResponse, err := v.queryRecords(ctx, domain, dns.TypeDS)
+	if err != nil {
+		v.logger.Debugf("DS query failed for %s: %v", domain, err)
+
+		return ValidationResultIndeterminate
+	}
+
+	// Check if DS records exist
+	dsRecords, extractErr := extractTypedRecords[*dns.DS](dsResponse.Answer, dsResponse.Ns)
+	if extractErr != nil {
+		// No DS records - handle based on proof of absence
+		return v.handleNoDSRecords(ctx, domain, parentDomain, dsResponse)
+	}
+
+	// DS records exist - zone is signed (secure)
+	v.logger.Debugf("Zone %s is secure (DS records exist: %d)", domain, len(dsRecords))
+	// Don't cache as Secure here - full validation might fail
+	// Just return Secure to indicate the zone should have signatures
+
+	return ValidationResultSecure
+}
+
+// handleNoDSRecords determines zone security status when no DS records are found
+func (v *Validator) handleNoDSRecords(
+	ctx context.Context, domain, parentDomain string, dsResponse *dns.Msg,
+) ValidationResult {
+	// Check for NSEC/NSEC3 proof of absence
+	hasNSEC := len(extractNSECRecords(dsResponse.Ns)) > 0
+	hasNSEC3 := len(extractNSEC3Records(dsResponse.Ns)) > 0
+
+	if hasNSEC || hasNSEC3 {
+		// Authenticated denial of DS existence - zone is insecure (unsigned)
+		v.logger.Debugf("Zone %s is insecure (no DS, with NSEC/NSEC3 proof)", domain)
+		result := ValidationResultInsecure
+		v.setCachedValidation(domain, result)
+
+		return result
+	}
+
+	// No DS and no proof - this might be a non-delegation (e.g., subdomain in parent zone)
+	// Try walking up to parent zone
+	v.logger.Debugf("No DS or proof for %s, checking parent zone", domain)
+
+	if parentDomain != "" {
+		parentResult := v.checkZoneSecurityStatus(ctx, parentDomain)
+		if parentResult == ValidationResultInsecure {
+			// Parent zone is unsigned, so this name is also unsigned
+			v.logger.Debugf("Parent zone %s is insecure, so %s is also insecure", parentDomain, domain)
+			result := ValidationResultInsecure
+			v.setCachedValidation(domain, result)
+
+			return result
+		}
+		if parentResult == ValidationResultSecure {
+			// Parent is signed, so this non-delegation should have been signed too
+			v.logger.Debugf("Parent zone %s is secure but %s has no DS - treating as indeterminate", parentDomain, domain)
+
+			return ValidationResultIndeterminate
+		}
+	}
+
+	// No DS and no proof - indeterminate
+	v.logger.Debugf("Zone %s security status indeterminate (no DS, no proof)", domain)
+
+	return ValidationResultIndeterminate
 }

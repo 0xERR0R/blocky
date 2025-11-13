@@ -3056,6 +3056,36 @@ var _ = Describe("Additional Validator Coverage", func() {
 		})
 
 		It("should reject when no matching RRSIG found", func() {
+			// Mock DS query to indicate zone is signed (has DS records)
+			// so missing RRSIG should be treated as Bogus
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				if req.Req.Question[0].Qtype == dns.TypeDS {
+					ds := &dns.DS{
+						Hdr: dns.RR_Header{
+							Name:   "example.com.",
+							Rrtype: dns.TypeDS,
+							Class:  dns.ClassINET,
+							Ttl:    3600,
+						},
+						KeyTag:     12345,
+						Algorithm:  8,
+						DigestType: 2,
+						Digest:     "test",
+					}
+
+					return &model.Response{
+						Res: &dns.Msg{
+							MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess},
+							Answer: []dns.RR{ds},
+						},
+					}, nil
+				}
+
+				return &model.Response{
+					Res: &dns.Msg{},
+				}, nil
+			}
+
 			a := &dns.A{
 				Hdr: dns.RR_Header{
 					Name:   "example.com.",
@@ -3147,6 +3177,97 @@ var _ = Describe("Additional Validator Coverage", func() {
 
 			result := sut.ValidateResponse(ctx, response, question)
 			Expect(result).ShouldNot(BeNil())
+		})
+
+		// Test for issue #1926: CNAME in unsigned zone without RRSIG should not cause Bogus
+		// This reproduces the bug where Blocky incorrectly rejected unsigned CNAMEs as "bogus signatures"
+		It("should accept CNAME in unsigned zone without RRSIG (issue #1926)", func() {
+			// Simulate the push.bitdefender.net scenario:
+			// 1. push.bitdefender.net (unsigned zone) -> CNAME with no RRSIG
+			// 2. Target A records also unsigned (simplified test case)
+
+			// Mock upstream responses for DS queries
+			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
+				qtype := req.Req.Question[0].Qtype
+
+				if qtype == dns.TypeDS {
+					// Return NSEC3 proof that DS does not exist (unsigned zone)
+					// This applies to any DS query in this test
+					nsec3 := &dns.NSEC3{
+						Hdr: dns.RR_Header{
+							Name:   "abc123.example.net.",
+							Rrtype: dns.TypeNSEC3,
+							Class:  dns.ClassINET,
+							Ttl:    3600,
+						},
+						Hash:       1,
+						Flags:      0,
+						Iterations: 0,
+						SaltLength: 0,
+						Salt:       "",
+						HashLength: 20,
+						NextDomain: "def456",
+						TypeBitMap: []uint16{dns.TypeNS, dns.TypeSOA, dns.TypeNSEC3},
+					}
+
+					return &model.Response{
+						Res: &dns.Msg{
+							MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess},
+							Ns:     []dns.RR{nsec3},
+						},
+					}, nil
+				}
+
+				// Default empty response
+				return &model.Response{
+					Res: &dns.Msg{
+						MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess},
+					},
+				}, nil
+			}
+
+			// Create response with CNAME and A records, both without RRSIG (unsigned)
+			cname := &dns.CNAME{
+				Hdr: dns.RR_Header{
+					Name:   "www.unsigned.net.",
+					Rrtype: dns.TypeCNAME,
+					Class:  dns.ClassINET,
+					Ttl:    300,
+				},
+				Target: "target.unsigned.net.",
+			}
+
+			a := &dns.A{
+				Hdr: dns.RR_Header{
+					Name:   "target.unsigned.net.",
+					Rrtype: dns.TypeA,
+					Class:  dns.ClassINET,
+					Ttl:    300,
+				},
+				A: []byte{192, 0, 2, 1},
+			}
+
+			question := dns.Question{
+				Name:   "www.unsigned.net.",
+				Qtype:  dns.TypeA,
+				Qclass: dns.ClassINET,
+			}
+
+			response := &dns.Msg{
+				MsgHdr: dns.MsgHdr{
+					Rcode: dns.RcodeSuccess,
+				},
+				Question: []dns.Question{question},
+				Answer:   []dns.RR{cname, a},
+			}
+
+			// Before the fix, if there were any RRSIGs in the response, this would return Bogus
+			// because the CNAME has no RRSIG. After the fix, it should check if the zone is unsigned
+			// and return Insecure (acceptable per RFC 4035)
+			result := sut.ValidateResponse(ctx, response, question)
+
+			// The key assertion: should be Insecure since the response has no DNSSEC signatures
+			Expect(result).Should(Equal(ValidationResultInsecure))
 		})
 	})
 
