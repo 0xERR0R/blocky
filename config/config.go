@@ -267,6 +267,7 @@ type Config struct {
 	EDE              EDE                 `yaml:"ede"`
 	ECS              ECS                 `yaml:"ecs"`
 	SUDN             SUDN                `yaml:"specialUseDomains"`
+	DNS64            DNS64               `yaml:"dns64"`
 	DNSSEC           DNSSEC              `yaml:"dnssec"`
 
 	// Deprecated options
@@ -634,6 +635,11 @@ func (cfg *Config) migrate(logger *logrus.Entry) bool {
 func (cfg *Config) validate(logger *logrus.Entry) {
 	cfg.MinTLSServeVer.validate(logger)
 	cfg.Upstreams.validate(logger)
+
+	// DNS64 validation
+	if err := cfg.DNS64.validate(logger, &cfg.Filtering, &cfg.Caching); err != nil {
+		logger.Fatal(err)
+	}
 }
 
 // ConvertPort converts string representation into a valid port (0 - 65535)
