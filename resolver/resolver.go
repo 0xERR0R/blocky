@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -283,4 +284,14 @@ func createGroupResolvers(
 	}
 
 	return resolvers, nil
+}
+
+// formatUpstreamResolvers formats a list of upstream resolvers with their type and name
+func formatUpstreamResolvers(typeName, name string, resolvers []*upstreamResolverStatus) string {
+	upstreams := make([]string, len(resolvers))
+	for i, s := range resolvers {
+		upstreams[i] = s.resolver.String()
+	}
+
+	return fmt.Sprintf("%s upstreams '%s (%s)'", typeName, name, strings.Join(upstreams, ","))
 }

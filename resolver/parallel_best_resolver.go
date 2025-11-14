@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -137,14 +136,7 @@ func (r *ParallelBestResolver) Name() string {
 }
 
 func (r *ParallelBestResolver) String() string {
-	resolvers := *r.resolvers.Load()
-
-	upstreams := make([]string, len(resolvers))
-	for i, s := range resolvers {
-		upstreams[i] = s.resolver.String()
-	}
-
-	return fmt.Sprintf("%s upstreams '%s (%s)'", r.Type(), r.cfg.Name, strings.Join(upstreams, ","))
+	return formatUpstreamResolvers(r.Type(), r.cfg.Name, *r.resolvers.Load())
 }
 
 // Resolve sends the query request to multiple upstream resolvers and returns the fastest result
