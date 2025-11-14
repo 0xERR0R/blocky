@@ -33,9 +33,9 @@ func query(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unknown query type '%s'", typeFlag)
 	}
 
-	client, err := api.NewClientWithResponses(apiURL())
+	client, err := newAPIClient()
 	if err != nil {
-		return fmt.Errorf("can't create client: %w", err)
+		return err
 	}
 
 	req := api.ApiQueryRequest{

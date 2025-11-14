@@ -3,8 +3,6 @@ package resolver
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strings"
 	"sync/atomic"
 
 	"github.com/0xERR0R/blocky/config"
@@ -61,14 +59,7 @@ func (r *StrictResolver) Name() string {
 }
 
 func (r *StrictResolver) String() string {
-	resolvers := *r.resolvers.Load()
-
-	upstreams := make([]string, len(resolvers))
-	for i, s := range resolvers {
-		upstreams[i] = s.resolver.String()
-	}
-
-	return fmt.Sprintf("%s upstreams '%s (%s)'", strictResolverType, r.cfg.Name, strings.Join(upstreams, ","))
+	return formatUpstreamResolvers(strictResolverType, r.cfg.Name, *r.resolvers.Load())
 }
 
 // Resolve sends the query request in a strict order to the upstream resolvers

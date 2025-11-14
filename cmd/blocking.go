@@ -47,9 +47,9 @@ func newBlockingCommand() *cobra.Command {
 }
 
 func enableBlocking(cmd *cobra.Command, _ []string) error {
-	client, err := api.NewClientWithResponses(apiURL())
+	client, err := newAPIClient()
 	if err != nil {
-		return fmt.Errorf("can't create client: %w", err)
+		return err
 	}
 
 	resp, err := client.EnableBlockingWithResponse(cmd.Context())
@@ -67,9 +67,9 @@ func disableBlocking(cmd *cobra.Command, _ []string) error {
 	durationString := duration.String()
 	groupsString := strings.Join(groups, ",")
 
-	client, err := api.NewClientWithResponses(apiURL())
+	client, err := newAPIClient()
 	if err != nil {
-		return fmt.Errorf("can't create client: %w", err)
+		return err
 	}
 
 	resp, err := client.DisableBlockingWithResponse(cmd.Context(), &api.DisableBlockingParams{
@@ -84,9 +84,9 @@ func disableBlocking(cmd *cobra.Command, _ []string) error {
 }
 
 func statusBlocking(cmd *cobra.Command, _ []string) error {
-	client, err := api.NewClientWithResponses(apiURL())
+	client, err := newAPIClient()
 	if err != nil {
-		return fmt.Errorf("can't create client: %w", err)
+		return err
 	}
 
 	resp, err := client.BlockingStatusWithResponse(cmd.Context())

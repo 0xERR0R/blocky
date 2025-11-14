@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/0xERR0R/blocky/api"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/spf13/cobra"
@@ -63,6 +64,16 @@ Complete documentation is available at https://github.com/0xERR0R/blocky`,
 
 func apiURL() string {
 	return fmt.Sprintf("http://%s%s", net.JoinHostPort(apiHost, strconv.Itoa(int(apiPort))), "/api")
+}
+
+// newAPIClient creates a new API client with the configured URL
+func newAPIClient() (*api.ClientWithResponses, error) {
+	client, err := api.NewClientWithResponses(apiURL())
+	if err != nil {
+		return nil, fmt.Errorf("can't create client: %w", err)
+	}
+
+	return client, nil
 }
 
 func initConfigPreRun(cmd *cobra.Command, args []string) error {
