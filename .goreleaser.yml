@@ -31,6 +31,10 @@ builds:
         goarch: mipsle
       - goos: windows
         goarch: mips
+      - goos: darwin
+        goarch: mipsle
+      - goos: darwin
+        goarch: mips
     ldflags:
       - -w
       - -s
