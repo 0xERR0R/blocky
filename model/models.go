@@ -18,6 +18,7 @@ import (
 // FILTERED // the query was filtered by query type
 // NOTFQDN // the query was filtered as it is not fqdn conform
 // SPECIAL // the query was resolved by the special use domain name resolver
+// SYNTHESIZED // the response was synthesized by DNS64
 // )
 type ResponseType int
 
@@ -41,6 +42,8 @@ func (t ResponseType) ToExtendedErrorCode() uint16 {
 		return dns.ExtendedErrorCodeFiltered
 	case ResponseTypeSPECIAL:
 		return dns.ExtendedErrorCodeFiltered
+	case ResponseTypeSYNTHESIZED:
+		return dns.ExtendedErrorCodeForgedAnswer
 	default:
 		return dns.ExtendedErrorCodeOther
 	}

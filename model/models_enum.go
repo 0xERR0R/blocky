@@ -120,11 +120,14 @@ const (
 	// ResponseTypeSPECIAL is a ResponseType of type SPECIAL.
 	// the query was resolved by the special use domain name resolver
 	ResponseTypeSPECIAL
+	// ResponseTypeSYNTHESIZED is a ResponseType of type SYNTHESIZED.
+	// the response was synthesized by DNS64
+	ResponseTypeSYNTHESIZED
 )
 
 var ErrInvalidResponseType = fmt.Errorf("not a valid ResponseType, try [%s]", strings.Join(_ResponseTypeNames, ", "))
 
-const _ResponseTypeName = "RESOLVEDCACHEDBLOCKEDCONDITIONALCUSTOMDNSHOSTSFILEFILTEREDNOTFQDNSPECIAL"
+const _ResponseTypeName = "RESOLVEDCACHEDBLOCKEDCONDITIONALCUSTOMDNSHOSTSFILEFILTEREDNOTFQDNSPECIALSYNTHESIZED"
 
 var _ResponseTypeNames = []string{
 	_ResponseTypeName[0:8],
@@ -136,6 +139,7 @@ var _ResponseTypeNames = []string{
 	_ResponseTypeName[50:58],
 	_ResponseTypeName[58:65],
 	_ResponseTypeName[65:72],
+	_ResponseTypeName[72:83],
 }
 
 // ResponseTypeNames returns a list of possible string values of ResponseType.
@@ -155,6 +159,7 @@ var _ResponseTypeMap = map[ResponseType]string{
 	ResponseTypeFILTERED:    _ResponseTypeName[50:58],
 	ResponseTypeNOTFQDN:     _ResponseTypeName[58:65],
 	ResponseTypeSPECIAL:     _ResponseTypeName[65:72],
+	ResponseTypeSYNTHESIZED: _ResponseTypeName[72:83],
 }
 
 // String implements the Stringer interface.
@@ -182,6 +187,7 @@ var _ResponseTypeValue = map[string]ResponseType{
 	_ResponseTypeName[50:58]: ResponseTypeFILTERED,
 	_ResponseTypeName[58:65]: ResponseTypeNOTFQDN,
 	_ResponseTypeName[65:72]: ResponseTypeSPECIAL,
+	_ResponseTypeName[72:83]: ResponseTypeSYNTHESIZED,
 }
 
 // ParseResponseType attempts to convert a string to a ResponseType.

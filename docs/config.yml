@@ -440,3 +440,56 @@ dnssec:
     - "example.com. 86400 IN DNSKEY 257 3 8 AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTO..."
     # Example: DS record format (for parent zone validation)
     - "subdomain.example.com. 3600 IN DS 12345 8 2 1234567890ABCDEF..."
+
+# optional: DNS64 configuration
+# DNS64 (RFC 6147) allows IPv6-only clients to access IPv4-only services by
+# synthesizing AAAA (IPv6) records from A (IPv4) records. This is critical for
+# IPv6-only networks (cellular, IoT, modern datacenters) that need to reach
+# legacy IPv4-only destinations.
+dns64:
+  # Enable DNS64 synthesis
+  # WARNING: Do NOT enable if filtering.queryTypes contains AAAA, as all AAAA
+  # queries will be filtered before reaching DNS64 (making DNS64 ineffective)
+  # default: false
+  enable: false
+
+  # optional: DNS64 prefixes for IPv4-to-IPv6 address synthesis
+  # Multiple prefixes allow for load balancing or redundancy across multiple
+  # NAT64 gateways. DNS64 will synthesize one AAAA record per prefix per A record.
+  #
+  # Format: IPv6 prefix in CIDR notation
+  # Valid prefix lengths (per RFC 6052): /32, /40, /48, /56, /64, /96
+  # - /96 is most common (well-known prefix 64:ff9b::/96)
+  # - Shorter prefixes (/32, /40, etc.) allow more flexibility in address assignment
+  #
+  # default: [64:ff9b::/96] (RFC 6052 well-known prefix)
+  #
+  # IMPORTANT: Prefixes must not overlap. Overlapping prefixes will be rejected.
+  prefixes:
+    - 64:ff9b::/96
+
+  # optional: DNS64 exclusion set
+  # DNS64 will NOT synthesize AAAA records if the response already contains
+  # AAAA records that are NOT in the exclusion set.
+  #
+  # If not specified (recommended), uses default exclusion set:
+  # - IPv4-mapped IPv6 addresses (::ffff:0:0/96) - RFC 6147 requirement
+  # - Loopback address (::1/128) - RFC 6147 recommendation
+  # - Link-local addresses (fe80::/10) - RFC 6147 recommendation
+  # - Configured DNS64 prefixes - prevents synthesis loops
+  #
+  # Custom exclusion set (advanced use only):
+  # WARNING: If you configure a custom exclusion set, you are responsible for
+  # including all necessary ranges. The configured prefixes are NOT automatically
+  # added when using a custom exclusion set.
+  #
+  # default: [::ffff:0:0/96, ::1/128, fe80::/10] + configured prefixes
+  #
+  # Example custom exclusion set:
+  # exclusionSet:
+  #   - ::ffff:0:0/96  # IPv4-mapped (REQUIRED by RFC)
+  #   - ::1/128        # Loopback (recommended)
+  #   - fe80::/10      # Link-local (recommended)
+  #   - 64:ff9b::/96   # Your configured prefix (recommended to prevent loops)
+  #   - 2001:db8::/32  # Custom exclusion range
+  #
