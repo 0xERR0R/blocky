@@ -59,7 +59,10 @@ import (
 
 const ednsUDPSize = 4096 // EDNS UDP buffer size for DNSSEC queries
 
-var errUnsupportedRSAExponent = errors.New("unsupported RSA exponent exceeds Go crypto limit")
+var (
+	errUnsupportedRSAExponent = errors.New("unsupported RSA exponent exceeds Go crypto limit")
+	errInsecureChain          = errors.New("chain of trust is insecure (no DS records in parent)")
+)
 
 // Resolver is the interface for DNS resolution (minimal interface to avoid import cycles)
 type Resolver interface {
@@ -444,12 +447,22 @@ func (v *Validator) validateSingleRRset(
 		lastErr                 error
 		hasUnsupportedSignature bool
 		hasOtherFailure         bool
+		hasInsecureChain        bool
 	)
 
 	for _, matchingSig := range sortedSigs {
 		success, err := v.tryVerifyWithRRSIG(ctx, rrset, matchingSig, domain, nsRecords, qname, rrType)
 		if success {
-			// At least one signature verified successfully
+			// Check if signature verified but chain is insecure
+			if errors.Is(err, errInsecureChain) {
+				// Signature verified cryptographically, but no chain of trust to root
+				// Per RFC 5155 §6: Zone is signed but delegation is insecure (NSEC3 Opt-Out)
+				hasInsecureChain = true
+
+				continue
+			}
+
+			// At least one signature verified successfully with full chain of trust
 			return ValidationResultSecure
 		}
 
@@ -465,6 +478,25 @@ func (v *Validator) validateSingleRRset(
 		}
 	}
 
+	// Determine final result based on failure types
+	return v.determineFinalValidationResult(
+		domain, len(sortedSigs), hasInsecureChain, hasUnsupportedSignature, hasOtherFailure, lastErr,
+	)
+}
+
+// determineFinalValidationResult determines the validation result when all RRSIGs have been tried
+func (v *Validator) determineFinalValidationResult(
+	domain string, sigCount int, hasInsecureChain, hasUnsupportedSignature, hasOtherFailure bool, lastErr error,
+) ValidationResult {
+	// Check if any signature verified with insecure chain
+	// This takes precedence over other failure types
+	if hasInsecureChain {
+		v.logger.Debugf("RRSIG verified for %s but chain of trust is insecure (no DS in parent) - treating as Insecure",
+			domain)
+
+		return ValidationResultInsecure
+	}
+
 	// All RRSIGs failed - determine result based on failure types
 	// Per RFC 4035 §2.2: Treat unsupported algorithms as Insecure only if NO other errors occurred
 	if hasUnsupportedSignature && !hasOtherFailure {
@@ -477,7 +509,7 @@ func (v *Validator) validateSingleRRset(
 
 	// At least one signature failed validation (not just unsupported) - this is Bogus
 	v.logger.Warnf("All RRSIG verification attempts failed for %s (tried %d signatures), last error: %v",
-		domain, len(sortedSigs), lastErr)
+		domain, sigCount, lastErr)
 
 	return ValidationResultBogus
 }
@@ -519,7 +551,7 @@ func (v *Validator) tryVerifyWithRRSIG(
 
 	// Check for unsupported RSA exponents (Go crypto limitation)
 	if hasUnsupportedRSAExponent(matchingKey) {
-		v.logger.Warnf(
+		v.logger.Debugf(
 			"DNSKEY for %s (algorithm=%d, keytag=%d) has unsupported RSA exponent "+
 				"(exceeds 2^31-1, Go crypto limitation) - treating zone as Insecure per RFC 4035 §2.2",
 			domain, matchingSig.Algorithm, matchingSig.KeyTag)
@@ -529,14 +561,27 @@ func (v *Validator) tryVerifyWithRRSIG(
 
 	// Validate the DNSKEY via chain of trust
 	chainResult := v.walkChainOfTrust(ctx, signerName)
-	if chainResult != ValidationResultSecure {
+
+	// Only skip verification if chain validation failed with Bogus or Indeterminate
+	// Per RFC 5155 §6: NSEC3 Opt-Out allows unsigned delegations, but if the zone IS signed
+	// (has RRSIG records), we should still validate those signatures cryptographically
+	if chainResult == ValidationResultBogus || chainResult == ValidationResultIndeterminate {
 		v.logger.Debugf("Skipping RRSIG (algorithm=%d, keytag=%d): chain of trust validation failed: %s",
 			matchingSig.Algorithm, matchingSig.KeyTag, chainResult.String())
 
 		return false, nil
 	}
 
-	// Verify the signature
+	// Verify the signature and return result based on chain status
+	return v.verifyAndReturnResult(rrset, matchingSig, matchingKey, nsRecords, qname, domain, chainResult)
+}
+
+// verifyAndReturnResult verifies the signature and returns the result based on chain status
+func (v *Validator) verifyAndReturnResult(
+	rrset []dns.RR, matchingSig *dns.RRSIG, matchingKey *dns.DNSKEY,
+	nsRecords []dns.RR, qname, domain string, chainResult ValidationResult,
+) (bool, error) {
+	// Verify the signature cryptographically (even if chain is Insecure)
 	if err := v.verifyRRSIG(rrset, matchingSig, matchingKey, nsRecords, qname); err != nil {
 		v.logger.Debugf("RRSIG verification failed for algorithm=%d, keytag=%d: %v (trying next RRSIG if available)",
 			matchingSig.Algorithm, matchingSig.KeyTag, err)
@@ -544,7 +589,17 @@ func (v *Validator) tryVerifyWithRRSIG(
 		return false, err
 	}
 
-	// Verification succeeded!
+	// Signature verified successfully
+	if chainResult == ValidationResultInsecure {
+		// Signature is cryptographically valid, but chain of trust to root cannot be established
+		// This happens with NSEC3 Opt-Out when parent has no DS but child is signed
+		v.logger.Debugf("RRSIG verified for %s (algorithm=%d, keytag=%d), but chain is Insecure",
+			domain, matchingSig.Algorithm, matchingSig.KeyTag)
+
+		return true, errInsecureChain
+	}
+
+	// Verification succeeded with full chain of trust!
 	v.logger.Debugf("Successfully verified RRset for %s with algorithm=%d, keytag=%d",
 		domain, matchingSig.Algorithm, matchingSig.KeyTag)
 
