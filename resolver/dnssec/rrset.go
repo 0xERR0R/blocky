@@ -202,7 +202,7 @@ func hasUnsupportedRSAExponent(key *dns.DNSKEY) bool {
 		}
 
 		// Parse exponent length per RFC 3110
-		// Track offset to avoid redundant checks (Copilot PR review feedback)
+		// Track offset to avoid redundant checks
 		var expLen int
 		var offset int
 
