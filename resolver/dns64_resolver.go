@@ -85,6 +85,11 @@ func NewDNS64Resolver(cfg config.DNS64) ChainedResolver {
 
 // Resolve implements the DNS64 resolver logic
 func (r *DNS64Resolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
+	// Check if DNS64 is enabled
+	if !r.IsEnabled() {
+		return r.next.Resolve(ctx, request)
+	}
+
 	ctx, logger := r.log(ctx)
 
 	// Only process AAAA queries for IN class

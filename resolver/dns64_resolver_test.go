@@ -52,6 +52,74 @@ var _ = Describe("DNS64Resolver", func() {
 		})
 	})
 
+	Describe("When disabled", func() {
+		BeforeEach(func() {
+			sutConfig.Enable = false
+		})
+
+		It("should pass through all queries without processing when disabled", func() {
+			// Test AAAA query that would normally trigger synthesis
+			request := util.NewMsgWithQuestion("example.com.", dns.Type(dns.TypeAAAA))
+
+			// Mock response with no AAAA records (would trigger synthesis if enabled)
+			mockResponse := new(dns.Msg)
+			mockResponse.SetReply(request)
+			mockResponse.Rcode = dns.RcodeSuccess
+			// Empty answer section - would trigger A query if DNS64 was enabled
+
+			m.On("Resolve", mock.Anything).Return(&model.Response{Res: mockResponse}, nil)
+
+			resp, err := sut.Resolve(ctx, &model.Request{Req: request})
+
+			Expect(err).Should(Succeed())
+			Expect(resp.Res).Should(Equal(mockResponse))
+			// Should only call next resolver once (no A query should be made)
+			m.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
+			// Verify it was the AAAA query that was passed through
+			m.AssertCalled(GinkgoT(), "Resolve", mock.MatchedBy(func(req *model.Request) bool {
+				return req.Req.Question[0].Qtype == dns.TypeAAAA
+			}))
+		})
+
+		It("should not perform synthesis even with A records available", func() {
+			request := util.NewMsgWithQuestion("ipv4only.example.com.", dns.Type(dns.TypeAAAA))
+
+			// Empty AAAA response
+			aaaaResponse := new(dns.Msg)
+			aaaaResponse.SetReply(request)
+
+			m.On("Resolve", mock.Anything).Return(&model.Response{Res: aaaaResponse}, nil)
+
+			resp, err := sut.Resolve(ctx, &model.Request{Req: request})
+
+			Expect(err).Should(Succeed())
+			Expect(resp.Res.Answer).Should(BeEmpty())
+			// Should NOT query for A records - only one call to next resolver
+			m.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
+			// No synthesis should occur
+			Expect(resp.RType).ShouldNot(Equal(model.ResponseTypeSYNTHESIZED))
+		})
+
+		It("should pass through A queries unchanged when disabled", func() {
+			request := util.NewMsgWithQuestion("example.com.", dns.Type(dns.TypeA))
+			mockResponse := new(dns.Msg)
+			mockResponse.SetReply(request)
+			mockResponse.Answer = []dns.RR{
+				&dns.A{
+					Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300},
+					A:   net.ParseIP("192.0.2.1"),
+				},
+			}
+			m.On("Resolve", mock.Anything).Return(&model.Response{Res: mockResponse}, nil)
+
+			resp, err := sut.Resolve(ctx, &model.Request{Req: request})
+
+			Expect(err).Should(Succeed())
+			Expect(resp.Res).Should(Equal(mockResponse))
+			m.AssertNumberOfCalls(GinkgoT(), "Resolve", 1)
+		})
+	})
+
 	Describe("Configuration", func() {
 		When("no prefixes configured", func() {
 			BeforeEach(func() {
