@@ -242,20 +242,23 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 					aRecordStr := FormatRecordForMokka(chainData.ARecord)
 					aRRSIGStr := FormatRecordForMokka(chainData.ARRRSIG)
 					childKeyStr := FormatRecordForMokka(chainData.ChildDNSKEY)
+					childKeyRRSIGStr := FormatRecordForMokka(chainData.ChildDNSKEYRRSIG)
 					dsStr := FormatRecordForMokka(chainData.DS)
 					dsRRSIGStr := FormatRecordForMokka(chainData.DSRRSIG)
 					parentKeyStr := FormatRecordForMokka(chainData.ParentDNSKEY)
+					parentKeyRRSIGStr := FormatRecordForMokka(chainData.ParentDNSKEYRRSIG)
 
 					// Create mokka with complete DNSSEC chain
 					// Query responses:
 					// 1. A www.child.parent -> A + RRSIG (signed by child)
-					// 2. DNSKEY child.parent -> DNSKEY + DS + DS_RRSIG (DS signed by parent)
-					// 3. DNSKEY parent -> DNSKEY (parent is trust anchor)
+					// 2. DNSKEY child.parent -> DNSKEY + DNSKEY_RRSIG (self-signed)
+					// 3. DS child.parent -> DS + DS_RRSIG (DS signed by parent)
+					// 4. DNSKEY parent -> DNSKEY + DNSKEY_RRSIG (self-signed, parent is trust anchor)
 					_, err = createDNSMokkaContainer(ctx, "moka-dnssec-chain", e2eNet,
 						fmt.Sprintf(`A www.child.parent/NOERROR("%s", "%s")`, aRecordStr, aRRSIGStr),
-						fmt.Sprintf(`DNSKEY child.parent/NOERROR("%s")`, childKeyStr),
+						fmt.Sprintf(`DNSKEY child.parent/NOERROR("%s", "%s")`, childKeyStr, childKeyRRSIGStr),
 						fmt.Sprintf(`DS child.parent/NOERROR("%s", "%s")`, dsStr, dsRRSIGStr),
-						fmt.Sprintf(`DNSKEY parent/NOERROR("%s")`, parentKeyStr),
+						fmt.Sprintf(`DNSKEY parent/NOERROR("%s", "%s")`, parentKeyStr, parentKeyRRSIGStr),
 					)
 					Expect(err).Should(Succeed())
 

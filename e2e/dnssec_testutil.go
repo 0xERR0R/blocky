@@ -39,6 +39,10 @@ type DNSSECChainData struct {
 	// Child's A record and signature
 	ARecord *dns.A
 	ARRRSIG *dns.RRSIG
+
+	// DNSKEY RRSIGs (self-signed per RFC 4035 §5.2)
+	ChildDNSKEYRRSIG  *dns.RRSIG
+	ParentDNSKEYRRSIG *dns.RRSIG
 }
 
 // GenerateValidDNSSEC generates a valid DNSSEC-signed A record with matching DNSKEY
@@ -266,6 +270,54 @@ func GenerateDNSSECChain(parentZone, childZone, hostname, ipAddr string) (*DNSSE
 	}
 
 	chain.ARRRSIG = aRRSIG
+
+	// Generate RRSIG for child DNSKEY RRset (self-signed per RFC 4035 §5.2)
+	childDNSKEYRRSIG := new(dns.RRSIG)
+	childDNSKEYRRSIG.Hdr = dns.RR_Header{
+		Name:   childZone,
+		Rrtype: dns.TypeRRSIG,
+		Class:  dns.ClassINET,
+		Ttl:    3600,
+	}
+	childDNSKEYRRSIG.TypeCovered = dns.TypeDNSKEY
+	childDNSKEYRRSIG.Algorithm = dns.ECDSAP256SHA256
+	childDNSKEYRRSIG.Labels = uint8(dns.CountLabel(childKey.Hdr.Name))
+	childDNSKEYRRSIG.OrigTtl = childKey.Hdr.Ttl
+	childDNSKEYRRSIG.Expiration = uint32(time.Now().Add(30 * 24 * time.Hour).Unix())
+	childDNSKEYRRSIG.Inception = uint32(time.Now().Add(-1 * time.Hour).Unix())
+	childDNSKEYRRSIG.KeyTag = childKey.KeyTag()
+	childDNSKEYRRSIG.SignerName = childZone
+
+	// Child signs its own DNSKEY (self-signed)
+	if err := childDNSKEYRRSIG.Sign(childPrivkey, []dns.RR{childKey}); err != nil {
+		return nil, fmt.Errorf("failed to sign child DNSKEY: %w", err)
+	}
+
+	chain.ChildDNSKEYRRSIG = childDNSKEYRRSIG
+
+	// Generate RRSIG for parent DNSKEY RRset (self-signed per RFC 4035 §5.2)
+	parentDNSKEYRRSIG := new(dns.RRSIG)
+	parentDNSKEYRRSIG.Hdr = dns.RR_Header{
+		Name:   parentZone,
+		Rrtype: dns.TypeRRSIG,
+		Class:  dns.ClassINET,
+		Ttl:    3600,
+	}
+	parentDNSKEYRRSIG.TypeCovered = dns.TypeDNSKEY
+	parentDNSKEYRRSIG.Algorithm = dns.ECDSAP256SHA256
+	parentDNSKEYRRSIG.Labels = uint8(dns.CountLabel(parentKey.Hdr.Name))
+	parentDNSKEYRRSIG.OrigTtl = parentKey.Hdr.Ttl
+	parentDNSKEYRRSIG.Expiration = uint32(time.Now().Add(30 * 24 * time.Hour).Unix())
+	parentDNSKEYRRSIG.Inception = uint32(time.Now().Add(-1 * time.Hour).Unix())
+	parentDNSKEYRRSIG.KeyTag = parentKey.KeyTag()
+	parentDNSKEYRRSIG.SignerName = parentZone
+
+	// Parent signs its own DNSKEY (self-signed)
+	if err := parentDNSKEYRRSIG.Sign(parentPrivkey, []dns.RR{parentKey}); err != nil {
+		return nil, fmt.Errorf("failed to sign parent DNSKEY: %w", err)
+	}
+
+	chain.ParentDNSKEYRRSIG = parentDNSKEYRRSIG
 
 	return chain, nil
 }
