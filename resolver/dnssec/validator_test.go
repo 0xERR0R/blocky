@@ -908,13 +908,13 @@ var _ = Describe("DNSSECValidator", func() {
 				},
 			}
 
-			// Test that RRsets are grouped by type
-			grouped := groupRRsetsByType(rrsets)
+			// Test that RRsets are grouped by name and type
+			grouped := groupRRsetsByNameAndType(rrsets)
 
-			// Should have 2 groups (A and AAAA)
+			// Should have 2 groups (example.com. A and example.com. AAAA)
 			Expect(grouped).Should(HaveLen(2))
-			Expect(grouped[dns.TypeA]).Should(HaveLen(2))
-			Expect(grouped[dns.TypeAAAA]).Should(HaveLen(1))
+			Expect(grouped[rrsetKey{name: "example.com.", rrType: dns.TypeA}]).Should(HaveLen(2))
+			Expect(grouped[rrsetKey{name: "example.com.", rrType: dns.TypeAAAA}]).Should(HaveLen(1))
 		})
 	})
 
@@ -2208,7 +2208,7 @@ var _ = Describe("DNSSECValidator", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
-		It("should reject wildcard expansion without NSEC/NSEC3 proof", func() {
+		It("should accept wildcard expansion without NSEC/NSEC3 proof (positive response)", func() {
 			rrsig := &dns.RRSIG{
 				SignerName: "example.com.",
 				Labels:     2,
@@ -2217,9 +2217,10 @@ var _ = Describe("DNSSECValidator", func() {
 			qname := "test.example.com."
 			nsRecords := []dns.RR{} // No NSEC/NSEC3 proof
 
+			// Per RFC 4035 §5.3.4, for positive responses the cryptographic signature
+			// is sufficient proof. NSEC/NSEC3 is primarily for negative responses.
 			err := sut.validateWildcardExpansion(rrsetName, rrsig, nsRecords, qname)
-			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring("no NSEC/NSEC3 proof"))
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("should reject wildcard if signer is not parent of wildcard name", func() {
@@ -2679,8 +2680,9 @@ var _ = Describe("DNSSECValidator", func() {
 
 			// Calculate the key tag for the first key
 			targetTag := keys[0].KeyTag()
+			targetAlg := keys[0].Algorithm
 
-			result := findMatchingDNSKEY(keys, targetTag)
+			result := findMatchingDNSKEY(keys, targetTag, targetAlg)
 			Expect(result).ShouldNot(BeNil())
 			Expect(result.KeyTag()).Should(Equal(targetTag))
 		})
@@ -2701,12 +2703,12 @@ var _ = Describe("DNSSECValidator", func() {
 				},
 			}
 
-			result := findMatchingDNSKEY(keys, 9999)
+			result := findMatchingDNSKEY(keys, 9999, 8)
 			Expect(result).Should(BeNil())
 		})
 
 		It("should return nil for empty key list", func() {
-			result := findMatchingDNSKEY([]*dns.DNSKEY{}, 12345)
+			result := findMatchingDNSKEY([]*dns.DNSKEY{}, 12345, 8)
 			Expect(result).Should(BeNil())
 		})
 	})

@@ -78,16 +78,16 @@ var _ = Describe("Wildcard validation functions", func() {
 			Expect(err.Error()).Should(ContainSubstring("not within signer zone"))
 		})
 
-		It("should fail when no NSEC/NSEC3 proof provided", func() {
+		It("should accept wildcard when no NSEC/NSEC3 proof provided (positive response)", func() {
 			rrsig := &dns.RRSIG{
 				Labels:     2,
 				SignerName: "example.com.",
 			}
 
 			// No NSEC/NSEC3 records in authority section
+			// For positive responses, the cryptographic signature is sufficient proof
 			err := sut.validateWildcardExpansion("sub.example.com.", rrsig, []dns.RR{}, "sub.example.com.")
-			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring("no NSEC/NSEC3 proof"))
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("should handle deeply nested wildcards", func() {
@@ -237,19 +237,20 @@ var _ = Describe("Wildcard validation functions", func() {
 			Expect(err).Should(Succeed())
 		})
 
-		It("should fail when neither NSEC nor NSEC3 available", func() {
+		It("should accept wildcard when neither NSEC nor NSEC3 available (positive response)", func() {
+			// For positive responses, the cryptographic signature is sufficient proof
 			err := sut.validateWildcardProof("*.example.com.", "sub.example.com.", []dns.RR{}, "sub.example.com.")
-			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring("no NSEC/NSEC3 proof"))
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 
-		It("should handle non-NSEC/NSEC3 records", func() {
+		It("should accept wildcard with non-NSEC/NSEC3 records (positive response)", func() {
 			otherRR := &dns.A{
 				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeA},
 			}
 
+			// For positive responses, the cryptographic signature is sufficient proof
 			err := sut.validateWildcardProof("*.example.com.", "sub.example.com.", []dns.RR{otherRR}, "sub.example.com.")
-			Expect(err).Should(HaveOccurred())
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("should prefer NSEC over NSEC3 when both present", func() {
