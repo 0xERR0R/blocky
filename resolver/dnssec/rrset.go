@@ -220,8 +220,8 @@ func hasUnsupportedRSAExponent(key *dns.DNSKEY) bool {
 			offset = 1
 		}
 
-		// Go's crypto/rsa limits exponents to 2^31-1, which fits in 4 bytes
-		// If exponent is > 4 bytes, it likely exceeds this limit
+		// Go's crypto/rsa limits exponents to 2^31-1 (the maximum value of a signed int32).
+		// While 4 bytes can represent values up to 2^32-1, Go enforces the stricter 2^31-1 limit.
 		if expLen > maxRSAExponentBytes {
 			return true
 		}
