@@ -230,6 +230,13 @@ func hasUnsupportedRSAExponent(key *dns.DNSKEY) bool {
 
 		exponent := pubKeyBytes[offset : offset+expLen]
 
+		// Prevent integer overflow: uint64 can only hold 8 bytes
+		// If exponent is > 8 bytes, it definitely exceeds 2^31-1
+		const maxUint64Bytes = 8
+		if len(exponent) > maxUint64Bytes {
+			return true
+		}
+
 		var expValue uint64
 
 		for _, b := range exponent {

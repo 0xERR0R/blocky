@@ -436,26 +436,46 @@ func (v *Validator) validateSingleRRset(
 	}
 
 	// RFC 4035 §5.3.1: Try all RRSIGs in order of preference (strongest algorithm first)
+	// Per RFC 4035 §2.2: If ANY signature verifies successfully, the RRset is Secure
+	// Only if ALL signatures fail should we return Bogus or Insecure
 	sortedSigs := v.sortRRSIGsByStrength(matchingRRSIGs)
 
-	var lastErr error
+	var (
+		lastErr                 error
+		hasUnsupportedSignature bool
+		hasOtherFailure         bool
+	)
 
 	for _, matchingSig := range sortedSigs {
 		success, err := v.tryVerifyWithRRSIG(ctx, rrset, matchingSig, domain, nsRecords, qname, rrType)
-		if err != nil {
-			if errors.Is(err, errUnsupportedRSAExponent) {
-				return ValidationResultInsecure
-			}
-
-			lastErr = err
+		if success {
+			// At least one signature verified successfully
+			return ValidationResultSecure
 		}
 
-		if success {
-			return ValidationResultSecure
+		if err != nil {
+			if errors.Is(err, errUnsupportedRSAExponent) {
+				// Track unsupported signatures but continue trying others
+				hasUnsupportedSignature = true
+			} else {
+				// Track other failures
+				hasOtherFailure = true
+				lastErr = err
+			}
 		}
 	}
 
-	// All RRSIGs failed - return Bogus
+	// All RRSIGs failed - determine result based on failure types
+	// Per RFC 4035 §2.2: Treat unsupported algorithms as Insecure only if NO other errors occurred
+	if hasUnsupportedSignature && !hasOtherFailure {
+		v.logger.Warnf(
+			"All RRSIG signatures for %s use unsupported algorithms - treating as Insecure per RFC 4035 §2.2",
+			domain)
+
+		return ValidationResultInsecure
+	}
+
+	// At least one signature failed validation (not just unsupported) - this is Bogus
 	v.logger.Warnf("All RRSIG verification attempts failed for %s (tried %d signatures), last error: %v",
 		domain, len(sortedSigs), lastErr)
 

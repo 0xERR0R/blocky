@@ -204,40 +204,11 @@ func (v *Validator) validateDNSKEY(dnskey *dns.DNSKEY, parentDS *dns.DS) error {
 }
 
 // validateAnyDNSKEY validates at least one DNSKEY against DS records
+// This is a convenience wrapper around findAndValidateKSK for callers that only need a bool result
 //
 //nolint:unparam // domain parameter used for logging, test usage pattern is acceptable
 func (v *Validator) validateAnyDNSKEY(keys []*dns.DNSKEY, dsRecords []*dns.DS, domain string) bool {
-	const REVOKE = 0x0080 // RFC 5011 §7: REVOKE flag (bit 8)
-
-	for _, key := range keys {
-		// Per RFC 4034 §2.1.1: Only validate keys with the ZONE flag (bit 7) set
-		// The SEP flag (bit 15) distinguishes KSK from ZSK, but both have ZONE flag set
-		// ZONE flag (257 for KSK, 256 for ZSK) indicates this key is authorized to sign zones
-		if key.Flags&dns.ZONE == 0 {
-			v.logger.Debugf("Skipping DNSKEY for %s: ZONE flag not set (flags: %d)", domain, key.Flags)
-
-			continue
-		}
-
-		// RFC 5011 §7: Check for REVOKE flag (bit 8)
-		// DNSKEYs with REVOKE flag set MUST NOT be used for validation
-		if key.Flags&REVOKE != 0 {
-			v.logger.Debugf("Skipping revoked DNSKEY for %s (flags: %d, keytag: %d)",
-				domain, key.Flags, key.KeyTag())
-
-			continue
-		}
-
-		for _, ds := range dsRecords {
-			if err := v.validateDNSKEY(key, ds); err == nil {
-				v.logger.Debugf("Successfully validated DNSKEY for %s", domain)
-
-				return true
-			}
-		}
-	}
-
-	return false
+	return v.findAndValidateKSK(keys, dsRecords, domain) != nil
 }
 
 // findAndValidateKSK validates DNSKEYs against DS records and returns the first validated KSK
@@ -297,9 +268,15 @@ func (v *Validator) verifyDNSKEYRRset(answer []dns.RR, validatedKSK *dns.DNSKEY,
 	}
 
 	// Find RRSIG that matches the validated KSK
+	// Per RFC 4035 §2.2: For DNSKEY RRsets, the signer must equal the owner
 	var matchingRRSIG *dns.RRSIG
+	domainFQDN := dns.Fqdn(domain)
+
 	for _, sig := range rrsigs {
-		if sig.KeyTag == validatedKSK.KeyTag() && sig.Algorithm == validatedKSK.Algorithm {
+		// Match by KeyTag, Algorithm, AND SignerName for security
+		if sig.KeyTag == validatedKSK.KeyTag() &&
+			sig.Algorithm == validatedKSK.Algorithm &&
+			sig.SignerName == domainFQDN {
 			matchingRRSIG = sig
 
 			break
