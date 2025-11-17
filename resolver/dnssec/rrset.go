@@ -202,14 +202,22 @@ func hasUnsupportedRSAExponent(key *dns.DNSKEY) bool {
 		}
 
 		// Parse exponent length per RFC 3110
-		expLen := int(pubKeyBytes[0])
-		if expLen == 0 {
+		// Track offset to avoid redundant checks (Copilot PR review feedback)
+		var expLen int
+		var offset int
+
+		if pubKeyBytes[0] == 0 {
 			// Extended format: next 2 bytes contain exponent length
 			if len(pubKeyBytes) < extendedExpLenOffset {
 				return false
 			}
 
 			expLen = int(pubKeyBytes[1])<<bitsPerByte | int(pubKeyBytes[2])
+			offset = extendedExpLenOffset
+		} else {
+			// Standard format: first byte is exponent length
+			expLen = int(pubKeyBytes[0])
+			offset = 1
 		}
 
 		// Go's crypto/rsa limits exponents to 2^31-1, which fits in 4 bytes
@@ -219,11 +227,6 @@ func hasUnsupportedRSAExponent(key *dns.DNSKEY) bool {
 		}
 
 		// Even if <= 4 bytes, check if the value exceeds 2^31-1
-		offset := 1
-		if pubKeyBytes[0] == 0 {
-			offset = extendedExpLenOffset
-		}
-
 		if len(pubKeyBytes) < offset+expLen {
 			return false
 		}
