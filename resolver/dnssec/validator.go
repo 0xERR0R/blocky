@@ -44,6 +44,7 @@ package dnssec
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -57,6 +58,8 @@ import (
 )
 
 const ednsUDPSize = 4096 // EDNS UDP buffer size for DNSSEC queries
+
+var errUnsupportedRSAExponent = errors.New("unsupported RSA exponent exceeds Go crypto limit")
 
 // Resolver is the interface for DNS resolution (minimal interface to avoid import cycles)
 type Resolver interface {
@@ -334,13 +337,25 @@ func extractRRSIGs(rrs []dns.RR) []*dns.RRSIG {
 	return sigs
 }
 
-// groupRRsetsByType groups RRs by their type (excluding RRSIGs)
-func groupRRsetsByType(rrs []dns.RR) map[uint16][]dns.RR {
-	rrsets := make(map[uint16][]dns.RR)
+// rrsetKey uniquely identifies an RRset by owner name and type
+// Per RFC 4035: An RRset is a set of RRs with the same owner name, class, and type
+type rrsetKey struct {
+	name   string // Owner name (FQDN)
+	rrType uint16 // Record type
+}
+
+// groupRRsetsByNameAndType groups RRs by their owner name and type (excluding RRSIGs)
+// This is critical for DNSSEC validation: each RRset must contain only records
+// with the same owner name. For CNAME chains, each CNAME is a separate RRset.
+func groupRRsetsByNameAndType(rrs []dns.RR) map[rrsetKey][]dns.RR {
+	rrsets := make(map[rrsetKey][]dns.RR)
 	for _, rr := range rrs {
 		if _, isSig := rr.(*dns.RRSIG); !isSig {
-			rrType := rr.Header().Rrtype
-			rrsets[rrType] = append(rrsets[rrType], rr)
+			key := rrsetKey{
+				name:   dns.Fqdn(rr.Header().Name),
+				rrType: rr.Header().Rrtype,
+			}
+			rrsets[key] = append(rrsets[key], rr)
 		}
 	}
 
@@ -359,16 +374,18 @@ func (v *Validator) validateRRsets(
 		return ValidationResultInsecure
 	}
 
-	// Group RRs by type
-	rrsets := groupRRsetsByType(rrs)
+	// Group RRs by owner name and type
+	// Per RFC 4035: Each RRset must have the same owner name, class, and type
+	rrsets := groupRRsetsByNameAndType(rrs)
 
 	// Track mixed security statuses (can occur in CNAME chains crossing zone boundaries)
 	hasSecure := false
 	hasInsecure := false
 
 	// Validate each RRset
-	for rrType, rrset := range rrsets {
-		result := v.validateSingleRRset(ctx, rrType, rrset, sigs, domain, nsRecords, qname)
+	for key, rrset := range rrsets {
+		// Use the actual RRset owner name instead of the generic domain parameter
+		result := v.validateSingleRRset(ctx, key.rrType, rrset, sigs, key.name, nsRecords, qname)
 
 		switch result {
 		case ValidationResultBogus:
@@ -407,79 +424,137 @@ func (v *Validator) validateSingleRRset(
 ) ValidationResult {
 	// Find matching RRSIGs for this RRset
 	// Per RFC 6840 §5.11, we should prefer stronger algorithms to prevent downgrade attacks
-	matchingRRSIGs := findMatchingRRSIGsForType(sigs, rrType)
+	// RRSIGs must match both the type covered AND the owner name
+	matchingRRSIGs := findMatchingRRSIGs(sigs, dns.Fqdn(domain), rrType)
 
 	if len(matchingRRSIGs) == 0 {
 		// RFC 4035 §5.2: Before treating missing RRSIG as Bogus, check if the zone is insecure (unsigned)
 		// This handles cases where CNAME chains cross zone boundaries with different security statuses
-		// e.g., CNAME in unsigned zone pointing to A records in signed zone
 		rrsetName := dns.Fqdn(rrset[0].Header().Name)
 
-		// Check if this zone is unsigned by checking for DS records
-		zoneSecurityStatus := v.checkZoneSecurityStatus(ctx, rrsetName)
-
-		if zoneSecurityStatus == ValidationResultInsecure {
-			// Zone is unsigned/insecure - unsigned RRsets are acceptable per RFC 4035 §5.2
-			v.logger.Debugf("RRset type %d in %s has no RRSIG, but zone is insecure - acceptable", rrType, rrsetName)
-
-			return ValidationResultInsecure
-		}
-
-		if zoneSecurityStatus == ValidationResultIndeterminate {
-			// Cannot determine zone security status - treat conservatively as Indeterminate
-			v.logger.Warnf("Cannot determine security status for zone of %s - treating as indeterminate", rrsetName)
-
-			return ValidationResultIndeterminate
-		}
-
-		// Zone is secure (has DS records) but RRSIG missing - this is Bogus
-		v.logger.Warnf("No RRSIG found for RRset type %d in %s (zone is secure)", rrType, rrsetName)
-
-		return ValidationResultBogus
+		return v.handleMissingRRSIG(ctx, rrType, rrsetName)
 	}
 
-	// Select the best RRSIG (prefer stronger algorithms)
-	matchingSig := v.selectBestRRSIG(matchingRRSIGs)
+	// RFC 4035 §5.3.1: Try all RRSIGs in order of preference (strongest algorithm first)
+	sortedSigs := v.sortRRSIGsByStrength(matchingRRSIGs)
 
+	var lastErr error
+
+	for _, matchingSig := range sortedSigs {
+		success, err := v.tryVerifyWithRRSIG(ctx, rrset, matchingSig, domain, nsRecords, qname, rrType)
+		if err != nil {
+			if errors.Is(err, errUnsupportedRSAExponent) {
+				return ValidationResultInsecure
+			}
+
+			lastErr = err
+		}
+
+		if success {
+			return ValidationResultSecure
+		}
+	}
+
+	// All RRSIGs failed - return Bogus
+	v.logger.Warnf("All RRSIG verification attempts failed for %s (tried %d signatures), last error: %v",
+		domain, len(sortedSigs), lastErr)
+
+	return ValidationResultBogus
+}
+
+// tryVerifyWithRRSIG attempts to verify an RRset with a single RRSIG
+// Returns true if verification succeeded, false otherwise
+func (v *Validator) tryVerifyWithRRSIG(
+	ctx context.Context, rrset []dns.RR, matchingSig *dns.RRSIG, domain string,
+	nsRecords []dns.RR, qname string, rrType uint16,
+) (bool, error) {
 	// Validate signer name
 	signerName := matchingSig.SignerName
 	rrsetName := dns.Fqdn(rrset[0].Header().Name)
 
 	// RFC 4035 §2.2: For DNSKEY RRsets, the signer must equal the owner (self-signed at zone apex)
-	// This prevents a parent zone from signing a child's DNSKEY, which would break the chain of trust
 	if rrType == dns.TypeDNSKEY {
 		if signerName != rrsetName {
-			v.logger.Warnf("DNSKEY signer %s must equal owner %s (RFC 4035 §2.2)", signerName, rrsetName)
+			v.logger.Debugf("Skipping RRSIG: DNSKEY signer %s must equal owner %s (RFC 4035 §2.2)", signerName, rrsetName)
 
-			return ValidationResultBogus
+			return false, nil
 		}
 	} else {
 		// For non-DNSKEY RRsets, signer must be a parent of the RRset owner
 		if !validateSignerName(signerName, rrsetName) {
-			v.logger.Warnf("RRSIG signer name %s is not a parent of RRset owner %s", signerName, rrsetName)
+			v.logger.Debugf("Skipping RRSIG: signer name %s is not a parent of RRset owner %s", signerName, rrsetName)
 
-			return ValidationResultBogus
+			return false, nil
 		}
 	}
 
 	// Query and match DNSKEY
-	ctx, matchingKey, err := v.queryAndMatchDNSKEY(ctx, signerName, matchingSig.KeyTag)
+	_, matchingKey, err := v.queryAndMatchDNSKEY(ctx, signerName, matchingSig.KeyTag, matchingSig.Algorithm)
 	if err != nil {
-		v.logger.Warnf("DNSKEY query/match failed for %s: %v", signerName, err)
+		v.logger.Debugf("Skipping RRSIG (algorithm=%d, keytag=%d): DNSKEY query/match failed: %v",
+			matchingSig.Algorithm, matchingSig.KeyTag, err)
 
-		return ValidationResultBogus
+		return false, err
+	}
+
+	// Check for unsupported RSA exponents (Go crypto limitation)
+	if hasUnsupportedRSAExponent(matchingKey) {
+		v.logger.Warnf(
+			"DNSKEY for %s (algorithm=%d, keytag=%d) has unsupported RSA exponent "+
+				"(exceeds 2^31-1, Go crypto limitation) - treating zone as Insecure per RFC 4035 §2.2",
+			domain, matchingSig.Algorithm, matchingSig.KeyTag)
+
+		return false, errUnsupportedRSAExponent
+	}
+
+	// Validate the DNSKEY via chain of trust
+	chainResult := v.walkChainOfTrust(ctx, signerName)
+	if chainResult != ValidationResultSecure {
+		v.logger.Debugf("Skipping RRSIG (algorithm=%d, keytag=%d): chain of trust validation failed: %s",
+			matchingSig.Algorithm, matchingSig.KeyTag, chainResult.String())
+
+		return false, nil
 	}
 
 	// Verify the signature
 	if err := v.verifyRRSIG(rrset, matchingSig, matchingKey, nsRecords, qname); err != nil {
-		// Per RFC 4035: Any verification failure (expired, not yet valid, or crypto failure) = Bogus
-		v.logger.Warnf("RRSIG verification failed for %s: %v", domain, err)
+		v.logger.Debugf("RRSIG verification failed for algorithm=%d, keytag=%d: %v (trying next RRSIG if available)",
+			matchingSig.Algorithm, matchingSig.KeyTag, err)
 
-		return ValidationResultBogus
+		return false, err
 	}
 
-	// Now validate the DNSKEY itself by walking the chain of trust
-	return v.walkChainOfTrust(ctx, signerName)
+	// Verification succeeded!
+	v.logger.Debugf("Successfully verified RRset for %s with algorithm=%d, keytag=%d",
+		domain, matchingSig.Algorithm, matchingSig.KeyTag)
+
+	return true, nil
+}
+
+// handleMissingRRSIG determines the validation result when no RRSIG is found for an RRset
+// Per RFC 4035 §5.2, we must check if the zone is unsigned before treating it as Bogus
+func (v *Validator) handleMissingRRSIG(ctx context.Context, rrType uint16, rrsetName string) ValidationResult {
+	// Check if this zone is unsigned by checking for DS records
+	zoneSecurityStatus := v.checkZoneSecurityStatus(ctx, rrsetName)
+
+	if zoneSecurityStatus == ValidationResultInsecure {
+		// Zone is unsigned/insecure - unsigned RRsets are acceptable per RFC 4035 §5.2
+		v.logger.Debugf("RRset type %d in %s has no RRSIG, but zone is insecure - acceptable", rrType, rrsetName)
+
+		return ValidationResultInsecure
+	}
+
+	if zoneSecurityStatus == ValidationResultIndeterminate {
+		// Cannot determine zone security status - treat conservatively as Indeterminate
+		v.logger.Warnf("Cannot determine security status for zone of %s - treating as indeterminate", rrsetName)
+
+		return ValidationResultIndeterminate
+	}
+
+	// Zone is secure (has DS records) but RRSIG missing - this is Bogus
+	v.logger.Warnf("No RRSIG found for RRset type %d in %s (zone is secure)", rrType, rrsetName)
+
+	return ValidationResultBogus
 }
 
 // checkZoneSecurityStatus determines if a zone is signed (Secure) or unsigned (Insecure)

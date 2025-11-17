@@ -142,20 +142,41 @@ func (v *Validator) validateDomainLevel(ctx context.Context, domain string) Vali
 		return result
 	}
 
-	// Query DNSKEY records for current domain
-	_, keys, err := v.queryDNSKEY(ctx, domain)
+	// Query DNSKEY records for current domain (need full response for RRSIGs)
+	_, dnskeyResponse, err := v.queryRecords(ctx, domain, dns.TypeDNSKEY)
 	if err != nil {
 		v.logger.Warnf("Failed to query DNSKEY for %s: %v", domain, err)
 
 		return ValidationResultIndeterminate
 	}
 
+	// Extract DNSKEY records from response
+	keys, err := extractTypedRecords[*dns.DNSKEY](dnskeyResponse.Answer)
+	if err != nil {
+		v.logger.Warnf("Failed to extract DNSKEY records for %s: %v", domain, err)
+
+		return ValidationResultIndeterminate
+	}
+
 	// Validate at least one DNSKEY against the DS records
-	if !v.validateAnyDNSKEY(keys, dsRecords, domain) {
+	// This validates the KSK (Key Signing Key) which is pointed to by the DS
+	validatedKSK := v.findAndValidateKSK(keys, dsRecords, domain)
+	if validatedKSK == nil {
 		v.logger.Warnf("Failed to validate any DNSKEY against DS records for %s", domain)
 
 		return ValidationResultBogus
 	}
+
+	// CRITICAL: Now verify the DNSKEY RRset itself using the validated KSK
+	// Per RFC 4035 §5.2: The DNSKEY RRset MUST be signed by a key in the DNSKEY RRset itself
+	// This allows us to trust ALL keys in the set (including ZSKs with different algorithms)
+	if err := v.verifyDNSKEYRRset(dnskeyResponse.Answer, validatedKSK, domain); err != nil {
+		v.logger.Warnf("Failed to verify DNSKEY RRset for %s: %v", domain, err)
+
+		return ValidationResultBogus
+	}
+
+	v.logger.Debugf("Successfully validated DNSKEY for %s", domain)
 
 	return ValidationResultSecure
 }
@@ -183,6 +204,8 @@ func (v *Validator) validateDNSKEY(dnskey *dns.DNSKEY, parentDS *dns.DS) error {
 }
 
 // validateAnyDNSKEY validates at least one DNSKEY against DS records
+//
+//nolint:unparam // domain parameter used for logging, test usage pattern is acceptable
 func (v *Validator) validateAnyDNSKEY(keys []*dns.DNSKEY, dsRecords []*dns.DS, domain string) bool {
 	const REVOKE = 0x0080 // RFC 5011 §7: REVOKE flag (bit 8)
 
@@ -215,6 +238,89 @@ func (v *Validator) validateAnyDNSKEY(keys []*dns.DNSKEY, dsRecords []*dns.DS, d
 	}
 
 	return false
+}
+
+// findAndValidateKSK validates DNSKEYs against DS records and returns the first validated KSK
+// This function is similar to validateAnyDNSKEY but returns the validated key instead of bool
+func (v *Validator) findAndValidateKSK(keys []*dns.DNSKEY, dsRecords []*dns.DS, domain string) *dns.DNSKEY {
+	const REVOKE = 0x0080 // RFC 5011 §7: REVOKE flag (bit 8)
+
+	for _, key := range keys {
+		// Per RFC 4034 §2.1.1: Only validate keys with the ZONE flag (bit 7) set
+		if key.Flags&dns.ZONE == 0 {
+			continue
+		}
+
+		// RFC 5011 §7: DNSKEYs with REVOKE flag MUST NOT be used
+		if key.Flags&REVOKE != 0 {
+			continue
+		}
+
+		for _, ds := range dsRecords {
+			if err := v.validateDNSKEY(key, ds); err == nil {
+				v.logger.Debugf("Validated KSK for %s: flags=%d, algorithm=%d, keytag=%d",
+					domain, key.Flags, key.Algorithm, key.KeyTag())
+
+				return key
+			}
+		}
+	}
+
+	return nil
+}
+
+// verifyDNSKEYRRset verifies the DNSKEY RRset using a validated KSK
+// Per RFC 4035 §5.2: The DNSKEY RRset MUST be self-signed by a key in the set
+// This validates all keys in the RRset, including ZSKs with different algorithms
+func (v *Validator) verifyDNSKEYRRset(answer []dns.RR, validatedKSK *dns.DNSKEY, domain string) error {
+	// Extract DNSKEY records and RRSIGs from the answer section
+	var dnskeyRecords []dns.RR
+	var rrsigs []*dns.RRSIG
+
+	for _, rr := range answer {
+		switch r := rr.(type) {
+		case *dns.DNSKEY:
+			dnskeyRecords = append(dnskeyRecords, r)
+		case *dns.RRSIG:
+			if r.TypeCovered == dns.TypeDNSKEY {
+				rrsigs = append(rrsigs, r)
+			}
+		}
+	}
+
+	if len(dnskeyRecords) == 0 {
+		return errors.New("no DNSKEY records found in answer")
+	}
+
+	if len(rrsigs) == 0 {
+		return errors.New("no RRSIG records found for DNSKEY RRset")
+	}
+
+	// Find RRSIG that matches the validated KSK
+	var matchingRRSIG *dns.RRSIG
+	for _, sig := range rrsigs {
+		if sig.KeyTag == validatedKSK.KeyTag() && sig.Algorithm == validatedKSK.Algorithm {
+			matchingRRSIG = sig
+
+			break
+		}
+	}
+
+	if matchingRRSIG == nil {
+		return fmt.Errorf("no RRSIG found for validated KSK (keytag=%d, algorithm=%d)",
+			validatedKSK.KeyTag(), validatedKSK.Algorithm)
+	}
+
+	// Verify the DNSKEY RRset with the validated KSK
+	// Note: We pass empty nsRecords and qname since we don't need wildcard validation for DNSKEY
+	if err := v.verifyRRSIG(dnskeyRecords, matchingRRSIG, validatedKSK, nil, domain); err != nil {
+		return fmt.Errorf("DNSKEY RRset signature verification failed: %w", err)
+	}
+
+	v.logger.Debugf("Successfully verified DNSKEY RRset for %s with KSK keytag=%d",
+		domain, validatedKSK.KeyTag())
+
+	return nil
 }
 
 // verifyAgainstTrustAnchors verifies DNSKEY records against root trust anchors

@@ -211,7 +211,7 @@ var _ = Describe("RRset validation functions", func() {
 			}
 
 			keys := []*dns.DNSKEY{key1, key2}
-			result := findMatchingDNSKEY(keys, key1.KeyTag())
+			result := findMatchingDNSKEY(keys, key1.KeyTag(), key1.Algorithm)
 			Expect(result).Should(Equal(key1))
 		})
 
@@ -224,12 +224,12 @@ var _ = Describe("RRset validation functions", func() {
 				PublicKey: "key1",
 			}
 
-			result := findMatchingDNSKEY([]*dns.DNSKEY{key}, 12345)
+			result := findMatchingDNSKEY([]*dns.DNSKEY{key}, 12345, dns.ECDSAP256SHA256)
 			Expect(result).Should(BeNil())
 		})
 
 		It("should handle empty key list", func() {
-			result := findMatchingDNSKEY([]*dns.DNSKEY{}, 12345)
+			result := findMatchingDNSKEY([]*dns.DNSKEY{}, 12345, dns.ECDSAP256SHA256)
 			Expect(result).Should(BeNil())
 		})
 	})
@@ -478,7 +478,7 @@ var _ = Describe("RRset validation functions", func() {
 				}, nil
 			}
 
-			newCtx, key, err := sut.queryAndMatchDNSKEY(ctx, "example.com.", dnskey.KeyTag())
+			newCtx, key, err := sut.queryAndMatchDNSKEY(ctx, "example.com.", dnskey.KeyTag(), dnskey.Algorithm)
 			Expect(err).Should(Succeed())
 			Expect(key).Should(Equal(dnskey))
 			Expect(newCtx).ShouldNot(BeNil())
@@ -508,7 +508,7 @@ var _ = Describe("RRset validation functions", func() {
 				}, nil
 			}
 
-			_, _, err := sut.queryAndMatchDNSKEY(ctx, "example.com.", 12345) // Wrong key tag
+			_, _, err := sut.queryAndMatchDNSKEY(ctx, "example.com.", 12345, dns.ECDSAP256SHA256) // Wrong key tag
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring("no DNSKEY with key tag"))
 		})
@@ -520,7 +520,7 @@ var _ = Describe("RRset validation functions", func() {
 				return nil, errors.New("query failed")
 			}
 
-			_, _, err := sut.queryAndMatchDNSKEY(ctx, "example.com.", 12345)
+			_, _, err := sut.queryAndMatchDNSKEY(ctx, "example.com.", 12345, dns.ECDSAP256SHA256)
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring("failed to query DNSKEY"))
 		})
