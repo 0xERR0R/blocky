@@ -719,7 +719,6 @@ var _ = Describe("DNS64Resolver", func() {
 					capturedAReq = req.Req
 
 					return true
-
 				}
 
 				return req.Req.Question[0].Qtype == dns.TypeAAAA

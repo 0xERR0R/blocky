@@ -71,10 +71,10 @@ func (c *DNS64) validate(logger *logrus.Entry, filtering *Filtering, caching *Ca
 	}
 
 	// Validate no prefix overlap
-	for i, p1 := range c.Prefixes {
-		for j, p2 := range c.Prefixes {
-			if i < j && p1.Overlaps(p2) {
-				return fmt.Errorf("DNS64 prefixes %s and %s overlap", p1, p2)
+	for i := 0; i < len(c.Prefixes); i++ {
+		for j := i + 1; j < len(c.Prefixes); j++ {
+			if c.Prefixes[i].Overlaps(c.Prefixes[j]) {
+				return fmt.Errorf("DNS64 prefixes %s and %s overlap", c.Prefixes[i], c.Prefixes[j])
 			}
 		}
 	}

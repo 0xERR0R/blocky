@@ -303,7 +303,7 @@ func calculateMinimumTTL(
 	for _, aRecord := range aRecords {
 		if aRecord.Hdr.Ttl < minTTL {
 			minTTL = aRecord.Hdr.Ttl
-			ttlSources = append(ttlSources, "A")
+			ttlSources = []string{"A"} // Reset sources since we have a new minimum
 		}
 	}
 
@@ -311,7 +311,7 @@ func calculateMinimumTTL(
 	for _, cnameRecord := range cnameRecords {
 		if cnameRecord.Hdr.Ttl < minTTL {
 			minTTL = cnameRecord.Hdr.Ttl
-			ttlSources = append(ttlSources, "CNAME")
+			ttlSources = []string{"CNAME"} // Reset sources since we have a new minimum
 		}
 	}
 
@@ -319,7 +319,7 @@ func calculateMinimumTTL(
 	for _, dnameRecord := range dnameRecords {
 		if dnameRecord.Hdr.Ttl < minTTL {
 			minTTL = dnameRecord.Hdr.Ttl
-			ttlSources = append(ttlSources, "DNAME")
+			ttlSources = []string{"DNAME"} // Reset sources since we have a new minimum
 		}
 	}
 
