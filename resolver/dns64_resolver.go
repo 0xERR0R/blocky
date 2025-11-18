@@ -122,7 +122,7 @@ func (r *DNS64Resolver) Resolve(ctx context.Context, request *model.Request) (*m
 
 // hasValidAAAARecords checks if response has any AAAA records not in exclusion set
 func (r *DNS64Resolver) hasValidAAAARecords(response *model.Response, logger *logrus.Entry) bool {
-	aaaaRecords := extractAAAARecords(response.Res)
+	aaaaRecords := util.ExtractRecords[*dns.AAAA](response.Res)
 	if len(aaaaRecords) == 0 {
 		logger.Debug("no AAAA records in response")
 
@@ -235,7 +235,7 @@ func (r *DNS64Resolver) synthesizeFromA(
 	}
 
 	// Extract A records from response
-	aRecords := extractARecords(aResponse.Res)
+	aRecords := util.ExtractRecords[*dns.A](aResponse.Res)
 	if len(aRecords) == 0 {
 		logger.Debug("no A records found, returning empty AAAA response")
 
@@ -245,8 +245,8 @@ func (r *DNS64Resolver) synthesizeFromA(
 	logger.Debugf("found %d A record(s) for synthesis", len(aRecords))
 
 	// Extract CNAME and DNAME records for TTL calculation
-	cnameRecords := extractCNAMERecords(aResponse.Res)
-	dnameRecords := extractDNAMERecords(aResponse.Res)
+	cnameRecords := util.ExtractRecords[*dns.CNAME](aResponse.Res)
+	dnameRecords := util.ExtractRecords[*dns.DNAME](aResponse.Res)
 
 	if len(cnameRecords) > 0 {
 		logger.Debugf("found %d CNAME record(s) in resolution chain", len(cnameRecords))
@@ -434,52 +434,4 @@ func embedIPv4InIPv6(ipv4 net.IP, prefix netip.Prefix) net.IP {
 	}
 
 	return ipv6
-}
-
-// extractAAAARecords extracts all AAAA records from a DNS message
-func extractAAAARecords(msg *dns.Msg) []*dns.AAAA {
-	var records []*dns.AAAA
-	for _, rr := range msg.Answer {
-		if aaaa, ok := rr.(*dns.AAAA); ok {
-			records = append(records, aaaa)
-		}
-	}
-
-	return records
-}
-
-// extractARecords extracts all A records from a DNS message
-func extractARecords(msg *dns.Msg) []*dns.A {
-	var records []*dns.A
-	for _, rr := range msg.Answer {
-		if a, ok := rr.(*dns.A); ok {
-			records = append(records, a)
-		}
-	}
-
-	return records
-}
-
-// extractCNAMERecords extracts all CNAME records from a DNS message
-func extractCNAMERecords(msg *dns.Msg) []*dns.CNAME {
-	var records []*dns.CNAME
-	for _, rr := range msg.Answer {
-		if cname, ok := rr.(*dns.CNAME); ok {
-			records = append(records, cname)
-		}
-	}
-
-	return records
-}
-
-// extractDNAMERecords extracts all DNAME records from a DNS message
-func extractDNAMERecords(msg *dns.Msg) []*dns.DNAME {
-	var records []*dns.DNAME
-	for _, rr := range msg.Answer {
-		if dname, ok := rr.(*dns.DNAME); ok {
-			records = append(records, dname)
-		}
-	}
-
-	return records
 }
