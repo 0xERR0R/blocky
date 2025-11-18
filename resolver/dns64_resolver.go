@@ -217,11 +217,20 @@ func (r *DNS64Resolver) synthesizeFromA(
 
 	// Handle RCODE
 	if aResponse.Res.Rcode == dns.RcodeNameError {
-		// NXDOMAIN: return as-is, no synthesis
+		// NXDOMAIN: return NXDOMAIN with original AAAA query in Question section
 		logger.Debug("A query returned NXDOMAIN, no synthesis")
 
+		// Build a synthetic NXDOMAIN response with the original AAAA query in the Question section
+		nxdomainResponse := new(dns.Msg)
+		nxdomainResponse.SetReply(originalRequest.Req)
+		nxdomainResponse.Rcode = dns.RcodeNameError
+		// Copy authority section from A response (contains SOA record with TTL)
+		if len(aResponse.Res.Ns) > 0 {
+			nxdomainResponse.Ns = aResponse.Res.Ns
+		}
+
 		return &model.Response{
-			Res:    aResponse.Res,
+			Res:    nxdomainResponse,
 			RType:  aResponse.RType,
 			Reason: "NXDOMAIN",
 		}, nil
