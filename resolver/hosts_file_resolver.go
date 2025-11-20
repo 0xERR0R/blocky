@@ -88,22 +88,20 @@ func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Resp
 
 	for host, hostData := range hostsData.hosts {
 		if hostData.IP.Equal(questionIP) {
-			response := new(dns.Msg)
-			response.SetReply(request.Req)
-
+			var answers []dns.RR
 			ptr := new(dns.PTR)
 			ptr.Ptr = dns.Fqdn(host)
 			ptr.Hdr = util.CreateHeader(question, r.cfg.HostsTTL.SecondsU32())
-			response.Answer = append(response.Answer, ptr)
+			answers = append(answers, ptr)
 
 			for _, alias := range hostData.Aliases {
 				ptrAlias := new(dns.PTR)
 				ptrAlias.Ptr = dns.Fqdn(alias)
 				ptrAlias.Hdr = ptr.Hdr
-				response.Answer = append(response.Answer, ptrAlias)
+				answers = append(answers, ptrAlias)
 			}
 
-			return &model.Response{Res: response, RType: model.ResponseTypeHOSTSFILE, Reason: "HOSTS FILE"}
+			return model.NewResponseWithAnswers(request, answers, model.ResponseTypeHOSTSFILE, "HOSTS FILE")
 		}
 	}
 
@@ -125,14 +123,14 @@ func (r *HostsFileResolver) Resolve(ctx context.Context, request *model.Request)
 	question := request.Req.Question[0]
 	domain := util.ExtractDomain(question)
 
-	response := r.resolve(request.Req, question, domain)
+	response := r.resolve(question, domain)
 	if response != nil {
 		logger.WithFields(logrus.Fields{
-			"answer": util.AnswerToString(response.Answer),
+			"answer": util.AnswerToString(response),
 			"domain": util.Obfuscate(domain),
 		}).Debugf("returning hosts file entry")
 
-		return &model.Response{Res: response, RType: model.ResponseTypeHOSTSFILE, Reason: "HOSTS FILE"}, nil
+		return model.NewResponseWithAnswers(request, response, model.ResponseTypeHOSTSFILE, "HOSTS FILE"), nil
 	}
 
 	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
@@ -140,7 +138,7 @@ func (r *HostsFileResolver) Resolve(ctx context.Context, request *model.Request)
 	return r.next.Resolve(ctx, request)
 }
 
-func (r *HostsFileResolver) resolve(req *dns.Msg, question dns.Question, domain string) *dns.Msg {
+func (r *HostsFileResolver) resolve(question dns.Question, domain string) []dns.RR {
 	ip := r.hosts.getIP(dns.Type(question.Qtype), domain)
 	if ip == nil {
 		return nil
@@ -148,11 +146,7 @@ func (r *HostsFileResolver) resolve(req *dns.Msg, question dns.Question, domain 
 
 	rr, _ := util.CreateAnswerFromQuestion(question, ip, r.cfg.HostsTTL.SecondsU32())
 
-	response := new(dns.Msg)
-	response.SetReply(req)
-	response.Answer = []dns.RR{rr}
-
-	return response
+	return []dns.RR{rr}
 }
 
 func (r *HostsFileResolver) loadSources(ctx context.Context) error {

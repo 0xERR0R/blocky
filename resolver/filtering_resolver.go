@@ -26,10 +26,7 @@ func NewFilteringResolver(cfg config.Filtering) *FilteringResolver {
 func (r *FilteringResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	qType := request.Req.Question[0].Qtype
 	if r.cfg.QueryTypes.Contains(dns.Type(qType)) {
-		response := new(dns.Msg)
-		response.SetRcode(request.Req, dns.RcodeSuccess)
-
-		return &model.Response{Res: response, RType: model.ResponseTypeFILTERED}, nil
+		return model.NewResponseWithRcode(request, dns.RcodeSuccess, model.ResponseTypeFILTERED, ""), nil
 	}
 
 	return r.next.Resolve(ctx, request)
