@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 )
 
 //nolint:gochecknoglobals
@@ -49,15 +50,41 @@ func DefaultHTTPTransport() *http.Transport {
 	}
 }
 
-func HTTPClientIP(r *http.Request) net.IP {
-	addr := r.Header.Get("X-Forwarded-For")
-	if addr == "" {
-		addr = r.RemoteAddr
+// splitCommaSeparated splits a comma-separated string and trims whitespace from each part
+func splitCommaSeparated(s string) []string {
+	parts := strings.Split(s, ",")
+	result := make([]string, 0, len(parts))
+
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
 	}
 
-	ip, _, err := net.SplitHostPort(addr)
+	return result
+}
+
+func HTTPClientIP(r *http.Request) net.IP {
+	// Try X-Forwarded-For header first (used when behind reverse proxy)
+	xff := r.Header.Get("X-Forwarded-For")
+	if xff != "" {
+		// X-Forwarded-For format: "<client>, <proxy1>, <proxy2>, ..."
+		// The leftmost IP is the original client
+		ips := splitCommaSeparated(xff)
+		if len(ips) > 0 {
+			// Parse the first IP (original client)
+			if ip := net.ParseIP(ips[0]); ip != nil {
+				return ip
+			}
+		}
+	}
+
+	// Fallback to RemoteAddr (format: "host:port")
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return net.ParseIP(addr)
+		// RemoteAddr might not have a port in some cases
+		return net.ParseIP(r.RemoteAddr)
 	}
 
 	return net.ParseIP(ip)
