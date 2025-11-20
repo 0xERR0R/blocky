@@ -65,7 +65,9 @@ func splitCommaSeparated(s string) []string {
 	return result
 }
 
-// parseForwardedHeader parses RFC 7239 Forwarded header and extracts the client IP
+// parseForwardedHeader parses RFC 7239 Forwarded header and extracts the client IP.
+// Returns the first valid IP found, or nil if no valid IP exists.
+// Skips special values: "unknown" and obfuscated identifiers (starting with "_").
 // Format: for=192.0.2.43;proto=http;by=203.0.113.43
 // Or multiple: for=192.0.2.43, for=192.0.2.60
 func parseForwardedHeader(forwarded string) net.IP {
