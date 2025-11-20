@@ -27,10 +27,7 @@ func (r *FQDNOnlyResolver) Resolve(ctx context.Context, request *model.Request) 
 	if r.IsEnabled() {
 		domainFromQuestion := util.ExtractDomain(request.Req.Question[0])
 		if !strings.Contains(domainFromQuestion, ".") {
-			response := new(dns.Msg)
-			response.Rcode = dns.RcodeNameError
-
-			return &model.Response{Res: response, RType: model.ResponseTypeNOTFQDN, Reason: "NOTFQDN"}, nil
+			return model.NewEmptyResponse(request, dns.RcodeNameError, model.ResponseTypeNOTFQDN, "NOTFQDN"), nil
 		}
 	}
 

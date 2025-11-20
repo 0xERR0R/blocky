@@ -337,8 +337,9 @@ var _ = Describe("DNSSECResolver", func() {
 		It("should create SERVFAIL response with EDE", func() {
 			req := util.NewMsgWithQuestion("example.com.", A)
 			reason := "DNSSEC validation failed: bogus signatures"
+			modelReq := &model.Request{Req: req}
 
-			response := createServFailResponseDNSSEC(req, reason)
+			response := createServFailResponseDNSSEC(modelReq, reason)
 
 			Expect(response).ShouldNot(BeNil())
 			Expect(response.Res.Rcode).Should(Equal(dns.RcodeServerFailure))
@@ -363,8 +364,9 @@ var _ = Describe("DNSSECResolver", func() {
 
 		It("should set proper EDNS0 UDP size", func() {
 			req := util.NewMsgWithQuestion("example.com.", A)
+			modelReq := &model.Request{Req: req}
 
-			response := createServFailResponseDNSSEC(req, "test reason")
+			response := createServFailResponseDNSSEC(modelReq, "test reason")
 
 			opt := response.Res.IsEdns0()
 			Expect(opt).ShouldNot(BeNil())

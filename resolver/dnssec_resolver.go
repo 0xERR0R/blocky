@@ -104,7 +104,7 @@ func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*
 			logger.Warnf("DNSSEC validation failed for %s - returning SERVFAIL",
 				request.Req.Question[0].Name)
 
-			return createServFailResponseDNSSEC(request.Req, "DNSSEC validation failed: bogus signatures"), nil
+			return createServFailResponseDNSSEC(request, "DNSSEC validation failed: bogus signatures"), nil
 
 		case dnssec.ValidationResultSecure:
 			// Valid DNSSEC - set AD flag
@@ -124,9 +124,8 @@ func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*
 }
 
 // createServFailResponseDNSSEC creates a SERVFAIL response for a DNSSEC validation failure
-func createServFailResponseDNSSEC(request *dns.Msg, reason string) *model.Response {
-	response := new(dns.Msg)
-	response.SetRcode(request, dns.RcodeServerFailure)
+func createServFailResponseDNSSEC(request *model.Request, reason string) *model.Response {
+	modelResp := model.NewResponseWithRcode(request, dns.RcodeServerFailure, model.ResponseTypeBLOCKED, reason)
 
 	// Add EDE (Extended DNS Error) code for DNSSEC Bogus
 	// RFC 8914: https://www.rfc-editor.org/rfc/rfc8914.html#section-5.2
@@ -141,11 +140,7 @@ func createServFailResponseDNSSEC(request *dns.Msg, reason string) *model.Respon
 	opt.Hdr.Rrtype = dns.TypeOPT
 	opt.SetUDPSize(ednsUDPSize)
 	opt.Option = append(opt.Option, edeOption)
-	response.Extra = append(response.Extra, opt)
+	modelResp.Res.Extra = append(modelResp.Res.Extra, opt)
 
-	return &model.Response{
-		Res:    response,
-		Reason: reason,
-		RType:  model.ResponseTypeBLOCKED,
-	}
+	return modelResp
 }

@@ -337,14 +337,12 @@ func determineAllowlistOnlyGroups(cfg *config.Blocking) (result map[string]bool)
 func (r *BlockingResolver) handleBlocked(logger *logrus.Entry,
 	request *model.Request, question dns.Question, reason string,
 ) (*model.Response, error) {
-	response := new(dns.Msg)
-	response.SetReply(request.Req)
-
-	r.blockHandler.handleBlock(question, response)
+	modelResp := model.NewResponseWithReason(request, model.ResponseTypeBLOCKED, reason)
+	r.blockHandler.handleBlock(question, modelResp.Res)
 
 	logger.Debugf("blocking request '%s'", reason)
 
-	return &model.Response{Res: response, RType: model.ResponseTypeBLOCKED, Reason: reason}, nil
+	return modelResp, nil
 }
 
 // LogConfig implements `config.Configurable`.
