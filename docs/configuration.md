@@ -869,9 +869,9 @@ DNS responses can be extended with EDE codes according to [RFC8914](https://data
 
 Configuration parameters:
 
-| Parameter  | Type | Mandatory | Default value | Description                                        |
-| ---------- | ---- | --------- | ------------- | -------------------------------------------------- |
-| ede.enable | bool | no        | false         | If true, DNS responses are deliverd with EDE codes |
+| Parameter  | Type | Mandatory | Default value | Description                                         |
+| ---------- | ---- | --------- | ------------- | --------------------------------------------------- |
+| ede.enable | bool | no        | false         | If true, DNS responses are delivered with EDE codes |
 
 !!! example
 
