@@ -136,6 +136,12 @@ func extractIPFromForValue(value string) net.IP {
 	return net.ParseIP(value)
 }
 
+// HTTPClientIP extracts the client IP address from an HTTP request.
+// It checks headers in the following priority order:
+// 1. RFC 7239 Forwarded header (standardized)
+// 2. X-Forwarded-For header (de facto standard)
+// 3. RemoteAddr field (direct connection)
+// Returns the first valid IP address found.
 func HTTPClientIP(r *http.Request) net.IP {
 	// Try RFC 7239 Forwarded header first (standardized)
 	if forwarded := r.Header.Get("Forwarded"); forwarded != "" {
