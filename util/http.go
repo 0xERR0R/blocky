@@ -81,13 +81,13 @@ func parseForwardedHeader(forwarded string) net.IP {
 		for _, param := range params {
 			param = strings.TrimSpace(param)
 
-			// Look for "for=" parameter
-			if !strings.HasPrefix(param, "for=") {
+			// Look for "for=" parameter (case-insensitive)
+			if !strings.HasPrefix(strings.ToLower(param), "for=") {
 				continue
 			}
 
-			// Extract value after "for="
-			value := strings.TrimPrefix(param, "for=")
+			// Extract value after "for=" (case-insensitive)
+			value := param[4:]
 
 			// Strip quotes if present
 			value = strings.Trim(value, "\"")
