@@ -37,39 +37,39 @@ func createBlockHandler(cfg config.Blocking) (blockHandler, error) {
 	cfgBlockType := cfg.BlockType
 	blockTime := cfg.BlockTTL.SecondsU32()
 
-	if strings.EqualFold(cfgBlockType, "NXDOMAIN") {
+	switch strings.ToLower(cfgBlockType) {
+	case "nxdomain":
 		return nxDomainBlockHandler{
 			BlockTimeSec: blockTime,
 		}, nil
-	}
-
-	if strings.EqualFold(cfgBlockType, "ZEROIP") {
+	case "zeroip":
 		return zeroIPBlockHandler{
 			BlockTimeSec: blockTime,
 		}, nil
-	}
+	default:
+		// Try parsing as IP address(es)
+		var ips []net.IP
 
-	var ips []net.IP
-
-	for _, part := range strings.Split(cfgBlockType, ",") {
-		if ip := net.ParseIP(strings.TrimSpace(part)); ip != nil {
-			ips = append(ips, ip)
+		for _, part := range strings.Split(cfgBlockType, ",") {
+			if ip := net.ParseIP(strings.TrimSpace(part)); ip != nil {
+				ips = append(ips, ip)
+			}
 		}
-	}
 
-	if len(ips) > 0 {
-		return ipBlockHandler{
-			destinations: ips,
-			BlockTimeSec: blockTime,
-			fallbackHandler: zeroIPBlockHandler{
+		if len(ips) > 0 {
+			return ipBlockHandler{
+				destinations: ips,
 				BlockTimeSec: blockTime,
-			},
-		}, nil
-	}
+				fallbackHandler: zeroIPBlockHandler{
+					BlockTimeSec: blockTime,
+				},
+			}, nil
+		}
 
-	return nil,
-		fmt.Errorf("unknown blockType '%s', please use one of: ZeroIP, NxDomain or specify destination IP address(es)",
-			cfgBlockType)
+		return nil,
+			fmt.Errorf("unknown blockType '%s', please use one of: ZeroIP, NxDomain or specify destination IP address(es)",
+				cfgBlockType)
+	}
 }
 
 type status struct {
@@ -459,13 +459,7 @@ func (r *BlockingResolver) isGroupDisabled(group string) bool {
 	r.status.lock.RLock()
 	defer r.status.lock.RUnlock()
 
-	for _, g := range r.status.disabledGroups {
-		if g == group {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(r.status.disabledGroups, group)
 }
 
 // returns groups which should be checked for client's request
@@ -526,12 +520,8 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 
 func (r *BlockingResolver) matches(groupsToCheck []string, m lists.Matcher,
 	domain string,
-) (group []string) {
-	if len(groupsToCheck) > 0 {
-		return m.Match(domain, groupsToCheck)
-	}
-
-	return []string{}
+) []string {
+	return m.Match(domain, groupsToCheck)
 }
 
 type blockHandler interface {
