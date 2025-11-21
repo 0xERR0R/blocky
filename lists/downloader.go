@@ -81,6 +81,8 @@ func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.Read
 				case http.StatusNotFound, http.StatusGone:
 					// Permanent errors - don't retry
 					drainAndClose(resp.Body)
+					// Emit event for permanent errors since OnRetry won't be called
+					onDownloadError(link)
 					return retry.Unrecoverable(fmt.Errorf("permanent error: status code %d", resp.StatusCode))
 
 				case http.StatusTooManyRequests, http.StatusServiceUnavailable, http.StatusBadGateway, http.StatusGatewayTimeout:
@@ -117,19 +119,24 @@ func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.Read
 		retry.LastErrorOnly(true),
 		retry.OnRetry(func(n uint, err error) {
 			var transientErr *TransientError
-
 			var dnsErr *net.DNSError
 
 			logger := logger().
 				WithField("link", link).
 				WithField("attempt", fmt.Sprintf("%d/%d", n+1, d.cfg.Attempts))
 
-			switch {
-			case errors.As(err, &transientErr):
-				logger.Warnf("Temporary network err / Timeout occurred: %s", transientErr)
-			case errors.As(err, &dnsErr):
+			// Check for DNS errors first (even if wrapped in TransientError)
+			if errors.As(err, &dnsErr) {
 				logger.Warnf("Name resolution err: %s", dnsErr.Err)
-			default:
+			} else if errors.As(err, &transientErr) {
+				// Check if the inner error is a DNS error
+				var innerDNSErr *net.DNSError
+				if errors.As(transientErr.inner, &innerDNSErr) {
+					logger.Warnf("Name resolution err: %s", innerDNSErr.Err)
+				} else {
+					logger.Warnf("Temporary network err / Timeout occurred: %s", transientErr)
+				}
+			} else {
 				logger.Warnf("Can't download file: %s", err)
 			}
 
