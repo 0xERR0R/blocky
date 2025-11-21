@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/0xERR0R/blocky/cache"
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/evt"
 	. "github.com/0xERR0R/blocky/helpertest"
@@ -30,7 +31,7 @@ var _ = Describe("CachingResolver", func() {
 		mockAnswer *dns.Msg
 		ctx        context.Context
 		cancelFn   context.CancelFunc
-		cacheMock  *mockExpiringCache
+		cacheMock  *cache.MockExpiringCache[[]byte]
 	)
 
 	Describe("Type", func() {
@@ -53,7 +54,7 @@ var _ = Describe("CachingResolver", func() {
 
 		sut, _ = NewCachingResolver(ctx, sutConfig, nil)
 		m = &mockResolver{}
-		cacheMock = &mockExpiringCache{}
+		cacheMock = cache.NewMockExpiringCache[[]byte](GinkgoT())
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 		sut.Next(m)
 	})
@@ -828,7 +829,7 @@ var _ = Describe("CachingResolver", func() {
 		})
 	})
 
-	Describe("Request with exluded suffix should not be cached", func() {
+	Describe("Request with excluded suffix should not be cached", func() {
 		var domain string
 		var request *Request
 		var exclude []string
@@ -839,8 +840,8 @@ var _ = Describe("CachingResolver", func() {
 			request = newRequest(domain, A)
 			sut, _ = NewCachingResolver(ctx, sutConfig, nil)
 			m.On("Resolve", mock.Anything, mock.Anything).Return(&Response{Res: mockAnswer}, nil)
-			cacheMock.On("Get", mock.Anything).Return([]byte{}, config.Duration(time.Second*10))
-			cacheMock.On("Put", mock.Anything, mock.Anything, mock.Anything).Return()
+			cacheMock.On("Get", mock.Anything).Maybe().Return((*[]byte)(nil), time.Duration(10))
+			cacheMock.On("Put", mock.Anything, mock.Anything, mock.Anything).Maybe().Return()
 			sut.Next(m)
 			sut.resultCache = cacheMock
 		})

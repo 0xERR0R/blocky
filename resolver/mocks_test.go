@@ -14,7 +14,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
-	"github.com/0xERR0R/blocky/cache"
 	"github.com/0xERR0R/blocky/model"
 
 	"github.com/miekg/dns"
@@ -234,28 +233,5 @@ func (c *mockConn) SetReadDeadline(time.Time) error {
 }
 
 func (c *mockConn) SetWriteDeadline(time.Time) error {
-	panic("not implemented")
-}
-
-type mockExpiringCache struct {
-	mock.Mock
-	cache.ExpiringCache[[]byte]
-}
-
-func (ec *mockExpiringCache) Get(key string) (val *[]byte, expiration time.Duration) {
-	ec.Called(key)
-
-	return val, expiration
-}
-
-func (ec *mockExpiringCache) Put(key string, val *[]byte, expiration time.Duration) {
-	ec.Called(key, val, expiration)
-}
-
-func (ec *mockExpiringCache) PutTotalCount() int {
-	panic("not implemented")
-}
-
-func (ec *mockExpiringCache) PutClear() {
 	panic("not implemented")
 }
