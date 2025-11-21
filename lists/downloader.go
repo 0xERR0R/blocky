@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
@@ -43,6 +44,13 @@ func NewDownloader(cfg config.Downloader, transport http.RoundTripper) FileDownl
 }
 
 func newDownloader(cfg config.Downloader, transport http.RoundTripper) *httpDownloader {
+	// Apply fine-grained timeouts to transport if it's an *http.Transport
+	if t, ok := transport.(*http.Transport); ok {
+		t.DialTimeout = cfg.DialTimeout.ToDuration()
+		t.TLSHandshakeTimeout = cfg.TLSHandshakeTimeout.ToDuration()
+		t.ResponseHeaderTimeout = cfg.ResponseHeaderTimeout.ToDuration()
+	}
+
 	return &httpDownloader{
 		cfg: cfg,
 
@@ -65,30 +73,47 @@ func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.Read
 
 			resp, httpErr := d.client.Do(req)
 			if httpErr == nil {
-				if resp.StatusCode == http.StatusOK {
+				switch resp.StatusCode {
+				case http.StatusOK:
 					body = resp.Body
-
 					return nil
+
+				case http.StatusNotFound, http.StatusGone:
+					// Permanent errors - don't retry
+					drainAndClose(resp.Body)
+					return retry.Unrecoverable(fmt.Errorf("permanent error: status code %d", resp.StatusCode))
+
+				case http.StatusTooManyRequests, http.StatusServiceUnavailable, http.StatusBadGateway, http.StatusGatewayTimeout:
+					// Transient errors that need backoff
+					drainAndClose(resp.Body)
+					return &TransientError{inner: fmt.Errorf("transient error: status code %d", resp.StatusCode)}
+
+				default:
+					// Other HTTP errors - retry with normal backoff
+					drainAndClose(resp.Body)
+					return fmt.Errorf("HTTP error: status code %d", resp.StatusCode)
 				}
-
-				// Drain body before closing to allow connection reuse
-				// See: https://pkg.go.dev/net/http#Response.Body
-				_, _ = io.Copy(io.Discard, resp.Body)
-				_ = resp.Body.Close()
-
-				return fmt.Errorf("got status code %d", resp.StatusCode)
 			}
 
+			// Network-level errors
 			var netErr net.Error
 			if errors.As(httpErr, &netErr) && netErr.Timeout() {
 				return &TransientError{inner: netErr}
 			}
 
+			var dnsErr *net.DNSError
+			if errors.As(httpErr, &dnsErr) {
+				// DNS errors are often transient
+				return &TransientError{inner: dnsErr}
+			}
+
 			return fmt.Errorf("HTTP request to '%s' failed: %w", link, httpErr)
 		},
 		retry.Attempts(d.cfg.Attempts),
-		retry.DelayType(retry.FixedDelay),
+		retry.DelayType(retry.BackOffDelay),
 		retry.Delay(d.cfg.Cooldown.ToDuration()),
+		retry.MaxDelay(d.cfg.MaxBackoff.ToDuration()),
+		retry.MaxJitter(500*time.Millisecond),
 		retry.LastErrorOnly(true),
 		retry.OnRetry(func(n uint, err error) {
 			var transientErr *TransientError
@@ -115,6 +140,13 @@ func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.Read
 	}
 
 	return body, nil
+}
+
+// drainAndClose drains the response body and closes it to allow connection reuse
+// See: https://pkg.go.dev/net/http#Response.Body
+func drainAndClose(body io.ReadCloser) {
+	_, _ = io.Copy(io.Discard, body)
+	_ = body.Close()
 }
 
 func onDownloadError(link string) {

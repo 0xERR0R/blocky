@@ -170,6 +170,13 @@ func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 	transport := util.DefaultHTTPTransport()
 	transport.DialContext = b.dialContext
 
+	// Optimize for concurrent downloads from same host
+	// Many blocklist providers host multiple lists on the same domain
+	transport.MaxIdleConns = 100
+	transport.MaxIdleConnsPerHost = 20 // Increased from default 2
+	transport.IdleConnTimeout = 90 * time.Second
+	transport.DisableCompression = false // Enable compression for bandwidth savings
+
 	return transport
 }
 

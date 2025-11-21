@@ -100,13 +100,14 @@ var _ = Describe("Downloader", func() {
 
 				sutConfig.Attempts = 3
 			})
-			It("Should return error", func(ctx context.Context) {
+			It("Should return error without retrying (permanent error)", func(ctx context.Context) {
 				reader, err := sut.DownloadFile(ctx, server.URL)
 
 				Expect(err).Should(HaveOccurred())
 				Expect(reader).Should(BeNil())
-				Expect(err.Error()).Should(ContainSubstring("got status code 404"))
-				Expect(failedDownloadCountEvtChannel).Should(HaveLen(3))
+				Expect(err.Error()).Should(ContainSubstring("permanent error: status code 404"))
+				// Permanent errors should not retry, so only 1 failed download event
+				Expect(failedDownloadCountEvtChannel).Should(HaveLen(1))
 				Expect(failedDownloadCountEvtChannel).Should(Receive(Equal(server.URL)))
 			})
 		})
@@ -235,6 +236,168 @@ var _ = Describe("Downloader", func() {
 				Expect(err).Should(HaveOccurred())
 
 				Expect(proxy.RequestTarget()).Should(Equal("example.com"))
+			})
+		})
+
+		When("Server returns GONE (410)", func() {
+			BeforeEach(func() {
+				server = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					rw.WriteHeader(http.StatusGone)
+				}))
+				DeferCleanup(server.Close)
+
+				sutConfig.Attempts = 3
+			})
+			It("Should return error without retrying (permanent error)", func(ctx context.Context) {
+				reader, err := sut.DownloadFile(ctx, server.URL)
+
+				Expect(err).Should(HaveOccurred())
+				Expect(reader).Should(BeNil())
+				Expect(err.Error()).Should(ContainSubstring("permanent error: status code 410"))
+				// Permanent errors should not retry
+				Expect(failedDownloadCountEvtChannel).Should(HaveLen(1))
+			})
+		})
+
+		When("Server returns TOO_MANY_REQUESTS (429)", func() {
+			var attemptCount atomic.Uint64
+
+			BeforeEach(func() {
+				attemptCount.Store(0)
+				server = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					count := attemptCount.Add(1)
+					if count < 3 {
+						rw.WriteHeader(http.StatusTooManyRequests)
+					} else {
+						_, err := rw.Write([]byte("success after rate limit"))
+						Expect(err).Should(Succeed())
+					}
+				}))
+				DeferCleanup(server.Close)
+
+				sutConfig.Attempts = 3
+				sutConfig.Cooldown = config.Duration(10 * time.Millisecond)
+				sutConfig.MaxBackoff = config.Duration(100 * time.Millisecond)
+			})
+			It("Should retry with exponential backoff and eventually succeed", func(ctx context.Context) {
+				reader, err := sut.DownloadFile(ctx, server.URL)
+
+				Expect(err).Should(Succeed())
+				Expect(reader).ShouldNot(BeNil())
+				DeferCleanup(reader.Close)
+
+				buf := new(strings.Builder)
+				_, err = io.Copy(buf, reader)
+				Expect(err).Should(Succeed())
+				Expect(buf.String()).Should(Equal("success after rate limit"))
+
+				// Should have retried 2 times before succeeding
+				Expect(failedDownloadCountEvtChannel).Should(HaveLen(2))
+			})
+		})
+
+		When("Server returns SERVICE_UNAVAILABLE (503)", func() {
+			var attemptCount atomic.Uint64
+
+			BeforeEach(func() {
+				attemptCount.Store(0)
+				server = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					count := attemptCount.Add(1)
+					if count < 2 {
+						rw.WriteHeader(http.StatusServiceUnavailable)
+					} else {
+						_, err := rw.Write([]byte("service restored"))
+						Expect(err).Should(Succeed())
+					}
+				}))
+				DeferCleanup(server.Close)
+
+				sutConfig.Attempts = 3
+				sutConfig.Cooldown = config.Duration(10 * time.Millisecond)
+			})
+			It("Should retry and succeed when service is restored", func(ctx context.Context) {
+				reader, err := sut.DownloadFile(ctx, server.URL)
+
+				Expect(err).Should(Succeed())
+				Expect(reader).ShouldNot(BeNil())
+				DeferCleanup(reader.Close)
+
+				buf := new(strings.Builder)
+				_, err = io.Copy(buf, reader)
+				Expect(err).Should(Succeed())
+				Expect(buf.String()).Should(Equal("service restored"))
+			})
+		})
+
+		When("Server returns BAD_GATEWAY (502)", func() {
+			BeforeEach(func() {
+				server = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					rw.WriteHeader(http.StatusBadGateway)
+				}))
+				DeferCleanup(server.Close)
+
+				sutConfig.Attempts = 3
+				sutConfig.Cooldown = config.Duration(10 * time.Millisecond)
+			})
+			It("Should retry transient gateway errors", func(ctx context.Context) {
+				reader, err := sut.DownloadFile(ctx, server.URL)
+
+				Expect(err).Should(HaveOccurred())
+				Expect(reader).Should(BeNil())
+				Expect(err.Error()).Should(ContainSubstring("transient error: status code 502"))
+				// Should retry all 3 attempts
+				Expect(failedDownloadCountEvtChannel).Should(HaveLen(3))
+			})
+		})
+
+		When("Exponential backoff is used", func() {
+			var requestTimes []time.Time
+
+			BeforeEach(func() {
+				requestTimes = make([]time.Time, 0)
+				server = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					requestTimes = append(requestTimes, time.Now())
+					rw.WriteHeader(http.StatusServiceUnavailable)
+				}))
+				DeferCleanup(server.Close)
+
+				sutConfig.Attempts = 3
+				sutConfig.Cooldown = config.Duration(100 * time.Millisecond)
+				sutConfig.MaxBackoff = config.Duration(time.Second)
+			})
+			It("Should increase delay between retries", func(ctx context.Context) {
+				_, err := sut.DownloadFile(ctx, server.URL)
+
+				Expect(err).Should(HaveOccurred())
+				Expect(requestTimes).Should(HaveLen(3))
+
+				// Check that delays are increasing (with some tolerance for timing)
+				if len(requestTimes) >= 3 {
+					delay1 := requestTimes[1].Sub(requestTimes[0])
+					delay2 := requestTimes[2].Sub(requestTimes[1])
+
+					// Second delay should be longer than first (exponential backoff)
+					// Using 50ms tolerance for test timing variance
+					Expect(delay2).Should(BeNumerically(">", delay1-50*time.Millisecond))
+				}
+			})
+		})
+
+		When("Testing drainAndClose helper", func() {
+			It("Should properly drain and close response body", func() {
+				server = TestServer("test content that should be drained")
+				DeferCleanup(server.Close)
+
+				req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+				Expect(err).Should(Succeed())
+
+				resp, err := sut.client.Do(req)
+				Expect(err).Should(Succeed())
+
+				// This should not panic and should properly clean up
+				Expect(func() {
+					drainAndClose(resp.Body)
+				}).ShouldNot(Panic())
 			})
 		})
 	})

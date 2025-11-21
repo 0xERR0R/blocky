@@ -616,4 +616,31 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 			}, "100ms").Should(Succeed())
 		})
 	})
+
+	Describe("NewHTTPTransport", func() {
+		JustBeforeEach(func() {
+			sut, err = NewBootstrap(ctx, &sutConfig)
+			Expect(err).Should(Succeed())
+		})
+
+		It("should create transport with optimized connection pool settings", func() {
+			transport := sut.NewHTTPTransport()
+
+			Expect(transport).ShouldNot(BeNil())
+			Expect(transport.MaxIdleConns).Should(Equal(100))
+			Expect(transport.MaxIdleConnsPerHost).Should(Equal(20))
+			Expect(transport.IdleConnTimeout.Seconds()).Should(Equal(90.0))
+			Expect(transport.DisableCompression).Should(BeFalse())
+		})
+
+		It("should use bootstrap dial context", func() {
+			transport := sut.NewHTTPTransport()
+
+			Expect(transport.DialContext).ShouldNot(BeNil())
+			// Verify it's using the bootstrap's dialContext (function pointer comparison)
+			expectedFuncPtr := reflect.ValueOf(sut.dialContext).Pointer()
+			actualFuncPtr := reflect.ValueOf(transport.DialContext).Pointer()
+			Expect(actualFuncPtr).Should(Equal(expectedFuncPtr))
+		})
+	})
 })

@@ -430,18 +430,41 @@ func recoverToError(do func(context.Context) error, onPanic func(any) error) fun
 }
 
 type Downloader struct {
-	Timeout           Duration `default:"5s"    yaml:"timeout"`
-	ReadTimeout       Duration `default:"20s"   yaml:"readTimeout"`
-	ReadHeaderTimeout Duration `default:"20s"   yaml:"readHeaderTimeout"`
-	WriteTimeout      Duration `default:"20s"   yaml:"writeTimeout"`
-	Attempts          uint     `default:"3"     yaml:"attempts"`
-	Cooldown          Duration `default:"500ms" yaml:"cooldown"`
+	// Total timeout for the entire request (including retries)
+	Timeout Duration `default:"60s" yaml:"timeout"`
+
+	// Timeout for establishing a connection
+	DialTimeout Duration `default:"5s" yaml:"dialTimeout"`
+
+	// Timeout for TLS handshake
+	TLSHandshakeTimeout Duration `default:"5s" yaml:"tlsHandshakeTimeout"`
+
+	// Timeout for reading response headers
+	ResponseHeaderTimeout Duration `default:"10s" yaml:"responseHeaderTimeout"`
+
+	// Number of retry attempts
+	Attempts uint `default:"3" yaml:"attempts"`
+
+	// Initial cooldown between retries (used as base for exponential backoff)
+	Cooldown Duration `default:"500ms" yaml:"cooldown"`
+
+	// Maximum delay between retries
+	MaxBackoff Duration `default:"10s" yaml:"maxBackoff"`
+
+	// Deprecated fields kept for backward compatibility
+	ReadTimeout       Duration `yaml:"readTimeout,omitempty"`
+	ReadHeaderTimeout Duration `yaml:"readHeaderTimeout,omitempty"`
+	WriteTimeout      Duration `yaml:"writeTimeout,omitempty"`
 }
 
 func (c *Downloader) LogConfig(logger *logrus.Entry) {
 	logger.Infof("timeout = %s", c.Timeout)
+	logger.Infof("dialTimeout = %s", c.DialTimeout)
+	logger.Infof("tlsHandshakeTimeout = %s", c.TLSHandshakeTimeout)
+	logger.Infof("responseHeaderTimeout = %s", c.ResponseHeaderTimeout)
 	logger.Infof("attempts = %d", c.Attempts)
-	logger.Debugf("cooldown = %s", c.Cooldown)
+	logger.Infof("cooldown = %s (exponential backoff)", c.Cooldown)
+	logger.Infof("maxBackoff = %s", c.MaxBackoff)
 }
 
 func WithDefaults[T any]() (T, error) {
