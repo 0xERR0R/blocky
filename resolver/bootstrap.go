@@ -171,6 +171,17 @@ func (b *Bootstrap) resolveUpstream(ctx context.Context, r Resolver, host string
 	return b.resolve(ctx, host, b.cfg.connectIPVersion.QTypes())
 }
 
+const (
+	// maxIdleConns is the maximum number of idle connections across all hosts
+	maxIdleConns = 100
+
+	// maxIdleConnsPerHost is the maximum number of idle connections per host
+	maxIdleConnsPerHost = 20
+
+	// idleConnTimeout is how long idle connections are kept in the pool
+	idleConnTimeout = 90 * time.Second
+)
+
 // NewHTTPTransport returns a new http.Transport that uses b to resolve hostnames
 func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 	transport := util.DefaultHTTPTransport()
@@ -178,9 +189,9 @@ func (b *Bootstrap) NewHTTPTransport() *http.Transport {
 
 	// Optimize for concurrent downloads from same host
 	// Many blocklist providers host multiple lists on the same domain
-	transport.MaxIdleConns = 100
-	transport.MaxIdleConnsPerHost = 20 // Increased from default 2
-	transport.IdleConnTimeout = 90 * time.Second
+	transport.MaxIdleConns = maxIdleConns
+	transport.MaxIdleConnsPerHost = maxIdleConnsPerHost // Increased from default 2
+	transport.IdleConnTimeout = idleConnTimeout
 	transport.DisableCompression = false // Enable compression for bandwidth savings
 
 	return transport
