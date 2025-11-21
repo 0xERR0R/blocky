@@ -46,7 +46,7 @@ func NewDownloader(cfg config.Downloader, transport http.RoundTripper) FileDownl
 func newDownloader(cfg config.Downloader, transport http.RoundTripper) *httpDownloader {
 	// Apply fine-grained timeouts to transport if it's an *http.Transport
 	if t, ok := transport.(*http.Transport); ok {
-		t.DialTimeout = cfg.DialTimeout.ToDuration()
+		// Note: DialTimeout is set via DialContext, not as a field on Transport
 		t.TLSHandshakeTimeout = cfg.TLSHandshakeTimeout.ToDuration()
 		t.ResponseHeaderTimeout = cfg.ResponseHeaderTimeout.ToDuration()
 	}

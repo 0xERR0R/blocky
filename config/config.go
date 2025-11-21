@@ -433,7 +433,7 @@ type Downloader struct {
 	// Total timeout for the entire request (including retries)
 	Timeout Duration `default:"60s" yaml:"timeout"`
 
-	// Timeout for establishing a connection
+	// Timeout for establishing a connection (configured at Bootstrap dialer level)
 	DialTimeout Duration `default:"5s" yaml:"dialTimeout"`
 
 	// Timeout for TLS handshake
@@ -459,7 +459,7 @@ type Downloader struct {
 
 func (c *Downloader) LogConfig(logger *logrus.Entry) {
 	logger.Infof("timeout = %s", c.Timeout)
-	logger.Infof("dialTimeout = %s", c.DialTimeout)
+	logger.Infof("dialTimeout = %s (configured at bootstrap level)", c.DialTimeout)
 	logger.Infof("tlsHandshakeTimeout = %s", c.TLSHandshakeTimeout)
 	logger.Infof("responseHeaderTimeout = %s", c.ResponseHeaderTimeout)
 	logger.Infof("attempts = %d", c.Attempts)

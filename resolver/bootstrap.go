@@ -61,12 +61,18 @@ func NewBootstrap(ctx context.Context, cfg *config.Config) (b *Bootstrap, err er
 	// Create b in multiple steps: Bootstrap and UpstreamResolver have a cyclic dependency
 	// This also prevents the GC to clean up these two structs, but is not currently an
 	// issue since they stay allocated until the process terminates
+
+	// Create dialer with reasonable timeout for downloads
+	dialer := &net.Dialer{
+		Timeout: 5 * time.Second, // Default dial timeout for HTTP downloads
+	}
+
 	b = &Bootstrap{
 		configurable: withConfig(newBootstrapConfig(cfg)),
 		typed:        withType("bootstrap"),
 
 		systemResolver: net.DefaultResolver,
-		dialer:         new(net.Dialer),
+		dialer:         dialer,
 	}
 
 	ctx, logger := b.log(ctx)
