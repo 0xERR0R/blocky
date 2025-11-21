@@ -17,9 +17,6 @@ import (
 const (
 	// retryJitter is the maximum jitter to add to retry delays to prevent thundering herd
 	retryJitter = 500 * time.Millisecond
-
-	// idleConnTimeout is how long idle connections are kept in the pool
-	idleConnTimeout = 90 * time.Second
 )
 
 // TransientError represents a temporary error like timeout, network errors...
@@ -101,6 +98,11 @@ func (d *httpDownloader) attemptDownload(ctx context.Context, link string, body 
 
 	resp, httpErr := d.client.Do(req)
 	if httpErr != nil {
+		// Even on error, response may not be nil and body should be closed
+		if resp != nil && resp.Body != nil {
+			drainAndClose(resp.Body)
+		}
+
 		return d.handleNetworkError(link, httpErr)
 	}
 
