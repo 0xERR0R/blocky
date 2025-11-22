@@ -840,7 +840,7 @@ var _ = Describe("CachingResolver", func() {
 			request = newRequest(domain, A)
 			sut, _ = NewCachingResolver(ctx, sutConfig, nil)
 			m.On("Resolve", mock.Anything, mock.Anything).Return(&Response{Res: mockAnswer}, nil)
-			cacheMock.On("Get", mock.Anything).Maybe().Return((*[]byte)(nil), time.Duration(10))
+			cacheMock.On("Get", mock.Anything).Maybe().Return((*[]byte)(nil), 10*time.Second)
 			cacheMock.On("Put", mock.Anything, mock.Anything, mock.Anything).Maybe().Return()
 			sut.Next(m)
 			sut.resultCache = cacheMock

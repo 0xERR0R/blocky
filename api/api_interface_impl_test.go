@@ -40,10 +40,6 @@ var _ = Describe("API implementation tests", func() {
 		sut = NewOpenAPIInterfaceImpl(blockingControlMock, querierMock, listRefreshMock, cacheControlMock)
 	})
 
-	AfterEach(func() {
-		// Mock assertions are automatically handled by mockery-generated cleanup functions
-	})
-
 	Describe("RegisterOpenAPIEndpoints", func() {
 		It("adds routes", func() {
 			rtr := chi.NewRouter()
