@@ -56,26 +56,16 @@ type NetProtocol uint16
 type IPVersion uint8
 
 func (ipv IPVersion) Net() string {
-	switch ipv {
-	case IPVersionDual:
-		return "ip"
-	case IPVersionV4:
-		return "ip4"
-	case IPVersionV6:
-		return "ip6"
+	if net, ok := ipVersionNets[ipv]; ok {
+		return net
 	}
 
 	panic(fmt.Errorf("bad value: %s", ipv))
 }
 
 func (ipv IPVersion) QTypes() []dns.Type {
-	switch ipv {
-	case IPVersionDual:
-		return []dns.Type{dns.Type(dns.TypeA), dns.Type(dns.TypeAAAA)}
-	case IPVersionV4:
-		return []dns.Type{dns.Type(dns.TypeA)}
-	case IPVersionV6:
-		return []dns.Type{dns.Type(dns.TypeAAAA)}
+	if qtypes, ok := ipVersionQTypes[ipv]; ok {
+		return qtypes
 	}
 
 	panic(fmt.Errorf("bad value: %s", ipv))
@@ -160,6 +150,20 @@ var netDefaultPort = map[NetProtocol]uint16{
 	NetProtocolTcpUdp: udpPort,
 	NetProtocolTcpTls: tlsPort,
 	NetProtocolHttps:  httpsPort,
+}
+
+//nolint:gochecknoglobals
+var ipVersionNets = map[IPVersion]string{
+	IPVersionDual: "ip",
+	IPVersionV4:   "ip4",
+	IPVersionV6:   "ip6",
+}
+
+//nolint:gochecknoglobals
+var ipVersionQTypes = map[IPVersion][]dns.Type{
+	IPVersionDual: {dns.Type(dns.TypeA), dns.Type(dns.TypeAAAA)},
+	IPVersionV4:   {dns.Type(dns.TypeA)},
+	IPVersionV6:   {dns.Type(dns.TypeAAAA)},
 }
 
 // ListenConfig is a list of address(es) to listen on
@@ -528,6 +532,11 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 	return &cfg, nil
 }
 
+// isYAMLFile checks if a file path has a YAML extension (.yml or .yaml)
+func isYAMLFile(filePath string) bool {
+	return strings.HasSuffix(filePath, ".yml") || strings.HasSuffix(filePath, ".yaml")
+}
+
 func readFromDir(path string, data []byte) ([]byte, error) {
 	err := filepath.WalkDir(path, func(filePath string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -539,7 +548,7 @@ func readFromDir(path string, data []byte) ([]byte, error) {
 		}
 
 		// Ignore non YAML files
-		if !strings.HasSuffix(filePath, ".yml") && !strings.HasSuffix(filePath, ".yaml") {
+		if !isYAMLFile(filePath) {
 			return nil
 		}
 

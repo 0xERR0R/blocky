@@ -17,6 +17,18 @@ import (
 
 type createAnswerFunc func(question dns.Question, ip net.IP, ttl uint32) (dns.RR, error)
 
+// extractIPFromRecord extracts the IP address from A or AAAA records, returns nil for other types
+func extractIPFromRecord(entry dns.RR) net.IP {
+	switch v := entry.(type) {
+	case *dns.A:
+		return v.A
+	case *dns.AAAA:
+		return v.AAAA
+	}
+
+	return nil
+}
+
 // CustomDNSResolver resolves passed domain name to ip address defined in domain-IP map
 type CustomDNSResolver struct {
 	configurable[*config.CustomDNS]
@@ -50,17 +62,8 @@ func NewCustomDNSResolver(cfg config.CustomDNS) *CustomDNSResolver {
 
 	for url, entries := range dnsRecords {
 		for _, entry := range entries {
-			a, isA := entry.(*dns.A)
-
-			if isA {
-				r, _ := dns.ReverseAddr(a.A.String())
-				reverse[r] = append(reverse[r], url)
-			}
-
-			aaaa, isAAAA := entry.(*dns.AAAA)
-
-			if isAAAA {
-				r, _ := dns.ReverseAddr(aaaa.AAAA.String())
+			if ip := extractIPFromRecord(entry); ip != nil {
+				r, _ := dns.ReverseAddr(ip.String())
 				reverse[r] = append(reverse[r], url)
 			}
 		}

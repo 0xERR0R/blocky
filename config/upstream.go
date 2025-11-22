@@ -162,20 +162,26 @@ func extractPath(in string) (path, upstream string) {
 	return path, upstream
 }
 
+// stripPrefix removes the prefix from s if present, returns the remainder and true if removed
+func stripPrefix(s string, prefix string) (string, bool) {
+	if strings.HasPrefix(s, prefix) {
+		return s[len(prefix):], true
+	}
+
+	return s, false
+}
+
 func extractNet(upstream string) (NetProtocol, string) {
-	tcpUDPPrefix := NetProtocolTcpUdp.String() + ":"
-	if strings.HasPrefix(upstream, tcpUDPPrefix) {
-		return NetProtocolTcpUdp, upstream[len(tcpUDPPrefix):]
+	if rest, ok := stripPrefix(upstream, NetProtocolTcpUdp.String()+":"); ok {
+		return NetProtocolTcpUdp, rest
 	}
 
-	tcpTLSPrefix := NetProtocolTcpTls.String() + ":"
-	if strings.HasPrefix(upstream, tcpTLSPrefix) {
-		return NetProtocolTcpTls, upstream[len(tcpTLSPrefix):]
+	if rest, ok := stripPrefix(upstream, NetProtocolTcpTls.String()+":"); ok {
+		return NetProtocolTcpTls, rest
 	}
 
-	httpsPrefix := NetProtocolHttps.String() + ":"
-	if strings.HasPrefix(upstream, httpsPrefix) {
-		return NetProtocolHttps, strings.TrimPrefix(upstream[len(httpsPrefix):], "//")
+	if rest, ok := stripPrefix(upstream, NetProtocolHttps.String()+":"); ok {
+		return NetProtocolHttps, strings.TrimPrefix(rest, "//")
 	}
 
 	return NetProtocolTcpUdp, upstream
