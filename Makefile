@@ -57,6 +57,7 @@ generate: check-go ## Go generate
 ifdef GO_SKIP_GENERATE
 	$(info skipping go generate)
 else
+	go tool mockery
 	go generate ./...
 endif
 

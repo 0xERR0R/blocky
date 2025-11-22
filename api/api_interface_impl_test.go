@@ -10,7 +10,6 @@ import (
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/go-chi/chi/v5"
-	"github.com/miekg/dns"
 	"github.com/stretchr/testify/mock"
 
 	. "github.com/0xERR0R/blocky/helpertest"
@@ -18,67 +17,12 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-type BlockingControlMock struct {
-	mock.Mock
-}
-
-type ListRefreshMock struct {
-	mock.Mock
-}
-
-type QuerierMock struct {
-	mock.Mock
-}
-
-type CacheControlMock struct {
-	mock.Mock
-}
-
-func (m *ListRefreshMock) RefreshLists(_ context.Context) error {
-	args := m.Called()
-
-	return args.Error(0)
-}
-
-func (m *BlockingControlMock) EnableBlocking(_ context.Context) {
-	_ = m.Called()
-}
-
-func (m *BlockingControlMock) DisableBlocking(_ context.Context, t time.Duration, g []string) error {
-	args := m.Called(t, g)
-
-	return args.Error(0)
-}
-
-func (m *BlockingControlMock) BlockingStatus() BlockingStatus {
-	args := m.Called()
-
-	return args.Get(0).(BlockingStatus)
-}
-
-func (m *QuerierMock) Query(
-	ctx context.Context, serverHost string, clientIP net.IP, question string, qType dns.Type,
-) (*model.Response, error) {
-	args := m.Called(ctx, serverHost, clientIP, question, qType)
-
-	err := args.Error(1)
-	if err != nil {
-		return nil, err
-	}
-
-	return args.Get(0).(*model.Response), nil
-}
-
-func (m *CacheControlMock) FlushCaches(ctx context.Context) {
-	_ = m.Called(ctx)
-}
-
 var _ = Describe("API implementation tests", func() {
 	var (
-		blockingControlMock *BlockingControlMock
-		querierMock         *QuerierMock
-		listRefreshMock     *ListRefreshMock
-		cacheControlMock    *CacheControlMock
+		blockingControlMock *MockBlockingControl
+		querierMock         *MockQuerier
+		listRefreshMock     *MockListRefresher
+		cacheControlMock    *MockCacheControl
 		sut                 *OpenAPIInterfaceImpl
 
 		ctx      context.Context
@@ -89,17 +33,11 @@ var _ = Describe("API implementation tests", func() {
 		ctx, cancelFn = context.WithCancel(context.Background())
 		DeferCleanup(cancelFn)
 
-		blockingControlMock = &BlockingControlMock{}
-		querierMock = &QuerierMock{}
-		listRefreshMock = &ListRefreshMock{}
-		cacheControlMock = &CacheControlMock{}
+		blockingControlMock = NewMockBlockingControl(GinkgoT())
+		querierMock = NewMockQuerier(GinkgoT())
+		listRefreshMock = NewMockListRefresher(GinkgoT())
+		cacheControlMock = NewMockCacheControl(GinkgoT())
 		sut = NewOpenAPIInterfaceImpl(blockingControlMock, querierMock, listRefreshMock, cacheControlMock)
-	})
-
-	AfterEach(func() {
-		blockingControlMock.AssertExpectations(GinkgoT())
-		querierMock.AssertExpectations(GinkgoT())
-		listRefreshMock.AssertExpectations(GinkgoT())
 	})
 
 	Describe("RegisterOpenAPIEndpoints", func() {
@@ -196,7 +134,7 @@ var _ = Describe("API implementation tests", func() {
 	Describe("Lists API", func() {
 		When("List refresh is called", func() {
 			It("should return 200 on success", func() {
-				listRefreshMock.On("RefreshLists").Return(nil)
+				listRefreshMock.On("RefreshLists", mock.Anything).Return(nil)
 
 				resp, err := sut.ListRefresh(ctx, ListRefreshRequestObject{})
 				Expect(err).Should(Succeed())
@@ -205,7 +143,7 @@ var _ = Describe("API implementation tests", func() {
 			})
 
 			It("should return 500 on failure", func() {
-				listRefreshMock.On("RefreshLists").Return(errors.New("failed"))
+				listRefreshMock.On("RefreshLists", mock.Anything).Return(errors.New("failed"))
 
 				resp, err := sut.ListRefresh(ctx, ListRefreshRequestObject{})
 				Expect(err).Should(Succeed())
@@ -220,7 +158,7 @@ var _ = Describe("API implementation tests", func() {
 		When("Disable blocking is called", func() {
 			It("should return a success when receiving no groups", func() {
 				var emptySlice []string
-				blockingControlMock.On("DisableBlocking", 3*time.Second, emptySlice).Return(nil)
+				blockingControlMock.On("DisableBlocking", mock.Anything, 3*time.Second, emptySlice).Return(nil)
 				duration := "3s"
 				grroups := ""
 
@@ -236,7 +174,7 @@ var _ = Describe("API implementation tests", func() {
 			})
 
 			It("should return 200 on success", func() {
-				blockingControlMock.On("DisableBlocking", 3*time.Second, []string{"gr1", "gr2"}).Return(nil)
+				blockingControlMock.On("DisableBlocking", mock.Anything, 3*time.Second, []string{"gr1", "gr2"}).Return(nil)
 				duration := "3s"
 				grroups := "gr1,gr2"
 
@@ -252,7 +190,7 @@ var _ = Describe("API implementation tests", func() {
 			})
 
 			It("should return 400 on failure", func() {
-				blockingControlMock.On("DisableBlocking", mock.Anything, mock.Anything).Return(errors.New("failed"))
+				blockingControlMock.On("DisableBlocking", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("failed"))
 				resp, err := sut.DisableBlocking(ctx, DisableBlockingRequestObject{})
 				Expect(err).Should(Succeed())
 				var resp400 DisableBlocking400TextResponse
@@ -275,7 +213,7 @@ var _ = Describe("API implementation tests", func() {
 		})
 		When("Enable blocking is called", func() {
 			It("should return 200 on success", func() {
-				blockingControlMock.On("EnableBlocking").Return()
+				blockingControlMock.On("EnableBlocking", mock.Anything).Return()
 
 				resp, err := sut.EnableBlocking(ctx, EnableBlockingRequestObject{})
 				Expect(err).Should(Succeed())

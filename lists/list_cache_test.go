@@ -16,6 +16,7 @@ import (
 	"github.com/0xERR0R/blocky/log"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/mock"
 
 	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/onsi/ginkgo/v2"
@@ -34,7 +35,7 @@ var _ = Describe("ListCache", func() {
 		listCacheType  ListCacheType
 		lists          map[string][]config.BytesSource
 		downloader     FileDownloader
-		mockDownloader *MockDownloader
+		mockDownloader *MockFileDownloader
 		ctx            context.Context
 		cancelFn       context.CancelFunc
 		err            error
@@ -107,13 +108,16 @@ var _ = Describe("ListCache", func() {
 		})
 		When("List becomes empty on refresh", func() {
 			BeforeEach(func() {
-				mockDownloader = newMockDownloader(func(res chan<- string, err chan<- error) {
-					res <- "blocked1.com"
-					res <- "# nothing"
-				})
+				mockDownloader = NewMockFileDownloader(GinkgoT())
+				// First call during initialization
+				mockDownloader.On("DownloadFile", mock.Anything, mock.Anything).
+					Return(io.NopCloser(strings.NewReader("blocked1.com")), nil).Once()
+				// Second call during refresh
+				mockDownloader.On("DownloadFile", mock.Anything, mock.Anything).
+					Return(io.NopCloser(strings.NewReader("# nothing")), nil).Once()
 
 				lists = map[string][]config.BytesSource{
-					"gr1": {mockDownloader.ListSource()},
+					"gr1": {mockListSource()},
 				}
 			})
 
@@ -152,14 +156,19 @@ var _ = Describe("ListCache", func() {
 		When("a temporary/transient err occurs on download", func() {
 			BeforeEach(func() {
 				// should produce a transient error on second and third attempt
-				mockDownloader = newMockDownloader(func(res chan<- string, err chan<- error) {
-					res <- "blocked1.com\nblocked2.com\n"
-					err <- &TransientError{inner: errors.New("boom")}
-					err <- &TransientError{inner: errors.New("boom")}
-				})
+				mockDownloader = NewMockFileDownloader(GinkgoT())
+				// First call during initialization
+				mockDownloader.On("DownloadFile", mock.Anything, mock.Anything).
+					Return(io.NopCloser(strings.NewReader("blocked1.com\nblocked2.com\n")), nil).Once()
+				// Second call during first refresh
+				mockDownloader.On("DownloadFile", mock.Anything, mock.Anything).
+					Return(nil, &TransientError{inner: errors.New("boom")}).Once()
+				// Third call during second refresh
+				mockDownloader.On("DownloadFile", mock.Anything, mock.Anything).
+					Return(nil, &TransientError{inner: errors.New("boom")}).Once()
 
 				lists = map[string][]config.BytesSource{
-					"gr1": {mockDownloader.ListSource()},
+					"gr1": {mockListSource()},
 				}
 			})
 
@@ -189,13 +198,16 @@ var _ = Describe("ListCache", func() {
 		When("non transient err occurs on download", func() {
 			BeforeEach(func() {
 				// should produce a non transient error on second attempt
-				mockDownloader = newMockDownloader(func(res chan<- string, err chan<- error) {
-					res <- "blocked1.com"
-					err <- errors.New("boom")
-				})
+				mockDownloader = NewMockFileDownloader(GinkgoT())
+				// First call during initialization
+				mockDownloader.On("DownloadFile", mock.Anything, mock.Anything).
+					Return(io.NopCloser(strings.NewReader("blocked1.com")), nil).Once()
+				// Second call during refresh
+				mockDownloader.On("DownloadFile", mock.Anything, mock.Anything).
+					Return(nil, errors.New("boom")).Once()
 
 				lists = map[string][]config.BytesSource{
-					"gr1": {mockDownloader.ListSource()},
+					"gr1": {mockListSource()},
 				}
 			})
 
@@ -442,17 +454,20 @@ var _ = Describe("ListCache", func() {
 		When("one source succeeds and another has a transient error", func() {
 			BeforeEach(func() {
 				// First source succeeds, second source has transient error (timeout)
-				mockDownloader = newMockDownloader(func(res chan<- string, err chan<- error) {
-					res <- "blocked1.com\nblocked2.com\n"
-					err <- &TransientError{inner: errors.New("Client.Timeout exceeded while awaiting headers")}
-				})
+				mockDownloader = NewMockFileDownloader(GinkgoT())
+				// First source loads successfully
+				mockDownloader.On("DownloadFile", mock.Anything, mock.Anything).
+					Return(io.NopCloser(strings.NewReader("blocked1.com\nblocked2.com\n")), nil).Once()
+				// Second source has transient error
+				mockDownloader.On("DownloadFile", mock.Anything, mock.Anything).
+					Return(nil, &TransientError{inner: errors.New("Client.Timeout exceeded while awaiting headers")}).Once()
 
 				sutConfig.Strategy = config.InitStrategyFailOnError
 
 				lists = map[string][]config.BytesSource{
 					"gr1": {
-						mockDownloader.ListSource(), // First call succeeds with entries
-						mockDownloader.ListSource(), // Second call has transient error
+						mockListSource(), // First call succeeds with entries
+						mockListSource(), // Second call has transient error
 					},
 				}
 			})
@@ -475,17 +490,20 @@ var _ = Describe("ListCache", func() {
 
 		When("one source succeeds and another has a transient error with blocking strategy", func() {
 			BeforeEach(func() {
-				mockDownloader = newMockDownloader(func(res chan<- string, err chan<- error) {
-					res <- "blocked1.com\nblocked2.com\n"
-					err <- &TransientError{inner: errors.New("Client.Timeout exceeded while awaiting headers")}
-				})
+				mockDownloader = NewMockFileDownloader(GinkgoT())
+				// First source loads successfully
+				mockDownloader.On("DownloadFile", mock.Anything, mock.Anything).
+					Return(io.NopCloser(strings.NewReader("blocked1.com\nblocked2.com\n")), nil).Once()
+				// Second source has transient error
+				mockDownloader.On("DownloadFile", mock.Anything, mock.Anything).
+					Return(nil, &TransientError{inner: errors.New("Client.Timeout exceeded while awaiting headers")}).Once()
 
 				sutConfig.Strategy = config.InitStrategyBlocking
 
 				lists = map[string][]config.BytesSource{
 					"gr1": {
-						mockDownloader.ListSource(),
-						mockDownloader.ListSource(),
+						mockListSource(),
+						mockListSource(),
 					},
 				}
 			})
@@ -501,24 +519,8 @@ var _ = Describe("ListCache", func() {
 	})
 })
 
-type MockDownloader struct {
-	MockCallSequence[string]
-}
-
-func newMockDownloader(driver func(res chan<- string, err chan<- error)) *MockDownloader {
-	return &MockDownloader{NewMockCallSequence(driver)}
-}
-
-func (m *MockDownloader) DownloadFile(_ context.Context, _ string) (io.ReadCloser, error) {
-	str, err := m.Call()
-	if err != nil {
-		return nil, err
-	}
-
-	return io.NopCloser(strings.NewReader(str)), nil
-}
-
-func (m *MockDownloader) ListSource() config.BytesSource {
+// mockListSource returns a BytesSource that will use the mockDownloader
+func mockListSource() config.BytesSource {
 	return config.BytesSource{
 		Type: config.BytesSourceTypeHttp,
 		From: "http://mock-downloader",

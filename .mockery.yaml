@@ -1,0 +1,29 @@
+# Mockery v3 configuration for blocky
+# Run: make generate  OR  go tool mockery
+
+packages:
+  # API package
+  github.com/0xERR0R/blocky/api:
+    config:
+      all: true
+      inpackage: true
+      filename: "mocks_test.go"
+
+  # Cache package - ExpiringCache interface
+  # Note: Using non-test filename (mocks.go) to allow cross-package access from resolver tests
+  github.com/0xERR0R/blocky/cache:
+    interfaces:
+      ExpiringCache:
+        config:
+          inpackage: true
+          filename: "mocks.go"
+
+
+  # Lists package - FileDownloader interface
+  github.com/0xERR0R/blocky/lists:
+    interfaces:
+      FileDownloader:
+        config:
+          inpackage: true
+          filename: "mocks_test.go"
+
