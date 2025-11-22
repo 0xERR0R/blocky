@@ -255,3 +255,27 @@ func ClientNameMatchesGroupName(group, clientName string) bool {
 
 	return match
 }
+
+// ExtractRecords extracts all records of type T from a DNS message's Answer section
+func ExtractRecords[T dns.RR](msg *dns.Msg) []T {
+	var records []T
+	for _, rr := range msg.Answer {
+		if record, ok := rr.(T); ok {
+			records = append(records, record)
+		}
+	}
+
+	return records
+}
+
+// ExtractRecordsFromSlice extracts all records of type T from a DNS RR slice
+func ExtractRecordsFromSlice[T dns.RR](rrs []dns.RR) []T {
+	var records []T
+	for _, rr := range rrs {
+		if record, ok := rr.(T); ok {
+			records = append(records, record)
+		}
+	}
+
+	return records
+}

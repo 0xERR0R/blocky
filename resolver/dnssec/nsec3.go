@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/0xERR0R/blocky/util"
+
 	"github.com/miekg/dns"
 )
 
@@ -90,14 +92,7 @@ func (v *Validator) validateNSEC3DenialOfExistence(response *dns.Msg, question d
 
 // extractNSEC3Records extracts NSEC3 records from a list of RRs
 func extractNSEC3Records(rrs []dns.RR) []*dns.NSEC3 {
-	var nsec3s []*dns.NSEC3
-	for _, rr := range rrs {
-		if nsec3, ok := rr.(*dns.NSEC3); ok {
-			nsec3s = append(nsec3s, nsec3)
-		}
-	}
-
-	return nsec3s
+	return util.ExtractRecordsFromSlice[*dns.NSEC3](rrs)
 }
 
 // computeNSEC3Hash computes the NSEC3 hash per RFC 5155 §5 with caching

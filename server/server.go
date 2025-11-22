@@ -322,7 +322,6 @@ func createQueryResolver(
 	r := resolver.Chain(
 		resolver.NewFilteringResolver(cfg.Filtering),
 		resolver.NewFQDNOnlyResolver(cfg.FQDNOnly),
-		resolver.NewECSResolver(cfg.ECS),
 		clientNames,
 		resolver.NewEDEResolver(cfg.EDE),
 		queryLogging,
@@ -332,6 +331,8 @@ func createQueryResolver(
 		blocking,
 		dnssecResolver, // DNSSEC validation BEFORE caching - validates all responses before they are cached
 		cachingResolver,
+		resolver.NewDNS64Resolver(cfg.DNS64), // DNS64 synthesis AFTER caching
+		resolver.NewECSResolver(cfg.ECS),
 		condUpstream,
 		resolver.NewSpecialUseDomainNamesResolver(cfg.SUDN),
 		upstreamTree,
