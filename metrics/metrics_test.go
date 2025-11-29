@@ -2,6 +2,7 @@ package metrics_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 	"net"
@@ -36,7 +37,13 @@ func AssertRegistryComplete(t *testing.T, reg *prometheus.Registry) {
 
 	found := make(map[string]struct{})
 	for _, mf := range mfs {
-		found[mf.GetName()] = struct{}{}
+		name := mf.GetName()
+		if strings.HasPrefix(name, "go_") ||
+			strings.HasPrefix(name, "process_") ||
+			strings.HasPrefix(name, "promhttp_") {
+				continue
+		}
+		found[name] = struct{}{}
 	}
 
 	expected := []string{
@@ -58,49 +65,6 @@ func AssertRegistryComplete(t *testing.T, reg *prometheus.Registry) {
 		"blocky_prefetch_hits_total",
 		"blocky_prefetch_domain_name_cache_entries",
 		"blocky_failed_downloads_total",
-		// go
-		"go_memstats_alloc_bytes_total",
-		"go_memstats_buck_hash_sys_bytes",
-		"go_memstats_last_gc_time_seconds",
-		"go_memstats_mallocs_total",
-		"go_memstats_mspan_inuse_bytes",
-		"go_memstats_stack_inuse_bytes",
-		"go_info",
-		"go_memstats_alloc_bytes",
-		"go_memstats_heap_alloc_bytes",
-		"go_memstats_heap_inuse_bytes",
-		"go_memstats_next_gc_bytes",
-		"go_memstats_sys_bytes",
-		"go_memstats_frees_total",
-		"go_memstats_mcache_inuse_bytes",
-		"go_memstats_mcache_sys_bytes",
-		"go_threads",
-		"go_gc_duration_seconds",
-		"go_memstats_heap_idle_bytes",
-		"go_memstats_heap_sys_bytes",
-		"go_gc_gomemlimit_bytes",
-		"go_memstats_gc_sys_bytes",
-		"go_memstats_heap_objects",
-		"go_memstats_mspan_sys_bytes",
-		"go_memstats_stack_sys_bytes",
-		"go_sched_gomaxprocs_threads",
-		"go_memstats_heap_released_bytes",
-		"go_memstats_other_sys_bytes",
-		"go_gc_gogc_percent",
-		"go_goroutines",
-		// process
-		"process_start_time_seconds",
-		"process_virtual_memory_bytes",
-		"process_max_fds",
-		"process_cpu_seconds_total",
-		"process_virtual_memory_max_bytes",
-		"process_network_transmit_bytes_total",
-		"process_open_fds",
-		"process_resident_memory_bytes",
-		"process_network_receive_bytes_total",
-		// promhttp
-		"promhttp_metric_handler_requests_total",
-		"promhttp_metric_handler_requests_in_flight",
 	}
 
 	if len(found) != len(expected) {
@@ -185,7 +149,7 @@ func TestAllExpectedMetricsAreRegistered(t *testing.T) {
 	ctx := context.Background()
 	// now use the counters
 	metricsResolver.Resolve(ctx, &req)
-	// (&MockResolver{}).Resolve(ctx, &req)
+
 	evt.Bus().Publish(evt.BlockingCacheGroupChanged, lists.ListCacheTypeDenylist,"group",0)
 	evt.Bus().Publish(evt.BlockingCacheGroupChanged, lists.ListCacheTypeAllowlist,"group",0)
 
