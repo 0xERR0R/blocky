@@ -1419,10 +1419,10 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "sum(rate(blocky_query_total{pod=~\"$pod\"}[5m])) * 60",
+          "expr": "sum(irate(blocky_query_total{pod=~\"$pod\"}[5m])) * 60",
           "format": "time_series",
           "instant": false,
-          "interval": "",
+          "interval": "1m",
           "legendFormat": " ",
           "refId": "A"
         }
@@ -1520,10 +1520,10 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "exemplar": true,
-          "expr": "sum by (client) (rate(blocky_query_total{pod=~\"$pod\"}[5m])) * 60",
+          "expr": "sum by (client) (irate(blocky_query_total{pod=~\"$pod\"}[5m])) * 60",
           "format": "time_series",
           "instant": false,
-          "interval": "",
+          "interval": "1m",
           "legendFormat": " {{client}}",
           "refId": "A"
         }
