@@ -2,10 +2,10 @@ package metrics_test
 
 import (
 	"context"
+	"net"
 	"strings"
 	"testing"
 	"time"
-	"net"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
@@ -15,8 +15,8 @@ import (
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/resolver"
 
-	"github.com/miekg/dns"
 	"github.com/go-chi/chi/v5"
+	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
@@ -41,7 +41,7 @@ func AssertRegistryComplete(t *testing.T, reg *prometheus.Registry) {
 		if strings.HasPrefix(name, "go_") ||
 			strings.HasPrefix(name, "process_") ||
 			strings.HasPrefix(name, "promhttp_") {
-				continue
+			continue
 		}
 		found[name] = struct{}{}
 	}
@@ -78,6 +78,7 @@ func AssertRegistryComplete(t *testing.T, reg *prometheus.Registry) {
 				return true
 			}
 		}
+
 		return false
 	}
 
@@ -94,20 +95,18 @@ func AssertRegistryComplete(t *testing.T, reg *prometheus.Registry) {
 	}
 }
 
-
 type MockResolver struct{}
 
 func (m *MockResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	resp := &model.Response{
-		Res: &dns.Msg{
-
-		},
+		Res:    &dns.Msg{},
 		Reason: "mocking",
-		RType: 0,
+		RType:  0,
 	}
 
 	return resp, nil
 }
+
 func (m *MockResolver) IsEnabled() bool {
 	return true
 }
@@ -115,13 +114,14 @@ func (m *MockResolver) IsEnabled() bool {
 func (m *MockResolver) LogConfig(*logrus.Entry) {
 	// no-op for testing
 }
+
 func (m *MockResolver) String() string {
 	return "mockResolver"
 }
+
 func (m *MockResolver) Type() string {
 	return "MockResolver"
 }
-
 
 func TestAllExpectedMetricsAreRegistered(t *testing.T) {
 	// New Server
@@ -148,10 +148,12 @@ func TestAllExpectedMetricsAreRegistered(t *testing.T) {
 
 	ctx := context.Background()
 	// now use the counters
-	metricsResolver.Resolve(ctx, &req)
-
-	evt.Bus().Publish(evt.BlockingCacheGroupChanged, lists.ListCacheTypeDenylist,"group",0)
-	evt.Bus().Publish(evt.BlockingCacheGroupChanged, lists.ListCacheTypeAllowlist,"group",0)
+	_, err := metricsResolver.Resolve(ctx, &req)
+	if err != nil {
+		t.Fatal("failed to call metrics resolver")
+	}
+	evt.Bus().Publish(evt.BlockingCacheGroupChanged, lists.ListCacheTypeDenylist, "group", 0)
+	evt.Bus().Publish(evt.BlockingCacheGroupChanged, lists.ListCacheTypeAllowlist, "group", 0)
 
 	// createHTTPRouter
 	metrics.Start(chi.NewMux(), config)
