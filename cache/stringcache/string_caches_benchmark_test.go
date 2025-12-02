@@ -108,7 +108,7 @@ func benchmarkFactory(b *testing.B, data []string, newFactory func() cacheFactor
 		cache   stringCache
 	)
 
-	for range b.N {
+	for b.Loop() {
 		factory = newFactory()
 
 		for _, s := range data {
@@ -173,7 +173,7 @@ func benchmarkCache(b *testing.B, data []string, newFactory func() cacheFactory)
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for range b.N {
+	for b.Loop() {
 		// Always use the plain strings for search:
 		// - wildcards and regexes need a plain string query
 		// - all benchmarks will do the same number of queries

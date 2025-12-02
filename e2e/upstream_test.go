@@ -169,7 +169,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 					// random strategy should retry with moka1 or moka2 and succeed
 					const attempts = 10
 
-					for i := 0; i < attempts; i++ {
+					for range attempts {
 						msg := util.NewMsgWithQuestion("random.com.", A)
 						resp, err := doDNSRequest(ctx, blocky, msg)
 						Expect(err).Should(Succeed())
@@ -222,7 +222,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 					// Query multiple times - should always get response from first server (1.1.1.1)
 					const attempts = 10
 
-					for i := 0; i < attempts; i++ {
+					for range attempts {
 						msg := util.NewMsgWithQuestion("strict.com.", A)
 						Expect(doDNSRequest(ctx, blocky, msg)).
 							Should(
@@ -301,7 +301,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 				const attempts = 20
 				successCount := 0
 
-				for i := 0; i < attempts; i++ {
+				for range attempts {
 					msg := util.NewMsgWithQuestion("parallel.com.", A)
 					resp, err := doDNSRequest(ctx, blocky, msg)
 					Expect(err).Should(Succeed())
@@ -405,7 +405,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 					foundStamp := false
 					foundTraditional := false
 
-					for i := 0; i < attempts; i++ {
+					for range attempts {
 						msg := util.NewMsgWithQuestion("mixed-test.com.", A)
 						resp, err := doDNSRequest(ctx, blocky, msg)
 						Expect(err).Should(Succeed())

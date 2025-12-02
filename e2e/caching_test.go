@@ -138,7 +138,7 @@ var _ = Describe("Caching configuration tests", func() {
 				msg := util.NewMsgWithQuestion("prefetch.com.", A)
 
 				By("Query domain multiple times to mark it for prefetching", func() {
-					for i := 0; i < 5; i++ {
+					for range 5 {
 						Expect(doDNSRequest(ctx, blocky, msg)).
 							Should(BeDNSRecord("prefetch.com.", A, "9.8.7.6"))
 						time.Sleep(500 * time.Millisecond) // Space out queries for prefetch detection

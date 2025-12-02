@@ -62,7 +62,7 @@ var _ = Describe("ConditionalUpstreamConfig", func() {
 	Describe("UnmarshalYAML", func() {
 		It("Should parse config as map", func() {
 			c := &ConditionalUpstreamMapping{}
-			err := c.UnmarshalYAML(func(i interface{}) error {
+			err := c.UnmarshalYAML(func(i any) error {
 				*i.(*map[string]string) = map[string]string{"key": "1.2.3.4"}
 
 				return nil
@@ -77,7 +77,7 @@ var _ = Describe("ConditionalUpstreamConfig", func() {
 
 		It("should fail if wrong YAML format", func() {
 			c := &ConditionalUpstreamMapping{}
-			err := c.UnmarshalYAML(func(i interface{}) error {
+			err := c.UnmarshalYAML(func(i any) error {
 				return errors.New("some err")
 			})
 			Expect(err).Should(HaveOccurred())
