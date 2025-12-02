@@ -204,10 +204,7 @@ func (d *DatabaseWriter) doDBWrite() error {
 		const bulkSize = 100
 
 		for i := 0; i < len(d.pendingEntries); i += bulkSize {
-			j := i + bulkSize
-			if j > len(d.pendingEntries) {
-				j = len(d.pendingEntries)
-			}
+			j := min(i+bulkSize, len(d.pendingEntries))
 			// write bulk
 			tx := d.db.Create(d.pendingEntries[i:j])
 			err = multierror.Append(err, tx.Error)

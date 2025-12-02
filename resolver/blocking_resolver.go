@@ -50,7 +50,7 @@ func createBlockHandler(cfg config.Blocking) (blockHandler, error) {
 		// Try parsing as IP address(es)
 		var ips []net.IP
 
-		for _, part := range strings.Split(cfgBlockType, ",") {
+		for part := range strings.SplitSeq(cfgBlockType, ",") {
 			if ip := net.ParseIP(strings.TrimSpace(part)); ip != nil {
 				ips = append(ips, ip)
 			}
@@ -102,7 +102,7 @@ func clientGroupsBlock(cfg config.Blocking) map[string][]string {
 	cgb := make(map[string][]string, len(cfg.ClientGroupsBlock))
 
 	for identifier, cfgGroups := range cfg.ClientGroupsBlock {
-		for _, ipart := range strings.Split(strings.ToLower(identifier), ",") {
+		for ipart := range strings.SplitSeq(strings.ToLower(identifier), ",") {
 			existingGroups, found := cgb[ipart]
 			if found {
 				cgb[ipart] = append(existingGroups, cfgGroups...)

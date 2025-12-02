@@ -181,7 +181,7 @@ func (l *ListenConfig) UnmarshalText(data []byte) error {
 }
 
 // UnmarshalYAML creates a ListenConfig from YAML
-func (l *ListenConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (l *ListenConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	// Try parsing as a native YAML array...
 	if unmarshal((*[]string)(l)) == nil {
 		l.prefixPorts()
@@ -209,7 +209,7 @@ func (l *ListenConfig) prefixPorts() {
 }
 
 // UnmarshalYAML creates BootstrapDNS from YAML
-func (b *BootstrapDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (b *BootstrapDNS) UnmarshalYAML(unmarshal func(any) error) error {
 	var single BootstrappedUpstream
 	if err := unmarshal(&single); err == nil {
 		*b = BootstrapDNS{single}
@@ -230,7 +230,7 @@ func (b *BootstrapDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // UnmarshalYAML creates BootstrappedUpstream from YAML
-func (b *BootstrappedUpstream) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (b *BootstrappedUpstream) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal(&b.Upstream); err == nil {
 		return nil
 	}

@@ -384,7 +384,7 @@ func (r *CachingResolver) adjustTTLs(answer []dns.RR) (ttl time.Duration) {
 	return time.Duration(minTTL) * time.Second
 }
 
-func (r *CachingResolver) publishMetricsIfEnabled(event string, val interface{}) {
+func (r *CachingResolver) publishMetricsIfEnabled(event string, val any) {
 	if r.emitMetricEvents {
 		evt.Bus().Publish(event, val)
 	}

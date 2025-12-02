@@ -76,9 +76,9 @@ func parseForwardedHeader(forwarded string) net.IP {
 
 	for _, element := range elements {
 		// Split by semicolon to get parameters (for, by, proto, host)
-		params := strings.Split(element, ";")
+		params := strings.SplitSeq(element, ";")
 
-		for _, param := range params {
+		for param := range params {
 			param = strings.TrimSpace(param)
 
 			// Look for "for=" parameter (case-insensitive)

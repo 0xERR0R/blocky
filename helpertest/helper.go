@@ -204,7 +204,7 @@ func HaveEdnsOption(code uint16) types.GomegaMatcher {
 }
 
 func HaveTTL(matcher types.GomegaMatcher) types.GomegaMatcher {
-	return gomega.WithTransform(func(actual interface{}) (uint32, error) {
+	return gomega.WithTransform(func(actual any) (uint32, error) {
 		// Handle different types of input
 		var records []dns.RR
 
@@ -275,7 +275,7 @@ func (matcher *dnsRecordMatcher) matchSingle(rr dns.RR) bool {
 }
 
 // Match checks the DNS record
-func (matcher *dnsRecordMatcher) Match(actual interface{}) (success bool, err error) {
+func (matcher *dnsRecordMatcher) Match(actual any) (success bool, err error) {
 	// Handle different types of input
 	var records []dns.RR
 
@@ -308,13 +308,13 @@ func (matcher *dnsRecordMatcher) Match(actual interface{}) (success bool, err er
 }
 
 // FailureMessage generates a failure message
-func (matcher *dnsRecordMatcher) FailureMessage(actual interface{}) (message string) {
+func (matcher *dnsRecordMatcher) FailureMessage(actual any) (message string) {
 	return fmt.Sprintf("Expected\n\t%s\n to contain\n\t domain '%s', type '%s', answer '%s'",
 		actual, matcher.domain, dns.TypeToString[uint16(matcher.dnsType)], matcher.answer)
 }
 
 // NegatedFailureMessage creates negated message
-func (matcher *dnsRecordMatcher) NegatedFailureMessage(actual interface{}) (message string) {
+func (matcher *dnsRecordMatcher) NegatedFailureMessage(actual any) (message string) {
 	return fmt.Sprintf("Expected\n\t%s\n not to contain\n\t domain '%s', type '%s', answer '%s'",
 		actual, matcher.domain, dns.TypeToString[uint16(matcher.dnsType)], matcher.answer)
 }
