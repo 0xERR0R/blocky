@@ -70,7 +70,7 @@ var _ = Describe("CustomDNSConfig", func() {
 	Describe("CustomDNSEntries UnmarshalYAML", func() {
 		It("Should parse config as map", func() {
 			c := CustomDNSEntries{}
-			err := c.UnmarshalYAML(func(i interface{}) error {
+			err := c.UnmarshalYAML(func(i any) error {
 				*i.(*string) = "1.2.3.4"
 
 				return nil
@@ -84,7 +84,7 @@ var _ = Describe("CustomDNSConfig", func() {
 
 		It("Should parse multiple ips as comma separated string", func() {
 			c := CustomDNSEntries{}
-			err := c.UnmarshalYAML(func(i interface{}) error {
+			err := c.UnmarshalYAML(func(i any) error {
 				*i.(*string) = "1.2.3.4,2.3.4.5"
 
 				return nil
@@ -98,7 +98,7 @@ var _ = Describe("CustomDNSConfig", func() {
 
 		It("Should parse multiple ips as comma separated string with whitespace", func() {
 			c := CustomDNSEntries{}
-			err := c.UnmarshalYAML(func(i interface{}) error {
+			err := c.UnmarshalYAML(func(i any) error {
 				*i.(*string) = "1.2.3.4, 2.3.4.5 ,   3.4.5.6"
 
 				return nil
@@ -113,7 +113,7 @@ var _ = Describe("CustomDNSConfig", func() {
 
 		It("should fail if wrong YAML format", func() {
 			c := &CustomDNSEntries{}
-			err := c.UnmarshalYAML(func(i interface{}) error {
+			err := c.UnmarshalYAML(func(i any) error {
 				return errors.New("some err")
 			})
 			Expect(err).Should(HaveOccurred())
@@ -124,7 +124,7 @@ var _ = Describe("CustomDNSConfig", func() {
 	Describe("ZoneFileDNS UnmarshalYAML", func() {
 		It("Should parse config as map", func() {
 			z := ZoneFileDNS{}
-			err := z.UnmarshalYAML(func(i interface{}) error {
+			err := z.UnmarshalYAML(func(i any) error {
 				*i.(*string) = strings.TrimSpace(`
 $ORIGIN example.com.
 www 3600 A 1.2.3.4
@@ -175,7 +175,7 @@ cname 3600 CNAME www
 			file := folder.CreateStringFile("other.zone", "www 3600 A 1.2.3.4")
 
 			z := ZoneFileDNS{}
-			err := z.UnmarshalYAML(func(i interface{}) error {
+			err := z.UnmarshalYAML(func(i any) error {
 				*i.(*string) = strings.TrimSpace(`
 $ORIGIN example.com.
 $INCLUDE ` + file.Path)
@@ -199,7 +199,7 @@ $INCLUDE ` + file.Path)
 
 		It("Should return an error if the zone file is malformed", func() {
 			z := ZoneFileDNS{}
-			err := z.UnmarshalYAML(func(i interface{}) error {
+			err := z.UnmarshalYAML(func(i any) error {
 				*i.(*string) = strings.TrimSpace(`
 $ORIGIN example.com.
 www A 1.2.3.4
@@ -212,7 +212,7 @@ www A 1.2.3.4
 		})
 		It("Should return an error if a relative record is provided without an origin", func() {
 			z := ZoneFileDNS{}
-			err := z.UnmarshalYAML(func(i interface{}) error {
+			err := z.UnmarshalYAML(func(i any) error {
 				*i.(*string) = strings.TrimSpace(`
 $TTL 3600
 www A 1.2.3.4
@@ -225,7 +225,7 @@ www A 1.2.3.4
 		})
 		It("Should return an error if the unmarshall function returns an error", func() {
 			z := ZoneFileDNS{}
-			err := z.UnmarshalYAML(func(i interface{}) error {
+			err := z.UnmarshalYAML(func(i any) error {
 				return errors.New("Failed to unmarshal")
 			})
 			Expect(err).Should(HaveOccurred())

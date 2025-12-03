@@ -41,4 +41,4 @@ func TestResolver(t *testing.T) {
 
 type NoLogs struct{}
 
-func (l NoLogs) Printf(_ context.Context, _ string, _ ...interface{}) {}
+func (l NoLogs) Printf(_ context.Context, _ string, _ ...any) {}

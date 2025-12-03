@@ -32,7 +32,7 @@ func (c *ConditionalUpstream) LogConfig(logger *logrus.Entry) {
 }
 
 // UnmarshalYAML implements `yaml.Unmarshaler`.
-func (c *ConditionalUpstreamMapping) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *ConditionalUpstreamMapping) UnmarshalYAML(unmarshal func(any) error) error {
 	var input map[string]string
 	if err := unmarshal(&input); err != nil {
 		return err
@@ -43,7 +43,7 @@ func (c *ConditionalUpstreamMapping) UnmarshalYAML(unmarshal func(interface{}) e
 	for k, v := range input {
 		var upstreams []Upstream
 
-		for _, part := range strings.Split(v, ",") {
+		for part := range strings.SplitSeq(v, ",") {
 			upstream, err := ParseUpstream(strings.TrimSpace(part))
 			if err != nil {
 				return fmt.Errorf("can't convert upstream '%s': %w", strings.TrimSpace(part), err)

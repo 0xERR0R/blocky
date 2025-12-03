@@ -980,7 +980,7 @@ var _ = Describe("DNSSECValidator", func() {
 
 			// Run multiple validations concurrently
 			done := make(chan bool)
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				go func() {
 					defer GinkgoRecover()
 					_ = sut.walkChainOfTrust(ctx, domain)
@@ -989,7 +989,7 @@ var _ = Describe("DNSSECValidator", func() {
 			}
 
 			// Wait for all goroutines
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				<-done
 			}
 

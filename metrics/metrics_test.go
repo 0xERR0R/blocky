@@ -3,6 +3,7 @@ package metrics_test
 import (
 	"context"
 	"net"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -71,19 +72,8 @@ func AssertRegistryComplete(t *testing.T, reg *prometheus.Registry) {
 		t.Errorf("Found %d / %d expected metrics", len(found), len(expected))
 	}
 
-	// helperto check if a string is in a slice
-	contains := func(slice []string, item string) bool {
-		for _, s := range slice {
-			if s == item {
-				return true
-			}
-		}
-
-		return false
-	}
-
 	for name := range found {
-		if !contains(expected, name) {
+		if !slices.Contains(expected, name) {
 			t.Errorf("found additional metric %q in registry", name)
 		}
 	}

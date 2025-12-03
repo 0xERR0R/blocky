@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/base32"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/miekg/dns"
@@ -236,13 +237,11 @@ func (v *Validator) checkDirectNSEC3Match(nsec3Records []*dns.NSEC3, qname, qnam
 
 		if strings.EqualFold(labels[0], qnameHash) {
 			// Found matching NSEC3 record - check type bitmap
-			for _, t := range nsec3.TypeBitMap {
-				if t == qtype {
-					// Type exists in bitmap - this is NOT a valid NODATA proof
-					v.logger.Debugf("NSEC3 record for %s has type %d in bitmap", qname, qtype)
+			if slices.Contains(nsec3.TypeBitMap, qtype) {
+				// Type exists in bitmap - this is NOT a valid NODATA proof
+				v.logger.Debugf("NSEC3 record for %s has type %d in bitmap", qname, qtype)
 
-					return ValidationResultBogus
-				}
+				return ValidationResultBogus
 			}
 
 			// Matching NSEC3 found and type not in bitmap - valid NODATA
@@ -288,10 +287,8 @@ func (v *Validator) checkWildcardNSEC3Match(nsec3Records []*dns.NSEC3, qname str
 
 		if len(labels) > 0 && strings.EqualFold(labels[0], wildcardHash) {
 			// Found wildcard NSEC3 - check type bitmap
-			for _, t := range nsec3.TypeBitMap {
-				if t == qtype {
-					return ValidationResultBogus
-				}
+			if slices.Contains(nsec3.TypeBitMap, qtype) {
+				return ValidationResultBogus
 			}
 
 			v.logger.Debugf("NSEC3 wildcard NODATA proof validated for %s type %d", qname, qtype)
