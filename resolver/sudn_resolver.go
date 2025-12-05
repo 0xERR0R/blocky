@@ -7,6 +7,7 @@ import (
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 )
 
@@ -157,12 +158,7 @@ func sudnLocalhost(request *model.Request, cfg *config.SUDN) *model.Response {
 		return sudnNXDomain(request, cfg)
 	}
 
-	*rr.Header() = dns.RR_Header{
-		Name:   q.Name,
-		Rrtype: q.Qtype,
-		Class:  dns.ClassINET,
-		Ttl:    0,
-	}
+	*rr.Header() = util.CreateHeader(q, 0)
 
 	response := newSUDNResponse(request, dns.RcodeSuccess)
 	response.Res.Answer = []dns.RR{rr}

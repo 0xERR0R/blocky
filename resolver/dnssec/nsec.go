@@ -3,6 +3,8 @@ package dnssec
 // This file contains NSEC-based denial of existence validation per RFC 4035 §5.4.
 
 import (
+	"github.com/0xERR0R/blocky/util"
+
 	"github.com/miekg/dns"
 	"slices"
 )
@@ -23,14 +25,7 @@ func (v *Validator) validateNSECDenialOfExistence(response *dns.Msg, question dn
 
 // extractNSECRecords extracts all NSEC records from a slice of RRs
 func extractNSECRecords(rrs []dns.RR) []*dns.NSEC {
-	var nsecs []*dns.NSEC
-	for _, rr := range rrs {
-		if nsec, ok := rr.(*dns.NSEC); ok {
-			nsecs = append(nsecs, nsec)
-		}
-	}
-
-	return nsecs
+	return util.ExtractRecordsFromSlice[*dns.NSEC](rrs)
 }
 
 // validateNSECNXDOMAIN validates NSEC proof for NXDOMAIN
