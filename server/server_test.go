@@ -198,7 +198,7 @@ var _ = Describe("Running DNS server", func() {
 
 		Context("DNS query is resolvable via external DNS", func() {
 			It("should return valid answer", func() {
-				Expect(requestServer(util.NewMsgWithQuestion("google.de.", A))).
+				Expect(requestServer(ctx, util.NewMsgWithQuestion("google.de.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("google.de.", A, "123.124.122.122"),
@@ -208,7 +208,7 @@ var _ = Describe("Running DNS server", func() {
 		})
 		Context("Custom DNS entry with exact match", func() {
 			It("should return valid answer", func() {
-				Expect(requestServer(util.NewMsgWithQuestion("custom.lan.", A))).
+				Expect(requestServer(ctx, util.NewMsgWithQuestion("custom.lan.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("custom.lan.", A, "192.168.178.55"),
@@ -218,7 +218,7 @@ var _ = Describe("Running DNS server", func() {
 		})
 		Context("Custom DNS entry with sub domain", func() {
 			It("should return valid answer", func() {
-				Expect(requestServer(util.NewMsgWithQuestion("host.lan.home.", A))).
+				Expect(requestServer(ctx, util.NewMsgWithQuestion("host.lan.home.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("host.lan.home.", A, "192.168.178.56"),
@@ -228,7 +228,7 @@ var _ = Describe("Running DNS server", func() {
 		})
 		Context("Conditional upstream", func() {
 			It("should resolve query via conditional upstream resolver", func() {
-				Expect(requestServer(util.NewMsgWithQuestion("host.fritz.box.", A))).
+				Expect(requestServer(ctx, util.NewMsgWithQuestion("host.fritz.box.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("host.fritz.box.", A, "192.168.178.2"),
@@ -238,7 +238,7 @@ var _ = Describe("Running DNS server", func() {
 		})
 		Context("Conditional upstream blocking", func() {
 			It("Query should be blocked, domain is in default group", func() {
-				Expect(requestServer(util.NewMsgWithQuestion("doubleclick.net.cn.", A))).
+				Expect(requestServer(ctx, util.NewMsgWithQuestion("doubleclick.net.cn.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("doubleclick.net.cn.", A, "0.0.0.0"),
@@ -248,7 +248,7 @@ var _ = Describe("Running DNS server", func() {
 		})
 		Context("Blocking default group", func() {
 			It("Query should be blocked, domain is in default group", func() {
-				Expect(requestServer(util.NewMsgWithQuestion("doubleclick.net.", A))).
+				Expect(requestServer(ctx, util.NewMsgWithQuestion("doubleclick.net.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("doubleclick.net.", A, "0.0.0.0"),
@@ -258,7 +258,7 @@ var _ = Describe("Running DNS server", func() {
 		})
 		Context("Blocking default group with sub domain", func() {
 			It("Query with subdomain should be blocked, domain is in default group", func() {
-				Expect(requestServer(util.NewMsgWithQuestion("www.bild.de.", A))).
+				Expect(requestServer(ctx, util.NewMsgWithQuestion("www.bild.de.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("www.bild.de.", A, "0.0.0.0"),
@@ -268,7 +268,7 @@ var _ = Describe("Running DNS server", func() {
 		})
 		Context("no blocking default group with sub domain", func() {
 			It("Query with should not be blocked, sub domain is not in denylist", func() {
-				Expect(requestServer(util.NewMsgWithQuestion("bild.de.", A))).
+				Expect(requestServer(ctx, util.NewMsgWithQuestion("bild.de.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("bild.de.", A, "123.124.122.122"),
@@ -278,7 +278,7 @@ var _ = Describe("Running DNS server", func() {
 		})
 		Context("domain is on allow/denylist default group", func() {
 			It("Query with should not be blocked, domain is on allow/denylist", func() {
-				Expect(requestServer(util.NewMsgWithQuestion("heise.de.", A))).
+				Expect(requestServer(ctx, util.NewMsgWithQuestion("heise.de.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("heise.de.", A, "123.124.122.122"),
@@ -289,7 +289,7 @@ var _ = Describe("Running DNS server", func() {
 		Context("domain is on client specific allowlist", func() {
 			It("Query with should not be blocked, domain is on client's allowlist", func() {
 				mockClientName.Store("clAllowlistOnly")
-				Expect(requestServer(util.NewMsgWithQuestion("heise.de.", A))).
+				Expect(requestServer(ctx, util.NewMsgWithQuestion("heise.de.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("heise.de.", A, "123.124.122.122"),
@@ -300,7 +300,7 @@ var _ = Describe("Running DNS server", func() {
 		Context("block client allowlist only", func() {
 			It("Query with should be blocked, client has only allowlist, domain is not on client's allowlist", func() {
 				mockClientName.Store("clAllowlistOnly")
-				Expect(requestServer(util.NewMsgWithQuestion("google.de.", A))).
+				Expect(requestServer(ctx, util.NewMsgWithQuestion("google.de.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("google.de.", A, "0.0.0.0"),
@@ -312,14 +312,14 @@ var _ = Describe("Running DNS server", func() {
 			It("Query with should be blocked, domain is on black list", func() {
 				mockClientName.Store("clAdsAndYoutube")
 
-				Expect(requestServer(util.NewMsgWithQuestion("www.bild.de.", A))).
+				Expect(requestServer(ctx, util.NewMsgWithQuestion("www.bild.de.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("www.bild.de.", A, "0.0.0.0"),
 							HaveTTL(BeNumerically("==", 21600)),
 						))
 
-				Expect(requestServer(util.NewMsgWithQuestion("youtube.com.", A))).
+				Expect(requestServer(ctx, util.NewMsgWithQuestion("youtube.com.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("youtube.com.", A, "0.0.0.0"),
@@ -331,7 +331,7 @@ var _ = Describe("Running DNS server", func() {
 			It("Query with should not be blocked, domain is on black list in another group", func() {
 				mockClientName.Store("clYoutubeOnly")
 
-				Expect(requestServer(util.NewMsgWithQuestion("www.bild.de.", A))).
+				Expect(requestServer(ctx, util.NewMsgWithQuestion("www.bild.de.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("www.bild.de.", A, "123.124.122.122"),
@@ -343,7 +343,7 @@ var _ = Describe("Running DNS server", func() {
 			It("Query with should not  blocked, domain is on black list in client's group", func() {
 				mockClientName.Store("clYoutubeOnly")
 
-				Expect(requestServer(util.NewMsgWithQuestion("youtube.com.", A))).
+				Expect(requestServer(ctx, util.NewMsgWithQuestion("youtube.com.", A))).
 					Should(
 						SatisfyAll(
 							BeDNSRecord("youtube.com.", A, "0.0.0.0"),
@@ -353,7 +353,7 @@ var _ = Describe("Running DNS server", func() {
 		})
 		Context("health check", func() {
 			It("Should always return dummy response", func() {
-				resp := requestServer(util.NewMsgWithQuestion("healthcheck.blocky.", A))
+				resp := requestServer(ctx, util.NewMsgWithQuestion("healthcheck.blocky.", A))
 
 				Expect(resp.Answer).Should(BeEmpty())
 			})
@@ -835,8 +835,8 @@ var _ = Describe("Running DNS server", func() {
 	})
 })
 
-func requestServer(request *dns.Msg) *dns.Msg {
-	conn, err := net.Dial("udp", GetHostPort("", dnsBasePort))
+func requestServer(ctx context.Context, request *dns.Msg) *dns.Msg {
+	conn, err := (&net.Dialer{}).DialContext(ctx, "udp", GetHostPort("", dnsBasePort))
 	if err != nil {
 		Log().Fatal("could not connect to server: ", err)
 	}
@@ -847,8 +847,7 @@ func requestServer(request *dns.Msg) *dns.Msg {
 		Log().Fatal("can't pack request: ", err)
 	}
 
-	_, err = conn.Write(msg)
-	if err != nil {
+	if _, err = conn.Write(msg); err != nil {
 		Log().Fatal("can't send request to server: ", err)
 	}
 
