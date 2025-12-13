@@ -1169,16 +1169,142 @@ Blocky exposes Prometheus metrics for DNSSEC validation:
 - Verify RRSIG inception/expiration times are reasonable using online validators
 - For systems without NTP, consider using a larger tolerance (e.g., 7200 seconds = 2 hours)
 
-### References
+## DNS64
 
-- [RFC 4033 - DNS Security Introduction and Requirements](https://www.rfc-editor.org/rfc/rfc4033.html)
-- [RFC 4034 - Resource Records for DNSSEC](https://www.rfc-editor.org/rfc/rfc4034.html)
-- [RFC 4035 - Protocol Modifications for DNSSEC](https://www.rfc-editor.org/rfc/rfc4035.html)
-- [RFC 5155 - DNSSEC Hashed Authenticated Denial of Existence](https://www.rfc-editor.org/rfc/rfc5155.html)
-- [RFC 6781 - DNSSEC Operational Practices, Version 2](https://www.rfc-editor.org/rfc/rfc6781.html)
-- [RFC 8624 - Algorithm Implementation Requirements for DNSSEC](https://www.rfc-editor.org/rfc/rfc8624.html)
-- [RFC 8914 - Extended DNS Errors](https://www.rfc-editor.org/rfc/rfc8914.html)
-- [DNSSEC Best Practices](https://www.icann.org/resources/pages/dnssec-qaa-2014-01-29-en)
+DNS64 (RFC 6147) enables IPv6-only clients to access IPv4-only services by synthesizing AAAA (IPv6) records from A (IPv4) records. This technology is critical for IPv6-only networks such as cellular networks, IoT deployments, modern datacenters, and enterprise networks transitioning to IPv6.
+
+### Overview
+
+When DNS64 is enabled, Blocky will:
+
+- Intercept AAAA queries and check if native IPv6 records exist
+- If no native AAAA records are found, query for A records
+- Synthesize AAAA records by embedding IPv4 addresses into configured IPv6 prefixes
+- Return synthesized AAAA records with proper TTL and DNSSEC handling
+- Preserve CNAME/DNAME chains in synthesized responses
+- Skip synthesis if AAAA records already exist (unless they're in the exclusion set)
+
+!!! warning "NAT64 Required"
+    DNS64 **requires** a NAT64 gateway in your network. DNS64 alone won't enable IPv6-only clients to reach IPv4 destinations.
+    The DNS64 prefix must match your NAT64 gateway's configuration.
+
+### RFC Compliance
+
+Blocky's DNS64 implementation complies with:
+
+- **RFC 6147** (DNS64 specification): Non-validating mode implementation
+- **RFC 6052** (IPv4-to-IPv6 address embedding): All six prefix lengths supported (/32, /40, /48, /56, /64, /96)
+- **RFC 8914** (Extended DNS Errors): Synthesized responses include EDE code 4 (Forged Answer)
+
+### Configuration Parameters
+
+| Parameter          | Type           | Mandatory | Default value                                        | Description                                                                                           |
+| ------------------ | -------------- | --------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| dns64.enable       | bool           | no        | false                                                | Enable DNS64 synthesis                                                                                |
+| dns64.prefixes     | array of CIDR  | no        | [64:ff9b::/96]                                       | IPv6 prefixes for synthesis. Valid lengths: /32, /40, /48, /56, /64, /96 (per RFC 6052)              |
+| dns64.exclusionSet | array of CIDR  | no        | [::ffff:0:0/96, ::1/128, fe80::/10] + prefixes      | Custom exclusion set. Advanced use only - overrides default exclusion behavior              |
+
+### DNS64 Prefixes
+
+DNS64 uses IPv6 prefixes to embed IPv4 addresses. RFC 6052 defines six valid prefix lengths, each with different bit layouts:
+
+| Prefix Length | Bits Used | IPv4 Position | Example Prefix     | Example Synthesis                              |
+| ------------- | --------- | ------------- | ------------------ | ---------------------------------------------- |
+| /96           | 96        | bits 96-127   | `64:ff9b::/96`     | `192.0.2.1` → `64:ff9b::192.0.2.1`             |
+| /64           | 64        | bits 72-103   | `2001:db8::/64`    | `192.0.2.1` → `2001:db8::c000:201`             |
+| /56           | 56        | bits 56-63, 72-95 | `2001:db8::/56` | `192.0.2.1` → `2001:db8:c0:0:201::`            |
+| /48           | 48        | bits 48-63, 72-87 | `2001:db8::/48` | `192.0.2.1` → `2001:db8:0:c000:2:100::`        |
+| /40           | 40        | bits 40-63, 72-79 | `2001:db8::/40` | `192.0.2.1` → `2001:db8:c0:2:1::`              |
+| /32           | 32        | bits 32-63    | `2001:db8::/32`    | `192.0.2.1` → `2001:db8:c000:201::`            |
+
+**Well-known prefix (default)**: `64:ff9b::/96` is the RFC 6052 well-known prefix, recommended for most deployments.
+
+**Multiple prefixes**: You can configure multiple prefixes for load balancing across multiple NAT64 gateways. DNS64 will synthesize one AAAA record per prefix per A record.
+
+!!! warning "Prefix Overlap Validation"
+    Blocky validates that configured prefixes do not overlap. Overlapping prefixes will cause startup failure.
+
+### Exclusion Set
+
+DNS64 will **not** synthesize AAAA records if the response already contains AAAA records that are **not** in the exclusion set. This prevents synthesizing for domains that already have native IPv6 support.
+
+#### Default Exclusion Set (Recommended)
+
+If `dns64.exclusionSet` is not configured, Blocky uses the default exclusion set:
+
+- **IPv4-mapped IPv6 addresses** (`::ffff:0:0/96`) - RFC 6147 requirement
+- **Loopback address** (`::1/128`) - RFC 6147 recommendation
+- **Link-local addresses** (`fe80::/10`) - RFC 6147 recommendation
+- **Unspecified address** (`::/128`) - Special case
+- **Configured DNS64 prefixes** - Automatically added to prevent synthesis loops
+
+**Example**: If a domain returns AAAA record `2001:db8::1` (not in exclusion set), DNS64 will **not** synthesize. If a domain returns only `::1` (in exclusion set), DNS64 **will** synthesize from A records.
+
+#### Custom Exclusion Set (Advanced)
+
+!!! warning "Advanced Configuration"
+    Configuring a custom exclusion set is an **advanced feature** and should only be used if you understand DNS64 synthesis behavior. Most users should use the default exclusion set.
+
+You can configure a custom exclusion set using the `dns64.exclusionSet` parameter:
+
+!!! example
+    ```yaml
+    dns64:
+      enable: true
+      prefixes:
+        - 64:ff9b::/96
+      exclusionSet:
+        - ::ffff:0:0/96  # IPv4-mapped (REQUIRED by RFC)
+        - ::1/128        # Loopback (recommended)
+        - fe80::/10      # Link-local (recommended)
+        - 64:ff9b::/96   # Your configured prefix (recommended to prevent loops)
+        - 2001:db8::/32  # Custom exclusion range
+    ```
+
+!!! danger "Important: No Automatic Prefix Addition"
+    When using a custom exclusion set, **configured DNS64 prefixes are NOT automatically added**. You must explicitly include your configured prefixes in the exclusion set to prevent synthesis loops.
+
+    **Bad configuration** (will cause synthesis loops):
+    ```yaml
+    dns64:
+      prefixes:
+        - 64:ff9b::/96
+      exclusionSet:
+        - ::ffff:0:0/96  # Missing configured prefix!
+    ```
+
+    **Good configuration**:
+    ```yaml
+    dns64:
+      prefixes:
+        - 64:ff9b::/96
+      exclusionSet:
+        - ::ffff:0:0/96
+        - 64:ff9b::/96   # Includes configured prefix
+    ```
+
+### DNSSEC Handling (Non-Validating Mode)
+
+DNS64 operates in **non-validating mode** and handles DNSSEC as follows:
+
+- **DO bit**: Copied from original AAAA query to A query (preserves client's DNSSEC request)
+- **CD bit**: Copied from original AAAA query to A query (preserves checking-disabled flag)
+- **AD bit**: Always **cleared** in synthesized responses (synthesis breaks authentication)
+- **Extended DNS Error**: Synthesized responses include EDE code 4 (Forged Answer)
+
+!!! info "Future: DNSSEC-Aware DNS64"
+    Future enhancement may implement RFC 6147 Section 3 (DNSSEC-aware operation), where DNS64 can validate DNSSEC signatures and set the AD bit appropriately for synthesized responses. The current non-validating mode is suitable for most deployments.
+
+### Performance Considerations
+
+DNS64 adds overhead to DNS resolution:
+
+- **Additional A query**: Every AAAA query that requires synthesis triggers an additional A query
+- **Caching is critical**: Enable caching to minimize upstream query load
+- **Cache hit rate**: With caching, most AAAA queries hit the cache and avoid synthesis overhead
+
+!!! warning "Enable Caching for DNS64"
+    DNS64 without caching will **double** upstream query load (one AAAA + one A per query). Blocky will log a warning if DNS64 is enabled without caching.
 
 ## SSL certificate configuration (DoH / TLS listener)
 
