@@ -91,7 +91,7 @@ jobs:
     steps:
       - name: Download dist folder
         id: download
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: dist_folder
 
