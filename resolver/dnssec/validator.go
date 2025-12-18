@@ -51,6 +51,7 @@ import (
 	"github.com/0xERR0R/blocky/cache"
 	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
 	expirationcache "github.com/0xERR0R/expiration-cache"
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
@@ -330,14 +331,7 @@ func (v *Validator) recordMetrics(start time.Time, result ValidationResult) {
 
 // extractRRSIGs extracts all RRSIG records from a slice of RRs
 func extractRRSIGs(rrs []dns.RR) []*dns.RRSIG {
-	var sigs []*dns.RRSIG
-	for _, rr := range rrs {
-		if sig, ok := rr.(*dns.RRSIG); ok {
-			sigs = append(sigs, sig)
-		}
-	}
-
-	return sigs
+	return util.ExtractRecordsFromSlice[*dns.RRSIG](rrs)
 }
 
 // rrsetKey uniquely identifies an RRset by owner name and type
