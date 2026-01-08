@@ -156,22 +156,24 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 	req := newRequest(dns.Fqdn(domainName), qType)
 	response, err := r.next.Resolve(ctx, req)
 
-	if err == nil {
-		if response.Res.Rcode == dns.RcodeSuccess {
-			packed, err := response.Res.Pack()
-			if err != nil {
-				logger.Error("unable to pack response", err)
-
-				return nil, 0
-			}
-
-			return &packed, r.adjustTTLs(response.Res.Answer)
-		}
-	} else {
+	if err != nil {
 		util.LogOnError(ctx, fmt.Sprintf("can't prefetch '%s' ", domainName), err)
+
+		return nil, 0
 	}
 
-	return nil, 0
+	if response.Res.Rcode != dns.RcodeSuccess {
+		return nil, 0
+	}
+
+	packed, err := response.Res.Pack()
+	if err != nil {
+		logger.Error("unable to pack response", err)
+
+		return nil, 0
+	}
+
+	return &packed, r.adjustTTLs(response.Res.Answer)
 }
 
 func (r *CachingResolver) redisSubscriber(ctx context.Context) {
@@ -382,7 +384,7 @@ func (r *CachingResolver) adjustTTLs(answer []dns.RR) (ttl time.Duration) {
 	return time.Duration(minTTL) * time.Second
 }
 
-func (r *CachingResolver) publishMetricsIfEnabled(event string, val interface{}) {
+func (r *CachingResolver) publishMetricsIfEnabled(event string, val any) {
 	if r.emitMetricEvents {
 		evt.Bus().Publish(event, val)
 	}

@@ -29,7 +29,7 @@ type (
 	}
 )
 
-func (z *ZoneFileDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (z *ZoneFileDNS) UnmarshalYAML(unmarshal func(any) error) error {
 	var input string
 	if err := unmarshal(&input); err != nil {
 		return fmt.Errorf("failed to unmarshal zone file DNS: %w", err)
@@ -66,7 +66,7 @@ func (z *ZoneFileDNS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-func (c *CustomDNSEntries) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *CustomDNSEntries) UnmarshalYAML(unmarshal func(any) error) error {
 	var input string
 	if err := unmarshal(&input); err != nil {
 		return fmt.Errorf("failed to unmarshal custom DNS entries: %w", err)

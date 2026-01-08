@@ -6,6 +6,7 @@ import (
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
+	"slices"
 )
 
 // validateNSECDenialOfExistence validates NSEC-based denial of existence per RFC 4035 §5.4
@@ -98,11 +99,5 @@ func (v *Validator) nsecCoversName(nsec *dns.NSEC, name string) bool {
 
 // nsecHasType checks if an NSEC record claims a given type exists
 func (v *Validator) nsecHasType(nsec *dns.NSEC, qtype uint16) bool {
-	for _, t := range nsec.TypeBitMap {
-		if t == qtype {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(nsec.TypeBitMap, qtype)
 }

@@ -22,4 +22,4 @@ func TestRedisClient(t *testing.T) {
 
 type NoLogs struct{}
 
-func (l NoLogs) Printf(context.Context, string, ...interface{}) {}
+func (l NoLogs) Printf(context.Context, string, ...any) {}

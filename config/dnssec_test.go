@@ -240,7 +240,7 @@ var _ = Describe("DNSSEC config", func() {
 			cfg := &DNSSEC{}
 
 			// Document expected defaults (set by config loader)
-			expectedDefaults := map[string]interface{}{
+			expectedDefaults := map[string]any{
 				"validate":              false,
 				"maxChainDepth":         uint(10),
 				"cacheExpirationHours":  uint(1),

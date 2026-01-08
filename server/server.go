@@ -256,39 +256,37 @@ func newTLSListeners(proto string, addresses config.ListenConfig, tlsCfg *tls.Co
 	return listeners, nil
 }
 
-func createTLSServer(address string, tlsCfg *tls.Config) (*dns.Server, error) {
-	return &dns.Server{
-		Addr:      address,
-		Net:       "tcp-tls",
-		TLSConfig: tlsCfg,
-		Handler:   dns.NewServeMux(),
+func createDNSServer(network string, address string, tlsCfg *tls.Config) (*dns.Server, error) {
+	srv := &dns.Server{
+		Addr:    address,
+		Net:     network,
+		Handler: dns.NewServeMux(),
 		NotifyStartedFunc: func() {
-			logger().Infof("TLS server is up and running on address %s", address)
+			logger().Infof("%s server is up and running on address %s", strings.ToUpper(network), address)
 		},
-	}, nil
+	}
+
+	if network == "udp" {
+		srv.UDPSize = maxUDPBufferSize
+	}
+
+	if tlsCfg != nil {
+		srv.TLSConfig = tlsCfg
+	}
+
+	return srv, nil
+}
+
+func createTLSServer(address string, tlsCfg *tls.Config) (*dns.Server, error) {
+	return createDNSServer("tcp-tls", address, tlsCfg)
 }
 
 func createTCPServer(address string) (*dns.Server, error) {
-	return &dns.Server{
-		Addr:    address,
-		Net:     "tcp",
-		Handler: dns.NewServeMux(),
-		NotifyStartedFunc: func() {
-			logger().Infof("TCP server is up and running on address %s", address)
-		},
-	}, nil
+	return createDNSServer("tcp", address, nil)
 }
 
 func createUDPServer(address string) (*dns.Server, error) {
-	return &dns.Server{
-		Addr:    address,
-		Net:     "udp",
-		Handler: dns.NewServeMux(),
-		NotifyStartedFunc: func() {
-			logger().Infof("UDP server is up and running on address %s", address)
-		},
-		UDPSize: maxUDPBufferSize,
-	}, nil
+	return createDNSServer("udp", address, nil)
 }
 
 func createQueryResolver(

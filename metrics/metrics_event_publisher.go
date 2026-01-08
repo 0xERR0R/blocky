@@ -191,6 +191,6 @@ func prefetchDomainCacheCount() prometheus.Gauge {
 	)
 }
 
-func subscribe(topic string, fn interface{}) {
+func subscribe(topic string, fn any) {
 	util.FatalOnError(fmt.Sprintf("can't subscribe topic '%s'", topic), evt.Bus().Subscribe(topic, fn))
 }

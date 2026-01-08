@@ -17,6 +17,18 @@ import (
 
 type createAnswerFunc func(question dns.Question, ip net.IP, ttl uint32) (dns.RR, error)
 
+// extractIPFromRecord extracts the IP address from A or AAAA records, returns nil for other types
+func extractIPFromRecord(entry dns.RR) net.IP {
+	switch v := entry.(type) {
+	case *dns.A:
+		return v.A
+	case *dns.AAAA:
+		return v.AAAA
+	}
+
+	return nil
+}
+
 // CustomDNSResolver resolves passed domain name to ip address defined in domain-IP map
 type CustomDNSResolver struct {
 	configurable[*config.CustomDNS]
@@ -50,17 +62,8 @@ func NewCustomDNSResolver(cfg config.CustomDNS) *CustomDNSResolver {
 
 	for url, entries := range dnsRecords {
 		for _, entry := range entries {
-			a, isA := entry.(*dns.A)
-
-			if isA {
-				r, _ := dns.ReverseAddr(a.A.String())
-				reverse[r] = append(reverse[r], url)
-			}
-
-			aaaa, isAAAA := entry.(*dns.AAAA)
-
-			if isAAAA {
-				r, _ := dns.ReverseAddr(aaaa.AAAA.String())
+			if ip := extractIPFromRecord(entry); ip != nil {
+				r, _ := dns.ReverseAddr(ip.String())
 				reverse[r] = append(reverse[r], url)
 			}
 		}
@@ -86,18 +89,16 @@ func (r *CustomDNSResolver) handleReverseDNS(request *model.Request) *model.Resp
 	if question.Qtype == dns.TypePTR {
 		urls, found := r.reverseAddresses[question.Name]
 		if found {
-			response := new(dns.Msg)
-			response.SetReply(request.Req)
-
+			var answers []dns.RR
 			for _, url := range urls {
 				h := util.CreateHeader(question, r.cfg.CustomTTL.SecondsU32())
 				ptr := new(dns.PTR)
 				ptr.Ptr = dns.Fqdn(url)
 				ptr.Hdr = h
-				response.Answer = append(response.Answer, ptr)
+				answers = append(answers, ptr)
 			}
 
-			return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}
+			return model.NewResponseWithAnswers(request, answers, model.ResponseTypeCUSTOMDNS, "CUSTOM DNS")
 		}
 	}
 
@@ -110,11 +111,9 @@ func (r *CustomDNSResolver) processRequest(
 	request *model.Request,
 	resolvedCnames []string,
 ) (*model.Response, error) {
-	response := new(dns.Msg)
-	response.SetReply(request.Req)
-
 	question := request.Req.Question[0]
 	domain := util.ExtractDomain(question)
+	var answers []dns.RR
 
 	for len(domain) > 0 {
 		if err := ctx.Err(); err != nil {
@@ -130,16 +129,16 @@ func (r *CustomDNSResolver) processRequest(
 					return nil, err
 				}
 
-				response.Answer = append(response.Answer, result...)
+				answers = append(answers, result...)
 			}
 
-			if len(response.Answer) > 0 {
+			if len(answers) > 0 {
 				logger.WithFields(logrus.Fields{
-					"answer": util.AnswerToString(response.Answer),
+					"answer": util.AnswerToString(answers),
 					"domain": domain,
 				}).Debugf("returning custom dns entry")
 
-				return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}, nil
+				return model.NewResponseWithAnswers(request, answers, model.ResponseTypeCUSTOMDNS, "CUSTOM DNS"), nil
 			}
 
 			// Mapping exists for this domain, but for another type
@@ -149,7 +148,7 @@ func (r *CustomDNSResolver) processRequest(
 			}
 
 			// return NOERROR with empty result
-			return &model.Response{Res: response, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}, nil
+			return model.NewResponseWithReason(request, model.ResponseTypeCUSTOMDNS, "CUSTOM DNS"), nil
 		}
 
 		if i := strings.IndexRune(domain, '.'); i >= 0 {

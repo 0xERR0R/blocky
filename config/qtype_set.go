@@ -35,7 +35,7 @@ func (s *QTypeSet) Insert(qType dns.Type) {
 	(*s)[QType(qType)] = struct{}{}
 }
 
-func (s *QTypeSet) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *QTypeSet) UnmarshalYAML(unmarshal func(any) error) error {
 	var input []QType
 	if err := unmarshal(&input); err != nil {
 		return err
