@@ -313,4 +313,395 @@ var _ = Describe("Common function tests", func() {
 			})
 		})
 	})
+
+	Describe("ExtractRecords", func() {
+		When("DNS message contains mixed record types", func() {
+			var msg *dns.Msg
+
+			BeforeEach(func() {
+				msg = new(dns.Msg)
+
+				aQuestion := dns.Question{Name: "example.com.", Qtype: dns.TypeA, Qclass: dns.ClassINET}
+				aaaaQuestion := dns.Question{Name: "example.com.", Qtype: dns.TypeAAAA, Qclass: dns.ClassINET}
+				cnameQuestion := dns.Question{Name: "alias.com.", Qtype: dns.TypeCNAME, Qclass: dns.ClassINET}
+				nsQuestion := dns.Question{Name: "example.com.", Qtype: dns.TypeNS, Qclass: dns.ClassINET}
+
+				aRecord1 := &dns.A{
+					Hdr: CreateHeader(aQuestion, 300),
+					A:   net.ParseIP("192.168.1.1"),
+				}
+				aaaaRecord := &dns.AAAA{
+					Hdr:  CreateHeader(aaaaQuestion, 300),
+					AAAA: net.ParseIP("2001:db8::1"),
+				}
+				aRecord2 := &dns.A{
+					Hdr: CreateHeader(aQuestion, 300),
+					A:   net.ParseIP("192.168.1.2"),
+				}
+				cnameRecord := &dns.CNAME{
+					Hdr:    CreateHeader(cnameQuestion, 300),
+					Target: "example.com.",
+				}
+				nsRecord := &dns.NS{
+					Hdr: CreateHeader(nsQuestion, 300),
+					Ns:  "ns1.example.com.",
+				}
+
+				msg.Answer = []dns.RR{aRecord1, aaaaRecord, aRecord2, cnameRecord, nsRecord}
+			})
+
+			It("should extract all A records", func() {
+				aRecords := ExtractRecords[*dns.A](msg)
+
+				Expect(aRecords).Should(HaveLen(2))
+				Expect(aRecords[0].A.String()).Should(Equal("192.168.1.1"))
+				Expect(aRecords[1].A.String()).Should(Equal("192.168.1.2"))
+			})
+
+			It("should extract all AAAA records", func() {
+				aaaaRecords := ExtractRecords[*dns.AAAA](msg)
+
+				Expect(aaaaRecords).Should(HaveLen(1))
+				Expect(aaaaRecords[0].AAAA.String()).Should(Equal("2001:db8::1"))
+			})
+
+			It("should extract all CNAME records", func() {
+				cnameRecords := ExtractRecords[*dns.CNAME](msg)
+
+				Expect(cnameRecords).Should(HaveLen(1))
+				Expect(cnameRecords[0].Target).Should(Equal("example.com."))
+			})
+
+			It("should extract all NS records", func() {
+				nsRecords := ExtractRecords[*dns.NS](msg)
+
+				Expect(nsRecords).Should(HaveLen(1))
+				Expect(nsRecords[0].Ns).Should(Equal("ns1.example.com."))
+			})
+		})
+
+		When("DNS message has no matching records", func() {
+			var msg *dns.Msg
+
+			BeforeEach(func() {
+				msg = new(dns.Msg)
+
+				aQuestion := dns.Question{Name: "example.com.", Qtype: dns.TypeA, Qclass: dns.ClassINET}
+				cnameQuestion := dns.Question{Name: "alias.com.", Qtype: dns.TypeCNAME, Qclass: dns.ClassINET}
+
+				msg.Answer = []dns.RR{
+					&dns.A{
+						Hdr: CreateHeader(aQuestion, 300),
+						A:   net.ParseIP("192.168.1.1"),
+					},
+					&dns.CNAME{
+						Hdr:    CreateHeader(cnameQuestion, 300),
+						Target: "example.com.",
+					},
+				}
+			})
+
+			It("should return empty slice for MX records", func() {
+				mxRecords := ExtractRecords[*dns.MX](msg)
+
+				Expect(mxRecords).Should(BeEmpty())
+			})
+
+			It("should return empty slice for TXT records", func() {
+				txtRecords := ExtractRecords[*dns.TXT](msg)
+
+				Expect(txtRecords).Should(BeEmpty())
+			})
+		})
+
+		When("DNS message has empty answer section", func() {
+			var msg *dns.Msg
+
+			BeforeEach(func() {
+				msg = new(dns.Msg)
+				msg.Answer = []dns.RR{}
+			})
+
+			It("should return empty slice for A records", func() {
+				aRecords := ExtractRecords[*dns.A](msg)
+
+				Expect(aRecords).Should(BeEmpty())
+			})
+		})
+
+		When("DNS message contains only matching record type", func() {
+			var msg *dns.Msg
+
+			BeforeEach(func() {
+				msg = new(dns.Msg)
+
+				aQuestion := dns.Question{Name: "example.com.", Qtype: dns.TypeA, Qclass: dns.ClassINET}
+
+				msg.Answer = []dns.RR{
+					&dns.A{
+						Hdr: CreateHeader(aQuestion, 300),
+						A:   net.ParseIP("192.168.1.1"),
+					},
+					&dns.A{
+						Hdr: CreateHeader(aQuestion, 300),
+						A:   net.ParseIP("192.168.1.2"),
+					},
+					&dns.A{
+						Hdr: CreateHeader(aQuestion, 300),
+						A:   net.ParseIP("192.168.1.3"),
+					},
+				}
+			})
+
+			It("should extract all A records", func() {
+				aRecords := ExtractRecords[*dns.A](msg)
+
+				Expect(aRecords).Should(HaveLen(3))
+				Expect(aRecords[0].A.String()).Should(Equal("192.168.1.1"))
+				Expect(aRecords[1].A.String()).Should(Equal("192.168.1.2"))
+				Expect(aRecords[2].A.String()).Should(Equal("192.168.1.3"))
+			})
+		})
+
+		When("DNS message contains SOA and PTR records", func() {
+			var msg *dns.Msg
+
+			BeforeEach(func() {
+				msg = new(dns.Msg)
+
+				soaQuestion := dns.Question{Name: "example.com.", Qtype: dns.TypeSOA, Qclass: dns.ClassINET}
+				ptrQuestion := dns.Question{Name: "1.1.168.192.in-addr.arpa.", Qtype: dns.TypePTR, Qclass: dns.ClassINET}
+
+				msg.Answer = []dns.RR{
+					&dns.SOA{
+						Hdr:     CreateHeader(soaQuestion, 3600),
+						Ns:      "ns1.example.com.",
+						Mbox:    "admin.example.com.",
+						Serial:  2024010101,
+						Refresh: 86400,
+						Retry:   7200,
+						Expire:  604800,
+						Minttl:  3600,
+					},
+					&dns.PTR{
+						Hdr: CreateHeader(ptrQuestion, 300),
+						Ptr: "example.com.",
+					},
+				}
+			})
+
+			It("should extract SOA record", func() {
+				soaRecords := ExtractRecords[*dns.SOA](msg)
+
+				Expect(soaRecords).Should(HaveLen(1))
+				Expect(soaRecords[0].Ns).Should(Equal("ns1.example.com."))
+				Expect(soaRecords[0].Serial).Should(Equal(uint32(2024010101)))
+			})
+
+			It("should extract PTR record", func() {
+				ptrRecords := ExtractRecords[*dns.PTR](msg)
+
+				Expect(ptrRecords).Should(HaveLen(1))
+				Expect(ptrRecords[0].Ptr).Should(Equal("example.com."))
+			})
+		})
+	})
+
+	Describe("ExtractRecordsFromSlice", func() {
+		When("RR slice contains mixed record types", func() {
+			var rrs []dns.RR
+
+			BeforeEach(func() {
+				aQuestion := dns.Question{Name: "example.com.", Qtype: dns.TypeA, Qclass: dns.ClassINET}
+				aaaaQuestion := dns.Question{Name: "example.com.", Qtype: dns.TypeAAAA, Qclass: dns.ClassINET}
+				cnameQuestion := dns.Question{Name: "alias.com.", Qtype: dns.TypeCNAME, Qclass: dns.ClassINET}
+				nsQuestion := dns.Question{Name: "example.com.", Qtype: dns.TypeNS, Qclass: dns.ClassINET}
+
+				rrs = []dns.RR{
+					&dns.A{
+						Hdr: CreateHeader(aQuestion, 300),
+						A:   net.ParseIP("192.168.1.1"),
+					},
+					&dns.AAAA{
+						Hdr:  CreateHeader(aaaaQuestion, 300),
+						AAAA: net.ParseIP("2001:db8::1"),
+					},
+					&dns.A{
+						Hdr: CreateHeader(aQuestion, 300),
+						A:   net.ParseIP("192.168.1.2"),
+					},
+					&dns.CNAME{
+						Hdr:    CreateHeader(cnameQuestion, 300),
+						Target: "example.com.",
+					},
+					&dns.NS{
+						Hdr: CreateHeader(nsQuestion, 300),
+						Ns:  "ns1.example.com.",
+					},
+				}
+			})
+
+			It("should extract all A records", func() {
+				aRecords := ExtractRecordsFromSlice[*dns.A](rrs)
+
+				Expect(aRecords).Should(HaveLen(2))
+				Expect(aRecords[0].A.String()).Should(Equal("192.168.1.1"))
+				Expect(aRecords[1].A.String()).Should(Equal("192.168.1.2"))
+			})
+
+			It("should extract all AAAA records", func() {
+				aaaaRecords := ExtractRecordsFromSlice[*dns.AAAA](rrs)
+
+				Expect(aaaaRecords).Should(HaveLen(1))
+				Expect(aaaaRecords[0].AAAA.String()).Should(Equal("2001:db8::1"))
+			})
+
+			It("should extract all CNAME records", func() {
+				cnameRecords := ExtractRecordsFromSlice[*dns.CNAME](rrs)
+
+				Expect(cnameRecords).Should(HaveLen(1))
+				Expect(cnameRecords[0].Target).Should(Equal("example.com."))
+			})
+
+			It("should extract all NS records", func() {
+				nsRecords := ExtractRecordsFromSlice[*dns.NS](rrs)
+
+				Expect(nsRecords).Should(HaveLen(1))
+				Expect(nsRecords[0].Ns).Should(Equal("ns1.example.com."))
+			})
+		})
+
+		When("RR slice has no matching records", func() {
+			var rrs []dns.RR
+
+			BeforeEach(func() {
+				aQuestion := dns.Question{Name: "example.com.", Qtype: dns.TypeA, Qclass: dns.ClassINET}
+				cnameQuestion := dns.Question{Name: "alias.com.", Qtype: dns.TypeCNAME, Qclass: dns.ClassINET}
+
+				rrs = []dns.RR{
+					&dns.A{
+						Hdr: CreateHeader(aQuestion, 300),
+						A:   net.ParseIP("192.168.1.1"),
+					},
+					&dns.CNAME{
+						Hdr:    CreateHeader(cnameQuestion, 300),
+						Target: "example.com.",
+					},
+				}
+			})
+
+			It("should return empty slice for MX records", func() {
+				mxRecords := ExtractRecordsFromSlice[*dns.MX](rrs)
+
+				Expect(mxRecords).Should(BeEmpty())
+			})
+
+			It("should return empty slice for TXT records", func() {
+				txtRecords := ExtractRecordsFromSlice[*dns.TXT](rrs)
+
+				Expect(txtRecords).Should(BeEmpty())
+			})
+		})
+
+		When("RR slice is empty", func() {
+			var rrs []dns.RR
+
+			BeforeEach(func() {
+				rrs = []dns.RR{}
+			})
+
+			It("should return empty slice for A records", func() {
+				aRecords := ExtractRecordsFromSlice[*dns.A](rrs)
+
+				Expect(aRecords).Should(BeEmpty())
+			})
+		})
+
+		When("RR slice contains only matching record type", func() {
+			var rrs []dns.RR
+
+			BeforeEach(func() {
+				aaaaQuestion := dns.Question{Name: "example.com.", Qtype: dns.TypeAAAA, Qclass: dns.ClassINET}
+
+				rrs = []dns.RR{
+					&dns.AAAA{
+						Hdr:  CreateHeader(aaaaQuestion, 300),
+						AAAA: net.ParseIP("2001:db8::1"),
+					},
+					&dns.AAAA{
+						Hdr:  CreateHeader(aaaaQuestion, 300),
+						AAAA: net.ParseIP("2001:db8::2"),
+					},
+					&dns.AAAA{
+						Hdr:  CreateHeader(aaaaQuestion, 300),
+						AAAA: net.ParseIP("2001:db8::3"),
+					},
+				}
+			})
+
+			It("should extract all AAAA records", func() {
+				aaaaRecords := ExtractRecordsFromSlice[*dns.AAAA](rrs)
+
+				Expect(aaaaRecords).Should(HaveLen(3))
+				Expect(aaaaRecords[0].AAAA.String()).Should(Equal("2001:db8::1"))
+				Expect(aaaaRecords[1].AAAA.String()).Should(Equal("2001:db8::2"))
+				Expect(aaaaRecords[2].AAAA.String()).Should(Equal("2001:db8::3"))
+			})
+		})
+
+		When("RR slice contains TXT and MX records", func() {
+			var rrs []dns.RR
+
+			BeforeEach(func() {
+				txtQuestion := dns.Question{Name: "example.com.", Qtype: dns.TypeTXT, Qclass: dns.ClassINET}
+				mxQuestion := dns.Question{Name: "example.com.", Qtype: dns.TypeMX, Qclass: dns.ClassINET}
+
+				rrs = []dns.RR{
+					&dns.TXT{
+						Hdr: CreateHeader(txtQuestion, 300),
+						Txt: []string{"v=spf1 include:_spf.example.com ~all"},
+					},
+					&dns.MX{
+						Hdr:        CreateHeader(mxQuestion, 300),
+						Preference: 10,
+						Mx:         "mail.example.com.",
+					},
+					&dns.TXT{
+						Hdr: CreateHeader(txtQuestion, 300),
+						Txt: []string{"google-site-verification=12345"},
+					},
+				}
+			})
+
+			It("should extract all TXT records", func() {
+				txtRecords := ExtractRecordsFromSlice[*dns.TXT](rrs)
+
+				Expect(txtRecords).Should(HaveLen(2))
+				Expect(txtRecords[0].Txt).Should(Equal([]string{"v=spf1 include:_spf.example.com ~all"}))
+				Expect(txtRecords[1].Txt).Should(Equal([]string{"google-site-verification=12345"}))
+			})
+
+			It("should extract all MX records", func() {
+				mxRecords := ExtractRecordsFromSlice[*dns.MX](rrs)
+
+				Expect(mxRecords).Should(HaveLen(1))
+				Expect(mxRecords[0].Preference).Should(Equal(uint16(10)))
+				Expect(mxRecords[0].Mx).Should(Equal("mail.example.com."))
+			})
+		})
+
+		When("RR slice is nil", func() {
+			var rrs []dns.RR
+
+			BeforeEach(func() {
+				rrs = nil
+			})
+
+			It("should return empty slice for A records", func() {
+				aRecords := ExtractRecordsFromSlice[*dns.A](rrs)
+
+				Expect(aRecords).Should(BeEmpty())
+			})
+		})
+	})
 })
