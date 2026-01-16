@@ -317,7 +317,7 @@ Custom DNS supports multiple record types (A, AAAA, CNAME, TXT, SRV) and provide
 | ------------------- | ------------------------------------------------------ | --------- | ------------- | ------------------------------------------------------------------------------------------ |
 | customTTL           | duration used for simple mappings (no unit is minutes) | no        | 1h            | Time-to-live for DNS records defined in the mapping section                                |
 | rewrite             | string: string (domain: domain)                        | no        |               | Domain rewriting rules applied before DNS resolution                                       |
-| mapping             | string: string (hostname: address or CNAME)            | no        |               | Simple domain to IP/CNAME mappings                                                         |
+| mapping             | string: string (hostname: address list)                | no        |               | Simple domain to IP mappings                                                               |
 | zone                | string containing a DNS Zone                           | no        |               | DNS zone file content for more complex configurations                                      |
 | filterUnmappedTypes | boolean                                                | no        | true          | Whether to filter query types that aren't defined for a domain or forward them to upstream |
 
