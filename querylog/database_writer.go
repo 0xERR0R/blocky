@@ -23,7 +23,7 @@ import (
 )
 
 type logEntry struct {
-	RequestTS     *time.Time `gorm:"index"`
+	RequestTS     time.Time `gorm:"not null;index"`
 	ClientIP      string
 	ClientName    string `gorm:"index"`
 	DurationMs    int64
@@ -165,7 +165,7 @@ func (d *DatabaseWriter) Write(entry *LogEntry) {
 	eTLD, _ := publicsuffix.EffectiveTLDPlusOne(domain)
 
 	e := &logEntry{
-		RequestTS:     &entry.Start,
+		RequestTS:     entry.Start,
 		ClientIP:      entry.ClientIP,
 		ClientName:    strings.Join(entry.ClientNames, "; "),
 		DurationMs:    entry.DurationMs,
