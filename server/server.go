@@ -116,7 +116,7 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		return nil, fmt.Errorf("server creation failed: %w", err)
 	}
 
-	httpListeners, httpsListeners, err := createHTTPListeners(cfg, tlsCfg)
+	httpListeners, httpsListeners, err := createHTTPListeners(ctx, cfg, tlsCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP/HTTPS listeners: %w", err)
 	}
@@ -213,14 +213,14 @@ func createServers(cfg *config.Config, tlsCfg *tls.Config) ([]*dns.Server, error
 }
 
 func createHTTPListeners(
-	cfg *config.Config, tlsCfg *tls.Config,
+	ctx context.Context, cfg *config.Config, tlsCfg *tls.Config,
 ) (httpListeners, httpsListeners []net.Listener, err error) {
-	httpListeners, err = newTCPListeners("http", cfg.Ports.HTTP)
+	httpListeners, err = newTCPListeners(ctx, "http", cfg.Ports.HTTP)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create HTTP listeners: %w", err)
 	}
 
-	httpsListeners, err = newTLSListeners("https", cfg.Ports.HTTPS, tlsCfg)
+	httpsListeners, err = newTLSListeners(ctx, "https", cfg.Ports.HTTPS, tlsCfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create HTTPS listeners: %w", err)
 	}
@@ -228,11 +228,14 @@ func createHTTPListeners(
 	return httpListeners, httpsListeners, nil
 }
 
-func newTCPListeners(proto string, addresses config.ListenConfig) ([]net.Listener, error) {
+func newTCPListeners(
+	ctx context.Context, proto string, addresses config.ListenConfig,
+) ([]net.Listener, error) {
 	listeners := make([]net.Listener, 0, len(addresses))
+	lc := &net.ListenConfig{}
 
 	for _, address := range addresses {
-		listener, err := net.Listen("tcp", address)
+		listener, err := lc.Listen(ctx, "tcp", address)
 		if err != nil {
 			return nil, fmt.Errorf("start %s listener on %s failed: %w", proto, address, err)
 		}
@@ -243,8 +246,10 @@ func newTCPListeners(proto string, addresses config.ListenConfig) ([]net.Listene
 	return listeners, nil
 }
 
-func newTLSListeners(proto string, addresses config.ListenConfig, tlsCfg *tls.Config) ([]net.Listener, error) {
-	listeners, err := newTCPListeners(proto, addresses)
+func newTLSListeners(
+	ctx context.Context, proto string, addresses config.ListenConfig, tlsCfg *tls.Config,
+) ([]net.Listener, error) {
+	listeners, err := newTCPListeners(ctx, proto, addresses)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create TCP listeners for TLS: %w", err)
 	}
