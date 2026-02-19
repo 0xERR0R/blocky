@@ -210,4 +210,6 @@ See linked project for installation instructions.
 
 - [BlockyUI](https://github.com/GabeDuarteM/blocky-ui) provides a fully featured and modern Web UI for managing your Blocky DNS server.
 
+- [Blocky Visor](https://github.com/JCHHeilmann/blocky-visor) is a static SPA dashboard with live metrics and DNS query testing. Comes with an optional Go sidecar that adds historical analytics based on parsing Blocky's log files, log viewing, and config editing.
+
 --8<-- "docs/includes/abbreviations.md"
