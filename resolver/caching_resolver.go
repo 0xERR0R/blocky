@@ -155,7 +155,6 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 
 	req := newRequest(dns.Fqdn(domainName), qType)
 	response, err := r.next.Resolve(ctx, req)
-
 	if err != nil {
 		util.LogOnError(ctx, fmt.Sprintf("can't prefetch '%s' ", domainName), err)
 

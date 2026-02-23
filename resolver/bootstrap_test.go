@@ -616,4 +616,104 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 			}, "100ms").Should(Succeed())
 		})
 	})
+
+	Describe("UpstreamIPs with DNS stamp IPs", func() {
+		var (
+			mockBootstrap *MockUDPUpstreamServer
+			testUpstream  config.Upstream
+		)
+
+		BeforeEach(func() {
+			mockBootstrap = NewMockUDPUpstreamServer().WithAnswerRR("example.com 123 IN A 1.2.3.4")
+			sutConfig.BootstrapDNS = []config.BootstrappedUpstream{
+				{Upstream: mockBootstrap.Start()},
+			}
+		})
+
+		JustBeforeEach(func() {
+			sut, err = NewBootstrap(ctx, &sutConfig)
+			Expect(err).Should(Succeed())
+		})
+
+		When("upstream has IPs from DNS stamp", func() {
+			BeforeEach(func() {
+				// Simulate upstream parsed from DNS stamp with embedded IP
+				testUpstream = config.Upstream{
+					Net:  config.NetProtocolHttps,
+					Host: "dns.example.com", // Hostname, not IP
+					Port: 443,
+					Path: "/dns-query",
+					IPs:  []net.IP{net.ParseIP("194.242.2.2")}, // IP from DNS stamp
+				}
+			})
+
+			It("should use IPs from stamp without bootstrap resolution", func() {
+				r := newUpstreamResolverUnchecked(newUpstreamConfig(testUpstream, sutConfig.Upstreams), sut)
+				ips, err := sut.UpstreamIPs(ctx, r)
+
+				Expect(err).Should(Succeed())
+				Expect(ips).ShouldNot(BeNil())
+				Expect(ips.Current()).Should(Equal(net.ParseIP("194.242.2.2")))
+				// Verify bootstrap was NOT called (no resolution needed)
+				Expect(mockBootstrap.GetCallCount()).Should(Equal(0))
+			})
+
+			It("should use all IPs from stamp", func() {
+				testUpstream.IPs = []net.IP{
+					net.ParseIP("194.242.2.2"),
+					net.ParseIP("194.242.2.3"),
+				}
+
+				r := newUpstreamResolverUnchecked(newUpstreamConfig(testUpstream, sutConfig.Upstreams), sut)
+				ips, err := sut.UpstreamIPs(ctx, r)
+
+				Expect(err).Should(Succeed())
+				// Should have both IPs available
+				Expect(ips.Current()).Should(Or(
+					Equal(net.ParseIP("194.242.2.2")),
+					Equal(net.ParseIP("194.242.2.3")),
+				))
+			})
+		})
+
+		When("upstream has no IPs from stamp", func() {
+			BeforeEach(func() {
+				// Upstream without embedded IP - needs bootstrap resolution
+				testUpstream = config.Upstream{
+					Net:  config.NetProtocolHttps,
+					Host: "dns.example.com",
+					Port: 443,
+					IPs:  nil, // No IPs from stamp
+				}
+			})
+
+			It("should use bootstrap resolver", func() {
+				r := newUpstreamResolverUnchecked(newUpstreamConfig(testUpstream, sutConfig.Upstreams), sut)
+				ips, err := sut.UpstreamIPs(ctx, r)
+
+				Expect(err).Should(Succeed())
+				Expect(ips).ShouldNot(BeNil())
+				// Bootstrap should have been called to resolve the hostname
+				Expect(mockBootstrap.GetCallCount()).Should(BeNumerically(">", 0))
+			})
+		})
+
+		When("upstream Host is already an IP", func() {
+			BeforeEach(func() {
+				testUpstream = config.Upstream{
+					Net:  config.NetProtocolTcpUdp,
+					Host: "8.8.8.8", // Direct IP
+					Port: 53,
+				}
+			})
+
+			It("should use the IP directly", func() {
+				r := newUpstreamResolverUnchecked(newUpstreamConfig(testUpstream, sutConfig.Upstreams), sut)
+				ips, err := sut.UpstreamIPs(ctx, r)
+
+				Expect(err).Should(Succeed())
+				Expect(ips.Current()).Should(Equal(net.ParseIP("8.8.8.8")))
+			})
+		})
+	})
 })

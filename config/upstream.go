@@ -27,12 +27,13 @@ type Upstream struct {
 
 	// DNS stamp metadata (optional) - only populated when parsing DNS stamps
 	CertificateFingerprints []CertificateFingerprint // SHA256 fingerprints for TLS certificate pinning
+	IPs                     []net.IP                 // IPs from DNS stamp ServerAddrStr (for bootstrapping)
 }
 
 // IsDefault returns true if u is the default value
 func (u *Upstream) IsDefault() bool {
 	return u.Net == 0 && u.Host == "" && u.Port == 0 && u.Path == "" &&
-		u.CommonName == "" && len(u.CertificateFingerprints) == 0
+		u.CommonName == "" && len(u.CertificateFingerprints) == 0 && len(u.IPs) == 0
 }
 
 // String returns the string representation of u
@@ -163,7 +164,7 @@ func extractPath(in string) (path, upstream string) {
 }
 
 // stripPrefix removes the prefix from s if present, returns the remainder and true if removed
-func stripPrefix(s string, prefix string) (string, bool) {
+func stripPrefix(s, prefix string) (string, bool) {
 	if strings.HasPrefix(s, prefix) {
 		return s[len(prefix):], true
 	}
@@ -211,6 +212,12 @@ func parseStamp(stampStr string) (Upstream, error) {
 		return Upstream{}, err
 	}
 
+	// Parse IP from ServerAddrStr for bootstrapping (if present)
+	var ips []net.IP
+	if ip := net.ParseIP(host); ip != nil {
+		ips = []net.IP{ip}
+	}
+
 	// Use provider name as hostname if available (for DoH/DoT)
 	hostname := host
 	if stamp.ProviderName != "" {
@@ -238,6 +245,7 @@ func parseStamp(stampStr string) (Upstream, error) {
 		Path:                    stamp.Path,
 		CommonName:              stamp.ProviderName, // Use provider name for TLS verification
 		CertificateFingerprints: certFingerprints,   // SHA256 fingerprints for certificate pinning
+		IPs:                     ips,                // IPs from stamp for bootstrapping
 	}
 
 	return upstream, nil
