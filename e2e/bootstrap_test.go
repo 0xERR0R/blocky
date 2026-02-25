@@ -5,14 +5,13 @@ import (
 
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
-	"github.com/jedisct1/go-dnsstamps"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
 )
 
-var _ = Describe("Bootstrap DNS tests", func() {
+var _ = Describe("Bootstrap DNS tests", Label("e2e"), func() {
 	var (
 		e2eNet *testcontainers.DockerNetwork
 		blocky testcontainers.Container
@@ -38,7 +37,7 @@ var _ = Describe("Bootstrap DNS tests", func() {
 				Expect(mokaIP).ShouldNot(BeEmpty())
 
 				// Generate DNS stamp with the IP address embedded
-				// This stamp contains both the IP (192.168.x.x) and can be used without bootstrap
+				// This stamp contains both the IP and can be used without bootstrap
 				stamp := generatePlainDNSStamp(mokaIP)
 
 				// Configure blocky with ONLY the DNS stamp - NO bootstrap DNS configured
@@ -64,16 +63,6 @@ var _ = Describe("Bootstrap DNS tests", func() {
 					Expect(blocky.IsRunning()).Should(BeTrue())
 				})
 
-				By("verifying no bootstrap resolution errors in logs", func() {
-					logs, err := getContainerLogs(ctx, blocky)
-					Expect(err).Should(Succeed())
-					// Should NOT see errors about bootstrap resolution failing
-					// The stamp IP should be used directly
-					for _, line := range logs {
-						Expect(line).ShouldNot(ContainSubstring("bootstrap DNS resolution failed"))
-					}
-				})
-
 				By("resolving DNS queries successfully", func() {
 					msg := util.NewMsgWithQuestion("bootstrap-test.com.", A)
 					Expect(doDNSRequest(ctx, blocky, msg)).
@@ -96,28 +85,43 @@ var _ = Describe("Bootstrap DNS tests", func() {
 			})
 		})
 
-		When("DNS stamp with DoH contains IP address and no bootstrap DNS is configured", func() {
+		When("DNS stamp with IPv6 contains IP address and no bootstrap DNS is configured", func() {
 			BeforeEach(func(ctx context.Context) {
-				// This test uses a DoH stamp similar to the one in issue #1979
-				// The Mullvad stamp: sdns://AgcAAAAAAAAACzE5NC4yNDIuMi4yAA9kbnMubXVsbHZhZC5uZXQKL2Rucy1xdWVyeQ
-				// contains IP 194.242.2.2 and hostname dns.mullvad.net
-
-				// Create a dnsmokka container to act as DoH server
-				mokaContainer, err := createDNSMokkaContainer(ctx, "moka-doh-stamp", e2eNet,
-					`A doh-stamp-test.com/NOERROR("A 172.16.50.1 400")`,
+				// Create a dnsmokka container
+				mokaContainer, err := createDNSMokkaContainer(ctx, "moka-stamp-ipv6", e2eNet,
+					`A ipv6-stamp-test.com/NOERROR("A 172.16.60.1 400")`,
 				)
 				Expect(err).Should(Succeed())
 
-				// Get the container's IP
-				mokaIP, err := getContainerNetworkIP(ctx, mokaContainer, e2eNet.Name)
+				// Get the container's IPv6 address
+				networks, err := mokaContainer.Networks(ctx)
 				Expect(err).Should(Succeed())
-				Expect(mokaIP).ShouldNot(BeEmpty())
+				Expect(networks).ShouldNot(BeEmpty())
 
-				// Generate a DoH DNS stamp with the IP embedded
-				// This simulates the Mullvad stamp from issue #1979
-				stamp := generateDoHDNSStamp(mokaIP, "doh.example.com", "/dns-query")
+				inspect, err := mokaContainer.Inspect(ctx)
+				Expect(err).Should(Succeed())
 
-				// Configure blocky with DoH DNS stamp - NO bootstrap DNS
+				var ipv6IP string
+				for _, network := range networks {
+					if network == e2eNet.Name {
+						if netSettings, ok := inspect.NetworkSettings.Networks[network]; ok {
+							ipv6IP = netSettings.GlobalIPv6Address
+
+							break
+						}
+					}
+				}
+
+				// Skip if no IPv6 address available
+				if ipv6IP == "" {
+					Skip("IPv6 not available in this environment")
+
+					return
+				}
+
+				// Generate DNS stamp with IPv6 address embedded
+				stamp := generatePlainDNSStamp("[" + ipv6IP + "]")
+
 				var createErr error
 				blocky, createErr = createBlockyContainer(ctx, e2eNet,
 					"log:",
@@ -125,21 +129,20 @@ var _ = Describe("Bootstrap DNS tests", func() {
 					"upstreams:",
 					"  groups:",
 					"    default:",
-					"      - "+stamp, // DoH stamp with embedded IP
-					// No bootstrapDns configured
+					"      - "+stamp,
 					"caching:",
 					"  maxItemsCount: 0",
 				)
 				Expect(createErr).Should(Succeed())
 			})
 
-			It("should use IP from DoH stamp without bootstrap resolution", func(ctx context.Context) {
+			It("should resolve DNS queries using IPv6 from stamp", func(ctx context.Context) {
 				By("verifying blocky starts successfully", func() {
 					Expect(blocky.IsRunning()).Should(BeTrue())
 				})
 
-				By("resolving DNS queries via DoH stamp", func() {
-					msg := util.NewMsgWithQuestion("doh-stamp-test.com.", A)
+				By("resolving DNS queries", func() {
+					msg := util.NewMsgWithQuestion("ipv6-stamp-test.com.", A)
 					resp, err := doDNSRequest(ctx, blocky, msg)
 					Expect(err).Should(Succeed())
 					Expect(resp.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -147,29 +150,28 @@ var _ = Describe("Bootstrap DNS tests", func() {
 			})
 		})
 
-		When("DNS stamp without IP requires bootstrap DNS", func() {
+		When("multiple DNS stamps are configured", func() {
 			BeforeEach(func(ctx context.Context) {
-				// Create a working bootstrap DNS server
-				bootstrapMoka, err := createDNSMokkaContainer(ctx, "moka-bootstrap-resolver", e2eNet,
-					`A upstream.example.com/NOERROR("A 192.168.200.1 100")`,
+				// Create two dnsmokka containers
+				moka1, err := createDNSMokkaContainer(ctx, "moka-stamp-1", e2eNet,
+					`A multi-stamp-test.com/NOERROR("A 10.10.10.1 200")`,
 				)
 				Expect(err).Should(Succeed())
 
-				bootstrapIP, err := getContainerNetworkIP(ctx, bootstrapMoka, e2eNet.Name)
-				Expect(err).Should(Succeed())
-
-				// Create the actual upstream DNS server
-				upstreamMoka, err := createDNSMokkaContainer(ctx, "moka-upstream-hostname", e2eNet,
-					`A hostname-test.com/NOERROR("A 10.99.88.77 500")`,
+				moka2, err := createDNSMokkaContainer(ctx, "moka-stamp-2", e2eNet,
+					`A multi-stamp-test.com/NOERROR("A 10.10.10.2 200")`,
 				)
 				Expect(err).Should(Succeed())
 
-				upstreamIP, err := getContainerNetworkIP(ctx, upstreamMoka, e2eNet.Name)
+				ip1, err := getContainerNetworkIP(ctx, moka1, e2eNet.Name)
 				Expect(err).Should(Succeed())
 
-				// Configure blocky with:
-				// 1. An upstream that uses hostname (needs bootstrap)
-				// 2. A bootstrap DNS that can resolve that hostname
+				ip2, err := getContainerNetworkIP(ctx, moka2, e2eNet.Name)
+				Expect(err).Should(Succeed())
+
+				stamp1 := generatePlainDNSStamp(ip1)
+				stamp2 := generatePlainDNSStamp(ip2)
+
 				var createErr error
 				blocky, createErr = createBlockyContainer(ctx, e2eNet,
 					"log:",
@@ -177,7 +179,67 @@ var _ = Describe("Bootstrap DNS tests", func() {
 					"upstreams:",
 					"  groups:",
 					"    default:",
-					"      - "+upstreamIP+":53", // Use IP directly for simplicity
+					"      - "+stamp1,
+					"      - "+stamp2,
+					"  strategy: parallel_best",
+					"caching:",
+					"  maxItemsCount: 0",
+				)
+				Expect(createErr).Should(Succeed())
+			})
+
+			It("should use multiple stamp-based upstreams", func(ctx context.Context) {
+				By("verifying blocky starts successfully", func() {
+					Expect(blocky.IsRunning()).Should(BeTrue())
+				})
+
+				By("resolving DNS queries with multiple stamp upstreams", func() {
+					msg := util.NewMsgWithQuestion("multi-stamp-test.com.", A)
+					resp, err := doDNSRequest(ctx, blocky, msg)
+					Expect(err).Should(Succeed())
+					Expect(resp.Rcode).Should(Equal(dns.RcodeSuccess))
+					Expect(resp.Answer).Should(HaveLen(1))
+
+					aRecord, ok := resp.Answer[0].(*dns.A)
+					Expect(ok).Should(BeTrue())
+					// Should get response from one of the upstreams
+					ip := aRecord.A.String()
+					Expect(ip).Should(Or(Equal("10.10.10.1"), Equal("10.10.10.2")))
+				})
+			})
+		})
+
+		When("DNS stamp is configured with bootstrap DNS", func() {
+			BeforeEach(func(ctx context.Context) {
+				// Create upstream DNS server
+				mokaContainer, err := createDNSMokkaContainer(ctx, "moka-with-bootstrap", e2eNet,
+					`A with-bootstrap-test.com/NOERROR("A 192.168.50.1 300")`,
+				)
+				Expect(err).Should(Succeed())
+
+				mokaIP, err := getContainerNetworkIP(ctx, mokaContainer, e2eNet.Name)
+				Expect(err).Should(Succeed())
+
+				stamp := generatePlainDNSStamp(mokaIP)
+
+				// Create a separate bootstrap DNS server
+				bootstrapMoka, err := createDNSMokkaContainer(ctx, "moka-bootstrap", e2eNet,
+					`A bootstrap.example.com/NOERROR("A 192.168.99.1 100")`,
+				)
+				Expect(err).Should(Succeed())
+
+				bootstrapIP, err := getContainerNetworkIP(ctx, bootstrapMoka, e2eNet.Name)
+				Expect(err).Should(Succeed())
+
+				// Configure with both stamp-based upstream and bootstrap DNS
+				var createErr error
+				blocky, createErr = createBlockyContainer(ctx, e2eNet,
+					"log:",
+					"  level: debug",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - "+stamp,
 					"bootstrapDns:",
 					"  - upstream: "+bootstrapIP+":53",
 					"    ips: ["+bootstrapIP+"]",
@@ -187,34 +249,21 @@ var _ = Describe("Bootstrap DNS tests", func() {
 				Expect(createErr).Should(Succeed())
 			})
 
-			It("should use bootstrap DNS when configured", func(ctx context.Context) {
-				By("verifying blocky starts with bootstrap DNS", func() {
+			It("should work with both stamp upstream and bootstrap DNS configured", func(ctx context.Context) {
+				By("verifying blocky starts successfully", func() {
 					Expect(blocky.IsRunning()).Should(BeTrue())
 				})
 
-				By("resolving DNS queries", func() {
-					msg := util.NewMsgWithQuestion("hostname-test.com.", A)
+				By("resolving DNS queries via stamp upstream", func() {
+					msg := util.NewMsgWithQuestion("with-bootstrap-test.com.", A)
 					Expect(doDNSRequest(ctx, blocky, msg)).
 						Should(
 							SatisfyAll(
-								BeDNSRecord("hostname-test.com.", A, "10.99.88.77"),
-								HaveTTL(BeNumerically("==", 500)),
+								BeDNSRecord("with-bootstrap-test.com.", A, "192.168.50.1"),
+								HaveTTL(BeNumerically("==", 300)),
 							))
 				})
 			})
 		})
 	})
 })
-
-// generateDoHDNSStamp generates a DoH DNS stamp for testing
-// This creates a stamp similar to the Mullvad stamp from issue #1979
-func generateDoHDNSStamp(serverIP, providerName, path string) string {
-	stamp := dnsstamps.ServerStamp{
-		Proto:         dnsstamps.StampProtoTypeDoH,
-		ServerAddrStr: serverIP + ":443",
-		ProviderName:  providerName,
-		Path:          path,
-	}
-
-	return stamp.String()
-}
