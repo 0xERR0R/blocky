@@ -1,6 +1,6 @@
 module github.com/0xERR0R/blocky
 
-go 1.25
+go 1.25.0
 
 require (
 	github.com/0xERR0R/expiration-cache v0.1.0
@@ -38,7 +38,7 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/redis v0.40.0
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2
 	golang.org/x/exp v0.0.0-20250718183923-645b1fa84792
-	golang.org/x/net v0.50.0
+	golang.org/x/net v0.51.0
 	gopkg.in/yaml.v2 v2.4.0
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/postgres v1.6.0
