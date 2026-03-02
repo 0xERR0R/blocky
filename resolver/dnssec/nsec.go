@@ -3,10 +3,11 @@ package dnssec
 // This file contains NSEC-based denial of existence validation per RFC 4035 §5.4.
 
 import (
+	"slices"
+
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
-	"slices"
 )
 
 // validateNSECDenialOfExistence validates NSEC-based denial of existence per RFC 4035 §5.4

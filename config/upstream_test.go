@@ -516,14 +516,15 @@ var _ = Describe("ParseUpstream", func() {
 				Expect(result.IPs[0]).Should(Equal(net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")))
 			})
 
-			It("should have empty IPs when stamp has hostname instead of IP", func() {
-				// Cloudflare DoH stamp - ServerAddrStr contains hostname, not IP
+			It("should preserve IP from stamp with IP in ServerAddrStr", func() {
+				// Cloudflare DoH stamp - ServerAddrStr contains IP "1.0.0.1:443"
+				// ProviderName is "dns.cloudflare.com" (used as Host)
 				result, err := ParseUpstream("sdns://AgcAAAAAAAAABzEuMC4wLjGgENk8mGSlIfMGXMOlIlCcKvq7AVgcrZxtjon911-ep0cg63Ul-I8NlFj4GplQGb_TTLiczclX57DvMV8Q-JdjgRgSZG5zLmNsb3VkZmxhcmUuY29tCi9kbnMtcXVlcnk")
 
 				Expect(err).Should(Succeed())
+				// Host comes from ProviderName (hostname)
 				Expect(result.Host).Should(Equal("dns.cloudflare.com"))
-				// ServerAddrStr is "1.0.0.1" which is an IP, so it should be preserved
-				// Actually this stamp has IP in ServerAddrStr
+				// IPs contains the IP from ServerAddrStr for bootstrapping
 				Expect(result.IPs).Should(HaveLen(1))
 				Expect(result.IPs[0]).Should(Equal(net.ParseIP("1.0.0.1")))
 			})
