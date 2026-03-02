@@ -96,7 +96,7 @@ jobs:
         run: mv bin/blocky bin/blocky.exe
 
       - name: Store build artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: blocky_${{ steps.get_vars.outputs.version }}_${{ inputs.goos }}_${{ steps.get_vars.outputs.arch }}
           path: bin/blocky*

@@ -38,7 +38,7 @@ jobs:
           args: build --clean --snapshot
 
       - name: Upload dist folder
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: dist_folder
           path: dist
@@ -91,7 +91,7 @@ jobs:
     steps:
       - name: Download dist folder
         id: download
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: dist_folder
 
