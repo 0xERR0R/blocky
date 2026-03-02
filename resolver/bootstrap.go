@@ -135,6 +135,11 @@ func (b *Bootstrap) UpstreamIPs(ctx context.Context, r *UpstreamResolver) (*IPSe
 		return newIPSet([]net.IP{ip}), nil
 	}
 
+	// Use IPs from DNS stamp if available (avoids bootstrap resolution)
+	if ips := r.Upstream().IPs; len(ips) > 0 {
+		return newIPSet(ips), nil
+	}
+
 	ips, err := b.resolveUpstream(ctx, r, hostname)
 	if err != nil {
 		return nil, fmt.Errorf("could not resolve IPs for upstream %s: %w", hostname, err)

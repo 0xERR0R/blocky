@@ -261,7 +261,7 @@ func newTLSListeners(
 	return listeners, nil
 }
 
-func createDNSServer(network string, address string, tlsCfg *tls.Config) (*dns.Server, error) {
+func createDNSServer(network, address string, tlsCfg *tls.Config) (*dns.Server, error) {
 	srv := &dns.Server{
 		Addr:    address,
 		Net:     network,

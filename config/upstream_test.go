@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/hex"
+	"net"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -479,6 +480,68 @@ var _ = Describe("ParseUpstream", func() {
 			})
 		})
 
+		Describe("DNS stamp IP preservation for bootstrapping", func() {
+			It("should preserve IP from plain DNS stamp", func() {
+				// sdns://AAcAAAAAAAAABzguOC44Ljg
+				// Google DNS (8.8.8.8) - IP is in ServerAddrStr
+				result, err := ParseUpstream("sdns://AAcAAAAAAAAABzguOC44Ljg")
+
+				Expect(err).Should(Succeed())
+				Expect(result.Host).Should(Equal("8.8.8.8"))
+				Expect(result.IPs).Should(HaveLen(1))
+				Expect(result.IPs[0]).Should(Equal(net.ParseIP("8.8.8.8")))
+			})
+
+			It("should preserve IP from DoH stamp with IP in ServerAddrStr", func() {
+				// sdns://AgcAAAAAAAAACzE5NC4yNDIuMi4yAA9kbnMubXVsbHZhZC5uZXQKL2Rucy1xdWVyeQ
+				// Mullvad DoH - IP 194.242.2.2 in ServerAddrStr, hostname dns.mullvad.net
+				result, err := ParseUpstream("sdns://AgcAAAAAAAAACzE5NC4yNDIuMi4yAA9kbnMubXVsbHZhZC5uZXQKL2Rucy1xdWVyeQ")
+
+				Expect(err).Should(Succeed())
+				// Host should be the provider name (hostname)
+				Expect(result.Host).Should(Equal("dns.mullvad.net"))
+				Expect(result.CommonName).Should(Equal("dns.mullvad.net"))
+				// But IPs should contain the IP from ServerAddrStr
+				Expect(result.IPs).Should(HaveLen(1))
+				Expect(result.IPs[0]).Should(Equal(net.ParseIP("194.242.2.2")))
+			})
+
+			It("should preserve IPv6 from stamp", func() {
+				// sdns://AAcAAAAAAAAAKVsyMDAxOjBkYjg6ODVhMzowMDAwOjAwMDA6OGEyZTowMzcwOjczMzRd
+				// IPv6 address in stamp
+				result, err := ParseUpstream("sdns://AAcAAAAAAAAAKVsyMDAxOjBkYjg6ODVhMzowMDAwOjAwMDA6OGEyZTowMzcwOjczMzRd")
+
+				Expect(err).Should(Succeed())
+				Expect(result.IPs).Should(HaveLen(1))
+				Expect(result.IPs[0]).Should(Equal(net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334")))
+			})
+
+			It("should preserve IP from stamp with IP in ServerAddrStr", func() {
+				// Cloudflare DoH stamp - ServerAddrStr contains IP "1.0.0.1:443"
+				// ProviderName is "dns.cloudflare.com" (used as Host)
+				result, err := ParseUpstream("sdns://AgcAAAAAAAAABzEuMC4wLjGgENk8mGSlIfMGXMOlIlCcKvq7AVgcrZxtjon911-ep0cg63Ul-I8NlFj4GplQGb_TTLiczclX57DvMV8Q-JdjgRgSZG5zLmNsb3VkZmxhcmUuY29tCi9kbnMtcXVlcnk")
+
+				Expect(err).Should(Succeed())
+				// Host comes from ProviderName (hostname)
+				Expect(result.Host).Should(Equal("dns.cloudflare.com"))
+				// IPs contains the IP from ServerAddrStr for bootstrapping
+				Expect(result.IPs).Should(HaveLen(1))
+				Expect(result.IPs[0]).Should(Equal(net.ParseIP("1.0.0.1")))
+			})
+
+			It("should preserve IP with custom port in stamp", func() {
+				// sdns://AAcAAAAAAAAADDguOC44Ljg6NTM1Mw
+				// 8.8.8.8:5353
+				result, err := ParseUpstream("sdns://AAcAAAAAAAAADDguOC44Ljg6NTM1Mw")
+
+				if err == nil {
+					Expect(result.IPs).Should(HaveLen(1))
+					Expect(result.IPs[0]).Should(Equal(net.ParseIP("8.8.8.8")))
+					Expect(result.Port).Should(Or(Equal(uint16(5353)), Equal(uint16(53))))
+				}
+			})
+		})
+
 		Describe("extractStampHostPort edge cases", func() {
 			It("should handle empty server address", func() {
 				// Empty server address should use default port
@@ -578,6 +641,11 @@ var _ = Describe("ParseUpstream", func() {
 
 		It("should return false when CertificateFingerprints is set", func() {
 			u := Upstream{CertificateFingerprints: []CertificateFingerprint{[]byte("test")}}
+			Expect(u.IsDefault()).Should(BeFalse())
+		})
+
+		It("should return false when IPs is set", func() {
+			u := Upstream{IPs: []net.IP{net.ParseIP("8.8.8.8")}}
 			Expect(u.IsDefault()).Should(BeFalse())
 		})
 	})
