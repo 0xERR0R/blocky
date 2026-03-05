@@ -37,7 +37,7 @@ jobs:
           images: spx01/blocky,ghcr.io/0xerr0r/blocky
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
         with:
           platforms: arm,arm64
 
