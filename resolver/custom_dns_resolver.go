@@ -89,7 +89,7 @@ func (r *CustomDNSResolver) handleReverseDNS(request *model.Request) *model.Resp
 	if question.Qtype == dns.TypePTR {
 		urls, found := r.reverseAddresses[question.Name]
 		if found {
-			var answers []dns.RR
+			answers := make([]dns.RR, 0, len(urls))
 			for _, url := range urls {
 				h := util.CreateHeader(question, r.cfg.CustomTTL.SecondsU32())
 				ptr := new(dns.PTR)

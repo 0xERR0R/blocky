@@ -64,15 +64,16 @@ func NewDNS64Resolver(cfg config.DNS64) ChainedResolver {
 		// Required: IPv4-mapped addresses
 		// Required: Configured DNS64 prefixes (prevents double-synthesis loops)
 		// Recommended: Loopback, link-local
-		exclusionSet = []netip.Prefix{
+		defaultExclusions := []netip.Prefix{
 			netip.MustParsePrefix("::ffff:0:0/96"), // IPv4-mapped addresses (required)
 			netip.MustParsePrefix("::1/128"),       // Loopback (recommended)
 			netip.MustParsePrefix("fe80::/10"),     // Link-local (recommended)
 			// Note: ::/128 (unspecified) checked separately as special case
 		}
 		// Add configured DNS64 prefixes to exclusion set (RFC requirement)
-		//nolint:makezero // Intentionally appending to initialized slice for clarity
-		exclusionSet = append(exclusionSet, prefixes...)
+		exclusionSet = make([]netip.Prefix, len(defaultExclusions)+len(prefixes))
+		copy(exclusionSet, defaultExclusions)
+		copy(exclusionSet[len(defaultExclusions):], prefixes)
 	}
 
 	return &DNS64Resolver{
