@@ -174,7 +174,7 @@ var _ = Describe("root command", func() {
 			cmd := NewRootCommand()
 
 			// Check if all subcommands are added
-			subCmdNames := []string{}
+			subCmdNames := make([]string, 0, len(cmd.Commands()))
 			for _, subCmd := range cmd.Commands() {
 				subCmdNames = append(subCmdNames, subCmd.Name())
 			}

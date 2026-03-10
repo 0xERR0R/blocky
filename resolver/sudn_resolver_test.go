@@ -89,7 +89,8 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 
 			description := fmt.Sprintf("should %s %s IN %s", verb, qName, qType)
 
-			args := []any{qType, qName, expectedRCode}
+			args := make([]any, 0, 3+len(extraMatchers))
+			args = append(args, qType, qName, expectedRCode)
 			args = append(args, extraMatchers...)
 
 			return Entry(description, args...)

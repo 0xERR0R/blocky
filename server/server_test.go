@@ -864,7 +864,9 @@ func requestServer(ctx context.Context, request *dns.Msg) *dns.Msg {
 		return response
 	}
 
-	Log().Fatal("could not read from connection", err)
+	if err != nil {
+		Log().Fatal("could not read from connection", err)
+	}
 
 	return nil
 }
