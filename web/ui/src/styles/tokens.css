@@ -1,0 +1,68 @@
+:root {
+  /* Background & Surface */
+  --color-bg: #0a0a0a;
+  --color-surface: #111;
+  --color-surface-raised: #1a1a1a;
+  --color-border: #222;
+  --color-border-subtle: #1a1a1a;
+
+  /* Text */
+  --color-text: #c8c8c8;
+  --color-text-muted: #555;
+  --color-text-dim: #444;
+  --color-text-inverse: #0a0a0a;
+
+  /* Action colors — bold and saturated */
+  --color-accent: #2a8a2a;
+  --color-primary: #ffaa00;
+  --color-primary-hover: #ffbb33;
+  --color-primary-muted: rgba(255, 170, 0, 0.12);
+  --color-primary-fg: #000;
+  --color-danger: #d60202;
+  --color-danger-hover: #e52222;
+  --color-danger-muted: rgba(214, 2, 2, 0.12);
+  --color-danger-fg: #fff;
+  --color-success: #2a8a2a;
+  --color-success-fill: #215e21;
+  --color-success-muted: rgba(33, 94, 33, 0.15);
+  --color-success-fg: #fff;
+  --color-warning: #ffaa00;
+  --color-warning-muted: rgba(255, 170, 0, 0.15);
+  --color-warning-fg: #000;
+  --color-info: #2386b0;
+  --color-info-muted: rgba(35, 134, 176, 0.15);
+  --color-info-fg: #fff;
+
+  /* Buttons */
+  --color-btn-bg: #1a1a1a;
+  --color-btn-bg-hover: #252525;
+  --color-btn-border: #333;
+
+  /* Typography — all mono */
+  --font-mono: 'Inconsolata', 'Courier New', monospace;
+  --text-xs: 0.72rem;
+  --text-sm: 0.8rem;
+  --text-base: 0.9rem;
+  --text-lg: 1rem;
+  --text-xl: 1.1rem;
+  --text-2xl: 1.4rem;
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  /* Angular — square corners */
+  --radius: 2px;
+  --radius-lg: 2px;
+
+  /* Transitions */
+  --transition: 150ms ease;
+  --transition-slow: 200ms ease;
+}

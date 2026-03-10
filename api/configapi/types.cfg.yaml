@@ -1,0 +1,4 @@
+package: configapi
+generate:
+  models: true
+output: api/configapi/types.gen.go

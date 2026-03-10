@@ -17,6 +17,16 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+type staticResolverAccessor struct {
+	blocking BlockingControl
+	refresh  ListRefresher
+	cache    CacheControl
+}
+
+func (a *staticResolverAccessor) BlockingControl() (BlockingControl, error) { return a.blocking, nil }
+func (a *staticResolverAccessor) ListRefresher() (ListRefresher, error)    { return a.refresh, nil }
+func (a *staticResolverAccessor) CacheControl() (CacheControl, error)      { return a.cache, nil }
+
 var _ = Describe("API implementation tests", func() {
 	var (
 		blockingControlMock *MockBlockingControl
@@ -37,7 +47,13 @@ var _ = Describe("API implementation tests", func() {
 		querierMock = NewMockQuerier(GinkgoT())
 		listRefreshMock = NewMockListRefresher(GinkgoT())
 		cacheControlMock = NewMockCacheControl(GinkgoT())
-		sut = NewOpenAPIInterfaceImpl(blockingControlMock, querierMock, listRefreshMock, cacheControlMock)
+
+		accessor := &staticResolverAccessor{
+			blocking: blockingControlMock,
+			refresh:  listRefreshMock,
+			cache:    cacheControlMock,
+		}
+		sut = NewOpenAPIInterfaceImpl(accessor, querierMock)
 	})
 
 	Describe("RegisterOpenAPIEndpoints", func() {

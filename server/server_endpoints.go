@@ -13,7 +13,10 @@ import (
 	"github.com/0xERR0R/blocky/resolver"
 
 	"github.com/0xERR0R/blocky/api"
+	"github.com/0xERR0R/blocky/api/configapi"
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/configstore"
+	"github.com/0xERR0R/blocky/logstream"
 	"github.com/0xERR0R/blocky/docs"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
@@ -34,23 +37,35 @@ const (
 	yamlContentType    = "text/yaml"
 )
 
+// ResolverAccessor implementation — resolves from the current (possibly hot-swapped) chain.
+
+func (s *Server) BlockingControl() (api.BlockingControl, error) {
+	return resolver.GetFromChainWithType[api.BlockingControl](s.activeChain.Load().chain)
+}
+
+func (s *Server) ListRefresher() (api.ListRefresher, error) {
+	return resolver.GetFromChainWithType[api.ListRefresher](s.activeChain.Load().chain)
+}
+
+func (s *Server) CacheControl() (api.CacheControl, error) {
+	return resolver.GetFromChainWithType[api.CacheControl](s.activeChain.Load().chain)
+}
+
 func (s *Server) createOpenAPIInterfaceImpl() (impl api.StrictServerInterface, err error) {
-	bControl, err := resolver.GetFromChainWithType[api.BlockingControl](s.queryResolver)
-	if err != nil {
+	// Validate that the initial chain has the required resolver types
+	if _, err := s.BlockingControl(); err != nil {
 		return nil, fmt.Errorf("no blocking API implementation found %w", err)
 	}
 
-	refresher, err := resolver.GetFromChainWithType[api.ListRefresher](s.queryResolver)
-	if err != nil {
+	if _, err := s.ListRefresher(); err != nil {
 		return nil, fmt.Errorf("no refresh API implementation found %w", err)
 	}
 
-	cacheControl, err := resolver.GetFromChainWithType[api.CacheControl](s.queryResolver)
-	if err != nil {
+	if _, err := s.CacheControl(); err != nil {
 		return nil, fmt.Errorf("no cache API implementation found %w", err)
 	}
 
-	return api.NewOpenAPIInterfaceImpl(bControl, s, refresher, cacheControl), nil
+	return api.NewOpenAPIInterfaceImpl(s, s), nil
 }
 
 func (s *Server) registerDoHEndpoints(router *chi.Mux, cfg *config.Config) {
@@ -181,16 +196,29 @@ func (s *Server) Query(
 	return s.resolve(ctx, req)
 }
 
-func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface) *chi.Mux {
+func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface,
+	store *configstore.ConfigStore, reconfigurer configapi.Reconfigurer,
+	broadcaster *logstream.Broadcaster,
+) *chi.Mux {
 	router := chi.NewRouter()
 
 	api.RegisterOpenAPIEndpoints(router, openAPIImpl)
+
+	if store != nil {
+		configapi.RegisterEndpoints(router, configapi.NewConfigHandler(store, reconfigurer))
+	}
+
+	if broadcaster != nil {
+		router.Get("/api/ws/logs", logstream.Handler(broadcaster))
+	}
 
 	configureDebugHandler(router)
 
 	configureDocsHandler(router)
 
 	configureStaticAssetsHandler(router)
+
+	configureUIHandler(router)
 
 	configureRootHandler(cfg, router)
 
@@ -215,6 +243,21 @@ func configureStaticAssetsHandler(router *chi.Mux) {
 
 	fs := http.FileServer(http.FS(assets))
 	router.Handle("/static/*", http.StripPrefix("/static/", fs))
+}
+
+func configureUIHandler(router *chi.Mux) {
+	uiAssets, err := web.UIAssets()
+	if err != nil {
+		logger().Warn("UI assets not available: ", err)
+
+		return
+	}
+
+	uiFS := http.FileServer(http.FS(uiAssets))
+	router.Handle("/ui/*", http.StripPrefix("/ui/", uiFS))
+	router.Get("/ui", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/ui/", http.StatusMovedPermanently)
+	})
 }
 
 func configureRobotsHandler(router *chi.Mux) {
@@ -247,6 +290,10 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 		}
 
 		pd.Links = []HandlerLink{
+			{
+				URL:   "/ui/",
+				Title: "Web UI",
+			},
 			{
 				URL:   "/docs/openapi.yaml",
 				Title: "Rest API Documentation (OpenAPI)",

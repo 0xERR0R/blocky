@@ -273,6 +273,7 @@ type Config struct {
 	SUDN             SUDN                `yaml:"specialUseDomains"`
 	DNS64            DNS64               `yaml:"dns64"`
 	DNSSEC           DNSSEC              `yaml:"dnssec"`
+	DatabasePath     string              `yaml:"databasePath"`
 
 	// Deprecated options
 	Deprecated struct {

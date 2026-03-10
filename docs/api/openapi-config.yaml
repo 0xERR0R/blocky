@@ -1,0 +1,470 @@
+openapi: 3.1.1
+info:
+  title: blocky config API
+  description: Configuration management endpoints for blocky DNS proxy
+  version: '1.0'
+servers:
+  - url: /api/config
+paths:
+  /client-groups:
+    get:
+      operationId: listClientGroups
+      tags: [client-groups]
+      summary: List all client groups
+      responses:
+        '200':
+          description: List of client groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClientGroup'
+  /client-groups/{name}:
+    get:
+      operationId: getClientGroup
+      tags: [client-groups]
+      summary: Get a client group by name
+      parameters:
+        - $ref: '#/components/parameters/ClientGroupName'
+      responses:
+        '200':
+          description: Client group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientGroup'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: putClientGroup
+      tags: [client-groups]
+      summary: Create or update a client group
+      parameters:
+        - $ref: '#/components/parameters/ClientGroupName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientGroupInput'
+      responses:
+        '200':
+          description: Saved client group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientGroup'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    delete:
+      operationId: deleteClientGroup
+      tags: [client-groups]
+      summary: Delete a client group
+      parameters:
+        - $ref: '#/components/parameters/ClientGroupName'
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /blocklist-sources:
+    get:
+      operationId: listBlocklistSources
+      tags: [blocklist-sources]
+      summary: List blocklist sources
+      parameters:
+        - name: group_name
+          in: query
+          schema:
+            type: string
+        - name: list_type
+          in: query
+          schema:
+            type: string
+            enum: [deny, allow]
+      responses:
+        '200':
+          description: List of blocklist sources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BlocklistSource'
+    post:
+      operationId: createBlocklistSource
+      tags: [blocklist-sources]
+      summary: Create a blocklist source
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlocklistSourceInput'
+      responses:
+        '201':
+          description: Created blocklist source
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlocklistSource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /blocklist-sources/{id}:
+    get:
+      operationId: getBlocklistSource
+      tags: [blocklist-sources]
+      summary: Get a blocklist source by ID
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+      responses:
+        '200':
+          description: Blocklist source
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlocklistSource'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateBlocklistSource
+      tags: [blocklist-sources]
+      summary: Update a blocklist source
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlocklistSourceInput'
+      responses:
+        '200':
+          description: Updated blocklist source
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlocklistSource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteBlocklistSource
+      tags: [blocklist-sources]
+      summary: Delete a blocklist source
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /custom-dns:
+    get:
+      operationId: listCustomDNSEntries
+      tags: [custom-dns]
+      summary: List custom DNS entries
+      responses:
+        '200':
+          description: List of custom DNS entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CustomDNSEntry'
+    post:
+      operationId: createCustomDNSEntry
+      tags: [custom-dns]
+      summary: Create a custom DNS entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomDNSEntryInput'
+      responses:
+        '201':
+          description: Created custom DNS entry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomDNSEntry'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /custom-dns/{id}:
+    get:
+      operationId: getCustomDNSEntry
+      tags: [custom-dns]
+      summary: Get a custom DNS entry by ID
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+      responses:
+        '200':
+          description: Custom DNS entry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomDNSEntry'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateCustomDNSEntry
+      tags: [custom-dns]
+      summary: Update a custom DNS entry
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomDNSEntryInput'
+      responses:
+        '200':
+          description: Updated custom DNS entry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomDNSEntry'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteCustomDNSEntry
+      tags: [custom-dns]
+      summary: Delete a custom DNS entry
+      parameters:
+        - $ref: '#/components/parameters/ResourceID'
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /block-settings:
+    get:
+      operationId: getBlockSettings
+      tags: [block-settings]
+      summary: Get block settings
+      responses:
+        '200':
+          description: Current block settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlockSettings'
+    put:
+      operationId: putBlockSettings
+      tags: [block-settings]
+      summary: Update block settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlockSettingsInput'
+      responses:
+        '200':
+          description: Updated block settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlockSettings'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /apply:
+    post:
+      operationId: applyConfig
+      tags: [apply]
+      summary: Apply pending configuration changes
+      description: Rebuilds the resolver chain from the current DB state
+      responses:
+        '200':
+          description: Configuration applied successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplyResponse'
+        '500':
+          description: Apply failed (DB changes preserved, old chain stays active)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplyResponse'
+
+components:
+  parameters:
+    ClientGroupName:
+      name: name
+      in: path
+      required: true
+      schema:
+        type: string
+    ResourceID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    ClientGroup:
+      type: object
+      required: [id, name, clients, groups]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        clients:
+          type: array
+          items:
+            type: string
+        groups:
+          type: array
+          items:
+            type: string
+
+    ClientGroupInput:
+      type: object
+      required: [clients, groups]
+      properties:
+        clients:
+          type: array
+          items:
+            type: string
+        groups:
+          type: array
+          items:
+            type: string
+
+    BlocklistSource:
+      type: object
+      required: [id, group_name, list_type, source_type, source, enabled]
+      properties:
+        id:
+          type: integer
+        group_name:
+          type: string
+        list_type:
+          type: string
+          enum: [deny, allow]
+        source_type:
+          type: string
+          enum: [http, file, text]
+        source:
+          type: string
+        enabled:
+          type: boolean
+
+    BlocklistSourceInput:
+      type: object
+      required: [group_name, list_type, source_type, source, enabled]
+      properties:
+        group_name:
+          type: string
+        list_type:
+          type: string
+          enum: [deny, allow]
+        source_type:
+          type: string
+          enum: [http, file, text]
+        source:
+          type: string
+        enabled:
+          type: boolean
+
+    CustomDNSEntry:
+      type: object
+      required: [id, domain, record_type, value, ttl, enabled]
+      properties:
+        id:
+          type: integer
+        domain:
+          type: string
+        record_type:
+          type: string
+          enum: [A, AAAA, CNAME]
+        value:
+          type: string
+        ttl:
+          type: integer
+          minimum: 0
+        enabled:
+          type: boolean
+
+    CustomDNSEntryInput:
+      type: object
+      required: [domain, record_type, value, ttl, enabled]
+      properties:
+        domain:
+          type: string
+        record_type:
+          type: string
+          enum: [A, AAAA, CNAME]
+        value:
+          type: string
+        ttl:
+          type: integer
+          minimum: 0
+        enabled:
+          type: boolean
+
+    BlockSettings:
+      type: object
+      required: [block_type, block_ttl]
+      properties:
+        block_type:
+          type: string
+        block_ttl:
+          type: string
+
+    BlockSettingsInput:
+      type: object
+      required: [block_type, block_ttl]
+      properties:
+        block_type:
+          type: string
+        block_ttl:
+          type: string
+
+    ApplyResponse:
+      type: object
+      required: [status, message]
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        message:
+          type: string
+        error:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string

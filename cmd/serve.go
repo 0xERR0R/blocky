@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/configstore"
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/server"
@@ -47,6 +48,37 @@ func startServer(_ *cobra.Command, _ []string) error {
 
 	log.Configure(&cfg.Log)
 
+	// If databasePath is set, open ConfigStore and apply DB-backed config
+	var store *configstore.ConfigStore
+
+	if cfg.DatabasePath != "" {
+		var storeErr error
+
+		store, storeErr = configstore.Open(cfg.DatabasePath)
+		if storeErr != nil {
+			return fmt.Errorf("open config database: %w", storeErr)
+		}
+
+		defer store.Close()
+
+		if err := store.SeedFromConfig(cfg); err != nil {
+			return fmt.Errorf("seed config database: %w", err)
+		}
+
+		// DB replaces dynamic sections
+		cfg.Blocking, err = store.BuildBlockingConfig(cfg.Blocking)
+		if err != nil {
+			return fmt.Errorf("build blocking config from DB: %w", err)
+		}
+
+		cfg.CustomDNS, err = store.BuildCustomDNSConfig(cfg.CustomDNS)
+		if err != nil {
+			return fmt.Errorf("build custom DNS config from DB: %w", err)
+		}
+
+		log.Log().Info("Using database-backed configuration from ", cfg.DatabasePath)
+	}
+
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	ctx, cancelFn := context.WithCancel(context.Background())
@@ -55,6 +87,10 @@ func startServer(_ *cobra.Command, _ []string) error {
 	srv, err := server.NewServer(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("can't start server: %w", err)
+	}
+
+	if store != nil {
+		srv.SetConfigStore(store)
 	}
 
 	const errChanSize = 10

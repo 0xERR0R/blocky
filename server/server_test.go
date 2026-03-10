@@ -190,7 +190,7 @@ var _ = Describe("Running DNS server", func() {
 		BeforeEach(func() {
 			mockClientName.Store("")
 			// reset client cache
-			clientNamesResolver, err := resolver.GetFromChainWithType[*resolver.ClientNamesResolver](sut.queryResolver)
+			clientNamesResolver, err := resolver.GetFromChainWithType[*resolver.ClientNamesResolver](sut.activeChain.Load().chain)
 			Expect(err).Should(Succeed())
 
 			clientNamesResolver.FlushCache()
@@ -557,9 +557,9 @@ var _ = Describe("Running DNS server", func() {
 			})
 			When("Internal error occurs", func() {
 				BeforeEach(func() {
-					bak := sut.queryResolver
-					sut.queryResolver = nil // trigger a panic
-					DeferCleanup(func() { sut.queryResolver = bak })
+					bak := sut.activeChain.Load()
+					sut.activeChain.Store(nil) // trigger a panic
+					DeferCleanup(func() { sut.activeChain.Store(bak) })
 				})
 
 				It("should return 'ServFail'", func() {

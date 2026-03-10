@@ -53,6 +53,14 @@ type CacheControl interface {
 	FlushCaches(ctx context.Context)
 }
 
+// ResolverAccessor provides dynamic access to resolver capabilities.
+// The server implements this to resolve through the current (possibly hot-swapped) chain.
+type ResolverAccessor interface {
+	BlockingControl() (BlockingControl, error)
+	ListRefresher() (ListRefresher, error)
+	CacheControl() (CacheControl, error)
+}
+
 func RegisterOpenAPIEndpoints(router chi.Router, impl StrictServerInterface) {
 	middleware := []StrictMiddlewareFunc{ctxWithHTTPRequestMiddleware}
 
@@ -68,32 +76,28 @@ func ctxWithHTTPRequestMiddleware(handler StrictHandlerFunc, operationID string)
 }
 
 type OpenAPIInterfaceImpl struct {
-	control      BlockingControl
-	querier      Querier
-	refresher    ListRefresher
-	cacheControl CacheControl
+	resolver ResolverAccessor
+	querier  Querier
 }
 
-func NewOpenAPIInterfaceImpl(control BlockingControl,
-	querier Querier,
-	refresher ListRefresher,
-	cacheControl CacheControl,
-) *OpenAPIInterfaceImpl {
+func NewOpenAPIInterfaceImpl(resolver ResolverAccessor, querier Querier) *OpenAPIInterfaceImpl {
 	return &OpenAPIInterfaceImpl{
-		control:      control,
-		querier:      querier,
-		refresher:    refresher,
-		cacheControl: cacheControl,
+		resolver: resolver,
+		querier:  querier,
 	}
 }
 
 func (i *OpenAPIInterfaceImpl) DisableBlocking(ctx context.Context,
 	request DisableBlockingRequestObject,
 ) (DisableBlockingResponseObject, error) {
+	control, err := i.resolver.BlockingControl()
+	if err != nil {
+		return DisableBlocking400TextResponse(log.EscapeInput(err.Error())), nil
+	}
+
 	var (
 		duration time.Duration
 		groups   []string
-		err      error
 	)
 
 	if request.Params.Duration != nil {
@@ -107,7 +111,7 @@ func (i *OpenAPIInterfaceImpl) DisableBlocking(ctx context.Context,
 		groups = strings.Split(*request.Params.Groups, ",")
 	}
 
-	err = i.control.DisableBlocking(ctx, duration, groups)
+	err = control.DisableBlocking(ctx, duration, groups)
 	if err != nil {
 		return DisableBlocking400TextResponse(log.EscapeInput(err.Error())), nil
 	}
@@ -117,14 +121,24 @@ func (i *OpenAPIInterfaceImpl) DisableBlocking(ctx context.Context,
 
 func (i *OpenAPIInterfaceImpl) EnableBlocking(ctx context.Context, _ EnableBlockingRequestObject,
 ) (EnableBlockingResponseObject, error) {
-	i.control.EnableBlocking(ctx)
+	control, err := i.resolver.BlockingControl()
+	if err != nil {
+		return EnableBlocking200Response{}, fmt.Errorf("blocking control: %w", err)
+	}
+
+	control.EnableBlocking(ctx)
 
 	return EnableBlocking200Response{}, nil
 }
 
 func (i *OpenAPIInterfaceImpl) BlockingStatus(_ context.Context, _ BlockingStatusRequestObject,
 ) (BlockingStatusResponseObject, error) {
-	blStatus := i.control.BlockingStatus()
+	control, err := i.resolver.BlockingControl()
+	if err != nil {
+		return nil, fmt.Errorf("blocking control: %w", err)
+	}
+
+	blStatus := control.BlockingStatus()
 
 	result := ApiBlockingStatus{
 		Enabled: blStatus.Enabled,
@@ -144,7 +158,12 @@ func (i *OpenAPIInterfaceImpl) BlockingStatus(_ context.Context, _ BlockingStatu
 func (i *OpenAPIInterfaceImpl) ListRefresh(ctx context.Context,
 	_ ListRefreshRequestObject,
 ) (ListRefreshResponseObject, error) {
-	err := i.refresher.RefreshLists(ctx)
+	refresher, err := i.resolver.ListRefresher()
+	if err != nil {
+		return ListRefresh500TextResponse(log.EscapeInput(err.Error())), nil
+	}
+
+	err = refresher.RefreshLists(ctx)
 	if err != nil {
 		return ListRefresh500TextResponse(log.EscapeInput(err.Error())), nil
 	}
@@ -185,7 +204,12 @@ func (i *OpenAPIInterfaceImpl) Query(ctx context.Context, request QueryRequestOb
 func (i *OpenAPIInterfaceImpl) CacheFlush(ctx context.Context,
 	_ CacheFlushRequestObject,
 ) (CacheFlushResponseObject, error) {
-	i.cacheControl.FlushCaches(ctx)
+	cc, err := i.resolver.CacheControl()
+	if err != nil {
+		return nil, fmt.Errorf("cache control: %w", err)
+	}
+
+	cc.FlushCaches(ctx)
 
 	return CacheFlush200Response{}, nil
 }

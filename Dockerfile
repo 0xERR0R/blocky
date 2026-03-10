@@ -1,5 +1,13 @@
 # syntax=docker/dockerfile:1
 
+# ----------- stage: ui
+FROM node:22-alpine AS ui
+WORKDIR /ui
+COPY web/ui/package.json web/ui/package-lock.json ./
+RUN npm ci
+COPY web/ui/ .
+RUN npx vite build
+
 # ----------- stage: build
 FROM golang:alpine AS build
 RUN apk add --no-cache make coreutils libcap
@@ -25,6 +33,9 @@ RUN go mod download
 # Copy source code after dependencies are cached
 COPY . .
 
+# Copy built UI assets from ui stage
+COPY --from=ui /ui/dist web/ui/dist
+
 # Arguments needed for build step only
 ARG VERSION
 ARG BUILD_TIME
@@ -39,16 +50,13 @@ ARG BUILD_TIME
 ARG DOC_PATH
 
 LABEL org.opencontainers.image.title="blocky" \
-  org.opencontainers.image.vendor="0xERR0R" \
+  org.opencontainers.image.vendor="chrissnell" \
   org.opencontainers.image.licenses="Apache-2.0" \
   org.opencontainers.image.version="${VERSION}" \
   org.opencontainers.image.created="${BUILD_TIME}" \
   org.opencontainers.image.description="Fast and lightweight DNS proxy as ad-blocker for local network with many features" \
-  org.opencontainers.image.url="https://github.com/0xERR0R/blocky#readme" \
-  org.opencontainers.image.source="https://github.com/0xERR0R/blocky" \
-  org.opencontainers.image.documentation="https://0xerr0r.github.io/blocky/${DOC_PATH}/"
-
-
+  org.opencontainers.image.url="https://github.com/chrissnell/blocky#readme" \
+  org.opencontainers.image.source="https://github.com/chrissnell/blocky"
 
 USER 100
 WORKDIR /app
