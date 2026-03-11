@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 
 	"github.com/0xERR0R/blocky/metrics"
+	"github.com/0xERR0R/blocky/pkg/arp"
 	"github.com/0xERR0R/blocky/resolver"
 
 	"github.com/0xERR0R/blocky/api"
@@ -196,6 +198,42 @@ func (s *Server) Query(
 	return s.resolve(ctx, req)
 }
 
+type discoveredClient struct {
+	IP       string `json:"ip"`
+	MAC      string `json:"mac"`
+	Hostname string `json:"hostname,omitempty"`
+	Device   string `json:"device"`
+}
+
+func handleDiscoveredClients(w http.ResponseWriter, r *http.Request) {
+	entries, err := arp.Read()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	clients := make([]discoveredClient, 0, len(entries))
+
+	for _, e := range entries {
+		c := discoveredClient{
+			IP:     e.IP,
+			MAC:    e.MAC,
+			Device: e.Device,
+		}
+
+		// Best-effort reverse DNS lookup
+		names, err := net.LookupAddr(e.IP)
+		if err == nil && len(names) > 0 {
+			c.Hostname = names[0]
+		}
+
+		clients = append(clients, c)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(clients)
+}
+
 func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface,
 	store *configstore.ConfigStore, reconfigurer configapi.Reconfigurer,
 	broadcaster *logstream.Broadcaster,
@@ -207,6 +245,8 @@ func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface,
 	if store != nil {
 		configapi.RegisterEndpoints(router, configapi.NewConfigHandler(store, reconfigurer))
 	}
+
+	router.Get("/api/discovered-clients", handleDiscoveredClients)
 
 	if broadcaster != nil {
 		router.Get("/api/ws/logs", logstream.Handler(broadcaster))

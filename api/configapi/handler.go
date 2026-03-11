@@ -330,11 +330,21 @@ func (h *ConfigHandler) ApplyConfig(ctx context.Context, _ ApplyConfigRequestObj
 // --- Conversion helpers ---
 
 func clientGroupToAPI(g configstore.ClientGroup) ClientGroup {
+	clients := []string(g.Clients)
+	if clients == nil {
+		clients = []string{}
+	}
+
+	groups := []string(g.Groups)
+	if groups == nil {
+		groups = []string{}
+	}
+
 	return ClientGroup{
 		Id:      int(g.ID),
 		Name:    g.Name,
-		Clients: []string(g.Clients),
-		Groups:  []string(g.Groups),
+		Clients: clients,
+		Groups:  groups,
 	}
 }
 

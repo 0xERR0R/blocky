@@ -1,10 +1,14 @@
-.PHONY: all clean generate build test e2e-test e2e-test-coverage lint run fmt docker-build help check-tools
+.PHONY: all clean generate build test e2e-test e2e-test-coverage lint run fmt docker-build docker-push help check-tools
 .DEFAULT_GOAL:=help
 
 VERSION?=$(shell git describe --always --tags)
 BUILD_TIME?=$(shell date --iso-8601=seconds)
 DOC_PATH?="main"
 DOCKER_IMAGE_NAME=spx01/blocky
+
+GIT_SHA:=$(shell git rev-parse --short HEAD)
+DOCKER_REGISTRY?=ghcr.io/chrissnell
+DOCKER_TAG?=$(GIT_SHA)
 
 BINARY_NAME:=blocky
 BIN_OUT_DIR?=bin
@@ -151,16 +155,19 @@ fmt: check-go ## gofmt and goimports all go files
 	go tool gofumpt -l -w -extra .
 	find . -name '*.go' -exec go tool goimports -w {} +
 
-docker-build: check-docker generate ## Build docker image
-	docker buildx build \
+docker-build: check-docker ## Build docker image for ghcr.io
+	docker build \
+		--platform linux/amd64 \
 		--build-arg VERSION=${VERSION} \
 		--build-arg BUILD_TIME=${BUILD_TIME} \
-		--build-arg GOPROXY \
-		--build-arg DOC_PATH=${DOC_PATH} \
-		--network=host \
-		-o type=docker \
-		-t ${DOCKER_IMAGE_NAME} \
+		-t $(DOCKER_REGISTRY)/blocky:$(DOCKER_TAG) \
+		-t $(DOCKER_REGISTRY)/blocky:latest \
 		.
+
+docker-push: docker-build ## Build and push docker image to ghcr.io
+	docker push $(DOCKER_REGISTRY)/blocky:$(DOCKER_TAG)
+	docker push $(DOCKER_REGISTRY)/blocky:latest
+	@echo "Pushed $(DOCKER_REGISTRY)/blocky:$(DOCKER_TAG)"
 
 check-tools: check-go check-docker ## Check if all required tools are installed
 

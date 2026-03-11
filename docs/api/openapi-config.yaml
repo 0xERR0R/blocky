@@ -349,7 +349,6 @@ components:
 
     ClientGroupInput:
       type: object
-      required: [clients, groups]
       properties:
         clients:
           type: array

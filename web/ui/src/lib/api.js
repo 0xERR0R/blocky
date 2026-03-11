@@ -62,5 +62,12 @@ export const blockSettings = {
   update: (body) => request('PUT', '/block-settings', body),
 }
 
+// Discovered Clients (ARP-based network discovery)
+export async function getDiscoveredClients() {
+  const resp = await fetch('/api/discovered-clients')
+  if (!resp.ok) return []
+  return resp.json()
+}
+
 // Apply
 export const apply = () => request('POST', '/apply')
