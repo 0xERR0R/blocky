@@ -27,6 +27,7 @@ const (
 	udpPort   = 53
 	tlsPort   = 853
 	httpsPort = 443
+	quicPort  = 853
 
 	secretObfuscator = "********"
 )
@@ -45,6 +46,7 @@ type Configurable interface {
 // tcp+udp // TCP and UDP protocols
 // tcp-tls // TCP-TLS protocol
 // https // HTTPS protocol
+// quic // DNS-over-QUIC protocol
 // )
 type NetProtocol uint16
 
@@ -150,6 +152,7 @@ var netDefaultPort = map[NetProtocol]uint16{
 	NetProtocolTcpUdp: udpPort,
 	NetProtocolTcpTls: tlsPort,
 	NetProtocolHttps:  httpsPort,
+	NetProtocolQuic:   quicPort,
 }
 
 //nolint:gochecknoglobals

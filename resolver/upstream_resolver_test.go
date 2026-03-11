@@ -311,6 +311,86 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 		})
 	})
 
+	Describe("Using DNS over QUIC (DoQ) upstream", func() {
+		When("Configured DoQ resolver can resolve query", func() {
+			It("should return answer from DoQ upstream", func() {
+				mockUpstream := NewMockDoQUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
+				upstream := mockUpstream.Start()
+
+				sutConfig.Upstream = upstream
+				sut = newUpstreamResolverUnchecked(sutConfig, nil)
+
+				// Override TLS config to skip certificate verification for test server
+				quicClient := sut.upstreamClient.(*quicUpstreamClient)
+				quicClient.tlsConfig.InsecureSkipVerify = true
+
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("example.com.", A, "123.124.122.122"),
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+							HaveTTL(BeNumerically("==", 123)),
+						))
+			})
+		})
+
+		When("DoQ upstream returns error code", func() {
+			It("should return error response", func() {
+				mockUpstream := NewMockDoQUpstreamServer().WithAnswerError(dns.RcodeServerFailure)
+				upstream := mockUpstream.Start()
+
+				sutConfig.Upstream = upstream
+				sut = newUpstreamResolverUnchecked(sutConfig, nil)
+
+				quicClient := sut.upstreamClient.(*quicUpstreamClient)
+				quicClient.tlsConfig.InsecureSkipVerify = true
+
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(HaveReturnCode(dns.RcodeServerFailure))
+			})
+		})
+
+		When("DoQ upstream is not reachable", func() {
+			It("should return error", func() {
+				sutConfig.Upstream = config.Upstream{
+					Net:  config.NetProtocolQuic,
+					Host: "127.0.0.1",
+					Port: 1, // nothing listening here
+				}
+				sut = newUpstreamResolverUnchecked(sutConfig, systemResolverBootstrap)
+
+				_, err := sut.Resolve(ctx, newRequest("example.com.", A))
+				Expect(err).Should(HaveOccurred())
+			})
+		})
+
+		When("Multiple queries are sent", func() {
+			It("should reuse the QUIC connection", func() {
+				mockUpstream := NewMockDoQUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
+				upstream := mockUpstream.Start()
+
+				sutConfig.Upstream = upstream
+				sut = newUpstreamResolverUnchecked(sutConfig, nil)
+
+				quicClient := sut.upstreamClient.(*quicUpstreamClient)
+				quicClient.tlsConfig.InsecureSkipVerify = true
+
+				for i := 0; i < 3; i++ {
+					Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+						Should(
+							SatisfyAll(
+								BeDNSRecord("example.com.", A, "123.124.122.122"),
+								HaveResponseType(ResponseTypeRESOLVED),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
+				}
+
+				Expect(mockUpstream.GetCallCount()).Should(Equal(3))
+			})
+		})
+	})
+
 	Describe("Certificate Pinning", Label("certificatePinning"), func() {
 		var (
 			testCert        *x509.Certificate

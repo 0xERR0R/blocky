@@ -182,6 +182,11 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 			},
 		}
 
+	case config.NetProtocolQuic:
+		return &quicUpstreamClient{
+			tlsConfig: &tlsConfig,
+		}
+
 	case config.NetProtocolTcpUdp:
 		return &dnsUpstreamClient{
 			tcpClient: &dns.Client{
