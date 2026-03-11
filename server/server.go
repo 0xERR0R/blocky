@@ -117,7 +117,7 @@ func newTLSConfig(cfg *config.Config) (*tls.Config, error) {
 // NewServer creates new server instance with passed config
 //
 //nolint:funlen
-func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err error) {
+func NewServer(ctx context.Context, cfg *config.Config, store *configstore.ConfigStore) (server *Server, err error) {
 	var tlsCfg *tls.Config
 
 	if len(cfg.Ports.HTTPS) > 0 || len(cfg.Ports.TLS) > 0 {
@@ -167,6 +167,7 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 	server = &Server{
 		dnsServers:  dnsServers,
 		cfg:         cfg,
+		configStore: store,
 		bootstrap:   bootstrap,
 		redisClient: redisClient,
 		broadcaster: broadcaster,
@@ -467,11 +468,6 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-// SetConfigStore sets the config store for dynamic reconfiguration.
-func (s *Server) SetConfigStore(store *configstore.ConfigStore) {
-	s.configStore = store
 }
 
 // Reconfigure rebuilds the resolver chain from current DB state.

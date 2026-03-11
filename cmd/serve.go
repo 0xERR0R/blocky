@@ -84,13 +84,9 @@ func startServer(_ *cobra.Command, _ []string) error {
 	ctx, cancelFn := context.WithCancel(context.Background())
 	defer cancelFn()
 
-	srv, err := server.NewServer(ctx, cfg)
+	srv, err := server.NewServer(ctx, cfg, store)
 	if err != nil {
 		return fmt.Errorf("can't start server: %w", err)
-	}
-
-	if store != nil {
-		srv.SetConfigStore(store)
 	}
 
 	const errChanSize = 10
