@@ -27,10 +27,17 @@ func (s *ConfigStore) BuildBlockingConfig(base config.Blocking) (config.Blocking
 		return base, fmt.Errorf("load block settings: %w", err)
 	}
 
-	// Client groups
-	base.ClientGroupsBlock = make(map[string][]string, len(groups))
+	// Client groups: expand each group's clients into individual clientGroupsBlock entries.
+	// blocky expects keys to be client identifiers (IP, CIDR, "default"), not group names.
+	base.ClientGroupsBlock = make(map[string][]string)
 	for _, g := range groups {
-		base.ClientGroupsBlock[g.Name] = g.Groups
+		if g.Name == "default" {
+			base.ClientGroupsBlock["default"] = g.Groups
+			continue
+		}
+		for _, client := range g.Clients {
+			base.ClientGroupsBlock[client] = g.Groups
+		}
 	}
 
 	// Deny/allowlists from sources
