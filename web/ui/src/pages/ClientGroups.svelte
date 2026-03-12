@@ -7,7 +7,7 @@
   import TextInput from '../components/TextInput.svelte'
   import EmptyState from '../components/EmptyState.svelte'
   import Autocomplete from '../components/Autocomplete.svelte'
-  import { clientGroups, blocklistSources, getDiscoveredClients } from '../lib/api.js'
+  import { clientGroups, getDiscoveredClients } from '../lib/api.js'
   import { markDirty } from '../lib/dirty.svelte.js'
 
   // --- State ---
@@ -24,9 +24,6 @@
 
   // Discovered clients from ARP
   let discovered = $state([])
-
-  // Available blocklist group names
-  let availableGroups = $state([])
 
   // --- List view ---
   const columns = [
@@ -67,17 +64,7 @@
     detailLoading = true
     selected = row
 
-    // Load discovered clients and available blocklist groups in parallel
-    const [disc, sources] = await Promise.all([
-      getDiscoveredClients().catch(() => []),
-      blocklistSources.list().catch(() => []),
-    ])
-
-    discovered = disc ?? []
-
-    // Extract unique group names from blocklist sources
-    const groupSet = new Set((sources ?? []).map(s => s.group_name).filter(Boolean))
-    availableGroups = [...groupSet].sort()
+    discovered = await getDiscoveredClients().catch(() => []) ?? []
 
     detailLoading = false
   }
@@ -103,35 +90,6 @@
     const updated = { clients: selected.clients.filter(c => c !== client), groups: selected.groups }
     await clientGroups.put(selected.name, updated)
     selected = { ...selected, clients: updated.clients }
-    markDirty()
-    load()
-  }
-
-  // --- Blocklist group management ---
-  let groupInput = $state('')
-
-  // Groups from available list not yet assigned
-  let unassignedGroups = $derived(
-    availableGroups.filter(g => !selected?.groups?.includes(g))
-  )
-
-  async function addGroup(name) {
-    if (!name || !selected) return
-    if (selected.groups.includes(name)) return
-
-    const updated = { clients: selected.clients, groups: [...selected.groups, name] }
-    await clientGroups.put(selected.name, updated)
-    selected = { ...selected, groups: updated.groups }
-    groupInput = ''
-    markDirty()
-    load()
-  }
-
-  async function removeGroup(name) {
-    if (!selected) return
-    const updated = { clients: selected.clients, groups: selected.groups.filter(g => g !== name) }
-    await clientGroups.put(selected.name, updated)
-    selected = { ...selected, groups: updated.groups }
     markDirty()
     load()
   }
@@ -174,32 +132,6 @@
         </div>
       </Card>
 
-      <!-- Blocklist Groups Card -->
-      <Card title="Blocklist Groups">
-        <div class="chip-list">
-          {#each selected.groups as group}
-            <span class="chip">
-              {group}
-              <button class="chip-remove" onclick={() => removeGroup(group)}>&times;</button>
-            </span>
-          {:else}
-            <span class="empty-hint">no blocklist groups assigned</span>
-          {/each}
-        </div>
-        <div class="add-section">
-          {#if unassignedGroups.length > 0}
-            <div class="group-buttons">
-              {#each unassignedGroups as g}
-                <Button size="sm" onclick={() => addGroup(g)}>+ {g}</Button>
-              {/each}
-            </div>
-          {/if}
-          <div class="group-custom">
-            <TextInput bind:value={groupInput} placeholder="or type a group name" />
-            <Button size="sm" disabled={!groupInput.trim()} onclick={() => addGroup(groupInput.trim())}>add</Button>
-          </div>
-        </div>
-      </Card>
     {/if}
   {:else}
     <!-- LIST VIEW -->
@@ -232,7 +164,7 @@
   <FormField label="Name">
     <TextInput bind:value={createName} placeholder="e.g. kids" />
   </FormField>
-  <p class="modal-hint">You can add clients and blocklist groups after creating the group.</p>
+  <p class="modal-hint">You can add clients after creating the group.</p>
   {#snippet actions()}
     <Button onclick={() => createOpen = false}>cancel</Button>
     <Button onclick={create} disabled={!createName.trim()}>Create</Button>
@@ -312,19 +244,6 @@
     font-size: var(--text-xs);
     color: var(--color-text-dim);
     margin-top: 0.25rem;
-  }
-
-  .group-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .group-custom {
-    display: flex;
-    gap: 0.5rem;
-    align-items: flex-start;
   }
 
   .modal-hint {
