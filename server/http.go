@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/0xERR0R/blocky/config"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 )
@@ -18,18 +17,18 @@ type httpServer struct {
 	name string
 }
 
-func newHTTPServer(name string, handler http.Handler, cfg *config.Config) *httpServer {
-	var (
-		writeTimeout      = cfg.Blocking.Loading.Downloads.WriteTimeout
-		readTimeout       = cfg.Blocking.Loading.Downloads.ReadTimeout
-		readHeaderTimeout = cfg.Blocking.Loading.Downloads.ReadHeaderTimeout
-	)
+const (
+	serverReadTimeout       = 30 * time.Second
+	serverReadHeaderTimeout = 10 * time.Second
+	serverWriteTimeout      = 60 * time.Second
+)
 
+func newHTTPServer(name string, handler http.Handler) *httpServer {
 	return &httpServer{
 		inner: http.Server{
-			ReadTimeout:       time.Duration(readTimeout),
-			ReadHeaderTimeout: time.Duration(readHeaderTimeout),
-			WriteTimeout:      time.Duration(writeTimeout),
+			ReadTimeout:       serverReadTimeout,
+			ReadHeaderTimeout: serverReadHeaderTimeout,
+			WriteTimeout:      serverWriteTimeout,
 			Handler:           withCommonMiddleware(handler),
 		},
 
@@ -91,7 +90,7 @@ func newCORSMiddleware() httpMiddleware {
 	options := cors.Options{
 		AllowCredentials: true,
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		AllowedMethods:   []string{"GET", "POST"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE"},
 		AllowedOrigins:   []string{"*"},
 		ExposedHeaders:   []string{"Link"},
 		MaxAge:           int(corsMaxAge.Seconds()),

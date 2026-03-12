@@ -21,9 +21,21 @@ func Open(path string) (*ConfigStore, error) {
 		return nil, fmt.Errorf("open config database: %w", err)
 	}
 
+	// SQLite: single writer, avoid connection pool contention
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("get underlying sql.DB: %w", err)
+	}
+
+	sqlDB.SetMaxOpenConns(1)
+
 	// Enable WAL mode for concurrent reads during DNS resolution
 	if err := db.Exec("PRAGMA journal_mode=WAL").Error; err != nil {
 		return nil, fmt.Errorf("enable WAL mode: %w", err)
+	}
+
+	if err := db.Exec("PRAGMA busy_timeout=5000").Error; err != nil {
+		return nil, fmt.Errorf("set busy timeout: %w", err)
 	}
 
 	if err := db.AutoMigrate(

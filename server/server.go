@@ -190,7 +190,7 @@ func NewServer(ctx context.Context, cfg *config.Config, store *configstore.Confi
 	server.registerDoHEndpoints(httpRouter, cfg)
 
 	if len(cfg.Ports.HTTP) != 0 {
-		srv := newHTTPServer("http", httpRouter, cfg)
+		srv := newHTTPServer("http", httpRouter)
 
 		for _, l := range httpListeners {
 			server.servers[l] = srv
@@ -198,7 +198,7 @@ func NewServer(ctx context.Context, cfg *config.Config, store *configstore.Confi
 	}
 
 	if len(cfg.Ports.HTTPS) != 0 {
-		srv := newHTTPServer("https", httpRouter, cfg)
+		srv := newHTTPServer("https", httpRouter)
 
 		for _, l := range httpsListeners {
 			server.servers[l] = srv
