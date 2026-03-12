@@ -2,11 +2,12 @@
 .DEFAULT_GOAL:=help
 
 VERSION:=$(shell cat VERSION)
-BUILD_TIME?=$(shell date --iso-8601=seconds)
+BUILD_TIME?=$(shell date -u '+%Y-%m-%dT%H:%M:%S%z')
 DOC_PATH?="main"
 
 DOCKER_REGISTRY?=ghcr.io/chrissnell
 DOCKER_TAG:=v$(VERSION)
+GIT_REMOTE:=chrissnell
 
 # Helm config
 HELM_CHART:=packaging/helm/blocky
@@ -25,7 +26,7 @@ GO_BUILD_LD_FLAGS:=\
 	-w \
 	-s \
 	-X github.com/0xERR0R/blocky/util.Version=${VERSION} \
-	-X github.com/0xERR0R/blocky/util.BuildTime=$(shell date -d "${BUILD_TIME}" '+%Y%m%d-%H%M%S') \
+	-X github.com/0xERR0R/blocky/util.BuildTime=$(shell date -j -f '%Y-%m-%dT%H:%M:%S%z' "${BUILD_TIME}" '+%Y%m%d-%H%M%S' 2>/dev/null || date -d "${BUILD_TIME}" '+%Y%m%d-%H%M%S' 2>/dev/null || echo "${BUILD_TIME}") \
 	-X github.com/0xERR0R/blocky/util.Architecture=${GOARCH}${GOARM}
 
 GO_BUILD_OUTPUT:=$(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
@@ -184,7 +185,7 @@ bump-minor: ## Bump minor version, commit, tag, and push
 	git add VERSION
 	git commit -m "Bump version to v$(NEW_VERSION)"
 	git tag "v$(NEW_VERSION)"
-	git push && git push origin "v$(NEW_VERSION)"
+	git push $(GIT_REMOTE) && git push $(GIT_REMOTE) "v$(NEW_VERSION)"
 
 bump-point: ## Bump point version, commit, tag, and push
 	@echo "Current version: $(VERSION)"
@@ -194,7 +195,7 @@ bump-point: ## Bump point version, commit, tag, and push
 	git add VERSION
 	git commit -m "Bump version to v$(NEW_VERSION)"
 	git tag "v$(NEW_VERSION)"
-	git push && git push origin "v$(NEW_VERSION)"
+	git push $(GIT_REMOTE) && git push $(GIT_REMOTE) "v$(NEW_VERSION)"
 
 deploy: docker-push ## Build, push, and deploy to Kubernetes via Helm
 	helm upgrade --install $(HELM_RELEASE) $(HELM_CHART) \

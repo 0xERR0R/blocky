@@ -27,7 +27,7 @@
     <span class="count">{entries.length} entries</span>
   </div>
   <div class="log-body" bind:this={container}>
-{#each entries as entry}<span class="log-{levelClass(entry.level)}">{formatTime(entry.timestamp)}  {(entry.level || '').padEnd(5)}  {entry.message}</span>{:else}<span class="log-dim">waiting for data...</span>{/each}
+{#each entries as entry}<div class="log-{levelClass(entry.level)}">{formatTime(entry.timestamp)}  {(entry.level || '').padEnd(5)}  {entry.message}</div>{:else}<span class="log-dim">waiting for data...</span>{/each}
   </div>
 </div>
 
