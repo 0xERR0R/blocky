@@ -5,7 +5,6 @@
   import Modal from '../components/Modal.svelte'
   import FormField from '../components/FormField.svelte'
   import TextInput from '../components/TextInput.svelte'
-  import Select from '../components/Select.svelte'
   import Toggle from '../components/Toggle.svelte'
   import EmptyState from '../components/EmptyState.svelte'
   import Badge from '../components/Badge.svelte'
@@ -20,8 +19,6 @@
 
   const columns = [
     { key: 'group_name', label: 'Group', sortable: true },
-    { key: 'list_type', label: 'Type', render: (r) => r.list_type === 'deny' ? 'Deny' : 'Allow' },
-    { key: 'source_type', label: 'Source Type' },
     { key: 'source', label: 'Source' },
     { key: 'enabled', label: 'Status', render: (r) => r.enabled ? '✓' : '—' },
   ]
@@ -91,19 +88,6 @@
 <Modal bind:open={editOpen} title={editId ? 'Edit Source' : 'New Blocklist Source'}>
   <FormField label="Group Name">
     <TextInput bind:value={form.group_name} placeholder="e.g. ads" />
-  </FormField>
-  <FormField label="List Type">
-    <Select bind:value={form.list_type} options={[
-      { value: 'deny', label: 'Deny (blocklist)' },
-      { value: 'allow', label: 'Allow (whitelist)' },
-    ]} />
-  </FormField>
-  <FormField label="Source Type">
-    <Select bind:value={form.source_type} options={[
-      { value: 'http', label: 'HTTP URL' },
-      { value: 'file', label: 'Local File' },
-      { value: 'inline', label: 'Inline Text' },
-    ]} />
   </FormField>
   <FormField label="Source">
     <TextInput bind:value={form.source} placeholder="https://example.com/blocklist.txt" />
