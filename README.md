@@ -1,20 +1,6 @@
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/0xERR0R/blocky/makefile.yml "Make")](https://github.com/0xERR0R/blocky/actions/workflows/makefile.yml)
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/0xERR0R/blocky/release.yml "Release")](https://github.com/0xERR0R/blocky/actions/workflows/release.yml)
-[![GitHub latest version](https://img.shields.io/github/v/release/0xERR0R/blocky "Latest version")](https://github.com/0xERR0R/blocky/releases)
-[![GitHub Release Date](https://img.shields.io/github/release-date/0xERR0R/blocky "Latest release date")](https://github.com/0xERR0R/blocky/releases)
-[![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/0xERR0R/blocky "Go version")](#)
-[![Docker pulls](https://img.shields.io/docker/pulls/spx01/blocky "Latest version")](https://hub.docker.com/r/spx01/blocky)
-[![Docker Image Size (latest)](https://img.shields.io/docker/image-size/spx01/blocky/latest)](https://hub.docker.com/r/spx01/blocky)
-[![Codecov](https://img.shields.io/codecov/c/gh/0xERR0R/blocky "Code coverage")](https://codecov.io/gh/0xERR0R/blocky)
-[![Codacy grade](https://img.shields.io/codacy/grade/8fcd8f8420b8419c808c47af58ed9282 "Codacy grade")](#)
-[![Go Report Card](https://goreportcard.com/badge/github.com/0xERR0R/blocky)](https://goreportcard.com/report/github.com/0xERR0R/blocky)
-[![Donation](https://img.shields.io/badge/buy%20me%20a%20coffee-donate-blueviolet.svg)](https://ko-fi.com/0xerr0r)
+# Blocky (Experimental Fork)
 
-<p align="center">
-  <img height="200" src="https://github.com/0xERR0R/blocky/blob/main/docs/blocky.svg">
-</p>
-
-# Blocky
+**This is an experimental fork of [Blocky](https://github.com/0xERR0R/blocky) with a new UI. It is not intended for general consumption. Do not contact the Blocky author with questions about this fork.**
 
 Blocky is a DNS proxy and ad-blocker for the local network written in Go with following features:
 
@@ -87,9 +73,3 @@ You can jump to [Installation](https://0xerr0r.github.io/blocky/latest/installat
 
 You can find full documentation and configuration examples
 at: [https://0xERR0R.github.io/blocky/](https://0xERR0R.github.io/blocky/)
-
-## Contribution
-
-Issues, feature suggestions and pull requests are welcome!
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/G2G25XZQG)
