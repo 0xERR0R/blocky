@@ -90,6 +90,14 @@
   --color-scrollbar-thumb-hover: #444;
 }
 
+@font-face {
+  font-family: 'Inconsolata';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('/ui/fonts/inconsolata.woff2') format('woff2');
+}
+
 :root {
   /* Typography — all mono */
   --font-mono: 'Inconsolata', 'Courier New', monospace;
