@@ -161,9 +161,9 @@
     {:else}
       <DataTable {columns} rows={sources}>
         {#snippet rowActions(row)}
-          <Button size="sm" onclick={() => openAssign(row)}>groups</Button>
-          <Button size="sm" onclick={() => openEdit(row)}>edit</Button>
-          <Button size="sm" variant="danger" onclick={() => remove(row.id)}>delete</Button>
+          <Button size="sm" onclick={() => openAssign(row)}>Groups</Button>
+          <Button size="sm" onclick={() => openEdit(row)}>Edit</Button>
+          <Button size="sm" variant="danger" onclick={() => remove(row.id)}>Delete</Button>
         {/snippet}
       </DataTable>
     {/if}
@@ -179,7 +179,7 @@
     <Toggle bind:checked={form.enabled} />
   </FormField>
   {#snippet actions()}
-    <Button onclick={() => editOpen = false}>cancel</Button>
+    <Button onclick={() => editOpen = false}>Cancel</Button>
     <Button onclick={save}>Save</Button>
   {/snippet}
 </Modal>
@@ -203,7 +203,7 @@
     </div>
   {/if}
   {#snippet actions()}
-    <Button onclick={() => assignOpen = false}>cancel</Button>
+    <Button onclick={() => assignOpen = false}>Cancel</Button>
     {#if groups.length > 0}
       <Button onclick={saveAssignments}>Save</Button>
     {/if}

@@ -150,9 +150,9 @@
       {:else}
         <DataTable {columns} rows={groups}>
           {#snippet rowActions(row)}
-            <Button size="sm" onclick={() => openDetail(row)}>manage</Button>
+            <Button size="sm" onclick={() => openDetail(row)}>Manage</Button>
             {#if row.name !== 'default'}
-              <Button size="sm" variant="danger" onclick={() => remove(row.name)}>delete</Button>
+              <Button size="sm" variant="danger" onclick={() => remove(row.name)}>Delete</Button>
             {/if}
           {/snippet}
         </DataTable>
@@ -168,7 +168,7 @@
   </FormField>
   <p class="modal-hint">You can add clients after creating the group.</p>
   {#snippet actions()}
-    <Button onclick={() => createOpen = false}>cancel</Button>
+    <Button onclick={() => createOpen = false}>Cancel</Button>
     <Button onclick={create} disabled={!createName.trim()}>Create</Button>
   {/snippet}
 </Modal>
