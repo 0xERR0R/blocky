@@ -1,4 +1,50 @@
-:root {
+:root, [data-theme="light"] {
+  /* Background & Surface */
+  --color-bg: #f5f5f4;
+  --color-surface: #fff;
+  --color-surface-raised: #fff;
+  --color-border: #d4d4d4;
+  --color-border-subtle: #e5e5e5;
+
+  /* Text */
+  --color-text: #1a1a1a;
+  --color-text-muted: #737373;
+  --color-text-dim: #a3a3a3;
+  --color-text-inverse: #f5f5f4;
+
+  /* Action colors */
+  --color-accent: #1a7a1a;
+  --color-primary: #d48f00;
+  --color-primary-hover: #b87c00;
+  --color-primary-muted: rgba(212, 143, 0, 0.1);
+  --color-primary-fg: #fff;
+  --color-danger: #c60202;
+  --color-danger-hover: #a80202;
+  --color-danger-muted: rgba(198, 2, 2, 0.08);
+  --color-danger-fg: #fff;
+  --color-success: #1a7a1a;
+  --color-success-fill: #1a7a1a;
+  --color-success-muted: rgba(26, 122, 26, 0.1);
+  --color-success-fg: #fff;
+  --color-warning: #d48f00;
+  --color-warning-muted: rgba(212, 143, 0, 0.1);
+  --color-warning-fg: #fff;
+  --color-info: #1a6f96;
+  --color-info-muted: rgba(26, 111, 150, 0.1);
+  --color-info-fg: #fff;
+
+  /* Buttons */
+  --color-btn-bg: #e5e5e5;
+  --color-btn-bg-hover: #d4d4d4;
+  --color-btn-border: #c4c4c4;
+
+  /* Scrollbar */
+  --color-scrollbar-track: #f0f0f0;
+  --color-scrollbar-thumb: #c4c4c4;
+  --color-scrollbar-thumb-hover: #a3a3a3;
+}
+
+[data-theme="dark"] {
   /* Background & Surface */
   --color-bg: #0a0a0a;
   --color-surface: #111;
@@ -12,7 +58,7 @@
   --color-text-dim: #444;
   --color-text-inverse: #0a0a0a;
 
-  /* Action colors — bold and saturated */
+  /* Action colors */
   --color-accent: #2a8a2a;
   --color-primary: #ffaa00;
   --color-primary-hover: #ffbb33;
@@ -38,6 +84,13 @@
   --color-btn-bg-hover: #252525;
   --color-btn-border: #333;
 
+  /* Scrollbar */
+  --color-scrollbar-track: #111;
+  --color-scrollbar-thumb: #333;
+  --color-scrollbar-thumb-hover: #444;
+}
+
+:root {
   /* Typography — all mono */
   --font-mono: 'Inconsolata', 'Courier New', monospace;
   --text-xs: 0.72rem;

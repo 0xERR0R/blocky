@@ -1,5 +1,6 @@
 <script>
   import ApplyButton from './ApplyButton.svelte'
+  import ThemeToggle from './ThemeToggle.svelte'
   import { getDirtyCount, clearDirty, onDirtyChange } from '../lib/dirty.svelte.js'
   import { apply } from '../lib/api.js'
 
@@ -43,6 +44,7 @@
           class:active={currentPath === item.path}
         >{item.label}</a>
       {/each}
+      <ThemeToggle />
     </nav>
   </div>
   <ApplyButton pending={pendingCount} loading={applying} onclick={handleApply} />

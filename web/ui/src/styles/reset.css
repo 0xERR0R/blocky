@@ -47,6 +47,6 @@ table {
 }
 
 ::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: #111; }
-::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #444; }
+::-webkit-scrollbar-track { background: var(--color-scrollbar-track); }
+::-webkit-scrollbar-thumb { background: var(--color-scrollbar-thumb); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-scrollbar-thumb-hover); }
