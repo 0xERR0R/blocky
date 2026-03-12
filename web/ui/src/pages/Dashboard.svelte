@@ -1,6 +1,25 @@
 <script>
+  import { onDestroy } from 'svelte'
   import Card from '../components/Card.svelte'
   import Badge from '../components/Badge.svelte'
+  import { getStats } from '../lib/api.js'
+
+  let stats = $state(null)
+
+  async function refresh() {
+    try {
+      stats = await getStats()
+    } catch { /* ignore */ }
+  }
+
+  refresh()
+  const timer = setInterval(refresh, 5000)
+  onDestroy(() => clearInterval(timer))
+
+  function fmt(n) {
+    if (n == null) return '—'
+    return n.toLocaleString('en-US', { maximumFractionDigits: 0 })
+  }
 </script>
 
 <div class="page">
@@ -15,20 +34,20 @@
     </Card>
     <Card>
       <div class="stat">
-        <span class="stat-label">Queries Today</span>
-        <span class="stat-value">—</span>
+        <span class="stat-label">Queries</span>
+        <span class="stat-value">{fmt(stats?.total_queries)}</span>
       </div>
     </Card>
     <Card>
       <div class="stat">
         <span class="stat-label">Blocked</span>
-        <span class="stat-value">—</span>
+        <span class="stat-value">{fmt(stats?.blocked_queries)}</span>
       </div>
     </Card>
     <Card>
       <div class="stat">
         <span class="stat-label">Block Rate</span>
-        <span class="stat-value">—</span>
+        <span class="stat-value">{stats ? stats.block_rate.toFixed(1) + '%' : '—'}</span>
       </div>
     </Card>
   </div>

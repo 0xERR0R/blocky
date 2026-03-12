@@ -71,3 +71,10 @@ export async function getDiscoveredClients() {
 
 // Apply
 export const apply = () => request('POST', '/apply')
+
+// Stats
+export async function getStats() {
+  const resp = await fetch('/api/stats')
+  if (!resp.ok) return null
+  return resp.json()
+}
