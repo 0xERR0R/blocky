@@ -18,6 +18,18 @@
     const d = new Date(ts)
     return d.toLocaleTimeString('en-GB', { hour12: false, fractionalSecondDigits: 3 })
   }
+
+  function formatMessage(entry) {
+    const f = entry.fields
+    if (f && f.question_name) {
+      const qtype = (f.question_type || '').padEnd(5)
+      const rcode = f.response_code || ''
+      const reason = f.response_reason ? ` (${f.response_reason})` : ''
+      const dur = f.duration_ms != null ? `  ${f.duration_ms}ms` : ''
+      return `${qtype}  ${f.question_name}  ${rcode}${reason}${dur}`
+    }
+    return entry.message
+  }
 </script>
 
 <div class="log-viewer">
@@ -27,7 +39,7 @@
     <span class="count">{entries.length} entries</span>
   </div>
   <div class="log-body" bind:this={container}>
-{#each entries as entry}<div class="log-{levelClass(entry.level)}">{formatTime(entry.timestamp)}  {(entry.level || '').padEnd(5)}  {entry.message}</div>{:else}<span class="log-dim">waiting for data...</span>{/each}
+{#each entries as entry}<div class="log-{levelClass(entry.level)}">{formatTime(entry.timestamp)}  {(entry.level || '').padEnd(5)}  {formatMessage(entry)}</div>{:else}<span class="log-dim">waiting for data...</span>{/each}
   </div>
 </div>
 
