@@ -17,3 +17,4 @@ coverage.txt
 coverage/
 blocky
 .context/
+.claude/
