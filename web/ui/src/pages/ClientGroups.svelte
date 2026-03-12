@@ -151,7 +151,9 @@
         <DataTable {columns} rows={groups}>
           {#snippet rowActions(row)}
             <Button size="sm" onclick={() => openDetail(row)}>manage</Button>
-            <Button size="sm" variant="danger" onclick={() => remove(row.name)}>delete</Button>
+            {#if row.name !== 'default'}
+              <Button size="sm" variant="danger" onclick={() => remove(row.name)}>delete</Button>
+            {/if}
           {/snippet}
         </DataTable>
       {/if}
