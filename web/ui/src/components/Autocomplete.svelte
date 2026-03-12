@@ -147,6 +147,6 @@
   }
 
   .item-ip { font-weight: 600; min-width: 8em; }
-  .item-mac { color: var(--color-text-dim); font-family: monospace; font-size: var(--text-xs); }
+  .item-mac { color: var(--color-text-dim); font-family: var(--font-mono); font-size: var(--text-xs); }
   .item-host { color: var(--color-text-muted); font-size: var(--text-xs); }
 </style>
