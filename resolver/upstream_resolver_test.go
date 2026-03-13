@@ -387,6 +387,8 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				}
 
 				Expect(mockUpstream.GetCallCount()).Should(Equal(3))
+				// Verify only a single QUIC connection was established (not one per query)
+				Expect(mockUpstream.GetConnCount()).Should(Equal(1))
 			})
 		})
 	})

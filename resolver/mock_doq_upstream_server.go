@@ -24,7 +24,10 @@ import (
 // MockDoQUpstreamServer is a mock DNS-over-QUIC server for testing.
 type MockDoQUpstreamServer struct {
 	callCount int32
+	connCount int32
 	listener  *quic.Listener
+	transport *quic.Transport
+	udpConn   *net.UDPConn
 	answerFn  func(request *dns.Msg) (response *dns.Msg)
 }
 
@@ -65,9 +68,22 @@ func (t *MockDoQUpstreamServer) GetCallCount() int {
 	return int(atomic.LoadInt32(&t.callCount))
 }
 
+// GetConnCount returns the number of QUIC connections accepted by the server.
+func (t *MockDoQUpstreamServer) GetConnCount() int {
+	return int(atomic.LoadInt32(&t.connCount))
+}
+
 func (t *MockDoQUpstreamServer) Close() {
 	if t.listener != nil {
 		_ = t.listener.Close()
+	}
+
+	if t.transport != nil {
+		_ = t.transport.Close()
+	}
+
+	if t.udpConn != nil {
+		_ = t.udpConn.Close()
 	}
 }
 
@@ -103,7 +119,10 @@ func (t *MockDoQUpstreamServer) Start() config.Upstream {
 	udpConn, err := net.ListenUDP("udp4", udpAddr)
 	util.FatalOnError("can't create UDP socket", err)
 
+	t.udpConn = udpConn
+
 	tr := &quic.Transport{Conn: udpConn}
+	t.transport = tr
 
 	listener, err := tr.Listen(tlsConfig, &quic.Config{})
 	util.FatalOnError("can't create QUIC listener", err)
@@ -125,6 +144,8 @@ func (t *MockDoQUpstreamServer) serve() {
 		if err != nil {
 			return
 		}
+
+		atomic.AddInt32(&t.connCount, 1)
 
 		go t.handleConn(conn)
 	}

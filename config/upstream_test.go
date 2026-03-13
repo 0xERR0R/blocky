@@ -273,6 +273,24 @@ var _ = Describe("ParseUpstream", func() {
 				Expect(result.Host).Should(Equal("dns.example.com"))
 				Expect(result.Port).Should(Equal(uint16(8853)))
 			})
+
+			It("should parse DoQ with quic:// prefix for AdGuard compatibility", func() {
+				result, err := ParseUpstream("quic://dns.adguard.com")
+
+				Expect(err).Should(Succeed())
+				Expect(result.Net).Should(Equal(NetProtocolQuic))
+				Expect(result.Host).Should(Equal("dns.adguard.com"))
+				Expect(result.Port).Should(Equal(uint16(853)))
+			})
+
+			It("should parse DoQ with quic:// prefix and custom port", func() {
+				result, err := ParseUpstream("quic://dns.example.com:8853")
+
+				Expect(err).Should(Succeed())
+				Expect(result.Net).Should(Equal(NetProtocolQuic))
+				Expect(result.Host).Should(Equal("dns.example.com"))
+				Expect(result.Port).Should(Equal(uint16(8853)))
+			})
 		})
 
 		Describe("DoT", func() {

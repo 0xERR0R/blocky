@@ -101,6 +101,7 @@ following network protocols (net part of the resolver URL):
 - tcp+udp (UDP and TCP, dependent on query type)
 - https (aka DoH)
 - tcp-tls (aka DoT)
+- quic (aka DoQ, DNS-over-QUIC per RFC 9250)
 
 !!! hint
 
@@ -112,9 +113,9 @@ Each resolver must be defined as a string in following format: `[net:]host:[port
 
 | Parameter  | Type                             | Mandatory | Default value                                     |
 | ---------- | -------------------------------- | --------- | ------------------------------------------------- |
-| net        | enum (tcp+udp, tcp-tls or https) | no        | tcp+udp                                           |
-| host       | IP or hostname                   | yes       |                                                   |
-| port       | int (1 - 65535)                  | no        | 53 for udp/tcp, 853 for tcp-tls and 443 for https |
+| net        | enum (tcp+udp, tcp-tls, https or quic) | no        | tcp+udp                                                          |
+| host       | IP or hostname                         | yes       |                                                                  |
+| port       | int (1 - 65535)                        | no        | 53 for udp/tcp, 853 for tcp-tls and quic, 443 for https         |
 | commonName | string                           | no        | the host value                                    |
 
 The `commonName` parameter overrides the expected certificate common name value used for verification.
@@ -132,6 +133,7 @@ DNS Stamps are standardized URIs (following IETF draft-denis-dns-stamps) that in
 - Plain DNS (`sdns://AA...`)
 - DNS-over-HTTPS (`sdns://Ag...`)
 - DNS-over-TLS (`sdns://Aw...`)
+- DNS-over-QUIC (`sdns://BA...`)
 
 **Benefits:**
 
@@ -150,6 +152,8 @@ upstreams:
       - 8.8.8.8
       - https://dns.google/dns-query
       - tcp-tls:1.1.1.1:853
+      # DNS-over-QUIC (also accepts quic://dns.adguard.com for AdGuard compatibility)
+      - quic:dns.adguard.com
 
       # DNS Stamp format (equivalent servers)
       - sdns://AAcAAAAAAAAABzguOC44Ljg  # Google DNS
@@ -167,7 +171,7 @@ This is transparent to the user - if a DNS stamp includes certificate hashes, pi
 Use the [DNS Stamp Calculator](https://dnscrypt.info/stamps/) to create stamps for your DNS servers.
 
 !!! note
-    - DNSCrypt and DNS-over-QUIC protocols are not yet supported
+    - DNSCrypt protocol is not yet supported
     - Traditional and DNS stamp formats can be mixed in the same configuration
     - DNS stamps with certificate hashes provide additional security through automatic certificate pinning
 

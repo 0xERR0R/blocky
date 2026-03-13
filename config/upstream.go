@@ -185,8 +185,9 @@ func extractNet(upstream string) (NetProtocol, string) {
 		return NetProtocolHttps, strings.TrimPrefix(rest, "//")
 	}
 
+	// Accept both "quic:" and "quic://" for compatibility with other tools (e.g. AdGuard)
 	if rest, ok := stripPrefix(upstream, NetProtocolQuic.String()+":"); ok {
-		return NetProtocolQuic, rest
+		return NetProtocolQuic, strings.TrimPrefix(rest, "//")
 	}
 
 	return NetProtocolTcpUdp, upstream
