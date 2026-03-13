@@ -18,14 +18,6 @@ import (
 	"github.com/quic-go/quic-go"
 )
 
-const (
-	// quicMaxIdleTimeout is the maximum time a QUIC connection can be idle before being closed.
-	quicMaxIdleTimeout = 30 * time.Second
-
-	// quicKeepAlivePeriod is the interval for sending keep-alive frames to maintain the connection.
-	quicKeepAlivePeriod = 15 * time.Second
-)
-
 // quicUpstreamClient implements DNS-over-QUIC (RFC 9250) using QUIC transport.
 // It maintains a persistent QUIC connection with 0-RTT session resumption support.
 type quicUpstreamClient struct {
@@ -36,7 +28,7 @@ type quicUpstreamClient struct {
 	conn *quic.Conn
 }
 
-func newQuicUpstreamClient(tlsConfig *tls.Config) *quicUpstreamClient {
+func newQuicUpstreamClient(tlsConfig *tls.Config, maxIdleTimeout, keepAlivePeriod time.Duration) *quicUpstreamClient {
 	// Set ALPN for DoQ (RFC 9250 Section 4.3)
 	tlsConfig.NextProtos = []string{"doq"}
 
@@ -44,8 +36,8 @@ func newQuicUpstreamClient(tlsConfig *tls.Config) *quicUpstreamClient {
 		tlsConfig: tlsConfig,
 		quicConfig: &quic.Config{
 			Allow0RTT:       true,
-			MaxIdleTimeout:  quicMaxIdleTimeout,
-			KeepAlivePeriod: quicKeepAlivePeriod,
+			MaxIdleTimeout:  maxIdleTimeout,
+			KeepAlivePeriod: keepAlivePeriod,
 		},
 	}
 }

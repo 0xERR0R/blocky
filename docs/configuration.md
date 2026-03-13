@@ -88,8 +88,10 @@ This applies to all of them. The default strategy is blocking.
 | upstreams.groups        | map of name to upstream              | yes       |               | Upstream DNS servers to use, in groups.        |
 | upstreams.init.strategy | enum (blocking, failOnError, fast)   | no        | blocking      | See [Init Strategy](#init-strategy) and below. |
 | upstreams.strategy      | enum (parallel_best, random, strict) | no        | parallel_best | Upstream server usage strategy.                |
-| upstreams.timeout       | duration                             | no        | 2s            | Upstream connection timeout.                   |
-| upstreams.userAgent     | string                               | no        |               | HTTP User Agent when connecting to upstreams.  |
+| upstreams.timeout              | duration                             | no        | 2s            | Upstream connection timeout.                          |
+| upstreams.userAgent            | string                               | no        |               | HTTP User Agent when connecting to upstreams.         |
+| upstreams.quicMaxIdleTimeout   | duration                             | no        | 30s           | QUIC maximum idle timeout before closing connection.  |
+| upstreams.quicKeepAlivePeriod  | duration                             | no        | 15s           | QUIC keep-alive interval to maintain connection.      |
 
 For `init.strategy`, the "init" is testing the given resolvers for each group. The potentially fatal error, depending on the strategy, is if a group has no functional resolvers.
 
