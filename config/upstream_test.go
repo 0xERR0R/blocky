@@ -121,12 +121,14 @@ var _ = Describe("ParseUpstream", func() {
 				Expect(err.Error()).Should(ContainSubstring("DNSCrypt"))
 			})
 
-			It("should reject DoQ stamp", func() {
+			It("should parse DoQ stamp", func() {
 				// Valid DoQ (DNS-over-QUIC) stamp from dnsstamps library tests
-				_, err := ParseUpstream("sdns://BAcAAAAAAAAACTEyNy4wLjAuMSDDhGvyS56TymQnTA7GfB7MXgJP_KzS10AZNQ6B_lRq5A9kbnMuZXhhbXBsZS5jb20")
+				upstream, err := ParseUpstream("sdns://BAcAAAAAAAAACTEyNy4wLjAuMSDDhGvyS56TymQnTA7GfB7MXgJP_KzS10AZNQ6B_lRq5A9kbnMuZXhhbXBsZS5jb20")
 
-				Expect(err).Should(HaveOccurred())
-				Expect(err.Error()).Should(ContainSubstring("QUIC"))
+				Expect(err).Should(Succeed())
+				Expect(upstream.Net).Should(Equal(NetProtocolQuic))
+				Expect(upstream.Host).Should(Equal("dns.example.com"))
+				Expect(upstream.Port).Should(Equal(uint16(853)))
 			})
 
 			It("should reject ODoH Target stamp", func() {
@@ -241,6 +243,53 @@ var _ = Describe("ParseUpstream", func() {
 				Expect(result.Host).Should(Equal("dns.example.com"))
 				Expect(result.Port).Should(Equal(uint16(8443)))
 				Expect(result.Path).Should(Equal("/dns-query"))
+			})
+		})
+
+		Describe("DoQ", func() {
+			It("should parse DoQ with IP", func() {
+				result, err := ParseUpstream("quic:9.9.9.9:853")
+
+				Expect(err).Should(Succeed())
+				Expect(result.Net).Should(Equal(NetProtocolQuic))
+				Expect(result.Host).Should(Equal("9.9.9.9"))
+				Expect(result.Port).Should(Equal(uint16(853)))
+			})
+
+			It("should parse DoQ with hostname", func() {
+				result, err := ParseUpstream("quic:dns.adguard.com")
+
+				Expect(err).Should(Succeed())
+				Expect(result.Net).Should(Equal(NetProtocolQuic))
+				Expect(result.Host).Should(Equal("dns.adguard.com"))
+				Expect(result.Port).Should(Equal(uint16(853)))
+			})
+
+			It("should parse DoQ with custom port", func() {
+				result, err := ParseUpstream("quic:dns.example.com:8853")
+
+				Expect(err).Should(Succeed())
+				Expect(result.Net).Should(Equal(NetProtocolQuic))
+				Expect(result.Host).Should(Equal("dns.example.com"))
+				Expect(result.Port).Should(Equal(uint16(8853)))
+			})
+
+			It("should parse DoQ with quic:// prefix for AdGuard compatibility", func() {
+				result, err := ParseUpstream("quic://dns.adguard.com")
+
+				Expect(err).Should(Succeed())
+				Expect(result.Net).Should(Equal(NetProtocolQuic))
+				Expect(result.Host).Should(Equal("dns.adguard.com"))
+				Expect(result.Port).Should(Equal(uint16(853)))
+			})
+
+			It("should parse DoQ with quic:// prefix and custom port", func() {
+				result, err := ParseUpstream("quic://dns.example.com:8853")
+
+				Expect(err).Should(Succeed())
+				Expect(result.Net).Should(Equal(NetProtocolQuic))
+				Expect(result.Host).Should(Equal("dns.example.com"))
+				Expect(result.Port).Should(Equal(uint16(8853)))
 			})
 		})
 

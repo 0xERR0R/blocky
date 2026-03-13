@@ -185,6 +185,11 @@ func extractNet(upstream string) (NetProtocol, string) {
 		return NetProtocolHttps, strings.TrimPrefix(rest, "//")
 	}
 
+	// Accept both "quic:" and "quic://" for compatibility with other tools (e.g. AdGuard)
+	if rest, ok := stripPrefix(upstream, NetProtocolQuic.String()+":"); ok {
+		return NetProtocolQuic, strings.TrimPrefix(rest, "//")
+	}
+
 	return NetProtocolTcpUdp, upstream
 }
 
@@ -295,7 +300,7 @@ func stampProtoToNetProtocol(proto dnsstamps.StampProtoType) (NetProtocol, error
 	case dnsstamps.StampProtoTypeDNSCrypt:
 		return NetProtocol(0), errors.New("DNSCrypt protocol not supported")
 	case dnsstamps.StampProtoTypeDoQ:
-		return NetProtocol(0), errors.New("DNS-over-QUIC protocol not supported")
+		return NetProtocolQuic, nil
 	case dnsstamps.StampProtoTypeODoHTarget:
 		return NetProtocol(0), errors.New("oblivious DoH target not supported")
 	case dnsstamps.StampProtoTypeDNSCryptRelay:
