@@ -1,3 +1,6 @@
+// Copyright 2026 Chris Snell
+// SPDX-License-Identifier: Apache-2.0
+
 // WebSocket log stream with auto-reconnect
 
 export function connectLogStream(onEntry, onStatus) {

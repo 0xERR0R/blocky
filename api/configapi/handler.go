@@ -1,3 +1,6 @@
+// Copyright 2026 Chris Snell
+// SPDX-License-Identifier: Apache-2.0
+
 //go:generate go tool oapi-codegen --config=types.cfg.yaml ../../docs/api/openapi-config.yaml
 //go:generate go tool oapi-codegen --config=server.cfg.yaml ../../docs/api/openapi-config.yaml
 

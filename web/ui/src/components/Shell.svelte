@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Chris Snell -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 <script>
   import ApplyButton from './ApplyButton.svelte'
   import ThemeToggle from './ThemeToggle.svelte'

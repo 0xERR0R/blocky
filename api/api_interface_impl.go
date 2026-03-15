@@ -1,3 +1,6 @@
+// Modified by Chris Snell, 2026
+// SPDX-License-Identifier: Apache-2.0
+
 //go:generate go tool oapi-codegen --config=types.cfg.yaml ../docs/api/openapi.yaml
 //go:generate go tool oapi-codegen --config=server.cfg.yaml ../docs/api/openapi.yaml
 //go:generate go tool oapi-codegen --config=client.cfg.yaml ../docs/api/openapi.yaml

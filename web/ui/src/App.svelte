@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Chris Snell -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 <script>
   import Shell from './components/Shell.svelte'
   import Dashboard from './pages/Dashboard.svelte'

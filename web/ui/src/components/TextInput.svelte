@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Chris Snell -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 <script>
   let { value = $bindable(''), type = 'text', placeholder = '', error = '', disabled = false } = $props()
 </script>

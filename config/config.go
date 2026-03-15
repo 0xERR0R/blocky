@@ -1,3 +1,6 @@
+// Modified by Chris Snell, 2026
+// SPDX-License-Identifier: Apache-2.0
+
 //go:generate go tool go-enum -f=$GOFILE --marshal --names --values
 package config
 

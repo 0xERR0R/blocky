@@ -1,3 +1,6 @@
+// Copyright 2026 Chris Snell
+// SPDX-License-Identifier: Apache-2.0
+
 import './styles/tokens.css'
 import './styles/reset.css'
 import { mount } from 'svelte'

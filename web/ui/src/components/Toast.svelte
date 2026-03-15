@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Chris Snell -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 <script>
   let { variant = 'info', visible = $bindable(false), duration = 4000, children } = $props()
 

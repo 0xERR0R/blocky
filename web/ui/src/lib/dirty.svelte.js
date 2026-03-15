@@ -1,3 +1,6 @@
+// Copyright 2026 Chris Snell
+// SPDX-License-Identifier: Apache-2.0
+
 // Tracks pending changes count across all config pages
 
 let count = $state(0)

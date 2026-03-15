@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Chris Snell -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 <script>
   import { onDestroy } from 'svelte'
   import Card from '../components/Card.svelte'

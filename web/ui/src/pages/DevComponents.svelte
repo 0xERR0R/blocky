@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Chris Snell -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 <script>
   import Button from '../components/Button.svelte'
   import Badge from '../components/Badge.svelte'

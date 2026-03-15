@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Chris Snell -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 <script>
   import LogViewer from '../components/LogViewer.svelte'
   import { connectLogStream } from '../lib/ws.js'
