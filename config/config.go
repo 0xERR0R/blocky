@@ -645,6 +645,11 @@ func (cfg *Config) validate(logger *logrus.Entry) {
 	cfg.MinTLSServeVer.validate(logger)
 	cfg.Upstreams.validate(logger)
 
+	// Blocking validation
+	if err := cfg.Blocking.validate(); err != nil {
+		logger.Fatal(err)
+	}
+
 	// DNS64 validation
 	if err := cfg.DNS64.validate(logger, &cfg.Filtering, &cfg.Caching); err != nil {
 		logger.Fatal(err)
