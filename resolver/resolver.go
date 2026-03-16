@@ -103,6 +103,18 @@ type NamedResolver interface {
 	Name() string
 }
 
+// PostStarter is an optional interface that resolvers can implement
+// to perform initialization that requires the DNS server to be running.
+// PostStart is called by server.Start() after all DNS listeners are up.
+//
+// This is useful for resolvers that need to perform DNS lookups during initialization,
+// such as BlockingResolver which initializes its FQDN IP cache by querying
+// configured custom domains through the already-operational upstream resolvers.
+type PostStarter interface {
+	// PostStart performs post-startup initialization when the DNS server is operational.
+	PostStart(ctx context.Context) error
+}
+
 // Chain creates a chain of resolvers
 func Chain(resolvers ...Resolver) ChainedResolver {
 	for i, res := range resolvers {
