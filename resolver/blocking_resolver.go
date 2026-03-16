@@ -165,13 +165,6 @@ func NewBlockingResolver(ctx context.Context,
 		go res.redisSubscriber(ctx)
 	}
 
-	err = evt.Bus().SubscribeOnce(evt.ApplicationStarted, func(_ ...string) {
-		go res.initFQDNIPCache(ctx)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe to ApplicationStarted event: %w", err)
-	}
-
 	return res, nil
 }
 

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/server"
 	"github.com/0xERR0R/blocky/util"
@@ -86,7 +85,6 @@ func startServer(_ *cobra.Command, _ []string) error {
 		}
 	}()
 
-	evt.Bus().Publish(evt.ApplicationStarted, util.Version, util.BuildTime)
 	<-done
 
 	return terminationErr
