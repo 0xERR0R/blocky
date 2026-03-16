@@ -25,9 +25,6 @@ const (
 
 	// CachingFailedDownloadChanged fires, if a download of a blocking list or hosts file fails
 	CachingFailedDownloadChanged = "caching:failedDownload"
-
-	// ApplicationStarted fires on start of the application. Parameter: version number, build time
-	ApplicationStarted = "application:started"
 )
 
 //nolint:gochecknoglobals

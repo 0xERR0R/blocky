@@ -114,3 +114,36 @@ resolver.ForEach(s.queryResolver, func(res resolver.Resolver) {
   - `make lint` passes (0 issues)
   - `make build` succeeds
 - Confirmed: PostStarter interface pattern has fully replaced event-based lifecycle
+
+## L1.6: ApplicationStarted Constant Removal
+
+**Task**: Remove ApplicationStarted event constant from evt/events.go
+
+**Status**: COMPLETED
+
+**Changes Made**:
+- Removed lines 29-30 from evt/events.go:
+  - Comment: `// ApplicationStarted fires on start of the application. Parameter: version number, build time`
+  - Constant: `ApplicationStarted = "application:started"`
+- File now ends at line 27 with `CachingFailedDownloadChanged = "caching:failedDownload"`
+- All other 6 event constants remain intact and functional
+
+**Verification Results**:
+- ✅ File syntax valid - evt/events.go has correct structure
+- ✅ No references to ApplicationStarted remain in evt/events.go itself
+- ⚠️ `make lint` fails as expected with: `metrics/metrics_event_publisher.go:25:16: undefined: evt.ApplicationStarted (typecheck)`
+- ⚠️ `make build` fails as expected with same error
+- ✅ Expected and acceptable - metrics_event_publisher.go will be removed in Phase 2
+- ✅ resolver/blocking_resolver_test.go test reference will be fixed in L1.7
+
+**Remaining References** (will be addressed by other tasks):
+1. metrics/metrics_event_publisher.go line 25 - Subscriber (to be removed in Phase 2)
+2. resolver/blocking_resolver_test.go line 148 - Test code (to be fixed in L1.7)
+
+**No action needed** on these - they are separate tasks.
+
+**Dependency Chain Satisfied**:
+- ✅ L1.1-L1.3: PostStarter interface exists and is used
+- ✅ L1.4: BlockingResolver no longer subscribes to ApplicationStarted event
+- ✅ L1.5: cmd/serve.go no longer publishes ApplicationStarted event
+- ✅ L1.6: ApplicationStarted constant definition removed
