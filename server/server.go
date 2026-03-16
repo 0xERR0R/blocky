@@ -422,6 +422,17 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 		}()
 	}
 
+	// Call PostStart hooks on resolvers after DNS listeners are up
+	logger().Debug("calling PostStart hooks on resolver chain")
+	resolver.ForEach(s.queryResolver, func(res resolver.Resolver) {
+		if ps, ok := res.(resolver.PostStarter); ok {
+			if err := ps.PostStart(ctx); err != nil {
+				logger().Warnf("PostStart failed for %s: %v", res.Type(), err)
+				// Don't fail server startup - log and continue
+			}
+		}
+	})
+
 	registerPrintConfigurationTrigger(ctx, s)
 }
 
