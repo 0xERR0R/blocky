@@ -622,6 +622,27 @@ func (r *BlockingResolver) queryForFQIdentifierIPs(ctx context.Context, identifi
 	return &result, ttl
 }
 
+// PostStart initializes the FQDN IP cache by performing DNS lookups.
+// This must run after the DNS server is fully operational because it
+// needs to resolve FQDNs using the upstream resolvers.
+func (r *BlockingResolver) PostStart(ctx context.Context) error {
+	ctx, logger := r.log(ctx)
+	logger.Debug("initializing FQDN IP cache")
+
+	r.initFQDNIPCache(ctx)
+
+	identifiers := maps.Keys(r.clientGroupsBlock)
+	fqdnCount := 0
+	for _, id := range identifiers {
+		if isFQDN(id) {
+			fqdnCount++
+		}
+	}
+	logger.Debugf("FQDN IP cache initialized with %d entries", fqdnCount)
+
+	return nil
+}
+
 func (r *BlockingResolver) initFQDNIPCache(ctx context.Context) {
 	identifiers := maps.Keys(r.clientGroupsBlock)
 
