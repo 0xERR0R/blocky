@@ -38,7 +38,7 @@
 
 <div class="shell">
   <div class="header">
-    <h1>blocky</h1>
+    <h1>blockasaurus</h1>
     <nav class="nav">
       {#each nav as item}
         <a

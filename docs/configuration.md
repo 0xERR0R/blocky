@@ -72,14 +72,14 @@ All logging options are optional.
 
 ## Init Strategy
 
-A couple of features use an "init/loading strategy" which configures behavior at Blocky startup.
+A couple of features use an "init/loading strategy" which configures behavior at Blockasaurus startup.
 This applies to all of them. The default strategy is blocking.
 
 | strategy    | Description                                                                                                                                                     |
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| blocking    | Initialization happens before DNS resolution starts. Any errors are logged, but Blocky continues running if possible.                                           |
-| failOnError | Like blocking but Blocky will exit with an error if initialization fails.                                                                                       |
-| fast        | Blocky starts serving DNS immediately and initialization happens in the background. The feature requiring initialization will enable later on (if it succeeds). |
+| blocking    | Initialization happens before DNS resolution starts. Any errors are logged, but Blockasaurus continues running if possible.                                           |
+| failOnError | Like blocking but Blockasaurus will exit with an error if initialization fails.                                                                                       |
+| fast        | Blockasaurus starts serving DNS immediately and initialization happens in the background. The feature requiring initialization will enable later on (if it succeeds). |
 
 ## Upstreams configuration
 
@@ -95,7 +95,7 @@ For `init.strategy`, the "init" is testing the given resolvers for each group. T
 
 ### Upstream Groups
 
-To resolve a DNS query, blocky needs external public or private DNS resolvers. Blocky supports DNS resolvers with
+To resolve a DNS query, Blockasaurus needs external public or private DNS resolvers. Blockasaurus supports DNS resolvers with
 following network protocols (net part of the resolver URL):
 
 - tcp+udp (UDP and TCP, dependent on query type)
@@ -105,7 +105,7 @@ following network protocols (net part of the resolver URL):
 !!! hint
 
     You can (and should!) configure multiple DNS resolvers.
-    Per default blocky uses the `parallel_best` upstream strategy where blocky picks 2 random resolvers from the list for each query and
+    Per default Blockasaurus uses the `parallel_best` upstream strategy where Blockasaurus picks 2 random resolvers from the list for each query and
     returns the answer from the fastest one.
 
 Each resolver must be defined as a string in following format: `[net:]host:[port][/path][#commonName]`.
@@ -121,7 +121,7 @@ The `commonName` parameter overrides the expected certificate common name value 
 
 #### DNS Stamp Format
 
-As an alternative to the traditional format, Blocky supports **DNS Stamps** (`sdns://...`), which encode all connection parameters in a compact, shareable format.
+As an alternative to the traditional format, Blockasaurus supports **DNS Stamps** (`sdns://...`), which encode all connection parameters in a compact, shareable format.
 
 DNS Stamps are standardized URIs (following IETF draft-denis-dns-stamps) that include protocol, address, hostname, path, and optional certificate hashes in a single string.
 
@@ -158,7 +158,7 @@ upstreams:
 
 **Certificate Pinning:**
 
-DNS stamps can include SHA256 certificate hashes for enhanced security. When present, Blocky automatically validates the server's certificate against these hashes, preventing MITM attacks even if a Certificate Authority is compromised.
+DNS stamps can include SHA256 certificate hashes for enhanced security. When present, Blockasaurus automatically validates the server's certificate against these hashes, preventing MITM attacks even if a Certificate Authority is compromised.
 
 This is transparent to the user - if a DNS stamp includes certificate hashes, pinning is automatically enabled.
 
@@ -172,7 +172,7 @@ Use the [DNS Stamp Calculator](https://dnscrypt.info/stamps/) to create stamps f
     - DNS stamps with certificate hashes provide additional security through automatic certificate pinning
 
 !!! note
-    Blocky needs at least the configuration of the **default** group with at least one upstream DNS server. This group will be used as a fallback, if no client
+    Blockasaurus needs at least the configuration of the **default** group with at least one upstream DNS server. This group will be used as a fallback, if no client
     specific resolver configuration is available.
 
     See [List of public DNS servers](additional_information.md#list-of-public-dns-servers) if you need some ideas, which public free DNS server you could use.
@@ -212,7 +212,7 @@ If a client matches multiple client name or CIDR groups, a warning is logged and
 
 ### Upstream connection timeout
 
-Blocky will wait 2 seconds (default value) for the response from the external upstream DNS server. You can change this
+Blockasaurus will wait 2 seconds (default value) for the response from the external upstream DNS server. You can change this
 value by setting the `timeout` configuration parameter (in **duration format**).
 
 !!! example
@@ -228,19 +228,19 @@ value by setting the `timeout` configuration parameter (in **duration format**).
 
 ### Upstream strategy
 
-Blocky supports different upstream strategies (default `parallel_best`) that determine how and to which upstream DNS servers requests are forwarded.
+Blockasaurus supports different upstream strategies (default `parallel_best`) that determine how and to which upstream DNS servers requests are forwarded.
 
 Currently available strategies:
 
-- `parallel_best`: blocky picks 2 random (weighted) resolvers from the upstream group for each query and returns the answer from the fastest one.
+- `parallel_best`: Blockasaurus picks 2 random (weighted) resolvers from the upstream group for each query and returns the answer from the fastest one.
   If an upstream failed to answer within the last hour, it is less likely to be chosen for the race.
   This improves your network speed and increases your privacy - your DNS traffic will be distributed over multiple providers.
   (When using 10 upstream servers, each upstream will get on average 20% of the DNS requests)
-- `random`: blocky picks one random (weighted) resolver from the upstream group for each query and if successful, returns its response.
+- `random`: Blockasaurus picks one random (weighted) resolver from the upstream group for each query and if successful, returns its response.
   If the selected resolver fails to respond, a second one is picked to which the query is sent.
   The weighting is identical to the `parallel_best` strategy.
   Although the `random` strategy might be slower than the `parallel_best` strategy, it offers more privacy since each request is sent to a single upstream.
-- `strict`: blocky forwards the request in a strict order. If the first upstream does not respond, the second is asked, and so on.
+- `strict`: Blockasaurus forwards the request in a strict order. If the first upstream does not respond, the second is asked, and so on.
 
 !!! example
 
@@ -296,7 +296,7 @@ This configuration will drop all 'AAAA' (IPv6) queries.
 
 ## FQDN only
 
-In domain environments, it may be useful to only respond to FQDN requests. If this option is enabled blocky will respond immediately
+In domain environments, it may be useful to only respond to FQDN requests. If this option is enabled Blockasaurus will respond immediately
 with NXDOMAIN if the request is not a valid FQDN. The request is therefore not processed further by other options like custom or conditional.
 Please be aware that by enabling this your resolution will break unless every query is for a fully qualified domain name.
 
@@ -381,25 +381,25 @@ For more complex configurations, you can use the `zone` parameter to define a DN
 The zone file supports standard DNS zone file syntax including:
 - `$ORIGIN` - sets the origin for relative domain names
 - `$TTL` - sets the default TTL for records in the zone
-- `$INCLUDE` - includes another zone file relative to the blocky executable
+- `$INCLUDE` - includes another zone file relative to the Blockasaurus executable
 - `$GENERATE` - generates a range of records
 
 For records defined using the `zone` parameter, the `customTTL` parameter is unused. Instead, the TTL is defined in the zone directly.
 
 ### CNAME Resolution
 
-When a CNAME record is defined and a query matches that record, blocky will:
+When a CNAME record is defined and a query matches that record, Blockasaurus will:
 1. Return the CNAME record in the answer
 2. Additionally resolve the target of the CNAME and include those records in the answer
 3. Protect against CNAME loops (where CNAMEs point to each other in a loop)
 
 ### Reverse DNS
 
-Blocky automatically creates reverse DNS (PTR) records for all defined A and AAAA records. This allows reverse lookups from IP addresses to domain names.
+Blockasaurus automatically creates reverse DNS (PTR) records for all defined A and AAAA records. This allows reverse lookups from IP addresses to domain names.
 
 ### Filtering Unmapped Types
 
-With `filterUnmappedTypes = true` (default), blocky will filter all queries with unmapped types. For example, if you only define an A record for `printer.lan`, an AAAA query for the same domain will return an empty result.
+With `filterUnmappedTypes = true` (default), Blockasaurus will filter all queries with unmapped types. For example, if you only define an A record for `printer.lan`, an AAAA query for the same domain will return an empty result.
 
 With `filterUnmappedTypes = false`, unmapped type queries will be forwarded to the upstream DNS server. For example, an AAAA query for `printer.lan` (when only an A record is defined) will be sent to the upstream resolver.
 
@@ -447,7 +447,7 @@ One usecase for `fallbackUpstream` is when having split DNS for internal and ext
 
 ## Client name lookup
 
-Blocky can try to resolve a user-friendly client name from the IP address or server URL (DoT and DoH). This is useful
+Blockasaurus can try to resolve a user-friendly client name from the IP address or server URL (DoT and DoH). This is useful
 for defining of blocking groups, since IP address can change dynamically.
 
 ### Resolving client name from URL/Host
@@ -466,7 +466,7 @@ DoH URL: `https://blocky.example.com/dns-query/alice` -> request's client name i
 
 ### Resolving client name from IP address
 
-Blocky uses rDNS to retrieve client's name. To use this feature, you can configure a DNS server for client lookup (
+Blockasaurus uses rDNS to retrieve client's name. To use this feature, you can configure a DNS server for client lookup (
 typically your router). You can also define client names manually per IP address.
 
 #### Single name order
@@ -496,7 +496,7 @@ contains a map of client name and multiple IP addresses.
 
 ## Blocking and allowlisting
 
-Blocky can use lists of domains and IPs to block (e.g. advertisement, malware,
+Blockasaurus can use lists of domains and IPs to block (e.g. advertisement, malware,
 trackers, adult sites). You can group several list sources together and define the blocking behavior per client.
 Blocking uses the [DNS sinkhole](https://en.wikipedia.org/wiki/DNS_sinkhole) approach. For each DNS query, the domain name from
 the request, IP address from the response, and any CNAME records will be checked to determine whether to block the query or not.
@@ -575,14 +575,14 @@ Examples:
 
 In this configuration section, you can define, which blocking group(s) should be used for which client in your network.
 Example: All clients should use the **ads** group, which blocks advertisement and kids devices should use the **adult**
-group, which blocky adult sites.
+group, which blocks adult sites.
 
 Clients without an explicit group assignment will use the **default** group.
 
 You can use the client name (see [Client name lookup](#client-name-lookup)), client's IP address, client's full-qualified domain name
 or a client subnet as CIDR notation.
 
-If full-qualified domain name is used (for example "myclient.ddns.org"), blocky will try to resolve the IP address (A and AAAA records) of this domain.
+If full-qualified domain name is used (for example "myclient.ddns.org"), Blockasaurus will try to resolve the IP address (A and AAAA records) of this domain.
 If client's IP address matches with the result, the defined group will be used.
 
 !!! example
@@ -636,7 +636,7 @@ time it could take for a client to be able to see the real IP address for a doma
 **For `zeroIP` and custom IP modes:** The TTL is applied to the returned A/AAAA records in the answer section.
 
 **For `nxDomain` mode:** The TTL is applied to the SOA record in the authority section. Per [RFC 2308](https://www.rfc-editor.org/rfc/rfc2308),
-Blocky includes an SOA record in NXDOMAIN responses to enable proper negative caching by stub resolvers.
+Blockasaurus includes an SOA record in NXDOMAIN responses to enable proper negative caching by stub resolvers.
 The blockTTL value is used for both the SOA's TTL and its MINIMUM field, ensuring clients cache the
 NXDOMAIN response for the configured duration.
 
@@ -655,9 +655,9 @@ See [Sources Loading](#sources-loading).
 ## Caching
 
 Each DNS response has a TTL (Time-to-live) value. This value defines, how long is the record valid in seconds. The
-values are maintained by domain owners, server administrators etc. Blocky caches the answers from all resolved queries
+values are maintained by domain owners, server administrators etc. Blockasaurus caches the answers from all resolved queries
 in own cache in order to avoid repeated requests. This reduces the DNS traffic and increases the network speed, since
-blocky can serve the result immediately from the cache.
+Blockasaurus can serve the result immediately from the cache.
 
 With following parameters you can tune the caching behavior:
 
@@ -670,7 +670,7 @@ With following parameters you can tune the caching behavior:
 | caching.minTime               | duration format | no        | 0 (use TTL)   | How long a response must be cached (min value). If <=0, use response's TTL, if >0 use this value, if TTL is smaller                                                                                                                                                                                                                                                                                            |
 | caching.maxTime               | duration format | no        | 0 (use TTL)   | How long a response must be cached (max value). If <0, do not cache responses. If 0, use TTL. If > 0, use this value, if TTL is greater                                                                                                                                                                                                                                                                        |
 | caching.maxItemsCount         | int             | no        | 0 (unlimited) | Max number of cache entries (responses) to be kept in cache (soft limit). Default (0): unlimited. Useful on systems with limited amount of RAM.                                                                                                                                                                                                                                                                |
-| caching.prefetching           | bool            | no        | false         | if true, blocky will preload DNS results for often used queries (default: names queried more than 5 times in a 2 hour time window). Results in cache will be loaded again on their expire (TTL). This improves the response time for often used queries, but significantly increases external traffic. It is recommended to increase "minTime" to reduce the number of prefetch queries to external resolvers. |
+| caching.prefetching           | bool            | no        | false         | if true, Blockasaurus will preload DNS results for often used queries (default: names queried more than 5 times in a 2 hour time window). Results in cache will be loaded again on their expire (TTL). This improves the response time for often used queries, but significantly increases external traffic. It is recommended to increase "minTime" to reduce the number of prefetch queries to external resolvers. |
 | caching.prefetchExpires       | duration format | no        | 2h            | Prefetch track time window                                                                                                                                                                                                                                                                                                                                                                                     |
 | caching.prefetchThreshold     | int             | no        | 5             | Name queries threshold for prefetch                                                                                                                                                                                                                                                                                                                                                                            |
 | caching.prefetchMaxItemsCount | int             | no        | 0 (unlimited) | Max number of domains to be kept in cache for prefetching (soft limit). Default (0): unlimited. Useful on systems with limited amount of RAM.                                                                                                                                                                                                                                                                  |
@@ -692,7 +692,7 @@ With following parameters you can tune the caching behavior:
 
 ## Redis
 
-Blocky can synchronize its cache and blocking state between multiple instances through redis.
+Blockasaurus can synchronize its cache and blocking state between multiple instances through redis.
 Synchronization is disabled if no address is configured.
 
 | Parameter                | Type            | Mandatory | Default value | Description                                                         |
@@ -701,7 +701,7 @@ Synchronization is disabled if no address is configured.
 | redis.username           | string          | no        |               | Username if necessary                                               |
 | redis.password           | string          | no        |               | Password if necessary                                               |
 | redis.database           | int             | no        | 0             | Database                                                            |
-| redis.required           | bool            | no        | false         | Connection is required for blocky to start                          |
+| redis.required           | bool            | no        | false         | Connection is required for Blockasaurus to start                          |
 | redis.connectionAttempts | int             | no        | 3             | Max connection attempts                                             |
 | redis.connectionCooldown | duration format | no        | 1s            | Time between the connection attempts                                |
 | redis.sentinelUsername   | string          | no        |               | Sentinel username if necessary                                      |
@@ -729,7 +729,7 @@ Synchronization is disabled if no address is configured.
 
 ## Prometheus
 
-Blocky can expose various metrics for prometheus. To use the prometheus feature, the HTTP listener must be enabled (
+Blockasaurus can expose various metrics for prometheus. To use the prometheus feature, the HTTP listener must be enabled (
 see [Basic Configuration](#basic-configuration)).
 
 | Parameter         | Mandatory | Default value | Description                         |
@@ -778,7 +778,7 @@ You can choose which information from processed DNS request and response should 
 - `duration`: request processing time in milliseconds
 
 !!! hint
-    If not defined, blocky will log all available information
+    If not defined, Blockasaurus will log all available information
 
 Configuration parameters:
 
@@ -800,7 +800,7 @@ Configuration parameters:
 ### Database URLs
 
 To connect to a database, you must provide a URL like value for `target`. The exact format and supported parameters depends on the DB type.
-Parsing is handled not by Blocky, but third-party libraries, therefore the full documentation is external.
+Parsing is handled not by Blockasaurus, but third-party libraries, therefore the full documentation is external.
 
 | Database   | Full docs                                                                                       | Format                                                                                   | Example                                                              |
 | ---------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
@@ -929,11 +929,11 @@ Configuration parameters:
 
 ## DNSSEC validation
 
-DNSSEC (Domain Name System Security Extensions) provides cryptographic authentication of DNS data to protect against cache poisoning, man-in-the-middle attacks, and DNS spoofing. When enabled, Blocky validates DNSSEC signatures on DNS responses and ensures the chain of trust from the root zone to the queried domain.
+DNSSEC (Domain Name System Security Extensions) provides cryptographic authentication of DNS data to protect against cache poisoning, man-in-the-middle attacks, and DNS spoofing. When enabled, Blockasaurus validates DNSSEC signatures on DNS responses and ensures the chain of trust from the root zone to the queried domain.
 
 ### Overview
 
-When DNSSEC validation is enabled, Blocky will:
+When DNSSEC validation is enabled, Blockasaurus will:
 
 - Set the DNSSEC OK (DO) bit on all upstream queries to request DNSSEC records
 - Validate cryptographic signatures (RRSIG records) in DNS responses
@@ -946,7 +946,7 @@ When DNSSEC validation is enabled, Blocky will:
 
 ### RFC Compliance
 
-Blocky's DNSSEC implementation complies with the following RFCs:
+Blockasaurus's DNSSEC implementation complies with the following RFCs:
 
 - **RFC 4033/4034/4035** (DNSSEC core specifications): Fully implemented
 - **RFC 5155** (NSEC3): Implemented with configurable iteration limits
@@ -977,7 +977,7 @@ DNSSEC validation protects against:
 
 ### DoS Protection
 
-DNSSEC validation can be computationally expensive and requires additional DNS queries. Blocky includes several protections against DoS attacks:
+DNSSEC validation can be computationally expensive and requires additional DNS queries. Blockasaurus includes several protections against DoS attacks:
 
 - **maxChainDepth**: Limits validation depth for deeply nested domains (e.g., prevents validation of `a.b.c.d.e.f.g.h.i.j.example.com`)
 - **maxUpstreamQueries**: Limits the number of upstream queries (DNSKEY/DS lookups) per validation to prevent query amplification
@@ -986,7 +986,7 @@ DNSSEC validation can be computationally expensive and requires additional DNS q
 
 ### Clock Skew Tolerance
 
-DNSSEC signatures have inception and expiration timestamps. Blocky validates that the current time falls within this validity window. However, in real-world deployments, system clocks may not be perfectly synchronized, which can cause valid signatures to be rejected.
+DNSSEC signatures have inception and expiration timestamps. Blockasaurus validates that the current time falls within this validity window. However, in real-world deployments, system clocks may not be perfectly synchronized, which can cause valid signatures to be rejected.
 
 The `clockSkewToleranceSec` parameter (default: 3600 seconds = 1 hour) allows validation to succeed even if the system clock is off by the specified amount. This matches the behavior of industry-standard validators like Unbound and BIND.
 
@@ -1009,7 +1009,7 @@ The `clockSkewToleranceSec` parameter (default: 3600 seconds = 1 hour) allows va
 
 ### Validation Results
 
-Blocky classifies DNSSEC validation results into four categories:
+Blockasaurus classifies DNSSEC validation results into four categories:
 
 | Result          | Description                                                          | Response Handling                        |
 | --------------- | -------------------------------------------------------------------- | ---------------------------------------- |
@@ -1020,7 +1020,7 @@ Blocky classifies DNSSEC validation results into four categories:
 
 ### Trust Anchors
 
-By default, Blocky uses the latest IANA root trust anchors (KSK-2017 and KSK-2024) for DNSSEC validation. These are the same trust anchors used by major DNS resolvers and are embedded in the Blocky binary.
+By default, Blockasaurus uses the latest IANA root trust anchors (KSK-2017 and KSK-2024) for DNSSEC validation. These are the same trust anchors used by major DNS resolvers and are embedded in the Blockasaurus binary.
 
 #### Custom Trust Anchors
 
@@ -1040,7 +1040,7 @@ Trust anchors can be specified in two formats:
 
 ### Supported Algorithms
 
-Blocky supports the following DNSSEC algorithms per RFC 8624:
+Blockasaurus supports the following DNSSEC algorithms per RFC 8624:
 
 | Algorithm | ID | Status | Security Level |
 | --------- | -- | ------ | -------------- |
@@ -1052,7 +1052,7 @@ Blocky supports the following DNSSEC algorithms per RFC 8624:
 | ED25519   | 15 | Recommended | Very Strong |
 | ED448     | 16 | Recommended | Strongest |
 
-Blocky automatically selects the strongest available algorithm when multiple signatures are present, providing protection against algorithm downgrade attacks per RFC 6840 §5.11.
+Blockasaurus automatically selects the strongest available algorithm when multiple signatures are present, providing protection against algorithm downgrade attacks per RFC 6840 §5.11.
 
 ### Performance Considerations
 
@@ -1078,7 +1078,7 @@ Recommendations:
       validate: true
     ```
 
-    This enables DNSSEC validation with all default settings. Blocky will validate all DNSSEC-signed domains using the built-in root trust anchors.
+    This enables DNSSEC validation with all default settings. Blockasaurus will validate all DNSSEC-signed domains using the built-in root trust anchors.
 
 !!! example "DNSSEC validation with custom DoS protection"
 
@@ -1130,7 +1130,7 @@ Recommendations:
 
 ### Monitoring
 
-Blocky exposes Prometheus metrics for DNSSEC validation:
+Blockasaurus exposes Prometheus metrics for DNSSEC validation:
 
 - `blocky_dnssec_validation_total{result="secure|insecure|bogus|indeterminate"}`: Total validations by result
 - `blocky_dnssec_cache_hits_total`: Number of validation cache hits
@@ -1175,7 +1175,7 @@ DNS64 (RFC 6147) enables IPv6-only clients to access IPv4-only services by synth
 
 ### Overview
 
-When DNS64 is enabled, Blocky will:
+When DNS64 is enabled, Blockasaurus will:
 
 - Intercept AAAA queries and check if native IPv6 records exist
 - If no native AAAA records are found, query for A records
@@ -1190,7 +1190,7 @@ When DNS64 is enabled, Blocky will:
 
 ### RFC Compliance
 
-Blocky's DNS64 implementation complies with:
+Blockasaurus's DNS64 implementation complies with:
 
 - **RFC 6147** (DNS64 specification): Non-validating mode implementation
 - **RFC 6052** (IPv4-to-IPv6 address embedding): All six prefix lengths supported (/32, /40, /48, /56, /64, /96)
@@ -1222,7 +1222,7 @@ DNS64 uses IPv6 prefixes to embed IPv4 addresses. RFC 6052 defines six valid pre
 **Multiple prefixes**: You can configure multiple prefixes for load balancing across multiple NAT64 gateways. DNS64 will synthesize one AAAA record per prefix per A record.
 
 !!! warning "Prefix Overlap Validation"
-    Blocky validates that configured prefixes do not overlap. Overlapping prefixes will cause startup failure.
+    Blockasaurus validates that configured prefixes do not overlap. Overlapping prefixes will cause startup failure.
 
 ### Exclusion Set
 
@@ -1230,7 +1230,7 @@ DNS64 will **not** synthesize AAAA records if the response already contains AAAA
 
 #### Default Exclusion Set (Recommended)
 
-If `dns64.exclusionSet` is not configured, Blocky uses the default exclusion set:
+If `dns64.exclusionSet` is not configured, Blockasaurus uses the default exclusion set:
 
 - **IPv4-mapped IPv6 addresses** (`::ffff:0:0/96`) - RFC 6147 requirement
 - **Loopback address** (`::1/128`) - RFC 6147 recommendation
@@ -1304,7 +1304,7 @@ DNS64 adds overhead to DNS resolution:
 - **Cache hit rate**: With caching, most AAAA queries hit the cache and avoid synthesis overhead
 
 !!! warning "Enable Caching for DNS64"
-    DNS64 without caching will **double** upstream query load (one AAAA + one A per query). Blocky will log a warning if DNS64 is enabled without caching.
+    DNS64 without caching will **double** upstream query load (one AAAA + one A per query). Blockasaurus will log a warning if DNS64 is enabled without caching.
 
 ## SSL certificate configuration (DoH / TLS listener)
 
@@ -1332,9 +1332,9 @@ The supported source types are:
 !!! example
 
     ```yaml
-    - https://example.com/a/source # blocky will download and parse the file
-    - /a/file/path # blocky will read the local file
-    - | # blocky will parse the content of this multi-line string
+    - https://example.com/a/source # Blockasaurus will download and parse the file
+    - /a/file/path # Blockasaurus will read the local file
+    - | # Blockasaurus will parse the content of this multi-line string
       # inline configuration
     ```
 
@@ -1357,7 +1357,7 @@ These settings apply only to the resolver under which they are nested.
 
 #### Refresh / Reload
 
-To keep source contents up-to-date, blocky can periodically refresh and reparse them. Default period is
+To keep source contents up-to-date, Blockasaurus can periodically refresh and reparse them. Default period is
 **4 hours**. You can configure this by setting the `refreshPeriod` parameter to a value in **duration format**.
 A value of zero or less will disable this feature.
 
@@ -1419,7 +1419,7 @@ A value of -1 disables the limit.
 
 ### Concurrency
 
-Blocky downloads and processes sources concurrently. This allows limiting how many can be processed in the same time.
+Blockasaurus downloads and processes sources concurrently. This allows limiting how many can be processed in the same time.
 Larger values can reduce the overall list refresh time at the cost of using more RAM. Please consider reducing this value on systems with limited memory.
 Default value is 4.
 

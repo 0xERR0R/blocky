@@ -1,10 +1,10 @@
 openapi: 3.1.1
 info:
-  title: blocky API
+  title: Blockasaurus API
   description: >-
-    # Blocky
+    # Blockasaurus
 
-    Blocky is a DNS proxy and ad-blocker for the local network written in Go with following features:
+    Blockasaurus is a DNS proxy and ad-blocker for the local network written in Go with following features:
 
     ## Features
 
@@ -42,7 +42,7 @@ info:
       - Provides DoH Endpoint
       - Uses random upstream resolvers from the configuration - increases your privacy through the distribution of your DNS
         traffic over multiple provider
-      - Blocky does **NOT** collect any user data, telemetry, statistics etc.
+      - Blockasaurus does **NOT** collect any user data, telemetry, statistics etc.
 
     - **Integration** - various integration
 
@@ -58,7 +58,7 @@ info:
       - Simple to maintain
       - Simple to backup
 
-    - **Simple installation/configuration** - blocky was designed for simple installation
+    - **Simple installation/configuration** - Blockasaurus was designed for simple installation
 
       - Stateless (no database, no temporary files)
       - Docker image with Multi-arch support

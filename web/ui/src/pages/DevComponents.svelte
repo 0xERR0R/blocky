@@ -58,7 +58,7 @@
 </script>
 
 <div class="dev">
-  <h1>the blocky style guide</h1>
+  <h1>the blockasaurus style guide</h1>
 
   <!-- Colors -->
   <div class="box">

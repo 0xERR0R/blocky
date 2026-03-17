@@ -1,10 +1,13 @@
-# Blocky
+# Blockasaurus
 
 <figure>
   <img src="https://raw.githubusercontent.com/0xERR0R/blocky/main/docs/blocky.svg" width="200" />
 </figure>
 
-Blocky is a DNS proxy and ad-blocker for the local network written in Go with following features:
+> **Attribution**: Blockasaurus is based on [Blocky](https://github.com/0xERR0R/blocky) by Dmitri Herzog.
+> Please **do not** send support requests for Blockasaurus to the Blocky project.
+
+Blockasaurus is a DNS proxy and ad-blocker for the local network written in Go with following features:
 
 ## Features
 
@@ -44,7 +47,7 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
     * Uses random upstream resolvers from the configuration - increases your privacy through the distribution of your DNS
       traffic over multiple provider
     * Open source development
-    * Blocky does **NOT** collect any user data, telemetry, statistics etc.
+    * Blockasaurus does **NOT** collect any user data, telemetry, statistics etc.
 
 - **Integration** - :notebook_with_decorative_cover: various integration
 
@@ -60,7 +63,7 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
     * Simple to maintain
     * Simple to backup
 
-- **Simple installation/configuration** - :cloud: blocky was designed for simple installation
+- **Simple installation/configuration** - :cloud: Blockasaurus was designed for simple installation
 
     * Stateless (no database, no temporary files)
     * Docker image with Multi-arch support
@@ -71,6 +74,6 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
 
 ## Contribution
 
-Issues, feature suggestions and pull requests are welcome! Blocky lives on :material-github:[GitHub](https://github.com/0xERR0R/blocky).
+Issues, feature suggestions and pull requests are welcome!
 
 --8<-- "docs/includes/abbreviations.md"

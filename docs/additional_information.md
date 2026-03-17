@@ -69,7 +69,7 @@ Some links/ideas for lists:
 
 !!! warning
 
-    DNS server provider has access to all your DNS queries (all visited domain names). Some DNS providers can use (tracking, analyzing, profiling etc.). It is recommended to use different DNS upstream servers in blocky to distribute your DNS queries over multiple providers.
+    DNS server provider has access to all your DNS queries (all visited domain names). Some DNS providers can use (tracking, analyzing, profiling etc.). It is recommended to use different DNS upstream servers in Blockasaurus to distribute your DNS queries over multiple providers.
 
     Please read the description before using the DNS server as upstream. Some of them provide already an ad-blocker, some
     filters other content. If you use external DNS server with included ad-blocker, you can't choose which domains should be
@@ -95,11 +95,9 @@ This is only a small excerpt of all free available DNS servers and should only b
 
 ## Project links
 
-### Code repository
+### Upstream (Blocky)
 
-Main: [:material-github:GitHub](https://github.com/0xERR0R/blocky)
-
-Mirror: [:simple-codeberg:Codeberg](https://codeberg.org/0xERR0R/blocky)
+Blockasaurus is based on [Blocky](https://github.com/0xERR0R/blocky) by Dmitri Herzog.
 
 ### Container Registry
 

@@ -7,7 +7,7 @@ You can choose one of the following installation options:
 
 ## Prepare your configuration
 
-Blocky supports single or multiple YAML files as configuration. Create new `config.yml` with your configuration
+Blockasaurus supports single or multiple YAML files as configuration. Create new `config.yml` with your configuration
 (see [Configuration](configuration.md) for more details and all configuration options).
 
 Simple configuration file, which enables only basic features:
@@ -46,7 +46,7 @@ run `./blocky --config config.yml`.
 
 ### Alternative registry
 
-Blocky docker images are deployed to DockerHub (`spx01/blocky`) and GitHub Container Registry (`ghcr.io/0xerr0r/blocky`).
+Blockasaurus docker images are deployed to DockerHub (`spx01/blocky`) and GitHub Container Registry (`ghcr.io/0xerr0r/blocky`).
 
 ### Parameters
 
@@ -142,13 +142,13 @@ For complex setups, splitting the configuration between multiple YAML files migh
 
 !!! warning
 
-    Blocky simply joins the multiple YAML files. If an option (e.g. `upstream`) is present in multiple files, the configuration will not load and start will fail.
+    Blockasaurus simply joins the multiple YAML files. If an option (e.g. `upstream`) is present in multiple files, the configuration will not load and start will fail.
 
 ## Other installation types
 
 !!! warning
 
-    These projects are not associated with Blocky devs and are listed here for convenience.
+    These projects are not associated with Blockasaurus and are listed here for convenience.
 
 ### Arch Linux via AUR
 
@@ -197,7 +197,7 @@ See [https://truecharts.org/charts/enterprise/blocky/](https://truecharts.org/ch
 
 !!! warning
 
-    These projects are not associated with Blocky devs and are listed here for convenience.
+    These projects are not associated with Blockasaurus and are listed here for convenience.
 
 ### Lists updater
 

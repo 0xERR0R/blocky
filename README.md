@@ -1,8 +1,10 @@
-# Blocky (Experimental Fork)
+# Blockasaurus
 
-**This is an experimental fork of [Blocky](https://github.com/0xERR0R/blocky) with a new UI. It is not intended for general consumption. Do not contact the Blocky author with questions about this fork.**
+Blockasaurus is a DNS proxy and ad-blocker for the local network written in Go.
 
-Blocky is a DNS proxy and ad-blocker for the local network written in Go with following features:
+> **Attribution**: Blockasaurus is based on [Blocky](https://github.com/0xERR0R/blocky) by Dmitri Herzog. We are grateful for his excellent work on the original project.
+>
+> **Important**: Blockasaurus is an independent fork. Please **do not** send support requests, bug reports, or feature requests for Blockasaurus to the Blocky project. If you have issues with Blockasaurus, please file them here.
 
 ## Features
 
@@ -41,7 +43,7 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
   - Provides DoH Endpoint
   - Uses random upstream resolvers from the configuration - increases your privacy through the distribution of your DNS
     traffic over multiple provider
-  - Blocky does **NOT** collect any user data, telemetry, statistics etc.
+  - Blockasaurus does **NOT** collect any user data, telemetry, statistics etc.
 
 - **Integration** - various integration
 
@@ -57,19 +59,10 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
   - Simple to maintain
   - Simple to backup
 
-- **Simple installation/configuration** - blocky was designed for simple installation
+- **Simple installation/configuration** - Blockasaurus was designed for simple installation
 
   - Stateless (no database, no temporary files)
   - Docker image with Multi-arch support
   - Single binary
   - Supports x86-64 and ARM architectures -> runs fine on Raspberry PI
   - Community supported Helm chart for k8s deployment
-
-## Quick start
-
-You can jump to [Installation](https://0xerr0r.github.io/blocky/latest/installation/) chapter in the documentation.
-
-## Full documentation
-
-You can find full documentation and configuration examples
-at: [https://0xERR0R.github.io/blocky/](https://0xERR0R.github.io/blocky/)

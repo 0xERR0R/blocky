@@ -4,7 +4,7 @@
 
 ### Prometheus export
 
-Blocky can optionally export metrics for [Prometheus](https://prometheus.io/).
+Blockasaurus can optionally export metrics for [Prometheus](https://prometheus.io/).
 
 Following metrics will be exported:
 
@@ -48,7 +48,7 @@ in config or as env to use control buttons to enable/disable the blocking status
 ### Grafana and Prometheus example project
 
 This [repo](https://github.com/0xERR0R/blocky-grafana-prometheus-example) contains example docker-compose.yml with
-blocky, prometheus (with configured scraper for blocky) and grafana with prometheus datasource.
+Blockasaurus, Prometheus (with configured scraper for Blockasaurus) and Grafana with Prometheus datasource.
 
 ## MySQL / MariaDB
 
@@ -58,7 +58,7 @@ or [at grafana.com](https://grafana.com/grafana/dashboards/14980)
 
 ![grafana-dashboard](grafana-query-dashboard.png).
 
-Please define the MySQL source in Grafana, which points to the database with blocky's log entries.
+Please define the MySQL source in Grafana, which points to the database with Blockasaurus's log entries.
 
 ## Postgres
 
