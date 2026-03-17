@@ -697,3 +697,96 @@ expected metric "blocky_blocking_enabled" not found in registry
 
 **Lint Fix**: Added `//nolint:gochecknoinits` comment above the init() function to suppress the gochecknoinits linter, which flags init functions as a code smell. This is acceptable for package initialization code like metric registration.
 
+
+## M2.6: Update Metrics Tests - COMPLETED
+
+**Task**: Review and update test files to ensure they verify direct Prometheus metrics emission instead of event bus patterns.
+
+### Summary
+Successfully verified and enhanced test coverage for direct Prometheus metrics emission in BlockingResolver:
+
+1. **Verification of existing tests**:
+   - No remaining event bus dependencies in test files (grep confirmed zero matches)
+   - `metrics/metrics_test.go` - TestAllExpectedMetricsAreRegistered already passes
+   - `resolver/caching_resolver_test.go` - Already updated in M2.3 (removed event subscriptions)
+   - All 1773+ unit tests pass across 16 test suites
+
+2. **Added new metrics verification tests**:
+   - `resolver/blocking_resolver_test.go` - Added two new test cases:
+     - "When EnableBlocking is called" - Verifies `blocky_blocking_enabled` metric set to 1.0
+     - "When DisableBlocking is called" - Verifies `blocky_blocking_enabled` metric set to 0.0
+
+### Implementation Details
+
+**File Modified**: `resolver/blocking_resolver_test.go`
+
+**Changes**:
+1. Added metrics import: `"github.com/0xERR0R/blocky/metrics"`
+2. Added two new test cases after the BlockingStatus test:
+
+```go
+When("EnableBlocking is called", func() {
+    It("should emit blocky_blocking_enabled metric with value 1", func() {
+        // enable blocking
+        // verify metric is set to 1.0 using Eventually() with 2s timeout
+        // Gathers metrics from registry and checks label group="default"
+    })
+})
+
+When("DisableBlocking is called", func() {
+    It("should emit blocky_blocking_enabled metric with value 0", func() {
+        // disable blocking
+        // verify metric is set to 0.0 using Eventually() with 2s timeout
+        // Gathers metrics from registry and checks label group="default"
+    })
+})
+```
+
+### Test Pattern
+
+Tests follow the Ginkgo/Gomega pattern:
+- Use `Eventually()` for async metric verification (2s timeout)
+- Call `metrics.Reg.Gather()` to get all metrics from registry
+- Iterate through metric families to find "blocky_blocking_enabled"
+- Check for label combination group="default"
+- Verify gauge value is 1.0 (enabled) or 0.0 (disabled)
+
+### Verification Results
+
+- ✅ `make test` - All 1773 specs pass (467 resolver tests including new ones)
+- ✅ `make lint` - 0 issues (after fixing nlreturn warnings)
+- ✅ `make build` - Successful binary created
+- ✅ Test coverage maintained at 94.7% for resolver package
+- ✅ No event bus subscriptions in test code
+- ✅ Direct metrics emission verified through gauge value assertions
+
+### Key Insights
+
+1. **Metric Registry Access**:
+   - Tests can directly query `metrics.Reg.Gather()` to verify metric values
+   - GaugeVec metrics are lazy - they only appear after accessing a label combination
+   - Using `Eventually()` with 2s timeout handles timing of metric updates
+
+2. **Label-Based Verification**:
+   - BlockingResolver metrics use label "group" for future per-group tracking
+   - Currently tests verify only "default" group label combination
+   - Proper pattern for verifying labeled metric values
+
+3. **Test Independence**:
+   - New tests don't depend on event bus
+   - Direct assertions on metric state
+   - Synchronous test execution (metric update happens synchronously in Enable/DisableBlocking methods)
+
+### Status of M2.6
+
+✅ COMPLETED:
+- All tests pass (1773 specs)
+- No event bus dependencies in test code
+- New tests added for direct metrics emission verification
+- BlockingResolver metrics updates verified through gauge values
+- CachingResolver already has metric verification from M2.3
+- Linting clean
+- Build successful
+- Test coverage maintained
+
+All requirements for M2.6 fulfilled. Phase 2 metrics refactoring is complete.

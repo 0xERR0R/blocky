@@ -417,7 +417,7 @@ make build
     - `grep` confirms no usage of deleted constants
   - **Risk**: Low
 
-- [ ] **M2.6: Update metrics tests**
+- [x] **M2.6: Update metrics tests**
   - **Files**: `metrics/metrics_test.go`, resolver tests
   - **Changes**:
     - Remove tests that depend on event bus

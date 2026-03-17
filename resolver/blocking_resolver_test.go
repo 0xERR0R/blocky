@@ -9,6 +9,7 @@ import (
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/lists"
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/metrics"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
@@ -1160,6 +1161,71 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					result := sut.BlockingStatus()
 
 					Expect(result.Enabled).Should(BeFalse())
+				})
+			})
+		})
+
+		When("EnableBlocking is called", func() {
+			It("should emit blocky_blocking_enabled metric with value 1", func() {
+				By("enable blocking", func() {
+					sut.EnableBlocking(context.TODO())
+				})
+
+				By("verify metric is set to 1", func() {
+					// Gather metrics and find the blocky_blocking_enabled metric
+					// The metric should be set to 1 (enabled)
+					Eventually(func() float64 {
+						mfs, err := metrics.Reg.Gather()
+						Expect(err).Should(Succeed())
+
+						for _, mf := range mfs {
+							if mf.GetName() == "blocky_blocking_enabled" {
+								// blocky_blocking_enabled should have one metric with label group="default"
+								for _, m := range mf.GetMetric() {
+									for _, lp := range m.GetLabel() {
+										if lp.GetName() == "group" && lp.GetValue() == "default" {
+											return m.GetGauge().GetValue()
+										}
+									}
+								}
+							}
+						}
+
+						return -1 // metric not found
+					}, "2s").Should(Equal(1.0))
+				})
+			})
+		})
+
+		When("DisableBlocking is called", func() {
+			It("should emit blocky_blocking_enabled metric with value 0", func() {
+				By("disable blocking", func() {
+					err := sut.DisableBlocking(context.TODO(), time.Hour, []string{})
+					Expect(err).Should(Succeed())
+				})
+
+				By("verify metric is set to 0", func() {
+					// Gather metrics and find the blocky_blocking_enabled metric
+					// The metric should be set to 0 (disabled)
+					Eventually(func() float64 {
+						mfs, err := metrics.Reg.Gather()
+						Expect(err).Should(Succeed())
+
+						for _, mf := range mfs {
+							if mf.GetName() == "blocky_blocking_enabled" {
+								// blocky_blocking_enabled should have one metric with label group="default"
+								for _, m := range mf.GetMetric() {
+									for _, lp := range m.GetLabel() {
+										if lp.GetName() == "group" && lp.GetValue() == "default" {
+											return m.GetGauge().GetValue()
+										}
+									}
+								}
+							}
+						}
+
+						return -1 // metric not found
+					}, "2s").Should(Equal(0.0))
 				})
 			})
 		})
