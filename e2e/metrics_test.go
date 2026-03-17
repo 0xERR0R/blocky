@@ -475,7 +475,7 @@ var _ = Describe("Metrics functional tests", func() {
 			By("verifying prefetch metrics are incremented", func() {
 				Eventually(func(g Gomega) {
 					metrics := fetchAllBlockyMetrics(ctx, testMetricsURL)
-					
+
 					g.Expect(metrics).Should(SatisfyAll(
 						ContainElement(MatchRegexp(`blocky_prefetches_total \d+`)),
 						ContainElement(MatchRegexp(`blocky_prefetch_hits_total \d+`)),

@@ -90,8 +90,8 @@ This applies to all of them. The default strategy is blocking.
 | upstreams.strategy      | enum (parallel_best, random, strict) | no        | parallel_best | Upstream server usage strategy.                |
 | upstreams.timeout              | duration                             | no        | 2s            | Upstream connection timeout.                          |
 | upstreams.userAgent            | string                               | no        |               | HTTP User Agent when connecting to upstreams.         |
-| upstreams.quicMaxIdleTimeout   | duration                             | no        | 30s           | QUIC maximum idle timeout before closing connection.  |
-| upstreams.quicKeepAlivePeriod  | duration                             | no        | 15s           | QUIC keep-alive interval to maintain connection.      |
+| upstreams.quic.maxIdleTimeout  | duration                             | no        | 30s           | QUIC maximum idle timeout before closing connection.  |
+| upstreams.quic.keepAlivePeriod | duration                             | no        | 15s           | QUIC keep-alive interval to maintain connection.      |
 
 For `init.strategy`, the "init" is testing the given resolvers for each group. The potentially fatal error, depending on the strategy, is if a group has no functional resolvers.
 
