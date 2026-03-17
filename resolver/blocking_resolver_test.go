@@ -145,16 +145,50 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 					return nil, nil //nolint:nilnil
 				}
-				Bus().Publish(ApplicationStarted, "")
-				Eventually(func(g Gomega) {
-					g.Expect(sut.Resolve(ctx, newRequestWithClient("blocked2.com.", A, "192.168.178.39", "client1"))).
-						Should(And(
-							BeDNSRecord("blocked2.com.", A, "0.0.0.0"),
-							HaveTTL(BeNumerically("==", 60)),
-							HaveResponseType(ResponseTypeBLOCKED),
-							HaveReturnCode(dns.RcodeSuccess),
-						))
-				}, "3s", "100ms").Should(Succeed())
+				err := sut.PostStart(ctx)
+				Expect(err).Should(Succeed())
+				Expect(sut.Resolve(ctx, newRequestWithClient("blocked2.com.", A, "192.168.178.39", "client1"))).
+					Should(And(
+						BeDNSRecord("blocked2.com.", A, "0.0.0.0"),
+						HaveTTL(BeNumerically("==", 60)),
+						HaveResponseType(ResponseTypeBLOCKED),
+						HaveReturnCode(dns.RcodeSuccess),
+					))
+			})
+		})
+	})
+
+	Describe("PostStart lifecycle", func() {
+		BeforeEach(func() {
+			sutConfig = config.Blocking{
+				BlockType: "ZEROIP",
+				BlockTTL:  config.Duration(time.Minute),
+				Denylists: map[string][]config.BytesSource{
+					"gr1": config.NewBytesSources(group1File.Path),
+				},
+				ClientGroupsBlock: map[string][]string{
+					"default":            {"gr1"},
+					"full.qualified.com": {"gr1"},
+				},
+			}
+		})
+
+		When("PostStart is called", func() {
+			It("should initialize FQDN IP cache for FQDN identifiers", func(ctx context.Context) {
+				m.AnswerFn = func(t dns.Type, qName string) (*dns.Msg, error) {
+					if t == dns.Type(dns.TypeA) && qName == "full.qualified.com." {
+						return util.NewMsgWithAnswer(qName, 60*60, A, "192.168.178.39")
+					}
+
+					return nil, nil //nolint:nilnil
+				}
+
+				// Execute PostStart
+				err := sut.PostStart(ctx)
+
+				// Verify
+				Expect(err).Should(Succeed())
+				Expect(sut.fqdnIPCache.TotalCount()).Should(BeNumerically(">", 0))
 			})
 		})
 	})

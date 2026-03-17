@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -22,6 +23,7 @@ import (
 	"github.com/creasty/defaults"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 
 	"github.com/miekg/dns"
 )
@@ -42,6 +44,46 @@ var (
 	queryURL                                                     string
 	googleMockUpstream, fritzboxMockUpstream, clientMockUpstream *resolver.MockUDPUpstreamServer
 )
+
+// mockPostStartResolver is a test mock resolver that implements PostStarter interface
+type mockPostStartResolver struct {
+	postStarted *atomic.Bool
+	next        resolver.Resolver
+}
+
+func (m *mockPostStartResolver) Type() string {
+	return "mockPostStart"
+}
+
+func (m *mockPostStartResolver) String() string {
+	return m.Type()
+}
+
+func (m *mockPostStartResolver) IsEnabled() bool {
+	return true
+}
+
+func (m *mockPostStartResolver) LogConfig(logger *logrus.Entry) {
+	// No-op for mock
+}
+
+func (m *mockPostStartResolver) Resolve(_ context.Context, _ *model.Request) (*model.Response, error) {
+	return nil, errors.New("mock resolver does not implement Resolve")
+}
+
+func (m *mockPostStartResolver) Next(next resolver.Resolver) {
+	m.next = next
+}
+
+func (m *mockPostStartResolver) GetNext() resolver.Resolver {
+	return m.next
+}
+
+func (m *mockPostStartResolver) PostStart(_ context.Context) error {
+	m.postStarted.Store(true)
+
+	return nil
+}
 
 var _ = BeforeSuite(func() {
 	mockClientName.Store("")
@@ -709,6 +751,53 @@ var _ = Describe("Running DNS server", func() {
 				err = server.Stop(ctx)
 
 				Expect(err).Should(HaveOccurred())
+			})
+		})
+	})
+
+	Describe("Server PostStart hook", func() {
+		When("Start is called", func() {
+			It("should call PostStart on resolvers implementing PostStarter", func() {
+				var (
+					server      *Server
+					errChan     chan error
+					postStarted atomic.Bool
+				)
+
+				// Create mock resolver implementing PostStarter
+				mockResolver := &mockPostStartResolver{
+					postStarted: &postStarted,
+				}
+
+				// Create server with minimal config
+				server, err = NewServer(ctx, &config.Config{
+					Upstreams: config.Upstreams{
+						Groups: map[string][]config.Upstream{
+							"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "8.8.8.8", Port: 53}},
+						},
+					},
+					Blocking: config.Blocking{BlockType: "zeroIp"},
+					Ports: config.Ports{
+						DNS:     config.ListenConfig{GetHostPort("127.0.0.1", dnsBasePort2)},
+						DOHPath: "/dns-query",
+					},
+				})
+				Expect(err).Should(Succeed())
+
+				// Replace the first resolver in chain with our mock
+				// The mock will be the first resolver to get PostStart called
+				server.queryResolver = mockResolver
+
+				errChan = make(chan error, 10)
+
+				// Start server
+				go server.Start(ctx, errChan)
+				DeferCleanup(func() {
+					Expect(server.Stop(ctx)).Should(Succeed())
+				})
+
+				// Verify PostStart was called
+				Eventually(postStarted.Load, "2s").Should(BeTrue())
 			})
 		})
 	})
