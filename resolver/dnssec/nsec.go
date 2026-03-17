@@ -80,7 +80,7 @@ func (v *Validator) validateNSECNODATA(nsecRecords []*dns.NSEC, qname string, qt
 // If all shared labels match, the shorter name (fewer labels) comes first.
 // Both names are lowercased before comparison.
 //
-// Returns -1 if a < b, 0 if a == b, +1 if a > b.
+// Returns a negative value if a < b, 0 if a == b, a positive value if a > b.
 func canonicalNameCompare(a, b string) int {
 	a = strings.TrimSuffix(strings.ToLower(dns.Fqdn(a)), ".")
 	b = strings.TrimSuffix(strings.ToLower(dns.Fqdn(b)), ".")
