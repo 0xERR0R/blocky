@@ -431,7 +431,7 @@ make build
     - Tests verify direct metrics emission
   - **Risk**: Low
 
-- [ ] **M2.7: Add integration test for Prometheus metrics endpoint**
+- [x] **M2.7: Add integration test for Prometheus metrics endpoint**
   - **Files**: New file `metrics/integration_test.go` or add to existing
   - **Changes**:
     - Start server with test config

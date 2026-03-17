@@ -790,3 +790,42 @@ Tests follow the Ginkgo/Gomega pattern:
 - Test coverage maintained
 
 All requirements for M2.6 fulfilled. Phase 2 metrics refactoring is complete.
+
+## M2.7: Integration Test for Prometheus Metrics Endpoint (COMPLETED)
+
+### Key Learnings
+
+1. **BlockingControl via Resolver Chain**
+   - Access BlockingControl through `resolver.GetFromChainWithType[api.BlockingControl]()` instead of direct server methods
+   - The Server doesn't have EnableBlocking/DisableBlocking methods - they're on BlockingResolver via api.BlockingControl interface
+   - This pattern allows loose coupling between server and resolver implementations
+
+2. **Integration Test Pattern**
+   - Use baseURL + endpoint pattern for HTTP queries in tests (e.g., `http.Get(baseURL + "metrics")`)
+   - Use `DeferCleanup(resp.Body.Close)` for proper cleanup with Ginkgo
+   - Read response body with `io.ReadAll(resp.Body)` and convert to string for validation
+   - Use `ContainSubstring()` for metric line verification (more flexible than exact matching)
+
+3. **Metric Value Verification**
+   - Metric lines include labels: `blocky_blocking_enabled{group="default"} 1`
+   - Verify both metric name and value separately for robustness
+   - Cache metrics are present when caching is enabled in config
+
+4. **Test Organization**
+   - Add test to existing "Prometheus endpoint" Describe block rather than creating new block
+   - Use "When" context for blocking status changes scenario
+   - Use descriptive "It" statements like "should expose blocking status metric"
+
+### Implementation Notes
+
+- File modified: server/server_test.go (added api import + new When/It block)
+- Test follows existing patterns from server_test.go
+- All checks pass: make test (1 test passes), make lint (clean), make build (succeeds)
+- Test verifies: metrics endpoint returns correct blocking status values and cache metrics
+
+### Metrics Verified
+
+- `blocky_blocking_enabled{group="default"} 1` (when enabled)
+- `blocky_blocking_enabled{group="default"} 0` (when disabled)
+- `blocky_cache_entries` (presence check)
+- `blocky_prefetch_domain_name_cache_entries` (presence check)

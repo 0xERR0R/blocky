@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/0xERR0R/blocky/api"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/docs"
 	. "github.com/0xERR0R/blocky/helpertest"
@@ -408,6 +409,47 @@ var _ = Describe("Running DNS server", func() {
 				resp, err := http.Get(baseURL + "metrics")
 				Expect(err).Should(Succeed())
 				Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+			})
+		})
+		When("blocking status changes", func() {
+			It("should expose blocking status metric", func(ctx context.Context) {
+				// Get blocking control from resolver chain
+				bControl, err := resolver.GetFromChainWithType[api.BlockingControl](sut.queryResolver)
+				Expect(err).Should(Succeed())
+
+				// Enable blocking
+				bControl.EnableBlocking(ctx)
+
+				// Query metrics endpoint
+				resp, err := http.Get(baseURL + "metrics")
+				Expect(err).Should(Succeed())
+				DeferCleanup(resp.Body.Close)
+
+				body, err := io.ReadAll(resp.Body)
+				Expect(err).Should(Succeed())
+
+				// Verify blocking enabled metric
+				Expect(string(body)).Should(ContainSubstring("blocky_blocking_enabled"))
+				Expect(string(body)).Should(ContainSubstring(`blocky_blocking_enabled{group="default"} 1`))
+
+				// Verify cache metrics present
+				Expect(string(body)).Should(ContainSubstring("blocky_cache_entries"))
+				Expect(string(body)).Should(ContainSubstring("blocky_prefetch_domain_name_cache_entries"))
+
+				// Disable blocking
+				err = bControl.DisableBlocking(ctx, 0, []string{})
+				Expect(err).Should(Succeed())
+
+				// Query metrics again
+				resp2, err := http.Get(baseURL + "metrics")
+				Expect(err).Should(Succeed())
+				DeferCleanup(resp2.Body.Close)
+
+				body2, err := io.ReadAll(resp2.Body)
+				Expect(err).Should(Succeed())
+
+				// Verify blocking disabled metric
+				Expect(string(body2)).Should(ContainSubstring(`blocky_blocking_enabled{group="default"} 0`))
 			})
 		})
 	})
