@@ -186,8 +186,8 @@ var _ = Describe("NSEC validation", func() {
 				NextDomain: "z.example.com.",
 			}
 
-			// Query falls in second range
-			result := sut.validateNSECNXDOMAIN([]*dns.NSEC{nsec1, nsec2, nsec3}, "m.example.com.5")
+			// Query falls in second range (canonically between m and n)
+			result := sut.validateNSECNXDOMAIN([]*dns.NSEC{nsec1, nsec2, nsec3}, "ma.example.com.")
 			Expect(result).Should(Equal(ValidationResultSecure))
 		})
 
@@ -349,8 +349,97 @@ var _ = Describe("NSEC validation", func() {
 				NextDomain: "z.example.com.",
 			}
 
-			// Subdomain should be covered
+			// Subdomain should be covered (canonically a < sub.m < z)
 			Expect(sut.nsecCoversName(nsec, "sub.m.example.com.")).Should(BeTrue())
+		})
+
+		It("should cover underscore-prefixed subdomains using canonical ordering (issue #1969)", func() {
+			// Exact scenario from https://github.com/0xERR0R/blocky/issues/1969
+			// RFC 4034 §6.1 canonical order: mail... < _25._tcp.mail... < pop...
+			nsec := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "mail.boegli-bestattungen.ch.", Rrtype: dns.TypeNSEC},
+				NextDomain: "pop.boegli-bestattungen.ch.",
+			}
+
+			Expect(sut.nsecCoversName(nsec, "_25._tcp.mail.boegli-bestattungen.ch.")).Should(BeTrue())
+		})
+
+		It("should cover other underscore-prefixed names correctly", func() {
+			nsec := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "mail.example.com.", Rrtype: dns.TypeNSEC},
+				NextDomain: "pop.example.com.",
+			}
+
+			Expect(sut.nsecCoversName(nsec, "_dmarc.mail.example.com.")).Should(BeTrue())
+			Expect(sut.nsecCoversName(nsec, "_acme-challenge.mail.example.com.")).Should(BeTrue())
+		})
+
+		It("should not cover underscore-prefixed names outside the NSEC range", func() {
+			nsec := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "b.example.com.", Rrtype: dns.TypeNSEC},
+				NextDomain: "c.example.com.",
+			}
+
+			// _a.a.example.com. is canonically before b.example.com. (a < b at third label)
+			Expect(sut.nsecCoversName(nsec, "_a.a.example.com.")).Should(BeFalse())
+		})
+
+		It("should handle wrap-around with underscore-prefixed subdomains", func() {
+			nsec := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "z.example.com.", Rrtype: dns.TypeNSEC},
+				NextDomain: "a.example.com.",
+			}
+
+			// _srv.z.example.com. is canonically after z.example.com.
+			Expect(sut.nsecCoversName(nsec, "_srv.z.example.com.")).Should(BeTrue())
+		})
+	})
+
+	Describe("canonicalNameCompare", func() {
+		It("should order names at the same level alphabetically", func() {
+			Expect(canonicalNameCompare("a.example.com.", "z.example.com.")).Should(BeNumerically("<", 0))
+			Expect(canonicalNameCompare("z.example.com.", "a.example.com.")).Should(BeNumerically(">", 0))
+		})
+
+		It("should return 0 for equal names", func() {
+			Expect(canonicalNameCompare("a.example.com.", "a.example.com.")).Should(Equal(0))
+		})
+
+		It("should be case insensitive", func() {
+			Expect(canonicalNameCompare("A.EXAMPLE.COM.", "a.example.com.")).Should(Equal(0))
+		})
+
+		It("should sort shorter name before longer when labels match as prefix", func() {
+			// example.com. < a.example.com. (fewer labels first)
+			Expect(canonicalNameCompare("example.com.", "a.example.com.")).Should(BeNumerically("<", 0))
+			// mail.example.com. < _tcp.mail.example.com.
+			Expect(canonicalNameCompare("mail.example.com.", "_tcp.mail.example.com.")).Should(BeNumerically("<", 0))
+		})
+
+		It("should compare labels right to left (not string left to right)", func() {
+			// Key insight: canonical ordering differs from string ordering here.
+			// String comparison: "_25._tcp.mail..." < "mail..." (because '_' < 'm')
+			// Canonical comparison: "mail..." < "_25._tcp.mail..." (shared labels match, shorter first)
+			Expect(canonicalNameCompare(
+				"mail.boegli-bestattungen.ch.",
+				"_25._tcp.mail.boegli-bestattungen.ch.",
+			)).Should(BeNumerically("<", 0))
+		})
+
+		It("should compare differing labels at the correct depth", func() {
+			// Both share example.com., differ at third label from right: a vs b
+			Expect(canonicalNameCompare("sub.a.example.com.", "sub.b.example.com.")).Should(BeNumerically("<", 0))
+			// Differ at second label from right
+			Expect(canonicalNameCompare("a.foo.com.", "a.bar.com.")).Should(BeNumerically(">", 0))
+		})
+
+		It("should handle root and TLD names", func() {
+			Expect(canonicalNameCompare("com.", "org.")).Should(BeNumerically("<", 0))
+			Expect(canonicalNameCompare(".", "com.")).Should(BeNumerically("<", 0))
+		})
+
+		It("should handle names without trailing dot", func() {
+			Expect(canonicalNameCompare("a.example.com", "z.example.com")).Should(BeNumerically("<", 0))
 		})
 	})
 
