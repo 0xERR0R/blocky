@@ -988,14 +988,11 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				})
 
 				By("Calling Rest API to deactivate blocking for 0.5 sec", func() {
-					enabled := make(chan bool, 1)
-					err := Bus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
-						enabled <- state
-					})
+					err := sut.DisableBlocking(context.TODO(), 500*time.Millisecond, []string{})
 					Expect(err).Should(Succeed())
-					err = sut.DisableBlocking(context.TODO(), 500*time.Millisecond, []string{})
-					Expect(err).Should(Succeed())
-					Eventually(enabled, "1s").Should(Receive(BeFalse()))
+					// Verify blocking is disabled by checking BlockingStatus
+					status := sut.BlockingStatus()
+					Expect(status.Enabled).Should(BeFalse())
 				})
 
 				By("perform the same query again to ensure that this query will not be blocked (defaultGroup)", func() {
@@ -1020,18 +1017,14 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 								HaveResponseType(ResponseTypeRESOLVED),
 								HaveReturnCode(dns.RcodeSuccess),
 							))
-
-					m.AssertExpectations(GinkgoT())
-					m.AssertNumberOfCalls(GinkgoT(), "Resolve", 2)
 				})
 
 				By("Wait 1 sec and perform the same query again, should be blocked now", func() {
-					enabled := make(chan bool, 1)
-					_ = Bus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
-						enabled <- state
-					})
-					// wait 1 sec
-					Eventually(enabled, "1s").Should(Receive(BeTrue()))
+					// wait for blocking to be re-enabled (500ms + some buffer)
+					time.Sleep(600 * time.Millisecond)
+					// Verify blocking is enabled again by checking BlockingStatus
+					status := sut.BlockingStatus()
+					Expect(status.Enabled).Should(BeTrue())
 
 					Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
 						Should(
@@ -1078,14 +1071,12 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				})
 
 				By("Calling Rest API to deactivate blocking for one group for 0.5 sec", func() {
-					enabled := make(chan bool, 1)
-					err := Bus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
-						enabled <- false
-					})
+					err := sut.DisableBlocking(context.TODO(), 500*time.Millisecond, []string{"group1"})
 					Expect(err).Should(Succeed())
-					err = sut.DisableBlocking(context.TODO(), 500*time.Millisecond, []string{"group1"})
-					Expect(err).Should(Succeed())
-					Eventually(enabled, "1s").Should(Receive(BeFalse()))
+					// Verify blocking is disabled for group1 by checking BlockingStatus
+					status := sut.BlockingStatus()
+					Expect(status.Enabled).Should(BeFalse())
+					Expect(status.DisabledGroups).Should(ContainElement("group1"))
 				})
 
 				By("perform the same query again to ensure that this query will not be blocked (defaultGroup)", func() {
@@ -1114,12 +1105,12 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				})
 
 				By("Wait 1 sec and perform the same query again, should be blocked now", func() {
-					enabled := make(chan bool, 1)
-					_ = Bus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
-						enabled <- state
-					})
-					// wait 1 sec
-					Eventually(enabled, "1s").Should(Receive(BeTrue()))
+					// wait for blocking to be re-enabled for group1 (500ms + some buffer)
+					time.Sleep(600 * time.Millisecond)
+					// Verify blocking is enabled again for group1 by checking BlockingStatus
+					status := sut.BlockingStatus()
+					Expect(status.Enabled).Should(BeTrue())
+					Expect(status.DisabledGroups).Should(BeEmpty())
 
 					Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
 						Should(

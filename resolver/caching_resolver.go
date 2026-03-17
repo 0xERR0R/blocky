@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/redis"
@@ -41,6 +40,30 @@ var (
 			Help: "Cache miss counter",
 		},
 	)
+	cacheEntries = promauto.With(metrics.Reg).NewGauge(
+		prometheus.GaugeOpts{
+			Name: "blocky_cache_entries",
+			Help: "Number of entries in cache",
+		},
+	)
+	prefetchDomains = promauto.With(metrics.Reg).NewGauge(
+		prometheus.GaugeOpts{
+			Name: "blocky_prefetch_domain_name_cache_entries",
+			Help: "Number of entries in domain cache",
+		},
+	)
+	prefetchCount = promauto.With(metrics.Reg).NewCounter(
+		prometheus.CounterOpts{
+			Name: "blocky_prefetches_total",
+			Help: "Prefetch counter",
+		},
+	)
+	prefetchHitCount = promauto.With(metrics.Reg).NewCounter(
+		prometheus.CounterOpts{
+			Name: "blocky_prefetch_hits_total",
+			Help: "Prefetch hit counter",
+		},
+	)
 )
 
 // CachingResolver caches answers from dns queries with their TTL time,
@@ -49,8 +72,6 @@ type CachingResolver struct {
 	configurable[*config.Caching]
 	NextResolver
 	typed
-
-	emitMetricEvents bool // disabled by Bootstrap
 
 	resultCache cache.ExpiringCache[[]byte]
 
@@ -64,20 +85,18 @@ func NewCachingResolver(ctx context.Context,
 	cfg config.Caching,
 	redis *redis.Client,
 ) (*CachingResolver, error) {
-	return newCachingResolver(ctx, cfg, redis, true)
+	return newCachingResolver(ctx, cfg, redis)
 }
 
 func newCachingResolver(ctx context.Context,
 	cfg config.Caching,
 	redis *redis.Client,
-	emitMetricEvents bool,
 ) (*CachingResolver, error) {
 	c := &CachingResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("caching"),
 
-		redisClient:      redis,
-		emitMetricEvents: emitMetricEvents,
+		redisClient: redis,
 	}
 
 	configureCaches(ctx, c, &cfg)
@@ -102,7 +121,7 @@ func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Cachin
 			cacheMisses.Inc()
 		},
 		OnAfterPutFn: func(newSize int) {
-			c.publishMetricsIfEnabled(evt.CachingResultCacheChanged, newSize)
+			cacheEntries.Set(float64(newSize))
 		},
 	}
 
@@ -114,13 +133,13 @@ func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Cachin
 			PrefetchMaxItemsCount: cfg.PrefetchMaxItemsCount,
 			ReloadFn:              c.reloadCacheEntry,
 			OnPrefetchAfterPut: func(newSize int) {
-				c.publishMetricsIfEnabled(evt.CachingDomainsToPrefetchCountChanged, newSize)
+				prefetchDomains.Set(float64(newSize))
 			},
 			OnPrefetchEntryReloaded: func(key string) {
-				c.publishMetricsIfEnabled(evt.CachingDomainPrefetched, key)
+				prefetchCount.Inc()
 			},
 			OnPrefetchCacheHit: func(key string) {
-				c.publishMetricsIfEnabled(evt.CachingPrefetchCacheHit, key)
+				prefetchHitCount.Inc()
 			},
 		}
 
@@ -381,12 +400,6 @@ func (r *CachingResolver) adjustTTLs(answer []dns.RR) (ttl time.Duration) {
 	}
 
 	return time.Duration(minTTL) * time.Second
-}
-
-func (r *CachingResolver) publishMetricsIfEnabled(event string, val any) {
-	if r.emitMetricEvents {
-		evt.Bus().Publish(event, val)
-	}
 }
 
 func (r *CachingResolver) FlushCaches(ctx context.Context) {

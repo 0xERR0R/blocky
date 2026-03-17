@@ -20,7 +20,6 @@ import (
 	expirationcache "github.com/0xERR0R/expiration-cache"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/lists"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
@@ -28,7 +27,17 @@ import (
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sirupsen/logrus"
+)
+
+var blockingStatusMetric = promauto.NewGaugeVec( //nolint:gochecknoglobals
+	prometheus.GaugeOpts{
+		Name: "blocky_blocking_enabled",
+		Help: "Blocking status (1 = enabled, 0 = disabled)",
+	},
+	[]string{"group"},
 )
 
 const defaultBlockingCleanUpInterval = 5 * time.Second
@@ -233,7 +242,7 @@ func (r *BlockingResolver) internalEnableBlocking() {
 	s.enabled = true
 	s.disabledGroups = []string{}
 
-	evt.Bus().Publish(evt.BlockingEnabledEvent, true)
+	blockingStatusMetric.WithLabelValues("default").Set(1)
 }
 
 // DisableBlocking deactivates the blocking for a particular duration (or forever if 0).
@@ -274,7 +283,7 @@ func (r *BlockingResolver) internalDisableBlocking(ctx context.Context, duration
 	}
 
 	s.enabled = false
-	evt.Bus().Publish(evt.BlockingEnabledEvent, false)
+	blockingStatusMetric.WithLabelValues("default").Set(0)
 
 	s.disableEnd = time.Now().Add(duration)
 

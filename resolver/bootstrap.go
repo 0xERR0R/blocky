@@ -98,7 +98,7 @@ func NewBootstrap(ctx context.Context, cfg *config.Config) (b *Bootstrap, err er
 	}
 
 	b.bootstraped = bootstraped
-	cachingResolver, _ := newCachingResolver(ctx, cachingCfg, nil, false)
+	cachingResolver, _ := newCachingResolver(ctx, cachingCfg, nil)
 
 	b.resolver = Chain(
 		NewFilteringResolver(cfg.Filtering),
