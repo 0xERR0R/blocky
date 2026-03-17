@@ -192,7 +192,7 @@
     - `grep -r "ApplicationStarted" .` returns zero results (except tests)
   - **Risk**: Low
 
-- [ ] **L1.7: Update BlockingResolver tests**
+- [x] **L1.7: Update BlockingResolver tests**
   - **Files**: `resolver/blocking_resolver_test.go`
   - **Changes**:
     - Find test that publishes ApplicationStarted (around line 148)
@@ -325,7 +325,7 @@ make build
 
 ### Tasks
 
-- [ ] **M2.1: Audit all metrics event publishers**
+- [x] **M2.1: Audit all metrics event publishers**
   - **Files**: Use `grep` to find all event publishers
   - **Changes**: None (analysis only)
   - **Command**: 
@@ -339,7 +339,7 @@ make build
   - **Risk**: Low (read-only analysis)
   - **Deliverable**: List of files and line numbers that publish metrics events
 
-- [ ] **M2.2: Add direct Prometheus metrics to BlockingResolver**
+- [x] **M2.2: Add direct Prometheus metrics to BlockingResolver**
   - **Files**: `resolver/blocking_resolver.go`
   - **Changes**:
     - Add package-level Prometheus gauge for blocking enabled/disabled status
@@ -373,7 +373,7 @@ make build
     }
     ```
 
-- [ ] **M2.3: Add direct Prometheus metrics to CachingResolver**
+- [x] **M2.3: Add direct Prometheus metrics to CachingResolver**
   - **Files**: `resolver/caching_resolver.go`
   - **Changes**:
     - Verify existing package-level metrics (already uses promauto)

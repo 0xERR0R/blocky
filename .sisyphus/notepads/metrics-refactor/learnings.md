@@ -288,3 +288,279 @@ Successfully demonstrated integration testing of PostStart hook mechanism. The t
 - PostStart is called after DNS listeners are operational
 - Resolvers implementing PostStarter interface participate in lifecycle
 - No errors prevent server startup if PostStart fails
+
+## M2.1: Metrics Event Publishers Audit - COMPLETED
+
+**Task**: Audit all metrics event publishers (read-only analysis)
+
+**Findings**:
+
+### Event Publishers (evt.Bus().Publish calls, excluding tests):
+
+1. **resolver/blocking_resolver.go**:
+   - Line 236: `evt.Bus().Publish(evt.BlockingEnabledEvent, true)` - in enableBlocking()
+   - Line 277: `evt.Bus().Publish(evt.BlockingEnabledEvent, false)` - in disableBlocking()
+
+2. **resolver/caching_resolver.go**:
+   - Line 388: `evt.Bus().Publish(event, val)` - generic publish in publishMetricsIfEnabled()
+   - Line 105: Publishes CachingResultCacheChanged
+   - Line 117: Publishes CachingDomainsToPrefetchCountChanged
+
+3. **lists/list_cache.go**:
+   - Line 146: `evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, count)`
+
+4. **lists/downloader.go**:
+   - Line 121: `evt.Bus().Publish(evt.CachingFailedDownloadChanged, link)`
+
+### Event Subscribers (metrics/metrics_event_publisher.go):
+
+1. Line 25: Subscribes to BlockingEnabledEvent → updates `blockingEnabledGauge`
+2. Line 109: Subscribes to CachingDomainsToPrefetchCountChanged → updates `prefetchDomainCountGauge`
+3. Line 121: Subscribes to CachingResultCacheChanged → updates `resultCacheEntriesGauge`
+
+### Event Constants (evt/events.go):
+
+- BlockingEnabledEvent (line 9)
+- CachingResultCacheChanged (line 18)
+- CachingDomainsToPrefetchCountChanged (line 24)
+- BlockingCacheGroupChanged (referenced in list_cache)
+- CachingFailedDownloadChanged (referenced in downloader)
+
+### Analysis Summary:
+
+**Metrics-related events to remove (Phase 2 scope)**:
+1. BlockingEnabledEvent - Used by blocking_resolver.go, subscribed by metrics_event_publisher.go
+2. CachingResultCacheChanged - Published by caching_resolver.go, subscribed by metrics_event_publisher.go
+3. CachingDomainsToPrefetchCountChanged - Published by caching_resolver.go, subscribed by metrics_event_publisher.go
+
+**Non-metrics events (OUT OF SCOPE, keep these)**:
+- BlockingCacheGroupChanged - List management, not direct Prometheus metrics
+- CachingFailedDownloadChanged - Downloader status, not direct Prometheus metrics
+
+**Refactoring Strategy**:
+- M2.2: BlockingResolver - Remove BlockingEnabledEvent, add direct Prometheus gauge
+- M2.3: CachingResolver - Remove CachingResultCacheChanged and CachingDomainsToPrefetchCountChanged events, use direct metrics (already has some promauto metrics)
+- M2.4: Remove corresponding subscribers from metrics_event_publisher.go
+- M2.5: Remove event constants from evt/events.go
+
+**Key Insight**: CachingResolver already uses direct Prometheus metrics via promauto (package-level variables). We only need to remove the event publish calls, not add new metrics infrastructure.
+
+## M2.2: Add Direct Prometheus Metrics to BlockingResolver - COMPLETED
+
+**Task**: Replace event-based metrics emission in BlockingResolver with direct Prometheus gauge updates.
+
+### Implementation Details
+
+**File Modified**: `resolver/blocking_resolver.go`
+
+**Changes Made**:
+
+1. **Imports Updated** (lines 30-31):
+   - Added: `"github.com/prometheus/client_golang/prometheus"`
+   - Added: `"github.com/prometheus/client_golang/prometheus/promauto"`
+   - Removed: `"github.com/0xERR0R/blocky/evt"` (no longer needed - only 2 uses, both being removed)
+
+2. **Package-Level Metric Added** (lines 35-41):
+   ```go
+   var blockingStatusMetric = promauto.NewGaugeVec( //nolint:gochecknoglobals
+   	prometheus.GaugeOpts{
+   		Name: "blocky_blocking_enabled",
+   		Help: "Blocking status (1 = enabled, 0 = disabled)",
+   	},
+   	[]string{"group"},
+   )
+   ```
+   - Metric name: `blocky_blocking_enabled`
+   - Type: GaugeVec with "group" label for future per-group blocking status support
+   - Uses `promauto.NewGaugeVec()` for auto-registration
+   - Requires `//nolint:gochecknoglobals` due to linter rule for global variables in resolver package
+   - Pattern follows existing conventions in `caching_resolver.go` and `sudn_resolver.go`
+
+3. **internalEnableBlocking() Updated** (line 247):
+   - Added: `blockingStatusMetric.WithLabelValues("default").Set(1)`
+   - Removed: `evt.Bus().Publish(evt.BlockingEnabledEvent, true)`
+
+4. **internalDisableBlocking() Updated** (line 288):
+   - Added: `blockingStatusMetric.WithLabelValues("default").Set(0)`
+   - Removed: `evt.Bus().Publish(evt.BlockingEnabledEvent, false)`
+
+### Verification Results
+
+- ✅ `make lint` - 0 issues (with //nolint directive)
+- ✅ `make build` - Successful binary created
+- ✅ `lsp_diagnostics` - No errors
+- ✅ All imports properly resolved
+- ✅ No evt references remain in file (grep confirmed 0 matches)
+
+### Pattern Insights
+
+1. **Global Metric Pattern**:
+   - Metrics defined at package level, after imports
+   - Used `promauto.NewGaugeVec()` for automatic Prometheus registration
+   - Label "group" enables future per-group blocking status tracking
+   - Default value is set via `.Set()` method calls
+
+2. **Linter Exception Handling**:
+   - Global variables for metrics require `//nolint:gochecknoglobals`
+   - Placement: comment on same line as variable declaration
+   - Prevents linter errors while maintaining rule enforcement elsewhere
+
+3. **Value Semantics**:
+   - `Set(1)` for enabled state
+   - `Set(0)` for disabled state
+   - Gauge type appropriate for state values (can go up and down)
+
+4. **Import Cleanup**:
+   - `evt` import was removed because it's no longer used
+   - Total of 2 evt.Bus().Publish() calls removed
+   - No other evt package usage in file
+
+### Integration with Metrics System
+
+- Metric will be scraped by Prometheus metrics endpoint (existing infrastructure)
+- No need for metrics_event_publisher subscriber (will be handled in M2.4)
+- Direct updates provide real-time metric values
+- Replaces event-based deferred metric updates
+
+### Next Steps (Future Tasks)
+
+- M2.3: Update CachingResolver similarly (has more complex metrics)
+- M2.4: Remove BlockingEnabledEvent subscriber from metrics_event_publisher.go
+- M2.5: Remove BlockingEnabledEvent constant from evt/events.go
+
+## M2.3: Add Direct Prometheus Metrics to CachingResolver - COMPLETED
+
+**Task**: Replace event-based metrics emission in CachingResolver with direct Prometheus gauge/counter updates. CachingResolver has more complex metrics than BlockingResolver.
+
+### Implementation Details
+
+**File Modified**: `resolver/caching_resolver.go`
+
+**Changes Made**:
+
+1. **Imports Updated** (lines 12-26):
+   - Already had: `"github.com/prometheus/client_golang/prometheus"` and `promauto`
+   - Removed: `"github.com/0xERR0R/blocky/evt"` (only used in publishMetricsIfEnabled helper)
+
+2. **Package-Level Metrics Expanded** (lines 30-69):
+   - Kept existing 2 metrics: `cacheHits`, `cacheMisses` (counters)
+   - Added 4 new metrics:
+     ```go
+     cacheEntries = promauto.With(metrics.Reg).NewGauge(...)  // blocky_cache_entries
+     prefetchDomains = promauto.With(metrics.Reg).NewGauge(...) // blocky_prefetch_domain_name_cache_entries
+     prefetchCount = promauto.With(metrics.Reg).NewCounter(...)  // blocky_prefetches_total
+     prefetchHitCount = promauto.With(metrics.Reg).NewCounter(...) // blocky_prefetch_hits_total
+     ```
+   - All use `promauto.With(metrics.Reg)` pattern (consistent with cacheHits/cacheMisses)
+   - Uses same `//nolint:gochecknoglobals` directive on var block opening
+
+3. **configureCaches() Updated** (lines 94-131):
+   - Replaced ALL event publish calls with direct metric updates:
+     - Line 105: `c.publishMetricsIfEnabled(evt.CachingResultCacheChanged, newSize)` 
+       → `cacheEntries.Set(float64(newSize))`
+     - Line 117: `c.publishMetricsIfEnabled(evt.CachingDomainsToPrefetchCountChanged, newSize)`
+       → `prefetchDomains.Set(float64(newSize))`
+     - Line 120: `c.publishMetricsIfEnabled(evt.CachingDomainPrefetched, key)`
+       → `prefetchCount.Inc()`
+     - Line 123: `c.publishMetricsIfEnabled(evt.CachingPrefetchCacheHit, key)`
+       → `prefetchHitCount.Inc()`
+
+4. **Constructor Simplified** (lines 62-92):
+   - Removed `emitMetricEvents` field from CachingResolver struct (was line 53)
+   - Removed `emitMetricEvents` parameter from `newCachingResolver()` function signature
+   - Removed `newCachingResolver(ctx, cfg, redis, true)` → now `newCachingResolver(ctx, cfg, redis)`
+   - Updated bootstrap.go call: `newCachingResolver(ctx, cachingCfg, nil, false)` → `newCachingResolver(ctx, cachingCfg, nil)`
+
+5. **Helper Method Removed** (previously lines 386-390):
+   - Deleted `publishMetricsIfEnabled()` method entirely (no longer needed)
+
+### Test Updates
+
+**File Modified**: `resolver/caching_resolver_test.go`
+
+**Changes Made**:
+
+1. **Import Cleanup** (line 11):
+   - Removed: `. "github.com/0xERR0R/blocky/evt"` (dot import no longer needed)
+
+2. **Test 1: Prefetch Test** (lines 100-126):
+   - Removed: `Bus().SubscribeOnce(CachingPrefetchCacheHit, ...)` event subscription
+   - Removed: `Bus().SubscribeOnce(CachingDomainPrefetched, ...)` event subscription
+   - Removed: `Bus().SubscribeOnce(CachingDomainsToPrefetchCountChanged, ...)` event subscription
+   - Kept: Query assertions and response type validation
+   - Pattern: Direct assertions instead of waiting for events
+   - Added `Eventually()` pattern to wait for prefetch to complete (still need timing since prefetch runs async)
+
+3. **Test 2: Cache Response Test** (lines 195-223):
+   - Removed: `Bus().SubscribeOnce(CachingResultCacheChanged, func(d int) {...})` event subscription
+   - Kept: All response validation assertions
+   - Removed: `Expect(totalCacheCount).Should(Receive(Equal(1)))` event-based assertion
+   - Result: Test is simpler and doesn't depend on event system
+
+### Files Modified Summary
+
+1. `resolver/caching_resolver.go` - Main implementation (4 metrics added, 1 helper removed)
+2. `resolver/caching_resolver_test.go` - Test fixes (2 event subscriptions removed)
+3. `resolver/bootstrap.go` - Constructor call updated (line 101)
+
+### Verification Results
+
+- ✅ `make lint` - 0 issues
+- ✅ `make build` - Successful binary created
+- ✅ `make test` - All 465 resolver tests pass (94.7% coverage)
+  - Full test suite: 1739 specs pass across 16 suites
+  - No regressions in caching_resolver_test.go
+- ✅ `lsp_diagnostics` - No errors
+
+### Pattern Insights
+
+1. **Metric Registration Pattern** (CachingResolver-specific):
+   - Uses `promauto.With(metrics.Reg)` instead of bare `promauto.New*()` like BlockingResolver
+   - Reason: CachingResolver was already using this pattern with cacheHits/cacheMisses
+   - This pattern provides explicit registry control vs. default prometheus registry
+   - Both patterns are valid; consistency maintained with existing code
+
+2. **Event Publishing to Direct Metrics**:
+   - CachingResolver had a helper method `publishMetricsIfEnabled()` that was a pattern
+   - This helper wrapped `evt.Bus().Publish()` with a boolean flag check
+   - Direct metrics don't need the flag - they update immediately
+   - Removed 4 event publish calls (via configureCaches options callbacks)
+
+3. **Callback-based Metric Updates**:
+   - Cache options include callbacks: `OnAfterPutFn`, `OnCacheHitFn`, etc.
+   - These callbacks now directly update metrics instead of publishing events
+   - Pattern: Pass metric update directly into callback lambda
+   - Example: `OnAfterPutFn: func(newSize int) { cacheEntries.Set(float64(newSize)) }`
+
+4. **Type Conversions**:
+   - Counters increment with `.Inc()` (no params)
+   - Gauges set with `.Set(float64(...))` - requires float conversion
+   - Watch for int→float conversions when using gauges
+
+5. **Test Pattern Changes**:
+   - Event-based tests used `Bus().SubscribeOnce()` with channel receives
+   - Direct metric tests: Don't subscribe, just run test assertions
+   - Async operations still need `Eventually()` for timing (e.g., prefetch background goroutine)
+   - Synchronous operations become simpler tests
+
+6. **emitMetricEvents Field Removal**:
+   - This field was used in Bootstrap() to create test-friendly CachingResolver
+   - Bootstrap needed to disable metric event publishing to avoid test interference
+   - With direct metrics, no longer needed - metrics always update
+   - This simplifies the constructor signature significantly
+
+### Integration with Metrics System
+
+- 4 new metrics now published directly to Prometheus:
+  - `blocky_cache_entries` - Gauge tracking cache entry count
+  - `blocky_prefetch_domain_name_cache_entries` - Gauge tracking prefetch domains
+  - `blocky_prefetches_total` - Counter of prefetch operations
+  - `blocky_prefetch_hits_total` - Counter of prefetch cache hits
+- Metrics scraped by existing Prometheus endpoint
+- No need for event subscribers (will be removed in M2.4)
+- Real-time updates without event queueing
+
+### Next Steps (Future Tasks)
+
+- M2.4: Remove BlockingEnabledEvent and caching event subscribers from metrics_event_publisher.go
+- M2.5: Remove event constants from evt/events.go
