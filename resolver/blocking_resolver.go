@@ -22,23 +22,31 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/lists"
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sirupsen/logrus"
 )
 
-var blockingStatusMetric = promauto.NewGaugeVec( //nolint:gochecknoglobals
-	prometheus.GaugeOpts{
-		Name: "blocky_blocking_enabled",
-		Help: "Blocking status (1 = enabled, 0 = disabled)",
-	},
-	[]string{"group"},
-)
+var blockingStatusMetric *prometheus.GaugeVec //nolint:gochecknoglobals
+
+//nolint:gochecknoinits
+func init() {
+	blockingStatusMetric = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "blocky_blocking_enabled",
+			Help: "Blocking status (1 = enabled, 0 = disabled)",
+		},
+		[]string{"group"},
+	)
+	metrics.RegisterMetric(blockingStatusMetric)
+	// Eagerly initialize the metric so it appears in Gather()
+	blockingStatusMetric.WithLabelValues("default")
+}
 
 const defaultBlockingCleanUpInterval = 5 * time.Second
 

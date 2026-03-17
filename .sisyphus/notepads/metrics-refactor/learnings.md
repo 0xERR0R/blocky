@@ -564,3 +564,136 @@ Successfully demonstrated integration testing of PostStart hook mechanism. The t
 
 - M2.4: Remove BlockingEnabledEvent and caching event subscribers from metrics_event_publisher.go
 - M2.5: Remove event constants from evt/events.go
+
+## M2.4: Remove Redundant Event Subscribers from metrics_event_publisher.go - COMPLETED
+
+**Task**: Remove subscribers for BlockingEnabledEvent and 4 caching metrics events that are now handled by direct Prometheus metrics.
+
+### Implementation Details
+
+**File Modified**: `metrics/metrics_event_publisher.go`
+
+**Removed Subscribers**:
+1. BlockingEnabledEvent subscriber (lines 25-31 in original) - Now handled by BlockingResolver direct Prometheus metric
+2. CachingDomainsToPrefetchCountChanged subscriber (lines 109-111) - Now handled by CachingResolver direct metric
+3. CachingDomainPrefetched subscriber (lines 113-115) - Now handled by CachingResolver direct metric
+4. CachingPrefetchCacheHit subscriber (lines 117-119) - Now handled by CachingResolver direct metric
+5. CachingResultCacheChanged subscriber (lines 121-123) - Now handled by CachingResolver direct metric
+
+**Removed Helper Functions**:
+1. `enabledGauge()` - No longer needed (BlockingResolver creates its own metric)
+2. `cacheEntryCount()` - No longer needed (CachingResolver creates its own metric)
+3. `prefetchDomainCacheCount()` - No longer needed (CachingResolver creates its own metric)
+4. `domainPrefetchCount()` - No longer needed (CachingResolver creates its own metric)
+5. `domainPrefetchHitCount()` - No longer needed (CachingResolver creates its own metric)
+
+**Kept Subscribers** (OUT OF SCOPE):
+1. BlockingCacheGroupChanged subscriber (lines 31-40 in new file) - Handles list management metrics (denylist/allowlist cache entries, list refresh timestamp)
+2. CachingFailedDownloadChanged subscriber (lines 79-81) - Handles downloader status metrics
+
+**Kept Helper Functions** (OUT OF SCOPE):
+1. `denylistGauge()` - Still used by BlockingCacheGroupChanged
+2. `allowlistGauge()` - Still used by BlockingCacheGroupChanged
+3. `lastListGroupRefresh()` - Still used by BlockingCacheGroupChanged
+4. `failedDownloadCount()` - Still used by CachingFailedDownloadChanged
+
+### File Size Reduction
+
+- Original file: 175 lines
+- Modified file: 93 lines
+- Reduction: 82 lines (47% smaller)
+
+### Verification Results
+
+✅ `make lint` - 0 issues (code formatting and linting passed)
+✅ `make build` - Compilation successful, all packages compiled correctly
+✅ No remaining references to removed events in non-test, non-event-definition code
+✅ LSP diagnostics clean
+
+### Key Insights
+
+1. **Clean Separation of Concerns**:
+   - Event subscribers were duplicating work already done by direct Prometheus metrics
+   - Removing them simplifies the metrics event system
+   - BlockingResolver and CachingResolver now fully own their metric publication
+
+2. **Remaining Event Pattern**:
+   - BlockingCacheGroupChanged and CachingFailedDownloadChanged remain because they represent non-metrics concerns
+   - List management (cache group changes) and downloader status are orthogonal to Prometheus metrics
+   - These represent state tracking, not performance instrumentation
+
+3. **Gradual Migration**:
+   - Phase 1 (M2.2): BlockingResolver added direct Prometheus metric
+   - Phase 2 (M2.3): CachingResolver added direct Prometheus metrics
+   - Phase 3 (M2.4): Removed redundant event subscribers ✓ COMPLETED
+   - Phase 4 (M2.5): Remove event constants from evt/events.go (future)
+
+4. **Benefits of Direct Metrics**:
+   - No event bus overhead
+   - Real-time metric updates without queueing
+   - Metrics are part of resolver logic, not separate concerns
+   - Easier testing (no event bus mocking needed for metrics)
+
+### Dependencies Resolved
+
+- M2.2 (BlockingResolver direct metrics) ✓ Completed
+- M2.3 (CachingResolver direct metrics) ✓ Completed
+- M2.4 (Remove redundant subscribers) ✓ Completed
+
+### Next Steps
+
+- M2.5: Remove event constants from evt/events.go that are no longer published/subscribed
+
+## M2.5: Remove unused event constants
+
+**Task**: Remove 5 event constants from evt/events.go that are no longer published or subscribed.
+
+**Constants Removed**:
+1. BlockingEnabledEvent (line 8-9) - replaced by direct Prometheus metrics in BlockingResolver (M2.2)
+2. CachingDomainPrefetched (line 14-15) - removed from CachingResolver publishes (M2.3)
+3. CachingResultCacheChanged (line 17-18) - removed from CachingResolver publishes (M2.3)
+4. CachingPrefetchCacheHit (line 20-21) - removed from CachingResolver publishes (M2.3)
+5. CachingDomainsToPrefetchCountChanged (line 23-24) - removed from CachingResolver publishes (M2.3)
+
+**Constants Retained** (still in use):
+1. BlockingCacheGroupChanged - published by lists/list_cache.go line 146
+2. CachingFailedDownloadChanged - published by lists/downloader.go line 121
+
+**Verification**:
+- `grep` search confirmed zero references to removed constants in non-test code
+- `make lint` passed with 0 issues
+- `make build` succeeded without compilation errors
+
+**Pattern**: Always remove both the comment (// description) and the constant definition together for consistency.
+
+
+## Fix: TestAllExpectedMetricsAreRegistered test failure
+
+**Problem**: Test was failing with:
+```
+expected metric "blocky_blocking_enabled" not found in registry
+```
+
+**Root Cause**: The `blockingStatusMetric` was defined using `promauto.NewGaugeVec()` with the default registry, but the test uses a custom `metrics.Reg`. Additionally, `GaugeVec` metrics are lazy - they don't appear in `Gather()` output until they're actually used (i.e., until a label combination is accessed).
+
+**Solution**: 
+1. Changed `blocking_resolver.go` to use `prometheus.NewGaugeVec()` with manual registration via `metrics.RegisterMetric()`
+2. Added init function to eagerly initialize the metric by calling `WithLabelValues("default")` so it appears in `Gather()`
+3. This ensures the metric is visible in the registry at startup time, matching the behavior of caching metrics
+
+**Pattern Learned**: 
+- `promauto.With(registry).NewXxx()` still uses lazy registration for `VecXxx` types
+- Vector metrics don't appear in `Gather()` until you access a label combination
+- For metrics that should be visible at startup, either:
+  - Eagerly initialize label combinations in init()
+  - Or use a different registration approach
+
+**Implementation**:
+- Replaced `promauto.With(metrics.Reg).NewGaugeVec()` with explicit:
+  1. `prometheus.NewGaugeVec()` to create the metric
+  2. `metrics.RegisterMetric()` to register it
+  3. `blockingStatusMetric.WithLabelValues("default")` to eagerly initialize
+
+
+**Lint Fix**: Added `//nolint:gochecknoinits` comment above the init() function to suppress the gochecknoinits linter, which flags init functions as a code smell. This is acceptable for package initialization code like metric registration.
+

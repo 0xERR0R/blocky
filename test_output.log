@@ -1,0 +1,45 @@
+go tool ginkgo --label-filter="!e2e" --coverprofile=coverage.txt --covermode=atomic --cover -r 
+[1773695259] [1mAPI Suite[0m - 14/14 specs [38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m [38;5;10mSUCCESS![0m 9.466211ms PASS
+coverage: 11.8% of statements
+[1773695259] [1mExpiration cache suite[0m - 7/7 specs [38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m [38;5;10mSUCCESS![0m 814.059208ms PASS
+coverage: 100.0% of statements
+[1773695259] [1mString cache suite[0m - 35/35 specs [38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m [38;5;10mSUCCESS![0m 1.852307ms PASS
+coverage: 100.0% of statements
+Failed to compile cmd:
+
+# github.com/0xERR0R/blocky/metrics
+../metrics/metrics_event_publisher.go:25:16: undefined: evt.ApplicationStarted
+
+Failed to compile metrics:
+
+# github.com/0xERR0R/blocky/metrics [github.com/0xERR0R/blocky/metrics.test]
+./metrics_event_publisher.go:25:16: undefined: evt.ApplicationStarted
+
+Failed to compile resolver:
+
+# github.com/0xERR0R/blocky/metrics
+../metrics/metrics_event_publisher.go:25:16: undefined: evt.ApplicationStarted
+
+Failed to compile dnssec:
+
+# github.com/0xERR0R/blocky/metrics
+../../metrics/metrics_event_publisher.go:25:16: undefined: evt.ApplicationStarted
+
+Failed to compile server:
+
+# github.com/0xERR0R/blocky/metrics
+../metrics/metrics_event_publisher.go:25:16: undefined: evt.ApplicationStarted
+
+composite coverage: 32.6% of statements
+
+Ginkgo ran 16 suites in 8.929930569s
+
+There were failures detected in the following suites:
+  [38;5;9m     cmd [38;5;243m./cmd [38;5;13m[Compilation failure][0m
+  [38;5;9m metrics [38;5;243m./metrics [38;5;13m[Compilation failure][0m
+  [38;5;9mresolver [38;5;243m./resolver [38;5;13m[Compilation failure][0m
+  [38;5;9m  dnssec [38;5;243m./resolver/dnssec [38;5;13m[Compilation failure][0m
+  [38;5;9m  server [38;5;243m./server [38;5;13m[Compilation failure][0m
+
+Test Suite Failed
+make: *** [Makefile:76: test] Error 1

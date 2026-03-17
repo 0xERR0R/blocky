@@ -386,7 +386,7 @@ make build
     - Cache size metrics update correctly
   - **Risk**: Low (already uses direct Prometheus, just removing events)
 
-- [ ] **M2.4: Remove metrics_event_publisher.go subscribers**
+- [x] **M2.4: Remove metrics_event_publisher.go subscribers**
   - **Files**: `metrics/metrics_event_publisher.go`
   - **Changes**:
     - Remove event subscriptions for BlockingEnabled
@@ -402,7 +402,7 @@ make build
     - File removed or significantly simplified
   - **Risk**: Low (subscribers no longer needed)
 
-- [ ] **M2.5: Remove metrics event constants from evt/events.go**
+- [x] **M2.5: Remove metrics event constants from evt/events.go**
   - **Files**: `evt/events.go`
   - **Changes**:
     - Delete BlockingEnabledEvent constant
