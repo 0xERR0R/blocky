@@ -1,0 +1,31 @@
+{{- if .Values.service.dns.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "blockasaurus.fullname" . }}-dns
+  labels:
+    {{- include "blockasaurus.labels" . | nindent 4 }}
+  {{- with .Values.service.dns.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.dns.type }}
+  {{- if .Values.service.dns.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ .Values.service.dns.externalTrafficPolicy }}
+  {{- end }}
+  {{- if .Values.service.dns.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.service.dns.loadBalancerIP }}
+  {{- end }}
+  ports:
+    - name: dns-udp
+      port: {{ .Values.service.dns.port }}
+      targetPort: dns-udp
+      protocol: UDP
+    - name: dns-tcp
+      port: {{ .Values.service.dns.port }}
+      targetPort: dns-tcp
+      protocol: TCP
+  selector:
+    {{- include "blockasaurus.selectorLabels" . | nindent 4 }}
+{{- end }}

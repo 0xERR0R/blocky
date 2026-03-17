@@ -1,0 +1,105 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/chrissnell/blockasaurus
+  tag: ""  # defaults to appVersion
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Blocky configuration — written to /app/config.yml in the pod.
+# See https://0xerr0r.github.io/blocky/ for all options.
+config:
+  ports:
+    dns: 53
+    http: 4000
+  upstreams:
+    groups:
+      default:
+        - https://dns.cloudflare.com/dns-query
+        - https://dns.google/dns-query
+  blocking:
+    denylists:
+      ads:
+        - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+    clientGroupsBlock:
+      default:
+        - ads
+  # Persistent config store for the web UI
+  databasePath: /data/blocky.db
+
+# Persistent volume for the config database
+persistence:
+  enabled: true
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 256Mi
+
+# DNS service — exposed via LoadBalancer (MetalLB)
+service:
+  dns:
+    enabled: true
+    type: LoadBalancer
+    port: 53
+    # Set to a specific IP if using MetalLB address pools
+    loadBalancerIP: ""
+    annotations: {}
+    #   metallb.universe.tf/address-pool: dns
+
+  # HTTP service for the web UI and API
+  http:
+    enabled: true
+    type: ClusterIP
+    port: 4000
+
+# Ingress for the web UI
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    # nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: blockasaurus.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: blockasaurus-tls
+  #    hosts:
+  #      - blockasaurus.local
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  fsGroup: 100
+
+securityContext:
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 100
+  runAsGroup: 100
+  capabilities:
+    add:
+      - NET_BIND_SERVICE
+    drop:
+      - ALL
+
+resources: {}
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # limits:
+  #   memory: 256Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -10,12 +10,12 @@ DOCKER_TAG:=v$(VERSION)
 GIT_REMOTE:=chrissnell
 
 # Helm config
-HELM_CHART:=packaging/helm/blocky
-HELM_RELEASE:=blocky
-HELM_NAMESPACE:=blocky
+HELM_CHART:=packaging/helm/blockasaurus
+HELM_RELEASE:=blockasaurus
+HELM_NAMESPACE:=blockasaurus
 HELM_VALUES:=/Users/cjs/kube/apps/blocky/values.yaml
 
-BINARY_NAME:=blocky
+BINARY_NAME:=blockasaurus
 BIN_OUT_DIR?=bin
 
 GOARCH?=$(shell go env GOARCH)
@@ -87,31 +87,31 @@ test: check-go ## run tests
 
 e2e-test: check-go check-docker ## run e2e tests
 	docker buildx build \
-		--build-arg VERSION=blocky-e2e \
+		--build-arg VERSION=blockasaurus-e2e \
 		--build-arg BUILD_TIME=${BUILD_TIME} \
 		--build-arg GOPROXY \
 		--network=host \
 		-o type=docker \
-		-t blocky-e2e \
+		-t blockasaurus-e2e \
 		.
 	go tool ginkgo -p --label-filter="e2e" --timeout 15m --flake-attempts 1 e2e
 
 e2e-test-coverage: check-go check-docker ## run e2e tests with code coverage
 	@echo "Building coverage-instrumented Docker image..."
 	docker buildx build \
-		--build-arg VERSION=blocky-e2e-coverage \
+		--build-arg VERSION=blockasaurus-e2e-coverage \
 		--build-arg BUILD_TIME=${BUILD_TIME} \
 		--build-arg GOPROXY \
 		--build-arg OPTS="-cover" \
 		--network=host \
 		-o type=docker \
-		-t blocky-e2e-coverage \
+		-t blockasaurus-e2e-coverage \
 		.
 	@echo "Running e2e tests with coverage collection..."
 	@mkdir -p coverage/e2e
 	@rm -rf coverage/e2e/*
 	@chmod 777 coverage/e2e
-	BLOCKY_IMAGE=blocky-e2e-coverage GOCOVERDIR=$(PWD)/coverage/e2e \
+	BLOCKY_IMAGE=blockasaurus-e2e-coverage GOCOVERDIR=$(PWD)/coverage/e2e \
 		go tool ginkgo -p --label-filter="e2e" --timeout 15m --flake-attempts 1 e2e
 	@echo "Converting coverage data..."
 	go tool covdata textfmt -i=./coverage/e2e -o=coverage/e2e-coverage.out
@@ -165,14 +165,14 @@ docker-build: check-docker ## Build docker image tagged with VERSION
 		--platform linux/amd64 \
 		--build-arg VERSION=$(DOCKER_TAG) \
 		--build-arg BUILD_TIME=${BUILD_TIME} \
-		-t $(DOCKER_REGISTRY)/blocky:$(DOCKER_TAG) \
-		-t $(DOCKER_REGISTRY)/blocky:latest \
+		-t $(DOCKER_REGISTRY)/blockasaurus:$(DOCKER_TAG) \
+		-t $(DOCKER_REGISTRY)/blockasaurus:latest \
 		.
 
 docker-push: docker-build ## Build and push docker image to ghcr.io
-	docker push $(DOCKER_REGISTRY)/blocky:$(DOCKER_TAG)
-	docker push $(DOCKER_REGISTRY)/blocky:latest
-	@echo "Pushed $(DOCKER_REGISTRY)/blocky:$(DOCKER_TAG)"
+	docker push $(DOCKER_REGISTRY)/blockasaurus:$(DOCKER_TAG)
+	docker push $(DOCKER_REGISTRY)/blockasaurus:latest
+	@echo "Pushed $(DOCKER_REGISTRY)/blockasaurus:$(DOCKER_TAG)"
 
 version: ## Show current version
 	@echo $(DOCKER_TAG)
@@ -202,7 +202,7 @@ deploy: docker-push ## Build, push, and deploy to Kubernetes via Helm
 		-n $(HELM_NAMESPACE) \
 		-f $(HELM_VALUES) \
 		--set image.tag=$(DOCKER_TAG)
-	@echo "Deployed $(DOCKER_REGISTRY)/blocky:$(DOCKER_TAG)"
+	@echo "Deployed $(DOCKER_REGISTRY)/blockasaurus:$(DOCKER_TAG)"
 
 check-tools: check-go check-docker ## Check if all required tools are installed
 

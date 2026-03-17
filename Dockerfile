@@ -49,22 +49,22 @@ ARG VERSION
 ARG BUILD_TIME
 ARG DOC_PATH
 
-LABEL org.opencontainers.image.title="blocky" \
+LABEL org.opencontainers.image.title="blockasaurus" \
   org.opencontainers.image.vendor="chrissnell" \
   org.opencontainers.image.licenses="Apache-2.0" \
   org.opencontainers.image.version="${VERSION}" \
   org.opencontainers.image.created="${BUILD_TIME}" \
   org.opencontainers.image.description="Fast and lightweight DNS proxy as ad-blocker for local network with many features" \
-  org.opencontainers.image.url="https://github.com/chrissnell/blocky#readme" \
-  org.opencontainers.image.source="https://github.com/chrissnell/blocky"
+  org.opencontainers.image.url="https://github.com/chrissnell/blockasaurus#readme" \
+  org.opencontainers.image.source="https://github.com/chrissnell/blockasaurus"
 
 USER 100
 WORKDIR /app
 
-COPY --from=build /bin/blocky /app/blocky
+COPY --from=build /bin/blockasaurus /app/blockasaurus
 
 ENV BLOCKY_CONFIG_FILE=/app/config.yml
 
-ENTRYPOINT ["/app/blocky"]
+ENTRYPOINT ["/app/blockasaurus"]
 
-HEALTHCHECK --start-period=1m --timeout=3s CMD ["/app/blocky", "healthcheck"]
+HEALTHCHECK --start-period=1m --timeout=3s CMD ["/app/blockasaurus", "healthcheck"]

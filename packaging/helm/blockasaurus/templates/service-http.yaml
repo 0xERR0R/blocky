@@ -1,0 +1,17 @@
+{{- if .Values.service.http.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "blockasaurus.fullname" . }}-http
+  labels:
+    {{- include "blockasaurus.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.http.type }}
+  ports:
+    - name: http
+      port: {{ .Values.service.http.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "blockasaurus.selectorLabels" . | nindent 4 }}
+{{- end }}

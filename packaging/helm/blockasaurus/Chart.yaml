@@ -1,0 +1,16 @@
+apiVersion: v2
+name: blockasaurus
+description: Fast and lightweight DNS proxy as ad-blocker for local network
+type: application
+version: 0.1.0
+appVersion: "v0.29.0"
+keywords:
+  - dns
+  - adblock
+  - privacy
+  - proxy
+home: https://github.com/chrissnell/blockasaurus
+sources:
+  - https://github.com/chrissnell/blockasaurus
+maintainers:
+  - name: chrissnell
