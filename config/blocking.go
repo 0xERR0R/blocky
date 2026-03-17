@@ -2,6 +2,9 @@ package config
 
 import (
 	"fmt"
+	"maps"
+	"slices"
+	"strings"
 
 	. "github.com/0xERR0R/blocky/config/migration"
 	"github.com/0xERR0R/blocky/log"
@@ -109,7 +112,10 @@ func (c *Blocking) validate() error {
 	for clientGroupKey, clientGroupLists := range c.ClientGroupsBlock {
 		for _, listKey := range clientGroupLists {
 			if !listKeys[listKey] {
-				return fmt.Errorf("clientGroupsBlock '%s' references undefined allowlist or denylist '%s'", clientGroupKey, listKey)
+				availableKeys := slices.Sorted(maps.Keys(listKeys))
+
+				return fmt.Errorf("clientGroupsBlock '%s' references undefined allowlist or denylist '%s'. Available: %s",
+					clientGroupKey, listKey, strings.Join(availableKeys, ", "))
 			}
 		}
 	}

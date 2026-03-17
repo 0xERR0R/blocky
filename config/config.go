@@ -647,7 +647,7 @@ func (cfg *Config) validate(logger *logrus.Entry) {
 
 	// Blocking validation
 	if err := cfg.Blocking.validate(); err != nil {
-		logger.Fatal(err)
+		logger.Warn(err)
 	}
 
 	// DNS64 validation
