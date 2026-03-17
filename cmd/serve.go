@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime/debug"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -42,6 +45,16 @@ func newServeCommand() *cobra.Command {
 }
 
 func startServer(_ *cobra.Command, _ []string) error {
+	// If GOMEMLIMIT env var isn't set, default to 90% of any cgroup memory
+	// limit. Without this, Go's GC doesn't know about container limits and
+	// allows RSS to grow past the cgroup boundary, causing OOM kills.
+	if os.Getenv("GOMEMLIMIT") == "" {
+		if limit := readCgroupMemoryLimit(); limit > 0 {
+			softLimit := limit * 9 / 10
+			debug.SetMemoryLimit(softLimit)
+		}
+	}
+
 	printBanner()
 
 	cfg, err := config.LoadConfig(configPath, isConfigMandatory)
@@ -125,6 +138,42 @@ func startServer(_ *cobra.Command, _ []string) error {
 	<-done
 
 	return terminationErr
+}
+
+// readCgroupMemoryLimit reads the memory limit from cgroup v2 or v1.
+// Returns 0 if not running in a cgroup or the limit is effectively unlimited.
+func readCgroupMemoryLimit() int64 {
+	// cgroup v2
+	if data, err := os.ReadFile("/sys/fs/cgroup/memory.max"); err == nil {
+		return parseCgroupLimit(string(data))
+	}
+
+	// cgroup v1
+	if data, err := os.ReadFile("/sys/fs/cgroup/memory/memory.limit_in_bytes"); err == nil {
+		return parseCgroupLimit(string(data))
+	}
+
+	return 0
+}
+
+func parseCgroupLimit(s string) int64 {
+	s = strings.TrimSpace(s)
+	if s == "" || s == "max" {
+		return 0
+	}
+
+	v, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return 0
+	}
+
+	// cgroup v1 uses a very large number (page-aligned near max int64) for "unlimited"
+	const unlimitedThreshold = 1 << 62
+	if v >= unlimitedThreshold {
+		return 0
+	}
+
+	return v
 }
 
 func printBanner() {

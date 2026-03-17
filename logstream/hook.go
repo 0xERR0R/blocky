@@ -9,6 +9,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// SkipHookField is a logrus field key that, when present, causes the
+// logstream hook to skip broadcasting the entry. Used by writers that
+// publish directly to the broadcaster to avoid double-broadcasting.
+const SkipHookField = "_logstream_skip"
+
 type Hook struct {
 	broadcaster *Broadcaster
 }
@@ -22,6 +27,10 @@ func (h *Hook) Levels() []logrus.Level {
 }
 
 func (h *Hook) Fire(entry *logrus.Entry) error {
+	if _, skip := entry.Data[SkipHookField]; skip {
+		return nil
+	}
+
 	fields := make(map[string]any, len(entry.Data))
 	for k, v := range entry.Data {
 		fields[k] = v

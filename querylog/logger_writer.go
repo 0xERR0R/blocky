@@ -3,23 +3,51 @@ package querylog
 import (
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/logstream"
 	"github.com/sirupsen/logrus"
 )
 
 const loggerPrefixLoggerWriter = "queryLog"
 
 type LoggerWriter struct {
-	logger *logrus.Entry
+	logger      *logrus.Entry
+	broadcaster *logstream.Broadcaster
 }
 
 func NewLoggerWriter() *LoggerWriter {
 	return &LoggerWriter{logger: log.PrefixedLog(loggerPrefixLoggerWriter)}
 }
 
+// SetBroadcaster sets the logstream broadcaster for direct WebSocket publishing.
+// When set, query log entries are published directly to the broadcaster,
+// bypassing the logrus hook's map copy to reduce allocation pressure.
+func (d *LoggerWriter) SetBroadcaster(b *logstream.Broadcaster) {
+	d.broadcaster = b
+}
+
 func (d *LoggerWriter) Write(entry *LogEntry) {
 	fields := LogEntryFields(entry)
+
+	// Publish directly to broadcaster (avoids logrus hook's fields map copy)
+	if d.broadcaster != nil {
+		anyFields := make(map[string]any, len(fields))
+		for k, v := range fields {
+			anyFields[k] = v
+		}
+
+		d.broadcaster.Publish(logstream.LogEntry{
+			Timestamp: entry.Start.UTC().Truncate(time.Millisecond),
+			Level:     "info",
+			Message:   "query resolved",
+			Fields:    anyFields,
+		})
+
+		// Mark so the logrus hook skips this entry (prevent double-broadcast)
+		fields[logstream.SkipHookField] = true
+	}
 
 	d.logger.WithFields(fields).Infof("query resolved")
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/logstream"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/querylog"
 	"github.com/0xERR0R/blocky/util"
@@ -67,7 +68,7 @@ func GetQueryLoggingWriter(ctx context.Context, cfg config.QueryLog) (querylog.W
 }
 
 // NewQueryLoggingResolver returns a new resolver instance
-func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) (*QueryLoggingResolver, error) {
+func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog, broadcaster *logstream.Broadcaster) (*QueryLoggingResolver, error) {
 	logger := log.PrefixedLog(queryLoggingResolverType)
 
 	var writer querylog.Writer
@@ -93,6 +94,11 @@ func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) (*QueryLo
 
 		writer = querylog.NewLoggerWriter()
 		cfg.Type = config.QueryLogTypeConsole
+	}
+
+	// Wire broadcaster to LoggerWriter for direct WebSocket publishing
+	if lw, ok := writer.(*querylog.LoggerWriter); ok && broadcaster != nil {
+		lw.SetBroadcaster(broadcaster)
 	}
 
 	instanceID, err := readInstanceID("/etc/hostname")

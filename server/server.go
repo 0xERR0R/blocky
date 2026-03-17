@@ -155,17 +155,17 @@ func NewServer(ctx context.Context, cfg *config.Config, store *configstore.Confi
 		}
 	}
 
+	broadcaster := logstream.NewBroadcaster(ctx, 1000)
+	log.Log().AddHook(logstream.NewHook(broadcaster))
+
 	chainCtx, chainCancel := context.WithCancel(ctx)
 
-	queryResolver, queryError := createQueryResolver(chainCtx, cfg, bootstrap, redisClient)
+	queryResolver, queryError := createQueryResolver(chainCtx, cfg, bootstrap, redisClient, broadcaster)
 	if queryError != nil {
 		chainCancel()
 
 		return nil, queryError
 	}
-
-	broadcaster := logstream.NewBroadcaster(ctx, 1000)
-	log.Log().AddHook(logstream.NewHook(broadcaster))
 
 	server = &Server{
 		dnsServers:  dnsServers,
@@ -330,11 +330,12 @@ func createQueryResolver(
 	cfg *config.Config,
 	bootstrap *resolver.Bootstrap,
 	redisClient *redis.Client,
+	broadcaster *logstream.Broadcaster,
 ) (resolver.ChainedResolver, error) {
 	upstreamTree, utErr := resolver.NewUpstreamTreeResolver(ctx, cfg.Upstreams, bootstrap)
 	blocking, blErr := resolver.NewBlockingResolver(ctx, cfg.Blocking, redisClient, bootstrap)
 	clientNames, cnErr := resolver.NewClientNamesResolver(ctx, cfg.ClientLookup, cfg.Upstreams, bootstrap)
-	queryLogging, qlErr := resolver.NewQueryLoggingResolver(ctx, cfg.QueryLog)
+	queryLogging, qlErr := resolver.NewQueryLoggingResolver(ctx, cfg.QueryLog, broadcaster)
 	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(ctx, cfg.Conditional, cfg.Upstreams, bootstrap)
 	hostsFile, hfErr := resolver.NewHostsFileResolver(ctx, cfg.HostsFile, bootstrap)
 	cachingResolver, crErr := resolver.NewCachingResolver(ctx, cfg.Caching, redisClient)
@@ -502,7 +503,7 @@ func (s *Server) Reconfigure(ctx context.Context) error {
 	// Build new resolver chain (slow — list loading, network I/O)
 	chainCtx, chainCancel := context.WithCancel(ctx)
 
-	newChain, err := createQueryResolver(chainCtx, &newCfg, s.bootstrap, s.redisClient)
+	newChain, err := createQueryResolver(chainCtx, &newCfg, s.bootstrap, s.redisClient, s.broadcaster)
 	if err != nil {
 		chainCancel()
 

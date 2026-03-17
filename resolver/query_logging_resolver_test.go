@@ -74,7 +74,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 			sutConfig.SetDefaults() // not called when using a struct literal
 		}
 
-		sut, err = NewQueryLoggingResolver(ctx, sutConfig)
+		sut, err = NewQueryLoggingResolver(ctx, sutConfig, nil)
 		Expect(err).Should(Succeed())
 
 		m = &mockResolver{
