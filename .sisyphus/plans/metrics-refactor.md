@@ -167,7 +167,7 @@
     }
     ```
 
-- [ ] **L1.5: Remove ApplicationStarted event publish from cmd/serve.go**
+- [x] **L1.5: Remove ApplicationStarted event publish from cmd/serve.go**
   - **Files**: `cmd/serve.go`
   - **Changes**:
     - Delete line 89 (`evt.Bus().Publish(evt.ApplicationStarted)`)
@@ -180,7 +180,7 @@
     - ApplicationStarted event no longer published
   - **Risk**: Low
 
-- [ ] **L1.6: Remove ApplicationStarted event constant from evt/events.go**
+- [x] **L1.6: Remove ApplicationStarted event constant from evt/events.go**
   - **Files**: `evt/events.go`
   - **Changes**:
     - Delete `ApplicationStarted = "application:started"` constant
@@ -229,7 +229,7 @@
     })
     ```
 
-- [ ] **L1.8: Add integration test for server lifecycle**
+- [x] **L1.8: Add integration test for server lifecycle**
   - **Files**: `server/server_test.go`
   - **Changes**:
     - Add test: "Start should call PostStart on resolvers"

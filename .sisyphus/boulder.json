@@ -3,7 +3,9 @@
   "started_at": "2026-03-16T20:30:24.811Z",
   "session_ids": [
     "ses_307a8465bffeIJekMFiwMwjGXt",
-    "ses_3079328e3ffeHGjYpsvuj4da6s"
+    "ses_3079328e3ffeHGjYpsvuj4da6s",
+    "ses_30788ff38ffe4ocqIr8kqDIpit",
+    "ses_3060ec437ffeirDQr5yIsptbVb"
   ],
   "plan_name": "metrics-refactor",
   "agent": "atlas",
