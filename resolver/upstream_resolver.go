@@ -182,6 +182,13 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 			},
 		}
 
+	case config.NetProtocolQuic:
+		return newQuicUpstreamClient(
+			&tlsConfig,
+			cfg.QUICMaxIdleTimeout.ToDuration(),
+			cfg.QUICKeepAlivePeriod.ToDuration(),
+		)
+
 	case config.NetProtocolTcpUdp:
 		return &dnsUpstreamClient{
 			tcpClient: &dns.Client{

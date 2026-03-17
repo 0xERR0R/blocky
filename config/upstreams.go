@@ -9,11 +9,13 @@ const UpstreamDefaultCfgName = "default"
 
 // Upstreams upstream servers configuration
 type Upstreams struct {
-	Init      Init             `yaml:"init"`
-	Timeout   Duration         `default:"2s"            yaml:"timeout"` // always > 0
-	Groups    UpstreamGroups   `yaml:"groups"`
-	Strategy  UpstreamStrategy `default:"parallel_best" yaml:"strategy"`
-	UserAgent string           `yaml:"userAgent"`
+	Init                Init             `yaml:"init"`
+	Timeout             Duration         `default:"2s"            yaml:"timeout"` // always > 0
+	Groups              UpstreamGroups   `yaml:"groups"`
+	Strategy            UpstreamStrategy `default:"parallel_best" yaml:"strategy"`
+	UserAgent           string           `yaml:"userAgent"`
+	QUICMaxIdleTimeout  Duration         `default:"30s"           yaml:"quicMaxIdleTimeout"`
+	QUICKeepAlivePeriod Duration         `default:"15s"           yaml:"quicKeepAlivePeriod"`
 }
 
 type UpstreamGroups map[string][]Upstream
@@ -24,6 +26,16 @@ func (c *Upstreams) validate(logger *logrus.Entry) {
 	if !c.Timeout.IsAboveZero() {
 		logger.Warnf("upstreams.timeout <= 0, setting to %s", defaults.Timeout)
 		c.Timeout = defaults.Timeout
+	}
+
+	if !c.QUICMaxIdleTimeout.IsAboveZero() {
+		logger.Warnf("upstreams.quicMaxIdleTimeout <= 0, setting to %s", defaults.QUICMaxIdleTimeout)
+		c.QUICMaxIdleTimeout = defaults.QUICMaxIdleTimeout
+	}
+
+	if !c.QUICKeepAlivePeriod.IsAboveZero() {
+		logger.Warnf("upstreams.quicKeepAlivePeriod <= 0, setting to %s", defaults.QUICKeepAlivePeriod)
+		c.QUICKeepAlivePeriod = defaults.QUICKeepAlivePeriod
 	}
 }
 
