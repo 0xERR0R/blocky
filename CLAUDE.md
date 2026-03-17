@@ -80,6 +80,50 @@ Resolvers are composed at startup in `server/server.go` using `resolver.Chain()`
 14. **EDEResolver** - Adds Extended DNS Errors
 15. **UpstreamTreeResolver** - Final upstream resolution
 
+### Resolver Lifecycle
+
+Resolvers can optionally implement the `PostStarter` interface to perform initialization that requires the DNS server to be running:
+
+```go
+type PostStarter interface {
+    PostStart(ctx context.Context) error
+}
+```
+
+**When to implement PostStarter:**
+- Resolver needs to perform DNS lookups during initialization
+- Initialization depends on upstream resolvers being operational
+- Example: `BlockingResolver` uses `PostStart` to resolve FQDN client identifiers to IPs
+
+**Timing:** `PostStart()` is called by `server.Start()` after all DNS listeners are up but before the server begins handling queries.
+
+**Error handling:** `PostStart` errors are logged as warnings but don't prevent server startup.
+
+### Metrics
+
+Blocky uses **direct Prometheus metrics emission** for all metrics:
+
+```go
+var myMetric = promauto.NewGaugeVec(
+    prometheus.GaugeOpts{
+        Name: "blocky_my_metric",
+        Help: "Description of metric",
+    },
+    []string{"label1", "label2"},
+)
+
+// Update metric directly
+myMetric.WithLabelValues("value1", "value2").Set(42)
+```
+
+**Pattern:** Define package-level metrics using `promauto` for automatic registration.
+
+**No event bus:** Metrics are emitted directly from resolvers, not via event bus subscriptions.
+
+**Metrics endpoint:** All metrics exposed at `GET /metrics` in Prometheus format.
+
+**Event Bus:** The `evt` package provides a lightweight event bus used exclusively for list management notifications (cache updates, download failures). Lifecycle and metrics events have been replaced with direct interfaces (PostStarter) and direct Prometheus emission.
+
 ### Key Components
 
 **`resolver/`** - All DNS resolution logic (~20 resolver types)
@@ -183,6 +227,7 @@ Generated files are marked with `// Code generated ... DO NOT EDIT`
 4. Add constructor `NewMyResolver(cfg *config.MyConfig) *MyResolver`
 5. Wire into chain in `server/server.go`
 6. Add config struct in `config/my.go`
+7. (Optional) Implement `PostStarter` interface if initialization requires DNS server to be running
 
 **Adding a CLI command:**
 1. Create command in `cmd/mycommand.go`

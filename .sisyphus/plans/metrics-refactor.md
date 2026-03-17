@@ -574,7 +574,7 @@ curl -s http://localhost:4000/metrics | grep "^blocky_" | head -20
     - `grep -r "evt\\.Bus" .` returns zero results
   - **Risk**: Low (if Phase 1 & 2 complete, should be safe)
 
-- [ ] **E3.4: Update CLAUDE.md documentation**
+- [x] **E3.4: Update CLAUDE.md documentation**
   - **Files**: `CLAUDE.md`
   - **Changes**:
     - Remove references to event bus pattern

@@ -842,3 +842,9 @@ All requirements for M2.6 fulfilled. Phase 2 metrics refactoring is complete.
 - **Status**: ✅ Complete
 
 The evt package remains necessary for list management events. The comment clearly explains the scope reduction and why lifecycle/metrics events no longer use the event bus.
+
+## CLAUDE.md Documentation (Task E3.4)
+- Documented PostStarter interface pattern for resolver lifecycle.
+- Documented direct Prometheus metrics pattern using promauto.
+- Clarified event bus scope (now limited to list management).
+- Updated "Adding a new resolver" pattern to include optional PostStarter implementation.
