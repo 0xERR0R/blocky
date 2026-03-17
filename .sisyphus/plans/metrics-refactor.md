@@ -536,7 +536,7 @@ curl -s http://localhost:4000/metrics | grep "^blocky_" | head -20
 
 ### Tasks
 
-- [ ] **E3.1: Audit remaining event bus usage**
+- [x] **E3.1: Audit remaining event bus usage**
   - **Files**: All `.go` files
   - **Command**:
     ```bash
@@ -550,7 +550,7 @@ curl -s http://localhost:4000/metrics | grep "^blocky_" | head -20
   - **Risk**: Low (read-only)
   - **Expected Result**: Only Redis subscriber should remain (uses separate channel pattern)
 
-- [ ] **E3.2: Verify Redis sync does NOT use event bus for core functionality**
+- [x] **E3.2: Verify Redis sync does NOT use event bus for core functionality**
   - **Files**: `resolver/blocking_resolver.go` (redisSubscriber method)
   - **Changes**: None (verification only)
   - **Command**: Read lines 178-200 (redisSubscriber method)
@@ -560,7 +560,7 @@ curl -s http://localhost:4000/metrics | grep "^blocky_" | head -20
   - **Risk**: Low
   - **Expected Finding**: Redis subscriber uses `pubsub.Channel()` (Go channel), NOT `evt.Bus()`
 
-- [ ] **E3.3: Remove evt package if fully unused**
+- [x] **E3.3: Remove evt package if fully unused**
   - **Files**: `evt/events.go`, `evt/` directory
   - **Changes**:
     - If E3.1 confirms zero usage: delete `evt/` directory

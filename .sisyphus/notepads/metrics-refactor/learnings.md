@@ -829,3 +829,16 @@ All requirements for M2.6 fulfilled. Phase 2 metrics refactoring is complete.
 - `blocky_blocking_enabled{group="default"} 0` (when disabled)
 - `blocky_cache_entries` (presence check)
 - `blocky_prefetch_domain_name_cache_entries` (presence check)
+
+## E3.3: Package Comment for evt Package
+- **Date**: 2026-03-17
+- **Task**: Add documentation comment to `evt/events.go` explaining why the package remains
+- **Approach**: Added comprehensive package-level godoc comment documenting:
+  - Event bus usage: list management notifications only
+  - Events in use: BlockingCacheGroupChanged, CachingFailedDownloadChanged
+  - Events removed: ApplicationStarted, resolver metrics events
+  - Redis sync: uses dedicated Go channels, not event bus
+- **Verification**: `make lint` and `make build` both pass
+- **Status**: ✅ Complete
+
+The evt package remains necessary for list management events. The comment clearly explains the scope reduction and why lifecycle/metrics events no longer use the event bus.
