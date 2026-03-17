@@ -15,27 +15,6 @@ import (
 func RegisterEventListeners() {
 	registerBlockingEventListeners()
 	registerCachingEventListeners()
-	registerApplicationEventListeners()
-}
-
-func registerApplicationEventListeners() {
-	v := versionNumberGauge()
-	RegisterMetric(v)
-
-	subscribe(evt.ApplicationStarted, func(version, buildTime string) {
-		v.WithLabelValues(version, buildTime).Set(1)
-	})
-}
-
-func versionNumberGauge() *prometheus.GaugeVec {
-	denylistCnt := prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "blocky_build_info",
-			Help: "Version number and build info",
-		}, []string{"version", "build_time"},
-	)
-
-	return denylistCnt
 }
 
 func registerBlockingEventListeners() {
