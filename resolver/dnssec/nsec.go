@@ -4,6 +4,7 @@ package dnssec
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/0xERR0R/blocky/util"
 
@@ -74,28 +75,52 @@ func (v *Validator) validateNSECNODATA(nsecRecords []*dns.NSEC, qname string, qt
 	return ValidationResultBogus
 }
 
+// canonicalNameCompare compares two DNS names using RFC 4034 §6.1 canonical ordering.
+// Canonical ordering compares labels from the rightmost (root) label first.
+// If all shared labels match, the shorter name (fewer labels) comes first.
+// Both names are lowercased before comparison.
+//
+// Returns -1 if a < b, 0 if a == b, +1 if a > b.
+func canonicalNameCompare(a, b string) int {
+	a = strings.TrimSuffix(strings.ToLower(dns.Fqdn(a)), ".")
+	b = strings.TrimSuffix(strings.ToLower(dns.Fqdn(b)), ".")
+
+	labelsA := strings.Split(a, ".")
+	labelsB := strings.Split(b, ".")
+
+	// Compare from rightmost label
+	idxA := len(labelsA) - 1
+	idxB := len(labelsB) - 1
+
+	for idxA >= 0 && idxB >= 0 {
+		if cmp := strings.Compare(labelsA[idxA], labelsB[idxB]); cmp != 0 {
+			return cmp
+		}
+
+		idxA--
+		idxB--
+	}
+
+	// All compared labels matched; fewer labels sorts first
+	return len(labelsA) - len(labelsB)
+}
+
 // nsecCoversName checks if an NSEC record covers a given name (for NXDOMAIN proof)
 // Per RFC 4034 §4.1: NSEC RR covers names between owner name and next domain name
+// Uses RFC 4034 §6.1 canonical DNS name ordering (label-by-label, right to left).
 func (v *Validator) nsecCoversName(nsec *dns.NSEC, name string) bool {
-	// Use canonical form (lowercase, FQDN) per RFC 4034 §6.1
 	owner := dns.CanonicalName(nsec.Header().Name)
 	next := dns.CanonicalName(nsec.NextDomain)
 	name = dns.CanonicalName(name)
 
-	// RFC 4034 §6.1: Canonical DNS name ordering for NSEC
-	// For canonical names (lowercase, FQDN), lexicographic string comparison
-	// is equivalent to the canonical ordering defined in RFC 4034 §6.1.
-	// Go's > and < operators perform lexicographic comparison on strings,
-	// which matches the byte-by-byte comparison required by the RFC.
-	//
 	// If owner < name < next, then NSEC covers the name
 	// Handle wrap-around at end of zone (when next < owner)
-	if next > owner {
+	if canonicalNameCompare(next, owner) > 0 {
 		// Normal case: owner < next
-		return name > owner && name < next
+		return canonicalNameCompare(name, owner) > 0 && canonicalNameCompare(name, next) < 0
 	}
 	// Wrap-around case: next < owner (covers names from owner to end and start to next)
-	return name > owner || name < next
+	return canonicalNameCompare(name, owner) > 0 || canonicalNameCompare(name, next) < 0
 }
 
 // nsecHasType checks if an NSEC record claims a given type exists
