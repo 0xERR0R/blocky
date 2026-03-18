@@ -2484,10 +2484,12 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">  </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">parallel_best</span>
 <span class="w">  </span><span class="c1"># optional: timeout to query the upstream resolver. Default: 2s</span>
 <span class="w">  </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2s</span>
-<span class="w">  </span><span class="c1"># optional: QUIC maximum idle timeout before closing connection. Default: 30s</span>
-<span class="w">  </span><span class="nt">quicMaxIdleTimeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30s</span>
-<span class="w">  </span><span class="c1"># optional: QUIC keep-alive interval to maintain connection. Default: 15s</span>
-<span class="w">  </span><span class="nt">quicKeepAlivePeriod</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15s</span>
+<span class="w">  </span><span class="c1"># optional: QUIC-specific settings (only relevant when quic: upstreams are configured)</span>
+<span class="w">  </span><span class="nt">quic</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># optional: maximum idle timeout before closing connection. Default: 30s</span>
+<span class="w">    </span><span class="nt">maxIdleTimeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30s</span>
+<span class="w">    </span><span class="c1"># optional: keep-alive interval to maintain connection. Default: 15s</span>
+<span class="w">    </span><span class="nt">keepAlivePeriod</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15s</span>
 <span class="w">  </span><span class="c1"># optional: HTTP User Agent when connecting to upstreams. Default: none</span>
 <span class="w">  </span><span class="nt">userAgent</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;custom</span><span class="nv"> </span><span class="s">UA&quot;</span>
 
@@ -3174,14 +3176,14 @@ This applies to all of them. The default strategy is blocking.</p>
 <td><abbr title="Hypertext Transfer Protocol">HTTP</abbr> User Agent when connecting to upstreams.</td>
 </tr>
 <tr>
-<td>upstreams.quicMaxIdleTimeout</td>
+<td>upstreams.quic.maxIdleTimeout</td>
 <td>duration</td>
 <td>no</td>
 <td>30s</td>
 <td>QUIC maximum idle timeout before closing connection.</td>
 </tr>
 <tr>
-<td>upstreams.quicKeepAlivePeriod</td>
+<td>upstreams.quic.keepAlivePeriod</td>
 <td>duration</td>
 <td>no</td>
 <td>15s</td>
