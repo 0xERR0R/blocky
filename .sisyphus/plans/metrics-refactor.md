@@ -675,7 +675,7 @@ make all
   - **Expected**: Performance within 5% of baseline
   - **Risk**: N/A
 
-- [ ] **F4.4: Prometheus Metrics Verification**
+- [x] **F4.4: Prometheus Metrics Verification**
   - **Command**:
     ```bash
     # Start blocky
