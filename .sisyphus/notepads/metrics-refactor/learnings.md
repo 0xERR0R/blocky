@@ -848,3 +848,207 @@ The evt package remains necessary for list management events. The comment clearl
 - Documented direct Prometheus metrics pattern using promauto.
 - Clarified event bus scope (now limited to list management).
 - Updated "Adding a new resolver" pattern to include optional PostStarter implementation.
+
+## F4.1: Code Review Verification (COMPLETED)
+
+**Date**: 2026-03-18
+**Verifier**: Manual comprehensive code review
+**Status**: ✅ ALL CHECKLIST ITEMS VERIFIED
+
+### Verification Results
+
+#### 1. PostStarter Interface Documentation ✅
+
+**File**: `resolver/resolver.go:106-116`
+
+**Verification**:
+- Interface is clearly documented with 6-line godoc comment
+- Documents purpose: "initialization that requires the DNS server to be running"
+- Explains when called: "after all DNS listeners are up"
+- Provides example use case: "BlockingResolver which initializes its FQDN IP cache"
+- Method signature is correct: `PostStart(ctx context.Context) error`
+- Properly placed after NamedResolver interface (line 105)
+- Indentation: consistent tabs throughout
+- Code formatting: passes `make lint` with 0 issues
+
+**Result**: ✅ PASS - Documentation is comprehensive and accurate
+
+#### 2. BlockingResolver.PostStart Implementation ✅
+
+**File**: `resolver/blocking_resolver.go:635-654`
+
+**Verification**:
+- Method signature correct: `func (r *BlockingResolver) PostStart(ctx context.Context) error`
+- Calls `r.initFQDNIPCache(ctx)` - existing initialization method preserved
+- Debug logging pattern:
+  - Before: `logger.Debug("initializing FQDN IP cache")`
+  - After: `logger.Debugf("FQDN IP cache initialized with %d entries", fqdnCount)`
+- FQDN counting logic:
+  - Uses `maps.Keys(r.clientGroupsBlock)` to get identifiers
+  - Iterates with `isFQDN(id)` helper function
+  - Helper function exists and is working
+- Error handling: `return nil` (appropriate - no errors expected)
+- Code style: blank line before return (nlreturn linter satisfied)
+
+**Result**: ✅ PASS - Implementation is correct and follows patterns
+
+#### 3. Server.Start PostStart Hook Calling ✅
+
+**File**: `server/server.go:425-434`
+
+**Verification**:
+- Timing: Called at line 425 - AFTER DNS listeners up (line 423) but BEFORE registerPrintConfigurationTrigger (line 436)
+- Uses `resolver.ForEach(s.queryResolver, func(res resolver.Resolver) {` for chain iteration
+- Properly verified by checking ForEach implementation at resolver.go:156-170
+- Type assertion: `if ps, ok := res.(resolver.PostStarter); ok {`
+- Calls: `ps.PostStart(ctx)` with proper context
+- Error handling:
+  - Logs warnings: `logger().Warnf("PostStart failed for %s: %v", res.Type(), err)`
+  - Does NOT fail server startup (comment confirms: "Don't fail server startup - log and continue")
+  - Appropriate severity: warnings not errors
+- Debug logging: `logger().Debug("calling PostStart hooks on resolver chain")`
+
+**Result**: ✅ PASS - Timing, pattern, and error handling all correct
+
+#### 4. All Metrics Emit via Direct Prometheus ✅
+
+**BlockingResolver metrics** (`resolver/blocking_resolver.go:35-49`):
+- Uses `prometheus.NewGaugeVec()` with manual `metrics.RegisterMetric()`
+- Metric: `blocky_blocking_enabled` (name, help, labels defined)
+- Updates via: `blockingStatusMetric.WithLabelValues("default").Set(1)` (enabled)
+- Updates via: `blockingStatusMetric.WithLabelValues("default").Set(0)` (disabled)
+- No evt.Bus().Publish() calls remain (grep confirmed 0 matches in resolver package)
+
+**CachingResolver metrics** (`resolver/caching_resolver.go:30-67`):
+- Uses `promauto.With(metrics.Reg).NewCounter/NewGauge` pattern
+- 6 metrics defined: cacheHits, cacheMisses, cacheEntries, prefetchDomains, prefetchCount, prefetchHitCount
+- Direct updates in configureCaches callbacks
+- No event publishing
+- grep confirmed: zero evt.Bus().Publish() calls in resolvers
+
+**Other resolvers**: Spot-checked, none found to have event bus metrics publishing
+
+**Result**: ✅ PASS - All resolver metrics use direct Prometheus emission
+
+#### 5. No Global State Violations ✅
+
+**ApplicationStarted event**:
+- Constant removed from `evt/events.go` line 25 (previously defined)
+- No remaining references in blocking_resolver.go or other resolvers
+- grep confirmed: 0 matches for "ApplicationStarted" outside comments/event definition
+
+**BlockingEnabledEvent**:
+- Removed from BlockingResolver (lines 247, 288 - previously had evt.Bus().Publish calls)
+- Now uses direct Prometheus metric instead
+- grep confirmed: 0 matches for "BlockingEnabledEvent" in blocking_resolver.go
+
+**Caching metrics events**:
+- CachingResultCacheChanged: removed from caching_resolver.go
+- CachingDomainsToPrefetchCountChanged: removed from caching_resolver.go
+- CachingPrefetchCacheHit: removed from caching_resolver.go  
+- CachingDomainPrefetched: removed from caching_resolver.go
+- grep confirmed: 0 matches in resolver package
+
+**Remaining evt.Bus() usage** (EXPECTED and OUT OF SCOPE):
+1. `lists/list_cache.go:146` - BlockingCacheGroupChanged (list management, not metrics)
+2. `lists/downloader.go:121` - CachingFailedDownloadChanged (downloader status, not metrics)
+3. `metrics/metrics_event_publisher.go:31,79` - Subscribe helpers for list events (EXPECTED)
+
+**Result**: ✅ PASS - Only lifecycle/metrics event bus usage removed; list management events remain appropriately
+
+#### 6. Error Handling for PostStart ✅
+
+**Server.Start() error handling** (`server/server.go:429-432`):
+- Checks error: `if err := ps.PostStart(ctx); err != nil {`
+- Logs as warning: `logger().Warnf(...)`
+- Does NOT fail startup: comment "Don't fail server startup - log and continue"
+- Pattern: graceful degradation on PostStart failures
+- Logging level appropriate: Warn (not Error or Fatal)
+
+**BlockingResolver.PostStart error handling**:
+- Returns nil (no errors expected from initialization)
+- Would be appropriate for future error scenarios
+
+**Result**: ✅ PASS - Error handling follows graceful degradation pattern
+
+#### 7. Code Follows Existing Blocky Patterns ✅
+
+**ForEach pattern**:
+- Used at `server/server.go:427`
+- Verified implementation at `resolver/resolver.go:156-170`
+- Properly handles ChainedResolver chain iteration
+- Matches existing codebase patterns
+
+**Optional interfaces**:
+- PostStarter is optional (type assertion with ok check)
+- Matches pattern of other optional resolver interfaces
+- Reduces coupling between server and resolvers
+
+**Logging pattern**:
+- Uses `ctx, logger := r.log(ctx)` in BlockingResolver.PostStart
+- Matches pattern in other resolver methods
+- Consistent with codebase conventions
+
+**Metric registration patterns**:
+- BlockingResolver: `prometheus.NewGaugeVec()` + `metrics.RegisterMetric()` 
+- CachingResolver: `promauto.With(metrics.Reg).NewGauge()`
+- Both patterns exist in codebase and are acceptable
+- Metrics use `.Set(float64(...))` for gauges, `.Inc()` for counters
+
+**Result**: ✅ PASS - All patterns follow existing Blocky conventions
+
+#### 8. No New Dependencies Added ✅
+
+**Go module changes**:
+- Verified `go.mod` - only test dependencies added (testcontainers)
+- No new production dependencies
+- All imports used are existing (prometheus, context, etc.)
+
+**Test dependencies**:
+- testcontainers (already in go.mod as per learnings.md)
+- Acceptable for integration testing
+
+**Import analysis**:
+- `resolver/resolver.go`: No new imports
+- `resolver/blocking_resolver.go`: No new imports (removed evt, added prometheus - prometheus already present)
+- `resolver/caching_resolver.go`: No new imports (removed evt)
+- `server/server.go`: No new imports
+- `metrics/metrics_event_publisher.go`: No new imports
+
+**Result**: ✅ PASS - No new production dependencies added
+
+### Summary Table
+
+| Checklist Item | Status | Finding |
+|---|---|---|
+| PostStarter documentation | ✅ | 6-line comprehensive godoc, clear purpose and use case |
+| BlockingResolver.PostStart | ✅ | Correct implementation, calls initFQDNIPCache, proper logging |
+| Server.Start timing | ✅ | Called at line 425, after DNS listeners (line 423), proper pattern |
+| Direct Prometheus metrics | ✅ | All resolver metrics use prometheus.NewGaugeVec or promauto |
+| No global state violations | ✅ | Lifecycle/metrics events removed, list management events remain |
+| Error handling | ✅ | PostStart failures logged as warnings, don't fail startup |
+| Blocky patterns | ✅ | ForEach, optional interfaces, logging, metric registration all match |
+| No new dependencies | ✅ | Only test dependencies added (testcontainers), no production deps |
+
+### Conclusion
+
+✅ **ALL CHECKLIST ITEMS VERIFIED AND PASSED**
+
+The metrics-refactor implementation is complete and correct:
+- PostStarter interface provides clean lifecycle mechanism
+- BlockingResolver.PostStart enables FQDN cache initialization after DNS server is operational
+- Direct Prometheus metrics replace event-based metrics emission
+- Graceful error handling for PostStart failures
+- No global state violations or unintended side effects
+- All changes follow existing Blocky patterns and conventions
+- No new dependencies introduced
+
+The refactor successfully:
+1. Replaces event-based lifecycle (ApplicationStarted) with interface-based approach (PostStarter)
+2. Moves all resolver metrics from event bus to direct Prometheus emission
+3. Maintains proper timing (PostStart called after DNS listeners are operational)
+4. Preserves appropriate use of event bus for list management (out of scope)
+5. Maintains backward compatibility with existing metrics names and labels
+
+**Code review status: APPROVED** ✅
+
