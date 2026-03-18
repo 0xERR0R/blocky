@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"math/big"
 	"net"
@@ -180,6 +181,13 @@ func (t *MockDoQUpstreamServer) handleStream(stream *quic.Stream) {
 
 	msg := new(dns.Msg)
 	if err := msg.Unpack(data[2:]); err != nil {
+		return
+	}
+
+	// RFC 9250 §4.2: DNS Message ID MUST be 0
+	if msg.Id != 0 {
+		ginkgo.Fail(fmt.Sprintf("DoQ request must have ID=0, got %d", msg.Id))
+
 		return
 	}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -12,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 
 	"github.com/miekg/dns"
@@ -28,16 +31,20 @@ type quicUpstreamClient struct {
 	conn *quic.Conn
 }
 
-func newQuicUpstreamClient(tlsConfig *tls.Config, maxIdleTimeout, keepAlivePeriod time.Duration) *quicUpstreamClient {
+func newQuicUpstreamClient(tlsConfig *tls.Config, cfg config.QUICConfig) *quicUpstreamClient {
 	// Set ALPN for DoQ (RFC 9250 Section 4.3)
 	tlsConfig.NextProtos = []string{"doq"}
 
 	return &quicUpstreamClient{
 		tlsConfig: tlsConfig,
 		quicConfig: &quic.Config{
+			// Allow0RTT enables TLS 1.3 0-RTT resumption for lower latency on reconnect.
+			// DNS queries are idempotent so replay is safe; the privacy trade-off
+			// (observer can replay to confirm queried domains) is accepted for
+			// a local-network DNS proxy. See RFC 9250 §5.5.3.
 			Allow0RTT:       true,
-			MaxIdleTimeout:  maxIdleTimeout,
-			KeepAlivePeriod: keepAlivePeriod,
+			MaxIdleTimeout:  cfg.MaxIdleTimeout.ToDuration(),
+			KeepAlivePeriod: cfg.KeepAlivePeriod.ToDuration(),
 		},
 	}
 }
@@ -56,22 +63,9 @@ func (r *quicUpstreamClient) callExternal(
 		return nil, 0, fmt.Errorf("QUIC connection to %s failed: %w", upstreamURL, err)
 	}
 
-	stream, err := conn.OpenStreamSync(ctx)
+	stream, err := r.openStream(ctx, conn, upstreamURL)
 	if err != nil {
-		// Connection may be stale, reset and retry once.
-		// resetConnection is safe against races: it only closes the specific
-		// connection we got, so concurrent goroutines won't double-reset.
-		r.resetConnection(conn)
-
-		conn, err = r.getConnection(ctx, upstreamURL)
-		if err != nil {
-			return nil, 0, fmt.Errorf("QUIC reconnection to %s failed: %w", upstreamURL, err)
-		}
-
-		stream, err = conn.OpenStreamSync(ctx)
-		if err != nil {
-			return nil, 0, fmt.Errorf("QUIC stream open to %s failed: %w", upstreamURL, err)
-		}
+		return nil, 0, err
 	}
 
 	// Ensure the stream read side is cancelled on any failure path
@@ -83,6 +77,43 @@ func (r *quicUpstreamClient) callExternal(
 	}
 
 	return resp, time.Since(start), nil
+}
+
+// openStream opens a QUIC stream, handling 0-RTT rejection and stale connections.
+func (r *quicUpstreamClient) openStream(
+	ctx context.Context, conn *quic.Conn, upstreamURL string,
+) (*quic.Stream, error) {
+	stream, err := conn.OpenStreamSync(ctx)
+	if err == nil {
+		return stream, nil
+	}
+
+	if errors.Is(err, quic.Err0RTTRejected) {
+		// Server rejected 0-RTT, but the connection is transitioning to 1-RTT.
+		// NextConnection waits for handshake completion and re-enables streams.
+		// Do NOT reset the connection — it is still alive.
+		conn, err = conn.NextConnection(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("QUIC handshake after 0-RTT rejection failed: %w", err)
+		}
+	} else {
+		// Connection may be stale, reset and retry once.
+		// resetConnection is safe against races: it only closes the specific
+		// connection we got, so concurrent goroutines won't double-reset.
+		r.resetConnection(conn)
+
+		conn, err = r.getConnection(ctx, upstreamURL)
+		if err != nil {
+			return nil, fmt.Errorf("QUIC reconnection to %s failed: %w", upstreamURL, err)
+		}
+	}
+
+	stream, err = conn.OpenStreamSync(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("QUIC stream open to %s failed: %w", upstreamURL, err)
+	}
+
+	return stream, nil
 }
 
 // exchangeDoQ performs a single DNS-over-QUIC exchange on a QUIC stream.
@@ -99,18 +130,17 @@ func (r *quicUpstreamClient) exchangeDoQ(
 		}
 	}
 
-	// RFC 9250 Section 4.2: The DNS Message ID MUST be set to 0.
-	originalID := msg.Id
-	msg.Id = 0
+	originalID := msg.Id // read-only; used to restore response ID
 
 	packed, err := msg.Pack()
-
-	// Restore original ID regardless of pack result
-	msg.Id = originalID
-
 	if err != nil {
 		return nil, fmt.Errorf("can't pack message: %w", err)
 	}
+
+	// RFC 9250 §4.2: DNS Message ID MUST be 0. Bytes 0-1 are the ID in wire format.
+	// Zero the ID in the packed buffer instead of mutating msg to avoid data races
+	// when the same *dns.Msg is passed to multiple upstream resolvers concurrently.
+	packed[0], packed[1] = 0, 0
 
 	if len(packed) > math.MaxUint16 {
 		return nil, fmt.Errorf("DNS message too large for DoQ: %d bytes", len(packed))
@@ -161,9 +191,17 @@ func (r *quicUpstreamClient) getConnection(ctx context.Context, addr string) (*q
 	defer r.mu.Unlock()
 
 	if r.conn != nil {
+		// connCtx is the QUIC connection's own lifecycle context, intentionally
+		// distinct from the request ctx — we're inspecting connection state, not
+		// propagating a request deadline.
+		connCtx := r.conn.Context()
 		select {
-		case <-r.conn.Context().Done():
-			// Connection is closed, need a new one
+		case <-connCtx.Done():
+			// Connection is closed; log the cause before discarding.
+			if cause := context.Cause(connCtx); cause != nil { //nolint:contextcheck
+				log.Log().Debugf("QUIC connection to %s closed: %v (%T)", addr, cause, cause)
+			}
+
 			r.conn = nil
 		default:
 			return r.conn, nil
@@ -190,4 +228,20 @@ func (r *quicUpstreamClient) resetConnection(stale *quic.Conn) {
 		_ = r.conn.CloseWithError(0, "")
 		r.conn = nil
 	}
+}
+
+// Close closes the active QUIC connection gracefully.
+// Implements io.Closer.
+func (r *quicUpstreamClient) Close() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.conn != nil {
+		err := r.conn.CloseWithError(0, "")
+		r.conn = nil
+
+		return err
+	}
+
+	return nil
 }
