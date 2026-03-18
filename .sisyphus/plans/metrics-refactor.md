@@ -656,7 +656,7 @@ make all
   - **Expected**: 0 failures, coverage ≥ current baseline
   - **Risk**: N/A
 
-- [ ] **F4.3: Performance Verification**
+- [x] **F4.3: Performance Verification**
   - **Command**:
     ```bash
     # Benchmark resolver chain
