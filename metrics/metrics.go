@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
@@ -10,7 +11,24 @@ import (
 )
 
 //nolint:gochecknoglobals
-var Reg = prometheus.NewRegistry()
+var (
+	Reg             = prometheus.NewRegistry()
+	buildInfoMetric *prometheus.GaugeVec
+)
+
+//nolint:gochecknoinits
+func init() {
+	buildInfoMetric = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "blocky_build_info",
+			Help: "Version number and build info",
+		},
+		[]string{"version", "build_time"},
+	)
+	RegisterMetric(buildInfoMetric)
+	// Set build info immediately with version and build time from util package
+	buildInfoMetric.WithLabelValues(util.Version, util.BuildTime).Set(1)
+}
 
 // RegisterMetric registers prometheus collector
 func RegisterMetric(c prometheus.Collector) {

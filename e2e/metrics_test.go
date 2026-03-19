@@ -75,7 +75,7 @@ var _ = Describe("Metrics functional tests", func() {
 
 			It("Should provide 'blocky_blocking_enabled' prometheus metrics", func(ctx context.Context) {
 				Eventually(fetchBlockyMetrics, "30s", "2ms").WithArguments(ctx, metricsURL).
-					Should(ContainElement("blocky_blocking_enabled 1"))
+					Should(ContainElement(ContainSubstring("blocky_blocking_enabled{group=\"default\"} 1")))
 			})
 		})
 
@@ -202,7 +202,7 @@ var _ = Describe("Metrics functional tests", func() {
 			})
 
 			By("verifying blocking enabled metric", func() {
-				Expect(metricsList).Should(ContainElement("blocky_blocking_enabled 1"))
+				Expect(metricsList).Should(ContainElement(ContainSubstring("blocky_blocking_enabled{group=\"default\"} 1")))
 			})
 
 			By("verifying denylist cache entries", func() {

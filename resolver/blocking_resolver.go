@@ -178,6 +178,9 @@ func NewBlockingResolver(ctx context.Context,
 		return res.queryForFQIdentifierIPs(ctx, key)
 	})
 
+	// Set initial blocking status metric to 1 (enabled by default)
+	blockingStatusMetric.WithLabelValues("default").Set(1)
+
 	if res.redisClient != nil {
 		go res.redisSubscriber(ctx)
 	}
