@@ -7,6 +7,12 @@ import (
 
 const UpstreamDefaultCfgName = "default"
 
+// QUICConfig holds QUIC-specific upstream settings.
+type QUICConfig struct {
+	MaxIdleTimeout  Duration `default:"30s" yaml:"maxIdleTimeout"`
+	KeepAlivePeriod Duration `default:"15s" yaml:"keepAlivePeriod"`
+}
+
 // Upstreams upstream servers configuration
 type Upstreams struct {
 	Init      Init             `yaml:"init"`
@@ -14,9 +20,22 @@ type Upstreams struct {
 	Groups    UpstreamGroups   `yaml:"groups"`
 	Strategy  UpstreamStrategy `default:"parallel_best" yaml:"strategy"`
 	UserAgent string           `yaml:"userAgent"`
+	QUIC      QUICConfig       `yaml:"quic"`
 }
 
 type UpstreamGroups map[string][]Upstream
+
+func (c *Upstreams) hasQuicUpstream() bool {
+	for _, upstreams := range c.Groups {
+		for _, u := range upstreams {
+			if u.Net == NetProtocolQuic {
+				return true
+			}
+		}
+	}
+
+	return false
+}
 
 func (c *Upstreams) validate(logger *logrus.Entry) {
 	defaults := mustDefault[Upstreams]()
@@ -24,6 +43,22 @@ func (c *Upstreams) validate(logger *logrus.Entry) {
 	if !c.Timeout.IsAboveZero() {
 		logger.Warnf("upstreams.timeout <= 0, setting to %s", defaults.Timeout)
 		c.Timeout = defaults.Timeout
+	}
+
+	if c.hasQuicUpstream() {
+		if !c.QUIC.MaxIdleTimeout.IsAboveZero() {
+			logger.Warnf("upstreams.quic.maxIdleTimeout <= 0, setting to %s", defaults.QUIC.MaxIdleTimeout)
+			c.QUIC.MaxIdleTimeout = defaults.QUIC.MaxIdleTimeout
+		}
+
+		if !c.QUIC.KeepAlivePeriod.IsAboveZero() {
+			logger.Warnf("upstreams.quic.keepAlivePeriod <= 0, setting to %s", defaults.QUIC.KeepAlivePeriod)
+			c.QUIC.KeepAlivePeriod = defaults.QUIC.KeepAlivePeriod
+		}
+
+		if c.QUIC.KeepAlivePeriod.ToDuration() >= c.QUIC.MaxIdleTimeout.ToDuration() {
+			logger.Warn("upstreams.quic.keepAlivePeriod >= maxIdleTimeout, keep-alive won't prevent idle timeout")
+		}
 	}
 }
 
@@ -47,6 +82,12 @@ func (c *Upstreams) LogConfig(logger *logrus.Entry) {
 		for _, upstream := range upstreams {
 			logger.Infof("    - %s", upstream)
 		}
+	}
+
+	if c.hasQuicUpstream() {
+		logger.Info("quic:")
+		logger.Info("  maxIdleTimeout: ", c.QUIC.MaxIdleTimeout)
+		logger.Info("  keepAlivePeriod: ", c.QUIC.KeepAlivePeriod)
 	}
 }
 

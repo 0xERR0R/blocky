@@ -18,6 +18,8 @@ upstreams:
       - tcp-tls:fdns1.dismail.de:853
       # example for DNS-over-HTTPS (DoH)
       - https://dns.digitale-gesellschaft.ch/dns-query
+      # example for DNS-over-QUIC (DoQ) - also accepts quic://dns.adguard.com
+      - quic:dns.adguard.com
       # example for DNS Stamp format (Plain DNS - Google 8.8.8.8)
       - sdns://AAcAAAAAAAAABzguOC44Ljg
       # example for DNS Stamp format (DoH - Digitale Gesellschaft)
@@ -32,6 +34,12 @@ upstreams:
   strategy: parallel_best
   # optional: timeout to query the upstream resolver. Default: 2s
   timeout: 2s
+  # optional: QUIC-specific settings (only relevant when quic: upstreams are configured)
+  quic:
+    # optional: maximum idle timeout before closing connection. Default: 30s
+    maxIdleTimeout: 30s
+    # optional: keep-alive interval to maintain connection. Default: 15s
+    keepAlivePeriod: 15s
   # optional: HTTP User Agent when connecting to upstreams. Default: none
   userAgent: "custom UA"
 

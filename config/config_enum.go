@@ -214,16 +214,20 @@ const (
 	// NetProtocolHttps is a NetProtocol of type Https.
 	// HTTPS protocol
 	NetProtocolHttps
+	// NetProtocolQuic is a NetProtocol of type Quic.
+	// DNS-over-QUIC protocol
+	NetProtocolQuic
 )
 
 var ErrInvalidNetProtocol = fmt.Errorf("not a valid NetProtocol, try [%s]", strings.Join(_NetProtocolNames, ", "))
 
-const _NetProtocolName = "tcp+udptcp-tlshttps"
+const _NetProtocolName = "tcp+udptcp-tlshttpsquic"
 
 var _NetProtocolNames = []string{
 	_NetProtocolName[0:7],
 	_NetProtocolName[7:14],
 	_NetProtocolName[14:19],
+	_NetProtocolName[19:23],
 }
 
 // NetProtocolNames returns a list of possible string values of NetProtocol.
@@ -239,6 +243,7 @@ func NetProtocolValues() []NetProtocol {
 		NetProtocolTcpUdp,
 		NetProtocolTcpTls,
 		NetProtocolHttps,
+		NetProtocolQuic,
 	}
 }
 
@@ -246,6 +251,7 @@ var _NetProtocolMap = map[NetProtocol]string{
 	NetProtocolTcpUdp: _NetProtocolName[0:7],
 	NetProtocolTcpTls: _NetProtocolName[7:14],
 	NetProtocolHttps:  _NetProtocolName[14:19],
+	NetProtocolQuic:   _NetProtocolName[19:23],
 }
 
 // String implements the Stringer interface.
@@ -267,6 +273,7 @@ var _NetProtocolValue = map[string]NetProtocol{
 	_NetProtocolName[0:7]:   NetProtocolTcpUdp,
 	_NetProtocolName[7:14]:  NetProtocolTcpTls,
 	_NetProtocolName[14:19]: NetProtocolHttps,
+	_NetProtocolName[19:23]: NetProtocolQuic,
 }
 
 // ParseNetProtocol attempts to convert a string to a NetProtocol.
