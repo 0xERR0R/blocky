@@ -58,6 +58,7 @@ func AssertRegistryComplete(t *testing.T, reg *prometheus.Registry) {
 		// these should be default
 		"blocky_error_total",
 		"blocky_blocking_enabled",
+		"blocky_build_info",
 		"blocky_cache_entries",
 		"blocky_cache_hits_total",
 		"blocky_cache_misses_total",
