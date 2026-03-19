@@ -1,6 +1,11 @@
 package config
 
 import (
+	"fmt"
+	"maps"
+	"slices"
+	"strings"
+
 	. "github.com/0xERR0R/blocky/config/migration"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/sirupsen/logrus"
@@ -87,4 +92,33 @@ func (c *Blocking) logListGroups(logger *logrus.Entry, listGroups map[string][]B
 			logger.Infof("   - %s", source)
 		}
 	}
+}
+
+// validate checks blocking configuration for validity
+func (c *Blocking) validate() error {
+	if !c.IsEnabled() {
+		return nil
+	}
+
+	// Validate if all allowlists and denylists referenced
+	// in clientGroupsBlock are defined.
+	listKeys := make(map[string]bool, len(c.Denylists)+len(c.Allowlists))
+	for group := range c.Denylists {
+		listKeys[group] = true
+	}
+	for group := range c.Allowlists {
+		listKeys[group] = true
+	}
+	for clientGroupKey, clientGroupLists := range c.ClientGroupsBlock {
+		for _, listKey := range clientGroupLists {
+			if !listKeys[listKey] {
+				availableKeys := slices.Sorted(maps.Keys(listKeys))
+
+				return fmt.Errorf("clientGroupsBlock '%s' references undefined allowlist or denylist '%s'. Available: %s",
+					clientGroupKey, listKey, strings.Join(availableKeys, ", "))
+			}
+		}
+	}
+
+	return nil
 }

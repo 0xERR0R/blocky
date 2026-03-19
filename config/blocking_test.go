@@ -86,4 +86,32 @@ var _ = Describe("BlockingConfig", func() {
 			Expect(cfg.Denylists).Should(Equal(*cfg.Deprecated.BlackLists))
 		})
 	})
+
+	Describe("validate", func() {
+		When("blocking is disabled", func() {
+			It("should not return error", func() {
+				cfg := Blocking{}
+				Expect(cfg.validate()).Should(Succeed())
+			})
+		})
+
+		When("only references existing lists", func() {
+			It("should not return error", func() {
+				Expect(cfg.validate()).Should(Succeed())
+			})
+		})
+
+		When("references non-existing lists", func() {
+			It("should return error", func() {
+				cfg := Blocking{
+					ClientGroupsBlock: map[string][]string{
+						"default": {"non-existing-group"},
+					},
+				}
+				err := cfg.validate()
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("references undefined allowlist or denylist"))
+			})
+		})
+	})
 })
