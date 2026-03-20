@@ -197,21 +197,40 @@ Raw YAML remains visible and editable. No DSL, no abstraction layer — just cle
 **Solution:** Extract common topologies into helper functions:
 
 ```go
-type testEnv struct {
-    network *testcontainers.DockerNetwork
-    mokka   testcontainers.Container
-    blocky  testcontainers.Container
-    // connection details
-    mokkaHost string
-    mokkaPort string
+// mokkaSpec defines a mock DNS upstream with its network alias and rules
+type mokkaSpec struct {
+    alias string   // Docker network alias, used directly in YAML config (e.g., "moka1")
+    rules []string // mokka query rules (e.g., `A google/NOERROR("A 1.2.3.4 123")`)
 }
 
-func setupBlockyWithMokka(ctx context.Context, mokkaRules []string, config string) *testEnv
-func setupBlockyWithHTTPAndMokka(ctx context.Context, mokkaRules []string, files map[string]string, config string) *testEnv
+type testEnv struct {
+    network *testcontainers.DockerNetwork
+    mokkas  map[string]testcontainers.Container // keyed by alias
+    blocky  testcontainers.Container
+    httpSrv testcontainers.Container            // nil if no HTTP server
+}
+
+func setupBlockyWithMokka(ctx context.Context, mokkas []mokkaSpec, config string) *testEnv
+func setupBlockyWithHTTPAndMokka(ctx context.Context, mokkas []mokkaSpec, files map[string]string, config string) *testEnv
 ```
 
-- `setupBlockyWithMokka` — creates network + mokka + blocky with the given config. The mokka container's network alias (e.g., `"moka"`) is used directly in the YAML config string — no interpolation mechanism needed.
-- `setupBlockyWithHTTPAndMokka` — same but also creates an HTTP static file server. The HTTP server alias/URL is returned in the `testEnv` struct for use in config strings.
+Usage example with multiple upstreams:
+```go
+env := setupBlockyWithMokka(ctx, []mokkaSpec{
+    {alias: "moka1", rules: []string{`A google/NOERROR("A 1.2.3.4 123")`}},
+    {alias: "moka2", rules: []string{`A internal/NOERROR("A 10.0.0.1 300")`}},
+}, dedent(`
+    upstreams:
+      groups:
+        default:
+          - moka1
+        internal:
+          - moka2
+`))
+```
+
+- `setupBlockyWithMokka` — creates network + one or more mokka containers + blocky. Each mokka's network alias is used directly in the YAML config string — no interpolation needed.
+- `setupBlockyWithHTTPAndMokka` — same but also creates an HTTP static file server. The HTTP server container is accessible via `env.httpSrv`.
 - Both call `DeferCleanup` internally.
 - Individual container creation functions remain available for non-standard setups.
 
