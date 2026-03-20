@@ -10,20 +10,24 @@ All new tests follow existing patterns: Ginkgo/Gomega, testcontainers, `doDNSReq
 
 ### `ecs_test.go` — EDNS Client Subnet
 
+Note: Sending queries with ECS options requires manual EDNS0 CLIENT-SUBNET construction on `dns.Msg` — no existing helper covers this. Create a local helper (e.g., `addECSOption(msg, ip, mask)`) for these tests.
+
 **ECS as client identifier:**
 - Configure `ecs.useAsClient: true` with netmask /32
+- Configure `clientGroupsBlock` mapping the ECS subnet to a blocking group with a denylist
 - Send DNS query with ECS option containing a specific IP
-- Configure blocking groups mapped to that IP's subnet
 - Verify blocking rules apply based on ECS subnet, not actual source IP
 
 **ECS forwarding:**
 - Configure `ecs.forward: true`
 - Send query with ECS option
-- Verify upstream (mokka) receives the ECS option in the request (may require mokka support or log inspection)
+- Verify the ECS option is preserved in the response back to the client (response-side verification)
+- Note: Verifying what mokka receives on the request side is not feasible with the current mokka image. If deeper verification is needed, this can be revisited when mokka gains inspection capabilities.
 
 **ECS with IPv4/IPv6 masks:**
-- Configure custom IPv4 and IPv6 mask sizes
-- Verify ECS options are truncated to configured mask in forwarded queries
+- Configure custom `ecsIpv4Mask` and `ecsIpv6Mask` values
+- Send query with ECS option with a /32 mask
+- Verify the response ECS option reflects the configured mask size (truncated appropriately)
 
 ### `fqdn_only_test.go` — FQDN-Only Mode
 
@@ -61,10 +65,12 @@ All new tests follow existing patterns: Ginkgo/Gomega, testcontainers, `doDNSReq
 ### `hosts_file_test.go` — Hosts File Resolver
 
 **Local mounted file:**
-- Create a hosts file with entries like `192.168.1.1 myhost.local`
+- Create a hosts file with entries like `192.168.1.1 myhost.example`
 - Mount it into the blocky container
 - Configure `hostsFile` to use the mounted path
-- Query `myhost.local` → resolves to `192.168.1.1`
+- Query `myhost.example` → resolves to `192.168.1.1`
+
+Note: Hosts file tests use `.example` TLD (not `.local`) to avoid conflict with the SUDN resolver, which intercepts `.local` queries (RFC 6762) before the hosts file resolver in the chain.
 
 **HTTP-served file:**
 - Serve a hosts file via `staticServerImage` (consistent with blocklist pattern)
@@ -82,8 +88,8 @@ All new tests follow existing patterns: Ginkgo/Gomega, testcontainers, `doDNSReq
 - Query non-loopback entry → resolves normally
 
 **Subdomain resolution:**
-- Hosts file contains `192.168.1.1 myhost.local`
-- Query `sub.myhost.local` → resolves to `192.168.1.1` (automatic subdomain support)
+- Hosts file contains `192.168.1.1 myhost.example`
+- Query `sub.myhost.example` → resolves to `192.168.1.1` (automatic subdomain support)
 
 ### `sudn_test.go` — Special Use Domain Names
 
@@ -120,7 +126,7 @@ All new tests follow existing patterns: Ginkgo/Gomega, testcontainers, `doDNSReq
 - Repeat same query → must hit upstream again (verify via response change or mokka counter)
 
 **Query endpoint:**
-- Call `POST /api/query` with JSON body containing domain and query type
+- Call `POST /api/query` with JSON body containing domain and query type (see OpenAPI spec at `docs/api/openapi.yaml` for request/response schema)
 - Verify JSON response contains expected answer records
 - Test with both existing and non-existing domains
 
@@ -156,7 +162,7 @@ createBlockyContainer(ctx, e2eNet,
     "upstreams:",
     "  groups:",
     "    default:",
-    "      - "+moka.Host+":"+moka.Port,
+    "      - moka",
     "blocking:",
     "  denylists:",
     "    ads:",
@@ -165,13 +171,15 @@ createBlockyContainer(ctx, e2eNet,
 )
 ```
 
+Note: Mokka containers are referenced by their Docker network alias (e.g., `"moka"`) directly in the YAML config. No host/port interpolation is needed for the common case.
+
 **After:**
 ```go
 createBlockyContainer(ctx, e2eNet, dedent(`
     upstreams:
       groups:
         default:
-          - `+moka.Host+`:`+moka.Port+`
+          - moka
     blocking:
       denylists:
         ads:
@@ -202,8 +210,8 @@ func setupBlockyWithMokka(ctx context.Context, mokkaRules []string, config strin
 func setupBlockyWithHTTPAndMokka(ctx context.Context, mokkaRules []string, files map[string]string, config string) *testEnv
 ```
 
-- `setupBlockyWithMokka` — creates network + mokka + blocky with the given config. Mokka host/port are available for config interpolation via a two-step approach or callback.
-- `setupBlockyWithHTTPAndMokka` — same but also creates an HTTP static file server.
+- `setupBlockyWithMokka` — creates network + mokka + blocky with the given config. The mokka container's network alias (e.g., `"moka"`) is used directly in the YAML config string — no interpolation mechanism needed.
+- `setupBlockyWithHTTPAndMokka` — same but also creates an HTTP static file server. The HTTP server alias/URL is returned in the `testEnv` struct for use in config strings.
 - Both call `DeferCleanup` internally.
 - Individual container creation functions remain available for non-standard setups.
 
@@ -216,23 +224,23 @@ func setupBlockyWithHTTPAndMokka(ctx context.Context, mokkaRules []string, files
 ```go
 // Basic resolution check
 func expectResolve(ctx context.Context, blocky testcontainers.Container,
-    domain string, qType uint16, expected string, extra ...types.GomegaMatcher)
+    domain string, qType dns.Type, expected string, extra ...types.GomegaMatcher)
 
 // NXDOMAIN response
 func expectNXDomain(ctx context.Context, blocky testcontainers.Container,
-    domain string, qType uint16)
+    domain string, qType dns.Type)
 
 // Empty response with NOERROR
 func expectNoAnswer(ctx context.Context, blocky testcontainers.Container,
-    domain string, qType uint16)
+    domain string, qType dns.Type)
 
 // REFUSED response
 func expectRefused(ctx context.Context, blocky testcontainers.Container,
-    domain string, qType uint16)
+    domain string, qType dns.Type)
 
 // Async resolution (for prefetch, delayed startup, etc.)
 func expectEventually(ctx context.Context, blocky testcontainers.Container,
-    domain string, qType uint16, expected string, timeout string, extra ...types.GomegaMatcher)
+    domain string, qType dns.Type, expected string, timeout time.Duration, extra ...types.GomegaMatcher)
 ```
 
 **Examples:**
@@ -269,8 +277,8 @@ Raw `doDNSRequest` + manual matchers remain available for complex/unusual assert
 
 ## Execution Order
 
-1. **Phase 1:** Write new test files using current patterns (`ecs_test.go`, `fqdn_only_test.go`, `filtering_test.go`, `hosts_file_test.go`, `sudn_test.go`, `api_test.go`)
-2. **Phase 2a:** Add `dedent()`, assertion helpers, container setup helpers
+1. **Phase 1:** Write new test files using the current `...string` variadic API for `createBlockyContainer` and existing assertion patterns (`ecs_test.go`, `fqdn_only_test.go`, `filtering_test.go`, `hosts_file_test.go`, `sudn_test.go`, `api_test.go`)
+2. **Phase 2a:** Add `dedent()`, assertion helpers, container setup helpers. Change `createBlockyContainer` signature to accept a single YAML string.
 3. **Phase 2b:** Migrate new tests to use helpers
 4. **Phase 2c:** Migrate existing tests to use helpers (one file per commit)
 
