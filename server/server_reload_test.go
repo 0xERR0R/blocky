@@ -90,44 +90,4 @@ ports:
 			Expect(newCfg).ShouldNot(BeNil())
 		})
 	})
-
-	Describe("listsUnchanged", func() {
-		It("should return true when lists are identical", func() {
-			a := config.Blocking{
-				Denylists:  map[string][]config.BytesSource{"ads": config.NewBytesSources("a.txt")},
-				Allowlists: map[string][]config.BytesSource{"ads": config.NewBytesSources("b.txt")},
-			}
-			b := config.Blocking{
-				Denylists:  map[string][]config.BytesSource{"ads": config.NewBytesSources("a.txt")},
-				Allowlists: map[string][]config.BytesSource{"ads": config.NewBytesSources("b.txt")},
-			}
-			Expect(listsUnchanged(a, b)).Should(BeTrue())
-		})
-
-		It("should return false when lists differ", func() {
-			a := config.Blocking{
-				Denylists:  map[string][]config.BytesSource{"ads": config.NewBytesSources("a.txt")},
-				Allowlists: map[string][]config.BytesSource{"ads": config.NewBytesSources("b.txt")},
-			}
-			c := config.Blocking{
-				Denylists:  map[string][]config.BytesSource{"ads": config.NewBytesSources("c.txt")},
-				Allowlists: map[string][]config.BytesSource{"ads": config.NewBytesSources("b.txt")},
-			}
-			Expect(listsUnchanged(a, c)).Should(BeFalse())
-		})
-	})
-
-	Describe("hostsUnchanged", func() {
-		It("should return true when hosts are identical", func() {
-			a := config.HostsFile{Sources: config.NewBytesSources("/etc/hosts")}
-			b := config.HostsFile{Sources: config.NewBytesSources("/etc/hosts")}
-			Expect(hostsUnchanged(a, b)).Should(BeTrue())
-		})
-
-		It("should return false when hosts differ", func() {
-			a := config.HostsFile{Sources: config.NewBytesSources("/etc/hosts")}
-			c := config.HostsFile{Sources: config.NewBytesSources("/other/hosts")}
-			Expect(hostsUnchanged(a, c)).Should(BeFalse())
-		})
-	})
 })

@@ -230,10 +230,70 @@ func (i *OpenAPIInterfaceImpl) GetConfig(_ context.Context,
 		return nil, fmt.Errorf("failed to marshal config: %w", err)
 	}
 
+	// Redact sensitive fields before returning
+	var raw interface{}
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config for redaction: %w", err)
+	}
+
+	redactSecrets(raw)
+
+	data, err = yaml.Marshal(raw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal redacted config: %w", err)
+	}
+
 	return GetConfig200TextyamlResponse{
 		Body:          bytes.NewReader(data),
 		ContentLength: int64(len(data)),
 	}, nil
+}
+
+// redactSecrets walks a YAML-decoded structure and replaces values for keys
+// that look like they contain sensitive data with "***".
+func redactSecrets(v interface{}) {
+	switch val := v.(type) {
+	case map[interface{}]interface{}:
+		for k, child := range val {
+			if s, ok := k.(string); ok && isSensitiveKey(s) {
+				if _, isStr := child.(string); isStr {
+					val[k] = "***"
+
+					continue
+				}
+			}
+
+			redactSecrets(child)
+		}
+	case map[string]interface{}:
+		for k, child := range val {
+			if isSensitiveKey(k) {
+				if _, isStr := child.(string); isStr {
+					val[k] = "***"
+
+					continue
+				}
+			}
+
+			redactSecrets(child)
+		}
+	case []interface{}:
+		for _, child := range val {
+			redactSecrets(child)
+		}
+	}
+}
+
+func isSensitiveKey(key string) bool {
+	lower := strings.ToLower(key)
+
+	for _, s := range []string{"password", "passwd", "secret", "token", "apikey", "api_key"} {
+		if strings.Contains(lower, s) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (i *OpenAPIInterfaceImpl) ConfigReload(_ context.Context,

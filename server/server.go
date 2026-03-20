@@ -49,6 +49,7 @@ type Server struct {
 	queryResolver atomic.Value // stores chainedResolverHolder
 	cfg           atomic.Pointer[config.Config]
 
+	rootCtx        context.Context //nolint:containedctx // needed to derive resolver contexts on reload
 	certProvider   *CertProvider
 	servers        map[net.Listener]*httpServer
 	configPath     string
@@ -81,7 +82,7 @@ func (s *Server) Reload() error {
 		return err
 	}
 
-	resolverCtx, resolverCancel := context.WithCancel(context.Background())
+	resolverCtx, resolverCancel := context.WithCancel(s.rootCtx)
 
 	bootstrap, err := s.reloadBootstrap(resolverCtx, oldCfg, newCfg)
 	if err != nil {
@@ -90,7 +91,9 @@ func (s *Server) Reload() error {
 		return err
 	}
 
-	opts := s.buildResolverOptions(oldCfg, newCfg)
+	opts := queryResolverOptions{
+		blockingOpts: resolver.BlockingResolverOptions{IsReload: true},
+	}
 
 	newQueryResolver, err := createQueryResolver(resolverCtx, newCfg, bootstrap, s.redisClient, opts)
 	if err != nil {
@@ -103,6 +106,7 @@ func (s *Server) Reload() error {
 
 	s.applyReload(newCfg, newQueryResolver, bootstrap, resolverCancel, oldCfg)
 
+	log.Configure(&newCfg.Log)
 	s.printConfiguration()
 	logger().Info("configuration reloaded successfully")
 	metrics.ConfigReloadTotal.WithLabelValues("success").Inc()
@@ -119,8 +123,6 @@ func (s *Server) loadAndValidateConfig(oldCfg *config.Config) (*config.Config, e
 
 		return nil, fmt.Errorf("config reload failed: %w", err)
 	}
-
-	log.Configure(&newCfg.Log)
 
 	if !reflect.DeepEqual(oldCfg.Ports, newCfg.Ports) {
 		logger().Warn("config reload: ports changed, restart required to apply")
@@ -151,29 +153,6 @@ func (s *Server) reloadBootstrap(
 	return bootstrap, nil
 }
 
-func (s *Server) buildResolverOptions(oldCfg, newCfg *config.Config) queryResolverOptions {
-	opts := queryResolverOptions{
-		blockingOpts: resolver.BlockingResolverOptions{IsReload: true},
-	}
-
-	oldResolver := s.getQueryResolver()
-
-	if oldBlocking, blErr := resolver.GetFromChainWithType[*resolver.BlockingResolver](oldResolver); blErr == nil {
-		if listsUnchanged(oldCfg.Blocking, newCfg.Blocking) {
-			opts.blockingOpts.ExistingDenylistCache = oldBlocking.DenylistMatcher()
-			opts.blockingOpts.ExistingAllowlistCache = oldBlocking.AllowlistMatcher()
-		}
-	}
-
-	if oldHosts, hfErr := resolver.GetFromChainWithType[*resolver.HostsFileResolver](oldResolver); hfErr == nil {
-		if hostsUnchanged(oldCfg.HostsFile, newCfg.HostsFile) {
-			opts.hostsOpts.ExistingHosts = oldHosts.HostsData()
-		}
-	}
-
-	return opts
-}
-
 func (s *Server) applyReload(
 	newCfg *config.Config,
 	newQueryResolver resolver.ChainedResolver,
@@ -192,15 +171,6 @@ func (s *Server) applyReload(
 	s.resolverCancel = resolverCancel
 	s.bootstrap = bootstrap
 	oldCancel()
-}
-
-func listsUnchanged(old, newCfg config.Blocking) bool {
-	return reflect.DeepEqual(old.Denylists, newCfg.Denylists) &&
-		reflect.DeepEqual(old.Allowlists, newCfg.Allowlists)
-}
-
-func hostsUnchanged(old, newCfg config.HostsFile) bool {
-	return reflect.DeepEqual(old.Sources, newCfg.Sources)
 }
 
 // ActiveConfig returns the currently active configuration.
@@ -314,6 +284,7 @@ func NewServer(ctx context.Context, cfg *config.Config, configPath string) (serv
 
 	server = &Server{
 		dnsServers:     dnsServers,
+		rootCtx:        ctx,
 		certProvider:   certProvider,
 		servers:        make(map[net.Listener]*httpServer),
 		configPath:     configPath,
@@ -469,11 +440,9 @@ func createUDPServer(address string) (*dns.Server, error) {
 	return createDNSServer("udp", address, nil)
 }
 
-// queryResolverOptions holds optional parameters for createQueryResolver,
-// allowing cache reuse during reload.
+// queryResolverOptions holds optional parameters for createQueryResolver.
 type queryResolverOptions struct {
 	blockingOpts resolver.BlockingResolverOptions
-	hostsOpts    resolver.HostsFileResolverOptions
 }
 
 func createQueryResolver(
@@ -489,7 +458,7 @@ func createQueryResolver(
 	clientNames, cnErr := resolver.NewClientNamesResolver(ctx, cfg.ClientLookup, cfg.Upstreams, bootstrap)
 	queryLogging, qlErr := resolver.NewQueryLoggingResolver(ctx, cfg.QueryLog)
 	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(ctx, cfg.Conditional, cfg.Upstreams, bootstrap)
-	hostsFile, hfErr := resolver.NewHostsFileResolverWithOptions(ctx, cfg.HostsFile, bootstrap, opts.hostsOpts)
+	hostsFile, hfErr := resolver.NewHostsFileResolver(ctx, cfg.HostsFile, bootstrap)
 	cachingResolver, crErr := resolver.NewCachingResolver(ctx, cfg.Caching, redisClient)
 	// Pass upstreamTree to DNSSEC resolver so it can query for DNSKEY/DS records
 	dnssecResolver, dsErr := resolver.NewDNSSECResolver(ctx, cfg.DNSSEC, upstreamTree)

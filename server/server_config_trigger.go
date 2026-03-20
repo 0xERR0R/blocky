@@ -14,6 +14,8 @@ func registerPrintConfigurationTrigger(ctx context.Context, s *Server) {
 	signal.Notify(signals, syscall.SIGUSR1)
 
 	go func() {
+		defer signal.Stop(signals)
+
 		for {
 			select {
 			case <-signals:
@@ -31,6 +33,8 @@ func registerReloadTrigger(ctx context.Context, s *Server) {
 	signal.Notify(signals, syscall.SIGHUP)
 
 	go func() {
+		defer signal.Stop(signals)
+
 		for {
 			select {
 			case <-signals:

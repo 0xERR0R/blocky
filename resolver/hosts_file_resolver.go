@@ -34,31 +34,15 @@ type HostsFileResolver struct {
 	downloader lists.FileDownloader
 }
 
-// HostsFileResolverOptions holds optional parameters for NewHostsFileResolverWithOptions.
-// ExistingHosts is a pointer so nil can distinguish "not provided" from an empty value.
-type HostsFileResolverOptions struct {
-	ExistingHosts *splitHostsFileData
-}
-
 func NewHostsFileResolver(ctx context.Context,
 	cfg config.HostsFile,
 	bootstrap *Bootstrap,
-) (*HostsFileResolver, error) {
-	return NewHostsFileResolverWithOptions(ctx, cfg, bootstrap, HostsFileResolverOptions{})
-}
-
-func NewHostsFileResolverWithOptions(ctx context.Context, cfg config.HostsFile,
-	bootstrap *Bootstrap, opts HostsFileResolverOptions,
 ) (*HostsFileResolver, error) {
 	r := HostsFileResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("hosts_file"),
 
 		downloader: lists.NewDownloader(cfg.Loading.Downloads, bootstrap.NewHTTPTransport()),
-	}
-
-	if opts.ExistingHosts != nil {
-		r.hosts = *opts.ExistingHosts
 	}
 
 	err := cfg.Loading.StartPeriodicRefresh(ctx, r.loadSources, func(err error) {
@@ -70,11 +54,6 @@ func NewHostsFileResolverWithOptions(ctx context.Context, cfg config.HostsFile,
 	}
 
 	return &r, nil
-}
-
-// HostsData returns a pointer to the resolver's current hosts data.
-func (r *HostsFileResolver) HostsData() *splitHostsFileData {
-	return &r.hosts
 }
 
 // LogConfig implements `config.Configurable`.

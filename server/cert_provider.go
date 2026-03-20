@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -60,6 +61,11 @@ func (cp *CertProvider) loadCert() error {
 	if err != nil {
 		return err
 	}
+
+	if len(cert.Certificate) > 0 {
+		cert.Leaf, _ = x509.ParseCertificate(cert.Certificate[0])
+	}
+
 	cp.cert.Store(&cert)
 
 	return nil
@@ -84,14 +90,23 @@ func (cp *CertProvider) getModTime() time.Time {
 func (cp *CertProvider) poll(ctx context.Context) {
 	ticker := time.NewTicker(cp.pollInterval)
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
 			mod := cp.getModTime()
-			if mod.After(cp.lastMod) {
+
+			cp.mu.RLock()
+			last := cp.lastMod
+			cp.mu.RUnlock()
+
+			if mod.After(last) {
+				cp.mu.Lock()
 				cp.lastMod = mod
+				cp.mu.Unlock()
+
 				if err := cp.loadCert(); err != nil {
 					log.PrefixedLog("server").Error("TLS certificate reload failed: ", err)
 				} else {

@@ -95,7 +95,8 @@ func (cw *ConfigWatcher) startFsnotify(
 				if !ok {
 					return
 				}
-				if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) {
+				if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) ||
+					event.Has(fsnotify.Rename) || event.Has(fsnotify.Remove) {
 					logger.Info("config file change detected (fsnotify)")
 					if err := onReload(); err != nil {
 						logger.Errorf("config reload failed: %v", err)

@@ -117,10 +117,6 @@ func clientGroupsBlock(cfg config.Blocking) map[string][]string {
 
 // BlockingResolverOptions contains optional parameters for NewBlockingResolverWithOptions.
 type BlockingResolverOptions struct {
-	// ExistingDenylistCache, if non-nil, is reused instead of creating a new ListCache.
-	ExistingDenylistCache *lists.ListCache
-	// ExistingAllowlistCache, if non-nil, is reused instead of creating a new ListCache.
-	ExistingAllowlistCache *lists.ListCache
 	// IsReload, when true, calls initFQDNIPCache directly instead of subscribing to ApplicationStarted.
 	IsReload bool
 }
@@ -146,7 +142,7 @@ func NewBlockingResolverWithOptions(ctx context.Context,
 		return nil, fmt.Errorf("failed to create block handler: %w", err)
 	}
 
-	denylistMatcher, allowlistMatcher, err := createListMatchers(ctx, cfg, bootstrap, opts)
+	denylistMatcher, allowlistMatcher, err := createListMatchers(ctx, cfg, bootstrap)
 	if err != nil {
 		return nil, err
 	}
@@ -184,32 +180,19 @@ func createListMatchers(
 	ctx context.Context,
 	cfg config.Blocking,
 	bootstrap *Bootstrap,
-	opts BlockingResolverOptions,
 ) (denylistMatcher, allowlistMatcher *lists.ListCache, err error) {
-	var downloader lists.FileDownloader
+	downloader := lists.NewDownloader(cfg.Loading.Downloads, bootstrap.NewHTTPTransport())
 
-	if opts.ExistingDenylistCache == nil || opts.ExistingAllowlistCache == nil {
-		downloader = lists.NewDownloader(cfg.Loading.Downloads, bootstrap.NewHTTPTransport())
+	denylistMatcher, err = lists.NewListCache(ctx, lists.ListCacheTypeDenylist,
+		cfg.Loading, cfg.Denylists, downloader)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create denylist cache: %w", err)
 	}
 
-	if opts.ExistingDenylistCache != nil {
-		denylistMatcher = opts.ExistingDenylistCache
-	} else {
-		denylistMatcher, err = lists.NewListCache(ctx, lists.ListCacheTypeDenylist,
-			cfg.Loading, cfg.Denylists, downloader)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create denylist cache: %w", err)
-		}
-	}
-
-	if opts.ExistingAllowlistCache != nil {
-		allowlistMatcher = opts.ExistingAllowlistCache
-	} else {
-		allowlistMatcher, err = lists.NewListCache(ctx, lists.ListCacheTypeAllowlist,
-			cfg.Loading, cfg.Allowlists, downloader)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create allowlist cache: %w", err)
-		}
+	allowlistMatcher, err = lists.NewListCache(ctx, lists.ListCacheTypeAllowlist,
+		cfg.Loading, cfg.Allowlists, downloader)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create allowlist cache: %w", err)
 	}
 
 	return denylistMatcher, allowlistMatcher, nil
@@ -234,16 +217,6 @@ func initBlockingResolver(ctx context.Context, res *BlockingResolver, opts Block
 	}
 
 	return nil
-}
-
-// DenylistMatcher returns the denylist cache used by this resolver.
-func (r *BlockingResolver) DenylistMatcher() *lists.ListCache {
-	return r.denylistMatcher
-}
-
-// AllowlistMatcher returns the allowlist cache used by this resolver.
-func (r *BlockingResolver) AllowlistMatcher() *lists.ListCache {
-	return r.allowlistMatcher
 }
 
 func (r *BlockingResolver) redisSubscriber(ctx context.Context) {
