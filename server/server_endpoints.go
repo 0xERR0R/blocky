@@ -34,23 +34,33 @@ const (
 	yamlContentType    = "text/yaml"
 )
 
-func (s *Server) createOpenAPIInterfaceImpl() (impl api.StrictServerInterface, err error) {
-	bControl, err := resolver.GetFromChainWithType[api.BlockingControl](s.queryResolver)
-	if err != nil {
-		return nil, fmt.Errorf("no blocking API implementation found %w", err)
+func (s *Server) BlockingControl() (api.BlockingControl, error) {
+	return resolver.GetFromChainWithType[api.BlockingControl](s.getQueryResolver())
+}
+
+func (s *Server) ListRefresher() (api.ListRefresher, error) {
+	return resolver.GetFromChainWithType[api.ListRefresher](s.getQueryResolver())
+}
+
+func (s *Server) CacheControl() (api.CacheControl, error) {
+	return resolver.GetFromChainWithType[api.CacheControl](s.getQueryResolver())
+}
+
+func (s *Server) createOpenAPIInterfaceImpl() (api.StrictServerInterface, error) {
+	// Verify chain has required types at startup
+	if _, err := s.BlockingControl(); err != nil {
+		return nil, fmt.Errorf("no blocking API implementation found: %w", err)
 	}
 
-	refresher, err := resolver.GetFromChainWithType[api.ListRefresher](s.queryResolver)
-	if err != nil {
-		return nil, fmt.Errorf("no refresh API implementation found %w", err)
+	if _, err := s.ListRefresher(); err != nil {
+		return nil, fmt.Errorf("no refresh API implementation found: %w", err)
 	}
 
-	cacheControl, err := resolver.GetFromChainWithType[api.CacheControl](s.queryResolver)
-	if err != nil {
-		return nil, fmt.Errorf("no cache API implementation found %w", err)
+	if _, err := s.CacheControl(); err != nil {
+		return nil, fmt.Errorf("no cache API implementation found: %w", err)
 	}
 
-	return api.NewOpenAPIInterfaceImpl(bControl, s, refresher, cacheControl), nil
+	return api.NewOpenAPIInterfaceImpl(s, s), nil
 }
 
 func (s *Server) registerDoHEndpoints(router *chi.Mux, cfg *config.Config) {

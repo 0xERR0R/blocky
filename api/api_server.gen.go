@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -28,6 +29,12 @@ type ServerInterface interface {
 	// Clears the DNS response cache
 	// (POST /cache/flush)
 	CacheFlush(w http.ResponseWriter, r *http.Request)
+	// Get active configuration
+	// (GET /config)
+	GetConfig(w http.ResponseWriter, r *http.Request)
+	// Reload configuration
+	// (POST /config/reload)
+	ConfigReload(w http.ResponseWriter, r *http.Request)
 	// List refresh
 	// (POST /lists/refresh)
 	ListRefresh(w http.ResponseWriter, r *http.Request)
@@ -61,6 +68,18 @@ func (_ Unimplemented) BlockingStatus(w http.ResponseWriter, r *http.Request) {
 // Clears the DNS response cache
 // (POST /cache/flush)
 func (_ Unimplemented) CacheFlush(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get active configuration
+// (GET /config)
+func (_ Unimplemented) GetConfig(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Reload configuration
+// (POST /config/reload)
+func (_ Unimplemented) ConfigReload(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -153,6 +172,34 @@ func (siw *ServerInterfaceWrapper) CacheFlush(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CacheFlush(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetConfig operation middleware
+func (siw *ServerInterfaceWrapper) GetConfig(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetConfig(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConfigReload operation middleware
+func (siw *ServerInterfaceWrapper) ConfigReload(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConfigReload(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -316,6 +363,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/cache/flush", wrapper.CacheFlush)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/config", wrapper.GetConfig)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/config/reload", wrapper.ConfigReload)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/lists/refresh", wrapper.ListRefresh)
 	})
 	r.Group(func(r chi.Router) {
@@ -397,6 +450,57 @@ func (response CacheFlush200Response) VisitCacheFlushResponse(w http.ResponseWri
 	return nil
 }
 
+type GetConfigRequestObject struct {
+}
+
+type GetConfigResponseObject interface {
+	VisitGetConfigResponse(w http.ResponseWriter) error
+}
+
+type GetConfig200TextyamlResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetConfig200TextyamlResponse) VisitGetConfigResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "text/yaml")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type ConfigReloadRequestObject struct {
+}
+
+type ConfigReloadResponseObject interface {
+	VisitConfigReloadResponse(w http.ResponseWriter) error
+}
+
+type ConfigReload200Response struct {
+}
+
+func (response ConfigReload200Response) VisitConfigReloadResponse(w http.ResponseWriter) error {
+	w.WriteHeader(200)
+	return nil
+}
+
+type ConfigReload500TextResponse string
+
+func (response ConfigReload500TextResponse) VisitConfigReloadResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(500)
+
+	_, err := w.Write([]byte(response))
+	return err
+}
+
 type ListRefreshRequestObject struct {
 }
 
@@ -463,6 +567,12 @@ type StrictServerInterface interface {
 	// Clears the DNS response cache
 	// (POST /cache/flush)
 	CacheFlush(ctx context.Context, request CacheFlushRequestObject) (CacheFlushResponseObject, error)
+	// Get active configuration
+	// (GET /config)
+	GetConfig(ctx context.Context, request GetConfigRequestObject) (GetConfigResponseObject, error)
+	// Reload configuration
+	// (POST /config/reload)
+	ConfigReload(ctx context.Context, request ConfigReloadRequestObject) (ConfigReloadResponseObject, error)
 	// List refresh
 	// (POST /lists/refresh)
 	ListRefresh(ctx context.Context, request ListRefreshRequestObject) (ListRefreshResponseObject, error)
@@ -591,6 +701,54 @@ func (sh *strictHandler) CacheFlush(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CacheFlushResponseObject); ok {
 		if err := validResponse.VisitCacheFlushResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetConfig operation middleware
+func (sh *strictHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
+	var request GetConfigRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetConfig(ctx, request.(GetConfigRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetConfig")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetConfigResponseObject); ok {
+		if err := validResponse.VisitGetConfigResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConfigReload operation middleware
+func (sh *strictHandler) ConfigReload(w http.ResponseWriter, r *http.Request) {
+	var request ConfigReloadRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ConfigReload(ctx, request.(ConfigReloadRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConfigReload")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ConfigReloadResponseObject); ok {
+		if err := validResponse.VisitConfigReloadResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

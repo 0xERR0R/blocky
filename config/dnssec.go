@@ -10,7 +10,8 @@ type DNSSEC struct {
 	TrustAnchors         []string `yaml:"trustAnchors"`
 	MaxChainDepth        uint     `default:"10"        yaml:"maxChainDepth"`
 	CacheExpirationHours uint     `default:"1"         yaml:"cacheExpirationHours"`
-	MaxNSEC3Iterations   uint     `default:"150"       yaml:"maxNSEC3Iterations"` // RFC 5155 §10.3
+	// RFC 5155 §10.3
+	MaxNSEC3Iterations uint `default:"150" yaml:"maxNSEC3Iterations"`
 	// DoS protection: max upstream queries per validation
 	MaxUpstreamQueries uint `default:"30" yaml:"maxUpstreamQueries"`
 	// Clock skew tolerance in seconds for signature validation (default: 3600 = 1 hour)

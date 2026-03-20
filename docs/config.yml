@@ -261,6 +261,18 @@ redis:
     - redis-sentinel2:26379
     - redis-sentinel3:26379
 
+# optional: Configuration file watch and automatic reload on changes
+configWatch:
+  # Enable automatic config reload when config file changes
+  # default: false
+  enabled: false
+  # optional: Polling interval as fallback if fsnotify doesn't work reliably
+  # (e.g. NFS, Docker volumes, Kubernetes ConfigMaps).
+  # Primary detection uses fsnotify for near-instant reload.
+  # Set to 0 to disable polling fallback entirely.
+  # default: 5s
+  interval: 5s
+
 # optional: Mininal TLS version that the DoH and DoT server will use
 minTlsServeVersion: 1.3
 

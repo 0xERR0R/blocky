@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/go-chi/chi/v5"
+	"github.com/miekg/dns"
 	"github.com/stretchr/testify/mock"
 
 	. "github.com/0xERR0R/blocky/helpertest"
@@ -17,12 +19,53 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// testConfigReloader is a test stub implementing ConfigReloader.
+type testConfigReloader struct {
+	cfg       *config.Config
+	reloadErr error
+}
+
+func (r *testConfigReloader) Reload() error {
+	return r.reloadErr
+}
+
+func (r *testConfigReloader) ActiveConfig() *config.Config {
+	return r.cfg
+}
+
+// testResolverLookup is a test helper that implements ResolverLookup using individual mocks.
+type testResolverLookup struct {
+	control   BlockingControl
+	querier   Querier
+	refresher ListRefresher
+	cache     CacheControl
+}
+
+func (t *testResolverLookup) BlockingControl() (BlockingControl, error) {
+	return t.control, nil
+}
+
+func (t *testResolverLookup) ListRefresher() (ListRefresher, error) {
+	return t.refresher, nil
+}
+
+func (t *testResolverLookup) CacheControl() (CacheControl, error) {
+	return t.cache, nil
+}
+
+func (t *testResolverLookup) Query(
+	ctx context.Context, serverHost string, clientIP net.IP, question string, qType dns.Type,
+) (*model.Response, error) {
+	return t.querier.Query(ctx, serverHost, clientIP, question, qType)
+}
+
 var _ = Describe("API implementation tests", func() {
 	var (
 		blockingControlMock *MockBlockingControl
 		querierMock         *MockQuerier
 		listRefreshMock     *MockListRefresher
 		cacheControlMock    *MockCacheControl
+		configReloaderStub  *testConfigReloader
 		sut                 *OpenAPIInterfaceImpl
 
 		ctx      context.Context
@@ -37,7 +80,13 @@ var _ = Describe("API implementation tests", func() {
 		querierMock = NewMockQuerier(GinkgoT())
 		listRefreshMock = NewMockListRefresher(GinkgoT())
 		cacheControlMock = NewMockCacheControl(GinkgoT())
-		sut = NewOpenAPIInterfaceImpl(blockingControlMock, querierMock, listRefreshMock, cacheControlMock)
+		configReloaderStub = &testConfigReloader{cfg: &config.Config{}}
+		sut = NewOpenAPIInterfaceImpl(&testResolverLookup{
+			control:   blockingControlMock,
+			querier:   querierMock,
+			refresher: listRefreshMock,
+			cache:     cacheControlMock,
+		}, configReloaderStub)
 	})
 
 	Describe("RegisterOpenAPIEndpoints", func() {
@@ -250,6 +299,36 @@ var _ = Describe("API implementation tests", func() {
 				Expect(err).Should(Succeed())
 				var resp200 CacheFlush200Response
 				Expect(resp).Should(BeAssignableToTypeOf(resp200))
+			})
+		})
+	})
+
+	Describe("Config API", func() {
+		When("GetConfig is called", func() {
+			It("should return 200 with config as YAML", func() {
+				resp, err := sut.GetConfig(ctx, GetConfigRequestObject{})
+				Expect(err).Should(Succeed())
+				var resp200 GetConfig200TextyamlResponse
+				Expect(resp).Should(BeAssignableToTypeOf(resp200))
+			})
+		})
+
+		When("ConfigReload is called", func() {
+			It("should return 200 on success", func() {
+				configReloaderStub.reloadErr = nil
+				resp, err := sut.ConfigReload(ctx, ConfigReloadRequestObject{})
+				Expect(err).Should(Succeed())
+				var resp200 ConfigReload200Response
+				Expect(resp).Should(BeAssignableToTypeOf(resp200))
+			})
+
+			It("should return 500 on failure", func() {
+				configReloaderStub.reloadErr = errors.New("reload failed")
+				resp, err := sut.ConfigReload(ctx, ConfigReloadRequestObject{})
+				Expect(err).Should(Succeed())
+				var resp500 ConfigReload500TextResponse
+				Expect(resp).Should(BeAssignableToTypeOf(resp500))
+				Expect(resp).Should(Equal(ConfigReload500TextResponse("reload failed")))
 			})
 		})
 	})

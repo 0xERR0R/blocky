@@ -1167,6 +1167,39 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 	})
 
+	Describe("Reload mode with existing caches", func() {
+		When("created in reload mode with existing caches", func() {
+			It("should reuse provided caches", func() {
+				// Create an initial resolver to obtain existing caches
+				initialCfg := config.Blocking{
+					BlockType: "ZEROIP",
+					BlockTTL:  config.Duration(time.Minute),
+				}
+
+				initial, err := NewBlockingResolver(ctx, initialCfg, nil, systemResolverBootstrap)
+				Expect(err).Should(Succeed())
+
+				existingDeny := initial.DenylistMatcher()
+				existingAllow := initial.AllowlistMatcher()
+				Expect(existingDeny).ShouldNot(BeNil())
+				Expect(existingAllow).ShouldNot(BeNil())
+
+				// Create a reload resolver reusing the caches
+				reloaded, err := NewBlockingResolverWithOptions(ctx, initialCfg, nil, systemResolverBootstrap,
+					BlockingResolverOptions{
+						ExistingDenylistCache:  existingDeny,
+						ExistingAllowlistCache: existingAllow,
+						IsReload:               true,
+					})
+				Expect(err).Should(Succeed())
+
+				// Verify pointer identity — same cache objects were reused
+				Expect(reloaded.DenylistMatcher()).Should(BeIdenticalTo(existingDeny))
+				Expect(reloaded.AllowlistMatcher()).Should(BeIdenticalTo(existingAllow))
+			})
+		})
+	})
+
 	Describe("Redis is configured", func() {
 		var redisServer *miniredis.Miniredis
 		var redisClient *redis.Client
