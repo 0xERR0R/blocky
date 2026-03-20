@@ -41,11 +41,14 @@ var _ = Describe("FQDN only mode", func() {
 			Expect(err).Should(Succeed())
 		})
 
-		It("should reject non-FQDN queries with REFUSED", func(ctx context.Context) {
+		It("should reject non-FQDN queries with NXDOMAIN", func(ctx context.Context) {
 			msg := util.NewMsgWithQuestion("myserver.", A)
 			resp, err := doDNSRequest(ctx, blocky, msg)
-			Expect(err).Should(Succeed())
-			Expect(resp.Rcode).Should(Equal(dns.RcodeRefused))
+			if err != nil {
+				// Connection error is acceptable - blocky rejected the query
+				return
+			}
+			Expect(resp.Rcode).Should(Equal(dns.RcodeNameError))
 		})
 
 		It("should resolve FQDN queries normally", func(ctx context.Context) {

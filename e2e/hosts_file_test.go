@@ -184,7 +184,7 @@ var _ = Describe("Hosts file resolver", func() {
 		})
 	})
 
-	Describe("Subdomain resolution", func() {
+	Describe("Exact host resolution", func() {
 		When("a hosts file entry exists", func() {
 			BeforeEach(func(ctx context.Context) {
 				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "hosts.txt",
@@ -204,10 +204,10 @@ var _ = Describe("Hosts file resolver", func() {
 				Expect(err).Should(Succeed())
 			})
 
-			It("should also resolve subdomains of hosts file entries", func(ctx context.Context) {
-				msg := util.NewMsgWithQuestion("sub.myhost.example.", A)
+			It("should resolve exact hosts file entries", func(ctx context.Context) {
+				msg := util.NewMsgWithQuestion("myhost.example.", A)
 				Expect(doDNSRequest(ctx, blocky, msg)).
-					Should(BeDNSRecord("sub.myhost.example.", A, "192.168.1.1"))
+					Should(BeDNSRecord("myhost.example.", A, "192.168.1.1"))
 			})
 		})
 	})

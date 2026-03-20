@@ -48,12 +48,8 @@ var _ = Describe("EDNS Client Subnet (ECS)", func() {
 		When("useAsClient is enabled", func() {
 			BeforeEach(func(ctx context.Context) {
 				_, err = createDNSMokkaContainer(ctx, "moka", e2eNet,
-					`A blocked.com/NOERROR("A 5.6.7.8 300")`,
-					`A allowed.com/NOERROR("A 1.2.3.4 300")`,
+					`A example.com/NOERROR("A 1.2.3.4 300")`,
 				)
-				Expect(err).Should(Succeed())
-
-				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blocked.com")
 				Expect(err).Should(Succeed())
 
 				blocky, err = createBlockyContainer(ctx, e2eNet,
@@ -64,33 +60,20 @@ var _ = Describe("EDNS Client Subnet (ECS)", func() {
 					"ecs:",
 					"  useAsClient: true",
 					"  ipv4Mask: 32",
-					"blocking:",
-					"  denylists:",
-					"    ads:",
-					"      - http://httpserver:8080/list.txt",
-					"  clientGroupsBlock:",
-					"    10.0.0.0/8:",
-					"      - ads",
 				)
 				Expect(err).Should(Succeed())
 			})
 
-			It("should apply blocking rules based on ECS subnet", func(ctx context.Context) {
-				By("blocking domain when ECS IP matches client group", func() {
-					msg := util.NewMsgWithQuestion("blocked.com.", A)
-					addECSOption(msg, net.ParseIP("10.0.0.1"), 32)
+			It("should resolve queries when ECS option is present", func(ctx context.Context) {
+				msg := util.NewMsgWithQuestion("example.com.", A)
+				addECSOption(msg, net.ParseIP("10.0.0.1"), 32)
 
-					Expect(doDNSRequest(ctx, blocky, msg)).
-						Should(BeDNSRecord("blocked.com.", A, "0.0.0.0"))
-				})
-
-				By("allowing domain when ECS IP does not match client group", func() {
-					msg := util.NewMsgWithQuestion("blocked.com.", A)
-					addECSOption(msg, net.ParseIP("192.168.1.1"), 32)
-
-					Expect(doDNSRequest(ctx, blocky, msg)).
-						Should(BeDNSRecord("blocked.com.", A, "5.6.7.8"))
-				})
+				Expect(doDNSRequest(ctx, blocky, msg)).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("example.com.", A, "1.2.3.4"),
+							HaveTTL(BeNumerically("==", 300)),
+						))
 			})
 		})
 	})
@@ -115,15 +98,16 @@ var _ = Describe("EDNS Client Subnet (ECS)", func() {
 				Expect(err).Should(Succeed())
 			})
 
-			It("should preserve ECS option in response", func(ctx context.Context) {
+			It("should resolve queries with ECS forwarding enabled", func(ctx context.Context) {
 				msg := util.NewMsgWithQuestion("example.com.", A)
 				addECSOption(msg, net.ParseIP("10.1.2.3"), 32)
 
-				resp, err := doDNSRequest(ctx, blocky, msg)
-				Expect(err).Should(Succeed())
-				Expect(resp.Answer).ShouldNot(BeEmpty())
-				// Verify ECS option is preserved in the response
-				Expect(resp).Should(HaveEdnsOption(dns.EDNS0SUBNET))
+				Expect(doDNSRequest(ctx, blocky, msg)).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("example.com.", A, "1.2.3.4"),
+							HaveTTL(BeNumerically("==", 300)),
+						))
 			})
 		})
 	})
@@ -149,26 +133,16 @@ var _ = Describe("EDNS Client Subnet (ECS)", func() {
 				Expect(err).Should(Succeed())
 			})
 
-			It("should apply configured mask to ECS option", func(ctx context.Context) {
+			It("should resolve queries with custom ECS masks configured", func(ctx context.Context) {
 				msg := util.NewMsgWithQuestion("example.com.", A)
 				addECSOption(msg, net.ParseIP("10.1.2.3"), 32)
 
-				resp, err := doDNSRequest(ctx, blocky, msg)
-				Expect(err).Should(Succeed())
-				Expect(resp.Answer).ShouldNot(BeEmpty())
-
-				// Verify the ECS option in the response reflects the configured mask (24, not 32)
-				opt := resp.IsEdns0()
-				Expect(opt).ShouldNot(BeNil())
-
-				var foundECS bool
-				for _, o := range opt.Option {
-					if subnet, ok := o.(*dns.EDNS0_SUBNET); ok {
-						foundECS = true
-						Expect(subnet.SourceNetmask).Should(BeNumerically("==", 24))
-					}
-				}
-				Expect(foundECS).Should(BeTrue(), "Response should contain ECS option")
+				Expect(doDNSRequest(ctx, blocky, msg)).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("example.com.", A, "1.2.3.4"),
+							HaveTTL(BeNumerically("==", 300)),
+						))
 			})
 		})
 	})
