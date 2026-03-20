@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"reflect"
 	"runtime"
 	"runtime/debug"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -34,13 +37,155 @@ const (
 	certExpiryYears  = 5
 )
 
+// chainedResolverHolder wraps a ChainedResolver so that atomic.Value always stores
+// the same concrete type regardless of which ChainedResolver implementation is stored.
+type chainedResolverHolder struct {
+	r resolver.ChainedResolver
+}
+
 // Server controls the endpoints for DNS and HTTP
 type Server struct {
 	dnsServers    []*dns.Server
-	queryResolver resolver.ChainedResolver
-	cfg           *config.Config
+	queryResolver atomic.Value // stores chainedResolverHolder
+	cfg           atomic.Pointer[config.Config]
 
-	servers map[net.Listener]*httpServer
+	rootCtx        context.Context //nolint:containedctx // needed to derive resolver contexts on reload
+	certProvider   *CertProvider
+	servers        map[net.Listener]*httpServer
+	configPath     string
+	reloadMu       sync.Mutex
+	resolverCancel context.CancelFunc
+	bootstrap      *resolver.Bootstrap
+	redisClient    *redis.Client
+}
+
+func (s *Server) getQueryResolver() resolver.ChainedResolver {
+	return s.queryResolver.Load().(chainedResolverHolder).r
+}
+
+// Reload loads the configuration from disk and atomically swaps the resolver chain.
+// Concurrent reload attempts are rejected.
+func (s *Server) Reload() error {
+	if !s.reloadMu.TryLock() {
+		logger().Warn("config reload already in progress, skipping")
+
+		return errors.New("reload already in progress")
+	}
+	defer s.reloadMu.Unlock()
+
+	logger().Info("reloading configuration...")
+
+	oldCfg := s.cfg.Load()
+
+	newCfg, err := s.loadAndValidateConfig(oldCfg)
+	if err != nil {
+		return err
+	}
+
+	resolverCtx, resolverCancel := context.WithCancel(s.rootCtx)
+
+	bootstrap, err := s.reloadBootstrap(resolverCtx, oldCfg, newCfg)
+	if err != nil {
+		resolverCancel()
+
+		return err
+	}
+
+	opts := queryResolverOptions{
+		blockingOpts: resolver.BlockingResolverOptions{IsReload: true},
+	}
+
+	newQueryResolver, err := createQueryResolver(resolverCtx, newCfg, bootstrap, s.redisClient, opts)
+	if err != nil {
+		resolverCancel()
+		logger().Errorf("config reload failed: %v", err)
+		metrics.ConfigReloadTotal.WithLabelValues("failed").Inc()
+
+		return fmt.Errorf("config reload failed: %w", err)
+	}
+
+	s.applyReload(newCfg, newQueryResolver, bootstrap, resolverCancel, oldCfg)
+
+	log.Configure(&newCfg.Log)
+	s.printConfiguration()
+	logger().Info("configuration reloaded successfully")
+	metrics.ConfigReloadTotal.WithLabelValues("success").Inc()
+	metrics.ConfigReloadTimestamp.SetToCurrentTime()
+
+	return nil
+}
+
+func (s *Server) loadAndValidateConfig(oldCfg *config.Config) (*config.Config, error) {
+	newCfg, err := config.LoadConfig(s.configPath, true)
+	if err != nil {
+		logger().Errorf("config reload failed: %v", err)
+		metrics.ConfigReloadTotal.WithLabelValues("failed").Inc()
+
+		return nil, fmt.Errorf("config reload failed: %w", err)
+	}
+
+	if !reflect.DeepEqual(oldCfg.Ports, newCfg.Ports) {
+		logger().Warn("config reload: ports changed, restart required to apply")
+	}
+
+	if !reflect.DeepEqual(oldCfg.Redis, newCfg.Redis) {
+		logger().Warn("config reload: redis changed, restart required to apply")
+	}
+
+	return newCfg, nil
+}
+
+func (s *Server) reloadBootstrap(
+	resolverCtx context.Context,
+	oldCfg, newCfg *config.Config,
+) (*resolver.Bootstrap, error) {
+	if reflect.DeepEqual(oldCfg.BootstrapDNS, newCfg.BootstrapDNS) {
+		return s.bootstrap, nil
+	}
+
+	bootstrap, err := resolver.NewBootstrap(resolverCtx, newCfg)
+	if err != nil {
+		metrics.ConfigReloadTotal.WithLabelValues("failed").Inc()
+
+		return nil, fmt.Errorf("config reload failed (bootstrap): %w", err)
+	}
+
+	return bootstrap, nil
+}
+
+func (s *Server) applyReload(
+	newCfg *config.Config,
+	newQueryResolver resolver.ChainedResolver,
+	bootstrap *resolver.Bootstrap,
+	resolverCancel context.CancelFunc,
+	oldCfg *config.Config,
+) {
+	s.storeQueryResolver(newQueryResolver)
+	s.cfg.Store(newCfg)
+
+	if s.certProvider != nil && (oldCfg.CertFile != newCfg.CertFile || oldCfg.KeyFile != newCfg.KeyFile) {
+		s.certProvider.UpdatePaths(newCfg.CertFile, newCfg.KeyFile)
+	}
+
+	oldCancel := s.resolverCancel
+	s.resolverCancel = resolverCancel
+	s.bootstrap = bootstrap
+
+	// Allow in-flight requests on the old resolver chain to complete before
+	// cancelling its context. The new chain is already serving new requests.
+	go func() {
+		time.Sleep(5 * time.Second)
+		oldCancel()
+	}()
+}
+
+// ActiveConfig returns the currently active configuration.
+func (s *Server) ActiveConfig() *config.Config {
+	return s.cfg.Load()
+}
+
+func (s *Server) storeQueryResolver(r resolver.ChainedResolver) {
+	s.queryResolver.Store(chainedResolverHolder{r})
 }
 
 func logger() *logrus.Entry {
@@ -62,50 +207,48 @@ func tlsCipherSuites() []uint16 {
 
 type NewServerFunc func(address string) (*dns.Server, error)
 
-func retrieveCertificate(cfg *config.Config) (cert tls.Certificate, err error) {
+func newTLSConfig(ctx context.Context, cfg *config.Config) (*tls.Config, *CertProvider, error) {
 	if cfg.CertFile == "" && cfg.KeyFile == "" {
-		cert, err = util.TLSGenerateSelfSignedCert([]string{"blocky.invalid", "*"})
+		cert, err := util.TLSGenerateSelfSignedCert([]string{"blocky.invalid", "*"})
 		if err != nil {
-			return tls.Certificate{}, fmt.Errorf("unable to generate self-signed certificate: %w", err)
+			return nil, nil, fmt.Errorf("unable to generate self-signed certificate: %w", err)
 		}
 
 		log.Log().Info("using self-signed certificate")
-	} else {
-		cert, err = tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
-		if err != nil {
-			return tls.Certificate{}, fmt.Errorf("can't load certificate files: %w", err)
-		}
+
+		// #nosec G402 // See TLSVersion.validate
+		return &tls.Config{
+			MinVersion:   uint16(cfg.MinTLSServeVer),
+			CipherSuites: tlsCipherSuites(),
+			Certificates: []tls.Certificate{cert},
+		}, nil, nil
 	}
 
-	return cert, nil
-}
-
-func newTLSConfig(cfg *config.Config) (*tls.Config, error) {
-	var cert tls.Certificate
-
-	cert, err := retrieveCertificate(cfg)
+	provider, err := NewCertProvider(ctx, cfg.CertFile, cfg.KeyFile)
 	if err != nil {
-		return nil, fmt.Errorf("can't retrieve cert: %w", err)
+		return nil, nil, fmt.Errorf("can't load certificate files: %w", err)
 	}
 
 	// #nosec G402 // See TLSVersion.validate
-	res := &tls.Config{
-		MinVersion:   uint16(cfg.MinTLSServeVer),
-		CipherSuites: tlsCipherSuites(),
-		Certificates: []tls.Certificate{cert},
-	}
-
-	return res, nil
+	return &tls.Config{
+		MinVersion:     uint16(cfg.MinTLSServeVer),
+		CipherSuites:   tlsCipherSuites(),
+		GetCertificate: provider.GetCertificate,
+	}, provider, nil
 }
 
-// NewServer creates new server instance with passed config
+// NewServer creates new server instance with passed config.
+// configPath is stored so that Reload() can re-read the configuration from disk.
 //
 //nolint:funlen
-func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err error) {
-	var tlsCfg *tls.Config
+func NewServer(ctx context.Context, cfg *config.Config, configPath string) (server *Server, err error) {
+	var (
+		tlsCfg       *tls.Config
+		certProvider *CertProvider
+	)
 
 	if len(cfg.Ports.HTTPS) > 0 || len(cfg.Ports.TLS) > 0 {
-		tlsCfg, err = newTLSConfig(cfg)
+		tlsCfg, certProvider, err = newTLSConfig(ctx, cfg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create TLS configuration: %w", err)
 		}
@@ -136,18 +279,27 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		}
 	}
 
-	queryResolver, queryError := createQueryResolver(ctx, cfg, bootstrap, redisClient)
+	resolverCtx, resolverCancel := context.WithCancel(ctx)
+
+	queryResolver, queryError := createQueryResolver(resolverCtx, cfg, bootstrap, redisClient, queryResolverOptions{})
 	if queryError != nil {
+		resolverCancel()
+
 		return nil, queryError
 	}
 
 	server = &Server{
-		dnsServers:    dnsServers,
-		queryResolver: queryResolver,
-		cfg:           cfg,
-
-		servers: make(map[net.Listener]*httpServer),
+		dnsServers:     dnsServers,
+		rootCtx:        ctx,
+		certProvider:   certProvider,
+		servers:        make(map[net.Listener]*httpServer),
+		configPath:     configPath,
+		resolverCancel: resolverCancel,
+		bootstrap:      bootstrap,
+		redisClient:    redisClient,
 	}
+	server.storeQueryResolver(queryResolver)
+	server.cfg.Store(cfg)
 
 	server.printConfiguration()
 
@@ -294,14 +446,21 @@ func createUDPServer(address string) (*dns.Server, error) {
 	return createDNSServer("udp", address, nil)
 }
 
+// queryResolverOptions holds optional parameters for createQueryResolver.
+type queryResolverOptions struct {
+	blockingOpts resolver.BlockingResolverOptions
+}
+
 func createQueryResolver(
 	ctx context.Context,
 	cfg *config.Config,
 	bootstrap *resolver.Bootstrap,
 	redisClient *redis.Client,
+	opts queryResolverOptions,
 ) (resolver.ChainedResolver, error) {
 	upstreamTree, utErr := resolver.NewUpstreamTreeResolver(ctx, cfg.Upstreams, bootstrap)
-	blocking, blErr := resolver.NewBlockingResolver(ctx, cfg.Blocking, redisClient, bootstrap)
+	blocking, blErr := resolver.NewBlockingResolverWithOptions(ctx, cfg.Blocking, redisClient, bootstrap,
+		opts.blockingOpts)
 	clientNames, cnErr := resolver.NewClientNamesResolver(ctx, cfg.ClientLookup, cfg.Upstreams, bootstrap)
 	queryLogging, qlErr := resolver.NewQueryLoggingResolver(ctx, cfg.QueryLog)
 	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(ctx, cfg.Conditional, cfg.Upstreams, bootstrap)
@@ -361,17 +520,19 @@ func (s *Server) registerDNSHandlers(ctx context.Context) {
 func (s *Server) printConfiguration() {
 	logger().Info("current configuration:")
 
-	if s.cfg.Redis.IsEnabled() {
+	cfg := s.cfg.Load()
+
+	if cfg.Redis.IsEnabled() {
 		logger().Info("Redis:")
-		log.WithIndent(logger(), "  ", s.cfg.Redis.LogConfig)
+		log.WithIndent(logger(), "  ", cfg.Redis.LogConfig)
 	}
 
-	resolver.ForEach(s.queryResolver, func(res resolver.Resolver) {
+	resolver.ForEach(s.getQueryResolver(), func(res resolver.Resolver) {
 		resolver.LogResolverConfig(res, logger())
 	})
 
 	logger().Info("listeners:")
-	log.WithIndent(logger(), "  ", s.cfg.Ports.LogConfig)
+	log.WithIndent(logger(), "  ", cfg.Ports.LogConfig)
 
 	logger().Info("runtime information:")
 
@@ -423,6 +584,7 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 	}
 
 	registerPrintConfigurationTrigger(ctx, s)
+	registerReloadTrigger(ctx, s)
 }
 
 // Stop stops the server
@@ -539,7 +701,7 @@ func (s *Server) resolve(ctx context.Context, request *model.Request) (response 
 	}()
 
 	contextUpstreamTimeoutMultiplier := 100
-	timeoutDuration := time.Duration(contextUpstreamTimeoutMultiplier) * s.cfg.Upstreams.Timeout.ToDuration()
+	timeoutDuration := time.Duration(contextUpstreamTimeoutMultiplier) * s.cfg.Load().Upstreams.Timeout.ToDuration()
 
 	ctx, cancel := context.WithTimeout(ctx, timeoutDuration)
 
@@ -556,7 +718,7 @@ func (s *Server) resolve(ctx context.Context, request *model.Request) (response 
 	default:
 		var err error
 
-		response, err = s.queryResolver.Resolve(ctx, request)
+		response, err = s.getQueryResolver().Resolve(ctx, request)
 		if err != nil {
 			var upstreamErr *resolver.UpstreamServerError
 

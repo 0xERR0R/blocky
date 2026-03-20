@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"strings"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/oapi-codegen/runtime"
 )
 
@@ -101,6 +103,12 @@ type ClientInterface interface {
 	// CacheFlush request
 	CacheFlush(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetConfig request
+	GetConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ConfigReload request
+	ConfigReload(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListRefresh request
 	ListRefresh(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -148,6 +156,30 @@ func (c *Client) BlockingStatus(ctx context.Context, reqEditors ...RequestEditor
 
 func (c *Client) CacheFlush(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCacheFlushRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetConfigRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ConfigReload(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewConfigReloadRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -340,6 +372,60 @@ func NewCacheFlushRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewGetConfigRequest generates requests for GetConfig
+func NewGetConfigRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/config")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewConfigReloadRequest generates requests for ConfigReload
+func NewConfigReloadRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/config/reload")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListRefreshRequest generates requests for ListRefresh
 func NewListRefreshRequest(server string) (*http.Request, error) {
 	var err error
@@ -462,6 +548,12 @@ type ClientWithResponsesInterface interface {
 	// CacheFlushWithResponse request
 	CacheFlushWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*CacheFlushResponse, error)
 
+	// GetConfigWithResponse request
+	GetConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetConfigResponse, error)
+
+	// ConfigReloadWithResponse request
+	ConfigReloadWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ConfigReloadResponse, error)
+
 	// ListRefreshWithResponse request
 	ListRefreshWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListRefreshResponse, error)
 
@@ -556,6 +648,49 @@ func (r CacheFlushResponse) StatusCode() int {
 	return 0
 }
 
+type GetConfigResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	YAML200      *string
+}
+
+// Status returns HTTPResponse.Status
+func (r GetConfigResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetConfigResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ConfigReloadResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r ConfigReloadResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ConfigReloadResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListRefreshResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -633,6 +768,24 @@ func (c *ClientWithResponses) CacheFlushWithResponse(ctx context.Context, reqEdi
 		return nil, err
 	}
 	return ParseCacheFlushResponse(rsp)
+}
+
+// GetConfigWithResponse request returning *GetConfigResponse
+func (c *ClientWithResponses) GetConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetConfigResponse, error) {
+	rsp, err := c.GetConfig(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetConfigResponse(rsp)
+}
+
+// ConfigReloadWithResponse request returning *ConfigReloadResponse
+func (c *ClientWithResponses) ConfigReloadWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ConfigReloadResponse, error) {
+	rsp, err := c.ConfigReload(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseConfigReloadResponse(rsp)
 }
 
 // ListRefreshWithResponse request returning *ListRefreshResponse
@@ -728,6 +881,48 @@ func ParseCacheFlushResponse(rsp *http.Response) (*CacheFlushResponse, error) {
 	}
 
 	response := &CacheFlushResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseGetConfigResponse parses an HTTP response from a GetConfigWithResponse call
+func ParseGetConfigResponse(rsp *http.Response) (*GetConfigResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetConfigResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "yaml") && rsp.StatusCode == 200:
+		var dest string
+		if err := yaml.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.YAML200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseConfigReloadResponse parses an HTTP response from a ConfigReloadWithResponse call
+func ParseConfigReloadResponse(rsp *http.Response) (*ConfigReloadResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ConfigReloadResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

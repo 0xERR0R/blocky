@@ -191,6 +191,37 @@ paths:
       responses:
         '200':
           description: All caches cleared
+  /config:
+    get:
+      operationId: getConfig
+      tags:
+        - config
+      summary: Get active configuration
+      description: Returns the currently active configuration
+      responses:
+        '200':
+          description: Current active configuration
+          content:
+            text/yaml:
+              schema:
+                type: string
+  /config/reload:
+    post:
+      operationId: configReload
+      tags:
+        - config
+      summary: Reload configuration
+      description: Triggers a configuration reload from disk
+      responses:
+        '200':
+          description: Configuration reloaded successfully
+        '500':
+          description: Reload failed
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Error text
 components:
   schemas:
     api.BlockingStatus:

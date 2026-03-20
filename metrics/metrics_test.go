@@ -66,6 +66,8 @@ func AssertRegistryComplete(t *testing.T, reg *prometheus.Registry) {
 		"blocky_prefetch_hits_total",
 		"blocky_prefetch_domain_name_cache_entries",
 		"blocky_failed_downloads_total",
+		"blocky_config_reload_total",
+		"blocky_config_reload_timestamp",
 	}
 
 	if len(found) != len(expected) {

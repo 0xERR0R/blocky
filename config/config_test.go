@@ -371,6 +371,21 @@ blocking:
 			})
 		})
 
+		When("DNS64 config is invalid due to AAAA filtering conflict", func() {
+			It("should return error", func() {
+				cfg := Config{
+					DNS64: DNS64{Enable: true},
+					Filtering: Filtering{
+						QueryTypes: NewQTypeSet(dns.Type(dns.TypeAAAA)),
+					},
+				}
+				logger := logrus.NewEntry(logrus.New())
+				err := cfg.validate(logger)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("DNS64"))
+			})
+		})
+
 		When("bootstrapDns is defined", func() {
 			It("should be backwards compatible to 'single IP syntax'", func() {
 				cfg := Config{}
@@ -922,6 +937,17 @@ bootstrapDns:
 			Eventually(calls, "50ms").Should(Receive(Equal(int32(1))))
 			Eventually(calls, "50ms").Should(Receive(Equal(int32(2))))
 			Eventually(calls, "50ms").Should(Receive(Equal(int32(3))))
+		})
+	})
+
+	Describe("ConfigWatch", func() {
+		When("ConfigWatch is not specified", func() {
+			It("should have correct defaults", func() {
+				cfg := Config{}
+				Expect(defaults.Set(&cfg)).Should(Succeed())
+				Expect(cfg.ConfigWatch.Enabled).Should(BeFalse())
+				Expect(cfg.ConfigWatch.Interval).Should(Equal(Duration(5 * time.Second)))
+			})
 		})
 	})
 

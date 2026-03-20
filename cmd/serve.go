@@ -52,7 +52,7 @@ func startServer(_ *cobra.Command, _ []string) error {
 	ctx, cancelFn := context.WithCancel(context.Background())
 	defer cancelFn()
 
-	srv, err := server.NewServer(ctx, cfg)
+	srv, err := server.NewServer(ctx, cfg, configPath)
 	if err != nil {
 		return fmt.Errorf("can't start server: %w", err)
 	}
@@ -61,6 +61,16 @@ func startServer(_ *cobra.Command, _ []string) error {
 	errChan := make(chan error, errChanSize)
 
 	srv.Start(ctx, errChan)
+
+	// Start config watcher if enabled
+	if cfg.ConfigWatch.Enabled {
+		_, err := config.NewConfigWatcher(ctx, configPath, cfg.ConfigWatch, func() error {
+			return srv.Reload()
+		})
+		if err != nil {
+			log.Log().Warnf("failed to start config watcher: %v", err)
+		}
+	}
 
 	var terminationErr error
 
