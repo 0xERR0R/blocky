@@ -293,6 +293,7 @@ Raw `doDNSRequest` + manual matchers remain available for complex/unusual assert
 3. Run `make e2e-test` after each file migration
 4. One commit per migrated file for easy bisecting
 5. No behavior changes — purely mechanical transformation
+6. **No skipped tests:** After migration is complete, verify that no test is marked as `Pending`, `Skip`, or `XIt`. All tests must remain active and passing.
 
 ## Execution Order
 
