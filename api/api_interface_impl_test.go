@@ -313,6 +313,82 @@ var _ = Describe("API implementation tests", func() {
 			})
 		})
 
+		Describe("redactSecrets", func() {
+			It("should redact string values for sensitive keys", func() {
+				data := map[interface{}]interface{}{
+					"password":  "supersecret",
+					"apiKey":    "key123",
+					"api_key":   "key456",
+					"token":     "tok789",
+					"secret":    "s3cr3t",
+					"safeField": "visible",
+				}
+
+				redactSecrets(data)
+
+				Expect(data["password"]).Should(Equal("***"))
+				Expect(data["apiKey"]).Should(Equal("***"))
+				Expect(data["api_key"]).Should(Equal("***"))
+				Expect(data["token"]).Should(Equal("***"))
+				Expect(data["secret"]).Should(Equal("***"))
+				Expect(data["safeField"]).Should(Equal("visible"))
+			})
+
+			It("should redact nested sensitive keys", func() {
+				data := map[string]interface{}{
+					"redis": map[interface{}]interface{}{
+						"password": "redispass",
+						"address":  "localhost:6379",
+					},
+				}
+
+				redactSecrets(data)
+
+				nested := data["redis"].(map[interface{}]interface{})
+				Expect(nested["password"]).Should(Equal("***"))
+				Expect(nested["address"]).Should(Equal("localhost:6379"))
+			})
+
+			It("should handle sensitive keys in slices", func() {
+				data := []interface{}{
+					map[string]interface{}{
+						"password": "secret1",
+						"name":     "test",
+					},
+				}
+
+				redactSecrets(data)
+
+				entry := data[0].(map[string]interface{})
+				Expect(entry["password"]).Should(Equal("***"))
+				Expect(entry["name"]).Should(Equal("test"))
+			})
+
+			It("should not redact non-string sensitive values", func() {
+				data := map[interface{}]interface{}{
+					"password": 12345,
+				}
+
+				redactSecrets(data)
+
+				Expect(data["password"]).Should(Equal(12345))
+			})
+
+			It("should be case insensitive for key matching", func() {
+				data := map[string]interface{}{
+					"PASSWORD": "secret",
+					"ApiKey":   "key",
+					"TOKEN":    "tok",
+				}
+
+				redactSecrets(data)
+
+				Expect(data["PASSWORD"]).Should(Equal("***"))
+				Expect(data["ApiKey"]).Should(Equal("***"))
+				Expect(data["TOKEN"]).Should(Equal("***"))
+			})
+		})
+
 		When("ConfigReload is called", func() {
 			It("should return 200 on success", func() {
 				configReloaderStub.reloadErr = nil

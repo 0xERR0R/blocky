@@ -170,7 +170,13 @@ func (s *Server) applyReload(
 	oldCancel := s.resolverCancel
 	s.resolverCancel = resolverCancel
 	s.bootstrap = bootstrap
-	oldCancel()
+
+	// Allow in-flight requests on the old resolver chain to complete before
+	// cancelling its context. The new chain is already serving new requests.
+	go func() {
+		time.Sleep(5 * time.Second)
+		oldCancel()
+	}()
 }
 
 // ActiveConfig returns the currently active configuration.

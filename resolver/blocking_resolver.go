@@ -198,13 +198,18 @@ func createListMatchers(
 	return denylistMatcher, allowlistMatcher, nil
 }
 
+const reloadFQDNCacheTimeout = 30 * time.Second
+
 func initBlockingResolver(ctx context.Context, res *BlockingResolver, opts BlockingResolverOptions) error {
 	if res.redisClient != nil {
 		go res.redisSubscriber(ctx)
 	}
 
 	if opts.IsReload {
-		res.initFQDNIPCache(ctx)
+		cacheCtx, cancel := context.WithTimeout(ctx, reloadFQDNCacheTimeout)
+		defer cancel()
+
+		res.initFQDNIPCache(cacheCtx)
 
 		return nil
 	}

@@ -11,7 +11,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-const reloadCooldown = 2 * time.Second
+const reloadCooldownMs = 2000
 
 type ConfigWatcher struct {
 	cancel     context.CancelFunc
@@ -27,14 +27,22 @@ func NewConfigWatcher(
 	ctx, cancel := context.WithCancel(ctx)
 	cw := &ConfigWatcher{cancel: cancel}
 
-	// Wrap onReload with cooldown to prevent double-trigger
+	// Wrap onReload with cooldown to prevent double-trigger.
+	// Uses millisecond granularity and CompareAndSwap to close the TOCTOU race
+	// between the fsnotify and polling goroutines.
 	wrappedReload := func() error {
-		now := time.Now().Unix()
-		last := cw.lastReload.Load()
-		if now-last < int64(reloadCooldown.Seconds()) {
-			return nil
+		now := time.Now().UnixMilli()
+
+		for {
+			last := cw.lastReload.Load()
+			if now-last < reloadCooldownMs {
+				return nil
+			}
+
+			if cw.lastReload.CompareAndSwap(last, now) {
+				break
+			}
 		}
-		cw.lastReload.Store(now)
 
 		return onReload()
 	}
@@ -85,33 +93,69 @@ func (cw *ConfigWatcher) startFsnotify(
 		return nil, err
 	}
 
-	go func() {
-		logger := log.PrefixedLog("config_watcher")
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case event, ok := <-watcher.Events:
-				if !ok {
-					return
-				}
-				if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) ||
-					event.Has(fsnotify.Rename) || event.Has(fsnotify.Remove) {
-					logger.Info("config file change detected (fsnotify)")
-					if err := onReload(); err != nil {
-						logger.Errorf("config reload failed: %v", err)
-					}
-				}
-			case err, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
-				logger.Errorf("fsnotify error: %v", err)
-			}
-		}
-	}()
+	// When watching a single file we monitor its parent directory (editors often
+	// replace the file atomically). Filter events to the actual config file so
+	// that unrelated changes in the same directory don't trigger a reload.
+	filter := newFsnotifyFilter(!info.IsDir(), configPath)
+
+	go fsnotifyLoop(ctx, watcher, filter, onReload)
 
 	return watcher, nil
+}
+
+// fsnotifyFilter decides whether an fsnotify event is relevant.
+type fsnotifyFilter struct {
+	isFileWatch   bool
+	absConfigPath string
+}
+
+func newFsnotifyFilter(isFileWatch bool, configPath string) fsnotifyFilter {
+	return fsnotifyFilter{
+		isFileWatch:   isFileWatch,
+		absConfigPath: filepath.Clean(configPath),
+	}
+}
+
+func (f fsnotifyFilter) isRelevant(event fsnotify.Event) bool {
+	if !event.Has(fsnotify.Write) && !event.Has(fsnotify.Create) &&
+		!event.Has(fsnotify.Rename) && !event.Has(fsnotify.Remove) {
+		return false
+	}
+
+	if f.isFileWatch && filepath.Clean(event.Name) != f.absConfigPath {
+		return false
+	}
+
+	return true
+}
+
+func fsnotifyLoop(ctx context.Context, watcher *fsnotify.Watcher, filter fsnotifyFilter, onReload func() error) {
+	logger := log.PrefixedLog("config_watcher")
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+
+			if filter.isRelevant(event) {
+				logger.Info("config file change detected (fsnotify)")
+
+				if err := onReload(); err != nil {
+					logger.Errorf("config reload failed: %v", err)
+				}
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+
+			logger.Errorf("fsnotify error: %v", err)
+		}
+	}
 }
 
 func (cw *ConfigWatcher) poll(
