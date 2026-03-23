@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xERR0R/blocky/cache"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/metrics"
@@ -20,6 +21,7 @@ import (
 	"github.com/0xERR0R/blocky/resolver"
 
 	"github.com/0xERR0R/blocky/util"
+	goredis "github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 
@@ -128,15 +130,15 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		return nil, fmt.Errorf("failed to create bootstrap resolver: %w", err)
 	}
 
-	var redisClient *redis.Client
+	var redisConn *goredis.Client
 	if cfg.Redis.IsEnabled() {
-		redisClient, err = redis.New(ctx, &cfg.Redis)
+		redisConn, err = redis.New(ctx, &cfg.Redis)
 		if err != nil && cfg.Redis.Required {
 			return nil, fmt.Errorf("failed to create required Redis client: %w", err)
 		}
 	}
 
-	queryResolver, queryError := createQueryResolver(ctx, cfg, bootstrap, redisClient)
+	queryResolver, queryError := createQueryResolver(ctx, cfg, bootstrap, redisConn)
 	if queryError != nil {
 		return nil, queryError
 	}
@@ -298,15 +300,31 @@ func createQueryResolver(
 	ctx context.Context,
 	cfg *config.Config,
 	bootstrap *resolver.Bootstrap,
-	redisClient *redis.Client,
+	redisConn *goredis.Client,
 ) (resolver.ChainedResolver, error) {
+	var cacheDecorator resolver.CacheDecorator
+	if redisConn != nil {
+		cacheDecorator = func(inner cache.ExpiringCache[[]byte]) (cache.ExpiringCache[[]byte], error) {
+			return cache.NewRedisExpiringCache(ctx, inner, redisConn, cache.RedisOptions[[]byte]{
+				Prefix:  "blocky:cache:",
+				Channel: "blocky_cache_sync",
+				Encode:  func(b *[]byte) ([]byte, error) { return *b, nil },
+				Decode:  func(b []byte) (*[]byte, error) { return &b, nil },
+			})
+		}
+
+		if _, err := redis.NewEventBusBridge(ctx, redisConn); err != nil {
+			logger().Warn("failed to create Redis event bridge: ", err)
+		}
+	}
+
 	upstreamTree, utErr := resolver.NewUpstreamTreeResolver(ctx, cfg.Upstreams, bootstrap)
 	blocking, blErr := resolver.NewBlockingResolver(ctx, cfg.Blocking, bootstrap)
 	clientNames, cnErr := resolver.NewClientNamesResolver(ctx, cfg.ClientLookup, cfg.Upstreams, bootstrap)
 	queryLogging, qlErr := resolver.NewQueryLoggingResolver(ctx, cfg.QueryLog)
 	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(ctx, cfg.Conditional, cfg.Upstreams, bootstrap)
 	hostsFile, hfErr := resolver.NewHostsFileResolver(ctx, cfg.HostsFile, bootstrap)
-	cachingResolver, crErr := resolver.NewCachingResolver(ctx, cfg.Caching, redisClient)
+	cachingResolver, crErr := resolver.NewCachingResolver(ctx, cfg.Caching, cacheDecorator)
 	// Pass upstreamTree to DNSSEC resolver so it can query for DNSKEY/DS records
 	dnssecResolver, dsErr := resolver.NewDNSSECResolver(ctx, cfg.DNSSEC, upstreamTree)
 
