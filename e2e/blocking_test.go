@@ -32,23 +32,23 @@ var _ = Describe("Domain blocking functionality", func() {
 		Context("when blocklist is unavailable", func() {
 			Context("with loading.strategy = blocking", func() {
 				BeforeEach(func(ctx context.Context) {
-					blocky, err = createBlockyContainer(ctx, e2eNet,
-						"log:",
-						"  level: warn",
-						"upstreams:",
-						"  groups:",
-						"    default:",
-						"      - moka",
-						"blocking:",
-						"  loading:",
-						"    strategy: blocking",
-						"  denylists:",
-						"    ads:",
-						"      - http://wrong.domain.url/list.txt",
-						"  clientGroupsBlock:",
-						"    default:",
-						"      - ads",
-					)
+					blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+						log:
+						  level: warn
+						upstreams:
+						  groups:
+						    default:
+						      - moka
+						blocking:
+						  loading:
+						    strategy: blocking
+						  denylists:
+						    ads:
+						      - http://wrong.domain.url/list.txt
+						  clientGroupsBlock:
+						    default:
+						      - ads
+						`))
 					Expect(err).Should(Succeed())
 				})
 
@@ -69,23 +69,23 @@ var _ = Describe("Domain blocking functionality", func() {
 
 			Context("with loading.strategy = failOnError", func() {
 				BeforeEach(func(ctx context.Context) {
-					blocky, err = createBlockyContainer(ctx, e2eNet,
-						"log:",
-						"  level: warn",
-						"upstreams:",
-						"  groups:",
-						"    default:",
-						"      - moka",
-						"blocking:",
-						"  loading:",
-						"    strategy: failOnError",
-						"  denylists:",
-						"    ads:",
-						"      - http://wrong.domain.url/list.txt",
-						"  clientGroupsBlock:",
-						"    default:",
-						"      - ads",
-					)
+					blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+						log:
+						  level: warn
+						upstreams:
+						  groups:
+						    default:
+						      - moka
+						blocking:
+						  loading:
+						    strategy: failOnError
+						  denylists:
+						    ads:
+						      - http://wrong.domain.url/list.txt
+						  clientGroupsBlock:
+						    default:
+						      - ads
+						`))
 					Expect(err).Should(HaveOccurred())
 
 					// Verify container exit status
@@ -111,21 +111,21 @@ var _ = Describe("Domain blocking functionality", func() {
 				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blockeddomain.com")
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"blocking:",
-					"  denylists:",
-					"    ads:",
-					"      - http://httpserver:8080/list.txt",
-					"  clientGroupsBlock:",
-					"    default:",
-					"      - ads",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					blocking:
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/list.txt
+					  clientGroupsBlock:
+					    default:
+					      - ads
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -159,21 +159,21 @@ var _ = Describe("Domain blocking functionality", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"blocking:",
-					"  denylists:",
-					"    ads:",
-					"      - http://httpserver:8080/list.txt",
-					"  clientGroupsBlock:",
-					"    default:",
-					"      - ads",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					blocking:
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/list.txt
+					  clientGroupsBlock:
+					    default:
+					      - ads
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -248,21 +248,21 @@ var _ = Describe("Domain blocking functionality", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka2",
-					"blocking:",
-					"  denylists:",
-					"    ads:",
-					"      - http://httpserver:8080/list.txt",
-					"  clientGroupsBlock:",
-					"    default:",
-					"      - ads",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka2
+					blocking:
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/list.txt
+					  clientGroupsBlock:
+					    default:
+					      - ads
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -349,22 +349,22 @@ var _ = Describe("Domain blocking functionality", func() {
 				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blocked.com")
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"blocking:",
-					"  blockType: zeroIP",
-					"  denylists:",
-					"    ads:",
-					"      - http://httpserver:8080/list.txt",
-					"  clientGroupsBlock:",
-					"    default:",
-					"      - ads",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					blocking:
+					  blockType: zeroIP
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/list.txt
+					  clientGroupsBlock:
+					    default:
+					      - ads
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -390,22 +390,22 @@ var _ = Describe("Domain blocking functionality", func() {
 				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blocked.com")
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"blocking:",
-					"  blockType: nxDomain",
-					"  denylists:",
-					"    ads:",
-					"      - http://httpserver:8080/list.txt",
-					"  clientGroupsBlock:",
-					"    default:",
-					"      - ads",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					blocking:
+					  blockType: nxDomain
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/list.txt
+					  clientGroupsBlock:
+					    default:
+					      - ads
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -444,22 +444,22 @@ var _ = Describe("Domain blocking functionality", func() {
 				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blocked.com")
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"blocking:",
-					"  blockType: 192.168.1.1,2001:db8::1",
-					"  denylists:",
-					"    ads:",
-					"      - http://httpserver:8080/list.txt",
-					"  clientGroupsBlock:",
-					"    default:",
-					"      - ads",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					blocking:
+					  blockType: 192.168.1.1,2001:db8::1
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/list.txt
+					  clientGroupsBlock:
+					    default:
+					      - ads
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -485,22 +485,22 @@ var _ = Describe("Domain blocking functionality", func() {
 				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blocked.com")
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"blocking:",
-					"  blockTTL: 1m",
-					"  denylists:",
-					"    ads:",
-					"      - http://httpserver:8080/list.txt",
-					"  clientGroupsBlock:",
-					"    default:",
-					"      - ads",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					blocking:
+					  blockTTL: 1m
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/list.txt
+					  clientGroupsBlock:
+					    default:
+					      - ads
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -520,23 +520,23 @@ var _ = Describe("Domain blocking functionality", func() {
 				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blocked.com")
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"blocking:",
-					"  blockType: nxDomain",
-					"  blockTTL: 2m",
-					"  denylists:",
-					"    ads:",
-					"      - http://httpserver:8080/list.txt",
-					"  clientGroupsBlock:",
-					"    default:",
-					"      - ads",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					blocking:
+					  blockType: nxDomain
+					  blockTTL: 2m
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/list.txt
+					  clientGroupsBlock:
+					    default:
+					      - ads
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -571,21 +571,21 @@ var _ = Describe("Domain blocking functionality", func() {
 				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "192.168.100.50")
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka2",
-					"blocking:",
-					"  denylists:",
-					"    ads:",
-					"      - http://httpserver:8080/list.txt",
-					"  clientGroupsBlock:",
-					"    default:",
-					"      - ads",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka2
+					blocking:
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/list.txt
+					  clientGroupsBlock:
+					    default:
+					      - ads
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -619,21 +619,21 @@ var _ = Describe("Domain blocking functionality", func() {
 				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "tracker.ads.com")
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka2",
-					"blocking:",
-					"  denylists:",
-					"    ads:",
-					"      - http://httpserver:8080/list.txt",
-					"  clientGroupsBlock:",
-					"    default:",
-					"      - ads",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka2
+					blocking:
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/list.txt
+					  clientGroupsBlock:
+					    default:
+					      - ads
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -660,23 +660,23 @@ var _ = Describe("Domain blocking functionality", func() {
 				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blocked.com")
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka2",
-					"ports:",
-					"  http: 4000",
-					"blocking:",
-					"  denylists:",
-					"    ads:",
-					"      - http://httpserver:8080/list.txt",
-					"  clientGroupsBlock:",
-					"    default:",
-					"      - ads",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka2
+					ports:
+					  http: 4000
+					blocking:
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/list.txt
+					  clientGroupsBlock:
+					    default:
+					      - ads
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -731,23 +731,23 @@ var _ = Describe("Domain blocking functionality", func() {
 				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blocked.com")
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"ports:",
-					"  http: 4000",
-					"blocking:",
-					"  denylists:",
-					"    ads:",
-					"      - http://httpserver:8080/list.txt",
-					"  clientGroupsBlock:",
-					"    default:",
-					"      - ads",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					ports:
+					  http: 4000
+					blocking:
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/list.txt
+					  clientGroupsBlock:
+					    default:
+					      - ads
+					`))
 				Expect(err).Should(Succeed())
 			})
 
