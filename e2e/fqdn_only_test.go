@@ -30,14 +30,14 @@ var _ = Describe("FQDN only mode", func() {
 
 	When("fqdnOnly is enabled", func() {
 		BeforeEach(func(ctx context.Context) {
-			blocky, err = createBlockyContainer(ctx, e2eNet,
-				"upstreams:",
-				"  groups:",
-				"    default:",
-				"      - moka",
-				"fqdnOnly:",
-				"  enable: true",
-			)
+			blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+    upstreams:
+      groups:
+        default:
+          - moka
+    fqdnOnly:
+      enable: true
+			`))
 			Expect(err).Should(Succeed())
 		})
 
@@ -64,12 +64,12 @@ var _ = Describe("FQDN only mode", func() {
 
 	When("fqdnOnly is disabled (default)", func() {
 		BeforeEach(func(ctx context.Context) {
-			blocky, err = createBlockyContainer(ctx, e2eNet,
-				"upstreams:",
-				"  groups:",
-				"    default:",
-				"      - moka",
-			)
+			blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+    upstreams:
+      groups:
+        default:
+          - moka
+			`))
 			Expect(err).Should(Succeed())
 		})
 
