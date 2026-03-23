@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"time"
 
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
@@ -57,6 +58,16 @@ var _ = Describe("API endpoints", func() {
 					msg := util.NewMsgWithQuestion("cached.example.com.", A)
 					Expect(doDNSRequest(ctx, blocky, msg)).
 						Should(BeDNSRecord("cached.example.com.", A, "1.2.3.4"))
+				})
+
+				By("verifying response is served from cache (TTL decreased)", func() {
+					time.Sleep(2 * time.Second)
+
+					msg := util.NewMsgWithQuestion("cached.example.com.", A)
+					resp, err := doDNSRequest(ctx, blocky, msg)
+					Expect(err).Should(Succeed())
+					Expect(resp.Answer).Should(HaveLen(1))
+					Expect(resp.Answer[0].Header().Ttl).Should(BeNumerically("<", 300))
 				})
 
 				By("flushing cache via API", func() {
