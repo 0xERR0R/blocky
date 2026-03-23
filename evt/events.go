@@ -50,7 +50,7 @@ func Bus() EventBus.Bus {
 
 // BlockingState carries the full blocking state for cross-instance sync.
 type BlockingState struct {
-	Enabled  bool
-	Duration time.Duration
-	Groups   []string
+	Enabled  bool          `json:"enabled"`
+	Duration time.Duration `json:"duration,omitempty"`
+	Groups   []string      `json:"groups,omitempty"`
 }

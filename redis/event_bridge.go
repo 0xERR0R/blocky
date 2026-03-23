@@ -60,8 +60,8 @@ func NewEventBusBridge(ctx context.Context, client *goredis.Client) (*EventBusBr
 }
 
 // Close unsubscribes from the local event bus.
-func (b *EventBusBridge) Close() {
-	evt.Bus().Unsubscribe(evt.BlockingStateChanged, b.onLocalStateChanged)
+func (b *EventBusBridge) Close() error {
+	return evt.Bus().Unsubscribe(evt.BlockingStateChanged, b.onLocalStateChanged)
 }
 
 // onLocalStateChanged is called when a local blocking state change occurs.

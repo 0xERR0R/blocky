@@ -157,29 +157,37 @@ func NewBlockingResolver(ctx context.Context,
 		return res.queryForFQIdentifierIPs(ctx, key)
 	})
 
-	err = evt.Bus().SubscribeOnce(evt.ApplicationStarted, func(_ ...string) {
-		go res.initFQDNIPCache(ctx)
+	if err := res.subscribeEvents(ctx); err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+func (r *BlockingResolver) subscribeEvents(ctx context.Context) error {
+	err := evt.Bus().SubscribeOnce(evt.ApplicationStarted, func(_ ...string) {
+		go r.initFQDNIPCache(ctx)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe to ApplicationStarted event: %w", err)
+		return fmt.Errorf("failed to subscribe to ApplicationStarted event: %w", err)
 	}
 
 	err = evt.Bus().Subscribe(evt.BlockingStateChangedRemote, func(state evt.BlockingState) {
 		go func() {
 			if state.Enabled {
-				res.internalEnableBlocking()
+				r.internalEnableBlocking()
 			} else {
-				if disableErr := res.internalDisableBlocking(ctx, state.Duration, state.Groups); disableErr != nil {
+				if disableErr := r.internalDisableBlocking(ctx, state.Duration, state.Groups); disableErr != nil {
 					log.PrefixedLog("blocking").Warn("blocking couldn't be disabled: ", disableErr)
 				}
 			}
 		}()
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe to %s: %w", evt.BlockingStateChangedRemote, err)
+		return fmt.Errorf("failed to subscribe to %s: %w", evt.BlockingStateChangedRemote, err)
 	}
 
-	return res, nil
+	return nil
 }
 
 // RefreshLists triggers the refresh of all allow/denylists in the cache

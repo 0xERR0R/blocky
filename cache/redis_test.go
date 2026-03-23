@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
 	expirationcache "github.com/0xERR0R/expiration-cache"
+	"github.com/alicebob/miniredis/v2"
 	goredis "github.com/go-redis/redis/v8"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -14,7 +14,7 @@ import (
 
 // testValue is a simple string wrapper used as cache value type in tests.
 type testValue struct {
-	Data string
+	Data string `json:"data"`
 }
 
 func encodeTestValue(v *testValue) ([]byte, error) {
@@ -92,6 +92,7 @@ var _ = Describe("RedisExpiringCache", func() {
 				// Redis key must appear after async flush.
 				Eventually(func() bool {
 					exists, _ := client.Exists(ctx, "put:foo").Result()
+
 					return exists > 0
 				}).WithTimeout(2 * time.Second).WithPolling(20 * time.Millisecond).Should(BeTrue())
 			})
@@ -165,6 +166,7 @@ var _ = Describe("RedisExpiringCache", func() {
 				// Wait for Redis write.
 				Eventually(func() bool {
 					exists, _ := client.Exists(ctx, "clear:foo").Result()
+
 					return exists > 0
 				}).WithTimeout(2 * time.Second).WithPolling(20 * time.Millisecond).Should(BeTrue())
 
@@ -202,6 +204,7 @@ var _ = Describe("RedisExpiringCache", func() {
 
 				Eventually(func() *testValue {
 					val, _ := inner2.Get("shared")
+
 					return val
 				}).WithTimeout(3 * time.Second).WithPolling(20 * time.Millisecond).ShouldNot(BeNil())
 			})
@@ -226,6 +229,7 @@ var _ = Describe("RedisExpiringCache", func() {
 				// Wait for the flush to happen.
 				Eventually(func() bool {
 					exists, _ := client.Exists(ctx, "echo:key").Result()
+
 					return exists > 0
 				}).WithTimeout(2 * time.Second).WithPolling(10 * time.Millisecond).Should(BeTrue())
 

@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,6 +18,7 @@ const (
 	defaultBatchSize     = 100
 	defaultFlushInterval = 100 * time.Millisecond
 	defaultSendBufSize   = 1000
+	redisScanCount       = 100
 )
 
 // RedisOptions configures the RedisExpiringCache decorator.
@@ -158,9 +160,10 @@ func (c *RedisExpiringCache[T]) Clear() {
 
 		var err error
 
-		keys, cursor, err = c.client.Scan(ctx, cursor, pattern, 100).Result()
+		keys, cursor, err = c.client.Scan(ctx, cursor, pattern, redisScanCount).Result()
 		if err != nil {
 			c.logger.WithError(err).Warn("Redis SCAN failed during Clear")
+
 			return
 		}
 
@@ -192,7 +195,7 @@ func (c *RedisExpiringCache[T]) loadFromRedis(ctx context.Context) error {
 
 		var err error
 
-		keys, cursor, err = c.client.Scan(ctx, cursor, pattern, 100).Result()
+		keys, cursor, err = c.client.Scan(ctx, cursor, pattern, redisScanCount).Result()
 		if err != nil {
 			return fmt.Errorf("SCAN: %w", err)
 		}
@@ -211,6 +214,7 @@ func (c *RedisExpiringCache[T]) loadFromRedis(ctx context.Context) error {
 			val, err := c.opts.Decode(data)
 			if err != nil {
 				c.logger.WithError(err).Warn("failed to decode Redis entry on startup")
+
 				continue
 			}
 
@@ -287,6 +291,7 @@ func (c *RedisExpiringCache[T]) flushBatch(ctx context.Context, batch []sendBuff
 		data, err := c.opts.Encode(e.val)
 		if err != nil {
 			c.logger.WithError(err).Warn("failed to encode cache entry for Redis")
+
 			continue
 		}
 
@@ -315,6 +320,7 @@ func (c *RedisExpiringCache[T]) flushBatch(ctx context.Context, batch []sendBuff
 	payload, err := json.Marshal(msg)
 	if err != nil {
 		c.logger.WithError(err).Warn("failed to marshal sync message")
+
 		return
 	}
 
@@ -356,29 +362,20 @@ func (c *RedisExpiringCache[T]) handleSyncMessage(payload []byte) {
 	var msg redisSyncMessage
 	if err := json.Unmarshal(payload, &msg); err != nil {
 		c.logger.WithError(err).Warn("failed to decode sync message")
+
 		return
 	}
 
 	// Filter out messages sent by this instance to prevent echo.
-	if len(msg.Client) == len(c.instanceID) {
-		same := true
-
-		for i := range msg.Client {
-			if msg.Client[i] != c.instanceID[i] {
-				same = false
-				break
-			}
-		}
-
-		if same {
-			return
-		}
+	if bytes.Equal(msg.Client, c.instanceID) {
+		return
 	}
 
 	for _, e := range msg.Entries {
 		val, err := c.opts.Decode(e.Data)
 		if err != nil {
 			c.logger.WithError(err).Warn("failed to decode sync entry")
+
 			continue
 		}
 

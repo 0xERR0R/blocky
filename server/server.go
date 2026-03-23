@@ -296,27 +296,32 @@ func createUDPServer(address string) (*dns.Server, error) {
 	return createDNSServer("udp", address, nil)
 }
 
+func createRedisCacheDecorator(ctx context.Context, redisConn *goredis.Client) resolver.CacheDecorator {
+	if redisConn == nil {
+		return nil
+	}
+
+	if _, err := redis.NewEventBusBridge(ctx, redisConn); err != nil {
+		logger().Warn("failed to create Redis event bridge: ", err)
+	}
+
+	return func(inner cache.ExpiringCache[[]byte]) (cache.ExpiringCache[[]byte], error) {
+		return cache.NewRedisExpiringCache(ctx, inner, redisConn, cache.RedisOptions[[]byte]{
+			Prefix:  "blocky:cache:",
+			Channel: "blocky_cache_sync",
+			Encode:  func(b *[]byte) ([]byte, error) { return *b, nil },
+			Decode:  func(b []byte) (*[]byte, error) { return &b, nil },
+		})
+	}
+}
+
 func createQueryResolver(
 	ctx context.Context,
 	cfg *config.Config,
 	bootstrap *resolver.Bootstrap,
 	redisConn *goredis.Client,
 ) (resolver.ChainedResolver, error) {
-	var cacheDecorator resolver.CacheDecorator
-	if redisConn != nil {
-		cacheDecorator = func(inner cache.ExpiringCache[[]byte]) (cache.ExpiringCache[[]byte], error) {
-			return cache.NewRedisExpiringCache(ctx, inner, redisConn, cache.RedisOptions[[]byte]{
-				Prefix:  "blocky:cache:",
-				Channel: "blocky_cache_sync",
-				Encode:  func(b *[]byte) ([]byte, error) { return *b, nil },
-				Decode:  func(b []byte) (*[]byte, error) { return &b, nil },
-			})
-		}
-
-		if _, err := redis.NewEventBusBridge(ctx, redisConn); err != nil {
-			logger().Warn("failed to create Redis event bridge: ", err)
-		}
-	}
+	cacheDecorator := createRedisCacheDecorator(ctx, redisConn)
 
 	upstreamTree, utErr := resolver.NewUpstreamTreeResolver(ctx, cfg.Upstreams, bootstrap)
 	blocking, blErr := resolver.NewBlockingResolver(ctx, cfg.Blocking, bootstrap)

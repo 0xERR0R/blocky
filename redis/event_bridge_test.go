@@ -64,7 +64,7 @@ var _ = Describe("EventBusBridge", func() {
 
 				Expect(evt.Bus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				DeferCleanup(func() {
-					evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, handler)
+					Expect(evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				})
 
 				otherID, err := uuid.New().MarshalBinary()
@@ -100,7 +100,7 @@ var _ = Describe("EventBusBridge", func() {
 
 				Expect(evt.Bus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				DeferCleanup(func() {
-					evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, handler)
+					Expect(evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				})
 
 				payload, err := json.Marshal(bridgeMessage{
@@ -127,7 +127,7 @@ var _ = Describe("EventBusBridge", func() {
 
 				Expect(evt.Bus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				DeferCleanup(func() {
-					evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, handler)
+					Expect(evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				})
 
 				// Create a second bridge acting as the "remote" receiver

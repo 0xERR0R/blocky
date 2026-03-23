@@ -1167,7 +1167,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 	Describe("Remote blocking state via event bus", func() {
 		When("BlockingStateChangedRemote with enabled=true is received", func() {
 			It("should enable blocking", func() {
-				sut.DisableBlocking(ctx, 0, []string{})
+				Expect(sut.DisableBlocking(ctx, 0, []string{})).Should(Succeed())
 				Expect(sut.BlockingStatus().Enabled).Should(BeFalse())
 
 				Bus().Publish(BlockingStateChangedRemote, BlockingState{Enabled: true})
