@@ -42,10 +42,10 @@ type RedisExpiringCache[T any] struct {
 
 **Behavior:**
 
-- `Put(key, val, ttl)` — writes to `inner` cache immediately, then queues entry to `sendBuf` for async Redis write.
+- `Put(key, val, ttl)` — writes to `inner` cache immediately, then queues entry to `sendBuf` for async Redis write. Uses a **non-blocking send** on `sendBuf`: if the buffer is full, the entry is dropped and a metric counter is incremented. This ensures `Put()` never blocks the DNS resolution path when Redis is slow.
 - `Get(key)` — reads from `inner` cache only. The inner cache is kept warm via the subscription goroutine.
 - `TotalCount()` — delegates to `inner`.
-- `Clear()` — delegates to `inner`.
+- `Clear()` — clears `inner` cache AND deletes Redis keys with the configured prefix (via `SCAN` + `DEL` pipeline). This prevents stale entries from being resynced to other instances or on restart.
 
 **Batch writing:**
 
@@ -65,7 +65,13 @@ A background goroutine subscribes to the Redis pub/sub channel:
 
 **Startup cache load:**
 
-On creation, scans existing Redis keys with the configured prefix, reads values and TTLs, and populates the inner cache via `inner.Put()`.
+On creation, scans existing Redis keys with the configured prefix, reads values and TTLs, and populates the inner cache via `inner.Put()`. The scan completes **before** the subscription goroutine starts to avoid a race where pub/sub updates could be overwritten by stale scan results.
+
+**Lifecycle:**
+
+The decorator accepts a `context.Context`. On context cancellation:
+1. The subscription goroutine stops.
+2. The batch writer goroutine flushes any remaining buffered entries, then stops.
 
 ### Component 2: Event Bus Bridge
 
@@ -85,11 +91,25 @@ type EventBusBridge struct {
 
 **Behavior:**
 
-- **Local → Redis:** Subscribes to `evt.BlockingEnabledEvent` on the local event bus. When fired, publishes the state change to Redis (with instance ID).
-- **Redis → Local:** Background goroutine subscribes to the Redis channel. On receiving a message from another instance (filtered by ID), publishes `evt.BlockingEnabledEvent` on the local event bus.
+- **Local → Redis:** Subscribes to `evt.BlockingEnabledEvent` on the local event bus. When fired, publishes the state change to Redis (with instance ID). **Crucially, the bridge sets an internal `suppressRePublish` flag before publishing to the local event bus from Redis, and checks this flag before forwarding local events to Redis.** This prevents an infinite feedback loop (Redis → local event → Redis → ...).
+- **Redis → Local:** Background goroutine subscribes to the Redis channel. On receiving a message from another instance (filtered by UUID), sets `suppressRePublish = true`, publishes `evt.BlockingEnabledEvent` on the local event bus, then sets `suppressRePublish = false`.
 - The `BlockingResolver` is unaware of Redis. It already publishes `BlockingEnabledEvent` locally and reacts to it — the bridge is the only new subscriber.
 
-**Note:** The `BlockingEnabledEvent` payload needs to carry `duration` and `groups` in addition to the existing `enabled bool`. This can be done by changing the event signature or using a struct payload.
+**Event payload change:**
+
+The current `BlockingEnabledEvent` carries only `enabled bool`. The bridge needs `duration` and `groups` too. To avoid breaking existing subscribers (e.g., `metrics/metrics_event_publisher.go` which subscribes with `func(enabled bool)`):
+
+- Introduce a new event: `evt.BlockingStateChanged` with a struct payload:
+  ```go
+  type BlockingState struct {
+      Enabled  bool
+      Duration time.Duration
+      Groups   []string
+  }
+  ```
+- `BlockingResolver.EnableBlocking/DisableBlocking` publishes **both** `BlockingEnabledEvent` (for existing subscribers like metrics) and `BlockingStateChanged` (for the bridge).
+- The bridge subscribes only to `BlockingStateChanged`, avoiding any ambiguity.
+- When the bridge receives a remote message, it calls the resolver's internal enable/disable methods via the local event bus using `BlockingStateChanged`.
 
 ### Component 3: Wiring Changes in `server.go`
 
@@ -157,6 +177,22 @@ Cache creation logic (prefetching vs plain, metric callbacks) moves to server wi
 - Verify full stack: cache sharing between instances, state sync, startup cache loading.
 
 All tests use Ginkgo/Gomega BDD style.
+
+## Rolling Upgrades & Channel Compatibility
+
+The cache decorator uses a new Redis channel name (e.g., `blocky_cache_sync`) and the event bridge uses `blocky_sync_enabled`. The old `blocky_sync` channel with multiplexed message types is no longer used.
+
+During rolling upgrades (mixed old/new instances), old instances will not receive cache sync or state sync from new instances and vice versa. This is acceptable because:
+- Cache misses are not failures — they just cause upstream DNS queries.
+- Blocking state changes during a rolling upgrade window are rare and transient.
+
+The spec does not attempt backward-compatible message formats. A clean cutover (all instances upgraded together or brief sync gap) is the expected deployment path.
+
+## Graceful Degradation
+
+- **Redis down at startup:** Scan fails, logged as warning. Inner cache starts empty. Subscription goroutine retries via go-redis reconnection. The decorator functions as a plain local cache until Redis recovers.
+- **Redis connection drops mid-operation:** Write buffer entries are dropped (non-blocking send already handles this). Subscription is re-established automatically by go-redis. Missed pub/sub messages during the outage are not recovered — this matches current behavior.
+- **Redis reconnects:** go-redis re-establishes the connection. The subscription goroutine resumes receiving messages. No explicit re-scan is performed (local cache may have stale entries, but they expire naturally via TTL).
 
 ## Scope Exclusions
 
