@@ -30,15 +30,15 @@ var _ = Describe("Conditional DNS resolution tests", func() {
 				_, err = createDNSMokkaContainer(ctx, "moka2", e2eNet, `A google/NOERROR("A 5.6.7.8 123")`)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka2",
-					"conditional:",
-					"  mapping:",
-					"    lan: moka1",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka2
+					conditional:
+					  mapping:
+					    lan: moka1
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -73,15 +73,15 @@ var _ = Describe("Conditional DNS resolution tests", func() {
 				_, err = createDNSMokkaContainer(ctx, "moka2", e2eNet, `A my/NOERROR("A 5.6.7.8 123")`)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"conditional:",
-					"  mapping:",
-					"    .: moka2",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					conditional:
+					  mapping:
+					    .: moka2
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -116,17 +116,17 @@ var _ = Describe("Conditional DNS resolution tests", func() {
 				_, err = createDNSMokkaContainer(ctx, "moka2", e2eNet, `A google/NOERROR("A 5.6.7.8 123")`)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka2",
-					"conditional:",
-					"  rewrite:",
-					"    home: lan",
-					"  mapping:",
-					"    lan: moka1",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka2
+					conditional:
+					  rewrite:
+					    home: lan
+					  mapping:
+					    lan: moka1
+					`))
 				Expect(err).Should(Succeed())
 			})
 

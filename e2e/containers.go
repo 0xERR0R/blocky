@@ -238,6 +238,15 @@ func createBlockyContainer(ctx context.Context, e2eNet *testcontainers.DockerNet
 	return container, nil
 }
 
+// createBlockyContainerFromString creates a blocky container with a config provided as a single YAML string.
+// It is attached to the test network under the alias 'blocky'.
+// It is automatically terminated when the test is finished.
+func createBlockyContainerFromString(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
+	configYAML string,
+) (testcontainers.Container, error) {
+	return createBlockyContainer(ctx, e2eNet, strings.Split(configYAML, "\n")...)
+}
+
 func checkBlockyReadiness(ctx context.Context, cfg *config.Config, container testcontainers.Container) error {
 	var err error
 

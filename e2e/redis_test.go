@@ -44,28 +44,28 @@ var _ = Describe("Redis configuration tests", func() {
 	Describe("Cache sharing between blocky instances", func() {
 		When("Redis and 2 blocky instances are configured", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky1, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"redis:",
-					"  address: redis:6379",
-				)
+				blocky1, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					redis:
+					  address: redis:6379
+					`))
 				Expect(err).Should(Succeed())
 
-				blocky2, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"redis:",
-					"  address: redis:6379",
-				)
+				blocky2, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					redis:
+					  address: redis:6379
+					`))
 				Expect(err).Should(Succeed())
 			})
 			It("2nd instance of blocky should use cache from redis", func(ctx context.Context) {
@@ -107,16 +107,16 @@ var _ = Describe("Redis configuration tests", func() {
 	Describe("Cache loading on startup", func() {
 		When("Redis and 1 blocky instance are configured", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky1, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"redis:",
-					"  address: redis:6379",
-				)
+				blocky1, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					redis:
+					  address: redis:6379
+					`))
 				Expect(err).Should(Succeed())
 			})
 			It("should load cache from redis after start", func(ctx context.Context) {
@@ -135,16 +135,16 @@ var _ = Describe("Redis configuration tests", func() {
 				})
 
 				By("start other instance of blocky now -> it should load the cache from redis", func() {
-					blocky2, err = createBlockyContainer(ctx, e2eNet,
-						"log:",
-						"  level: warn",
-						"upstreams:",
-						"  groups:",
-						"    default:",
-						"      - moka1",
-						"redis:",
-						"  address: redis:6379",
-					)
+					blocky2, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+						log:
+						  level: warn
+						upstreams:
+						  groups:
+						    default:
+						      - moka1
+						redis:
+						  address: redis:6379
+						`))
 					Expect(err).Should(Succeed())
 				})
 

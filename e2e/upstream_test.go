@@ -25,16 +25,16 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 	Describe("'upstreams.init.strategy' parameter handling", func() {
 		When("'upstreams.init.strategy' is fast and upstream server as IP is not reachable", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - 192.192.192.192",
-					"  init:",
-					"    strategy: fast",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - 192.192.192.192
+					  init:
+					    strategy: fast
+					`))
 				Expect(err).Should(Succeed())
 			})
 			It("should start even if upstream server is not reachable", func(ctx context.Context) {
@@ -46,16 +46,16 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 		})
 		When("'upstreams.init.strategy' is fast and upstream server as host name is not reachable", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - some.wrong.host",
-					"  init:",
-					"    strategy: fast",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - some.wrong.host
+					  init:
+					    strategy: fast
+					`))
 				Expect(err).Should(Succeed())
 			})
 			It("should start even if upstream server is not reachable", func(ctx context.Context) {
@@ -65,14 +65,14 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 		})
 		When("'upstreams.init.strategy' is failOnError and upstream as IP address server is not reachable", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - 192.192.192.192",
-					"  init:",
-					"    strategy: failOnError",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - 192.192.192.192
+					  init:
+					    strategy: failOnError
+					`))
 				Expect(err).Should(HaveOccurred())
 			})
 			It("should not start", func(ctx context.Context) {
@@ -83,14 +83,14 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 		})
 		When("'upstreams.init.strategy' is failOnError and upstream server as host name is not reachable", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - some.wrong.host",
-					"  init:",
-					"    strategy: failOnError",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - some.wrong.host
+					  init:
+					    strategy: failOnError
+					`))
 				Expect(err).Should(HaveOccurred())
 			})
 			It("should not start", func(ctx context.Context) {
@@ -107,13 +107,13 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 				`A delay.com/delay(NOERROR("A 1.1.1.1 100"), "300ms")`)
 			Expect(err).Should(Succeed())
 
-			blocky, err = createBlockyContainer(ctx, e2eNet,
-				"upstreams:",
-				"  groups:",
-				"    default:",
-				"      - moka1",
-				"  timeout: 200ms",
-			)
+			blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+				upstreams:
+				  groups:
+				    default:
+				      - moka1
+				  timeout: 200ms
+				`))
 			Expect(err).Should(Succeed())
 		})
 		It("should consider the timeout parameter", func(ctx context.Context) {
@@ -149,18 +149,18 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 					`A random.com/NOERROR("A 2.2.2.2 100")`)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - 192.0.2.1", // Failing upstream (non-routable IP)
-					"      - moka1",
-					"      - moka2",
-					"  strategy: random",
-					"  timeout: 100ms", // Short timeout
-					"caching:",
-					"  maxItemsCount: 0", // Disable caching
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - 192.0.2.1
+					      - moka1
+					      - moka2
+					  strategy: random
+					  timeout: 100ms
+					caching:
+					  maxItemsCount: 0
+					`))
 				Expect(err).Should(Succeed())
 			})
 			It("should retry with another upstream when one fails", func(ctx context.Context) {
@@ -204,17 +204,17 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 					`A strict.com/NOERROR("A 3.3.3.3 100")`)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"      - moka2",
-					"      - moka3",
-					"  strategy: strict",
-					"caching:",
-					"  maxItemsCount: 0", // Disable caching
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					      - moka2
+					      - moka3
+					  strategy: strict
+					caching:
+					  maxItemsCount: 0
+					`))
 				Expect(err).Should(Succeed())
 			})
 			It("should use upstreams in strict order", func(ctx context.Context) {
@@ -245,17 +245,17 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 					`A fallback.com/NOERROR("A 2.2.2.2 100")`)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - 192.0.2.1", // Non-routable test network IP (RFC 5737)
-					"      - moka2",
-					"  strategy: strict",
-					"  timeout: 100ms", // Short timeout to fail fast
-					"caching:",
-					"  maxItemsCount: 0", // Disable caching
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - 192.0.2.1
+					      - moka2
+					  strategy: strict
+					  timeout: 100ms
+					caching:
+					  maxItemsCount: 0
+					`))
 				Expect(err).Should(Succeed())
 			})
 			It("should fall back to next upstream when first fails", func(ctx context.Context) {
@@ -281,18 +281,18 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 					`A parallel.com/delay(NOERROR("A 3.3.3.3 100"), "50ms")`)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"      - 192.0.2.1", // Non-routable IP that will fail
-					"      - moka3",
-					"  strategy: parallel_best",
-					"  timeout: 100ms", // Short timeout
-					"caching:",
-					"  maxItemsCount: 0", // Disable caching
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					      - 192.0.2.1
+					      - moka3
+					  strategy: parallel_best
+					  timeout: 100ms
+					caching:
+					  maxItemsCount: 0
+					`))
 				Expect(err).Should(Succeed())
 			})
 			It("should prefer working upstreams over failing ones", func(ctx context.Context) {
@@ -340,14 +340,15 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 				// Generate DNS stamp pointing to the mokka container's IP
 				stamp := generatePlainDNSStamp(mokaIP)
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - "+stamp, // Use DNS stamp pointing to mokka container
-					"caching:",
-					"  maxItemsCount: 0", // Disable caching for consistent results
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet,
+					dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - `+stamp+`
+					caching:
+					  maxItemsCount: 0
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -385,16 +386,17 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 				// to verify they work together in the same configuration
 				stamp := generatePlainDNSStamp(mokaStampIP)
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - "+stamp,           // DNS stamp format
-					"      - moka-traditional", // Traditional format
-					"  strategy: parallel_best",
-					"caching:",
-					"  maxItemsCount: 0",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet,
+					dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - `+stamp+`
+					      - moka-traditional
+					  strategy: parallel_best
+					caching:
+					  maxItemsCount: 0
+					`))
 				Expect(err).Should(Succeed())
 			})
 

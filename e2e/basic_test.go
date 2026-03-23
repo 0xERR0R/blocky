@@ -35,15 +35,15 @@ var _ = Describe("Basic functionality", func() {
 			Context("with conflicting port configuration", func() {
 				BeforeEach(func(ctx context.Context) {
 					// Create blocky with the same port for HTTP and DNS
-					blocky, err = createBlockyContainer(ctx, e2eNet,
-						"upstreams:",
-						"  groups:",
-						"    default:",
-						"      - moka1",
-						"ports:",
-						"  http: 4000",
-						"  dns: 4000",
-					)
+					blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+						upstreams:
+						  groups:
+						    default:
+						      - moka1
+						ports:
+						  http: 4000
+						  dns: 4000
+						`))
 					Expect(err).Should(HaveOccurred())
 
 					// Verify container exit status
@@ -62,12 +62,12 @@ var _ = Describe("Basic functionality", func() {
 			Context("with minimal configuration", func() {
 				BeforeEach(func(ctx context.Context) {
 					// Create blocky with minimal config
-					blocky, err = createBlockyContainer(ctx, e2eNet,
-						"upstreams:",
-						"  groups:",
-						"    default:",
-						"      - moka1",
-					)
+					blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+						upstreams:
+						  groups:
+						    default:
+						      - moka1
+						`))
 					Expect(err).Should(Succeed())
 				})
 
@@ -96,12 +96,12 @@ var _ = Describe("Basic functionality", func() {
 		Describe("HTTP port configuration", func() {
 			Context("when HTTP port is not defined", func() {
 				BeforeEach(func(ctx context.Context) {
-					blocky, err = createBlockyContainer(ctx, e2eNet,
-						"upstreams:",
-						"  groups:",
-						"    default:",
-						"      - moka1",
-					)
+					blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+						upstreams:
+						  groups:
+						    default:
+						      - moka1
+						`))
 					Expect(err).Should(Succeed())
 				})
 
@@ -116,14 +116,14 @@ var _ = Describe("Basic functionality", func() {
 
 			Context("when HTTP port is defined", func() {
 				BeforeEach(func(ctx context.Context) {
-					blocky, err = createBlockyContainer(ctx, e2eNet,
-						"upstreams:",
-						"  groups:",
-						"    default:",
-						"      - moka1",
-						"ports:",
-						"  http: 4000",
-					)
+					blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+						upstreams:
+						  groups:
+						    default:
+						      - moka1
+						ports:
+						  http: 4000
+						`))
 					Expect(err).Should(Succeed())
 				})
 
@@ -168,15 +168,15 @@ var _ = Describe("Basic functionality", func() {
 
 		Context("when privacy mode is enabled", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"log:",
-					"  level: trace",
-					"  privacy: true",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					log:
+					  level: trace
+					  privacy: true
+					`))
 				Expect(err).Should(Succeed())
 			})
 
