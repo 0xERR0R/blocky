@@ -13,7 +13,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 )
 
-//nolint:unused // used by expectEventually, prepared for test migration
+//nolint:unused // prepared for test migration
 const eventuallyPollInterval = 200 * time.Millisecond
 
 // expectResolve sends a DNS query and asserts the response matches the expected record.
