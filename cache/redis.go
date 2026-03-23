@@ -145,12 +145,16 @@ func (c *RedisExpiringCache[T]) TotalCount() int {
 	return c.inner.TotalCount()
 }
 
+const clearTimeout = 10 * time.Second
+
 // Clear removes all entries from the inner cache and from Redis (all keys
 // matching the configured prefix).
 func (c *RedisExpiringCache[T]) Clear() {
 	c.inner.Clear()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), clearTimeout)
+	defer cancel()
+
 	pattern := c.opts.Prefix + "*"
 
 	var cursor uint64

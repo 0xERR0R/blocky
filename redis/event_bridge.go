@@ -49,6 +49,7 @@ func NewEventBusBridge(ctx context.Context, client *goredis.Client) (*EventBusBr
 	ps := client.Subscribe(ctx, b.channel)
 
 	if _, err := ps.Receive(ctx); err != nil {
+		_ = ps.Close()
 		_ = evt.Bus().Unsubscribe(evt.BlockingStateChanged, b.onLocalStateChanged)
 
 		return nil, err
@@ -87,6 +88,9 @@ func (b *EventBusBridge) onLocalStateChanged(state evt.BlockingState) {
 // subscribeLoop listens for Redis pub/sub messages and publishes remote state changes
 // to the local event bus, filtering out messages from this instance.
 func (b *EventBusBridge) subscribeLoop(ctx context.Context, ps *goredis.PubSub) {
+	defer ps.Close()
+	defer b.Close()
+
 	ch := ps.Channel()
 
 	for {

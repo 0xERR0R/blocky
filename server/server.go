@@ -310,7 +310,12 @@ func createRedisCacheDecorator(ctx context.Context, redisConn *goredis.Client) r
 			Prefix:  "blocky:cache:",
 			Channel: "blocky_cache_sync",
 			Encode:  func(b *[]byte) ([]byte, error) { return *b, nil },
-			Decode:  func(b []byte) (*[]byte, error) { return &b, nil },
+			Decode: func(b []byte) (*[]byte, error) {
+				cp := make([]byte, len(b))
+				copy(cp, b)
+
+				return &cp, nil
+			},
 		})
 	}
 }
