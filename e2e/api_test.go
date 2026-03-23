@@ -35,16 +35,16 @@ var _ = Describe("API endpoints", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"ports:",
-					"  http: 4000",
-					"caching:",
-					"  minTime: 5m",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					ports:
+					  http: 4000
+					caching:
+					  minTime: 5m
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -85,14 +85,14 @@ var _ = Describe("API endpoints", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"ports:",
-					"  http: 4000",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					ports:
+					  http: 4000
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -145,21 +145,21 @@ var _ = Describe("API endpoints", func() {
 				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blocked.com")
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"ports:",
-					"  http: 4000",
-					"blocking:",
-					"  denylists:",
-					"    ads:",
-					"      - http://httpserver:8080/list.txt",
-					"  clientGroupsBlock:",
-					"    default:",
-					"      - ads",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					ports:
+					  http: 4000
+					blocking:
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/list.txt
+					  clientGroupsBlock:
+					    default:
+					      - ads
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -214,24 +214,24 @@ var _ = Describe("API endpoints", func() {
 				_, err = createHTTPServerContainer(ctx, "httpserver-malware", e2eNet, "malware-list.txt", "malware-domain.com")
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"ports:",
-					"  http: 4000",
-					"blocking:",
-					"  denylists:",
-					"    ads:",
-					"      - http://httpserver-ads:8080/ads-list.txt",
-					"    malware:",
-					"      - http://httpserver-malware:8080/malware-list.txt",
-					"  clientGroupsBlock:",
-					"    default:",
-					"      - ads",
-					"      - malware",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					ports:
+					  http: 4000
+					blocking:
+					  denylists:
+					    ads:
+					      - http://httpserver-ads:8080/ads-list.txt
+					    malware:
+					      - http://httpserver-malware:8080/malware-list.txt
+					  clientGroupsBlock:
+					    default:
+					      - ads
+					      - malware
+					`))
 				Expect(err).Should(Succeed())
 			})
 
