@@ -1324,6 +1324,158 @@ func writeConfigDir(tmpDir *helpertest.TmpFolder) {
 	)
 }
 
+var _ = Describe("Ports", func() {
+	suiteBeforeEach()
+
+	Describe("LogConfig", func() {
+		It("should log all port configurations", func() {
+			cfg := Ports{
+				DNS:   ListenConfig{":53"},
+				HTTP:  ListenConfig{":4000"},
+				HTTPS: ListenConfig{":443"},
+				TLS:   ListenConfig{":853"},
+			}
+
+			cfg.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+			Expect(hook.Messages).Should(ContainElements(
+				ContainSubstring("DNS"),
+				ContainSubstring("HTTP"),
+				ContainSubstring("HTTPS"),
+				ContainSubstring("TLS"),
+			))
+		})
+	})
+})
+
+var _ = Describe("toEnable", func() {
+	suiteBeforeEach()
+
+	Describe("IsEnabled", func() {
+		It("should return false when not enabled", func() {
+			cfg := toEnable{Enable: false}
+			Expect(cfg.IsEnabled()).Should(BeFalse())
+		})
+
+		It("should return true when enabled", func() {
+			cfg := toEnable{Enable: true}
+			Expect(cfg.IsEnabled()).Should(BeTrue())
+		})
+	})
+
+	Describe("LogConfig", func() {
+		It("should log enabled", func() {
+			cfg := toEnable{Enable: true}
+			cfg.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("enabled")))
+		})
+	})
+})
+
+var _ = Describe("IPVersion", func() {
+	suiteBeforeEach()
+
+	Describe("Net", func() {
+		It("should return correct net for dual", func() {
+			Expect(IPVersionDual.Net()).Should(Equal("ip"))
+		})
+
+		It("should return correct net for v4", func() {
+			Expect(IPVersionV4.Net()).Should(Equal("ip4"))
+		})
+
+		It("should return correct net for v6", func() {
+			Expect(IPVersionV6.Net()).Should(Equal("ip6"))
+		})
+	})
+
+	Describe("QTypes", func() {
+		It("should return A and AAAA for dual", func() {
+			qtypes := IPVersionDual.QTypes()
+			Expect(qtypes).Should(HaveLen(2))
+		})
+
+		It("should return only A for v4", func() {
+			qtypes := IPVersionV4.QTypes()
+			Expect(qtypes).Should(HaveLen(1))
+		})
+
+		It("should return only AAAA for v6", func() {
+			qtypes := IPVersionV6.QTypes()
+			Expect(qtypes).Should(HaveLen(1))
+		})
+	})
+})
+
+var _ = Describe("BytesSource", func() {
+	suiteBeforeEach()
+
+	Describe("String", func() {
+		It("should return URL for HTTP source", func() {
+			s := BytesSource{Type: BytesSourceTypeHttp, From: "https://example.com/list.txt"}
+			Expect(s.String()).Should(Equal("https://example.com/list.txt"))
+		})
+
+		It("should return file:// prefixed path for file source", func() {
+			s := BytesSource{Type: BytesSourceTypeFile, From: "/tmp/list.txt"}
+			Expect(s.String()).Should(Equal("file:///tmp/list.txt"))
+		})
+
+		It("should return unknown source for invalid type", func() {
+			s := BytesSource{Type: BytesSourceType(99), From: "something"}
+			Expect(s.String()).Should(ContainSubstring("unknown source"))
+		})
+
+		It("should truncate long text sources", func() {
+			longText := "this is a very long inline text source"
+			s := BytesSource{Type: BytesSourceTypeText, From: longText}
+			result := s.String()
+			Expect(result).Should(HaveSuffix("..."))
+		})
+
+		It("should truncate to first line for multiline text sources", func() {
+			s := BytesSource{Type: BytesSourceTypeText, From: "first line\nsecond line\nthird line"}
+			result := s.String()
+			Expect(result).Should(Equal("first line"))
+		})
+
+		It("should truncate long first line in multiline text sources", func() {
+			s := BytesSource{Type: BytesSourceTypeText, From: "a very long first line here\nsecond line"}
+			result := s.String()
+			Expect(result).Should(HaveSuffix("..."))
+		})
+
+		It("should return short text source as-is", func() {
+			s := BytesSource{Type: BytesSourceTypeText, From: "short"}
+			Expect(s.String()).Should(Equal("short"))
+		})
+	})
+})
+
+var _ = Describe("TLSVersion", func() {
+	suiteBeforeEach()
+
+	Describe("validate", func() {
+		It("should warn and fix insecure TLS version", func() {
+			v := TLSVersion(tls.VersionTLS10)
+			v.validate(logger)
+
+			Expect(v).Should(BeNumerically(">=", TLSVersion(tls.VersionTLS12)))
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("insecure")))
+		})
+
+		It("should not change valid TLS version", func() {
+			v := TLSVersion(tls.VersionTLS13)
+			v.validate(logger)
+
+			Expect(v).Should(Equal(TLSVersion(tls.VersionTLS13)))
+		})
+	})
+})
+
 // Tiny helper to get a new pointer with a value.
 //
 // Avoids needing 2 lines: `x := new(T)` and `*x = val`

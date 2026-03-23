@@ -96,17 +96,35 @@ var _ = Describe("CachingConfig", func() {
 	})
 
 	Describe("EnablePrefetch", func() {
-		When("prefetching is enabled", func() {
+		When("caching is already enabled", func() {
 			BeforeEach(func() {
-				cfg = Caching{}
+				cfg = Caching{
+					MaxCachingTime: Duration(time.Hour),
+				}
 			})
 
-			It("should return configuration", func() {
+			It("should enable prefetching without changing MaxCachingTime", func() {
 				cfg.EnablePrefetch()
 
 				Expect(cfg.Prefetching).Should(BeTrue())
 				Expect(cfg.PrefetchThreshold).Should(Equal(0))
-				Expect(cfg.MaxCachingTime).Should(BeZero())
+				Expect(cfg.MaxCachingTime).Should(Equal(Duration(time.Hour)))
+			})
+		})
+
+		When("caching is disabled", func() {
+			BeforeEach(func() {
+				cfg = Caching{
+					MaxCachingTime: Duration(-1),
+				}
+			})
+
+			It("should enable caching with 24h MaxCachingTime", func() {
+				cfg.EnablePrefetch()
+
+				Expect(cfg.Prefetching).Should(BeTrue())
+				Expect(cfg.PrefetchThreshold).Should(Equal(0))
+				Expect(cfg.MaxCachingTime).Should(Equal(Duration(24 * time.Hour)))
 			})
 		})
 	})

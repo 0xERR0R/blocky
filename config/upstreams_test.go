@@ -60,6 +60,28 @@ var _ = Describe("ParallelBestConfig", func() {
 					ContainSubstring(":host2:"),
 				))
 			})
+
+			When("QUIC upstream is configured", func() {
+				It("should log QUIC configuration", func() {
+					cfg.Groups = UpstreamGroups{
+						UpstreamDefaultCfgName: {
+							{Host: "dns.example.com", Net: NetProtocolQuic},
+						},
+					}
+					cfg.QUIC = QUICConfig{
+						MaxIdleTimeout:  Duration(30 * time.Second),
+						KeepAlivePeriod: Duration(15 * time.Second),
+					}
+
+					cfg.LogConfig(logger)
+
+					Expect(hook.Messages).Should(ContainElements(
+						ContainSubstring("quic:"),
+						ContainSubstring("maxIdleTimeout:"),
+						ContainSubstring("keepAlivePeriod:"),
+					))
+				})
+			})
 		})
 
 		Describe("validate", func() {
@@ -78,6 +100,45 @@ var _ = Describe("ParallelBestConfig", func() {
 				cfg.validate(logger)
 
 				Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("timeout")))
+			})
+
+			When("QUIC upstream is configured", func() {
+				BeforeEach(func() {
+					cfg.Groups = UpstreamGroups{
+						UpstreamDefaultCfgName: {
+							{Host: "dns.example.com", Net: NetProtocolQuic},
+						},
+					}
+				})
+
+				It("should warn when QUIC maxIdleTimeout is not above zero", func() {
+					cfg.QUIC.MaxIdleTimeout = 0
+					cfg.QUIC.KeepAlivePeriod = Duration(15 * time.Second)
+
+					cfg.validate(logger)
+
+					Expect(cfg.QUIC.MaxIdleTimeout).Should(BeNumerically(">", 0))
+					Expect(hook.Messages).Should(ContainElement(ContainSubstring("maxIdleTimeout")))
+				})
+
+				It("should warn when QUIC keepAlivePeriod is not above zero", func() {
+					cfg.QUIC.MaxIdleTimeout = Duration(30 * time.Second)
+					cfg.QUIC.KeepAlivePeriod = 0
+
+					cfg.validate(logger)
+
+					Expect(cfg.QUIC.KeepAlivePeriod).Should(BeNumerically(">", 0))
+					Expect(hook.Messages).Should(ContainElement(ContainSubstring("keepAlivePeriod")))
+				})
+
+				It("should warn when keepAlivePeriod >= maxIdleTimeout", func() {
+					cfg.QUIC.MaxIdleTimeout = Duration(10 * time.Second)
+					cfg.QUIC.KeepAlivePeriod = Duration(10 * time.Second)
+
+					cfg.validate(logger)
+
+					Expect(hook.Messages).Should(ContainElement(ContainSubstring("keep-alive won't prevent idle timeout")))
+				})
 			})
 		})
 	})
