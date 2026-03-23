@@ -159,7 +159,7 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 					// Add the wrong key as trust anchor so chain validation passes,
 					// but signature verification will fail
 					blocky, err = createBlockyContainerFromString(ctx, e2eNet,
-							dedent(`
+						dedent(`
 						upstreams:
 						  groups:
 						    default:
@@ -167,7 +167,7 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 						dnssec:
 						  validate: true
 						  trustAnchors:
-						    - "` + wrongKey.String() + `"
+						    - "`+wrongKey.String()+`"
 						log:
 						  level: debug
 						`))
@@ -270,7 +270,7 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 					// 3. Verify DS record signature against parent DNSKEY
 					// 4. Verify parent DNSKEY against trust anchor
 					blocky, err = createBlockyContainerFromString(ctx, e2eNet,
-							dedent(`
+						dedent(`
 						upstreams:
 						  groups:
 						    default:
@@ -278,7 +278,7 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 						dnssec:
 						  validate: true
 						  trustAnchors:
-						    - "` + chainData.ParentDNSKEY.String() + `"
+						    - "`+chainData.ParentDNSKEY.String()+`"
 						log:
 						  level: debug
 						`))

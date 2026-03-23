@@ -341,11 +341,11 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 				stamp := generatePlainDNSStamp(mokaIP)
 
 				blocky, err = createBlockyContainerFromString(ctx, e2eNet,
-						dedent(`
+					dedent(`
 					upstreams:
 					  groups:
 					    default:
-					      - ` + stamp + `
+					      - `+stamp+`
 					caching:
 					  maxItemsCount: 0
 					`))
@@ -387,11 +387,11 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 				stamp := generatePlainDNSStamp(mokaStampIP)
 
 				blocky, err = createBlockyContainerFromString(ctx, e2eNet,
-						dedent(`
+					dedent(`
 					upstreams:
 					  groups:
 					    default:
-					      - ` + stamp + `
+					      - `+stamp+`
 					      - moka-traditional
 					  strategy: parallel_best
 					caching:
