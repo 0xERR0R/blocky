@@ -19,6 +19,8 @@ const (
 	defaultFlushInterval = 100 * time.Millisecond
 	defaultSendBufSize   = 1000
 	redisScanCount       = 100
+	reconnectBaseDelay   = 500 * time.Millisecond
+	reconnectMaxDelay    = 30 * time.Second
 )
 
 // RedisOptions configures the RedisExpiringCache decorator.
@@ -189,6 +191,7 @@ func (c *RedisExpiringCache[T]) redisKey(key string) string {
 }
 
 // loadFromRedis scans existing Redis keys and populates the inner cache.
+// It uses a pipeline per SCAN page to minimise round trips.
 func (c *RedisExpiringCache[T]) loadFromRedis(ctx context.Context) error {
 	pattern := c.opts.Prefix + "*"
 
@@ -204,31 +207,56 @@ func (c *RedisExpiringCache[T]) loadFromRedis(ctx context.Context) error {
 			return fmt.Errorf("SCAN: %w", err)
 		}
 
-		for _, rk := range keys {
-			dur, err := c.client.TTL(ctx, rk).Result()
-			if err != nil || dur <= 0 {
-				continue
+		if len(keys) > 0 {
+			if err := c.loadKeysViaPipeline(ctx, keys); err != nil {
+				c.logger.WithError(err).Warn("pipeline load failed for SCAN page")
 			}
-
-			data, err := c.client.Get(ctx, rk).Bytes()
-			if err != nil {
-				continue
-			}
-
-			val, err := c.opts.Decode(data)
-			if err != nil {
-				c.logger.WithError(err).Warn("failed to decode Redis entry on startup")
-
-				continue
-			}
-
-			cacheKey := strings.TrimPrefix(rk, c.opts.Prefix)
-			c.inner.Put(cacheKey, val, dur)
 		}
 
 		if cursor == 0 {
 			break
 		}
+	}
+
+	return nil
+}
+
+// loadKeysViaPipeline fetches TTL and value for a batch of keys in two pipeline round trips.
+func (c *RedisExpiringCache[T]) loadKeysViaPipeline(ctx context.Context, keys []string) error {
+	pipe := c.client.Pipeline()
+
+	ttlCmds := make([]*goredis.DurationCmd, len(keys))
+	getCmds := make([]*goredis.StringCmd, len(keys))
+
+	for i, rk := range keys {
+		ttlCmds[i] = pipe.TTL(ctx, rk)
+		getCmds[i] = pipe.Get(ctx, rk)
+	}
+
+	if _, err := pipe.Exec(ctx); err != nil && ctx.Err() == nil {
+		return fmt.Errorf("pipeline exec: %w", err)
+	}
+
+	for i, rk := range keys {
+		dur, err := ttlCmds[i].Result()
+		if err != nil || dur <= 0 {
+			continue
+		}
+
+		data, err := getCmds[i].Bytes()
+		if err != nil {
+			continue
+		}
+
+		val, err := c.opts.Decode(data)
+		if err != nil {
+			c.logger.WithError(err).Warn("failed to decode Redis entry on startup")
+
+			continue
+		}
+
+		cacheKey := strings.TrimPrefix(rk, c.opts.Prefix)
+		c.inner.Put(cacheKey, val, dur)
 	}
 
 	return nil
@@ -248,7 +276,7 @@ func (c *RedisExpiringCache[T]) runWriter(ctx context.Context) {
 		}
 
 		c.flushBatch(ctx, batch)
-		batch = batch[:0]
+		batch = make([]sendBufferEntry[T], 0, c.opts.BatchSize)
 	}
 
 	for {
@@ -335,14 +363,33 @@ func (c *RedisExpiringCache[T]) flushBatch(ctx context.Context, batch []sendBuff
 
 // runSubscriber subscribes to the pub/sub channel and applies remote entries
 // to the inner cache, filtering out messages originating from this instance.
+// It reconnects automatically on channel closure with exponential backoff.
 func (c *RedisExpiringCache[T]) runSubscriber(ctx context.Context) {
 	if c.opts.Channel == "" {
 		return
 	}
 
 	sub := c.client.Subscribe(ctx, c.opts.Channel)
-	defer sub.Close()
 
+	for {
+		c.consumeSubscription(ctx, sub)
+		_ = sub.Close()
+
+		if ctx.Err() != nil {
+			return
+		}
+
+		c.logger.Warn("Redis pub/sub channel closed unexpectedly, attempting to reconnect")
+
+		sub = c.reconnectSubscriber(ctx)
+		if sub == nil {
+			return
+		}
+	}
+}
+
+// consumeSubscription drains messages from the pub/sub channel until it closes or ctx is cancelled.
+func (c *RedisExpiringCache[T]) consumeSubscription(ctx context.Context, sub *goredis.PubSub) {
 	ch := sub.Channel()
 
 	for {
@@ -357,6 +404,38 @@ func (c *RedisExpiringCache[T]) runSubscriber(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		}
+	}
+}
+
+// reconnectSubscriber attempts to re-subscribe with exponential backoff.
+// Returns nil if the context is cancelled before reconnecting.
+func (c *RedisExpiringCache[T]) reconnectSubscriber(ctx context.Context) *goredis.PubSub {
+	delay := reconnectBaseDelay
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(delay):
+		}
+
+		sub := c.client.Subscribe(ctx, c.opts.Channel)
+
+		if _, err := sub.Receive(ctx); err != nil {
+			_ = sub.Close()
+			c.logger.WithError(err).Warn("Redis pub/sub reconnect failed, retrying")
+
+			delay *= 2
+			if delay > reconnectMaxDelay {
+				delay = reconnectMaxDelay
+			}
+
+			continue
+		}
+
+		c.logger.Info("Redis pub/sub reconnected successfully")
+
+		return sub
 	}
 }
 

@@ -43,13 +43,28 @@ var _ = Describe("EventBusBridge", func() {
 
 	Describe("Local event → Redis publish", func() {
 		When("BlockingStateChanged is published on the local bus", func() {
-			It("should result in a subscriber on the Redis channel", func(specCtx context.Context) {
-				evt.Bus().Publish(evt.BlockingStateChanged, evt.BlockingState{Enabled: true})
+			It("should publish a message to the Redis channel that a second subscriber receives", func(specCtx context.Context) {
+				// Create a second bridge to act as receiver
+				bridge2, err := NewEventBusBridge(ctx, redisClient)
+				Expect(err).Should(Succeed())
+				DeferCleanup(func() { bridge2.Close() })
 
-				Eventually(func() map[string]int {
-					return redisServer.PubSubNumSub(EventBridgeChannel)
-				}).Should(HaveKeyWithValue(EventBridgeChannel, 1))
-			})
+				receivedStates := make(chan evt.BlockingState, 1)
+
+				handler := func(state evt.BlockingState) {
+					receivedStates <- state
+				}
+
+				Expect(evt.Bus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+				DeferCleanup(func() {
+					Expect(evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+				})
+
+				expectedState := evt.BlockingState{Enabled: true}
+				evt.Bus().Publish(evt.BlockingStateChanged, expectedState)
+
+				Eventually(receivedStates).WithTimeout(2 * time.Second).WithPolling(50 * time.Millisecond).Should(Receive(Equal(expectedState)))
+			}, SpecTimeout(3*time.Second))
 		})
 	})
 
