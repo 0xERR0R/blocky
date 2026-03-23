@@ -39,14 +39,14 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 					Expect(err).Should(Succeed())
 
 					// Create blocky with DNSSEC validation enabled
-					blocky, err = createBlockyContainer(ctx, e2eNet,
-						"upstreams:",
-						"  groups:",
-						"    default:",
-						"      - moka-dnssec",
-						"dnssec:",
-						"  validate: true",
-					)
+					blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+						upstreams:
+						  groups:
+						    default:
+						      - moka-dnssec
+						dnssec:
+						  validate: true
+						`))
 					Expect(err).Should(Succeed())
 				})
 
@@ -97,18 +97,21 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 					// Create blocky with DNSSEC validation enabled
 					// Add the generated DNSKEY as a trust anchor for the example. TLD
 					// This makes example. a trusted zone, similar to how root trust anchors work
-					blocky, err = createBlockyContainer(ctx, e2eNet,
-						"upstreams:",
-						"  groups:",
-						"    default:",
-						"      - moka-dnssec-valid",
-						"dnssec:",
-						"  validate: true",
-						"  trustAnchors:",
-						fmt.Sprintf("    - \"%s\"", validData.DNSKEY.String()),
-						"log:",
-						"  level: debug",
-					)
+					blocky, err = createBlockyContainerFromString(ctx, e2eNet,
+							dedent(`
+						upstreams:
+						  groups:
+						    default:
+						      - moka-dnssec-valid
+						dnssec:
+						  validate: true
+						  trustAnchors:
+						`) +
+							"\n" + fmt.Sprintf("    - \"%s\"", validData.DNSKEY.String()) +
+							dedent(`
+						log:
+						  level: debug
+						`))
 					Expect(err).Should(Succeed())
 				})
 
@@ -158,18 +161,21 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 					// Create blocky with DNSSEC validation enabled
 					// Add the wrong key as trust anchor so chain validation passes,
 					// but signature verification will fail
-					blocky, err = createBlockyContainer(ctx, e2eNet,
-						"upstreams:",
-						"  groups:",
-						"    default:",
-						"      - moka-dnssec-mismatch",
-						"dnssec:",
-						"  validate: true",
-						"  trustAnchors:",
-						fmt.Sprintf("    - \"%s\"", wrongKey.String()),
-						"log:",
-						"  level: debug",
-					)
+					blocky, err = createBlockyContainerFromString(ctx, e2eNet,
+							dedent(`
+						upstreams:
+						  groups:
+						    default:
+						      - moka-dnssec-mismatch
+						dnssec:
+						  validate: true
+						  trustAnchors:
+						`) +
+							"\n" + fmt.Sprintf("    - \"%s\"", wrongKey.String()) +
+							dedent(`
+						log:
+						  level: debug
+						`))
 					Expect(err).Should(Succeed())
 				})
 
@@ -194,14 +200,14 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 				BeforeEach(func(ctx context.Context) {
 					// For now, use a real DNSSEC-validating upstream (Cloudflare)
 					// In the future, we could mock a proper DNSSEC-signed response
-					blocky, err = createBlockyContainer(ctx, e2eNet,
-						"upstreams:",
-						"  groups:",
-						"    default:",
+					blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+						upstreams:
+						  groups:
+						    default:
 						"      - 1.1.1.1", // Cloudflare validates DNSSEC
-						"dnssec:",
-						"  validate: true",
-					)
+						dnssec:
+						  validate: true
+						`))
 					Expect(err).Should(Succeed())
 				})
 
@@ -268,18 +274,21 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 					// 2. Verify child DNSKEY against DS record
 					// 3. Verify DS record signature against parent DNSKEY
 					// 4. Verify parent DNSKEY against trust anchor
-					blocky, err = createBlockyContainer(ctx, e2eNet,
-						"upstreams:",
-						"  groups:",
-						"    default:",
-						"      - moka-dnssec-chain",
-						"dnssec:",
-						"  validate: true",
-						"  trustAnchors:",
-						fmt.Sprintf("    - \"%s\"", chainData.ParentDNSKEY.String()),
-						"log:",
-						"  level: debug",
-					)
+					blocky, err = createBlockyContainerFromString(ctx, e2eNet,
+							dedent(`
+						upstreams:
+						  groups:
+						    default:
+						      - moka-dnssec-chain
+						dnssec:
+						  validate: true
+						  trustAnchors:
+						`) +
+							"\n" + fmt.Sprintf("    - \"%s\"", chainData.ParentDNSKEY.String()) +
+							dedent(`
+						log:
+						  level: debug
+						`))
 					Expect(err).Should(Succeed())
 				})
 
@@ -313,13 +322,13 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 					)
 					Expect(err).Should(Succeed())
 
-					blocky, err = createBlockyContainer(ctx, e2eNet,
-						"upstreams:",
-						"  groups:",
-						"    default:",
-						"      - moka-dnssec-disabled",
-						"# dnssec validation is disabled by default",
-					)
+					blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+						upstreams:
+						  groups:
+						    default:
+						      - moka-dnssec-disabled
+						# dnssec validation is disabled by default
+						`))
 					Expect(err).Should(Succeed())
 				})
 
@@ -346,16 +355,16 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 				BeforeEach(func(ctx context.Context) {
 					// Use Google DNS - when queried with +cd flag, it returns data even for broken DNSSEC
 					// With DNSSEC validation enabled, Blocky should independently validate and reject
-					blocky, err = createBlockyContainer(ctx, e2eNet,
-						"upstreams:",
-						"  groups:",
-						"    default:",
-						"      - 8.8.8.8",
-						"dnssec:",
-						"  validate: true",
-						"log:",
-						"  level: debug",
-					)
+					blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+						upstreams:
+						  groups:
+						    default:
+						      - 8.8.8.8
+						dnssec:
+						  validate: true
+						log:
+						  level: debug
+						`))
 					Expect(err).Should(Succeed())
 				})
 
