@@ -153,3 +153,49 @@ func getContainerNetworkIP(
 
 	return "", nil
 }
+
+// dedent removes common leading whitespace from all lines in a multi-line string.
+// This allows writing indented YAML in Go string literals while keeping
+// correct YAML formatting after processing.
+func dedent(s string) string {
+	lines := strings.Split(s, "\n")
+
+	// Find minimum indentation (ignoring empty lines)
+	minIndent := -1
+	for _, line := range lines {
+		trimmed := strings.TrimLeft(line, " \t")
+		if len(trimmed) == 0 {
+			continue
+		}
+		indent := len(line) - len(trimmed)
+		if minIndent == -1 || indent < minIndent {
+			minIndent = indent
+		}
+	}
+
+	if minIndent <= 0 {
+		return s
+	}
+
+	// Remove common indentation
+	result := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if len(strings.TrimSpace(line)) == 0 {
+			result = append(result, "")
+		} else if len(line) >= minIndent {
+			result = append(result, line[minIndent:])
+		} else {
+			result = append(result, line)
+		}
+	}
+
+	// Trim leading/trailing empty lines
+	for len(result) > 0 && result[0] == "" {
+		result = result[1:]
+	}
+	for len(result) > 0 && result[len(result)-1] == "" {
+		result = result[:len(result)-1]
+	}
+
+	return strings.Join(result, "\n")
+}
