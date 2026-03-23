@@ -91,25 +91,35 @@ type EventBusBridge struct {
 
 **Behavior:**
 
-- **Local → Redis:** Subscribes to `evt.BlockingEnabledEvent` on the local event bus. When fired, publishes the state change to Redis (with instance ID). **Crucially, the bridge sets an internal `suppressRePublish` flag before publishing to the local event bus from Redis, and checks this flag before forwarding local events to Redis.** This prevents an infinite feedback loop (Redis → local event → Redis → ...).
-- **Redis → Local:** Background goroutine subscribes to the Redis channel. On receiving a message from another instance (filtered by UUID), sets `suppressRePublish = true`, publishes `evt.BlockingEnabledEvent` on the local event bus, then sets `suppressRePublish = false`.
-- The `BlockingResolver` is unaware of Redis. It already publishes `BlockingEnabledEvent` locally and reacts to it — the bridge is the only new subscriber.
+Two distinct event names prevent feedback loops without flags or mutexes:
 
-**Event payload change:**
+- `evt.BlockingStateChanged` — published by `BlockingResolver` when blocking state changes locally. The bridge subscribes to this and forwards to Redis.
+- `evt.BlockingStateChangedRemote` — published by the bridge when it receives a state change from Redis. The `BlockingResolver` subscribes to this and applies the change. The bridge does **not** subscribe to this event.
 
-The current `BlockingEnabledEvent` carries only `enabled bool`. The bridge needs `duration` and `groups` too. To avoid breaking existing subscribers (e.g., `metrics/metrics_event_publisher.go` which subscribes with `func(enabled bool)`):
+This makes the data flow unidirectional through each event:
+```
+Local change → BlockingStateChanged → Bridge → Redis
+Redis message → Bridge → BlockingStateChangedRemote → BlockingResolver
+```
 
-- Introduce a new event: `evt.BlockingStateChanged` with a struct payload:
-  ```go
-  type BlockingState struct {
-      Enabled  bool
-      Duration time.Duration
-      Groups   []string
-  }
-  ```
-- `BlockingResolver.EnableBlocking/DisableBlocking` publishes **both** `BlockingEnabledEvent` (for existing subscribers like metrics) and `BlockingStateChanged` (for the bridge).
-- The bridge subscribes only to `BlockingStateChanged`, avoiding any ambiguity.
-- When the bridge receives a remote message, it calls the resolver's internal enable/disable methods via the local event bus using `BlockingStateChanged`.
+No feedback loop is possible because the bridge only listens to `BlockingStateChanged` and only publishes `BlockingStateChangedRemote` (and vice versa for the resolver).
+
+- **Local → Redis:** Bridge subscribes to `evt.BlockingStateChanged`. When fired, publishes the state to Redis (with instance UUID for cross-instance echo filtering).
+- **Redis → Local:** Background goroutine subscribes to the Redis channel. On receiving a message from another instance (filtered by UUID), publishes `evt.BlockingStateChangedRemote` on the local event bus.
+- The `BlockingResolver` is unaware of Redis.
+
+**Event payload:**
+
+Both events carry the same struct payload:
+```go
+type BlockingState struct {
+    Enabled  bool
+    Duration time.Duration
+    Groups   []string
+}
+```
+
+The existing `evt.BlockingEnabledEvent` (carries only `enabled bool`) is kept unchanged for existing subscribers like `metrics/metrics_event_publisher.go`. `BlockingResolver.EnableBlocking/DisableBlocking` publishes **both** `BlockingEnabledEvent` (for metrics) and `BlockingStateChanged` (for the bridge).
 
 ### Component 3: Wiring Changes in `server.go`
 
