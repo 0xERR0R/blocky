@@ -44,17 +44,17 @@ var _ = Describe("Bootstrap DNS tests", Label("e2e"), func() {
 				// This tests the fix for issue #1979 where blocky should use the IP from the stamp
 				// instead of trying to resolve the hostname via system resolver
 				var createErr error
-				blocky, createErr = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: debug",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - "+stamp, // DNS stamp with embedded IP - should NOT need bootstrap
-					// NOTE: No bootstrapDns configured - this is the key test case
-					"caching:",
-					"  maxItemsCount: 0", // Disable caching for consistent results
-				)
+				blocky, createErr = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: debug
+					upstreams:
+					  groups:
+					    default:
+					      - `)+stamp+dedent(`
+					# NOTE: No bootstrapDns configured - this is the key test case
+					caching:
+					  maxItemsCount: 0
+				`))
 				Expect(createErr).Should(Succeed())
 			})
 
@@ -123,16 +123,16 @@ var _ = Describe("Bootstrap DNS tests", Label("e2e"), func() {
 				stamp := generatePlainDNSStamp("[" + ipv6IP + "]")
 
 				var createErr error
-				blocky, createErr = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: debug",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - "+stamp,
-					"caching:",
-					"  maxItemsCount: 0",
-				)
+				blocky, createErr = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: debug
+					upstreams:
+					  groups:
+					    default:
+					      - `)+stamp+dedent(`
+					caching:
+					  maxItemsCount: 0
+				`))
 				Expect(createErr).Should(Succeed())
 			})
 
@@ -173,18 +173,18 @@ var _ = Describe("Bootstrap DNS tests", Label("e2e"), func() {
 				stamp2 := generatePlainDNSStamp(ip2)
 
 				var createErr error
-				blocky, createErr = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: debug",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - "+stamp1,
-					"      - "+stamp2,
-					"  strategy: parallel_best",
-					"caching:",
-					"  maxItemsCount: 0",
-				)
+				blocky, createErr = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: debug
+					upstreams:
+					  groups:
+					    default:
+					      - `)+stamp1+dedent(`
+					      - `)+stamp2+dedent(`
+					  strategy: parallel_best
+					caching:
+					  maxItemsCount: 0
+				`))
 				Expect(createErr).Should(Succeed())
 			})
 
@@ -233,19 +233,19 @@ var _ = Describe("Bootstrap DNS tests", Label("e2e"), func() {
 
 				// Configure with both stamp-based upstream and bootstrap DNS
 				var createErr error
-				blocky, createErr = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: debug",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - "+stamp,
-					"bootstrapDns:",
-					"  - upstream: "+bootstrapIP+":53",
-					"    ips: ["+bootstrapIP+"]",
-					"caching:",
-					"  maxItemsCount: 0",
-				)
+				blocky, createErr = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: debug
+					upstreams:
+					  groups:
+					    default:
+					      - `)+stamp+dedent(`
+					bootstrapDns:
+					  - upstream: `)+bootstrapIP+`:53
+					    ips: [`+bootstrapIP+dedent(`]
+					caching:
+					  maxItemsCount: 0
+				`))
 				Expect(createErr).Should(Succeed())
 			})
 
