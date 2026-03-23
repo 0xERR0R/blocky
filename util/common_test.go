@@ -17,6 +17,36 @@ import (
 )
 
 var _ = Describe("Common function tests", func() {
+	Describe("Obfuscate", func() {
+		When("LogPrivacy is enabled", func() {
+			BeforeEach(func() {
+				LogPrivacy.Store(true)
+			})
+
+			AfterEach(func() {
+				LogPrivacy.Store(false)
+			})
+
+			It("should replace alphanumeric characters with *", func() {
+				Expect(Obfuscate("example.com")).Should(Equal("*******.***"))
+			})
+
+			It("should handle empty string", func() {
+				Expect(Obfuscate("")).Should(Equal(""))
+			})
+
+			It("should preserve non-alphanumeric characters", func() {
+				Expect(Obfuscate("a-b.c")).Should(Equal("*-*.*"))
+			})
+		})
+
+		When("LogPrivacy is disabled", func() {
+			It("should return the input unchanged", func() {
+				Expect(Obfuscate("example.com")).Should(Equal("example.com"))
+			})
+		})
+	})
+
 	Describe("Print DNS answer", func() {
 		When("different types of DNS answers", func() {
 			rr := make([]dns.RR, 0, 5)

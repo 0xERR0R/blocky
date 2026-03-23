@@ -243,6 +243,17 @@ var _ = Describe("HTTP Util", func() {
 			Expect(HTTPClientIP(r)).Should(Equal(forwardedIP))
 		})
 
+		It("skips non-for parameters in Forwarded header", func() {
+			r, err := http.NewRequest(http.MethodGet, "http://example.com", nil)
+			Expect(err).Should(Succeed())
+
+			clientIP := net.ParseIP("192.0.2.43")
+			r.RemoteAddr = net.JoinHostPort("192.168.1.1", "12345")
+			r.Header.Set("Forwarded", "proto=http;by=203.0.113.43;for="+clientIP.String())
+
+			Expect(HTTPClientIP(r)).Should(Equal(clientIP))
+		})
+
 		It("falls back to X-Forwarded-For when Forwarded is invalid", func() {
 			r, err := http.NewRequest(http.MethodGet, "http://example.com", nil)
 			Expect(err).Should(Succeed())

@@ -3,11 +3,13 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -728,6 +730,13 @@ var _ = Describe("Running DNS server", func() {
 				Expect(protocol).Should(Equal(model.RequestProtocolTCP))
 			})
 		})
+		Context("unknown address type", func() {
+			It("should return nil IP and UDP protocol", func() {
+				ip, protocol := resolveClientIPAndProtocol(&net.UnixAddr{Name: "/tmp/test.sock", Net: "unix"})
+				Expect(ip).Should(BeNil())
+				Expect(protocol).Should(Equal(model.RequestProtocolUDP))
+			})
+		})
 	})
 
 	Describe("getMaxResponseSize", func() {
@@ -803,6 +812,87 @@ var _ = Describe("Running DNS server", func() {
 				size := getMaxResponseSize(req)
 				Expect(size).Should(Equal(dns.MinMsgSize)) // 512 bytes
 			})
+		})
+	})
+
+	Describe("extractClientIDFromHost", func() {
+		It("should extract client ID from hostname with id- prefix", func() {
+			clientID := extractClientIDFromHost("id-client123.example.com")
+			Expect(clientID).Should(Equal("client123"))
+		})
+		It("should return empty string if hostname does not start with id-", func() {
+			clientID := extractClientIDFromHost("client123.example.com")
+			Expect(clientID).Should(Equal(""))
+		})
+		It("should return empty string if hostname has id- prefix but no dot", func() {
+			clientID := extractClientIDFromHost("id-client123")
+			Expect(clientID).Should(Equal(""))
+		})
+		It("should return empty string for empty hostname", func() {
+			clientID := extractClientIDFromHost("")
+			Expect(clientID).Should(Equal(""))
+		})
+	})
+
+	Describe("Query", func() {
+		It("should resolve a query", func() {
+			resp, err := sut.Query(ctx, "host.example.com", net.ParseIP("192.168.178.1"), "google.de.", dns.Type(dns.TypeA))
+			Expect(err).Should(Succeed())
+			Expect(resp).ShouldNot(BeNil())
+			Expect(resp.Res.Answer).Should(BeDNSRecord("google.de.", A, "123.124.122.122"))
+		})
+
+		It("should resolve a query with client ID in host", func() {
+			resp, err := sut.Query(ctx, "id-myclient.example.com", net.ParseIP("192.168.178.1"), "google.de.", dns.Type(dns.TypeA))
+			Expect(err).Should(Succeed())
+			Expect(resp).ShouldNot(BeNil())
+		})
+	})
+
+	Describe("resolve with empty question", func() {
+		It("should return format error for message without questions", func() {
+			msg := new(dns.Msg)
+			msg.Id = dns.Id()
+			// No questions set
+
+			ctx, req := newRequest(ctx, net.ParseIP("192.168.178.1"), "", model.RequestProtocolTCP, msg)
+			resp, err := sut.resolve(ctx, req)
+			Expect(err).Should(Succeed())
+			Expect(resp.Res.Rcode).Should(Equal(dns.RcodeFormatError))
+		})
+	})
+
+	Describe("secureHeadersMiddleware", func() {
+		It("should set security headers for TLS requests", func() {
+			handler := secureHeadersMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req, err := http.NewRequest(http.MethodGet, "/", nil)
+			Expect(err).Should(Succeed())
+			req.TLS = &tls.ConnectionState{} // simulate TLS request
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			Expect(rr.Header().Get("Strict-Transport-Security")).Should(Equal("max-age=63072000"))
+			Expect(rr.Header().Get("X-Frame-Options")).Should(Equal("DENY"))
+			Expect(rr.Header().Get("X-Content-Type-Options")).Should(Equal("nosniff"))
+			Expect(rr.Header().Get("x-xss-protection")).Should(Equal("1; mode=block"))
+		})
+
+		It("should not set security headers for non-TLS requests", func() {
+			handler := secureHeadersMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req, err := http.NewRequest(http.MethodGet, "/", nil)
+			Expect(err).Should(Succeed())
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			Expect(rr.Header().Get("Strict-Transport-Security")).Should(BeEmpty())
 		})
 	})
 
