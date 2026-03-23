@@ -200,11 +200,12 @@ func dedent(s string) string {
 	// Remove common indentation
 	result := make([]string, 0, len(lines))
 	for _, line := range lines {
-		if len(strings.TrimSpace(line)) == 0 {
+		switch {
+		case len(strings.TrimSpace(line)) == 0:
 			result = append(result, "")
-		} else if len(line) >= minIndent {
+		case len(line) >= minIndent:
 			result = append(result, line[minIndent:])
-		} else {
+		default:
 			result = append(result, line)
 		}
 	}

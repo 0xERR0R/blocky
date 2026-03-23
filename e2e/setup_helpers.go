@@ -8,12 +8,16 @@ import (
 )
 
 // mokkaSpec defines a mock DNS upstream with its network alias and rules.
+//
+//nolint:unused // prepared for test migration
 type mokkaSpec struct {
 	alias string   // Docker network alias, used directly in YAML config (e.g., "moka1")
 	rules []string // mokka query rules (e.g., `A google/NOERROR("A 1.2.3.4 123")`)
 }
 
 // testEnv holds all containers and network for a test scenario.
+//
+//nolint:unused // prepared for test migration
 type testEnv struct {
 	network *testcontainers.DockerNetwork
 	mokkas  map[string]testcontainers.Container // keyed by alias
@@ -24,6 +28,8 @@ type testEnv struct {
 // setupBlockyWithMokka creates a test network, one or more mokka DNS containers,
 // and a blocky container with the given config.
 // The mokka aliases (e.g., "moka1") can be referenced directly in the config YAML.
+//
+//nolint:unused // prepared for test migration
 func setupBlockyWithMokka(
 	ctx context.Context, mokkas []mokkaSpec, configYAML string,
 ) *testEnv {
@@ -51,9 +57,11 @@ func setupBlockyWithMokka(
 // setupBlockyWithHTTPAndMokka creates a test network, one or more mokka DNS containers,
 // an HTTP static file server serving a single file, and a blocky container.
 // The httpAlias (e.g., "httpserver") is the network alias for the HTTP server.
+//
+//nolint:unused // prepared for test migration
 func setupBlockyWithHTTPAndMokka(
 	ctx context.Context, mokkas []mokkaSpec,
-	httpAlias string, filename string, fileLines []string,
+	httpAlias, filename string, fileLines []string,
 	configYAML string,
 ) *testEnv {
 	e2eNet := getRandomNetwork(ctx)

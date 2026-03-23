@@ -13,8 +13,13 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 )
 
+//nolint:unused // used by expectEventually, prepared for test migration
+const eventuallyPollInterval = 200 * time.Millisecond
+
 // expectResolve sends a DNS query and asserts the response matches the expected record.
 // Optional extra matchers (e.g., HaveTTL) are applied in addition to BeDNSRecord.
+//
+//nolint:unused // prepared for test migration
 func expectResolve(
 	ctx context.Context, blocky testcontainers.Container,
 	domain string, qType dns.Type, expected string, extra ...types.GomegaMatcher,
@@ -23,13 +28,16 @@ func expectResolve(
 
 	msg := util.NewMsgWithQuestion(domain, qType)
 
-	matchers := []types.GomegaMatcher{BeDNSRecord(domain, qType, expected)}
+	matchers := make([]types.GomegaMatcher, 0, 1+len(extra))
+	matchers = append(matchers, BeDNSRecord(domain, qType, expected))
 	matchers = append(matchers, extra...)
 
 	Expect(doDNSRequest(ctx, blocky, msg)).Should(SatisfyAll(matchers...))
 }
 
 // expectNXDomain sends a DNS query and asserts the response is NXDOMAIN with no answer.
+//
+//nolint:unused // prepared for test migration
 func expectNXDomain(
 	ctx context.Context, blocky testcontainers.Container,
 	domain string, qType dns.Type,
@@ -44,6 +52,8 @@ func expectNXDomain(
 }
 
 // expectNoAnswer sends a DNS query and asserts the response is NOERROR with no answer.
+//
+//nolint:unused // prepared for test migration
 func expectNoAnswer(
 	ctx context.Context, blocky testcontainers.Container,
 	domain string, qType dns.Type,
@@ -58,6 +68,8 @@ func expectNoAnswer(
 }
 
 // expectRefused sends a DNS query and asserts the response is REFUSED.
+//
+//nolint:unused // prepared for test migration
 func expectRefused(
 	ctx context.Context, blocky testcontainers.Container,
 	domain string, qType dns.Type,
@@ -72,6 +84,8 @@ func expectRefused(
 
 // expectEventually sends a DNS query repeatedly until the expected record is returned.
 // Optional extra matchers (e.g., HaveTTL) are applied in addition to BeDNSRecord.
+//
+//nolint:unused // prepared for test migration
 func expectEventually(
 	ctx context.Context, blocky testcontainers.Container,
 	domain string, qType dns.Type, expected string, timeout time.Duration,
@@ -81,10 +95,11 @@ func expectEventually(
 
 	msg := util.NewMsgWithQuestion(domain, qType)
 
-	matchers := []types.GomegaMatcher{BeDNSRecord(domain, qType, expected)}
+	matchers := make([]types.GomegaMatcher, 0, 1+len(extra))
+	matchers = append(matchers, BeDNSRecord(domain, qType, expected))
 	matchers = append(matchers, extra...)
 
 	Eventually(func() (*dns.Msg, error) {
 		return doDNSRequest(ctx, blocky, msg)
-	}, timeout, 200*time.Millisecond).Should(SatisfyAll(matchers...))
+	}, timeout, eventuallyPollInterval).Should(SatisfyAll(matchers...))
 }
