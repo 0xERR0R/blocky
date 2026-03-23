@@ -86,6 +86,9 @@ var _ = Describe("Bootstrap DNS tests", Label("e2e"), func() {
 
 		When("DNS stamp with IPv6 contains IP address and no bootstrap DNS is configured", func() {
 			BeforeEach(func(ctx context.Context) {
+				// Use IPv6-enabled network for this test
+				e2eNet = getRandomIPv6Network(ctx)
+
 				// Create a dnsmokka container
 				mokaContainer, err := createDNSMokkaContainer(ctx, "moka-stamp-ipv6", e2eNet,
 					`A ipv6-stamp-test.com/NOERROR("A 172.16.60.1 400")`,
@@ -93,30 +96,18 @@ var _ = Describe("Bootstrap DNS tests", Label("e2e"), func() {
 				Expect(err).Should(Succeed())
 
 				// Get the container's IPv6 address
-				networks, err := mokaContainer.Networks(ctx)
-				Expect(err).Should(Succeed())
-				Expect(networks).ShouldNot(BeEmpty())
-
 				inspect, err := mokaContainer.Inspect(ctx)
 				Expect(err).Should(Succeed())
 
 				var ipv6IP string
-				for _, network := range networks {
-					if network == e2eNet.Name {
-						if netSettings, ok := inspect.NetworkSettings.Networks[network]; ok {
-							ipv6IP = netSettings.GlobalIPv6Address
+				for _, netSettings := range inspect.NetworkSettings.Networks {
+					if netSettings.GlobalIPv6Address != "" {
+						ipv6IP = netSettings.GlobalIPv6Address
 
-							break
-						}
+						break
 					}
 				}
-
-				// Skip if no IPv6 address available
-				if ipv6IP == "" {
-					Skip("IPv6 not available in this environment")
-
-					return
-				}
+				Expect(ipv6IP).ShouldNot(BeEmpty(), "Container should have an IPv6 address on the IPv6-enabled network")
 
 				// Generate DNS stamp with IPv6 address embedded
 				stamp := generatePlainDNSStamp("[" + ipv6IP + "]")

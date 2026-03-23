@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	dockernetwork "github.com/docker/docker/api/types/network"
 	"github.com/docker/go-connections/nat"
 	"github.com/jedisct1/go-dnsstamps"
 	"github.com/miekg/dns"
@@ -19,6 +20,25 @@ import (
 // getRandomNetwork returns a new test network which is used for the tests and removed afterwards.
 func getRandomNetwork(ctx context.Context) *testcontainers.DockerNetwork {
 	e2eNet, err := testNet.New(ctx)
+	Expect(err).Should(Succeed())
+	DeferCleanup(func(ctx context.Context) {
+		Expect(e2eNet.Remove(ctx)).Should(Succeed())
+	})
+
+	return e2eNet
+}
+
+// getRandomIPv6Network returns a new dual-stack test network with IPv6 enabled.
+func getRandomIPv6Network(ctx context.Context) *testcontainers.DockerNetwork {
+	e2eNet, err := testNet.New(ctx,
+		testNet.WithEnableIPv6(),
+		testNet.WithIPAM(&dockernetwork.IPAM{
+			Config: []dockernetwork.IPAMConfig{
+				{Subnet: "172.28.0.0/16"},
+				{Subnet: "fd00:dead:beef::/48"},
+			},
+		}),
+	)
 	Expect(err).Should(Succeed())
 	DeferCleanup(func(ctx context.Context) {
 		Expect(e2eNet.Remove(ctx)).Should(Succeed())
