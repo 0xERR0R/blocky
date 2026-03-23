@@ -24,7 +24,6 @@ import (
 	"github.com/0xERR0R/blocky/lists"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
-	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
@@ -94,7 +93,6 @@ type BlockingResolver struct {
 	allowlistOnlyGroups map[string]bool
 	status              *status
 	clientGroupsBlock   map[string][]string
-	redisClient         *redis.Client
 	fqdnIPCache         cache.ExpiringCache[[]net.IP]
 }
 
@@ -118,7 +116,6 @@ func clientGroupsBlock(cfg config.Blocking) map[string][]string {
 // NewBlockingResolver returns a new configured instance of the resolver
 func NewBlockingResolver(ctx context.Context,
 	cfg config.Blocking,
-	redis *redis.Client,
 	bootstrap *Bootstrap,
 ) (r *BlockingResolver, err error) {
 	blockHandler, err := createBlockHandler(cfg)
@@ -152,7 +149,6 @@ func NewBlockingResolver(ctx context.Context,
 			enableTimer: time.NewTimer(0),
 		},
 		clientGroupsBlock: clientGroupsBlock(cfg),
-		redisClient:       redis,
 	}
 
 	res.fqdnIPCache = expirationcache.NewCacheWithOnExpired[[]net.IP](ctx, expirationcache.Options{
@@ -161,10 +157,6 @@ func NewBlockingResolver(ctx context.Context,
 		return res.queryForFQIdentifierIPs(ctx, key)
 	})
 
-	if res.redisClient != nil {
-		go res.redisSubscriber(ctx)
-	}
-
 	err = evt.Bus().SubscribeOnce(evt.ApplicationStarted, func(_ ...string) {
 		go res.initFQDNIPCache(ctx)
 	})
@@ -172,32 +164,22 @@ func NewBlockingResolver(ctx context.Context,
 		return nil, fmt.Errorf("failed to subscribe to ApplicationStarted event: %w", err)
 	}
 
-	return res, nil
-}
-
-func (r *BlockingResolver) redisSubscriber(ctx context.Context) {
-	ctx, logger := r.log(ctx)
-
-	for {
-		select {
-		case em := <-r.redisClient.EnabledChannel:
-			if em != nil {
-				logger.Debug("Received state from redis: ", em)
-
-				if em.State {
-					r.internalEnableBlocking()
-				} else {
-					err := r.internalDisableBlocking(ctx, em.Duration, em.Groups)
-					if err != nil {
-						logger.Warn("Blocking couldn't be disabled:", err)
-					}
+	err = evt.Bus().Subscribe(evt.BlockingStateChangedRemote, func(state evt.BlockingState) {
+		go func() {
+			if state.Enabled {
+				res.internalEnableBlocking()
+			} else {
+				if disableErr := res.internalDisableBlocking(ctx, state.Duration, state.Groups); disableErr != nil {
+					log.PrefixedLog("blocking").Warn("blocking couldn't be disabled: ", disableErr)
 				}
 			}
-
-		case <-ctx.Done():
-			return
-		}
+		}()
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to subscribe to %s: %w", evt.BlockingStateChangedRemote, err)
 	}
+
+	return res, nil
 }
 
 // RefreshLists triggers the refresh of all allow/denylists in the cache
@@ -226,10 +208,7 @@ func (r *BlockingResolver) retrieveAllBlockingGroups() []string {
 // EnableBlocking enables the blocking against the denylists
 func (r *BlockingResolver) EnableBlocking(ctx context.Context) {
 	r.internalEnableBlocking()
-
-	if r.redisClient != nil {
-		r.redisClient.PublishEnabled(ctx, &redis.EnabledMessage{State: true})
-	}
+	evt.Bus().Publish(evt.BlockingStateChanged, evt.BlockingState{Enabled: true})
 }
 
 func (r *BlockingResolver) internalEnableBlocking() {
@@ -246,9 +225,9 @@ func (r *BlockingResolver) internalEnableBlocking() {
 // DisableBlocking deactivates the blocking for a particular duration (or forever if 0).
 func (r *BlockingResolver) DisableBlocking(ctx context.Context, duration time.Duration, disableGroups []string) error {
 	err := r.internalDisableBlocking(ctx, duration, disableGroups)
-	if err == nil && r.redisClient != nil {
-		r.redisClient.PublishEnabled(ctx, &redis.EnabledMessage{
-			State:    false,
+	if err == nil {
+		evt.Bus().Publish(evt.BlockingStateChanged, evt.BlockingState{
+			Enabled:  false,
 			Duration: duration,
 			Groups:   disableGroups,
 		})
