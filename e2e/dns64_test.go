@@ -36,19 +36,19 @@ var _ = Describe("DNS64 e2e tests", Label("e2e"), func() {
 				Expect(err).Should(Succeed())
 
 				// Create blocky with DNS64 enabled
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: info",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - upstream",
-					"# Enable DNS64 with default well-known prefix",
-					"dns64:",
-					"  enable: true",
-					"  prefixes:",
-					"    - 64:ff9b::/96",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: info
+					upstreams:
+					  groups:
+					    default:
+					      - upstream
+					# Enable DNS64 with default well-known prefix
+					dns64:
+					  enable: true
+					  prefixes:
+					    - 64:ff9b::/96
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -96,18 +96,18 @@ var _ = Describe("DNS64 e2e tests", Label("e2e"), func() {
 				Expect(err).Should(Succeed())
 
 				// Create blocky with DNS64 enabled
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: info",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - upstream",
-					"dns64:",
-					"  enable: true",
-					"  prefixes:",
-					"    - 64:ff9b::/96",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: info
+					upstreams:
+					  groups:
+					    default:
+					      - upstream
+					dns64:
+					  enable: true
+					  prefixes:
+					    - 64:ff9b::/96
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -155,18 +155,18 @@ var _ = Describe("DNS64 e2e tests", Label("e2e"), func() {
 				Expect(err).Should(Succeed())
 
 				// Create blocky with DNS64 enabled
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: info",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - upstream",
-					"dns64:",
-					"  enable: true",
-					"  prefixes:",
-					"    - 64:ff9b::/96",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: info
+					upstreams:
+					  groups:
+					    default:
+					      - upstream
+					dns64:
+					  enable: true
+					  prefixes:
+					    - 64:ff9b::/96
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -202,18 +202,18 @@ var _ = Describe("DNS64 e2e tests", Label("e2e"), func() {
 				Expect(err).Should(Succeed())
 
 				// Create blocky with DNS64 enabled
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: info",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - upstream",
-					"dns64:",
-					"  enable: true",
-					"  prefixes:",
-					"    - 64:ff9b::/96",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: info
+					upstreams:
+					  groups:
+					    default:
+					      - upstream
+					dns64:
+					  enable: true
+					  prefixes:
+					    - 64:ff9b::/96
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -258,18 +258,18 @@ var _ = Describe("DNS64 e2e tests", Label("e2e"), func() {
 				Expect(err).Should(Succeed())
 
 				// Create blocky with DNS64 enabled
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: info",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - upstream",
-					"dns64:",
-					"  enable: true",
-					"  prefixes:",
-					"    - 64:ff9b::/96",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: info
+					upstreams:
+					  groups:
+					    default:
+					      - upstream
+					dns64:
+					  enable: true
+					  prefixes:
+					    - 64:ff9b::/96
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -300,19 +300,19 @@ var _ = Describe("DNS64 e2e tests", Label("e2e"), func() {
 				Expect(err).Should(Succeed())
 
 				// Create blocky with two DNS64 prefixes
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: info",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - upstream",
-					"dns64:",
-					"  enable: true",
-					"  prefixes:",
-					"    - 64:ff9b::/96",
-					"    - 2001:db8:1::/48",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: info
+					upstreams:
+					  groups:
+					    default:
+					      - upstream
+					dns64:
+					  enable: true
+					  prefixes:
+					    - 64:ff9b::/96
+					    - 2001:db8:1::/48
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -345,20 +345,20 @@ var _ = Describe("DNS64 e2e tests", Label("e2e"), func() {
 				Expect(err).Should(Succeed())
 
 				// Create blocky with DNS64 and caching enabled
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: debug",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - upstream",
-					"dns64:",
-					"  enable: true",
-					"  prefixes:",
-					"    - 64:ff9b::/96",
-					"caching:",
-					"  maxTime: 1h",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: debug
+					upstreams:
+					  groups:
+					    default:
+					      - upstream
+					dns64:
+					  enable: true
+					  prefixes:
+					    - 64:ff9b::/96
+					caching:
+					  maxTime: 1h
+					`))
 				Expect(err).Should(Succeed())
 			})
 

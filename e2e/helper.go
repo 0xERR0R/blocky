@@ -3,10 +3,12 @@ package e2e
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"net"
 	"strings"
 	"time"
 
+	dockernetwork "github.com/docker/docker/api/types/network"
 	"github.com/docker/go-connections/nat"
 	"github.com/jedisct1/go-dnsstamps"
 	"github.com/miekg/dns"
@@ -19,6 +21,26 @@ import (
 // getRandomNetwork returns a new test network which is used for the tests and removed afterwards.
 func getRandomNetwork(ctx context.Context) *testcontainers.DockerNetwork {
 	e2eNet, err := testNet.New(ctx)
+	Expect(err).Should(Succeed())
+	DeferCleanup(func(ctx context.Context) {
+		Expect(e2eNet.Remove(ctx)).Should(Succeed())
+	})
+
+	return e2eNet
+}
+
+// getIPv6Network returns a new dual-stack test network with IPv6 enabled.
+// Note: uses fixed subnets, so only one instance can exist per Docker host at a time.
+func getIPv6Network(ctx context.Context) *testcontainers.DockerNetwork {
+	e2eNet, err := testNet.New(ctx,
+		testNet.WithEnableIPv6(),
+		testNet.WithIPAM(&dockernetwork.IPAM{
+			Config: []dockernetwork.IPAMConfig{
+				{Subnet: "172.28.0.0/16"},
+				{Subnet: "fd00:dead:beef::/48"},
+			},
+		}),
+	)
 	Expect(err).Should(Succeed())
 	DeferCleanup(func(ctx context.Context) {
 		Expect(e2eNet.Remove(ctx)).Should(Succeed())
@@ -151,5 +173,48 @@ func getContainerNetworkIP(
 		}
 	}
 
-	return "", nil
+	return "", fmt.Errorf("container not found in network %s", networkName)
+}
+
+// dedent removes common leading whitespace from all lines in a multi-line string.
+// This allows writing indented YAML in Go string literals while keeping
+// correct YAML formatting after processing.
+func dedent(s string) string {
+	lines := strings.Split(s, "\n")
+
+	// Find minimum indentation (ignoring empty lines)
+	minIndent := -1
+	for _, line := range lines {
+		trimmed := strings.TrimLeft(line, " \t")
+		if len(trimmed) == 0 {
+			continue
+		}
+		indent := len(line) - len(trimmed)
+		if minIndent == -1 || indent < minIndent {
+			minIndent = indent
+		}
+	}
+
+	// Remove common indentation
+	result := make([]string, 0, len(lines))
+	for _, line := range lines {
+		switch {
+		case len(strings.TrimSpace(line)) == 0:
+			result = append(result, "")
+		case minIndent > 0 && len(line) >= minIndent:
+			result = append(result, line[minIndent:])
+		default:
+			result = append(result, line)
+		}
+	}
+
+	// Trim leading/trailing empty lines
+	for len(result) > 0 && result[0] == "" {
+		result = result[1:]
+	}
+	for len(result) > 0 && result[len(result)-1] == "" {
+		result = result[:len(result)-1]
+	}
+
+	return strings.Join(result, "\n")
 }

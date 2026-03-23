@@ -33,17 +33,17 @@ var _ = Describe("Caching configuration tests", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"caching:",
-					"  minTime: 5s",  // Minimum cache time of 5 seconds
-					"  maxTime: 30s", // Maximum cache time of 30 seconds
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					caching:
+					  minTime: 5s
+					  maxTime: 30s
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -119,18 +119,18 @@ var _ = Describe("Caching configuration tests", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"caching:",
-					"  prefetching: true",
-					"  prefetchThreshold: 3", // Prefetch when TTL <= 3 seconds
-					"  prefetchExpires: 2h",  // Keep prefetched entries for 2 hours
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					caching:
+					  prefetching: true
+					  prefetchThreshold: 3
+					  prefetchExpires: 2h
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -184,18 +184,18 @@ var _ = Describe("Caching configuration tests", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"caching:",
-					"  cacheTimeNegative: 30m",
-					"  exclude:",
-					"    - /nocache/", // Exclude domains containing 'nocache' from caching
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					caching:
+					  cacheTimeNegative: 30m
+					  exclude:
+					    - /nocache/
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -242,16 +242,16 @@ var _ = Describe("Caching configuration tests", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"caching:",
-					"  cacheTimeNegative: 30m", // Cache NXDOMAIN for 30 minutes
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					caching:
+					  cacheTimeNegative: 30m
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -294,16 +294,16 @@ var _ = Describe("Caching configuration tests", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: warn",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"caching:",
-					"  maxItemsCount: 3", // Limit cache to 3 items
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					caching:
+					  maxItemsCount: 3
+					`))
 				Expect(err).Should(Succeed())
 			})
 

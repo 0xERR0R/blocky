@@ -31,17 +31,17 @@ var _ = Describe("Custom DNS tests", func() {
 
 		When("Simple mapping is configured", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"customDNS:",
-					"  customTTL: 30m",
-					"  mapping:",
-					"    printer.lan: 192.168.178.3",
-					"    otherdevice.lan: 192.168.178.15,2001:0db8:85a3:08d3:1319:8a2e:0370:7344",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					customDNS:
+					  customTTL: 30m
+					  mapping:
+					    printer.lan: 192.168.178.3
+					    otherdevice.lan: 192.168.178.15,2001:0db8:85a3:08d3:1319:8a2e:0370:7344
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -100,20 +100,20 @@ var _ = Describe("Custom DNS tests", func() {
 
 		When("Domain rewriting is configured", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"customDNS:",
-					"  customTTL: 1h",
-					"  rewrite:",
-					"    home: lan",
-					"    example.com: example-rewrite.com",
-					"  mapping:",
-					"    printer.lan: 192.168.178.3",
-					"    example-rewrite.com: 1.2.3.4",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					customDNS:
+					  customTTL: 1h
+					  rewrite:
+					    home: lan
+					    example.com: example-rewrite.com
+					  mapping:
+					    printer.lan: 192.168.178.3
+					    example-rewrite.com: 1.2.3.4
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -145,18 +145,18 @@ var _ = Describe("Custom DNS tests", func() {
 				Expect(err).Should(Succeed())
 
 				// Create a container with the zone file
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"customDNS:",
-					"  customTTL: 1h",
-					"  zone: |",
-					"    $ORIGIN example.com.",
-					"    www 3600 A 1.2.3.5",
-					"    @ 3600 CNAME www",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					customDNS:
+					  customTTL: 1h
+					  zone: |
+					    $ORIGIN example.com.
+					    www 3600 A 1.2.3.5
+					    @ 3600 CNAME www
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -190,19 +190,19 @@ var _ = Describe("Custom DNS tests", func() {
 					`AAAA printer.lan/NOERROR("AAAA 2001:db8::1 123")`)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka2",
-					"specialUseDomains:",
-					"  enable: false",
-					"customDNS:",
-					"  customTTL: 1h",
-					"  filterUnmappedTypes: false",
-					"  mapping:",
-					"    printer.lan: 192.168.178.3", // Only A record defined
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka2
+					specialUseDomains:
+					  enable: false
+					customDNS:
+					  customTTL: 1h
+					  filterUnmappedTypes: false
+					  mapping:
+					    printer.lan: 192.168.178.3
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -237,18 +237,18 @@ var _ = Describe("Custom DNS tests", func() {
 				_, err = createDNSMokkaContainer(ctx, "moka2", e2eNet,
 					`AAAA printer.lan/NOERROR("AAAA 2001:db8::1 123")`)
 				Expect(err).Should(Succeed())
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka2",
-					"specialUseDomains:",
-					"  enable: false",
-					"customDNS:",
-					"  customTTL: 1h",
-					"  mapping:",
-					"    printer.lan: 192.168.178.3", // Only A record defined
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka2
+					specialUseDomains:
+					  enable: false
+					customDNS:
+					  customTTL: 1h
+					  mapping:
+					    printer.lan: 192.168.178.3
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -276,17 +276,17 @@ var _ = Describe("Custom DNS tests", func() {
 
 		When("Reverse DNS lookup is performed", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"customDNS:",
-					"  customTTL: 1h",
-					"  mapping:",
-					"    printer.lan: 192.168.178.3",
-					"    multi.lan: 192.168.178.4,192.168.178.5",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					customDNS:
+					  customTTL: 1h
+					  mapping:
+					    printer.lan: 192.168.178.3
+					    multi.lan: 192.168.178.4,192.168.178.5
+					`))
 				Expect(err).Should(Succeed())
 			})
 

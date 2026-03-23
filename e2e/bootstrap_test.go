@@ -44,17 +44,16 @@ var _ = Describe("Bootstrap DNS tests", Label("e2e"), func() {
 				// This tests the fix for issue #1979 where blocky should use the IP from the stamp
 				// instead of trying to resolve the hostname via system resolver
 				var createErr error
-				blocky, createErr = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: debug",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - "+stamp, // DNS stamp with embedded IP - should NOT need bootstrap
-					// NOTE: No bootstrapDns configured - this is the key test case
-					"caching:",
-					"  maxItemsCount: 0", // Disable caching for consistent results
-				)
+				blocky, createErr = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: debug
+					upstreams:
+					  groups:
+					    default:
+					      - `+stamp+`
+					caching:
+					  maxItemsCount: 0
+				`))
 				Expect(createErr).Should(Succeed())
 			})
 
@@ -87,6 +86,9 @@ var _ = Describe("Bootstrap DNS tests", Label("e2e"), func() {
 
 		When("DNS stamp with IPv6 contains IP address and no bootstrap DNS is configured", func() {
 			BeforeEach(func(ctx context.Context) {
+				// Use IPv6-enabled network for this test
+				e2eNet = getIPv6Network(ctx)
+
 				// Create a dnsmokka container
 				mokaContainer, err := createDNSMokkaContainer(ctx, "moka-stamp-ipv6", e2eNet,
 					`A ipv6-stamp-test.com/NOERROR("A 172.16.60.1 400")`,
@@ -94,45 +96,35 @@ var _ = Describe("Bootstrap DNS tests", Label("e2e"), func() {
 				Expect(err).Should(Succeed())
 
 				// Get the container's IPv6 address
-				networks, err := mokaContainer.Networks(ctx)
-				Expect(err).Should(Succeed())
-				Expect(networks).ShouldNot(BeEmpty())
-
 				inspect, err := mokaContainer.Inspect(ctx)
 				Expect(err).Should(Succeed())
 
 				var ipv6IP string
-				for _, network := range networks {
-					if network == e2eNet.Name {
-						if netSettings, ok := inspect.NetworkSettings.Networks[network]; ok {
-							ipv6IP = netSettings.GlobalIPv6Address
+				for _, netSettings := range inspect.NetworkSettings.Networks {
+					if netSettings.GlobalIPv6Address != "" {
+						ipv6IP = netSettings.GlobalIPv6Address
 
-							break
-						}
+						break
 					}
 				}
-
-				// Skip if no IPv6 address available
 				if ipv6IP == "" {
-					Skip("IPv6 not available in this environment")
-
-					return
+					Skip("IPv6 address not assigned to container; skipping IPv6 stamp test (IPv6 likely unavailable on Docker host)")
 				}
 
 				// Generate DNS stamp with IPv6 address embedded
 				stamp := generatePlainDNSStamp("[" + ipv6IP + "]")
 
 				var createErr error
-				blocky, createErr = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: debug",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - "+stamp,
-					"caching:",
-					"  maxItemsCount: 0",
-				)
+				blocky, createErr = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: debug
+					upstreams:
+					  groups:
+					    default:
+					      - `+stamp+`
+					caching:
+					  maxItemsCount: 0
+				`))
 				Expect(createErr).Should(Succeed())
 			})
 
@@ -173,18 +165,18 @@ var _ = Describe("Bootstrap DNS tests", Label("e2e"), func() {
 				stamp2 := generatePlainDNSStamp(ip2)
 
 				var createErr error
-				blocky, createErr = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: debug",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - "+stamp1,
-					"      - "+stamp2,
-					"  strategy: parallel_best",
-					"caching:",
-					"  maxItemsCount: 0",
-				)
+				blocky, createErr = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: debug
+					upstreams:
+					  groups:
+					    default:
+					      - `+stamp1+`
+					      - `+stamp2+`
+					  strategy: parallel_best
+					caching:
+					  maxItemsCount: 0
+				`))
 				Expect(createErr).Should(Succeed())
 			})
 
@@ -233,19 +225,19 @@ var _ = Describe("Bootstrap DNS tests", Label("e2e"), func() {
 
 				// Configure with both stamp-based upstream and bootstrap DNS
 				var createErr error
-				blocky, createErr = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: debug",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - "+stamp,
-					"bootstrapDns:",
-					"  - upstream: "+bootstrapIP+":53",
-					"    ips: ["+bootstrapIP+"]",
-					"caching:",
-					"  maxItemsCount: 0",
-				)
+				blocky, createErr = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: debug
+					upstreams:
+					  groups:
+					    default:
+					      - `+stamp+`
+					bootstrapDns:
+					  - upstream: `+bootstrapIP+`:53
+					    ips: [`+bootstrapIP+`]
+					caching:
+					  maxItemsCount: 0
+				`))
 				Expect(createErr).Should(Succeed())
 			})
 

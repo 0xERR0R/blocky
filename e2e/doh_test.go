@@ -29,15 +29,15 @@ var _ = Describe("DoH functionality", func() {
 				_, err = createDNSMokkaContainer(ctx, "moka1", e2eNet, `A google/NOERROR("A 1.2.3.4 123")`)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"ports:",
-					"  http: 4000",
-					"  dohPath: /my-doh-path",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					ports:
+					  http: 4000
+					  dohPath: /my-doh-path
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -63,14 +63,14 @@ var _ = Describe("DoH functionality", func() {
 				_, err = createDNSMokkaContainer(ctx, "moka1", e2eNet, `A google/NOERROR("A 1.2.3.4 123")`)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"ports:",
-					"  http: 4000",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					ports:
+					  http: 4000
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -89,15 +89,15 @@ var _ = Describe("DoH functionality", func() {
 				_, err = createDNSMokkaContainer(ctx, "moka1", e2eNet, `A google/NOERROR("A 1.2.3.4 123")`)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka1",
-					"ports:",
-					"  https: 4000",
-					"  dohPath: /my-doh-path",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka1
+					ports:
+					  https: 4000
+					  dohPath: /my-doh-path
+					`))
 				Expect(err).Should(Succeed())
 			})
 

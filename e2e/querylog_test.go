@@ -38,18 +38,18 @@ var _ = Describe("Query logs functional tests", func() {
 			mariaDB, err = createMariaDBContainer(ctx, e2eNet)
 			Expect(err).Should(Succeed())
 
-			blocky, err = createBlockyContainer(ctx, e2eNet,
-				"log:",
-				"  level: warn",
-				"upstreams:",
-				"  groups:",
-				"    default:",
-				"      - moka1",
-				"queryLog:",
-				"  type: mysql",
-				"  target: user:user@tcp(mariaDB:3306)/user?charset=utf8mb4&parseTime=True&loc=Local",
-				"  flushInterval: 1s",
-			)
+			blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+				log:
+				  level: warn
+				upstreams:
+				  groups:
+				    default:
+				      - moka1
+				queryLog:
+				  type: mysql
+				  target: user:user@tcp(mariaDB:3306)/user?charset=utf8mb4&parseTime=True&loc=Local
+				  flushInterval: 1s
+				`))
 			Expect(err).Should(Succeed())
 
 			connectionString, err := mariaDB.ConnectionString(ctx,
@@ -113,18 +113,18 @@ var _ = Describe("Query logs functional tests", func() {
 			postgresDB, err = createPostgresContainer(ctx, e2eNet)
 			Expect(err).Should(Succeed())
 
-			blocky, err = createBlockyContainer(ctx, e2eNet,
-				"log:",
-				"  level: warn",
-				"upstreams:",
-				"  groups:",
-				"    default:",
-				"      - moka1",
-				"queryLog:",
-				"  type: postgresql",
-				"  target: postgres://user:user@postgres:5432/user",
-				"  flushInterval: 1s",
-			)
+			blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+				log:
+				  level: warn
+				upstreams:
+				  groups:
+				    default:
+				      - moka1
+				queryLog:
+				  type: postgresql
+				  target: postgres://user:user@postgres:5432/user
+				  flushInterval: 1s
+				`))
 			Expect(err).Should(Succeed())
 
 			connectionString, err := postgresDB.ConnectionString(ctx, "sslmode=disable")
@@ -186,18 +186,18 @@ var _ = Describe("Query logs functional tests", func() {
 			postgresDB, err = createTimescaleContainer(ctx, e2eNet)
 			Expect(err).Should(Succeed())
 
-			blocky, err = createBlockyContainer(ctx, e2eNet,
-				"log:",
-				"  level: warn",
-				"upstreams:",
-				"  groups:",
-				"    default:",
-				"      - moka1",
-				"queryLog:",
-				"  type: timescale",
-				"  target: postgres://user:user@timescale:5432/user",
-				"  flushInterval: 1s",
-			)
+			blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+				log:
+				  level: warn
+				upstreams:
+				  groups:
+				    default:
+				      - moka1
+				queryLog:
+				  type: timescale
+				  target: postgres://user:user@timescale:5432/user
+				  flushInterval: 1s
+				`))
 			Expect(err).Should(Succeed())
 
 			connectionString, err := postgresDB.ConnectionString(ctx, "sslmode=disable")
