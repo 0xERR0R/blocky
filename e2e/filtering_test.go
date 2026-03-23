@@ -31,15 +31,15 @@ var _ = Describe("Query type filtering", func() {
 
 	When("AAAA filtering is configured", func() {
 		BeforeEach(func(ctx context.Context) {
-			blocky, err = createBlockyContainer(ctx, e2eNet,
-				"upstreams:",
-				"  groups:",
-				"    default:",
-				"      - moka",
-				"filtering:",
-				"  queryTypes:",
-				"    - AAAA",
-			)
+			blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+				upstreams:
+				  groups:
+				    default:
+				      - moka
+				filtering:
+				  queryTypes:
+				    - AAAA
+				`))
 			Expect(err).Should(Succeed())
 		})
 
@@ -64,16 +64,16 @@ var _ = Describe("Query type filtering", func() {
 
 	When("multiple query types are filtered", func() {
 		BeforeEach(func(ctx context.Context) {
-			blocky, err = createBlockyContainer(ctx, e2eNet,
-				"upstreams:",
-				"  groups:",
-				"    default:",
-				"      - moka",
-				"filtering:",
-				"  queryTypes:",
-				"    - AAAA",
-				"    - MX",
-			)
+			blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+				upstreams:
+				  groups:
+				    default:
+				      - moka
+				filtering:
+				  queryTypes:
+				    - AAAA
+				    - MX
+				`))
 			Expect(err).Should(Succeed())
 		})
 
@@ -102,12 +102,12 @@ var _ = Describe("Query type filtering", func() {
 
 	When("no filtering is configured", func() {
 		BeforeEach(func(ctx context.Context) {
-			blocky, err = createBlockyContainer(ctx, e2eNet,
-				"upstreams:",
-				"  groups:",
-				"    default:",
-				"      - moka",
-			)
+			blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+				upstreams:
+				  groups:
+				    default:
+				      - moka
+				`))
 			Expect(err).Should(Succeed())
 		})
 
