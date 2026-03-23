@@ -63,65 +63,65 @@ var _ = Describe("Integration tests", func() {
 				// - Client groups
 				// - Special use domain names handling
 				// - Filtering
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"log:",
-					"  level: info",
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - default-upstream",
-					"ports:",
-					"  http: 4000",
-					"# Blocking configuration with client groups",
-					"blocking:",
-					"  denylists:",
-					"    ads:",
-					"      - http://httpserver:8080/blocklist.txt",
-					"  allowlists:",
-					"    exceptions:",
-					"      - example.com",
-					"  clientGroupsBlock:",
-					"    default:",
-					"      - ads",
-					"  blockType: nxDomain",
-					"  blockTTL: 1m",
-					"# Custom DNS mappings",
-					"customDNS:",
-					"  mapping:",
-					"    custom.local: 10.0.0.1",
-					"    internal.example.com: 172.16.0.10,172.16.0.11",
-					"# Conditional upstream for .local domains",
-					"conditional:",
-					"  mapping:",
-					"    local: local-upstream",
-					"# Caching configuration",
-					"caching:",
-					"  minTime: 5s",
-					"  maxTime: 30m",
-					"  prefetching: true",
-					"  prefetchThreshold: 5",
-					"# Query logging to console",
-					"queryLog:",
-					"  type: console",
-					"  fields:",
-					"    - clientIP",
-					"    - clientName",
-					"    - responseReason",
-					"    - responseAnswer",
-					"    - question",
-					"    - duration",
-					"# Prometheus metrics",
-					"prometheus:",
-					"  enable: true",
-					"  path: /metrics",
-					"# Special use domain names",
-					"specialUseDomains:",
-					"  rfc6762-appendixG: true",
-					"# Query type filtering (filter AAAA queries)",
-					"filtering:",
-					"  queryTypes:",
-					"    - AAAA",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: info
+					upstreams:
+					  groups:
+					    default:
+					      - default-upstream
+					ports:
+					  http: 4000
+					# Blocking configuration with client groups
+					blocking:
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/blocklist.txt
+					  allowlists:
+					    exceptions:
+					      - example.com
+					  clientGroupsBlock:
+					    default:
+					      - ads
+					  blockType: nxDomain
+					  blockTTL: 1m
+					# Custom DNS mappings
+					customDNS:
+					  mapping:
+					    custom.local: 10.0.0.1
+					    internal.example.com: 172.16.0.10,172.16.0.11
+					# Conditional upstream for .local domains
+					conditional:
+					  mapping:
+					    local: local-upstream
+					# Caching configuration
+					caching:
+					  minTime: 5s
+					  maxTime: 30m
+					  prefetching: true
+					  prefetchThreshold: 5
+					# Query logging to console
+					queryLog:
+					  type: console
+					  fields:
+					    - clientIP
+					    - clientName
+					    - responseReason
+					    - responseAnswer
+					    - question
+					    - duration
+					# Prometheus metrics
+					prometheus:
+					  enable: true
+					  path: /metrics
+					# Special use domain names
+					specialUseDomains:
+					  rfc6762-appendixG: true
+					# Query type filtering (filter AAAA queries)
+					filtering:
+					  queryTypes:
+					    - AAAA
+					`))
 				Expect(err).Should(Succeed())
 			})
 
