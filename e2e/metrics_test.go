@@ -44,22 +44,22 @@ var _ = Describe("Metrics functional tests", func() {
 				"domain1.com", "domain2", "domain3")
 			Expect(err).Should(Succeed())
 
-			blocky, err = createBlockyContainer(ctx, e2eNet,
-				"upstreams:",
-				"  groups:",
-				"    default:",
-				"      - moka1",
-				"blocking:",
-				"  denylists:",
-				"    group1:",
-				"      - http://httpserver1:8080/list1.txt",
-				"    group2:",
-				"      - http://httpserver2:8080/list2.txt",
-				"ports:",
-				"  http: 4000",
-				"prometheus:",
-				"  enable: true",
-			)
+			blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+				upstreams:
+				  groups:
+				    default:
+				      - moka1
+				blocking:
+				  denylists:
+				    group1:
+				      - http://httpserver1:8080/list1.txt
+				    group2:
+				      - http://httpserver2:8080/list2.txt
+				ports:
+				  http: 4000
+				prometheus:
+				  enable: true
+				`))
 			Expect(err).Should(Succeed())
 
 			host, port, err := getContainerHostPort(ctx, blocky, "4000/tcp")
@@ -160,32 +160,32 @@ var _ = Describe("Metrics functional tests", func() {
 			_, err = createHTTPServerContainer(ctx, "badlist", e2eNet, "badlist.txt", "bad.com")
 			Expect(err).Should(Succeed())
 
-			testBlocky, err = createBlockyContainer(ctx, e2eNet,
-				"log:",
-				"  level: warn",
-				"upstreams:",
-				"  groups:",
-				"    default:",
-				"      - moka1",
-				"blocking:",
-				"  denylists:",
-				"    ads:",
-				"      - http://denylist:8080/denylist.txt",
-				"    malware:",
-				"      - http://badlist:8080/badlist.txt",
-				"  allowlists:",
-				"    trusted:",
-				"      - http://allowlist:8080/allowlist.txt",
-				"  clientGroupsBlock:",
-				"    default:",
-				"      - ads",
-				"ports:",
-				"  http: 4000",
-				"prometheus:",
-				"  enable: true",
-				"caching:",
-				"  prefetching: false",
-			)
+			testBlocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+				log:
+				  level: warn
+				upstreams:
+				  groups:
+				    default:
+				      - moka1
+				blocking:
+				  denylists:
+				    ads:
+				      - http://denylist:8080/denylist.txt
+				    malware:
+				      - http://badlist:8080/badlist.txt
+				  allowlists:
+				    trusted:
+				      - http://allowlist:8080/allowlist.txt
+				  clientGroupsBlock:
+				    default:
+				      - ads
+				ports:
+				  http: 4000
+				prometheus:
+				  enable: true
+				caching:
+				  prefetching: false
+				`))
 			Expect(err).Should(Succeed())
 
 			host, port, err := getContainerHostPort(ctx, testBlocky, "4000/tcp")
@@ -276,22 +276,22 @@ var _ = Describe("Metrics functional tests", func() {
 			_, err = createHTTPServerContainer(ctx, "allowlist2", e2eNet, "allowlist2.txt", "allowed2.com", "allowed3.com")
 			Expect(err).Should(Succeed())
 
-			testBlocky, err = createBlockyContainer(ctx, e2eNet,
-				"upstreams:",
-				"  groups:",
-				"    default:",
-				"      - moka1",
-				"blocking:",
-				"  allowlists:",
-				"    group1:",
-				"      - http://allowlist1:8080/allowlist1.txt",
-				"    group2:",
-				"      - http://allowlist2:8080/allowlist2.txt",
-				"ports:",
-				"  http: 4000",
-				"prometheus:",
-				"  enable: true",
-			)
+			testBlocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+				upstreams:
+				  groups:
+				    default:
+				      - moka1
+				blocking:
+				  allowlists:
+				    group1:
+				      - http://allowlist1:8080/allowlist1.txt
+				    group2:
+				      - http://allowlist2:8080/allowlist2.txt
+				ports:
+				  http: 4000
+				prometheus:
+				  enable: true
+				`))
 			Expect(err).Should(Succeed())
 
 			host, port, err := getContainerHostPort(ctx, testBlocky, "4000/tcp")
@@ -321,22 +321,22 @@ var _ = Describe("Metrics functional tests", func() {
 			_, err = createDNSMokkaContainer(ctx, "moka1", e2eNet, `A test.com/NOERROR("A 1.2.3.4 123")`)
 			Expect(err).Should(Succeed())
 
-			testBlocky, err = createBlockyContainer(ctx, e2eNet,
-				"upstreams:",
-				"  groups:",
-				"    default:",
-				"      - moka1",
-				"blocking:",
-				"  denylists:",
-				"    ads:",
-				"      - http://nonexistent-host-that-does-not-exist.example:8080/list.txt",
-				"  loading:",
-				"    strategy: blocking",
-				"ports:",
-				"  http: 4000",
-				"prometheus:",
-				"  enable: true",
-			)
+			testBlocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+				upstreams:
+				  groups:
+				    default:
+				      - moka1
+				blocking:
+				  denylists:
+				    ads:
+				      - http://nonexistent-host-that-does-not-exist.example:8080/list.txt
+				  loading:
+				    strategy: blocking
+				ports:
+				  http: 4000
+				prometheus:
+				  enable: true
+				`))
 			Expect(err).Should(Succeed())
 
 			host, port, err := getContainerHostPort(ctx, testBlocky, "4000/tcp")
@@ -366,18 +366,18 @@ var _ = Describe("Metrics functional tests", func() {
 			)
 			Expect(err).Should(Succeed())
 
-			testBlocky, err = createBlockyContainer(ctx, e2eNet,
-				"upstreams:",
-				"  groups:",
-				"    default:",
-				"      - moka1",
-				"ports:",
-				"  http: 4000",
-				"prometheus:",
-				"  enable: true",
-				"caching:",
-				"  minTime: 5s",
-			)
+			testBlocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+				upstreams:
+				  groups:
+				    default:
+				      - moka1
+				ports:
+				  http: 4000
+				prometheus:
+				  enable: true
+				caching:
+				  minTime: 5s
+				`))
 			Expect(err).Should(Succeed())
 
 			host, port, err := getContainerHostPort(ctx, testBlocky, "4000/tcp")
@@ -429,22 +429,22 @@ var _ = Describe("Metrics functional tests", func() {
 			)
 			Expect(err).Should(Succeed())
 
-			testBlocky, err = createBlockyContainer(ctx, e2eNet,
-				"upstreams:",
-				"  groups:",
-				"    default:",
-				"      - moka1",
-				"ports:",
-				"  http: 4000",
-				"prometheus:",
-				"  enable: true",
-				"caching:",
-				"  minTime: 1s",
-				"  maxTime: 10s",
-				"  prefetching: true",
-				"  prefetchExpires: 5m",
-				"  prefetchThreshold: 3",
-			)
+			testBlocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+				upstreams:
+				  groups:
+				    default:
+				      - moka1
+				ports:
+				  http: 4000
+				prometheus:
+				  enable: true
+				caching:
+				  minTime: 1s
+				  maxTime: 10s
+				  prefetching: true
+				  prefetchExpires: 5m
+				  prefetchThreshold: 3
+				`))
 			Expect(err).Should(Succeed())
 
 			host, port, err := getContainerHostPort(ctx, testBlocky, "4000/tcp")
