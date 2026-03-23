@@ -41,8 +41,8 @@ var _ = Describe("Caching configuration tests", func() {
 					    default:
 					      - moka1
 					caching:
-					"  minTime: 5s",  // Minimum cache time of 5 seconds
-					"  maxTime: 30s", // Maximum cache time of 30 seconds
+					  minTime: 5s
+					  maxTime: 30s
 					`))
 				Expect(err).Should(Succeed())
 			})
@@ -128,8 +128,8 @@ var _ = Describe("Caching configuration tests", func() {
 					      - moka1
 					caching:
 					  prefetching: true
-					"  prefetchThreshold: 3", // Prefetch when TTL <= 3 seconds
-					"  prefetchExpires: 2h",  // Keep prefetched entries for 2 hours
+					  prefetchThreshold: 3
+					  prefetchExpires: 2h
 					`))
 				Expect(err).Should(Succeed())
 			})
@@ -194,7 +194,7 @@ var _ = Describe("Caching configuration tests", func() {
 					caching:
 					  cacheTimeNegative: 30m
 					  exclude:
-					"    - /nocache/", // Exclude domains containing 'nocache' from caching
+					    - /nocache/
 					`))
 				Expect(err).Should(Succeed())
 			})
@@ -250,7 +250,7 @@ var _ = Describe("Caching configuration tests", func() {
 					    default:
 					      - moka1
 					caching:
-					"  cacheTimeNegative: 30m", // Cache NXDOMAIN for 30 minutes
+					  cacheTimeNegative: 30m
 					`))
 				Expect(err).Should(Succeed())
 			})
@@ -302,7 +302,7 @@ var _ = Describe("Caching configuration tests", func() {
 					    default:
 					      - moka1
 					caching:
-					"  maxItemsCount: 3", // Limit cache to 3 items
+					  maxItemsCount: 3
 					`))
 				Expect(err).Should(Succeed())
 			})

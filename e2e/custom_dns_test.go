@@ -201,7 +201,7 @@ var _ = Describe("Custom DNS tests", func() {
 					  customTTL: 1h
 					  filterUnmappedTypes: false
 					  mapping:
-					"    printer.lan: 192.168.178.3", // Only A record defined
+					    printer.lan: 192.168.178.3
 					`))
 				Expect(err).Should(Succeed())
 			})
@@ -247,7 +247,7 @@ var _ = Describe("Custom DNS tests", func() {
 					customDNS:
 					  customTTL: 1h
 					  mapping:
-					"    printer.lan: 192.168.178.3", // Only A record defined
+					    printer.lan: 192.168.178.3
 					`))
 				Expect(err).Should(Succeed())
 			})

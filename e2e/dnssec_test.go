@@ -204,7 +204,7 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 						upstreams:
 						  groups:
 						    default:
-						"      - 1.1.1.1", // Cloudflare validates DNSSEC
+						      - 1.1.1.1
 						dnssec:
 						  validate: true
 						`))
