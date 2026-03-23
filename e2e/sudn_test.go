@@ -37,12 +37,12 @@ var _ = Describe("Special Use Domain Names (SUDN)", func() {
 	Describe("RFC 6761 reserved domains", func() {
 		When("SUDN is enabled (default)", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -71,12 +71,12 @@ var _ = Describe("Special Use Domain Names (SUDN)", func() {
 	Describe("RFC 6762 mDNS", func() {
 		When("SUDN is enabled (default)", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -92,12 +92,12 @@ var _ = Describe("Special Use Domain Names (SUDN)", func() {
 	Describe("RFC 6762 Appendix G TLDs", func() {
 		When("rfc6762-appendixG is enabled (default)", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -140,14 +140,14 @@ var _ = Describe("Special Use Domain Names (SUDN)", func() {
 	Describe("SUDN disabled", func() {
 		When("SUDN is completely disabled", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"specialUseDomains:",
-					"  enable: false",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					specialUseDomains:
+					  enable: false
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -168,14 +168,14 @@ var _ = Describe("Special Use Domain Names (SUDN)", func() {
 	Describe("Partial config", func() {
 		When("base SUDN enabled but Appendix G disabled", func() {
 			BeforeEach(func(ctx context.Context) {
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"specialUseDomains:",
-					"  rfc6762-appendixG: false",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					specialUseDomains:
+					  rfc6762-appendixG: false
+					`))
 				Expect(err).Should(Succeed())
 			})
 
