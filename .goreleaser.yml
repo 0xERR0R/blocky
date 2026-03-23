@@ -1,3 +1,5 @@
+version: 2
+
 project_name: blocky
 
 before:
@@ -48,7 +50,7 @@ release:
 archives:
   - format_overrides:
       - goos: windows
-        format: zip
+        formats: ["zip"]
     name_template: >-
       {{ .ProjectName }}_v
       {{- .Version }}_
@@ -60,7 +62,7 @@ archives:
       {{- if .Mips }}_{{ .Mips }}{{ end }}
 
 snapshot:
-  name_template: "{{ .Version }}-{{.ShortCommit}}"
+  version_template: "{{ .Version }}-{{.ShortCommit}}"
 checksum:
   name_template: "{{ .ProjectName }}_checksums.txt"
 changelog:
