@@ -97,8 +97,7 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 					// Create blocky with DNSSEC validation enabled
 					// Add the generated DNSKEY as a trust anchor for the example. TLD
 					// This makes example. a trusted zone, similar to how root trust anchors work
-					blocky, err = createBlockyContainerFromString(ctx, e2eNet,
-							dedent(`
+					blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
 						upstreams:
 						  groups:
 						    default:
@@ -106,9 +105,7 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 						dnssec:
 						  validate: true
 						  trustAnchors:
-						`) +
-							"\n" + fmt.Sprintf("    - \"%s\"", validData.DNSKEY.String()) +
-							dedent(`
+						    - "`+validData.DNSKEY.String()+`"
 						log:
 						  level: debug
 						`))
@@ -170,9 +167,7 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 						dnssec:
 						  validate: true
 						  trustAnchors:
-						`) +
-							"\n" + fmt.Sprintf("    - \"%s\"", wrongKey.String()) +
-							dedent(`
+						    - "` + wrongKey.String() + `"
 						log:
 						  level: debug
 						`))
@@ -283,9 +278,7 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 						dnssec:
 						  validate: true
 						  trustAnchors:
-						`) +
-							"\n" + fmt.Sprintf("    - \"%s\"", chainData.ParentDNSKEY.String()) +
-							dedent(`
+						    - "` + chainData.ParentDNSKEY.String() + `"
 						log:
 						  level: debug
 						`))

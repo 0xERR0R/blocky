@@ -50,8 +50,7 @@ var _ = Describe("Bootstrap DNS tests", Label("e2e"), func() {
 					upstreams:
 					  groups:
 					    default:
-					      - `)+stamp+dedent(`
-					# NOTE: No bootstrapDns configured - this is the key test case
+					      - `+stamp+`
 					caching:
 					  maxItemsCount: 0
 				`))
@@ -129,7 +128,7 @@ var _ = Describe("Bootstrap DNS tests", Label("e2e"), func() {
 					upstreams:
 					  groups:
 					    default:
-					      - `)+stamp+dedent(`
+					      - `+stamp+`
 					caching:
 					  maxItemsCount: 0
 				`))
@@ -179,8 +178,8 @@ var _ = Describe("Bootstrap DNS tests", Label("e2e"), func() {
 					upstreams:
 					  groups:
 					    default:
-					      - `)+stamp1+dedent(`
-					      - `)+stamp2+dedent(`
+					      - `+stamp1+`
+					      - `+stamp2+`
 					  strategy: parallel_best
 					caching:
 					  maxItemsCount: 0
@@ -239,10 +238,10 @@ var _ = Describe("Bootstrap DNS tests", Label("e2e"), func() {
 					upstreams:
 					  groups:
 					    default:
-					      - `)+stamp+dedent(`
+					      - `+stamp+`
 					bootstrapDns:
-					  - upstream: `)+bootstrapIP+`:53
-					    ips: [`+bootstrapIP+dedent(`]
+					  - upstream: `+bootstrapIP+`:53
+					    ips: [`+bootstrapIP+`]
 					caching:
 					  maxItemsCount: 0
 				`))

@@ -345,9 +345,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 					upstreams:
 					  groups:
 					    default:
-					`) +
-						"\n      - " + stamp +
-						dedent(`
+					      - ` + stamp + `
 					caching:
 					  maxItemsCount: 0
 					`))
@@ -393,9 +391,7 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 					upstreams:
 					  groups:
 					    default:
-					`) +
-						"\n      - " + stamp +
-						dedent(`
+					      - ` + stamp + `
 					      - moka-traditional
 					  strategy: parallel_best
 					caching:
