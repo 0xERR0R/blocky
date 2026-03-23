@@ -3,6 +3,7 @@ package e2e
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"net"
 	"strings"
 	"time"
@@ -28,8 +29,9 @@ func getRandomNetwork(ctx context.Context) *testcontainers.DockerNetwork {
 	return e2eNet
 }
 
-// getRandomIPv6Network returns a new dual-stack test network with IPv6 enabled.
-func getRandomIPv6Network(ctx context.Context) *testcontainers.DockerNetwork {
+// getIPv6Network returns a new dual-stack test network with IPv6 enabled.
+// Note: uses fixed subnets, so only one instance can exist per Docker host at a time.
+func getIPv6Network(ctx context.Context) *testcontainers.DockerNetwork {
 	e2eNet, err := testNet.New(ctx,
 		testNet.WithEnableIPv6(),
 		testNet.WithIPAM(&dockernetwork.IPAM{
@@ -171,7 +173,7 @@ func getContainerNetworkIP(
 		}
 	}
 
-	return "", nil
+	return "", fmt.Errorf("container not found in network %s", networkName)
 }
 
 // dedent removes common leading whitespace from all lines in a multi-line string.

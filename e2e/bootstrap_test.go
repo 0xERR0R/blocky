@@ -87,7 +87,7 @@ var _ = Describe("Bootstrap DNS tests", Label("e2e"), func() {
 		When("DNS stamp with IPv6 contains IP address and no bootstrap DNS is configured", func() {
 			BeforeEach(func(ctx context.Context) {
 				// Use IPv6-enabled network for this test
-				e2eNet = getRandomIPv6Network(ctx)
+				e2eNet = getIPv6Network(ctx)
 
 				// Create a dnsmokka container
 				mokaContainer, err := createDNSMokkaContainer(ctx, "moka-stamp-ipv6", e2eNet,

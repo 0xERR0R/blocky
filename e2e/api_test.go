@@ -129,6 +129,10 @@ var _ = Describe("API endpoints", func() {
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()
 					Expect(resp.StatusCode).Should(Equal(http.StatusOK))
+
+					body, err := io.ReadAll(resp.Body)
+					Expect(err).Should(Succeed())
+					Expect(string(body)).Should(ContainSubstring("returnCode"))
 				})
 			})
 		})

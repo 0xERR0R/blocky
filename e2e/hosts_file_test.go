@@ -2,10 +2,12 @@ package e2e
 
 import (
 	"context"
+	"strings"
 
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
+	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
@@ -35,16 +37,16 @@ var _ = Describe("Hosts file resolver", func() {
 					"10.0.0.1 server.example",
 				)
 
-				confFile := createTempFile(
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"hostsFile:",
-					"  sources:",
-					"    - /app/hosts.txt",
-					"  hostsTTL: 5m",
-				)
+				confFile := createTempFile(strings.Split(dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					hostsFile:
+					  sources:
+					    - /app/hosts.txt
+					  hostsTTL: 5m
+					`), "\n")...)
 
 				cfg, cfgErr := config.LoadConfig(confFile, true)
 				Expect(cfgErr).Should(Succeed())
@@ -53,7 +55,7 @@ var _ = Describe("Hosts file resolver", func() {
 				req.Files = append(req.Files, testcontainers.ContainerFile{
 					HostFilePath:      hostsFile,
 					ContainerFilePath: "/app/hosts.txt",
-					FileMode:          700,
+					FileMode:          modeOwner,
 				})
 
 				ctx, cancel := context.WithTimeout(ctx, 2*startupTimeout)
@@ -173,6 +175,7 @@ var _ = Describe("Hosts file resolver", func() {
 				msg := util.NewMsgWithQuestion("loopback.example.", A)
 				resp, err := doDNSRequest(ctx, blocky, msg)
 				Expect(err).Should(Succeed())
+				Expect(resp.Rcode).Should(Equal(dns.RcodeSuccess))
 				Expect(resp.Answer).Should(BeEmpty())
 			})
 

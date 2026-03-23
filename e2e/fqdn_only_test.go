@@ -31,21 +31,21 @@ var _ = Describe("FQDN only mode", func() {
 	When("fqdnOnly is enabled", func() {
 		BeforeEach(func(ctx context.Context) {
 			blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
-    upstreams:
-      groups:
-        default:
-          - moka
-    fqdnOnly:
-      enable: true
-			`))
+				upstreams:
+				  groups:
+				    default:
+				      - moka
+				fqdnOnly:
+				  enable: true
+				`))
 			Expect(err).Should(Succeed())
 		})
 
-		It("should reject non-FQDN queries with NXDOMAIN", func(ctx context.Context) {
+		It("should reject non-FQDN queries", func(ctx context.Context) {
 			msg := util.NewMsgWithQuestion("myserver.", A)
 			resp, err := doDNSRequest(ctx, blocky, msg)
 			if err != nil {
-				// Connection error is acceptable - blocky rejected the query
+				// Any DNS error (connection refused, id mismatch, etc.) is a valid rejection
 				return
 			}
 			Expect(resp.Rcode).Should(Equal(dns.RcodeNameError))
@@ -65,11 +65,11 @@ var _ = Describe("FQDN only mode", func() {
 	When("fqdnOnly is disabled (default)", func() {
 		BeforeEach(func(ctx context.Context) {
 			blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
-    upstreams:
-      groups:
-        default:
-          - moka
-			`))
+				upstreams:
+				  groups:
+				    default:
+				      - moka
+				`))
 			Expect(err).Should(Succeed())
 		})
 
