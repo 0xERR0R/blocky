@@ -94,15 +94,15 @@ var _ = Describe("Hosts file resolver", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"hostsFile:",
-					"  sources:",
-					"    - http://httpserver:8080/hosts.txt",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					hostsFile:
+					  sources:
+					    - http://httpserver:8080/hosts.txt
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -122,16 +122,16 @@ var _ = Describe("Hosts file resolver", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"hostsFile:",
-					"  sources:",
-					"    - http://httpserver:8080/hosts.txt",
-					"  hostsTTL: 2m",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					hostsFile:
+					  sources:
+					    - http://httpserver:8080/hosts.txt
+					  hostsTTL: 2m
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -156,16 +156,16 @@ var _ = Describe("Hosts file resolver", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"hostsFile:",
-					"  sources:",
-					"    - http://httpserver:8080/hosts.txt",
-					"  filterLoopback: true",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					hostsFile:
+					  sources:
+					    - http://httpserver:8080/hosts.txt
+					  filterLoopback: true
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -192,15 +192,15 @@ var _ = Describe("Hosts file resolver", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"hostsFile:",
-					"  sources:",
-					"    - http://httpserver:8080/hosts.txt",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					hostsFile:
+					  sources:
+					    - http://httpserver:8080/hosts.txt
+					`))
 				Expect(err).Should(Succeed())
 			})
 
