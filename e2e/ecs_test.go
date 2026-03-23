@@ -52,15 +52,15 @@ var _ = Describe("EDNS Client Subnet (ECS)", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"ecs:",
-					"  useAsClient: true",
-					"  ipv4Mask: 32",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					ecs:
+					  useAsClient: true
+					  ipv4Mask: 32
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -86,15 +86,15 @@ var _ = Describe("EDNS Client Subnet (ECS)", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"ecs:",
-					"  forward: true",
-					"  ipv4Mask: 24",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					ecs:
+					  forward: true
+					  ipv4Mask: 24
+					`))
 				Expect(err).Should(Succeed())
 			})
 
@@ -120,16 +120,16 @@ var _ = Describe("EDNS Client Subnet (ECS)", func() {
 				)
 				Expect(err).Should(Succeed())
 
-				blocky, err = createBlockyContainer(ctx, e2eNet,
-					"upstreams:",
-					"  groups:",
-					"    default:",
-					"      - moka",
-					"ecs:",
-					"  useAsClient: true",
-					"  ipv4Mask: 24",
-					"  ipv6Mask: 48",
-				)
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					ecs:
+					  useAsClient: true
+					  ipv4Mask: 24
+					  ipv6Mask: 48
+					`))
 				Expect(err).Should(Succeed())
 			})
 
