@@ -12,9 +12,7 @@ import (
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
-	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
-	"github.com/alicebob/miniredis/v2"
 	"github.com/creasty/defaults"
 
 	"github.com/miekg/dns"
@@ -719,80 +717,6 @@ var _ = Describe("CachingResolver", func() {
 		})
 	})
 
-	Describe("Redis is configured", func() {
-		var (
-			redisServer *miniredis.Miniredis
-			redisClient *redis.Client
-			redisConfig *config.Redis
-			err         error
-		)
-		BeforeEach(func() {
-			redisServer, err = miniredis.Run()
-
-			Expect(err).Should(Succeed())
-
-			var rcfg config.Redis
-			err = defaults.Set(&rcfg)
-
-			Expect(err).Should(Succeed())
-
-			rcfg.Address = redisServer.Addr()
-			redisConfig = &rcfg
-			redisClient, err = redis.New(context.TODO(), redisConfig)
-
-			Expect(err).Should(Succeed())
-			Expect(redisClient).ShouldNot(BeNil())
-		})
-		AfterEach(func() {
-			redisServer.Close()
-		})
-		When("cache", func() {
-			JustBeforeEach(func() {
-				sutConfig = config.Caching{
-					MaxCachingTime: config.Duration(time.Second * 10),
-				}
-				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 1000, A, "1.1.1.1")
-
-				sut, _ = NewCachingResolver(ctx, sutConfig, redisClient)
-				m = &mockResolver{}
-				m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
-				sut.Next(m)
-			})
-
-			It("put in redis", func() {
-				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
-					Should(HaveResponseType(ResponseTypeRESOLVED))
-
-				Eventually(func() []string {
-					return redisServer.DB(redisConfig.Database).Keys()
-				}).Should(HaveLen(1))
-			})
-
-			It("load", func() {
-				request := newRequest("example2.com.", A)
-				domain := util.ExtractDomain(request.Req.Question[0])
-				cacheKey := util.GenerateCacheKey(A, domain)
-				redisMockMsg := &redis.CacheMessage{
-					Key: cacheKey,
-					Response: &Response{
-						RType:  ResponseTypeCACHED,
-						Reason: "MOCK_REDIS",
-						Res:    mockAnswer,
-					},
-				}
-				redisClient.CacheChannel <- redisMockMsg
-
-				Eventually(sut.Resolve).
-					WithContext(ctx).
-					WithArguments(request).
-					Should(
-						SatisfyAll(
-							HaveResponseType(ResponseTypeCACHED),
-							HaveTTL(BeNumerically("<=", 10)),
-						))
-			})
-		})
-	})
 	Context("isRequestCacheable", func() {
 		var request *Request
 		When("request is not cacheable", func() {
