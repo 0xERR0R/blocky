@@ -648,4 +648,122 @@ var _ = Describe("RedisExpiringCache", func() {
 			})
 		})
 	})
+
+	Describe("handleSyncMessage with TTL fetch failure", func() {
+		When("the Redis server is down during TTL fetch", func() {
+			It("skips all entries without panic", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				inner := newTestInner(ctx)
+				opts := defaultOpts("ttl-fail:")
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				goodData, _ := encodeTestValue(&testValue{Data: "val"})
+
+				// Close Redis to cause TTL fetch failure
+				srv.Close()
+
+				msg := redisSyncMessage{
+					Entries: []redisSyncEntry{{Key: "k", Data: goodData}},
+					Client:  []byte("other-instance"),
+				}
+				payload, _ := json.Marshal(msg)
+
+				c.handleSyncMessage(payload)
+
+				Expect(inner.TotalCount()).To(Equal(0))
+			})
+		})
+	})
+
+	Describe("handleSyncMessage with missing TTL", func() {
+		When("a sync entry's key has no expiration in Redis", func() {
+			It("skips the entry", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				inner := newTestInner(ctx)
+				opts := defaultOpts("no-ttl:")
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				data, _ := encodeTestValue(&testValue{Data: "val"})
+
+				// Store key WITHOUT expiration (TTL = -1 in Redis)
+				client.Set(ctx, "no-ttl:k", data, 0)
+
+				msg := redisSyncMessage{
+					Entries: []redisSyncEntry{{Key: "k", Data: data}},
+					Client:  []byte("other-instance"),
+				}
+				payload, _ := json.Marshal(msg)
+
+				c.handleSyncMessage(payload)
+
+				Expect(inner.TotalCount()).To(Equal(0))
+			})
+		})
+	})
+
+	Describe("flushBatch with publish failure", func() {
+		When("the Redis server goes down after entries are written", func() {
+			It("does not panic", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				inner := newTestInner(ctx)
+				opts := defaultOpts("pub-fail:")
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				// Close Redis so both pipeline exec and publish will fail
+				srv.Close()
+
+				batch := []sendBufferEntry[testValue]{
+					{key: "k", val: &testValue{Data: "v"}, expiration: time.Minute},
+				}
+				Expect(func() { c.flushBatch(ctx, batch) }).ToNot(Panic())
+			})
+		})
+	})
+
+	Describe("setBytesCodecDefaults", func() {
+		When("T is []byte and no codec is provided", func() {
+			It("sets identity encode/decode functions", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				inner := expirationcache.NewCache[[]byte](ctx, expirationcache.Options{})
+
+				opts := RedisOptions[[]byte]{
+					Prefix:  "bytes:",
+					Channel: "bytes-chan",
+					// Encode and Decode intentionally nil — defaults should apply
+				}
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				original := []byte("hello world")
+				c.Put("test", &original, time.Minute)
+
+				// Wait for Redis write
+				Eventually(func() bool {
+					exists, _ := client.Exists(ctx, "bytes:test").Result()
+
+					return exists > 0
+				}).WithTimeout(2 * time.Second).WithPolling(20 * time.Millisecond).Should(BeTrue())
+
+				// Verify round-trip: read from Redis and decode
+				data, err := client.Get(ctx, "bytes:test").Bytes()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(data).To(Equal(original))
+			})
+		})
+	})
 })

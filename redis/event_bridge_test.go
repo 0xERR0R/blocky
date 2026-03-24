@@ -299,6 +299,19 @@ var _ = Describe("EventBusBridge", func() {
 		})
 	})
 
+	Describe("onLocalStateChanged error handling", func() {
+		When("Redis is unreachable during publish", func() {
+			It("does not panic", func() {
+				// Close Redis to cause publish failure
+				redisServer.Close()
+
+				Expect(func() {
+					bridge.onLocalStateChanged(evt.BlockingState{Enabled: true})
+				}).ToNot(Panic())
+			})
+		})
+	})
+
 	Describe("Full payload round-trip", func() {
 		When("BlockingStateChanged is published locally with Duration and Groups", func() {
 			It("should preserve Duration and Groups through local → Redis → remote", func(specCtx context.Context) {
