@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	expirationcache "github.com/0xERR0R/expiration-cache"
@@ -259,6 +260,357 @@ var _ = Describe("RedisExpiringCache", func() {
 				val, _ := inner.Get("existing")
 				Expect(val).ToNot(BeNil())
 				Expect(val.Data).To(Equal("pre-existing"))
+			})
+		})
+	})
+
+	Describe("Put with zero expiration", func() {
+		When("expiration is zero", func() {
+			It("stores in inner but does not enqueue to Redis", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				inner := newTestInner(ctx)
+				opts := defaultOpts("zero-exp:")
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				c.Put("no-redis", &testValue{Data: "val"}, 0)
+
+				// Inner should not cache it either (expiration <= 0 means no cache)
+				val, _ := inner.Get("no-redis")
+				Expect(val).To(BeNil())
+
+				// Redis should never get this key
+				Consistently(func() bool {
+					exists, _ := client.Exists(ctx, "zero-exp:no-redis").Result()
+
+					return exists > 0
+				}, "200ms", "50ms").Should(BeFalse())
+			})
+		})
+	})
+
+	Describe("TotalCount", func() {
+		When("multiple values are stored", func() {
+			It("returns the count from the inner cache", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				inner := newTestInner(ctx)
+				opts := defaultOpts("count:")
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				c.Put("a", &testValue{Data: "1"}, time.Minute)
+				c.Put("b", &testValue{Data: "2"}, time.Minute)
+				c.Put("c", &testValue{Data: "3"}, time.Minute)
+
+				Expect(c.TotalCount()).To(Equal(3))
+			})
+		})
+	})
+
+	Describe("handleSyncMessage", func() {
+		When("the payload is invalid JSON", func() {
+			It("does not add entries to the cache", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				inner := newTestInner(ctx)
+				opts := defaultOpts("bad-json:")
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				c.handleSyncMessage([]byte("not-valid-json{{{"))
+
+				Expect(inner.TotalCount()).To(Equal(0))
+			})
+		})
+
+		When("the message is from the same instance", func() {
+			It("skips the message", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				inner := newTestInner(ctx)
+				opts := defaultOpts("self:")
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				data, _ := encodeTestValue(&testValue{Data: "val"})
+				msg := redisSyncMessage{
+					Entries: []redisSyncEntry{{Key: "k", Data: data, TTL: time.Minute}},
+					Client:  c.instanceID,
+				}
+				payload, _ := json.Marshal(msg)
+
+				c.handleSyncMessage(payload)
+
+				Expect(inner.TotalCount()).To(Equal(0))
+			})
+		})
+
+		When("a sync entry has invalid data", func() {
+			It("skips the bad entry but processes valid ones", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				inner := newTestInner(ctx)
+				opts := defaultOpts("bad-entry:")
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				goodData, _ := encodeTestValue(&testValue{Data: "good"})
+				msg := redisSyncMessage{
+					Entries: []redisSyncEntry{
+						{Key: "bad", Data: []byte("not-json"), TTL: time.Minute},
+						{Key: "good", Data: goodData, TTL: time.Minute},
+					},
+					Client: []byte("other-instance"),
+				}
+				payload, _ := json.Marshal(msg)
+
+				c.handleSyncMessage(payload)
+
+				Expect(inner.TotalCount()).To(Equal(1))
+				val, _ := inner.Get("good")
+				Expect(val).ToNot(BeNil())
+				Expect(val.Data).To(Equal("good"))
+			})
+		})
+	})
+
+	Describe("flushBatch", func() {
+		When("encoding fails for an entry", func() {
+			It("skips the bad entry and flushes the rest", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				inner := newTestInner(ctx)
+				opts := defaultOpts("enc-err:")
+
+				callCount := 0
+				opts.Encode = func(v *testValue) ([]byte, error) {
+					callCount++
+					if v.Data == "fail" {
+						return nil, errors.New("encode error")
+					}
+
+					return encodeTestValue(v)
+				}
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				batch := []sendBufferEntry[testValue]{
+					{key: "fail-key", val: &testValue{Data: "fail"}, expiration: time.Minute},
+					{key: "ok-key", val: &testValue{Data: "ok"}, expiration: time.Minute},
+				}
+				c.flushBatch(ctx, batch)
+
+				// Only the "ok" entry should be in Redis
+				exists, _ := client.Exists(ctx, "enc-err:ok-key").Result()
+				Expect(exists).To(Equal(int64(1)))
+
+				exists, _ = client.Exists(ctx, "enc-err:fail-key").Result()
+				Expect(exists).To(Equal(int64(0)))
+			})
+		})
+
+		When("the channel is empty", func() {
+			It("writes to Redis but does not publish sync messages", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				inner := newTestInner(ctx)
+				opts := defaultOpts("no-chan:")
+				opts.Channel = ""
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				batch := []sendBufferEntry[testValue]{
+					{key: "k", val: &testValue{Data: "v"}, expiration: time.Minute},
+				}
+				c.flushBatch(ctx, batch)
+
+				// Entry should still be in Redis
+				exists, _ := client.Exists(ctx, "no-chan:k").Result()
+				Expect(exists).To(Equal(int64(1)))
+			})
+		})
+	})
+
+	Describe("NewRedisExpiringCache defaults", func() {
+		When("options have zero values for batch size, flush interval, and send buf size", func() {
+			It("applies defaults", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				inner := newTestInner(ctx)
+				opts := RedisOptions[testValue]{
+					Prefix:  "defaults:",
+					Channel: "defaults-chan",
+					Encode:  encodeTestValue,
+					Decode:  decodeTestValue,
+					// All zero — should get defaults
+				}
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(c.opts.BatchSize).To(Equal(100))
+				Expect(c.opts.FlushInterval).To(Equal(100 * time.Millisecond))
+				Expect(c.opts.SendBufSize).To(Equal(1000))
+			})
+		})
+	})
+
+	Describe("Clear with scan error", func() {
+		When("the Redis connection fails during Clear", func() {
+			It("does not panic and clears the inner cache", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				inner := newTestInner(ctx)
+				opts := defaultOpts("clear-err:")
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				c.Put("foo", &testValue{Data: "bar"}, time.Minute)
+
+				// Close the Redis server to cause scan failure
+				srv.Close()
+
+				c.Clear()
+
+				// Inner cache should still be cleared
+				Expect(inner.TotalCount()).To(Equal(0))
+			})
+		})
+	})
+
+	Describe("loadKeysViaPipeline with decode errors", func() {
+		When("a stored value cannot be decoded", func() {
+			It("skips that key and continues", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				// Store a key with bad data directly in Redis
+				Expect(client.Set(ctx, "decode-err:bad", "not-valid-json", time.Minute).Err()).ToNot(HaveOccurred())
+
+				// Store a key with good data
+				goodData, _ := encodeTestValue(&testValue{Data: "good"})
+				Expect(client.Set(ctx, "decode-err:good", goodData, time.Minute).Err()).ToNot(HaveOccurred())
+
+				inner := newTestInner(ctx)
+				opts := defaultOpts("decode-err:")
+
+				_, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				// Only the good key should be loaded
+				val, _ := inner.Get("good")
+				Expect(val).ToNot(BeNil())
+				Expect(val.Data).To(Equal("good"))
+
+				// The bad key should be skipped
+				badVal, _ := inner.Get("bad")
+				Expect(badVal).To(BeNil())
+			})
+		})
+	})
+
+	Describe("runWriter batch size trigger", func() {
+		When("enough entries are buffered to fill a batch", func() {
+			It("flushes immediately without waiting for the timer", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				inner := newTestInner(ctx)
+				opts := defaultOpts("batch:")
+				opts.BatchSize = 3
+				opts.FlushInterval = 10 * time.Minute // prevent timer flush
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				// Put exactly BatchSize entries to trigger immediate flush
+				c.Put("a", &testValue{Data: "1"}, time.Minute)
+				c.Put("b", &testValue{Data: "2"}, time.Minute)
+				c.Put("c", &testValue{Data: "3"}, time.Minute)
+
+				Eventually(func() bool {
+					exists, _ := client.Exists(ctx, "batch:a", "batch:b", "batch:c").Result()
+
+					return exists == 3
+				}).WithTimeout(2 * time.Second).WithPolling(20 * time.Millisecond).Should(BeTrue())
+			})
+		})
+	})
+
+	Describe("runSubscriber with empty channel", func() {
+		When("the Channel option is empty", func() {
+			It("does not subscribe to pub/sub", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				inner := newTestInner(ctx)
+				opts := defaultOpts("no-sub:")
+				opts.Channel = ""
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				// Put a value via the cache (will write to Redis but not publish sync)
+				c.Put("local", &testValue{Data: "local-only"}, time.Minute)
+
+				val, _ := c.Get("local")
+				Expect(val).ToNot(BeNil())
+				Expect(val.Data).To(Equal("local-only"))
+			})
+		})
+	})
+
+	Describe("reconnectSubscriber", func() {
+		When("the context is already cancelled", func() {
+			It("returns nil immediately", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+
+				inner := newTestInner(ctx)
+				opts := defaultOpts("reconn:")
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				cancel()
+
+				result := c.reconnectSubscriber(ctx)
+				Expect(result).To(BeNil())
+			})
+		})
+
+		When("Redis is available", func() {
+			It("reconnects successfully", func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				DeferCleanup(cancel)
+
+				inner := newTestInner(ctx)
+				opts := defaultOpts("reconn-ok:")
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				sub := c.reconnectSubscriber(ctx)
+				Expect(sub).ToNot(BeNil())
+				DeferCleanup(func() { _ = sub.Close() })
 			})
 		})
 	})
