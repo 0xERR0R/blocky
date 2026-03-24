@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -39,6 +40,23 @@ type RedisOptions[T any] struct {
 	FlushInterval time.Duration
 	// SendBufSize is the capacity of the internal send buffer channel.
 	SendBufSize int
+}
+
+// setBytesCodecDefaults sets identity Encode/Decode when T is []byte.
+func setBytesCodecDefaults[T any](opts *RedisOptions[T]) {
+	// Runtime type check: only applies when T is []byte.
+	if enc, ok := any(&opts.Encode).(*func(*[]byte) ([]byte, error)); ok {
+		*enc = func(b *[]byte) ([]byte, error) { return *b, nil }
+	}
+
+	if dec, ok := any(&opts.Decode).(*func([]byte) (*[]byte, error)); ok {
+		*dec = func(b []byte) (*[]byte, error) { //nolint:unparam
+			cp := make([]byte, len(b))
+			copy(cp, b)
+
+			return &cp, nil
+		}
+	}
 }
 
 type redisSyncEntry struct {
@@ -80,7 +98,15 @@ func NewRedisExpiringCache[T any](
 	client *goredis.Client,
 	opts RedisOptions[T],
 ) (*RedisExpiringCache[T], error) {
-	// Apply defaults.
+	// Apply defaults: when T is []byte and no codec is provided, use identity.
+	if opts.Encode == nil && opts.Decode == nil {
+		setBytesCodecDefaults(&opts)
+	}
+
+	if opts.Encode == nil || opts.Decode == nil {
+		return nil, errors.New("RedisOptions: Encode and Decode must both be set (or both nil for []byte)")
+	}
+
 	if opts.BatchSize <= 0 {
 		opts.BatchSize = defaultBatchSize
 	}
