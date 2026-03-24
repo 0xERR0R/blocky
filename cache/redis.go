@@ -60,9 +60,8 @@ func setBytesCodecDefaults[T any](opts *RedisOptions[T]) {
 }
 
 type redisSyncEntry struct {
-	Key  string        `json:"k"`
-	Data []byte        `json:"d"`
-	TTL  time.Duration `json:"t"`
+	Key  string `json:"k"`
+	Data []byte `json:"d"`
 }
 
 type redisSyncMessage struct {
@@ -358,7 +357,6 @@ func (c *RedisExpiringCache[T]) flushBatch(ctx context.Context, batch []sendBuff
 		syncEntries = append(syncEntries, redisSyncEntry{
 			Key:  e.key,
 			Data: data,
-			TTL:  e.expiration,
 		})
 	}
 
@@ -480,7 +478,25 @@ func (c *RedisExpiringCache[T]) handleSyncMessage(payload []byte) {
 		return
 	}
 
-	for _, e := range msg.Entries {
+	pipe := c.client.Pipeline()
+
+	ttlCmds := make([]*goredis.DurationCmd, len(msg.Entries))
+	for i, e := range msg.Entries {
+		ttlCmds[i] = pipe.TTL(context.Background(), c.redisKey(e.Key))
+	}
+
+	if _, err := pipe.Exec(context.Background()); err != nil {
+		c.logger.WithError(err).Warn("failed to fetch TTLs for sync entries")
+
+		return
+	}
+
+	for i, e := range msg.Entries {
+		ttl, err := ttlCmds[i].Result()
+		if err != nil || ttl <= 0 {
+			continue
+		}
+
 		val, err := c.opts.Decode(e.Data)
 		if err != nil {
 			c.logger.WithError(err).Warn("failed to decode sync entry")
@@ -488,6 +504,6 @@ func (c *RedisExpiringCache[T]) handleSyncMessage(payload []byte) {
 			continue
 		}
 
-		c.inner.Put(e.Key, val, e.TTL)
+		c.inner.Put(e.Key, val, ttl)
 	}
 }

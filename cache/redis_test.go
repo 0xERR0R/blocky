@@ -344,7 +344,7 @@ var _ = Describe("RedisExpiringCache", func() {
 
 				data, _ := encodeTestValue(&testValue{Data: "val"})
 				msg := redisSyncMessage{
-					Entries: []redisSyncEntry{{Key: "k", Data: data, TTL: time.Minute}},
+					Entries: []redisSyncEntry{{Key: "k", Data: data}},
 					Client:  c.instanceID,
 				}
 				payload, _ := json.Marshal(msg)
@@ -367,10 +367,15 @@ var _ = Describe("RedisExpiringCache", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				goodData, _ := encodeTestValue(&testValue{Data: "good"})
+
+				// Store keys in Redis so handleSyncMessage can fetch their TTLs.
+				client.Set(ctx, "bad-entry:bad", []byte("not-json"), time.Minute)
+				client.Set(ctx, "bad-entry:good", goodData, time.Minute)
+
 				msg := redisSyncMessage{
 					Entries: []redisSyncEntry{
-						{Key: "bad", Data: []byte("not-json"), TTL: time.Minute},
-						{Key: "good", Data: goodData, TTL: time.Minute},
+						{Key: "bad", Data: []byte("not-json")},
+						{Key: "good", Data: goodData},
 					},
 					Client: []byte("other-instance"),
 				}
