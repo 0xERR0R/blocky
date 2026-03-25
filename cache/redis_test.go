@@ -68,7 +68,7 @@ var _ = Describe("RedisExpiringCache", func() {
 		DeferCleanup(srv.Close)
 
 		client = newRedisClient(srv)
-		DeferCleanup(client.Close)
+		DeferCleanup(func() { _ = client.Close() })
 	})
 
 	Describe("Put", func() {
