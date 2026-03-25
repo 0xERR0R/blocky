@@ -35,6 +35,16 @@ func (p *PubSubLoop) RunWithSub(ctx context.Context, initial *goredis.PubSub) {
 	sub := initial
 	if sub == nil {
 		sub = p.Client.Subscribe(ctx, p.Channel)
+
+		if _, err := sub.Receive(ctx); err != nil {
+			p.Logger.WithError(err).Warn("Redis pub/sub initial subscribe failed, attempting to reconnect")
+			_ = sub.Close()
+
+			sub = p.reconnect(ctx)
+			if sub == nil {
+				return
+			}
+		}
 	}
 
 	for {

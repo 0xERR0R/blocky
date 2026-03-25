@@ -135,8 +135,12 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 	var redisConn *goredis.Client
 	if cfg.Redis.IsEnabled() {
 		redisConn, err = redis.New(ctx, &cfg.Redis)
-		if err != nil && cfg.Redis.Required {
-			return nil, fmt.Errorf("failed to create required Redis client: %w", err)
+		if err != nil {
+			if cfg.Redis.Required {
+				return nil, fmt.Errorf("failed to create required Redis client: %w", err)
+			}
+
+			logger().WithError(err).Warn("Redis is enabled but optional and could not be initialized, continuing without Redis")
 		}
 	}
 
@@ -160,6 +164,10 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 
 	if redisResult.bridge != nil {
 		server.closers = append(server.closers, redisResult.bridge)
+	}
+
+	if redisConn != nil {
+		server.closers = append(server.closers, redisConn)
 	}
 
 	server.printConfiguration()
