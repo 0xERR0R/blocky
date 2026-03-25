@@ -100,8 +100,7 @@ var _ = Describe("EventBusBridge", func() {
 					Expect(evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				})
 
-				otherID, err := uuid.New().MarshalBinary()
-				Expect(err).Should(Succeed())
+				otherID := uuid.NewString()
 
 				expectedState := evt.BlockingState{
 					Enabled:  true,
@@ -226,8 +225,7 @@ var _ = Describe("EventBusBridge", func() {
 					Expect(evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				})
 
-				otherID, err := uuid.New().MarshalBinary()
-				Expect(err).Should(Succeed())
+				otherID := uuid.NewString()
 
 				// Send a message before restart to verify connectivity
 				preState := evt.BlockingState{Enabled: true}
@@ -273,29 +271,6 @@ var _ = Describe("EventBusBridge", func() {
 					return b.Close()
 				}).WithTimeout(2 * time.Second).Should(Succeed())
 			}, SpecTimeout(5*time.Second))
-		})
-	})
-
-	Describe("reconnect", func() {
-		When("the context is already cancelled", func() {
-			It("should return nil immediately", func() {
-				cancelledCtx, cancelFn := context.WithCancel(context.Background())
-				cancelFn()
-
-				result := bridge.reconnect(cancelledCtx)
-				Expect(result).To(BeNil())
-			})
-		})
-
-		When("Redis is available", func() {
-			It("should reconnect successfully", func(specCtx context.Context) {
-				reconnCtx, reconnCancel := context.WithTimeout(context.Background(), 5*time.Second)
-				DeferCleanup(reconnCancel)
-
-				ps := bridge.reconnect(reconnCtx)
-				Expect(ps).ToNot(BeNil())
-				DeferCleanup(func() { _ = ps.Close() })
-			}, SpecTimeout(6*time.Second))
 		})
 	})
 

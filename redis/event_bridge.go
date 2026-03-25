@@ -1,7 +1,6 @@
 package redis
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"sync"
@@ -15,21 +14,19 @@ import (
 )
 
 const (
-	EventBridgeChannel       = "blocky_sync_enabled"
-	bridgePublishTimeout     = 5 * time.Second
-	bridgeReconnectBaseDelay = 500 * time.Millisecond
-	bridgeReconnectMaxDelay  = 30 * time.Second
+	EventBridgeChannel   = "blocky_sync_enabled"
+	bridgePublishTimeout = 5 * time.Second
 )
 
 type bridgeMessage struct {
 	State  evt.BlockingState `json:"s"`
-	Client []byte            `json:"c"`
+	Client string            `json:"c"`
 }
 
 // EventBusBridge connects the local event bus with Redis pub/sub for blocking state synchronization.
 type EventBusBridge struct {
 	client  *goredis.Client
-	id      []byte
+	id      string
 	channel string
 	l       *logrus.Entry
 	cancel  context.CancelFunc
@@ -40,16 +37,11 @@ type EventBusBridge struct {
 // NewEventBusBridge creates a new EventBusBridge that synchronizes blocking state
 // between local event bus and Redis pub/sub.
 func NewEventBusBridge(ctx context.Context, client *goredis.Client) (*EventBusBridge, error) {
-	id, err := uuid.New().MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-
 	ctx, cancel := context.WithCancel(ctx)
 
 	b := &EventBusBridge{
 		client:  client,
-		id:      id,
+		id:      uuid.NewString(),
 		channel: EventBridgeChannel,
 		l:       log.PrefixedLog("redis-event-bridge"),
 		cancel:  cancel,
@@ -72,7 +64,18 @@ func NewEventBusBridge(ctx context.Context, client *goredis.Client) (*EventBusBr
 		return nil, err
 	}
 
-	go b.subscribeLoop(ctx, ps)
+	loop := &PubSubLoop{
+		Client:  client,
+		Channel: b.channel,
+		Logger:  b.l,
+		Handler: b.handleMessage,
+	}
+
+	go func() {
+		defer b.Close()
+
+		loop.RunWithSub(ctx, ps)
+	}()
 
 	return b, nil
 }
@@ -119,91 +122,23 @@ func (b *EventBusBridge) onLocalStateChanged(state evt.BlockingState) {
 	}
 }
 
-// subscribeLoop listens for Redis pub/sub messages and publishes remote state changes
-// to the local event bus, filtering out messages from this instance.
-// It reconnects automatically on channel closure with exponential backoff.
-func (b *EventBusBridge) subscribeLoop(ctx context.Context, ps *goredis.PubSub) {
-	defer b.Close()
-
-	for {
-		b.consumeMessages(ctx, ps)
-		_ = ps.Close()
-
-		if ctx.Err() != nil {
-			return
-		}
-
-		b.l.Warn("Redis pub/sub channel closed unexpectedly, attempting to reconnect")
-
-		ps = b.reconnect(ctx)
-		if ps == nil {
-			return
-		}
+// handleMessage processes a single Redis pub/sub message, publishing remote
+// state changes to the local event bus and filtering out echoes.
+func (b *EventBusBridge) handleMessage(_ context.Context, payload string) {
+	if len(payload) == 0 {
+		return
 	}
-}
 
-// consumeMessages drains messages from the pub/sub channel until it closes or the context is cancelled.
-func (b *EventBusBridge) consumeMessages(ctx context.Context, ps *goredis.PubSub) {
-	ch := ps.Channel()
+	var bm bridgeMessage
+	if err := json.Unmarshal([]byte(payload), &bm); err != nil {
+		b.l.Error("failed to unmarshal bridge message: ", err)
 
-	for {
-		select {
-		case msg, ok := <-ch:
-			if !ok {
-				return
-			}
-
-			if msg == nil || len(msg.Payload) == 0 {
-				continue
-			}
-
-			var bm bridgeMessage
-			if err := json.Unmarshal([]byte(msg.Payload), &bm); err != nil {
-				b.l.Error("failed to unmarshal bridge message: ", err)
-
-				continue
-			}
-
-			if bytes.Equal(bm.Client, b.id) {
-				continue
-			}
-
-			evt.Bus().Publish(evt.BlockingStateChangedRemote, bm.State)
-
-		case <-ctx.Done():
-			return
-		}
+		return
 	}
-}
 
-// reconnect attempts to re-subscribe with exponential backoff.
-// Returns nil if the context is cancelled before reconnecting.
-func (b *EventBusBridge) reconnect(ctx context.Context) *goredis.PubSub {
-	delay := bridgeReconnectBaseDelay
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-time.After(delay):
-		}
-
-		ps := b.client.Subscribe(ctx, b.channel)
-
-		if _, err := ps.Receive(ctx); err != nil {
-			_ = ps.Close()
-			b.l.WithError(err).Warn("Redis pub/sub reconnect failed, retrying")
-
-			delay *= 2
-			if delay > bridgeReconnectMaxDelay {
-				delay = bridgeReconnectMaxDelay
-			}
-
-			continue
-		}
-
-		b.l.Info("Redis pub/sub reconnected successfully")
-
-		return ps
+	if bm.Client == b.id {
+		return
 	}
+
+	evt.Bus().Publish(evt.BlockingStateChangedRemote, bm.State)
 }

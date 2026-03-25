@@ -325,7 +325,7 @@ var _ = Describe("RedisExpiringCache", func() {
 				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
 				Expect(err).ToNot(HaveOccurred())
 
-				c.handleSyncMessage([]byte("not-valid-json{{{"))
+				c.handleSyncMessage(ctx, []byte("not-valid-json{{{"))
 
 				Expect(inner.TotalCount()).To(Equal(0))
 			})
@@ -349,7 +349,7 @@ var _ = Describe("RedisExpiringCache", func() {
 				}
 				payload, _ := json.Marshal(msg)
 
-				c.handleSyncMessage(payload)
+				c.handleSyncMessage(ctx, payload)
 
 				Expect(inner.TotalCount()).To(Equal(0))
 			})
@@ -377,11 +377,11 @@ var _ = Describe("RedisExpiringCache", func() {
 						{Key: "bad", Data: []byte("not-json")},
 						{Key: "good", Data: goodData},
 					},
-					Client: []byte("other-instance"),
+					Client: "other-instance",
 				}
 				payload, _ := json.Marshal(msg)
 
-				c.handleSyncMessage(payload)
+				c.handleSyncMessage(ctx, payload)
 
 				Expect(inner.TotalCount()).To(Equal(1))
 				val, _ := inner.Get("good")
@@ -584,42 +584,6 @@ var _ = Describe("RedisExpiringCache", func() {
 		})
 	})
 
-	Describe("reconnectSubscriber", func() {
-		When("the context is already cancelled", func() {
-			It("returns nil immediately", func() {
-				ctx, cancel := context.WithCancel(context.Background())
-
-				inner := newTestInner(ctx)
-				opts := defaultOpts("reconn:")
-
-				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
-				Expect(err).ToNot(HaveOccurred())
-
-				cancel()
-
-				result := c.reconnectSubscriber(ctx)
-				Expect(result).To(BeNil())
-			})
-		})
-
-		When("Redis is available", func() {
-			It("reconnects successfully", func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				DeferCleanup(cancel)
-
-				inner := newTestInner(ctx)
-				opts := defaultOpts("reconn-ok:")
-
-				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
-				Expect(err).ToNot(HaveOccurred())
-
-				sub := c.reconnectSubscriber(ctx)
-				Expect(sub).ToNot(BeNil())
-				DeferCleanup(func() { _ = sub.Close() })
-			})
-		})
-	})
-
 	Describe("Graceful degradation", func() {
 		When("the Redis client points to a dead server", func() {
 			It("Put and Get still work locally", func() {
@@ -668,11 +632,11 @@ var _ = Describe("RedisExpiringCache", func() {
 
 				msg := redisSyncMessage{
 					Entries: []redisSyncEntry{{Key: "k", Data: goodData}},
-					Client:  []byte("other-instance"),
+					Client:  "other-instance",
 				}
 				payload, _ := json.Marshal(msg)
 
-				c.handleSyncMessage(payload)
+				c.handleSyncMessage(ctx, payload)
 
 				Expect(inner.TotalCount()).To(Equal(0))
 			})
@@ -698,11 +662,11 @@ var _ = Describe("RedisExpiringCache", func() {
 
 				msg := redisSyncMessage{
 					Entries: []redisSyncEntry{{Key: "k", Data: data}},
-					Client:  []byte("other-instance"),
+					Client:  "other-instance",
 				}
 				payload, _ := json.Marshal(msg)
 
-				c.handleSyncMessage(payload)
+				c.handleSyncMessage(ctx, payload)
 
 				Expect(inner.TotalCount()).To(Equal(0))
 			})
@@ -732,9 +696,9 @@ var _ = Describe("RedisExpiringCache", func() {
 		})
 	})
 
-	Describe("setBytesCodecDefaults", func() {
-		When("T is []byte and no codec is provided", func() {
-			It("sets identity encode/decode functions", func() {
+	Describe("NewRedisExpiringByteCache", func() {
+		When("no codec is provided", func() {
+			It("uses identity encode/decode functions", func() {
 				ctx, cancel := context.WithCancel(context.Background())
 				DeferCleanup(cancel)
 
@@ -746,7 +710,7 @@ var _ = Describe("RedisExpiringCache", func() {
 					// Encode and Decode intentionally nil — defaults should apply
 				}
 
-				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				c, err := NewRedisExpiringByteCache(ctx, inner, client, opts)
 				Expect(err).ToNot(HaveOccurred())
 
 				original := []byte("hello world")

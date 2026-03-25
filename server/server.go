@@ -328,7 +328,7 @@ func createRedisCacheDecorator(
 	}
 
 	decorator := func(inner cache.ExpiringCache[[]byte]) (cache.ExpiringCache[[]byte], error) {
-		return cache.NewRedisExpiringCache(ctx, inner, redisConn, cache.RedisOptions[[]byte]{
+		return cache.NewRedisExpiringByteCache(ctx, inner, redisConn, cache.RedisOptions[[]byte]{
 			Prefix:  "blocky:cache:",
 			Channel: "blocky_cache_sync",
 		})

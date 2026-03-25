@@ -61,6 +61,7 @@ func AssertRegistryComplete(t *testing.T, reg *prometheus.Registry) {
 		"blocky_cache_entries",
 		"blocky_cache_hits_total",
 		"blocky_cache_misses_total",
+		"blocky_redis_cache_buffer_drops_total",
 		"blocky_last_list_group_refresh_timestamp_seconds",
 		"blocky_prefetches_total",
 		"blocky_prefetch_hits_total",

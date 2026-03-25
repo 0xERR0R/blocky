@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,8 +9,12 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/metrics"
+	blockredis "github.com/0xERR0R/blocky/redis"
 	goredis "github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sirupsen/logrus"
 )
 
@@ -20,8 +23,15 @@ const (
 	defaultFlushInterval = 100 * time.Millisecond
 	defaultSendBufSize   = 1000
 	redisScanCount       = 100
-	reconnectBaseDelay   = 500 * time.Millisecond
-	reconnectMaxDelay    = 30 * time.Second
+	drainTimeout         = 5 * time.Second
+)
+
+//nolint:gochecknoglobals
+var redisBufferDrops = promauto.With(metrics.Reg).NewCounter(
+	prometheus.CounterOpts{
+		Name: "blocky_redis_cache_buffer_drops_total",
+		Help: "Number of cache entries dropped because the Redis send buffer was full",
+	},
 )
 
 // RedisOptions configures the RedisExpiringCache decorator.
@@ -42,23 +52,6 @@ type RedisOptions[T any] struct {
 	SendBufSize int
 }
 
-// setBytesCodecDefaults sets identity Encode/Decode when T is []byte.
-func setBytesCodecDefaults[T any](opts *RedisOptions[T]) {
-	// Runtime type check: only applies when T is []byte.
-	if enc, ok := any(&opts.Encode).(*func(*[]byte) ([]byte, error)); ok {
-		*enc = func(b *[]byte) ([]byte, error) { return *b, nil }
-	}
-
-	if dec, ok := any(&opts.Decode).(*func([]byte) (*[]byte, error)); ok {
-		*dec = func(b []byte) (*[]byte, error) { //nolint:unparam
-			cp := make([]byte, len(b))
-			copy(cp, b)
-
-			return &cp, nil
-		}
-	}
-}
-
 type redisSyncEntry struct {
 	Key  string `json:"k"`
 	Data []byte `json:"d"`
@@ -66,7 +59,7 @@ type redisSyncEntry struct {
 
 type redisSyncMessage struct {
 	Entries []redisSyncEntry `json:"e"`
-	Client  []byte           `json:"c"` // instance UUID
+	Client  string           `json:"c"`
 }
 
 type sendBufferEntry[T any] struct {
@@ -81,9 +74,30 @@ type RedisExpiringCache[T any] struct {
 	inner      ExpiringCache[T]
 	client     *goredis.Client
 	opts       RedisOptions[T]
-	instanceID []byte
+	instanceID string
 	sendBuf    chan sendBufferEntry[T]
 	logger     *logrus.Entry
+}
+
+// NewRedisExpiringByteCache creates a RedisExpiringCache for []byte values,
+// using identity encode/decode when no codec is provided.
+func NewRedisExpiringByteCache(
+	ctx context.Context,
+	inner ExpiringCache[[]byte],
+	client *goredis.Client,
+	opts RedisOptions[[]byte],
+) (*RedisExpiringCache[[]byte], error) {
+	if opts.Encode == nil && opts.Decode == nil {
+		opts.Encode = func(b *[]byte) ([]byte, error) { return *b, nil }
+		opts.Decode = func(b []byte) (*[]byte, error) {
+			cp := make([]byte, len(b))
+			copy(cp, b)
+
+			return &cp, nil
+		}
+	}
+
+	return NewRedisExpiringCache(ctx, inner, client, opts)
 }
 
 // NewRedisExpiringCache creates a new RedisExpiringCache decorator.
@@ -97,13 +111,8 @@ func NewRedisExpiringCache[T any](
 	client *goredis.Client,
 	opts RedisOptions[T],
 ) (*RedisExpiringCache[T], error) {
-	// Apply defaults: when T is []byte and no codec is provided, use identity.
-	if opts.Encode == nil && opts.Decode == nil {
-		setBytesCodecDefaults(&opts)
-	}
-
 	if opts.Encode == nil || opts.Decode == nil {
-		return nil, errors.New("RedisOptions: Encode and Decode must both be set (or both nil for []byte)")
+		return nil, errors.New("RedisOptions: Encode and Decode must both be set")
 	}
 
 	if opts.BatchSize <= 0 {
@@ -118,16 +127,11 @@ func NewRedisExpiringCache[T any](
 		opts.SendBufSize = defaultSendBufSize
 	}
 
-	id, err := uuid.New().MarshalBinary()
-	if err != nil {
-		return nil, fmt.Errorf("generate instance uuid: %w", err)
-	}
-
 	c := &RedisExpiringCache[T]{
 		inner:      inner,
 		client:     client,
 		opts:       opts,
-		instanceID: id,
+		instanceID: uuid.NewString(),
 		sendBuf:    make(chan sendBufferEntry[T], opts.SendBufSize),
 		logger:     log.PrefixedLog("redis-cache"),
 	}
@@ -158,6 +162,7 @@ func (c *RedisExpiringCache[T]) Put(key string, val *T, expiration time.Duration
 	select {
 	case c.sendBuf <- entry:
 	default:
+		redisBufferDrops.Inc()
 		c.logger.Warn("redis send buffer full, dropping cache entry")
 	}
 }
@@ -182,31 +187,11 @@ func (c *RedisExpiringCache[T]) Clear() {
 	ctx, cancel := context.WithTimeout(context.Background(), clearTimeout)
 	defer cancel()
 
-	pattern := c.opts.Prefix + "*"
-
-	var cursor uint64
-
-	for {
-		var keys []string
-
-		var err error
-
-		keys, cursor, err = c.client.Scan(ctx, cursor, pattern, redisScanCount).Result()
-		if err != nil {
-			c.logger.WithError(err).Warn("Redis SCAN failed during Clear")
-
-			return
-		}
-
-		if len(keys) > 0 {
-			if err := c.client.Del(ctx, keys...).Err(); err != nil {
-				c.logger.WithError(err).Warn("Redis DEL failed during Clear")
-			}
-		}
-
-		if cursor == 0 {
-			break
-		}
+	err := c.scanKeys(ctx, func(ctx context.Context, keys []string) error {
+		return c.client.Del(ctx, keys...).Err()
+	})
+	if err != nil {
+		c.logger.WithError(err).Warn("Redis Clear failed")
 	}
 }
 
@@ -215,29 +200,28 @@ func (c *RedisExpiringCache[T]) redisKey(key string) string {
 	return c.opts.Prefix + key
 }
 
-// loadFromRedis scans existing Redis keys and populates the inner cache.
-// It uses a pipeline per SCAN page to minimise round trips.
-func (c *RedisExpiringCache[T]) loadFromRedis(ctx context.Context) error {
+// scanKeys iterates over all Redis keys matching the configured prefix
+// and calls fn for each batch of keys returned by SCAN.
+func (c *RedisExpiringCache[T]) scanKeys(
+	ctx context.Context, fn func(ctx context.Context, keys []string) error,
+) error {
 	pattern := c.opts.Prefix + "*"
 
 	var cursor uint64
 
 	for {
-		var keys []string
-
-		var err error
-
-		keys, cursor, err = c.client.Scan(ctx, cursor, pattern, redisScanCount).Result()
+		keys, nextCursor, err := c.client.Scan(ctx, cursor, pattern, redisScanCount).Result()
 		if err != nil {
 			return fmt.Errorf("SCAN: %w", err)
 		}
 
 		if len(keys) > 0 {
-			if err := c.loadKeysViaPipeline(ctx, keys); err != nil {
-				c.logger.WithError(err).Warn("pipeline load failed for SCAN page")
+			if err := fn(ctx, keys); err != nil {
+				return err
 			}
 		}
 
+		cursor = nextCursor
 		if cursor == 0 {
 			break
 		}
@@ -246,7 +230,19 @@ func (c *RedisExpiringCache[T]) loadFromRedis(ctx context.Context) error {
 	return nil
 }
 
-// loadKeysViaPipeline fetches TTL and value for a batch of keys in two pipeline round trips.
+// loadFromRedis scans existing Redis keys and populates the inner cache.
+// It uses a pipeline per SCAN page to minimise round trips.
+func (c *RedisExpiringCache[T]) loadFromRedis(ctx context.Context) error {
+	return c.scanKeys(ctx, func(ctx context.Context, keys []string) error {
+		if err := c.loadKeysViaPipeline(ctx, keys); err != nil {
+			c.logger.WithError(err).Warn("pipeline load failed for SCAN page")
+		}
+
+		return nil
+	})
+}
+
+// loadKeysViaPipeline fetches TTL and value for a batch of keys in a single pipeline round trip.
 func (c *RedisExpiringCache[T]) loadKeysViaPipeline(ctx context.Context, keys []string) error {
 	pipe := c.client.Pipeline()
 
@@ -295,12 +291,12 @@ func (c *RedisExpiringCache[T]) runWriter(ctx context.Context) {
 
 	batch := make([]sendBufferEntry[T], 0, c.opts.BatchSize)
 
-	flush := func() {
+	flush := func(fctx context.Context) {
 		if len(batch) == 0 {
 			return
 		}
 
-		c.flushBatch(ctx, batch)
+		c.flushBatch(fctx, batch)
 		batch = make([]sendBufferEntry[T], 0, c.opts.BatchSize)
 	}
 
@@ -309,13 +305,15 @@ func (c *RedisExpiringCache[T]) runWriter(ctx context.Context) {
 		case entry := <-c.sendBuf:
 			batch = append(batch, entry)
 			if len(batch) >= c.opts.BatchSize {
-				flush()
+				flush(ctx)
 			}
 
 		case <-ticker.C:
-			flush()
+			flush(ctx)
 
 		case <-ctx.Done():
+			drainCtx, drainCancel := context.WithTimeout(context.Background(), drainTimeout)
+
 			// Drain remaining buffer before exiting.
 		drainLoop:
 			for {
@@ -323,14 +321,15 @@ func (c *RedisExpiringCache[T]) runWriter(ctx context.Context) {
 				case entry := <-c.sendBuf:
 					batch = append(batch, entry)
 					if len(batch) >= c.opts.BatchSize {
-						flush()
+						flush(drainCtx) //nolint:contextcheck
 					}
 				default:
 					break drainLoop
 				}
 			}
 
-			flush()
+			flush(drainCtx) //nolint:contextcheck
+			drainCancel()
 
 			return
 		}
@@ -393,79 +392,21 @@ func (c *RedisExpiringCache[T]) runSubscriber(ctx context.Context) {
 		return
 	}
 
-	sub := c.client.Subscribe(ctx, c.opts.Channel)
-
-	for {
-		c.consumeSubscription(ctx, sub)
-		_ = sub.Close()
-
-		if ctx.Err() != nil {
-			return
-		}
-
-		c.logger.Warn("Redis pub/sub channel closed unexpectedly, attempting to reconnect")
-
-		sub = c.reconnectSubscriber(ctx)
-		if sub == nil {
-			return
-		}
+	loop := &blockredis.PubSubLoop{
+		Client:  c.client,
+		Channel: c.opts.Channel,
+		Logger:  c.logger,
+		Handler: func(ctx context.Context, payload string) {
+			c.handleSyncMessage(ctx, []byte(payload))
+		},
 	}
-}
 
-// consumeSubscription drains messages from the pub/sub channel until it closes or ctx is cancelled.
-func (c *RedisExpiringCache[T]) consumeSubscription(ctx context.Context, sub *goredis.PubSub) {
-	ch := sub.Channel()
-
-	for {
-		select {
-		case msg, ok := <-ch:
-			if !ok {
-				return
-			}
-
-			c.handleSyncMessage([]byte(msg.Payload))
-
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-// reconnectSubscriber attempts to re-subscribe with exponential backoff.
-// Returns nil if the context is cancelled before reconnecting.
-func (c *RedisExpiringCache[T]) reconnectSubscriber(ctx context.Context) *goredis.PubSub {
-	delay := reconnectBaseDelay
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-time.After(delay):
-		}
-
-		sub := c.client.Subscribe(ctx, c.opts.Channel)
-
-		if _, err := sub.Receive(ctx); err != nil {
-			_ = sub.Close()
-			c.logger.WithError(err).Warn("Redis pub/sub reconnect failed, retrying")
-
-			delay *= 2
-			if delay > reconnectMaxDelay {
-				delay = reconnectMaxDelay
-			}
-
-			continue
-		}
-
-		c.logger.Info("Redis pub/sub reconnected successfully")
-
-		return sub
-	}
+	loop.Run(ctx)
 }
 
 // handleSyncMessage decodes and applies a pub/sub sync message, skipping
 // entries that originated from this instance.
-func (c *RedisExpiringCache[T]) handleSyncMessage(payload []byte) {
+func (c *RedisExpiringCache[T]) handleSyncMessage(ctx context.Context, payload []byte) {
 	var msg redisSyncMessage
 	if err := json.Unmarshal(payload, &msg); err != nil {
 		c.logger.WithError(err).Warn("failed to decode sync message")
@@ -473,8 +414,7 @@ func (c *RedisExpiringCache[T]) handleSyncMessage(payload []byte) {
 		return
 	}
 
-	// Filter out messages sent by this instance to prevent echo.
-	if bytes.Equal(msg.Client, c.instanceID) {
+	if msg.Client == c.instanceID {
 		return
 	}
 
@@ -482,10 +422,10 @@ func (c *RedisExpiringCache[T]) handleSyncMessage(payload []byte) {
 
 	ttlCmds := make([]*goredis.DurationCmd, len(msg.Entries))
 	for i, e := range msg.Entries {
-		ttlCmds[i] = pipe.TTL(context.Background(), c.redisKey(e.Key))
+		ttlCmds[i] = pipe.TTL(ctx, c.redisKey(e.Key))
 	}
 
-	if _, err := pipe.Exec(context.Background()); err != nil {
+	if _, err := pipe.Exec(ctx); err != nil {
 		c.logger.WithError(err).Warn("failed to fetch TTLs for sync entries")
 
 		return
