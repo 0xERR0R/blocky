@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"runtime"
@@ -43,7 +44,7 @@ type Server struct {
 	cfg           *config.Config
 
 	servers map[net.Listener]*httpServer
-	closers []interface{ Close() error }
+	closers []io.Closer
 }
 
 func logger() *logrus.Entry {
