@@ -5,6 +5,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net"
@@ -12,11 +13,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/go-chi/chi/v5"
 	"github.com/miekg/dns"
+	"gopkg.in/yaml.v2"
 )
 
 type httpReqCtxKey struct{}
@@ -53,6 +56,20 @@ type CacheControl interface {
 	FlushCaches(ctx context.Context)
 }
 
+// ResolverLookup provides dynamic lookup of resolver interfaces from the current chain.
+type ResolverLookup interface {
+	BlockingControl() (BlockingControl, error)
+	ListRefresher() (ListRefresher, error)
+	CacheControl() (CacheControl, error)
+	Querier
+}
+
+// ConfigReloader provides config reload and active config retrieval.
+type ConfigReloader interface {
+	Reload() error
+	ActiveConfig() *config.Config
+}
+
 func RegisterOpenAPIEndpoints(router chi.Router, impl StrictServerInterface) {
 	middleware := []StrictMiddlewareFunc{ctxWithHTTPRequestMiddleware}
 
@@ -68,32 +85,25 @@ func ctxWithHTTPRequestMiddleware(handler StrictHandlerFunc, operationID string)
 }
 
 type OpenAPIInterfaceImpl struct {
-	control      BlockingControl
-	querier      Querier
-	refresher    ListRefresher
-	cacheControl CacheControl
+	lookup   ResolverLookup
+	reloader ConfigReloader
 }
 
-func NewOpenAPIInterfaceImpl(control BlockingControl,
-	querier Querier,
-	refresher ListRefresher,
-	cacheControl CacheControl,
-) *OpenAPIInterfaceImpl {
-	return &OpenAPIInterfaceImpl{
-		control:      control,
-		querier:      querier,
-		refresher:    refresher,
-		cacheControl: cacheControl,
-	}
+func NewOpenAPIInterfaceImpl(lookup ResolverLookup, reloader ConfigReloader) *OpenAPIInterfaceImpl {
+	return &OpenAPIInterfaceImpl{lookup: lookup, reloader: reloader}
 }
 
 func (i *OpenAPIInterfaceImpl) DisableBlocking(ctx context.Context,
 	request DisableBlockingRequestObject,
 ) (DisableBlockingResponseObject, error) {
+	control, err := i.lookup.BlockingControl()
+	if err != nil {
+		return DisableBlocking400TextResponse("blocking not available"), nil //nolint:nilerr
+	}
+
 	var (
 		duration time.Duration
 		groups   []string
-		err      error
 	)
 
 	if request.Params.Duration != nil {
@@ -107,7 +117,7 @@ func (i *OpenAPIInterfaceImpl) DisableBlocking(ctx context.Context,
 		groups = strings.Split(*request.Params.Groups, ",")
 	}
 
-	err = i.control.DisableBlocking(ctx, duration, groups)
+	err = control.DisableBlocking(ctx, duration, groups)
 	if err != nil {
 		return DisableBlocking400TextResponse(log.EscapeInput(err.Error())), nil
 	}
@@ -117,14 +127,24 @@ func (i *OpenAPIInterfaceImpl) DisableBlocking(ctx context.Context,
 
 func (i *OpenAPIInterfaceImpl) EnableBlocking(ctx context.Context, _ EnableBlockingRequestObject,
 ) (EnableBlockingResponseObject, error) {
-	i.control.EnableBlocking(ctx)
+	control, err := i.lookup.BlockingControl()
+	if err != nil {
+		return EnableBlocking200Response{}, nil //nolint:nilerr
+	}
+
+	control.EnableBlocking(ctx)
 
 	return EnableBlocking200Response{}, nil
 }
 
 func (i *OpenAPIInterfaceImpl) BlockingStatus(_ context.Context, _ BlockingStatusRequestObject,
 ) (BlockingStatusResponseObject, error) {
-	blStatus := i.control.BlockingStatus()
+	control, err := i.lookup.BlockingControl()
+	if err != nil {
+		return BlockingStatus200JSONResponse(ApiBlockingStatus{Enabled: false}), nil //nolint:nilerr
+	}
+
+	blStatus := control.BlockingStatus()
 
 	result := ApiBlockingStatus{
 		Enabled: blStatus.Enabled,
@@ -144,7 +164,12 @@ func (i *OpenAPIInterfaceImpl) BlockingStatus(_ context.Context, _ BlockingStatu
 func (i *OpenAPIInterfaceImpl) ListRefresh(ctx context.Context,
 	_ ListRefreshRequestObject,
 ) (ListRefreshResponseObject, error) {
-	err := i.refresher.RefreshLists(ctx)
+	refresher, err := i.lookup.ListRefresher()
+	if err != nil {
+		return ListRefresh500TextResponse("list refresh not available"), nil //nolint:nilerr
+	}
+
+	err = refresher.RefreshLists(ctx)
 	if err != nil {
 		return ListRefresh500TextResponse(log.EscapeInput(err.Error())), nil
 	}
@@ -169,7 +194,7 @@ func (i *OpenAPIInterfaceImpl) Query(ctx context.Context, request QueryRequestOb
 		clientIP = util.HTTPClientIP(httpReq)
 	}
 
-	resp, err := i.querier.Query(ctx, serverHost, clientIP, dns.Fqdn(request.Body.Query), qType)
+	resp, err := i.lookup.Query(ctx, serverHost, clientIP, dns.Fqdn(request.Body.Query), qType)
 	if err != nil {
 		return nil, fmt.Errorf("query failed for '%s' (type %s): %w", request.Body.Query, request.Body.Type, err)
 	}
@@ -185,7 +210,98 @@ func (i *OpenAPIInterfaceImpl) Query(ctx context.Context, request QueryRequestOb
 func (i *OpenAPIInterfaceImpl) CacheFlush(ctx context.Context,
 	_ CacheFlushRequestObject,
 ) (CacheFlushResponseObject, error) {
-	i.cacheControl.FlushCaches(ctx)
+	cacheControl, err := i.lookup.CacheControl()
+	if err != nil {
+		return CacheFlush200Response{}, nil //nolint:nilerr
+	}
+
+	cacheControl.FlushCaches(ctx)
 
 	return CacheFlush200Response{}, nil
+}
+
+func (i *OpenAPIInterfaceImpl) GetConfig(_ context.Context,
+	_ GetConfigRequestObject,
+) (GetConfigResponseObject, error) {
+	cfg := i.reloader.ActiveConfig()
+
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	// Redact sensitive fields before returning
+	var raw interface{}
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config for redaction: %w", err)
+	}
+
+	redactSecrets(raw)
+
+	data, err = yaml.Marshal(raw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal redacted config: %w", err)
+	}
+
+	return GetConfig200TextyamlResponse{
+		Body:          bytes.NewReader(data),
+		ContentLength: int64(len(data)),
+	}, nil
+}
+
+// redactSecrets walks a YAML-decoded structure and replaces values for keys
+// that look like they contain sensitive data with "***".
+func redactSecrets(v interface{}) {
+	switch val := v.(type) {
+	case map[interface{}]interface{}:
+		for k, child := range val {
+			if s, ok := k.(string); ok && isSensitiveKey(s) {
+				if _, isStr := child.(string); isStr {
+					val[k] = "***"
+
+					continue
+				}
+			}
+
+			redactSecrets(child)
+		}
+	case map[string]interface{}:
+		for k, child := range val {
+			if isSensitiveKey(k) {
+				if _, isStr := child.(string); isStr {
+					val[k] = "***"
+
+					continue
+				}
+			}
+
+			redactSecrets(child)
+		}
+	case []interface{}:
+		for _, child := range val {
+			redactSecrets(child)
+		}
+	}
+}
+
+func isSensitiveKey(key string) bool {
+	lower := strings.ToLower(key)
+
+	for _, s := range []string{"password", "passwd", "secret", "token", "apikey", "api_key"} {
+		if strings.Contains(lower, s) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (i *OpenAPIInterfaceImpl) ConfigReload(_ context.Context,
+	_ ConfigReloadRequestObject,
+) (ConfigReloadResponseObject, error) {
+	if err := i.reloader.Reload(); err != nil {
+		return ConfigReload500TextResponse(log.EscapeInput(err.Error())), nil
+	}
+
+	return ConfigReload200Response{}, nil
 }

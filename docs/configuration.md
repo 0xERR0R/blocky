@@ -1312,6 +1312,87 @@ DNS64 adds overhead to DNS resolution:
 !!! warning "Enable Caching for DNS64"
     DNS64 without caching will **double** upstream query load (one AAAA + one A per query). Blocky will log a warning if DNS64 is enabled without caching.
 
+## Configuration Reload
+
+Blocky can reload its configuration without restarting, with zero DNS downtime.
+
+### Reload Triggers
+
+**SIGHUP signal** — immediate reload:
+
+```bash
+# Direct process
+kill -HUP $(pidof blocky)
+
+# Docker
+docker kill -s HUP <container>
+```
+
+**File watching** — automatic detection of config changes:
+
+```yaml
+configWatch:
+  enabled: true
+```
+
+Uses filesystem notifications (fsnotify) for near-instant detection of config file changes.
+
+**API endpoint:**
+
+```bash
+curl -X POST http://localhost:4000/api/config/reload
+```
+
+Returns 200 on success, 500 with error details on failure.
+
+### Get Active Configuration
+
+```bash
+curl http://localhost:4000/api/config
+```
+
+Returns the currently active configuration as YAML.
+
+### Invalid Configuration Handling
+
+If the new configuration is invalid (YAML syntax errors, invalid values, or resolver build failure), blocky keeps running with the previous valid configuration and logs the error. No DNS downtime occurs.
+
+### Restart-Required Properties
+
+Changes to the following properties require a full restart:
+
+| Property | Reason |
+|----------|--------|
+| `ports` | Network listeners are not recreated during reload |
+| `redis` | Redis client lifecycle is separate from resolvers |
+
+A warning is logged if these properties are changed during reload.
+
+### TLS Certificate Reload
+
+TLS certificates are automatically reloaded when the certificate or key files change on disk. This is independent of configuration reload and happens within 30 seconds of file change. Useful for Let's Encrypt certificate rotation.
+
+### Monitoring
+
+Prometheus metrics for reload status:
+
+| Metric | Description |
+|--------|-------------|
+| `blocky_config_reload_total{status="success\|failed"}` | Total reload attempts |
+| `blocky_config_reload_timestamp` | Unix timestamp of last successful reload |
+
+### Config Watch (optional)
+
+| Parameter | Type | Mandatory | Default | Description |
+|-----------|------|-----------|---------|-------------|
+| `configWatch.enabled` | bool | no | `false` | Enable automatic config file watching |
+| `configWatch.interval` | duration | no | `5s` | Polling fallback interval (see below). Set to `0` to disable polling. |
+
+Blocky primarily uses filesystem notifications (fsnotify) to detect config file changes instantly.
+However, fsnotify may not work reliably in certain environments such as NFS mounts, Docker volumes, or Kubernetes ConfigMaps (which use symlink swaps).
+In these cases, the `interval` parameter enables a polling fallback that periodically checks the config file's modification time.
+For most setups, the default configuration works without specifying `interval`.
+
 ## SSL certificate configuration (DoH / TLS listener)
 
 See [Wiki - Configuration of HTTPS](https://github.com/0xERR0R/blocky/wiki/Configuration-of-HTTPS-for-DoH-and-Rest-API)

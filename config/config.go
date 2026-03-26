@@ -276,6 +276,7 @@ type Config struct {
 	SUDN             SUDN                `yaml:"specialUseDomains"`
 	DNS64            DNS64               `yaml:"dns64"`
 	DNSSEC           DNSSEC              `yaml:"dnssec"`
+	ConfigWatch      ConfigWatch         `yaml:"configWatch"`
 
 	// Deprecated options
 	Deprecated struct {
@@ -352,6 +353,11 @@ func (c *toEnable) IsEnabled() bool {
 // LogConfig implements `config.Configurable`.
 func (c *toEnable) LogConfig(logger *logrus.Entry) {
 	logger.Info("enabled")
+}
+
+type ConfigWatch struct {
+	Enabled  bool     `default:"false" yaml:"enabled"`
+	Interval Duration `default:"5s"    yaml:"interval"`
 }
 
 type Init struct {
@@ -606,7 +612,9 @@ func unmarshalConfig(logger *logrus.Entry, data []byte, cfg *Config) error {
 		logger.Error("configuration uses deprecated options, see warning logs for details")
 	}
 
-	cfg.validate(logger)
+	if err := cfg.validate(logger); err != nil {
+		return fmt.Errorf("config validation failed: %w", err)
+	}
 
 	return nil
 }
@@ -644,7 +652,7 @@ func (cfg *Config) migrate(logger *logrus.Entry) bool {
 	return usesDepredOpts
 }
 
-func (cfg *Config) validate(logger *logrus.Entry) {
+func (cfg *Config) validate(logger *logrus.Entry) error {
 	cfg.MinTLSServeVer.validate(logger)
 	cfg.Upstreams.validate(logger)
 
@@ -655,8 +663,10 @@ func (cfg *Config) validate(logger *logrus.Entry) {
 
 	// DNS64 validation
 	if err := cfg.DNS64.validate(logger, &cfg.Filtering, &cfg.Caching); err != nil {
-		logger.Fatal(err)
+		return err
 	}
+
+	return nil
 }
 
 // ConvertPort converts string representation into a valid port (0 - 65535)

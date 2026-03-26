@@ -115,28 +115,36 @@ func clientGroupsBlock(cfg config.Blocking) map[string][]string {
 	return cgb
 }
 
+// BlockingResolverOptions contains optional parameters for NewBlockingResolverWithOptions.
+type BlockingResolverOptions struct {
+	// IsReload, when true, calls initFQDNIPCache directly instead of subscribing to ApplicationStarted.
+	IsReload bool
+}
+
 // NewBlockingResolver returns a new configured instance of the resolver
 func NewBlockingResolver(ctx context.Context,
 	cfg config.Blocking,
 	redis *redis.Client,
 	bootstrap *Bootstrap,
+) (*BlockingResolver, error) {
+	return NewBlockingResolverWithOptions(ctx, cfg, redis, bootstrap, BlockingResolverOptions{})
+}
+
+// NewBlockingResolverWithOptions returns a new configured instance of the resolver with additional options.
+func NewBlockingResolverWithOptions(ctx context.Context,
+	cfg config.Blocking,
+	redis *redis.Client,
+	bootstrap *Bootstrap,
+	opts BlockingResolverOptions,
 ) (r *BlockingResolver, err error) {
 	blockHandler, err := createBlockHandler(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create block handler: %w", err)
 	}
 
-	downloader := lists.NewDownloader(cfg.Loading.Downloads, bootstrap.NewHTTPTransport())
-
-	denylistMatcher, blErr := lists.NewListCache(ctx, lists.ListCacheTypeDenylist,
-		cfg.Loading, cfg.Denylists, downloader)
-	allowlistMatcher, wlErr := lists.NewListCache(ctx, lists.ListCacheTypeAllowlist,
-		cfg.Loading, cfg.Allowlists, downloader)
-	allowlistOnlyGroups := determineAllowlistOnlyGroups(&cfg)
-
-	err = multierror.Append(err, blErr, wlErr).ErrorOrNil()
+	denylistMatcher, allowlistMatcher, err := createListMatchers(ctx, cfg, bootstrap)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create denylist/allowlist cache: %w", err)
+		return nil, err
 	}
 
 	res := &BlockingResolver{
@@ -146,7 +154,7 @@ func NewBlockingResolver(ctx context.Context,
 		blockHandler:        blockHandler,
 		denylistMatcher:     denylistMatcher,
 		allowlistMatcher:    allowlistMatcher,
-		allowlistOnlyGroups: allowlistOnlyGroups,
+		allowlistOnlyGroups: determineAllowlistOnlyGroups(&cfg),
 		status: &status{
 			enabled:     true,
 			enableTimer: time.NewTimer(0),
@@ -161,18 +169,59 @@ func NewBlockingResolver(ctx context.Context,
 		return res.queryForFQIdentifierIPs(ctx, key)
 	})
 
+	if err := initBlockingResolver(ctx, res, opts); err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+func createListMatchers(
+	ctx context.Context,
+	cfg config.Blocking,
+	bootstrap *Bootstrap,
+) (denylistMatcher, allowlistMatcher *lists.ListCache, err error) {
+	downloader := lists.NewDownloader(cfg.Loading.Downloads, bootstrap.NewHTTPTransport())
+
+	denylistMatcher, err = lists.NewListCache(ctx, lists.ListCacheTypeDenylist,
+		cfg.Loading, cfg.Denylists, downloader)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create denylist cache: %w", err)
+	}
+
+	allowlistMatcher, err = lists.NewListCache(ctx, lists.ListCacheTypeAllowlist,
+		cfg.Loading, cfg.Allowlists, downloader)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create allowlist cache: %w", err)
+	}
+
+	return denylistMatcher, allowlistMatcher, nil
+}
+
+const reloadFQDNCacheTimeout = 30 * time.Second
+
+func initBlockingResolver(ctx context.Context, res *BlockingResolver, opts BlockingResolverOptions) error {
 	if res.redisClient != nil {
 		go res.redisSubscriber(ctx)
 	}
 
-	err = evt.Bus().SubscribeOnce(evt.ApplicationStarted, func(_ ...string) {
+	if opts.IsReload {
+		cacheCtx, cancel := context.WithTimeout(ctx, reloadFQDNCacheTimeout)
+		defer cancel()
+
+		res.initFQDNIPCache(cacheCtx)
+
+		return nil
+	}
+
+	err := evt.Bus().SubscribeOnce(evt.ApplicationStarted, func(_ ...string) {
 		go res.initFQDNIPCache(ctx)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe to ApplicationStarted event: %w", err)
+		return fmt.Errorf("failed to subscribe to ApplicationStarted event: %w", err)
 	}
 
-	return res, nil
+	return nil
 }
 
 func (r *BlockingResolver) redisSubscriber(ctx context.Context) {

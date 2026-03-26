@@ -323,6 +323,26 @@ func doHTTPRequest(ctx context.Context, container testcontainers.Container, cont
 	return nil
 }
 
+const containerFileMode = 0o644
+
+// modifyContainerFile writes the given content to the specified path inside the container.
+// Uses CopyToContainer since the blocky image is FROM scratch (no shell).
+func modifyContainerFile(ctx context.Context, c testcontainers.Container, path, content string) error {
+	return c.CopyToContainer(ctx, []byte(content), path, containerFileMode)
+}
+
+// sendSignal sends the given signal to the container's main process.
+// Uses the Docker API directly since the blocky image is FROM scratch (no kill command).
+func sendSignal(ctx context.Context, c testcontainers.Container, sig string) error {
+	cli, err := testcontainers.NewDockerClientWithOpts(ctx)
+	if err != nil {
+		return fmt.Errorf("docker client: %w", err)
+	}
+	defer cli.Close()
+
+	return cli.ContainerKill(ctx, c.GetContainerID(), sig)
+}
+
 // createTempFile creates a temporary file with the given lines which is deleted after the test
 // Each created file is prefixed with 'blocky_e2e_file-'
 func createTempFile(lines ...string) string {

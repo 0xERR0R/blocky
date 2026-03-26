@@ -24,10 +24,11 @@ type Upstream struct {
 	Port       uint16
 	Path       string
 	CommonName string // Common Name to use for certificate verification; optional. "" uses .Host
-
 	// DNS stamp metadata (optional) - only populated when parsing DNS stamps
-	CertificateFingerprints []CertificateFingerprint // SHA256 fingerprints for TLS certificate pinning
-	IPs                     []net.IP                 // IPs from DNS stamp ServerAddrStr (for bootstrapping)
+	// CertificateFingerprints: SHA256 fingerprints for TLS certificate pinning
+	CertificateFingerprints []CertificateFingerprint
+	// IPs: from DNS stamp ServerAddrStr (for bootstrapping)
+	IPs []net.IP
 }
 
 // IsDefault returns true if u is the default value

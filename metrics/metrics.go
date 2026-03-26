@@ -12,6 +12,37 @@ import (
 //nolint:gochecknoglobals
 var Reg = prometheus.NewRegistry()
 
+//nolint:gochecknoglobals
+var (
+	ConfigReloadTotal = func() *prometheus.CounterVec {
+		c := prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "blocky_config_reload_total",
+				Help: "Total number of config reload attempts",
+			},
+			[]string{"status"},
+		)
+		RegisterMetric(c)
+		// Pre-initialize label values so the metric appears in the registry immediately
+		c.WithLabelValues("success")
+		c.WithLabelValues("failed")
+
+		return c
+	}()
+
+	ConfigReloadTimestamp = func() prometheus.Gauge {
+		g := prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "blocky_config_reload_timestamp",
+				Help: "Unix timestamp of the last successful config reload",
+			},
+		)
+		RegisterMetric(g)
+
+		return g
+	}()
+)
+
 // RegisterMetric registers prometheus collector
 func RegisterMetric(c prometheus.Collector) {
 	_ = Reg.Register(c)
