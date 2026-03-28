@@ -358,7 +358,12 @@ func createQueryResolver(
 	queryLogging, qlErr := resolver.NewQueryLoggingResolver(ctx, cfg.QueryLog)
 	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(ctx, cfg.Conditional, cfg.Upstreams, bootstrap)
 	hostsFile, hfErr := resolver.NewHostsFileResolver(ctx, cfg.HostsFile, bootstrap)
-	cachingResolver, crErr := resolver.NewCachingResolver(ctx, cfg.Caching, cacheDecorator)
+	decorator := cacheDecorator
+	if !cfg.Caching.IsEnabled() {
+		decorator = nil
+	}
+
+	cachingResolver, crErr := resolver.NewCachingResolver(ctx, cfg.Caching, decorator)
 	// Pass upstreamTree to DNSSEC resolver so it can query for DNSKEY/DS records
 	dnssecResolver, dsErr := resolver.NewDNSSECResolver(ctx, cfg.DNSSEC, upstreamTree)
 

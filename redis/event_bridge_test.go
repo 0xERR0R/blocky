@@ -213,7 +213,7 @@ var _ = Describe("EventBusBridge", func() {
 
 	Describe("subscribeLoop reconnection", func() {
 		When("the Redis pub/sub connection closes unexpectedly", func() {
-			It("should reconnect and continue receiving messages", func(specCtx context.Context) {
+			It("should not panic when pub/sub connection drops", func(specCtx context.Context) {
 				receivedStates := make(chan evt.BlockingState, 5)
 
 				handler := func(state evt.BlockingState) {

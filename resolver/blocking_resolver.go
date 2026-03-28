@@ -172,7 +172,7 @@ func (r *BlockingResolver) subscribeEvents(ctx context.Context) error {
 		return fmt.Errorf("failed to subscribe to ApplicationStarted event: %w", err)
 	}
 
-	err = evt.Bus().Subscribe(evt.BlockingStateChangedRemote, func(state evt.BlockingState) {
+	remoteHandler := func(state evt.BlockingState) {
 		go func() {
 			if state.Enabled {
 				r.internalEnableBlocking()
@@ -182,10 +182,17 @@ func (r *BlockingResolver) subscribeEvents(ctx context.Context) error {
 				}
 			}
 		}()
-	})
+	}
+
+	err = evt.Bus().Subscribe(evt.BlockingStateChangedRemote, remoteHandler)
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to %s: %w", evt.BlockingStateChangedRemote, err)
 	}
+
+	go func() {
+		<-ctx.Done()
+		_ = evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, remoteHandler)
+	}()
 
 	return nil
 }
