@@ -9,15 +9,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/0xERR0R/blocky/cache"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/model"
-	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/util"
 	expirationcache "github.com/0xERR0R/expiration-cache"
 
-	"github.com/0xERR0R/blocky/cache"
 	"github.com/0xERR0R/blocky/cache/prefetching"
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
@@ -26,6 +25,9 @@ import (
 )
 
 const defaultCachingCleanUpInterval = 5 * time.Second
+
+// CacheDecorator optionally wraps the result cache (e.g., with Redis sync).
+type CacheDecorator func(cache.ExpiringCache[[]byte]) (cache.ExpiringCache[[]byte], error)
 
 //nolint:gochecknoglobals
 var (
@@ -54,38 +56,38 @@ type CachingResolver struct {
 
 	resultCache cache.ExpiringCache[[]byte]
 
-	redisClient *redis.Client
-
 	compiledExclusions []*regexp.Regexp
 }
 
 // NewCachingResolver creates a new resolver instance
 func NewCachingResolver(ctx context.Context,
 	cfg config.Caching,
-	redis *redis.Client,
+	decorator CacheDecorator,
 ) (*CachingResolver, error) {
-	return newCachingResolver(ctx, cfg, redis, true)
+	return newCachingResolver(ctx, cfg, decorator, true)
 }
 
 func newCachingResolver(ctx context.Context,
 	cfg config.Caching,
-	redis *redis.Client,
+	decorator CacheDecorator,
 	emitMetricEvents bool,
 ) (*CachingResolver, error) {
 	c := &CachingResolver{
-		configurable: withConfig(&cfg),
-		typed:        withType("caching"),
-
-		redisClient:      redis,
+		configurable:     withConfig(&cfg),
+		typed:            withType("caching"),
 		emitMetricEvents: emitMetricEvents,
 	}
 
 	configureCaches(ctx, c, &cfg)
 	err := configureExclusions(c, &cfg)
 
-	if c.redisClient != nil {
-		go c.redisSubscriber(ctx)
-		c.redisClient.GetRedisCache(ctx)
+	if decorator != nil {
+		decorated, err := decorator(c.resultCache)
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply cache decorator: %w", err)
+		}
+
+		c.resultCache = decorated
 	}
 
 	return c, err
@@ -175,24 +177,6 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 	return &packed, r.adjustTTLs(response.Res.Answer)
 }
 
-func (r *CachingResolver) redisSubscriber(ctx context.Context) {
-	ctx, logger := r.log(ctx)
-
-	for {
-		select {
-		case rc := <-r.redisClient.CacheChannel:
-			if rc != nil {
-				logger.Debug("Received key from redis: ", rc.Key)
-				ttl := r.adjustTTLs(rc.Response.Res.Answer)
-				r.putInCache(ctx, rc.Key, rc.Response, ttl, false)
-			}
-
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
 // LogConfig implements `config.Configurable`.
 func (r *CachingResolver) LogConfig(logger *logrus.Entry) {
 	r.cfg.LogConfig(logger)
@@ -238,7 +222,7 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 
 		if err == nil {
 			cacheTTL := r.adjustTTLs(response.Res.Answer)
-			r.putInCache(ctx, cacheKey, response, cacheTTL, true)
+			r.putInCache(ctx, cacheKey, response, cacheTTL)
 		} else {
 			return nil, err
 		}
@@ -322,7 +306,7 @@ func isResponseCacheable(msg *dns.Msg) bool {
 }
 
 func (r *CachingResolver) putInCache(
-	ctx context.Context, cacheKey string, response *model.Response, ttl time.Duration, publish bool,
+	ctx context.Context, cacheKey string, response *model.Response, ttl time.Duration,
 ) {
 	respCopy := response.Res.Copy()
 
@@ -342,11 +326,6 @@ func (r *CachingResolver) putInCache(
 				r.resultCache.Put(cacheKey, &packed, r.cfg.CacheTimeNegative.ToDuration())
 			}
 		}
-	}
-
-	if publish && r.redisClient != nil {
-		res := *respCopy
-		r.redisClient.PublishCache(cacheKey, &res)
 	}
 }
 

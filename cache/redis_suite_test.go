@@ -1,4 +1,4 @@
-package redis
+package cache
 
 import (
 	"testing"
@@ -12,7 +12,7 @@ func init() {
 	log.Silence()
 }
 
-func TestRedisClient(t *testing.T) {
+func TestCacheSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Redis Suite")
+	RunSpecs(t, "Cache Suite")
 }

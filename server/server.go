@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"runtime"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xERR0R/blocky/cache"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/metrics"
@@ -20,6 +22,7 @@ import (
 	"github.com/0xERR0R/blocky/resolver"
 
 	"github.com/0xERR0R/blocky/util"
+	goredis "github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 
@@ -41,6 +44,7 @@ type Server struct {
 	cfg           *config.Config
 
 	servers map[net.Listener]*httpServer
+	closers []io.Closer
 }
 
 func logger() *logrus.Entry {
@@ -128,15 +132,24 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		return nil, fmt.Errorf("failed to create bootstrap resolver: %w", err)
 	}
 
-	var redisClient *redis.Client
+	var redisConn *goredis.Client
 	if cfg.Redis.IsEnabled() {
-		redisClient, err = redis.New(ctx, &cfg.Redis)
-		if err != nil && cfg.Redis.Required {
-			return nil, fmt.Errorf("failed to create required Redis client: %w", err)
+		redisConn, err = redis.New(ctx, &cfg.Redis)
+		if err != nil {
+			if cfg.Redis.Required {
+				return nil, fmt.Errorf("failed to create required Redis client: %w", err)
+			}
+
+			logger().WithError(err).Warn("Redis is enabled but optional and could not be initialized, continuing without Redis")
 		}
 	}
 
-	queryResolver, queryError := createQueryResolver(ctx, cfg, bootstrap, redisClient)
+	redisResult, err := createRedisCacheDecorator(ctx, redisConn, cfg.Redis.Required)
+	if err != nil {
+		return nil, err
+	}
+
+	queryResolver, queryError := createQueryResolver(ctx, cfg, bootstrap, redisResult.decorator)
 	if queryError != nil {
 		return nil, queryError
 	}
@@ -147,6 +160,14 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		cfg:           cfg,
 
 		servers: make(map[net.Listener]*httpServer),
+	}
+
+	if redisResult.bridge != nil {
+		server.closers = append(server.closers, redisResult.bridge)
+	}
+
+	if redisConn != nil {
+		server.closers = append(server.closers, redisConn)
 	}
 
 	server.printConfiguration()
@@ -294,19 +315,55 @@ func createUDPServer(address string) (*dns.Server, error) {
 	return createDNSServer("udp", address, nil)
 }
 
+type redisBridgeResult struct {
+	decorator resolver.CacheDecorator
+	bridge    *redis.EventBusBridge
+}
+
+func createRedisCacheDecorator(
+	ctx context.Context, redisConn *goredis.Client, required bool,
+) (*redisBridgeResult, error) {
+	if redisConn == nil {
+		return &redisBridgeResult{}, nil
+	}
+
+	bridge, err := redis.NewEventBusBridge(ctx, redisConn)
+	if err != nil {
+		if required {
+			return nil, fmt.Errorf("failed to create required Redis event bridge: %w", err)
+		}
+
+		logger().Warn("failed to create Redis event bridge: ", err)
+	}
+
+	decorator := func(inner cache.ExpiringCache[[]byte]) (cache.ExpiringCache[[]byte], error) {
+		return cache.NewRedisExpiringByteCache(ctx, inner, redisConn, cache.RedisOptions[[]byte]{
+			Prefix:  "blocky:cache:",
+			Channel: "blocky_cache_sync",
+		})
+	}
+
+	return &redisBridgeResult{decorator: decorator, bridge: bridge}, nil
+}
+
 func createQueryResolver(
 	ctx context.Context,
 	cfg *config.Config,
 	bootstrap *resolver.Bootstrap,
-	redisClient *redis.Client,
+	cacheDecorator resolver.CacheDecorator,
 ) (resolver.ChainedResolver, error) {
 	upstreamTree, utErr := resolver.NewUpstreamTreeResolver(ctx, cfg.Upstreams, bootstrap)
-	blocking, blErr := resolver.NewBlockingResolver(ctx, cfg.Blocking, redisClient, bootstrap)
+	blocking, blErr := resolver.NewBlockingResolver(ctx, cfg.Blocking, bootstrap)
 	clientNames, cnErr := resolver.NewClientNamesResolver(ctx, cfg.ClientLookup, cfg.Upstreams, bootstrap)
 	queryLogging, qlErr := resolver.NewQueryLoggingResolver(ctx, cfg.QueryLog)
 	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(ctx, cfg.Conditional, cfg.Upstreams, bootstrap)
 	hostsFile, hfErr := resolver.NewHostsFileResolver(ctx, cfg.HostsFile, bootstrap)
-	cachingResolver, crErr := resolver.NewCachingResolver(ctx, cfg.Caching, redisClient)
+	decorator := cacheDecorator
+	if !cfg.Caching.IsEnabled() {
+		decorator = nil
+	}
+
+	cachingResolver, crErr := resolver.NewCachingResolver(ctx, cfg.Caching, decorator)
 	// Pass upstreamTree to DNSSEC resolver so it can query for DNSKEY/DS records
 	dnssecResolver, dsErr := resolver.NewDNSSECResolver(ctx, cfg.DNSSEC, upstreamTree)
 
@@ -428,6 +485,12 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 // Stop stops the server
 func (s *Server) Stop(ctx context.Context) error {
 	logger().Info("Stopping server")
+
+	for _, c := range s.closers {
+		if err := c.Close(); err != nil {
+			logger().Warn("failed to close resource: ", err)
+		}
+	}
 
 	for _, server := range s.dnsServers {
 		if err := server.ShutdownContext(ctx); err != nil {

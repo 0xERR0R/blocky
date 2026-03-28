@@ -5,6 +5,7 @@
 bin/
 dist/
 docs/docs.go
+docs/superpowers/
 site/
 config.yml
 todo.txt
