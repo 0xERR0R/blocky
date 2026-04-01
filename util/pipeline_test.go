@@ -2,7 +2,7 @@ package util
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"sync"
 	"time"
 
@@ -52,6 +52,7 @@ var _ = Describe("Pipeline", func() {
 						for j := range 3 {
 							ch <- start + j
 						}
+
 						return nil
 					})
 				}
@@ -67,6 +68,7 @@ var _ = Describe("Pipeline", func() {
 						received = append(received, val)
 						mu.Unlock()
 					}
+
 					return nil
 				})
 
@@ -105,6 +107,7 @@ var _ = Describe("Pipeline", func() {
 						mu.Unlock()
 
 						ch <- 1
+
 						return nil
 					})
 				}
@@ -112,6 +115,7 @@ var _ = Describe("Pipeline", func() {
 				p.GoConsume(func(ctx context.Context, ch <-chan int) error {
 					for range ch {
 					}
+
 					return nil
 				})
 
@@ -130,16 +134,17 @@ var _ = Describe("Pipeline", func() {
 				p := NewPipeline[int](ctx, 10, nil)
 
 				p.GoProduce(func(ctx context.Context, ch chan<- int) error {
-					return fmt.Errorf("producer error 1")
+					return errors.New("producer error 1")
 				})
 
 				p.GoProduce(func(ctx context.Context, ch chan<- int) error {
-					return fmt.Errorf("producer error 2")
+					return errors.New("producer error 2")
 				})
 
 				p.GoConsume(func(ctx context.Context, ch <-chan int) error {
 					for range ch {
 					}
+
 					return nil
 				})
 
@@ -156,13 +161,15 @@ var _ = Describe("Pipeline", func() {
 
 				p.GoProduce(func(ctx context.Context, ch chan<- int) error {
 					ch <- 1
+
 					return nil
 				})
 
 				p.GoConsume(func(ctx context.Context, ch <-chan int) error {
 					for range ch {
 					}
-					return fmt.Errorf("consumer error")
+
+					return errors.New("consumer error")
 				})
 
 				err := p.Wait()
@@ -187,6 +194,7 @@ var _ = Describe("Pipeline", func() {
 				p.GoConsume(func(ctx context.Context, ch <-chan int) error {
 					for range ch {
 					}
+
 					return nil
 				})
 
@@ -208,6 +216,7 @@ var _ = Describe("Pipeline", func() {
 				p.GoConsume(func(ctx context.Context, ch <-chan int) error {
 					for range ch {
 					}
+
 					return nil
 				})
 
@@ -224,6 +233,7 @@ var _ = Describe("Pipeline", func() {
 
 				p.GoProduce(func(ctx context.Context, ch chan<- int) error {
 					ch <- 1
+
 					return nil
 				})
 
@@ -245,6 +255,7 @@ var _ = Describe("Pipeline", func() {
 				p.GoConsume(func(ctx context.Context, ch <-chan int) error {
 					for range ch {
 					}
+
 					return nil
 				})
 
@@ -260,12 +271,14 @@ var _ = Describe("Pipeline", func() {
 
 				p.GoProduce(func(ctx context.Context, ch chan<- int) error {
 					ch <- 1
+
 					return nil
 				})
 
 				p.GoConsume(func(ctx context.Context, ch <-chan int) error {
 					for range ch {
 					}
+
 					return nil
 				})
 

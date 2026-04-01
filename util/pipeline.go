@@ -10,7 +10,7 @@ import (
 // Pipeline implements a multi-producer, single-consumer pattern
 // with optional shared concurrency limiting for producers.
 type Pipeline[T any] struct {
-	ctx       context.Context
+	ctx       context.Context //nolint:containedctx
 	items     chan T
 	sem       chan struct{} // nil = no limit
 	producers sync.WaitGroup
