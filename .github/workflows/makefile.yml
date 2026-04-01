@@ -49,7 +49,7 @@ jobs:
           GO_SKIP_GENERATE: 1
 
       - name: Upload results to codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         if: matrix.make == 'test' && github.repository_owner == '0xERR0R'
 
       - name: Check GoReleaser configuration
