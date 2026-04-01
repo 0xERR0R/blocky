@@ -10,8 +10,6 @@ import (
 	"github.com/0xERR0R/blocky/lists/parsers"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
-	"github.com/ThinkChaos/parcour"
-	"github.com/ThinkChaos/parcour/jobgroup"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
 )
@@ -158,14 +156,12 @@ func (r *HostsFileResolver) loadSources(ctx context.Context) error {
 
 	logger.Debug("loading hosts files")
 
-	//nolint:ineffassign,staticcheck,wastedassign // keep `ctx :=` so if we use ctx in the future, we use the correct one
-	consumersGrp, ctx := jobgroup.WithContext(ctx)
-	defer consumersGrp.Close()
+	var sem chan struct{}
+	if r.cfg.Loading.Concurrency > 0 {
+		sem = make(chan struct{}, r.cfg.Loading.Concurrency)
+	}
 
-	producersGrp := jobgroup.WithMaxConcurrency(consumersGrp, r.cfg.Loading.Concurrency)
-	defer producersGrp.Close()
-
-	producers := parcour.NewProducersWithBuffer[*HostsFileEntry](producersGrp, consumersGrp, producersBuffCap)
+	producers := util.NewPipeline[*HostsFileEntry](ctx, producersBuffCap, sem)
 	defer producers.Close()
 
 	for i, source := range r.cfg.Sources {
