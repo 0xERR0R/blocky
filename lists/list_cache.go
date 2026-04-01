@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
 	"sync/atomic"
 
 	"github.com/sirupsen/logrus"
@@ -15,8 +16,7 @@ import (
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/lists/parsers"
 	"github.com/0xERR0R/blocky/log"
-	"github.com/ThinkChaos/parcour"
-	"github.com/ThinkChaos/parcour/jobgroup"
+	"github.com/0xERR0R/blocky/util"
 )
 
 const (
@@ -115,15 +115,24 @@ func (b *ListCache) Refresh(ctx context.Context) error {
 }
 
 func (b *ListCache) refresh(ctx context.Context) error {
-	unlimitedGrp, _ := jobgroup.WithContext(ctx)
-	defer unlimitedGrp.Close()
+	var sem chan struct{}
+	if b.cfg.Concurrency > 0 {
+		sem = make(chan struct{}, b.cfg.Concurrency)
+	}
 
-	producersGrp := jobgroup.WithMaxConcurrency(unlimitedGrp, b.cfg.Concurrency)
-	defer producersGrp.Close()
+	var (
+		wg   sync.WaitGroup
+		mu   sync.Mutex
+		errs []error
+	)
 
 	for group, sources := range b.groupSources {
-		unlimitedGrp.Go(func(ctx context.Context) error {
-			err := b.createCacheForGroup(producersGrp, unlimitedGrp, group, sources)
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			err := b.createCacheForGroup(ctx, sem, group, sources)
 			if err != nil {
 				count := b.groupedCache.ElementCount(group)
 
@@ -138,7 +147,11 @@ func (b *ListCache) refresh(ctx context.Context) error {
 					logger.Warn("Populating of group cache failed, using existing cache, if any")
 				}
 
-				return fmt.Errorf("failed to create cache for group %s: %w", group, err)
+				mu.Lock()
+				errs = append(errs, fmt.Errorf("failed to create cache for group %s: %w", group, err))
+				mu.Unlock()
+
+				return
 			}
 
 			count := b.groupedCache.ElementCount(group)
@@ -149,12 +162,12 @@ func (b *ListCache) refresh(ctx context.Context) error {
 				"group":       group,
 				"total_count": count,
 			}).Info("group import finished")
-
-			return nil
-		})
+		}()
 	}
 
-	if err := unlimitedGrp.Wait(); err != nil {
+	wg.Wait()
+
+	if err := errors.Join(errs...); err != nil {
 		return fmt.Errorf("failed to refresh %s list cache: %w", b.listType, err)
 	}
 
@@ -162,11 +175,11 @@ func (b *ListCache) refresh(ctx context.Context) error {
 }
 
 func (b *ListCache) createCacheForGroup(
-	producersGrp, consumersGrp jobgroup.JobGroup, group string, sources []config.BytesSource,
+	ctx context.Context, sem chan struct{}, group string, sources []config.BytesSource,
 ) error {
 	groupFactory := b.groupedCache.Refresh(group)
 
-	producers := parcour.NewProducersWithBuffer[string](producersGrp, consumersGrp, groupProducersBufferCap)
+	producers := util.NewPipeline[string](ctx, groupProducersBufferCap, sem)
 	defer producers.Close()
 
 	for i, source := range sources {
@@ -198,9 +211,6 @@ func (b *ListCache) createCacheForGroup(
 
 	err := producers.Wait()
 	if err != nil && !hasEntries.Load() {
-		// Only fail the group if no entries were parsed at all
-		// If we have entries from some sources, proceed even if other sources had errors
-		// Transient errors will be retried on the next refresh cycle
 		return fmt.Errorf("failed to parse any entries for group %s: %w", group, err)
 	}
 
