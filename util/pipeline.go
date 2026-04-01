@@ -108,7 +108,8 @@ func (p *Pipeline[T]) Wait() error {
 	return errors.Join(p.errs...)
 }
 
-// Close is a safety-net method identical to Wait.
+// Close is a safety-net method that ensures producers are waited on, the channel is closed,
+// and consumers complete. Unlike Wait, it does not return errors.
 // It is safe to call both Wait and Close (channel close is protected by sync.Once).
 func (p *Pipeline[T]) Close() {
 	p.producers.Wait()
