@@ -13,13 +13,14 @@ import (
 
 // Blocking configuration for query blocking
 type Blocking struct {
-	Denylists         map[string][]BytesSource     `yaml:"denylists"`
-	Allowlists        map[string][]BytesSource     `yaml:"allowlists"`
-	Schedules         map[string]Schedule          `yaml:"schedules"`
-	ClientGroupsBlock map[string][]BlockGroupEntry `yaml:"clientGroupsBlock"`
-	BlockType         string                       `default:"ZEROIP"         yaml:"blockType"`
-	BlockTTL          Duration                     `default:"6h"             yaml:"blockTTL"`
-	Loading           SourceLoading                `yaml:"loading"`
+	Denylists         map[string][]BytesSource `yaml:"denylists"`
+	Allowlists        map[string][]BytesSource `yaml:"allowlists"`
+	Schedules         map[string]Schedule      `yaml:"schedules"`
+	ListSchedules     map[string]string        `yaml:"listSchedules"`
+	ClientGroupsBlock map[string][]string      `yaml:"clientGroupsBlock"`
+	BlockType         string                   `default:"ZEROIP"         yaml:"blockType"`
+	BlockTTL          Duration                 `default:"6h"             yaml:"blockTTL"`
+	Loading           SourceLoading            `yaml:"loading"`
 
 	// Deprecated options
 	Deprecated struct {
@@ -64,14 +65,8 @@ func (c *Blocking) IsEnabled() bool {
 func (c *Blocking) LogConfig(logger *logrus.Entry) {
 	logger.Info("clientGroupsBlock:")
 
-	for key, entries := range c.ClientGroupsBlock {
-		for _, entry := range entries {
-			if entry.Schedule != "" {
-				logger.Infof("  %s = %s (schedule: %s)", key, entry.List, entry.Schedule)
-			} else {
-				logger.Infof("  %s = %s", key, entry.List)
-			}
-		}
+	for key, val := range c.ClientGroupsBlock {
+		logger.Infof("  %s = %v", key, val)
 	}
 
 	if len(c.Schedules) > 0 {
@@ -79,6 +74,14 @@ func (c *Blocking) LogConfig(logger *logrus.Entry) {
 
 		for name, sched := range c.Schedules {
 			logger.Infof("  %s: %s - %s (weekdays: %v)", name, sched.Start, sched.End, sched.Weekdays)
+		}
+	}
+
+	if len(c.ListSchedules) > 0 {
+		logger.Info("listSchedules:")
+
+		for list, sched := range c.ListSchedules {
+			logger.Infof("  %s = %s", list, sched)
 		}
 	}
 
@@ -132,23 +135,31 @@ func (c *Blocking) validate() error {
 		listKeys[group] = true
 	}
 
-	for clientGroupKey, entries := range c.ClientGroupsBlock {
-		for _, entry := range entries {
-			if !listKeys[entry.List] {
+	for clientGroupKey, clientGroupLists := range c.ClientGroupsBlock {
+		for _, listKey := range clientGroupLists {
+			if !listKeys[listKey] {
 				availableKeys := slices.Sorted(maps.Keys(listKeys))
 
 				return fmt.Errorf("clientGroupsBlock '%s' references undefined allowlist or denylist '%s'. Available: %s",
-					clientGroupKey, entry.List, strings.Join(availableKeys, ", "))
+					clientGroupKey, listKey, strings.Join(availableKeys, ", "))
 			}
+		}
+	}
 
-			if entry.Schedule != "" {
-				if _, ok := c.Schedules[entry.Schedule]; !ok {
-					availableSchedules := slices.Sorted(maps.Keys(c.Schedules))
+	// Validate listSchedules references
+	for listName, schedName := range c.ListSchedules {
+		if !listKeys[listName] {
+			availableKeys := slices.Sorted(maps.Keys(listKeys))
 
-					return fmt.Errorf("clientGroupsBlock '%s' references undefined schedule '%s'. Available: %s",
-						clientGroupKey, entry.Schedule, strings.Join(availableSchedules, ", "))
-				}
-			}
+			return fmt.Errorf("listSchedules references undefined list '%s'. Available: %s",
+				listName, strings.Join(availableKeys, ", "))
+		}
+
+		if _, ok := c.Schedules[schedName]; !ok {
+			availableSchedules := slices.Sorted(maps.Keys(c.Schedules))
+
+			return fmt.Errorf("listSchedules '%s' references undefined schedule '%s'. Available: %s",
+				listName, schedName, strings.Join(availableSchedules, ", "))
 		}
 	}
 

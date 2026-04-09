@@ -93,6 +93,7 @@ type BlockingResolver struct {
 	allowlistOnlyGroups map[string]bool
 	status              *status
 	clientGroupsBlock   map[string][]scheduledGroup
+	listSchedules       map[string]*config.Schedule
 	fqdnIPCache         cache.ExpiringCache[[]net.IP]
 }
 
@@ -103,19 +104,21 @@ type scheduledGroup struct {
 }
 
 func clientGroupsBlock(cfg config.Blocking) map[string][]scheduledGroup {
+	// Pre-resolve list schedules
+	listScheds := make(map[string]*config.Schedule, len(cfg.ListSchedules))
+
+	for listName, schedName := range cfg.ListSchedules {
+		if sched, ok := cfg.Schedules[schedName]; ok {
+			listScheds[listName] = &sched
+		}
+	}
+
 	cgb := make(map[string][]scheduledGroup, len(cfg.ClientGroupsBlock))
 
-	for identifier, entries := range cfg.ClientGroupsBlock {
+	for identifier, cfgGroups := range cfg.ClientGroupsBlock {
 		for ipart := range strings.SplitSeq(strings.ToLower(identifier), ",") {
-			for _, entry := range entries {
-				sg := scheduledGroup{group: entry.List}
-
-				if entry.Schedule != "" {
-					if sched, ok := cfg.Schedules[entry.Schedule]; ok {
-						sg.schedule = &sched
-					}
-				}
-
+			for _, g := range cfgGroups {
+				sg := scheduledGroup{group: g, schedule: listScheds[g]}
 				cgb[ipart] = append(cgb[ipart], sg)
 			}
 		}

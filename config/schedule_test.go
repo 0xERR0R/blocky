@@ -159,35 +159,6 @@ var _ = Describe("Schedule", func() {
 		})
 	})
 
-	Describe("BlockGroupEntry UnmarshalYAML", func() {
-		It("should parse a plain string", func() {
-			var e BlockGroupEntry
-			err := e.UnmarshalYAML(func(v any) error {
-				s, ok := v.(*string)
-				if ok {
-					*s = "ads"
-
-					return nil
-				}
-
-				return &testUnmarshalError{}
-			})
-			Expect(err).Should(Succeed())
-			Expect(e.List).Should(Equal("ads"))
-			Expect(e.Schedule).Should(BeEmpty())
-		})
-	})
-
-	Describe("NewBlockGroupEntries", func() {
-		It("should create entries from strings", func() {
-			entries := NewBlockGroupEntries("ads", "trackers")
-			Expect(entries).Should(HaveLen(2))
-			Expect(entries[0].List).Should(Equal("ads"))
-			Expect(entries[0].Schedule).Should(BeEmpty())
-			Expect(entries[1].List).Should(Equal("trackers"))
-		})
-	})
-
 	Describe("Blocking validate with schedules", func() {
 		It("should accept valid schedule references", func() {
 			cfg := Blocking{
@@ -197,8 +168,11 @@ var _ = Describe("Schedule", func() {
 				Schedules: map[string]Schedule{
 					"night": {Start: "22:00", End: "07:00", Weekdays: []Weekday{Weekday(time.Monday)}},
 				},
-				ClientGroupsBlock: map[string][]BlockGroupEntry{
-					"default": {{List: "ads", Schedule: "night"}},
+				ClientGroupsBlock: map[string][]string{
+					"default": {"ads"},
+				},
+				ListSchedules: map[string]string{
+					"ads": "night",
 				},
 			}
 			Expect(cfg.validate()).Should(Succeed())
@@ -209,8 +183,11 @@ var _ = Describe("Schedule", func() {
 				Denylists: map[string][]BytesSource{
 					"ads": NewBytesSources("/a/file"),
 				},
-				ClientGroupsBlock: map[string][]BlockGroupEntry{
-					"default": {{List: "ads", Schedule: "nonexistent"}},
+				ClientGroupsBlock: map[string][]string{
+					"default": {"ads"},
+				},
+				ListSchedules: map[string]string{
+					"ads": "nonexistent",
 				},
 			}
 			err := cfg.validate()
@@ -226,8 +203,11 @@ var _ = Describe("Schedule", func() {
 				Schedules: map[string]Schedule{
 					"bad": {Start: "25:00", End: "07:00", Weekdays: []Weekday{Weekday(time.Monday)}},
 				},
-				ClientGroupsBlock: map[string][]BlockGroupEntry{
-					"default": {{List: "ads", Schedule: "bad"}},
+				ClientGroupsBlock: map[string][]string{
+					"default": {"ads"},
+				},
+				ListSchedules: map[string]string{
+					"ads": "bad",
 				},
 			}
 			err := cfg.validate()
@@ -236,7 +216,3 @@ var _ = Describe("Schedule", func() {
 		})
 	})
 })
-
-type testUnmarshalError struct{}
-
-func (e *testUnmarshalError) Error() string { return "type mismatch" }

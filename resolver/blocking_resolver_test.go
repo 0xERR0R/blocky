@@ -126,9 +126,9 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					"gr1": config.NewBytesSources(group1File.Path),
 					"gr2": config.NewBytesSources(group2File.Path),
 				},
-				ClientGroupsBlock: map[string][]config.BlockGroupEntry{
-					"default":            config.NewBlockGroupEntries("gr1"),
-					"full.qualified.com": config.NewBlockGroupEntries("gr2"),
+				ClientGroupsBlock: map[string][]string{
+					"default":            {"gr1"},
+					"full.qualified.com": {"gr2"},
 				},
 			}
 		})
@@ -164,8 +164,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				Denylists: map[string][]config.BytesSource{
 					"gr1": {config.TextBytesSource("/regex/")},
 				},
-				ClientGroupsBlock: map[string][]config.BlockGroupEntry{
-					"default": config.NewBlockGroupEntries("gr1"),
+				ClientGroupsBlock: map[string][]string{
+					"default": {"gr1"},
 				},
 				Loading: config.SourceLoading{
 					Init: config.Init{Strategy: config.InitStrategyFast},
@@ -198,15 +198,15 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					"gr2":          config.NewBytesSources(group2File.Path),
 					"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 				},
-				ClientGroupsBlock: map[string][]config.BlockGroupEntry{
-					"Client1":         config.NewBlockGroupEntries("gr1"),
-					"client2,client3": config.NewBlockGroupEntries("gr1"),
-					"client3":         config.NewBlockGroupEntries("gr2"),
-					"192.168.178.55":  config.NewBlockGroupEntries("gr1"),
-					"altName":         config.NewBlockGroupEntries("gr2"),
-					"10.43.8.67/28":   config.NewBlockGroupEntries("gr1"),
-					"wildcard[0-9]*":  config.NewBlockGroupEntries("gr1"),
-					"default":         config.NewBlockGroupEntries("defaultGroup"),
+				ClientGroupsBlock: map[string][]string{
+					"Client1":         {"gr1"},
+					"client2,client3": {"gr1"},
+					"client3":         {"gr2"},
+					"192.168.178.55":  {"gr1"},
+					"altName":         {"gr2"},
+					"10.43.8.67/28":   {"gr1"},
+					"wildcard[0-9]*":  {"gr1"},
+					"default":         {"defaultGroup"},
 				},
 				BlockType: "ZeroIP",
 			}
@@ -402,8 +402,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					Denylists: map[string][]config.BytesSource{
 						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
-					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
-						"default": config.NewBlockGroupEntries("defaultGroup"),
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup"},
 					},
 					BlockType: "NxDomain",
 				}
@@ -431,8 +431,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					Denylists: map[string][]config.BytesSource{
 						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
-					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
-						"default": config.NewBlockGroupEntries("defaultGroup"),
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup"},
 					},
 				}
 			})
@@ -458,8 +458,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					Denylists: map[string][]config.BytesSource{
 						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
-					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
-						"default": config.NewBlockGroupEntries("defaultGroup"),
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup"},
 					},
 					BlockTTL: config.Duration(time.Second * 1234),
 				}
@@ -503,8 +503,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					Denylists: map[string][]config.BytesSource{
 						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
-					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
-						"default": config.NewBlockGroupEntries("defaultGroup"),
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup"},
 					},
 					BlockType: "12.12.12.12, 2001:0db8:85a3:0000:0000:8a2e:0370:7334",
 				}
@@ -541,8 +541,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					Denylists: map[string][]config.BytesSource{
 						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
-					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
-						"default": config.NewBlockGroupEntries("defaultGroup"),
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup"},
 					},
 					BlockType: "12.12.12.12",
 					BlockTTL:  config.Duration(6 * time.Hour),
@@ -650,8 +650,11 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 							},
 						},
 					},
-					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
-						"default": {{List: "defaultGroup", Schedule: "always"}},
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup"},
+					},
+					ListSchedules: map[string]string{
+						"defaultGroup": "always",
 					},
 				}
 			})
@@ -687,8 +690,11 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 							Weekdays: []config.Weekday{config.Weekday(futureDay)},
 						},
 					},
-					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
-						"default": {{List: "defaultGroup", Schedule: "never-now"}},
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup"},
+					},
+					ListSchedules: map[string]string{
+						"defaultGroup": "never-now",
 					},
 				}
 			})
@@ -721,11 +727,11 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 							Weekdays: []config.Weekday{config.Weekday(futureDay)},
 						},
 					},
-					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
-						"default": {
-							{List: "defaultGroup", Schedule: "never-now"}, // inactive
-							{List: "gr1"}, // always active
-						},
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup", "gr1"},
+					},
+					ListSchedules: map[string]string{
+						"defaultGroup": "never-now", // inactive
 					},
 				}
 			})
@@ -760,8 +766,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					BlockTTL:   config.Duration(time.Minute),
 					Denylists:  map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
 					Allowlists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
-					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
-						"default": config.NewBlockGroupEntries("gr1"),
+					ClientGroupsBlock: map[string][]string{
+						"default": {"gr1"},
 					},
 				}
 			})
@@ -788,11 +794,11 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 						"gr1": config.NewBytesSources(group1File.Path),
 						"gr2": config.NewBytesSources(group2File.Path),
 					},
-					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
-						"default":    config.NewBlockGroupEntries("gr1"),
-						"one-client": config.NewBlockGroupEntries("gr1"),
-						"two-client": config.NewBlockGroupEntries("gr2"),
-						"all-client": config.NewBlockGroupEntries("gr1", "gr2"),
+					ClientGroupsBlock: map[string][]string{
+						"default":    {"gr1"},
+						"one-client": {"gr1"},
+						"two-client": {"gr2"},
+						"all-client": {"gr1", "gr2"},
 					},
 				}
 			})
@@ -887,8 +893,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					BlockTTL:   config.Duration(time.Minute),
 					Denylists:  map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
 					Allowlists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(defaultGroupFile.Path)},
-					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
-						"default": config.NewBlockGroupEntries("gr1"),
+					ClientGroupsBlock: map[string][]string{
+						"default": {"gr1"},
 					},
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, A, "123.145.123.145")
@@ -913,8 +919,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				BlockType: "ZEROIP",
 				BlockTTL:  config.Duration(time.Minute),
 				Denylists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
-				ClientGroupsBlock: map[string][]config.BlockGroupEntry{
-					"default": config.NewBlockGroupEntries("gr1"),
+				ClientGroupsBlock: map[string][]string{
+					"default": {"gr1"},
 				},
 			}
 		})
@@ -959,8 +965,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					"group1":       config.NewBytesSources(group1File.Path),
 				},
-				ClientGroupsBlock: map[string][]config.BlockGroupEntry{
-					"default": config.NewBlockGroupEntries("defaultGroup", "group1"),
+				ClientGroupsBlock: map[string][]string{
+					"default": {"defaultGroup", "group1"},
 				},
 				BlockType: "ZeroIP",
 			}
