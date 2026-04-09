@@ -154,5 +154,3 @@ func (s *Schedule) weekdayMatch(now time.Time) bool {
 
 	return false
 }
-
-

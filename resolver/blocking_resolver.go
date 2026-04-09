@@ -93,7 +93,6 @@ type BlockingResolver struct {
 	allowlistOnlyGroups map[string]bool
 	status              *status
 	clientGroupsBlock   map[string][]scheduledGroup
-	listSchedules       map[string]*config.Schedule
 	fqdnIPCache         cache.ExpiringCache[[]net.IP]
 }
 
