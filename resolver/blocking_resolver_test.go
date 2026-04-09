@@ -126,9 +126,9 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					"gr1": config.NewBytesSources(group1File.Path),
 					"gr2": config.NewBytesSources(group2File.Path),
 				},
-				ClientGroupsBlock: map[string][]string{
-					"default":            {"gr1"},
-					"full.qualified.com": {"gr2"},
+				ClientGroupsBlock: map[string][]config.BlockGroupEntry{
+					"default":            config.NewBlockGroupEntries("gr1"),
+					"full.qualified.com": config.NewBlockGroupEntries("gr2"),
 				},
 			}
 		})
@@ -164,8 +164,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				Denylists: map[string][]config.BytesSource{
 					"gr1": {config.TextBytesSource("/regex/")},
 				},
-				ClientGroupsBlock: map[string][]string{
-					"default": {"gr1"},
+				ClientGroupsBlock: map[string][]config.BlockGroupEntry{
+					"default": config.NewBlockGroupEntries("gr1"),
 				},
 				Loading: config.SourceLoading{
 					Init: config.Init{Strategy: config.InitStrategyFast},
@@ -198,15 +198,15 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					"gr2":          config.NewBytesSources(group2File.Path),
 					"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 				},
-				ClientGroupsBlock: map[string][]string{
-					"Client1":         {"gr1"},
-					"client2,client3": {"gr1"},
-					"client3":         {"gr2"},
-					"192.168.178.55":  {"gr1"},
-					"altName":         {"gr2"},
-					"10.43.8.67/28":   {"gr1"},
-					"wildcard[0-9]*":  {"gr1"},
-					"default":         {"defaultGroup"},
+				ClientGroupsBlock: map[string][]config.BlockGroupEntry{
+					"Client1":         config.NewBlockGroupEntries("gr1"),
+					"client2,client3": config.NewBlockGroupEntries("gr1"),
+					"client3":         config.NewBlockGroupEntries("gr2"),
+					"192.168.178.55":  config.NewBlockGroupEntries("gr1"),
+					"altName":         config.NewBlockGroupEntries("gr2"),
+					"10.43.8.67/28":   config.NewBlockGroupEntries("gr1"),
+					"wildcard[0-9]*":  config.NewBlockGroupEntries("gr1"),
+					"default":         config.NewBlockGroupEntries("defaultGroup"),
 				},
 				BlockType: "ZeroIP",
 			}
@@ -402,8 +402,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					Denylists: map[string][]config.BytesSource{
 						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
-					ClientGroupsBlock: map[string][]string{
-						"default": {"defaultGroup"},
+					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
+						"default": config.NewBlockGroupEntries("defaultGroup"),
 					},
 					BlockType: "NxDomain",
 				}
@@ -431,8 +431,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					Denylists: map[string][]config.BytesSource{
 						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
-					ClientGroupsBlock: map[string][]string{
-						"default": {"defaultGroup"},
+					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
+						"default": config.NewBlockGroupEntries("defaultGroup"),
 					},
 				}
 			})
@@ -458,8 +458,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					Denylists: map[string][]config.BytesSource{
 						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
-					ClientGroupsBlock: map[string][]string{
-						"default": {"defaultGroup"},
+					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
+						"default": config.NewBlockGroupEntries("defaultGroup"),
 					},
 					BlockTTL: config.Duration(time.Second * 1234),
 				}
@@ -503,8 +503,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					Denylists: map[string][]config.BytesSource{
 						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
-					ClientGroupsBlock: map[string][]string{
-						"default": {"defaultGroup"},
+					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
+						"default": config.NewBlockGroupEntries("defaultGroup"),
 					},
 					BlockType: "12.12.12.12, 2001:0db8:85a3:0000:0000:8a2e:0370:7334",
 				}
@@ -541,8 +541,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					Denylists: map[string][]config.BytesSource{
 						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
-					ClientGroupsBlock: map[string][]string{
-						"default": {"defaultGroup"},
+					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
+						"default": config.NewBlockGroupEntries("defaultGroup"),
 					},
 					BlockType: "12.12.12.12",
 					BlockTTL:  config.Duration(6 * time.Hour),
@@ -625,6 +625,133 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 	})
 
+	Describe("Schedule-based blocking", func() {
+		When("schedule is currently active", func() {
+			BeforeEach(func() {
+				// Create a schedule that's always active (all days, all hours)
+				sutConfig = config.Blocking{
+					BlockType: "ZEROIP",
+					BlockTTL:  config.Duration(time.Minute),
+					Denylists: map[string][]config.BytesSource{
+						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
+					},
+					Schedules: map[string]config.Schedule{
+						"always": {
+							Start: "00:00",
+							End:   "23:59",
+							Weekdays: []config.Weekday{
+								config.Weekday(time.Sunday),
+								config.Weekday(time.Monday),
+								config.Weekday(time.Tuesday),
+								config.Weekday(time.Wednesday),
+								config.Weekday(time.Thursday),
+								config.Weekday(time.Friday),
+								config.Weekday(time.Saturday),
+							},
+						},
+					},
+					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
+						"default": {{List: "defaultGroup", Schedule: "always"}},
+					},
+				}
+			})
+
+			It("should block the request", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("blocked3.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 60)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+		})
+
+		When("schedule is not currently active", func() {
+			BeforeEach(func() {
+				// Create a schedule for a day/time that is definitely not now
+				// Use a same-day schedule that starts at 00:00 and ends at 00:01 on a day 2 days from now
+				futureDay := time.Now().Add(48 * time.Hour).Weekday()
+
+				sutConfig = config.Blocking{
+					BlockType: "ZEROIP",
+					BlockTTL:  config.Duration(time.Minute),
+					Denylists: map[string][]config.BytesSource{
+						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
+					},
+					Schedules: map[string]config.Schedule{
+						"never-now": {
+							Start:    "00:00",
+							End:      "00:01",
+							Weekdays: []config.Weekday{config.Weekday(futureDay)},
+						},
+					},
+					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
+						"default": {{List: "defaultGroup", Schedule: "never-now"}},
+					},
+				}
+			})
+
+			It("should not block the request", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+		})
+
+		When("mixing scheduled and unscheduled groups", func() {
+			BeforeEach(func() {
+				futureDay := time.Now().Add(48 * time.Hour).Weekday()
+
+				sutConfig = config.Blocking{
+					BlockType: "ZEROIP",
+					BlockTTL:  config.Duration(time.Minute),
+					Denylists: map[string][]config.BytesSource{
+						"gr1":          config.NewBytesSources(group1File.Path),
+						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
+					},
+					Schedules: map[string]config.Schedule{
+						"never-now": {
+							Start:    "00:00",
+							End:      "00:01",
+							Weekdays: []config.Weekday{config.Weekday(futureDay)},
+						},
+					},
+					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
+						"default": {
+							{List: "defaultGroup", Schedule: "never-now"}, // inactive
+							{List: "gr1"}, // always active
+						},
+					},
+				}
+			})
+
+			It("should block via the always-active group", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("domain1.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 60)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+
+			It("should not block via the inactive scheduled group", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+		})
+	})
+
 	Describe("Allowlisting", func() {
 		When("Requested domain is on black and allowlist", func() {
 			BeforeEach(func() {
@@ -633,8 +760,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					BlockTTL:   config.Duration(time.Minute),
 					Denylists:  map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
 					Allowlists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
-					ClientGroupsBlock: map[string][]string{
-						"default": {"gr1"},
+					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
+						"default": config.NewBlockGroupEntries("gr1"),
 					},
 				}
 			})
@@ -661,11 +788,11 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 						"gr1": config.NewBytesSources(group1File.Path),
 						"gr2": config.NewBytesSources(group2File.Path),
 					},
-					ClientGroupsBlock: map[string][]string{
-						"default":    {"gr1"},
-						"one-client": {"gr1"},
-						"two-client": {"gr2"},
-						"all-client": {"gr1", "gr2"},
+					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
+						"default":    config.NewBlockGroupEntries("gr1"),
+						"one-client": config.NewBlockGroupEntries("gr1"),
+						"two-client": config.NewBlockGroupEntries("gr2"),
+						"all-client": config.NewBlockGroupEntries("gr1", "gr2"),
 					},
 				}
 			})
@@ -760,8 +887,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					BlockTTL:   config.Duration(time.Minute),
 					Denylists:  map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
 					Allowlists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(defaultGroupFile.Path)},
-					ClientGroupsBlock: map[string][]string{
-						"default": {"gr1"},
+					ClientGroupsBlock: map[string][]config.BlockGroupEntry{
+						"default": config.NewBlockGroupEntries("gr1"),
 					},
 				}
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 300, A, "123.145.123.145")
@@ -786,8 +913,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				BlockType: "ZEROIP",
 				BlockTTL:  config.Duration(time.Minute),
 				Denylists: map[string][]config.BytesSource{"gr1": config.NewBytesSources(group1File.Path)},
-				ClientGroupsBlock: map[string][]string{
-					"default": {"gr1"},
+				ClientGroupsBlock: map[string][]config.BlockGroupEntry{
+					"default": config.NewBlockGroupEntries("gr1"),
 				},
 			}
 		})
@@ -832,8 +959,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					"group1":       config.NewBytesSources(group1File.Path),
 				},
-				ClientGroupsBlock: map[string][]string{
-					"default": {"defaultGroup", "group1"},
+				ClientGroupsBlock: map[string][]config.BlockGroupEntry{
+					"default": config.NewBlockGroupEntries("defaultGroup", "group1"),
 				},
 				BlockType: "ZeroIP",
 			}

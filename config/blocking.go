@@ -13,12 +13,13 @@ import (
 
 // Blocking configuration for query blocking
 type Blocking struct {
-	Denylists         map[string][]BytesSource `yaml:"denylists"`
-	Allowlists        map[string][]BytesSource `yaml:"allowlists"`
-	ClientGroupsBlock map[string][]string      `yaml:"clientGroupsBlock"`
-	BlockType         string                   `default:"ZEROIP"         yaml:"blockType"`
-	BlockTTL          Duration                 `default:"6h"             yaml:"blockTTL"`
-	Loading           SourceLoading            `yaml:"loading"`
+	Denylists         map[string][]BytesSource     `yaml:"denylists"`
+	Allowlists        map[string][]BytesSource     `yaml:"allowlists"`
+	Schedules         map[string]Schedule          `yaml:"schedules"`
+	ClientGroupsBlock map[string][]BlockGroupEntry `yaml:"clientGroupsBlock"`
+	BlockType         string                       `default:"ZEROIP"         yaml:"blockType"`
+	BlockTTL          Duration                     `default:"6h"             yaml:"blockTTL"`
+	Loading           SourceLoading                `yaml:"loading"`
 
 	// Deprecated options
 	Deprecated struct {
@@ -63,8 +64,22 @@ func (c *Blocking) IsEnabled() bool {
 func (c *Blocking) LogConfig(logger *logrus.Entry) {
 	logger.Info("clientGroupsBlock:")
 
-	for key, val := range c.ClientGroupsBlock {
-		logger.Infof("  %s = %v", key, val)
+	for key, entries := range c.ClientGroupsBlock {
+		for _, entry := range entries {
+			if entry.Schedule != "" {
+				logger.Infof("  %s = %s (schedule: %s)", key, entry.List, entry.Schedule)
+			} else {
+				logger.Infof("  %s = %s", key, entry.List)
+			}
+		}
+	}
+
+	if len(c.Schedules) > 0 {
+		logger.Info("schedules:")
+
+		for name, sched := range c.Schedules {
+			logger.Infof("  %s: %s - %s (weekdays: %v)", name, sched.Start, sched.End, sched.Weekdays)
+		}
 	}
 
 	logger.Infof("blockType = %s", c.BlockType)
@@ -100,6 +115,13 @@ func (c *Blocking) validate() error {
 		return nil
 	}
 
+	// Validate schedules
+	for name, sched := range c.Schedules {
+		if err := sched.validate(); err != nil {
+			return fmt.Errorf("schedule '%s': %w", name, err)
+		}
+	}
+
 	// Validate if all allowlists and denylists referenced
 	// in clientGroupsBlock are defined.
 	listKeys := make(map[string]bool, len(c.Denylists)+len(c.Allowlists))
@@ -109,13 +131,23 @@ func (c *Blocking) validate() error {
 	for group := range c.Allowlists {
 		listKeys[group] = true
 	}
-	for clientGroupKey, clientGroupLists := range c.ClientGroupsBlock {
-		for _, listKey := range clientGroupLists {
-			if !listKeys[listKey] {
+
+	for clientGroupKey, entries := range c.ClientGroupsBlock {
+		for _, entry := range entries {
+			if !listKeys[entry.List] {
 				availableKeys := slices.Sorted(maps.Keys(listKeys))
 
 				return fmt.Errorf("clientGroupsBlock '%s' references undefined allowlist or denylist '%s'. Available: %s",
-					clientGroupKey, listKey, strings.Join(availableKeys, ", "))
+					clientGroupKey, entry.List, strings.Join(availableKeys, ", "))
+			}
+
+			if entry.Schedule != "" {
+				if _, ok := c.Schedules[entry.Schedule]; !ok {
+					availableSchedules := slices.Sorted(maps.Keys(c.Schedules))
+
+					return fmt.Errorf("clientGroupsBlock '%s' references undefined schedule '%s'. Available: %s",
+						clientGroupKey, entry.Schedule, strings.Join(availableSchedules, ", "))
+				}
 			}
 		}
 	}

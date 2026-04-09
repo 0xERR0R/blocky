@@ -92,20 +92,31 @@ type BlockingResolver struct {
 	blockHandler        blockHandler
 	allowlistOnlyGroups map[string]bool
 	status              *status
-	clientGroupsBlock   map[string][]string
+	clientGroupsBlock   map[string][]scheduledGroup
 	fqdnIPCache         cache.ExpiringCache[[]net.IP]
 }
 
-func clientGroupsBlock(cfg config.Blocking) map[string][]string {
-	cgb := make(map[string][]string, len(cfg.ClientGroupsBlock))
+// scheduledGroup pairs a list group name with an optional schedule.
+type scheduledGroup struct {
+	group    string
+	schedule *config.Schedule // nil means always active
+}
 
-	for identifier, cfgGroups := range cfg.ClientGroupsBlock {
+func clientGroupsBlock(cfg config.Blocking) map[string][]scheduledGroup {
+	cgb := make(map[string][]scheduledGroup, len(cfg.ClientGroupsBlock))
+
+	for identifier, entries := range cfg.ClientGroupsBlock {
 		for ipart := range strings.SplitSeq(strings.ToLower(identifier), ",") {
-			existingGroups, found := cgb[ipart]
-			if found {
-				cgb[ipart] = append(existingGroups, cfgGroups...)
-			} else {
-				cgb[ipart] = cfgGroups
+			for _, entry := range entries {
+				sg := scheduledGroup{group: entry.List}
+
+				if entry.Schedule != "" {
+					if sched, ok := cfg.Schedules[entry.Schedule]; ok {
+						sg.schedule = &sched
+					}
+				}
+
+				cgb[ipart] = append(cgb[ipart], sg)
 			}
 		}
 	}
@@ -461,7 +472,38 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 	r.status.lock.RLock()
 	defer r.status.lock.RUnlock()
 
-	var groups []string
+	groups := r.collectGroupsForClient(request)
+
+	if len(groups) == 0 {
+		// return default
+		groups = r.clientGroupsBlock["default"]
+	}
+
+	now := time.Now()
+
+	var result []string
+
+	for _, sg := range groups {
+		if r.isGroupDisabled(sg.group) {
+			continue
+		}
+
+		// Skip groups whose schedule is not currently active
+		if sg.schedule != nil && !sg.schedule.IsActive(now) {
+			continue
+		}
+
+		result = append(result, sg.group)
+	}
+
+	sort.Strings(result)
+
+	return result
+}
+
+func (r *BlockingResolver) collectGroupsForClient(request *model.Request) []scheduledGroup {
+	var groups []scheduledGroup
+
 	// try client names
 	for _, cName := range request.ClientNames {
 		for blockGroup, groupsByName := range r.clientGroupsBlock {
@@ -494,22 +536,7 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 		}
 	}
 
-	if len(groups) == 0 {
-		// return default
-		groups = r.clientGroupsBlock["default"]
-	}
-
-	var result []string
-
-	for _, g := range groups {
-		if !r.isGroupDisabled(g) {
-			result = append(result, g)
-		}
-	}
-
-	sort.Strings(result)
-
-	return result
+	return groups
 }
 
 func (r *BlockingResolver) matches(groupsToCheck []string, m lists.Matcher,

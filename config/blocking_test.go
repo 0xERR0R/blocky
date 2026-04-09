@@ -20,8 +20,8 @@ var _ = Describe("BlockingConfig", func() {
 			Denylists: map[string][]BytesSource{
 				"gr1": NewBytesSources("/a/file/path"),
 			},
-			ClientGroupsBlock: map[string][]string{
-				"default": {"gr1"},
+			ClientGroupsBlock: map[string][]BlockGroupEntry{
+				"default": NewBlockGroupEntries("gr1"),
 			},
 		}
 	})
@@ -104,8 +104,8 @@ var _ = Describe("BlockingConfig", func() {
 		When("references non-existing lists", func() {
 			It("should return error", func() {
 				cfg := Blocking{
-					ClientGroupsBlock: map[string][]string{
-						"default": {"non-existing-group"},
+					ClientGroupsBlock: map[string][]BlockGroupEntry{
+						"default": NewBlockGroupEntries("non-existing-group"),
 					},
 				}
 				err := cfg.validate()
