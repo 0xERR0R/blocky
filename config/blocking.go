@@ -73,7 +73,11 @@ func (c *Blocking) LogConfig(logger *logrus.Entry) {
 		logger.Info("schedules:")
 
 		for name, sched := range c.Schedules {
-			logger.Infof("  %s: %s - %s (weekdays: %v)", name, sched.Start, sched.End, sched.Weekdays)
+			if sched.isFullDay() {
+				logger.Infof("  %s: all day (weekdays: %v)", name, sched.Weekdays)
+			} else {
+				logger.Infof("  %s: %s - %s (weekdays: %v)", name, sched.Start, sched.End, sched.Weekdays)
+			}
 		}
 	}
 
