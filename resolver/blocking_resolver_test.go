@@ -672,8 +672,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		When("schedule is not currently active", func() {
 			BeforeEach(func() {
 				// Create a schedule for a day/time that is definitely not now
-				// Use a same-day schedule that starts at 00:00 and ends at 00:01 on a day 2 days from now
-				futureDay := time.Now().Add(48 * time.Hour).Weekday()
+				// Pick a weekday 3 days from now to avoid overnight spillover edge cases
+				notToday := time.Weekday((time.Now().Weekday() + 3) % 7)
 
 				sutConfig = config.Blocking{
 					BlockType: "ZEROIP",
@@ -685,7 +685,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 						"never-now": {
 							Start:    "00:00",
 							End:      "00:01",
-							Weekdays: []config.Weekday{config.Weekday(futureDay)},
+							Weekdays: []config.Weekday{config.Weekday(notToday)},
 						},
 					},
 					ClientGroupsBlock: map[string][]string{
@@ -709,7 +709,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 		When("mixing scheduled and unscheduled groups", func() {
 			BeforeEach(func() {
-				futureDay := time.Now().Add(48 * time.Hour).Weekday()
+				notToday := time.Weekday((time.Now().Weekday() + 3) % 7)
 
 				sutConfig = config.Blocking{
 					BlockType: "ZEROIP",
@@ -722,7 +722,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 						"never-now": {
 							Start:    "00:00",
 							End:      "00:01",
-							Weekdays: []config.Weekday{config.Weekday(futureDay)},
+							Weekdays: []config.Weekday{config.Weekday(notToday)},
 						},
 					},
 					ClientGroupsBlock: map[string][]string{
@@ -757,7 +757,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 		When("multiple list schedules are configured", func() {
 			BeforeEach(func() {
-				futureDay := time.Now().Add(48 * time.Hour).Weekday()
+				notToday := time.Weekday((time.Now().Weekday() + 3) % 7)
 
 				sutConfig = config.Blocking{
 					BlockType: "ZEROIP",
@@ -781,7 +781,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 						"never-now": {
 							Start:    "00:00",
 							End:      "00:01",
-							Weekdays: []config.Weekday{config.Weekday(futureDay)},
+							Weekdays: []config.Weekday{config.Weekday(notToday)},
 						},
 					},
 					ClientGroupsBlock: map[string][]string{
