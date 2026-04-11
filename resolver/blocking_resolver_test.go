@@ -637,8 +637,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					},
 					Schedules: map[string]config.Schedule{
 						"always": {
-							Start: "00:00",
-							End:   "23:59",
 							Weekdays: []config.Weekday{
 								config.Weekday(time.Sunday),
 								config.Weekday(time.Monday),
@@ -770,8 +768,6 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					},
 					Schedules: map[string]config.Schedule{
 						"always": {
-							Start: "00:00",
-							End:   "23:59",
 							Weekdays: []config.Weekday{
 								config.Weekday(time.Sunday),
 								config.Weekday(time.Monday),
