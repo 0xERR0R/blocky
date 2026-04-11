@@ -70,21 +70,41 @@ func parseTimeOfDay(s string) (hour, minute int, err error) {
 	return h, m, nil
 }
 
+// isFullDay returns true if the schedule covers the entire day
+// (both start and end omitted, or both set to "00:00").
+func (s *Schedule) isFullDay() bool {
+	if s.Start == "" && s.End == "" {
+		return true
+	}
+
+	if s.Start != "" && s.End != "" {
+		startH, startM, err1 := parseTimeOfDay(s.Start)
+		endH, endM, err2 := parseTimeOfDay(s.End)
+
+		if err1 == nil && err2 == nil && startH == 0 && startM == 0 && endH == 0 && endM == 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (s *Schedule) validate() error {
-	if s.Start == "" {
-		return errors.New("schedule start time is required")
+	// Both omitted = full day, both set = time range; partial = error
+	if (s.Start == "") != (s.End == "") {
+		return errors.New("both start and end must be set, or both omitted for full-day schedule")
 	}
 
-	if s.End == "" {
-		return errors.New("schedule end time is required")
+	if s.Start != "" {
+		if _, _, err := parseTimeOfDay(s.Start); err != nil {
+			return err
+		}
 	}
 
-	if _, _, err := parseTimeOfDay(s.Start); err != nil {
-		return err
-	}
-
-	if _, _, err := parseTimeOfDay(s.End); err != nil {
-		return err
+	if s.End != "" {
+		if _, _, err := parseTimeOfDay(s.End); err != nil {
+			return err
+		}
 	}
 
 	if len(s.Weekdays) == 0 {
@@ -96,6 +116,19 @@ func (s *Schedule) validate() error {
 
 // IsActive returns true if the schedule is active at the given time.
 func (s *Schedule) IsActive(now time.Time) bool {
+	if s.isFullDay() {
+		// Full-day schedule: just check weekday
+		today := now.Weekday()
+
+		for _, wd := range s.Weekdays {
+			if time.Weekday(wd) == today {
+				return true
+			}
+		}
+
+		return false
+	}
+
 	if !s.weekdayMatch(now) {
 		return false
 	}

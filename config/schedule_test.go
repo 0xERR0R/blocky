@@ -41,20 +41,27 @@ var _ = Describe("Schedule", func() {
 			Expect(s.validate()).Should(Succeed())
 		})
 
-		It("should reject missing start", func() {
+		It("should accept omitted start and end (full day)", func() {
 			s := Schedule{
-				End:      "07:00",
 				Weekdays: []Weekday{Weekday(time.Monday)},
 			}
-			Expect(s.validate()).Should(MatchError(ContainSubstring("start time is required")))
+			Expect(s.validate()).Should(Succeed())
 		})
 
-		It("should reject missing end", func() {
+		It("should reject start without end", func() {
 			s := Schedule{
 				Start:    "22:00",
 				Weekdays: []Weekday{Weekday(time.Monday)},
 			}
-			Expect(s.validate()).Should(MatchError(ContainSubstring("end time is required")))
+			Expect(s.validate()).Should(MatchError(ContainSubstring("both start and end must be set, or both omitted")))
+		})
+
+		It("should reject end without start", func() {
+			s := Schedule{
+				End:      "07:00",
+				Weekdays: []Weekday{Weekday(time.Monday)},
+			}
+			Expect(s.validate()).Should(MatchError(ContainSubstring("both start and end must be set, or both omitted")))
 		})
 
 		It("should reject missing weekdays", func() {
@@ -175,10 +182,60 @@ var _ = Describe("Schedule", func() {
 				Expect(s.IsActive(now)).Should(BeTrue())
 			})
 
+			It("should be active at midnight on a matching weekday", func() {
+				// Monday at 00:00
+				now := time.Date(2026, 4, 6, 0, 0, 0, 0, time.Local)
+				Expect(now.Weekday()).Should(Equal(time.Monday))
+				Expect(s.IsActive(now)).Should(BeTrue())
+			})
+
+			It("should be active at 23:59 on a matching weekday", func() {
+				// Monday at 23:59
+				now := time.Date(2026, 4, 6, 23, 59, 0, 0, time.Local)
+				Expect(now.Weekday()).Should(Equal(time.Monday))
+				Expect(s.IsActive(now)).Should(BeTrue())
+			})
+
 			It("should not be active on a non-matching weekday", func() {
 				// Tuesday at 12:00
 				now := time.Date(2026, 4, 7, 12, 0, 0, 0, time.Local)
 				Expect(now.Weekday()).Should(Equal(time.Tuesday))
+				Expect(s.IsActive(now)).Should(BeFalse())
+			})
+		})
+
+		When("start and end are omitted (full day)", func() {
+			var s Schedule
+			BeforeEach(func() {
+				s = Schedule{
+					Weekdays: []Weekday{Weekday(time.Monday), Weekday(time.Saturday)},
+				}
+			})
+
+			It("should be active all day on a matching weekday", func() {
+				// Monday at 12:00
+				now := time.Date(2026, 4, 6, 12, 0, 0, 0, time.Local)
+				Expect(now.Weekday()).Should(Equal(time.Monday))
+				Expect(s.IsActive(now)).Should(BeTrue())
+			})
+
+			It("should be active at midnight on a matching weekday", func() {
+				// Monday at 00:00
+				now := time.Date(2026, 4, 6, 0, 0, 0, 0, time.Local)
+				Expect(s.IsActive(now)).Should(BeTrue())
+			})
+
+			It("should be active at 23:59 on a matching weekday", func() {
+				// Saturday at 23:59
+				now := time.Date(2026, 4, 11, 23, 59, 0, 0, time.Local)
+				Expect(now.Weekday()).Should(Equal(time.Saturday))
+				Expect(s.IsActive(now)).Should(BeTrue())
+			})
+
+			It("should not be active on a non-matching weekday", func() {
+				// Wednesday at 12:00
+				now := time.Date(2026, 4, 8, 12, 0, 0, 0, time.Local)
+				Expect(now.Weekday()).Should(Equal(time.Wednesday))
 				Expect(s.IsActive(now)).Should(BeFalse())
 			})
 		})
