@@ -756,6 +756,68 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 						))
 			})
 		})
+
+		When("multiple list schedules are configured", func() {
+			BeforeEach(func() {
+				futureDay := time.Now().Add(48 * time.Hour).Weekday()
+
+				sutConfig = config.Blocking{
+					BlockType: "ZEROIP",
+					BlockTTL:  config.Duration(time.Minute),
+					Denylists: map[string][]config.BytesSource{
+						"gr1":          config.NewBytesSources(group1File.Path),
+						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
+					},
+					Schedules: map[string]config.Schedule{
+						"always": {
+							Start: "00:00",
+							End:   "23:59",
+							Weekdays: []config.Weekday{
+								config.Weekday(time.Sunday),
+								config.Weekday(time.Monday),
+								config.Weekday(time.Tuesday),
+								config.Weekday(time.Wednesday),
+								config.Weekday(time.Thursday),
+								config.Weekday(time.Friday),
+								config.Weekday(time.Saturday),
+							},
+						},
+						"never-now": {
+							Start:    "00:00",
+							End:      "00:01",
+							Weekdays: []config.Weekday{config.Weekday(futureDay)},
+						},
+					},
+					ClientGroupsBlock: map[string][]string{
+						"default": {"gr1", "defaultGroup"},
+					},
+					ListSchedules: map[string]string{
+						"gr1":          "always",
+						"defaultGroup": "never-now",
+					},
+				}
+			})
+
+			It("should block the list with an active schedule", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("domain1.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 60)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+
+			It("should not block the list with an inactive schedule", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+		})
 	})
 
 	Describe("Allowlisting", func() {

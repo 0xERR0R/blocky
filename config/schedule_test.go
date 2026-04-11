@@ -157,6 +157,31 @@ var _ = Describe("Schedule", func() {
 				Expect(s.IsActive(now)).Should(BeFalse())
 			})
 		})
+
+		When("range is 00:00 - 00:00", func() {
+			var s Schedule
+			BeforeEach(func() {
+				s = Schedule{
+					Start:    "00:00",
+					End:      "00:00",
+					Weekdays: []Weekday{Weekday(time.Monday)},
+				}
+			})
+
+			It("should be active for the full day on a matching weekday", func() {
+				// Monday at 12:00
+				now := time.Date(2026, 4, 6, 12, 0, 0, 0, time.Local)
+				Expect(now.Weekday()).Should(Equal(time.Monday))
+				Expect(s.IsActive(now)).Should(BeTrue())
+			})
+
+			It("should not be active on a non-matching weekday", func() {
+				// Tuesday at 12:00
+				now := time.Date(2026, 4, 7, 12, 0, 0, 0, time.Local)
+				Expect(now.Weekday()).Should(Equal(time.Tuesday))
+				Expect(s.IsActive(now)).Should(BeFalse())
+			})
+		})
 	})
 
 	Describe("Blocking validate with schedules", func() {
