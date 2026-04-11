@@ -673,7 +673,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			BeforeEach(func() {
 				// Create a schedule for a day/time that is definitely not now
 				// Pick a weekday 3 days from now to avoid overnight spillover edge cases
-				notToday := time.Weekday((time.Now().Weekday() + 3) % 7)
+				notToday := (time.Now().Weekday() + 3) % 7
 
 				sutConfig = config.Blocking{
 					BlockType: "ZEROIP",
@@ -709,7 +709,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 		When("mixing scheduled and unscheduled groups", func() {
 			BeforeEach(func() {
-				notToday := time.Weekday((time.Now().Weekday() + 3) % 7)
+				notToday := (time.Now().Weekday() + 3) % 7
 
 				sutConfig = config.Blocking{
 					BlockType: "ZEROIP",
@@ -757,7 +757,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 		When("multiple list schedules are configured", func() {
 			BeforeEach(func() {
-				notToday := time.Weekday((time.Now().Weekday() + 3) % 7)
+				notToday := (time.Now().Weekday() + 3) % 7
 
 				sutConfig = config.Blocking{
 					BlockType: "ZEROIP",
