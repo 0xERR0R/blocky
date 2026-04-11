@@ -118,6 +118,18 @@ var _ = Describe("Schedule", func() {
 				Expect(now.Weekday()).Should(Equal(time.Thursday))
 				Expect(s.IsActive(now)).Should(BeFalse())
 			})
+
+			It("should be active at exactly the start time", func() {
+				// Monday at 09:00
+				now := time.Date(2026, 4, 6, 9, 0, 0, 0, time.Local)
+				Expect(s.IsActive(now)).Should(BeTrue())
+			})
+
+			It("should not be active at exactly the end time", func() {
+				// Monday at 17:00
+				now := time.Date(2026, 4, 6, 17, 0, 0, 0, time.Local)
+				Expect(s.IsActive(now)).Should(BeFalse())
+			})
 		})
 
 		When("overnight range (22:00 - 07:00)", func() {
@@ -161,6 +173,20 @@ var _ = Describe("Schedule", func() {
 				// Thursday at 03:00 (Wednesday night, not scheduled)
 				now := time.Date(2026, 4, 9, 3, 0, 0, 0, time.Local)
 				Expect(now.Weekday()).Should(Equal(time.Thursday))
+				Expect(s.IsActive(now)).Should(BeFalse())
+			})
+
+			It("should be active at exactly the start time", func() {
+				// Monday at 22:00
+				now := time.Date(2026, 4, 6, 22, 0, 0, 0, time.Local)
+				Expect(now.Weekday()).Should(Equal(time.Monday))
+				Expect(s.IsActive(now)).Should(BeTrue())
+			})
+
+			It("should not be active at exactly the end time", func() {
+				// Tuesday at 07:00 (Monday night's end)
+				now := time.Date(2026, 4, 7, 7, 0, 0, 0, time.Local)
+				Expect(now.Weekday()).Should(Equal(time.Tuesday))
 				Expect(s.IsActive(now)).Should(BeFalse())
 			})
 		})
