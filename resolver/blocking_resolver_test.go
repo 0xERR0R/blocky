@@ -651,8 +651,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					ClientGroupsBlock: map[string][]string{
 						"default": {"defaultGroup"},
 					},
-					ListSchedules: map[string]string{
-						"defaultGroup": "always",
+					ListSchedules: map[string][]string{
+						"defaultGroup": {"always"},
 					},
 				}
 			})
@@ -691,8 +691,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					ClientGroupsBlock: map[string][]string{
 						"default": {"defaultGroup"},
 					},
-					ListSchedules: map[string]string{
-						"defaultGroup": "never-now",
+					ListSchedules: map[string][]string{
+						"defaultGroup": {"never-now"},
 					},
 				}
 			})
@@ -728,8 +728,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					ClientGroupsBlock: map[string][]string{
 						"default": {"defaultGroup", "gr1"},
 					},
-					ListSchedules: map[string]string{
-						"defaultGroup": "never-now", // inactive
+					ListSchedules: map[string][]string{
+						"defaultGroup": {"never-now"}, // inactive
 					},
 				}
 			})
@@ -787,9 +787,9 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					ClientGroupsBlock: map[string][]string{
 						"default": {"gr1", "defaultGroup"},
 					},
-					ListSchedules: map[string]string{
-						"gr1":          "always",
-						"defaultGroup": "never-now",
+					ListSchedules: map[string][]string{
+						"gr1":          {"always"},
+						"defaultGroup": {"never-now"},
 					},
 				}
 			})
@@ -810,6 +810,55 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					Should(
 						SatisfyAll(
 							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+		})
+
+		When("a list has multiple schedules (OR logic)", func() {
+			BeforeEach(func() {
+				notToday := (time.Now().Weekday() + 3) % 7
+
+				sutConfig = config.Blocking{
+					BlockType: "ZEROIP",
+					BlockTTL:  config.Duration(time.Minute),
+					Denylists: map[string][]config.BytesSource{
+						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
+					},
+					Schedules: map[string]config.Schedule{
+						"always": {
+							Weekdays: []config.Weekday{
+								config.Weekday(time.Sunday),
+								config.Weekday(time.Monday),
+								config.Weekday(time.Tuesday),
+								config.Weekday(time.Wednesday),
+								config.Weekday(time.Thursday),
+								config.Weekday(time.Friday),
+								config.Weekday(time.Saturday),
+							},
+						},
+						"never-now": {
+							Start:    "00:00",
+							End:      "00:01",
+							Weekdays: []config.Weekday{config.Weekday(notToday)},
+						},
+					},
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup"},
+					},
+					ListSchedules: map[string][]string{
+						"defaultGroup": {"never-now", "always"},
+					},
+				}
+			})
+
+			It("should block because at least one schedule is active", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("blocked3.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 60)),
+							HaveResponseType(ResponseTypeBLOCKED),
 							HaveReturnCode(dns.RcodeSuccess),
 						))
 			})

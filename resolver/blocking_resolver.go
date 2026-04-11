@@ -96,19 +96,23 @@ type BlockingResolver struct {
 	fqdnIPCache         cache.ExpiringCache[[]net.IP]
 }
 
-// scheduledGroup pairs a list group name with an optional schedule.
+// scheduledGroup pairs a list group name with optional schedules.
+// If schedules is nil/empty, the group is always active.
+// If schedules has entries, at least one must be active (OR logic).
 type scheduledGroup struct {
-	group    string
-	schedule *config.Schedule // nil means always active
+	group     string
+	schedules []*config.Schedule
 }
 
 func clientGroupsBlock(cfg config.Blocking) map[string][]scheduledGroup {
 	// Pre-resolve list schedules
-	listScheds := make(map[string]*config.Schedule, len(cfg.ListSchedules))
+	listScheds := make(map[string][]*config.Schedule, len(cfg.ListSchedules))
 
-	for listName, schedName := range cfg.ListSchedules {
-		if sched, ok := cfg.Schedules[schedName]; ok {
-			listScheds[listName] = &sched
+	for listName, schedNames := range cfg.ListSchedules {
+		for _, schedName := range schedNames {
+			if sched, ok := cfg.Schedules[schedName]; ok {
+				listScheds[listName] = append(listScheds[listName], &sched)
+			}
 		}
 	}
 
@@ -117,7 +121,7 @@ func clientGroupsBlock(cfg config.Blocking) map[string][]scheduledGroup {
 	for identifier, cfgGroups := range cfg.ClientGroupsBlock {
 		for ipart := range strings.SplitSeq(strings.ToLower(identifier), ",") {
 			for _, g := range cfgGroups {
-				sg := scheduledGroup{group: g, schedule: listScheds[g]}
+				sg := scheduledGroup{group: g, schedules: listScheds[g]}
 				cgb[ipart] = append(cgb[ipart], sg)
 			}
 		}
@@ -491,7 +495,7 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 		}
 
 		// Skip groups whose schedule is not currently active
-		if sg.schedule != nil && !sg.schedule.IsActive(now) {
+		if len(sg.schedules) > 0 && !isAnyScheduleActive(sg.schedules, now) {
 			continue
 		}
 
@@ -501,6 +505,16 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 	sort.Strings(result)
 
 	return result
+}
+
+func isAnyScheduleActive(schedules []*config.Schedule, now time.Time) bool {
+	for _, s := range schedules {
+		if s.IsActive(now) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (r *BlockingResolver) collectGroupsForClient(request *model.Request) []scheduledGroup {

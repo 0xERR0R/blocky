@@ -279,8 +279,8 @@ var _ = Describe("Schedule", func() {
 				ClientGroupsBlock: map[string][]string{
 					"default": {"ads"},
 				},
-				ListSchedules: map[string]string{
-					"ads": "night",
+				ListSchedules: map[string][]string{
+					"ads": {"night"},
 				},
 			}
 			Expect(cfg.validate()).Should(Succeed())
@@ -294,8 +294,8 @@ var _ = Describe("Schedule", func() {
 				ClientGroupsBlock: map[string][]string{
 					"default": {"ads"},
 				},
-				ListSchedules: map[string]string{
-					"ads": "nonexistent",
+				ListSchedules: map[string][]string{
+					"ads": {"nonexistent"},
 				},
 			}
 			err := cfg.validate()
@@ -314,13 +314,32 @@ var _ = Describe("Schedule", func() {
 				ClientGroupsBlock: map[string][]string{
 					"default": {"ads"},
 				},
-				ListSchedules: map[string]string{
-					"ads": "bad",
+				ListSchedules: map[string][]string{
+					"ads": {"bad"},
 				},
 			}
 			err := cfg.validate()
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring("schedule 'bad'"))
+		})
+
+		It("should accept multiple schedules for one list", func() {
+			cfg := Blocking{
+				Denylists: map[string][]BytesSource{
+					"ads": NewBytesSources("/a/file"),
+				},
+				Schedules: map[string]Schedule{
+					"night":   {Start: "22:00", End: "07:00", Weekdays: []Weekday{Weekday(time.Monday)}},
+					"weekend": {Weekdays: []Weekday{Weekday(time.Saturday), Weekday(time.Sunday)}},
+				},
+				ClientGroupsBlock: map[string][]string{
+					"default": {"ads"},
+				},
+				ListSchedules: map[string][]string{
+					"ads": {"night", "weekend"},
+				},
+			}
+			Expect(cfg.validate()).Should(Succeed())
 		})
 	})
 })

@@ -16,7 +16,7 @@ type Blocking struct {
 	Denylists         map[string][]BytesSource `yaml:"denylists"`
 	Allowlists        map[string][]BytesSource `yaml:"allowlists"`
 	Schedules         map[string]Schedule      `yaml:"schedules"`
-	ListSchedules     map[string]string        `yaml:"listSchedules"`
+	ListSchedules     map[string][]string      `yaml:"listSchedules"`
 	ClientGroupsBlock map[string][]string      `yaml:"clientGroupsBlock"`
 	BlockType         string                   `default:"ZEROIP"         yaml:"blockType"`
 	BlockTTL          Duration                 `default:"6h"             yaml:"blockTTL"`
@@ -84,8 +84,8 @@ func (c *Blocking) LogConfig(logger *logrus.Entry) {
 	if len(c.ListSchedules) > 0 {
 		logger.Info("listSchedules:")
 
-		for list, sched := range c.ListSchedules {
-			logger.Infof("  %s = %s", list, sched)
+		for list, scheds := range c.ListSchedules {
+			logger.Infof("  %s = %v", list, scheds)
 		}
 	}
 
@@ -151,7 +151,7 @@ func (c *Blocking) validate() error {
 	}
 
 	// Validate listSchedules references
-	for listName, schedName := range c.ListSchedules {
+	for listName, schedNames := range c.ListSchedules {
 		if !listKeys[listName] {
 			availableKeys := slices.Sorted(maps.Keys(listKeys))
 
@@ -159,11 +159,13 @@ func (c *Blocking) validate() error {
 				listName, strings.Join(availableKeys, ", "))
 		}
 
-		if _, ok := c.Schedules[schedName]; !ok {
-			availableSchedules := slices.Sorted(maps.Keys(c.Schedules))
+		for _, schedName := range schedNames {
+			if _, ok := c.Schedules[schedName]; !ok {
+				availableSchedules := slices.Sorted(maps.Keys(c.Schedules))
 
-			return fmt.Errorf("listSchedules '%s' references undefined schedule '%s'. Available: %s",
-				listName, schedName, strings.Join(availableSchedules, ", "))
+				return fmt.Errorf("listSchedules '%s' references undefined schedule '%s'. Available: %s",
+					listName, schedName, strings.Join(availableSchedules, ", "))
+			}
 		}
 	}
 
