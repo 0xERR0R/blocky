@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const daysPerWeek = 7
+
 // Weekday represents a day of the week for schedule configuration.
 type Weekday time.Weekday
 
@@ -173,7 +175,7 @@ func (s *Schedule) weekdayMatch(now time.Time) bool {
 		// For overnight schedules, check if yesterday was a scheduled day
 		// and we're in the "morning" portion (before endMinutes)
 		if startMinutes > endMinutes {
-			yesterday := (today + 7 - 1) % 7
+			yesterday := (today + daysPerWeek - 1) % daysPerWeek
 			if time.Weekday(wd) == yesterday && nowMinutes < endMinutes {
 				return true
 			}
