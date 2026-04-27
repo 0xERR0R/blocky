@@ -214,7 +214,7 @@ var _ = Describe("Schedule", func() {
 			})
 		})
 
-		When("range is 00:00 - 00:00", func() {
+		When("range is 00:00 - 00:00 (zero-length window)", func() {
 			var s Schedule
 			BeforeEach(func() {
 				s = Schedule{
@@ -224,31 +224,17 @@ var _ = Describe("Schedule", func() {
 				}
 			})
 
-			It("should be active for the full day on a matching weekday", func() {
+			It("should never be active (zero-length window)", func() {
 				// Monday at 12:00
 				now := time.Date(2026, 4, 6, 12, 0, 0, 0, time.Local)
 				Expect(now.Weekday()).Should(Equal(time.Monday))
-				Expect(s.IsActive(now)).Should(BeTrue())
+				Expect(s.IsActive(now)).Should(BeFalse())
 			})
 
-			It("should be active at midnight on a matching weekday", func() {
+			It("should not be active at midnight on a matching weekday", func() {
 				// Monday at 00:00
 				now := time.Date(2026, 4, 6, 0, 0, 0, 0, time.Local)
 				Expect(now.Weekday()).Should(Equal(time.Monday))
-				Expect(s.IsActive(now)).Should(BeTrue())
-			})
-
-			It("should be active at 23:59 on a matching weekday", func() {
-				// Monday at 23:59
-				now := time.Date(2026, 4, 6, 23, 59, 0, 0, time.Local)
-				Expect(now.Weekday()).Should(Equal(time.Monday))
-				Expect(s.IsActive(now)).Should(BeTrue())
-			})
-
-			It("should not be active on a non-matching weekday", func() {
-				// Tuesday at 12:00
-				now := time.Date(2026, 4, 7, 12, 0, 0, 0, time.Local)
-				Expect(now.Weekday()).Should(Equal(time.Tuesday))
 				Expect(s.IsActive(now)).Should(BeFalse())
 			})
 		})

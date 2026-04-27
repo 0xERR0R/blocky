@@ -70,22 +70,9 @@ func parseTimeOfDay(s string) (hour, minute int, err error) {
 }
 
 // isFullDay returns true if the schedule covers the entire day
-// (both start and end omitted, or both set to "00:00").
+// (both start and end omitted).
 func (s *Schedule) isFullDay() bool {
-	if s.Start == "" && s.End == "" {
-		return true
-	}
-
-	if s.Start != "" && s.End != "" {
-		startH, startM, err1 := parseTimeOfDay(s.Start)
-		endH, endM, err2 := parseTimeOfDay(s.End)
-
-		if err1 == nil && err2 == nil && startH == 0 && startM == 0 && endH == 0 && endM == 0 {
-			return true
-		}
-	}
-
-	return false
+	return s.Start == "" && s.End == ""
 }
 
 func (s *Schedule) validate() error {
