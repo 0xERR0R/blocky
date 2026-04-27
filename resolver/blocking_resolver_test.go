@@ -863,6 +863,34 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 						))
 			})
 		})
+
+		When("listSchedules references unknown schedule names", func() {
+			BeforeEach(func() {
+				sutConfig = config.Blocking{
+					BlockType: "ZEROIP",
+					BlockTTL:  config.Duration(time.Minute),
+					Denylists: map[string][]config.BytesSource{
+						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
+					},
+					Schedules:         map[string]config.Schedule{},
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup"},
+					},
+					ListSchedules: map[string][]string{
+						"defaultGroup": {"typo-schedule"},
+					},
+				}
+			})
+
+			It("should treat the group as inactive instead of always-active", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+		})
 	})
 
 	Describe("Allowlisting", func() {

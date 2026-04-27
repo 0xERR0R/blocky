@@ -97,11 +97,13 @@ type BlockingResolver struct {
 }
 
 // scheduledGroup pairs a list group name with optional schedules.
-// If schedules is nil/empty, the group is always active.
 // If schedules has entries, at least one must be active (OR logic).
+// If hasScheduleMapping is true but schedules is empty (unresolved names),
+// the group is treated as inactive to avoid silent always-active fallback.
 type scheduledGroup struct {
-	group     string
-	schedules []*config.Schedule
+	group              string
+	schedules          []*config.Schedule
+	hasScheduleMapping bool
 }
 
 func clientGroupsBlock(cfg config.Blocking) map[string][]scheduledGroup {
@@ -112,6 +114,8 @@ func clientGroupsBlock(cfg config.Blocking) map[string][]scheduledGroup {
 		for _, schedName := range schedNames {
 			if sched, ok := cfg.Schedules[schedName]; ok {
 				listScheds[listName] = append(listScheds[listName], &sched)
+			} else {
+				log.Log().Warnf("listSchedules '%s' references unknown schedule '%s', skipping", listName, schedName)
 			}
 		}
 	}
@@ -121,7 +125,8 @@ func clientGroupsBlock(cfg config.Blocking) map[string][]scheduledGroup {
 	for identifier, cfgGroups := range cfg.ClientGroupsBlock {
 		for ipart := range strings.SplitSeq(strings.ToLower(identifier), ",") {
 			for _, g := range cfgGroups {
-				sg := scheduledGroup{group: g, schedules: listScheds[g]}
+				_, hasMapped := cfg.ListSchedules[g]
+				sg := scheduledGroup{group: g, schedules: listScheds[g], hasScheduleMapping: hasMapped}
 				cgb[ipart] = append(cgb[ipart], sg)
 			}
 		}
@@ -494,8 +499,10 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 			continue
 		}
 
-		// Skip groups whose schedule is not currently active
-		if len(sg.schedules) > 0 && !isAnyScheduleActive(sg.schedules, now) {
+		// Skip groups whose schedule is not currently active.
+		// If hasScheduleMapping is set but no schedules resolved, treat as inactive
+		// to avoid a typo silently making a group always-active.
+		if sg.hasScheduleMapping && (len(sg.schedules) == 0 || !isAnyScheduleActive(sg.schedules, now)) {
 			continue
 		}
 
