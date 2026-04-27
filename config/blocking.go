@@ -15,6 +15,8 @@ import (
 type Blocking struct {
 	Denylists         map[string][]BytesSource `yaml:"denylists"`
 	Allowlists        map[string][]BytesSource `yaml:"allowlists"`
+	Schedules         map[string]Schedule      `yaml:"schedules"`
+	ListSchedules     map[string][]string      `yaml:"listSchedules"`
 	ClientGroupsBlock map[string][]string      `yaml:"clientGroupsBlock"`
 	BlockType         string                   `default:"ZEROIP"         yaml:"blockType"`
 	BlockTTL          Duration                 `default:"6h"             yaml:"blockTTL"`
@@ -67,6 +69,26 @@ func (c *Blocking) LogConfig(logger *logrus.Entry) {
 		logger.Infof("  %s = %v", key, val)
 	}
 
+	if len(c.Schedules) > 0 {
+		logger.Info("schedules:")
+
+		for name, sched := range c.Schedules {
+			if sched.isFullDay() {
+				logger.Infof("  %s: all day (weekdays: %v)", name, sched.Weekdays)
+			} else {
+				logger.Infof("  %s: %s - %s (weekdays: %v)", name, sched.Start, sched.End, sched.Weekdays)
+			}
+		}
+	}
+
+	if len(c.ListSchedules) > 0 {
+		logger.Info("listSchedules:")
+
+		for list, scheds := range c.ListSchedules {
+			logger.Infof("  %s = %v", list, scheds)
+		}
+	}
+
 	logger.Infof("blockType = %s", c.BlockType)
 	logger.Infof("blockTTL = %s", c.BlockTTL)
 
@@ -100,6 +122,13 @@ func (c *Blocking) validate() error {
 		return nil
 	}
 
+	// Validate schedules
+	for name, sched := range c.Schedules {
+		if err := sched.validate(); err != nil {
+			return fmt.Errorf("schedule '%s': %w", name, err)
+		}
+	}
+
 	// Validate if all allowlists and denylists referenced
 	// in clientGroupsBlock are defined.
 	listKeys := make(map[string]bool, len(c.Denylists)+len(c.Allowlists))
@@ -109,6 +138,7 @@ func (c *Blocking) validate() error {
 	for group := range c.Allowlists {
 		listKeys[group] = true
 	}
+
 	for clientGroupKey, clientGroupLists := range c.ClientGroupsBlock {
 		for _, listKey := range clientGroupLists {
 			if !listKeys[listKey] {
@@ -116,6 +146,25 @@ func (c *Blocking) validate() error {
 
 				return fmt.Errorf("clientGroupsBlock '%s' references undefined allowlist or denylist '%s'. Available: %s",
 					clientGroupKey, listKey, strings.Join(availableKeys, ", "))
+			}
+		}
+	}
+
+	// Validate listSchedules references
+	for listName, schedNames := range c.ListSchedules {
+		if !listKeys[listName] {
+			availableKeys := slices.Sorted(maps.Keys(listKeys))
+
+			return fmt.Errorf("listSchedules references undefined list '%s'. Available: %s",
+				listName, strings.Join(availableKeys, ", "))
+		}
+
+		for _, schedName := range schedNames {
+			if _, ok := c.Schedules[schedName]; !ok {
+				availableSchedules := slices.Sorted(maps.Keys(c.Schedules))
+
+				return fmt.Errorf("listSchedules '%s' references undefined schedule '%s'. Available: %s",
+					listName, schedName, strings.Join(availableSchedules, ", "))
 			}
 		}
 	}
