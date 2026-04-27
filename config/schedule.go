@@ -138,16 +138,16 @@ func (s *Schedule) IsActive(now time.Time) bool {
 		return false
 	}
 
-	if !s.weekdayMatch(now) {
-		return false
-	}
-
 	startH, startM, _ := parseTimeOfDay(s.Start)
 	endH, endM, _ := parseTimeOfDay(s.End)
 
 	nowMinutes := toMinutes(now.Hour(), now.Minute())
 	startMinutes := toMinutes(startH, startM)
 	endMinutes := toMinutes(endH, endM)
+
+	if !s.weekdayMatch(now, nowMinutes, startMinutes, endMinutes) {
+		return false
+	}
 
 	if startMinutes <= endMinutes {
 		// Same-day range (e.g. 09:00 - 17:00)
@@ -162,14 +162,8 @@ func toMinutes(hours, mins int) int {
 	return hours*60 + mins
 }
 
-func (s *Schedule) weekdayMatch(now time.Time) bool {
+func (s *Schedule) weekdayMatch(now time.Time, nowMinutes, startMinutes, endMinutes int) bool {
 	today := now.Weekday()
-
-	startH, startM, _ := parseTimeOfDay(s.Start)
-	endH, endM, _ := parseTimeOfDay(s.End)
-	startMinutes := toMinutes(startH, startM)
-	endMinutes := toMinutes(endH, endM)
-	nowMinutes := toMinutes(now.Hour(), now.Minute())
 
 	for _, wd := range s.Weekdays {
 		if time.Weekday(wd) == today {
