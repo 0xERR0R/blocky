@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/0xERR0R/blocky/log"
 )
 
 const daysPerWeek = 7
@@ -106,6 +108,16 @@ func (s *Schedule) validate() error {
 
 	if len(s.Weekdays) == 0 {
 		return errors.New("schedule weekdays are required (use: mon, tue, wed, thu, fri, sat, sun)")
+	}
+
+	seen := make(map[Weekday]bool, len(s.Weekdays))
+
+	for _, wd := range s.Weekdays {
+		if seen[wd] {
+			log.Log().Warnf("schedule contains duplicate weekday '%s', possible typo?", wd)
+		}
+
+		seen[wd] = true
 	}
 
 	return nil
