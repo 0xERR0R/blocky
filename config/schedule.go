@@ -55,18 +55,12 @@ type Schedule struct {
 
 // parseTimeOfDay parses an "HH:MM" string into hours and minutes.
 func parseTimeOfDay(s string) (hour, minute int, err error) {
-	var h, m int
-
-	n, err := fmt.Sscanf(s, "%d:%d", &h, &m)
-	if err != nil || n != 2 {
+	t, err := time.Parse("15:04", s)
+	if err != nil || t.Format("15:04") != s {
 		return 0, 0, fmt.Errorf("invalid time format '%s', expected HH:MM", s)
 	}
 
-	if h < 0 || h > 23 || m < 0 || m > 59 {
-		return 0, 0, fmt.Errorf("invalid time '%s': hours must be 0-23, minutes 0-59", s)
-	}
-
-	return h, m, nil
+	return t.Hour(), t.Minute(), nil
 }
 
 // isFullDay returns true if the schedule covers the entire day

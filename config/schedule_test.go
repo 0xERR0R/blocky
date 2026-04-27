@@ -34,6 +34,54 @@ var _ = Describe("Schedule", func() {
 		})
 	})
 
+	Describe("parseTimeOfDay", func() {
+		It("should parse valid HH:MM times", func() {
+			h, m, err := parseTimeOfDay("09:00")
+			Expect(err).Should(Succeed())
+			Expect(h).Should(Equal(9))
+			Expect(m).Should(Equal(0))
+
+			h, m, err = parseTimeOfDay("23:59")
+			Expect(err).Should(Succeed())
+			Expect(h).Should(Equal(23))
+			Expect(m).Should(Equal(59))
+
+			h, m, err = parseTimeOfDay("00:00")
+			Expect(err).Should(Succeed())
+			Expect(h).Should(Equal(0))
+			Expect(m).Should(Equal(0))
+		})
+
+		It("should reject non-padded times", func() {
+			_, _, err := parseTimeOfDay("8:00")
+			Expect(err).Should(HaveOccurred())
+
+			_, _, err = parseTimeOfDay("08:0")
+			Expect(err).Should(HaveOccurred())
+		})
+
+		It("should reject trailing characters", func() {
+			_, _, err := parseTimeOfDay("08:00abc")
+			Expect(err).Should(HaveOccurred())
+		})
+
+		It("should reject out-of-range values", func() {
+			_, _, err := parseTimeOfDay("25:00")
+			Expect(err).Should(HaveOccurred())
+
+			_, _, err = parseTimeOfDay("12:60")
+			Expect(err).Should(HaveOccurred())
+		})
+
+		It("should reject empty and garbage input", func() {
+			_, _, err := parseTimeOfDay("")
+			Expect(err).Should(HaveOccurred())
+
+			_, _, err = parseTimeOfDay("not-a-time")
+			Expect(err).Should(HaveOccurred())
+		})
+	})
+
 	Describe("Schedule validate", func() {
 		It("should accept valid schedule", func() {
 			s := Schedule{
