@@ -407,5 +407,25 @@ var _ = Describe("Schedule", func() {
 			}
 			Expect(cfg.validate()).Should(Succeed())
 		})
+
+		It("should reject listSchedules referencing undefined list", func() {
+			cfg := Blocking{
+				Denylists: map[string][]BytesSource{
+					"ads": NewBytesSources("/a/file"),
+				},
+				Schedules: map[string]Schedule{
+					"night": {Start: "22:00", End: "07:00", Weekdays: []Weekday{Weekday(time.Monday)}},
+				},
+				ClientGroupsBlock: map[string][]string{
+					"default": {"ads"},
+				},
+				ListSchedules: map[string][]string{
+					"nonexistent-list": {"night"},
+				},
+			}
+			err := cfg.validate()
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("references undefined list"))
+		})
 	})
 })
