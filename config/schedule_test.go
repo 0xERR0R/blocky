@@ -123,10 +123,19 @@ var _ = Describe("Schedule", func() {
 			Expect(s.validate()).Should(MatchError(ContainSubstring("weekdays are required")))
 		})
 
-		It("should reject invalid time format", func() {
+		It("should reject invalid start time format", func() {
 			s := Schedule{
 				Start:    "25:00",
 				End:      "07:00",
+				Weekdays: []Weekday{Weekday(time.Monday)},
+			}
+			Expect(s.validate()).Should(HaveOccurred())
+		})
+
+		It("should reject invalid end time format", func() {
+			s := Schedule{
+				Start:    "09:00",
+				End:      "25:00",
 				Weekdays: []Weekday{Weekday(time.Monday)},
 			}
 			Expect(s.validate()).Should(HaveOccurred())
