@@ -101,8 +101,8 @@ var _ = Describe("Bootstrap DNS tests", Label("e2e"), func() {
 
 				var ipv6IP string
 				for _, netSettings := range inspect.NetworkSettings.Networks {
-					if netSettings.GlobalIPv6Address != "" {
-						ipv6IP = netSettings.GlobalIPv6Address
+					if netSettings.GlobalIPv6Address.IsValid() {
+						ipv6IP = netSettings.GlobalIPv6Address.String()
 
 						break
 					}

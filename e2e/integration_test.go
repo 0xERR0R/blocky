@@ -328,7 +328,7 @@ var _ = Describe("Integration tests", func() {
 						state, err := blocky.State(ctx)
 						g.Expect(err).NotTo(HaveOccurred())
 
-						return state.Health.Status
+						return string(state.Health.Status)
 					}, "2m", "1s").Should(Equal("healthy"))
 				})
 
