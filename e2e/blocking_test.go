@@ -824,5 +824,39 @@ var _ = Describe("Domain blocking functionality", func() {
 					Should(BeDNSRecord("blockeddomain.com.", A, "0.0.0.0"))
 			})
 		})
+
+		Context("when the schedule is inactive right now", func() {
+			BeforeEach(func(ctx context.Context) {
+				tomorrow := weekdayNames[(int(time.Now().UTC().Weekday())+1)%7]
+
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(fmt.Sprintf(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka2
+					blocking:
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/list.txt
+					  schedules:
+					    not-now:
+					      weekdays: [%s]
+					  listSchedules:
+					    ads: [not-now]
+					  clientGroupsBlock:
+					    default:
+					      - ads
+				`, tomorrow)))
+				Expect(err).Should(Succeed())
+			})
+
+			It("lets the domain resolve via the upstream", func(ctx context.Context) {
+				msg := util.NewMsgWithQuestion("blockeddomain.com.", A)
+				Expect(doDNSRequest(ctx, blocky, msg)).
+					Should(BeDNSRecord("blockeddomain.com.", A, "5.6.7.8"))
+			})
+		})
 	})
 })
