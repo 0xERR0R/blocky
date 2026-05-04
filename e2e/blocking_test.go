@@ -2,8 +2,10 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
+	"time"
 
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
@@ -768,6 +770,100 @@ var _ = Describe("Domain blocking functionality", func() {
 					Expect(doDNSRequest(ctx, blocky, msg)).
 						Should(BeDNSRecord("blocked.com.", A, "0.0.0.0"))
 				})
+			})
+		})
+	})
+
+	Describe("Schedule-based blocking", func() {
+		// Container clock defaults to UTC (Alpine base image), so the
+		// schedule's weekday is computed in UTC here as well.
+		weekdayNames := []string{"sun", "mon", "tue", "wed", "thu", "fri", "sat"}
+
+		BeforeEach(func(ctx context.Context) {
+			// Upstream that resolves the test domain so the inactive
+			// case can verify the schedule lets traffic through.
+			_, err = createDNSMokkaContainer(ctx, "moka2", e2eNet,
+				`A blockeddomain.com/NOERROR("A 5.6.7.8 300")`,
+			)
+			Expect(err).Should(Succeed())
+
+			_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blockeddomain.com")
+			Expect(err).Should(Succeed())
+		})
+
+		Context("when the schedule is active right now", func() {
+			BeforeEach(func(ctx context.Context) {
+				// Cover today and tomorrow so the schedule stays active even
+				// if the container ticks past UTC midnight between BeforeEach
+				// and the DNS query.
+				wd := int(time.Now().UTC().Weekday())
+				today := weekdayNames[wd]
+				tomorrow := weekdayNames[(wd+1)%7]
+
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(fmt.Sprintf(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka2
+					blocking:
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/list.txt
+					  schedules:
+					    now:
+					      weekdays: [%s, %s]
+					  listSchedules:
+					    ads: [now]
+					  clientGroupsBlock:
+					    default:
+					      - ads
+				`, today, tomorrow)))
+				Expect(err).Should(Succeed())
+			})
+
+			It("blocks domains in the scheduled list", func(ctx context.Context) {
+				msg := util.NewMsgWithQuestion("blockeddomain.com.", A)
+				Expect(doDNSRequest(ctx, blocky, msg)).
+					Should(BeDNSRecord("blockeddomain.com.", A, "0.0.0.0"))
+			})
+		})
+
+		Context("when the schedule is inactive right now", func() {
+			BeforeEach(func(ctx context.Context) {
+				// Pick a weekday two days out so neither today's nor
+				// tomorrow's container weekday matches, even if UTC midnight
+				// rolls over between BeforeEach and the DNS query.
+				twoDaysOut := weekdayNames[(int(time.Now().UTC().Weekday())+2)%7]
+
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(fmt.Sprintf(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka2
+					blocking:
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/list.txt
+					  schedules:
+					    not-now:
+					      weekdays: [%s]
+					  listSchedules:
+					    ads: [not-now]
+					  clientGroupsBlock:
+					    default:
+					      - ads
+				`, twoDaysOut)))
+				Expect(err).Should(Succeed())
+			})
+
+			It("lets the domain resolve via the upstream", func(ctx context.Context) {
+				msg := util.NewMsgWithQuestion("blockeddomain.com.", A)
+				Expect(doDNSRequest(ctx, blocky, msg)).
+					Should(BeDNSRecord("blockeddomain.com.", A, "5.6.7.8"))
 			})
 		})
 	})
