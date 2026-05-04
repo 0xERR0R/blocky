@@ -5,13 +5,13 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"strings"
 	"time"
 
-	dockernetwork "github.com/docker/docker/api/types/network"
-	"github.com/docker/go-connections/nat"
 	"github.com/jedisct1/go-dnsstamps"
 	"github.com/miekg/dns"
+	dockernetwork "github.com/moby/moby/api/types/network"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
@@ -37,8 +37,8 @@ func getIPv6Network(ctx context.Context) *testcontainers.DockerNetwork {
 		testNet.WithEnableIPv6(),
 		testNet.WithIPAM(&dockernetwork.IPAM{
 			Config: []dockernetwork.IPAMConfig{
-				{Subnet: "172.28.0.0/16"},
-				{Subnet: "fd00:dead:beef::/48"},
+				{Subnet: netip.MustParsePrefix("172.28.0.0/16")},
+				{Subnet: netip.MustParsePrefix("fd00:dead:beef::/48")},
 			},
 		}),
 	)
@@ -100,7 +100,7 @@ func doDNSRequest(ctx context.Context, container testcontainers.Container, messa
 }
 
 // getContainerHostPort returns the host and port of the given container and port.
-func getContainerHostPort(ctx context.Context, c testcontainers.Container, p nat.Port) (host, port string, err error) {
+func getContainerHostPort(ctx context.Context, c testcontainers.Container, p string) (host, port string, err error) {
 	res, err := c.MappedPort(ctx, p)
 	if err != nil {
 		return "", "", err
@@ -172,7 +172,11 @@ func getContainerNetworkIP(
 
 			// Get the IP for this network
 			if netSettings, ok := inspect.NetworkSettings.Networks[network]; ok {
-				return netSettings.IPAddress, nil
+				if !netSettings.IPAddress.IsValid() {
+					return "", fmt.Errorf("container has no IPv4 address in network %s", networkName)
+				}
+
+				return netSettings.IPAddress.String(), nil
 			}
 		}
 	}

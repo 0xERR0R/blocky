@@ -15,9 +15,8 @@ import (
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/avast/retry-go/v4"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/go-connections/nat"
 	"github.com/miekg/dns"
+	"github.com/moby/moby/api/types/container"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/testcontainers/testcontainers-go"
@@ -294,7 +293,7 @@ func checkBlockyReadiness(ctx context.Context, cfg *config.Config, container tes
 }
 
 func doHTTPRequest(ctx context.Context, container testcontainers.Container, containerPort string) error {
-	host, port, err := getContainerHostPort(ctx, container, nat.Port(containerPort+"/tcp"))
+	host, port, err := getContainerHostPort(ctx, container, containerPort+"/tcp")
 	if err != nil {
 		return err
 	}
