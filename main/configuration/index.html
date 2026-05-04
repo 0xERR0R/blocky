@@ -727,6 +727,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#schedule-based-blocking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schedule-based blocking
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#block-type" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1849,6 +1860,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#schedule-based-blocking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schedule-based blocking
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#block-type" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2564,6 +2586,25 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ads</span>
 <span class="w">    </span><span class="nt">192.168.178.1/24</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">special</span>
+<span class="w">  </span><span class="c1"># optional: define named schedules to control when list groups are active</span>
+<span class="w">  </span><span class="nt">schedules</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">workhours</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># required: allowed values mon, tue, wed, thu, fri, sat, sun</span>
+<span class="w">      </span><span class="nt">weekdays</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">mon</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">tue</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">wed</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">thu</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">fri</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="c1"># optional: HH:MM (24h). Must be set together with end.</span>
+<span class="w">      </span><span class="nt">start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;08:00&quot;</span>
+<span class="w">      </span><span class="c1"># optional: HH:MM (24h). If start &gt; end, schedule spans overnight.</span>
+<span class="w">      </span><span class="nt">end</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;18:00&quot;</span>
+<span class="w">    </span><span class="nt">weekend</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># full-day schedule on selected weekdays (omit start/end)</span>
+<span class="w">      </span><span class="nt">weekdays</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">sat</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">sun</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="c1"># optional: map list group name to one or more schedule names</span>
+<span class="w">  </span><span class="c1"># if omitted for a list, that list is always active</span>
+<span class="w">  </span><span class="c1"># if multiple schedules are set, they are combined with OR logic</span>
+<span class="w">  </span><span class="nt">listSchedules</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">special</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">workhours</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">weekend</span>
 <span class="w">  </span><span class="c1"># which response will be sent, if query is blocked:</span>
 <span class="w">  </span><span class="c1"># zeroIp: 0.0.0.0 will be returned (default)</span>
 <span class="w">  </span><span class="c1"># nxDomain: return NXDOMAIN as return code</span>
@@ -3610,6 +3651,7 @@ trackers, adult sites). You can group several list sources together and define t
 Blocking uses the <a href="https://en.wikipedia.org/wiki/DNS_sinkhole"><abbr title="Domain Name System">DNS</abbr> sinkhole</a> approach. For each <abbr title="Domain Name System">DNS</abbr> query, the domain name from
 the request, IP address from the response, and any <abbr title="Canonical Name">CNAME</abbr> records will be checked to determine whether to block the query or not.</p>
 <p>To avoid over-blocking, you can use allowlists.</p>
+<p>You can also activate list groups only during configured time windows by using schedules.</p>
 <h3 id="definition-allowdenylists">Definition allow/denylists</h3>
 <p>Lists are defined in groups. This allows using different sets of lists for different clients.</p>
 <p>Each list in a group is a "source" and can be downloaded, read from a file, or inlined in the config. See <a href="#sources">Sources</a> for details and configuring how those are loaded and reloaded/refreshed.</p>
@@ -3702,6 +3744,57 @@ If client's IP address matches with the result, the defined group will be used.<
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>You can use <code>*</code> as wildcard for the sequence of any character or <code>[0-9]</code> as number range</p>
+</div>
+<h3 id="schedule-based-blocking">Schedule-based blocking</h3>
+<p>You can define named schedules and assign them to list groups. A list group is active only when at least one assigned schedule is active.</p>
+<p>Rules:</p>
+<ol>
+<li>If a list group has no schedule mapping, it is always active.</li>
+<li>If a list group has multiple schedules, they are combined with OR logic (any active schedule enables the list).</li>
+<li>Schedules use local server time.</li>
+</ol>
+<p>Each schedule supports:</p>
+<ul>
+<li><code>weekdays</code>: required, list of <code>mon</code>, <code>tue</code>, <code>wed</code>, <code>thu</code>, <code>fri</code>, <code>sat</code>, <code>sun</code></li>
+<li><code>start</code> and <code>end</code>: optional <code>HH:MM</code> times</li>
+</ul>
+<p>Time behavior:</p>
+<ol>
+<li>Omit both <code>start</code> and <code>end</code> for full-day schedule on selected weekdays.</li>
+<li>Set both <code>start</code> and <code>end</code> for a bounded window (<code>start &lt;= now &lt; end</code>).</li>
+<li>If <code>start &gt; end</code>, the schedule is overnight (for example <code>22:00</code> to <code>06:00</code>).</li>
+<li>Do not set only one of <code>start</code> or <code>end</code>.</li>
+</ol>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><pre><span></span><code><span class="nt">blocking</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">denylists</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">ads</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://example.org/ads.txt</span>
+<span class="w">    </span><span class="nt">social</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://example.org/social.txt</span>
+
+<span class="w">  </span><span class="nt">schedules</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">workhours</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">weekdays</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">mon</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">tue</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">wed</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">thu</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">fri</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;08:00&quot;</span>
+<span class="w">      </span><span class="nt">end</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;18:00&quot;</span>
+<span class="w">    </span><span class="nt">nights</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">weekdays</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">sun</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">mon</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">tue</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">wed</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">thu</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;22:00&quot;</span>
+<span class="w">      </span><span class="nt">end</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;06:00&quot;</span>
+<span class="w">    </span><span class="nt">weekend-all-day</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">weekdays</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">sat</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">sun</span><span class="p p-Indicator">]</span>
+
+<span class="w">  </span><span class="nt">listSchedules</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">social</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">workhours</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">nights</span><span class="p p-Indicator">]</span>
+
+<span class="w">  </span><span class="nt">clientGroupsBlock</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">default</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ads</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">social</span>
+</code></pre></div>
+<p>In this example, <code>ads</code> is always active (no schedule mapping), while <code>social</code> is active during work hours or night window.</p>
 </div>
 <h3 id="block-type">Block type</h3>
 <p>You can configure, which response should be sent to the client, if a requested query is blocked (only for A and AAAA
