@@ -793,7 +793,12 @@ var _ = Describe("Domain blocking functionality", func() {
 
 		Context("when the schedule is active right now", func() {
 			BeforeEach(func(ctx context.Context) {
-				today := weekdayNames[time.Now().UTC().Weekday()]
+				// Cover today and tomorrow so the schedule stays active even
+				// if the container ticks past UTC midnight between BeforeEach
+				// and the DNS query.
+				wd := int(time.Now().UTC().Weekday())
+				today := weekdayNames[wd]
+				tomorrow := weekdayNames[(wd+1)%7]
 
 				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(fmt.Sprintf(`
 					log:
@@ -808,13 +813,13 @@ var _ = Describe("Domain blocking functionality", func() {
 					      - http://httpserver:8080/list.txt
 					  schedules:
 					    now:
-					      weekdays: [%s]
+					      weekdays: [%s, %s]
 					  listSchedules:
 					    ads: [now]
 					  clientGroupsBlock:
 					    default:
 					      - ads
-				`, today)))
+				`, today, tomorrow)))
 				Expect(err).Should(Succeed())
 			})
 
@@ -827,7 +832,10 @@ var _ = Describe("Domain blocking functionality", func() {
 
 		Context("when the schedule is inactive right now", func() {
 			BeforeEach(func(ctx context.Context) {
-				tomorrow := weekdayNames[(int(time.Now().UTC().Weekday())+1)%7]
+				// Pick a weekday two days out so neither today's nor
+				// tomorrow's container weekday matches, even if UTC midnight
+				// rolls over between BeforeEach and the DNS query.
+				twoDaysOut := weekdayNames[(int(time.Now().UTC().Weekday())+2)%7]
 
 				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(fmt.Sprintf(`
 					log:
@@ -848,7 +856,7 @@ var _ = Describe("Domain blocking functionality", func() {
 					  clientGroupsBlock:
 					    default:
 					      - ads
-				`, tomorrow)))
+				`, twoDaysOut)))
 				Expect(err).Should(Succeed())
 			})
 
