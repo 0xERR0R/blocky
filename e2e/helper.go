@@ -172,6 +172,10 @@ func getContainerNetworkIP(
 
 			// Get the IP for this network
 			if netSettings, ok := inspect.NetworkSettings.Networks[network]; ok {
+				if !netSettings.IPAddress.IsValid() {
+					return "", fmt.Errorf("container has no IPv4 address in network %s", networkName)
+				}
+
 				return netSettings.IPAddress.String(), nil
 			}
 		}
