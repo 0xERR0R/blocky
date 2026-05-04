@@ -9,7 +9,11 @@ import (
 	"github.com/0xERR0R/blocky/log"
 )
 
-const daysPerWeek = 7
+const (
+	daysPerWeek    = 7
+	minutesPerHour = 60
+	minutesPerDay  = 24 * minutesPerHour
+)
 
 // Weekday represents a day of the week for schedule configuration.
 type Weekday time.Weekday
@@ -47,10 +51,24 @@ func (w Weekday) String() string {
 }
 
 // Schedule defines a time-based schedule for blocking rules.
+//
+// `validate` precomputes the integer fields below so `IsActive` runs on the
+// hot path (every DNS request) without re-parsing the time strings.
 type Schedule struct {
 	Start    string    `yaml:"start"`
 	End      string    `yaml:"end"`
 	Weekdays []Weekday `yaml:"weekdays"`
+
+	// Precomputed by compile(). Production callers run validate() at config
+	// load (which writes the compiled values back into the map), so by the
+	// time IsActive runs concurrently from request handling these fields
+	// are read-only. Callers that construct Schedule directly (e.g. unit
+	// tests) get a lazy compile on first IsActive call.
+	compiled    bool
+	fullDay     bool
+	startMin    int
+	endMin      int
+	weekdayMask uint8
 }
 
 // parseTimeOfDay parses an "HH:MM" string into hours and minutes.
@@ -101,73 +119,68 @@ func (s *Schedule) validate() error {
 		seen[wd] = true
 	}
 
+	s.compile()
+
 	return nil
 }
 
-// IsActive returns true if the schedule is active at the given time.
-func (s *Schedule) IsActive(now time.Time) bool {
-	if s.isFullDay() {
-		// Full-day schedule: just check weekday
-		today := now.Weekday()
+// compile populates the precomputed fields from the raw config. Idempotent.
+// Safe to call only on a validated Schedule; on invalid input the cached
+// values are zeroed which makes IsActive fail closed (return false).
+func (s *Schedule) compile() {
+	if s.compiled {
+		return
+	}
 
-		for _, wd := range s.Weekdays {
-			if time.Weekday(wd) == today {
-				return true
-			}
+	s.fullDay = s.isFullDay()
+
+	if !s.fullDay {
+		if sh, sm, err := parseTimeOfDay(s.Start); err == nil {
+			s.startMin = sh*minutesPerHour + sm
 		}
 
-		return false
+		if eh, em, err := parseTimeOfDay(s.End); err == nil {
+			s.endMin = eh*minutesPerHour + em
+		}
 	}
-
-	startH, startM, _ := parseTimeOfDay(s.Start)
-	endH, endM, _ := parseTimeOfDay(s.End)
-
-	nowMinutes := toMinutes(now.Hour(), now.Minute())
-	startMinutes := toMinutes(startH, startM)
-	endMinutes := toMinutes(endH, endM)
-
-	if !s.weekdayMatch(now, nowMinutes, startMinutes, endMinutes) {
-		return false
-	}
-
-	if startMinutes <= endMinutes {
-		// Same-day range (e.g. 09:00 - 17:00)
-		return nowMinutes >= startMinutes && nowMinutes < endMinutes
-	}
-
-	// Overnight range (e.g. 22:00 - 07:00)
-	return nowMinutes >= startMinutes || nowMinutes < endMinutes
-}
-
-func toMinutes(hours, mins int) int {
-	return hours*60 + mins
-}
-
-func (s *Schedule) weekdayMatch(now time.Time, nowMinutes, startMinutes, endMinutes int) bool {
-	today := now.Weekday()
 
 	for _, wd := range s.Weekdays {
-		if time.Weekday(wd) == today {
-			if startMinutes <= endMinutes {
-				// Same-day range: simple match
-				return true
-			}
-
-			// Overnight range: today matches for the "start" portion (after startMinutes)
-			if nowMinutes >= startMinutes {
-				return true
-			}
-		}
-
-		// For overnight schedules, check if yesterday was a scheduled day
-		// and we're in the "morning" portion (before endMinutes)
-		if startMinutes > endMinutes {
-			yesterday := (today + daysPerWeek - 1) % daysPerWeek
-			if time.Weekday(wd) == yesterday && nowMinutes < endMinutes {
-				return true
-			}
-		}
+		s.weekdayMask |= 1 << uint(time.Weekday(wd))
 	}
 
-	return false
+	s.compiled = true
+}
+
+// IsActive returns true if the schedule is active at the given time.
+//
+// Hot path: called for every DNS request that has scheduled groups, so it
+// must not allocate or call time.Parse. All work happens in compile() at
+// config-load time.
+func (s *Schedule) IsActive(now time.Time) bool {
+	if !s.compiled {
+		s.compile()
+	}
+
+	todayBit := uint8(1) << uint(now.Weekday())
+
+	if s.fullDay {
+		return s.weekdayMask&todayBit != 0
+	}
+
+	nowMin := now.Hour()*minutesPerHour + now.Minute()
+
+	if s.startMin <= s.endMin {
+		// Same-day range (e.g. 09:00 - 17:00), or zero-length window
+		// (start == end), which is correctly never active.
+		return s.weekdayMask&todayBit != 0 && nowMin >= s.startMin && nowMin < s.endMin
+	}
+
+	// Overnight range (e.g. 22:00 - 07:00): active if today is scheduled
+	// and we're past the start time, OR yesterday was scheduled and we're
+	// before the end time.
+	yesterdayBit := uint8(1) << uint((now.Weekday()+daysPerWeek-1)%daysPerWeek)
+	todayActive := s.weekdayMask&todayBit != 0 && nowMin >= s.startMin
+	yesterdayActive := s.weekdayMask&yesterdayBit != 0 && nowMin < s.endMin
+
+	return todayActive || yesterdayActive
 }

@@ -122,11 +122,15 @@ func (c *Blocking) validate() error {
 		return nil
 	}
 
-	// Validate schedules
+	// Validate schedules. validate() also precomputes the runtime fields used
+	// by IsActive on the hot path; write the compiled value back into the map
+	// so subsequent reads (e.g. by the resolver) see the precomputed form.
 	for name, sched := range c.Schedules {
 		if err := sched.validate(); err != nil {
 			return fmt.Errorf("schedule '%s': %w", name, err)
 		}
+
+		c.Schedules[name] = sched
 	}
 
 	// Validate if all allowlists and denylists referenced

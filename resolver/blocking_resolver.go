@@ -492,7 +492,7 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 
 	now := time.Now()
 
-	var result []string
+	result := make([]string, 0, len(groups))
 
 	for _, sg := range groups {
 		if r.isGroupDisabled(sg.group) {

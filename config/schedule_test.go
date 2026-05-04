@@ -1,6 +1,7 @@
 package config
 
 import (
+	"testing"
 	"time"
 
 	"github.com/0xERR0R/blocky/log"
@@ -293,6 +294,30 @@ var _ = Describe("Schedule", func() {
 				now := time.Date(2026, 4, 6, 0, 0, 0, 0, time.Local)
 				Expect(now.Weekday()).Should(Equal(time.Monday))
 				Expect(s.IsActive(now)).Should(BeFalse())
+			})
+		})
+
+		Context("hot-path allocations", func() {
+			// IsActive runs on every DNS request that has scheduled groups, so
+			// it must not allocate. validate() pre-parses the time strings so
+			// IsActive can do pure integer math; this test guards against a
+			// regression where parsing leaks back onto the hot path.
+			It("should not allocate after validate", func() {
+				cases := []Schedule{
+					{Start: "09:00", End: "17:00", Weekdays: []Weekday{Weekday(time.Monday)}},
+					{Start: "22:00", End: "07:00", Weekdays: []Weekday{Weekday(time.Friday)}},
+					{Weekdays: []Weekday{Weekday(time.Saturday)}},
+				}
+				now := time.Now()
+
+				for _, s := range cases {
+					Expect(s.validate()).Should(Succeed())
+
+					allocs := testing.AllocsPerRun(100, func() {
+						_ = s.IsActive(now)
+					})
+					Expect(allocs).Should(BeZero(), "Schedule %+v should be allocation-free on the hot path", s)
+				}
 			})
 		})
 
