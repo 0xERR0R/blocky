@@ -59,6 +59,36 @@ var _ = Describe("BlockingConfig", func() {
 			Expect(hook.Messages[0]).Should(Equal("clientGroupsBlock:"))
 			Expect(hook.Messages).Should(ContainElement(Equal("blockType = ZEROIP")))
 		})
+
+		It("should log time-range schedules", func() {
+			cfg.Schedules = map[string]Schedule{
+				"night": {Start: "22:00", End: "07:00", Weekdays: []Weekday{Weekday(time.Monday)}},
+			}
+			cfg.LogConfig(logger)
+
+			Expect(hook.Messages).Should(ContainElement(Equal("schedules:")))
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("night: 22:00 - 07:00")))
+		})
+
+		It("should log full-day schedules", func() {
+			cfg.Schedules = map[string]Schedule{
+				"weekend": {Weekdays: []Weekday{Weekday(time.Saturday), Weekday(time.Sunday)}},
+			}
+			cfg.LogConfig(logger)
+
+			Expect(hook.Messages).Should(ContainElement(Equal("schedules:")))
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("weekend: all day")))
+		})
+
+		It("should log listSchedules", func() {
+			cfg.ListSchedules = map[string][]string{
+				"gr1": {"night"},
+			}
+			cfg.LogConfig(logger)
+
+			Expect(hook.Messages).Should(ContainElement(Equal("listSchedules:")))
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("gr1 = [night]")))
+		})
 	})
 
 	Describe("migrate", func() {

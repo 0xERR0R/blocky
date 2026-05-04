@@ -114,6 +114,25 @@ blocking:
       - ads
     192.168.178.1/24:
       - special
+  # optional: define named schedules to control when list groups are active
+  schedules:
+    workhours:
+      # required: allowed values mon, tue, wed, thu, fri, sat, sun
+      weekdays: [mon, tue, wed, thu, fri]
+      # optional: HH:MM (24h). Must be set together with end.
+      start: "08:00"
+      # optional: HH:MM (24h). If start > end, schedule spans overnight.
+      end: "18:00"
+    weekend:
+      # full-day schedule on selected weekdays (omit start/end)
+      weekdays: [sat, sun]
+  # optional: map list group name to one or more schedule names
+  # if omitted for a list, that list is always active
+  # if multiple schedules are set, they are combined with OR logic
+  listSchedules:
+    special:
+      - workhours
+      - weekend
   # which response will be sent, if query is blocked:
   # zeroIp: 0.0.0.0 will be returned (default)
   # nxDomain: return NXDOMAIN as return code

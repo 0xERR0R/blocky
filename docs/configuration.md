@@ -509,6 +509,8 @@ the request, IP address from the response, and any CNAME records will be checked
 
 To avoid over-blocking, you can use allowlists.
 
+You can also activate list groups only during configured time windows by using schedules.
+
 ### Definition allow/denylists
 
 Lists are defined in groups. This allows using different sets of lists for different clients.
@@ -614,6 +616,61 @@ If client's IP address matches with the result, the defined group will be used.
 !!! tip
 
     You can use `*` as wildcard for the sequence of any character or `[0-9]` as number range
+
+### Schedule-based blocking
+
+You can define named schedules and assign them to list groups. A list group is active only when at least one assigned schedule is active.
+
+Rules:
+
+1. If a list group has no schedule mapping, it is always active.
+2. If a list group has multiple schedules, they are combined with OR logic (any active schedule enables the list).
+3. Schedules use local server time.
+
+Each schedule supports:
+
+- `weekdays`: required, list of `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`
+- `start` and `end`: optional `HH:MM` times
+
+Time behavior:
+
+1. Omit both `start` and `end` for full-day schedule on selected weekdays.
+2. Set both `start` and `end` for a bounded window (`start <= now < end`).
+3. If `start > end`, the schedule is overnight (for example `22:00` to `06:00`).
+4. Do not set only one of `start` or `end`.
+
+!!! example
+
+    ```yaml
+    blocking:
+      denylists:
+        ads:
+          - https://example.org/ads.txt
+        social:
+          - https://example.org/social.txt
+
+      schedules:
+        workhours:
+          weekdays: [mon, tue, wed, thu, fri]
+          start: "08:00"
+          end: "18:00"
+        nights:
+          weekdays: [sun, mon, tue, wed, thu]
+          start: "22:00"
+          end: "06:00"
+        weekend-all-day:
+          weekdays: [sat, sun]
+
+      listSchedules:
+        social: [workhours, nights]
+
+      clientGroupsBlock:
+        default:
+          - ads
+          - social
+    ```
+
+    In this example, `ads` is always active (no schedule mapping), while `social` is active during work hours or night window.
 
 ### Block type
 

@@ -625,6 +625,274 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 	})
 
+	Describe("Schedule-based blocking", func() {
+		When("schedule is currently active", func() {
+			BeforeEach(func() {
+				// Create a schedule that's always active (all days, all hours)
+				sutConfig = config.Blocking{
+					BlockType: "ZEROIP",
+					BlockTTL:  config.Duration(time.Minute),
+					Denylists: map[string][]config.BytesSource{
+						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
+					},
+					Schedules: map[string]config.Schedule{
+						"always": {
+							Weekdays: []config.Weekday{
+								config.Weekday(time.Sunday),
+								config.Weekday(time.Monday),
+								config.Weekday(time.Tuesday),
+								config.Weekday(time.Wednesday),
+								config.Weekday(time.Thursday),
+								config.Weekday(time.Friday),
+								config.Weekday(time.Saturday),
+							},
+						},
+					},
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup"},
+					},
+					ListSchedules: map[string][]string{
+						"defaultGroup": {"always"},
+					},
+				}
+			})
+
+			It("should block the request", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("blocked3.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 60)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+		})
+
+		When("schedule is not currently active", func() {
+			BeforeEach(func() {
+				// Create a schedule for a day/time that is definitely not now
+				// Pick a weekday 3 days from now to avoid overnight spillover edge cases
+				notToday := (time.Now().Weekday() + 3) % 7
+
+				sutConfig = config.Blocking{
+					BlockType: "ZEROIP",
+					BlockTTL:  config.Duration(time.Minute),
+					Denylists: map[string][]config.BytesSource{
+						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
+					},
+					Schedules: map[string]config.Schedule{
+						"never-now": {
+							Start:    "00:00",
+							End:      "00:01",
+							Weekdays: []config.Weekday{config.Weekday(notToday)},
+						},
+					},
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup"},
+					},
+					ListSchedules: map[string][]string{
+						"defaultGroup": {"never-now"},
+					},
+				}
+			})
+
+			It("should not block the request", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+		})
+
+		When("mixing scheduled and unscheduled groups", func() {
+			BeforeEach(func() {
+				notToday := (time.Now().Weekday() + 3) % 7
+
+				sutConfig = config.Blocking{
+					BlockType: "ZEROIP",
+					BlockTTL:  config.Duration(time.Minute),
+					Denylists: map[string][]config.BytesSource{
+						"gr1":          config.NewBytesSources(group1File.Path),
+						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
+					},
+					Schedules: map[string]config.Schedule{
+						"never-now": {
+							Start:    "00:00",
+							End:      "00:01",
+							Weekdays: []config.Weekday{config.Weekday(notToday)},
+						},
+					},
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup", "gr1"},
+					},
+					ListSchedules: map[string][]string{
+						"defaultGroup": {"never-now"}, // inactive
+					},
+				}
+			})
+
+			It("should block via the always-active group", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("domain1.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 60)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+
+			It("should not block via the inactive scheduled group", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+		})
+
+		When("multiple list schedules are configured", func() {
+			BeforeEach(func() {
+				notToday := (time.Now().Weekday() + 3) % 7
+
+				sutConfig = config.Blocking{
+					BlockType: "ZEROIP",
+					BlockTTL:  config.Duration(time.Minute),
+					Denylists: map[string][]config.BytesSource{
+						"gr1":          config.NewBytesSources(group1File.Path),
+						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
+					},
+					Schedules: map[string]config.Schedule{
+						"always": {
+							Weekdays: []config.Weekday{
+								config.Weekday(time.Sunday),
+								config.Weekday(time.Monday),
+								config.Weekday(time.Tuesday),
+								config.Weekday(time.Wednesday),
+								config.Weekday(time.Thursday),
+								config.Weekday(time.Friday),
+								config.Weekday(time.Saturday),
+							},
+						},
+						"never-now": {
+							Start:    "00:00",
+							End:      "00:01",
+							Weekdays: []config.Weekday{config.Weekday(notToday)},
+						},
+					},
+					ClientGroupsBlock: map[string][]string{
+						"default": {"gr1", "defaultGroup"},
+					},
+					ListSchedules: map[string][]string{
+						"gr1":          {"always"},
+						"defaultGroup": {"never-now"},
+					},
+				}
+			})
+
+			It("should block the list with an active schedule", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("domain1.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 60)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+
+			It("should not block the list with an inactive schedule", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+		})
+
+		When("a list has multiple schedules (OR logic)", func() {
+			BeforeEach(func() {
+				notToday := (time.Now().Weekday() + 3) % 7
+
+				sutConfig = config.Blocking{
+					BlockType: "ZEROIP",
+					BlockTTL:  config.Duration(time.Minute),
+					Denylists: map[string][]config.BytesSource{
+						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
+					},
+					Schedules: map[string]config.Schedule{
+						"always": {
+							Weekdays: []config.Weekday{
+								config.Weekday(time.Sunday),
+								config.Weekday(time.Monday),
+								config.Weekday(time.Tuesday),
+								config.Weekday(time.Wednesday),
+								config.Weekday(time.Thursday),
+								config.Weekday(time.Friday),
+								config.Weekday(time.Saturday),
+							},
+						},
+						"never-now": {
+							Start:    "00:00",
+							End:      "00:01",
+							Weekdays: []config.Weekday{config.Weekday(notToday)},
+						},
+					},
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup"},
+					},
+					ListSchedules: map[string][]string{
+						"defaultGroup": {"never-now", "always"},
+					},
+				}
+			})
+
+			It("should block because at least one schedule is active", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("blocked3.com.", A, "0.0.0.0"),
+							HaveTTL(BeNumerically("==", 60)),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+		})
+
+		When("listSchedules references unknown schedule names", func() {
+			BeforeEach(func() {
+				sutConfig = config.Blocking{
+					BlockType: "ZEROIP",
+					BlockTTL:  config.Duration(time.Minute),
+					Denylists: map[string][]config.BytesSource{
+						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
+					},
+					Schedules:         map[string]config.Schedule{},
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup"},
+					},
+					ListSchedules: map[string][]string{
+						"defaultGroup": {"typo-schedule"},
+					},
+				}
+			})
+
+			It("should treat the group as inactive instead of always-active", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+			})
+		})
+	})
+
 	Describe("Allowlisting", func() {
 		When("Requested domain is on black and allowlist", func() {
 			BeforeEach(func() {
