@@ -21,7 +21,7 @@ require (
 	github.com/jedisct1/go-dnsstamps v0.0.0-20251110100135-9130479da135
 	github.com/mattn/go-colorable v0.1.14
 	github.com/miekg/dns v1.1.72
-	github.com/moby/moby/api v1.54.1
+	github.com/moby/moby/api v1.54.2
 	github.com/mroth/weightedrand/v2 v2.1.0
 	github.com/oapi-codegen/runtime v1.4.0
 	github.com/onsi/ginkgo/v2 v2.28.3
