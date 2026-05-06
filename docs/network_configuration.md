@@ -76,10 +76,13 @@ proxy sets both `Forwarded` and `X-Forwarded-For`, Blocky uses
 
 !!! warning
 
-    Only enable header-based client identification if you trust the
-    proxy in front of Blocky. A directly-reachable Blocky behind
-    no proxy will trust whatever a client sends, allowing trivial
-    spoofing of the client identity.
+    Blocky uses `Forwarded` / `X-Forwarded-For` whenever those
+    headers are present; this is not a separate feature you can
+    enable or disable. If Blocky is reachable directly by clients,
+    they can send these headers themselves and spoof their identity.
+    Ensure Blocky is only reachable through a trusted reverse proxy,
+    or that the proxy strips any incoming `Forwarded` /
+    `X-Forwarded-For` headers and overwrites them with trusted values.
 
 !!! example "nginx"
 
