@@ -56,7 +56,7 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
     * Various REST API endpoints
     * CLI tool
 
-- **Simple configuration** - :baby: single configuration file in YAML format
+- **Simple configuration** - :baby: single or multiple configuration files in YAML format
 
     * Simple to maintain
     * Simple to backup
