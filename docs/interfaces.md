@@ -13,6 +13,26 @@ If http listener is enabled, blocky provides REST API. You can download the [Ope
 
 You can also browse the interactive API documentation (RapiDoc) documentation [online](rapidoc.html).
 
+### Common endpoints
+
+| Method | Path                  | Purpose                                              |
+| ------ | --------------------- | ---------------------------------------------------- |
+| GET    | `/api/blocking/enable`  | Enable blocking globally.                          |
+| GET    | `/api/blocking/disable` | Disable blocking globally (optional `duration`, `groups` query params). |
+| GET    | `/api/blocking/status`  | Return current blocking status as JSON.            |
+| POST   | `/api/lists/refresh`    | Refresh all allow/denylists.                       |
+| POST   | `/api/cache/flush`      | Clear the entire DNS response cache.               |
+| POST   | `/api/query`            | Run a DNS query through Blocky and return the result as JSON. |
+
+!!! example "Flush the DNS cache"
+
+    ```sh
+    curl -X POST http://<blocky-host>:<http-port>/api/cache/flush
+    ```
+
+    Returns HTTP `200` on success. Useful after editing `customDNS`
+    or `hostsFile` entries that may already be cached.
+
 ## CLI
 
 Blocky provides a CLI interface to control. This interface uses internally the REST API.

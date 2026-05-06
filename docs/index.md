@@ -56,7 +56,7 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
     * Various REST API endpoints
     * CLI tool
 
-- **Simple configuration** - :baby: single configuration file in YAML format
+- **Simple configuration** - :baby: single or multiple configuration files in YAML format
 
     * Simple to maintain
     * Simple to backup
@@ -66,7 +66,7 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
     * Stateless (no database, no temporary files)
     * Docker image with Multi-arch support
     * Single binary
-    * Supports x86-64 and ARM architectures -> runs fine on Raspberry PI
+    * Supports x86-64, ARM, and MIPS architectures -> runs fine on Raspberry PI and OpenWrt routers
     * Community supported Helm chart for k8s deployment
 
 

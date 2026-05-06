@@ -46,6 +46,7 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
   - DNS over UDP and TCP
   - DNS over HTTPS (aka DoH)
   - DNS over TLS (aka DoT)
+  - DNS over QUIC (aka DoQ, RFC 9250)
 
 - **Security and Privacy** - Secure communication
 
@@ -76,7 +77,7 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
   - Stateless (no database, no temporary files)
   - Docker image with Multi-arch support
   - Single binary
-  - Supports x86-64 and ARM architectures -> runs fine on Raspberry PI
+  - Supports x86-64, ARM, and MIPS architectures -> runs fine on Raspberry PI and OpenWrt routers
   - Community supported Helm chart for k8s deployment
 
 ## Quick start
