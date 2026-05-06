@@ -53,4 +53,54 @@ To configure the DNS server in the FritzBox, please open in the FritzBox web int
 
 ![FritzBox DNS configuration](fb_dns_config.png "Logo Title Text 1")
 
+## Running blocky behind a reverse proxy
+
+When Blocky's HTTP / DoH listener is fronted by a reverse proxy
+(nginx, Traefik, Caddy, HAProxy, ...), the TCP peer Blocky sees is
+the proxy, not the real client. To preserve per-client behavior
+(client groups, query logging, custom DNS rules), Blocky inspects
+forwarding headers in this fixed precedence order:
+
+1. **`Forwarded`** (RFC 7239) — the standardized header. The first
+   `for=` parameter wins. Both `for=192.0.2.43` and
+   `for="[2001:db8::1]:8080"` are accepted.
+2. **`X-Forwarded-For`** — the de facto standard. The leftmost IP in
+   the comma-separated list wins (per convention, it is the original
+   client).
+3. **`RemoteAddr`** — direct TCP peer; used when no forwarding header
+   is present.
+
+The first header found wins; later headers are ignored. So if your
+proxy sets both `Forwarded` and `X-Forwarded-For`, Blocky uses
+`Forwarded`.
+
+!!! warning
+
+    Only enable header-based client identification if you trust the
+    proxy in front of Blocky. A directly-reachable Blocky behind
+    no proxy will trust whatever a client sends, allowing trivial
+    spoofing of the client identity.
+
+!!! example "nginx"
+
+    ```nginx
+    location /dns-query {
+        proxy_pass http://blocky-backend:4000/dns-query;
+        proxy_set_header X-Forwarded-For $remote_addr;
+    }
+    ```
+
+!!! example "Traefik (dynamic file config)"
+
+    ```yaml
+    http:
+      services:
+        blocky:
+          loadBalancer:
+            servers:
+              - url: "http://blocky-backend:4000"
+      middlewares: {}
+      # Traefik sets X-Forwarded-For automatically; no extra config needed.
+    ```
+
 --8<-- "docs/includes/abbreviations.md"
