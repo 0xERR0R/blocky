@@ -53,6 +53,13 @@ Blocky docker images are deployed to DockerHub (`spx01/blocky`) and GitHub Conta
 You can define the location of the config file in the container with environment variable `BLOCKY_CONFIG_FILE`.
 Default value is `/app/config.yml`.
 
+!!! note "Legacy: `CONFIG_FILE`"
+
+    Older Blocky versions used `CONFIG_FILE` instead of
+    `BLOCKY_CONFIG_FILE`. The legacy name is still accepted as a
+    fallback when `BLOCKY_CONFIG_FILE` is unset. New deployments
+    should use `BLOCKY_CONFIG_FILE`.
+
 ### Docker from command line
 
 Execute following command from the command line:
