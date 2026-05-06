@@ -1369,6 +1369,37 @@ DNS64 adds overhead to DNS resolution:
 !!! warning "Enable Caching for DNS64"
     DNS64 without caching will **double** upstream query load (one AAAA + one A per query). Blocky will log a warning if DNS64 is enabled without caching.
 
+## Healthcheck
+
+Blocky responds to a dedicated `healthcheck.blocky` DNS query that is
+designed for container liveness probes. The handler is registered on
+every DNS listener (UDP, TCP, DoT, DoH, DoQ) and responds to any
+query type with `NOERROR` and an empty answer section. It does **not**
+go through the resolver chain, so it stays cheap and is unaffected by
+upstream health.
+
+!!! example
+
+    ```sh
+    dig @<blocky-host> -p <dns-port> healthcheck.blocky A +short
+    ```
+
+    Returns no answer records but `status: NOERROR` — probes should
+    test for `status: NOERROR`, not for any record content.
+
+!!! tip "Docker / Kubernetes liveness probe"
+
+    A liveness probe should treat a `NOERROR` response as healthy.
+    Example for Docker Compose:
+
+    ```yaml
+    healthcheck:
+      test: ["CMD", "dig", "@127.0.0.1", "-p", "53", "healthcheck.blocky", "+short", "+tries=1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    ```
+
 ## SSL certificate configuration (DoH / TLS listener)
 
 See [Wiki - Configuration of HTTPS](https://github.com/0xERR0R/blocky/wiki/Configuration-of-HTTPS-for-DoH-and-Rest-API)
