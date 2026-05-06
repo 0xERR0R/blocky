@@ -438,6 +438,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="REST API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#common-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common endpoints
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -548,6 +565,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="REST API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#common-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common endpoints
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -589,78 +623,12 @@
 <span class="nt">info</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">title</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">blocky API</span>
 <span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;-</span>
-<span class="w">    </span><span class="no"># Blocky</span>
+<span class="w">    </span><span class="no">REST API for Blocky, a DNS proxy and ad-blocker for the local network.</span>
 
-<span class="w">    </span><span class="no">Blocky is a DNS proxy and ad-blocker for the local network written in Go with following features:</span>
 
-<span class="w">    </span><span class="no">## Features</span>
-
-<span class="w">    </span><span class="no">- **Blocking** - Blocking of DNS queries with external lists (Ad-block, malware) and allowlisting</span>
-
-<span class="w">      </span><span class="no">- Definition of allow/denylists per client group (Kids, Smart home devices, etc.)</span>
-<span class="w">      </span><span class="no">- Periodical reload of external allow/denylists</span>
-<span class="w">      </span><span class="no">- Regex support</span>
-<span class="w">      </span><span class="no">- Blocking of request domain, response CNAME (deep CNAME inspection) and response IP addresses (against IP lists)</span>
-
-<span class="w">    </span><span class="no">- **Advanced DNS configuration** - not just an ad-blocker</span>
-
-<span class="w">      </span><span class="no">- Custom DNS resolution for certain domain names</span>
-<span class="w">      </span><span class="no">- Conditional forwarding to external DNS server</span>
-<span class="w">      </span><span class="no">- Upstream resolvers can be defined per client group</span>
-
-<span class="w">    </span><span class="no">- **Performance** - Improves speed and performance in your network</span>
-
-<span class="w">      </span><span class="no">- Customizable caching of DNS answers for queries -&gt; improves DNS resolution speed and reduces amount of external DNS</span>
-<span class="w">        </span><span class="no">queries</span>
-<span class="w">      </span><span class="no">- Prefetching and caching of often used queries</span>
-<span class="w">      </span><span class="no">- Using multiple external resolver simultaneously</span>
-<span class="w">      </span><span class="no">- Low memory footprint</span>
-
-<span class="w">    </span><span class="no">- **Various Protocols** - Supports modern DNS protocols</span>
-
-<span class="w">      </span><span class="no">- DNS over UDP and TCP</span>
-<span class="w">      </span><span class="no">- DNS over HTTPS (aka DoH)</span>
-<span class="w">      </span><span class="no">- DNS over TLS (aka DoT)</span>
-
-<span class="w">    </span><span class="no">- **Security and Privacy** - Secure communication</span>
-
-<span class="w">      </span><span class="no">- Supports modern DNS extensions: DNSSEC, eDNS, ...</span>
-<span class="w">      </span><span class="no">- Free configurable blocking lists - no hidden filtering etc.</span>
-<span class="w">      </span><span class="no">- Provides DoH Endpoint</span>
-<span class="w">      </span><span class="no">- Uses random upstream resolvers from the configuration - increases your privacy through the distribution of your DNS</span>
-<span class="w">        </span><span class="no">traffic over multiple provider</span>
-<span class="w">      </span><span class="no">- Blocky does **NOT** collect any user data, telemetry, statistics etc.</span>
-
-<span class="w">    </span><span class="no">- **Integration** - various integration</span>
-
-<span class="w">      </span><span class="no">- [Prometheus](https://prometheus.io/) metrics</span>
-<span class="w">      </span><span class="no">- Prepared [Grafana](https://grafana.com/) dashboards (Prometheus and database)</span>
-<span class="w">      </span><span class="no">- Logging of DNS queries per day / per client in CSV format or MySQL/MariaDB/PostgreSQL/Timescale database - easy to</span>
-<span class="w">        </span><span class="no">analyze</span>
-<span class="w">      </span><span class="no">- Various REST API endpoints</span>
-<span class="w">      </span><span class="no">- CLI tool</span>
-
-<span class="w">    </span><span class="no">- **Simple configuration** - single or multiple configuration files in YAML format</span>
-
-<span class="w">      </span><span class="no">- Simple to maintain</span>
-<span class="w">      </span><span class="no">- Simple to backup</span>
-
-<span class="w">    </span><span class="no">- **Simple installation/configuration** - blocky was designed for simple installation</span>
-
-<span class="w">      </span><span class="no">- Stateless (no database, no temporary files)</span>
-<span class="w">      </span><span class="no">- Docker image with Multi-arch support</span>
-<span class="w">      </span><span class="no">- Single binary</span>
-<span class="w">      </span><span class="no">- Supports x86-64 and ARM architectures -&gt; runs fine on Raspberry PI</span>
-<span class="w">      </span><span class="no">- Community supported Helm chart for k8s deployment</span>
-
-<span class="w">    </span><span class="no">## Quick start</span>
-
-<span class="w">    </span><span class="no">You can jump to [Installation](https://0xerr0r.github.io/blocky/installation/) chapter in the documentation.</span>
-
-<span class="w">    </span><span class="no">## Full documentation</span>
-
-<span class="w">    </span><span class="no">You can find full documentation and configuration examples</span>
-<span class="w">    </span><span class="no">at: [https://0xERR0R.github.io/blocky/](https://0xERR0R.github.io/blocky/)</span>
+<span class="w">    </span><span class="no">For features, configuration, and installation see the</span>
+<span class="w">    </span><span class="no">[project documentation](https://0xerr0r.github.io/blocky/) and the</span>
+<span class="w">    </span><span class="no">[README](https://github.com/0xERR0R/blocky/blob/main/README.md).</span>
 <span class="w">  </span><span class="nt">contact</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">blocky@github</span>
 <span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/0xERR0R/blocky</span>
@@ -835,6 +803,55 @@
 </details>
 <p>If http listener is enabled, blocky provides <abbr title="Representational State Transfer">REST</abbr> <abbr title="Application Programming Interface">API</abbr>. You can download the <a href="../api/openapi.yaml">OpenAPI <abbr title="YAML Ain't Markup Language">YAML</abbr></a> interface specification. </p>
 <p>You can also browse the interactive <abbr title="Application Programming Interface">API</abbr> documentation (RapiDoc) documentation <a href="../rapidoc.html">online</a>.</p>
+<h3 id="common-endpoints">Common endpoints</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code>/api/blocking/enable</code></td>
+<td>Enable blocking globally.</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/blocking/disable</code></td>
+<td>Disable blocking globally (optional <code>duration</code>, <code>groups</code> query params).</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/blocking/status</code></td>
+<td>Return current blocking status as JSON.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/lists/refresh</code></td>
+<td>Refresh all allow/denylists.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/cache/flush</code></td>
+<td>Clear the entire <abbr title="Domain Name System">DNS</abbr> response cache.</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/query</code></td>
+<td>Run a <abbr title="Domain Name System">DNS</abbr> query through Blocky and return the result as JSON.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition example">
+<p class="admonition-title">Flush the <abbr title="Domain Name System">DNS</abbr> cache</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://&lt;blocky-host&gt;:&lt;http-port&gt;/api/cache/flush
+</code></pre></div>
+<p>Returns <abbr title="Hypertext Transfer Protocol">HTTP</abbr> <code>200</code> on success. Useful after editing <code>customDNS</code>
+or <code>hostsFile</code> entries that may already be cached.</p>
+</div>
 <h2 id="cli"><abbr title="Command Line Interface">CLI</abbr></h2>
 <p>Blocky provides a <abbr title="Command Line Interface">CLI</abbr> interface to control. This interface uses internally the <abbr title="Representational State Transfer">REST</abbr> <abbr title="Application Programming Interface">API</abbr>.</p>
 <p>To run the <abbr title="Command Line Interface">CLI</abbr>, please ensure, that blocky <abbr title="Domain Name System">DNS</abbr> server is running, then execute <code>blocky help</code> for help or</p>

@@ -1213,6 +1213,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#healthcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Healthcheck
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#ssl-certificate-configuration-doh-tls-listener" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2342,6 +2353,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#healthcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Healthcheck
+      
+    </span>
+  </a>
   
 </li>
       
@@ -4953,6 +4975,31 @@ The DNS64 prefix must match your NAT64 gateway's configuration.</p>
 <div class="admonition warning">
 <p class="admonition-title">Enable Caching for DNS64</p>
 <p>DNS64 without caching will <strong>double</strong> upstream query load (one AAAA + one A per query). Blocky will log a warning if DNS64 is enabled without caching.</p>
+</div>
+<h2 id="healthcheck">Healthcheck</h2>
+<p>Blocky responds to a dedicated <code>healthcheck.blocky</code> <abbr title="Domain Name System">DNS</abbr> query that is
+designed for container liveness probes. The handler is registered on
+the <abbr title="Domain Name System">DNS</abbr> listeners created by Blocky (<abbr title="User Datagram Protocol">UDP</abbr>, <abbr title="Transmission Control Protocol">TCP</abbr>, <abbr title="DNS-over-TLS">DoT</abbr>) and responds to any
+query type with <code>NOERROR</code> and an empty answer section. It does <strong>not</strong>
+go through the resolver chain, so it stays cheap and is unaffected by
+upstream health.</p>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><pre><span></span><code>dig<span class="w"> </span>@&lt;blocky-host&gt;<span class="w"> </span>-p<span class="w"> </span>&lt;dns-port&gt;<span class="w"> </span>healthcheck.blocky<span class="w"> </span>A<span class="w"> </span>+short
+</code></pre></div>
+<p>Returns no answer records but <code>status: NOERROR</code> — probes should
+test for <code>status: NOERROR</code>, not for any record content.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Docker / Kubernetes liveness probe</p>
+<p>A liveness probe should treat a <code>NOERROR</code> response as healthy.
+Example for Docker Compose:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">healthcheck</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">test</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;CMD&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;dig&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;@127.0.0.1&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;-p&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;53&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;healthcheck.blocky&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;+short&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;+tries=1&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30s</span>
+<span class="w">  </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5s</span>
+<span class="w">  </span><span class="nt">retries</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+</code></pre></div>
 </div>
 <h2 id="ssl-certificate-configuration-doh-tls-listener"><abbr title="Secure Sockets Layer">SSL</abbr> certificate configuration (<abbr title="DNS-over-HTTPS">DoH</abbr> / TLS listener)</h2>
 <p>See <a href="https://github.com/0xERR0R/blocky/wiki/Configuration-of-HTTPS-for-DoH-and-Rest-API">Wiki - Configuration of <abbr title="Hypertext Transfer Protocol Secure">HTTPS</abbr></a>

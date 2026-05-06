@@ -484,6 +484,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#running-blocky-behind-a-reverse-proxy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running blocky behind a reverse proxy
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -573,6 +584,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#running-blocky-behind-a-reverse-proxy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running blocky behind a reverse proxy
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -637,6 +659,55 @@ pushed to the device as <abbr title="Domain Name System">DNS</abbr> server.</p>
 <li>Enter the IP address of blocky under "Local <abbr title="Domain Name System">DNS</abbr> server", see screenshot</li>
 </ul>
 <p><img alt="FritzBox DNS configuration" src="../fb_dns_config.png" title="Logo Title Text 1" /></p>
+<h2 id="running-blocky-behind-a-reverse-proxy">Running blocky behind a reverse proxy</h2>
+<p>When Blocky's <abbr title="Hypertext Transfer Protocol">HTTP</abbr> / <abbr title="DNS-over-HTTPS">DoH</abbr> listener is fronted by a reverse proxy
+(nginx, Traefik, Caddy, HAProxy, ...), the <abbr title="Transmission Control Protocol">TCP</abbr> peer Blocky sees is
+the proxy, not the real client. To preserve per-client behavior
+(client groups, query logging, custom <abbr title="Domain Name System">DNS</abbr> rules), Blocky inspects
+forwarding headers in this fixed precedence order:</p>
+<ol>
+<li><strong><code>Forwarded</code></strong> (RFC 7239) — the standardized header. The first
+   <code>for=</code> parameter wins. Both <code>for=192.0.2.43</code> and
+   <code>for="[2001:db8::1]:8080"</code> are accepted.</li>
+<li><strong><code>X-Forwarded-For</code></strong> — the de facto standard. The leftmost IP in
+   the comma-separated list wins (per convention, it is the original
+   client).</li>
+<li><strong><code>RemoteAddr</code></strong> — direct <abbr title="Transmission Control Protocol">TCP</abbr> peer; used when no forwarding header
+   is present.</li>
+</ol>
+<p>The first header found wins; later headers are ignored. So if your
+proxy sets both <code>Forwarded</code> and <code>X-Forwarded-For</code>, Blocky uses
+<code>Forwarded</code>.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Blocky uses <code>Forwarded</code> / <code>X-Forwarded-For</code> whenever those
+headers are present; this is not a separate feature you can
+enable or disable. If Blocky is reachable directly by clients,
+they can send these headers themselves and spoof their identity.
+Ensure Blocky is only reachable through a trusted reverse proxy,
+or that the proxy strips any incoming <code>Forwarded</code> /
+<code>X-Forwarded-For</code> headers and overwrites them with trusted values.</p>
+</div>
+<div class="admonition example">
+<p class="admonition-title">nginx</p>
+<div class="highlight"><pre><span></span><code><span class="k">location</span><span class="w"> </span><span class="s">/dns-query</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kn">proxy_pass</span><span class="w"> </span><span class="s">http://blocky-backend:4000/dns-query</span><span class="p">;</span>
+<span class="w">    </span><span class="kn">proxy_set_header</span><span class="w"> </span><span class="s">X-Forwarded-For</span><span class="w"> </span><span class="nv">$remote_addr</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+</div>
+<div class="admonition example">
+<p class="admonition-title">Traefik (dynamic file config)</p>
+<div class="highlight"><pre><span></span><code><span class="nt">http</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">services</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">blocky</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">loadBalancer</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">servers</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;http://blocky-backend:4000&quot;</span>
+<span class="w">  </span><span class="nt">middlewares</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<span class="w">  </span><span class="c1"># Traefik sets X-Forwarded-For automatically; no extra config needed.</span>
+</code></pre></div>
+</div>
 
 
 

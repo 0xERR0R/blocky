@@ -1089,6 +1089,13 @@ to the binary with <code>setcap 'cap_net_bind_service=+ep' ./blocky</code>, or r
 <h3 id="parameters">Parameters</h3>
 <p>You can define the location of the config file in the container with environment variable <code>BLOCKY_CONFIG_FILE</code>.
 Default value is <code>/app/config.yml</code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Legacy: <code>CONFIG_FILE</code></p>
+<p>Older Blocky versions used <code>CONFIG_FILE</code> instead of
+<code>BLOCKY_CONFIG_FILE</code>. The legacy name is still accepted as a
+fallback when <code>BLOCKY_CONFIG_FILE</code> is unset. New deployments
+should use <code>BLOCKY_CONFIG_FILE</code>.</p>
+</div>
 <h3 id="docker-from-command-line">Docker from command line</h3>
 <p>Execute following command from the command line:</p>
 <div class="highlight"><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--name<span class="w"> </span>blocky<span class="w"> </span>-v<span class="w"> </span>/path/to/config.yml:/app/config.yml<span class="w"> </span>-p<span class="w"> </span><span class="m">4000</span>:4000<span class="w"> </span>-p<span class="w"> </span><span class="m">53</span>:53/udp<span class="w"> </span>spx01/blocky

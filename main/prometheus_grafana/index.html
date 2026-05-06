@@ -792,6 +792,10 @@
 <td>blocky_dnssec_validation_duration_seconds</td>
 <td>Histogram of <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> validation duration, partitioned by result</td>
 </tr>
+<tr>
+<td>blocky_redis_cache_buffer_drops_total</td>
+<td>Counter of cache writes dropped because the Redis write-through buffer is full — non-zero values indicate Redis cannot keep up with cache writes</td>
+</tr>
 </tbody>
 </table>
 <h3 id="grafana-dashboard">Grafana dashboard</h3>
