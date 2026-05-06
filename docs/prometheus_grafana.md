@@ -29,6 +29,8 @@ Following metrics will be exported:
 | blocky_dnssec_validation_total                   | Counter of DNSSEC validations, partitioned by result (secure, insecure, bogus, indeterminate) |
 | blocky_dnssec_cache_hits_total                   | Counter of DNSSEC validation cache hits |
 | blocky_dnssec_validation_duration_seconds        | Histogram of DNSSEC validation duration, partitioned by result |
+| blocky_cache_sync                                | Gauge of pending Redis cache sync messages (1 if a sync is in flight, 0 otherwise) |
+| blocky_redis_cache_buffer_drops_total            | Counter of cache writes dropped because the Redis write-through buffer is full — non-zero values indicate Redis cannot keep up with cache writes |
 
 ### Grafana dashboard
 
