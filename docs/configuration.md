@@ -1373,7 +1373,7 @@ DNS64 adds overhead to DNS resolution:
 
 Blocky responds to a dedicated `healthcheck.blocky` DNS query that is
 designed for container liveness probes. The handler is registered on
-every DNS listener (UDP, TCP, DoT, DoH, DoQ) and responds to any
+the DNS listeners created by Blocky (UDP, TCP, DoT) and responds to any
 query type with `NOERROR` and an empty answer section. It does **not**
 go through the resolver chain, so it stays cheap and is unaffected by
 upstream health.
