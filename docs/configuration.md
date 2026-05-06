@@ -1407,8 +1407,6 @@ for detailed information, how to create and configure SSL certificates.
 
 DoH url: `https://host:port/dns-query`
 
---8<-- "docs/includes/abbreviations.md"
-
 ## Sources
 
 Sources are a concept shared by the blocking and hosts file resolvers. They represent where to load the files for each resolver.
@@ -1529,3 +1527,5 @@ Default value is 4.
     As with other settings under `loading`, the limit applies to the blocking and hosts file resolvers separately.
     The total number of concurrent sources concurrently processed can reach the sum of both values.
     For example if blocking has a limit set to 8 and hosts file's is 4, there could be up to 12 concurrent jobs.
+
+--8<-- "docs/includes/abbreviations.md"
