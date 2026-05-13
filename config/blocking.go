@@ -73,7 +73,7 @@ func (c *Blocking) LogConfig(logger *logrus.Entry) {
 		logger.Info("schedules:")
 
 		for name, sched := range c.Schedules {
-			if sched.isFullDay() {
+			if sched.Start == "" {
 				logger.Infof("  %s: all day (weekdays: %v)", name, sched.Weekdays)
 			} else {
 				logger.Infof("  %s: %s - %s (weekdays: %v)", name, sched.Start, sched.End, sched.Weekdays)
@@ -122,14 +122,13 @@ func (c *Blocking) validate() error {
 		return nil
 	}
 
-	// Validate schedules. validate() also precomputes the runtime fields used
-	// by IsActive on the hot path; write the compiled value back into the map
-	// so subsequent reads (e.g. by the resolver) see the precomputed form.
 	for name, sched := range c.Schedules {
 		if err := sched.validate(); err != nil {
 			return fmt.Errorf("schedule '%s': %w", name, err)
 		}
 
+		// Map values are not addressable, so validate()'s mutations are lost
+		// unless we write the compiled struct back.
 		c.Schedules[name] = sched
 	}
 

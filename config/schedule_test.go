@@ -172,6 +172,7 @@ var _ = Describe("Schedule", func() {
 					End:      "17:00",
 					Weekdays: []Weekday{Weekday(time.Monday), Weekday(time.Tuesday), Weekday(time.Wednesday)},
 				}
+				Expect(s.validate()).Should(Succeed())
 			})
 
 			It("should be active during the range on a matching day", func() {
@@ -221,6 +222,7 @@ var _ = Describe("Schedule", func() {
 					End:      "07:00",
 					Weekdays: []Weekday{Weekday(time.Monday), Weekday(time.Friday)},
 				}
+				Expect(s.validate()).Should(Succeed())
 			})
 
 			It("should be active in the evening on a matching day", func() {
@@ -280,6 +282,7 @@ var _ = Describe("Schedule", func() {
 					End:      "00:00",
 					Weekdays: []Weekday{Weekday(time.Monday)},
 				}
+				Expect(s.validate()).Should(Succeed())
 			})
 
 			It("should never be active (zero-length window)", func() {
@@ -298,10 +301,6 @@ var _ = Describe("Schedule", func() {
 		})
 
 		Context("hot-path allocations", func() {
-			// IsActive runs on every DNS request that has scheduled groups, so
-			// it must not allocate. validate() pre-parses the time strings so
-			// IsActive can do pure integer math; this test guards against a
-			// regression where parsing leaks back onto the hot path.
 			It("should not allocate after validate", func() {
 				cases := []Schedule{
 					{Start: "09:00", End: "17:00", Weekdays: []Weekday{Weekday(time.Monday)}},
@@ -327,6 +326,7 @@ var _ = Describe("Schedule", func() {
 				s = Schedule{
 					Weekdays: []Weekday{Weekday(time.Monday), Weekday(time.Saturday)},
 				}
+				Expect(s.validate()).Should(Succeed())
 			})
 
 			It("should be active all day on a matching weekday", func() {
