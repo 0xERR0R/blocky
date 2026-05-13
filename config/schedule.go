@@ -103,13 +103,15 @@ func (s *Schedule) validate() error {
 		seen[wd] = true
 	}
 
-	s.compile()
+	s.Compile()
 
 	return nil
 }
 
-// compile pre-parses Start/End and builds weekdayMask. Called by validate().
-func (s *Schedule) compile() {
+// Compile pre-parses Start/End and builds weekdayMask. Called automatically
+// by validate(); callers that construct a Schedule without validate() must
+// call this before IsActive.
+func (s *Schedule) Compile() {
 	if s.Start != "" {
 		if sh, sm, err := parseTimeOfDay(s.Start); err == nil {
 			s.startMin = sh*minutesPerHour + sm

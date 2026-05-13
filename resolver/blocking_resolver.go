@@ -113,6 +113,7 @@ func clientGroupsBlock(cfg config.Blocking) map[string][]scheduledGroup {
 	for listName, schedNames := range cfg.ListSchedules {
 		for _, schedName := range schedNames {
 			if sched, ok := cfg.Schedules[schedName]; ok {
+				sched.Compile()
 				listScheds[listName] = append(listScheds[listName], &sched)
 			} else {
 				log.Log().Warnf("listSchedules '%s' references unknown schedule '%s', skipping", listName, schedName)
@@ -492,7 +493,7 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 
 	now := time.Now()
 
-	result := make([]string, 0, len(groups))
+	var result []string
 
 	for _, sg := range groups {
 		if r.isGroupDisabled(sg.group) {
