@@ -626,7 +626,7 @@ Rules:
 1. If a list group has no schedule mapping, it is always active.
 2. If a list group has multiple schedules, they are combined with OR logic (any active schedule enables the list).
 3. Schedules use local server time. During daylight-saving transitions, only the specific skipped minutes are unobservable (a window overlapping the gap fires for its non-skipped portion); windows in the repeated hour fire twice.
-4. Scheduling an allowlist-only group (a group that has allowlist entries but no denylist entries) time-gates the allowlist enforcement itself: outside the schedule the allowlist is not consulted and queries pass through unfiltered.
+4. Scheduling an allowlist-only group (a group that has allowlist entries but no denylist entries) time-gates that group's allowlist enforcement: outside the schedule, that allowlist is not consulted. Other active groups for the client (denylists or other allowlist-only groups) are still evaluated normally.
 
 Each schedule supports:
 
