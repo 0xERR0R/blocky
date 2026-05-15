@@ -9,7 +9,10 @@ import (
 	"github.com/0xERR0R/blocky/log"
 )
 
-const daysPerWeek = 7
+const (
+	daysPerWeek    = 7
+	minutesPerHour = 60
+)
 
 // Weekday represents a day of the week for schedule configuration.
 type Weekday time.Weekday
@@ -51,6 +54,11 @@ type Schedule struct {
 	Start    string    `yaml:"start"`
 	End      string    `yaml:"end"`
 	Weekdays []Weekday `yaml:"weekdays"`
+
+	// Precomputed by validate() for allocation-free hot-path evaluation.
+	startMin    int
+	endMin      int
+	weekdayMask uint8
 }
 
 // parseTimeOfDay parses an "HH:MM" string into hours and minutes.
@@ -61,12 +69,6 @@ func parseTimeOfDay(s string) (hour, minute int, err error) {
 	}
 
 	return t.Hour(), t.Minute(), nil
-}
-
-// isFullDay returns true if the schedule covers the entire day
-// (both start and end omitted).
-func (s *Schedule) isFullDay() bool {
-	return s.Start == "" && s.End == ""
 }
 
 func (s *Schedule) validate() error {
@@ -101,73 +103,56 @@ func (s *Schedule) validate() error {
 		seen[wd] = true
 	}
 
+	s.Compile()
+
 	return nil
+}
+
+// Compile pre-parses Start/End and builds weekdayMask. Called automatically
+// by validate(); callers that construct a Schedule without validate() must
+// call this before IsActive.
+func (s *Schedule) Compile() {
+	s.startMin = 0
+	s.endMin = 0
+	s.weekdayMask = 0
+
+	if s.Start != "" {
+		if sh, sm, err := parseTimeOfDay(s.Start); err == nil {
+			s.startMin = sh*minutesPerHour + sm
+		}
+
+		if eh, em, err := parseTimeOfDay(s.End); err == nil {
+			s.endMin = eh*minutesPerHour + em
+		}
+	}
+
+	for _, wd := range s.Weekdays {
+		s.weekdayMask |= 1 << uint(time.Weekday(wd))
+	}
 }
 
 // IsActive returns true if the schedule is active at the given time.
 func (s *Schedule) IsActive(now time.Time) bool {
-	if s.isFullDay() {
-		// Full-day schedule: just check weekday
-		today := now.Weekday()
+	todayBit := uint8(1) << uint(now.Weekday())
 
-		for _, wd := range s.Weekdays {
-			if time.Weekday(wd) == today {
-				return true
-			}
-		}
-
-		return false
+	if s.Start == "" {
+		return s.weekdayMask&todayBit != 0
 	}
 
-	startH, startM, _ := parseTimeOfDay(s.Start)
-	endH, endM, _ := parseTimeOfDay(s.End)
+	nowMin := now.Hour()*minutesPerHour + now.Minute()
 
-	nowMinutes := toMinutes(now.Hour(), now.Minute())
-	startMinutes := toMinutes(startH, startM)
-	endMinutes := toMinutes(endH, endM)
-
-	if !s.weekdayMatch(now, nowMinutes, startMinutes, endMinutes) {
-		return false
+	if s.startMin <= s.endMin {
+		// Same-day range (e.g. 09:00 - 17:00), or zero-length window
+		// (start == end), which is correctly never active.
+		return s.weekdayMask&todayBit != 0 && nowMin >= s.startMin && nowMin < s.endMin
 	}
 
-	if startMinutes <= endMinutes {
-		// Same-day range (e.g. 09:00 - 17:00)
-		return nowMinutes >= startMinutes && nowMinutes < endMinutes
-	}
+	// Overnight range (e.g. 22:00 - 07:00): active if today is scheduled
+	// and we're past the start time, OR yesterday was scheduled and we're
+	// before the end time.
+	yesterdayBit := uint8(1) << uint((now.Weekday()+daysPerWeek-1)%daysPerWeek)
+	todayActive := s.weekdayMask&todayBit != 0 && nowMin >= s.startMin
+	yesterdayActive := s.weekdayMask&yesterdayBit != 0 && nowMin < s.endMin
 
-	// Overnight range (e.g. 22:00 - 07:00)
-	return nowMinutes >= startMinutes || nowMinutes < endMinutes
-}
-
-func toMinutes(hours, mins int) int {
-	return hours*60 + mins
-}
-
-func (s *Schedule) weekdayMatch(now time.Time, nowMinutes, startMinutes, endMinutes int) bool {
-	today := now.Weekday()
-
-	for _, wd := range s.Weekdays {
-		if time.Weekday(wd) == today {
-			if startMinutes <= endMinutes {
-				// Same-day range: simple match
-				return true
-			}
-
-			// Overnight range: today matches for the "start" portion (after startMinutes)
-			if nowMinutes >= startMinutes {
-				return true
-			}
-		}
-
-		// For overnight schedules, check if yesterday was a scheduled day
-		// and we're in the "morning" portion (before endMinutes)
-		if startMinutes > endMinutes {
-			yesterday := (today + daysPerWeek - 1) % daysPerWeek
-			if time.Weekday(wd) == yesterday && nowMinutes < endMinutes {
-				return true
-			}
-		}
-	}
-
-	return false
+	return todayActive || yesterdayActive
 }

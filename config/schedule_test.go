@@ -1,6 +1,7 @@
 package config
 
 import (
+	"testing"
 	"time"
 
 	"github.com/0xERR0R/blocky/log"
@@ -171,6 +172,7 @@ var _ = Describe("Schedule", func() {
 					End:      "17:00",
 					Weekdays: []Weekday{Weekday(time.Monday), Weekday(time.Tuesday), Weekday(time.Wednesday)},
 				}
+				Expect(s.validate()).Should(Succeed())
 			})
 
 			It("should be active during the range on a matching day", func() {
@@ -220,6 +222,7 @@ var _ = Describe("Schedule", func() {
 					End:      "07:00",
 					Weekdays: []Weekday{Weekday(time.Monday), Weekday(time.Friday)},
 				}
+				Expect(s.validate()).Should(Succeed())
 			})
 
 			It("should be active in the evening on a matching day", func() {
@@ -279,6 +282,7 @@ var _ = Describe("Schedule", func() {
 					End:      "00:00",
 					Weekdays: []Weekday{Weekday(time.Monday)},
 				}
+				Expect(s.validate()).Should(Succeed())
 			})
 
 			It("should never be active (zero-length window)", func() {
@@ -296,12 +300,33 @@ var _ = Describe("Schedule", func() {
 			})
 		})
 
+		Context("hot-path allocations", func() {
+			It("should not allocate after validate", func() {
+				cases := []Schedule{
+					{Start: "09:00", End: "17:00", Weekdays: []Weekday{Weekday(time.Monday)}},
+					{Start: "22:00", End: "07:00", Weekdays: []Weekday{Weekday(time.Friday)}},
+					{Weekdays: []Weekday{Weekday(time.Saturday)}},
+				}
+				now := time.Now()
+
+				for _, s := range cases {
+					Expect(s.validate()).Should(Succeed())
+
+					allocs := testing.AllocsPerRun(100, func() {
+						_ = s.IsActive(now)
+					})
+					Expect(allocs).Should(BeZero(), "Schedule %+v should be allocation-free on the hot path", s)
+				}
+			})
+		})
+
 		When("start and end are omitted (full day)", func() {
 			var s Schedule
 			BeforeEach(func() {
 				s = Schedule{
 					Weekdays: []Weekday{Weekday(time.Monday), Weekday(time.Saturday)},
 				}
+				Expect(s.validate()).Should(Succeed())
 			})
 
 			It("should be active all day on a matching weekday", func() {

@@ -113,6 +113,7 @@ func clientGroupsBlock(cfg config.Blocking) map[string][]scheduledGroup {
 	for listName, schedNames := range cfg.ListSchedules {
 		for _, schedName := range schedNames {
 			if sched, ok := cfg.Schedules[schedName]; ok {
+				sched.Compile()
 				listScheds[listName] = append(listScheds[listName], &sched)
 			} else {
 				log.Log().Warnf("listSchedules '%s' references unknown schedule '%s', skipping", listName, schedName)
