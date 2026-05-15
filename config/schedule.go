@@ -112,6 +112,10 @@ func (s *Schedule) validate() error {
 // by validate(); callers that construct a Schedule without validate() must
 // call this before IsActive.
 func (s *Schedule) Compile() {
+	s.startMin = 0
+	s.endMin = 0
+	s.weekdayMask = 0
+
 	if s.Start != "" {
 		if sh, sm, err := parseTimeOfDay(s.Start); err == nil {
 			s.startMin = sh*minutesPerHour + sm
