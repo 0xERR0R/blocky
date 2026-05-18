@@ -203,5 +203,28 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 			Expect(err).Should(Succeed())
 			Expect(resp).ShouldNot(HaveResponseType(ResponseTypeSPECIAL))
 		})
+
+		// RFC 9462: Discovery of Designated Resolvers (DDR).
+		// Section 4 + 6.1 + 6.4: blocky has no Designated Resolvers to announce
+		// and MUST NOT forward queries for `resolver.arpa.` upstream. Reply
+		// NODATA (NOERROR + empty Answer) for every QTYPE across the zone.
+		DescribeTable("RFC 9462 resolver.arpa zone (NODATA)",
+			func(qType dns.Type, qName string) {
+				resp, err := sut.Resolve(ctx, newRequest(qName, qType))
+				Expect(err).Should(Succeed())
+				Expect(resp).Should(SatisfyAll(
+					HaveResponseType(ResponseTypeSPECIAL),
+					HaveReason("Special-Use Domain Name"),
+					HaveReturnCode(dns.RcodeSuccess),
+					HaveNoAnswer(),
+				))
+			},
+			Entry("SVCB for _dns.resolver.arpa.", dns.Type(dns.TypeSVCB), "_dns.resolver.arpa."),
+			Entry("A for _dns.resolver.arpa.", A, "_dns.resolver.arpa."),
+			Entry("AAAA for _dns.resolver.arpa.", AAAA, "_dns.resolver.arpa."),
+			Entry("A for the zone apex resolver.arpa.", A, "resolver.arpa."),
+			Entry("HTTPS for an arbitrary subdomain", HTTPS, "foo.bar.resolver.arpa."),
+			Entry("DS for the zone apex (no forwarding)", DS, "resolver.arpa."),
+		)
 	})
 })
