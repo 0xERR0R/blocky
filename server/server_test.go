@@ -593,6 +593,7 @@ var _ = Describe("Running DNS server", func() {
 			cErr error
 		)
 		BeforeEach(func() {
+			cfg = config.Config{}
 			cErr = defaults.Set(&cfg)
 
 			Expect(cErr).Should(Succeed())
@@ -615,6 +616,47 @@ var _ = Describe("Running DNS server", func() {
 				_, err = NewServer(ctx, &cfg)
 
 				Expect(err).Should(HaveOccurred())
+			})
+		})
+
+		When("HTTP/3 is enabled with HTTPS addresses", func() {
+			It("creates an http3Server and one packet conn per HTTPS address", func() {
+				cfg.Ports.HTTPS = config.ListenConfig{"127.0.0.1:0", "127.0.0.1:0"}
+				cfg.HTTP3.Enable = true
+
+				srv, err := NewServer(ctx, &cfg)
+
+				Expect(err).Should(Succeed())
+				Expect(srv.http3Server).ShouldNot(BeNil())
+				Expect(srv.http3PacketConns).To(HaveLen(2))
+
+				for _, pc := range srv.http3PacketConns {
+					_ = pc.Close()
+				}
+			})
+		})
+
+		When("HTTP/3 is enabled but no HTTPS address is configured", func() {
+			It("logs a warning and leaves http3Server nil", func() {
+				cfg.HTTP3.Enable = true
+
+				srv, err := NewServer(ctx, &cfg)
+
+				Expect(err).Should(Succeed())
+				Expect(srv.http3Server).Should(BeNil())
+				Expect(srv.http3PacketConns).To(BeEmpty())
+			})
+		})
+
+		When("HTTP/3 is disabled", func() {
+			It("opens no UDP listeners even with HTTPS configured", func() {
+				cfg.Ports.HTTPS = config.ListenConfig{"127.0.0.1:0"}
+
+				srv, err := NewServer(ctx, &cfg)
+
+				Expect(err).Should(Succeed())
+				Expect(srv.http3Server).Should(BeNil())
+				Expect(srv.http3PacketConns).To(BeEmpty())
 			})
 		})
 	})

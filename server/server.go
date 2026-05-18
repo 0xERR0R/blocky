@@ -127,8 +127,6 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		return nil, fmt.Errorf("failed to create HTTP/HTTPS listeners: %w", err)
 	}
 
-	_ = http3PacketConns
-
 	metrics.RegisterEventListeners()
 
 	bootstrap, err := resolver.NewBootstrap(ctx, cfg)
@@ -159,11 +157,11 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 	}
 
 	server = &Server{
-		dnsServers:    dnsServers,
-		queryResolver: queryResolver,
-		cfg:           cfg,
-
-		servers: make(map[net.Listener]*httpServer),
+		dnsServers:       dnsServers,
+		queryResolver:    queryResolver,
+		cfg:              cfg,
+		servers:          make(map[net.Listener]*httpServer),
+		http3PacketConns: http3PacketConns,
 	}
 
 	if redisResult.bridge != nil {
@@ -186,6 +184,10 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 	httpRouter := createHTTPRouter(cfg, openAPIImpl)
 	server.registerDoHEndpoints(httpRouter, cfg)
 
+	if len(http3PacketConns) > 0 {
+		server.http3Server = newHTTP3Server(httpRouter, newH3TLSConfig(tlsCfg))
+	}
+
 	if len(cfg.Ports.HTTP) != 0 {
 		srv := newHTTPServer("http", httpRouter, cfg)
 
@@ -195,7 +197,12 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 	}
 
 	if len(cfg.Ports.HTTPS) != 0 {
-		srv := newHTTPServer("https", httpRouter, cfg)
+		var httpsHandler http.Handler = httpRouter
+		if server.http3Server != nil {
+			httpsHandler = newAltSvcMiddleware(server.http3Server)(httpRouter)
+		}
+
+		srv := newHTTPServer("https", httpsHandler, cfg)
 
 		for _, l := range httpsListeners {
 			server.servers[l] = srv
