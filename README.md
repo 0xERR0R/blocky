@@ -47,6 +47,7 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
   - DNS over HTTPS (aka DoH)
   - DNS over TLS (aka DoT)
   - DNS over QUIC (aka DoQ, RFC 9250)
+  - DNS over HTTPS/3 (aka DoH3, RFC 9114)
 
 - **Security and Privacy** - Secure communication
 
