@@ -79,8 +79,8 @@ func (r *StrictResolver) Resolve(ctx context.Context, request *model.Request) (*
 		}
 
 		logger.WithFields(logrus.Fields{
-			"resolver": *resolver,
-			"answer":   util.Obfuscate(util.AnswerToString(resp.Res.Answer)),
+			"resolver":     *resolver,
+			logFieldAnswer: util.Obfuscate(util.AnswerToString(resp.Res.Answer)),
 		}).Debug("using response from resolver")
 
 		return resp, nil

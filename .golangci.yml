@@ -32,7 +32,7 @@ linters:
     - gocyclo
     - gosmopolitan
     - godox
-    - gomodguard
+    - gomodguard_v2
     - grouper
     - importas
     - iface

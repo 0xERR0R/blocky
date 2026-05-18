@@ -94,7 +94,7 @@ func generateSelfSignedCert() tls.Certificate {
 
 	template := x509.Certificate{
 		SerialNumber: big.NewInt(1),
-		DNSNames:     []string{"localhost"},
+		DNSNames:     []string{localhostName},
 	}
 
 	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
@@ -136,7 +136,7 @@ func (t *MockDoQUpstreamServer) Start() config.Upstream {
 	port, err := config.ConvertPort(strconv.Itoa(addr.Port))
 	util.FatalOnError("can't convert port", err)
 
-	return config.Upstream{Net: config.NetProtocolQuic, Host: "127.0.0.1", Port: port}
+	return config.Upstream{Net: config.NetProtocolQuic, Host: loopbackIPv4Str, Port: port}
 }
 
 func (t *MockDoQUpstreamServer) serve() {

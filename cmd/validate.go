@@ -9,10 +9,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const validateCmdName = "validate"
+
 // NewValidateCommand creates new command instance
 func NewValidateCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "validate",
+		Use:   validateCmdName,
 		Args:  cobra.NoArgs,
 		Short: "Validates the configuration",
 		RunE:  validateConfiguration,

@@ -198,7 +198,7 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 	for _, question := range request.Req.Question {
 		domain := util.ExtractDomain(question)
 		cacheKey := util.GenerateCacheKey(dns.Type(question.Qtype), domain)
-		logger := logger.WithField("domain", util.Obfuscate(domain))
+		logger := logger.WithField(logFieldDomain, util.Obfuscate(domain))
 
 		val, ttl := r.getFromCache(logger, cacheKey)
 

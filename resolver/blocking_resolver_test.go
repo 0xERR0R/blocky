@@ -872,7 +872,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					Denylists: map[string][]config.BytesSource{
 						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
 					},
-					Schedules:         map[string]config.Schedule{},
+					Schedules: map[string]config.Schedule{},
 					ClientGroupsBlock: map[string][]string{
 						"default": {"defaultGroup"},
 					},

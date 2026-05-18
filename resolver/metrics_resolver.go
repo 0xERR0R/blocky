@@ -15,7 +15,14 @@ import (
 
 // nativeHistogramBucketFactor controls the resolution of native histograms.
 // The value of 1.05 is slightly higher accuracy than the default of 1.1.
-const nativeHistogramBucketFactor = 1.05
+const (
+	nativeHistogramBucketFactor = 1.05
+
+	labelClient       = "client"
+	labelType         = "type"
+	labelReason       = "reason"
+	labelResponseType = "response_type"
+)
 
 // MetricsResolver resolver that records metrics about requests/response
 type MetricsResolver struct {
@@ -35,8 +42,8 @@ func (r *MetricsResolver) Resolve(ctx context.Context, request *model.Request) (
 
 	if r.cfg.Enable {
 		r.totalQueries.With(prometheus.Labels{
-			"client": strings.Join(request.ClientNames, ","),
-			"type":   dns.TypeToString[request.Req.Question[0].Qtype],
+			labelClient: strings.Join(request.ClientNames, ","),
+			labelType:   dns.TypeToString[request.Req.Question[0].Qtype],
 		}).Inc()
 
 		reqDuration := time.Since(request.RequestTS)
@@ -52,9 +59,9 @@ func (r *MetricsResolver) Resolve(ctx context.Context, request *model.Request) (
 			r.totalErrors.Inc()
 		} else {
 			r.totalResponse.With(prometheus.Labels{
-				"reason":        response.Reason,
-				"response_code": dns.RcodeToString[response.Res.Rcode],
-				"response_type": response.RType.String(),
+				labelReason:       response.Reason,
+				"response_code":   dns.RcodeToString[response.Res.Rcode],
+				labelResponseType: response.RType.String(),
 			}).Inc()
 		}
 	}
@@ -91,7 +98,7 @@ func totalQueriesMetric() *prometheus.CounterVec {
 		prometheus.CounterOpts{
 			Name: "blocky_query_total",
 			Help: "Number of total queries",
-		}, []string{"client", "type"},
+		}, []string{labelClient, labelType},
 	)
 }
 
@@ -112,7 +119,7 @@ func durationHistogram() *prometheus.HistogramVec {
 			Buckets:                     []float64{0.005, 0.01, 0.02, 0.03, 0.05, 0.075, 0.1, 0.2, 0.5, 1.0, 2.0},
 			NativeHistogramBucketFactor: nativeHistogramBucketFactor,
 		},
-		[]string{"response_type"},
+		[]string{labelResponseType},
 	)
 }
 
@@ -121,6 +128,6 @@ func totalResponseMetric() *prometheus.CounterVec {
 		prometheus.CounterOpts{
 			Name: "blocky_response_total",
 			Help: "Number of total responses",
-		}, []string{"reason", "response_code", "response_type"},
+		}, []string{labelReason, "response_code", labelResponseType},
 	)
 }
