@@ -43,8 +43,10 @@ type Server struct {
 	queryResolver resolver.ChainedResolver
 	cfg           *config.Config
 
-	servers map[net.Listener]*httpServer
-	closers []io.Closer
+	servers          map[net.Listener]*httpServer
+	http3Server      *http3Server     // nil when disabled
+	http3PacketConns []net.PacketConn // one per address in ports.https
+	closers          []io.Closer
 }
 
 func logger() *logrus.Entry {
@@ -120,10 +122,12 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		return nil, fmt.Errorf("server creation failed: %w", err)
 	}
 
-	httpListeners, httpsListeners, err := createHTTPListeners(ctx, cfg, tlsCfg)
+	httpListeners, httpsListeners, http3PacketConns, err := createHTTPListeners(ctx, cfg, tlsCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP/HTTPS listeners: %w", err)
 	}
+
+	_ = http3PacketConns
 
 	metrics.RegisterEventListeners()
 
@@ -235,18 +239,29 @@ func createServers(cfg *config.Config, tlsCfg *tls.Config) ([]*dns.Server, error
 
 func createHTTPListeners(
 	ctx context.Context, cfg *config.Config, tlsCfg *tls.Config,
-) (httpListeners, httpsListeners []net.Listener, err error) {
+) (httpListeners, httpsListeners []net.Listener, http3PacketConns []net.PacketConn, err error) {
 	httpListeners, err = newTCPListeners(ctx, "http", cfg.Ports.HTTP)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create HTTP listeners: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to create HTTP listeners: %w", err)
 	}
 
 	httpsListeners, err = newTLSListeners(ctx, "https", cfg.Ports.HTTPS, tlsCfg)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create HTTPS listeners: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to create HTTPS listeners: %w", err)
 	}
 
-	return httpListeners, httpsListeners, nil
+	if cfg.HTTP3.IsEnabled() {
+		if len(cfg.Ports.HTTPS) == 0 {
+			logger().Warn("http3.enable is true but ports.https is empty; HTTP/3 disabled")
+		} else {
+			http3PacketConns, err = newUDPPacketConns(ctx, cfg.Ports.HTTPS)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("failed to create HTTP/3 UDP listeners: %w", err)
+			}
+		}
+	}
+
+	return httpListeners, httpsListeners, http3PacketConns, nil
 }
 
 func newTCPListeners(
