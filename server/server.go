@@ -28,6 +28,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/miekg/dns"
+	"github.com/quic-go/quic-go"
 	"github.com/sirupsen/logrus"
 )
 
@@ -499,6 +500,26 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 				errCh <- fmt.Errorf("%s on %s: %w", srv, listener.Addr(), err)
 			}
 		}()
+	}
+
+	if s.http3Server != nil {
+		// single shutdown watcher for the shared http3.Server
+		go func() {
+			<-ctx.Done()
+			_ = s.http3Server.inner.Close()
+		}()
+
+		for _, pc := range s.http3PacketConns {
+			go func() {
+				logger().Infof("%s server is up and running on addr/port %s",
+					s.http3Server, pc.LocalAddr())
+
+				err := s.http3Server.inner.Serve(pc)
+				if err != nil && !errors.Is(err, quic.ErrServerClosed) && !errors.Is(err, http.ErrServerClosed) {
+					errCh <- fmt.Errorf("%s on %s: %w", s.http3Server, pc.LocalAddr(), err)
+				}
+			}()
+		}
 	}
 
 	registerPrintConfigurationTrigger(ctx, s)
