@@ -3,6 +3,7 @@ package server
 import (
 	"crypto/tls"
 	"net/http"
+	"net/http/httptest"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -51,6 +52,38 @@ var _ = Describe("HTTP/3 helpers", func() {
 			Expect(s.String()).To(Equal("http3"))
 			Expect(s.inner.Handler).ShouldNot(BeNil())
 			Expect(s.inner.TLSConfig).ShouldNot(BeNil())
+		})
+	})
+	Describe("newAltSvcMiddleware", func() {
+		It("invokes the next handler", func() {
+			h3 := newHTTP3Server(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+				&tls.Config{MinVersion: tls.VersionTLS13})
+
+			called := false
+			wrapped := newAltSvcMiddleware(h3)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				called = true
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/dns-query", nil)
+			wrapped.ServeHTTP(rec, req)
+
+			Expect(called).To(BeTrue())
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("does not error when the inner server has no listeners (Alt-Svc may be empty)", func() {
+			h3 := newHTTP3Server(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+				&tls.Config{MinVersion: tls.VersionTLS13})
+
+			wrapped := newAltSvcMiddleware(h3)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/dns-query", nil)
+			Expect(func() { wrapped.ServeHTTP(rec, req) }).ShouldNot(Panic())
 		})
 	})
 })
