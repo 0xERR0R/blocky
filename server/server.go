@@ -453,6 +453,11 @@ func (s *Server) printConfiguration() {
 	logger().Info("listeners:")
 	log.WithIndent(logger(), "  ", s.cfg.Ports.LogConfig)
 
+	if s.cfg.HTTP3.IsEnabled() {
+		logger().Info("HTTP/3:")
+		log.WithIndent(logger(), "  ", s.cfg.HTTP3.LogConfig)
+	}
+
 	logger().Info("runtime information:")
 
 	// force garbage collector
