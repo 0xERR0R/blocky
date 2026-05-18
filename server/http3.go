@@ -1,9 +1,13 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
+	"fmt"
+	"net"
 	"net/http"
 
+	"github.com/0xERR0R/blocky/config"
 	"github.com/quic-go/quic-go/http3"
 )
 
@@ -52,4 +56,26 @@ func newAltSvcMiddleware(h3 *http3Server) httpMiddleware {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// newUDPPacketConns opens one UDP packet conn per address. Returns
+// an empty slice when addresses is empty.
+func newUDPPacketConns(ctx context.Context, addresses config.ListenConfig) ([]net.PacketConn, error) {
+	pcs := make([]net.PacketConn, 0, len(addresses))
+	lc := &net.ListenConfig{}
+
+	for _, address := range addresses {
+		pc, err := lc.ListenPacket(ctx, "udp", address)
+		if err != nil {
+			for _, opened := range pcs {
+				_ = opened.Close()
+			}
+
+			return nil, fmt.Errorf("start udp listener on %s failed: %w", address, err)
+		}
+
+		pcs = append(pcs, pc)
+	}
+
+	return pcs, nil
 }

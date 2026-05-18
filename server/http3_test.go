@@ -1,12 +1,15 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
+	"net"
 	"net/http"
 	"net/http/httptest"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/0xERR0R/blocky/config"
 )
 
 var _ = Describe("HTTP/3 helpers", func() {
@@ -84,6 +87,32 @@ var _ = Describe("HTTP/3 helpers", func() {
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/dns-query", nil)
 			Expect(func() { wrapped.ServeHTTP(rec, req) }).ShouldNot(Panic())
+		})
+	})
+	Describe("newUDPPacketConns", func() {
+		It("opens one UDP packet conn per address", func(ctx context.Context) {
+			pcs, err := newUDPPacketConns(ctx, config.ListenConfig{"127.0.0.1:0", "127.0.0.1:0"})
+			Expect(err).Should(Succeed())
+			Expect(pcs).To(HaveLen(2))
+
+			for _, pc := range pcs {
+				addr, ok := pc.LocalAddr().(*net.UDPAddr)
+				Expect(ok).To(BeTrue())
+				Expect(addr.Port).ShouldNot(BeZero())
+				_ = pc.Close()
+			}
+		})
+
+		It("returns no conns for an empty address list", func(ctx context.Context) {
+			pcs, err := newUDPPacketConns(ctx, config.ListenConfig{})
+			Expect(err).Should(Succeed())
+			Expect(pcs).To(BeEmpty())
+		})
+
+		It("returns a descriptive error for an invalid address", func(ctx context.Context) {
+			_, err := newUDPPacketConns(ctx, config.ListenConfig{"not:a:valid:address"})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("udp"))
 		})
 	})
 })
