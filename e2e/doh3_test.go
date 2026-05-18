@@ -55,7 +55,7 @@ var _ = Describe("DoH3 functionality", Label("e2e"), func() {
 		Eventually(func(g Gomega) {
 			resp, err := client.Get(url)
 			g.Expect(err).Should(Succeed())
-			if resp == nil {
+			if err != nil {
 				return
 			}
 			defer resp.Body.Close()
@@ -85,7 +85,7 @@ var _ = Describe("DoH3 functionality", Label("e2e"), func() {
 		Eventually(func(g Gomega) {
 			resp, err := client.Get(url)
 			g.Expect(err).Should(Succeed())
-			if resp == nil {
+			if err != nil {
 				return
 			}
 			defer resp.Body.Close()

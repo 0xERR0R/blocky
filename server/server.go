@@ -255,6 +255,8 @@ func createHTTPListeners(
 
 	httpsListeners, err = newTLSListeners(ctx, "https", cfg.Ports.HTTPS, tlsCfg)
 	if err != nil {
+		closeAll(httpListeners)
+
 		return nil, nil, nil, fmt.Errorf("failed to create HTTPS listeners: %w", err)
 	}
 
@@ -264,12 +266,21 @@ func createHTTPListeners(
 		} else {
 			http3PacketConns, err = newUDPPacketConns(ctx, cfg.Ports.HTTPS)
 			if err != nil {
+				closeAll(httpListeners)
+				closeAll(httpsListeners)
+
 				return nil, nil, nil, fmt.Errorf("failed to create HTTP/3 UDP listeners: %w", err)
 			}
 		}
 	}
 
 	return httpListeners, httpsListeners, http3PacketConns, nil
+}
+
+func closeAll[T io.Closer](closers []T) {
+	for _, c := range closers {
+		_ = c.Close()
+	}
 }
 
 func newTCPListeners(
@@ -514,7 +525,10 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 					s.http3Server, pc.LocalAddr())
 
 				err := s.http3Server.inner.Serve(pc)
-				if err != nil && !errors.Is(err, quic.ErrServerClosed) && !errors.Is(err, http.ErrServerClosed) {
+				if err != nil &&
+					!errors.Is(err, quic.ErrServerClosed) &&
+					!errors.Is(err, http.ErrServerClosed) &&
+					!errors.Is(err, net.ErrClosed) {
 					errCh <- fmt.Errorf("%s on %s: %w", s.http3Server, pc.LocalAddr(), err)
 				}
 			}()

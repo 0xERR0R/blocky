@@ -621,18 +621,19 @@ var _ = Describe("Running DNS server", func() {
 
 		When("HTTP/3 is enabled with HTTPS addresses", func() {
 			It("creates an http3Server and one packet conn per HTTPS address", func() {
+				// Clear the default DNS port so Stop has no never-started
+				// dns.Server to shut down.
+				cfg.Ports.DNS = config.ListenConfig{}
 				cfg.Ports.HTTPS = config.ListenConfig{"127.0.0.1:0", "127.0.0.1:0"}
 				cfg.HTTP3.Enable = true
 
 				srv, err := NewServer(ctx, &cfg)
 
 				Expect(err).Should(Succeed())
+				DeferCleanup(func() { _ = srv.Stop(ctx) })
+
 				Expect(srv.http3Server).ShouldNot(BeNil())
 				Expect(srv.http3PacketConns).To(HaveLen(2))
-
-				for _, pc := range srv.http3PacketConns {
-					_ = pc.Close()
-				}
 			})
 
 			It("does not leak spurious errors when Stop closes after Serve has started", func() {
