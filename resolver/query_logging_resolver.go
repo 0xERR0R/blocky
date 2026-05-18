@@ -205,7 +205,7 @@ func (r *QueryLoggingResolver) createLogEntry(request *model.Request, response *
 			entry.ResponseCode = dns.RcodeToString[response.Res.Rcode]
 
 		case config.QueryLogFieldResponseAnswer:
-			entry.Answer = util.AnswerToString(response.Res.Answer)
+			entry.Answer = util.Obfuscate(util.AnswerToString(response.Res.Answer))
 
 		case config.QueryLogFieldQuestion:
 			entry.QuestionName = util.Obfuscate(request.Req.Question[0].Name)

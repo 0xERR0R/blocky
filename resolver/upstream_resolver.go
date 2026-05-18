@@ -462,7 +462,7 @@ func (r *UpstreamResolver) logResponse(
 	logger *logrus.Entry, request *model.Request, resp *dns.Msg, ip net.IP, rtt time.Duration,
 ) {
 	logger.WithFields(logrus.Fields{
-		"answer":           util.AnswerToString(resp.Answer),
+		"answer":           util.Obfuscate(util.AnswerToString(resp.Answer)),
 		"return_code":      dns.RcodeToString[resp.Rcode],
 		"upstream":         r.cfg.String(),
 		"upstream_ip":      ip.String(),

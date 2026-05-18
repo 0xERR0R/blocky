@@ -149,7 +149,7 @@ func (r *ConditionalUpstreamResolver) internalResolve(ctx context.Context, reso 
 
 	var answer string
 	if response != nil {
-		answer = util.AnswerToString(response.Res.Answer)
+		answer = util.Obfuscate(util.AnswerToString(response.Res.Answer))
 	}
 
 	logger.WithFields(logrus.Fields{

@@ -61,6 +61,21 @@ var _ = Describe("Common function tests", func() {
 					"AAAA (2001:db8:85a3:8d3:1319:8a2e:370:7344), CNAME (cname), PTR (ptr), \t0\tCLASS0\tNone\tns"))
 			})
 		})
+
+		When("LogPrivacy is enabled", func() {
+			BeforeEach(func() {
+				LogPrivacy.Store(true)
+			})
+
+			AfterEach(func() {
+				LogPrivacy.Store(false)
+			})
+
+			It("should still return the raw representation (obfuscation is the caller's job)", func() {
+				rr := []dns.RR{&dns.A{A: net.ParseIP("127.0.0.1")}}
+				Expect(AnswerToString(rr)).Should(Equal("A (127.0.0.1)"))
+			})
+		})
 	})
 
 	Describe("print question", func() {

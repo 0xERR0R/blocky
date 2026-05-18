@@ -192,7 +192,8 @@ func evaluateResponses(
 			continue
 		}
 
-		logger.WithField("answer", util.AnswerToString(result.response.Res.Answer)).Debug("using response from resolver")
+		logger.WithField("answer", util.Obfuscate(util.AnswerToString(result.response.Res.Answer))).
+			Debug("using response from resolver")
 
 		return result.response, nil
 	}
@@ -214,7 +215,7 @@ func (r *ParallelBestResolver) retryWithDifferent(
 
 	logger.WithFields(logrus.Fields{
 		"resolver": *resolver,
-		"answer":   util.AnswerToString(resp.Res.Answer),
+		"answer":   util.Obfuscate(util.AnswerToString(resp.Res.Answer)),
 	}).Debug("using response from resolver")
 
 	return resp, nil
