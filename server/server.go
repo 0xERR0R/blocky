@@ -28,6 +28,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/miekg/dns"
+	"github.com/quic-go/quic-go"
 	"github.com/sirupsen/logrus"
 )
 
@@ -43,8 +44,10 @@ type Server struct {
 	queryResolver resolver.ChainedResolver
 	cfg           *config.Config
 
-	servers map[net.Listener]*httpServer
-	closers []io.Closer
+	servers          map[net.Listener]*httpServer
+	http3Server      *http3Server     // nil when disabled
+	http3PacketConns []net.PacketConn // one per address in ports.https
+	closers          []io.Closer
 }
 
 func logger() *logrus.Entry {
@@ -120,7 +123,7 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		return nil, fmt.Errorf("server creation failed: %w", err)
 	}
 
-	httpListeners, httpsListeners, err := createHTTPListeners(ctx, cfg, tlsCfg)
+	httpListeners, httpsListeners, http3PacketConns, err := createHTTPListeners(ctx, cfg, tlsCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP/HTTPS listeners: %w", err)
 	}
@@ -155,11 +158,11 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 	}
 
 	server = &Server{
-		dnsServers:    dnsServers,
-		queryResolver: queryResolver,
-		cfg:           cfg,
-
-		servers: make(map[net.Listener]*httpServer),
+		dnsServers:       dnsServers,
+		queryResolver:    queryResolver,
+		cfg:              cfg,
+		servers:          make(map[net.Listener]*httpServer),
+		http3PacketConns: http3PacketConns,
 	}
 
 	if redisResult.bridge != nil {
@@ -182,6 +185,10 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 	httpRouter := createHTTPRouter(cfg, openAPIImpl)
 	server.registerDoHEndpoints(httpRouter, cfg)
 
+	if len(http3PacketConns) > 0 {
+		server.http3Server = newHTTP3Server(httpRouter, newH3TLSConfig(tlsCfg))
+	}
+
 	if len(cfg.Ports.HTTP) != 0 {
 		srv := newHTTPServer("http", httpRouter, cfg)
 
@@ -191,7 +198,12 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 	}
 
 	if len(cfg.Ports.HTTPS) != 0 {
-		srv := newHTTPServer("https", httpRouter, cfg)
+		var httpsHandler http.Handler = httpRouter
+		if server.http3Server != nil {
+			httpsHandler = newAltSvcMiddleware(server.http3Server)(httpRouter)
+		}
+
+		srv := newHTTPServer("https", httpsHandler, cfg)
 
 		for _, l := range httpsListeners {
 			server.servers[l] = srv
@@ -235,18 +247,40 @@ func createServers(cfg *config.Config, tlsCfg *tls.Config) ([]*dns.Server, error
 
 func createHTTPListeners(
 	ctx context.Context, cfg *config.Config, tlsCfg *tls.Config,
-) (httpListeners, httpsListeners []net.Listener, err error) {
+) (httpListeners, httpsListeners []net.Listener, http3PacketConns []net.PacketConn, err error) {
 	httpListeners, err = newTCPListeners(ctx, "http", cfg.Ports.HTTP)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create HTTP listeners: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to create HTTP listeners: %w", err)
 	}
 
 	httpsListeners, err = newTLSListeners(ctx, "https", cfg.Ports.HTTPS, tlsCfg)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create HTTPS listeners: %w", err)
+		closeAll(httpListeners)
+
+		return nil, nil, nil, fmt.Errorf("failed to create HTTPS listeners: %w", err)
 	}
 
-	return httpListeners, httpsListeners, nil
+	if cfg.HTTP3.IsEnabled() {
+		if len(cfg.Ports.HTTPS) == 0 {
+			logger().Warn("http3.enable is true but ports.https is empty; HTTP/3 disabled")
+		} else {
+			http3PacketConns, err = newUDPPacketConns(ctx, cfg.Ports.HTTPS)
+			if err != nil {
+				closeAll(httpListeners)
+				closeAll(httpsListeners)
+
+				return nil, nil, nil, fmt.Errorf("failed to create HTTP/3 UDP listeners: %w", err)
+			}
+		}
+	}
+
+	return httpListeners, httpsListeners, http3PacketConns, nil
+}
+
+func closeAll[T io.Closer](closers []T) {
+	for _, c := range closers {
+		_ = c.Close()
+	}
 }
 
 func newTCPListeners(
@@ -430,6 +464,11 @@ func (s *Server) printConfiguration() {
 	logger().Info("listeners:")
 	log.WithIndent(logger(), "  ", s.cfg.Ports.LogConfig)
 
+	if len(s.http3PacketConns) > 0 {
+		logger().Info("HTTP/3:")
+		log.WithIndent(logger(), "  ", s.cfg.HTTP3.LogConfig)
+	}
+
 	logger().Info("runtime information:")
 
 	// force garbage collector
@@ -479,12 +518,46 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 		}()
 	}
 
+	if s.http3Server != nil {
+		for _, pc := range s.http3PacketConns {
+			go func() {
+				logger().Infof("%s server is up and running on addr/port %s",
+					s.http3Server, pc.LocalAddr())
+
+				err := s.http3Server.inner.Serve(pc)
+				if err != nil &&
+					!errors.Is(err, quic.ErrServerClosed) &&
+					!errors.Is(err, http.ErrServerClosed) &&
+					!errors.Is(err, net.ErrClosed) {
+					errCh <- fmt.Errorf("%s on %s: %w", s.http3Server, pc.LocalAddr(), err)
+				}
+			}()
+		}
+	}
+
 	registerPrintConfigurationTrigger(ctx, s)
 }
 
 // Stop stops the server
 func (s *Server) Stop(ctx context.Context) error {
 	logger().Info("Stopping server")
+
+	// Shut down HTTP/3 in order: server first (drains in-flight
+	// requests and unblocks the Serve goroutines), then UDP packet
+	// conns. Closing the packet conns first would cause Serve to
+	// return a non-sentinel error that would land in errCh as a
+	// spurious "server start failed".
+	if s.http3Server != nil {
+		if err := s.http3Server.Close(); err != nil {
+			logger().Warn("failed to close http3 server: ", err)
+		}
+	}
+
+	for _, pc := range s.http3PacketConns {
+		if err := pc.Close(); err != nil {
+			logger().Warn("failed to close http3 packet conn: ", err)
+		}
+	}
 
 	for _, c := range s.closers {
 		if err := c.Close(); err != nil {

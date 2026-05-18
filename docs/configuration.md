@@ -809,6 +809,35 @@ see [Basic Configuration](#basic-configuration)).
       path: /metrics
     ```
 
+## HTTP/3 (DoH3) {#http3}
+
+Serve DNS-over-HTTPS over HTTP/3 (RFC 9114). When enabled, Blocky
+listens on UDP at the same addresses as `ports.https` and answers the
+same endpoints as the HTTPS listener (DoH `/dns-query`, REST API,
+Prometheus metrics, web UI).
+
+| Parameter    | Type    | Mandatory | Default value | Description                                                   |
+| ------------ | ------- | --------- | ------------- | ------------------------------------------------------------- |
+| http3.enable | boolean | no        | false         | Enable the HTTP/3 listener. Requires `ports.https` to be set. |
+
+**Notes:**
+
+- The HTTP/3 listener uses TLS 1.3 (mandated by RFC 9001). The
+  `minTlsServeVersion` config does not affect it.
+- If `http3.enable` is true but `ports.https` is empty, Blocky logs a
+  warning at startup and does not open any UDP listeners.
+- When HTTP/3 is enabled, HTTPS responses include an `Alt-Svc: h3=...`
+  header so capable clients can switch transports automatically.
+
+**Example:**
+
+```yaml
+ports:
+  https: 443
+http3:
+  enable: true
+```
+
 ## Query logging
 
 You can enable the logging of DNS queries (question, answer, client, duration etc.) to a daily CSV file (can be opened

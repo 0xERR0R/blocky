@@ -371,6 +371,11 @@ ports:
   # default: /dns-query
   dohPath: /dns-query
 
+# optional: configuration for DOH  over HTTP/3
+http3:
+  # optional: serve DNS-over-HTTPS over HTTP/3 (RFC 9114). Default: false
+  enable: true
+
 # optional: logging configuration
 log:
   # optional: Log level (one from trace, debug, info, warn, error). Default: info

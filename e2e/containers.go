@@ -167,7 +167,7 @@ func buildBlockyContainerRequest(confFile string) testcontainers.ContainerReques
 
 	req := testcontainers.ContainerRequest{
 		Image:        image,
-		ExposedPorts: []string{"53/tcp", "53/udp", "4000/tcp"},
+		ExposedPorts: []string{"53/tcp", "53/udp", "4000/tcp", "4000/udp"},
 		Files: []testcontainers.ContainerFile{
 			{
 				HostFilePath:      confFile,
