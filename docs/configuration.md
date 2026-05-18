@@ -811,9 +811,10 @@ see [Basic Configuration](#basic-configuration)).
 
 ## HTTP/3 (DoH3) {#http3}
 
-Serve DNS-over-HTTPS over HTTP/3 (RFC 9114). When enabled, Blocky opens
-UDP packet conns on the same addresses as `ports.https` and serves the
-same chi router (DoH, REST API, metrics, web UI).
+Serve DNS-over-HTTPS over HTTP/3 (RFC 9114). When enabled, Blocky
+listens on UDP at the same addresses as `ports.https` and answers the
+same endpoints as the HTTPS listener (DoH `/dns-query`, REST API,
+Prometheus metrics, web UI).
 
 | Parameter    | Type    | Mandatory | Default value | Description                                                   |
 | ------------ | ------- | --------- | ------------- | ------------------------------------------------------------- |
