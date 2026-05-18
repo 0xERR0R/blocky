@@ -55,6 +55,9 @@ var _ = Describe("DoH3 functionality", Label("e2e"), func() {
 		Eventually(func(g Gomega) {
 			resp, err := client.Get(url)
 			g.Expect(err).Should(Succeed())
+			if resp == nil {
+				return
+			}
 			defer resp.Body.Close()
 
 			g.Expect(resp.StatusCode).To(Equal(http.StatusOK))
@@ -82,6 +85,9 @@ var _ = Describe("DoH3 functionality", Label("e2e"), func() {
 		Eventually(func(g Gomega) {
 			resp, err := client.Get(url)
 			g.Expect(err).Should(Succeed())
+			if resp == nil {
+				return
+			}
 			defer resp.Body.Close()
 
 			g.Expect(resp.Header.Get("Alt-Svc")).To(ContainSubstring("h3="))
