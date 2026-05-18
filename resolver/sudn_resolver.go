@@ -85,6 +85,15 @@ var (
 		//
 		// Section 4
 		"home.arpa.": sudnHomeArpa,
+
+		// RFC 9462 (Discovery of Designated Resolvers)
+		// https://www.rfc-editor.org/rfc/rfc9462
+		//
+		// Sections 4, 6.1 and 6.4: blocky advertises no Designated Resolvers,
+		// so reply NODATA across the whole zone and never forward upstream
+		// (forwarded answers would fail the client's cert SAN check anyway
+		// and let stub resolvers bypass blocky).
+		"resolver.arpa.": sudnNoData,
 	}
 )
 
@@ -142,6 +151,10 @@ func newSUDNResponse(response *model.Request, rcode int) *model.Response {
 
 func sudnNXDomain(request *model.Request, _ *config.SUDN) *model.Response {
 	return newSUDNResponse(request, dns.RcodeNameError)
+}
+
+func sudnNoData(request *model.Request, _ *config.SUDN) *model.Response {
+	return newSUDNResponse(request, dns.RcodeSuccess)
 }
 
 func sudnLocalhost(request *model.Request, cfg *config.SUDN) *model.Response {

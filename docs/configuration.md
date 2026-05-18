@@ -970,6 +970,11 @@ Some RFCs have optional recommendations, which are configurable as described bel
 However, you can completely deactivate the blocking of SUDN by setting enable to false.
 Warning! You should only disable this if your upstream DNS server is local, as it shouldn't be disabled for remote upstreams.
 
+This also covers [RFC 9462 (Discovery of Designated Resolvers)](https://www.rfc-editor.org/rfc/rfc9462): queries
+for any name in `resolver.arpa.` (e.g. `_dns.resolver.arpa.`) are answered locally with NODATA and never
+forwarded upstream. Without this, stub resolvers (notably recent iOS/Android) can pick up a DDR answer from the
+upstream and silently upgrade to that upstream, bypassing blocky.
+
 Configuration parameters:
 
 | Parameter                           | Type | Mandatory | Default value | Description                                                                                   |
