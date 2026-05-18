@@ -192,7 +192,8 @@ func evaluateResponses(
 			continue
 		}
 
-		logger.WithField("answer", util.Obfuscate(util.AnswerToString(result.response.Res.Answer))).Debug("using response from resolver")
+		logger.WithField("answer", util.Obfuscate(util.AnswerToString(result.response.Res.Answer))).
+			Debug("using response from resolver")
 
 		return result.response, nil
 	}
