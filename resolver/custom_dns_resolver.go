@@ -134,7 +134,7 @@ func (r *CustomDNSResolver) processRequest(
 
 			if len(answers) > 0 {
 				logger.WithFields(logrus.Fields{
-					"answer": util.AnswerToString(answers),
+					"answer": util.Obfuscate(util.AnswerToString(answers)),
 					"domain": domain,
 				}).Debugf("returning custom dns entry")
 

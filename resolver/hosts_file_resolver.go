@@ -126,7 +126,7 @@ func (r *HostsFileResolver) Resolve(ctx context.Context, request *model.Request)
 	response := r.resolve(question, domain)
 	if response != nil {
 		logger.WithFields(logrus.Fields{
-			"answer": util.AnswerToString(response),
+			"answer": util.Obfuscate(util.AnswerToString(response)),
 			"domain": util.Obfuscate(domain),
 		}).Debugf("returning hosts file entry")
 

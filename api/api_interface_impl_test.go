@@ -96,6 +96,34 @@ var _ = Describe("API implementation tests", func() {
 				Expect(resp200.ReturnCode).Should(Equal("NOERROR"))
 			})
 
+			When("log privacy is enabled", func() {
+				BeforeEach(func() {
+					util.LogPrivacy.Store(true)
+					DeferCleanup(func() { util.LogPrivacy.Store(false) })
+				})
+
+				It("should still return the unobfuscated response (issue #1950)", func() {
+					queryResponse, err := util.NewMsgWithAnswer(
+						"example.com.", 123, A, "93.184.216.34",
+					)
+					Expect(err).Should(Succeed())
+
+					querierMock.On("Query", ctx, "", net.IP(nil), "example.com.", A).Return(&model.Response{
+						Res:    queryResponse,
+						Reason: "RESOLVED (tcp+udp:1.1.1.1)",
+					}, nil)
+
+					resp, err := sut.Query(ctx, QueryRequestObject{
+						Body: &ApiQueryRequest{
+							Query: "example.com", Type: "A",
+						},
+					})
+					Expect(err).Should(Succeed())
+					resp200 := resp.(Query200JSONResponse)
+					Expect(resp200.Response).Should(Equal("A (93.184.216.34)"))
+				})
+			})
+
 			It("extracts metadata from the HTTP request", func() {
 				r, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://blocky.localhost", nil)
 				Expect(err).Should(Succeed())
