@@ -173,7 +173,9 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		server.closers = append(server.closers, redisConn)
 	}
 
-	server.printConfiguration()
+	for _, pc := range server.http3PacketConns {
+		server.closers = append(server.closers, pc)
+	}
 
 	server.registerDNSHandlers(ctx)
 
@@ -187,7 +189,10 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 
 	if len(http3PacketConns) > 0 {
 		server.http3Server = newHTTP3Server(httpRouter, newH3TLSConfig(tlsCfg))
+		server.closers = append(server.closers, server.http3Server)
 	}
+
+	server.printConfiguration()
 
 	if len(cfg.Ports.HTTP) != 0 {
 		srv := newHTTPServer("http", httpRouter, cfg)
@@ -453,7 +458,7 @@ func (s *Server) printConfiguration() {
 	logger().Info("listeners:")
 	log.WithIndent(logger(), "  ", s.cfg.Ports.LogConfig)
 
-	if s.cfg.HTTP3.IsEnabled() {
+	if s.http3Server != nil {
 		logger().Info("HTTP/3:")
 		log.WithIndent(logger(), "  ", s.cfg.HTTP3.LogConfig)
 	}
