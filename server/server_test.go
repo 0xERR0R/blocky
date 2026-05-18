@@ -634,17 +634,45 @@ var _ = Describe("Running DNS server", func() {
 					_ = pc.Close()
 				}
 			})
+
+			It("does not leak spurious errors when Stop closes after Serve has started", func() {
+				cfg.Ports.DNS = config.ListenConfig{GetHostPort("127.0.0.1", dnsBasePort2)}
+				cfg.Ports.HTTPS = config.ListenConfig{"127.0.0.1:0"}
+				cfg.HTTP3.Enable = true
+
+				srv, err := NewServer(ctx, &cfg)
+				Expect(err).Should(Succeed())
+
+				errCh := make(chan error, 10)
+				go srv.Start(ctx, errCh)
+
+				// Let the http3 Serve goroutine enter its Accept loop.
+				Consistently(errCh, "200ms").ShouldNot(Receive())
+
+				Expect(srv.Stop(ctx)).Should(Succeed())
+
+				// Stop must close the http3 server before its UDP packet
+				// conns; reverse order makes Serve return a non-sentinel
+				// error that would land here.
+				Consistently(errCh, "200ms").ShouldNot(Receive())
+			})
 		})
 
 		When("HTTP/3 is enabled but no HTTPS address is configured", func() {
 			It("logs a warning and leaves http3Server nil", func() {
 				cfg.HTTP3.Enable = true
 
+				logHook := installLogHook()
+				DeferCleanup(logHook.uninstall)
+
 				srv, err := NewServer(ctx, &cfg)
 
 				Expect(err).Should(Succeed())
 				Expect(srv.http3Server).Should(BeNil())
 				Expect(srv.http3PacketConns).To(BeEmpty())
+
+				Expect(logHook.messages()).Should(ContainElement(
+					ContainSubstring("http3.enable is true but ports.https is empty")))
 			})
 		})
 

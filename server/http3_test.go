@@ -7,9 +7,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/util"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/0xERR0R/blocky/config"
 )
 
 var _ = Describe("HTTP/3 helpers", func() {
@@ -56,7 +57,16 @@ var _ = Describe("HTTP/3 helpers", func() {
 			Expect(s.inner.Handler).ShouldNot(BeNil())
 			Expect(s.inner.TLSConfig).ShouldNot(BeNil())
 		})
+
+		It("Close is idempotent across repeated calls", func() {
+			s := newHTTP3Server(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+				&tls.Config{MinVersion: tls.VersionTLS13})
+
+			Expect(s.Close()).Should(Succeed())
+			Expect(s.Close()).Should(Succeed())
+		})
 	})
+
 	Describe("newAltSvcMiddleware", func() {
 		It("invokes the next handler", func() {
 			h3 := newHTTP3Server(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
@@ -88,7 +98,34 @@ var _ = Describe("HTTP/3 helpers", func() {
 			req := httptest.NewRequest(http.MethodGet, "/dns-query", nil)
 			Expect(func() { wrapped.ServeHTTP(rec, req) }).ShouldNot(Panic())
 		})
+
+		It("populates the Alt-Svc header with h3= after Serve has bound a listener", func() {
+			cert, err := util.TLSGenerateSelfSignedCert([]string{"localhost"})
+			Expect(err).Should(Succeed())
+
+			pc, err := net.ListenPacket("udp", "127.0.0.1:0")
+			Expect(err).Should(Succeed())
+			DeferCleanup(pc.Close)
+
+			tlsCfg := newH3TLSConfig(&tls.Config{Certificates: []tls.Certificate{cert}})
+			h3 := newHTTP3Server(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}), tlsCfg)
+			DeferCleanup(h3.Close)
+
+			go func() { _ = h3.inner.Serve(pc) }()
+
+			wrapped := newAltSvcMiddleware(h3)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			Eventually(func(g Gomega) {
+				rec := httptest.NewRecorder()
+				req := httptest.NewRequest(http.MethodGet, "/", nil)
+				wrapped.ServeHTTP(rec, req)
+				g.Expect(rec.Header().Get("Alt-Svc")).To(ContainSubstring("h3="))
+			}, "2s", "20ms").Should(Succeed())
+		})
 	})
+
 	Describe("newUDPPacketConns", func() {
 		It("opens one UDP packet conn per address", func(ctx context.Context) {
 			pcs, err := newUDPPacketConns(ctx, config.ListenConfig{"127.0.0.1:0", "127.0.0.1:0"})

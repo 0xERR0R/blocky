@@ -173,9 +173,7 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		server.closers = append(server.closers, redisConn)
 	}
 
-	for _, pc := range server.http3PacketConns {
-		server.closers = append(server.closers, pc)
-	}
+	server.printConfiguration()
 
 	server.registerDNSHandlers(ctx)
 
@@ -189,10 +187,7 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 
 	if len(http3PacketConns) > 0 {
 		server.http3Server = newHTTP3Server(httpRouter, newH3TLSConfig(tlsCfg))
-		server.closers = append(server.closers, server.http3Server)
 	}
-
-	server.printConfiguration()
 
 	if len(cfg.Ports.HTTP) != 0 {
 		srv := newHTTPServer("http", httpRouter, cfg)
@@ -458,7 +453,7 @@ func (s *Server) printConfiguration() {
 	logger().Info("listeners:")
 	log.WithIndent(logger(), "  ", s.cfg.Ports.LogConfig)
 
-	if s.http3Server != nil {
+	if len(s.http3PacketConns) > 0 {
 		logger().Info("HTTP/3:")
 		log.WithIndent(logger(), "  ", s.cfg.HTTP3.LogConfig)
 	}
@@ -513,12 +508,6 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 	}
 
 	if s.http3Server != nil {
-		// single shutdown watcher for the shared http3.Server
-		go func() {
-			<-ctx.Done()
-			_ = s.http3Server.inner.Close()
-		}()
-
 		for _, pc := range s.http3PacketConns {
 			go func() {
 				logger().Infof("%s server is up and running on addr/port %s",
@@ -538,6 +527,23 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 // Stop stops the server
 func (s *Server) Stop(ctx context.Context) error {
 	logger().Info("Stopping server")
+
+	// Shut down HTTP/3 in order: server first (drains in-flight
+	// requests and unblocks the Serve goroutines), then UDP packet
+	// conns. Closing the packet conns first would cause Serve to
+	// return a non-sentinel error that would land in errCh as a
+	// spurious "server start failed".
+	if s.http3Server != nil {
+		if err := s.http3Server.Close(); err != nil {
+			logger().Warn("failed to close http3 server: ", err)
+		}
+	}
+
+	for _, pc := range s.http3PacketConns {
+		if err := pc.Close(); err != nil {
+			logger().Warn("failed to close http3 packet conn: ", err)
+		}
+	}
 
 	for _, c := range s.closers {
 		if err := c.Close(); err != nil {

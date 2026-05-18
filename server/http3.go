@@ -12,7 +12,9 @@ import (
 )
 
 // newH3TLSConfig clones base, forces TLS 1.3, and sets the h3 ALPN.
-// The base config is not mutated.
+// The base config is not mutated. base must be non-nil; callers guard
+// this by only invoking the helper when ports.https is configured (in
+// which case a TLS config has been built earlier in NewServer).
 func newH3TLSConfig(base *tls.Config) *tls.Config {
 	cfg := base.Clone()
 	cfg.MinVersion = tls.VersionTLS13
@@ -24,27 +26,30 @@ func newH3TLSConfig(base *tls.Config) *tls.Config {
 //
 // Asymmetric with httpServer: there are N httpServers (one per TCP
 // listener) but a single http3Server shared across all UDP listeners.
-// The serve loop and shutdown watcher therefore live in Server.Start
-// rather than on this wrapper. The wrapper exists for String() (log
-// consistency) and as a handle for newAltSvcMiddleware.
+// The serve loop lives in Server.Start and the shutdown lives in
+// Server.Stop rather than on this wrapper. The wrapper exists for
+// String() (log consistency) and as a handle for newAltSvcMiddleware.
+//
+// inner is a pointer rather than an embedded value so accidental
+// copies of http3Server cannot duplicate quic-go's internal mutex
+// and listener state.
 type http3Server struct {
-	inner http3.Server
-	name  string
+	inner *http3.Server
 }
 
 func newHTTP3Server(handler http.Handler, tlsCfg *tls.Config) *http3Server {
 	return &http3Server{
-		inner: http3.Server{
+		inner: &http3.Server{
 			TLSConfig: tlsCfg,
 			Handler:   withCommonMiddleware(handler),
 		},
-		name: "http3",
 	}
 }
 
-func (s *http3Server) String() string { return s.name }
+func (s *http3Server) String() string { return "http3" }
 
-// Close shuts down the underlying http3.Server. Safe to call multiple times.
+// Close shuts down the underlying http3.Server. Idempotent under
+// quic-go's mutex when used with the Serve(conn) pattern.
 func (s *http3Server) Close() error { return s.inner.Close() }
 
 // newAltSvcMiddleware returns middleware that advertises HTTP/3

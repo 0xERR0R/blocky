@@ -815,9 +815,9 @@ Serve DNS-over-HTTPS over HTTP/3 (RFC 9114). When enabled, Blocky opens
 UDP packet conns on the same addresses as `ports.https` and serves the
 same chi router (DoH, REST API, metrics, web UI).
 
-| Parameter     | Type    | Mandatory | Default | Description                                                  |
-| ------------- | ------- | --------- | ------- | ------------------------------------------------------------ |
-| http3.enable  | boolean | no        | false   | Enable the HTTP/3 listener. Requires `ports.https` to be set. |
+| Parameter    | Type    | Mandatory | Default value | Description                                                   |
+| ------------ | ------- | --------- | ------------- | ------------------------------------------------------------- |
+| http3.enable | boolean | no        | false         | Enable the HTTP/3 listener. Requires `ports.https` to be set. |
 
 **Notes:**
 
