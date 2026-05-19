@@ -51,3 +51,15 @@ func (s *bucketStore) allowAt(key string, now time.Time) (*bucketEntry, bool) {
 	e := actual.(*bucketEntry)
 	return e, e.limiter.AllowN(now, 1)
 }
+
+// sweep walks the map and evicts buckets whose limiter is fully refilled
+// (idle = no state worth keeping; reconstruction yields identical behavior).
+func (s *bucketStore) sweep() {
+	s.buckets.Range(func(k, v any) bool {
+		if v.(*bucketEntry).limiter.Tokens() >= float64(s.burst) {
+			s.buckets.Delete(k)
+			s.size.Add(-1)
+		}
+		return true
+	})
+}

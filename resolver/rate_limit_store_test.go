@@ -79,4 +79,20 @@ var _ = Describe("bucketStore", func() {
 		Expect(ok).Should(BeFalse())
 		Expect(s.size.Load()).Should(BeNumerically("==", 2))
 	})
+
+	It("sweep removes fully-refilled buckets", func() {
+		s := newBucketStore(rate.Limit(1), 1, 1024)
+		_, _ = s.allowAt("idle", now)                // bucket created, 0 tokens left
+		_, _ = s.allowAt("idle", now.Add(time.Hour)) // refills (capped at burst=1)
+		s.sweep()
+		Expect(s.size.Load()).Should(BeNumerically("==", 0))
+	})
+
+	It("sweep keeps partially-drained buckets", func() {
+		s := newBucketStore(rate.Limit(1), 5, 1024)
+		recent := time.Now() // Use current time so bucket appears partially drained
+		_, _ = s.allowAt("active", recent) // 4 tokens left, not full
+		s.sweep()
+		Expect(s.size.Load()).Should(BeNumerically("==", 1))
+	})
 })
