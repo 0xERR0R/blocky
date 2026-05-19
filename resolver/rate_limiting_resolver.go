@@ -123,11 +123,14 @@ func (r *RateLimitingResolver) recordDrop(req *model.Request, e *bucketEntry) {
 	if now-prev < int64(time.Second) || !e.lastLogged.CompareAndSwap(prev, now) {
 		return
 	}
-	r.logger.WithFields(logrus.Fields{
+	fields := logrus.Fields{
 		"client_ip":     req.ClientIP,
 		"protocol":      req.Protocol,
 		"qname":         util.QuestionToString(req.Req.Question),
-		"qtype":         req.Req.Question[0].Qtype,
 		"bucket_tokens": e.limiter.Tokens(),
-	}).Warn("dropped query")
+	}
+	if len(req.Req.Question) > 0 {
+		fields["qtype"] = req.Req.Question[0].Qtype
+	}
+	r.logger.WithFields(fields).Warn("dropped query")
 }

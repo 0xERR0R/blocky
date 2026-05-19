@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"errors"
+	"net"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -183,6 +184,16 @@ var _ = Describe("RateLimitingResolver", func() {
 			_, e2 := sut.Resolve(ctx, r2)
 			Expect(e1).Should(Succeed())
 			Expect(errors.Is(e2, ErrRateLimited)).Should(BeTrue())
+		})
+
+		It("does not panic when a drop is logged for a malformed empty-question request", func() {
+			req := &Request{
+				ClientIP: net.ParseIP("1.2.3.4"),
+				Req:      new(dns.Msg),
+				Protocol: RequestProtocolUDP,
+			}
+			_, _ = sut.Resolve(ctx, req) // first allowed (or dropped — bucket=1/1 from prior tests; doesn't matter)
+			Expect(func() { _, _ = sut.Resolve(ctx, req) }).ShouldNot(Panic())
 		})
 	})
 })
