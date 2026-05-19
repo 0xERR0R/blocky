@@ -2,9 +2,11 @@ package resolver
 
 import (
 	"net"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"golang.org/x/time/rate"
 )
 
 var _ = Describe("bucketKey", func() {
@@ -34,5 +36,47 @@ var _ = Describe("bucketKey", func() {
 		mapped := net.ParseIP("::ffff:192.0.2.5")
 		v4 := net.ParseIP("192.0.2.5")
 		Expect(bucketKey(mapped, 32, 64)).Should(Equal(bucketKey(v4, 32, 64)))
+	})
+})
+
+var _ = Describe("bucketStore", func() {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	It("allows the first burst requests for a fresh key", func() {
+		s := newBucketStore(rate.Limit(1), 3, 1024)
+		for range 3 {
+			_, ok := s.allowAt("k", now)
+			Expect(ok).Should(BeTrue())
+		}
+		_, ok := s.allowAt("k", now)
+		Expect(ok).Should(BeFalse())
+	})
+
+	It("refills tokens over time", func() {
+		s := newBucketStore(rate.Limit(1), 1, 1024)
+		_, ok := s.allowAt("k", now)
+		Expect(ok).Should(BeTrue())
+		_, ok = s.allowAt("k", now)
+		Expect(ok).Should(BeFalse())
+		_, ok = s.allowAt("k", now.Add(time.Second))
+		Expect(ok).Should(BeTrue())
+	})
+
+	It("keeps separate buckets per key", func() {
+		s := newBucketStore(rate.Limit(1), 1, 1024)
+		_, okA := s.allowAt("a", now)
+		_, okB := s.allowAt("b", now)
+		Expect(okA).Should(BeTrue())
+		Expect(okB).Should(BeTrue())
+		Expect(s.size.Load()).Should(BeNumerically("==", 2))
+	})
+
+	It("drops new keys once cap is reached", func() {
+		s := newBucketStore(rate.Limit(1), 1, 2)
+		_, _ = s.allowAt("a", now)
+		_, _ = s.allowAt("b", now)
+		_, ok := s.allowAt("c", now)
+		Expect(ok).Should(BeFalse())
+		Expect(s.size.Load()).Should(BeNumerically("==", 2))
 	})
 })
