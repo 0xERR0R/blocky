@@ -31,6 +31,34 @@ func (c *RateLimit) LogConfig(logger *logrus.Entry) {
 	logger.Infof("allowlist    = %v", c.Allowlist)
 }
 
+func (c *RateLimit) validate() error {
+	if !c.Enable {
+		return nil
+	}
+	if c.Rate == 0 {
+		return fmt.Errorf("rateLimit: rate must be > 0 when enabled")
+	}
+	if c.Burst < c.Rate {
+		return fmt.Errorf("rateLimit: burst (%d) must be >= rate (%d)", c.Burst, c.Rate)
+	}
+	if c.IPv4Prefix > 32 {
+		return fmt.Errorf("rateLimit: ipv4Prefix (%d) must be in [0, 32]", c.IPv4Prefix)
+	}
+	if c.IPv6Prefix > 128 {
+		return fmt.Errorf("rateLimit: ipv6Prefix (%d) must be in [0, 128]", c.IPv6Prefix)
+	}
+	parsed := make([]*net.IPNet, 0, len(c.Allowlist))
+	for _, s := range c.Allowlist {
+		ipNet, err := parseCIDRorIP(s)
+		if err != nil {
+			return fmt.Errorf("rateLimit: allowlist entry %q: %w", s, err)
+		}
+		parsed = append(parsed, ipNet)
+	}
+	c.parsedAllowlist = parsed
+	return nil
+}
+
 func parseCIDRorIP(s string) (*net.IPNet, error) {
 	if _, ipNet, err := net.ParseCIDR(s); err == nil {
 		return ipNet, nil

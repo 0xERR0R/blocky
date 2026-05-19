@@ -70,4 +70,54 @@ var _ = Describe("RateLimit config", func() {
 			Expect(hook.Calls).ShouldNot(BeEmpty())
 		})
 	})
+
+	Describe("validate", func() {
+		It("accepts disabled config", func() {
+			c := &RateLimit{Enable: false}
+			Expect(c.validate()).Should(Succeed())
+		})
+		It("rejects enabled with Rate=0", func() {
+			c := &RateLimit{Enable: true, Rate: 0, Burst: 0, IPv4Prefix: 32, IPv6Prefix: 64}
+			Expect(c.validate()).Should(MatchError(ContainSubstring("rate must be > 0")))
+		})
+		It("rejects enabled with Burst < Rate", func() {
+			c := &RateLimit{Enable: true, Rate: 50, Burst: 10, IPv4Prefix: 32, IPv6Prefix: 64}
+			Expect(c.validate()).Should(MatchError(ContainSubstring("burst")))
+		})
+		It("rejects IPv4Prefix > 32", func() {
+			c := &RateLimit{Enable: true, Rate: 1, Burst: 1, IPv4Prefix: 33, IPv6Prefix: 64}
+			Expect(c.validate()).Should(MatchError(ContainSubstring("ipv4Prefix")))
+		})
+		It("rejects IPv6Prefix > 128", func() {
+			c := &RateLimit{Enable: true, Rate: 1, Burst: 1, IPv4Prefix: 32, IPv6Prefix: 129}
+			Expect(c.validate()).Should(MatchError(ContainSubstring("ipv6Prefix")))
+		})
+		It("rejects unparseable allowlist entry", func() {
+			c := &RateLimit{
+				Enable: true, Rate: 1, Burst: 1,
+				IPv4Prefix: 32, IPv6Prefix: 64,
+				Allowlist: []string{"garbage"},
+			}
+			Expect(c.validate()).Should(MatchError(ContainSubstring("garbage")))
+		})
+		It("accepts bare IPv4 and IPv6 in allowlist", func() {
+			c := &RateLimit{
+				Enable: true, Rate: 1, Burst: 1,
+				IPv4Prefix: 32, IPv6Prefix: 64,
+				Allowlist: []string{"127.0.0.1", "::1", "10.0.0.0/8"},
+			}
+			Expect(c.validate()).Should(Succeed())
+			Expect(c.parsedAllowlist).Should(HaveLen(3))
+		})
+		It("re-parses on repeated calls", func() {
+			c := &RateLimit{
+				Enable: true, Rate: 1, Burst: 1,
+				IPv4Prefix: 32, IPv6Prefix: 64,
+				Allowlist: []string{"10.0.0.0/8"},
+			}
+			Expect(c.validate()).Should(Succeed())
+			Expect(c.validate()).Should(Succeed())
+			Expect(c.parsedAllowlist).Should(HaveLen(1))
+		})
+	})
 })
