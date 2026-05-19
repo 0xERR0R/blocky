@@ -3,7 +3,9 @@ package e2e
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
+	"net/http"
 	"strings"
 	"time"
 
@@ -41,7 +43,7 @@ var _ = Describe("Per-client rate limiting", func() {
 		})
 
 		It("passes traffic through unhindered", func(ctx context.Context) {
-			for range 5 {
+			for range 100 {
 				msg := util.NewMsgWithQuestion("example.com.", A)
 				Expect(doDNSRequest(ctx, blocky, msg)).
 					Should(BeDNSRecord("example.com.", A, "1.2.3.4"))
@@ -134,6 +136,57 @@ var _ = Describe("Per-client rate limiting", func() {
 				Expect(doDNSRequest(ctx, blocky, msg)).
 					Should(BeDNSRecord("example.com.", A, "1.2.3.4"))
 			}
+		})
+	})
+
+	When("Prometheus is enabled and a drop occurs", func() {
+		BeforeEach(func(ctx context.Context) {
+			blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+				upstreams:
+				  groups:
+				    default:
+				      - moka
+				rateLimit:
+				  enable: true
+				  rate: 1
+				  burst: 1
+				ports:
+				  http: 4000
+				prometheus:
+				  enable: true
+				  path: /metrics
+			`))
+			Expect(err).Should(Succeed())
+		})
+
+		It("exposes blocky_rate_limit_drops_total > 0", func(ctx context.Context) {
+			msg := util.NewMsgWithQuestion("example.com.", A)
+			_, _ = doDNSRequest(ctx, blocky, msg)
+			_, _ = doDNSRequest(ctx, blocky, msg)
+			_, _ = doDNSRequest(ctx, blocky, msg)
+
+			Eventually(func(g Gomega) {
+				host, port, err := getContainerHostPort(ctx, blocky, "4000/tcp")
+				g.Expect(err).Should(Succeed())
+
+				resp, err := http.Get("http://" + net.JoinHostPort(host, port) + "/metrics")
+				g.Expect(err).Should(Succeed())
+				defer resp.Body.Close()
+
+				body, err := io.ReadAll(resp.Body)
+				g.Expect(err).Should(Succeed())
+
+				// Look for the counter with a non-zero value
+				lines := strings.Split(string(body), "\n")
+				var foundNonZero bool
+				for _, line := range lines {
+					if strings.HasPrefix(line, "blocky_rate_limit_drops_total{") && !strings.HasSuffix(line, " 0") {
+						foundNonZero = true
+						break
+					}
+				}
+				g.Expect(foundNonZero).Should(BeTrue(), "expected non-zero drops counter; metrics body=\n%s", string(body))
+			}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 		})
 	})
 })
