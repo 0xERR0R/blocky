@@ -313,8 +313,12 @@ rateLimit:
   # sustained queries per second allowed per client bucket. Must be > 0 when enabled.
   # default: 0
   rate: 50
-  # bucket size (maximum burst before throttling kicks in). Must be >= rate.
-  # default: 0
+  # token bucket capacity — i.e. the maximum number of queries a previously
+  # idle client may spend at once before being throttled to `rate` qps.
+  # Example: with rate=100 and burst=200, a client may fire 200 queries
+  # instantly, then is limited to 100/sec; after 2 seconds idle they
+  # regain a full 200-query burst. Must be >= rate when set explicitly.
+  # default: 0 — falls back to rate × 2 if left at zero
   burst: 100
   # IPv4 aggregation prefix length. Clients sharing the same /ipv4Prefix share
   # one bucket. Use 32 to limit per single address, 24 to limit per /24 subnet, etc.

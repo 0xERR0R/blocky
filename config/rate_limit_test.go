@@ -80,9 +80,14 @@ var _ = Describe("RateLimit config", func() {
 			c := &RateLimit{Enable: true, Rate: 0, Burst: 0, IPv4Prefix: 32, IPv6Prefix: 64}
 			Expect(c.validate()).Should(MatchError(ContainSubstring("rate must be > 0")))
 		})
-		It("rejects enabled with Burst < Rate", func() {
+		It("rejects enabled with non-zero Burst < Rate", func() {
 			c := &RateLimit{Enable: true, Rate: 50, Burst: 10, IPv4Prefix: 32, IPv6Prefix: 64}
 			Expect(c.validate()).Should(MatchError(ContainSubstring("burst")))
+		})
+		It("defaults Burst to 2× Rate when left at zero", func() {
+			c := &RateLimit{Enable: true, Rate: 50, Burst: 0, IPv4Prefix: 32, IPv6Prefix: 64}
+			Expect(c.validate()).Should(Succeed())
+			Expect(c.Burst).Should(BeNumerically("==", 100))
 		})
 		It("rejects IPv4Prefix > 32", func() {
 			c := &RateLimit{Enable: true, Rate: 1, Burst: 1, IPv4Prefix: 33, IPv6Prefix: 64}

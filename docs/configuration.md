@@ -312,7 +312,7 @@ When a client exceeds its bucket, the query is **dropped silently** (no UDP resp
 rateLimit:
   enable: true
   rate: 50           # avg queries per second per client
-  burst: 100         # short-spike capacity (must be >= rate)
+  burst: 100         # optional, default rate × 2; must be >= rate
   ipv4Prefix: 32     # default: aggregate by /32 (one IP = one client)
   ipv6Prefix: 64     # default: aggregate by /64 (one subscriber prefix)
   allowlist:
@@ -322,9 +322,23 @@ rateLimit:
     - 192.168.0.0/16
 ```
 
+The limiter is a **token bucket** per client. Tokens refill at `rate` per second, capped at `burst`. Each query consumes one token. When the bucket is empty, the query is dropped.
+
 - `rate` is the long-run sustained limit in queries/second.
-- `burst` is the bucket capacity — how many queries an idle client may spend at once before being throttled to `rate`.
+- `burst` is the bucket capacity — how many queries an idle client may spend at once before being throttled to `rate`. Optional; defaults to `rate × 2` if omitted or set to 0.
 - `ipv6Prefix` defaults to `/64` because residential IPv6 typically allocates a `/64` per subscriber; aggregating by `/64` keeps an attacker from cheaply rotating source addresses within their own subnet.
+
+**Example — `rate: 100, burst: 200`:**
+
+| Time | Bucket | Client sends | Result |
+|------|--------|--------------|--------|
+| 0.00 s | 200 (full) | 200 queries instantly | all 200 allowed, bucket drained |
+| 0.00 s | 0 | 1 more query | **dropped** |
+| 0.50 s | 50 (refilled at 100/s) | 50 queries | all 50 allowed |
+| 0.50 s | 0 | 1 more query | **dropped** |
+| 2.50 s | 200 (capped) | 200 queries instantly | all 200 allowed (burst recovered after 2 s idle) |
+
+Pick `burst == rate` for a strict steady-state limiter with no spike tolerance. Pick `burst` 2–10× `rate` to let typical browser page loads through (a single page can trigger 30–80 DNS lookups in well under a second) while still capping long-running abusers at `rate` qps.
 
 ### Sample fail2ban filter
 

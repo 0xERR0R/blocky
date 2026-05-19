@@ -44,6 +44,10 @@ func (c *RateLimit) validate() error {
 	if c.Rate == 0 {
 		return errors.New("rateLimit: rate must be > 0 when enabled")
 	}
+	if c.Burst == 0 {
+		// Sensible default: allow short spikes of up to 2× the sustained rate.
+		c.Burst = c.Rate * 2
+	}
 	if c.Burst < c.Rate {
 		return fmt.Errorf("rateLimit: burst (%d) must be >= rate (%d)", c.Burst, c.Rate)
 	}
