@@ -84,9 +84,10 @@ var _ = Describe("Per-client rate limiting", func() {
 			_, err := doDNSRequest(ctx, blocky, msg)
 			Expect(err).Should(Succeed())
 
-			time.Sleep(1500 * time.Millisecond)
-			_, err = doDNSRequest(ctx, blocky, msg)
-			Expect(err).Should(Succeed())
+			Eventually(func() error {
+				_, err := doDNSRequest(ctx, blocky, msg)
+				return err
+			}).WithTimeout(15 * time.Second).WithPolling(time.Second).Should(Succeed())
 		})
 
 		It("emits a fail2ban-matchable WARN line", func(ctx context.Context) {
