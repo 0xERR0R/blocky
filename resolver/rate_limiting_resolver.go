@@ -52,7 +52,13 @@ func (r *RateLimitingResolver) Resolve(ctx context.Context, req *model.Request) 
 	if ip == nil || r.isAllowlisted(ip) {
 		return r.next.Resolve(ctx, req)
 	}
-	return r.next.Resolve(ctx, req) // bucket logic added in next task
+	key := bucketKey(ip, r.cfg.IPv4Prefix, r.cfg.IPv6Prefix)
+	entry, allowed := r.store.allowAt(key, r.clock())
+	if allowed {
+		return r.next.Resolve(ctx, req)
+	}
+	_ = entry // used by recordDrop in the next task
+	return nil, ErrRateLimited
 }
 
 func (r *RateLimitingResolver) isAllowlisted(ip net.IP) bool {
