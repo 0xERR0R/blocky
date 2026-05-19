@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"context"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -84,14 +85,18 @@ func (s *bucketStore) sweep() {
 	})
 }
 
-// startJanitor launches a background sweep loop. Lives for process lifetime,
-// matching CachingResolver's eviction-goroutine precedent.
-func (s *bucketStore) startJanitor(interval time.Duration) {
+// startJanitor launches a background sweep loop that exits when ctx is done.
+func (s *bucketStore) startJanitor(ctx context.Context, interval time.Duration) {
 	go func() {
 		t := time.NewTicker(interval)
 		defer t.Stop()
-		for range t.C {
-			s.sweep()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				s.sweep()
+			}
 		}
 	}()
 }

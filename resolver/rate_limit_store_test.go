@@ -1,7 +1,9 @@
 package resolver
 
 import (
+	"context"
 	"net"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -114,6 +116,18 @@ var _ = Describe("bucketStore", func() {
 		wg.Wait()
 
 		Expect(s.size.Load()).Should(BeNumerically("==", capacity))
+	})
+
+	It("janitor exits when context is cancelled", func() {
+		s := newBucketStore(rate.Limit(1), 1, 1024)
+		ctx, cancel := context.WithCancel(context.Background())
+		baseline := runtime.NumGoroutine()
+
+		s.startJanitor(ctx, time.Millisecond)
+		Eventually(runtime.NumGoroutine).Should(BeNumerically(">", baseline))
+
+		cancel()
+		Eventually(runtime.NumGoroutine).WithTimeout(2 * time.Second).Should(BeNumerically("<=", baseline))
 	})
 
 	It("exactly one limiter wins under concurrent LoadOrStore for same fresh key", func() {

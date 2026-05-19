@@ -33,7 +33,7 @@ var _ = Describe("RateLimitingResolver", func() {
 	})
 
 	JustBeforeEach(func() {
-		sut = NewRateLimitingResolver(sutConfig)
+		sut = NewRateLimitingResolver(ctx, sutConfig)
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 		sut.Next(m)

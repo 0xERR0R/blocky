@@ -416,7 +416,7 @@ func createQueryResolver(
 	}
 
 	r := resolver.Chain(
-		resolver.NewRateLimitingResolver(cfg.RateLimit),
+		resolver.NewRateLimitingResolver(ctx, cfg.RateLimit),
 		resolver.NewFilteringResolver(cfg.Filtering),
 		resolver.NewFQDNOnlyResolver(cfg.FQDNOnly),
 		clientNames,

@@ -42,7 +42,7 @@ type RateLimitingResolver struct {
 	activeBuckets prometheus.GaugeFunc
 }
 
-func NewRateLimitingResolver(cfg config.RateLimit) *RateLimitingResolver {
+func NewRateLimitingResolver(ctx context.Context, cfg config.RateLimit) *RateLimitingResolver {
 	r := &RateLimitingResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType("rate-limiting"),
@@ -53,7 +53,7 @@ func NewRateLimitingResolver(cfg config.RateLimit) *RateLimitingResolver {
 		return r
 	}
 	r.store = newBucketStore(rate.Limit(cfg.Rate), int(cfg.Burst), rateLimitBucketCap)
-	r.store.startJanitor(rateLimitJanitorInterval)
+	r.store.startJanitor(ctx, rateLimitJanitorInterval)
 
 	r.drops = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
