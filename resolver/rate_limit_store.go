@@ -49,13 +49,22 @@ func (s *bucketStore) allowAt(key string, now time.Time) (*bucketEntry, bool) {
 
 		return e, e.limiter.AllowN(now, 1)
 	}
-	if s.size.Load() >= int64(s.maxBuckets) {
-		return nil, false
+	// Reserve a slot atomically before inserting so a concurrent burst of
+	// fresh keys cannot push size past maxBuckets. Roll back the reservation
+	// if another goroutine wins the LoadOrStore race for the same key.
+	for {
+		cur := s.size.Load()
+		if cur >= int64(s.maxBuckets) {
+			return nil, false
+		}
+		if s.size.CompareAndSwap(cur, cur+1) {
+			break
+		}
 	}
 	fresh := &bucketEntry{limiter: rate.NewLimiter(s.limit, s.burst)}
 	actual, loaded := s.buckets.LoadOrStore(key, fresh)
-	if !loaded {
-		s.size.Add(1)
+	if loaded {
+		s.size.Add(-1)
 	}
 	e := actual.(*bucketEntry)
 

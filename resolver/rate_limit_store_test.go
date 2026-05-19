@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -95,6 +96,24 @@ var _ = Describe("bucketStore", func() {
 		_, _ = s.allowAt("active", recent) // 4 tokens left, not full
 		s.sweep()
 		Expect(s.size.Load()).Should(BeNumerically("==", 1))
+	})
+
+	It("never exceeds cap under concurrent burst of distinct fresh keys", func() {
+		const capacity = 8
+		s := newBucketStore(rate.Limit(1000), 1, capacity)
+
+		var wg sync.WaitGroup
+		const N = 200
+		for i := range N {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				_, _ = s.allowAt("k-"+strconv.Itoa(i), time.Now())
+			}(i)
+		}
+		wg.Wait()
+
+		Expect(s.size.Load()).Should(BeNumerically("==", capacity))
 	})
 
 	It("exactly one limiter wins under concurrent LoadOrStore for same fresh key", func() {
