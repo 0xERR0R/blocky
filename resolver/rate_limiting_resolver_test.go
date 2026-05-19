@@ -13,6 +13,7 @@ import (
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -133,6 +134,37 @@ var _ = Describe("RateLimitingResolver", func() {
 			_, e2 := sut.Resolve(ctx, r2)
 			Expect(e1).Should(Succeed())
 			Expect(e2).Should(Succeed())
+		})
+
+		It("increments the drops counter on each drop", func() {
+			req := newRequestWithClient("example.com.", A, "1.2.3.4")
+			_, _ = sut.Resolve(ctx, req) // allowed
+			_, _ = sut.Resolve(ctx, req) // drop 1
+			_, _ = sut.Resolve(ctx, req) // drop 2
+			Expect(testutil.ToFloat64(sut.drops.WithLabelValues("UDP"))).
+				Should(BeNumerically("==", 2))
+		})
+
+		It("logs at most once per second per bucket", func() {
+			req := newRequestWithClient("example.com.", A, "1.2.3.4")
+			logger, hook := log.NewMockEntry()
+			sut.logger = logger
+
+			_, _ = sut.Resolve(ctx, req) // allowed
+			_, _ = sut.Resolve(ctx, req) // drop, log #1
+			_, _ = sut.Resolve(ctx, req) // drop in same second, no log
+			Expect(hook.Calls).Should(HaveLen(1))
+
+			fakeNow = fakeNow.Add(2 * time.Second)
+			_, _ = sut.Resolve(ctx, req) // allowed (token refilled after 2 s)
+			_, _ = sut.Resolve(ctx, req) // drop, log #2 (window expired)
+			Expect(hook.Calls).Should(HaveLen(2))
+		})
+
+		It("active-buckets gauge reflects store size", func() {
+			req := newRequestWithClient("example.com.", A, "1.2.3.4")
+			_, _ = sut.Resolve(ctx, req)
+			Expect(testutil.ToFloat64(sut.activeBuckets)).Should(BeNumerically("==", 1))
 		})
 	})
 })

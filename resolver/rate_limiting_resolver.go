@@ -7,7 +7,13 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 )
 
@@ -27,8 +33,12 @@ type RateLimitingResolver struct {
 	NextResolver
 	typed
 
-	store *bucketStore
-	clock func() time.Time
+	store  *bucketStore
+	clock  func() time.Time
+	logger *logrus.Entry
+
+	drops         *prometheus.CounterVec
+	activeBuckets prometheus.GaugeFunc
 }
 
 func NewRateLimitingResolver(cfg config.RateLimit) *RateLimitingResolver {
@@ -36,11 +46,30 @@ func NewRateLimitingResolver(cfg config.RateLimit) *RateLimitingResolver {
 		configurable: withConfig(&cfg),
 		typed:        withType("rate-limiting"),
 		clock:        time.Now,
+		logger:       log.PrefixedLog("rate-limiting"),
 	}
-	if cfg.IsEnabled() {
-		r.store = newBucketStore(rate.Limit(cfg.Rate), int(cfg.Burst), rateLimitBucketCap)
-		r.store.startJanitor(rateLimitJanitorInterval)
+	if !cfg.IsEnabled() {
+		return r
 	}
+	r.store = newBucketStore(rate.Limit(cfg.Rate), int(cfg.Burst), rateLimitBucketCap)
+	r.store.startJanitor(rateLimitJanitorInterval)
+
+	r.drops = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "blocky_rate_limit_drops_total",
+			Help: "Total number of DNS queries dropped by the rate limiter, by protocol.",
+		},
+		[]string{"protocol"},
+	)
+	r.activeBuckets = prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name: "blocky_rate_limit_active_buckets",
+			Help: "Number of token buckets currently held in memory.",
+		},
+		func() float64 { return float64(r.store.size.Load()) },
+	)
+	metrics.RegisterMetric(r.drops)
+	metrics.RegisterMetric(r.activeBuckets)
 	return r
 }
 
@@ -57,7 +86,7 @@ func (r *RateLimitingResolver) Resolve(ctx context.Context, req *model.Request) 
 	if allowed {
 		return r.next.Resolve(ctx, req)
 	}
-	_ = entry // used by recordDrop in the next task
+	r.recordDrop(req, entry)
 	return nil, ErrRateLimited
 }
 
@@ -68,4 +97,23 @@ func (r *RateLimitingResolver) isAllowlisted(ip net.IP) bool {
 		}
 	}
 	return false
+}
+
+func (r *RateLimitingResolver) recordDrop(req *model.Request, e *bucketEntry) {
+	r.drops.WithLabelValues(req.Protocol.String()).Inc()
+	if e == nil {
+		return
+	}
+	now := r.clock().UnixNano()
+	prev := e.lastLogged.Load()
+	if now-prev < int64(time.Second) || !e.lastLogged.CompareAndSwap(prev, now) {
+		return
+	}
+	r.logger.WithFields(logrus.Fields{
+		"client_ip":     req.ClientIP,
+		"protocol":      req.Protocol,
+		"qname":         util.QuestionToString(req.Req.Question),
+		"qtype":         req.Req.Question[0].Qtype,
+		"bucket_tokens": 0,
+	}).Warn("dropped query")
 }
