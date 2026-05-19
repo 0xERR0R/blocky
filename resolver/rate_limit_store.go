@@ -63,3 +63,15 @@ func (s *bucketStore) sweep() {
 		return true
 	})
 }
+
+// startJanitor launches a background sweep loop. Lives for process lifetime,
+// matching CachingResolver's eviction-goroutine precedent.
+func (s *bucketStore) startJanitor(interval time.Duration) {
+	go func() {
+		t := time.NewTicker(interval)
+		defer t.Stop()
+		for range t.C {
+			s.sweep()
+		}
+	}()
+}
