@@ -66,4 +66,29 @@ var _ = Describe("RateLimitingResolver", func() {
 			Expect(sut.IsEnabled()).Should(BeFalse())
 		})
 	})
+
+	When("enabled with allowlist", func() {
+		BeforeEach(func() {
+			sutConfig = config.RateLimit{
+				Enable: true, Rate: 1, Burst: 1,
+				IPv4Prefix: 32, IPv6Prefix: 64,
+				Allowlist: []string{"10.0.0.0/8"},
+			}
+			Expect(sutConfig.Validate_forTest()).Should(Succeed())
+		})
+		It("bypasses allowlisted clients regardless of bucket", func() {
+			req := newRequestWithClient("example.com.", A, "10.1.2.3")
+			for range 5 {
+				_, err := sut.Resolve(ctx, req)
+				Expect(err).Should(Succeed())
+			}
+		})
+		It("bypasses requests with nil ClientIP", func() {
+			req := newRequest("example.com.", A) // no client IP set
+			for range 5 {
+				_, err := sut.Resolve(ctx, req)
+				Expect(err).Should(Succeed())
+			}
+		})
+	})
 })

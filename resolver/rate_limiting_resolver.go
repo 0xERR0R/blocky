@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"errors"
+	"net"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -47,5 +48,18 @@ func (r *RateLimitingResolver) Resolve(ctx context.Context, req *model.Request) 
 	if !r.IsEnabled() {
 		return r.next.Resolve(ctx, req)
 	}
-	return r.next.Resolve(ctx, req) // bucket logic added in later tasks
+	ip := req.ClientIP
+	if ip == nil || r.isAllowlisted(ip) {
+		return r.next.Resolve(ctx, req)
+	}
+	return r.next.Resolve(ctx, req) // bucket logic added in next task
+}
+
+func (r *RateLimitingResolver) isAllowlisted(ip net.IP) bool {
+	for _, n := range r.cfg.ParsedAllowlist() {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
