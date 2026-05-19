@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"net"
+	"sync"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -93,6 +94,21 @@ var _ = Describe("bucketStore", func() {
 		recent := time.Now() // Use current time so bucket appears partially drained
 		_, _ = s.allowAt("active", recent) // 4 tokens left, not full
 		s.sweep()
+		Expect(s.size.Load()).Should(BeNumerically("==", 1))
+	})
+
+	It("exactly one limiter wins under concurrent LoadOrStore for same fresh key", func() {
+		s := newBucketStore(rate.Limit(1000), 1000, 1024)
+		var wg sync.WaitGroup
+		const N = 200
+		for range N {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_, _ = s.allowAt("shared", time.Now())
+			}()
+		}
+		wg.Wait()
 		Expect(s.size.Load()).Should(BeNumerically("==", 1))
 	})
 })

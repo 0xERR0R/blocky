@@ -166,5 +166,23 @@ var _ = Describe("RateLimitingResolver", func() {
 			_, _ = sut.Resolve(ctx, req)
 			Expect(testutil.ToFloat64(sut.activeBuckets)).Should(BeNumerically("==", 1))
 		})
+
+		It("aggregates IPv6 by /64 into one bucket", func() {
+			r1 := newRequestWithClient("example.com.", A, "2001:db8::1")
+			r2 := newRequestWithClient("example.com.", A, "2001:db8::ffff")
+			_, e1 := sut.Resolve(ctx, r1)
+			_, e2 := sut.Resolve(ctx, r2)
+			Expect(e1).Should(Succeed())
+			Expect(errors.Is(e2, ErrRateLimited)).Should(BeTrue())
+		})
+
+		It("normalises IPv4-mapped IPv6 to one bucket with IPv4", func() {
+			r1 := newRequestWithClient("example.com.", A, "192.0.2.5")
+			r2 := newRequestWithClient("example.com.", A, "::ffff:192.0.2.5")
+			_, e1 := sut.Resolve(ctx, r1)
+			_, e2 := sut.Resolve(ctx, r2)
+			Expect(e1).Should(Succeed())
+			Expect(errors.Is(e2, ErrRateLimited)).Should(BeTrue())
+		})
 	})
 })
