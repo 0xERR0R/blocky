@@ -21,6 +21,7 @@ const (
 	labelClient       = "client"
 	labelType         = "type"
 	labelReason       = "reason"
+	labelResponseCode = "response_code"
 	labelResponseType = "response_type"
 )
 
@@ -60,7 +61,7 @@ func (r *MetricsResolver) Resolve(ctx context.Context, request *model.Request) (
 		} else {
 			r.totalResponse.With(prometheus.Labels{
 				labelReason:       response.Reason,
-				"response_code":   dns.RcodeToString[response.Res.Rcode],
+				labelResponseCode: dns.RcodeToString[response.Res.Rcode],
 				labelResponseType: response.RType.String(),
 			}).Inc()
 		}
@@ -128,6 +129,6 @@ func totalResponseMetric() *prometheus.CounterVec {
 		prometheus.CounterOpts{
 			Name: "blocky_response_total",
 			Help: "Number of total responses",
-		}, []string{labelReason, "response_code", labelResponseType},
+		}, []string{labelReason, labelResponseCode, labelResponseType},
 	)
 }
