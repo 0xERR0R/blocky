@@ -153,9 +153,9 @@ func (r *ConditionalUpstreamResolver) internalResolve(ctx context.Context, reso 
 	}
 
 	logger.WithFields(logrus.Fields{
-		"answer":   answer,
-		"domain":   util.Obfuscate(do),
-		"upstream": reso,
+		logFieldAnswer:   answer,
+		logFieldDomain:   util.Obfuscate(do),
+		logFieldUpstream: reso,
 	}).Debugf("received response from conditional upstream")
 
 	return response, nil

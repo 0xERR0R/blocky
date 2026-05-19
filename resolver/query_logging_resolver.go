@@ -21,6 +21,7 @@ const (
 	cleanUpRunPeriod         = 12 * time.Hour
 	queryLoggingResolverType = "query_logging"
 	logChanCap               = 1000
+	defaultClientIP          = "0.0.0.0"
 )
 
 // QueryLoggingResolver writes query information (question, answer, duration, ...)
@@ -186,7 +187,7 @@ func (r *QueryLoggingResolver) createLogEntry(request *model.Request, response *
 ) *querylog.LogEntry {
 	entry := querylog.LogEntry{
 		Start:          start,
-		ClientIP:       "0.0.0.0",
+		ClientIP:       defaultClientIP,
 		ClientNames:    []string{"none"},
 		BlockyInstance: r.instanceID,
 	}

@@ -11,11 +11,13 @@ import (
 	"github.com/miekg/dns"
 )
 
+const exampleDomain = "example.com."
+
 type sudnHandler = func(request *model.Request, cfg *config.SUDN) *model.Response
 
 //nolint:gochecknoglobals
 var (
-	loopbackV4 = net.ParseIP("127.0.0.1")
+	loopbackV4 = net.ParseIP(loopbackIPv4Str)
 	loopbackV6 = net.IPv6loopback
 
 	// See Wikipedia for an up-to-date reference:
@@ -51,7 +53,7 @@ var (
 		"invalid.": sudnNXDomain,
 		// Section 6.5
 		"example.":     nil,
-		"example.com.": nil,
+		exampleDomain:  nil,
 		"example.net.": nil,
 		"example.org.": nil,
 

@@ -126,8 +126,8 @@ func (r *HostsFileResolver) Resolve(ctx context.Context, request *model.Request)
 	response := r.resolve(question, domain)
 	if response != nil {
 		logger.WithFields(logrus.Fields{
-			"answer": util.Obfuscate(util.AnswerToString(response)),
-			"domain": util.Obfuscate(domain),
+			logFieldAnswer: util.Obfuscate(util.AnswerToString(response)),
+			logFieldDomain: util.Obfuscate(domain),
 		}).Debugf("returning hosts file entry")
 
 		return model.NewResponseWithAnswers(request, response, model.ResponseTypeHOSTSFILE, "HOSTS FILE"), nil
@@ -230,7 +230,7 @@ func (r *HostsFileResolver) parseFile(
 		}
 
 		// Ignore loopback, if so configured
-		if r.cfg.FilterLoopback && (entry.IP.IsLoopback() || entry.Name == "localhost") {
+		if r.cfg.FilterLoopback && (entry.IP.IsLoopback() || entry.Name == localhostName) {
 			return nil
 		}
 

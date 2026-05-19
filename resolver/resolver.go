@@ -17,6 +17,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	logFieldDomain   = "domain"
+	logFieldAnswer   = "answer"
+	logFieldUpstream = "upstream"
+	localhostName    = "localhost"
+	loopbackIPv4Str  = "127.0.0.1"
+)
+
 func newRequest(question string, rType dns.Type) *model.Request {
 	return &model.Request{
 		Req:      util.NewMsgWithQuestion(question, rType),

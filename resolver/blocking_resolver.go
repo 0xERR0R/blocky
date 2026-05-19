@@ -391,7 +391,7 @@ func (r *BlockingResolver) handleDenylist(ctx context.Context, groupsToCheck []s
 
 	for _, question := range request.Req.Question {
 		domain := util.ExtractDomain(question)
-		logger := logger.WithField("domain", domain)
+		logger := logger.WithField(logFieldDomain, domain)
 
 		if groups := r.matches(groupsToCheck, r.allowlistMatcher, domain); len(groups) > 0 {
 			logger.WithField("groups", groups).Debugf("domain is allowlisted")

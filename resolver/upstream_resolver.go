@@ -27,9 +27,10 @@ import (
 )
 
 const (
-	dnsContentType   = "application/dns-message"
-	retryAttempts    = 3
-	sha256HashLength = 32
+	dnsContentType       = "application/dns-message"
+	upstreamResolverType = "upstream"
+	retryAttempts        = 3
+	sha256HashLength     = 32
 )
 
 // UpstreamServerError wraps a response with RCode ServFail so no other resolver tries to use it.
@@ -368,7 +369,7 @@ func newUpstreamResolverUnchecked(cfg upstreamConfig, bootstrap *Bootstrap) *Ups
 	upstreamClient := createUpstreamClient(cfg)
 
 	return &UpstreamResolver{
-		typed:        withType("upstream"),
+		typed:        withType(upstreamResolverType),
 		configurable: withConfig(cfg),
 
 		upstreamClient: upstreamClient,
@@ -386,14 +387,14 @@ func (r UpstreamResolver) Upstream() config.Upstream {
 
 func (r *UpstreamResolver) log(ctx context.Context) (context.Context, *logrus.Entry) {
 	return r.logWithFields(ctx, logrus.Fields{
-		"upstream": r.cfg.String(),
+		logFieldUpstream: r.cfg.String(),
 	})
 }
 
 // testResolve sends a test query to verify the upstream is reachable and working
 func (r *UpstreamResolver) testResolve(ctx context.Context) error {
 	// example.com MUST always resolve. See SUDN resolver
-	request := newRequest("example.com.", dns.Type(dns.TypeA))
+	request := newRequest(exampleDomain, dns.Type(dns.TypeA))
 
 	_, err := r.Resolve(ctx, request)
 	if err != nil {
@@ -443,10 +444,10 @@ func (r *UpstreamResolver) Resolve(ctx context.Context, request *model.Request) 
 		retry.RetryIf(isTimeout),
 		retry.OnRetry(func(n uint, err error) {
 			logger.WithFields(logrus.Fields{
-				"upstream":    r.cfg.String(),
-				"upstream_ip": ip.String(),
-				"question":    util.QuestionToString(request.Req.Question),
-				"attempt":     fmt.Sprintf("%d/%d", n+1, retryAttempts),
+				logFieldUpstream: r.cfg.String(),
+				"upstream_ip":    ip.String(),
+				"question":       util.QuestionToString(request.Req.Question),
+				"attempt":        fmt.Sprintf("%d/%d", n+1, retryAttempts),
 			}).Debugf("%s, retrying...", err)
 
 			ips.Next()
@@ -462,9 +463,9 @@ func (r *UpstreamResolver) logResponse(
 	logger *logrus.Entry, request *model.Request, resp *dns.Msg, ip net.IP, rtt time.Duration,
 ) {
 	logger.WithFields(logrus.Fields{
-		"answer":           util.Obfuscate(util.AnswerToString(resp.Answer)),
+		logFieldAnswer:     util.Obfuscate(util.AnswerToString(resp.Answer)),
 		"return_code":      dns.RcodeToString[resp.Rcode],
-		"upstream":         r.cfg.String(),
+		logFieldUpstream:   r.cfg.String(),
 		"upstream_ip":      ip.String(),
 		"protocol":         request.Protocol,
 		"net":              r.cfg.Net,

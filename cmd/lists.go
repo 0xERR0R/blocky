@@ -6,6 +6,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const refreshCmdName = "refresh"
+
 // NewListsCommand creates new command instance
 func NewListsCommand() *cobra.Command {
 	c := &cobra.Command{
@@ -21,7 +23,7 @@ func NewListsCommand() *cobra.Command {
 
 func newRefreshCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "refresh",
+		Use:   refreshCmdName,
 		Short: "refreshes all lists",
 		RunE:  refreshList,
 	}
