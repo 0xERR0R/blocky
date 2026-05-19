@@ -23,7 +23,7 @@ require (
 	github.com/miekg/dns v1.1.72
 	github.com/moby/moby/api v1.54.2
 	github.com/mroth/weightedrand/v2 v2.1.0
-	github.com/oapi-codegen/runtime v1.4.0
+	github.com/oapi-codegen/runtime v1.4.1
 	github.com/onsi/ginkgo/v2 v2.29.0
 	github.com/onsi/gomega v1.41.0
 	github.com/prometheus/client_golang v1.23.2
