@@ -29,11 +29,12 @@ type bucketEntry struct {
 }
 
 type bucketStore struct {
-	limit      rate.Limit
-	burst      int
-	maxBuckets int
-	buckets    sync.Map
-	size       atomic.Int64
+	limit       rate.Limit
+	burst       int
+	maxBuckets  int
+	buckets     sync.Map
+	size        atomic.Int64
+	janitorDone chan struct{} // closed when the janitor goroutine exits; nil until startJanitor is called
 }
 
 func newBucketStore(limit rate.Limit, burst, maxBuckets int) *bucketStore {
@@ -86,8 +87,12 @@ func (s *bucketStore) sweep() {
 }
 
 // startJanitor launches a background sweep loop that exits when ctx is done.
+// The returned-via-field janitorDone channel is closed when the goroutine exits,
+// giving tests a deterministic signal without polling runtime.NumGoroutine.
 func (s *bucketStore) startJanitor(ctx context.Context, interval time.Duration) {
+	s.janitorDone = make(chan struct{})
 	go func() {
+		defer close(s.janitorDone)
 		t := time.NewTicker(interval)
 		defer t.Stop()
 		for {
