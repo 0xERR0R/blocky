@@ -22,25 +22,27 @@ type bucketEntry struct {
 }
 
 type bucketStore struct {
-	limit   rate.Limit
-	burst   int
-	cap     int
-	buckets sync.Map
-	size    atomic.Int64
+	limit      rate.Limit
+	burst      int
+	maxBuckets int
+	buckets    sync.Map
+	size       atomic.Int64
 }
 
-func newBucketStore(limit rate.Limit, burst, cap int) *bucketStore {
-	return &bucketStore{limit: limit, burst: burst, cap: cap}
+func newBucketStore(limit rate.Limit, burst, maxBuckets int) *bucketStore {
+	return &bucketStore{limit: limit, burst: burst, maxBuckets: maxBuckets}
 }
 
 // allowAt is the time-injectable Allow path used by tests and by the resolver
-// (which passes r.clock()).
+// (which passes r.clock()). Returns (nil, false) when the store is full —
+// callers can distinguish cap exhaustion from a rate-limit drop by checking
+// the entry for nil.
 func (s *bucketStore) allowAt(key string, now time.Time) (*bucketEntry, bool) {
 	if v, ok := s.buckets.Load(key); ok {
 		e := v.(*bucketEntry)
 		return e, e.limiter.AllowN(now, 1)
 	}
-	if s.size.Load() >= int64(s.cap) {
+	if s.size.Load() >= int64(s.maxBuckets) {
 		return nil, false
 	}
 	fresh := &bucketEntry{limiter: rate.NewLimiter(s.limit, s.burst)}

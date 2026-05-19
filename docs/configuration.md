@@ -336,9 +336,12 @@ failregex = ^.*rate-limiting: dropped query.*client_ip=<HOST>.*$
 ignoreregex =
 ```
 
+This filter assumes `logFormat: text` (the default); with `logFormat: json` the field becomes `"client_ip":"<HOST>"` and the regex must be adjusted accordingly.
+
 ### Metrics
 
 - `blocky_rate_limit_drops_total{protocol="TCP|UDP"}` — counter, incremented on every drop (label cardinality is bounded).
+- `blocky_rate_limit_cap_exhausted_total` — counter, incremented when a new client is dropped because the in-memory bucket store has reached its hard cap. A non-zero value means the store is under sustained pressure from many distinct clients.
 - `blocky_rate_limit_active_buckets` — gauge, current number of in-memory token buckets.
 
 Per-client IP is intentionally not a Prometheus label; it lives in the log line. Per-IP analysis is better served by log aggregation (Loki, ELK) than by Prometheus.

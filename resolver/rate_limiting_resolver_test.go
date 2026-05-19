@@ -77,7 +77,7 @@ var _ = Describe("RateLimitingResolver", func() {
 				IPv4Prefix: 32, IPv6Prefix: 64,
 				Allowlist: []string{"10.0.0.0/8"},
 			}
-			Expect(sutConfig.Validate_forTest()).Should(Succeed())
+			Expect(sutConfig.ValidateForTest()).Should(Succeed())
 		})
 		It("bypasses allowlisted clients regardless of bucket", func() {
 			req := newRequestWithClient("example.com.", A, "10.1.2.3")
@@ -103,7 +103,7 @@ var _ = Describe("RateLimitingResolver", func() {
 				Enable: true, Rate: 1, Burst: 1,
 				IPv4Prefix: 32, IPv6Prefix: 64,
 			}
-			Expect(sutConfig.Validate_forTest()).Should(Succeed())
+			Expect(sutConfig.ValidateForTest()).Should(Succeed())
 		})
 		JustBeforeEach(func() {
 			sut.clock = func() time.Time { return fakeNow }

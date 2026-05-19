@@ -59,9 +59,9 @@ func (c *RateLimit) validate() error {
 	return nil
 }
 
-// Validate_forTest exposes validate for cross-package tests.
+// ValidateForTest exposes validate for cross-package tests.
 // Internal package callers should use the unexported validate.
-func (c *RateLimit) Validate_forTest() error { return c.validate() }
+func (c *RateLimit) ValidateForTest() error { return c.validate() }
 
 // ParsedAllowlist returns the parsed CIDR list populated by validate.
 func (c *RateLimit) ParsedAllowlist() []*net.IPNet { return c.parsedAllowlist }

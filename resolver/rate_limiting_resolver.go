@@ -38,6 +38,7 @@ type RateLimitingResolver struct {
 	logger *logrus.Entry
 
 	drops         *prometheus.CounterVec
+	capExhausted  prometheus.Counter
 	activeBuckets prometheus.GaugeFunc
 }
 
@@ -61,6 +62,12 @@ func NewRateLimitingResolver(cfg config.RateLimit) *RateLimitingResolver {
 		},
 		[]string{"protocol"},
 	)
+	r.capExhausted = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "blocky_rate_limit_cap_exhausted_total",
+			Help: "Total number of queries dropped because the in-memory bucket store was full.",
+		},
+	)
 	r.activeBuckets = prometheus.NewGaugeFunc(
 		prometheus.GaugeOpts{
 			Name: "blocky_rate_limit_active_buckets",
@@ -69,6 +76,7 @@ func NewRateLimitingResolver(cfg config.RateLimit) *RateLimitingResolver {
 		func() float64 { return float64(r.store.size.Load()) },
 	)
 	metrics.RegisterMetric(r.drops)
+	metrics.RegisterMetric(r.capExhausted)
 	metrics.RegisterMetric(r.activeBuckets)
 	return r
 }
@@ -85,6 +93,9 @@ func (r *RateLimitingResolver) Resolve(ctx context.Context, req *model.Request) 
 	entry, allowed := r.store.allowAt(key, r.clock())
 	if allowed {
 		return r.next.Resolve(ctx, req)
+	}
+	if entry == nil {
+		r.capExhausted.Inc()
 	}
 	r.recordDrop(req, entry)
 	return nil, ErrRateLimited
@@ -114,6 +125,6 @@ func (r *RateLimitingResolver) recordDrop(req *model.Request, e *bucketEntry) {
 		"protocol":      req.Protocol,
 		"qname":         util.QuestionToString(req.Req.Question),
 		"qtype":         req.Req.Question[0].Qtype,
-		"bucket_tokens": 0,
+		"bucket_tokens": e.limiter.Tokens(),
 	}).Warn("dropped query")
 }
