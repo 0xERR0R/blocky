@@ -25,7 +25,7 @@ import (
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/mock"
 )
 
 const (
@@ -999,8 +999,11 @@ var _ = Describe("Running DNS server", func() {
 		It("writes no response when resolver returns ErrRateLimited", func() {
 			w := &countingMsgWriter{}
 
+			m := resolver.NewMockChainedResolver(GinkgoT())
+			m.EXPECT().Resolve(mock.Anything, mock.Anything).Return(nil, resolver.ErrRateLimited)
+
 			s := &Server{
-				queryResolver: &fixedResolver{err: resolver.ErrRateLimited},
+				queryResolver: m,
 				cfg: &config.Config{Upstreams: config.Upstreams{
 					Timeout: config.Duration(time.Second),
 				}},
@@ -1061,21 +1064,6 @@ func (w *countingMsgWriter) WriteMsg(*dns.Msg) error {
 
 	return nil
 }
-
-type fixedResolver struct {
-	res *model.Response
-	err error
-}
-
-func (r *fixedResolver) Resolve(context.Context, *model.Request) (*model.Response, error) {
-	return r.res, r.err
-}
-func (r *fixedResolver) Next(resolver.Resolver)     {}
-func (r *fixedResolver) GetNext() resolver.Resolver { return nil }
-func (r *fixedResolver) Type() string               { return "fixed" }
-func (r *fixedResolver) String() string             { return "fixed" }
-func (r *fixedResolver) IsEnabled() bool            { return true }
-func (r *fixedResolver) LogConfig(*logrus.Entry)    {}
 
 func writeCertPem(tmpDir *TmpFolder) *TmpFile {
 	return tmpDir.CreateStringFile("cert.pem",
