@@ -9,11 +9,17 @@ import (
 	"golang.org/x/time/rate"
 )
 
+const (
+	ipv4Bits = 32
+	ipv6Bits = 128
+)
+
 func bucketKey(ip net.IP, v4Prefix, v6Prefix uint8) string {
 	if v4 := ip.To4(); v4 != nil {
-		return v4.Mask(net.CIDRMask(int(v4Prefix), 32)).String()
+		return v4.Mask(net.CIDRMask(int(v4Prefix), ipv4Bits)).String()
 	}
-	return ip.To16().Mask(net.CIDRMask(int(v6Prefix), 128)).String()
+
+	return ip.To16().Mask(net.CIDRMask(int(v6Prefix), ipv6Bits)).String()
 }
 
 type bucketEntry struct {
@@ -40,6 +46,7 @@ func newBucketStore(limit rate.Limit, burst, maxBuckets int) *bucketStore {
 func (s *bucketStore) allowAt(key string, now time.Time) (*bucketEntry, bool) {
 	if v, ok := s.buckets.Load(key); ok {
 		e := v.(*bucketEntry)
+
 		return e, e.limiter.AllowN(now, 1)
 	}
 	if s.size.Load() >= int64(s.maxBuckets) {
@@ -51,6 +58,7 @@ func (s *bucketStore) allowAt(key string, now time.Time) (*bucketEntry, bool) {
 		s.size.Add(1)
 	}
 	e := actual.(*bucketEntry)
+
 	return e, e.limiter.AllowN(now, 1)
 }
 
@@ -62,6 +70,7 @@ func (s *bucketStore) sweep() {
 			s.buckets.Delete(k)
 			s.size.Add(-1)
 		}
+
 		return true
 	})
 }

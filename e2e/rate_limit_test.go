@@ -86,6 +86,7 @@ var _ = Describe("Per-client rate limiting", func() {
 
 			Eventually(func() error {
 				_, err := doDNSRequest(ctx, blocky, msg)
+
 				return err
 			}).WithTimeout(15 * time.Second).WithPolling(time.Second).Should(Succeed())
 		})
@@ -107,6 +108,7 @@ var _ = Describe("Per-client rate limiting", func() {
 						return true
 					}
 				}
+
 				return false
 			}, 5*time.Second, 200*time.Millisecond).Should(BeTrue())
 		})
@@ -183,6 +185,7 @@ var _ = Describe("Per-client rate limiting", func() {
 				for _, line := range lines {
 					if strings.HasPrefix(line, "blocky_rate_limit_drops_total{") && !strings.HasSuffix(line, " 0") {
 						foundNonZero = true
+
 						break
 					}
 				}

@@ -1,20 +1,26 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net"
 
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	ipv4MaxPrefix = 32
+	ipv6MaxPrefix = 128
+)
+
 // RateLimit configures per-client rate limiting at the head of the resolver chain.
 type RateLimit struct {
-	Enable     bool     `default:"false" yaml:"enable"`
-	Rate       uint     `default:"0"     yaml:"rate"`
-	Burst      uint     `default:"0"     yaml:"burst"`
-	IPv4Prefix uint8    `default:"32"    yaml:"ipv4Prefix"`
-	IPv6Prefix uint8    `default:"64"    yaml:"ipv6Prefix"`
-	Allowlist  []string `                yaml:"allowlist"`
+	Enable     bool     `default:"false"  yaml:"enable"`
+	Rate       uint     `default:"0"      yaml:"rate"`
+	Burst      uint     `default:"0"      yaml:"burst"`
+	IPv4Prefix uint8    `default:"32"     yaml:"ipv4Prefix"`
+	IPv6Prefix uint8    `default:"64"     yaml:"ipv6Prefix"`
+	Allowlist  []string `yaml:"allowlist"`
 
 	parsedAllowlist []*net.IPNet
 }
@@ -36,16 +42,16 @@ func (c *RateLimit) validate() error {
 		return nil
 	}
 	if c.Rate == 0 {
-		return fmt.Errorf("rateLimit: rate must be > 0 when enabled")
+		return errors.New("rateLimit: rate must be > 0 when enabled")
 	}
 	if c.Burst < c.Rate {
 		return fmt.Errorf("rateLimit: burst (%d) must be >= rate (%d)", c.Burst, c.Rate)
 	}
-	if c.IPv4Prefix > 32 {
-		return fmt.Errorf("rateLimit: ipv4Prefix (%d) must be in [0, 32]", c.IPv4Prefix)
+	if c.IPv4Prefix > ipv4MaxPrefix {
+		return fmt.Errorf("rateLimit: ipv4Prefix (%d) must be in [0, %d]", c.IPv4Prefix, ipv4MaxPrefix)
 	}
-	if c.IPv6Prefix > 128 {
-		return fmt.Errorf("rateLimit: ipv6Prefix (%d) must be in [0, 128]", c.IPv6Prefix)
+	if c.IPv6Prefix > ipv6MaxPrefix {
+		return fmt.Errorf("rateLimit: ipv6Prefix (%d) must be in [0, %d]", c.IPv6Prefix, ipv6MaxPrefix)
 	}
 	parsed := make([]*net.IPNet, 0, len(c.Allowlist))
 	for _, s := range c.Allowlist {
@@ -56,6 +62,7 @@ func (c *RateLimit) validate() error {
 		parsed = append(parsed, ipNet)
 	}
 	c.parsedAllowlist = parsed
+
 	return nil
 }
 
@@ -71,12 +78,14 @@ func parseCIDRorIP(s string) (*net.IPNet, error) {
 		return ipNet, nil
 	}
 	if ip := net.ParseIP(s); ip != nil {
-		bits := 128
+		bits := ipv6MaxPrefix
 		if v4 := ip.To4(); v4 != nil {
 			ip = v4
-			bits = 32
+			bits = ipv4MaxPrefix
 		}
+
 		return &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)}, nil
 	}
+
 	return nil, fmt.Errorf("not a valid CIDR or IP: %q", s)
 }

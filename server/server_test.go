@@ -1056,7 +1056,11 @@ type countingMsgWriter struct {
 	writes int
 }
 
-func (w *countingMsgWriter) WriteMsg(*dns.Msg) error { w.writes++; return nil }
+func (w *countingMsgWriter) WriteMsg(*dns.Msg) error {
+	w.writes++
+
+	return nil
+}
 
 type fixedResolver struct {
 	res *model.Response

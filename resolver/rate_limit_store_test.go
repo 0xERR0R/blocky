@@ -91,7 +91,7 @@ var _ = Describe("bucketStore", func() {
 
 	It("sweep keeps partially-drained buckets", func() {
 		s := newBucketStore(rate.Limit(1), 5, 1024)
-		recent := time.Now() // Use current time so bucket appears partially drained
+		recent := time.Now()               // Use current time so bucket appears partially drained
 		_, _ = s.allowAt("active", recent) // 4 tokens left, not full
 		s.sweep()
 		Expect(s.size.Load()).Should(BeNumerically("==", 1))

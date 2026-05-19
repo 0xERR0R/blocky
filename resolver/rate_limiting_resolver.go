@@ -78,6 +78,7 @@ func NewRateLimitingResolver(cfg config.RateLimit) *RateLimitingResolver {
 	metrics.RegisterMetric(r.drops)
 	metrics.RegisterMetric(r.capExhausted)
 	metrics.RegisterMetric(r.activeBuckets)
+
 	return r
 }
 
@@ -98,6 +99,7 @@ func (r *RateLimitingResolver) Resolve(ctx context.Context, req *model.Request) 
 		r.capExhausted.Inc()
 	}
 	r.recordDrop(req, entry)
+
 	return nil, ErrRateLimited
 }
 
@@ -107,6 +109,7 @@ func (r *RateLimitingResolver) isAllowlisted(ip net.IP) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
