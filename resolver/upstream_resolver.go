@@ -27,9 +27,10 @@ import (
 )
 
 const (
-	dnsContentType   = "application/dns-message"
-	retryAttempts    = 3
-	sha256HashLength = 32
+	dnsContentType       = "application/dns-message"
+	upstreamResolverType = "upstream"
+	retryAttempts        = 3
+	sha256HashLength     = 32
 )
 
 // UpstreamServerError wraps a response with RCode ServFail so no other resolver tries to use it.
@@ -368,7 +369,7 @@ func newUpstreamResolverUnchecked(cfg upstreamConfig, bootstrap *Bootstrap) *Ups
 	upstreamClient := createUpstreamClient(cfg)
 
 	return &UpstreamResolver{
-		typed:        withType(logFieldUpstream),
+		typed:        withType(upstreamResolverType),
 		configurable: withConfig(cfg),
 
 		upstreamClient: upstreamClient,
