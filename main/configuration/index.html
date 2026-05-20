@@ -482,6 +482,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#rate-limiting-per-client-ip" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate limiting per client IP
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Rate limiting per client IP">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configuration_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sample-fail2ban-filter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sample fail2ban filter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#fqdn-only" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1633,6 +1683,56 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rate-limiting-per-client-ip" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate limiting per client IP
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Rate limiting per client IP">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configuration_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sample-fail2ban-filter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sample fail2ban filter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2816,6 +2916,43 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">  </span><span class="nt">queryTypes</span><span class="p">:</span>
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AAAA</span>
 
+<span class="c1"># optional: per-client DNS query rate limiting at the head of the resolver chain.</span>
+<span class="c1"># Intended for misbehaving clients, runaway scripts, and low-volume amplification</span>
+<span class="c1"># abuse — NOT a DDoS defense (run fail2ban or crowdsec at the firewall for that).</span>
+<span class="c1"># When a client exceeds its bucket, the query is dropped silently (no UDP response,</span>
+<span class="c1"># no DNS error) so the amplification ratio against a spoofed-source attacker is zero.</span>
+<span class="c1"># A WARN log line is emitted (throttled to &lt;= 1 line per bucket per second) so</span>
+<span class="c1"># fail2ban can match against it. See docs/configuration.md for the full sample filter.</span>
+<span class="nt">rateLimit</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># enable rate limiting. default: false</span>
+<span class="w">  </span><span class="nt">enable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="c1"># sustained queries per second allowed per client bucket. Must be &gt; 0 when enabled.</span>
+<span class="w">  </span><span class="c1"># default: 0</span>
+<span class="w">  </span><span class="nt">rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+<span class="w">  </span><span class="c1"># token bucket capacity — i.e. the maximum number of queries a previously</span>
+<span class="w">  </span><span class="c1"># idle client may spend at once before being throttled to `rate` qps.</span>
+<span class="w">  </span><span class="c1"># Example: with rate=100 and burst=200, a client may fire 200 queries</span>
+<span class="w">  </span><span class="c1"># instantly, then is limited to 100/sec; after 2 seconds idle they</span>
+<span class="w">  </span><span class="c1"># regain a full 200-query burst. Must be &gt;= rate when set explicitly.</span>
+<span class="w">  </span><span class="c1"># default: 0 — falls back to rate × 2 if left at zero</span>
+<span class="w">  </span><span class="nt">burst</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="w">  </span><span class="c1"># IPv4 aggregation prefix length. Clients sharing the same /ipv4Prefix share</span>
+<span class="w">  </span><span class="c1"># one bucket. Use 32 to limit per single address, 24 to limit per /24 subnet, etc.</span>
+<span class="w">  </span><span class="c1"># default: 32</span>
+<span class="w">  </span><span class="nt">ipv4Prefix</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32</span>
+<span class="w">  </span><span class="c1"># IPv6 aggregation prefix length. Defaults to /64 — the standard boundary for</span>
+<span class="w">  </span><span class="c1"># abuse mitigation, since a single subscriber typically gets a /64 from their ISP.</span>
+<span class="w">  </span><span class="c1"># default: 64</span>
+<span class="w">  </span><span class="nt">ipv6Prefix</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<span class="w">  </span><span class="c1"># optional: list of CIDRs or bare IPs that bypass the limiter entirely.</span>
+<span class="w">  </span><span class="c1"># Useful for trusted internal networks and monitoring probes.</span>
+<span class="w">  </span><span class="c1"># Accepts IPv4/IPv6 CIDR notation or single addresses.</span>
+<span class="w">  </span><span class="c1"># default: [] (no bypass)</span>
+<span class="w">  </span><span class="nt">allowlist</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10.0.0.0/8</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.0.0/16</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">127.0.0.1</span>
+
 <span class="c1"># optional: return NXDOMAIN for queries that are not FQDNs.</span>
 <span class="nt">fqdnOnly</span><span class="p">:</span>
 <span class="w">  </span><span class="c1"># default: false</span>
@@ -3508,6 +3645,86 @@ types, all queries with these types will be dropped (empty answer will be return
 </code></pre></div>
 </div>
 <p>This configuration will drop all 'AAAA' (IPv6) queries.</p>
+<h2 id="rate-limiting-per-client-ip">Rate limiting per client IP</h2>
+<p>Blocky can enforce a per-client query rate limit at the head of the resolver chain. <strong>Disabled by default.</strong> This is <em>not</em> a DDoS defense — for that, run <a href="https://www.fail2ban.org/">fail2ban</a> or <a href="https://www.crowdsec.net/">crowdsec</a> at the firewall, which can drop traffic before it reaches Blocky. The limiter is intended for misbehaving clients, runaway scripts, and the kind of low-volume amplification that can enroll a public Blocky instance in someone else's <abbr title="Domain Name System">DNS</abbr> reflection attack (<a href="https://github.com/0xERR0R/blocky/issues/1135">issue #1135</a>).</p>
+<p>When a client exceeds its bucket, the query is <strong>dropped silently</strong> (no <abbr title="User Datagram Protocol">UDP</abbr> response, no <abbr title="Domain Name System">DNS</abbr> error) so that amplification ratio against a spoofed-source attacker is zero. A WARN log line is emitted (throttled to ≤ 1 line per bucket per second) so fail2ban can match against it.</p>
+<h3 id="configuration_1">Configuration</h3>
+<div class="highlight"><pre><span></span><code><span class="nt">rateLimit</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span><span class="w">           </span><span class="c1"># avg queries per second per client</span>
+<span class="w">  </span><span class="nt">burst</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span><span class="w">         </span><span class="c1"># optional, default rate × 2; must be &gt;= rate</span>
+<span class="w">  </span><span class="nt">ipv4Prefix</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32</span><span class="w">     </span><span class="c1"># default: aggregate by /32 (one IP = one client)</span>
+<span class="w">  </span><span class="nt">ipv6Prefix</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span><span class="w">     </span><span class="c1"># default: aggregate by /64 (one subscriber prefix)</span>
+<span class="w">  </span><span class="nt">allowlist</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">127.0.0.1/32</span><span class="w">   </span><span class="c1"># localhost (recommended if /api/query is used)</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">::1/128</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10.0.0.0/8</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.0.0/16</span>
+</code></pre></div>
+<p>The limiter is a <strong>token bucket</strong> per client. Tokens refill at <code>rate</code> per second, capped at <code>burst</code>. Each query consumes one token. When the bucket is empty, the query is dropped.</p>
+<ul>
+<li><code>rate</code> is the long-run sustained limit in queries/second.</li>
+<li><code>burst</code> is the bucket capacity — how many queries an idle client may spend at once before being throttled to <code>rate</code>. Optional; defaults to <code>rate × 2</code> if omitted or set to 0.</li>
+<li><code>ipv6Prefix</code> defaults to <code>/64</code> because residential IPv6 typically allocates a <code>/64</code> per subscriber; aggregating by <code>/64</code> keeps an attacker from cheaply rotating source addresses within their own subnet.</li>
+</ul>
+<p><strong>Example — <code>rate: 100, burst: 200</code>:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Time</th>
+<th>Bucket</th>
+<th>Client sends</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0.00 s</td>
+<td>200 (full)</td>
+<td>200 queries instantly</td>
+<td>all 200 allowed, bucket drained</td>
+</tr>
+<tr>
+<td>0.00 s</td>
+<td>0</td>
+<td>1 more query</td>
+<td><strong>dropped</strong></td>
+</tr>
+<tr>
+<td>0.50 s</td>
+<td>50 (refilled at 100/s)</td>
+<td>50 queries</td>
+<td>all 50 allowed</td>
+</tr>
+<tr>
+<td>0.50 s</td>
+<td>0</td>
+<td>1 more query</td>
+<td><strong>dropped</strong></td>
+</tr>
+<tr>
+<td>2.50 s</td>
+<td>200 (capped)</td>
+<td>200 queries instantly</td>
+<td>all 200 allowed (burst recovered after 2 s idle)</td>
+</tr>
+</tbody>
+</table>
+<p>Pick <code>burst == rate</code> for a strict steady-state limiter with no spike tolerance. Pick <code>burst</code> 2–10× <code>rate</code> to let typical browser page loads through (a single page can trigger 30–80 <abbr title="Domain Name System">DNS</abbr> lookups in well under a second) while still capping long-running abusers at <code>rate</code> qps.</p>
+<h3 id="sample-fail2ban-filter">Sample fail2ban filter</h3>
+<p><code>/etc/fail2ban/filter.d/blocky-ratelimit.conf</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="k">[Definition]</span>
+<span class="na">failregex</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">^.*rate-limiting: dropped query.*client_ip=&lt;HOST&gt;.*$</span>
+<span class="na">ignoreregex</span><span class="w"> </span><span class="o">=</span>
+</code></pre></div>
+<p>This filter assumes <code>logFormat: text</code> (the default); with <code>logFormat: json</code> the field becomes <code>"client_ip":"&lt;HOST&gt;"</code> and the <abbr title="Regular expression">regex</abbr> must be adjusted accordingly.</p>
+<h3 id="metrics">Metrics</h3>
+<ul>
+<li><code>blocky_rate_limit_drops_total{protocol="TCP|UDP"}</code> — counter, incremented on every drop (label cardinality is bounded).</li>
+<li><code>blocky_rate_limit_cap_exhausted_total</code> — counter, incremented when a new client is dropped because the in-memory bucket store has reached its hard cap. A non-zero value means the store is under sustained pressure from many distinct clients.</li>
+<li><code>blocky_rate_limit_active_buckets</code> — gauge, current number of in-memory token buckets.</li>
+</ul>
+<p>Per-client IP is intentionally not a Prometheus label; it lives in the log line. Per-IP analysis is better served by log aggregation (Loki, ELK) than by Prometheus.</p>
 <h2 id="fqdn-only">FQDN only</h2>
 <p>In domain environments, it may be useful to only respond to FQDN requests. If this option is enabled blocky will respond immediately
 with <abbr title="Non-Existence Domain">NXDOMAIN</abbr> if the request is not a valid FQDN. The request is therefore not processed further by other options like custom or conditional.
