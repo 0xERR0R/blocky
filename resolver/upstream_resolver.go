@@ -467,7 +467,7 @@ func (r *UpstreamResolver) logResponse(
 		"return_code":      dns.RcodeToString[resp.Rcode],
 		logFieldUpstream:   r.cfg.String(),
 		"upstream_ip":      ip.String(),
-		"protocol":         request.Protocol,
+		logFieldProtocol:   request.Protocol,
 		"net":              r.cfg.Net,
 		"response_time_ms": rtt.Milliseconds(),
 	}).Debugf("received response from upstream")

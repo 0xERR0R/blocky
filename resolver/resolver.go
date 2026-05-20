@@ -21,6 +21,7 @@ const (
 	logFieldDomain   = "domain"
 	logFieldAnswer   = "answer"
 	logFieldUpstream = "upstream"
+	logFieldProtocol = "protocol"
 	localhostName    = "localhost"
 	loopbackIPv4Str  = "127.0.0.1"
 )

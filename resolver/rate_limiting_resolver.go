@@ -60,7 +60,7 @@ func NewRateLimitingResolver(ctx context.Context, cfg config.RateLimit) *RateLim
 			Name: "blocky_rate_limit_drops_total",
 			Help: "Total number of DNS queries dropped by the rate limiter, by protocol.",
 		},
-		[]string{"protocol"},
+		[]string{logFieldProtocol},
 	)
 	r.capExhausted = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -124,10 +124,10 @@ func (r *RateLimitingResolver) recordDrop(req *model.Request, e *bucketEntry) {
 		return
 	}
 	fields := logrus.Fields{
-		"client_ip":     req.ClientIP,
-		"protocol":      req.Protocol,
-		"qname":         util.QuestionToString(req.Req.Question),
-		"bucket_tokens": e.limiter.Tokens(),
+		"client_ip":      req.ClientIP,
+		logFieldProtocol: req.Protocol,
+		"qname":          util.QuestionToString(req.Req.Question),
+		"bucket_tokens":  e.limiter.Tokens(),
 	}
 	if len(req.Req.Question) > 0 {
 		fields["qtype"] = req.Req.Question[0].Qtype
