@@ -695,8 +695,8 @@ var _ = Describe("ParseUpstream", func() {
 			It("reads the port from the hostname field for a DoH stamp", func() {
 				stamp := dnsstamps.ServerStamp{
 					Proto:         dnsstamps.StampProtoTypeDoH,
-					ServerAddrStr: "1.1.1.1:8443",
-					ProviderName:  "cloudflare-dns.com",
+					ServerAddrStr: "1.1.1.1",
+					ProviderName:  "cloudflare-dns.com:8443", // port on the hostname field, per spec
 					Hashes:        [][]uint8{validHash()},
 					Path:          "/dns-query",
 				}
@@ -715,8 +715,8 @@ var _ = Describe("ParseUpstream", func() {
 			It("reads the port from the hostname field for a DoT stamp", func() {
 				stamp := dnsstamps.ServerStamp{
 					Proto:         dnsstamps.StampProtoTypeTLS,
-					ServerAddrStr: "9.9.9.9:8853",
-					ProviderName:  "dns.quad9.net",
+					ServerAddrStr: "9.9.9.9",
+					ProviderName:  "dns.quad9.net:8853", // port on the hostname field, per spec
 					Hashes:        [][]uint8{validHash()},
 				}
 
@@ -732,8 +732,8 @@ var _ = Describe("ParseUpstream", func() {
 			It("reads the port from the hostname field for an IPv6 DoH stamp", func() {
 				stamp := dnsstamps.ServerStamp{
 					Proto:         dnsstamps.StampProtoTypeDoH,
-					ServerAddrStr: "[2001:db8::1]:8443", // canonicalized by the encoder onto the hostname
-					ProviderName:  "dns.example.com",
+					ServerAddrStr: "[2001:db8::1]", // bare IPv6 literal; the port is carried on the hostname field
+					ProviderName:  "dns.example.com:8443",
 					Hashes:        [][]uint8{validHash()},
 					Path:          "/dns-query",
 				}
