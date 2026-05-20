@@ -262,31 +262,36 @@ func parseStamp(stampStr string) (Upstream, error) {
 }
 
 // parseServerStamp parses a DNS stamp, tolerating legacy stamps that encode the
-// optional port on the addr field instead of the hostname field. Current
-// go-dnsstamps rejects that layout per draft-denis-dns-stamps, but still returns
-// a fully populated stamp. We move the port off the addr field on the wire and
-// re-parse: if the stamp is then valid, the port location was its only defect, so
-// we accept the original stamp (whose addr still carries the port for port
-// resolution). A stamp with any other defect still fails the re-parse.
+// optional port on the addr field instead of the hostname field, which current
+// go-dnsstamps rejects per draft-denis-dns-stamps. We move the port off the addr
+// field on the wire and re-parse; if that succeeds, the port location was the only
+// defect. We then return the freshly parsed probe stamp (guaranteed fully
+// populated because its parse succeeded, rather than relying on the field state of
+// the stamp returned alongside the original error) with the original addr restored
+// so port resolution still sees the port. A stamp with any other defect still
+// fails the re-parse.
 func parseServerStamp(stampStr string) (dnsstamps.ServerStamp, error) {
 	stamp, err := dnsstamps.NewServerStampFromString(stampStr)
 	if err == nil {
 		return stamp, nil
 	}
 
-	if probe, ok := stampWithoutAddrPort(stampStr); ok {
-		if _, probeErr := dnsstamps.NewServerStampFromString(probe); probeErr == nil {
-			return stamp, nil
+	if probeStr, addr, ok := stampWithoutAddrPort(stampStr); ok {
+		if probe, probeErr := dnsstamps.NewServerStampFromString(probeStr); probeErr == nil {
+			probe.ServerAddrStr = addr // restore the legacy addr:port for port resolution
+
+			return probe, nil
 		}
 	}
 
 	return stamp, err
 }
 
-// stampWithoutAddrPort rewrites a stamp so the addr field drops an optional port,
-// returning the rewritten stamp and whether a port was actually removed. Only
-// protocols that carry an addr field are considered.
-func stampWithoutAddrPort(stampStr string) (string, bool) {
+// stampWithoutAddrPort rewrites a stamp so the addr field drops an optional port.
+// It returns the rewritten stamp, the original addr field (including the port),
+// and whether a port was actually removed. Only protocols that carry an addr field
+// are considered.
+func stampWithoutAddrPort(stampStr string) (string, string, bool) {
 	const (
 		scheme     = "sdns://"
 		addrLenPos = 9 // 1 protocol byte + 8 properties bytes
@@ -294,36 +299,38 @@ func stampWithoutAddrPort(stampStr string) (string, bool) {
 
 	bin, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(stampStr, scheme))
 	if err != nil || len(bin) <= addrLenPos {
-		return "", false
+		return "", "", false
 	}
 
 	if !protoHasAddrField(dnsstamps.StampProtoType(bin[0])) {
-		return "", false
+		return "", "", false
 	}
 
 	addrStart := addrLenPos + 1
 	addrEnd := addrStart + int(bin[addrLenPos])
 
 	if addrEnd > len(bin) {
-		return "", false
+		return "", "", false
 	}
 
-	host, _, err := net.SplitHostPort(string(bin[addrStart:addrEnd]))
+	addr := string(bin[addrStart:addrEnd])
+
+	host, _, err := net.SplitHostPort(addr)
 	if err != nil || net.ParseIP(host) == nil {
-		return "", false
+		return "", "", false
 	}
 
 	if strings.ContainsRune(host, ':') {
 		host = "[" + host + "]" // re-bracket IPv6 literal
 	}
 
-	rewritten := make([]byte, 0, len(bin))
-	rewritten = append(rewritten, bin[:addrLenPos]...)
-	rewritten = append(rewritten, byte(len(host)))
-	rewritten = append(rewritten, host...)
-	rewritten = append(rewritten, bin[addrEnd:]...)
+	out := make([]byte, 0, len(bin))
+	out = append(out, bin[:addrLenPos]...)
+	out = append(out, byte(len(host)))
+	out = append(out, host...)
+	out = append(out, bin[addrEnd:]...)
 
-	return scheme + base64.RawURLEncoding.EncodeToString(rewritten), true
+	return scheme + base64.RawURLEncoding.EncodeToString(out), addr, true
 }
 
 // protoHasAddrField reports whether a stamp protocol carries an addr field
