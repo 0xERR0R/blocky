@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net"
@@ -27,7 +28,7 @@ type Upstream struct {
 
 	// DNS stamp metadata (optional) - only populated when parsing DNS stamps
 	CertificateFingerprints []CertificateFingerprint // SHA256 fingerprints for TLS certificate pinning
-	IPs                     []net.IP                 // IPs from DNS stamp ServerAddrStr (for bootstrapping)
+	IPs                     []net.IP                 // IPs from the DNS stamp (addr + bootstrap IPs) for bootstrapping
 }
 
 // IsDefault returns true if u is the default value
@@ -200,7 +201,7 @@ func isDNSStamp(s string) bool {
 
 // parseStamp parses a DNS stamp and converts it to an Upstream
 func parseStamp(stampStr string) (Upstream, error) {
-	stamp, err := dnsstamps.NewServerStampFromString(stampStr)
+	stamp, err := parseServerStamp(stampStr)
 	if err != nil {
 		return Upstream{}, fmt.Errorf("invalid DNS stamp: %w", err)
 	}
@@ -211,30 +212,34 @@ func parseStamp(stampStr string) (Upstream, error) {
 		return Upstream{}, err
 	}
 
-	// Extract host and port from ServerAddrStr
-	host, port, err := extractStampHostPort(stamp.ServerAddrStr, netProto)
+	// The addr field carries the server IP literal (per spec it is an IP and may
+	// be empty); it is used for bootstrapping. It may also hold a legacy port.
+	addrHost, addrPort := splitStampHostPort(stamp.ServerAddrStr)
+
+	// Per draft-denis-dns-stamps the optional port lives on the hostname
+	// (ProviderName) field. Fall back to a port on addr for plain/legacy stamps,
+	// then to the protocol default.
+	hostname, hostnamePort := splitStampHostPort(stamp.ProviderName)
+
+	port, err := stampPort(netProto, hostnamePort, addrPort)
 	if err != nil {
 		return Upstream{}, err
 	}
 
-	// Parse IP from ServerAddrStr for bootstrapping (if present)
-	var ips []net.IP
-	if ip := net.ParseIP(host); ip != nil {
-		ips = []net.IP{ip}
+	// Host/SNI: prefer the (port-stripped) hostname, else the server IP from addr.
+	host := hostname
+	if host == "" {
+		host = addrHost
 	}
 
-	// Use provider name as hostname if available (for DoH/DoT)
-	hostname := host
-	if stamp.ProviderName != "" {
+	if hostname != "" {
 		// Validate provider name is a valid hostname or IP
-		if ip := net.ParseIP(stamp.ProviderName); ip == nil {
+		if ip := net.ParseIP(hostname); ip == nil {
 			// Not an IP, must be a valid hostname
-			if !validDomain.MatchString(stamp.ProviderName) {
-				return Upstream{}, fmt.Errorf("invalid provider name in DNS stamp: '%s'", stamp.ProviderName)
+			if !validDomain.MatchString(hostname) {
+				return Upstream{}, fmt.Errorf("invalid provider name in DNS stamp: '%s'", hostname)
 			}
 		}
-
-		hostname = stamp.ProviderName
 	}
 
 	// Convert stamp hashes to CertificateFingerprint type
@@ -245,47 +250,164 @@ func parseStamp(stampStr string) (Upstream, error) {
 
 	upstream := Upstream{
 		Net:                     netProto,
-		Host:                    hostname,
+		Host:                    host,
 		Port:                    port,
 		Path:                    stamp.Path,
-		CommonName:              stamp.ProviderName, // Use provider name for TLS verification
-		CertificateFingerprints: certFingerprints,   // SHA256 fingerprints for certificate pinning
-		IPs:                     ips,                // IPs from stamp for bootstrapping
+		CommonName:              hostname, // provider name for TLS verification, without any port
+		CertificateFingerprints: certFingerprints,
+		IPs:                     stampBootstrapIPs(addrHost, stamp.BootstrapIPs),
 	}
 
 	return upstream, nil
 }
 
-// extractStampHostPort extracts host and port from a DNS stamp server address string
-func extractStampHostPort(serverAddr string, netProto NetProtocol) (string, uint16, error) {
-	if serverAddr == "" {
-		return "", netDefaultPort[netProto], nil
+// parseServerStamp parses a DNS stamp, tolerating legacy stamps that encode the
+// optional port on the addr field instead of the hostname field. Current
+// go-dnsstamps rejects that layout per draft-denis-dns-stamps, but still returns
+// a fully populated stamp. We move the port off the addr field on the wire and
+// re-parse: if the stamp is then valid, the port location was its only defect, so
+// we accept the original stamp (whose addr still carries the port for port
+// resolution). A stamp with any other defect still fails the re-parse.
+func parseServerStamp(stampStr string) (dnsstamps.ServerStamp, error) {
+	stamp, err := dnsstamps.NewServerStampFromString(stampStr)
+	if err == nil {
+		return stamp, nil
 	}
 
-	h, portStr, err := net.SplitHostPort(serverAddr)
+	if probe, ok := stampWithoutAddrPort(stampStr); ok {
+		if _, probeErr := dnsstamps.NewServerStampFromString(probe); probeErr == nil {
+			return stamp, nil
+		}
+	}
+
+	return stamp, err
+}
+
+// stampWithoutAddrPort rewrites a stamp so the addr field drops an optional port,
+// returning the rewritten stamp and whether a port was actually removed. Only
+// protocols that carry an addr field are considered.
+func stampWithoutAddrPort(stampStr string) (string, bool) {
+	const (
+		scheme     = "sdns://"
+		addrLenPos = 9 // 1 protocol byte + 8 properties bytes
+	)
+
+	bin, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(stampStr, scheme))
+	if err != nil || len(bin) <= addrLenPos {
+		return "", false
+	}
+
+	if !protoHasAddrField(dnsstamps.StampProtoType(bin[0])) {
+		return "", false
+	}
+
+	addrStart := addrLenPos + 1
+	addrEnd := addrStart + int(bin[addrLenPos])
+
+	if addrEnd > len(bin) {
+		return "", false
+	}
+
+	host, _, err := net.SplitHostPort(string(bin[addrStart:addrEnd]))
+	if err != nil || net.ParseIP(host) == nil {
+		return "", false
+	}
+
+	if strings.ContainsRune(host, ':') {
+		host = "[" + host + "]" // re-bracket IPv6 literal
+	}
+
+	rewritten := make([]byte, 0, len(bin))
+	rewritten = append(rewritten, bin[:addrLenPos]...)
+	rewritten = append(rewritten, byte(len(host)))
+	rewritten = append(rewritten, host...)
+	rewritten = append(rewritten, bin[addrEnd:]...)
+
+	return scheme + base64.RawURLEncoding.EncodeToString(rewritten), true
+}
+
+// protoHasAddrField reports whether a stamp protocol carries an addr field
+// (located right after the 8-byte properties block).
+func protoHasAddrField(p dnsstamps.StampProtoType) bool {
+	switch p {
+	case dnsstamps.StampProtoTypeDoH, dnsstamps.StampProtoTypeTLS,
+		dnsstamps.StampProtoTypeDoQ, dnsstamps.StampProtoTypeODoHRelay:
+		return true
+	case dnsstamps.StampProtoTypePlain, dnsstamps.StampProtoTypeDNSCrypt,
+		dnsstamps.StampProtoTypeODoHTarget, dnsstamps.StampProtoTypeDNSCryptRelay:
+		return false
+	default:
+		return false
+	}
+}
+
+// splitStampHostPort splits a stamp "host:port" value into host and port. The
+// port is optional; IPv6 brackets are stripped from the host.
+func splitStampHostPort(s string) (host, port string) {
+	if s == "" {
+		return "", ""
+	}
+
+	if h, p, err := net.SplitHostPort(s); err == nil {
+		return h, p
+	}
+
+	// No port present; strip IPv6 brackets if any.
+	host = strings.TrimSuffix(strings.TrimPrefix(s, "["), "]")
+
+	return host, ""
+}
+
+// stampPort resolves the upstream port, preferring the port on the hostname
+// field, then a legacy port on the addr field, then the protocol default.
+func stampPort(netProto NetProtocol, hostnamePort, addrPort string) (uint16, error) {
+	portStr := hostnamePort
+	if portStr == "" {
+		portStr = addrPort
+	}
+
+	if portStr == "" {
+		return netDefaultPort[netProto], nil
+	}
+
+	port, err := ConvertPort(portStr)
 	if err != nil {
-		// SplitHostPort failed - could be missing port or raw IP/hostname
-		// This is not an error for our purposes, just means no port specified
-		// Strip IPv6 brackets if present (e.g., "[2001:db8::1]" -> "2001:db8::1")
-		host := serverAddr
-		if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
-			host = host[1 : len(host)-1]
-		}
-
-		return host, netDefaultPort[netProto], nil
+		return 0, fmt.Errorf("invalid port in DNS stamp: %w", err)
 	}
 
-	// Successfully split host and port
-	if portStr != "" {
-		p, err := ConvertPort(portStr)
-		if err != nil {
-			return "", 0, fmt.Errorf("invalid port in stamp: %w", err)
+	return port, nil
+}
+
+// stampBootstrapIPs collects the IPs usable for bootstrapping: the server IP
+// from the addr field plus the stamp's optional bootstrap IPs, de-duplicated
+// while preserving order.
+func stampBootstrapIPs(serverIP string, bootstrapIPs []string) []net.IP {
+	var ips []net.IP
+
+	seen := make(map[string]struct{}, 1+len(bootstrapIPs))
+
+	add := func(s string) {
+		ip := net.ParseIP(s)
+		if ip == nil {
+			return
 		}
 
-		return h, p, nil
+		key := ip.String()
+		if _, ok := seen[key]; ok {
+			return
+		}
+
+		seen[key] = struct{}{}
+		ips = append(ips, ip)
 	}
 
-	return h, netDefaultPort[netProto], nil
+	add(serverIP)
+
+	for _, s := range bootstrapIPs {
+		add(s)
+	}
+
+	return ips
 }
 
 // stampProtoToNetProtocol maps DNS stamp protocol to Blocky's NetProtocol
