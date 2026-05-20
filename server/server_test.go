@@ -22,10 +22,10 @@ import (
 	"github.com/0xERR0R/blocky/resolver"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/creasty/defaults"
+	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"github.com/miekg/dns"
+	"github.com/stretchr/testify/mock"
 )
 
 const (
@@ -994,6 +994,29 @@ var _ = Describe("Running DNS server", func() {
 			Expect(sut.Certificates).ShouldNot(BeEmpty())
 		})
 	})
+
+	Describe("Rate-limited request handling", func() {
+		It("writes no response when resolver returns ErrRateLimited", func() {
+			w := &countingMsgWriter{}
+
+			m := resolver.NewMockChainedResolver(GinkgoT())
+			m.EXPECT().Resolve(mock.Anything, mock.Anything).Return(nil, resolver.ErrRateLimited)
+
+			s := &Server{
+				queryResolver: m,
+				cfg: &config.Config{Upstreams: config.Upstreams{
+					Timeout: config.Duration(time.Second),
+				}},
+			}
+			req := &model.Request{
+				Req:      util.NewMsgWithQuestion("example.com.", A),
+				Protocol: model.RequestProtocolUDP,
+				ClientIP: net.ParseIP("1.2.3.4"),
+			}
+			s.handleReq(context.Background(), req, w)
+			Expect(w.writes).Should(BeZero())
+		})
+	})
 })
 
 func requestServer(ctx context.Context, request *dns.Msg) *dns.Msg {
@@ -1028,6 +1051,16 @@ func requestServer(ctx context.Context, request *dns.Msg) *dns.Msg {
 	if err != nil {
 		Log().Fatal("could not read from connection", err)
 	}
+
+	return nil
+}
+
+type countingMsgWriter struct {
+	writes int
+}
+
+func (w *countingMsgWriter) WriteMsg(*dns.Msg) error {
+	w.writes++
 
 	return nil
 }

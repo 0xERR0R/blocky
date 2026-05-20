@@ -277,6 +277,7 @@ type Config struct {
 	DNS64            DNS64               `yaml:"dns64"`
 	DNSSEC           DNSSEC              `yaml:"dnssec"`
 	HTTP3            HTTP3               `yaml:"http3"`
+	RateLimit        RateLimit           `yaml:"rateLimit"`
 
 	// Deprecated options
 	Deprecated struct {
@@ -656,6 +657,10 @@ func (cfg *Config) validate(logger *logrus.Entry) {
 
 	// DNS64 validation
 	if err := cfg.DNS64.validate(logger, &cfg.Filtering, &cfg.Caching); err != nil {
+		logger.Fatal(err)
+	}
+
+	if err := cfg.RateLimit.validate(); err != nil {
 		logger.Fatal(err)
 	}
 }

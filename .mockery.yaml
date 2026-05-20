@@ -27,3 +27,12 @@ packages:
           inpackage: true
           filename: "mocks_test.go"
 
+  # Resolver package - ChainedResolver interface
+  # Note: Using non-test filename (mocks.go) to allow cross-package access from server tests
+  github.com/0xERR0R/blocky/resolver:
+    interfaces:
+      ChainedResolver:
+        config:
+          inpackage: true
+          filename: "mocks.go"
+

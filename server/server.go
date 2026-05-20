@@ -416,6 +416,7 @@ func createQueryResolver(
 	}
 
 	r := resolver.Chain(
+		resolver.NewRateLimitingResolver(ctx, cfg.RateLimit),
 		resolver.NewFilteringResolver(cfg.Filtering),
 		resolver.NewFQDNOnlyResolver(cfg.FQDNOnly),
 		clientNames,
@@ -654,14 +655,16 @@ type msgWriter interface {
 
 func (s *Server) handleReq(ctx context.Context, request *model.Request, w msgWriter) {
 	response, err := s.resolve(ctx, request)
-	if err != nil {
+	switch {
+	case errors.Is(err, resolver.ErrRateLimited):
+		return
+	case err != nil:
 		log.FromCtx(ctx).Error("error on processing request:", err)
-
 		m := new(dns.Msg)
 		m.SetRcode(request.Req, dns.RcodeServerFailure)
 		err := w.WriteMsg(m)
 		util.LogOnError(ctx, "can't write message: ", err)
-	} else {
+	default:
 		err := w.WriteMsg(response.Res)
 		util.LogOnError(ctx, "can't write message: ", err)
 	}

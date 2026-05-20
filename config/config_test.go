@@ -1476,6 +1476,13 @@ var _ = Describe("TLSVersion", func() {
 	})
 })
 
+var _ = Describe("Config with RateLimit", func() {
+	It("exposes the RateLimit field", func() {
+		cfg := Config{}
+		Expect(cfg.RateLimit.IsEnabled()).Should(BeFalse())
+	})
+})
+
 // Tiny helper to get a new pointer with a value.
 //
 // Avoids needing 2 lines: `x := new(T)` and `*x = val`
