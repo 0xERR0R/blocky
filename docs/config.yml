@@ -300,6 +300,43 @@ filtering:
   queryTypes:
     - AAAA
 
+# optional: per-client DNS query rate limiting at the head of the resolver chain.
+# Intended for misbehaving clients, runaway scripts, and low-volume amplification
+# abuse — NOT a DDoS defense (run fail2ban or crowdsec at the firewall for that).
+# When a client exceeds its bucket, the query is dropped silently (no UDP response,
+# no DNS error) so the amplification ratio against a spoofed-source attacker is zero.
+# A WARN log line is emitted (throttled to <= 1 line per bucket per second) so
+# fail2ban can match against it. See docs/configuration.md for the full sample filter.
+rateLimit:
+  # enable rate limiting. default: false
+  enable: false
+  # sustained queries per second allowed per client bucket. Must be > 0 when enabled.
+  # default: 0
+  rate: 50
+  # token bucket capacity — i.e. the maximum number of queries a previously
+  # idle client may spend at once before being throttled to `rate` qps.
+  # Example: with rate=100 and burst=200, a client may fire 200 queries
+  # instantly, then is limited to 100/sec; after 2 seconds idle they
+  # regain a full 200-query burst. Must be >= rate when set explicitly.
+  # default: 0 — falls back to rate × 2 if left at zero
+  burst: 100
+  # IPv4 aggregation prefix length. Clients sharing the same /ipv4Prefix share
+  # one bucket. Use 32 to limit per single address, 24 to limit per /24 subnet, etc.
+  # default: 32
+  ipv4Prefix: 32
+  # IPv6 aggregation prefix length. Defaults to /64 — the standard boundary for
+  # abuse mitigation, since a single subscriber typically gets a /64 from their ISP.
+  # default: 64
+  ipv6Prefix: 64
+  # optional: list of CIDRs or bare IPs that bypass the limiter entirely.
+  # Useful for trusted internal networks and monitoring probes.
+  # Accepts IPv4/IPv6 CIDR notation or single addresses.
+  # default: [] (no bypass)
+  allowlist:
+    - 10.0.0.0/8
+    - 192.168.0.0/16
+    - 127.0.0.1
+
 # optional: return NXDOMAIN for queries that are not FQDNs.
 fqdnOnly:
   # default: false

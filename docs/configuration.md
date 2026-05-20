@@ -300,6 +300,66 @@ types, all queries with these types will be dropped (empty answer will be return
 
 This configuration will drop all 'AAAA' (IPv6) queries.
 
+## Rate limiting per client IP
+
+Blocky can enforce a per-client query rate limit at the head of the resolver chain. **Disabled by default.** This is _not_ a DDoS defense — for that, run [fail2ban](https://www.fail2ban.org/) or [crowdsec](https://www.crowdsec.net/) at the firewall, which can drop traffic before it reaches Blocky. The limiter is intended for misbehaving clients, runaway scripts, and the kind of low-volume amplification that can enroll a public Blocky instance in someone else's DNS reflection attack ([issue #1135](https://github.com/0xERR0R/blocky/issues/1135)).
+
+When a client exceeds its bucket, the query is **dropped silently** (no UDP response, no DNS error) so that amplification ratio against a spoofed-source attacker is zero. A WARN log line is emitted (throttled to ≤ 1 line per bucket per second) so fail2ban can match against it.
+
+### Configuration
+
+```yaml
+rateLimit:
+  enable: true
+  rate: 50           # avg queries per second per client
+  burst: 100         # optional, default rate × 2; must be >= rate
+  ipv4Prefix: 32     # default: aggregate by /32 (one IP = one client)
+  ipv6Prefix: 64     # default: aggregate by /64 (one subscriber prefix)
+  allowlist:
+    - 127.0.0.1/32   # localhost (recommended if /api/query is used)
+    - ::1/128
+    - 10.0.0.0/8
+    - 192.168.0.0/16
+```
+
+The limiter is a **token bucket** per client. Tokens refill at `rate` per second, capped at `burst`. Each query consumes one token. When the bucket is empty, the query is dropped.
+
+- `rate` is the long-run sustained limit in queries/second.
+- `burst` is the bucket capacity — how many queries an idle client may spend at once before being throttled to `rate`. Optional; defaults to `rate × 2` if omitted or set to 0.
+- `ipv6Prefix` defaults to `/64` because residential IPv6 typically allocates a `/64` per subscriber; aggregating by `/64` keeps an attacker from cheaply rotating source addresses within their own subnet.
+
+**Example — `rate: 100, burst: 200`:**
+
+| Time | Bucket | Client sends | Result |
+|------|--------|--------------|--------|
+| 0.00 s | 200 (full) | 200 queries instantly | all 200 allowed, bucket drained |
+| 0.00 s | 0 | 1 more query | **dropped** |
+| 0.50 s | 50 (refilled at 100/s) | 50 queries | all 50 allowed |
+| 0.50 s | 0 | 1 more query | **dropped** |
+| 2.50 s | 200 (capped) | 200 queries instantly | all 200 allowed (burst recovered after 2 s idle) |
+
+Pick `burst == rate` for a strict steady-state limiter with no spike tolerance. Pick `burst` 2–10× `rate` to let typical browser page loads through (a single page can trigger 30–80 DNS lookups in well under a second) while still capping long-running abusers at `rate` qps.
+
+### Sample fail2ban filter
+
+`/etc/fail2ban/filter.d/blocky-ratelimit.conf`:
+
+```ini
+[Definition]
+failregex = ^.*rate-limiting: dropped query.*client_ip=<HOST>.*$
+ignoreregex =
+```
+
+This filter assumes `logFormat: text` (the default); with `logFormat: json` the field becomes `"client_ip":"<HOST>"` and the regex must be adjusted accordingly.
+
+### Metrics
+
+- `blocky_rate_limit_drops_total{protocol="TCP|UDP"}` — counter, incremented on every drop (label cardinality is bounded).
+- `blocky_rate_limit_cap_exhausted_total` — counter, incremented when a new client is dropped because the in-memory bucket store has reached its hard cap. A non-zero value means the store is under sustained pressure from many distinct clients.
+- `blocky_rate_limit_active_buckets` — gauge, current number of in-memory token buckets.
+
+Per-client IP is intentionally not a Prometheus label; it lives in the log line. Per-IP analysis is better served by log aggregation (Loki, ELK) than by Prometheus.
+
 ## FQDN only
 
 In domain environments, it may be useful to only respond to FQDN requests. If this option is enabled blocky will respond immediately
