@@ -127,3 +127,42 @@ var _ = Describe("schema corpus", func() {
 		)
 	})
 })
+
+var _ = Describe("schema enum value descriptions", func() {
+	var doc map[string]interface{}
+
+	BeforeEach(func() {
+		Expect(json.Unmarshal(schema.JSON, &doc)).Should(Succeed())
+	})
+
+	// description navigates nested "properties.<key>" objects and returns the
+	// leaf property's description string.
+	description := func(path ...string) string {
+		node := doc
+		for _, key := range path {
+			props, ok := node["properties"].(map[string]interface{})
+			Expect(ok).Should(BeTrue(), "expected a properties object on the way to %v", path)
+			node, ok = props[key].(map[string]interface{})
+			Expect(ok).Should(BeTrue(), "expected property %q on the way to %v", key, path)
+		}
+
+		desc, _ := node["description"].(string)
+
+		return desc
+	}
+
+	It("documents each upstreams.init.strategy enum value", func() {
+		d := description("upstreams", "init", "strategy")
+		Expect(d).Should(ContainSubstring("blocking"))
+		Expect(d).Should(ContainSubstring("failOnError"))
+		Expect(d).Should(ContainSubstring("fast"))
+		Expect(d).Should(ContainSubstring("background"), "fast should mention background initialization")
+	})
+
+	It("documents each upstreams.strategy enum value", func() {
+		d := description("upstreams", "strategy")
+		Expect(d).Should(ContainSubstring("parallel_best"))
+		Expect(d).Should(ContainSubstring("strict"))
+		Expect(d).Should(ContainSubstring("random"))
+	})
+})

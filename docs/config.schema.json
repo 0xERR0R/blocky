@@ -13,6 +13,7 @@
                 "failOnError",
                 "fast"
               ],
+              "description": "- `blocking`: Initialization runs before DNS resolution starts; errors are logged but Blocky keeps running if possible.\n- `failOnError`: Like blocking but Blocky exits with an error if initialization fails.\n- `fast`: Blocky serves DNS immediately and runs initialization in the background.",
               "default": "blocking"
             }
           },
@@ -57,6 +58,7 @@
             "strict",
             "random"
           ],
+          "description": "- `parallel_best`: Picks 2 random weighted resolvers per query and returns the fastest answer (default).\n- `strict`: Queries upstreams in strict order; the next is tried only if the previous fails.\n- `random`: Picks one random weighted resolver per query; another is tried on failure.",
           "default": "parallel_best"
         },
         "userAgent": {
@@ -108,7 +110,8 @@
         "dual",
         "v4",
         "v6"
-      ]
+      ],
+      "description": "- `dual`: Use both IPv4 and IPv6.\n- `v4`: Use IPv4 only.\n- `v6`: Use IPv6 only."
     },
     "customDNS": {
       "properties": {
@@ -290,6 +293,7 @@
                 "failOnError",
                 "fast"
               ],
+              "description": "- `blocking`: Initialization runs before DNS resolution starts; errors are logged but Blocky keeps running if possible.\n- `failOnError`: Like blocking but Blocky exits with an error if initialization fails.\n- `fast`: Blocky serves DNS immediately and runs initialization in the background.",
               "default": "blocking"
             },
             "concurrency": {
@@ -636,7 +640,8 @@
             "csv",
             "csv-client",
             "timescale"
-          ]
+          ],
+          "description": "- `console`: Log to console output (used when no type is set).\n- `none`: Do not log any queries.\n- `mysql`: Log each query to an external MySQL or MariaDB database.\n- `postgresql`: Log each query to an external PostgreSQL database.\n- `csv`: Log to a CSV file (one per day).\n- `csv-client`: Log to a CSV file (one per day and per client).\n- `timescale`: Log each query to an external Timescale database."
         },
         "logRetentionDays": {
           "type": "integer"
@@ -791,6 +796,7 @@
             "text",
             "json"
           ],
+          "description": "- `text`: Human-readable text.\n- `json`: Structured JSON.",
           "default": "text"
         },
         "privacy": {
@@ -1022,6 +1028,7 @@
                 "failOnError",
                 "fast"
               ],
+              "description": "- `blocking`: Initialization runs before DNS resolution starts; errors are logged but Blocky keeps running if possible.\n- `failOnError`: Like blocking but Blocky exits with an error if initialization fails.\n- `fast`: Blocky serves DNS immediately and runs initialization in the background.",
               "default": "blocking"
             },
             "concurrency": {

@@ -1,0 +1,12 @@
+
+// {{.enum.Name}}Descriptions returns each enum value's description, taken from
+// the `// comment` in the ENUM(...) declaration. Generated; do not edit.
+func ({{.enum.Name}}) EnumDescriptions() map[string]string {
+	return map[string]string{
+{{- range $value := .enum.Values }}
+{{- if $value.Comment }}
+		{{ quote $value.RawName }}: {{ quote $value.Comment }},
+{{- end }}
+{{- end }}
+	}
+}

@@ -1,4 +1,4 @@
-//go:generate go tool go-enum -f=$GOFILE --marshal --names --values
+//go:generate go tool go-enum -f=$GOFILE --marshal --names --values --template ../tools/schemagen/templates/enum_description.tmpl
 //go:generate go run ../tools/schemagen
 package config
 
@@ -53,9 +53,9 @@ type Configurable interface {
 type NetProtocol uint16
 
 // IPVersion represents IP protocol version(s). ENUM(
-// dual // IPv4 and IPv6
-// v4   // IPv4 only
-// v6   // IPv6 only
+// dual // Use both IPv4 and IPv6.
+// v4 // Use IPv4 only.
+// v6 // Use IPv6 only.
 // )
 type IPVersion uint8
 
@@ -96,20 +96,20 @@ func (v *TLSVersion) validate(logger *logrus.Entry) {
 }
 
 // QueryLogType type of the query log ENUM(
-// console // use logger as fallback
-// none // no logging
-// mysql // MySQL or MariaDB database
-// postgresql // PostgreSQL database
-// csv // CSV file per day
-// csv-client // CSV file per day and client
-// timescale // Timescale database
+// console // Log to console output (used when no type is set).
+// none // Do not log any queries.
+// mysql // Log each query to an external MySQL or MariaDB database.
+// postgresql // Log each query to an external PostgreSQL database.
+// csv // Log to a CSV file (one per day).
+// csv-client // Log to a CSV file (one per day and per client).
+// timescale // Log each query to an external Timescale database.
 // )
 type QueryLogType int16
 
 // InitStrategy startup strategy ENUM(
-// blocking // synchronously download blocking lists on startup
-// failOnError // synchronously download blocking lists on startup and shutdown on error
-// fast // asyncronously download blocking lists on startup
+// blocking // Initialization runs before DNS resolution starts; errors are logged but Blocky keeps running if possible.
+// failOnError // Like blocking but Blocky exits with an error if initialization fails.
+// fast // Blocky serves DNS immediately and runs initialization in the background.
 // )
 type InitStrategy uint16
 
@@ -145,8 +145,11 @@ func (s InitStrategy) Do(ctx context.Context, init func(context.Context) error, 
 // ENUM(clientIP,clientName,responseReason,responseAnswer,question,duration)
 type QueryLogField string
 
-// UpstreamStrategy data field to be logged
-// ENUM(parallel_best,strict,random)
+// UpstreamStrategy upstream server usage strategy ENUM(
+// parallel_best // Picks 2 random weighted resolvers per query and returns the fastest answer (default).
+// strict // Queries upstreams in strict order; the next is tried only if the previous fails.
+// random // Picks one random weighted resolver per query; another is tried on failure.
+// )
 type UpstreamStrategy uint8
 
 //nolint:gochecknoglobals

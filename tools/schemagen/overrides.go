@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/netip"
 	"reflect"
 	"sort"
@@ -331,6 +332,81 @@ func markFieldsDeprecated(s *jsonschema.Schema, t reflect.Type) {
 			prop.Deprecated = true
 		}
 	}
+}
+
+// enumDescriptioner is implemented by every go-enum type through the generated
+// EnumDescriptions() method (see tools/schemagen/templates/enum_description.tmpl).
+// It returns each value's description, taken verbatim from the `ENUM(...)`
+// comments — the single source of truth.
+type enumDescriptioner interface {
+	EnumDescriptions() map[string]string
+}
+
+// applyEnumDescriptions walks the schema and Go type in parallel, appending a
+// per-value markdown legend to the `description` of every property whose enum
+// type provides EnumDescriptions(). Only values present in the generated `enum`
+// are rendered, so a description for a removed value is simply dropped.
+func applyEnumDescriptions(s *jsonschema.Schema, t reflect.Type) {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+
+	if s == nil {
+		return
+	}
+
+	if ed, ok := reflect.New(t).Elem().Interface().(enumDescriptioner); ok {
+		if legend := ed.EnumDescriptions(); len(legend) > 0 && len(s.Enum) > 0 {
+			s.Description = withEnumLegend(s.Description, legend, s.Enum)
+		}
+
+		return
+	}
+
+	if t.Kind() != reflect.Struct || s.Properties == nil {
+		return
+	}
+
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+
+		name, _, _ := strings.Cut(f.Tag.Get("yaml"), ",")
+		if name == "" || name == "-" {
+			if f.Anonymous {
+				applyEnumDescriptions(s, f.Type)
+			}
+
+			continue
+		}
+
+		if prop, ok := s.Properties.Get(name); ok {
+			applyEnumDescriptions(prop, f.Type)
+		}
+	}
+}
+
+// withEnumLegend appends a `- ` + "`value`: description" bullet per enum value
+// (in enum order) to an existing description.
+func withEnumLegend(existing string, legend map[string]string, enum []any) string {
+	var b strings.Builder
+
+	if existing != "" {
+		b.WriteString(existing)
+		b.WriteString("\n\n")
+	}
+
+	for _, e := range enum {
+		v, ok := e.(string)
+		if !ok {
+			continue
+		}
+
+		if d, ok := legend[v]; ok {
+			fmt.Fprintf(&b, "- `%s`: %s\n", v, d)
+		}
+	}
+
+	return strings.TrimRight(b.String(), "\n")
 }
 
 // flattenDeprecated reflects Config's named `yaml:",inline"` Deprecated struct
