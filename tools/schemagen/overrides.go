@@ -5,6 +5,7 @@ import (
 	"net/netip"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
@@ -262,11 +263,36 @@ func applyDefaults(s *jsonschema.Schema, t reflect.Type) {
 		}
 
 		if def, hasDef := f.Tag.Lookup("default"); hasDef {
-			prop.Default = def
+			prop.Default = typedDefault(def, prop.Type)
 		}
 
 		applyDefaults(prop, f.Type) // recurse into nested structs
 	}
+}
+
+// typedDefault converts a raw `default:"..."` tag into the JSON scalar matching
+// the property's declared schema type, so a bool/int/float field yields
+// `false`/`4`/`1.5` rather than the string "false"/"4"/"1.5". Enums and the
+// custom string-scalars (Duration, TLSVersion, ECS masks) have schema type
+// "string" or anyOf (empty Type), so they keep the string form. Any parse
+// failure falls back to the string, never dropping the default.
+func typedDefault(def, schemaType string) any {
+	switch schemaType {
+	case "boolean":
+		if b, err := strconv.ParseBool(def); err == nil {
+			return b
+		}
+	case "integer":
+		if n, err := strconv.ParseInt(def, 10, 64); err == nil {
+			return n
+		}
+	case "number":
+		if f, err := strconv.ParseFloat(def, 64); err == nil {
+			return f
+		}
+	}
+
+	return def
 }
 
 // markDeprecated walks the schema and Go type in parallel, marking the fields

@@ -123,7 +123,7 @@
         },
         "fallbackUpstream": {
           "type": "boolean",
-          "default": "false"
+          "default": false
         },
         "customTTL": {
           "anyOf": [
@@ -162,7 +162,7 @@
         },
         "filterUnmappedTypes": {
           "type": "boolean",
-          "default": "true"
+          "default": true
         }
       },
       "additionalProperties": false,
@@ -178,7 +178,7 @@
         },
         "fallbackUpstream": {
           "type": "boolean",
-          "default": "false"
+          "default": false
         },
         "mapping": {
           "additionalProperties": {
@@ -298,11 +298,11 @@
             },
             "concurrency": {
               "type": "integer",
-              "default": "4"
+              "default": 4
             },
             "maxErrorsPerSource": {
               "type": "integer",
-              "default": "5"
+              "default": 5
             },
             "refreshPeriod": {
               "anyOf": [
@@ -383,7 +383,7 @@
                 },
                 "attempts": {
                   "type": "integer",
-                  "default": "3"
+                  "default": 3
                 },
                 "cooldown": {
                   "anyOf": [
@@ -610,7 +610,7 @@
         },
         "prefetchThreshold": {
           "type": "integer",
-          "default": "5"
+          "default": 5
         },
         "prefetchMaxItemsCount": {
           "type": "integer"
@@ -648,7 +648,7 @@
         },
         "creationAttempts": {
           "type": "integer",
-          "default": "3"
+          "default": 3
         },
         "creationCooldown": {
           "anyOf": [
@@ -698,7 +698,7 @@
           "properties": {
             "sudn": {
               "type": "boolean",
-              "default": "false"
+              "default": false
             }
           },
           "additionalProperties": false,
@@ -712,7 +712,7 @@
       "properties": {
         "enable": {
           "type": "boolean",
-          "default": "false"
+          "default": false
         },
         "path": {
           "type": "string",
@@ -737,15 +737,15 @@
         },
         "database": {
           "type": "integer",
-          "default": "0"
+          "default": 0
         },
         "required": {
           "type": "boolean",
-          "default": "false"
+          "default": false
         },
         "connectionAttempts": {
           "type": "integer",
-          "default": "3"
+          "default": 3
         },
         "connectionCooldown": {
           "anyOf": [
@@ -801,11 +801,11 @@
         },
         "privacy": {
           "type": "boolean",
-          "default": "false"
+          "default": false
         },
         "timestamp": {
           "type": "boolean",
-          "default": "true"
+          "default": true
         }
       },
       "additionalProperties": false,
@@ -1033,11 +1033,11 @@
             },
             "concurrency": {
               "type": "integer",
-              "default": "4"
+              "default": 4
             },
             "maxErrorsPerSource": {
               "type": "integer",
-              "default": "5"
+              "default": 5
             },
             "refreshPeriod": {
               "anyOf": [
@@ -1118,7 +1118,7 @@
                 },
                 "attempts": {
                   "type": "integer",
-                  "default": "3"
+                  "default": 3
                 },
                 "cooldown": {
                   "anyOf": [
@@ -1174,7 +1174,7 @@
       "properties": {
         "enable": {
           "type": "boolean",
-          "default": "false"
+          "default": false
         }
       },
       "additionalProperties": false,
@@ -1286,7 +1286,7 @@
       "properties": {
         "enable": {
           "type": "boolean",
-          "default": "false"
+          "default": false
         }
       },
       "additionalProperties": false,
@@ -1296,11 +1296,11 @@
       "properties": {
         "useAsClient": {
           "type": "boolean",
-          "default": "false"
+          "default": false
         },
         "forward": {
           "type": "boolean",
-          "default": "false"
+          "default": false
         },
         "ipv4Mask": {
           "anyOf": [
@@ -1333,11 +1333,11 @@
         "rfc6762-appendixG": {
           "type": "boolean",
           "description": "These are \"recommended for private use\" but not mandatory.\nIf a user wishes to use one, it will most likely be via conditional\nupstream or custom DNS, which come before SUDN in the resolver chain.\nThus defaulting to `true` and returning NXDOMAIN here should not conflict.",
-          "default": "true"
+          "default": true
         },
         "enable": {
           "type": "boolean",
-          "default": "true"
+          "default": true
         }
       },
       "additionalProperties": false,
@@ -1347,7 +1347,7 @@
       "properties": {
         "enable": {
           "type": "boolean",
-          "default": "false"
+          "default": false
         },
         "prefixes": {
           "items": {
@@ -1377,7 +1377,7 @@
       "properties": {
         "validate": {
           "type": "boolean",
-          "default": "false"
+          "default": false
         },
         "trustAnchors": {
           "items": {
@@ -1387,26 +1387,26 @@
         },
         "maxChainDepth": {
           "type": "integer",
-          "default": "10"
+          "default": 10
         },
         "cacheExpirationHours": {
           "type": "integer",
-          "default": "1"
+          "default": 1
         },
         "maxNSEC3Iterations": {
           "type": "integer",
           "description": "RFC 5155 §10.3",
-          "default": "150"
+          "default": 150
         },
         "maxUpstreamQueries": {
           "type": "integer",
           "description": "DoS protection: max upstream queries per validation",
-          "default": "30"
+          "default": 30
         },
         "clockSkewToleranceSec": {
           "type": "integer",
           "description": "Clock skew tolerance in seconds for signature validation (default: 3600 = 1 hour)\nAllows validation to succeed even if system clock is off by this amount.\nMatches Unbound/BIND defaults for real-world deployments (VMs, containers, embedded systems).\nPer RFC 6781 §4.1.2: Validators should account for clock skew in deployment environments.",
-          "default": "3600"
+          "default": 3600
         }
       },
       "additionalProperties": false,
@@ -1416,7 +1416,7 @@
       "properties": {
         "enable": {
           "type": "boolean",
-          "default": "false"
+          "default": false
         }
       },
       "additionalProperties": false,
@@ -1426,23 +1426,23 @@
       "properties": {
         "enable": {
           "type": "boolean",
-          "default": "false"
+          "default": false
         },
         "rate": {
           "type": "integer",
-          "default": "0"
+          "default": 0
         },
         "burst": {
           "type": "integer",
-          "default": "0"
+          "default": 0
         },
         "ipv4Prefix": {
           "type": "integer",
-          "default": "32"
+          "default": 32
         },
         "ipv6Prefix": {
           "type": "integer",
-          "default": "64"
+          "default": 64
         },
         "allowlist": {
           "items": {
