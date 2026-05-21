@@ -8,8 +8,10 @@ import (
 
 // RewriterConfig custom DNS configuration
 type RewriterConfig struct {
-	Rewrite          map[string]string `yaml:"rewrite"`
-	FallbackUpstream bool              `default:"false" yaml:"fallbackUpstream"`
+	// Domain rewrite rules applied before resolution; keys are rewritten to their values.
+	Rewrite map[string]string `yaml:"rewrite"`
+	// If true, the original query is sent upstream when the mapped resolver returns an empty answer.
+	FallbackUpstream bool `default:"false" yaml:"fallbackUpstream"`
 }
 
 // NormalizeRewrites normalizes the rewrite keys to lowercase

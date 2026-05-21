@@ -11,7 +11,8 @@ type SUDN struct {
 	// upstream or custom DNS, which come before SUDN in the resolver chain.
 	// Thus defaulting to `true` and returning NXDOMAIN here should not conflict.
 	RFC6762AppendixG bool `default:"true" yaml:"rfc6762-appendixG"`
-	Enable           bool `default:"true" yaml:"enable"`
+	// Set to false to completely disable Special Use Domain Name blocking (not recommended for remote upstreams).
+	Enable bool `default:"true" yaml:"enable"`
 }
 
 // IsEnabled implements `config.Configurable`.

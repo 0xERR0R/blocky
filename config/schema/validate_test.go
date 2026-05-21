@@ -227,3 +227,29 @@ var _ = Describe("schema default value types", func() {
 		Expect(defaultAt("customDNS", "customTTL")).Should(Equal("1h"))
 	})
 })
+
+var _ = Describe("schema field descriptions from Go comments", func() {
+	var doc map[string]interface{}
+
+	BeforeEach(func() {
+		Expect(json.Unmarshal(schema.JSON, &doc)).Should(Succeed())
+	})
+
+	description := func(path ...string) string {
+		node := doc
+		for _, key := range path {
+			props, ok := node["properties"].(map[string]interface{})
+			Expect(ok).Should(BeTrue(), "expected a properties object on the way to %v", path)
+			node, ok = props[key].(map[string]interface{})
+			Expect(ok).Should(BeTrue(), "expected property %q on the way to %v", key, path)
+		}
+
+		desc, _ := node["description"].(string)
+
+		return desc
+	}
+
+	It("uses a field comment as the description", func() {
+		Expect(description("upstreams", "timeout")).Should(ContainSubstring("always > 0"))
+	})
+})

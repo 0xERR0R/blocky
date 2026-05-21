@@ -5,6 +5,7 @@ import (
 )
 
 type Filtering struct {
+	// DNS query types to drop; matching queries receive an empty answer (e.g. AAAA to block IPv6 lookups).
 	QueryTypes QTypeSet `yaml:"queryTypes"`
 }
 

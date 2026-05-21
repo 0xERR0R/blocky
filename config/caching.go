@@ -8,15 +8,24 @@ import (
 
 // Caching configuration for domain caching
 type Caching struct {
-	MinCachingTime        Duration `yaml:"minTime"`
-	MaxCachingTime        Duration `yaml:"maxTime"`
-	CacheTimeNegative     Duration `default:"30m"                yaml:"cacheTimeNegative"`
-	MaxItemsCount         int      `yaml:"maxItemsCount"`
-	Prefetching           bool     `yaml:"prefetching"`
-	PrefetchExpires       Duration `default:"2h"                 yaml:"prefetchExpires"`
-	PrefetchThreshold     int      `default:"5"                  yaml:"prefetchThreshold"`
-	PrefetchMaxItemsCount int      `yaml:"prefetchMaxItemsCount"`
-	Exclude               []string `yaml:"exclude"`
+	// Minimum TTL for cached entries; if the response TTL is smaller, this value is used instead.
+	MinCachingTime Duration `yaml:"minTime"`
+	// Maximum TTL for cached entries. If <0, caching is disabled. If 0, the response TTL is used.
+	MaxCachingTime Duration `yaml:"maxTime"`
+	// TTL for negative responses (NXDOMAIN / empty). Use -1 to disable caching of negative results.
+	CacheTimeNegative Duration `default:"30m" yaml:"cacheTimeNegative"`
+	// Maximum number of cache entries (soft limit). 0 means unlimited.
+	MaxItemsCount int `yaml:"maxItemsCount"`
+	// If true, blocky preloads DNS results for frequently queried names before they expire.
+	Prefetching bool `yaml:"prefetching"`
+	// Time window used to track query frequency for prefetch eligibility.
+	PrefetchExpires Duration `default:"2h" yaml:"prefetchExpires"`
+	// Minimum number of queries within prefetchExpires required to trigger prefetching.
+	PrefetchThreshold int `default:"5" yaml:"prefetchThreshold"`
+	// Maximum number of domains tracked for prefetching (soft limit). 0 means unlimited.
+	PrefetchMaxItemsCount int `yaml:"prefetchMaxItemsCount"`
+	// Regex list of domains that are never cached.
+	Exclude []string `yaml:"exclude"`
 }
 
 // IsEnabled implements `config.Configurable`.

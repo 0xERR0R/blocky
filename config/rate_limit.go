@@ -15,12 +15,18 @@ const (
 
 // RateLimit configures per-client rate limiting at the head of the resolver chain.
 type RateLimit struct {
-	Enable     bool     `default:"false"  yaml:"enable"`
-	Rate       uint     `default:"0"      yaml:"rate"`
-	Burst      uint     `default:"0"      yaml:"burst"`
-	IPv4Prefix uint8    `default:"32"     yaml:"ipv4Prefix"`
-	IPv6Prefix uint8    `default:"64"     yaml:"ipv6Prefix"`
-	Allowlist  []string `yaml:"allowlist"`
+	// Enable per-client DNS rate limiting.
+	Enable bool `default:"false" yaml:"enable"`
+	// Sustained query rate limit in queries per second per client.
+	Rate uint `default:"0" yaml:"rate"`
+	// Token bucket capacity; queries above this burst are dropped. Defaults to rate × 2.
+	Burst uint `default:"0" yaml:"burst"`
+	// Prefix length used to aggregate IPv4 client addresses into a single bucket.
+	IPv4Prefix uint8 `default:"32" yaml:"ipv4Prefix"`
+	// Prefix length used to aggregate IPv6 client addresses into a single bucket.
+	IPv6Prefix uint8 `default:"64" yaml:"ipv6Prefix"`
+	// CIDRs or IPs that are never rate-limited.
+	Allowlist []string `yaml:"allowlist"`
 
 	parsedAllowlist []*net.IPNet
 }

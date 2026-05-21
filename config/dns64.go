@@ -11,8 +11,11 @@ import (
 
 // DNS64 is the configuration for DNS64 resolver
 type DNS64 struct {
-	Enable       bool           `default:"false"     yaml:"enable"`
-	Prefixes     []netip.Prefix `yaml:"prefixes"`
+	// Enable DNS64 synthesis of AAAA records from A records for IPv6-only clients (RFC 6147).
+	Enable bool `default:"false" yaml:"enable"`
+	// IPv6 prefixes used for synthesis; valid lengths are /32, /40, /48, /56, /64, /96 (default: 64:ff9b::/96).
+	Prefixes []netip.Prefix `yaml:"prefixes"`
+	// IPv6 prefixes excluded from triggering synthesis. Overrides the default exclusion set; advanced use only.
 	ExclusionSet []netip.Prefix `yaml:"exclusionSet"`
 }
 

@@ -44,10 +44,14 @@ func (x *ECSv6Mask) UnmarshalText(text []byte) error {
 
 // ECS is the configuration of the ECS resolver
 type ECS struct {
-	UseAsClient bool      `default:"false" yaml:"useAsClient"`
-	Forward     bool      `default:"false" yaml:"forward"`
-	IPv4Mask    ECSv4Mask `default:"0"     yaml:"ipv4Mask"`
-	IPv6Mask    ECSv6Mask `default:"0"     yaml:"ipv6Mask"`
+	// Use the ECS client subnet as the client IP when a full-prefix ECS option is present.
+	UseAsClient bool `default:"false" yaml:"useAsClient"`
+	// Forward the ECS option from the client request to upstream resolvers.
+	Forward bool `default:"false" yaml:"forward"`
+	// Subnet mask for IPv4 EDNS Client Subnet; adds ECS option when greater than zero (max 32).
+	IPv4Mask ECSv4Mask `default:"0" yaml:"ipv4Mask"`
+	// Subnet mask for IPv6 EDNS Client Subnet; adds ECS option when greater than zero (max 128).
+	IPv6Mask ECSv6Mask `default:"0" yaml:"ipv6Mask"`
 }
 
 // IsEnabled returns true if the ECS resolver is enabled

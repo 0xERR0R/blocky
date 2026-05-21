@@ -51,8 +51,11 @@ func (w Weekday) String() string {
 
 // Schedule defines a time-based schedule for blocking rules.
 type Schedule struct {
-	Start    string    `yaml:"start"`
-	End      string    `yaml:"end"`
+	// Start time in HH:MM format; omit together with end for an all-day schedule.
+	Start string `yaml:"start"`
+	// End time in HH:MM format; if before start, the window is overnight (e.g. 22:00 to 06:00).
+	End string `yaml:"end"`
+	// Days of the week this schedule is active (mon, tue, wed, thu, fri, sat, sun).
 	Weekdays []Weekday `yaml:"weekdays"`
 
 	// Precomputed by validate() for allocation-free hot-path evaluation.

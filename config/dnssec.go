@@ -6,11 +6,15 @@ import (
 
 // DNSSEC is the configuration for DNSSEC validation
 type DNSSEC struct {
-	Validate             bool     `default:"false"     yaml:"validate"`
-	TrustAnchors         []string `yaml:"trustAnchors"`
-	MaxChainDepth        uint     `default:"10"        yaml:"maxChainDepth"`
-	CacheExpirationHours uint     `default:"1"         yaml:"cacheExpirationHours"`
-	MaxNSEC3Iterations   uint     `default:"150"       yaml:"maxNSEC3Iterations"` // RFC 5155 §10.3
+	// Enable DNSSEC validation of DNS responses.
+	Validate bool `default:"false" yaml:"validate"`
+	// Custom trust anchors (DNSKEY or DS records); empty uses built-in IANA root trust anchors.
+	TrustAnchors []string `yaml:"trustAnchors"`
+	// Maximum domain label depth for chain of trust validation (DoS protection).
+	MaxChainDepth uint `default:"10" yaml:"maxChainDepth"`
+	// How long to cache DNSSEC validation results, in hours.
+	CacheExpirationHours uint `default:"1"   yaml:"cacheExpirationHours"`
+	MaxNSEC3Iterations   uint `default:"150" yaml:"maxNSEC3Iterations"` // RFC 5155 §10.3
 	// DoS protection: max upstream queries per validation
 	MaxUpstreamQueries uint `default:"30" yaml:"maxUpstreamQueries"`
 	// Clock skew tolerance in seconds for signature validation (default: 3600 = 1 hour)

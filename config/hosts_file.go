@@ -7,10 +7,14 @@ import (
 )
 
 type HostsFile struct {
-	Sources        []BytesSource `yaml:"sources"`
-	HostsTTL       Duration      `default:"1h"          yaml:"hostsTTL"`
-	FilterLoopback bool          `yaml:"filterLoopback"`
-	Loading        SourceLoading `yaml:"loading"`
+	// Host files to load (e.g. /etc/hosts); supports local paths, URLs, and inline content.
+	Sources []BytesSource `yaml:"sources"`
+	// TTL for DNS records resolved from host files.
+	HostsTTL Duration `default:"1h" yaml:"hostsTTL"`
+	// If true, loopback addresses (127.0.0.0/8 and ::1) from host files are ignored.
+	FilterLoopback bool `yaml:"filterLoopback"`
+	// Controls how host files are loaded and periodically refreshed.
+	Loading SourceLoading `yaml:"loading"`
 
 	// Deprecated options
 	Deprecated struct {

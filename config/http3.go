@@ -4,6 +4,7 @@ import "github.com/sirupsen/logrus"
 
 // HTTP3 holds DNS-over-HTTPS over HTTP/3 (DoH3) server settings.
 type HTTP3 struct {
+	// Enable the HTTP/3 listener on the same addresses as ports.https (requires ports.https to be set).
 	Enable bool `default:"false" yaml:"enable"`
 }
 
