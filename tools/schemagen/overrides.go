@@ -337,8 +337,8 @@ func markDeprecated(s *jsonschema.Schema, t reflect.Type) {
 	}
 }
 
-// markFieldsDeprecated marks each yaml-named field of struct type t as
-// deprecated in schema node s (where the inline block was flattened).
+// markFieldsDeprecated marks each yaml-named field of struct type t as deprecated
+// in schema node s, into which the inline block was flattened.
 func markFieldsDeprecated(s *jsonschema.Schema, t reflect.Type) {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()

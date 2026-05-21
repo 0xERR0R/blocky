@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -49,7 +50,7 @@ func (s *QTypeSet) UnmarshalYAML(unmarshal func(any) error) error {
 
 	for _, raw := range input {
 		if raw == nil {
-			return fmt.Errorf("invalid query type: null. " +
+			return errors.New("invalid query type: null. " +
 				"Quote YAML keywords like 'NULL' so they are read as a DNS type")
 		}
 
