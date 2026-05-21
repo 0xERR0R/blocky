@@ -1,13 +1,32 @@
 # Configuration
 
 This chapter describes all configuration options in `config.yaml`. You can download a reference file with all
-configuration properties as [JSON](config.yml).
+configuration properties as [YAML](config.yml). A matching [JSON schema](config.schema.json) is also available for
+editor autocomplete and validation (see [Editor support and validation](#editor-support-and-validation)).
 
 ??? example "reference configuration file"
 
     ```yaml
     --8<-- "docs/config.yml"
     ```
+
+## Editor support and validation
+
+Blocky ships a [JSON schema](https://raw.githubusercontent.com/0xERR0R/blocky/main/docs/config.schema.json)
+generated from its configuration types. Editors with the
+[YAML Language Server](https://github.com/redhat-developer/yaml-language-server)
+(for example VS Code with the *YAML* extension) use it for autocomplete,
+inline documentation and validation. Add this modeline to the top of your
+`config.yml`:
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/0xERR0R/blocky/main/docs/config.schema.json
+```
+
+The same schema is used by `blocky validate`, which reports unknown keys and
+invalid values with their field path. Schema validation is a structural
+first pass; blocky still performs its full semantic checks when loading the
+configuration.
 
 ## Basic configuration
 

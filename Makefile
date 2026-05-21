@@ -1,4 +1,4 @@
-.PHONY: all clean generate build test e2e-test e2e-test-coverage lint run fmt docker-build help check-tools
+.PHONY: all clean generate generate-check build test e2e-test e2e-test-coverage lint run fmt docker-build help check-tools
 .DEFAULT_GOAL:=help
 
 VERSION?=$(shell git describe --always --tags)
@@ -60,6 +60,11 @@ else
 	go tool mockery
 	go generate ./...
 endif
+
+generate-check: check-go ## Verify generated files (mocks, enums, config schema) are up to date
+	go tool mockery
+	go generate ./...
+	@git diff --exit-code || { echo "generated files are out of date; run 'make generate' and commit the result"; exit 1; }
 
 build: check-go generate ## Build binary
 	go build $(GO_BUILD_FLAGS) -ldflags="$(GO_BUILD_LD_FLAGS)" -o $(GO_BUILD_OUTPUT)

@@ -1,4 +1,5 @@
 //go:generate go tool go-enum -f=$GOFILE --marshal --names --values
+//go:generate go run ../tools/schemagen
 package config
 
 import (
@@ -17,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	. "github.com/0xERR0R/blocky/config/migration"
+	"github.com/0xERR0R/blocky/config/schema"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/creasty/defaults"
@@ -600,7 +602,23 @@ func isRegularFile(path string) (bool, error) {
 func unmarshalConfig(logger *logrus.Entry, data []byte, cfg *Config) error {
 	err := yaml.UnmarshalStrict(data, cfg)
 	if err != nil {
+		// Enrich the already-failing path with field-path schema errors,
+		// keeping the underlying yaml error for detail. This never rejects a
+		// config blocky would accept: we only reach here because
+		// UnmarshalStrict already failed.
+		if schemaErrs, sErr := schema.ValidateYAML(data); sErr == nil && len(schemaErrs) > 0 {
+			return fmt.Errorf("wrong file structure: %w\n%s", err, formatSchemaErrors(schemaErrs))
+		}
+
 		return fmt.Errorf("wrong file structure: %w", err)
+	}
+
+	// Success path: the schema disagreeing here is a potential gap in the
+	// schema, never a config error. Warn, never fail.
+	if schemaErrs, sErr := schema.ValidateYAML(data); sErr == nil && len(schemaErrs) > 0 {
+		for _, e := range schemaErrs {
+			logger.Warnf("config does not match schema (possible schema gap, please report): %s", e)
+		}
 	}
 
 	usesDepredOpts := cfg.migrate(logger)
@@ -611,6 +629,16 @@ func unmarshalConfig(logger *logrus.Entry, data []byte, cfg *Config) error {
 	cfg.validate(logger)
 
 	return nil
+}
+
+// formatSchemaErrors renders schema findings as an indented bullet list.
+func formatSchemaErrors(errs []schema.Error) string {
+	lines := make([]string, 0, len(errs))
+	for _, e := range errs {
+		lines = append(lines, "  - "+e.String())
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func (cfg *Config) migrate(logger *logrus.Entry) bool {

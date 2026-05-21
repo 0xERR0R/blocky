@@ -32,6 +32,7 @@ const (
 	dnsContentType     = "application/dns-message"
 	htmlContentType    = "text/html; charset=UTF-8"
 	yamlContentType    = "text/yaml"
+	jsonContentType    = "application/json"
 )
 
 func (s *Server) createOpenAPIInterfaceImpl() (impl api.StrictServerInterface, err error) {
@@ -207,6 +208,12 @@ func configureDocsHandler(router *chi.Mux) {
 		_, err := writer.Write([]byte(docs.OpenAPI))
 		logAndResponseWithError(err, "can't write OpenAPI definition file: ", writer)
 	})
+
+	router.Get("/docs/config.schema.json", func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set(contentTypeHeader, jsonContentType)
+		_, err := writer.Write(docs.ConfigSchema)
+		logAndResponseWithError(err, "can't write config JSON schema file: ", writer)
+	})
 }
 
 func configureStaticAssetsHandler(router *chi.Mux) {
@@ -254,6 +261,10 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 			{
 				URL:   "/static/rapidoc.html",
 				Title: "Interactive Rest API Documentation (RapiDoc)",
+			},
+			{
+				URL:   "/docs/config.schema.json",
+				Title: "Configuration JSON Schema",
 			},
 			{
 				URL:   "/debug/",
