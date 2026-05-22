@@ -188,7 +188,10 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 
 				BeforeEach(func() {
 					resolvFile = TempFile("nameserver 9.9.9.9\nnameserver 1.0.0.1\n")
-					DeferCleanup(func() { _ = os.Remove(resolvFile.Name()) })
+					DeferCleanup(func() {
+						_ = resolvFile.Close()
+						_ = os.Remove(resolvFile.Name())
+					})
 
 					sutConfig = config.Config{
 						BootstrapDNS: []config.BootstrappedUpstream{
@@ -210,6 +213,36 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 				})
 			})
 
+			When("the file lists an IPv6 nameserver", func() {
+				var resolvFile *os.File
+
+				BeforeEach(func() {
+					resolvFile = TempFile("nameserver 2606:4700:4700::1111\n")
+					DeferCleanup(func() {
+						_ = resolvFile.Close()
+						_ = os.Remove(resolvFile.Name())
+					})
+
+					sutConfig = config.Config{
+						BootstrapDNS: []config.BootstrappedUpstream{
+							{ResolvFile: resolvFile.Name()},
+						},
+					}
+				})
+
+				It("uses the IPv6 nameserver as a bootstrap upstream", func() {
+					Expect(sut).ShouldNot(BeNil())
+					Expect(sut.bootstraped).Should(HaveLen(1))
+
+					var ips []net.IP
+					for _, serverIPs := range sut.bootstraped {
+						ips = append(ips, serverIPs...)
+					}
+
+					Expect(ips).Should(ConsistOf(Equal(net.ParseIP("2606:4700:4700::1111"))))
+				})
+			})
+
 			When("the file does not exist", func() {
 				It("errors", func() {
 					cfg := config.Config{
@@ -221,6 +254,49 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 					_, err := NewBootstrap(ctx, &cfg)
 					Expect(err).Should(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("resolvFile"))
+				})
+			})
+
+			When("the file has no usable nameservers", func() {
+				It("errors", func() {
+					resolvFile := TempFile("# only comments and a search domain\nsearch example.com\n")
+					DeferCleanup(func() {
+						_ = resolvFile.Close()
+						_ = os.Remove(resolvFile.Name())
+					})
+
+					cfg := config.Config{
+						BootstrapDNS: []config.BootstrappedUpstream{
+							{ResolvFile: resolvFile.Name()},
+						},
+					}
+
+					_, err := NewBootstrap(ctx, &cfg)
+					Expect(err).Should(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("no usable nameservers"))
+				})
+			})
+
+			When("combined with an inline upstream or ips in the same entry", func() {
+				It("errors instead of silently ignoring them", func() {
+					resolvFile := TempFile("nameserver 9.9.9.9\n")
+					DeferCleanup(func() {
+						_ = resolvFile.Close()
+						_ = os.Remove(resolvFile.Name())
+					})
+
+					cfg := config.Config{
+						BootstrapDNS: []config.BootstrappedUpstream{
+							{
+								ResolvFile: resolvFile.Name(),
+								Upstream:   config.Upstream{Net: config.NetProtocolTcpUdp, Host: "1.1.1.1", Port: 53},
+							},
+						},
+					}
+
+					_, err := NewBootstrap(ctx, &cfg)
+					Expect(err).Should(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("cannot be combined"))
 				})
 			})
 		})

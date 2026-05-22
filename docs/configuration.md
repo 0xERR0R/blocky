@@ -287,7 +287,7 @@ It is useful if no system DNS resolver is configured, and/or to encrypt the boot
 | ---------- | -------------------- | --------------------------- | ------------- | ---------------------------------------------------------------------------- |
 | upstream   | Upstream (see above) | no                          |               |                                                                              |
 | ips        | List of IPs          | yes, if upstream is DoT/DoH |               | Only valid if upstream is DoH or DoT                                         |
-| resolvFile | string (file path)   | no                          |               | Read nameservers from a `resolv.conf`(5) file and use them as bootstrap DNS  |
+| resolvFile | string (file path)   | no                          |               | Read nameservers from a `resolv.conf`(5) file and use them as bootstrap DNS. Cannot be combined with `upstream`/`ips` in the same entry |
 
 When using an upstream specified by IP, and not by hostname, you can write only the upstream and skip `ips`.
 
