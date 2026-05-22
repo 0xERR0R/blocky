@@ -1330,10 +1330,11 @@ var _ = Describe("Ports", func() {
 	Describe("LogConfig", func() {
 		It("should log all port configurations", func() {
 			cfg := Ports{
-				DNS:   ListenConfig{":53"},
-				HTTP:  ListenConfig{":4000"},
-				HTTPS: ListenConfig{":443"},
-				TLS:   ListenConfig{":853"},
+				DNS:     ListenConfig{":53"},
+				HTTP:    ListenConfig{":4000"},
+				HTTPS:   ListenConfig{":443"},
+				TLS:     ListenConfig{":853"},
+				DOHPath: "/dns-query",
 			}
 
 			cfg.LogConfig(logger)
@@ -1344,6 +1345,7 @@ var _ = Describe("Ports", func() {
 				ContainSubstring("HTTP"),
 				ContainSubstring("HTTPS"),
 				ContainSubstring("TLS"),
+				ContainSubstring("DOHPath"),
 			))
 		})
 	})

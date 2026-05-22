@@ -342,10 +342,11 @@ type Ports struct {
 }
 
 func (c *Ports) LogConfig(logger *logrus.Entry) {
-	logger.Infof("DNS   = %s", c.DNS)
-	logger.Infof("TLS   = %s", c.TLS)
-	logger.Infof("HTTP  = %s", c.HTTP)
-	logger.Infof("HTTPS = %s", c.HTTPS)
+	logger.Infof("DNS     = %s", c.DNS)
+	logger.Infof("TLS     = %s", c.TLS)
+	logger.Infof("HTTP    = %s", c.HTTP)
+	logger.Infof("HTTPS   = %s", c.HTTPS)
+	logger.Infof("DOHPath = %s", c.DOHPath)
 }
 
 func (c *Ports) validate() error {
