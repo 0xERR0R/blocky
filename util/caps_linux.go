@@ -52,7 +52,7 @@ func RaiseNetBindService() (effective bool, err error) {
 
 	// Apply to all OS threads so any goroutine that calls bind() sees the
 	// capability. AllThreadsSyscall requires CGO_ENABLED=0 (it returns ENOTSUP
-	// under cgo); Blocky is always built as a pure-Go static binary.
+	// under cgo); Blocky's Docker image and release binaries are built with CGO_ENABLED=0.
 	// The unsafe.Pointer->uintptr conversions are inlined in the call as
 	// required by the unsafe.Pointer rules.
 	_, _, errno := syscall.AllThreadsSyscall(
