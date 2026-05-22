@@ -66,6 +66,7 @@ All values in this section are optional.
         - 80
         - 4000
       https: 443
+      dohPath: /my-custom-dns-query
     ```
 
 ## Logging configuration
