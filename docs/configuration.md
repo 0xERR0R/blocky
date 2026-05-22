@@ -283,12 +283,17 @@ Currently available strategies:
 These DNS servers are used to resolve upstream DoH and DoT servers that are specified as host names, and list domains.
 It is useful if no system DNS resolver is configured, and/or to encrypt the bootstrap queries.
 
-| Parameter | Type                 | Mandatory                   | Default value | Description                          |
-| --------- | -------------------- | --------------------------- | ------------- | ------------------------------------ |
-| upstream  | Upstream (see above) | no                          |               |                                      |
-| ips       | List of IPs          | yes, if upstream is DoT/DoH |               | Only valid if upstream is DoH or DoT |
+| Parameter  | Type                 | Mandatory                   | Default value | Description                                                                  |
+| ---------- | -------------------- | --------------------------- | ------------- | ---------------------------------------------------------------------------- |
+| upstream   | Upstream (see above) | no                          |               |                                                                              |
+| ips        | List of IPs          | yes, if upstream is DoT/DoH |               | Only valid if upstream is DoH or DoT                                         |
+| resolvFile | string (file path)   | no                          |               | Read nameservers from a `resolv.conf`(5) file and use them as bootstrap DNS. Cannot be combined with `upstream`/`ips` in the same entry |
 
 When using an upstream specified by IP, and not by hostname, you can write only the upstream and skip `ips`.
+
+If `bootstrapDns` is not set, blocky uses the operating system's resolver (`/etc/resolv.conf` on Linux). On systems where the
+DHCP-provided resolvers live elsewhere (for example OpenWrt writes them to `/tmp/resolv.conf.auto`), use a `resolvFile` entry to
+point blocky at the right file. The file is parsed once at startup; its `nameserver` entries are used as plain-DNS bootstrap servers.
 
 !!! note
 
@@ -302,6 +307,8 @@ When using an upstream specified by IP, and not by hostname, you can write only 
             ips:
             - 123.123.123.123
           - upstream: https://234.234.234.234/dns-query
+          # read the DHCP-provided resolvers from a file (e.g. OpenWrt)
+          - resolvFile: /tmp/resolv.conf.auto
     ```
 
 ## Filtering

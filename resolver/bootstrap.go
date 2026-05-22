@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -71,7 +72,7 @@ func NewBootstrap(ctx context.Context, cfg *config.Config) (b *Bootstrap, err er
 
 	ctx, logger := b.log(ctx)
 
-	bootstraped, err := newBootstrapedResolvers(b, cfg.BootstrapDNS, cfg.Upstreams)
+	bootstraped, err := newBootstrapedResolvers(b, cfg.BootstrapDNS, cfg.Upstreams, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create bootstrap resolvers: %w", err)
 	}
@@ -296,7 +297,7 @@ func (b *Bootstrap) resolveType(ctx context.Context, hostname string, qType dns.
 type bootstrapedResolvers map[Resolver][]net.IP
 
 func newBootstrapedResolvers(
-	b *Bootstrap, cfg config.BootstrapDNS, upstreamsCfg config.Upstreams,
+	b *Bootstrap, cfg config.BootstrapDNS, upstreamsCfg config.Upstreams, logger *logrus.Entry,
 ) (bootstrapedResolvers, error) {
 	upstreamIPs := make(bootstrapedResolvers, len(cfg))
 
@@ -304,6 +305,14 @@ func newBootstrapedResolvers(
 
 	for i, upstreamCfg := range cfg {
 		i := i + 1 // user visible index should start at 1
+
+		if upstreamCfg.ResolvFile != "" {
+			if err := b.addResolvFileUpstreams(upstreamIPs, upstreamCfg, upstreamsCfg, logger); err != nil {
+				multiErr = multierror.Append(multiErr, fmt.Errorf("item %d: %w", i, err))
+			}
+
+			continue
+		}
 
 		upstream := upstreamCfg.Upstream
 
@@ -347,6 +356,58 @@ func newBootstrapedResolvers(
 	}
 
 	return upstreamIPs, nil
+}
+
+// defaultDNSPort is the fallback bootstrap port. resolv.conf(5) carries no
+// per-nameserver port, so dns.ClientConfigFromFile always reports "53"; we
+// still parse cc.Port defensively in case that ever changes.
+const defaultDNSPort uint16 = 53
+
+// addResolvFileUpstreams reads nameservers from a resolv.conf(5) file and adds
+// one plain-DNS bootstrap upstream per nameserver to upstreamIPs. This lets
+// systems whose DHCP-provided resolvers live outside /etc/resolv.conf (e.g.
+// OpenWrt's /tmp/resolv.conf.auto) point blocky at the right file.
+func (b *Bootstrap) addResolvFileUpstreams(
+	upstreamIPs bootstrapedResolvers, upstreamCfg config.BootstrappedUpstream,
+	upstreamsCfg config.Upstreams, logger *logrus.Entry,
+) error {
+	if !upstreamCfg.Upstream.IsDefault() || len(upstreamCfg.IPs) > 0 {
+		return errors.New("resolvFile cannot be combined with upstream/ips in the same entry")
+	}
+
+	path := upstreamCfg.ResolvFile
+
+	cc, err := dns.ClientConfigFromFile(path)
+	if err != nil {
+		return fmt.Errorf("resolvFile '%s': %w", path, err)
+	}
+
+	port := defaultDNSPort
+	if p, err := strconv.ParseUint(cc.Port, 10, 16); err == nil {
+		port = uint16(p)
+	}
+
+	var added int
+
+	for _, server := range cc.Servers {
+		ip := net.ParseIP(server)
+		if ip == nil {
+			continue
+		}
+
+		upstream := config.Upstream{Net: config.NetProtocolTcpUdp, Host: server, Port: port}
+		resolver := newUpstreamResolverUnchecked(newUpstreamConfig(upstream, upstreamsCfg), b)
+		upstreamIPs[resolver] = []net.IP{ip}
+		added++
+	}
+
+	if added == 0 {
+		return fmt.Errorf("resolvFile '%s': no usable nameservers", path)
+	}
+
+	logger.Infof("loaded %d bootstrap nameserver(s) from resolvFile '%s'", added, path)
+
+	return nil
 }
 
 func (br bootstrapedResolvers) Resolvers() []Resolver {

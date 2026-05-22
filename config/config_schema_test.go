@@ -30,6 +30,16 @@ var _ = Describe("schema-enriched config loading", func() {
 		})
 	})
 
+	When("bootstrapDns uses the resolvFile object form", func() {
+		It("is accepted by both the parser and the schema", func() {
+			data := []byte("bootstrapDns:\n  - resolvFile: /etc/resolv.conf\n")
+
+			err := unmarshalConfig(logger, data, &Config{})
+			Expect(err).Should(Succeed())
+			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("does not match schema")))
+		})
+	})
+
 	When("a config exercises flexible/edge value forms not covered by docs/config.yml", func() {
 		It("is accepted by both the parser and the schema (permissive-superset)", func() {
 			// testdata/superset_config.yml uses the alternative forms blocky

@@ -370,6 +370,8 @@ type (
 	bootstrappedUpstream struct {
 		Upstream Upstream `yaml:"upstream"`
 		IPs      []net.IP `yaml:"ips"`
+		// Optional: read bootstrap nameservers from a resolv.conf(5) file at this path instead of listing them inline.
+		ResolvFile string `yaml:"resolvFile"`
 	}
 )
 
