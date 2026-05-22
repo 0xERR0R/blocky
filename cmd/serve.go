@@ -41,6 +41,12 @@ func newServeCommand() *cobra.Command {
 	}
 }
 
+// privilegedPortCapHint describes how to satisfy the CAP_NET_BIND_SERVICE
+// requirement for binding ports below 1024.
+const privilegedPortCapHint = "grant CAP_NET_BIND_SERVICE (Kubernetes " +
+	"securityContext capabilities.add, or docker run --cap-add NET_BIND_SERVICE) " +
+	"or use a port >= 1024"
+
 // warnMissingPrivilegedPortCapability raises CAP_NET_BIND_SERVICE if it is
 // available, and warns when a privileged port (< 1024) is configured but the
 // capability could not be obtained. It never fails: any real bind error
@@ -48,6 +54,14 @@ func newServeCommand() *cobra.Command {
 func warnMissingPrivilegedPortCapability(ports config.Ports) {
 	effective, err := raiseNetBindService()
 	if err != nil {
+		if privileged := ports.PrivilegedPorts(); len(privileged) > 0 {
+			log.Log().Warnf("could not adjust process capabilities (%v); binding "+
+				"privileged port(s) %s may fail — %s",
+				err, strings.Join(privileged, ", "), privilegedPortCapHint)
+
+			return
+		}
+
 		log.Log().Warnf("could not adjust process capabilities: %v", err)
 
 		return
@@ -58,10 +72,8 @@ func warnMissingPrivilegedPortCapability(ports config.Ports) {
 	}
 
 	if privileged := ports.PrivilegedPorts(); len(privileged) > 0 {
-		log.Log().Warnf("configured to listen on privileged port(s) %s but "+
-			"CAP_NET_BIND_SERVICE is not available; grant the capability "+
-			"(Kubernetes securityContext capabilities.add, or docker run "+
-			"--cap-add NET_BIND_SERVICE) or use a port >= 1024", strings.Join(privileged, ", "))
+		log.Log().Warnf("configured to listen on privileged port(s) %s without "+
+			"CAP_NET_BIND_SERVICE; %s", strings.Join(privileged, ", "), privilegedPortCapHint)
 	}
 }
 

@@ -64,10 +64,20 @@ var _ = Describe("warnMissingPrivilegedPortCapability", func() {
 			raiseNetBindService = func() (bool, error) { return false, errors.New("boom") }
 		})
 
-		It("logs only the capability error, even with a privileged port", func() {
+		It("logs one combined warning naming the error and the capability", func() {
 			warnMissingPrivilegedPortCapability(config.Ports{DNS: config.ListenConfig{":53"}})
 			Expect(loggerHook.AllEntries()).Should(HaveLen(1))
+			Expect(loggerHook.LastEntry().Message).Should(SatisfyAll(
+				ContainSubstring("could not adjust process capabilities"),
+				ContainSubstring("CAP_NET_BIND_SERVICE"),
+			))
+		})
+
+		It("logs only the error when no privileged port is configured", func() {
+			warnMissingPrivilegedPortCapability(config.Ports{DNS: config.ListenConfig{":1053"}})
+			Expect(loggerHook.AllEntries()).Should(HaveLen(1))
 			Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("could not adjust process capabilities"))
+			Expect(loggerHook.LastEntry().Message).ShouldNot(ContainSubstring("CAP_NET_BIND_SERVICE"))
 		})
 	})
 })
