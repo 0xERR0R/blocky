@@ -1,0 +1,70 @@
+# Test-only config exercising flexible / edge value forms that docs/config.yml
+# does NOT cover. It guards the permissive-superset guarantee: every value here
+# must be accepted by BOTH blocky's parser and the generated JSON schema.
+# Loaded by config_schema_test.go — this is not user-facing documentation.
+upstreams:
+  groups:
+    default:
+      - 1.1.1.1
+  # deprecated bare-number Duration (minutes form)
+  timeout: 30
+  strategy: strict
+  init:
+    strategy: fast
+
+connectIPVersion: v4
+
+customDNS:
+  # bare-number Duration (deprecated minutes form)
+  customTTL: 30
+  mapping:
+    printer.lan: 192.168.178.3,2001:db8::1
+
+conditional:
+  mapping:
+    fritz.box: 192.168.178.1,192.168.178.2
+
+blocking:
+  clientGroupsBlock:
+    default:
+      - ads
+  denylists:
+    ads:
+      - /etc/blocky/ads.txt
+  # custom-IP-list block type (a plain string, not zeroIp/nxDomain)
+  blockType: 192.100.100.15,2001:db8::1
+  blockTTL: 6h
+  # deprecated nested key (accepted, migrated to loading.strategy)
+  startStrategy: failOnError
+
+# quoted-string TLS version form (docs uses the unquoted number 1.3)
+minTlsServeVersion: "1.2"
+
+ecs:
+  # quoted-string and bare-integer mask forms
+  ipv4Mask: "24"
+  ipv6Mask: 48
+
+filtering:
+  queryTypes:
+    # quoted reserved YAML keyword (NULL) plus plain types
+    - "NULL"
+    - A
+    - HTTPS
+
+ports:
+  # single comma-separated string form (ListenConfig.UnmarshalText)
+  dns: "53,5353"
+
+# single-string bootstrap form (docs uses the list/object forms)
+bootstrapDns: tcp+udp:1.1.1.1
+
+queryLog:
+  type: console
+
+log:
+  format: json
+  level: debug
+
+# deprecated top-level key (accepted, migrated)
+disableIPv6: true
