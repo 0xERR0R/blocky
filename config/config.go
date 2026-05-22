@@ -351,7 +351,7 @@ func (c *Ports) LogConfig(logger *logrus.Entry) {
 
 func (c *Ports) validate() error {
 	if c.DOHPath == "" {
-		return fmt.Errorf("dohPath must not be empty")
+		return errors.New("dohPath must not be empty")
 	}
 
 	if !strings.HasPrefix(c.DOHPath, "/") {

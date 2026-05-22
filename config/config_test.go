@@ -1372,7 +1372,7 @@ var _ = Describe("Ports", func() {
 
 		It("should reject a path with spaces", func() {
 			cfg := Ports{DOHPath: "/dns query"}
-			Expect(cfg.validate()).Should(MatchError(ContainSubstring("dohPath must not contain spaces")))
+			Expect(cfg.validate()).Should(MatchError(ContainSubstring("dohPath must not contain whitespace")))
 		})
 
 		It("should reject a path with a query string", func() {
