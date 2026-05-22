@@ -503,6 +503,22 @@ var _ = Describe("CustomDNSResolver", func() {
 		})
 	})
 
+	Describe("LookupReverse", func() {
+		It("returns the mapped domain names for a known IPv4 address", func() {
+			Expect(sut.LookupReverse(net.ParseIP("192.168.143.123"))).
+				Should(ConsistOf("custom.domain", "multiple.ips"))
+		})
+
+		It("returns the mapped domain names for a known IPv6 address", func() {
+			Expect(sut.LookupReverse(net.ParseIP("2001:0db8:85a3:0000:0000:8a2e:0370:7334"))).
+				Should(ConsistOf("ip6.domain", "multiple.ips"))
+		})
+
+		It("returns nil for an unknown IP", func() {
+			Expect(sut.LookupReverse(net.ParseIP("8.8.8.8"))).Should(BeNil())
+		})
+	})
+
 	Describe("Delegating to next resolver", func() {
 		When("no mapping for domain exist", func() {
 			It("should delegate to next resolver", func() {

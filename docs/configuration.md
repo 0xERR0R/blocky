@@ -558,8 +558,23 @@ DoH URL: `https://blocky.example.com/dns-query/alice` -> request's client name i
 
 ### Resolving client name from IP address
 
-Blocky uses rDNS to retrieve client's name. To use this feature, you can configure a DNS server for client lookup (
-typically your router). You can also define client names manually per IP address.
+Blocky resolves a client's name from its IP address using the first of the following sources that yields a match:
+
+1. **Custom client name mapping** – names defined manually via `clientLookup.clients` (see below).
+2. **Local in-memory sources** – reverse (IP → name) entries already known to Blocky from your
+   [custom DNS](#custom-dns) records and [hosts files](#hosts-file). This works automatically, requires no
+   `clientLookup.upstream`, and performs no network lookup. For example, a hosts file entry `192.168.1.11 unifi`
+   makes the client name of `192.168.1.11` resolve to `unifi`.
+3. **rDNS upstream** – a reverse DNS lookup against the DNS server configured in `clientLookup.upstream`
+   (typically your router).
+
+If none of these returns a name, the IP address is used as the client name.
+
+!!! note
+
+    Because client names are also used for [blocking groups](#blocking-and-allowlisting) and
+    [client-specific upstream groups](#upstreams-configuration), enabling local sources (custom DNS / hosts files) can change which
+    group a client matches if a group is keyed on a name now resolved from those sources.
 
 #### Single name order
 

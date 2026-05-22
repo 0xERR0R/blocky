@@ -84,6 +84,26 @@ func isSupportedType(ip net.IP, question dns.Question) bool {
 		(strings.Contains(ip.String(), ":") && question.Qtype == dns.TypeAAAA)
 }
 
+// LookupReverse returns the domain names mapped to the given IP by the custom DNS
+// configuration, consulting only in-memory data (no network I/O). Returns nil if there is no match.
+func (r *CustomDNSResolver) LookupReverse(ip net.IP) []string {
+	arpa, err := dns.ReverseAddr(ip.String())
+	if err != nil {
+		return nil
+	}
+
+	urls := r.reverseAddresses[arpa]
+	if len(urls) == 0 {
+		return nil
+	}
+
+	// return a copy so callers can't mutate the internal mapping
+	names := make([]string, len(urls))
+	copy(names, urls)
+
+	return names
+}
+
 func (r *CustomDNSResolver) handleReverseDNS(request *model.Request) *model.Response {
 	question := request.Req.Question[0]
 	if question.Qtype == dns.TypePTR {
