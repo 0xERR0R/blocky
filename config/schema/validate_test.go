@@ -250,6 +250,6 @@ var _ = Describe("schema field descriptions from Go comments", func() {
 	}
 
 	It("uses a field comment as the description", func() {
-		Expect(description("upstreams", "timeout")).Should(ContainSubstring("always > 0"))
+		Expect(description("upstreams", "timeout")).Should(ContainSubstring("Timeout for upstream DNS connections"))
 	})
 })

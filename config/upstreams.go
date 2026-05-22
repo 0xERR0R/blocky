@@ -18,8 +18,9 @@ type QUICConfig struct {
 // Upstreams upstream servers configuration
 type Upstreams struct {
 	// Initialization strategy controlling when upstream resolvers are tested on startup.
-	Init    Init     `yaml:"init"`
-	Timeout Duration `default:"2s" yaml:"timeout"` // always > 0
+	Init Init `yaml:"init"`
+	// Timeout for upstream DNS connections; a value <= 0 is reset to the default.
+	Timeout Duration `default:"2s" yaml:"timeout"`
 	// Named groups of upstream DNS resolvers; the "default" group is required.
 	Groups UpstreamGroups `yaml:"groups"`
 	// Strategy for selecting which upstream(s) to use per query (parallel_best, random, strict).

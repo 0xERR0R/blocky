@@ -30,7 +30,7 @@
               "type": "integer"
             }
           ],
-          "description": "always \u003e 0",
+          "description": "Timeout for upstream DNS connections; a value \u003c= 0 is reset to the default.",
           "default": "2s",
           "examples": [
             "30s",
