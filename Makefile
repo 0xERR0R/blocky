@@ -73,8 +73,8 @@ ifdef BIN_USER
 	chown $(BIN_USER) $(GO_BUILD_OUTPUT)
 endif
 ifdef BIN_AUTOCAB
-	$(info setting cap_net_bind_service to $(GO_BUILD_OUTPUT))
-	setcap 'cap_net_bind_service=+ep' $(GO_BUILD_OUTPUT)
+	$(info setting cap_net_bind_service (permitted) on $(GO_BUILD_OUTPUT))
+	setcap 'cap_net_bind_service=+p' $(GO_BUILD_OUTPUT)
 endif
 
 test: check-go ## run tests
