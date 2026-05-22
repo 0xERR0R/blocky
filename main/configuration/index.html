@@ -2928,12 +2928,16 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="c1">#keyFile: server.key</span>
 
 <span class="c1"># optional: use these DNS servers to resolve denylist urls and upstream DNS servers. It is useful if no system DNS resolver is configured, and/or to encrypt the bootstrap queries.</span>
+<span class="c1"># If not set, the operating system resolver (/etc/resolv.conf on Linux) is used.</span>
 <span class="nt">bootstrapDns</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tcp+udp:1.1.1.1</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://1.1.1.1/dns-query</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">upstream</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://dns.digitale-gesellschaft.ch/dns-query</span>
 <span class="w">    </span><span class="nt">ips</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">185.95.218.42</span>
+<span class="w">  </span><span class="c1"># optional: read nameservers from a resolv.conf file instead of listing them inline.</span>
+<span class="w">  </span><span class="c1"># Useful where DHCP-provided resolvers live outside /etc/resolv.conf (e.g. OpenWrt&#39;s /tmp/resolv.conf.auto).</span>
+<span class="w">  </span><span class="c1"># - resolvFile: /tmp/resolv.conf.auto</span>
 
 <span class="c1"># optional: drop all queries with following query types. Default: empty</span>
 <span class="nt">filtering</span><span class="p">:</span>
@@ -3655,9 +3659,19 @@ It is useful if no system <abbr title="Domain Name System">DNS</abbr> resolver i
 <td></td>
 <td>Only valid if upstream is <abbr title="DNS-over-HTTPS">DoH</abbr> or <abbr title="DNS-over-TLS">DoT</abbr></td>
 </tr>
+<tr>
+<td>resolvFile</td>
+<td>string (file path)</td>
+<td>no</td>
+<td></td>
+<td>Read nameservers from a <code>resolv.conf</code>(5) file and use them as bootstrap <abbr title="Domain Name System">DNS</abbr>. Cannot be combined with <code>upstream</code>/<code>ips</code> in the same entry</td>
+</tr>
 </tbody>
 </table>
 <p>When using an upstream specified by IP, and not by hostname, you can write only the upstream and skip <code>ips</code>.</p>
+<p>If <code>bootstrapDns</code> is not set, blocky uses the operating system's resolver (<code>/etc/resolv.conf</code> on Linux). On systems where the
+<abbr title="Dynamic Host Configuration Protocol">DHCP</abbr>-provided resolvers live elsewhere (for example OpenWrt writes them to <code>/tmp/resolv.conf.auto</code>), use a <code>resolvFile</code> entry to
+point blocky at the right file. The file is parsed once at startup; its <code>nameserver</code> entries are used as plain-<abbr title="Domain Name System">DNS</abbr> bootstrap servers.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Works only on Linux/*nix OS due to golang limitations under Windows.</p>
@@ -3669,6 +3683,8 @@ It is useful if no system <abbr title="Domain Name System">DNS</abbr> resolver i
 <span class="w">        </span><span class="nt">ips</span><span class="p">:</span>
 <span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">123.123.123.123</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">upstream</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://234.234.234.234/dns-query</span>
+<span class="w">      </span><span class="c1"># read the DHCP-provided resolvers from a file (e.g. OpenWrt)</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">resolvFile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/tmp/resolv.conf.auto</span>
 </code></pre></div>
 </div>
 <h2 id="filtering">Filtering</h2>

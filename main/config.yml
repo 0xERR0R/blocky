@@ -289,12 +289,16 @@ minTlsServeVersion: 1.3
 #keyFile: server.key
 
 # optional: use these DNS servers to resolve denylist urls and upstream DNS servers. It is useful if no system DNS resolver is configured, and/or to encrypt the bootstrap queries.
+# If not set, the operating system resolver (/etc/resolv.conf on Linux) is used.
 bootstrapDns:
   - tcp+udp:1.1.1.1
   - https://1.1.1.1/dns-query
   - upstream: https://dns.digitale-gesellschaft.ch/dns-query
     ips:
       - 185.95.218.42
+  # optional: read nameservers from a resolv.conf file instead of listing them inline.
+  # Useful where DHCP-provided resolvers live outside /etc/resolv.conf (e.g. OpenWrt's /tmp/resolv.conf.auto).
+  # - resolvFile: /tmp/resolv.conf.auto
 
 # optional: drop all queries with following query types. Default: empty
 filtering:
