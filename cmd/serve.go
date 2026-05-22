@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -22,6 +23,9 @@ var (
 	done              = make(chan bool, 1)
 	isConfigMandatory = true
 	signals           = make(chan os.Signal, 1)
+
+	// raiseNetBindService is a seam so tests can stub the capability raise.
+	raiseNetBindService = util.RaiseNetBindService
 )
 
 const shutdownTimeout = 10 * time.Second
@@ -37,6 +41,30 @@ func newServeCommand() *cobra.Command {
 	}
 }
 
+// warnMissingPrivilegedPortCapability raises CAP_NET_BIND_SERVICE if it is
+// available, and warns when a privileged port (< 1024) is configured but the
+// capability could not be obtained. It never fails: any real bind error
+// surfaces later from server.NewServer.
+func warnMissingPrivilegedPortCapability(ports config.Ports) {
+	effective, err := raiseNetBindService()
+	if err != nil {
+		log.Log().Warnf("could not adjust process capabilities: %v", err)
+
+		return
+	}
+
+	if effective {
+		return
+	}
+
+	if privileged := ports.PrivilegedPorts(); len(privileged) > 0 {
+		log.Log().Warnf("configured to listen on privileged port(s) %s but "+
+			"CAP_NET_BIND_SERVICE is not available; grant the capability "+
+			"(Kubernetes securityContext capabilities.add, or docker run "+
+			"--cap-add NET_BIND_SERVICE) or use a port >= 1024", strings.Join(privileged, ", "))
+	}
+}
+
 func startServer(_ *cobra.Command, _ []string) error {
 	printBanner()
 
@@ -46,6 +74,8 @@ func startServer(_ *cobra.Command, _ []string) error {
 	}
 
 	log.Configure(&cfg.Log)
+
+	warnMissingPrivilegedPortCapability(cfg.Ports)
 
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
