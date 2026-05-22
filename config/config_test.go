@@ -1347,6 +1347,42 @@ var _ = Describe("Ports", func() {
 			))
 		})
 	})
+	Describe("validate", func() {
+		It("should accept the default path", func() {
+			cfg := Ports{DOHPath: "/dns-query"}
+			Expect(cfg.validate()).Should(Succeed())
+		})
+
+		It("should accept a custom valid path", func() {
+			cfg := Ports{DOHPath: "/my-custom-path"}
+			Expect(cfg.validate()).Should(Succeed())
+		})
+
+		It("should reject an empty path", func() {
+			cfg := Ports{DOHPath: ""}
+			Expect(cfg.validate()).Should(MatchError(ContainSubstring("dohPath must not be empty")))
+		})
+
+		It("should reject a path without leading slash", func() {
+			cfg := Ports{DOHPath: "dns-query"}
+			Expect(cfg.validate()).Should(MatchError(ContainSubstring("dohPath must start with '/'")))
+		})
+
+		It("should reject a path with spaces", func() {
+			cfg := Ports{DOHPath: "/dns query"}
+			Expect(cfg.validate()).Should(MatchError(ContainSubstring("dohPath must not contain spaces")))
+		})
+
+		It("should reject a path with a query string", func() {
+			cfg := Ports{DOHPath: "/dns-query?foo=bar"}
+			Expect(cfg.validate()).Should(MatchError(ContainSubstring("dohPath must not contain '?'")))
+		})
+
+		It("should reject a path with a fragment", func() {
+			cfg := Ports{DOHPath: "/dns-query#section"}
+			Expect(cfg.validate()).Should(MatchError(ContainSubstring("dohPath must not contain '#'")))
+		})
+	})
 })
 
 var _ = Describe("toEnable", func() {

@@ -348,6 +348,30 @@ func (c *Ports) LogConfig(logger *logrus.Entry) {
 	logger.Infof("HTTPS = %s", c.HTTPS)
 }
 
+func (c *Ports) validate() error {
+	if c.DOHPath == "" {
+		return fmt.Errorf("dohPath must not be empty")
+	}
+
+	if !strings.HasPrefix(c.DOHPath, "/") {
+		return fmt.Errorf("dohPath must start with '/', got %q", c.DOHPath)
+	}
+
+	if strings.ContainsAny(c.DOHPath, " \t") {
+		return fmt.Errorf("dohPath must not contain spaces, got %q", c.DOHPath)
+	}
+
+	if strings.Contains(c.DOHPath, "?") {
+		return fmt.Errorf("dohPath must not contain '?', got %q", c.DOHPath)
+	}
+
+	if strings.Contains(c.DOHPath, "#") {
+		return fmt.Errorf("dohPath must not contain '#', got %q", c.DOHPath)
+	}
+
+	return nil
+}
+
 // privilegedPortCeiling is the first non-privileged TCP/UDP port. Ports below
 // it require CAP_NET_BIND_SERVICE (or root) to bind on Linux.
 const privilegedPortCeiling = 1024
@@ -619,6 +643,10 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 	err = unmarshalConfig(logger, data, &cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config from %s: %w", prettyPath, err)
+	}
+
+	if err := cfg.Ports.validate(); err != nil {
+		logger.Fatal(err)
 	}
 
 	// Normalize rewrite keys to lowercase after unmarshaling
