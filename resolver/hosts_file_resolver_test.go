@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"net"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -332,6 +333,28 @@ var _ = Describe("HostsFileResolver", func() {
 								)),
 							))
 				})
+			})
+		})
+	})
+
+	Describe("LookupReverse", func() {
+		It("returns the hostname and its aliases for a known IPv4 address", func() {
+			Expect(sut.LookupReverse(net.ParseIP("10.0.0.1"))).
+				Should(ConsistOf("router0", "router1", "router2"))
+		})
+
+		It("returns the hostname and its aliases for a known IPv6 address", func() {
+			Expect(sut.LookupReverse(net.ParseIP("faaf:faaf:faaf:faaf::1"))).
+				Should(ConsistOf("ipv6host", "ipv6host.local.lan"))
+		})
+
+		It("returns nil for an unknown IP", func() {
+			Expect(sut.LookupReverse(net.ParseIP("8.8.8.8"))).Should(BeNil())
+		})
+
+		When("filterLoopback is true", func() {
+			It("returns nil for a loopback IP", func() {
+				Expect(sut.LookupReverse(net.ParseIP("127.0.0.1"))).Should(BeNil())
 			})
 		})
 	})

@@ -75,37 +75,56 @@ func (r *HostsFileResolver) handleReverseDNS(request *model.Request) *model.Resp
 		return nil
 	}
 
-	if r.cfg.FilterLoopback && questionIP.IsLoopback() {
+	hostNames := r.lookupHostNames(questionIP)
+	if len(hostNames) == 0 {
+		return nil
+	}
+
+	hdr := util.CreateHeader(question, r.cfg.HostsTTL.SecondsU32())
+	answers := make([]dns.RR, 0, len(hostNames))
+
+	for _, name := range hostNames {
+		ptr := new(dns.PTR)
+		ptr.Ptr = dns.Fqdn(name)
+		ptr.Hdr = hdr
+		answers = append(answers, ptr)
+	}
+
+	return model.NewResponseWithAnswers(request, answers, model.ResponseTypeHOSTSFILE, "HOSTS FILE")
+}
+
+// lookupHostNames returns the host name and its aliases mapped to the given IP by the
+// loaded hosts files, or nil if there is no match. Loopback addresses are skipped when
+// FilterLoopback is enabled. Only in-memory data is consulted (no network I/O).
+func (r *HostsFileResolver) lookupHostNames(ip net.IP) []string {
+	if r.cfg.FilterLoopback && ip.IsLoopback() {
 		// skip the search: we won't find anything
 		return nil
 	}
 
 	// search only in the hosts with an IP version that matches the question
 	hostsData := r.hosts.v4
-	if questionIP.To4() == nil {
+	if ip.To4() == nil {
 		hostsData = r.hosts.v6
 	}
 
 	for host, hostData := range hostsData.hosts {
-		if hostData.IP.Equal(questionIP) {
-			var answers []dns.RR
-			ptr := new(dns.PTR)
-			ptr.Ptr = dns.Fqdn(host)
-			ptr.Hdr = util.CreateHeader(question, r.cfg.HostsTTL.SecondsU32())
-			answers = append(answers, ptr)
+		if hostData.IP.Equal(ip) {
+			names := make([]string, 0, len(hostData.Aliases)+1)
+			names = append(names, host)
+			names = append(names, hostData.Aliases...)
 
-			for _, alias := range hostData.Aliases {
-				ptrAlias := new(dns.PTR)
-				ptrAlias.Ptr = dns.Fqdn(alias)
-				ptrAlias.Hdr = ptr.Hdr
-				answers = append(answers, ptrAlias)
-			}
-
-			return model.NewResponseWithAnswers(request, answers, model.ResponseTypeHOSTSFILE, "HOSTS FILE")
+			return names
 		}
 	}
 
 	return nil
+}
+
+// LookupReverse returns the host names mapped to the given IP by the loaded hosts
+// files, consulting only in-memory data (no network I/O). Returns nil if there is no match.
+func (r *HostsFileResolver) LookupReverse(ip net.IP) []string {
+	return r.lookupHostNames(ip)
 }
 
 func (r *HostsFileResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {

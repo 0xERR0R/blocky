@@ -18,6 +18,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// reverseLookuper resolves host names for an IP from local, in-memory data only
+// (e.g. hosts files or custom DNS). It performs no network I/O.
+type reverseLookuper interface {
+	LookupReverse(ip net.IP) []string
+}
+
 // ClientNamesResolver tries to determine client name by asking responsible DNS server via rDNS (reverse lookup)
 type ClientNamesResolver struct {
 	configurable[*config.ClientLookup]
@@ -26,11 +32,16 @@ type ClientNamesResolver struct {
 
 	cache            cache.ExpiringCache[[]string]
 	externalResolver Resolver
+	reverseLookupers []reverseLookuper
 }
 
-// NewClientNamesResolver creates new resolver instance
+// NewClientNamesResolver creates new resolver instance.
+//
+// localReverseLookupers are consulted, in order, for in-memory reverse (IP -> name)
+// resolution before falling back to the configured rDNS upstream.
 func NewClientNamesResolver(ctx context.Context,
 	cfg config.ClientLookup, upstreamsCfg config.Upstreams, bootstrap *Bootstrap,
+	localReverseLookupers ...reverseLookuper,
 ) (cr *ClientNamesResolver, err error) {
 	var r Resolver
 	if !cfg.Upstream.IsDefault() {
@@ -48,6 +59,7 @@ func NewClientNamesResolver(ctx context.Context,
 			CleanupInterval: time.Hour,
 		}),
 		externalResolver: r,
+		reverseLookupers: localReverseLookupers,
 	}
 
 	return cr, err
@@ -112,13 +124,24 @@ func extractClientNamesFromAnswer(answer []dns.RR, fallbackIP net.IP) (clientNam
 	return clientNames
 }
 
-// tries to resolve client name from mapping, performs reverse DNS lookup otherwise
+// tries to resolve client name from mapping, then from local in-memory sources,
+// and performs a reverse DNS lookup against the configured upstream otherwise
 func (r *ClientNamesResolver) resolveClientNames(ctx context.Context, ip net.IP) (result []string) {
 	ctx, logger := r.log(ctx)
 
 	// try client mapping first
 	result = r.getNameFromIPMapping(ip, result)
 	if len(result) > 0 {
+		return result
+	}
+
+	// try local, in-memory reverse sources (hosts file, custom DNS) before any network lookup
+	if names := r.lookupLocalReverse(ip); len(names) > 0 {
+		result = applySingleNameOrder(names, r.cfg.SingleNameOrder)
+
+		logger.WithField("client_names", strings.Join(result, "; ")).
+			Debug("resolved client name(s) from local reverse lookup")
+
 		return result
 	}
 
@@ -138,23 +161,40 @@ func (r *ClientNamesResolver) resolveClientNames(ctx context.Context, ip net.IP)
 	}
 
 	clientNames := extractClientNamesFromAnswer(resp.Res.Answer, ip)
-
-	// optional: if singleNameOrder is set, use only one name in the defined order
-	if len(r.cfg.SingleNameOrder) > 0 {
-		for _, i := range r.cfg.SingleNameOrder {
-			if i > 0 && int(i) <= len(clientNames) {
-				result = []string{clientNames[i-1]}
-
-				break
-			}
-		}
-	} else {
-		result = clientNames
-	}
+	result = applySingleNameOrder(clientNames, r.cfg.SingleNameOrder)
 
 	logger.WithField("client_names", strings.Join(result, "; ")).Debug("resolved client name(s) from external resolver")
 
 	return result
+}
+
+// lookupLocalReverse returns the first non-empty result from the configured local
+// reverse lookupers (hosts file, custom DNS), or nil if none has a name for the IP.
+func (r *ClientNamesResolver) lookupLocalReverse(ip net.IP) []string {
+	for _, l := range r.reverseLookupers {
+		if names := l.LookupReverse(ip); len(names) > 0 {
+			return names
+		}
+	}
+
+	return nil
+}
+
+// applySingleNameOrder reduces the resolved names to a single one following the
+// configured 1-based order. If order is empty, all names are returned unchanged.
+// If order is set but no configured index is in range, no name is returned.
+func applySingleNameOrder(names []string, order []uint) []string {
+	if len(order) == 0 {
+		return names
+	}
+
+	for _, i := range order {
+		if i > 0 && int(i) <= len(names) {
+			return []string{names[i-1]}
+		}
+	}
+
+	return nil
 }
 
 func (r *ClientNamesResolver) getNameFromIPMapping(ip net.IP, result []string) []string {

@@ -388,10 +388,13 @@ func createQueryResolver(
 ) (resolver.ChainedResolver, error) {
 	upstreamTree, utErr := resolver.NewUpstreamTreeResolver(ctx, cfg.Upstreams, bootstrap)
 	blocking, blErr := resolver.NewBlockingResolver(ctx, cfg.Blocking, bootstrap)
-	clientNames, cnErr := resolver.NewClientNamesResolver(ctx, cfg.ClientLookup, cfg.Upstreams, bootstrap)
 	queryLogging, qlErr := resolver.NewQueryLoggingResolver(ctx, cfg.QueryLog)
 	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(ctx, cfg.Conditional, cfg.Upstreams, bootstrap)
+	customDNS := resolver.NewCustomDNSResolver(cfg.CustomDNS)
 	hostsFile, hfErr := resolver.NewHostsFileResolver(ctx, cfg.HostsFile, bootstrap)
+	// client name resolution consults local reverse sources (custom DNS, hosts file) before the rDNS upstream
+	clientNames, cnErr := resolver.NewClientNamesResolver(
+		ctx, cfg.ClientLookup, cfg.Upstreams, bootstrap, customDNS, hostsFile)
 	decorator := cacheDecorator
 	if !cfg.Caching.IsEnabled() {
 		decorator = nil
@@ -423,7 +426,7 @@ func createQueryResolver(
 		resolver.NewEDEResolver(cfg.EDE),
 		queryLogging,
 		resolver.NewMetricsResolver(cfg.Prometheus),
-		resolver.NewCustomDNSResolver(cfg.CustomDNS),
+		customDNS,
 		hostsFile,
 		blocking,
 		dnssecResolver, // DNSSEC validation BEFORE caching - validates all responses before they are cached
