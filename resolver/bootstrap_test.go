@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"reflect"
 	"sync/atomic"
 
@@ -177,6 +178,49 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 					for _, ips := range sut.bootstraped {
 						Expect(ips).Should(ContainElements(net.IPv4zero, net.IPv4allrouter))
 					}
+				})
+			})
+		})
+
+		Context("using a resolvFile", func() {
+			When("the file lists nameservers", func() {
+				var resolvFile *os.File
+
+				BeforeEach(func() {
+					resolvFile = TempFile("nameserver 9.9.9.9\nnameserver 1.0.0.1\n")
+					DeferCleanup(func() { _ = os.Remove(resolvFile.Name()) })
+
+					sutConfig = config.Config{
+						BootstrapDNS: []config.BootstrappedUpstream{
+							{ResolvFile: resolvFile.Name()},
+						},
+					}
+				})
+
+				It("uses the file's nameservers as bootstrap upstreams", func() {
+					Expect(sut).ShouldNot(BeNil())
+					Expect(sut.bootstraped).Should(HaveLen(2))
+
+					var ips []net.IP
+					for _, serverIPs := range sut.bootstraped {
+						ips = append(ips, serverIPs...)
+					}
+
+					Expect(ips).Should(ConsistOf(net.ParseIP("9.9.9.9"), net.ParseIP("1.0.0.1")))
+				})
+			})
+
+			When("the file does not exist", func() {
+				It("errors", func() {
+					cfg := config.Config{
+						BootstrapDNS: []config.BootstrappedUpstream{
+							{ResolvFile: "/does/not/exist/resolv.conf"},
+						},
+					}
+
+					_, err := NewBootstrap(ctx, &cfg)
+					Expect(err).Should(HaveOccurred())
+					Expect(err.Error()).Should(ContainSubstring("resolvFile"))
 				})
 			})
 		})

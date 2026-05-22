@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -305,6 +306,14 @@ func newBootstrapedResolvers(
 	for i, upstreamCfg := range cfg {
 		i := i + 1 // user visible index should start at 1
 
+		if upstreamCfg.ResolvFile != "" {
+			if err := b.addResolvFileUpstreams(upstreamIPs, upstreamCfg.ResolvFile, upstreamsCfg); err != nil {
+				multiErr = multierror.Append(multiErr, fmt.Errorf("item %d: %w", i, err))
+			}
+
+			continue
+		}
+
 		upstream := upstreamCfg.Upstream
 
 		if upstream.IsDefault() {
@@ -347,6 +356,47 @@ func newBootstrapedResolvers(
 	}
 
 	return upstreamIPs, nil
+}
+
+// defaultDNSPort is used for resolvFile nameservers when the file omits a port.
+const defaultDNSPort uint16 = 53
+
+// addResolvFileUpstreams reads nameservers from a resolv.conf(5) file and adds
+// one plain-DNS bootstrap upstream per nameserver to upstreamIPs. This lets
+// systems whose DHCP-provided resolvers live outside /etc/resolv.conf (e.g.
+// OpenWrt's /tmp/resolv.conf.auto) point blocky at the right file.
+func (b *Bootstrap) addResolvFileUpstreams(
+	upstreamIPs bootstrapedResolvers, path string, upstreamsCfg config.Upstreams,
+) error {
+	cc, err := dns.ClientConfigFromFile(path)
+	if err != nil {
+		return fmt.Errorf("resolvFile '%s': %w", path, err)
+	}
+
+	port := defaultDNSPort
+	if p, err := strconv.ParseUint(cc.Port, 10, 16); err == nil {
+		port = uint16(p)
+	}
+
+	var added int
+
+	for _, server := range cc.Servers {
+		ip := net.ParseIP(server)
+		if ip == nil {
+			continue
+		}
+
+		upstream := config.Upstream{Net: config.NetProtocolTcpUdp, Host: server, Port: port}
+		resolver := newUpstreamResolverUnchecked(newUpstreamConfig(upstream, upstreamsCfg), b)
+		upstreamIPs[resolver] = []net.IP{ip}
+		added++
+	}
+
+	if added == 0 {
+		return fmt.Errorf("resolvFile '%s': no usable nameservers", path)
+	}
+
+	return nil
 }
 
 func (br bootstrapedResolvers) Resolvers() []Resolver {

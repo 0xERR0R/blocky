@@ -66,11 +66,12 @@ func enumStringSchema(names []string) *jsonschema.Schema {
 }
 
 // bootstrappedUpstreamSchema accepts either a plain upstream string or the
-// {upstream, ips} object form (see BootstrappedUpstream.UnmarshalYAML).
+// {upstream, ips} / {resolvFile} object forms (see BootstrappedUpstream.UnmarshalYAML).
 func bootstrappedUpstreamSchema() *jsonschema.Schema {
 	props := jsonschema.NewProperties()
 	props.Set("upstream", plain("string"))
 	props.Set("ips", arrayOf(plain("string")))
+	props.Set("resolvFile", plain("string"))
 
 	obj := &jsonschema.Schema{
 		Type:                 "object",

@@ -1041,6 +1041,9 @@
                     "type": "string"
                   },
                   "type": "array"
+                },
+                "resolvFile": {
+                  "type": "string"
                 }
               },
               "additionalProperties": false,
@@ -1064,6 +1067,9 @@
                       "type": "string"
                     },
                     "type": "array"
+                  },
+                  "resolvFile": {
+                    "type": "string"
                   }
                 },
                 "additionalProperties": false,
