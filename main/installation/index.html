@@ -1080,10 +1080,33 @@
 run <code>./blocky --config config.yml</code>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>Please be aware, if you want to use port 53 or 953 on Linux you should add <code>CAP_NET_BIND_SERVICE</code> capability
-to the binary with <code>setcap 'cap_net_bind_service=+ep' ./blocky</code>, or run as root (not recommended).</p>
+<p>To bind a <strong>privileged port (&lt; 1024, e.g. 53 or 853)</strong> as a non-root user on
+Linux, the binary needs the <code>NET_BIND_SERVICE</code> capability. Add it with
+<code>setcap 'cap_net_bind_service=+ep' ./blocky</code>, run as root (not recommended),
+or configure a port &gt;= 1024.</p>
+<p>If Blocky runs under a <strong>restricted capability bounding set</strong> (for example a
+hardened <code>systemd</code> unit, or a container that drops capabilities), use
+<code>setcap 'cap_net_bind_service=+p' ./blocky</code> instead. Blocky raises the
+capability to effective itself at startup, which avoids the
+<code>operation not permitted</code> exec error that <code>+ep</code> triggers when the capability
+is not in the bounding set.</p>
 </div>
 <h2 id="run-with-docker">Run with docker</h2>
+<div class="admonition note">
+<p class="admonition-title">Running under a restricted runtime</p>
+<p>The container image is capability-aware. The binary ships with
+<code>cap_net_bind_service=+p</code> (permitted only), so the container starts even under
+a restricted runtime that drops all capabilities (for example the Kubernetes
+<em>Restricted</em> Pod Security Standard, <code>capabilities: drop: [ALL]</code>).</p>
+<ul>
+<li>On <strong>ports &gt;= 1024</strong> no capability is required.</li>
+<li>On <strong>privileged ports (&lt; 1024, e.g. 53/853)</strong> Blocky needs <code>NET_BIND_SERVICE</code>.
+  With the default runtime capability set it is already present and Blocky
+  enables it automatically. Under <code>drop: [ALL]</code>, grant it back (Kubernetes
+  <code>securityContext.capabilities.add: ["NET_BIND_SERVICE"]</code>, or
+  <code>docker run --cap-add NET_BIND_SERVICE</code>) or configure a port &gt;= 1024.</li>
+</ul>
+</div>
 <h3 id="alternative-registry">Alternative registry</h3>
 <p>Blocky docker images are deployed to DockerHub (<code>spx01/blocky</code>) and GitHub Container Registry (<code>ghcr.io/0xerr0r/blocky</code>).</p>
 <h3 id="parameters">Parameters</h3>
