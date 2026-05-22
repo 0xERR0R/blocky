@@ -92,8 +92,8 @@ func (x *FormatType) AppendText(b []byte) ([]byte, error) {
 	return append(b, x.String()...), nil
 }
 
-// FormatTypeDescriptions returns each enum value's description, taken from
-// the `// comment` in the ENUM(...) declaration. Generated; do not edit.
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
 func (FormatType) EnumDescriptions() map[string]string {
 	return map[string]string{
 		"text": "Human-readable text.",
@@ -101,8 +101,8 @@ func (FormatType) EnumDescriptions() map[string]string {
 	}
 }
 
-// FormatTypeEnumValues returns the enum's accepted string values, used to
-// build the JSON schema enum constraint. Generated; do not edit.
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
 func (FormatType) EnumValues() []string {
 	return FormatTypeNames()
 }

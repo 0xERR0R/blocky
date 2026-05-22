@@ -107,8 +107,8 @@ func (x *IPVersion) AppendText(b []byte) ([]byte, error) {
 	return append(b, x.String()...), nil
 }
 
-// IPVersionDescriptions returns each enum value's description, taken from
-// the `// comment` in the ENUM(...) declaration. Generated; do not edit.
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
 func (IPVersion) EnumDescriptions() map[string]string {
 	return map[string]string{
 		"dual": "Use both IPv4 and IPv6.",
@@ -117,8 +117,8 @@ func (IPVersion) EnumDescriptions() map[string]string {
 	}
 }
 
-// IPVersionEnumValues returns the enum's accepted string values, used to
-// build the JSON schema enum constraint. Generated; do not edit.
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
 func (IPVersion) EnumValues() []string {
 	return IPVersionNames()
 }
@@ -220,8 +220,8 @@ func (x *InitStrategy) AppendText(b []byte) ([]byte, error) {
 	return append(b, x.String()...), nil
 }
 
-// InitStrategyDescriptions returns each enum value's description, taken from
-// the `// comment` in the ENUM(...) declaration. Generated; do not edit.
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
 func (InitStrategy) EnumDescriptions() map[string]string {
 	return map[string]string{
 		"blocking":    "Initialization runs before DNS resolution starts; errors are logged but Blocky keeps running if possible.",
@@ -230,8 +230,8 @@ func (InitStrategy) EnumDescriptions() map[string]string {
 	}
 }
 
-// InitStrategyEnumValues returns the enum's accepted string values, used to
-// build the JSON schema enum constraint. Generated; do not edit.
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
 func (InitStrategy) EnumValues() []string {
 	return InitStrategyNames()
 }
@@ -340,8 +340,8 @@ func (x *NetProtocol) AppendText(b []byte) ([]byte, error) {
 	return append(b, x.String()...), nil
 }
 
-// NetProtocolDescriptions returns each enum value's description, taken from
-// the `// comment` in the ENUM(...) declaration. Generated; do not edit.
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
 func (NetProtocol) EnumDescriptions() map[string]string {
 	return map[string]string{
 		"tcp+udp": "TCP and UDP protocols",
@@ -351,8 +351,8 @@ func (NetProtocol) EnumDescriptions() map[string]string {
 	}
 }
 
-// NetProtocolEnumValues returns the enum's accepted string values, used to
-// build the JSON schema enum constraint. Generated; do not edit.
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
 func (NetProtocol) EnumValues() []string {
 	return NetProtocolNames()
 }
@@ -454,14 +454,14 @@ func (x *QueryLogField) AppendText(b []byte) ([]byte, error) {
 	return append(b, x.String()...), nil
 }
 
-// QueryLogFieldDescriptions returns each enum value's description, taken from
-// the `// comment` in the ENUM(...) declaration. Generated; do not edit.
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
 func (QueryLogField) EnumDescriptions() map[string]string {
 	return map[string]string{}
 }
 
-// QueryLogFieldEnumValues returns the enum's accepted string values, used to
-// build the JSON schema enum constraint. Generated; do not edit.
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
 func (QueryLogField) EnumValues() []string {
 	return QueryLogFieldNames()
 }
@@ -591,8 +591,8 @@ func (x *QueryLogType) AppendText(b []byte) ([]byte, error) {
 	return append(b, x.String()...), nil
 }
 
-// QueryLogTypeDescriptions returns each enum value's description, taken from
-// the `// comment` in the ENUM(...) declaration. Generated; do not edit.
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
 func (QueryLogType) EnumDescriptions() map[string]string {
 	return map[string]string{
 		"console":    "Log to console output (used when no type is set).",
@@ -605,8 +605,8 @@ func (QueryLogType) EnumDescriptions() map[string]string {
 	}
 }
 
-// QueryLogTypeEnumValues returns the enum's accepted string values, used to
-// build the JSON schema enum constraint. Generated; do not edit.
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
 func (QueryLogType) EnumValues() []string {
 	return QueryLogTypeNames()
 }
@@ -711,14 +711,14 @@ func (x *TLSVersion) AppendText(b []byte) ([]byte, error) {
 	return append(b, x.String()...), nil
 }
 
-// TLSVersionDescriptions returns each enum value's description, taken from
-// the `// comment` in the ENUM(...) declaration. Generated; do not edit.
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
 func (TLSVersion) EnumDescriptions() map[string]string {
 	return map[string]string{}
 }
 
-// TLSVersionEnumValues returns the enum's accepted string values, used to
-// build the JSON schema enum constraint. Generated; do not edit.
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
 func (TLSVersion) EnumValues() []string {
 	return TLSVersionNames()
 }
@@ -820,8 +820,8 @@ func (x *UpstreamStrategy) AppendText(b []byte) ([]byte, error) {
 	return append(b, x.String()...), nil
 }
 
-// UpstreamStrategyDescriptions returns each enum value's description, taken from
-// the `// comment` in the ENUM(...) declaration. Generated; do not edit.
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
 func (UpstreamStrategy) EnumDescriptions() map[string]string {
 	return map[string]string{
 		"parallel_best": "Picks 2 random weighted resolvers per query and returns the fastest answer (default).",
@@ -830,8 +830,8 @@ func (UpstreamStrategy) EnumDescriptions() map[string]string {
 	}
 }
 
-// UpstreamStrategyEnumValues returns the enum's accepted string values, used to
-// build the JSON schema enum constraint. Generated; do not edit.
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
 func (UpstreamStrategy) EnumValues() []string {
 	return UpstreamStrategyNames()
 }

@@ -1,6 +1,6 @@
 
-// {{.enum.Name}}Descriptions returns each enum value's description, taken from
-// the `// comment` in the ENUM(...) declaration. Generated; do not edit.
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
 func ({{.enum.Name}}) EnumDescriptions() map[string]string {
 	return map[string]string{
 {{- range $value := .enum.Values }}
@@ -11,8 +11,8 @@ func ({{.enum.Name}}) EnumDescriptions() map[string]string {
 	}
 }
 
-// {{.enum.Name}}EnumValues returns the enum's accepted string values, used to
-// build the JSON schema enum constraint. Generated; do not edit.
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
 func ({{.enum.Name}}) EnumValues() []string {
 	return {{.enum.Name}}Names()
 }
