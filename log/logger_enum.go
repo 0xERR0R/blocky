@@ -100,3 +100,9 @@ func (FormatType) EnumDescriptions() map[string]string {
 		"json": "Structured JSON.",
 	}
 }
+
+// FormatTypeEnumValues returns the enum's accepted string values, used to
+// build the JSON schema enum constraint. Generated; do not edit.
+func (FormatType) EnumValues() []string {
+	return FormatTypeNames()
+}

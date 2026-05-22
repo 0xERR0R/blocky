@@ -117,6 +117,12 @@ func (IPVersion) EnumDescriptions() map[string]string {
 	}
 }
 
+// IPVersionEnumValues returns the enum's accepted string values, used to
+// build the JSON schema enum constraint. Generated; do not edit.
+func (IPVersion) EnumValues() []string {
+	return IPVersionNames()
+}
+
 const (
 	// InitStrategyBlocking is a InitStrategy of type Blocking.
 	// Initialization runs before DNS resolution starts; errors are logged but Blocky keeps running if possible.
@@ -222,6 +228,12 @@ func (InitStrategy) EnumDescriptions() map[string]string {
 		"failOnError": "Like blocking but Blocky exits with an error if initialization fails.",
 		"fast":        "Blocky serves DNS immediately and runs initialization in the background.",
 	}
+}
+
+// InitStrategyEnumValues returns the enum's accepted string values, used to
+// build the JSON schema enum constraint. Generated; do not edit.
+func (InitStrategy) EnumValues() []string {
+	return InitStrategyNames()
 }
 
 const (
@@ -339,6 +351,12 @@ func (NetProtocol) EnumDescriptions() map[string]string {
 	}
 }
 
+// NetProtocolEnumValues returns the enum's accepted string values, used to
+// build the JSON schema enum constraint. Generated; do not edit.
+func (NetProtocol) EnumValues() []string {
+	return NetProtocolNames()
+}
+
 const (
 	// QueryLogFieldClientIP is a QueryLogField of type clientIP.
 	QueryLogFieldClientIP QueryLogField = "clientIP"
@@ -440,6 +458,12 @@ func (x *QueryLogField) AppendText(b []byte) ([]byte, error) {
 // the `// comment` in the ENUM(...) declaration. Generated; do not edit.
 func (QueryLogField) EnumDescriptions() map[string]string {
 	return map[string]string{}
+}
+
+// QueryLogFieldEnumValues returns the enum's accepted string values, used to
+// build the JSON schema enum constraint. Generated; do not edit.
+func (QueryLogField) EnumValues() []string {
+	return QueryLogFieldNames()
 }
 
 const (
@@ -581,6 +605,12 @@ func (QueryLogType) EnumDescriptions() map[string]string {
 	}
 }
 
+// QueryLogTypeEnumValues returns the enum's accepted string values, used to
+// build the JSON schema enum constraint. Generated; do not edit.
+func (QueryLogType) EnumValues() []string {
+	return QueryLogTypeNames()
+}
+
 const (
 	// TLSVersion10 is a TLSVersion of type 1.0.
 	TLSVersion10 TLSVersion = iota + 769
@@ -685,6 +715,12 @@ func (x *TLSVersion) AppendText(b []byte) ([]byte, error) {
 // the `// comment` in the ENUM(...) declaration. Generated; do not edit.
 func (TLSVersion) EnumDescriptions() map[string]string {
 	return map[string]string{}
+}
+
+// TLSVersionEnumValues returns the enum's accepted string values, used to
+// build the JSON schema enum constraint. Generated; do not edit.
+func (TLSVersion) EnumValues() []string {
+	return TLSVersionNames()
 }
 
 const (
@@ -792,4 +828,10 @@ func (UpstreamStrategy) EnumDescriptions() map[string]string {
 		"strict":        "Queries upstreams in strict order; the next is tried only if the previous fails.",
 		"random":        "Picks one random weighted resolver per query; another is tried on failure.",
 	}
+}
+
+// UpstreamStrategyEnumValues returns the enum's accepted string values, used to
+// build the JSON schema enum constraint. Generated; do not edit.
+func (UpstreamStrategy) EnumValues() []string {
+	return UpstreamStrategyNames()
 }

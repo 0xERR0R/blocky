@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/log"
 	"github.com/invopop/jsonschema"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
@@ -88,9 +87,12 @@ func bootstrappedUpstreamSchema() *jsonschema.Schema {
 // new config type that does NOT serialize as a plain JSON object, register it
 // here, otherwise the generated schema becomes stricter than blocky (a
 // false-positive):
-//   - go-enum / string-enum type      -> enumNames    (adds the enum dropdown)
 //   - custom UnmarshalText-from-string -> stringForms  (plain string)
 //   - string-or-array / map / object   -> complexForms (the flexible shapes)
+//
+// go-enum string types need no registration: the generated EnumValues() method
+// (see templates/enum_description.tmpl) is detected via the enumValuer
+// interface in makeMapper, so the enum constraint is built automatically.
 //
 // A miss is not fatal: a divergence on an accepted config is logged as a
 // warning, never a failed start. The safety net is the corpus test in
@@ -104,21 +106,13 @@ type stringSpec struct {
 	examples    []string
 }
 
-// enumNames maps go-enum string types to their generated Names() lists. These
-// are exact: the same source the Go parser uses, so enum constraints can never
-// be a false-positive. (TLSVersion is handled separately: it may also appear as
-// an unquoted YAML number.)
-func enumNames() map[reflect.Type][]string {
-	return map[reflect.Type][]string{
-		reflect.TypeOf(config.NetProtocol(0)):      config.NetProtocolNames(),
-		reflect.TypeOf(config.IPVersion(0)):        config.IPVersionNames(),
-		reflect.TypeOf(config.QueryLogType(0)):     config.QueryLogTypeNames(),
-		reflect.TypeOf(config.UpstreamStrategy(0)): config.UpstreamStrategyNames(),
-		reflect.TypeOf(config.BytesSourceType(0)):  config.BytesSourceTypeNames(),
-		reflect.TypeOf(config.InitStrategy(0)):     config.InitStrategyNames(),
-		reflect.TypeOf(config.QueryLogField("")):   config.QueryLogFieldNames(),
-		reflect.TypeOf(log.FormatType(0)):          log.FormatTypeNames(),
-	}
+// enumValuer is implemented by every go-enum string type through the generated
+// EnumValues() method (see templates/enum_description.tmpl). Its values come
+// from the same Names() the Go parser uses, so the enum constraint can never be
+// a false-positive. (TLSVersion also implements it but is handled by
+// complexForms first, since it may appear as an unquoted YAML number.)
+type enumValuer interface {
+	EnumValues() []string
 }
 
 // stringForms maps types that unmarshal from a *string* to a loose string
@@ -208,7 +202,6 @@ func complexForms() map[reflect.Type]func() *jsonschema.Schema {
 // each use site (DoNotReference), so a shared pointer would let one field's
 // mutation (e.g. flattenDeprecated, applyDefaults) leak into all others.
 func makeMapper() func(reflect.Type) *jsonschema.Schema {
-	enums := enumNames()
 	strs := stringForms()
 	complexes := complexForms()
 
@@ -221,8 +214,9 @@ func makeMapper() func(reflect.Type) *jsonschema.Schema {
 			return ctor()
 		}
 
-		if names, ok := enums[t]; ok {
-			return enumStringSchema(names)
+		// go-enum string types are detected generically via EnumValues().
+		if ev, ok := reflect.New(t).Elem().Interface().(enumValuer); ok {
+			return enumStringSchema(ev.EnumValues())
 		}
 
 		if spec, ok := strs[t]; ok {
