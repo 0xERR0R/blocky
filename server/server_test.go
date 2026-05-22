@@ -401,6 +401,7 @@ var _ = Describe("Running DNS server", func() {
 			It("should return the config JSON schema file", func() {
 				resp, err := http.Get(baseURL + "docs/config.schema.json")
 				Expect(err).Should(Succeed())
+				DeferCleanup(resp.Body.Close)
 				Expect(resp).Should(
 					SatisfyAll(
 						HaveHTTPStatus(http.StatusOK),
