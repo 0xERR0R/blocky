@@ -132,10 +132,7 @@ func (t *MockDoQUpstreamServer) Start() config.Upstream {
 
 	go t.serve()
 
-	addr, ok := udpConn.LocalAddr().(*net.UDPAddr)
-	if !ok {
-		panic("unexpected address type")
-	}
+	addr := udpConn.LocalAddr().(*net.UDPAddr) //nolint:forcetypeassert // LocalAddr on a UDP conn is always *net.UDPAddr
 	port, err := config.ConvertPort(strconv.Itoa(addr.Port))
 	util.FatalOnError("can't convert port", err)
 

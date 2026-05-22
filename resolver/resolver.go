@@ -122,12 +122,8 @@ func Chain(resolvers ...Resolver) ChainedResolver {
 		}
 	}
 
-	cr, ok := resolvers[0].(ChainedResolver)
-	if !ok {
-		panic("first resolver must implement ChainedResolver")
-	}
-
-	return cr
+	//nolint:forcetypeassert // all resolvers in a chain implement ChainedResolver by construction
+	return resolvers[0].(ChainedResolver)
 }
 
 func GetFromChainWithType[T any](resolver ChainedResolver) (result T, err error) {

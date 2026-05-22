@@ -443,10 +443,8 @@ func createQueryResolver(
 
 func (s *Server) registerDNSHandlers(ctx context.Context) {
 	for _, server := range s.dnsServers {
-		handler, ok := server.Handler.(*dns.ServeMux)
-		if !ok {
-			panic("DNS server handler must be a *dns.ServeMux")
-		}
+		//nolint:forcetypeassert // handler is always *dns.ServeMux; set during server construction
+		handler := server.Handler.(*dns.ServeMux)
 		handler.HandleFunc(".", func(w dns.ResponseWriter, m *dns.Msg) {
 			s.OnRequest(ctx, w, m)
 		})
