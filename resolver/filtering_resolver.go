@@ -43,15 +43,16 @@ func (r *FilteringResolver) Resolve(ctx context.Context, request *model.Request)
 	return resp, nil
 }
 
-// removeIPv6Hints strips the ipv6hint SvcParam from any HTTPS/SVCB record in the response.
-// The records are owned by the current request (freshly produced upstream or unpacked from
-// cache), so they are modified in place.
+// removeIPv6Hints strips the ipv6hint SvcParam from any HTTPS/SVCB record in the answer
+// section. The records are owned by the current request (freshly produced upstream or
+// unpacked from cache), so they are modified in place. Records without an ipv6hint are
+// left as-is (no slice churn).
 //
 // Modifying a signed RRset invalidates its DNSSEC signatures, so when a hint is actually
-// removed the AD bit is cleared and the now-invalid RRSIGs covering the modified RRsets are
-// dropped, to avoid serving DNSSEC-inconsistent data (mirrors the DNS64 resolver behavior).
+// removed the AD bit is cleared and the now-invalid RRSIGs covering the modified record
+// types are dropped, to avoid serving DNSSEC-inconsistent data (mirrors the DNS64 resolver).
 func removeIPv6Hints(msg *dns.Msg) {
-	modified := false
+	modifiedTypes := map[uint16]struct{}{}
 
 	for _, rr := range msg.Answer {
 		var values *[]dns.SVCBKeyValue
@@ -65,37 +66,51 @@ func removeIPv6Hints(msg *dns.Msg) {
 			continue
 		}
 
-		filtered := make([]dns.SVCBKeyValue, 0, len(*values))
+		if !containsIPv6Hint(*values) {
+			continue
+		}
+
+		filtered := make([]dns.SVCBKeyValue, 0, len(*values)-1)
 
 		for _, kv := range *values {
-			if kv.Key() == dns.SVCB_IPV6HINT {
-				modified = true
-
-				continue
+			if kv.Key() != dns.SVCB_IPV6HINT {
+				filtered = append(filtered, kv)
 			}
-
-			filtered = append(filtered, kv)
 		}
 
 		*values = filtered
+		modifiedTypes[rr.Header().Rrtype] = struct{}{}
 	}
 
-	if !modified {
+	if len(modifiedTypes) == 0 {
 		return
 	}
 
 	msg.AuthenticatedData = false
-	msg.Answer = removeSVCBSignatures(msg.Answer)
+	msg.Answer = removeSignaturesCovering(msg.Answer, modifiedTypes)
 }
 
-// removeSVCBSignatures returns the answers with any RRSIG covering HTTPS or SVCB records removed.
-func removeSVCBSignatures(answers []dns.RR) []dns.RR {
+// containsIPv6Hint reports whether the given SvcParam list carries an ipv6hint.
+func containsIPv6Hint(values []dns.SVCBKeyValue) bool {
+	for _, kv := range values {
+		if kv.Key() == dns.SVCB_IPV6HINT {
+			return true
+		}
+	}
+
+	return false
+}
+
+// removeSignaturesCovering returns the answers with any RRSIG covering one of the given
+// record types removed.
+func removeSignaturesCovering(answers []dns.RR, types map[uint16]struct{}) []dns.RR {
 	filtered := make([]dns.RR, 0, len(answers))
 
 	for _, rr := range answers {
-		if sig, ok := rr.(*dns.RRSIG); ok &&
-			(sig.TypeCovered == dns.TypeHTTPS || sig.TypeCovered == dns.TypeSVCB) {
-			continue
+		if sig, ok := rr.(*dns.RRSIG); ok {
+			if _, found := types[sig.TypeCovered]; found {
+				continue
+			}
 		}
 
 		filtered = append(filtered, rr)
