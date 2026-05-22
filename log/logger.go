@@ -1,6 +1,6 @@
 package log
 
-//go:generate go tool go-enum -f=$GOFILE --marshal --names
+//go:generate go tool go-enum -f=$GOFILE --marshal --names --template ../tools/schemagen/templates/enum_description.tmpl
 
 import (
 	"fmt"
@@ -28,8 +28,8 @@ var (
 )
 
 // FormatType format for logging ENUM(
-// text // logging as text
-// json // JSON format
+// text // Human-readable text.
+// json // Structured JSON.
 // )
 type FormatType int
 

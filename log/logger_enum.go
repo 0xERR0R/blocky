@@ -12,10 +12,10 @@ import (
 
 const (
 	// FormatTypeText is a FormatType of type Text.
-	// logging as text
+	// Human-readable text.
 	FormatTypeText FormatType = iota
 	// FormatTypeJson is a FormatType of type Json.
-	// JSON format
+	// Structured JSON.
 	FormatTypeJson
 )
 
@@ -90,4 +90,19 @@ func (x *FormatType) UnmarshalText(text []byte) error {
 // Implementations must not retain b, nor mutate any bytes within b[:len(b)].
 func (x *FormatType) AppendText(b []byte) ([]byte, error) {
 	return append(b, x.String()...), nil
+}
+
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
+func (FormatType) EnumDescriptions() map[string]string {
+	return map[string]string{
+		"text": "Human-readable text.",
+		"json": "Structured JSON.",
+	}
+}
+
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
+func (FormatType) EnumValues() []string {
+	return FormatTypeNames()
 }

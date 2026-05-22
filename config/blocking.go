@@ -13,14 +13,22 @@ import (
 
 // Blocking configuration for query blocking
 type Blocking struct {
-	Denylists         map[string][]BytesSource `yaml:"denylists"`
-	Allowlists        map[string][]BytesSource `yaml:"allowlists"`
-	Schedules         map[string]Schedule      `yaml:"schedules"`
-	ListSchedules     map[string][]string      `yaml:"listSchedules"`
-	ClientGroupsBlock map[string][]string      `yaml:"clientGroupsBlock"`
-	BlockType         string                   `default:"ZEROIP"         yaml:"blockType"`
-	BlockTTL          Duration                 `default:"6h"             yaml:"blockTTL"`
-	Loading           SourceLoading            `yaml:"loading"`
+	// Named groups of block-list sources (URLs, file paths, or inline content).
+	Denylists map[string][]BytesSource `yaml:"denylists"`
+	// Named groups of allow-list sources; entries here take precedence over denylists in the same group.
+	Allowlists map[string][]BytesSource `yaml:"allowlists"`
+	// Named time-based schedules that can gate when list groups are active.
+	Schedules map[string]Schedule `yaml:"schedules"`
+	// Maps each list group name to the schedule(s) that control when it is active.
+	ListSchedules map[string][]string `yaml:"listSchedules"`
+	// Maps client identifiers (name, IP, CIDR) to the list groups that apply to them.
+	ClientGroupsBlock map[string][]string `yaml:"clientGroupsBlock"`
+	// Response for blocked A/AAAA queries: zeroIP (0.0.0.0/::), nxDomain, or custom IPs; other types get NXDOMAIN.
+	BlockType string `default:"ZEROIP" yaml:"blockType"`
+	// TTL of blocked responses; how long clients cache the block before querying the domain again.
+	BlockTTL Duration `default:"6h" yaml:"blockTTL"`
+	// Controls how block/allow lists are loaded and periodically refreshed.
+	Loading SourceLoading `yaml:"loading"`
 
 	// Deprecated options
 	Deprecated struct {

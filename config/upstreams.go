@@ -9,18 +9,26 @@ const UpstreamDefaultCfgName = "default"
 
 // QUICConfig holds QUIC-specific upstream settings.
 type QUICConfig struct {
-	MaxIdleTimeout  Duration `default:"30s" yaml:"maxIdleTimeout"`
+	// Maximum idle duration before the QUIC connection is closed.
+	MaxIdleTimeout Duration `default:"30s" yaml:"maxIdleTimeout"`
+	// Interval at which keep-alive packets are sent to maintain the QUIC connection.
 	KeepAlivePeriod Duration `default:"15s" yaml:"keepAlivePeriod"`
 }
 
 // Upstreams upstream servers configuration
 type Upstreams struct {
-	Init      Init             `yaml:"init"`
-	Timeout   Duration         `default:"2s"            yaml:"timeout"` // always > 0
-	Groups    UpstreamGroups   `yaml:"groups"`
-	Strategy  UpstreamStrategy `default:"parallel_best" yaml:"strategy"`
-	UserAgent string           `yaml:"userAgent"`
-	QUIC      QUICConfig       `yaml:"quic"`
+	// Initialization strategy controlling when upstream resolvers are tested on startup.
+	Init Init `yaml:"init"`
+	// Timeout for upstream DNS connections; a value <= 0 is reset to the default.
+	Timeout Duration `default:"2s" yaml:"timeout"`
+	// Named groups of upstream DNS resolvers; the "default" group is required.
+	Groups UpstreamGroups `yaml:"groups"`
+	// Strategy for selecting which upstream(s) to use per query (parallel_best, random, strict).
+	Strategy UpstreamStrategy `default:"parallel_best" yaml:"strategy"`
+	// HTTP User-Agent header sent when connecting to DoH upstream servers.
+	UserAgent string `yaml:"userAgent"`
+	// QUIC-specific connection settings used when DoQ upstreams are configured.
+	QUIC QUICConfig `yaml:"quic"`
 }
 
 type UpstreamGroups map[string][]Upstream

@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        make: [build, test, race, docker-build, e2e-test, goreleaser, lint]
+        make: [build, test, race, docker-build, e2e-test, goreleaser, lint, generate-check]
 
     steps:
       - name: Check out code into the Go module directory
@@ -44,9 +44,15 @@ jobs:
 
       - name: make ${{ matrix.make }}
         run: make ${{ matrix.make }}
-        if: matrix.make != 'goreleaser'
+        if: matrix.make != 'goreleaser' && matrix.make != 'generate-check'
         env:
           GO_SKIP_GENERATE: 1
+
+      # Runs without GO_SKIP_GENERATE so generation actually happens and the
+      # committed generated files (mocks, enums, config schema) are diffed.
+      - name: make generate-check
+        run: make generate-check
+        if: matrix.make == 'generate-check'
 
       - name: Upload results to codecov
         uses: codecov/codecov-action@v6

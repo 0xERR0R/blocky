@@ -1,4 +1,5 @@
-//go:generate go tool go-enum -f=$GOFILE --marshal --names --values
+//go:generate go tool go-enum -f=$GOFILE --marshal --names --values --template ../tools/schemagen/templates/enum_description.tmpl
+//go:generate go run ../tools/schemagen
 package config
 
 import (
@@ -17,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	. "github.com/0xERR0R/blocky/config/migration"
+	"github.com/0xERR0R/blocky/config/schema"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/creasty/defaults"
@@ -51,9 +53,9 @@ type Configurable interface {
 type NetProtocol uint16
 
 // IPVersion represents IP protocol version(s). ENUM(
-// dual // IPv4 and IPv6
-// v4   // IPv4 only
-// v6   // IPv6 only
+// dual // Use both IPv4 and IPv6.
+// v4 // Use IPv4 only.
+// v6 // Use IPv6 only.
 // )
 type IPVersion uint8
 
@@ -94,20 +96,20 @@ func (v *TLSVersion) validate(logger *logrus.Entry) {
 }
 
 // QueryLogType type of the query log ENUM(
-// console // use logger as fallback
-// none // no logging
-// mysql // MySQL or MariaDB database
-// postgresql // PostgreSQL database
-// csv // CSV file per day
-// csv-client // CSV file per day and client
-// timescale // Timescale database
+// console // Log to console output (used when no type is set).
+// none // Do not log any queries.
+// mysql // Log each query to an external MySQL or MariaDB database.
+// postgresql // Log each query to an external PostgreSQL database.
+// csv // Log to a CSV file (one per day).
+// csv-client // Log to a CSV file (one per day and per client).
+// timescale // Log each query to an external Timescale database.
 // )
 type QueryLogType int16
 
 // InitStrategy startup strategy ENUM(
-// blocking // synchronously download blocking lists on startup
-// failOnError // synchronously download blocking lists on startup and shutdown on error
-// fast // asyncronously download blocking lists on startup
+// blocking // Initialization runs before DNS resolution starts; errors are logged but Blocky keeps running if possible.
+// failOnError // Like blocking but Blocky exits with an error if initialization fails.
+// fast // Blocky serves DNS immediately and runs initialization in the background.
 // )
 type InitStrategy uint16
 
@@ -143,8 +145,11 @@ func (s InitStrategy) Do(ctx context.Context, init func(context.Context) error, 
 // ENUM(clientIP,clientName,responseReason,responseAnswer,question,duration)
 type QueryLogField string
 
-// UpstreamStrategy data field to be logged
-// ENUM(parallel_best,strict,random)
+// UpstreamStrategy upstream server usage strategy ENUM(
+// parallel_best // Picks 2 random weighted resolvers per query and returns the fastest answer (default).
+// strict // Queries upstreams in strict order; the next is tried only if the previous fails.
+// random // Picks one random weighted resolver per query; another is tried on failure.
+// )
 type UpstreamStrategy uint8
 
 //nolint:gochecknoglobals
@@ -252,32 +257,58 @@ func (b *BootstrappedUpstream) UnmarshalYAML(unmarshal func(any) error) error {
 
 // Config main configuration
 type Config struct {
-	Upstreams        Upstreams           `yaml:"upstreams"`
-	ConnectIPVersion IPVersion           `yaml:"connectIPVersion"`
-	CustomDNS        CustomDNS           `yaml:"customDNS"`
-	Conditional      ConditionalUpstream `yaml:"conditional"`
-	Blocking         Blocking            `yaml:"blocking"`
-	ClientLookup     ClientLookup        `yaml:"clientLookup"`
-	Caching          Caching             `yaml:"caching"`
-	QueryLog         QueryLog            `yaml:"queryLog"`
-	Prometheus       Metrics             `yaml:"prometheus"`
-	Redis            Redis               `yaml:"redis"`
-	Log              log.Config          `yaml:"log"`
-	Ports            Ports               `yaml:"ports"`
-	MinTLSServeVer   TLSVersion          `default:"1.2"            yaml:"minTlsServeVersion"`
-	CertFile         string              `yaml:"certFile"`
-	KeyFile          string              `yaml:"keyFile"`
-	BootstrapDNS     BootstrapDNS        `yaml:"bootstrapDns"`
-	HostsFile        HostsFile           `yaml:"hostsFile"`
-	FQDNOnly         FQDNOnly            `yaml:"fqdnOnly"`
-	Filtering        Filtering           `yaml:"filtering"`
-	EDE              EDE                 `yaml:"ede"`
-	ECS              ECS                 `yaml:"ecs"`
-	SUDN             SUDN                `yaml:"specialUseDomains"`
-	DNS64            DNS64               `yaml:"dns64"`
-	DNSSEC           DNSSEC              `yaml:"dnssec"`
-	HTTP3            HTTP3               `yaml:"http3"`
-	RateLimit        RateLimit           `yaml:"rateLimit"`
+	// Upstream DNS servers and strategy configuration.
+	Upstreams Upstreams `yaml:"upstreams"`
+	// IP version used for outgoing connections (dual, v4, v6).
+	ConnectIPVersion IPVersion `yaml:"connectIPVersion"`
+	// Custom static DNS mappings and zone definitions.
+	CustomDNS CustomDNS `yaml:"customDNS"`
+	// Conditional upstream resolvers for specific domains.
+	Conditional ConditionalUpstream `yaml:"conditional"`
+	// Blocking configuration with allow/denylists and client groups.
+	Blocking Blocking `yaml:"blocking"`
+	// Client name lookup configuration for resolving client identifiers.
+	ClientLookup ClientLookup `yaml:"clientLookup"`
+	// DNS response caching settings.
+	Caching Caching `yaml:"caching"`
+	// Query logging configuration.
+	QueryLog QueryLog `yaml:"queryLog"`
+	// Prometheus metrics configuration.
+	Prometheus Metrics `yaml:"prometheus"`
+	// Redis configuration for cache and state synchronization between instances.
+	Redis Redis `yaml:"redis"`
+	// Logging configuration.
+	Log log.Config `yaml:"log"`
+	// Listen addresses for DNS, HTTP, HTTPS, and TLS.
+	Ports Ports `yaml:"ports"`
+	// Minimum TLS version the DoT and DoH servers use to serve encrypted DNS requests.
+	MinTLSServeVer TLSVersion `default:"1.2" yaml:"minTlsServeVersion"`
+	// Path to the TLS certificate file for DoH and DoT; if empty, a self-signed certificate is generated.
+	CertFile string `yaml:"certFile"`
+	// Path to the TLS key file for DoH and DoT; if empty, a self-signed certificate is generated.
+	KeyFile string `yaml:"keyFile"`
+	// Bootstrap DNS servers used to resolve DoH/DoT upstream hostnames.
+	BootstrapDNS BootstrapDNS `yaml:"bootstrapDns"`
+	// Local hosts file resolution settings.
+	HostsFile HostsFile `yaml:"hostsFile"`
+	// When enabled, blocky returns NXDOMAIN immediately for non-FQDN queries.
+	FQDNOnly FQDNOnly `yaml:"fqdnOnly"`
+	// DNS query type filtering configuration.
+	Filtering Filtering `yaml:"filtering"`
+	// Extended DNS Errors (RFC 8914) configuration.
+	EDE EDE `yaml:"ede"`
+	// EDNS Client Subnet options.
+	ECS ECS `yaml:"ecs"`
+	// Special Use Domain Names (SUDN) blocking configuration.
+	SUDN SUDN `yaml:"specialUseDomains"`
+	// DNS64 synthesis configuration for IPv6-only clients (RFC 6147).
+	DNS64 DNS64 `yaml:"dns64"`
+	// DNSSEC validation configuration.
+	DNSSEC DNSSEC `yaml:"dnssec"`
+	// HTTP/3 (DoH3) server configuration.
+	HTTP3 HTTP3 `yaml:"http3"`
+	// Per-client DNS query rate limiting configuration.
+	RateLimit RateLimit `yaml:"rateLimit"`
 
 	// Deprecated options
 	Deprecated struct {
@@ -298,11 +329,16 @@ type Config struct {
 }
 
 type Ports struct {
-	DNS     ListenConfig `default:"53"         yaml:"dns"`
-	HTTP    ListenConfig `yaml:"http"`
-	HTTPS   ListenConfig `yaml:"https"`
-	TLS     ListenConfig `yaml:"tls"`
-	DOHPath string       `default:"/dns-query" yaml:"dohPath"`
+	// Listen address(es) for DNS over TCP and UDP (default: 53).
+	DNS ListenConfig `default:"53" yaml:"dns"`
+	// Listen address(es) for HTTP (metrics, REST API, DoH).
+	HTTP ListenConfig `yaml:"http"`
+	// Listen address(es) for HTTPS (metrics, REST API, DoH).
+	HTTPS ListenConfig `yaml:"https"`
+	// Listen address(es) for DNS-over-TLS (DoT).
+	TLS ListenConfig `yaml:"tls"`
+	// URL path for DoH queries.
+	DOHPath string `default:"/dns-query" yaml:"dohPath"`
 }
 
 func (c *Ports) LogConfig(logger *logrus.Entry) {
@@ -357,6 +393,7 @@ func (c *toEnable) LogConfig(logger *logrus.Entry) {
 }
 
 type Init struct {
+	// Startup strategy controlling how initialization failures are handled.
 	Strategy InitStrategy `default:"blocking" yaml:"strategy"`
 }
 
@@ -367,10 +404,14 @@ func (c *Init) LogConfig(logger *logrus.Entry) {
 type SourceLoading struct {
 	Init `yaml:",inline"`
 
-	Concurrency        uint       `default:"4"      yaml:"concurrency"`
-	MaxErrorsPerSource int        `default:"5"      yaml:"maxErrorsPerSource"`
-	RefreshPeriod      Duration   `default:"4h"     yaml:"refreshPeriod"`
-	Downloads          Downloader `yaml:"downloads"`
+	// Maximum number of sources downloaded and processed concurrently (default: 4).
+	Concurrency uint `default:"4" yaml:"concurrency"`
+	// Maximum parse errors per source before the source is considered invalid; -1 disables the limit.
+	MaxErrorsPerSource int `default:"5" yaml:"maxErrorsPerSource"`
+	// How often sources are reloaded; a value of 0 or less disables periodic refresh (default: 4h).
+	RefreshPeriod Duration `default:"4h" yaml:"refreshPeriod"`
+	// HTTP(S) download settings for remote sources.
+	Downloads Downloader `yaml:"downloads"`
 }
 
 func (c *SourceLoading) LogConfig(logger *logrus.Entry) {
@@ -440,12 +481,18 @@ func recoverToError(do func(context.Context) error, onPanic func(any) error) fun
 }
 
 type Downloader struct {
-	Timeout           Duration `default:"5s"    yaml:"timeout"`
-	ReadTimeout       Duration `default:"20s"   yaml:"readTimeout"`
-	ReadHeaderTimeout Duration `default:"20s"   yaml:"readHeaderTimeout"`
-	WriteTimeout      Duration `default:"20s"   yaml:"writeTimeout"`
-	Attempts          uint     `default:"3"     yaml:"attempts"`
-	Cooldown          Duration `default:"500ms" yaml:"cooldown"`
+	// Timeout per download attempt (default: 5s).
+	Timeout Duration `default:"5s" yaml:"timeout"`
+	// Timeout for reading the download response body (default: 20s).
+	ReadTimeout Duration `default:"20s" yaml:"readTimeout"`
+	// Timeout for reading the download response headers (default: 20s).
+	ReadHeaderTimeout Duration `default:"20s" yaml:"readHeaderTimeout"`
+	// Timeout for writing the downloaded file (default: 20s).
+	WriteTimeout Duration `default:"20s" yaml:"writeTimeout"`
+	// Number of download attempts before giving up (default: 3).
+	Attempts uint `default:"3" yaml:"attempts"`
+	// Pause between consecutive download attempts (default: 500ms).
+	Cooldown Duration `default:"500ms" yaml:"cooldown"`
 }
 
 func (c *Downloader) LogConfig(logger *logrus.Entry) {
@@ -600,7 +647,23 @@ func isRegularFile(path string) (bool, error) {
 func unmarshalConfig(logger *logrus.Entry, data []byte, cfg *Config) error {
 	err := yaml.UnmarshalStrict(data, cfg)
 	if err != nil {
+		// Enrich the already-failing path with field-path schema errors,
+		// keeping the underlying yaml error for detail. This never rejects a
+		// config blocky would accept: we only reach here because
+		// UnmarshalStrict already failed.
+		if schemaErrs, sErr := schema.ValidateYAML(data); sErr == nil && len(schemaErrs) > 0 {
+			return fmt.Errorf("wrong file structure: %w\n%s", err, formatSchemaErrors(schemaErrs))
+		}
+
 		return fmt.Errorf("wrong file structure: %w", err)
+	}
+
+	// Success path: the schema disagreeing here is a potential gap in the
+	// schema, never a config error. Warn, never fail.
+	if schemaErrs, sErr := schema.ValidateYAML(data); sErr == nil && len(schemaErrs) > 0 {
+		for _, e := range schemaErrs {
+			logger.Warnf("config does not match schema (possible schema gap, please report): %s", e)
+		}
 	}
 
 	usesDepredOpts := cfg.migrate(logger)
@@ -611,6 +674,16 @@ func unmarshalConfig(logger *logrus.Entry, data []byte, cfg *Config) error {
 	cfg.validate(logger)
 
 	return nil
+}
+
+// formatSchemaErrors renders schema findings as an indented bullet list.
+func formatSchemaErrors(errs []schema.Error) string {
+	lines := make([]string, 0, len(errs))
+	for _, e := range errs {
+		lines = append(lines, "  - "+e.String())
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func (cfg *Config) migrate(logger *logrus.Entry) bool {

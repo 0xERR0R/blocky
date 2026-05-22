@@ -13,10 +13,14 @@ import (
 type CustomDNS struct {
 	RewriterConfig `yaml:",inline"`
 
-	CustomTTL           Duration         `default:"1h"   yaml:"customTTL"`
-	Mapping             CustomDNSMapping `yaml:"mapping"`
-	Zone                ZoneFileDNS      `default:""     yaml:"zone"`
-	FilterUnmappedTypes bool             `default:"true" yaml:"filterUnmappedTypes"`
+	// TTL for DNS records defined in the mapping section (does not apply to zone file records).
+	CustomTTL Duration `default:"1h" yaml:"customTTL"`
+	// Simple domain-to-IP mappings; multiple IPs per domain separated by commas.
+	Mapping CustomDNSMapping `yaml:"mapping"`
+	// DNS zone file content for more complex record definitions (A, AAAA, CNAME, TXT, SRV).
+	Zone ZoneFileDNS `default:"" yaml:"zone"`
+	// If true, queries for types not defined for a domain return empty; if false, they are forwarded upstream.
+	FilterUnmappedTypes bool `default:"true" yaml:"filterUnmappedTypes"`
 }
 
 type (

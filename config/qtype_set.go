@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -36,14 +37,28 @@ func (s *QTypeSet) Insert(qType dns.Type) {
 }
 
 func (s *QTypeSet) UnmarshalYAML(unmarshal func(any) error) error {
-	var input []QType
+	// Unmarshal into []interface{} first so a YAML null entry (an unquoted
+	// `NULL`, `null` or `~`, which YAML reads as null rather than the string)
+	// surfaces as a nil element and can be rejected. Decoding straight into
+	// []QType would silently turn it into query type None (0).
+	var input []interface{}
 	if err := unmarshal(&input); err != nil {
 		return err
 	}
 
 	*s = make(QTypeSet, len(input))
 
-	for _, qType := range input {
+	for _, raw := range input {
+		if raw == nil {
+			return errors.New("invalid query type: null. " +
+				"Quote YAML keywords like 'NULL' so they are read as a DNS type")
+		}
+
+		var qType QType
+		if err := qType.UnmarshalText([]byte(fmt.Sprintf("%v", raw))); err != nil {
+			return err
+		}
+
 		(*s)[qType] = struct{}{}
 	}
 

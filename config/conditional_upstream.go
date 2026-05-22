@@ -11,6 +11,7 @@ import (
 type ConditionalUpstream struct {
 	RewriterConfig `yaml:",inline"`
 
+	// Domain-to-upstream mappings; queries for each domain are forwarded to its configured resolver(s).
 	Mapping ConditionalUpstreamMapping `yaml:"mapping"`
 }
 

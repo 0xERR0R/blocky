@@ -12,13 +12,13 @@ import (
 
 const (
 	// IPVersionDual is a IPVersion of type Dual.
-	// IPv4 and IPv6
+	// Use both IPv4 and IPv6.
 	IPVersionDual IPVersion = iota
 	// IPVersionV4 is a IPVersion of type V4.
-	// IPv4 only
+	// Use IPv4 only.
 	IPVersionV4
 	// IPVersionV6 is a IPVersion of type V6.
-	// IPv6 only
+	// Use IPv6 only.
 	IPVersionV6
 )
 
@@ -107,15 +107,31 @@ func (x *IPVersion) AppendText(b []byte) ([]byte, error) {
 	return append(b, x.String()...), nil
 }
 
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
+func (IPVersion) EnumDescriptions() map[string]string {
+	return map[string]string{
+		"dual": "Use both IPv4 and IPv6.",
+		"v4":   "Use IPv4 only.",
+		"v6":   "Use IPv6 only.",
+	}
+}
+
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
+func (IPVersion) EnumValues() []string {
+	return IPVersionNames()
+}
+
 const (
 	// InitStrategyBlocking is a InitStrategy of type Blocking.
-	// synchronously download blocking lists on startup
+	// Initialization runs before DNS resolution starts; errors are logged but Blocky keeps running if possible.
 	InitStrategyBlocking InitStrategy = iota
 	// InitStrategyFailOnError is a InitStrategy of type FailOnError.
-	// synchronously download blocking lists on startup and shutdown on error
+	// Like blocking but Blocky exits with an error if initialization fails.
 	InitStrategyFailOnError
 	// InitStrategyFast is a InitStrategy of type Fast.
-	// asyncronously download blocking lists on startup
+	// Blocky serves DNS immediately and runs initialization in the background.
 	InitStrategyFast
 )
 
@@ -202,6 +218,22 @@ func (x *InitStrategy) UnmarshalText(text []byte) error {
 // Implementations must not retain b, nor mutate any bytes within b[:len(b)].
 func (x *InitStrategy) AppendText(b []byte) ([]byte, error) {
 	return append(b, x.String()...), nil
+}
+
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
+func (InitStrategy) EnumDescriptions() map[string]string {
+	return map[string]string{
+		"blocking":    "Initialization runs before DNS resolution starts; errors are logged but Blocky keeps running if possible.",
+		"failOnError": "Like blocking but Blocky exits with an error if initialization fails.",
+		"fast":        "Blocky serves DNS immediately and runs initialization in the background.",
+	}
+}
+
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
+func (InitStrategy) EnumValues() []string {
+	return InitStrategyNames()
 }
 
 const (
@@ -308,6 +340,23 @@ func (x *NetProtocol) AppendText(b []byte) ([]byte, error) {
 	return append(b, x.String()...), nil
 }
 
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
+func (NetProtocol) EnumDescriptions() map[string]string {
+	return map[string]string{
+		"tcp+udp": "TCP and UDP protocols",
+		"tcp-tls": "TCP-TLS protocol",
+		"https":   "HTTPS protocol",
+		"quic":    "DNS-over-QUIC protocol",
+	}
+}
+
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
+func (NetProtocol) EnumValues() []string {
+	return NetProtocolNames()
+}
+
 const (
 	// QueryLogFieldClientIP is a QueryLogField of type clientIP.
 	QueryLogFieldClientIP QueryLogField = "clientIP"
@@ -405,27 +454,39 @@ func (x *QueryLogField) AppendText(b []byte) ([]byte, error) {
 	return append(b, x.String()...), nil
 }
 
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
+func (QueryLogField) EnumDescriptions() map[string]string {
+	return map[string]string{}
+}
+
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
+func (QueryLogField) EnumValues() []string {
+	return QueryLogFieldNames()
+}
+
 const (
 	// QueryLogTypeConsole is a QueryLogType of type Console.
-	// use logger as fallback
+	// Log to console output (used when no type is set).
 	QueryLogTypeConsole QueryLogType = iota
 	// QueryLogTypeNone is a QueryLogType of type None.
-	// no logging
+	// Do not log any queries.
 	QueryLogTypeNone
 	// QueryLogTypeMysql is a QueryLogType of type Mysql.
-	// MySQL or MariaDB database
+	// Log each query to an external MySQL or MariaDB database.
 	QueryLogTypeMysql
 	// QueryLogTypePostgresql is a QueryLogType of type Postgresql.
-	// PostgreSQL database
+	// Log each query to an external PostgreSQL database.
 	QueryLogTypePostgresql
 	// QueryLogTypeCsv is a QueryLogType of type Csv.
-	// CSV file per day
+	// Log to a CSV file (one per day).
 	QueryLogTypeCsv
 	// QueryLogTypeCsvClient is a QueryLogType of type Csv-Client.
-	// CSV file per day and client
+	// Log to a CSV file (one per day and per client).
 	QueryLogTypeCsvClient
 	// QueryLogTypeTimescale is a QueryLogType of type Timescale.
-	// Timescale database
+	// Log each query to an external Timescale database.
 	QueryLogTypeTimescale
 )
 
@@ -530,6 +591,26 @@ func (x *QueryLogType) AppendText(b []byte) ([]byte, error) {
 	return append(b, x.String()...), nil
 }
 
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
+func (QueryLogType) EnumDescriptions() map[string]string {
+	return map[string]string{
+		"console":    "Log to console output (used when no type is set).",
+		"none":       "Do not log any queries.",
+		"mysql":      "Log each query to an external MySQL or MariaDB database.",
+		"postgresql": "Log each query to an external PostgreSQL database.",
+		"csv":        "Log to a CSV file (one per day).",
+		"csv-client": "Log to a CSV file (one per day and per client).",
+		"timescale":  "Log each query to an external Timescale database.",
+	}
+}
+
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
+func (QueryLogType) EnumValues() []string {
+	return QueryLogTypeNames()
+}
+
 const (
 	// TLSVersion10 is a TLSVersion of type 1.0.
 	TLSVersion10 TLSVersion = iota + 769
@@ -630,12 +711,27 @@ func (x *TLSVersion) AppendText(b []byte) ([]byte, error) {
 	return append(b, x.String()...), nil
 }
 
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
+func (TLSVersion) EnumDescriptions() map[string]string {
+	return map[string]string{}
+}
+
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
+func (TLSVersion) EnumValues() []string {
+	return TLSVersionNames()
+}
+
 const (
 	// UpstreamStrategyParallelBest is a UpstreamStrategy of type Parallel_best.
+	// Picks 2 random weighted resolvers per query and returns the fastest answer (default).
 	UpstreamStrategyParallelBest UpstreamStrategy = iota
 	// UpstreamStrategyStrict is a UpstreamStrategy of type Strict.
+	// Queries upstreams in strict order; the next is tried only if the previous fails.
 	UpstreamStrategyStrict
 	// UpstreamStrategyRandom is a UpstreamStrategy of type Random.
+	// Picks one random weighted resolver per query; another is tried on failure.
 	UpstreamStrategyRandom
 )
 
@@ -722,4 +818,20 @@ func (x *UpstreamStrategy) UnmarshalText(text []byte) error {
 // Implementations must not retain b, nor mutate any bytes within b[:len(b)].
 func (x *UpstreamStrategy) AppendText(b []byte) ([]byte, error) {
 	return append(b, x.String()...), nil
+}
+
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
+func (UpstreamStrategy) EnumDescriptions() map[string]string {
+	return map[string]string{
+		"parallel_best": "Picks 2 random weighted resolvers per query and returns the fastest answer (default).",
+		"strict":        "Queries upstreams in strict order; the next is tried only if the previous fails.",
+		"random":        "Picks one random weighted resolver per query; another is tried on failure.",
+	}
+}
+
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
+func (UpstreamStrategy) EnumValues() []string {
+	return UpstreamStrategyNames()
 }
