@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net"
 	"slices"
 	"sort"
@@ -10,8 +11,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"golang.org/x/exp/maps"
 
 	"github.com/hashicorp/go-multierror"
 
@@ -235,7 +234,7 @@ func (r *BlockingResolver) RefreshLists(ctx context.Context) error {
 }
 
 func (r *BlockingResolver) retrieveAllBlockingGroups() []string {
-	result := maps.Keys(r.cfg.Denylists)
+	result := slices.Collect(maps.Keys(r.cfg.Denylists))
 
 	result = append(result, "default")
 	slices.Sort(result)
@@ -668,7 +667,7 @@ func (r *BlockingResolver) queryForFQIdentifierIPs(ctx context.Context, identifi
 }
 
 func (r *BlockingResolver) initFQDNIPCache(ctx context.Context) {
-	identifiers := maps.Keys(r.clientGroupsBlock)
+	identifiers := slices.Collect(maps.Keys(r.clientGroupsBlock))
 
 	for _, identifier := range identifiers {
 		if isFQDN(identifier) {

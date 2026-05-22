@@ -47,7 +47,10 @@ func newBucketStore(limit rate.Limit, burst, maxBuckets int) *bucketStore {
 // the entry for nil.
 func (s *bucketStore) allowAt(key string, now time.Time) (*bucketEntry, bool) {
 	if v, ok := s.buckets.Load(key); ok {
-		e := v.(*bucketEntry)
+		e, ok := v.(*bucketEntry)
+		if !ok {
+			panic("rate_limit_store: unexpected value type in buckets")
+		}
 
 		return e, e.limiter.AllowN(now, 1)
 	}
@@ -68,7 +71,10 @@ func (s *bucketStore) allowAt(key string, now time.Time) (*bucketEntry, bool) {
 	if loaded {
 		s.size.Add(-1)
 	}
-	e := actual.(*bucketEntry)
+	e, ok := actual.(*bucketEntry)
+	if !ok {
+		panic("rate_limit_store: unexpected value type in buckets")
+	}
 
 	return e, e.limiter.AllowN(now, 1)
 }
@@ -77,7 +83,7 @@ func (s *bucketStore) allowAt(key string, now time.Time) (*bucketEntry, bool) {
 // (idle = no state worth keeping; reconstruction yields identical behavior).
 func (s *bucketStore) sweep() {
 	s.buckets.Range(func(k, v any) bool {
-		if v.(*bucketEntry).limiter.Tokens() >= float64(s.burst) {
+		if e, ok := v.(*bucketEntry); ok && e.limiter.Tokens() >= float64(s.burst) {
 			s.buckets.Delete(k)
 			s.size.Add(-1)
 		}

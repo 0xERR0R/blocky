@@ -13,7 +13,7 @@
 //		log.Fatal(err)
 //	}
 //
-//	// Create validator
+//	// Initialize:
 //	validator := dnssec.NewValidator(
 //		ctx,
 //		trustAnchors,

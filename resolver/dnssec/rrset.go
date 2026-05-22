@@ -122,8 +122,8 @@ func (v *Validator) sortRRSIGsByStrength(rrsigs []*dns.RRSIG) []*dns.RRSIG {
 	copy(sorted, rrsigs)
 
 	// Simple bubble sort (sufficient for small RRSIG lists, typically 1-3 signatures)
-	for i := 0; i < len(sorted)-1; i++ {
-		for j := 0; j < len(sorted)-i-1; j++ {
+	for i := range len(sorted) - 1 {
+		for j := range len(sorted) - i - 1 {
 			if v.getAlgorithmStrength(sorted[j].Algorithm) < v.getAlgorithmStrength(sorted[j+1].Algorithm) {
 				sorted[j], sorted[j+1] = sorted[j+1], sorted[j]
 			}
@@ -313,11 +313,11 @@ func (v *Validator) verifyRRSIG(
 	// RFC 6781 §4.1.2: Validators should account for clock skew in deployment environments.
 	// By capturing the timestamp once and using it for all time checks,
 	// we ensure consistent time validation even if verification takes time.
-	now := uint32(time.Now().Unix())
+	now := uint32(time.Now().Unix()) //nolint:gosec // DNSSEC uses uint32 timestamps per RFC 4034
 
 	// Apply clock skew tolerance (default 3600s = 1 hour, per Unbound/BIND)
 	// This allows validation to succeed even if system clock is off by this amount
-	tolerance := int64(v.clockSkewToleranceSec)
+	tolerance := int64(v.clockSkewToleranceSec) //nolint:gosec // clockSkewToleranceSec is a small configured value
 	inceptionWithSkew := int64(rrsig.Inception) - tolerance
 	expirationWithSkew := int64(rrsig.Expiration) + tolerance
 

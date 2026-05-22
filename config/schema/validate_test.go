@@ -97,19 +97,19 @@ var _ = Describe("schema corpus", func() {
 	})
 
 	Describe("deprecated markers for inline Deprecated blocks", func() {
-		var doc map[string]interface{}
+		var doc map[string]any
 
 		BeforeEach(func() {
 			Expect(json.Unmarshal(schema.JSON, &doc)).Should(Succeed())
 		})
 
 		// prop navigates nested "properties.<key>" objects to a leaf schema node.
-		prop := func(path []string) map[string]interface{} {
+		prop := func(path []string) map[string]any {
 			node := doc
 			for _, key := range path {
-				props, ok := node["properties"].(map[string]interface{})
+				props, ok := node["properties"].(map[string]any)
 				Expect(ok).Should(BeTrue(), "expected a properties object on the way to %v", path)
-				node, ok = props[key].(map[string]interface{})
+				node, ok = props[key].(map[string]any)
 				Expect(ok).Should(BeTrue(), "expected property %q on the way to %v", key, path)
 			}
 
@@ -129,7 +129,7 @@ var _ = Describe("schema corpus", func() {
 })
 
 var _ = Describe("schema enum value descriptions", func() {
-	var doc map[string]interface{}
+	var doc map[string]any
 
 	BeforeEach(func() {
 		Expect(json.Unmarshal(schema.JSON, &doc)).Should(Succeed())
@@ -140,9 +140,9 @@ var _ = Describe("schema enum value descriptions", func() {
 	description := func(path ...string) string {
 		node := doc
 		for _, key := range path {
-			props, ok := node["properties"].(map[string]interface{})
+			props, ok := node["properties"].(map[string]any)
 			Expect(ok).Should(BeTrue(), "expected a properties object on the way to %v", path)
-			node, ok = props[key].(map[string]interface{})
+			node, ok = props[key].(map[string]any)
 			Expect(ok).Should(BeTrue(), "expected property %q on the way to %v", key, path)
 		}
 
@@ -168,7 +168,7 @@ var _ = Describe("schema enum value descriptions", func() {
 })
 
 var _ = Describe("schema default value types", func() {
-	var doc map[string]interface{}
+	var doc map[string]any
 
 	BeforeEach(func() {
 		Expect(json.Unmarshal(schema.JSON, &doc)).Should(Succeed())
@@ -176,12 +176,12 @@ var _ = Describe("schema default value types", func() {
 
 	// defaultAt navigates nested "properties.<key>" objects and returns the
 	// leaf property's default.
-	defaultAt := func(path ...string) interface{} {
+	defaultAt := func(path ...string) any {
 		node := doc
 		for _, key := range path {
-			props, ok := node["properties"].(map[string]interface{})
+			props, ok := node["properties"].(map[string]any)
 			Expect(ok).Should(BeTrue(), "expected a properties object on the way to %v", path)
-			node, ok = props[key].(map[string]interface{})
+			node, ok = props[key].(map[string]any)
 			Expect(ok).Should(BeTrue(), "expected property %q on the way to %v", key, path)
 		}
 
@@ -191,11 +191,11 @@ var _ = Describe("schema default value types", func() {
 	It("emits boolean and integer/number defaults as native JSON types", func() {
 		var checked int
 
-		var walk func(node map[string]interface{})
-		walk = func(node map[string]interface{}) {
-			props, _ := node["properties"].(map[string]interface{})
+		var walk func(node map[string]any)
+		walk = func(node map[string]any) {
+			props, _ := node["properties"].(map[string]any)
 			for _, raw := range props {
-				v, ok := raw.(map[string]interface{})
+				v, ok := raw.(map[string]any)
 				if !ok {
 					continue
 				}
@@ -229,7 +229,7 @@ var _ = Describe("schema default value types", func() {
 })
 
 var _ = Describe("schema field descriptions from Go comments", func() {
-	var doc map[string]interface{}
+	var doc map[string]any
 
 	BeforeEach(func() {
 		Expect(json.Unmarshal(schema.JSON, &doc)).Should(Succeed())
@@ -238,9 +238,9 @@ var _ = Describe("schema field descriptions from Go comments", func() {
 	description := func(path ...string) string {
 		node := doc
 		for _, key := range path {
-			props, ok := node["properties"].(map[string]interface{})
+			props, ok := node["properties"].(map[string]any)
 			Expect(ok).Should(BeTrue(), "expected a properties object on the way to %v", path)
-			node, ok = props[key].(map[string]interface{})
+			node, ok = props[key].(map[string]any)
 			Expect(ok).Should(BeTrue(), "expected property %q on the way to %v", key, path)
 		}
 

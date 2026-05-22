@@ -658,7 +658,7 @@ func readFromDir(path string, data []byte) ([]byte, error) {
 			return nil
 		}
 
-		fileData, err := os.ReadFile(filePath)
+		fileData, err := os.ReadFile(filePath) //nolint:gosec // config dir is admin-controlled; TOCTOU risk is acceptable
 		if err != nil {
 			return fmt.Errorf("failed to read config file %s: %w", filePath, err)
 		}

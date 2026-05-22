@@ -239,7 +239,7 @@ var _ = Describe("HostsFile", func() {
 			lines := []string{
 				"127.0.0.1",
 				"localhost",
-				"localhost localhost",
+				"localhost localhost", //nolint:dupword
 				"::1 # localhost # comment",
 				"::1 toolong" + strings.Repeat("a", maxDomainNameLength),
 			}
@@ -398,7 +398,7 @@ var _ = Describe("HostList", func() {
 		It("fails", func() {
 			lines := []string{
 				"127.0.0.1 localhost",
-				"localhost localhost",
+				"localhost localhost", //nolint:dupword
 				`/invalid regex ??/`,
 				"toolong" + strings.Repeat("a", maxDomainNameLength),
 			}

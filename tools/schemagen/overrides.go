@@ -121,24 +121,24 @@ type enumValuer interface {
 // pattern risks false-positives (see spec, permissive-superset principle).
 func stringForms() map[reflect.Type]stringSpec {
 	return map[reflect.Type]stringSpec{
-		reflect.TypeOf(config.Upstream{}): {
+		reflect.TypeFor[config.Upstream](): {
 			"Upstream DNS server: [net]:host[:port][/path][#commonName] or sdns://...",
 			[]string{"tcp+udp:1.1.1.1", "https://dns.google/dns-query", "tcp-tls:1.1.1.1:853"},
 		},
-		reflect.TypeOf(config.BytesSource{}): {
+		reflect.TypeFor[config.BytesSource](): {
 			"Source: an http(s) URL, a local file path, or an inline YAML block.",
 			[]string{"https://example.com/list.txt", "/etc/blocky/list.txt"},
 		},
-		reflect.TypeOf(config.Weekday(0)): {
+		reflect.TypeFor[config.Weekday](): {
 			"Day of week: mon, tue, wed, thu, fri, sat, sun.", []string{"mon", "sat"},
 		},
-		reflect.TypeOf(netip.Prefix{}): {
+		reflect.TypeFor[netip.Prefix](): {
 			"CIDR network prefix.", []string{"64:ff9b::/96"},
 		},
-		reflect.TypeOf(config.ZoneFileDNS{}): {
+		reflect.TypeFor[config.ZoneFileDNS](): {
 			"Inline DNS zone file content.", nil,
 		},
-		reflect.TypeOf(logrus.Level(0)): {
+		reflect.TypeFor[logrus.Level](): {
 			"Log level: trace, debug, info, warn, error, fatal.", []string{"info", "debug"},
 		},
 	}
@@ -151,13 +151,13 @@ func stringForms() map[reflect.Type]stringSpec {
 func complexForms() map[reflect.Type]func() *jsonschema.Schema {
 	return map[reflect.Type]func() *jsonschema.Schema{
 		// Ports accept a string, a bare number, or an array of either.
-		reflect.TypeOf(config.ListenConfig(nil)): func() *jsonschema.Schema {
+		reflect.TypeFor[config.ListenConfig](): func() *jsonschema.Schema {
 			return anyOf(plain("string"), plain("integer"),
 				arrayOf(anyOf(plain("string"), plain("integer"))))
 		},
 		// Duration: "30s"/"5m"/"2h" string, or the deprecated bare-number
 		// (minutes) form accepted by Duration.UnmarshalText.
-		reflect.TypeOf(config.Duration(0)): func() *jsonschema.Schema {
+		reflect.TypeFor[config.Duration](): func() *jsonschema.Schema {
 			s := anyOf(plain("string"), plain("integer"))
 			s.Description = "Duration, e.g. '30s', '5m', '2h'. A bare number is the deprecated minutes form."
 			s.Examples = []any{"30s", "1h"}
@@ -167,32 +167,32 @@ func complexForms() map[reflect.Type]func() *jsonschema.Schema {
 		// ECS masks: an unquoted number, or its quoted-string form. Both go
 		// through (ECSv4Mask/ECSv6Mask).UnmarshalText, so the schema must
 		// accept the string form too.
-		reflect.TypeOf(config.ECSv4Mask(0)): func() *jsonschema.Schema {
+		reflect.TypeFor[config.ECSv4Mask](): func() *jsonschema.Schema {
 			return anyOf(plain("integer"), plain("string"))
 		},
-		reflect.TypeOf(config.ECSv6Mask(0)): func() *jsonschema.Schema {
+		reflect.TypeFor[config.ECSv6Mask](): func() *jsonschema.Schema {
 			return anyOf(plain("integer"), plain("string"))
 		},
 		// QTypeSet is built from a YAML list of query-type names; the names are
 		// exactly dns.StringToType's keys (case-sensitive), so an enum is exact.
-		reflect.TypeOf(config.QTypeSet(nil)): func() *jsonschema.Schema {
+		reflect.TypeFor[config.QTypeSet](): func() *jsonschema.Schema {
 			return arrayOf(enumStringSchema(qtypeNames()))
 		},
 		// minTlsServeVersion: "1.3" string or unquoted 1.3 number.
-		reflect.TypeOf(config.TLSVersion(0)): func() *jsonschema.Schema {
+		reflect.TypeFor[config.TLSVersion](): func() *jsonschema.Schema {
 			return anyOf(enumStringSchema(config.TLSVersionNames()), plain("number"))
 		},
 		// A bootstrap entry, or a list of them.
-		reflect.TypeOf(config.BootstrapDNS(nil)): func() *jsonschema.Schema {
+		reflect.TypeFor[config.BootstrapDNS](): func() *jsonschema.Schema {
 			return anyOf(bootstrappedUpstreamSchema(), arrayOf(bootstrappedUpstreamSchema()))
 		},
-		reflect.TypeOf(config.BootstrappedUpstream{}): bootstrappedUpstreamSchema,
+		reflect.TypeFor[config.BootstrappedUpstream](): bootstrappedUpstreamSchema,
 		// conditional.mapping: domain -> comma-separated upstream string.
-		reflect.TypeOf(config.ConditionalUpstreamMapping{}): func() *jsonschema.Schema {
+		reflect.TypeFor[config.ConditionalUpstreamMapping](): func() *jsonschema.Schema {
 			return openMap(plain("string"))
 		},
 		// customDNS.mapping: domain -> IP string or list of IP strings.
-		reflect.TypeOf(config.CustomDNSMapping(nil)): func() *jsonschema.Schema {
+		reflect.TypeFor[config.CustomDNSMapping](): func() *jsonschema.Schema {
 			return openMap(anyOf(plain("string"), arrayOf(plain("string"))))
 		},
 	}
@@ -239,9 +239,7 @@ func applyDefaults(s *jsonschema.Schema, t reflect.Type) {
 		return
 	}
 
-	for i := 0; i < t.NumField(); i++ {
-		f := t.Field(i)
-
+	for f := range t.Fields() {
 		name, _, _ := strings.Cut(f.Tag.Get("yaml"), ",")
 		if name == "" || name == "-" {
 			// embedded / inline struct: recurse with the same schema node
@@ -306,9 +304,7 @@ func markDeprecated(s *jsonschema.Schema, t reflect.Type) {
 		return
 	}
 
-	for i := 0; i < t.NumField(); i++ {
-		f := t.Field(i)
-
+	for f := range t.Fields() {
 		name, _, _ := strings.Cut(f.Tag.Get("yaml"), ",")
 
 		// Inline Deprecated struct: its fields are flattened into THIS node.
@@ -343,8 +339,8 @@ func markFieldsDeprecated(s *jsonschema.Schema, t reflect.Type) {
 		return
 	}
 
-	for i := 0; i < t.NumField(); i++ {
-		name, _, _ := strings.Cut(t.Field(i).Tag.Get("yaml"), ",")
+	for field := range t.Fields() {
+		name, _, _ := strings.Cut(field.Tag.Get("yaml"), ",")
 		if name == "" || name == "-" {
 			continue
 		}
@@ -388,9 +384,7 @@ func applyEnumDescriptions(s *jsonschema.Schema, t reflect.Type) {
 		return
 	}
 
-	for i := 0; i < t.NumField(); i++ {
-		f := t.Field(i)
-
+	for f := range t.Fields() {
 		name, _, _ := strings.Cut(f.Tag.Get("yaml"), ",")
 		if name == "" || name == "-" {
 			if f.Anonymous {
@@ -437,7 +431,7 @@ func withEnumLegend(existing string, legend map[string]string, enum []any) strin
 // keeps the schema a superset of what blocky accepts and lets editors strike
 // them through.
 func flattenDeprecated(r *jsonschema.Reflector, root *jsonschema.Schema) {
-	depField, ok := reflect.TypeOf(config.Config{}).FieldByName("Deprecated")
+	depField, ok := reflect.TypeFor[config.Config]().FieldByName("Deprecated")
 	if !ok {
 		return
 	}

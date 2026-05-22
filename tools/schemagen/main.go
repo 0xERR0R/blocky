@@ -49,11 +49,11 @@ func run() error {
 	schema := r.Reflect(&config.Config{})
 
 	flattenDeprecated(r, schema)
-	applyDefaults(schema, reflect.TypeOf(config.Config{}))
-	markDeprecated(schema, reflect.TypeOf(config.Config{}))
+	applyDefaults(schema, reflect.TypeFor[config.Config]())
+	markDeprecated(schema, reflect.TypeFor[config.Config]())
 	// Enum value descriptions come from the generated EnumDescriptions() methods,
 	// which carry the go-enum `ENUM(...)` comments (the single source of truth).
-	applyEnumDescriptions(schema, reflect.TypeOf(config.Config{}))
+	applyEnumDescriptions(schema, reflect.TypeFor[config.Config]())
 
 	out, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {

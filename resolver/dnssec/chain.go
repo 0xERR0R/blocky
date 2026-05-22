@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/miekg/dns"
@@ -66,12 +67,12 @@ func (v *Validator) walkChainOfTrust(ctx context.Context, domain string) Validat
 
 	// Walk from root down to target domain
 	currentDomain := "."
-	for i := len(labels) - 1; i >= 0; i-- {
+	for i, label := range slices.Backward(labels) {
 		// Build the domain for this level
 		if i == len(labels)-1 {
-			currentDomain = labels[i] + "."
+			currentDomain = label + "."
 		} else {
-			currentDomain = labels[i] + "." + currentDomain
+			currentDomain = label + "." + currentDomain
 		}
 
 		// Check if this domain has a configured trust anchor

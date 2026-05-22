@@ -86,18 +86,23 @@ func BenchmarkWildcardFactory(b *testing.B) {
 }
 
 func benchmarkRegexFactory(b *testing.B, newFactory func() cacheFactory) {
+	b.Helper()
 	benchmarkFactory(b, regexTestData, newFactory)
 }
 
 func benchmarkStringFactory(b *testing.B, newFactory func() cacheFactory) {
+	b.Helper()
 	benchmarkFactory(b, stringTestData, newFactory)
 }
 
 func benchmarkWildcardFactory(b *testing.B, newFactory func() cacheFactory) {
+	b.Helper()
 	benchmarkFactory(b, wildcardTestData, newFactory)
 }
 
 func benchmarkFactory(b *testing.B, data []string, newFactory func() cacheFactory) {
+	b.Helper()
+
 	baseMemStats = readMemStats()
 
 	b.ReportAllocs()
@@ -152,14 +157,18 @@ func BenchmarkWildcardCache(b *testing.B) {
 // }
 
 func benchmarkStringCache(b *testing.B, newFactory func() cacheFactory) {
+	b.Helper()
 	benchmarkCache(b, stringTestData, newFactory)
 }
 
 func benchmarkWildcardCache(b *testing.B, newFactory func() cacheFactory) {
+	b.Helper()
 	benchmarkCache(b, wildcardTestData, newFactory)
 }
 
 func benchmarkCache(b *testing.B, data []string, newFactory func() cacheFactory) {
+	b.Helper()
+
 	baseMemStats = readMemStats()
 
 	factory := newFactory()
@@ -200,6 +209,8 @@ func readMemStats() (res runtime.MemStats) {
 }
 
 func reportMemUsage(b *testing.B, prefix string, toKeepAllocated ...any) {
+	b.Helper()
+
 	m := readMemStats()
 
 	b.ReportMetric(toMB(m.HeapAlloc-baseMemStats.HeapAlloc), prefix+"_heap_MB")

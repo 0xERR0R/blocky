@@ -116,7 +116,7 @@ var _ = Describe("RedisExpiringCache", func() {
 				go func() {
 					defer close(done)
 
-					for i := 0; i < 10; i++ {
+					for range 10 {
 						c.Put("key", &testValue{Data: "v"}, time.Minute)
 					}
 				}()

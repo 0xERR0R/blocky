@@ -128,12 +128,12 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 			})
 		})
 		When("Timeout occurs", func() {
-			var counter int32
-			var attemptsWithTimeout int32
+			var counter atomic.Int32
+			var attemptsWithTimeout atomic.Int32
 			BeforeEach(func() {
 				resolveFn := func(request *dns.Msg) *dns.Msg {
 					// timeout on first x attempts
-					if atomic.AddInt32(&counter, 1) <= atomic.LoadInt32(&attemptsWithTimeout) {
+					if counter.Add(1) <= attemptsWithTimeout.Load() {
 						time.Sleep(2 * timeout)
 					}
 
@@ -150,8 +150,8 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 
 			It("should perform a retry with 3 attempts", func() {
 				By("2 attempts with timeout -> should resolve with third attempt", func() {
-					atomic.StoreInt32(&counter, 0)
-					atomic.StoreInt32(&attemptsWithTimeout, 2)
+					counter.Store(0)
+					attemptsWithTimeout.Store(2)
 
 					Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
 						Should(
@@ -164,8 +164,8 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				})
 
 				By("3 attempts with timeout -> should return error", func() {
-					atomic.StoreInt32(&counter, 0)
-					atomic.StoreInt32(&attemptsWithTimeout, 3)
+					counter.Store(0)
+					attemptsWithTimeout.Store(3)
 					_, err := sut.Resolve(ctx, newRequest("example.com.", A))
 					Expect(err).Should(HaveOccurred())
 					Expect(err.Error()).Should(ContainSubstring("i/o timeout"))
@@ -376,7 +376,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				quicClient := sut.upstreamClient.(*quicUpstreamClient)
 				quicClient.tlsConfig.InsecureSkipVerify = true
 
-				for i := 0; i < 3; i++ {
+				for range 3 {
 					Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
 						Should(
 							SatisfyAll(

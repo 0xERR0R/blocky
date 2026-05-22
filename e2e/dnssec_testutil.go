@@ -94,10 +94,10 @@ func GenerateValidDNSSEC(zone, hostname, ipAddr string) (*DNSSECTestData, error)
 	}
 	sig.TypeCovered = dns.TypeA
 	sig.Algorithm = dns.ECDSAP256SHA256
-	sig.Labels = uint8(dns.CountLabel(aRecord.Hdr.Name))
+	sig.Labels = uint8(dns.CountLabel(aRecord.Hdr.Name)) //nolint:gosec // DNS label count is bounded by protocol (max 127)
 	sig.OrigTtl = aRecord.Hdr.Ttl
-	sig.Expiration = uint32(time.Now().Add(30 * 24 * time.Hour).Unix())
-	sig.Inception = uint32(time.Now().Add(-1 * time.Hour).Unix())
+	sig.Expiration = uint32(time.Now().Add(30 * 24 * time.Hour).Unix()) //nolint:gosec // DNSSEC uses uint32 timestamps per RFC 4034
+	sig.Inception = uint32(time.Now().Add(-1 * time.Hour).Unix())       //nolint:gosec // DNSSEC uses uint32 timestamps per RFC 4034
 	sig.KeyTag = key.KeyTag()
 	sig.SignerName = key.Hdr.Name
 
@@ -221,10 +221,10 @@ func GenerateDNSSECChain(parentZone, childZone, hostname, ipAddr string) (*DNSSE
 	}
 	dsRRSIG.TypeCovered = dns.TypeDS
 	dsRRSIG.Algorithm = dns.ECDSAP256SHA256
-	dsRRSIG.Labels = uint8(dns.CountLabel(chain.DS.Hdr.Name))
+	dsRRSIG.Labels = uint8(dns.CountLabel(chain.DS.Hdr.Name)) //nolint:gosec // DNS label count is bounded by protocol (max 127)
 	dsRRSIG.OrigTtl = chain.DS.Hdr.Ttl
-	dsRRSIG.Expiration = uint32(time.Now().Add(30 * 24 * time.Hour).Unix())
-	dsRRSIG.Inception = uint32(time.Now().Add(-1 * time.Hour).Unix())
+	dsRRSIG.Expiration = uint32(time.Now().Add(30 * 24 * time.Hour).Unix()) //nolint:gosec // DNSSEC uses uint32 timestamps per RFC 4034
+	dsRRSIG.Inception = uint32(time.Now().Add(-1 * time.Hour).Unix())       //nolint:gosec // DNSSEC uses uint32 timestamps per RFC 4034
 	dsRRSIG.KeyTag = parentKey.KeyTag()
 	dsRRSIG.SignerName = parentZone
 
@@ -257,10 +257,10 @@ func GenerateDNSSECChain(parentZone, childZone, hostname, ipAddr string) (*DNSSE
 	}
 	aRRSIG.TypeCovered = dns.TypeA
 	aRRSIG.Algorithm = dns.ECDSAP256SHA256
-	aRRSIG.Labels = uint8(dns.CountLabel(aRecord.Hdr.Name))
+	aRRSIG.Labels = uint8(dns.CountLabel(aRecord.Hdr.Name)) //nolint:gosec // DNS label count is bounded by protocol (max 127)
 	aRRSIG.OrigTtl = aRecord.Hdr.Ttl
-	aRRSIG.Expiration = uint32(time.Now().Add(30 * 24 * time.Hour).Unix())
-	aRRSIG.Inception = uint32(time.Now().Add(-1 * time.Hour).Unix())
+	aRRSIG.Expiration = uint32(time.Now().Add(30 * 24 * time.Hour).Unix()) //nolint:gosec // DNSSEC uses uint32 timestamps per RFC 4034
+	aRRSIG.Inception = uint32(time.Now().Add(-1 * time.Hour).Unix())       //nolint:gosec // DNSSEC uses uint32 timestamps per RFC 4034
 	aRRSIG.KeyTag = childKey.KeyTag()
 	aRRSIG.SignerName = childZone
 
@@ -281,10 +281,10 @@ func GenerateDNSSECChain(parentZone, childZone, hostname, ipAddr string) (*DNSSE
 	}
 	childDNSKEYRRSIG.TypeCovered = dns.TypeDNSKEY
 	childDNSKEYRRSIG.Algorithm = dns.ECDSAP256SHA256
-	childDNSKEYRRSIG.Labels = uint8(dns.CountLabel(childKey.Hdr.Name))
+	childDNSKEYRRSIG.Labels = uint8(dns.CountLabel(childKey.Hdr.Name)) //nolint:gosec // DNS label count is bounded by protocol (max 127)
 	childDNSKEYRRSIG.OrigTtl = childKey.Hdr.Ttl
-	childDNSKEYRRSIG.Expiration = uint32(time.Now().Add(30 * 24 * time.Hour).Unix())
-	childDNSKEYRRSIG.Inception = uint32(time.Now().Add(-1 * time.Hour).Unix())
+	childDNSKEYRRSIG.Expiration = uint32(time.Now().Add(30 * 24 * time.Hour).Unix()) //nolint:gosec // DNSSEC uses uint32 timestamps per RFC 4034
+	childDNSKEYRRSIG.Inception = uint32(time.Now().Add(-1 * time.Hour).Unix())       //nolint:gosec // DNSSEC uses uint32 timestamps per RFC 4034
 	childDNSKEYRRSIG.KeyTag = childKey.KeyTag()
 	childDNSKEYRRSIG.SignerName = childZone
 
@@ -305,10 +305,10 @@ func GenerateDNSSECChain(parentZone, childZone, hostname, ipAddr string) (*DNSSE
 	}
 	parentDNSKEYRRSIG.TypeCovered = dns.TypeDNSKEY
 	parentDNSKEYRRSIG.Algorithm = dns.ECDSAP256SHA256
-	parentDNSKEYRRSIG.Labels = uint8(dns.CountLabel(parentKey.Hdr.Name))
+	parentDNSKEYRRSIG.Labels = uint8(dns.CountLabel(parentKey.Hdr.Name)) //nolint:gosec // DNS label count is bounded by protocol (max 127)
 	parentDNSKEYRRSIG.OrigTtl = parentKey.Hdr.Ttl
-	parentDNSKEYRRSIG.Expiration = uint32(time.Now().Add(30 * 24 * time.Hour).Unix())
-	parentDNSKEYRRSIG.Inception = uint32(time.Now().Add(-1 * time.Hour).Unix())
+	parentDNSKEYRRSIG.Expiration = uint32(time.Now().Add(30 * 24 * time.Hour).Unix()) //nolint:gosec // DNSSEC uses uint32 timestamps per RFC 4034
+	parentDNSKEYRRSIG.Inception = uint32(time.Now().Add(-1 * time.Hour).Unix())       //nolint:gosec // DNSSEC uses uint32 timestamps per RFC 4034
 	parentDNSKEYRRSIG.KeyTag = parentKey.KeyTag()
 	parentDNSKEYRRSIG.SignerName = parentZone
 

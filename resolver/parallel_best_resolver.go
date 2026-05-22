@@ -247,10 +247,9 @@ outer:
 
 		var weight float64 = errorWindowInSec
 
-		if time.Since(res.lastErrorTime.Load().(time.Time)) < time.Hour {
+		if t, ok := res.lastErrorTime.Load().(time.Time); ok && time.Since(t) < time.Hour {
 			// reduce weight: consider last error time
-			lastErrorTime := res.lastErrorTime.Load().(time.Time)
-			weight = math.Max(1, weight-(errorWindowInSec-time.Since(lastErrorTime).Minutes()))
+			weight = math.Max(1, weight-(errorWindowInSec-time.Since(t).Minutes()))
 		}
 
 		choices = append(choices, weightedrand.NewChoice(res, uint(weight)))

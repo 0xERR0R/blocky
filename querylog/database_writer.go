@@ -96,7 +96,7 @@ func databaseMigration(db *gorm.DB, dbType string, logRetentionDays uint64) erro
 		return fmt.Errorf("failed to auto-migrate database schema for querylog: %w", err)
 	}
 
-	tableName := db.NamingStrategy.TableName(reflect.TypeOf(logEntry{}).Name())
+	tableName := db.NamingStrategy.TableName(reflect.TypeFor[logEntry]().Name())
 
 	// create unmapped primary key
 	switch dbType {
@@ -117,7 +117,7 @@ func databaseMigration(db *gorm.DB, dbType string, logRetentionDays uint64) erro
 		return db.Exec("ALTER TABLE " + tableName + " ADD column if not exists id bigserial primary key").Error
 
 	case "timescale":
-		requestTSColName := db.NamingStrategy.ColumnName(reflect.TypeOf(logEntry{}).Name(), "RequestTS")
+		requestTSColName := db.NamingStrategy.ColumnName(reflect.TypeFor[logEntry]().Name(), "RequestTS")
 
 		// Create a Timescale hypertable
 		tx := db.Exec(`SELECT create_hypertable(
@@ -186,7 +186,7 @@ func (d *DatabaseWriter) Write(entry *LogEntry) {
 }
 
 func (d *DatabaseWriter) CleanUp() {
-	deletionDate := time.Now().AddDate(0, 0, int(-d.logRetentionDays))
+	deletionDate := time.Now().AddDate(0, 0, int(-d.logRetentionDays)) //nolint:gosec // G115: correct via two's complement
 
 	log.PrefixedLog("database_writer").Debugf("deleting log entries with request_ts < %s", deletionDate)
 	d.db.Where("request_ts < ?", deletionDate).Delete(&logEntry{})

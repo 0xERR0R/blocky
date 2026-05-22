@@ -47,7 +47,7 @@ func (v *Validator) validateNSEC3DenialOfExistence(response *dns.Msg, question d
 	}
 
 	// RFC 5155 §10.3: Check iteration count limit (DoS protection)
-	if iterations > uint16(v.maxNSEC3Iterations) {
+	if iterations > uint16(v.maxNSEC3Iterations) { //nolint:gosec // maxNSEC3Iterations is configured ≤ 65535
 		v.logger.Warnf("NSEC3 iteration count %d exceeds maximum %d for %s - treating as Bogus",
 			iterations, v.maxNSEC3Iterations, qname)
 

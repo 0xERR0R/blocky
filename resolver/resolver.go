@@ -122,7 +122,12 @@ func Chain(resolvers ...Resolver) ChainedResolver {
 		}
 	}
 
-	return resolvers[0].(ChainedResolver)
+	cr, ok := resolvers[0].(ChainedResolver)
+	if !ok {
+		panic("first resolver must implement ChainedResolver")
+	}
+
+	return cr
 }
 
 func GetFromChainWithType[T any](resolver ChainedResolver) (result T, err error) {

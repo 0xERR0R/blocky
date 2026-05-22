@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"math/rand"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -18,7 +20,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/miekg/dns"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 )
 
 var errArbitrarySystemResolverRequest = errors.New(
@@ -411,7 +412,7 @@ func (b *Bootstrap) addResolvFileUpstreams(
 }
 
 func (br bootstrapedResolvers) Resolvers() []Resolver {
-	return maps.Keys(br)
+	return slices.Collect(maps.Keys(br))
 }
 
 type IPSet struct {
@@ -431,7 +432,7 @@ func (ips *IPSet) Current() net.IP {
 
 func (ips *IPSet) Next() {
 	oldIP := ips.index
-	newIP := uint32(int(ips.index+1) % len(ips.values))
+	newIP := uint32(int(ips.index+1) % len(ips.values)) //nolint:gosec // index and len are small practical values
 
 	// We don't care about the result: if the call fails,
 	// it means the value was incremented by another goroutine

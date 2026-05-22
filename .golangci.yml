@@ -116,6 +116,7 @@ linters:
     rules:
       - linters:
           - dupl
+          - fatcontext
           - funlen
           - goconst
           - gochecknoglobals
@@ -130,6 +131,7 @@ linters:
         path: _test\.go
         text: "SA1012:"
       - linters:
+          - lll
           - wrapcheck
         path: e2e
     paths:

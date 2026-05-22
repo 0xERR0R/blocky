@@ -27,6 +27,8 @@ func init() {
 }
 
 func AssertRegistryComplete(t *testing.T, reg *prometheus.Registry) {
+	t.Helper()
+
 	mfs, err := reg.Gather()
 	if err != nil {
 		t.Fatalf("failed to gather metrics: %v", err)
