@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -320,6 +321,41 @@ func doHTTPRequest(ctx context.Context, container testcontainers.Container, cont
 	}
 
 	return nil
+}
+
+// createBlockyContainerWithCapDrop creates a blocky container that listens on
+// the given DNS port with ALL Linux capabilities dropped. It verifies the image
+// execs and serves DNS under a PSS-Restricted-style runtime (Kubernetes
+// Restricted profile / docker --cap-drop ALL). It builds on the standard blocky
+// container request, overriding only the exposed ports, the healthcheck target
+// port, and the dropped capabilities — so image resolution and coverage wiring
+// are inherited.
+func createBlockyContainerWithCapDrop(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
+	dnsPort int, lines ...string,
+) (testcontainers.Container, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*startupTimeout)
+	defer cancel()
+
+	confFile := createTempFile(lines...)
+	portStr := strconv.Itoa(dnsPort)
+
+	req := buildBlockyContainerRequest(confFile)
+	req.ExposedPorts = []string{portStr + "/tcp", portStr + "/udp"}
+
+	baseConfigModifier := req.ConfigModifier
+	req.ConfigModifier = func(c *container.Config) {
+		baseConfigModifier(c)
+		// Point the healthcheck at the configured DNS port (the image default is 53).
+		c.Healthcheck.Test = []string{"CMD", "/app/blocky", "healthcheck", "-p", portStr}
+	}
+
+	baseHostConfigModifier := req.HostConfigModifier
+	req.HostConfigModifier = func(hc *container.HostConfig) {
+		baseHostConfigModifier(hc)
+		hc.CapDrop = []string{"ALL"}
+	}
+
+	return startContainerWithNetwork(ctx, req, "blocky", e2eNet)
 }
 
 // createTempFile creates a temporary file with the given lines which is deleted after the test
