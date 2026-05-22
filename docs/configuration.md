@@ -326,6 +326,11 @@ types, all queries with these types will be dropped (empty answer will be return
 
 This configuration will drop all 'AAAA' (IPv6) queries.
 
+When `AAAA` is filtered, Blocky additionally strips the `ipv6hint` SvcParam from `HTTPS` and `SVCB`
+(RFC 9460) answers. Without this, clients could still discover and connect to IPv6 endpoints
+advertised in those records, bypassing the `AAAA` filter. Other SvcParams (e.g. `alpn`, `ipv4hint`)
+are left untouched.
+
 ## Rate limiting per client IP
 
 Blocky can enforce a per-client query rate limit at the head of the resolver chain. **Disabled by default.** This is _not_ a DDoS defense — for that, run [fail2ban](https://www.fail2ban.org/) or [crowdsec](https://www.crowdsec.net/) at the firewall, which can drop traffic before it reaches Blocky. The limiter is intended for misbehaving clients, runaway scripts, and the kind of low-volume amplification that can enroll a public Blocky instance in someone else's DNS reflection attack ([issue #1135](https://github.com/0xERR0R/blocky/issues/1135)).
