@@ -35,12 +35,19 @@ func (r *FilteringResolver) Resolve(ctx context.Context, request *model.Request)
 	}
 
 	// When AAAA lookups are filtered, also drop IPv6 hints from HTTPS/SVCB answers so that
-	// clients can't reach the IPv6 endpoints advertised via SvcParams (RFC 9460).
-	if resp != nil && resp.Res != nil && r.cfg.QueryTypes.Contains(dns.Type(dns.TypeAAAA)) {
+	// clients can't reach the IPv6 endpoints advertised via SvcParams (RFC 9460). Only
+	// HTTPS/SVCB queries can carry such records in their answer section, so other query
+	// types skip the post-processing entirely.
+	if resp != nil && resp.Res != nil && isSVCBQuery(qType) && r.cfg.QueryTypes.Contains(dns.Type(dns.TypeAAAA)) {
 		removeIPv6Hints(resp.Res)
 	}
 
 	return resp, nil
+}
+
+// isSVCBQuery reports whether the query type can return HTTPS/SVCB records in the answer section.
+func isSVCBQuery(qType uint16) bool {
+	return qType == dns.TypeHTTPS || qType == dns.TypeSVCB
 }
 
 // removeIPv6Hints strips the ipv6hint SvcParam from any HTTPS/SVCB record in the answer

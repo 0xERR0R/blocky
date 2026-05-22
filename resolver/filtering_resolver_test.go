@@ -227,6 +227,19 @@ var _ = Describe("FilteringResolver", func() {
 			Expect(resp.Res.Answer).Should(ConsistOf(a))
 		})
 
+		It("does not touch answers of non-HTTPS/SVCB queries", func() {
+			// HTTPS/SVCB records only legitimately appear in the answer of HTTPS/SVCB queries,
+			// so the answer of an A query is never scanned for hints
+			mockAnswer.Answer = []dns.RR{newHTTPSRecord()}
+
+			resp, err := sut.Resolve(ctx, newRequest("example.com.", A))
+			Expect(err).Should(Succeed())
+
+			https, ok := resp.Res.Answer[0].(*dns.HTTPS)
+			Expect(ok).Should(BeTrue())
+			Expect(svcbKeys(https.Value)).Should(ContainElement(dns.SVCB_IPV6HINT))
+		})
+
 		It("clears the AD bit when an ipv6hint is removed", func() {
 			mockAnswer.AuthenticatedData = true
 			mockAnswer.Answer = []dns.RR{newHTTPSRecord()}
