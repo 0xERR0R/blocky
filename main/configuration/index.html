@@ -3698,6 +3698,12 @@ types, all queries with these types will be dropped (empty answer will be return
 </code></pre></div>
 </div>
 <p>This configuration will drop all 'AAAA' (IPv6) queries.</p>
+<p>When <code>AAAA</code> is filtered, Blocky additionally strips the <code>ipv6hint</code> SvcParam from <code>HTTPS</code> and <code>SVCB</code>
+(RFC 9460) answers. Without this, clients could still discover and connect to IPv6 endpoints
+advertised in those records, bypassing the <code>AAAA</code> filter. Other SvcParams (e.g. <code>alpn</code>, <code>ipv4hint</code>)
+are left untouched. Because stripping a hint changes the record, any <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> signature on the
+affected <code>HTTPS</code>/<code>SVCB</code> record is removed and the <code>AD</code> (authenticated data) flag is cleared for
+that response.</p>
 <h2 id="rate-limiting-per-client-ip">Rate limiting per client IP</h2>
 <p>Blocky can enforce a per-client query rate limit at the head of the resolver chain. <strong>Disabled by default.</strong> This is <em>not</em> a DDoS defense — for that, run <a href="https://www.fail2ban.org/">fail2ban</a> or <a href="https://www.crowdsec.net/">crowdsec</a> at the firewall, which can drop traffic before it reaches Blocky. The limiter is intended for misbehaving clients, runaway scripts, and the kind of low-volume amplification that can enroll a public Blocky instance in someone else's <abbr title="Domain Name System">DNS</abbr> reflection attack (<a href="https://github.com/0xERR0R/blocky/issues/1135">issue #1135</a>).</p>
 <p>When a client exceeds its bucket, the query is <strong>dropped silently</strong> (no <abbr title="User Datagram Protocol">UDP</abbr> response, no <abbr title="Domain Name System">DNS</abbr> error) so that amplification ratio against a spoofed-source attacker is zero. A WARN log line is emitted (throttled to ≤ 1 line per bucket per second) so fail2ban can match against it.</p>
