@@ -3943,8 +3943,23 @@ recommended).</p>
 <p>For <abbr title="DNS-over-HTTPS">DoH</abbr> you can also pass the client name as url parameter:</p>
 <p><abbr title="DNS-over-HTTPS">DoH</abbr> URL: <code>https://blocky.example.com/dns-query/alice</code> -&gt; request's client name is <code>alice</code></p>
 <h3 id="resolving-client-name-from-ip-address">Resolving client name from IP address</h3>
-<p>Blocky uses <abbr title="Reverse DNS">rDNS</abbr> to retrieve client's name. To use this feature, you can configure a <abbr title="Domain Name System">DNS</abbr> server for client lookup (
-typically your router). You can also define client names manually per IP address.</p>
+<p>Blocky resolves a client's name from its IP address using the first of the following sources that yields a match:</p>
+<ol>
+<li><strong>Custom client name mapping</strong> – names defined manually via <code>clientLookup.clients</code> (see below).</li>
+<li><strong>Local in-memory sources</strong> – reverse (IP → name) entries already known to Blocky from your
+   <a href="#custom-dns">custom <abbr title="Domain Name System">DNS</abbr></a> records and <a href="#hosts-file">hosts files</a>. This works automatically, requires no
+   <code>clientLookup.upstream</code>, and performs no network lookup. For example, a hosts file entry <code>192.168.1.11 unifi</code>
+   makes the client name of <code>192.168.1.11</code> resolve to <code>unifi</code>.</li>
+<li><strong><abbr title="Reverse DNS">rDNS</abbr> upstream</strong> – a reverse <abbr title="Domain Name System">DNS</abbr> lookup against the <abbr title="Domain Name System">DNS</abbr> server configured in <code>clientLookup.upstream</code>
+   (typically your router).</li>
+</ol>
+<p>If none of these returns a name, the IP address is used as the client name.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Because client names are also used for <a href="#blocking-and-allowlisting">blocking groups</a> and
+<a href="#upstreams-configuration">client-specific upstream groups</a>, enabling local sources (custom <abbr title="Domain Name System">DNS</abbr> / hosts files) can change which
+group a client matches if a group is keyed on a name now resolved from those sources.</p>
+</div>
 <h4 id="single-name-order">Single name order</h4>
 <p>Some routers return multiple names for the client (host name and user defined name). With
 parameter <code>clientLookup.singleNameOrder</code> you can specify, which of retrieved names should be used.</p>
