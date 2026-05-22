@@ -349,6 +349,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#editor-support-and-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editor support and validation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#basic-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1554,6 +1565,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#editor-support-and-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editor support and validation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#basic-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2611,10 +2633,12 @@
 
 <h1 id="configuration">Configuration</h1>
 <p>This chapter describes all configuration options in <code>config.yaml</code>. You can download a reference file with all
-configuration properties as <a href="../config.yml">JSON</a>.</p>
+configuration properties as <a href="../config.yml"><abbr title="YAML Ain't Markup Language">YAML</abbr></a>. A matching <a href="../config.schema.json">JSON schema</a> is also available for
+editor autocomplete and validation (see <a href="#editor-support-and-validation">Editor support and validation</a>).</p>
 <details class="example">
 <summary>reference configuration file</summary>
-<div class="highlight"><pre><span></span><code><span class="nt">upstreams</span><span class="p">:</span>
+<div class="highlight"><pre><span></span><code><span class="c1"># yaml-language-server: $schema=https://raw.githubusercontent.com/0xERR0R/blocky/main/docs/config.schema.json</span>
+<span class="nt">upstreams</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">init</span><span class="p">:</span>
 <span class="w">    </span><span class="c1"># Configure startup behavior.</span>
 <span class="w">    </span><span class="c1"># accepted: blocking, failOnError, fast</span>
@@ -3180,6 +3204,19 @@ configuration properties as <a href="../config.yml">JSON</a>.</p>
 <span class="w">  </span><span class="c1">#</span>
 </code></pre></div>
 </details>
+<h2 id="editor-support-and-validation">Editor support and validation</h2>
+<p>Blocky ships a <a href="https://raw.githubusercontent.com/0xERR0R/blocky/main/docs/config.schema.json">JSON schema</a>
+generated from its configuration types. Editors with the
+<a href="https://github.com/redhat-developer/yaml-language-server"><abbr title="YAML Ain't Markup Language">YAML</abbr> Language Server</a>
+(for example VS Code with the <em><abbr title="YAML Ain't Markup Language">YAML</abbr></em> extension) use it for autocomplete,
+inline documentation and validation. Add this modeline to the top of your
+<code>config.yml</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># yaml-language-server: $schema=https://raw.githubusercontent.com/0xERR0R/blocky/main/docs/config.schema.json</span>
+</code></pre></div>
+<p>The same schema is used by <code>blocky validate</code>, which reports unknown keys and
+invalid values with their field path. Schema validation is a structural
+first pass; blocky still performs its full semantic checks when loading the
+configuration.</p>
 <h2 id="basic-configuration">Basic configuration</h2>
 <table>
 <thead>
