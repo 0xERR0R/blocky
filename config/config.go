@@ -342,10 +342,35 @@ type Ports struct {
 }
 
 func (c *Ports) LogConfig(logger *logrus.Entry) {
-	logger.Infof("DNS   = %s", c.DNS)
-	logger.Infof("TLS   = %s", c.TLS)
-	logger.Infof("HTTP  = %s", c.HTTP)
-	logger.Infof("HTTPS = %s", c.HTTPS)
+	logger.Infof("DNS     = %s", c.DNS)
+	logger.Infof("TLS     = %s", c.TLS)
+	logger.Infof("HTTP    = %s", c.HTTP)
+	logger.Infof("HTTPS   = %s", c.HTTPS)
+	logger.Infof("DOHPath = %s", c.DOHPath)
+}
+
+func (c *Ports) validate() error {
+	if c.DOHPath == "" {
+		return errors.New("dohPath must not be empty")
+	}
+
+	if !strings.HasPrefix(c.DOHPath, "/") {
+		return fmt.Errorf("dohPath must start with '/', got %q", c.DOHPath)
+	}
+
+	if strings.ContainsAny(c.DOHPath, " \t") {
+		return fmt.Errorf("dohPath must not contain whitespace, got %q", c.DOHPath)
+	}
+
+	if strings.Contains(c.DOHPath, "?") {
+		return fmt.Errorf("dohPath must not contain '?', got %q", c.DOHPath)
+	}
+
+	if strings.Contains(c.DOHPath, "#") {
+		return fmt.Errorf("dohPath must not contain '#', got %q", c.DOHPath)
+	}
+
+	return nil
 }
 
 // privilegedPortCeiling is the first non-privileged TCP/UDP port. Ports below
@@ -619,6 +644,10 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 	err = unmarshalConfig(logger, data, &cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config from %s: %w", prettyPath, err)
+	}
+
+	if err := cfg.Ports.validate(); err != nil {
+		logger.Fatal(err)
 	}
 
 	// Normalize rewrite keys to lowercase after unmarshaling
