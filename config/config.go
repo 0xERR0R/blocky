@@ -359,7 +359,7 @@ func (c *Ports) validate() error {
 	}
 
 	if strings.ContainsAny(c.DOHPath, " \t") {
-		return fmt.Errorf("dohPath must not contain spaces, got %q", c.DOHPath)
+		return fmt.Errorf("dohPath must not contain whitespace, got %q", c.DOHPath)
 	}
 
 	if strings.Contains(c.DOHPath, "?") {
