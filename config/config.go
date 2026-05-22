@@ -348,6 +348,47 @@ func (c *Ports) LogConfig(logger *logrus.Entry) {
 	logger.Infof("HTTPS = %s", c.HTTPS)
 }
 
+// privilegedPortCeiling is the first non-privileged TCP/UDP port. Ports below
+// it require CAP_NET_BIND_SERVICE (or root) to bind on Linux.
+const privilegedPortCeiling = 1024
+
+// PrivilegedPorts returns the configured listen addresses across DNS, HTTP,
+// HTTPS and TLS whose port is below privilegedPortCeiling.
+func (p *Ports) PrivilegedPorts() []string {
+	var privileged []string
+
+	for _, lc := range []ListenConfig{p.DNS, p.HTTP, p.HTTPS, p.TLS} {
+		for _, addr := range lc {
+			// Port 0 (OS-assigned ephemeral port) is never privileged.
+			if port, ok := extractPort(addr); ok && port > 0 && port < privilegedPortCeiling {
+				privileged = append(privileged, addr)
+			}
+		}
+	}
+
+	return privileged
+}
+
+// extractPort returns the port number of a listen address. It accepts every
+// ListenConfig form: "53", ":53", "1.2.3.4:53", "[::1]:853", "host:5353".
+func extractPort(addr string) (uint16, bool) {
+	if addr == "" {
+		return 0, false
+	}
+
+	portStr := addr
+	if _, splitPort, err := net.SplitHostPort(addr); err == nil {
+		portStr = splitPort
+	}
+
+	port, err := strconv.ParseUint(portStr, 10, 16)
+	if err != nil {
+		return 0, false
+	}
+
+	return uint16(port), true
+}
+
 // split in two types to avoid infinite recursion. See `BootstrapDNS.UnmarshalYAML`.
 type (
 	BootstrapDNS bootstrapDNS

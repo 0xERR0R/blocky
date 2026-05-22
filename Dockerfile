@@ -11,6 +11,7 @@ ARG OPTS=""
 # setup go environment
 ENV GO_SKIP_GENERATE=1\
   GO_BUILD_FLAGS="-tags static -v ${OPTS}" \
+  CGO_ENABLED=0 \
   BIN_USER=100\
   BIN_AUTOCAB=1 \
   BIN_OUT_DIR="/bin" \

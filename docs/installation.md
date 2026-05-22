@@ -39,10 +39,33 @@ run `./blocky --config config.yml`.
 
 !!! warning
 
-    Please be aware, if you want to use port 53 or 953 on Linux you should add `CAP_NET_BIND_SERVICE` capability
-    to the binary with `setcap 'cap_net_bind_service=+ep' ./blocky`, or run as root (not recommended).
+    To bind a **privileged port (< 1024, e.g. 53 or 853)** as a non-root user on
+    Linux, the binary needs the `NET_BIND_SERVICE` capability. Add it with
+    `setcap 'cap_net_bind_service=+ep' ./blocky`, run as root (not recommended),
+    or configure a port >= 1024.
+
+    If Blocky runs under a **restricted capability bounding set** (for example a
+    hardened `systemd` unit, or a container that drops capabilities), use
+    `setcap 'cap_net_bind_service=+p' ./blocky` instead. Blocky raises the
+    capability to effective itself at startup, which avoids the
+    `operation not permitted` exec error that `+ep` triggers when the capability
+    is not in the bounding set.
 
 ## Run with docker
+
+!!! note "Running under a restricted runtime"
+
+    The container image is capability-aware. The binary ships with
+    `cap_net_bind_service=+p` (permitted only), so the container starts even under
+    a restricted runtime that drops all capabilities (for example the Kubernetes
+    *Restricted* Pod Security Standard, `capabilities: drop: [ALL]`).
+
+    - On **ports >= 1024** no capability is required.
+    - On **privileged ports (< 1024, e.g. 53/853)** Blocky needs `NET_BIND_SERVICE`.
+      With the default runtime capability set it is already present and Blocky
+      enables it automatically. Under `drop: [ALL]`, grant it back (Kubernetes
+      `securityContext.capabilities.add: ["NET_BIND_SERVICE"]`, or
+      `docker run --cap-add NET_BIND_SERVICE`) or configure a port >= 1024.
 
 ### Alternative registry
 
