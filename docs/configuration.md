@@ -329,7 +329,9 @@ This configuration will drop all 'AAAA' (IPv6) queries.
 When `AAAA` is filtered, Blocky additionally strips the `ipv6hint` SvcParam from `HTTPS` and `SVCB`
 (RFC 9460) answers. Without this, clients could still discover and connect to IPv6 endpoints
 advertised in those records, bypassing the `AAAA` filter. Other SvcParams (e.g. `alpn`, `ipv4hint`)
-are left untouched.
+are left untouched. Because stripping a hint changes the record, any DNSSEC signature on the
+affected `HTTPS`/`SVCB` record is removed and the `AD` (authenticated data) flag is cleared for
+that response.
 
 ## Rate limiting per client IP
 

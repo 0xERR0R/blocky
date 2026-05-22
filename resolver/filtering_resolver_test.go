@@ -39,6 +39,28 @@ func newHTTPSRecord(name string) *dns.HTTPS {
 	}}
 }
 
+// newHTTPSRecordNoV6Hint builds an HTTPS RR carrying alpn and an ipv4hint, but no ipv6hint.
+func newHTTPSRecordNoV6Hint(name string) *dns.HTTPS {
+	return &dns.HTTPS{SVCB: dns.SVCB{
+		Hdr:      dns.RR_Header{Name: name, Rrtype: dns.TypeHTTPS, Class: dns.ClassINET, Ttl: 300},
+		Priority: 1,
+		Target:   ".",
+		Value: []dns.SVCBKeyValue{
+			&dns.SVCBAlpn{Alpn: []string{"h3", "h2"}},
+			&dns.SVCBIPv4Hint{Hint: []net.IP{net.ParseIP("104.16.123.96")}},
+		},
+	}}
+}
+
+// newRRSIG builds a minimal RRSIG RR covering the given record type.
+func newRRSIG(covered uint16) *dns.RRSIG {
+	return &dns.RRSIG{
+		Hdr:         dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeRRSIG, Class: dns.ClassINET, Ttl: 300},
+		TypeCovered: covered,
+		SignerName:  "example.com.",
+	}
+}
+
 var _ = Describe("FilteringResolver", func() {
 	var (
 		sut        *FilteringResolver
@@ -190,6 +212,51 @@ var _ = Describe("FilteringResolver", func() {
 			resp, err := sut.Resolve(ctx, newRequest("example.com.", A))
 			Expect(err).Should(Succeed())
 			Expect(resp.Res.Answer).Should(ConsistOf(a))
+		})
+
+		It("clears the AD bit when an ipv6hint is removed", func() {
+			mockAnswer.AuthenticatedData = true
+			mockAnswer.Answer = []dns.RR{newHTTPSRecord("example.com.")}
+
+			resp, err := sut.Resolve(ctx, newRequest("example.com.", HTTPS))
+			Expect(err).Should(Succeed())
+			Expect(resp.Res.AuthenticatedData).Should(BeFalse())
+		})
+
+		It("drops RRSIGs covering the modified HTTPS RRset, keeping other signatures", func() {
+			cnameSig := newRRSIG(dns.TypeCNAME)
+			mockAnswer.Answer = []dns.RR{
+				newHTTPSRecord("example.com."),
+				newRRSIG(dns.TypeHTTPS),
+				cnameSig,
+			}
+
+			resp, err := sut.Resolve(ctx, newRequest("example.com.", HTTPS))
+			Expect(err).Should(Succeed())
+
+			// the HTTPS-covering signature is gone, the CNAME one stays
+			Expect(resp.Res.Answer).ShouldNot(ContainElement(
+				WithTransform(func(rr dns.RR) uint16 {
+					if sig, ok := rr.(*dns.RRSIG); ok {
+						return sig.TypeCovered
+					}
+
+					return 0
+				}, Equal(uint16(dns.TypeHTTPS))),
+			))
+			Expect(resp.Res.Answer).Should(ContainElement(cnameSig))
+		})
+
+		It("keeps the AD bit and signatures when there is no ipv6hint to remove", func() {
+			mockAnswer.AuthenticatedData = true
+			sig := newRRSIG(dns.TypeHTTPS)
+			mockAnswer.Answer = []dns.RR{newHTTPSRecordNoV6Hint("example.com."), sig}
+
+			resp, err := sut.Resolve(ctx, newRequest("example.com.", HTTPS))
+			Expect(err).Should(Succeed())
+
+			Expect(resp.Res.AuthenticatedData).Should(BeTrue())
+			Expect(resp.Res.Answer).Should(ContainElement(sig))
 		})
 	})
 
