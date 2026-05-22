@@ -44,6 +44,13 @@ run `./blocky --config config.yml`.
     `setcap 'cap_net_bind_service=+ep' ./blocky`, run as root (not recommended),
     or configure a port >= 1024.
 
+    If Blocky runs under a **restricted capability bounding set** (for example a
+    hardened `systemd` unit, or a container that drops capabilities), use
+    `setcap 'cap_net_bind_service=+p' ./blocky` instead. Blocky raises the
+    capability to effective itself at startup, which avoids the
+    `operation not permitted` exec error that `+ep` triggers when the capability
+    is not in the bounding set.
+
 ## Run with docker
 
 !!! note "Running under a restricted runtime"

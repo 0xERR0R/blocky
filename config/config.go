@@ -359,7 +359,8 @@ func (p *Ports) PrivilegedPorts() []string {
 
 	for _, lc := range []ListenConfig{p.DNS, p.HTTP, p.HTTPS, p.TLS} {
 		for _, addr := range lc {
-			if port, ok := extractPort(addr); ok && port < privilegedPortCeiling {
+			// Port 0 (OS-assigned ephemeral port) is never privileged.
+			if port, ok := extractPort(addr); ok && port > 0 && port < privilegedPortCeiling {
 				privileged = append(privileged, addr)
 			}
 		}

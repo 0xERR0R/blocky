@@ -40,6 +40,12 @@ var _ = Describe("Ports.PrivilegedPorts", func() {
 
 		Expect(ports.PrivilegedPorts()).Should(BeEmpty())
 	})
+
+	It("does not treat port 0 (OS-assigned ephemeral) as privileged", func() {
+		ports := Ports{DNS: ListenConfig{":0"}, HTTP: ListenConfig{"127.0.0.1:0"}}
+
+		Expect(ports.PrivilegedPorts()).Should(BeEmpty())
+	})
 })
 
 var _ = Describe("extractPort", func() {
