@@ -84,8 +84,8 @@ func ValidateYAML(data []byte) ([]Error, error) {
 // uses JSON-native Go types (string, float64, bool, map[string]any, []any),
 // which is what the validator expects. yaml.v2 otherwise yields
 // map[interface{}]interface{} and int values.
-func yamlToJSONValue(data []byte) (interface{}, error) {
-	var raw interface{}
+func yamlToJSONValue(data []byte) (any, error) {
+	var raw any
 	if err := yaml.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("invalid YAML: %w", err)
 	}
@@ -100,17 +100,17 @@ func yamlToJSONValue(data []byte) (interface{}, error) {
 
 // toStringKeyed converts yaml.v2's map[interface{}]interface{} into
 // map[string]interface{} recursively so it can be JSON-marshaled.
-func toStringKeyed(v interface{}) interface{} {
+func toStringKeyed(v any) any {
 	switch t := v.(type) {
-	case map[interface{}]interface{}:
-		m := make(map[string]interface{}, len(t))
+	case map[any]any:
+		m := make(map[string]any, len(t))
 		for k, val := range t {
 			m[fmt.Sprintf("%v", k)] = toStringKeyed(val)
 		}
 
 		return m
-	case []interface{}:
-		s := make([]interface{}, len(t))
+	case []any:
+		s := make([]any, len(t))
 		for i, val := range t {
 			s[i] = toStringKeyed(val)
 		}

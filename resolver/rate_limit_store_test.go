@@ -133,11 +133,9 @@ var _ = Describe("bucketStore", func() {
 		var wg sync.WaitGroup
 		const N = 200
 		for range N {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				_, _ = s.allowAt("shared", time.Now())
-			}()
+			})
 		}
 		wg.Wait()
 		Expect(s.size.Load()).Should(BeNumerically("==", 1))

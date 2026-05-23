@@ -17,8 +17,12 @@ linters:
     - errchkjson
     - errorlint
     - exhaustive
+    - dupword
+    - errname
+    - exptostd
+    - fatcontext
+    - forcetypeassert
     - funlen
-    - forbidigo
     - ginkgolinter
     - gocheckcompilerdirectives
     - gochecknoglobals
@@ -30,19 +34,21 @@ linters:
     - goconst
     - gocritic
     - gocyclo
-    - gosmopolitan
     - godox
     - gomodguard_v2
+    - gosec
     - grouper
     - importas
     - iface
     - inamedparam
     - interfacebloat
+    - intrange
     - lll
     - loggercheck
     - makezero
     - misspell
     - mirror
+    - modernize
     - mnd
     - musttag
     - nakedret
@@ -57,6 +63,7 @@ linters:
     - perfsprint
     - prealloc
     - predeclared
+    - promlinter
     - protogetter
     - reassign
     - revive
@@ -66,12 +73,14 @@ linters:
     - sqlclosecheck
     - staticcheck
     - tagalign
+    - testableexamples
     - testifylint
+    - thelper
     - unconvert
     - unparam
     - usestdlibvars
+    - usetesting
     - wastedassign
-    - wrapcheck
     - whitespace
     - zerologlint
   disable:
@@ -107,6 +116,7 @@ linters:
     rules:
       - linters:
           - dupl
+          - fatcontext
           - funlen
           - goconst
           - gochecknoglobals
@@ -121,6 +131,7 @@ linters:
         path: _test\.go
         text: "SA1012:"
       - linters:
+          - lll
           - wrapcheck
         path: e2e
     paths:

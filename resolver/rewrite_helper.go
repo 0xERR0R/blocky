@@ -56,10 +56,8 @@ func rewriteDomain(domain string, rewriteMap map[string]string) (string, string)
 	domain = strings.ToLower(domain)
 
 	for k, v := range rewriteMap {
-		if strings.HasSuffix(domain, "."+k) {
-			newDomain := strings.TrimSuffix(domain, "."+k) + "." + v
-
-			return newDomain, k
+		if prefix, ok := strings.CutSuffix(domain, "."+k); ok {
+			return prefix + "." + v, k
 		}
 	}
 

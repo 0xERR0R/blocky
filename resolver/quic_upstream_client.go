@@ -148,7 +148,7 @@ func (r *quicUpstreamClient) exchangeDoQ(
 
 	// Write 2-byte length prefix + DNS message (RFC 9250 Section 4.2)
 	buf := make([]byte, 2+len(packed))
-	binary.BigEndian.PutUint16(buf, uint16(len(packed)))
+	binary.BigEndian.PutUint16(buf, uint16(len(packed))) //nolint:gosec // DNS messages are bounded well below 64 KiB
 	copy(buf[2:], packed)
 
 	if _, err = stream.Write(buf); err != nil {

@@ -24,8 +24,8 @@ import (
 
 // MockDoQUpstreamServer is a mock DNS-over-QUIC server for testing.
 type MockDoQUpstreamServer struct {
-	callCount int32
-	connCount int32
+	callCount atomic.Int32
+	connCount atomic.Int32
 	listener  *quic.Listener
 	transport *quic.Transport
 	udpConn   *net.UDPConn
@@ -66,12 +66,12 @@ func (t *MockDoQUpstreamServer) WithAnswerError(errorCode int) *MockDoQUpstreamS
 }
 
 func (t *MockDoQUpstreamServer) GetCallCount() int {
-	return int(atomic.LoadInt32(&t.callCount))
+	return int(t.callCount.Load())
 }
 
 // GetConnCount returns the number of QUIC connections accepted by the server.
 func (t *MockDoQUpstreamServer) GetConnCount() int {
-	return int(atomic.LoadInt32(&t.connCount))
+	return int(t.connCount.Load())
 }
 
 func (t *MockDoQUpstreamServer) Close() {
@@ -132,7 +132,7 @@ func (t *MockDoQUpstreamServer) Start() config.Upstream {
 
 	go t.serve()
 
-	addr := udpConn.LocalAddr().(*net.UDPAddr)
+	addr := udpConn.LocalAddr().(*net.UDPAddr) //nolint:forcetypeassert // LocalAddr on a UDP conn is always *net.UDPAddr
 	port, err := config.ConvertPort(strconv.Itoa(addr.Port))
 	util.FatalOnError("can't convert port", err)
 
@@ -146,7 +146,7 @@ func (t *MockDoQUpstreamServer) serve() {
 			return
 		}
 
-		atomic.AddInt32(&t.connCount, 1)
+		t.connCount.Add(1)
 
 		go t.handleConn(conn)
 	}
@@ -191,7 +191,7 @@ func (t *MockDoQUpstreamServer) handleStream(stream *quic.Stream) {
 		return
 	}
 
-	atomic.AddInt32(&t.callCount, 1)
+	t.callCount.Add(1)
 
 	response := t.answerFn(msg)
 	rCode := response.Rcode
@@ -205,7 +205,7 @@ func (t *MockDoQUpstreamServer) handleStream(stream *quic.Stream) {
 	util.FatalOnError("can't serialize message", err)
 
 	buf := make([]byte, 2+len(packed))
-	binary.BigEndian.PutUint16(buf, uint16(len(packed)))
+	binary.BigEndian.PutUint16(buf, uint16(len(packed))) //nolint:gosec // DNS messages are bounded well below 64 KiB
 	copy(buf[2:], packed)
 
 	_, _ = stream.Write(buf)

@@ -22,7 +22,7 @@ func Migrate(logger *logrus.Entry, optPrefix string, deprecated any, newOptions 
 
 	usesDepredOpts := false
 
-	for i := 0; i < deprecatedTyp.NumField(); i++ {
+	for i := range deprecatedTyp.NumField() {
 		field := deprecatedTyp.Field(i)
 		fieldTag := field.Tag.Get("yaml")
 		oldName := fullname(optPrefix, fieldTag)
@@ -132,7 +132,7 @@ func To[T any](newName string, newContainerStruct *T) *Dest {
 		parts := strings.Split(newName, ".")
 		tag := parts[len(parts)-1]
 
-		for i := 0; i < stVal.NumField(); i++ {
+		for i := range stVal.NumField() {
 			field := stVal.Type().Field(i)
 			if field.Tag.Get("yaml") == tag {
 				return i, stVal.Field(i)

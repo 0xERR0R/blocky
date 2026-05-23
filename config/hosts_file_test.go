@@ -65,7 +65,7 @@ var _ = Describe("HostsFileConfig", func() {
 			cfg, err := WithDefaults[HostsFile]()
 			Expect(err).Should(Succeed())
 
-			cfg.Deprecated.Filepath = ptrOf(newBytesSource("/a/file/path"))
+			cfg.Deprecated.Filepath = ptrOf(newBytesSource("/a/file/path")) //nolint:modernize // ptrOf(expr) != new(T) for non-zero values
 			cfg.Deprecated.RefreshPeriod = ptrOf(Duration(time.Hour))
 
 			migrated := cfg.migrate(logger)

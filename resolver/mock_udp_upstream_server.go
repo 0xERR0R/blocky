@@ -13,7 +13,7 @@ import (
 )
 
 type MockUDPUpstreamServer struct {
-	callCount int32
+	callCount atomic.Int32
 	ln        *net.UDPConn
 	answerFn  func(request *dns.Msg) (response *dns.Msg)
 }
@@ -84,11 +84,11 @@ func (t *MockUDPUpstreamServer) WithDelay(delay time.Duration) *MockUDPUpstreamS
 }
 
 func (t *MockUDPUpstreamServer) GetCallCount() int {
-	return int(atomic.LoadInt32(&t.callCount))
+	return int(t.callCount.Load())
 }
 
 func (t *MockUDPUpstreamServer) ResetCallCount() {
-	atomic.StoreInt32(&t.callCount, 0)
+	t.callCount.Store(0)
 }
 
 func (t *MockUDPUpstreamServer) Close() {
@@ -140,7 +140,7 @@ func (t *MockUDPUpstreamServer) Start() config.Upstream {
 
 				response := t.answerFn(msg)
 
-				atomic.AddInt32(&t.callCount, 1)
+				t.callCount.Add(1)
 				// nil should indicate an error
 				if response == nil {
 					_, _ = ln.WriteToUDP([]byte("dummy"), addr)

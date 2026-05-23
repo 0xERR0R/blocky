@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -42,13 +43,13 @@ func parseIPv4FromArpaAddr(arpa string) (net.IP, error) {
 	buf := make([]byte, 0, net.IPv4len)
 
 	// Parse and add each byte, in reverse, to the buffer
-	for i := len(parts) - 1; i >= 0; i-- {
-		part, err := strconv.ParseUint(parts[i], base10, byteBits)
+	for _, part := range slices.Backward(parts) {
+		p, err := strconv.ParseUint(part, base10, byteBits)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse IPv4 octet '%s' in arpa address '%s': %w", parts[i], arpa, err)
+			return nil, fmt.Errorf("failed to parse IPv4 octet '%s' in arpa address '%s': %w", part, arpa, err)
 		}
 
-		buf = append(buf, byte(part))
+		buf = append(buf, byte(p))
 	}
 
 	return net.IPv4(buf[0], buf[1], buf[2], buf[3]), nil
@@ -84,7 +85,7 @@ func parseIPv6FromArpaAddr(arpa string) (net.IP, error) {
 
 		part := msNibble<<nibbleBits | lsNibble
 
-		buf = append(buf, byte(part))
+		buf = append(buf, byte(part)) //nolint:gosec // nibble values always fit in a byte
 	}
 
 	return net.IP(buf), nil

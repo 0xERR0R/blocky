@@ -122,6 +122,7 @@ func Chain(resolvers ...Resolver) ChainedResolver {
 		}
 	}
 
+	//nolint:forcetypeassert // all resolvers in a chain implement ChainedResolver by construction
 	return resolvers[0].(ChainedResolver)
 }
 

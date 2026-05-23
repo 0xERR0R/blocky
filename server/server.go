@@ -97,7 +97,7 @@ func newTLSConfig(cfg *config.Config) (*tls.Config, error) {
 
 	// #nosec G402 // See TLSVersion.validate
 	res := &tls.Config{
-		MinVersion:   uint16(cfg.MinTLSServeVer),
+		MinVersion:   uint16(cfg.MinTLSServeVer), //nolint:gosec // TLS version constants fit safely in uint16
 		CipherSuites: tlsCipherSuites(),
 		Certificates: []tls.Certificate{cert},
 	}
@@ -443,6 +443,7 @@ func createQueryResolver(
 
 func (s *Server) registerDNSHandlers(ctx context.Context) {
 	for _, server := range s.dnsServers {
+		//nolint:forcetypeassert // handler is always *dns.ServeMux; set during server construction
 		handler := server.Handler.(*dns.ServeMux)
 		handler.HandleFunc(".", func(w dns.ResponseWriter, m *dns.Msg) {
 			s.OnRequest(ctx, w, m)

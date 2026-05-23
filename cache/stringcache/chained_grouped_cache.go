@@ -1,9 +1,8 @@
 package stringcache
 
 import (
-	"sort"
-
-	"golang.org/x/exp/maps"
+	"maps"
+	"slices"
 )
 
 type ChainedGroupedCache struct {
@@ -34,9 +33,7 @@ func (c *ChainedGroupedCache) Contains(searchString string, groups []string) []s
 		}
 	}
 
-	matchedGroups := maps.Keys(groupMatchedMap)
-
-	sort.Strings(matchedGroups)
+	matchedGroups := slices.Sorted(maps.Keys(groupMatchedMap))
 
 	return matchedGroups
 }

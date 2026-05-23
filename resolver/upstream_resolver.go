@@ -159,7 +159,7 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 
 	// Add certificate pinning if hashes are provided from DNS stamp
 	if len(cfg.CertificateFingerprints) > 0 {
-		tlsConfig.VerifyPeerCertificate = createCertificatePinningVerifier(cfg.CertificateFingerprints)
+		tlsConfig.VerifyPeerCertificate = createCertificatePinningVerifier(cfg.CertificateFingerprints) //nolint:gosec
 	}
 
 	switch cfg.Net {

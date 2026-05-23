@@ -164,7 +164,7 @@ func (v *Validator) validateWildcardNSEC3(nsec3Records []*dns.NSEC3, qname strin
 	}
 
 	// Check iteration count limit
-	if iterations > uint16(v.maxNSEC3Iterations) {
+	if iterations > uint16(v.maxNSEC3Iterations) { //nolint:gosec // maxNSEC3Iterations is configured ≤ 65535
 		return fmt.Errorf("NSEC3 iteration count %d exceeds maximum %d",
 			iterations, v.maxNSEC3Iterations)
 	}

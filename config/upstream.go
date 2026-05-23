@@ -326,7 +326,7 @@ func stampWithoutAddrPort(stampStr string) (string, string, bool) {
 
 	out := make([]byte, 0, len(bin))
 	out = append(out, bin[:addrLenPos]...)
-	out = append(out, byte(len(host)))
+	out = append(out, byte(len(host))) //nolint:gosec // DNS hostnames are bounded to 253 chars, safe for byte
 	out = append(out, host...)
 	out = append(out, bin[addrEnd:]...)
 
