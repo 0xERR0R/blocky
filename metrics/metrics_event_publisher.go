@@ -43,7 +43,7 @@ func registerBlockingEventListeners() {
 
 	RegisterMetric(enabledGauge)
 
-	subscribe(evt.BlockingEnabledEvent, func(enabled bool) {
+	subscribe(evt.BlockingEnabledTopic, func(enabled bool) {
 		if enabled {
 			enabledGauge.Set(1)
 		} else {

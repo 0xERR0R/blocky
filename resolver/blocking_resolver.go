@@ -256,7 +256,7 @@ func (r *BlockingResolver) internalEnableBlocking() {
 	s.enabled = true
 	s.disabledGroups = []string{}
 
-	evt.LegacyBus().Publish(evt.BlockingEnabledEvent, true)
+	evt.LegacyBus().Publish(evt.BlockingEnabledTopic, true)
 }
 
 // DisableBlocking deactivates the blocking for a particular duration (or forever if 0).
@@ -297,7 +297,7 @@ func (r *BlockingResolver) internalDisableBlocking(ctx context.Context, duration
 	}
 
 	s.enabled = false
-	evt.LegacyBus().Publish(evt.BlockingEnabledEvent, false)
+	evt.LegacyBus().Publish(evt.BlockingEnabledTopic, false)
 
 	s.disableEnd = time.Now().Add(duration)
 
