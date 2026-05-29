@@ -187,7 +187,7 @@ func NewBlockingResolver(ctx context.Context,
 }
 
 func (r *BlockingResolver) subscribeEvents(ctx context.Context) error {
-	err := evt.Bus().SubscribeOnce(evt.ApplicationStarted, func(_ ...string) {
+	err := evt.LegacyBus().SubscribeOnce(evt.ApplicationStarted, func(_ ...string) {
 		go r.initFQDNIPCache(ctx)
 	})
 	if err != nil {
@@ -206,14 +206,14 @@ func (r *BlockingResolver) subscribeEvents(ctx context.Context) error {
 		}()
 	}
 
-	err = evt.Bus().Subscribe(evt.BlockingStateChangedRemote, remoteHandler)
+	err = evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, remoteHandler)
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to %s: %w", evt.BlockingStateChangedRemote, err)
 	}
 
 	go func() {
 		<-ctx.Done()
-		_ = evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, remoteHandler)
+		_ = evt.LegacyBus().Unsubscribe(evt.BlockingStateChangedRemote, remoteHandler)
 	}()
 
 	return nil
@@ -245,7 +245,7 @@ func (r *BlockingResolver) retrieveAllBlockingGroups() []string {
 // EnableBlocking enables the blocking against the denylists
 func (r *BlockingResolver) EnableBlocking(ctx context.Context) {
 	r.internalEnableBlocking()
-	evt.Bus().Publish(evt.BlockingStateChanged, evt.BlockingState{Enabled: true})
+	evt.LegacyBus().Publish(evt.BlockingStateChanged, evt.BlockingState{Enabled: true})
 }
 
 func (r *BlockingResolver) internalEnableBlocking() {
@@ -256,14 +256,14 @@ func (r *BlockingResolver) internalEnableBlocking() {
 	s.enabled = true
 	s.disabledGroups = []string{}
 
-	evt.Bus().Publish(evt.BlockingEnabledEvent, true)
+	evt.LegacyBus().Publish(evt.BlockingEnabledEvent, true)
 }
 
 // DisableBlocking deactivates the blocking for a particular duration (or forever if 0).
 func (r *BlockingResolver) DisableBlocking(ctx context.Context, duration time.Duration, disableGroups []string) error {
 	err := r.internalDisableBlocking(ctx, duration, disableGroups)
 	if err == nil {
-		evt.Bus().Publish(evt.BlockingStateChanged, evt.BlockingState{
+		evt.LegacyBus().Publish(evt.BlockingStateChanged, evt.BlockingState{
 			Enabled:  false,
 			Duration: duration,
 			Groups:   disableGroups,
@@ -297,7 +297,7 @@ func (r *BlockingResolver) internalDisableBlocking(ctx context.Context, duration
 	}
 
 	s.enabled = false
-	evt.Bus().Publish(evt.BlockingEnabledEvent, false)
+	evt.LegacyBus().Publish(evt.BlockingEnabledEvent, false)
 
 	s.disableEnd = time.Now().Add(duration)
 

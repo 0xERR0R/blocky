@@ -44,8 +44,9 @@ const (
 //nolint:gochecknoglobals
 var evtBus = EventBus.New()
 
-// Bus returns the global bus instance
-func Bus() EventBus.Bus {
+// LegacyBus returns the global legacy EventBus instance. It will be removed
+// once all callers are migrated to the typed evt.Bus in bus.go (Task 9).
+func LegacyBus() EventBus.Bus {
 	return evtBus
 }
 

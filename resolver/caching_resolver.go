@@ -364,7 +364,7 @@ func (r *CachingResolver) adjustTTLs(answer []dns.RR) (ttl time.Duration) {
 
 func (r *CachingResolver) publishMetricsIfEnabled(event string, val any) {
 	if r.emitMetricEvents {
-		evt.Bus().Publish(event, val)
+		evt.LegacyBus().Publish(event, val)
 	}
 }
 

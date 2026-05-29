@@ -145,8 +145,8 @@ func TestAllExpectedMetricsAreRegistered(t *testing.T) {
 	if err != nil {
 		t.Fatal("failed to call metrics resolver")
 	}
-	evt.Bus().Publish(evt.BlockingCacheGroupChanged, lists.ListCacheTypeDenylist, "group", 0)
-	evt.Bus().Publish(evt.BlockingCacheGroupChanged, lists.ListCacheTypeAllowlist, "group", 0)
+	evt.LegacyBus().Publish(evt.BlockingCacheGroupChanged, lists.ListCacheTypeDenylist, "group", 0)
+	evt.LegacyBus().Publish(evt.BlockingCacheGroupChanged, lists.ListCacheTypeAllowlist, "group", 0)
 
 	// createHTTPRouter
 	metrics.Start(chi.NewMux(), config)

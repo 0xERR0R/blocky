@@ -103,7 +103,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		When("List is refreshed", func() {
 			It("event should be fired", func() {
 				groupCnt := make(map[string]int)
-				err := Bus().Subscribe(BlockingCacheGroupChanged, func(listType lists.ListCacheType, group string, cnt int) {
+				err := LegacyBus().Subscribe(BlockingCacheGroupChanged, func(listType lists.ListCacheType, group string, cnt int) {
 					groupCnt[group] = cnt
 				})
 				Expect(err).Should(Succeed())
@@ -142,7 +142,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 					return nil, nil //nolint:nilnil
 				}
-				Bus().Publish(ApplicationStarted, "")
+				LegacyBus().Publish(ApplicationStarted, "")
 				Eventually(func(g Gomega) {
 					g.Expect(sut.Resolve(ctx, newRequestWithClient("blocked2.com.", A, "192.168.178.39", "client1"))).
 						Should(And(
@@ -1220,7 +1220,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 				By("Calling Rest API to deactivate blocking for 0.5 sec", func() {
 					enabled := make(chan bool, 1)
-					err := Bus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
+					err := LegacyBus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
 						enabled <- state
 					})
 					Expect(err).Should(Succeed())
@@ -1258,7 +1258,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 				By("Wait 1 sec and perform the same query again, should be blocked now", func() {
 					enabled := make(chan bool, 1)
-					_ = Bus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
+					_ = LegacyBus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
 						enabled <- state
 					})
 					// wait 1 sec
@@ -1310,7 +1310,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 				By("Calling Rest API to deactivate blocking for one group for 0.5 sec", func() {
 					enabled := make(chan bool, 1)
-					err := Bus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
+					err := LegacyBus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
 						enabled <- false
 					})
 					Expect(err).Should(Succeed())
@@ -1346,7 +1346,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 				By("Wait 1 sec and perform the same query again, should be blocked now", func() {
 					enabled := make(chan bool, 1)
-					_ = Bus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
+					_ = LegacyBus().SubscribeOnce(BlockingEnabledEvent, func(state bool) {
 						enabled <- state
 					})
 					// wait 1 sec
@@ -1438,7 +1438,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				Expect(sut.DisableBlocking(ctx, 0, []string{})).Should(Succeed())
 				Expect(sut.BlockingStatus().Enabled).Should(BeFalse())
 
-				Bus().Publish(BlockingStateChangedRemote, BlockingState{Enabled: true})
+				LegacyBus().Publish(BlockingStateChangedRemote, BlockingState{Enabled: true})
 
 				Eventually(func() bool {
 					return sut.BlockingStatus().Enabled
@@ -1447,7 +1447,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 		When("BlockingStateChangedRemote with enabled=false is received", func() {
 			It("should disable blocking", func() {
-				Bus().Publish(BlockingStateChangedRemote, BlockingState{
+				LegacyBus().Publish(BlockingStateChangedRemote, BlockingState{
 					Enabled: false,
 					Groups:  []string{},
 				})

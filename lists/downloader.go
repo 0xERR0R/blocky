@@ -118,5 +118,5 @@ func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.Read
 }
 
 func onDownloadError(link string) {
-	evt.Bus().Publish(evt.CachingFailedDownloadChanged, link)
+	evt.LegacyBus().Publish(evt.CachingFailedDownloadChanged, link)
 }

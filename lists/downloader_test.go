@@ -38,9 +38,9 @@ var _ = Describe("Downloader", func() {
 		fn := func(url string) {
 			failedDownloadCountEvtChannel <- url
 		}
-		Expect(Bus().Subscribe(CachingFailedDownloadChanged, fn)).Should(Succeed())
+		Expect(LegacyBus().Subscribe(CachingFailedDownloadChanged, fn)).Should(Succeed())
 		DeferCleanup(func() {
-			Expect(Bus().Unsubscribe(CachingFailedDownloadChanged, fn)).Should(Succeed())
+			Expect(LegacyBus().Unsubscribe(CachingFailedDownloadChanged, fn)).Should(Succeed())
 		})
 
 		loggerHook = test.NewGlobal()

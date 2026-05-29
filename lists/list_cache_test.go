@@ -271,7 +271,7 @@ var _ = Describe("ListCache", func() {
 					"gr1": config.NewBytesSources(server1.URL),
 				}
 
-				_ = Bus().SubscribeOnce(BlockingCacheGroupChanged, func(listType ListCacheType, group string, cnt int) {
+				_ = LegacyBus().SubscribeOnce(BlockingCacheGroupChanged, func(listType ListCacheType, group string, cnt int) {
 					resultCnt = cnt
 				})
 			})

@@ -103,14 +103,14 @@ var _ = Describe("CachingResolver", func() {
 				domainPrefetched := make(chan bool, 1)
 				prefetchHitDomain := make(chan bool, 1)
 				prefetchedCnt := make(chan int, 1)
-				Expect(Bus().SubscribeOnce(CachingPrefetchCacheHit, func(domain string) {
+				Expect(LegacyBus().SubscribeOnce(CachingPrefetchCacheHit, func(domain string) {
 					prefetchHitDomain <- true
 				})).Should(Succeed())
-				Expect(Bus().SubscribeOnce(CachingDomainPrefetched, func(domain string) {
+				Expect(LegacyBus().SubscribeOnce(CachingDomainPrefetched, func(domain string) {
 					domainPrefetched <- true
 				})).Should(Succeed())
 
-				Expect(Bus().SubscribeOnce(CachingDomainsToPrefetchCountChanged, func(cnt int) {
+				Expect(LegacyBus().SubscribeOnce(CachingDomainsToPrefetchCountChanged, func(cnt int) {
 					prefetchedCnt <- cnt
 				})).Should(Succeed())
 
@@ -211,7 +211,7 @@ var _ = Describe("CachingResolver", func() {
 				It("should cache response and use response's TTL", func() {
 					By("first request", func() {
 						totalCacheCount := make(chan int, 1)
-						_ = Bus().SubscribeOnce(CachingResultCacheChanged, func(d int) {
+						_ = LegacyBus().SubscribeOnce(CachingResultCacheChanged, func(d int) {
 							totalCacheCount <- d
 						})
 						Expect(sut.Resolve(ctx, newRequest("example.com.", A))).

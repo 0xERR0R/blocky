@@ -73,13 +73,13 @@ var _ = Describe("EventBusBridge", func() {
 					receivedStates <- state
 				}
 
-				Expect(evt.Bus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+				Expect(evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				DeferCleanup(func() {
-					Expect(evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+					Expect(evt.LegacyBus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				})
 
 				expectedState := evt.BlockingState{Enabled: true}
-				evt.Bus().Publish(evt.BlockingStateChanged, expectedState)
+				evt.LegacyBus().Publish(evt.BlockingStateChanged, expectedState)
 
 				Eventually(receivedStates).WithTimeout(2 * time.Second).WithPolling(50 * time.Millisecond).Should(Receive(Equal(expectedState)))
 			}, SpecTimeout(3*time.Second))
@@ -95,9 +95,9 @@ var _ = Describe("EventBusBridge", func() {
 					receivedStates <- state
 				}
 
-				Expect(evt.Bus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+				Expect(evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				DeferCleanup(func() {
-					Expect(evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+					Expect(evt.LegacyBus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				})
 
 				otherID := uuid.NewString()
@@ -130,9 +130,9 @@ var _ = Describe("EventBusBridge", func() {
 					receivedStates <- state
 				}
 
-				Expect(evt.Bus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+				Expect(evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				DeferCleanup(func() {
-					Expect(evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+					Expect(evt.LegacyBus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				})
 
 				payload, err := json.Marshal(bridgeMessage{
@@ -166,9 +166,9 @@ var _ = Describe("EventBusBridge", func() {
 					receivedStates <- state
 				}
 
-				Expect(evt.Bus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+				Expect(evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				DeferCleanup(func() {
-					Expect(evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+					Expect(evt.LegacyBus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				})
 
 				// Publish empty payload
@@ -186,9 +186,9 @@ var _ = Describe("EventBusBridge", func() {
 					receivedStates <- state
 				}
 
-				Expect(evt.Bus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+				Expect(evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				DeferCleanup(func() {
-					Expect(evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+					Expect(evt.LegacyBus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				})
 
 				redisServer.Publish(EventBridgeChannel, "not-valid-json{{{")
@@ -220,9 +220,9 @@ var _ = Describe("EventBusBridge", func() {
 					receivedStates <- state
 				}
 
-				Expect(evt.Bus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+				Expect(evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				DeferCleanup(func() {
-					Expect(evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+					Expect(evt.LegacyBus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				})
 
 				otherID := uuid.NewString()
@@ -296,9 +296,9 @@ var _ = Describe("EventBusBridge", func() {
 					receivedStates <- state
 				}
 
-				Expect(evt.Bus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+				Expect(evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				DeferCleanup(func() {
-					Expect(evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+					Expect(evt.LegacyBus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 				})
 
 				// Create a second bridge acting as the "remote" receiver
@@ -307,8 +307,8 @@ var _ = Describe("EventBusBridge", func() {
 				DeferCleanup(func() { bridge2.Close() })
 
 				// Override bridge2's handler to forward to our channel
-				Expect(evt.Bus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
-				Expect(evt.Bus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+				Expect(evt.LegacyBus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+				Expect(evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
 
 				// Publish from bridge (bridge2 should receive since UUIDs differ)
 				originalState := evt.BlockingState{

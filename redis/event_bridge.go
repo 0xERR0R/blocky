@@ -48,7 +48,7 @@ func NewEventBusBridge(ctx context.Context, client *goredis.Client) (*EventBusBr
 		done:    ctx.Done(),
 	}
 
-	if err := evt.Bus().Subscribe(evt.BlockingStateChanged, b.onLocalStateChanged); err != nil {
+	if err := evt.LegacyBus().Subscribe(evt.BlockingStateChanged, b.onLocalStateChanged); err != nil {
 		cancel()
 
 		return nil, err
@@ -58,7 +58,7 @@ func NewEventBusBridge(ctx context.Context, client *goredis.Client) (*EventBusBr
 
 	if _, err := ps.Receive(ctx); err != nil {
 		_ = ps.Close()
-		_ = evt.Bus().Unsubscribe(evt.BlockingStateChanged, b.onLocalStateChanged)
+		_ = evt.LegacyBus().Unsubscribe(evt.BlockingStateChanged, b.onLocalStateChanged)
 		cancel()
 
 		return nil, err
@@ -87,7 +87,7 @@ func (b *EventBusBridge) Close() error {
 
 	b.once.Do(func() {
 		b.cancel()
-		unsubErr = evt.Bus().Unsubscribe(evt.BlockingStateChanged, b.onLocalStateChanged)
+		unsubErr = evt.LegacyBus().Unsubscribe(evt.BlockingStateChanged, b.onLocalStateChanged)
 	})
 
 	return unsubErr
@@ -140,5 +140,5 @@ func (b *EventBusBridge) handleMessage(_ context.Context, payload string) {
 		return
 	}
 
-	evt.Bus().Publish(evt.BlockingStateChangedRemote, bm.State)
+	evt.LegacyBus().Publish(evt.BlockingStateChangedRemote, bm.State)
 }
