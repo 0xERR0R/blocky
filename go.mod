@@ -20,6 +20,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/invopop/jsonschema v0.14.0
 	github.com/jedisct1/go-dnsstamps v0.0.0-20260518121737-6579dc73e4a2
+	github.com/maniartech/signals v1.3.1
 	github.com/mattn/go-colorable v0.1.14
 	github.com/miekg/dns v1.1.72
 	github.com/moby/moby/api v1.54.2

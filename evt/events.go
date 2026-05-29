@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/asaskevich/EventBus"
+	_ "github.com/maniartech/signals"
 )
 
 const (
