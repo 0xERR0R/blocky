@@ -102,6 +102,30 @@ func createRedisContainer(ctx context.Context, e2eNet *testcontainers.DockerNetw
 	))
 }
 
+// createRedisContainerWithUnixSocket creates a redis container that listens only on a unix socket
+// (no TCP) attached to the test network under the alias 'redis'. The socket is created at
+// containerSocketDir+"/redis.sock" inside a directory that is bind-mounted from hostSocketDir, so both
+// the blocky container and the host can connect to redis purely via the socket.
+// It is automatically terminated when the test is finished.
+func createRedisContainerWithUnixSocket(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
+	hostSocketDir, containerSocketDir string,
+) (testcontainers.Container, error) {
+	socketPath := containerSocketDir + "/redis.sock"
+
+	req := testcontainers.ContainerRequest{
+		Image: redisImage,
+		// Disable TCP (port 0) so the socket is the only way in; 777 lets the (non-root) blocky
+		// container connect to the socket created by the (root) redis process.
+		Cmd:        []string{"redis-server", "--port", "0", "--unixsocket", socketPath, "--unixsocketperm", "777"},
+		WaitingFor: wait.ForLog("Ready to accept connections unix"),
+		HostConfigModifier: func(hc *container.HostConfig) {
+			hc.Binds = append(hc.Binds, hostSocketDir+":"+containerSocketDir)
+		},
+	}
+
+	return startContainerWithNetwork(ctx, req, "redis", e2eNet)
+}
+
 // createPostgresContainer creates a postgres container attached to the test network under the alias 'postgres'.
 // It creates a database 'user' with user 'user' and password 'user'.
 // It is automatically terminated when the test is finished.
@@ -203,6 +227,15 @@ func buildBlockyContainerRequest(confFile string) testcontainers.ContainerReques
 func createBlockyContainer(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
 	lines ...string,
 ) (testcontainers.Container, error) {
+	return createBlockyContainerWithBinds(ctx, e2eNet, nil, lines...)
+}
+
+// createBlockyContainerWithBinds creates a blocky container like createBlockyContainer, but additionally
+// mounts the given Docker bind mounts (each in "hostPath:containerPath" form) into the container.
+// It is automatically terminated when the test is finished.
+func createBlockyContainerWithBinds(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
+	binds []string, lines ...string,
+) (testcontainers.Container, error) {
 	// Add timeout to context
 	ctx, cancel := context.WithTimeout(ctx, 2*startupTimeout)
 	defer cancel()
@@ -215,6 +248,14 @@ func createBlockyContainer(ctx context.Context, e2eNet *testcontainers.DockerNet
 	}
 
 	req := buildBlockyContainerRequest(confFile)
+
+	if len(binds) > 0 {
+		baseHostConfigModifier := req.HostConfigModifier
+		req.HostConfigModifier = func(hc *container.HostConfig) {
+			baseHostConfigModifier(hc)
+			hc.Binds = append(hc.Binds, binds...)
+		}
+	}
 
 	container, err := startContainerWithNetwork(ctx, req, "blocky", e2eNet)
 	if err != nil {
