@@ -2896,7 +2896,7 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 
 <span class="c1"># optional: Blocky can synchronize its cache and blocking state between multiple instances through redis.</span>
 <span class="nt">redis</span><span class="p">:</span>
-<span class="w">  </span><span class="c1"># Server address and port or master name if sentinel is used</span>
+<span class="w">  </span><span class="c1"># Server address and port, a unix socket path (starting with /), or master name if sentinel is used</span>
 <span class="w">  </span><span class="nt">address</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redismaster</span>
 <span class="w">  </span><span class="c1"># Username if necessary</span>
 <span class="w">  </span><span class="nt">username</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">usrname</span>
@@ -4308,7 +4308,7 @@ Synchronization is disabled if no address is configured.</p>
 <td>string</td>
 <td>no</td>
 <td></td>
-<td>Server address and port or master name if sentinel is used</td>
+<td>Server address and port, a unix socket path (starting with <code>/</code>), or master name if sentinel is used</td>
 </tr>
 <tr>
 <td>redis.username</td>

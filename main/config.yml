@@ -257,7 +257,7 @@ queryLog:
 
 # optional: Blocky can synchronize its cache and blocking state between multiple instances through redis.
 redis:
-  # Server address and port or master name if sentinel is used
+  # Server address and port, a unix socket path (starting with /), or master name if sentinel is used
   address: redismaster
   # Username if necessary
   username: usrname
