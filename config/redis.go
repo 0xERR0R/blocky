@@ -6,7 +6,8 @@ import (
 
 // Redis configuration for the redis connection
 type Redis struct {
-	// Server address and port, or the sentinel master name when sentinel is used.
+	// Server address and port (e.g. `localhost:6379`), a unix socket path (e.g. `/var/run/redis/redis.sock`),
+	// or the sentinel master name when sentinel is used. An address starting with `/` is treated as a unix socket.
 	Address string `yaml:"address"`
 	// Redis username (if authentication is required).
 	Username string `default:"" yaml:"username"`

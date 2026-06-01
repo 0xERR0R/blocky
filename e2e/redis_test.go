@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 
 	. "github.com/0xERR0R/blocky/helpertest"
@@ -397,3 +398,81 @@ var _ = Describe("Redis configuration tests", func() {
 func dbSize(ctx context.Context, redisClient *redis.Client) (int64, error) {
 	return redisClient.DBSize(ctx).Result()
 }
+
+var _ = Describe("Redis unix socket configuration", func() {
+	const containerSocketDir = "/sockets"
+
+	var (
+		e2eNet        *testcontainers.DockerNetwork
+		redisClient   *redis.Client
+		hostSocketDir string
+		err           error
+	)
+
+	BeforeEach(func(ctx context.Context) {
+		e2eNet = getRandomNetwork(ctx)
+
+		// Shared directory bind-mounted into both the redis and blocky containers so they can
+		// communicate over the unix socket living inside it.
+		hostSocketDir, err = os.MkdirTemp("", "blocky_e2e_redis_socket-")
+		Expect(err).Should(Succeed())
+		Expect(os.Chmod(hostSocketDir, 0o777)).Should(Succeed())
+		DeferCleanup(func() error {
+			return os.RemoveAll(hostSocketDir)
+		})
+
+		_, err = createRedisContainerWithUnixSocket(ctx, e2eNet, hostSocketDir, containerSocketDir)
+		Expect(err).Should(Succeed())
+
+		// Redis has no TCP listener; the host test client verifies the database over the same unix
+		// socket via the bind-mounted directory. go-redis treats a `/`-prefixed address as a unix
+		// socket, so this also exercises the behaviour under test from the client side.
+		redisClient = redis.NewClient(&redis.Options{
+			Addr: hostSocketDir + "/redis.sock",
+		})
+		Expect(dbSize(ctx, redisClient)).Should(BeNumerically("==", 0))
+
+		_, err = createDNSMokkaContainer(ctx, "moka1", e2eNet, `A google/NOERROR("A 1.2.3.4 123")`)
+		Expect(err).Should(Succeed())
+	})
+
+	When("blocky is configured with a redis unix socket address", func() {
+		var blocky testcontainers.Container
+
+		BeforeEach(func(ctx context.Context) {
+			blocky, err = createBlockyContainerWithBinds(ctx, e2eNet,
+				[]string{hostSocketDir + ":" + containerSocketDir},
+				"log:",
+				"  level: warn",
+				"upstreams:",
+				"  groups:",
+				"    default:",
+				"      - moka1",
+				"redis:",
+				"  address: "+containerSocketDir+"/redis.sock",
+			)
+			Expect(err).Should(Succeed())
+		})
+
+		It("stores cache entries in redis over the unix socket", func(ctx context.Context) {
+			msg := util.NewMsgWithQuestion("google.de.", A)
+
+			By("querying blocky, which should resolve and store the result in redis via the socket", func() {
+				Eventually(doDNSRequest, "5s", "2ms").WithArguments(ctx, blocky, msg).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("google.de.", A, "1.2.3.4"),
+							HaveTTL(BeNumerically("==", 123)),
+						))
+			})
+
+			By("checking redis contains the cache entry written over the unix socket", func() {
+				Eventually(dbSize, "5s", "2ms").WithArguments(ctx, redisClient).Should(BeNumerically("==", 1))
+			})
+
+			By("No warnings/errors in log", func() {
+				Expect(getContainerLogs(ctx, blocky)).Should(BeEmpty())
+			})
+		})
+	})
+})

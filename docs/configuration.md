@@ -870,7 +870,7 @@ Synchronization is disabled if no address is configured.
 
 | Parameter                | Type            | Mandatory | Default value | Description                                                         |
 | ------------------------ | --------------- | --------- | ------------- | ------------------------------------------------------------------- |
-| redis.address            | string          | no        |               | Server address and port or master name if sentinel is used          |
+| redis.address            | string          | no        |               | Server address and port, a unix socket path (starting with `/`), or master name if sentinel is used |
 | redis.username           | string          | no        |               | Username if necessary                                               |
 | redis.password           | string          | no        |               | Password if necessary                                               |
 | redis.database           | int             | no        | 0             | Database                                                            |
