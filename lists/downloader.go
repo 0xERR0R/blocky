@@ -34,17 +34,19 @@ type FileDownloader interface {
 // httpDownloader downloads files via HTTP protocol
 type httpDownloader struct {
 	cfg config.Downloader
+	bus *evt.Bus
 
 	client http.Client
 }
 
-func NewDownloader(cfg config.Downloader, transport http.RoundTripper) FileDownloader {
-	return newDownloader(cfg, transport)
+func NewDownloader(cfg config.Downloader, transport http.RoundTripper, bus *evt.Bus) FileDownloader {
+	return newDownloader(cfg, transport, bus)
 }
 
-func newDownloader(cfg config.Downloader, transport http.RoundTripper) *httpDownloader {
+func newDownloader(cfg config.Downloader, transport http.RoundTripper, bus *evt.Bus) *httpDownloader {
 	return &httpDownloader{
 		cfg: cfg,
+		bus: bus,
 
 		client: http.Client{
 			Transport: transport,

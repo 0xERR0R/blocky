@@ -32,11 +32,12 @@ type EventBusBridge struct {
 	cancel  context.CancelFunc
 	done    <-chan struct{}
 	once    sync.Once
+	bus     *evt.Bus
 }
 
 // NewEventBusBridge creates a new EventBusBridge that synchronizes blocking state
 // between local event bus and Redis pub/sub.
-func NewEventBusBridge(ctx context.Context, client *goredis.Client) (*EventBusBridge, error) {
+func NewEventBusBridge(ctx context.Context, client *goredis.Client, bus *evt.Bus) (*EventBusBridge, error) {
 	ctx, cancel := context.WithCancel(ctx)
 
 	b := &EventBusBridge{
@@ -46,6 +47,7 @@ func NewEventBusBridge(ctx context.Context, client *goredis.Client) (*EventBusBr
 		l:       log.PrefixedLog("redis-event-bridge"),
 		cancel:  cancel,
 		done:    ctx.Done(),
+		bus:     bus,
 	}
 
 	if err := evt.LegacyBus().Subscribe(evt.BlockingStateChanged, b.onLocalStateChanged); err != nil {

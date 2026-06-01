@@ -52,6 +52,7 @@ type CachingResolver struct {
 	NextResolver
 	typed
 
+	bus              *evt.Bus
 	emitMetricEvents bool // disabled by Bootstrap
 
 	resultCache cache.ExpiringCache[[]byte]
@@ -63,18 +64,21 @@ type CachingResolver struct {
 func NewCachingResolver(ctx context.Context,
 	cfg config.Caching,
 	decorator CacheDecorator,
+	bus *evt.Bus,
 ) (*CachingResolver, error) {
-	return newCachingResolver(ctx, cfg, decorator, true)
+	return newCachingResolver(ctx, cfg, decorator, bus, true)
 }
 
 func newCachingResolver(ctx context.Context,
 	cfg config.Caching,
 	decorator CacheDecorator,
+	bus *evt.Bus,
 	emitMetricEvents bool,
 ) (*CachingResolver, error) {
 	c := &CachingResolver{
 		configurable:     withConfig(&cfg),
 		typed:            withType("caching"),
+		bus:              bus,
 		emitMetricEvents: emitMetricEvents,
 	}
 

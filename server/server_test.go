@@ -16,6 +16,7 @@ import (
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/docs"
+	"github.com/0xERR0R/blocky/evt"
 	. "github.com/0xERR0R/blocky/helpertest"
 	. "github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
@@ -167,7 +168,7 @@ var _ = BeforeSuite(func() {
 	}
 
 	// create server
-	sut, err = NewServer(ctx, cfg)
+	sut, err = NewServer(ctx, cfg, evt.NewBus())
 	Expect(err).Should(Succeed())
 
 	errChan := make(chan error, 10)
@@ -619,14 +620,14 @@ var _ = Describe("Running DNS server", func() {
 		})
 		When("Server is created", func() {
 			It("is created without redis connection", func() {
-				_, err = NewServer(ctx, &cfg)
+				_, err = NewServer(ctx, &cfg, evt.NewBus())
 
 				Expect(err).Should(Succeed())
 			})
 			It("can't be created if redis server is unavailable", func() {
 				cfg.Redis.Required = true
 
-				_, err = NewServer(ctx, &cfg)
+				_, err = NewServer(ctx, &cfg, evt.NewBus())
 
 				Expect(err).Should(HaveOccurred())
 			})
@@ -640,7 +641,7 @@ var _ = Describe("Running DNS server", func() {
 				cfg.Ports.HTTPS = config.ListenConfig{"127.0.0.1:0", "127.0.0.1:0"}
 				cfg.HTTP3.Enable = true
 
-				srv, err := NewServer(ctx, &cfg)
+				srv, err := NewServer(ctx, &cfg, evt.NewBus())
 
 				Expect(err).Should(Succeed())
 				DeferCleanup(func() { _ = srv.Stop(ctx) })
@@ -654,7 +655,7 @@ var _ = Describe("Running DNS server", func() {
 				cfg.Ports.HTTPS = config.ListenConfig{"127.0.0.1:0"}
 				cfg.HTTP3.Enable = true
 
-				srv, err := NewServer(ctx, &cfg)
+				srv, err := NewServer(ctx, &cfg, evt.NewBus())
 				Expect(err).Should(Succeed())
 
 				errCh := make(chan error, 10)
@@ -679,7 +680,7 @@ var _ = Describe("Running DNS server", func() {
 				logHook := installLogHook()
 				DeferCleanup(logHook.uninstall)
 
-				srv, err := NewServer(ctx, &cfg)
+				srv, err := NewServer(ctx, &cfg, evt.NewBus())
 
 				Expect(err).Should(Succeed())
 				Expect(srv.http3Server).Should(BeNil())
@@ -694,7 +695,7 @@ var _ = Describe("Running DNS server", func() {
 			It("opens no UDP listeners even with HTTPS configured", func() {
 				cfg.Ports.HTTPS = config.ListenConfig{"127.0.0.1:0"}
 
-				srv, err := NewServer(ctx, &cfg)
+				srv, err := NewServer(ctx, &cfg, evt.NewBus())
 
 				Expect(err).Should(Succeed())
 				Expect(srv.http3Server).Should(BeNil())
@@ -728,7 +729,7 @@ var _ = Describe("Running DNS server", func() {
 						DNS:     config.ListenConfig{GetHostPort("127.0.0.1", dnsBasePort2)},
 						DOHPath: "/dns-query",
 					},
-				})
+				}, evt.NewBus())
 
 				Expect(err).Should(Succeed())
 
@@ -773,7 +774,7 @@ var _ = Describe("Running DNS server", func() {
 						DNS:     config.ListenConfig{GetHostPort("127.0.0.1", dnsBasePort2)},
 						DOHPath: "/dns-query",
 					},
-				})
+				}, evt.NewBus())
 
 				Expect(err).Should(Succeed())
 

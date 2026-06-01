@@ -12,7 +12,7 @@ import (
 )
 
 // RegisterEventListeners registers all metric handlers by the event bus
-func RegisterEventListeners() {
+func RegisterEventListeners(bus *evt.Bus) {
 	registerBlockingEventListeners()
 	registerCachingEventListeners()
 	registerApplicationEventListeners()

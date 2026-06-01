@@ -86,6 +86,7 @@ type BlockingResolver struct {
 	NextResolver
 	typed
 
+	bus                 *evt.Bus
 	denylistMatcher     *lists.ListCache
 	allowlistMatcher    *lists.ListCache
 	blockHandler        blockHandler
@@ -139,18 +140,19 @@ func clientGroupsBlock(cfg config.Blocking) map[string][]scheduledGroup {
 func NewBlockingResolver(ctx context.Context,
 	cfg config.Blocking,
 	bootstrap *Bootstrap,
+	bus *evt.Bus,
 ) (r *BlockingResolver, err error) {
 	blockHandler, err := createBlockHandler(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create block handler: %w", err)
 	}
 
-	downloader := lists.NewDownloader(cfg.Loading.Downloads, bootstrap.NewHTTPTransport())
+	downloader := lists.NewDownloader(cfg.Loading.Downloads, bootstrap.NewHTTPTransport(), bus)
 
 	denylistMatcher, blErr := lists.NewListCache(ctx, lists.ListCacheTypeDenylist,
-		cfg.Loading, cfg.Denylists, downloader)
+		cfg.Loading, cfg.Denylists, downloader, bus)
 	allowlistMatcher, wlErr := lists.NewListCache(ctx, lists.ListCacheTypeAllowlist,
-		cfg.Loading, cfg.Allowlists, downloader)
+		cfg.Loading, cfg.Allowlists, downloader, bus)
 	allowlistOnlyGroups := determineAllowlistOnlyGroups(&cfg)
 
 	err = multierror.Append(err, blErr, wlErr).ErrorOrNil()
@@ -162,6 +164,7 @@ func NewBlockingResolver(ctx context.Context,
 		configurable: withConfig(&cfg),
 		typed:        withType("blocking"),
 
+		bus:                 bus,
 		blockHandler:        blockHandler,
 		denylistMatcher:     denylistMatcher,
 		allowlistMatcher:    allowlistMatcher,

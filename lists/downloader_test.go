@@ -49,7 +49,7 @@ var _ = Describe("Downloader", func() {
 	})
 
 	JustBeforeEach(func() {
-		sut = newDownloader(sutConfig, nil)
+		sut = newDownloader(sutConfig, nil, nil)
 	})
 
 	Describe("NewDownloader", func() {
@@ -63,6 +63,7 @@ var _ = Describe("Downloader", func() {
 					Timeout:  config.Duration(5 * time.Second),
 				},
 				transport,
+				nil,
 			).(*httpDownloader)
 
 			Expect(sut.cfg.Attempts).Should(BeNumerically("==", 5))
@@ -77,7 +78,7 @@ var _ = Describe("Downloader", func() {
 		When("Download was successful", func() {
 			BeforeEach(func() {
 				server = TestServer("line.one\nline.two")
-				sut = newDownloader(sutConfig, nil)
+				sut = newDownloader(sutConfig, nil, nil)
 			})
 			It("Should return all lines from the file", func(ctx context.Context) {
 				reader, err := sut.DownloadFile(ctx, server.URL)

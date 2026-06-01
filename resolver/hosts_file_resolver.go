@@ -42,7 +42,7 @@ func NewHostsFileResolver(ctx context.Context,
 		configurable: withConfig(&cfg),
 		typed:        withType("hosts_file"),
 
-		downloader: lists.NewDownloader(cfg.Loading.Downloads, bootstrap.NewHTTPTransport()),
+		downloader: lists.NewDownloader(cfg.Loading.Downloads, bootstrap.NewHTTPTransport(), nil),
 	}
 
 	err := cfg.Loading.StartPeriodicRefresh(ctx, r.loadSources, func(err error) {

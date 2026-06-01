@@ -45,6 +45,7 @@ type ListCache struct {
 	listType     ListCacheType
 	groupSources map[string][]config.BytesSource
 	downloader   FileDownloader
+	bus          *evt.Bus
 }
 
 // LogConfig implements `config.Configurable`.
@@ -73,6 +74,7 @@ func (b *ListCache) LogConfig(logger *logrus.Entry) {
 func NewListCache(ctx context.Context,
 	t ListCacheType, cfg config.SourceLoading,
 	groupSources map[string][]config.BytesSource, downloader FileDownloader,
+	bus *evt.Bus,
 ) (*ListCache, error) {
 	regexCache := stringcache.NewInMemoryGroupedRegexCache()
 
@@ -88,6 +90,7 @@ func NewListCache(ctx context.Context,
 		listType:     t,
 		groupSources: groupSources,
 		downloader:   downloader,
+		bus:          bus,
 	}
 
 	err := cfg.StartPeriodicRefresh(ctx, c.refresh, func(err error) {

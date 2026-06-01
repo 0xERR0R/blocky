@@ -50,7 +50,7 @@ var _ = Describe("CachingResolver", func() {
 		ctx, cancelFn = context.WithCancel(context.Background())
 		DeferCleanup(cancelFn)
 
-		sut, _ = NewCachingResolver(ctx, sutConfig, nil)
+		sut, _ = NewCachingResolver(ctx, sutConfig, nil, NewBus())
 		m = &mockResolver{}
 		cacheMock = cache.NewMockExpiringCache[[]byte](GinkgoT())
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
@@ -762,7 +762,7 @@ var _ = Describe("CachingResolver", func() {
 			sutConfig = config.Caching{Exclude: exclude}
 			mockAnswer, _ = util.NewMsgWithAnswer(domain, 1000, A, "10.0.0.1")
 			request = newRequest(domain, A)
-			sut, _ = NewCachingResolver(ctx, sutConfig, nil)
+			sut, _ = NewCachingResolver(ctx, sutConfig, nil, NewBus())
 			m.On("Resolve", mock.Anything, mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 			cacheMock.On("Get", mock.Anything).Maybe().Return((*[]byte)(nil), 10*time.Second)
 			cacheMock.On("Put", mock.Anything, mock.Anything, mock.Anything).Maybe().Return()
@@ -772,7 +772,7 @@ var _ = Describe("CachingResolver", func() {
 
 		When("Exclude settings are wrong", func() {
 			It("should fail", func() {
-				_, err := NewCachingResolver(ctx, config.Caching{Exclude: []string{"/[]/"}}, nil)
+				_, err := NewCachingResolver(ctx, config.Caching{Exclude: []string{"/[]/"}}, nil, NewBus())
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("cache exclusion configuration '/[]/' fail because"))
 			})
@@ -780,7 +780,7 @@ var _ = Describe("CachingResolver", func() {
 
 		When("Exclude settings are wrong because of missing slashes", func() {
 			It("should fail", func() {
-				_, err := NewCachingResolver(ctx, config.Caching{Exclude: []string{"lan"}}, nil)
+				_, err := NewCachingResolver(ctx, config.Caching{Exclude: []string{"lan"}}, nil, NewBus())
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("cache exclusion configuration 'lan' fail because of missing slashes"))
 			})

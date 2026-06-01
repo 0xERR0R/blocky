@@ -118,7 +118,8 @@ func (m *MockResolver) Type() string {
 
 func TestAllExpectedMetricsAreRegistered(t *testing.T) {
 	// New Server
-	metrics.RegisterEventListeners()
+	bus := evt.NewBus()
+	metrics.RegisterEventListeners(bus)
 
 	config := config.Metrics{Enable: true, Path: "/metrics"}
 

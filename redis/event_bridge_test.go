@@ -36,7 +36,7 @@ var _ = Describe("EventBusBridge", func() {
 		ctx, cancel = context.WithCancel(context.Background())
 		DeferCleanup(cancel)
 
-		bridge, err = NewEventBusBridge(ctx, redisClient)
+		bridge, err = NewEventBusBridge(ctx, redisClient, evt.NewBus())
 		Expect(err).Should(Succeed())
 		DeferCleanup(func() { bridge.Close() })
 	})
@@ -53,7 +53,7 @@ var _ = Describe("EventBusBridge", func() {
 				newCtx, newCancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 				DeferCleanup(newCancel)
 
-				_, err := NewEventBusBridge(newCtx, deadClient)
+				_, err := NewEventBusBridge(newCtx, deadClient, evt.NewBus())
 				Expect(err).Should(HaveOccurred())
 			})
 		})
@@ -63,7 +63,7 @@ var _ = Describe("EventBusBridge", func() {
 		When("BlockingStateChanged is published on the local bus", func() {
 			It("should publish a message to the Redis channel that a second subscriber receives", func(specCtx context.Context) {
 				// Create a second bridge to act as receiver
-				bridge2, err := NewEventBusBridge(ctx, redisClient)
+				bridge2, err := NewEventBusBridge(ctx, redisClient, evt.NewBus())
 				Expect(err).Should(Succeed())
 				DeferCleanup(func() { bridge2.Close() })
 
@@ -254,7 +254,7 @@ var _ = Describe("EventBusBridge", func() {
 				// Create a new bridge with its own context
 				bridgeCtx, bridgeCancel := context.WithCancel(context.Background())
 
-				b, err := NewEventBusBridge(bridgeCtx, redisClient)
+				b, err := NewEventBusBridge(bridgeCtx, redisClient, evt.NewBus())
 				Expect(err).Should(Succeed())
 
 				// Close the Redis server to trigger reconnection
@@ -302,7 +302,7 @@ var _ = Describe("EventBusBridge", func() {
 				})
 
 				// Create a second bridge acting as the "remote" receiver
-				bridge2, err := NewEventBusBridge(ctx, redisClient)
+				bridge2, err := NewEventBusBridge(ctx, redisClient, evt.NewBus())
 				Expect(err).Should(Succeed())
 				DeferCleanup(func() { bridge2.Close() })
 

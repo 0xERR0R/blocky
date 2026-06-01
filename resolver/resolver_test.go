@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/sirupsen/logrus"
 
@@ -123,7 +124,7 @@ var _ = Describe("Resolver", func() {
 		})
 		When("'Name' is called", func() {
 			It("should return resolver name", func() {
-				br, _ := NewBlockingResolver(ctx, config.Blocking{BlockType: "zeroIP"}, systemResolverBootstrap)
+				br, _ := NewBlockingResolver(ctx, config.Blocking{BlockType: "zeroIP"}, systemResolverBootstrap, evt.NewBus())
 				name := Name(br)
 				Expect(name).Should(Equal("blocking"))
 			})

@@ -15,6 +15,7 @@ import (
 
 	"github.com/0xERR0R/blocky/cache"
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/model"
@@ -108,7 +109,7 @@ func newTLSConfig(cfg *config.Config) (*tls.Config, error) {
 // NewServer creates new server instance with passed config
 //
 //nolint:funlen
-func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err error) {
+func NewServer(ctx context.Context, cfg *config.Config, bus *evt.Bus) (server *Server, err error) {
 	var tlsCfg *tls.Config
 
 	if len(cfg.Ports.HTTPS) > 0 || len(cfg.Ports.TLS) > 0 {
@@ -128,7 +129,7 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		return nil, fmt.Errorf("failed to create HTTP/HTTPS listeners: %w", err)
 	}
 
-	metrics.RegisterEventListeners()
+	metrics.RegisterEventListeners(bus)
 
 	bootstrap, err := resolver.NewBootstrap(ctx, cfg)
 	if err != nil {
@@ -147,12 +148,12 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		}
 	}
 
-	redisResult, err := createRedisCacheDecorator(ctx, redisConn, cfg.Redis.Required)
+	redisResult, err := createRedisCacheDecorator(ctx, redisConn, cfg.Redis.Required, bus)
 	if err != nil {
 		return nil, err
 	}
 
-	queryResolver, queryError := createQueryResolver(ctx, cfg, bootstrap, redisResult.decorator)
+	queryResolver, queryError := createQueryResolver(ctx, cfg, bootstrap, redisResult.decorator, bus)
 	if queryError != nil {
 		return nil, queryError
 	}
@@ -355,13 +356,13 @@ type redisBridgeResult struct {
 }
 
 func createRedisCacheDecorator(
-	ctx context.Context, redisConn *goredis.Client, required bool,
+	ctx context.Context, redisConn *goredis.Client, required bool, bus *evt.Bus,
 ) (*redisBridgeResult, error) {
 	if redisConn == nil {
 		return &redisBridgeResult{}, nil
 	}
 
-	bridge, err := redis.NewEventBusBridge(ctx, redisConn)
+	bridge, err := redis.NewEventBusBridge(ctx, redisConn, bus)
 	if err != nil {
 		if required {
 			return nil, fmt.Errorf("failed to create required Redis event bridge: %w", err)
@@ -385,9 +386,10 @@ func createQueryResolver(
 	cfg *config.Config,
 	bootstrap *resolver.Bootstrap,
 	cacheDecorator resolver.CacheDecorator,
+	bus *evt.Bus,
 ) (resolver.ChainedResolver, error) {
 	upstreamTree, utErr := resolver.NewUpstreamTreeResolver(ctx, cfg.Upstreams, bootstrap)
-	blocking, blErr := resolver.NewBlockingResolver(ctx, cfg.Blocking, bootstrap)
+	blocking, blErr := resolver.NewBlockingResolver(ctx, cfg.Blocking, bootstrap, bus)
 	queryLogging, qlErr := resolver.NewQueryLoggingResolver(ctx, cfg.QueryLog)
 	condUpstream, cuErr := resolver.NewConditionalUpstreamResolver(ctx, cfg.Conditional, cfg.Upstreams, bootstrap)
 	customDNS := resolver.NewCustomDNSResolver(cfg.CustomDNS)
@@ -400,7 +402,7 @@ func createQueryResolver(
 		decorator = nil
 	}
 
-	cachingResolver, crErr := resolver.NewCachingResolver(ctx, cfg.Caching, decorator)
+	cachingResolver, crErr := resolver.NewCachingResolver(ctx, cfg.Caching, decorator, bus)
 	// Pass upstreamTree to DNSSEC resolver so it can query for DNSKEY/DS records
 	dnssecResolver, dsErr := resolver.NewDNSSECResolver(ctx, cfg.DNSSEC, upstreamTree)
 

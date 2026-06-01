@@ -54,7 +54,7 @@ var _ = Describe("ListCache", func() {
 
 		sutConfig.RefreshPeriod = -1
 
-		downloader = NewDownloader(config.Downloader{}, nil)
+		downloader = NewDownloader(config.Downloader{}, nil, NewBus())
 		mockDownloader = nil
 
 		server1 = TestServer("blocked1.com\nblocked1a.com\n192.168.178.55")
@@ -78,7 +78,7 @@ var _ = Describe("ListCache", func() {
 			downloader = mockDownloader
 		}
 
-		sut, err = NewListCache(ctx, listCacheType, sutConfig, lists, downloader)
+		sut, err = NewListCache(ctx, listCacheType, sutConfig, lists, downloader, NewBus())
 		if expectFail {
 			Expect(err).Should(HaveOccurred())
 		} else {
@@ -318,7 +318,7 @@ var _ = Describe("ListCache", func() {
 				}
 			})
 			It("should match", func() {
-				sut, err = NewListCache(ctx, ListCacheTypeDenylist, sutConfig, lists, downloader)
+				sut, err = NewListCache(ctx, ListCacheTypeDenylist, sutConfig, lists, downloader, NewBus())
 				Expect(err).Should(Succeed())
 
 				Expect(sut.groupedCache.ElementCount("gr1")).Should(Equal(lines1 + lines2 + lines3))
@@ -420,7 +420,7 @@ var _ = Describe("ListCache", func() {
 		})
 
 		It("should print list configuration", func() {
-			sut, err = NewListCache(ctx, ListCacheTypeDenylist, sutConfig, lists, downloader)
+			sut, err = NewListCache(ctx, ListCacheTypeDenylist, sutConfig, lists, downloader, NewBus())
 			Expect(err).Should(Succeed())
 
 			sut.LogConfig(logger)
@@ -444,7 +444,7 @@ var _ = Describe("ListCache", func() {
 			})
 
 			It("should never return an error", func() {
-				_, err := NewListCache(ctx, ListCacheTypeDenylist, sutConfig, lists, downloader)
+				_, err := NewListCache(ctx, ListCacheTypeDenylist, sutConfig, lists, downloader, NewBus())
 				Expect(err).Should(Succeed())
 			})
 		})

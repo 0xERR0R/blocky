@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/evt"
 )
 
 func BenchmarkRefresh(b *testing.B) {
@@ -19,8 +20,8 @@ func BenchmarkRefresh(b *testing.B) {
 		Concurrency:   5,
 		RefreshPeriod: config.Duration(-1),
 	}
-	downloader := NewDownloader(config.Downloader{}, nil)
-	cache, _ := NewListCache(context.Background(), ListCacheTypeDenylist, cfg, lists, downloader)
+	downloader := NewDownloader(config.Downloader{}, nil, evt.NewBus())
+	cache, _ := NewListCache(context.Background(), ListCacheTypeDenylist, cfg, lists, downloader, evt.NewBus())
 
 	b.ReportAllocs()
 
