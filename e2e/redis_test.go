@@ -430,6 +430,7 @@ var _ = Describe("Redis unix socket configuration", func() {
 		redisClient = redis.NewClient(&redis.Options{
 			Addr: hostSocketDir + "/redis.sock",
 		})
+		DeferCleanup(redisClient.Close)
 		Expect(dbSize(ctx, redisClient)).Should(BeNumerically("==", 0))
 
 		_, err = createDNSMokkaContainer(ctx, "moka1", e2eNet, `A google/NOERROR("A 1.2.3.4 123")`)
