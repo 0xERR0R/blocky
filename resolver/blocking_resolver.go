@@ -190,12 +190,9 @@ func NewBlockingResolver(ctx context.Context,
 }
 
 func (r *BlockingResolver) subscribeEvents(ctx context.Context) error {
-	err := evt.LegacyBus().SubscribeOnce(evt.ApplicationStarted, func(_ ...string) {
+	evt.Subscribe(r.bus, "blocking:app-started", func(_ context.Context, _ evt.AppStartedEvent) {
 		go r.initFQDNIPCache(ctx)
 	})
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to ApplicationStarted event: %w", err)
-	}
 
 	remoteHandler := func(state evt.BlockingState) {
 		go func() {
@@ -209,7 +206,7 @@ func (r *BlockingResolver) subscribeEvents(ctx context.Context) error {
 		}()
 	}
 
-	err = evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, remoteHandler)
+	err := evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, remoteHandler)
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to %s: %w", evt.BlockingStateChangedRemote, err)
 	}

@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -15,15 +16,15 @@ import (
 func RegisterEventListeners(bus *evt.Bus) {
 	registerBlockingEventListeners()
 	registerCachingEventListeners()
-	registerApplicationEventListeners()
+	registerApplicationEventListeners(bus)
 }
 
-func registerApplicationEventListeners() {
+func registerApplicationEventListeners(bus *evt.Bus) {
 	v := versionNumberGauge()
 	RegisterMetric(v)
 
-	subscribe(evt.ApplicationStarted, func(version, buildTime string) {
-		v.WithLabelValues(version, buildTime).Set(1)
+	evt.Subscribe(bus, "metrics:app-started", func(_ context.Context, e evt.AppStartedEvent) {
+		v.WithLabelValues(e.Version, e.BuildTime).Set(1)
 	})
 }
 

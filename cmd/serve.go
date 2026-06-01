@@ -129,7 +129,7 @@ func startServer(_ *cobra.Command, _ []string) error {
 		}
 	}()
 
-	evt.LegacyBus().Publish(evt.ApplicationStarted, util.Version, util.BuildTime)
+	evt.Emit(bus, ctx, evt.AppStartedEvent{Version: util.Version, BuildTime: util.BuildTime})
 	<-done
 
 	return terminationErr

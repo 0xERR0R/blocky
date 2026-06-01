@@ -142,7 +142,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 					return nil, nil //nolint:nilnil
 				}
-				LegacyBus().Publish(ApplicationStarted, "")
+				Emit(sut.bus, ctx, AppStartedEvent{})
 				Eventually(func(g Gomega) {
 					g.Expect(sut.Resolve(ctx, newRequestWithClient("blocked2.com.", A, "192.168.178.39", "client1"))).
 						Should(And(
