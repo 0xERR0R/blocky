@@ -992,6 +992,11 @@
           "type": "string",
           "description": "URL path for DoH queries.",
           "default": "/dns-query"
+        },
+        "freeBind": {
+          "type": "boolean",
+          "description": "Allow binding the DNS and DoT listeners to addresses that are not yet assigned to a network\ninterface, via the Linux IP_FREEBIND socket option (e.g. for Tailscale/WireGuard/VRRP addresses\nbrought up after startup). Has no effect on wildcard binds and is ignored, with a warning, on\nnon-Linux platforms.",
+          "default": false
         }
       },
       "additionalProperties": false,

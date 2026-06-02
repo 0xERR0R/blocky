@@ -1,9 +1,18 @@
 package config
 
 import (
+	"github.com/creasty/defaults"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
+
+var _ = Describe("Ports.FreeBind", func() {
+	It("defaults to false", func() {
+		var ports Ports
+		Expect(defaults.Set(&ports)).Should(Succeed())
+		Expect(ports.FreeBind).Should(BeFalse())
+	})
+})
 
 var _ = Describe("Ports.PrivilegedPorts", func() {
 	It("returns privileged listen entries across DNS, HTTP, HTTPS and TLS", func() {

@@ -339,14 +339,20 @@ type Ports struct {
 	TLS ListenConfig `yaml:"tls"`
 	// URL path for DoH queries.
 	DOHPath string `default:"/dns-query" yaml:"dohPath"`
+	// Allow binding the DNS and DoT listeners to addresses that are not yet assigned to a network
+	// interface, via the Linux IP_FREEBIND socket option (e.g. for Tailscale/WireGuard/VRRP addresses
+	// brought up after startup). Has no effect on wildcard binds and is ignored, with a warning, on
+	// non-Linux platforms.
+	FreeBind bool `default:"false" yaml:"freeBind"`
 }
 
 func (c *Ports) LogConfig(logger *logrus.Entry) {
-	logger.Infof("DNS     = %s", c.DNS)
-	logger.Infof("TLS     = %s", c.TLS)
-	logger.Infof("HTTP    = %s", c.HTTP)
-	logger.Infof("HTTPS   = %s", c.HTTPS)
-	logger.Infof("DOHPath = %s", c.DOHPath)
+	logger.Infof("DNS      = %s", c.DNS)
+	logger.Infof("TLS      = %s", c.TLS)
+	logger.Infof("HTTP     = %s", c.HTTP)
+	logger.Infof("HTTPS    = %s", c.HTTPS)
+	logger.Infof("DOHPath  = %s", c.DOHPath)
+	logger.Infof("FreeBind = %t", c.FreeBind)
 }
 
 func (c *Ports) validate() error {

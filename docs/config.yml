@@ -414,6 +414,11 @@ ports:
   # optional: URL path for DoH queries.
   # default: /dns-query
   dohPath: /dns-query
+  # optional: allow binding the DNS/DoT listeners to addresses not yet assigned to an interface
+  #           (Linux only, via IP_FREEBIND; e.g. Tailscale/WireGuard/VRRP addresses brought up after
+  #           startup). No effect on wildcard binds; ignored with a warning on non-Linux platforms.
+  # default: false
+  freeBind: false
 
 # optional: configuration for DOH  over HTTP/3
 http3:
