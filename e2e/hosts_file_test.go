@@ -55,7 +55,7 @@ var _ = Describe("Hosts file resolver", func() {
 				req.Files = append(req.Files, testcontainers.ContainerFile{
 					HostFilePath:      hostsFile,
 					ContainerFilePath: "/app/hosts.txt",
-					FileMode:          modeOwner,
+					FileMode:          modeWorldReadable,
 				})
 
 				ctx, cancel := context.WithTimeout(ctx, 2*startupTimeout)

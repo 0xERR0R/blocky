@@ -11,7 +11,7 @@ import (
 // QueryLog configuration for the query logging
 type QueryLog struct {
 	// Directory for CSV log files, or database URL for mysql/postgresql/timescale targets.
-	Target string `yaml:"target"`
+	Target Secret `yaml:"target"`
 	// Log target type: mysql, postgresql, timescale, csv, csv-client, console, or none.
 	Type QueryLogType `yaml:"type"`
 	// Delete log entries older than this many days. 0 disables retention cleanup.
@@ -66,21 +66,25 @@ func (c *QueryLog) LogConfig(logger *logrus.Entry) {
 }
 
 func (c *QueryLog) censoredTarget() string {
+	target := c.Target.Reveal()
+
 	// Make sure there's a scheme, otherwise the user is parsed as the scheme
-	targetStr := c.Target
+	targetStr := target
 	if !strings.Contains(targetStr, "://") {
 		targetStr = c.Type.String() + "://" + targetStr
 	}
 
-	target, err := url.Parse(targetStr)
+	parsed, err := url.Parse(targetStr)
 	if err != nil {
-		return c.Target
+		// The target couldn't be parsed, so we can't locate and redact an embedded
+		// password. Redact the whole value rather than risk leaking a secret.
+		return secretObfuscator
 	}
 
-	pass, ok := target.User.Password()
+	pass, ok := parsed.User.Password()
 	if !ok {
-		return c.Target
+		return target
 	}
 
-	return strings.ReplaceAll(c.Target, pass, secretObfuscator)
+	return strings.ReplaceAll(target, pass, secretObfuscator)
 }

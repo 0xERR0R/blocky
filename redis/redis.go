@@ -18,11 +18,11 @@ func New(ctx context.Context, cfg *config.Redis) (*goredis.Client, error) {
 	if len(cfg.SentinelAddresses) > 0 {
 		client = goredis.NewFailoverClient(&goredis.FailoverOptions{
 			MasterName:       cfg.Address,
-			SentinelUsername: cfg.Username,
-			SentinelPassword: cfg.SentinelPassword,
+			SentinelUsername: cfg.SentinelUsername,
+			SentinelPassword: cfg.SentinelPassword.Reveal(),
 			SentinelAddrs:    cfg.SentinelAddresses,
 			Username:         cfg.Username,
-			Password:         cfg.Password,
+			Password:         cfg.Password.Reveal(),
 			DB:               cfg.Database,
 			MaxRetries:       cfg.ConnectionAttempts,
 			MaxRetryBackoff:  cfg.ConnectionCooldown.ToDuration(),
@@ -31,7 +31,7 @@ func New(ctx context.Context, cfg *config.Redis) (*goredis.Client, error) {
 		client = goredis.NewClient(&goredis.Options{
 			Addr:            cfg.Address,
 			Username:        cfg.Username,
-			Password:        cfg.Password,
+			Password:        cfg.Password.Reveal(),
 			DB:              cfg.Database,
 			MaxRetries:      cfg.ConnectionAttempts,
 			MaxRetryBackoff: cfg.ConnectionCooldown.ToDuration(),

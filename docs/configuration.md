@@ -872,14 +872,29 @@ Synchronization is disabled if no address is configured.
 | ------------------------ | --------------- | --------- | ------------- | ------------------------------------------------------------------- |
 | redis.address            | string          | no        |               | Server address and port, a unix socket path (starting with `/`), or master name if sentinel is used |
 | redis.username           | string          | no        |               | Username if necessary                                               |
-| redis.password           | string          | no        |               | Password if necessary                                               |
+| redis.password           | string          | no        |               | Password if necessary (supports `file:` — see tip below)            |
 | redis.database           | int             | no        | 0             | Database                                                            |
 | redis.required           | bool            | no        | false         | Connection is required for blocky to start                          |
 | redis.connectionAttempts | int             | no        | 3             | Max connection attempts                                             |
 | redis.connectionCooldown | duration format | no        | 1s            | Time between the connection attempts                                |
 | redis.sentinelUsername   | string          | no        |               | Sentinel username if necessary                                      |
-| redis.sentinelPassword   | string          | no        |               | Sentinel password if necessary                                      |
+| redis.sentinelPassword   | string          | no        |               | Sentinel password if necessary (supports `file:` — see tip below)   |
 | redis.sentinelAddresses  | string[]        | no        |               | Sentinel host list (Sentinel is activated if addresses are defined) |
+
+!!! tip "Loading secrets from files"
+
+    Any sensitive value — `redis.password`, `redis.sentinelPassword`, and
+    `queryLog.target` — can be loaded from a file instead of being written
+    inline. Set the value to `file:` followed by an absolute path:
+
+    ```yaml
+    redis:
+      password: file:/run/secrets/redis_password
+    ```
+
+    The file's contents become the value (a single trailing newline is
+    stripped). This suits Docker/Kubernetes secrets and lets you restrict
+    access to each secret with file permissions.
 
 !!! example
 
@@ -987,7 +1002,7 @@ Configuration parameters:
 | Parameter                 | Type                                                                                 | Mandatory | Default value | Description                                                                                   |
 | ------------------------- | ------------------------------------------------------------------------------------ | --------- | ------------- | --------------------------------------------------------------------------------------------- |
 | queryLog.type             | enum (mysql, postgresql, timescale, csv, csv-client, console, none (see above))      | no        |               | Type of logging target. Console if empty                                                      |
-| queryLog.target           | string                                                                               | no        |               | directory for writing the logs (for csv) or database url (for mysql, postgresql or timescale) |
+| queryLog.target           | string                                                                               | no        |               | directory for writing the logs (for csv) or database url (for mysql, postgresql or timescale); supports `file:` for database URLs — see [Redis tip](#redis) |
 | queryLog.logRetentionDays | int                                                                                  | no        | 0             | if > 0, deletes log files/database entries which are older than ... days                      |
 | queryLog.creationAttempts | int                                                                                  | no        | 3             | Max attempts to create specific query log writer                                              |
 | queryLog.creationCooldown | duration format                                                                      | no        | 2s            | Time between the creation attempts                                                            |
