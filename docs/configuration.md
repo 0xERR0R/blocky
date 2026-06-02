@@ -55,6 +55,7 @@ All values in this section are optional.
 | ports.http    | One or more [IP]:Port |               | Listen address for HTTP used for prometheus metrics, pprof, REST API, DoH... Example: `4000`, `:4000`, `192.168.0.1:4000`, `[4000, "[::1]:4000"]` |
 | ports.https   | One or more [IP]:Port |               | Listen address for HTTPS used for prometheus metrics, pprof, REST API, DoH... Example: `443`, `:443`, `192.168.0.1:443`, `[443, "[::1]:443"]`     |
 | ports.dohPath | string                | /dns-query    | URL path for DoH queries.                                                                                                                         |
+| ports.freeBind | bool                 | false         | Allow binding the DNS/DoT listeners to addresses not yet assigned to an interface (Linux only, via `IP_FREEBIND`; e.g. Tailscale/WireGuard/VRRP). No effect on wildcard binds; ignored with a warning on non-Linux. |
 
 !!! example
 

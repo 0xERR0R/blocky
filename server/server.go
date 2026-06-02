@@ -20,6 +20,7 @@ import (
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/redis"
 	"github.com/0xERR0R/blocky/resolver"
+	"github.com/0xERR0R/blocky/server/freebind"
 
 	"github.com/0xERR0R/blocky/util"
 	goredis "github.com/go-redis/redis/v8"
@@ -118,7 +119,12 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		}
 	}
 
-	dnsServers, err := createServers(cfg, tlsCfg)
+	if cfg.Ports.FreeBind && !freebind.Supported {
+		logger().Warn("ports.freeBind: true is only supported on Linux; " +
+			"ignoring on this platform (binding normally)")
+	}
+
+	dnsServers, err := createServers(ctx, cfg, tlsCfg)
 	if err != nil {
 		return nil, fmt.Errorf("server creation failed: %w", err)
 	}
@@ -213,10 +219,12 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 	return server, err
 }
 
-func createServers(cfg *config.Config, tlsCfg *tls.Config) ([]*dns.Server, error) {
+func createServers(ctx context.Context, cfg *config.Config, tlsCfg *tls.Config) ([]*dns.Server, error) {
 	var dnsServers []*dns.Server
 
 	var err *multierror.Error
+
+	freeBind := cfg.Ports.FreeBind
 
 	addServers := func(newServer NewServerFunc, addresses config.ListenConfig) error {
 		for _, address := range addresses {
@@ -232,10 +240,14 @@ func createServers(cfg *config.Config, tlsCfg *tls.Config) ([]*dns.Server, error
 	}
 
 	err = multierror.Append(err,
-		addServers(createUDPServer, cfg.Ports.DNS),
-		addServers(createTCPServer, cfg.Ports.DNS),
 		addServers(func(address string) (*dns.Server, error) {
-			return createTLSServer(address, tlsCfg)
+			return createUDPServer(ctx, address, freeBind)
+		}, cfg.Ports.DNS),
+		addServers(func(address string) (*dns.Server, error) {
+			return createTCPServer(ctx, address, freeBind)
+		}, cfg.Ports.DNS),
+		addServers(func(address string) (*dns.Server, error) {
+			return createTLSServer(ctx, address, tlsCfg, freeBind)
 		}, cfg.Ports.TLS))
 
 	if multiErr := err.ErrorOrNil(); multiErr != nil {
@@ -316,7 +328,8 @@ func newTLSListeners(
 	return listeners, nil
 }
 
-func createDNSServer(network, address string, tlsCfg *tls.Config) (*dns.Server, error) {
+func createDNSServer(ctx context.Context, network, address string, tlsCfg *tls.Config, freeBind bool,
+) (*dns.Server, error) {
 	srv := &dns.Server{
 		Addr:    address,
 		Net:     network,
@@ -334,19 +347,66 @@ func createDNSServer(network, address string, tlsCfg *tls.Config) (*dns.Server, 
 		srv.TLSConfig = tlsCfg
 	}
 
+	// When freeBind is enabled (and supported), pre-create the listener with the IP_FREEBIND socket
+	// option and hand it to the server, which is then started via ActivateAndServe (see Server.Start).
+	if freeBind && freebind.Supported {
+		if err := attachFreeBindListener(ctx, srv, network, address, tlsCfg); err != nil {
+			return nil, err
+		}
+	}
+
 	return srv, nil
 }
 
-func createTLSServer(address string, tlsCfg *tls.Config) (*dns.Server, error) {
-	return createDNSServer("tcp-tls", address, tlsCfg)
+// attachFreeBindListener creates the listener/packet connection for the given DNS server using the
+// freebind Control hook and assigns it to srv.Listener / srv.PacketConn so it can be started with
+// ActivateAndServe. It mirrors how miekg/dns creates listeners in ListenAndServe (including wrapping
+// the DoT listener in TLS).
+func attachFreeBindListener(ctx context.Context, srv *dns.Server, network, address string,
+	tlsCfg *tls.Config,
+) error {
+	lc := net.ListenConfig{Control: freebind.Control}
+
+	switch network {
+	case "udp":
+		pc, err := lc.ListenPacket(ctx, "udp", address)
+		if err != nil {
+			return fmt.Errorf("freebind udp listener on %s failed: %w", address, err)
+		}
+
+		srv.PacketConn = pc
+	case "tcp":
+		l, err := lc.Listen(ctx, "tcp", address)
+		if err != nil {
+			return fmt.Errorf("freebind tcp listener on %s failed: %w", address, err)
+		}
+
+		srv.Listener = l
+	case "tcp-tls":
+		l, err := lc.Listen(ctx, "tcp", address)
+		if err != nil {
+			return fmt.Errorf("freebind tcp-tls listener on %s failed: %w", address, err)
+		}
+
+		srv.Listener = tls.NewListener(l, tlsCfg)
+	default:
+		return fmt.Errorf("freebind: unsupported network %q", network)
+	}
+
+	return nil
 }
 
-func createTCPServer(address string) (*dns.Server, error) {
-	return createDNSServer("tcp", address, nil)
+func createTLSServer(ctx context.Context, address string, tlsCfg *tls.Config, freeBind bool,
+) (*dns.Server, error) {
+	return createDNSServer(ctx, "tcp-tls", address, tlsCfg, freeBind)
 }
 
-func createUDPServer(address string) (*dns.Server, error) {
-	return createDNSServer("udp", address, nil)
+func createTCPServer(ctx context.Context, address string, freeBind bool) (*dns.Server, error) {
+	return createDNSServer(ctx, "tcp", address, nil, freeBind)
+}
+
+func createUDPServer(ctx context.Context, address string, freeBind bool) (*dns.Server, error) {
+	return createDNSServer(ctx, "udp", address, nil, freeBind)
 }
 
 type redisBridgeResult struct {
@@ -506,7 +566,14 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 
 	for _, srv := range s.dnsServers {
 		go func() {
-			if err := srv.ListenAndServe(); err != nil {
+			// When a listener/packet connection was pre-created (freeBind), serve it via
+			// ActivateAndServe; otherwise let miekg/dns create the socket via ListenAndServe.
+			serve := srv.ListenAndServe
+			if srv.Listener != nil || srv.PacketConn != nil {
+				serve = srv.ActivateAndServe
+			}
+
+			if err := serve(); err != nil {
 				errCh <- fmt.Errorf("start %s listener failed: %w", srv.Net, err)
 			}
 		}()
