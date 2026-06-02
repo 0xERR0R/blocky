@@ -76,7 +76,9 @@ func (c *QueryLog) censoredTarget() string {
 
 	parsed, err := url.Parse(targetStr)
 	if err != nil {
-		return target
+		// The target couldn't be parsed, so we can't locate and redact an embedded
+		// password. Redact the whole value rather than risk leaking a secret.
+		return secretObfuscator
 	}
 
 	pass, ok := parsed.User.Password()

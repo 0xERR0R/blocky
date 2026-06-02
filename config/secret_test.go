@@ -94,6 +94,15 @@ var _ = Describe("Secret", func() {
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring("secret file"))
 		})
+
+		It("accepts the URI-style file:// prefix", func() {
+			path := writeFile("secret", "frompass")
+
+			// path is absolute, so file://<path> yields the file:///abs form.
+			s, err := unmarshal("file://" + path)
+			Expect(err).Should(Succeed())
+			Expect(s.Reveal()).Should(Equal("frompass"))
+		})
 	})
 
 	Describe("redaction", func() {
@@ -105,6 +114,15 @@ var _ = Describe("Secret", func() {
 			b, err := Secret("letmein").MarshalText()
 			Expect(err).Should(Succeed())
 			Expect(string(b)).Should(Equal(secretObfuscator))
+		})
+
+		It("redacts when marshalled to YAML", func() {
+			out, err := yaml.Marshal(struct {
+				S Secret `yaml:"s"`
+			}{S: "letmein"})
+			Expect(err).Should(Succeed())
+			Expect(string(out)).ShouldNot(ContainSubstring("letmein"))
+			Expect(string(out)).Should(ContainSubstring(secretObfuscator))
 		})
 	})
 })

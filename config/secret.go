@@ -6,12 +6,18 @@ import (
 	"strings"
 )
 
-// secretFilePrefix marks a Secret value that should be read from a file path.
-const secretFilePrefix = "file:"
+// secretFilePrefix and secretFileURIPrefix mark a Secret value that should be
+// read from a file path. The URI-style `file://` form mirrors config.BytesSource
+// so both conventions resolve the same way.
+const (
+	secretFileURIPrefix = "file://"
+	secretFilePrefix    = "file:"
+)
 
 // Secret is a string config value that may be provided inline or, when prefixed
-// with `file:`, read from the named file. Its String/MarshalText implementations
-// redact the value so it can't leak through logging.
+// with `file:` (or `file://`), read from the named file. Its String, MarshalText
+// and MarshalYAML implementations redact the value so it can't leak through
+// logging or config serialization.
 type Secret string
 
 // Reveal returns the real secret value.
@@ -29,14 +35,27 @@ func (s Secret) MarshalText() ([]byte, error) {
 	return []byte(secretObfuscator), nil
 }
 
-// UnmarshalYAML implements YAML unmarshalling with `file:` support.
+// MarshalYAML implements `yaml.Marshaler`, redacting the value. gopkg.in/yaml
+// honors this interface but not `encoding.TextMarshaler`, so MarshalText alone
+// would let a `yaml.Marshal` of the config emit the raw secret.
+func (s Secret) MarshalYAML() (any, error) {
+	return secretObfuscator, nil
+}
+
+// UnmarshalYAML implements YAML unmarshalling with `file:`/`file://` support.
 func (s *Secret) UnmarshalYAML(unmarshal func(any) error) error {
 	var raw string
 	if err := unmarshal(&raw); err != nil {
 		return err
 	}
 
-	path, ok := strings.CutPrefix(raw, secretFilePrefix)
+	// Accept the URI-style `file://` form first so `file:///abs/path` resolves to
+	// `/abs/path` rather than `//abs/path`; fall back to the bare `file:` prefix.
+	path, ok := strings.CutPrefix(raw, secretFileURIPrefix)
+	if !ok {
+		path, ok = strings.CutPrefix(raw, secretFilePrefix)
+	}
+
 	if !ok {
 		*s = Secret(raw)
 

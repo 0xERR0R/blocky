@@ -40,7 +40,9 @@ const (
 
 // helper constants
 const (
-	modeOwner         = 700
+	// modeWorldReadable is used for files mounted into the blocky container: blocky
+	// runs as a non-root user (see Dockerfile `USER 100`) that doesn't own the
+	// copied files, so it can only read them via the world-readable bit.
 	modeWorldReadable = 0o444
 	startupTimeout    = 30 * time.Second
 )
@@ -84,7 +86,7 @@ func createHTTPServerContainer(ctx context.Context, alias string, e2eNet *testco
 			{
 				HostFilePath:      file,
 				ContainerFilePath: "/" + filename,
-				FileMode:          modeOwner,
+				FileMode:          modeWorldReadable,
 			},
 		},
 	}
@@ -213,7 +215,7 @@ func buildBlockyContainerRequest(confFile string) testcontainers.ContainerReques
 			{
 				HostFilePath:      confFile,
 				ContainerFilePath: "/app/config.yml",
-				FileMode:          modeOwner,
+				FileMode:          modeWorldReadable,
 			},
 		},
 		ConfigModifier: func(c *container.Config) {

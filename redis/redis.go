@@ -18,7 +18,7 @@ func New(ctx context.Context, cfg *config.Redis) (*goredis.Client, error) {
 	if len(cfg.SentinelAddresses) > 0 {
 		client = goredis.NewFailoverClient(&goredis.FailoverOptions{
 			MasterName:       cfg.Address,
-			SentinelUsername: cfg.Username,
+			SentinelUsername: cfg.SentinelUsername,
 			SentinelPassword: cfg.SentinelPassword.Reveal(),
 			SentinelAddrs:    cfg.SentinelAddresses,
 			Username:         cfg.Username,
