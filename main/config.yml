@@ -262,6 +262,8 @@ redis:
   # Username if necessary
   username: usrname
   # Password if necessary
+  # To load from a file instead:
+  #   password: file:/run/secrets/redis_password
   password: passwd
   # Database, default: 0
   database: 2

@@ -2901,6 +2901,8 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">  </span><span class="c1"># Username if necessary</span>
 <span class="w">  </span><span class="nt">username</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">usrname</span>
 <span class="w">  </span><span class="c1"># Password if necessary</span>
+<span class="w">  </span><span class="c1"># To load from a file instead:</span>
+<span class="w">  </span><span class="c1">#   password: file:/run/secrets/redis_password</span>
 <span class="w">  </span><span class="nt">password</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">passwd</span>
 <span class="w">  </span><span class="c1"># Database, default: 0</span>
 <span class="w">  </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
@@ -4322,7 +4324,7 @@ Synchronization is disabled if no address is configured.</p>
 <td>string</td>
 <td>no</td>
 <td></td>
-<td>Password if necessary</td>
+<td>Password if necessary (supports <code>file:</code> — see tip below)</td>
 </tr>
 <tr>
 <td>redis.database</td>
@@ -4364,7 +4366,7 @@ Synchronization is disabled if no address is configured.</p>
 <td>string</td>
 <td>no</td>
 <td></td>
-<td>Sentinel password if necessary</td>
+<td>Sentinel password if necessary (supports <code>file:</code> — see tip below)</td>
 </tr>
 <tr>
 <td>redis.sentinelAddresses</td>
@@ -4375,6 +4377,18 @@ Synchronization is disabled if no address is configured.</p>
 </tr>
 </tbody>
 </table>
+<div class="admonition tip">
+<p class="admonition-title">Loading secrets from files</p>
+<p>Any sensitive value — <code>redis.password</code>, <code>redis.sentinelPassword</code>, and
+<code>queryLog.target</code> — can be loaded from a file instead of being written
+inline. Set the value to <code>file:</code> followed by an absolute path:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">redis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">password</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file:/run/secrets/redis_password</span>
+</code></pre></div>
+<p>The file's contents become the value (a single trailing newline is
+stripped). This suits Docker/Kubernetes secrets and lets you restrict
+access to each secret with file permissions.</p>
+</div>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><pre><span></span><code><span class="nt">redis</span><span class="p">:</span>
@@ -4523,7 +4537,7 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <td>string</td>
 <td>no</td>
 <td></td>
-<td>directory for writing the logs (for csv) or database url (for mysql, postgresql or timescale)</td>
+<td>directory for writing the logs (for csv) or database url (for mysql, postgresql or timescale); supports <code>file:</code> for database URLs — see <a href="#redis">Redis tip</a></td>
 </tr>
 <tr>
 <td>queryLog.logRetentionDays</td>
