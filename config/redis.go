@@ -12,7 +12,7 @@ type Redis struct {
 	// Redis username (if authentication is required).
 	Username string `default:"" yaml:"username"`
 	// Redis password (if authentication is required).
-	Password string `default:"" yaml:"password"`
+	Password Secret `default:"" yaml:"password"`
 	// Redis database index to use.
 	Database int `default:"0" yaml:"database"`
 	// If true, blocky will not start when the Redis connection cannot be established.
@@ -24,7 +24,7 @@ type Redis struct {
 	// Sentinel username (if sentinel authentication is required).
 	SentinelUsername string `default:"" yaml:"sentinelUsername"`
 	// Sentinel password (if sentinel authentication is required).
-	SentinelPassword string `default:"" yaml:"sentinelPassword"`
+	SentinelPassword Secret `default:"" yaml:"sentinelPassword"`
 	// List of Redis Sentinel host:port addresses; enables sentinel mode when non-empty.
 	SentinelAddresses []string `yaml:"sentinelAddresses"`
 }

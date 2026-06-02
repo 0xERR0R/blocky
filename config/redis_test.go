@@ -1,10 +1,14 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
+
 	"github.com/0xERR0R/blocky/log"
 	"github.com/creasty/defaults"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"gopkg.in/yaml.v2"
 )
 
 var _ = Describe("Redis", func() {
@@ -103,6 +107,48 @@ var _ = Describe("Redis", func() {
 
 			Expect(hook.Calls).ShouldNot(BeEmpty())
 			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring(secretValue)))
+		})
+	})
+
+	Describe("file: secret resolution", func() {
+		It("loads password from a file, stripping the trailing newline", func() {
+			dir := GinkgoT().TempDir()
+			pwPath := filepath.Join(dir, "pw")
+			Expect(os.WriteFile(pwPath, []byte("redispass\n"), 0o600)).Should(Succeed())
+
+			var redisCfg Redis
+			Expect(yaml.UnmarshalStrict(
+				[]byte("address: localhost:6379\npassword: file:"+pwPath+"\n"), &redisCfg)).Should(Succeed())
+			Expect(redisCfg.Password.Reveal()).Should(Equal("redispass"))
+		})
+
+		It("loads sentinelPassword from a file", func() {
+			dir := GinkgoT().TempDir()
+			sentPath := filepath.Join(dir, "sent")
+			Expect(os.WriteFile(sentPath, []byte("sentpass"), 0o600)).Should(Succeed())
+
+			var redisCfg Redis
+			Expect(yaml.UnmarshalStrict(
+				[]byte("address: localhost:6379\nsentinelPassword: file:"+sentPath+"\n"), &redisCfg)).Should(Succeed())
+			Expect(redisCfg.SentinelPassword.Reveal()).Should(Equal("sentpass"))
+		})
+
+		It("still obfuscates a file-loaded password in LogConfig", func() {
+			logger, hook = log.NewMockEntry()
+
+			dir := GinkgoT().TempDir()
+			pwPath := filepath.Join(dir, "pw")
+			Expect(os.WriteFile(pwPath, []byte("redispass"), 0o600)).Should(Succeed())
+
+			var redisCfg Redis
+			Expect(defaults.Set(&redisCfg)).Should(Succeed())
+			Expect(yaml.UnmarshalStrict(
+				[]byte("address: localhost:6379\npassword: file:"+pwPath+"\n"), &redisCfg)).Should(Succeed())
+
+			redisCfg.LogConfig(logger)
+
+			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("redispass")))
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring(secretObfuscator)))
 		})
 	})
 })

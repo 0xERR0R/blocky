@@ -42,17 +42,17 @@ func GetQueryLoggingWriter(ctx context.Context, cfg config.QueryLog) (querylog.W
 
 	switch cfg.Type {
 	case config.QueryLogTypeCsv:
-		writer, err = querylog.NewCSVWriter(cfg.Target, false, cfg.LogRetentionDays)
+		writer, err = querylog.NewCSVWriter(cfg.Target.Reveal(), false, cfg.LogRetentionDays)
 	case config.QueryLogTypeCsvClient:
-		writer, err = querylog.NewCSVWriter(cfg.Target, true, cfg.LogRetentionDays)
+		writer, err = querylog.NewCSVWriter(cfg.Target.Reveal(), true, cfg.LogRetentionDays)
 	case config.QueryLogTypeMysql:
-		writer, err = querylog.NewDatabaseWriter(ctx, "mysql", cfg.Target, cfg.LogRetentionDays,
+		writer, err = querylog.NewDatabaseWriter(ctx, "mysql", cfg.Target.Reveal(), cfg.LogRetentionDays,
 			cfg.FlushInterval.ToDuration())
 	case config.QueryLogTypePostgresql:
-		writer, err = querylog.NewDatabaseWriter(ctx, "postgresql", cfg.Target, cfg.LogRetentionDays,
+		writer, err = querylog.NewDatabaseWriter(ctx, "postgresql", cfg.Target.Reveal(), cfg.LogRetentionDays,
 			cfg.FlushInterval.ToDuration())
 	case config.QueryLogTypeTimescale:
-		writer, err = querylog.NewDatabaseWriter(ctx, "timescale", cfg.Target, cfg.LogRetentionDays,
+		writer, err = querylog.NewDatabaseWriter(ctx, "timescale", cfg.Target.Reveal(), cfg.LogRetentionDays,
 			cfg.FlushInterval.ToDuration())
 	case config.QueryLogTypeConsole:
 		writer = querylog.NewLoggerWriter()

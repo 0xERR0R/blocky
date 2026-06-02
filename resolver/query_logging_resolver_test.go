@@ -174,7 +174,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 		When("Configuration with logging per client", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLog{
-					Target:           tmpDir.Path,
+					Target:           config.Secret(tmpDir.Path),
 					Type:             config.QueryLogTypeCsvClient,
 					CreationAttempts: 1,
 					CreationCooldown: config.Duration(time.Millisecond),
@@ -242,7 +242,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 		When("Configuration with logging in one file for all clients", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLog{
-					Target:           tmpDir.Path,
+					Target:           config.Secret(tmpDir.Path),
 					Type:             config.QueryLogTypeCsv,
 					CreationAttempts: 1,
 					CreationCooldown: config.Duration(time.Millisecond),
@@ -302,7 +302,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 		When("Configuration with specific fields to log", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLog{
-					Target:           tmpDir.Path,
+					Target:           config.Secret(tmpDir.Path),
 					Type:             config.QueryLogTypeCsv,
 					CreationAttempts: 1,
 					CreationCooldown: config.Duration(time.Millisecond),
@@ -386,7 +386,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 		When("log directory contains old files", func() {
 			BeforeEach(func() {
 				sutConfig = config.QueryLog{
-					Target:           tmpDir.Path,
+					Target:           config.Secret(tmpDir.Path),
 					Type:             config.QueryLogTypeCsv,
 					LogRetentionDays: 7,
 					CreationAttempts: 1,

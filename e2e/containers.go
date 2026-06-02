@@ -40,8 +40,9 @@ const (
 
 // helper constants
 const (
-	modeOwner      = 700
-	startupTimeout = 30 * time.Second
+	modeOwner         = 700
+	modeWorldReadable = 0o444
+	startupTimeout    = 30 * time.Second
 )
 
 // createDNSMokkaContainer creates a DNS mokka container with the given rules attached to the test network
@@ -124,6 +125,21 @@ func createRedisContainerWithUnixSocket(ctx context.Context, e2eNet *testcontain
 	}
 
 	return startContainerWithNetwork(ctx, req, "redis", e2eNet)
+}
+
+// redisTestPassword is the password required by createRedisContainerWithPassword.
+const redisTestPassword = "e2e-redis-secret" //nolint:gosec // test-only password for the e2e redis container
+
+// createRedisContainerWithPassword creates a redis container that requires authentication,
+// attached to the test network under the alias 'redis'.
+// It is automatically terminated when the test is finished.
+func createRedisContainerWithPassword(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
+) (*redis.RedisContainer, error) {
+	return deferTerminate(redis.Run(ctx,
+		redisImage,
+		testcontainers.WithCmd("redis-server", "--requirepass", redisTestPassword, "--loglevel", "verbose"),
+		withNetwork("redis", e2eNet),
+	))
 }
 
 // createPostgresContainer creates a postgres container attached to the test network under the alias 'postgres'.
@@ -221,11 +237,10 @@ func buildBlockyContainerRequest(confFile string) testcontainers.ContainerReques
 	return req
 }
 
-// createBlockyContainer creates a blocky container with a config provided by the given lines.
-// It is attached to the test network under the alias 'blocky'.
-// It is automatically terminated when the test is finished.
-func createBlockyContainer(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
-	lines ...string,
+// createBlockyContainerInternal builds and starts a blocky container from the given
+// config lines, mounting any extraFiles in addition to the generated config.yml.
+func createBlockyContainerInternal(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
+	extraFiles []testcontainers.ContainerFile, lines ...string,
 ) (testcontainers.Container, error) {
 	return createBlockyContainerWithBinds(ctx, e2eNet, nil, lines...)
 }
@@ -248,6 +263,7 @@ func createBlockyContainerWithBinds(ctx context.Context, e2eNet *testcontainers.
 	}
 
 	req := buildBlockyContainerRequest(confFile)
+	req.Files = append(req.Files, extraFiles...)
 
 	if len(binds) > 0 {
 		baseHostConfigModifier := req.HostConfigModifier
@@ -279,6 +295,15 @@ func createBlockyContainerWithBinds(ctx context.Context, e2eNet *testcontainers.
 	return container, nil
 }
 
+// createBlockyContainer creates a blocky container with a config provided by the given lines.
+// It is attached to the test network under the alias 'blocky'.
+// It is automatically terminated when the test is finished.
+func createBlockyContainer(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
+	lines ...string,
+) (testcontainers.Container, error) {
+	return createBlockyContainerInternal(ctx, e2eNet, nil, lines...)
+}
+
 // createBlockyContainerFromString creates a blocky container with a config provided as a single YAML string.
 // It is attached to the test network under the alias 'blocky'.
 // It is automatically terminated when the test is finished.
@@ -286,6 +311,25 @@ func createBlockyContainerFromString(ctx context.Context, e2eNet *testcontainers
 	configYAML string,
 ) (testcontainers.Container, error) {
 	return createBlockyContainer(ctx, e2eNet, strings.Split(configYAML, "\n")...)
+}
+
+// createBlockyContainerWithFiles is like createBlockyContainerFromString but also
+// mounts each given host file into the container at the SAME absolute path, so a
+// config `file:` reference resolves both during the host-side LoadConfig pre-flight
+// and inside the container.
+func createBlockyContainerWithFiles(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
+	hostFiles []string, configYAML string,
+) (testcontainers.Container, error) {
+	files := make([]testcontainers.ContainerFile, 0, len(hostFiles))
+	for _, f := range hostFiles {
+		files = append(files, testcontainers.ContainerFile{
+			HostFilePath:      f,
+			ContainerFilePath: f,
+			FileMode:          modeWorldReadable, // world-readable so the container user can read it
+		})
+	}
+
+	return createBlockyContainerInternal(ctx, e2eNet, files, strings.Split(configYAML, "\n")...)
 }
 
 func checkBlockyReadiness(ctx context.Context, cfg *config.Config, container testcontainers.Container) error {
