@@ -3053,6 +3053,11 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">  </span><span class="c1"># optional: URL path for DoH queries.</span>
 <span class="w">  </span><span class="c1"># default: /dns-query</span>
 <span class="w">  </span><span class="nt">dohPath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/dns-query</span>
+<span class="w">  </span><span class="c1"># optional: allow binding the DNS/DoT listeners to addresses not yet assigned to an interface</span>
+<span class="w">  </span><span class="c1">#           (Linux only, via IP_FREEBIND; e.g. Tailscale/WireGuard/VRRP addresses brought up after</span>
+<span class="w">  </span><span class="c1">#           startup). No effect on wildcard binds; ignored with a warning on non-Linux platforms.</span>
+<span class="w">  </span><span class="c1"># default: false</span>
+<span class="w">  </span><span class="nt">freeBind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
 
 <span class="c1"># optional: configuration for DOH  over HTTP/3</span>
 <span class="nt">http3</span><span class="p">:</span>
@@ -3312,6 +3317,12 @@ configuration.</p>
 <td>string</td>
 <td>/dns-query</td>
 <td>URL path for <abbr title="DNS-over-HTTPS">DoH</abbr> queries.</td>
+</tr>
+<tr>
+<td>ports.freeBind</td>
+<td>bool</td>
+<td>false</td>
+<td>Allow binding the <abbr title="Domain Name System">DNS</abbr>/<abbr title="DNS-over-TLS">DoT</abbr> listeners to addresses not yet assigned to an interface (Linux only, via <code>IP_FREEBIND</code>; e.g. Tailscale/WireGuard/VRRP). No effect on wildcard binds; ignored with a warning on non-Linux.</td>
 </tr>
 </tbody>
 </table>
