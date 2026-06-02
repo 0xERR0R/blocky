@@ -9,6 +9,7 @@
 [![Codacy grade](https://img.shields.io/codacy/grade/8fcd8f8420b8419c808c47af58ed9282 "Codacy grade")](#)
 [![Go Report Card](https://goreportcard.com/badge/github.com/0xERR0R/blocky)](https://goreportcard.com/report/github.com/0xERR0R/blocky)
 [![Donation](https://img.shields.io/badge/buy%20me%20a%20coffee-donate-blueviolet.svg)](https://ko-fi.com/0xerr0r)
+[![Liberapay receiving](https://img.shields.io/liberapay/receives/spx01.svg?logo=liberapay "Support via Liberapay")](https://liberapay.com/spx01)
 
 <p align="center">
   <img height="200" src="https://github.com/0xERR0R/blocky/blob/main/docs/blocky.svg">
@@ -80,6 +81,27 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
   - Single binary
   - Supports x86-64, ARM, and MIPS architectures -> runs fine on Raspberry PI and OpenWrt routers
   - Community supported Helm chart for k8s deployment
+
+## ❤️ Support Blocky
+
+Blocky is **free, open source, and built entirely in my spare time** — with no telemetry, no data
+collection, and no hidden filtering. It keeps the DNS for thousands of home networks, homelabs, and
+businesses clean and private, and it always will.
+
+Maintaining a project this size — fixing bugs, reviewing pull requests, shipping new features, and
+keeping up with security — takes a lot of time. **Thousands of people run Blocky; only a handful
+support it.** If Blocky is useful to you, please consider chipping in. Your support directly funds
+ongoing development and helps keep Blocky independent and ad-free, forever.
+
+Even a small recurring contribution makes a real difference and is hugely appreciated. 🙏
+
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/0xERR0R)
+[![Support on thanks.dev](https://img.shields.io/badge/thanks.dev-support-00A98F)](https://thanks.dev/u/gh/0xERR0R)
+[![Donate on Liberapay](https://img.shields.io/badge/Liberapay-donate-F6C915?logo=liberapay&logoColor=black)](https://liberapay.com/spx01)
+[![Buy me a coffee on Ko-fi](https://img.shields.io/badge/Ko--fi-donate-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/0xerr0r)
+[![Donate via PayPal](https://img.shields.io/badge/PayPal-donate-00457C?logo=paypal&logoColor=white)](https://paypal.me/spx01)
+
+Thank you to everyone who supports Blocky! ❤️
 
 ## Quick start
 

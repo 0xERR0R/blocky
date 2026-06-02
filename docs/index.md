@@ -75,4 +75,18 @@ Blocky is a DNS proxy and ad-blocker for the local network written in Go with fo
 
 Issues, feature suggestions and pull requests are welcome! Blocky lives on :material-github:[GitHub](https://github.com/0xERR0R/blocky).
 
+## Support Blocky :heart:
+
+Blocky is **free, open source, and developed in my spare time** — with no telemetry, no data
+collection, and no hidden filtering. **Thousands of people run Blocky; only a handful support it.**
+If Blocky is useful to you, please consider chipping in — your support directly funds ongoing
+development and helps keep Blocky independent and ad-free, forever. Every contribution, however
+small, is hugely appreciated. Thank you! :heart:
+
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/0xERR0R)
+[![Support on thanks.dev](https://img.shields.io/badge/thanks.dev-support-00A98F)](https://thanks.dev/u/gh/0xERR0R)
+[![Donate on Liberapay](https://img.shields.io/badge/Liberapay-donate-F6C915?logo=liberapay&logoColor=black)](https://liberapay.com/spx01)
+[![Buy me a coffee on Ko-fi](https://img.shields.io/badge/Ko--fi-donate-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/0xerr0r)
+[![Donate via PayPal](https://img.shields.io/badge/PayPal-donate-00457C?logo=paypal&logoColor=white)](https://paypal.me/spx01)
+
 --8<-- "docs/includes/abbreviations.md"

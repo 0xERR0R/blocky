@@ -47,6 +47,21 @@ builds:
       - CGO_ENABLED=0
 release:
   draft: true
+  footer: |
+    ---
+
+    ## ❤️ Support Blocky
+
+    Blocky is free and open source, developed in my spare time — no telemetry, no ads, no hidden
+    filtering. If it's useful to you, please consider supporting its continued development:
+
+    [GitHub Sponsors](https://github.com/sponsors/0xERR0R) ·
+    [thanks.dev](https://thanks.dev/u/gh/0xERR0R) ·
+    [Liberapay](https://liberapay.com/spx01) ·
+    [Ko-fi](https://ko-fi.com/0xerr0r) ·
+    [PayPal](https://paypal.me/spx01)
+
+    Thank you to everyone supporting Blocky! 🙏
 archives:
   - format_overrides:
       - goos: windows
