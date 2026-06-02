@@ -239,19 +239,11 @@ func buildBlockyContainerRequest(confFile string) testcontainers.ContainerReques
 	return req
 }
 
-// createBlockyContainerInternal builds and starts a blocky container from the given
-// config lines, mounting any extraFiles in addition to the generated config.yml.
+// createBlockyContainerInternal builds and starts a blocky container from the given config
+// lines, mounting any extraFiles in addition to the generated config.yml and adding any
+// Docker bind mounts (each in "hostPath:containerPath" form).
 func createBlockyContainerInternal(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
-	extraFiles []testcontainers.ContainerFile, lines ...string,
-) (testcontainers.Container, error) {
-	return createBlockyContainerWithBinds(ctx, e2eNet, nil, lines...)
-}
-
-// createBlockyContainerWithBinds creates a blocky container like createBlockyContainer, but additionally
-// mounts the given Docker bind mounts (each in "hostPath:containerPath" form) into the container.
-// It is automatically terminated when the test is finished.
-func createBlockyContainerWithBinds(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
-	binds []string, lines ...string,
+	extraFiles []testcontainers.ContainerFile, binds []string, lines ...string,
 ) (testcontainers.Container, error) {
 	// Add timeout to context
 	ctx, cancel := context.WithTimeout(ctx, 2*startupTimeout)
@@ -297,13 +289,22 @@ func createBlockyContainerWithBinds(ctx context.Context, e2eNet *testcontainers.
 	return container, nil
 }
 
+// createBlockyContainerWithBinds creates a blocky container like createBlockyContainer, but additionally
+// mounts the given Docker bind mounts (each in "hostPath:containerPath" form) into the container.
+// It is automatically terminated when the test is finished.
+func createBlockyContainerWithBinds(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
+	binds []string, lines ...string,
+) (testcontainers.Container, error) {
+	return createBlockyContainerInternal(ctx, e2eNet, nil, binds, lines...)
+}
+
 // createBlockyContainer creates a blocky container with a config provided by the given lines.
 // It is attached to the test network under the alias 'blocky'.
 // It is automatically terminated when the test is finished.
 func createBlockyContainer(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
 	lines ...string,
 ) (testcontainers.Container, error) {
-	return createBlockyContainerInternal(ctx, e2eNet, nil, lines...)
+	return createBlockyContainerInternal(ctx, e2eNet, nil, nil, lines...)
 }
 
 // createBlockyContainerFromString creates a blocky container with a config provided as a single YAML string.
@@ -331,7 +332,7 @@ func createBlockyContainerWithFiles(ctx context.Context, e2eNet *testcontainers.
 		})
 	}
 
-	return createBlockyContainerInternal(ctx, e2eNet, files, strings.Split(configYAML, "\n")...)
+	return createBlockyContainerInternal(ctx, e2eNet, files, nil, strings.Split(configYAML, "\n")...)
 }
 
 func checkBlockyReadiness(ctx context.Context, cfg *config.Config, container testcontainers.Container) error {
