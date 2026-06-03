@@ -78,6 +78,14 @@ var _ cache.ReloadPublishable[any] = (*PrefetchingExpiringLRUCache[any])(nil)
 // prefetching. A cache decorator uses it to propagate reloaded entries (which are
 // stored directly by the inner expiration cache and so bypass the decorator).
 func (e *PrefetchingExpiringLRUCache[T]) SetReloadPublisher(fn func(key string, val *T, ttl time.Duration)) {
+	if fn == nil {
+		// clear the publisher: storing &fn would keep a non-nil pointer to a nil
+		// func, which onExpired would then call and panic on.
+		e.reloadPublisher.Store(nil)
+
+		return
+	}
+
 	e.reloadPublisher.Store(&fn)
 }
 
