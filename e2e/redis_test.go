@@ -322,6 +322,66 @@ var _ = Describe("Redis configuration tests", func() {
 		})
 	})
 
+	Describe("Prefetch sync via Redis", func() {
+		When("Redis and a prefetching blocky instance are configured", func() {
+			BeforeEach(func(ctx context.Context) {
+				// Short upstream TTL so prefetch reloads (driven by the ~5s cache cleanup)
+				// fire within the test window.
+				_, err = createDNSMokkaContainer(ctx, "moka2", e2eNet,
+					`A google/NOERROR("A 1.2.3.4 2")`,
+				)
+				Expect(err).Should(Succeed())
+
+				blocky1, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka2
+					caching:
+					  prefetching: true
+					  prefetchThreshold: 0
+					redis:
+					  address: redis:6379
+					`))
+				Expect(err).Should(Succeed())
+			})
+
+			It("re-publishes prefetched entries to Redis after the original TTL expires", func(ctx context.Context) {
+				msg := util.NewMsgWithQuestion("google.de.", A)
+
+				By("querying once to populate the local cache and Redis", func() {
+					Eventually(doDNSRequest, "5s", "2ms").WithArguments(ctx, blocky1, msg).
+						Should(BeDNSRecord("google.de.", A, "1.2.3.4"))
+
+					Eventually(dbSize, "5s", "100ms").WithArguments(ctx, redisClient).
+						Should(BeNumerically("==", 1))
+				})
+
+				By("flushing Redis to deterministically simulate the original SET expiring", func() {
+					// Flushing (instead of racing the natural 2s TTL) removes the flaky
+					// dependency on catching the brief empty window between expiry and the
+					// next ~5s cleanup republish. The local entry is untouched.
+					Expect(redisClient.FlushDB(ctx).Err()).Should(Succeed())
+					Expect(dbSize(ctx, redisClient)).Should(BeNumerically("==", 0))
+				})
+
+				By("verifying a prefetch reload re-publishes the entry to Redis", func() {
+					// Nothing re-queries the domain, so the entry can only reappear via a
+					// prefetch reload re-publish (#1422): the local entry's TTL expires and
+					// the ~5s cache cleanup reloads it and writes it through to Redis.
+					Eventually(dbSize, "15s", "100ms").WithArguments(ctx, redisClient).
+						Should(BeNumerically(">=", 1))
+				})
+
+				By("No warnings/errors in log", func() {
+					Expect(getContainerLogs(ctx, blocky1)).Should(BeEmpty())
+				})
+			})
+		})
+	})
+
 	Describe("Multiple query types via Redis cache", func() {
 		When("both A and AAAA queries are cached", func() {
 			BeforeEach(func(ctx context.Context) {

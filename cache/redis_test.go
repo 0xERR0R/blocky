@@ -36,6 +36,18 @@ func newTestInner(ctx context.Context) ExpiringCache[testValue] {
 	return expirationcache.NewCache[testValue](ctx, expirationcache.Options{})
 }
 
+// reloadPublishableInner is an inner cache that reloads entries internally (like the
+// prefetching cache) and exposes SetReloadPublisher so the Redis decorator can wire in.
+type reloadPublishableInner struct {
+	ExpiringCache[testValue]
+
+	publisher func(key string, val *testValue, ttl time.Duration)
+}
+
+func (r *reloadPublishableInner) SetReloadPublisher(fn func(key string, val *testValue, ttl time.Duration)) {
+	r.publisher = fn
+}
+
 // defaultOpts returns a RedisOptions with the given prefix suitable for tests.
 func defaultOpts(prefix string) RedisOptions[testValue] {
 	return RedisOptions[testValue]{
@@ -122,6 +134,82 @@ var _ = Describe("RedisExpiringCache", func() {
 				}()
 
 				Eventually(done).WithTimeout(time.Second).Should(BeClosed())
+			})
+		})
+	})
+
+	Describe("publishWriteThrough", func() {
+		When("a value is published", func() {
+			It("enqueues to Redis but does not store in the inner cache", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				inner := newTestInner(ctx)
+				opts := defaultOpts("publish:")
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				c.publishWriteThrough("foo", &testValue{Data: "bar"}, time.Minute)
+
+				// Redis key must appear after async flush.
+				Eventually(func() bool {
+					exists, _ := client.Exists(ctx, "publish:foo").Result()
+
+					return exists > 0
+				}).WithTimeout(2 * time.Second).WithPolling(20 * time.Millisecond).Should(BeTrue())
+
+				// Inner cache must NOT have the entry: the local store is the caller's responsibility.
+				val, _ := inner.Get("foo")
+				Expect(val).To(BeNil())
+			})
+		})
+
+		When("expiration is zero", func() {
+			It("does not enqueue to Redis", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				inner := newTestInner(ctx)
+				opts := defaultOpts("publish-zero:")
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
+				Expect(err).ToNot(HaveOccurred())
+
+				c.publishWriteThrough("foo", &testValue{Data: "bar"}, 0)
+
+				Consistently(func() bool {
+					exists, _ := client.Exists(ctx, "publish-zero:foo").Result()
+
+					return exists > 0
+				}).WithTimeout(300 * time.Millisecond).WithPolling(20 * time.Millisecond).Should(BeFalse())
+			})
+		})
+	})
+
+	Describe("reload publisher wiring", func() {
+		When("the inner cache reloads entries internally", func() {
+			It("wires its write-through publish into the inner cache", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				DeferCleanup(cancel)
+
+				inner := &reloadPublishableInner{ExpiringCache: newTestInner(ctx)}
+
+				c, err := NewRedisExpiringCache(ctx, inner, client, defaultOpts("reloadwire:"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).ToNot(BeNil())
+
+				// The decorator must have wired a publisher into the inner cache.
+				Expect(inner.publisher).ToNot(BeNil())
+
+				// And the wired publisher writes through to Redis (without touching inner).
+				inner.publisher("rkey", &testValue{Data: "rv"}, time.Minute)
+
+				Eventually(func() bool {
+					exists, _ := client.Exists(ctx, "reloadwire:rkey").Result()
+
+					return exists > 0
+				}).WithTimeout(2 * time.Second).WithPolling(20 * time.Millisecond).Should(BeTrue())
 			})
 		})
 	})

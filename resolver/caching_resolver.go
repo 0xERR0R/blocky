@@ -163,18 +163,22 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 		return nil, 0
 	}
 
-	if response.Res.Rcode != dns.RcodeSuccess {
+	// only refresh entries the normal put path would cache: successful, not
+	// truncated and without the CD flag (mirrors putInCache).
+	if response.Res.Rcode != dns.RcodeSuccess || !isResponseCacheable(response.Res) {
 		return nil, 0
 	}
 
-	packed, err := response.Res.Pack()
+	// clamp the record TTLs before packing so the stored (and Redis-synced) bytes
+	// carry the same TTLs the normal put path produces.
+	ttl := r.adjustTTLs(response.Res.Answer)
+
+	packed, err := packForCache(ctx, response.Res)
 	if err != nil {
-		logger.Error("unable to pack response", err)
-
 		return nil, 0
 	}
 
-	return &packed, r.adjustTTLs(response.Res.Answer)
+	return &packed, ttl
 }
 
 // LogConfig implements `config.Configurable`.
@@ -305,26 +309,34 @@ func isResponseCacheable(msg *dns.Msg) bool {
 	return !msg.Truncated && !msg.CheckingDisabled
 }
 
+// packForCache copies the message, strips EDNS0 OPT records (which must never be
+// cached) and returns the packed wire bytes. Both the normal put path and the
+// prefetch reload path use it so cached and prefetched entries are byte-identical.
+func packForCache(ctx context.Context, msg *dns.Msg) ([]byte, error) {
+	msgCopy := msg.Copy()
+	util.RemoveEdns0Record(msgCopy)
+
+	packed, err := msgCopy.Pack()
+	util.LogOnError(ctx, "error on packing", err)
+
+	return packed, err
+}
+
 func (r *CachingResolver) putInCache(
 	ctx context.Context, cacheKey string, response *model.Response, ttl time.Duration,
 ) {
-	respCopy := response.Res.Copy()
+	packed, err := packForCache(ctx, response.Res)
+	if err != nil {
+		return
+	}
 
-	// don't cache any EDNS OPT records
-	util.RemoveEdns0Record(respCopy)
-
-	packed, err := respCopy.Pack()
-	util.LogOnError(ctx, "error on packing", err)
-
-	if err == nil {
-		if response.Res.Rcode == dns.RcodeSuccess && isResponseCacheable(response.Res) {
-			// put value into cache
-			r.resultCache.Put(cacheKey, &packed, ttl)
-		} else if response.Res.Rcode == dns.RcodeNameError {
-			if r.cfg.CacheTimeNegative.IsAboveZero() {
-				// put negative cache if result code is NXDOMAIN
-				r.resultCache.Put(cacheKey, &packed, r.cfg.CacheTimeNegative.ToDuration())
-			}
+	if response.Res.Rcode == dns.RcodeSuccess && isResponseCacheable(response.Res) {
+		// put value into cache
+		r.resultCache.Put(cacheKey, &packed, ttl)
+	} else if response.Res.Rcode == dns.RcodeNameError {
+		if r.cfg.CacheTimeNegative.IsAboveZero() {
+			// put negative cache if result code is NXDOMAIN
+			r.resultCache.Put(cacheKey, &packed, r.cfg.CacheTimeNegative.ToDuration())
 		}
 	}
 }

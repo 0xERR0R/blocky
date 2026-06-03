@@ -717,6 +717,98 @@ var _ = Describe("CachingResolver", func() {
 		})
 	})
 
+	Describe("reloadCacheEntry (prefetch reload)", func() {
+		var cacheKey string
+
+		BeforeEach(func() {
+			cacheKey = util.GenerateCacheKey(dns.Type(dns.TypeA), "example.com")
+		})
+
+		When("the reloaded response contains EDNS0 OPT records", func() {
+			BeforeEach(func() {
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 123, A, "1.2.3.4")
+				opt := new(dns.OPT)
+				opt.Hdr.Name = "."
+				opt.Hdr.Rrtype = dns.TypeOPT
+				opt.Option = append(opt.Option, &dns.EDNS0_COOKIE{Code: dns.EDNS0COOKIE, Cookie: "0102030405060708"})
+				mockAnswer.Extra = append(mockAnswer.Extra, opt)
+			})
+
+			It("strips the OPT records from the stored value", func() {
+				packed, ttl := sut.reloadCacheEntry(ctx, cacheKey)
+				Expect(packed).ShouldNot(BeNil())
+				Expect(ttl).Should(BeNumerically(">", 0))
+
+				msg := new(dns.Msg)
+				Expect(msg.Unpack(*packed)).Should(Succeed())
+				Expect(msg.Answer).Should(HaveLen(1))
+				Expect(msg.Extra).Should(BeEmpty())
+			})
+		})
+
+		When("the response is successful", func() {
+			BeforeEach(func() {
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 123, A, "1.2.3.4")
+			})
+
+			It("returns the packed value and TTL", func() {
+				packed, ttl := sut.reloadCacheEntry(ctx, cacheKey)
+				Expect(packed).ShouldNot(BeNil())
+				Expect(ttl).Should(BeNumerically(">", 0))
+
+				msg := new(dns.Msg)
+				Expect(msg.Unpack(*packed)).Should(Succeed())
+				Expect(msg.Answer).Should(HaveLen(1))
+			})
+		})
+
+		When("the reloaded response is truncated", func() {
+			BeforeEach(func() {
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 123, A, "1.2.3.4")
+				mockAnswer.Truncated = true
+			})
+
+			It("is not cached or published (matches putInCache's isResponseCacheable gate)", func() {
+				packed, ttl := sut.reloadCacheEntry(ctx, cacheKey)
+				Expect(packed).Should(BeNil())
+				Expect(ttl).Should(BeZero())
+			})
+		})
+
+		When("the reloaded response has the CD flag set", func() {
+			BeforeEach(func() {
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 123, A, "1.2.3.4")
+				mockAnswer.CheckingDisabled = true
+			})
+
+			It("is not cached or published (matches putInCache's isResponseCacheable gate)", func() {
+				packed, ttl := sut.reloadCacheEntry(ctx, cacheKey)
+				Expect(packed).Should(BeNil())
+				Expect(ttl).Should(BeZero())
+			})
+		})
+
+		When("a maximum caching time is configured", func() {
+			BeforeEach(func() {
+				sutConfig.MaxCachingTime = config.Duration(time.Minute)
+				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 3600, A, "1.2.3.4")
+			})
+
+			It("clamps the TTL baked into the packed value, not just the returned TTL", func() {
+				packed, ttl := sut.reloadCacheEntry(ctx, cacheKey)
+				Expect(packed).ShouldNot(BeNil())
+				Expect(ttl).Should(Equal(time.Minute))
+
+				msg := new(dns.Msg)
+				Expect(msg.Unpack(*packed)).Should(Succeed())
+				Expect(msg.Answer).Should(HaveLen(1))
+				// the clamped TTL must be packed, otherwise the stored/Redis-synced
+				// bytes would carry the raw upstream TTL (3600).
+				Expect(msg.Answer[0].Header().Ttl).Should(Equal(uint32(60)))
+			})
+		})
+	})
+
 	Context("isRequestCacheable", func() {
 		var request *Request
 		When("request is not cacheable", func() {

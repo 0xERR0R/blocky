@@ -52,6 +52,16 @@ type RedisOptions[T any] struct {
 	SendBufSize int
 }
 
+// ReloadPublishable is implemented by inner caches that reload entries internally
+// (e.g. the prefetching cache). The Redis decorator wires its write-through publish
+// in so those reloaded entries are synced like any other Put, without the inner cache
+// or its callers needing to know about Redis. Implementations should add a
+// compile-time assertion against this interface so a signature drift fails to build
+// instead of silently disabling Redis sync of reloaded entries.
+type ReloadPublishable[T any] interface {
+	SetReloadPublisher(publish func(key string, val *T, ttl time.Duration))
+}
+
 type redisSyncEntry struct {
 	Key  string `json:"k"`
 	Data []byte `json:"d"`
@@ -136,6 +146,13 @@ func NewRedisExpiringCache[T any](
 		logger:     log.PrefixedLog("redis-cache"),
 	}
 
+	// If the inner cache reloads entries internally (e.g. prefetching), wire our
+	// write-through publish BEFORE the startup scan and goroutines so reloads that
+	// fire during startup are buffered on sendBuf and synced rather than dropped.
+	if rp, ok := inner.(ReloadPublishable[T]); ok {
+		rp.SetReloadPublisher(c.publishWriteThrough)
+	}
+
 	// Blocking startup load.
 	if err := c.loadFromRedis(ctx); err != nil {
 		c.logger.WithError(err).Warn("startup Redis scan failed – starting with empty local cache")
@@ -152,7 +169,24 @@ func NewRedisExpiringCache[T any](
 // and a warning is logged – the DNS path is never blocked.
 func (c *RedisExpiringCache[T]) Put(key string, val *T, expiration time.Duration) {
 	c.inner.Put(key, val, expiration)
+	c.enqueueSend(key, val, expiration)
+}
 
+// publishWriteThrough enqueues a non-blocking write-through to Redis WITHOUT
+// storing the value in the inner cache. It is used when the local store is handled
+// elsewhere – e.g. the prefetch reload path, where the underlying expiration
+// cache stores the reloaded value itself. Drop-on-full semantics match Put.
+//
+// It is named distinctly from the Redis pub/sub PUBLISH issued by flushBatch
+// (c.client.Publish) to avoid conflating the two.
+func (c *RedisExpiringCache[T]) publishWriteThrough(key string, val *T, expiration time.Duration) {
+	c.enqueueSend(key, val, expiration)
+}
+
+// enqueueSend pushes an entry onto the send buffer for the background writer.
+// If the buffer is full the entry is dropped and a warning is logged so the
+// DNS path is never blocked. Entries with non-positive expiration are skipped.
+func (c *RedisExpiringCache[T]) enqueueSend(key string, val *T, expiration time.Duration) {
 	if expiration <= 0 {
 		return
 	}

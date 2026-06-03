@@ -18,6 +18,12 @@ type PrefetchingExpiringLRUCache[T any] struct {
 	prefetchExpires         time.Duration
 	onPrefetchEntryReloaded OnEntryReloadedCallback
 	onPrefetchCacheHit      expirationcache.OnCacheHitCallback
+
+	// reloadPublisher, when set, is called with each entry reloaded by prefetching so
+	// a decorator (e.g. Redis write-through) can propagate the refreshed entry. It is
+	// stored atomically because it is wired during setup while the cleanup goroutine
+	// (which reads it) is already running.
+	reloadPublisher atomic.Pointer[func(key string, val *T, ttl time.Duration)]
 }
 
 type cacheValue[T any] struct {
@@ -64,6 +70,25 @@ func NewPrefetchingCache[T any](ctx context.Context, options PrefetchingOptions[
 	return pc
 }
 
+// Assert the prefetching cache satisfies the decorator's reload-publish hook so a
+// signature drift fails to compile instead of silently disabling Redis sync.
+var _ cache.ReloadPublishable[any] = (*PrefetchingExpiringLRUCache[any])(nil)
+
+// SetReloadPublisher registers a function invoked with each entry reloaded by
+// prefetching. A cache decorator uses it to propagate reloaded entries (which are
+// stored directly by the inner expiration cache and so bypass the decorator).
+func (e *PrefetchingExpiringLRUCache[T]) SetReloadPublisher(fn func(key string, val *T, ttl time.Duration)) {
+	if fn == nil {
+		// clear the publisher: storing &fn would keep a non-nil pointer to a nil
+		// func, which onExpired would then call and panic on.
+		e.reloadPublisher.Store(nil)
+
+		return
+	}
+
+	e.reloadPublisher.Store(&fn)
+}
+
 // check if a cache entry should be prefetched: was queried > threshold in the time window
 func (e *PrefetchingExpiringLRUCache[T]) shouldPrefetch(cacheKey string) bool {
 	if e.prefetchThreshold == 0 {
@@ -78,18 +103,25 @@ func (e *PrefetchingExpiringLRUCache[T]) shouldPrefetch(cacheKey string) bool {
 func (e *PrefetchingExpiringLRUCache[T]) onExpired(
 	ctx context.Context, cacheKey string,
 ) (val *cacheValue[T], ttl time.Duration) {
-	if e.shouldPrefetch(cacheKey) {
-		loadedVal, ttl := e.reloadFn(ctx, cacheKey)
-		if loadedVal != nil {
-			if e.onPrefetchEntryReloaded != nil {
-				e.onPrefetchEntryReloaded(cacheKey)
-			}
-
-			return &cacheValue[T]{loadedVal, true}, ttl
-		}
+	if !e.shouldPrefetch(cacheKey) {
+		return nil, 0
 	}
 
-	return nil, 0
+	loadedVal, ttl := e.reloadFn(ctx, cacheKey)
+	if loadedVal == nil {
+		return nil, 0
+	}
+
+	if e.onPrefetchEntryReloaded != nil {
+		e.onPrefetchEntryReloaded(cacheKey)
+	}
+
+	// skip the publish for non-positive TTLs: the decorator would drop them anyway.
+	if p := e.reloadPublisher.Load(); p != nil && ttl > 0 {
+		(*p)(cacheKey, loadedVal, ttl)
+	}
+
+	return &cacheValue[T]{loadedVal, true}, ttl
 }
 
 func (e *PrefetchingExpiringLRUCache[T]) trackCacheKeyQueryCount(cacheKey string) {
