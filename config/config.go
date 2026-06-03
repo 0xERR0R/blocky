@@ -103,6 +103,7 @@ func (v *TLSVersion) validate(logger *logrus.Entry) {
 // csv // Log to a CSV file (one per day).
 // csv-client // Log to a CSV file (one per day and per client).
 // timescale // Log each query to an external Timescale database.
+// sqlite // Log each query to a local SQLite database file.
 // )
 type QueryLogType int16
 

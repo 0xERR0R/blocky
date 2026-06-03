@@ -98,6 +98,14 @@ var _ = Describe("QueryLogConfig", func() {
 		})
 	})
 
+	Describe("QueryLogType enum", func() {
+		It("parses the sqlite type", func() {
+			t, err := ParseQueryLogType("sqlite")
+			Expect(err).Should(Succeed())
+			Expect(t).Should(Equal(QueryLogTypeSqlite))
+		})
+	})
+
 	Describe("SetDefaults", func() {
 		It("should log configuration", func() {
 			cfg := QueryLog{}
