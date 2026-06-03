@@ -57,8 +57,8 @@ const sqliteBusyTimeoutMs = 5000
 const sqliteDirPermission os.FileMode = 0o750
 
 // buildSQLiteDSN turns a filesystem path into a modernc/glebarez SQLite DSN with
-// WAL journaling enabled. The "file:" prefix is required so "?" is parsed as query
-// parameters rather than as part of the filename.
+// WAL journaling enabled. The "file:" prefix selects SQLite's URI filename mode,
+// the canonical form for passing connection options as query parameters.
 func buildSQLiteDSN(path string) string {
 	return fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(%d)", path, sqliteBusyTimeoutMs)
 }
