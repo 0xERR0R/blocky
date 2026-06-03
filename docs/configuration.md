@@ -979,10 +979,28 @@ You can select one of following query log types:
 - `mysql`: log each query in the external MySQL/MariaDB database
 - `postgresql`: log each query in the external PostgreSQL database
 - `timescale`: log each query in the external Timescale database
+- `sqlite`: log each query in a local SQLite database file (no external DB needed)
 - `csv`: log into CSV file (one per day)
 - `csv-client`: log into CSV file (one per day and per client)
 - `console`: log into console output
 - `none`: do not log any queries
+
+#### SQLite query log
+
+The `sqlite` target stores the query log in a single local file (set via `queryLog.target`, e.g. `/var/lib/blocky/querylog.db`) — no external database is required. Blocky creates the file and its parent directory automatically.
+
+Blocky opens the database in **WAL (Write-Ahead Logging) mode** automatically; you do not need to configure this. As a result the database is written as three files next to each other: `querylog.db`, `querylog.db-wal` and `querylog.db-shm`. When running in Docker, mount the **directory** (not just the `.db` file) as a volume so all three files persist, and include all three in any backup.
+
+Retention (`logRetentionDays`) works the same as for the other database targets.
+
+##### Reading the SQLite query log from external tools
+
+You can read the database with the `sqlite3` CLI, DB Browser for SQLite, a Grafana SQLite data source, or your own script:
+
+- Reading **while Blocky is running** is safe — WAL lets a reader run concurrently with Blocky's writes without blocking. Open the database **read-only** (ideally with a `busy_timeout`) so your tool never interferes with Blocky.
+- Open the **live database file in place**, with the `-wal`/`-shm` sidecar files present. The newest entries may still be in the `-wal` file before they are checkpointed into the main `.db`, so a WAL-aware open is required to see them.
+- **Do not copy only `querylog.db`** for offline reading — you would miss un-checkpointed rows. Instead copy all three files together, run `PRAGMA wal_checkpoint(TRUNCATE);` first, or use `sqlite3 querylog.db ".backup backup.db"` (or `VACUUM INTO`).
+- Use a tool with WAL support (a modern `sqlite3` CLI does).
 
 ### Query log fields
 
@@ -1002,8 +1020,8 @@ Configuration parameters:
 
 | Parameter                 | Type                                                                                 | Mandatory | Default value | Description                                                                                   |
 | ------------------------- | ------------------------------------------------------------------------------------ | --------- | ------------- | --------------------------------------------------------------------------------------------- |
-| queryLog.type             | enum (mysql, postgresql, timescale, csv, csv-client, console, none (see above))      | no        |               | Type of logging target. Console if empty                                                      |
-| queryLog.target           | string                                                                               | no        |               | directory for writing the logs (for csv) or database url (for mysql, postgresql or timescale); supports `file:` for database URLs — see [Redis tip](#redis) |
+| queryLog.type             | enum (mysql, postgresql, timescale, sqlite, csv, csv-client, console, none (see above))      | no        |               | Type of logging target. Console if empty                                                      |
+| queryLog.target           | string                                                                               | no        |               | directory for writing the logs (for csv), database file path (for sqlite), or database url (for mysql, postgresql or timescale); supports `file:` for database URLs — see [Redis tip](#redis) |
 | queryLog.logRetentionDays | int                                                                                  | no        | 0             | if > 0, deletes log files/database entries which are older than ... days                      |
 | queryLog.creationAttempts | int                                                                                  | no        | 3             | Max attempts to create specific query log writer                                              |
 | queryLog.creationCooldown | duration format                                                                      | no        | 2s            | Time between the creation attempts                                                            |

@@ -683,7 +683,7 @@
       "properties": {
         "target": {
           "type": "string",
-          "description": "Directory for CSV log files, or database URL for mysql/postgresql/timescale targets."
+          "description": "Directory for CSV log files, a database file path for sqlite, or a database URL for mysql/postgresql/timescale targets."
         },
         "type": {
           "type": "string",
@@ -697,7 +697,7 @@
             "timescale",
             "sqlite"
           ],
-          "description": "Log target type: mysql, postgresql, timescale, csv, csv-client, console, or none.\n\n- `console`: Log to console output (used when no type is set).\n- `none`: Do not log any queries.\n- `mysql`: Log each query to an external MySQL or MariaDB database.\n- `postgresql`: Log each query to an external PostgreSQL database.\n- `csv`: Log to a CSV file (one per day).\n- `csv-client`: Log to a CSV file (one per day and per client).\n- `timescale`: Log each query to an external Timescale database.\n- `sqlite`: Log each query to a local SQLite database file."
+          "description": "Log target type: mysql, postgresql, timescale, sqlite, csv, csv-client, console, or none.\n\n- `console`: Log to console output (used when no type is set).\n- `none`: Do not log any queries.\n- `mysql`: Log each query to an external MySQL or MariaDB database.\n- `postgresql`: Log each query to an external PostgreSQL database.\n- `csv`: Log to a CSV file (one per day).\n- `csv-client`: Log to a CSV file (one per day and per client).\n- `timescale`: Log each query to an external Timescale database.\n- `sqlite`: Log each query to a local SQLite database file."
         },
         "logRetentionDays": {
           "type": "integer",

@@ -10,9 +10,9 @@ import (
 
 // QueryLog configuration for the query logging
 type QueryLog struct {
-	// Directory for CSV log files, or database URL for mysql/postgresql/timescale targets.
+	// Directory for CSV log files, a database file path for sqlite, or a database URL for mysql/postgresql/timescale targets.
 	Target Secret `yaml:"target"`
-	// Log target type: mysql, postgresql, timescale, csv, csv-client, console, or none.
+	// Log target type: mysql, postgresql, timescale, sqlite, csv, csv-client, console, or none.
 	Type QueryLogType `yaml:"type"`
 	// Delete log entries older than this many days. 0 disables retention cleanup.
 	LogRetentionDays uint64 `yaml:"logRetentionDays"`
