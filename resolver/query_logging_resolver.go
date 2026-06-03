@@ -54,6 +54,9 @@ func GetQueryLoggingWriter(ctx context.Context, cfg config.QueryLog) (querylog.W
 	case config.QueryLogTypeTimescale:
 		writer, err = querylog.NewDatabaseWriter(ctx, "timescale", cfg.Target.Reveal(), cfg.LogRetentionDays,
 			cfg.FlushInterval.ToDuration())
+	case config.QueryLogTypeSqlite:
+		writer, err = querylog.NewDatabaseWriter(ctx, "sqlite", cfg.Target.Reveal(), cfg.LogRetentionDays,
+			cfg.FlushInterval.ToDuration())
 	case config.QueryLogTypeConsole:
 		writer = querylog.NewLoggerWriter()
 	case config.QueryLogTypeNone:

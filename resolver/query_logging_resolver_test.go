@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	. "github.com/0xERR0R/blocky/helpertest"
@@ -438,6 +439,22 @@ var _ = Describe("QueryLoggingResolver", func() {
 			It("should use fallback", func() {
 				Expect(sut.cfg.Type).Should(Equal(config.QueryLogTypeConsole))
 			})
+		})
+	})
+
+	Describe("GetQueryLoggingWriter for sqlite", func() {
+		It("creates a database writer", func() {
+			dbPath := filepath.Join(GinkgoT().TempDir(), "querylog.db")
+
+			writer, err := GetQueryLoggingWriter(ctx, config.QueryLog{
+				Type:          config.QueryLogTypeSqlite,
+				Target:        config.Secret(dbPath),
+				FlushInterval: config.Duration(time.Millisecond),
+			})
+
+			Expect(err).Should(Succeed())
+			Expect(writer).ShouldNot(BeNil())
+			Expect(writer).Should(BeAssignableToTypeOf(&querylog.DatabaseWriter{}))
 		})
 	})
 
