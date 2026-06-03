@@ -3,6 +3,8 @@ package querylog
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -16,6 +18,7 @@ import (
 
 	"github.com/0xERR0R/blocky/util"
 
+	"github.com/glebarez/sqlite"
 	"golang.org/x/net/publicsuffix"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -64,6 +67,16 @@ func NewDatabaseWriter(ctx context.Context, dbType, target string, logRetentionD
 		return newDatabaseWriter(ctx, mysql.Open(target), logRetentionDays, dbFlushPeriod, dbType)
 	case "postgresql", "timescale":
 		return newDatabaseWriter(ctx, postgres.Open(target), logRetentionDays, dbFlushPeriod, dbType)
+	case "sqlite":
+		if target == "" {
+			return nil, fmt.Errorf("sqlite query log requires a target file path")
+		}
+
+		if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
+			return nil, fmt.Errorf("can't create directory for sqlite database: %w", err)
+		}
+
+		return newDatabaseWriter(ctx, sqlite.Open(buildSQLiteDSN(target)), logRetentionDays, dbFlushPeriod, dbType)
 	}
 
 	return nil, fmt.Errorf("incorrect database type provided: %s", dbType)

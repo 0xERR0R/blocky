@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"path/filepath"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -164,6 +165,38 @@ var _ = Describe("DatabaseWriter", func() {
 					return res
 				}, "5s").Should(BeNumerically("==", 1))
 			})
+		})
+	})
+
+	Describe("Database query log to sqlite file with WAL", func() {
+		It("creates the file (and parent dir), enables WAL, and persists entries", func() {
+			dbPath := filepath.Join(GinkgoT().TempDir(), "sub", "querylog.db") // 'sub' exercises mkdir
+
+			w, err := NewDatabaseWriter(ctx, "sqlite", dbPath, 7, time.Millisecond)
+			Expect(err).Should(Succeed())
+
+			sqlDB, err := w.db.DB()
+			Expect(err).Should(Succeed())
+			sqlDB.SetMaxOpenConns(1)
+			DeferCleanup(sqlDB.Close)
+
+			w.Write(&LogEntry{Start: time.Now(), DurationMs: 20})
+
+			Eventually(func() int64 {
+				var res int64
+				w.db.Find(&logEntry{}).Count(&res)
+
+				return res
+			}, "5s").Should(BeNumerically("==", 1))
+
+			// the -wal sidecar only exists when journal_mode=WAL is active
+			Expect(dbPath + "-wal").Should(BeAnExistingFile())
+		})
+
+		It("returns an error when the target path is empty", func() {
+			_, err := NewDatabaseWriter(ctx, "sqlite", "", 7, time.Millisecond)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("sqlite query log requires a target"))
 		})
 	})
 
