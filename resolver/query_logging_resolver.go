@@ -45,17 +45,10 @@ func GetQueryLoggingWriter(ctx context.Context, cfg config.QueryLog) (querylog.W
 		writer, err = querylog.NewCSVWriter(cfg.Target.Reveal(), false, cfg.LogRetentionDays)
 	case config.QueryLogTypeCsvClient:
 		writer, err = querylog.NewCSVWriter(cfg.Target.Reveal(), true, cfg.LogRetentionDays)
-	case config.QueryLogTypeMysql:
-		writer, err = querylog.NewDatabaseWriter(ctx, "mysql", cfg.Target.Reveal(), cfg.LogRetentionDays,
-			cfg.FlushInterval.ToDuration())
-	case config.QueryLogTypePostgresql:
-		writer, err = querylog.NewDatabaseWriter(ctx, "postgresql", cfg.Target.Reveal(), cfg.LogRetentionDays,
-			cfg.FlushInterval.ToDuration())
-	case config.QueryLogTypeTimescale:
-		writer, err = querylog.NewDatabaseWriter(ctx, "timescale", cfg.Target.Reveal(), cfg.LogRetentionDays,
-			cfg.FlushInterval.ToDuration())
-	case config.QueryLogTypeSqlite:
-		writer, err = querylog.NewDatabaseWriter(ctx, "sqlite", cfg.Target.Reveal(), cfg.LogRetentionDays,
+	case config.QueryLogTypeMysql, config.QueryLogTypePostgresql, config.QueryLogTypeTimescale, config.QueryLogTypeSqlite:
+		// The database-backed targets share one writer; it selects the driver and
+		// migration from the typed QueryLogType, so no per-type string is threaded through.
+		writer, err = querylog.NewDatabaseWriter(ctx, cfg.Type, cfg.Target.Reveal(), cfg.LogRetentionDays,
 			cfg.FlushInterval.ToDuration())
 	case config.QueryLogTypeConsole:
 		writer = querylog.NewLoggerWriter()

@@ -748,7 +748,7 @@
               "type": "integer"
             }
           ],
-          "description": "Interval at which buffered log entries are flushed to the external database.",
+          "description": "Interval at which buffered log entries are flushed in bulk to the database\n(used by the mysql, postgresql, timescale and sqlite targets).",
           "default": "30s",
           "examples": [
             "30s",

@@ -22,7 +22,8 @@ type QueryLog struct {
 	CreationCooldown Duration `default:"2s" yaml:"creationCooldown"`
 	// Which fields to include in log entries; defaults to all available fields.
 	Fields []QueryLogField `yaml:"fields"`
-	// Interval at which buffered log entries are flushed to the external database.
+	// Interval at which buffered log entries are flushed in bulk to the database
+	// (used by the mysql, postgresql, timescale and sqlite targets).
 	FlushInterval Duration `default:"30s" yaml:"flushInterval"`
 	// Rules to suppress certain queries from being logged.
 	Ignore QueryLogIgnore `yaml:"ignore"`

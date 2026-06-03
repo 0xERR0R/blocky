@@ -989,9 +989,13 @@ You can select one of following query log types:
 
 The `sqlite` target stores the query log in a single local file (set via `queryLog.target`, e.g. `/var/lib/blocky/querylog.db`) — no external database is required. Blocky creates the file and its parent directory automatically.
 
+Set `queryLog.target` to a **plain filesystem path**. Do **not** prefix it with `file:` — for query-log targets that prefix means "read the target value from this file" (see the [Redis tip](#redis)), so `file:/var/lib/blocky/querylog.db` would be treated as a file to read the path *from*, not as the database itself.
+
 Blocky opens the database in **WAL (Write-Ahead Logging) mode** automatically; you do not need to configure this. As a result the database is written as three files next to each other: `querylog.db`, `querylog.db-wal` and `querylog.db-shm`. When running in Docker, mount the **directory** (not just the `.db` file) as a volume so all three files persist, and include all three in any backup.
 
-Retention (`logRetentionDays`) works the same as for the other database targets.
+WAL requires a normal local filesystem. It is **not** supported on network filesystems (NFS, SMB/CIFS); placing the database on a network share can cause lock errors or corruption, so use local/block storage.
+
+Retention (`logRetentionDays`) works the same as for the other database targets: entries older than the limit are deleted. Note that SQLite does not hand freed space back to the operating system on its own, so the `.db` file does not shrink after a deletion — the space is reused for new entries. Run `VACUUM` manually if you need to reclaim disk space.
 
 ##### Reading the SQLite query log from external tools
 
@@ -1026,7 +1030,7 @@ Configuration parameters:
 | queryLog.creationAttempts | int                                                                                  | no        | 3             | Max attempts to create specific query log writer                                              |
 | queryLog.creationCooldown | duration format                                                                      | no        | 2s            | Time between the creation attempts                                                            |
 | queryLog.fields           | list enum (clientIP, clientName, responseReason, responseAnswer, question, duration) | no        | all           | which information should be logged                                                            |
-| queryLog.flushInterval    | duration format                                                                      | no        | 30s           | Interval to write data in bulk to the external database                                       |
+| queryLog.flushInterval    | duration format                                                                      | no        | 30s           | Interval to write buffered entries in bulk to the database (mysql/postgresql/timescale/sqlite)|
 
 !!! hint
 

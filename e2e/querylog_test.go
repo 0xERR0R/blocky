@@ -345,7 +345,10 @@ type logEntry struct {
 func queryEntries(db *gorm.DB) ([]logEntry, error) {
 	var entries []logEntry
 
-	return entries, db.Find(&entries).Order("request_ts DESC").Error
+	// Returned in insertion order: the tests issue their queries sequentially and
+	// assert on that order. We intentionally don't add an ORDER BY request_ts, which
+	// can tie at the column's time resolution and make the order non-deterministic.
+	return entries, db.Find(&entries).Error
 }
 
 func countEntries(db *gorm.DB) (int64, error) {

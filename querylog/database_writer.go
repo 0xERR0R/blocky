@@ -14,6 +14,7 @@ import (
 
 	"gorm.io/gorm/logger"
 
+	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/hashicorp/go-multierror"
 
@@ -58,20 +59,27 @@ const sqliteDirPermission os.FileMode = 0o750
 
 // buildSQLiteDSN turns a filesystem path into a modernc/glebarez SQLite DSN with
 // WAL journaling enabled. The "file:" prefix selects SQLite's URI filename mode,
-// the canonical form for passing connection options as query parameters.
+// the canonical form for passing connection options as query parameters. Because
+// that mode runs the path through SQLite's URI parser, the path is percent-encoded
+// first: otherwise a path containing "?" or "#" would be truncated (silently
+// opening a different file, possibly without WAL) and "%xx" would be decoded into
+// a different path. "%" is encoded first as it is the escape character itself;
+// strings.Replacer never re-scans its own output, so the inserted "%25" is safe.
 func buildSQLiteDSN(path string) string {
-	return fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(%d)", path, sqliteBusyTimeoutMs)
+	encodedPath := strings.NewReplacer("%", "%25", "?", "%3F", "#", "%23").Replace(path)
+
+	return fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(%d)", encodedPath, sqliteBusyTimeoutMs)
 }
 
-func NewDatabaseWriter(ctx context.Context, dbType, target string, logRetentionDays uint64,
+func NewDatabaseWriter(ctx context.Context, dbType config.QueryLogType, target string, logRetentionDays uint64,
 	dbFlushPeriod time.Duration,
 ) (*DatabaseWriter, error) {
-	switch dbType {
-	case "mysql":
+	switch dbType { //nolint:exhaustive // non-database query-log types are handled in GetQueryLoggingWriter
+	case config.QueryLogTypeMysql:
 		return newDatabaseWriter(ctx, mysql.Open(target), logRetentionDays, dbFlushPeriod, dbType)
-	case "postgresql", "timescale":
+	case config.QueryLogTypePostgresql, config.QueryLogTypeTimescale:
 		return newDatabaseWriter(ctx, postgres.Open(target), logRetentionDays, dbFlushPeriod, dbType)
-	case "sqlite":
+	case config.QueryLogTypeSqlite:
 		if target == "" {
 			return nil, errors.New("sqlite query log requires a target file path")
 		}
@@ -87,7 +95,7 @@ func NewDatabaseWriter(ctx context.Context, dbType, target string, logRetentionD
 }
 
 func newDatabaseWriter(ctx context.Context, target gorm.Dialector, logRetentionDays uint64,
-	dbFlushPeriod time.Duration, dbType string,
+	dbFlushPeriod time.Duration, dbType config.QueryLogType,
 ) (*DatabaseWriter, error) {
 	db, err := gorm.Open(target, &gorm.Config{
 		Logger: logger.New(
@@ -101,6 +109,20 @@ func newDatabaseWriter(ctx context.Context, target gorm.Dialector, logRetentionD
 	})
 	if err != nil {
 		return nil, fmt.Errorf("can't create database connection: %w", err)
+	}
+
+	// SQLite is a single local file: a write holds an exclusive lock on the whole
+	// database, so letting the pool open several connections only turns blocky's own
+	// concurrent access (the periodic flush vs. the retention cleanup) into
+	// SQLITE_BUSY errors. Serialize through one connection instead; external readers
+	// use their own connections and are unaffected.
+	if dbType == config.QueryLogTypeSqlite {
+		sqlDB, err := db.DB()
+		if err != nil {
+			return nil, fmt.Errorf("can't access sqlite connection pool: %w", err)
+		}
+
+		sqlDB.SetMaxOpenConns(1)
 	}
 
 	// Migrate the schema
@@ -119,7 +141,7 @@ func newDatabaseWriter(ctx context.Context, target gorm.Dialector, logRetentionD
 	return w, nil
 }
 
-func databaseMigration(db *gorm.DB, dbType string, logRetentionDays uint64) error {
+func databaseMigration(db *gorm.DB, dbType config.QueryLogType, logRetentionDays uint64) error {
 	if err := db.AutoMigrate(&logEntry{}); err != nil {
 		return fmt.Errorf("failed to auto-migrate database schema for querylog: %w", err)
 	}
@@ -127,8 +149,13 @@ func databaseMigration(db *gorm.DB, dbType string, logRetentionDays uint64) erro
 	tableName := db.NamingStrategy.TableName(reflect.TypeFor[logEntry]().Name())
 
 	// create unmapped primary key
-	switch dbType {
-	case "mysql":
+	switch dbType { //nolint:exhaustive // only database-backed targets reach migration
+	case config.QueryLogTypeSqlite:
+		// SQLite gives every table an implicit auto-incrementing rowid that already
+		// acts as the primary key, so unlike the other targets no extra id column is
+		// added here (and SQLite cannot ALTER TABLE ... ADD a PRIMARY KEY column).
+
+	case config.QueryLogTypeMysql:
 		tx := db.Exec("ALTER TABLE `" + tableName + "` ADD `id` INT PRIMARY KEY AUTO_INCREMENT")
 		if tx.Error != nil {
 			// mysql doesn't support "add column if not exist"
@@ -141,10 +168,10 @@ func databaseMigration(db *gorm.DB, dbType string, logRetentionDays uint64) erro
 			return tx.Error
 		}
 
-	case "postgres":
+	case config.QueryLogTypePostgresql:
 		return db.Exec("ALTER TABLE " + tableName + " ADD column if not exists id bigserial primary key").Error
 
-	case "timescale":
+	case config.QueryLogTypeTimescale:
 		requestTSColName := db.NamingStrategy.ColumnName(reflect.TypeFor[logEntry]().Name(), "RequestTS")
 
 		// Create a Timescale hypertable
