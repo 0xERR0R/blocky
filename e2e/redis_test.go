@@ -359,15 +359,19 @@ var _ = Describe("Redis configuration tests", func() {
 						Should(BeNumerically("==", 1))
 				})
 
-				By("waiting for the original Redis entry (2s TTL) to expire", func() {
-					Eventually(dbSize, "10s", "100ms").WithArguments(ctx, redisClient).
-						Should(BeNumerically("==", 0))
+				By("flushing Redis to deterministically simulate the original SET expiring", func() {
+					// Flushing (instead of racing the natural 2s TTL) removes the flaky
+					// dependency on catching the brief empty window between expiry and the
+					// next ~5s cleanup republish. The local entry is untouched.
+					Expect(redisClient.FlushDB(ctx).Err()).Should(Succeed())
+					Expect(dbSize(ctx, redisClient)).Should(BeNumerically("==", 0))
 				})
 
 				By("verifying a prefetch reload re-publishes the entry to Redis", func() {
-					// The entry can only reappear via a prefetch reload re-publish (#1422):
-					// the original SET expired and no client query refreshed it.
-					Eventually(dbSize, "10s", "100ms").WithArguments(ctx, redisClient).
+					// Nothing re-queries the domain, so the entry can only reappear via a
+					// prefetch reload re-publish (#1422): the local entry's TTL expires and
+					// the ~5s cache cleanup reloads it and writes it through to Redis.
+					Eventually(dbSize, "15s", "100ms").WithArguments(ctx, redisClient).
 						Should(BeNumerically(">=", 1))
 				})
 

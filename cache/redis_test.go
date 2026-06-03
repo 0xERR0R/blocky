@@ -138,7 +138,7 @@ var _ = Describe("RedisExpiringCache", func() {
 		})
 	})
 
-	Describe("Publish", func() {
+	Describe("publishWriteThrough", func() {
 		When("a value is published", func() {
 			It("enqueues to Redis but does not store in the inner cache", func() {
 				ctx, cancel := context.WithCancel(context.Background())
@@ -150,7 +150,7 @@ var _ = Describe("RedisExpiringCache", func() {
 				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
 				Expect(err).ToNot(HaveOccurred())
 
-				c.Publish("foo", &testValue{Data: "bar"}, time.Minute)
+				c.publishWriteThrough("foo", &testValue{Data: "bar"}, time.Minute)
 
 				// Redis key must appear after async flush.
 				Eventually(func() bool {
@@ -176,7 +176,7 @@ var _ = Describe("RedisExpiringCache", func() {
 				c, err := NewRedisExpiringCache(ctx, inner, client, opts)
 				Expect(err).ToNot(HaveOccurred())
 
-				c.Publish("foo", &testValue{Data: "bar"}, 0)
+				c.publishWriteThrough("foo", &testValue{Data: "bar"}, 0)
 
 				Consistently(func() bool {
 					exists, _ := client.Exists(ctx, "publish-zero:foo").Result()

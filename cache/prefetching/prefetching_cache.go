@@ -70,6 +70,10 @@ func NewPrefetchingCache[T any](ctx context.Context, options PrefetchingOptions[
 	return pc
 }
 
+// Assert the prefetching cache satisfies the decorator's reload-publish hook so a
+// signature drift fails to compile instead of silently disabling Redis sync.
+var _ cache.ReloadPublishable[any] = (*PrefetchingExpiringLRUCache[any])(nil)
+
 // SetReloadPublisher registers a function invoked with each entry reloaded by
 // prefetching. A cache decorator uses it to propagate reloaded entries (which are
 // stored directly by the inner expiration cache and so bypass the decorator).
@@ -104,7 +108,8 @@ func (e *PrefetchingExpiringLRUCache[T]) onExpired(
 		e.onPrefetchEntryReloaded(cacheKey)
 	}
 
-	if p := e.reloadPublisher.Load(); p != nil {
+	// skip the publish for non-positive TTLs: the decorator would drop them anyway.
+	if p := e.reloadPublisher.Load(); p != nil && ttl > 0 {
 		(*p)(cacheKey, loadedVal, ttl)
 	}
 
