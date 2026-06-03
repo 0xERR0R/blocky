@@ -45,6 +45,17 @@ type DatabaseWriter struct {
 	dbFlushPeriod    time.Duration
 }
 
+// sqliteBusyTimeoutMs is the SQLite busy_timeout (in ms) applied to the query-log
+// connection so transient lock contention with external readers is retried, not failed.
+const sqliteBusyTimeoutMs = 5000
+
+// buildSQLiteDSN turns a filesystem path into a modernc/glebarez SQLite DSN with
+// WAL journaling enabled. The "file:" prefix is required so "?" is parsed as query
+// parameters rather than as part of the filename.
+func buildSQLiteDSN(path string) string {
+	return fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(%d)", path, sqliteBusyTimeoutMs)
+}
+
 func NewDatabaseWriter(ctx context.Context, dbType, target string, logRetentionDays uint64,
 	dbFlushPeriod time.Duration,
 ) (*DatabaseWriter, error) {

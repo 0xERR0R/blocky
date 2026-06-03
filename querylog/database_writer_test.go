@@ -193,6 +193,13 @@ var _ = Describe("DatabaseWriter", func() {
 		})
 	})
 
+	Describe("buildSQLiteDSN", func() {
+		It("builds a file URI with WAL and busy_timeout pragmas", func() {
+			Expect(buildSQLiteDSN("/var/lib/blocky/querylog.db")).Should(Equal(
+				"file:/var/lib/blocky/querylog.db?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"))
+		})
+	})
+
 	Describe("Database initialization and migration", func() {
 		var (
 			db   *sql.DB
