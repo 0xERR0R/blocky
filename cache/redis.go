@@ -52,6 +52,14 @@ type RedisOptions[T any] struct {
 	SendBufSize int
 }
 
+// reloadPublishable is implemented by inner caches that reload entries internally
+// (e.g. the prefetching cache). The Redis decorator wires its write-through publish
+// in so those reloaded entries are synced like any other Put, without the inner cache
+// or its callers needing to know about Redis.
+type reloadPublishable[T any] interface {
+	SetReloadPublisher(publish func(key string, val *T, ttl time.Duration))
+}
+
 type redisSyncEntry struct {
 	Key  string `json:"k"`
 	Data []byte `json:"d"`
@@ -144,6 +152,12 @@ func NewRedisExpiringCache[T any](
 	go c.runSubscriber(ctx)
 	go c.runWriter(ctx)
 
+	// If the inner cache reloads entries internally (e.g. prefetching), wire our
+	// write-through publish so reloaded entries are synced like any other Put.
+	if rp, ok := inner.(reloadPublishable[T]); ok {
+		rp.SetReloadPublisher(c.Publish)
+	}
+
 	return c, nil
 }
 
@@ -152,7 +166,21 @@ func NewRedisExpiringCache[T any](
 // and a warning is logged – the DNS path is never blocked.
 func (c *RedisExpiringCache[T]) Put(key string, val *T, expiration time.Duration) {
 	c.inner.Put(key, val, expiration)
+	c.enqueueSend(key, val, expiration)
+}
 
+// Publish enqueues a non-blocking write-through to Redis WITHOUT storing the
+// value in the inner cache. It is used when the local store is handled
+// elsewhere – e.g. the prefetch reload path, where the underlying expiration
+// cache stores the reloaded value itself. Drop-on-full semantics match Put.
+func (c *RedisExpiringCache[T]) Publish(key string, val *T, expiration time.Duration) {
+	c.enqueueSend(key, val, expiration)
+}
+
+// enqueueSend pushes an entry onto the send buffer for the background writer.
+// If the buffer is full the entry is dropped and a warning is logged so the
+// DNS path is never blocked. Entries with non-positive expiration are skipped.
+func (c *RedisExpiringCache[T]) enqueueSend(key string, val *T, expiration time.Duration) {
 	if expiration <= 0 {
 		return
 	}

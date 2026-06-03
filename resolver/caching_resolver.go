@@ -167,7 +167,11 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 		return nil, 0
 	}
 
-	packed, err := response.Res.Pack()
+	// strip EDNS0 OPT records so prefetched entries match the normal putInCache path
+	respCopy := response.Res.Copy()
+	util.RemoveEdns0Record(respCopy)
+
+	packed, err := respCopy.Pack()
 	if err != nil {
 		logger.Error("unable to pack response", err)
 

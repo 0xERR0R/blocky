@@ -134,6 +134,45 @@ var _ = Describe("Prefetching expiration cache", func() {
 					}, "5s").Should(Succeed())
 				})
 			})
+			It("Should call the reload publisher on prefetch reload", func() {
+				publishedKey := make(chan string, 1)
+				publishedVal := make(chan string, 1)
+
+				c := NewPrefetchingCache[string](ctx, PrefetchingOptions[string]{
+					Options: cache.Options{
+						CleanupInterval: 100 * time.Millisecond,
+					},
+					ReloadFn: func(ctx context.Context, cacheKey string) (*string, time.Duration) {
+						v := "v2"
+
+						return &v, 50 * time.Millisecond
+					},
+				})
+
+				c.SetReloadPublisher(func(key string, val *string, _ time.Duration) {
+					// non-blocking so the background cleanup goroutine is never blocked
+					select {
+					case publishedKey <- key:
+					default:
+					}
+					select {
+					case publishedVal <- *val:
+					default:
+					}
+				})
+
+				By("put a value and query it (threshold 0 -> always prefetch)", func() {
+					v := "v1"
+					c.Put("key1", &v, 50*time.Millisecond)
+					c.Get("key1")
+				})
+
+				By("the reload publisher receives the reloaded entry", func() {
+					Eventually(publishedKey, "5s").Should(Receive(Equal("key1")))
+					Eventually(publishedVal, "5s").Should(Receive(Equal("v2")))
+				})
+			})
+
 			It("Should execute hook functions", func() {
 				onPrefetchAfterPutChannel := make(chan int, 10)
 				onPrefetchEntryReloaded := make(chan string, 10)
