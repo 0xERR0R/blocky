@@ -2,6 +2,7 @@ package querylog
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -52,6 +53,9 @@ type DatabaseWriter struct {
 // connection so transient lock contention with external readers is retried, not failed.
 const sqliteBusyTimeoutMs = 5000
 
+// sqliteDirPermission is the permission used when creating the parent directory of the sqlite database file.
+const sqliteDirPermission os.FileMode = 0o750
+
 // buildSQLiteDSN turns a filesystem path into a modernc/glebarez SQLite DSN with
 // WAL journaling enabled. The "file:" prefix is required so "?" is parsed as query
 // parameters rather than as part of the filename.
@@ -69,10 +73,10 @@ func NewDatabaseWriter(ctx context.Context, dbType, target string, logRetentionD
 		return newDatabaseWriter(ctx, postgres.Open(target), logRetentionDays, dbFlushPeriod, dbType)
 	case "sqlite":
 		if target == "" {
-			return nil, fmt.Errorf("sqlite query log requires a target file path")
+			return nil, errors.New("sqlite query log requires a target file path")
 		}
 
-		if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
+		if err := os.MkdirAll(filepath.Dir(target), sqliteDirPermission); err != nil {
 			return nil, fmt.Errorf("can't create directory for sqlite database: %w", err)
 		}
 

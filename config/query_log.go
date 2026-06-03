@@ -10,7 +10,7 @@ import (
 
 // QueryLog configuration for the query logging
 type QueryLog struct {
-	// Directory for CSV log files, a database file path for sqlite, or a database URL for mysql/postgresql/timescale targets.
+	// Directory for CSV log files, file path for sqlite, or database URL for mysql/postgresql/timescale.
 	Target Secret `yaml:"target"`
 	// Log target type: mysql, postgresql, timescale, sqlite, csv, csv-client, console, or none.
 	Type QueryLogType `yaml:"type"`

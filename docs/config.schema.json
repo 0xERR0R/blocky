@@ -683,7 +683,7 @@
       "properties": {
         "target": {
           "type": "string",
-          "description": "Directory for CSV log files, a database file path for sqlite, or a database URL for mysql/postgresql/timescale targets."
+          "description": "Directory for CSV log files, file path for sqlite, or database URL for mysql/postgresql/timescale."
         },
         "type": {
           "type": "string",
