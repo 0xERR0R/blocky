@@ -16,15 +16,8 @@ import (
 
 const (
 	maxDomainNameLength = 255 // https://www.rfc-editor.org/rfc/rfc1034#section-3.1
-
-	dnsLabelPattern = `[a-zA-Z0-9_-]{1,63}`
+	maxDNSLabelLength   = 63  // https://www.rfc-editor.org/rfc/rfc1034#section-3.1
 )
-
-// Validate a domain name, but with extra flexibility:
-// - no restriction on the start or end of labels
-//
-// https://www.rfc-editor.org/rfc/rfc1034#section-3.5
-var domainNameRegex = regexp.MustCompile(`^` + dnsLabelPattern + `(\.` + dnsLabelPattern + `)*[\._]?$`)
 
 // Hosts parses `r` as a series of `HostsIterator`.
 // It supports both the hosts file and host list formats.
@@ -273,11 +266,79 @@ func validateDomainName(host string) error {
 		return fmt.Errorf("domain name is too long: %s", host)
 	}
 
-	if domainNameRegex.MatchString(host) {
+	if isValidDomainName(host) {
 		return nil
 	}
 
 	return fmt.Errorf("invalid domain name: %s", host)
+}
+
+// isValidDomainName reports whether host matches the (relaxed) domain grammar
+// `^[a-zA-Z0-9_-]{1,63}(\.[a-zA-Z0-9_-]{1,63})*[\._]?$`: dot-separated labels of
+// 1..63 label characters, with an optional single trailing '.' or '_'.
+//
+// Labels have no restriction on their start or end (e.g. leading/trailing
+// hyphens are allowed) to avoid rejecting list entries for reasons that amount
+// to "that domain should not be used"; deciding that is the list's job.
+//
+// This replaces a regexp; the two trailing-character possibilities (” or the
+// final '.'/'_') mirror the regex's optional `[\._]?` group exactly.
+func isValidDomainName(host string) bool {
+	if isLabelSequence(host) {
+		return true
+	}
+
+	// The grammar allows one optional trailing '.' or '_' after the last label.
+	if n := len(host); n > 0 {
+		if last := host[n-1]; last == '.' || last == '_' {
+			return isLabelSequence(host[:n-1])
+		}
+	}
+
+	return false
+}
+
+// isLabelSequence reports whether s is `LABEL("."LABEL)*` with each LABEL being
+// 1..63 domain-label characters.
+func isLabelSequence(s string) bool {
+	labelLen := 0
+
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+
+		if c == '.' {
+			if labelLen == 0 {
+				return false // empty label (leading dot or "..")
+			}
+
+			labelLen = 0
+
+			continue
+		}
+
+		if !isDNSLabelChar(c) {
+			return false
+		}
+
+		labelLen++
+		if labelLen > maxDNSLabelLength {
+			return false
+		}
+	}
+
+	return labelLen != 0 // reject empty input and a trailing '.'
+}
+
+func isDNSLabelChar(c byte) bool {
+	switch {
+	case c >= 'a' && c <= 'z',
+		c >= 'A' && c <= 'Z',
+		c >= '0' && c <= '9',
+		c == '-', c == '_':
+		return true
+	default:
+		return false
+	}
 }
 
 func isRegex(host string) bool {
