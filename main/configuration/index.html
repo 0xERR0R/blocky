@@ -901,6 +901,40 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Query log types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sqlite-query-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SQLite query log
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SQLite query log">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reading-the-sqlite-query-log-from-external-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the SQLite query log from external tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -2117,6 +2151,40 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Query log types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sqlite-query-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SQLite query log
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SQLite query log">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reading-the-sqlite-query-log-from-external-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the SQLite query log from external tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -2876,11 +2944,13 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 
 <span class="c1"># optional: write query information (question, answer, client, duration etc.) to daily csv file</span>
 <span class="nt">queryLog</span><span class="p">:</span>
-<span class="w">  </span><span class="c1"># optional one of: mysql, postgresql, timescale, csv, csv-client. If empty, log to console</span>
+<span class="w">  </span><span class="c1"># optional one of: mysql, postgresql, timescale, sqlite, csv, csv-client. If empty, log to console</span>
 <span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
-<span class="w">  </span><span class="c1"># directory (should be mounted as volume in docker) for csv, db connection string for mysql/postgresql</span>
+<span class="w">  </span><span class="c1"># directory (should be mounted as volume in docker) for csv, db connection string for mysql/postgresql,</span>
+<span class="w">  </span><span class="c1"># or a database file path for sqlite (the directory should be mounted as a volume in docker)</span>
 <span class="w">  </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">db_user:db_password@tcp(db_host_or_ip:3306)/db_name?charset=utf8mb4&amp;parseTime=True&amp;loc=Local</span>
 <span class="w">  </span><span class="c1">#postgresql target: postgres://user:password@db_host_or_ip:5432/db_name</span>
+<span class="w">  </span><span class="c1">#sqlite target: /var/lib/blocky/querylog.db   # WAL mode is enabled automatically</span>
 <span class="w">  </span><span class="c1"># if &gt; 0, deletes log files which are older than ... days</span>
 <span class="w">  </span><span class="nt">logRetentionDays</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">7</span>
 <span class="w">  </span><span class="c1"># optional: Max attempts to create specific query log writer, default: 3</span>
@@ -4505,10 +4575,25 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <li><code>mysql</code>: log each query in the external MySQL/MariaDB database</li>
 <li><code>postgresql</code>: log each query in the external PostgreSQL database</li>
 <li><code>timescale</code>: log each query in the external Timescale database</li>
+<li><code>sqlite</code>: log each query in a local SQLite database file (no external DB needed)</li>
 <li><code>csv</code>: log into <abbr title="Comma-separated values">CSV</abbr> file (one per day)</li>
 <li><code>csv-client</code>: log into <abbr title="Comma-separated values">CSV</abbr> file (one per day and per client)</li>
 <li><code>console</code>: log into console output</li>
 <li><code>none</code>: do not log any queries</li>
+</ul>
+<h4 id="sqlite-query-log">SQLite query log</h4>
+<p>The <code>sqlite</code> target stores the query log in a single local file (set via <code>queryLog.target</code>, e.g. <code>/var/lib/blocky/querylog.db</code>) — no external database is required. Blocky creates the file and its parent directory automatically.</p>
+<p>Set <code>queryLog.target</code> to a <strong>plain filesystem path</strong>. Do <strong>not</strong> prefix it with <code>file:</code> — for query-log targets that prefix means "read the target value from this file" (see the <a href="#redis">Redis tip</a>), so <code>file:/var/lib/blocky/querylog.db</code> would be treated as a file to read the path <em>from</em>, not as the database itself.</p>
+<p>Blocky opens the database in <strong>WAL (Write-Ahead Logging) mode</strong> automatically; you do not need to configure this. As a result the database is written as three files next to each other: <code>querylog.db</code>, <code>querylog.db-wal</code> and <code>querylog.db-shm</code>. When running in Docker, mount the <strong>directory</strong> (not just the <code>.db</code> file) as a volume so all three files persist, and include all three in any backup.</p>
+<p>WAL requires a normal local filesystem. It is <strong>not</strong> supported on network filesystems (NFS, SMB/CIFS); placing the database on a network share can cause lock errors or corruption, so use local/block storage.</p>
+<p>Retention (<code>logRetentionDays</code>) works the same as for the other database targets: entries older than the limit are deleted. Note that SQLite does not hand freed space back to the operating system on its own, so the <code>.db</code> file does not shrink after a deletion — the space is reused for new entries. Run <code>VACUUM</code> manually if you need to reclaim disk space.</p>
+<h5 id="reading-the-sqlite-query-log-from-external-tools">Reading the SQLite query log from external tools</h5>
+<p>You can read the database with the <code>sqlite3</code> <abbr title="Command Line Interface">CLI</abbr>, DB Browser for SQLite, a Grafana SQLite data source, or your own script:</p>
+<ul>
+<li>Reading <strong>while Blocky is running</strong> is safe — WAL lets a reader run concurrently with Blocky's writes without blocking. Open the database <strong>read-only</strong> (ideally with a <code>busy_timeout</code>) so your tool never interferes with Blocky.</li>
+<li>Open the <strong>live database file in place</strong>, with the <code>-wal</code>/<code>-shm</code> sidecar files present. The newest entries may still be in the <code>-wal</code> file before they are checkpointed into the main <code>.db</code>, so a WAL-aware open is required to see them.</li>
+<li><strong>Do not copy only <code>querylog.db</code></strong> for offline reading — you would miss un-checkpointed rows. Instead copy all three files together, run <code>PRAGMA wal_checkpoint(TRUNCATE);</code> first, or use <code>sqlite3 querylog.db ".backup backup.db"</code> (or <code>VACUUM INTO</code>).</li>
+<li>Use a tool with WAL support (a modern <code>sqlite3</code> <abbr title="Command Line Interface">CLI</abbr> does).</li>
 </ul>
 <h3 id="query-log-fields">Query log fields</h3>
 <p>You can choose which information from processed <abbr title="Domain Name System">DNS</abbr> request and response should be logged in the target system. You can define one or more of following fields:</p>
@@ -4538,7 +4623,7 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <tbody>
 <tr>
 <td>queryLog.type</td>
-<td>enum (mysql, postgresql, timescale, csv, csv-client, console, none (see above))</td>
+<td>enum (mysql, postgresql, timescale, sqlite, csv, csv-client, console, none (see above))</td>
 <td>no</td>
 <td></td>
 <td>Type of logging target. Console if empty</td>
@@ -4548,7 +4633,7 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <td>string</td>
 <td>no</td>
 <td></td>
-<td>directory for writing the logs (for csv) or database url (for mysql, postgresql or timescale); supports <code>file:</code> for database URLs — see <a href="#redis">Redis tip</a></td>
+<td>directory for writing the logs (for csv), database file path (for sqlite), or database url (for mysql, postgresql or timescale); supports <code>file:</code> for database URLs — see <a href="#redis">Redis tip</a></td>
 </tr>
 <tr>
 <td>queryLog.logRetentionDays</td>
@@ -4583,7 +4668,7 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <td><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></td>
 <td>no</td>
 <td>30s</td>
-<td>Interval to write data in bulk to the external database</td>
+<td>Interval to write buffered entries in bulk to the database (mysql/postgresql/timescale/sqlite)</td>
 </tr>
 </tbody>
 </table>
