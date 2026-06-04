@@ -170,6 +170,39 @@ var _ = Describe("QueryLoggingResolver", func() {
 					Expect(ignored.Calls).Should(BeEmpty())
 				})
 			})
+
+			Describe("Domains", func() {
+				BeforeEach(func() {
+					sutConfig.Ignore.Domains = []string{"ignored.example.com", "*.noisy.lan"}
+				})
+
+				It("should not log a matching exact domain", func() {
+					_, err := sut.Resolve(ctx,
+						newRequestWithClient("ignored.example.com.", A, "192.168.178.25", "client1"))
+					Expect(err).Should(Succeed())
+
+					Expect(sut.logChan).Should(BeEmpty())
+					Expect(ignored.Messages).Should(ContainElement(ContainSubstring("ignored querylog entry")))
+				})
+
+				It("should not log a matching wildcard domain", func() {
+					_, err := sut.Resolve(ctx,
+						newRequestWithClient("host.noisy.lan.", A, "192.168.178.25", "client1"))
+					Expect(err).Should(Succeed())
+
+					Expect(sut.logChan).Should(BeEmpty())
+					Expect(ignored.Messages).Should(ContainElement(ContainSubstring("ignored querylog entry")))
+				})
+
+				It("should log a non-matching domain", func() {
+					_, err := sut.Resolve(ctx,
+						newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))
+					Expect(err).Should(Succeed())
+
+					Expect(sut.logChan).ShouldNot(BeEmpty())
+					Expect(ignored.Calls).Should(BeEmpty())
+				})
+			})
 		})
 
 		When("Configuration with logging per client", func() {
