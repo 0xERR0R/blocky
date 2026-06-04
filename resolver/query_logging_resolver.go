@@ -28,6 +28,10 @@ const (
 	queryLogIgnoreGroup      = "ignore"
 )
 
+// queryLogIgnoreGroups is the (single) cache group queried for ignore rules.
+// Hoisted to avoid allocating a one-element slice on every resolved query.
+var queryLogIgnoreGroups = []string{queryLogIgnoreGroup} //nolint:gochecknoglobals
+
 // QueryLoggingResolver writes query information (question, answer, duration, ...)
 type QueryLoggingResolver struct {
 	configurable[*config.QueryLog]
@@ -85,8 +89,15 @@ func newIgnoreDomainsMatcher(domains []string, logger *logrus.Entry) stringcache
 
 	for _, d := range domains {
 		// Pre-validate regex entries so we can warn via the caller's logger rather
-		// than the global one (the underlying cache silently drops invalid regex).
+		// than the global one (the underlying cache silently drops invalid regex,
+		// and a lone "/" would panic the regex cache's unguarded slice).
 		if strings.HasPrefix(d, "/") && strings.HasSuffix(d, "/") {
+			if len(d) < 2 {
+				logger.Warnf("ignoring invalid queryLog.ignore.domains entry: %q", d)
+
+				continue
+			}
+
 			inner := strings.TrimSpace(d[1 : len(d)-1])
 			if _, err := regexp.Compile(inner); err != nil {
 				logger.Warnf("ignoring invalid queryLog.ignore.domains entry: %q", d)
@@ -217,7 +228,7 @@ func (r *QueryLoggingResolver) ignore(request *model.Request, response *model.Re
 
 	if r.ignoreDomains != nil {
 		domain := util.ExtractDomain(request.Req.Question[0])
-		if len(r.ignoreDomains.Contains(domain, []string{queryLogIgnoreGroup})) > 0 {
+		if len(r.ignoreDomains.Contains(domain, queryLogIgnoreGroups)) > 0 {
 			return true
 		}
 	}

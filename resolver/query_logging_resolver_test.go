@@ -16,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/0xERR0R/blocky/cache/stringcache"
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
@@ -532,6 +533,18 @@ var _ = Describe("QueryLoggingResolver", func() {
 				[]string{"/[invalid(/", "example.com"}, logger)
 
 			Expect(matcher).ShouldNot(BeNil())
+			Expect(matcher.Contains("example.com", []string{queryLogIgnoreGroup})).ShouldNot(BeEmpty())
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("invalid")))
+		})
+
+		It("warns and skips a lone slash entry without panicking", func() {
+			logger, hook := log.NewMockEntry()
+
+			var matcher stringcache.GroupedStringCache
+			Expect(func() {
+				matcher = newIgnoreDomainsMatcher([]string{"/", "example.com"}, logger)
+			}).ShouldNot(Panic())
+
 			Expect(matcher.Contains("example.com", []string{queryLogIgnoreGroup})).ShouldNot(BeEmpty())
 			Expect(hook.Messages).Should(ContainElement(ContainSubstring("invalid")))
 		})

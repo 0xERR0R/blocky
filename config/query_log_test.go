@@ -66,7 +66,6 @@ var _ = Describe("QueryLogConfig", func() {
 			cfg.LogConfig(logger)
 
 			Expect(hook.Messages).Should(ContainElement(ContainSubstring("domains (3):")))
-
 		})
 
 		DescribeTable("secret censoring", func(target string) {
