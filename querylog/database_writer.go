@@ -2,10 +2,7 @@ package querylog
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -20,7 +17,6 @@ import (
 
 	"github.com/0xERR0R/blocky/util"
 
-	"github.com/glebarez/sqlite"
 	"golang.org/x/net/publicsuffix"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -50,27 +46,6 @@ type DatabaseWriter struct {
 	dbFlushPeriod    time.Duration
 }
 
-// sqliteBusyTimeoutMs is the SQLite busy_timeout (in ms) applied to the query-log
-// connection so transient lock contention with external readers is retried, not failed.
-const sqliteBusyTimeoutMs = 5000
-
-// sqliteDirPermission is the permission used when creating the parent directory of the sqlite database file.
-const sqliteDirPermission os.FileMode = 0o750
-
-// buildSQLiteDSN turns a filesystem path into a modernc/glebarez SQLite DSN with
-// WAL journaling enabled. The "file:" prefix selects SQLite's URI filename mode,
-// the canonical form for passing connection options as query parameters. Because
-// that mode runs the path through SQLite's URI parser, the path is percent-encoded
-// first: otherwise a path containing "?" or "#" would be truncated (silently
-// opening a different file, possibly without WAL) and "%xx" would be decoded into
-// a different path. "%" is encoded first as it is the escape character itself;
-// strings.Replacer never re-scans its own output, so the inserted "%25" is safe.
-func buildSQLiteDSN(path string) string {
-	encodedPath := strings.NewReplacer("%", "%25", "?", "%3F", "#", "%23").Replace(path)
-
-	return fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(%d)", encodedPath, sqliteBusyTimeoutMs)
-}
-
 func NewDatabaseWriter(ctx context.Context, dbType config.QueryLogType, target string, logRetentionDays uint64,
 	dbFlushPeriod time.Duration,
 ) (*DatabaseWriter, error) {
@@ -80,15 +55,12 @@ func NewDatabaseWriter(ctx context.Context, dbType config.QueryLogType, target s
 	case config.QueryLogTypePostgresql, config.QueryLogTypeTimescale:
 		return newDatabaseWriter(ctx, postgres.Open(target), logRetentionDays, dbFlushPeriod, dbType)
 	case config.QueryLogTypeSqlite:
-		if target == "" {
-			return nil, errors.New("sqlite query log requires a target file path")
+		dialector, err := newSQLiteDialector(target)
+		if err != nil {
+			return nil, err
 		}
 
-		if err := os.MkdirAll(filepath.Dir(target), sqliteDirPermission); err != nil {
-			return nil, fmt.Errorf("can't create directory for sqlite database: %w", err)
-		}
-
-		return newDatabaseWriter(ctx, sqlite.Open(buildSQLiteDSN(target)), logRetentionDays, dbFlushPeriod, dbType)
+		return newDatabaseWriter(ctx, dialector, logRetentionDays, dbFlushPeriod, dbType)
 	}
 
 	return nil, fmt.Errorf("incorrect database type provided: %s", dbType)
