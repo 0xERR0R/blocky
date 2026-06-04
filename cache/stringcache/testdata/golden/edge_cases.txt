@@ -1,0 +1,63 @@
+# golden-master fixture: every list format + tricky edge case.
+# Used by TestGolden_EdgeCases to lock the parsed/normalized cache contents.
+# Comments and blank lines below are intentional.
+
+! adblock-style comment
+[Adblock Plus 2.0]
+
+# --- plain host-list entries ---
+plain.example.com
+Mixed.CaSe.Example.COM
+sub.domain.with-hyphen.example.com
+under_score.example.org
+trailing.dot.example.com.
+single-label-host
+1.starts-with-digit.example.com
+
+# --- end-of-line comment stripping ---
+eol-comment.example.com # this part is a comment
+spaced-eol.example.com    # indented comment
+
+# --- hosts-file format ---
+0.0.0.0 zeroip.example.com
+127.0.0.1 localhost-alias.example.org alias1.example.org alias2.example.org
+::1 ipv6-hosts.example.net
+0.0.0.0	tab-separated.example.com
+
+# --- ABP markers ---
+||abp.example.com^
+||abp-no-caret.example.org
+
+# --- wildcards ---
+*.wildcard.example.com
+*.deep.sub.wildcard.example.org
+*.MixedCaseWildcard.Example.com
+
+# --- regex entries ---
+/^ads?[0-9]*\.tracker\.example\.com$/
+/banner[._-]/
+
+# --- IDNA / punycode ---
+münchen.example.de
+xn--mnchen-3ya.example.de
+bücher.example.com
+xn--bcher-kva.example.com
+
+# --- bare IPs (host-list entries, canonicalised) ---
+192.168.1.1
+2001:0db8:0000:0000:0000:0000:0000:0001
+::1
+0:0:0:0:0:0:0:1
+
+# --- duplicates (case-insensitive) ---
+dup.example.com
+DUP.example.com
+dup.example.com
+
+# --- label length boundaries (63 ok, 64 rejected) ---
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com
+
+# --- leading/trailing hyphen labels (allowed by blocky's relaxed validation) ---
+-leading-hyphen.example.com
+trailing-hyphen-.example.com
