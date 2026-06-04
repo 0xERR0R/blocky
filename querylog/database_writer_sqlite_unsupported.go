@@ -22,5 +22,5 @@ import (
 // target on these platforms.
 func newSQLiteDialector(_ string) (gorm.Dialector, error) {
 	return nil, fmt.Errorf("sqlite query log is not supported on this platform (%s/%s); "+
-		"use the csv, mysql or postgresql query log target instead", runtime.GOOS, runtime.GOARCH)
+		"use the csv, mysql, postgresql or timescale query log target instead", runtime.GOOS, runtime.GOARCH)
 }
