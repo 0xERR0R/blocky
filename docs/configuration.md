@@ -1034,6 +1034,8 @@ Configuration parameters:
 | queryLog.creationCooldown | duration format                                                                      | no        | 2s            | Time between the creation attempts                                                            |
 | queryLog.fields           | list enum (clientIP, clientName, responseReason, responseAnswer, question, duration) | no        | all           | which information should be logged                                                            |
 | queryLog.flushInterval    | duration format                                                                      | no        | 30s           | Interval to write buffered entries in bulk to the database (mysql/postgresql/timescale/sqlite)|
+| queryLog.ignore.sudn      | bool                                                                                 | no        | false         | if true, queries answered as Special Use Domain Names (SUDN) are not logged                   |
+| queryLog.ignore.domains   | list of string                                                                       | no        |               | domains excluded from the query log; each entry is an exact domain, a `*.wildcard`, or a `/regex/` (same syntax as blocklists) |
 
 !!! hint
 
@@ -1079,6 +1081,22 @@ Parsing is handled not by Blocky, but third-party libraries, therefore the full 
       type: mysql
       target: 'username:password@tcp(localhost:3306)/blocky_query_log?charset=utf8mb4&parseTime=True&loc=Local&timeout=15s'
       logRetentionDays: 7
+    ```
+
+!!! example
+    **Ignore noisy domains**
+
+    ```yaml
+    queryLog:
+      type: postgresql
+      target: postgres://user:password@db:5432/blocky_query_log
+      ignore:
+        sudn: true
+        domains:
+          - "*._dns-sd._udp.home"
+          - "db._dns-sd._udp.home"
+          - "/\\.in-addr\\.arpa$/"
+          - "apple.com"
     ```
 
 ## Hosts file
