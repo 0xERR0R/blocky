@@ -1,0 +1,1768 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/0xERR0R/blocky/config/config",
+  "properties": {
+    "upstreams": {
+      "properties": {
+        "init": {
+          "properties": {
+            "strategy": {
+              "type": "string",
+              "enum": [
+                "blocking",
+                "failOnError",
+                "fast"
+              ],
+              "description": "Startup strategy controlling how initialization failures are handled.\n\n- `blocking`: Initialization runs before DNS resolution starts; errors are logged but Blocky keeps running if possible.\n- `failOnError`: Like blocking but Blocky exits with an error if initialization fails.\n- `fast`: Blocky serves DNS immediately and runs initialization in the background.",
+              "default": "blocking"
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "description": "Initialization strategy controlling when upstream resolvers are tested on startup."
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "Timeout for upstream DNS connections; a value \u003c= 0 is reset to the default.",
+          "default": "2s",
+          "examples": [
+            "30s",
+            "1h"
+          ]
+        },
+        "groups": {
+          "additionalProperties": {
+            "items": {
+              "type": "string",
+              "description": "Upstream DNS server: [net]:host[:port][/path][#commonName] or sdns://...",
+              "examples": [
+                "tcp+udp:1.1.1.1",
+                "https://dns.google/dns-query",
+                "tcp-tls:1.1.1.1:853"
+              ]
+            },
+            "type": "array"
+          },
+          "type": "object",
+          "description": "Named groups of upstream DNS resolvers; the \"default\" group is required."
+        },
+        "strategy": {
+          "type": "string",
+          "enum": [
+            "parallel_best",
+            "strict",
+            "random"
+          ],
+          "description": "Strategy for selecting which upstream(s) to use per query (parallel_best, random, strict).\n\n- `parallel_best`: Picks 2 random weighted resolvers per query and returns the fastest answer (default).\n- `strict`: Queries upstreams in strict order; the next is tried only if the previous fails.\n- `random`: Picks one random weighted resolver per query; another is tried on failure.",
+          "default": "parallel_best"
+        },
+        "userAgent": {
+          "type": "string",
+          "description": "HTTP User-Agent header sent when connecting to DoH upstream servers."
+        },
+        "quic": {
+          "properties": {
+            "maxIdleTimeout": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Maximum idle duration before the QUIC connection is closed.",
+              "default": "30s",
+              "examples": [
+                "30s",
+                "1h"
+              ]
+            },
+            "keepAlivePeriod": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "Interval at which keep-alive packets are sent to maintain the QUIC connection.",
+              "default": "15s",
+              "examples": [
+                "30s",
+                "1h"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "description": "QUIC-specific connection settings used when DoQ upstreams are configured."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Upstream DNS servers and strategy configuration."
+    },
+    "connectIPVersion": {
+      "type": "string",
+      "enum": [
+        "dual",
+        "v4",
+        "v6"
+      ],
+      "description": "IP version used for outgoing connections (dual, v4, v6).\n\n- `dual`: Use both IPv4 and IPv6.\n- `v4`: Use IPv4 only.\n- `v6`: Use IPv6 only."
+    },
+    "customDNS": {
+      "properties": {
+        "rewrite": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Domain rewrite rules applied before resolution; keys are rewritten to their values."
+        },
+        "fallbackUpstream": {
+          "type": "boolean",
+          "description": "If true, the original query is sent upstream when the mapped resolver returns an empty answer.",
+          "default": false
+        },
+        "customTTL": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "TTL for DNS records defined in the mapping section (does not apply to zone file records).",
+          "default": "1h",
+          "examples": [
+            "30s",
+            "1h"
+          ]
+        },
+        "mapping": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ]
+          },
+          "type": "object",
+          "description": "Simple domain-to-IP mappings; multiple IPs per domain separated by commas."
+        },
+        "zone": {
+          "type": "string",
+          "description": "DNS zone file content for more complex record definitions (A, AAAA, CNAME, TXT, SRV).",
+          "default": ""
+        },
+        "filterUnmappedTypes": {
+          "type": "boolean",
+          "description": "If true, queries for types not defined for a domain return empty; if false, they are forwarded upstream.",
+          "default": true
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Custom static DNS mappings and zone definitions."
+    },
+    "conditional": {
+      "properties": {
+        "rewrite": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Domain rewrite rules applied before resolution; keys are rewritten to their values."
+        },
+        "fallbackUpstream": {
+          "type": "boolean",
+          "description": "If true, the original query is sent upstream when the mapped resolver returns an empty answer.",
+          "default": false
+        },
+        "mapping": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Domain-to-upstream mappings; queries for each domain are forwarded to its configured resolver(s)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Conditional upstream resolvers for specific domains."
+    },
+    "blocking": {
+      "properties": {
+        "denylists": {
+          "additionalProperties": {
+            "items": {
+              "type": "string",
+              "description": "Source: an http(s) URL, a local file path, or an inline YAML block.",
+              "examples": [
+                "https://example.com/list.txt",
+                "/etc/blocky/list.txt"
+              ]
+            },
+            "type": "array"
+          },
+          "type": "object",
+          "description": "Named groups of block-list sources (URLs, file paths, or inline content)."
+        },
+        "allowlists": {
+          "additionalProperties": {
+            "items": {
+              "type": "string",
+              "description": "Source: an http(s) URL, a local file path, or an inline YAML block.",
+              "examples": [
+                "https://example.com/list.txt",
+                "/etc/blocky/list.txt"
+              ]
+            },
+            "type": "array"
+          },
+          "type": "object",
+          "description": "Named groups of allow-list sources; entries here take precedence over denylists in the same group."
+        },
+        "schedules": {
+          "additionalProperties": {
+            "properties": {
+              "start": {
+                "type": "string",
+                "description": "Start time in HH:MM format; omit together with end for an all-day schedule."
+              },
+              "end": {
+                "type": "string",
+                "description": "End time in HH:MM format; if before start, the window is overnight (e.g. 22:00 to 06:00)."
+              },
+              "weekdays": {
+                "items": {
+                  "type": "string",
+                  "description": "Day of week: mon, tue, wed, thu, fri, sat, sun.",
+                  "examples": [
+                    "mon",
+                    "sat"
+                  ]
+                },
+                "type": "array",
+                "description": "Days of the week this schedule is active (mon, tue, wed, thu, fri, sat, sun)."
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "Schedule defines a time-based schedule for blocking rules."
+          },
+          "type": "object",
+          "description": "Named time-based schedules that can gate when list groups are active."
+        },
+        "listSchedules": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": "object",
+          "description": "Maps each list group name to the schedule(s) that control when it is active."
+        },
+        "clientGroupsBlock": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": "object",
+          "description": "Maps client identifiers (name, IP, CIDR) to the list groups that apply to them."
+        },
+        "blockType": {
+          "type": "string",
+          "description": "Response for blocked A/AAAA queries: zeroIP (0.0.0.0/::), nxDomain, or custom IPs; other types get NXDOMAIN.",
+          "default": "ZEROIP"
+        },
+        "blockTTL": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "TTL of blocked responses; how long clients cache the block before querying the domain again.",
+          "default": "6h",
+          "examples": [
+            "30s",
+            "1h"
+          ]
+        },
+        "loading": {
+          "properties": {
+            "strategy": {
+              "type": "string",
+              "enum": [
+                "blocking",
+                "failOnError",
+                "fast"
+              ],
+              "description": "Startup strategy controlling how initialization failures are handled.\n\n- `blocking`: Initialization runs before DNS resolution starts; errors are logged but Blocky keeps running if possible.\n- `failOnError`: Like blocking but Blocky exits with an error if initialization fails.\n- `fast`: Blocky serves DNS immediately and runs initialization in the background.",
+              "default": "blocking"
+            },
+            "concurrency": {
+              "type": "integer",
+              "description": "Maximum number of sources downloaded and processed concurrently (default: 4).",
+              "default": 4
+            },
+            "maxErrorsPerSource": {
+              "type": "integer",
+              "description": "Maximum parse errors per source before the source is considered invalid; -1 disables the limit.",
+              "default": 5
+            },
+            "refreshPeriod": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "How often sources are reloaded; a value of 0 or less disables periodic refresh (default: 4h).",
+              "default": "4h",
+              "examples": [
+                "30s",
+                "1h"
+              ]
+            },
+            "downloads": {
+              "properties": {
+                "timeout": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ],
+                  "description": "Timeout per download attempt (default: 5s).",
+                  "default": "5s",
+                  "examples": [
+                    "30s",
+                    "1h"
+                  ]
+                },
+                "readTimeout": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ],
+                  "description": "Timeout for reading the download response body (default: 20s).",
+                  "default": "20s",
+                  "examples": [
+                    "30s",
+                    "1h"
+                  ]
+                },
+                "readHeaderTimeout": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ],
+                  "description": "Timeout for reading the download response headers (default: 20s).",
+                  "default": "20s",
+                  "examples": [
+                    "30s",
+                    "1h"
+                  ]
+                },
+                "writeTimeout": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ],
+                  "description": "Timeout for writing the downloaded file (default: 20s).",
+                  "default": "20s",
+                  "examples": [
+                    "30s",
+                    "1h"
+                  ]
+                },
+                "attempts": {
+                  "type": "integer",
+                  "description": "Number of download attempts before giving up (default: 3).",
+                  "default": 3
+                },
+                "cooldown": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ],
+                  "description": "Pause between consecutive download attempts (default: 500ms).",
+                  "default": "500ms",
+                  "examples": [
+                    "30s",
+                    "1h"
+                  ]
+                }
+              },
+              "additionalProperties": false,
+              "type": "object",
+              "description": "HTTP(S) download settings for remote sources."
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "description": "Controls how block/allow lists are loaded and periodically refreshed."
+        },
+        "blackLists": {
+          "additionalProperties": {
+            "items": {
+              "type": "string",
+              "description": "Source: an http(s) URL, a local file path, or an inline YAML block.",
+              "examples": [
+                "https://example.com/list.txt",
+                "/etc/blocky/list.txt"
+              ]
+            },
+            "type": "array"
+          },
+          "type": "object",
+          "deprecated": true
+        },
+        "whiteLists": {
+          "additionalProperties": {
+            "items": {
+              "type": "string",
+              "description": "Source: an http(s) URL, a local file path, or an inline YAML block.",
+              "examples": [
+                "https://example.com/list.txt",
+                "/etc/blocky/list.txt"
+              ]
+            },
+            "type": "array"
+          },
+          "type": "object",
+          "deprecated": true
+        },
+        "downloadTimeout": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "deprecated": true,
+          "examples": [
+            "30s",
+            "1h"
+          ]
+        },
+        "downloadAttempts": {
+          "type": "integer",
+          "deprecated": true
+        },
+        "downloadCooldown": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "deprecated": true,
+          "examples": [
+            "30s",
+            "1h"
+          ]
+        },
+        "refreshPeriod": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "deprecated": true,
+          "examples": [
+            "30s",
+            "1h"
+          ]
+        },
+        "failStartOnListError": {
+          "type": "boolean",
+          "deprecated": true
+        },
+        "processingConcurrency": {
+          "type": "integer",
+          "deprecated": true
+        },
+        "startStrategy": {
+          "type": "string",
+          "enum": [
+            "blocking",
+            "failOnError",
+            "fast"
+          ],
+          "deprecated": true
+        },
+        "maxErrorsPerFile": {
+          "type": "integer",
+          "deprecated": true
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Blocking configuration with allow/denylists and client groups."
+    },
+    "clientLookup": {
+      "properties": {
+        "clients": {
+          "additionalProperties": {
+            "items": {
+              "type": "string",
+              "format": "ipv4"
+            },
+            "type": "array"
+          },
+          "type": "object",
+          "description": "Static map of client name to one or more IP addresses for manual client name assignment."
+        },
+        "upstream": {
+          "type": "string",
+          "description": "Upstream DNS server used for rDNS client name lookups (typically your router).",
+          "examples": [
+            "tcp+udp:1.1.1.1",
+            "https://dns.google/dns-query",
+            "tcp-tls:1.1.1.1:853"
+          ]
+        },
+        "singleNameOrder": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array",
+          "description": "Order of preference when a router returns multiple names for a client (1-based index)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Client name lookup configuration for resolving client identifiers."
+    },
+    "caching": {
+      "properties": {
+        "minTime": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "Minimum TTL for cached entries; if the response TTL is smaller, this value is used instead.",
+          "examples": [
+            "30s",
+            "1h"
+          ]
+        },
+        "maxTime": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "Maximum TTL for cached entries. If \u003c0, caching is disabled. If 0, the response TTL is used.",
+          "examples": [
+            "30s",
+            "1h"
+          ]
+        },
+        "cacheTimeNegative": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "TTL for negative responses (NXDOMAIN / empty). Use -1 to disable caching of negative results.",
+          "default": "30m",
+          "examples": [
+            "30s",
+            "1h"
+          ]
+        },
+        "maxItemsCount": {
+          "type": "integer",
+          "description": "Maximum number of cache entries (soft limit). 0 means unlimited."
+        },
+        "prefetching": {
+          "type": "boolean",
+          "description": "If true, blocky preloads DNS results for frequently queried names before they expire."
+        },
+        "prefetchExpires": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "Time window used to track query frequency for prefetch eligibility.",
+          "default": "2h",
+          "examples": [
+            "30s",
+            "1h"
+          ]
+        },
+        "prefetchThreshold": {
+          "type": "integer",
+          "description": "Minimum number of queries within prefetchExpires required to trigger prefetching.",
+          "default": 5
+        },
+        "prefetchMaxItemsCount": {
+          "type": "integer",
+          "description": "Maximum number of domains tracked for prefetching (soft limit). 0 means unlimited."
+        },
+        "exclude": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Regex list of domains that are never cached."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "DNS response caching settings."
+    },
+    "queryLog": {
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "Directory for CSV log files, file path for sqlite, or database URL for mysql/postgresql/timescale."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "console",
+            "none",
+            "mysql",
+            "postgresql",
+            "csv",
+            "csv-client",
+            "timescale",
+            "sqlite"
+          ],
+          "description": "Log target type: mysql, postgresql, timescale, sqlite, csv, csv-client, console, or none.\n\n- `console`: Log to console output (used when no type is set).\n- `none`: Do not log any queries.\n- `mysql`: Log each query to an external MySQL or MariaDB database.\n- `postgresql`: Log each query to an external PostgreSQL database.\n- `csv`: Log to a CSV file (one per day).\n- `csv-client`: Log to a CSV file (one per day and per client).\n- `timescale`: Log each query to an external Timescale database.\n- `sqlite`: Log each query to a local SQLite database file."
+        },
+        "logRetentionDays": {
+          "type": "integer",
+          "description": "Delete log entries older than this many days. 0 disables retention cleanup."
+        },
+        "creationAttempts": {
+          "type": "integer",
+          "description": "Maximum number of attempts to create the query log writer on startup.",
+          "default": 3
+        },
+        "creationCooldown": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "Delay between query log writer creation attempts.",
+          "default": "2s",
+          "examples": [
+            "30s",
+            "1h"
+          ]
+        },
+        "fields": {
+          "items": {
+            "type": "string",
+            "enum": [
+              "clientIP",
+              "clientName",
+              "responseReason",
+              "responseAnswer",
+              "question",
+              "duration"
+            ]
+          },
+          "type": "array",
+          "description": "Which fields to include in log entries; defaults to all available fields."
+        },
+        "flushInterval": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "Interval at which buffered log entries are flushed in bulk to the database\n(used by the mysql, postgresql, timescale and sqlite targets).",
+          "default": "30s",
+          "examples": [
+            "30s",
+            "1h"
+          ]
+        },
+        "ignore": {
+          "properties": {
+            "sudn": {
+              "type": "boolean",
+              "description": "If true, queries resolved as Special Use Domain Names (SUDN) are not logged.",
+              "default": false
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "description": "Rules to suppress certain queries from being logged."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Query logging configuration."
+    },
+    "prometheus": {
+      "properties": {
+        "enable": {
+          "type": "boolean",
+          "description": "If true, enables the Prometheus metrics endpoint.",
+          "default": false
+        },
+        "path": {
+          "type": "string",
+          "description": "URL path under which the Prometheus metrics are served.",
+          "default": "/metrics"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Prometheus metrics configuration."
+    },
+    "redis": {
+      "properties": {
+        "address": {
+          "type": "string",
+          "description": "Server address and port (e.g. `localhost:6379`), a unix socket path (e.g. `/var/run/redis/redis.sock`),\nor the sentinel master name when sentinel is used. An address starting with `/` is treated as a unix socket."
+        },
+        "username": {
+          "type": "string",
+          "description": "Redis username (if authentication is required).",
+          "default": ""
+        },
+        "password": {
+          "type": "string",
+          "description": "Redis password (if authentication is required).",
+          "default": ""
+        },
+        "database": {
+          "type": "integer",
+          "description": "Redis database index to use.",
+          "default": 0
+        },
+        "required": {
+          "type": "boolean",
+          "description": "If true, blocky will not start when the Redis connection cannot be established.",
+          "default": false
+        },
+        "connectionAttempts": {
+          "type": "integer",
+          "description": "Maximum number of connection attempts before giving up.",
+          "default": 3
+        },
+        "connectionCooldown": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "Delay between consecutive connection attempts.",
+          "default": "1s",
+          "examples": [
+            "30s",
+            "1h"
+          ]
+        },
+        "sentinelUsername": {
+          "type": "string",
+          "description": "Sentinel username (if sentinel authentication is required).",
+          "default": ""
+        },
+        "sentinelPassword": {
+          "type": "string",
+          "description": "Sentinel password (if sentinel authentication is required).",
+          "default": ""
+        },
+        "sentinelAddresses": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "List of Redis Sentinel host:port addresses; enables sentinel mode when non-empty."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Redis configuration for cache and state synchronization between instances."
+    },
+    "log": {
+      "properties": {
+        "level": {
+          "type": "string",
+          "default": "info",
+          "examples": [
+            "info",
+            "debug"
+          ]
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "text",
+            "json"
+          ],
+          "description": "- `text`: Human-readable text.\n- `json`: Structured JSON.",
+          "default": "text"
+        },
+        "privacy": {
+          "type": "boolean",
+          "default": false
+        },
+        "timestamp": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Logging configuration."
+    },
+    "ports": {
+      "properties": {
+        "dns": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ],
+          "description": "Listen address(es) for DNS over TCP and UDP (default: 53).",
+          "default": "53"
+        },
+        "http": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ],
+          "description": "Listen address(es) for HTTP (metrics, REST API, DoH)."
+        },
+        "https": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ],
+          "description": "Listen address(es) for HTTPS (metrics, REST API, DoH)."
+        },
+        "tls": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ],
+          "description": "Listen address(es) for DNS-over-TLS (DoT)."
+        },
+        "dohPath": {
+          "type": "string",
+          "description": "URL path for DoH queries.",
+          "default": "/dns-query"
+        },
+        "freeBind": {
+          "type": "boolean",
+          "description": "Allow binding the DNS and DoT listeners to addresses that are not yet assigned to a network\ninterface, via the Linux IP_FREEBIND socket option (e.g. for Tailscale/WireGuard/VRRP addresses\nbrought up after startup). Has no effect on wildcard binds and is ignored, with a warning, on\nnon-Linux platforms.",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Listen addresses for DNS, HTTP, HTTPS, and TLS."
+    },
+    "minTlsServeVersion": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "1.0",
+            "1.1",
+            "1.2",
+            "1.3"
+          ]
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "description": "Minimum TLS version the DoT and DoH servers use to serve encrypted DNS requests.",
+      "default": "1.2"
+    },
+    "certFile": {
+      "type": "string",
+      "description": "Path to the TLS certificate file for DoH and DoT; if empty, a self-signed certificate is generated."
+    },
+    "keyFile": {
+      "type": "string",
+      "description": "Path to the TLS key file for DoH and DoT; if empty, a self-signed certificate is generated."
+    },
+    "bootstrapDns": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "properties": {
+                "upstream": {
+                  "type": "string"
+                },
+                "ips": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "resolvFile": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false,
+              "type": "object"
+            }
+          ]
+        },
+        {
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "properties": {
+                  "upstream": {
+                    "type": "string"
+                  },
+                  "ips": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "resolvFile": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false,
+                "type": "object"
+              }
+            ]
+          },
+          "type": "array"
+        }
+      ],
+      "description": "Bootstrap DNS servers used to resolve DoH/DoT upstream hostnames."
+    },
+    "hostsFile": {
+      "properties": {
+        "sources": {
+          "items": {
+            "type": "string",
+            "description": "Source: an http(s) URL, a local file path, or an inline YAML block.",
+            "examples": [
+              "https://example.com/list.txt",
+              "/etc/blocky/list.txt"
+            ]
+          },
+          "type": "array",
+          "description": "Host files to load (e.g. /etc/hosts); supports local paths, URLs, and inline content."
+        },
+        "hostsTTL": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "TTL for DNS records resolved from host files.",
+          "default": "1h",
+          "examples": [
+            "30s",
+            "1h"
+          ]
+        },
+        "filterLoopback": {
+          "type": "boolean",
+          "description": "If true, loopback addresses (127.0.0.0/8 and ::1) from host files are ignored."
+        },
+        "loading": {
+          "properties": {
+            "strategy": {
+              "type": "string",
+              "enum": [
+                "blocking",
+                "failOnError",
+                "fast"
+              ],
+              "description": "Startup strategy controlling how initialization failures are handled.\n\n- `blocking`: Initialization runs before DNS resolution starts; errors are logged but Blocky keeps running if possible.\n- `failOnError`: Like blocking but Blocky exits with an error if initialization fails.\n- `fast`: Blocky serves DNS immediately and runs initialization in the background.",
+              "default": "blocking"
+            },
+            "concurrency": {
+              "type": "integer",
+              "description": "Maximum number of sources downloaded and processed concurrently (default: 4).",
+              "default": 4
+            },
+            "maxErrorsPerSource": {
+              "type": "integer",
+              "description": "Maximum parse errors per source before the source is considered invalid; -1 disables the limit.",
+              "default": 5
+            },
+            "refreshPeriod": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "How often sources are reloaded; a value of 0 or less disables periodic refresh (default: 4h).",
+              "default": "4h",
+              "examples": [
+                "30s",
+                "1h"
+              ]
+            },
+            "downloads": {
+              "properties": {
+                "timeout": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ],
+                  "description": "Timeout per download attempt (default: 5s).",
+                  "default": "5s",
+                  "examples": [
+                    "30s",
+                    "1h"
+                  ]
+                },
+                "readTimeout": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ],
+                  "description": "Timeout for reading the download response body (default: 20s).",
+                  "default": "20s",
+                  "examples": [
+                    "30s",
+                    "1h"
+                  ]
+                },
+                "readHeaderTimeout": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ],
+                  "description": "Timeout for reading the download response headers (default: 20s).",
+                  "default": "20s",
+                  "examples": [
+                    "30s",
+                    "1h"
+                  ]
+                },
+                "writeTimeout": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ],
+                  "description": "Timeout for writing the downloaded file (default: 20s).",
+                  "default": "20s",
+                  "examples": [
+                    "30s",
+                    "1h"
+                  ]
+                },
+                "attempts": {
+                  "type": "integer",
+                  "description": "Number of download attempts before giving up (default: 3).",
+                  "default": 3
+                },
+                "cooldown": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ],
+                  "description": "Pause between consecutive download attempts (default: 500ms).",
+                  "default": "500ms",
+                  "examples": [
+                    "30s",
+                    "1h"
+                  ]
+                }
+              },
+              "additionalProperties": false,
+              "type": "object",
+              "description": "HTTP(S) download settings for remote sources."
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "description": "Controls how host files are loaded and periodically refreshed."
+        },
+        "refreshPeriod": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "deprecated": true,
+          "examples": [
+            "30s",
+            "1h"
+          ]
+        },
+        "filePath": {
+          "type": "string",
+          "deprecated": true,
+          "examples": [
+            "https://example.com/list.txt",
+            "/etc/blocky/list.txt"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Local hosts file resolution settings."
+    },
+    "fqdnOnly": {
+      "properties": {
+        "enable": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "When enabled, blocky returns NXDOMAIN immediately for non-FQDN queries."
+    },
+    "filtering": {
+      "properties": {
+        "queryTypes": {
+          "items": {
+            "type": "string",
+            "enum": [
+              "A",
+              "AAAA",
+              "AFSDB",
+              "AMTRELAY",
+              "ANY",
+              "APL",
+              "ATMA",
+              "AVC",
+              "AXFR",
+              "CAA",
+              "CDNSKEY",
+              "CDS",
+              "CERT",
+              "CNAME",
+              "CSYNC",
+              "DHCID",
+              "DLV",
+              "DNAME",
+              "DNSKEY",
+              "DS",
+              "EID",
+              "EUI48",
+              "EUI64",
+              "GID",
+              "GPOS",
+              "HINFO",
+              "HIP",
+              "HTTPS",
+              "IPSECKEY",
+              "ISDN",
+              "IXFR",
+              "KEY",
+              "KX",
+              "L32",
+              "L64",
+              "LOC",
+              "LP",
+              "MAILA",
+              "MAILB",
+              "MB",
+              "MD",
+              "MF",
+              "MG",
+              "MINFO",
+              "MR",
+              "MX",
+              "NAPTR",
+              "NID",
+              "NIMLOC",
+              "NINFO",
+              "NS",
+              "NSAP-PTR",
+              "NSEC",
+              "NSEC3",
+              "NSEC3PARAM",
+              "NULL",
+              "NXNAME",
+              "NXT",
+              "None",
+              "OPENPGPKEY",
+              "OPT",
+              "PTR",
+              "PX",
+              "RESINFO",
+              "RKEY",
+              "RP",
+              "RRSIG",
+              "RT",
+              "Reserved",
+              "SIG",
+              "SMIMEA",
+              "SOA",
+              "SPF",
+              "SRV",
+              "SSHFP",
+              "SVCB",
+              "TA",
+              "TALINK",
+              "TKEY",
+              "TLSA",
+              "TSIG",
+              "TXT",
+              "UID",
+              "UINFO",
+              "UNSPEC",
+              "URI",
+              "X25",
+              "ZONEMD"
+            ]
+          },
+          "type": "array",
+          "description": "DNS query types to drop; matching queries receive an empty answer (e.g. AAAA to block IPv6 lookups)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "DNS query type filtering configuration."
+    },
+    "ede": {
+      "properties": {
+        "enable": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Extended DNS Errors (RFC 8914) configuration."
+    },
+    "ecs": {
+      "properties": {
+        "useAsClient": {
+          "type": "boolean",
+          "description": "Use the ECS client subnet as the client IP when a full-prefix ECS option is present.",
+          "default": false
+        },
+        "forward": {
+          "type": "boolean",
+          "description": "Forward the ECS option from the client request to upstream resolvers.",
+          "default": false
+        },
+        "ipv4Mask": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Subnet mask for IPv4 EDNS Client Subnet; adds ECS option when greater than zero (max 32).",
+          "default": "0"
+        },
+        "ipv6Mask": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Subnet mask for IPv6 EDNS Client Subnet; adds ECS option when greater than zero (max 128).",
+          "default": "0"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "EDNS Client Subnet options."
+    },
+    "specialUseDomains": {
+      "properties": {
+        "rfc6762-appendixG": {
+          "type": "boolean",
+          "description": "These are \"recommended for private use\" but not mandatory.\nIf a user wishes to use one, it will most likely be via conditional\nupstream or custom DNS, which come before SUDN in the resolver chain.\nThus defaulting to `true` and returning NXDOMAIN here should not conflict.",
+          "default": true
+        },
+        "enable": {
+          "type": "boolean",
+          "description": "Set to false to completely disable Special Use Domain Name blocking (not recommended for remote upstreams).",
+          "default": true
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Special Use Domain Names (SUDN) blocking configuration."
+    },
+    "dns64": {
+      "properties": {
+        "enable": {
+          "type": "boolean",
+          "description": "Enable DNS64 synthesis of AAAA records from A records for IPv6-only clients (RFC 6147).",
+          "default": false
+        },
+        "prefixes": {
+          "items": {
+            "type": "string",
+            "description": "CIDR network prefix.",
+            "examples": [
+              "64:ff9b::/96"
+            ]
+          },
+          "type": "array",
+          "description": "IPv6 prefixes used for synthesis; valid lengths are /32, /40, /48, /56, /64, /96 (default: 64:ff9b::/96)."
+        },
+        "exclusionSet": {
+          "items": {
+            "type": "string",
+            "description": "CIDR network prefix.",
+            "examples": [
+              "64:ff9b::/96"
+            ]
+          },
+          "type": "array",
+          "description": "IPv6 prefixes excluded from triggering synthesis. Overrides the default exclusion set; advanced use only."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "DNS64 synthesis configuration for IPv6-only clients (RFC 6147)."
+    },
+    "dnssec": {
+      "properties": {
+        "validate": {
+          "type": "boolean",
+          "description": "Enable DNSSEC validation of DNS responses.",
+          "default": false
+        },
+        "trustAnchors": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Custom trust anchors (DNSKEY or DS records); empty uses built-in IANA root trust anchors."
+        },
+        "maxChainDepth": {
+          "type": "integer",
+          "description": "Maximum domain label depth for chain of trust validation (DoS protection).",
+          "default": 10
+        },
+        "cacheExpirationHours": {
+          "type": "integer",
+          "description": "How long to cache DNSSEC validation results, in hours.",
+          "default": 1
+        },
+        "maxNSEC3Iterations": {
+          "type": "integer",
+          "description": "RFC 5155 §10.3",
+          "default": 150
+        },
+        "maxUpstreamQueries": {
+          "type": "integer",
+          "description": "DoS protection: max upstream queries per validation",
+          "default": 30
+        },
+        "clockSkewToleranceSec": {
+          "type": "integer",
+          "description": "Clock skew tolerance in seconds for signature validation (default: 3600 = 1 hour)\nAllows validation to succeed even if system clock is off by this amount.\nMatches Unbound/BIND defaults for real-world deployments (VMs, containers, embedded systems).\nPer RFC 6781 §4.1.2: Validators should account for clock skew in deployment environments.",
+          "default": 3600
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "DNSSEC validation configuration."
+    },
+    "http3": {
+      "properties": {
+        "enable": {
+          "type": "boolean",
+          "description": "Enable the HTTP/3 listener on the same addresses as ports.https (requires ports.https to be set).",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "HTTP/3 (DoH3) server configuration."
+    },
+    "rateLimit": {
+      "properties": {
+        "enable": {
+          "type": "boolean",
+          "description": "Enable per-client DNS rate limiting.",
+          "default": false
+        },
+        "rate": {
+          "type": "integer",
+          "description": "Sustained query rate limit in queries per second per client.",
+          "default": 0
+        },
+        "burst": {
+          "type": "integer",
+          "description": "Token bucket capacity; queries above this burst are dropped. Defaults to rate × 2.",
+          "default": 0
+        },
+        "ipv4Prefix": {
+          "type": "integer",
+          "description": "Prefix length used to aggregate IPv4 client addresses into a single bucket.",
+          "default": 32
+        },
+        "ipv6Prefix": {
+          "type": "integer",
+          "description": "Prefix length used to aggregate IPv6 client addresses into a single bucket.",
+          "default": 64
+        },
+        "allowlist": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CIDRs or IPs that are never rate-limited."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Per-client DNS query rate limiting configuration."
+    },
+    "upstream": {
+      "additionalProperties": {
+        "items": {
+          "type": "string",
+          "description": "Upstream DNS server: [net]:host[:port][/path][#commonName] or sdns://...",
+          "examples": [
+            "tcp+udp:1.1.1.1",
+            "https://dns.google/dns-query",
+            "tcp-tls:1.1.1.1:853"
+          ]
+        },
+        "type": "array"
+      },
+      "type": "object",
+      "deprecated": true
+    },
+    "upstreamTimeout": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer"
+        }
+      ],
+      "deprecated": true,
+      "examples": [
+        "30s",
+        "1h"
+      ]
+    },
+    "disableIPv6": {
+      "type": "boolean",
+      "deprecated": true
+    },
+    "logLevel": {
+      "type": "string",
+      "deprecated": true,
+      "examples": [
+        "info",
+        "debug"
+      ]
+    },
+    "logFormat": {
+      "type": "string",
+      "enum": [
+        "text",
+        "json"
+      ],
+      "deprecated": true
+    },
+    "logPrivacy": {
+      "type": "boolean",
+      "deprecated": true
+    },
+    "logTimestamp": {
+      "type": "boolean",
+      "deprecated": true
+    },
+    "port": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "type": "array"
+        }
+      ],
+      "deprecated": true
+    },
+    "httpPort": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "type": "array"
+        }
+      ],
+      "deprecated": true
+    },
+    "httpsPort": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "type": "array"
+        }
+      ],
+      "deprecated": true
+    },
+    "tlsPort": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "type": "array"
+        }
+      ],
+      "deprecated": true
+    },
+    "startVerifyUpstream": {
+      "type": "boolean",
+      "deprecated": true
+    },
+    "dohUserAgent": {
+      "type": "string",
+      "deprecated": true
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "description": "Config main configuration"
+}

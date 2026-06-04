@@ -1,0 +1,180 @@
+openapi: 3.1.1
+info:
+  title: blocky API
+  description: >-
+    REST API for Blocky, a DNS proxy and ad-blocker for the local network.
+
+
+    For features, configuration, and installation see the
+    [project documentation](https://0xerr0r.github.io/blocky/) and the
+    [README](https://github.com/0xERR0R/blocky/blob/main/README.md).
+  contact:
+    name: blocky@github
+    url: https://github.com/0xERR0R/blocky
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: '1.0'
+servers:
+  - url: /api
+paths:
+  /blocking/disable:
+    get:
+      operationId: disableBlocking
+      tags:
+        - blocking
+      summary: Disable blocking
+      description: disable the blocking status
+      parameters:
+        - name: duration
+          in: query
+          description: 'duration of blocking (Example: 300s, 5m, 1h, 5m30s)'
+          schema:
+            type: string
+        - name: groups
+          in: query
+          description: groups to disable (comma separated). If empty, disable all groups
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Blocking is disabled
+        '400':
+          description: Bad request (e.g. unknown group)
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Bad request
+  /blocking/enable:
+    get:
+      operationId: enableBlocking
+      tags:
+        - blocking
+      summary: Enable blocking
+      description: enable the blocking status
+      responses:
+        '200':
+          description: Blocking is enabled
+  /blocking/status:
+    get:
+      operationId: blockingStatus
+      tags:
+        - blocking
+      summary: Blocking status
+      description: get current blocking status
+      responses:
+        '200':
+          description: Returns current blocking status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.BlockingStatus'
+  /lists/refresh:
+    post:
+      operationId: listRefresh
+      tags:
+        - lists
+      summary: List refresh
+      description: Refresh all lists
+      responses:
+        '200':
+          description: Lists were reloaded
+        '500':
+          description: List refresh error
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Error text
+  /query:
+    post:
+      operationId: query
+      tags:
+        - query
+      summary: Performs DNS query
+      description: Performs DNS query
+      requestBody:
+        description: query data
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/api.QueryRequest'
+        required: true
+      responses:
+        '200':
+          description: query was executed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.QueryResult'
+        '400':
+          description: Wrong request format
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Bad request
+  /cache/flush:
+    post:
+      operationId: cacheFlush
+      tags:
+        - cache
+      summary: Clears the DNS response cache
+      description: Removes all DNS responses from cache
+      responses:
+        '200':
+          description: All caches cleared
+components:
+  schemas:
+    api.BlockingStatus:
+      type: object
+      properties:
+        autoEnableInSec:
+          type: integer
+          minimum: 0
+          description: >-
+            If blocking is temporary disabled: amount of seconds until blocking
+            will be enabled
+        disabledGroups:
+          type: array
+          description: Disabled group names
+          items:
+            type: string
+        enabled:
+          type: boolean
+          description: True if blocking is enabled
+      required:
+        - enabled
+    api.QueryRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          description: query for DNS request
+        type:
+          type: string
+          description: request type (A, AAAA, ...)
+      required:
+        - query
+        - type
+    api.QueryResult:
+      type: object
+      properties:
+        reason:
+          type: string
+          description: blocky reason for resolution
+        response:
+          type: string
+          description: actual DNS response
+        responseType:
+          type: string
+          description: response type (CACHED, BLOCKED, ...)
+        returnCode:
+          type: string
+          description: DNS return code (NOERROR, NXDOMAIN, ...)
+      required:
+        - reason
+        - response
+        - responseType
+        - returnCode
