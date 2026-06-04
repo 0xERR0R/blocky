@@ -56,6 +56,36 @@ var _ = Describe("Caches", func() {
 				Expect(cache.elementCount()).Should(Equal(2))
 			})
 		})
+
+		When("entries are added unsorted with duplicates", func() {
+			var entries []string
+
+			BeforeEach(func() {
+				factory = newStringCacheFactory()
+
+				// reverse-sorted, all the same length (a single length bucket),
+				// plus an exact and a case-insensitive duplicate
+				entries = []string{"zzz.example", "mmm.example", "aaa.example"}
+				for _, e := range entries {
+					Expect(factory.addEntry(e)).Should(BeTrue())
+				}
+				Expect(factory.addEntry("AAA.example")).Should(BeTrue()) // case-insensitive duplicate
+				Expect(factory.addEntry("mmm.example")).Should(BeTrue()) // exact duplicate
+
+				cache = factory.create()
+			})
+
+			It("finds every entry regardless of insertion order", func() {
+				for _, e := range entries {
+					Expect(cache.contains(e)).Should(BeTrue(), e)
+				}
+			})
+
+			It("counts every insertion but stores only unique entries", func() {
+				Expect(factory.count()).Should(Equal(5))
+				Expect(cache.elementCount()).Should(Equal(3))
+			})
+		})
 	})
 
 	Describe("Regex StringCache", func() {

@@ -1,7 +1,6 @@
 package parsers
 
 import (
-	"bufio"
 	"bytes"
 	"encoding"
 	"errors"
@@ -10,6 +9,7 @@ import (
 	"net"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/net/idna"
@@ -17,15 +17,8 @@ import (
 
 const (
 	maxDomainNameLength = 255 // https://www.rfc-editor.org/rfc/rfc1034#section-3.1
-
-	dnsLabelPattern = `[a-zA-Z0-9_-]{1,63}`
+	maxDNSLabelLength   = 63  // https://www.rfc-editor.org/rfc/rfc1034#section-3.1
 )
-
-// Validate a domain name, but with extra flexibility:
-// - no restriction on the start or end of labels
-//
-// https://www.rfc-editor.org/rfc/rfc1034#section-3.5
-var domainNameRegex = regexp.MustCompile(`^` + dnsLabelPattern + `(\.` + dnsLabelPattern + `)*[\._]?$`)
 
 // Hosts parses `r` as a series of `HostsIterator`.
 // It supports both the hosts file and host list formats.
@@ -55,21 +48,32 @@ func (h *HostsIterator) ForEach(callback func(string) error) error {
 func (h *HostsIterator) UnmarshalText(data []byte) error {
 	var mErr *multierror.Error
 
-	entries := []hostsIterator{
-		new(HostListEntry),
-		new(HostsFileEntry),
-		new(WildcardEntry),
+	// Try each entry type in order; the first that parses wins. Candidates are
+	// created one at a time so the common case (a host-list entry) only allocates
+	// the type that matches, not all three.
+	hostList := new(HostListEntry)
+	if err := hostList.UnmarshalText(data); err != nil {
+		mErr = multierror.Append(mErr, err)
+	} else {
+		h.hostsIterator = hostList
+
+		return nil
 	}
 
-	for _, entry := range entries {
-		err := entry.UnmarshalText(data)
-		if err != nil {
-			mErr = multierror.Append(mErr, err)
+	hostsFile := new(HostsFileEntry)
+	if err := hostsFile.UnmarshalText(data); err != nil {
+		mErr = multierror.Append(mErr, err)
+	} else {
+		h.hostsIterator = hostsFile
 
-			continue
-		}
+		return nil
+	}
 
-		h.hostsIterator = entry
+	wildcard := new(WildcardEntry)
+	if err := wildcard.UnmarshalText(data); err != nil {
+		mErr = multierror.Append(mErr, err)
+	} else {
+		h.hostsIterator = wildcard
 
 		return nil
 	}
@@ -100,20 +104,18 @@ func (e HostListEntry) String() string {
 // - data will never be empty
 // - comments are stripped
 func (e *HostListEntry) UnmarshalText(data []byte) error {
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	scanner.Split(bufio.ScanWords)
+	fields := bytes.Fields(data)
+	if len(fields) == 0 {
+		return errors.New("empty entry")
+	}
 
-	_ = scanner.Scan() // data is not empty
-
-	host := scanner.Text()
-
-	host, err := normalizeHostsListEntry(host)
+	host, err := normalizeHostsListEntry(string(fields[0]))
 	if err != nil {
 		return err
 	}
 
-	if scanner.Scan() {
-		return fmt.Errorf("unexpected second column: %s", scanner.Text())
+	if len(fields) > 1 {
+		return fmt.Errorf("unexpected second column: %s", fields[1])
 	}
 
 	*e = HostListEntry(host)
@@ -144,12 +146,12 @@ type HostsFileEntry struct {
 // - data will never be empty
 // - comments are stripped
 func (e *HostsFileEntry) UnmarshalText(data []byte) error {
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	scanner.Split(bufio.ScanWords)
+	fields := bytes.Fields(data)
+	if len(fields) == 0 {
+		return errors.New("empty entry")
+	}
 
-	_ = scanner.Scan() // data is not empty
-
-	ipStr := scanner.Text()
+	ipStr := string(fields[0])
 
 	var netInterface string
 
@@ -162,13 +164,13 @@ func (e *HostsFileEntry) UnmarshalText(data []byte) error {
 
 	ip := net.ParseIP(ipStr)
 	if ip == nil {
-		return fmt.Errorf("invalid ip: %s", scanner.Text())
+		return fmt.Errorf("invalid ip: %s", fields[0])
 	}
 
-	hosts := make([]string, 0, 1) // 1: there must be at least one for the line to be valid
+	hosts := make([]string, 0, len(fields)-1) // there must be at least one host for the line to be valid
 
-	for scanner.Scan() {
-		host := scanner.Text()
+	for _, field := range fields[1:] {
+		host := string(field)
 
 		if err := validateDomainName(host); err != nil {
 			return err
@@ -218,12 +220,12 @@ func (e WildcardEntry) String() string {
 // - data will never be empty
 // - comments are stripped
 func (e *WildcardEntry) UnmarshalText(data []byte) error {
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	scanner.Split(bufio.ScanWords)
+	fields := bytes.Fields(data)
+	if len(fields) == 0 {
+		return errors.New("empty entry")
+	}
 
-	_ = scanner.Scan() // data is not empty
-
-	entry := scanner.Text()
+	entry := string(fields[0])
 
 	if !strings.HasPrefix(entry, "*.") || strings.Count(entry, "*") > 1 {
 		return fmt.Errorf("unsupported wildcard '%s': must start with '*.' and contain no other '*'", entry)
@@ -239,8 +241,6 @@ func (e WildcardEntry) forEachHost(callback func(string) error) error {
 }
 
 func normalizeHostsListEntry(host string) (string, error) {
-	var err error
-	var hostUnicode string
 	// Lookup is the profile preferred for DNS queries, we use Punycode here as it does less validation.
 	// That avoids rejecting domains in a list for reasons that amount to "that domain should not be used"
 	// since the goal of the list is to determine whether the domain should be used or not, we leave
@@ -251,8 +251,13 @@ func normalizeHostsListEntry(host string) (string, error) {
 	host = strings.TrimPrefix(host, "||")
 	host = strings.TrimSuffix(host, "^")
 
-	if !isRegex(host) {
-		hostUnicode, err = idnaProfile.ToUnicode(host)
+	// IDNA is only needed for entries that contain non-ASCII (Unicode) characters,
+	// or an "xn--" ACE prefix (which IDNA validates even when the input is already
+	// ASCII). For all other (pure-ASCII) entries the ToUnicode/ToASCII dance leaves
+	// the host unchanged, so skip it — IDNA is comparatively expensive and the vast
+	// majority of list entries are plain ASCII.
+	if !isRegex(host) && needsIDNA(host) {
+		hostUnicode, err := idnaProfile.ToUnicode(host)
 		if err != nil || hostUnicode == host {
 			host, err = idnaProfile.ToASCII(host)
 			if err != nil {
@@ -268,24 +273,138 @@ func normalizeHostsListEntry(host string) (string, error) {
 	return host, nil
 }
 
+// needsIDNA reports whether host requires IDNA processing: any non-ASCII byte
+// needs it, and so does an "xn--" ACE prefix (matched case-insensitively and
+// conservatively anywhere in the string), since IDNA validates punycode labels
+// even for ASCII input. Pure-ASCII input without an ACE prefix is left unchanged
+// by IDNA, so it can safely skip it.
+func needsIDNA(host string) bool {
+	for i := range len(host) {
+		c := host[i]
+		if c >= utf8.RuneSelf {
+			return true
+		}
+
+		if (c == 'x' || c == 'X') && i+3 < len(host) &&
+			(host[i+1] == 'n' || host[i+1] == 'N') &&
+			host[i+2] == '-' && host[i+3] == '-' {
+			return true
+		}
+	}
+
+	return false
+}
+
 func validateDomainName(host string) error {
 	if len(host) > maxDomainNameLength {
 		return fmt.Errorf("domain name is too long: %s", host)
 	}
 
-	if domainNameRegex.MatchString(host) {
+	if isValidDomainName(host) {
 		return nil
 	}
 
 	return fmt.Errorf("invalid domain name: %s", host)
 }
 
+// isValidDomainName reports whether host matches the (relaxed) domain grammar
+// `^[a-zA-Z0-9_-]{1,63}(\.[a-zA-Z0-9_-]{1,63})*[\._]?$`: dot-separated labels of
+// 1..63 label characters, with an optional single trailing '.' or '_'.
+//
+// Labels have no restriction on their start or end (e.g. leading/trailing
+// hyphens are allowed) to avoid rejecting list entries for reasons that amount
+// to "that domain should not be used"; deciding that is the list's job.
+//
+// This replaces a regexp; the two trailing-character possibilities ("" or the
+// final '.'/'_') mirror the regex's optional `[\._]?` group exactly.
+func isValidDomainName(host string) bool {
+	if isLabelSequence(host) {
+		return true
+	}
+
+	// The grammar allows one optional trailing '.' or '_' after the last label.
+	if n := len(host); n > 0 {
+		if last := host[n-1]; last == '.' || last == '_' {
+			return isLabelSequence(host[:n-1])
+		}
+	}
+
+	return false
+}
+
+// isLabelSequence reports whether s is `LABEL("."LABEL)*` with each LABEL being
+// 1..63 domain-label characters.
+func isLabelSequence(s string) bool {
+	labelLen := 0
+
+	for i := range len(s) {
+		c := s[i]
+
+		if c == '.' {
+			if labelLen == 0 {
+				return false // empty label (leading dot or "..")
+			}
+
+			labelLen = 0
+
+			continue
+		}
+
+		if !isDNSLabelChar(c) {
+			return false
+		}
+
+		labelLen++
+		if labelLen > maxDNSLabelLength {
+			return false
+		}
+	}
+
+	return labelLen != 0 // reject empty input and a trailing '.'
+}
+
+func isDNSLabelChar(c byte) bool {
+	switch {
+	case c >= 'a' && c <= 'z',
+		c >= 'A' && c <= 'Z',
+		c >= '0' && c <= '9',
+		c == '-', c == '_':
+		return true
+	default:
+		return false
+	}
+}
+
 func isRegex(host string) bool {
 	return strings.HasPrefix(host, "/") && strings.HasSuffix(host, "/")
 }
 
+// MightBeIP reports whether s could possibly be parsed as an IP by net.ParseIP,
+// i.e. it is non-empty and contains only characters that appear in IPv4/IPv6
+// literals. It is a cheap pre-check used to avoid calling net.ParseIP (which
+// allocates) on the overwhelming majority of entries, which are domain names.
+// It never returns false for a string that net.ParseIP would accept.
+func MightBeIP(s string) bool {
+	if s == "" {
+		return false
+	}
+
+	for i := range len(s) {
+		switch c := s[i]; {
+		case c >= '0' && c <= '9',
+			c >= 'a' && c <= 'f',
+			c >= 'A' && c <= 'F',
+			c == '.', c == ':':
+		default:
+			return false
+		}
+	}
+
+	return true
+}
+
 func validateHostsListEntry(host string) error {
-	if net.ParseIP(host) != nil {
+	if MightBeIP(host) && net.ParseIP(host) != nil {
 		return nil
 	}
 

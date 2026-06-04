@@ -2,6 +2,7 @@ package stringcache
 
 import (
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -62,7 +63,9 @@ func (cache stringMap) contains(searchString string) bool {
 }
 
 type stringCacheFactory struct {
-	// temporary map which holds sorted slice of strings grouped by string length
+	// temporary map which holds slices of entries grouped by string length.
+	// Entries are appended as they arrive; each bucket is sorted and
+	// deduplicated once, when the cache is created.
 	tmp map[int][]string
 	cnt int
 }
@@ -73,14 +76,6 @@ func newStringCacheFactory() cacheFactory {
 	}
 }
 
-func (s *stringCacheFactory) getBucket(length int) []string {
-	if s.tmp[length] == nil {
-		s.tmp[length] = make([]string, 0)
-	}
-
-	return s.tmp[length]
-}
-
 func (s *stringCacheFactory) count() int {
 	return s.cnt
 }
@@ -88,20 +83,11 @@ func (s *stringCacheFactory) count() int {
 func (s *stringCacheFactory) insertString(entry string) {
 	normalized := normalizeEntry(entry)
 	entryLen := len(normalized)
-	bucket := s.getBucket(entryLen)
-	ix := sort.SearchStrings(bucket, normalized)
 
-	if ix >= len(bucket) || bucket[ix] != normalized {
-		// extend internal bucket
-		bucket = append(s.getBucket(entryLen), "")
-
-		// move elements to make place for the insertion
-		copy(bucket[ix+1:], bucket[ix:])
-
-		// insert string at the calculated position
-		bucket[ix] = normalized
-		s.tmp[entryLen] = bucket
-	}
+	// Append and defer sorting/deduplication to create(): inserting in sorted
+	// order here would shift the whole bucket on every entry, making cache
+	// construction O(n^2) for a list of n entries.
+	s.tmp[entryLen] = append(s.tmp[entryLen], normalized)
 }
 
 func (s *stringCacheFactory) addEntry(entry string) bool {
@@ -121,7 +107,13 @@ func (s *stringCacheFactory) create() stringCache {
 	}
 
 	cache := make(stringMap, len(s.tmp))
+
 	for k, v := range s.tmp {
+		// contains() binary-searches the concatenated bucket, so it must be
+		// sorted; duplicates are dropped to keep elementCount() and memory use
+		// equivalent to inserting one entry at a time.
+		slices.Sort(v)
+		v = slices.Compact(v)
 		cache[k] = strings.Join(v, "")
 	}
 
