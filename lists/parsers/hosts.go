@@ -1,7 +1,6 @@
 package parsers
 
 import (
-	"bufio"
 	"bytes"
 	"encoding"
 	"errors"
@@ -52,17 +51,20 @@ func (h *HostsIterator) ForEach(callback func(string) error) error {
 	return h.forEachHost(callback)
 }
 
+// hostsEntryParsers tries to parse a line as each supported entry type, in order.
+// It is a package-level value so the slice is allocated once, not per line, and
+// each entry is only allocated when its parser is actually reached.
+var hostsEntryParsers = []func([]byte) (hostsIterator, error){
+	func(data []byte) (hostsIterator, error) { e := new(HostListEntry); return e, e.UnmarshalText(data) },
+	func(data []byte) (hostsIterator, error) { e := new(HostsFileEntry); return e, e.UnmarshalText(data) },
+	func(data []byte) (hostsIterator, error) { e := new(WildcardEntry); return e, e.UnmarshalText(data) },
+}
+
 func (h *HostsIterator) UnmarshalText(data []byte) error {
 	var mErr *multierror.Error
 
-	entries := []hostsIterator{
-		new(HostListEntry),
-		new(HostsFileEntry),
-		new(WildcardEntry),
-	}
-
-	for _, entry := range entries {
-		err := entry.UnmarshalText(data)
+	for _, parse := range hostsEntryParsers {
+		entry, err := parse(data)
 		if err != nil {
 			mErr = multierror.Append(mErr, err)
 
@@ -100,20 +102,18 @@ func (e HostListEntry) String() string {
 // - data will never be empty
 // - comments are stripped
 func (e *HostListEntry) UnmarshalText(data []byte) error {
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	scanner.Split(bufio.ScanWords)
+	fields := bytes.Fields(data)
+	if len(fields) == 0 {
+		return errors.New("empty entry")
+	}
 
-	_ = scanner.Scan() // data is not empty
-
-	host := scanner.Text()
-
-	host, err := normalizeHostsListEntry(host)
+	host, err := normalizeHostsListEntry(string(fields[0]))
 	if err != nil {
 		return err
 	}
 
-	if scanner.Scan() {
-		return fmt.Errorf("unexpected second column: %s", scanner.Text())
+	if len(fields) > 1 {
+		return fmt.Errorf("unexpected second column: %s", fields[1])
 	}
 
 	*e = HostListEntry(host)
@@ -144,12 +144,12 @@ type HostsFileEntry struct {
 // - data will never be empty
 // - comments are stripped
 func (e *HostsFileEntry) UnmarshalText(data []byte) error {
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	scanner.Split(bufio.ScanWords)
+	fields := bytes.Fields(data)
+	if len(fields) == 0 {
+		return errors.New("empty entry")
+	}
 
-	_ = scanner.Scan() // data is not empty
-
-	ipStr := scanner.Text()
+	ipStr := string(fields[0])
 
 	var netInterface string
 
@@ -162,13 +162,13 @@ func (e *HostsFileEntry) UnmarshalText(data []byte) error {
 
 	ip := net.ParseIP(ipStr)
 	if ip == nil {
-		return fmt.Errorf("invalid ip: %s", scanner.Text())
+		return fmt.Errorf("invalid ip: %s", fields[0])
 	}
 
-	hosts := make([]string, 0, 1) // 1: there must be at least one for the line to be valid
+	hosts := make([]string, 0, len(fields)-1) // there must be at least one host for the line to be valid
 
-	for scanner.Scan() {
-		host := scanner.Text()
+	for _, field := range fields[1:] {
+		host := string(field)
 
 		if err := validateDomainName(host); err != nil {
 			return err
@@ -218,12 +218,12 @@ func (e WildcardEntry) String() string {
 // - data will never be empty
 // - comments are stripped
 func (e *WildcardEntry) UnmarshalText(data []byte) error {
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	scanner.Split(bufio.ScanWords)
+	fields := bytes.Fields(data)
+	if len(fields) == 0 {
+		return errors.New("empty entry")
+	}
 
-	_ = scanner.Scan() // data is not empty
-
-	entry := scanner.Text()
+	entry := string(fields[0])
 
 	if !strings.HasPrefix(entry, "*.") || strings.Count(entry, "*") > 1 {
 		return fmt.Errorf("unsupported wildcard '%s': must start with '*.' and contain no other '*'", entry)
