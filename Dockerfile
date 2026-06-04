@@ -1,7 +1,11 @@
 # syntax=docker/dockerfile:1
 
 # ----------- stage: build
-FROM golang:alpine AS build
+# Pin the build stage to the native build platform and cross-compile to the
+# target platform. The build is CGO-free and the final stage is `scratch`, so
+# nothing ever runs in the target arch at build time - this avoids compiling the
+# Go toolchain under slow QEMU emulation for the arm targets.
+FROM --platform=$BUILDPLATFORM golang:alpine AS build
 RUN apk add --no-cache make coreutils libcap
 
 # Arguments needed for dependency download
@@ -30,7 +34,12 @@ COPY . .
 ARG VERSION
 ARG BUILD_TIME
 
-RUN make build
+# Target platform args populated automatically by BuildKit; cross-compile to them
+ARG TARGETOS
+ARG TARGETARCH
+ARG TARGETVARIANT
+
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOARM=${TARGETVARIANT#v} make build
 
 # ----------- stage: final
 FROM scratch
