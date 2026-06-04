@@ -370,8 +370,32 @@ func isRegex(host string) bool {
 	return strings.HasPrefix(host, "/") && strings.HasSuffix(host, "/")
 }
 
+// MightBeIP reports whether s could possibly be parsed as an IP by net.ParseIP,
+// i.e. it is non-empty and contains only characters that appear in IPv4/IPv6
+// literals. It is a cheap pre-check used to avoid calling net.ParseIP (which
+// allocates) on the overwhelming majority of entries, which are domain names.
+// It never returns false for a string that net.ParseIP would accept.
+func MightBeIP(s string) bool {
+	if s == "" {
+		return false
+	}
+
+	for i := 0; i < len(s); i++ {
+		switch c := s[i]; {
+		case c >= '0' && c <= '9',
+			c >= 'a' && c <= 'f',
+			c >= 'A' && c <= 'F',
+			c == '.', c == ':':
+		default:
+			return false
+		}
+	}
+
+	return true
+}
+
 func validateHostsListEntry(host string) error {
-	if net.ParseIP(host) != nil {
+	if MightBeIP(host) && net.ParseIP(host) != nil {
 		return nil
 	}
 

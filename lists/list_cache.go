@@ -241,9 +241,12 @@ func (b *ListCache) parseFile(ctx context.Context, opener SourceOpener, resultCh
 
 			// For IPs, we want to ensure the string is the Go representation so that when
 			// we compare responses, a same IP matches, even if it was written differently
-			// in the list.
-			if ip := net.ParseIP(host); ip != nil {
-				host = ip.String()
+			// in the list. The cheap MightBeIP pre-check avoids calling net.ParseIP on
+			// the vast majority of entries, which are domain names.
+			if parsers.MightBeIP(host) {
+				if ip := net.ParseIP(host); ip != nil {
+					host = ip.String()
+				}
 			}
 
 			resultCh <- host
