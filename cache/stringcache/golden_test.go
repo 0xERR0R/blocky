@@ -221,12 +221,9 @@ func firstDiff(want, got string) string {
 	wantLines := strings.Split(want, "\n")
 	gotLines := strings.Split(got, "\n")
 
-	n := len(wantLines)
-	if len(gotLines) < n {
-		n = len(gotLines)
-	}
+	n := min(len(wantLines), len(gotLines))
 
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if wantLines[i] != gotLines[i] {
 			return firstDiffMsg(i, wantLines[i], gotLines[i], len(wantLines), len(gotLines))
 		}

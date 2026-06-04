@@ -9,6 +9,7 @@ import (
 	"net"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/net/idna"
@@ -44,27 +45,35 @@ func (h *HostsIterator) ForEach(callback func(string) error) error {
 	return h.forEachHost(callback)
 }
 
-// hostsEntryParsers tries to parse a line as each supported entry type, in order.
-// It is a package-level value so the slice is allocated once, not per line, and
-// each entry is only allocated when its parser is actually reached.
-var hostsEntryParsers = []func([]byte) (hostsIterator, error){
-	func(data []byte) (hostsIterator, error) { e := new(HostListEntry); return e, e.UnmarshalText(data) },
-	func(data []byte) (hostsIterator, error) { e := new(HostsFileEntry); return e, e.UnmarshalText(data) },
-	func(data []byte) (hostsIterator, error) { e := new(WildcardEntry); return e, e.UnmarshalText(data) },
-}
-
 func (h *HostsIterator) UnmarshalText(data []byte) error {
 	var mErr *multierror.Error
 
-	for _, parse := range hostsEntryParsers {
-		entry, err := parse(data)
-		if err != nil {
-			mErr = multierror.Append(mErr, err)
+	// Try each entry type in order; the first that parses wins. Candidates are
+	// created one at a time so the common case (a host-list entry) only allocates
+	// the type that matches, not all three.
+	hostList := new(HostListEntry)
+	if err := hostList.UnmarshalText(data); err != nil {
+		mErr = multierror.Append(mErr, err)
+	} else {
+		h.hostsIterator = hostList
 
-			continue
-		}
+		return nil
+	}
 
-		h.hostsIterator = entry
+	hostsFile := new(HostsFileEntry)
+	if err := hostsFile.UnmarshalText(data); err != nil {
+		mErr = multierror.Append(mErr, err)
+	} else {
+		h.hostsIterator = hostsFile
+
+		return nil
+	}
+
+	wildcard := new(WildcardEntry)
+	if err := wildcard.UnmarshalText(data); err != nil {
+		mErr = multierror.Append(mErr, err)
+	} else {
+		h.hostsIterator = wildcard
 
 		return nil
 	}
@@ -270,9 +279,9 @@ func normalizeHostsListEntry(host string) (string, error) {
 // even for ASCII input. Pure-ASCII input without an ACE prefix is left unchanged
 // by IDNA, so it can safely skip it.
 func needsIDNA(host string) bool {
-	for i := 0; i < len(host); i++ {
+	for i := range len(host) {
 		c := host[i]
-		if c >= 0x80 {
+		if c >= utf8.RuneSelf {
 			return true
 		}
 
@@ -328,7 +337,7 @@ func isValidDomainName(host string) bool {
 func isLabelSequence(s string) bool {
 	labelLen := 0
 
-	for i := 0; i < len(s); i++ {
+	for i := range len(s) {
 		c := s[i]
 
 		if c == '.' {
@@ -380,7 +389,7 @@ func MightBeIP(s string) bool {
 		return false
 	}
 
-	for i := 0; i < len(s); i++ {
+	for i := range len(s) {
 		switch c := s[i]; {
 		case c >= '0' && c <= '9',
 			c >= 'a' && c <= 'f',
