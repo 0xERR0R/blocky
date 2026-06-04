@@ -232,8 +232,6 @@ func (e WildcardEntry) forEachHost(callback func(string) error) error {
 }
 
 func normalizeHostsListEntry(host string) (string, error) {
-	var err error
-	var hostUnicode string
 	// Lookup is the profile preferred for DNS queries, we use Punycode here as it does less validation.
 	// That avoids rejecting domains in a list for reasons that amount to "that domain should not be used"
 	// since the goal of the list is to determine whether the domain should be used or not, we leave
@@ -244,8 +242,13 @@ func normalizeHostsListEntry(host string) (string, error) {
 	host = strings.TrimPrefix(host, "||")
 	host = strings.TrimSuffix(host, "^")
 
-	if !isRegex(host) {
-		hostUnicode, err = idnaProfile.ToUnicode(host)
+	// IDNA is only needed for entries that contain non-ASCII (Unicode) characters,
+	// or an "xn--" ACE prefix (which IDNA validates even when the input is already
+	// ASCII). For all other (pure-ASCII) entries the ToUnicode/ToASCII dance leaves
+	// the host unchanged, so skip it — IDNA is comparatively expensive and the vast
+	// majority of list entries are plain ASCII.
+	if !isRegex(host) && needsIDNA(host) {
+		hostUnicode, err := idnaProfile.ToUnicode(host)
 		if err != nil || hostUnicode == host {
 			host, err = idnaProfile.ToASCII(host)
 			if err != nil {
@@ -259,6 +262,28 @@ func normalizeHostsListEntry(host string) (string, error) {
 	}
 
 	return host, nil
+}
+
+// needsIDNA reports whether host requires IDNA processing: any non-ASCII byte
+// needs it, and so does an "xn--" ACE prefix (matched case-insensitively and
+// conservatively anywhere in the string), since IDNA validates punycode labels
+// even for ASCII input. Pure-ASCII input without an ACE prefix is left unchanged
+// by IDNA, so it can safely skip it.
+func needsIDNA(host string) bool {
+	for i := 0; i < len(host); i++ {
+		c := host[i]
+		if c >= 0x80 {
+			return true
+		}
+
+		if (c == 'x' || c == 'X') && i+3 < len(host) &&
+			(host[i+1] == 'n' || host[i+1] == 'N') &&
+			host[i+2] == '-' && host[i+3] == '-' {
+			return true
+		}
+	}
+
+	return false
 }
 
 func validateDomainName(host string) error {
