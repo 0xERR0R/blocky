@@ -22,6 +22,15 @@ import (
 
 var err error
 
+// countLogEntries counts rows in the log_entries table. Unlike an inline
+// Find/Count it returns the query error, so Eventually surfaces a failing query
+// instead of silently polling 0 until timeout.
+func countLogEntries(db *gorm.DB) (int64, error) {
+	var count int64
+
+	return count, db.Model(&logEntry{}).Count(&count).Error
+}
+
 var _ = Describe("DatabaseWriter", func() {
 	var (
 		ctx      context.Context
@@ -68,26 +77,13 @@ var _ = Describe("DatabaseWriter", func() {
 				})
 
 				// 2 entries in the database
-				Eventually(func() int64 {
-					var res int64
-					result := writer.db.Find(&logEntry{})
-
-					result.Count(&res)
-
-					return res
-				}, "5s").Should(BeNumerically("==", 2))
+				Eventually(countLogEntries, "5s").WithArguments(writer.db).Should(BeNumerically("==", 2))
 
 				// do cleanup now
 				writer.CleanUp()
 
 				// now only 1 entry in the database
-				Eventually(func() (res int64) {
-					result := writer.db.Find(&logEntry{})
-
-					result.Count(&res)
-
-					return res
-				}, "5s").Should(BeNumerically("==", 2))
+				Eventually(countLogEntries, "5s").WithArguments(writer.db).Should(BeNumerically("==", 2))
 			})
 		})
 
@@ -111,14 +107,7 @@ var _ = Describe("DatabaseWriter", func() {
 				Expect(writer.doDBWrite()).Should(Succeed())
 
 				// 2 entries in the database
-				Eventually(func() int64 {
-					var res int64
-					result := writer.db.Find(&logEntry{})
-
-					result.Count(&res)
-
-					return res
-				}, "5s").Should(BeNumerically("==", count))
+				Eventually(countLogEntries, "5s").WithArguments(writer.db).Should(BeNumerically("==", count))
 			})
 		})
 
@@ -145,26 +134,13 @@ var _ = Describe("DatabaseWriter", func() {
 				Expect(writer.doDBWrite()).Should(Succeed())
 
 				// 2 entries in the database
-				Eventually(func() int64 {
-					var res int64
-					result := writer.db.Find(&logEntry{})
-
-					result.Count(&res)
-
-					return res
-				}, "5s").Should(BeNumerically("==", 2))
+				Eventually(countLogEntries, "5s").WithArguments(writer.db).Should(BeNumerically("==", 2))
 
 				// do cleanup now
 				writer.CleanUp()
 
 				// now only 1 entry in the database
-				Eventually(func() (res int64) {
-					result := writer.db.Find(&logEntry{})
-
-					result.Count(&res)
-
-					return res
-				}, "5s").Should(BeNumerically("==", 1))
+				Eventually(countLogEntries, "5s").WithArguments(writer.db).Should(BeNumerically("==", 1))
 			})
 		})
 	})
@@ -192,12 +168,7 @@ var _ = Describe("DatabaseWriter", func() {
 
 			w.Write(&LogEntry{Start: time.Now(), DurationMs: 20})
 
-			Eventually(func() int64 {
-				var res int64
-				w.db.Find(&logEntry{}).Count(&res)
-
-				return res
-			}, "5s").Should(BeNumerically("==", 1))
+			Eventually(countLogEntries, "5s").WithArguments(w.db).Should(BeNumerically("==", 1))
 
 			// the -wal sidecar only exists when journal_mode=WAL is active
 			Expect(dbPath + "-wal").Should(BeAnExistingFile())
