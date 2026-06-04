@@ -473,6 +473,36 @@ var _ = Describe("QueryLoggingResolver", func() {
 			Expect(readInstanceID("/var/empty/nonexistent")).Should(Equal(expected))
 		})
 	})
+
+	Describe("newIgnoreDomainsMatcher", func() {
+		It("returns nil for an empty list", func() {
+			logger, _ := log.NewMockEntry()
+			Expect(newIgnoreDomainsMatcher(nil, logger)).Should(BeNil())
+		})
+
+		It("matches exact, wildcard and regex entries", func() {
+			logger, _ := log.NewMockEntry()
+			matcher := newIgnoreDomainsMatcher(
+				[]string{"example.com", "*.lan", "/\\.arpa$/"}, logger)
+			Expect(matcher).ShouldNot(BeNil())
+
+			groups := []string{queryLogIgnoreGroup}
+			Expect(matcher.Contains("example.com", groups)).ShouldNot(BeEmpty())
+			Expect(matcher.Contains("host.lan", groups)).ShouldNot(BeEmpty())
+			Expect(matcher.Contains("1.0.0.10.in-addr.arpa", groups)).ShouldNot(BeEmpty())
+			Expect(matcher.Contains("other.com", groups)).Should(BeEmpty())
+		})
+
+		It("warns and skips an invalid entry but keeps valid ones", func() {
+			logger, hook := log.NewMockEntry()
+			matcher := newIgnoreDomainsMatcher(
+				[]string{"/[invalid(/", "example.com"}, logger)
+
+			Expect(matcher).ShouldNot(BeNil())
+			Expect(matcher.Contains("example.com", []string{queryLogIgnoreGroup})).ShouldNot(BeEmpty())
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("invalid")))
+		})
+	})
 })
 
 func readCsv(file string) ([][]string, error) {

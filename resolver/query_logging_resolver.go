@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/0xERR0R/blocky/cache/stringcache"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
@@ -15,6 +17,7 @@ import (
 	"github.com/0xERR0R/blocky/util"
 	"github.com/avast/retry-go/v4"
 	"github.com/miekg/dns"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -22,6 +25,7 @@ const (
 	queryLoggingResolverType = "query_logging"
 	logChanCap               = 1000
 	defaultClientIP          = "0.0.0.0"
+	queryLogIgnoreGroup      = "ignore"
 )
 
 // QueryLoggingResolver writes query information (question, answer, duration, ...)
@@ -61,6 +65,43 @@ func GetQueryLoggingWriter(ctx context.Context, cfg config.QueryLog) (querylog.W
 	}
 
 	return writer, nil
+}
+
+// newIgnoreDomainsMatcher builds a matcher for the queryLog.ignore.domains rules.
+// Returns nil when no domains are configured, so the per-query path stays free.
+func newIgnoreDomainsMatcher(domains []string, logger *logrus.Entry) stringcache.GroupedStringCache {
+	if len(domains) == 0 {
+		return nil
+	}
+
+	cache := stringcache.NewChainedGroupedCache(
+		stringcache.NewInMemoryGroupedRegexCache(),
+		stringcache.NewInMemoryGroupedWildcardCache(), // must follow regex (regex can contain '*')
+		stringcache.NewInMemoryGroupedStringCache(),
+	)
+
+	factory := cache.Refresh(queryLogIgnoreGroup)
+
+	for _, d := range domains {
+		// Pre-validate regex entries so we can warn via the caller's logger rather
+		// than the global one (the underlying cache silently drops invalid regex).
+		if strings.HasPrefix(d, "/") && strings.HasSuffix(d, "/") {
+			inner := strings.TrimSpace(d[1 : len(d)-1])
+			if _, err := regexp.Compile(inner); err != nil {
+				logger.Warnf("ignoring invalid queryLog.ignore.domains entry: %q", d)
+
+				continue
+			}
+		}
+
+		if !factory.AddEntry(d) {
+			logger.Warnf("ignoring invalid queryLog.ignore.domains entry: %q", d)
+		}
+	}
+
+	factory.Finish()
+
+	return cache
 }
 
 // NewQueryLoggingResolver returns a new resolver instance
