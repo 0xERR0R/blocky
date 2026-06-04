@@ -488,11 +488,14 @@ const (
 	// QueryLogTypeTimescale is a QueryLogType of type Timescale.
 	// Log each query to an external Timescale database.
 	QueryLogTypeTimescale
+	// QueryLogTypeSqlite is a QueryLogType of type Sqlite.
+	// Log each query to a local SQLite database file.
+	QueryLogTypeSqlite
 )
 
 var ErrInvalidQueryLogType = fmt.Errorf("not a valid QueryLogType, try [%s]", strings.Join(_QueryLogTypeNames, ", "))
 
-const _QueryLogTypeName = "consolenonemysqlpostgresqlcsvcsv-clienttimescale"
+const _QueryLogTypeName = "consolenonemysqlpostgresqlcsvcsv-clienttimescalesqlite"
 
 var _QueryLogTypeNames = []string{
 	_QueryLogTypeName[0:7],
@@ -502,6 +505,7 @@ var _QueryLogTypeNames = []string{
 	_QueryLogTypeName[26:29],
 	_QueryLogTypeName[29:39],
 	_QueryLogTypeName[39:48],
+	_QueryLogTypeName[48:54],
 }
 
 // QueryLogTypeNames returns a list of possible string values of QueryLogType.
@@ -521,6 +525,7 @@ func QueryLogTypeValues() []QueryLogType {
 		QueryLogTypeCsv,
 		QueryLogTypeCsvClient,
 		QueryLogTypeTimescale,
+		QueryLogTypeSqlite,
 	}
 }
 
@@ -532,6 +537,7 @@ var _QueryLogTypeMap = map[QueryLogType]string{
 	QueryLogTypeCsv:        _QueryLogTypeName[26:29],
 	QueryLogTypeCsvClient:  _QueryLogTypeName[29:39],
 	QueryLogTypeTimescale:  _QueryLogTypeName[39:48],
+	QueryLogTypeSqlite:     _QueryLogTypeName[48:54],
 }
 
 // String implements the Stringer interface.
@@ -557,6 +563,7 @@ var _QueryLogTypeValue = map[string]QueryLogType{
 	_QueryLogTypeName[26:29]: QueryLogTypeCsv,
 	_QueryLogTypeName[29:39]: QueryLogTypeCsvClient,
 	_QueryLogTypeName[39:48]: QueryLogTypeTimescale,
+	_QueryLogTypeName[48:54]: QueryLogTypeSqlite,
 }
 
 // ParseQueryLogType attempts to convert a string to a QueryLogType.
@@ -602,6 +609,7 @@ func (QueryLogType) EnumDescriptions() map[string]string {
 		"csv":        "Log to a CSV file (one per day).",
 		"csv-client": "Log to a CSV file (one per day and per client).",
 		"timescale":  "Log each query to an external Timescale database.",
+		"sqlite":     "Log each query to a local SQLite database file.",
 	}
 }
 

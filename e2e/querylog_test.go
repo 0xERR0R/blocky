@@ -2,8 +2,10 @@ package e2e
 
 import (
 	"context"
+	"os"
 
 	"github.com/0xERR0R/blocky/util"
+	sqliteDriver "github.com/glebarez/sqlite"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -253,6 +255,83 @@ var _ = Describe("Query logs functional tests", func() {
 			})
 		})
 	})
+
+	Describe("Query logging into the SQLite database", func() {
+		var hostDir string
+
+		BeforeEach(func(ctx context.Context) {
+			// Create a host dir, world-writable so the container's non-root user can write the DB.
+			hostDir, err = os.MkdirTemp("", "blocky_e2e_sqlite-")
+			Expect(err).Should(Succeed())
+			Expect(os.Chmod(hostDir, 0o777)).Should(Succeed())
+			DeferCleanup(func() error { return os.RemoveAll(hostDir) })
+
+			blocky, err = createBlockyContainerWithBinds(ctx, e2eNet,
+				[]string{hostDir + ":/data"},
+				"log:",
+				"  level: warn",
+				"upstreams:",
+				"  groups:",
+				"    default:",
+				"      - moka1",
+				"queryLog:",
+				"  type: sqlite",
+				"  target: /data/querylog.db",
+				"  flushInterval: 1s",
+			)
+			Expect(err).Should(Succeed())
+		})
+
+		When("Some queries were performed", func() {
+			msg := util.NewMsgWithQuestion("google.de.", dns.Type(dns.TypeA))
+			It("Should store query log in the SQLite database", func(ctx context.Context) {
+				By("Performing 2 queries", func() {
+					Expect(doDNSRequest(ctx, blocky, msg)).ShouldNot(BeNil())
+					Expect(doDNSRequest(ctx, blocky, msg)).ShouldNot(BeNil())
+				})
+
+				By("opening the SQLite file written by blocky (after it created the schema)", func() {
+					Eventually(func() error {
+						db, err = gorm.Open(sqliteDriver.Open(
+							"file:"+hostDir+"/querylog.db?_pragma=busy_timeout(5000)"), &gorm.Config{})
+
+						return err
+					}, "10s", "1s").Should(Succeed())
+				})
+
+				By("check entries count asynchronously, since blocky flushes log entries in bulk", func() {
+					Eventually(countEntries, "60s", "1s").WithArguments(db).Should(BeNumerically("==", 2))
+				})
+
+				By("check entry content", func() {
+					entries, err := queryEntries(db)
+					Expect(err).Should(Succeed())
+
+					Expect(entries).Should(HaveLen(2))
+
+					Expect(entries[0]).
+						Should(
+							SatisfyAll(
+								HaveField("ResponseType", "RESOLVED"),
+								HaveField("QuestionType", "A"),
+								HaveField("QuestionName", "google.de"),
+								HaveField("Answer", "A (1.2.3.4)"),
+								HaveField("ResponseCode", "NOERROR"),
+							))
+
+					Expect(entries[1]).
+						Should(
+							SatisfyAll(
+								HaveField("ResponseType", "CACHED"),
+								HaveField("QuestionType", "A"),
+								HaveField("QuestionName", "google.de"),
+								HaveField("Answer", "A (1.2.3.4)"),
+								HaveField("ResponseCode", "NOERROR"),
+							))
+				})
+			})
+		})
+	})
 })
 
 type logEntry struct {
@@ -266,7 +345,10 @@ type logEntry struct {
 func queryEntries(db *gorm.DB) ([]logEntry, error) {
 	var entries []logEntry
 
-	return entries, db.Find(&entries).Order("request_ts DESC").Error
+	// Oldest first, matching the order the tests issue their queries in. There is no
+	// portable secondary sort for exact-timestamp ties (sqlite has no id column, the
+	// others have no rowid), but the tests' sequential requests have distinct timestamps.
+	return entries, db.Order("request_ts").Find(&entries).Error
 }
 
 func countEntries(db *gorm.DB) (int64, error) {
