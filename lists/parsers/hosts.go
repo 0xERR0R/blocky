@@ -315,7 +315,7 @@ func validateDomainName(host string) error {
 // hyphens are allowed) to avoid rejecting list entries for reasons that amount
 // to "that domain should not be used"; deciding that is the list's job.
 //
-// This replaces a regexp; the two trailing-character possibilities (” or the
+// This replaces a regexp; the two trailing-character possibilities ("" or the
 // final '.'/'_') mirror the regex's optional `[\._]?` group exactly.
 func isValidDomainName(host string) bool {
 	if isLabelSequence(host) {

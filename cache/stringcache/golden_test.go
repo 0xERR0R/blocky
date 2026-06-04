@@ -195,8 +195,10 @@ func parseListFiles(t *testing.T, files []string) []string {
 		err = parsers.ForEach[*parsers.HostsIterator](context.Background(), p,
 			func(entry *parsers.HostsIterator) error {
 				return entry.ForEach(func(host string) error {
-					if ip := net.ParseIP(host); ip != nil {
-						host = ip.String()
+					if parsers.MightBeIP(host) {
+						if ip := net.ParseIP(host); ip != nil {
+							host = ip.String()
+						}
 					}
 
 					hosts = append(hosts, host)
