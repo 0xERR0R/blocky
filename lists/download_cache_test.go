@@ -188,6 +188,32 @@ var _ = Describe("cachingDownloader", func() {
 		})
 	})
 
+	When("a download fails after a copy was cached", func() {
+		It("serves the stale cached copy instead of failing", func(ctx context.Context) {
+			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+				_, _ = rw.Write([]byte("a.com\nb.com"))
+			}))
+			DeferCleanup(server.Close)
+
+			reader, err := sut.DownloadFile(ctx, server.URL)
+			Expect(err).Should(Succeed())
+			Expect(readAll(reader)).Should(Equal("a.com\nb.com"))
+
+			server.Close() // source is now unreachable
+
+			reader, err = sut.DownloadFile(ctx, server.URL)
+			Expect(err).Should(Succeed())
+			Expect(readAll(reader)).Should(Equal("a.com\nb.com")) // from disk
+		})
+	})
+
+	When("a download fails and nothing was cached", func() {
+		It("returns the error", func(ctx context.Context) {
+			_, err := sut.DownloadFile(ctx, "http://127.0.0.1:1/never")
+			Expect(err).Should(MatchError(ContainSubstring("failed to download")))
+		})
+	})
+
 	When("a previously downloaded source is unchanged", func() {
 		It("sends conditional headers and serves the 304 from disk without a body transfer", func(ctx context.Context) {
 			var (

@@ -126,6 +126,12 @@ func (c *cachingDownloader) conditionalHeader(link string) http.Header {
 func (c *cachingDownloader) DownloadFile(ctx context.Context, link string) (io.ReadCloser, error) {
 	resp, err := c.inner.download(ctx, link, c.conditionalHeader(link))
 	if err != nil {
+		if cached, openErr := openCached(c.dir, link); openErr == nil {
+			logger().WithField("link", link).Warn("download failed, using cached copy")
+
+			return cached, nil
+		}
+
 		return nil, err
 	}
 
