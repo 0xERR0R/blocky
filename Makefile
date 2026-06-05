@@ -33,11 +33,6 @@ GINKGO_PROCS?=
 # runs; CI overrides this to oversubscribe the runner.
 GINKGO_E2E_PROCS?=-p
 
-# Extra flags for the e2e image build. CI sets these to enable the GitHub
-# Actions build cache (type=gha); empty by default so local builds are
-# unaffected.
-DOCKER_E2E_CACHE_FLAGS?=
-
 export PATH=$(shell go env GOPATH)/bin:$(shell echo $$PATH)
 
 # Tool check functions
@@ -94,7 +89,6 @@ test: check-go ## run tests
 
 e2e-test: check-go check-docker ## run e2e tests
 	docker buildx build \
-		${DOCKER_E2E_CACHE_FLAGS} \
 		--build-arg VERSION=blocky-e2e \
 		--build-arg BUILD_TIME=${BUILD_TIME} \
 		--build-arg GOPROXY \

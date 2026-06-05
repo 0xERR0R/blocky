@@ -21,9 +21,6 @@ env:
   # e2e specs are container/health-check-wait bound, not CPU bound, so we
   # oversubscribe the runner's cores for better wall-clock time.
   GINKGO_E2E_PROCS: --procs=8
-  # Reuse the e2e build layers (deps, base image) across runs via the GitHub
-  # Actions cache. scope=e2e keeps it separate from the docker-build job.
-  DOCKER_E2E_CACHE_FLAGS: --cache-from type=gha,scope=e2e --cache-to type=gha,mode=max,scope=e2e
 
 jobs:
   make:
