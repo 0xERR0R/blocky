@@ -1677,6 +1677,14 @@ Configures how HTTP(S) sources are downloaded:
 | readHeaderTimeout | duration | no        | 20s           | Download request header read timeout           |
 | attempts     | int      | no        | 3             | How many download attempts should be performed |
 | cooldown     | duration | no        | 500ms         | Time between the download attempts             |
+| cachePath    | path     | no        | (empty)       | Directory for an on-disk cache of downloaded sources (see below) |
+
+`cachePath` (default: empty): directory for an on-disk cache of downloaded sources. When set, blocky sends HTTP
+conditional requests (`If-None-Match` / `If-Modified-Since`) and skips re-downloading unchanged lists, serves a source
+from disk when its host is temporarily unreachable, and — with `loading.strategy: fast` — seeds lists from disk on
+startup so it can answer queries immediately. Validators are kept in memory and reset on restart, so the first refresh
+after a restart re-downloads each source. When unset, downloads are fully stateless (nothing is written to disk).
+Mount this directory on a persistent volume in containerized setups.
 
 !!! example
 
@@ -1686,6 +1694,7 @@ Configures how HTTP(S) sources are downloaded:
         timeout: 4m
         attempts: 5
         cooldown: 10s
+        cachePath: /var/cache/blocky/lists
     ```
 
 ### Strategy
