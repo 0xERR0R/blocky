@@ -1,6 +1,7 @@
 package lists
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // cacheFilePath returns the on-disk path for a source URL: <dir>/<sha256hex(url)>.
@@ -60,3 +62,125 @@ func PruneCache(dir string, keepURLs []string) error {
 func openCached(dir, link string) (io.ReadCloser, error) {
 	return os.Open(cacheFilePath(dir, link))
 }
+
+// cacheValidators holds the HTTP validators last seen for a source URL.
+type cacheValidators struct {
+	etag         string
+	lastModified string
+}
+
+// cachingDownloader decorates an httpDownloader with an on-disk body cache and
+// HTTP conditional requests. Validators are kept in memory only (lost on restart).
+type cachingDownloader struct {
+	inner *httpDownloader
+	dir   string
+
+	mu         sync.Mutex
+	validators map[string]cacheValidators
+}
+
+func newCachingDownloader(inner *httpDownloader, dir string) *cachingDownloader {
+	return &cachingDownloader{
+		inner:      inner,
+		dir:        dir,
+		validators: make(map[string]cacheValidators),
+	}
+}
+
+func (c *cachingDownloader) setValidators(link, etag, lastModified string) {
+	if etag == "" && lastModified == "" {
+		return
+	}
+
+	c.mu.Lock()
+	c.validators[link] = cacheValidators{etag: etag, lastModified: lastModified}
+	c.mu.Unlock()
+}
+
+func (c *cachingDownloader) DownloadFile(ctx context.Context, link string) (io.ReadCloser, error) {
+	resp, err := c.inner.download(ctx, link, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.serveAndStore(link, resp)
+}
+
+// serveAndStore returns a reader over the 200 body that tees into a temp file and,
+// once fully read, atomically renames it to the cache file and stores the validators.
+func (c *cachingDownloader) serveAndStore(link string, resp *downloadResponse) (io.ReadCloser, error) {
+	tmp, err := os.CreateTemp(c.dir, "dl-*.tmp")
+	if err != nil {
+		logger().WithError(err).Warnf("cannot create temp cache file in %s, serving without caching", c.dir)
+
+		return resp.body, nil
+	}
+
+	finalPath := cacheFilePath(c.dir, link)
+	etag := resp.header.Get("ETag")
+	lastModified := resp.header.Get("Last-Modified")
+
+	fin := &cacheFinalizer{
+		body: resp.body,
+		tmp:  tmp,
+	}
+	fin.tee = io.TeeReader(resp.body, tmp)
+	fin.finalize = func() {
+		if err := tmp.Sync(); err != nil {
+			logger().WithError(err).Warn("cache fsync failed, discarding temp file")
+			_ = tmp.Close()
+			_ = os.Remove(tmp.Name())
+
+			return
+		}
+
+		_ = tmp.Close()
+
+		if err := os.Rename(tmp.Name(), finalPath); err != nil {
+			logger().WithError(err).Warnf("cannot finalize cache file %s", finalPath)
+			_ = os.Remove(tmp.Name())
+
+			return
+		}
+
+		c.setValidators(link, etag, lastModified)
+	}
+
+	return fin, nil
+}
+
+// cacheFinalizer tees the network body into a temp file and finalizes (rename +
+// store validators) exactly once when the reader is fully consumed to EOF.
+// If the consumer stops early, Close discards the temp file and keeps any previous copy.
+// It is not safe for concurrent use; it follows the single-consumer io.ReadCloser contract.
+type cacheFinalizer struct {
+	body     io.ReadCloser
+	tee      io.Reader
+	tmp      *os.File
+	finalize func()
+	done     bool
+}
+
+func (f *cacheFinalizer) Read(p []byte) (int, error) {
+	n, err := f.tee.Read(p)
+	if err == io.EOF && !f.done {
+		f.done = true
+		f.finalize()
+	}
+
+	return n, err
+}
+
+func (f *cacheFinalizer) Close() error {
+	err := f.body.Close()
+
+	if !f.done {
+		_ = f.tmp.Close()
+		_ = os.Remove(f.tmp.Name())
+	}
+
+	return err
+}
+
+// Ensure cachingDownloader satisfies the FileDownloader interface.
+var _ FileDownloader = (*cachingDownloader)(nil)

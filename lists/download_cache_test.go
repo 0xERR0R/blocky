@@ -1,10 +1,17 @@
 package lists
 
 import (
+	"context"
 	"errors"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/0xERR0R/blocky/config"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -71,6 +78,78 @@ var _ = Describe("Download cache helpers", func() {
 			_, err := openCached(dir, "http://absent")
 			Expect(err).Should(HaveOccurred())
 			Expect(errors.Is(err, os.ErrNotExist)).Should(BeTrue())
+		})
+	})
+})
+
+var _ = Describe("cachingDownloader", func() {
+	var (
+		dir   string
+		sut   *cachingDownloader
+		dlCfg config.Downloader
+	)
+
+	BeforeEach(func() {
+		var err error
+		dlCfg, err = config.WithDefaults[config.Downloader]()
+		Expect(err).Should(Succeed())
+		dlCfg.Attempts = 1
+		dlCfg.Cooldown = config.Duration(time.Millisecond)
+
+		dir = GinkgoT().TempDir()
+		sut = newCachingDownloader(newDownloader(dlCfg, nil), dir)
+	})
+
+	readAll := func(r io.ReadCloser) string {
+		defer r.Close()
+		buf := new(strings.Builder)
+		_, err := io.Copy(buf, r)
+		Expect(err).Should(Succeed())
+
+		return buf.String()
+	}
+
+	When("a 200 response is downloaded", func() {
+		It("returns the body and writes it to disk", func(ctx context.Context) {
+			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+				_, _ = rw.Write([]byte("a.com\nb.com"))
+			}))
+			DeferCleanup(server.Close)
+
+			reader, err := sut.DownloadFile(ctx, server.URL)
+			Expect(err).Should(Succeed())
+			Expect(readAll(reader)).Should(Equal("a.com\nb.com")) // draining to EOF finalizes the cache file
+
+			onDisk, err := os.ReadFile(cacheFilePath(dir, server.URL))
+			Expect(err).Should(Succeed())
+			Expect(string(onDisk)).Should(Equal("a.com\nb.com"))
+
+			entries, err := os.ReadDir(dir)
+			Expect(err).Should(Succeed())
+			Expect(entries).Should(HaveLen(1)) // no leftover temp file
+		})
+	})
+
+	When("the reader is closed before EOF", func() {
+		It("does not finalize a cache file and leaves no temp file", func(ctx context.Context) {
+			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+				_, _ = rw.Write([]byte("a.com\nb.com\nc.com"))
+			}))
+			DeferCleanup(server.Close)
+
+			reader, err := sut.DownloadFile(ctx, server.URL)
+			Expect(err).Should(Succeed())
+
+			buf := make([]byte, 3)
+			_, _ = reader.Read(buf) // read a little, but not to EOF
+			Expect(reader.Close()).Should(Succeed())
+
+			_, statErr := os.Stat(cacheFilePath(dir, server.URL))
+			Expect(os.IsNotExist(statErr)).Should(BeTrue())
+
+			entries, err := os.ReadDir(dir)
+			Expect(err).Should(Succeed())
+			Expect(entries).Should(BeEmpty())
 		})
 	})
 })
