@@ -87,7 +87,7 @@ func (c *cachingDownloader) DownloadFile(ctx context.Context, link string) (io.R
 	resp, err := c.inner.download(ctx, link, c.conditionalHeader(link))
 	if err != nil {
 		if cached, openErr := openCached(c.dir, link); openErr == nil {
-			logger().WithField("link", link).Warn("download failed, using cached copy")
+			logger().WithField("link", link).WithError(err).Warn("download failed, using cached copy")
 
 			return cached, nil
 		}
