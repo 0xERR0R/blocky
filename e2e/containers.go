@@ -45,6 +45,10 @@ const (
 	// copied files, so it can only read them via the world-readable bit.
 	modeWorldReadable = 0o444
 	startupTimeout    = 30 * time.Second
+
+	// healthcheckStartInterval overrides Docker's 5s default start-interval so
+	// blocky (ready in <1s) is probed and marked healthy almost immediately.
+	healthcheckStartInterval = 250 * time.Millisecond
 )
 
 // createDNSMokkaContainer creates a DNS mokka container with the given rules attached to the test network
@@ -221,6 +225,11 @@ func buildBlockyContainerRequest(confFile string) testcontainers.ContainerReques
 		ConfigModifier: func(c *container.Config) {
 			c.Healthcheck = &container.HealthConfig{
 				Interval: time.Second,
+				// During the image's start period Docker probes at the
+				// start-interval, which defaults to 5s. blocky is ready in
+				// <1s, so without this every container wastes ~5s waiting to
+				// be marked healthy.
+				StartInterval: healthcheckStartInterval,
 			}
 			// Enable coverage collection if GOCOVERDIR is set
 			if coverDir != "" {
