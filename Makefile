@@ -27,6 +27,12 @@ GOLANG_LINT_VERSION=v2.12.2
 
 GINKGO_PROCS?=
 
+# Parallelism for e2e tests. e2e specs are dominated by container startup and
+# health-check waits rather than CPU, so oversubscribing beyond the core count
+# improves wall-clock time. Defaults to -p (one process per core) for local
+# runs; CI overrides this to oversubscribe the runner.
+GINKGO_E2E_PROCS?=-p
+
 export PATH=$(shell go env GOPATH)/bin:$(shell echo $$PATH)
 
 # Tool check functions
@@ -90,7 +96,7 @@ e2e-test: check-go check-docker ## run e2e tests
 		-o type=docker \
 		-t blocky-e2e \
 		.
-	go tool ginkgo -p --label-filter="e2e" --timeout 15m --flake-attempts 1 e2e
+	go tool ginkgo ${GINKGO_E2E_PROCS} --label-filter="e2e" --timeout 15m --flake-attempts 1 e2e
 
 e2e-test-coverage: check-go check-docker ## run e2e tests with code coverage
 	@echo "Building coverage-instrumented Docker image..."
@@ -108,7 +114,7 @@ e2e-test-coverage: check-go check-docker ## run e2e tests with code coverage
 	@rm -rf coverage/e2e/*
 	@chmod 777 coverage/e2e
 	BLOCKY_IMAGE=blocky-e2e-coverage GOCOVERDIR=$(PWD)/coverage/e2e \
-		go tool ginkgo -p --label-filter="e2e" --timeout 15m --flake-attempts 1 e2e
+		go tool ginkgo ${GINKGO_E2E_PROCS} --label-filter="e2e" --timeout 15m --flake-attempts 1 e2e
 	@echo "Converting coverage data..."
 	go tool covdata textfmt -i=./coverage/e2e -o=coverage/e2e-coverage.out
 	@echo ""

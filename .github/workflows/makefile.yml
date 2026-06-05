@@ -18,6 +18,9 @@ permissions:
 
 env:
   GINKGO_PROCS: --procs=1
+  # e2e specs are container/health-check-wait bound, not CPU bound, so we
+  # oversubscribe the runner's cores for better wall-clock time.
+  GINKGO_E2E_PROCS: --procs=8
 
 jobs:
   make:
