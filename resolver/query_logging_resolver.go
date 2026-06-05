@@ -92,13 +92,16 @@ func newIgnoreDomainsMatcher(domains []string, logger *logrus.Entry) stringcache
 		// than the global one (the underlying cache silently drops invalid regex,
 		// and a lone "/" would panic the regex cache's unguarded slice).
 		if strings.HasPrefix(d, "/") && strings.HasSuffix(d, "/") {
-			if len(d) < 2 {
+			// Strip the surrounding slashes. Reject entries with no actual pattern
+			// (e.g. "/", "//", "/ /"): an empty regex matches every domain and would
+			// silently drop the whole query log.
+			inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(d, "/"), "/"))
+			if inner == "" {
 				logger.Warnf("ignoring invalid queryLog.ignore.domains entry: %q", d)
 
 				continue
 			}
 
-			inner := strings.TrimSpace(d[1 : len(d)-1])
 			if _, err := regexp.Compile(inner); err != nil {
 				logger.Warnf("ignoring invalid queryLog.ignore.domains entry: %q", d)
 

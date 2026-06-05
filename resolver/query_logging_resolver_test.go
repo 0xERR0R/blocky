@@ -548,6 +548,19 @@ var _ = Describe("QueryLoggingResolver", func() {
 			Expect(matcher.Contains("example.com", []string{queryLogIgnoreGroup})).ShouldNot(BeEmpty())
 			Expect(hook.Messages).Should(ContainElement(ContainSubstring("invalid")))
 		})
+
+		It("warns and skips empty regex entries instead of matching every domain", func() {
+			logger, hook := log.NewMockEntry()
+
+			matcher := newIgnoreDomainsMatcher([]string{"//", "/ /", "example.com"}, logger)
+			Expect(matcher).ShouldNot(BeNil())
+
+			groups := []string{queryLogIgnoreGroup}
+			// an empty regex would match everything; the entries must be rejected
+			Expect(matcher.Contains("unrelated.example.net", groups)).Should(BeEmpty())
+			Expect(matcher.Contains("example.com", groups)).ShouldNot(BeEmpty())
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("invalid")))
+		})
 	})
 })
 
