@@ -53,8 +53,32 @@ func newDownloader(cfg config.Downloader, transport http.RoundTripper) *httpDown
 	}
 }
 
+// downloadResponse is the result of a single (retried) HTTP download attempt.
+type downloadResponse struct {
+	statusCode int
+	header     http.Header
+	body       io.ReadCloser // nil iff statusCode == StatusNotModified
+}
+
 func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.ReadCloser, error) {
-	var body io.ReadCloser
+	resp, err := d.download(ctx, link, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.body == nil {
+		// DownloadFile never sends conditional headers, so a 304 (nil body) should be
+		// impossible here; guard defensively rather than returning a nil reader.
+		return nil, fmt.Errorf("unexpected 304 Not Modified for unconditional request to '%s'", link)
+	}
+
+	return resp.body, nil
+}
+
+// download performs a GET (with the given optional request headers) and retries on
+// transient errors. 200 and 304 are both treated as success; any other status retries.
+func (d *httpDownloader) download(ctx context.Context, link string, reqHeader http.Header) (*downloadResponse, error) {
+	var result *downloadResponse
 
 	err := retry.Do(
 		func() error {
@@ -63,10 +87,23 @@ func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.Read
 				return fmt.Errorf("failed to create HTTP request for '%s': %w", link, err)
 			}
 
+			for name, values := range reqHeader {
+				for _, value := range values {
+					req.Header.Add(name, value)
+				}
+			}
+
 			resp, httpErr := d.client.Do(req)
 			if httpErr == nil {
-				if resp.StatusCode == http.StatusOK {
-					body = resp.Body
+				if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotModified {
+					result = &downloadResponse{statusCode: resp.StatusCode, header: resp.Header, body: resp.Body}
+
+					if resp.StatusCode == http.StatusNotModified {
+						// Drain body before closing to allow connection reuse
+						_, _ = io.Copy(io.Discard, resp.Body)
+						_ = resp.Body.Close()
+						result.body = nil
+					}
 
 					return nil
 				}
@@ -114,7 +151,7 @@ func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.Read
 		return nil, fmt.Errorf("failed to download file from '%s': %w", link, err)
 	}
 
-	return body, nil
+	return result, nil
 }
 
 func onDownloadError(link string) {
