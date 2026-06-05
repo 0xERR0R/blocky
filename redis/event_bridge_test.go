@@ -18,6 +18,7 @@ var _ = Describe("EventBusBridge", func() {
 		redisServer *miniredis.Miniredis
 		redisClient *goredis.Client
 		bridge      *EventBusBridge
+		bus         *evt.Bus
 		ctx         context.Context
 		cancel      context.CancelFunc
 	)
@@ -36,7 +37,8 @@ var _ = Describe("EventBusBridge", func() {
 		ctx, cancel = context.WithCancel(context.Background())
 		DeferCleanup(cancel)
 
-		bridge, err = NewEventBusBridge(ctx, redisClient, evt.NewBus())
+		bus = evt.NewBus()
+		bridge, err = NewEventBusBridge(ctx, redisClient, bus)
 		Expect(err).Should(Succeed())
 		DeferCleanup(func() { bridge.Close() })
 	})
@@ -63,23 +65,19 @@ var _ = Describe("EventBusBridge", func() {
 		When("BlockingStateChanged is published on the local bus", func() {
 			It("should publish a message to the Redis channel that a second subscriber receives", func(specCtx context.Context) {
 				// Create a second bridge to act as receiver
-				bridge2, err := NewEventBusBridge(ctx, redisClient, evt.NewBus())
+				bridge2Bus := evt.NewBus()
+				bridge2, err := NewEventBusBridge(ctx, redisClient, bridge2Bus)
 				Expect(err).Should(Succeed())
 				DeferCleanup(func() { bridge2.Close() })
 
 				receivedStates := make(chan evt.BlockingState, 1)
 
-				handler := func(state evt.BlockingState) {
-					receivedStates <- state
-				}
-
-				Expect(evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
-				DeferCleanup(func() {
-					Expect(evt.LegacyBus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+				evt.Subscribe(bridge2Bus, "test:remote-state", func(_ context.Context, e evt.BlockingStateChangedRemoteEvent) {
+					receivedStates <- e.State
 				})
 
 				expectedState := evt.BlockingState{Enabled: true}
-				evt.LegacyBus().Publish(evt.BlockingStateChanged, expectedState)
+				evt.Emit(bus, ctx, evt.BlockingStateChangedEvent{State: expectedState})
 
 				Eventually(receivedStates).WithTimeout(2 * time.Second).WithPolling(50 * time.Millisecond).Should(Receive(Equal(expectedState)))
 			}, SpecTimeout(3*time.Second))
@@ -91,13 +89,8 @@ var _ = Describe("EventBusBridge", func() {
 			It("should fire BlockingStateChangedRemote on the local bus with the correct state", func(specCtx context.Context) {
 				receivedStates := make(chan evt.BlockingState, 1)
 
-				handler := func(state evt.BlockingState) {
-					receivedStates <- state
-				}
-
-				Expect(evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
-				DeferCleanup(func() {
-					Expect(evt.LegacyBus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+				evt.Subscribe(bus, "test:remote-state", func(_ context.Context, e evt.BlockingStateChangedRemoteEvent) {
+					receivedStates <- e.State
 				})
 
 				otherID := uuid.NewString()
@@ -126,13 +119,8 @@ var _ = Describe("EventBusBridge", func() {
 			It("should NOT fire BlockingStateChangedRemote on the local bus", func(specCtx context.Context) {
 				receivedStates := make(chan evt.BlockingState, 1)
 
-				handler := func(state evt.BlockingState) {
-					receivedStates <- state
-				}
-
-				Expect(evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
-				DeferCleanup(func() {
-					Expect(evt.LegacyBus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+				evt.Subscribe(bus, "test:remote-state", func(_ context.Context, e evt.BlockingStateChangedRemoteEvent) {
+					receivedStates <- e.State
 				})
 
 				payload, err := json.Marshal(bridgeMessage{
@@ -162,13 +150,8 @@ var _ = Describe("EventBusBridge", func() {
 			It("should ignore it without error", func(specCtx context.Context) {
 				receivedStates := make(chan evt.BlockingState, 1)
 
-				handler := func(state evt.BlockingState) {
-					receivedStates <- state
-				}
-
-				Expect(evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
-				DeferCleanup(func() {
-					Expect(evt.LegacyBus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+				evt.Subscribe(bus, "test:remote-state", func(_ context.Context, e evt.BlockingStateChangedRemoteEvent) {
+					receivedStates <- e.State
 				})
 
 				// Publish empty payload
@@ -182,13 +165,8 @@ var _ = Describe("EventBusBridge", func() {
 			It("should skip it without firing an event", func(specCtx context.Context) {
 				receivedStates := make(chan evt.BlockingState, 1)
 
-				handler := func(state evt.BlockingState) {
-					receivedStates <- state
-				}
-
-				Expect(evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
-				DeferCleanup(func() {
-					Expect(evt.LegacyBus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+				evt.Subscribe(bus, "test:remote-state", func(_ context.Context, e evt.BlockingStateChangedRemoteEvent) {
+					receivedStates <- e.State
 				})
 
 				redisServer.Publish(EventBridgeChannel, "not-valid-json{{{")
@@ -216,13 +194,8 @@ var _ = Describe("EventBusBridge", func() {
 			It("should not panic when pub/sub connection drops", func(specCtx context.Context) {
 				receivedStates := make(chan evt.BlockingState, 5)
 
-				handler := func(state evt.BlockingState) {
-					receivedStates <- state
-				}
-
-				Expect(evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
-				DeferCleanup(func() {
-					Expect(evt.LegacyBus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+				evt.Subscribe(bus, "test:remote-state", func(_ context.Context, e evt.BlockingStateChangedRemoteEvent) {
+					receivedStates <- e.State
 				})
 
 				otherID := uuid.NewString()
@@ -292,23 +265,16 @@ var _ = Describe("EventBusBridge", func() {
 			It("should preserve Duration and Groups through local → Redis → remote", func(specCtx context.Context) {
 				receivedStates := make(chan evt.BlockingState, 1)
 
-				handler := func(state evt.BlockingState) {
-					receivedStates <- state
-				}
-
-				Expect(evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
-				DeferCleanup(func() {
-					Expect(evt.LegacyBus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
-				})
-
 				// Create a second bridge acting as the "remote" receiver
-				bridge2, err := NewEventBusBridge(ctx, redisClient, evt.NewBus())
+				bridge2Bus := evt.NewBus()
+				bridge2, err := NewEventBusBridge(ctx, redisClient, bridge2Bus)
 				Expect(err).Should(Succeed())
 				DeferCleanup(func() { bridge2.Close() })
 
-				// Override bridge2's handler to forward to our channel
-				Expect(evt.LegacyBus().Unsubscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
-				Expect(evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, handler)).Should(Succeed())
+				// Subscribe on bridge2's bus to forward remote state to our channel
+				evt.Subscribe(bridge2Bus, "test:remote-state", func(_ context.Context, e evt.BlockingStateChangedRemoteEvent) {
+					receivedStates <- e.State
+				})
 
 				// Publish from bridge (bridge2 should receive since UUIDs differ)
 				originalState := evt.BlockingState{

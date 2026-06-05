@@ -194,26 +194,24 @@ func (r *BlockingResolver) subscribeEvents(ctx context.Context) error {
 		go r.initFQDNIPCache(ctx)
 	})
 
-	remoteHandler := func(state evt.BlockingState) {
+	const remoteKey = "blocking:remote-state"
+
+	evt.Subscribe(r.bus, remoteKey, func(_ context.Context, e evt.BlockingStateChangedRemoteEvent) {
+		state := e.State
 		go func() {
 			if state.Enabled {
-				r.internalEnableBlocking()
+				r.internalEnableBlocking(ctx)
 			} else {
 				if disableErr := r.internalDisableBlocking(ctx, state.Duration, state.Groups); disableErr != nil {
 					log.PrefixedLog("blocking").Warn("blocking couldn't be disabled: ", disableErr)
 				}
 			}
 		}()
-	}
-
-	err := evt.LegacyBus().Subscribe(evt.BlockingStateChangedRemote, remoteHandler)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to %s: %w", evt.BlockingStateChangedRemote, err)
-	}
+	})
 
 	go func() {
 		<-ctx.Done()
-		_ = evt.LegacyBus().Unsubscribe(evt.BlockingStateChangedRemote, remoteHandler)
+		evt.Unsubscribe[evt.BlockingStateChangedRemoteEvent](r.bus, remoteKey)
 	}()
 
 	return nil
@@ -244,11 +242,11 @@ func (r *BlockingResolver) retrieveAllBlockingGroups() []string {
 
 // EnableBlocking enables the blocking against the denylists
 func (r *BlockingResolver) EnableBlocking(ctx context.Context) {
-	r.internalEnableBlocking()
-	evt.LegacyBus().Publish(evt.BlockingStateChanged, evt.BlockingState{Enabled: true})
+	r.internalEnableBlocking(ctx)
+	evt.Emit(r.bus, ctx, evt.BlockingStateChangedEvent{State: evt.BlockingState{Enabled: true}})
 }
 
-func (r *BlockingResolver) internalEnableBlocking() {
+func (r *BlockingResolver) internalEnableBlocking(ctx context.Context) {
 	s := r.status
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -256,18 +254,18 @@ func (r *BlockingResolver) internalEnableBlocking() {
 	s.enabled = true
 	s.disabledGroups = []string{}
 
-	evt.LegacyBus().Publish(evt.BlockingEnabledTopic, true)
+	evt.Emit(r.bus, ctx, evt.BlockingEnabledEvent{Enabled: true})
 }
 
 // DisableBlocking deactivates the blocking for a particular duration (or forever if 0).
 func (r *BlockingResolver) DisableBlocking(ctx context.Context, duration time.Duration, disableGroups []string) error {
 	err := r.internalDisableBlocking(ctx, duration, disableGroups)
 	if err == nil {
-		evt.LegacyBus().Publish(evt.BlockingStateChanged, evt.BlockingState{
+		evt.Emit(r.bus, ctx, evt.BlockingStateChangedEvent{State: evt.BlockingState{
 			Enabled:  false,
 			Duration: duration,
 			Groups:   disableGroups,
-		})
+		}})
 	}
 
 	return err
@@ -297,7 +295,7 @@ func (r *BlockingResolver) internalDisableBlocking(ctx context.Context, duration
 	}
 
 	s.enabled = false
-	evt.LegacyBus().Publish(evt.BlockingEnabledTopic, false)
+	evt.Emit(r.bus, ctx, evt.BlockingEnabledEvent{Enabled: false})
 
 	s.disableEnd = time.Now().Add(duration)
 

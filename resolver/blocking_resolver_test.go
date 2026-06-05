@@ -36,6 +36,7 @@ var _ = BeforeSuite(func() {
 var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 	var (
 		sut        *BlockingResolver
+		sutBus     *Bus
 		sutConfig  config.Blocking
 		m          *mockResolver
 		mockAnswer *dns.Msg
@@ -67,7 +68,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		m = &mockResolver{}
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 
-		sut, err = NewBlockingResolver(ctx, sutConfig, systemResolverBootstrap, NewBus())
+		sutBus = NewBus()
+		sut, err = NewBlockingResolver(ctx, sutConfig, systemResolverBootstrap, sutBus)
 		Expect(err).Should(Succeed())
 		sut.Next(m)
 	})
@@ -1220,11 +1222,10 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 				By("Calling Rest API to deactivate blocking for 0.5 sec", func() {
 					enabled := make(chan bool, 1)
-					err := LegacyBus().SubscribeOnce(BlockingEnabledTopic, func(state bool) {
-						enabled <- state
+					Subscribe(sutBus, "test:enabled-1", func(_ context.Context, e BlockingEnabledEvent) {
+						enabled <- e.Enabled
 					})
-					Expect(err).Should(Succeed())
-					err = sut.DisableBlocking(context.TODO(), 500*time.Millisecond, []string{})
+					err := sut.DisableBlocking(context.TODO(), 500*time.Millisecond, []string{})
 					Expect(err).Should(Succeed())
 					Eventually(enabled, "1s").Should(Receive(BeFalse()))
 				})
@@ -1258,8 +1259,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 				By("Wait 1 sec and perform the same query again, should be blocked now", func() {
 					enabled := make(chan bool, 1)
-					_ = LegacyBus().SubscribeOnce(BlockingEnabledTopic, func(state bool) {
-						enabled <- state
+					Subscribe(sutBus, "test:enabled-2", func(_ context.Context, e BlockingEnabledEvent) {
+						enabled <- e.Enabled
 					})
 					// wait 1 sec
 					Eventually(enabled, "1s").Should(Receive(BeTrue()))
@@ -1310,11 +1311,10 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 				By("Calling Rest API to deactivate blocking for one group for 0.5 sec", func() {
 					enabled := make(chan bool, 1)
-					err := LegacyBus().SubscribeOnce(BlockingEnabledTopic, func(state bool) {
-						enabled <- false
+					Subscribe(sutBus, "test:enabled-1", func(_ context.Context, e BlockingEnabledEvent) {
+						enabled <- e.Enabled
 					})
-					Expect(err).Should(Succeed())
-					err = sut.DisableBlocking(context.TODO(), 500*time.Millisecond, []string{"group1"})
+					err := sut.DisableBlocking(context.TODO(), 500*time.Millisecond, []string{"group1"})
 					Expect(err).Should(Succeed())
 					Eventually(enabled, "1s").Should(Receive(BeFalse()))
 				})
@@ -1346,8 +1346,8 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 				By("Wait 1 sec and perform the same query again, should be blocked now", func() {
 					enabled := make(chan bool, 1)
-					_ = LegacyBus().SubscribeOnce(BlockingEnabledTopic, func(state bool) {
-						enabled <- state
+					Subscribe(sutBus, "test:enabled-2", func(_ context.Context, e BlockingEnabledEvent) {
+						enabled <- e.Enabled
 					})
 					// wait 1 sec
 					Eventually(enabled, "1s").Should(Receive(BeTrue()))
@@ -1438,7 +1438,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				Expect(sut.DisableBlocking(ctx, 0, []string{})).Should(Succeed())
 				Expect(sut.BlockingStatus().Enabled).Should(BeFalse())
 
-				LegacyBus().Publish(BlockingStateChangedRemote, BlockingState{Enabled: true})
+				Emit(sutBus, ctx, BlockingStateChangedRemoteEvent{State: BlockingState{Enabled: true}})
 
 				Eventually(func() bool {
 					return sut.BlockingStatus().Enabled
@@ -1447,10 +1447,10 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 		When("BlockingStateChangedRemote with enabled=false is received", func() {
 			It("should disable blocking", func() {
-				LegacyBus().Publish(BlockingStateChangedRemote, BlockingState{
+				Emit(sutBus, ctx, BlockingStateChangedRemoteEvent{State: BlockingState{
 					Enabled: false,
 					Groups:  []string{},
-				})
+				}})
 
 				Eventually(func() bool {
 					return sut.BlockingStatus().Enabled

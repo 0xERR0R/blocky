@@ -16,6 +16,7 @@ import (
 const (
 	EventBridgeChannel   = "blocky_sync_enabled"
 	bridgePublishTimeout = 5 * time.Second
+	eventBridgeSubKey    = "redis:bridge"
 )
 
 type bridgeMessage struct {
@@ -50,17 +51,15 @@ func NewEventBusBridge(ctx context.Context, client *goredis.Client, bus *evt.Bus
 		bus:     bus,
 	}
 
-	if err := evt.LegacyBus().Subscribe(evt.BlockingStateChanged, b.onLocalStateChanged); err != nil {
-		cancel()
-
-		return nil, err
-	}
+	evt.Subscribe(b.bus, eventBridgeSubKey, func(_ context.Context, e evt.BlockingStateChangedEvent) {
+		b.onLocalStateChanged(e.State)
+	})
 
 	ps := client.Subscribe(ctx, b.channel)
 
 	if _, err := ps.Receive(ctx); err != nil {
 		_ = ps.Close()
-		_ = evt.LegacyBus().Unsubscribe(evt.BlockingStateChanged, b.onLocalStateChanged)
+		evt.Unsubscribe[evt.BlockingStateChangedEvent](b.bus, eventBridgeSubKey)
 		cancel()
 
 		return nil, err
@@ -85,14 +84,12 @@ func NewEventBusBridge(ctx context.Context, client *goredis.Client, bus *evt.Bus
 // Close stops the subscriber goroutine and unsubscribes from the local event bus.
 // It is safe to call multiple times.
 func (b *EventBusBridge) Close() error {
-	var unsubErr error
-
 	b.once.Do(func() {
 		b.cancel()
-		unsubErr = evt.LegacyBus().Unsubscribe(evt.BlockingStateChanged, b.onLocalStateChanged)
+		evt.Unsubscribe[evt.BlockingStateChangedEvent](b.bus, eventBridgeSubKey)
 	})
 
-	return unsubErr
+	return nil
 }
 
 // onLocalStateChanged is called when a local blocking state change occurs.
@@ -126,7 +123,7 @@ func (b *EventBusBridge) onLocalStateChanged(state evt.BlockingState) {
 
 // handleMessage processes a single Redis pub/sub message, publishing remote
 // state changes to the local event bus and filtering out echoes.
-func (b *EventBusBridge) handleMessage(_ context.Context, payload string) {
+func (b *EventBusBridge) handleMessage(ctx context.Context, payload string) {
 	if len(payload) == 0 {
 		return
 	}
@@ -142,5 +139,5 @@ func (b *EventBusBridge) handleMessage(_ context.Context, payload string) {
 		return
 	}
 
-	evt.LegacyBus().Publish(evt.BlockingStateChangedRemote, bm.State)
+	evt.Emit(b.bus, ctx, evt.BlockingStateChangedRemoteEvent{State: bm.State})
 }

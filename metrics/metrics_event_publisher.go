@@ -2,12 +2,10 @@ package metrics
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/lists"
-	"github.com/0xERR0R/blocky/util"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -44,8 +42,8 @@ func registerBlockingEventListeners(bus *evt.Bus) {
 
 	RegisterMetric(enabledGauge)
 
-	subscribe(evt.BlockingEnabledTopic, func(enabled bool) {
-		if enabled {
+	evt.Subscribe(bus, "metrics:blocking-enabled", func(_ context.Context, e evt.BlockingEnabledEvent) {
+		if e.Enabled {
 			enabledGauge.Set(1)
 		} else {
 			enabledGauge.Set(0)
@@ -190,8 +188,4 @@ func prefetchDomainCacheCount() prometheus.Gauge {
 			Help: "Number of entries in domain cache",
 		},
 	)
-}
-
-func subscribe(topic string, fn any) {
-	util.FatalOnError(fmt.Sprintf("can't subscribe topic '%s'", topic), evt.LegacyBus().Subscribe(topic, fn))
 }
