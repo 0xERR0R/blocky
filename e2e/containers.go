@@ -221,6 +221,11 @@ func buildBlockyContainerRequest(confFile string) testcontainers.ContainerReques
 		ConfigModifier: func(c *container.Config) {
 			c.Healthcheck = &container.HealthConfig{
 				Interval: time.Second,
+				// During the image's start period Docker probes at the
+				// start-interval, which defaults to 5s. blocky is ready in
+				// <1s, so without this every container wastes ~5s waiting to
+				// be marked healthy.
+				StartInterval: 250 * time.Millisecond,
 			}
 			// Enable coverage collection if GOCOVERDIR is set
 			if coverDir != "" {
