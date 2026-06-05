@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -103,9 +104,14 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 		When("List is refreshed", func() {
 			It("event should be fired", func() {
+				// Groups refresh concurrently and signals dispatches each listener in its
+				// own goroutine, so guard the accumulator against concurrent writes/reads.
+				var mu sync.Mutex
 				groupCnt := make(map[string]int)
 				bus := NewBus()
 				Subscribe(bus, "test:blocking-cache-group", func(_ context.Context, e BlockingCacheGroupChangedEvent) {
+					mu.Lock()
+					defer mu.Unlock()
 					groupCnt[e.GroupName] = e.Count
 				})
 
@@ -114,7 +120,12 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				sut, err = NewBlockingResolver(ctx, sutConfig, systemResolverBootstrap, bus)
 				Expect(err).Should(Succeed())
 
-				Eventually(groupCnt, "1s").Should(HaveLen(2))
+				Eventually(func() int {
+					mu.Lock()
+					defer mu.Unlock()
+
+					return len(groupCnt)
+				}, "1s").Should(Equal(2))
 			})
 		})
 	})
