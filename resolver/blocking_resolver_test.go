@@ -1459,4 +1459,3 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 	})
 })
-

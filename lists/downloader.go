@@ -144,31 +144,37 @@ func (d *httpDownloader) download(ctx context.Context, link string, reqHeader ht
 		retry.DelayType(retry.FixedDelay),
 		retry.Delay(d.cfg.Cooldown.ToDuration()),
 		retry.LastErrorOnly(true),
-		retry.OnRetry(func(n uint, err error) {
-			var transientErr *TransientError
-
-			var dnsErr *net.DNSError
-
-			logger := logger().
-				WithField("link", link).
-				WithField("attempt", fmt.Sprintf("%d/%d", n+1, d.cfg.Attempts))
-
-			switch {
-			case errors.As(err, &transientErr):
-				logger.Warnf("Temporary network err / Timeout occurred: %s", transientErr)
-			case errors.As(err, &dnsErr):
-				logger.Warnf("Name resolution err: %s", dnsErr.Err)
-			default:
-				logger.Warnf("Can't download file: %s", err)
-			}
-
-			onDownloadError(link)
-		}))
+		retry.OnRetry(d.logRetry(link)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to download file from '%s': %w", link, err)
 	}
 
 	return result, nil
+}
+
+// logRetry returns a retry.OnRetry callback that logs the cause of each failed
+// download attempt and emits the failed-download event.
+func (d *httpDownloader) logRetry(link string) func(n uint, err error) {
+	return func(n uint, err error) {
+		var transientErr *TransientError
+
+		var dnsErr *net.DNSError
+
+		logger := logger().
+			WithField("link", link).
+			WithField("attempt", fmt.Sprintf("%d/%d", n+1, d.cfg.Attempts))
+
+		switch {
+		case errors.As(err, &transientErr):
+			logger.Warnf("Temporary network err / Timeout occurred: %s", transientErr)
+		case errors.As(err, &dnsErr):
+			logger.Warnf("Name resolution err: %s", dnsErr.Err)
+		default:
+			logger.Warnf("Can't download file: %s", err)
+		}
+
+		onDownloadError(link)
+	}
 }
 
 func onDownloadError(link string) {

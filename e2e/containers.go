@@ -45,7 +45,10 @@ const (
 	// runs as a non-root user (see Dockerfile `USER 100`) that doesn't own the
 	// copied files, so it can only read them via the world-readable bit.
 	modeWorldReadable = 0o444
-	startupTimeout    = 30 * time.Second
+	// modeWorldReadableDir is used for host directories bind-mounted into containers,
+	// so a container user with a different UID can traverse and read them.
+	modeWorldReadableDir = 0o755
+	startupTimeout       = 30 * time.Second
 
 	// healthcheckStartInterval overrides Docker's 5s default start-interval so
 	// blocky (ready in <1s) is probed and marked healthy almost immediately.
@@ -87,7 +90,7 @@ func createHTTPServerContainer(ctx context.Context, alias string, e2eNet *testco
 ) (testcontainers.Container, error) {
 	dir, err := os.MkdirTemp("", "blocky_e2e_httpdir-")
 	Expect(err).Should(Succeed())
-	Expect(os.Chmod(dir, 0o755)).Should(Succeed()) // container's static-file-server user must traverse/read the bind mount
+	Expect(os.Chmod(dir, modeWorldReadableDir)).Should(Succeed()) // container user (different UID) must traverse/read the bind mount
 	DeferCleanup(func() error {
 		return os.RemoveAll(dir)
 	})
