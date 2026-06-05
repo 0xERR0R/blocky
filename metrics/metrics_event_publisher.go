@@ -15,7 +15,7 @@ import (
 // RegisterEventListeners registers all metric handlers by the event bus
 func RegisterEventListeners(bus *evt.Bus) {
 	registerBlockingEventListeners()
-	registerCachingEventListeners()
+	registerCachingEventListeners(bus)
 	registerApplicationEventListeners(bus)
 }
 
@@ -115,7 +115,7 @@ func lastListGroupRefresh() prometheus.Gauge {
 	)
 }
 
-func registerCachingEventListeners() {
+func registerCachingEventListeners(bus *evt.Bus) {
 	entryCount := cacheEntryCount()
 	prefetchDomainCount := prefetchDomainCacheCount()
 	prefetchCount := domainPrefetchCount()
@@ -128,22 +128,24 @@ func registerCachingEventListeners() {
 	RegisterMetric(prefetchHitCount)
 	RegisterMetric(failedDownloadCount)
 
-	subscribe(evt.CachingDomainsToPrefetchCountChanged, func(cnt int) {
-		prefetchDomainCount.Set(float64(cnt))
+	evt.Subscribe(bus, "metrics:prefetch-count", func(_ context.Context, e evt.CachingDomainsToPrefetchCountChangedEvent) {
+		prefetchDomainCount.Set(float64(e.Count))
 	})
 
-	subscribe(evt.CachingDomainPrefetched, func(_ string) {
+	evt.Subscribe(bus, "metrics:prefetched", func(_ context.Context, _ evt.CachingDomainPrefetchedEvent) {
 		prefetchCount.Inc()
 	})
 
-	subscribe(evt.CachingPrefetchCacheHit, func(_ string) {
+	evt.Subscribe(bus, "metrics:prefetch-hit", func(_ context.Context, _ evt.CachingPrefetchCacheHitEvent) {
 		prefetchHitCount.Inc()
 	})
 
-	subscribe(evt.CachingResultCacheChanged, func(cnt int) {
-		entryCount.Set(float64(cnt))
+	evt.Subscribe(bus, "metrics:result-cache-size", func(_ context.Context, e evt.CachingResultCacheChangedEvent) {
+		entryCount.Set(float64(e.Size))
 	})
 
+	// CachingFailedDownload subscription stays on the legacy bus for now;
+	// it migrates in Task 7.
 	subscribe(evt.CachingFailedDownloadChanged, func(_ string) {
 		failedDownloadCount.Inc()
 	})

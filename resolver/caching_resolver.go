@@ -52,8 +52,7 @@ type CachingResolver struct {
 	NextResolver
 	typed
 
-	bus              *evt.Bus
-	emitMetricEvents bool // disabled by Bootstrap
+	bus *evt.Bus
 
 	resultCache cache.ExpiringCache[[]byte]
 
@@ -66,20 +65,18 @@ func NewCachingResolver(ctx context.Context,
 	decorator CacheDecorator,
 	bus *evt.Bus,
 ) (*CachingResolver, error) {
-	return newCachingResolver(ctx, cfg, decorator, bus, true)
+	return newCachingResolver(ctx, cfg, decorator, bus)
 }
 
 func newCachingResolver(ctx context.Context,
 	cfg config.Caching,
 	decorator CacheDecorator,
 	bus *evt.Bus,
-	emitMetricEvents bool,
 ) (*CachingResolver, error) {
 	c := &CachingResolver{
-		configurable:     withConfig(&cfg),
-		typed:            withType("caching"),
-		bus:              bus,
-		emitMetricEvents: emitMetricEvents,
+		configurable: withConfig(&cfg),
+		typed:        withType("caching"),
+		bus:          bus,
 	}
 
 	configureCaches(ctx, c, &cfg)
@@ -108,7 +105,7 @@ func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Cachin
 			cacheMisses.Inc()
 		},
 		OnAfterPutFn: func(newSize int) {
-			c.publishMetricsIfEnabled(evt.CachingResultCacheChanged, newSize)
+			evt.Emit(c.bus, ctx, evt.CachingResultCacheChangedEvent{Size: newSize})
 		},
 	}
 
@@ -120,13 +117,13 @@ func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Cachin
 			PrefetchMaxItemsCount: cfg.PrefetchMaxItemsCount,
 			ReloadFn:              c.reloadCacheEntry,
 			OnPrefetchAfterPut: func(newSize int) {
-				c.publishMetricsIfEnabled(evt.CachingDomainsToPrefetchCountChanged, newSize)
+				evt.Emit(c.bus, ctx, evt.CachingDomainsToPrefetchCountChangedEvent{Count: newSize})
 			},
 			OnPrefetchEntryReloaded: func(key string) {
-				c.publishMetricsIfEnabled(evt.CachingDomainPrefetched, key)
+				evt.Emit(c.bus, ctx, evt.CachingDomainPrefetchedEvent{Domain: key})
 			},
 			OnPrefetchCacheHit: func(key string) {
-				c.publishMetricsIfEnabled(evt.CachingPrefetchCacheHit, key)
+				evt.Emit(c.bus, ctx, evt.CachingPrefetchCacheHitEvent{Domain: key})
 			},
 		}
 
@@ -364,12 +361,6 @@ func (r *CachingResolver) adjustTTLs(answer []dns.RR) (ttl time.Duration) {
 	}
 
 	return time.Duration(minTTL) * time.Second
-}
-
-func (r *CachingResolver) publishMetricsIfEnabled(event string, val any) {
-	if r.emitMetricEvents {
-		evt.LegacyBus().Publish(event, val)
-	}
 }
 
 func (r *CachingResolver) FlushCaches(ctx context.Context) {

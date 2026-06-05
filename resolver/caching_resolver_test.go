@@ -30,6 +30,7 @@ var _ = Describe("CachingResolver", func() {
 		ctx        context.Context
 		cancelFn   context.CancelFunc
 		cacheMock  *cache.MockExpiringCache[[]byte]
+		bus        *Bus
 	)
 
 	Describe("Type", func() {
@@ -50,7 +51,8 @@ var _ = Describe("CachingResolver", func() {
 		ctx, cancelFn = context.WithCancel(context.Background())
 		DeferCleanup(cancelFn)
 
-		sut, _ = NewCachingResolver(ctx, sutConfig, nil, NewBus())
+		bus = NewBus()
+		sut, _ = NewCachingResolver(ctx, sutConfig, nil, bus)
 		m = &mockResolver{}
 		cacheMock = cache.NewMockExpiringCache[[]byte](GinkgoT())
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
@@ -103,16 +105,24 @@ var _ = Describe("CachingResolver", func() {
 				domainPrefetched := make(chan bool, 1)
 				prefetchHitDomain := make(chan bool, 1)
 				prefetchedCnt := make(chan int, 1)
-				Expect(LegacyBus().SubscribeOnce(CachingPrefetchCacheHit, func(domain string) {
-					prefetchHitDomain <- true
-				})).Should(Succeed())
-				Expect(LegacyBus().SubscribeOnce(CachingDomainPrefetched, func(domain string) {
-					domainPrefetched <- true
-				})).Should(Succeed())
-
-				Expect(LegacyBus().SubscribeOnce(CachingDomainsToPrefetchCountChanged, func(cnt int) {
-					prefetchedCnt <- cnt
-				})).Should(Succeed())
+				Subscribe(bus, "test:prefetch-hit", func(_ context.Context, _ CachingPrefetchCacheHitEvent) {
+					select {
+					case prefetchHitDomain <- true:
+					default:
+					}
+				})
+				Subscribe(bus, "test:prefetched", func(_ context.Context, _ CachingDomainPrefetchedEvent) {
+					select {
+					case domainPrefetched <- true:
+					default:
+					}
+				})
+				Subscribe(bus, "test:prefetch-count", func(_ context.Context, e CachingDomainsToPrefetchCountChangedEvent) {
+					select {
+					case prefetchedCnt <- e.Count:
+					default:
+					}
+				})
 
 				// first request
 				_, _ = sut.Resolve(ctx, newRequest("example.com.", A))
@@ -211,8 +221,11 @@ var _ = Describe("CachingResolver", func() {
 				It("should cache response and use response's TTL", func() {
 					By("first request", func() {
 						totalCacheCount := make(chan int, 1)
-						_ = LegacyBus().SubscribeOnce(CachingResultCacheChanged, func(d int) {
-							totalCacheCount <- d
+						Subscribe(bus, "test:result-cache", func(_ context.Context, e CachingResultCacheChangedEvent) {
+							select {
+							case totalCacheCount <- e.Size:
+							default:
+							}
 						})
 						Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
 							Should(
