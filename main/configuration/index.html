@@ -4674,6 +4674,20 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <td>30s</td>
 <td>Interval to write buffered entries in bulk to the database (mysql/postgresql/timescale/sqlite)</td>
 </tr>
+<tr>
+<td>queryLog.ignore.sudn</td>
+<td>bool</td>
+<td>no</td>
+<td>false</td>
+<td>if true, queries answered as Special Use Domain Names (SUDN) are not logged</td>
+</tr>
+<tr>
+<td>queryLog.ignore.domains</td>
+<td>list of string</td>
+<td>no</td>
+<td></td>
+<td>domains excluded from the query log; each entry is matched against the query name as an exact domain, a <code>*.wildcard</code>, or a <code>/regex/</code></td>
+</tr>
 </tbody>
 </table>
 <div class="admonition hint">
@@ -4741,6 +4755,21 @@ queryLog:
 <span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
 <span class="w">  </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;username:password@tcp(localhost:3306)/blocky_query_log?charset=utf8mb4&amp;parseTime=True&amp;loc=Local&amp;timeout=15s&#39;</span>
 <span class="w">  </span><span class="nt">logRetentionDays</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">7</span>
+</code></pre></div>
+</div>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<p><strong>Ignore noisy domains</strong></p>
+<div class="highlight"><pre><span></span><code><span class="nt">queryLog</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgresql</span>
+<span class="w">  </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres://user:password@db:5432/blocky_query_log</span>
+<span class="w">  </span><span class="nt">ignore</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">sudn</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">domains</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;*._dns-sd._udp.home&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;db._dns-sd._udp.home&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;/\\.in-addr\\.arpa$/&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;apple.com&quot;</span>
 </code></pre></div>
 </div>
 <h2 id="hosts-file">Hosts file</h2>
