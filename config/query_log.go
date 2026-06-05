@@ -32,6 +32,9 @@ type QueryLog struct {
 type QueryLogIgnore struct {
 	// If true, queries resolved as Special Use Domain Names (SUDN) are not logged.
 	SUDN bool `default:"false" yaml:"sudn"`
+	// Domains whose queries are not logged. Each entry is matched against the
+	// query name as an exact domain, a *.wildcard, or a /regex/.
+	Domains []string `yaml:"domains"`
 }
 
 // SetDefaults implements `defaults.Setter`.
@@ -62,7 +65,16 @@ func (c *QueryLog) LogConfig(logger *logrus.Entry) {
 
 	logger.Infof("ignore:")
 	log.WithIndent(logger, "  ", func(e *logrus.Entry) {
-		logger.Infof("sudn: %t", c.Ignore.SUDN)
+		e.Infof("sudn: %t", c.Ignore.SUDN)
+
+		if len(c.Ignore.Domains) > 0 {
+			e.Infof("domains (%d):", len(c.Ignore.Domains))
+			log.WithIndent(e, "  ", func(e *logrus.Entry) {
+				for _, d := range c.Ignore.Domains {
+					e.Debugf("- %s", d)
+				}
+			})
+		}
 	})
 }
 

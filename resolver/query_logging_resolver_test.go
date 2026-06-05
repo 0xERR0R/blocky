@@ -16,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/0xERR0R/blocky/cache/stringcache"
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
@@ -164,6 +165,39 @@ var _ = Describe("QueryLoggingResolver", func() {
 					mockRType = ResponseTypeBLOCKED
 
 					_, err := sut.Resolve(ctx, newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))
+					Expect(err).Should(Succeed())
+
+					Expect(sut.logChan).ShouldNot(BeEmpty())
+					Expect(ignored.Calls).Should(BeEmpty())
+				})
+			})
+
+			Describe("Domains", func() {
+				BeforeEach(func() {
+					sutConfig.Ignore.Domains = []string{"ignored.example.com", "*.noisy.lan"}
+				})
+
+				It("should not log a matching exact domain", func() {
+					_, err := sut.Resolve(ctx,
+						newRequestWithClient("ignored.example.com.", A, "192.168.178.25", "client1"))
+					Expect(err).Should(Succeed())
+
+					Expect(sut.logChan).Should(BeEmpty())
+					Expect(ignored.Messages).Should(ContainElement(ContainSubstring("ignored querylog entry")))
+				})
+
+				It("should not log a matching wildcard domain", func() {
+					_, err := sut.Resolve(ctx,
+						newRequestWithClient("host.noisy.lan.", A, "192.168.178.25", "client1"))
+					Expect(err).Should(Succeed())
+
+					Expect(sut.logChan).Should(BeEmpty())
+					Expect(ignored.Messages).Should(ContainElement(ContainSubstring("ignored querylog entry")))
+				})
+
+				It("should log a non-matching domain", func() {
+					_, err := sut.Resolve(ctx,
+						newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))
 					Expect(err).Should(Succeed())
 
 					Expect(sut.logChan).ShouldNot(BeEmpty())
@@ -471,6 +505,61 @@ var _ = Describe("QueryLoggingResolver", func() {
 			Expect(err).Should(Succeed())
 
 			Expect(readInstanceID("/var/empty/nonexistent")).Should(Equal(expected))
+		})
+	})
+
+	Describe("newIgnoreDomainsMatcher", func() {
+		It("returns nil for an empty list", func() {
+			logger, _ := log.NewMockEntry()
+			Expect(newIgnoreDomainsMatcher(nil, logger)).Should(BeNil())
+		})
+
+		It("matches exact, wildcard and regex entries", func() {
+			logger, _ := log.NewMockEntry()
+			matcher := newIgnoreDomainsMatcher(
+				[]string{"example.com", "*.lan", "/\\.arpa$/"}, logger)
+			Expect(matcher).ShouldNot(BeNil())
+
+			groups := []string{queryLogIgnoreGroup}
+			Expect(matcher.Contains("example.com", groups)).ShouldNot(BeEmpty())
+			Expect(matcher.Contains("host.lan", groups)).ShouldNot(BeEmpty())
+			Expect(matcher.Contains("1.0.0.10.in-addr.arpa", groups)).ShouldNot(BeEmpty())
+			Expect(matcher.Contains("other.com", groups)).Should(BeEmpty())
+		})
+
+		It("warns and skips an invalid entry but keeps valid ones", func() {
+			logger, hook := log.NewMockEntry()
+			matcher := newIgnoreDomainsMatcher(
+				[]string{"/[invalid(/", "example.com"}, logger)
+
+			Expect(matcher).ShouldNot(BeNil())
+			Expect(matcher.Contains("example.com", []string{queryLogIgnoreGroup})).ShouldNot(BeEmpty())
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("invalid")))
+		})
+
+		It("warns and skips a lone slash entry without panicking", func() {
+			logger, hook := log.NewMockEntry()
+
+			var matcher stringcache.GroupedStringCache
+			Expect(func() {
+				matcher = newIgnoreDomainsMatcher([]string{"/", "example.com"}, logger)
+			}).ShouldNot(Panic())
+
+			Expect(matcher.Contains("example.com", []string{queryLogIgnoreGroup})).ShouldNot(BeEmpty())
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("invalid")))
+		})
+
+		It("warns and skips empty regex entries instead of matching every domain", func() {
+			logger, hook := log.NewMockEntry()
+
+			matcher := newIgnoreDomainsMatcher([]string{"//", "/ /", "example.com"}, logger)
+			Expect(matcher).ShouldNot(BeNil())
+
+			groups := []string{queryLogIgnoreGroup}
+			// an empty regex would match everything; the entries must be rejected
+			Expect(matcher.Contains("unrelated.example.net", groups)).Should(BeEmpty())
+			Expect(matcher.Contains("example.com", groups)).ShouldNot(BeEmpty())
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("invalid")))
 		})
 	})
 })

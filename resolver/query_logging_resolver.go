@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/0xERR0R/blocky/cache/stringcache"
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
@@ -15,6 +17,7 @@ import (
 	"github.com/0xERR0R/blocky/util"
 	"github.com/avast/retry-go/v4"
 	"github.com/miekg/dns"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -22,7 +25,12 @@ const (
 	queryLoggingResolverType = "query_logging"
 	logChanCap               = 1000
 	defaultClientIP          = "0.0.0.0"
+	queryLogIgnoreGroup      = "ignore"
 )
+
+// queryLogIgnoreGroups is the (single) cache group queried for ignore rules.
+// Hoisted to avoid allocating a one-element slice on every resolved query.
+var queryLogIgnoreGroups = []string{queryLogIgnoreGroup} //nolint:gochecknoglobals
 
 // QueryLoggingResolver writes query information (question, answer, duration, ...)
 type QueryLoggingResolver struct {
@@ -30,9 +38,10 @@ type QueryLoggingResolver struct {
 	NextResolver
 	typed
 
-	logChan    chan *querylog.LogEntry
-	writer     querylog.Writer
-	instanceID string
+	logChan       chan *querylog.LogEntry
+	writer        querylog.Writer
+	instanceID    string
+	ignoreDomains stringcache.GroupedStringCache
 }
 
 func GetQueryLoggingWriter(ctx context.Context, cfg config.QueryLog) (querylog.Writer, error) {
@@ -61,6 +70,51 @@ func GetQueryLoggingWriter(ctx context.Context, cfg config.QueryLog) (querylog.W
 	}
 
 	return writer, nil
+}
+
+// newIgnoreDomainsMatcher builds a matcher for the queryLog.ignore.domains rules.
+// Returns nil when no domains are configured, so the per-query path stays free.
+func newIgnoreDomainsMatcher(domains []string, logger *logrus.Entry) stringcache.GroupedStringCache {
+	if len(domains) == 0 {
+		return nil
+	}
+
+	matcher := stringcache.NewChainedGroupedCache(
+		stringcache.NewInMemoryGroupedRegexCache(),
+		stringcache.NewInMemoryGroupedWildcardCache(), // must follow regex (regex can contain '*')
+		stringcache.NewInMemoryGroupedStringCache(),
+	)
+
+	factory := matcher.Refresh(queryLogIgnoreGroup)
+
+	for _, d := range domains {
+		// Pre-validate regex entries so we can warn via the caller's logger rather
+		// than the global one (the underlying cache silently drops invalid regex,
+		// and a lone "/" would panic the regex cache's unguarded slice).
+		if strings.HasPrefix(d, "/") && strings.HasSuffix(d, "/") {
+			// Strip the surrounding slashes. Reject entries with no actual pattern
+			// (e.g. "/", "//", "/ /"): an empty regex matches every domain and would
+			// silently drop the whole query log.
+			inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(d, "/"), "/"))
+			if inner == "" {
+				logger.Warnf("ignoring invalid queryLog.ignore.domains entry: %q", d)
+
+				continue
+			}
+
+			if _, err := regexp.Compile(inner); err != nil {
+				logger.Warnf("ignoring invalid queryLog.ignore.domains entry: %q", d)
+
+				continue
+			}
+		}
+
+		factory.AddEntry(d)
+	}
+
+	factory.Finish()
+
+	return matcher
 }
 
 // NewQueryLoggingResolver returns a new resolver instance
@@ -99,13 +153,16 @@ func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) (*QueryLo
 
 	logChan := make(chan *querylog.LogEntry, logChanCap)
 
+	ignoreDomains := newIgnoreDomainsMatcher(cfg.Ignore.Domains, logger)
+
 	resolver := QueryLoggingResolver{
 		configurable: withConfig(&cfg),
 		typed:        withType(queryLoggingResolverType),
 
-		logChan:    logChan,
-		writer:     writer,
-		instanceID: instanceID,
+		logChan:       logChan,
+		writer:        writer,
+		instanceID:    instanceID,
+		ignoreDomains: ignoreDomains,
 	}
 
 	go resolver.writeLog(ctx)
@@ -151,7 +208,7 @@ func (r *QueryLoggingResolver) Resolve(ctx context.Context, request *model.Reque
 
 	entry := r.createLogEntry(request, resp, start, duration)
 
-	if r.ignore(resp) {
+	if r.ignore(request, resp) {
 		// Log to the console for debugging purposes
 		logger.WithFields(querylog.LogEntryFields(entry)).Debug("ignored querylog entry")
 	} else {
@@ -165,11 +222,18 @@ func (r *QueryLoggingResolver) Resolve(ctx context.Context, request *model.Reque
 	return resp, nil
 }
 
-func (r *QueryLoggingResolver) ignore(response *model.Response) bool {
+func (r *QueryLoggingResolver) ignore(request *model.Request, response *model.Response) bool {
 	cfg := r.cfg.Ignore
 
 	if cfg.SUDN && response.RType == model.ResponseTypeSPECIAL {
 		return true
+	}
+
+	if r.ignoreDomains != nil {
+		domain := util.ExtractDomain(request.Req.Question[0])
+		if len(r.ignoreDomains.Contains(domain, queryLogIgnoreGroups)) > 0 {
+			return true
+		}
 	}
 
 	// If we add more ways to ignore entries, it would be nice to log why it's ignored in the debug log

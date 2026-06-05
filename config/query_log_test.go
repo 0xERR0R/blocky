@@ -60,6 +60,14 @@ var _ = Describe("QueryLogConfig", func() {
 			Expect(hook.Messages).Should(ContainElement(ContainSubstring("sudn:")))
 		})
 
+		It("should log the ignored domains", func() {
+			cfg.Ignore.Domains = []string{"example.com", "*.lan", "/\\.arpa$/"}
+
+			cfg.LogConfig(logger)
+
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("domains (3):")))
+		})
+
 		DescribeTable("secret censoring", func(target string) {
 			cfg.Type = QueryLogTypeMysql
 			cfg.Target = Secret(target)
@@ -74,6 +82,16 @@ var _ = Describe("QueryLogConfig", func() {
 			Entry("no password", "localhost"),
 			Entry("not a URL", "invalid!://"),
 		)
+	})
+
+	Describe("ignore.domains parsing", func() {
+		It("parses the domains list", func() {
+			yamlStr := "type: console\nignore:\n  domains:\n    - example.com\n    - \"*.lan\"\n"
+
+			var qlCfg QueryLog
+			Expect(yaml.UnmarshalStrict([]byte(yamlStr), &qlCfg)).Should(Succeed())
+			Expect(qlCfg.Ignore.Domains).Should(Equal([]string{"example.com", "*.lan"}))
+		})
 	})
 
 	Describe("secret target handling", func() {
