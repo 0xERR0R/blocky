@@ -86,7 +86,7 @@ func newDownloader(cfg config.Downloader, transport http.RoundTripper) *httpDown
 type downloadResponse struct {
 	statusCode int
 	header     http.Header
-	body       io.ReadCloser // nil iff statusCode == StatusNotModified
+	body       io.ReadCloser // nil iff statusCode == http.StatusNotModified
 }
 
 func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.ReadCloser, error) {
