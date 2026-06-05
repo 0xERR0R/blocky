@@ -82,6 +82,39 @@ var _ = Describe("Download cache helpers", func() {
 	})
 })
 
+var _ = Describe("NewDownloader cache selection", func() {
+	var dlCfg config.Downloader
+
+	BeforeEach(func() {
+		var err error
+		dlCfg, err = config.WithDefaults[config.Downloader]()
+		Expect(err).Should(Succeed())
+	})
+
+	It("returns a plain downloader when cachePath is empty", func() {
+		_, ok := NewDownloader(dlCfg, nil).(*httpDownloader)
+		Expect(ok).Should(BeTrue())
+	})
+
+	It("returns a caching downloader and creates the dir when cachePath is set", func() {
+		dir := filepath.Join(GinkgoT().TempDir(), "sub", "cache")
+		dlCfg.CachePath = dir
+
+		_, ok := NewDownloader(dlCfg, nil).(*cachingDownloader)
+		Expect(ok).Should(BeTrue())
+		Expect(dir).Should(BeADirectory())
+	})
+
+	It("degrades to a plain downloader when the dir cannot be created", func() {
+		blocker := filepath.Join(GinkgoT().TempDir(), "blocker")
+		Expect(os.WriteFile(blocker, []byte("x"), 0o600)).Should(Succeed())
+		dlCfg.CachePath = filepath.Join(blocker, "cache") // parent is a regular file, so MkdirAll fails on all platforms
+
+		_, ok := NewDownloader(dlCfg, nil).(*httpDownloader)
+		Expect(ok).Should(BeTrue())
+	})
+})
+
 var _ = Describe("cachingDownloader", func() {
 	var (
 		dir   string

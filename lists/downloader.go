@@ -7,11 +7,15 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/avast/retry-go/v4"
 )
+
+// cacheDirPermission is used when creating the on-disk download cache directory.
+const cacheDirPermission os.FileMode = 0o750
 
 // TransientError represents a temporary error like timeout, network errors...
 type TransientError struct {
@@ -39,7 +43,20 @@ type httpDownloader struct {
 }
 
 func NewDownloader(cfg config.Downloader, transport http.RoundTripper) FileDownloader {
-	return newDownloader(cfg, transport)
+	inner := newDownloader(cfg, transport)
+
+	if cfg.CachePath == "" {
+		return inner
+	}
+
+	if err := os.MkdirAll(cfg.CachePath, cacheDirPermission); err != nil {
+		logger().WithError(err).Warnf(
+			"cannot create download cache dir %s, continuing without on-disk cache", cfg.CachePath)
+
+		return inner
+	}
+
+	return newCachingDownloader(inner, cfg.CachePath)
 }
 
 func newDownloader(cfg config.Downloader, transport http.RoundTripper) *httpDownloader {
