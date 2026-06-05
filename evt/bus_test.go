@@ -11,8 +11,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-type fooEvent struct{ N int }
-type barEvent struct{ S string }
+type (
+	fooEvent struct{ N int }
+	barEvent struct{ S string }
+)
 
 var _ = Describe("Bus", func() {
 	var bus *evt.Bus
