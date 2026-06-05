@@ -32,8 +32,8 @@ type QueryLog struct {
 type QueryLogIgnore struct {
 	// If true, queries resolved as Special Use Domain Names (SUDN) are not logged.
 	SUDN bool `default:"false" yaml:"sudn"`
-	// Domains whose queries are not logged. Each entry is an exact domain,
-	// a *.wildcard, or a /regex/ — same syntax as blocklists.
+	// Domains whose queries are not logged. Each entry is matched against the
+	// query name as an exact domain, a *.wildcard, or a /regex/.
 	Domains []string `yaml:"domains"`
 }
 

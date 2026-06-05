@@ -1035,7 +1035,7 @@ Configuration parameters:
 | queryLog.fields           | list enum (clientIP, clientName, responseReason, responseAnswer, question, duration) | no        | all           | which information should be logged                                                            |
 | queryLog.flushInterval    | duration format                                                                      | no        | 30s           | Interval to write buffered entries in bulk to the database (mysql/postgresql/timescale/sqlite)|
 | queryLog.ignore.sudn      | bool                                                                                 | no        | false         | if true, queries answered as Special Use Domain Names (SUDN) are not logged                   |
-| queryLog.ignore.domains   | list of string                                                                       | no        |               | domains excluded from the query log; each entry is an exact domain, a `*.wildcard`, or a `/regex/` (same syntax as blocklists) |
+| queryLog.ignore.domains   | list of string                                                                       | no        |               | domains excluded from the query log; each entry is matched against the query name as an exact domain, a `*.wildcard`, or a `/regex/` |
 
 !!! hint
 

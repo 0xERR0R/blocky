@@ -761,6 +761,13 @@
               "type": "boolean",
               "description": "If true, queries resolved as Special Use Domain Names (SUDN) are not logged.",
               "default": false
+            },
+            "domains": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "description": "Domains whose queries are not logged. Each entry is matched against the\nquery name as an exact domain, a *.wildcard, or a /regex/."
             }
           },
           "additionalProperties": false,
