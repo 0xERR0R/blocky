@@ -1,6 +1,7 @@
 package lists
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -285,3 +286,40 @@ var _ = Describe("cachingDownloader", func() {
 		})
 	})
 })
+
+var _ = Describe("tolerantFileWriter", func() {
+	It("swallows write errors, flags failure, and skips further writes", func() {
+		fw := &failingWriter{}
+		tw := &tolerantFileWriter{w: fw}
+
+		n, err := tw.Write([]byte("hello"))
+		Expect(err).Should(Succeed()) // never propagates the underlying error
+		Expect(n).Should(Equal(5))
+		Expect(tw.failed).Should(BeTrue())
+		Expect(fw.calls).Should(Equal(1))
+
+		n, err = tw.Write([]byte("world"))
+		Expect(err).Should(Succeed())
+		Expect(n).Should(Equal(5))
+		Expect(fw.calls).Should(Equal(1)) // underlying not called again after failure
+	})
+
+	It("passes writes through to the underlying writer on the happy path", func() {
+		var buf bytes.Buffer
+		tw := &tolerantFileWriter{w: &buf}
+
+		n, err := tw.Write([]byte("abc"))
+		Expect(err).Should(Succeed())
+		Expect(n).Should(Equal(3))
+		Expect(tw.failed).Should(BeFalse())
+		Expect(buf.String()).Should(Equal("abc"))
+	})
+})
+
+type failingWriter struct{ calls int }
+
+func (w *failingWriter) Write(p []byte) (int, error) {
+	w.calls++
+
+	return 0, errors.New("simulated disk-full write error")
+}

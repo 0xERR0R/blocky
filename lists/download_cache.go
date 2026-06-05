@@ -172,12 +172,22 @@ func (c *cachingDownloader) serveAndStore(link string, resp *downloadResponse) (
 	etag := resp.header.Get("ETag")
 	lastModified := resp.header.Get("Last-Modified")
 
+	tw := &tolerantFileWriter{w: tmp}
+
 	fin := &cacheFinalizer{
 		body: resp.body,
 		tmp:  tmp,
 	}
-	fin.tee = io.TeeReader(resp.body, tmp)
+	fin.tee = io.TeeReader(resp.body, tw)
 	fin.finalize = func() {
+		if tw.failed {
+			// a mid-stream write error already abandoned the cache copy
+			_ = tmp.Close()
+			_ = os.Remove(tmp.Name())
+
+			return
+		}
+
 		if err := tmp.Sync(); err != nil {
 			logger().WithError(err).Warn("cache fsync failed, discarding temp file")
 			_ = tmp.Close()
@@ -199,6 +209,31 @@ func (c *cachingDownloader) serveAndStore(link string, resp *downloadResponse) (
 	}
 
 	return fin, nil
+}
+
+// tolerantFileWriter writes to an underlying writer but never propagates a write
+// error to its caller. Used with io.TeeReader so that a mid-stream disk write
+// failure (e.g. the disk fills up during a download) does NOT surface as a read
+// error to the list parser: the download/parse still succeeds over the network and
+// only the on-disk cache copy is abandoned. The first failure is logged and sets
+// failed; subsequent writes are silently skipped.
+type tolerantFileWriter struct {
+	w      io.Writer
+	failed bool
+}
+
+func (w *tolerantFileWriter) Write(p []byte) (int, error) {
+	if w.failed {
+		return len(p), nil
+	}
+
+	if _, err := w.w.Write(p); err != nil {
+		w.failed = true
+
+		logger().WithError(err).Warn("cache write failed, abandoning on-disk copy")
+	}
+
+	return len(p), nil
 }
 
 // cacheFinalizer tees the network body into a temp file and finalizes (rename +
