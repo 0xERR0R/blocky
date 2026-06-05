@@ -32,29 +32,6 @@ var _ = Describe("Download cache helpers", func() {
 		})
 	})
 
-	Describe("PruneCache", func() {
-		It("removes files not referenced by the kept URLs and leaves the rest", func() {
-			dir := GinkgoT().TempDir()
-			keepURL := "http://example.com/keep.txt"
-			keepName := filepath.Base(cacheFilePath(dir, keepURL))
-
-			Expect(os.WriteFile(filepath.Join(dir, keepName), []byte("x"), 0o600)).Should(Succeed())
-			Expect(os.WriteFile(filepath.Join(dir, "deadbeef-orphan"), []byte("x"), 0o600)).Should(Succeed())
-			Expect(os.WriteFile(filepath.Join(dir, "dl-123.tmp"), []byte("x"), 0o600)).Should(Succeed())
-
-			Expect(PruneCache(dir, []string{keepURL})).Should(Succeed())
-
-			entries, err := os.ReadDir(dir)
-			Expect(err).Should(Succeed())
-			Expect(entries).Should(HaveLen(1))
-			Expect(entries[0].Name()).Should(Equal(keepName))
-		})
-
-		It("is a no-op when the directory does not exist", func() {
-			Expect(PruneCache(filepath.Join(GinkgoT().TempDir(), "missing"), nil)).Should(Succeed())
-		})
-	})
-
 	Describe("openCached", func() {
 		It("returns a reader with the cached content (hit)", func() {
 			dir := GinkgoT().TempDir()

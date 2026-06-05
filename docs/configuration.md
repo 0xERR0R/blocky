@@ -1685,6 +1685,7 @@ from disk when its host is temporarily unreachable, and — with `loading.strate
 startup so it can answer queries immediately. Validators are kept in memory and reset on restart, so the first refresh
 after a restart re-downloads each source. When unset, downloads are fully stateless (nothing is written to disk).
 Mount this directory on a persistent volume in containerized setups.
+Note: when you remove or change a source URL, its previous cache file is left on disk — blocky does not delete orphaned cache files automatically. They are harmless and bounded; clear the cache directory manually if you want to reclaim the space.
 
 !!! example
 

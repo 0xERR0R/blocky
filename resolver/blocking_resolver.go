@@ -147,30 +147,6 @@ func NewBlockingResolver(ctx context.Context,
 
 	downloader := lists.NewDownloader(cfg.Loading.Downloads, bootstrap.NewHTTPTransport())
 
-	if dir := cfg.Loading.Downloads.CachePath; dir != "" {
-		n := 0
-		for _, sources := range cfg.Denylists {
-			n += len(sources)
-		}
-
-		for _, sources := range cfg.Allowlists {
-			n += len(sources)
-		}
-
-		all := make([]config.BytesSource, 0, n)
-		for _, sources := range cfg.Denylists {
-			all = append(all, sources...)
-		}
-
-		for _, sources := range cfg.Allowlists {
-			all = append(all, sources...)
-		}
-
-		if err := lists.PruneCache(dir, collectHTTPURLs(all)); err != nil {
-			log.PrefixedLog("blocking").WithError(err).Warn("could not prune download cache")
-		}
-	}
-
 	denylistMatcher, blErr := lists.NewListCache(ctx, lists.ListCacheTypeDenylist,
 		cfg.Loading, cfg.Denylists, downloader)
 	allowlistMatcher, wlErr := lists.NewListCache(ctx, lists.ListCacheTypeAllowlist,
@@ -371,27 +347,6 @@ func determineAllowlistOnlyGroups(cfg *config.Blocking) (result map[string]bool)
 	}
 
 	return result
-}
-
-// collectHTTPURLs returns the distinct HTTP source URLs in the given sources.
-func collectHTTPURLs(sources []config.BytesSource) []string {
-	seen := make(map[string]struct{})
-	urls := make([]string, 0, len(sources))
-
-	for _, s := range sources {
-		if s.Type != config.BytesSourceTypeHttp {
-			continue
-		}
-
-		if _, ok := seen[s.From]; ok {
-			continue
-		}
-
-		seen[s.From] = struct{}{}
-		urls = append(urls, s.From)
-	}
-
-	return urls
 }
 
 // sets answer and/or return code for DNS response, if request should be blocked
