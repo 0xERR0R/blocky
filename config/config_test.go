@@ -705,14 +705,18 @@ bootstrapDns:
 				Expect(hook.Messages).Should(ContainElement(ContainSubstring("cachePath = /var/cache/blocky/lists")))
 			})
 
-			It("logs disabled when cachePath is empty", func() {
+			It("logs disabled only at debug level when cachePath is empty", func() {
 				cfg, err := WithDefaults[Downloader]()
 				Expect(err).Should(Succeed())
 
-				logger.Logger.Level = logrus.TraceLevel
-
+				// At the default info level the disabled note is suppressed (it is a debug line)...
+				logger.Logger.Level = logrus.InfoLevel
 				cfg.LogConfig(logger)
+				Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("disabled")))
 
+				// ...and only appears once debug/trace logging is enabled.
+				logger.Logger.Level = logrus.TraceLevel
+				cfg.LogConfig(logger)
 				Expect(hook.Messages).Should(ContainElement(ContainSubstring("disabled")))
 			})
 		})

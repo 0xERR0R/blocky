@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/0xERR0R/blocky/cache/stringcache"
@@ -545,6 +546,41 @@ var _ = Describe("ListCache.seedFromDisk", func() {
 		sut.seedFromDisk(ctx)
 
 		Expect(sut.Match("seeded.com", []string{"ads"})).Should(ContainElement("ads"))
+	})
+
+	It("also seeds inline and file sources that share a group with an HTTP source", func(ctx context.Context) {
+		dir := GinkgoT().TempDir()
+		url := "http://example.com/list.txt"
+		Expect(os.WriteFile(cacheFilePath(dir, url), []byte("http-seeded.com\n"), 0o600)).Should(Succeed())
+
+		listFile := filepath.Join(GinkgoT().TempDir(), "local.txt")
+		Expect(os.WriteFile(listFile, []byte("file-seeded.com\n"), 0o600)).Should(Succeed())
+
+		grouped := stringcache.NewChainedGroupedCache(
+			stringcache.NewInMemoryGroupedRegexCache(),
+			stringcache.NewInMemoryGroupedWildcardCache(),
+			stringcache.NewInMemoryGroupedStringCache(),
+		)
+
+		sut := &ListCache{
+			groupedCache: grouped,
+			cfg: config.SourceLoading{
+				Downloads: config.Downloader{CachePath: dir},
+			},
+			groupSources: map[string][]config.BytesSource{
+				"ads": {
+					{Type: config.BytesSourceTypeHttp, From: url},
+					{Type: config.BytesSourceTypeFile, From: listFile},
+					{Type: config.BytesSourceTypeText, From: "inline-seeded.com"},
+				},
+			},
+		}
+
+		sut.seedFromDisk(ctx)
+
+		Expect(sut.Match("http-seeded.com", []string{"ads"})).Should(ContainElement("ads"))
+		Expect(sut.Match("file-seeded.com", []string{"ads"})).Should(ContainElement("ads"))
+		Expect(sut.Match("inline-seeded.com", []string{"ads"})).Should(ContainElement("ads"))
 	})
 })
 

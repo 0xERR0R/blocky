@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -67,6 +68,8 @@ func (c *cachingDownloader) conditionalHeader(link string) http.Header {
 		return nil
 	}
 
+	// setValidators only stores an entry when at least one validator is non-empty,
+	// so a present entry always yields at least one conditional header.
 	h := make(http.Header, 2)
 	if v.etag != "" {
 		h.Set("If-None-Match", v.etag)
@@ -76,20 +79,23 @@ func (c *cachingDownloader) conditionalHeader(link string) http.Header {
 		h.Set("If-Modified-Since", v.lastModified)
 	}
 
-	if len(h) == 0 {
-		return nil
-	}
-
 	return h
 }
 
 func (c *cachingDownloader) DownloadFile(ctx context.Context, link string) (io.ReadCloser, error) {
 	resp, err := c.inner.download(ctx, link, c.conditionalHeader(link))
 	if err != nil {
-		if cached, openErr := openCached(c.dir, link); openErr == nil {
-			logger().WithField("link", link).WithError(err).Warn("download failed, using cached copy")
+		// Only serve the stale cached copy when the source was unreachable
+		// (connection/timeout/DNS error). If the host answered with an HTTP error
+		// status (4xx/5xx) it is reachable, so we surface the error and let the
+		// existing in-memory cache stand rather than masking a removed/changed source.
+		var statusErr *httpStatusError
+		if !errors.As(err, &statusErr) {
+			if cached, openErr := openCached(c.dir, link); openErr == nil {
+				logger().WithField("link", link).WithError(err).Warn("download failed, using cached copy")
 
-			return cached, nil
+				return cached, nil
+			}
 		}
 
 		return nil, err
@@ -148,14 +154,9 @@ func (c *cachingDownloader) serveAndStore(link string, resp *downloadResponse) (
 			return
 		}
 
-		if err := tmp.Sync(); err != nil {
-			logger().WithError(err).Warn("cache fsync failed, discarding temp file")
-			_ = tmp.Close()
-			_ = os.Remove(tmp.Name())
-
-			return
-		}
-
+		// No fsync: the cache is regenerable disposable state. A torn write after a
+		// crash is tolerated by the parser and corrected by the next refresh, so the
+		// durability cost of fsync-per-download is not worth it.
 		_ = tmp.Close()
 
 		if err := os.Rename(tmp.Name(), finalPath); err != nil {
@@ -197,8 +198,12 @@ func (w *tolerantFileWriter) Write(p []byte) (int, error) {
 }
 
 // cacheFinalizer tees the network body into a temp file and finalizes (rename +
-// store validators) exactly once when the reader is fully consumed to EOF.
-// If the consumer stops early, Close discards the temp file and keeps any previous copy.
+// store validators) exactly once when the whole body has been teed to disk.
+// If the consumer stops before EOF (e.g. the parser aborts after too many errors),
+// Close drains the rest of the body into the temp file so the cache still captures
+// the full download and the HTTP connection can be reused; a read error during the
+// drain (e.g. context cancellation or a mid-stream network failure) leaves the temp
+// file discarded and any previous cached copy untouched.
 // It is not safe for concurrent use; it follows the single-consumer io.ReadCloser contract.
 type cacheFinalizer struct {
 	body     io.ReadCloser
@@ -210,7 +215,7 @@ type cacheFinalizer struct {
 
 func (f *cacheFinalizer) Read(p []byte) (int, error) {
 	n, err := f.tee.Read(p)
-	if err == io.EOF && !f.done {
+	if errors.Is(err, io.EOF) && !f.done {
 		f.done = true
 		f.finalize()
 	}
@@ -219,6 +224,17 @@ func (f *cacheFinalizer) Read(p []byte) (int, error) {
 }
 
 func (f *cacheFinalizer) Close() error {
+	if !f.done {
+		// Drain whatever the consumer left unread through the tee so the cache file
+		// holds the complete body. io.Copy treats io.EOF as success; any other error
+		// (cancelled context, mid-stream reset) leaves done=false and the temp file is
+		// discarded below.
+		if _, err := io.Copy(io.Discard, f.tee); err == nil {
+			f.done = true
+			f.finalize()
+		}
+	}
+
 	err := f.body.Close()
 
 	if !f.done {

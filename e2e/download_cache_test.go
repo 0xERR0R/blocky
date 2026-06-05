@@ -2,9 +2,12 @@ package e2e
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -195,6 +198,60 @@ var _ = Describe("Download cache", func() {
 				entries, rerr := os.ReadDir(cacheDir)
 				Expect(rerr).Should(Succeed())
 				Expect(entries).Should(BeEmpty())
+			})
+		})
+	})
+
+	Context("with cachePath and loading.strategy: fast (seed from disk)", func() {
+		// Must match lists.cacheFilePath: <dir>/<sha256hex(url)>.
+		const sourceURL = "http://httpserver:8080/list.txt"
+
+		BeforeEach(func(ctx context.Context) {
+			// The server serves a different file, so GET /list.txt returns 404: the source
+			// is reachable but errors. A 404 is not served from the cache (only unreachable
+			// hosts are), so the domain can only be blocked if seedFromDisk loaded it.
+			_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "other.txt", "ignored.com")
+			Expect(err).Should(Succeed())
+
+			// Pre-seed the on-disk cache copy for the source URL.
+			sum := sha256.Sum256([]byte(sourceURL))
+			cacheFile := filepath.Join(cacheDir, hex.EncodeToString(sum[:]))
+			Expect(os.WriteFile(cacheFile, []byte("seededblock.com\n"), 0o644)).Should(Succeed())
+
+			blocky, err = createBlockyContainerWithBinds(ctx, e2eNet, []string{cacheDir + ":/cache"},
+				strings.Split(dedent(`
+					log:
+					  level: debug
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					blocking:
+					  loading:
+					    strategy: fast
+					    downloads:
+					      cachePath: /cache
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/list.txt
+					  clientGroupsBlock:
+					    default:
+					      - ads
+				`), "\n")...)
+			Expect(err).Should(Succeed())
+		})
+
+		It("blocks from the seeded cache on fast start even though the source returns 404", func(ctx context.Context) {
+			By("blocking the seeded domain", func() {
+				msg := util.NewMsgWithQuestion("seededblock.com.", A)
+				Eventually(func(ctx context.Context) (*dns.Msg, error) {
+					return doDNSRequest(ctx, blocky, msg)
+				}).WithContext(ctx).WithTimeout(time.Minute).WithPolling(time.Second).
+					Should(BeDNSRecord("seededblock.com.", A, "0.0.0.0"))
+			})
+
+			By("logging that the group was seeded from disk", func() {
+				Expect(getContainerLogs(ctx, blocky)).Should(ContainElement(ContainSubstring("seeded group cache from disk")))
 			})
 		})
 	})

@@ -23,6 +23,9 @@ import (
 const (
 	groupProducersBufferCap = 1000
 	regexWarningThreshold   = 500
+
+	logFieldGroup      = "group"
+	logFieldTotalCount = "total_count"
 )
 
 // ListCacheType represents the type of cached list ENUM(
@@ -133,8 +136,8 @@ func (b *ListCache) refresh(ctx context.Context) error {
 				count := b.groupedCache.ElementCount(group)
 
 				logger := logger().WithFields(logrus.Fields{
-					"group":       group,
-					"total_count": count,
+					logFieldGroup:      group,
+					logFieldTotalCount: count,
 				})
 
 				if count == 0 {
@@ -151,8 +154,8 @@ func (b *ListCache) refresh(ctx context.Context) error {
 			evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, count)
 
 			logger().WithFields(logrus.Fields{
-				"group":       group,
-				"total_count": count,
+				logFieldGroup:      group,
+				logFieldTotalCount: count,
 			}).Info("group import finished")
 
 			return nil
@@ -214,49 +217,84 @@ func (b *ListCache) createCacheForGroup(
 	return nil
 }
 
-// seedFromDisk pre-populates each group's cache from on-disk download copies, so
-// blocky can answer queries before the first network refresh completes. It is a
-// best-effort fast-start optimization; sources without a cached copy are skipped.
+// seedFromDisk pre-populates each group's cache from locally-available sources, so
+// blocky can answer queries before the first network refresh completes. HTTP sources
+// are seeded from their on-disk download copy (when present); inline and file sources
+// are already local and seeded directly. It reuses the same parallel import path as a
+// normal refresh and is best-effort: groups or sources without local data are skipped
+// and a seed failure never aborts startup.
 func (b *ListCache) seedFromDisk(ctx context.Context) {
 	dir := b.cfg.Downloads.CachePath
 	if dir == "" {
 		return
 	}
 
+	localSources := b.localSeedSources(dir)
+	if len(localSources) == 0 {
+		return
+	}
+
+	unlimitedGrp, _ := jobgroup.WithContext(ctx)
+	defer unlimitedGrp.Close()
+
+	producersGrp := jobgroup.WithMaxConcurrency(unlimitedGrp, b.cfg.Concurrency)
+	defer producersGrp.Close()
+
+	for group, sources := range localSources {
+		unlimitedGrp.Go(func(ctx context.Context) error {
+			if err := b.createCacheForGroup(producersGrp, unlimitedGrp, group, sources); err != nil {
+				logger().WithError(err).WithField(logFieldGroup, group).Debug("disk seed: skipping group with no usable local data")
+
+				return nil // best-effort: never fail startup on a seed error
+			}
+
+			logger().WithFields(logrus.Fields{
+				logFieldGroup:      group,
+				logFieldTotalCount: b.groupedCache.ElementCount(group),
+			}).Debug("seeded group cache from disk")
+
+			return nil
+		})
+	}
+
+	_ = unlimitedGrp.Wait()
+}
+
+// localSeedSources maps each group's configured sources to the ones loadable without
+// the network at startup: an HTTP source is replaced by its on-disk cache copy when one
+// exists, while inline and file sources are kept as-is. Groups with no locally-available
+// source are omitted.
+func (b *ListCache) localSeedSources(dir string) map[string][]config.BytesSource {
+	out := make(map[string][]config.BytesSource, len(b.groupSources))
+
 	for group, sources := range b.groupSources {
-		factory := b.groupedCache.Refresh(group)
+		local := make([]config.BytesSource, 0, len(sources))
 
 		for _, source := range sources {
 			if source.Type != config.BytesSourceTypeHttp {
+				local = append(local, source) // inline/file sources are already local
+
 				continue
 			}
 
 			path := cacheFilePath(dir, source.From)
 			if _, err := os.Stat(path); err != nil {
+				if !errors.Is(err, os.ErrNotExist) {
+					logger().WithError(err).WithField("path", path).Debug("disk seed: cannot stat cache file")
+				}
+
 				continue // no cached copy yet
 			}
 
-			opener := &fileOpener{source: config.BytesSource{Type: config.BytesSourceTypeFile, From: path}}
-
-			ch := make(chan string, groupProducersBufferCap)
-			go func() {
-				defer close(ch)
-
-				if err := b.parseFile(ctx, opener, ch); err != nil {
-					logger().WithError(err).WithField("group", group).Debug("disk seed: skipping unparseable cache file")
-				}
-			}()
-
-			for host := range ch {
-				factory.AddEntry(host)
-			}
+			local = append(local, config.BytesSource{Type: config.BytesSourceTypeFile, From: path})
 		}
 
-		if factory.Count() > 0 {
-			factory.Finish()
-			logger().WithField("group", group).Debug("seeded group cache from disk")
+		if len(local) > 0 {
+			out[group] = local
 		}
 	}
+
+	return out
 }
 
 // downloads file (or reads local file) and writes each line in the file to the result channel

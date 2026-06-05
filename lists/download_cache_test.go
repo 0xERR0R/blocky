@@ -142,7 +142,7 @@ var _ = Describe("cachingDownloader", func() {
 	})
 
 	When("the reader is closed before EOF", func() {
-		It("does not finalize a cache file and leaves no temp file", func(ctx context.Context) {
+		It("drains the rest of the body into the cache file and leaves no temp file", func(ctx context.Context) {
 			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 				_, _ = rw.Write([]byte("a.com\nb.com\nc.com"))
 			}))
@@ -155,12 +155,40 @@ var _ = Describe("cachingDownloader", func() {
 			_, _ = reader.Read(buf) // read a little, but not to EOF
 			Expect(reader.Close()).Should(Succeed())
 
-			_, statErr := os.Stat(cacheFilePath(dir, server.URL))
-			Expect(os.IsNotExist(statErr)).Should(BeTrue())
+			// Close drains the unread remainder so the cache still holds the full body.
+			onDisk, err := os.ReadFile(cacheFilePath(dir, server.URL))
+			Expect(err).Should(Succeed())
+			Expect(string(onDisk)).Should(Equal("a.com\nb.com\nc.com"))
 
 			entries, err := os.ReadDir(dir)
 			Expect(err).Should(Succeed())
-			Expect(entries).Should(BeEmpty())
+			Expect(entries).Should(HaveLen(1)) // cache file only, no leftover temp
+		})
+	})
+
+	When("the source answers with a permanent HTTP error after a copy was cached", func() {
+		It("surfaces the error instead of serving the stale cached copy", func(ctx context.Context) {
+			var fail bool
+			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+				if fail {
+					http.Error(rw, "gone", http.StatusNotFound)
+
+					return
+				}
+
+				_, _ = rw.Write([]byte("a.com\nb.com"))
+			}))
+			DeferCleanup(server.Close)
+
+			reader, err := sut.DownloadFile(ctx, server.URL)
+			Expect(err).Should(Succeed())
+			Expect(readAll(reader)).Should(Equal("a.com\nb.com")) // cached on disk
+
+			fail = true // source now reachable but returns 404
+
+			_, err = sut.DownloadFile(ctx, server.URL)
+			Expect(err).Should(MatchError(ContainSubstring("status code 404")))
+			Expect(cacheFilePath(dir, server.URL)).Should(BeAnExistingFile()) // stale copy kept, just not served
 		})
 	})
 

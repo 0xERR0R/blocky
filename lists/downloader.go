@@ -30,6 +30,18 @@ func (e *TransientError) Unwrap() error {
 	return e.inner
 }
 
+// httpStatusError represents a download that reached the server but received a
+// non-success HTTP status. It is distinct from connection/timeout/DNS errors so
+// callers can tell "the host answered with an error" apart from "the host was
+// unreachable" (only the latter justifies falling back to a stale cached copy).
+type httpStatusError struct {
+	code int
+}
+
+func (e *httpStatusError) Error() string {
+	return fmt.Sprintf("got status code %d", e.code)
+}
+
 // FileDownloader is able to download some text file
 type FileDownloader interface {
 	DownloadFile(ctx context.Context, link string) (io.ReadCloser, error)
@@ -130,7 +142,7 @@ func (d *httpDownloader) download(ctx context.Context, link string, reqHeader ht
 				_, _ = io.Copy(io.Discard, resp.Body)
 				_ = resp.Body.Close()
 
-				return fmt.Errorf("got status code %d", resp.StatusCode)
+				return &httpStatusError{code: resp.StatusCode}
 			}
 
 			var netErr net.Error
