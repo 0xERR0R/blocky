@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"sync/atomic"
 
 	"github.com/sirupsen/logrus"
@@ -88,6 +89,10 @@ func NewListCache(ctx context.Context,
 		listType:     t,
 		groupSources: groupSources,
 		downloader:   downloader,
+	}
+
+	if cfg.Strategy == config.InitStrategyFast {
+		c.seedFromDisk(ctx)
 	}
 
 	err := cfg.StartPeriodicRefresh(ctx, c.refresh, func(err error) {
@@ -207,6 +212,51 @@ func (b *ListCache) createCacheForGroup(
 	groupFactory.Finish()
 
 	return nil
+}
+
+// seedFromDisk pre-populates each group's cache from on-disk download copies, so
+// blocky can answer queries before the first network refresh completes. It is a
+// best-effort fast-start optimization; sources without a cached copy are skipped.
+func (b *ListCache) seedFromDisk(ctx context.Context) {
+	dir := b.cfg.Downloads.CachePath
+	if dir == "" {
+		return
+	}
+
+	for group, sources := range b.groupSources {
+		factory := b.groupedCache.Refresh(group)
+
+		for _, source := range sources {
+			if source.Type != config.BytesSourceTypeHttp {
+				continue
+			}
+
+			path := cacheFilePath(dir, source.From)
+			if _, err := os.Stat(path); err != nil {
+				continue // no cached copy yet
+			}
+
+			opener := &fileOpener{source: config.BytesSource{Type: config.BytesSourceTypeFile, From: path}}
+
+			ch := make(chan string, groupProducersBufferCap)
+			go func() {
+				defer close(ch)
+
+				if err := b.parseFile(ctx, opener, ch); err != nil {
+					logger().WithError(err).WithField("group", group).Debug("disk seed: skipping unparseable cache file")
+				}
+			}()
+
+			for host := range ch {
+				factory.AddEntry(host)
+			}
+		}
+
+		if factory.Count() > 0 {
+			factory.Finish()
+			logger().WithField("group", group).Debug("seeded group cache from disk")
+		}
+	}
 }
 
 // downloads file (or reads local file) and writes each line in the file to the result channel
