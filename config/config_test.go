@@ -687,6 +687,35 @@ bootstrapDns:
 				})
 			})
 		})
+
+		Describe("DownloaderConfig", func() {
+			It("defaults cachePath to empty (stateless)", func() {
+				cfg, err := WithDefaults[Downloader]()
+				Expect(err).Should(Succeed())
+				Expect(cfg.CachePath).Should(BeEmpty())
+			})
+
+			It("logs the cache path when configured", func() {
+				cfg, err := WithDefaults[Downloader]()
+				Expect(err).Should(Succeed())
+				cfg.CachePath = "/var/cache/blocky/lists"
+
+				cfg.LogConfig(logger)
+
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("cachePath = /var/cache/blocky/lists")))
+			})
+
+			It("logs disabled when cachePath is empty", func() {
+				cfg, err := WithDefaults[Downloader]()
+				Expect(err).Should(Succeed())
+
+				logger.Logger.Level = logrus.TraceLevel
+
+				cfg.LogConfig(logger)
+
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("disabled")))
+			})
+		})
 	})
 
 	Describe("InitStrategy", func() {
