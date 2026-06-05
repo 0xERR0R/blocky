@@ -1459,3 +1459,16 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 	})
 })
+
+var _ = Describe("collectHTTPURLs", func() {
+	It("collects distinct http source URLs, ignoring inline/file sources", func() {
+		sources := []config.BytesSource{
+			{Type: config.BytesSourceTypeHttp, From: "http://a/list"},
+			{Type: config.BytesSourceTypeHttp, From: "http://b/list"},
+			{Type: config.BytesSourceTypeHttp, From: "http://a/list"}, // duplicate
+			{Type: config.BytesSourceTypeText, From: "inline.com"},
+		}
+
+		Expect(collectHTTPURLs(sources)).Should(ConsistOf("http://a/list", "http://b/list"))
+	})
+})

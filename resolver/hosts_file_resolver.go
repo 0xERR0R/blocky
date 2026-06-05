@@ -45,6 +45,13 @@ func NewHostsFileResolver(ctx context.Context,
 		downloader: lists.NewDownloader(cfg.Loading.Downloads, bootstrap.NewHTTPTransport()),
 	}
 
+	if dir := cfg.Loading.Downloads.CachePath; dir != "" {
+		if err := lists.PruneCache(dir, collectHTTPURLs(cfg.Sources)); err != nil {
+			_, logger := r.log(ctx)
+			logger.WithError(err).Warn("could not prune download cache")
+		}
+	}
+
 	err := cfg.Loading.StartPeriodicRefresh(ctx, r.loadSources, func(err error) {
 		_, logger := r.log(ctx)
 		logger.WithError(err).Errorf("could not load hosts files")
