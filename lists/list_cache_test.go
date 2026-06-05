@@ -36,6 +36,7 @@ var _ = Describe("ListCache", func() {
 		lists          map[string][]config.BytesSource
 		downloader     FileDownloader
 		mockDownloader *MockFileDownloader
+		bus            *Bus
 		ctx            context.Context
 		cancelFn       context.CancelFunc
 		err            error
@@ -54,6 +55,7 @@ var _ = Describe("ListCache", func() {
 
 		sutConfig.RefreshPeriod = -1
 
+		bus = NewBus()
 		downloader = NewDownloader(config.Downloader{}, nil, NewBus())
 		mockDownloader = nil
 
@@ -78,7 +80,7 @@ var _ = Describe("ListCache", func() {
 			downloader = mockDownloader
 		}
 
-		sut, err = NewListCache(ctx, listCacheType, sutConfig, lists, downloader, NewBus())
+		sut, err = NewListCache(ctx, listCacheType, sutConfig, lists, downloader, bus)
 		if expectFail {
 			Expect(err).Should(HaveOccurred())
 		} else {
@@ -271,8 +273,8 @@ var _ = Describe("ListCache", func() {
 					"gr1": config.NewBytesSources(server1.URL),
 				}
 
-				_ = LegacyBus().SubscribeOnce(BlockingCacheGroupChanged, func(listType ListCacheType, group string, cnt int) {
-					resultCnt = cnt
+				Subscribe(bus, "test:blocking-cache-group", func(_ context.Context, e BlockingCacheGroupChangedEvent) {
+					resultCnt = e.Count
 				})
 			})
 

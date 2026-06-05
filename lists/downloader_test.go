@@ -24,6 +24,7 @@ var _ = Describe("Downloader", func() {
 	var (
 		sutConfig                     config.Downloader
 		sut                           *httpDownloader
+		bus                           *Bus
 		failedDownloadCountEvtChannel chan string
 		loggerHook                    *test.Hook
 	)
@@ -33,14 +34,11 @@ var _ = Describe("Downloader", func() {
 		sutConfig, err = config.WithDefaults[config.Downloader]()
 		Expect(err).Should(Succeed())
 
+		bus = NewBus()
 		failedDownloadCountEvtChannel = make(chan string, 5)
 		// collect received events in the channel
-		fn := func(url string) {
-			failedDownloadCountEvtChannel <- url
-		}
-		Expect(LegacyBus().Subscribe(CachingFailedDownloadChanged, fn)).Should(Succeed())
-		DeferCleanup(func() {
-			Expect(LegacyBus().Unsubscribe(CachingFailedDownloadChanged, fn)).Should(Succeed())
+		Subscribe(bus, "test:failed-download", func(_ context.Context, e CachingFailedDownloadEvent) {
+			failedDownloadCountEvtChannel <- e.URL
 		})
 
 		loggerHook = test.NewGlobal()
@@ -49,7 +47,7 @@ var _ = Describe("Downloader", func() {
 	})
 
 	JustBeforeEach(func() {
-		sut = newDownloader(sutConfig, nil, nil)
+		sut = newDownloader(sutConfig, nil, bus)
 	})
 
 	Describe("NewDownloader", func() {
@@ -78,7 +76,7 @@ var _ = Describe("Downloader", func() {
 		When("Download was successful", func() {
 			BeforeEach(func() {
 				server = TestServer("line.one\nline.two")
-				sut = newDownloader(sutConfig, nil, nil)
+				sut = newDownloader(sutConfig, nil, bus)
 			})
 			It("Should return all lines from the file", func(ctx context.Context) {
 				reader, err := sut.DownloadFile(ctx, server.URL)

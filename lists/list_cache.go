@@ -146,7 +146,11 @@ func (b *ListCache) refresh(ctx context.Context) error {
 
 			count := b.groupedCache.ElementCount(group)
 
-			evt.LegacyBus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, count)
+			evt.Emit(b.bus, ctx, evt.BlockingCacheGroupChangedEvent{
+				ListType:  b.listType.String(),
+				GroupName: group,
+				Count:     count,
+			})
 
 			logger().WithFields(logrus.Fields{
 				"group":       group,

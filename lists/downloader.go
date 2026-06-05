@@ -110,7 +110,7 @@ func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.Read
 				logger.Warnf("Can't download file: %s", err)
 			}
 
-			onDownloadError(link)
+			d.onDownloadError(ctx, link)
 		}))
 	if err != nil {
 		return nil, fmt.Errorf("failed to download file from '%s': %w", link, err)
@@ -119,6 +119,6 @@ func (d *httpDownloader) DownloadFile(ctx context.Context, link string) (io.Read
 	return body, nil
 }
 
-func onDownloadError(link string) {
-	evt.LegacyBus().Publish(evt.CachingFailedDownloadChanged, link)
+func (d *httpDownloader) onDownloadError(ctx context.Context, link string) {
+	evt.Emit(d.bus, ctx, evt.CachingFailedDownloadEvent{URL: link})
 }

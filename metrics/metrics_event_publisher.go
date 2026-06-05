@@ -14,7 +14,7 @@ import (
 
 // RegisterEventListeners registers all metric handlers by the event bus
 func RegisterEventListeners(bus *evt.Bus) {
-	registerBlockingEventListeners()
+	registerBlockingEventListeners(bus)
 	registerCachingEventListeners(bus)
 	registerApplicationEventListeners(bus)
 }
@@ -39,7 +39,7 @@ func versionNumberGauge() *prometheus.GaugeVec {
 	return denylistCnt
 }
 
-func registerBlockingEventListeners() {
+func registerBlockingEventListeners(bus *evt.Bus) {
 	enabledGauge := enabledGauge()
 
 	RegisterMetric(enabledGauge)
@@ -62,14 +62,14 @@ func registerBlockingEventListeners() {
 	RegisterMetric(allowlistCnt)
 	RegisterMetric(lastListGroupRefresh)
 
-	subscribe(evt.BlockingCacheGroupChanged, func(listType lists.ListCacheType, groupName string, cnt int) {
+	evt.Subscribe(bus, "metrics:blocking-cache-group", func(_ context.Context, e evt.BlockingCacheGroupChangedEvent) {
 		lastListGroupRefresh.Set(float64(time.Now().Unix()))
 
-		switch listType {
-		case lists.ListCacheTypeDenylist:
-			denylistCnt.WithLabelValues(groupName).Set(float64(cnt))
-		case lists.ListCacheTypeAllowlist:
-			allowlistCnt.WithLabelValues(groupName).Set(float64(cnt))
+		switch e.ListType {
+		case lists.ListCacheTypeDenylist.String():
+			denylistCnt.WithLabelValues(e.GroupName).Set(float64(e.Count))
+		case lists.ListCacheTypeAllowlist.String():
+			allowlistCnt.WithLabelValues(e.GroupName).Set(float64(e.Count))
 		}
 	})
 }
@@ -144,9 +144,7 @@ func registerCachingEventListeners(bus *evt.Bus) {
 		entryCount.Set(float64(e.Size))
 	})
 
-	// CachingFailedDownload subscription stays on the legacy bus for now;
-	// it migrates in Task 7.
-	subscribe(evt.CachingFailedDownloadChanged, func(_ string) {
+	evt.Subscribe(bus, "metrics:failed-download", func(_ context.Context, _ evt.CachingFailedDownloadEvent) {
 		failedDownloadCount.Inc()
 	})
 }
