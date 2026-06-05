@@ -152,4 +152,77 @@ var _ = Describe("cachingDownloader", func() {
 			Expect(entries).Should(BeEmpty())
 		})
 	})
+
+	When("a 304 is received but the cache file is missing", func() {
+		It("forces a full download and re-creates the cache file", func(ctx context.Context) {
+			var bodyBytes int
+
+			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+				if req.Header.Get("If-None-Match") == `"v1"` {
+					rw.WriteHeader(http.StatusNotModified)
+
+					return
+				}
+
+				rw.Header().Set("ETag", `"v1"`)
+				n, _ := rw.Write([]byte("a.com\nb.com"))
+				bodyBytes += n
+			}))
+			DeferCleanup(server.Close)
+
+			// First download stores the body + ETag.
+			reader, err := sut.DownloadFile(ctx, server.URL)
+			Expect(err).Should(Succeed())
+			Expect(readAll(reader)).Should(Equal("a.com\nb.com"))
+			bytesAfterFirst := bodyBytes
+
+			// Remove the cache file so the next 304 must fall back to a full GET.
+			Expect(os.Remove(cacheFilePath(dir, server.URL))).Should(Succeed())
+
+			reader, err = sut.DownloadFile(ctx, server.URL)
+			Expect(err).Should(Succeed())
+			Expect(readAll(reader)).Should(Equal("a.com\nb.com"))
+
+			Expect(bodyBytes).Should(BeNumerically(">", bytesAfterFirst)) // body re-downloaded
+			Expect(cacheFilePath(dir, server.URL)).Should(BeAnExistingFile())
+		})
+	})
+
+	When("a previously downloaded source is unchanged", func() {
+		It("sends conditional headers and serves the 304 from disk without a body transfer", func(ctx context.Context) {
+			var (
+				requests  int
+				bodyBytes int
+			)
+
+			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+				requests++
+				if req.Header.Get("If-None-Match") == `"v1"` {
+					rw.WriteHeader(http.StatusNotModified)
+
+					return
+				}
+
+				rw.Header().Set("ETag", `"v1"`)
+				n, _ := rw.Write([]byte("a.com\nb.com"))
+				bodyBytes += n
+			}))
+			DeferCleanup(server.Close)
+
+			// First download: 200, stores body + ETag.
+			reader, err := sut.DownloadFile(ctx, server.URL)
+			Expect(err).Should(Succeed())
+			Expect(readAll(reader)).Should(Equal("a.com\nb.com"))
+
+			bytesAfterFirst := bodyBytes
+
+			// Second download: conditional, 304, served from disk.
+			reader, err = sut.DownloadFile(ctx, server.URL)
+			Expect(err).Should(Succeed())
+			Expect(readAll(reader)).Should(Equal("a.com\nb.com"))
+
+			Expect(requests).Should(Equal(2))
+			Expect(bodyBytes).Should(Equal(bytesAfterFirst)) // no second body transfer
+		})
+	})
 })

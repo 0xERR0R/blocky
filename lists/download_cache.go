@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -97,10 +98,55 @@ func (c *cachingDownloader) setValidators(link, etag, lastModified string) {
 	c.mu.Unlock()
 }
 
+func (c *cachingDownloader) conditionalHeader(link string) http.Header {
+	c.mu.Lock()
+	v, ok := c.validators[link]
+	c.mu.Unlock()
+
+	if !ok {
+		return nil
+	}
+
+	h := make(http.Header, 2)
+	if v.etag != "" {
+		h.Set("If-None-Match", v.etag)
+	}
+
+	if v.lastModified != "" {
+		h.Set("If-Modified-Since", v.lastModified)
+	}
+
+	if len(h) == 0 {
+		return nil
+	}
+
+	return h
+}
+
 func (c *cachingDownloader) DownloadFile(ctx context.Context, link string) (io.ReadCloser, error) {
-	resp, err := c.inner.download(ctx, link, nil)
+	resp, err := c.inner.download(ctx, link, c.conditionalHeader(link))
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.statusCode == http.StatusNotModified {
+		cached, openErr := openCached(c.dir, link)
+		if openErr == nil {
+			logger().WithField("link", link).Debug("source not modified, using cached copy")
+
+			return cached, nil
+		}
+
+		// Validators say unchanged but the cache file is gone: force a full download.
+		resp, err = c.inner.download(ctx, link, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		if resp.body == nil {
+			// A forced unconditional GET sends no validators, so a 304 (nil body) is impossible.
+			return nil, fmt.Errorf("unexpected 304 Not Modified on forced unconditional request for '%s'", link)
+		}
 	}
 
 	return c.serveAndStore(link, resp)
