@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -76,22 +77,39 @@ func createDNSMokkaContainer(ctx context.Context, alias string, e2eNet *testcont
 // createHTTPServerContainer creates a static HTTP server container that serves one file with the given lines
 // and is attached to the test network under the given alias.
 // It is automatically terminated when the test is finished.
+//
+// The file is served via a bind-mounted host directory so that the host file's
+// modification time is visible inside the container. This allows Go's
+// http.FileServer (used by halverneus/static-file-server) to emit a valid
+// Last-Modified header and return 304 for conditional requests.
 func createHTTPServerContainer(ctx context.Context, alias string, e2eNet *testcontainers.DockerNetwork,
 	filename string, lines ...string,
 ) (testcontainers.Container, error) {
-	file := createTempFile(lines...)
+	dir, err := os.MkdirTemp("", "blocky_e2e_httpdir-")
+	Expect(err).Should(Succeed())
+	Expect(os.Chmod(dir, 0o755)).Should(Succeed()) // container's static-file-server user must traverse/read the bind mount
+	DeferCleanup(func() error {
+		return os.RemoveAll(dir)
+	})
+
+	f, err := os.OpenFile(filepath.Join(dir, filename), os.O_CREATE|os.O_WRONLY, modeWorldReadable)
+	Expect(err).Should(Succeed())
+	for i, l := range lines {
+		if i != 0 {
+			_, err = f.WriteString("\n")
+			Expect(err).Should(Succeed())
+		}
+		_, err = f.WriteString(l)
+		Expect(err).Should(Succeed())
+	}
+	Expect(f.Close()).Should(Succeed())
 
 	req := testcontainers.ContainerRequest{
-		Image: staticServerImage,
-
+		Image:        staticServerImage,
 		ExposedPorts: []string{"8080/tcp"},
-		Env:          map[string]string{"FOLDER": "/"},
-		Files: []testcontainers.ContainerFile{
-			{
-				HostFilePath:      file,
-				ContainerFilePath: "/" + filename,
-				FileMode:          modeWorldReadable,
-			},
+		Env:          map[string]string{"FOLDER": "/data"},
+		HostConfigModifier: func(hc *container.HostConfig) {
+			hc.Binds = append(hc.Binds, dir+":/data:ro")
 		},
 	}
 
