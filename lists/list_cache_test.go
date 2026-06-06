@@ -8,8 +8,10 @@ import (
 	"io"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/0xERR0R/blocky/cache/stringcache"
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/lists/parsers"
@@ -516,6 +518,69 @@ var _ = Describe("ListCache", func() {
 				Expect(group).Should(ContainElement("gr1"))
 			})
 		})
+	})
+})
+
+var _ = Describe("ListCache.seedFromDisk", func() {
+	It("populates the group cache from on-disk bodies before any download", func(ctx context.Context) {
+		dir := GinkgoT().TempDir()
+		url := "http://example.com/list.txt"
+		Expect(os.WriteFile(cacheFilePath(dir, url), []byte("seeded.com\n"), 0o600)).Should(Succeed())
+
+		grouped := stringcache.NewChainedGroupedCache(
+			stringcache.NewInMemoryGroupedRegexCache(),
+			stringcache.NewInMemoryGroupedWildcardCache(),
+			stringcache.NewInMemoryGroupedStringCache(),
+		)
+
+		sut := &ListCache{
+			groupedCache: grouped,
+			cfg: config.SourceLoading{
+				Downloads: config.Downloader{CachePath: dir},
+			},
+			groupSources: map[string][]config.BytesSource{
+				"ads": {{Type: config.BytesSourceTypeHttp, From: url}},
+			},
+		}
+
+		sut.seedFromDisk(ctx)
+
+		Expect(sut.Match("seeded.com", []string{"ads"})).Should(ContainElement("ads"))
+	})
+
+	It("also seeds inline and file sources that share a group with an HTTP source", func(ctx context.Context) {
+		dir := GinkgoT().TempDir()
+		url := "http://example.com/list.txt"
+		Expect(os.WriteFile(cacheFilePath(dir, url), []byte("http-seeded.com\n"), 0o600)).Should(Succeed())
+
+		listFile := filepath.Join(GinkgoT().TempDir(), "local.txt")
+		Expect(os.WriteFile(listFile, []byte("file-seeded.com\n"), 0o600)).Should(Succeed())
+
+		grouped := stringcache.NewChainedGroupedCache(
+			stringcache.NewInMemoryGroupedRegexCache(),
+			stringcache.NewInMemoryGroupedWildcardCache(),
+			stringcache.NewInMemoryGroupedStringCache(),
+		)
+
+		sut := &ListCache{
+			groupedCache: grouped,
+			cfg: config.SourceLoading{
+				Downloads: config.Downloader{CachePath: dir},
+			},
+			groupSources: map[string][]config.BytesSource{
+				"ads": {
+					{Type: config.BytesSourceTypeHttp, From: url},
+					{Type: config.BytesSourceTypeFile, From: listFile},
+					{Type: config.BytesSourceTypeText, From: "inline-seeded.com"},
+				},
+			},
+		}
+
+		sut.seedFromDisk(ctx)
+
+		Expect(sut.Match("http-seeded.com", []string{"ads"})).Should(ContainElement("ads"))
+		Expect(sut.Match("file-seeded.com", []string{"ads"})).Should(ContainElement("ads"))
+		Expect(sut.Match("inline-seeded.com", []string{"ads"})).Should(ContainElement("ads"))
 	})
 })
 

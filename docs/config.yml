@@ -170,6 +170,11 @@ blocking:
       # optional: Time between the download attempts
       # default: 500ms
       cooldown: 10s
+      # optional directory for an on-disk download cache. When set, blocky uses HTTP
+      # conditional requests (it skips re-downloading unchanged lists) and serves a
+      # source from disk when its host is temporarily unreachable. When unset (default),
+      # downloads are fully stateless (nothing is written to disk).
+      # cachePath: /var/cache/blocky/lists
     # optional: Maximum number of lists to process in parallel.
     # default: 4
     concurrency: 16
@@ -382,6 +387,11 @@ hostsFile:
       # optional: Time between the download attempts
       # default: 500ms
       cooldown: 10s
+      # optional directory for an on-disk download cache. When set, blocky uses HTTP
+      # conditional requests (it skips re-downloading unchanged lists) and serves a
+      # source from disk when its host is temporarily unreachable. When unset (default),
+      # downloads are fully stateless (nothing is written to disk).
+      # cachePath: /var/cache/blocky/lists
     # optional: Maximum number of files to process in parallel.
     # default: 4
     concurrency: 16

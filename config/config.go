@@ -568,12 +568,23 @@ type Downloader struct {
 	Attempts uint `default:"3" yaml:"attempts"`
 	// Pause between consecutive download attempts (default: 500ms).
 	Cooldown Duration `default:"500ms" yaml:"cooldown"`
+	// Directory for the on-disk download cache. When empty (default), downloads are
+	// fully stateless: nothing is written to disk and every source is downloaded in
+	// full on every refresh. When set, blocky uses HTTP conditional requests and
+	// serves unchanged/unavailable sources from this directory.
+	CachePath string `yaml:"cachePath"`
 }
 
 func (c *Downloader) LogConfig(logger *logrus.Entry) {
 	logger.Infof("timeout = %s", c.Timeout)
 	logger.Infof("attempts = %d", c.Attempts)
 	logger.Debugf("cooldown = %s", c.Cooldown)
+
+	if c.CachePath != "" {
+		logger.Infof("cachePath = %s", c.CachePath)
+	} else {
+		logger.Debug("cachePath = (disabled, stateless downloads)")
+	}
 }
 
 func WithDefaults[T any]() (T, error) {

@@ -687,6 +687,39 @@ bootstrapDns:
 				})
 			})
 		})
+
+		Describe("DownloaderConfig", func() {
+			It("defaults cachePath to empty (stateless)", func() {
+				cfg, err := WithDefaults[Downloader]()
+				Expect(err).Should(Succeed())
+				Expect(cfg.CachePath).Should(BeEmpty())
+			})
+
+			It("logs the cache path when configured", func() {
+				cfg, err := WithDefaults[Downloader]()
+				Expect(err).Should(Succeed())
+				cfg.CachePath = "/var/cache/blocky/lists"
+
+				cfg.LogConfig(logger)
+
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("cachePath = /var/cache/blocky/lists")))
+			})
+
+			It("logs disabled only at debug level when cachePath is empty", func() {
+				cfg, err := WithDefaults[Downloader]()
+				Expect(err).Should(Succeed())
+
+				// At the default info level the disabled note is suppressed (it is a debug line)...
+				logger.Logger.Level = logrus.InfoLevel
+				cfg.LogConfig(logger)
+				Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("disabled")))
+
+				// ...and only appears once debug/trace logging is enabled.
+				logger.Logger.Level = logrus.TraceLevel
+				cfg.LogConfig(logger)
+				Expect(hook.Messages).Should(ContainElement(ContainSubstring("disabled")))
+			})
+		})
 	})
 
 	Describe("InitStrategy", func() {

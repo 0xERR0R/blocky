@@ -237,5 +237,41 @@ var _ = Describe("Downloader", func() {
 				Expect(proxy.RequestTarget()).Should(Equal("example.com"))
 			})
 		})
+
+		When("download() is called directly", func() {
+			BeforeEach(func() {
+				server = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					rw.Header().Set("ETag", `"abc123"`)
+					_, _ = rw.Write([]byte("a.com\nb.com"))
+				}))
+				DeferCleanup(server.Close)
+			})
+
+			It("surfaces the status code, headers and body", func(ctx context.Context) {
+				resp, err := sut.download(ctx, server.URL, nil)
+				Expect(err).Should(Succeed())
+				Expect(resp.statusCode).Should(Equal(http.StatusOK))
+				Expect(resp.header.Get("ETag")).Should(Equal(`"abc123"`))
+
+				DeferCleanup(resp.body.Close)
+				buf := new(strings.Builder)
+				_, err = io.Copy(buf, resp.body)
+				Expect(err).Should(Succeed())
+				Expect(buf.String()).Should(Equal("a.com\nb.com"))
+			})
+
+			It("returns a 304 with nil body when the server reports not-modified", func(ctx context.Context) {
+				condServer := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					Expect(req.Header.Get("If-None-Match")).Should(Equal(`"abc123"`))
+					rw.WriteHeader(http.StatusNotModified)
+				}))
+				DeferCleanup(condServer.Close)
+
+				resp, err := sut.download(ctx, condServer.URL, http.Header{"If-None-Match": {`"abc123"`}})
+				Expect(err).Should(Succeed())
+				Expect(resp.statusCode).Should(Equal(http.StatusNotModified))
+				Expect(resp.body).Should(BeNil())
+			})
+		})
 	})
 })
