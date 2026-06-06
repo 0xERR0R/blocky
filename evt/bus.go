@@ -4,9 +4,13 @@
 // Producers and consumers use the package-level generic functions Emit, Subscribe,
 // and Unsubscribe; the bus itself never grows public fields per event.
 //
-// All operations are nil-safe: passing a nil bus makes Emit / Subscribe /
-// Unsubscribe no-ops. This is used by resolver.Bootstrap to silence its
-// internal CachingResolver.
+// All operations are nil-safe: passing a nil bus makes Emit / EmitAsync /
+// Subscribe / Unsubscribe no-ops. This is used by resolver.Bootstrap to silence
+// its internal CachingResolver.
+//
+// Emit blocks the caller until every listener returns (listeners run
+// concurrently with each other, but not with the caller). Use EmitAsync when
+// the producer must not wait on listener latency.
 package evt
 
 import (
@@ -28,12 +32,33 @@ func NewBus() *Bus {
 	return &Bus{signals: make(map[reflect.Type]any)}
 }
 
-// Emit publishes an event of type T to all subscribers. A nil bus is a no-op.
+// Emit publishes an event of type T to all subscribers and blocks until every
+// listener returns. Listeners run concurrently with each other but not with the
+// caller. A nil bus is a no-op.
 func Emit[T any](b *Bus, ctx context.Context, event T) {
 	if b == nil {
 		return
 	}
 	signalFor[T](b).Emit(ctx, event)
+}
+
+// EmitAsync publishes an event of type T without blocking the caller: dispatch
+// to listeners happens in a detached background goroutine and EmitAsync returns
+// immediately. Use it when the producer must not wait on listener latency (e.g.
+// an emit whose listener performs network I/O). A nil bus is a no-op.
+//
+// Because dispatch is detached, the caller cannot observe when listeners finish,
+// and ordering relative to later Emit/EmitAsync calls is not guaranteed. The
+// supplied ctx is captured by the goroutine; if the caller cancels it right
+// after the call, listeners observe a cancelled context.
+func EmitAsync[T any](b *Bus, ctx context.Context, event T) {
+	if b == nil {
+		return
+	}
+
+	signal := signalFor[T](b)
+
+	go signal.Emit(ctx, event)
 }
 
 // Subscribe registers a listener for events of type T under the given key. A

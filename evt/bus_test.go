@@ -97,6 +97,51 @@ var _ = Describe("Bus", func() {
 		})
 	})
 
+	Describe("EmitAsync", func() {
+		When("the bus is nil", func() {
+			It("is a no-op", func() {
+				Expect(func() {
+					evt.EmitAsync[fooEvent](nil, context.Background(), fooEvent{N: 1})
+				}).ShouldNot(Panic())
+			})
+		})
+
+		When("a listener is registered", func() {
+			It("delivers the event eventually", func(specCtx context.Context) {
+				received := make(chan fooEvent, 1)
+				evt.Subscribe(bus, "k", func(_ context.Context, e fooEvent) {
+					received <- e
+				})
+
+				evt.EmitAsync(bus, specCtx, fooEvent{N: 99})
+
+				Eventually(received).WithTimeout(time.Second).Should(Receive(Equal(fooEvent{N: 99})))
+			})
+		})
+
+		When("a listener blocks", func() {
+			It("returns to the caller without waiting for the listener", func(specCtx context.Context) {
+				release := make(chan struct{})
+				started := make(chan struct{}, 1)
+				evt.Subscribe(bus, "slow", func(_ context.Context, _ fooEvent) {
+					started <- struct{}{}
+					<-release // block until the test releases us
+				})
+				DeferCleanup(func() { close(release) })
+
+				returned := make(chan struct{})
+				go func() {
+					evt.EmitAsync(bus, specCtx, fooEvent{})
+					close(returned)
+				}()
+
+				// EmitAsync must return promptly even though the listener is still blocked.
+				Eventually(returned).WithTimeout(time.Second).Should(BeClosed())
+				Eventually(started).WithTimeout(time.Second).Should(Receive())
+			})
+		})
+	})
+
 	Describe("Subscribe with nil bus", func() {
 		It("is a no-op for Subscribe and Unsubscribe", func() {
 			Expect(func() {
