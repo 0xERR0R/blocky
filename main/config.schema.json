@@ -436,6 +436,10 @@
                     "30s",
                     "1h"
                   ]
+                },
+                "cachePath": {
+                  "type": "string",
+                  "description": "Directory for the on-disk download cache. When empty (default), downloads are\nfully stateless: nothing is written to disk and every source is downloaded in\nfull on every refresh. When set, blocky uses HTTP conditional requests and\nserves unchanged/unavailable sources from this directory."
                 }
               },
               "additionalProperties": false,
@@ -1253,6 +1257,10 @@
                     "30s",
                     "1h"
                   ]
+                },
+                "cachePath": {
+                  "type": "string",
+                  "description": "Directory for the on-disk download cache. When empty (default), downloads are\nfully stateless: nothing is written to disk and every source is downloaded in\nfull on every refresh. When set, blocky uses HTTP conditional requests and\nserves unchanged/unavailable sources from this directory."
                 }
               },
               "additionalProperties": false,

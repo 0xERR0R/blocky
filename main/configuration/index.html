@@ -2877,6 +2877,11 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">      </span><span class="c1"># optional: Time between the download attempts</span>
 <span class="w">      </span><span class="c1"># default: 500ms</span>
 <span class="w">      </span><span class="nt">cooldown</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10s</span>
+<span class="w">      </span><span class="c1"># optional directory for an on-disk download cache. When set, blocky uses HTTP</span>
+<span class="w">      </span><span class="c1"># conditional requests (it skips re-downloading unchanged lists) and serves a</span>
+<span class="w">      </span><span class="c1"># source from disk when its host is temporarily unreachable. When unset (default),</span>
+<span class="w">      </span><span class="c1"># downloads are fully stateless (nothing is written to disk).</span>
+<span class="w">      </span><span class="c1"># cachePath: /var/cache/blocky/lists</span>
 <span class="w">    </span><span class="c1"># optional: Maximum number of lists to process in parallel.</span>
 <span class="w">    </span><span class="c1"># default: 4</span>
 <span class="w">    </span><span class="nt">concurrency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16</span>
@@ -3089,6 +3094,11 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">      </span><span class="c1"># optional: Time between the download attempts</span>
 <span class="w">      </span><span class="c1"># default: 500ms</span>
 <span class="w">      </span><span class="nt">cooldown</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10s</span>
+<span class="w">      </span><span class="c1"># optional directory for an on-disk download cache. When set, blocky uses HTTP</span>
+<span class="w">      </span><span class="c1"># conditional requests (it skips re-downloading unchanged lists) and serves a</span>
+<span class="w">      </span><span class="c1"># source from disk when its host is temporarily unreachable. When unset (default),</span>
+<span class="w">      </span><span class="c1"># downloads are fully stateless (nothing is written to disk).</span>
+<span class="w">      </span><span class="c1"># cachePath: /var/cache/blocky/lists</span>
 <span class="w">    </span><span class="c1"># optional: Maximum number of files to process in parallel.</span>
 <span class="w">    </span><span class="c1"># default: 4</span>
 <span class="w">    </span><span class="nt">concurrency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16</span>
@@ -5612,8 +5622,22 @@ A value of zero or less will disable this feature.</p>
 <td>500ms</td>
 <td>Time between the download attempts</td>
 </tr>
+<tr>
+<td>cachePath</td>
+<td>path</td>
+<td>no</td>
+<td>(empty)</td>
+<td>Directory for an on-disk cache of downloaded sources (see below)</td>
+</tr>
 </tbody>
 </table>
+<p><code>cachePath</code> (default: empty): directory for an on-disk cache of downloaded sources. When set, blocky sends <abbr title="Hypertext Transfer Protocol">HTTP</abbr>
+conditional requests (<code>If-None-Match</code> / <code>If-Modified-Since</code>) and skips re-downloading unchanged lists, serves a source
+from disk when its host is temporarily unreachable, and — with <code>loading.strategy: fast</code> — seeds lists from disk on
+startup so it can answer queries immediately. Validators are kept in memory and reset on restart, so the first refresh
+after a restart re-downloads each source. When unset, downloads are fully stateless (nothing is written to disk).
+Mount this directory on a persistent volume in containerized setups.
+Note: when you remove or change a source URL, its previous cache file is left on disk — blocky does not delete orphaned cache files automatically. They are harmless and bounded; clear the cache directory manually if you want to reclaim the space.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><pre><span></span><code><span class="nt">loading</span><span class="p">:</span>
@@ -5621,6 +5645,7 @@ A value of zero or less will disable this feature.</p>
 <span class="w">    </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4m</span>
 <span class="w">    </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
 <span class="w">    </span><span class="nt">cooldown</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10s</span>
+<span class="w">    </span><span class="nt">cachePath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/var/cache/blocky/lists</span>
 </code></pre></div>
 </div>
 <h3 id="strategy">Strategy</h3>
