@@ -23,6 +23,7 @@ You can also browse the interactive API documentation (RapiDoc) documentation [o
 | POST   | `/api/lists/refresh`    | Refresh all allow/denylists.                       |
 | POST   | `/api/cache/flush`      | Clear the entire DNS response cache.               |
 | POST   | `/api/query`            | Run a DNS query through Blocky and return the result as JSON. |
+| GET    | `/api/stats`            | In-memory DNS statistics over a rolling 24h window as JSON. Requires [statistics](configuration.md#statistics) to be enabled; returns `503` otherwise. |
 
 !!! example "Flush the DNS cache"
 
@@ -32,6 +33,14 @@ You can also browse the interactive API documentation (RapiDoc) documentation [o
 
     Returns HTTP `200` on success. Useful after editing `customDNS`
     or `hostsFile` entries that may already be cached.
+
+!!! note "Statistics semantics"
+
+    For `/api/stats`, the `summary` fields are server-computed categories (e.g. `blocked` =
+    `BLOCKED` + `FILTERED` + `NOTFQDN`, `forwarded` = `RESOLVED` + `CONDITIONAL`), so callers
+    never interpret a raw response type. The `lists` and `cache` objects are point-in-time gauges
+    (current values, not affected by the 24h window), while `start`/`end` bound the windowed fields
+    only. Statistics are independent of Prometheus and work with plain JSON.
 
 ## CLI
 
