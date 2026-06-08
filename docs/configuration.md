@@ -937,12 +937,12 @@ see [Basic Configuration](#basic-configuration)).
 ## Statistics
 
 Blocky can collect in-memory statistics over a rolling 24h window and serve them as JSON at
-`GET /api/stats`, independent of Prometheus. This is the Prometheus-free path for dashboards. To
+`GET /api/stats`, independent of Prometheus. To
 use this feature, the HTTP listener must be enabled (see [Basic Configuration](#basic-configuration)).
 
 The endpoint returns curated totals (`summary`), raw per-type breakdowns (response type, query type
 and response code), a per-hour time series, top-20 domains / blocked-domains / clients, and current
-list and cache gauges. Memory is bounded (~150 KB typical). Disabled by default; when disabled,
+list and cache gauges. Disabled by default; when disabled,
 `GET /api/stats` returns HTTP 503.
 
 | Parameter         | Mandatory | Default value | Description                                                       |
