@@ -3,10 +3,13 @@ package resolver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/lists"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/stats"
 	"github.com/0xERR0R/blocky/util"
@@ -47,6 +50,8 @@ func NewStatsResolver(cfg config.Statistics) *StatsResolver {
 
 	go r.consume()
 
+	r.subscribeEvents()
+
 	return r
 }
 
@@ -54,6 +59,27 @@ func (r *StatsResolver) consume() {
 	for s := range r.samples {
 		r.collector.Record(s)
 	}
+}
+
+// subscribeEvents keeps the point-in-time list/cache gauges up to date from the
+// same event bus the metrics package uses.
+func (r *StatsResolver) subscribeEvents() {
+	subscribe := func(topic string, fn any) {
+		util.FatalOnError(fmt.Sprintf("can't subscribe topic '%s'", topic), evt.Bus().Subscribe(topic, fn))
+	}
+
+	subscribe(evt.CachingResultCacheChanged, func(cnt int) {
+		r.collector.SetCacheEntries(cnt)
+	})
+
+	subscribe(evt.BlockingCacheGroupChanged, func(listType lists.ListCacheType, group string, cnt int) {
+		switch listType {
+		case lists.ListCacheTypeDenylist:
+			r.collector.SetDenylistCount(group, cnt)
+		case lists.ListCacheTypeAllowlist:
+			r.collector.SetAllowlistCount(group, cnt)
+		}
+	})
 }
 
 // StatsEnabled reports whether statistics collection is active.

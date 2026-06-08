@@ -5,6 +5,8 @@ import (
 	"errors"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/lists"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/stats"
 
@@ -91,6 +93,22 @@ var _ = Describe("StatsResolver", func() {
 			logger, hook := log.NewMockEntry()
 			sut.LogConfig(logger)
 			Expect(hook.Calls).ShouldNot(BeEmpty())
+		})
+
+		It("updates cache entry count from the event bus", func() {
+			evt.Bus().Publish(evt.CachingResultCacheChanged, 123)
+
+			Eventually(func() int {
+				return sut.Stats().CacheEntries
+			}).Should(Equal(123))
+		})
+
+		It("updates list counts from the event bus", func() {
+			evt.Bus().Publish(evt.BlockingCacheGroupChanged, lists.ListCacheTypeDenylist, "ads", 5000)
+
+			Eventually(func() map[string]int {
+				return sut.Stats().Lists.Denylist
+			}).Should(HaveKeyWithValue("ads", 5000))
 		})
 	})
 
