@@ -134,6 +134,8 @@ paths:
       description: >-
         In-memory statistics over a rolling 24h window. Requires statistics to be
         enabled in the configuration; returns 503 otherwise. Independent of Prometheus.
+        All timestamps (start, end, perHour[].hour) are returned in UTC (RFC 3339,
+        `Z` suffix).
       responses:
         '200':
           description: Current statistics
@@ -208,11 +210,11 @@ components:
         start:
           type: string
           format: date-time
-          description: Start of the covered window for the windowed fields (not the gauges).
+          description: Start of the covered window for the windowed fields (not the gauges). UTC (RFC 3339).
         end:
           type: string
           format: date-time
-          description: Snapshot time.
+          description: Snapshot time. UTC (RFC 3339).
         summary:
           $ref: '#/components/schemas/api.StatsSummary'
         byResponseType:
@@ -314,6 +316,7 @@ components:
         hour:
           type: string
           format: date-time
+          description: Start of the hour bucket. UTC (RFC 3339).
         queries:
           type: integer
         blocked:

@@ -40,7 +40,9 @@ You can also browse the interactive API documentation (RapiDoc) documentation [o
     `BLOCKED` + `FILTERED` + `NOTFQDN`, `forwarded` = `RESOLVED` + `CONDITIONAL`), so callers
     never interpret a raw response type. The `lists` and `cache` objects are point-in-time gauges
     (current values, not affected by the 24h window), while `start`/`end` bound the windowed fields
-    only. Statistics are independent of Prometheus and work with plain JSON.
+    only. All timestamps (`start`, `end`, `perHour[].hour`) are always returned in UTC (RFC 3339,
+    `Z` suffix), regardless of the server's local time zone. Statistics are independent of Prometheus
+    and work with plain JSON.
 
 ## CLI
 

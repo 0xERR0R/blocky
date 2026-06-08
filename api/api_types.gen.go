@@ -27,7 +27,9 @@ type ApiCacheStats struct {
 
 // ApiHourPoint defines model for api.HourPoint.
 type ApiHourPoint struct {
-	Blocked int       `json:"blocked"`
+	Blocked int `json:"blocked"`
+
+	// Hour Start of the hour bucket. UTC (RFC 3339).
 	Hour    time.Time `json:"hour"`
 	Queries int       `json:"queries"`
 }
@@ -82,7 +84,7 @@ type ApiStats struct {
 	// Cache Current cache state (point-in-time, not windowed).
 	Cache ApiCacheStats `json:"cache"`
 
-	// End Snapshot time.
+	// End Snapshot time. UTC (RFC 3339).
 	End time.Time `json:"end"`
 
 	// Lists Current per-group list entry counts (point-in-time, not windowed).
@@ -91,7 +93,7 @@ type ApiStats struct {
 	// PerHour Per-hour time series over the window.
 	PerHour []ApiHourPoint `json:"perHour"`
 
-	// Start Start of the covered window for the windowed fields (not the gauges).
+	// Start Start of the covered window for the windowed fields (not the gauges). UTC (RFC 3339).
 	Start time.Time `json:"start"`
 
 	// Summary Curated outcome categories over the window (server computes the mapping).
