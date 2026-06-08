@@ -160,6 +160,23 @@ var _ = Describe("Collector", func() {
 			Expect(len(cur.domains)).Should(BeNumerically("<=", maxTrackedPerHour))
 		})
 	})
+
+	Describe("point-in-time gauges", func() {
+		It("tracks the latest cache entry count", func() {
+			sut.SetCacheEntries(42)
+			sut.SetCacheEntries(99)
+			Expect(sut.Snapshot().CacheEntries).Should(Equal(99))
+		})
+
+		It("tracks per-group denylist and allowlist counts", func() {
+			sut.SetDenylistCount("ads", 52000)
+			sut.SetAllowlistCount("white", 12)
+
+			res := sut.Snapshot()
+			Expect(res.Lists.Denylist).Should(HaveKeyWithValue("ads", 52000))
+			Expect(res.Lists.Allowlist).Should(HaveKeyWithValue("white", 12))
+		})
+	})
 })
 
 type fakeClock struct{ t time.Time }

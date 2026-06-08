@@ -244,6 +244,27 @@ func pruneMap(m map[string]int, keep int) map[string]int {
 	return out
 }
 
+// SetCacheEntries records the current result-cache size (point-in-time).
+func (c *Collector) SetCacheEntries(n int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cacheEntries = n
+}
+
+// SetDenylistCount records the current entry count for a denylist group.
+func (c *Collector) SetDenylistCount(group string, n int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.lists.Denylist[group] = n
+}
+
+// SetAllowlistCount records the current entry count for an allowlist group.
+func (c *Collector) SetAllowlistCount(group string, n int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.lists.Allowlist[group] = n
+}
+
 // Snapshot merges all live buckets into a Result.
 func (c *Collector) Snapshot() Result {
 	c.mu.RLock()
