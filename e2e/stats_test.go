@@ -76,7 +76,7 @@ var _ = Describe("Statistics functional tests", func() {
 
 				By("reading /api/stats (collection is async, so poll)", func() {
 					Eventually(func(g Gomega) {
-						res := fetchStats(g, statsURL)
+						res := fetchStats(ctx, g, statsURL)
 						g.Expect(res.Summary.Queries).Should(BeNumerically("==", 3))
 						g.Expect(res.Summary.Blocked).Should(BeNumerically("==", 1))
 						g.Expect(res.Summary.Cached).Should(BeNumerically("==", 1))
@@ -112,7 +112,11 @@ var _ = Describe("Statistics functional tests", func() {
 				host, port, err := getContainerHostPort(ctx, blocky, "4000/tcp")
 				Expect(err).Should(Succeed())
 
-				resp, err := http.Get("http://" + net.JoinHostPort(host, port) + "/api/stats")
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+					"http://"+net.JoinHostPort(host, port)+"/api/stats", nil)
+				Expect(err).Should(Succeed())
+
+				resp, err := http.DefaultClient.Do(req)
 				Expect(err).Should(Succeed())
 				defer resp.Body.Close()
 				Expect(resp.StatusCode).Should(Equal(http.StatusServiceUnavailable))
@@ -138,8 +142,11 @@ type e2eNameCount struct {
 	Count int    `json:"count"`
 }
 
-func fetchStats(g Gomega, url string) e2eStats {
-	resp, err := http.Get(url)
+func fetchStats(ctx context.Context, g Gomega, url string) e2eStats {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	g.Expect(err).Should(Succeed())
+
+	resp, err := http.DefaultClient.Do(req)
 	g.Expect(err).Should(Succeed())
 	defer resp.Body.Close()
 	g.Expect(resp.StatusCode).Should(Equal(http.StatusOK))

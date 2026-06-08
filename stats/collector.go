@@ -3,6 +3,7 @@
 package stats
 
 import (
+	"maps"
 	"sort"
 	"sync"
 	"time"
@@ -164,7 +165,7 @@ func (c *Collector) Record(s Sample) {
 		b.dropped++
 	case DispositionErrored:
 		b.errors++
-	default:
+	case DispositionAnswered:
 		if s.RType != "" {
 			b.byResponseType[s.RType]++
 		}
@@ -210,32 +211,33 @@ func (c *Collector) evict(now time.Time) {
 }
 
 func pruneBucket(b *bucket) {
-	b.domains = pruneMap(b.domains, keepPerHour)
-	b.blockedDomains = pruneMap(b.blockedDomains, keepPerHour)
-	b.clients = pruneMap(b.clients, keepPerHour)
+	b.domains = pruneMap(b.domains)
+	b.blockedDomains = pruneMap(b.blockedDomains)
+	b.clients = pruneMap(b.clients)
 }
 
 func capWorkingSet(b *bucket) {
 	if len(b.domains) > maxTrackedPerHour {
-		b.domains = pruneMap(b.domains, keepPerHour)
+		b.domains = pruneMap(b.domains)
 	}
 
 	if len(b.blockedDomains) > maxTrackedPerHour {
-		b.blockedDomains = pruneMap(b.blockedDomains, keepPerHour)
+		b.blockedDomains = pruneMap(b.blockedDomains)
 	}
 
 	if len(b.clients) > maxTrackedPerHour {
-		b.clients = pruneMap(b.clients, keepPerHour)
+		b.clients = pruneMap(b.clients)
 	}
 }
 
-func pruneMap(m map[string]int, keep int) map[string]int {
-	if len(m) <= keep {
+// pruneMap keeps only the keepPerHour highest-count entries of m.
+func pruneMap(m map[string]int) map[string]int {
+	if len(m) <= keepPerHour {
 		return m
 	}
 
-	top := topNList(m, keep)
-	out := make(map[string]int, keep)
+	top := topNList(m, keepPerHour)
+	out := make(map[string]int, keepPerHour)
 
 	for _, nc := range top {
 		out[nc.Name] = nc.Count
@@ -265,86 +267,109 @@ func (c *Collector) SetAllowlistCount(group string, n int) {
 	c.lists.Allowlist[group] = n
 }
 
-// Snapshot merges all live buckets into a Result.
-func (c *Collector) Snapshot() Result {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+// liveAggregate is the merge of all in-window buckets, computed under the lock.
+type liveAggregate struct {
+	byResponseType, byQueryType, byResponseCode map[string]int
+	domains, blockedDomains, clients            map[string]int
+	hourly                                      []*bucket
+	durationSum                                 int64
+	dropped, errs                               int
+	oldest                                      time.Time
+}
 
-	res := Result{
-		ByResponseType: map[string]int{},
-		ByQueryType:    map[string]int{},
-		ByResponseCode: map[string]int{},
-		Lists: ListCounts{
-			Denylist:  copyIntMap(c.lists.Denylist),
-			Allowlist: copyIntMap(c.lists.Allowlist),
-		},
-		CacheEntries: c.cacheEntries,
+// mergeLiveBuckets aggregates all buckets within the window. Caller holds the lock.
+func (c *Collector) mergeLiveBuckets(now time.Time) liveAggregate {
+	agg := liveAggregate{
+		byResponseType: map[string]int{},
+		byQueryType:    map[string]int{},
+		byResponseCode: map[string]int{},
+		domains:        map[string]int{},
+		blockedDomains: map[string]int{},
+		clients:        map[string]int{},
+		hourly:         make([]*bucket, 0, len(c.buckets)),
 	}
 
-	domains := map[string]int{}
-	blockedDomains := map[string]int{}
-	clients := map[string]int{}
-
-	var durationSum int64
-
-	now := c.now()
 	cutoff := now.Add(-windowHours * time.Hour)
-
-	var oldest time.Time
-
-	hourly := make([]*bucket, 0, len(c.buckets))
 
 	for _, b := range c.buckets {
 		if b.hourStart.Before(cutoff) {
 			continue // stale; not yet evicted by a Record
 		}
 
-		addInto(res.ByResponseType, b.byResponseType)
-		addInto(res.ByQueryType, b.byQueryType)
-		addInto(res.ByResponseCode, b.byResponseCode)
-		addInto(domains, b.domains)
-		addInto(blockedDomains, b.blockedDomains)
-		addInto(clients, b.clients)
-		res.Summary.Dropped += b.dropped
-		res.Summary.Errors += b.errors
-		durationSum += b.durationSumMs
-		hourly = append(hourly, b)
+		addInto(agg.byResponseType, b.byResponseType)
+		addInto(agg.byQueryType, b.byQueryType)
+		addInto(agg.byResponseCode, b.byResponseCode)
+		addInto(agg.domains, b.domains)
+		addInto(agg.blockedDomains, b.blockedDomains)
+		addInto(agg.clients, b.clients)
+		agg.dropped += b.dropped
+		agg.errs += b.errors
+		agg.durationSum += b.durationSumMs
+		agg.hourly = append(agg.hourly, b)
 
-		if oldest.IsZero() || b.hourStart.Before(oldest) {
-			oldest = b.hourStart
+		if agg.oldest.IsZero() || b.hourStart.Before(agg.oldest) {
+			agg.oldest = b.hourStart
 		}
 	}
 
-	rt := res.ByResponseType
-	res.Summary.Cached = rt["CACHED"]
-	res.Summary.Forwarded = rt["RESOLVED"] + rt["CONDITIONAL"]
-	res.Summary.Blocked = rt["BLOCKED"] + rt["FILTERED"] + rt["NOTFQDN"]
-	res.Summary.Local = rt["CUSTOMDNS"] + rt["HOSTSFILE"] + rt["SPECIAL"] + rt["SYNTHESIZED"]
-	res.Summary.Queries = res.Summary.Cached + res.Summary.Forwarded + res.Summary.Blocked +
-		res.Summary.Local + res.Summary.Dropped + res.Summary.Errors
+	return agg
+}
 
-	if lookups := res.Summary.Cached + res.Summary.Forwarded; lookups > 0 {
-		res.Summary.CacheHitRate = float64(res.Summary.Cached) / float64(lookups)
+// Snapshot merges all live buckets into a Result.
+func (c *Collector) Snapshot() Result {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	now := c.now()
+	agg := c.mergeLiveBuckets(now)
+
+	res := Result{
+		Summary:           curatedSummary(agg.byResponseType, agg.dropped, agg.errs, agg.durationSum),
+		ByResponseType:    agg.byResponseType,
+		ByQueryType:       agg.byQueryType,
+		ByResponseCode:    agg.byResponseCode,
+		PerHour:           perHour(agg.hourly),
+		TopDomains:        topNList(agg.domains, topN),
+		TopBlockedDomains: topNList(agg.blockedDomains, topN),
+		TopClients:        topNList(agg.clients, topN),
+		Lists: ListCounts{
+			Denylist:  copyIntMap(c.lists.Denylist),
+			Allowlist: copyIntMap(c.lists.Allowlist),
+		},
+		CacheEntries: c.cacheEntries,
+		Start:        c.startTime,
+		End:          now,
 	}
 
-	if res.Summary.Queries > 0 {
-		res.Summary.AvgResponseMs = int(durationSum / int64(res.Summary.Queries))
+	if agg.oldest.After(res.Start) {
+		res.Start = agg.oldest
 	}
-
-	res.TopDomains = topNList(domains, topN)
-	res.TopBlockedDomains = topNList(blockedDomains, topN)
-	res.TopClients = topNList(clients, topN)
-
-	res.PerHour = perHour(hourly)
-
-	res.Start = c.startTime
-	if oldest.After(res.Start) {
-		res.Start = oldest
-	}
-
-	res.End = now
 
 	return res
+}
+
+// curatedSummary maps the raw per-RType counts into blocky's outcome categories.
+func curatedSummary(rt map[string]int, dropped, errs int, durationSum int64) Summary {
+	s := Summary{
+		Dropped:   dropped,
+		Errors:    errs,
+		Cached:    rt["CACHED"],
+		Forwarded: rt["RESOLVED"] + rt["CONDITIONAL"],
+		Blocked:   rt["BLOCKED"] + rt["FILTERED"] + rt["NOTFQDN"],
+		Local:     rt["CUSTOMDNS"] + rt["HOSTSFILE"] + rt["SPECIAL"] + rt["SYNTHESIZED"],
+	}
+
+	s.Queries = s.Cached + s.Forwarded + s.Blocked + s.Local + s.Dropped + s.Errors
+
+	if lookups := s.Cached + s.Forwarded; lookups > 0 {
+		s.CacheHitRate = float64(s.Cached) / float64(lookups)
+	}
+
+	if s.Queries > 0 {
+		s.AvgResponseMs = int(durationSum / int64(s.Queries))
+	}
+
+	return s
 }
 
 func addInto(dst, src map[string]int) {
@@ -355,9 +380,7 @@ func addInto(dst, src map[string]int) {
 
 func copyIntMap(src map[string]int) map[string]int {
 	out := make(map[string]int, len(src))
-	for k, v := range src {
-		out[k] = v
-	}
+	maps.Copy(out, src)
 
 	return out
 }

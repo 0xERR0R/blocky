@@ -127,7 +127,7 @@ var _ = Describe("Collector", func() {
 			clk := &fakeClock{t: mustParse("2026-06-08T10:00:00Z")}
 			c := newCollectorWithClock(clk.now)
 
-			for i := 0; i < keepPerHour+50; i++ {
+			for i := range keepPerHour + 50 {
 				c.Record(Sample{
 					Disposition: DispositionAnswered, RType: "RESOLVED", QType: "A",
 					Domain: domainN(i), Client: "c1",
@@ -140,14 +140,14 @@ var _ = Describe("Collector", func() {
 			c.mu.RLock()
 			defer c.mu.RUnlock()
 			closed := c.buckets["2026060810"]
-			Expect(len(closed.domains)).Should(Equal(keepPerHour))
+			Expect(closed.domains).Should(HaveLen(keepPerHour))
 		})
 
 		It("caps the current bucket working set", func() {
 			clk := &fakeClock{t: mustParse("2026-06-08T10:00:00Z")}
 			c := newCollectorWithClock(clk.now)
 
-			for i := 0; i < maxTrackedPerHour+10; i++ {
+			for i := range maxTrackedPerHour + 10 {
 				c.Record(Sample{
 					Disposition: DispositionAnswered, RType: "RESOLVED", QType: "A",
 					Domain: domainN(i),
@@ -186,6 +186,7 @@ func (f *fakeClock) now() time.Time { return f.t }
 func mustParse(s string) time.Time {
 	t, err := time.Parse(time.RFC3339, s)
 	Expect(err).Should(Succeed())
+
 	return t
 }
 
@@ -194,6 +195,7 @@ func namesOf(in []NameCount) []string {
 	for _, nc := range in {
 		out = append(out, nc.Name)
 	}
+
 	return out
 }
 
