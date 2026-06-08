@@ -137,8 +137,10 @@ func NewCollector() *Collector {
 
 func newCollectorWithClock(now func() time.Time) *Collector {
 	return &Collector{
-		buckets:   map[string]*bucket{},
-		startTime: now(),
+		buckets: map[string]*bucket{},
+		// Normalize to UTC so every timestamp the API reports (start/end/perHour)
+		// is in a single zone, consistent with the UTC-keyed buckets.
+		startTime: now().UTC(),
 		lists:     ListCounts{Denylist: map[string]int{}, Allowlist: map[string]int{}},
 		now:       now,
 	}
@@ -193,12 +195,13 @@ func (c *Collector) Record(s Sample) {
 // it prunes the just-closed bucket, evicts buckets older than the window, and
 // caps the current bucket's working set.
 func (c *Collector) currentBucket(now time.Time) *bucket {
-	// Key and hourStart both derive from the absolute (UTC) truncated hour, so
-	// they can never disagree. Formatting the local wall-clock instead would
-	// collide across a DST fall-back (two physical hours share one key, skipping
-	// rollover) and mislabel buckets in sub-hour-offset zones.
-	hourStart := now.Truncate(time.Hour)
-	key := hourStart.UTC().Format(hourLayout)
+	// Key and hourStart both derive from the absolute, UTC-normalized truncated
+	// hour, so they can never disagree and every reported timestamp stays in UTC.
+	// Formatting the local wall-clock instead would collide across a DST
+	// fall-back (two physical hours share one key, skipping rollover) and
+	// mislabel buckets in sub-hour-offset zones.
+	hourStart := now.Truncate(time.Hour).UTC()
+	key := hourStart.Format(hourLayout)
 
 	if key != c.currentKey {
 		if old, ok := c.buckets[c.currentKey]; ok {
@@ -341,7 +344,7 @@ func (c *Collector) Snapshot() Result {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	now := c.now()
+	now := c.now().UTC()
 	agg := c.mergeLiveBuckets(now)
 
 	res := Result{

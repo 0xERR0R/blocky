@@ -178,6 +178,24 @@ var _ = Describe("Collector", func() {
 			Expect(res.Lists.Allowlist).Should(HaveKeyWithValue("white", 12))
 		})
 	})
+
+	Describe("timestamp normalization", func() {
+		It("reports start, end and per-hour timestamps in UTC regardless of the clock's zone", func() {
+			ist := time.FixedZone("IST", 5*3600+1800) // +05:30, a sub-hour offset
+			clk := &fakeClock{t: mustParse("2026-06-08T10:15:00Z").In(ist)}
+			c := newCollectorWithClock(clk.now)
+
+			c.Record(Sample{Disposition: DispositionAnswered, RType: "RESOLVED", QType: "A", Domain: "x.com"})
+
+			res := c.Snapshot()
+			Expect(res.Start.Location()).Should(Equal(time.UTC))
+			Expect(res.End.Location()).Should(Equal(time.UTC))
+			Expect(res.PerHour).Should(HaveLen(1))
+			Expect(res.PerHour[0].Hour.Location()).Should(Equal(time.UTC))
+			// 10:15Z truncates to the 10:00Z hour, not a 10:30 sub-hour boundary.
+			Expect(res.PerHour[0].Hour).Should(BeTemporally("==", mustParse("2026-06-08T10:00:00Z")))
+		})
+	})
 })
 
 type fakeClock struct{ t time.Time }
