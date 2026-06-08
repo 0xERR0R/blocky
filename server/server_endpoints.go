@@ -51,7 +51,12 @@ func (s *Server) createOpenAPIInterfaceImpl() (impl api.StrictServerInterface, e
 		return nil, fmt.Errorf("no cache API implementation found %w", err)
 	}
 
-	return api.NewOpenAPIInterfaceImpl(bControl, s, refresher, cacheControl), nil
+	statsProvider, err := resolver.GetFromChainWithType[api.StatsProvider](s.queryResolver)
+	if err != nil {
+		return nil, fmt.Errorf("no stats API implementation found %w", err)
+	}
+
+	return api.NewOpenAPIInterfaceImpl(bControl, s, refresher, cacheControl, statsProvider), nil
 }
 
 func (s *Server) registerDoHEndpoints(router *chi.Mux, cfg *config.Config) {
