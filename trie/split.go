@@ -18,3 +18,10 @@ func SplitTLD(domain string) (label, rest string) {
 
 	return label, rest
 }
+
+// JoinTLD is the inverse of SplitTLD: it reconstructs an entry from the labels
+// returned by HasParentOf on a trie built with SplitTLD.
+// ["example", "com"] -> "example.com"
+func JoinTLD(labels []string) string {
+	return strings.Join(labels, ".")
+}

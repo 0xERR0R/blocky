@@ -85,9 +85,9 @@ var _ = Describe("In-Memory grouped cache", func() {
 				Expect(cache.ElementCount("group1")).Should(BeNumerically("==", 1))
 				Expect(cache.Contains("string1", []string{"group1"})).Should(BeEmpty())
 				Expect(cache.Contains("string2", []string{"group1"})).
-					Should(Equal(map[string]string{"group1": "string2"}))
+					Should(Equal(map[string]string{"group1": "/string2/"}))
 				Expect(cache.Contains("shouldalsomatchstring2", []string{"group1"})).
-					Should(Equal(map[string]string{"group1": "string2"}))
+					Should(Equal(map[string]string{"group1": "/string2/"}))
 			})
 		})
 		When("Wildcard grouped cache is used", func() {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"strings"
 
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
@@ -131,6 +132,30 @@ var _ = Describe("EdeResolver", func() {
 									HaveField("InfoCode", Equal(dns.ExtendedErrorCodeBlocked)),
 									HaveField("ExtraText", Equal("BLOCKED CNAME (ads: *.docler.com)")),
 								)),
+						))
+			})
+		})
+
+		When("resolver returns a blocked response with an oversized reason", func() {
+			longReason := "BLOCKED (ads: /" + strings.Repeat("a", 500) + "/)"
+
+			BeforeEach(func() {
+				m = &mockResolver{}
+				m.On("Resolve", mock.Anything).Return(&Response{
+					Res:    mockAnswer,
+					RType:  ResponseTypeBLOCKED,
+					Reason: longReason,
+				}, nil)
+			})
+
+			It("caps the EDE extra text so it can't bloat the OPT record", func() {
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(
+						SatisfyAll(
+							HaveEdnsOption(dns.EDNS0EDE),
+							WithTransform(extractEdeOption,
+								WithTransform(func(o dns.EDNS0_EDE) int { return len(o.ExtraText) },
+									BeNumerically("<=", maxEDETextLength))),
 						))
 			})
 		})

@@ -44,3 +44,22 @@ var _ = Describe("SpltTLD", func() {
 		Expect(rest).Should(Equal("www"))
 	})
 })
+
+var _ = Describe("JoinTLD", func() {
+	It("reconstructs an entry from labels in entry order", func() {
+		Expect(JoinTLD([]string{"example", "com"})).Should(Equal("example.com"))
+	})
+
+	It("handles a single label", func() {
+		Expect(JoinTLD([]string{"blocked"})).Should(Equal("blocked"))
+	})
+
+	It("reproduces the labels returned by HasParentOf", func() {
+		sut := NewTrie(SplitTLD)
+		sut.Insert("sub.example.com")
+
+		labels, ok := sut.HasParentOf("a.sub.example.com")
+		Expect(ok).Should(BeTrue())
+		Expect(JoinTLD(labels)).Should(Equal("sub.example.com"))
+	})
+})

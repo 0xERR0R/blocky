@@ -23,6 +23,11 @@ func (c *ChainedGroupedCache) Contains(searchString string, groups []string) map
 	// result is allocated lazily so the common no-match case stays allocation-free.
 	// Ordering of matched groups is not defined here; callers that render the
 	// result sort it (see resolver.formatBlockReason).
+	//
+	// If a group matches in more than one chained cache (e.g. an exact entry and
+	// a wildcard), we keep a single rule per group: the last chained cache wins.
+	// One representative rule per group is enough for the block reason, and the
+	// chain order is fixed, so the choice is stable across requests.
 	var result map[string]string
 
 	for _, cache := range c.caches {

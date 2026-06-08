@@ -571,21 +571,18 @@ func (r *BlockingResolver) matches(groupsToCheck []string, m lists.Matcher,
 // "BLOCKED[ TYPE] (group: rule[, group: rule...])". Matched groups are sorted
 // so the rendered reason is deterministic when more than one group matches.
 func formatBlockReason(matches map[string]string, typeName string) string {
-	groups := make([]string, 0, len(matches))
-	for group := range matches {
-		groups = append(groups, group)
-	}
-
-	sort.Strings(groups)
-
-	entries := make([]string, 0, len(groups))
-	for _, group := range groups {
-		entries = append(entries, fmt.Sprintf("%s: %s", group, matches[group]))
-	}
-
 	reason := "BLOCKED"
 	if typeName != "" {
 		reason += " " + typeName
+	}
+
+	if len(matches) == 0 {
+		return reason
+	}
+
+	entries := make([]string, 0, len(matches))
+	for _, group := range slices.Sorted(maps.Keys(matches)) {
+		entries = append(entries, fmt.Sprintf("%s: %s", group, matches[group]))
 	}
 
 	return fmt.Sprintf("%s (%s)", reason, strings.Join(entries, ", "))

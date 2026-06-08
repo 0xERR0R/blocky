@@ -138,7 +138,7 @@ var _ = Describe("Caches", func() {
 			It("should match if one regex in StringCache matches string and return the pattern", func() {
 				rule, ok := cache.findMatch("google.com")
 				Expect(ok).Should(BeTrue())
-				Expect(rule).Should(Equal(".*google.com"))
+				Expect(rule).Should(Equal("/.*google.com/"))
 
 				_, ok = cache.findMatch("google.coma")
 				Expect(ok).Should(BeTrue())
@@ -149,7 +149,7 @@ var _ = Describe("Caches", func() {
 
 				rule, ok = cache.findMatch("apple.com")
 				Expect(ok).Should(BeTrue())
-				Expect(rule).Should(Equal("^apple\\.(de|com)$"))
+				Expect(rule).Should(Equal("/^apple\\.(de|com)$/"))
 
 				_, ok = cache.findMatch("apple.de")
 				Expect(ok).Should(BeTrue())
@@ -162,7 +162,7 @@ var _ = Describe("Caches", func() {
 
 				rule, ok = cache.findMatch("www.amazon.com")
 				Expect(ok).Should(BeTrue())
-				Expect(rule).Should(Equal("amazon"))
+				Expect(rule).Should(Equal("/amazon/"))
 
 				_, ok = cache.findMatch("amazon.com")
 				Expect(ok).Should(BeTrue())

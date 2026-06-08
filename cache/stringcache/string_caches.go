@@ -133,7 +133,9 @@ func (cache regexCache) findMatch(searchString string) (string, bool) {
 		if regex.MatchString(searchString) {
 			log.PrefixedLog("regex_cache").Debugf("regex '%s' matched with '%s'", regex, searchString)
 
-			return regex.String(), true
+			// re-wrap in the '/.../' delimiters that addEntry strips on insertion
+			// so the reported rule matches the entry as configured by the user.
+			return "/" + regex.String() + "/", true
 		}
 	}
 
@@ -199,8 +201,10 @@ func (cache wildcardCache) findMatch(domain string) (string, bool) {
 
 	// labels reconstruct the stored wildcard base (normalized, with the "*."
 	// prefix stripped on insertion); re-prepend "*." so the reported rule
-	// matches the entry as configured by the user.
-	rule := "*." + strings.Join(labels, ".")
+	// matches the entry as configured by the user. trie.JoinTLD pairs with the
+	// trie.SplitTLD this cache is built with, so the separator stays the trie's
+	// concern rather than being hard-coded here.
+	rule := "*." + trie.JoinTLD(labels)
 
 	log.PrefixedLog("wildcard_cache").Debugf("wildcard block rule '%s' matched with '%s'", rule, domain)
 

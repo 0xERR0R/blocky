@@ -122,34 +122,22 @@ func (n *parent) hasParentOf(key string, split SplitFunc) ([]string, bool) {
 		return nil, false
 	}
 
-	switch child := child.(type) {
-	case *parent:
-		if len(rest) == 0 {
-			// The trie only contains children/"suffixes" of the
-			// key we're searching for
-			return nil, false
-		}
-
-		labels, ok := child.hasParentOf(rest, split)
-		if !ok {
-			return nil, false
-		}
-
-		// On the matching path only: prepend-by-append this node's label.
-		// The deeper labels were collected first, so appending the current
-		// (more significant) label keeps the entry's natural order.
-		return append(labels, label), true
-
-	case terminal:
-		labels, ok := child.hasParentOf(rest, split)
-		if !ok {
-			return nil, false
-		}
-
-		return append(labels, label), true
+	// A *parent child means the trie only stores longer entries/"suffixes" below
+	// this node; if the search key has no more labels, none of them can be a
+	// parent of it.
+	if _, isParent := child.(*parent); isParent && len(rest) == 0 {
+		return nil, false
 	}
 
-	return nil, false
+	labels, ok := child.hasParentOf(rest, split)
+	if !ok {
+		return nil, false
+	}
+
+	// On the matching path only: prepend-by-append this node's label. The deeper
+	// labels were collected first, so appending the current (more significant)
+	// label keeps the entry's natural order.
+	return append(labels, label), true
 }
 
 type terminal string
