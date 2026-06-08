@@ -140,18 +140,34 @@ func (r *StatsResolver) Resolve(ctx context.Context, request *model.Request) (*m
 }
 
 // send performs a non-blocking enqueue; a full buffer drops the sample so
-// resolution is never delayed by statistics. Drops are counted and logged once
-// so silent undercounting under load is observable.
+// resolution is never delayed by statistics. Drops are counted and logged at
+// exponentially growing milestones (1, 10, 100, ... drops) so that sustained
+// undercounting stays visible without flooding the log on the hot path.
 func (r *StatsResolver) send(ctx context.Context, s stats.Sample) {
 	select {
 	case r.samples <- s:
 	default:
-		if r.dropped.Add(1) == 1 {
+		if n := r.dropped.Add(1); isPowerOfTen(n) {
 			_, logger := r.log(ctx)
-			logger.Warnf("statistics sample buffer (%d) full; dropping samples, stats will undercount under load",
-				statsChannelBuffer)
+			logger.Warnf("statistics sample buffer (%d) full; dropped %d sample(s) so far, stats undercount under load",
+				statsChannelBuffer, n)
 		}
 	}
+}
+
+// isPowerOfTen reports whether n is 1, 10, 100, 1000, ... It is used to
+// throttle drop logging to O(log n) lines while always reporting the latest
+// cumulative count.
+func isPowerOfTen(n uint64) bool {
+	for n >= 10 {
+		if n%10 != 0 {
+			return false
+		}
+
+		n /= 10
+	}
+
+	return n == 1
 }
 
 func buildSample(request *model.Request, resp *model.Response, err error) stats.Sample {

@@ -32,6 +32,21 @@ var _ = Describe("StatsResolver", func() {
 		})
 	})
 
+	DescribeTable("isPowerOfTen (drop-log throttle)",
+		func(n uint64, expected bool) {
+			Expect(isPowerOfTen(n)).Should(Equal(expected))
+		},
+		Entry("0 does not log", uint64(0), false),
+		Entry("1 logs (first drop)", uint64(1), true),
+		Entry("9 does not log", uint64(9), false),
+		Entry("10 logs", uint64(10), true),
+		Entry("11 does not log", uint64(11), false),
+		Entry("50 does not log", uint64(50), false),
+		Entry("100 logs", uint64(100), true),
+		Entry("1000 logs", uint64(1000), true),
+		Entry("1024 does not log", uint64(1024), false),
+	)
+
 	Context("when enabled", func() {
 		// start builds the SUT with the spec's context so Ginkgo tears down the
 		// consumer goroutine and the event-bus subscriptions automatically when the
