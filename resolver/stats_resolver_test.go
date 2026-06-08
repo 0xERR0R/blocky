@@ -30,7 +30,10 @@ var _ = Describe("StatsResolver", func() {
 
 	Describe("Type", func() {
 		It("follows conventions", func() {
-			sut = NewStatsResolver(config.Statistics{Enable: true})
+			ctx, cancelFn = context.WithCancel(context.Background())
+			DeferCleanup(cancelFn)
+
+			sut = NewStatsResolver(ctx, config.Statistics{Enable: true})
 			expectValidResolverType(sut)
 		})
 	})
@@ -40,7 +43,7 @@ var _ = Describe("StatsResolver", func() {
 			ctx, cancelFn = context.WithCancel(context.Background())
 			DeferCleanup(cancelFn)
 
-			sut = NewStatsResolver(config.Statistics{Enable: true})
+			sut = NewStatsResolver(ctx, config.Statistics{Enable: true})
 			m = &mockResolver{}
 			sut.Next(m)
 		})
@@ -117,7 +120,7 @@ var _ = Describe("StatsResolver", func() {
 			ctx, cancelFn = context.WithCancel(context.Background())
 			DeferCleanup(cancelFn)
 
-			sut = NewStatsResolver(config.Statistics{Enable: false})
+			sut = NewStatsResolver(ctx, config.Statistics{Enable: false})
 			m = &mockResolver{}
 			m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg), RType: ResponseTypeRESOLVED}, nil)
 			sut.Next(m)

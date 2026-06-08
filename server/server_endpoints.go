@@ -51,9 +51,14 @@ func (s *Server) createOpenAPIInterfaceImpl() (impl api.StrictServerInterface, e
 		return nil, fmt.Errorf("no cache API implementation found %w", err)
 	}
 
+	// Statistics are optional: if no provider is in the chain, degrade to a nil
+	// provider (the /api/stats endpoint returns 503) instead of failing
+	// construction of the entire API.
 	statsProvider, err := resolver.GetFromChainWithType[api.StatsProvider](s.queryResolver)
 	if err != nil {
-		return nil, fmt.Errorf("no stats API implementation found %w", err)
+		log.Log().Warnf("no stats API implementation found, /api/stats will be unavailable: %v", err)
+
+		statsProvider = nil
 	}
 
 	return api.NewOpenAPIInterfaceImpl(bControl, s, refresher, cacheControl, statsProvider), nil

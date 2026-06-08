@@ -15,22 +15,22 @@ var _ = Describe("Collector", func() {
 		sut = NewCollector()
 	})
 
-	answered := func(rtype, qtype, rcode, domain, client string, blocked bool) Sample {
+	answered := func(rtype, qtype, rcode, domain, client string) Sample {
 		return Sample{
 			Disposition: DispositionAnswered,
 			RType:       rtype, QType: qtype, RCode: rcode,
-			Domain: domain, Client: client, Blocked: blocked, DurationMs: 10,
+			Domain: domain, Client: client, DurationMs: 10,
 		}
 	}
 
 	Describe("summary", func() {
 		It("classifies response types into curated categories", func() {
-			sut.Record(answered("CACHED", "A", "NOERROR", "a.com", "c1", false))
-			sut.Record(answered("RESOLVED", "A", "NOERROR", "b.com", "c1", false))
-			sut.Record(answered("CONDITIONAL", "A", "NOERROR", "c.com", "c2", false))
-			sut.Record(answered("BLOCKED", "A", "NOERROR", "ads.com", "c2", true))
-			sut.Record(answered("FILTERED", "AAAA", "NOERROR", "d.com", "c2", true))
-			sut.Record(answered("HOSTSFILE", "A", "NOERROR", "e.com", "c1", false))
+			sut.Record(answered("CACHED", "A", "NOERROR", "a.com", "c1"))
+			sut.Record(answered("RESOLVED", "A", "NOERROR", "b.com", "c1"))
+			sut.Record(answered("CONDITIONAL", "A", "NOERROR", "c.com", "c2"))
+			sut.Record(answered("BLOCKED", "A", "NOERROR", "ads.com", "c2"))
+			sut.Record(answered("FILTERED", "AAAA", "NOERROR", "d.com", "c2"))
+			sut.Record(answered("HOSTSFILE", "A", "NOERROR", "e.com", "c1"))
 			sut.Record(Sample{Disposition: DispositionDropped, QType: "A", Domain: "x.com", Client: "c3", DurationMs: 1})
 			sut.Record(Sample{Disposition: DispositionErrored, QType: "A", DurationMs: 2})
 
@@ -43,26 +43,27 @@ var _ = Describe("Collector", func() {
 			Expect(res.Summary.Dropped).Should(Equal(1))
 			Expect(res.Summary.Errors).Should(Equal(1))
 			Expect(res.Summary.Queries).Should(Equal(8))
-			Expect(res.Summary.AvgResponseMs).Should(Equal(7))
+			// 6 answered queries × 10ms each / 6; drop (1ms) and error (2ms) latency is excluded.
+			Expect(res.Summary.AvgResponseMs).Should(Equal(10))
 		})
 
 		It("computes cacheHitRate as cached/(cached+forwarded)", func() {
-			sut.Record(answered("CACHED", "A", "NOERROR", "a.com", "c1", false))
-			sut.Record(answered("CACHED", "A", "NOERROR", "a.com", "c1", false))
-			sut.Record(answered("RESOLVED", "A", "NOERROR", "b.com", "c1", false))
+			sut.Record(answered("CACHED", "A", "NOERROR", "a.com", "c1"))
+			sut.Record(answered("CACHED", "A", "NOERROR", "a.com", "c1"))
+			sut.Record(answered("RESOLVED", "A", "NOERROR", "b.com", "c1"))
 
 			Expect(sut.Snapshot().Summary.CacheHitRate).Should(BeNumerically("~", 0.666, 0.01))
 		})
 
 		It("returns zero cacheHitRate when there are no cache lookups", func() {
-			sut.Record(answered("BLOCKED", "A", "NOERROR", "ads.com", "c1", true))
+			sut.Record(answered("BLOCKED", "A", "NOERROR", "ads.com", "c1"))
 
 			Expect(sut.Snapshot().Summary.CacheHitRate).Should(Equal(0.0))
 		})
 
 		It("orders equal-count top entries alphabetically", func() {
-			sut.Record(answered("RESOLVED", "A", "NOERROR", "bbb.com", "c1", false))
-			sut.Record(answered("RESOLVED", "A", "NOERROR", "aaa.com", "c1", false))
+			sut.Record(answered("RESOLVED", "A", "NOERROR", "bbb.com", "c1"))
+			sut.Record(answered("RESOLVED", "A", "NOERROR", "aaa.com", "c1"))
 
 			top := sut.Snapshot().TopDomains
 			Expect(top).Should(HaveLen(2))
@@ -71,8 +72,8 @@ var _ = Describe("Collector", func() {
 		})
 
 		It("exposes raw byResponseType / byQueryType / byResponseCode", func() {
-			sut.Record(answered("CACHED", "A", "NOERROR", "a.com", "c1", false))
-			sut.Record(answered("BLOCKED", "AAAA", "NXDOMAIN", "ads.com", "c1", true))
+			sut.Record(answered("CACHED", "A", "NOERROR", "a.com", "c1"))
+			sut.Record(answered("BLOCKED", "AAAA", "NXDOMAIN", "ads.com", "c1"))
 
 			res := sut.Snapshot()
 			Expect(res.ByResponseType).Should(HaveKeyWithValue("CACHED", 1))
@@ -106,7 +107,7 @@ var _ = Describe("Collector", func() {
 			clk := &fakeClock{t: mustParse("2026-06-08T10:00:00Z")}
 			c := newCollectorWithClock(clk.now)
 
-			c.Record(Sample{Disposition: DispositionAnswered, RType: "BLOCKED", QType: "A", Domain: "ads.com", Blocked: true})
+			c.Record(Sample{Disposition: DispositionAnswered, RType: "BLOCKED", QType: "A", Domain: "ads.com"})
 			clk.t = mustParse("2026-06-08T11:00:00Z")
 			c.Record(Sample{Disposition: DispositionAnswered, RType: "RESOLVED", QType: "A", Domain: "ok.com"})
 

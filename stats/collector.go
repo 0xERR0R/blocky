@@ -7,12 +7,19 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/0xERR0R/blocky/model"
 )
 
 const (
-	topN              = 20
+	topN = 20
+	// keepPerHour caps the per-hour working set retained for top-N lists once a
+	// bucket is closed. It is generous headroom over topN because the window-wide
+	// top-N is approximate: a name that never ranks in an hour's top keepPerHour
+	// is dropped from that bucket, so under very high cardinality the 24h lists
+	// can miss a name whose total would otherwise place it in the top topN.
+	keepPerHour       = 10 * topN
 	windowHours       = 24
-	keepPerHour       = 2 * topN
 	maxTrackedPerHour = 10_000
 	hourLayout        = "2006010215"
 )
@@ -27,6 +34,8 @@ const (
 )
 
 // Sample is a single recorded query — primitives only; never retains *dns.Msg.
+// Whether the query was blocked is derived from RType (see isBlockedRType), so
+// there is a single source of truth for the "blocked" classification.
 type Sample struct {
 	RType       string
 	Disposition Disposition
@@ -34,7 +43,6 @@ type Sample struct {
 	RCode       string
 	Domain      string
 	Client      string
-	Blocked     bool
 	DurationMs  int64
 }
 
@@ -142,7 +150,12 @@ func (c *Collector) Record(s Sample) {
 	defer c.mu.Unlock()
 
 	b := c.currentBucket(c.now())
-	b.durationSumMs += s.DurationMs
+
+	// Only answered queries contribute to the response-time average; drops and
+	// errors have no meaningful "response" latency.
+	if s.Disposition == DispositionAnswered {
+		b.durationSumMs += s.DurationMs
+	}
 
 	if s.QType != "" {
 		b.byQueryType[s.QType]++
@@ -151,7 +164,7 @@ func (c *Collector) Record(s Sample) {
 	if s.Domain != "" {
 		b.domains[s.Domain]++
 
-		if s.Blocked {
+		if isBlockedRType(s.RType) {
 			b.blockedDomains[s.Domain]++
 		}
 	}
@@ -180,7 +193,13 @@ func (c *Collector) Record(s Sample) {
 // it prunes the just-closed bucket, evicts buckets older than the window, and
 // caps the current bucket's working set.
 func (c *Collector) currentBucket(now time.Time) *bucket {
-	key := now.Format(hourLayout)
+	// Key and hourStart both derive from the absolute (UTC) truncated hour, so
+	// they can never disagree. Formatting the local wall-clock instead would
+	// collide across a DST fall-back (two physical hours share one key, skipping
+	// rollover) and mislabel buckets in sub-hour-offset zones.
+	hourStart := now.Truncate(time.Hour)
+	key := hourStart.UTC().Format(hourLayout)
+
 	if key != c.currentKey {
 		if old, ok := c.buckets[c.currentKey]; ok {
 			pruneBucket(old)
@@ -192,7 +211,7 @@ func (c *Collector) currentBucket(now time.Time) *bucket {
 
 	b, ok := c.buckets[key]
 	if !ok {
-		b = newBucket(now.Truncate(time.Hour))
+		b = newBucket(hourStart)
 		c.buckets[key] = b
 	}
 
@@ -204,29 +223,31 @@ func (c *Collector) currentBucket(now time.Time) *bucket {
 func (c *Collector) evict(now time.Time) {
 	cutoff := now.Add(-windowHours * time.Hour)
 	for k, b := range c.buckets {
-		if b.hourStart.Before(cutoff) {
+		// Keep only buckets whose hour starts strictly within the window, so the
+		// oldest retained data is never older than windowHours.
+		if !b.hourStart.After(cutoff) {
 			delete(c.buckets, k)
 		}
 	}
 }
 
+// trackedMaps returns the high-cardinality maps that are bounded by pruning, so
+// pruneBucket and capWorkingSet stay in sync when a dimension is added.
+func (b *bucket) trackedMaps() []*map[string]int {
+	return []*map[string]int{&b.domains, &b.blockedDomains, &b.clients}
+}
+
 func pruneBucket(b *bucket) {
-	b.domains = pruneMap(b.domains)
-	b.blockedDomains = pruneMap(b.blockedDomains)
-	b.clients = pruneMap(b.clients)
+	for _, m := range b.trackedMaps() {
+		*m = pruneMap(*m)
+	}
 }
 
 func capWorkingSet(b *bucket) {
-	if len(b.domains) > maxTrackedPerHour {
-		b.domains = pruneMap(b.domains)
-	}
-
-	if len(b.blockedDomains) > maxTrackedPerHour {
-		b.blockedDomains = pruneMap(b.blockedDomains)
-	}
-
-	if len(b.clients) > maxTrackedPerHour {
-		b.clients = pruneMap(b.clients)
+	for _, m := range b.trackedMaps() {
+		if len(*m) > maxTrackedPerHour {
+			*m = pruneMap(*m)
+		}
 	}
 }
 
@@ -292,7 +313,7 @@ func (c *Collector) mergeLiveBuckets(now time.Time) liveAggregate {
 	cutoff := now.Add(-windowHours * time.Hour)
 
 	for _, b := range c.buckets {
-		if b.hourStart.Before(cutoff) {
+		if !b.hourStart.After(cutoff) {
 			continue // stale; not yet evicted by a Record
 		}
 
@@ -348,25 +369,76 @@ func (c *Collector) Snapshot() Result {
 	return res
 }
 
+// responseCategory is the curated outcome bucket a model.ResponseType maps to.
+type responseCategory int
+
+const (
+	categoryOther responseCategory = iota
+	categoryCached
+	categoryForwarded
+	categoryBlocked
+	categoryLocal
+)
+
+// categorize is the single source of truth that maps a model.ResponseType string
+// to its curated outcome category. Referencing the model constants (rather than
+// bare string literals) keeps this in lockstep with the enum at compile time.
+func categorize(rtype string) responseCategory {
+	switch rtype {
+	case model.ResponseTypeCACHED.String():
+		return categoryCached
+	case model.ResponseTypeRESOLVED.String(), model.ResponseTypeCONDITIONAL.String():
+		return categoryForwarded
+	case model.ResponseTypeBLOCKED.String(), model.ResponseTypeFILTERED.String(),
+		model.ResponseTypeNOTFQDN.String():
+		return categoryBlocked
+	case model.ResponseTypeCUSTOMDNS.String(), model.ResponseTypeHOSTSFILE.String(),
+		model.ResponseTypeSPECIAL.String(), model.ResponseTypeSYNTHESIZED.String():
+		return categoryLocal
+	default:
+		return categoryOther
+	}
+}
+
+// isBlockedRType reports whether a response type counts as "blocked".
+func isBlockedRType(rtype string) bool {
+	return categorize(rtype) == categoryBlocked
+}
+
 // curatedSummary maps the raw per-RType counts into blocky's outcome categories.
-func curatedSummary(rt map[string]int, dropped, errs int, durationSum int64) Summary {
-	s := Summary{
-		Dropped:   dropped,
-		Errors:    errs,
-		Cached:    rt["CACHED"],
-		Forwarded: rt["RESOLVED"] + rt["CONDITIONAL"],
-		Blocked:   rt["BLOCKED"] + rt["FILTERED"] + rt["NOTFQDN"],
-		Local:     rt["CUSTOMDNS"] + rt["HOSTSFILE"] + rt["SPECIAL"] + rt["SYNTHESIZED"],
+// Queries counts every answered response (even one whose type maps to no named
+// category) plus drops and errors, so a future model.ResponseType can never
+// silently vanish from the total. answeredDurationSum already excludes
+// drop/error latency, so the average is over answered responses only.
+func curatedSummary(rt map[string]int, dropped, errs int, answeredDurationSum int64) Summary {
+	s := Summary{Dropped: dropped, Errors: errs}
+
+	answered := 0
+
+	for rtype, n := range rt {
+		answered += n
+
+		switch categorize(rtype) {
+		case categoryCached:
+			s.Cached += n
+		case categoryForwarded:
+			s.Forwarded += n
+		case categoryBlocked:
+			s.Blocked += n
+		case categoryLocal:
+			s.Local += n
+		case categoryOther:
+		}
 	}
 
-	s.Queries = s.Cached + s.Forwarded + s.Blocked + s.Local + s.Dropped + s.Errors
+	s.Queries = answered + dropped + errs
 
 	if lookups := s.Cached + s.Forwarded; lookups > 0 {
 		s.CacheHitRate = float64(s.Cached) / float64(lookups)
 	}
 
-	if s.Queries > 0 {
-		s.AvgResponseMs = int(durationSum / int64(s.Queries))
+	if answered > 0 {
+		s.AvgResponseMs = int(answeredDurationSum / int64(answered))
 	}
 
 	return s
@@ -410,11 +482,16 @@ func perHour(buckets []*bucket) []HourPoint {
 	points := make([]HourPoint, 0, len(buckets))
 	for _, b := range buckets {
 		queries := b.dropped + b.errors
-		for _, v := range b.byResponseType {
+		blocked := 0
+
+		for rtype, v := range b.byResponseType {
 			queries += v
+
+			if isBlockedRType(rtype) {
+				blocked += v
+			}
 		}
 
-		blocked := b.byResponseType["BLOCKED"] + b.byResponseType["FILTERED"] + b.byResponseType["NOTFQDN"]
 		points = append(points, HourPoint{Hour: b.hourStart, Queries: queries, Blocked: blocked})
 	}
 
