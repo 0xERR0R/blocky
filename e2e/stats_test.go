@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/0xERR0R/blocky/api"
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
 	. "github.com/onsi/ginkgo/v2"
@@ -125,24 +126,7 @@ var _ = Describe("Statistics functional tests", func() {
 	})
 })
 
-type e2eStats struct {
-	Summary struct {
-		Queries   int `json:"queries"`
-		Blocked   int `json:"blocked"`
-		Cached    int `json:"cached"`
-		Forwarded int `json:"forwarded"`
-	} `json:"summary"`
-	ByResponseType    map[string]int `json:"byResponseType"`
-	TopDomains        []e2eNameCount `json:"topDomains"`
-	TopBlockedDomains []e2eNameCount `json:"topBlockedDomains"`
-}
-
-type e2eNameCount struct {
-	Name  string `json:"name"`
-	Count int    `json:"count"`
-}
-
-func fetchStats(ctx context.Context, g Gomega, url string) e2eStats {
+func fetchStats(ctx context.Context, g Gomega, url string) api.ApiStats {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	g.Expect(err).Should(Succeed())
 
@@ -154,13 +138,13 @@ func fetchStats(ctx context.Context, g Gomega, url string) e2eStats {
 	body, err := io.ReadAll(resp.Body)
 	g.Expect(err).Should(Succeed())
 
-	var s e2eStats
+	var s api.ApiStats
 	g.Expect(json.Unmarshal(body, &s)).Should(Succeed())
 
 	return s
 }
 
-func namesIn(in []e2eNameCount) []string {
+func namesIn(in []api.ApiNameCount) []string {
 	out := make([]string, 0, len(in))
 	for _, nc := range in {
 		out = append(out, nc.Name)
