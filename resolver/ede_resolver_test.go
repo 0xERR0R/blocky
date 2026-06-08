@@ -111,6 +111,30 @@ var _ = Describe("EdeResolver", func() {
 					))
 		})
 
+		When("resolver returns a blocked response carrying the matched rule", func() {
+			BeforeEach(func() {
+				m = &mockResolver{}
+				m.On("Resolve", mock.Anything).Return(&Response{
+					Res:    mockAnswer,
+					RType:  ResponseTypeBLOCKED,
+					Reason: "BLOCKED CNAME (ads: *.docler.com)",
+				}, nil)
+			})
+
+			It("returns the matched rule to the client in the EDE extra text", func() {
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(
+						SatisfyAll(
+							HaveEdnsOption(dns.EDNS0EDE),
+							WithTransform(extractEdeOption,
+								SatisfyAll(
+									HaveField("InfoCode", Equal(dns.ExtendedErrorCodeBlocked)),
+									HaveField("ExtraText", Equal("BLOCKED CNAME (ads: *.docler.com)")),
+								)),
+						))
+			})
+		})
+
 		When("resolver returns other", func() {
 			BeforeEach(func() {
 				m = &mockResolver{}

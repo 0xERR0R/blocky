@@ -1,11 +1,5 @@
 package trie
 
-import (
-	"strings"
-
-	"github.com/0xERR0R/blocky/log"
-)
-
 // Trie stores a set of strings and can quickly check
 // if it contains an element, or one of its parents.
 //
@@ -37,12 +31,19 @@ func (t *Trie) Insert(key string) {
 	t.root.insert(key, t.split)
 }
 
-func (t *Trie) HasParentOf(key string) bool {
+// HasParentOf reports whether the trie contains key or one of its parents.
+// On a match it also returns the labels of the matched entry; joining them
+// with the separator used by the trie's SplitFunc reproduces the entry.
+// The labels are nil when there is no match.
+func (t *Trie) HasParentOf(key string) ([]string, bool) {
+	// labels are built only on the matching path (during recursion unwind),
+	// so a miss does not allocate. They come back in entry order, ready to be
+	// joined by the caller with the separator matching its SplitFunc.
 	return t.root.hasParentOf(key, t.split)
 }
 
 type node interface {
-	hasParentOf(key string, split SplitFunc) bool
+	hasParentOf(key string, split SplitFunc) (labels []string, ok bool)
 }
 
 // We save memory by not keeping track of children of
@@ -97,7 +98,7 @@ func (n *parent) insert(key string, split SplitFunc) {
 			continue
 
 		case terminal:
-			if child.hasParentOf(rest, split) {
+			if _, ok := child.hasParentOf(rest, split); ok {
 				// Found a parent/"prefix" in the set
 				return
 			}
@@ -113,45 +114,42 @@ func (n *parent) insert(key string, split SplitFunc) {
 	}
 }
 
-func (n *parent) hasParentOf(key string, split SplitFunc) bool {
-	searchString := key
-	rule := ""
+func (n *parent) hasParentOf(key string, split SplitFunc) ([]string, bool) {
+	label, rest := split(key)
 
-	for {
-		label, rest := split(key)
-		rule = strings.Join([]string{label, rule}, ".")
-
-		child, ok := n.children[label]
-		if !ok {
-			return false
-		}
-
-		switch child := child.(type) {
-		case *parent:
-			if len(rest) == 0 {
-				// The trie only contains children/"suffixes" of the
-				// key we're searching for
-				return false
-			}
-
-			// Continue down the trie
-			key = rest
-			n = child
-
-			continue
-
-		case terminal:
-			// Continue down the trie
-			matched := child.hasParentOf(rest, split)
-			if matched {
-				rule = strings.Join([]string{child.String(), rule}, ".")
-				rule = strings.Trim(rule, ".")
-				log.PrefixedLog("trie").Debugf("wildcard block rule '%s' matched with '%s'", rule, searchString)
-			}
-
-			return matched
-		}
+	child, ok := n.children[label]
+	if !ok {
+		return nil, false
 	}
+
+	switch child := child.(type) {
+	case *parent:
+		if len(rest) == 0 {
+			// The trie only contains children/"suffixes" of the
+			// key we're searching for
+			return nil, false
+		}
+
+		labels, ok := child.hasParentOf(rest, split)
+		if !ok {
+			return nil, false
+		}
+
+		// On the matching path only: prepend-by-append this node's label.
+		// The deeper labels were collected first, so appending the current
+		// (more significant) label keeps the entry's natural order.
+		return append(labels, label), true
+
+	case terminal:
+		labels, ok := child.hasParentOf(rest, split)
+		if !ok {
+			return nil, false
+		}
+
+		return append(labels, label), true
+	}
+
+	return nil, false
 }
 
 type terminal string
@@ -160,29 +158,41 @@ func (t terminal) String() string {
 	return string(t)
 }
 
-func (t terminal) hasParentOf(searchKey string, split SplitFunc) bool {
+func (t terminal) hasParentOf(searchKey string, split SplitFunc) ([]string, bool) {
 	tKey := t.String()
 	if tKey == "" {
-		return true
+		return nil, true
 	}
+
+	// labels of this terminal, collected only while it keeps matching so a
+	// mismatch stays allocation-free.
+	var labels []string
 
 	for {
 		tLabel, tRest := split(tKey)
 
 		searchLabel, searchRest := split(searchKey)
 		if searchLabel != tLabel {
-			return false
+			return nil, false
 		}
 
+		labels = append(labels, tLabel)
+
 		if len(tRest) == 0 {
-			// Found a parent/"prefix" in the set
-			return true
+			// Found a parent/"prefix" in the set. labels are in peel order
+			// (most significant last); reverse them into entry order so the
+			// caller's parent nodes can append their labels after these.
+			for i, j := 0, len(labels)-1; i < j; i, j = i+1, j-1 {
+				labels[i], labels[j] = labels[j], labels[i]
+			}
+
+			return labels, true
 		}
 
 		if len(searchRest) == 0 {
 			// The trie only contains children/"suffixes" of the
 			// key we're searching for
-			return false
+			return nil, false
 		}
 
 		// Continue down the trie

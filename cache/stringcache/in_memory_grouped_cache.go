@@ -43,16 +43,23 @@ func (c *InMemoryGroupedCache) ElementCount(group string) int {
 	return cache.elementCount()
 }
 
-func (c *InMemoryGroupedCache) Contains(searchString string, groups []string) []string {
-	var result []string
+func (c *InMemoryGroupedCache) Contains(searchString string, groups []string) map[string]string {
+	// result is allocated lazily so the common no-match case stays allocation-free.
+	var result map[string]string
 
 	for _, group := range groups {
 		c.lock.RLock()
 		cache, found := c.caches[group]
 		c.lock.RUnlock()
 
-		if found && cache.contains(searchString) {
-			result = append(result, group)
+		if found {
+			if rule, ok := cache.findMatch(searchString); ok {
+				if result == nil {
+					result = make(map[string]string, len(groups))
+				}
+
+				result[group] = rule
+			}
 		}
 	}
 
