@@ -173,3 +173,74 @@ func FuzzMightBeIP(f *testing.F) {
 		}
 	})
 }
+
+// --- entry parsing (HostListEntry / HostsFileEntry / HostsIterator) ---
+
+// FuzzHostsUnmarshalText feeds arbitrary input to the hosts-list parsers, which
+// consume untrusted downloaded block/allow lists line by line. Neither the
+// individual entry types nor the HostsIterator that dispatches between them may
+// panic on any input.
+//
+// Beyond the no-panic guarantee it asserts the post-conditions the parsers
+// document:
+//   - a successful HostsFileEntry has a non-nil IP and only valid host names;
+//   - HostListEntry normalization is idempotent: re-parsing its own output is a
+//     fixpoint, since a normalized entry is already in canonical form.
+func FuzzHostsUnmarshalText(f *testing.F) {
+	for _, s := range []string{
+		"example.com",
+		"||ads.example.com^",
+		"0.0.0.0 ads.example.com",
+		"127.0.0.1 localhost local.host",
+		"::1 ip6-localhost",
+		"fe80::1%eth0 router.local",
+		"*.tracker.example.com",
+		`/^ads\.example\.com$/`,
+		"münchen.example.de",
+		"xn--mnchen-3ya.example.de",
+		"", " ", "\t", "1.2.3.4",
+	} {
+		f.Add(s)
+	}
+
+	f.Fuzz(func(t *testing.T, in string) {
+		data := []byte(in)
+
+		// None of the parsers may panic, regardless of whether they accept the input.
+		var list HostListEntry
+		listErr := list.UnmarshalText(data)
+
+		var file HostsFileEntry
+		fileErr := file.UnmarshalText(data)
+
+		var iter HostsIterator
+		_ = iter.UnmarshalText(data)
+
+		// A successful hosts-file entry must carry a usable IP and valid names.
+		if fileErr == nil {
+			if file.IP == nil {
+				t.Fatalf("HostsFileEntry parsed %q but IP is nil", in)
+			}
+
+			_ = file.forEachHost(func(host string) error {
+				if err := validateDomainName(host); err != nil {
+					t.Fatalf("HostsFileEntry parsed %q but emitted host %q is invalid: %v", in, host, err)
+				}
+
+				return nil
+			})
+		}
+
+		// Normalizing an already-normalized host-list entry must be a fixpoint.
+		if listErr == nil {
+			var reparsed HostListEntry
+			if err := reparsed.UnmarshalText([]byte(list.String())); err != nil {
+				t.Fatalf("HostListEntry %q normalized to %q which fails to re-parse: %v", in, list.String(), err)
+			}
+
+			if reparsed != list {
+				t.Fatalf("HostListEntry normalization is not idempotent: %q -> %q -> %q", in, list.String(), reparsed.String())
+			}
+		}
+	})
+}

@@ -1,4 +1,4 @@
-.PHONY: all clean generate generate-check build test e2e-test e2e-test-coverage lint run fmt docker-build help check-tools
+.PHONY: all clean generate generate-check build test fuzz e2e-test e2e-test-coverage lint run fmt docker-build help check-tools
 .DEFAULT_GOAL:=help
 
 VERSION?=$(shell git describe --always --tags)
@@ -26,6 +26,13 @@ GO_BUILD_OUTPUT:=$(BIN_OUT_DIR)/$(BINARY_NAME)$(BINARY_SUFFIX)
 GOLANG_LINT_VERSION=v2.12.2
 
 GINKGO_PROCS?=
+
+# Fuzzing. Fuzz target seed corpora run as ordinary tests on every `make test`;
+# this is the opt-in discovery mode that actively generates new inputs. `go test
+# -fuzz` only fuzzes one target in one package per invocation, so `make fuzz`
+# loops over every Fuzz* target in FUZZ_PKGS, time-boxing each at FUZZ_TIME.
+FUZZ_TIME?=30s
+FUZZ_PKGS?=./config ./util ./lists/parsers
 
 # Parallelism for e2e tests. e2e specs are dominated by container startup and
 # health-check waits rather than CPU, so oversubscribing beyond the core count
@@ -86,6 +93,15 @@ endif
 test: check-go ## run tests
 	go tool ginkgo --label-filter="!e2e" --coverprofile=coverage.txt --covermode=atomic --cover -r ${GINKGO_PROCS}
 	go tool cover -html coverage.txt -o coverage.html
+
+fuzz: check-go ## run each fuzz target for FUZZ_TIME (default 30s); e.g. make fuzz FUZZ_TIME=2m
+	@set -e; \
+	for pkg in $(FUZZ_PKGS); do \
+		for target in $$(go test -list '^Fuzz' $$pkg | grep '^Fuzz'); do \
+			echo "==> fuzzing $$target in $$pkg for $(FUZZ_TIME)"; \
+			go test -run '^$$' -fuzz "^$$target$$" -fuzztime $(FUZZ_TIME) $$pkg; \
+		done; \
+	done
 
 e2e-test: check-go check-docker ## run e2e tests
 	docker buildx build \
