@@ -23,37 +23,37 @@ var _ = Describe("StatsResolver", func() {
 	var (
 		sut *StatsResolver
 		m   *mockResolver
-
-		ctx      context.Context
-		cancelFn context.CancelFunc
 	)
 
 	Describe("Type", func() {
-		It("follows conventions", func() {
-			ctx, cancelFn = context.WithCancel(context.Background())
-			DeferCleanup(cancelFn)
-
+		It("follows conventions", func(ctx context.Context) {
 			sut = NewStatsResolver(ctx, config.Statistics{Enable: true})
 			expectValidResolverType(sut)
 		})
 	})
 
 	Context("when enabled", func() {
-		BeforeEach(func() {
-			ctx, cancelFn = context.WithCancel(context.Background())
-			DeferCleanup(cancelFn)
-
+		// start builds the SUT with the spec's context so Ginkgo tears down the
+		// consumer goroutine and the event-bus subscriptions automatically when the
+		// spec ends — no manual context.WithCancel/DeferCleanup needed.
+		start := func(ctx context.Context) {
 			sut = NewStatsResolver(ctx, config.Statistics{Enable: true})
-			m = &mockResolver{}
 			sut.Next(m)
+		}
+
+		BeforeEach(func() {
+			m = &mockResolver{}
 		})
 
-		It("reports enabled", func() {
+		It("reports enabled", func(ctx context.Context) {
+			start(ctx)
+
 			Expect(sut.IsEnabled()).Should(BeTrue())
 			Expect(sut.StatsEnabled()).Should(BeTrue())
 		})
 
-		It("records a resolved query", func() {
+		It("records a resolved query", func(ctx context.Context) {
+			start(ctx)
 			m.On("Resolve", mock.Anything).Return(
 				&Response{Res: new(dns.Msg), RType: ResponseTypeRESOLVED, Reason: "RESOLVED"}, nil)
 
@@ -70,7 +70,8 @@ var _ = Describe("StatsResolver", func() {
 			Expect(namesOf(res.TopClients)).Should(ContainElement("client1"))
 		})
 
-		It("records a rate-limiter drop as dropped", func() {
+		It("records a rate-limiter drop as dropped", func(ctx context.Context) {
+			start(ctx)
 			m.On("Resolve", mock.Anything).Return(nil, ErrRateLimited)
 
 			_, err := sut.Resolve(ctx, newRequestWithClient("dropped.com.", A, "1.2.3.4", "client1"))
@@ -81,7 +82,8 @@ var _ = Describe("StatsResolver", func() {
 			}).Should(Equal(1))
 		})
 
-		It("records other errors as errors", func() {
+		It("records other errors as errors", func(ctx context.Context) {
+			start(ctx)
 			m.On("Resolve", mock.Anything).Return(nil, errors.New("boom"))
 
 			_, err := sut.Resolve(ctx, newRequestWithClient("err.com.", A, "1.2.3.4", "client1"))
@@ -92,13 +94,15 @@ var _ = Describe("StatsResolver", func() {
 			}).Should(Equal(1))
 		})
 
-		It("logs config", func() {
+		It("logs config", func(ctx context.Context) {
+			start(ctx)
 			logger, hook := log.NewMockEntry()
 			sut.LogConfig(logger)
 			Expect(hook.Calls).ShouldNot(BeEmpty())
 		})
 
-		It("updates cache entry count from the event bus", func() {
+		It("updates cache entry count from the event bus", func(ctx context.Context) {
+			start(ctx)
 			evt.Bus().Publish(evt.CachingResultCacheChanged, 123)
 
 			Eventually(func() int {
@@ -106,7 +110,8 @@ var _ = Describe("StatsResolver", func() {
 			}).Should(Equal(123))
 		})
 
-		It("updates list counts from the event bus", func() {
+		It("updates list counts from the event bus", func(ctx context.Context) {
+			start(ctx)
 			evt.Bus().Publish(evt.BlockingCacheGroupChanged, lists.ListCacheTypeDenylist, "ads", 5000)
 
 			Eventually(func() map[string]int {
@@ -117,16 +122,14 @@ var _ = Describe("StatsResolver", func() {
 
 	Context("when disabled", func() {
 		BeforeEach(func() {
-			ctx, cancelFn = context.WithCancel(context.Background())
-			DeferCleanup(cancelFn)
-
-			sut = NewStatsResolver(ctx, config.Statistics{Enable: false})
 			m = &mockResolver{}
 			m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg), RType: ResponseTypeRESOLVED}, nil)
-			sut.Next(m)
 		})
 
-		It("is a pass-through and reports disabled", func() {
+		It("is a pass-through and reports disabled", func(ctx context.Context) {
+			sut = NewStatsResolver(ctx, config.Statistics{Enable: false})
+			sut.Next(m)
+
 			Expect(sut.StatsEnabled()).Should(BeFalse())
 
 			_, err := sut.Resolve(ctx, newRequestWithClient("example.com.", A, "1.2.3.4", "client1"))
