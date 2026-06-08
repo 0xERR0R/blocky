@@ -63,10 +63,12 @@ var _ = Describe("In-Memory grouped cache", func() {
 				Expect(cache.ElementCount("group1")).Should(BeNumerically("==", 2))
 			})
 
-			It("should find strings", func() {
+			It("should find strings and return the matched rule per group", func() {
 				factory.Finish()
-				Expect(cache.Contains("string1", []string{"group1"})).Should(ConsistOf("group1"))
-				Expect(cache.Contains("string2", []string{"group1", "someOtherGroup"})).Should(ConsistOf("group1"))
+				Expect(cache.Contains("string1", []string{"group1"})).
+					Should(Equal(map[string]string{"group1": "string1"}))
+				Expect(cache.Contains("string2", []string{"group1", "someOtherGroup"})).
+					Should(Equal(map[string]string{"group1": "string2"}))
 			})
 		})
 		When("Regex grouped cache is used", func() {
@@ -79,11 +81,13 @@ var _ = Describe("In-Memory grouped cache", func() {
 				factory.Finish()
 			})
 
-			It("should ignore non-regex", func() {
+			It("should ignore non-regex and return the matching pattern", func() {
 				Expect(cache.ElementCount("group1")).Should(BeNumerically("==", 1))
 				Expect(cache.Contains("string1", []string{"group1"})).Should(BeEmpty())
-				Expect(cache.Contains("string2", []string{"group1"})).Should(ConsistOf("group1"))
-				Expect(cache.Contains("shouldalsomatchstring2", []string{"group1"})).Should(ConsistOf("group1"))
+				Expect(cache.Contains("string2", []string{"group1"})).
+					Should(Equal(map[string]string{"group1": "/string2/"}))
+				Expect(cache.Contains("shouldalsomatchstring2", []string{"group1"})).
+					Should(Equal(map[string]string{"group1": "/string2/"}))
 			})
 		})
 		When("Wildcard grouped cache is used", func() {
@@ -97,12 +101,14 @@ var _ = Describe("In-Memory grouped cache", func() {
 				factory.Finish()
 			})
 
-			It("should ignore non-wildcard", func() {
+			It("should ignore non-wildcard and return the wildcard rule", func() {
 				Expect(cache.ElementCount("group1")).Should(BeNumerically("==", 1))
 				Expect(cache.Contains("string1", []string{"group1"})).Should(BeEmpty())
 				Expect(cache.Contains("string2", []string{"group1"})).Should(BeEmpty())
-				Expect(cache.Contains("string3", []string{"group1"})).Should(ConsistOf("group1"))
-				Expect(cache.Contains("shouldalsomatch.string3", []string{"group1"})).Should(ConsistOf("group1"))
+				Expect(cache.Contains("string3", []string{"group1"})).
+					Should(Equal(map[string]string{"group1": "*.string3"}))
+				Expect(cache.Contains("shouldalsomatch.string3", []string{"group1"})).
+					Should(Equal(map[string]string{"group1": "*.string3"}))
 			})
 		})
 	})
@@ -126,9 +132,12 @@ var _ = Describe("In-Memory grouped cache", func() {
 			It("should contain 4 elements in 2 groups", func() {
 				Expect(cache.ElementCount("group1")).Should(BeNumerically("==", 2))
 				Expect(cache.ElementCount("group2")).Should(BeNumerically("==", 2))
-				Expect(cache.Contains("g1", []string{"group1", "group2"})).Should(ConsistOf("group1"))
-				Expect(cache.Contains("g2", []string{"group1", "group2"})).Should(ConsistOf("group2"))
-				Expect(cache.Contains("both", []string{"group1", "group2"})).Should(ConsistOf("group1", "group2"))
+				Expect(cache.Contains("g1", []string{"group1", "group2"})).
+					Should(Equal(map[string]string{"group1": "g1"}))
+				Expect(cache.Contains("g2", []string{"group1", "group2"})).
+					Should(Equal(map[string]string{"group2": "g2"}))
+				Expect(cache.Contains("both", []string{"group1", "group2"})).
+					Should(Equal(map[string]string{"group1": "both", "group2": "both"}))
 			})
 
 			It("Should replace group content on refresh", func() {
@@ -139,9 +148,12 @@ var _ = Describe("In-Memory grouped cache", func() {
 				Expect(cache.ElementCount("group1")).Should(BeNumerically("==", 1))
 				Expect(cache.ElementCount("group2")).Should(BeNumerically("==", 2))
 				Expect(cache.Contains("g1", []string{"group1", "group2"})).Should(BeEmpty())
-				Expect(cache.Contains("newString", []string{"group1", "group2"})).Should(ConsistOf("group1"))
-				Expect(cache.Contains("g2", []string{"group1", "group2"})).Should(ConsistOf("group2"))
-				Expect(cache.Contains("both", []string{"group1", "group2"})).Should(ConsistOf("group2"))
+				Expect(cache.Contains("newString", []string{"group1", "group2"})).
+					Should(Equal(map[string]string{"group1": "newstring"})) // rule is normalized to lower-case
+				Expect(cache.Contains("g2", []string{"group1", "group2"})).
+					Should(Equal(map[string]string{"group2": "g2"}))
+				Expect(cache.Contains("both", []string{"group1", "group2"})).
+					Should(Equal(map[string]string{"group2": "both"}))
 			})
 		})
 	})

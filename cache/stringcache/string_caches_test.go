@@ -38,17 +38,33 @@ var _ = Describe("Caches", func() {
 			})
 
 			It("should match if StringCache contains exact string", func() {
-				Expect(cache.contains("apple.com")).Should(BeTrue())
-				Expect(cache.contains("google.com")).Should(BeTrue())
-				Expect(cache.contains("www.google.com")).Should(BeFalse())
-				Expect(cache.contains("")).Should(BeFalse())
+				rule, ok := cache.findMatch("apple.com")
+				Expect(ok).Should(BeTrue())
+				Expect(rule).Should(Equal("apple.com"))
+
+				rule, ok = cache.findMatch("google.com")
+				Expect(ok).Should(BeTrue())
+				Expect(rule).Should(Equal("google.com"))
+
+				_, ok = cache.findMatch("www.google.com")
+				Expect(ok).Should(BeFalse())
+				_, ok = cache.findMatch("")
+				Expect(ok).Should(BeFalse())
 			})
 
-			It("should match case-insensitive", func() {
-				Expect(cache.contains("aPPle.com")).Should(BeTrue())
-				Expect(cache.contains("google.COM")).Should(BeTrue())
-				Expect(cache.contains("www.google.com")).Should(BeFalse())
-				Expect(cache.contains("")).Should(BeFalse())
+			It("should match case-insensitive and return the normalized rule", func() {
+				rule, ok := cache.findMatch("aPPle.com")
+				Expect(ok).Should(BeTrue())
+				Expect(rule).Should(Equal("apple.com"))
+
+				rule, ok = cache.findMatch("google.COM")
+				Expect(ok).Should(BeTrue())
+				Expect(rule).Should(Equal("google.com"))
+
+				_, ok = cache.findMatch("www.google.com")
+				Expect(ok).Should(BeFalse())
+				_, ok = cache.findMatch("")
+				Expect(ok).Should(BeFalse())
 			})
 
 			It("should return correct element count", func() {
@@ -77,7 +93,9 @@ var _ = Describe("Caches", func() {
 
 			It("finds every entry regardless of insertion order", func() {
 				for _, e := range entries {
-					Expect(cache.contains(e)).Should(BeTrue(), e)
+					rule, ok := cache.findMatch(e)
+					Expect(ok).Should(BeTrue(), e)
+					Expect(rule).Should(Equal(e), e)
 				}
 			})
 
@@ -117,19 +135,39 @@ var _ = Describe("Caches", func() {
 				cache = factory.create()
 			})
 
-			It("should match if one regex in StringCache matches string", func() {
-				Expect(cache.contains("google.com")).Should(BeTrue())
-				Expect(cache.contains("google.coma")).Should(BeTrue())
-				Expect(cache.contains("agoogle.com")).Should(BeTrue())
-				Expect(cache.contains("www.google.com")).Should(BeTrue())
-				Expect(cache.contains("apple.com")).Should(BeTrue())
-				Expect(cache.contains("apple.de")).Should(BeTrue())
-				Expect(cache.contains("apple.it")).Should(BeFalse())
-				Expect(cache.contains("www.apple.com")).Should(BeFalse())
-				Expect(cache.contains("applecom")).Should(BeFalse())
-				Expect(cache.contains("www.amazon.com")).Should(BeTrue())
-				Expect(cache.contains("amazon.com")).Should(BeTrue())
-				Expect(cache.contains("myamazon.com")).Should(BeTrue())
+			It("should match if one regex in StringCache matches string and return the pattern", func() {
+				rule, ok := cache.findMatch("google.com")
+				Expect(ok).Should(BeTrue())
+				Expect(rule).Should(Equal("/.*google.com/"))
+
+				_, ok = cache.findMatch("google.coma")
+				Expect(ok).Should(BeTrue())
+				_, ok = cache.findMatch("agoogle.com")
+				Expect(ok).Should(BeTrue())
+				_, ok = cache.findMatch("www.google.com")
+				Expect(ok).Should(BeTrue())
+
+				rule, ok = cache.findMatch("apple.com")
+				Expect(ok).Should(BeTrue())
+				Expect(rule).Should(Equal("/^apple\\.(de|com)$/"))
+
+				_, ok = cache.findMatch("apple.de")
+				Expect(ok).Should(BeTrue())
+				_, ok = cache.findMatch("apple.it")
+				Expect(ok).Should(BeFalse())
+				_, ok = cache.findMatch("www.apple.com")
+				Expect(ok).Should(BeFalse())
+				_, ok = cache.findMatch("applecom")
+				Expect(ok).Should(BeFalse())
+
+				rule, ok = cache.findMatch("www.amazon.com")
+				Expect(ok).Should(BeTrue())
+				Expect(rule).Should(Equal("/amazon/"))
+
+				_, ok = cache.findMatch("amazon.com")
+				Expect(ok).Should(BeTrue())
+				_, ok = cache.findMatch("myamazon.com")
+				Expect(ok).Should(BeTrue())
 			})
 
 			It("should return correct element count", func() {
@@ -168,30 +206,51 @@ var _ = Describe("Caches", func() {
 				cache = factory.create()
 			})
 
-			It("should match if one regex in StringCache matches string", func() {
+			It("should match and return the wildcard rule including the '*.' prefix", func() {
 				// first entry
-				Expect(cache.contains("example.com")).Should(BeTrue())
-				Expect(cache.contains("www.example.com")).Should(BeTrue())
+				rule, ok := cache.findMatch("example.com")
+				Expect(ok).Should(BeTrue())
+				Expect(rule).Should(Equal("*.example.com"))
+
+				rule, ok = cache.findMatch("www.example.com")
+				Expect(ok).Should(BeTrue())
+				Expect(rule).Should(Equal("*.example.com"))
 
 				// look alikes
-				Expect(cache.contains("com")).Should(BeFalse())
-				Expect(cache.contains("example.coma")).Should(BeFalse())
-				Expect(cache.contains("an-example.com")).Should(BeFalse())
-				Expect(cache.contains("examplecom")).Should(BeFalse())
+				_, ok = cache.findMatch("com")
+				Expect(ok).Should(BeFalse())
+				_, ok = cache.findMatch("example.coma")
+				Expect(ok).Should(BeFalse())
+				_, ok = cache.findMatch("an-example.com")
+				Expect(ok).Should(BeFalse())
+				_, ok = cache.findMatch("examplecom")
+				Expect(ok).Should(BeFalse())
 
 				// other entry
-				Expect(cache.contains("example.org")).Should(BeTrue())
-				Expect(cache.contains("www.example.org")).Should(BeTrue())
+				rule, ok = cache.findMatch("example.org")
+				Expect(ok).Should(BeTrue())
+				Expect(rule).Should(Equal("*.example.org"))
+
+				_, ok = cache.findMatch("www.example.org")
+				Expect(ok).Should(BeTrue())
 
 				// unrelated
-				Expect(cache.contains("example.net")).Should(BeFalse())
-				Expect(cache.contains("www.example.net")).Should(BeFalse())
+				_, ok = cache.findMatch("example.net")
+				Expect(ok).Should(BeFalse())
+				_, ok = cache.findMatch("www.example.net")
+				Expect(ok).Should(BeFalse())
 
-				// third entry
-				Expect(cache.contains("blocked")).Should(BeTrue())
-				Expect(cache.contains("sub.blocked")).Should(BeTrue())
-				Expect(cache.contains("sub.sub.blocked")).Should(BeTrue())
-				Expect(cache.contains("example.blocked")).Should(BeTrue())
+				// third entry (single label)
+				rule, ok = cache.findMatch("blocked")
+				Expect(ok).Should(BeTrue())
+				Expect(rule).Should(Equal("*.blocked"))
+
+				_, ok = cache.findMatch("sub.blocked")
+				Expect(ok).Should(BeTrue())
+				_, ok = cache.findMatch("sub.sub.blocked")
+				Expect(ok).Should(BeTrue())
+				_, ok = cache.findMatch("example.blocked")
+				Expect(ok).Should(BeTrue())
 			})
 
 			It("should return correct element count", func() {

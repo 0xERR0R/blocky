@@ -12,7 +12,9 @@ import (
 
 type stringCache interface {
 	elementCount() int
-	contains(searchString string) bool
+	// findMatch reports whether the cache matches searchString and, if so,
+	// returns the rule that matched. rule is empty when ok is false.
+	findMatch(searchString string) (rule string, ok bool)
 }
 
 type cacheFactory interface {
@@ -37,12 +39,12 @@ func (cache stringMap) elementCount() int {
 	return count
 }
 
-func (cache stringMap) contains(searchString string) bool {
+func (cache stringMap) findMatch(searchString string) (string, bool) {
 	normalized := normalizeEntry(searchString)
 	searchLen := len(normalized)
 
 	if searchLen == 0 {
-		return false
+		return "", false
 	}
 
 	searchBucketLen := len(cache[searchLen]) / searchLen
@@ -55,11 +57,11 @@ func (cache stringMap) contains(searchString string) bool {
 		if blockRule == normalized {
 			log.PrefixedLog("string_map").Debugf("block rule '%s' matched with '%s'", blockRule, searchString)
 
-			return true
+			return blockRule, true
 		}
 	}
 
-	return false
+	return "", false
 }
 
 type stringCacheFactory struct {
@@ -126,16 +128,18 @@ func (cache regexCache) elementCount() int {
 	return len(cache)
 }
 
-func (cache regexCache) contains(searchString string) bool {
+func (cache regexCache) findMatch(searchString string) (string, bool) {
 	for _, regex := range cache {
 		if regex.MatchString(searchString) {
 			log.PrefixedLog("regex_cache").Debugf("regex '%s' matched with '%s'", regex, searchString)
 
-			return true
+			// re-wrap in the '/.../' delimiters that addEntry strips on insertion
+			// so the reported rule matches the entry as configured by the user.
+			return "/" + regex.String() + "/", true
 		}
 	}
 
-	return false
+	return "", false
 }
 
 type regexCacheFactory struct {
@@ -189,8 +193,22 @@ func (cache wildcardCache) elementCount() int {
 	return cache.cnt
 }
 
-func (cache wildcardCache) contains(domain string) bool {
-	return cache.trie.HasParentOf(domain)
+func (cache wildcardCache) findMatch(domain string) (string, bool) {
+	labels, ok := cache.trie.HasParentOf(domain)
+	if !ok {
+		return "", false
+	}
+
+	// labels reconstruct the stored wildcard base (normalized, with the "*."
+	// prefix stripped on insertion); re-prepend "*." so the reported rule
+	// matches the entry as configured by the user. trie.JoinTLD pairs with the
+	// trie.SplitTLD this cache is built with, so the separator stays the trie's
+	// concern rather than being hard-coded here.
+	rule := "*." + trie.JoinTLD(labels)
+
+	log.PrefixedLog("wildcard_cache").Debugf("wildcard block rule '%s' matched with '%s'", rule, domain)
+
+	return rule, true
 }
 
 type wildcardCacheFactory struct {

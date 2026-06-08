@@ -1,10 +1,5 @@
 package stringcache
 
-import (
-	"maps"
-	"slices"
-)
-
 type ChainedGroupedCache struct {
 	caches []GroupedStringCache
 }
@@ -24,18 +19,28 @@ func (c *ChainedGroupedCache) ElementCount(group string) int {
 	return sum
 }
 
-func (c *ChainedGroupedCache) Contains(searchString string, groups []string) []string {
-	groupMatchedMap := make(map[string]struct{}, len(groups))
+func (c *ChainedGroupedCache) Contains(searchString string, groups []string) map[string]string {
+	// result is allocated lazily so the common no-match case stays allocation-free.
+	// Ordering of matched groups is not defined here; callers that render the
+	// result sort it (see resolver.formatBlockReason).
+	//
+	// If a group matches in more than one chained cache (e.g. an exact entry and
+	// a wildcard), we keep a single rule per group: the last chained cache wins.
+	// One representative rule per group is enough for the block reason, and the
+	// chain order is fixed, so the choice is stable across requests.
+	var result map[string]string
 
 	for _, cache := range c.caches {
-		for _, group := range cache.Contains(searchString, groups) {
-			groupMatchedMap[group] = struct{}{}
+		for group, rule := range cache.Contains(searchString, groups) {
+			if result == nil {
+				result = make(map[string]string, len(groups))
+			}
+
+			result[group] = rule
 		}
 	}
 
-	matchedGroups := slices.Sorted(maps.Keys(groupMatchedMap))
-
-	return matchedGroups
+	return result
 }
 
 func (c *ChainedGroupedCache) Refresh(group string) GroupFactory {

@@ -392,8 +392,8 @@ func (r *BlockingResolver) handleDenylist(ctx context.Context, groupsToCheck []s
 		domain := util.ExtractDomain(question)
 		logger := logger.WithField(logFieldDomain, domain)
 
-		if groups := r.matches(groupsToCheck, r.allowlistMatcher, domain); len(groups) > 0 {
-			logger.WithField("groups", groups).Debugf("domain is allowlisted")
+		if matches := r.matches(groupsToCheck, r.allowlistMatcher, domain); len(matches) > 0 {
+			logger.WithField("matches", matches).Debug("domain is allowlisted")
 
 			resp, err := r.next.Resolve(ctx, request)
 			if err != nil {
@@ -412,8 +412,8 @@ func (r *BlockingResolver) handleDenylist(ctx context.Context, groupsToCheck []s
 			return true, resp, err
 		}
 
-		if groups := r.matches(groupsToCheck, r.denylistMatcher, domain); len(groups) > 0 {
-			resp, err := r.handleBlocked(logger, request, question, fmt.Sprintf("BLOCKED (%s)", strings.Join(groups, ",")))
+		if matches := r.matches(groupsToCheck, r.denylistMatcher, domain); len(matches) > 0 {
+			resp, err := r.handleBlocked(logger, request, question, formatBlockReason(matches, ""))
 
 			return true, resp, err
 		}
@@ -442,11 +442,10 @@ func (r *BlockingResolver) Resolve(ctx context.Context, request *model.Request) 
 			if len(entryToCheck) > 0 {
 				logger := logger.WithField("response_entry", entryToCheck)
 
-				if groups := r.matches(groupsToCheck, r.allowlistMatcher, entryToCheck); len(groups) > 0 {
-					logger.WithField("groups", groups).Debugf("%s is allowlisted", tName)
-				} else if groups := r.matches(groupsToCheck, r.denylistMatcher, entryToCheck); len(groups) > 0 {
-					return r.handleBlocked(logger, request, request.Req.Question[0], fmt.Sprintf("BLOCKED %s (%s)", tName,
-						strings.Join(groups, ",")))
+				if matches := r.matches(groupsToCheck, r.allowlistMatcher, entryToCheck); len(matches) > 0 {
+					logger.WithField("matches", matches).Debugf("%s is allowlisted", tName)
+				} else if matches := r.matches(groupsToCheck, r.denylistMatcher, entryToCheck); len(matches) > 0 {
+					return r.handleBlocked(logger, request, request.Req.Question[0], formatBlockReason(matches, tName))
 				}
 			}
 		}
@@ -564,8 +563,29 @@ func (r *BlockingResolver) collectGroupsForClient(request *model.Request) []sche
 
 func (r *BlockingResolver) matches(groupsToCheck []string, m lists.Matcher,
 	domain string,
-) []string {
+) map[string]string {
 	return m.Match(domain, groupsToCheck)
+}
+
+// formatBlockReason renders a block reason of the form
+// "BLOCKED[ TYPE] (group: rule[, group: rule...])". Matched groups are sorted
+// so the rendered reason is deterministic when more than one group matches.
+func formatBlockReason(matches map[string]string, typeName string) string {
+	reason := "BLOCKED"
+	if typeName != "" {
+		reason += " " + typeName
+	}
+
+	if len(matches) == 0 {
+		return reason
+	}
+
+	entries := make([]string, 0, len(matches))
+	for _, group := range slices.Sorted(maps.Keys(matches)) {
+		entries = append(entries, fmt.Sprintf("%s: %s", group, matches[group]))
+	}
+
+	return fmt.Sprintf("%s (%s)", reason, strings.Join(entries, ", "))
 }
 
 type blockHandler interface {

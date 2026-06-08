@@ -1015,7 +1015,9 @@ You can choose which information from processed DNS request and response should 
 
 - `clientIP`: origin IP address from the request
 - `clientName`: resolved client name(s) from the origins request
-- `responseReason`: reason for the response (e.g. from which upstream resolver), response type and code
+- `responseReason`: reason for the response (e.g. from which upstream resolver), response type and code. For blocked
+  queries the reason also names the matched rule per group, e.g. `BLOCKED (ads: *.docler.com)`, so you can tell which
+  denylist entry caused the block
 - `responseAnswer`: returned DNS answer
 - `question`: DNS question from the request
 - `duration`: request processing time in milliseconds
@@ -1127,6 +1129,10 @@ Configuration parameters:
 ## Deliver EDE codes as EDNS0 option
 
 DNS responses can be extended with EDE codes according to [RFC8914](https://datatracker.ietf.org/doc/rfc8914/).
+
+For blocked queries the EDE extra text carries the same reason as the query log, including the matched group and rule
+(e.g. `BLOCKED CNAME (ads: *.docler.com)`), so a client that requests EDE information learns which denylist entry caused
+the block.
 
 Configuration parameters:
 
