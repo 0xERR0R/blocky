@@ -603,6 +603,17 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 			Expect(ok).Should(BeTrue())
 			Expect(transport.TLSClientConfig.ClientSessionCache).ShouldNot(BeNil())
 		})
+
+		It("is enabled for DoQ upstreams", func() {
+			cfg := newUpstreamConfig(
+				config.Upstream{Net: config.NetProtocolQuic, Host: "localhost", Port: 853},
+				defaultUpstreamsConfig,
+			)
+
+			client, ok := createUpstreamClient(cfg).(*quicUpstreamClient)
+			Expect(ok).Should(BeTrue())
+			Expect(client.tlsConfig.ClientSessionCache).ShouldNot(BeNil())
+		})
 	})
 
 	Describe("TLS session resumption with certificate pinning (Fix #1)", func() {
@@ -641,6 +652,53 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 			Expect(ok).Should(BeTrue())
 			Expect(transport.TLSClientConfig.ClientSessionCache).Should(BeNil())
 		})
+
+		It("is disabled for cert-pinned DoQ upstreams", func() {
+			cfg := newUpstreamConfig(
+				config.Upstream{
+					Net: config.NetProtocolQuic, Host: "localhost", Port: 853,
+					CertificateFingerprints: pinnedFingerprint,
+				},
+				defaultUpstreamsConfig,
+			)
+
+			client, ok := createUpstreamClient(cfg).(*quicUpstreamClient)
+			Expect(ok).Should(BeTrue())
+			Expect(client.tlsConfig.ClientSessionCache).Should(BeNil())
+		})
+	})
+
+	Describe("MockDoTUpstreamServer misuse (Fix #14)", func() {
+		It("panics with a clear message when started without an answer", func() {
+			Expect(func() { NewMockDoTUpstreamServer().Start() }).
+				Should(PanicWith(ContainSubstring("answer")))
+		})
+	})
+
+	Describe("callExternal without a pool (Fix #10)", func() {
+		It("falls back to the tcp client instead of nil-dereferencing the pool", func() {
+			// A connection-oriented client with neither a udp client nor a pool
+			// (e.g. a future tcp-only client) must surface an error, not panic.
+			client := &dnsUpstreamClient{tcpClient: &dns.Client{Net: "tcp"}}
+
+			_, _, err := client.callExternal(
+				ctx, newRequest("example.com.", A).Req, "127.0.0.1:0", RequestProtocolTCP,
+			)
+			Expect(err).Should(HaveOccurred())
+		})
+	})
+
+	Describe("upstreamClient.Close (Fix #9)", func() {
+		DescribeTable("closes cleanly for every protocol",
+			func(upstream config.Upstream) {
+				client := createUpstreamClient(newUpstreamConfig(upstream, defaultUpstreamsConfig))
+				Expect(client.Close()).Should(Succeed())
+			},
+			Entry("tcp+udp", config.Upstream{Net: config.NetProtocolTcpUdp, Host: "localhost", Port: 53}),
+			Entry("DoT", config.Upstream{Net: config.NetProtocolTcpTls, Host: "localhost", Port: 853}),
+			Entry("DoH", config.Upstream{Net: config.NetProtocolHttps, Host: "localhost", Port: 443, Path: "/dns-query"}),
+			Entry("DoQ", config.Upstream{Net: config.NetProtocolQuic, Host: "localhost", Port: 853}),
+		)
 	})
 
 	Describe("DoT connection reuse (Fix B)", func() {

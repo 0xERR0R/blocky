@@ -89,6 +89,8 @@ type UpstreamResolver struct {
 }
 
 type upstreamClient interface {
+	io.Closer
+
 	fmtURL(ip net.IP, port uint16, path string) string
 	callExternal(
 		ctx context.Context, msg *dns.Msg, upstreamURL string, protocol model.RequestProtocol,
@@ -174,15 +176,16 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 		tlsConfig.VerifyPeerCertificate = createCertificatePinningVerifier(cfg.CertificateFingerprints) //nolint:gosec
 	}
 
+	// Enable TLS session resumption for all TLS-based protocols (DoH, DoT, DoQ) so
+	// reconnections skip the full handshake. Not when a certificate is pinned: Go
+	// does not call VerifyPeerCertificate (our pinning check) on resumed sessions,
+	// so resumption would bypass the pin. (The plain tcp+udp client ignores tlsConfig.)
+	if !certPinning {
+		tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(0)
+	}
+
 	switch cfg.Net {
 	case config.NetProtocolHttps:
-		// Enable TLS session resumption so reconnections skip the full handshake.
-		// Not when a certificate is pinned: Go does not call VerifyPeerCertificate
-		// (our pinning check) on resumed sessions, so resumption would bypass the pin.
-		if !certPinning {
-			tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(0)
-		}
-
 		transport := util.DefaultHTTPTransport()
 		transport.TLSClientConfig = &tlsConfig
 
@@ -195,14 +198,6 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 		}
 
 	case config.NetProtocolTcpTls:
-		// Enable TLS session resumption so the connections the pool has to
-		// re-dial (idle-closed or evicted) skip the full handshake. Not when a
-		// certificate is pinned: Go does not call VerifyPeerCertificate (our pinning
-		// check) on resumed sessions, so resumption would bypass the pin.
-		if !certPinning {
-			tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(0)
-		}
-
 		tcpClient := &dns.Client{
 			TLSConfig: &tlsConfig,
 			Net:       cfg.Net.String(),
@@ -234,6 +229,13 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 
 func (r *httpUpstreamClient) fmtURL(ip net.IP, port uint16, path string) string {
 	return fmt.Sprintf("https://%s%s", net.JoinHostPort(ip.String(), strconv.Itoa(int(port))), path)
+}
+
+// Close releases idle keep-alive connections. Implements io.Closer.
+func (r *httpUpstreamClient) Close() error {
+	r.client.CloseIdleConnections()
+
+	return nil
 }
 
 func (r *httpUpstreamClient) callExternal(
@@ -309,7 +311,21 @@ func (r *dnsUpstreamClient) callExternal(
 	ctx context.Context, msg *dns.Msg, upstreamURL string, protocol model.RequestProtocol,
 ) (response *dns.Msg, rtt time.Duration, err error) {
 	if r.udpClient == nil {
-		resp, rtt, err := r.pool.exchange(ctx, msg, upstreamURL)
+		// Single connection-oriented client (DoT): reuse pooled connections when a
+		// pool is configured, otherwise fall back to a one-shot exchange rather than
+		// dereferencing a nil pool.
+		var (
+			resp *dns.Msg
+			rtt  time.Duration
+			err  error
+		)
+
+		if r.pool != nil {
+			resp, rtt, err = r.pool.exchange(ctx, msg, upstreamURL)
+		} else {
+			resp, rtt, err = r.tcpClient.ExchangeContext(ctx, msg, upstreamURL)
+		}
+
 		if err != nil {
 			return nil, 0, fmt.Errorf("TCP DNS exchange failed to %s: %w", upstreamURL, err)
 		}

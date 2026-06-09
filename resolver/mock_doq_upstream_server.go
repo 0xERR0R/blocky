@@ -40,27 +40,13 @@ func NewMockDoQUpstreamServer() *MockDoQUpstreamServer {
 }
 
 func (t *MockDoQUpstreamServer) WithAnswerRR(answers ...string) *MockDoQUpstreamServer {
-	t.answerFn = func(_ *dns.Msg) *dns.Msg {
-		msg := new(dns.Msg)
-		for _, a := range answers {
-			rr, err := dns.NewRR(a)
-			util.FatalOnError("can't create RR", err)
-			msg.Answer = append(msg.Answer, rr)
-		}
-
-		return msg
-	}
+	t.answerFn = rrAnswerFn(answers...)
 
 	return t
 }
 
 func (t *MockDoQUpstreamServer) WithAnswerError(errorCode int) *MockDoQUpstreamServer {
-	t.answerFn = func(_ *dns.Msg) *dns.Msg {
-		msg := new(dns.Msg)
-		msg.Rcode = errorCode
-
-		return msg
-	}
+	t.answerFn = errorAnswerFn(errorCode)
 
 	return t
 }
@@ -193,13 +179,7 @@ func (t *MockDoQUpstreamServer) handleStream(stream *quic.Stream) {
 
 	t.callCount.Add(1)
 
-	response := t.answerFn(msg)
-	rCode := response.Rcode
-	response.SetReply(msg)
-
-	if rCode != 0 {
-		response.Rcode = rCode
-	}
+	response := mockReply(msg, t.answerFn(msg))
 
 	packed, err := response.Pack()
 	util.FatalOnError("can't serialize message", err)

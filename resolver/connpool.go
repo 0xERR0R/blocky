@@ -53,8 +53,8 @@ type connPool struct {
 	retried     atomic.Int64
 }
 
-// connPoolStats is a snapshot of the pool's lifetime counters, used by metrics
-// and tests to confirm reuse and the absence of leaks.
+// connPoolStats is a snapshot of the pool's lifetime counters, used by tests to
+// confirm reuse and the absence of leaks.
 type connPoolStats struct {
 	dialed      int64
 	reused      int64
@@ -144,7 +144,8 @@ func (p *connPool) acquire(addr string) *dns.Conn {
 func (p *connPool) putBack(addr string, conn *dns.Conn) {
 	p.mu.Lock()
 
-	if len(p.idle[addr]) >= p.maxIdle {
+	conns := p.idle[addr]
+	if len(conns) >= p.maxIdle {
 		p.mu.Unlock()
 
 		// Close outside the lock; see acquire.
@@ -153,7 +154,7 @@ func (p *connPool) putBack(addr string, conn *dns.Conn) {
 		return
 	}
 
-	p.idle[addr] = append(p.idle[addr], pooledConn{conn: conn, returned: p.now()})
+	p.idle[addr] = append(conns, pooledConn{conn: conn, returned: p.now()})
 	p.mu.Unlock()
 }
 
@@ -174,9 +175,9 @@ func (p *connPool) dial(ctx context.Context, addr string) (*dns.Conn, error) {
 // never see an error caused purely by connection reuse.
 func (p *connPool) exchange(
 	ctx context.Context, msg *dns.Msg, addr string,
-) (resp *dns.Msg, rtt time.Duration, err error) {
+) (*dns.Msg, time.Duration, error) {
 	if conn := p.acquire(addr); conn != nil {
-		resp, rtt, err = p.client.ExchangeWithConnContext(ctx, msg, conn)
+		resp, rtt, err := p.client.ExchangeWithConnContext(ctx, msg, conn)
 		if err == nil {
 			p.reused.Add(1)
 			p.putBack(addr, conn)
@@ -203,7 +204,7 @@ func (p *connPool) exchange(
 		return nil, 0, err
 	}
 
-	resp, rtt, err = p.client.ExchangeWithConnContext(ctx, msg, conn)
+	resp, rtt, err := p.client.ExchangeWithConnContext(ctx, msg, conn)
 	if err != nil {
 		_ = conn.Close()
 

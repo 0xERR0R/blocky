@@ -21,7 +21,7 @@ type MockDoTUpstreamServer struct {
 	callCount  atomic.Int32
 	connCount  atomic.Int32
 	openConns  atomic.Int32
-	closeAfter int32
+	closeAfter atomic.Int32
 
 	listener net.Listener
 	answerFn func(request *dns.Msg) (response *dns.Msg)
@@ -40,29 +40,13 @@ func NewMockDoTUpstreamServer() *MockDoTUpstreamServer {
 }
 
 func (t *MockDoTUpstreamServer) WithAnswerRR(answers ...string) *MockDoTUpstreamServer {
-	t.answerFn = func(_ *dns.Msg) *dns.Msg {
-		msg := new(dns.Msg)
-
-		for _, a := range answers {
-			rr, err := dns.NewRR(a)
-			util.FatalOnError("can't create RR", err)
-
-			msg.Answer = append(msg.Answer, rr)
-		}
-
-		return msg
-	}
+	t.answerFn = rrAnswerFn(answers...)
 
 	return t
 }
 
 func (t *MockDoTUpstreamServer) WithAnswerError(errorCode int) *MockDoTUpstreamServer {
-	t.answerFn = func(_ *dns.Msg) *dns.Msg {
-		msg := new(dns.Msg)
-		msg.Rcode = errorCode
-
-		return msg
-	}
+	t.answerFn = errorAnswerFn(errorCode)
 
 	return t
 }
@@ -70,7 +54,7 @@ func (t *MockDoTUpstreamServer) WithAnswerError(errorCode int) *MockDoTUpstreamS
 // WithCloseAfter makes the server close each connection after serving n queries,
 // simulating an upstream that drops idle/old connections.
 func (t *MockDoTUpstreamServer) WithCloseAfter(n int) *MockDoTUpstreamServer {
-	t.closeAfter = int32(n) //nolint:gosec // small test value
+	t.closeAfter.Store(int32(n)) //nolint:gosec // small test value
 
 	return t
 }
@@ -109,6 +93,10 @@ func (t *MockDoTUpstreamServer) Close() {
 }
 
 func (t *MockDoTUpstreamServer) Start() config.Upstream {
+	if t.answerFn == nil {
+		panic("MockDoTUpstreamServer: configure an answer with WithAnswerRR or WithAnswerError before Start")
+	}
+
 	cert := generateSelfSignedCert()
 
 	tlsConfig := &tls.Config{
@@ -166,20 +154,14 @@ func (t *MockDoTUpstreamServer) handleConn(conn net.Conn) {
 
 		t.callCount.Add(1)
 
-		response := t.answerFn(msg)
-		rCode := response.Rcode
-		response.SetReply(msg)
-
-		if rCode != 0 {
-			response.Rcode = rCode
-		}
+		response := mockReply(msg, t.answerFn(msg))
 
 		if err := dnsConn.WriteMsg(response); err != nil {
 			return
 		}
 
 		served++
-		if t.closeAfter > 0 && served >= t.closeAfter {
+		if closeAfter := t.closeAfter.Load(); closeAfter > 0 && served >= closeAfter {
 			return
 		}
 	}
