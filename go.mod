@@ -3,7 +3,7 @@ module github.com/0xERR0R/blocky
 go 1.26.2
 
 require (
-	github.com/0xERR0R/expiration-cache v0.1.0
+	github.com/0xERR0R/expiration-cache v0.2.0
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/ThinkChaos/parcour v0.0.0-20230710171753-fbf917c9eaef
 	github.com/alicebob/miniredis/v2 v2.38.0
@@ -95,7 +95,7 @@ require (
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/pprof v0.0.0-20260402051712-545e8a4df936 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
-	github.com/hashicorp/golang-lru v1.0.2 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
