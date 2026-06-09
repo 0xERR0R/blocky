@@ -394,6 +394,15 @@ func (c *Ports) validate() error {
 		return fmt.Errorf("dohPath must not contain '#', got %q", c.DOHPath)
 	}
 
+	seenProxyProtocolListeners := make(map[ProxyProtocolType]struct{}, len(c.ProxyProtocol))
+	for _, listener := range c.ProxyProtocol {
+		if _, ok := seenProxyProtocolListeners[listener]; ok {
+			return fmt.Errorf("ports.proxyProtocol contains duplicate listener family %q", listener)
+		}
+
+		seenProxyProtocolListeners[listener] = struct{}{}
+	}
+
 	return nil
 }
 

@@ -29,6 +29,19 @@ var _ = Describe("Ports.ProxyProtocol", func() {
 		Expect(ports.ProxyProtocol.Has(ProxyProtocolTypeDns)).Should(BeFalse())
 		Expect(ports.ProxyProtocol.Has(ProxyProtocolTypeHttp)).Should(BeFalse())
 	})
+
+	It("rejects duplicate listener families", func() {
+		ports := Ports{
+			DOHPath: "/dns-query",
+			ProxyProtocol: ProxyProtocolListeners{
+				ProxyProtocolTypeHttps,
+				ProxyProtocolTypeHttps,
+			},
+		}
+
+		Expect(ports.validate()).Should(MatchError(ContainSubstring(
+			`ports.proxyProtocol contains duplicate listener family "https"`)))
+	})
 })
 
 var _ = Describe("Ports.PrivilegedPorts", func() {
