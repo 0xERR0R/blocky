@@ -56,6 +56,7 @@ func NewPrefetchingCache[T any](ctx context.Context, options PrefetchingOptions[
 		prefetchingNameCache: expirationcache.NewCache[atomic.Uint32](ctx, expirationcache.Options{
 			CleanupInterval: time.Minute,
 			MaxSize:         uint(options.PrefetchMaxItemsCount),
+			Shards:          cache.ShardCount(),
 			OnAfterPutFn:    options.OnPrefetchAfterPut,
 		}),
 		prefetchExpires:         options.PrefetchExpires,

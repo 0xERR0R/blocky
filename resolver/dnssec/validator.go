@@ -174,6 +174,7 @@ func NewValidator(
 		upstream:     upstream,
 		validationCache: expirationcache.NewCache[ValidationResult](ctx, expirationcache.Options{
 			CleanupInterval: time.Hour,
+			Shards:          cache.ShardCount(),
 		}),
 		cacheExpiration:       time.Duration(cacheExpirationHours) * time.Hour,
 		maxChainDepth:         maxChainDepth,

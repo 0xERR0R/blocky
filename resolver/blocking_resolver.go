@@ -175,6 +175,7 @@ func NewBlockingResolver(ctx context.Context,
 
 	res.fqdnIPCache = expirationcache.NewCacheWithOnExpired[[]net.IP](ctx, expirationcache.Options{
 		CleanupInterval: defaultBlockingCleanUpInterval,
+		Shards:          cache.ShardCount(),
 	}, func(ctx context.Context, key string) (val *[]net.IP, ttl time.Duration) {
 		return res.queryForFQIdentifierIPs(ctx, key)
 	})

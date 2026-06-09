@@ -97,6 +97,7 @@ func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Cachin
 	options := expirationcache.Options{
 		CleanupInterval: defaultCachingCleanUpInterval,
 		MaxSize:         uint(cfg.MaxItemsCount),
+		Shards:          cache.ShardCount(),
 		OnCacheHitFn: func(key string) {
 			cacheHits.Inc()
 		},
