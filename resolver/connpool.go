@@ -225,19 +225,22 @@ func shouldRedial(ctx context.Context, err error) bool {
 
 // Close closes all idle connections, implementing io.Closer.
 func (p *connPool) Close() error {
+	// Detach the idle set under the lock, then close outside it: tls.Conn.Close
+	// can block writing close_notify, which would serialize concurrent
+	// acquire/putBack (see acquire).
 	p.mu.Lock()
-	defer p.mu.Unlock()
+	idle := p.idle
+	p.idle = make(map[string][]pooledConn)
+	p.mu.Unlock()
 
 	var errs []error
 
-	for addr, conns := range p.idle {
+	for _, conns := range idle {
 		for _, pc := range conns {
 			if err := pc.conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 				errs = append(errs, err)
 			}
 		}
-
-		delete(p.idle, addr)
 	}
 
 	return errors.Join(errs...)

@@ -650,7 +650,11 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 		newDoTResolver := func(upstream config.Upstream) *UpstreamResolver {
 			cfg := newUpstreamConfig(upstream, defaultUpstreamsConfig)
 			r := newUpstreamResolverUnchecked(cfg, systemResolverBootstrap)
-			r.upstreamClient.(*dnsUpstreamClient).tcpClient.TLSConfig.InsecureSkipVerify = true
+			client := r.upstreamClient.(*dnsUpstreamClient)
+			client.tcpClient.TLSConfig.InsecureSkipVerify = true
+
+			// Close the pool after the spec so idle client connections don't linger.
+			DeferCleanup(client.Close)
 
 			return r
 		}
@@ -758,6 +762,7 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 			client := sut.upstreamClient.(*dnsUpstreamClient)
 			client.tcpClient.TLSConfig.InsecureSkipVerify = true
 			client.tcpClient.TLSConfig.ClientSessionCache = cache
+			DeferCleanup(client.Close)
 
 			for range 4 {
 				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
