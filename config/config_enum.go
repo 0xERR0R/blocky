@@ -358,6 +358,105 @@ func (NetProtocol) EnumValues() []string {
 }
 
 const (
+	// ProxyProtocolTypeDns is a ProxyProtocolType of type dns.
+	ProxyProtocolTypeDns ProxyProtocolType = "dns"
+	// ProxyProtocolTypeHttp is a ProxyProtocolType of type http.
+	ProxyProtocolTypeHttp ProxyProtocolType = "http"
+	// ProxyProtocolTypeHttps is a ProxyProtocolType of type https.
+	ProxyProtocolTypeHttps ProxyProtocolType = "https"
+	// ProxyProtocolTypeTls is a ProxyProtocolType of type tls.
+	ProxyProtocolTypeTls ProxyProtocolType = "tls"
+)
+
+var ErrInvalidProxyProtocolType = fmt.Errorf("not a valid ProxyProtocolType, try [%s]", strings.Join(_ProxyProtocolTypeNames, ", "))
+
+var _ProxyProtocolTypeNames = []string{
+	string(ProxyProtocolTypeDns),
+	string(ProxyProtocolTypeHttp),
+	string(ProxyProtocolTypeHttps),
+	string(ProxyProtocolTypeTls),
+}
+
+// ProxyProtocolTypeNames returns a list of possible string values of ProxyProtocolType.
+func ProxyProtocolTypeNames() []string {
+	tmp := make([]string, len(_ProxyProtocolTypeNames))
+	copy(tmp, _ProxyProtocolTypeNames)
+	return tmp
+}
+
+// ProxyProtocolTypeValues returns a list of the values for ProxyProtocolType
+func ProxyProtocolTypeValues() []ProxyProtocolType {
+	return []ProxyProtocolType{
+		ProxyProtocolTypeDns,
+		ProxyProtocolTypeHttp,
+		ProxyProtocolTypeHttps,
+		ProxyProtocolTypeTls,
+	}
+}
+
+// String implements the Stringer interface.
+func (x ProxyProtocolType) String() string {
+	return string(x)
+}
+
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
+func (x ProxyProtocolType) IsValid() bool {
+	_, err := ParseProxyProtocolType(string(x))
+	return err == nil
+}
+
+var _ProxyProtocolTypeValue = map[string]ProxyProtocolType{
+	"dns":   ProxyProtocolTypeDns,
+	"http":  ProxyProtocolTypeHttp,
+	"https": ProxyProtocolTypeHttps,
+	"tls":   ProxyProtocolTypeTls,
+}
+
+// ParseProxyProtocolType attempts to convert a string to a ProxyProtocolType.
+func ParseProxyProtocolType(name string) (ProxyProtocolType, error) {
+	if x, ok := _ProxyProtocolTypeValue[name]; ok {
+		return x, nil
+	}
+	return ProxyProtocolType(""), fmt.Errorf("%s is %w", name, ErrInvalidProxyProtocolType)
+}
+
+// MarshalText implements the text marshaller method.
+func (x ProxyProtocolType) MarshalText() ([]byte, error) {
+	return []byte(string(x)), nil
+}
+
+// UnmarshalText implements the text unmarshaller method.
+func (x *ProxyProtocolType) UnmarshalText(text []byte) error {
+	tmp, err := ParseProxyProtocolType(string(text))
+	if err != nil {
+		return err
+	}
+	*x = tmp
+	return nil
+}
+
+// AppendText appends the textual representation of itself to the end of b
+// (allocating a larger slice if necessary) and returns the updated slice.
+//
+// Implementations must not retain b, nor mutate any bytes within b[:len(b)].
+func (x *ProxyProtocolType) AppendText(b []byte) ([]byte, error) {
+	return append(b, x.String()...), nil
+}
+
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
+func (ProxyProtocolType) EnumDescriptions() map[string]string {
+	return map[string]string{}
+}
+
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
+func (ProxyProtocolType) EnumValues() []string {
+	return ProxyProtocolTypeNames()
+}
+
+const (
 	// QueryLogFieldClientIP is a QueryLogField of type clientIP.
 	QueryLogFieldClientIP QueryLogField = "clientIP"
 	// QueryLogFieldClientName is a QueryLogField of type clientName.

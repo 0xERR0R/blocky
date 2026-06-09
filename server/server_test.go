@@ -605,7 +605,7 @@ var _ = Describe("Running DNS server", func() {
 		It("uses the PROXY source address for DoT requests", func() {
 			srv := newProxyProtocolTestServer(ctx, func(ports *config.Ports) {
 				ports.TLS = config.ListenConfig{"127.0.0.1:0"}
-				ports.ProxyProtocol.TLS = true
+				ports.ProxyProtocol = config.ProxyProtocolListeners{config.ProxyProtocolTypeTls}
 			})
 			addr := srv.dnsServers[0].Listener.Addr().String()
 
@@ -641,7 +641,7 @@ var _ = Describe("Running DNS server", func() {
 		It("uses the PROXY source address for HTTPS DoH requests", func() {
 			srv := newProxyProtocolTestServer(ctx, func(ports *config.Ports) {
 				ports.HTTPS = config.ListenConfig{"127.0.0.1:0"}
-				ports.ProxyProtocol.HTTPS = true
+				ports.ProxyProtocol = config.ProxyProtocolListeners{config.ProxyProtocolTypeHttps}
 			})
 			addr := firstHTTPListenerAddr(srv)
 
