@@ -403,7 +403,28 @@ func (c *Ports) validate() error {
 		seenProxyProtocolListeners[listener] = struct{}{}
 	}
 
+	for _, listener := range c.ProxyProtocol {
+		if listenConfig, ok := c.proxyProtocolListenConfig(listener); ok && len(listenConfig) == 0 {
+			return fmt.Errorf("ports.proxyProtocol includes %q but ports.%s is empty", listener, listener)
+		}
+	}
+
 	return nil
+}
+
+func (c *Ports) proxyProtocolListenConfig(listener ProxyProtocolType) (ListenConfig, bool) {
+	switch listener {
+	case ProxyProtocolTypeDns:
+		return c.DNS, true
+	case ProxyProtocolTypeHttp:
+		return c.HTTP, true
+	case ProxyProtocolTypeHttps:
+		return c.HTTPS, true
+	case ProxyProtocolTypeTls:
+		return c.TLS, true
+	default:
+		return nil, false
+	}
 }
 
 // privilegedPortCeiling is the first non-privileged TCP/UDP port. Ports below

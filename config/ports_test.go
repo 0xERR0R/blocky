@@ -42,6 +42,16 @@ var _ = Describe("Ports.ProxyProtocol", func() {
 		Expect(ports.validate()).Should(MatchError(ContainSubstring(
 			`ports.proxyProtocol contains duplicate listener family "https"`)))
 	})
+
+	It("rejects listener families without a configured port", func() {
+		ports := Ports{
+			DOHPath:       "/dns-query",
+			ProxyProtocol: ProxyProtocolListeners{ProxyProtocolTypeTls},
+		}
+
+		Expect(ports.validate()).Should(MatchError(ContainSubstring(
+			`ports.proxyProtocol includes "tls" but ports.tls is empty`)))
+	})
 })
 
 var _ = Describe("Ports.PrivilegedPorts", func() {
