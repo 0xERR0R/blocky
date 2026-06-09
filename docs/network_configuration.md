@@ -122,6 +122,13 @@ protocol on the Blocky listener and configure the proxy to send it.
     a PROXY protocol header, so enabling `https` here automatically disables
     HTTP/3. Plain DNS-over-UDP is likewise unaffected by `dns`.
 
+    The `http` and `https` listeners also serve the Prometheus metrics, the REST
+    API and the `/debug` pprof endpoints. Enabling `http`/`https` here makes *all*
+    of them require a PROXY protocol header, so anything that connects to that
+    port directly (e.g. a Prometheus scrape not routed through the proxy) is
+    rejected. Bind those tools behind the same trusted proxy, or expose metrics
+    and API on a separate listener without PROXY protocol.
+
 !!! example "Blocky"
 
     ```yaml
