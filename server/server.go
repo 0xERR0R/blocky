@@ -281,9 +281,13 @@ func createHTTPListeners(
 	}
 
 	if cfg.HTTP3.IsEnabled() {
-		if len(cfg.Ports.HTTPS) == 0 {
+		switch {
+		case len(cfg.Ports.HTTPS) == 0:
 			logger().Warn("http3.enable is true but ports.https is empty; HTTP/3 disabled")
-		} else {
+		case cfg.Ports.ProxyProtocol.Has(config.ProxyProtocolTypeHttps):
+			logger().Warn("http3.enable is true but ports.proxyProtocol includes 'https'; " +
+				"HTTP/3 cannot carry PROXY protocol headers and is disabled to keep the client IP consistent")
+		default:
 			http3PacketConns, err = newUDPPacketConns(ctx, cfg.Ports.HTTPS)
 			if err != nil {
 				closeAll(httpListeners)

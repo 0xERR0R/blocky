@@ -782,6 +782,31 @@ var _ = Describe("Running DNS server", func() {
 			})
 		})
 
+		When("HTTP/3 is enabled together with proxyProtocol on https", func() {
+			It("disables HTTP/3 and logs a warning", func() {
+				// Clear the default DNS port so Stop has no never-started
+				// dns.Server to shut down.
+				cfg.Ports.DNS = config.ListenConfig{}
+				cfg.Ports.HTTPS = config.ListenConfig{"127.0.0.1:0"}
+				cfg.HTTP3.Enable = true
+				cfg.Ports.ProxyProtocol = config.ProxyProtocolListeners{config.ProxyProtocolTypeHttps}
+
+				logHook := installLogHook()
+				DeferCleanup(logHook.uninstall)
+
+				srv, err := NewServer(ctx, &cfg)
+
+				Expect(err).Should(Succeed())
+				DeferCleanup(func() { _ = srv.Stop(ctx) })
+
+				Expect(srv.http3Server).Should(BeNil())
+				Expect(srv.http3PacketConns).To(BeEmpty())
+
+				Expect(logHook.messages()).Should(ContainElement(
+					ContainSubstring("ports.proxyProtocol includes 'https'")))
+			})
+		})
+
 		When("HTTP/3 is disabled", func() {
 			It("opens no UDP listeners even with HTTPS configured", func() {
 				cfg.Ports.HTTPS = config.ListenConfig{"127.0.0.1:0"}
