@@ -1011,31 +1011,17 @@
           "default": false
         },
         "proxyProtocol": {
-          "properties": {
-            "dns": {
-              "type": "boolean",
-              "description": "Require and parse PROXY protocol headers on DNS-over-TCP listeners.",
-              "default": false
-            },
-            "http": {
-              "type": "boolean",
-              "description": "Require and parse PROXY protocol headers on HTTP listeners.",
-              "default": false
-            },
-            "https": {
-              "type": "boolean",
-              "description": "Require and parse PROXY protocol headers on HTTPS listeners before TLS handshake.",
-              "default": false
-            },
-            "tls": {
-              "type": "boolean",
-              "description": "Require and parse PROXY protocol headers on DoT listeners before TLS handshake.",
-              "default": false
-            }
+          "items": {
+            "type": "string",
+            "enum": [
+              "dns",
+              "http",
+              "https",
+              "tls"
+            ]
           },
-          "additionalProperties": false,
-          "type": "object",
-          "description": "PROXY protocol support for TCP listeners. Enable only behind a trusted proxy."
+          "type": "array",
+          "description": "PROXY protocol listener families. List the TCP listeners that sit behind a trusted proxy and\nmust require a PROXY protocol header before the connection is handled, e.g. [https, tls]."
         }
       },
       "additionalProperties": false,

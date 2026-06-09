@@ -114,7 +114,7 @@ protocol on the Blocky listener and configure the proxy to send it.
 
 !!! warning
 
-    Enable `ports.proxyProtocol.*` only on listeners that are reachable only
+    List a listener under `ports.proxyProtocol` only when it is reachable only
     from trusted proxies. When enabled, Blocky requires a PROXY protocol header
     and uses the source address from that header as the client IP.
 
@@ -125,8 +125,8 @@ protocol on the Blocky listener and configure the proxy to send it.
       https: 443
       tls: 853
       proxyProtocol:
-        https: true
-        tls: true
+        - https
+        - tls
     ```
 
 !!! example "nginx stream"

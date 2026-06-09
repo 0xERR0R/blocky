@@ -15,13 +15,19 @@ var _ = Describe("Ports.FreeBind", func() {
 })
 
 var _ = Describe("Ports.ProxyProtocol", func() {
-	It("defaults to false for every TCP listener family", func() {
+	It("defaults to no PROXY protocol listeners", func() {
 		var ports Ports
 		Expect(defaults.Set(&ports)).Should(Succeed())
-		Expect(ports.ProxyProtocol.DNS).Should(BeFalse())
-		Expect(ports.ProxyProtocol.HTTP).Should(BeFalse())
-		Expect(ports.ProxyProtocol.HTTPS).Should(BeFalse())
-		Expect(ports.ProxyProtocol.TLS).Should(BeFalse())
+		Expect(ports.ProxyProtocol).Should(BeEmpty())
+		Expect(ports.ProxyProtocol.Has(ProxyProtocolTypeDns)).Should(BeFalse())
+	})
+
+	It("reports the configured listener families via Has", func() {
+		ports := Ports{ProxyProtocol: ProxyProtocolListeners{ProxyProtocolTypeHttps, ProxyProtocolTypeTls}}
+		Expect(ports.ProxyProtocol.Has(ProxyProtocolTypeHttps)).Should(BeTrue())
+		Expect(ports.ProxyProtocol.Has(ProxyProtocolTypeTls)).Should(BeTrue())
+		Expect(ports.ProxyProtocol.Has(ProxyProtocolTypeDns)).Should(BeFalse())
+		Expect(ports.ProxyProtocol.Has(ProxyProtocolTypeHttp)).Should(BeFalse())
 	})
 })
 
