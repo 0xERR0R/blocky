@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -565,3 +566,164 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 		})
 	})
 })
+
+var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver", "connPool"), func() {
+	var (
+		ctx      context.Context
+		cancelFn context.CancelFunc
+	)
+
+	BeforeEach(func() {
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+	})
+
+	Describe("TLS session cache (Fix A)", func() {
+		It("is enabled for DoT upstreams", func() {
+			cfg := newUpstreamConfig(
+				config.Upstream{Net: config.NetProtocolTcpTls, Host: "localhost", Port: 853},
+				defaultUpstreamsConfig,
+			)
+
+			client, ok := createUpstreamClient(cfg).(*dnsUpstreamClient)
+			Expect(ok).Should(BeTrue())
+			Expect(client.tcpClient.TLSConfig.ClientSessionCache).ShouldNot(BeNil())
+		})
+
+		It("is enabled for DoH upstreams", func() {
+			cfg := newUpstreamConfig(
+				config.Upstream{Net: config.NetProtocolHttps, Host: "localhost", Port: 443, Path: "/dns-query"},
+				defaultUpstreamsConfig,
+			)
+
+			client, ok := createUpstreamClient(cfg).(*httpUpstreamClient)
+			Expect(ok).Should(BeTrue())
+
+			transport, ok := client.client.Transport.(*http.Transport)
+			Expect(ok).Should(BeTrue())
+			Expect(transport.TLSClientConfig.ClientSessionCache).ShouldNot(BeNil())
+		})
+	})
+
+	Describe("DoT connection reuse (Fix B)", func() {
+		// newDoTResolver builds a resolver pointing at the mock server and trusts
+		// its self-signed certificate. The pool shares the tcpClient's TLS config,
+		// so InsecureSkipVerify applies to pooled dials too.
+		newDoTResolver := func(upstream config.Upstream) *UpstreamResolver {
+			cfg := newUpstreamConfig(upstream, defaultUpstreamsConfig)
+			r := newUpstreamResolverUnchecked(cfg, systemResolverBootstrap)
+			r.upstreamClient.(*dnsUpstreamClient).tcpClient.TLSConfig.InsecureSkipVerify = true
+
+			return r
+		}
+
+		It("reuses a single connection across multiple queries", func() {
+			mock := NewMockDoTUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
+			sut := newDoTResolver(mock.Start())
+
+			for range 3 {
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(SatisfyAll(
+						BeDNSRecord("example.com.", A, "123.124.122.122"),
+						HaveResponseType(ResponseTypeRESOLVED),
+						HaveReturnCode(dns.RcodeSuccess),
+					))
+			}
+
+			Expect(mock.GetCallCount()).Should(Equal(3))
+			// A single connection serves all three queries.
+			Expect(mock.GetConnCount()).Should(Equal(1))
+
+			stats := sut.upstreamClient.(*dnsUpstreamClient).pool.stats()
+			Expect(stats.dialed).Should(Equal(int64(1)))
+			Expect(stats.reused).Should(Equal(int64(2)))
+		})
+
+		It("transparently recovers when the upstream closed a pooled connection", func() {
+			// The server drops the connection after each query, so every reuse
+			// hits a stale connection and must fall back to a fresh dial.
+			mock := NewMockDoTUpstreamServer().
+				WithAnswerRR("example.com 123 IN A 123.124.122.122").
+				WithCloseAfter(1)
+			sut := newDoTResolver(mock.Start())
+
+			for range 2 {
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(SatisfyAll(
+						BeDNSRecord("example.com.", A, "123.124.122.122"),
+						HaveResponseType(ResponseTypeRESOLVED),
+						HaveReturnCode(dns.RcodeSuccess),
+					))
+			}
+
+			Expect(mock.GetCallCount()).Should(Equal(2))
+			// A fresh connection per query because each was closed server-side.
+			Expect(mock.GetConnCount()).Should(Equal(2))
+
+			// The second query took the pooled connection, found it broken on
+			// exchange, and recovered with a fresh dial — never surfacing an error.
+			stats := sut.upstreamClient.(*dnsUpstreamClient).pool.stats()
+			Expect(stats.dialed).Should(Equal(int64(2)))
+			Expect(stats.reused).Should(Equal(int64(1)))
+			Expect(stats.retried).Should(Equal(int64(1)))
+		})
+	})
+
+	Describe("TLS session resumption (Fix A)", func() {
+		// The fix configures a ClientSessionCache. We assert the client-side
+		// effect we control: a session ticket is cached and then offered on the
+		// next dial. (Whether a given upstream completes resumption is up to the
+		// server; real DoT resolvers do.)
+		It("caches the TLS session and offers it on reconnect", func() {
+			// The server drops each connection after 3 queries, so the 4th query
+			// must reconnect — by which point the session ticket has been cached.
+			mock := NewMockDoTUpstreamServer().
+				WithAnswerRR("example.com 123 IN A 123.124.122.122").
+				WithCloseAfter(3)
+			cfg := newUpstreamConfig(mock.Start(), defaultUpstreamsConfig)
+			sut := newUpstreamResolverUnchecked(cfg, systemResolverBootstrap)
+
+			cache := &observingSessionCache{inner: tls.NewLRUClientSessionCache(0)}
+			client := sut.upstreamClient.(*dnsUpstreamClient)
+			client.tcpClient.TLSConfig.InsecureSkipVerify = true
+			client.tcpClient.TLSConfig.ClientSessionCache = cache
+
+			for range 4 {
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(HaveReturnCode(dns.RcodeSuccess))
+			}
+
+			// A reconnect happened: 3 queries on the first connection, then a fresh one.
+			Expect(mock.GetConnCount()).Should(BeNumerically(">=", 2))
+			// Fix A: the client cached a session ticket and offered it on the reconnect.
+			Expect(cache.puts.Load()).Should(BeNumerically(">=", 1))
+			Expect(cache.getHits.Load()).Should(BeNumerically(">=", 1))
+		})
+	})
+})
+
+// observingSessionCache wraps a tls.ClientSessionCache to count non-nil Puts
+// (sessions cached) and Get hits (sessions offered on reconnect), so tests can
+// assert that TLS session resumption is enabled and exercised.
+type observingSessionCache struct {
+	inner   tls.ClientSessionCache
+	puts    atomic.Int32
+	getHits atomic.Int32
+}
+
+func (o *observingSessionCache) Get(key string) (*tls.ClientSessionState, bool) {
+	cs, ok := o.inner.Get(key)
+	if ok {
+		o.getHits.Add(1)
+	}
+
+	return cs, ok
+}
+
+func (o *observingSessionCache) Put(key string, cs *tls.ClientSessionState) {
+	if cs != nil {
+		o.puts.Add(1)
+	}
+
+	o.inner.Put(key, cs)
+}

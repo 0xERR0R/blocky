@@ -31,6 +31,13 @@ const (
 	upstreamResolverType = "upstream"
 	retryAttempts        = 3
 	sha256HashLength     = 32
+
+	// connPoolMaxIdle bounds the number of idle DoT connections kept per upstream
+	// address, so a burst of concurrent queries can't leak connections.
+	connPoolMaxIdle = 8
+	// connPoolIdleTimeout discards pooled connections idle longer than this,
+	// before an upstream is likely to have closed them.
+	connPoolIdleTimeout = 30 * time.Second
 )
 
 // UpstreamServerError wraps a response with RCode ServFail so no other resolver tries to use it.
@@ -90,6 +97,10 @@ type upstreamClient interface {
 
 type dnsUpstreamClient struct {
 	tcpClient, udpClient *dns.Client
+	// pool reuses persistent connections for the connection-oriented DoT path;
+	// nil for the plain tcp+udp client, whose TCP leg is usually cancelled by the
+	// UDP race and so does not benefit from pooling.
+	pool *connPool
 }
 
 type httpUpstreamClient struct {
@@ -164,6 +175,9 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 
 	switch cfg.Net {
 	case config.NetProtocolHttps:
+		// Enable TLS session resumption so reconnections skip the full handshake.
+		tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(0)
+
 		transport := util.DefaultHTTPTransport()
 		transport.TLSClientConfig = &tlsConfig
 
@@ -176,11 +190,18 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 		}
 
 	case config.NetProtocolTcpTls:
+		// Enable TLS session resumption so the connections the pool has to
+		// re-dial (idle-closed or evicted) skip the full handshake.
+		tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(0)
+
+		tcpClient := &dns.Client{
+			TLSConfig: &tlsConfig,
+			Net:       cfg.Net.String(),
+		}
+
 		return &dnsUpstreamClient{
-			tcpClient: &dns.Client{
-				TLSConfig: &tlsConfig,
-				Net:       cfg.Net.String(),
-			},
+			tcpClient: tcpClient,
+			pool:      newConnPool(tcpClient, connPoolMaxIdle, connPoolIdleTimeout),
 		}
 
 	case config.NetProtocolQuic:
@@ -269,7 +290,7 @@ func (r *dnsUpstreamClient) callExternal(
 	ctx context.Context, msg *dns.Msg, upstreamURL string, protocol model.RequestProtocol,
 ) (response *dns.Msg, rtt time.Duration, err error) {
 	if r.udpClient == nil {
-		resp, rtt, err := r.tcpClient.ExchangeContext(ctx, msg, upstreamURL)
+		resp, rtt, err := r.pool.exchange(ctx, msg, upstreamURL)
 		if err != nil {
 			return nil, 0, fmt.Errorf("TCP DNS exchange failed to %s: %w", upstreamURL, err)
 		}
