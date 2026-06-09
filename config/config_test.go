@@ -1369,6 +1369,12 @@ var _ = Describe("Ports", func() {
 				TLS:      ListenConfig{":853"},
 				DOHPath:  "/dns-query",
 				FreeBind: true,
+				ProxyProtocol: ProxyProtocol{
+					DNS:   true,
+					HTTP:  true,
+					HTTPS: true,
+					TLS:   true,
+				},
 			}
 
 			cfg.LogConfig(logger)
@@ -1381,6 +1387,10 @@ var _ = Describe("Ports", func() {
 				ContainSubstring("TLS"),
 				ContainSubstring("DOHPath"),
 				ContainSubstring("FreeBind"),
+				ContainSubstring("PROXY protocol DNS"),
+				ContainSubstring("PROXY protocol HTTP"),
+				ContainSubstring("PROXY protocol HTTPS"),
+				ContainSubstring("PROXY protocol TLS"),
 			))
 		})
 	})

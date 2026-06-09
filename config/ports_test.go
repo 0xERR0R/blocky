@@ -14,6 +14,17 @@ var _ = Describe("Ports.FreeBind", func() {
 	})
 })
 
+var _ = Describe("Ports.ProxyProtocol", func() {
+	It("defaults to false for every TCP listener family", func() {
+		var ports Ports
+		Expect(defaults.Set(&ports)).Should(Succeed())
+		Expect(ports.ProxyProtocol.DNS).Should(BeFalse())
+		Expect(ports.ProxyProtocol.HTTP).Should(BeFalse())
+		Expect(ports.ProxyProtocol.HTTPS).Should(BeFalse())
+		Expect(ports.ProxyProtocol.TLS).Should(BeFalse())
+	})
+})
+
 var _ = Describe("Ports.PrivilegedPorts", func() {
 	It("returns privileged listen entries across DNS, HTTP, HTTPS and TLS", func() {
 		ports := Ports{

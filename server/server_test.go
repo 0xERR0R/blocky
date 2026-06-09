@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
@@ -600,6 +601,97 @@ var _ = Describe("Running DNS server", func() {
 		})
 	})
 
+	Describe("PROXY protocol", func() {
+		It("uses the PROXY source address for DoT requests", func() {
+			srv := newProxyProtocolTestServer(ctx, func(ports *config.Ports) {
+				ports.TLS = config.ListenConfig{"127.0.0.1:0"}
+				ports.ProxyProtocol.TLS = true
+			})
+			addr := srv.dnsServers[0].Listener.Addr().String()
+
+			expectedIP := net.ParseIP("192.0.2.10")
+			response := util.NewMsgWithQuestion("example.com.", A)
+			response.SetReply(response)
+
+			mockResolver := resolver.NewMockChainedResolver(GinkgoT())
+			mockResolver.EXPECT().Resolve(mock.Anything, mock.MatchedBy(func(req *model.Request) bool {
+				return expectedIP.Equal(req.ClientIP) && req.Protocol == model.RequestProtocolTCP
+			})).Return(&model.Response{Res: response}, nil).Once()
+			srv.queryResolver = mockResolver
+
+			rawConn, err := (&net.Dialer{}).DialContext(ctx, "tcp", addr)
+			Expect(err).Should(Succeed())
+			DeferCleanup(rawConn.Close)
+
+			_, err = rawConn.Write([]byte(proxyProtocolLine(expectedIP, net.ParseIP("127.0.0.1"))))
+			Expect(err).Should(Succeed())
+
+			tlsConn := tls.Client(rawConn, &tls.Config{InsecureSkipVerify: true})
+			Expect(tlsConn.HandshakeContext(ctx)).Should(Succeed())
+
+			dnsConn := &dns.Conn{Conn: tlsConn}
+			query := util.NewMsgWithQuestion("example.com.", A)
+			Expect(dnsConn.WriteMsg(query)).Should(Succeed())
+
+			msg, err := dnsConn.ReadMsg()
+			Expect(err).Should(Succeed())
+			Expect(msg.Rcode).Should(Equal(dns.RcodeSuccess))
+		})
+
+		It("uses the PROXY source address for HTTPS DoH requests", func() {
+			srv := newProxyProtocolTestServer(ctx, func(ports *config.Ports) {
+				ports.HTTPS = config.ListenConfig{"127.0.0.1:0"}
+				ports.ProxyProtocol.HTTPS = true
+			})
+			addr := firstHTTPListenerAddr(srv)
+
+			expectedIP := net.ParseIP("192.0.2.11")
+			response := util.NewMsgWithQuestion("example.com.", A)
+			response.SetReply(response)
+
+			mockResolver := resolver.NewMockChainedResolver(GinkgoT())
+			mockResolver.EXPECT().Resolve(mock.Anything, mock.MatchedBy(func(req *model.Request) bool {
+				return expectedIP.Equal(req.ClientIP) && req.Protocol == model.RequestProtocolTCP
+			})).Return(&model.Response{Res: response}, nil).Once()
+			srv.queryResolver = mockResolver
+
+			rawConn, err := (&net.Dialer{}).DialContext(ctx, "tcp", addr)
+			Expect(err).Should(Succeed())
+			DeferCleanup(rawConn.Close)
+
+			_, err = rawConn.Write([]byte(proxyProtocolLine(expectedIP, net.ParseIP("127.0.0.1"))))
+			Expect(err).Should(Succeed())
+
+			tlsConn := tls.Client(rawConn, &tls.Config{InsecureSkipVerify: true})
+			Expect(tlsConn.HandshakeContext(ctx)).Should(Succeed())
+
+			query := util.NewMsgWithQuestion("example.com.", A)
+			rawQuery, err := query.Pack()
+			Expect(err).Should(Succeed())
+
+			req, err := http.NewRequest(http.MethodPost, "https://"+addr+"/dns-query", bytes.NewReader(rawQuery))
+			Expect(err).Should(Succeed())
+			req.Header.Set(contentTypeHeader, dnsContentType)
+
+			Expect(req.Write(tlsConn)).Should(Succeed())
+			resp, err := http.ReadResponse(bufio.NewReader(tlsConn), req)
+			Expect(err).Should(Succeed())
+			DeferCleanup(resp.Body.Close)
+			Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+		})
+
+		It("keeps HTTPS working without PROXY protocol enabled", func() {
+			client := &http.Client{Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}}
+
+			resp, err := client.Get(fmt.Sprintf("https://%s/docs/config.schema.json", GetHostPort("localhost", httpsBasePort)))
+			Expect(err).Should(Succeed())
+			DeferCleanup(resp.Body.Close)
+			Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+		})
+	})
+
 	Describe("Server create", func() {
 		var (
 			cfg  config.Config
@@ -1066,6 +1158,44 @@ func requestServer(ctx context.Context, request *dns.Msg) *dns.Msg {
 	}
 
 	return nil
+}
+
+func newProxyProtocolTestServer(ctx context.Context, configurePorts func(*config.Ports)) *Server {
+	cfg := config.Config{}
+	Expect(defaults.Set(&cfg)).Should(Succeed())
+	cfg.Upstreams.Groups = map[string][]config.Upstream{
+		"default": {config.Upstream{Net: config.NetProtocolTcpUdp, Host: "1.1.1.1", Port: 53}},
+	}
+	cfg.Ports.DNS = config.ListenConfig{}
+	cfg.Ports.HTTP = config.ListenConfig{}
+	cfg.Ports.HTTPS = config.ListenConfig{}
+	cfg.Ports.TLS = config.ListenConfig{}
+	cfg.Ports.DOHPath = "/dns-query"
+	configurePorts(&cfg.Ports)
+
+	srv, err := NewServer(ctx, &cfg)
+	Expect(err).Should(Succeed())
+
+	errChan := make(chan error, 10)
+	go srv.Start(ctx, errChan)
+	DeferCleanup(func() { Expect(srv.Stop(ctx)).Should(Succeed()) })
+	Consistently(errChan, "200ms").ShouldNot(Receive())
+
+	return srv
+}
+
+func firstHTTPListenerAddr(srv *Server) string {
+	for listener := range srv.servers {
+		return listener.Addr().String()
+	}
+
+	Fail("server has no HTTP listener")
+
+	return ""
+}
+
+func proxyProtocolLine(srcIP, dstIP net.IP) string {
+	return fmt.Sprintf("PROXY TCP4 %s %s 12345 443\r\n", srcIP, dstIP)
 }
 
 type countingMsgWriter struct {
