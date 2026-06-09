@@ -57,6 +57,7 @@ func NewClientNamesResolver(ctx context.Context,
 
 		cache: expirationcache.NewCache[[]string](ctx, expirationcache.Options{
 			CleanupInterval: time.Hour,
+			Shards:          cache.ShardCount(),
 		}),
 		externalResolver: r,
 		reverseLookupers: localReverseLookupers,
