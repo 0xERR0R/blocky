@@ -680,6 +680,85 @@ var _ = Describe("Running DNS server", func() {
 			Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
 		})
 
+		It("uses the PROXY source address for DNS-over-TCP requests", func() {
+			srv := newProxyProtocolTestServer(ctx, func(ports *config.Ports) {
+				ports.DNS = config.ListenConfig{"127.0.0.1:0"}
+				ports.ProxyProtocol = config.ProxyProtocolListeners{config.ProxyProtocolTypeDns}
+			})
+
+			var addr string
+			for _, dnsSrv := range srv.dnsServers {
+				if dnsSrv.Net == "tcp" {
+					addr = dnsSrv.Listener.Addr().String()
+				}
+			}
+			Expect(addr).ShouldNot(BeEmpty())
+
+			expectedIP := net.ParseIP("192.0.2.12")
+			response := util.NewMsgWithQuestion("example.com.", A)
+			response.SetReply(response)
+
+			mockResolver := resolver.NewMockChainedResolver(GinkgoT())
+			mockResolver.EXPECT().Resolve(mock.Anything, mock.MatchedBy(func(req *model.Request) bool {
+				return expectedIP.Equal(req.ClientIP) && req.Protocol == model.RequestProtocolTCP
+			})).Return(&model.Response{Res: response}, nil).Once()
+			srv.queryResolver = mockResolver
+
+			rawConn, err := (&net.Dialer{}).DialContext(ctx, "tcp", addr)
+			Expect(err).Should(Succeed())
+			DeferCleanup(rawConn.Close)
+
+			_, err = rawConn.Write([]byte(proxyProtocolLine(expectedIP, net.ParseIP("127.0.0.1"))))
+			Expect(err).Should(Succeed())
+
+			dnsConn := &dns.Conn{Conn: rawConn}
+			query := util.NewMsgWithQuestion("example.com.", A)
+			Expect(dnsConn.WriteMsg(query)).Should(Succeed())
+
+			msg, err := dnsConn.ReadMsg()
+			Expect(err).Should(Succeed())
+			Expect(msg.Rcode).Should(Equal(dns.RcodeSuccess))
+		})
+
+		It("uses the PROXY source address for HTTP DoH requests", func() {
+			srv := newProxyProtocolTestServer(ctx, func(ports *config.Ports) {
+				ports.HTTP = config.ListenConfig{"127.0.0.1:0"}
+				ports.ProxyProtocol = config.ProxyProtocolListeners{config.ProxyProtocolTypeHttp}
+			})
+			addr := firstHTTPListenerAddr(srv)
+
+			expectedIP := net.ParseIP("192.0.2.13")
+			response := util.NewMsgWithQuestion("example.com.", A)
+			response.SetReply(response)
+
+			mockResolver := resolver.NewMockChainedResolver(GinkgoT())
+			mockResolver.EXPECT().Resolve(mock.Anything, mock.MatchedBy(func(req *model.Request) bool {
+				return expectedIP.Equal(req.ClientIP) && req.Protocol == model.RequestProtocolTCP
+			})).Return(&model.Response{Res: response}, nil).Once()
+			srv.queryResolver = mockResolver
+
+			rawConn, err := (&net.Dialer{}).DialContext(ctx, "tcp", addr)
+			Expect(err).Should(Succeed())
+			DeferCleanup(rawConn.Close)
+
+			_, err = rawConn.Write([]byte(proxyProtocolLine(expectedIP, net.ParseIP("127.0.0.1"))))
+			Expect(err).Should(Succeed())
+
+			query := util.NewMsgWithQuestion("example.com.", A)
+			rawQuery, err := query.Pack()
+			Expect(err).Should(Succeed())
+
+			req, err := http.NewRequest(http.MethodPost, "http://"+addr+"/dns-query", bytes.NewReader(rawQuery))
+			Expect(err).Should(Succeed())
+			req.Header.Set(contentTypeHeader, dnsContentType)
+
+			Expect(req.Write(rawConn)).Should(Succeed())
+			resp, err := http.ReadResponse(bufio.NewReader(rawConn), req)
+			Expect(err).Should(Succeed())
+			DeferCleanup(resp.Body.Close)
+			Expect(resp).Should(HaveHTTPStatus(http.StatusOK))
+		})
+
 		It("keeps HTTPS working without PROXY protocol enabled", func() {
 			client := &http.Client{Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
