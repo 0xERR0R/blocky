@@ -118,6 +118,10 @@ protocol on the Blocky listener and configure the proxy to send it.
     from trusted proxies. When enabled, Blocky requires a PROXY protocol header
     and uses the source address from that header as the client IP.
 
+    The PROXY protocol only covers TCP listeners. HTTP/3 (QUIC/UDP) cannot carry
+    a PROXY protocol header, so enabling `https` here automatically disables
+    HTTP/3. Plain DNS-over-UDP is likewise unaffected by `dns`.
+
 !!! example "Blocky"
 
     ```yaml
