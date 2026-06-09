@@ -147,7 +147,7 @@ func queryDoTViaProxy(ctx context.Context, nginx testcontainers.Container, quest
 	c := &dns.Client{
 		Net:       "tcp-tls",
 		Timeout:   5 * time.Second,
-		TLSConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // self-signed cert in tests
+		TLSConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 
 	_, _, err = c.Exchange(util.NewMsgWithQuestion(question, dns.Type(dns.TypeA)), net.JoinHostPort(host, port))
@@ -173,7 +173,7 @@ func queryDoHViaProxy(ctx context.Context, nginx testcontainers.Container, quest
 	client := &http.Client{
 		Timeout: 5 * time.Second,
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // self-signed cert in tests
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
 	}
 

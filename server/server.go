@@ -38,6 +38,10 @@ const (
 	maxUDPBufferSize = 65535
 	caExpiryYears    = 10
 	certExpiryYears  = 5
+
+	networkUDP    = "udp"
+	networkTCP    = "tcp"
+	networkTCPTLS = "tcp-tls"
 )
 
 // Server controls the endpoints for DNS and HTTP
@@ -267,7 +271,8 @@ func createServers(ctx context.Context, cfg *config.Config, tlsCfg *tls.Config) 
 func createHTTPListeners(
 	ctx context.Context, cfg *config.Config, tlsCfg *tls.Config,
 ) (httpListeners, httpsListeners []net.Listener, http3PacketConns []net.PacketConn, err error) {
-	httpListeners, err = newTCPListeners(ctx, "http", cfg.Ports.HTTP, cfg.Ports.ProxyProtocol.Has(config.ProxyProtocolTypeHttp))
+	httpListeners, err = newTCPListeners(ctx, "http", cfg.Ports.HTTP,
+		cfg.Ports.ProxyProtocol.Has(config.ProxyProtocolTypeHttp))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create HTTP listeners: %w", err)
 	}
@@ -314,7 +319,7 @@ func newTCPListeners(
 	lc := &net.ListenConfig{}
 
 	for _, address := range addresses {
-		listener, err := lc.Listen(ctx, "tcp", address)
+		listener, err := lc.Listen(ctx, networkTCP, address)
 		if err != nil {
 			return nil, fmt.Errorf("start %s listener on %s failed: %w", proto, address, err)
 		}
@@ -373,7 +378,7 @@ func createDNSServer(ctx context.Context, network, address string, tlsCfg *tls.C
 		},
 	}
 
-	if network == "udp" {
+	if network == networkUDP {
 		srv.UDPSize = maxUDPBufferSize
 	}
 
@@ -383,7 +388,7 @@ func createDNSServer(ctx context.Context, network, address string, tlsCfg *tls.C
 
 	// When freeBind is enabled (and supported), pre-create the listener with the IP_FREEBIND socket
 	// option and hand it to the server, which is then started via ActivateAndServe (see Server.Start).
-	if (opts.freeBind && freebind.Supported) || (opts.proxyProtocol && network != "udp") {
+	if (opts.freeBind && freebind.Supported) || (opts.proxyProtocol && network != networkUDP) {
 		if err := attachListener(ctx, srv, network, address, tlsCfg, listenerOptions{
 			freeBind:      opts.freeBind && freebind.Supported,
 			proxyProtocol: opts.proxyProtocol,
@@ -406,23 +411,23 @@ func attachListener(ctx context.Context, srv *dns.Server, network, address strin
 	}
 
 	switch network {
-	case "udp":
-		pc, err := lc.ListenPacket(ctx, "udp", address)
+	case networkUDP:
+		pc, err := lc.ListenPacket(ctx, networkUDP, address)
 		if err != nil {
 			return fmt.Errorf("freebind udp listener on %s failed: %w", address, err)
 		}
 
 		srv.PacketConn = pc
-	case "tcp":
-		l, err := lc.Listen(ctx, "tcp", address)
+	case networkTCP:
+		l, err := lc.Listen(ctx, networkTCP, address)
 		if err != nil {
 			return fmt.Errorf("tcp listener on %s failed: %w", address, err)
 		}
 
 		l = newProxyProtocolListener(l, opts.proxyProtocol)
 		srv.Listener = l
-	case "tcp-tls":
-		l, err := lc.Listen(ctx, "tcp", address)
+	case networkTCPTLS:
+		l, err := lc.Listen(ctx, networkTCP, address)
 		if err != nil {
 			return fmt.Errorf("tcp-tls listener on %s failed: %w", address, err)
 		}
@@ -438,15 +443,15 @@ func attachListener(ctx context.Context, srv *dns.Server, network, address strin
 
 func createTLSServer(ctx context.Context, address string, tlsCfg *tls.Config, opts listenerOptions,
 ) (*dns.Server, error) {
-	return createDNSServer(ctx, "tcp-tls", address, tlsCfg, opts)
+	return createDNSServer(ctx, networkTCPTLS, address, tlsCfg, opts)
 }
 
 func createTCPServer(ctx context.Context, address string, opts listenerOptions) (*dns.Server, error) {
-	return createDNSServer(ctx, "tcp", address, nil, opts)
+	return createDNSServer(ctx, networkTCP, address, nil, opts)
 }
 
 func createUDPServer(ctx context.Context, address string, opts listenerOptions) (*dns.Server, error) {
-	return createDNSServer(ctx, "udp", address, nil, opts)
+	return createDNSServer(ctx, networkUDP, address, nil, opts)
 }
 
 type redisBridgeResult struct {
