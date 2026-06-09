@@ -955,6 +955,8 @@ Prometheus metrics, web UI).
   `minTlsServeVersion` config does not affect it.
 - If `http3.enable` is true but `ports.https` is empty, Blocky logs a
   warning at startup and does not open any UDP listeners.
+- If `ports.proxyProtocol` includes `https`, HTTP/3 is disabled because
+  QUIC/UDP cannot carry a PROXY protocol header.
 - When HTTP/3 is enabled, HTTPS responses include an `Alt-Svc: h3=...`
   header so capable clients can switch transports automatically.
 
