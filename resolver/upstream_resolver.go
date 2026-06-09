@@ -169,14 +169,19 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 	}
 
 	// Add certificate pinning if hashes are provided from DNS stamp
-	if len(cfg.CertificateFingerprints) > 0 {
+	certPinning := len(cfg.CertificateFingerprints) > 0
+	if certPinning {
 		tlsConfig.VerifyPeerCertificate = createCertificatePinningVerifier(cfg.CertificateFingerprints) //nolint:gosec
 	}
 
 	switch cfg.Net {
 	case config.NetProtocolHttps:
 		// Enable TLS session resumption so reconnections skip the full handshake.
-		tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(0)
+		// Not when a certificate is pinned: Go does not call VerifyPeerCertificate
+		// (our pinning check) on resumed sessions, so resumption would bypass the pin.
+		if !certPinning {
+			tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(0)
+		}
 
 		transport := util.DefaultHTTPTransport()
 		transport.TLSClientConfig = &tlsConfig
@@ -191,8 +196,12 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 
 	case config.NetProtocolTcpTls:
 		// Enable TLS session resumption so the connections the pool has to
-		// re-dial (idle-closed or evicted) skip the full handshake.
-		tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(0)
+		// re-dial (idle-closed or evicted) skip the full handshake. Not when a
+		// certificate is pinned: Go does not call VerifyPeerCertificate (our pinning
+		// check) on resumed sessions, so resumption would bypass the pin.
+		if !certPinning {
+			tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(0)
+		}
 
 		tcpClient := &dns.Client{
 			TLSConfig: &tlsConfig,
@@ -284,6 +293,16 @@ func (r *httpUpstreamClient) callExternal(
 
 func (r *dnsUpstreamClient) fmtURL(ip net.IP, port uint16, _ string) string {
 	return net.JoinHostPort(ip.String(), strconv.Itoa(int(port)))
+}
+
+// Close releases the connection pool's idle connections, if pooling is in use
+// (the DoT path). Implements io.Closer.
+func (r *dnsUpstreamClient) Close() error {
+	if r.pool != nil {
+		return r.pool.Close()
+	}
+
+	return nil
 }
 
 func (r *dnsUpstreamClient) callExternal(

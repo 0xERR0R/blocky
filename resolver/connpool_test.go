@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"context"
+	"errors"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -10,6 +12,13 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
+
+// timeoutError is a net.Error reporting a timeout, used to exercise shouldRedial.
+type timeoutError struct{}
+
+func (timeoutError) Error() string   { return "i/o timeout" }
+func (timeoutError) Timeout() bool   { return true }
+func (timeoutError) Temporary() bool { return false }
 
 // countingConn wraps a net.Conn and counts how often it is closed, so tests can
 // assert that the pool closes connections it discards (no leaks).
@@ -60,12 +69,11 @@ var _ = Describe("connPool", Label("connPool"), func() {
 		})
 
 		When("a healthy connection was put back", func() {
-			It("returns the same connection and counts a reuse", func() {
+			It("returns the same connection and removes it from the pool", func() {
 				conn, _ := newPipeConn()
 				pool.putBack(addr, conn)
 
 				Expect(pool.acquire(addr)).Should(BeIdenticalTo(conn))
-				Expect(pool.stats().reused).Should(Equal(int64(1)))
 				Expect(pool.idleCount()).Should(Equal(0))
 			})
 		})
@@ -87,16 +95,28 @@ var _ = Describe("connPool", Label("connPool"), func() {
 			})
 		})
 
-		When("the pooled connection is already closed", func() {
-			It("detects it via the deadline probe and returns nil", func() {
-				conn, cc := newPipeConn()
-				pool.putBack(addr, conn)
+		When("an older connection has expired but a newer one is still healthy", func() {
+			It("reaps the expired connection and reuses the healthy one", func() {
+				base := time.Now()
+				pool.now = func() time.Time { return base }
 
-				// Simulate a server-side/idle close that the deadline probe can detect.
-				_ = cc.Close()
+				oldConn, oldCC := newPipeConn()
+				pool.putBack(addr, oldConn) // returned at base
 
-				Expect(pool.acquire(addr)).Should(BeNil())
+				// A newer connection is returned 40s later.
+				pool.now = func() time.Time { return base.Add(40 * time.Second) }
+				newConn, _ := newPipeConn()
+				pool.putBack(addr, newConn)
+
+				// 70s after base: the old conn (70s idle) exceeds the 1m TTL, the
+				// newer one (30s idle) does not. The expired one must be reaped even
+				// though a healthy connection is available to return.
+				pool.now = func() time.Time { return base.Add(70 * time.Second) }
+
+				Expect(pool.acquire(addr)).Should(BeIdenticalTo(newConn))
+				Expect(oldCC.closes()).Should(Equal(1))
 				Expect(pool.stats().closedStale).Should(Equal(int64(1)))
+				Expect(pool.idleCount()).Should(Equal(0))
 			})
 		})
 	})
@@ -118,18 +138,42 @@ var _ = Describe("connPool", Label("connPool"), func() {
 		})
 	})
 
-	Describe("close", func() {
+	Describe("Close", func() {
 		It("closes every pooled connection and empties the pool", func() {
 			c1, cc1 := newPipeConn()
 			c2, cc2 := newPipeConn()
 			pool.putBack(addr, c1)
 			pool.putBack(addr, c2)
 
-			Expect(pool.close()).Should(Succeed())
+			Expect(pool.Close()).Should(Succeed())
 
 			Expect(cc1.closes()).Should(Equal(1))
 			Expect(cc2.closes()).Should(Equal(1))
 			Expect(pool.idleCount()).Should(Equal(0))
+		})
+	})
+
+	Describe("shouldRedial", func() {
+		When("a pooled connection fails with a connection-level error", func() {
+			It("re-dials while the context is still live", func() {
+				Expect(shouldRedial(context.Background(), errors.New("connection reset by peer"))).
+					Should(BeTrue())
+			})
+		})
+
+		When("the context has been cancelled", func() {
+			It("does not re-dial", func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+
+				Expect(shouldRedial(ctx, errors.New("connection reset by peer"))).Should(BeFalse())
+			})
+		})
+
+		When("the failure is a timeout", func() {
+			It("does not re-dial, leaving retry/IP-rotation to the caller", func() {
+				Expect(shouldRedial(context.Background(), timeoutError{})).Should(BeFalse())
+			})
 		})
 	})
 

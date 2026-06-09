@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -10,6 +11,9 @@ import (
 
 	"github.com/miekg/dns"
 )
+
+// connPool is an io.Closer; Close releases all idle connections.
+var _ io.Closer = (*connPool)(nil)
 
 // pooledConn is an idle connection waiting in the pool together with the time it
 // was last returned, used to enforce the idle TTL.
@@ -26,12 +30,12 @@ type pooledConn struct {
 // Safety properties:
 //   - maxIdle caps the number of idle connections kept per address; surplus
 //     connections are closed on return, so a burst can't leak file descriptors.
-//   - idleTTL discards connections idle longer than the TTL, before a server is
+//   - idleTTL bounds how long a connection may sit idle; acquire evicts every
+//     connection idle longer than the TTL (oldest first), before a server is
 //     likely to have closed them.
-//   - A cheap SetDeadline liveness probe on acquire drops connections the local
-//     OS already knows are dead.
 //   - exchange retries once on a fresh connection when a pooled connection turns
-//     out to be stale, so reuse never surfaces a spurious error to the caller.
+//     out to be stale (a server-closed connection can't be detected up front),
+//     so reuse never surfaces a spurious error to the caller.
 type connPool struct {
 	client  *dns.Client
 	maxIdle int
@@ -91,39 +95,36 @@ func (p *connPool) idleCount() int {
 }
 
 // acquire returns a healthy pooled connection for addr (most-recently-returned
-// first), or nil if none is available. Stale connections are closed and skipped.
+// first), or nil if none is available. Connections idle longer than idleTTL are
+// closed and skipped.
 func (p *connPool) acquire(addr string) *dns.Conn {
 	var (
 		found *dns.Conn
 		stale []*dns.Conn
 	)
 
+	now := p.now()
+
 	p.mu.Lock()
 	conns := p.idle[addr]
 
-	for len(conns) > 0 {
+	// Connections are appended in return order, so `returned` increases with the
+	// index and the TTL-expired connections are always a leading prefix. Evict
+	// the whole prefix, even when a healthy connection is available to return, so
+	// older idle connections are reaped instead of lingering under steady traffic.
+	expired := 0
+	for expired < len(conns) && now.Sub(conns[expired].returned) > p.idleTTL {
+		stale = append(stale, conns[expired].conn)
+		expired++
+	}
+
+	conns = conns[expired:]
+
+	// Reuse the most-recently-returned remaining connection.
+	if len(conns) > 0 {
 		last := len(conns) - 1
-		pc := conns[last]
+		found = conns[last].conn
 		conns = conns[:last]
-
-		if p.now().Sub(pc.returned) > p.idleTTL {
-			stale = append(stale, pc.conn)
-
-			continue
-		}
-
-		// Liveness probe: SetDeadline fails if the connection is already closed.
-		// The exchange resets the deadline from the request context afterwards.
-		if err := pc.conn.SetDeadline(p.now().Add(p.idleTTL)); err != nil {
-			stale = append(stale, pc.conn)
-
-			continue
-		}
-
-		found = pc.conn
-		p.reused.Add(1)
-
-		break
 	}
 
 	p.idle[addr] = conns
@@ -177,6 +178,7 @@ func (p *connPool) exchange(
 	if conn := p.acquire(addr); conn != nil {
 		resp, rtt, err = p.client.ExchangeWithConnContext(ctx, msg, conn)
 		if err == nil {
+			p.reused.Add(1)
 			p.putBack(addr, conn)
 
 			return resp, rtt, nil
@@ -185,8 +187,11 @@ func (p *connPool) exchange(
 		// The pooled connection was stale or broke mid-exchange; never reuse it.
 		_ = conn.Close()
 
-		// If the caller's context is done, the failure is real, not staleness.
-		if ctx.Err() != nil {
+		// Only a connection-level failure warrants a transparent re-dial. A
+		// cancelled/expired context or a timeout (a slow or unresponsive upstream,
+		// not a stale connection) is surfaced so the caller's retry and IP
+		// rotation handle it instead of silently re-querying the same address.
+		if !shouldRedial(ctx, err) {
 			return nil, 0, err
 		}
 
@@ -210,8 +215,16 @@ func (p *connPool) exchange(
 	return resp, rtt, nil
 }
 
-// close closes all idle connections. It implements io.Closer.
-func (p *connPool) close() error {
+// shouldRedial reports whether a failed exchange on a pooled connection should
+// be retried transparently on a fresh dial. Only connection-level failures (a
+// stale pooled connection) qualify; a cancelled/expired context or a timeout is
+// surfaced to the caller so its retry and IP-rotation logic can handle it.
+func shouldRedial(ctx context.Context, err error) bool {
+	return ctx.Err() == nil && !isTimeout(err)
+}
+
+// Close closes all idle connections, implementing io.Closer.
+func (p *connPool) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 

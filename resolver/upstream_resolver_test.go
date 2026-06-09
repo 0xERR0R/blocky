@@ -605,6 +605,44 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 		})
 	})
 
+	Describe("TLS session resumption with certificate pinning (Fix #1)", func() {
+		// Go does not invoke VerifyPeerCertificate (our pinning check) on resumed
+		// TLS sessions, so resumption must be disabled when a cert is pinned —
+		// otherwise pooled re-dials would silently skip the pin.
+		pinnedFingerprint := []config.CertificateFingerprint{make([]byte, sha256.Size)}
+
+		It("is disabled for cert-pinned DoT upstreams", func() {
+			cfg := newUpstreamConfig(
+				config.Upstream{
+					Net: config.NetProtocolTcpTls, Host: "localhost", Port: 853,
+					CertificateFingerprints: pinnedFingerprint,
+				},
+				defaultUpstreamsConfig,
+			)
+
+			client, ok := createUpstreamClient(cfg).(*dnsUpstreamClient)
+			Expect(ok).Should(BeTrue())
+			Expect(client.tcpClient.TLSConfig.ClientSessionCache).Should(BeNil())
+		})
+
+		It("is disabled for cert-pinned DoH upstreams", func() {
+			cfg := newUpstreamConfig(
+				config.Upstream{
+					Net: config.NetProtocolHttps, Host: "localhost", Port: 443, Path: "/dns-query",
+					CertificateFingerprints: pinnedFingerprint,
+				},
+				defaultUpstreamsConfig,
+			)
+
+			client, ok := createUpstreamClient(cfg).(*httpUpstreamClient)
+			Expect(ok).Should(BeTrue())
+
+			transport, ok := client.client.Transport.(*http.Transport)
+			Expect(ok).Should(BeTrue())
+			Expect(transport.TLSClientConfig.ClientSessionCache).Should(BeNil())
+		})
+	})
+
 	Describe("DoT connection reuse (Fix B)", func() {
 		// newDoTResolver builds a resolver pointing at the mock server and trusts
 		// its self-signed certificate. The pool shares the tcpClient's TLS config,
@@ -662,10 +700,43 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 
 			// The second query took the pooled connection, found it broken on
 			// exchange, and recovered with a fresh dial — never surfacing an error.
+			// reused counts only successful reuses, so it stays 0 here; the broken
+			// reuse is reflected by retried instead.
 			stats := sut.upstreamClient.(*dnsUpstreamClient).pool.stats()
 			Expect(stats.dialed).Should(Equal(int64(2)))
-			Expect(stats.reused).Should(Equal(int64(1)))
+			Expect(stats.reused).Should(Equal(int64(0)))
 			Expect(stats.retried).Should(Equal(int64(1)))
+		})
+
+		It("closes pooled connections when the client is closed (Fix #2)", func() {
+			mock := NewMockDoTUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
+			sut := newDoTResolver(mock.Start())
+
+			Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+				Should(HaveReturnCode(dns.RcodeSuccess))
+
+			client := sut.upstreamClient.(*dnsUpstreamClient)
+			Expect(client.pool.idleCount()).Should(Equal(1))
+
+			Expect(client.Close()).Should(Succeed())
+			Expect(client.pool.idleCount()).Should(Equal(0))
+		})
+
+		It("does not leak server goroutines when the mock is closed (Fix #5)", func() {
+			mock := NewMockDoTUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
+			sut := newDoTResolver(mock.Start())
+
+			Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+				Should(HaveReturnCode(dns.RcodeSuccess))
+
+			// The query left a handleConn goroutine serving the accepted connection.
+			Eventually(mock.openConnCount).Should(Equal(1))
+
+			mock.Close()
+
+			// Closing the server must close accepted connections too, so handleConn
+			// unblocks from ReadMsg and exits instead of leaking.
+			Eventually(mock.openConnCount).Should(Equal(0))
 		})
 	})
 

@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"net"
 	"strconv"
+	"sync"
 	"sync/atomic"
 
 	"github.com/0xERR0R/blocky/config"
@@ -19,10 +20,16 @@ import (
 type MockDoTUpstreamServer struct {
 	callCount  atomic.Int32
 	connCount  atomic.Int32
+	openConns  atomic.Int32
 	closeAfter int32
 
 	listener net.Listener
 	answerFn func(request *dns.Msg) (response *dns.Msg)
+
+	// mu guards conns, the set of accepted connections Close must tear down so
+	// their handleConn goroutines don't block forever on ReadMsg.
+	mu    sync.Mutex
+	conns []net.Conn
 }
 
 func NewMockDoTUpstreamServer() *MockDoTUpstreamServer {
@@ -77,9 +84,27 @@ func (t *MockDoTUpstreamServer) GetConnCount() int {
 	return int(t.connCount.Load())
 }
 
+// openConnCount returns the number of accepted connections currently being
+// served by a handleConn goroutine.
+func (t *MockDoTUpstreamServer) openConnCount() int {
+	return int(t.openConns.Load())
+}
+
 func (t *MockDoTUpstreamServer) Close() {
 	if t.listener != nil {
 		_ = t.listener.Close()
+	}
+
+	// Closing the listener does not close already-accepted connections, so close
+	// them explicitly; otherwise their handleConn goroutines block on ReadMsg
+	// forever (a goroutine + fd leak across the test suite).
+	t.mu.Lock()
+	conns := t.conns
+	t.conns = nil
+	t.mu.Unlock()
+
+	for _, conn := range conns {
+		_ = conn.Close()
 	}
 }
 
@@ -114,6 +139,10 @@ func (t *MockDoTUpstreamServer) serve() {
 
 		t.connCount.Add(1)
 
+		t.mu.Lock()
+		t.conns = append(t.conns, conn)
+		t.mu.Unlock()
+
 		go t.handleConn(conn)
 	}
 }
@@ -121,6 +150,9 @@ func (t *MockDoTUpstreamServer) serve() {
 func (t *MockDoTUpstreamServer) handleConn(conn net.Conn) {
 	defer ginkgo.GinkgoRecover()
 	defer func() { _ = conn.Close() }()
+
+	t.openConns.Add(1)
+	defer t.openConns.Add(-1)
 
 	dnsConn := &dns.Conn{Conn: conn}
 
