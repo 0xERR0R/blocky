@@ -106,4 +106,53 @@ proxy sets both `Forwarded` and `X-Forwarded-For`, Blocky uses
       # Traefik sets X-Forwarded-For automatically; no extra config needed.
     ```
 
+## Running DoT/DoH behind a TCP proxy
+
+For DNS-over-TLS and HTTPS passthrough, HTTP forwarding headers are not
+available before Blocky handles the TLS connection. Enable the HAProxy PROXY
+protocol on the Blocky listener and configure the proxy to send it.
+
+!!! warning
+
+    Enable `ports.proxyProtocol.*` only on listeners that are reachable only
+    from trusted proxies. When enabled, Blocky requires a PROXY protocol header
+    and uses the source address from that header as the client IP.
+
+!!! example "Blocky"
+
+    ```yaml
+    ports:
+      https: 443
+      tls: 853
+      proxyProtocol:
+        https: true
+        tls: true
+    ```
+
+!!! example "nginx stream"
+
+    ```nginx
+    stream {
+        upstream blocky_dot {
+            server blocky-backend:853;
+        }
+
+        server {
+            listen 853;
+            proxy_pass blocky_dot;
+            proxy_protocol on;
+        }
+
+        upstream blocky_doh {
+            server blocky-backend:443;
+        }
+
+        server {
+            listen 443;
+            proxy_pass blocky_doh;
+            proxy_protocol on;
+        }
+    }
+    ```
+
 --8<-- "docs/includes/abbreviations.md"

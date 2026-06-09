@@ -345,6 +345,19 @@ type Ports struct {
 	// brought up after startup). Has no effect on wildcard binds and is ignored, with a warning, on
 	// non-Linux platforms.
 	FreeBind bool `default:"false" yaml:"freeBind"`
+	// PROXY protocol support for TCP listeners. Enable only behind a trusted proxy.
+	ProxyProtocol ProxyProtocol `yaml:"proxyProtocol"`
+}
+
+type ProxyProtocol struct {
+	// Require and parse PROXY protocol headers on DNS-over-TCP listeners.
+	DNS bool `default:"false" yaml:"dns"`
+	// Require and parse PROXY protocol headers on HTTP listeners.
+	HTTP bool `default:"false" yaml:"http"`
+	// Require and parse PROXY protocol headers on HTTPS listeners before TLS handshake.
+	HTTPS bool `default:"false" yaml:"https"`
+	// Require and parse PROXY protocol headers on DoT listeners before TLS handshake.
+	TLS bool `default:"false" yaml:"tls"`
 }
 
 func (c *Ports) LogConfig(logger *logrus.Entry) {
@@ -354,6 +367,10 @@ func (c *Ports) LogConfig(logger *logrus.Entry) {
 	logger.Infof("HTTPS    = %s", c.HTTPS)
 	logger.Infof("DOHPath  = %s", c.DOHPath)
 	logger.Infof("FreeBind = %t", c.FreeBind)
+	logger.Infof("PROXY protocol DNS   = %t", c.ProxyProtocol.DNS)
+	logger.Infof("PROXY protocol HTTP  = %t", c.ProxyProtocol.HTTP)
+	logger.Infof("PROXY protocol HTTPS = %t", c.ProxyProtocol.HTTPS)
+	logger.Infof("PROXY protocol TLS   = %t", c.ProxyProtocol.TLS)
 }
 
 func (c *Ports) validate() error {

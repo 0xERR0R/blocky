@@ -28,6 +28,24 @@ var _ = Describe("schema-enriched config loading", func() {
 			Expect(err).Should(Succeed())
 			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("does not match schema")))
 		})
+
+		It("accepts PROXY protocol listener flags", func() {
+			data := []byte(`upstreams:
+  groups:
+    default:
+      - 1.1.1.1
+ports:
+  proxyProtocol:
+    dns: true
+    http: true
+    https: true
+    tls: true
+`)
+
+			err := unmarshalConfig(logger, data, &Config{})
+			Expect(err).Should(Succeed())
+			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("does not match schema")))
+		})
 	})
 
 	When("bootstrapDns uses the resolvFile object form", func() {
