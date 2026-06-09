@@ -38,9 +38,10 @@ const (
 	maxUDPBufferSize = 65535
 	caExpiryYears    = 10
 	certExpiryYears  = 5
-	networkUDP       = "udp"
-	networkTCP       = "tcp"
-	networkTCPTLS    = "tcp-tls"
+
+	networkUDP    = "udp"
+	networkTCP    = "tcp"
+	networkTCPTLS = "tcp-tls"
 )
 
 // Server controls the endpoints for DNS and HTTP
@@ -270,7 +271,8 @@ func createServers(ctx context.Context, cfg *config.Config, tlsCfg *tls.Config) 
 func createHTTPListeners(
 	ctx context.Context, cfg *config.Config, tlsCfg *tls.Config,
 ) (httpListeners, httpsListeners []net.Listener, http3PacketConns []net.PacketConn, err error) {
-	httpListeners, err = newTCPListeners(ctx, "http", cfg.Ports.HTTP, cfg.Ports.ProxyProtocol.Has(config.ProxyProtocolTypeHttp))
+	httpListeners, err = newTCPListeners(ctx, "http", cfg.Ports.HTTP,
+		cfg.Ports.ProxyProtocol.Has(config.ProxyProtocolTypeHttp))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create HTTP listeners: %w", err)
 	}
@@ -317,7 +319,7 @@ func newTCPListeners(
 	lc := &net.ListenConfig{}
 
 	for _, address := range addresses {
-		listener, err := lc.Listen(ctx, "tcp", address)
+		listener, err := lc.Listen(ctx, networkTCP, address)
 		if err != nil {
 			return nil, fmt.Errorf("start %s listener on %s failed: %w", proto, address, err)
 		}
