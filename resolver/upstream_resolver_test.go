@@ -23,6 +23,18 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// replyWithRR builds a reply to req whose answer section holds the single given record.
+func replyWithRR(req *dns.Msg, rr string) *dns.Msg {
+	resp := new(dns.Msg)
+	resp.SetReply(req)
+
+	parsed, err := dns.NewRR(rr)
+	Expect(err).Should(Succeed())
+	resp.Answer = []dns.RR{parsed}
+
+	return resp
+}
+
 var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 	var (
 		sut       *UpstreamResolver
@@ -204,17 +216,6 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 		// make the UDP-vs-TCP ordering deterministic, so raise the timeout comfortably above them.
 		const handlerDelay = 30 * time.Millisecond
 
-		reply := func(req *dns.Msg, rr string) *dns.Msg {
-			resp := new(dns.Msg)
-			resp.SetReply(req)
-
-			parsed, err := dns.NewRR(rr)
-			Expect(err).Should(Succeed())
-			resp.Answer = []dns.RR{parsed}
-
-			return resp
-		}
-
 		BeforeEach(func() {
 			sutConfig.Timeout = config.Duration(time.Second)
 		})
@@ -226,10 +227,10 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 						// Delay UDP so a speculative TCP race (the old behavior) would win if started.
 						time.Sleep(handlerDelay)
 
-						return reply(req, "example.com. 123 IN A 1.2.3.4")
+						return replyWithRR(req, "example.com. 123 IN A 1.2.3.4")
 					},
 					func(req *dns.Msg) *dns.Msg {
-						return reply(req, "example.com. 123 IN A 5.6.7.8")
+						return replyWithRR(req, "example.com. 123 IN A 5.6.7.8")
 					},
 				)
 
@@ -255,7 +256,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 						return resp
 					},
 					func(req *dns.Msg) *dns.Msg {
-						return reply(req, "example.com. 123 IN A 5.6.7.8")
+						return replyWithRR(req, "example.com. 123 IN A 5.6.7.8")
 					},
 				)
 
@@ -266,6 +267,25 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 					Should(BeDNSRecord("example.com.", A, "5.6.7.8"))
 
 				Expect(mockUpstream.UDPCallCount()).Should(Equal(1))
+				Expect(mockUpstream.TCPCallCount()).Should(Equal(1))
+			})
+		})
+
+		When("UDP is unreachable but TCP works", func() {
+			It("falls back to TCP and returns the TCP answer", func() {
+				mockUpstream := newMockTCPUDPUpstreamServer(
+					nil, // UDP queries are refused, the handler is never reached
+					func(req *dns.Msg) *dns.Msg {
+						return replyWithRR(req, "example.com. 123 IN A 5.6.7.8")
+					},
+				)
+
+				sutConfig.Upstream = mockUpstream.StartTCPOnly()
+				sut := newUpstreamResolverUnchecked(sutConfig, nil)
+
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(BeDNSRecord("example.com.", A, "5.6.7.8"))
+
 				Expect(mockUpstream.TCPCallCount()).Should(Equal(1))
 			})
 		})
@@ -291,7 +311,7 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 						// Delay TCP so the (old) racing UDP answer would win and be returned if it could.
 						time.Sleep(handlerDelay)
 
-						return reply(req, "example.com. 123 IN A 5.6.7.8")
+						return replyWithRR(req, "example.com. 123 IN A 5.6.7.8")
 					},
 				)
 
@@ -304,20 +324,36 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				Expect(mockUpstream.TCPCallCount()).Should(Equal(1))
 			})
 		})
+
+		When("the UDP answer's question section doesn't match and TCP is unreachable", func() {
+			It("returns an error instead of the mismatched answer", func() {
+				mockUpstream := newMockTCPUDPUpstreamServer(
+					func(req *dns.Msg) *dns.Msg {
+						resp := new(dns.Msg)
+						resp.SetReply(req)
+						resp.Question = []dns.Question{{
+							Name: "wrong.example.", Qtype: dns.TypeA, Qclass: dns.ClassINET,
+						}}
+
+						parsed, err := dns.NewRR("wrong.example. 123 IN A 1.2.3.4")
+						Expect(err).Should(Succeed())
+						resp.Answer = []dns.RR{parsed}
+
+						return resp
+					},
+					nil, // TCP connections are refused, the handler is never reached
+				)
+
+				sutConfig.Upstream = mockUpstream.StartUDPOnly()
+				sut := newUpstreamResolverUnchecked(sutConfig, nil)
+
+				_, err := sut.Resolve(ctx, newRequest("example.com.", A))
+				Expect(err).Should(HaveOccurred())
+			})
+		})
 	})
 
 	Describe("EDNS0 UDP buffer floor for upstream queries", func() {
-		reply := func(req *dns.Msg, rr string) *dns.Msg {
-			resp := new(dns.Msg)
-			resp.SetReply(req)
-
-			parsed, err := dns.NewRR(rr)
-			Expect(err).Should(Succeed())
-			resp.Answer = []dns.RR{parsed}
-
-			return resp
-		}
-
 		When("the client did not request EDNS0", func() {
 			It("advertises the buffer floor upstream but returns no OPT to the client", func() {
 				var advertised atomic.Int32
@@ -328,13 +364,13 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 							advertised.Store(int32(opt.UDPSize()))
 						}
 
-						resp := reply(req, "example.com. 123 IN A 1.2.3.4")
+						resp := replyWithRR(req, "example.com. 123 IN A 1.2.3.4")
 						resp.SetEdns0(upstreamUDPBufferFloor, false) // a real upstream echoes EDNS0
 
 						return resp
 					},
 					func(req *dns.Msg) *dns.Msg {
-						return reply(req, "example.com. 123 IN A 5.6.7.8")
+						return replyWithRR(req, "example.com. 123 IN A 5.6.7.8")
 					},
 				)
 
@@ -365,10 +401,10 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 							advertised.Store(int32(opt.UDPSize()))
 						}
 
-						return reply(req, "example.com. 123 IN A 1.2.3.4")
+						return replyWithRR(req, "example.com. 123 IN A 1.2.3.4")
 					},
 					func(req *dns.Msg) *dns.Msg {
-						return reply(req, "example.com. 123 IN A 5.6.7.8")
+						return replyWithRR(req, "example.com. 123 IN A 5.6.7.8")
 					},
 				)
 

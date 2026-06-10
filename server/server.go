@@ -800,6 +800,12 @@ func (s *Server) resolve(ctx context.Context, request *model.Request) (response 
 
 	defer cancel()
 
+	// The resolver chain mutates request.Req in place and may add or enlarge an OPT record the
+	// client never sent (ECS, DNSSEC, the upstream EDNS0 buffer floor), so capture what the client
+	// itself asked for up front: the response is normalized against that, not the mutated request.
+	clientMaxResponseSize := getMaxResponseSize(request)
+	clientHadEdns0 := request.Req.IsEdns0() != nil
+
 	switch {
 	case len(request.Req.Question) == 0:
 		m := new(dns.Msg)
@@ -825,8 +831,13 @@ func (s *Server) resolve(ctx context.Context, request *model.Request) (response 
 
 	response.Res.RecursionAvailable = request.Req.RecursionDesired
 
+	if !clientHadEdns0 {
+		// don't return an OPT record to a client that didn't use EDNS0 (RFC 6891 section 6.1.1)
+		util.RemoveEdns0Record(response.Res)
+	}
+
 	// truncate if necessary
-	response.Res.Truncate(getMaxResponseSize(request))
+	response.Res.Truncate(clientMaxResponseSize)
 
 	// enable compression
 	response.Res.Compress = true

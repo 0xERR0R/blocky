@@ -64,6 +64,24 @@ func (m *mockTCPUDPUpstreamServer) handler(counter *atomic.Int32, answer answerF
 }
 
 func (m *mockTCPUDPUpstreamServer) Start() config.Upstream {
+	return m.start(true, true)
+}
+
+// StartTCPOnly is Start with the UDP socket closed again after claiming the port: UDP queries are
+// refused, simulating an upstream reachable only over TCP (e.g. UDP blocked by a firewall).
+func (m *mockTCPUDPUpstreamServer) StartTCPOnly() config.Upstream {
+	return m.start(false, true)
+}
+
+// StartUDPOnly is Start with the TCP listener closed again after claiming the port: TCP connections
+// are refused, simulating an upstream whose TCP fallback is unavailable.
+func (m *mockTCPUDPUpstreamServer) StartUDPOnly() config.Upstream {
+	return m.start(true, false)
+}
+
+// start always binds both sockets so the port is guaranteed to belong to this mock on both
+// protocols, then closes the ones not asked for so queries over them are refused immediately.
+func (m *mockTCPUDPUpstreamServer) start(udp, tcp bool) config.Upstream {
 	ip := net.ParseIP("127.0.0.1")
 
 	udpConn, err := net.ListenUDP("udp4", &net.UDPAddr{IP: ip})
@@ -74,18 +92,27 @@ func (m *mockTCPUDPUpstreamServer) Start() config.Upstream {
 	tcpLn, err := net.ListenTCP("tcp4", &net.TCPAddr{IP: ip, Port: port})
 	util.FatalOnError("can't create TCP listener: ", err)
 
-	m.udpSrv = &dns.Server{PacketConn: udpConn, Handler: m.handler(&m.udpCount, m.udpAnswer)}
-	m.tcpSrv = &dns.Server{Listener: tcpLn, Handler: m.handler(&m.tcpCount, m.tcpAnswer)}
+	if udp {
+		m.udpSrv = &dns.Server{PacketConn: udpConn, Handler: m.handler(&m.udpCount, m.udpAnswer)}
 
-	go func() {
-		defer ginkgo.GinkgoRecover()
-		_ = m.udpSrv.ActivateAndServe()
-	}()
+		go func() {
+			defer ginkgo.GinkgoRecover()
+			_ = m.udpSrv.ActivateAndServe()
+		}()
+	} else {
+		_ = udpConn.Close()
+	}
 
-	go func() {
-		defer ginkgo.GinkgoRecover()
-		_ = m.tcpSrv.ActivateAndServe()
-	}()
+	if tcp {
+		m.tcpSrv = &dns.Server{Listener: tcpLn, Handler: m.handler(&m.tcpCount, m.tcpAnswer)}
+
+		go func() {
+			defer ginkgo.GinkgoRecover()
+			_ = m.tcpSrv.ActivateAndServe()
+		}()
+	} else {
+		_ = tcpLn.Close()
+	}
 
 	return config.Upstream{Net: config.NetProtocolTcpUdp, Host: ip.String(), Port: uint16(port)}
 }

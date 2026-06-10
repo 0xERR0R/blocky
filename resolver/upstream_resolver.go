@@ -100,7 +100,7 @@ type upstreamClient interface {
 
 	fmtURL(ip net.IP, port uint16, path string) string
 	callExternal(
-		ctx context.Context, msg *dns.Msg, upstreamURL string, protocol model.RequestProtocol,
+		ctx context.Context, msg *dns.Msg, upstreamURL string,
 	) (response *dns.Msg, rtt time.Duration, err error)
 }
 
@@ -246,7 +246,7 @@ func (r *httpUpstreamClient) Close() error {
 }
 
 func (r *httpUpstreamClient) callExternal(
-	ctx context.Context, msg *dns.Msg, upstreamURL string, _ model.RequestProtocol,
+	ctx context.Context, msg *dns.Msg, upstreamURL string,
 ) (*dns.Msg, time.Duration, error) {
 	start := time.Now()
 
@@ -315,7 +315,7 @@ func (r *dnsUpstreamClient) Close() error {
 }
 
 func (r *dnsUpstreamClient) callExternal(
-	ctx context.Context, msg *dns.Msg, upstreamURL string, _ model.RequestProtocol,
+	ctx context.Context, msg *dns.Msg, upstreamURL string,
 ) (response *dns.Msg, rtt time.Duration, err error) {
 	if r.udpClient == nil {
 		// Single connection-oriented client (DoT): reuse pooled connections when a
@@ -357,31 +357,53 @@ func (r *dnsUpstreamClient) exchange(
 }
 
 // exchangeUDPWithTCPFallback queries the upstream over UDP first and only re-queries over TCP when
-// the UDP answer can't be used as-is: it is truncated (TC bit) or its question section doesn't match
-// the request. UDP serves the vast majority of queries, so this avoids opening a TCP connection —
-// and paying its dial/handshake/goroutine cost — on the common path. The UDP query advertises an
-// EDNS0 buffer floor (see udpRequestWithBufferFloor) so larger answers arrive over UDP rather than
-// forcing the TCP fallback.
+// the UDP exchange failed (timeout, network error, SERVFAIL — e.g. UDP/53 blocked while TCP still
+// works) or its answer can't be used as-is: it is truncated (TC bit) or its question section doesn't
+// match the request. UDP serves the vast majority of queries, so this avoids opening a TCP
+// connection — and paying its dial/handshake/goroutine cost — on the common path. The UDP query
+// advertises an EDNS0 buffer floor (see udpRequestWithBufferFloor) so larger answers arrive over UDP
+// rather than forcing the TCP fallback.
 //
-// On a hard UDP failure (timeout, network error, SERVFAIL) there is no usable answer to inspect, so
-// we return it without trying TCP: the resolver retries the whole exchange (see retry.Do in Resolve)
-// and parallel_best races other upstreams, which together cover transient UDP loss.
+// Note the UDP exchange shares the per-attempt context deadline with the fallback: if UDP fails by
+// timing out, the TCP fallback inherits an (almost) expired context and fails immediately, and the
+// retry in Resolve takes over. The fallback helps when UDP fails fast (e.g. ICMP port unreachable).
 func (r *dnsUpstreamClient) exchangeUDPWithTCPFallback(
 	ctx context.Context, msg *dns.Msg, upstreamURL string,
 ) (*dns.Msg, time.Duration, error) {
 	resp, rtt, err := r.exchange(ctx, r.udpClient, udpRequestWithBufferFloor(msg), upstreamURL)
-	if err != nil {
-		return resp, rtt, err
-	}
 
-	if resp.Truncated || !responseMatchesRequest(msg, resp) {
+	switch {
+	case err != nil:
+		// Hard UDP failure (timeout, network error, SERVFAIL): re-ask over TCP, which may still work
+		// on networks where UDP/53 is blocked or dropped. On TCP failure, return the UDP result —
+		// it's the primary transport, so its error is the more representative one.
+		tcpResp, tcpRTT, tcpErr := r.exchange(ctx, r.tcpClient, msg, upstreamURL)
+		if tcpErr != nil {
+			return resp, rtt, err
+		}
+
+		resp, rtt = tcpResp, tcpRTT
+
+	case resp.Truncated:
 		// Re-ask over TCP, which has no size limit. The original request is sent so we don't
 		// advertise an EDNS0 buffer the client never asked for over the TCP hop.
 		if tcpResp, tcpRTT, tcpErr := r.exchange(ctx, r.tcpClient, msg, upstreamURL); tcpErr == nil {
 			resp, rtt = tcpResp, tcpRTT
 		}
-		// On TCP failure we keep the UDP answer; the downstream `Server` sets the TC bit if that
-		// (possibly truncated) answer is too big for the client's transport.
+		// On TCP failure we keep the truncated UDP answer: it is a valid (partial) answer for the
+		// right question, and the downstream `Server` sets the TC bit if it is too big for the
+		// client's transport.
+
+	case !responseMatchesRequest(msg, resp):
+		// The UDP answer can't be trusted at all, so unlike the truncated case it must not be
+		// returned: a TCP failure here fails the whole exchange.
+		tcpResp, tcpRTT, tcpErr := r.exchange(ctx, r.tcpClient, msg, upstreamURL)
+		if tcpErr != nil {
+			return nil, 0, fmt.Errorf(
+				"UDP response question section doesn't match the request and TCP fallback failed: %w", tcpErr)
+		}
+
+		resp, rtt = tcpResp, tcpRTT
 	}
 
 	if msg.IsEdns0() == nil {
@@ -399,27 +421,31 @@ func (r *dnsUpstreamClient) exchangeUDPWithTCPFallback(
 // so the caller's shared request — which also drives per-client response truncation in the Server —
 // is never mutated.
 func udpRequestWithBufferFloor(msg *dns.Msg) *dns.Msg {
-	if opt := msg.IsEdns0(); opt != nil {
-		if opt.UDPSize() >= upstreamUDPBufferFloor {
-			return msg
-		}
-
-		clone := msg.Copy()
-		clone.IsEdns0().SetUDPSize(upstreamUDPBufferFloor)
-
-		return clone
+	if opt := msg.IsEdns0(); opt != nil && opt.UDPSize() >= upstreamUDPBufferFloor {
+		return msg
 	}
 
 	clone := msg.Copy()
-	clone.SetEdns0(upstreamUDPBufferFloor, false)
+	if opt := clone.IsEdns0(); opt != nil {
+		// raise the existing OPT in place so its options and DO bit are kept
+		opt.SetUDPSize(upstreamUDPBufferFloor)
+	} else {
+		clone.SetEdns0(upstreamUDPBufferFloor, false)
+	}
 
 	return clone
 }
 
-// responseMatchesRequest reports whether resp answers req: same number of questions, each with a
-// matching type, class, and (case-insensitive) name. A mismatch indicates a buggy or confused
-// upstream whose UDP answer can't be trusted, so the caller re-asks over TCP.
+// responseMatchesRequest reports whether resp can be trusted as an answer to req: its question
+// section must be empty — servers commonly omit it on error rcodes such as REFUSED — or contain the
+// same questions, each with a matching type, class, and (case-insensitive) name. A question for
+// something else indicates a buggy or confused upstream whose UDP answer can't be trusted, so the
+// caller re-asks over TCP.
 func responseMatchesRequest(req, resp *dns.Msg) bool {
+	if len(resp.Question) == 0 {
+		return true
+	}
+
 	if len(resp.Question) != len(req.Question) {
 		return false
 	}
@@ -516,7 +542,7 @@ func (r *UpstreamResolver) Resolve(ctx context.Context, request *model.Request) 
 			ctx, cancel := context.WithTimeout(ctx, r.cfg.Timeout.ToDuration())
 			defer cancel()
 
-			response, rtt, err := r.upstreamClient.callExternal(ctx, request.Req, upstreamURL, request.Protocol)
+			response, rtt, err := r.upstreamClient.callExternal(ctx, request.Req, upstreamURL)
 			if err != nil {
 				return fmt.Errorf("can't resolve request via upstream server %s (%s): %w", r.cfg, upstreamURL, err)
 			}
