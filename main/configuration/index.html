@@ -3138,6 +3138,11 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">  </span><span class="c1">#           startup). No effect on wildcard binds; ignored with a warning on non-Linux platforms.</span>
 <span class="w">  </span><span class="c1"># default: false</span>
 <span class="w">  </span><span class="nt">freeBind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="c1"># optional: require and parse HAProxy PROXY protocol headers on the listed TCP listener families</span>
+<span class="w">  </span><span class="c1">#           (any of: dns, http, https, tls). Enable only when Blocky is reachable only through a</span>
+<span class="w">  </span><span class="c1">#           trusted proxy.</span>
+<span class="w">  </span><span class="c1"># default: empty</span>
+<span class="w">  </span><span class="nt">proxyProtocol</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
 
 <span class="c1"># optional: configuration for DOH  over HTTP/3</span>
 <span class="nt">http3</span><span class="p">:</span>
@@ -3404,6 +3409,12 @@ configuration.</p>
 <td>false</td>
 <td>Allow binding the <abbr title="Domain Name System">DNS</abbr>/<abbr title="DNS-over-TLS">DoT</abbr> listeners to addresses not yet assigned to an interface (Linux only, via <code>IP_FREEBIND</code>; e.g. Tailscale/WireGuard/VRRP). No effect on wildcard binds; ignored with a warning on non-Linux.</td>
 </tr>
+<tr>
+<td>ports.proxyProtocol</td>
+<td>list</td>
+<td><em>empty</em></td>
+<td><abbr title="Transmission Control Protocol">TCP</abbr> listener families (any of <code>dns</code>, <code>http</code>, <code>https</code>, <code>tls</code>) that must require a HAProxy PROXY protocol header. Enable only when the listener is reachable only through a trusted proxy.</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition example">
@@ -3416,6 +3427,9 @@ configuration.</p>
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4000</span>
 <span class="w">  </span><span class="nt">https</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">443</span>
 <span class="w">  </span><span class="nt">dohPath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/my-custom-dns-query</span>
+<span class="w">  </span><span class="nt">proxyProtocol</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tls</span>
 </code></pre></div>
 </div>
 <h2 id="logging-configuration">Logging configuration</h2>
@@ -4563,6 +4577,8 @@ Prometheus metrics, web UI).</p>
   <code>minTlsServeVersion</code> config does not affect it.</li>
 <li>If <code>http3.enable</code> is true but <code>ports.https</code> is empty, Blocky logs a
   warning at startup and does not open any <abbr title="User Datagram Protocol">UDP</abbr> listeners.</li>
+<li>If <code>ports.proxyProtocol</code> includes <code>https</code>, <abbr title="Hypertext Transfer Protocol">HTTP</abbr>/3 is disabled because
+  QUIC/<abbr title="User Datagram Protocol">UDP</abbr> cannot carry a PROXY protocol header.</li>
 <li>When <abbr title="Hypertext Transfer Protocol">HTTP</abbr>/3 is enabled, <abbr title="Hypertext Transfer Protocol Secure">HTTPS</abbr> responses include an <code>Alt-Svc: h3=...</code>
   header so capable clients can switch transports automatically.</li>
 </ul>

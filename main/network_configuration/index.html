@@ -495,6 +495,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#running-dotdoh-behind-a-tcp-proxy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running DoT/DoH behind a TCP proxy
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -589,6 +600,17 @@
     <span class="md-ellipsis">
       
         Running blocky behind a reverse proxy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-dotdoh-behind-a-tcp-proxy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running DoT/DoH behind a TCP proxy
       
     </span>
   </a>
@@ -706,6 +728,60 @@ or that the proxy strips any incoming <code>Forwarded</code> /
 <span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;http://blocky-backend:4000&quot;</span>
 <span class="w">  </span><span class="nt">middlewares</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
 <span class="w">  </span><span class="c1"># Traefik sets X-Forwarded-For automatically; no extra config needed.</span>
+</code></pre></div>
+</div>
+<h2 id="running-dotdoh-behind-a-tcp-proxy">Running <abbr title="DNS-over-TLS">DoT</abbr>/<abbr title="DNS-over-HTTPS">DoH</abbr> behind a <abbr title="Transmission Control Protocol">TCP</abbr> proxy</h2>
+<p>For <abbr title="Domain Name System">DNS</abbr>-over-TLS and <abbr title="Hypertext Transfer Protocol Secure">HTTPS</abbr> passthrough, <abbr title="Hypertext Transfer Protocol">HTTP</abbr> forwarding headers are not
+available before Blocky handles the TLS connection. Enable the HAProxy PROXY
+protocol on the Blocky listener and configure the proxy to send it.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>List a listener under <code>ports.proxyProtocol</code> only when it is reachable only
+from trusted proxies. When enabled, Blocky requires a PROXY protocol header
+and uses the source address from that header as the client IP.</p>
+<p>The PROXY protocol only covers <abbr title="Transmission Control Protocol">TCP</abbr> listeners. <abbr title="Hypertext Transfer Protocol">HTTP</abbr>/3 (QUIC/<abbr title="User Datagram Protocol">UDP</abbr>) cannot carry
+a PROXY protocol header, so enabling <code>https</code> here automatically disables
+<abbr title="Hypertext Transfer Protocol">HTTP</abbr>/3. Plain <abbr title="Domain Name System">DNS</abbr>-over-<abbr title="User Datagram Protocol">UDP</abbr> is likewise unaffected by <code>dns</code>.</p>
+<p>The <code>http</code> and <code>https</code> listeners also serve the Prometheus metrics, the <abbr title="Representational State Transfer">REST</abbr>
+<abbr title="Application Programming Interface">API</abbr> and the <code>/debug</code> pprof endpoints. Enabling <code>http</code>/<code>https</code> here makes <em>all</em>
+of them require a PROXY protocol header, so anything that connects to that
+port directly (e.g. a Prometheus scrape not routed through the proxy) is
+rejected. Bind those tools behind the same trusted proxy, or expose metrics
+and <abbr title="Application Programming Interface">API</abbr> on a separate listener without PROXY protocol.</p>
+</div>
+<div class="admonition example">
+<p class="admonition-title">Blocky</p>
+<div class="highlight"><pre><span></span><code><span class="nt">ports</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">https</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">443</span>
+<span class="w">  </span><span class="nt">tls</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">853</span>
+<span class="w">  </span><span class="nt">proxyProtocol</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tls</span>
+</code></pre></div>
+</div>
+<div class="admonition example">
+<p class="admonition-title">nginx stream</p>
+<div class="highlight"><pre><span></span><code><span class="k">stream</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kn">upstream</span><span class="w"> </span><span class="s">blocky_dot</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kn">server</span><span class="w"> </span><span class="n">blocky-backend</span><span class="p">:</span><span class="mi">853</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kn">server</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kn">listen</span><span class="w"> </span><span class="mi">853</span><span class="p">;</span>
+<span class="w">        </span><span class="kn">proxy_pass</span><span class="w"> </span><span class="s">blocky_dot</span><span class="p">;</span>
+<span class="w">        </span><span class="kn">proxy_protocol</span><span class="w"> </span><span class="no">on</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kn">upstream</span><span class="w"> </span><span class="s">blocky_doh</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kn">server</span><span class="w"> </span><span class="n">blocky-backend</span><span class="p">:</span><span class="mi">443</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kn">server</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kn">listen</span><span class="w"> </span><span class="mi">443</span><span class="p">;</span>
+<span class="w">        </span><span class="kn">proxy_pass</span><span class="w"> </span><span class="s">blocky_doh</span><span class="p">;</span>
+<span class="w">        </span><span class="kn">proxy_protocol</span><span class="w"> </span><span class="no">on</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
 </code></pre></div>
 </div>
 
