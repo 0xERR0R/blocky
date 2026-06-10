@@ -75,6 +75,21 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 
 			Expect(hook.Calls).ShouldNot(BeEmpty())
 		})
+
+		When("certificate pinning is configured", func() {
+			It("logs the number of pinned hashes", func() {
+				logger, hook := log.NewMockEntry()
+
+				cfg := newUpstreamConfig(config.Upstream{
+					Net: config.NetProtocolTcpTls, Host: "localhost",
+					CertificateFingerprints: []config.CertificateFingerprint{make([]byte, sha256.Size)},
+				}, defaultUpstreamsConfig)
+
+				cfg.LogConfig(logger)
+
+				Expect(hook.Calls).ShouldNot(BeEmpty())
+			})
+		})
 	})
 
 	Describe("Using DNS upstream", func() {
@@ -523,6 +538,19 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 					ContainSubstring("http return content type should be 'application/dns-message', but was 'text'"))
 			})
 		})
+		When("Configured DoH resolver closes the connection mid-body", func() {
+			BeforeEach(func() {
+				modifyHTTPRespFn = func(w http.ResponseWriter) {
+					// declare more body bytes than the handler writes, so reading the body fails
+					w.Header().Set("Content-Length", "4096")
+				}
+			})
+			It("should return error", func() {
+				_, err := sut.Resolve(ctx, newRequest("example.com.", A))
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("can't read response body"))
+			})
+		})
 		When("Configured DoH resolver returns wrong content", func() {
 			BeforeEach(func() {
 				modifyHTTPRespFn = func(w http.ResponseWriter) {
@@ -926,6 +954,73 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 
 			_, _, err := client.callExternal(ctx, newRequest("example.com.", A).Req, "127.0.0.1:0")
 			Expect(err).Should(HaveOccurred())
+		})
+	})
+
+	Describe("DoH client request building", func() {
+		When("the request message can't be packed", func() {
+			It("returns a pack error without sending anything", func() {
+				client := &httpUpstreamClient{client: http.DefaultClient, host: "example.com"}
+
+				msg := new(dns.Msg)
+				msg.Question = []dns.Question{{
+					Name: "not-fully-qualified", Qtype: dns.TypeA, Qclass: dns.ClassINET,
+				}}
+
+				_, _, err := client.callExternal(ctx, msg, "https://127.0.0.1:1/dns-query")
+				Expect(err).Should(MatchError(ContainSubstring("can't pack message")))
+			})
+		})
+
+		When("the upstream URL is invalid", func() {
+			It("returns a request creation error", func() {
+				client := &httpUpstreamClient{client: http.DefaultClient, host: "example.com"}
+
+				_, _, err := client.callExternal(ctx, newRequest("example.com.", A).Req, "ht tp://invalid")
+				Expect(err).Should(MatchError(ContainSubstring("can't create the new request")))
+			})
+		})
+	})
+
+	Describe("createUpstreamClient", func() {
+		When("a CommonName from a DNS stamp is set", func() {
+			It("uses it as the TLS server name instead of the host", func() {
+				cfg := newUpstreamConfig(config.Upstream{
+					Net: config.NetProtocolTcpTls, Host: "1.2.3.4", Port: 853, CommonName: "dot.example.com",
+				}, defaultUpstreamsConfig)
+
+				client, ok := createUpstreamClient(cfg).(*dnsUpstreamClient)
+				Expect(ok).Should(BeTrue())
+				Expect(client.tcpClient.TLSConfig.ServerName).Should(Equal("dot.example.com"))
+			})
+		})
+	})
+
+	Describe("udpRequestWithBufferFloor", func() {
+		When("the request advertises an EDNS0 buffer below the floor", func() {
+			It("raises it on a copy, keeping the DO bit and leaving the original untouched", func() {
+				msg := util.NewMsgWithQuestion("example.com.", A)
+				msg.SetEdns0(512, true)
+
+				raised := udpRequestWithBufferFloor(msg)
+
+				Expect(raised).ShouldNot(BeIdenticalTo(msg))
+				Expect(raised.IsEdns0().UDPSize()).Should(Equal(uint16(upstreamUDPBufferFloor)))
+				Expect(raised.IsEdns0().Do()).Should(BeTrue())
+				Expect(msg.IsEdns0().UDPSize()).Should(Equal(uint16(512)))
+			})
+		})
+	})
+
+	Describe("responseMatchesRequest", func() {
+		When("the response has a different number of questions than the request", func() {
+			It("doesn't match", func() {
+				req := util.NewMsgWithQuestion("example.com.", A)
+				resp := util.NewMsgWithQuestion("example.com.", A)
+				resp.Question = append(resp.Question, resp.Question[0])
+
+				Expect(responseMatchesRequest(req, resp)).Should(BeFalse())
+			})
 		})
 	})
 
