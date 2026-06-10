@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/avast/retry-go/v4"
@@ -38,6 +39,12 @@ const (
 	// connPoolIdleTimeout discards pooled connections idle longer than this,
 	// before an upstream is likely to have closed them.
 	connPoolIdleTimeout = 30 * time.Second
+
+	// upstreamUDPBufferFloor is the minimum EDNS0 UDP buffer (bytes) blocky advertises to plain-DNS
+	// upstreams, independent of what the client requested. 1232 is the DNS-flag-day-2020 value: big
+	// enough to carry most answers without truncation, small enough to avoid IP fragmentation. A
+	// shared-cache miss can then fetch the full answer over UDP instead of falling back to TCP.
+	upstreamUDPBufferFloor = 1232
 )
 
 // UpstreamServerError wraps a response with RCode ServFail so no other resolver tries to use it.
@@ -308,7 +315,7 @@ func (r *dnsUpstreamClient) Close() error {
 }
 
 func (r *dnsUpstreamClient) callExternal(
-	ctx context.Context, msg *dns.Msg, upstreamURL string, protocol model.RequestProtocol,
+	ctx context.Context, msg *dns.Msg, upstreamURL string, _ model.RequestProtocol,
 ) (response *dns.Msg, rtt time.Duration, err error) {
 	if r.udpClient == nil {
 		// Single connection-oriented client (DoT): reuse pooled connections when a
@@ -333,71 +340,98 @@ func (r *dnsUpstreamClient) callExternal(
 		return resp, rtt, nil
 	}
 
-	return r.raceClients(ctx, msg, upstreamURL, protocol)
+	return r.exchangeUDPWithTCPFallback(ctx, msg, upstreamURL)
 }
 
-type exchangeResult struct {
-	proto model.RequestProtocol
-	msg   *dns.Msg
-	rtt   time.Duration
-	err   error
+// exchange performs a single DNS exchange and maps an upstream SERVFAIL to an UpstreamServerError so
+// that no other resolver tries to reuse the response.
+func (r *dnsUpstreamClient) exchange(
+	ctx context.Context, client *dns.Client, msg *dns.Msg, upstreamURL string,
+) (*dns.Msg, time.Duration, error) {
+	resp, rtt, err := client.ExchangeContext(ctx, msg, upstreamURL)
+	if err == nil && resp.Rcode == dns.RcodeServerFailure {
+		err = &UpstreamServerError{resp}
+	}
+
+	return resp, rtt, err
 }
 
-func (r *dnsUpstreamClient) raceClients(
-	ctx context.Context, msg *dns.Msg, upstreamURL string, protocol model.RequestProtocol,
-) (response *dns.Msg, rtt time.Duration, err error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+// exchangeUDPWithTCPFallback queries the upstream over UDP first and only re-queries over TCP when
+// the UDP answer can't be used as-is: it is truncated (TC bit) or its question section doesn't match
+// the request. UDP serves the vast majority of queries, so this avoids opening a TCP connection —
+// and paying its dial/handshake/goroutine cost — on the common path. The UDP query advertises an
+// EDNS0 buffer floor (see udpRequestWithBufferFloor) so larger answers arrive over UDP rather than
+// forcing the TCP fallback.
+//
+// On a hard UDP failure (timeout, network error, SERVFAIL) there is no usable answer to inspect, so
+// we return it without trying TCP: the resolver retries the whole exchange (see retry.Do in Resolve)
+// and parallel_best races other upstreams, which together cover transient UDP loss.
+func (r *dnsUpstreamClient) exchangeUDPWithTCPFallback(
+	ctx context.Context, msg *dns.Msg, upstreamURL string,
+) (*dns.Msg, time.Duration, error) {
+	resp, rtt, err := r.exchange(ctx, r.udpClient, udpRequestWithBufferFloor(msg), upstreamURL)
+	if err != nil {
+		return resp, rtt, err
+	}
 
-	// We don't explicitly close the channel, but since the buffer is big enough for all goroutines,
-	// it will be GC'ed and closed automatically.
-	ch := make(chan exchangeResult, 2) // TCP and UDP
+	if resp.Truncated || !responseMatchesRequest(msg, resp) {
+		// Re-ask over TCP, which has no size limit. The original request is sent so we don't
+		// advertise an EDNS0 buffer the client never asked for over the TCP hop.
+		if tcpResp, tcpRTT, tcpErr := r.exchange(ctx, r.tcpClient, msg, upstreamURL); tcpErr == nil {
+			resp, rtt = tcpResp, tcpRTT
+		}
+		// On TCP failure we keep the UDP answer; the downstream `Server` sets the TC bit if that
+		// (possibly truncated) answer is too big for the client's transport.
+	}
 
-	exchange := func(client *dns.Client, proto model.RequestProtocol) {
-		msg, rtt, err := client.ExchangeContext(ctx, msg, upstreamURL)
+	if msg.IsEdns0() == nil {
+		// We may have advertised the EDNS0 buffer floor the client never asked for; don't leak the
+		// resulting OPT record back to a client that didn't request EDNS0.
+		util.RemoveEdns0Record(resp)
+	}
 
-		if err == nil && msg.Rcode == dns.RcodeServerFailure {
-			err = &UpstreamServerError{msg}
+	return resp, rtt, nil
+}
+
+// udpRequestWithBufferFloor returns the message to send to an upstream over UDP, ensuring it
+// advertises an EDNS0 UDP buffer of at least upstreamUDPBufferFloor. If msg already advertises
+// enough it is returned unchanged; otherwise a copy with a raised (or newly added) OPT is returned,
+// so the caller's shared request — which also drives per-client response truncation in the Server —
+// is never mutated.
+func udpRequestWithBufferFloor(msg *dns.Msg) *dns.Msg {
+	if opt := msg.IsEdns0(); opt != nil {
+		if opt.UDPSize() >= upstreamUDPBufferFloor {
+			return msg
 		}
 
-		ch <- exchangeResult{proto, msg, rtt, err}
+		clone := msg.Copy()
+		clone.IsEdns0().SetUDPSize(upstreamUDPBufferFloor)
+
+		return clone
 	}
 
-	go exchange(r.tcpClient, model.RequestProtocolTCP)
-	go exchange(r.udpClient, model.RequestProtocolUDP)
+	clone := msg.Copy()
+	clone.SetEdns0(upstreamUDPBufferFloor, false)
 
-	// We don't care about a response too big for the downstream protocol: that's handled by `Server`,
-	// and returning a larger request from here might allow us to cache it.
+	return clone
+}
 
-	res1 := <-ch
-	if res1.err == nil && !res1.msg.Truncated {
-		return res1.msg, res1.rtt, nil
+// responseMatchesRequest reports whether resp answers req: same number of questions, each with a
+// matching type, class, and (case-insensitive) name. A mismatch indicates a buggy or confused
+// upstream whose UDP answer can't be trusted, so the caller re-asks over TCP.
+func responseMatchesRequest(req, resp *dns.Msg) bool {
+	if len(resp.Question) != len(req.Question) {
+		return false
 	}
 
-	res2 := <-ch
-	if res2.err == nil && !res2.msg.Truncated {
-		return res2.msg, res2.rtt, nil
-	}
-
-	resWhere := func(pred func(*exchangeResult) bool) *exchangeResult {
-		if pred(&res1) {
-			return &res1
+	for i := range req.Question {
+		q, rq := req.Question[i], resp.Question[i]
+		if rq.Qtype != q.Qtype || rq.Qclass != q.Qclass || !strings.EqualFold(rq.Name, q.Name) {
+			return false
 		}
-
-		return &res2
 	}
 
-	// When both failed, return the result that used the same protocol as the downstream request
-	if res1.err != nil && res2.err != nil {
-		sameProto := resWhere(func(r *exchangeResult) bool { return r.proto == protocol })
-
-		return sameProto.msg, sameProto.rtt, sameProto.err
-	}
-
-	// Only a single one failed, use the one that succeeded
-	successful := resWhere(func(r *exchangeResult) bool { return r.err == nil })
-
-	return successful.msg, successful.rtt, nil
+	return true
 }
 
 // NewUpstreamResolver creates new resolver instance
