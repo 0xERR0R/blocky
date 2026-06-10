@@ -271,6 +271,28 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 			})
 		})
 
+		When("the UDP handler simulates a broken upstream (returns nil)", func() {
+			It("falls back to TCP and returns the TCP answer", func() {
+				mockUpstream := newMockTCPUDPUpstreamServer(
+					func(req *dns.Msg) *dns.Msg {
+						return nil // the mock answers with garbage the client can't parse
+					},
+					func(req *dns.Msg) *dns.Msg {
+						return replyWithRR(req, "example.com. 123 IN A 5.6.7.8")
+					},
+				)
+
+				sutConfig.Upstream = mockUpstream.Start()
+				sut := newUpstreamResolverUnchecked(sutConfig, nil)
+
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(BeDNSRecord("example.com.", A, "5.6.7.8"))
+
+				Expect(mockUpstream.UDPCallCount()).Should(Equal(1))
+				Expect(mockUpstream.TCPCallCount()).Should(Equal(1))
+			})
+		})
+
 		When("UDP is unreachable but TCP works", func() {
 			It("falls back to TCP and returns the TCP answer", func() {
 				mockUpstream := newMockTCPUDPUpstreamServer(
@@ -900,12 +922,37 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 		It("falls back to the tcp client instead of nil-dereferencing the pool", func() {
 			// A connection-oriented client with neither a udp client nor a pool
 			// (e.g. a future tcp-only client) must surface an error, not panic.
-			client := &dnsUpstreamClient{tcpClient: &dns.Client{Net: "tcp"}}
+			client := &dnsUpstreamClient{tcpClient: &dns.Client{Net: transportTCP}}
 
-			_, _, err := client.callExternal(
-				ctx, newRequest("example.com.", A).Req, "127.0.0.1:0", RequestProtocolTCP,
-			)
+			_, _, err := client.callExternal(ctx, newRequest("example.com.", A).Req, "127.0.0.1:0")
 			Expect(err).Should(HaveOccurred())
+		})
+	})
+
+	Describe("TCP-only upstream client (DoT path)", func() {
+		When("the upstream responds with SERVFAIL", func() {
+			It("maps the response to an UpstreamServerError like the UDP/TCP path", func() {
+				mockUpstream := newMockTCPUDPUpstreamServer(
+					nil, // a TCP-only client never dials UDP
+					func(req *dns.Msg) *dns.Msg {
+						resp := new(dns.Msg)
+						resp.SetReply(req)
+						resp.Rcode = dns.RcodeServerFailure
+
+						return resp
+					},
+				)
+				upstream := mockUpstream.StartTCPOnly()
+
+				client := &dnsUpstreamClient{tcpClient: &dns.Client{Net: transportTCP}}
+				url := client.fmtURL(net.ParseIP(upstream.Host), upstream.Port, "")
+
+				_, _, err := client.callExternal(ctx, newRequest("example.com.", A).Req, url)
+
+				var servErr *UpstreamServerError
+				Expect(errors.As(err, &servErr)).Should(BeTrue())
+				Expect(servErr.Msg.Rcode).Should(Equal(dns.RcodeServerFailure))
+			})
 		})
 	})
 

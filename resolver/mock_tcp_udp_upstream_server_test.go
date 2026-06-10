@@ -56,6 +56,14 @@ func (m *mockTCPUDPUpstreamServer) handler(counter *atomic.Int32, answer answerF
 		counter.Add(1)
 
 		resp := answer(request)
+		if resp == nil {
+			// nil simulates a broken upstream, like in MockUDPUpstreamServer: answer with
+			// garbage the client can't parse
+			_, _ = w.Write([]byte("dummy"))
+
+			return
+		}
+
 		resp.Id = request.Id
 		resp.Response = true
 
