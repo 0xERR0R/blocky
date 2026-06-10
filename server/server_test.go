@@ -1142,6 +1142,92 @@ var _ = Describe("Running DNS server", func() {
 		})
 	})
 
+	Describe("client EDNS0 normalization", func() {
+		// The resolver chain mutates request.Req in place: ECS, DNSSEC, and the upstream EDNS0
+		// buffer floor may add or enlarge an OPT record the client never sent. The response sent
+		// back must be normalized against what the client itself asked for.
+		var chainResponse *dns.Msg
+
+		newServerWithChain := func(chain func(req *model.Request) *dns.Msg) *Server {
+			m := resolver.NewMockChainedResolver(GinkgoT())
+			m.EXPECT().Resolve(mock.Anything, mock.Anything).RunAndReturn(
+				func(_ context.Context, req *model.Request) (*model.Response, error) {
+					return &model.Response{Res: chain(req), RType: model.ResponseTypeRESOLVED, Reason: "RESOLVED"}, nil
+				})
+
+			return &Server{
+				queryResolver: m,
+				cfg: &config.Config{Upstreams: config.Upstreams{
+					Timeout: config.Duration(time.Second),
+				}},
+			}
+		}
+
+		// chainAddingEdns0 simulates a chain member adding EDNS0 to the request (like DNSSEC/ECS)
+		// and an upstream echoing it in the response.
+		chainAddingEdns0 := func(req *model.Request) *dns.Msg {
+			req.Req.SetEdns0(4096, true)
+
+			chainResponse.SetReply(req.Req)
+			chainResponse.SetEdns0(4096, false)
+
+			return chainResponse
+		}
+
+		BeforeEach(func() {
+			var err error
+
+			chainResponse, err = util.NewMsgWithAnswer("example.com.", 123, A, "1.2.3.4")
+			Expect(err).Should(Succeed())
+		})
+
+		When("the client did not use EDNS0", func() {
+			It("strips the OPT record added by the resolver chain from the response", func() {
+				s := newServerWithChain(chainAddingEdns0)
+
+				_, req := newRequest(ctx, net.ParseIP("1.2.3.4"), "", model.RequestProtocolUDP,
+					util.NewMsgWithQuestion("example.com.", A))
+
+				resp, err := s.resolve(ctx, req)
+				Expect(err).Should(Succeed())
+				Expect(resp.Res.IsEdns0()).Should(BeNil())
+			})
+
+			It("truncates the response to the client's 512 byte limit, not the chain's buffer size", func() {
+				for i := range 40 {
+					rr, err := dns.NewRR(fmt.Sprintf("example.com. 123 IN A 1.2.3.%d", i))
+					Expect(err).Should(Succeed())
+					chainResponse.Answer = append(chainResponse.Answer, rr)
+				}
+
+				s := newServerWithChain(chainAddingEdns0)
+
+				_, req := newRequest(ctx, net.ParseIP("1.2.3.4"), "", model.RequestProtocolUDP,
+					util.NewMsgWithQuestion("example.com.", A))
+
+				resp, err := s.resolve(ctx, req)
+				Expect(err).Should(Succeed())
+				Expect(resp.Res.Len()).Should(BeNumerically("<=", dns.MinMsgSize))
+				Expect(resp.Res.Truncated).Should(BeTrue())
+			})
+		})
+
+		When("the client used EDNS0", func() {
+			It("keeps the OPT record in the response", func() {
+				s := newServerWithChain(chainAddingEdns0)
+
+				clientMsg := util.NewMsgWithQuestion("example.com.", A)
+				clientMsg.SetEdns0(1232, false)
+
+				_, req := newRequest(ctx, net.ParseIP("1.2.3.4"), "", model.RequestProtocolUDP, clientMsg)
+
+				resp, err := s.resolve(ctx, req)
+				Expect(err).Should(Succeed())
+				Expect(resp.Res.IsEdns0()).ShouldNot(BeNil())
+			})
+		})
+	})
+
 	Describe("secureHeadersMiddleware", func() {
 		It("should set security headers for TLS requests", func() {
 			handler := secureHeadersMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

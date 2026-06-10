@@ -23,6 +23,18 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// replyWithRR builds a reply to req whose answer section holds the single given record.
+func replyWithRR(req *dns.Msg, rr string) *dns.Msg {
+	resp := new(dns.Msg)
+	resp.SetReply(req)
+
+	parsed, err := dns.NewRR(rr)
+	Expect(err).Should(Succeed())
+	resp.Answer = []dns.RR{parsed}
+
+	return resp
+}
+
 var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 	var (
 		sut       *UpstreamResolver
@@ -62,6 +74,21 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 			sut.LogConfig(logger)
 
 			Expect(hook.Calls).ShouldNot(BeEmpty())
+		})
+
+		When("certificate pinning is configured", func() {
+			It("logs the number of pinned hashes", func() {
+				logger, hook := log.NewMockEntry()
+
+				cfg := newUpstreamConfig(config.Upstream{
+					Net: config.NetProtocolTcpTls, Host: "localhost",
+					CertificateFingerprints: []config.CertificateFingerprint{make([]byte, sha256.Size)},
+				}, defaultUpstreamsConfig)
+
+				cfg.LogConfig(logger)
+
+				Expect(hook.Calls).ShouldNot(BeEmpty())
+			})
 		})
 	})
 
@@ -199,6 +226,237 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 		})
 	})
 
+	Describe("Plain DNS UDP-first with TCP fallback", func() {
+		// The suite-wide upstream timeout is tiny (50ms). These specs add small handler delays to
+		// make the UDP-vs-TCP ordering deterministic, so raise the timeout comfortably above them.
+		const handlerDelay = 30 * time.Millisecond
+
+		BeforeEach(func() {
+			sutConfig.Timeout = config.Duration(time.Second)
+		})
+
+		When("the UDP answer is clean (not truncated, question matches)", func() {
+			It("returns the UDP answer and never dials TCP", func() {
+				mockUpstream := newMockTCPUDPUpstreamServer(
+					func(req *dns.Msg) *dns.Msg {
+						// Delay UDP so a speculative TCP race (the old behavior) would win if started.
+						time.Sleep(handlerDelay)
+
+						return replyWithRR(req, "example.com. 123 IN A 1.2.3.4")
+					},
+					func(req *dns.Msg) *dns.Msg {
+						return replyWithRR(req, "example.com. 123 IN A 5.6.7.8")
+					},
+				)
+
+				sutConfig.Upstream = mockUpstream.Start()
+				sut := newUpstreamResolverUnchecked(sutConfig, nil)
+
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(BeDNSRecord("example.com.", A, "1.2.3.4"))
+
+				Expect(mockUpstream.UDPCallCount()).Should(Equal(1))
+				Expect(mockUpstream.TCPCallCount()).Should(Equal(0))
+			})
+		})
+
+		When("the UDP answer is truncated", func() {
+			It("falls back to TCP and returns the TCP answer", func() {
+				mockUpstream := newMockTCPUDPUpstreamServer(
+					func(req *dns.Msg) *dns.Msg {
+						resp := new(dns.Msg)
+						resp.SetReply(req)
+						resp.Truncated = true
+
+						return resp
+					},
+					func(req *dns.Msg) *dns.Msg {
+						return replyWithRR(req, "example.com. 123 IN A 5.6.7.8")
+					},
+				)
+
+				sutConfig.Upstream = mockUpstream.Start()
+				sut := newUpstreamResolverUnchecked(sutConfig, nil)
+
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(BeDNSRecord("example.com.", A, "5.6.7.8"))
+
+				Expect(mockUpstream.UDPCallCount()).Should(Equal(1))
+				Expect(mockUpstream.TCPCallCount()).Should(Equal(1))
+			})
+		})
+
+		When("the UDP handler simulates a broken upstream (returns nil)", func() {
+			It("falls back to TCP and returns the TCP answer", func() {
+				mockUpstream := newMockTCPUDPUpstreamServer(
+					func(req *dns.Msg) *dns.Msg {
+						return nil // the mock answers with garbage the client can't parse
+					},
+					func(req *dns.Msg) *dns.Msg {
+						return replyWithRR(req, "example.com. 123 IN A 5.6.7.8")
+					},
+				)
+
+				sutConfig.Upstream = mockUpstream.Start()
+				sut := newUpstreamResolverUnchecked(sutConfig, nil)
+
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(BeDNSRecord("example.com.", A, "5.6.7.8"))
+
+				Expect(mockUpstream.UDPCallCount()).Should(Equal(1))
+				Expect(mockUpstream.TCPCallCount()).Should(Equal(1))
+			})
+		})
+
+		When("UDP is unreachable but TCP works", func() {
+			It("falls back to TCP and returns the TCP answer", func() {
+				mockUpstream := newMockTCPUDPUpstreamServer(
+					nil, // UDP queries are refused, the handler is never reached
+					func(req *dns.Msg) *dns.Msg {
+						return replyWithRR(req, "example.com. 123 IN A 5.6.7.8")
+					},
+				)
+
+				sutConfig.Upstream = mockUpstream.StartTCPOnly()
+				sut := newUpstreamResolverUnchecked(sutConfig, nil)
+
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(BeDNSRecord("example.com.", A, "5.6.7.8"))
+
+				Expect(mockUpstream.TCPCallCount()).Should(Equal(1))
+			})
+		})
+
+		When("the UDP answer's question section doesn't match the request", func() {
+			It("treats it as unusable and falls back to TCP", func() {
+				mockUpstream := newMockTCPUDPUpstreamServer(
+					func(req *dns.Msg) *dns.Msg {
+						resp := new(dns.Msg)
+						resp.SetReply(req)
+						// A mismatched question section — some buggy/limited upstreams do this over UDP.
+						resp.Question = []dns.Question{{
+							Name: "wrong.example.", Qtype: dns.TypeA, Qclass: dns.ClassINET,
+						}}
+
+						parsed, err := dns.NewRR("wrong.example. 123 IN A 1.2.3.4")
+						Expect(err).Should(Succeed())
+						resp.Answer = []dns.RR{parsed}
+
+						return resp
+					},
+					func(req *dns.Msg) *dns.Msg {
+						// Delay TCP so the (old) racing UDP answer would win and be returned if it could.
+						time.Sleep(handlerDelay)
+
+						return replyWithRR(req, "example.com. 123 IN A 5.6.7.8")
+					},
+				)
+
+				sutConfig.Upstream = mockUpstream.Start()
+				sut := newUpstreamResolverUnchecked(sutConfig, nil)
+
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(BeDNSRecord("example.com.", A, "5.6.7.8"))
+
+				Expect(mockUpstream.TCPCallCount()).Should(Equal(1))
+			})
+		})
+
+		When("the UDP answer's question section doesn't match and TCP is unreachable", func() {
+			It("returns an error instead of the mismatched answer", func() {
+				mockUpstream := newMockTCPUDPUpstreamServer(
+					func(req *dns.Msg) *dns.Msg {
+						resp := new(dns.Msg)
+						resp.SetReply(req)
+						resp.Question = []dns.Question{{
+							Name: "wrong.example.", Qtype: dns.TypeA, Qclass: dns.ClassINET,
+						}}
+
+						parsed, err := dns.NewRR("wrong.example. 123 IN A 1.2.3.4")
+						Expect(err).Should(Succeed())
+						resp.Answer = []dns.RR{parsed}
+
+						return resp
+					},
+					nil, // TCP connections are refused, the handler is never reached
+				)
+
+				sutConfig.Upstream = mockUpstream.StartUDPOnly()
+				sut := newUpstreamResolverUnchecked(sutConfig, nil)
+
+				_, err := sut.Resolve(ctx, newRequest("example.com.", A))
+				Expect(err).Should(HaveOccurred())
+			})
+		})
+	})
+
+	Describe("EDNS0 UDP buffer floor for upstream queries", func() {
+		When("the client did not request EDNS0", func() {
+			It("advertises the buffer floor upstream but returns no OPT to the client", func() {
+				var advertised atomic.Int32
+
+				mockUpstream := newMockTCPUDPUpstreamServer(
+					func(req *dns.Msg) *dns.Msg {
+						if opt := req.IsEdns0(); opt != nil {
+							advertised.Store(int32(opt.UDPSize()))
+						}
+
+						resp := replyWithRR(req, "example.com. 123 IN A 1.2.3.4")
+						resp.SetEdns0(upstreamUDPBufferFloor, false) // a real upstream echoes EDNS0
+
+						return resp
+					},
+					func(req *dns.Msg) *dns.Msg {
+						return replyWithRR(req, "example.com. 123 IN A 5.6.7.8")
+					},
+				)
+
+				sutConfig.Upstream = mockUpstream.Start()
+				sut := newUpstreamResolverUnchecked(sutConfig, nil)
+
+				req := newRequest("example.com.", A)
+				Expect(req.Req.IsEdns0()).Should(BeNil())
+
+				resp, err := sut.Resolve(ctx, req)
+				Expect(err).Should(Succeed())
+				Expect(resp).Should(BeDNSRecord("example.com.", A, "1.2.3.4"))
+
+				Expect(advertised.Load()).Should(BeNumerically(">=", int32(upstreamUDPBufferFloor)))
+				Expect(resp.Res.IsEdns0()).Should(BeNil())
+			})
+		})
+
+		When("the client requests a larger EDNS0 buffer than the floor", func() {
+			It("does not lower it to the floor", func() {
+				const clientBuffer = 4096
+
+				var advertised atomic.Int32
+
+				mockUpstream := newMockTCPUDPUpstreamServer(
+					func(req *dns.Msg) *dns.Msg {
+						if opt := req.IsEdns0(); opt != nil {
+							advertised.Store(int32(opt.UDPSize()))
+						}
+
+						return replyWithRR(req, "example.com. 123 IN A 1.2.3.4")
+					},
+					func(req *dns.Msg) *dns.Msg {
+						return replyWithRR(req, "example.com. 123 IN A 5.6.7.8")
+					},
+				)
+
+				sutConfig.Upstream = mockUpstream.Start()
+				sut := newUpstreamResolverUnchecked(sutConfig, nil)
+
+				req := newRequest("example.com.", A)
+				req.Req.SetEdns0(clientBuffer, false)
+
+				Expect(sut.Resolve(ctx, req)).Should(BeDNSRecord("example.com.", A, "1.2.3.4"))
+				Expect(advertised.Load()).Should(Equal(int32(clientBuffer)))
+			})
+		})
+	})
+
 	Describe("Using DNS over HTTPS (DoH) upstream", func() {
 		var (
 			respFn           func(request *dns.Msg) (response *dns.Msg)
@@ -278,6 +536,19 @@ var _ = Describe("UpstreamResolver", Label("upstreamResolver"), func() {
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(
 					ContainSubstring("http return content type should be 'application/dns-message', but was 'text'"))
+			})
+		})
+		When("Configured DoH resolver closes the connection mid-body", func() {
+			BeforeEach(func() {
+				modifyHTTPRespFn = func(w http.ResponseWriter) {
+					// declare more body bytes than the handler writes, so reading the body fails
+					w.Header().Set("Content-Length", "4096")
+				}
+			})
+			It("should return error", func() {
+				_, err := sut.Resolve(ctx, newRequest("example.com.", A))
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("can't read response body"))
 			})
 		})
 		When("Configured DoH resolver returns wrong content", func() {
@@ -679,12 +950,104 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 		It("falls back to the tcp client instead of nil-dereferencing the pool", func() {
 			// A connection-oriented client with neither a udp client nor a pool
 			// (e.g. a future tcp-only client) must surface an error, not panic.
-			client := &dnsUpstreamClient{tcpClient: &dns.Client{Net: "tcp"}}
+			client := &dnsUpstreamClient{tcpClient: &dns.Client{Net: transportTCP}}
 
-			_, _, err := client.callExternal(
-				ctx, newRequest("example.com.", A).Req, "127.0.0.1:0", RequestProtocolTCP,
-			)
+			_, _, err := client.callExternal(ctx, newRequest("example.com.", A).Req, "127.0.0.1:0")
 			Expect(err).Should(HaveOccurred())
+		})
+	})
+
+	Describe("DoH client request building", func() {
+		When("the request message can't be packed", func() {
+			It("returns a pack error without sending anything", func() {
+				client := &httpUpstreamClient{client: http.DefaultClient, host: "example.com"}
+
+				msg := new(dns.Msg)
+				msg.Question = []dns.Question{{
+					Name: "not-fully-qualified", Qtype: dns.TypeA, Qclass: dns.ClassINET,
+				}}
+
+				_, _, err := client.callExternal(ctx, msg, "https://127.0.0.1:1/dns-query")
+				Expect(err).Should(MatchError(ContainSubstring("can't pack message")))
+			})
+		})
+
+		When("the upstream URL is invalid", func() {
+			It("returns a request creation error", func() {
+				client := &httpUpstreamClient{client: http.DefaultClient, host: "example.com"}
+
+				_, _, err := client.callExternal(ctx, newRequest("example.com.", A).Req, "ht tp://invalid")
+				Expect(err).Should(MatchError(ContainSubstring("can't create the new request")))
+			})
+		})
+	})
+
+	Describe("createUpstreamClient", func() {
+		When("a CommonName from a DNS stamp is set", func() {
+			It("uses it as the TLS server name instead of the host", func() {
+				cfg := newUpstreamConfig(config.Upstream{
+					Net: config.NetProtocolTcpTls, Host: "1.2.3.4", Port: 853, CommonName: "dot.example.com",
+				}, defaultUpstreamsConfig)
+
+				client, ok := createUpstreamClient(cfg).(*dnsUpstreamClient)
+				Expect(ok).Should(BeTrue())
+				Expect(client.tcpClient.TLSConfig.ServerName).Should(Equal("dot.example.com"))
+			})
+		})
+	})
+
+	Describe("udpRequestWithBufferFloor", func() {
+		When("the request advertises an EDNS0 buffer below the floor", func() {
+			It("raises it on a copy, keeping the DO bit and leaving the original untouched", func() {
+				msg := util.NewMsgWithQuestion("example.com.", A)
+				msg.SetEdns0(512, true)
+
+				raised := udpRequestWithBufferFloor(msg)
+
+				Expect(raised).ShouldNot(BeIdenticalTo(msg))
+				Expect(raised.IsEdns0().UDPSize()).Should(Equal(uint16(upstreamUDPBufferFloor)))
+				Expect(raised.IsEdns0().Do()).Should(BeTrue())
+				Expect(msg.IsEdns0().UDPSize()).Should(Equal(uint16(512)))
+			})
+		})
+	})
+
+	Describe("responseMatchesRequest", func() {
+		When("the response has a different number of questions than the request", func() {
+			It("doesn't match", func() {
+				req := util.NewMsgWithQuestion("example.com.", A)
+				resp := util.NewMsgWithQuestion("example.com.", A)
+				resp.Question = append(resp.Question, resp.Question[0])
+
+				Expect(responseMatchesRequest(req, resp)).Should(BeFalse())
+			})
+		})
+	})
+
+	Describe("TCP-only upstream client (DoT path)", func() {
+		When("the upstream responds with SERVFAIL", func() {
+			It("maps the response to an UpstreamServerError like the UDP/TCP path", func() {
+				mockUpstream := newMockTCPUDPUpstreamServer(
+					nil, // a TCP-only client never dials UDP
+					func(req *dns.Msg) *dns.Msg {
+						resp := new(dns.Msg)
+						resp.SetReply(req)
+						resp.Rcode = dns.RcodeServerFailure
+
+						return resp
+					},
+				)
+				upstream := mockUpstream.StartTCPOnly()
+
+				client := &dnsUpstreamClient{tcpClient: &dns.Client{Net: transportTCP}}
+				url := client.fmtURL(net.ParseIP(upstream.Host), upstream.Port, "")
+
+				_, _, err := client.callExternal(ctx, newRequest("example.com.", A).Req, url)
+
+				var servErr *UpstreamServerError
+				Expect(errors.As(err, &servErr)).Should(BeTrue())
+				Expect(servErr.Msg.Rcode).Should(Equal(dns.RcodeServerFailure))
+			})
 		})
 	})
 
