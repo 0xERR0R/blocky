@@ -31,6 +31,13 @@ const (
 	upstreamResolverType = "upstream"
 	retryAttempts        = 3
 	sha256HashLength     = 32
+
+	// connPoolMaxIdle bounds the number of idle DoT connections kept per upstream
+	// address, so a burst of concurrent queries can't leak connections.
+	connPoolMaxIdle = 8
+	// connPoolIdleTimeout discards pooled connections idle longer than this,
+	// before an upstream is likely to have closed them.
+	connPoolIdleTimeout = 30 * time.Second
 )
 
 // UpstreamServerError wraps a response with RCode ServFail so no other resolver tries to use it.
@@ -82,6 +89,8 @@ type UpstreamResolver struct {
 }
 
 type upstreamClient interface {
+	io.Closer
+
 	fmtURL(ip net.IP, port uint16, path string) string
 	callExternal(
 		ctx context.Context, msg *dns.Msg, upstreamURL string, protocol model.RequestProtocol,
@@ -90,6 +99,10 @@ type upstreamClient interface {
 
 type dnsUpstreamClient struct {
 	tcpClient, udpClient *dns.Client
+	// pool reuses persistent connections for the connection-oriented DoT path;
+	// nil for the plain tcp+udp client, whose TCP leg is usually cancelled by the
+	// UDP race and so does not benefit from pooling.
+	pool *connPool
 }
 
 type httpUpstreamClient struct {
@@ -158,8 +171,17 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 	}
 
 	// Add certificate pinning if hashes are provided from DNS stamp
-	if len(cfg.CertificateFingerprints) > 0 {
+	certPinning := len(cfg.CertificateFingerprints) > 0
+	if certPinning {
 		tlsConfig.VerifyPeerCertificate = createCertificatePinningVerifier(cfg.CertificateFingerprints) //nolint:gosec
+	}
+
+	// Enable TLS session resumption for all TLS-based protocols (DoH, DoT, DoQ) so
+	// reconnections skip the full handshake. Not when a certificate is pinned: Go
+	// does not call VerifyPeerCertificate (our pinning check) on resumed sessions,
+	// so resumption would bypass the pin. (The plain tcp+udp client ignores tlsConfig.)
+	if !certPinning {
+		tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(0)
 	}
 
 	switch cfg.Net {
@@ -176,11 +198,14 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 		}
 
 	case config.NetProtocolTcpTls:
+		tcpClient := &dns.Client{
+			TLSConfig: &tlsConfig,
+			Net:       cfg.Net.String(),
+		}
+
 		return &dnsUpstreamClient{
-			tcpClient: &dns.Client{
-				TLSConfig: &tlsConfig,
-				Net:       cfg.Net.String(),
-			},
+			tcpClient: tcpClient,
+			pool:      newConnPool(tcpClient, connPoolMaxIdle, connPoolIdleTimeout),
 		}
 
 	case config.NetProtocolQuic:
@@ -204,6 +229,13 @@ func createUpstreamClient(cfg upstreamConfig) upstreamClient {
 
 func (r *httpUpstreamClient) fmtURL(ip net.IP, port uint16, path string) string {
 	return fmt.Sprintf("https://%s%s", net.JoinHostPort(ip.String(), strconv.Itoa(int(port))), path)
+}
+
+// Close releases idle keep-alive connections. Implements io.Closer.
+func (r *httpUpstreamClient) Close() error {
+	r.client.CloseIdleConnections()
+
+	return nil
 }
 
 func (r *httpUpstreamClient) callExternal(
@@ -265,11 +297,35 @@ func (r *dnsUpstreamClient) fmtURL(ip net.IP, port uint16, _ string) string {
 	return net.JoinHostPort(ip.String(), strconv.Itoa(int(port)))
 }
 
+// Close releases the connection pool's idle connections, if pooling is in use
+// (the DoT path). Implements io.Closer.
+func (r *dnsUpstreamClient) Close() error {
+	if r.pool != nil {
+		return r.pool.Close()
+	}
+
+	return nil
+}
+
 func (r *dnsUpstreamClient) callExternal(
 	ctx context.Context, msg *dns.Msg, upstreamURL string, protocol model.RequestProtocol,
 ) (response *dns.Msg, rtt time.Duration, err error) {
 	if r.udpClient == nil {
-		resp, rtt, err := r.tcpClient.ExchangeContext(ctx, msg, upstreamURL)
+		// Single connection-oriented client (DoT): reuse pooled connections when a
+		// pool is configured, otherwise fall back to a one-shot exchange rather than
+		// dereferencing a nil pool.
+		var (
+			resp *dns.Msg
+			rtt  time.Duration
+			err  error
+		)
+
+		if r.pool != nil {
+			resp, rtt, err = r.pool.exchange(ctx, msg, upstreamURL)
+		} else {
+			resp, rtt, err = r.tcpClient.ExchangeContext(ctx, msg, upstreamURL)
+		}
+
 		if err != nil {
 			return nil, 0, fmt.Errorf("TCP DNS exchange failed to %s: %w", upstreamURL, err)
 		}
