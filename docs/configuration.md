@@ -56,6 +56,7 @@ All values in this section are optional.
 | ports.https   | One or more [IP]:Port |               | Listen address for HTTPS used for prometheus metrics, pprof, REST API, DoH... Example: `443`, `:443`, `192.168.0.1:443`, `[443, "[::1]:443"]`     |
 | ports.dohPath | string                | /dns-query    | URL path for DoH queries.                                                                                                                         |
 | ports.freeBind | bool                 | false         | Allow binding the DNS/DoT listeners to addresses not yet assigned to an interface (Linux only, via `IP_FREEBIND`; e.g. Tailscale/WireGuard/VRRP). No effect on wildcard binds; ignored with a warning on non-Linux. |
+| ports.proxyProtocol | list | _empty_ | TCP listener families (any of `dns`, `http`, `https`, `tls`) that must require a HAProxy PROXY protocol header. Enable only when the listener is reachable only through a trusted proxy. |
 
 !!! example
 
@@ -68,6 +69,9 @@ All values in this section are optional.
         - 4000
       https: 443
       dohPath: /my-custom-dns-query
+      proxyProtocol:
+        - https
+        - tls
     ```
 
 ## Logging configuration
@@ -951,6 +955,8 @@ Prometheus metrics, web UI).
   `minTlsServeVersion` config does not affect it.
 - If `http3.enable` is true but `ports.https` is empty, Blocky logs a
   warning at startup and does not open any UDP listeners.
+- If `ports.proxyProtocol` includes `https`, HTTP/3 is disabled because
+  QUIC/UDP cannot carry a PROXY protocol header.
 - When HTTP/3 is enabled, HTTPS responses include an `Alt-Svc: h3=...`
   header so capable clients can switch transports automatically.
 

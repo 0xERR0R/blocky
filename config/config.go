@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -145,6 +146,10 @@ func (s InitStrategy) Do(ctx context.Context, init func(context.Context) error, 
 // QueryLogField data field to be logged
 // ENUM(clientIP,clientName,responseReason,responseAnswer,question,duration)
 type QueryLogField string
+
+// ProxyProtocolType is a TCP listener family that requires a PROXY protocol header.
+// ENUM(dns,http,https,tls)
+type ProxyProtocolType string
 
 // UpstreamStrategy upstream server usage strategy ENUM(
 // parallel_best // Picks 2 random weighted resolvers per query and returns the fastest answer (default).
@@ -345,6 +350,17 @@ type Ports struct {
 	// brought up after startup). Has no effect on wildcard binds and is ignored, with a warning, on
 	// non-Linux platforms.
 	FreeBind bool `default:"false" yaml:"freeBind"`
+	// PROXY protocol listener families. List the TCP listeners that sit behind a trusted proxy and
+	// must require a PROXY protocol header before the connection is handled, e.g. [https, tls].
+	ProxyProtocol ProxyProtocolListeners `yaml:"proxyProtocol"`
+}
+
+// ProxyProtocolListeners is the set of TCP listener families that require a PROXY protocol header.
+type ProxyProtocolListeners []ProxyProtocolType
+
+// Has reports whether the given listener family requires the PROXY protocol.
+func (p ProxyProtocolListeners) Has(t ProxyProtocolType) bool {
+	return slices.Contains(p, t)
 }
 
 func (c *Ports) LogConfig(logger *logrus.Entry) {
@@ -354,6 +370,7 @@ func (c *Ports) LogConfig(logger *logrus.Entry) {
 	logger.Infof("HTTPS    = %s", c.HTTPS)
 	logger.Infof("DOHPath  = %s", c.DOHPath)
 	logger.Infof("FreeBind = %t", c.FreeBind)
+	logger.Infof("PROXY protocol = %s", c.ProxyProtocol)
 }
 
 func (c *Ports) validate() error {
@@ -377,7 +394,37 @@ func (c *Ports) validate() error {
 		return fmt.Errorf("dohPath must not contain '#', got %q", c.DOHPath)
 	}
 
+	seenProxyProtocolListeners := make(map[ProxyProtocolType]struct{}, len(c.ProxyProtocol))
+	for _, listener := range c.ProxyProtocol {
+		if _, ok := seenProxyProtocolListeners[listener]; ok {
+			return fmt.Errorf("ports.proxyProtocol contains duplicate listener family %q", listener)
+		}
+
+		seenProxyProtocolListeners[listener] = struct{}{}
+	}
+
+	for _, listener := range c.ProxyProtocol {
+		if listenConfig, ok := c.proxyProtocolListenConfig(listener); ok && len(listenConfig) == 0 {
+			return fmt.Errorf("ports.proxyProtocol includes %q but ports.%s is empty", listener, listener)
+		}
+	}
+
 	return nil
+}
+
+func (c *Ports) proxyProtocolListenConfig(listener ProxyProtocolType) (ListenConfig, bool) {
+	switch listener {
+	case ProxyProtocolTypeDns:
+		return c.DNS, true
+	case ProxyProtocolTypeHttp:
+		return c.HTTP, true
+	case ProxyProtocolTypeHttps:
+		return c.HTTPS, true
+	case ProxyProtocolTypeTls:
+		return c.TLS, true
+	default:
+		return nil, false
+	}
 }
 
 // privilegedPortCeiling is the first non-privileged TCP/UDP port. Ports below

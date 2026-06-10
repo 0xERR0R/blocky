@@ -106,4 +106,64 @@ proxy sets both `Forwarded` and `X-Forwarded-For`, Blocky uses
       # Traefik sets X-Forwarded-For automatically; no extra config needed.
     ```
 
+## Running DoT/DoH behind a TCP proxy
+
+For DNS-over-TLS and HTTPS passthrough, HTTP forwarding headers are not
+available before Blocky handles the TLS connection. Enable the HAProxy PROXY
+protocol on the Blocky listener and configure the proxy to send it.
+
+!!! warning
+
+    List a listener under `ports.proxyProtocol` only when it is reachable only
+    from trusted proxies. When enabled, Blocky requires a PROXY protocol header
+    and uses the source address from that header as the client IP.
+
+    The PROXY protocol only covers TCP listeners. HTTP/3 (QUIC/UDP) cannot carry
+    a PROXY protocol header, so enabling `https` here automatically disables
+    HTTP/3. Plain DNS-over-UDP is likewise unaffected by `dns`.
+
+    The `http` and `https` listeners also serve the Prometheus metrics, the REST
+    API and the `/debug` pprof endpoints. Enabling `http`/`https` here makes *all*
+    of them require a PROXY protocol header, so anything that connects to that
+    port directly (e.g. a Prometheus scrape not routed through the proxy) is
+    rejected. Bind those tools behind the same trusted proxy, or expose metrics
+    and API on a separate listener without PROXY protocol.
+
+!!! example "Blocky"
+
+    ```yaml
+    ports:
+      https: 443
+      tls: 853
+      proxyProtocol:
+        - https
+        - tls
+    ```
+
+!!! example "nginx stream"
+
+    ```nginx
+    stream {
+        upstream blocky_dot {
+            server blocky-backend:853;
+        }
+
+        server {
+            listen 853;
+            proxy_pass blocky_dot;
+            proxy_protocol on;
+        }
+
+        upstream blocky_doh {
+            server blocky-backend:443;
+        }
+
+        server {
+            listen 443;
+            proxy_pass blocky_doh;
+            proxy_protocol on;
+        }
+    }
+    ```
+
 --8<-- "docs/includes/abbreviations.md"

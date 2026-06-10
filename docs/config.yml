@@ -431,6 +431,11 @@ ports:
   #           startup). No effect on wildcard binds; ignored with a warning on non-Linux platforms.
   # default: false
   freeBind: false
+  # optional: require and parse HAProxy PROXY protocol headers on the listed TCP listener families
+  #           (any of: dns, http, https, tls). Enable only when Blocky is reachable only through a
+  #           trusted proxy.
+  # default: empty
+  proxyProtocol: []
 
 # optional: configuration for DOH  over HTTP/3
 http3:
