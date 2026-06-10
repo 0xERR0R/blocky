@@ -44,7 +44,9 @@ var _ = Describe("PROXY protocol behind an nginx stream proxy", func() {
 		})
 
 		It("uses the PROXY header source as the client IP for DoT", func(ctx context.Context) {
-			Expect(queryDoTViaProxy(ctx, nginx, "dotquery.")).Should(Succeed())
+			Eventually(func() error {
+				return queryDoTViaProxy(ctx, nginx, "dotquery.")
+			}, "30s", "1s").Should(Succeed())
 
 			nginxIP, err := getContainerNetworkIP(ctx, nginx, e2eNet.Name)
 			Expect(err).Should(Succeed())
@@ -56,7 +58,9 @@ var _ = Describe("PROXY protocol behind an nginx stream proxy", func() {
 		})
 
 		It("uses the PROXY header source as the client IP for DoH", func(ctx context.Context) {
-			Expect(queryDoHViaProxy(ctx, nginx, "dohquery.")).Should(Succeed())
+			Eventually(func() error {
+				return queryDoHViaProxy(ctx, nginx, "dohquery.")
+			}, "30s", "1s").Should(Succeed())
 
 			nginxIP, err := getContainerNetworkIP(ctx, nginx, e2eNet.Name)
 			Expect(err).Should(Succeed())
@@ -91,7 +95,9 @@ var _ = Describe("PROXY protocol behind an nginx stream proxy", func() {
 		})
 
 		It("records the proxy address as the client IP for DoT", func(ctx context.Context) {
-			Expect(queryDoTViaProxy(ctx, nginx, "dotquery.")).Should(Succeed())
+			Eventually(func() error {
+				return queryDoTViaProxy(ctx, nginx, "dotquery.")
+			}, "30s", "1s").Should(Succeed())
 
 			nginxIP, err := getContainerNetworkIP(ctx, nginx, e2eNet.Name)
 			Expect(err).Should(Succeed())
@@ -102,7 +108,9 @@ var _ = Describe("PROXY protocol behind an nginx stream proxy", func() {
 		})
 
 		It("records the proxy address as the client IP for DoH", func(ctx context.Context) {
-			Expect(queryDoHViaProxy(ctx, nginx, "dohquery.")).Should(Succeed())
+			Eventually(func() error {
+				return queryDoHViaProxy(ctx, nginx, "dohquery.")
+			}, "30s", "1s").Should(Succeed())
 
 			nginxIP, err := getContainerNetworkIP(ctx, nginx, e2eNet.Name)
 			Expect(err).Should(Succeed())

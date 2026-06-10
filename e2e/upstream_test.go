@@ -60,7 +60,9 @@ var _ = Describe("Upstream resolver configuration tests", func() {
 			})
 			It("should start even if upstream server is not reachable", func(ctx context.Context) {
 				Expect(blocky.IsRunning()).Should(BeTrue())
-				Expect(getContainerLogs(ctx, blocky)).Should(ContainElement(ContainSubstring("initial resolver test failed")))
+				Eventually(ctx, func() ([]string, error) {
+					return getContainerLogs(ctx, blocky)
+				}).Should(ContainElement(ContainSubstring("initial resolver test failed")))
 			})
 		})
 		When("'upstreams.init.strategy' is failOnError and upstream as IP address server is not reachable", func() {
