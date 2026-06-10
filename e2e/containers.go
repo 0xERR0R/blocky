@@ -36,6 +36,7 @@ const (
 	mariaDBImage      = "mariadb:11"
 	mokaImage         = "ghcr.io/0xerr0r/dns-mokka:0.4.0"
 	staticServerImage = "halverneus/static-file-server:latest"
+	nginxImage        = "nginx:1.27-alpine"
 	blockyImage       = "blocky-e2e"
 )
 
@@ -117,6 +118,55 @@ func createHTTPServerContainer(ctx context.Context, alias string, e2eNet *testco
 	}
 
 	return startContainerWithNetwork(ctx, req, alias, e2eNet)
+}
+
+// createNginxStreamProxyContainer starts an nginx stream (L4) proxy in front of blocky on the test
+// network under the alias 'nginx'. It forwards TCP 853 -> blocky:853 (DoT) and 443 -> blocky:443
+// (DoH/HTTPS). When proxyProtocol is true, nginx prepends a HAProxy PROXY protocol header to each
+// upstream connection. blocky must already be running so nginx can resolve the 'blocky' alias at
+// startup. It is automatically terminated when the test is finished.
+func createNginxStreamProxyContainer(ctx context.Context, e2eNet *testcontainers.DockerNetwork,
+	proxyProtocol bool,
+) (testcontainers.Container, error) {
+	proxyProtocolDirective := ""
+	if proxyProtocol {
+		proxyProtocolDirective = "proxy_protocol on;"
+	}
+
+	// Minimal nginx.conf with only the stream module: TCP passthrough to blocky so the TLS
+	// handshake (DoT/DoH) terminates at blocky, optionally prefixed with a PROXY protocol header.
+	conf := fmt.Sprintf(`worker_processes 1;
+events {}
+stream {
+    server {
+        listen 853;
+        proxy_pass blocky:853;
+        %[1]s
+    }
+    server {
+        listen 443;
+        proxy_pass blocky:443;
+        %[1]s
+    }
+}
+`, proxyProtocolDirective)
+
+	req := testcontainers.ContainerRequest{
+		Image:        nginxImage,
+		ExposedPorts: []string{"853/tcp", "443/tcp"},
+		// The nginx image EXPOSEs port 80, which it does not listen on with our stream-only
+		// config, so wait for the DoT port we actually bind instead of the first exposed port.
+		WaitingFor: wait.ForListeningPort("853/tcp"),
+		Files: []testcontainers.ContainerFile{
+			{
+				HostFilePath:      createTempFile(conf),
+				ContainerFilePath: "/etc/nginx/nginx.conf",
+				FileMode:          modeWorldReadable,
+			},
+		},
+	}
+
+	return startContainerWithNetwork(ctx, req, "nginx", e2eNet)
 }
 
 // createRedisContainer creates a redis container attached to the test network under the alias 'redis'.

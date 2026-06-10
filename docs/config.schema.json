@@ -1009,6 +1009,19 @@
           "type": "boolean",
           "description": "Allow binding the DNS and DoT listeners to addresses that are not yet assigned to a network\ninterface, via the Linux IP_FREEBIND socket option (e.g. for Tailscale/WireGuard/VRRP addresses\nbrought up after startup). Has no effect on wildcard binds and is ignored, with a warning, on\nnon-Linux platforms.",
           "default": false
+        },
+        "proxyProtocol": {
+          "items": {
+            "type": "string",
+            "enum": [
+              "dns",
+              "http",
+              "https",
+              "tls"
+            ]
+          },
+          "type": "array",
+          "description": "PROXY protocol listener families. List the TCP listeners that sit behind a trusted proxy and\nmust require a PROXY protocol header before the connection is handled, e.g. [https, tls]."
         }
       },
       "additionalProperties": false,

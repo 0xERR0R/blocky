@@ -28,6 +28,42 @@ var _ = Describe("schema-enriched config loading", func() {
 			Expect(err).Should(Succeed())
 			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("does not match schema")))
 		})
+
+		It("accepts PROXY protocol listener families", func() {
+			data := []byte(`upstreams:
+  groups:
+    default:
+      - 1.1.1.1
+ports:
+  proxyProtocol:
+    - dns
+    - http
+    - https
+    - tls
+`)
+
+			err := unmarshalConfig(logger, data, &Config{})
+			Expect(err).Should(Succeed())
+			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("does not match schema")))
+		})
+	})
+
+	When("a PROXY protocol listener family is unknown", func() {
+		It("returns an error naming the valid families", func() {
+			data := []byte(`upstreams:
+  groups:
+    default:
+      - 1.1.1.1
+ports:
+  proxyProtocol:
+    - bogus
+`)
+
+			err := unmarshalConfig(logger, data, &Config{})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("proxyProtocol"))
+			Expect(err.Error()).Should(ContainSubstring("'dns', 'http', 'https', 'tls'"))
+		})
 	})
 
 	When("bootstrapDns uses the resolvFile object form", func() {
