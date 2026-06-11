@@ -1228,6 +1228,67 @@ var _ = Describe("Running DNS server", func() {
 		})
 	})
 
+	Describe("response compression", func() {
+		// miekg's Truncate sets Compress=false when the message already fits uncompressed
+		// ("don't waste effort compressing this message"). resolve must honor that decision
+		// instead of clobbering it by forcing Compress=true on every response.
+		newServerWithResponse := func(res *dns.Msg) *Server {
+			m := resolver.NewMockChainedResolver(GinkgoT())
+			m.EXPECT().Resolve(mock.Anything, mock.Anything).RunAndReturn(
+				func(_ context.Context, req *model.Request) (*model.Response, error) {
+					res.SetReply(req.Req)
+
+					return &model.Response{Res: res, RType: model.ResponseTypeRESOLVED, Reason: "RESOLVED"}, nil
+				})
+
+			return &Server{
+				queryResolver: m,
+				cfg: &config.Config{Upstreams: config.Upstreams{
+					Timeout: config.Duration(time.Second),
+				}},
+			}
+		}
+
+		When("the response fits the client buffer uncompressed", func() {
+			It("leaves compression disabled so Pack does not waste effort", func() {
+				res, err := util.NewMsgWithAnswer("example.com.", 123, A, "1.2.3.4")
+				Expect(err).Should(Succeed())
+
+				s := newServerWithResponse(res)
+
+				_, req := newRequest(ctx, net.ParseIP("1.2.3.4"), "", model.RequestProtocolUDP,
+					util.NewMsgWithQuestion("example.com.", A))
+
+				resp, err := s.resolve(ctx, req)
+				Expect(err).Should(Succeed())
+				Expect(resp.Res.Compress).Should(BeFalse())
+			})
+		})
+
+		When("the response does not fit the client buffer uncompressed", func() {
+			It("keeps compression enabled so Pack can shrink the message", func() {
+				res := new(dns.Msg)
+				for i := range 20 {
+					rr, err := dns.NewRR(fmt.Sprintf("example.com. 123 IN A 1.2.3.%d", i))
+					Expect(err).Should(Succeed())
+					res.Answer = append(res.Answer, rr)
+				}
+
+				s := newServerWithResponse(res)
+
+				_, req := newRequest(ctx, net.ParseIP("1.2.3.4"), "", model.RequestProtocolUDP,
+					util.NewMsgWithQuestion("example.com.", A))
+
+				resp, err := s.resolve(ctx, req)
+				Expect(err).Should(Succeed())
+				Expect(resp.Res.Compress).Should(BeTrue())
+				// guard the scenario: the message must fit *because* of compression, not by
+				// being truncated — otherwise this would also pass on the truncated path.
+				Expect(resp.Res.Truncated).Should(BeFalse())
+			})
+		})
+	})
+
 	Describe("secureHeadersMiddleware", func() {
 		It("should set security headers for TLS requests", func() {
 			handler := secureHeadersMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
