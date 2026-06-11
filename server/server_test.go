@@ -1237,6 +1237,7 @@ var _ = Describe("Running DNS server", func() {
 			m.EXPECT().Resolve(mock.Anything, mock.Anything).RunAndReturn(
 				func(_ context.Context, req *model.Request) (*model.Response, error) {
 					res.SetReply(req.Req)
+
 					return &model.Response{Res: res, RType: model.ResponseTypeRESOLVED, Reason: "RESOLVED"}, nil
 				})
 
@@ -1281,6 +1282,9 @@ var _ = Describe("Running DNS server", func() {
 				resp, err := s.resolve(ctx, req)
 				Expect(err).Should(Succeed())
 				Expect(resp.Res.Compress).Should(BeTrue())
+				// guard the scenario: the message must fit *because* of compression, not by
+				// being truncated — otherwise this would also pass on the truncated path.
+				Expect(resp.Res.Truncated).Should(BeFalse())
 			})
 		})
 	})
