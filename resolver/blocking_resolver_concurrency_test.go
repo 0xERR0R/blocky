@@ -79,7 +79,9 @@ var _ = Describe("BlockingResolver concurrency", Label("blockingResolver"), func
 				}
 			}()
 
-			// readers: resolve the per-client group set, which read-locks twice.
+			// readers: resolve the per-client group set, which snapshots
+			// disabledGroups under a brief read lock (the path that previously
+			// recursively read-locked and deadlocked).
 			for range readers {
 				wg.Add(1)
 

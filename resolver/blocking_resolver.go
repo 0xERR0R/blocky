@@ -74,9 +74,11 @@ type status struct {
 	// true: blocking of all groups is enabled
 	// false: blocking is disabled. Either all groups or only particular
 	enabled bool
-	// disabledGroups must only ever be reassigned wholesale (never appended to
-	// in place): groupsToCheckForClient snapshots the slice header under a brief
-	// read lock and reads it after releasing the lock.
+	// disabledGroups must only ever be reassigned wholesale, never mutated in
+	// place (no in-place append, no element writes): groupsToCheckForClient
+	// snapshots the slice header under a brief read lock and then reads the
+	// backing array after releasing the lock, so any in-place mutation would be
+	// an unsynchronized write racing that lock-free read.
 	disabledGroups []string
 	enableTimer    *time.Timer
 	disableEnd     time.Time
@@ -297,7 +299,10 @@ func (r *BlockingResolver) internalDisableBlocking(ctx context.Context, duration
 			}
 		}
 
-		s.disabledGroups = disableGroups
+		// Clone so status owns the backing array: the caller keeps a reference to
+		// disableGroups, and groupsToCheckForClient reads s.disabledGroups
+		// lock-free, so an external in-place mutation must not be able to race it.
+		s.disabledGroups = slices.Clone(disableGroups)
 	}
 
 	s.enabled = false
@@ -476,12 +481,12 @@ func extractEntryToCheckFromResponse(rr dns.RR) (entryToCheck, tName string) {
 
 // returns groups which should be checked for client's request
 func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []string {
-	// Snapshot disabledGroups under the lock, then release it before the
-	// (lock-free) group collection and filtering below. Writers always reassign
-	// status.disabledGroups instead of mutating it in place, so the captured
-	// slice stays a stable view. Re-locking inside the loop (the former
-	// isGroupDisabled helper) recursively read-locked status.lock, which Go's
-	// RWMutex forbids and which deadlocks against a concurrent writer.
+	// Snapshot disabledGroups under a brief read lock, then release it before the
+	// (lock-free) group collection and filtering below. The field's invariant
+	// (reassigned wholesale, never mutated in place) is what keeps the captured
+	// slice a stable view without holding the lock across the loop. Do not
+	// re-acquire status.lock inside the loop: that recursive RLock deadlocks
+	// against a pending writer, which Go's RWMutex forbids.
 	r.status.lock.RLock()
 	disabledGroups := r.status.disabledGroups
 	r.status.lock.RUnlock()
