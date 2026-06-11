@@ -836,11 +836,10 @@ func (s *Server) resolve(ctx context.Context, request *model.Request) (response 
 		util.RemoveEdns0Record(response.Res)
 	}
 
-	// truncate if necessary
+	// truncate if necessary; Truncate also disables compression when the message already fits
+	// uncompressed and enables it when compression is needed to fit, so we let it decide rather
+	// than forcing Compress=true and paying a compression-map alloc + packing on every response.
 	response.Res.Truncate(clientMaxResponseSize)
-
-	// enable compression
-	response.Res.Compress = true
 
 	return response, nil
 }
