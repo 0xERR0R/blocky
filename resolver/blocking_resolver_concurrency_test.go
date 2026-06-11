@@ -98,9 +98,12 @@ var _ = Describe("BlockingResolver concurrency", Label("blockingResolver"), func
 			wg.Wait()
 		}()
 
+		timeout := time.NewTimer(15 * time.Second)
+		defer timeout.Stop()
+
 		select {
 		case <-done:
-		case <-time.After(15 * time.Second):
+		case <-timeout.C:
 			Fail("groupsToCheckForClient deadlocked: recursive status.lock.RLock " +
 				"under concurrent blocking toggling")
 		}

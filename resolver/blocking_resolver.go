@@ -72,7 +72,8 @@ func createBlockHandler(cfg config.Blocking) (blockHandler, error) {
 
 type status struct {
 	// true: blocking of all groups is enabled
-	// false: blocking is disabled. Either all groups or only particular
+	// false: blocking is disabled, either for all groups or only for the
+	// particular groups listed in disabledGroups
 	enabled bool
 	// disabledGroups must only ever be reassigned wholesale, never mutated in
 	// place (no in-place append, no element writes): groupsToCheckForClient
@@ -337,8 +338,11 @@ func (r *BlockingResolver) BlockingStatus() api.BlockingStatus {
 	}
 
 	return api.BlockingStatus{
-		Enabled:         r.status.enabled,
-		DisabledGroups:  r.status.disabledGroups,
+		Enabled: r.status.enabled,
+		// Clone so callers cannot mutate status.disabledGroups in place: it is
+		// read lock-free in groupsToCheckForClient, so handing out the live slice
+		// would let an external write race that read.
+		DisabledGroups:  slices.Clone(r.status.disabledGroups),
 		AutoEnableInSec: int(autoEnableDuration.Seconds()),
 	}
 }
