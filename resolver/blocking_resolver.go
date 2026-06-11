@@ -73,8 +73,14 @@ func createBlockHandler(cfg config.Blocking) (blockHandler, error) {
 
 type status struct {
 	// true: blocking of all groups is enabled
-	// false: blocking is disabled. Either all groups or only particular
-	enabled        bool
+	// false: blocking is disabled, either for all groups or only for the
+	// particular groups listed in disabledGroups
+	enabled bool
+	// disabledGroups must only ever be reassigned wholesale, never mutated in
+	// place (no in-place append, no element writes): groupsToCheckForClient
+	// snapshots the slice header under a brief read lock and then reads the
+	// backing array after releasing the lock, so any in-place mutation would be
+	// an unsynchronized write racing that lock-free read.
 	disabledGroups []string
 	enableTimer    *time.Timer
 	disableEnd     time.Time
@@ -346,7 +352,10 @@ func (r *BlockingResolver) internalDisableBlocking(ctx context.Context, duration
 			}
 		}
 
-		s.disabledGroups = disableGroups
+		// Clone so status owns the backing array: the caller keeps a reference to
+		// disableGroups, and groupsToCheckForClient reads s.disabledGroups
+		// lock-free, so an external in-place mutation must not be able to race it.
+		s.disabledGroups = slices.Clone(disableGroups)
 	}
 
 	s.enabled = false
@@ -381,8 +390,11 @@ func (r *BlockingResolver) BlockingStatus() api.BlockingStatus {
 	}
 
 	return api.BlockingStatus{
-		Enabled:         r.status.enabled,
-		DisabledGroups:  r.status.disabledGroups,
+		Enabled: r.status.enabled,
+		// Clone so callers cannot mutate status.disabledGroups in place: it is
+		// read lock-free in groupsToCheckForClient, so handing out the live slice
+		// would let an external write race that read.
+		DisabledGroups:  slices.Clone(r.status.disabledGroups),
 		AutoEnableInSec: int(autoEnableDuration.Seconds()),
 	}
 }
@@ -523,17 +535,17 @@ func extractEntryToCheckFromResponse(rr dns.RR) (entryToCheck, tName string) {
 	return entryToCheck, tName
 }
 
-func (r *BlockingResolver) isGroupDisabled(group string) bool {
-	r.status.lock.RLock()
-	defer r.status.lock.RUnlock()
-
-	return slices.Contains(r.status.disabledGroups, group)
-}
-
 // returns groups which should be checked for client's request
 func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []string {
+	// Snapshot disabledGroups under a brief read lock, then release it before the
+	// (lock-free) group collection and filtering below. The field's invariant
+	// (reassigned wholesale, never mutated in place) is what keeps the captured
+	// slice a stable view without holding the lock across the loop. Do not
+	// re-acquire status.lock inside the loop: that recursive RLock deadlocks
+	// against a pending writer, which Go's RWMutex forbids.
 	r.status.lock.RLock()
-	defer r.status.lock.RUnlock()
+	disabledGroups := r.status.disabledGroups
+	r.status.lock.RUnlock()
 
 	groups := r.collectGroupsForClient(request)
 
@@ -547,7 +559,7 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 	var result []string
 
 	for _, sg := range groups {
-		if r.isGroupDisabled(sg.group) {
+		if slices.Contains(disabledGroups, sg.group) {
 			continue
 		}
 
