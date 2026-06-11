@@ -73,7 +73,10 @@ func createBlockHandler(cfg config.Blocking) (blockHandler, error) {
 type status struct {
 	// true: blocking of all groups is enabled
 	// false: blocking is disabled. Either all groups or only particular
-	enabled        bool
+	enabled bool
+	// disabledGroups must only ever be reassigned wholesale (never appended to
+	// in place): groupsToCheckForClient snapshots the slice header under a brief
+	// read lock and reads it after releasing the lock.
 	disabledGroups []string
 	enableTimer    *time.Timer
 	disableEnd     time.Time
@@ -471,17 +474,17 @@ func extractEntryToCheckFromResponse(rr dns.RR) (entryToCheck, tName string) {
 	return entryToCheck, tName
 }
 
-func (r *BlockingResolver) isGroupDisabled(group string) bool {
-	r.status.lock.RLock()
-	defer r.status.lock.RUnlock()
-
-	return slices.Contains(r.status.disabledGroups, group)
-}
-
 // returns groups which should be checked for client's request
 func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []string {
+	// Snapshot disabledGroups under the lock, then release it before the
+	// (lock-free) group collection and filtering below. Writers always reassign
+	// status.disabledGroups instead of mutating it in place, so the captured
+	// slice stays a stable view. Re-locking inside the loop (the former
+	// isGroupDisabled helper) recursively read-locked status.lock, which Go's
+	// RWMutex forbids and which deadlocks against a concurrent writer.
 	r.status.lock.RLock()
-	defer r.status.lock.RUnlock()
+	disabledGroups := r.status.disabledGroups
+	r.status.lock.RUnlock()
 
 	groups := r.collectGroupsForClient(request)
 
@@ -495,7 +498,7 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 	var result []string
 
 	for _, sg := range groups {
-		if r.isGroupDisabled(sg.group) {
+		if slices.Contains(disabledGroups, sg.group) {
 			continue
 		}
 
