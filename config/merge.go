@@ -13,6 +13,7 @@ import (
 // values are mappings on both sides merge recursively; any other collision
 // (scalar, list, explicit null, or type mismatch) resolves to the src value
 // (last wins). dst is modified in place; pass nil to start fresh.
+// Nested src maps are shared by reference into dst; safe here because callers never reuse a decoded document.
 func mergeMaps(dst, src map[interface{}]interface{}) map[interface{}]interface{} {
 	if dst == nil {
 		dst = make(map[interface{}]interface{}, len(src))

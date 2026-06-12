@@ -97,6 +97,13 @@ var _ = Describe("Config file merging", func() {
 			Expect(err.Error()).Should(ContainSubstring("already set in map"))
 		})
 
+		It("rejects duplicate keys at nested levels too", func() {
+			_, err := decodeYAMLDocuments([]byte("a:\n  b: 1\n  b: 2\n"))
+
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("already set in map"))
+		})
+
 		It("rejects a non-mapping top level", func() {
 			_, err := decodeYAMLDocuments([]byte("- just\n- a list\n"))
 
