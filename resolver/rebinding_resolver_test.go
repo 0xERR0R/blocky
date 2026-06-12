@@ -1,0 +1,203 @@
+package resolver
+
+import (
+	"context"
+	"net"
+
+	"github.com/0xERR0R/blocky/config"
+	. "github.com/0xERR0R/blocky/helpertest"
+	"github.com/0xERR0R/blocky/log"
+	. "github.com/0xERR0R/blocky/model"
+
+	"github.com/miekg/dns"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/mock"
+)
+
+// rebindTestA builds an A RR with the given owner name and address.
+func rebindTestA(name, ip string) *dns.A {
+	return &dns.A{
+		Hdr: dns.RR_Header{Name: name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300},
+		A:   net.ParseIP(ip),
+	}
+}
+
+// rebindTestAAAA builds an AAAA RR with the given owner name and address.
+func rebindTestAAAA(name, ip string) *dns.AAAA {
+	return &dns.AAAA{
+		Hdr:  dns.RR_Header{Name: name, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: 300},
+		AAAA: net.ParseIP(ip),
+	}
+}
+
+var _ = Describe("RebindingProtectionResolver", func() {
+	var (
+		sut        *RebindingProtectionResolver
+		sutConfig  config.RebindingProtection
+		m          *mockResolver
+		mockAnswer *dns.Msg
+
+		ctx      context.Context
+		cancelFn context.CancelFunc
+	)
+
+	Describe("Type", func() {
+		It("follows conventions", func() {
+			expectValidResolverType(sut)
+		})
+	})
+
+	BeforeEach(func() {
+		ctx, cancelFn = context.WithCancel(context.Background())
+		DeferCleanup(cancelFn)
+
+		sutConfig = config.RebindingProtection{Enable: true}
+		mockAnswer = new(dns.Msg)
+	})
+
+	JustBeforeEach(func() {
+		sut = NewRebindingProtectionResolver(sutConfig)
+		m = &mockResolver{}
+		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
+		sut.Next(m)
+	})
+
+	Describe("IsEnabled", func() {
+		It("is true when enabled", func() {
+			Expect(sut.IsEnabled()).Should(BeTrue())
+		})
+	})
+
+	Describe("LogConfig", func() {
+		It("should log something", func() {
+			logger, hook := log.NewMockEntry()
+
+			sut.LogConfig(logger)
+
+			Expect(hook.Calls).ShouldNot(BeEmpty())
+		})
+	})
+
+	When("protection is disabled", func() {
+		BeforeEach(func() {
+			sutConfig = config.RebindingProtection{}
+		})
+
+		It("passes private answers through", func() {
+			a := rebindTestA("rebind.example.com.", "192.168.1.100")
+			mockAnswer.Answer = []dns.RR{a}
+
+			resp, err := sut.Resolve(ctx, newRequest("rebind.example.com.", A))
+			Expect(err).Should(Succeed())
+			Expect(resp.Res.Answer).Should(ConsistOf(a))
+
+			// delegated to next resolver
+			Expect(m.Calls).Should(HaveLen(1))
+		})
+	})
+
+	When("protection is enabled", func() {
+		DescribeTable("filters answers containing non-public IPs",
+			func(rr dns.RR) {
+				mockAnswer.Answer = []dns.RR{rr}
+
+				Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", A))).
+					Should(SatisfyAll(
+						HaveNoAnswer(),
+						HaveResponseType(ResponseTypeFILTERED),
+						HaveReturnCode(dns.RcodeSuccess),
+					))
+			},
+			Entry("RFC1918 10/8", rebindTestA("rebind.example.com.", "10.1.2.3")),
+			Entry("RFC1918 172.16/12", rebindTestA("rebind.example.com.", "172.16.5.5")),
+			Entry("RFC1918 192.168/16", rebindTestA("rebind.example.com.", "192.168.1.100")),
+			Entry("IPv4 loopback", rebindTestA("rebind.example.com.", "127.0.0.1")),
+			Entry("IPv4 link-local", rebindTestA("rebind.example.com.", "169.254.10.10")),
+			Entry("IPv4 unspecified", rebindTestA("rebind.example.com.", "0.0.0.0")),
+			Entry("IPv6 ULA", rebindTestAAAA("rebind.example.com.", "fd00::1")),
+			Entry("IPv6 loopback", rebindTestAAAA("rebind.example.com.", "::1")),
+			Entry("IPv6 link-local", rebindTestAAAA("rebind.example.com.", "fe80::1")),
+			Entry("IPv6 unspecified", rebindTestAAAA("rebind.example.com.", "::")),
+			Entry("IPv4-mapped IPv6 private", rebindTestAAAA("rebind.example.com.", "::ffff:192.168.1.1")),
+		)
+
+		It("uses a fixed reason (no attacker-controlled IP in metrics labels)", func() {
+			mockAnswer.Answer = []dns.RR{rebindTestA("rebind.example.com.", "192.168.1.100")}
+
+			resp, err := sut.Resolve(ctx, newRequest("rebind.example.com.", A))
+			Expect(err).Should(Succeed())
+			Expect(resp.Reason).Should(Equal("FILTERED (rebinding protection)"))
+		})
+
+		It("passes through records without an address (nil IP)", func() {
+			a := &dns.A{Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300}}
+			mockAnswer.Answer = []dns.RR{a}
+
+			resp, err := sut.Resolve(ctx, newRequest("example.com.", A))
+			Expect(err).Should(Succeed())
+			Expect(resp.Res.Answer).Should(ConsistOf(a))
+		})
+
+		It("filters answers mixing public and private records", func() {
+			mockAnswer.Answer = []dns.RR{
+				rebindTestA("rebind.example.com.", "1.2.3.4"),
+				rebindTestA("rebind.example.com.", "192.168.1.100"),
+			}
+
+			Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", A))).
+				Should(SatisfyAll(
+					HaveNoAnswer(),
+					HaveResponseType(ResponseTypeFILTERED),
+				))
+		})
+
+		It("filters CNAME chains ending in a private IP", func() {
+			cname := &dns.CNAME{
+				Hdr:    dns.RR_Header{Name: "evil.example.org.", Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: 300},
+				Target: "target.example.org.",
+			}
+			mockAnswer.Answer = []dns.RR{cname, rebindTestA("target.example.org.", "10.0.0.5")}
+
+			Expect(sut.Resolve(ctx, newRequest("evil.example.org.", A))).
+				Should(HaveResponseType(ResponseTypeFILTERED))
+		})
+
+		It("passes through public IPv4 answers", func() {
+			a := rebindTestA("example.com.", "1.2.3.4")
+			mockAnswer.Answer = []dns.RR{a}
+
+			resp, err := sut.Resolve(ctx, newRequest("example.com.", A))
+			Expect(err).Should(Succeed())
+			Expect(resp.Res.Answer).Should(ConsistOf(a))
+		})
+
+		It("passes through public IPv6 answers", func() {
+			aaaa := rebindTestAAAA("example.com.", "2001:db8::1")
+			mockAnswer.Answer = []dns.RR{aaaa}
+
+			resp, err := sut.Resolve(ctx, newRequest("example.com.", AAAA))
+			Expect(err).Should(Succeed())
+			Expect(resp.Res.Answer).Should(ConsistOf(aaaa))
+		})
+
+		It("passes through answers without address records", func() {
+			txt := &dns.TXT{
+				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeTXT, Class: dns.ClassINET, Ttl: 300},
+				Txt: []string{"hello"},
+			}
+			mockAnswer.Answer = []dns.RR{txt}
+
+			resp, err := sut.Resolve(ctx, newRequest("example.com.", TXT))
+			Expect(err).Should(Succeed())
+			Expect(resp.Res.Answer).Should(ConsistOf(txt))
+		})
+
+		It("passes through empty responses", func() {
+			resp, err := sut.Resolve(ctx, newRequest("example.com.", A))
+			Expect(err).Should(Succeed())
+			Expect(resp.Res.Answer).Should(BeEmpty())
+			Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+		})
+	})
+})
