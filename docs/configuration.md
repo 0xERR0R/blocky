@@ -1058,6 +1058,28 @@ see [Basic Configuration](#basic-configuration)).
       path: /metrics
     ```
 
+## Statistics
+
+Blocky can collect in-memory statistics over a rolling 24h window and serve them as JSON at
+`GET /api/stats`, independent of Prometheus. To
+use this feature, the HTTP listener must be enabled (see [Basic Configuration](#basic-configuration)).
+
+The endpoint returns curated totals (`summary`), raw per-type breakdowns (response type, query type
+and response code), a per-hour time series, top-20 domains / blocked-domains / clients, and current
+list and cache gauges. Disabled by default; when disabled,
+`GET /api/stats` returns HTTP 503.
+
+| Parameter         | Mandatory | Default value | Description                                                       |
+| ----------------- | --------- | ------------- | ----------------------------------------------------------------- |
+| statistics.enable | no        | false         | If true, enables in-memory statistics and the /api/stats endpoint |
+
+!!! example
+
+    ```yaml
+    statistics:
+      enable: true
+    ```
+
 ## HTTP/3 (DoH3) {#http3}
 
 Serve DNS-over-HTTPS over HTTP/3 (RFC 9114). When enabled, Blocky

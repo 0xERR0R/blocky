@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/stats"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/mock"
@@ -23,6 +24,7 @@ var _ = Describe("API implementation tests", func() {
 		querierMock         *MockQuerier
 		listRefreshMock     *MockListRefresher
 		cacheControlMock    *MockCacheControl
+		statsMock           *MockStatsProvider
 		sut                 *OpenAPIInterfaceImpl
 
 		ctx      context.Context
@@ -37,7 +39,8 @@ var _ = Describe("API implementation tests", func() {
 		querierMock = NewMockQuerier(GinkgoT())
 		listRefreshMock = NewMockListRefresher(GinkgoT())
 		cacheControlMock = NewMockCacheControl(GinkgoT())
-		sut = NewOpenAPIInterfaceImpl(blockingControlMock, querierMock, listRefreshMock, cacheControlMock)
+		statsMock = NewMockStatsProvider(GinkgoT())
+		sut = NewOpenAPIInterfaceImpl(blockingControlMock, querierMock, listRefreshMock, cacheControlMock, statsMock)
 	})
 
 	Describe("RegisterOpenAPIEndpoints", func() {
@@ -279,6 +282,39 @@ var _ = Describe("API implementation tests", func() {
 				var resp200 CacheFlush200Response
 				Expect(resp).Should(BeAssignableToTypeOf(resp200))
 			})
+		})
+	})
+
+	Describe("Stats API", func() {
+		It("returns 200 with the snapshot when enabled", func() {
+			statsMock.On("StatsEnabled").Return(true)
+			statsMock.On("Stats").Return(stats.Result{
+				Summary:        stats.Summary{Queries: 3, Blocked: 1, Cached: 1, Forwarded: 1},
+				ByResponseType: map[string]int{"RESOLVED": 1, "CACHED": 1, "BLOCKED": 1},
+				ByQueryType:    map[string]int{"A": 3},
+				ByResponseCode: map[string]int{"NOERROR": 3},
+				TopDomains:     []stats.NameCount{{Name: "example.com", Count: 2}},
+				Lists:          stats.ListCounts{Denylist: map[string]int{}, Allowlist: map[string]int{}},
+			})
+
+			resp, err := sut.GetStats(ctx, GetStatsRequestObject{})
+			Expect(err).Should(Succeed())
+
+			resp200, ok := resp.(GetStats200JSONResponse)
+			Expect(ok).Should(BeTrue())
+			Expect(resp200.Summary.Queries).Should(Equal(3))
+			Expect(resp200.ByResponseType).Should(HaveKeyWithValue("BLOCKED", 1))
+			Expect(resp200.TopDomains).Should(HaveLen(1))
+		})
+
+		It("returns 503 when disabled", func() {
+			statsMock.On("StatsEnabled").Return(false)
+
+			resp, err := sut.GetStats(ctx, GetStatsRequestObject{})
+			Expect(err).Should(Succeed())
+
+			_, ok := resp.(GetStats503TextResponse)
+			Expect(ok).Should(BeTrue())
 		})
 	})
 })

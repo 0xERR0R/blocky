@@ -108,6 +108,9 @@ type ClientInterface interface {
 	QueryWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	Query(ctx context.Context, body QueryJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetStats request
+	GetStats(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) DisableBlocking(ctx context.Context, params *DisableBlockingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -184,6 +187,18 @@ func (c *Client) QueryWithBody(ctx context.Context, contentType string, body io.
 
 func (c *Client) Query(ctx context.Context, body QueryJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewQueryRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetStats(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetStatsRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -407,6 +422,33 @@ func NewQueryRequestWithBody(server string, contentType string, body io.Reader) 
 	return req, nil
 }
 
+// NewGetStatsRequest generates requests for GetStats
+func NewGetStatsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/stats")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -469,6 +511,9 @@ type ClientWithResponsesInterface interface {
 	QueryWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*QueryResponse, error)
 
 	QueryWithResponse(ctx context.Context, body QueryJSONRequestBody, reqEditors ...RequestEditorFn) (*QueryResponse, error)
+
+	// GetStatsWithResponse request
+	GetStatsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetStatsResponse, error)
 }
 
 type DisableBlockingResponse struct {
@@ -599,6 +644,28 @@ func (r QueryResponse) StatusCode() int {
 	return 0
 }
 
+type GetStatsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ApiStats
+}
+
+// Status returns HTTPResponse.Status
+func (r GetStatsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetStatsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // DisableBlockingWithResponse request returning *DisableBlockingResponse
 func (c *ClientWithResponses) DisableBlockingWithResponse(ctx context.Context, params *DisableBlockingParams, reqEditors ...RequestEditorFn) (*DisableBlockingResponse, error) {
 	rsp, err := c.DisableBlocking(ctx, params, reqEditors...)
@@ -659,6 +726,15 @@ func (c *ClientWithResponses) QueryWithResponse(ctx context.Context, body QueryJ
 		return nil, err
 	}
 	return ParseQueryResponse(rsp)
+}
+
+// GetStatsWithResponse request returning *GetStatsResponse
+func (c *ClientWithResponses) GetStatsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetStatsResponse, error) {
+	rsp, err := c.GetStats(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetStatsResponse(rsp)
 }
 
 // ParseDisableBlockingResponse parses an HTTP response from a DisableBlockingWithResponse call
@@ -767,6 +843,32 @@ func ParseQueryResponse(rsp *http.Response) (*QueryResponse, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest ApiQueryResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetStatsResponse parses an HTTP response from a GetStatsWithResponse call
+func ParseGetStatsResponse(rsp *http.Response) (*GetStatsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetStatsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ApiStats
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

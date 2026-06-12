@@ -14,6 +14,7 @@ import (
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/stats"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/go-chi/chi/v5"
 	"github.com/miekg/dns"
@@ -53,6 +54,14 @@ type CacheControl interface {
 	FlushCaches(ctx context.Context)
 }
 
+// StatsProvider exposes the in-memory statistics snapshot.
+type StatsProvider interface {
+	// StatsEnabled reports whether statistics collection is active.
+	StatsEnabled() bool
+	// Stats returns the current snapshot.
+	Stats() stats.Result
+}
+
 func RegisterOpenAPIEndpoints(router chi.Router, impl StrictServerInterface) {
 	middleware := []StrictMiddlewareFunc{ctxWithHTTPRequestMiddleware}
 
@@ -72,18 +81,21 @@ type OpenAPIInterfaceImpl struct {
 	querier      Querier
 	refresher    ListRefresher
 	cacheControl CacheControl
+	stats        StatsProvider
 }
 
 func NewOpenAPIInterfaceImpl(control BlockingControl,
 	querier Querier,
 	refresher ListRefresher,
 	cacheControl CacheControl,
+	statsProvider StatsProvider,
 ) *OpenAPIInterfaceImpl {
 	return &OpenAPIInterfaceImpl{
 		control:      control,
 		querier:      querier,
 		refresher:    refresher,
 		cacheControl: cacheControl,
+		stats:        statsProvider,
 	}
 }
 
@@ -188,4 +200,61 @@ func (i *OpenAPIInterfaceImpl) CacheFlush(ctx context.Context,
 	i.cacheControl.FlushCaches(ctx)
 
 	return CacheFlush200Response{}, nil
+}
+
+func (i *OpenAPIInterfaceImpl) GetStats(_ context.Context, _ GetStatsRequestObject,
+) (GetStatsResponseObject, error) {
+	if i.stats == nil || !i.stats.StatsEnabled() {
+		return GetStats503TextResponse("statistics are disabled"), nil
+	}
+
+	return GetStats200JSONResponse(toAPIStats(i.stats.Stats())), nil
+}
+
+func toAPIStats(r stats.Result) ApiStats {
+	return ApiStats{
+		Start: r.Start,
+		End:   r.End,
+		Summary: ApiStatsSummary{
+			Queries:       r.Summary.Queries,
+			Cached:        r.Summary.Cached,
+			Forwarded:     r.Summary.Forwarded,
+			Blocked:       r.Summary.Blocked,
+			Local:         r.Summary.Local,
+			Dropped:       r.Summary.Dropped,
+			Errors:        r.Summary.Errors,
+			AvgResponseMs: r.Summary.AvgResponseMs,
+			CacheHitRate:  r.Summary.CacheHitRate,
+		},
+		ByResponseType:    r.ByResponseType,
+		ByQueryType:       r.ByQueryType,
+		ByResponseCode:    r.ByResponseCode,
+		PerHour:           toAPIHourPoints(r.PerHour),
+		TopDomains:        toAPINameCounts(r.TopDomains),
+		TopBlockedDomains: toAPINameCounts(r.TopBlockedDomains),
+		TopClients:        toAPINameCounts(r.TopClients),
+		Lists: ApiListCounts{
+			Denylist:  r.Lists.Denylist,
+			Allowlist: r.Lists.Allowlist,
+		},
+		Cache: ApiCacheStats{Entries: r.CacheEntries},
+	}
+}
+
+func toAPINameCounts(in []stats.NameCount) []ApiNameCount {
+	out := make([]ApiNameCount, 0, len(in))
+	for _, nc := range in {
+		out = append(out, ApiNameCount{Name: nc.Name, Count: nc.Count})
+	}
+
+	return out
+}
+
+func toAPIHourPoints(in []stats.HourPoint) []ApiHourPoint {
+	out := make([]ApiHourPoint, 0, len(in))
+	for _, p := range in {
+		out = append(out, ApiHourPoint{Hour: p.Hour, Queries: p.Queries, Blocked: p.Blocked})
+	}
+
+	return out
 }
