@@ -315,6 +315,8 @@ type Config struct {
 	HTTP3 HTTP3 `yaml:"http3"`
 	// Per-client DNS query rate limiting configuration.
 	RateLimit RateLimit `yaml:"rateLimit"`
+	// DNS rebinding protection configuration.
+	RebindingProtection RebindingProtection `yaml:"rebindingProtection"`
 
 	// Deprecated options
 	Deprecated struct {
@@ -871,6 +873,10 @@ func (cfg *Config) validate(logger *logrus.Entry) {
 	}
 
 	if err := cfg.RateLimit.validate(); err != nil {
+		logger.Fatal(err)
+	}
+
+	if err := cfg.RebindingProtection.validate(); err != nil {
 		logger.Fatal(err)
 	}
 }
