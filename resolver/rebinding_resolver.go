@@ -30,7 +30,7 @@ func NewRebindingProtectionResolver(cfg config.RebindingProtection) *RebindingPr
 	allowed := make(map[string]struct{}, len(cfg.AllowedDomains))
 	for _, domain := range cfg.AllowedDomains {
 		// normalize: lowercase, no trailing dot
-		allowed[util.ExtractDomainOnly(domain)] = struct{}{}
+		allowed[util.ExtractDomainOnly(strings.TrimSpace(domain))] = struct{}{}
 	}
 
 	return &RebindingProtectionResolver{
@@ -56,13 +56,15 @@ func (r *RebindingProtectionResolver) Resolve(ctx context.Context, request *mode
 		return response, nil
 	}
 
-	domain := util.ExtractDomain(request.Req.Question[0])
-	if r.isAllowed(domain) {
+	// scan first: most answers are public, so the common path skips question-name
+	// extraction and the allowlist walk entirely; the outcome is order-independent
+	ip := findBlockedIP(response.Res.Answer)
+	if ip == nil {
 		return response, nil
 	}
 
-	ip := findBlockedIP(response.Res.Answer)
-	if ip == nil {
+	domain := util.ExtractDomain(request.Req.Question[0])
+	if r.isAllowed(domain) {
 		return response, nil
 	}
 

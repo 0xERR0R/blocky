@@ -248,4 +248,22 @@ var _ = Describe("RebindingProtectionResolver", func() {
 				Should(HaveResponseType(ResponseTypeFILTERED))
 		})
 	})
+
+	When("a single-label domain is allowlisted", func() {
+		BeforeEach(func() {
+			sutConfig = config.RebindingProtection{
+				Enable:         true,
+				AllowedDomains: []string{"lan"},
+			}
+		})
+
+		It("passes through private answers for names under it", func() {
+			a := rebindTestA("router.lan.", "192.168.2.1")
+			mockAnswer.Answer = []dns.RR{a}
+
+			resp, err := sut.Resolve(ctx, newRequest("router.lan.", A))
+			Expect(err).Should(Succeed())
+			Expect(resp.Res.Answer).Should(ConsistOf(a))
+		})
+	})
 })
