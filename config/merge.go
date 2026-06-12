@@ -114,6 +114,18 @@ func decodeYAMLDocuments(data []byte) ([]*yaml.Node, error) {
 
 const nullTag = "!!null"
 
+// maxExpandedNodes caps total nodes produced when expanding anchors/aliases
+// within a single document. Config dirs are admin-controlled, so a simple
+// count suffices to guard against nested-anchor bombs without complexity.
+const maxExpandedNodes = 1_000_000
+
+// resolveState carries shared expansion context across resolveNode calls:
+// the cycle-detection stack and a cumulative node count for the expansion cap.
+type resolveState struct {
+	onStack map[*yaml.Node]bool
+	count   int
+}
+
 // expandAliases returns a deep, alias-free, anchor-free copy of node: every
 // alias is replaced by a copy of its anchor target and every Anchor field is
 // cleared. This bakes within-file anchor semantics into the tree before
@@ -123,19 +135,24 @@ const nullTag = "!!null"
 // self- or mutually-referential anchor such as `a: &x [*x]`) is reported as an
 // error instead of recursing forever.
 func expandAliases(node *yaml.Node) (*yaml.Node, error) {
-	return resolveNode(node, map[*yaml.Node]bool{})
+	return resolveNode(node, &resolveState{onStack: map[*yaml.Node]bool{}})
 }
 
-func resolveNode(node *yaml.Node, onStack map[*yaml.Node]bool) (*yaml.Node, error) {
+func resolveNode(node *yaml.Node, state *resolveState) (*yaml.Node, error) {
+	state.count++
+	if state.count > maxExpandedNodes {
+		return nil, fmt.Errorf("alias expansion limit (%d nodes) exceeded", maxExpandedNodes)
+	}
+
 	if node.Kind == yaml.AliasNode {
 		if node.Alias == nil {
 			return nil, fmt.Errorf("alias %q has no anchor target", node.Value)
 		}
 
-		return resolveNode(node.Alias, onStack)
+		return resolveNode(node.Alias, state)
 	}
 
-	if onStack[node] {
+	if state.onStack[node] {
 		name := node.Anchor
 		if name == "" {
 			name = node.Value
@@ -144,8 +161,8 @@ func resolveNode(node *yaml.Node, onStack map[*yaml.Node]bool) (*yaml.Node, erro
 		return nil, fmt.Errorf("anchor cycle detected at %q", name)
 	}
 
-	onStack[node] = true
-	defer delete(onStack, node)
+	state.onStack[node] = true
+	defer delete(state.onStack, node)
 
 	clone := *node
 	clone.Anchor = ""
@@ -155,7 +172,7 @@ func resolveNode(node *yaml.Node, onStack map[*yaml.Node]bool) (*yaml.Node, erro
 		clone.Content = make([]*yaml.Node, len(node.Content))
 
 		for i, child := range node.Content {
-			resolved, err := resolveNode(child, onStack)
+			resolved, err := resolveNode(child, state)
 			if err != nil {
 				return nil, err
 			}

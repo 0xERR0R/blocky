@@ -1,6 +1,9 @@
 package config
 
 import (
+	"fmt"
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	yamlv2 "gopkg.in/yaml.v2"
@@ -172,6 +175,44 @@ var _ = Describe("Config file merging", func() {
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring("cycle"))
 		})
+
+		It("rejects a nested-anchor bomb before exhausting memory (2b)", func() {
+			// Build a YAML billion-laughs bomb: 7 levels of 10× amplification.
+			// l0 is a sequence of 10 scalars; each subsequent level holds 10
+			// aliases to the previous. Total expanded nodes ≈ 10^7, well above
+			// the 1M cap, so expansion must fail without allocating all of it.
+			var sb strings.Builder
+
+			sb.WriteString("l0: &l0 [0,0,0,0,0,0,0,0,0,0]\n")
+
+			for i := 1; i <= 7; i++ {
+				line := fmt.Sprintf("l%d: &l%d [*l%d,*l%d,*l%d,*l%d,*l%d,*l%d,*l%d,*l%d,*l%d,*l%d]\n",
+					i, i, i-1, i-1, i-1, i-1, i-1, i-1, i-1, i-1, i-1, i-1)
+				sb.WriteString(line)
+			}
+
+			_, err := decodeYAMLDocuments([]byte(sb.String()))
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("alias expansion"))
+			Expect(err.Error()).Should(ContainSubstring("limit"))
+		})
+
+		It("anchor on a map key round-trips through decodeYAMLDocuments without error (2c)", func() {
+			// yaml.v3 preserves the anchor on the key node; expandAliases clears
+			// it from the clone. Verify the key is accessible and no error occurs.
+			docs, err := decodeYAMLDocuments([]byte("? &k keyname\n: 1\n"))
+
+			Expect(err).Should(Succeed())
+			Expect(docs).Should(HaveLen(1))
+			Expect(nodeToMap(docs[0])).Should(HaveKeyWithValue("keyname", 1))
+		})
+
+		It("rejects a duplicate key inside a sequence-nested mapping (2c)", func() {
+			_, err := decodeYAMLDocuments([]byte("list:\n  - b: 1\n    b: 2\n"))
+
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("already set in map"))
+		})
 	})
 
 	Describe("mergeConfigFiles", func() {
@@ -257,6 +298,46 @@ var _ = Describe("Config file merging", func() {
 			Expect(derived["a"]).Should(Equal(1))
 			Expect(derived["b"]).Should(Equal(2))
 			Expect(derived["c"]).Should(Equal(3))
+		})
+
+		It("diamond alias: overriding one reference does not corrupt the other (2c)", func() {
+			// base: &b {a: 1}; lhs: *b; rhs: *b — expandAliases deep-copies
+			// the anchor target for every reference, so lhs and rhs are
+			// independent nodes. File B overrides lhs.a: 2; rhs.a must remain
+			// 1 (no shared-subtree mutation). Key names avoid yaml 1.1 booleans
+			// (y/n/yes/no etc.) which yaml.v2 would reinterpret.
+			merged, err := mergeConfigFiles([]configFile{
+				{path: "a.yaml", data: []byte("base: &b {a: 1}\nlhs: *b\nrhs: *b\n")},
+				{path: "b.yaml", data: []byte("lhs: {a: 2}\n")},
+			})
+
+			Expect(err).Should(Succeed())
+
+			m := roundtrip(merged)
+			lhs, ok := m["lhs"].(map[any]any)
+			Expect(ok).Should(BeTrue())
+			rhs, ok := m["rhs"].(map[any]any)
+			Expect(ok).Should(BeTrue())
+			Expect(lhs["a"]).Should(Equal(2))
+			Expect(rhs["a"]).Should(Equal(1), "shared anchor must not be mutated by merging lhs")
+		})
+
+		It("merge across alias-expanded file: non-overridden sibling keys are kept (2c)", func() {
+			// File A: base: &b {a: 1, b: 2}; x: *b — after alias expansion
+			// x holds an independent copy {a: 1, b: 2}. File B sets x.a: 99;
+			// the recursive map merge keeps x.b == 2 from file A.
+			merged, err := mergeConfigFiles([]configFile{
+				{path: "a.yaml", data: []byte("base: &b {a: 1, b: 2}\nx: *b\n")},
+				{path: "b.yaml", data: []byte("x: {a: 99}\n")},
+			})
+
+			Expect(err).Should(Succeed())
+
+			m := roundtrip(merged)
+			x, ok := m["x"].(map[any]any)
+			Expect(ok).Should(BeTrue())
+			Expect(x["a"]).Should(Equal(99))
+			Expect(x["b"]).Should(Equal(2))
 		})
 
 		Describe("scalar fidelity (issue #1827 pivot)", func() {

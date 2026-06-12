@@ -683,12 +683,10 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 		return nil, fmt.Errorf("can't read config file(s): %w", err)
 	}
 
-	data, sources, prettyPath, err := readConfigSource(path, fs)
+	data, sources, prettyPath, err := readConfigSource(logger, path, fs)
 	if err != nil {
 		return nil, err
 	}
-
-	logConfigSources(logger, sources)
 
 	cfg.CustomDNS.Zone.configPath = prettyPath
 
@@ -710,10 +708,12 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 
 // readConfigSource reads the raw config bytes for path, which is either a
 // single YAML file or a directory of YAML files merged in walk order. For a
-// directory it also returns the per-file sources, so the caller can log the
-// merge order (and attribute unmarshal errors to a file). prettyPath is the
-// user-facing path used in messages.
-func readConfigSource(path string, fs os.FileInfo) (data []byte, sources []configFile, prettyPath string, err error) {
+// directory it logs the merge order (so failures still name the files), then
+// merges and returns the per-file sources for post-merge error attribution.
+// prettyPath is the user-facing path used in error messages.
+func readConfigSource(
+	logger *logrus.Entry, path string, fs os.FileInfo,
+) (data []byte, sources []configFile, prettyPath string, err error) {
 	if fs.IsDir() {
 		prettyPath = filepath.Join(path, "*")
 
@@ -721,6 +721,8 @@ func readConfigSource(path string, fs os.FileInfo) (data []byte, sources []confi
 		if err != nil {
 			return nil, nil, "", fmt.Errorf("can't read config files: %w", err)
 		}
+
+		logConfigSources(logger, sources)
 
 		data, err = mergeConfigFiles(sources)
 		if err != nil {
