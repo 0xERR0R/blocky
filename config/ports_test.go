@@ -14,6 +14,46 @@ var _ = Describe("Ports.FreeBind", func() {
 	})
 })
 
+var _ = Describe("Ports.ProxyProtocol", func() {
+	It("defaults to no PROXY protocol listeners", func() {
+		var ports Ports
+		Expect(defaults.Set(&ports)).Should(Succeed())
+		Expect(ports.ProxyProtocol).Should(BeEmpty())
+		Expect(ports.ProxyProtocol.Has(ProxyProtocolTypeDns)).Should(BeFalse())
+	})
+
+	It("reports the configured listener families via Has", func() {
+		ports := Ports{ProxyProtocol: ProxyProtocolListeners{ProxyProtocolTypeHttps, ProxyProtocolTypeTls}}
+		Expect(ports.ProxyProtocol.Has(ProxyProtocolTypeHttps)).Should(BeTrue())
+		Expect(ports.ProxyProtocol.Has(ProxyProtocolTypeTls)).Should(BeTrue())
+		Expect(ports.ProxyProtocol.Has(ProxyProtocolTypeDns)).Should(BeFalse())
+		Expect(ports.ProxyProtocol.Has(ProxyProtocolTypeHttp)).Should(BeFalse())
+	})
+
+	It("rejects duplicate listener families", func() {
+		ports := Ports{
+			DOHPath: "/dns-query",
+			ProxyProtocol: ProxyProtocolListeners{
+				ProxyProtocolTypeHttps,
+				ProxyProtocolTypeHttps,
+			},
+		}
+
+		Expect(ports.validate()).Should(MatchError(ContainSubstring(
+			`ports.proxyProtocol contains duplicate listener family "https"`)))
+	})
+
+	It("rejects listener families without a configured port", func() {
+		ports := Ports{
+			DOHPath:       "/dns-query",
+			ProxyProtocol: ProxyProtocolListeners{ProxyProtocolTypeTls},
+		}
+
+		Expect(ports.validate()).Should(MatchError(ContainSubstring(
+			`ports.proxyProtocol includes "tls" but ports.tls is empty`)))
+	})
+})
+
 var _ = Describe("Ports.PrivilegedPorts", func() {
 	It("returns privileged listen entries across DNS, HTTP, HTTPS and TLS", func() {
 		ports := Ports{

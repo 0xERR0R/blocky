@@ -15,7 +15,6 @@ import (
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
-	"github.com/0xERR0R/blocky/model"
 
 	"github.com/miekg/dns"
 	"github.com/quic-go/quic-go"
@@ -54,7 +53,7 @@ func (r *quicUpstreamClient) fmtURL(ip net.IP, port uint16, _ string) string {
 }
 
 func (r *quicUpstreamClient) callExternal(
-	ctx context.Context, msg *dns.Msg, upstreamURL string, _ model.RequestProtocol,
+	ctx context.Context, msg *dns.Msg, upstreamURL string,
 ) (*dns.Msg, time.Duration, error) {
 	start := time.Now()
 

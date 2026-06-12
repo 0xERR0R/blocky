@@ -27,18 +27,7 @@ func NewMockUDPUpstreamServer() *MockUDPUpstreamServer {
 }
 
 func (t *MockUDPUpstreamServer) WithAnswerRR(answers ...string) *MockUDPUpstreamServer {
-	t.answerFn = func(request *dns.Msg) (response *dns.Msg) {
-		msg := new(dns.Msg)
-
-		for _, a := range answers {
-			rr, err := dns.NewRR(a)
-			util.FatalOnError("can't create RR", err)
-
-			msg.Answer = append(msg.Answer, rr)
-		}
-
-		return msg
-	}
+	t.answerFn = rrAnswerFn(answers...)
 
 	return t
 }
@@ -52,12 +41,7 @@ func (t *MockUDPUpstreamServer) WithAnswerMsg(answer *dns.Msg) *MockUDPUpstreamS
 }
 
 func (t *MockUDPUpstreamServer) WithAnswerError(errorCode int) *MockUDPUpstreamServer {
-	t.answerFn = func(request *dns.Msg) (response *dns.Msg) {
-		msg := new(dns.Msg)
-		msg.Rcode = errorCode
-
-		return msg
-	}
+	t.answerFn = errorAnswerFn(errorCode)
 
 	return t
 }
@@ -148,14 +132,7 @@ func (t *MockUDPUpstreamServer) Start() config.Upstream {
 					return
 				}
 
-				rCode := response.Rcode
-				response.SetReply(msg)
-
-				if rCode != 0 {
-					response.Rcode = rCode
-				}
-
-				b, err := response.Pack()
+				b, err := mockReply(msg, response).Pack()
 				util.FatalOnError("can't serialize message: ", err)
 
 				_, _ = ln.WriteToUDP(b, addr)

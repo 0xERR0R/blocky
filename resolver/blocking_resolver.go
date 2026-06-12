@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"net"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -72,8 +73,14 @@ func createBlockHandler(cfg config.Blocking) (blockHandler, error) {
 
 type status struct {
 	// true: blocking of all groups is enabled
-	// false: blocking is disabled. Either all groups or only particular
-	enabled        bool
+	// false: blocking is disabled, either for all groups or only for the
+	// particular groups listed in disabledGroups
+	enabled bool
+	// disabledGroups must only ever be reassigned wholesale, never mutated in
+	// place (no in-place append, no element writes): groupsToCheckForClient
+	// snapshots the slice header under a brief read lock and then reads the
+	// backing array after releasing the lock, so any in-place mutation would be
+	// an unsynchronized write racing that lock-free read.
 	disabledGroups []string
 	enableTimer    *time.Timer
 	disableEnd     time.Time
@@ -91,7 +98,7 @@ type BlockingResolver struct {
 	blockHandler        blockHandler
 	allowlistOnlyGroups map[string]bool
 	status              *status
-	clientGroupsBlock   map[string][]scheduledGroup
+	clientGroups        clientGroupsIndex
 	fqdnIPCache         cache.ExpiringCache[[]net.IP]
 }
 
@@ -135,6 +142,57 @@ func clientGroupsBlock(cfg config.Blocking) map[string][]scheduledGroup {
 	return cgb
 }
 
+// clientGroupsIndex pre-classifies the client→group mapping once at config load
+// so per-query resolution avoids re-parsing CIDRs and re-lowercasing identifiers
+// on every request (see PERFORMANCE.md, finding #8). It is immutable after
+// construction.
+type clientGroupsIndex struct {
+	// byID maps an exact, already-lowercased identifier (IP literal, FQDN, client
+	// name or "default") to its groups. Used for exact ClientIP and "default"
+	// lookups and iterated for client-name glob matching.
+	byID map[string][]scheduledGroup
+	// cidrs holds identifiers that parse as a CIDR, with the network pre-parsed.
+	cidrs []cidrGroups
+	// fqdns holds identifiers classified as FQDN candidates (resolved via the
+	// fqdnIPCache at query time).
+	fqdns []fqdnGroups
+}
+
+type cidrGroups struct {
+	ipNet  *net.IPNet
+	groups []scheduledGroup
+}
+
+type fqdnGroups struct {
+	identifier string
+	groups     []scheduledGroup
+}
+
+func newClientGroupsIndex(cfg config.Blocking) clientGroupsIndex {
+	byID := clientGroupsBlock(cfg)
+
+	idx := clientGroupsIndex{byID: byID}
+
+	for id, groups := range byID {
+		// Pre-parse CIDR identifiers so per-query matching is a cheap
+		// ipNet.Contains instead of a net.ParseCIDR allocation per entry.
+		if _, ipNet, err := net.ParseCIDR(id); err == nil {
+			idx.cidrs = append(idx.cidrs, cidrGroups{ipNet: ipNet, groups: groups})
+		}
+
+		// Mirror the previous per-query isFQDN(identifier) check so FQDN
+		// candidates are resolved via the fqdnIPCache without rescanning the
+		// whole map. A CIDR identifier can also be an FQDN candidate (e.g.
+		// "10.0.0.0/8" contains a dot); keeping it in both buckets is faithful
+		// to the original branching.
+		if isFQDN(id) {
+			idx.fqdns = append(idx.fqdns, fqdnGroups{identifier: id, groups: groups})
+		}
+	}
+
+	return idx
+}
+
 // NewBlockingResolver returns a new configured instance of the resolver
 func NewBlockingResolver(ctx context.Context,
 	cfg config.Blocking,
@@ -170,11 +228,12 @@ func NewBlockingResolver(ctx context.Context,
 			enabled:     true,
 			enableTimer: time.NewTimer(0),
 		},
-		clientGroupsBlock: clientGroupsBlock(cfg),
+		clientGroups: newClientGroupsIndex(cfg),
 	}
 
 	res.fqdnIPCache = expirationcache.NewCacheWithOnExpired[[]net.IP](ctx, expirationcache.Options{
 		CleanupInterval: defaultBlockingCleanUpInterval,
+		Shards:          cache.ShardCount(),
 	}, func(ctx context.Context, key string) (val *[]net.IP, ttl time.Duration) {
 		return res.queryForFQIdentifierIPs(ctx, key)
 	})
@@ -293,7 +352,10 @@ func (r *BlockingResolver) internalDisableBlocking(ctx context.Context, duration
 			}
 		}
 
-		s.disabledGroups = disableGroups
+		// Clone so status owns the backing array: the caller keeps a reference to
+		// disableGroups, and groupsToCheckForClient reads s.disabledGroups
+		// lock-free, so an external in-place mutation must not be able to race it.
+		s.disabledGroups = slices.Clone(disableGroups)
 	}
 
 	s.enabled = false
@@ -328,8 +390,11 @@ func (r *BlockingResolver) BlockingStatus() api.BlockingStatus {
 	}
 
 	return api.BlockingStatus{
-		Enabled:         r.status.enabled,
-		DisabledGroups:  r.status.disabledGroups,
+		Enabled: r.status.enabled,
+		// Clone so callers cannot mutate status.disabledGroups in place: it is
+		// read lock-free in groupsToCheckForClient, so handing out the live slice
+		// would let an external write race that read.
+		DisabledGroups:  slices.Clone(r.status.disabledGroups),
 		AutoEnableInSec: int(autoEnableDuration.Seconds()),
 	}
 }
@@ -470,23 +535,23 @@ func extractEntryToCheckFromResponse(rr dns.RR) (entryToCheck, tName string) {
 	return entryToCheck, tName
 }
 
-func (r *BlockingResolver) isGroupDisabled(group string) bool {
-	r.status.lock.RLock()
-	defer r.status.lock.RUnlock()
-
-	return slices.Contains(r.status.disabledGroups, group)
-}
-
 // returns groups which should be checked for client's request
 func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []string {
+	// Snapshot disabledGroups under a brief read lock, then release it before the
+	// (lock-free) group collection and filtering below. The field's invariant
+	// (reassigned wholesale, never mutated in place) is what keeps the captured
+	// slice a stable view without holding the lock across the loop. Do not
+	// re-acquire status.lock inside the loop: that recursive RLock deadlocks
+	// against a pending writer, which Go's RWMutex forbids.
 	r.status.lock.RLock()
-	defer r.status.lock.RUnlock()
+	disabledGroups := r.status.disabledGroups
+	r.status.lock.RUnlock()
 
 	groups := r.collectGroupsForClient(request)
 
 	if len(groups) == 0 {
 		// return default
-		groups = r.clientGroupsBlock["default"]
+		groups = r.clientGroups.byID["default"]
 	}
 
 	now := time.Now()
@@ -494,7 +559,7 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 	var result []string
 
 	for _, sg := range groups {
-		if r.isGroupDisabled(sg.group) {
+		if slices.Contains(disabledGroups, sg.group) {
 			continue
 		}
 
@@ -526,33 +591,43 @@ func isAnyScheduleActive(schedules []*config.Schedule, now time.Time) bool {
 func (r *BlockingResolver) collectGroupsForClient(request *model.Request) []scheduledGroup {
 	var groups []scheduledGroup
 
-	// try client names
+	cg := r.clientGroups
+
+	// try client names: identifiers are already lowercased at config load, so the
+	// client name is lowered once here instead of both sides per map entry.
 	for _, cName := range request.ClientNames {
-		for blockGroup, groupsByName := range r.clientGroupsBlock {
-			if util.ClientNameMatchesGroupName(blockGroup, cName) {
+		lowerName := strings.ToLower(cName)
+
+		for identifier, groupsByName := range cg.byID {
+			if matched, _ := filepath.Match(identifier, lowerName); matched {
 				groups = append(groups, groupsByName...)
 			}
 		}
 	}
 
 	// try IP
-	groupsByIP, found := r.clientGroupsBlock[request.ClientIP.String()]
-
-	if found {
+	if groupsByIP, found := cg.byID[request.ClientIP.String()]; found {
 		groups = append(groups, groupsByIP...)
 	}
 
-	for clientIdentifier, groupsByCidr := range r.clientGroupsBlock {
-		// try CIDR
-		if util.CidrContainsIP(clientIdentifier, request.ClientIP) {
-			groups = append(groups, groupsByCidr...)
-		} else if isFQDN(clientIdentifier) && r.fqdnIPCache != nil {
-			ips, _ := r.fqdnIPCache.Get(clientIdentifier)
-			if ips != nil {
-				for _, ip := range *ips {
-					if ip.Equal(request.ClientIP) {
-						groups = append(groups, groupsByCidr...)
-					}
+	// try CIDR using the networks pre-parsed at config load
+	for _, c := range cg.cidrs {
+		if c.ipNet.Contains(request.ClientIP) {
+			groups = append(groups, c.groups...)
+		}
+	}
+
+	// try FQDN identifiers via their resolved IPs
+	if r.fqdnIPCache != nil {
+		for _, f := range cg.fqdns {
+			ips, _ := r.fqdnIPCache.Get(f.identifier)
+			if ips == nil {
+				continue
+			}
+
+			for _, ip := range *ips {
+				if ip.Equal(request.ClientIP) {
+					groups = append(groups, f.groups...)
 				}
 			}
 		}
@@ -687,13 +762,9 @@ func (r *BlockingResolver) queryForFQIdentifierIPs(ctx context.Context, identifi
 }
 
 func (r *BlockingResolver) initFQDNIPCache(ctx context.Context) {
-	identifiers := slices.Collect(maps.Keys(r.clientGroupsBlock))
-
-	for _, identifier := range identifiers {
-		if isFQDN(identifier) {
-			iPs, ttl := r.queryForFQIdentifierIPs(ctx, identifier)
-			r.fqdnIPCache.Put(identifier, iPs, ttl)
-		}
+	for _, f := range r.clientGroups.fqdns {
+		iPs, ttl := r.queryForFQIdentifierIPs(ctx, f.identifier)
+		r.fqdnIPCache.Put(f.identifier, iPs, ttl)
 	}
 }
 

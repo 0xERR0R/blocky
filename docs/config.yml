@@ -314,6 +314,14 @@ filtering:
   queryTypes:
     - AAAA
 
+# optional: DNS rebinding protection. When enabled, answers from the general
+# upstreams containing private, loopback, link-local or unspecified IPs are
+# dropped. allowedDomains exempts split-horizon domains (incl. subdomains).
+rebindingProtection:
+  enable: true
+  allowedDomains:
+    - intranet.example.com
+
 # optional: per-client DNS query rate limiting at the head of the resolver chain.
 # Intended for misbehaving clients, runaway scripts, and low-volume amplification
 # abuse — NOT a DDoS defense (run fail2ban or crowdsec at the firewall for that).
@@ -431,6 +439,11 @@ ports:
   #           startup). No effect on wildcard binds; ignored with a warning on non-Linux platforms.
   # default: false
   freeBind: false
+  # optional: require and parse HAProxy PROXY protocol headers on the listed TCP listener families
+  #           (any of: dns, http, https, tls). Enable only when Blocky is reachable only through a
+  #           trusted proxy.
+  # default: empty
+  proxyProtocol: []
 
 # optional: configuration for DOH  over HTTP/3
 http3:

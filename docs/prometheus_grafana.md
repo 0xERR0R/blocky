@@ -30,6 +30,9 @@ Following metrics will be exported:
 | blocky_dnssec_cache_hits_total                   | Counter of DNSSEC validation cache hits |
 | blocky_dnssec_validation_duration_seconds        | Histogram of DNSSEC validation duration, partitioned by result |
 | blocky_redis_cache_buffer_drops_total            | Counter of cache writes dropped because the Redis write-through buffer is full — non-zero values indicate Redis cannot keep up with cache writes |
+| blocky_rate_limit_drops_total                    | Counter of queries dropped by the rate limiter, partitioned by protocol |
+| blocky_rate_limit_cap_exhausted_total            | Counter of queries dropped because the rate limiter bucket store was full |
+| blocky_rate_limit_active_buckets                 | Gauge of token buckets (≈ distinct clients) currently tracked by the rate limiter |
 
 ### Grafana dashboard
 
@@ -38,13 +41,21 @@ definition [as JSON](blocky-grafana.json)
 or [at grafana.com](https://grafana.com/grafana/dashboards/13768)
 ![grafana-dashboard](grafana-dashboard.png).
 
-This dashboard shows all relevant statistics and allows enabling and disabling the blocking status.
+The dashboard is organized in sections (overview, traffic, latency, blocking & lists, cache & prefetching, DNSSEC,
+rate limiting, Go runtime) and uses only Grafana core panels, so no additional plugins are needed. The "Blocking
+control" buttons in the overview section enable or temporarily disable blocking via the blocky API.
 
-### Grafana configuration
+When importing the dashboard, set the "blocky API URL" input to the address under which your browser can reach the
+blocky HTTP API (e.g. `https://blocky.example.com` or `http://192.168.1.2:4000`) — it is used by the blocking
+control buttons.
 
-Please install `grafana-piechart-panel` and
-set [disable_sanitize_html](https://grafana.com/docs/grafana/latest/installation/configuration/#disable_sanitize_html)
-in config or as env to use control buttons to enable/disable the blocking status.
+### Requirements
+
+- Grafana 10.2 or newer: the blocking control buttons use canvas button elements with API calls. All other panels
+  also work with older Grafana versions.
+- blocky newer than v0.31 if Grafana is served from a different origin than the blocky API: older blocky versions
+  reject the CORS preflight which Grafana sends for the blocking control buttons. Alternatively, expose the blocky
+  API on the same origin as Grafana through your reverse proxy.
 
 ### Grafana and Prometheus example project
 

@@ -307,51 +307,48 @@ var _ = Describe("Caching configuration tests", func() {
 				Expect(err).Should(Succeed())
 			})
 
-			It("should respect maxItemsCount limit and evict oldest entries", func(ctx context.Context) {
-				By("Query 3 different domains to fill the cache to its limit", func() {
-					msg1 := util.NewMsgWithQuestion("domain1.com.", A)
-					Expect(doDNSRequest(ctx, blocky, msg1)).Should(
-						BeDNSRecord("domain1.com.", A, "1.1.1.1"))
+			It("should respect maxItemsCount limit", func(ctx context.Context) {
+				// Exact LRU eviction order is a property of the cache library
+				// (covered by expiration-cache's own tests) and, with cache sharding,
+				// is intentionally approximate. blocky's e2e only verifies the
+				// integration: the count limit is enforced and cached entries are
+				// still served once the upstream is gone.
+				domains := []struct{ name, ip string }{
+					{"domain1.com.", "1.1.1.1"},
+					{"domain2.com.", "2.2.2.2"},
+					{"domain3.com.", "3.3.3.3"},
+					{"domain4.com.", "4.4.4.4"},
+				}
 
-					msg2 := util.NewMsgWithQuestion("domain2.com.", A)
-					Expect(doDNSRequest(ctx, blocky, msg2)).Should(
-						BeDNSRecord("domain2.com.", A, "2.2.2.2"))
-
-					msg3 := util.NewMsgWithQuestion("domain3.com.", A)
-					Expect(doDNSRequest(ctx, blocky, msg3)).Should(
-						BeDNSRecord("domain3.com.", A, "3.3.3.3"))
+				By("Query 4 different domains, exceeding the cache limit of 3", func() {
+					for _, d := range domains {
+						Expect(doDNSRequest(ctx, blocky, util.NewMsgWithQuestion(d.name, A))).Should(
+							BeDNSRecord(d.name, A, d.ip))
+					}
 				})
 
-				By("Query a 4th domain to trigger cache eviction of oldest entry", func() {
-					msg4 := util.NewMsgWithQuestion("domain4.com.", A)
-					Expect(doDNSRequest(ctx, blocky, msg4)).Should(
-						BeDNSRecord("domain4.com.", A, "4.4.4.4"))
-				})
-
-				By("Terminate upstream to verify only cached entries can be resolved", func() {
+				By("Terminate upstream so only cached entries can be resolved", func() {
 					Expect(mokka.Terminate(ctx)).Should(Succeed())
 				})
 
-				By("The newest 3 domains should be cached", func() {
-					// Domain 2, 3, and 4 should be in cache (domain1 was evicted)
-					msg2 := util.NewMsgWithQuestion("domain2.com.", A)
-					Expect(doDNSRequest(ctx, blocky, msg2)).Should(
-						BeDNSRecord("domain2.com.", A, "2.2.2.2"))
-
-					msg3 := util.NewMsgWithQuestion("domain3.com.", A)
-					Expect(doDNSRequest(ctx, blocky, msg3)).Should(
-						BeDNSRecord("domain3.com.", A, "3.3.3.3"))
-
-					msg4 := util.NewMsgWithQuestion("domain4.com.", A)
-					Expect(doDNSRequest(ctx, blocky, msg4)).Should(
+				By("The most recently queried domain is still cached", func() {
+					// the newest entry is never the one evicted, regardless of sharding
+					Expect(doDNSRequest(ctx, blocky, util.NewMsgWithQuestion("domain4.com.", A))).Should(
 						BeDNSRecord("domain4.com.", A, "4.4.4.4"))
 				})
 
-				By("The oldest domain (domain1) should have been evicted from cache", func() {
-					msg1 := util.NewMsgWithQuestion("domain1.com.", A)
-					resp, err := doDNSRequest(ctx, blocky, msg1)
-					Expect(err).Should(Succeed())
-					Expect(resp.Rcode).Should(Equal(dns.RcodeServerFailure))
+				By("maxItemsCount is enforced: not all earlier domains survive", func() {
+					cached := 0
+					for _, d := range domains[:3] {
+						resp, err := doDNSRequest(ctx, blocky, util.NewMsgWithQuestion(d.name, A))
+						Expect(err).Should(Succeed())
+						if resp.Rcode == dns.RcodeSuccess && len(resp.Answer) > 0 {
+							cached++
+						}
+					}
+					// domain4 occupies one of the 3 slots, so at most 2 of the first
+					// three can remain — at least one must have been evicted.
+					Expect(cached).Should(BeNumerically("<=", 2))
 				})
 
 				By("No warnings in log", func() {

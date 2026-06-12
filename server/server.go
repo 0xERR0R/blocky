@@ -29,6 +29,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/miekg/dns"
+	"github.com/pires/go-proxyproto"
 	"github.com/quic-go/quic-go"
 	"github.com/sirupsen/logrus"
 )
@@ -37,6 +38,10 @@ const (
 	maxUDPBufferSize = 65535
 	caExpiryYears    = 10
 	certExpiryYears  = 5
+
+	networkUDP    = "udp"
+	networkTCP    = "tcp"
+	networkTCPTLS = "tcp-tls"
 )
 
 // Server controls the endpoints for DNS and HTTP
@@ -241,13 +246,19 @@ func createServers(ctx context.Context, cfg *config.Config, tlsCfg *tls.Config) 
 
 	err = multierror.Append(err,
 		addServers(func(address string) (*dns.Server, error) {
-			return createUDPServer(ctx, address, freeBind)
+			return createUDPServer(ctx, address, listenerOptions{freeBind: freeBind})
 		}, cfg.Ports.DNS),
 		addServers(func(address string) (*dns.Server, error) {
-			return createTCPServer(ctx, address, freeBind)
+			return createTCPServer(ctx, address, listenerOptions{
+				freeBind:      freeBind,
+				proxyProtocol: cfg.Ports.ProxyProtocol.Has(config.ProxyProtocolTypeDns),
+			})
 		}, cfg.Ports.DNS),
 		addServers(func(address string) (*dns.Server, error) {
-			return createTLSServer(ctx, address, tlsCfg, freeBind)
+			return createTLSServer(ctx, address, tlsCfg, listenerOptions{
+				freeBind:      freeBind,
+				proxyProtocol: cfg.Ports.ProxyProtocol.Has(config.ProxyProtocolTypeTls),
+			})
 		}, cfg.Ports.TLS))
 
 	if multiErr := err.ErrorOrNil(); multiErr != nil {
@@ -260,12 +271,14 @@ func createServers(ctx context.Context, cfg *config.Config, tlsCfg *tls.Config) 
 func createHTTPListeners(
 	ctx context.Context, cfg *config.Config, tlsCfg *tls.Config,
 ) (httpListeners, httpsListeners []net.Listener, http3PacketConns []net.PacketConn, err error) {
-	httpListeners, err = newTCPListeners(ctx, "http", cfg.Ports.HTTP)
+	httpListeners, err = newTCPListeners(ctx, "http", cfg.Ports.HTTP,
+		cfg.Ports.ProxyProtocol.Has(config.ProxyProtocolTypeHttp))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create HTTP listeners: %w", err)
 	}
 
-	httpsListeners, err = newTLSListeners(ctx, "https", cfg.Ports.HTTPS, tlsCfg)
+	httpsListeners, err = newTLSListeners(ctx, "https", cfg.Ports.HTTPS, tlsCfg,
+		cfg.Ports.ProxyProtocol.Has(config.ProxyProtocolTypeHttps))
 	if err != nil {
 		closeAll(httpListeners)
 
@@ -273,9 +286,13 @@ func createHTTPListeners(
 	}
 
 	if cfg.HTTP3.IsEnabled() {
-		if len(cfg.Ports.HTTPS) == 0 {
+		switch {
+		case len(cfg.Ports.HTTPS) == 0:
 			logger().Warn("http3.enable is true but ports.https is empty; HTTP/3 disabled")
-		} else {
+		case cfg.Ports.ProxyProtocol.Has(config.ProxyProtocolTypeHttps):
+			logger().Warn("http3.enable is true but ports.proxyProtocol includes 'https'; " +
+				"HTTP/3 cannot carry PROXY protocol headers and is disabled to keep the client IP consistent")
+		default:
 			http3PacketConns, err = newUDPPacketConns(ctx, cfg.Ports.HTTPS)
 			if err != nil {
 				closeAll(httpListeners)
@@ -296,16 +313,18 @@ func closeAll[T io.Closer](closers []T) {
 }
 
 func newTCPListeners(
-	ctx context.Context, proto string, addresses config.ListenConfig,
+	ctx context.Context, proto string, addresses config.ListenConfig, proxyProtocol bool,
 ) ([]net.Listener, error) {
 	listeners := make([]net.Listener, 0, len(addresses))
 	lc := &net.ListenConfig{}
 
 	for _, address := range addresses {
-		listener, err := lc.Listen(ctx, "tcp", address)
+		listener, err := lc.Listen(ctx, networkTCP, address)
 		if err != nil {
 			return nil, fmt.Errorf("start %s listener on %s failed: %w", proto, address, err)
 		}
+
+		listener = newProxyProtocolListener(listener, proxyProtocol)
 
 		listeners = append(listeners, listener)
 	}
@@ -314,9 +333,9 @@ func newTCPListeners(
 }
 
 func newTLSListeners(
-	ctx context.Context, proto string, addresses config.ListenConfig, tlsCfg *tls.Config,
+	ctx context.Context, proto string, addresses config.ListenConfig, tlsCfg *tls.Config, proxyProtocol bool,
 ) ([]net.Listener, error) {
-	listeners, err := newTCPListeners(ctx, proto, addresses)
+	listeners, err := newTCPListeners(ctx, proto, addresses, proxyProtocol)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create TCP listeners for TLS: %w", err)
 	}
@@ -328,7 +347,27 @@ func newTLSListeners(
 	return listeners, nil
 }
 
-func createDNSServer(ctx context.Context, network, address string, tlsCfg *tls.Config, freeBind bool,
+func newProxyProtocolListener(listener net.Listener, enabled bool) net.Listener {
+	if !enabled {
+		return listener
+	}
+
+	return &proxyproto.Listener{
+		Listener: listener,
+		ConnPolicy: func(proxyproto.ConnPolicyOptions) (proxyproto.Policy, error) {
+			return proxyproto.REQUIRE, nil
+		},
+	}
+}
+
+// listenerOptions bundles the socket-level options applied when a DNS listener is pre-created
+// before miekg/dns starts serving (freebind socket option, PROXY protocol wrapping).
+type listenerOptions struct {
+	freeBind      bool
+	proxyProtocol bool
+}
+
+func createDNSServer(ctx context.Context, network, address string, tlsCfg *tls.Config, opts listenerOptions,
 ) (*dns.Server, error) {
 	srv := &dns.Server{
 		Addr:    address,
@@ -339,7 +378,7 @@ func createDNSServer(ctx context.Context, network, address string, tlsCfg *tls.C
 		},
 	}
 
-	if network == "udp" {
+	if network == networkUDP {
 		srv.UDPSize = maxUDPBufferSize
 	}
 
@@ -349,8 +388,11 @@ func createDNSServer(ctx context.Context, network, address string, tlsCfg *tls.C
 
 	// When freeBind is enabled (and supported), pre-create the listener with the IP_FREEBIND socket
 	// option and hand it to the server, which is then started via ActivateAndServe (see Server.Start).
-	if freeBind && freebind.Supported {
-		if err := attachFreeBindListener(ctx, srv, network, address, tlsCfg); err != nil {
+	if (opts.freeBind && freebind.Supported) || (opts.proxyProtocol && network != networkUDP) {
+		if err := attachListener(ctx, srv, network, address, tlsCfg, listenerOptions{
+			freeBind:      opts.freeBind && freebind.Supported,
+			proxyProtocol: opts.proxyProtocol,
+		}); err != nil {
 			return nil, err
 		}
 	}
@@ -358,55 +400,58 @@ func createDNSServer(ctx context.Context, network, address string, tlsCfg *tls.C
 	return srv, nil
 }
 
-// attachFreeBindListener creates the listener/packet connection for the given DNS server using the
-// freebind Control hook and assigns it to srv.Listener / srv.PacketConn so it can be started with
-// ActivateAndServe. It mirrors how miekg/dns creates listeners in ListenAndServe (including wrapping
-// the DoT listener in TLS).
-func attachFreeBindListener(ctx context.Context, srv *dns.Server, network, address string,
-	tlsCfg *tls.Config,
+// attachListener creates a listener/packet connection for DNS servers that need custom socket handling
+// before miekg/dns starts serving, such as freebind or PROXY protocol wrapping.
+func attachListener(ctx context.Context, srv *dns.Server, network, address string,
+	tlsCfg *tls.Config, opts listenerOptions,
 ) error {
-	lc := net.ListenConfig{Control: freebind.Control}
+	lc := net.ListenConfig{}
+	if opts.freeBind {
+		lc.Control = freebind.Control
+	}
 
 	switch network {
-	case "udp":
-		pc, err := lc.ListenPacket(ctx, "udp", address)
+	case networkUDP:
+		pc, err := lc.ListenPacket(ctx, networkUDP, address)
 		if err != nil {
 			return fmt.Errorf("freebind udp listener on %s failed: %w", address, err)
 		}
 
 		srv.PacketConn = pc
-	case "tcp":
-		l, err := lc.Listen(ctx, "tcp", address)
+	case networkTCP:
+		l, err := lc.Listen(ctx, networkTCP, address)
 		if err != nil {
-			return fmt.Errorf("freebind tcp listener on %s failed: %w", address, err)
+			return fmt.Errorf("tcp listener on %s failed: %w", address, err)
 		}
 
+		l = newProxyProtocolListener(l, opts.proxyProtocol)
 		srv.Listener = l
-	case "tcp-tls":
-		l, err := lc.Listen(ctx, "tcp", address)
+	case networkTCPTLS:
+		l, err := lc.Listen(ctx, networkTCP, address)
 		if err != nil {
-			return fmt.Errorf("freebind tcp-tls listener on %s failed: %w", address, err)
+			return fmt.Errorf("tcp-tls listener on %s failed: %w", address, err)
 		}
 
+		l = newProxyProtocolListener(l, opts.proxyProtocol)
 		srv.Listener = tls.NewListener(l, tlsCfg)
 	default:
-		return fmt.Errorf("freebind: unsupported network %q", network)
+		return fmt.Errorf("unsupported DNS listener network %q", network)
 	}
 
 	return nil
 }
 
-func createTLSServer(ctx context.Context, address string, tlsCfg *tls.Config, freeBind bool,
+func createTLSServer(ctx context.Context, address string, tlsCfg *tls.Config, opts listenerOptions,
 ) (*dns.Server, error) {
-	return createDNSServer(ctx, "tcp-tls", address, tlsCfg, freeBind)
+	return createDNSServer(ctx, networkTCPTLS, address, tlsCfg, opts)
 }
 
-func createTCPServer(ctx context.Context, address string, freeBind bool) (*dns.Server, error) {
-	return createDNSServer(ctx, "tcp", address, nil, freeBind)
+func createTCPServer(ctx context.Context, address string, opts listenerOptions) (*dns.Server, error) {
+	return createDNSServer(ctx, networkTCP, address, nil, opts)
 }
 
-func createUDPServer(ctx context.Context, address string, freeBind bool) (*dns.Server, error) {
-	return createDNSServer(ctx, "udp", address, nil, freeBind)
+func createUDPServer(ctx context.Context, address string, opts listenerOptions) (*dns.Server, error) {
+	return createDNSServer(ctx, networkUDP, address, nil, opts)
 }
 
 type redisBridgeResult struct {
@@ -489,6 +534,14 @@ func createQueryResolver(
 		resolver.NewMetricsResolver(cfg.Prometheus),
 		customDNS,
 		hostsFile,
+		// above blocking and the cache: it inspects only RESOLVED/CACHED answers
+		// (conditional/custom DNS/hosts file/SUDN/blocked answers are recognized
+		// by response type and pass through; the cache stores only
+		// upstream-derived answers, so CACHED implies upstream origin), cached
+		// answers — incl. entries synced via redis — are re-inspected on every
+		// hit, and blocking's internal FQDN client-identifier lookups enter the
+		// chain below it
+		resolver.NewRebindingProtectionResolver(cfg.RebindingProtection),
 		blocking,
 		dnssecResolver, // DNSSEC validation BEFORE caching - validates all responses before they are cached
 		cachingResolver,
@@ -756,6 +809,12 @@ func (s *Server) resolve(ctx context.Context, request *model.Request) (response 
 
 	defer cancel()
 
+	// The resolver chain mutates request.Req in place and may add or enlarge an OPT record the
+	// client never sent (ECS, DNSSEC, the upstream EDNS0 buffer floor), so capture what the client
+	// itself asked for up front: the response is normalized against that, not the mutated request.
+	clientMaxResponseSize := getMaxResponseSize(request)
+	clientHadEdns0 := request.Req.IsEdns0() != nil
+
 	switch {
 	case len(request.Req.Question) == 0:
 		m := new(dns.Msg)
@@ -781,11 +840,15 @@ func (s *Server) resolve(ctx context.Context, request *model.Request) (response 
 
 	response.Res.RecursionAvailable = request.Req.RecursionDesired
 
-	// truncate if necessary
-	response.Res.Truncate(getMaxResponseSize(request))
+	if !clientHadEdns0 {
+		// don't return an OPT record to a client that didn't use EDNS0 (RFC 6891 section 6.1.1)
+		util.RemoveEdns0Record(response.Res)
+	}
 
-	// enable compression
-	response.Res.Compress = true
+	// truncate if necessary; Truncate also disables compression when the message already fits
+	// uncompressed and enables it when compression is needed to fit, so we let it decide rather
+	// than forcing Compress=true and paying a compression-map alloc + packing on every response.
+	response.Res.Truncate(clientMaxResponseSize)
 
 	return response, nil
 }

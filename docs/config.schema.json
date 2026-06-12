@@ -1021,6 +1021,19 @@
           "type": "boolean",
           "description": "Allow binding the DNS and DoT listeners to addresses that are not yet assigned to a network\ninterface, via the Linux IP_FREEBIND socket option (e.g. for Tailscale/WireGuard/VRRP addresses\nbrought up after startup). Has no effect on wildcard binds and is ignored, with a warning, on\nnon-Linux platforms.",
           "default": false
+        },
+        "proxyProtocol": {
+          "items": {
+            "type": "string",
+            "enum": [
+              "dns",
+              "http",
+              "https",
+              "tls"
+            ]
+          },
+          "type": "array",
+          "description": "PROXY protocol listener families. List the TCP listeners that sit behind a trusted proxy and\nmust require a PROXY protocol header before the connection is handled, e.g. [https, tls]."
         }
       },
       "additionalProperties": false,
@@ -1624,6 +1637,24 @@
       "additionalProperties": false,
       "type": "object",
       "description": "Per-client DNS query rate limiting configuration."
+    },
+    "rebindingProtection": {
+      "properties": {
+        "enable": {
+          "type": "boolean",
+          "description": "Enable DNS rebinding protection for answers from the general upstream resolvers."
+        },
+        "allowedDomains": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Domains (including their subdomains) that may resolve to non-public IPs (split-horizon DNS)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "DNS rebinding protection configuration."
     },
     "upstream": {
       "additionalProperties": {

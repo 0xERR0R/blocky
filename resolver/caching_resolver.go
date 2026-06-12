@@ -97,6 +97,7 @@ func configureCaches(ctx context.Context, c *CachingResolver, cfg *config.Cachin
 	options := expirationcache.Options{
 		CleanupInterval: defaultCachingCleanUpInterval,
 		MaxSize:         uint(cfg.MaxItemsCount),
+		Shards:          cache.ShardCount(),
 		OnCacheHitFn: func(key string) {
 			cacheHits.Inc()
 		},
@@ -163,9 +164,10 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 		return nil, 0
 	}
 
-	// only refresh entries the normal put path would cache: successful, not
-	// truncated and without the CD flag (mirrors putInCache).
-	if response.Res.Rcode != dns.RcodeSuccess || !isResponseCacheable(response.Res) {
+	// only refresh entries the normal put path would cache: upstream-derived,
+	// successful, not truncated and without the CD flag (mirrors putInCache).
+	if !isCacheableResponseType(response.RType) ||
+		response.Res.Rcode != dns.RcodeSuccess || !isResponseCacheable(response.Res) {
 		return nil, 0
 	}
 
@@ -322,9 +324,23 @@ func packForCache(ctx context.Context, msg *dns.Msg) ([]byte, error) {
 	return packed, err
 }
 
+// isCacheableResponseType reports whether the response originates from the general
+// upstreams, directly (RESOLVED) or via DNS64 synthesis (SYNTHESIZED). Only such
+// answers may be cached: the rebinding protection resolver sits above the cache and
+// inspects CACHED responses, so caching answers from trusted local sources
+// (conditional upstream, special-use domains) would re-label them as CACHED on hits
+// and subject them to inspection.
+func isCacheableResponseType(rType model.ResponseType) bool {
+	return rType == model.ResponseTypeRESOLVED || rType == model.ResponseTypeSYNTHESIZED
+}
+
 func (r *CachingResolver) putInCache(
 	ctx context.Context, cacheKey string, response *model.Response, ttl time.Duration,
 ) {
+	if !isCacheableResponseType(response.RType) {
+		return
+	}
+
 	packed, err := packForCache(ctx, response.Res)
 	if err != nil {
 		return
