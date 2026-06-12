@@ -339,6 +339,56 @@ are left untouched. Because stripping a hint changes the record, any DNSSEC sign
 affected `HTTPS`/`SVCB` record is removed and the `AD` (authenticated data) flag is cleared for
 that response.
 
+## DNS rebinding protection
+
+In a DNS rebinding attack, an attacker-controlled domain first resolves to a public IP, then
+re-resolves to a private address, letting a victim's browser reach devices on the local network
+under the attacker's origin. When this protection is enabled, blocky drops any answer from the
+general upstream resolvers that contains a non-public IP address — in `A`/`AAAA` records or in
+`ipv4hint`/`ipv6hint` SvcParams of `HTTPS`/`SVCB` records — and returns an empty `NOERROR`
+response instead (visible as response type `FILTERED` with reason `FILTERED (rebinding protection)`
+in query logs and metrics; the offending IP is logged at debug level). **Disabled by default.**
+
+The following ranges are considered non-public:
+
+| Range                                           | Description             |
+| ----------------------------------------------- | ----------------------- |
+| `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` | IPv4 private (RFC 1918) |
+| `fc00::/7`                                      | IPv6 unique local       |
+| `127.0.0.0/8`, `::1`                            | loopback                |
+| `169.254.0.0/16`, `fe80::/10`                   | link-local              |
+| `0.0.0.0`, `::`                                 | unspecified             |
+
+Answers from [conditional upstreams](#conditional-dns-resolution), custom DNS and the hosts file
+are never inspected, so internal zones served by trusted internal resolvers keep working without
+any extra configuration.
+
+For split-horizon domains that legitimately resolve to private IPs via the public upstreams, add
+them to the allowlist. Entries match the domain itself and all of its subdomains; matching is
+done on the queried name, so a `CNAME` pointing at an allowlisted name does not bypass the
+protection. Entries must be plain domain names: wildcards (`*.example.com`), regexes and
+whitespace are rejected at startup, and internationalized domains must be given in punycode
+(`xn--…`) form.
+
+!!! example
+
+    ```yaml
+    rebindingProtection:
+      enable: true
+      allowedDomains:
+        - intranet.example.com
+    ```
+
+!!! note
+
+    Filtered responses are cached like other empty answers: repeat queries are answered from
+    the cache (shown as `CACHED`) for the [`caching.cacheTimeNegative`](#caching) duration.
+
+    The protection inspects answer IPs only. An IPv6 answer embedding a private IPv4 address
+    under a NAT64 prefix (e.g. `64:ff9b::192.168.1.1`) is not detected; on networks with a
+    NAT64 gateway, prefer running blocky's own [DNS64](#dns64) so synthesized answers are
+    derived from already-filtered `A` lookups.
+
 ## Rate limiting per client IP
 
 Blocky can enforce a per-client query rate limit at the head of the resolver chain. **Disabled by default.** This is _not_ a DDoS defense — for that, run [fail2ban](https://www.fail2ban.org/) or [crowdsec](https://www.crowdsec.net/) at the firewall, which can drop traffic before it reaches Blocky. The limiter is intended for misbehaving clients, runaway scripts, and the kind of low-volume amplification that can enroll a public Blocky instance in someone else's DNS reflection attack ([issue #1135](https://github.com/0xERR0R/blocky/issues/1135)).
