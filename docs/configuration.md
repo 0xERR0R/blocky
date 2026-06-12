@@ -362,7 +362,11 @@ The following ranges are considered non-public:
 
 Answers from [conditional upstreams](#conditional-dns-resolution), custom DNS and the hosts file
 are never inspected, so internal zones served by trusted internal resolvers keep working without
-any extra configuration. Note that all `upstreams.groups` — **including client-specific
+any extra configuration. One exception: a `customDNS` entry of type `CNAME` resolves its target
+through the regular chain (see [CNAME resolution](#cname-resolution)), so if the target resolves
+to a private IP via the general upstreams (e.g. a DDNS name pointing into the LAN), that lookup
+is inspected and the entry silently loses its address records — add the CNAME **target** name to
+the allowlist to keep it working. Note that all `upstreams.groups` — **including client-specific
 groups** — count as general upstream resolvers and are inspected; to serve an internal zone from
 an internal resolver, use a conditional mapping instead of a client-keyed group. Lookups blocky
 performs for its own operation (e.g. resolving `blocking.clientGroupsBlock` FQDN client
@@ -370,8 +374,10 @@ identifiers) are exempt from the protection.
 
 For split-horizon domains that legitimately resolve to private IPs via the public upstreams, add
 them to the allowlist. Entries match the domain itself and all of its subdomains; matching is
-done on the queried name, so a `CNAME` pointing at an allowlisted name does not bypass the
-protection. If `customDNS.rewrite` rules apply to the query, matching uses the rewritten name —
+done on the name of the inspected query, so a `CNAME` inside an upstream answer pointing at an
+allowlisted name does not bypass the protection (for `customDNS` `CNAME` entries the inspected
+query is the lookup of the CNAME target, so allowlist the **target** name, not the entry's
+name). If `customDNS.rewrite` rules apply to the query, matching uses the rewritten name —
 allowlist the rewritten form (`conditional.rewrite` rules do not affect matching). Entries must
 be plain domain names: wildcards (`*.example.com`), regexes and whitespace are rejected at
 startup, and internationalized domains must be given in punycode (`xn--…`) form.
@@ -390,12 +396,16 @@ startup, and internationalized domains must be given in punycode (`xn--…`) for
     The protection runs above the cache: the upstream answer is cached unchanged for its
     regular TTL, and every cache hit is re-inspected, so repeat queries for a filtered domain
     keep showing `FILTERED`. This also covers cache entries synchronized from other instances
-    through [redis](#redis).
+    through [redis](#redis). Answers from trusted local sources (conditional upstreams,
+    special-use domains) are never written to the cache, so they cannot resurface as cached
+    upstream answers and become subject to inspection.
 
-    The protection inspects answer IPs only. An IPv6 answer embedding a private IPv4 address
-    under a NAT64 prefix (e.g. `64:ff9b::192.168.1.1`) is not detected; on networks with a
-    NAT64 gateway, prefer running blocky's own [DNS64](#dns64) so synthesized answers are
-    derived from already-filtered `A` lookups.
+    The protection does not cover NAT64/DNS64 setups: an IPv6 answer embedding a private IPv4
+    address under a NAT64 prefix (e.g. `64:ff9b::192.168.1.1`) is not detected, and answers
+    synthesized by blocky's own [DNS64](#dns64) resolver are not inspected at all (the internal
+    `A` lookup they are derived from enters the resolver chain below the protection). On
+    networks with a NAT64 gateway, DNS rebinding via synthesized IPv6 answers is therefore not
+    prevented.
 
 ## Rate limiting per client IP
 
@@ -555,6 +565,10 @@ When a CNAME record is defined and a query matches that record, blocky will:
 1. Return the CNAME record in the answer
 2. Additionally resolve the target of the CNAME and include those records in the answer
 3. Protect against CNAME loops (where CNAMEs point to each other in a loop)
+
+The target resolution in step 2 goes through the regular resolver chain. If
+[rebinding protection](#dns-rebinding-protection) is enabled and the target resolves to a
+private IP via the general upstreams, add the target name to its allowlist.
 
 ### Reverse DNS
 

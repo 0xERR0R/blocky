@@ -17,9 +17,13 @@ import (
 // CACHED responses are inspected: answers from conditional upstreams, custom DNS, the
 // hosts file, special-use domain handling and blocking are recognized by response
 // type and pass through untouched. Sitting above the cache means cached answers —
-// including entries synced from redis — are re-inspected on every hit, and internal
-// lookups (e.g. blocking's FQDN client identifiers) enter the chain below this
-// resolver and bypass it entirely.
+// including entries synced from redis — are re-inspected on every hit; the cache in
+// turn stores only upstream-derived answers (see isCacheableResponseType), so CACHED
+// implies upstream origin. Internal lookups (e.g. blocking's FQDN client identifiers)
+// enter the chain below this resolver and bypass it entirely.
+//
+// Known gap: DNS64-synthesized answers (SYNTHESIZED) are upstream-derived but pass
+// through uninspected — see the NAT64/DNS64 note in the rebinding documentation.
 type RebindingProtectionResolver struct {
 	configurable[*config.RebindingProtection]
 	NextResolver
@@ -61,9 +65,11 @@ func (r *RebindingProtectionResolver) Resolve(ctx context.Context, request *mode
 	}
 
 	// only answers originating from the general upstreams are inspected — directly
-	// (RESOLVED) or served from the cache (CACHED, incl. entries synced via redis).
-	// Anything else (blocked, conditional, custom DNS, hosts file, SUDN, ...) is
-	// trusted local/internal data and passes through untouched.
+	// (RESOLVED) or served from the cache (CACHED, incl. entries synced via redis;
+	// the cache stores only upstream-derived answers). Anything else (blocked,
+	// conditional, custom DNS, hosts file, SUDN, ...) is trusted local/internal
+	// data and passes through untouched — except DNS64-synthesized answers, which
+	// are upstream-derived but currently uninspected (documented NAT64/DNS64 gap).
 	if response.RType != model.ResponseTypeRESOLVED && response.RType != model.ResponseTypeCACHED {
 		return response, nil
 	}
