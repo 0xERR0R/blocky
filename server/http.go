@@ -90,9 +90,15 @@ func newCORSMiddleware() httpMiddleware {
 
 	options := cors.Options{
 		AllowCredentials: true,
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		AllowedMethods:   []string{"GET", "POST"},
-		AllowedOrigins:   []string{"*"},
+		// Allow all request headers: web UIs send tool-specific headers
+		// (e.g. Grafana action buttons always add 'X-Grafana-Action') and a
+		// disallowed header makes the preflight fail. The API attaches no
+		// security semantics to request headers, and rs/cors answers a
+		// wildcard by echoing the requested headers, which is spec-compliant
+		// also for 'Authorization'.
+		AllowedHeaders: []string{"*"},
+		AllowedMethods: []string{"GET", "POST"},
+		AllowedOrigins: []string{"*"},
 		// Allow Chromium's Private Network Access preflights, sent when a
 		// public site addresses a private IP (e.g. a hosted Grafana
 		// dashboard calling the blocky API on a LAN)

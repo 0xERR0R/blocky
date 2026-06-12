@@ -40,6 +40,20 @@ var _ = Describe("HTTP middleware", func() {
 			Expect(res.Header.Get("Access-Control-Allow-Methods")).Should(ContainSubstring(http.MethodGet))
 		})
 
+		It("should allow preflights requesting arbitrary headers", func() {
+			// Web UIs send tool-specific headers, e.g. Grafana action buttons
+			// always add 'X-Grafana-Action'. A disallowed header makes the
+			// middleware answer the preflight without any CORS headers, so the
+			// browser blocks the request.
+			res := preflight(map[string]string{
+				"Access-Control-Request-Headers": "content-type,x-grafana-action",
+			})
+
+			Expect(res.Header.Get("Access-Control-Allow-Origin")).Should(Equal("*"))
+			// rs/cors answers a wildcard allowlist by echoing the requested headers
+			Expect(res.Header.Get("Access-Control-Allow-Headers")).Should(ContainSubstring("x-grafana-action"))
+		})
+
 		It("should allow Private Network Access preflights", func() {
 			// Chromium sends this header when a public site addresses a private IP,
 			// e.g. a hosted Grafana dashboard calling the blocky API on a LAN.
