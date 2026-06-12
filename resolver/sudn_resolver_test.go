@@ -150,6 +150,11 @@ var _ = Describe("SudnResolver", Label("sudnResolver"), func() {
 			entry(A, "something.home.", dns.RcodeNameError),
 			entry(A, "something.lan.", dns.RcodeNameError),
 			entry(A, "something.onion.", dns.RcodeNameError),
+
+			// DNS names are case-insensitive (RFC 4343): mixed-case queries
+			// (clients, dns0x20 randomization) must not skip special-use handling
+			entry(A, "LOCALHOST.", dns.RcodeSuccess, BeDNSRecord("LOCALHOST.", A, loopbackV4.String())),
+			entry(A, "SoMeThInG.TeSt.", dns.RcodeNameError),
 		)
 
 		When("RFC 6762 Appendix G is disabled", func() {

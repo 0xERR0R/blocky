@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"net"
+	"strings"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
@@ -128,7 +129,8 @@ func (r *SpecialUseDomainNamesResolver) Resolve(ctx context.Context, request *mo
 }
 
 func (r *SpecialUseDomainNamesResolver) handler(request *model.Request) sudnHandler {
-	_, handler, _ := searchDomainOrParent(sudnHandlers, request.Req.Question[0].Name)
+	// DNS names are case-insensitive (RFC 4343); the sudnHandlers keys are lowercase
+	_, handler, _ := searchDomainOrParent(sudnHandlers, strings.ToLower(request.Req.Question[0].Name))
 
 	return handler
 }
