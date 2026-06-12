@@ -360,6 +360,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#multiple-configuration-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multiple configuration files
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#basic-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1614,6 +1625,17 @@
     <span class="md-ellipsis">
       
         Editor support and validation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multiple-configuration-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multiple configuration files
       
     </span>
   </a>
@@ -3343,6 +3365,45 @@ inline documentation and validation. Add this modeline to the top of your
 invalid values with their field path. Schema validation is a structural
 first pass; blocky still performs its full semantic checks when loading the
 configuration.</p>
+<h2 id="multiple-configuration-files">Multiple configuration files</h2>
+<p>Instead of a single file, <code>--config</code> can point to a <strong>folder</strong>. Blocky then loads every <code>*.yml</code> and <code>*.yaml</code>
+file in that folder (subfolders included) and merges them into one configuration:</p>
+<ul>
+<li>Files are applied in <strong>lexical (alphabetical) path order</strong> — use number prefixes like <code>00_base.yml</code>,
+  <code>10_local.yml</code> to make the order explicit. Blocky logs the merge order at startup.</li>
+<li><strong>Mappings merge recursively</strong>: keys from later files are added; keys present on both sides merge field by
+  field.</li>
+<li><strong>Everything else is replaced</strong>: when several files set the same scalar or list, the last file wins,
+  wholesale. Lists are never concatenated.</li>
+<li>Duplicate keys <em>within one file</em> are still an error, and each file must be valid <abbr title="YAML Ain't Markup Language">YAML</abbr> on its own
+  (<abbr title="YAML Ain't Markup Language">YAML</abbr> anchors and aliases work within a file, but not across files). A file may contain multiple
+  <code>---</code>-separated documents; they merge in document order, like separate files.</li>
+</ul>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<p><code>config/00_base.yml</code> — checked into your repo:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">upstreams</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">default</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">9.9.9.9</span>
+<span class="w">  </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">parallel_best</span>
+</code></pre></div>
+<p><code>config/10_local.yml</code> — host-specific overlay:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">upstreams</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">192.168.0.0/16</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.1.1.1</span>
+</code></pre></div>
+<p>Effective configuration:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">upstreams</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">default</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">9.9.9.9</span>
+<span class="w">    </span><span class="nt">192.168.0.0/16</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.1.1.1</span>
+<span class="w">  </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">parallel_best</span>
+</code></pre></div>
+</div>
 <h2 id="basic-configuration">Basic configuration</h2>
 <table>
 <thead>
