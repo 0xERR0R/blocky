@@ -126,6 +126,17 @@ func (b *ListCache) Refresh(ctx context.Context) error {
 	return b.refresh(ctx)
 }
 
+// PublishGroupCounts re-emits a BlockingCacheGroupChanged event with the current
+// element count for every configured group. The initial counts are emitted while
+// the lists load during construction, before later-constructed subscribers (such
+// as the stats resolver) attach to the bus; re-publishing lets those subscribers
+// pick up the point-in-time counts without waiting for the next list refresh.
+func (b *ListCache) PublishGroupCounts() {
+	for group := range b.groupSources {
+		evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, b.groupedCache.ElementCount(group))
+	}
+}
+
 func (b *ListCache) refresh(ctx context.Context) error {
 	unlimitedGrp, _ := jobgroup.WithContext(ctx)
 	defer unlimitedGrp.Close()

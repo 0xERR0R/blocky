@@ -115,6 +115,31 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				Eventually(groupCnt, "1s").Should(HaveLen(2))
 			})
 		})
+		When("a subscriber registers after the initial list load", func() {
+			It("receives the current list counts again on ApplicationStarted", func() {
+				// sut is already built in JustBeforeEach, so the load-time
+				// BlockingCacheGroupChanged events have fired and a subscriber that
+				// registers now (like the later-built stats resolver) has missed them.
+				groupCnt := make(map[string]int)
+				handler := func(listType lists.ListCacheType, group string, cnt int) {
+					groupCnt[group] = cnt
+				}
+				Expect(Bus().Subscribe(BlockingCacheGroupChanged, handler)).Should(Succeed())
+				DeferCleanup(func() {
+					_ = Bus().Unsubscribe(BlockingCacheGroupChanged, handler)
+				})
+
+				// the late subscriber has not seen any counts yet
+				Expect(groupCnt).Should(BeEmpty())
+
+				Bus().Publish(ApplicationStarted, "version", "buildtime")
+
+				Eventually(groupCnt, "1s").Should(SatisfyAll(
+					HaveKeyWithValue("gr1", 1),
+					HaveKeyWithValue("gr2", 1),
+				))
+			})
+		})
 	})
 
 	Describe("Resolving FQDN client identifiers", func() {
