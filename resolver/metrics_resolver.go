@@ -59,8 +59,17 @@ func (r *MetricsResolver) Resolve(ctx context.Context, request *model.Request) (
 		if err != nil {
 			r.totalErrors.Inc()
 		} else {
+			// Prefer the low-cardinality ReasonLabel for the metric label; fall
+			// back to Reason when it is not set. Blocked responses embed the
+			// matched rule in Reason (e.g. a regex or domain), which is unbounded
+			// for large deny lists, so they set ReasonLabel to the group names only.
+			reasonLabel := response.ReasonLabel
+			if reasonLabel == "" {
+				reasonLabel = response.Reason
+			}
+
 			r.totalResponse.With(prometheus.Labels{
-				labelReason:       response.Reason,
+				labelReason:       reasonLabel,
 				labelResponseCode: dns.RcodeToString[response.Res.Rcode],
 				labelResponseType: response.RType.String(),
 			}).Inc()

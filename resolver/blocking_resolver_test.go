@@ -247,6 +247,15 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 							HaveReturnCode(dns.RcodeSuccess),
 						))
 			})
+			It("should set a group-only ReasonLabel while keeping the detailed Reason", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "1.2.1.2", "client1"))).
+					Should(
+						SatisfyAll(
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReason("BLOCKED (gr1: domain1.com)"),
+							HaveReasonLabel("BLOCKED (gr1)"),
+						))
+			})
 			It("should block the A query if domain is on the denylist (multipart 1)", func() {
 				Expect(sut.Resolve(ctx, newRequestWithClient("domain1.com.", A, "1.2.1.2", "client2"))).
 					Should(
@@ -1501,6 +1510,38 @@ var _ = Describe("formatBlockReason", func() {
 		for range 20 {
 			Expect(formatBlockReason(matches, "")).
 				Should(Equal("BLOCKED (alpha: a.com, mid: m.com, zeta: z.com)"))
+		}
+	})
+})
+
+var _ = Describe("formatBlockReasonLabel", func() {
+	It("renders the matched group name only, without the rule", func() {
+		Expect(formatBlockReasonLabel(map[string]string{"gr1": "domain1.com"}, "")).
+			Should(Equal("BLOCKED (gr1)"))
+	})
+
+	It("includes the entry type when given (e.g. CNAME/IP)", func() {
+		Expect(formatBlockReasonLabel(map[string]string{"ads": "*.docler.com"}, "CNAME")).
+			Should(Equal("BLOCKED CNAME (ads)"))
+	})
+
+	It("keeps the label bounded: different rules in the same group yield the same label", func() {
+		// This is the whole point of the label: the rule (regex/domain) is
+		// unbounded, but the group set is not. Both must map to one metric series.
+		a := formatBlockReasonLabel(map[string]string{"ads": "/snapchat/"}, "")
+		b := formatBlockReasonLabel(map[string]string{"ads": "tracker.example.com"}, "")
+
+		Expect(a).Should(Equal("BLOCKED (ads)"))
+		Expect(b).Should(Equal(a))
+	})
+
+	It("renders multiple matched groups sorted by group for deterministic output", func() {
+		matches := map[string]string{"zeta": "z.com", "alpha": "a.com", "mid": "m.com"}
+
+		// repeat to guard against Go's randomized map iteration order
+		for range 20 {
+			Expect(formatBlockReasonLabel(matches, "")).
+				Should(Equal("BLOCKED (alpha, mid, zeta)"))
 		}
 	})
 })
