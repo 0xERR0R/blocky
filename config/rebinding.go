@@ -45,7 +45,8 @@ func (c *RebindingProtection) validate() error {
 		if strings.ContainsAny(domain, "*/ \t\n\r") ||
 			strings.HasPrefix(domain, ".") || strings.Contains(domain, "..") {
 			return fmt.Errorf(
-				"rebindingProtection.allowedDomains[%d] (%q) must be a plain domain (no wildcards, regexes or whitespace); subdomains match automatically",
+				"rebindingProtection.allowedDomains[%d] (%q) must be a plain domain"+
+					" (no wildcards, regexes or whitespace); subdomains match automatically",
 				i, domain)
 		}
 	}
