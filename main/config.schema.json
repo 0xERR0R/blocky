@@ -800,6 +800,18 @@
       "type": "object",
       "description": "Prometheus metrics configuration."
     },
+    "statistics": {
+      "properties": {
+        "enable": {
+          "type": "boolean",
+          "description": "If true, enables in-memory statistics collection and the /api/stats endpoint.",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "In-memory statistics subsystem (24h window), served at /api/stats."
+    },
     "redis": {
       "properties": {
         "address": {
