@@ -97,7 +97,7 @@ func (r *RebindingProtectionResolver) isAllowed(domain string) bool {
 	return false
 }
 
-// findBlockedIP returns the first non-public IP found in the A/AAAA records of the
+// findBlockedIP returns the first non-public IP found in the A/AAAA records or HTTPS/SVCB ip hints of the
 // given answer section, or nil if there is none.
 func findBlockedIP(answers []dns.RR) net.IP {
 	for _, rr := range answers {
@@ -109,6 +109,37 @@ func findBlockedIP(answers []dns.RR) net.IP {
 		case *dns.AAAA:
 			if isBlockedIP(v.AAAA) {
 				return v.AAAA
+			}
+		case *dns.HTTPS:
+			if ip := findBlockedHintIP(v.Value); ip != nil {
+				return ip
+			}
+		case *dns.SVCB:
+			if ip := findBlockedHintIP(v.Value); ip != nil {
+				return ip
+			}
+		}
+	}
+
+	return nil
+}
+
+// findBlockedHintIP returns the first non-public IP in the ipv4hint/ipv6hint
+// SvcParams of an HTTPS/SVCB record, or nil if there is none.
+func findBlockedHintIP(values []dns.SVCBKeyValue) net.IP {
+	for _, kv := range values {
+		switch hint := kv.(type) {
+		case *dns.SVCBIPv4Hint:
+			for _, ip := range hint.Hint {
+				if isBlockedIP(ip) {
+					return ip
+				}
+			}
+		case *dns.SVCBIPv6Hint:
+			for _, ip := range hint.Hint {
+				if isBlockedIP(ip) {
+					return ip
+				}
 			}
 		}
 	}

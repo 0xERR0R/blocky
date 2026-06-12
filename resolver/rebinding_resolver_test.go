@@ -122,6 +122,48 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			Entry("IPv4-mapped IPv6 private", rebindTestAAAA("rebind.example.com.", "::ffff:192.168.1.1")),
 		)
 
+		It("filters HTTPS answers with a private ipv4hint", func() {
+			https := &dns.HTTPS{SVCB: dns.SVCB{
+				Hdr:      dns.RR_Header{Name: "rebind.example.com.", Rrtype: dns.TypeHTTPS, Class: dns.ClassINET, Ttl: 300},
+				Priority: 1,
+				Target:   ".",
+				Value: []dns.SVCBKeyValue{
+					&dns.SVCBIPv4Hint{Hint: []net.IP{net.ParseIP("192.168.1.100")}},
+				},
+			}}
+			mockAnswer.Answer = []dns.RR{https}
+
+			Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", HTTPS))).
+				Should(SatisfyAll(
+					HaveNoAnswer(),
+					HaveResponseType(ResponseTypeFILTERED),
+				))
+		})
+
+		It("filters SVCB answers with a ULA ipv6hint", func() {
+			svcb := &dns.SVCB{
+				Hdr:      dns.RR_Header{Name: "rebind.example.com.", Rrtype: dns.TypeSVCB, Class: dns.ClassINET, Ttl: 300},
+				Priority: 1,
+				Target:   ".",
+				Value: []dns.SVCBKeyValue{
+					&dns.SVCBIPv6Hint{Hint: []net.IP{net.ParseIP("fd00::1")}},
+				},
+			}
+			mockAnswer.Answer = []dns.RR{svcb}
+
+			Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", dns.Type(dns.TypeSVCB)))).
+				Should(HaveResponseType(ResponseTypeFILTERED))
+		})
+
+		It("passes through HTTPS answers with public hints", func() {
+			mockAnswer.Answer = []dns.RR{newHTTPSRecord()}
+
+			resp, err := sut.Resolve(ctx, newRequest("example.com.", HTTPS))
+			Expect(err).Should(Succeed())
+			Expect(resp.Res.Answer).Should(HaveLen(1))
+			Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+		})
+
 		It("uses a fixed reason (no attacker-controlled IP in metrics labels)", func() {
 			mockAnswer.Answer = []dns.RR{rebindTestA("rebind.example.com.", "192.168.1.100")}
 
