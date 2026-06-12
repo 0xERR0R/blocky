@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"errors"
 	"net"
 
 	"github.com/0xERR0R/blocky/config"
@@ -152,7 +153,29 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			mockAnswer.Answer = []dns.RR{svcb}
 
 			Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", dns.Type(dns.TypeSVCB)))).
-				Should(HaveResponseType(ResponseTypeFILTERED))
+				Should(SatisfyAll(
+					HaveNoAnswer(),
+					HaveResponseType(ResponseTypeFILTERED),
+				))
+		})
+
+		It("filters HTTPS answers where only a later hint is private", func() {
+			https := &dns.HTTPS{SVCB: dns.SVCB{
+				Hdr:      dns.RR_Header{Name: "rebind.example.com.", Rrtype: dns.TypeHTTPS, Class: dns.ClassINET, Ttl: 300},
+				Priority: 1,
+				Target:   ".",
+				Value: []dns.SVCBKeyValue{
+					&dns.SVCBIPv4Hint{Hint: []net.IP{net.ParseIP("1.2.3.4"), net.ParseIP("192.168.1.100")}},
+					&dns.SVCBIPv6Hint{Hint: []net.IP{net.ParseIP("fd00::1")}},
+				},
+			}}
+			mockAnswer.Answer = []dns.RR{https}
+
+			Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", HTTPS))).
+				Should(SatisfyAll(
+					HaveNoAnswer(),
+					HaveResponseType(ResponseTypeFILTERED),
+				))
 		})
 
 		It("passes through HTTPS answers with public hints", func() {
@@ -306,6 +329,40 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			resp, err := sut.Resolve(ctx, newRequest("router.lan.", A))
 			Expect(err).Should(Succeed())
 			Expect(resp.Res.Answer).Should(ConsistOf(a))
+		})
+	})
+
+	When("the next resolver returns an error", func() {
+		JustBeforeEach(func() {
+			m = &mockResolver{}
+			m.On("Resolve", mock.Anything).Return(nil, errors.New("upstream error"))
+			sut.Next(m)
+		})
+
+		It("propagates the error", func() {
+			_, err := sut.Resolve(ctx, newRequest("example.com.", A))
+			Expect(err).Should(HaveOccurred())
+		})
+	})
+
+	When("chained below a validating DNSSEC resolver", func() {
+		It("the synthetic filtered response passes validation untouched", func() {
+			// DNSSECResolver sits above this resolver in the server chain; the
+			// synthetic empty response carries no RRSIGs and must be treated as
+			// insecure/unsigned, not bogus (spec: "DNSSEC interplay")
+			mockAnswer.Answer = []dns.RR{rebindTestA("rebind.example.com.", "192.168.1.100")}
+
+			dnssecRes, err := NewDNSSECResolver(ctx, config.DNSSEC{Validate: true}, m)
+			Expect(err).Should(Succeed())
+
+			chained := Chain(dnssecRes, sut, m)
+
+			Expect(chained.Resolve(ctx, newRequest("rebind.example.com.", A))).
+				Should(SatisfyAll(
+					HaveNoAnswer(),
+					HaveResponseType(ResponseTypeFILTERED),
+					HaveReturnCode(dns.RcodeSuccess),
+				))
 		})
 	})
 })
