@@ -9,7 +9,7 @@ import (
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/cors"
+	"github.com/rs/cors"
 )
 
 type httpServer struct {
@@ -93,8 +93,12 @@ func newCORSMiddleware() httpMiddleware {
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		AllowedMethods:   []string{"GET", "POST"},
 		AllowedOrigins:   []string{"*"},
-		ExposedHeaders:   []string{"Link"},
-		MaxAge:           int(corsMaxAge.Seconds()),
+		// Allow Chromium's Private Network Access preflights, sent when a
+		// public site addresses a private IP (e.g. a hosted Grafana
+		// dashboard calling the blocky API on a LAN)
+		AllowPrivateNetwork: true,
+		ExposedHeaders:      []string{"Link"},
+		MaxAge:              int(corsMaxAge.Seconds()),
 	}
 
 	return cors.New(options).Handler
