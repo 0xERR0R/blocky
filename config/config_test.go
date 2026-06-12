@@ -378,6 +378,20 @@ var _ = Describe("Config", func() {
 				Expect(err).Should(Succeed())
 				Expect(c.Log.Level).Should(Equal(logrus.DebugLevel))
 			})
+
+			It("preserves scalar literals so minTlsServeVersion: 1.0 still loads (issue #1827)", func() {
+				// Folder merging used to re-marshal scalars through a generic
+				// map, collapsing `1.0` to `1` and breaking startup. Node-tree
+				// merging keeps the literal, so this loads just like a single
+				// file (which accepts 1.0 and bumps it to the secure default).
+				tmpDir.CreateStringFile("00_tls.yaml",
+					"minTlsServeVersion: 1.0",
+				)
+
+				c, err := LoadConfig(tmpDir.Path, true)
+				Expect(err).Should(Succeed())
+				Expect(c.MinTLSServeVer).Should(Equal(TLSVersion12))
+			})
 		})
 		When("a single config file contains duplicate keys", func() {
 			It("keeps the single-file error shape, proving the merge path is not used", func() {
