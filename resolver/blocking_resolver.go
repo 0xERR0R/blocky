@@ -426,9 +426,10 @@ func determineAllowlistOnlyGroups(cfg *config.Blocking) (result map[string]bool)
 
 // sets answer and/or return code for DNS response, if request should be blocked
 func (r *BlockingResolver) handleBlocked(logger *logrus.Entry,
-	request *model.Request, question dns.Question, reason string,
+	request *model.Request, question dns.Question, reason, reasonLabel string,
 ) (*model.Response, error) {
 	modelResp := model.NewResponseWithReason(request, model.ResponseTypeBLOCKED, reason)
+	modelResp.ReasonLabel = reasonLabel
 	r.blockHandler.handleBlock(question, modelResp.Res)
 
 	logger.Debugf("blocking request '%s'", reason)
@@ -479,7 +480,7 @@ func (r *BlockingResolver) handleDenylist(ctx context.Context, groupsToCheck []s
 		}
 
 		if allowlistOnlyAllowed {
-			resp, err := r.handleBlocked(logger, request, question, "BLOCKED (ALLOWLIST ONLY)")
+			resp, err := r.handleBlocked(logger, request, question, "BLOCKED (ALLOWLIST ONLY)", "")
 			if err != nil {
 				err = fmt.Errorf("failed to handle allowlist-only block for %s: %w", domain, err)
 			}
@@ -488,7 +489,8 @@ func (r *BlockingResolver) handleDenylist(ctx context.Context, groupsToCheck []s
 		}
 
 		if matches := r.matches(groupsToCheck, r.denylistMatcher, domain); len(matches) > 0 {
-			resp, err := r.handleBlocked(logger, request, question, formatBlockReason(matches, ""))
+			resp, err := r.handleBlocked(logger, request, question,
+				formatBlockReason(matches, ""), formatBlockReasonLabel(matches, ""))
 
 			return true, resp, err
 		}
@@ -520,7 +522,8 @@ func (r *BlockingResolver) Resolve(ctx context.Context, request *model.Request) 
 				if matches := r.matches(groupsToCheck, r.allowlistMatcher, entryToCheck); len(matches) > 0 {
 					logger.WithField("matches", matches).Debugf("%s is allowlisted", tName)
 				} else if matches := r.matches(groupsToCheck, r.denylistMatcher, entryToCheck); len(matches) > 0 {
-					return r.handleBlocked(logger, request, request.Req.Question[0], formatBlockReason(matches, tName))
+					return r.handleBlocked(logger, request, request.Req.Question[0],
+						formatBlockReason(matches, tName), formatBlockReasonLabel(matches, tName))
 				}
 			}
 		}
@@ -656,6 +659,18 @@ func (r *BlockingResolver) matches(groupsToCheck []string, m lists.Matcher,
 // "BLOCKED[ TYPE] (group: rule[, group: rule...])". Matched groups are sorted
 // so the rendered reason is deterministic when more than one group matches.
 func formatBlockReason(matches map[string]string, typeName string) string {
+	return renderBlockReason(matches, typeName, true)
+}
+
+// formatBlockReasonLabel renders a low-cardinality block reason of the form
+// "BLOCKED[ TYPE] (group[, group...])" — group names only, without the matched
+// rule. It is used as the `reason` Prometheus metric label so the label stays
+// bounded by the number of configured groups, regardless of deny-list size.
+func formatBlockReasonLabel(matches map[string]string, typeName string) string {
+	return renderBlockReason(matches, typeName, false)
+}
+
+func renderBlockReason(matches map[string]string, typeName string, includeRules bool) string {
 	reason := "BLOCKED"
 	if typeName != "" {
 		reason += " " + typeName
@@ -667,7 +682,11 @@ func formatBlockReason(matches map[string]string, typeName string) string {
 
 	entries := make([]string, 0, len(matches))
 	for _, group := range slices.Sorted(maps.Keys(matches)) {
-		entries = append(entries, fmt.Sprintf("%s: %s", group, matches[group]))
+		if includeRules {
+			entries = append(entries, fmt.Sprintf("%s: %s", group, matches[group]))
+		} else {
+			entries = append(entries, group)
+		}
 	}
 
 	return fmt.Sprintf("%s (%s)", reason, strings.Join(entries, ", "))

@@ -77,6 +77,53 @@ var _ = Describe("MetricResolver", func() {
 					m.AssertExpectations(GinkgoT())
 				})
 			})
+			When("Response has a low-cardinality ReasonLabel", func() {
+				BeforeEach(func() {
+					m = &mockResolver{}
+					m.On("Resolve", mock.Anything).Return(&Response{
+						Res:         new(dns.Msg),
+						RType:       ResponseTypeBLOCKED,
+						Reason:      "BLOCKED (ads: /snapchat/)",
+						ReasonLabel: "BLOCKED (ads)",
+					}, nil)
+					sut.Next(m)
+				})
+				It("uses ReasonLabel for the reason metric label, not the detailed Reason", func() {
+					_, err := sut.Resolve(ctx, newRequestWithClient("example.com.", A, "", "client"))
+					Expect(err).Should(Succeed())
+
+					cnt, err := sut.totalResponse.GetMetricWith(prometheus.Labels{
+						"reason":        "BLOCKED (ads)",
+						"response_code": "NOERROR",
+						"response_type": "BLOCKED",
+					})
+					Expect(err).Should(Succeed())
+					Expect(testutil.ToFloat64(cnt)).Should(BeNumerically("==", 1))
+				})
+			})
+			When("Response has no ReasonLabel", func() {
+				BeforeEach(func() {
+					m = &mockResolver{}
+					m.On("Resolve", mock.Anything).Return(&Response{
+						Res:    new(dns.Msg),
+						RType:  ResponseTypeRESOLVED,
+						Reason: "CACHED",
+					}, nil)
+					sut.Next(m)
+				})
+				It("falls back to Reason for the reason metric label", func() {
+					_, err := sut.Resolve(ctx, newRequestWithClient("example.com.", A, "", "client"))
+					Expect(err).Should(Succeed())
+
+					cnt, err := sut.totalResponse.GetMetricWith(prometheus.Labels{
+						"reason":        "CACHED",
+						"response_code": "NOERROR",
+						"response_type": "RESOLVED",
+					})
+					Expect(err).Should(Succeed())
+					Expect(testutil.ToFloat64(cnt)).Should(BeNumerically("==", 1))
+				})
+			})
 			When("Error occurs while request processing", func() {
 				BeforeEach(func() {
 					m = &mockResolver{}

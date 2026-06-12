@@ -159,6 +159,15 @@ func HaveReason(reason string) types.GomegaMatcher {
 	)
 }
 
+func HaveReasonLabel(reasonLabel string) types.GomegaMatcher {
+	return gcustom.MakeMatcher(func(m *model.Response) (bool, error) {
+		return m.ReasonLabel == reasonLabel, nil
+	}).WithTemplate(
+		"Expected:\n{{.Actual}}\n{{.To}} have reason label:\n{{format .Data 1}}",
+		reasonLabel,
+	)
+}
+
 func HaveResponseType(c model.ResponseType) types.GomegaMatcher {
 	return gcustom.MakeMatcher(func(m *model.Response) (bool, error) {
 		return m.RType == c, nil
