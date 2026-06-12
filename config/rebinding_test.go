@@ -67,5 +67,23 @@ var _ = Describe("RebindingProtection", func() {
 
 			Expect(cfg.validate()).Should(MatchError(ContainSubstring("plain domain")))
 		})
+
+		It("rejects padded entries", func() {
+			cfg.AllowedDomains = []string{" intranet.example.com"}
+
+			Expect(cfg.validate()).Should(MatchError(ContainSubstring("plain domain")))
+		})
+
+		It("rejects dot-degenerate entries", func() {
+			cfg.AllowedDomains = []string{"."}
+
+			Expect(cfg.validate()).Should(MatchError(ContainSubstring("plain domain")))
+		})
+
+		It("accepts underscore, punycode and digit/hyphen entries", func() {
+			cfg.AllowedDomains = []string{"_dmarc.example.com", "xn--br-via.example.com", "host-1.example.com"}
+
+			Expect(cfg.validate()).Should(Succeed())
+		})
 	})
 })

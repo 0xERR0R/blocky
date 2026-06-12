@@ -35,14 +35,15 @@ func (c *RebindingProtection) LogConfig(logger *logrus.Entry) {
 // before the user enables it.
 func (c *RebindingProtection) validate() error {
 	for i, domain := range c.AllowedDomains {
-		trimmed := strings.TrimSpace(domain)
-		if trimmed == "" {
+		if strings.TrimSpace(domain) == "" {
 			return fmt.Errorf("rebindingProtection.allowedDomains[%d] must not be empty", i)
 		}
 
 		// queryLog.ignore.domains supports wildcard/regex syntax; this list does not —
-		// reject such entries instead of silently never matching them
-		if strings.ContainsAny(trimmed, "*/ \t") {
+		// reject such entries (and other never-matching forms like padded strings or
+		// degenerate dots) instead of silently ignoring them
+		if strings.ContainsAny(domain, "*/ \t\n\r") ||
+			strings.HasPrefix(domain, ".") || strings.Contains(domain, "..") {
 			return fmt.Errorf(
 				"rebindingProtection.allowedDomains[%d] (%q) must be a plain domain (no wildcards, regexes or whitespace); subdomains match automatically",
 				i, domain)
