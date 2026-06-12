@@ -341,12 +341,12 @@ var _ = Describe("RebindingProtectionResolver", func() {
 
 		It("propagates the error", func() {
 			_, err := sut.Resolve(ctx, newRequest("example.com.", A))
-			Expect(err).Should(HaveOccurred())
+			Expect(err).Should(MatchError("upstream error"))
 		})
 	})
 
 	When("chained below a validating DNSSEC resolver", func() {
-		It("the synthetic filtered response passes validation untouched", func() {
+		It("passes the synthetic filtered response through validation as insecure", func() {
 			// DNSSECResolver sits above this resolver in the server chain; the
 			// synthetic empty response carries no RRSIGs and must be treated as
 			// insecure/unsigned, not bogus (spec: "DNSSEC interplay")
@@ -357,12 +357,17 @@ var _ = Describe("RebindingProtectionResolver", func() {
 
 			chained := Chain(dnssecRes, sut, m)
 
-			Expect(chained.Resolve(ctx, newRequest("rebind.example.com.", A))).
-				Should(SatisfyAll(
-					HaveNoAnswer(),
-					HaveResponseType(ResponseTypeFILTERED),
-					HaveReturnCode(dns.RcodeSuccess),
-				))
+			resp, err := chained.Resolve(ctx, newRequest("rebind.example.com.", A))
+			Expect(err).Should(Succeed())
+			Expect(resp).Should(SatisfyAll(
+				HaveNoAnswer(),
+				HaveResponseType(ResponseTypeFILTERED),
+				HaveReturnCode(dns.RcodeSuccess),
+			))
+			// the validator must classify the unsigned synthetic response as insecure
+			// without issuing any DNSKEY/DS lookups — one upstream call only
+			Expect(m.Calls).Should(HaveLen(1))
+			Expect(resp.Res.AuthenticatedData).Should(BeFalse())
 		})
 	})
 })
