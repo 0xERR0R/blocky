@@ -200,4 +200,52 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 		})
 	})
+
+	When("a domain is allowlisted", func() {
+		BeforeEach(func() {
+			sutConfig = config.RebindingProtection{
+				Enable: true,
+				// mixed case + trailing dot: exercises normalization
+				AllowedDomains: []string{"Intranet.Example.COM."},
+			}
+		})
+
+		It("passes through private answers for the exact domain", func() {
+			a := rebindTestA("intranet.example.com.", "192.168.1.50")
+			mockAnswer.Answer = []dns.RR{a}
+
+			resp, err := sut.Resolve(ctx, newRequest("intranet.example.com.", A))
+			Expect(err).Should(Succeed())
+			Expect(resp.Res.Answer).Should(ConsistOf(a))
+		})
+
+		It("passes through private answers for subdomains", func() {
+			a := rebindTestA("nas.intranet.example.com.", "192.168.1.51")
+			mockAnswer.Answer = []dns.RR{a}
+
+			resp, err := sut.Resolve(ctx, newRequest("nas.intranet.example.com.", A))
+			Expect(err).Should(Succeed())
+			Expect(resp.Res.Answer).Should(ConsistOf(a))
+		})
+
+		It("still filters sibling domains", func() {
+			mockAnswer.Answer = []dns.RR{rebindTestA("notintranet.example.com.", "192.168.1.52")}
+
+			Expect(sut.Resolve(ctx, newRequest("notintranet.example.com.", A))).
+				Should(HaveResponseType(ResponseTypeFILTERED))
+		})
+
+		It("still filters CNAMEs pointing at an allowlisted name", func() {
+			// the question name decides; an attacker CNAME-ing to an allowlisted
+			// name must not bypass protection
+			cname := &dns.CNAME{
+				Hdr:    dns.RR_Header{Name: "evil.example.org.", Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: 300},
+				Target: "intranet.example.com.",
+			}
+			mockAnswer.Answer = []dns.RR{cname, rebindTestA("intranet.example.com.", "192.168.1.50")}
+
+			Expect(sut.Resolve(ctx, newRequest("evil.example.org.", A))).
+				Should(HaveResponseType(ResponseTypeFILTERED))
+		})
+	})
 })

@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"net"
+	"strings"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
@@ -20,13 +21,22 @@ type RebindingProtectionResolver struct {
 	configurable[*config.RebindingProtection]
 	NextResolver
 	typed
+
+	allowedDomains map[string]struct{}
 }
 
 // NewRebindingProtectionResolver returns a new resolver instance
 func NewRebindingProtectionResolver(cfg config.RebindingProtection) *RebindingProtectionResolver {
+	allowed := make(map[string]struct{}, len(cfg.AllowedDomains))
+	for _, domain := range cfg.AllowedDomains {
+		// normalize: lowercase, no trailing dot
+		allowed[util.ExtractDomainOnly(domain)] = struct{}{}
+	}
+
 	return &RebindingProtectionResolver{
-		configurable: withConfig(&cfg),
-		typed:        withType("rebinding_protection"),
+		configurable:   withConfig(&cfg),
+		typed:          withType("rebinding_protection"),
+		allowedDomains: allowed,
 	}
 }
 
@@ -46,12 +56,15 @@ func (r *RebindingProtectionResolver) Resolve(ctx context.Context, request *mode
 		return response, nil
 	}
 
+	domain := util.ExtractDomain(request.Req.Question[0])
+	if r.isAllowed(domain) {
+		return response, nil
+	}
+
 	ip := findBlockedIP(response.Res.Answer)
 	if ip == nil {
 		return response, nil
 	}
-
-	domain := util.ExtractDomain(request.Req.Question[0])
 
 	_, logger := r.log(ctx)
 	logger.WithField(logFieldDomain, util.Obfuscate(domain)).
@@ -61,6 +74,25 @@ func (r *RebindingProtectionResolver) Resolve(ctx context.Context, request *mode
 	// attacker-chosen — embedding it would allow unbounded cardinality growth
 	return model.NewResponseWithRcode(request, dns.RcodeSuccess, model.ResponseTypeFILTERED,
 		"FILTERED (rebinding protection)"), nil
+}
+
+// isAllowed reports whether the queried domain matches an allowlist entry exactly
+// or is a subdomain of one.
+func (r *RebindingProtectionResolver) isAllowed(domain string) bool {
+	for len(domain) > 0 {
+		if _, found := r.allowedDomains[domain]; found {
+			return true
+		}
+
+		i := strings.Index(domain, ".")
+		if i < 0 {
+			break
+		}
+
+		domain = domain[i+1:]
+	}
+
+	return false
 }
 
 // findBlockedIP returns the first non-public IP found in the A/AAAA records of the
