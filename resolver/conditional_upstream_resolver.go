@@ -60,25 +60,16 @@ func (r *ConditionalUpstreamResolver) processRequest(
 	ctx context.Context, request *model.Request,
 ) (bool, *model.Response, error) {
 	domainFromQuestion := util.ExtractDomain(request.Req.Question[0])
-	domain := domainFromQuestion
 
 	if strings.Contains(domainFromQuestion, ".") {
 		// try with domain with and without sub-domains
-		for len(domain) > 0 {
-			if resolver, found := r.mapping[domain]; found {
-				resp, err := r.internalResolve(ctx, resolver, domainFromQuestion, domain, request)
+		if domain, resolver, found := searchDomainOrParent(r.mapping, domainFromQuestion); found {
+			resp, err := r.internalResolve(ctx, resolver, domainFromQuestion, domain, request)
 
-				return true, resp, err
-			}
-
-			if i := strings.Index(domain, "."); i >= 0 {
-				domain = domain[i+1:]
-			} else {
-				break
-			}
+			return true, resp, err
 		}
 	} else if resolver, found := r.mapping["."]; found {
-		resp, err := r.internalResolve(ctx, resolver, domainFromQuestion, domain, request)
+		resp, err := r.internalResolve(ctx, resolver, domainFromQuestion, domainFromQuestion, request)
 
 		return true, resp, err
 	}
