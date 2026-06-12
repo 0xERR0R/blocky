@@ -694,7 +694,7 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 
 	err = unmarshalConfig(logger, data, &cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal config from %s: %w", prettyPath, err)
+		return nil, fmt.Errorf("failed to unmarshal config from %s: %w", prettyPath, attributeToSources(err, sources))
 	}
 
 	if err := cfg.Ports.validate(); err != nil {

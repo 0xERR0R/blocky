@@ -392,6 +392,15 @@ var _ = Describe("Config", func() {
 				Expect(err).Should(Succeed())
 				Expect(c.MinTLSServeVer).Should(Equal(TLSVersion12))
 			})
+
+			It("attributes an unknown key to its source file", func() {
+				tmpDir.CreateStringFile("00_good.yaml", "log:", "  level: debug")
+				tmpDir.CreateStringFile("10_typo.yaml", "blocing:", "  blockType: zeroIp")
+
+				_, err := LoadConfig(tmpDir.Path, true)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("10_typo.yaml"))
+			})
 		})
 		When("a single config file contains duplicate keys", func() {
 			It("keeps the single-file error shape, proving the merge path is not used", func() {

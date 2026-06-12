@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
+	"github.com/0xERR0R/blocky/config/schema"
 	yaml "gopkg.in/yaml.v3"
 )
 
@@ -270,4 +272,26 @@ func nodeKindName(node *yaml.Node) string {
 	default:
 		return "unknown"
 	}
+}
+
+// attributeToSources maps a post-merge unmarshal failure back to the source
+// files using per-file schema validation, so the error names the offending
+// file instead of the merged document the user never sees. It only ever adds
+// information; the original error is always kept.
+func attributeToSources(err error, sources []configFile) error {
+	var lines []string
+
+	for _, src := range sources {
+		if schemaErrs, sErr := schema.ValidateYAML(src.data); sErr == nil && len(schemaErrs) > 0 {
+			for _, e := range schemaErrs {
+				lines = append(lines, fmt.Sprintf("  - %s: %s", src.path, e.String()))
+			}
+		}
+	}
+
+	if len(lines) == 0 {
+		return err
+	}
+
+	return fmt.Errorf("%w\nfindings per source file:\n%s", err, strings.Join(lines, "\n"))
 }
