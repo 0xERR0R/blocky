@@ -9,6 +9,7 @@ import (
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
@@ -16,19 +17,32 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// rebindTestA builds an A RR with the given owner name and address.
+// rebindTestA builds an A RR with the given owner name and address. It panics on
+// invalid literals: a nil IP would silently pass through the resolver (nil is
+// never blocked by design), turning a typo'd spec into a vacuous pass.
 func rebindTestA(name, ip string) *dns.A {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		panic("rebindTestA: invalid IP literal " + ip)
+	}
+
 	return &dns.A{
 		Hdr: dns.RR_Header{Name: name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300},
-		A:   net.ParseIP(ip),
+		A:   parsed,
 	}
 }
 
 // rebindTestAAAA builds an AAAA RR with the given owner name and address.
+// See rebindTestA for why it panics on invalid literals.
 func rebindTestAAAA(name, ip string) *dns.AAAA {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		panic("rebindTestAAAA: invalid IP literal " + ip)
+	}
+
 	return &dns.AAAA{
 		Hdr:  dns.RR_Header{Name: name, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: 300},
-		AAAA: net.ParseIP(ip),
+		AAAA: parsed,
 	}
 }
 
@@ -95,6 +109,45 @@ var _ = Describe("RebindingProtectionResolver", func() {
 
 			// delegated to next resolver
 			Expect(m.Calls).Should(HaveLen(1))
+		})
+	})
+
+	When("the answer does not come from the general upstreams", func() {
+		// the resolver sits above blocking and the cache; answers produced by
+		// trusted local sources are recognized by response type and never filtered
+		DescribeTable("passes private answers through untouched",
+			func(rType ResponseType) {
+				m = &mockResolver{}
+				m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer, RType: rType}, nil)
+				sut.Next(m)
+
+				a := rebindTestA("router.home.lab.", "192.168.2.1")
+				mockAnswer.Answer = []dns.RR{a}
+
+				resp, err := sut.Resolve(ctx, newRequest("router.home.lab.", A))
+				Expect(err).Should(Succeed())
+				Expect(resp.RType).Should(Equal(rType))
+				Expect(resp.Res.Answer).Should(ConsistOf(a))
+			},
+			Entry("blocked", ResponseTypeBLOCKED),
+			Entry("conditional", ResponseTypeCONDITIONAL),
+			Entry("custom DNS", ResponseTypeCUSTOMDNS),
+			Entry("hosts file", ResponseTypeHOSTSFILE),
+			Entry("special-use domain", ResponseTypeSPECIAL),
+		)
+
+		It("still filters cached upstream answers (incl. redis-synced entries)", func() {
+			m = &mockResolver{}
+			m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer, RType: ResponseTypeCACHED, Reason: "CACHED"}, nil)
+			sut.Next(m)
+
+			mockAnswer.Answer = []dns.RR{rebindTestA("rebind.example.com.", "192.168.1.100")}
+
+			Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", A))).
+				Should(SatisfyAll(
+					HaveNoAnswer(),
+					HaveResponseType(ResponseTypeFILTERED),
+				))
 		})
 	})
 
@@ -178,14 +231,26 @@ var _ = Describe("RebindingProtectionResolver", func() {
 				))
 		})
 
-		It("passes through HTTPS answers with public hints", func() {
-			mockAnswer.Answer = []dns.RR{newHTTPSRecord()}
+		DescribeTable("passes through answers without non-public IPs",
+			func(qType dns.Type, rrs ...dns.RR) {
+				mockAnswer.Answer = rrs
 
-			resp, err := sut.Resolve(ctx, newRequest("example.com.", HTTPS))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Answer).Should(HaveLen(1))
-			Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
-		})
+				resp, err := sut.Resolve(ctx, newRequest("example.com.", qType))
+				Expect(err).Should(Succeed())
+				Expect(resp.Res.Answer).Should(ConsistOf(rrs))
+				Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
+			},
+			Entry("public IPv4", A, rebindTestA("example.com.", "1.2.3.4")),
+			Entry("public IPv6", AAAA, rebindTestAAAA("example.com.", "2001:db8::1")),
+			Entry("HTTPS with public hints", HTTPS, newHTTPSRecord()),
+			Entry("record without an address (nil IP)", A,
+				&dns.A{Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300}}),
+			Entry("answer without address records", TXT, &dns.TXT{
+				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeTXT, Class: dns.ClassINET, Ttl: 300},
+				Txt: []string{"hello"},
+			}),
+			Entry("empty response", A),
+		)
 
 		It("uses a fixed reason (no attacker-controlled IP in metrics labels)", func() {
 			mockAnswer.Answer = []dns.RR{rebindTestA("rebind.example.com.", "192.168.1.100")}
@@ -193,15 +258,6 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			resp, err := sut.Resolve(ctx, newRequest("rebind.example.com.", A))
 			Expect(err).Should(Succeed())
 			Expect(resp.Reason).Should(Equal("FILTERED (rebinding protection)"))
-		})
-
-		It("passes through records without an address (nil IP)", func() {
-			a := &dns.A{Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300}}
-			mockAnswer.Answer = []dns.RR{a}
-
-			resp, err := sut.Resolve(ctx, newRequest("example.com.", A))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Answer).Should(ConsistOf(a))
 		})
 
 		It("filters answers mixing public and private records", func() {
@@ -217,6 +273,58 @@ var _ = Describe("RebindingProtectionResolver", func() {
 				))
 		})
 
+		It("filters responses whose additional section carries a private IP", func() {
+			// per RFC 9460 §5 an upstream may attach the HTTPS/SVCB TargetName's
+			// address records in the additional section; they must be inspected
+			// like answer records
+			https := &dns.HTTPS{SVCB: dns.SVCB{
+				Hdr:      dns.RR_Header{Name: "rebind.example.com.", Rrtype: dns.TypeHTTPS, Class: dns.ClassINET, Ttl: 300},
+				Priority: 1,
+				Target:   "target.example.com.",
+			}}
+			mockAnswer.Answer = []dns.RR{https}
+			mockAnswer.Extra = []dns.RR{rebindTestA("target.example.com.", "192.168.1.1")}
+
+			Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", HTTPS))).
+				Should(SatisfyAll(
+					HaveNoAnswer(),
+					HaveResponseType(ResponseTypeFILTERED),
+				))
+		})
+
+		It("filters responses whose authority section carries a private IP", func() {
+			mockAnswer.Ns = []dns.RR{rebindTestA("rebind.example.com.", "192.168.1.1")}
+
+			Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", A))).
+				Should(HaveResponseType(ResponseTypeFILTERED))
+		})
+
+		It("filters private answers for requests without a question section", func() {
+			req := newRequest("rebind.example.com.", A)
+			req.Req.Question = nil
+			mockAnswer.Answer = []dns.RR{rebindTestA("rebind.example.com.", "192.168.1.100")}
+
+			Expect(sut.Resolve(ctx, req)).Should(HaveResponseType(ResponseTypeFILTERED))
+		})
+
+		It("obfuscates the dropped IP in the debug log when log privacy is enabled", func() {
+			logger, hook := log.NewMockEntry()
+			loggedCtx, _ := log.NewCtx(ctx, logger)
+
+			util.LogPrivacy.Store(true)
+			DeferCleanup(func() { util.LogPrivacy.Store(false) })
+
+			mockAnswer.Answer = []dns.RR{rebindTestA("rebind.example.com.", "192.168.1.100")}
+
+			_, err := sut.Resolve(loggedCtx, newRequest("rebind.example.com.", A))
+			Expect(err).Should(Succeed())
+
+			// the IP is answer content; like the domain, it must not appear
+			// in clear text when log privacy is on
+			Expect(hook.Messages).Should(ContainElement(ContainSubstring("dropped answer")))
+			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("192.168.1.100")))
+		})
+
 		It("filters CNAME chains ending in a private IP", func() {
 			cname := &dns.CNAME{
 				Hdr:    dns.RR_Header{Name: "evil.example.org.", Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: 300},
@@ -226,43 +334,6 @@ var _ = Describe("RebindingProtectionResolver", func() {
 
 			Expect(sut.Resolve(ctx, newRequest("evil.example.org.", A))).
 				Should(HaveResponseType(ResponseTypeFILTERED))
-		})
-
-		It("passes through public IPv4 answers", func() {
-			a := rebindTestA("example.com.", "1.2.3.4")
-			mockAnswer.Answer = []dns.RR{a}
-
-			resp, err := sut.Resolve(ctx, newRequest("example.com.", A))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Answer).Should(ConsistOf(a))
-		})
-
-		It("passes through public IPv6 answers", func() {
-			aaaa := rebindTestAAAA("example.com.", "2001:db8::1")
-			mockAnswer.Answer = []dns.RR{aaaa}
-
-			resp, err := sut.Resolve(ctx, newRequest("example.com.", AAAA))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Answer).Should(ConsistOf(aaaa))
-		})
-
-		It("passes through answers without address records", func() {
-			txt := &dns.TXT{
-				Hdr: dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeTXT, Class: dns.ClassINET, Ttl: 300},
-				Txt: []string{"hello"},
-			}
-			mockAnswer.Answer = []dns.RR{txt}
-
-			resp, err := sut.Resolve(ctx, newRequest("example.com.", TXT))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Answer).Should(ConsistOf(txt))
-		})
-
-		It("passes through empty responses", func() {
-			resp, err := sut.Resolve(ctx, newRequest("example.com.", A))
-			Expect(err).Should(Succeed())
-			Expect(resp.Res.Answer).Should(BeEmpty())
-			Expect(resp.RType).Should(Equal(ResponseTypeRESOLVED))
 		})
 	})
 
@@ -312,6 +383,26 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			Expect(sut.Resolve(ctx, newRequest("evil.example.org.", A))).
 				Should(HaveResponseType(ResponseTypeFILTERED))
 		})
+
+		It("does not treat escaped dots as label boundaries", func() {
+			// `evil\.intranet` is a single label directly under example.com —
+			// NOT a subdomain of the allowlisted intranet.example.com
+			mockAnswer.Answer = []dns.RR{rebindTestA(`evil\.intranet.example.com.`, "192.168.1.66")}
+
+			Expect(sut.Resolve(ctx, newRequest(`evil\.intranet.example.com.`, A))).
+				Should(HaveResponseType(ResponseTypeFILTERED))
+		})
+
+		It("never applies the allowlist to multi-question requests", func() {
+			// with more than one question the answers cannot be attributed to a
+			// single name, so the allowlist must not exempt them (fail closed)
+			req := newRequest("intranet.example.com.", A)
+			req.Req.Question = append(req.Req.Question,
+				dns.Question{Name: "evil.example.org.", Qtype: dns.TypeA, Qclass: dns.ClassINET})
+			mockAnswer.Answer = []dns.RR{rebindTestA("intranet.example.com.", "192.168.1.50")}
+
+			Expect(sut.Resolve(ctx, req)).Should(HaveResponseType(ResponseTypeFILTERED))
+		})
 	})
 
 	When("a single-label domain is allowlisted", func() {
@@ -345,17 +436,17 @@ var _ = Describe("RebindingProtectionResolver", func() {
 		})
 	})
 
-	When("chained below a validating DNSSEC resolver", func() {
-		It("passes the synthetic filtered response through validation as insecure", func() {
-			// DNSSECResolver sits above this resolver in the server chain; the
-			// synthetic empty response carries no RRSIGs and must be treated as
-			// insecure/unsigned, not bogus (spec: "DNSSEC interplay")
+	When("chained above a validating DNSSEC resolver", func() {
+		It("filters the validated answer without extra DNSKEY/DS lookups", func() {
+			// the validator sits below this resolver in the server chain and sees
+			// the real upstream answer; the synthetic filtered response replaces it
+			// after validation and carries no AD flag (spec: "DNSSEC interplay")
 			mockAnswer.Answer = []dns.RR{rebindTestA("rebind.example.com.", "192.168.1.100")}
 
 			dnssecRes, err := NewDNSSECResolver(ctx, config.DNSSEC{Validate: true}, m)
 			Expect(err).Should(Succeed())
 
-			chained := Chain(dnssecRes, sut, m)
+			chained := Chain(sut, dnssecRes, m)
 
 			resp, err := chained.Resolve(ctx, newRequest("rebind.example.com.", A))
 			Expect(err).Should(Succeed())
@@ -364,25 +455,24 @@ var _ = Describe("RebindingProtectionResolver", func() {
 				HaveResponseType(ResponseTypeFILTERED),
 				HaveReturnCode(dns.RcodeSuccess),
 			))
-			// the validator must classify the unsigned synthetic response as insecure
-			// without issuing any DNSKEY/DS lookups — one upstream call only
+			// the unsigned answer is classified insecure without DNSKEY/DS
+			// lookups — one upstream call only
 			Expect(m.Calls).Should(HaveLen(1))
 			Expect(resp.Res.AuthenticatedData).Should(BeFalse())
 		})
 	})
 
-	When("chained below a caching resolver", func() {
-		It("serves repeat queries for a filtered domain from cache", func() {
+	When("chained above a caching resolver", func() {
+		It("re-inspects cached answers on every hit", func() {
 			mockAnswer.Answer = []dns.RR{rebindTestA("rebind.example.com.", "192.168.1.100")}
 
 			cachingCfg, err := config.WithDefaults[config.Caching]()
 			Expect(err).Should(Succeed())
 
-			// negative caching must be active for this spec: empty answers are cached for cfg.Caching.CacheTimeNegative (default 30m)
 			cachingRes, err := NewCachingResolver(ctx, cachingCfg, nil)
 			Expect(err).Should(Succeed())
 
-			chained := Chain(cachingRes, sut, m)
+			chained := Chain(sut, cachingRes, m)
 
 			By("first query is resolved upstream and filtered", func() {
 				resp, err := chained.Resolve(ctx, newRequest("rebind.example.com.", A))
@@ -395,16 +485,16 @@ var _ = Describe("RebindingProtectionResolver", func() {
 				Expect(m.Calls).Should(HaveLen(1))
 			})
 
-			By("second query is served from cache, still empty", func() {
+			By("second query hits the cache and is filtered again", func() {
 				resp, err := chained.Resolve(ctx, newRequest("rebind.example.com.", A))
 				Expect(err).Should(Succeed())
 				Expect(resp).Should(SatisfyAll(
 					HaveNoAnswer(),
-					HaveResponseType(ResponseTypeCACHED),
+					HaveResponseType(ResponseTypeFILTERED),
 					HaveReturnCode(dns.RcodeSuccess),
 				))
-				// the private answer never reached the cache and the upstream
-				// was not asked again
+				// the real answer is cached below this resolver and re-filtered
+				// on every hit; the upstream was not asked again
 				Expect(m.Calls).Should(HaveLen(1))
 			})
 		})
