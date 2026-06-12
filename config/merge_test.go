@@ -112,4 +112,63 @@ var _ = Describe("Config file merging", func() {
 			Expect(err.Error()).Should(ContainSubstring("unknown anchor"))
 		})
 	})
+
+	Describe("mergeConfigFiles", func() {
+		roundtrip := func(data []byte) map[interface{}]interface{} {
+			var m map[interface{}]interface{}
+
+			Expect(yaml.Unmarshal(data, &m)).Should(Succeed())
+
+			return m
+		}
+
+		It("merges the issue #1827 example: disjoint upstream groups", func() {
+			merged, err := mergeConfigFiles([]configFile{
+				{path: "00_default.yaml", data: []byte("upstreams:\n  groups:\n    default: [8.8.8.8]\n  strategy: parallel_best\n")},
+				{path: "10_local.yaml", data: []byte("upstreams:\n  groups:\n    192.168.0.0/16: [1.1.1.1]\n")},
+			})
+
+			Expect(err).Should(Succeed())
+			Expect(roundtrip(merged)).Should(Equal(yamlMap(
+				"upstreams: {groups: {default: [8.8.8.8], 192.168.0.0/16: [1.1.1.1]}, strategy: parallel_best}")))
+		})
+
+		It("applies files in the given order: later file wins", func() {
+			merged, err := mergeConfigFiles([]configFile{
+				{path: "a.yaml", data: []byte("log: {level: info}")},
+				{path: "b.yaml", data: []byte("log: {level: debug}")},
+			})
+
+			Expect(err).Should(Succeed())
+			Expect(roundtrip(merged)).Should(Equal(yamlMap("log: {level: debug}")))
+		})
+
+		It("merges documents within one file in order, like separate files", func() {
+			merged, err := mergeConfigFiles([]configFile{
+				{path: "multi.yaml", data: []byte("log: {level: info}\n---\nlog: {level: debug}\n")},
+			})
+
+			Expect(err).Should(Succeed())
+			Expect(roundtrip(merged)).Should(Equal(yamlMap("log: {level: debug}")))
+		})
+
+		It("returns nil when no file contains a document", func() {
+			merged, err := mergeConfigFiles([]configFile{
+				{path: "empty.yaml", data: []byte("")},
+			})
+
+			Expect(err).Should(Succeed())
+			Expect(merged).Should(BeNil())
+		})
+
+		It("names the offending file on parse errors", func() {
+			_, err := mergeConfigFiles([]configFile{
+				{path: "good.yaml", data: []byte("a: 1")},
+				{path: "bad.yaml", data: []byte("a: 1\na: 2\n")},
+			})
+
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("bad.yaml"))
+		})
+	})
 })

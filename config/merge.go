@@ -70,3 +70,38 @@ func decodeYAMLDocuments(data []byte) ([]map[interface{}]interface{}, error) {
 
 	return docs, nil
 }
+
+// configFile is one YAML file collected from a config folder.
+type configFile struct {
+	path string
+	data []byte
+}
+
+// mergeConfigFiles structurally merges config files in the given order and
+// returns the merged document marshaled back to YAML. Returns nil when no
+// file contains any document.
+func mergeConfigFiles(files []configFile) ([]byte, error) {
+	var merged map[interface{}]interface{}
+
+	for _, file := range files {
+		docs, err := decodeYAMLDocuments(file.data)
+		if err != nil {
+			return nil, fmt.Errorf("can't parse config file %s: %w", file.path, err)
+		}
+
+		for _, doc := range docs {
+			merged = mergeMaps(merged, doc)
+		}
+	}
+
+	if merged == nil {
+		return nil, nil
+	}
+
+	out, err := yaml.Marshal(merged)
+	if err != nil {
+		return nil, fmt.Errorf("can't marshal merged config: %w", err)
+	}
+
+	return out, nil
+}
