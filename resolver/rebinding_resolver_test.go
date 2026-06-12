@@ -378,6 +378,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			cachingCfg, err := config.WithDefaults[config.Caching]()
 			Expect(err).Should(Succeed())
 
+			// negative caching must be active for this spec: empty answers are cached for cfg.Caching.CacheTimeNegative (default 30m)
 			cachingRes, err := NewCachingResolver(ctx, cachingCfg, nil)
 			Expect(err).Should(Succeed())
 

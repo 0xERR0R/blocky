@@ -65,7 +65,8 @@ var _ = Describe("DNS rebinding protection", func() {
 				Expect(resp.Answer).Should(BeEmpty())
 			})
 
-			By("repeat query (served from cache) still filtered", func() {
+			// the cache-path proof (one upstream call, CACHED type) lives in the unit spec "chained below a caching resolver"
+			By("repeat query still filtered", func() {
 				resp, err := doDNSRequest(ctx, blocky, msg)
 				Expect(err).Should(Succeed())
 				Expect(resp.Rcode).Should(Equal(dns.RcodeSuccess))
@@ -77,6 +78,7 @@ var _ = Describe("DNS rebinding protection", func() {
 			msg := util.NewMsgWithQuestion("rebind6.example.com.", AAAA)
 			resp, err := doDNSRequest(ctx, blocky, msg)
 			Expect(err).Should(Succeed())
+			Expect(resp.Rcode).Should(Equal(dns.RcodeSuccess))
 			Expect(resp.Answer).Should(BeEmpty())
 		})
 
