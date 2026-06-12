@@ -74,6 +74,14 @@ var _ = Describe("RebindingProtection", func() {
 			Expect(cfg.validate()).Should(MatchError(ContainSubstring("plain domain")))
 		})
 
+		It("rejects entries with non-ASCII whitespace", func() {
+			// the rejected set must match the normalization's definition of
+			// whitespace (unicode.IsSpace), not just the ASCII subset
+			cfg.AllowedDomains = []string{"\u00a0intranet.example.com"}
+
+			Expect(cfg.validate()).Should(MatchError(ContainSubstring("plain domain")))
+		})
+
 		It("rejects dot-degenerate entries", func() {
 			cfg.AllowedDomains = []string{"."}
 
@@ -84,6 +92,23 @@ var _ = Describe("RebindingProtection", func() {
 			cfg.AllowedDomains = []string{"_dmarc.example.com", "xn--br-via.example.com", "host-1.example.com"}
 
 			Expect(cfg.validate()).Should(Succeed())
+		})
+	})
+
+	Describe("NormalizedAllowedDomains", func() {
+		It("returns entries lowercased and without trailing dot after validate", func() {
+			cfg.AllowedDomains = []string{"Intranet.Example.COM."}
+
+			Expect(cfg.validate()).Should(Succeed())
+			Expect(cfg.NormalizedAllowedDomains()).Should(ConsistOf("intranet.example.com"))
+		})
+
+		It("normalizes on the fly when validate has not run", func() {
+			// configs hand-built in tests skip validate; canonicalization must
+			// not depend on it
+			cfg.AllowedDomains = []string{"Router.LAN."}
+
+			Expect(cfg.NormalizedAllowedDomains()).Should(ConsistOf("router.lan"))
 		})
 	})
 })
