@@ -59,4 +59,57 @@ var _ = Describe("Config file merging", func() {
 			Expect(mergeMaps(nil, yamlMap("a: 1"))).Should(Equal(yamlMap("a: 1")))
 		})
 	})
+
+	Describe("decodeYAMLDocuments", func() {
+		It("decodes a single document", func() {
+			docs, err := decodeYAMLDocuments([]byte("log:\n  level: debug\n"))
+
+			Expect(err).Should(Succeed())
+			Expect(docs).Should(HaveLen(1))
+			Expect(docs[0]).Should(Equal(yamlMap("log: {level: debug}")))
+		})
+
+		It("decodes multiple documents separated by ---", func() {
+			docs, err := decodeYAMLDocuments([]byte("a: 1\n---\nb: 2\n"))
+
+			Expect(err).Should(Succeed())
+			Expect(docs).Should(HaveLen(2))
+		})
+
+		It("returns no documents for empty data", func() {
+			docs, err := decodeYAMLDocuments([]byte(""))
+
+			Expect(err).Should(Succeed())
+			Expect(docs).Should(BeEmpty())
+		})
+
+		It("returns no documents for comment-only data", func() {
+			docs, err := decodeYAMLDocuments([]byte("# nothing to see here\n"))
+
+			Expect(err).Should(Succeed())
+			Expect(docs).Should(BeEmpty())
+		})
+
+		It("rejects duplicate keys within one document", func() {
+			_, err := decodeYAMLDocuments([]byte("a: 1\na: 2\n"))
+
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("already set in map"))
+		})
+
+		It("rejects a non-mapping top level", func() {
+			_, err := decodeYAMLDocuments([]byte("- just\n- a list\n"))
+
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("must be a mapping"))
+		})
+
+		It("rejects an alias to an anchor from another file", func() {
+			// anchors only live within one document/file now — pin the error
+			_, err := decodeYAMLDocuments([]byte("a: *missing\n"))
+
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("unknown anchor"))
+		})
+	})
 })
