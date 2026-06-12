@@ -683,34 +683,12 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 		return nil, fmt.Errorf("can't read config file(s): %w", err)
 	}
 
-	var (
-		data       []byte
-		sources    []configFile
-		prettyPath string
-	)
-
-	if fs.IsDir() {
-		prettyPath = filepath.Join(path, "*")
-
-		sources, err = readFromDir(path)
-		if err != nil {
-			return nil, fmt.Errorf("can't read config files: %w", err)
-		}
-
-		logConfigSources(logger, sources)
-
-		data, err = mergeConfigFiles(sources)
-		if err != nil {
-			return nil, fmt.Errorf("can't merge config files: %w", err)
-		}
-	} else {
-		prettyPath = path
-
-		data, err = os.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("can't read config file: %w", err)
-		}
+	data, sources, prettyPath, err := readConfigSource(path, fs)
+	if err != nil {
+		return nil, err
 	}
+
+	logConfigSources(logger, sources)
 
 	cfg.CustomDNS.Zone.configPath = prettyPath
 
@@ -728,6 +706,38 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 	cfg.Conditional.NormalizeRewrites()
 
 	return &cfg, nil
+}
+
+// readConfigSource reads the raw config bytes for path, which is either a
+// single YAML file or a directory of YAML files merged in walk order. For a
+// directory it also returns the per-file sources, so the caller can log the
+// merge order (and attribute unmarshal errors to a file). prettyPath is the
+// user-facing path used in messages.
+func readConfigSource(path string, fs os.FileInfo) (data []byte, sources []configFile, prettyPath string, err error) {
+	if fs.IsDir() {
+		prettyPath = filepath.Join(path, "*")
+
+		sources, err = readFromDir(path)
+		if err != nil {
+			return nil, nil, "", fmt.Errorf("can't read config files: %w", err)
+		}
+
+		data, err = mergeConfigFiles(sources)
+		if err != nil {
+			return nil, nil, "", fmt.Errorf("can't merge config files: %w", err)
+		}
+
+		return data, sources, prettyPath, nil
+	}
+
+	prettyPath = path
+
+	data, err = os.ReadFile(path)
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("can't read config file: %w", err)
+	}
+
+	return data, sources, prettyPath, nil
 }
 
 // isYAMLFile checks if a file path has a YAML extension (.yml or .yaml)
