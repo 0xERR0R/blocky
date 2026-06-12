@@ -829,6 +829,9 @@ func unmarshalConfig(logger *logrus.Entry, data []byte, cfg *Config, sources []c
 		// keeping the underlying yaml error for detail. This never rejects a
 		// config blocky would accept: we only reach here because
 		// UnmarshalStrict already failed.
+		// In folder mode the yaml error's line numbers refer to the merged
+		// document, not any source file; the reconciled findings below carry
+		// the file attribution.
 		if lines := reconcileSchemaErrors(data, sources); len(lines) > 0 {
 			return fmt.Errorf("wrong file structure: %w\n%s", err, strings.Join(lines, "\n"))
 		}
