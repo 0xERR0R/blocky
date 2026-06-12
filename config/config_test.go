@@ -403,6 +403,27 @@ var _ = Describe("Config", func() {
 				Expect(err.Error()).Should(ContainSubstring("10_typo.yaml"))
 			})
 
+			It("attributes an unknown key introduced by a non-first document of a multi-doc file", func() {
+				// The bad key lives in the SECOND document of the file. Schema
+				// attribution must read every document of the source, not just
+				// the first one, so the file is still named (issue: yaml.v2's
+				// single-document Unmarshal in schema.ValidateYAML).
+				tmpDir.CreateStringFile("00_good.yaml", "log:", "  level: debug")
+				tmpDir.CreateStringFile("10_multidoc.yaml",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - 8.8.8.8",
+					"---",
+					"blocing:",
+					"  blockType: zeroIp",
+				)
+
+				_, err := LoadConfig(tmpDir.Path, true)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("10_multidoc.yaml"))
+			})
+
 			It("does not duplicate findings and never blames a valid-after-merge file", func() {
 				// 00_good.yaml sets blocking.denylists.ads to null; after merging
 				// 10_bad.yaml fills it with a real list. The merged doc is invalid

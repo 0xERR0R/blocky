@@ -862,7 +862,8 @@ func unmarshalConfig(logger *logrus.Entry, data []byte, cfg *Config, sources []c
 //
 // Algorithm:
 //   - mergedFindings = schema.ValidateYAML(data)  — ground truth post-merge.
-//   - perSource[i]   = set of finding strings from schema.ValidateYAML(sources[i].data).
+//   - perSource[i]   = set of finding strings from validating sources[i],
+//     merged with itself first so multi-document files are checked in full.
 //   - For each merged finding: emit one line per matching source file, or a
 //     plain line when no source file reproduces the finding.
 //
@@ -881,9 +882,17 @@ func reconcileSchemaErrors(data []byte, sources []configFile) []string {
 	for i, src := range sources {
 		set := make(map[string]struct{})
 
-		if srcErrs, sErr2 := schema.ValidateYAML(src.data); sErr2 == nil {
-			for _, e := range srcErrs {
-				set[e.String()] = struct{}{}
+		// Validate the source the same multi-document-aware way it was merged.
+		// schema.ValidateYAML uses yaml.v2's single-document Unmarshal, so a
+		// multi-document file (---) would otherwise only have its first
+		// document checked, dropping attribution for findings introduced by a
+		// later document. Merging the file with itself collapses its documents
+		// exactly as the real merge did, so attribution sees every document.
+		if srcData, mErr := mergeConfigFiles([]configFile{src}); mErr == nil {
+			if srcErrs, sErr2 := schema.ValidateYAML(srcData); sErr2 == nil {
+				for _, e := range srcErrs {
+					set[e.String()] = struct{}{}
+				}
 			}
 		}
 
