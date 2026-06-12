@@ -540,6 +540,9 @@ func createQueryResolver(
 		resolver.NewECSResolver(cfg.ECS),
 		condUpstream,
 		resolver.NewSpecialUseDomainNamesResolver(cfg.SUDN),
+		// directly above the upstream tree: only generic-upstream answers are
+		// inspected; conditional/custom DNS/hosts file/SUDN answers bypass it
+		resolver.NewRebindingProtectionResolver(cfg.RebindingProtection),
 		upstreamTree,
 	)
 
