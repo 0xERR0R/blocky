@@ -370,4 +370,42 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			Expect(resp.Res.AuthenticatedData).Should(BeFalse())
 		})
 	})
+
+	When("chained below a caching resolver", func() {
+		It("serves repeat queries for a filtered domain from cache", func() {
+			mockAnswer.Answer = []dns.RR{rebindTestA("rebind.example.com.", "192.168.1.100")}
+
+			cachingCfg, err := config.WithDefaults[config.Caching]()
+			Expect(err).Should(Succeed())
+
+			cachingRes, err := NewCachingResolver(ctx, cachingCfg, nil)
+			Expect(err).Should(Succeed())
+
+			chained := Chain(cachingRes, sut, m)
+
+			By("first query is resolved upstream and filtered", func() {
+				resp, err := chained.Resolve(ctx, newRequest("rebind.example.com.", A))
+				Expect(err).Should(Succeed())
+				Expect(resp).Should(SatisfyAll(
+					HaveNoAnswer(),
+					HaveResponseType(ResponseTypeFILTERED),
+					HaveReturnCode(dns.RcodeSuccess),
+				))
+				Expect(m.Calls).Should(HaveLen(1))
+			})
+
+			By("second query is served from cache, still empty", func() {
+				resp, err := chained.Resolve(ctx, newRequest("rebind.example.com.", A))
+				Expect(err).Should(Succeed())
+				Expect(resp).Should(SatisfyAll(
+					HaveNoAnswer(),
+					HaveResponseType(ResponseTypeCACHED),
+					HaveReturnCode(dns.RcodeSuccess),
+				))
+				// the private answer never reached the cache and the upstream
+				// was not asked again
+				Expect(m.Calls).Should(HaveLen(1))
+			})
+		})
+	})
 })
