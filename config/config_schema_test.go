@@ -12,7 +12,7 @@ var _ = Describe("schema-enriched config loading", func() {
 
 	When("config has an unknown key", func() {
 		It("returns a schema-enriched error naming the offending field", func() {
-			err := unmarshalConfig(logger, []byte("notARealKey: true\n"), &Config{})
+			err := unmarshalConfig(logger, []byte("notARealKey: true\n"), &Config{}, nil)
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring("notARealKey"))
 			// schema phrasing, not yaml's "not found in type ..."
@@ -24,7 +24,7 @@ var _ = Describe("schema-enriched config loading", func() {
 		It("loads without error and without schema warnings", func() {
 			data := []byte("upstreams:\n  groups:\n    default:\n      - 1.1.1.1\n")
 
-			err := unmarshalConfig(logger, data, &Config{})
+			err := unmarshalConfig(logger, data, &Config{}, nil)
 			Expect(err).Should(Succeed())
 			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("does not match schema")))
 		})
@@ -42,7 +42,7 @@ ports:
     - tls
 `)
 
-			err := unmarshalConfig(logger, data, &Config{})
+			err := unmarshalConfig(logger, data, &Config{}, nil)
 			Expect(err).Should(Succeed())
 			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("does not match schema")))
 		})
@@ -59,7 +59,7 @@ ports:
     - bogus
 `)
 
-			err := unmarshalConfig(logger, data, &Config{})
+			err := unmarshalConfig(logger, data, &Config{}, nil)
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring("proxyProtocol"))
 			Expect(err.Error()).Should(ContainSubstring("'dns', 'http', 'https', 'tls'"))
@@ -70,7 +70,7 @@ ports:
 		It("is accepted by both the parser and the schema", func() {
 			data := []byte("bootstrapDns:\n  - resolvFile: /etc/resolv.conf\n")
 
-			err := unmarshalConfig(logger, data, &Config{})
+			err := unmarshalConfig(logger, data, &Config{}, nil)
 			Expect(err).Should(Succeed())
 			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("does not match schema")))
 		})
@@ -87,7 +87,7 @@ ports:
 			data, err := os.ReadFile("testdata/superset_config.yml")
 			Expect(err).Should(Succeed())
 
-			err = unmarshalConfig(logger, data, &Config{})
+			err = unmarshalConfig(logger, data, &Config{}, nil)
 			Expect(err).Should(Succeed())
 			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("does not match schema")),
 				"every form in testdata/superset_config.yml must validate against the schema too")

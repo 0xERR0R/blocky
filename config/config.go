@@ -690,9 +690,9 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 
 	cfg.CustomDNS.Zone.configPath = prettyPath
 
-	err = unmarshalConfig(logger, data, &cfg)
+	err = unmarshalConfig(logger, data, &cfg, sources)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal config from %s: %w", prettyPath, attributeToSources(err, sources))
+		return nil, fmt.Errorf("failed to unmarshal config from %s: %w", prettyPath, err)
 	}
 
 	if err := cfg.Ports.validate(); err != nil {
@@ -819,15 +819,18 @@ func isRegularFile(path string) (bool, error) {
 	return isRegular, nil
 }
 
-func unmarshalConfig(logger *logrus.Entry, data []byte, cfg *Config) error {
+// unmarshalConfig decodes data into cfg. sources, when non-empty, are the
+// individual files that were merged to produce data; they are used to attribute
+// schema findings to specific source files on the error path.
+func unmarshalConfig(logger *logrus.Entry, data []byte, cfg *Config, sources []configFile) error {
 	err := yaml.UnmarshalStrict(data, cfg)
 	if err != nil {
 		// Enrich the already-failing path with field-path schema errors,
 		// keeping the underlying yaml error for detail. This never rejects a
 		// config blocky would accept: we only reach here because
 		// UnmarshalStrict already failed.
-		if schemaErrs, sErr := schema.ValidateYAML(data); sErr == nil && len(schemaErrs) > 0 {
-			return fmt.Errorf("wrong file structure: %w\n%s", err, formatSchemaErrors(schemaErrs))
+		if lines := reconcileSchemaErrors(data, sources); len(lines) > 0 {
+			return fmt.Errorf("wrong file structure: %w\n%s", err, strings.Join(lines, "\n"))
 		}
 
 		return fmt.Errorf("wrong file structure: %w", err)
@@ -851,14 +854,59 @@ func unmarshalConfig(logger *logrus.Entry, data []byte, cfg *Config) error {
 	return nil
 }
 
-// formatSchemaErrors renders schema findings as an indented bullet list.
-func formatSchemaErrors(errs []schema.Error) string {
-	lines := make([]string, 0, len(errs))
-	for _, e := range errs {
-		lines = append(lines, "  - "+e.String())
+// reconcileSchemaErrors validates the merged document and returns an indented
+// bullet list of findings attributed to their source files where possible.
+//
+// Algorithm:
+//   - mergedFindings = schema.ValidateYAML(data)  — ground truth post-merge.
+//   - perSource[i]   = set of finding strings from schema.ValidateYAML(sources[i].data).
+//   - For each merged finding: emit one line per matching source file, or a
+//     plain line when no source file reproduces the finding.
+//
+// Each merged finding appears exactly once. False per-file findings (not
+// present in the merged set) are never shown. With sources nil/empty every
+// finding is plain — byte-identical to the former single-file output.
+func reconcileSchemaErrors(data []byte, sources []configFile) []string {
+	mergedErrs, sErr := schema.ValidateYAML(data)
+	if sErr != nil || len(mergedErrs) == 0 {
+		return nil
 	}
 
-	return strings.Join(lines, "\n")
+	// Build a per-source set of finding strings for attribution.
+	perSource := make([]map[string]struct{}, len(sources))
+
+	for i, src := range sources {
+		set := make(map[string]struct{})
+
+		if srcErrs, sErr2 := schema.ValidateYAML(src.data); sErr2 == nil {
+			for _, e := range srcErrs {
+				set[e.String()] = struct{}{}
+			}
+		}
+
+		perSource[i] = set
+	}
+
+	// Emit each merged finding once, attributed to matching source files or plain.
+	lines := make([]string, 0, len(mergedErrs))
+
+	for _, f := range mergedErrs {
+		key := f.String()
+		attributed := false
+
+		for i, src := range sources {
+			if _, ok := perSource[i][key]; ok {
+				lines = append(lines, "  - "+src.path+": "+key)
+				attributed = true
+			}
+		}
+
+		if !attributed {
+			lines = append(lines, "  - "+key)
+		}
+	}
+
+	return lines
 }
 
 func (cfg *Config) migrate(logger *logrus.Entry) bool {

@@ -191,8 +191,12 @@ var _ = Describe("Config file merging", func() {
 				sb.WriteString(line)
 			}
 
-			_, err := decodeYAMLDocuments([]byte(sb.String()))
+			// Go through mergeConfigFiles so the file-name wrapping of the cap
+			// error is pinned ("can't parse config file ...") in addition to
+			// the expansion-limit message.
+			_, err := mergeConfigFiles([]configFile{{path: "bomb.yaml", data: []byte(sb.String())}})
 			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("can't parse config file"))
 			Expect(err.Error()).Should(ContainSubstring("alias expansion"))
 			Expect(err.Error()).Should(ContainSubstring("limit"))
 		})

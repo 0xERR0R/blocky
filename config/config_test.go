@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -401,6 +402,43 @@ var _ = Describe("Config", func() {
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("10_typo.yaml"))
 			})
+
+			It("does not duplicate findings and never blames a valid-after-merge file", func() {
+				// 00_good.yaml sets blocking.denylists.ads to null; after merging
+				// 10_bad.yaml fills it with a real list. The merged doc is invalid
+				// only because of blocking.badkey from 10_bad.yaml.
+				// Before the reconciliation fix, 00_good.yaml was falsely blamed
+				// for a null-ads finding and the badkey line appeared twice.
+				tmpDir.CreateStringFile("00_good.yaml",
+					"blocking:",
+					"  denylists:",
+					"    ads:",
+				)
+				tmpDir.CreateStringFile("10_bad.yaml",
+					"blocking:",
+					"  denylists:",
+					"    ads:",
+					"      - http://x",
+					"  badkey: 1",
+				)
+
+				_, err := LoadConfig(tmpDir.Path, true)
+				Expect(err).Should(HaveOccurred())
+
+				errStr := err.Error()
+
+				// "badkey" must appear at most twice: once in the yaml unmarshal
+				// error and once in the attributed schema line. It must NOT appear
+				// three times (which would mean both an unattributed and an
+				// attributed schema line).
+				Expect(strings.Count(errStr, "badkey")).Should(BeNumerically("<=", 2))
+
+				// The good file that is only valid after merging must not be blamed.
+				Expect(errStr).ShouldNot(ContainSubstring("00_good.yaml"))
+
+				// The bad file that introduced the unknown key must be blamed.
+				Expect(errStr).Should(ContainSubstring("10_bad.yaml"))
+			})
 		})
 		When("a single config file contains duplicate keys", func() {
 			It("keeps the single-file error shape, proving the merge path is not used", func() {
@@ -439,7 +477,7 @@ var _ = Describe("Config", func() {
 blocking:
   loading:
     refreshPeriod: wrongduration`
-				err := unmarshalConfig(logger, []byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg, nil)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("invalid duration \"wrongduration\""))
 			})
@@ -450,7 +488,7 @@ blocking:
 				data := `customDNS:
   mapping:
     someDomain: 192.168.178.WRONG`
-				err := unmarshalConfig(logger, []byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg, nil)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("invalid IP address '192.168.178.WRONG'"))
 			})
@@ -461,7 +499,7 @@ blocking:
 				data := `customDNS:
   mapping:
     someDomain: 2001:MALFORMED:IP:ADDRESS:0000:8a2e:0370:7334`
-				err := unmarshalConfig(logger, []byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg, nil)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("invalid IP address '2001:MALFORMED:IP:ADDRESS:0000:8a2e:0370:7334'"))
 			})
@@ -472,7 +510,7 @@ blocking:
 				data := `conditional:
   mapping:
     multiple.resolvers: 192.168.178.1,wrongprotocol:4.4.4.4:53`
-				err := unmarshalConfig(logger, []byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg, nil)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("wrong host name 'wrongprotocol:4.4.4.4:53'"))
 			})
@@ -485,7 +523,7 @@ blocking:
     - 8.8.8.8
     - wrongprotocol:8.8.4.4
     - 1.1.1.1`
-				err := unmarshalConfig(logger, []byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg, nil)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("can't convert upstream 'wrongprotocol:8.8.4.4'"))
 			})
@@ -497,7 +535,7 @@ blocking:
   queryTypes:
     - invalidqtype
 `
-				err := unmarshalConfig(logger, []byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg, nil)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("unknown DNS query type: 'invalidqtype'"))
 			})
@@ -508,7 +546,7 @@ blocking:
 				cfg := Config{}
 				data := "bootstrapDns: 0.0.0.0"
 
-				err := unmarshalConfig(logger, []byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg, nil)
 				Expect(err).Should(Succeed())
 				Expect(cfg.BootstrapDNS[0].Upstream.Host).Should(Equal("0.0.0.0"))
 			})
@@ -520,7 +558,7 @@ bootstrapDns:
   ips:
     - 0.0.0.0
 `
-				err := unmarshalConfig(logger, []byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg, nil)
 				Expect(err).Should(Succeed())
 				Expect(cfg.BootstrapDNS[0].Upstream.Host).Should(Equal("dns.example.com"))
 				Expect(cfg.BootstrapDNS[0].IPs).Should(HaveLen(1))
@@ -534,7 +572,7 @@ bootstrapDns:
       - 0.0.0.0
   - upstream: 1.2.3.4
 `
-				err := unmarshalConfig(logger, []byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg, nil)
 				Expect(err).Should(Succeed())
 				Expect(cfg.BootstrapDNS).Should(HaveLen(2))
 				Expect(cfg.BootstrapDNS[0].Upstream.Host).Should(Equal("dns.example.com"))
@@ -549,7 +587,7 @@ bootstrapDns:
 			It("should return error", func() {
 				cfg := Config{}
 				data := `///`
-				err := unmarshalConfig(logger, []byte(data), &cfg)
+				err := unmarshalConfig(logger, []byte(data), &cfg, nil)
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring("cannot unmarshal !!str `///`"))
 			})
