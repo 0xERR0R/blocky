@@ -28,6 +28,54 @@ invalid values with their field path. Schema validation is a structural
 first pass; blocky still performs its full semantic checks when loading the
 configuration.
 
+## Multiple configuration files
+
+Instead of a single file, `--config` can point to a **folder**. Blocky then loads every `*.yml` and `*.yaml`
+file in that folder (subfolders included) and merges them into one configuration:
+
+- Files are applied in **lexical (alphabetical) path order** — use number prefixes like `00_base.yml`,
+  `10_local.yml` to make the order explicit. Blocky logs the merge order at startup.
+- **Mappings merge recursively**: keys from later files are added; keys present on both sides merge field by
+  field.
+- **Everything else is replaced**: when several files set the same scalar or list, the last file wins,
+  wholesale. Lists are never concatenated.
+- Duplicate keys *within one file* are still an error, and each file must be valid YAML on its own
+  (YAML anchors and aliases work within a file, but not across files). A file may contain multiple
+  `---`-separated documents; they merge in document order, like separate files.
+
+!!! example
+
+    `config/00_base.yml` — checked into your repo:
+
+    ```yaml
+    upstreams:
+      groups:
+        default:
+          - 9.9.9.9
+      strategy: parallel_best
+    ```
+
+    `config/10_local.yml` — host-specific overlay:
+
+    ```yaml
+    upstreams:
+      groups:
+        192.168.0.0/16:
+          - 1.1.1.1
+    ```
+
+    Effective configuration:
+
+    ```yaml
+    upstreams:
+      groups:
+        default:
+          - 9.9.9.9
+        192.168.0.0/16:
+          - 1.1.1.1
+      strategy: parallel_best
+    ```
+
 ## Basic configuration
 
 | Parameter          | Type                | Mandatory | Default value | Description                                                                                                |

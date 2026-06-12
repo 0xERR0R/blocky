@@ -685,30 +685,14 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 		return nil, fmt.Errorf("can't read config file(s): %w", err)
 	}
 
-	var (
-		data       []byte
-		prettyPath string
-	)
-
-	if fs.IsDir() {
-		prettyPath = filepath.Join(path, "*")
-
-		data, err = readFromDir(path, data)
-		if err != nil {
-			return nil, fmt.Errorf("can't read config files: %w", err)
-		}
-	} else {
-		prettyPath = path
-
-		data, err = os.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("can't read config file: %w", err)
-		}
+	data, sources, prettyPath, err := readConfigSource(logger, path, fs)
+	if err != nil {
+		return nil, err
 	}
 
 	cfg.CustomDNS.Zone.configPath = prettyPath
 
-	err = unmarshalConfig(logger, data, &cfg)
+	err = unmarshalConfig(logger, data, &cfg, sources)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config from %s: %w", prettyPath, err)
 	}
@@ -724,12 +708,52 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 	return &cfg, nil
 }
 
+// readConfigSource reads the raw config bytes for path, which is either a
+// single YAML file or a directory of YAML files merged in walk order. For a
+// directory it logs the merge order (so failures still name the files), then
+// merges and returns the per-file sources for post-merge error attribution.
+// prettyPath is the user-facing path used in error messages.
+func readConfigSource(
+	logger *logrus.Entry, path string, fs os.FileInfo,
+) (data []byte, sources []configFile, prettyPath string, err error) {
+	if fs.IsDir() {
+		prettyPath = filepath.Join(path, "*")
+
+		sources, err = readFromDir(path)
+		if err != nil {
+			return nil, nil, "", fmt.Errorf("can't read config files: %w", err)
+		}
+
+		logConfigSources(logger, sources)
+
+		data, err = mergeConfigFiles(sources)
+		if err != nil {
+			return nil, nil, "", fmt.Errorf("can't merge config files: %w", err)
+		}
+
+		return data, sources, prettyPath, nil
+	}
+
+	prettyPath = path
+
+	data, err = os.ReadFile(path)
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("can't read config file: %w", err)
+	}
+
+	return data, sources, prettyPath, nil
+}
+
 // isYAMLFile checks if a file path has a YAML extension (.yml or .yaml)
 func isYAMLFile(filePath string) bool {
 	return strings.HasSuffix(filePath, ".yml") || strings.HasSuffix(filePath, ".yaml")
 }
 
-func readFromDir(path string, data []byte) ([]byte, error) {
+// readFromDir collects all YAML config files under path in lexical walk
+// order, which defines the merge precedence (later files win).
+func readFromDir(path string) ([]configFile, error) {
+	var files []configFile
+
 	err := filepath.WalkDir(path, func(filePath string, d os.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("error accessing %s: %w", filePath, err)
@@ -759,8 +783,7 @@ func readFromDir(path string, data []byte) ([]byte, error) {
 			return fmt.Errorf("failed to read config file %s: %w", filePath, err)
 		}
 
-		data = append(data, []byte("\n")...)
-		data = append(data, fileData...)
+		files = append(files, configFile{path: filePath, data: fileData})
 
 		return nil
 	})
@@ -768,7 +791,22 @@ func readFromDir(path string, data []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to walk directory %s: %w", path, err)
 	}
 
-	return data, nil
+	return files, nil
+}
+
+// logConfigSources logs the merge order so users can tell which file wins a
+// conflict.
+func logConfigSources(logger *logrus.Entry, files []configFile) {
+	if len(files) == 0 {
+		return
+	}
+
+	paths := make([]string, 0, len(files))
+	for _, f := range files {
+		paths = append(paths, f.path)
+	}
+
+	logger.Infof("loading config files in merge order (later files win conflicts): %s", strings.Join(paths, ", "))
 }
 
 // isRegularFile follows symlinks, so the result is `true` for a symlink to a regular file.
@@ -783,15 +821,21 @@ func isRegularFile(path string) (bool, error) {
 	return isRegular, nil
 }
 
-func unmarshalConfig(logger *logrus.Entry, data []byte, cfg *Config) error {
+// unmarshalConfig decodes data into cfg. sources, when non-empty, are the
+// individual files that were merged to produce data; they are used to attribute
+// schema findings to specific source files on the error path.
+func unmarshalConfig(logger *logrus.Entry, data []byte, cfg *Config, sources []configFile) error {
 	err := yaml.UnmarshalStrict(data, cfg)
 	if err != nil {
 		// Enrich the already-failing path with field-path schema errors,
 		// keeping the underlying yaml error for detail. This never rejects a
 		// config blocky would accept: we only reach here because
 		// UnmarshalStrict already failed.
-		if schemaErrs, sErr := schema.ValidateYAML(data); sErr == nil && len(schemaErrs) > 0 {
-			return fmt.Errorf("wrong file structure: %w\n%s", err, formatSchemaErrors(schemaErrs))
+		// In folder mode the yaml error's line numbers refer to the merged
+		// document, not any source file; the reconciled findings below carry
+		// the file attribution.
+		if lines := reconcileSchemaErrors(data, sources); len(lines) > 0 {
+			return fmt.Errorf("wrong file structure: %w\n%s", err, strings.Join(lines, "\n"))
 		}
 
 		return fmt.Errorf("wrong file structure: %w", err)
@@ -815,14 +859,68 @@ func unmarshalConfig(logger *logrus.Entry, data []byte, cfg *Config) error {
 	return nil
 }
 
-// formatSchemaErrors renders schema findings as an indented bullet list.
-func formatSchemaErrors(errs []schema.Error) string {
-	lines := make([]string, 0, len(errs))
-	for _, e := range errs {
-		lines = append(lines, "  - "+e.String())
+// reconcileSchemaErrors validates the merged document and returns an indented
+// bullet list of findings attributed to their source files where possible.
+//
+// Algorithm:
+//   - mergedFindings = schema.ValidateYAML(data)  — ground truth post-merge.
+//   - perSource[i]   = set of finding strings from validating sources[i],
+//     merged with itself first so multi-document files are checked in full.
+//   - For each merged finding: emit one line per matching source file, or a
+//     plain line when no source file reproduces the finding.
+//
+// Each merged finding appears exactly once. False per-file findings (not
+// present in the merged set) are never shown. With sources nil/empty every
+// finding is plain — byte-identical to the former single-file output.
+func reconcileSchemaErrors(data []byte, sources []configFile) []string {
+	mergedErrs, sErr := schema.ValidateYAML(data)
+	if sErr != nil || len(mergedErrs) == 0 {
+		return nil
 	}
 
-	return strings.Join(lines, "\n")
+	// Build a per-source set of finding strings for attribution.
+	perSource := make([]map[string]struct{}, len(sources))
+
+	for i, src := range sources {
+		set := make(map[string]struct{})
+
+		// Validate the source the same multi-document-aware way it was merged.
+		// schema.ValidateYAML uses yaml.v2's single-document Unmarshal, so a
+		// multi-document file (---) would otherwise only have its first
+		// document checked, dropping attribution for findings introduced by a
+		// later document. Merging the file with itself collapses its documents
+		// exactly as the real merge did, so attribution sees every document.
+		if srcData, mErr := mergeConfigFiles([]configFile{src}); mErr == nil {
+			if srcErrs, sErr2 := schema.ValidateYAML(srcData); sErr2 == nil {
+				for _, e := range srcErrs {
+					set[e.String()] = struct{}{}
+				}
+			}
+		}
+
+		perSource[i] = set
+	}
+
+	// Emit each merged finding once, attributed to matching source files or plain.
+	lines := make([]string, 0, len(mergedErrs))
+
+	for _, f := range mergedErrs {
+		key := f.String()
+		attributed := false
+
+		for i, src := range sources {
+			if _, ok := perSource[i][key]; ok {
+				lines = append(lines, "  - "+src.path+": "+key)
+				attributed = true
+			}
+		}
+
+		if !attributed {
+			lines = append(lines, "  - "+key)
+		}
+	}
+
+	return lines
 }
 
 func (cfg *Config) migrate(logger *logrus.Entry) bool {
