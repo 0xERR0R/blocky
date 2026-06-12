@@ -2,6 +2,8 @@ package resolver
 
 import (
 	"context"
+	"maps"
+	"sync"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -120,8 +122,19 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				// sut is already built in JustBeforeEach, so the load-time
 				// BlockingCacheGroupChanged events have fired and a subscriber that
 				// registers now (like the later-built stats resolver) has missed them.
+				// The re-publish runs in a goroutine, so guard the map: the handler
+				// writes it concurrently with the Eventually poll that reads it.
+				var mu sync.Mutex
 				groupCnt := make(map[string]int)
-				handler := func(listType lists.ListCacheType, group string, cnt int) {
+				snapshot := func() map[string]int {
+					mu.Lock()
+					defer mu.Unlock()
+
+					return maps.Clone(groupCnt)
+				}
+				handler := func(_ lists.ListCacheType, group string, cnt int) {
+					mu.Lock()
+					defer mu.Unlock()
 					groupCnt[group] = cnt
 				}
 				Expect(Bus().Subscribe(BlockingCacheGroupChanged, handler)).Should(Succeed())
@@ -130,11 +143,11 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				})
 
 				// the late subscriber has not seen any counts yet
-				Expect(groupCnt).Should(BeEmpty())
+				Expect(snapshot()).Should(BeEmpty())
 
 				Bus().Publish(ApplicationStarted, "version", "buildtime")
 
-				Eventually(groupCnt, "1s").Should(SatisfyAll(
+				Eventually(snapshot, "1s").Should(SatisfyAll(
 					HaveKeyWithValue("gr1", 1),
 					HaveKeyWithValue("gr2", 1),
 				))
