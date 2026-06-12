@@ -129,22 +129,10 @@ func (r *SpecialUseDomainNamesResolver) Resolve(ctx context.Context, request *mo
 }
 
 func (r *SpecialUseDomainNamesResolver) handler(request *model.Request) sudnHandler {
-	q := request.Req.Question[0]
-	domain := q.Name
+	// DNS names are case-insensitive (RFC 4343); the sudnHandlers keys are lowercase
+	_, handler, _ := searchDomainOrParent(sudnHandlers, strings.ToLower(request.Req.Question[0].Name))
 
-	for {
-		handler, ok := sudnHandlers[domain]
-		if ok {
-			return handler
-		}
-
-		_, after, ok := strings.Cut(domain, ".")
-		if !ok {
-			return nil
-		}
-
-		domain = after
-	}
+	return handler
 }
 
 func newSUDNResponse(response *model.Request, rcode int) *model.Response {

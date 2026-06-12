@@ -446,6 +446,67 @@ var _ = Describe("CachingResolver", func() {
 		})
 	})
 
+	Describe("Responses from trusted local sources", func() {
+		BeforeEach(func() {
+			mockAnswer, _ = util.NewMsgWithAnswer("router.home.lab.", 600, A, "192.168.2.1")
+		})
+
+		// the rebinding protection resolver sits above the cache and inspects
+		// CACHED responses; storing answers from trusted local sources would
+		// re-serve them re-labeled as CACHED and subject them to inspection
+		DescribeTable("does not cache them, keeping their response type on repeat queries",
+			func(rType ResponseType) {
+				m = &mockResolver{}
+				m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer, RType: rType}, nil)
+				sut.Next(m)
+
+				By("first request", func() {
+					Expect(sut.Resolve(ctx, newRequest("router.home.lab.", A))).
+						Should(SatisfyAll(
+							HaveResponseType(rType),
+							BeDNSRecord("router.home.lab.", A, "192.168.2.1"),
+						))
+
+					Expect(m.Calls).Should(HaveLen(1))
+				})
+
+				By("second request", func() {
+					Expect(sut.Resolve(ctx, newRequest("router.home.lab.", A))).
+						Should(SatisfyAll(
+							HaveResponseType(rType),
+							BeDNSRecord("router.home.lab.", A, "192.168.2.1"),
+						))
+
+					// served fresh, not from the cache
+					Expect(m.Calls).Should(HaveLen(2))
+				})
+			},
+			Entry("conditional upstream", ResponseTypeCONDITIONAL),
+			Entry("special-use domain", ResponseTypeSPECIAL),
+		)
+
+		It("still caches DNS64-synthesized answers (upstream-derived)", func() {
+			m = &mockResolver{}
+			m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer, RType: ResponseTypeSYNTHESIZED}, nil)
+			sut.Next(m)
+
+			By("first request", func() {
+				Expect(sut.Resolve(ctx, newRequest("router.home.lab.", A))).
+					Should(HaveResponseType(ResponseTypeSYNTHESIZED))
+
+				Expect(m.Calls).Should(HaveLen(1))
+			})
+
+			By("second request", func() {
+				Expect(sut.Resolve(ctx, newRequest("router.home.lab.", A))).
+					Should(HaveResponseType(ResponseTypeCACHED))
+
+				// still one call to the next resolver
+				Expect(m.Calls).Should(HaveLen(1))
+			})
+		})
+	})
+
 	Describe("Negative cache (caching if upstream resolver returns NXDOMAIN)", func() {
 		Context("Caching if upstream resolver returns NXDOMAIN", func() {
 			When("Upstream resolver returns NXDOMAIN with caching", func() {
