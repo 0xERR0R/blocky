@@ -437,10 +437,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#grafana-configuration" class="md-nav__link">
+  <a href="#requirements" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Grafana configuration
+        Requirements
       
     </span>
   </a>
@@ -635,10 +635,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#grafana-configuration" class="md-nav__link">
+  <a href="#requirements" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Grafana configuration
+        Requirements
       
     </span>
   </a>
@@ -796,6 +796,18 @@
 <td>blocky_redis_cache_buffer_drops_total</td>
 <td>Counter of cache writes dropped because the Redis write-through buffer is full — non-zero values indicate Redis cannot keep up with cache writes</td>
 </tr>
+<tr>
+<td>blocky_rate_limit_drops_total</td>
+<td>Counter of queries dropped by the rate limiter, partitioned by protocol</td>
+</tr>
+<tr>
+<td>blocky_rate_limit_cap_exhausted_total</td>
+<td>Counter of queries dropped because the rate limiter bucket store was full</td>
+</tr>
+<tr>
+<td>blocky_rate_limit_active_buckets</td>
+<td>Gauge of token buckets (≈ distinct clients) currently tracked by the rate limiter</td>
+</tr>
 </tbody>
 </table>
 <h3 id="grafana-dashboard">Grafana dashboard</h3>
@@ -803,11 +815,20 @@
 definition <a href="../blocky-grafana.json">as JSON</a>
 or <a href="https://grafana.com/grafana/dashboards/13768">at grafana.com</a>
 <img alt="grafana-dashboard" src="../grafana-dashboard.png" />.</p>
-<p>This dashboard shows all relevant statistics and allows enabling and disabling the blocking status.</p>
-<h3 id="grafana-configuration">Grafana configuration</h3>
-<p>Please install <code>grafana-piechart-panel</code> and
-set <a href="https://grafana.com/docs/grafana/latest/installation/configuration/#disable_sanitize_html">disable_sanitize_html</a>
-in config or as env to use control buttons to enable/disable the blocking status.</p>
+<p>The dashboard is organized in sections (overview, traffic, latency, blocking &amp; lists, cache &amp; prefetching, <abbr title="Domain Name System Security Extensions">DNSSEC</abbr>,
+rate limiting, Go runtime) and uses only Grafana core panels, so no additional plugins are needed. The "Blocking
+control" buttons in the overview section enable or temporarily disable blocking via the blocky <abbr title="Application Programming Interface">API</abbr>.</p>
+<p>When importing the dashboard, set the "blocky <abbr title="Application Programming Interface">API</abbr> URL" input to the address under which your browser can reach the
+blocky <abbr title="Hypertext Transfer Protocol">HTTP</abbr> <abbr title="Application Programming Interface">API</abbr> (e.g. <code>https://blocky.example.com</code> or <code>http://192.168.1.2:4000</code>) — it is used by the blocking
+control buttons.</p>
+<h3 id="requirements">Requirements</h3>
+<ul>
+<li>Grafana 10.2 or newer: the blocking control buttons use canvas button elements with <abbr title="Application Programming Interface">API</abbr> calls. All other panels
+  also work with older Grafana versions.</li>
+<li>blocky newer than v0.31 if Grafana is served from a different origin than the blocky <abbr title="Application Programming Interface">API</abbr>: older blocky versions
+  reject the CORS preflight which Grafana sends for the blocking control buttons. Alternatively, expose the blocky
+  <abbr title="Application Programming Interface">API</abbr> on the same origin as Grafana through your reverse proxy.</li>
+</ul>
 <h3 id="grafana-and-prometheus-example-project">Grafana and Prometheus example project</h3>
 <p>This <a href="https://github.com/0xERR0R/blocky-grafana-prometheus-example">repo</a> contains example docker-compose.yml with
 blocky, prometheus (with configured scraper for blocky) and grafana with prometheus datasource.</p>
