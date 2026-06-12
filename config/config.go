@@ -685,15 +685,23 @@ func loadConfig(logger *logrus.Entry, path string, mandatory bool) (rCfg *Config
 
 	var (
 		data       []byte
+		sources    []configFile
 		prettyPath string
 	)
 
 	if fs.IsDir() {
 		prettyPath = filepath.Join(path, "*")
 
-		data, err = readFromDir(path, data)
+		sources, err = readFromDir(path)
 		if err != nil {
 			return nil, fmt.Errorf("can't read config files: %w", err)
+		}
+
+		logConfigSources(logger, sources)
+
+		data, err = mergeConfigFiles(sources)
+		if err != nil {
+			return nil, fmt.Errorf("can't merge config files: %w", err)
 		}
 	} else {
 		prettyPath = path
@@ -727,7 +735,11 @@ func isYAMLFile(filePath string) bool {
 	return strings.HasSuffix(filePath, ".yml") || strings.HasSuffix(filePath, ".yaml")
 }
 
-func readFromDir(path string, data []byte) ([]byte, error) {
+// readFromDir collects all YAML config files under path in lexical walk
+// order, which defines the merge precedence (later files win).
+func readFromDir(path string) ([]configFile, error) {
+	var files []configFile
+
 	err := filepath.WalkDir(path, func(filePath string, d os.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("error accessing %s: %w", filePath, err)
@@ -757,8 +769,7 @@ func readFromDir(path string, data []byte) ([]byte, error) {
 			return fmt.Errorf("failed to read config file %s: %w", filePath, err)
 		}
 
-		data = append(data, []byte("\n")...)
-		data = append(data, fileData...)
+		files = append(files, configFile{path: filePath, data: fileData})
 
 		return nil
 	})
@@ -766,7 +777,22 @@ func readFromDir(path string, data []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to walk directory %s: %w", path, err)
 	}
 
-	return data, nil
+	return files, nil
+}
+
+// logConfigSources logs the merge order so users can tell which file wins a
+// conflict.
+func logConfigSources(logger *logrus.Entry, files []configFile) {
+	if len(files) == 0 {
+		return
+	}
+
+	paths := make([]string, 0, len(files))
+	for _, f := range files {
+		paths = append(paths, f.path)
+	}
+
+	logger.Infof("loading config files in merge order (later files win conflicts): %s", strings.Join(paths, ", "))
 }
 
 // isRegularFile follows symlinks, so the result is `true` for a symlink to a regular file.

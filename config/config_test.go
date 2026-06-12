@@ -285,6 +285,115 @@ var _ = Describe("Config", func() {
 				Expect(err).Should(Succeed())
 			})
 		})
+		When("multiple config files share keys", func() {
+			It("merges maps across files (issue #1827)", func() {
+				tmpDir.CreateStringFile("00_default.yaml",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - 8.8.8.8",
+				)
+				tmpDir.CreateStringFile("10_local.yaml",
+					"upstreams:",
+					"  groups:",
+					"    192.168.0.0/16:",
+					"      - 1.1.1.1",
+				)
+
+				c, err := LoadConfig(tmpDir.Path, true)
+				Expect(err).Should(Succeed())
+				Expect(c.Upstreams.Groups).Should(HaveLen(2))
+				Expect(c.Upstreams.Groups).Should(HaveKey("default"))
+				Expect(c.Upstreams.Groups).Should(HaveKey("192.168.0.0/16"))
+			})
+
+			It("lets the last file win scalar and list conflicts", func() {
+				tmpDir.CreateStringFile("00_default.yaml",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - 8.8.8.8",
+					"      - 8.8.4.4",
+					"log:",
+					"  level: info",
+				)
+				tmpDir.CreateStringFile("10_local.yaml",
+					"upstreams:",
+					"  groups:",
+					"    default:",
+					"      - 1.1.1.1",
+					"log:",
+					"  level: debug",
+				)
+
+				c, err := LoadConfig(tmpDir.Path, true)
+				Expect(err).Should(Succeed())
+				Expect(c.Upstreams.Groups["default"]).Should(HaveLen(1))
+				Expect(c.Log.Level).Should(Equal(logrus.DebugLevel))
+			})
+
+			It("still rejects duplicate keys within one file, naming the file", func() {
+				tmpDir.CreateStringFile("bad.yaml",
+					"log:",
+					"  level: debug",
+					"log:",
+					"  level: info",
+				)
+
+				_, err := LoadConfig(tmpDir.Path, true)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("bad.yaml"))
+				Expect(err.Error()).Should(ContainSubstring("already set in map"))
+			})
+
+			It("rejects a file whose top level is not a mapping, naming the file", func() {
+				tmpDir.CreateStringFile("list.yaml", "- not", "- a", "- mapping")
+
+				_, err := LoadConfig(tmpDir.Path, true)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("list.yaml"))
+				Expect(err.Error()).Should(ContainSubstring("must be a mapping"))
+			})
+
+			It("skips empty and comment-only files", func() {
+				tmpDir.CreateStringFile("00_real.yaml", "log:", "  level: debug")
+				tmpDir.CreateEmptyFile("10_empty.yaml")
+				tmpDir.CreateStringFile("20_comments.yaml", "# overlay placeholder")
+
+				c, err := LoadConfig(tmpDir.Path, true)
+				Expect(err).Should(Succeed())
+				Expect(c.Log.Level).Should(Equal(logrus.DebugLevel))
+			})
+
+			It("merges multi-document files in document order", func() {
+				tmpDir.CreateStringFile("multi.yaml",
+					"log:",
+					"  level: info",
+					"---",
+					"log:",
+					"  level: debug",
+				)
+
+				c, err := LoadConfig(tmpDir.Path, true)
+				Expect(err).Should(Succeed())
+				Expect(c.Log.Level).Should(Equal(logrus.DebugLevel))
+			})
+		})
+		When("a single config file contains duplicate keys", func() {
+			It("keeps the single-file error shape, proving the merge path is not used", func() {
+				cfgFile := tmpDir.CreateStringFile("config.yml",
+					"log:",
+					"  level: debug",
+					"log:",
+					"  level: info",
+				)
+
+				_, err := LoadConfig(cfgFile.Path, true)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("wrong file structure"))
+				Expect(err.Error()).ShouldNot(ContainSubstring("can't parse config file"))
+			})
+		})
 		When("Config folder does not exist", func() {
 			It("should fail", func() {
 				_, err := LoadConfig(tmpDir.JoinPath("does-not-exist-config/"), true)
