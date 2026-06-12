@@ -493,6 +493,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#dns-rebinding-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DNS rebinding protection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#rate-limiting-per-client-ip" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1736,6 +1747,17 @@
     <span class="md-ellipsis">
       
         Filtering
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dns-rebinding-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DNS rebinding protection
       
     </span>
   </a>
@@ -3021,6 +3043,14 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">  </span><span class="nt">queryTypes</span><span class="p">:</span>
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AAAA</span>
 
+<span class="c1"># optional: DNS rebinding protection. When enabled, answers from the general</span>
+<span class="c1"># upstreams containing private, loopback, link-local or unspecified IPs are</span>
+<span class="c1"># dropped. allowedDomains exempts split-horizon domains (incl. subdomains).</span>
+<span class="nt">rebindingProtection</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">allowedDomains</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">intranet.example.com</span>
+
 <span class="c1"># optional: per-client DNS query rate limiting at the head of the resolver chain.</span>
 <span class="c1"># Intended for misbehaving clients, runaway scripts, and low-volume amplification</span>
 <span class="c1"># abuse — NOT a DDoS defense (run fail2ban or crowdsec at the firewall for that).</span>
@@ -3812,6 +3842,89 @@ advertised in those records, bypassing the <code>AAAA</code> filter. Other SvcPa
 are left untouched. Because stripping a hint changes the record, any <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> signature on the
 affected <code>HTTPS</code>/<code>SVCB</code> record is removed and the <code>AD</code> (authenticated data) flag is cleared for
 that response.</p>
+<h2 id="dns-rebinding-protection"><abbr title="Domain Name System">DNS</abbr> rebinding protection</h2>
+<p>In a <abbr title="Domain Name System">DNS</abbr> rebinding attack, an attacker-controlled domain first resolves to a public IP, then
+re-resolves to a private address, letting a victim's browser reach devices on the local network
+under the attacker's origin. When this protection is enabled, blocky drops any answer from the
+general upstream resolvers that contains a non-public IP address — in <code>A</code>/<code>AAAA</code> records or in
+<code>ipv4hint</code>/<code>ipv6hint</code> SvcParams of <code>HTTPS</code>/<code>SVCB</code> records, in any section of the response
+(answer, authority or additional) — and returns an empty <code>NOERROR</code> response instead (visible as
+response type <code>FILTERED</code> with reason <code>FILTERED (rebinding protection)</code> in query logs and metrics;
+the offending IP is logged at debug level). <strong>Disabled by default.</strong></p>
+<p>The following ranges are considered non-public:</p>
+<table>
+<thead>
+<tr>
+<th>Range</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>10.0.0.0/8</code>, <code>172.16.0.0/12</code>, <code>192.168.0.0/16</code></td>
+<td>IPv4 private (RFC 1918)</td>
+</tr>
+<tr>
+<td><code>fc00::/7</code></td>
+<td>IPv6 unique local</td>
+</tr>
+<tr>
+<td><code>127.0.0.0/8</code>, <code>::1</code></td>
+<td>loopback</td>
+</tr>
+<tr>
+<td><code>169.254.0.0/16</code>, <code>fe80::/10</code></td>
+<td>link-local</td>
+</tr>
+<tr>
+<td><code>0.0.0.0</code>, <code>::</code></td>
+<td>unspecified</td>
+</tr>
+</tbody>
+</table>
+<p>Answers from <a href="#conditional-dns-resolution">conditional upstreams</a>, custom <abbr title="Domain Name System">DNS</abbr> and the hosts file
+are never inspected, so internal zones served by trusted internal resolvers keep working without
+any extra configuration. One exception: a <code>customDNS</code> entry of type <code>CNAME</code> resolves its target
+through the regular chain (see <a href="#cname-resolution"><abbr title="Canonical Name">CNAME</abbr> resolution</a>), so if the target resolves
+to a private IP via the general upstreams (e.g. a DDNS name pointing into the LAN), that lookup
+is inspected and the entry silently loses its address records — add the <abbr title="Canonical Name">CNAME</abbr> <strong>target</strong> name to
+the allowlist to keep it working. Note that all <code>upstreams.groups</code> — <strong>including client-specific
+groups</strong> — count as general upstream resolvers and are inspected; to serve an internal zone from
+an internal resolver, use a conditional mapping instead of a client-keyed group. Lookups blocky
+performs for its own operation (e.g. resolving <code>blocking.clientGroupsBlock</code> FQDN client
+identifiers) are exempt from the protection.</p>
+<p>For split-horizon domains that legitimately resolve to private IPs via the public upstreams, add
+them to the allowlist. Entries match the domain itself and all of its subdomains; matching is
+done on the name of the inspected query, so a <code>CNAME</code> inside an upstream answer pointing at an
+allowlisted name does not bypass the protection (for <code>customDNS</code> <code>CNAME</code> entries the inspected
+query is the lookup of the <abbr title="Canonical Name">CNAME</abbr> target, so allowlist the <strong>target</strong> name, not the entry's
+name). If <code>customDNS.rewrite</code> rules apply to the query, matching uses the rewritten name —
+allowlist the rewritten form (<code>conditional.rewrite</code> rules do not affect matching). Entries must
+be plain domain names: wildcards (<code>*.example.com</code>), regexes and whitespace are rejected at
+startup, and internationalized domains must be given in punycode (<code>xn--…</code>) form.</p>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<div class="highlight"><pre><span></span><code><span class="nt">rebindingProtection</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">allowedDomains</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">intranet.example.com</span>
+</code></pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The protection runs above the cache: the upstream answer is cached unchanged for its
+regular <abbr title="Time-To-Live">TTL</abbr>, and every cache hit is re-inspected, so repeat queries for a filtered domain
+keep showing <code>FILTERED</code>. This also covers cache entries synchronized from other instances
+through <a href="#redis">redis</a>. Answers from trusted local sources (conditional upstreams,
+special-use domains) are never written to the cache, so they cannot resurface as cached
+upstream answers and become subject to inspection.</p>
+<p>The protection does not cover NAT64/DNS64 setups: an IPv6 answer embedding a private IPv4
+address under a NAT64 prefix (e.g. <code>64:ff9b::192.168.1.1</code>) is not detected, and answers
+synthesized by blocky's own <a href="#dns64">DNS64</a> resolver are not inspected at all (the internal
+<code>A</code> lookup they are derived from enters the resolver chain below the protection). On
+networks with a NAT64 gateway, <abbr title="Domain Name System">DNS</abbr> rebinding via synthesized IPv6 answers is therefore not
+prevented.</p>
+</div>
 <h2 id="rate-limiting-per-client-ip">Rate limiting per client IP</h2>
 <p>Blocky can enforce a per-client query rate limit at the head of the resolver chain. <strong>Disabled by default.</strong> This is <em>not</em> a DDoS defense — for that, run <a href="https://www.fail2ban.org/">fail2ban</a> or <a href="https://www.crowdsec.net/">crowdsec</a> at the firewall, which can drop traffic before it reaches Blocky. The limiter is intended for misbehaving clients, runaway scripts, and the kind of low-volume amplification that can enroll a public Blocky instance in someone else's <abbr title="Domain Name System">DNS</abbr> reflection attack (<a href="https://github.com/0xERR0R/blocky/issues/1135">issue #1135</a>).</p>
 <p>When a client exceeds its bucket, the query is <strong>dropped silently</strong> (no <abbr title="User Datagram Protocol">UDP</abbr> response, no <abbr title="Domain Name System">DNS</abbr> error) so that amplification ratio against a spoofed-source attacker is zero. A WARN log line is emitted (throttled to ≤ 1 line per bucket per second) so fail2ban can match against it.</p>
@@ -4008,6 +4121,9 @@ Please be aware that by enabling this your resolution will break unless every qu
 1. Return the <abbr title="Canonical Name">CNAME</abbr> record in the answer
 2. Additionally resolve the target of the <abbr title="Canonical Name">CNAME</abbr> and include those records in the answer
 3. Protect against <abbr title="Canonical Name">CNAME</abbr> loops (where CNAMEs point to each other in a loop)</p>
+<p>The target resolution in step 2 goes through the regular resolver chain. If
+<a href="#dns-rebinding-protection">rebinding protection</a> is enabled and the target resolves to a
+private IP via the general upstreams, add the target name to its allowlist.</p>
 <h3 id="reverse-dns">Reverse <abbr title="Domain Name System">DNS</abbr></h3>
 <p>Blocky automatically creates reverse <abbr title="Domain Name System">DNS</abbr> (PTR) records for all defined A and AAAA records. This allows reverse lookups from IP addresses to domain names.</p>
 <h3 id="filtering-unmapped-types">Filtering Unmapped Types</h3>

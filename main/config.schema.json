@@ -1626,6 +1626,24 @@
       "type": "object",
       "description": "Per-client DNS query rate limiting configuration."
     },
+    "rebindingProtection": {
+      "properties": {
+        "enable": {
+          "type": "boolean",
+          "description": "Enable DNS rebinding protection for answers from the general upstream resolvers."
+        },
+        "allowedDomains": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Domains (including their subdomains) that may resolve to non-public IPs (split-horizon DNS)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "DNS rebinding protection configuration."
+    },
     "upstream": {
       "additionalProperties": {
         "items": {
