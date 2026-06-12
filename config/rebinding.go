@@ -1,7 +1,7 @@
 package config
 
 import (
-	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -30,11 +30,22 @@ func (c *RebindingProtection) LogConfig(logger *logrus.Entry) {
 	}
 }
 
-// validate returns an error if the allowlist contains an empty entry.
+// validate returns an error if the allowlist contains an empty or non-plain-domain
+// entry. It runs even when the protection is disabled, so config errors surface
+// before the user enables it.
 func (c *RebindingProtection) validate() error {
-	for _, domain := range c.AllowedDomains {
-		if strings.TrimSpace(domain) == "" {
-			return errors.New("rebindingProtection.allowedDomains must not contain empty entries")
+	for i, domain := range c.AllowedDomains {
+		trimmed := strings.TrimSpace(domain)
+		if trimmed == "" {
+			return fmt.Errorf("rebindingProtection.allowedDomains[%d] must not be empty", i)
+		}
+
+		// queryLog.ignore.domains supports wildcard/regex syntax; this list does not —
+		// reject such entries instead of silently never matching them
+		if strings.ContainsAny(trimmed, "*/ \t") {
+			return fmt.Errorf(
+				"rebindingProtection.allowedDomains[%d] (%q) must be a plain domain (no wildcards, regexes or whitespace); subdomains match automatically",
+				i, domain)
 		}
 	}
 

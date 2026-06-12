@@ -53,7 +53,19 @@ var _ = Describe("RebindingProtection", func() {
 		It("rejects empty entries", func() {
 			cfg.AllowedDomains = []string{"intranet.example.com", "  "}
 
-			Expect(cfg.validate()).Should(HaveOccurred())
+			Expect(cfg.validate()).Should(MatchError(ContainSubstring("allowedDomains[1] must not be empty")))
+		})
+
+		It("rejects wildcard entries", func() {
+			cfg.AllowedDomains = []string{"*.example.com"}
+
+			Expect(cfg.validate()).Should(MatchError(ContainSubstring("plain domain")))
+		})
+
+		It("rejects regex entries", func() {
+			cfg.AllowedDomains = []string{"/example/"}
+
+			Expect(cfg.validate()).Should(MatchError(ContainSubstring("plain domain")))
 		})
 	})
 })
