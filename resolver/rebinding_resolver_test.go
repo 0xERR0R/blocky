@@ -498,5 +498,42 @@ var _ = Describe("RebindingProtectionResolver", func() {
 				Expect(m.Calls).Should(HaveLen(1))
 			})
 		})
+
+		It("never filters conditional answers, also on repeat queries", func() {
+			// regression: the cache used to store conditional answers and re-serve
+			// them re-labeled as CACHED, so trusted internal-zone answers were
+			// inspected and filtered from the second query onward
+			a := rebindTestA("router.home.lab.", "192.168.2.1")
+			mockAnswer.Answer = []dns.RR{a}
+
+			m = &mockResolver{}
+			m.On("Resolve", mock.Anything).
+				Return(&Response{Res: mockAnswer, RType: ResponseTypeCONDITIONAL, Reason: "CONDITIONAL"}, nil)
+
+			cachingCfg, err := config.WithDefaults[config.Caching]()
+			Expect(err).Should(Succeed())
+
+			cachingRes, err := NewCachingResolver(ctx, cachingCfg, nil)
+			Expect(err).Should(Succeed())
+
+			chained := Chain(sut, cachingRes, m)
+
+			By("first query passes through", func() {
+				resp, err := chained.Resolve(ctx, newRequest("router.home.lab.", A))
+				Expect(err).Should(Succeed())
+				Expect(resp.RType).Should(Equal(ResponseTypeCONDITIONAL))
+				Expect(resp.Res.Answer).Should(ConsistOf(a))
+			})
+
+			By("repeat query passes through as well", func() {
+				resp, err := chained.Resolve(ctx, newRequest("router.home.lab.", A))
+				Expect(err).Should(Succeed())
+				Expect(resp.RType).Should(Equal(ResponseTypeCONDITIONAL))
+				Expect(resp.Res.Answer).Should(ConsistOf(a))
+
+				// conditional answers are served fresh, never from the cache
+				Expect(m.Calls).Should(HaveLen(2))
+			})
+		})
 	})
 })

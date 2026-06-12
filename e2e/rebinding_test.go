@@ -131,8 +131,18 @@ var _ = Describe("DNS rebinding protection", func() {
 			// end-to-end proof that conditional upstream answers bypass rebinding
 			// protection (recognized by response type), no allowlist needed
 			msg := util.NewMsgWithQuestion("router.home.lab.", A)
-			Expect(doDNSRequest(ctx, blocky, msg)).
-				Should(BeDNSRecord("router.home.lab.", A, "192.168.2.1"))
+
+			By("first query", func() {
+				Expect(doDNSRequest(ctx, blocky, msg)).
+					Should(BeDNSRecord("router.home.lab.", A, "192.168.2.1"))
+			})
+
+			// regression: conditional answers used to be cached and re-served as
+			// CACHED, where the protection filtered them from the 2nd query onward
+			By("repeat query", func() {
+				Expect(doDNSRequest(ctx, blocky, msg)).
+					Should(BeDNSRecord("router.home.lab.", A, "192.168.2.1"))
+			})
 		})
 	})
 })
