@@ -533,6 +533,14 @@ func createQueryResolver(
 		resolver.NewMetricsResolver(cfg.Prometheus),
 		customDNS,
 		hostsFile,
+		// above blocking and the cache: it inspects only RESOLVED/CACHED answers
+		// (conditional/custom DNS/hosts file/SUDN/blocked answers are recognized
+		// by response type and pass through; the cache stores only
+		// upstream-derived answers, so CACHED implies upstream origin), cached
+		// answers — incl. entries synced via redis — are re-inspected on every
+		// hit, and blocking's internal FQDN client-identifier lookups enter the
+		// chain below it
+		resolver.NewRebindingProtectionResolver(cfg.RebindingProtection),
 		blocking,
 		dnssecResolver, // DNSSEC validation BEFORE caching - validates all responses before they are cached
 		cachingResolver,

@@ -117,6 +117,29 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 	})
 
+	Describe("Resolving FQDN client identifiers", func() {
+		When("rebinding protection is enabled", func() {
+			It("exempts identifier lookups by chain position while client queries stay filtered", func() {
+				// DDNS-to-LAN identifiers in clientGroupsBlock resolve to private
+				// IPs via the general upstreams; the rebinding resolver sits ABOVE
+				// blocking in the server chain (see createQueryResolver), so the
+				// internal lookups enter the chain below it and bypass it
+				mockAnswer.Answer = []dns.RR{rebindTestA("nas.ddns.example.com.", "192.168.1.5")}
+				rebinding := NewRebindingProtectionResolver(config.RebindingProtection{Enable: true})
+				chain := Chain(rebinding, sut, m)
+
+				ips, _ := sut.queryForFQIdentifierIPs(ctx, "nas.ddns.example.com")
+				Expect(ips).ShouldNot(BeNil())
+				Expect(*ips).ShouldNot(BeEmpty())
+				Expect((*ips)[0].String()).Should(Equal("192.168.1.5"))
+
+				// the same name queried by a client passes the full chain and is filtered
+				Expect(chain.Resolve(ctx, newRequestWithClient("nas.ddns.example.com.", A, "192.168.1.5"))).
+					Should(HaveResponseType(ResponseTypeFILTERED))
+			})
+		})
+	})
+
 	Describe("Blocking with full-qualified client name", func() {
 		BeforeEach(func() {
 			sutConfig = config.Blocking{
