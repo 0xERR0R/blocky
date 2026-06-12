@@ -65,7 +65,7 @@ var _ = Describe("DNS rebinding protection", func() {
 				Expect(resp.Answer).Should(BeEmpty())
 			})
 
-			// the cache-path proof (one upstream call, CACHED type) lives in the unit spec "chained below a caching resolver"
+			// the cache-path proof (one upstream call, re-filtered per hit) lives in the unit spec "chained above a caching resolver"
 			By("repeat query still filtered", func() {
 				resp, err := doDNSRequest(ctx, blocky, msg)
 				Expect(err).Should(Succeed())
@@ -128,8 +128,8 @@ var _ = Describe("DNS rebinding protection", func() {
 		})
 
 		It("should resolve conditional answers with private IPs despite protection", func(ctx context.Context) {
-			// end-to-end proof of the chain-position property: conditional
-			// upstream answers bypass rebinding protection, no allowlist needed
+			// end-to-end proof that conditional upstream answers bypass rebinding
+			// protection (recognized by response type), no allowlist needed
 			msg := util.NewMsgWithQuestion("router.home.lab.", A)
 			Expect(doDNSRequest(ctx, blocky, msg)).
 				Should(BeDNSRecord("router.home.lab.", A, "192.168.2.1"))
