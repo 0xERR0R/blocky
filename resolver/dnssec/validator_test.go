@@ -128,6 +128,54 @@ func authenticatedInsecureDelegation(
 	return anchorStr, fn
 }
 
+// authenticatedOptOutDelegation returns a trust anchor for parentZone and a ResolveFn that
+// proves an AUTHENTICATED insecure delegation for childName via an NSEC3 Opt-Out span (the
+// standard mechanism by which signed TLDs like .com/.net/.org delegate to unsigned
+// children). A DS query for childName yields a signed, opt-out NSEC3 that covers the name
+// (no DS), and a DNSKEY query for parentZone yields the matching self-signed key. The
+// validator must authenticate the opt-out proof and classify childName as Insecure (a
+// genuinely unsigned zone), NOT bogus.
+func authenticatedOptOutDelegation(
+	parentZone, childName string,
+) (anchor string, fn func(context.Context, *model.Request) (*model.Response, error)) {
+	key, priv, anchorStr := newSignedZoneKey(parentZone)
+	dnskeySig := signRRset([]dns.RR{key}, dns.TypeDNSKEY, key, priv, parentZone)
+
+	// An opt-out NSEC3 whose owner hash == next hash spans the whole hash range (wraparound),
+	// so it covers childName's hash without us having to compute it. The all-zero hash is the
+	// minimum, so any real (non-zero) child hash falls inside the (owner, next] opt-out span.
+	const fullRangeHash = "00000000000000000000000000000000" // base32hex of 20 zero bytes
+	nsec3 := &dns.NSEC3{
+		Hdr:        dns.RR_Header{Name: fullRangeHash + "." + dns.Fqdn(parentZone), Rrtype: dns.TypeNSEC3, Class: dns.ClassINET, Ttl: 300},
+		Hash:       dns.SHA1,
+		Flags:      0x01, // Opt-Out
+		Iterations: 0,
+		SaltLength: 0,
+		Salt:       "",
+		HashLength: 20,
+		NextDomain: fullRangeHash,
+		TypeBitMap: []uint16{dns.TypeNS, dns.TypeRRSIG}, // NS delegation present, DS absent
+	}
+	nsec3Sig := signRRset([]dns.RR{nsec3}, dns.TypeNSEC3, key, priv, parentZone)
+
+	fn = func(_ context.Context, req *model.Request) (*model.Response, error) {
+		q := req.Req.Question[0]
+		switch {
+		case q.Qtype == dns.TypeDS && dns.Fqdn(q.Name) == dns.Fqdn(childName):
+			return &model.Response{Res: &dns.Msg{
+				MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess},
+				Ns:     []dns.RR{nsec3, nsec3Sig},
+			}}, nil
+		case q.Qtype == dns.TypeDNSKEY && dns.Fqdn(q.Name) == dns.Fqdn(parentZone):
+			return &model.Response{Res: &dns.Msg{Answer: []dns.RR{key, dnskeySig}}}, nil
+		default:
+			return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess}}}, nil
+		}
+	}
+
+	return anchorStr, fn
+}
+
 // dummyAnchorStore returns a trust store anchored at an unrelated zone, so test domains
 // are NOT under any trust anchor (status undetermined -> accepted as Indeterminate).
 func dummyAnchorStore() *TrustAnchorStore {
@@ -173,6 +221,44 @@ var _ = Describe("DNSSECValidator", func() {
 
 	Context("when an upstream supplies unsigned or out-of-context DNSSEC proofs", func() {
 		const victim = "victim.signed.example."
+
+		It("treats an authenticated NSEC3 Opt-Out DS denial as a genuine insecure delegation", func() {
+			// Opt-Out is how signed TLDs (.com/.net/.org, ...) prove DS-absence for their
+			// unsigned children. The authenticated opt-out proof must classify the child as
+			// Insecure (genuinely unsigned) - NOT Secure/Bogus - so the unsigned answer
+			// resolves rather than returning SERVFAIL.
+			budgetCtx := context.WithValue(ctx, queryBudgetKey{}, 30)
+			anchor, fn := authenticatedOptOutDelegation("net.", "unsigned.net.")
+			store, err := NewTrustAnchorStore([]string{anchor})
+			Expect(err).Should(Succeed())
+			mockUpstream.ResolveFn = fn
+			v := NewValidator(ctx, store, logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			Expect(v.checkZoneSecurityStatus(budgetCtx, "unsigned.net.")).
+				Should(Equal(ValidationResultInsecure),
+					"authenticated NSEC3 opt-out DS denial not recognized as an insecure delegation")
+		})
+
+		It("does not fail closed for unsigned answers under only the default root anchor", func() {
+			// With the default IANA root anchor (no operator-configured anchors) and an
+			// upstream that cannot supply DNSSEC proofs, an ordinary unsigned answer must
+			// pass through as Indeterminate, not be rejected as Bogus. Failing closed here
+			// would SERVFAIL the bulk of the (legitimately unsigned) Internet.
+			store, err := NewTrustAnchorStore(nil)
+			Expect(err).Should(Succeed())
+			mockUpstream.ResolveFn = benignEmptyResolve
+			v := NewValidator(ctx, store, logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			question := dns.Question{Name: "ordinary.example.com.", Qtype: dns.TypeA, Qclass: dns.ClassINET}
+			response := &dns.Msg{Answer: []dns.RR{&dns.A{
+				Hdr: dns.RR_Header{Name: "ordinary.example.com.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300},
+				A:   net.ParseIP("192.0.2.1"),
+			}}}
+
+			Expect(v.ValidateResponse(ctx, response, question)).
+				Should(Equal(ValidationResultIndeterminate),
+					"unsigned answer under only the default root anchor was not passed through")
+		})
 
 		It("should not treat an unsigned NSEC in a DS response as authenticated denial of DS", func() {
 			budgetCtx := context.WithValue(ctx, queryBudgetKey{}, 30)
@@ -3273,35 +3359,15 @@ var _ = Describe("Additional Validator Coverage", func() {
 		})
 
 		It("should reject when no matching RRSIG found", func() {
-			// Mock DS query to indicate zone is signed (has DS records)
-			// so missing RRSIG should be treated as Bogus
-			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
-				if req.Req.Question[0].Qtype == dns.TypeDS {
-					ds := &dns.DS{
-						Hdr: dns.RR_Header{
-							Name:   "example.com.",
-							Rrtype: dns.TypeDS,
-							Class:  dns.ClassINET,
-							Ttl:    3600,
-						},
-						KeyTag:     12345,
-						Algorithm:  8,
-						DigestType: 2,
-						Digest:     "test",
-					}
-
-					return &model.Response{
-						Res: &dns.Msg{
-							MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess},
-							Answer: []dns.RR{ds},
-						},
-					}, nil
-				}
-
-				return &model.Response{
-					Res: &dns.Msg{},
-				}, nil
-			}
+			// Anchor example.com. as an operator-configured trust anchor so the zone is
+			// provably signed; a missing RRSIG for a signed zone must be treated as Bogus.
+			// (A bare, unsigned DS record is no longer accepted as proof a zone is signed.)
+			_, _, anchor := newSignedZoneKey("example.com.")
+			store, err := NewTrustAnchorStore([]string{anchor})
+			Expect(err).Should(Succeed())
+			testLogger, _ := log.NewMockEntry()
+			signedZone := NewValidator(ctx, store, testLogger, mockUpstream, 1, 10, 150, 30, 3600)
+			mockUpstream.ResolveFn = benignEmptyResolve
 
 			a := &dns.A{
 				Hdr: dns.RR_Header{
@@ -3324,7 +3390,7 @@ var _ = Describe("Additional Validator Coverage", func() {
 				SignerName:  "example.com.",
 			}
 
-			result := sut.validateSingleRRset(
+			result := signedZone.validateSingleRRset(
 				ctx,
 				dns.TypeA,
 				[]dns.RR{a},
