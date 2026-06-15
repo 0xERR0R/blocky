@@ -34,6 +34,13 @@ Following metrics will be exported:
 | blocky_rate_limit_cap_exhausted_total            | Counter of queries dropped because the rate limiter bucket store was full |
 | blocky_rate_limit_active_buckets                 | Gauge of token buckets (≈ distinct clients) currently tracked by the rate limiter |
 
+!!! note "`reason` label for blocked responses"
+
+    To keep the `reason` label of `blocky_response_total` bounded, blocked responses use the matched
+    group names only (e.g. `BLOCKED (ads)`), **not** the matched rule. The full reason including the
+    matched rule (e.g. `BLOCKED (ads: *.docler.com)`) is still available in the [query log](configuration.md#query-log).
+    This avoids unbounded metric cardinality when large deny lists are used.
+
 ### Grafana dashboard
 
 Example [Grafana](https://grafana.com/) dashboard

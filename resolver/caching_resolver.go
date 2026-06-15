@@ -24,7 +24,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const defaultCachingCleanUpInterval = 5 * time.Second
+const (
+	defaultCachingCleanUpInterval = 5 * time.Second
+
+	// cachedReason is the response reason used for cache hits.
+	cachedReason = "CACHED"
+)
 
 // CacheDecorator optionally wraps the result cache (e.g., with Redis sync).
 type CacheDecorator func(cache.ExpiringCache[[]byte]) (cache.ExpiringCache[[]byte], error)
@@ -217,7 +222,7 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 			setTTLInCachedResponse(val, ttl)
 
 			if val.Rcode == dns.RcodeSuccess {
-				return &model.Response{Res: val, RType: model.ResponseTypeCACHED, Reason: "CACHED"}, nil
+				return &model.Response{Res: val, RType: model.ResponseTypeCACHED, Reason: cachedReason}, nil
 			}
 
 			return &model.Response{Res: val, RType: model.ResponseTypeCACHED, Reason: "CACHED NEGATIVE"}, nil

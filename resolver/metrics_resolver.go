@@ -41,30 +41,41 @@ type MetricsResolver struct {
 func (r *MetricsResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	response, err := r.next.Resolve(ctx, request)
 
-	if r.cfg.Enable {
-		r.totalQueries.With(prometheus.Labels{
-			labelClient: strings.Join(request.ClientNames, ","),
-			labelType:   dns.TypeToString[request.Req.Question[0].Qtype],
+	if !r.cfg.Enable {
+		return response, err
+	}
+
+	r.totalQueries.With(prometheus.Labels{
+		labelClient: strings.Join(request.ClientNames, ","),
+		labelType:   dns.TypeToString[request.Req.Question[0].Qtype],
+	}).Inc()
+
+	reqDuration := time.Since(request.RequestTS)
+	responseType := "err"
+
+	if response != nil {
+		responseType = response.RType.String()
+	}
+
+	r.durationHistogram.WithLabelValues(responseType).Observe(reqDuration.Seconds())
+
+	if err != nil {
+		r.totalErrors.Inc()
+	} else {
+		// Prefer the low-cardinality ReasonLabel for the metric label; fall
+		// back to Reason when it is not set. Blocked responses embed the
+		// matched rule in Reason (e.g. a regex or domain), which is unbounded
+		// for large deny lists, so they set ReasonLabel to the group names only.
+		reasonLabel := response.ReasonLabel
+		if reasonLabel == "" {
+			reasonLabel = response.Reason
+		}
+
+		r.totalResponse.With(prometheus.Labels{
+			labelReason:       reasonLabel,
+			labelResponseCode: dns.RcodeToString[response.Res.Rcode],
+			labelResponseType: response.RType.String(),
 		}).Inc()
-
-		reqDuration := time.Since(request.RequestTS)
-		responseType := "err"
-
-		if response != nil {
-			responseType = response.RType.String()
-		}
-
-		r.durationHistogram.WithLabelValues(responseType).Observe(reqDuration.Seconds())
-
-		if err != nil {
-			r.totalErrors.Inc()
-		} else {
-			r.totalResponse.With(prometheus.Labels{
-				labelReason:       response.Reason,
-				labelResponseCode: dns.RcodeToString[response.Res.Rcode],
-				labelResponseType: response.RType.String(),
-			}).Inc()
-		}
 	}
 
 	return response, err
