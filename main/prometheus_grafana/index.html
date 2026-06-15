@@ -810,6 +810,13 @@
 </tr>
 </tbody>
 </table>
+<div class="admonition note">
+<p class="admonition-title"><code>reason</code> label for blocked responses</p>
+<p>To keep the <code>reason</code> label of <code>blocky_response_total</code> bounded, blocked responses use the matched
+group names only (e.g. <code>BLOCKED (ads)</code>), <strong>not</strong> the matched rule. The full reason including the
+matched rule (e.g. <code>BLOCKED (ads: *.docler.com)</code>) is still available in the <a href="../configuration/#query-log">query log</a>.
+This avoids unbounded metric cardinality when large deny lists are used.</p>
+</div>
 <h3 id="grafana-dashboard">Grafana dashboard</h3>
 <p>Example <a href="https://grafana.com/">Grafana</a> dashboard
 definition <a href="../blocky-grafana.json">as JSON</a>
