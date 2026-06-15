@@ -52,7 +52,7 @@ Some links/ideas for lists:
 
 * [https://github.com/StevenBlack/hosts](https://github.com/StevenBlack/hosts)
 * [https://github.com/nickspaargaren/no-google](https://github.com/nickspaargaren/no-google)
-* [https://energized.pro/](https://energized.pro/)
+* [https://github.com/hagezi/dns-blocklists](https://github.com/hagezi/dns-blocklists)
 * [https://github.com/Perflyst/PiHoleBlocklist](https://github.com/Perflyst/PiHoleBlocklist)
 * [https://github.com/kboghdady/youTube_ads_4_pi-hole](https://github.com/kboghdady/youTube_ads_4_pi-hole)
 * [https://github.com/chadmayfield/my-pihole-blocklists](https://github.com/chadmayfield/my-pihole-blocklists)

@@ -247,7 +247,17 @@ func NewBlockingResolver(ctx context.Context,
 
 func (r *BlockingResolver) subscribeEvents(ctx context.Context) error {
 	err := evt.Bus().SubscribeOnce(evt.ApplicationStarted, func(_ ...string) {
-		go r.initFQDNIPCache(ctx)
+		// Run off the publish path: the event bus holds a global lock while
+		// invoking handlers, so publishing from within a handler would deadlock.
+		go func() {
+			// Re-emit the current list counts now that the whole resolver chain is
+			// wired: the counts published while lists loaded during construction were
+			// missed by subscribers built after this resolver (e.g. the stats resolver).
+			r.denylistMatcher.PublishGroupCounts()
+			r.allowlistMatcher.PublishGroupCounts()
+
+			r.initFQDNIPCache(ctx)
+		}()
 	})
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to ApplicationStarted event: %w", err)
