@@ -711,7 +711,8 @@ func (v *Validator) checkZoneSecurityStatus(ctx context.Context, domain string) 
 		return v.classifyUndetermined(domain)
 	}
 
-	if res := v.validateDSRecordSignature(ctx, domain, parentDomain, convertDSToRRset(dsRecords), dsRRSIG); res != ValidationResultSecure {
+	res := v.validateDSRecordSignature(ctx, domain, parentDomain, convertDSToRRset(dsRecords), dsRRSIG)
+	if res != ValidationResultSecure {
 		v.logger.Warnf("DS RRSIG for %s failed validation (%s) - not treating zone as secure", domain, res.String())
 
 		return v.classifyUndetermined(domain)
@@ -807,7 +808,7 @@ func (v *Validator) handleNoDSRecords(
 			// forged unsigned answer), so defer to the trust-anchor-aware default: fail
 			// closed only when the operator explicitly anchored this hierarchy, otherwise
 			// stay indeterminate. Do NOT cache - not derived from an authenticated proof.
-			v.logger.Debugf("Parent zone %s is secure but %s has no authenticated DS denial - undetermined", parentDomain, domain)
+			v.logger.Debugf("Parent zone %s secure but %s has no authenticated DS denial - undetermined", parentDomain, domain)
 
 			return v.classifyUndetermined(domain)
 		}
@@ -837,10 +838,7 @@ func (v *Validator) isAuthenticatedDSDenial(ctx context.Context, domain string, 
 	// unsigned children, so rejecting the Insecure result would wrongly treat the bulk of
 	// the unsigned Internet as bogus.
 	hasNSEC := len(extractNSECRecords(dsResponse.Ns)) > 0
-	switch v.validateDSAbsenceProof(domain, dsResponse, hasNSEC) {
-	case ValidationResultSecure, ValidationResultInsecure:
-		return true
-	default:
-		return false
-	}
+	proof := v.validateDSAbsenceProof(domain, dsResponse, hasNSEC)
+
+	return proof == ValidationResultSecure || proof == ValidationResultInsecure
 }
