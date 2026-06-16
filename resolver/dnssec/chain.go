@@ -13,9 +13,31 @@ import (
 	"github.com/miekg/dns"
 )
 
-// getCachedValidation retrieves a cached validation result
-func (v *Validator) getCachedValidation(domain string) (ValidationResult, bool) {
-	result, _ := v.validationCache.Get(domain)
+// validationCacheKey scopes a cached validation result to the originating client's view
+// (the same identity that selects the upstream group for DS/DNSKEY sub-queries). Per
+// GHSA-x845-2f78-7v36 finding 3 the cache must NOT be keyed by bare domain name: a status
+// established for one view (conditional-forwarding branch, split-horizon, or upstream group)
+// must not be reused for another. Requests without a client context share the empty scope.
+func validationCacheKey(ctx context.Context, domain string) string {
+	domain = dns.Fqdn(domain)
+
+	cc, ok := clientContextFrom(ctx)
+	if !ok {
+		return "\x00" + domain
+	}
+
+	var ip string
+	if cc.ip != nil {
+		ip = cc.ip.String()
+	}
+
+	return cc.clientID + "\x00" + strings.Join(cc.names, ",") + "\x00" + ip + "\x00" + domain
+}
+
+// getCachedValidation retrieves a cached validation result for the domain within the
+// originating client's view (see validationCacheKey).
+func (v *Validator) getCachedValidation(ctx context.Context, domain string) (ValidationResult, bool) {
+	result, _ := v.validationCache.Get(validationCacheKey(ctx, domain))
 	if result == nil {
 		return ValidationResultIndeterminate, false
 	}
@@ -26,9 +48,10 @@ func (v *Validator) getCachedValidation(domain string) (ValidationResult, bool) 
 	return *result, true
 }
 
-// setCachedValidation stores a validation result in the cache
-func (v *Validator) setCachedValidation(domain string, result ValidationResult) {
-	v.validationCache.Put(domain, &result, v.cacheExpiration)
+// setCachedValidation stores a validation result in the cache, scoped to the originating
+// client's view (see validationCacheKey).
+func (v *Validator) setCachedValidation(ctx context.Context, domain string, result ValidationResult) {
+	v.validationCache.Put(validationCacheKey(ctx, domain), &result, v.cacheExpiration)
 }
 
 // walkChainOfTrust walks the chain of trust from root to target domain
@@ -37,7 +60,7 @@ func (v *Validator) walkChainOfTrust(ctx context.Context, domain string) Validat
 	domain = dns.Fqdn(domain)
 
 	// Check cache first
-	if cached, found := v.getCachedValidation(domain); found {
+	if cached, found := v.getCachedValidation(ctx, domain); found {
 		v.logger.Debugf("Using cached validation result for %s: %s", domain, cached.String())
 
 		return cached
@@ -52,7 +75,7 @@ func (v *Validator) walkChainOfTrust(ctx context.Context, domain string) Validat
 		v.logger.Warnf("Domain %s exceeds maximum chain depth (%d labels > %d max), rejecting",
 			domain, len(labels), v.maxChainDepth)
 		result := ValidationResultBogus
-		v.setCachedValidation(domain, result)
+		v.setCachedValidation(ctx, domain, result)
 
 		return result
 	}
@@ -60,7 +83,7 @@ func (v *Validator) walkChainOfTrust(ctx context.Context, domain string) Validat
 	// If this is the root, verify against trust anchors
 	if domain == "." {
 		result := v.verifyAgainstTrustAnchors(ctx)
-		v.setCachedValidation(domain, result)
+		v.setCachedValidation(ctx, domain, result)
 
 		return result
 	}
@@ -81,7 +104,7 @@ func (v *Validator) walkChainOfTrust(ctx context.Context, domain string) Validat
 			// Trust anchor found - verify that actual DNSKEY from DNS matches the trust anchor
 			result := v.verifyDomainAgainstTrustAnchor(ctx, currentDomain)
 			if result != ValidationResultSecure {
-				v.setCachedValidation(domain, result)
+				v.setCachedValidation(ctx, domain, result)
 
 				return result
 			}
@@ -92,14 +115,14 @@ func (v *Validator) walkChainOfTrust(ctx context.Context, domain string) Validat
 		// Validate this level of the chain
 		result := v.validateDomainLevel(ctx, currentDomain)
 		if result != ValidationResultSecure {
-			v.setCachedValidation(domain, result)
+			v.setCachedValidation(ctx, domain, result)
 
 			return result
 		}
 	}
 
 	// Cache successful validation
-	v.setCachedValidation(domain, ValidationResultSecure)
+	v.setCachedValidation(ctx, domain, ValidationResultSecure)
 
 	return ValidationResultSecure
 }
@@ -538,11 +561,41 @@ func (v *Validator) validateDSAbsenceProof(domain string, dsResponse *dns.Msg, h
 		// Validate NSEC proof of DS absence (NODATA proof)
 		nsecRecords := extractNSECRecords(dsResponse.Ns)
 
+		// A DS-absence NODATA proof only proves an INSECURE DELEGATION if the matching NSEC
+		// asserts a delegation: NS bit set, SOA and DS bits clear (RFC 6840 §4.4, RFC 4035
+		// §5.2). An NSEC for an ordinary in-zone name (NS bit clear) or a zone apex (SOA bit
+		// set) does not - the name lives inside the signed zone, so a missing-signature answer
+		// for it is bogus, not insecure (GHSA-x845-2f78-7v36 finding 4).
+		if !v.nsecProvesInsecureDelegation(nsecRecords, domain) {
+			v.logger.Warnf("NSEC DS-absence proof for %s does not assert an insecure delegation "+
+				"(NS bit clear or SOA/DS bit set) - not an unsigned delegation", domain)
+
+			return ValidationResultBogus
+		}
+
 		return v.validateNSECNODATA(nsecRecords, domain, dns.TypeDS)
 	}
 
 	// Validate NSEC3 proof of DS absence (NODATA proof)
 	return v.validateNSEC3DenialOfExistence(dsResponse, dsQuestion)
+}
+
+// nsecProvesInsecureDelegation reports whether an NSEC RR matching domain asserts an insecure
+// delegation per RFC 6840 §4.4 (the NS-set/SOA-clear/DS-clear rule shared with NSEC3 via
+// assertsInsecureDelegation). This distinguishes a genuine unsigned delegation from an ordinary
+// name inside a signed zone or the apex of a signed zone, neither of which may be treated as an
+// insecure delegation when proving DS absence.
+func (v *Validator) nsecProvesInsecureDelegation(nsecRecords []*dns.NSEC, domain string) bool {
+	domain = dns.Fqdn(domain)
+	for _, nsec := range nsecRecords {
+		if dns.Fqdn(nsec.Header().Name) != domain {
+			continue
+		}
+
+		return assertsInsecureDelegation(nsec.TypeBitMap)
+	}
+
+	return false
 }
 
 // findDSRRSIG finds the RRSIG for DS records in the response

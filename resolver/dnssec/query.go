@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 
 	"github.com/0xERR0R/blocky/model"
 	"github.com/miekg/dns"
@@ -13,6 +14,32 @@ import (
 
 // queryBudgetKey is the context key for tracking upstream query budget
 type queryBudgetKey struct{}
+
+// clientContextKey is the context key carrying the originating client's identity so
+// that DNSSEC auxiliary (DS/DNSKEY) sub-queries resolve from the same upstream view
+// as the user-facing answer.
+type clientContextKey struct{}
+
+// clientContext holds the originating client's identity for DNSSEC sub-queries.
+type clientContext struct {
+	ip       net.IP
+	names    []string
+	clientID string
+}
+
+// WithClientContext returns a context carrying the originating client's identity so
+// DNSSEC auxiliary queries issued during validation preserve it. Called by the DNSSEC
+// resolver before validating a response.
+func WithClientContext(ctx context.Context, ip net.IP, names []string, clientID string) context.Context {
+	return context.WithValue(ctx, clientContextKey{}, clientContext{ip: ip, names: names, clientID: clientID})
+}
+
+// clientContextFrom extracts the originating client's identity from the context.
+func clientContextFrom(ctx context.Context) (clientContext, bool) {
+	cc, ok := ctx.Value(clientContextKey{}).(clientContext)
+
+	return cc, ok
+}
 
 // consumeQueryBudget decrements the query budget and returns error if budget is exhausted
 // This provides DoS protection by limiting the number of upstream queries per validation
@@ -59,10 +86,16 @@ func (v *Validator) queryRecords(
 	msg.SetQuestion(domain, qtype)
 	msg.SetEdns0(ednsUDPSize, true) // Set DO bit for DNSSEC
 
-	// Create model request
+	// Create model request, preserving the originating client's identity so the
+	// upstream tree selects the same group/view as the user-facing answer.
 	req := &model.Request{
 		Req:      msg,
 		Protocol: model.RequestProtocolUDP,
+	}
+	if cc, ok := clientContextFrom(ctx); ok {
+		req.ClientIP = cc.ip
+		req.ClientNames = cc.names
+		req.RequestClientID = cc.clientID
 	}
 
 	// Query upstream

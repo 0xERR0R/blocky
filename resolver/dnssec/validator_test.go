@@ -2,7 +2,9 @@ package dnssec
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"errors"
+	"net"
 	"time"
 
 	"github.com/0xERR0R/blocky/log"
@@ -37,6 +39,159 @@ func (m *mockResolver) Resolve(ctx context.Context, req *model.Request) (*model.
 
 var _ Resolver = (*mockResolver)(nil) // Ensure mockResolver implements Resolver
 
+// unsignedDSDenial builds a DS response (NODATA) with no DS record and an unsigned
+// NSEC in the authority section - an unauthenticated "this delegation is insecure" proof.
+func unsignedDSDenial(name string) *model.Response {
+	nsec := &dns.NSEC{
+		Hdr: dns.RR_Header{
+			Name:   dns.Fqdn(name),
+			Rrtype: dns.TypeNSEC,
+			Class:  dns.ClassINET,
+			Ttl:    300,
+		},
+		NextDomain: "z." + dns.Fqdn(name),
+		TypeBitMap: []uint16{dns.TypeA, dns.TypeRRSIG, dns.TypeNSEC},
+	}
+
+	return &model.Response{Res: &dns.Msg{
+		MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess},
+		Ns:     []dns.RR{nsec},
+	}}
+}
+
+// newSignedZoneKey generates a KSK for zone and returns the key, its private key, and
+// the trust-anchor presentation string.
+func newSignedZoneKey(zone string) (*dns.DNSKEY, *ecdsa.PrivateKey, string) {
+	key := new(dns.DNSKEY)
+	key.Hdr = dns.RR_Header{Name: dns.Fqdn(zone), Rrtype: dns.TypeDNSKEY, Class: dns.ClassINET, Ttl: 3600}
+	key.Flags = 257 // KSK / SEP
+	key.Protocol = 3
+	key.Algorithm = dns.ECDSAP256SHA256
+
+	priv, err := key.Generate(256)
+	Expect(err).Should(Succeed())
+
+	return key, priv.(*ecdsa.PrivateKey), key.String()
+}
+
+// signRRset signs rrset (record type rtype) with key/priv, asserting on failure.
+func signRRset(rrset []dns.RR, rtype uint16, key *dns.DNSKEY, priv *ecdsa.PrivateKey, signer string) *dns.RRSIG {
+	owner := rrset[0].Header().Name
+	sig := new(dns.RRSIG)
+	sig.Hdr = dns.RR_Header{Name: owner, Rrtype: dns.TypeRRSIG, Class: dns.ClassINET, Ttl: rrset[0].Header().Ttl}
+	sig.TypeCovered = rtype
+	sig.Algorithm = dns.ECDSAP256SHA256
+	sig.Labels = uint8(dns.CountLabel(owner))
+	sig.OrigTtl = rrset[0].Header().Ttl
+	sig.Expiration = uint32(time.Now().Add(24 * time.Hour).Unix())
+	sig.Inception = uint32(time.Now().Add(-1 * time.Hour).Unix())
+	sig.KeyTag = key.KeyTag()
+	sig.SignerName = dns.Fqdn(signer)
+	Expect(sig.Sign(priv, rrset)).Should(Succeed())
+
+	return sig
+}
+
+// authenticatedInsecureDelegation returns a trust anchor for parentZone and a ResolveFn
+// that proves an AUTHENTICATED insecure delegation for childName: a DS query for
+// childName yields a signed NSEC NODATA proof (no DS type), and a DNSKEY query for
+// parentZone yields the matching self-signed key. checkZoneSecurityStatus(childName)
+// then authenticates DS absence and returns Insecure (a genuinely unsigned zone).
+func authenticatedInsecureDelegation(
+	parentZone, childName string,
+) (anchor string, fn func(context.Context, *model.Request) (*model.Response, error)) {
+	key, priv, anchorStr := newSignedZoneKey(parentZone)
+	dnskeySig := signRRset([]dns.RR{key}, dns.TypeDNSKEY, key, priv, parentZone)
+
+	nsec := &dns.NSEC{
+		Hdr:        dns.RR_Header{Name: dns.Fqdn(childName), Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+		NextDomain: "\\000." + dns.Fqdn(childName),
+		TypeBitMap: []uint16{dns.TypeNS, dns.TypeRRSIG, dns.TypeNSEC}, // NS delegation present, DS absent
+	}
+	nsecSig := signRRset([]dns.RR{nsec}, dns.TypeNSEC, key, priv, parentZone)
+
+	fn = func(_ context.Context, req *model.Request) (*model.Response, error) {
+		q := req.Req.Question[0]
+		switch {
+		case q.Qtype == dns.TypeDS && dns.Fqdn(q.Name) == dns.Fqdn(childName):
+			return &model.Response{Res: &dns.Msg{
+				MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess},
+				Ns:     []dns.RR{nsec, nsecSig},
+			}}, nil
+		case q.Qtype == dns.TypeDNSKEY && dns.Fqdn(q.Name) == dns.Fqdn(parentZone):
+			return &model.Response{Res: &dns.Msg{Answer: []dns.RR{key, dnskeySig}}}, nil
+		default:
+			return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess}}}, nil
+		}
+	}
+
+	return anchorStr, fn
+}
+
+// authenticatedOptOutDelegation returns a trust anchor for parentZone and a ResolveFn that
+// proves an AUTHENTICATED insecure delegation for childName via an NSEC3 Opt-Out span (the
+// standard mechanism by which signed TLDs like .com/.net/.org delegate to unsigned
+// children). A DS query for childName yields a signed, opt-out NSEC3 that covers the name
+// (no DS), and a DNSKEY query for parentZone yields the matching self-signed key. The
+// validator must authenticate the opt-out proof and classify childName as Insecure (a
+// genuinely unsigned zone), NOT bogus.
+func authenticatedOptOutDelegation(
+	parentZone, childName string,
+) (anchor string, fn func(context.Context, *model.Request) (*model.Response, error)) {
+	key, priv, anchorStr := newSignedZoneKey(parentZone)
+	dnskeySig := signRRset([]dns.RR{key}, dns.TypeDNSKEY, key, priv, parentZone)
+
+	// An opt-out NSEC3 whose owner hash == next hash spans the whole hash range (wraparound),
+	// so it covers childName's hash without us having to compute it. The all-zero hash is the
+	// minimum, so any real (non-zero) child hash falls inside the (owner, next] opt-out span.
+	const fullRangeHash = "00000000000000000000000000000000" // base32hex of 20 zero bytes
+	nsec3 := &dns.NSEC3{
+		Hdr:        dns.RR_Header{Name: fullRangeHash + "." + dns.Fqdn(parentZone), Rrtype: dns.TypeNSEC3, Class: dns.ClassINET, Ttl: 300},
+		Hash:       dns.SHA1,
+		Flags:      0x01, // Opt-Out
+		Iterations: 0,
+		SaltLength: 0,
+		Salt:       "",
+		HashLength: 20,
+		NextDomain: fullRangeHash,
+		TypeBitMap: []uint16{dns.TypeNS, dns.TypeRRSIG}, // NS delegation present, DS absent
+	}
+	nsec3Sig := signRRset([]dns.RR{nsec3}, dns.TypeNSEC3, key, priv, parentZone)
+
+	fn = func(_ context.Context, req *model.Request) (*model.Response, error) {
+		q := req.Req.Question[0]
+		switch {
+		case q.Qtype == dns.TypeDS && dns.Fqdn(q.Name) == dns.Fqdn(childName):
+			return &model.Response{Res: &dns.Msg{
+				MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess},
+				Ns:     []dns.RR{nsec3, nsec3Sig},
+			}}, nil
+		case q.Qtype == dns.TypeDNSKEY && dns.Fqdn(q.Name) == dns.Fqdn(parentZone):
+			return &model.Response{Res: &dns.Msg{Answer: []dns.RR{key, dnskeySig}}}, nil
+		default:
+			return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess}}}, nil
+		}
+	}
+
+	return anchorStr, fn
+}
+
+// dummyAnchorStore returns a trust store anchored at an unrelated zone, so test domains
+// are NOT under any trust anchor (status undetermined -> accepted as Indeterminate).
+func dummyAnchorStore() *TrustAnchorStore {
+	_, _, anchor := newSignedZoneKey("anchor.invalid.")
+	store, err := NewTrustAnchorStore([]string{anchor})
+	Expect(err).Should(Succeed())
+
+	return store
+}
+
+// benignEmptyResolve is a ResolveFn that returns an empty NOERROR for any query, so the
+// validator's sub-queries do not panic an unconfigured testify mock.
+func benignEmptyResolve(_ context.Context, _ *model.Request) (*model.Response, error) {
+	return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess}}}, nil
+}
+
 var _ = Describe("DNSSECValidator", func() {
 	var (
 		sut          *Validator
@@ -62,6 +217,206 @@ var _ = Describe("DNSSECValidator", func() {
 
 		// Create validator with default config values
 		sut = NewValidator(ctx, trustStore, logger, mockUpstream, 1, 10, 150, 30, 3600)
+	})
+
+	Context("when an upstream supplies unsigned or out-of-context DNSSEC proofs", func() {
+		const victim = "victim.signed.example."
+
+		It("treats an authenticated NSEC3 Opt-Out DS denial as a genuine insecure delegation", func() {
+			// Opt-Out is how signed TLDs (.com/.net/.org, ...) prove DS-absence for their
+			// unsigned children. The authenticated opt-out proof must classify the child as
+			// Insecure (genuinely unsigned) - NOT Secure/Bogus - so the unsigned answer
+			// resolves rather than returning SERVFAIL.
+			budgetCtx := context.WithValue(ctx, queryBudgetKey{}, 30)
+			anchor, fn := authenticatedOptOutDelegation("net.", "unsigned.net.")
+			store, err := NewTrustAnchorStore([]string{anchor})
+			Expect(err).Should(Succeed())
+			mockUpstream.ResolveFn = fn
+			v := NewValidator(ctx, store, logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			Expect(v.checkZoneSecurityStatus(budgetCtx, "unsigned.net.")).
+				Should(Equal(ValidationResultInsecure),
+					"authenticated NSEC3 opt-out DS denial not recognized as an insecure delegation")
+		})
+
+		It("rejects an unsigned answer under the default root anchor with no authenticated insecure-delegation proof", func() {
+			// GHSA-x845-2f78-7v36 finding 1: with the default IANA root anchor every name is
+			// under a trust anchor, so the whole namespace is "secure" until an AUTHENTICATED
+			// proof of insecure delegation says otherwise. An upstream that cannot supply such
+			// a proof (malicious, stripped, or non-DNSSEC-capable) must not let a forged
+			// unsigned answer for a signed public name through: it is bogus, not insecure.
+			store, err := NewTrustAnchorStore(nil)
+			Expect(err).Should(Succeed())
+			mockUpstream.ResolveFn = benignEmptyResolve
+			v := NewValidator(ctx, store, logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			question := dns.Question{Name: "cloudflare.com.", Qtype: dns.TypeA, Qclass: dns.ClassINET}
+			response := &dns.Msg{Answer: []dns.RR{&dns.A{
+				Hdr: dns.RR_Header{Name: "cloudflare.com.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300},
+				A:   net.ParseIP("203.0.113.77"),
+			}}}
+
+			Expect(v.ValidateResponse(ctx, response, question)).
+				Should(Equal(ValidationResultBogus),
+					"forged unsigned answer under the root anchor was accepted instead of rejected as bogus")
+		})
+
+		It("still resolves a genuinely unsigned zone proven by an authenticated opt-out under the root anchor", func() {
+			// The fail-closed behavior above must NOT break legitimately unsigned zones: when
+			// the upstream supplies an AUTHENTICATED NSEC3 opt-out DS denial (the standard way
+			// signed parents delegate to unsigned children), the name is a genuine insecure
+			// delegation and its unsigned answer must pass through as Insecure, not be rejected.
+			budgetCtx := context.WithValue(ctx, queryBudgetKey{}, 30)
+			anchor, fn := authenticatedOptOutDelegation("net.", "unsigned.net.")
+			store, err := NewTrustAnchorStore([]string{anchor})
+			Expect(err).Should(Succeed())
+			mockUpstream.ResolveFn = fn
+			v := NewValidator(ctx, store, logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			Expect(v.checkZoneSecurityStatus(budgetCtx, "unsigned.net.")).
+				Should(Equal(ValidationResultInsecure),
+					"authenticated opt-out delegation was not accepted as a genuine insecure zone")
+		})
+
+		It("should not treat an unsigned NSEC in a DS response as authenticated denial of DS", func() {
+			budgetCtx := context.WithValue(ctx, queryBudgetKey{}, 30)
+
+			mockUpstream.ResolveFn = func(_ context.Context, req *model.Request) (*model.Response, error) {
+				if req.Req.Question[0].Qtype == dns.TypeDS {
+					return unsignedDSDenial(victim), nil
+				}
+
+				return nil, errors.New("unexpected query type")
+			}
+
+			// An unsigned NSEC proves nothing: the zone's security status must not be
+			// downgraded to Insecure on the strength of an unauthenticated denial.
+			result := sut.checkZoneSecurityStatus(budgetCtx, victim)
+
+			Expect(result).ShouldNot(Equal(ValidationResultInsecure),
+				"unsigned NSEC in a DS response accepted as authenticated DS denial")
+		})
+
+		It("should not let a cached insecure status shadow a later signed DS for the same name", func() {
+			budgetCtx := context.WithValue(ctx, queryBudgetKey{}, 30)
+
+			// First lookup is answered with the unauthenticated insecure proof.
+			mockUpstream.ResolveFn = func(_ context.Context, req *model.Request) (*model.Response, error) {
+				if req.Req.Question[0].Qtype == dns.TypeDS {
+					return unsignedDSDenial(victim), nil
+				}
+
+				return nil, errors.New("unexpected query type")
+			}
+			_ = sut.checkZoneSecurityStatus(budgetCtx, victim)
+
+			// The upstream now reports a legitimate, signed DS for the same name.
+			realDS := &dns.DS{
+				Hdr: dns.RR_Header{
+					Name:   victim,
+					Rrtype: dns.TypeDS,
+					Class:  dns.ClassINET,
+					Ttl:    300,
+				},
+				KeyTag:     12345,
+				Algorithm:  dns.ECDSAP256SHA256,
+				DigestType: dns.SHA256,
+				Digest:     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			}
+			mockUpstream.ResolveFn = func(_ context.Context, req *model.Request) (*model.Response, error) {
+				if req.Req.Question[0].Qtype == dns.TypeDS {
+					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{realDS}}}, nil
+				}
+
+				return nil, errors.New("unexpected query type")
+			}
+
+			second := sut.checkZoneSecurityStatus(budgetCtx, victim)
+
+			Expect(second).ShouldNot(Equal(ValidationResultInsecure),
+				"stale insecure status shadowed a legitimate signed DS for the same name")
+		})
+
+		It("should preserve the originating client context on DNSKEY sub-queries", func() {
+			clientIP := net.ParseIP("203.0.113.9")
+			budgetCtx := context.WithValue(ctx, queryBudgetKey{}, 30)
+			budgetCtx = WithClientContext(budgetCtx, clientIP, []string{"client.lan"}, "client-1")
+
+			var captured *model.Request
+			mockUpstream.ResolveFn = func(_ context.Context, req *model.Request) (*model.Response, error) {
+				if req.Req.Question[0].Qtype == dns.TypeDNSKEY {
+					captured = req
+
+					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{}}}, nil
+				}
+
+				return nil, errors.New("unexpected query type")
+			}
+
+			_, _, _ = sut.queryDNSKEY(budgetCtx, "signed.example.")
+			Expect(captured).ShouldNot(BeNil(), "no DNSKEY sub-query was issued")
+
+			// Auxiliary DS/DNSKEY lookups must carry the originating client's context so
+			// the same upstream view answers both the data and its DNSSEC proofs.
+			Expect(captured.ClientIP).Should(Equal(clientIP),
+				"auxiliary DNSSEC sub-query lost the client IP")
+			Expect(captured.ClientNames).Should(Equal([]string{"client.lan"}),
+				"auxiliary DNSSEC sub-query lost the client names")
+			Expect(captured.RequestClientID).Should(Equal("client-1"),
+				"auxiliary DNSSEC sub-query lost the request client id")
+		})
+
+		It("rejects an NSEC DS-absence proof that does not assert a delegation (NS bit clear)", func() {
+			// GHSA-x845-2f78-7v36 finding 4 (residual): an NSEC that proves the DS type is absent
+			// only proves an INSECURE DELEGATION if it also asserts a delegation - NS bit set, SOA
+			// and DS bits clear (RFC 6840 §4.4). For an ordinary in-zone name in a signed zone the
+			// NS bit is clear, so this NSEC must NOT be accepted as a DS-absence proof; otherwise a
+			// forged unsigned answer for e.g. www.example.com could be downgraded to insecure.
+			inZoneNSEC := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "www.example.com.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+				NextDomain: "\\000.www.example.com.",
+				TypeBitMap: []uint16{dns.TypeA, dns.TypeRRSIG, dns.TypeNSEC}, // in-zone name: NS bit absent
+			}
+			resp := &dns.Msg{Ns: []dns.RR{inZoneNSEC}}
+
+			Expect(sut.validateDSAbsenceProof("www.example.com.", resp, true)).
+				ShouldNot(Equal(ValidationResultSecure),
+					"NSEC without the NS bit was accepted as proof of an insecure delegation")
+		})
+
+		It("accepts an NSEC DS-absence proof that asserts a delegation (NS bit set, DS/SOA clear)", func() {
+			// The NS-bit check above must not over-reject genuine insecure delegations: an NSEC
+			// with the NS bit set and the SOA/DS bits clear is a valid proof of an unsigned
+			// delegation and must still validate as a DS-absence proof.
+			delegationNSEC := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "unsigned.example.com.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+				NextDomain: "\\000.unsigned.example.com.",
+				TypeBitMap: []uint16{dns.TypeNS, dns.TypeRRSIG, dns.TypeNSEC}, // delegation present, DS absent
+			}
+			resp := &dns.Msg{Ns: []dns.RR{delegationNSEC}}
+
+			Expect(sut.validateDSAbsenceProof("unsigned.example.com.", resp, true)).
+				Should(Equal(ValidationResultSecure),
+					"valid insecure-delegation NSEC was wrongly rejected as a DS-absence proof")
+		})
+
+		It("scopes cached validation results by client view so they do not cross upstream views", func() {
+			// GHSA-x845-2f78-7v36 finding 3: the validation cache must not be keyed by bare
+			// domain name. A status established for one client view (upstream group) must not be
+			// reused for a different view, or one response path can seed DNSSEC state for another.
+			viewA := WithClientContext(ctx, net.ParseIP("203.0.113.1"), []string{"a.lan"}, "group-a")
+			viewB := WithClientContext(ctx, net.ParseIP("198.51.100.2"), []string{"b.lan"}, "group-b")
+
+			sut.setCachedValidation(viewA, victim, ValidationResultInsecure)
+
+			_, foundOther := sut.getCachedValidation(viewB, victim)
+			Expect(foundOther).Should(BeFalse(),
+				"a validation result cached for one client view leaked into another view")
+
+			cached, foundSame := sut.getCachedValidation(viewA, victim)
+			Expect(foundSame).Should(BeTrue(), "validation result was not cached within its own view")
+			Expect(cached).Should(Equal(ValidationResultInsecure))
+		})
 	})
 
 	Describe("NewValidator", func() {
@@ -106,7 +461,16 @@ var _ = Describe("DNSSECValidator", func() {
 			})
 
 			It("should return Insecure", func() {
-				result := sut.ValidateResponse(ctx, response, question)
+				// example.com is a genuinely unsigned zone: prove the insecure delegation
+				// with an authenticated (signed) NSEC DS-denial under a com. trust anchor,
+				// so the unsigned answer is correctly classified Insecure rather than bogus.
+				anchor, fn := authenticatedInsecureDelegation("com.", "example.com.")
+				store, err := NewTrustAnchorStore([]string{anchor})
+				Expect(err).Should(Succeed())
+				mockUpstream.ResolveFn = fn
+
+				v := NewValidator(ctx, store, logger, mockUpstream, 1, 10, 150, 30, 3600)
+				result := v.ValidateResponse(ctx, response, question)
 				Expect(result).Should(Equal(ValidationResultInsecure))
 			})
 		})
@@ -434,16 +798,16 @@ var _ = Describe("DNSSECValidator", func() {
 			domain := "example.com."
 
 			// Set a cached result
-			sut.setCachedValidation(domain, ValidationResultSecure)
+			sut.setCachedValidation(ctx, domain, ValidationResultSecure)
 
 			// Retrieve it
-			result, found := sut.getCachedValidation(domain)
+			result, found := sut.getCachedValidation(ctx, domain)
 			Expect(found).Should(BeTrue())
 			Expect(result).Should(Equal(ValidationResultSecure))
 		})
 
 		It("should return not found for uncached domains", func() {
-			result, found := sut.getCachedValidation("nonexistent.com.")
+			result, found := sut.getCachedValidation(ctx, "nonexistent.com.")
 			Expect(found).Should(BeFalse())
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
@@ -452,10 +816,10 @@ var _ = Describe("DNSSECValidator", func() {
 			domain := "example.com."
 
 			// Set a cached result
-			sut.setCachedValidation(domain, ValidationResultSecure)
+			sut.setCachedValidation(ctx, domain, ValidationResultSecure)
 
 			// Should be cached initially
-			result, found := sut.getCachedValidation(domain)
+			result, found := sut.getCachedValidation(ctx, domain)
 			Expect(found).Should(BeTrue())
 			Expect(result).Should(Equal(ValidationResultSecure))
 
@@ -936,10 +1300,10 @@ var _ = Describe("DNSSECValidator", func() {
 			domain := "cached.example.com."
 
 			// Manually set a cached entry
-			sut.setCachedValidation(domain, ValidationResultSecure)
+			sut.setCachedValidation(ctx, domain, ValidationResultSecure)
 
 			// Retrieve immediately - should hit cache
-			result, found := sut.getCachedValidation(domain)
+			result, found := sut.getCachedValidation(ctx, domain)
 			Expect(found).Should(BeTrue())
 			Expect(result).Should(Equal(ValidationResultSecure))
 		})
@@ -951,15 +1315,15 @@ var _ = Describe("DNSSECValidator", func() {
 			domain := "test.example.com."
 
 			// Should not find uncached entry
-			result, found := validator.getCachedValidation(domain)
+			result, found := validator.getCachedValidation(ctx, domain)
 			Expect(found).Should(BeFalse())
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 
 			// Cache the entry
-			validator.setCachedValidation(domain, ValidationResultSecure)
+			validator.setCachedValidation(ctx, domain, ValidationResultSecure)
 
 			// Should find cached entry
-			result, found = validator.getCachedValidation(domain)
+			result, found = validator.getCachedValidation(ctx, domain)
 			Expect(found).Should(BeTrue())
 			Expect(result).Should(Equal(ValidationResultSecure))
 
@@ -1272,8 +1636,11 @@ var _ = Describe("DNSSECValidator", func() {
 
 	Describe("Query budget DoS protection", func() {
 		It("should track query budget in context", func() {
-			// Create validator with budget of 5 queries
-			validator := NewValidator(ctx, trustStore, logger, mockUpstream, 1, 10, 150, 5, 3600)
+			// Create validator with budget of 5 queries. The domain is not under a trust
+			// anchor, so an unsigned answer is accepted as Indeterminate (the benign mock
+			// keeps the zone-status sub-queries from panicking the testify mock).
+			mockUpstream.ResolveFn = benignEmptyResolve
+			validator := NewValidator(ctx, dummyAnchorStore(), logger, mockUpstream, 1, 10, 150, 5, 3600)
 
 			// Start validation - this initializes budget in context
 			question := dns.Question{
@@ -1299,8 +1666,8 @@ var _ = Describe("DNSSECValidator", func() {
 
 			result := validator.ValidateResponse(ctx, response, question)
 
-			// Should return Insecure for unsigned response
-			Expect(result).Should(Equal(ValidationResultInsecure))
+			// Unsigned response, domain not under a trust anchor -> accepted as Indeterminate.
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
 
 		It("should fail when query budget is exhausted", func() {
@@ -1380,8 +1747,10 @@ var _ = Describe("DNSSECValidator", func() {
 
 	Describe("Max chain depth DoS protection", func() {
 		It("should accept domains within chain depth limit", func() {
-			// Create validator with max chain depth of 10
-			validator := NewValidator(ctx, trustStore, logger, mockUpstream, 1, 10, 150, 30, 3600)
+			// Create validator with max chain depth of 10. Domain is not under a trust
+			// anchor, so an unsigned answer is accepted (Indeterminate).
+			mockUpstream.ResolveFn = benignEmptyResolve
+			validator := NewValidator(ctx, dummyAnchorStore(), logger, mockUpstream, 1, 10, 150, 30, 3600)
 
 			// Create domain with 5 labels (within limit)
 			question := dns.Question{
@@ -1407,8 +1776,8 @@ var _ = Describe("DNSSECValidator", func() {
 
 			result := validator.ValidateResponse(ctx, response, question)
 
-			// Should process normally (return Insecure for unsigned)
-			Expect(result).Should(Equal(ValidationResultInsecure))
+			// Processed normally; not under a trust anchor -> accepted as Indeterminate.
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
 
 		It("should reject domains exceeding chain depth limit", func() {
@@ -1471,8 +1840,10 @@ var _ = Describe("DNSSECValidator", func() {
 		})
 
 		It("should accept domain exactly at chain depth limit", func() {
-			// Create validator with max chain depth of 6
-			validator := NewValidator(ctx, trustStore, logger, mockUpstream, 1, 6, 150, 30, 3600)
+			// Create validator with max chain depth of 6. Domain is not under a trust
+			// anchor, so an unsigned answer is accepted (Indeterminate).
+			mockUpstream.ResolveFn = benignEmptyResolve
+			validator := NewValidator(ctx, dummyAnchorStore(), logger, mockUpstream, 1, 6, 150, 30, 3600)
 
 			// Create domain with exactly 6 labels (at limit)
 			question := dns.Question{
@@ -1498,8 +1869,8 @@ var _ = Describe("DNSSECValidator", func() {
 
 			result := validator.ValidateResponse(ctx, response, question)
 
-			// Should process normally (exactly at limit is OK)
-			Expect(result).Should(Equal(ValidationResultInsecure))
+			// Processed normally (exactly at limit); not under a trust anchor -> Indeterminate.
+			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
 
 		It("should respect configured max chain depth value", func() {
@@ -3058,35 +3429,15 @@ var _ = Describe("Additional Validator Coverage", func() {
 		})
 
 		It("should reject when no matching RRSIG found", func() {
-			// Mock DS query to indicate zone is signed (has DS records)
-			// so missing RRSIG should be treated as Bogus
-			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
-				if req.Req.Question[0].Qtype == dns.TypeDS {
-					ds := &dns.DS{
-						Hdr: dns.RR_Header{
-							Name:   "example.com.",
-							Rrtype: dns.TypeDS,
-							Class:  dns.ClassINET,
-							Ttl:    3600,
-						},
-						KeyTag:     12345,
-						Algorithm:  8,
-						DigestType: 2,
-						Digest:     "test",
-					}
-
-					return &model.Response{
-						Res: &dns.Msg{
-							MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess},
-							Answer: []dns.RR{ds},
-						},
-					}, nil
-				}
-
-				return &model.Response{
-					Res: &dns.Msg{},
-				}, nil
-			}
+			// Anchor example.com. as an operator-configured trust anchor so the zone is
+			// provably signed; a missing RRSIG for a signed zone must be treated as Bogus.
+			// (A bare, unsigned DS record is no longer accepted as proof a zone is signed.)
+			_, _, anchor := newSignedZoneKey("example.com.")
+			store, err := NewTrustAnchorStore([]string{anchor})
+			Expect(err).Should(Succeed())
+			testLogger, _ := log.NewMockEntry()
+			signedZone := NewValidator(ctx, store, testLogger, mockUpstream, 1, 10, 150, 30, 3600)
+			mockUpstream.ResolveFn = benignEmptyResolve
 
 			a := &dns.A{
 				Hdr: dns.RR_Header{
@@ -3109,7 +3460,7 @@ var _ = Describe("Additional Validator Coverage", func() {
 				SignerName:  "example.com.",
 			}
 
-			result := sut.validateSingleRRset(
+			result := signedZone.validateSingleRRset(
 				ctx,
 				dns.TypeA,
 				[]dns.RR{a},
@@ -3188,45 +3539,16 @@ var _ = Describe("Additional Validator Coverage", func() {
 			// 1. push.bitdefender.net (unsigned zone) -> CNAME with no RRSIG
 			// 2. Target A records also unsigned (simplified test case)
 
-			// Mock upstream responses for DS queries
-			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {
-				qtype := req.Req.Question[0].Qtype
-
-				if qtype == dns.TypeDS {
-					// Return NSEC3 proof that DS does not exist (unsigned zone)
-					// This applies to any DS query in this test
-					nsec3 := &dns.NSEC3{
-						Hdr: dns.RR_Header{
-							Name:   "abc123.example.net.",
-							Rrtype: dns.TypeNSEC3,
-							Class:  dns.ClassINET,
-							Ttl:    3600,
-						},
-						Hash:       1,
-						Flags:      0,
-						Iterations: 0,
-						SaltLength: 0,
-						Salt:       "",
-						HashLength: 20,
-						NextDomain: "def456",
-						TypeBitMap: []uint16{dns.TypeNS, dns.TypeSOA, dns.TypeNSEC3},
-					}
-
-					return &model.Response{
-						Res: &dns.Msg{
-							MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess},
-							Ns:     []dns.RR{nsec3},
-						},
-					}, nil
-				}
-
-				// Default empty response
-				return &model.Response{
-					Res: &dns.Msg{
-						MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess},
-					},
-				}, nil
-			}
+			// unsigned.net is a genuinely unsigned zone: prove the insecure delegation
+			// with an AUTHENTICATED (signed) NSEC DS-denial under a net. trust anchor.
+			// (This test previously trusted an UNSIGNED NSEC3 - the forged-proof path
+			// that is now correctly rejected; an authenticated proof is required.)
+			anchor, fn := authenticatedInsecureDelegation("net.", "unsigned.net.")
+			store, err := NewTrustAnchorStore([]string{anchor})
+			Expect(err).Should(Succeed())
+			testLogger, _ := log.NewMockEntry()
+			mockUpstream.ResolveFn = fn
+			validator := NewValidator(ctx, store, testLogger, mockUpstream, 1, 10, 150, 30, 3600)
 
 			// Create response with CNAME and A records, both without RRSIG (unsigned)
 			cname := &dns.CNAME{
@@ -3266,7 +3588,7 @@ var _ = Describe("Additional Validator Coverage", func() {
 			// This test checks that when a response contains only unsigned CNAME and A records (no RRSIGs)
 			// in an unsigned zone, the validator returns Insecure (acceptable per RFC 4035).
 			// This ensures that unsigned responses in unsigned zones are not incorrectly marked as Bogus.
-			result := sut.ValidateResponse(ctx, response, question)
+			result := validator.ValidateResponse(ctx, response, question)
 
 			// The key assertion: should be Insecure since the response has no DNSSEC signatures
 			Expect(result).Should(Equal(ValidationResultInsecure))

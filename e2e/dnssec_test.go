@@ -307,6 +307,158 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 				})
 			})
 
+			When("upstream returns an unsigned answer for a DNSSEC-signed zone", func() {
+				var signed *DNSSECTestData
+
+				BeforeEach(func(ctx context.Context) {
+					// example. is a DNSSEC-signed zone; its KSK is installed as a trust
+					// anchor so blocky knows the zone is signed. An unsigned answer below
+					// it must therefore be treated as bogus, not insecure.
+					var genErr error
+					signed, genErr = GenerateValidDNSSEC("example.", "www.example.", "192.0.2.10")
+					Expect(genErr).Should(Succeed())
+
+					// Upstream returns a forged A record with no RRSIG.
+					_, err = createDNSMokkaContainer(ctx, "moka-unsigned", e2eNet,
+						`A www.example/NOERROR("A 203.0.113.77 300")`)
+					Expect(err).Should(Succeed())
+
+					blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+						upstreams:
+						  groups:
+						    default:
+						      - moka-unsigned
+						dnssec:
+						  validate: true
+						  trustAnchors:
+						    - "`+signed.DNSKEY.String()+`"
+						log:
+						  level: debug
+						`))
+					Expect(err).Should(Succeed())
+				})
+
+				It("should reject the unsigned answer and return SERVFAIL", func(ctx context.Context) {
+					msg := util.NewMsgWithQuestion("www.example.", A)
+					msg.SetEdns0(4096, true) // DO bit
+
+					resp, err := doDNSRequest(ctx, blocky, msg)
+					Expect(err).Should(Succeed())
+
+					Expect(resp.Rcode).Should(Equal(dns.RcodeServerFailure),
+						"unsigned answer accepted for a DNSSEC-signed zone")
+					Expect(resp.AuthenticatedData).Should(BeFalse())
+					Expect(resp.Answer).ShouldNot(ContainElement(
+						BeDNSRecord("www.example.", A, "203.0.113.77")))
+				})
+			})
+
+			When("an unsigned answer for a signed zone has been cached", func() {
+				var (
+					signed *DNSSECTestData
+					mokka  testcontainers.Container
+				)
+
+				BeforeEach(func(ctx context.Context) {
+					var genErr error
+					signed, genErr = GenerateValidDNSSEC("example.", "www.example.", "192.0.2.10")
+					Expect(genErr).Should(Succeed())
+
+					mokka, err = createDNSMokkaContainer(ctx, "moka-cache", e2eNet,
+						`A www.example/NOERROR("A 203.0.113.77 300")`)
+					Expect(err).Should(Succeed())
+
+					blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+						upstreams:
+						  groups:
+						    default:
+						      - moka-cache
+						dnssec:
+						  validate: true
+						  trustAnchors:
+						    - "`+signed.DNSKEY.String()+`"
+						caching:
+						  minTime: 5m
+						log:
+						  level: debug
+						`))
+					Expect(err).Should(Succeed())
+				})
+
+				It("should not serve the unsigned answer from cache after the upstream is gone",
+					func(ctx context.Context) {
+						msg := util.NewMsgWithQuestion("www.example.", A)
+						msg.SetEdns0(4096, true) // DO bit
+
+						// First query populates the cache.
+						_, err := doDNSRequest(ctx, blocky, msg)
+						Expect(err).Should(Succeed())
+
+						// The upstream disappears; any later answer comes from the cache.
+						Expect(mokka.Terminate(ctx)).Should(Succeed())
+
+						resp, err := doDNSRequest(ctx, blocky, msg)
+						Expect(err).Should(Succeed())
+
+						Expect(resp.Answer).ShouldNot(ContainElement(
+							BeDNSRecord("www.example.", A, "203.0.113.77")),
+							"forged unsigned answer replayed from cache after upstream shutdown")
+					})
+			})
+
+			When("upstream returns an unsigned answer for a signed public domain under only the default root anchor", func() {
+				// GHSA-x845-2f78-7v36 finding 1 + 2: the documented basic configuration is just
+				// `dnssec: {validate: true}` with no custom trustAnchors, so only the implicit IANA
+				// root anchor is present. A malicious/compromised upstream that returns an unsigned
+				// forged answer for a DNSSEC-signed public name (and cannot supply an authenticated
+				// insecure-delegation proof) must NOT have that answer accepted or replayed.
+				var mokka testcontainers.Container
+
+				BeforeEach(func(ctx context.Context) {
+					// Forged unsigned A for cloudflare.com (a signed public domain), no RRSIG, and
+					// no DS/NSEC proofs for the auxiliary chain queries.
+					mokka, err = createDNSMokkaContainer(ctx, "moka-root-bypass", e2eNet,
+						`A cloudflare.com/NOERROR("A 203.0.113.77 300")`)
+					Expect(err).Should(Succeed())
+
+					blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+						upstreams:
+						  groups:
+						    default:
+						      - moka-root-bypass
+						dnssec:
+						  validate: true
+						caching:
+						  minTime: 5m
+						log:
+						  level: debug
+						`))
+					Expect(err).Should(Succeed())
+				})
+
+				It("rejects the forged answer and does not replay it from cache after the upstream is gone",
+					func(ctx context.Context) {
+						msg := util.NewMsgWithQuestion("cloudflare.com.", A)
+						msg.SetEdns0(4096, true) // DO bit
+
+						resp, err := doDNSRequest(ctx, blocky, msg)
+						Expect(err).Should(Succeed())
+						Expect(resp.Rcode).Should(Equal(dns.RcodeServerFailure),
+							"forged unsigned answer accepted under the default root anchor")
+						Expect(resp.Answer).ShouldNot(ContainElement(
+							BeDNSRecord("cloudflare.com.", A, "203.0.113.77")))
+
+						// The malicious upstream disappears; any later answer comes from the cache.
+						Expect(mokka.Terminate(ctx)).Should(Succeed())
+
+						resp, err = doDNSRequest(ctx, blocky, msg)
+						Expect(err).Should(Succeed())
+						Expect(resp.Answer).ShouldNot(ContainElement(
+							BeDNSRecord("cloudflare.com.", A, "203.0.113.77")),
+							"forged unsigned answer replayed from cache after upstream shutdown")
+					})
+			})
+
 			When("DNSSEC validation is disabled", func() {
 				BeforeEach(func(ctx context.Context) {
 					// Note: Using .example TLD instead of .test (SUDN resolver blocks .test)
