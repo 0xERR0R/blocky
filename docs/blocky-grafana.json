@@ -1777,7 +1777,7 @@
           "legendFormat": "{{reason}}"
         }
       ],
-      "description": "Detailed answer reason, including the upstream resolver or the denylist group that matched."
+      "description": "Answer reason, including the upstream resolver or the denylist group that matched. For blocked queries the `reason` label is group-level (to keep its cardinality bounded); the specific matched rule/domain is available in the query-log dashboard."
     },
     {
       "id": 22,
@@ -2599,7 +2599,7 @@
           "legendFormat": "{{reason}}"
         }
       ],
-      "description": "Which denylist groups blocked the most queries in the dashboard time range."
+      "description": "Which denylist groups blocked the most queries in the dashboard time range. The `reason` metric label is intentionally group-level to keep its cardinality bounded; for the specific matched rule/domain, use the query-log dashboard."
     },
     {
       "id": 30,
