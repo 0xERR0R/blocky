@@ -1,0 +1,351 @@
+openapi: 3.1.1
+info:
+  title: blocky API
+  description: >-
+    REST API for Blocky, a DNS proxy and ad-blocker for the local network.
+
+
+    For features, configuration, and installation see the
+    [project documentation](https://0xerr0r.github.io/blocky/) and the
+    [README](https://github.com/0xERR0R/blocky/blob/main/README.md).
+  contact:
+    name: blocky@github
+    url: https://github.com/0xERR0R/blocky
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: '1.0'
+servers:
+  - url: /api
+paths:
+  /blocking/disable:
+    get:
+      operationId: disableBlocking
+      tags:
+        - blocking
+      summary: Disable blocking
+      description: disable the blocking status
+      parameters:
+        - name: duration
+          in: query
+          description: 'duration of blocking (Example: 300s, 5m, 1h, 5m30s)'
+          schema:
+            type: string
+        - name: groups
+          in: query
+          description: groups to disable (comma separated). If empty, disable all groups
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Blocking is disabled
+        '400':
+          description: Bad request (e.g. unknown group)
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Bad request
+  /blocking/enable:
+    get:
+      operationId: enableBlocking
+      tags:
+        - blocking
+      summary: Enable blocking
+      description: enable the blocking status
+      responses:
+        '200':
+          description: Blocking is enabled
+  /blocking/status:
+    get:
+      operationId: blockingStatus
+      tags:
+        - blocking
+      summary: Blocking status
+      description: get current blocking status
+      responses:
+        '200':
+          description: Returns current blocking status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.BlockingStatus'
+  /lists/refresh:
+    post:
+      operationId: listRefresh
+      tags:
+        - lists
+      summary: List refresh
+      description: Refresh all lists
+      responses:
+        '200':
+          description: Lists were reloaded
+        '500':
+          description: List refresh error
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Error text
+  /query:
+    post:
+      operationId: query
+      tags:
+        - query
+      summary: Performs DNS query
+      description: Performs DNS query
+      requestBody:
+        description: query data
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/api.QueryRequest'
+        required: true
+      responses:
+        '200':
+          description: query was executed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.QueryResult'
+        '400':
+          description: Wrong request format
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Bad request
+  /cache/flush:
+    post:
+      operationId: cacheFlush
+      tags:
+        - cache
+      summary: Clears the DNS response cache
+      description: Removes all DNS responses from cache
+      responses:
+        '200':
+          description: All caches cleared
+  /stats:
+    get:
+      operationId: getStats
+      tags:
+        - stats
+      summary: DNS statistics
+      description: >-
+        In-memory statistics over a rolling 24h window. Requires statistics to be
+        enabled in the configuration; returns 503 otherwise. Independent of Prometheus.
+        All timestamps (start, end, perHour[].hour) are returned in UTC (RFC 3339,
+        `Z` suffix).
+      responses:
+        '200':
+          description: Current statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.Stats'
+        '503':
+          description: Statistics are disabled
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: statistics are disabled
+components:
+  schemas:
+    api.BlockingStatus:
+      type: object
+      properties:
+        autoEnableInSec:
+          type: integer
+          minimum: 0
+          description: >-
+            If blocking is temporary disabled: amount of seconds until blocking
+            will be enabled
+        disabledGroups:
+          type: array
+          description: Disabled group names
+          items:
+            type: string
+        enabled:
+          type: boolean
+          description: True if blocking is enabled
+      required:
+        - enabled
+    api.QueryRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          description: query for DNS request
+        type:
+          type: string
+          description: request type (A, AAAA, ...)
+      required:
+        - query
+        - type
+    api.QueryResult:
+      type: object
+      properties:
+        reason:
+          type: string
+          description: blocky reason for resolution
+        response:
+          type: string
+          description: actual DNS response
+        responseType:
+          type: string
+          description: response type (CACHED, BLOCKED, ...)
+        returnCode:
+          type: string
+          description: DNS return code (NOERROR, NXDOMAIN, ...)
+      required:
+        - reason
+        - response
+        - responseType
+        - returnCode
+    api.Stats:
+      type: object
+      description: In-memory DNS statistics snapshot.
+      properties:
+        start:
+          type: string
+          format: date-time
+          description: Start of the covered window for the windowed fields (not the gauges). UTC (RFC 3339).
+        end:
+          type: string
+          format: date-time
+          description: Snapshot time. UTC (RFC 3339).
+        summary:
+          $ref: '#/components/schemas/api.StatsSummary'
+        byResponseType:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Raw per-RType counts over the window (CACHED, BLOCKED, ...).
+        byQueryType:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Counts per DNS query type over the window (A, AAAA, ...).
+        byResponseCode:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Counts per DNS response code over the window (NOERROR, NXDOMAIN, ...).
+        perHour:
+          type: array
+          description: Per-hour time series over the window.
+          items:
+            $ref: '#/components/schemas/api.HourPoint'
+        topDomains:
+          type: array
+          items:
+            $ref: '#/components/schemas/api.NameCount'
+        topBlockedDomains:
+          type: array
+          items:
+            $ref: '#/components/schemas/api.NameCount'
+        topClients:
+          type: array
+          items:
+            $ref: '#/components/schemas/api.NameCount'
+        lists:
+          $ref: '#/components/schemas/api.ListCounts'
+        cache:
+          $ref: '#/components/schemas/api.CacheStats'
+      required:
+        - start
+        - end
+        - summary
+        - byResponseType
+        - byQueryType
+        - byResponseCode
+        - perHour
+        - topDomains
+        - topBlockedDomains
+        - topClients
+        - lists
+        - cache
+    api.StatsSummary:
+      type: object
+      description: Curated outcome categories over the window (server computes the mapping).
+      properties:
+        queries:
+          type: integer
+          description: Total queries received in the window.
+        cached:
+          type: integer
+        forwarded:
+          type: integer
+        blocked:
+          type: integer
+        local:
+          type: integer
+        dropped:
+          type: integer
+        errors:
+          type: integer
+        avgResponseMs:
+          type: integer
+        cacheHitRate:
+          type: number
+          format: double
+      required:
+        - queries
+        - cached
+        - forwarded
+        - blocked
+        - local
+        - dropped
+        - errors
+        - avgResponseMs
+        - cacheHitRate
+    api.NameCount:
+      type: object
+      properties:
+        name:
+          type: string
+        count:
+          type: integer
+      required:
+        - name
+        - count
+    api.HourPoint:
+      type: object
+      properties:
+        hour:
+          type: string
+          format: date-time
+          description: Start of the hour bucket. UTC (RFC 3339).
+        queries:
+          type: integer
+        blocked:
+          type: integer
+      required:
+        - hour
+        - queries
+        - blocked
+    api.ListCounts:
+      type: object
+      description: Current per-group list entry counts (point-in-time, not windowed).
+      properties:
+        denylist:
+          type: object
+          additionalProperties:
+            type: integer
+        allowlist:
+          type: object
+          additionalProperties:
+            type: integer
+      required:
+        - denylist
+        - allowlist
+    api.CacheStats:
+      type: object
+      description: Current cache state (point-in-time, not windowed).
+      properties:
+        entries:
+          type: integer
+          description: Current number of entries in the result cache.
+      required:
+        - entries
