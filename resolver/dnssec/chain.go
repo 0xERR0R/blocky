@@ -581,10 +581,10 @@ func (v *Validator) validateDSAbsenceProof(domain string, dsResponse *dns.Msg, h
 }
 
 // nsecProvesInsecureDelegation reports whether an NSEC RR matching domain asserts an insecure
-// delegation per RFC 6840 §4.4: to prove DS absence for a delegation the matching NSEC MUST
-// have the NS bit set and MUST NOT have the SOA or DS bits set. This distinguishes a genuine
-// unsigned delegation from an ordinary name inside a signed zone (NS bit clear) or the apex of
-// a signed zone (SOA bit set), neither of which may be treated as an insecure delegation.
+// delegation per RFC 6840 §4.4 (the NS-set/SOA-clear/DS-clear rule shared with NSEC3 via
+// assertsInsecureDelegation). This distinguishes a genuine unsigned delegation from an ordinary
+// name inside a signed zone or the apex of a signed zone, neither of which may be treated as an
+// insecure delegation when proving DS absence.
 func (v *Validator) nsecProvesInsecureDelegation(nsecRecords []*dns.NSEC, domain string) bool {
 	domain = dns.Fqdn(domain)
 	for _, nsec := range nsecRecords {
@@ -592,11 +592,7 @@ func (v *Validator) nsecProvesInsecureDelegation(nsecRecords []*dns.NSEC, domain
 			continue
 		}
 
-		hasNS := slices.Contains(nsec.TypeBitMap, dns.TypeNS)
-		hasSOA := slices.Contains(nsec.TypeBitMap, dns.TypeSOA)
-		hasDS := slices.Contains(nsec.TypeBitMap, dns.TypeDS)
-
-		return hasNS && !hasSOA && !hasDS
+		return assertsInsecureDelegation(nsec.TypeBitMap)
 	}
 
 	return false
