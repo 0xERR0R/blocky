@@ -314,66 +314,95 @@ func (b *ListCache) localSeedSources(dir string) map[string][]config.BytesSource
 
 // downloads file (or reads local file) and writes each line in the file to the result channel
 func (b *ListCache) parseFile(ctx context.Context, opener SourceOpener, resultCh chan<- string) error {
-	count := 0
-
-	logger := func() *logrus.Entry {
-		return logger().WithFields(logrus.Fields{
-			"source": opener.String(),
-			"count":  count,
-		})
-	}
-
-	logger().Debug("starting processing of source")
-
-	r, err := opener.Open(ctx)
-	if err != nil {
-		logger().Error("cannot open source: ", err)
-
-		return fmt.Errorf("failed to open list source %s: %w", opener, err)
-	}
-	defer r.Close()
-
-	p := parsers.AllowErrors(parsers.Hosts(r), b.cfg.MaxErrorsPerSource)
-	p.OnErr(func(err error) {
-		logger().Warnf("parse error: %s, trying to continue", err)
-	})
-
-	err = parsers.ForEach[*parsers.HostsIterator](ctx, p, func(hosts *parsers.HostsIterator) error {
-		return hosts.ForEach(func(host string) error {
-			count++
-
-			// For IPs, we want to ensure the string is the Go representation so that when
-			// we compare responses, a same IP matches, even if it was written differently
-			// in the list. The cheap MightBeIP pre-check avoids calling net.ParseIP on
-			// the vast majority of entries, which are domain names.
-			if parsers.MightBeIP(host) {
-				if ip := net.ParseIP(host); ip != nil {
-					host = ip.String()
-				}
-			}
-
-			resultCh <- host
-
-			return nil
-		})
-	})
-	if err != nil {
-		// Don't log cancelation: it was caused by another goroutine failing
-		if !errors.Is(err, context.Canceled) {
-			logger().Error("parse error: ", err)
-		}
-
-		// Only propagate the error if no entries were parsed
-		// If the file was partially parsed, we'll settle for that
-
-		if count == 0 {
-			return fmt.Errorf("failed to parse list source %s (no entries parsed): %w", opener, err)
-		}
-
-		return nil
-	}
-
-	logger().Info("import succeeded")
-
-	return nil
+    count := 0
+    
+    logger := func() *logrus.Entry {
+        return logger().WithFields(logrus.Fields{
+            "source": opener.String(),
+            "count":  count,
+        })
+    }
+    
+    logger().Debug("starting processing of source")
+    
+    r, err := opener.Open(ctx)
+    if err != nil {
+        logger().Error("cannot open source: ", err)
+        return fmt.Errorf("failed to open list source %s: %w", opener, err)
+    }
+    defer r.Close()
+    
+    p := parsers.AllowErrors(parsers.Hosts(r), b.cfg.MaxErrorsPerSource)
+    p.OnErr(func(err error) {
+        logger().Warnf("parse error: %s, trying to continue", err)
+    })
+    
+    // Batching configuration - tune based on memory vs channel overhead tradeoff
+    const batchSize = 8192
+    batch := make([]string, 0, batchSize)
+    flushBatch := func() error {
+        if len(batch) == 0 {
+            return nil
+        }
+        
+        // Send entire batch at once
+        for i := range batch {
+            select {
+            case resultCh <- batch[i]:
+                count++
+            case <-ctx.Done():
+                return ctx.Err()
+            }
+        }
+        
+        // Clear batch by truncating to zero length (reuses backing array)
+        batch = batch[:0]
+        return nil
+    }
+    
+    err = parsers.ForEach[*parsers.HostsIterator](ctx, p, func(hosts *parsers.HostsIterator) error {
+        return hosts.ForEach(func(host string) error {
+            // For IPs, normalize to Go representation
+            if parsers.MightBeIP(host) {
+                if ip := net.ParseIP(host); ip != nil {
+                    host = ip.String()
+                }
+            }
+            
+            // Add to batch
+            batch = append(batch, host)
+            
+            // Flush when batch is full
+            if len(batch) >= batchSize {
+                if err := flushBatch(); err != nil {
+                    return err
+                }
+            }
+            
+            return nil
+        })
+    })
+    
+    // Flush remaining items in the last partial batch
+    if err == nil {
+        err = flushBatch()
+    }
+    
+    if err != nil {
+        // Don't log cancelation: it was caused by another goroutine failing
+        if !errors.Is(err, context.Canceled) {
+            logger().Error("parse error: ", err)
+        }
+        
+        // Only propagate the error if no entries were parsed
+        // If the file was partially parsed, we'll settle for that
+        if count == 0 {
+            return fmt.Errorf("failed to parse list source %s (no entries parsed): %w", opener, err)
+        }
+        
+        return nil
+    }
+    
+    logger().Info("import succeeded")
+    return nil
 }
