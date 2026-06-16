@@ -2146,6 +2146,91 @@ var _ = Describe("NSEC3 validation", func() {
 			// Should return Bogus when no wildcard found and it's not DS with opt-out
 			Expect(result).Should(Equal(ValidationResultBogus))
 		})
+
+		It("rejects a DS-absence wildcard NODATA proof that does not assert a delegation", func() {
+			// GHSA-x845-2f78-7v36 finding 4 (residual): the matching-NSEC3 guard in
+			// checkDirectNSEC3Match must apply equally to the wildcard NODATA path. A wildcard
+			// NSEC3 whose bitmap lacks the DS type proves DS-absence, but only proves an
+			// INSECURE DELEGATION if it asserts a delegation (NS set, SOA/DS clear). With the
+			// NS bit clear it is an ordinary in-zone name, so a DS query answered via this
+			// wildcard match must be Bogus, not Secure.
+			zoneName := "example.com."
+			qname := "wild.example.com."
+
+			hashZone, err := sut.computeNSEC3Hash(zoneName, dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			hashWildcard, err := sut.computeNSEC3Hash("*.example.com.", dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			hashQuery, err := sut.computeNSEC3Hash(qname, dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			// NSEC3 for the zone apex (closest encloser).
+			nsec3Zone := &dns.NSEC3{
+				Hdr:        dns.RR_Header{Name: hashZone + ".example.com.", Rrtype: dns.TypeNSEC3},
+				Hash:       dns.SHA1,
+				Salt:       "",
+				Iterations: 0,
+			}
+
+			// Wildcard NSEC3 without the DS type AND without the NS bit: it does not assert a
+			// delegation, so it must not be read as proof of an insecure delegation.
+			nsec3Wildcard := &dns.NSEC3{
+				Hdr:        dns.RR_Header{Name: hashWildcard + ".example.com.", Rrtype: dns.TypeNSEC3},
+				Hash:       dns.SHA1,
+				Salt:       "",
+				Iterations: 0,
+				TypeBitMap: []uint16{dns.TypeA, dns.TypeRRSIG}, // in-zone name: NS bit absent
+			}
+
+			result := sut.checkWildcardNSEC3Match(
+				[]*dns.NSEC3{nsec3Zone, nsec3Wildcard}, qname, dns.TypeDS,
+				zoneName, dns.SHA1, "", 0, hashQuery,
+			)
+
+			Expect(result).ShouldNot(Equal(ValidationResultSecure),
+				"wildcard NSEC3 without the NS bit was accepted as proof of an insecure delegation")
+		})
+
+		It("accepts a DS-absence wildcard NODATA proof that asserts a delegation", func() {
+			// The guard above must not over-reject: a wildcard NSEC3 with the NS bit set and
+			// the SOA/DS bits clear is a valid insecure-delegation proof and must still validate.
+			zoneName := "example.com."
+			qname := "wild.example.com."
+
+			hashZone, err := sut.computeNSEC3Hash(zoneName, dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			hashWildcard, err := sut.computeNSEC3Hash("*.example.com.", dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			hashQuery, err := sut.computeNSEC3Hash(qname, dns.SHA1, "", 0)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			nsec3Zone := &dns.NSEC3{
+				Hdr:        dns.RR_Header{Name: hashZone + ".example.com.", Rrtype: dns.TypeNSEC3},
+				Hash:       dns.SHA1,
+				Salt:       "",
+				Iterations: 0,
+			}
+
+			nsec3Wildcard := &dns.NSEC3{
+				Hdr:        dns.RR_Header{Name: hashWildcard + ".example.com.", Rrtype: dns.TypeNSEC3},
+				Hash:       dns.SHA1,
+				Salt:       "",
+				Iterations: 0,
+				TypeBitMap: []uint16{dns.TypeNS, dns.TypeRRSIG}, // delegation present, DS absent
+			}
+
+			result := sut.checkWildcardNSEC3Match(
+				[]*dns.NSEC3{nsec3Zone, nsec3Wildcard}, qname, dns.TypeDS,
+				zoneName, dns.SHA1, "", 0, hashQuery,
+			)
+
+			Expect(result).Should(Equal(ValidationResultSecure),
+				"valid insecure-delegation wildcard NSEC3 was wrongly rejected as a DS-absence proof")
+		})
 	})
 
 	Describe("validateNSEC3NXDOMAIN - extended error paths", func() {

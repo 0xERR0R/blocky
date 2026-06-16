@@ -86,7 +86,9 @@ func NewTrustAnchorStore(customAnchors []string) (*TrustAnchorStore, error) {
 		anchors: make(map[string][]*TrustAnchor),
 	}
 
-	// Load custom trust anchors if provided, otherwise use defaults
+	// Load custom trust anchors if provided, otherwise use the default IANA root KSK. Both
+	// kinds are secure entry points: any name below a trust anchor (the root anchor included)
+	// is presumed secure until an authenticated insecure-delegation proof says otherwise.
 	anchors := customAnchors
 	if len(anchors) == 0 {
 		anchors = getDefaultRootTrustAnchors()
@@ -101,7 +103,7 @@ func NewTrustAnchorStore(customAnchors []string) (*TrustAnchorStore, error) {
 	return store, nil
 }
 
-// AddTrustAnchor adds a trust anchor from a DNSKEY record string
+// AddTrustAnchor adds a trust anchor from a DNSKEY record string.
 func (s *TrustAnchorStore) AddTrustAnchor(anchorStr string) error {
 	// Parse the DNSKEY record
 	rr, err := dns.NewRR(anchorStr)

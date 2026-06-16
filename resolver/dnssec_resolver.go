@@ -93,7 +93,10 @@ func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*
 
 	// Validate DNSSEC if enabled and validator is available
 	if r.cfg.Validate && r.validator != nil && len(request.Req.Question) > 0 {
-		result := r.validator.ValidateResponse(ctx, response.Res, request.Req.Question[0])
+		// Preserve the originating client's identity so DS/DNSKEY sub-queries issued
+		// during validation resolve from the same upstream view as the answer.
+		validationCtx := dnssec.WithClientContext(ctx, request.ClientIP, request.ClientNames, request.RequestClientID)
+		result := r.validator.ValidateResponse(validationCtx, response.Res, request.Req.Question[0])
 
 		logger.Debugf("DNSSEC validation result for %s: %s",
 			request.Req.Question[0].Name, result.String())

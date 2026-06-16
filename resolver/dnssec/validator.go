@@ -224,8 +224,10 @@ func (v *Validator) ValidateResponse(
 	// Dispatch to appropriate validator based on response type
 	switch {
 	case !v.hasAnySignatures(response):
-		v.logger.Debugf("No RRSIG records found for %s - zone is unsigned", question.Name)
-		result = ValidationResultInsecure
+		// A response with no RRSIGs does NOT automatically mean the zone is unsigned.
+		// Determine the zone's security status first: if the zone is signed (chains to
+		// a trust anchor) then a missing-signature answer is forged, not insecure.
+		result = v.classifyUnsignedResponse(ctx, question)
 	case len(response.Answer) > 0:
 		result = v.validateAnswer(ctx, response, question)
 	case v.isNegativeResponse(response):
@@ -246,6 +248,25 @@ func (v *Validator) hasAnySignatures(response *dns.Msg) bool {
 	return len(extractRRSIGs(response.Answer)) > 0 ||
 		len(extractRRSIGs(response.Ns)) > 0 ||
 		len(extractRRSIGs(response.Extra)) > 0
+}
+
+// classifyUnsignedResponse determines the validation result for a response that
+// carries no RRSIG records. Per RFC 4035 §5.2 the absence of signatures only means
+// "insecure" if the queried name is provably below an insecure delegation. If the
+// enclosing zone is secure (chains to a trust anchor) with no authenticated proof of
+// an insecure delegation, an unsigned answer is bogus, not insecure.
+func (v *Validator) classifyUnsignedResponse(ctx context.Context, question dns.Question) ValidationResult {
+	status := v.checkZoneSecurityStatus(ctx, question.Name)
+	if status == ValidationResultSecure {
+		v.logger.Warnf("No RRSIG for %s but zone is secure - treating unsigned answer as bogus", question.Name)
+
+		return ValidationResultBogus
+	}
+
+	// Insecure (genuinely unsigned zone) or Indeterminate (cannot determine).
+	v.logger.Debugf("No RRSIG for %s - zone status %s", question.Name, status.String())
+
+	return status
 }
 
 // validateAnswer validates the answer section of a response
@@ -636,28 +657,40 @@ func (v *Validator) checkZoneSecurityStatus(ctx context.Context, domain string) 
 	domain = dns.Fqdn(domain)
 
 	// Check cache first - we may have already validated this zone
-	if cached, found := v.getCachedValidation(domain); found {
+	if cached, found := v.getCachedValidation(ctx, domain); found {
 		v.logger.Debugf("Using cached security status for %s: %s", domain, cached.String())
 
 		return cached
 	}
 
+	// A configured trust anchor is an operator-asserted secure entry point: by
+	// definition the zone is signed. This covers both the IANA root anchor and any
+	// custom anchor, and is what lets us reject unsigned answers for a signed zone.
+	if v.trustAnchors.HasTrustAnchor(domain) {
+		v.logger.Debugf("Domain %s has a configured trust anchor - secure", domain)
+
+		return ValidationResultSecure
+	}
+
 	// Get parent domain to query for DS records
 	parentDomain := v.getParentDomain(domain)
 	if parentDomain == "" {
-		// Root or TLD with no parent - treat as insecure for this check
-		// (actual validation would go through trust anchors)
-		v.logger.Debugf("Domain %s has no parent for DS lookup", domain)
+		// Reached the root without a configured trust anchor: security status cannot be
+		// established from the chain.
+		v.logger.Debugf("Domain %s has no parent and no trust anchor", domain)
 
-		return ValidationResultInsecure
+		return v.classifyUndetermined(domain)
 	}
 
 	// Query DS records for this domain from the parent zone
 	ctx, dsResponse, err := v.queryRecords(ctx, domain, dns.TypeDS)
 	if err != nil {
+		// Could not reach the upstream (e.g. answering from cache after the upstream is
+		// gone). Fail closed if the name lives under a trust anchor; we must not serve an
+		// unsigned answer for a secured hierarchy just because we cannot reach a resolver.
 		v.logger.Debugf("DS query failed for %s: %v", domain, err)
 
-		return ValidationResultIndeterminate
+		return v.classifyUndetermined(domain)
 	}
 
 	// Check if DS records exist
@@ -667,59 +700,145 @@ func (v *Validator) checkZoneSecurityStatus(ctx context.Context, domain string) 
 		return v.handleNoDSRecords(ctx, domain, parentDomain, dsResponse)
 	}
 
-	// DS records exist - zone is signed (secure)
-	v.logger.Debugf("Zone %s is secure (DS records exist: %d)", domain, len(dsRecords))
-	// Don't cache as Secure here - full validation might fail
-	// Just return Secure to indicate the zone should have signatures
+	// DS records are present, but their mere presence is not proof the zone is signed: an
+	// injected/forged DS could otherwise force an unsigned name to be classified secure and
+	// thus SERVFAIL its (legitimately unsigned) answers. Require the DS RRset to be signed
+	// by the parent zone before trusting it.
+	dsRRSIG := v.findDSRRSIG(dsResponse, domain)
+	if dsRRSIG == nil {
+		v.logger.Warnf("DS records for %s are present but unsigned - not treating zone as secure", domain)
+
+		return v.classifyUndetermined(domain)
+	}
+
+	res := v.validateDSRecordSignature(ctx, domain, parentDomain, convertDSToRRset(dsRecords), dsRRSIG)
+	if res != ValidationResultSecure {
+		v.logger.Warnf("DS RRSIG for %s failed validation (%s) - not treating zone as secure", domain, res.String())
+
+		return v.classifyUndetermined(domain)
+	}
+
+	// DS records exist and validate - zone is signed (secure).
+	v.logger.Debugf("Zone %s is secure (DS records exist and validate: %d)", domain, len(dsRecords))
+	// Don't cache as Secure here - full validation of the answer might still fail.
 
 	return ValidationResultSecure
 }
 
-// handleNoDSRecords determines zone security status when no DS records are found
+// isUnderTrustAnchor reports whether domain, or any of its ancestors, has a trust anchor -
+// including the implicit IANA root anchor installed by default. Because a validating
+// resolver must hold a secure entry point to validate at all, any name below a trust anchor
+// is presumed secure until an AUTHENTICATED proof of an insecure delegation (a signed
+// NSEC/NSEC3 DS denial) says otherwise. Under the default configuration the root anchor is
+// present, so this is true for the whole namespace - which is exactly what closes the
+// unsigned-answer bypass (GHSA-x845-2f78-7v36 finding 1): a forged unsigned answer can no
+// longer pass merely because the attacker also strips the DS/DNSKEY chain.
+func (v *Validator) isUnderTrustAnchor(domain string) bool {
+	for d := dns.Fqdn(domain); d != ""; d = v.getParentDomain(d) {
+		if v.trustAnchors.HasTrustAnchor(d) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// classifyUndetermined decides the security status when the chain status cannot be
+// established (no authenticated DS proof). It fails closed - Secure, so an unsigned answer
+// becomes bogus - for any name under a trust anchor (including the default root anchor),
+// because a name below a secure entry point must be proven insecure by an AUTHENTICATED
+// denial of existence before its unsigned answer may be trusted. Only names with no trust
+// anchor anywhere in their hierarchy stay Indeterminate (the answer passes through). This is
+// NOT cached: it is not derived from an authenticated proof, so a later reachable upstream
+// can still establish the real status.
+func (v *Validator) classifyUndetermined(domain string) ValidationResult {
+	if v.isUnderTrustAnchor(domain) {
+		v.logger.Debugf("Zone %s status undetermined but under a trust anchor - secure (fail closed)", domain)
+
+		return ValidationResultSecure
+	}
+
+	v.logger.Debugf("Zone %s status indeterminate (no trust anchor in hierarchy)", domain)
+
+	return ValidationResultIndeterminate
+}
+
+// handleNoDSRecords determines zone security status when no DS records are found.
+// A DS NODATA response can only downgrade a zone to insecure if it carries an
+// AUTHENTICATED denial of the DS type (a signed NSEC/NSEC3 that chains to a trust
+// anchor); the mere presence of NSEC/NSEC3 records is not proof.
 func (v *Validator) handleNoDSRecords(
 	ctx context.Context, domain, parentDomain string, dsResponse *dns.Msg,
 ) ValidationResult {
-	// Check for NSEC/NSEC3 proof of absence
 	hasNSEC := len(extractNSECRecords(dsResponse.Ns)) > 0
 	hasNSEC3 := len(extractNSEC3Records(dsResponse.Ns)) > 0
 
 	if hasNSEC || hasNSEC3 {
-		// Authenticated denial of DS existence - zone is insecure (unsigned)
-		v.logger.Debugf("Zone %s is insecure (no DS, with NSEC/NSEC3 proof)", domain)
-		result := ValidationResultInsecure
-		v.setCachedValidation(domain, result)
+		if v.isAuthenticatedDSDenial(ctx, domain, dsResponse) {
+			// Authenticated proof that no DS exists: genuine insecure delegation.
+			v.logger.Debugf("Zone %s is insecure (authenticated NSEC/NSEC3 DS denial)", domain)
+			result := ValidationResultInsecure
+			v.setCachedValidation(ctx, domain, result)
 
-		return result
+			return result
+		}
+
+		// Unauthenticated/forged denial - must NOT be trusted, and must NOT be cached.
+		// Fall through and determine status from the parent zone instead.
+		v.logger.Warnf("Unauthenticated NSEC/NSEC3 in DS response for %s - ignoring as DS denial", domain)
 	}
 
-	// No DS and no proof - this might be a non-delegation (e.g., subdomain in parent zone)
-	// Try walking up to parent zone
-	v.logger.Debugf("No DS or proof for %s, checking parent zone", domain)
+	// No DS and no authenticated proof of absence. Determine status from the parent.
+	v.logger.Debugf("No authenticated DS-absence proof for %s, checking parent zone", domain)
 
 	if parentDomain != "" {
-		parentResult := v.checkZoneSecurityStatus(ctx, parentDomain)
-		if parentResult == ValidationResultInsecure {
-			// Parent zone is unsigned, so this name is also unsigned
+		parentStatus := v.checkZoneSecurityStatus(ctx, parentDomain)
+		if parentStatus == ValidationResultInsecure {
+			// Below an insecure delegation - this name is also unsigned.
 			v.logger.Debugf("Parent zone %s is insecure, so %s is also insecure", parentDomain, domain)
 			result := ValidationResultInsecure
-			v.setCachedValidation(domain, result)
+			v.setCachedValidation(ctx, domain, result)
 
 			return result
 		}
-		if parentResult == ValidationResultSecure {
-			// Parent is signed, so this non-delegation should have been signed too
-			v.logger.Debugf("Parent zone %s is secure but %s has no DS - treating as indeterminate", parentDomain, domain)
-			result := ValidationResultIndeterminate
-			v.setCachedValidation(domain, result)
+		if parentStatus == ValidationResultSecure {
+			// Parent is secure but there is no authenticated proof that this name is an
+			// insecure delegation. We cannot positively conclude from the parent alone that
+			// the name itself is signed (the proof may have been stripped, or this may be a
+			// forged unsigned answer), so defer to the trust-anchor-aware default: fail
+			// closed only when the operator explicitly anchored this hierarchy, otherwise
+			// stay indeterminate. Do NOT cache - not derived from an authenticated proof.
+			v.logger.Debugf("Parent zone %s secure but %s has no authenticated DS denial - undetermined", parentDomain, domain)
 
-			return result
+			return v.classifyUndetermined(domain)
 		}
 	}
 
-	// No DS and no proof - indeterminate
-	v.logger.Debugf("Zone %s security status indeterminate (no DS, no proof)", domain)
-	result := ValidationResultIndeterminate
-	v.setCachedValidation(domain, result)
+	// No authenticated proof and no usable parent result - fall back to the
+	// trust-anchor-aware default (fail closed under a trust anchor).
+	return v.classifyUndetermined(domain)
+}
 
-	return result
+// isAuthenticatedDSDenial reports whether dsResponse carries an authenticated proof
+// (a signed NSEC/NSEC3 chaining to a trust anchor) that the DS type is absent for
+// domain - i.e. a genuine insecure delegation. Mere presence of NSEC/NSEC3 is not
+// sufficient; the records must be cryptographically validated.
+func (v *Validator) isAuthenticatedDSDenial(ctx context.Context, domain string, dsResponse *dns.Msg) bool {
+	// First require the authority section (the NSEC/NSEC3 records and their RRSIGs) to
+	// cryptographically validate and chain to a trust anchor. An unsigned or forged denial
+	// proves nothing and must never downgrade a zone to insecure.
+	if v.validateRRsets(ctx, dsResponse.Ns, domain, dsResponse.Ns, domain) != ValidationResultSecure {
+		return false
+	}
+
+	// With an authenticated authority section, both an explicit NSEC/NSEC3 NODATA proof
+	// (Secure) and an NSEC3 Opt-Out span covering the name (Insecure) are authenticated
+	// proofs that no DS exists - i.e. a genuine insecure (unsigned) delegation. Opt-Out is
+	// the standard mechanism by which signed TLDs (.com/.net/.org, ...) delegate to their
+	// unsigned children, so rejecting the Insecure result would wrongly treat the bulk of
+	// the unsigned Internet as bogus.
+	hasNSEC := len(extractNSECRecords(dsResponse.Ns)) > 0
+	proof := v.validateDSAbsenceProof(domain, dsResponse, hasNSEC)
+
+	return proof == ValidationResultSecure || proof == ValidationResultInsecure
 }

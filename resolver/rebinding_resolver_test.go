@@ -46,6 +46,14 @@ func rebindTestAAAA(name, ip string) *dns.AAAA {
 	}
 }
 
+// unrelatedDNSSECAnchor is a syntactically valid KSK trust anchor for a zone that does
+// not cover the rebinding test names, so unsigned answers are classified Indeterminate.
+const unrelatedDNSSECAnchor = "dnssec-test-anchor. 172800 IN DNSKEY 257 3 8 " +
+	"AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTOiW1vkIbzxeF3+/4RgWOq7HrxRixHlFlExOLAJr5emLvN7SWXgnLh4+B5xQlNVz8Og8k" +
+	"vArMtNROxVQuCaSnIDdD5LKyWbRd2n9WGe2R8PzgCmr3EgVLrjyBxWezF0jLHwVN8efS3rCj/EWgvIWgb9tarpVUDK/b58Da+sqqls3eNbuv7pr" +
+	"+eoZG+SrDK6nWeL3c6H5Apxz7LjVc1uTIdsIXxuOLYA4/ilBmSVIzuDWfdRUfhHdY6+cn8HFRm+2hM8AnXGXws9555KrUB5qihylGa8subX2Nn6" +
+	"UwNR1AkUTV74bU="
+
 var _ = Describe("RebindingProtectionResolver", func() {
 	var (
 		sut        *RebindingProtectionResolver
@@ -437,13 +445,19 @@ var _ = Describe("RebindingProtectionResolver", func() {
 	})
 
 	When("chained above a validating DNSSEC resolver", func() {
-		It("filters the validated answer without extra DNSKEY/DS lookups", func() {
-			// the validator sits below this resolver in the server chain and sees
-			// the real upstream answer; the synthetic filtered response replaces it
-			// after validation and carries no AD flag (spec: "DNSSEC interplay")
+		It("filters the answer after DNSSEC validation, with no AD flag", func() {
+			// the validator sits below this resolver in the server chain and sees the real
+			// upstream answer; the synthetic filtered response replaces it after validation
+			// and carries no AD flag (spec: "DNSSEC interplay")
 			mockAnswer.Answer = []dns.RR{rebindTestA("rebind.example.com.", "192.168.1.100")}
 
-			dnssecRes, err := NewDNSSECResolver(ctx, config.DNSSEC{Validate: true}, m)
+			// Use a trust anchor that does NOT cover rebind.example.com so the unsigned
+			// answer is classified Indeterminate (passed through) rather than failing closed,
+			// letting the rebinding resolver above filter it.
+			dnssecRes, err := NewDNSSECResolver(ctx, config.DNSSEC{
+				Validate:     true,
+				TrustAnchors: []string{unrelatedDNSSECAnchor},
+			}, m)
 			Expect(err).Should(Succeed())
 
 			chained := Chain(sut, dnssecRes, m)
@@ -455,9 +469,6 @@ var _ = Describe("RebindingProtectionResolver", func() {
 				HaveResponseType(ResponseTypeFILTERED),
 				HaveReturnCode(dns.RcodeSuccess),
 			))
-			// the unsigned answer is classified insecure without DNSKEY/DS
-			// lookups — one upstream call only
-			Expect(m.Calls).Should(HaveLen(1))
 			Expect(resp.Res.AuthenticatedData).Should(BeFalse())
 		})
 	})
