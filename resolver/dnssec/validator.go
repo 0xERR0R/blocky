@@ -657,7 +657,7 @@ func (v *Validator) checkZoneSecurityStatus(ctx context.Context, domain string) 
 	domain = dns.Fqdn(domain)
 
 	// Check cache first - we may have already validated this zone
-	if cached, found := v.getCachedValidation(domain); found {
+	if cached, found := v.getCachedValidation(ctx, domain); found {
 		v.logger.Debugf("Using cached security status for %s: %s", domain, cached.String())
 
 		return cached
@@ -724,14 +724,17 @@ func (v *Validator) checkZoneSecurityStatus(ctx context.Context, domain string) 
 	return ValidationResultSecure
 }
 
-// isUnderConfiguredTrustAnchor reports whether domain, or any of its ancestors, has an
-// operator-configured trust anchor - i.e. the operator explicitly asserted this hierarchy
-// is DNSSEC-secured. The implicit default root anchor is deliberately excluded: it covers
-// the entire namespace (most of which is legitimately unsigned), so treating every name as
-// "under a trust anchor" would fail closed for the whole unsigned Internet.
-func (v *Validator) isUnderConfiguredTrustAnchor(domain string) bool {
+// isUnderTrustAnchor reports whether domain, or any of its ancestors, has a trust anchor -
+// including the implicit IANA root anchor installed by default. Because a validating
+// resolver must hold a secure entry point to validate at all, any name below a trust anchor
+// is presumed secure until an AUTHENTICATED proof of an insecure delegation (a signed
+// NSEC/NSEC3 DS denial) says otherwise. Under the default configuration the root anchor is
+// present, so this is true for the whole namespace - which is exactly what closes the
+// unsigned-answer bypass (GHSA-x845-2f78-7v36 finding 1): a forged unsigned answer can no
+// longer pass merely because the attacker also strips the DS/DNSKEY chain.
+func (v *Validator) isUnderTrustAnchor(domain string) bool {
 	for d := dns.Fqdn(domain); d != ""; d = v.getParentDomain(d) {
-		if v.trustAnchors.HasConfiguredTrustAnchor(d) {
+		if v.trustAnchors.HasTrustAnchor(d) {
 			return true
 		}
 	}
@@ -741,19 +744,20 @@ func (v *Validator) isUnderConfiguredTrustAnchor(domain string) bool {
 
 // classifyUndetermined decides the security status when the chain status cannot be
 // established (no authenticated DS proof). It fails closed - Secure, so an unsigned answer
-// becomes bogus - only for names under an operator-configured trust anchor, where the
-// operator has asserted the hierarchy is signed. Otherwise it stays Indeterminate (the
-// answer passes through) so that an unreachable upstream or a stripped proof does not turn
-// ordinary unsigned domains into SERVFAIL. This is NOT cached: it is not derived from an
-// authenticated proof.
+// becomes bogus - for any name under a trust anchor (including the default root anchor),
+// because a name below a secure entry point must be proven insecure by an AUTHENTICATED
+// denial of existence before its unsigned answer may be trusted. Only names with no trust
+// anchor anywhere in their hierarchy stay Indeterminate (the answer passes through). This is
+// NOT cached: it is not derived from an authenticated proof, so a later reachable upstream
+// can still establish the real status.
 func (v *Validator) classifyUndetermined(domain string) ValidationResult {
-	if v.isUnderConfiguredTrustAnchor(domain) {
-		v.logger.Debugf("Zone %s status undetermined but under a configured trust anchor - secure (fail closed)", domain)
+	if v.isUnderTrustAnchor(domain) {
+		v.logger.Debugf("Zone %s status undetermined but under a trust anchor - secure (fail closed)", domain)
 
 		return ValidationResultSecure
 	}
 
-	v.logger.Debugf("Zone %s status indeterminate (no configured trust anchor in hierarchy)", domain)
+	v.logger.Debugf("Zone %s status indeterminate (no trust anchor in hierarchy)", domain)
 
 	return ValidationResultIndeterminate
 }
@@ -773,7 +777,7 @@ func (v *Validator) handleNoDSRecords(
 			// Authenticated proof that no DS exists: genuine insecure delegation.
 			v.logger.Debugf("Zone %s is insecure (authenticated NSEC/NSEC3 DS denial)", domain)
 			result := ValidationResultInsecure
-			v.setCachedValidation(domain, result)
+			v.setCachedValidation(ctx, domain, result)
 
 			return result
 		}
@@ -792,7 +796,7 @@ func (v *Validator) handleNoDSRecords(
 			// Below an insecure delegation - this name is also unsigned.
 			v.logger.Debugf("Parent zone %s is insecure, so %s is also insecure", parentDomain, domain)
 			result := ValidationResultInsecure
-			v.setCachedValidation(domain, result)
+			v.setCachedValidation(ctx, domain, result)
 
 			return result
 		}

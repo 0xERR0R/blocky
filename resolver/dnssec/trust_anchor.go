@@ -66,12 +66,6 @@ type TrustAnchor struct {
 // TrustAnchorStore manages DNSSEC trust anchors
 type TrustAnchorStore struct {
 	anchors map[string][]*TrustAnchor // keyed by domain name
-	// configured holds the domains for which the operator explicitly supplied a trust
-	// anchor. It deliberately excludes the implicit default root anchor: an operator
-	// anchor is an assertion "this specific zone is signed" (so unsigned answers for it
-	// can be rejected), whereas the default root anchor covers the whole namespace -
-	// most of which is legitimately unsigned - and must not trigger fail-closed behavior.
-	configured map[string]struct{}
 }
 
 // NewTrustAnchorStore creates a new trust anchor store with the given trust anchors.
@@ -89,22 +83,19 @@ type TrustAnchorStore struct {
 // Returns a configured trust anchor store or an error if any anchor is invalid.
 func NewTrustAnchorStore(customAnchors []string) (*TrustAnchorStore, error) {
 	store := &TrustAnchorStore{
-		anchors:    make(map[string][]*TrustAnchor),
-		configured: make(map[string]struct{}),
+		anchors: make(map[string][]*TrustAnchor),
 	}
 
-	// Load custom trust anchors if provided, otherwise use defaults. Only operator-supplied
-	// anchors are recorded as "configured"; the implicit default root anchor is not, so it
-	// does not make every name appear to live under a trust anchor (see HasConfiguredTrustAnchor).
-	operatorConfigured := len(customAnchors) > 0
-
+	// Load custom trust anchors if provided, otherwise use the default IANA root KSK. Both
+	// kinds are secure entry points: any name below a trust anchor (the root anchor included)
+	// is presumed secure until an authenticated insecure-delegation proof says otherwise.
 	anchors := customAnchors
 	if len(anchors) == 0 {
 		anchors = getDefaultRootTrustAnchors()
 	}
 
 	for _, anchor := range anchors {
-		if err := store.addTrustAnchor(anchor, operatorConfigured); err != nil {
+		if err := store.AddTrustAnchor(anchor); err != nil {
 			return nil, fmt.Errorf("failed to load trust anchor: %w", err)
 		}
 	}
@@ -112,14 +103,8 @@ func NewTrustAnchorStore(customAnchors []string) (*TrustAnchorStore, error) {
 	return store, nil
 }
 
-// AddTrustAnchor adds an operator-configured trust anchor from a DNSKEY record string.
+// AddTrustAnchor adds a trust anchor from a DNSKEY record string.
 func (s *TrustAnchorStore) AddTrustAnchor(anchorStr string) error {
-	return s.addTrustAnchor(anchorStr, true)
-}
-
-// addTrustAnchor adds a trust anchor; configured marks it as operator-supplied (as opposed
-// to the implicit default root anchor) for HasConfiguredTrustAnchor.
-func (s *TrustAnchorStore) addTrustAnchor(anchorStr string, configured bool) error {
 	// Parse the DNSKEY record
 	rr, err := dns.NewRR(anchorStr)
 	if err != nil {
@@ -145,24 +130,8 @@ func (s *TrustAnchorStore) addTrustAnchor(anchorStr string, configured bool) err
 	}
 
 	s.anchors[domain] = append(s.anchors[domain], anchor)
-	if configured {
-		if s.configured == nil {
-			s.configured = make(map[string]struct{})
-		}
-		s.configured[domain] = struct{}{}
-	}
 
 	return nil
-}
-
-// HasConfiguredTrustAnchor reports whether the operator explicitly configured a trust
-// anchor for the domain. Unlike HasTrustAnchor it excludes the implicit default root
-// anchor, so it answers "did the operator assert that this specific zone is signed?".
-func (s *TrustAnchorStore) HasConfiguredTrustAnchor(domain string) bool {
-	domain = strings.ToLower(dns.Fqdn(domain))
-	_, ok := s.configured[domain]
-
-	return ok
 }
 
 // GetTrustAnchors returns trust anchors for a domain

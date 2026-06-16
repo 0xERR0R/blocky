@@ -239,25 +239,43 @@ var _ = Describe("DNSSECValidator", func() {
 					"authenticated NSEC3 opt-out DS denial not recognized as an insecure delegation")
 		})
 
-		It("does not fail closed for unsigned answers under only the default root anchor", func() {
-			// With the default IANA root anchor (no operator-configured anchors) and an
-			// upstream that cannot supply DNSSEC proofs, an ordinary unsigned answer must
-			// pass through as Indeterminate, not be rejected as Bogus. Failing closed here
-			// would SERVFAIL the bulk of the (legitimately unsigned) Internet.
+		It("rejects an unsigned answer under the default root anchor with no authenticated insecure-delegation proof", func() {
+			// GHSA-x845-2f78-7v36 finding 1: with the default IANA root anchor every name is
+			// under a trust anchor, so the whole namespace is "secure" until an AUTHENTICATED
+			// proof of insecure delegation says otherwise. An upstream that cannot supply such
+			// a proof (malicious, stripped, or non-DNSSEC-capable) must not let a forged
+			// unsigned answer for a signed public name through: it is bogus, not insecure.
 			store, err := NewTrustAnchorStore(nil)
 			Expect(err).Should(Succeed())
 			mockUpstream.ResolveFn = benignEmptyResolve
 			v := NewValidator(ctx, store, logger, mockUpstream, 1, 10, 150, 30, 3600)
 
-			question := dns.Question{Name: "ordinary.example.com.", Qtype: dns.TypeA, Qclass: dns.ClassINET}
+			question := dns.Question{Name: "cloudflare.com.", Qtype: dns.TypeA, Qclass: dns.ClassINET}
 			response := &dns.Msg{Answer: []dns.RR{&dns.A{
-				Hdr: dns.RR_Header{Name: "ordinary.example.com.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300},
-				A:   net.ParseIP("192.0.2.1"),
+				Hdr: dns.RR_Header{Name: "cloudflare.com.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300},
+				A:   net.ParseIP("203.0.113.77"),
 			}}}
 
 			Expect(v.ValidateResponse(ctx, response, question)).
-				Should(Equal(ValidationResultIndeterminate),
-					"unsigned answer under only the default root anchor was not passed through")
+				Should(Equal(ValidationResultBogus),
+					"forged unsigned answer under the root anchor was accepted instead of rejected as bogus")
+		})
+
+		It("still resolves a genuinely unsigned zone proven by an authenticated opt-out under the root anchor", func() {
+			// The fail-closed behavior above must NOT break legitimately unsigned zones: when
+			// the upstream supplies an AUTHENTICATED NSEC3 opt-out DS denial (the standard way
+			// signed parents delegate to unsigned children), the name is a genuine insecure
+			// delegation and its unsigned answer must pass through as Insecure, not be rejected.
+			budgetCtx := context.WithValue(ctx, queryBudgetKey{}, 30)
+			anchor, fn := authenticatedOptOutDelegation("net.", "unsigned.net.")
+			store, err := NewTrustAnchorStore([]string{anchor})
+			Expect(err).Should(Succeed())
+			mockUpstream.ResolveFn = fn
+			v := NewValidator(ctx, store, logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			Expect(v.checkZoneSecurityStatus(budgetCtx, "unsigned.net.")).
+				Should(Equal(ValidationResultInsecure),
+					"authenticated opt-out delegation was not accepted as a genuine insecure zone")
 		})
 
 		It("should not treat an unsigned NSEC in a DS response as authenticated denial of DS", func() {
@@ -346,6 +364,58 @@ var _ = Describe("DNSSECValidator", func() {
 				"auxiliary DNSSEC sub-query lost the client names")
 			Expect(captured.RequestClientID).Should(Equal("client-1"),
 				"auxiliary DNSSEC sub-query lost the request client id")
+		})
+
+		It("rejects an NSEC DS-absence proof that does not assert a delegation (NS bit clear)", func() {
+			// GHSA-x845-2f78-7v36 finding 4 (residual): an NSEC that proves the DS type is absent
+			// only proves an INSECURE DELEGATION if it also asserts a delegation - NS bit set, SOA
+			// and DS bits clear (RFC 6840 §4.4). For an ordinary in-zone name in a signed zone the
+			// NS bit is clear, so this NSEC must NOT be accepted as a DS-absence proof; otherwise a
+			// forged unsigned answer for e.g. www.example.com could be downgraded to insecure.
+			inZoneNSEC := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "www.example.com.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+				NextDomain: "\\000.www.example.com.",
+				TypeBitMap: []uint16{dns.TypeA, dns.TypeRRSIG, dns.TypeNSEC}, // in-zone name: NS bit absent
+			}
+			resp := &dns.Msg{Ns: []dns.RR{inZoneNSEC}}
+
+			Expect(sut.validateDSAbsenceProof("www.example.com.", resp, true)).
+				ShouldNot(Equal(ValidationResultSecure),
+					"NSEC without the NS bit was accepted as proof of an insecure delegation")
+		})
+
+		It("accepts an NSEC DS-absence proof that asserts a delegation (NS bit set, DS/SOA clear)", func() {
+			// The NS-bit check above must not over-reject genuine insecure delegations: an NSEC
+			// with the NS bit set and the SOA/DS bits clear is a valid proof of an unsigned
+			// delegation and must still validate as a DS-absence proof.
+			delegationNSEC := &dns.NSEC{
+				Hdr:        dns.RR_Header{Name: "unsigned.example.com.", Rrtype: dns.TypeNSEC, Class: dns.ClassINET, Ttl: 300},
+				NextDomain: "\\000.unsigned.example.com.",
+				TypeBitMap: []uint16{dns.TypeNS, dns.TypeRRSIG, dns.TypeNSEC}, // delegation present, DS absent
+			}
+			resp := &dns.Msg{Ns: []dns.RR{delegationNSEC}}
+
+			Expect(sut.validateDSAbsenceProof("unsigned.example.com.", resp, true)).
+				Should(Equal(ValidationResultSecure),
+					"valid insecure-delegation NSEC was wrongly rejected as a DS-absence proof")
+		})
+
+		It("scopes cached validation results by client view so they do not cross upstream views", func() {
+			// GHSA-x845-2f78-7v36 finding 3: the validation cache must not be keyed by bare
+			// domain name. A status established for one client view (upstream group) must not be
+			// reused for a different view, or one response path can seed DNSSEC state for another.
+			viewA := WithClientContext(ctx, net.ParseIP("203.0.113.1"), []string{"a.lan"}, "group-a")
+			viewB := WithClientContext(ctx, net.ParseIP("198.51.100.2"), []string{"b.lan"}, "group-b")
+
+			sut.setCachedValidation(viewA, victim, ValidationResultInsecure)
+
+			_, foundOther := sut.getCachedValidation(viewB, victim)
+			Expect(foundOther).Should(BeFalse(),
+				"a validation result cached for one client view leaked into another view")
+
+			cached, foundSame := sut.getCachedValidation(viewA, victim)
+			Expect(foundSame).Should(BeTrue(), "validation result was not cached within its own view")
+			Expect(cached).Should(Equal(ValidationResultInsecure))
 		})
 	})
 
@@ -728,16 +798,16 @@ var _ = Describe("DNSSECValidator", func() {
 			domain := "example.com."
 
 			// Set a cached result
-			sut.setCachedValidation(domain, ValidationResultSecure)
+			sut.setCachedValidation(ctx, domain, ValidationResultSecure)
 
 			// Retrieve it
-			result, found := sut.getCachedValidation(domain)
+			result, found := sut.getCachedValidation(ctx, domain)
 			Expect(found).Should(BeTrue())
 			Expect(result).Should(Equal(ValidationResultSecure))
 		})
 
 		It("should return not found for uncached domains", func() {
-			result, found := sut.getCachedValidation("nonexistent.com.")
+			result, found := sut.getCachedValidation(ctx, "nonexistent.com.")
 			Expect(found).Should(BeFalse())
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
@@ -746,10 +816,10 @@ var _ = Describe("DNSSECValidator", func() {
 			domain := "example.com."
 
 			// Set a cached result
-			sut.setCachedValidation(domain, ValidationResultSecure)
+			sut.setCachedValidation(ctx, domain, ValidationResultSecure)
 
 			// Should be cached initially
-			result, found := sut.getCachedValidation(domain)
+			result, found := sut.getCachedValidation(ctx, domain)
 			Expect(found).Should(BeTrue())
 			Expect(result).Should(Equal(ValidationResultSecure))
 
@@ -1230,10 +1300,10 @@ var _ = Describe("DNSSECValidator", func() {
 			domain := "cached.example.com."
 
 			// Manually set a cached entry
-			sut.setCachedValidation(domain, ValidationResultSecure)
+			sut.setCachedValidation(ctx, domain, ValidationResultSecure)
 
 			// Retrieve immediately - should hit cache
-			result, found := sut.getCachedValidation(domain)
+			result, found := sut.getCachedValidation(ctx, domain)
 			Expect(found).Should(BeTrue())
 			Expect(result).Should(Equal(ValidationResultSecure))
 		})
@@ -1245,15 +1315,15 @@ var _ = Describe("DNSSECValidator", func() {
 			domain := "test.example.com."
 
 			// Should not find uncached entry
-			result, found := validator.getCachedValidation(domain)
+			result, found := validator.getCachedValidation(ctx, domain)
 			Expect(found).Should(BeFalse())
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 
 			// Cache the entry
-			validator.setCachedValidation(domain, ValidationResultSecure)
+			validator.setCachedValidation(ctx, domain, ValidationResultSecure)
 
 			// Should find cached entry
-			result, found = validator.getCachedValidation(domain)
+			result, found = validator.getCachedValidation(ctx, domain)
 			Expect(found).Should(BeTrue())
 			Expect(result).Should(Equal(ValidationResultSecure))
 

@@ -38,33 +38,33 @@ var _ = Describe("Chain of trust validation", func() {
 			domain := "example.com."
 			expectedResult := ValidationResultSecure
 
-			sut.setCachedValidation(domain, expectedResult)
+			sut.setCachedValidation(ctx, domain, expectedResult)
 
-			result, found := sut.getCachedValidation(domain)
+			result, found := sut.getCachedValidation(ctx, domain)
 			Expect(found).Should(BeTrue())
 			Expect(result).Should(Equal(expectedResult))
 		})
 
 		It("should return false when not cached", func() {
-			result, found := sut.getCachedValidation("notcached.com.")
+			result, found := sut.getCachedValidation(ctx, "notcached.com.")
 			Expect(found).Should(BeFalse())
 			Expect(result).Should(Equal(ValidationResultIndeterminate))
 		})
 
 		It("should cache different results for different domains", func() {
-			sut.setCachedValidation("secure.com.", ValidationResultSecure)
-			sut.setCachedValidation("insecure.com.", ValidationResultInsecure)
-			sut.setCachedValidation("bogus.com.", ValidationResultBogus)
+			sut.setCachedValidation(ctx, "secure.com.", ValidationResultSecure)
+			sut.setCachedValidation(ctx, "insecure.com.", ValidationResultInsecure)
+			sut.setCachedValidation(ctx, "bogus.com.", ValidationResultBogus)
 
-			result1, found1 := sut.getCachedValidation("secure.com.")
+			result1, found1 := sut.getCachedValidation(ctx, "secure.com.")
 			Expect(found1).Should(BeTrue())
 			Expect(result1).Should(Equal(ValidationResultSecure))
 
-			result2, found2 := sut.getCachedValidation("insecure.com.")
+			result2, found2 := sut.getCachedValidation(ctx, "insecure.com.")
 			Expect(found2).Should(BeTrue())
 			Expect(result2).Should(Equal(ValidationResultInsecure))
 
-			result3, found3 := sut.getCachedValidation("bogus.com.")
+			result3, found3 := sut.getCachedValidation(ctx, "bogus.com.")
 			Expect(found3).Should(BeTrue())
 			Expect(result3).Should(Equal(ValidationResultBogus))
 		})
@@ -75,9 +75,9 @@ var _ = Describe("Chain of trust validation", func() {
 			domain := "example.com."
 			result := ValidationResultSecure
 
-			sut.setCachedValidation(domain, result)
+			sut.setCachedValidation(ctx, domain, result)
 
-			cached, found := sut.getCachedValidation(domain)
+			cached, found := sut.getCachedValidation(ctx, domain)
 			Expect(found).Should(BeTrue())
 			Expect(cached).Should(Equal(result))
 		})
@@ -85,10 +85,10 @@ var _ = Describe("Chain of trust validation", func() {
 		It("should overwrite existing cache entries", func() {
 			domain := "example.com."
 
-			sut.setCachedValidation(domain, ValidationResultSecure)
-			sut.setCachedValidation(domain, ValidationResultBogus)
+			sut.setCachedValidation(ctx, domain, ValidationResultSecure)
+			sut.setCachedValidation(ctx, domain, ValidationResultBogus)
 
-			cached, found := sut.getCachedValidation(domain)
+			cached, found := sut.getCachedValidation(ctx, domain)
 			Expect(found).Should(BeTrue())
 			Expect(cached).Should(Equal(ValidationResultBogus))
 		})
@@ -479,7 +479,7 @@ var _ = Describe("Chain of trust validation", func() {
 	Describe("walkChainOfTrust", func() {
 		It("should return cached result if available", func() {
 			domain := "example.com."
-			sut.setCachedValidation(domain, ValidationResultSecure)
+			sut.setCachedValidation(ctx, domain, ValidationResultSecure)
 
 			result := sut.walkChainOfTrust(ctx, domain)
 			Expect(result).Should(Equal(ValidationResultSecure))
@@ -498,7 +498,7 @@ var _ = Describe("Chain of trust validation", func() {
 
 		It("should normalize domain to FQDN", func() {
 			domain := "example.com"
-			sut.setCachedValidation("example.com.", ValidationResultSecure)
+			sut.setCachedValidation(ctx, "example.com.", ValidationResultSecure)
 
 			result := sut.walkChainOfTrust(ctx, domain)
 			Expect(result).Should(Equal(ValidationResultSecure))

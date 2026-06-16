@@ -239,6 +239,17 @@ func (v *Validator) checkDirectNSEC3Match(nsec3Records []*dns.NSEC3, qname, qnam
 				return ValidationResultBogus
 			}
 
+			// RFC 5155 §8.9: a matching NSEC3 proves an insecure delegation (DS absence) only
+			// if it asserts a delegation - NS bit set, SOA and DS bits clear. An NSEC3 for an
+			// in-zone name (NS clear) or a zone apex (SOA set) must not be read as an unsigned
+			// delegation (GHSA-x845-2f78-7v36 finding 4).
+			if qtype == dns.TypeDS && !nsec3AssertsDelegation(nsec3) {
+				v.logger.Warnf("NSEC3 DS-absence proof for %s does not assert an insecure delegation "+
+					"(NS bit clear or SOA bit set)", qname)
+
+				return ValidationResultBogus
+			}
+
 			// Matching NSEC3 found and type not in bitmap - valid NODATA
 			v.logger.Debugf("NSEC3 NODATA proof validated for %s type %d", qname, qtype)
 
@@ -247,6 +258,14 @@ func (v *Validator) checkDirectNSEC3Match(nsec3Records []*dns.NSEC3, qname, qnam
 	}
 
 	return ValidationResultIndeterminate
+}
+
+// nsec3AssertsDelegation reports whether an NSEC3 RR asserts an insecure delegation per
+// RFC 5155 §8.9: the NS bit MUST be set and the SOA and DS bits MUST be clear.
+func nsec3AssertsDelegation(nsec3 *dns.NSEC3) bool {
+	return slices.Contains(nsec3.TypeBitMap, dns.TypeNS) &&
+		!slices.Contains(nsec3.TypeBitMap, dns.TypeSOA) &&
+		!slices.Contains(nsec3.TypeBitMap, dns.TypeDS)
 }
 
 // checkWildcardNSEC3Match checks for wildcard NODATA proof
