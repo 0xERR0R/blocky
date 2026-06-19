@@ -230,6 +230,41 @@ var _ = Describe("DNSSECResolver", func() {
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeServerFailure))
 				Expect(resp.Res.AuthenticatedData).Should(BeFalse())
 			})
+
+			// Regression test for #2126: after the GHSA-x845 hardening an unsigned answer
+			// under the (default) root trust anchor is classified bogus -> SERVFAIL.
+			// Conditional-upstream answers serve private/split-horizon zones from an
+			// operator-trusted resolver and are inherently unsigned, so they must be exempted
+			// from validation (like the rebinding resolver's response-type carve-out) instead
+			// of being turned into SERVFAIL.
+			It("should not validate (SERVFAIL) a conditional (trusted-local) response", func() {
+				// unsigned answer, as a private zone served by the conditional upstream returns;
+				// the local resolver may even assert AD, which we must not propagate
+				response.AuthenticatedData = true
+				mockUpstream.On("Resolve", mock.Anything).Return(
+					&model.Response{Res: response, RType: model.ResponseTypeCONDITIONAL}, nil)
+
+				resp, err := sut.Resolve(ctx, request)
+				Expect(err).Should(Succeed())
+				// passes through untouched - not turned into SERVFAIL
+				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+				Expect(resp.Res.Answer).Should(HaveLen(1))
+				Expect(resp.RType).Should(Equal(model.ResponseTypeCONDITIONAL))
+				// AD cleared: we did not authenticate it
+				Expect(resp.Res.AuthenticatedData).Should(BeFalse())
+			})
+
+			It("should still validate (SERVFAIL) an equivalent unsigned upstream response", func() {
+				// same unsigned answer but RESOLVED (public upstream) is the GHSA-x845 attack
+				// vector and must remain bogus under the default root anchor - the carve-out
+				// above is strictly response-type scoped
+				mockUpstream.On("Resolve", mock.Anything).Return(
+					&model.Response{Res: response, RType: model.ResponseTypeRESOLVED}, nil)
+
+				resp, err := sut.Resolve(ctx, request)
+				Expect(err).Should(Succeed())
+				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeServerFailure))
+			})
 		})
 
 		When("upstream resolver returns error", func() {
