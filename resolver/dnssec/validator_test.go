@@ -337,6 +337,27 @@ var _ = Describe("DNSSECValidator", func() {
 				"stale insecure status shadowed a legitimate signed DS for the same name")
 		})
 
+		It("does not cache a transient chain-validation failure, so recovery is not shadowed (issue #2120)", func() {
+			budgetCtx := context.WithValue(ctx, queryBudgetKey{}, 30)
+
+			// The upstream is momentarily unreachable: every DS/DNSKEY sub-query fails.
+			mockUpstream.ResolveFn = func(_ context.Context, _ *model.Request) (*model.Response, error) {
+				return nil, errors.New("i/o timeout")
+			}
+
+			const zone = "office.com."
+			first := sut.walkChainOfTrust(budgetCtx, zone)
+			Expect(first).Should(Equal(ValidationResultIndeterminate),
+				"a transient upstream failure should yield Indeterminate, not a durable verdict")
+
+			// The transient failure must NOT be cached. A cached Indeterminate makes every
+			// subsequent RRSIG signed by this zone be skipped -> Bogus -> SERVFAIL for the full
+			// cache TTL (default 1h), even after the upstream recovers (issue #2120).
+			_, found := sut.getCachedValidation(budgetCtx, zone)
+			Expect(found).Should(BeFalse(),
+				"a transient (Indeterminate) chain failure was cached, poisoning future validations")
+		})
+
 		It("should preserve the originating client context on DNSKEY sub-queries", func() {
 			clientIP := net.ParseIP("203.0.113.9")
 			budgetCtx := context.WithValue(ctx, queryBudgetKey{}, 30)

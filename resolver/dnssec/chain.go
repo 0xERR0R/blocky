@@ -50,7 +50,19 @@ func (v *Validator) getCachedValidation(ctx context.Context, domain string) (Val
 
 // setCachedValidation stores a validation result in the cache, scoped to the originating
 // client's view (see validationCacheKey).
+//
+// Indeterminate is never cached. It means "could not determine" - in practice a transient
+// sub-query failure (timeout/unreachable upstream) while walking the chain of trust.
+// Persisting it would shadow every later RRSIG signed by that zone (the cached Indeterminate
+// makes the chain check fail, the signature is skipped, and the answer is declared Bogus ->
+// SERVFAIL) for the full cache TTL, even after the upstream recovers - turning one transient
+// blip into an hour of failures (issue #2120). Leaving it uncached lets the next query
+// re-evaluate the zone and establish its real (durable) status.
 func (v *Validator) setCachedValidation(ctx context.Context, domain string, result ValidationResult) {
+	if result == ValidationResultIndeterminate {
+		return
+	}
+
 	v.validationCache.Put(validationCacheKey(ctx, domain), &result, v.cacheExpiration)
 }
 
