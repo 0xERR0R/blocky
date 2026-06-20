@@ -93,18 +93,23 @@ func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*
 
 	// Validate DNSSEC if enabled and validator is available
 	if r.cfg.Validate && r.validator != nil && len(request.Req.Question) > 0 {
-		// Conditional-upstream answers are served by an operator-trusted resolver for
-		// private/split-horizon zones. They are inherently unsigned and have no chain of
-		// trust in the public DNS hierarchy, so the post-GHSA-x845 unsigned-answer handling
-		// would classify them bogus - the whole namespace sits under the default root trust
-		// anchor - and turn every private lookup into SERVFAIL (#2126). Like the rebinding
-		// resolver, which exempts trusted-local answers by response type, skip validation
-		// for them; the public-upstream answers that carry the GHSA attack surface
-		// (RESOLVED/CACHED) remain fully validated. Clear AD: we have not authenticated it.
-		if response != nil && response.Res != nil && response.RType == model.ResponseTypeCONDITIONAL {
+		// Only public-upstream answers carry a chain of trust in the public DNS hierarchy and
+		// form the GHSA-x845 attack surface, so validate exactly those: RESOLVED, plus cached
+		// upstream answers re-served as CACHED (re-validated on every hit). Every other response
+		// type that can reach this resolver from below is trusted-local or synthesized -
+		// conditional-upstream private/split-horizon zones (CONDITIONAL), special-use names like
+		// localhost (SPECIAL), DNS64-synthesized AAAA (SYNTHESIZED). Those are inherently unsigned
+		// with no public chain of trust, so the post-GHSA-x845 handling would classify them bogus
+		// - the whole namespace sits under the default root trust anchor - and turn every such
+		// lookup into SERVFAIL (#2126). Mirror the rebinding resolver's response-type whitelist
+		// and skip validation for them, clearing AD since we have not authenticated them. The
+		// RType is assigned by blocky's own resolvers, never by the (attacker-controlled) upstream
+		// answer, so a poisoned public answer cannot mislabel itself out of validation.
+		if response != nil && response.Res != nil &&
+			response.RType != model.ResponseTypeRESOLVED && response.RType != model.ResponseTypeCACHED {
 			response.Res.AuthenticatedData = false
-			logger.Debugf("skipping DNSSEC validation for conditional (trusted-local) response: %s",
-				request.Req.Question[0].Name)
+			logger.Debugf("skipping DNSSEC validation for trusted-local/synthesized response (%s): %s",
+				response.RType, request.Req.Question[0].Name)
 
 			return response, nil
 		}
