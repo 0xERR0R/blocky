@@ -55,9 +55,9 @@ var _ = Describe("QueryLogConfig", func() {
 		It("should log configuration", func() {
 			cfg.LogConfig(logger)
 
-			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("logRetentionDays:")))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("sudn:")))
+			Expect(rec.Records()).ShouldNot(BeEmpty())
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("logRetentionDays:")))
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("sudn:")))
 		})
 
 		It("should log the ignored domains", func() {
@@ -65,7 +65,7 @@ var _ = Describe("QueryLogConfig", func() {
 
 			cfg.LogConfig(logger)
 
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("domains (3):")))
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("domains (3):")))
 		})
 
 		DescribeTable("secret censoring", func(target string) {
@@ -74,8 +74,8 @@ var _ = Describe("QueryLogConfig", func() {
 
 			cfg.LogConfig(logger)
 
-			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("password")))
+			Expect(rec.Records()).ShouldNot(BeEmpty())
+			Expect(rec.Messages()).ShouldNot(ContainElement(ContainSubstring("password")))
 		},
 			Entry("without scheme", "user:password@localhost"),
 			Entry("with scheme", "scheme://user:password@localhost"),

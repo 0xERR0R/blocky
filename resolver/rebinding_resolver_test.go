@@ -94,11 +94,11 @@ var _ = Describe("RebindingProtectionResolver", func() {
 
 	Describe("LogConfig", func() {
 		It("should log something", func() {
-			logger, hook := log.NewMockEntry()
+			lgr, rec := log.NewRecorder()
 
-			sut.LogConfig(logger)
+			sut.LogConfig(lgr)
 
-			Expect(hook.Calls).ShouldNot(BeEmpty())
+			Expect(rec.Records()).ShouldNot(BeEmpty())
 		})
 	})
 
@@ -316,21 +316,29 @@ var _ = Describe("RebindingProtectionResolver", func() {
 		})
 
 		It("obfuscates the dropped IP in the debug log when log privacy is enabled", func() {
-			logger, hook := log.NewMockEntry()
-			loggedCtx, _ := log.NewCtx(ctx, logger)
+			// CaptureGlobal must precede resolver construction: PrefixedLog captures
+			// slog.Default() at construction time, so the recorder is only wired in
+			// if the global is swapped first.
+			rec, restore := log.CaptureGlobal()
+			DeferCleanup(restore)
+
+			localSut := NewRebindingProtectionResolver(sutConfig)
+			localM := &mockResolver{}
+			localM.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
+			localSut.Next(localM)
 
 			util.LogPrivacy.Store(true)
 			DeferCleanup(func() { util.LogPrivacy.Store(false) })
 
 			mockAnswer.Answer = []dns.RR{rebindTestA("rebind.example.com.", "192.168.1.100")}
 
-			_, err := sut.Resolve(loggedCtx, newRequest("rebind.example.com.", A))
+			_, err := localSut.Resolve(ctx, newRequest("rebind.example.com.", A))
 			Expect(err).Should(Succeed())
 
 			// the IP is answer content; like the domain, it must not appear
 			// in clear text when log privacy is on
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("dropped answer")))
-			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("192.168.1.100")))
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("dropped answer")))
+			Expect(rec.Messages()).ShouldNot(ContainElement(ContainSubstring("192.168.1.100")))
 		})
 
 		It("filters CNAME chains ending in a private IP", func() {

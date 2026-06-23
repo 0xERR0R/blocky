@@ -6,9 +6,11 @@ import (
 	"bytes"
 	"encoding/base32"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
@@ -43,13 +45,14 @@ func (v *Validator) validateNSEC3DenialOfExistence(response *dns.Msg, question d
 	// if the name falls in an Opt-Out span and return Insecure instead of Bogus
 	const optOutFlag = 0x01
 	if flags&optOutFlag != 0 {
-		v.logger.Debugf("NSEC3 Opt-Out flag detected for %s - unsigned delegations allowed in Opt-Out spans", qname)
+		v.logger.Debug("NSEC3 Opt-Out flag detected", slog.String("qname", qname))
 	}
 
 	// RFC 5155 §10.3: Check iteration count limit (DoS protection)
 	if iterations > uint16(v.maxNSEC3Iterations) { //nolint:gosec // maxNSEC3Iterations is configured ≤ 65535
-		v.logger.Warnf("NSEC3 iteration count %d exceeds maximum %d for %s - treating as Bogus",
-			iterations, v.maxNSEC3Iterations, qname)
+		v.logger.Warn("NSEC3 iteration count exceeds maximum",
+			slog.String("qname", qname), slog.Int("iterations", int(iterations)),
+			slog.Int("max_iterations", int(v.maxNSEC3Iterations)))
 
 		return ValidationResultBogus
 	}
@@ -57,7 +60,7 @@ func (v *Validator) validateNSEC3DenialOfExistence(response *dns.Msg, question d
 	// Verify all NSEC3 records use consistent parameters
 	for _, nsec3 := range nsec3Records {
 		if nsec3.Hash != hashAlg || nsec3.Salt != salt || nsec3.Iterations != iterations {
-			v.logger.Warnf("Inconsistent NSEC3 parameters in response for %s", qname)
+			v.logger.Warn("inconsistent NSEC3 parameters in response", slog.String("qname", qname))
 
 			return ValidationResultBogus
 		}
@@ -65,7 +68,7 @@ func (v *Validator) validateNSEC3DenialOfExistence(response *dns.Msg, question d
 
 	// Only SHA-1 (algorithm 1) is currently standardized for NSEC3
 	if hashAlg != dns.SHA1 {
-		v.logger.Warnf("Unsupported NSEC3 hash algorithm %d for %s", hashAlg, qname)
+		v.logger.Warn("unsupported NSEC3 hash algorithm", slog.Int("algorithm", int(hashAlg)), slog.String("qname", qname))
 
 		return ValidationResultBogus
 	}
@@ -137,17 +140,17 @@ func (v *Validator) validateNSEC3NXDOMAIN(nsec3Records []*dns.NSEC3, qname, zone
 	// Find closest encloser
 	closestEncloser := v.findClosestEncloser(qname, zoneName, nsec3Records, hashAlg, salt, iterations)
 	if closestEncloser == "" {
-		v.logger.Debugf("Could not find closest encloser for %s", qname)
+		v.logger.Debug("could not find closest encloser", slog.String("qname", qname))
 
 		return ValidationResultBogus
 	}
 
-	v.logger.Debugf("Found closest encloser: %s for query %s", closestEncloser, qname)
+	v.logger.Debug("found closest encloser", slog.String("closest_encloser", closestEncloser), slog.String("qname", qname))
 
 	// Compute next closer name (one label longer than closest encloser toward qname)
 	nextCloser := v.getNextCloser(qname, closestEncloser)
 	if nextCloser == "" {
-		v.logger.Debugf("Could not compute next closer name")
+		v.logger.Debug("could not compute next closer name")
 
 		return ValidationResultBogus
 	}
@@ -155,13 +158,15 @@ func (v *Validator) validateNSEC3NXDOMAIN(nsec3Records []*dns.NSEC3, qname, zone
 	// Verify next closer name is covered by an NSEC3 record (proving it doesn't exist)
 	nextCloserHash, err := v.computeNSEC3Hash(nextCloser, hashAlg, salt, iterations)
 	if err != nil {
-		v.logger.Warnf("Failed to compute NSEC3 hash for next closer %s: %v", nextCloser, err)
+		v.logger.Warn("failed to compute NSEC3 hash for next closer",
+			slog.String("next_closer", nextCloser), log.AttrError(err))
 
 		return ValidationResultBogus
 	}
 
 	if !v.nsec3Covers(nsec3Records, nextCloserHash) {
-		v.logger.Debugf("Next closer name %s (hash %s) not covered by any NSEC3", nextCloser, nextCloserHash)
+		v.logger.Debug("next closer name not covered by any NSEC3",
+			slog.String("next_closer", nextCloser), slog.String("hash", nextCloserHash))
 
 		return ValidationResultBogus
 	}
@@ -170,7 +175,7 @@ func (v *Validator) validateNSEC3NXDOMAIN(nsec3Records []*dns.NSEC3, qname, zone
 	// If the next closer name is covered by an NSEC3 with Opt-Out flag set,
 	// this indicates an unsigned delegation is allowed (Insecure, not Bogus)
 	if v.nsec3CoversWithOptOut(nsec3Records, nextCloserHash) {
-		v.logger.Debugf("Next closer %s falls in NSEC3 Opt-Out span - unsigned delegation allowed", nextCloser)
+		v.logger.Debug("next closer falls in NSEC3 Opt-Out span", slog.String("next_closer", nextCloser))
 
 		return ValidationResultInsecure
 	}
@@ -179,18 +184,19 @@ func (v *Validator) validateNSEC3NXDOMAIN(nsec3Records []*dns.NSEC3, qname, zone
 	wildcardName := "*." + closestEncloser
 	wildcardHash, err := v.computeNSEC3Hash(wildcardName, hashAlg, salt, iterations)
 	if err != nil {
-		v.logger.Warnf("Failed to compute NSEC3 hash for wildcard %s: %v", wildcardName, err)
+		v.logger.Warn("failed to compute NSEC3 hash for wildcard", slog.String("wildcard", wildcardName), log.AttrError(err))
 
 		return ValidationResultBogus
 	}
 
 	if !v.nsec3Covers(nsec3Records, wildcardHash) {
-		v.logger.Debugf("Wildcard %s (hash %s) not covered by any NSEC3", wildcardName, wildcardHash)
+		v.logger.Debug("wildcard not covered by any NSEC3",
+			slog.String("wildcard", wildcardName), slog.String("hash", wildcardHash))
 
 		return ValidationResultBogus
 	}
 
-	v.logger.Debugf("NSEC3 NXDOMAIN proof validated for %s", qname)
+	v.logger.Debug("NSEC3 NXDOMAIN proof validated", slog.String("qname", qname))
 
 	return ValidationResultSecure
 }
@@ -202,7 +208,7 @@ func (v *Validator) validateNSEC3NODATA(nsec3Records []*dns.NSEC3, qname string,
 	// Compute hash of qname
 	qnameHash, err := v.computeNSEC3Hash(qname, hashAlg, salt, iterations)
 	if err != nil {
-		v.logger.Warnf("Failed to compute NSEC3 hash for %s: %v", qname, err)
+		v.logger.Warn("failed to compute NSEC3 hash", slog.String("qname", qname), log.AttrError(err))
 
 		return ValidationResultBogus
 	}
@@ -234,7 +240,7 @@ func (v *Validator) checkDirectNSEC3Match(nsec3Records []*dns.NSEC3, qname, qnam
 			// Found matching NSEC3 record - check type bitmap
 			if slices.Contains(nsec3.TypeBitMap, qtype) {
 				// Type exists in bitmap - this is NOT a valid NODATA proof
-				v.logger.Debugf("NSEC3 record for %s has type %d in bitmap", qname, qtype)
+				v.logger.Debug("NSEC3 record has type in bitmap", slog.String("qname", qname), slog.Int("type", int(qtype)))
 
 				return ValidationResultBogus
 			}
@@ -244,14 +250,13 @@ func (v *Validator) checkDirectNSEC3Match(nsec3Records []*dns.NSEC3, qname, qnam
 			// in-zone name (NS clear) or a zone apex (SOA set) must not be read as an unsigned
 			// delegation (GHSA-x845-2f78-7v36 finding 4).
 			if qtype == dns.TypeDS && !nsec3AssertsDelegation(nsec3) {
-				v.logger.Warnf("NSEC3 DS-absence proof for %s does not assert an insecure delegation "+
-					"(NS bit clear or SOA bit set)", qname)
+				v.logger.Warn("NSEC3 DS-absence proof does not assert an insecure delegation", slog.String("qname", qname))
 
 				return ValidationResultBogus
 			}
 
 			// Matching NSEC3 found and type not in bitmap - valid NODATA
-			v.logger.Debugf("NSEC3 NODATA proof validated for %s type %d", qname, qtype)
+			v.logger.Debug("NSEC3 NODATA proof validated", slog.String("qname", qname), slog.Int("type", int(qtype)))
 
 			return ValidationResultSecure
 		}
@@ -285,12 +290,12 @@ func (v *Validator) checkWildcardNSEC3Match(nsec3Records []*dns.NSEC3, qname str
 ) ValidationResult {
 	closestEncloser := v.findClosestEncloser(qname, zoneName, nsec3Records, hashAlg, salt, iterations)
 	if closestEncloser == "" {
-		v.logger.Debugf("No matching NSEC3 record found for %s (hash %s)", qname, qnameHash)
+		v.logger.Debug("no matching NSEC3 record found", slog.String("qname", qname), slog.String("hash", qnameHash))
 
 		// RFC 5155 §6: For DS queries, check if covered by NSEC3 with Opt-Out
 		// If yes, this is an unsigned delegation (Insecure), not Bogus
 		if qtype == dns.TypeDS && v.nsec3CoversWithOptOut(nsec3Records, qnameHash) {
-			v.logger.Debugf("DS query for %s covered by NSEC3 Opt-Out - unsigned delegation", qname)
+			v.logger.Debug("DS query covered by NSEC3 Opt-Out, unsigned delegation", slog.String("qname", qname))
 
 			return ValidationResultInsecure
 		}
@@ -301,7 +306,7 @@ func (v *Validator) checkWildcardNSEC3Match(nsec3Records []*dns.NSEC3, qname str
 	wildcardName := "*." + closestEncloser
 	wildcardHash, err := v.computeNSEC3Hash(wildcardName, hashAlg, salt, iterations)
 	if err != nil {
-		v.logger.Debugf("No matching NSEC3 record found for %s (hash %s)", qname, qnameHash)
+		v.logger.Debug("no matching NSEC3 record found", slog.String("qname", qname), slog.String("hash", qnameHash))
 
 		return ValidationResultBogus
 	}
@@ -321,24 +326,23 @@ func (v *Validator) checkWildcardNSEC3Match(nsec3Records []*dns.NSEC3, qname str
 			// delegation - NS bit set, SOA and DS bits clear. Without it, a missing-DS answer
 			// for an in-zone name is bogus, not insecure (GHSA-x845-2f78-7v36 finding 4).
 			if qtype == dns.TypeDS && !nsec3AssertsDelegation(nsec3) {
-				v.logger.Warnf("NSEC3 wildcard DS-absence proof for %s does not assert an insecure "+
-					"delegation (NS bit clear or SOA bit set)", qname)
+				v.logger.Warn("NSEC3 wildcard DS-absence proof does not assert an insecure delegation", slog.String("qname", qname))
 
 				return ValidationResultBogus
 			}
 
-			v.logger.Debugf("NSEC3 wildcard NODATA proof validated for %s type %d", qname, qtype)
+			v.logger.Debug("NSEC3 wildcard NODATA proof validated", slog.String("qname", qname), slog.Int("type", int(qtype)))
 
 			return ValidationResultSecure
 		}
 	}
 
-	v.logger.Debugf("No matching NSEC3 record found for %s (hash %s)", qname, qnameHash)
+	v.logger.Debug("no matching NSEC3 record found", slog.String("qname", qname), slog.String("hash", qnameHash))
 
 	// RFC 5155 §6: For DS queries, check if covered by NSEC3 with Opt-Out
 	// If yes, this is an unsigned delegation (Insecure), not Bogus
 	if qtype == dns.TypeDS && v.nsec3CoversWithOptOut(nsec3Records, qnameHash) {
-		v.logger.Debugf("DS query for %s covered by NSEC3 Opt-Out - unsigned delegation", qname)
+		v.logger.Debug("DS query covered by NSEC3 Opt-Out, unsigned delegation", slog.String("qname", qname))
 
 		return ValidationResultInsecure
 	}

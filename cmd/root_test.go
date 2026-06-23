@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/0xERR0R/blocky/log"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -29,7 +27,6 @@ func (m mockResponse) Status() string {
 
 var _ = Describe("root command", func() {
 	When("Version command is called", func() {
-		log.Log().ExitFunc = nil
 		It("should execute without error", func() {
 			c := NewRootCommand()
 			c.SetOut(io.Discard)

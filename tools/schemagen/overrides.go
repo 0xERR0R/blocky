@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/invopop/jsonschema"
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
 )
 
 // qtypeNames returns the sorted DNS query-type names blocky accepts. It is the
@@ -138,7 +138,7 @@ func stringForms() map[reflect.Type]stringSpec {
 		reflect.TypeFor[config.ZoneFileDNS](): {
 			"Inline DNS zone file content.", nil,
 		},
-		reflect.TypeFor[logrus.Level](): {
+		reflect.TypeFor[log.Level](): {
 			"Log level: trace, debug, info, warn, error, fatal.", []string{"info", "debug"},
 		},
 	}

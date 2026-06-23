@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/evt"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/avast/retry-go/v4"
 )
 
@@ -62,8 +64,9 @@ func NewDownloader(cfg config.Downloader, transport http.RoundTripper) FileDownl
 	}
 
 	if err := os.MkdirAll(cfg.CachePath, cacheDirPermission); err != nil {
-		logger().WithError(err).Warnf(
-			"cannot create download cache dir %s, continuing without on-disk cache", cfg.CachePath)
+		logger().Warn(
+			fmt.Sprintf("cannot create download cache dir %s, continuing without on-disk cache", cfg.CachePath),
+			log.AttrError(err))
 
 		return inner
 	}
@@ -172,17 +175,18 @@ func (d *httpDownloader) logRetry(link string) func(n uint, err error) {
 
 		var dnsErr *net.DNSError
 
-		logger := logger().
-			WithField("link", link).
-			WithField("attempt", fmt.Sprintf("%d/%d", n+1, d.cfg.Attempts))
+		l := logger().With(
+			slog.String("link", link),
+			slog.String("attempt", fmt.Sprintf("%d/%d", n+1, d.cfg.Attempts)),
+		)
 
 		switch {
 		case errors.As(err, &transientErr):
-			logger.Warnf("Temporary network err / Timeout occurred: %s", transientErr)
+			l.Warn(fmt.Sprintf("Temporary network err / Timeout occurred: %s", transientErr))
 		case errors.As(err, &dnsErr):
-			logger.Warnf("Name resolution err: %s", dnsErr.Err)
+			l.Warn("Name resolution err: " + dnsErr.Err)
 		default:
-			logger.Warnf("Can't download file: %s", err)
+			l.Warn(fmt.Sprintf("Can't download file: %s", err))
 		}
 
 		onDownloadError(link)

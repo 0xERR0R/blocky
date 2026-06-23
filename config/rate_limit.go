@@ -3,9 +3,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
-
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -35,12 +34,12 @@ type RateLimit struct {
 func (c *RateLimit) IsEnabled() bool { return c.Enable }
 
 // LogConfig implements `config.Configurable`.
-func (c *RateLimit) LogConfig(logger *logrus.Entry) {
-	logger.Infof("rate         = %d qps", c.Rate)
-	logger.Infof("burst        = %d", c.Burst)
-	logger.Infof("ipv4 prefix  = /%d", c.IPv4Prefix)
-	logger.Infof("ipv6 prefix  = /%d", c.IPv6Prefix)
-	logger.Infof("allowlist    = %v", c.Allowlist)
+func (c *RateLimit) LogConfig(logger *slog.Logger) {
+	logger.Info(fmt.Sprintf("rate         = %d qps", c.Rate))
+	logger.Info(fmt.Sprintf("burst        = %d", c.Burst))
+	logger.Info(fmt.Sprintf("ipv4 prefix  = /%d", c.IPv4Prefix))
+	logger.Info(fmt.Sprintf("ipv6 prefix  = /%d", c.IPv6Prefix))
+	logger.Info(fmt.Sprintf("allowlist    = %v", c.Allowlist))
 }
 
 func (c *RateLimit) validate() error {

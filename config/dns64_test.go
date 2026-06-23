@@ -38,9 +38,9 @@ var _ = Describe("DNS64Config", func() {
 	Describe("LogConfig", func() {
 		It("should log default prefixes when empty", func() {
 			cfg.LogConfig(logger)
-			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("64:ff9b::/96")))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("default")))
+			Expect(rec.Records()).ShouldNot(BeEmpty())
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("64:ff9b::/96")))
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("default")))
 		})
 
 		It("should log custom prefixes when configured", func() {
@@ -49,16 +49,16 @@ var _ = Describe("DNS64Config", func() {
 				netip.MustParsePrefix("2001:db9::/96"),
 			}
 			cfg.LogConfig(logger)
-			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("2001:db8::/32")))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("2001:db9::/96")))
+			Expect(rec.Records()).ShouldNot(BeEmpty())
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("2001:db8::/32")))
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("2001:db9::/96")))
 		})
 
 		It("should log default exclusionSet when empty", func() {
 			cfg.LogConfig(logger)
-			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("::ffff:0:0/96")))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("default, plus configured prefixes")))
+			Expect(rec.Records()).ShouldNot(BeEmpty())
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("::ffff:0:0/96")))
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("default, plus configured prefixes")))
 		})
 
 		It("should log custom exclusionSet when configured", func() {
@@ -66,9 +66,9 @@ var _ = Describe("DNS64Config", func() {
 				netip.MustParsePrefix("2001:db8::/64"),
 			}
 			cfg.LogConfig(logger)
-			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("exclusionSet (custom)")))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("2001:db8::/64")))
+			Expect(rec.Records()).ShouldNot(BeEmpty())
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("exclusionSet (custom)")))
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("2001:db8::/64")))
 		})
 	})
 
@@ -178,9 +178,9 @@ var _ = Describe("DNS64Config", func() {
 				It("should log warning", func() {
 					caching.MaxCachingTime = Duration(-1)
 					_ = cfg.validate(logger, filtering, caching)
-					Expect(hook.Calls).ShouldNot(BeEmpty())
-					Expect(hook.Messages).Should(ContainElement(ContainSubstring("DNS64 is enabled but caching is disabled")))
-					Expect(hook.Messages).Should(ContainElement(ContainSubstring("reduced performance")))
+					Expect(rec.Records()).ShouldNot(BeEmpty())
+					Expect(rec.Messages()).Should(ContainElement(ContainSubstring("DNS64 is enabled but caching is disabled")))
+					Expect(rec.Messages()).Should(ContainElement(ContainSubstring("reduced performance")))
 				})
 			})
 
@@ -189,7 +189,7 @@ var _ = Describe("DNS64Config", func() {
 					caching.MaxCachingTime = Duration(5 * time.Minute)
 					_ = cfg.validate(logger, filtering, caching)
 					// Check no warning about caching was logged
-					for _, msg := range hook.Messages {
+					for _, msg := range rec.Messages() {
 						if msg == "DNS64 is enabled but caching is disabled" {
 							Fail("Should not log caching disabled warning when caching is enabled")
 						}

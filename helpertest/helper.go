@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 
 	"github.com/miekg/dns"
@@ -59,12 +58,12 @@ func GetHostPort(host string, port int) string {
 func TempFile(data string) *os.File {
 	f, err := os.CreateTemp("", "prefix")
 	if err != nil {
-		log.Log().Fatal(err)
+		panic(err)
 	}
 
 	_, err = f.WriteString(data)
 	if err != nil {
-		log.Log().Fatal(err)
+		panic(err)
 	}
 
 	return f
@@ -75,7 +74,7 @@ func TestServer(data string) *httptest.Server {
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		_, err := rw.Write([]byte(data))
 		if err != nil {
-			log.Log().Fatal("can't write to buffer:", err)
+			panic(fmt.Sprintf("can't write to buffer: %v", err))
 		}
 	}))
 

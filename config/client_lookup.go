@@ -1,9 +1,9 @@
 package config
 
 import (
+	"fmt"
+	"log/slog"
 	"net"
-
-	"github.com/sirupsen/logrus"
 )
 
 // ClientLookup configuration for the client lookup
@@ -22,18 +22,18 @@ func (c *ClientLookup) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *ClientLookup) LogConfig(logger *logrus.Entry) {
+func (c *ClientLookup) LogConfig(logger *slog.Logger) {
 	if !c.Upstream.IsDefault() {
-		logger.Infof("upstream = %s", c.Upstream)
+		logger.Info(fmt.Sprintf("upstream = %s", c.Upstream))
 	}
 
-	logger.Infof("singleNameOrder = %v", c.SingleNameOrder)
+	logger.Info(fmt.Sprintf("singleNameOrder = %v", c.SingleNameOrder))
 
 	if len(c.ClientnameIPMapping) > 0 {
-		logger.Infof("client IP mapping:")
+		logger.Info("client IP mapping:")
 
 		for k, v := range c.ClientnameIPMapping {
-			logger.Infof("  %s = %s", k, v)
+			logger.Info(fmt.Sprintf("  %s = %s", k, v))
 		}
 	}
 }

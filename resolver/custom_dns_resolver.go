@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"slices"
 	"strings"
@@ -12,7 +13,6 @@ import (
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
 )
 
 type createAnswerFunc func(question dns.Question, ip net.IP, ttl uint32) (dns.RR, error)
@@ -127,7 +127,7 @@ func (r *CustomDNSResolver) handleReverseDNS(request *model.Request) *model.Resp
 
 func (r *CustomDNSResolver) processRequest(
 	ctx context.Context,
-	logger *logrus.Entry,
+	logger *slog.Logger,
 	request *model.Request,
 	resolvedCnames []string,
 ) (*model.Response, error) {
@@ -153,10 +153,9 @@ func (r *CustomDNSResolver) processRequest(
 			}
 
 			if len(answers) > 0 {
-				logger.WithFields(logrus.Fields{
-					logFieldAnswer: util.Obfuscate(util.AnswerToString(answers)),
-					logFieldDomain: util.Obfuscate(domain),
-				}).Debugf("returning custom dns entry")
+				logger.DebugContext(ctx, "returning custom dns entry",
+					slog.Any(logFieldAnswer, util.AnswerLogValuer{Answers: answers}),
+					slog.String(logFieldDomain, util.Obfuscate(domain)))
 
 				return model.NewResponseWithAnswers(request, answers, model.ResponseTypeCUSTOMDNS, "CUSTOM DNS"), nil
 			}
@@ -178,14 +177,14 @@ func (r *CustomDNSResolver) processRequest(
 		}
 	}
 
-	logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
+	logger.DebugContext(ctx, "go to next resolver", slog.String("next_resolver", Name(r.next)))
 
 	return r.next.Resolve(ctx, request)
 }
 
 func (r *CustomDNSResolver) processDNSEntry(
 	ctx context.Context,
-	logger *logrus.Entry,
+	logger *slog.Logger,
 	request *model.Request,
 	resolvedCnames []string,
 	question dns.Question,
@@ -286,7 +285,7 @@ func (r *CustomDNSResolver) processSRV(
 
 func (r *CustomDNSResolver) processCNAME(
 	ctx context.Context,
-	logger *logrus.Entry,
+	logger *slog.Logger,
 	request *model.Request,
 	targetCname dns.CNAME,
 	resolvedCnames []string,

@@ -4,8 +4,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/sirupsen/logrus/hooks/test"
-
 	"github.com/0xERR0R/blocky/log"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -14,9 +12,9 @@ import (
 
 var _ = Describe("Cache command", func() {
 	var (
-		ts         *httptest.Server
-		mockFn     func(w http.ResponseWriter, _ *http.Request)
-		loggerHook *test.Hook
+		ts     *httptest.Server
+		mockFn func(w http.ResponseWriter, _ *http.Request)
+		rec    *log.Recorder
 	)
 	JustBeforeEach(func() {
 		ts = testHTTPAPIServer(mockFn)
@@ -26,17 +24,15 @@ var _ = Describe("Cache command", func() {
 	})
 	BeforeEach(func() {
 		mockFn = func(w http.ResponseWriter, _ *http.Request) {}
-		loggerHook = test.NewGlobal()
-		log.Log().AddHook(loggerHook)
-	})
-	AfterEach(func() {
-		loggerHook.Reset()
+		var restore func()
+		rec, restore = log.CaptureGlobal()
+		DeferCleanup(restore)
 	})
 	Describe("flush cache", func() {
 		When("flush cache is called via REST", func() {
 			It("should flush caches", func() {
 				Expect(flushCache(withContext(newCacheCommand()), []string{})).Should(Succeed())
-				Expect(loggerHook.LastEntry().Message).Should(Equal("OK"))
+				Expect(rec.LastMessage()).Should(Equal("OK"))
 			})
 		})
 		When("Wrong url is used", func() {

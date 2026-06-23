@@ -2,10 +2,11 @@ package redis
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
+	"github.com/0xERR0R/blocky/log"
 	goredis "github.com/go-redis/redis/v8"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 type PubSubLoop struct {
 	Client  *goredis.Client
 	Channel string
-	Logger  *logrus.Entry
+	Logger  *slog.Logger
 	Handler func(ctx context.Context, payload string)
 }
 
@@ -37,7 +38,7 @@ func (p *PubSubLoop) RunWithSub(ctx context.Context, initial *goredis.PubSub) {
 		sub = p.Client.Subscribe(ctx, p.Channel)
 
 		if _, err := sub.Receive(ctx); err != nil {
-			p.Logger.WithError(err).Warn("Redis pub/sub initial subscribe failed, attempting to reconnect")
+			p.Logger.WarnContext(ctx, "Redis pub/sub initial subscribe failed, attempting to reconnect", log.AttrError(err))
 			_ = sub.Close()
 
 			sub = p.reconnect(ctx)
@@ -55,7 +56,7 @@ func (p *PubSubLoop) RunWithSub(ctx context.Context, initial *goredis.PubSub) {
 			return
 		}
 
-		p.Logger.Warn("Redis pub/sub channel closed unexpectedly, attempting to reconnect")
+		p.Logger.WarnContext(ctx, "Redis pub/sub channel closed unexpectedly, attempting to reconnect")
 
 		sub = p.reconnect(ctx)
 		if sub == nil {
@@ -102,7 +103,7 @@ func (p *PubSubLoop) reconnect(ctx context.Context) *goredis.PubSub {
 
 		if _, err := sub.Receive(ctx); err != nil {
 			_ = sub.Close()
-			p.Logger.WithError(err).Warn("Redis pub/sub reconnect failed, retrying")
+			p.Logger.WarnContext(ctx, "Redis pub/sub reconnect failed, retrying", log.AttrError(err))
 
 			delay *= 2
 			if delay > reconnectMaxDelay {
@@ -112,7 +113,7 @@ func (p *PubSubLoop) reconnect(ctx context.Context) *goredis.PubSub {
 			continue
 		}
 
-		p.Logger.Info("Redis pub/sub reconnected successfully")
+		p.Logger.InfoContext(ctx, "Redis pub/sub reconnected successfully")
 
 		return sub
 	}

@@ -276,7 +276,7 @@ func loadTestdata(path string) (res []string) {
 
 	p := parsers.AllowErrors(parsers.Hosts(f), parsers.NoErrorLimit)
 	p.OnErr(func(err error) {
-		log.Log().Warnf("could not parse line in %s: %s", path, err)
+		log.Log().Warn(fmt.Sprintf("could not parse line in %s: %s", path, err))
 	})
 
 	err = parsers.ForEach[*parsers.HostsIterator](context.Background(), p, func(hosts *parsers.HostsIterator) error {

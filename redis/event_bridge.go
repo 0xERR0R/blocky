@@ -3,6 +3,7 @@ package redis
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/0xERR0R/blocky/log"
 	goredis "github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -28,7 +28,7 @@ type EventBusBridge struct {
 	client  *goredis.Client
 	id      string
 	channel string
-	l       *logrus.Entry
+	l       *slog.Logger
 	cancel  context.CancelFunc
 	done    <-chan struct{}
 	once    sync.Once
@@ -103,7 +103,7 @@ func (b *EventBusBridge) onLocalStateChanged(state evt.BlockingState) {
 
 	payload, err := json.Marshal(msg)
 	if err != nil {
-		b.l.Error("failed to marshal bridge message: ", err)
+		b.l.Error("failed to marshal bridge message", log.AttrError(err))
 
 		return
 	}
@@ -118,20 +118,20 @@ func (b *EventBusBridge) onLocalStateChanged(state evt.BlockingState) {
 	}
 
 	if err := b.client.Publish(pubCtx, b.channel, payload).Err(); err != nil {
-		b.l.Error("failed to publish to Redis: ", err)
+		b.l.Error("failed to publish to Redis", log.AttrError(err))
 	}
 }
 
 // handleMessage processes a single Redis pub/sub message, publishing remote
 // state changes to the local event bus and filtering out echoes.
-func (b *EventBusBridge) handleMessage(_ context.Context, payload string) {
+func (b *EventBusBridge) handleMessage(ctx context.Context, payload string) {
 	if len(payload) == 0 {
 		return
 	}
 
 	var bm bridgeMessage
 	if err := json.Unmarshal([]byte(payload), &bm); err != nil {
-		b.l.Error("failed to unmarshal bridge message: ", err)
+		b.l.ErrorContext(ctx, "failed to unmarshal bridge message", log.AttrError(err))
 
 		return
 	}

@@ -52,8 +52,8 @@ var _ = Describe("HostsFileConfig", func() {
 		It("should log configuration", func() {
 			cfg.LogConfig(logger)
 
-			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).Should(ContainElements(
+			Expect(rec.Records()).ShouldNot(BeEmpty())
+			Expect(rec.Messages()).Should(ContainElements(
 				ContainSubstring("- file:///a/file/path"),
 				ContainSubstring("- 127.0.0.1 lo..."),
 			))
@@ -71,8 +71,8 @@ var _ = Describe("HostsFileConfig", func() {
 			migrated := cfg.migrate(logger)
 			Expect(migrated).Should(BeTrue())
 
-			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).Should(ContainElements(
+			Expect(rec.Records()).ShouldNot(BeEmpty())
+			Expect(rec.Messages()).Should(ContainElements(
 				ContainSubstring("hostsFile.loading.refreshPeriod"),
 				ContainSubstring("hostsFile.sources"),
 			))

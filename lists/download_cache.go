@@ -7,10 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/0xERR0R/blocky/log"
 )
 
 // cacheFilePath returns the on-disk path for a source URL: <dir>/<sha256hex(url)>.
@@ -92,7 +95,7 @@ func (c *cachingDownloader) DownloadFile(ctx context.Context, link string) (io.R
 		var statusErr *httpStatusError
 		if !errors.As(err, &statusErr) {
 			if cached, openErr := openCached(c.dir, link); openErr == nil {
-				logger().WithField("link", link).WithError(err).Warn("download failed, using cached copy")
+				logger().WarnContext(ctx, "download failed, using cached copy", slog.String("link", link), log.AttrError(err))
 
 				return cached, nil
 			}
@@ -104,7 +107,7 @@ func (c *cachingDownloader) DownloadFile(ctx context.Context, link string) (io.R
 	if resp.statusCode == http.StatusNotModified {
 		cached, openErr := openCached(c.dir, link)
 		if openErr == nil {
-			logger().WithField("link", link).Debug("source not modified, using cached copy")
+			logger().DebugContext(ctx, "source not modified, using cached copy", slog.String("link", link))
 
 			return cached, nil
 		}
@@ -129,7 +132,7 @@ func (c *cachingDownloader) DownloadFile(ctx context.Context, link string) (io.R
 func (c *cachingDownloader) serveAndStore(link string, resp *downloadResponse) (io.ReadCloser, error) {
 	tmp, err := os.CreateTemp(c.dir, "dl-*.tmp")
 	if err != nil {
-		logger().WithError(err).Warnf("cannot create temp cache file in %s, serving without caching", c.dir)
+		logger().Warn(fmt.Sprintf("cannot create temp cache file in %s, serving without caching", c.dir), log.AttrError(err))
 
 		return resp.body, nil
 	}
@@ -160,7 +163,7 @@ func (c *cachingDownloader) serveAndStore(link string, resp *downloadResponse) (
 		_ = tmp.Close()
 
 		if err := os.Rename(tmp.Name(), finalPath); err != nil {
-			logger().WithError(err).Warnf("cannot finalize cache file %s", finalPath)
+			logger().Warn("cannot finalize cache file "+finalPath, log.AttrError(err))
 			_ = os.Remove(tmp.Name())
 
 			return
@@ -191,7 +194,7 @@ func (w *tolerantFileWriter) Write(p []byte) (int, error) {
 	if _, err := w.w.Write(p); err != nil {
 		w.failed = true
 
-		logger().WithError(err).Warn("cache write failed, abandoning on-disk copy")
+		logger().Warn("cache write failed, abandoning on-disk copy", log.AttrError(err))
 	}
 
 	return len(p), nil

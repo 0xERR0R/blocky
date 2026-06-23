@@ -1,17 +1,16 @@
 package resolver
 
 import (
+	"log/slog"
 	"strings"
 
 	"github.com/0xERR0R/blocky/util"
-
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
 )
 
 // rewriteRequest applies domain rewrites to the DNS request
 func rewriteRequest(
-	logger *logrus.Entry,
+	logger *slog.Logger,
 	request *dns.Msg,
 	rewriteMap map[string]string,
 ) (rewritten *dns.Msg, originalNames map[string]string) {
@@ -38,9 +37,12 @@ func rewriteRequest(
 
 			rewritten.Question[i].Name = rewrittenFQDN
 
-			logger.WithFields(logrus.Fields{
-				"rewrite": util.Obfuscate(rewriteKey) + ":" + util.Obfuscate(rewriteMap[rewriteKey]),
-			}).Debugf("rewriting %q to %q", util.Obfuscate(domainOriginal), util.Obfuscate(domainRewritten))
+			// Static message + lazy attrs so Obfuscate runs only when this debug
+			// record is actually emitted, not on every rewrite when debug is off.
+			logger.Debug("rewriting question domain",
+				slog.Any("from", util.DomainLogValuer{Domain: domainOriginal}),
+				slog.Any("to", util.DomainLogValuer{Domain: domainRewritten}),
+				slog.Any("rewrite", util.DomainLogValuer{Domain: rewriteKey + ":" + rewriteMap[rewriteKey]}))
 		}
 	}
 

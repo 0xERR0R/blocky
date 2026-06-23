@@ -1,9 +1,9 @@
 package config
 
 import (
+	"fmt"
+	"log/slog"
 	"strings"
-
-	"github.com/sirupsen/logrus"
 )
 
 // RewriterConfig custom DNS configuration
@@ -31,12 +31,12 @@ func (c *RewriterConfig) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *RewriterConfig) LogConfig(logger *logrus.Entry) {
-	logger.Infof("fallbackUpstream = %t", c.FallbackUpstream)
+func (c *RewriterConfig) LogConfig(logger *slog.Logger) {
+	logger.Info(fmt.Sprintf("fallbackUpstream = %t", c.FallbackUpstream))
 
 	logger.Info("rules:")
 
 	for key, val := range c.Rewrite {
-		logger.Infof("  %s = %s", key, val)
+		logger.Info(fmt.Sprintf("  %s = %s", key, val))
 	}
 }

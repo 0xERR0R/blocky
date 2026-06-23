@@ -128,7 +128,7 @@ All logging options are optional.
 
 | Parameter     | Type                                   | Default value | Description                                                                                                                                       |
 | ------------- | -------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| log.level     | enum (trace, debug, info, warn, error) | info          | Log level                                                                                                                                         |
+| log.level     | enum (debug, info, warn, error)        | info          | Log level                                                                                                                                         |
 | log.format    | enum (text, json)                      | text          | Log format (text or json).                                                                                                                        |
 | log.timestamp | bool                                   | true          | Log timestamps (true or false).                                                                                                                   |
 | log.privacy   | bool                                   | false         | Obfuscate log output (replace all alphanumeric characters with \*) for user sensitive data like request domains or responses to increase privacy. |
@@ -501,11 +501,15 @@ Pick `burst == rate` for a strict steady-state limiter with no spike tolerance. 
 
 ```ini
 [Definition]
-failregex = ^.*rate-limiting: dropped query.*client_ip=<HOST>.*$
+failregex = ^.*dropped query.*client_ip=<HOST>.*$
 ignoreregex =
 ```
 
-This filter assumes `logFormat: text` (the default); with `logFormat: json` the field becomes `"client_ip":"<HOST>"` and the regex must be adjusted accordingly.
+This filter assumes `logFormat: text` (the default), where the line looks like
+`2024-01-01 12:00:00 WRN dropped query prefix=rate-limiting client_ip=<HOST>`
+(the rate-limiting prefix is a structured `prefix=rate-limiting` field). With
+`logFormat: json` the field becomes `"client_ip":"<HOST>"` and the regex must be
+adjusted accordingly.
 
 ### Metrics
 

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/miekg/dns"
@@ -44,13 +45,15 @@ func (v *Validator) queryAndMatchDNSKEY(
 	}
 
 	// Find the key that matches the RRSIG's key tag AND algorithm
-	v.logger.Debugf("Looking for DNSKEY with key tag %d and algorithm %d for signer %s", keyTag, algorithm, signerName)
+	v.logger.DebugContext(ctx, "looking for DNSKEY",
+		slog.Int("keytag", int(keyTag)), slog.Int("algorithm", int(algorithm)), slog.String("signer", signerName))
 	matchingKey := findMatchingDNSKEY(keys, keyTag, algorithm)
 	if matchingKey == nil {
-		v.logger.Debugf("Available DNSKEYs: %d keys", len(keys))
+		v.logger.DebugContext(ctx, "available DNSKEYs", slog.Int("count", len(keys)))
 		for i, key := range keys {
-			v.logger.Debugf("  DNSKEY[%d]: flags=%d, protocol=%d, algorithm=%d, keytag=%d",
-				i, key.Flags, key.Protocol, key.Algorithm, key.KeyTag())
+			v.logger.DebugContext(ctx, "DNSKEY candidate",
+				slog.Int("index", i), slog.Int("flags", int(key.Flags)), slog.Int("protocol", int(key.Protocol)),
+				slog.Int("algorithm", int(key.Algorithm)), slog.Int("keytag", int(key.KeyTag())))
 		}
 
 		return ctx, nil, fmt.Errorf("no DNSKEY with key tag %d and algorithm %d found", keyTag, algorithm)
@@ -60,8 +63,10 @@ func (v *Validator) queryAndMatchDNSKEY(
 	if len(pkeyPrefix) > publicKeyPrefixLen {
 		pkeyPrefix = pkeyPrefix[:publicKeyPrefixLen]
 	}
-	v.logger.Debugf("Found DNSKEY: flags=%d, protocol=%d, algorithm=%d, keytag=%d, pubkey_prefix=%s...",
-		matchingKey.Flags, matchingKey.Protocol, matchingKey.Algorithm, matchingKey.KeyTag(), pkeyPrefix)
+	v.logger.DebugContext(ctx, "found DNSKEY",
+		slog.Int("flags", int(matchingKey.Flags)), slog.Int("protocol", int(matchingKey.Protocol)),
+		slog.Int("algorithm", int(matchingKey.Algorithm)), slog.Int("keytag", int(matchingKey.KeyTag())),
+		slog.String("pubkey_prefix", pkeyPrefix))
 
 	return ctx, matchingKey, nil
 }
@@ -281,11 +286,12 @@ func (v *Validator) verifyRRSIG(
 	if len(pkeyPrefix) > publicKeyPrefixLen {
 		pkeyPrefix = pkeyPrefix[:publicKeyPrefixLen]
 	}
-	v.logger.Debugf(
-		"verifyRRSIG: Using DNSKEY flags=%d, protocol=%d, algorithm=%d, keytag=%d, "+
-			"Header.Name='%s', pubkey_prefix=%s... to verify RRSIG keytag=%d, algorithm=%d, SignerName='%s'",
-		key.Flags, key.Protocol, key.Algorithm, key.KeyTag(), key.Header().Name, pkeyPrefix,
-		rrsig.KeyTag, rrsig.Algorithm, rrsig.SignerName)
+	v.logger.Debug("verifyRRSIG: using DNSKEY to verify RRSIG",
+		slog.Int("key_flags", int(key.Flags)), slog.Int("key_protocol", int(key.Protocol)),
+		slog.Int("key_algorithm", int(key.Algorithm)), slog.Int("key_keytag", int(key.KeyTag())),
+		slog.String("key_name", key.Header().Name), slog.String("pubkey_prefix", pkeyPrefix),
+		slog.Int("rrsig_keytag", int(rrsig.KeyTag)), slog.Int("rrsig_algorithm", int(rrsig.Algorithm)),
+		slog.String("rrsig_signer", rrsig.SignerName))
 
 	// Check algorithm support per RFC 4035 §2.2
 	// Unsupported algorithms should be treated as Insecure, not Bogus
@@ -336,11 +342,11 @@ func (v *Validator) verifyRRSIG(
 	// even if this verification takes significant time
 	if err := rrsig.Verify(key, rrset); err != nil {
 		// Debug: log RRset details on failure
-		v.logger.Debugf("Signature verification failed for RRset with %d records:", len(rrset))
+		v.logger.Debug("signature verification failed for RRset", slog.Int("records", len(rrset)))
 		for i, rr := range rrset {
-			v.logger.Debugf("  [%d] %s", i, rr.String())
+			v.logger.Debug("RRset record", slog.Int("index", i), slog.String("rr", rr.String()))
 		}
-		v.logger.Debugf("  RRSIG: %s", rrsig.String())
+		v.logger.Debug("RRSIG record", slog.String("rrsig", rrsig.String()))
 
 		return fmt.Errorf("signature verification failed: %w", err)
 	}

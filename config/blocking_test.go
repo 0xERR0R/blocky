@@ -55,9 +55,9 @@ var _ = Describe("BlockingConfig", func() {
 		It("should log configuration", func() {
 			cfg.LogConfig(logger)
 
-			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages[0]).Should(Equal("clientGroupsBlock:"))
-			Expect(hook.Messages).Should(ContainElement(Equal("blockType = ZEROIP")))
+			Expect(rec.Records()).ShouldNot(BeEmpty())
+			Expect(rec.Messages()[0]).Should(Equal("clientGroupsBlock:"))
+			Expect(rec.Messages()).Should(ContainElement(Equal("blockType = ZEROIP")))
 		})
 
 		It("should log time-range schedules", func() {
@@ -66,8 +66,8 @@ var _ = Describe("BlockingConfig", func() {
 			}
 			cfg.LogConfig(logger)
 
-			Expect(hook.Messages).Should(ContainElement(Equal("schedules:")))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("night: 22:00 - 07:00")))
+			Expect(rec.Messages()).Should(ContainElement(Equal("schedules:")))
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("night: 22:00 - 07:00")))
 		})
 
 		It("should log full-day schedules", func() {
@@ -76,8 +76,8 @@ var _ = Describe("BlockingConfig", func() {
 			}
 			cfg.LogConfig(logger)
 
-			Expect(hook.Messages).Should(ContainElement(Equal("schedules:")))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("weekend: all day")))
+			Expect(rec.Messages()).Should(ContainElement(Equal("schedules:")))
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("weekend: all day")))
 		})
 
 		It("should log listSchedules", func() {
@@ -86,8 +86,8 @@ var _ = Describe("BlockingConfig", func() {
 			}
 			cfg.LogConfig(logger)
 
-			Expect(hook.Messages).Should(ContainElement(Equal("listSchedules:")))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("gr1 = [night]")))
+			Expect(rec.Messages()).Should(ContainElement(Equal("listSchedules:")))
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("gr1 = [night]")))
 		})
 	})
 
@@ -106,8 +106,8 @@ var _ = Describe("BlockingConfig", func() {
 			migrated := cfg.migrate(logger)
 			Expect(migrated).Should(BeTrue())
 
-			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).Should(ContainElements(
+			Expect(rec.Records()).ShouldNot(BeEmpty())
+			Expect(rec.Messages()).Should(ContainElements(
 				ContainSubstring("blocking.allowlists"),
 				ContainSubstring("blocking.denylists"),
 			))

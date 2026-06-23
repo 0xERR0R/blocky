@@ -5,11 +5,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"sync/atomic"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/0xERR0R/blocky/cache/stringcache"
 	"github.com/0xERR0R/blocky/config"
@@ -54,25 +53,25 @@ type ListCache struct {
 }
 
 // LogConfig implements `config.Configurable`.
-func (b *ListCache) LogConfig(logger *logrus.Entry) {
+func (b *ListCache) LogConfig(logger *slog.Logger) {
 	total := 0
 	regexes := 0
 
 	for group := range b.groupSources {
 		count := b.groupedCache.ElementCount(group)
-		logger.Infof("%s: %d entries", group, count)
+		logger.Info(fmt.Sprintf("%s: %d entries", group, count))
 		total += count
 		regexes += b.regexCache.ElementCount(group)
 	}
 
 	if regexes > regexWarningThreshold {
-		logger.Warnf(
+		logger.Warn(fmt.Sprintf(
 			"REGEXES: %d !! High use of regexes is not recommended: they use a lot of memory and are very slow to search",
 			regexes,
-		)
+		))
 	}
 
-	logger.Infof("TOTAL: %d entries", total)
+	logger.Info(fmt.Sprintf("TOTAL: %d entries", total))
 }
 
 // NewListCache creates new list instance
@@ -101,7 +100,7 @@ func NewListCache(ctx context.Context,
 	}
 
 	err := cfg.StartPeriodicRefresh(ctx, c.refresh, func(err error) {
-		logger().WithError(err).Errorf("could not init %s", t)
+		logger().ErrorContext(ctx, fmt.Sprintf("could not init %s", t), log.AttrError(err))
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to start periodic refresh for %s: %w", t, err)
@@ -110,7 +109,7 @@ func NewListCache(ctx context.Context,
 	return c, nil
 }
 
-func logger() *logrus.Entry {
+func logger() *slog.Logger {
 	return log.PrefixedLog("list_cache")
 }
 
@@ -150,15 +149,15 @@ func (b *ListCache) refresh(ctx context.Context) error {
 			if err != nil {
 				count := b.groupedCache.ElementCount(group)
 
-				logger := logger().WithFields(logrus.Fields{
-					logFieldGroup:      group,
-					logFieldTotalCount: count,
-				})
+				l := logger().With(
+					slog.String(logFieldGroup, group),
+					slog.Int(logFieldTotalCount, count),
+				)
 
 				if count == 0 {
-					logger.Warn("Populating of group cache failed, cache will be empty until refresh succeeds")
+					l.WarnContext(ctx, "Populating of group cache failed, cache will be empty until refresh succeeds")
 				} else {
-					logger.Warn("Populating of group cache failed, using existing cache, if any")
+					l.WarnContext(ctx, "Populating of group cache failed, using existing cache, if any")
 				}
 
 				return fmt.Errorf("failed to create cache for group %s: %w", group, err)
@@ -168,10 +167,10 @@ func (b *ListCache) refresh(ctx context.Context) error {
 
 			evt.Bus().Publish(evt.BlockingCacheGroupChanged, b.listType, group, count)
 
-			logger().WithFields(logrus.Fields{
-				logFieldGroup:      group,
-				logFieldTotalCount: count,
-			}).Info("group import finished")
+			logger().With(
+				slog.String(logFieldGroup, group),
+				slog.Int(logFieldTotalCount, count),
+			).InfoContext(ctx, "group import finished")
 
 			return nil
 		})
@@ -212,7 +211,7 @@ func (b *ListCache) createCacheForGroup(
 			if groupFactory.AddEntry(host) {
 				hasEntries.Store(true)
 			} else {
-				logger().WithField("host", host).Warn("no list cache was able to use host")
+				logger().With(slog.String("host", host)).WarnContext(ctx, "no list cache was able to use host")
 			}
 		}
 
@@ -258,15 +257,16 @@ func (b *ListCache) seedFromDisk(ctx context.Context) {
 	for group, sources := range localSources {
 		unlimitedGrp.Go(func(ctx context.Context) error {
 			if err := b.createCacheForGroup(producersGrp, unlimitedGrp, group, sources); err != nil {
-				logger().WithError(err).WithField(logFieldGroup, group).Debug("disk seed: skipping group with no usable local data")
+				logger().With(log.AttrError(err), slog.String(logFieldGroup, group)).
+					DebugContext(ctx, "disk seed: skipping group with no usable local data")
 
 				return nil // best-effort: never fail startup on a seed error
 			}
 
-			logger().WithFields(logrus.Fields{
-				logFieldGroup:      group,
-				logFieldTotalCount: b.groupedCache.ElementCount(group),
-			}).Debug("seeded group cache from disk")
+			logger().With(
+				slog.String(logFieldGroup, group),
+				slog.Int(logFieldTotalCount, b.groupedCache.ElementCount(group)),
+			).DebugContext(ctx, "seeded group cache from disk")
 
 			return nil
 		})
@@ -295,7 +295,7 @@ func (b *ListCache) localSeedSources(dir string) map[string][]config.BytesSource
 			path := cacheFilePath(dir, source.From)
 			if _, err := os.Stat(path); err != nil {
 				if !errors.Is(err, os.ErrNotExist) {
-					logger().WithError(err).WithField("path", path).Debug("disk seed: cannot stat cache file")
+					logger().With(log.AttrError(err), slog.String("path", path)).Debug("disk seed: cannot stat cache file")
 				}
 
 				continue // no cached copy yet
@@ -316,18 +316,18 @@ func (b *ListCache) localSeedSources(dir string) map[string][]config.BytesSource
 func (b *ListCache) parseFile(ctx context.Context, opener SourceOpener, resultCh chan<- string) error {
 	count := 0
 
-	logger := func() *logrus.Entry {
-		return logger().WithFields(logrus.Fields{
-			"source": opener.String(),
-			"count":  count,
-		})
+	logger := func() *slog.Logger {
+		return logger().With(
+			slog.String("source", opener.String()),
+			slog.Int("count", count),
+		)
 	}
 
-	logger().Debug("starting processing of source")
+	logger().DebugContext(ctx, "starting processing of source")
 
 	r, err := opener.Open(ctx)
 	if err != nil {
-		logger().Error("cannot open source: ", err)
+		logger().ErrorContext(ctx, "cannot open source", log.AttrError(err))
 
 		return fmt.Errorf("failed to open list source %s: %w", opener, err)
 	}
@@ -335,7 +335,7 @@ func (b *ListCache) parseFile(ctx context.Context, opener SourceOpener, resultCh
 
 	p := parsers.AllowErrors(parsers.Hosts(r), b.cfg.MaxErrorsPerSource)
 	p.OnErr(func(err error) {
-		logger().Warnf("parse error: %s, trying to continue", err)
+		logger().WarnContext(ctx, fmt.Sprintf("parse error: %s, trying to continue", err))
 	})
 
 	err = parsers.ForEach[*parsers.HostsIterator](ctx, p, func(hosts *parsers.HostsIterator) error {
@@ -360,7 +360,7 @@ func (b *ListCache) parseFile(ctx context.Context, opener SourceOpener, resultCh
 	if err != nil {
 		// Don't log cancelation: it was caused by another goroutine failing
 		if !errors.Is(err, context.Canceled) {
-			logger().Error("parse error: ", err)
+			logger().ErrorContext(ctx, "parse error", log.AttrError(err))
 		}
 
 		// Only propagate the error if no entries were parsed
@@ -373,7 +373,7 @@ func (b *ListCache) parseFile(ctx context.Context, opener SourceOpener, resultCh
 		return nil
 	}
 
-	logger().Info("import succeeded")
+	logger().InfoContext(ctx, "import succeeded")
 
 	return nil
 }

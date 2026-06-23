@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/util"
-	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
 	"github.com/0xERR0R/blocky/model"
@@ -42,7 +42,7 @@ func (r *mockResolver) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (r *mockResolver) LogConfig(*logrus.Entry) {
+func (r *mockResolver) LogConfig(*slog.Logger) {
 	r.Called()
 }
 
@@ -100,6 +100,14 @@ var (
 	autoAnswerIPv6 = net.IPv6loopback
 )
 
+// fatalOnError panics with the message and error if err is non-nil.
+// Use in test helpers where Gomega matchers are not available.
+func fatalOnError(msg string, err error) {
+	if err != nil {
+		panic(msg + err.Error())
+	}
+}
+
 // autoAnswer provides a valid fake answer.
 //
 // To be used as a value for `mockResolver.AnswerFn`.
@@ -130,10 +138,10 @@ ips:
 
 	var bCfg config.BootstrapDNS
 	err := yaml.UnmarshalStrict([]byte(cfgTxt), &bCfg)
-	util.FatalOnError("test bootstrap config is broken, did you change the struct?", err)
+	fatalOnError("test bootstrap config is broken, did you change the struct?", err)
 
 	b, err := NewBootstrap(ctx, &config.Config{BootstrapDNS: bCfg})
-	util.FatalOnError("can't create bootstrap", err)
+	fatalOnError("can't create bootstrap", err)
 
 	b.resolver = bootstrapUpstream
 
@@ -153,18 +161,18 @@ func newTestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg),
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 
-		util.FatalOnError("can't read request: ", err)
+		fatalOnError("can't read request: ", err)
 
 		msg := new(dns.Msg)
 		err = msg.Unpack(body)
-		util.FatalOnError("can't deserialize message: ", err)
+		fatalOnError("can't deserialize message: ", err)
 
 		response := fn(msg)
 		response.SetReply(msg)
 
 		b, err := response.Pack()
 
-		util.FatalOnError("can't serialize message: ", err)
+		fatalOnError("can't serialize message: ", err)
 
 		w.Header().Set("Content-Type", "application/dns-message")
 
@@ -176,12 +184,12 @@ func newTestDOHUpstream(fn func(request *dns.Msg) (response *dns.Msg),
 
 		_, err = w.Write(b)
 
-		util.FatalOnError("can't write response: ", err)
+		fatalOnError("can't write response: ", err)
 	}))
 
 	upstream, err := config.ParseUpstream(server.URL)
 
-	util.FatalOnError("can't resolve address: ", err)
+	fatalOnError("can't resolve address: ", err)
 
 	return upstream
 }

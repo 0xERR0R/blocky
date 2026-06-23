@@ -6,7 +6,6 @@ import (
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/log"
-	"github.com/sirupsen/logrus"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -86,7 +85,7 @@ var _ = Describe("Resolver", func() {
 
 		Describe("LogResolverConfig", func() {
 			It("should call the resolver's `LogConfig`", func() {
-				logger := logrus.NewEntry(log.Log())
+				logger := log.Log()
 
 				m := &mockResolver{}
 				m.On("IsEnabled").Return(true)
@@ -99,7 +98,7 @@ var _ = Describe("Resolver", func() {
 
 			When("the resolver is disabled", func() {
 				It("should not call the resolver's `LogConfig`", func() {
-					logger := logrus.NewEntry(log.Log())
+					logger := log.Log()
 
 					m := &mockResolver{}
 					m.On("IsEnabled").Return(false)

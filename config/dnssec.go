@@ -1,7 +1,8 @@
 package config
 
 import (
-	"github.com/sirupsen/logrus"
+	"fmt"
+	"log/slog"
 )
 
 // DNSSEC is the configuration for DNSSEC validation
@@ -30,19 +31,19 @@ func (c *DNSSEC) IsEnabled() bool {
 }
 
 // LogConfig logs the DNSSEC configuration
-func (c *DNSSEC) LogConfig(logger *logrus.Entry) {
-	logger.Infof("Validation = %t", c.Validate)
+func (c *DNSSEC) LogConfig(logger *slog.Logger) {
+	logger.Info(fmt.Sprintf("Validation = %t", c.Validate))
 
 	if c.Validate {
 		if len(c.TrustAnchors) > 0 {
-			logger.Infof("Custom trust anchors = %d", len(c.TrustAnchors))
+			logger.Info(fmt.Sprintf("Custom trust anchors = %d", len(c.TrustAnchors)))
 		} else {
 			logger.Info("Using default root trust anchors")
 		}
-		logger.Infof("Max chain depth = %d", c.MaxChainDepth)
-		logger.Infof("Cache expiration = %d hour(s)", c.CacheExpirationHours)
-		logger.Infof("Max NSEC3 iterations = %d", c.MaxNSEC3Iterations)
-		logger.Infof("Max upstream queries per validation = %d", c.MaxUpstreamQueries)
-		logger.Infof("Clock skew tolerance = %d second(s)", c.ClockSkewToleranceSec)
+		logger.Info(fmt.Sprintf("Max chain depth = %d", c.MaxChainDepth))
+		logger.Info(fmt.Sprintf("Cache expiration = %d hour(s)", c.CacheExpirationHours))
+		logger.Info(fmt.Sprintf("Max NSEC3 iterations = %d", c.MaxNSEC3Iterations))
+		logger.Info(fmt.Sprintf("Max upstream queries per validation = %d", c.MaxUpstreamQueries))
+		logger.Info(fmt.Sprintf("Clock skew tolerance = %d second(s)", c.ClockSkewToleranceSec))
 	}
 }

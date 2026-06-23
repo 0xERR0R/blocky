@@ -44,14 +44,14 @@ var _ = Describe("Redis", func() {
 
 	Describe("LogConfig", func() {
 		BeforeEach(func() {
-			logger, hook = log.NewMockEntry()
+			logger, rec = log.NewRecorder()
 		})
 
 		When("all fields are default", func() {
 			It("should log default values", func() {
 				c.LogConfig(logger)
 
-				Expect(hook.Messages).Should(
+				Expect(rec.Messages()).Should(
 					SatisfyAll(ContainElement(ContainSubstring("address: ")),
 						ContainElement(ContainSubstring("username: ")),
 						ContainElement(ContainSubstring("password: ")),
@@ -70,7 +70,7 @@ var _ = Describe("Redis", func() {
 			It("should log address", func() {
 				c.LogConfig(logger)
 
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("address: localhost:6379")))
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("address: localhost:6379")))
 			})
 		})
 
@@ -82,7 +82,7 @@ var _ = Describe("Redis", func() {
 			It("should log sentinel addresses", func() {
 				c.LogConfig(logger)
 
-				Expect(hook.Messages).Should(
+				Expect(rec.Messages()).Should(
 					SatisfyAll(
 						ContainElement(ContainSubstring("sentinel:")),
 						ContainElement(ContainSubstring("  addresses:")),
@@ -97,16 +97,16 @@ var _ = Describe("Redis", func() {
 			c.Password = secretValue
 			c.LogConfig(logger)
 
-			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring(secretValue)))
+			Expect(rec.Records()).ShouldNot(BeEmpty())
+			Expect(rec.Messages()).ShouldNot(ContainElement(ContainSubstring(secretValue)))
 		})
 
 		It("should not log the sentinel password", func() {
 			c.SentinelPassword = secretValue
 			c.LogConfig(logger)
 
-			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring(secretValue)))
+			Expect(rec.Records()).ShouldNot(BeEmpty())
+			Expect(rec.Messages()).ShouldNot(ContainElement(ContainSubstring(secretValue)))
 		})
 	})
 
@@ -134,7 +134,7 @@ var _ = Describe("Redis", func() {
 		})
 
 		It("still obfuscates a file-loaded password in LogConfig", func() {
-			logger, hook = log.NewMockEntry()
+			logger, rec = log.NewRecorder()
 
 			dir := GinkgoT().TempDir()
 			pwPath := filepath.Join(dir, "pw")
@@ -147,8 +147,8 @@ var _ = Describe("Redis", func() {
 
 			redisCfg.LogConfig(logger)
 
-			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("redispass")))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring(secretObfuscator)))
+			Expect(rec.Messages()).ShouldNot(ContainElement(ContainSubstring("redispass")))
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring(secretObfuscator)))
 		})
 	})
 })

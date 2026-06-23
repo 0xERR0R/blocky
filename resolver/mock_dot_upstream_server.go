@@ -2,13 +2,13 @@ package resolver
 
 import (
 	"crypto/tls"
+	"fmt"
 	"net"
 	"strconv"
 	"sync"
 	"sync/atomic"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 	"github.com/onsi/ginkgo/v2"
 )
@@ -105,7 +105,9 @@ func (t *MockDoTUpstreamServer) Start() config.Upstream {
 	}
 
 	listener, err := tls.Listen("tcp", "127.0.0.1:0", tlsConfig)
-	util.FatalOnError("can't create TLS listener", err)
+	if err != nil {
+		panic(fmt.Sprintf("can't create TLS listener: %v", err))
+	}
 
 	t.listener = listener
 
@@ -113,7 +115,9 @@ func (t *MockDoTUpstreamServer) Start() config.Upstream {
 
 	addr := listener.Addr().(*net.TCPAddr) //nolint:forcetypeassert // tcp listener always yields *net.TCPAddr
 	port, err := config.ConvertPort(strconv.Itoa(addr.Port))
-	util.FatalOnError("can't convert port", err)
+	if err != nil {
+		panic(fmt.Sprintf("can't convert port: %v", err))
+	}
 
 	return config.Upstream{Net: config.NetProtocolTcpTls, Host: loopbackIPv4Str, Port: port}
 }

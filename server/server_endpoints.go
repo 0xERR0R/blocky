@@ -56,7 +56,7 @@ func (s *Server) createOpenAPIInterfaceImpl() (impl api.StrictServerInterface, e
 	// construction of the entire API.
 	statsProvider, err := resolver.GetFromChainWithType[api.StatsProvider](s.queryResolver)
 	if err != nil {
-		log.Log().Warnf("no stats API implementation found, /api/stats will be unavailable: %v", err)
+		log.Log().Warn("no stats API implementation found, /api/stats will be unavailable", log.AttrError(err))
 
 		statsProvider = nil
 	}
@@ -132,7 +132,7 @@ func (s *Server) dohPostRequestHandler(rw http.ResponseWriter, req *http.Request
 func (s *Server) processDohMessage(rawMsg []byte, rw http.ResponseWriter, httpReq *http.Request) {
 	msg := new(dns.Msg)
 	if err := msg.Unpack(rawMsg); err != nil {
-		logger().Error("can't deserialize message: ", err)
+		logger().ErrorContext(httpReq.Context(), "can't deserialize message", log.AttrError(err))
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 
 		return
@@ -192,7 +192,7 @@ func (s *Server) Query(
 	return s.resolve(ctx, req)
 }
 
-func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface) *chi.Mux {
+func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface) (*chi.Mux, error) {
 	router := chi.NewRouter()
 
 	api.RegisterOpenAPIEndpoints(router, openAPIImpl)
@@ -201,7 +201,9 @@ func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface)
 
 	configureDocsHandler(router)
 
-	configureStaticAssetsHandler(router)
+	if err := configureStaticAssetsHandler(router); err != nil {
+		return nil, err
+	}
 
 	configureRootHandler(cfg, router)
 
@@ -209,29 +211,33 @@ func createHTTPRouter(cfg *config.Config, openAPIImpl api.StrictServerInterface)
 
 	metrics.Start(router, cfg.Prometheus)
 
-	return router
+	return router, nil
 }
 
 func configureDocsHandler(router *chi.Mux) {
 	router.Get("/docs/openapi.yaml", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set(contentTypeHeader, yamlContentType)
 		_, err := writer.Write([]byte(docs.OpenAPI))
-		logAndResponseWithError(err, "can't write OpenAPI definition file: ", writer)
+		logAndResponseWithError(err, "can't write OpenAPI definition file", writer)
 	})
 
 	router.Get("/docs/config.schema.json", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set(contentTypeHeader, jsonContentType)
 		_, err := writer.Write(docs.ConfigSchema)
-		logAndResponseWithError(err, "can't write config JSON schema file: ", writer)
+		logAndResponseWithError(err, "can't write config JSON schema file", writer)
 	})
 }
 
-func configureStaticAssetsHandler(router *chi.Mux) {
+func configureStaticAssetsHandler(router *chi.Mux) error {
 	assets, err := web.Assets()
-	util.FatalOnError("unable to load static asset files", err)
+	if err != nil {
+		return fmt.Errorf("unable to load static asset files: %w", err)
+	}
 
 	fs := http.FileServer(http.FS(assets))
 	router.Handle("/static/*", http.StripPrefix("/static/", fs))
+
+	return nil
 }
 
 func configureRobotsHandler(router *chi.Mux) {
@@ -290,13 +296,13 @@ func configureRootHandler(cfg *config.Config, router *chi.Mux) {
 		}
 
 		err := t.Execute(writer, pd)
-		logAndResponseWithError(err, "can't write index template: ", writer)
+		logAndResponseWithError(err, "can't write index template", writer)
 	})
 }
 
 func logAndResponseWithError(err error, message string, writer http.ResponseWriter) {
 	if err != nil {
-		log.Log().Error(message, log.EscapeInput(err.Error()))
+		log.Log().Error(message, log.AttrError(err))
 		http.Error(writer, err.Error(), http.StatusInternalServerError)
 	}
 }

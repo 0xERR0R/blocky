@@ -1,11 +1,12 @@
 package config
 
 import (
+	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 
 	"github.com/0xERR0R/blocky/log"
-	"github.com/sirupsen/logrus"
 )
 
 // QueryLog configuration for the query logging
@@ -50,28 +51,28 @@ func (c *QueryLog) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *QueryLog) LogConfig(logger *logrus.Entry) {
-	logger.Infof("type: %s", c.Type)
+func (c *QueryLog) LogConfig(logger *slog.Logger) {
+	logger.Info(fmt.Sprintf("type: %s", c.Type))
 
 	if c.Target != "" {
-		logger.Infof("target: %s", c.censoredTarget())
+		logger.Info("target: " + c.censoredTarget())
 	}
 
-	logger.Infof("logRetentionDays: %d", c.LogRetentionDays)
-	logger.Debugf("creationAttempts: %d", c.CreationAttempts)
-	logger.Debugf("creationCooldown: %s", c.CreationCooldown)
-	logger.Infof("flushInterval: %s", c.FlushInterval)
-	logger.Infof("fields: %s", c.Fields)
+	logger.Info(fmt.Sprintf("logRetentionDays: %d", c.LogRetentionDays))
+	logger.Debug(fmt.Sprintf("creationAttempts: %d", c.CreationAttempts))
+	logger.Debug(fmt.Sprintf("creationCooldown: %s", c.CreationCooldown))
+	logger.Info(fmt.Sprintf("flushInterval: %s", c.FlushInterval))
+	logger.Info(fmt.Sprintf("fields: %s", c.Fields))
 
-	logger.Infof("ignore:")
-	log.WithIndent(logger, "  ", func(e *logrus.Entry) {
-		e.Infof("sudn: %t", c.Ignore.SUDN)
+	logger.Info("ignore:")
+	log.WithIndent(logger, "  ", func(e *slog.Logger) {
+		e.Info(fmt.Sprintf("sudn: %t", c.Ignore.SUDN))
 
 		if len(c.Ignore.Domains) > 0 {
-			e.Infof("domains (%d):", len(c.Ignore.Domains))
-			log.WithIndent(e, "  ", func(e *logrus.Entry) {
+			e.Info(fmt.Sprintf("domains (%d):", len(c.Ignore.Domains)))
+			log.WithIndent(e, "  ", func(e *slog.Logger) {
 				for _, d := range c.Ignore.Domains {
-					e.Debugf("- %s", d)
+					e.Debug("- " + d)
 				}
 			})
 		}

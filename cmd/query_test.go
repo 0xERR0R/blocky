@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 
 	"github.com/0xERR0R/blocky/log"
-	"github.com/sirupsen/logrus/hooks/test"
 
 	"github.com/0xERR0R/blocky/api"
 
@@ -16,9 +15,9 @@ import (
 
 var _ = Describe("Blocking command", func() {
 	var (
-		ts         *httptest.Server
-		mockFn     func(w http.ResponseWriter, _ *http.Request)
-		loggerHook *test.Hook
+		ts     *httptest.Server
+		mockFn func(w http.ResponseWriter, _ *http.Request)
+		rec    *log.Recorder
 	)
 	JustBeforeEach(func() {
 		ts = testHTTPAPIServer(mockFn)
@@ -28,11 +27,9 @@ var _ = Describe("Blocking command", func() {
 	})
 	BeforeEach(func() {
 		mockFn = func(w http.ResponseWriter, _ *http.Request) {}
-		loggerHook = test.NewGlobal()
-		log.Log().AddHook(loggerHook)
-	})
-	AfterEach(func() {
-		loggerHook.Reset()
+		var restore func()
+		rec, restore = log.CaptureGlobal()
+		DeferCleanup(restore)
 	})
 	Describe("Call query command", func() {
 		BeforeEach(func() {
@@ -67,7 +64,7 @@ var _ = Describe("Blocking command", func() {
 			})
 			It("should print result", func() {
 				Expect(query(withContext(NewQueryCommand()), []string{"google.de"})).Should(Succeed())
-				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("NOERROR"))
+				Expect(rec.LastMessage()).Should(ContainSubstring("NOERROR"))
 			})
 		})
 		When("Server returns 500", func() {

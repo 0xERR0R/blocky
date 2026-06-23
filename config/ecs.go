@@ -2,9 +2,8 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"strconv"
-
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -60,11 +59,11 @@ func (c *ECS) IsEnabled() bool {
 }
 
 // LogConfig logs the configuration
-func (c *ECS) LogConfig(logger *logrus.Entry) {
-	logger.Infof("Use as client = %t", c.UseAsClient)
-	logger.Infof("Forward       = %t", c.Forward)
-	logger.Infof("IPv4 netmask  = %d", c.IPv4Mask)
-	logger.Infof("IPv6 netmask  = %d", c.IPv6Mask)
+func (c *ECS) LogConfig(logger *slog.Logger) {
+	logger.Info(fmt.Sprintf("Use as client = %t", c.UseAsClient))
+	logger.Info(fmt.Sprintf("Forward       = %t", c.Forward))
+	logger.Info(fmt.Sprintf("IPv4 netmask  = %d", c.IPv4Mask))
+	logger.Info(fmt.Sprintf("IPv6 netmask  = %d", c.IPv6Mask))
 }
 
 // unmarshalInternal unmarshals the subnet mask from the given text and checks if the value is valid

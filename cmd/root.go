@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -132,7 +133,7 @@ type codeWithStatus interface {
 
 func printOkOrError(resp codeWithStatus, body string) error {
 	if resp.StatusCode() == http.StatusOK {
-		log.Log().Info("OK")
+		slog.Info("OK")
 	} else {
 		return fmt.Errorf("response NOK, %s %s", resp.Status(), body)
 	}

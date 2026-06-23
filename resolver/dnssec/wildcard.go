@@ -5,6 +5,7 @@ package dnssec
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/miekg/dns"
@@ -37,8 +38,9 @@ func (v *Validator) validateWildcardExpansion(
 	// RRSIG Labels field indicates original owner name label count
 	rrsigLabels := int(rrsig.Labels)
 
-	v.logger.Debugf("Wildcard check: %s has %d labels, RRSIG claims %d labels",
-		rrsetName, rrsetLabels, rrsigLabels)
+	v.logger.Debug("wildcard check",
+		slog.String("rrset", rrsetName), slog.Int("rrset_labels", rrsetLabels),
+		slog.Int("rrsig_labels", rrsigLabels))
 
 	// If RRset has same or fewer labels than RRSIG, it's not a wildcard expansion
 	if rrsetLabels <= rrsigLabels {
@@ -46,8 +48,9 @@ func (v *Validator) validateWildcardExpansion(
 	}
 
 	// This is a wildcard expansion - validate it
-	v.logger.Debugf("Detected wildcard expansion for %s (RRset labels: %d > RRSIG labels: %d)",
-		rrsetName, rrsetLabels, rrsigLabels)
+	v.logger.Debug("detected wildcard expansion",
+		slog.String("rrset", rrsetName), slog.Int("rrset_labels", rrsetLabels),
+		slog.Int("rrsig_labels", rrsigLabels))
 
 	return v.validateWildcardExpansionDetails(rrsetName, signerName, rrsigLabels, nsRecords, qname)
 }
@@ -68,7 +71,8 @@ func (v *Validator) validateWildcardExpansionDetails(
 	wildcardLabels := append([]string{"*"}, labels[len(labels)-rrsigLabels:]...)
 	wildcardName := dns.Fqdn(strings.Join(wildcardLabels, "."))
 
-	v.logger.Debugf("Wildcard expansion detected: %s expanded to %s", wildcardName, rrsetName)
+	v.logger.Debug("wildcard expansion detected",
+		slog.String("wildcard", wildcardName), slog.String("rrset", rrsetName))
 
 	// Verify wildcard name is within the signer's zone
 	if !dns.IsSubDomain(signerName, wildcardName) {
@@ -91,7 +95,8 @@ func (v *Validator) validateWildcardProof(
 		if err := v.validateWildcardNSEC(nsecRecords, qname); err != nil {
 			return fmt.Errorf("wildcard NSEC validation failed: %w", err)
 		}
-		v.logger.Debugf("Wildcard NSEC validation succeeded: %s expanded to %s", wildcardName, rrsetName)
+		v.logger.Debug("wildcard NSEC validation succeeded",
+			slog.String("wildcard", wildcardName), slog.String("rrset", rrsetName))
 
 		return nil
 	}
@@ -102,7 +107,8 @@ func (v *Validator) validateWildcardProof(
 		if err := v.validateWildcardNSEC3(nsec3Records, qname); err != nil {
 			return fmt.Errorf("wildcard NSEC3 validation failed: %w", err)
 		}
-		v.logger.Debugf("Wildcard NSEC3 validation succeeded: %s expanded to %s", wildcardName, rrsetName)
+		v.logger.Debug("wildcard NSEC3 validation succeeded",
+			slog.String("wildcard", wildcardName), slog.String("rrset", rrsetName))
 
 		return nil
 	}
@@ -119,8 +125,9 @@ func (v *Validator) validateWildcardProof(
 	//
 	// RFC 4035 §5.3.4 is ambiguous on this point, but practical implementation follows the more
 	// permissive interpretation for positive responses to maintain compatibility with real-world DNS.
-	v.logger.Debugf("Wildcard expansion for %s (expanded to %s) without NSEC/NSEC3 proof - "+
-		"accepting based on cryptographic signature validation", qname, rrsetName)
+	v.logger.Debug("wildcard expansion without NSEC/NSEC3 proof - "+
+		"accepting based on cryptographic signature validation",
+		slog.String("qname", qname), slog.String("rrset", rrsetName))
 
 	return nil
 }
@@ -133,7 +140,7 @@ func (v *Validator) validateWildcardNSEC(nsecRecords []*dns.NSEC, qname string) 
 	// Check if any NSEC covers the query name (proving it doesn't exist)
 	for _, nsec := range nsecRecords {
 		if v.nsecCoversName(nsec, qname) {
-			v.logger.Debugf("NSEC record covers wildcard query name %s", qname)
+			v.logger.Debug("NSEC record covers wildcard query name", slog.String("qname", qname))
 
 			return nil
 		}
@@ -182,7 +189,7 @@ func (v *Validator) validateWildcardNSEC3(nsec3Records []*dns.NSEC3, qname strin
 
 	// Check if any NSEC3 covers the query name hash
 	if v.nsec3Covers(nsec3Records, qnameHash) {
-		v.logger.Debugf("NSEC3 record covers wildcard query name hash for %s", qname)
+		v.logger.Debug("NSEC3 record covers wildcard query name hash", slog.String("qname", qname))
 
 		return nil
 	}

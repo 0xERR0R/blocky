@@ -8,8 +8,6 @@ import (
 	"strings"
 
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 
 	. "github.com/0xERR0R/blocky/log"
 	. "github.com/onsi/ginkgo/v2"
@@ -200,40 +198,21 @@ var _ = Describe("Common function tests", func() {
 		When("LogOnError is called with error", func() {
 			err := errors.New("test")
 			It("should log", func(ctx context.Context) {
-				hook := test.NewGlobal()
-				Log().AddHook(hook)
-				defer hook.Reset()
+				rec, restore := CaptureGlobal()
+				DeferCleanup(restore)
 				LogOnError(ctx, "message ", err)
-				Expect(hook.LastEntry().Message).Should(Equal("message test"))
+				Expect(rec.Records()).ShouldNot(BeEmpty())
+				Expect(rec.LastMessage()).Should(Equal("message "))
 			})
 		})
 
 		When("LogOnErrorWithEntry is called with error", func() {
 			err := errors.New("test")
 			It("should log", func() {
-				hook := test.NewGlobal()
-				Log().AddHook(hook)
-				defer hook.Reset()
-				logger, hook := test.NewNullLogger()
-				entry := logrus.NewEntry(logger)
-				LogOnErrorWithEntry(entry, "message ", err)
-				Expect(hook.LastEntry().Message).Should(Equal("message test"))
-			})
-		})
-
-		When("FatalOnError is called with error", func() {
-			err := errors.New("test")
-			It("should log and exit", func() {
-				hook := test.NewGlobal()
-				Log().AddHook(hook)
-				fatal := false
-				Log().ExitFunc = func(int) { fatal = true }
-				defer func() {
-					Log().ExitFunc = nil
-				}()
-				FatalOnError("message ", err)
-				Expect(hook.LastEntry().Message).Should(Equal("message test"))
-				Expect(fatal).Should(BeTrue())
+				logger, rec := NewRecorder()
+				LogOnErrorWithEntry(logger, "message ", err)
+				Expect(rec.Records()).ShouldNot(BeEmpty())
+				Expect(rec.LastMessage()).Should(Equal("message "))
 			})
 		})
 	})

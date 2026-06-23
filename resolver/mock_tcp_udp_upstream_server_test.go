@@ -1,11 +1,11 @@
 package resolver
 
 import (
+	"fmt"
 	"net"
 	"sync/atomic"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 	"github.com/onsi/ginkgo/v2"
 )
@@ -93,12 +93,16 @@ func (m *mockTCPUDPUpstreamServer) start(udp, tcp bool) config.Upstream {
 	ip := net.ParseIP("127.0.0.1")
 
 	udpConn, err := net.ListenUDP("udp4", &net.UDPAddr{IP: ip})
-	util.FatalOnError("can't create UDP connection: ", err)
+	if err != nil {
+		panic(fmt.Sprintf("can't create UDP connection: %v", err))
+	}
 
 	port := udpConn.LocalAddr().(*net.UDPAddr).Port
 
 	tcpLn, err := net.ListenTCP("tcp4", &net.TCPAddr{IP: ip, Port: port})
-	util.FatalOnError("can't create TCP listener: ", err)
+	if err != nil {
+		panic(fmt.Sprintf("can't create TCP listener: %v", err))
+	}
 
 	if udp {
 		m.udpSrv = &dns.Server{PacketConn: udpConn, Handler: m.handler(&m.udpCount, m.udpAnswer)}

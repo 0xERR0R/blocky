@@ -2,6 +2,7 @@ package metrics_test
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"slices"
 	"strings"
@@ -19,7 +20,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 )
 
 func init() {
@@ -104,7 +104,7 @@ func (m *MockResolver) IsEnabled() bool {
 	return true
 }
 
-func (m *MockResolver) LogConfig(*logrus.Entry) {
+func (m *MockResolver) LogConfig(*slog.Logger) {
 	// no-op for testing
 }
 

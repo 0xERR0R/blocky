@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"regexp"
 	"strings"
@@ -18,10 +19,10 @@ import (
 	expirationcache "github.com/0xERR0R/expiration-cache"
 
 	"github.com/0xERR0R/blocky/cache/prefetching"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -159,7 +160,8 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 	qType, domainName := util.ExtractCacheKey(cacheKey)
 	ctx, logger := r.log(ctx)
 
-	logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), qType)
+	logger.DebugContext(ctx, "prefetching",
+		slog.Any(logFieldDomain, util.DomainLogValuer{Domain: domainName}), slog.Any("qtype", qType))
 
 	req := newRequest(dns.Fqdn(domainName), qType)
 	response, err := r.next.Resolve(ctx, req)
@@ -189,10 +191,10 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 }
 
 // LogConfig implements `config.Configurable`.
-func (r *CachingResolver) LogConfig(logger *logrus.Entry) {
+func (r *CachingResolver) LogConfig(logger *slog.Logger) {
 	r.cfg.LogConfig(logger)
 
-	logger.Infof("cache entries = %d", r.resultCache.TotalCount())
+	logger.Info(fmt.Sprintf("cache entries = %d", r.resultCache.TotalCount()))
 }
 
 // Resolve checks if the current query should use the cache and if the result is already in
@@ -201,7 +203,7 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 	ctx, logger := r.log(ctx)
 
 	if !r.IsEnabled() || !r.isRequestCacheable(request) {
-		logger.Debug("skip cache")
+		logger.DebugContext(ctx, "skip cache")
 
 		return r.next.Resolve(ctx, request)
 	}
@@ -209,12 +211,15 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 	for _, question := range request.Req.Question {
 		domain := util.ExtractDomain(question)
 		cacheKey := util.GenerateCacheKey(dns.Type(question.Qtype), domain)
-		logger := logger.WithField(logFieldDomain, util.Obfuscate(domain))
+		// Lazily obfuscated: Obfuscate runs only when a record at this level is
+		// actually emitted, and the attr is added per emit site rather than via a
+		// per-question logger.With() (which would allocate a wrapper every query).
+		domainAttr := slog.Any(logFieldDomain, util.DomainLogValuer{Domain: domain})
 
-		val, ttl := r.getFromCache(logger, cacheKey)
+		val, ttl := r.getFromCache(logger, domainAttr, cacheKey)
 
 		if val != nil {
-			logger.Debug("domain is cached")
+			logger.DebugContext(ctx, "domain is cached", domainAttr)
 
 			val.SetRcode(request.Req, val.Rcode)
 
@@ -228,7 +233,8 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 			return &model.Response{Res: val, RType: model.ResponseTypeCACHED, Reason: "CACHED NEGATIVE"}, nil
 		}
 
-		logger.WithField("next_resolver", Name(r.next)).Trace("not in cache: go to next resolver")
+		logger.DebugContext(ctx, "not in cache: go to next resolver",
+			domainAttr, slog.String("next_resolver", Name(r.next)))
 		response, err = r.next.Resolve(ctx, request)
 
 		if err == nil {
@@ -242,7 +248,9 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 	return response, nil
 }
 
-func (r *CachingResolver) getFromCache(logger *logrus.Entry, key string) (*dns.Msg, time.Duration) {
+func (r *CachingResolver) getFromCache(
+	logger *slog.Logger, domainAttr slog.Attr, key string,
+) (*dns.Msg, time.Duration) {
 	val, ttl := r.resultCache.Get(key)
 	if val == nil {
 		return nil, 0
@@ -252,7 +260,7 @@ func (r *CachingResolver) getFromCache(logger *logrus.Entry, key string) (*dns.M
 
 	err := res.Unpack(*val)
 	if err != nil {
-		logger.Error("can't unpack cached entry. Cache malformed?", err)
+		logger.Error("can't unpack cached entry. Cache malformed?", domainAttr, log.AttrError(err))
 
 		return nil, 0
 	}
@@ -404,6 +412,6 @@ func (r *CachingResolver) publishMetricsIfEnabled(event string, val any) {
 func (r *CachingResolver) FlushCaches(ctx context.Context) {
 	_, logger := r.log(ctx)
 
-	logger.Debug("flush caches")
+	logger.DebugContext(ctx, "flush caches")
 	r.resultCache.Clear()
 }

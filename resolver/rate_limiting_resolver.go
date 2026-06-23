@@ -3,17 +3,15 @@ package resolver
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
-
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 )
 
@@ -33,9 +31,8 @@ type RateLimitingResolver struct {
 	NextResolver
 	typed
 
-	store  *bucketStore
-	clock  func() time.Time
-	logger *logrus.Entry
+	store *bucketStore
+	clock func() time.Time
 
 	drops         *prometheus.CounterVec
 	capExhausted  prometheus.Counter
@@ -47,7 +44,6 @@ func NewRateLimitingResolver(ctx context.Context, cfg config.RateLimit) *RateLim
 		configurable: withConfig(&cfg),
 		typed:        withType("rate-limiting"),
 		clock:        time.Now,
-		logger:       log.PrefixedLog("rate-limiting"),
 	}
 	if !cfg.IsEnabled() {
 		return r
@@ -98,7 +94,7 @@ func (r *RateLimitingResolver) Resolve(ctx context.Context, req *model.Request) 
 	if entry == nil {
 		r.capExhausted.Inc()
 	}
-	r.recordDrop(req, entry)
+	r.recordDrop(ctx, req, entry)
 
 	return nil, ErrRateLimited
 }
@@ -113,7 +109,7 @@ func (r *RateLimitingResolver) isAllowlisted(ip net.IP) bool {
 	return false
 }
 
-func (r *RateLimitingResolver) recordDrop(req *model.Request, e *bucketEntry) {
+func (r *RateLimitingResolver) recordDrop(ctx context.Context, req *model.Request, e *bucketEntry) {
 	r.drops.WithLabelValues(req.Protocol.String()).Inc()
 	if e == nil {
 		return
@@ -123,14 +119,15 @@ func (r *RateLimitingResolver) recordDrop(req *model.Request, e *bucketEntry) {
 	if now-prev < int64(time.Second) || !e.lastLogged.CompareAndSwap(prev, now) {
 		return
 	}
-	fields := logrus.Fields{
-		"client_ip":      req.ClientIP,
-		logFieldProtocol: req.Protocol,
-		"qname":          util.QuestionToString(req.Req.Question),
-		"bucket_tokens":  e.limiter.Tokens(),
-	}
+	// client_ip is already injected from the request context by the
+	// contextHandler; re-adding it here would emit a duplicate key.
+	_, logger := r.logWithFields(ctx,
+		slog.Any(logFieldProtocol, req.Protocol),
+		slog.Any("qname", util.QuestionLogValuer{Questions: req.Req.Question}),
+		slog.Float64("bucket_tokens", e.limiter.Tokens()),
+	)
 	if len(req.Req.Question) > 0 {
-		fields["qtype"] = req.Req.Question[0].Qtype
+		logger = logger.With(slog.Int("qtype", int(req.Req.Question[0].Qtype)))
 	}
-	r.logger.WithFields(fields).Warn("dropped query")
+	logger.WarnContext(ctx, "dropped query")
 }

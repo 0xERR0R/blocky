@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 	"strings"
@@ -17,7 +18,6 @@ import (
 	"github.com/0xERR0R/blocky/util"
 	"github.com/avast/retry-go/v4"
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -74,7 +74,7 @@ func GetQueryLoggingWriter(ctx context.Context, cfg config.QueryLog) (querylog.W
 
 // newIgnoreDomainsMatcher builds a matcher for the queryLog.ignore.domains rules.
 // Returns nil when no domains are configured, so the per-query path stays free.
-func newIgnoreDomainsMatcher(domains []string, logger *logrus.Entry) stringcache.GroupedStringCache {
+func newIgnoreDomainsMatcher(domains []string, logger *slog.Logger) stringcache.GroupedStringCache {
 	if len(domains) == 0 {
 		return nil
 	}
@@ -97,13 +97,13 @@ func newIgnoreDomainsMatcher(domains []string, logger *logrus.Entry) stringcache
 			// silently drop the whole query log.
 			inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(d, "/"), "/"))
 			if inner == "" {
-				logger.Warnf("ignoring invalid queryLog.ignore.domains entry: %q", d)
+				logger.Warn(fmt.Sprintf("ignoring invalid queryLog.ignore.domains entry: %q", d))
 
 				continue
 			}
 
 			if _, err := regexp.Compile(inner); err != nil {
-				logger.Warnf("ignoring invalid queryLog.ignore.domains entry: %q", d)
+				logger.Warn(fmt.Sprintf("ignoring invalid queryLog.ignore.domains entry: %q", d))
 
 				continue
 			}
@@ -135,12 +135,12 @@ func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) (*QueryLo
 		retry.DelayType(retry.FixedDelay),
 		retry.Delay(cfg.CreationCooldown.ToDuration()),
 		retry.OnRetry(func(n uint, err error) {
-			logger.Warnf(
+			logger.WarnContext(ctx, fmt.Sprintf(
 				"Error occurred on query writer creation, retry attempt %d/%d: %v", n+1, cfg.CreationAttempts, err,
-			)
+			))
 		}))
 	if err != nil {
-		logger.Error("can't create query log writer, using console as fallback: ", err)
+		logger.ErrorContext(ctx, fmt.Sprintf("can't create query log writer, using console as fallback: %v", err))
 
 		writer = querylog.NewLoggerWriter()
 		cfg.Type = config.QueryLogTypeConsole
@@ -209,13 +209,19 @@ func (r *QueryLoggingResolver) Resolve(ctx context.Context, request *model.Reque
 	entry := r.createLogEntry(request, resp, start, duration)
 
 	if r.ignore(request, resp) {
-		// Log to the console for debugging purposes
-		logger.WithFields(querylog.LogEntryFields(entry)).Debug("ignored querylog entry")
+		// Log to the console for debugging purposes, as flat snake_case fields
+		// (matching the file/db writers) rather than a nested struct dump. Emit
+		// through the unbound logger with a background context: LogEntryFields
+		// already carries client_ip/client_names, so the ctx-bound logger would
+		// inject those request attrs a second time and produce duplicate keys.
+		//nolint:contextcheck // detached background ctx is deliberate (see comment above)
+		r.logger.LogAttrs(context.Background(), slog.LevelDebug,
+			"ignored querylog entry", querylog.LogEntryFields(entry)...)
 	} else {
 		select {
 		case r.logChan <- entry:
 		default:
-			logger.Error("query log writer is too slow, log entry will be dropped")
+			logger.ErrorContext(ctx, "query log writer is too slow, log entry will be dropped")
 		}
 	}
 
@@ -295,9 +301,9 @@ func (r *QueryLoggingResolver) writeLog(ctx context.Context) {
 
 			// if log channel is > 50% full, this could be a problem with slow writer (external storage over network etc.)
 			if len(r.logChan) > halfCap {
-				logger.
-					WithField("channel_len", len(r.logChan)).
-					Warnf("query log writer is too slow, write duration: %d ms", time.Since(start).Milliseconds())
+				logger.WarnContext(ctx,
+					fmt.Sprintf("query log writer is too slow, write duration: %d ms", time.Since(start).Milliseconds()),
+					slog.Int("channel_len", len(r.logChan)))
 			}
 		case <-ctx.Done():
 			return

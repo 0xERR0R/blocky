@@ -7,9 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 
+	"github.com/0xERR0R/blocky/log"
 	"github.com/miekg/dns"
 )
 
@@ -73,7 +75,8 @@ func (v *Validator) walkChainOfTrust(ctx context.Context, domain string) Validat
 
 	// Check cache first
 	if cached, found := v.getCachedValidation(ctx, domain); found {
-		v.logger.Debugf("Using cached validation result for %s: %s", domain, cached.String())
+		v.logger.DebugContext(ctx, "using cached validation result",
+			slog.String("domain", domain), slog.String("result", cached.String()))
 
 		return cached
 	}
@@ -84,8 +87,8 @@ func (v *Validator) walkChainOfTrust(ctx context.Context, domain string) Validat
 	// Check chain depth limit to prevent DoS attacks with deeply nested domains
 	// RFC does not specify a limit, but we add one for security
 	if uint(len(labels)) > v.maxChainDepth {
-		v.logger.Warnf("Domain %s exceeds maximum chain depth (%d labels > %d max), rejecting",
-			domain, len(labels), v.maxChainDepth)
+		v.logger.WarnContext(ctx, "domain exceeds maximum chain depth",
+			slog.String("domain", domain), slog.Int("labels", len(labels)), slog.Int("max_depth", int(v.maxChainDepth)))
 		result := ValidationResultBogus
 		v.setCachedValidation(ctx, domain, result)
 
@@ -112,7 +115,8 @@ func (v *Validator) walkChainOfTrust(ctx context.Context, domain string) Validat
 
 		// Check if this domain has a configured trust anchor
 		if v.trustAnchors.HasTrustAnchor(currentDomain) {
-			v.logger.Debugf("Domain %s has a configured trust anchor, verifying DNSKEY", currentDomain)
+			v.logger.DebugContext(ctx, "domain has a configured trust anchor, verifying DNSKEY",
+				slog.String("domain", currentDomain))
 			// Trust anchor found - verify that actual DNSKEY from DNS matches the trust anchor
 			result := v.verifyDomainAgainstTrustAnchor(ctx, currentDomain)
 			if result != ValidationResultSecure {
@@ -141,14 +145,14 @@ func (v *Validator) walkChainOfTrust(ctx context.Context, domain string) Validat
 
 // validateDomainLevel validates a single level in the DNSSEC chain
 func (v *Validator) validateDomainLevel(ctx context.Context, domain string) ValidationResult {
-	v.logger.Debugf("Validating domain level: %s", domain)
+	v.logger.DebugContext(ctx, "validating domain level", slog.String("domain", domain))
 
 	// Query DS records from parent zone
 	// Per RFC 4034 §5: DS records are published in the PARENT zone, not the child
 	parentDomain := v.getParentDomain(domain)
 	if parentDomain == "" {
 		// Root domain has no parent
-		v.logger.Debugf("Domain %s has no parent, cannot validate via DS", domain)
+		v.logger.DebugContext(ctx, "domain has no parent, cannot validate via DS", slog.String("domain", domain))
 
 		return ValidationResultInsecure
 	}
@@ -158,7 +162,8 @@ func (v *Validator) validateDomainLevel(ctx context.Context, domain string) Vali
 	// First, ensure the parent zone itself is validated (recursive chain validation)
 	parentResult := v.walkChainOfTrust(ctx, parentDomain)
 	if parentResult != ValidationResultSecure {
-		v.logger.Warnf("Parent zone %s validation failed: %s", parentDomain, parentResult.String())
+		v.logger.WarnContext(ctx, "parent zone validation failed",
+			slog.String("parent", parentDomain), slog.String("result", parentResult.String()))
 
 		return parentResult
 	}
@@ -167,7 +172,7 @@ func (v *Validator) validateDomainLevel(ctx context.Context, domain string) Vali
 	// Note: The DS query name is the child domain, but the response comes from parent's authority
 	ctx, dsResponse, err := v.queryRecords(ctx, domain, dns.TypeDS)
 	if err != nil {
-		v.logger.Warnf("Failed to query DS for %s: %v", domain, err)
+		v.logger.WarnContext(ctx, "failed to query DS records", slog.String("domain", domain), log.AttrError(err))
 
 		return ValidationResultIndeterminate
 	}
@@ -181,7 +186,7 @@ func (v *Validator) validateDomainLevel(ctx context.Context, domain string) Vali
 	// Query DNSKEY records for current domain (need full response for RRSIGs)
 	_, dnskeyResponse, err := v.queryRecords(ctx, domain, dns.TypeDNSKEY)
 	if err != nil {
-		v.logger.Warnf("Failed to query DNSKEY for %s: %v", domain, err)
+		v.logger.WarnContext(ctx, "failed to query DNSKEY records", slog.String("domain", domain), log.AttrError(err))
 
 		return ValidationResultIndeterminate
 	}
@@ -189,7 +194,7 @@ func (v *Validator) validateDomainLevel(ctx context.Context, domain string) Vali
 	// Extract DNSKEY records from response
 	keys, err := extractTypedRecords[*dns.DNSKEY](dnskeyResponse.Answer)
 	if err != nil {
-		v.logger.Warnf("Failed to extract DNSKEY records for %s: %v", domain, err)
+		v.logger.WarnContext(ctx, "failed to extract DNSKEY records", slog.String("domain", domain), log.AttrError(err))
 
 		return ValidationResultIndeterminate
 	}
@@ -198,7 +203,7 @@ func (v *Validator) validateDomainLevel(ctx context.Context, domain string) Vali
 	// This validates the KSK (Key Signing Key) which is pointed to by the DS
 	validatedKSK := v.findAndValidateKSK(keys, dsRecords, domain)
 	if validatedKSK == nil {
-		v.logger.Warnf("Failed to validate any DNSKEY against DS records for %s", domain)
+		v.logger.WarnContext(ctx, "failed to validate any DNSKEY against DS records", slog.String("domain", domain))
 
 		return ValidationResultBogus
 	}
@@ -207,12 +212,12 @@ func (v *Validator) validateDomainLevel(ctx context.Context, domain string) Vali
 	// Per RFC 4035 §5.2: The DNSKEY RRset MUST be signed by a key in the DNSKEY RRset itself
 	// This allows us to trust ALL keys in the set (including ZSKs with different algorithms)
 	if err := v.verifyDNSKEYRRset(dnskeyResponse.Answer, validatedKSK, domain); err != nil {
-		v.logger.Warnf("Failed to verify DNSKEY RRset for %s: %v", domain, err)
+		v.logger.WarnContext(ctx, "failed to verify DNSKEY RRset", slog.String("domain", domain), log.AttrError(err))
 
 		return ValidationResultBogus
 	}
 
-	v.logger.Debugf("Successfully validated DNSKEY for %s", domain)
+	v.logger.DebugContext(ctx, "successfully validated DNSKEY", slog.String("domain", domain))
 
 	return ValidationResultSecure
 }
@@ -265,8 +270,9 @@ func (v *Validator) findAndValidateKSK(keys []*dns.DNSKEY, dsRecords []*dns.DS, 
 
 		for _, ds := range dsRecords {
 			if err := v.validateDNSKEY(key, ds); err == nil {
-				v.logger.Debugf("Validated KSK for %s: flags=%d, algorithm=%d, keytag=%d",
-					domain, key.Flags, key.Algorithm, key.KeyTag())
+				v.logger.Debug("validated KSK",
+					slog.String("domain", domain), slog.Int("flags", int(key.Flags)),
+					slog.Int("algorithm", int(key.Algorithm)), slog.Int("keytag", int(key.KeyTag())))
 
 				return key
 			}
@@ -330,8 +336,8 @@ func (v *Validator) verifyDNSKEYRRset(answer []dns.RR, validatedKSK *dns.DNSKEY,
 		return fmt.Errorf("DNSKEY RRset signature verification failed: %w", err)
 	}
 
-	v.logger.Debugf("Successfully verified DNSKEY RRset for %s with KSK keytag=%d",
-		domain, validatedKSK.KeyTag())
+	v.logger.Debug("successfully verified DNSKEY RRset",
+		slog.String("domain", domain), slog.Int("keytag", int(validatedKSK.KeyTag())))
 
 	return nil
 }
@@ -343,7 +349,7 @@ func (v *Validator) verifyAgainstTrustAnchors(ctx context.Context) ValidationRes
 	// Query DNSKEY for root
 	_, keys, err := v.queryDNSKEY(ctx, ".")
 	if err != nil {
-		v.logger.Warnf("Failed to query root DNSKEY: %v", err)
+		v.logger.WarnContext(ctx, "failed to query root DNSKEY", log.AttrError(err))
 
 		return ValidationResultIndeterminate
 	}
@@ -351,7 +357,7 @@ func (v *Validator) verifyAgainstTrustAnchors(ctx context.Context) ValidationRes
 	// Get trust anchors
 	trustAnchors := v.trustAnchors.GetRootTrustAnchors()
 	if len(trustAnchors) == 0 {
-		v.logger.Warn("No root trust anchors configured")
+		v.logger.WarnContext(ctx, "no root trust anchors configured")
 
 		return ValidationResultIndeterminate
 	}
@@ -360,7 +366,7 @@ func (v *Validator) verifyAgainstTrustAnchors(ctx context.Context) ValidationRes
 	for _, key := range keys {
 		// RFC 5011 §7: Skip revoked keys
 		if key.Flags&REVOKE != 0 {
-			v.logger.Debugf("Skipping revoked root DNSKEY (keytag: %d)", key.KeyTag())
+			v.logger.DebugContext(ctx, "skipping revoked root DNSKEY", slog.Int("keytag", int(key.KeyTag())))
 
 			continue
 		}
@@ -370,14 +376,14 @@ func (v *Validator) verifyAgainstTrustAnchors(ctx context.Context) ValidationRes
 			if key.PublicKey == anchor.Key.PublicKey &&
 				key.Algorithm == anchor.Key.Algorithm &&
 				key.Flags == anchor.Key.Flags {
-				v.logger.Debug("Successfully validated root DNSKEY against trust anchor")
+				v.logger.DebugContext(ctx, "successfully validated root DNSKEY against trust anchor")
 
 				return ValidationResultSecure
 			}
 		}
 	}
 
-	v.logger.Warn("Failed to validate root DNSKEY against any trust anchor")
+	v.logger.WarnContext(ctx, "failed to validate root DNSKEY against any trust anchor")
 
 	return ValidationResultBogus
 }
@@ -389,7 +395,7 @@ func (v *Validator) verifyDomainAgainstTrustAnchor(ctx context.Context, domain s
 	// Query DNSKEY for the domain
 	_, keys, err := v.queryDNSKEY(ctx, domain)
 	if err != nil {
-		v.logger.Warnf("Failed to query DNSKEY for %s: %v", domain, err)
+		v.logger.WarnContext(ctx, "failed to query DNSKEY", slog.String("domain", domain), log.AttrError(err))
 
 		return ValidationResultIndeterminate
 	}
@@ -397,7 +403,7 @@ func (v *Validator) verifyDomainAgainstTrustAnchor(ctx context.Context, domain s
 	// Get trust anchors for this domain
 	trustAnchors := v.trustAnchors.GetTrustAnchors(domain)
 	if len(trustAnchors) == 0 {
-		v.logger.Warnf("No trust anchors configured for %s", domain)
+		v.logger.WarnContext(ctx, "no trust anchors configured for domain", slog.String("domain", domain))
 
 		return ValidationResultIndeterminate
 	}
@@ -411,7 +417,8 @@ func (v *Validator) verifyDomainAgainstTrustAnchor(ctx context.Context, domain s
 
 		// RFC 5011 §7: Skip revoked keys
 		if key.Flags&REVOKE != 0 {
-			v.logger.Debugf("Skipping revoked DNSKEY for %s (keytag: %d)", domain, key.KeyTag())
+			v.logger.DebugContext(ctx, "skipping revoked DNSKEY",
+				slog.String("domain", domain), slog.Int("keytag", int(key.KeyTag())))
 
 			continue
 		}
@@ -421,14 +428,14 @@ func (v *Validator) verifyDomainAgainstTrustAnchor(ctx context.Context, domain s
 			if key.PublicKey == anchor.Key.PublicKey &&
 				key.Algorithm == anchor.Key.Algorithm &&
 				key.Flags == anchor.Key.Flags {
-				v.logger.Debugf("Successfully validated DNSKEY for %s against trust anchor", domain)
+				v.logger.DebugContext(ctx, "successfully validated DNSKEY against trust anchor", slog.String("domain", domain))
 
 				return ValidationResultSecure
 			}
 		}
 	}
 
-	v.logger.Warnf("Failed to validate DNSKEY for %s against any trust anchor", domain)
+	v.logger.WarnContext(ctx, "failed to validate DNSKEY against any trust anchor", slog.String("domain", domain))
 
 	return ValidationResultBogus
 }
@@ -464,7 +471,7 @@ func (v *Validator) validateDSRecordSignature(
 	// Get parent zone's DNSKEY to validate the DS RRSIG
 	_, parentKeys, err := v.queryDNSKEY(ctx, parentDomain)
 	if err != nil {
-		v.logger.Warnf("Failed to query parent DNSKEY for %s: %v", parentDomain, err)
+		v.logger.WarnContext(ctx, "failed to query parent DNSKEY", slog.String("parent", parentDomain), log.AttrError(err))
 
 		return ValidationResultIndeterminate
 	}
@@ -480,7 +487,7 @@ func (v *Validator) validateDSRecordSignature(
 	}
 
 	if matchingParentKey == nil {
-		v.logger.Warnf("No parent DNSKEY with key tag %d found for DS validation", dsRRSIG.KeyTag)
+		v.logger.WarnContext(ctx, "no parent DNSKEY found for DS validation", slog.Int("keytag", int(dsRRSIG.KeyTag)))
 
 		return ValidationResultBogus
 	}
@@ -488,12 +495,12 @@ func (v *Validator) validateDSRecordSignature(
 	// Verify the DS RRSIG using parent's DNSKEY
 	// Note: DS records don't use wildcard validation, so pass nil/empty for those params
 	if err := v.verifyRRSIG(dsRRset, dsRRSIG, matchingParentKey, nil, ""); err != nil {
-		v.logger.Warnf("DS RRSIG verification failed for %s: %v", domain, err)
+		v.logger.WarnContext(ctx, "DS RRSIG verification failed", slog.String("domain", domain), log.AttrError(err))
 
 		return ValidationResultBogus
 	}
 
-	v.logger.Debugf("Successfully validated DS records for %s using parent zone's DNSKEY", domain)
+	v.logger.DebugContext(ctx, "successfully validated DS records", slog.String("domain", domain))
 
 	return ValidationResultSecure
 }
@@ -539,7 +546,7 @@ func (v *Validator) handleDSAbsence(domain string, dsResponse *dns.Msg) ([]*dns.
 
 	if !hasNSEC && !hasNSEC3 {
 		// No DS and no proof of absence - cannot determine if delegation is secure
-		v.logger.Warnf("No DS records for %s and no NSEC/NSEC3 proof - indeterminate", domain)
+		v.logger.Warn("no DS records and no NSEC/NSEC3 proof", slog.String("domain", domain))
 
 		return nil, ValidationResultIndeterminate
 	}
@@ -549,13 +556,13 @@ func (v *Validator) handleDSAbsence(domain string, dsResponse *dns.Msg) ([]*dns.
 
 	if validationResult == ValidationResultSecure || validationResult == ValidationResultInsecure {
 		// Authenticated denial of existence OR NSEC3 opt-out - this is an unsigned delegation
-		v.logger.Debugf("Validated NSEC/NSEC3 proof that DS doesn't exist for %s - insecure delegation", domain)
+		v.logger.Debug("validated NSEC/NSEC3 DS-absence proof, insecure delegation", slog.String("domain", domain))
 
 		return nil, ValidationResultInsecure
 	}
 
 	// NSEC/NSEC3 validation failed - could be an attack
-	v.logger.Warnf("NSEC/NSEC3 records present but failed to prove DS absence for %s - treating as Bogus", domain)
+	v.logger.Warn("NSEC/NSEC3 records present but failed to prove DS absence", slog.String("domain", domain))
 
 	return nil, ValidationResultBogus
 }
@@ -579,8 +586,7 @@ func (v *Validator) validateDSAbsenceProof(domain string, dsResponse *dns.Msg, h
 		// set) does not - the name lives inside the signed zone, so a missing-signature answer
 		// for it is bogus, not insecure (GHSA-x845-2f78-7v36 finding 4).
 		if !v.nsecProvesInsecureDelegation(nsecRecords, domain) {
-			v.logger.Warnf("NSEC DS-absence proof for %s does not assert an insecure delegation "+
-				"(NS bit clear or SOA/DS bit set) - not an unsigned delegation", domain)
+			v.logger.Warn("NSEC DS-absence proof does not assert an insecure delegation", slog.String("domain", domain))
 
 			return ValidationResultBogus
 		}
@@ -620,7 +626,7 @@ func (v *Validator) findDSRRSIG(dsResponse *dns.Msg, domain string) *dns.RRSIG {
 		}
 	}
 
-	v.logger.Warnf("No RRSIG found for DS records of %s", domain)
+	v.logger.Warn("no RRSIG found for DS records", slog.String("domain", domain))
 
 	return nil
 }

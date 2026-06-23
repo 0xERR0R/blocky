@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"math/rand"
 	"sync/atomic"
@@ -13,9 +14,7 @@ import (
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
-
 	"github.com/mroth/weightedrand/v2"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -147,7 +146,7 @@ func (r *ParallelBestResolver) Resolve(ctx context.Context, request *model.Reque
 
 	if len(allResolvers) == 1 {
 		resolver := allResolvers[0]
-		logger.WithField("resolver", resolver.resolver).Debug("delegating to resolver")
+		logger.DebugContext(ctx, "delegating to resolver", slog.Any("resolver", resolver.resolver))
 
 		return resolver.resolve(ctx, request)
 	}
@@ -159,7 +158,7 @@ func (r *ParallelBestResolver) Resolve(ctx context.Context, request *model.Reque
 	ch := make(chan requestResponse, len(resolvers))
 
 	for _, resolver := range resolvers {
-		logger.WithField("resolver", resolver.resolver).Debug("delegating to resolver")
+		logger.DebugContext(ctx, "delegating to resolver", slog.Any("resolver", resolver.resolver))
 
 		go resolver.resolveToChan(ctx, request, ch)
 	}
@@ -177,23 +176,23 @@ func (r *ParallelBestResolver) Resolve(ctx context.Context, request *model.Reque
 }
 
 func evaluateResponses(
-	logger *logrus.Entry, ch chan requestResponse, resolvers []*upstreamResolverStatus,
+	logger *slog.Logger, ch chan requestResponse, resolvers []*upstreamResolverStatus,
 ) (*model.Response, []error) {
 	collectedErrors := make([]error, 0, len(resolvers))
 
 	for len(collectedErrors) < len(resolvers) {
 		result := <-ch
-		logger := logger.WithField("resolver", *result.resolver)
+		logger := logger.With(slog.Any("resolver", *result.resolver))
 
 		if result.err != nil {
-			logger.Debug("resolution failed from resolver, cause: ", result.err)
+			logger.Debug("resolution failed from resolver", log.AttrError(result.err))
 			collectedErrors = append(collectedErrors, fmt.Errorf("resolver: %q error: %w", *result.resolver, result.err))
 
 			continue
 		}
 
-		logger.WithField(logFieldAnswer, util.Obfuscate(util.AnswerToString(result.response.Res.Answer))).
-			Debug("using response from resolver")
+		logger.Debug("using response from resolver",
+			slog.Any(logFieldAnswer, util.AnswerLogValuer{Answers: result.response.Res.Answer}))
 
 		return result.response, nil
 	}
@@ -202,21 +201,20 @@ func evaluateResponses(
 }
 
 func (r *ParallelBestResolver) retryWithDifferent(
-	ctx context.Context, logger *logrus.Entry, request *model.Request, resolvers []*upstreamResolverStatus,
+	ctx context.Context, logger *slog.Logger, request *model.Request, resolvers []*upstreamResolverStatus,
 ) (*model.Response, error) {
 	// second try (if retryWithDifferentResolver == true)
 	resolver := weightedRandom(ctx, *r.resolvers.Load(), resolvers)
-	logger.Debugf("using %s as second resolver", resolver.resolver)
+	logger.DebugContext(ctx, "using second resolver", slog.Any("resolver", resolver.resolver))
 
 	resp, err := resolver.resolve(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("resolution retry failed: %w", err)
 	}
 
-	logger.WithFields(logrus.Fields{
-		"resolver":     *resolver,
-		logFieldAnswer: util.Obfuscate(util.AnswerToString(resp.Res.Answer)),
-	}).Debug("using response from resolver")
+	logger.DebugContext(ctx, "using response from resolver",
+		slog.Any("resolver", *resolver),
+		slog.Any(logFieldAnswer, util.AnswerLogValuer{Answers: resp.Res.Answer}))
 
 	return resp, nil
 }
@@ -257,7 +255,8 @@ outer:
 
 	c, err := weightedrand.NewChooser(choices...)
 	if err != nil {
-		log.FromCtx(ctx).WithError(err).Error("can't choose random weighted resolver, falling back to uniform random")
+		log.FromCtx(ctx).ErrorContext(ctx, "can't choose random weighted resolver, falling back to uniform random",
+			log.AttrError(err))
 
 		val := rand.Int() //nolint:gosec // pseudo-randomness is good enough
 

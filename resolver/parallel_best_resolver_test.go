@@ -68,11 +68,11 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 
 	Describe("LogConfig", func() {
 		It("should log something", func() {
-			logger, hook := log.NewMockEntry()
+			logger, rec := log.NewRecorder()
 
 			sut.LogConfig(logger)
 
-			Expect(hook.Calls).ShouldNot(BeEmpty())
+			Expect(rec.Records()).ShouldNot(BeEmpty())
 		})
 	})
 

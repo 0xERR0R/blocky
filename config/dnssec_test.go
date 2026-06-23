@@ -2,10 +2,10 @@ package config
 
 import (
 	"bytes"
+	"log/slog"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/sirupsen/logrus"
 )
 
 var _ = Describe("DNSSEC config", func() {
@@ -35,16 +35,13 @@ var _ = Describe("DNSSEC config", func() {
 
 	Describe("LogConfig", func() {
 		var (
-			logger *logrus.Entry
-			buf    *bytes.Buffer
+			lgr *slog.Logger
+			buf *bytes.Buffer
 		)
 
 		BeforeEach(func() {
 			buf = new(bytes.Buffer)
-			logInstance := logrus.New()
-			logInstance.Out = buf
-			logInstance.SetLevel(logrus.InfoLevel)
-			logger = logrus.NewEntry(logInstance)
+			lgr = slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 		})
 
 		It("should log validation status when disabled", func() {
@@ -52,7 +49,7 @@ var _ = Describe("DNSSEC config", func() {
 				Validate: false,
 			}
 
-			cfg.LogConfig(logger)
+			cfg.LogConfig(lgr)
 
 			output := buf.String()
 			Expect(output).Should(ContainSubstring("Validation = false"))
@@ -68,7 +65,7 @@ var _ = Describe("DNSSEC config", func() {
 				ClockSkewToleranceSec: 3600,
 			}
 
-			cfg.LogConfig(logger)
+			cfg.LogConfig(lgr)
 
 			output := buf.String()
 			Expect(output).Should(ContainSubstring("Validation = true"))
@@ -85,7 +82,7 @@ var _ = Describe("DNSSEC config", func() {
 				TrustAnchors: []string{},
 			}
 
-			cfg.LogConfig(logger)
+			cfg.LogConfig(lgr)
 
 			output := buf.String()
 			Expect(output).Should(ContainSubstring("Using default root trust anchors"))
@@ -101,7 +98,7 @@ var _ = Describe("DNSSEC config", func() {
 				},
 			}
 
-			cfg.LogConfig(logger)
+			cfg.LogConfig(lgr)
 
 			output := buf.String()
 			Expect(output).Should(ContainSubstring("Custom trust anchors = 3"))
@@ -117,7 +114,7 @@ var _ = Describe("DNSSEC config", func() {
 				ClockSkewToleranceSec: 3600,
 			}
 
-			cfg.LogConfig(logger)
+			cfg.LogConfig(lgr)
 
 			output := buf.String()
 			Expect(output).Should(ContainSubstring("Validation = false"))
@@ -132,7 +129,7 @@ var _ = Describe("DNSSEC config", func() {
 				CacheExpirationHours: 24,
 			}
 
-			cfg.LogConfig(logger)
+			cfg.LogConfig(lgr)
 
 			output := buf.String()
 			Expect(output).Should(ContainSubstring("Cache expiration = 24 hour(s)"))
@@ -144,7 +141,7 @@ var _ = Describe("DNSSEC config", func() {
 				MaxChainDepth: 20,
 			}
 
-			cfg.LogConfig(logger)
+			cfg.LogConfig(lgr)
 
 			output := buf.String()
 			Expect(output).Should(ContainSubstring("Max chain depth = 20"))
@@ -156,7 +153,7 @@ var _ = Describe("DNSSEC config", func() {
 				MaxNSEC3Iterations: 500,
 			}
 
-			cfg.LogConfig(logger)
+			cfg.LogConfig(lgr)
 
 			output := buf.String()
 			Expect(output).Should(ContainSubstring("Max NSEC3 iterations = 500"))
@@ -168,7 +165,7 @@ var _ = Describe("DNSSEC config", func() {
 				MaxUpstreamQueries: 50,
 			}
 
-			cfg.LogConfig(logger)
+			cfg.LogConfig(lgr)
 
 			output := buf.String()
 			Expect(output).Should(ContainSubstring("Max upstream queries per validation = 50"))
@@ -180,7 +177,7 @@ var _ = Describe("DNSSEC config", func() {
 				ClockSkewToleranceSec: 7200,
 			}
 
-			cfg.LogConfig(logger)
+			cfg.LogConfig(lgr)
 
 			output := buf.String()
 			Expect(output).Should(ContainSubstring("Clock skew tolerance = 7200 second(s)"))
@@ -196,7 +193,7 @@ var _ = Describe("DNSSEC config", func() {
 				ClockSkewToleranceSec: 0,
 			}
 
-			cfg.LogConfig(logger)
+			cfg.LogConfig(lgr)
 
 			output := buf.String()
 			Expect(output).Should(ContainSubstring("Max chain depth = 0"))
@@ -214,7 +211,7 @@ var _ = Describe("DNSSEC config", func() {
 				},
 			}
 
-			cfg.LogConfig(logger)
+			cfg.LogConfig(lgr)
 
 			output := buf.String()
 			Expect(output).Should(ContainSubstring("Custom trust anchors = 1"))
@@ -226,7 +223,7 @@ var _ = Describe("DNSSEC config", func() {
 				TrustAnchors: nil,
 			}
 
-			cfg.LogConfig(logger)
+			cfg.LogConfig(lgr)
 
 			output := buf.String()
 			Expect(output).Should(ContainSubstring("Using default root trust anchors"))

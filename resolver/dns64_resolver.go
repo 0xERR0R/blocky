@@ -2,16 +2,18 @@ package resolver
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"math"
 	"net"
 	"net/netip"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -100,7 +102,7 @@ func (r *DNS64Resolver) Resolve(ctx context.Context, request *model.Request) (*m
 	}
 
 	qname := request.Req.Question[0].Name
-	logger.Debugf("received AAAA query for %s, checking for synthesis", qname)
+	logger.DebugContext(ctx, "received AAAA query, checking for synthesis", slog.String("qname", qname))
 
 	// Pass query to next resolver
 	response, err := r.next.Resolve(ctx, request)
@@ -110,19 +112,19 @@ func (r *DNS64Resolver) Resolve(ctx context.Context, request *model.Request) (*m
 
 	// Check if response has AAAA records that are NOT all in exclusion set
 	if r.hasValidAAAARecords(response, logger) {
-		logger.Debug("existing valid AAAA found, skipping synthesis")
+		logger.DebugContext(ctx, "existing valid AAAA found, skipping synthesis")
 
 		return response, nil
 	}
 
 	// No valid AAAA records, query for A records and synthesize
-	logger.Debug("no valid AAAA found, querying for A records")
+	logger.DebugContext(ctx, "no valid AAAA found, querying for A records")
 
 	return r.synthesizeFromA(ctx, request, response, logger)
 }
 
 // hasValidAAAARecords checks if response has any AAAA records not in exclusion set
-func (r *DNS64Resolver) hasValidAAAARecords(response *model.Response, logger *logrus.Entry) bool {
+func (r *DNS64Resolver) hasValidAAAARecords(response *model.Response, logger *slog.Logger) bool {
 	aaaaRecords := util.ExtractRecords[*dns.AAAA](response.Res)
 	if len(aaaaRecords) == 0 {
 		logger.Debug("no AAAA records in response")
@@ -130,7 +132,7 @@ func (r *DNS64Resolver) hasValidAAAARecords(response *model.Response, logger *lo
 		return false
 	}
 
-	logger.Debugf("found %d AAAA record(s), checking exclusion set", len(aaaaRecords))
+	logger.Debug("found AAAA record(s), checking exclusion set", slog.Int("aaaa_count", len(aaaaRecords)))
 
 	// Check if all AAAA records are in exclusion set
 	allExcluded := true
@@ -138,7 +140,7 @@ func (r *DNS64Resolver) hasValidAAAARecords(response *model.Response, logger *lo
 
 	for _, aaaa := range aaaaRecords {
 		if r.isInExclusionSet(aaaa.AAAA) {
-			logger.Debugf("AAAA record %s is in exclusion set", aaaa.AAAA)
+			logger.Debug("AAAA record is in exclusion set", slog.Any("aaaa", aaaa.AAAA))
 			excludedCount++
 		} else {
 			allExcluded = false
@@ -148,13 +150,13 @@ func (r *DNS64Resolver) hasValidAAAARecords(response *model.Response, logger *lo
 	}
 
 	if allExcluded {
-		logger.Debugf("all %d AAAA record(s) in exclusion set, will synthesize", excludedCount)
+		logger.Debug("all AAAA record(s) in exclusion set, will synthesize", slog.Int("excluded_count", excludedCount))
 
 		return false
 	}
 
-	logger.Debugf("%d of %d AAAA record(s) not in exclusion set, using original response",
-		len(aaaaRecords)-excludedCount, len(aaaaRecords))
+	logger.Debug("AAAA record(s) not in exclusion set, using original response",
+		slog.Int("included_count", len(aaaaRecords)-excludedCount), slog.Int("aaaa_count", len(aaaaRecords)))
 
 	return true
 }
@@ -188,7 +190,7 @@ func (r *DNS64Resolver) synthesizeFromA(
 	ctx context.Context,
 	originalRequest *model.Request,
 	aaaaResponse *model.Response,
-	logger *logrus.Entry,
+	logger *slog.Logger,
 ) (*model.Response, error) {
 	// Create new A query for same name
 	aReq := util.NewMsgWithQuestion(originalRequest.Req.Question[0].Name, dns.Type(dns.TypeA))
@@ -211,7 +213,7 @@ func (r *DNS64Resolver) synthesizeFromA(
 	// Send A query through next resolver
 	aResponse, err := r.next.Resolve(ctx, aRequest)
 	if err != nil {
-		logger.Debugf("A query failed: %v", err)
+		logger.DebugContext(ctx, "A query failed", log.AttrError(err))
 
 		return aaaaResponse, nil // Return original AAAA response
 	}
@@ -219,7 +221,7 @@ func (r *DNS64Resolver) synthesizeFromA(
 	// Handle RCODE
 	if aResponse.Res.Rcode == dns.RcodeNameError {
 		// NXDOMAIN: return NXDOMAIN with original AAAA query in Question section
-		logger.Debug("A query returned NXDOMAIN, no synthesis")
+		logger.DebugContext(ctx, "A query returned NXDOMAIN, no synthesis")
 
 		// Build a synthetic NXDOMAIN response with the original AAAA query in the Question section
 		nxdomainResponse := new(dns.Msg)
@@ -239,7 +241,8 @@ func (r *DNS64Resolver) synthesizeFromA(
 
 	if aResponse.Res.Rcode != dns.RcodeSuccess {
 		// Other RCODEs: treat as empty response (alternative behavior from RFC 6147 Section 5.1.2)
-		logger.Debugf("A query returned RCODE %d, treating as empty", aResponse.Res.Rcode)
+		logger.DebugContext(ctx, "A query returned non-success RCODE, treating as empty",
+			slog.Int("rcode", aResponse.Res.Rcode))
 
 		return aaaaResponse, nil
 	}
@@ -247,23 +250,23 @@ func (r *DNS64Resolver) synthesizeFromA(
 	// Extract A records from response
 	aRecords := util.ExtractRecords[*dns.A](aResponse.Res)
 	if len(aRecords) == 0 {
-		logger.Debug("no A records found, returning empty AAAA response")
+		logger.DebugContext(ctx, "no A records found, returning empty AAAA response")
 
 		return aaaaResponse, nil
 	}
 
-	logger.Debugf("found %d A record(s) for synthesis", len(aRecords))
+	logger.DebugContext(ctx, "found A record(s) for synthesis", slog.Int("a_count", len(aRecords)))
 
 	// Extract CNAME and DNAME records for TTL calculation
 	cnameRecords := util.ExtractRecords[*dns.CNAME](aResponse.Res)
 	dnameRecords := util.ExtractRecords[*dns.DNAME](aResponse.Res)
 
 	if len(cnameRecords) > 0 {
-		logger.Debugf("found %d CNAME record(s) in resolution chain", len(cnameRecords))
+		logger.DebugContext(ctx, "found CNAME record(s) in resolution chain", slog.Int("cname_count", len(cnameRecords)))
 	}
 
 	if len(dnameRecords) > 0 {
-		logger.Debugf("found %d DNAME record(s) in resolution chain", len(dnameRecords))
+		logger.DebugContext(ctx, "found DNAME record(s) in resolution chain", slog.Int("dname_count", len(dnameRecords)))
 	}
 
 	// Synthesize AAAA records
@@ -290,7 +293,8 @@ func (r *DNS64Resolver) synthesizeFromA(
 	// Copy additional section unchanged (RFC 6147 Section 5.3.2)
 	syntheticResponse.Extra = aResponse.Res.Extra
 
-	logger.Infof("synthesized %d AAAA records from %d A records", len(synthesizedAAAA), len(aRecords))
+	logger.InfoContext(ctx,
+		fmt.Sprintf("synthesized %d AAAA records from %d A records", len(synthesizedAAAA), len(aRecords)))
 
 	return &model.Response{
 		Res:    syntheticResponse,
@@ -304,7 +308,7 @@ func calculateMinimumTTL(
 	aRecords []*dns.A,
 	cnameRecords []*dns.CNAME,
 	dnameRecords []*dns.DNAME,
-	logger *logrus.Entry,
+	logger *slog.Logger,
 ) uint32 {
 	minTTL := uint32(math.MaxUint32)
 	ttlSources := make([]string, 0)
@@ -334,7 +338,8 @@ func calculateMinimumTTL(
 	}
 
 	if len(ttlSources) > 0 {
-		logger.Debugf("using minimum TTL %d from resolution chain (sources: %v)", minTTL, ttlSources)
+		logger.Debug("using minimum TTL from resolution chain",
+			slog.Any("min_ttl", minTTL), slog.Any("ttl_sources", ttlSources))
 	}
 
 	return minTTL
@@ -345,7 +350,7 @@ func (r *DNS64Resolver) synthesizeAAAARecords(
 	aRecords []*dns.A,
 	cnameRecords []*dns.CNAME,
 	dnameRecords []*dns.DNAME,
-	logger *logrus.Entry,
+	logger *slog.Logger,
 ) []*dns.AAAA {
 	// Calculate minimum TTL across ALL records in the resolution chain for cache coherency
 	minTTL := calculateMinimumTTL(aRecords, cnameRecords, dnameRecords, logger)
@@ -353,13 +358,14 @@ func (r *DNS64Resolver) synthesizeAAAARecords(
 	// Synthesize AAAA records
 	var aaaaRecords []*dns.AAAA
 
-	logger.Debugf("synthesizing with %d prefix(es): %v", len(r.prefixes), r.prefixes)
+	logger.Debug("synthesizing with prefix(es)",
+		slog.Int("prefix_count", len(r.prefixes)), slog.Any("prefixes", r.prefixes))
 
 	for _, aRecord := range aRecords {
 		for _, prefix := range r.prefixes {
 			ipv6 := embedIPv4InIPv6(aRecord.A, prefix)
 			if ipv6 == nil {
-				logger.Warnf("failed to embed IPv4 %s in prefix %s", aRecord.A, prefix)
+				logger.Warn(fmt.Sprintf("failed to embed IPv4 %s in prefix %s", aRecord.A, prefix))
 
 				continue
 			}
@@ -375,8 +381,12 @@ func (r *DNS64Resolver) synthesizeAAAARecords(
 			}
 			aaaaRecords = append(aaaaRecords, aaaa)
 
-			logger.Debugf("synthesized %s AAAA %s (from A %s, prefix %s, TTL %d)",
-				aaaa.Hdr.Name, ipv6, aRecord.A, prefix, minTTL)
+			logger.Debug("synthesized AAAA record",
+				slog.String("name", aaaa.Hdr.Name),
+				slog.Any("aaaa", ipv6),
+				slog.Any("a", aRecord.A),
+				slog.Any("prefix", prefix),
+				slog.Any("ttl", minTTL))
 		}
 	}
 

@@ -26,7 +26,7 @@ var _ = Describe("schema-enriched config loading", func() {
 
 			err := unmarshalConfig(logger, data, &Config{}, nil)
 			Expect(err).Should(Succeed())
-			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("does not match schema")))
+			Expect(rec.Messages()).ShouldNot(ContainElement(ContainSubstring("does not match schema")))
 		})
 
 		It("accepts PROXY protocol listener families", func() {
@@ -44,7 +44,7 @@ ports:
 
 			err := unmarshalConfig(logger, data, &Config{}, nil)
 			Expect(err).Should(Succeed())
-			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("does not match schema")))
+			Expect(rec.Messages()).ShouldNot(ContainElement(ContainSubstring("does not match schema")))
 		})
 	})
 
@@ -72,7 +72,7 @@ ports:
 
 			err := unmarshalConfig(logger, data, &Config{}, nil)
 			Expect(err).Should(Succeed())
-			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("does not match schema")))
+			Expect(rec.Messages()).ShouldNot(ContainElement(ContainSubstring("does not match schema")))
 		})
 	})
 
@@ -89,7 +89,7 @@ ports:
 
 			err = unmarshalConfig(logger, data, &Config{}, nil)
 			Expect(err).Should(Succeed())
-			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("does not match schema")),
+			Expect(rec.Messages()).ShouldNot(ContainElement(ContainSubstring("does not match schema")),
 				"every form in testdata/superset_config.yml must validate against the schema too")
 		})
 	})

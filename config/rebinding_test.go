@@ -31,11 +31,11 @@ var _ = Describe("RebindingProtection", func() {
 
 	Describe("LogConfig", func() {
 		It("should log something", func() {
-			logger, hook := log.NewMockEntry()
+			lgr, rec := log.NewRecorder()
 
-			cfg.LogConfig(logger)
+			cfg.LogConfig(lgr)
 
-			Expect(hook.Calls).ShouldNot(BeEmpty())
+			Expect(rec.Records()).ShouldNot(BeEmpty())
 		})
 	})
 

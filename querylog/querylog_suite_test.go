@@ -9,9 +9,9 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func init() {
-	log.Silence()
-}
+var _ = BeforeSuite(func() {
+	log.ConfigureForTest(GinkgoWriter)
+})
 
 func TestResolver(t *testing.T) {
 	RegisterFailHandler(Fail)

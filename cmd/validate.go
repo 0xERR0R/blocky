@@ -2,9 +2,8 @@ package cmd
 
 import (
 	"errors"
+	"log/slog"
 	"os"
-
-	"github.com/0xERR0R/blocky/log"
 
 	"github.com/spf13/cobra"
 )
@@ -22,7 +21,7 @@ func NewValidateCommand() *cobra.Command {
 }
 
 func validateConfiguration(_ *cobra.Command, _ []string) error {
-	log.Log().Infof("Validating configuration file: %s", configPath)
+	slog.Info("Validating configuration file: " + configPath)
 
 	_, err := os.Stat(configPath)
 	if err != nil && errors.Is(err, os.ErrNotExist) {
@@ -34,7 +33,7 @@ func validateConfiguration(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	log.Log().Info("Configuration is valid")
+	slog.Info("Configuration is valid")
 
 	return nil
 }

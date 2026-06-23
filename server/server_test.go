@@ -47,6 +47,7 @@ var (
 )
 
 var _ = BeforeSuite(func() {
+	ConfigureForTest(GinkgoWriter)
 	mockClientName.Store("")
 	baseURL = fmt.Sprintf("http://%s/", GetHostPort("localhost", httpBasePort))
 	queryURL = baseURL + "dns-query"
@@ -1378,17 +1379,17 @@ var _ = Describe("Running DNS server", func() {
 func requestServer(ctx context.Context, request *dns.Msg) *dns.Msg {
 	conn, err := (&net.Dialer{}).DialContext(ctx, "udp", GetHostPort("", dnsBasePort))
 	if err != nil {
-		Log().Fatal("could not connect to server: ", err)
+		Fail(fmt.Sprintf("could not connect to server: %v", err))
 	}
 	defer conn.Close()
 
 	msg, err := request.Pack()
 	if err != nil {
-		Log().Fatal("can't pack request: ", err)
+		Fail(fmt.Sprintf("can't pack request: %v", err))
 	}
 
 	if _, err = conn.Write(msg); err != nil {
-		Log().Fatal("can't send request to server: ", err)
+		Fail(fmt.Sprintf("can't send request to server: %v", err))
 	}
 
 	out := make([]byte, 1024)
@@ -1398,14 +1399,14 @@ func requestServer(ctx context.Context, request *dns.Msg) *dns.Msg {
 
 		err = response.Unpack(out)
 		if err != nil {
-			Log().Fatal("can't unpack response: ", err)
+			Fail(fmt.Sprintf("can't unpack response: %v", err))
 		}
 
 		return response
 	}
 
 	if err != nil {
-		Log().Fatal("could not read from connection", err)
+		Fail(fmt.Sprintf("could not read from connection: %v", err))
 	}
 
 	return nil

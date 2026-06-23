@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/model"
@@ -56,14 +57,16 @@ func NewDNSSECResolver(ctx context.Context, cfg config.DNSSEC, upstream Resolver
 			cfg.ClockSkewToleranceSec,
 		)
 
-		logger.Infof("DNSSEC resolver initialized with %d root trust anchor(s)",
-			len(trustAnchors.GetRootTrustAnchors()))
+		logger.InfoContext(ctx, fmt.Sprintf("DNSSEC resolver initialized with %d root trust anchor(s)",
+			len(trustAnchors.GetRootTrustAnchors())))
 	}
 
 	return r, nil
 }
 
 // Resolve validates DNSSEC signatures if validation is enabled
+//
+//nolint:funlen // length is dominated by the GHSA-x845 validation-scope comment, not logic
 func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	ctx, logger := r.log(ctx)
 
@@ -77,11 +80,13 @@ func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*
 			if opt.UDPSize() < ednsUDPSize {
 				opt.SetUDPSize(ednsUDPSize)
 			}
-			logger.Debugf("DNSSEC DO bit set for query (existing EDNS0): %s", request.Req.Question[0].Name)
+			logger.DebugContext(ctx, "DNSSEC DO bit set for query (existing EDNS0)",
+				slog.String("qname", request.Req.Question[0].Name))
 		} else {
 			// No EDNS0 present - add it with DO bit
 			request.Req.SetEdns0(ednsUDPSize, true)
-			logger.Debugf("DNSSEC DO bit set for query (new EDNS0): %s", request.Req.Question[0].Name)
+			logger.DebugContext(ctx, "DNSSEC DO bit set for query (new EDNS0)",
+				slog.String("qname", request.Req.Question[0].Name))
 		}
 	}
 
@@ -108,8 +113,9 @@ func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*
 		if response != nil && response.Res != nil &&
 			response.RType != model.ResponseTypeRESOLVED && response.RType != model.ResponseTypeCACHED {
 			response.Res.AuthenticatedData = false
-			logger.Debugf("skipping DNSSEC validation for trusted-local/synthesized response (%s): %s",
-				response.RType, request.Req.Question[0].Name)
+			logger.DebugContext(ctx, "skipping DNSSEC validation for trusted-local/synthesized response",
+				slog.String("response_type", response.RType.String()),
+				slog.String("qname", request.Req.Question[0].Name))
 
 			return response, nil
 		}
@@ -119,28 +125,30 @@ func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*
 		validationCtx := dnssec.WithClientContext(ctx, request.ClientIP, request.ClientNames, request.RequestClientID)
 		result := r.validator.ValidateResponse(validationCtx, response.Res, request.Req.Question[0])
 
-		logger.Debugf("DNSSEC validation result for %s: %s",
-			request.Req.Question[0].Name, result.String())
+		logger.DebugContext(ctx, "DNSSEC validation result",
+			slog.String("qname", request.Req.Question[0].Name),
+			slog.String("result", result.String()))
 
 		switch result {
 		case dnssec.ValidationResultBogus:
 			// Invalid DNSSEC - return SERVFAIL
-			logger.Warnf("DNSSEC validation failed for %s - returning SERVFAIL",
-				request.Req.Question[0].Name)
+			logger.WarnContext(ctx, fmt.Sprintf("DNSSEC validation failed for %s - returning SERVFAIL",
+				request.Req.Question[0].Name))
 
 			return createServFailResponseDNSSEC(request, "DNSSEC validation failed: bogus signatures"), nil
 
 		case dnssec.ValidationResultSecure:
 			// Valid DNSSEC - set AD flag
 			response.Res.AuthenticatedData = true
-			logger.Debugf("DNSSEC validation succeeded for %s - AD flag set",
-				request.Req.Question[0].Name)
+			logger.DebugContext(ctx, "DNSSEC validation succeeded - AD flag set",
+				slog.String("qname", request.Req.Question[0].Name))
 
 		case dnssec.ValidationResultInsecure, dnssec.ValidationResultIndeterminate:
 			// No DNSSEC or cannot validate - clear AD flag
 			response.Res.AuthenticatedData = false
-			logger.Debugf("DNSSEC validation result %s for %s - AD flag cleared",
-				result.String(), request.Req.Question[0].Name)
+			logger.DebugContext(ctx, "DNSSEC validation result - AD flag cleared",
+				slog.String("result", result.String()),
+				slog.String("qname", request.Req.Question[0].Name))
 		}
 	}
 

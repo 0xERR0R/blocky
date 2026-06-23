@@ -1,6 +1,6 @@
 package config
 
-import "github.com/sirupsen/logrus"
+import "log/slog"
 
 // Statistics contains the config for the in-memory statistics subsystem.
 type Statistics struct {
@@ -14,6 +14,6 @@ func (c *Statistics) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *Statistics) LogConfig(logger *logrus.Entry) {
-	logger.Infof("enable = %t", c.Enable)
+func (c *Statistics) LogConfig(logger *slog.Logger) {
+	logger.Info("enable", slog.Bool("enable", c.Enable))
 }
