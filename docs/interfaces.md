@@ -6,7 +6,7 @@
 ??? abstract "OpenAPI specification"
 
     ```yaml
-    --8<-- "docs/api/openapi.yaml"
+    --8<-- "api/openapi.yaml"
     ```
 
 If http listener is enabled, blocky provides REST API. You can download the [OpenAPI YAML](api/openapi.yaml) interface specification. 
@@ -64,5 +64,3 @@ To run the CLI, please ensure, that blocky DNS server is running, then execute `
 !!! tip 
 
     To run this inside docker run `docker exec blocky ./blocky blocking status`
-
---8<-- "docs/includes/abbreviations.md"
