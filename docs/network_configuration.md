@@ -165,5 +165,3 @@ protocol on the Blocky listener and configure the proxy to send it.
         }
     }
     ```
-
---8<-- "docs/includes/abbreviations.md"
