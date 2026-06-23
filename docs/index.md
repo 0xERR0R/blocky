@@ -6,6 +6,15 @@
 
 Blocky is a DNS proxy and ad-blocker for the local network written in Go with following features:
 
+```mermaid
+flowchart LR
+    C[Client devices] -->|DNS query| B(Blocky)
+    B -->|allowed query| U[Upstream resolvers]
+    U -->|answer| B
+    B -->|blocked domain| X[Blocked response]
+    B -->|answer| C
+```
+
 ## Features
 
 - **Blocking** - :no_entry: Blocking of DNS queries with external lists (Ad-block, malware) and allowlisting

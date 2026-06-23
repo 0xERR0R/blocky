@@ -10,6 +10,7 @@ theme:
     - navigation.top
     - toc.follow
     - content.code.copy
+    - content.code.annotate
     - content.tooltips
     - content.action.edit
     - search.suggest
@@ -49,6 +50,8 @@ edit_uri: edit/main/docs/
 
 markdown_extensions:
   - abbr
+  - attr_list
+  - md_in_html
   - pymdownx.snippets:
       base_path: [docs]
       auto_append:
@@ -57,7 +60,16 @@ markdown_extensions:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.highlight
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.keys
   - admonition
   - pymdownx.details
 

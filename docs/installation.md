@@ -15,22 +15,26 @@ Simple configuration file, which enables only basic features:
 ```yaml
 upstreams:
   groups:
-    default:
+    default: # (1)!
       - 46.182.19.48
       - 80.241.218.68
       - tcp-tls:fdns1.dismail.de:853
       - https://dns.digitale-gesellschaft.ch/dns-query
 blocking:
   denylists:
-    ads:
+    ads: # (2)!
       - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
   clientGroupsBlock:
     default:
       - ads
 ports:
-  dns: 53
+  dns: 53 # (3)!
   http: 4000
 ```
+
+1.  Upstream DNS resolvers blocky forwards allowed queries to. Plain IPs as well as `tcp-tls:` (DoT) and `https://` (DoH) endpoints are supported.
+2.  A named denylist group. Each entry is a URL or local file with hosts/domains to block; reference it from `clientGroupsBlock`.
+3.  Listening ports — `dns` serves DNS (UDP/TCP), `http` serves the REST API and Prometheus metrics.
 
 ## Run as standalone binary
 
@@ -83,45 +87,47 @@ Default value is `/app/config.yml`.
     fallback when `BLOCKY_CONFIG_FILE` is unset. New deployments
     should use `BLOCKY_CONFIG_FILE`.
 
-### Docker from command line
+### Start the container
 
-Execute following command from the command line:
+=== "docker run"
 
-```sh
-docker run --name blocky -v /path/to/config.yml:/app/config.yml -p 4000:4000 -p 53:53/udp spx01/blocky
-```
+    Execute the following command from the command line:
 
-### Run with docker-compose
+    ```sh
+    docker run --name blocky -v /path/to/config.yml:/app/config.yml -p 4000:4000 -p 53:53/udp spx01/blocky
+    ```
 
-Create following `docker-compose.yml` file
+=== "docker-compose"
 
-```yaml
-version: "2.1"
-services:
-  blocky:
-    image: spx01/blocky
-    container_name: blocky
-    restart: unless-stopped
-    # Optional the instance hostname for logging purpose
-    hostname: blocky-hostname
-    ports:
-      - "53:53/tcp"
-      - "53:53/udp"
-      - "4000:4000/tcp"
-    environment:
-      - TZ=Europe/Berlin # Optional to synchronize the log timestamp with host
-    volumes:
-      # Optional to synchronize the log timestamp with host
-      - /etc/localtime:/etc/localtime:ro
-      # config file
-      - ./config.yml:/app/config.yml:ro
-```
+    Create the following `docker-compose.yml` file:
 
-and start docker container with
+    ```yaml
+    version: "2.1"
+    services:
+      blocky:
+        image: spx01/blocky
+        container_name: blocky
+        restart: unless-stopped
+        # Optional the instance hostname for logging purpose
+        hostname: blocky-hostname
+        ports:
+          - "53:53/tcp"
+          - "53:53/udp"
+          - "4000:4000/tcp"
+        environment:
+          - TZ=Europe/Berlin # Optional to synchronize the log timestamp with host
+        volumes:
+          # Optional to synchronize the log timestamp with host
+          - /etc/localtime:/etc/localtime:ro
+          # config file
+          - ./config.yml:/app/config.yml:ro
+    ```
 
-```sh
-docker-compose up -d
-```
+    Then start the container with:
+
+    ```sh
+    docker-compose up -d
+    ```
 
 ### Advanced setup
 
