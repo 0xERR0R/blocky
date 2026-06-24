@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/helpertest"
-	"github.com/0xERR0R/blocky/log"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -143,7 +142,7 @@ func readCsv(file string) [][]string {
 		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
-			log.Log().Fatal("can't read line", err)
+			Expect(err).Should(Succeed(), "can't read line")
 		}
 
 		result = append(result, line)

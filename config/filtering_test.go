@@ -46,8 +46,8 @@ var _ = Describe("FilteringConfig", func() {
 		It("should log configuration", func() {
 			cfg.LogConfig(logger)
 
-			Expect(hook.Calls).Should(HaveLen(3))
-			Expect(hook.Messages).Should(ContainElements(
+			Expect(rec.Records()).Should(HaveLen(3))
+			Expect(rec.Messages()).Should(ContainElements(
 				ContainSubstring("query types:"),
 				ContainSubstring("  - AAAA"),
 				ContainSubstring("  - MX"),

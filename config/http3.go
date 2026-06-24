@@ -1,6 +1,6 @@
 package config
 
-import "github.com/sirupsen/logrus"
+import "log/slog"
 
 // HTTP3 holds DNS-over-HTTPS over HTTP/3 (DoH3) server settings.
 type HTTP3 struct {
@@ -14,6 +14,6 @@ func (c *HTTP3) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *HTTP3) LogConfig(logger *logrus.Entry) {
+func (c *HTTP3) LogConfig(logger *slog.Logger) {
 	logger.Info("enabled")
 }

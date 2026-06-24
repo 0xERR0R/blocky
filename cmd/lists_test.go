@@ -5,7 +5,6 @@ import (
 	"net/http/httptest"
 
 	"github.com/0xERR0R/blocky/log"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spf13/cobra"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -14,11 +13,11 @@ import (
 
 var _ = Describe("Lists command", func() {
 	var (
-		ts         *httptest.Server
-		mockFn     func(w http.ResponseWriter, _ *http.Request)
-		loggerHook *test.Hook
-		c          *cobra.Command
-		err        error
+		ts     *httptest.Server
+		mockFn func(w http.ResponseWriter, _ *http.Request)
+		rec    *log.Recorder
+		c      *cobra.Command
+		err    error
 	)
 	JustBeforeEach(func() {
 		ts = testHTTPAPIServer(mockFn)
@@ -28,23 +27,17 @@ var _ = Describe("Lists command", func() {
 	})
 	BeforeEach(func() {
 		mockFn = func(w http.ResponseWriter, _ *http.Request) {}
-		loggerHook = test.NewGlobal()
-		log.Log().AddHook(loggerHook)
-	})
-	AfterEach(func() {
-		loggerHook.Reset()
+		var restore func()
+		rec, restore = log.CaptureGlobal()
+		DeferCleanup(restore)
 	})
 	Describe("Call list refresh command", func() {
 		When("list refresh is executed", func() {
-			BeforeEach(func() {
-				c = NewListsCommand()
-				c.SetArgs([]string{"refresh"})
-			})
 			It("should print result", func() {
-				err = c.Execute()
+				err = refreshList(withContext(newRefreshCommand()), nil)
 				Expect(err).Should(Succeed())
 
-				Expect(loggerHook.LastEntry().Message).Should(ContainSubstring("OK"))
+				Expect(rec.LastMessage()).Should(ContainSubstring("OK"))
 			})
 		})
 		When("Server returns 500", func() {

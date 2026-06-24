@@ -54,8 +54,8 @@ var _ = Describe("ConditionalUpstreamConfig", func() {
 		It("should log configuration", func() {
 			cfg.LogConfig(logger)
 
-			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("fritz.box = ")))
+			Expect(rec.Records()).ShouldNot(BeEmpty())
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("fritz.box = ")))
 		})
 	})
 

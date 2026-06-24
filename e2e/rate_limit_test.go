@@ -102,7 +102,10 @@ var _ = Describe("Per-client rate limiting", func() {
 					return false
 				}
 				for _, line := range lines {
-					if strings.Contains(line, "rate-limiting:") &&
+					// tint renders the logger prefix as a structured
+					// `prefix=rate-limiting` attribute (not a `rate-limiting:` message
+					// prefix), matching the documented fail2ban failregex.
+					if strings.Contains(line, "prefix=rate-limiting") &&
 						strings.Contains(line, "dropped query") &&
 						strings.Contains(line, "client_ip=") {
 						return true

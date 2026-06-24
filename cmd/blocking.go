@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/0xERR0R/blocky/api"
-	"github.com/0xERR0R/blocky/log"
 	"github.com/spf13/cobra"
 )
 
@@ -103,7 +103,7 @@ func statusBlocking(cmd *cobra.Command, _ []string) error {
 	}
 
 	if resp.JSON200.Enabled {
-		log.Log().Info("blocking enabled")
+		slog.Info("blocking enabled")
 	} else {
 		var groupNames string
 		if resp.JSON200.DisabledGroups != nil {
@@ -111,10 +111,10 @@ func statusBlocking(cmd *cobra.Command, _ []string) error {
 		}
 
 		if resp.JSON200.AutoEnableInSec == nil || *resp.JSON200.AutoEnableInSec == 0 {
-			log.Log().Infof("blocking disabled for groups: %s", groupNames)
+			slog.Info("blocking disabled for groups: " + groupNames)
 		} else {
-			log.Log().Infof("blocking disabled for groups: '%s', for %d seconds",
-				groupNames, *resp.JSON200.AutoEnableInSec)
+			slog.Info(fmt.Sprintf("blocking disabled for groups: '%s', for %d seconds",
+				groupNames, *resp.JSON200.AutoEnableInSec))
 		}
 	}
 

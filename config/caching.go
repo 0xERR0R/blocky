@@ -1,9 +1,9 @@
 package config
 
 import (
+	"fmt"
+	"log/slog"
 	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 // Caching configuration for domain caching
@@ -34,20 +34,20 @@ func (c *Caching) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *Caching) LogConfig(logger *logrus.Entry) {
-	logger.Infof("minTime = %s", c.MinCachingTime)
-	logger.Infof("maxTime = %s", c.MaxCachingTime)
-	logger.Infof("cacheTimeNegative = %s", c.CacheTimeNegative)
-	logger.Infof("exclude:")
+func (c *Caching) LogConfig(logger *slog.Logger) {
+	logger.Info(fmt.Sprintf("minTime = %s", c.MinCachingTime))
+	logger.Info(fmt.Sprintf("maxTime = %s", c.MaxCachingTime))
+	logger.Info(fmt.Sprintf("cacheTimeNegative = %s", c.CacheTimeNegative))
+	logger.Info("exclude:")
 	for _, val := range c.Exclude {
-		logger.Infof("- %v", val)
+		logger.Info(fmt.Sprintf("- %v", val))
 	}
 
 	if c.Prefetching {
-		logger.Infof("prefetching:")
-		logger.Infof("  expires   = %s", c.PrefetchExpires)
-		logger.Infof("  threshold = %d", c.PrefetchThreshold)
-		logger.Infof("  maxItems  = %d", c.PrefetchMaxItemsCount)
+		logger.Info("prefetching:")
+		logger.Info(fmt.Sprintf("  expires   = %s", c.PrefetchExpires))
+		logger.Info(fmt.Sprintf("  threshold = %d", c.PrefetchThreshold))
+		logger.Info(fmt.Sprintf("  maxItems  = %d", c.PrefetchMaxItemsCount))
 	} else {
 		logger.Debug("prefetching: disabled")
 	}

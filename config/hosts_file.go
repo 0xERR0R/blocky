@@ -1,9 +1,11 @@
 package config
 
 import (
+	"fmt"
+	"log/slog"
+
 	. "github.com/0xERR0R/blocky/config/migration"
 	"github.com/0xERR0R/blocky/log"
-	"github.com/sirupsen/logrus"
 )
 
 type HostsFile struct {
@@ -23,7 +25,7 @@ type HostsFile struct {
 	} `yaml:",inline"`
 }
 
-func (c *HostsFile) migrate(logger *logrus.Entry) bool {
+func (c *HostsFile) migrate(logger *slog.Logger) bool {
 	return Migrate(logger, "hostsFile", c.Deprecated, map[string]Migrator{
 		"refreshPeriod": Move(To("loading.refreshPeriod", &c.Loading)),
 		"filePath": Apply(To("sources", c), func(value BytesSource) {
@@ -38,9 +40,9 @@ func (c *HostsFile) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *HostsFile) LogConfig(logger *logrus.Entry) {
-	logger.Infof("TTL: %s", c.HostsTTL)
-	logger.Infof("filter loopback addresses: %t", c.FilterLoopback)
+func (c *HostsFile) LogConfig(logger *slog.Logger) {
+	logger.Info(fmt.Sprintf("TTL: %s", c.HostsTTL))
+	logger.Info(fmt.Sprintf("filter loopback addresses: %t", c.FilterLoopback))
 
 	logger.Info("loading:")
 	log.WithIndent(logger, "  ", c.Loading.LogConfig)
@@ -48,6 +50,6 @@ func (c *HostsFile) LogConfig(logger *logrus.Entry) {
 	logger.Info("sources:")
 
 	for _, source := range c.Sources {
-		logger.Infof("  - %s", source)
+		logger.Info(fmt.Sprintf("  - %s", source))
 	}
 }

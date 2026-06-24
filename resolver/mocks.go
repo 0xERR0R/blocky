@@ -6,9 +6,9 @@ package resolver
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/0xERR0R/blocky/model"
-	"github.com/sirupsen/logrus"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -130,7 +130,7 @@ func (_c *MockChainedResolver_IsEnabled_Call) RunAndReturn(run func() bool) *Moc
 }
 
 // LogConfig provides a mock function for the type MockChainedResolver
-func (_mock *MockChainedResolver) LogConfig(logger *logrus.Entry) {
+func (_mock *MockChainedResolver) LogConfig(logger *slog.Logger) {
 	_mock.Called(logger)
 	return
 }
@@ -141,16 +141,16 @@ type MockChainedResolver_LogConfig_Call struct {
 }
 
 // LogConfig is a helper method to define mock.On call
-//   - logger *logrus.Entry
+//   - logger *slog.Logger
 func (_e *MockChainedResolver_Expecter) LogConfig(logger interface{}) *MockChainedResolver_LogConfig_Call {
 	return &MockChainedResolver_LogConfig_Call{Call: _e.mock.On("LogConfig", logger)}
 }
 
-func (_c *MockChainedResolver_LogConfig_Call) Run(run func(logger *logrus.Entry)) *MockChainedResolver_LogConfig_Call {
+func (_c *MockChainedResolver_LogConfig_Call) Run(run func(logger *slog.Logger)) *MockChainedResolver_LogConfig_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 *logrus.Entry
+		var arg0 *slog.Logger
 		if args[0] != nil {
-			arg0 = args[0].(*logrus.Entry)
+			arg0 = args[0].(*slog.Logger)
 		}
 		run(
 			arg0,
@@ -164,7 +164,7 @@ func (_c *MockChainedResolver_LogConfig_Call) Return() *MockChainedResolver_LogC
 	return _c
 }
 
-func (_c *MockChainedResolver_LogConfig_Call) RunAndReturn(run func(logger *logrus.Entry)) *MockChainedResolver_LogConfig_Call {
+func (_c *MockChainedResolver_LogConfig_Call) RunAndReturn(run func(logger *slog.Logger)) *MockChainedResolver_LogConfig_Call {
 	_c.Run(run)
 	return _c
 }

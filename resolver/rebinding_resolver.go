@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"log/slog"
 	"net"
 
 	"github.com/0xERR0R/blocky/config"
@@ -93,8 +94,9 @@ func (r *RebindingProtectionResolver) Resolve(ctx context.Context, request *mode
 	}
 
 	_, logger := r.log(ctx)
-	logger.WithField(logFieldDomain, util.Obfuscate(domain)).
-		Debugf("dropped answer with non-public IP %s", util.Obfuscate(ip.String()))
+	logger.DebugContext(ctx, "dropped answer with non-public IP",
+		slog.String(logFieldDomain, util.Obfuscate(domain)),
+		slog.String("ip", util.Obfuscate(ip.String())))
 
 	// fixed reason: it becomes a Prometheus label via MetricsResolver, and the IP is
 	// attacker-chosen — embedding it would allow unbounded cardinality growth

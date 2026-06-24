@@ -1,22 +1,22 @@
 package config
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/0xERR0R/blocky/log"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/sirupsen/logrus"
 )
 
 var (
-	logger *logrus.Entry
-	hook   *log.MockLoggerHook
+	logger *slog.Logger
+	rec    *log.Recorder
 )
 
-func init() {
-	log.Silence()
-}
+var _ = BeforeSuite(func() {
+	log.ConfigureForTest(GinkgoWriter)
+})
 
 func TestConfig(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -25,6 +25,6 @@ func TestConfig(t *testing.T) {
 
 func suiteBeforeEach() {
 	BeforeEach(func() {
-		logger, hook = log.NewMockEntry()
+		logger, rec = log.NewRecorder()
 	})
 }

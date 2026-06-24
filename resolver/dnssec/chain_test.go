@@ -27,7 +27,7 @@ var _ = Describe("Chain of trust validation", func() {
 		Expect(err).Should(Succeed())
 
 		mockUpstream = &mockResolver{}
-		logger, _ := log.NewMockEntry()
+		logger, _ := log.NewRecorder()
 
 		sut = NewValidator(ctx, trustStore, logger, mockUpstream, 1, 10, 150, 30, 3600)
 		ctx = context.WithValue(ctx, queryBudgetKey{}, 10)
@@ -551,7 +551,7 @@ var _ = Describe("Chain of trust validation", func() {
 			Expect(err).Should(Succeed())
 			emptyTrustStore.anchors["."] = []*TrustAnchor{} // Clear root anchors
 
-			logger, _ := log.NewMockEntry()
+			logger, _ := log.NewRecorder()
 			validator := NewValidator(ctx, emptyTrustStore, logger, mockUpstream, 1, 10, 150, 30, 3600)
 
 			mockUpstream.ResolveFn = func(ctx context.Context, req *model.Request) (*model.Response, error) {

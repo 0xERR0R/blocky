@@ -2,9 +2,9 @@ package resolver
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/0xERR0R/blocky/model"
-	"github.com/sirupsen/logrus"
 )
 
 var NoResponse = &model.Response{} //nolint:gochecknoglobals
@@ -32,7 +32,7 @@ func (NoOpResolver) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (NoOpResolver) LogConfig(*logrus.Entry) {
+func (NoOpResolver) LogConfig(*slog.Logger) {
 }
 
 func (NoOpResolver) Resolve(context.Context, *model.Request) (*model.Response, error) {

@@ -50,9 +50,9 @@ var _ = Describe("RateLimitingResolver", func() {
 			sutConfig = config.RateLimit{Enable: true, Rate: 1, Burst: 1, IPv4Prefix: 32, IPv6Prefix: 64}
 		})
 		It("emits something", func() {
-			logger, hook := log.NewMockEntry()
+			logger, rec := log.NewRecorder()
 			sut.LogConfig(logger)
-			Expect(hook.Calls).ShouldNot(BeEmpty())
+			Expect(rec.Records()).ShouldNot(BeEmpty())
 		})
 	})
 
@@ -148,18 +148,18 @@ var _ = Describe("RateLimitingResolver", func() {
 
 		It("logs at most once per second per bucket", func() {
 			req := newRequestWithClient("example.com.", A, "1.2.3.4")
-			logger, hook := log.NewMockEntry()
+			logger, rec := log.NewRecorder()
 			sut.logger = logger
 
 			_, _ = sut.Resolve(ctx, req) // allowed
 			_, _ = sut.Resolve(ctx, req) // drop, log #1
 			_, _ = sut.Resolve(ctx, req) // drop in same second, no log
-			Expect(hook.Calls).Should(HaveLen(1))
+			Expect(rec.Records()).Should(HaveLen(1))
 
 			fakeNow = fakeNow.Add(2 * time.Second)
 			_, _ = sut.Resolve(ctx, req) // allowed (token refilled after 2 s)
 			_, _ = sut.Resolve(ctx, req) // drop, log #2 (window expired)
-			Expect(hook.Calls).Should(HaveLen(2))
+			Expect(rec.Records()).Should(HaveLen(2))
 		})
 
 		It("active-buckets gauge reflects store size", func() {

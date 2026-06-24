@@ -5,18 +5,18 @@ package migration
 
 import (
 	"fmt"
+	"log/slog"
 	"maps"
 	"reflect"
 	"strings"
 
 	"github.com/creasty/defaults"
-	"github.com/sirupsen/logrus"
 )
 
 // Migrate checks each field of `deprecated` to see if a migration can and should be run.
 //
 // Each field must be a pointer: this allows knowing if the user has set a value in the config.
-func Migrate(logger *logrus.Entry, optPrefix string, deprecated any, newOptions map[string]Migrator) bool {
+func Migrate(logger *slog.Logger, optPrefix string, deprecated any, newOptions map[string]Migrator) bool {
 	deprecatedVal := reflect.ValueOf(deprecated)
 	deprecatedTyp := deprecatedVal.Type()
 
@@ -54,20 +54,19 @@ func Migrate(logger *logrus.Entry, optPrefix string, deprecated any, newOptions 
 		val = val.Elem() // deref the pointer
 
 		if !migrator.dest.IsDefault() {
-			logger.
-				WithFields(logrus.Fields{
-					migrator.dest.Name(): migrator.dest.Value.Interface(),
-					oldName:              val.Interface(),
-				}).
-				Errorf(
+			logger.Error(
+				fmt.Sprintf(
 					"config options %q (new) and %q (deprecated) are both set, ignoring the deprecated one",
 					migrator.dest, oldName,
-				)
+				),
+				slog.Any(migrator.dest.Name(), migrator.dest.Value.Interface()),
+				slog.Any(oldName, val.Interface()),
+			)
 
 			continue
 		}
 
-		logger.Warnf("config option %q is deprecated, please use %q instead", oldName, migrator.dest)
+		logger.Warn(fmt.Sprintf("config option %q is deprecated, please use %q instead", oldName, migrator.dest))
 
 		migrator.apply(oldName, val)
 	}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -17,7 +18,6 @@ import (
 	"github.com/0xERR0R/blocky/lists/parsers"
 	"github.com/0xERR0R/blocky/log"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 
 	. "github.com/0xERR0R/blocky/helpertest"
@@ -408,12 +408,12 @@ var _ = Describe("ListCache", func() {
 	})
 	Describe("LogConfig", func() {
 		var (
-			logger *logrus.Entry
-			hook   *log.MockLoggerHook
+			logger *slog.Logger
+			rec    *log.Recorder
 		)
 
 		BeforeEach(func() {
-			logger, hook = log.NewMockEntry()
+			logger, rec = log.NewRecorder()
 
 			lists = map[string][]config.BytesSource{
 				"gr1": config.NewBytesSources(server1.URL, server2.URL),
@@ -426,8 +426,8 @@ var _ = Describe("ListCache", func() {
 			Expect(err).Should(Succeed())
 
 			sut.LogConfig(logger)
-			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).Should(ContainElements(
+			Expect(rec.Records()).ShouldNot(BeEmpty())
+			Expect(rec.Messages()).Should(ContainElements(
 				ContainSubstring("gr1:"),
 				ContainSubstring("gr2:"),
 				ContainSubstring("TOTAL:"),
@@ -595,7 +595,7 @@ func mockListSource() config.BytesSource {
 func createTestListFile(dir string, totalLines int) (string, int) {
 	file, err := os.CreateTemp(dir, "blocky")
 	if err != nil {
-		log.Log().Fatal(err)
+		Fail(fmt.Sprintf("failed to create temp file: %v", err))
 	}
 
 	w := bufio.NewWriter(file)

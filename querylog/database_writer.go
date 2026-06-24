@@ -3,6 +3,7 @@ package querylog
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strconv"
 	"strings"
@@ -22,6 +23,15 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+// slogPrintf wraps a *slog.Logger to satisfy gorm's logger.Writer interface.
+type slogPrintf struct {
+	l *slog.Logger
+}
+
+func (s slogPrintf) Printf(msg string, args ...any) {
+	s.l.Info(fmt.Sprintf(msg, args...))
+}
 
 type logEntry struct {
 	RequestTS     time.Time `gorm:"not null;index"`
@@ -71,7 +81,7 @@ func newDatabaseWriter(ctx context.Context, target gorm.Dialector, logRetentionD
 ) (*DatabaseWriter, error) {
 	db, err := gorm.Open(target, &gorm.Config{
 		Logger: logger.New(
-			log.Log(),
+			slogPrintf{log.PrefixedLog("database_writer")},
 			logger.Config{
 				SlowThreshold:             time.Minute,
 				LogLevel:                  logger.Warn,
@@ -215,7 +225,7 @@ func (d *DatabaseWriter) Write(entry *LogEntry) {
 func (d *DatabaseWriter) CleanUp() {
 	deletionDate := time.Now().AddDate(0, 0, int(-d.logRetentionDays)) //nolint:gosec // G115: correct via two's complement
 
-	log.PrefixedLog("database_writer").Debugf("deleting log entries with request_ts < %s", deletionDate)
+	log.PrefixedLog("database_writer").Debug(fmt.Sprintf("deleting log entries with request_ts < %s", deletionDate))
 	d.db.Where("request_ts < ?", deletionDate).Delete(&logEntry{})
 }
 
@@ -226,7 +236,7 @@ func (d *DatabaseWriter) doDBWrite() error {
 	var err *multierror.Error
 
 	if len(d.pendingEntries) > 0 {
-		log.Log().Tracef("%d entries to write", len(d.pendingEntries))
+		log.Log().Debug("entries to write", slog.Int("count", len(d.pendingEntries)))
 
 		const bulkSize = 100
 

@@ -3,10 +3,10 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/netip"
 
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
 )
 
 // DNS64 is the configuration for DNS64 resolver
@@ -25,13 +25,13 @@ func (c *DNS64) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *DNS64) LogConfig(logger *logrus.Entry) {
+func (c *DNS64) LogConfig(logger *slog.Logger) {
 	if len(c.Prefixes) == 0 {
 		logger.Info("prefixes: [64:ff9b::/96] (default)")
 	} else {
 		logger.Info("prefixes:")
 		for _, prefix := range c.Prefixes {
-			logger.Infof("  - %s", prefix.String())
+			logger.Info("  - " + prefix.String())
 		}
 	}
 
@@ -40,13 +40,13 @@ func (c *DNS64) LogConfig(logger *logrus.Entry) {
 	} else {
 		logger.Info("exclusionSet (custom):")
 		for _, prefix := range c.ExclusionSet {
-			logger.Infof("  - %s", prefix.String())
+			logger.Info("  - " + prefix.String())
 		}
 	}
 }
 
 // validate checks DNS64 configuration for conflicts and validity
-func (c *DNS64) validate(logger *logrus.Entry, filtering *Filtering, caching *Caching) error {
+func (c *DNS64) validate(logger *slog.Logger, filtering *Filtering, caching *Caching) error {
 	if !c.Enable {
 		return nil
 	}

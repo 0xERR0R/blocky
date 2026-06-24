@@ -6,7 +6,6 @@ import (
 
 	"github.com/0xERR0R/blocky/evt"
 	"github.com/0xERR0R/blocky/lists"
-	"github.com/0xERR0R/blocky/util"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -192,5 +191,7 @@ func prefetchDomainCacheCount() prometheus.Gauge {
 }
 
 func subscribe(topic string, fn any) {
-	util.FatalOnError(fmt.Sprintf("can't subscribe topic '%s'", topic), evt.Bus().Subscribe(topic, fn))
+	if err := evt.Bus().Subscribe(topic, fn); err != nil {
+		panic(fmt.Sprintf("can't subscribe topic '%s': %v", topic, err))
+	}
 }

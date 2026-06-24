@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -88,7 +89,10 @@ func (r *StatsResolver) consume(ctx context.Context) {
 // same event bus the metrics package uses.
 func (r *StatsResolver) subscribeEvents() {
 	subscribe := func(topic string, fn any) {
-		util.FatalOnError(fmt.Sprintf("can't subscribe topic '%s'", topic), evt.Bus().Subscribe(topic, fn))
+		if err := evt.Bus().Subscribe(topic, fn); err != nil {
+			panic(fmt.Sprintf("can't subscribe topic '%s': %v", topic, err))
+		}
+
 		r.subscriptions = append(r.subscriptions, busSubscription{topic: topic, handler: fn})
 	}
 
@@ -149,8 +153,8 @@ func (r *StatsResolver) send(ctx context.Context, s stats.Sample) {
 	default:
 		if n := r.dropped.Add(1); isPowerOfTen(n) {
 			_, logger := r.log(ctx)
-			logger.Warnf("statistics sample buffer (%d) full; dropped %d sample(s) so far, stats undercount under load",
-				statsChannelBuffer, n)
+			logger.WarnContext(ctx, "statistics sample buffer full, stats undercount under load",
+				slog.Int("buffer_size", statsChannelBuffer), slog.Uint64("dropped", n))
 		}
 	}
 }

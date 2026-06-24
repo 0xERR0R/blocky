@@ -2,10 +2,10 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"strconv"
 	"time"
 
-	"github.com/0xERR0R/blocky/log"
 	"github.com/hako/durafmt"
 )
 
@@ -50,7 +50,7 @@ func (c *Duration) UnmarshalText(data []byte) error {
 		// number without unit: use minutes to ensure back compatibility
 		*c = Duration(time.Duration(minutes) * time.Minute)
 
-		log.Log().Warnf("Setting a duration without a unit is deprecated. Please use '%s min' instead.", input)
+		slog.Warn(fmt.Sprintf("Setting a duration without a unit is deprecated. Please use '%s min' instead.", input))
 
 		return nil
 	}

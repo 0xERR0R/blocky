@@ -2,12 +2,11 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"unicode"
 
 	"github.com/0xERR0R/blocky/util"
-
-	"github.com/sirupsen/logrus"
 )
 
 // RebindingProtection drops answers from the general upstream resolvers that contain
@@ -27,11 +26,11 @@ func (c *RebindingProtection) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *RebindingProtection) LogConfig(logger *logrus.Entry) {
-	logger.Infof("allowed domains (%d):", len(c.AllowedDomains))
+func (c *RebindingProtection) LogConfig(logger *slog.Logger) {
+	logger.Info("allowed domains", slog.Int("count", len(c.AllowedDomains)))
 
 	for _, domain := range c.AllowedDomains {
-		logger.Infof("  - %s", domain)
+		logger.Info("  - " + domain)
 	}
 }
 

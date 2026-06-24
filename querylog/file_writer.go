@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/util"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -57,7 +57,7 @@ func (d *FileWriter) Write(entry *LogEntry) {
 
 	file, err := os.OpenFile(writePath, os.O_APPEND|os.O_CREATE|os.O_RDWR, filePermission)
 
-	util.LogOnErrorWithEntry(log.PrefixedLog(loggerPrefixFileWriter).WithField("file_name", writePath),
+	util.LogOnErrorWithEntry(log.PrefixedLog(loggerPrefixFileWriter).With("file_name", writePath),
 		"can't create/open file", err)
 
 	if err == nil {
@@ -65,7 +65,7 @@ func (d *FileWriter) Write(entry *LogEntry) {
 		writer := createCsvWriter(file)
 
 		err := writer.Write(createQueryLogRow(entry))
-		util.LogOnErrorWithEntry(log.PrefixedLog(loggerPrefixFileWriter).WithField("file_name", writePath),
+		util.LogOnErrorWithEntry(log.PrefixedLog(loggerPrefixFileWriter).With("file_name", writePath),
 			"can't write to file", err)
 		writer.Flush()
 	}
@@ -77,11 +77,11 @@ func (d *FileWriter) CleanUp() {
 
 	logger := log.PrefixedLog(loggerPrefixFileWriter)
 
-	logger.Trace("starting clean up")
+	logger.Debug("starting clean up")
 
 	files, err := os.ReadDir(d.target)
 
-	util.LogOnErrorWithEntry(logger.WithField("target", d.target), "can't list log directory: ", err)
+	util.LogOnErrorWithEntry(logger.With("target", d.target), "can't list log directory: ", err)
 
 	// search for log files, which names starts with date
 	for _, f := range files {
@@ -90,14 +90,13 @@ func (d *FileWriter) CleanUp() {
 			if err == nil {
 				differenceDays := uint64(time.Since(t).Hours() / hoursPerDay)
 				if d.logRetentionDays > 0 && differenceDays > d.logRetentionDays {
-					logger.WithFields(logrus.Fields{
-						"file":             f.Name(),
-						"ageInDays":        differenceDays,
-						"logRetentionDays": d.logRetentionDays,
-					}).Info("existing log file is older than retention time and will be deleted")
+					logger.Info("existing log file is older than retention time and will be deleted",
+						slog.String("file", f.Name()),
+						slog.Uint64("ageInDays", differenceDays),
+						slog.Uint64("logRetentionDays", d.logRetentionDays))
 
 					err := os.Remove(filepath.Join(d.target, f.Name()))
-					util.LogOnErrorWithEntry(logger.WithField("file", f.Name()), "can't remove file: ", err)
+					util.LogOnErrorWithEntry(logger.With("file", f.Name()), "can't remove file: ", err)
 				}
 			}
 		}

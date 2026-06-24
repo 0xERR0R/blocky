@@ -69,14 +69,14 @@ var _ = Describe("ECS", func() {
 
 	Describe("LogConfig", func() {
 		BeforeEach(func() {
-			logger, hook = log.NewMockEntry()
+			logger, rec = log.NewRecorder()
 		})
 
 		It("should log configuration", func() {
 			c.LogConfig(logger)
 
-			Expect(hook.Calls).Should(HaveLen(4))
-			Expect(hook.Messages).Should(ContainElements(
+			Expect(rec.Records()).Should(HaveLen(4))
+			Expect(rec.Messages()).Should(ContainElements(
 				ContainSubstring("Use as client"),
 				ContainSubstring("Forward"),
 				ContainSubstring("IPv4 netmask"),

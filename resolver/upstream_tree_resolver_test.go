@@ -112,9 +112,9 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 			It("should return configuration", func() {
 				Expect(sut.IsEnabled()).Should(BeTrue())
 
-				logger, hook := log.NewMockEntry()
+				logger, rec := log.NewRecorder()
 				sut.LogConfig(logger)
-				Expect(hook.Calls).ToNot(BeEmpty())
+				Expect(rec.Records()).ToNot(BeEmpty())
 			})
 		})
 
@@ -266,9 +266,12 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 						))
 			})
 			It("Should use one of the matching resolvers & log warning", func() {
-				logger, hook := log.NewMockEntry()
-
-				ctx, _ = log.NewCtx(ctx, logger)
+				rec, restore := log.CaptureGlobal()
+				DeferCleanup(restore)
+				// Reconstruct sut so its logger binds the captured global
+				var err error
+				sut, err = NewUpstreamTreeResolver(ctx, sutConfig, systemResolverBootstrap)
+				Expect(err).Should(Succeed())
 
 				Expect(sut.Resolve(ctx, newRequestWithClient("example.com.", A, "0.0.0.0", "name-matches1"))).
 					Should(
@@ -281,7 +284,7 @@ var _ = Describe("UpstreamTreeResolver", Label("upstreamTreeResolver"), func() {
 							HaveReturnCode(dns.RcodeSuccess),
 						))
 
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("client matches multiple groups")))
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("client matches multiple groups")))
 			})
 		})
 	})

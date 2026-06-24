@@ -2,13 +2,13 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"maps"
 	"slices"
 	"strings"
 
 	. "github.com/0xERR0R/blocky/config/migration"
 	"github.com/0xERR0R/blocky/log"
-	"github.com/sirupsen/logrus"
 )
 
 // Blocking configuration for query blocking
@@ -45,7 +45,7 @@ type Blocking struct {
 	} `yaml:",inline"`
 }
 
-func (c *Blocking) migrate(logger *logrus.Entry) bool {
+func (c *Blocking) migrate(logger *slog.Logger) bool {
 	return Migrate(logger, "blocking", c.Deprecated, map[string]Migrator{
 		"blackLists":       Move(To("denylists", c)),
 		"whiteLists":       Move(To("allowlists", c)),
@@ -70,11 +70,11 @@ func (c *Blocking) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *Blocking) LogConfig(logger *logrus.Entry) {
+func (c *Blocking) LogConfig(logger *slog.Logger) {
 	logger.Info("clientGroupsBlock:")
 
 	for key, val := range c.ClientGroupsBlock {
-		logger.Infof("  %s = %v", key, val)
+		logger.Info(fmt.Sprintf("  %s = %v", key, val))
 	}
 
 	if len(c.Schedules) > 0 {
@@ -82,9 +82,9 @@ func (c *Blocking) LogConfig(logger *logrus.Entry) {
 
 		for name, sched := range c.Schedules {
 			if sched.Start == "" && sched.End == "" {
-				logger.Infof("  %s: all day (weekdays: %v)", name, sched.Weekdays)
+				logger.Info(fmt.Sprintf("  %s: all day (weekdays: %v)", name, sched.Weekdays))
 			} else {
-				logger.Infof("  %s: %s - %s (weekdays: %v)", name, sched.Start, sched.End, sched.Weekdays)
+				logger.Info(fmt.Sprintf("  %s: %s - %s (weekdays: %v)", name, sched.Start, sched.End, sched.Weekdays))
 			}
 		}
 	}
@@ -93,33 +93,33 @@ func (c *Blocking) LogConfig(logger *logrus.Entry) {
 		logger.Info("listSchedules:")
 
 		for list, scheds := range c.ListSchedules {
-			logger.Infof("  %s = %v", list, scheds)
+			logger.Info(fmt.Sprintf("  %s = %v", list, scheds))
 		}
 	}
 
-	logger.Infof("blockType = %s", c.BlockType)
-	logger.Infof("blockTTL = %s", c.BlockTTL)
+	logger.Info("blockType = " + c.BlockType)
+	logger.Info(fmt.Sprintf("blockTTL = %s", c.BlockTTL))
 
 	logger.Info("loading:")
 	log.WithIndent(logger, "  ", c.Loading.LogConfig)
 
 	logger.Info("denylists:")
-	log.WithIndent(logger, "  ", func(logger *logrus.Entry) {
+	log.WithIndent(logger, "  ", func(logger *slog.Logger) {
 		c.logListGroups(logger, c.Denylists)
 	})
 
 	logger.Info("allowlists:")
-	log.WithIndent(logger, "  ", func(logger *logrus.Entry) {
+	log.WithIndent(logger, "  ", func(logger *slog.Logger) {
 		c.logListGroups(logger, c.Allowlists)
 	})
 }
 
-func (c *Blocking) logListGroups(logger *logrus.Entry, listGroups map[string][]BytesSource) {
+func (c *Blocking) logListGroups(logger *slog.Logger, listGroups map[string][]BytesSource) {
 	for group, sources := range listGroups {
-		logger.Infof("%s:", group)
+		logger.Info(group + ":")
 
 		for _, source := range sources {
-			logger.Infof("   - %s", source)
+			logger.Info(fmt.Sprintf("   - %s", source))
 		}
 	}
 }

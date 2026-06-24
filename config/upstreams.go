@@ -1,8 +1,10 @@
 package config
 
 import (
+	"fmt"
+	"log/slog"
+
 	"github.com/0xERR0R/blocky/log"
-	"github.com/sirupsen/logrus"
 )
 
 const UpstreamDefaultCfgName = "default"
@@ -45,22 +47,22 @@ func (c *Upstreams) hasQuicUpstream() bool {
 	return false
 }
 
-func (c *Upstreams) validate(logger *logrus.Entry) {
+func (c *Upstreams) validate(logger *slog.Logger) {
 	defaults := mustDefault[Upstreams]()
 
 	if !c.Timeout.IsAboveZero() {
-		logger.Warnf("upstreams.timeout <= 0, setting to %s", defaults.Timeout)
+		logger.Warn(fmt.Sprintf("upstreams.timeout <= 0, setting to %s", defaults.Timeout))
 		c.Timeout = defaults.Timeout
 	}
 
 	if c.hasQuicUpstream() {
 		if !c.QUIC.MaxIdleTimeout.IsAboveZero() {
-			logger.Warnf("upstreams.quic.maxIdleTimeout <= 0, setting to %s", defaults.QUIC.MaxIdleTimeout)
+			logger.Warn(fmt.Sprintf("upstreams.quic.maxIdleTimeout <= 0, setting to %s", defaults.QUIC.MaxIdleTimeout))
 			c.QUIC.MaxIdleTimeout = defaults.QUIC.MaxIdleTimeout
 		}
 
 		if !c.QUIC.KeepAlivePeriod.IsAboveZero() {
-			logger.Warnf("upstreams.quic.keepAlivePeriod <= 0, setting to %s", defaults.QUIC.KeepAlivePeriod)
+			logger.Warn(fmt.Sprintf("upstreams.quic.keepAlivePeriod <= 0, setting to %s", defaults.QUIC.KeepAlivePeriod))
 			c.QUIC.KeepAlivePeriod = defaults.QUIC.KeepAlivePeriod
 		}
 
@@ -76,26 +78,26 @@ func (c *Upstreams) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *Upstreams) LogConfig(logger *logrus.Entry) {
+func (c *Upstreams) LogConfig(logger *slog.Logger) {
 	logger.Info("init:")
 	log.WithIndent(logger, "  ", c.Init.LogConfig)
 
-	logger.Info("timeout: ", c.Timeout)
-	logger.Info("strategy: ", c.Strategy)
+	logger.Info(fmt.Sprintf("timeout: %s", c.Timeout))
+	logger.Info(fmt.Sprintf("strategy: %s", c.Strategy))
 	logger.Info("groups:")
 
 	for name, upstreams := range c.Groups {
-		logger.Infof("  %s:", name)
+		logger.Info(fmt.Sprintf("  %s:", name))
 
 		for _, upstream := range upstreams {
-			logger.Infof("    - %s", upstream)
+			logger.Info(fmt.Sprintf("    - %s", upstream))
 		}
 	}
 
 	if c.hasQuicUpstream() {
 		logger.Info("quic:")
-		logger.Info("  maxIdleTimeout: ", c.QUIC.MaxIdleTimeout)
-		logger.Info("  keepAlivePeriod: ", c.QUIC.KeepAlivePeriod)
+		logger.Info(fmt.Sprintf("  maxIdleTimeout: %s", c.QUIC.MaxIdleTimeout))
+		logger.Info(fmt.Sprintf("  keepAlivePeriod: %s", c.QUIC.KeepAlivePeriod))
 	}
 }
 
@@ -130,11 +132,11 @@ func (c *UpstreamGroup) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *UpstreamGroup) LogConfig(logger *logrus.Entry) {
-	logger.Info("group: ", c.Name)
+func (c *UpstreamGroup) LogConfig(logger *slog.Logger) {
+	logger.Info("group: " + c.Name)
 	logger.Info("upstreams:")
 
 	for _, upstream := range c.GroupUpstreams() {
-		logger.Infof("  - %s", upstream)
+		logger.Info(fmt.Sprintf("  - %s", upstream))
 	}
 }

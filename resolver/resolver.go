@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 	"time"
@@ -13,8 +14,6 @@ import (
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
-
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -168,55 +167,49 @@ func ForEach(resolver Resolver, callback func(Resolver)) {
 }
 
 // LogResolverConfig logs the resolver's type and config.
-func LogResolverConfig(res Resolver, logger *logrus.Entry) {
+func LogResolverConfig(res Resolver, logger *slog.Logger) {
 	// Use the type, not the full typeName, to avoid redundant information with the config
 	typeName := res.Type()
 
 	if !res.IsEnabled() {
-		logger.Debugf("-> %s: disabled", typeName)
+		logger.Debug(fmt.Sprintf("-> %s: disabled", typeName))
 
 		return
 	}
 
-	logger.Infof("-> %s:", typeName)
+	logger.Info(fmt.Sprintf("-> %s:", typeName))
 	log.WithIndent(logger, "     ", res.LogConfig)
 }
 
 // Should be embedded in a Resolver to auto-implement `Resolver.Type`.
 type typed struct {
 	typeName string
+	logger   *slog.Logger
 }
 
 func withType(t string) typed {
-	return typed{typeName: t}
+	return typed{typeName: t, logger: log.PrefixedLog(t)}
 }
 
 // Type implements `Resolver`.
-func (t *typed) Type() string {
-	return t.typeName
-}
+func (t *typed) Type() string { return t.typeName }
 
 // String implements `fmt.Stringer`.
-func (t *typed) String() string {
-	return t.Type()
+func (t *typed) String() string { return t.Type() }
+
+// log returns the resolver's construction-time prefixed logger, bound to ctx so
+// request-scoped fields (req_id, client_ip, question) are emitted even on the
+// non-Context methods (logger.Debug/Info/...). ctx is returned unchanged for
+// call-site compatibility.
+func (t *typed) log(ctx context.Context) (context.Context, *slog.Logger) {
+	return ctx, log.WithContext(ctx, t.logger)
 }
 
-func (t *typed) log(ctx context.Context) (context.Context, *logrus.Entry) {
-	return t.logWith(ctx, func(logger *logrus.Entry) *logrus.Entry { return logger })
-}
-
-func (t *typed) logWithFields(ctx context.Context, fields logrus.Fields) (context.Context, *logrus.Entry) {
-	return t.logWith(ctx, func(logger *logrus.Entry) *logrus.Entry {
-		return logger.WithFields(fields)
-	})
-}
-
-func (t *typed) logWith(ctx context.Context, wrap func(*logrus.Entry) *logrus.Entry) (context.Context, *logrus.Entry) {
-	return log.WrapCtx(ctx, func(logger *logrus.Entry) *logrus.Entry {
-		logger = log.WithPrefix(logger, t.Type())
-
-		return wrap(logger)
-	})
+// logWithFields returns the resolver's ctx-bound logger with extra attrs
+// attached. WithContextFields builds the bound, attr-carrying handler in one pass,
+// consuming the []slog.Attr directly (no any-boxing, no throwaway logger).
+func (t *typed) logWithFields(ctx context.Context, attrs ...slog.Attr) (context.Context, *slog.Logger) {
+	return ctx, log.WithContextFields(ctx, t.logger, attrs...)
 }
 
 // Should be embedded in a Resolver to auto-implement `config.Configurable`.
@@ -234,12 +227,12 @@ func (c *configurable[T]) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *configurable[T]) LogConfig(logger *logrus.Entry) {
+func (c *configurable[T]) LogConfig(logger *slog.Logger) {
 	c.cfg.LogConfig(logger)
 }
 
 type initializable interface {
-	log(ctx context.Context) (context.Context, *logrus.Entry)
+	log(ctx context.Context) (context.Context, *slog.Logger)
 	setResolvers(resolvers []*upstreamResolverStatus)
 }
 
@@ -260,7 +253,7 @@ func initGroupResolvers[T initializable](
 	onErr := func(err error) {
 		_, logger := r.log(ctx)
 
-		logger.WithError(err).Error("upstream verification error, will continue to use bootstrap DNS")
+		logger.ErrorContext(ctx, "upstream verification error, will continue to use bootstrap DNS", log.AttrError(err))
 	}
 
 	err := cfg.Init.Strategy.Do(ctx, init, onErr)

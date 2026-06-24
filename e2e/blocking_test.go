@@ -64,8 +64,12 @@ var _ = Describe("Domain blocking functionality", func() {
 								HaveTTL(BeNumerically("==", 123)),
 							))
 
-					// Verify warning in logs
-					Expect(getContainerLogs(ctx, blocky)).Should(ContainElement(ContainSubstring("cannot open source: ")))
+					// Verify warning in logs. The failing source URL is now a structured
+					// `source=` attribute rather than inline in the message text.
+					Expect(getContainerLogs(ctx, blocky)).Should(ContainElement(SatisfyAll(
+						ContainSubstring("cannot open source"),
+						ContainSubstring("source=http://wrong.domain.url/list.txt"),
+					)))
 				})
 			})
 

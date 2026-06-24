@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"log/slog"
 	"net"
 
 	"github.com/0xERR0R/blocky/log"
@@ -8,17 +9,16 @@ import (
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/sirupsen/logrus"
 )
 
 var _ = Describe("RewriteHelper", func() {
 	var (
-		logger     *logrus.Entry
+		logger     *slog.Logger
 		rewriteMap map[string]string
 	)
 
 	BeforeEach(func() {
-		logger = logrus.NewEntry(log.Log())
+		logger = log.Log()
 	})
 
 	BeforeEach(func() {

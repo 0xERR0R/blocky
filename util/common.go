@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"io"
+	"log/slog"
 	"net"
 	"path/filepath"
 	"regexp"
@@ -15,7 +15,6 @@ import (
 	"github.com/0xERR0R/blocky/log"
 
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
 )
 
 //nolint:gochecknoglobals
@@ -79,6 +78,44 @@ func QuestionToString(questions []dns.Question) string {
 	return Obfuscate(strings.Join(result, ", "))
 }
 
+// QuestionLogValuer defers QuestionToString formatting until a log record is
+// actually emitted (implements slog.LogValuer). Use as:
+//
+//	slog.Any("question", util.QuestionLogValuer{Questions: req.Question})
+type QuestionLogValuer struct {
+	Questions []dns.Question
+}
+
+func (v QuestionLogValuer) LogValue() slog.Value {
+	return slog.StringValue(QuestionToString(v.Questions))
+}
+
+// AnswerLogValuer defers (and obfuscates) AnswerToString formatting until a log
+// record is actually emitted (implements slog.LogValuer), so the work is skipped
+// entirely when the level is disabled. Use as:
+//
+//	slog.Any("answer", util.AnswerLogValuer{Answers: resp.Answer})
+type AnswerLogValuer struct {
+	Answers []dns.RR
+}
+
+func (v AnswerLogValuer) LogValue() slog.Value {
+	return slog.StringValue(Obfuscate(AnswerToString(v.Answers)))
+}
+
+// DomainLogValuer defers (and obfuscates) a domain name until a log record is
+// actually emitted (implements slog.LogValuer), so Obfuscate is skipped entirely
+// when the level is disabled. Use as:
+//
+//	slog.Any("domain", util.DomainLogValuer{Domain: domain})
+type DomainLogValuer struct {
+	Domain string
+}
+
+func (v DomainLogValuer) LogValue() slog.Value {
+	return slog.StringValue(Obfuscate(v.Domain))
+}
+
 // CreateAnswerFromQuestion creates new answer from a question
 func CreateAnswerFromQuestion(question dns.Question, ip net.IP, remainingTTL uint32) (dns.RR, error) {
 	h := CreateHeader(question, remainingTTL)
@@ -98,7 +135,7 @@ func CreateAnswerFromQuestion(question dns.Question, ip net.IP, remainingTTL uin
 		return a, nil
 	}
 
-	log.Log().Errorf("Using fallback for unsupported query type %s", dns.TypeToString[question.Qtype])
+	log.Log().Error("Using fallback for unsupported query type", slog.String("type", dns.TypeToString[question.Qtype]))
 
 	rr, err := dns.NewRR(fmt.Sprintf("%s %d %s %s %s",
 		question.Name, remainingTTL, "IN", dns.TypeToString[question.Qtype], ip))
@@ -191,31 +228,16 @@ func IterateValueSorted(in map[string]int, fn func(string, int)) {
 	}
 }
 
-// LogOnError logs the message only if error is not nil
+// LogOnError logs the message only if error is not nil, using the ctx-bound
+// logger so request-scoped fields are included.
 func LogOnError(ctx context.Context, message string, err error) {
-	if err != nil {
-		log.FromCtx(ctx).Error(message, err)
-	}
+	LogOnErrorWithEntry(log.FromCtx(ctx), message, err)
 }
 
 // LogOnErrorWithEntry logs the message only if error is not nil
-func LogOnErrorWithEntry(logEntry *logrus.Entry, message string, err error) {
+func LogOnErrorWithEntry(logEntry *slog.Logger, message string, err error) {
 	if err != nil {
-		logEntry.Error(message, err)
-	}
-}
-
-// FatalOnError logs the message only if error is not nil and exits the program execution
-func FatalOnError(message string, err error) {
-	if err != nil {
-		logger := log.Log()
-
-		// Make sure the error is printend even if the log has been silenced
-		if logger.Out == io.Discard {
-			log.ConfigureLogger(logger, log.DefaultConfig())
-		}
-
-		logger.Fatal(message, err)
+		logEntry.Error(message, log.AttrError(err))
 	}
 }
 

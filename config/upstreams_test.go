@@ -53,8 +53,8 @@ var _ = Describe("ParallelBestConfig", func() {
 			It("should log configuration", func() {
 				cfg.LogConfig(logger)
 
-				Expect(hook.Calls).ShouldNot(BeEmpty())
-				Expect(hook.Messages).Should(ContainElements(
+				Expect(rec.Records()).ShouldNot(BeEmpty())
+				Expect(rec.Messages()).Should(ContainElements(
 					ContainSubstring("timeout:"),
 					ContainSubstring("groups:"),
 					ContainSubstring(":host2:"),
@@ -75,7 +75,7 @@ var _ = Describe("ParallelBestConfig", func() {
 
 					cfg.LogConfig(logger)
 
-					Expect(hook.Messages).Should(ContainElements(
+					Expect(rec.Messages()).Should(ContainElements(
 						ContainSubstring("quic:"),
 						ContainSubstring("maxIdleTimeout:"),
 						ContainSubstring("keepAlivePeriod:"),
@@ -92,14 +92,14 @@ var _ = Describe("ParallelBestConfig", func() {
 
 				Expect(cfg.Timeout).Should(BeNumerically(">", 0))
 
-				Expect(hook.Calls).ShouldNot(BeEmpty())
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("timeout")))
+				Expect(rec.Records()).ShouldNot(BeEmpty())
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("timeout")))
 			})
 
 			It("should not override valid user values", func() {
 				cfg.validate(logger)
 
-				Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("timeout")))
+				Expect(rec.Messages()).ShouldNot(ContainElement(ContainSubstring("timeout")))
 			})
 
 			When("QUIC upstream is configured", func() {
@@ -118,7 +118,7 @@ var _ = Describe("ParallelBestConfig", func() {
 					cfg.validate(logger)
 
 					Expect(cfg.QUIC.MaxIdleTimeout).Should(BeNumerically(">", 0))
-					Expect(hook.Messages).Should(ContainElement(ContainSubstring("maxIdleTimeout")))
+					Expect(rec.Messages()).Should(ContainElement(ContainSubstring("maxIdleTimeout")))
 				})
 
 				It("should warn when QUIC keepAlivePeriod is not above zero", func() {
@@ -128,7 +128,7 @@ var _ = Describe("ParallelBestConfig", func() {
 					cfg.validate(logger)
 
 					Expect(cfg.QUIC.KeepAlivePeriod).Should(BeNumerically(">", 0))
-					Expect(hook.Messages).Should(ContainElement(ContainSubstring("keepAlivePeriod")))
+					Expect(rec.Messages()).Should(ContainElement(ContainSubstring("keepAlivePeriod")))
 				})
 
 				It("should warn when keepAlivePeriod >= maxIdleTimeout", func() {
@@ -137,7 +137,7 @@ var _ = Describe("ParallelBestConfig", func() {
 
 					cfg.validate(logger)
 
-					Expect(hook.Messages).Should(ContainElement(ContainSubstring("keep-alive won't prevent idle timeout")))
+					Expect(rec.Messages()).Should(ContainElement(ContainSubstring("keep-alive won't prevent idle timeout")))
 				})
 			})
 		})
@@ -183,8 +183,8 @@ var _ = Describe("ParallelBestConfig", func() {
 			It("should log configuration", func() {
 				cfg.LogConfig(logger)
 
-				Expect(hook.Calls).ShouldNot(BeEmpty())
-				Expect(hook.Messages).Should(ContainElements(
+				Expect(rec.Records()).ShouldNot(BeEmpty())
+				Expect(rec.Messages()).Should(ContainElements(
 					ContainSubstring("group: test"),
 					ContainSubstring("upstreams:"),
 					ContainSubstring(":host1:"),

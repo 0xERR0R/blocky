@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -15,7 +16,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -86,7 +86,7 @@ type RedisExpiringCache[T any] struct {
 	opts       RedisOptions[T]
 	instanceID string
 	sendBuf    chan sendBufferEntry[T]
-	logger     *logrus.Entry
+	logger     *slog.Logger
 }
 
 // NewRedisExpiringByteCache creates a RedisExpiringCache for []byte values,
@@ -155,7 +155,7 @@ func NewRedisExpiringCache[T any](
 
 	// Blocking startup load.
 	if err := c.loadFromRedis(ctx); err != nil {
-		c.logger.WithError(err).Warn("startup Redis scan failed – starting with empty local cache")
+		c.logger.WarnContext(ctx, "startup Redis scan failed – starting with empty local cache", log.AttrError(err))
 	}
 
 	go c.runSubscriber(ctx)
@@ -225,7 +225,7 @@ func (c *RedisExpiringCache[T]) Clear() {
 		return c.client.Del(ctx, keys...).Err()
 	})
 	if err != nil {
-		c.logger.WithError(err).Warn("Redis Clear failed")
+		c.logger.Warn("Redis Clear failed", log.AttrError(err))
 	}
 }
 
@@ -269,7 +269,7 @@ func (c *RedisExpiringCache[T]) scanKeys(
 func (c *RedisExpiringCache[T]) loadFromRedis(ctx context.Context) error {
 	return c.scanKeys(ctx, func(ctx context.Context, keys []string) error {
 		if err := c.loadKeysViaPipeline(ctx, keys); err != nil {
-			c.logger.WithError(err).Warn("pipeline load failed for SCAN page")
+			c.logger.WarnContext(ctx, "pipeline load failed for SCAN page", log.AttrError(err))
 		}
 
 		return nil
@@ -305,7 +305,7 @@ func (c *RedisExpiringCache[T]) loadKeysViaPipeline(ctx context.Context, keys []
 
 		val, err := c.opts.Decode(data)
 		if err != nil {
-			c.logger.WithError(err).Warn("failed to decode Redis entry on startup")
+			c.logger.WarnContext(ctx, "failed to decode Redis entry on startup", log.AttrError(err))
 
 			continue
 		}
@@ -380,7 +380,7 @@ func (c *RedisExpiringCache[T]) flushBatch(ctx context.Context, batch []sendBuff
 	for _, e := range batch {
 		data, err := c.opts.Encode(e.val)
 		if err != nil {
-			c.logger.WithError(err).Warn("failed to encode cache entry for Redis")
+			c.logger.WarnContext(ctx, "failed to encode cache entry for Redis", log.AttrError(err))
 
 			continue
 		}
@@ -394,7 +394,7 @@ func (c *RedisExpiringCache[T]) flushBatch(ctx context.Context, batch []sendBuff
 	}
 
 	if _, err := pipe.Exec(ctx); err != nil && ctx.Err() == nil {
-		c.logger.WithError(err).Warn("Redis pipeline exec failed")
+		c.logger.WarnContext(ctx, "Redis pipeline exec failed", log.AttrError(err))
 	}
 
 	if len(syncEntries) == 0 || c.opts.Channel == "" {
@@ -408,13 +408,13 @@ func (c *RedisExpiringCache[T]) flushBatch(ctx context.Context, batch []sendBuff
 
 	payload, err := json.Marshal(msg)
 	if err != nil {
-		c.logger.WithError(err).Warn("failed to marshal sync message")
+		c.logger.WarnContext(ctx, "failed to marshal sync message", log.AttrError(err))
 
 		return
 	}
 
 	if err := c.client.Publish(ctx, c.opts.Channel, payload).Err(); err != nil && ctx.Err() == nil {
-		c.logger.WithError(err).Warn("Redis PUBLISH failed")
+		c.logger.WarnContext(ctx, "Redis PUBLISH failed", log.AttrError(err))
 	}
 }
 
@@ -443,7 +443,7 @@ func (c *RedisExpiringCache[T]) runSubscriber(ctx context.Context) {
 func (c *RedisExpiringCache[T]) handleSyncMessage(ctx context.Context, payload []byte) {
 	var msg redisSyncMessage
 	if err := json.Unmarshal(payload, &msg); err != nil {
-		c.logger.WithError(err).Warn("failed to decode sync message")
+		c.logger.WarnContext(ctx, "failed to decode sync message", log.AttrError(err))
 
 		return
 	}
@@ -460,7 +460,7 @@ func (c *RedisExpiringCache[T]) handleSyncMessage(ctx context.Context, payload [
 	}
 
 	if _, err := pipe.Exec(ctx); err != nil {
-		c.logger.WithError(err).Warn("failed to fetch TTLs for sync entries")
+		c.logger.WarnContext(ctx, "failed to fetch TTLs for sync entries", log.AttrError(err))
 
 		return
 	}
@@ -473,7 +473,7 @@ func (c *RedisExpiringCache[T]) handleSyncMessage(ctx context.Context, payload [
 
 		val, err := c.opts.Decode(e.Data)
 		if err != nil {
-			c.logger.WithError(err).Warn("failed to decode sync entry")
+			c.logger.WarnContext(ctx, "failed to decode sync entry", log.AttrError(err))
 
 			continue
 		}

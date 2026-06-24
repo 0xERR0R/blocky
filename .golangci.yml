@@ -89,6 +89,10 @@ linters:
     - recvcheck
     - wrapcheck
   settings:
+    goconst:
+      ignore-tests: true
+    sloglint:
+      context: scope
     ginkgolinter:
       forbid-focus-container: true
     mnd:

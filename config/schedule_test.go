@@ -7,8 +7,6 @@ import (
 	"github.com/0xERR0R/blocky/log"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 )
 
 var _ = Describe("Schedule", func() {
@@ -143,13 +141,8 @@ var _ = Describe("Schedule", func() {
 		})
 
 		It("should warn about duplicate weekdays", func() {
-			testHook := &test.Hook{}
-			log.Log().AddHook(testHook)
-			log.Log().SetLevel(logrus.WarnLevel)
-
-			defer func() {
-				testHook.Reset()
-			}()
+			rec, restore := log.CaptureGlobal()
+			DeferCleanup(restore)
 
 			s := Schedule{
 				Start:    "09:00",
@@ -157,9 +150,9 @@ var _ = Describe("Schedule", func() {
 				Weekdays: []Weekday{Weekday(time.Monday), Weekday(time.Monday), Weekday(time.Monday)},
 			}
 			Expect(s.validate()).Should(Succeed())
-			Expect(testHook.Entries).Should(HaveLen(2))
-			Expect(testHook.Entries[0].Message).Should(ContainSubstring("duplicate weekday"))
-			Expect(testHook.Entries[0].Message).Should(ContainSubstring("Monday"))
+			Expect(rec.Records()).Should(HaveLen(2))
+			Expect(rec.Messages()[0]).Should(ContainSubstring("duplicate weekday"))
+			Expect(rec.Messages()[0]).Should(ContainSubstring("Monday"))
 		})
 	})
 

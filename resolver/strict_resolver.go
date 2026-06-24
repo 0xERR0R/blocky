@@ -3,13 +3,13 @@ package resolver
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync/atomic"
 
 	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
-
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -68,20 +68,20 @@ func (r *StrictResolver) Resolve(ctx context.Context, request *model.Request) (*
 
 	// start with first resolver
 	for _, resolver := range *r.resolvers.Load() {
-		logger.Debugf("using %s as resolver", resolver.resolver)
+		logger.DebugContext(ctx, "using resolver", slog.Any("resolver", resolver.resolver))
 
 		resp, err := resolver.resolve(ctx, request)
 		if err != nil {
 			// log error and try next upstream
-			logger.WithField("resolver", resolver.resolver).Debug("resolution failed from resolver, cause: ", err)
+			logger.DebugContext(ctx, "resolution failed from resolver",
+				slog.Any("resolver", resolver.resolver), log.AttrError(err))
 
 			continue
 		}
 
-		logger.WithFields(logrus.Fields{
-			"resolver":     *resolver,
-			logFieldAnswer: util.Obfuscate(util.AnswerToString(resp.Res.Answer)),
-		}).Debug("using response from resolver")
+		logger.DebugContext(ctx, "using response from resolver",
+			slog.Any("resolver", *resolver),
+			slog.Any(logFieldAnswer, util.AnswerLogValuer{Answers: resp.Res.Answer}))
 
 		return resp, nil
 	}

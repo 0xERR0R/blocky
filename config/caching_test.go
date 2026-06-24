@@ -66,8 +66,8 @@ var _ = Describe("CachingConfig", func() {
 			It("should return configuration", func() {
 				cfg.LogConfig(logger)
 
-				Expect(hook.Calls).ShouldNot(BeEmpty())
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("prefetching:")))
+				Expect(rec.Records()).ShouldNot(BeEmpty())
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("prefetching:")))
 			})
 		})
 		When("has any settings", func() {
@@ -77,8 +77,8 @@ var _ = Describe("CachingConfig", func() {
 			It("should return Exclude", func() {
 				cfg.LogConfig(logger)
 
-				Expect(hook.Calls).ShouldNot(BeEmpty())
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("exclude:")))
+				Expect(rec.Records()).ShouldNot(BeEmpty())
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("exclude:")))
 			})
 		})
 		When("Exclude any settings", func() {
@@ -88,9 +88,9 @@ var _ = Describe("CachingConfig", func() {
 			It("should return Exclude and a list with values in it", func() {
 				cfg.LogConfig(logger)
 
-				Expect(hook.Calls).ShouldNot(BeEmpty())
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("exclude:")))
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("- local")))
+				Expect(rec.Records()).ShouldNot(BeEmpty())
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("exclude:")))
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("- local")))
 			})
 		})
 	})

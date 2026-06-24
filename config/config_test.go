@@ -1,9 +1,11 @@
 package config
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
+	"log/slog"
 	"net"
 	"strings"
 	"sync/atomic"
@@ -11,7 +13,6 @@ import (
 
 	"github.com/creasty/defaults"
 	"github.com/miekg/dns"
-	"github.com/sirupsen/logrus"
 
 	"github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
@@ -44,7 +45,7 @@ var _ = Describe("Config", func() {
 			It("should add 'AAAA' to filter.queryTypes", func() {
 				c.Deprecated.DisableIPv6 = ptrOf(true) //nolint:modernize // ptrOf sets a non-zero value, new(T) would give zero-value pointer
 				c.migrate(logger)
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("disableIPv6")))
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("disableIPv6")))
 				Expect(c.Filtering.QueryTypes).Should(HaveKey(QType(dns.TypeAAAA)))
 				Expect(c.Filtering.QueryTypes.Contains(dns.Type(dns.TypeAAAA))).Should(BeTrue())
 			})
@@ -57,23 +58,23 @@ var _ = Describe("Config", func() {
 			It("should change loading.strategy blocking to failOnError", func() {
 				c.Blocking.Loading.Strategy = InitStrategyBlocking
 				c.migrate(logger)
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("blocking.loading.strategy")))
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("blocking.loading.strategy")))
 				Expect(c.Blocking.Loading.Strategy).Should(Equal(InitStrategyFailOnError))
 			})
 			It("shouldn't change loading.strategy if set to fast", func() {
 				c.Blocking.Loading.Strategy = InitStrategyFast
 				c.migrate(logger)
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("blocking.loading.strategy")))
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("blocking.loading.strategy")))
 				Expect(c.Blocking.Loading.Strategy).Should(Equal(InitStrategyFast))
 			})
 		})
 
 		When("parameter 'logLevel' is set", func() {
 			It("should convert to log.level", func() {
-				c.Deprecated.LogLevel = ptrOf(logrus.DebugLevel)
+				c.Deprecated.LogLevel = ptrOf(log.Level(slog.LevelDebug))
 				c.migrate(logger)
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("log.level")))
-				Expect(c.Log.Level).Should(Equal(logrus.DebugLevel))
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("log.level")))
+				Expect(c.Log.Level).Should(Equal(log.Level(slog.LevelDebug)))
 			})
 		})
 
@@ -81,7 +82,7 @@ var _ = Describe("Config", func() {
 			It("should convert to log.format", func() {
 				c.Deprecated.LogFormat = ptrOf(log.FormatTypeJson)
 				c.migrate(logger)
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("log.format")))
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("log.format")))
 				Expect(c.Log.Format).Should(Equal(log.FormatTypeJson))
 			})
 		})
@@ -90,7 +91,7 @@ var _ = Describe("Config", func() {
 			It("should convert to log.privacy", func() {
 				c.Deprecated.LogPrivacy = ptrOf(true) //nolint:modernize // ptrOf sets a non-zero value, new(T) would give zero-value pointer
 				c.migrate(logger)
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("log.privacy")))
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("log.privacy")))
 				Expect(c.Log.Privacy).Should(BeTrue())
 			})
 		})
@@ -99,7 +100,7 @@ var _ = Describe("Config", func() {
 			It("should convert to log.timestamp", func() {
 				c.Deprecated.LogTimestamp = new(bool)
 				c.migrate(logger)
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("log.timestamp")))
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("log.timestamp")))
 				Expect(c.Log.Timestamp).Should(BeFalse())
 			})
 		})
@@ -109,7 +110,7 @@ var _ = Describe("Config", func() {
 				ports := ListenConfig([]string{"5333"})
 				c.Deprecated.DNSPorts = ptrOf(ports) //nolint:modernize // ptrOf(var) is not equivalent to new(T)
 				c.migrate(logger)
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("ports.dns")))
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("ports.dns")))
 				Expect(c.Ports.DNS).Should(Equal(ports))
 			})
 		})
@@ -119,7 +120,7 @@ var _ = Describe("Config", func() {
 				ports := ListenConfig([]string{"5333"})
 				c.Deprecated.HTTPPorts = ptrOf(ports) //nolint:modernize // ptrOf(var) is not equivalent to new(T)
 				c.migrate(logger)
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("ports.http")))
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("ports.http")))
 				Expect(c.Ports.HTTP).Should(Equal(ports))
 			})
 		})
@@ -129,7 +130,7 @@ var _ = Describe("Config", func() {
 				ports := ListenConfig([]string{"5333"})
 				c.Deprecated.HTTPSPorts = ptrOf(ports) //nolint:modernize // ptrOf(var) is not equivalent to new(T)
 				c.migrate(logger)
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("ports.https")))
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("ports.https")))
 				Expect(c.Ports.HTTPS).Should(Equal(ports))
 			})
 		})
@@ -139,7 +140,7 @@ var _ = Describe("Config", func() {
 				ports := ListenConfig([]string{"5333"})
 				c.Deprecated.TLSPorts = ptrOf(ports) //nolint:modernize // ptrOf(var) is not equivalent to new(T)
 				c.migrate(logger)
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("ports.tls")))
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("ports.tls")))
 				Expect(c.Ports.TLS).Should(Equal(ports))
 			})
 		})
@@ -148,7 +149,7 @@ var _ = Describe("Config", func() {
 			It("should convert to upstreams.init.strategy", func() {
 				c.Deprecated.StartVerifyUpstream = ptrOf(true) //nolint:modernize // ptrOf(true) != new(bool) which gives false
 				c.migrate(logger)
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("startVerifyUpstream")))
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("startVerifyUpstream")))
 				Expect(c.Upstreams.Init.Strategy).Should(Equal(InitStrategyFailOnError))
 			})
 		})
@@ -330,7 +331,7 @@ var _ = Describe("Config", func() {
 				c, err := LoadConfig(tmpDir.Path, true)
 				Expect(err).Should(Succeed())
 				Expect(c.Upstreams.Groups["default"]).Should(HaveLen(1))
-				Expect(c.Log.Level).Should(Equal(logrus.DebugLevel))
+				Expect(c.Log.Level).Should(Equal(log.Level(slog.LevelDebug)))
 			})
 
 			It("still rejects duplicate keys within one file, naming the file", func() {
@@ -363,7 +364,7 @@ var _ = Describe("Config", func() {
 
 				c, err := LoadConfig(tmpDir.Path, true)
 				Expect(err).Should(Succeed())
-				Expect(c.Log.Level).Should(Equal(logrus.DebugLevel))
+				Expect(c.Log.Level).Should(Equal(log.Level(slog.LevelDebug)))
 			})
 
 			It("merges multi-document files in document order", func() {
@@ -377,7 +378,7 @@ var _ = Describe("Config", func() {
 
 				c, err := LoadConfig(tmpDir.Path, true)
 				Expect(err).Should(Succeed())
-				Expect(c.Log.Level).Should(Equal(logrus.DebugLevel))
+				Expect(c.Log.Level).Should(Equal(log.Level(slog.LevelDebug)))
 			})
 
 			It("preserves scalar literals so minTlsServeVersion: 1.0 still loads (issue #1827)", func() {
@@ -625,7 +626,7 @@ bootstrapDns:
 				c, err = LoadConfig(tmpDir.JoinPath("config.yml"), false)
 
 				Expect(err).Should(Succeed())
-				Expect(c.Log.Level).Should(Equal(logrus.InfoLevel))
+				Expect(c.Log.Level).Should(Equal(log.Level(slog.LevelInfo)))
 			})
 		})
 	})
@@ -850,8 +851,8 @@ bootstrapDns:
 			It("should log configuration", func() {
 				cfg.LogConfig(logger)
 
-				Expect(hook.Calls).ShouldNot(BeEmpty())
-				Expect(hook.Messages).Should(ContainElements(
+				Expect(rec.Records()).ShouldNot(BeEmpty())
+				Expect(rec.Messages()).Should(ContainElements(
 					ContainSubstring("concurrency = 12"),
 					ContainSubstring("refresh = every 1 hour"),
 				))
@@ -862,19 +863,19 @@ bootstrapDns:
 				})
 
 				It("should reflect that", func() {
-					logger.Logger.Level = logrus.InfoLevel
+					var buf bytes.Buffer
 
-					cfg.LogConfig(logger)
+					// At info level, "refresh = disabled" (logged at Debug) should NOT appear
+					cfg.LogConfig(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})))
+					Expect(buf.String()).ShouldNot(BeEmpty())
+					Expect(buf.String()).ShouldNot(ContainSubstring("refresh = disabled"))
 
-					Expect(hook.Calls).ShouldNot(BeEmpty())
-					Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("refresh = disabled")))
+					buf.Reset()
 
-					logger.Logger.Level = logrus.TraceLevel
-
-					cfg.LogConfig(logger)
-
-					Expect(hook.Calls).ShouldNot(BeEmpty())
-					Expect(hook.Messages).Should(ContainElement(ContainSubstring("refresh = disabled")))
+					// At debug level, "refresh = disabled" SHOULD appear
+					cfg.LogConfig(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+					Expect(buf.String()).ShouldNot(BeEmpty())
+					Expect(buf.String()).Should(ContainSubstring("refresh = disabled"))
 				})
 			})
 		})
@@ -893,22 +894,24 @@ bootstrapDns:
 
 				cfg.LogConfig(logger)
 
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("cachePath = /var/cache/blocky/lists")))
+				Expect(rec.Messages()).Should(ContainElement(ContainSubstring("cachePath = /var/cache/blocky/lists")))
 			})
 
 			It("logs disabled only at debug level when cachePath is empty", func() {
 				cfg, err := WithDefaults[Downloader]()
 				Expect(err).Should(Succeed())
 
+				var buf bytes.Buffer
+
 				// At the default info level the disabled note is suppressed (it is a debug line)...
-				logger.Logger.Level = logrus.InfoLevel
-				cfg.LogConfig(logger)
-				Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("disabled")))
+				cfg.LogConfig(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})))
+				Expect(buf.String()).ShouldNot(ContainSubstring("disabled"))
+
+				buf.Reset()
 
 				// ...and only appears once debug/trace logging is enabled.
-				logger.Logger.Level = logrus.TraceLevel
-				cfg.LogConfig(logger)
-				Expect(hook.Messages).Should(ContainElement(ContainSubstring("disabled")))
+				cfg.LogConfig(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+				Expect(buf.String()).Should(ContainSubstring("disabled"))
 			})
 		})
 	})
@@ -1172,11 +1175,11 @@ bootstrapDns:
 
 	Describe("Documentation config", func() {
 		It("should not use deprecated options", func() {
-			logger, hook := log.NewMockEntry()
+			lgr, lrec := log.NewRecorder()
 
-			_, err := loadConfig(logger, "../docs/config.yml", true)
+			_, err := loadConfig(lgr, "../docs/config.yml", true)
 			Expect(err).Should(Succeed())
-			Expect(hook.Messages).ShouldNot(ContainElement(ContainSubstring("deprecated")))
+			Expect(lrec.Messages()).ShouldNot(ContainElement(ContainSubstring("deprecated")))
 		})
 	})
 
@@ -1570,8 +1573,8 @@ var _ = Describe("Ports", func() {
 
 			cfg.LogConfig(logger)
 
-			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).Should(ContainElements(
+			Expect(rec.Records()).ShouldNot(BeEmpty())
+			Expect(rec.Messages()).Should(ContainElements(
 				ContainSubstring("DNS"),
 				ContainSubstring("HTTP"),
 				ContainSubstring("HTTPS"),
@@ -1640,8 +1643,8 @@ var _ = Describe("toEnable", func() {
 			cfg := toEnable{Enable: true}
 			cfg.LogConfig(logger)
 
-			Expect(hook.Calls).ShouldNot(BeEmpty())
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("enabled")))
+			Expect(rec.Records()).ShouldNot(BeEmpty())
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("enabled")))
 		})
 	})
 })
@@ -1735,7 +1738,7 @@ var _ = Describe("TLSVersion", func() {
 			v.validate(logger)
 
 			Expect(v).Should(BeNumerically(">=", TLSVersion(tls.VersionTLS12)))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("insecure")))
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("insecure")))
 		})
 
 		It("should not change valid TLS version", func() {

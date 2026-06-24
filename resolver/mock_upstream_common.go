@@ -1,7 +1,8 @@
 package resolver
 
 import (
-	"github.com/0xERR0R/blocky/util"
+	"fmt"
+
 	"github.com/miekg/dns"
 )
 
@@ -17,7 +18,9 @@ func rrAnswerFn(answers ...string) func(request *dns.Msg) *dns.Msg {
 
 		for _, a := range answers {
 			rr, err := dns.NewRR(a)
-			util.FatalOnError("can't create RR", err)
+			if err != nil {
+				panic(fmt.Sprintf("can't create RR: %v", err))
+			}
 
 			msg.Answer = append(msg.Answer, rr)
 		}

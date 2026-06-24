@@ -3,28 +3,20 @@ package log
 //go:generate go tool go-enum -f=$GOFILE --marshal --names --template ../tools/schemagen/templates/enum_description.tmpl
 
 import (
-	"fmt"
 	"io"
-	"maps"
+	"log/slog"
 	"os"
 	"strings"
-	"sync"
-	"sync/atomic"
 
 	"github.com/creasty/defaults"
+	"github.com/lmittmann/tint"
 	"github.com/mattn/go-colorable"
-	"github.com/sirupsen/logrus"
-	prefixed "github.com/x-cray/logrus-prefixed-formatter"
+	"github.com/mattn/go-isatty"
 )
 
-const prefixField = "prefix"
-
-// Logger is the global logging instance
-//
-//nolint:gochecknoglobals
-var (
-	logger   *logrus.Logger
-	initDone atomic.Bool
+const (
+	prefixKey      = "prefix"
+	textTimeLayout = "2006-01-02 15:04:05"
 )
 
 // FormatType format for logging ENUM(
@@ -33,167 +25,136 @@ var (
 // )
 type FormatType int
 
-// Config defines all logging configurations
+// Config defines all logging configuration.
 type Config struct {
-	Level     logrus.Level `default:"info"  yaml:"level"`
-	Format    FormatType   `default:"text"  yaml:"format"`
-	Privacy   bool         `default:"false" yaml:"privacy"`
-	Timestamp bool         `default:"true"  yaml:"timestamp"`
+	Level     Level      `default:"info"  yaml:"level"`
+	Format    FormatType `default:"text"  yaml:"format"`
+	Privacy   bool       `default:"false" yaml:"privacy"`
+	Timestamp bool       `default:"true"  yaml:"timestamp"`
 }
 
-// DefaultConfig returns a new Config initialized with default values.
+// DefaultConfig returns a Config initialized with default values.
 func DefaultConfig() *Config {
 	cfg := new(Config)
-
 	defaults.MustSet(cfg)
 
 	return cfg
 }
 
+//nolint:gochecknoglobals
+var levelVar = new(slog.LevelVar)
+
 //nolint:gochecknoinits
 func init() {
-	if !initDone.CompareAndSwap(false, true) {
-		return
-	}
-
-	newLogger := logrus.New()
-
-	ConfigureLogger(newLogger, DefaultConfig())
-
-	logger = newLogger
+	setLogger(newLogger(os.Stdout, DefaultConfig()))
 }
 
-// Log returns the global logger
-func Log() *logrus.Logger {
-	return logger
+// setLogger installs l as the slog default. Readers (Log/PrefixedLog/FromCtx)
+// read slog.Default(), which slog updates atomically, so a hot-path reader
+// never races with a Configure/Silence/CaptureGlobal swap.
+func setLogger(l *slog.Logger) {
+	slog.SetDefault(l)
 }
 
-// PrefixedLog return the global logger with prefix
-func PrefixedLog(prefix string) *logrus.Entry {
-	return logger.WithField(prefixField, prefix)
+// Log returns the global logger.
+func Log() *slog.Logger { return slog.Default() }
+
+// SetLevel changes the active log level at runtime.
+func SetLevel(l slog.Level) { levelVar.Set(l) }
+
+// Configure applies cfg to the global logger (writing to os.Stdout).
+func Configure(cfg *Config) { configureTo(os.Stdout, cfg) }
+
+// configureTo is the test seam: it builds the global logger writing to w.
+func configureTo(w io.Writer, cfg *Config) {
+	levelVar.Set(cfg.Level.ToSlogLevel())
+	setLogger(newLogger(w, cfg))
 }
 
-// WithPrefix adds the given prefix to the logger.
-func WithPrefix(logger *logrus.Entry, prefix string) *logrus.Entry {
-	if existingPrefix, ok := logger.Data[prefixField]; ok {
-		prefix = fmt.Sprintf("%s.%s", existingPrefix, prefix)
-	}
-
-	return logger.WithField(prefixField, prefix)
-}
-
-// EscapeInput removes line breaks from input
-func EscapeInput(input string) string {
-	result := strings.ReplaceAll(input, "\n", "")
-	result = strings.ReplaceAll(result, "\r", "")
-
-	return result
-}
-
-// Configure applies configuration to the global logger.
-func Configure(cfg *Config) {
-	ConfigureLogger(logger, cfg)
-}
-
-// Configure applies configuration to the given logger.
-func ConfigureLogger(logger *logrus.Logger, cfg *Config) {
-	logger.SetLevel(cfg.Level)
+// newLogger builds a slog logger for cfg writing to w, wrapped in the
+// contextHandler so request-scoped attrs are injected lazily.
+func newLogger(w io.Writer, cfg *Config) *slog.Logger {
+	var base slog.Handler
 
 	switch cfg.Format {
-	case FormatTypeText:
-		// Respect NO_COLOR env var (https://no-color.org/)
-		noColor := os.Getenv("NO_COLOR") != ""
-
-		logFormatter := &prefixed.TextFormatter{
-			TimestampFormat:  "2006-01-02 15:04:05",
-			FullTimestamp:    true,
-			ForceFormatting:  true,
-			ForceColors:      false,
-			QuoteEmptyFields: true,
-			DisableTimestamp: !cfg.Timestamp,
-			DisableColors:    noColor,
-		}
-
-		logFormatter.SetColorScheme(&prefixed.ColorScheme{
-			PrefixStyle:    "blue+b",
-			TimestampStyle: "white+h",
-		})
-
-		logger.SetFormatter(logFormatter)
-
-		if noColor {
-			logger.SetOutput(os.Stdout)
-		} else {
-			// Windows does not support ANSI colors
-			logger.SetOutput(colorable.NewColorableStdout())
-		}
-
 	case FormatTypeJson:
-		logger.SetFormatter(&logrus.JSONFormatter{})
-	}
-}
-
-// Silence disables the logger output
-func Silence() {
-	initDone.Store(true)
-
-	logger = logrus.New()
-
-	logger.SetFormatter(nopFormatter{}) // skip expensive formatting
-
-	// not actually needed but doesn't hurt
-	logger.SetOutput(io.Discard)
-}
-
-type nopFormatter struct{}
-
-func (f nopFormatter) Format(*logrus.Entry) ([]byte, error) {
-	return nil, nil
-}
-
-func WithIndent(log *logrus.Entry, prefix string, callback func(*logrus.Entry)) {
-	undo := indentMessages(prefix, log.Logger)
-	defer undo()
-
-	callback(log)
-}
-
-// indentMessages modifies a logger and adds `prefix` to all messages.
-//
-// The returned function must be called to remove the prefix.
-func indentMessages(prefix string, logger *logrus.Logger) func() {
-	if _, ok := logger.Formatter.(*prefixed.TextFormatter); !ok {
-		// log is not plaintext, do nothing
-		return func() {}
-	}
-
-	oldHooks := maps.Clone(logger.Hooks)
-
-	logger.AddHook(prefixMsgHook{
-		prefix: prefix,
-	})
-
-	var once sync.Once
-
-	return func() {
-		once.Do(func() {
-			logger.ReplaceHooks(oldHooks)
+		base = slog.NewJSONHandler(w, &slog.HandlerOptions{
+			Level:       levelVar,
+			ReplaceAttr: replaceAttr(cfg),
+		})
+	case FormatTypeText:
+		fallthrough
+	default:
+		base = tint.NewHandler(textWriter(w), &tint.Options{
+			Level:       levelVar,
+			TimeFormat:  textTimeLayout,
+			NoColor:     noColor(w),
+			ReplaceAttr: replaceAttr(cfg),
 		})
 	}
+
+	return slog.New(&contextHandler{next: base})
 }
 
-type prefixMsgHook struct {
-	prefix string
+// textWriter wraps os.Stdout with go-colorable for Windows ANSI support; other
+// writers (tests, files) are returned unchanged.
+func textWriter(w io.Writer) io.Writer {
+	if w == os.Stdout {
+		return colorable.NewColorableStdout()
+	}
+
+	return w
 }
 
-// Levels implements `logrus.Hook`.
-func (h prefixMsgHook) Levels() []logrus.Level {
-	return logrus.AllLevels
+// noColor preserves blocky's historical behavior: disable color when NO_COLOR
+// is set OR stdout is not a TTY. tint does not check NO_COLOR itself.
+func noColor(w io.Writer) bool {
+	if os.Getenv("NO_COLOR") != "" {
+		return true
+	}
+
+	if f, ok := w.(*os.File); ok {
+		return !isatty.IsTerminal(f.Fd())
+	}
+
+	return true // non-file writer (tests, pipes) => no color
 }
 
-// Fire implements `logrus.Hook`.
-func (h prefixMsgHook) Fire(entry *logrus.Entry) error {
-	entry.Message = h.prefix + entry.Message
+// replaceAttr drops the time attr when timestamps are disabled.
+func replaceAttr(cfg *Config) func([]string, slog.Attr) slog.Attr {
+	noTimestamp := !cfg.Timestamp
 
-	return nil
+	return func(groups []string, a slog.Attr) slog.Attr {
+		if len(groups) != 0 {
+			return a
+		}
+
+		if a.Key == slog.TimeKey && noTimestamp {
+			return slog.Attr{}
+		}
+
+		return a
+	}
 }
+
+// PrefixedLog returns the global logger tagged with a prefix attr.
+func PrefixedLog(prefix string) *slog.Logger {
+	return slog.Default().With(slog.String(prefixKey, prefix))
+}
+
+//nolint:gochecknoglobals
+var inputEscaper = strings.NewReplacer("\n", "", "\r", "")
+
+// EscapeInput removes line breaks from input (log-injection hardening).
+func EscapeInput(input string) string {
+	return inputEscaper.Replace(input)
+}
+
+// Silence discards all log output. Prefer ConfigureForTest(GinkgoWriter) in
+// Ginkgo suites; Silence remains for non-Ginkgo callers.
+func Silence() {
+	setLogger(slog.New(slog.DiscardHandler))
+}
+
+// AttrError returns a standard attr for an error value.
+func AttrError(err error) slog.Attr { return slog.Any("error", err) }

@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"time"
 
@@ -31,7 +33,6 @@ import (
 	"github.com/miekg/dns"
 	"github.com/pires/go-proxyproto"
 	"github.com/quic-go/quic-go"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -56,7 +57,7 @@ type Server struct {
 	closers          []io.Closer
 }
 
-func logger() *logrus.Entry {
+func logger() *slog.Logger {
 	return log.PrefixedLog("server")
 }
 
@@ -125,7 +126,7 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 	}
 
 	if cfg.Ports.FreeBind && !freebind.Supported {
-		logger().Warn("ports.freeBind: true is only supported on Linux; " +
+		logger().WarnContext(ctx, "ports.freeBind: true is only supported on Linux; "+
 			"ignoring on this platform (binding normally)")
 	}
 
@@ -154,7 +155,8 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 				return nil, fmt.Errorf("failed to create required Redis client: %w", err)
 			}
 
-			logger().WithError(err).Warn("Redis is enabled but optional and could not be initialized, continuing without Redis")
+			logger().WarnContext(ctx,
+				"Redis is enabled but optional and could not be initialized, continuing without Redis", log.AttrError(err))
 		}
 	}
 
@@ -193,7 +195,11 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		return nil, fmt.Errorf("failed to create OpenAPI interface implementation: %w", err)
 	}
 
-	httpRouter := createHTTPRouter(cfg, openAPIImpl)
+	httpRouter, err := createHTTPRouter(cfg, openAPIImpl)
+	if err != nil {
+		return nil, fmt.Errorf("failed to configure HTTP router: %w", err)
+	}
+
 	server.registerDoHEndpoints(httpRouter, cfg)
 
 	if len(http3PacketConns) > 0 {
@@ -288,9 +294,9 @@ func createHTTPListeners(
 	if cfg.HTTP3.IsEnabled() {
 		switch {
 		case len(cfg.Ports.HTTPS) == 0:
-			logger().Warn("http3.enable is true but ports.https is empty; HTTP/3 disabled")
+			logger().WarnContext(ctx, "http3.enable is true but ports.https is empty; HTTP/3 disabled")
 		case cfg.Ports.ProxyProtocol.Has(config.ProxyProtocolTypeHttps):
-			logger().Warn("http3.enable is true but ports.proxyProtocol includes 'https'; " +
+			logger().WarnContext(ctx, "http3.enable is true but ports.proxyProtocol includes 'https'; "+
 				"HTTP/3 cannot carry PROXY protocol headers and is disabled to keep the client IP consistent")
 		default:
 			http3PacketConns, err = newUDPPacketConns(ctx, cfg.Ports.HTTPS)
@@ -374,7 +380,8 @@ func createDNSServer(ctx context.Context, network, address string, tlsCfg *tls.C
 		Net:     network,
 		Handler: dns.NewServeMux(),
 		NotifyStartedFunc: func() {
-			logger().Infof("%s server is up and running on address %s", strings.ToUpper(network), address)
+			logger().InfoContext(ctx,
+				fmt.Sprintf("%s server is up and running on address %s", strings.ToUpper(network), address))
 		},
 	}
 
@@ -472,7 +479,7 @@ func createRedisCacheDecorator(
 			return nil, fmt.Errorf("failed to create required Redis event bridge: %w", err)
 		}
 
-		logger().Warn("failed to create Redis event bridge: ", err)
+		logger().WarnContext(ctx, "failed to create Redis event bridge", log.AttrError(err))
 	}
 
 	decorator := func(inner cache.ExpiringCache[[]byte]) (cache.ExpiringCache[[]byte], error) {
@@ -594,18 +601,18 @@ func (s *Server) printConfiguration() {
 	runtime.GC()
 	debug.FreeOSMemory()
 
-	logger().Infof("  numCPU =       %d", runtime.NumCPU())
-	logger().Infof("  numGoroutine = %d", runtime.NumGoroutine())
+	logger().Info(fmt.Sprintf("  numCPU =       %d", runtime.NumCPU()))
+	logger().Info(fmt.Sprintf("  numGoroutine = %d", runtime.NumGoroutine()))
 
 	// gather memory stats
 	var m runtime.MemStats
 
 	runtime.ReadMemStats(&m)
 
-	logger().Infof("  memory:")
-	logger().Infof("    heap =     %10v MB", toMB(m.HeapAlloc))
-	logger().Infof("    sys =      %10v MB", toMB(m.Sys))
-	logger().Infof("    numGC =    %10v", m.NumGC)
+	logger().Info("  memory:")
+	logger().Info(fmt.Sprintf("    heap =     %10v MB", toMB(m.HeapAlloc)))
+	logger().Info(fmt.Sprintf("    sys =      %10v MB", toMB(m.Sys)))
+	logger().Info(fmt.Sprintf("    numGC =    %10v", m.NumGC))
 }
 
 func toMB(b uint64) uint64 {
@@ -616,7 +623,7 @@ func toMB(b uint64) uint64 {
 
 // Start starts the server
 func (s *Server) Start(ctx context.Context, errCh chan<- error) {
-	logger().Info("Starting server")
+	logger().InfoContext(ctx, "Starting server")
 
 	for _, srv := range s.dnsServers {
 		go func() {
@@ -635,7 +642,7 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 
 	for listener, srv := range s.servers {
 		go func() {
-			logger().Infof("%s server is up and running on addr/port %s", srv, listener.Addr())
+			logger().InfoContext(ctx, fmt.Sprintf("%s server is up and running on addr/port %s", srv, listener.Addr()))
 
 			err := srv.Serve(ctx, listener)
 			if err != nil {
@@ -647,8 +654,8 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 	if s.http3Server != nil {
 		for _, pc := range s.http3PacketConns {
 			go func() {
-				logger().Infof("%s server is up and running on addr/port %s",
-					s.http3Server, pc.LocalAddr())
+				logger().InfoContext(ctx, fmt.Sprintf("%s server is up and running on addr/port %s",
+					s.http3Server, pc.LocalAddr()))
 
 				err := s.http3Server.inner.Serve(pc)
 				if err != nil &&
@@ -666,7 +673,7 @@ func (s *Server) Start(ctx context.Context, errCh chan<- error) {
 
 // Stop stops the server
 func (s *Server) Stop(ctx context.Context) error {
-	logger().Info("Stopping server")
+	logger().InfoContext(ctx, "Stopping server")
 
 	// Shut down HTTP/3 in order: server first (drains in-flight
 	// requests and unblocks the Serve goroutines), then UDP packet
@@ -675,19 +682,19 @@ func (s *Server) Stop(ctx context.Context) error {
 	// spurious "server start failed".
 	if s.http3Server != nil {
 		if err := s.http3Server.Close(); err != nil {
-			logger().Warn("failed to close http3 server: ", err)
+			logger().WarnContext(ctx, "failed to close http3 server", log.AttrError(err))
 		}
 	}
 
 	for _, pc := range s.http3PacketConns {
 		if err := pc.Close(); err != nil {
-			logger().Warn("failed to close http3 packet conn: ", err)
+			logger().WarnContext(ctx, "failed to close http3 packet conn", log.AttrError(err))
 		}
 	}
 
 	for _, c := range s.closers {
 		if err := c.Close(); err != nil {
-			logger().Warn("failed to close resource: ", err)
+			logger().WarnContext(ctx, "failed to close resource", log.AttrError(err))
 		}
 	}
 
@@ -714,17 +721,20 @@ func newRequest(
 	clientIP net.IP, clientID string,
 	protocol model.RequestProtocol, request *dns.Msg,
 ) (context.Context, *model.Request) {
-	ctx, logger := log.CtxWithFields(ctx, logrus.Fields{
-		"req_id":    uuid.New().String(),
-		"question":  util.QuestionToString(request.Question),
-		"client_ip": clientIP,
-	})
+	// Snapshot the questions: the valuer is resolved lazily for the whole
+	// request lifetime, and resolvers (e.g. conditional upstream) may mutate
+	// request.Question in place, which would otherwise change logged output.
+	ctx, logger := log.CtxWithFields(ctx,
+		slog.String("req_id", uuid.New().String()),
+		slog.Any("question", util.QuestionLogValuer{Questions: slices.Clone(request.Question)}),
+		slog.Any("client_ip", clientIP),
+	)
 
-	logger.WithFields(logrus.Fields{
-		"client_request_id": request.Id,
-		"client_id":         clientID,
-		"protocol":          protocol,
-	}).Trace("new incoming request")
+	logger.LogAttrs(ctx, slog.LevelDebug, "new incoming request",
+		slog.Int("client_request_id", int(request.Id)),
+		slog.String("client_id", clientID),
+		slog.Any("protocol", protocol),
+	)
 
 	req := model.Request{
 		ClientIP:        clientIP,
@@ -784,7 +794,7 @@ func (s *Server) handleReq(ctx context.Context, request *model.Request, w msgWri
 	case errors.Is(err, resolver.ErrRateLimited):
 		return
 	case err != nil:
-		log.FromCtx(ctx).Error("error on processing request:", err)
+		log.FromCtx(ctx).ErrorContext(ctx, "error on processing request", log.AttrError(err))
 		m := new(dns.Msg)
 		m.SetRcode(request.Req, dns.RcodeServerFailure)
 		err := w.WriteMsg(m)
@@ -820,7 +830,7 @@ func (s *Server) resolve(ctx context.Context, request *model.Request) (response 
 		m := new(dns.Msg)
 		m.SetRcode(request.Req, dns.RcodeFormatError)
 
-		log.FromCtx(ctx).Error("query has no questions")
+		log.FromCtx(ctx).ErrorContext(ctx, "query has no questions")
 
 		response = &model.Response{Res: m, RType: model.ResponseTypeCUSTOMDNS, Reason: "CUSTOM DNS"}
 	default:

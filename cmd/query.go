@@ -2,10 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/0xERR0R/blocky/api"
-	"github.com/0xERR0R/blocky/log"
 	"github.com/miekg/dns"
 	"github.com/spf13/cobra"
 )
@@ -52,11 +52,11 @@ func query(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("response NOK, %s %s", resp.Status(), string(resp.Body))
 	}
 
-	log.Log().Infof("Query result for '%s' (%s):", req.Query, req.Type)
-	log.Log().Infof("\treason:        %20s", resp.JSON200.Reason)
-	log.Log().Infof("\tresponse type: %20s", resp.JSON200.ResponseType)
-	log.Log().Infof("\tresponse:      %20s", resp.JSON200.Response)
-	log.Log().Infof("\treturn code:   %20s", resp.JSON200.ReturnCode)
+	slog.Info(fmt.Sprintf("Query result for '%s' (%s):", req.Query, req.Type))
+	slog.Info(fmt.Sprintf("\treason:        %20s", resp.JSON200.Reason))
+	slog.Info(fmt.Sprintf("\tresponse type: %20s", resp.JSON200.ResponseType))
+	slog.Info(fmt.Sprintf("\tresponse:      %20s", resp.JSON200.Response))
+	slog.Info(fmt.Sprintf("\treturn code:   %20s", resp.JSON200.ReturnCode))
 
 	return nil
 }

@@ -16,7 +16,6 @@ import (
 	"sync/atomic"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/quic-go/quic-go"
@@ -76,7 +75,9 @@ func (t *MockDoQUpstreamServer) Close() {
 
 func generateSelfSignedCert() tls.Certificate {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	util.FatalOnError("can't generate key", err)
+	if err != nil {
+		panic(fmt.Sprintf("can't generate key: %v", err))
+	}
 
 	template := x509.Certificate{
 		SerialNumber: big.NewInt(1),
@@ -84,7 +85,9 @@ func generateSelfSignedCert() tls.Certificate {
 	}
 
 	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
-	util.FatalOnError("can't create certificate", err)
+	if err != nil {
+		panic(fmt.Sprintf("can't create certificate: %v", err))
+	}
 
 	return tls.Certificate{
 		Certificate: [][]byte{certDER},
@@ -101,10 +104,14 @@ func (t *MockDoQUpstreamServer) Start() config.Upstream {
 	}
 
 	udpAddr, err := net.ResolveUDPAddr("udp4", "127.0.0.1:0")
-	util.FatalOnError("can't resolve address", err)
+	if err != nil {
+		panic(fmt.Sprintf("can't resolve address: %v", err))
+	}
 
 	udpConn, err := net.ListenUDP("udp4", udpAddr)
-	util.FatalOnError("can't create UDP socket", err)
+	if err != nil {
+		panic(fmt.Sprintf("can't create UDP socket: %v", err))
+	}
 
 	t.udpConn = udpConn
 
@@ -112,7 +119,9 @@ func (t *MockDoQUpstreamServer) Start() config.Upstream {
 	t.transport = tr
 
 	listener, err := tr.Listen(tlsConfig, &quic.Config{})
-	util.FatalOnError("can't create QUIC listener", err)
+	if err != nil {
+		panic(fmt.Sprintf("can't create QUIC listener: %v", err))
+	}
 
 	t.listener = listener
 
@@ -120,7 +129,9 @@ func (t *MockDoQUpstreamServer) Start() config.Upstream {
 
 	addr := udpConn.LocalAddr().(*net.UDPAddr) //nolint:forcetypeassert // LocalAddr on a UDP conn is always *net.UDPAddr
 	port, err := config.ConvertPort(strconv.Itoa(addr.Port))
-	util.FatalOnError("can't convert port", err)
+	if err != nil {
+		panic(fmt.Sprintf("can't convert port: %v", err))
+	}
 
 	return config.Upstream{Net: config.NetProtocolQuic, Host: loopbackIPv4Str, Port: port}
 }
@@ -182,7 +193,9 @@ func (t *MockDoQUpstreamServer) handleStream(stream *quic.Stream) {
 	response := mockReply(msg, t.answerFn(msg))
 
 	packed, err := response.Pack()
-	util.FatalOnError("can't serialize message", err)
+	if err != nil {
+		panic(fmt.Sprintf("can't serialize message: %v", err))
+	}
 
 	buf := make([]byte, 2+len(packed))
 	binary.BigEndian.PutUint16(buf, uint16(len(packed))) //nolint:gosec // DNS messages are bounded well below 64 KiB

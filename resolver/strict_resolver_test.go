@@ -69,11 +69,11 @@ var _ = Describe("StrictResolver", Label("strictResolver"), func() {
 
 	Describe("LogConfig", func() {
 		It("should log something", func() {
-			logger, hook := log.NewMockEntry()
+			logger, rec := log.NewRecorder()
 
 			sut.LogConfig(logger)
 
-			Expect(hook.Calls).ShouldNot(BeEmpty())
+			Expect(rec.Records()).ShouldNot(BeEmpty())
 		})
 	})
 

@@ -25,7 +25,7 @@ var _ = Describe("RRset validation functions", func() {
 		Expect(err).Should(Succeed())
 
 		mockUpstream = &mockResolver{}
-		logger, _ := log.NewMockEntry()
+		logger, _ := log.NewRecorder()
 
 		sut = NewValidator(specCtx, trustStore, logger, mockUpstream, 1, 10, 150, 30, 3600)
 	})

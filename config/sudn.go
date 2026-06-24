@@ -1,7 +1,8 @@
 package config
 
 import (
-	"github.com/sirupsen/logrus"
+	"fmt"
+	"log/slog"
 )
 
 // SUDN configuration for Special Use Domain Names
@@ -21,6 +22,6 @@ func (c *SUDN) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *SUDN) LogConfig(logger *logrus.Entry) {
-	logger.Debugf("rfc6762-appendixG = %v", c.RFC6762AppendixG)
+func (c *SUDN) LogConfig(logger *slog.Logger) {
+	logger.Debug(fmt.Sprintf("rfc6762-appendixG = %v", c.RFC6762AppendixG))
 }

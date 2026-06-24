@@ -2,9 +2,8 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
-
-	"github.com/sirupsen/logrus"
 )
 
 // ConditionalUpstream conditional upstream configuration
@@ -26,9 +25,9 @@ func (c *ConditionalUpstream) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *ConditionalUpstream) LogConfig(logger *logrus.Entry) {
+func (c *ConditionalUpstream) LogConfig(logger *slog.Logger) {
 	for key, val := range c.Mapping.Upstreams {
-		logger.Infof("%s = %v", key, val)
+		logger.Info(fmt.Sprintf("%s = %v", key, val))
 	}
 }
 

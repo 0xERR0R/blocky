@@ -67,7 +67,7 @@ var _ = Describe("RateLimit config", func() {
 				Allowlist: []string{"10.0.0.0/8"},
 			}
 			c.LogConfig(logger)
-			Expect(hook.Calls).ShouldNot(BeEmpty())
+			Expect(rec.Records()).ShouldNot(BeEmpty())
 		})
 	})
 

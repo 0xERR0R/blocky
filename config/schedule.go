@@ -3,10 +3,9 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
-
-	"github.com/0xERR0R/blocky/log"
 )
 
 const (
@@ -100,7 +99,7 @@ func (s *Schedule) validate() error {
 
 	for _, wd := range s.Weekdays {
 		if seen[wd] {
-			log.Log().Warnf("schedule contains duplicate weekday '%s', possible typo?", wd)
+			slog.Warn(fmt.Sprintf("schedule contains duplicate weekday '%s', possible typo?", wd))
 		}
 
 		seen[wd] = true

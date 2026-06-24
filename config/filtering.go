@@ -1,7 +1,8 @@
 package config
 
 import (
-	"github.com/sirupsen/logrus"
+	"fmt"
+	"log/slog"
 )
 
 type Filtering struct {
@@ -15,10 +16,10 @@ func (c *Filtering) IsEnabled() bool {
 }
 
 // LogConfig implements `config.Configurable`.
-func (c *Filtering) LogConfig(logger *logrus.Entry) {
+func (c *Filtering) LogConfig(logger *slog.Logger) {
 	logger.Info("query types:")
 
 	for qType := range c.QueryTypes {
-		logger.Infof("  - %s", qType)
+		logger.Info(fmt.Sprintf("  - %s", qType))
 	}
 }

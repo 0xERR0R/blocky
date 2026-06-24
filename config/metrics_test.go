@@ -45,8 +45,8 @@ var _ = Describe("MetricsConfig", func() {
 		It("should log configuration", func() {
 			cfg.LogConfig(logger)
 
-			Expect(hook.Calls).Should(HaveLen(1))
-			Expect(hook.Messages).Should(ContainElement(ContainSubstring("url path: /custom/path")))
+			Expect(rec.Records()).Should(HaveLen(1))
+			Expect(rec.Messages()).Should(ContainElement(ContainSubstring("url path: /custom/path")))
 		})
 	})
 })
