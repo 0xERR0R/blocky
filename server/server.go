@@ -528,6 +528,10 @@ func createQueryResolver(
 		resolver.NewRateLimitingResolver(ctx, cfg.RateLimit),
 		resolver.NewFilteringResolver(cfg.Filtering),
 		resolver.NewFQDNOnlyResolver(cfg.FQDNOnly),
+		// adopts the ECS subnet as the internal client IP (ecs.useAsClient) before the
+		// client-name lookup, blocking and the cache consume the client identity, so the
+		// ECS client is used for those features and is preserved across cache hits
+		resolver.NewECSClientResolver(cfg.ECS),
 		clientNames,
 		resolver.NewEDEResolver(cfg.EDE),
 		queryLogging,
