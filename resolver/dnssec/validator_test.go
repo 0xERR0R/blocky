@@ -358,6 +358,163 @@ var _ = Describe("DNSSECValidator", func() {
 				"a transient (Indeterminate) chain failure was cached, poisoning future validations")
 		})
 
+		It("returns Indeterminate (not Bogus) for a signed answer whose chain is transiently unreachable (issue #2120)", func() {
+			// A genuinely signed answer whose DS/DNSKEY sub-queries momentarily fail (timeout)
+			// must be classified Indeterminate ("validation could not be completed"), NOT Bogus.
+			// Reporting it Bogus turns a transient blip into SERVFAIL "bogus signatures" - exactly
+			// why outlook.office365.com / ecs.office.com still SERVFAILed on 0.32.1. #2127 only
+			// stopped the Indeterminate verdict from being *cached*; within a single request the
+			// same chain-of-trust gap was still funnelled to Bogus.
+			key, priv, _ := newSignedZoneKey("signed.example.")
+			a := &dns.A{
+				Hdr: dns.RR_Header{Name: "host.signed.example.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300},
+				A:   net.ParseIP("192.0.2.1"),
+			}
+			sig := signRRset([]dns.RR{a}, dns.TypeA, key, priv, "signed.example.")
+			response := &dns.Msg{Answer: []dns.RR{a, sig}}
+
+			// Upstream is momentarily unreachable: every DS/DNSKEY sub-query fails.
+			mockUpstream.ResolveFn = func(_ context.Context, _ *model.Request) (*model.Response, error) {
+				return nil, errors.New("i/o timeout")
+			}
+
+			question := dns.Question{Name: "host.signed.example.", Qtype: dns.TypeA, Qclass: dns.ClassINET}
+			Expect(sut.ValidateResponse(ctx, response, question)).
+				Should(Equal(ValidationResultIndeterminate),
+					"a transient chain-of-trust failure for a signed answer was reported as Bogus (SERVFAIL) instead of Indeterminate")
+		})
+
+		It("returns Indeterminate (not Bogus) when an ancestor DS sub-query is unreachable mid-chain (issue #2120)", func() {
+			// The signer's own DNSKEY is reachable, but a DS sub-query for the signer zone times
+			// out so walkChainOfTrust yields Indeterminate. This is the exact within-request gap
+			// #2127 left open: a valid signed answer on a long CNAME chain SERVFAILed whenever one
+			// intermediate zone's DS/DNSKEY momentarily flaked (e.g. outlook.office365.com).
+			parentKey, parentPriv, anchor := newSignedZoneKey("example.")
+			parentDNSKEYSig := signRRset([]dns.RR{parentKey}, dns.TypeDNSKEY, parentKey, parentPriv, "example.")
+
+			childKey, childPriv, _ := newSignedZoneKey("signed.example.")
+			childDNSKEYSig := signRRset([]dns.RR{childKey}, dns.TypeDNSKEY, childKey, childPriv, "signed.example.")
+
+			a := &dns.A{
+				Hdr: dns.RR_Header{Name: "host.signed.example.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300},
+				A:   net.ParseIP("192.0.2.1"),
+			}
+			aSig := signRRset([]dns.RR{a}, dns.TypeA, childKey, childPriv, "signed.example.")
+			response := &dns.Msg{Answer: []dns.RR{a, aSig}}
+
+			mockUpstream.ResolveFn = func(_ context.Context, req *model.Request) (*model.Response, error) {
+				q := req.Req.Question[0]
+				switch {
+				case q.Qtype == dns.TypeDS && dns.Fqdn(q.Name) == "signed.example.":
+					return nil, errors.New("i/o timeout") // the transient blip on one ancestor sub-query
+				case q.Qtype == dns.TypeDNSKEY && dns.Fqdn(q.Name) == "example.":
+					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{parentKey, parentDNSKEYSig}}}, nil
+				case q.Qtype == dns.TypeDNSKEY && dns.Fqdn(q.Name) == "signed.example.":
+					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{childKey, childDNSKEYSig}}}, nil
+				default:
+					return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess}}}, nil
+				}
+			}
+
+			store, err := NewTrustAnchorStore([]string{anchor})
+			Expect(err).Should(Succeed())
+			v := NewValidator(ctx, store, logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			question := dns.Question{Name: "host.signed.example.", Qtype: dns.TypeA, Qclass: dns.ClassINET}
+			Expect(v.ValidateResponse(ctx, response, question)).
+				Should(Equal(ValidationResultIndeterminate),
+					"an unreachable ancestor DS sub-query (Indeterminate chain) was reported as Bogus (SERVFAIL)")
+		})
+
+		It("still returns Bogus for a forged signature when the chain is fully reachable (#2120 relaxation is scoped)", func() {
+			// Guards that the Indeterminate relaxation only covers "could not gather data", never a
+			// genuine cryptographic failure: with every DS/DNSKEY reachable and the chain Secure, a
+			// signature that does NOT verify must stay Bogus (GHSA-x845 fail-closed preserved).
+			parentKey, parentPriv, anchor := newSignedZoneKey("example.")
+			parentDNSKEYSig := signRRset([]dns.RR{parentKey}, dns.TypeDNSKEY, parentKey, parentPriv, "example.")
+
+			childKey, childPriv, _ := newSignedZoneKey("signed.example.")
+			childDNSKEYSig := signRRset([]dns.RR{childKey}, dns.TypeDNSKEY, childKey, childPriv, "signed.example.")
+			childDS := childKey.ToDS(dns.SHA256)
+			childDSSig := signRRset([]dns.RR{childDS}, dns.TypeDS, parentKey, parentPriv, "example.")
+
+			a := &dns.A{
+				Hdr: dns.RR_Header{Name: "host.signed.example.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300},
+				A:   net.ParseIP("192.0.2.1"),
+			}
+			sig := signRRset([]dns.RR{a}, dns.TypeA, childKey, childPriv, "signed.example.")
+			a.A = net.ParseIP("203.0.113.66") // tamper AFTER signing -> signature no longer verifies
+			response := &dns.Msg{Answer: []dns.RR{a, sig}}
+
+			mockUpstream.ResolveFn = func(_ context.Context, req *model.Request) (*model.Response, error) {
+				q := req.Req.Question[0]
+				switch {
+				case q.Qtype == dns.TypeDNSKEY && dns.Fqdn(q.Name) == "example.":
+					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{parentKey, parentDNSKEYSig}}}, nil
+				case q.Qtype == dns.TypeDNSKEY && dns.Fqdn(q.Name) == "signed.example.":
+					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{childKey, childDNSKEYSig}}}, nil
+				case q.Qtype == dns.TypeDS && dns.Fqdn(q.Name) == "signed.example.":
+					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{childDS, childDSSig}}}, nil
+				default:
+					return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess}}}, nil
+				}
+			}
+
+			store, err := NewTrustAnchorStore([]string{anchor})
+			Expect(err).Should(Succeed())
+			v := NewValidator(ctx, store, logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			question := dns.Question{Name: "host.signed.example.", Qtype: dns.TypeA, Qclass: dns.ClassINET}
+			Expect(v.ValidateResponse(ctx, response, question)).
+				Should(Equal(ValidationResultBogus),
+					"a forged signature with a reachable chain must remain Bogus, not be relaxed to Indeterminate")
+		})
+
+		It("returns Bogus (not Indeterminate) for a provably-bogus chain - DS digest mismatch (#2120 scope)", func() {
+			// A DS that is authenticated but does NOT match the child DNSKEY is positive evidence of
+			// tampering: the chain is Bogus, not merely unreachable. Even though every sub-query
+			// succeeds, the answer must be Bogus - the Indeterminate relaxation must never swallow a
+			// real chain failure (errBogusChain dominates within the RRset, GHSA-x845 preserved).
+			parentKey, parentPriv, anchor := newSignedZoneKey("example.")
+			parentDNSKEYSig := signRRset([]dns.RR{parentKey}, dns.TypeDNSKEY, parentKey, parentPriv, "example.")
+
+			childKey, childPriv, _ := newSignedZoneKey("signed.example.")
+			childDNSKEYSig := signRRset([]dns.RR{childKey}, dns.TypeDNSKEY, childKey, childPriv, "signed.example.")
+			childDS := childKey.ToDS(dns.SHA256)
+			childDS.Digest = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff" // wrong digest
+			childDSSig := signRRset([]dns.RR{childDS}, dns.TypeDS, parentKey, parentPriv, "example.")
+
+			a := &dns.A{
+				Hdr: dns.RR_Header{Name: "host.signed.example.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 300},
+				A:   net.ParseIP("192.0.2.1"),
+			}
+			aSig := signRRset([]dns.RR{a}, dns.TypeA, childKey, childPriv, "signed.example.")
+			response := &dns.Msg{Answer: []dns.RR{a, aSig}}
+
+			mockUpstream.ResolveFn = func(_ context.Context, req *model.Request) (*model.Response, error) {
+				q := req.Req.Question[0]
+				switch {
+				case q.Qtype == dns.TypeDNSKEY && dns.Fqdn(q.Name) == "example.":
+					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{parentKey, parentDNSKEYSig}}}, nil
+				case q.Qtype == dns.TypeDNSKEY && dns.Fqdn(q.Name) == "signed.example.":
+					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{childKey, childDNSKEYSig}}}, nil
+				case q.Qtype == dns.TypeDS && dns.Fqdn(q.Name) == "signed.example.":
+					return &model.Response{Res: &dns.Msg{Answer: []dns.RR{childDS, childDSSig}}}, nil
+				default:
+					return &model.Response{Res: &dns.Msg{MsgHdr: dns.MsgHdr{Rcode: dns.RcodeSuccess}}}, nil
+				}
+			}
+
+			store, err := NewTrustAnchorStore([]string{anchor})
+			Expect(err).Should(Succeed())
+			v := NewValidator(ctx, store, logger, mockUpstream, 1, 10, 150, 30, 3600)
+
+			question := dns.Question{Name: "host.signed.example.", Qtype: dns.TypeA, Qclass: dns.ClassINET}
+			Expect(v.ValidateResponse(ctx, response, question)).
+				Should(Equal(ValidationResultBogus),
+					"a DS digest mismatch (provably bogus chain) must be Bogus, not Indeterminate")
+		})
+
 		It("should preserve the originating client context on DNSKEY sub-queries", func() {
 			clientIP := net.ParseIP("203.0.113.9")
 			budgetCtx := context.WithValue(ctx, queryBudgetKey{}, 30)
@@ -385,6 +542,37 @@ var _ = Describe("DNSSECValidator", func() {
 				"auxiliary DNSSEC sub-query lost the client names")
 			Expect(captured.RequestClientID).Should(Equal("client-1"),
 				"auxiliary DNSSEC sub-query lost the request client id")
+		})
+
+		It("sets the CheckingDisabled bit on DS/DNSKEY sub-queries so it validates raw records", func() {
+			// blocky must validate independently (issue #1287): a validating upstream would
+			// otherwise SERVFAIL a bogus chain (e.g. dnssec-failed.org) before we ever see the
+			// raw DS/DNSKEY, and that SERVFAIL is indistinguishable from an unreachable upstream -
+			// so it would be served as Indeterminate instead of rejected as Bogus. The CD bit
+			// makes the upstream return the raw records for us to judge.
+			budgetCtx := context.WithValue(ctx, queryBudgetKey{}, 30)
+
+			var capturedDNSKEY, capturedDS *model.Request
+			mockUpstream.ResolveFn = func(_ context.Context, req *model.Request) (*model.Response, error) {
+				switch req.Req.Question[0].Qtype {
+				case dns.TypeDNSKEY:
+					capturedDNSKEY = req
+				case dns.TypeDS:
+					capturedDS = req
+				}
+
+				return &model.Response{Res: &dns.Msg{Answer: []dns.RR{}}}, nil
+			}
+
+			_, _, _ = sut.queryDNSKEY(budgetCtx, "signed.example.")
+			_, _, _ = sut.queryRecords(budgetCtx, "signed.example.", dns.TypeDS)
+
+			Expect(capturedDNSKEY).ShouldNot(BeNil(), "no DNSKEY sub-query was issued")
+			Expect(capturedDNSKEY.Req.CheckingDisabled).Should(BeTrue(),
+				"DNSKEY sub-query must set CD so the upstream does not pre-filter a bogus chain")
+			Expect(capturedDS).ShouldNot(BeNil(), "no DS sub-query was issued")
+			Expect(capturedDS.Req.CheckingDisabled).Should(BeTrue(),
+				"DS sub-query must set CD so the upstream does not pre-filter a bogus chain")
 		})
 
 		It("rejects an NSEC DS-absence proof that does not assert a delegation (NS bit clear)", func() {
