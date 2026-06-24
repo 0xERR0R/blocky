@@ -16,8 +16,11 @@ import (
 )
 
 const (
-	statsTimeFormat = "2006-01-02 15:04"
-	emptyNote       = "(none)"
+	statsTimeFormat        = "2006-01-02 15:04"
+	emptyNote              = "(none)"
+	statsTypeColLabel      = "Type"
+	percentMultiplier      = 100
+	statsListsAllowlistCol = 3
 )
 
 // NewStatsCommand creates new command instance
@@ -104,7 +107,7 @@ func renderSummary(w io.Writer, s *api.ApiStats) {
 	t.AppendRow(table.Row{"Dropped", formatInt(sum.Dropped)})
 	t.AppendRow(table.Row{"Errors", formatInt(sum.Errors)})
 	t.AppendRow(table.Row{"Avg response", fmt.Sprintf("%d ms", sum.AvgResponseMs)})
-	t.AppendRow(table.Row{"Cache hit rate", fmt.Sprintf("%.1f%%", sum.CacheHitRate*100)})
+	t.AppendRow(table.Row{"Cache hit rate", fmt.Sprintf("%.1f%%", sum.CacheHitRate*percentMultiplier)})
 	t.Render()
 	fmt.Fprintln(w)
 }
@@ -157,7 +160,7 @@ func renderBreakdown(w io.Writer, title string, counts map[string]int) {
 	fmt.Fprintf(w, "%s\n", title)
 
 	t := newStatsTable(w, 2)
-	t.AppendHeader(table.Row{"Type", "Count"})
+	t.AppendHeader(table.Row{statsTypeColLabel, "Count"})
 
 	for _, it := range items {
 		t.AppendRow(table.Row{it.name, formatInt(it.count)})
@@ -194,7 +197,7 @@ func renderFooter(w io.Writer, s *api.ApiStats) {
 
 	fmt.Fprintf(w, "Lists\n")
 
-	t := newStatsTable(w, 2, 3)
+	t := newStatsTable(w, 2, statsListsAllowlistCol)
 	t.AppendHeader(table.Row{"Group", "Denylist", "Allowlist"})
 
 	for _, g := range names {
@@ -214,7 +217,7 @@ func formatPercent(part, total int) string {
 		return "0.0%"
 	}
 
-	return fmt.Sprintf("%.1f%%", float64(part)/float64(total)*100)
+	return fmt.Sprintf("%.1f%%", float64(part)/float64(total)*percentMultiplier)
 }
 
 func formatInt(n int) string {
