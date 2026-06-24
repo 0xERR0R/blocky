@@ -85,6 +85,12 @@ func (v *Validator) queryRecords(
 	msg := new(dns.Msg)
 	msg.SetQuestion(domain, qtype)
 	msg.SetEdns0(ednsUDPSize, true) // Set DO bit for DNSSEC
+	// Set the CD (Checking Disabled) bit so a validating upstream does not pre-filter these
+	// auxiliary DS/DNSKEY lookups: we must validate the RAW records ourselves. Without it an
+	// upstream like 8.8.8.8 returns SERVFAIL for a bogus chain (e.g. dnssec-failed.org), which
+	// we could not distinguish from an unreachable upstream - it would be served as Indeterminate
+	// instead of correctly rejected as Bogus. This is what makes validation independent (#1287).
+	msg.CheckingDisabled = true
 
 	// Create model request, preserving the originating client's identity so the
 	// upstream tree selects the same group/view as the user-facing answer.
@@ -115,7 +121,12 @@ func (v *Validator) queryRecords(
 func (v *Validator) queryDNSKEY(ctx context.Context, domain string) (context.Context, []*dns.DNSKEY, error) {
 	ctx, response, err := v.queryRecords(ctx, domain, dns.TypeDNSKEY)
 	if err != nil {
-		return ctx, nil, err
+		// The sub-query itself failed (timeout/unreachable upstream/budget). This is a
+		// transient inability to gather validation data, NOT proof of an invalid signature,
+		// so tag it errDNSKEYUnavailable: callers propagate it as Indeterminate rather than
+		// Bogus (issue #2120). A response that arrives but contains no DNSKEY records falls
+		// through to the genuine "no records" failure below and stays Bogus.
+		return ctx, nil, fmt.Errorf("%w: %w", errDNSKEYUnavailable, err)
 	}
 
 	keys, err := extractTypedRecords[*dns.DNSKEY](response.Answer)

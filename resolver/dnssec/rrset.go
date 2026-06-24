@@ -38,8 +38,10 @@ func (v *Validator) queryAndMatchDNSKEY(
 	// Query for DNSKEY records
 	ctx, keys, err := v.queryDNSKEY(ctx, signerName)
 	if err != nil {
-		// If we have RRSIG but cannot obtain DNSKEY, this is Bogus (RFC 4035 Section 5.2)
-		// The presence of RRSIG indicates DNSSEC is intended, so missing DNSKEY = Bogus
+		// queryDNSKEY tags a transient sub-query failure (unreachable upstream) with
+		// errDNSKEYUnavailable so it propagates as Indeterminate, not Bogus (issue #2120);
+		// a response that arrives but carries no DNSKEY is left untagged and stays a genuine
+		// failure (Bogus). %w preserves either classification for the errors.Is checks above.
 		return ctx, nil, fmt.Errorf("failed to query DNSKEY: %w", err)
 	}
 
