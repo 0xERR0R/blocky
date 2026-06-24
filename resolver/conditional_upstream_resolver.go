@@ -138,16 +138,18 @@ func (r *ConditionalUpstreamResolver) internalResolve(ctx context.Context, reso 
 		return nil, fmt.Errorf("conditional upstream resolution failed for domain '%s': %w", do, err)
 	}
 
-	var answer string
-	if response != nil {
-		answer = util.Obfuscate(util.AnswerToString(response.Res.Answer))
-	}
+	if logger.Logger.IsLevelEnabled(logrus.DebugLevel) {
+		var answer string
+		if response != nil {
+			answer = util.Obfuscate(util.AnswerToString(response.Res.Answer))
+		}
 
-	logger.WithFields(logrus.Fields{
-		logFieldAnswer:   answer,
-		logFieldDomain:   util.Obfuscate(do),
-		logFieldUpstream: reso,
-	}).Debugf("received response from conditional upstream")
+		logger.WithFields(logrus.Fields{
+			logFieldAnswer:   answer,
+			logFieldDomain:   util.Obfuscate(do),
+			logFieldUpstream: reso,
+		}).Debugf("received response from conditional upstream")
+	}
 
 	return response, nil
 }
