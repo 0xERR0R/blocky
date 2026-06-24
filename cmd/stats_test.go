@@ -2,10 +2,15 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"time"
 
 	"github.com/0xERR0R/blocky/api"
+	"github.com/0xERR0R/blocky/log"
+	"github.com/sirupsen/logrus/hooks/test"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -98,5 +103,87 @@ var _ = Describe("renderStats", func() {
 	It("formats percentages and guards against zero totals", func() {
 		Expect(formatPercent(41, 100)).Should(Equal("41.0%"))
 		Expect(formatPercent(0, 0)).Should(Equal("0.0%"))
+	})
+})
+
+var _ = Describe("stats command", func() {
+	var (
+		ts         *httptest.Server
+		mockFn     func(w http.ResponseWriter, _ *http.Request)
+		loggerHook *test.Hook
+	)
+
+	JustBeforeEach(func() {
+		ts = testHTTPAPIServer(mockFn)
+	})
+	JustAfterEach(func() {
+		ts.Close()
+	})
+	BeforeEach(func() {
+		mockFn = func(w http.ResponseWriter, _ *http.Request) {}
+		loggerHook = test.NewGlobal()
+		log.Log().AddHook(loggerHook)
+	})
+	AfterEach(func() {
+		loggerHook.Reset()
+	})
+
+	When("stats are available", func() {
+		BeforeEach(func() {
+			mockFn = func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Add("Content-Type", "application/json")
+				s := sampleStats()
+				response, err := json.Marshal(s)
+				Expect(err).Should(Succeed())
+				_, err = w.Write(response)
+				Expect(err).Should(Succeed())
+			}
+		})
+		It("renders the dashboard to the command output", func() {
+			cmd := withContext(NewStatsCommand())
+			var buf bytes.Buffer
+			cmd.SetOut(&buf)
+
+			Expect(stats(cmd, []string{})).Should(Succeed())
+			Expect(buf.String()).Should(ContainSubstring("Queries"))
+			Expect(buf.String()).Should(ContainSubstring("github.com"))
+			Expect(buf.String()).Should(ContainSubstring("Cache:"))
+		})
+	})
+
+	When("statistics are disabled (503)", func() {
+		BeforeEach(func() {
+			mockFn = func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = w.Write([]byte("statistics are disabled"))
+			}
+		})
+		It("returns a friendly error", func() {
+			err := stats(withContext(NewStatsCommand()), []string{})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("disabled"))
+		})
+	})
+
+	When("server returns 500", func() {
+		BeforeEach(func() {
+			mockFn = func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+		})
+		It("returns an error", func() {
+			err := stats(withContext(NewStatsCommand()), []string{})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("500 Internal Server Error"))
+		})
+	})
+
+	When("the API URL is unreachable", func() {
+		It("returns a transport error", func() {
+			apiPort = 0
+			err := stats(withContext(NewStatsCommand()), []string{})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("connection refused"))
+		})
 	})
 })

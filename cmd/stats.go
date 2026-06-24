@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -10,12 +12,51 @@ import (
 	"github.com/0xERR0R/blocky/api"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
+	"github.com/spf13/cobra"
 )
 
 const (
 	statsTimeFormat = "2006-01-02 15:04"
 	emptyNote       = "(none)"
 )
+
+// NewStatsCommand creates new command instance
+func NewStatsCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:               "stats",
+		Args:              cobra.NoArgs,
+		Short:             "shows DNS statistics",
+		RunE:              stats,
+		PersistentPreRunE: initConfigPreRun,
+	}
+}
+
+func stats(cmd *cobra.Command, _ []string) error {
+	client, err := newAPIClient()
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.GetStatsWithResponse(cmd.Context())
+	if err != nil {
+		return fmt.Errorf("can't execute %w", err)
+	}
+
+	switch resp.StatusCode() {
+	case http.StatusOK:
+		if resp.JSON200 == nil {
+			return errors.New("unexpected empty stats response")
+		}
+
+		renderStats(cmd.OutOrStdout(), resp.JSON200)
+
+		return nil
+	case http.StatusServiceUnavailable:
+		return errors.New("statistics are disabled (enable 'statistics.enable' in config)")
+	default:
+		return fmt.Errorf("response NOK, %s %s", resp.Status(), string(resp.Body))
+	}
+}
 
 // renderStats writes a human-readable dashboard of the stats snapshot to w.
 func renderStats(w io.Writer, s *api.ApiStats) {
