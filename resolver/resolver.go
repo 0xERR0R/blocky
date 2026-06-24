@@ -219,6 +219,13 @@ func (t *typed) logWith(ctx context.Context, wrap func(*logrus.Entry) *logrus.En
 	})
 }
 
+// isDebugEnabled reports whether logger would emit at Debug level. Use it to guard
+// construction of expensive Debug-only log fields on the hot path, since Go evaluates
+// log-call arguments before logrus checks the level.
+func isDebugEnabled(logger *logrus.Entry) bool {
+	return logger.Logger.IsLevelEnabled(logrus.DebugLevel)
+}
+
 // Should be embedded in a Resolver to auto-implement `config.Configurable`.
 type configurable[T config.Configurable] struct {
 	cfg T

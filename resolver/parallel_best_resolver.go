@@ -192,7 +192,7 @@ func evaluateResponses(
 			continue
 		}
 
-		if logger.Logger.IsLevelEnabled(logrus.DebugLevel) {
+		if isDebugEnabled(logger) {
 			logger.WithField(logFieldAnswer, util.Obfuscate(util.AnswerToString(result.response.Res.Answer))).
 				Debug("using response from resolver")
 		}

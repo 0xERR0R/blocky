@@ -594,7 +594,7 @@ func (r *UpstreamResolver) logResponse(
 ) {
 	// runs on every successful upstream response (every cache miss); skip building the
 	// (expensive) answer string / field map entirely when Debug isn't enabled.
-	if !logger.Logger.IsLevelEnabled(logrus.DebugLevel) {
+	if !isDebugEnabled(logger) {
 		return
 	}
 
