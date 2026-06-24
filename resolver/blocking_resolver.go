@@ -461,7 +461,10 @@ func (r *BlockingResolver) hasAllowlistOnlyAllowed(groupsToCheck []string) bool 
 func (r *BlockingResolver) handleDenylist(ctx context.Context, groupsToCheck []string,
 	request *model.Request, logger *logrus.Entry,
 ) (bool, *model.Response, error) {
-	logger.WithField("groupsToCheck", strings.Join(groupsToCheck, "; ")).Debug("checking groups for request")
+	if isDebugEnabled(logger) {
+		logger.WithField("groupsToCheck", strings.Join(groupsToCheck, "; ")).Debug("checking groups for request")
+	}
+
 	allowlistOnlyAllowed := r.hasAllowlistOnlyAllowed(groupsToCheck)
 
 	for _, question := range request.Req.Question {
