@@ -161,6 +161,7 @@ func renderFooter(w io.Writer, s *api.ApiStats) {
 	}
 
 	t.Render()
+	fmt.Fprintln(w)
 }
 
 func withPercent(part, total int) string {

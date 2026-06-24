@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"strings"
 	"time"
 
 	"github.com/0xERR0R/blocky/api"
@@ -56,6 +57,11 @@ var _ = Describe("renderStats", func() {
 		Expect(out).Should(ContainSubstring("By Query Type"))
 		Expect(out).Should(ContainSubstring("Cache: 8,123 entries"))
 		Expect(out).Should(ContainSubstring("Lists"))
+		Expect(out).Should(ContainSubstring("7 ms"))
+		Expect(out).Should(ContainSubstring("By Response Code"))
+		Expect(out).Should(ContainSubstring("By Response Type"))
+		Expect(out).Should(ContainSubstring("142,000"))
+		Expect(strings.Index(out, "9,000")).Should(BeNumerically("<", strings.Index(out, "3,431")))
 	})
 
 	It("renders (none) for empty lists and avoids divide-by-zero when there are no queries", func() {
