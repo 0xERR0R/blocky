@@ -213,7 +213,11 @@ func (t *typed) logWithFields(ctx context.Context, fields logrus.Fields) (contex
 
 func (t *typed) logWith(ctx context.Context, wrap func(*logrus.Entry) *logrus.Entry) (context.Context, *logrus.Entry) {
 	return log.WrapCtx(ctx, func(logger *logrus.Entry) *logrus.Entry {
-		logger = log.WithPrefix(logger, t.Type())
+		// per-resolver prefix: each resolver replaces the prefix with its own type rather
+		// than accumulating earlier resolvers' prefixes (avoids the dotted chain and the
+		// string concat that built it). The request-scoped fields (req_id/question/
+		// client_ip) the logger already carries are preserved.
+		logger = log.SetPrefix(logger, t.Type())
 
 		return wrap(logger)
 	})

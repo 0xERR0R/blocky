@@ -72,6 +72,14 @@ func PrefixedLog(prefix string) *logrus.Entry {
 	return logger.WithField(prefixField, prefix)
 }
 
+// SetPrefix sets prefix as the logger's prefix, replacing any prefix it already
+// carries. Use this to give each resolver its own prefix without accumulating the
+// prefixes of resolvers earlier in the chain. Contrast with WithPrefix, which
+// appends to build a dotted chain (a.b.c).
+func SetPrefix(logger *logrus.Entry, prefix string) *logrus.Entry {
+	return logger.WithField(prefixField, prefix)
+}
+
 // WithPrefix adds the given prefix to the logger.
 func WithPrefix(logger *logrus.Entry, prefix string) *logrus.Entry {
 	// avoid fmt.Sprintf here: this runs once per resolver per request on the hot path,
