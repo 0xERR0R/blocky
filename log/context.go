@@ -25,6 +25,19 @@ func FromCtx(ctx context.Context) *logrus.Entry {
 	return entryWithCtx(ctx, logger)
 }
 
+// baseFromCtx returns the entry stored in the context (or a fresh entry on the
+// global logger) WITHOUT copying it. The returned entry's `Context` may point at
+// an ancestor of `ctx`; callers that need `Context == ctx` must wrap it (FromCtx
+// copies via entryWithCtx; WrapCtx re-stamps Context via NewCtx).
+func baseFromCtx(ctx context.Context) *logrus.Entry {
+	if logger, ok := ctx.Value(ctxKey{}).(*logrus.Entry); ok {
+		return logger
+	}
+
+	// Fallback to the global logger
+	return logrus.NewEntry(Log())
+}
+
 func entryWithCtx(ctx context.Context, logger *logrus.Entry) *logrus.Entry {
 	loggerCopy := *logger
 	loggerCopy.Context = ctx
@@ -32,9 +45,14 @@ func entryWithCtx(ctx context.Context, logger *logrus.Entry) *logrus.Entry {
 	return &loggerCopy
 }
 
+// WrapCtx derives a new context logger by applying `wrap` to the context-stored entry.
+//
+// `wrap` MUST return a new entry (e.g. via WithField/WithFields) and MUST NOT mutate
+// the entry it is given in place: the base entry is passed without copying (the wrapped
+// result is a fresh entry and NewCtx re-stamps its Context), so an in-place mutation
+// would corrupt the shared context-stored logger.
 func WrapCtx(ctx context.Context, wrap func(*logrus.Entry) *logrus.Entry) (context.Context, *logrus.Entry) {
-	logger := FromCtx(ctx)
-	logger = wrap(logger)
+	logger := wrap(baseFromCtx(ctx))
 
 	return NewCtx(ctx, logger)
 }

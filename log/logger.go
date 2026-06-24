@@ -3,7 +3,6 @@ package log
 //go:generate go tool go-enum -f=$GOFILE --marshal --names --template ../tools/schemagen/templates/enum_description.tmpl
 
 import (
-	"fmt"
 	"io"
 	"maps"
 	"os"
@@ -75,8 +74,11 @@ func PrefixedLog(prefix string) *logrus.Entry {
 
 // WithPrefix adds the given prefix to the logger.
 func WithPrefix(logger *logrus.Entry, prefix string) *logrus.Entry {
-	if existingPrefix, ok := logger.Data[prefixField]; ok {
-		prefix = fmt.Sprintf("%s.%s", existingPrefix, prefix)
+	// avoid fmt.Sprintf here: this runs once per resolver per request on the hot path,
+	// and the values are plain strings, so a direct concat skips the interface boxing
+	// and format-string parsing.
+	if existingPrefix, ok := logger.Data[prefixField].(string); ok {
+		prefix = existingPrefix + "." + prefix
 	}
 
 	return logger.WithField(prefixField, prefix)
