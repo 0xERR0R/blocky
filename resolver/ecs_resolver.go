@@ -60,7 +60,7 @@ func (r *ECSClientResolver) Resolve(ctx context.Context, request *model.Request)
 		// A full prefix (/32 for IPv4, /128 for IPv6) identifies a single client, so the
 		// subnet address can stand in for the connecting client's IP.
 		so := util.GetEdns0Option[*dns.EDNS0_SUBNET](request.Req)
-		if so != nil && ((so.Family == ecsFamilyIPv4 && so.SourceNetmask == ecsMaskIPv4) ||
+		if so != nil && so.Address != nil && ((so.Family == ecsFamilyIPv4 && so.SourceNetmask == ecsMaskIPv4) ||
 			(so.Family == ecsFamilyIPv6 && so.SourceNetmask == ecsMaskIPv6)) {
 			logger.Debugf("using request's edns0 address as internal client IP: %s", so.Address)
 			request.ClientIP = so.Address
