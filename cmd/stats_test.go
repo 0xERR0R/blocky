@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/api"
-	"github.com/0xERR0R/blocky/log"
-	"github.com/sirupsen/logrus/hooks/test"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -33,7 +31,9 @@ func sampleStats() api.ApiStats {
 		TopBlockedDomains: []api.ApiNameCount{{Name: "ads.example.com", Count: 402}},
 		TopClients:        []api.ApiNameCount{{Name: "10.0.0.5", Count: 4310}},
 		Lists: api.ApiListCounts{
-			Denylist:  map[string]int{"ads": 142000},
+			// "tracking" is denylist-only: it must still appear in the Lists table
+			// (with a 0 allowlist cell), exercising the group-key union in renderFooter.
+			Denylist:  map[string]int{"ads": 142000, "tracking": 5000},
 			Allowlist: map[string]int{"ads": 30},
 		},
 		Cache: api.ApiCacheStats{Entries: 8123},
@@ -66,6 +66,8 @@ var _ = Describe("renderStats", func() {
 		Expect(out).Should(ContainSubstring("By Response Code"))
 		Expect(out).Should(ContainSubstring("By Response Type"))
 		Expect(out).Should(ContainSubstring("142,000"))
+		Expect(out).Should(ContainSubstring("tracking")) // denylist-only group surfaces via union
+		Expect(out).Should(ContainSubstring("5,000"))    // its denylist count
 		Expect(strings.Index(out, "9,000")).Should(BeNumerically("<", strings.Index(out, "3,431")))
 	})
 
@@ -108,9 +110,8 @@ var _ = Describe("renderStats", func() {
 
 var _ = Describe("stats command", func() {
 	var (
-		ts         *httptest.Server
-		mockFn     func(w http.ResponseWriter, _ *http.Request)
-		loggerHook *test.Hook
+		ts     *httptest.Server
+		mockFn func(w http.ResponseWriter, _ *http.Request)
 	)
 
 	JustBeforeEach(func() {
@@ -121,11 +122,6 @@ var _ = Describe("stats command", func() {
 	})
 	BeforeEach(func() {
 		mockFn = func(w http.ResponseWriter, _ *http.Request) {}
-		loggerHook = test.NewGlobal()
-		log.Log().AddHook(loggerHook)
-	})
-	AfterEach(func() {
-		loggerHook.Reset()
 	})
 
 	When("stats are available", func() {
