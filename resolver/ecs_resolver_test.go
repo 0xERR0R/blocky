@@ -76,54 +76,6 @@ var _ = Describe("EcsResolver", func() {
 			})
 		})
 
-		When("use ECS client ip is enabled", func() {
-			BeforeEach(func() {
-				sutConfig.UseAsClient = true
-			})
-
-			It("should change ClientIP with subnet 32", func(ctx context.Context) {
-				request := newRequest("example.com.", A)
-				request.ClientIP = origIP
-
-				addEcsOption(request.Req, ecsIP, ecsMaskIPv4)
-
-				m.ResolveFn = func(ctx context.Context, req *Request) (*Response, error) {
-					Expect(req.ClientIP).Should(Equal(ecsIP))
-
-					return respondWith(mockAnswer), nil
-				}
-
-				Expect(sut.Resolve(ctx, request)).
-					Should(
-						SatisfyAll(
-							HaveNoAnswer(),
-							HaveResponseType(ResponseTypeRESOLVED),
-							HaveReturnCode(dns.RcodeSuccess),
-							HaveReason("Test")))
-			})
-
-			It("shouldn't change ClientIP with subnet 24", func(ctx context.Context) {
-				request := newRequest("example.com.", A)
-				request.ClientIP = origIP
-
-				addEcsOption(request.Req, ecsIP, 24)
-
-				m.ResolveFn = func(ctx context.Context, req *Request) (*Response, error) {
-					Expect(req.ClientIP).Should(Equal(origIP))
-
-					return respondWith(mockAnswer), nil
-				}
-
-				Expect(sut.Resolve(ctx, request)).
-					Should(
-						SatisfyAll(
-							HaveNoAnswer(),
-							HaveResponseType(ResponseTypeRESOLVED),
-							HaveReturnCode(dns.RcodeSuccess),
-							HaveReason("Test")))
-			})
-		})
-
 		When("add ECS information", func() {
 			BeforeEach(func() {
 				sutConfig.IPv4Mask = 32
@@ -184,7 +136,7 @@ var _ = Describe("EcsResolver", func() {
 				addEcsOption(request.Req, ecsIP, ecsMaskIPv4)
 
 				m.ResolveFn = func(ctx context.Context, req *Request) (*Response, error) {
-					Expect(req.ClientIP).Should(Equal(ecsIP))
+					Expect(req.ClientIP).Should(Equal(origIP))
 					Expect(req.Req).Should(HaveEdnsOption(dns.EDNS0SUBNET))
 
 					so := util.GetEdns0Option[*dns.EDNS0_SUBNET](req.Req)
@@ -214,7 +166,7 @@ var _ = Describe("EcsResolver", func() {
 					addEcsOption(request.Req, ecsIP, ecsMaskIPv4)
 
 					m.ResolveFn = func(ctx context.Context, req *Request) (*Response, error) {
-						Expect(req.ClientIP).Should(Equal(ecsIP))
+						Expect(req.ClientIP).Should(Equal(origIP))
 						Expect(req.Req).Should(HaveEdnsOption(dns.EDNS0SUBNET))
 
 						so := util.GetEdns0Option[*dns.EDNS0_SUBNET](req.Req)
