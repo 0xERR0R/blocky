@@ -2,6 +2,20 @@ site_name: blocky
 site_description: blocky Documentation
 theme:
   name: material
+  features:
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.top
+    - toc.follow
+    - content.code.copy
+    - content.code.annotate
+    - content.tooltips
+    - content.action.edit
+    - search.suggest
+    - search.highlight
+    - search.share
   palette:
     # Palette toggle for light mode
     - media: "(prefers-color-scheme: light)"
@@ -32,15 +46,30 @@ extra:
     - icon: fontawesome/brands/docker
       link: https://hub.docker.com/r/spx01/blocky
 repo_url: https://github.com/0xERR0R/blocky
+edit_uri: edit/main/docs/
 
 markdown_extensions:
   - abbr
-  - pymdownx.snippets
+  - attr_list
+  - md_in_html
+  - pymdownx.snippets:
+      base_path: [docs]
+      auto_append:
+        - includes/abbreviations.md
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.highlight
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.keys
   - admonition
   - pymdownx.details
 

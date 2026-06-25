@@ -7,7 +7,7 @@ editor autocomplete and validation (see [Editor support and validation](#editor-
 ??? example "reference configuration file"
 
     ```yaml
-    --8<-- "docs/config.yml"
+    --8<-- "config.yml"
     ```
 
 ## Editor support and validation
@@ -1922,5 +1922,3 @@ Default value is 4.
     As with other settings under `loading`, the limit applies to the blocking and hosts file resolvers separately.
     The total number of concurrent sources concurrently processed can reach the sum of both values.
     For example if blocking has a limit set to 8 and hosts file's is 4, there could be up to 12 concurrent jobs.
-
---8<-- "docs/includes/abbreviations.md"

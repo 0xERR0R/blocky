@@ -592,6 +592,12 @@ func (r *UpstreamResolver) Resolve(ctx context.Context, request *model.Request) 
 func (r *UpstreamResolver) logResponse(
 	logger *logrus.Entry, request *model.Request, resp *dns.Msg, ip net.IP, rtt time.Duration,
 ) {
+	// runs on every successful upstream response (every cache miss); skip building the
+	// (expensive) answer string / field map entirely when Debug isn't enabled.
+	if !isDebugEnabled(logger) {
+		return
+	}
+
 	logger.WithFields(logrus.Fields{
 		logFieldAnswer:     util.Obfuscate(util.AnswerToString(resp.Answer)),
 		"return_code":      dns.RcodeToString[resp.Rcode],

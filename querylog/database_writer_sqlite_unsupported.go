@@ -1,4 +1,4 @@
-//go:build mips || mipsle || mips64 || mips64le || (netbsd && !amd64) || (openbsd && !amd64 && !arm64)
+//go:build mips || mipsle || mips64 || mips64le || loong64 || (netbsd && !amd64) || (openbsd && !amd64 && !arm64)
 
 // This is the exact complement of the constraint in database_writer_sqlite.go: the
 // GOOS/GOARCH targets where the pure-Go SQLite driver chain (github.com/glebarez/

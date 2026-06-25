@@ -57,6 +57,7 @@ Complete documentation is available at https://github.com/0xERR0R/blocky`,
 		NewListsCommand(),
 		NewHealthcheckCommand(),
 		newCacheCommand(),
+		NewStatsCommand(),
 		NewValidateCommand())
 
 	return c

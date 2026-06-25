@@ -118,5 +118,3 @@ This will trigger a workflow on every push of a branch starting with `fb-` and c
 
 To enable automatic fork synchronisation create a secret with the name `FORK_SYNC_TOKEN` with an access token that has write permission to the fork repository.
 The enabled workflow will sync the main branch every 30 minutes with its upstream.
-
---8<-- "docs/includes/abbreviations.md"
