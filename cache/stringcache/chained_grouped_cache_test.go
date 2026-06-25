@@ -66,6 +66,42 @@ var _ = Describe("Chained grouped cache", func() {
 		})
 	})
 
+	Describe("Multiple sub-caches matching the same group", func() {
+		// Mirror the real lists.ListCache composition (regex, wildcard, string).
+		// When a domain matches in more than one sub-cache for the same group, a
+		// single representative rule is reported: the one from the last (cheapest)
+		// cache in construction order. This contract must hold regardless of the
+		// internal query order/short-circuiting.
+		BeforeEach(func() {
+			cache = stringcache.NewChainedGroupedCache(
+				stringcache.NewInMemoryGroupedRegexCache(),
+				stringcache.NewInMemoryGroupedWildcardCache(),
+				stringcache.NewInMemoryGroupedStringCache(),
+			)
+
+			factory = cache.Refresh("group1")
+			factory.AddEntry(`/^multi\.example$/`) // regex match for multi.example
+			factory.AddEntry("*.wild.example")     // wildcard match for x.wild.example
+			factory.AddEntry("multi.example")      // exact string match for multi.example
+			factory.Finish()
+		})
+
+		It("reports the string rule when string, wildcard and regex could all match", func() {
+			Expect(cache.Contains("multi.example", []string{"group1"})).
+				Should(Equal(map[string]string{"group1": "multi.example"}))
+		})
+
+		It("reports the wildcard rule when only wildcard and regex match", func() {
+			factory = cache.Refresh("group2")
+			factory.AddEntry(`/\.wild\.example$/`) // regex also matches sub.wild.example
+			factory.AddEntry("*.wild.example")     // wildcard matches sub.wild.example
+			factory.Finish()
+
+			Expect(cache.Contains("sub.wild.example", []string{"group2"})).
+				Should(Equal(map[string]string{"group2": "*.wild.example"}))
+		})
+	})
+
 	Describe("Cache refresh", func() {
 		When("cache with 2 groups was created", func() {
 			BeforeEach(func() {
