@@ -474,9 +474,23 @@ var _ = Describe("QueryLoggingResolver", func() {
 				Expect(sut.cfg.Type).Should(Equal(config.QueryLogTypeConsole))
 			})
 		})
+
+		When("dnstap target is invalid", func() {
+			BeforeEach(func() {
+				sutConfig = config.QueryLog{
+					Target:           "not-a-valid-target",
+					Type:             config.QueryLogTypeDnstap,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
+				}
+			})
+			It("should use fallback", func() {
+				Expect(sut.cfg.Type).Should(Equal(config.QueryLogTypeConsole))
+			})
+		})
 	})
 
-	Describe("GetQueryLoggingWriter for sqlite", func() {
+	Describe("GetQueryLoggingWriter", func() {
 		It("creates a database writer", func() {
 			dbPath := filepath.Join(GinkgoT().TempDir(), "querylog.db")
 
@@ -484,11 +498,23 @@ var _ = Describe("QueryLoggingResolver", func() {
 				Type:          config.QueryLogTypeSqlite,
 				Target:        config.Secret(dbPath),
 				FlushInterval: config.Duration(time.Millisecond),
-			})
+			}, "test-instance")
 
 			Expect(err).Should(Succeed())
 			Expect(writer).ShouldNot(BeNil())
 			Expect(writer).Should(BeAssignableToTypeOf(&querylog.DatabaseWriter{}))
+		})
+
+		It("creates a dnstap writer", func() {
+			sockPath := filepath.Join(GinkgoT().TempDir(), "dnstap.sock")
+			writer, err := GetQueryLoggingWriter(ctx, config.QueryLog{
+				Type:          config.QueryLogTypeDnstap,
+				Target:        config.Secret("unix:" + sockPath),
+				FlushInterval: config.Duration(time.Millisecond),
+			}, "test-instance")
+			Expect(err).Should(Succeed())
+			Expect(writer).ShouldNot(BeNil())
+			Expect(writer).Should(BeAssignableToTypeOf(&querylog.DnstapWriter{}))
 		})
 	})
 

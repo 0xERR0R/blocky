@@ -44,7 +44,7 @@ type QueryLoggingResolver struct {
 	ignoreDomains stringcache.GroupedStringCache
 }
 
-func GetQueryLoggingWriter(ctx context.Context, cfg config.QueryLog) (querylog.Writer, error) {
+func GetQueryLoggingWriter(ctx context.Context, cfg config.QueryLog, instanceID string) (querylog.Writer, error) {
 	var writer querylog.Writer
 
 	var err error
@@ -63,6 +63,8 @@ func GetQueryLoggingWriter(ctx context.Context, cfg config.QueryLog) (querylog.W
 		writer = querylog.NewLoggerWriter()
 	case config.QueryLogTypeNone:
 		writer = querylog.NewNoneWriter()
+	case config.QueryLogTypeDnstap:
+		writer, err = querylog.NewDnstapWriter(cfg.Target.Reveal(), cfg.FlushInterval.ToDuration(), instanceID)
 	}
 
 	if err != nil {
@@ -123,11 +125,16 @@ func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) (*QueryLo
 
 	var writer querylog.Writer
 
-	err := retry.Do(
+	instanceID, err := readInstanceID("/etc/hostname")
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine instance ID for query logging: %w", err)
+	}
+
+	err = retry.Do(
 		func() error {
 			var err error
 
-			writer, err = GetQueryLoggingWriter(ctx, cfg)
+			writer, err = GetQueryLoggingWriter(ctx, cfg, instanceID)
 
 			return err
 		},
@@ -144,11 +151,6 @@ func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) (*QueryLo
 
 		writer = querylog.NewLoggerWriter()
 		cfg.Type = config.QueryLogTypeConsole
-	}
-
-	instanceID, err := readInstanceID("/etc/hostname")
-	if err != nil {
-		return nil, fmt.Errorf("failed to determine instance ID for query logging: %w", err)
 	}
 
 	logChan := make(chan *querylog.LogEntry, logChanCap)
@@ -168,7 +170,9 @@ func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog) (*QueryLo
 	go resolver.writeLog(ctx)
 
 	// Timescale uses database features for retention
-	if cfg.LogRetentionDays > 0 && cfg.Type != config.QueryLogTypeTimescale {
+	if cfg.LogRetentionDays > 0 &&
+		cfg.Type != config.QueryLogTypeTimescale &&
+		cfg.Type != config.QueryLogTypeDnstap {
 		go resolver.periodicCleanUp(ctx)
 	}
 
@@ -207,6 +211,10 @@ func (r *QueryLoggingResolver) Resolve(ctx context.Context, request *model.Reque
 	}
 
 	entry := r.createLogEntry(request, resp, start, duration)
+
+	if entry == nil {
+		return resp, nil
+	}
 
 	if r.ignore(request, resp) {
 		// Log to the console for debugging purposes
@@ -275,6 +283,26 @@ func (r *QueryLoggingResolver) createLogEntry(request *model.Request, response *
 		case config.QueryLogFieldDuration:
 			entry.DurationMs = durationMs
 		}
+	}
+
+	if r.cfg.Type == config.QueryLogTypeDnstap {
+		var err error
+		entry.QueryWire, err = request.Req.Pack()
+		if err != nil {
+			log.PrefixedLog(queryLoggingResolverType).WithError(err).Warn("failed to pack query wire for dnstap")
+
+			return nil
+		}
+		entry.ResponseWire, err = response.Res.Pack()
+		if err != nil {
+			log.PrefixedLog(queryLoggingResolverType).WithError(err).Warn("failed to pack response wire for dnstap")
+
+			return nil
+		}
+		entry.QueryTime = request.RequestTS
+		entry.ResponseTime = start.Add(time.Duration(durationMs) * time.Millisecond)
+		entry.SocketProtocol = request.Protocol
+		entry.ClientIP = request.ClientIP.String()
 	}
 
 	return &entry
