@@ -81,6 +81,19 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 		})
 	})
 
+	Describe("Resolve when blocking is not configured", func() {
+		It("delegates straight to the next resolver", func() {
+			Expect(sut.Resolve(ctx, newRequestWithClient("example.com.", A, "1.2.1.2", "client1"))).
+				Should(
+					SatisfyAll(
+						HaveResponseType(ResponseTypeRESOLVED),
+						HaveReturnCode(dns.RcodeSuccess),
+					))
+
+			m.AssertExpectations(GinkgoT())
+		})
+	})
+
 	Describe("LogConfig", func() {
 		It("should log something", func() {
 			logger, hook := log.NewMockEntry()

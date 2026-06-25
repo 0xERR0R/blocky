@@ -504,6 +504,13 @@ func (r *BlockingResolver) handleDenylist(ctx context.Context, groupsToCheck []s
 
 // Resolve checks the query against the denylist and delegates to next resolver if domain is not blocked
 func (r *BlockingResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
+	// When no client groups are configured there is nothing to block, so skip the
+	// per-request logger derivation and group resolution entirely (matches the
+	// disabled-path early-return in hosts_file/rebinding resolvers).
+	if !r.IsEnabled() {
+		return r.next.Resolve(ctx, request)
+	}
+
 	ctx, logger := r.log(ctx)
 	groupsToCheck := r.groupsToCheckForClient(request)
 
