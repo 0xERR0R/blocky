@@ -577,7 +577,8 @@ func extractEntryToCheckFromResponse(rr dns.RR) (entryToCheck, tName string) {
 		entryToCheck = v.A.String()
 		tName = "IP"
 	case *dns.AAAA:
-		entryToCheck = strings.ToLower(v.AAAA.String())
+		// net.IP.String already emits lower-case hex, so no ToLower is needed.
+		entryToCheck = v.AAAA.String()
 		tName = "IP"
 	case *dns.CNAME:
 		entryToCheck = util.ExtractDomainOnly(v.Target)
@@ -625,7 +626,11 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 		result = append(result, sg.group)
 	}
 
-	sort.Strings(result)
+	// formatBlockReason renders groups in a stable order; a 0/1-element result is
+	// already sorted, so only sort when there is something to order.
+	if len(result) > 1 {
+		sort.Strings(result)
+	}
 
 	return result
 }
