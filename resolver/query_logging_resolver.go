@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"strings"
@@ -328,7 +329,20 @@ func (r *QueryLoggingResolver) writeLog(ctx context.Context) {
 					Warnf("query log writer is too slow, write duration: %d ms", time.Since(start).Milliseconds())
 			}
 		case <-ctx.Done():
+			r.closeWriter()
+
 			return
+		}
+	}
+}
+
+// closeWriter lets writers that hold external resources (e.g. the dnstap socket)
+// flush and release them on shutdown. Writers without a Close — the DB/CSV/console
+// retention writers — are unaffected.
+func (r *QueryLoggingResolver) closeWriter() {
+	if c, ok := r.writer.(io.Closer); ok {
+		if err := c.Close(); err != nil {
+			log.PrefixedLog(queryLoggingResolverType).WithError(err).Warn("failed to close query log writer")
 		}
 	}
 }

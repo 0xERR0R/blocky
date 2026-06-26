@@ -515,6 +515,7 @@ var _ = Describe("QueryLoggingResolver", func() {
 			Expect(err).Should(Succeed())
 			Expect(writer).ShouldNot(BeNil())
 			Expect(writer).Should(BeAssignableToTypeOf(&querylog.DnstapWriter{}))
+			Expect(writer.(*querylog.DnstapWriter).Close()).Should(Succeed())
 		})
 	})
 
