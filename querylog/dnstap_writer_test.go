@@ -3,15 +3,33 @@ package querylog
 import (
 	"net"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	dnstap "github.com/dnstap/golang-dnstap"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"google.golang.org/protobuf/proto"
 )
+
+func dnstapDropCount() float64 {
+	return testutil.ToFloat64(dnstapFramesDropped)
+}
+
+func bufferFullLogMessages(hook *log.MockLoggerHook) []string {
+	var msgs []string
+	for _, msg := range hook.Messages {
+		if strings.Contains(msg, "dnstap frame buffer") {
+			msgs = append(msgs, msg)
+		}
+	}
+
+	return msgs
+}
 
 var _ = Describe("DnstapWriter", func() {
 	Describe("parseDnstapTarget", func() {
@@ -61,6 +79,21 @@ var _ = Describe("DnstapWriter", func() {
 			Expect(err).Should(HaveOccurred())
 		})
 	})
+
+	DescribeTable("isPowerOfTen (drop-log throttle)",
+		func(n uint64, expected bool) {
+			Expect(isPowerOfTen(n)).Should(Equal(expected))
+		},
+		Entry("0 does not log", uint64(0), false),
+		Entry("1 logs (first drop)", uint64(1), true),
+		Entry("9 does not log", uint64(9), false),
+		Entry("10 logs", uint64(10), true),
+		Entry("11 does not log", uint64(11), false),
+		Entry("50 does not log", uint64(50), false),
+		Entry("100 logs", uint64(100), true),
+		Entry("1000 logs", uint64(1000), true),
+		Entry("1024 does not log", uint64(1024), false),
+	)
 
 	Describe("marshalDnstapFrame", func() {
 		It("builds a CLIENT_RESPONSE frame", func() {
@@ -203,6 +236,73 @@ var _ = Describe("DnstapWriter", func() {
 			}()
 
 			Eventually(done, "5s").Should(BeClosed())
+
+			Expect(writer.dropped.Load()).Should(Equal(uint64(99)))
+		})
+
+		It("increments the prometheus counter on each dropped frame", func() {
+			sockPath := filepath.Join(GinkgoT().TempDir(), "dnstap.sock")
+			writer, err := NewDnstapWriter("unix:"+sockPath, time.Millisecond, "test-instance")
+			Expect(err).Should(Succeed())
+			DeferCleanup(func() { _ = writer.Close() })
+			entry := &LogEntry{
+				ClientIP:       "192.168.1.1",
+				SocketProtocol: model.RequestProtocolUDP,
+				QueryWire:      queryWire,
+				ResponseWire:   responseWire,
+				QueryTime:      time.Unix(1_700_000_000, 0),
+				ResponseTime:   time.Unix(1_700_000_000, 0),
+			}
+			const dropCount = 50
+			before := dnstapDropCount()
+			for writer.dropped.Load() < dropCount {
+				writer.Write(entry)
+			}
+			after := dnstapDropCount()
+			Expect(after - before).Should(BeNumerically("==", dropCount))
+			Expect(writer.dropped.Load()).Should(Equal(uint64(dropCount)))
+		})
+		It("logs buffer-full warnings only at power-of-ten drop milestones", func() {
+			sockPath := filepath.Join(GinkgoT().TempDir(), "dnstap.sock")
+			writer, err := NewDnstapWriter("unix:"+sockPath, time.Millisecond, "test-instance")
+			Expect(err).Should(Succeed())
+			DeferCleanup(func() { _ = writer.Close() })
+			mockLogger, hook := log.NewMockEntry()
+			writer.logger = mockLogger
+			entry := &LogEntry{
+				ClientIP:       "192.168.1.1",
+				SocketProtocol: model.RequestProtocolUDP,
+				QueryWire:      queryWire,
+				ResponseWire:   responseWire,
+				QueryTime:      time.Unix(1_700_000_000, 0),
+				ResponseTime:   time.Unix(1_700_000_000, 0),
+			}
+			const dropCount = 100
+			for writer.dropped.Load() < dropCount {
+				writer.Write(entry)
+			}
+			Expect(writer.dropped.Load()).Should(Equal(uint64(dropCount)))
+			msgs := bufferFullLogMessages(hook)
+			Expect(msgs).Should(HaveLen(3))
+			Expect(msgs[0]).Should(ContainSubstring("dropped 1 frame"))
+			Expect(msgs[1]).Should(ContainSubstring("dropped 10 frame"))
+			Expect(msgs[2]).Should(ContainSubstring("dropped 100 frame"))
+		})
+		It("ignores Write after Close without panicking", func() {
+			sockPath := filepath.Join(GinkgoT().TempDir(), "dnstap.sock")
+			writer, err := NewDnstapWriter("unix:"+sockPath, time.Millisecond, "test-instance")
+			Expect(err).Should(Succeed())
+			Expect(writer.Close()).Should(Succeed())
+			Expect(writer.Close()).Should(Succeed()) // idempotent
+			entry := &LogEntry{
+				ClientIP:       "192.168.1.1",
+				SocketProtocol: model.RequestProtocolUDP,
+				QueryWire:      queryWire,
+				ResponseWire:   responseWire,
+				QueryTime:      time.Unix(1_700_000_000, 0),
+				ResponseTime:   time.Unix(1_700_000_000, 0),
+			}
+			Expect(func() { writer.Write(entry) }).ShouldNot(Panic())
 		})
 	})
 })

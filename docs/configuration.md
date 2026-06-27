@@ -1173,6 +1173,9 @@ Set `queryLog.target` to:
 !!! note
     dnstap exports full DNS messages. `log.privacy` obfuscation does not apply to dnstap payloads.
 
+!!! note
+    sustained non-zero values mean export loss.
+
 ### Query log fields
 
 You can choose which information from processed DNS request and response should be logged in the target system. You can define one or more of following fields:

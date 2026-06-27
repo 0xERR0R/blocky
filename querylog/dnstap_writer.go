@@ -5,12 +5,17 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/0xERR0R/blocky/log"
+	"github.com/0xERR0R/blocky/metrics"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
+
 	dnstap "github.com/dnstap/golang-dnstap"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 )
@@ -27,12 +32,22 @@ const (
 	dnstapFrameChanCap = 4096
 )
 
+//nolint:gochecknoglobals
+var dnstapFramesDropped = promauto.With(metrics.Reg).NewCounter(
+	prometheus.CounterOpts{
+		Name: "blocky_dnstap_frames_dropped_total",
+		Help: "Number of dnstap query-log frames dropped because the internal buffer was full",
+	},
+)
+
 type DnstapWriter struct {
 	writer    dnstap.Writer
 	identity  string
 	logger    *logrus.Entry
 	frames    chan []byte
 	closeOnce sync.Once
+	closed    atomic.Bool
+	dropped   atomic.Uint64
 }
 
 func NewDnstapWriter(target string, flushInterval time.Duration, instanceID string) (*DnstapWriter, error) {
@@ -73,13 +88,21 @@ func NewDnstapWriter(target string, flushInterval time.Duration, instanceID stri
 // is closed, the queue drains and the socket is flushed and closed.
 func (d *DnstapWriter) run() {
 	defer func() {
+		if d.closed.Load() {
+			return
+		}
 		if err := d.writer.Close(); err != nil {
 			d.logger.WithError(err).Warn("failed to close dnstap writer")
 		}
 	}()
-
 	for frame := range d.frames {
+		if d.closed.Load() {
+			return
+		}
 		if _, err := d.writer.WriteFrame(frame); err != nil {
+			if d.closed.Load() {
+				return
+			}
 			d.logger.WithError(err).Warn("failed to write dnstap frame")
 		}
 	}
@@ -128,6 +151,9 @@ func resolveDnstapTCP(hostport string) (net.Addr, error) {
 }
 
 func (d *DnstapWriter) Write(entry *LogEntry) {
+	if d.closed.Load() {
+		return
+	}
 	if entry == nil || len(entry.QueryWire) == 0 || len(entry.ResponseWire) == 0 {
 		return
 	}
@@ -143,7 +169,13 @@ func (d *DnstapWriter) Write(entry *LogEntry) {
 	select {
 	case d.frames <- frame:
 	default:
-		d.logger.Warn("dnstap frame buffer full (collector slow or unreachable), dropping frame")
+		dnstapFramesDropped.Inc()
+		if n := d.dropped.Add(1); isPowerOfTen(n) {
+			d.logger.Warnf(
+				"dnstap frame buffer (%d) full (collector slow or unreachable), dropped %d frame(s) so far",
+				dnstapFrameChanCap, n,
+			)
+		}
 	}
 }
 
@@ -157,7 +189,11 @@ func (d *DnstapWriter) CleanUp() {}
 // WriteFrame, so a stuck collector connection cannot hang shutdown.
 func (d *DnstapWriter) Close() error {
 	d.closeOnce.Do(func() {
+		d.closed.Store(true)
 		close(d.frames)
+		if err := d.writer.Close(); err != nil {
+			d.logger.WithError(err).Warn("failed to close dnstap writer on shutdown")
+		}
 	})
 
 	return nil
@@ -222,6 +258,20 @@ func requestProtocol(protocol model.RequestProtocol) (dnstap.SocketProtocol, err
 
 func timeToSecNsec(t time.Time) (uint64, uint32) {
 	return uint64(t.Unix()), uint32(t.Nanosecond()) //nolint:gosec // nanosecond fits in uint32
+}
+
+// isPowerOfTen reports whether n is 1, 10, 100, 1000, ... It is used to
+// throttle drop logging to O(log n) lines while always reporting the latest
+// cumulative count.
+func isPowerOfTen(n uint64) bool {
+	for n >= 10 {
+		if n%10 != 0 {
+			return false
+		}
+		n /= 10
+	}
+
+	return n == 1
 }
 
 // dnstapLogger adapts blocky's logrus logger onto the dnstap library's Logger
