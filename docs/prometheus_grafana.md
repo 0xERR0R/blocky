@@ -83,5 +83,3 @@ Please define the MySQL source in Grafana, which points to the database with blo
 ## Postgres
 
 The JSON for a Grafana dashboard equivalent to the MySQL/MariaDB version is located [here](blocky-query-grafana-postgres.json)
-
---8<-- "docs/includes/abbreviations.md"

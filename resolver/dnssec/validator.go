@@ -63,6 +63,21 @@ const ednsUDPSize = 4096 // EDNS UDP buffer size for DNSSEC queries
 var (
 	errUnsupportedRSAExponent = errors.New("unsupported RSA exponent exceeds Go crypto limit")
 	errInsecureChain          = errors.New("chain of trust is insecure (no DS records in parent)")
+	// errIndeterminateChain marks an RRSIG that was skipped because its signer's chain of
+	// trust could not be completed (a DS/DNSKEY sub-query timed out or the upstream was
+	// unreachable), as opposed to a genuine cryptographic failure. It must propagate as
+	// Indeterminate ("could not validate"), never Bogus - see determineFinalValidationResult.
+	errIndeterminateChain = errors.New("chain of trust is indeterminate (incomplete/unreachable)")
+	// errDNSKEYUnavailable marks a transient failure to fetch the signer's DNSKEY RRset
+	// (upstream error/timeout). Like errIndeterminateChain this is "could not validate", not
+	// proof of an invalid signature, so it must not be funnelled to Bogus. Distinct from a
+	// DNSKEY response that arrives but contains no matching key, which stays a genuine failure.
+	errDNSKEYUnavailable = errors.New("signer DNSKEY could not be retrieved (unreachable)")
+	// errBogusChain marks an RRSIG skipped because its signer's chain of trust is provably
+	// invalid (e.g. a DS digest mismatch) - genuine evidence of tampering, NOT mere
+	// unreachability. It is a genuine failure and must dominate any Indeterminate sibling, so
+	// Bogus always wins within an RRset (mirroring the cross-RRset precedence in validateRRsets).
+	errBogusChain = errors.New("chain of trust is bogus")
 )
 
 // Resolver is the interface for DNS resolution (minimal interface to avoid import cycles)
@@ -400,6 +415,7 @@ func (v *Validator) validateRRsets(
 	// Track mixed security statuses (can occur in CNAME chains crossing zone boundaries)
 	hasSecure := false
 	hasInsecure := false
+	hasIndeterminate := false
 
 	// Validate each RRset
 	for key, rrset := range rrsets {
@@ -408,16 +424,26 @@ func (v *Validator) validateRRsets(
 
 		switch result {
 		case ValidationResultBogus:
-			// Bogus always fails validation
+			// A genuine cryptographic failure fails the whole answer immediately, and must
+			// take precedence over any Indeterminate sibling: rrsets is a map (unordered), so
+			// deferring here would let a transient Indeterminate RRset mask a real Bogus one.
 			return ValidationResultBogus
 		case ValidationResultIndeterminate:
-			// Indeterminate always fails validation
-			return ValidationResultIndeterminate
+			// "Could not validate" (transient/unreachable). Remember it but keep scanning in
+			// case another RRset is genuinely Bogus, which must win.
+			hasIndeterminate = true
 		case ValidationResultSecure:
 			hasSecure = true
 		case ValidationResultInsecure:
 			hasInsecure = true
 		}
+	}
+
+	// No RRset was Bogus. If any RRset could not be validated, the answer as a whole could not
+	// be validated - Indeterminate takes precedence over a Secure/Insecure verdict so we never
+	// assert AD (or a clean Insecure) over a partially-unvalidated answer (issue #2120).
+	if hasIndeterminate {
+		return ValidationResultIndeterminate
 	}
 
 	// Per RFC 4035 §5.2: A mix of Secure and Insecure RRsets is acceptable
@@ -464,6 +490,7 @@ func (v *Validator) validateSingleRRset(
 		hasUnsupportedSignature bool
 		hasOtherFailure         bool
 		hasInsecureChain        bool
+		hasIndeterminateChain   bool
 	)
 
 	for _, matchingSig := range sortedSigs {
@@ -482,27 +509,36 @@ func (v *Validator) validateSingleRRset(
 			return ValidationResultSecure
 		}
 
-		if err != nil {
-			if errors.Is(err, errUnsupportedRSAExponent) {
-				// Track unsupported signatures but continue trying others
-				hasUnsupportedSignature = true
-			} else {
-				// Track other failures
-				hasOtherFailure = true
-				lastErr = err
-			}
+		switch {
+		case err == nil:
+			// Skipped for a non-failure reason (e.g. signer-name mismatch) - track nothing.
+		case errors.Is(err, errUnsupportedRSAExponent):
+			// Track unsupported signatures but continue trying others
+			hasUnsupportedSignature = true
+		case errors.Is(err, errIndeterminateChain), errors.Is(err, errDNSKEYUnavailable):
+			// Validation data could not be gathered (transient/unreachable) - this is
+			// "could not determine", not a cryptographic failure (issue #2120).
+			hasIndeterminateChain = true
+			lastErr = err
+		default:
+			// A genuine failure (signature did not verify, no matching key, bogus chain, ...).
+			// This dominates any Indeterminate sibling so Bogus wins within the RRset.
+			hasOtherFailure = true
+			lastErr = err
 		}
 	}
 
 	// Determine final result based on failure types
 	return v.determineFinalValidationResult(
-		domain, len(sortedSigs), hasInsecureChain, hasUnsupportedSignature, hasOtherFailure, lastErr,
+		domain, len(sortedSigs), hasInsecureChain, hasUnsupportedSignature, hasOtherFailure,
+		hasIndeterminateChain, lastErr,
 	)
 }
 
 // determineFinalValidationResult determines the validation result when all RRSIGs have been tried
 func (v *Validator) determineFinalValidationResult(
-	domain string, sigCount int, hasInsecureChain, hasUnsupportedSignature, hasOtherFailure bool, lastErr error,
+	domain string, sigCount int, hasInsecureChain, hasUnsupportedSignature, hasOtherFailure,
+	hasIndeterminateChain bool, lastErr error,
 ) ValidationResult {
 	// Check if any signature verified with insecure chain
 	// This takes precedence over other failure types
@@ -515,12 +551,26 @@ func (v *Validator) determineFinalValidationResult(
 
 	// All RRSIGs failed - determine result based on failure types
 	// Per RFC 4035 §2.2: Treat unsupported algorithms as Insecure only if NO other errors occurred
-	if hasUnsupportedSignature && !hasOtherFailure {
+	if hasUnsupportedSignature && !hasOtherFailure && !hasIndeterminateChain {
 		v.logger.Warnf(
 			"All RRSIG signatures for %s use unsupported algorithms - treating as Insecure per RFC 4035 §2.2",
 			domain)
 
 		return ValidationResultInsecure
+	}
+
+	// No signature failed cryptographically, but at least one could not be validated because
+	// its chain of trust was unreachable (transient DS/DNSKEY sub-query failure). This is
+	// "validation could not be completed" - Indeterminate, NOT Bogus. Reporting it Bogus turns
+	// a momentary upstream blip into SERVFAIL "bogus signatures" (issue #2120). At the resolver
+	// layer Indeterminate clears AD and serves the answer; the next query re-validates once the
+	// upstream recovers. A genuine forged/invalid signature still sets hasOtherFailure -> Bogus,
+	// and an unsigned answer (no RRSIG) never reaches here - it stays fail-closed (GHSA-x845).
+	if hasIndeterminateChain && !hasOtherFailure {
+		v.logger.Warnf("Could not complete chain of trust for %s (tried %d signatures), last error: %v - "+
+			"treating as Indeterminate", domain, sigCount, lastErr)
+
+		return ValidationResultIndeterminate
 	}
 
 	// At least one signature failed validation (not just unsupported) - this is Bogus
@@ -578,14 +628,27 @@ func (v *Validator) tryVerifyWithRRSIG(
 	// Validate the DNSKEY via chain of trust
 	chainResult := v.walkChainOfTrust(ctx, signerName)
 
-	// Only skip verification if chain validation failed with Bogus or Indeterminate
+	// Skip verification if the chain of trust could not be established. Distinguish the two
+	// reasons: an Indeterminate chain (a DS/DNSKEY sub-query timed out / upstream unreachable)
+	// is a transient "could not validate" and must propagate as Indeterminate, NOT Bogus
+	// (issue #2120); a Bogus chain (e.g. a DS digest mismatch) is a genuine failure and stays
+	// Bogus via the default in determineFinalValidationResult.
 	// Per RFC 5155 §6: NSEC3 Opt-Out allows unsigned delegations, but if the zone IS signed
-	// (has RRSIG records), we should still validate those signatures cryptographically
-	if chainResult == ValidationResultBogus || chainResult == ValidationResultIndeterminate {
+	// (has RRSIG records), we should still validate those signatures cryptographically.
+	if chainResult == ValidationResultIndeterminate {
+		v.logger.Debugf("Skipping RRSIG (algorithm=%d, keytag=%d): chain of trust is indeterminate (unreachable)",
+			matchingSig.Algorithm, matchingSig.KeyTag)
+
+		return false, errIndeterminateChain
+	}
+
+	if chainResult == ValidationResultBogus {
 		v.logger.Debugf("Skipping RRSIG (algorithm=%d, keytag=%d): chain of trust validation failed: %s",
 			matchingSig.Algorithm, matchingSig.KeyTag, chainResult.String())
 
-		return false, nil
+		// A provably-bogus chain is a genuine failure: report it as such so it dominates any
+		// Indeterminate sibling RRSIG and is surfaced in the final Bogus log (not "<nil>").
+		return false, errBogusChain
 	}
 
 	// Verify the signature and return result based on chain status

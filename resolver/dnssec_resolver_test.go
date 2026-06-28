@@ -230,6 +230,56 @@ var _ = Describe("DNSSECResolver", func() {
 				Expect(resp.Res.Rcode).Should(Equal(dns.RcodeServerFailure))
 				Expect(resp.Res.AuthenticatedData).Should(BeFalse())
 			})
+
+			// Regression for #2126 and the follow-up review: after the GHSA-x845 hardening an
+			// unsigned answer under the (default) root trust anchor is classified bogus -> SERVFAIL.
+			// Only public-upstream answers (RESOLVED, and cached upstream answers re-served as
+			// CACHED) carry a chain of trust in the public DNS hierarchy and form the GHSA-x845
+			// attack surface, so we validate exactly those. Trusted-local / synthesized answers
+			// - conditional-upstream private zones, special-use names like localhost, DNS64-
+			// synthesized AAAA - are inherently unsigned and must be exempted (like the rebinding
+			// resolver's response-type whitelist) instead of being turned into SERVFAIL.
+			DescribeTable("skips validation for trusted-local / synthesized responses (whitelist carve-out)",
+				func(rType model.ResponseType) {
+					// unsigned answer; the local resolver may even assert AD, which we must not propagate
+					response.AuthenticatedData = true
+					mockUpstream.On("Resolve", mock.Anything).Return(
+						&model.Response{Res: response, RType: rType}, nil)
+
+					resp, err := sut.Resolve(ctx, request)
+					Expect(err).Should(Succeed())
+					// passes through untouched - not turned into SERVFAIL
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeSuccess))
+					Expect(resp.Res.Answer).Should(HaveLen(1))
+					Expect(resp.RType).Should(Equal(rType))
+					// AD cleared: we did not authenticate it
+					Expect(resp.Res.AuthenticatedData).Should(BeFalse())
+					// the carve-out short-circuits before the validator runs, so no DS/DNSKEY
+					// sub-queries are issued - only the initial next.Resolve hit the upstream
+					Expect(mockUpstream.Calls).Should(HaveLen(1))
+				},
+				Entry("conditional upstream - private/split-horizon zone (#2126)", model.ResponseTypeCONDITIONAL),
+				Entry("special-use domain name - e.g. localhost", model.ResponseTypeSPECIAL),
+				Entry("DNS64-synthesized AAAA", model.ResponseTypeSYNTHESIZED),
+			)
+
+			// The GHSA-x845 attack surface - public-upstream answers - must remain fully
+			// validated, including cached upstream answers re-served as CACHED (re-validated on
+			// every cache hit). The whitelist carve-out above is strictly response-type scoped
+			// and must not weaken this.
+			DescribeTable("still validates (SERVFAIL) unsigned public-upstream responses (GHSA-x845 preserved)",
+				func(rType model.ResponseType) {
+					mockUpstream.On("Resolve", mock.Anything).Return(
+						&model.Response{Res: response, RType: rType}, nil)
+
+					resp, err := sut.Resolve(ctx, request)
+					Expect(err).Should(Succeed())
+					// unsigned answer under the default root anchor -> bogus -> SERVFAIL
+					Expect(resp.Res.Rcode).Should(Equal(dns.RcodeServerFailure))
+				},
+				Entry("resolved - public upstream", model.ResponseTypeRESOLVED),
+				Entry("cached upstream answer - re-validated on hit", model.ResponseTypeCACHED),
+			)
 		})
 
 		When("upstream resolver returns error", func() {

@@ -31,6 +31,55 @@ type ECSMask interface {
 	config.ECSv4Mask | config.ECSv6Mask
 }
 
+// ECSClientResolver adopts the EDNS Client Subnet address of a request as the internal
+// client IP (the ecs.useAsClient option).
+type ECSClientResolver struct {
+	configurable[*config.ECS]
+	NextResolver
+	typed
+}
+
+// NewECSClientResolver creates a new resolver instance which uses the ECS subnet as client IP
+func NewECSClientResolver(cfg config.ECS) ChainedResolver {
+	return &ECSClientResolver{
+		configurable: withConfig(&cfg),
+		typed:        withType("ecs_as_client"),
+	}
+}
+
+// Resolve adopts the request's full-prefix EDNS Client Subnet address as the internal
+// client IP (when ecs.useAsClient is enabled) and delegates to the next resolver.
+//
+// It must run above the client-name lookup and the cache so the ECS-derived client identity
+// is used for those features and survives cache hits (the cache short-circuits the chain on a
+// hit, so anything below it never runs for cached answers).
+func (r *ECSClientResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
+	if r.cfg.UseAsClient {
+		_, logger := r.log(ctx)
+
+		// A full prefix (/32 for IPv4, /128 for IPv6) identifies a single client, so the
+		// subnet address can stand in for the connecting client's IP.
+		so := util.GetEdns0Option[*dns.EDNS0_SUBNET](request.Req)
+		if so != nil && so.Address != nil && ((so.Family == ecsFamilyIPv4 && so.SourceNetmask == ecsMaskIPv4) ||
+			(so.Family == ecsFamilyIPv6 && so.SourceNetmask == ecsMaskIPv6)) {
+			logger.Debugf("using request's edns0 address as internal client IP: %s", so.Address)
+			request.ClientIP = so.Address
+		}
+	}
+
+	return r.next.Resolve(ctx, request)
+}
+
+// IsEnabled implements `config.Configurable`.
+func (r *ECSClientResolver) IsEnabled() bool {
+	return r.cfg.UseAsClient
+}
+
+// LogConfig implements `config.Configurable`.
+func (r *ECSClientResolver) LogConfig(logger *logrus.Entry) {
+	logger.Infof("use ECS subnet as client = %t", r.cfg.UseAsClient)
+}
+
 // ECSResolver is responsible for adding the EDNS Client Subnet information as EDNS0 option.
 type ECSResolver struct {
 	configurable[*config.ECS]
@@ -46,20 +95,17 @@ func NewECSResolver(cfg config.ECS) ChainedResolver {
 	}
 }
 
-// Resolve adds the subnet information as EDNS0 option to the request of the next resolver
-// and sets the client IP from the EDNS0 option to the request if this option is enabled
+// Resolve adds, forwards or removes the EDNS Client Subnet option on the request before it is
+// sent upstream. Adopting the ECS subnet as the internal client IP (ecs.useAsClient) is handled
+// separately by the ECSClientResolver, which runs above the client-name lookup and the cache.
 func (r *ECSResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	if r.cfg.IsEnabled() {
-		ctx, logger := r.log(ctx)
-		_ = ctx
+		_, logger := r.log(ctx)
 
 		so := util.GetEdns0Option[*dns.EDNS0_SUBNET](request.Req)
-		// Set the client IP from the Edns0 subnet option if the option is enabled and the correct subnet mask is set
-		if r.cfg.UseAsClient && so != nil && ((so.Family == ecsFamilyIPv4 && so.SourceNetmask == ecsMaskIPv4) ||
-			(so.Family == ecsFamilyIPv6 && so.SourceNetmask == ecsMaskIPv6)) {
-			logger.Debugf("using request's edns0 address as internal client IP: %s", so.Address)
-			request.ClientIP = so.Address
-		}
+
+		// Adopting the ECS subnet as the internal client IP (ecs.useAsClient) happens in the
+		// ECSClientResolver, which runs above the client-name lookup and the cache.
 
 		// Set the Edns0 subnet option if the client IP is IPv4 or IPv6 and the masks are set in the configuration
 		if r.cfg.IPv4Mask > 0 || r.cfg.IPv6Mask > 0 {
