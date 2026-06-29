@@ -82,15 +82,15 @@ func NewDnstapWriter(target string, flushInterval time.Duration, instanceID stri
 	return d, nil
 }
 
-// run is the only goroutine that touches d.writer. socketWriter.WriteFrame may
-// block indefinitely while the collector is unreachable, but that no longer stalls
-// the resolver's writeLog goroutine (Write enqueues without blocking). When frames
-// is closed, the queue drains and the socket is flushed and closed.
+// run is the only goroutine that touches d.writer: WriteFrame in the loop and the
+// deferred Close below are the sole accesses, so the dnstap socketWriter (which is
+// not safe for concurrent WriteFrame/Close) is never reached from two goroutines.
+// socketWriter.WriteFrame may block indefinitely while the collector is unreachable,
+// but that no longer stalls the resolver's writeLog goroutine (Write enqueues without
+// blocking). Close signals shutdown by closing d.frames; run then stops and closes the
+// socket here.
 func (d *DnstapWriter) run() {
 	defer func() {
-		if d.closed.Load() {
-			return
-		}
 		if err := d.writer.Close(); err != nil {
 			d.logger.WithError(err).Warn("failed to close dnstap writer")
 		}
@@ -184,16 +184,15 @@ func (d *DnstapWriter) Write(entry *LogEntry) {
 // happens in Close instead.
 func (d *DnstapWriter) CleanUp() {}
 
-// Close signals shutdown: it stops accepting frames so the run goroutine drains the
-// queue and closes the socket. It returns immediately and never waits on an in-flight
-// WriteFrame, so a stuck collector connection cannot hang shutdown.
+// Close signals shutdown: it stops accepting frames so the run goroutine stops and
+// closes the socket itself. It deliberately does not touch d.writer — run owns it, and
+// the dnstap socketWriter is not safe for a Close concurrent with an in-flight
+// WriteFrame — and never waits on an in-flight WriteFrame, so a stuck collector
+// connection cannot hang shutdown.
 func (d *DnstapWriter) Close() error {
 	d.closeOnce.Do(func() {
 		d.closed.Store(true)
 		close(d.frames)
-		if err := d.writer.Close(); err != nil {
-			d.logger.WithError(err).Warn("failed to close dnstap writer on shutdown")
-		}
 	})
 
 	return nil
