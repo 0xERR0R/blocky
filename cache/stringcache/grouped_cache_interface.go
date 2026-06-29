@@ -4,6 +4,10 @@ type GroupedStringCache interface {
 	// Contains checks if one or more groups in the cache contains the search string.
 	// Returns a map of matching group -> the rule that matched, or nil/empty when
 	// the string was not found.
+	//
+	// The returned map must be freshly allocated and owned by the caller: callers
+	// (e.g. ChainedGroupedCache) may retain and mutate it. Implementations must not
+	// return a retained, shared, or pooled map.
 	Contains(searchString string, groups []string) map[string]string
 
 	// Refresh creates new factory for the group to be refreshed.

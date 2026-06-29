@@ -1,6 +1,9 @@
 package stringcache
 
-import "maps"
+import (
+	"maps"
+	"slices"
+)
 
 type ChainedGroupedCache struct {
 	caches []GroupedStringCache
@@ -42,16 +45,18 @@ func (c *ChainedGroupedCache) Contains(searchString string, groups []string) map
 
 	remaining := groups
 
-	for i := len(c.caches) - 1; i >= 0; i-- {
-		matches := c.caches[i].Contains(searchString, remaining)
+	for _, cache := range slices.Backward(c.caches) {
+		matches := cache.Contains(searchString, remaining)
 		if len(matches) == 0 {
 			continue
 		}
 
 		if result == nil {
-			// Adopt the sub-cache's freshly-allocated map instead of allocating a
-			// second one; the common single-sub-cache match then costs one map, not
-			// two. Sub-cache maps are never shared, so this is safe to retain/extend.
+			// Adopt the sub-cache's map instead of allocating a second one; the common
+			// single-sub-cache match then costs one map, not two. We then retain and
+			// mutate it (via maps.Copy below), which is only safe because the
+			// GroupedStringCache contract requires Contains to return a fresh, caller-
+			// ownable map per call (never a retained/shared/pooled one).
 			result = matches
 		} else {
 			maps.Copy(result, matches)
