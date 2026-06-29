@@ -262,6 +262,12 @@ queryLog:
   # optional: Interval to write data in bulk to the external database, default: 30s
   flushInterval: 30s
 
+  # dnstap example (use instead of mysql/csv/etc., not together):
+  # type: dnstap
+  # target: unix:/var/run/dnstap.sock
+  # target: tcp://127.0.0.1:6000
+  # flushInterval: 30s
+
 # optional: Blocky can synchronize its cache and blocking state between multiple instances through redis.
 redis:
   # Server address and port, a unix socket path (starting with /), or master name if sentinel is used

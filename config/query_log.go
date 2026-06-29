@@ -10,9 +10,10 @@ import (
 
 // QueryLog configuration for the query logging
 type QueryLog struct {
-	// Directory for CSV log files, file path for sqlite, or database URL for mysql/postgresql/timescale.
+	// Directory for CSV log files, file path for sqlite, or database URL for mysql/postgresql/timescale,
+	// or dnstap socket address (unix:/path, tcp://host:port, or bare /path for unix).
 	Target Secret `yaml:"target"`
-	// Log target type: mysql, postgresql, timescale, sqlite, csv, csv-client, console, or none.
+	// Log target type: mysql, postgresql, timescale, sqlite, csv, csv-client, console, dnstap, or none.
 	Type QueryLogType `yaml:"type"`
 	// Delete log entries older than this many days. 0 disables retention cleanup.
 	LogRetentionDays uint64 `yaml:"logRetentionDays"`
@@ -22,8 +23,8 @@ type QueryLog struct {
 	CreationCooldown Duration `default:"2s" yaml:"creationCooldown"`
 	// Which fields to include in log entries; defaults to all available fields.
 	Fields []QueryLogField `yaml:"fields"`
-	// Interval at which buffered log entries are flushed in bulk to the database
-	// (used by the mysql, postgresql, timescale and sqlite targets).
+	// Interval at which buffered log entries are flushed in bulk to the database or dnstap socket
+	// (used by the mysql, postgresql, timescale, sqlite and dnstap targets).
 	FlushInterval Duration `default:"30s" yaml:"flushInterval"`
 	// Rules to suppress certain queries from being logged.
 	Ignore QueryLogIgnore `yaml:"ignore"`

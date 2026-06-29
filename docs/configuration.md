@@ -1131,6 +1131,7 @@ You can select one of following query log types:
 - `csv`: log into CSV file (one per day)
 - `csv-client`: log into CSV file (one per day and per client)
 - `console`: log into console output
+- `dnstap`: export client DNS query/response events via [dnstap](https://dnstap.info/) (Frame Streams over Unix socket or TCP)
 - `none`: do not log any queries
 
 #### SQLite query log
@@ -1157,6 +1158,24 @@ You can read the database with the `sqlite3` CLI, DB Browser for SQLite, a Grafa
 - **Do not copy only `querylog.db`** for offline reading — you would miss un-checkpointed rows. Instead copy all three files together, run `PRAGMA wal_checkpoint(TRUNCATE);` first, or use `sqlite3 querylog.db ".backup backup.db"` (or `VACUUM INTO`).
 - Use a tool with WAL support (a modern `sqlite3` CLI does).
 
+#### dnstap query log
+
+The `dnstap` target streams structured DNS events to an external collector (e.g. `dnstap-read`, SIEM pipelines). Each resolved client query is sent as a dnstap `CLIENT_RESPONSE` frame containing wire-format query and response messages.
+
+Set `queryLog.target` to:
+
+- `unix:/var/run/dnstap.sock` — Unix domain socket
+- `tcp://127.0.0.1:6000` — TCP listener
+- `/var/run/dnstap.sock` — bare path, treated as Unix socket
+
+`queryLog.fields` and `queryLog.logRetentionDays` do not apply (streaming export, not stored rows/files). `queryLog.flushInterval` controls socket write batching.
+
+!!! note
+    dnstap exports full DNS messages. `log.privacy` obfuscation does not apply to dnstap payloads.
+
+!!! note
+    sustained non-zero values mean export loss.
+
 ### Query log fields
 
 You can choose which information from processed DNS request and response should be logged in the target system. You can define one or more of following fields:
@@ -1171,19 +1190,19 @@ You can choose which information from processed DNS request and response should 
 - `duration`: request processing time in milliseconds
 
 !!! hint
-    If not defined, blocky will log all available information
+    If not defined, blocky will log all available information. The `fields` setting does not apply to the `dnstap` target.
 
 Configuration parameters:
 
 | Parameter                 | Type                                                                                 | Mandatory | Default value | Description                                                                                   |
 | ------------------------- | ------------------------------------------------------------------------------------ | --------- | ------------- | --------------------------------------------------------------------------------------------- |
-| queryLog.type             | enum (mysql, postgresql, timescale, sqlite, csv, csv-client, console, none (see above))      | no        |               | Type of logging target. Console if empty                                                      |
-| queryLog.target           | string                                                                               | no        |               | directory for writing the logs (for csv), database file path (for sqlite), or database url (for mysql, postgresql or timescale); supports `file:` for database URLs — see [Redis tip](#redis) |
-| queryLog.logRetentionDays | int                                                                                  | no        | 0             | if > 0, deletes log files/database entries which are older than ... days                      |
+| queryLog.type             | enum (mysql, postgresql, timescale, sqlite, csv, csv-client, console, dnstap, none (see above)) | no        |               | Type of logging target. Console if empty                                                      |
+| queryLog.target           | string                                                                               | no        |               | directory for writing the logs (for csv), database file path (for sqlite), database url (for mysql, postgresql or timescale), or dnstap socket address (`unix:…`, `tcp://…`, or bare `/path`); supports `file:` for database URLs — see [Redis tip](#redis) |
+| queryLog.logRetentionDays | int                                                                                  | no        | 0             | if > 0, deletes log files/database entries which are older than ... days; not used for dnstap   |
 | queryLog.creationAttempts | int                                                                                  | no        | 3             | Max attempts to create specific query log writer                                              |
 | queryLog.creationCooldown | duration format                                                                      | no        | 2s            | Time between the creation attempts                                                            |
-| queryLog.fields           | list enum (clientIP, clientName, responseReason, responseAnswer, question, duration) | no        | all           | which information should be logged                                                            |
-| queryLog.flushInterval    | duration format                                                                      | no        | 30s           | Interval to write buffered entries in bulk to the database (mysql/postgresql/timescale/sqlite)|
+| queryLog.fields           | list enum (clientIP, clientName, responseReason, responseAnswer, question, duration) | no        | all           | which information should be logged; ignored for dnstap                                        |
+| queryLog.flushInterval    | duration format                                                                      | no        | 30s           | Interval to write buffered entries in bulk to the database (mysql/postgresql/timescale/sqlite) or dnstap socket batching |
 | queryLog.ignore.sudn      | bool                                                                                 | no        | false         | if true, queries answered as Special Use Domain Names (SUDN) are not logged                   |
 | queryLog.ignore.domains   | list of string                                                                       | no        |               | domains excluded from the query log; each entry is matched against the query name as an exact domain, a `*.wildcard`, or a `/regex/` |
 
@@ -1231,6 +1250,18 @@ Parsing is handled not by Blocky, but third-party libraries, therefore the full 
       type: mysql
       target: 'username:password@tcp(localhost:3306)/blocky_query_log?charset=utf8mb4&parseTime=True&loc=Local&timeout=15s'
       logRetentionDays: 7
+    ```
+
+!!! example
+    **dnstap export**
+
+    ```yaml
+    queryLog:
+      type: dnstap
+      target: unix:/var/run/dnstap.sock
+      flushInterval: 30s
+      ignore:
+        sudn: true
     ```
 
 !!! example

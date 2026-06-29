@@ -687,7 +687,7 @@
       "properties": {
         "target": {
           "type": "string",
-          "description": "Directory for CSV log files, file path for sqlite, or database URL for mysql/postgresql/timescale."
+          "description": "Directory for CSV log files, file path for sqlite, or database URL for mysql/postgresql/timescale,\nor dnstap socket address (unix:/path, tcp://host:port, or bare /path for unix)."
         },
         "type": {
           "type": "string",
@@ -699,9 +699,10 @@
             "csv",
             "csv-client",
             "timescale",
-            "sqlite"
+            "sqlite",
+            "dnstap"
           ],
-          "description": "Log target type: mysql, postgresql, timescale, sqlite, csv, csv-client, console, or none.\n\n- `console`: Log to console output (used when no type is set).\n- `none`: Do not log any queries.\n- `mysql`: Log each query to an external MySQL or MariaDB database.\n- `postgresql`: Log each query to an external PostgreSQL database.\n- `csv`: Log to a CSV file (one per day).\n- `csv-client`: Log to a CSV file (one per day and per client).\n- `timescale`: Log each query to an external Timescale database.\n- `sqlite`: Log each query to a local SQLite database file."
+          "description": "Log target type: mysql, postgresql, timescale, sqlite, csv, csv-client, console, dnstap, or none.\n\n- `console`: Log to console output (used when no type is set).\n- `none`: Do not log any queries.\n- `mysql`: Log each query to an external MySQL or MariaDB database.\n- `postgresql`: Log each query to an external PostgreSQL database.\n- `csv`: Log to a CSV file (one per day).\n- `csv-client`: Log to a CSV file (one per day and per client).\n- `timescale`: Log each query to an external Timescale database.\n- `sqlite`: Log each query to a local SQLite database file.\n- `dnstap`: Export query/response events via dnstap (Frame Streams)."
         },
         "logRetentionDays": {
           "type": "integer",
@@ -752,7 +753,7 @@
               "type": "integer"
             }
           ],
-          "description": "Interval at which buffered log entries are flushed in bulk to the database\n(used by the mysql, postgresql, timescale and sqlite targets).",
+          "description": "Interval at which buffered log entries are flushed in bulk to the database or dnstap socket\n(used by the mysql, postgresql, timescale, sqlite and dnstap targets).",
           "default": "30s",
           "examples": [
             "30s",
