@@ -820,6 +820,10 @@
 <td>blocky_rate_limit_active_buckets</td>
 <td>Gauge of token buckets (≈ distinct clients) currently tracked by the rate limiter</td>
 </tr>
+<tr>
+<td>blocky_dnstap_frames_dropped_total</td>
+<td>Counter of dnstap frames dropped because the internal buffer is full - non-zero values indicate the collector is slow or unreachable</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">

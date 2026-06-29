@@ -972,6 +972,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#dnstap-query-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dnstap query log
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2255,6 +2266,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#dnstap-query-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dnstap query log
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3046,6 +3068,12 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">duration</span>
 <span class="w">  </span><span class="c1"># optional: Interval to write data in bulk to the external database, default: 30s</span>
 <span class="w">  </span><span class="nt">flushInterval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30s</span>
+
+<span class="w">  </span><span class="c1"># dnstap example (use instead of mysql/csv/etc., not together):</span>
+<span class="w">  </span><span class="c1"># type: dnstap</span>
+<span class="w">  </span><span class="c1"># target: unix:/var/run/dnstap.sock</span>
+<span class="w">  </span><span class="c1"># target: tcp://127.0.0.1:6000</span>
+<span class="w">  </span><span class="c1"># flushInterval: 30s</span>
 
 <span class="c1"># optional: Blocky can synchronize its cache and blocking state between multiple instances through redis.</span>
 <span class="nt">redis</span><span class="p">:</span>
@@ -4848,6 +4876,7 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <li><code>csv</code>: log into <abbr title="Comma-separated values">CSV</abbr> file (one per day)</li>
 <li><code>csv-client</code>: log into <abbr title="Comma-separated values">CSV</abbr> file (one per day and per client)</li>
 <li><code>console</code>: log into console output</li>
+<li><code>dnstap</code>: export client <abbr title="Domain Name System">DNS</abbr> query/response events via <a href="https://dnstap.info/">dnstap</a> (Frame Streams over Unix socket or <abbr title="Transmission Control Protocol">TCP</abbr>)</li>
 <li><code>none</code>: do not log any queries</li>
 </ul>
 <h4 id="sqlite-query-log">SQLite query log</h4>
@@ -4868,6 +4897,23 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <li><strong>Do not copy only <code>querylog.db</code></strong> for offline reading — you would miss un-checkpointed rows. Instead copy all three files together, run <code>PRAGMA wal_checkpoint(TRUNCATE);</code> first, or use <code>sqlite3 querylog.db ".backup backup.db"</code> (or <code>VACUUM INTO</code>).</li>
 <li>Use a tool with WAL support (a modern <code>sqlite3</code> <abbr title="Command Line Interface">CLI</abbr> does).</li>
 </ul>
+<h4 id="dnstap-query-log">dnstap query log</h4>
+<p>The <code>dnstap</code> target streams structured <abbr title="Domain Name System">DNS</abbr> events to an external collector (e.g. <code>dnstap-read</code>, SIEM pipelines). Each resolved client query is sent as a dnstap <code>CLIENT_RESPONSE</code> frame containing wire-format query and response messages.</p>
+<p>Set <code>queryLog.target</code> to:</p>
+<ul>
+<li><code>unix:/var/run/dnstap.sock</code> — Unix domain socket</li>
+<li><code>tcp://127.0.0.1:6000</code> — <abbr title="Transmission Control Protocol">TCP</abbr> listener</li>
+<li><code>/var/run/dnstap.sock</code> — bare path, treated as Unix socket</li>
+</ul>
+<p><code>queryLog.fields</code> and <code>queryLog.logRetentionDays</code> do not apply (streaming export, not stored rows/files). <code>queryLog.flushInterval</code> controls socket write batching.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>dnstap exports full <abbr title="Domain Name System">DNS</abbr> messages. <code>log.privacy</code> obfuscation does not apply to dnstap payloads.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>sustained non-zero values mean export loss.</p>
+</div>
 <h3 id="query-log-fields">Query log fields</h3>
 <p>You can choose which information from processed <abbr title="Domain Name System">DNS</abbr> request and response should be logged in the target system. You can define one or more of following fields:</p>
 <ul>
@@ -4882,7 +4928,7 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 </ul>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
-<p>If not defined, blocky will log all available information</p>
+<p>If not defined, blocky will log all available information. The <code>fields</code> setting does not apply to the <code>dnstap</code> target.</p>
 </div>
 <p>Configuration parameters:</p>
 <table>
@@ -4898,7 +4944,7 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <tbody>
 <tr>
 <td>queryLog.type</td>
-<td>enum (mysql, postgresql, timescale, sqlite, csv, csv-client, console, none (see above))</td>
+<td>enum (mysql, postgresql, timescale, sqlite, csv, csv-client, console, dnstap, none (see above))</td>
 <td>no</td>
 <td></td>
 <td>Type of logging target. Console if empty</td>
@@ -4908,14 +4954,14 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <td>string</td>
 <td>no</td>
 <td></td>
-<td>directory for writing the logs (for csv), database file path (for sqlite), or database url (for mysql, postgresql or timescale); supports <code>file:</code> for database URLs — see <a href="#redis">Redis tip</a></td>
+<td>directory for writing the logs (for csv), database file path (for sqlite), database url (for mysql, postgresql or timescale), or dnstap socket address (<code>unix:…</code>, <code>tcp://…</code>, or bare <code>/path</code>); supports <code>file:</code> for database URLs — see <a href="#redis">Redis tip</a></td>
 </tr>
 <tr>
 <td>queryLog.logRetentionDays</td>
 <td>int</td>
 <td>no</td>
 <td>0</td>
-<td>if &gt; 0, deletes log files/database entries which are older than ... days</td>
+<td>if &gt; 0, deletes log files/database entries which are older than ... days; not used for dnstap</td>
 </tr>
 <tr>
 <td>queryLog.creationAttempts</td>
@@ -4936,14 +4982,14 @@ in Excel or OpenOffice Calc) or MySQL/MariaDB database.</p>
 <td>list enum (clientIP, clientName, responseReason, responseAnswer, question, duration)</td>
 <td>no</td>
 <td>all</td>
-<td>which information should be logged</td>
+<td>which information should be logged; ignored for dnstap</td>
 </tr>
 <tr>
 <td>queryLog.flushInterval</td>
 <td><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></td>
 <td>no</td>
 <td>30s</td>
-<td>Interval to write buffered entries in bulk to the database (mysql/postgresql/timescale/sqlite)</td>
+<td>Interval to write buffered entries in bulk to the database (mysql/postgresql/timescale/sqlite) or dnstap socket batching</td>
 </tr>
 <tr>
 <td>queryLog.ignore.sudn</td>
@@ -5026,6 +5072,17 @@ queryLog:
 <span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
 <span class="w">  </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;username:password@tcp(localhost:3306)/blocky_query_log?charset=utf8mb4&amp;parseTime=True&amp;loc=Local&amp;timeout=15s&#39;</span>
 <span class="w">  </span><span class="nt">logRetentionDays</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">7</span>
+</code></pre></div>
+</div>
+<div class="admonition example">
+<p class="admonition-title">Example</p>
+<p><strong>dnstap export</strong></p>
+<div class="highlight"><pre><span></span><code><span class="nt">queryLog</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dnstap</span>
+<span class="w">  </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">unix:/var/run/dnstap.sock</span>
+<span class="w">  </span><span class="nt">flushInterval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30s</span>
+<span class="w">  </span><span class="nt">ignore</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">sudn</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
 </div>
 <div class="admonition example">
