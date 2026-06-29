@@ -119,14 +119,14 @@ func canonicalCacheDump(t *testing.T, files ...string) string {
 	var lines []string
 
 	// String cache: enumerate the real built stringMap.
-	if sc, ok := strC.caches[group]; ok && sc != nil {
+	if sc, ok := (*strC.caches.Load())[group]; ok && sc != nil {
 		for _, e := range enumerateStringMap(sc.(stringMap)) {
 			lines = append(lines, "string\t"+e)
 		}
 	}
 
 	// Regex cache: dump each compiled regex's source.
-	if rc, ok := regexC.caches[group]; ok && rc != nil {
+	if rc, ok := (*regexC.caches.Load())[group]; ok && rc != nil {
 		for _, re := range rc.(regexCache) {
 			lines = append(lines, "regex\t"+re.String())
 		}

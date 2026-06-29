@@ -4,6 +4,8 @@ import (
 	"net"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/0xERR0R/blocky/log"
@@ -304,5 +306,69 @@ var _ = Describe("DnstapWriter", func() {
 			}
 			Expect(func() { writer.Write(entry) }).ShouldNot(Panic())
 		})
+
+		It("never reaches the writer from Close concurrently with the run goroutine", func() {
+			// Regression guard for the documented invariant "run is the only goroutine
+			// that touches d.writer". The dnstap socketWriter is not safe for concurrent
+			// WriteFrame/Close, so Close must only signal shutdown and let run close the
+			// writer. gateWriter writes an unguarded field from both calls, so if Close
+			// reaches the writer while run is mid-WriteFrame, -race fails this test.
+			fw := newGateWriter()
+			d := &DnstapWriter{
+				writer: fw,
+				logger: log.PrefixedLog("test"),
+				frames: make(chan []byte, 1),
+			}
+
+			go d.run()
+
+			// Park the run goroutine inside WriteFrame so it is actively using the writer.
+			d.frames <- []byte{0x01}
+			Eventually(fw.entered).Should(BeClosed())
+
+			closeReturned := make(chan struct{})
+			go func() {
+				defer close(closeReturned)
+				Expect(d.Close()).Should(Succeed())
+			}()
+
+			// Release the parked WriteFrame: it touches the writer's field here, which
+			// races any Close that wrongly reaches the writer from the other goroutine.
+			close(fw.release)
+
+			Eventually(closeReturned).Should(BeClosed())
+			Eventually(fw.closed.Load).Should(BeTrue())
+		})
 	})
 })
+
+// gateWriter is a dnstap.Writer test double whose WriteFrame and Close both write an
+// unguarded field. run owns WriteFrame; if Close is invoked from a different goroutine
+// while run is mid-WriteFrame, the race detector flags the concurrent access. The
+// entered/release channels let a test park run inside WriteFrame.
+type gateWriter struct {
+	frame   []byte // intentionally unguarded: -race catches a concurrent Close
+	entered chan struct{}
+	release chan struct{}
+	enter   sync.Once
+	closed  atomic.Bool
+}
+
+func newGateWriter() *gateWriter {
+	return &gateWriter{entered: make(chan struct{}), release: make(chan struct{})}
+}
+
+func (w *gateWriter) WriteFrame(p []byte) (int, error) {
+	w.enter.Do(func() { close(w.entered) })
+	<-w.release
+	w.frame = p
+
+	return len(p), nil
+}
+
+func (w *gateWriter) Close() error {
+	w.frame = nil
+	w.closed.Store(true)
+
+	return nil
+}
