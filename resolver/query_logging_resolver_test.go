@@ -126,6 +126,27 @@ var _ = Describe("QueryLoggingResolver", func() {
 			})
 		})
 
+		When("type is none", func() {
+			BeforeEach(func() {
+				sutConfig = config.QueryLog{
+					Type:             config.QueryLogTypeNone,
+					CreationAttempts: 1,
+					CreationCooldown: config.Duration(time.Millisecond),
+				}
+			})
+			It("should pass the request through without building a log entry", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("example.com.", A, "192.168.178.25", "client1"))).
+					Should(
+						SatisfyAll(
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+
+				m.AssertExpectations(GinkgoT())
+				Expect(sut.logChan).Should(BeEmpty())
+			})
+		})
+
 		Describe("ignore", func() {
 			var ignored *log.MockLoggerHook
 
@@ -384,8 +405,10 @@ var _ = Describe("QueryLoggingResolver", func() {
 	Describe("Slow writer", func() {
 		When("writer is too slow", func() {
 			BeforeEach(func() {
+				// Console keeps the resolver enabled (None now short-circuits) without
+				// needing a target; the writer is replaced with SlowMockWriter below.
 				sutConfig = config.QueryLog{
-					Type:             config.QueryLogTypeNone,
+					Type:             config.QueryLogTypeConsole,
 					CreationAttempts: 1,
 					CreationCooldown: config.Duration(time.Millisecond),
 				}
