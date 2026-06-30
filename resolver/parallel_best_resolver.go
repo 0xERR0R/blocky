@@ -10,11 +10,9 @@ import (
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
-	"github.com/0xERR0R/blocky/log"
 	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
-	"github.com/mroth/weightedrand/v2"
 	"github.com/sirupsen/logrus"
 )
 
@@ -152,10 +150,17 @@ func (r *ParallelBestResolver) Resolve(ctx context.Context, request *model.Reque
 		return resolver.resolve(ctx, request)
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel() // abort requests to resolvers that lost the race
+	resolvers := pickRandom(allResolvers, r.resolverCount)
 
-	resolvers := pickRandom(ctx, allResolvers, r.resolverCount)
+	// Only a parallel race (more than one resolver) needs a cancel context to abort the losers.
+	// The random strategy queries a single resolver per attempt, so it skips this allocation.
+	if len(resolvers) > 1 {
+		var cancel context.CancelFunc
+
+		ctx, cancel = context.WithCancel(ctx)
+		defer cancel() // abort requests to resolvers that lost the race
+	}
+
 	ch := make(chan requestResponse, len(resolvers))
 
 	for _, resolver := range resolvers {
@@ -207,7 +212,7 @@ func (r *ParallelBestResolver) retryWithDifferent(
 	ctx context.Context, logger *logrus.Entry, request *model.Request, resolvers []*upstreamResolverStatus,
 ) (*model.Response, error) {
 	// second try (if retryWithDifferentResolver == true)
-	resolver := weightedRandom(ctx, *r.resolvers.Load(), resolvers)
+	resolver := weightedRandom(*r.resolvers.Load(), resolvers)
 	logger.Debugf("using %s as second resolver", resolver.resolver)
 
 	resp, err := resolver.resolve(ctx, request)
@@ -224,20 +229,29 @@ func (r *ParallelBestResolver) retryWithDifferent(
 }
 
 // pickRandom picks n (resolverCount) different random resolvers from the given resolver pool
-func pickRandom(ctx context.Context, resolvers []*upstreamResolverStatus, resolverCount int) []*upstreamResolverStatus {
+func pickRandom(resolvers []*upstreamResolverStatus, resolverCount int) []*upstreamResolverStatus {
 	chosenResolvers := make([]*upstreamResolverStatus, 0, resolverCount)
 
 	for range resolverCount {
-		chosenResolvers = append(chosenResolvers, weightedRandom(ctx, resolvers, chosenResolvers))
+		chosenResolvers = append(chosenResolvers, weightedRandom(resolvers, chosenResolvers))
 	}
 
 	return chosenResolvers
 }
 
-func weightedRandom(ctx context.Context, in, excludedResolvers []*upstreamResolverStatus) *upstreamResolverStatus {
+// weightedRandom returns a single resolver from in (skipping excludedResolvers), weighted by
+// each resolver's recent error history: a resolver that errored recently is less likely to be
+// picked, recovering to full weight an hour after its last error.
+//
+// It uses single-pass weighted reservoir sampling (k=1), so it allocates nothing and avoids
+// rebuilding a weightedrand.Chooser (choices slice + sort + totals) on every request.
+func weightedRandom(in, excludedResolvers []*upstreamResolverStatus) *upstreamResolverStatus {
 	const errorWindowInSec = 60
 
-	choices := make([]weightedrand.Choice[*upstreamResolverStatus, uint], 0, len(in))
+	var (
+		selected *upstreamResolverStatus
+		total    uint
+	)
 
 outer:
 	for _, res := range in {
@@ -254,17 +268,15 @@ outer:
 			weight = math.Max(1, weight-(errorWindowInSec-time.Since(t).Minutes()))
 		}
 
-		choices = append(choices, weightedrand.NewChoice(res, uint(weight)))
+		w := uint(weight)
+		total += w
+
+		// reservoir step: keep res with probability w/total, which leaves every resolver
+		// selected with probability proportional to its weight once the loop completes.
+		if uint(rand.Intn(int(total))) < w { //nolint:gosec // pseudo-randomness is good enough
+			selected = res
+		}
 	}
 
-	c, err := weightedrand.NewChooser(choices...)
-	if err != nil {
-		log.FromCtx(ctx).WithError(err).Error("can't choose random weighted resolver, falling back to uniform random")
-
-		val := rand.Int() //nolint:gosec // pseudo-randomness is good enough
-
-		return choices[val%len(choices)].Item
-	}
-
-	return c.Pick()
+	return selected
 }
