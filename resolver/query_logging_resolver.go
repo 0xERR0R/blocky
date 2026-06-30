@@ -201,6 +201,12 @@ func (r *QueryLoggingResolver) doCleanUp() {
 
 // Resolve logs the query, duration and the result
 func (r *QueryLoggingResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
+	// Query logging disabled: nothing this resolver does has any effect, so skip
+	// the per-request work (logger derivation, entry building) entirely.
+	if r.cfg.Type == config.QueryLogTypeNone {
+		return r.next.Resolve(ctx, request)
+	}
+
 	ctx, logger := r.log(ctx)
 
 	start := time.Now()
@@ -211,21 +217,27 @@ func (r *QueryLoggingResolver) Resolve(ctx context.Context, request *model.Reque
 		return nil, err
 	}
 
-	entry := r.createLogEntry(request, resp, start, duration)
+	if r.ignore(request, resp) {
+		// Build the entry only to explain (in the debug log) why it was ignored,
+		// and only when that debug line would actually be emitted.
+		if isDebugEnabled(logger) {
+			if entry := r.createLogEntry(request, resp, start, duration); entry != nil {
+				logger.WithFields(querylog.LogEntryFields(entry)).Debug("ignored querylog entry")
+			}
+		}
 
+		return resp, nil
+	}
+
+	entry := r.createLogEntry(request, resp, start, duration)
 	if entry == nil {
 		return resp, nil
 	}
 
-	if r.ignore(request, resp) {
-		// Log to the console for debugging purposes
-		logger.WithFields(querylog.LogEntryFields(entry)).Debug("ignored querylog entry")
-	} else {
-		select {
-		case r.logChan <- entry:
-		default:
-			logger.Error("query log writer is too slow, log entry will be dropped")
-		}
+	select {
+	case r.logChan <- entry:
+	default:
+		logger.Error("query log writer is too slow, log entry will be dropped")
 	}
 
 	return resp, nil
