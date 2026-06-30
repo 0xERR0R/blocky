@@ -306,7 +306,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					resolverCount := make(map[Resolver]int)
 
 					for range 1000 {
-						resolvers := pickRandom(ctx, *sut.resolvers.Load(), parallelBestResolverCount)
+						resolvers := pickRandom(*sut.resolvers.Load(), parallelBestResolverCount)
 						res1 := resolvers[0].resolver
 						res2 := resolvers[1].resolver
 						Expect(res1).ShouldNot(Equal(res2))
@@ -330,7 +330,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 					resolverCount := make(map[*UpstreamResolver]int)
 
 					for range 1000 {
-						resolvers := pickRandom(ctx, *sut.resolvers.Load(), parallelBestResolverCount)
+						resolvers := pickRandom(*sut.resolvers.Load(), parallelBestResolverCount)
 						res1 := resolvers[0].resolver.(*UpstreamResolver)
 						res2 := resolvers[1].resolver.(*UpstreamResolver)
 						Expect(res1).ShouldNot(Equal(res2))
@@ -498,7 +498,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 						resolverCount := make(map[Resolver]int)
 
 						for range 2000 {
-							r := weightedRandom(ctx, *sut.resolvers.Load(), nil)
+							r := weightedRandom(*sut.resolvers.Load(), nil)
 							resolverCount[r.resolver]++
 						}
 						for _, v := range resolverCount {
@@ -517,7 +517,7 @@ var _ = Describe("ParallelBestResolver", Label("parallelBestResolver"), func() {
 						resolverCount := make(map[*UpstreamResolver]int)
 
 						for range 1000 {
-							r := weightedRandom(ctx, *sut.resolvers.Load(), nil)
+							r := weightedRandom(*sut.resolvers.Load(), nil)
 							res := r.resolver.(*UpstreamResolver)
 
 							resolverCount[res]++
