@@ -20,7 +20,7 @@ require (
 	github.com/hako/durafmt v0.0.0-20210608085754-5c1018a4e16b
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/invopop/jsonschema v0.14.0
-	github.com/jedib0t/go-pretty/v6 v6.8.1
+	github.com/jedib0t/go-pretty/v6 v6.8.2
 	github.com/jedisct1/go-dnsstamps v0.0.0-20260518121737-6579dc73e4a2
 	github.com/mattn/go-colorable v0.1.15
 	github.com/miekg/dns v1.1.72
