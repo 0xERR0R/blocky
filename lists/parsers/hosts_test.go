@@ -400,6 +400,7 @@ var _ = Describe("HostList", func() {
 				"127.0.0.1 localhost",
 				"localhost localhost", //nolint:dupword
 				`/invalid regex ??/`,
+				"/", // a lone slash is not a valid /regex/ delimiter pair
 				"toolong" + strings.Repeat("a", maxDomainNameLength),
 			}
 

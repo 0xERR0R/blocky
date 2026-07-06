@@ -376,7 +376,11 @@ func isDNSLabelChar(c byte) bool {
 }
 
 func isRegex(host string) bool {
-	return strings.HasPrefix(host, "/") && strings.HasSuffix(host, "/")
+	// A regex entry is delimited by slashes (/regex/), so it needs at least an
+	// opening and a closing one. Without the length check a lone "/" counts as
+	// both prefix and suffix, gets accepted here, and later panics the regex
+	// cache when both delimiters are stripped (entry[1:len-1]).
+	return len(host) >= 2 && strings.HasPrefix(host, "/") && strings.HasSuffix(host, "/")
 }
 
 // MightBeIP reports whether s could possibly be parsed as an IP by net.ParseIP,
