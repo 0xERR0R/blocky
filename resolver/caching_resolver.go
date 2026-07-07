@@ -162,6 +162,12 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 	logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), qType)
 
 	req := newRequest(dns.Fqdn(domainName), qType)
+	// Prefetch reloads bypass the resolvers above the cache, including the DNSSEC
+	// resolver that sets DO on normal queries. Request DNSSEC records so a reload
+	// can't replace a signed entry with an unsigned one (which would then fail
+	// re-validation as bogus on the next hit).
+	req.Req.SetEdns0(ednsUDPSize, true)
+
 	response, err := r.next.Resolve(ctx, req)
 	if err != nil {
 		util.LogOnError(ctx, fmt.Sprintf("can't prefetch '%s' ", domainName), err)

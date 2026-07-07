@@ -142,6 +142,22 @@ var _ = Describe("CachingResolver", func() {
 							HaveTTL(BeNumerically("<=", 2))))
 				Eventually(prefetchHitDomain, "6s").Should(Receive(Equal(true)))
 			})
+
+			It("sets the DO bit on prefetch reloads so a signed entry isn't replaced by an unsigned one", func() {
+				var reloadReqHadDO bool
+				m.ResolveFn = func(_ context.Context, req *Request) (*Response, error) {
+					opt := req.Req.IsEdns0()
+					reloadReqHadDO = opt != nil && opt.Do()
+
+					return &Response{Res: mockAnswer, RType: ResponseTypeRESOLVED}, nil
+				}
+
+				// reloadCacheEntry is the ReloadFn the prefetching cache invokes on expiry.
+				_, ttl := sut.reloadCacheEntry(ctx, util.GenerateCacheKey(A, "example.com."))
+
+				Expect(reloadReqHadDO).Should(BeTrue(), "prefetch reload must set the DO bit")
+				Expect(ttl).Should(BeNumerically(">", 0))
+			})
 		})
 		When("caching with default values is enabled", func() {
 			BeforeEach(func() {
