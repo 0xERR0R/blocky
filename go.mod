@@ -13,7 +13,7 @@ require (
 	github.com/creasty/defaults v1.8.0
 	github.com/dnstap/golang-dnstap v0.4.0
 	github.com/glebarez/sqlite v1.11.0
-	github.com/go-chi/chi/v5 v5.3.0
+	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
