@@ -279,6 +279,10 @@ components:
           type: integer
         blocked:
           type: integer
+          description: Real blocklist hits only (excludes query-type filtered / NOTFQDN).
+        filtered:
+          type: integer
+          description: Query-type filtered (e.g. AAAA) and NOTFQDN responses.
         local:
           type: integer
         dropped:
@@ -295,6 +299,7 @@ components:
         - cached
         - forwarded
         - blocked
+        - filtered
         - local
         - dropped
         - errors

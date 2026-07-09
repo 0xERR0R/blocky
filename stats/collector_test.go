@@ -30,6 +30,7 @@ var _ = Describe("Collector", func() {
 			sut.Record(answered("CONDITIONAL", "A", "NOERROR", "c.com", "c2"))
 			sut.Record(answered("BLOCKED", "A", "NOERROR", "ads.com", "c2"))
 			sut.Record(answered("FILTERED", "AAAA", "NOERROR", "d.com", "c2"))
+			sut.Record(answered("NOTFQDN", "A", "NOERROR", "notfqdn.local", "c2"))
 			sut.Record(answered("HOSTSFILE", "A", "NOERROR", "e.com", "c1"))
 			sut.Record(Sample{Disposition: DispositionDropped, QType: "A", Domain: "x.com", Client: "c3", DurationMs: 1})
 			sut.Record(Sample{Disposition: DispositionErrored, QType: "A", DurationMs: 2})
@@ -38,13 +39,25 @@ var _ = Describe("Collector", func() {
 
 			Expect(res.Summary.Cached).Should(Equal(1))
 			Expect(res.Summary.Forwarded).Should(Equal(2)) // RESOLVED + CONDITIONAL
-			Expect(res.Summary.Blocked).Should(Equal(2))   // BLOCKED + FILTERED
+			Expect(res.Summary.Blocked).Should(Equal(1))   // BLOCKED only
+			Expect(res.Summary.Filtered).Should(Equal(2))  // FILTERED + NOTFQDN
 			Expect(res.Summary.Local).Should(Equal(1))     // HOSTSFILE
 			Expect(res.Summary.Dropped).Should(Equal(1))
 			Expect(res.Summary.Errors).Should(Equal(1))
-			Expect(res.Summary.Queries).Should(Equal(8))
-			// 6 answered queries × 10ms each / 6; drop (1ms) and error (2ms) latency is excluded.
+			Expect(res.Summary.Queries).Should(Equal(9))
+			// 7 answered queries × 10ms each / 7; drop (1ms) and error (2ms) latency is excluded.
 			Expect(res.Summary.AvgResponseMs).Should(Equal(10))
+		})
+
+		It("counts only true blocks in Top Blocked, not query-type filtered responses", func() {
+			sut.Record(answered("BLOCKED", "A", "NOERROR", "ads.com", "c1"))
+			sut.Record(answered("FILTERED", "AAAA", "NOERROR", "example.com", "c1"))
+			sut.Record(answered("NOTFQDN", "A", "NOERROR", "notfqdn.local", "c1"))
+
+			names := namesOf(sut.Snapshot().TopBlockedDomains)
+			Expect(names).Should(ContainElement("ads.com"))
+			Expect(names).ShouldNot(ContainElement("example.com"))
+			Expect(names).ShouldNot(ContainElement("notfqdn.local"))
 		})
 
 		It("computes cacheHitRate as cached/(cached+forwarded)", func() {

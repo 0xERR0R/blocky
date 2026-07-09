@@ -105,14 +105,19 @@ type ApiStats struct {
 
 // ApiStatsSummary Curated outcome categories over the window (server computes the mapping).
 type ApiStatsSummary struct {
-	AvgResponseMs int     `json:"avgResponseMs"`
-	Blocked       int     `json:"blocked"`
-	CacheHitRate  float64 `json:"cacheHitRate"`
-	Cached        int     `json:"cached"`
-	Dropped       int     `json:"dropped"`
-	Errors        int     `json:"errors"`
-	Forwarded     int     `json:"forwarded"`
-	Local         int     `json:"local"`
+	AvgResponseMs int `json:"avgResponseMs"`
+
+	// Blocked Real blocklist hits only (excludes query-type filtered / NOTFQDN).
+	Blocked      int     `json:"blocked"`
+	CacheHitRate float64 `json:"cacheHitRate"`
+	Cached       int     `json:"cached"`
+	Dropped      int     `json:"dropped"`
+	Errors       int     `json:"errors"`
+
+	// Filtered Query-type filtered (e.g. AAAA) and NOTFQDN responses.
+	Filtered  int `json:"filtered"`
+	Forwarded int `json:"forwarded"`
+	Local     int `json:"local"`
 
 	// Queries Total queries received in the window.
 	Queries int `json:"queries"`
