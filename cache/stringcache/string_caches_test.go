@@ -123,6 +123,16 @@ var _ = Describe("Caches", func() {
 			Expect(factory.create()).Should(BeNil())
 		})
 
+		It("should not treat a lone slash as a regex and must not panic", func() {
+			factory := newRegexCacheFactory()
+
+			// "/" is both prefix and suffix, so without a length guard it slips
+			// past the delimiter check and panics on entry[1:len-1] ("/"[1:0]).
+			Expect(func() { factory.addEntry("/") }).ShouldNot(Panic())
+			Expect(factory.addEntry("/")).Should(BeFalse())
+			Expect(factory.count()).Should(BeNumerically("==", 0))
+		})
+
 		When("regex StringCache was created", func() {
 			BeforeEach(func() {
 				factory = newRegexCacheFactory()
