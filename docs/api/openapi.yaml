@@ -293,6 +293,9 @@ components:
           type: integer
         errors:
           type: integer
+          description: >-
+            Queries that did not resolve: a resolver returned an error, or the answer
+            failed DNSSEC validation (BOGUS). Not blocks.
         avgResponseMs:
           type: integer
         cacheHitRate:

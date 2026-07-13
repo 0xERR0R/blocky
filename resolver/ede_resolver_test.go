@@ -158,6 +158,31 @@ var _ = Describe("EdeResolver", func() {
 			})
 		})
 
+		When("resolver returns a DNSSEC validation failure", func() {
+			BeforeEach(func() {
+				m = &mockResolver{}
+				m.On("Resolve", mock.Anything).Return(&Response{
+					Res:    mockAnswer,
+					RType:  ResponseTypeBOGUS,
+					Reason: "DNSSEC validation failed: bogus signatures",
+				}, nil)
+			})
+
+			// this resolver sits above the DNSSEC resolver and rewrites the EDE option from
+			// the response type, so a type that mapped to Blocked would silently replace the
+			// Bogus code the DNSSEC resolver set on its SERVFAIL
+			It("preserves the bogus code instead of overwriting it with blocked", func() {
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(
+						SatisfyAll(
+							HaveEdnsOption(dns.EDNS0EDE),
+							WithTransform(extractEdeOption,
+								HaveField("InfoCode", Equal(dns.ExtendedErrorCodeDNSBogus)),
+							),
+						))
+			})
+		})
+
 		When("resolver returns a blocked response with an oversized reason", func() {
 			longReason := "BLOCKED (ads: /" + strings.Repeat("a", 500) + "/)"
 

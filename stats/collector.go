@@ -384,6 +384,7 @@ const (
 	categoryBlocked
 	categoryFiltered
 	categoryLocal
+	categoryError
 )
 
 // categorize is the single source of truth that maps a model.ResponseType string
@@ -410,6 +411,11 @@ func categorize(rtype string) responseCategory {
 	case model.ResponseTypeCUSTOMDNS.String(), model.ResponseTypeHOSTSFILE.String(),
 		model.ResponseTypeSPECIAL.String(), model.ResponseTypeSYNTHESIZED.String():
 		return categoryLocal
+	case model.ResponseTypeBOGUS.String():
+		// A DNSSEC validation failure is a SERVFAIL: the resolver could not produce a
+		// trustworthy answer. That is a resolution error, not a query blocked to protect
+		// the client, so it belongs with the other errors rather than in "blocked".
+		return categoryError
 	default:
 		return categoryOther
 	}
@@ -447,6 +453,11 @@ func curatedSummary(rt map[string]int, dropped, errs int, answeredDurationSum in
 			s.Filtered += n
 		case categoryLocal:
 			s.Local += n
+		case categoryError:
+			// Errors already holds the chain-level failures (a resolver returned an
+			// error); a BOGUS answer is the same outcome for the client — the query
+			// did not resolve — so it is added here rather than to a category of its own.
+			s.Errors += n
 		case categoryOther:
 		}
 	}
@@ -512,7 +523,7 @@ func perHour(buckets []*bucket) []HourPoint {
 				blocked += v
 			case categoryFiltered:
 				filtered += v
-			case categoryOther, categoryCached, categoryForwarded, categoryLocal:
+			case categoryOther, categoryCached, categoryForwarded, categoryLocal, categoryError:
 			}
 		}
 

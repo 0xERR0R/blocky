@@ -72,6 +72,21 @@ var _ = Describe("Collector", func() {
 			Expect(namesOf(res.TopBlockedDomains)).Should(ContainElement("rebind.example.com"))
 		})
 
+		It("counts DNSSEC validation failures as errors, not blocked", func() {
+			sut.Record(answered("BLOCKED", "A", "NOERROR", "ads.com", "c1"))
+			sut.Record(answered("BOGUS", "A", "SERVFAIL", "bogus.example.com", "c1"))
+			sut.Record(Sample{Disposition: DispositionErrored, QType: "A", DurationMs: 2})
+
+			res := sut.Snapshot()
+
+			Expect(res.Summary.Blocked).Should(Equal(1)) // BLOCKED only
+			Expect(res.Summary.Errors).Should(Equal(2))  // chain error + BOGUS
+			// a domain with broken signatures is not something blocky blocked
+			Expect(namesOf(res.TopBlockedDomains)).ShouldNot(ContainElement("bogus.example.com"))
+			// still a query that reached an answer, so it counts in the total
+			Expect(res.Summary.Queries).Should(Equal(3))
+		})
+
 		It("computes cacheHitRate as cached/(cached+forwarded)", func() {
 			sut.Record(answered("CACHED", "A", "NOERROR", "a.com", "c1"))
 			sut.Record(answered("CACHED", "A", "NOERROR", "a.com", "c1"))

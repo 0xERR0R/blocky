@@ -126,11 +126,14 @@ const (
 	// ResponseTypeREBIND is a ResponseType of type REBIND.
 	// the answer was blocked by the DNS rebinding protection
 	ResponseTypeREBIND
+	// ResponseTypeBOGUS is a ResponseType of type BOGUS.
+	// the answer failed DNSSEC validation
+	ResponseTypeBOGUS
 )
 
 var ErrInvalidResponseType = fmt.Errorf("not a valid ResponseType, try [%s]", strings.Join(_ResponseTypeNames, ", "))
 
-const _ResponseTypeName = "RESOLVEDCACHEDBLOCKEDCONDITIONALCUSTOMDNSHOSTSFILEFILTEREDNOTFQDNSPECIALSYNTHESIZEDREBIND"
+const _ResponseTypeName = "RESOLVEDCACHEDBLOCKEDCONDITIONALCUSTOMDNSHOSTSFILEFILTEREDNOTFQDNSPECIALSYNTHESIZEDREBINDBOGUS"
 
 var _ResponseTypeNames = []string{
 	_ResponseTypeName[0:8],
@@ -144,6 +147,7 @@ var _ResponseTypeNames = []string{
 	_ResponseTypeName[65:72],
 	_ResponseTypeName[72:83],
 	_ResponseTypeName[83:89],
+	_ResponseTypeName[89:94],
 }
 
 // ResponseTypeNames returns a list of possible string values of ResponseType.
@@ -165,6 +169,7 @@ var _ResponseTypeMap = map[ResponseType]string{
 	ResponseTypeSPECIAL:     _ResponseTypeName[65:72],
 	ResponseTypeSYNTHESIZED: _ResponseTypeName[72:83],
 	ResponseTypeREBIND:      _ResponseTypeName[83:89],
+	ResponseTypeBOGUS:       _ResponseTypeName[89:94],
 }
 
 // String implements the Stringer interface.
@@ -194,6 +199,7 @@ var _ResponseTypeValue = map[string]ResponseType{
 	_ResponseTypeName[65:72]: ResponseTypeSPECIAL,
 	_ResponseTypeName[72:83]: ResponseTypeSYNTHESIZED,
 	_ResponseTypeName[83:89]: ResponseTypeREBIND,
+	_ResponseTypeName[89:94]: ResponseTypeBOGUS,
 }
 
 // ParseResponseType attempts to convert a string to a ResponseType.

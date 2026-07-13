@@ -400,6 +400,13 @@ the offending IP is logged at debug level). Rebinding hits count as **blocked** 
 [statistics](#statistics), and are reported to clients as Extended DNS Error `15 (Blocked)`.
 **Disabled by default.**
 
+!!! note "Upgrading"
+
+    Rebinding hits previously used the `FILTERED` response type. Query log rows written before
+    the upgrade keep the old value, so a dashboard grouping by response type shows `FILTERED` and
+    `REBIND` side by side for the retention period. The same applies to Prometheus counters,
+    which are labelled per response type.
+
 The following ranges are considered non-public:
 
 | Range                                           | Description             |
@@ -1468,8 +1475,19 @@ Blocky classifies DNSSEC validation results into four categories:
 | --------------- | -------------------------------------------------------------------- | ---------------------------------------- |
 | **Secure**      | Valid DNSSEC signatures and complete chain of trust                  | AD flag set, response returned           |
 | **Insecure**    | Domain is not signed with DNSSEC (no RRSIG records)                  | AD flag cleared, response returned       |
-| **Bogus**       | Invalid DNSSEC signatures or broken chain of trust                   | SERVFAIL returned with EDE code          |
+| **Bogus**       | Invalid DNSSEC signatures or broken chain of trust                   | SERVFAIL returned with EDE code `6 (DNSSEC Bogus)`, response type `BOGUS` |
 | **Indeterminate** | Validation could not be completed (e.g., network errors, budget exceeded) | AD flag cleared, response returned |
+
+A `BOGUS` result means blocky could not obtain a trustworthy answer, so it counts as an **error**
+in the [statistics](#statistics) — not as a block. A domain whose operator has misconfigured DNSSEC
+is not something blocky blocked, and never appears in `topBlockedDomains`.
+
+!!! note "Upgrading"
+
+    Validation failures previously used the `BLOCKED` response type, which counted them as blocks
+    and reported them to clients as Extended DNS Error `15 (Blocked)` instead of `6 (DNSSEC
+    Bogus)`. Query log rows written before the upgrade keep the old value, so a dashboard grouping
+    by response type shows `BLOCKED` and `BOGUS` side by side for the retention period.
 
 ### Trust Anchors
 

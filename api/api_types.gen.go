@@ -116,7 +116,9 @@ type ApiStatsSummary struct {
 	CacheHitRate float64 `json:"cacheHitRate"`
 	Cached       int     `json:"cached"`
 	Dropped      int     `json:"dropped"`
-	Errors       int     `json:"errors"`
+
+	// Errors Queries that did not resolve: a resolver returned an error, or the answer failed DNSSEC validation (BOGUS). Not blocks.
+	Errors int `json:"errors"`
 
 	// Filtered Query-type filtered (e.g. AAAA via filtering.queryTypes) and NOTFQDN responses. These are not blocks.
 	Filtered  int `json:"filtered"`

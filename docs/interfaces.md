@@ -39,19 +39,29 @@ You can also browse the interactive API documentation (RapiDoc) documentation [o
     For `/api/stats`, the `summary` fields are server-computed categories, so callers never
     interpret a raw response type:
 
-    | Field      | Response types                                             |
-    | ---------- | ---------------------------------------------------------- |
-    | `blocked`  | `BLOCKED` + `REBIND`                                       |
-    | `filtered` | `FILTERED` + `NOTFQDN`                                     |
-    | `forwarded`| `RESOLVED` + `CONDITIONAL`                                 |
-    | `cached`   | `CACHED`                                                   |
-    | `local`    | `CUSTOMDNS` + `HOSTSFILE` + `SPECIAL` + `SYNTHESIZED`      |
+    | Field      | Response types                                        |
+    | ---------- | ----------------------------------------------------- |
+    | `blocked`  | `BLOCKED` + `REBIND`                                  |
+    | `filtered` | `FILTERED` + `NOTFQDN`                                |
+    | `forwarded`| `RESOLVED` + `CONDITIONAL`                            |
+    | `cached`   | `CACHED`                                              |
+    | `local`    | `CUSTOMDNS` + `HOSTSFILE` + `SPECIAL` + `SYNTHESIZED` |
+    | `errors`   | `BOGUS`, plus queries a resolver failed outright      |
 
     `blocked` counts only queries blocked to protect the client: denylist hits and
-    [DNS rebinding](configuration.md#dns-rebinding-protection) hits. Query-type filtering (e.g.
-    `AAAA` via `filtering.queryTypes`) and non-FQDN rejections are *not* blocks and are counted
-    separately as `filtered`, so they do not inflate `blocked` or the `topBlockedDomains` list.
-    The same split applies to the `perHour` series, which carries both `blocked` and `filtered`.
+    [DNS rebinding](configuration.md#dns-rebinding-protection) hits. Two other outcomes are
+    deliberately kept out of it, so they cannot inflate `blocked` or the `topBlockedDomains`
+    list:
+
+    - Query-type filtering (e.g. `AAAA` via `filtering.queryTypes`) and non-FQDN rejections are
+      client-requested, not protective, and are counted as `filtered`.
+    - A [DNSSEC](configuration.md#dnssec) validation failure (`BOGUS`) is a SERVFAIL — blocky
+      could not obtain a trustworthy answer — so it is a resolution error, not a block, and is
+      counted as `errors` together with queries a resolver failed outright.
+
+    The `blocked` / `filtered` split also applies to the `perHour` series, which carries both.
+    Together with `dropped` (rate-limited), the categories above partition every query, so they
+    always add up to `queries`.
 
     The `lists` and `cache` objects are point-in-time gauges
     (current values, not affected by the 24h window), while `start`/`end` bound the windowed fields

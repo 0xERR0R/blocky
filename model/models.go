@@ -20,6 +20,7 @@ import (
 // SPECIAL // the query was resolved by the special use domain name resolver
 // SYNTHESIZED // the response was synthesized by DNS64
 // REBIND // the answer was blocked by the DNS rebinding protection
+// BOGUS // the answer failed DNSSEC validation
 // )
 type ResponseType int
 
@@ -44,6 +45,11 @@ func (t ResponseType) ToExtendedErrorCode() uint16 {
 	// protection is operator policy, so it reports as Blocked.
 	case ResponseTypeREBIND:
 		return dns.ExtendedErrorCodeBlocked
+	// EdeResolver sits above the DNSSEC resolver and rewrites the EDE option from
+	// the response type, so this must reproduce the code the DNSSEC resolver sets
+	// on its SERVFAIL; mapping it to anything else would overwrite Bogus (6).
+	case ResponseTypeBOGUS:
+		return dns.ExtendedErrorCodeDNSBogus
 	case ResponseTypeFILTERED:
 		return dns.ExtendedErrorCodeFiltered
 	case ResponseTypeSPECIAL:
