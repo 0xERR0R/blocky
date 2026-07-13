@@ -147,7 +147,11 @@ type regexCacheFactory struct {
 }
 
 func (r *regexCacheFactory) addEntry(entry string) bool {
-	if !strings.HasPrefix(entry, "/") || !strings.HasSuffix(entry, "/") {
+	// A regex entry is delimited by a leading and a trailing slash (/regex/), so
+	// it needs at least those two characters. Without the length guard a lone
+	// "/" satisfies both HasPrefix and HasSuffix and then panics below, where the
+	// delimiters are stripped (entry[1:len-1] would be "/"[1:0]).
+	if len(entry) < 2 || !strings.HasPrefix(entry, "/") || !strings.HasSuffix(entry, "/") {
 		return false
 	}
 
