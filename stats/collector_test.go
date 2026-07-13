@@ -60,6 +60,33 @@ var _ = Describe("Collector", func() {
 			Expect(names).ShouldNot(ContainElement("notfqdn.local"))
 		})
 
+		It("counts rebinding-protection hits as blocked, not filtered", func() {
+			sut.Record(answered("BLOCKED", "A", "NOERROR", "ads.com", "c1"))
+			sut.Record(answered("REBIND", "A", "NOERROR", "rebind.example.com", "c1"))
+			sut.Record(answered("FILTERED", "AAAA", "NOERROR", "example.com", "c1"))
+
+			res := sut.Snapshot()
+
+			Expect(res.Summary.Blocked).Should(Equal(2))  // BLOCKED + REBIND
+			Expect(res.Summary.Filtered).Should(Equal(1)) // FILTERED only
+			Expect(namesOf(res.TopBlockedDomains)).Should(ContainElement("rebind.example.com"))
+		})
+
+		It("counts DNSSEC validation failures as errors, not blocked", func() {
+			sut.Record(answered("BLOCKED", "A", "NOERROR", "ads.com", "c1"))
+			sut.Record(answered("BOGUS", "A", "SERVFAIL", "bogus.example.com", "c1"))
+			sut.Record(Sample{Disposition: DispositionErrored, QType: "A", DurationMs: 2})
+
+			res := sut.Snapshot()
+
+			Expect(res.Summary.Blocked).Should(Equal(1)) // BLOCKED only
+			Expect(res.Summary.Errors).Should(Equal(2))  // chain error + BOGUS
+			// a domain with broken signatures is not something blocky blocked
+			Expect(namesOf(res.TopBlockedDomains)).ShouldNot(ContainElement("bogus.example.com"))
+			// still a query that reached an answer, so it counts in the total
+			Expect(res.Summary.Queries).Should(Equal(3))
+		})
+
 		It("computes cacheHitRate as cached/(cached+forwarded)", func() {
 			sut.Record(answered("CACHED", "A", "NOERROR", "a.com", "c1"))
 			sut.Record(answered("CACHED", "A", "NOERROR", "a.com", "c1"))
@@ -135,6 +162,26 @@ var _ = Describe("Collector", func() {
 			}
 			Expect(total).Should(Equal(2))
 			Expect(blocked).Should(Equal(1))
+		})
+
+		It("counts only true blocks in the per-hour blocked series", func() {
+			clk := &fakeClock{t: mustParse("2026-06-08T10:00:00Z")}
+			c := newCollectorWithClock(clk.now)
+
+			c.Record(Sample{Disposition: DispositionAnswered, RType: "BLOCKED", QType: "A", Domain: "ads.com"})
+			c.Record(Sample{Disposition: DispositionAnswered, RType: "REBIND", QType: "A", Domain: "rebind.com"})
+			c.Record(Sample{Disposition: DispositionAnswered, RType: "FILTERED", QType: "AAAA", Domain: "ok.com"})
+			c.Record(Sample{Disposition: DispositionAnswered, RType: "NOTFQDN", QType: "A", Domain: "notfqdn"})
+
+			res := c.Snapshot()
+
+			Expect(res.PerHour).Should(HaveLen(1))
+			Expect(res.PerHour[0].Queries).Should(Equal(4))
+			// BLOCKED + REBIND; query-type filtered and NOTFQDN are not blocks.
+			Expect(res.PerHour[0].Blocked).Should(Equal(2))
+			// FILTERED + NOTFQDN keep their own series, so the volume the blocked
+			// series no longer carries stays observable per hour.
+			Expect(res.PerHour[0].Filtered).Should(Equal(2))
 		})
 
 		It("prunes high-cardinality maps of closed buckets to keepPerHour", func() {

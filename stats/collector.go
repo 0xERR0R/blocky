@@ -68,9 +68,10 @@ type Summary struct {
 
 // HourPoint is one point in the per-hour time series.
 type HourPoint struct {
-	Hour    time.Time
-	Queries int
-	Blocked int
+	Hour     time.Time
+	Queries  int
+	Blocked  int
+	Filtered int
 }
 
 // ListCounts holds current per-group list entry counts (point-in-time).
@@ -383,6 +384,7 @@ const (
 	categoryBlocked
 	categoryFiltered
 	categoryLocal
+	categoryError
 )
 
 // categorize is the single source of truth that maps a model.ResponseType string
@@ -394,25 +396,36 @@ func categorize(rtype string) responseCategory {
 		return categoryCached
 	case model.ResponseTypeRESOLVED.String(), model.ResponseTypeCONDITIONAL.String():
 		return categoryForwarded
-	case model.ResponseTypeBLOCKED.String():
+	// A denylist hit and a rebinding-protection hit are both queries blocked to
+	// protect the client, so both belong in "blocked".
+	case model.ResponseTypeBLOCKED.String(), model.ResponseTypeREBIND.String():
 		return categoryBlocked
 	case model.ResponseTypeFILTERED.String(), model.ResponseTypeNOTFQDN.String():
 		// Query-type filtering (e.g. AAAA via filtering.queryTypes) and NOTFQDN
-		// rejections are not blocklist hits, so they get their own bucket and no
-		// longer inflate "blocked" or the Top Blocked table (#2151).
+		// rejections are not blocks, so they get their own bucket and no longer
+		// inflate "blocked" or the Top Blocked table (#2151). NOTFQDN sits here
+		// even though model.ResponseType.ToExtendedErrorCode reports it to DNS
+		// clients as "Blocked": the EDE code answers "did the server refuse this?",
+		// while this bucket answers "was something harmful blocked?".
 		return categoryFiltered
 	case model.ResponseTypeCUSTOMDNS.String(), model.ResponseTypeHOSTSFILE.String(),
 		model.ResponseTypeSPECIAL.String(), model.ResponseTypeSYNTHESIZED.String():
 		return categoryLocal
+	case model.ResponseTypeBOGUS.String():
+		// A DNSSEC validation failure is a SERVFAIL: the resolver could not produce a
+		// trustworthy answer. That is a resolution error, not a query blocked to protect
+		// the client, so it belongs with the other errors rather than in "blocked".
+		return categoryError
 	default:
 		return categoryOther
 	}
 }
 
-// isBlockedRType reports whether a response type is a true blocklist hit
-// (BLOCKED). Query-type-filtered / NOTFQDN responses are deliberately excluded
-// so the Top Blocked table and the per-hour blocked series count only real
-// blocks (#2151).
+// isBlockedRType reports whether a response type is a true block: a denylist hit
+// (BLOCKED) or a rebinding-protection hit (REBIND). It gates the Top Blocked table
+// only — the summary and the per-hour series categorize on their own — so the
+// domains it admits are exactly those blocky blocked. Query-type-filtered / NOTFQDN
+// responses (#2151) and DNSSEC failures are none of them, and stay out.
 func isBlockedRType(rtype string) bool {
 	return categorize(rtype) == categoryBlocked
 }
@@ -441,6 +454,11 @@ func curatedSummary(rt map[string]int, dropped, errs int, answeredDurationSum in
 			s.Filtered += n
 		case categoryLocal:
 			s.Local += n
+		case categoryError:
+			// Errors already holds the chain-level failures (a resolver returned an
+			// error); a BOGUS answer is the same outcome for the client — the query
+			// did not resolve — so it is added here rather than to a category of its own.
+			s.Errors += n
 		case categoryOther:
 		}
 	}
@@ -495,18 +513,14 @@ func topNList(m map[string]int, n int) []NameCount {
 func perHour(buckets []*bucket) []HourPoint {
 	points := make([]HourPoint, 0, len(buckets))
 	for _, b := range buckets {
-		queries := b.dropped + b.errors
-		blocked := 0
+		// Derive the point from the same function that builds the window summary, so the
+		// two can never disagree on what counts as blocked or filtered: a category added
+		// to categorize() lands in both at once, with no second switch to keep in step.
+		s := curatedSummary(b.byResponseType, b.dropped, b.errors, b.durationSumMs)
 
-		for rtype, v := range b.byResponseType {
-			queries += v
-
-			if isBlockedRType(rtype) {
-				blocked += v
-			}
-		}
-
-		points = append(points, HourPoint{Hour: b.hourStart, Queries: queries, Blocked: blocked})
+		points = append(points, HourPoint{
+			Hour: b.hourStart, Queries: s.Queries, Blocked: s.Blocked, Filtered: s.Filtered,
+		})
 	}
 
 	sort.Slice(points, func(i, j int) bool {

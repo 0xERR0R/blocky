@@ -42,6 +42,11 @@ var _ = Describe("EdeResolver", func() {
 		DeferCleanup(cancelFn)
 
 		mockAnswer = new(dns.Msg)
+
+		// Reset the mock: it is a closure variable, so a resolver installed by one spec's
+		// BeforeEach would otherwise survive into the next and be reused by the guard below,
+		// leaking both its response type and its accumulated Calls.
+		m = nil
 	})
 
 	JustBeforeEach(func() {
@@ -132,6 +137,53 @@ var _ = Describe("EdeResolver", func() {
 									HaveField("InfoCode", Equal(dns.ExtendedErrorCodeBlocked)),
 									HaveField("ExtraText", Equal("BLOCKED CNAME (ads: *.docler.com)")),
 								)),
+						))
+			})
+		})
+
+		When("resolver returns a rebinding-protection response", func() {
+			BeforeEach(func() {
+				m = &mockResolver{}
+				m.On("Resolve", mock.Anything).Return(&Response{
+					Res:    mockAnswer,
+					RType:  ResponseTypeREBIND,
+					Reason: "REBIND (rebinding protection)",
+				}, nil)
+			})
+
+			It("reports it to the client as blocked, not filtered", func() {
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(
+						SatisfyAll(
+							HaveEdnsOption(dns.EDNS0EDE),
+							WithTransform(extractEdeOption,
+								HaveField("InfoCode", Equal(dns.ExtendedErrorCodeBlocked)),
+							),
+						))
+			})
+		})
+
+		When("resolver returns a DNSSEC validation failure", func() {
+			BeforeEach(func() {
+				m = &mockResolver{}
+				m.On("Resolve", mock.Anything).Return(&Response{
+					Res:    mockAnswer,
+					RType:  ResponseTypeBOGUS,
+					Reason: "DNSSEC validation failed: bogus signatures",
+				}, nil)
+			})
+
+			// this resolver sits above the DNSSEC resolver and rewrites the EDE option from
+			// the response type, so a type that mapped to Blocked would silently replace the
+			// Bogus code the DNSSEC resolver set on its SERVFAIL
+			It("preserves the bogus code instead of overwriting it with blocked", func() {
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(
+						SatisfyAll(
+							HaveEdnsOption(dns.EDNS0EDE),
+							WithTransform(extractEdeOption,
+								HaveField("InfoCode", Equal(dns.ExtendedErrorCodeDNSBogus)),
+							),
 						))
 			})
 		})

@@ -394,7 +394,10 @@ var _ = Describe("DNSSECResolver", func() {
 			Expect(response).ShouldNot(BeNil())
 			Expect(response.Res.Rcode).Should(Equal(dns.RcodeServerFailure))
 			Expect(response.Reason).Should(Equal(reason))
-			Expect(response.RType).Should(Equal(model.ResponseTypeBLOCKED))
+			// a validation failure is an error, not a block: it must not be counted
+			// as one in the statistics, nor reported to the client as EDE "Blocked"
+			Expect(response.RType).Should(Equal(model.ResponseTypeBOGUS))
+			Expect(response.RType.ToExtendedErrorCode()).Should(Equal(dns.ExtendedErrorCodeDNSBogus))
 
 			// Check for EDNS0 with EDE
 			opt := response.Res.IsEdns0()

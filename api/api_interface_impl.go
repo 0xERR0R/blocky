@@ -254,7 +254,9 @@ func toAPINameCounts(in []stats.NameCount) []ApiNameCount {
 func toAPIHourPoints(in []stats.HourPoint) []ApiHourPoint {
 	out := make([]ApiHourPoint, 0, len(in))
 	for _, p := range in {
-		out = append(out, ApiHourPoint{Hour: p.Hour, Queries: p.Queries, Blocked: p.Blocked})
+		out = append(out, ApiHourPoint{
+			Hour: p.Hour, Queries: p.Queries, Blocked: p.Blocked, Filtered: p.Filtered,
+		})
 	}
 
 	return out

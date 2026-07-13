@@ -27,7 +27,11 @@ type ApiCacheStats struct {
 
 // ApiHourPoint defines model for api.HourPoint.
 type ApiHourPoint struct {
+	// Blocked Real blocks in this hour, same definition as summary.blocked.
 	Blocked int `json:"blocked"`
+
+	// Filtered Query-type filtered / NOTFQDN responses in this hour, same definition as summary.filtered.
+	Filtered int `json:"filtered"`
 
 	// Hour Start of the hour bucket. UTC (RFC 3339).
 	Hour    time.Time `json:"hour"`
@@ -107,14 +111,16 @@ type ApiStats struct {
 type ApiStatsSummary struct {
 	AvgResponseMs int `json:"avgResponseMs"`
 
-	// Blocked Real blocklist hits only (excludes query-type filtered / NOTFQDN).
+	// Blocked Real blocks: denylist hits (BLOCKED) and DNS rebinding-protection hits (REBIND). Excludes query-type filtered and NOTFQDN responses.
 	Blocked      int     `json:"blocked"`
 	CacheHitRate float64 `json:"cacheHitRate"`
 	Cached       int     `json:"cached"`
 	Dropped      int     `json:"dropped"`
-	Errors       int     `json:"errors"`
 
-	// Filtered Query-type filtered (e.g. AAAA) and NOTFQDN responses.
+	// Errors Queries that did not resolve: a resolver returned an error, or the answer failed DNSSEC validation (BOGUS). Not blocks.
+	Errors int `json:"errors"`
+
+	// Filtered Query-type filtered (e.g. AAAA via filtering.queryTypes) and NOTFQDN responses. These are not blocks.
 	Filtered  int `json:"filtered"`
 	Forwarded int `json:"forwarded"`
 	Local     int `json:"local"`

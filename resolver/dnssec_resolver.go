@@ -147,9 +147,15 @@ func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*
 	return response, nil
 }
 
-// createServFailResponseDNSSEC creates a SERVFAIL response for a DNSSEC validation failure
+// createServFailResponseDNSSEC creates a SERVFAIL response for a DNSSEC validation failure.
+//
+// The response type is BOGUS, not BLOCKED: a validation failure is a resolution error,
+// not a query blocked to protect the client, so it must not be counted as a block in the
+// statistics or listed among the top blocked domains. It also keeps EdeResolver — which
+// sits above this resolver and rewrites the EDE option from the response type — from
+// overwriting the Bogus code set below with "Blocked".
 func createServFailResponseDNSSEC(request *model.Request, reason string) *model.Response {
-	modelResp := model.NewResponseWithRcode(request, dns.RcodeServerFailure, model.ResponseTypeBLOCKED, reason)
+	modelResp := model.NewResponseWithRcode(request, dns.RcodeServerFailure, model.ResponseTypeBOGUS, reason)
 
 	// Add EDE (Extended DNS Error) code for DNSSEC Bogus
 	// RFC 8914: https://www.rfc-editor.org/rfc/rfc8914.html#section-5.2

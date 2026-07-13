@@ -48,7 +48,7 @@ func NewRebindingProtectionResolver(cfg config.RebindingProtection) *RebindingPr
 	}
 }
 
-// Resolve inspects the next resolver's answer and replaces it with an empty FILTERED
+// Resolve inspects the next resolver's answer and replaces it with an empty REBIND
 // response if it contains a non-public IP.
 func (r *RebindingProtectionResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	if !r.IsEnabled() {
@@ -98,8 +98,8 @@ func (r *RebindingProtectionResolver) Resolve(ctx context.Context, request *mode
 
 	// fixed reason: it becomes a Prometheus label via MetricsResolver, and the IP is
 	// attacker-chosen — embedding it would allow unbounded cardinality growth
-	return model.NewResponseWithRcode(request, dns.RcodeSuccess, model.ResponseTypeFILTERED,
-		"FILTERED (rebinding protection)"), nil
+	return model.NewResponseWithRcode(request, dns.RcodeSuccess, model.ResponseTypeREBIND,
+		"REBIND (rebinding protection)"), nil
 }
 
 // isAllowed reports whether the queried domain matches an allowlist entry exactly
