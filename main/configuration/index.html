@@ -3972,8 +3972,17 @@ under the attacker's origin. When this protection is enabled, blocky drops any a
 general upstream resolvers that contains a non-public IP address — in <code>A</code>/<code>AAAA</code> records or in
 <code>ipv4hint</code>/<code>ipv6hint</code> SvcParams of <code>HTTPS</code>/<code>SVCB</code> records, in any section of the response
 (answer, authority or additional) — and returns an empty <code>NOERROR</code> response instead (visible as
-response type <code>FILTERED</code> with reason <code>FILTERED (rebinding protection)</code> in query logs and metrics;
-the offending IP is logged at debug level). <strong>Disabled by default.</strong></p>
+response type <code>REBIND</code> with reason <code>REBIND (rebinding protection)</code> in query logs and metrics;
+the offending IP is logged at debug level). Rebinding hits count as <strong>blocked</strong> in the
+<a href="#statistics">statistics</a>, and are reported to clients as Extended <abbr title="Domain Name System">DNS</abbr> Error <code>15 (Blocked)</code>.
+<strong>Disabled by default.</strong></p>
+<div class="admonition note">
+<p class="admonition-title">Upgrading</p>
+<p>Rebinding hits previously used the <code>FILTERED</code> response type. Query log rows written before
+the upgrade keep the old value, so a dashboard grouping by response type shows <code>FILTERED</code> and
+<code>REBIND</code> side by side for the retention period. The same applies to Prometheus counters,
+which are labelled per response type.</p>
+</div>
 <p>The following ranges are considered non-public:</p>
 <table>
 <thead>
@@ -4036,8 +4045,8 @@ startup, and internationalized domains must be given in punycode (<code>xn--…<
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The protection runs above the cache: the upstream answer is cached unchanged for its
-regular <abbr title="Time-To-Live">TTL</abbr>, and every cache hit is re-inspected, so repeat queries for a filtered domain
-keep showing <code>FILTERED</code>. This also covers cache entries synchronized from other instances
+regular <abbr title="Time-To-Live">TTL</abbr>, and every cache hit is re-inspected, so repeat queries for a blocked domain
+keep showing <code>REBIND</code>. This also covers cache entries synchronized from other instances
 through <a href="#redis">redis</a>. Answers from trusted local sources (conditional upstreams,
 special-use domains) are never written to the cache, so they cannot resurface as cached
 upstream answers and become subject to inspection.</p>
@@ -5433,7 +5442,7 @@ upstream and silently upgrade to that upstream, bypassing blocky.</p>
 <tr>
 <td><strong>Bogus</strong></td>
 <td>Invalid <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> signatures or broken chain of trust</td>
-<td>SERVFAIL returned with EDE code</td>
+<td>SERVFAIL returned with EDE code <code>6 (DNSSEC Bogus)</code>, response type <code>BOGUS</code></td>
 </tr>
 <tr>
 <td><strong>Indeterminate</strong></td>
@@ -5442,6 +5451,16 @@ upstream and silently upgrade to that upstream, bypassing blocky.</p>
 </tr>
 </tbody>
 </table>
+<p>A <code>BOGUS</code> result means blocky could not obtain a trustworthy answer, so it counts as an <strong>error</strong>
+in the <a href="#statistics">statistics</a> — not as a block. A domain whose operator has misconfigured <abbr title="Domain Name System Security Extensions">DNSSEC</abbr>
+is not something blocky blocked, and never appears in <code>topBlockedDomains</code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Upgrading</p>
+<p>Validation failures previously used the <code>BLOCKED</code> response type, which counted them as blocks
+and reported them to clients as Extended <abbr title="Domain Name System">DNS</abbr> Error <code>15 (Blocked)</code> instead of <code>6 (DNSSEC
+Bogus)</code>. Query log rows written before the upgrade keep the old value, so a dashboard grouping
+by response type shows <code>BLOCKED</code> and <code>BOGUS</code> side by side for the retention period.</p>
+</div>
 <h3 id="trust-anchors">Trust Anchors</h3>
 <p>By default, Blocky uses the latest IANA root trust anchors (KSK-2017 and KSK-2024) for <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> validation. These are the same trust anchors used by major <abbr title="Domain Name System">DNS</abbr> resolvers and are embedded in the Blocky binary.</p>
 <h4 id="custom-trust-anchors">Custom Trust Anchors</h4>

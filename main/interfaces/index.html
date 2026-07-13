@@ -912,16 +912,23 @@
 <span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">integer</span>
 <span class="w">        </span><span class="nt">blocked</span><span class="p">:</span>
 <span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">integer</span>
-<span class="w">          </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Real blocklist hits only (excludes query-type filtered / NOTFQDN).</span>
+<span class="w">          </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;-</span>
+<span class="w">            </span><span class="no">Real blocks: denylist hits (BLOCKED) and DNS rebinding-protection hits (REBIND).</span>
+<span class="w">            </span><span class="no">Excludes query-type filtered and NOTFQDN responses.</span>
 <span class="w">        </span><span class="nt">filtered</span><span class="p">:</span>
 <span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">integer</span>
-<span class="w">          </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Query-type filtered (e.g. AAAA) and NOTFQDN responses.</span>
+<span class="w">          </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;-</span>
+<span class="w">            </span><span class="no">Query-type filtered (e.g. AAAA via filtering.queryTypes) and NOTFQDN responses.</span>
+<span class="w">            </span><span class="no">These are not blocks.</span>
 <span class="w">        </span><span class="nt">local</span><span class="p">:</span>
 <span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">integer</span>
 <span class="w">        </span><span class="nt">dropped</span><span class="p">:</span>
 <span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">integer</span>
 <span class="w">        </span><span class="nt">errors</span><span class="p">:</span>
 <span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">integer</span>
+<span class="w">          </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;-</span>
+<span class="w">            </span><span class="no">Queries that did not resolve: a resolver returned an error, or the answer</span>
+<span class="w">            </span><span class="no">failed DNSSEC validation (BOGUS). Not blocks.</span>
 <span class="w">        </span><span class="nt">avgResponseMs</span><span class="p">:</span>
 <span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">integer</span>
 <span class="w">        </span><span class="nt">cacheHitRate</span><span class="p">:</span>
@@ -959,10 +966,15 @@
 <span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">integer</span>
 <span class="w">        </span><span class="nt">blocked</span><span class="p">:</span>
 <span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">integer</span>
+<span class="w">          </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Real blocks in this hour, same definition as summary.blocked.</span>
+<span class="w">        </span><span class="nt">filtered</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">integer</span>
+<span class="w">          </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Query-type filtered / NOTFQDN responses in this hour, same definition as summary.filtered.</span>
 <span class="w">      </span><span class="nt">required</span><span class="p">:</span>
 <span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hour</span>
 <span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">queries</span>
 <span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">blocked</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">filtered</span>
 <span class="w">    </span><span class="nt">api.ListCounts</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">object</span>
 <span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Current per-group list entry counts (point-in-time, not windowed).</span>
@@ -1047,9 +1059,57 @@ or <code>hostsFile</code> entries that may already be cached.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Statistics semantics</p>
-<p>For <code>/api/stats</code>, the <code>summary</code> fields are server-computed categories (e.g. <code>blocked</code> =
-<code>BLOCKED</code> + <code>FILTERED</code> + <code>NOTFQDN</code>, <code>forwarded</code> = <code>RESOLVED</code> + <code>CONDITIONAL</code>), so callers
-never interpret a raw response type. The <code>lists</code> and <code>cache</code> objects are point-in-time gauges
+<p>For <code>/api/stats</code>, the <code>summary</code> fields are server-computed categories, so callers never
+interpret a raw response type:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Response types</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>blocked</code></td>
+<td><code>BLOCKED</code> + <code>REBIND</code></td>
+</tr>
+<tr>
+<td><code>filtered</code></td>
+<td><code>FILTERED</code> + <code>NOTFQDN</code></td>
+</tr>
+<tr>
+<td><code>forwarded</code></td>
+<td><code>RESOLVED</code> + <code>CONDITIONAL</code></td>
+</tr>
+<tr>
+<td><code>cached</code></td>
+<td><code>CACHED</code></td>
+</tr>
+<tr>
+<td><code>local</code></td>
+<td><code>CUSTOMDNS</code> + <code>HOSTSFILE</code> + <code>SPECIAL</code> + <code>SYNTHESIZED</code></td>
+</tr>
+<tr>
+<td><code>errors</code></td>
+<td><code>BOGUS</code>, plus queries a resolver failed outright</td>
+</tr>
+</tbody>
+</table>
+<p><code>blocked</code> counts only queries blocked to protect the client: denylist hits and
+<a href="../configuration/#dns-rebinding-protection"><abbr title="Domain Name System">DNS</abbr> rebinding</a> hits. Two other outcomes are
+deliberately kept out of it, so they cannot inflate <code>blocked</code> or the <code>topBlockedDomains</code>
+list:</p>
+<ul>
+<li>Query-type filtering (e.g. <code>AAAA</code> via <code>filtering.queryTypes</code>) and non-FQDN rejections are
+  client-requested, not protective, and are counted as <code>filtered</code>.</li>
+<li>A <a href="../configuration/#dnssec"><abbr title="Domain Name System Security Extensions">DNSSEC</abbr></a> validation failure (<code>BOGUS</code>) is a SERVFAIL — blocky
+  could not obtain a trustworthy answer — so it is a resolution error, not a block, and is
+  counted as <code>errors</code> together with queries a resolver failed outright.</li>
+</ul>
+<p>The <code>blocked</code> / <code>filtered</code> split also applies to the <code>perHour</code> series, which carries both.
+Together with <code>dropped</code> (rate-limited), the categories above partition every query, so they
+always add up to <code>queries</code>.</p>
+<p>The <code>lists</code> and <code>cache</code> objects are point-in-time gauges
 (current values, not affected by the 24h window), while <code>start</code>/<code>end</code> bound the windowed fields
 only. All timestamps (<code>start</code>, <code>end</code>, <code>perHour[].hour</code>) are always returned in UTC (RFC 3339,
 <code>Z</code> suffix), regardless of the server's local time zone. Statistics are independent of Prometheus
