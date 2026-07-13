@@ -19,6 +19,7 @@ import (
 // NOTFQDN // the query was filtered as it is not fqdn conform
 // SPECIAL // the query was resolved by the special use domain name resolver
 // SYNTHESIZED // the response was synthesized by DNS64
+// REBIND // the answer was blocked by the DNS rebinding protection
 // )
 type ResponseType int
 
@@ -37,6 +38,11 @@ func (t ResponseType) ToExtendedErrorCode() uint16 {
 	case ResponseTypeNOTFQDN:
 		return dns.ExtendedErrorCodeBlocked
 	case ResponseTypeBLOCKED:
+		return dns.ExtendedErrorCodeBlocked
+	// RFC 8914: "Blocked" is blocking due to an internal security policy of the
+	// operator, "Filtered" is blocking requested by the client. Rebinding
+	// protection is operator policy, so it reports as Blocked.
+	case ResponseTypeREBIND:
 		return dns.ExtendedErrorCodeBlocked
 	case ResponseTypeFILTERED:
 		return dns.ExtendedErrorCodeFiltered

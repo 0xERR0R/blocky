@@ -395,8 +395,10 @@ under the attacker's origin. When this protection is enabled, blocky drops any a
 general upstream resolvers that contains a non-public IP address — in `A`/`AAAA` records or in
 `ipv4hint`/`ipv6hint` SvcParams of `HTTPS`/`SVCB` records, in any section of the response
 (answer, authority or additional) — and returns an empty `NOERROR` response instead (visible as
-response type `FILTERED` with reason `FILTERED (rebinding protection)` in query logs and metrics;
-the offending IP is logged at debug level). **Disabled by default.**
+response type `REBIND` with reason `REBIND (rebinding protection)` in query logs and metrics;
+the offending IP is logged at debug level). Rebinding hits count as **blocked** in the
+[statistics](#statistics), and are reported to clients as Extended DNS Error `15 (Blocked)`.
+**Disabled by default.**
 
 The following ranges are considered non-public:
 
@@ -443,7 +445,7 @@ startup, and internationalized domains must be given in punycode (`xn--…`) for
 
     The protection runs above the cache: the upstream answer is cached unchanged for its
     regular TTL, and every cache hit is re-inspected, so repeat queries for a filtered domain
-    keep showing `FILTERED`. This also covers cache entries synchronized from other instances
+    keep showing `REBIND`. This also covers cache entries synchronized from other instances
     through [redis](#redis). Answers from trusted local sources (conditional upstreams,
     special-use domains) are never written to the cache, so they cannot resurface as cached
     upstream answers and become subject to inspection.

@@ -279,10 +279,14 @@ components:
           type: integer
         blocked:
           type: integer
-          description: Real blocklist hits only (excludes query-type filtered / NOTFQDN).
+          description: >-
+            Real blocks: denylist hits (BLOCKED) and DNS rebinding-protection hits (REBIND).
+            Excludes query-type filtered and NOTFQDN responses.
         filtered:
           type: integer
-          description: Query-type filtered (e.g. AAAA) and NOTFQDN responses.
+          description: >-
+            Query-type filtered (e.g. AAAA via filtering.queryTypes) and NOTFQDN responses.
+            These are not blocks.
         local:
           type: integer
         dropped:
@@ -326,10 +330,15 @@ components:
           type: integer
         blocked:
           type: integer
+          description: Real blocks in this hour, same definition as summary.blocked.
+        filtered:
+          type: integer
+          description: Query-type filtered / NOTFQDN responses in this hour, same definition as summary.filtered.
       required:
         - hour
         - queries
         - blocked
+        - filtered
     api.ListCounts:
       type: object
       description: Current per-group list entry counts (point-in-time, not windowed).

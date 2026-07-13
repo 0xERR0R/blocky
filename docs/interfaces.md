@@ -36,9 +36,24 @@ You can also browse the interactive API documentation (RapiDoc) documentation [o
 
 !!! note "Statistics semantics"
 
-    For `/api/stats`, the `summary` fields are server-computed categories (e.g. `blocked` =
-    `BLOCKED` + `FILTERED` + `NOTFQDN`, `forwarded` = `RESOLVED` + `CONDITIONAL`), so callers
-    never interpret a raw response type. The `lists` and `cache` objects are point-in-time gauges
+    For `/api/stats`, the `summary` fields are server-computed categories, so callers never
+    interpret a raw response type:
+
+    | Field      | Response types                                             |
+    | ---------- | ---------------------------------------------------------- |
+    | `blocked`  | `BLOCKED` + `REBIND`                                       |
+    | `filtered` | `FILTERED` + `NOTFQDN`                                     |
+    | `forwarded`| `RESOLVED` + `CONDITIONAL`                                 |
+    | `cached`   | `CACHED`                                                   |
+    | `local`    | `CUSTOMDNS` + `HOSTSFILE` + `SPECIAL` + `SYNTHESIZED`      |
+
+    `blocked` counts only queries blocked to protect the client: denylist hits and
+    [DNS rebinding](configuration.md#dns-rebinding-protection) hits. Query-type filtering (e.g.
+    `AAAA` via `filtering.queryTypes`) and non-FQDN rejections are *not* blocks and are counted
+    separately as `filtered`, so they do not inflate `blocked` or the `topBlockedDomains` list.
+    The same split applies to the `perHour` series, which carries both `blocked` and `filtered`.
+
+    The `lists` and `cache` objects are point-in-time gauges
     (current values, not affected by the 24h window), while `start`/`end` bound the windowed fields
     only. All timestamps (`start`, `end`, `perHour[].hour`) are always returned in UTC (RFC 3339,
     `Z` suffix), regardless of the server's local time zone. Statistics are independent of Prometheus

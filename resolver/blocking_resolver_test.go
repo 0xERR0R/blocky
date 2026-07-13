@@ -184,9 +184,9 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 				Expect(*ips).ShouldNot(BeEmpty())
 				Expect((*ips)[0].String()).Should(Equal("192.168.1.5"))
 
-				// the same name queried by a client passes the full chain and is filtered
+				// the same name queried by a client passes the full chain and is blocked
 				Expect(chain.Resolve(ctx, newRequestWithClient("nas.ddns.example.com.", A, "192.168.1.5"))).
-					Should(HaveResponseType(ResponseTypeFILTERED))
+					Should(HaveResponseType(ResponseTypeREBIND))
 			})
 		})
 	})

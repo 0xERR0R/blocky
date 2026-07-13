@@ -68,9 +68,10 @@ type Summary struct {
 
 // HourPoint is one point in the per-hour time series.
 type HourPoint struct {
-	Hour    time.Time
-	Queries int
-	Blocked int
+	Hour     time.Time
+	Queries  int
+	Blocked  int
+	Filtered int
 }
 
 // ListCounts holds current per-group list entry counts (point-in-time).
@@ -394,12 +395,17 @@ func categorize(rtype string) responseCategory {
 		return categoryCached
 	case model.ResponseTypeRESOLVED.String(), model.ResponseTypeCONDITIONAL.String():
 		return categoryForwarded
-	case model.ResponseTypeBLOCKED.String():
+	// A denylist hit and a rebinding-protection hit are both queries blocked to
+	// protect the client, so both belong in "blocked".
+	case model.ResponseTypeBLOCKED.String(), model.ResponseTypeREBIND.String():
 		return categoryBlocked
 	case model.ResponseTypeFILTERED.String(), model.ResponseTypeNOTFQDN.String():
 		// Query-type filtering (e.g. AAAA via filtering.queryTypes) and NOTFQDN
-		// rejections are not blocklist hits, so they get their own bucket and no
-		// longer inflate "blocked" or the Top Blocked table (#2151).
+		// rejections are not blocks, so they get their own bucket and no longer
+		// inflate "blocked" or the Top Blocked table (#2151). NOTFQDN sits here
+		// even though model.ToExtendedErrorCode reports it to DNS clients as
+		// "Blocked": the EDE code answers "did the server refuse this?", while
+		// this bucket answers "was something harmful blocked?".
 		return categoryFiltered
 	case model.ResponseTypeCUSTOMDNS.String(), model.ResponseTypeHOSTSFILE.String(),
 		model.ResponseTypeSPECIAL.String(), model.ResponseTypeSYNTHESIZED.String():
@@ -409,10 +415,10 @@ func categorize(rtype string) responseCategory {
 	}
 }
 
-// isBlockedRType reports whether a response type is a true blocklist hit
-// (BLOCKED). Query-type-filtered / NOTFQDN responses are deliberately excluded
-// so the Top Blocked table and the per-hour blocked series count only real
-// blocks (#2151).
+// isBlockedRType reports whether a response type is a true block: a denylist hit
+// (BLOCKED) or a rebinding-protection hit (REBIND). Query-type-filtered /
+// NOTFQDN responses are deliberately excluded so the Top Blocked table and the
+// per-hour blocked series count only real blocks (#2151).
 func isBlockedRType(rtype string) bool {
 	return categorize(rtype) == categoryBlocked
 }
@@ -496,17 +502,23 @@ func perHour(buckets []*bucket) []HourPoint {
 	points := make([]HourPoint, 0, len(buckets))
 	for _, b := range buckets {
 		queries := b.dropped + b.errors
-		blocked := 0
+		blocked, filtered := 0, 0
 
 		for rtype, v := range b.byResponseType {
 			queries += v
 
-			if isBlockedRType(rtype) {
+			switch categorize(rtype) {
+			case categoryBlocked:
 				blocked += v
+			case categoryFiltered:
+				filtered += v
+			case categoryOther, categoryCached, categoryForwarded, categoryLocal:
 			}
 		}
 
-		points = append(points, HourPoint{Hour: b.hourStart, Queries: queries, Blocked: blocked})
+		points = append(points, HourPoint{
+			Hour: b.hourStart, Queries: queries, Blocked: blocked, Filtered: filtered,
+		})
 	}
 
 	sort.Slice(points, func(i, j int) bool {

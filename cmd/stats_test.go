@@ -21,12 +21,12 @@ func sampleStats() api.ApiStats {
 		Start: start,
 		End:   start.Add(12 * time.Hour),
 		Summary: api.ApiStatsSummary{
-			Queries: 12431, Cached: 5102, Forwarded: 4445, Blocked: 2884,
+			Queries: 12431, Cached: 5102, Forwarded: 4445, Blocked: 2884, Filtered: 1620,
 			Local: 12, Dropped: 3, Errors: 7, AvgResponseMs: 7, CacheHitRate: 0.41,
 		},
 		ByQueryType:       map[string]int{"A": 9000, "AAAA": 3431},
 		ByResponseCode:    map[string]int{"NOERROR": 11000, "NXDOMAIN": 1431},
-		ByResponseType:    map[string]int{"CACHED": 5102, "BLOCKED": 2884},
+		ByResponseType:    map[string]int{"CACHED": 5102, "BLOCKED": 2884, "FILTERED": 1620},
 		TopDomains:        []api.ApiNameCount{{Name: "github.com", Count: 1203}},
 		TopBlockedDomains: []api.ApiNameCount{{Name: "ads.example.com", Count: 402}},
 		TopClients:        []api.ApiNameCount{{Name: "10.0.0.5", Count: 4310}},
@@ -58,6 +58,11 @@ var _ = Describe("renderStats", func() {
 		Expect(out).Should(ContainSubstring("github.com"))
 		Expect(out).Should(ContainSubstring("Top Blocked"))
 		Expect(out).Should(ContainSubstring("ads.example.com"))
+		// blocked and filtered are separate rows, each with its own share of queries
+		Expect(out).Should(ContainSubstring("Blocked"))
+		Expect(out).Should(ContainSubstring("2,884 (23.2%)"))
+		Expect(out).Should(ContainSubstring("Filtered"))
+		Expect(out).Should(ContainSubstring("1,620 (13.0%)"))
 		Expect(out).Should(ContainSubstring("Top Clients"))
 		Expect(out).Should(ContainSubstring("By Query Type"))
 		Expect(out).Should(ContainSubstring("Cache: 8,123 entries"))

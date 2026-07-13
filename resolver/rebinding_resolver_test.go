@@ -154,7 +154,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", A))).
 				Should(SatisfyAll(
 					HaveNoAnswer(),
-					HaveResponseType(ResponseTypeFILTERED),
+					HaveResponseType(ResponseTypeREBIND),
 				))
 		})
 	})
@@ -167,7 +167,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 				Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", A))).
 					Should(SatisfyAll(
 						HaveNoAnswer(),
-						HaveResponseType(ResponseTypeFILTERED),
+						HaveResponseType(ResponseTypeREBIND),
 						HaveReturnCode(dns.RcodeSuccess),
 					))
 			},
@@ -198,7 +198,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", HTTPS))).
 				Should(SatisfyAll(
 					HaveNoAnswer(),
-					HaveResponseType(ResponseTypeFILTERED),
+					HaveResponseType(ResponseTypeREBIND),
 				))
 		})
 
@@ -216,7 +216,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", dns.Type(dns.TypeSVCB)))).
 				Should(SatisfyAll(
 					HaveNoAnswer(),
-					HaveResponseType(ResponseTypeFILTERED),
+					HaveResponseType(ResponseTypeREBIND),
 				))
 		})
 
@@ -235,7 +235,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", HTTPS))).
 				Should(SatisfyAll(
 					HaveNoAnswer(),
-					HaveResponseType(ResponseTypeFILTERED),
+					HaveResponseType(ResponseTypeREBIND),
 				))
 		})
 
@@ -265,7 +265,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 
 			resp, err := sut.Resolve(ctx, newRequest("rebind.example.com.", A))
 			Expect(err).Should(Succeed())
-			Expect(resp.Reason).Should(Equal("FILTERED (rebinding protection)"))
+			Expect(resp.Reason).Should(Equal("REBIND (rebinding protection)"))
 		})
 
 		It("filters answers mixing public and private records", func() {
@@ -277,7 +277,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", A))).
 				Should(SatisfyAll(
 					HaveNoAnswer(),
-					HaveResponseType(ResponseTypeFILTERED),
+					HaveResponseType(ResponseTypeREBIND),
 				))
 		})
 
@@ -296,7 +296,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", HTTPS))).
 				Should(SatisfyAll(
 					HaveNoAnswer(),
-					HaveResponseType(ResponseTypeFILTERED),
+					HaveResponseType(ResponseTypeREBIND),
 				))
 		})
 
@@ -304,7 +304,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			mockAnswer.Ns = []dns.RR{rebindTestA("rebind.example.com.", "192.168.1.1")}
 
 			Expect(sut.Resolve(ctx, newRequest("rebind.example.com.", A))).
-				Should(HaveResponseType(ResponseTypeFILTERED))
+				Should(HaveResponseType(ResponseTypeREBIND))
 		})
 
 		It("filters private answers for requests without a question section", func() {
@@ -312,7 +312,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			req.Req.Question = nil
 			mockAnswer.Answer = []dns.RR{rebindTestA("rebind.example.com.", "192.168.1.100")}
 
-			Expect(sut.Resolve(ctx, req)).Should(HaveResponseType(ResponseTypeFILTERED))
+			Expect(sut.Resolve(ctx, req)).Should(HaveResponseType(ResponseTypeREBIND))
 		})
 
 		It("obfuscates the dropped IP in the debug log when log privacy is enabled", func() {
@@ -341,7 +341,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			mockAnswer.Answer = []dns.RR{cname, rebindTestA("target.example.org.", "10.0.0.5")}
 
 			Expect(sut.Resolve(ctx, newRequest("evil.example.org.", A))).
-				Should(HaveResponseType(ResponseTypeFILTERED))
+				Should(HaveResponseType(ResponseTypeREBIND))
 		})
 	})
 
@@ -376,7 +376,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			mockAnswer.Answer = []dns.RR{rebindTestA("notintranet.example.com.", "192.168.1.52")}
 
 			Expect(sut.Resolve(ctx, newRequest("notintranet.example.com.", A))).
-				Should(HaveResponseType(ResponseTypeFILTERED))
+				Should(HaveResponseType(ResponseTypeREBIND))
 		})
 
 		It("still filters CNAMEs pointing at an allowlisted name", func() {
@@ -389,7 +389,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			mockAnswer.Answer = []dns.RR{cname, rebindTestA("intranet.example.com.", "192.168.1.50")}
 
 			Expect(sut.Resolve(ctx, newRequest("evil.example.org.", A))).
-				Should(HaveResponseType(ResponseTypeFILTERED))
+				Should(HaveResponseType(ResponseTypeREBIND))
 		})
 
 		It("does not treat escaped dots as label boundaries", func() {
@@ -398,7 +398,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			mockAnswer.Answer = []dns.RR{rebindTestA(`evil\.intranet.example.com.`, "192.168.1.66")}
 
 			Expect(sut.Resolve(ctx, newRequest(`evil\.intranet.example.com.`, A))).
-				Should(HaveResponseType(ResponseTypeFILTERED))
+				Should(HaveResponseType(ResponseTypeREBIND))
 		})
 
 		It("never applies the allowlist to multi-question requests", func() {
@@ -409,7 +409,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 				dns.Question{Name: "evil.example.org.", Qtype: dns.TypeA, Qclass: dns.ClassINET})
 			mockAnswer.Answer = []dns.RR{rebindTestA("intranet.example.com.", "192.168.1.50")}
 
-			Expect(sut.Resolve(ctx, req)).Should(HaveResponseType(ResponseTypeFILTERED))
+			Expect(sut.Resolve(ctx, req)).Should(HaveResponseType(ResponseTypeREBIND))
 		})
 	})
 
@@ -466,7 +466,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			Expect(err).Should(Succeed())
 			Expect(resp).Should(SatisfyAll(
 				HaveNoAnswer(),
-				HaveResponseType(ResponseTypeFILTERED),
+				HaveResponseType(ResponseTypeREBIND),
 				HaveReturnCode(dns.RcodeSuccess),
 			))
 			Expect(resp.Res.AuthenticatedData).Should(BeFalse())
@@ -490,7 +490,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 				Expect(err).Should(Succeed())
 				Expect(resp).Should(SatisfyAll(
 					HaveNoAnswer(),
-					HaveResponseType(ResponseTypeFILTERED),
+					HaveResponseType(ResponseTypeREBIND),
 					HaveReturnCode(dns.RcodeSuccess),
 				))
 				Expect(m.Calls).Should(HaveLen(1))
@@ -501,7 +501,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 				Expect(err).Should(Succeed())
 				Expect(resp).Should(SatisfyAll(
 					HaveNoAnswer(),
-					HaveResponseType(ResponseTypeFILTERED),
+					HaveResponseType(ResponseTypeREBIND),
 					HaveReturnCode(dns.RcodeSuccess),
 				))
 				// the real answer is cached below this resolver and re-filtered

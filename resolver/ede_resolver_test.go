@@ -136,6 +136,28 @@ var _ = Describe("EdeResolver", func() {
 			})
 		})
 
+		When("resolver returns a rebinding-protection response", func() {
+			BeforeEach(func() {
+				m = &mockResolver{}
+				m.On("Resolve", mock.Anything).Return(&Response{
+					Res:    mockAnswer,
+					RType:  ResponseTypeREBIND,
+					Reason: "REBIND (rebinding protection)",
+				}, nil)
+			})
+
+			It("reports it to the client as blocked, not filtered", func() {
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(
+						SatisfyAll(
+							HaveEdnsOption(dns.EDNS0EDE),
+							WithTransform(extractEdeOption,
+								HaveField("InfoCode", Equal(dns.ExtendedErrorCodeBlocked)),
+							),
+						))
+			})
+		})
+
 		When("resolver returns a blocked response with an oversized reason", func() {
 			longReason := "BLOCKED (ads: /" + strings.Repeat("a", 500) + "/)"
 
