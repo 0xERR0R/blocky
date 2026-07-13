@@ -451,7 +451,7 @@ startup, and internationalized domains must be given in punycode (`xn--…`) for
 !!! note
 
     The protection runs above the cache: the upstream answer is cached unchanged for its
-    regular TTL, and every cache hit is re-inspected, so repeat queries for a filtered domain
+    regular TTL, and every cache hit is re-inspected, so repeat queries for a blocked domain
     keep showing `REBIND`. This also covers cache entries synchronized from other instances
     through [redis](#redis). Answers from trusted local sources (conditional upstreams,
     special-use domains) are never written to the cache, so they cannot resurface as cached

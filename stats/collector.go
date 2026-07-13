@@ -404,9 +404,9 @@ func categorize(rtype string) responseCategory {
 		// Query-type filtering (e.g. AAAA via filtering.queryTypes) and NOTFQDN
 		// rejections are not blocks, so they get their own bucket and no longer
 		// inflate "blocked" or the Top Blocked table (#2151). NOTFQDN sits here
-		// even though model.ToExtendedErrorCode reports it to DNS clients as
-		// "Blocked": the EDE code answers "did the server refuse this?", while
-		// this bucket answers "was something harmful blocked?".
+		// even though model.ResponseType.ToExtendedErrorCode reports it to DNS
+		// clients as "Blocked": the EDE code answers "did the server refuse this?",
+		// while this bucket answers "was something harmful blocked?".
 		return categoryFiltered
 	case model.ResponseTypeCUSTOMDNS.String(), model.ResponseTypeHOSTSFILE.String(),
 		model.ResponseTypeSPECIAL.String(), model.ResponseTypeSYNTHESIZED.String():
