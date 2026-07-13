@@ -220,6 +220,7 @@ func toAPIStats(r stats.Result) ApiStats {
 			Cached:        r.Summary.Cached,
 			Forwarded:     r.Summary.Forwarded,
 			Blocked:       r.Summary.Blocked,
+			Filtered:      r.Summary.Filtered,
 			Local:         r.Summary.Local,
 			Dropped:       r.Summary.Dropped,
 			Errors:        r.Summary.Errors,

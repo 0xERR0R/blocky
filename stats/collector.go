@@ -58,6 +58,7 @@ type Summary struct {
 	Cached        int
 	Forwarded     int
 	Blocked       int
+	Filtered      int
 	Local         int
 	Dropped       int
 	Errors        int
@@ -380,6 +381,7 @@ const (
 	categoryCached
 	categoryForwarded
 	categoryBlocked
+	categoryFiltered
 	categoryLocal
 )
 
@@ -392,9 +394,13 @@ func categorize(rtype string) responseCategory {
 		return categoryCached
 	case model.ResponseTypeRESOLVED.String(), model.ResponseTypeCONDITIONAL.String():
 		return categoryForwarded
-	case model.ResponseTypeBLOCKED.String(), model.ResponseTypeFILTERED.String(),
-		model.ResponseTypeNOTFQDN.String():
+	case model.ResponseTypeBLOCKED.String():
 		return categoryBlocked
+	case model.ResponseTypeFILTERED.String(), model.ResponseTypeNOTFQDN.String():
+		// Query-type filtering (e.g. AAAA via filtering.queryTypes) and NOTFQDN
+		// rejections are not blocklist hits, so they get their own bucket and no
+		// longer inflate "blocked" or the Top Blocked table (#2151).
+		return categoryFiltered
 	case model.ResponseTypeCUSTOMDNS.String(), model.ResponseTypeHOSTSFILE.String(),
 		model.ResponseTypeSPECIAL.String(), model.ResponseTypeSYNTHESIZED.String():
 		return categoryLocal
@@ -403,7 +409,10 @@ func categorize(rtype string) responseCategory {
 	}
 }
 
-// isBlockedRType reports whether a response type counts as "blocked".
+// isBlockedRType reports whether a response type is a true blocklist hit
+// (BLOCKED). Query-type-filtered / NOTFQDN responses are deliberately excluded
+// so the Top Blocked table and the per-hour blocked series count only real
+// blocks (#2151).
 func isBlockedRType(rtype string) bool {
 	return categorize(rtype) == categoryBlocked
 }
@@ -428,6 +437,8 @@ func curatedSummary(rt map[string]int, dropped, errs int, answeredDurationSum in
 			s.Forwarded += n
 		case categoryBlocked:
 			s.Blocked += n
+		case categoryFiltered:
+			s.Filtered += n
 		case categoryLocal:
 			s.Local += n
 		case categoryOther:

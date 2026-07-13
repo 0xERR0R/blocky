@@ -103,6 +103,7 @@ func renderSummary(w io.Writer, s *api.ApiStats) {
 	t.AppendRow(table.Row{"Cached", withPercent(sum.Cached, sum.Queries)})
 	t.AppendRow(table.Row{"Forwarded", formatInt(sum.Forwarded)})
 	t.AppendRow(table.Row{"Blocked", withPercent(sum.Blocked, sum.Queries)})
+	t.AppendRow(table.Row{"Filtered", withPercent(sum.Filtered, sum.Queries)})
 	t.AppendRow(table.Row{"Local", formatInt(sum.Local)})
 	t.AppendRow(table.Row{"Dropped", formatInt(sum.Dropped)})
 	t.AppendRow(table.Row{"Errors", formatInt(sum.Errors)})
