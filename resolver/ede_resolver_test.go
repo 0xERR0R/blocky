@@ -42,6 +42,11 @@ var _ = Describe("EdeResolver", func() {
 		DeferCleanup(cancelFn)
 
 		mockAnswer = new(dns.Msg)
+
+		// Reset the mock: it is a closure variable, so a resolver installed by one spec's
+		// BeforeEach would otherwise survive into the next and be reused by the guard below,
+		// leaking both its response type and its accumulated Calls.
+		m = nil
 	})
 
 	JustBeforeEach(func() {

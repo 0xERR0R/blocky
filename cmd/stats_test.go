@@ -24,9 +24,13 @@ func sampleStats() api.ApiStats {
 			Queries: 12431, Cached: 5102, Forwarded: 4445, Blocked: 2884, Filtered: 1620,
 			Local: 12, Dropped: 3, Errors: 7, AvgResponseMs: 7, CacheHitRate: 0.41,
 		},
-		ByQueryType:       map[string]int{"A": 9000, "AAAA": 3431},
-		ByResponseCode:    map[string]int{"NOERROR": 11000, "NXDOMAIN": 1431},
-		ByResponseType:    map[string]int{"CACHED": 5102, "BLOCKED": 2884, "FILTERED": 1620},
+		ByQueryType:    map[string]int{"A": 9000, "AAAA": 3431},
+		ByResponseCode: map[string]int{"NOERROR": 11000, "NXDOMAIN": 1431},
+		// summary.blocked is BLOCKED + REBIND (2874 + 10) and summary.errors is BOGUS,
+		// so the curated rows above stay consistent with this raw breakdown
+		ByResponseType: map[string]int{
+			"CACHED": 5102, "BLOCKED": 2874, "REBIND": 10, "FILTERED": 1620, "BOGUS": 7,
+		},
 		TopDomains:        []api.ApiNameCount{{Name: "github.com", Count: 1203}},
 		TopBlockedDomains: []api.ApiNameCount{{Name: "ads.example.com", Count: 402}},
 		TopClients:        []api.ApiNameCount{{Name: "10.0.0.5", Count: 4310}},
@@ -70,6 +74,9 @@ var _ = Describe("renderStats", func() {
 		Expect(out).Should(ContainSubstring("7 ms"))
 		Expect(out).Should(ContainSubstring("By Response Code"))
 		Expect(out).Should(ContainSubstring("By Response Type"))
+		// the response types split out of BLOCKED reach the breakdown under their own names
+		Expect(out).Should(ContainSubstring("REBIND"))
+		Expect(out).Should(ContainSubstring("BOGUS"))
 		Expect(out).Should(ContainSubstring("142,000"))
 		Expect(out).Should(ContainSubstring("tracking")) // denylist-only group surfaces via union
 		Expect(out).Should(ContainSubstring("5,000"))    // its denylist count

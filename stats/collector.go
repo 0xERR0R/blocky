@@ -422,9 +422,10 @@ func categorize(rtype string) responseCategory {
 }
 
 // isBlockedRType reports whether a response type is a true block: a denylist hit
-// (BLOCKED) or a rebinding-protection hit (REBIND). Query-type-filtered /
-// NOTFQDN responses are deliberately excluded so the Top Blocked table and the
-// per-hour blocked series count only real blocks (#2151).
+// (BLOCKED) or a rebinding-protection hit (REBIND). It gates the Top Blocked table
+// only — the summary and the per-hour series categorize on their own — so the
+// domains it admits are exactly those blocky blocked. Query-type-filtered / NOTFQDN
+// responses (#2151) and DNSSEC failures are none of them, and stay out.
 func isBlockedRType(rtype string) bool {
 	return categorize(rtype) == categoryBlocked
 }
@@ -512,23 +513,13 @@ func topNList(m map[string]int, n int) []NameCount {
 func perHour(buckets []*bucket) []HourPoint {
 	points := make([]HourPoint, 0, len(buckets))
 	for _, b := range buckets {
-		queries := b.dropped + b.errors
-		blocked, filtered := 0, 0
-
-		for rtype, v := range b.byResponseType {
-			queries += v
-
-			switch categorize(rtype) {
-			case categoryBlocked:
-				blocked += v
-			case categoryFiltered:
-				filtered += v
-			case categoryOther, categoryCached, categoryForwarded, categoryLocal, categoryError:
-			}
-		}
+		// Derive the point from the same function that builds the window summary, so the
+		// two can never disagree on what counts as blocked or filtered: a category added
+		// to categorize() lands in both at once, with no second switch to keep in step.
+		s := curatedSummary(b.byResponseType, b.dropped, b.errors, b.durationSumMs)
 
 		points = append(points, HourPoint{
-			Hour: b.hourStart, Queries: queries, Blocked: blocked, Filtered: filtered,
+			Hour: b.hourStart, Queries: s.Queries, Blocked: s.Blocked, Filtered: s.Filtered,
 		})
 	}
 
