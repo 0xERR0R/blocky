@@ -57,7 +57,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Golang
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 
