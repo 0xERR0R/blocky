@@ -32,7 +32,7 @@ jobs:
           file: README.md
           marker: gold
           minimum: 2500
-          template: '<a href="https://github.com/{{ login }}"><img src="{{ avatarUrl }}" width="100px" alt="Gold sponsor: {{ login }}" /></a>'
+          template: '<a href="https://github.com/{{ login }}"><img src="{{ avatarUrl }}" width="60px" alt="Gold sponsor: {{ login }}" /></a>'
           fallback: '<em><a href="https://github.com/sponsors/0xERR0R">Become a gold sponsor</a> to appear here.</em>'
 
       - name: Generate sponsors
