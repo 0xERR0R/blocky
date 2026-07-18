@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -4826,6 +4826,13 @@ list and cache gauges. Disabled by default; when disabled,
 <span class="w">  </span><span class="nt">enable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Clients are identified by their resolved name (see <a href="#client-name-lookup">client name lookup</a>) and fall
+back to their IP when no name is available. Queries dropped by the
+<a href="#rate-limiting-per-client-ip">rate limiter</a> are always attributed to the client IP: the limiter
+runs before the client name lookup, so that its bucket key stays the connection's source IP.</p>
+</div>
 <h2 id="http3"><abbr title="Hypertext Transfer Protocol">HTTP</abbr>/3 (DoH3)</h2>
 <p>Serve <abbr title="Domain Name System">DNS</abbr>-over-<abbr title="Hypertext Transfer Protocol Secure">HTTPS</abbr> over <abbr title="Hypertext Transfer Protocol">HTTP</abbr>/3 (RFC 9114). When enabled, Blocky
 listens on <abbr title="User Datagram Protocol">UDP</abbr> at the same addresses as <code>ports.https</code> and answers the
@@ -6120,7 +6127,7 @@ For example if blocking has a limit set to 8 and hosts file's is 4, there could 
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.instant.progress", "navigation.tracking", "navigation.top", "toc.follow", "content.code.copy", "content.code.annotate", "content.tooltips", "content.action.edit", "search.suggest", "search.highlight", "search.share"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
