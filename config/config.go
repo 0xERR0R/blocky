@@ -623,7 +623,9 @@ type Downloader struct {
 	// Directory for the on-disk download cache. When empty (default), downloads are
 	// fully stateless: nothing is written to disk and every source is downloaded in
 	// full on every refresh. When set, blocky uses HTTP conditional requests and
-	// serves unchanged/unavailable sources from this directory.
+	// serves unchanged/unavailable sources from this directory. Must be writable by
+	// the user blocky runs as (UID 100 in the container image), otherwise caching is
+	// silently skipped and downloads stay stateless.
 	CachePath string `yaml:"cachePath"`
 }
 

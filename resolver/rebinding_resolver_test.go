@@ -480,7 +480,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			cachingCfg, err := config.WithDefaults[config.Caching]()
 			Expect(err).Should(Succeed())
 
-			cachingRes, err := NewCachingResolver(ctx, cachingCfg, nil)
+			cachingRes, err := NewCachingResolver(ctx, cachingCfg, config.DNSSEC{}, nil)
 			Expect(err).Should(Succeed())
 
 			chained := Chain(sut, cachingRes, m)
@@ -524,7 +524,7 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			cachingCfg, err := config.WithDefaults[config.Caching]()
 			Expect(err).Should(Succeed())
 
-			cachingRes, err := NewCachingResolver(ctx, cachingCfg, nil)
+			cachingRes, err := NewCachingResolver(ctx, cachingCfg, config.DNSSEC{}, nil)
 			Expect(err).Should(Succeed())
 
 			chained := Chain(sut, cachingRes, m)

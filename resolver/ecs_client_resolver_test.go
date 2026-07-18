@@ -135,7 +135,7 @@ var _ = Describe("ECS as client across the resolver chain (issue #2140)", func()
 		var cachingCfg config.Caching
 		Expect(defaults.Set(&cachingCfg)).Should(Succeed())
 
-		caching, err := NewCachingResolver(ctx, cachingCfg, nil)
+		caching, err := NewCachingResolver(ctx, cachingCfg, config.DNSSEC{}, nil)
 		Expect(err).Should(Succeed())
 		caching.Next(upstream)
 

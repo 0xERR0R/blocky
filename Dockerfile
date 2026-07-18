@@ -41,6 +41,12 @@ ARG TARGETVARIANT
 
 RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOARM=${TARGETVARIANT#v} make build
 
+# Empty dir, copied into the final stage to seed writable mount points. Docker
+# propagates the ownership of an existing image directory to a fresh named
+# volume mounted over it, so pre-creating these makes `-v blocky_cache:/app/cache`
+# writable by the unprivileged container user without any host-side setup.
+RUN mkdir -p /seed-dir
+
 # ----------- stage: final
 FROM scratch
 
@@ -64,6 +70,10 @@ USER 100
 WORKDIR /app
 
 COPY --from=build /bin/blocky /app/blocky
+
+# Writable mount points owned by the container user (see comment in build stage).
+COPY --from=build --chown=100:100 /seed-dir /app/cache
+COPY --from=build --chown=100:100 /seed-dir /logs
 
 ENV BLOCKY_CONFIG_FILE=/app/config.yml
 

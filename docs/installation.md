@@ -73,6 +73,29 @@ ports:
           `securityContext.capabilities.add: ["NET_BIND_SERVICE"]`, or
           `docker run --cap-add NET_BIND_SERVICE`) or configure a port >= 1024.
 
+    !!! note "Writable mounts and file permissions"
+
+        The container runs as the unprivileged user **UID 100**. Any directory Blocky
+        writes to - the query log target, or `loading.downloads.cachePath` - must be
+        writable by that user, otherwise Blocky logs a `permission denied` error and
+        continues without writing.
+
+        The image ships `/app/cache` and `/logs` pre-created and owned by UID 100, so
+        mounting a **named volume** over either path works with no host-side setup:
+
+        ```sh
+        docker run -v blocky_cache:/app/cache ... spx01/blocky
+        ```
+
+        A **bind mount** always keeps the host directory's ownership, so it needs one of:
+
+        - `chown -R 100:100 /path/on/host` before starting the container, or
+        - run as the host user that owns the directory:
+          `docker run -u "$(id -u):$(id -g)" ...`, or in compose
+          `user: "1000:1000"`.
+
+        Read-only mounts such as `config.yml` are unaffected.
+
     Blocky docker images are deployed to DockerHub (`spx01/blocky`) and GitHub Container Registry (`ghcr.io/0xerr0r/blocky`).
 
     === "docker run"
@@ -162,9 +185,17 @@ path like '/app/allowlists/allowlist.txt' in the config file.
         driver: local
         driver_opts:
           type: cifs
-          o: username=USER,password=PASSWORD,rw
+          # uid=100 is required: the share is mounted root-owned by default and
+          # Blocky runs as UID 100, which could then not write the query logs
+          o: username=USER,password=PASSWORD,uid=100,gid=100,rw
           device: //NAS_HOSTNAME/blocky
     ```
+
+    !!! note
+
+        The `./denylists` and `./allowlists` bind mounts above are only read by Blocky,
+        so they need no ownership changes. See the permission note under
+        [Run Blocky](#run-blocky) if you add a writable bind mount.
 
 ## Multiple configuration files
 
