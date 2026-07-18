@@ -1899,6 +1899,17 @@ after a restart re-downloads each source. When unset, downloads are fully statel
 Mount this directory on a persistent volume in containerized setups.
 Note: when you remove or change a source URL, its previous cache file is left on disk — blocky does not delete orphaned cache files automatically. They are harmless and bounded; clear the cache directory manually if you want to reclaim the space.
 
+!!! warning "The directory must be writable by blocky"
+
+    If blocky cannot write to `cachePath`, it logs
+    `cannot create temp cache file in <path>, serving without caching` and keeps
+    resolving normally — only the on-disk cache is disabled, so this degrades
+    performance rather than breaking DNS.
+
+    In Docker, blocky runs as **UID 100**. Use the pre-created `/app/cache` directory
+    with a named volume, or make your own path writable by UID 100. See
+    [writable mounts and file permissions](installation.md#run-blocky).
+
 !!! example
 
     ```yaml
@@ -1908,6 +1919,15 @@ Note: when you remove or change a source URL, its previous cache file is left on
         attempts: 5
         cooldown: 10s
         cachePath: /var/cache/blocky/lists
+    ```
+
+    In a container, prefer the pre-created cache directory and mount a named volume
+    over it (`-v blocky_cache:/app/cache`):
+
+    ```yaml
+    loading:
+      downloads:
+        cachePath: /app/cache
     ```
 
 ### Strategy
