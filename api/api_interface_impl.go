@@ -220,6 +220,7 @@ func toAPIStats(r stats.Result) ApiStats {
 			Cached:        r.Summary.Cached,
 			Forwarded:     r.Summary.Forwarded,
 			Blocked:       r.Summary.Blocked,
+			Filtered:      r.Summary.Filtered,
 			Local:         r.Summary.Local,
 			Dropped:       r.Summary.Dropped,
 			Errors:        r.Summary.Errors,
@@ -253,7 +254,9 @@ func toAPINameCounts(in []stats.NameCount) []ApiNameCount {
 func toAPIHourPoints(in []stats.HourPoint) []ApiHourPoint {
 	out := make([]ApiHourPoint, 0, len(in))
 	for _, p := range in {
-		out = append(out, ApiHourPoint{Hour: p.Hour, Queries: p.Queries, Blocked: p.Blocked})
+		out = append(out, ApiHourPoint{
+			Hour: p.Hour, Queries: p.Queries, Blocked: p.Blocked, Filtered: p.Filtered,
+		})
 	}
 
 	return out

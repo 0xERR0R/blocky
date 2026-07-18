@@ -287,12 +287,19 @@ var _ = Describe("API implementation tests", func() {
 
 	Describe("Stats API", func() {
 		It("returns 200 with the snapshot when enabled", func() {
+			hour := time.Date(2026, 6, 23, 10, 0, 0, 0, time.UTC)
+
 			statsMock.On("StatsEnabled").Return(true)
 			statsMock.On("Stats").Return(stats.Result{
-				Summary:        stats.Summary{Queries: 3, Blocked: 1, Cached: 1, Forwarded: 1},
+				// distinct values per field so a mis-wired mapping cannot pass
+				Summary: stats.Summary{
+					Queries: 21, Cached: 2, Forwarded: 3, Blocked: 4, Filtered: 5,
+					Local: 6, Dropped: 7, Errors: 8, AvgResponseMs: 9, CacheHitRate: 0.4,
+				},
 				ByResponseType: map[string]int{"RESOLVED": 1, "CACHED": 1, "BLOCKED": 1},
 				ByQueryType:    map[string]int{"A": 3},
 				ByResponseCode: map[string]int{"NOERROR": 3},
+				PerHour:        []stats.HourPoint{{Hour: hour, Queries: 10, Blocked: 4, Filtered: 5}},
 				TopDomains:     []stats.NameCount{{Name: "example.com", Count: 2}},
 				Lists:          stats.ListCounts{Denylist: map[string]int{}, Allowlist: map[string]int{}},
 			})
@@ -302,7 +309,14 @@ var _ = Describe("API implementation tests", func() {
 
 			resp200, ok := resp.(GetStats200JSONResponse)
 			Expect(ok).Should(BeTrue())
-			Expect(resp200.Summary.Queries).Should(Equal(3))
+
+			Expect(resp200.Summary).Should(Equal(ApiStatsSummary{
+				Queries: 21, Cached: 2, Forwarded: 3, Blocked: 4, Filtered: 5,
+				Local: 6, Dropped: 7, Errors: 8, AvgResponseMs: 9, CacheHitRate: 0.4,
+			}))
+			Expect(resp200.PerHour).Should(ConsistOf(ApiHourPoint{
+				Hour: hour, Queries: 10, Blocked: 4, Filtered: 5,
+			}))
 			Expect(resp200.ByResponseType).Should(HaveKeyWithValue("BLOCKED", 1))
 			Expect(resp200.TopDomains).Should(HaveLen(1))
 		})

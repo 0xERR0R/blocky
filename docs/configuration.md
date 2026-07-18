@@ -395,8 +395,17 @@ under the attacker's origin. When this protection is enabled, blocky drops any a
 general upstream resolvers that contains a non-public IP address — in `A`/`AAAA` records or in
 `ipv4hint`/`ipv6hint` SvcParams of `HTTPS`/`SVCB` records, in any section of the response
 (answer, authority or additional) — and returns an empty `NOERROR` response instead (visible as
-response type `FILTERED` with reason `FILTERED (rebinding protection)` in query logs and metrics;
-the offending IP is logged at debug level). **Disabled by default.**
+response type `REBIND` with reason `REBIND (rebinding protection)` in query logs and metrics;
+the offending IP is logged at debug level). Rebinding hits count as **blocked** in the
+[statistics](#statistics), and are reported to clients as Extended DNS Error `15 (Blocked)`.
+**Disabled by default.**
+
+!!! note "Upgrading"
+
+    Rebinding hits previously used the `FILTERED` response type. Query log rows written before
+    the upgrade keep the old value, so a dashboard grouping by response type shows `FILTERED` and
+    `REBIND` side by side for the retention period. The same applies to Prometheus counters,
+    which are labelled per response type.
 
 The following ranges are considered non-public:
 
@@ -442,8 +451,8 @@ startup, and internationalized domains must be given in punycode (`xn--…`) for
 !!! note
 
     The protection runs above the cache: the upstream answer is cached unchanged for its
-    regular TTL, and every cache hit is re-inspected, so repeat queries for a filtered domain
-    keep showing `FILTERED`. This also covers cache entries synchronized from other instances
+    regular TTL, and every cache hit is re-inspected, so repeat queries for a blocked domain
+    keep showing `REBIND`. This also covers cache entries synchronized from other instances
     through [redis](#redis). Answers from trusted local sources (conditional upstreams,
     special-use domains) are never written to the cache, so they cannot resurface as cached
     upstream answers and become subject to inspection.
@@ -1473,8 +1482,19 @@ Blocky classifies DNSSEC validation results into four categories:
 | --------------- | -------------------------------------------------------------------- | ---------------------------------------- |
 | **Secure**      | Valid DNSSEC signatures and complete chain of trust                  | AD flag set, response returned           |
 | **Insecure**    | Domain is not signed with DNSSEC (no RRSIG records)                  | AD flag cleared, response returned       |
-| **Bogus**       | Invalid DNSSEC signatures or broken chain of trust                   | SERVFAIL returned with EDE code          |
+| **Bogus**       | Invalid DNSSEC signatures or broken chain of trust                   | SERVFAIL returned with EDE code `6 (DNSSEC Bogus)`, response type `BOGUS` |
 | **Indeterminate** | Validation could not be completed (e.g., network errors, budget exceeded) | AD flag cleared, response returned |
+
+A `BOGUS` result means blocky could not obtain a trustworthy answer, so it counts as an **error**
+in the [statistics](#statistics) — not as a block. A domain whose operator has misconfigured DNSSEC
+is not something blocky blocked, and never appears in `topBlockedDomains`.
+
+!!! note "Upgrading"
+
+    Validation failures previously used the `BLOCKED` response type, which counted them as blocks
+    and reported them to clients as Extended DNS Error `15 (Blocked)` instead of `6 (DNSSEC
+    Bogus)`. Query log rows written before the upgrade keep the old value, so a dashboard grouping
+    by response type shows `BLOCKED` and `BOGUS` side by side for the retention period.
 
 ### Trust Anchors
 
