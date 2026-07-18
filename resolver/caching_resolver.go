@@ -59,6 +59,11 @@ type CachingResolver struct {
 
 	emitMetricEvents bool // disabled by Bootstrap
 
+	// prefetchDO makes prefetch reloads request DNSSEC records (DO bit) so a
+	// reload can't replace a signed entry with an unsigned one. Set from
+	// dnssec.validate — unsigned caches shouldn't grow with RRSIGs.
+	prefetchDO bool
+
 	resultCache cache.ExpiringCache[[]byte]
 
 	compiledExclusions []*regexp.Regexp
@@ -67,13 +72,15 @@ type CachingResolver struct {
 // NewCachingResolver creates a new resolver instance
 func NewCachingResolver(ctx context.Context,
 	cfg config.Caching,
+	dnssecCfg config.DNSSEC,
 	decorator CacheDecorator,
 ) (*CachingResolver, error) {
-	return newCachingResolver(ctx, cfg, decorator, true)
+	return newCachingResolver(ctx, cfg, dnssecCfg, decorator, true)
 }
 
 func newCachingResolver(ctx context.Context,
 	cfg config.Caching,
+	dnssecCfg config.DNSSEC,
 	decorator CacheDecorator,
 	emitMetricEvents bool,
 ) (*CachingResolver, error) {
@@ -81,6 +88,7 @@ func newCachingResolver(ctx context.Context,
 		configurable:     withConfig(&cfg),
 		typed:            withType("caching"),
 		emitMetricEvents: emitMetricEvents,
+		prefetchDO:       dnssecCfg.Validate,
 	}
 
 	configureCaches(ctx, c, &cfg)
@@ -162,6 +170,15 @@ func (r *CachingResolver) reloadCacheEntry(ctx context.Context, cacheKey string)
 	logger.Debugf("prefetching '%s' (%s)", util.Obfuscate(domainName), qType)
 
 	req := newRequest(dns.Fqdn(domainName), qType)
+
+	// Prefetch reloads bypass the resolvers above the cache, including the DNSSEC
+	// resolver that sets DO on normal queries. When validation is enabled, request
+	// DNSSEC records so a reload can't replace a signed entry with an unsigned one
+	// (which would then fail re-validation as bogus on the next hit).
+	if r.prefetchDO {
+		req.Req.SetEdns0(ednsUDPSize, true)
+	}
+
 	response, err := r.next.Resolve(ctx, req)
 	if err != nil {
 		util.LogOnError(ctx, fmt.Sprintf("can't prefetch '%s' ", domainName), err)

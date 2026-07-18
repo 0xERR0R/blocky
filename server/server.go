@@ -505,7 +505,9 @@ func createQueryResolver(
 		decorator = nil
 	}
 
-	cachingResolver, crErr := resolver.NewCachingResolver(ctx, cfg.Caching, decorator)
+	// cfg.DNSSEC gates the DO bit on prefetch reloads (they bypass the DNSSEC
+	// resolver above the cache).
+	cachingResolver, crErr := resolver.NewCachingResolver(ctx, cfg.Caching, cfg.DNSSEC, decorator)
 	// Pass upstreamTree to DNSSEC resolver so it can query for DNSKEY/DS records
 	dnssecResolver, dsErr := resolver.NewDNSSECResolver(ctx, cfg.DNSSEC, upstreamTree)
 

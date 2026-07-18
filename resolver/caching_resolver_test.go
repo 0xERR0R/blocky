@@ -25,6 +25,7 @@ var _ = Describe("CachingResolver", func() {
 	var (
 		sut        *CachingResolver
 		sutConfig  config.Caching
+		sutDNSSEC  config.DNSSEC
 		m          *mockResolver
 		mockAnswer *dns.Msg
 		ctx        context.Context
@@ -40,6 +41,7 @@ var _ = Describe("CachingResolver", func() {
 
 	BeforeEach(func() {
 		sutConfig = config.Caching{}
+		sutDNSSEC = config.DNSSEC{}
 		if err := defaults.Set(&sutConfig); err != nil {
 			panic(err)
 		}
@@ -50,7 +52,7 @@ var _ = Describe("CachingResolver", func() {
 		ctx, cancelFn = context.WithCancel(context.Background())
 		DeferCleanup(cancelFn)
 
-		sut, _ = NewCachingResolver(ctx, sutConfig, nil)
+		sut, _ = NewCachingResolver(ctx, sutConfig, sutDNSSEC, nil)
 		m = &mockResolver{}
 		cacheMock = cache.NewMockExpiringCache[[]byte](GinkgoT())
 		m.On("Resolve", mock.Anything).Return(&Response{Res: mockAnswer}, nil)
@@ -139,8 +141,47 @@ var _ = Describe("CachingResolver", func() {
 							HaveResponseType(ResponseTypeCACHED),
 							HaveReturnCode(dns.RcodeSuccess),
 							BeDNSRecord("example.com.", A, "123.122.121.120"),
-							HaveTTL(BeNumerically("<=", 2))))
+							HaveTTL(BeNumerically("<=", 2)),
+						),
+					)
 				Eventually(prefetchHitDomain, "6s").Should(Receive(Equal(true)))
+			})
+
+			When("dnssec validation is enabled", func() {
+				BeforeEach(func() {
+					sutDNSSEC = config.DNSSEC{Validate: true}
+				})
+
+				It("sets the DO bit on prefetch reloads so a signed entry isn't replaced by an unsigned one", func() {
+					var reloadReqHadDO bool
+					m.ResolveFn = func(_ context.Context, req *Request) (*Response, error) {
+						opt := req.Req.IsEdns0()
+						reloadReqHadDO = opt != nil && opt.Do()
+
+						return &Response{Res: mockAnswer, RType: ResponseTypeRESOLVED}, nil
+					}
+
+					// reloadCacheEntry is the ReloadFn the prefetching cache invokes on expiry.
+					_, ttl := sut.reloadCacheEntry(ctx, util.GenerateCacheKey(A, "example.com."))
+
+					Expect(reloadReqHadDO).Should(BeTrue(), "prefetch reload must set the DO bit")
+					Expect(ttl).Should(BeNumerically(">", 0))
+				})
+			})
+
+			It("does not request DNSSEC records on prefetch reloads by default, keeping unsigned caches small", func() {
+				var reloadReqHadEdns bool
+				m.ResolveFn = func(_ context.Context, req *Request) (*Response, error) {
+					reloadReqHadEdns = req.Req.IsEdns0() != nil
+
+					return &Response{Res: mockAnswer, RType: ResponseTypeRESOLVED}, nil
+				}
+
+				_, ttl := sut.reloadCacheEntry(ctx, util.GenerateCacheKey(A, "example.com."))
+
+				Expect(reloadReqHadEdns).Should(BeFalse(),
+					"without dnssec.validate, prefetch reloads must stay EDNS-free as before")
+				Expect(ttl).Should(BeNumerically(">", 0))
 			})
 		})
 		When("caching with default values is enabled", func() {
@@ -915,7 +956,7 @@ var _ = Describe("CachingResolver", func() {
 			sutConfig = config.Caching{Exclude: exclude}
 			mockAnswer, _ = util.NewMsgWithAnswer(domain, 1000, A, "10.0.0.1")
 			request = newRequest(domain, A)
-			sut, _ = NewCachingResolver(ctx, sutConfig, nil)
+			sut, _ = NewCachingResolver(ctx, sutConfig, config.DNSSEC{}, nil)
 			m.On("Resolve", mock.Anything, mock.Anything).Return(&Response{Res: mockAnswer}, nil)
 			cacheMock.On("Get", mock.Anything).Maybe().Return((*[]byte)(nil), 10*time.Second)
 			cacheMock.On("Put", mock.Anything, mock.Anything, mock.Anything).Maybe().Return()
@@ -925,7 +966,7 @@ var _ = Describe("CachingResolver", func() {
 
 		When("Exclude settings are wrong", func() {
 			It("should fail", func() {
-				_, err := NewCachingResolver(ctx, config.Caching{Exclude: []string{"/[]/"}}, nil)
+				_, err := NewCachingResolver(ctx, config.Caching{Exclude: []string{"/[]/"}}, config.DNSSEC{}, nil)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("cache exclusion configuration '/[]/' fail because"))
 			})
@@ -933,7 +974,7 @@ var _ = Describe("CachingResolver", func() {
 
 		When("Exclude settings are wrong because of missing slashes", func() {
 			It("should fail", func() {
-				_, err := NewCachingResolver(ctx, config.Caching{Exclude: []string{"lan"}}, nil)
+				_, err := NewCachingResolver(ctx, config.Caching{Exclude: []string{"lan"}}, config.DNSSEC{}, nil)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("cache exclusion configuration 'lan' fail because of missing slashes"))
 			})
