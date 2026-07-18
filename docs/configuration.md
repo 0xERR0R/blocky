@@ -1089,6 +1089,13 @@ list and cache gauges. Disabled by default; when disabled,
       enable: true
     ```
 
+!!! note
+
+    Clients are identified by their resolved name (see [client name lookup](#client-name-lookup)) and fall
+    back to their IP when no name is available. Queries dropped by the
+    [rate limiter](#rate-limiting-per-client-ip) are always attributed to the client IP: the limiter
+    runs before the client name lookup, so that its bucket key stays the connection's source IP.
+
 ## HTTP/3 (DoH3) {#http3}
 
 Serve DNS-over-HTTPS over HTTP/3 (RFC 9114). When enabled, Blocky

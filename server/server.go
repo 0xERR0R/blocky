@@ -527,14 +527,24 @@ func createQueryResolver(
 
 	r := resolver.Chain(
 		resolver.NewStatsResolver(ctx, cfg.Statistics),
+		// stays above the ECS and client-name lookups: its bucket key must remain the
+		// connection's source IP. Keyed on the ECS address instead (ecs.useAsClient), the
+		// key would be attacker-controlled, letting a client both evade its own bucket and
+		// fill the bounded bucket store, which drops queries of every new client once full.
+		// Dropped queries therefore carry no client name and are attributed to the client
+		// IP in the statistics.
 		resolver.NewRateLimitingResolver(ctx, cfg.RateLimit),
-		resolver.NewFilteringResolver(cfg.Filtering),
-		resolver.NewFQDNOnlyResolver(cfg.FQDNOnly),
 		// adopts the ECS subnet as the internal client IP (ecs.useAsClient) before the
 		// client-name lookup, blocking and the cache consume the client identity, so the
 		// ECS client is used for those features and is preserved across cache hits
 		resolver.NewECSClientResolver(cfg.ECS),
+		// above filtering and fqdnOnly, which answer a query on their own: a lookup below
+		// them would leave request.ClientNames empty for every query they short-circuit,
+		// and the statistics would attribute those to the raw client IP while the same
+		// client's other queries are attributed to its name
 		clientNames,
+		resolver.NewFilteringResolver(cfg.Filtering),
+		resolver.NewFQDNOnlyResolver(cfg.FQDNOnly),
 		resolver.NewEDEResolver(cfg.EDE),
 		queryLogging,
 		resolver.NewMetricsResolver(cfg.Prometheus),
