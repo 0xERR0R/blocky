@@ -103,11 +103,11 @@ Even a small recurring contribution makes a real difference and is hugely apprec
 
 ### 🥇 Gold sponsors
 
-<!-- gold --><a href="https://github.com/GeoffreyvanOostveen"><img src="https://github.com/GeoffreyvanOostveen.png" width="60px" alt="Gold sponsor: GeoffreyvanOostveen" /></a> <!-- gold -->
+<!-- gold --><em><a href="https://github.com/sponsors/0xERR0R">Become a gold sponsor</a> to appear here.</em><!-- gold -->
 
 ### Sponsors
 
-<!-- sponsors --><a href="https://github.com/Qapf"><img src="https://github.com/Qapf.png" width="60px" alt="Sponsor: Qapf" /></a><a href="https://github.com/masipcat"><img src="https://github.com/masipcat.png" width="60px" alt="Sponsor: masipcat" /></a><a href="https://github.com/V-Mann-Nick"><img src="https://github.com/V-Mann-Nick.png" width="60px" alt="Sponsor: V-Mann-Nick" /></a><a href="https://github.com/bioxz"><img src="https://github.com/bioxz.png" width="60px" alt="Sponsor: bioxz" /></a><!-- sponsors -->
+<!-- sponsors --><em><a href="https://github.com/sponsors/0xERR0R">Become a sponsor</a> to appear here.</em><!-- sponsors -->
 
 Thank you to everyone who supports Blocky! ❤️
 
