@@ -103,7 +103,7 @@ Even a small recurring contribution makes a real difference and is hugely apprec
 
 ### 🥇 Gold sponsors
 
-<!-- gold --><a href="https://github.com/GeoffreyvanOostveen"><img src="https://github.com/GeoffreyvanOostveen.png" width="60px" alt="Gold sponsor: GeoffreyvanOostveen" /></a><!-- gold -->
+<!-- gold --><a href="https://github.com/GeoffreyvanOostveen"><img src="https://github.com/GeoffreyvanOostveen.png" width="60px" alt="Gold sponsor: GeoffreyvanOostveen" /></a> <!-- gold -->
 
 ### Sponsors
 
