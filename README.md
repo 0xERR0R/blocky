@@ -101,6 +101,14 @@ Even a small recurring contribution makes a real difference and is hugely apprec
 [![Buy me a coffee on Ko-fi](https://img.shields.io/badge/Ko--fi-donate-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/0xerr0r)
 [![Donate via PayPal](https://img.shields.io/badge/PayPal-donate-00457C?logo=paypal&logoColor=white)](https://paypal.me/spx01)
 
+### 🥇 Gold sponsors
+
+<!-- gold --><a href="https://github.com/GeoffreyvanOostveen"><img src="https://github.com/GeoffreyvanOostveen.png" width="60px" alt="Gold sponsor: GeoffreyvanOostveen" /></a> <!-- gold -->
+
+### Sponsors
+
+<!-- sponsors --><a href="https://github.com/Qapf"><img src="https://github.com/Qapf.png" width="60px" alt="Sponsor: Qapf" /></a><a href="https://github.com/masipcat"><img src="https://github.com/masipcat.png" width="60px" alt="Sponsor: masipcat" /></a><a href="https://github.com/V-Mann-Nick"><img src="https://github.com/V-Mann-Nick.png" width="60px" alt="Sponsor: V-Mann-Nick" /></a><a href="https://github.com/bioxz"><img src="https://github.com/bioxz.png" width="60px" alt="Sponsor: bioxz" /></a><!-- sponsors -->
+
 Thank you to everyone who supports Blocky! ❤️
 
 ## Quick start
