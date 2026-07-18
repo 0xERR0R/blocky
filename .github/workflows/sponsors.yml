@@ -70,7 +70,7 @@ jobs:
           file: README.md
           marker: gold
           minimum: 2500
-          template: '<a href="https://github.com/{{ login }}"><img src="{{ avatarUrl }}" width="60px" alt="Gold sponsor: {{ login }}" /></a>'
+          template: '<a href="https://github.com/{{ login }}"><img src="https://github.com/{{ login }}.png" width="60px" alt="Gold sponsor: {{ login }}" /></a>'
           fallback: '<em><a href="https://github.com/sponsors/0xERR0R">Become a gold sponsor</a> to appear here.</em>'
 
       - name: Generate sponsors
@@ -81,7 +81,7 @@ jobs:
           file: README.md
           marker: sponsors
           maximum: 2499
-          template: '<a href="https://github.com/{{ login }}"><img src="{{ avatarUrl }}" width="60px" alt="Sponsor: {{ login }}" /></a>'
+          template: '<a href="https://github.com/{{ login }}"><img src="https://github.com/{{ login }}.png" width="60px" alt="Sponsor: {{ login }}" /></a>'
           fallback: '<em><a href="https://github.com/sponsors/0xERR0R">Become a sponsor</a> to appear here.</em>'
 
       # Two independent failure modes, both of which otherwise leave this job
