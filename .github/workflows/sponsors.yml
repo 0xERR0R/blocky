@@ -19,6 +19,43 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # SPONSORS_TOKEN must be a classic PAT with `read:user`, `read:org` and
+      # `repo`. `read:org` is required even though every sponsor is a user
+      # account: the action's query carries an unconditional
+      # `... on Organization { name login }` fragment, and GitHub rejects the
+      # whole query without that scope.
+      #
+      # Validate the token before touching README.md. When the query is
+      # rejected, the action reports no sponsors, writes its fallback text and
+      # still reports success, so an under-scoped token silently produces a
+      # pull request that deletes every sponsor from the README.
+      - name: Verify the token can read sponsorship data
+        env:
+          SPONSORS_TOKEN: ${{ secrets.SPONSORS_TOKEN }}
+        run: |
+          query='query { viewer { login sponsorshipsAsMaintainer(first: 1, includePrivate: false, activeOnly: true) { totalCount nodes { sponsorEntity { ... on Organization { name login } ... on User { name login } } } } } }'
+          response=$(curl -sS -X POST https://api.github.com/graphql \
+            -H "Authorization: Bearer $SPONSORS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg q "$query" '{query: $q}')")
+
+          if [ "$(jq -r 'has("errors")' <<< "$response")" = "true" ]; then
+            echo "::error::SPONSORS_TOKEN cannot read sponsorship data. It must be a classic PAT with read:user, read:org and repo."
+            jq -r '.errors[].message' <<< "$response"
+            exit 1
+          fi
+
+          login=$(jq -r '.data.viewer.login' <<< "$response")
+          total=$(jq -r '.data.viewer.sponsorshipsAsMaintainer.totalCount' <<< "$response")
+          if [ "$login" != "${{ github.repository_owner }}" ]; then
+            echo "::error::SPONSORS_TOKEN belongs to '$login', not '${{ github.repository_owner }}'."
+            exit 1
+          fi
+          echo "Token reads sponsorships as '$login' ($total active public sponsorship(s))."
+
+      - name: Snapshot README before generation
+        run: cp README.md "$RUNNER_TEMP/README.before"
+
       # Sponsors are matched on the monthly amount in cents, NOT on the tier
       # name configured in GitHub Sponsors. If a tier is renamed or repriced
       # there, the thresholds below must be updated to match, otherwise
@@ -47,10 +84,17 @@ jobs:
           template: '<a href="https://github.com/{{ login }}"><img src="{{ avatarUrl }}" width="60px" alt="Sponsor: {{ login }}" /></a>'
           fallback: '<em><a href="https://github.com/sponsors/0xERR0R">Become a sponsor</a> to appear here.</em>'
 
-      # The action reports `skipped` rather than failing when it cannot find
-      # its markers in README.md, which would leave this job green while
-      # silently writing nothing at all. Fail loudly instead, so that a README
-      # edit dropping a marker cannot quietly disable this workflow forever.
+      # Two independent failure modes, both of which otherwise leave this job
+      # green while producing a wrong README:
+      #
+      #   1. Missing markers. The action reports `skipped` rather than failing,
+      #      writes nothing, and the lists quietly go stale forever.
+      #   2. An empty sponsor list. Anything that makes the query return no
+      #      data yields the fallback text instead, which reads as a perfectly
+      #      valid result but deletes every sponsor.
+      #
+      # The second check is deliberately cause-agnostic: whatever the reason, a
+      # section that held sponsors must never drop to none in a single run.
       - name: Verify both sponsor sections were written
         run: |
           for section in gold sponsors; do
@@ -62,8 +106,16 @@ jobs:
               echo "::error::'$section' returned '$status' instead of 'success' — are the <!-- $section --> markers still present in README.md?"
               exit 1
             fi
+
+            extract() { sed -n "s/.*<!-- $1 -->\(.*\)<!-- $1 -->.*/\1/p" "$2" | grep -o '<img' | wc -l; }
+            before=$(extract "$section" "$RUNNER_TEMP/README.before")
+            after=$(extract "$section" README.md)
+            if [ "$before" -gt 0 ] && [ "$after" -eq 0 ]; then
+              echo "::error::'$section' went from $before sponsor(s) to none. Refusing to open a pull request that removes every sponsor."
+              exit 1
+            fi
+            echo "'$section': $before sponsor(s) before, $after after."
           done
-          echo "Both sponsor sections were written."
 
       # SPONSORS_TOKEN is used here as well, on purpose: pull requests opened
       # with the default GITHUB_TOKEN do not trigger workflows, so the status
