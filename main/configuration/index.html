@@ -5985,6 +5985,16 @@ startup so it can answer queries immediately. Validators are kept in memory and 
 after a restart re-downloads each source. When unset, downloads are fully stateless (nothing is written to disk).
 Mount this directory on a persistent volume in containerized setups.
 Note: when you remove or change a source URL, its previous cache file is left on disk — blocky does not delete orphaned cache files automatically. They are harmless and bounded; clear the cache directory manually if you want to reclaim the space.</p>
+<div class="admonition warning">
+<p class="admonition-title">The directory must be writable by blocky</p>
+<p>If blocky cannot write to <code>cachePath</code>, it logs
+<code>cannot create temp cache file in &lt;path&gt;, serving without caching</code> and keeps
+resolving normally — only the on-disk cache is disabled, so this degrades
+performance rather than breaking <abbr title="Domain Name System">DNS</abbr>.</p>
+<p>In Docker, blocky runs as <strong>UID 100</strong>. Use the pre-created <code>/app/cache</code> directory
+with a named volume, or make your own path writable by UID 100. See
+<a href="../installation/#run-blocky">writable mounts and file permissions</a>.</p>
+</div>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><pre><span></span><code><span class="nt">loading</span><span class="p">:</span>
@@ -5993,6 +6003,12 @@ Note: when you remove or change a source URL, its previous cache file is left on
 <span class="w">    </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
 <span class="w">    </span><span class="nt">cooldown</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10s</span>
 <span class="w">    </span><span class="nt">cachePath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/var/cache/blocky/lists</span>
+</code></pre></div>
+<p>In a container, prefer the pre-created cache directory and mount a named volume
+over it (<code>-v blocky_cache:/app/cache</code>):</p>
+<div class="highlight"><pre><span></span><code><span class="nt">loading</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">downloads</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">cachePath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/app/cache</span>
 </code></pre></div>
 </div>
 <h3 id="strategy">Strategy</h3>

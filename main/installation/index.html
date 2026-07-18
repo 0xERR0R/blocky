@@ -1016,6 +1016,25 @@ a restricted runtime that drops all capabilities (for example the Kubernetes
   <code>docker run --cap-add NET_BIND_SERVICE</code>) or configure a port &gt;= 1024.</li>
 </ul>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Writable mounts and file permissions</p>
+<p>The container runs as the unprivileged user <strong>UID 100</strong>. Any directory Blocky
+writes to - the query log target, or <code>loading.downloads.cachePath</code> - must be
+writable by that user, otherwise Blocky logs a <code>permission denied</code> error and
+continues without writing.</p>
+<p>The image ships <code>/app/cache</code> and <code>/logs</code> pre-created and owned by UID 100, so
+mounting a <strong>named volume</strong> over either path works with no host-side setup:</p>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>-v<span class="w"> </span>blocky_cache:/app/cache<span class="w"> </span>...<span class="w"> </span>spx01/blocky
+</code></pre></div>
+<p>A <strong>bind mount</strong> always keeps the host directory's ownership, so it needs one of:</p>
+<ul>
+<li><code>chown -R 100:100 /path/on/host</code> before starting the container, or</li>
+<li>run as the host user that owns the directory:
+  <code>docker run -u "$(id -u):$(id -g)" ...</code>, or in compose
+  <code>user: "1000:1000"</code>.</li>
+</ul>
+<p>Read-only mounts such as <code>config.yml</code> are unaffected.</p>
+</div>
 <p>Blocky docker images are deployed to DockerHub (<code>spx01/blocky</code>) and GitHub Container Registry (<code>ghcr.io/0xerr0r/blocky</code>).</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="2:2"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">docker run</label><label for="__tabbed_2_2">docker-compose</label></div>
 <div class="tabbed-content">
@@ -1097,9 +1116,17 @@ path like '/app/allowlists/allowlist.txt' in the config file.</p>
 <span class="w">    </span><span class="nt">driver</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">local</span>
 <span class="w">    </span><span class="nt">driver_opts</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cifs</span>
-<span class="w">      </span><span class="nt">o</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">username=USER,password=PASSWORD,rw</span>
+<span class="w">      </span><span class="c1"># uid=100 is required: the share is mounted root-owned by default and</span>
+<span class="w">      </span><span class="c1"># Blocky runs as UID 100, which could then not write the query logs</span>
+<span class="w">      </span><span class="nt">o</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">username=USER,password=PASSWORD,uid=100,gid=100,rw</span>
 <span class="w">      </span><span class="nt">device</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">//NAS_HOSTNAME/blocky</span>
 </code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code>./denylists</code> and <code>./allowlists</code> bind mounts above are only read by Blocky,
+so they need no ownership changes. See the permission note under
+<a href="#run-blocky">Run Blocky</a> if you add a writable bind mount.</p>
+</div>
 </div>
 <h2 id="multiple-configuration-files">Multiple configuration files</h2>
 <p>For complex setups, splitting the configuration between multiple <abbr title="YAML Ain't Markup Language">YAML</abbr> files might be desired. In this case, folder containing <abbr title="YAML Ain't Markup Language">YAML</abbr> files is passed on startup, Blocky will join all the files.</p>
