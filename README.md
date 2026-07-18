@@ -101,6 +101,14 @@ Even a small recurring contribution makes a real difference and is hugely apprec
 [![Buy me a coffee on Ko-fi](https://img.shields.io/badge/Ko--fi-donate-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/0xerr0r)
 [![Donate via PayPal](https://img.shields.io/badge/PayPal-donate-00457C?logo=paypal&logoColor=white)](https://paypal.me/spx01)
 
+### 🥇 Gold sponsors
+
+<!-- gold --><!-- gold -->
+
+### Sponsors
+
+<!-- sponsors --><!-- sponsors -->
+
 Thank you to everyone who supports Blocky! ❤️
 
 ## Quick start
