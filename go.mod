@@ -9,7 +9,7 @@ require (
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/avast/retry-go/v4 v4.7.0
-	github.com/breml/rootcerts v0.3.6
+	github.com/breml/rootcerts v0.3.7
 	github.com/creasty/defaults v1.8.0
 	github.com/dnstap/golang-dnstap v0.4.0
 	github.com/glebarez/sqlite v1.11.0
