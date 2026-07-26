@@ -220,19 +220,30 @@ func (b *Bootstrap) dialContext(ctx context.Context, network, addr string) (net.
 		return nil, fmt.Errorf("failed to resolve host '%s' via bootstrap DNS: %w", host, err)
 	}
 
-	ip := ips[rand.Intn(len(ips))] //nolint:gosec
+	// Shuffle so that load is spread across the resolved addresses. On a dial
+	// failure we fall back to the remaining addresses (e.g. the other IP
+	// family) instead of consuming the whole attempt — the standard dialer
+	// does this dual-stack fallback for us, but we bypass it by resolving the
+	// host ourselves and dialing a single address.
+	rand.Shuffle(len(ips), func(i, j int) { ips[i], ips[j] = ips[j], ips[i] })
 
-	logger.WithField("ip", ip).Tracef("dialing %s", host)
+	var dialErr *multierror.Error
 
-	// Use the standard dialer to actually connect
-	addrWithIP := net.JoinHostPort(ip.String(), port)
+	for _, ip := range ips {
+		logger.WithField("ip", ip).Tracef("dialing %s", host)
 
-	conn, err := b.dialer.DialContext(ctx, network, addrWithIP)
-	if err != nil {
-		return nil, fmt.Errorf("failed to dial '%s' (resolved from '%s'): %w", addrWithIP, host, err)
+		// Use the standard dialer to actually connect
+		addrWithIP := net.JoinHostPort(ip.String(), port)
+
+		conn, err := b.dialer.DialContext(ctx, network, addrWithIP)
+		if err == nil {
+			return conn, nil
+		}
+
+		dialErr = multierror.Append(dialErr, fmt.Errorf("dial '%s': %w", addrWithIP, err))
 	}
 
-	return conn, nil
+	return nil, fmt.Errorf("failed to dial '%s' (resolved from '%s'): %w", addr, host, dialErr.ErrorOrNil())
 }
 
 func (b *Bootstrap) resolve(ctx context.Context, hostname string, qTypes []dns.Type) (ips []net.IP, err error) {

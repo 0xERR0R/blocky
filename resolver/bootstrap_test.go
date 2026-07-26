@@ -709,6 +709,48 @@ var _ = Describe("Bootstrap", Label("bootstrap"), func() {
 		})
 	})
 
+	Describe("HTTP transport dial fallback", func() {
+		var m *mockResolver
+
+		BeforeEach(func() {
+			sutConfig.ConnectIPVersion = config.IPVersionDual
+		})
+
+		JustBeforeEach(func() {
+			m = &mockResolver{AnswerFn: autoAnswer}
+			sut.resolver = m
+
+			m.On("Resolve", mock.Anything).Times(len(config.IPVersionDual.QTypes()))
+		})
+
+		It("falls back to the next resolved address when a dial fails", func() {
+			var dialed []string
+
+			sut.dialer = funcDialer{fn: func(_ context.Context, _, addr string) (net.Conn, error) {
+				dialed = append(dialed, addr)
+
+				// Fail the first dial to mimic dialing an unreachable address
+				// family (e.g. an AAAA on an IPv4-only host); succeed on fallback.
+				if len(dialed) == 1 {
+					return nil, errors.New("network is unreachable")
+				}
+
+				return aMockConn, nil
+			}}
+
+			t := sut.NewHTTPTransport()
+
+			conn, err := t.DialContext(ctx, config.IPVersionDual.Net(), "example.com:0")
+
+			Expect(err).Should(Succeed())
+			Expect(conn).Should(Equal(aMockConn))
+			Expect(dialed).Should(HaveLen(2))             // first failed, fell back to the second
+			Expect(dialed[0]).ShouldNot(Equal(dialed[1])) // a different resolved address
+
+			m.AssertExpectations(GinkgoT())
+		})
+	})
+
 	Describe("multiple upstreams", func() {
 		var (
 			mockUpstream1 *MockUDPUpstreamServer
