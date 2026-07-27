@@ -200,6 +200,16 @@ func (d *mockDialer) DialContext(ctx context.Context, network, addr string) (net
 	return aMockConn, nil
 }
 
+// funcDialer is a dialer whose behaviour is defined by a function, so tests can
+// simulate per-address dial outcomes (e.g. one address family being unreachable).
+type funcDialer struct {
+	fn func(ctx context.Context, network, addr string) (net.Conn, error)
+}
+
+func (d funcDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	return d.fn(ctx, network, addr)
+}
+
 var aMockConn = &mockConn{}
 
 type mockConn struct{}
