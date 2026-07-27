@@ -486,6 +486,50 @@ var _ = Describe("CustomDNSResolver", func() {
 				})
 			})
 		})
+		When("Reverse DNS request uses a different case", func() {
+			It("should resolve the defined domain name", func() {
+				By("ipv4", func() {
+					Expect(sut.Resolve(ctx, newRequest("123.143.168.192.IN-ADDR.ARPA.", PTR))).
+						Should(
+							SatisfyAll(
+								WithTransform(ToAnswer, SatisfyAll(
+									HaveLen(2),
+									ContainElements(
+										BeDNSRecord("123.143.168.192.IN-ADDR.ARPA.", PTR, "custom.domain."),
+										BeDNSRecord("123.143.168.192.IN-ADDR.ARPA.", PTR, "multiple.ips.")),
+								)),
+								HaveResponseType(ResponseTypeCUSTOMDNS),
+								HaveReason("CUSTOM DNS"),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
+
+					// will not delegate to next resolver
+					m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
+				})
+
+				By("ipv6", func() {
+					Expect(sut.Resolve(ctx, newRequest("4.3.3.7.0.7.3.0.E.2.A.8.0.0.0.0.0.0.0.0.3.A.5.8.8.B.D.0.1.0.0.2.IP6.ARPA.",
+						PTR))).
+						Should(
+							SatisfyAll(
+								WithTransform(ToAnswer, SatisfyAll(
+									HaveLen(2),
+									ContainElements(
+										BeDNSRecord("4.3.3.7.0.7.3.0.E.2.A.8.0.0.0.0.0.0.0.0.3.A.5.8.8.B.D.0.1.0.0.2.IP6.ARPA.",
+											PTR, "ip6.domain."),
+										BeDNSRecord("4.3.3.7.0.7.3.0.E.2.A.8.0.0.0.0.0.0.0.0.3.A.5.8.8.B.D.0.1.0.0.2.IP6.ARPA.",
+											PTR, "multiple.ips.")),
+								)),
+								HaveResponseType(ResponseTypeCUSTOMDNS),
+								HaveReason("CUSTOM DNS"),
+								HaveReturnCode(dns.RcodeSuccess),
+							))
+
+					// will not delegate to next resolver
+					m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
+				})
+			})
+		})
 		When("Domain mapping is defined", func() {
 			It("subdomain must also match", func() {
 				Expect(sut.Resolve(ctx, newRequest("ABC.CUSTOM.DOMAIN.", A))).

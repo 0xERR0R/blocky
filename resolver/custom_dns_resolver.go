@@ -107,7 +107,9 @@ func (r *CustomDNSResolver) LookupReverse(ip net.IP) []string {
 func (r *CustomDNSResolver) handleReverseDNS(request *model.Request) *model.Response {
 	question := request.Req.Question[0]
 	if question.Qtype == dns.TypePTR {
-		urls, found := r.reverseAddresses[question.Name]
+		// reverseAddresses is keyed by dns.ReverseAddr output, which is lower case:
+		// DNS names are case insensitive, so normalize before looking up.
+		urls, found := r.reverseAddresses[strings.ToLower(question.Name)]
 		if found {
 			answers := make([]dns.RR, 0, len(urls))
 			for _, url := range urls {
