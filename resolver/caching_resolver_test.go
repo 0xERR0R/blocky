@@ -1106,5 +1106,30 @@ var _ = Describe("CachingResolver", func() {
 				})
 			})
 		})
+
+		When("a message carries an OPT record", func() {
+			It("should not touch its TTL field", func() {
+				a, err := dns.NewRR("example.com. 3600 IN A 123.122.121.120")
+				Expect(err).Should(Succeed())
+
+				// An OPT record stores the extended rcode and flags in the TTL field,
+				// so ageing it like a lifetime would corrupt them.
+				opt := new(dns.OPT)
+				opt.Hdr.Name = "."
+				opt.Hdr.Rrtype = dns.TypeOPT
+				opt.SetDo()
+				optHeaderBefore := opt.Hdr.Ttl
+
+				msg := new(dns.Msg)
+				msg.Answer = []dns.RR{a}
+				msg.Extra = []dns.RR{opt}
+
+				sut.setTTLInCachedResponse(msg, 3000*time.Second)
+
+				Expect(msg.Answer[0].Header().Ttl).Should(BeNumerically("==", 3000))
+				Expect(opt.Hdr.Ttl).Should(Equal(optHeaderBefore))
+				Expect(opt.Do()).Should(BeTrue())
+			})
+		})
 	})
 })
