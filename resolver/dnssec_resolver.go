@@ -67,7 +67,10 @@ func NewDNSSECResolver(ctx context.Context, cfg config.DNSSEC, upstream Resolver
 func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*model.Response, error) {
 	ctx, logger := r.log(ctx)
 
-	// If DNSSEC validation is enabled, set the DO (DNSSEC OK) bit
+	// If DNSSEC validation is enabled, set the DO (DNSSEC OK) bit. This overwrites what the client
+	// asked for, as RFC 4035 §3.2.1 requires of the resolver side; the server undoes it towards the
+	// client afterwards (see clientQuery.normalizeResponse in server/client_query.go), so don't
+	// make this conditional on the client's DO bit without adapting that.
 	if r.cfg.Validate {
 		// Check if EDNS0 is already present in the request
 		if opt := request.Req.IsEdns0(); opt != nil {
@@ -131,7 +134,8 @@ func (r *DNSSECResolver) Resolve(ctx context.Context, request *model.Request) (*
 			return createServFailResponseDNSSEC(request, "DNSSEC validation failed: bogus signatures"), nil
 
 		case dnssec.ValidationResultSecure:
-			// Valid DNSSEC - set AD flag
+			// Valid DNSSEC - set AD flag. The server clears it again for clients that asked for
+			// neither DO nor AD, per RFC 6840 §5.8 (see clientQuery.normalizeResponse).
 			response.Res.AuthenticatedData = true
 			logger.Debugf("DNSSEC validation succeeded for %s - AD flag set",
 				request.Req.Question[0].Name)

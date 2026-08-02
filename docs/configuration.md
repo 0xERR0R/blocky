@@ -1411,6 +1411,12 @@ When DNSSEC validation is enabled, Blocky will:
 - Set the Authenticated Data (AD) flag only after successful validation
 - Add Extended DNS Error (EDE) codes per RFC 8914 when validation fails
 
+Independently of this setting, Blocky normalizes every response against the DNSSEC-related bits of the query it answers, because the client's DO bit is not necessarily the one used towards the upstream:
+
+- The DNSSEC records (RRSIG, DNSKEY, DS, NSEC, NSEC3) are stripped from the response of a client that did not set the DO bit, unless that client explicitly queried for one of those types or sent an ANY query (RFC 4035 §3.2.1, RFC 3225 §3). Validation is unaffected: the DO bit is still set towards the upstream
+- The DO bit of the query is copied into the response (RFC 3225 §3)
+- The AD flag is only reported to clients that asked for the validation result by setting the DO or AD bit (RFC 6840 §5.8)
+
 ### RFC Compliance
 
 Blocky's DNSSEC implementation complies with the following RFCs:
