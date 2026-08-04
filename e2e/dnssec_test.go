@@ -70,7 +70,10 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 			})
 
 			When("upstream returns RRSIG with matching valid DNSKEY", func() {
-				var validData *DNSSECTestData
+				var (
+					validData *DNSSECTestData
+					mokka     testcontainers.Container
+				)
 
 				BeforeEach(func(ctx context.Context) {
 					// Generate cryptographically valid DNSSEC data for a TLD
@@ -88,7 +91,7 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 					// Mokka needs to handle two query types:
 					// 1. A query for www.example -> return A + RRSIG
 					// 2. DNSKEY query for example -> return DNSKEY
-					_, err = createDNSMokkaContainer(ctx, "moka-dnssec-valid", e2eNet,
+					mokka, err = createDNSMokkaContainer(ctx, "moka-dnssec-valid", e2eNet,
 						fmt.Sprintf(`A www.example/NOERROR("%s", "%s")`, aRecordStr, rrsigStr),
 						fmt.Sprintf(`DNSKEY example/NOERROR("%s")`, dnskeyStr),
 					)
@@ -132,6 +135,56 @@ var _ = Describe("DNSSEC validation", Label("dnssec"), func() {
 						BeDNSRecord("www.example.", A, "192.0.2.10"),
 					))
 				})
+
+				It("should not return the DNSSEC records to a client with the DO bit clear", func(ctx context.Context) {
+					// Blocky queries the upstream with DO set so it can validate, but the records it
+					// gets back are for validation, not for the client (RFC 4035 §3.2.1).
+					msg := util.NewMsgWithQuestion("www.example.", A)
+					msg.SetEdns0(4096, false) // EDNS0 present, DNSSEC OK (DO) bit clear
+
+					resp, err := doDNSRequest(ctx, blocky, msg)
+					Expect(err).Should(Succeed())
+
+					Expect(resp.Rcode).Should(Equal(dns.RcodeSuccess),
+						"Expected NOERROR for valid DNSSEC signatures")
+
+					// The validated answer is still returned, just without the DNSSEC records
+					Expect(resp.Answer).Should(ContainElement(
+						BeDNSRecord("www.example.", A, "192.0.2.10"),
+					))
+					Expect(resp.Answer).ShouldNot(ContainElement(BeAssignableToTypeOf(&dns.RRSIG{})),
+						"RRSIG must not be returned to a client that didn't set the DO bit")
+
+					Expect(resp.AuthenticatedData).Should(BeFalse(),
+						"AD flag should not be set for a client that set neither DO nor AD")
+				})
+
+				It("should still serve the DNSSEC records from cache to a client with the DO bit set",
+					func(ctx context.Context) {
+						// The cache sits below the DNSSEC resolver and holds the signed answer.
+						// Stripping happens per client on the way out, so it must not take the
+						// records out of the cached entry other clients are served from.
+						withoutDO := util.NewMsgWithQuestion("www.example.", A)
+						withoutDO.SetEdns0(4096, false)
+
+						resp, err := doDNSRequest(ctx, blocky, withoutDO)
+						Expect(err).Should(Succeed())
+						Expect(resp.Answer).ShouldNot(ContainElement(BeAssignableToTypeOf(&dns.RRSIG{})))
+
+						// The upstream disappears; any later answer comes from the cache.
+						Expect(mokka.Terminate(ctx)).Should(Succeed())
+
+						withDO := util.NewMsgWithQuestion("www.example.", A)
+						withDO.SetEdns0(4096, true)
+
+						resp, err = doDNSRequest(ctx, blocky, withDO)
+						Expect(err).Should(Succeed())
+						Expect(resp.Rcode).Should(Equal(dns.RcodeSuccess))
+						Expect(resp.Answer).Should(ContainElement(BeAssignableToTypeOf(&dns.RRSIG{})),
+							"the cached entry must still carry the signatures")
+						// The AD flag is not asserted here: the cached answer is re-validated on
+						// every hit, which can no longer reach the upstream for the DNSKEY.
+					})
 			})
 
 			When("upstream returns RRSIG with wrong DNSKEY signature", func() {
