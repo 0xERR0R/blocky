@@ -5316,6 +5316,12 @@ upstream and silently upgrade to that upstream, bypassing blocky.</p>
 <li>Set the Authenticated Data (AD) flag only after successful validation</li>
 <li>Add Extended <abbr title="Domain Name System">DNS</abbr> Error (EDE) codes per RFC 8914 when validation fails</li>
 </ul>
+<p>Independently of this setting, Blocky normalizes every response against the <abbr title="Domain Name System Security Extensions">DNSSEC</abbr>-related bits of the query it answers, because the client's DO bit is not necessarily the one used towards the upstream:</p>
+<ul>
+<li>The <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> records (RRSIG, DNSKEY, DS, NSEC, NSEC3) are stripped from the response of a client that did not set the DO bit, unless that client explicitly queried for one of those types or sent an ANY query (RFC 4035 §3.2.1, RFC 3225 §3). Validation is unaffected: the DO bit is still set towards the upstream</li>
+<li>The DO bit of the query is copied into the response (RFC 3225 §3)</li>
+<li>The AD flag is only reported to clients that asked for the validation result by setting the DO or AD bit (RFC 6840 §5.8)</li>
+</ul>
 <h3 id="rfc-compliance">RFC Compliance</h3>
 <p>Blocky's <abbr title="Domain Name System Security Extensions">DNSSEC</abbr> implementation complies with the following RFCs:</p>
 <ul>
