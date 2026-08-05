@@ -1069,6 +1069,46 @@ var _ = Describe("CachingResolver", func() {
 			})
 		})
 
+		When("a cached NXDOMAIN response carries a CNAME chain", func() {
+			BeforeEach(func() {
+				cname, err := dns.NewRR("example.com. 60 IN CNAME gone.example.net.")
+				Expect(err).Should(Succeed())
+				soa, err := dns.NewRR("example.net. 3600 IN SOA ns.example.net. mail.example.net. 1 2 3 4 5")
+				Expect(err).Should(Succeed())
+
+				mockAnswer = new(dns.Msg)
+				mockAnswer.Rcode = dns.RcodeNameError
+				mockAnswer.Answer = []dns.RR{cname}
+				mockAnswer.Ns = []dns.RR{soa}
+			})
+
+			It("should count the SOA TTL down", func() {
+				By("first request", func() {
+					Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+						Should(SatisfyAll(
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeNameError),
+							WithTransform(authorityTTL, BeNumerically("==", 3600))))
+				})
+
+				By("second request", func() {
+					// A non-empty answer section does not make this a positive entry:
+					// putInCache stores every NXDOMAIN with the negative cache time, so
+					// that -- not the CNAME's TTL -- is the baseline to age from.
+					Eventually(sut.Resolve, "2s").
+						WithContext(ctx).
+						WithArguments(newRequest("example.com.", A)).
+						Should(SatisfyAll(
+							HaveResponseType(ResponseTypeCACHED),
+							HaveReturnCode(dns.RcodeNameError),
+							HaveTTL(BeNumerically("<", 60)),
+							WithTransform(authorityTTL, BeNumerically("<", 3600))))
+
+					Expect(m.Calls).Should(HaveLen(1))
+				})
+			})
+		})
+
 		When("a cached response carries authority and additional records", func() {
 			BeforeEach(func() {
 				mockAnswer, _ = util.NewMsgWithAnswer("example.com.", 3600, A, "123.122.121.120")

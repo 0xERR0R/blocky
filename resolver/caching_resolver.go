@@ -281,16 +281,17 @@ func (r *CachingResolver) getFromCache(logger *logrus.Entry, key string) (*dns.M
 // already spent in the cache, so that every section counts down instead of repeating the
 // TTLs the upstream sent. `ttl` is the entry's remaining lifetime.
 func (r *CachingResolver) setTTLInCachedResponse(resp *dns.Msg, ttl time.Duration) {
-	// The entry's lifetime was derived from the smallest answer TTL (see adjustTTLs), so
-	// that value is the baseline the remaining lifetime has been counting down from.
-	baseTTL := uint32(math.MaxInt32)
-	for _, rr := range resp.Answer {
-		baseTTL = min(baseTTL, rr.Header().Ttl)
-	}
+	// Mirrors putInCache: only a successful, non-empty answer is stored with the smallest
+	// answer TTL (see adjustTTLs). Everything else -- NXDOMAIN (even one carrying a CNAME
+	// chain) and NODATA -- is stored with the negative cache time. That baseline is what
+	// the remaining lifetime has been counting down from.
+	baseTTL := r.cfg.CacheTimeNegative.SecondsU32()
 
-	if len(resp.Answer) == 0 {
-		// Empty answers (NXDOMAIN and NODATA) are stored with the negative cache time.
-		baseTTL = r.cfg.CacheTimeNegative.SecondsU32()
+	if resp.Rcode == dns.RcodeSuccess && len(resp.Answer) > 0 {
+		baseTTL = uint32(math.MaxInt32)
+		for _, rr := range resp.Answer {
+			baseTTL = min(baseTTL, rr.Header().Ttl)
+		}
 	}
 
 	var elapsed uint32
