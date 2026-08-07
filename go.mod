@@ -33,7 +33,7 @@ require (
 	github.com/quic-go/quic-go v0.61.0
 	github.com/ramr/go-reaper v0.3.1
 	github.com/rs/cors v1.11.1
-	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/sirupsen/logrus v1.9.4
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
