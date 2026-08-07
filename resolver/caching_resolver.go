@@ -236,7 +236,7 @@ func (r *CachingResolver) Resolve(ctx context.Context, request *model.Request) (
 			val.SetRcode(request.Req, val.Rcode)
 
 			// Adjust TTL
-			setTTLInCachedResponse(val, ttl)
+			r.setTTLInCachedResponse(val, ttl)
 
 			if val.Rcode == dns.RcodeSuccess {
 				return &model.Response{Res: val, RType: model.ResponseTypeCACHED, Reason: cachedReason}, nil
@@ -277,15 +277,37 @@ func (r *CachingResolver) getFromCache(logger *logrus.Entry, key string) (*dns.M
 	return res, ttl
 }
 
-func setTTLInCachedResponse(resp *dns.Msg, ttl time.Duration) {
-	minTTL := uint32(math.MaxInt32)
-	// find smallest TTL first
-	for _, rr := range resp.Answer {
-		minTTL = min(minTTL, rr.Header().Ttl)
+// setTTLInCachedResponse ages all records of a cached message by the time the entry has
+// already spent in the cache, so that every section counts down instead of repeating the
+// TTLs the upstream sent. `ttl` is the entry's remaining lifetime.
+func (r *CachingResolver) setTTLInCachedResponse(resp *dns.Msg, ttl time.Duration) {
+	// Mirrors putInCache: only a successful, non-empty answer is stored with the smallest
+	// answer TTL (see adjustTTLs). Everything else -- NXDOMAIN (even one carrying a CNAME
+	// chain) and NODATA -- is stored with the negative cache time. That baseline is what
+	// the remaining lifetime has been counting down from.
+	baseTTL := r.cfg.CacheTimeNegative.SecondsU32()
+
+	if resp.Rcode == dns.RcodeSuccess && len(resp.Answer) > 0 {
+		baseTTL = uint32(math.MaxInt32)
+		for _, rr := range resp.Answer {
+			baseTTL = min(baseTTL, rr.Header().Ttl)
+		}
 	}
 
-	for _, rr := range resp.Answer {
-		rr.Header().Ttl = rr.Header().Ttl - minTTL + uint32(ttl.Seconds())
+	var elapsed uint32
+	if remaining := uint32(ttl.Seconds()); baseTTL > remaining {
+		elapsed = baseTTL - remaining
+	}
+
+	for _, section := range [][]dns.RR{resp.Answer, resp.Ns, resp.Extra} {
+		for _, rr := range section {
+			// An OPT record's TTL field carries flags and the extended rcode, not a lifetime.
+			if rr.Header().Rrtype == dns.TypeOPT {
+				continue
+			}
+
+			rr.Header().Ttl = max(rr.Header().Ttl, elapsed) - elapsed
+		}
 	}
 }
 
