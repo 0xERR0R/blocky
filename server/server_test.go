@@ -1487,6 +1487,39 @@ var _ = Describe("Running DNS server", func() {
 				Expect(resp.Res.Truncated).Should(BeFalse())
 			})
 		})
+
+		When("the response fits the client buffer uncompressed but exceeds 512 bytes", func() {
+			// A forwarder in front of blocky advertises its own (large) EDNS0 buffer, so the
+			// buffer we truncate against is not the one the real client behind it uses. Sending
+			// such an answer uncompressed makes the forwarder truncate it for its 512-byte
+			// clients, which costs them the whole answer section.
+			It("compresses it so a forwarder can relay it to a 512-byte client", func() {
+				res := new(dns.Msg)
+				for i := range 20 {
+					rr, err := dns.NewRR(fmt.Sprintf("example.com. 123 IN A 1.2.3.%d", i))
+					Expect(err).Should(Succeed())
+					res.Answer = append(res.Answer, rr)
+				}
+
+				s := newServerWithResponse(res)
+
+				query := util.NewMsgWithQuestion("example.com.", A)
+				query.SetEdns0(1232, false)
+
+				_, req := newRequest(ctx, net.ParseIP("1.2.3.4"), "", model.RequestProtocolUDP, query)
+
+				resp, err := s.resolve(ctx, req)
+				Expect(err).Should(Succeed())
+				// guard the scenario: it fits the advertised 1232 uncompressed, so Truncate
+				// leaves the answer complete and sees no reason to compress.
+				Expect(resp.Res.Truncated).Should(BeFalse())
+				Expect(resp.Res.Answer).Should(HaveLen(20))
+
+				packed, err := resp.Res.Pack()
+				Expect(err).Should(Succeed())
+				Expect(len(packed)).Should(BeNumerically("<=", dns.MinMsgSize))
+			})
+		})
 	})
 
 	Describe("secureHeadersMiddleware", func() {
