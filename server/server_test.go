@@ -1515,6 +1515,12 @@ var _ = Describe("Running DNS server", func() {
 				Expect(resp.Res.Truncated).Should(BeFalse())
 				Expect(resp.Res.Answer).Should(HaveLen(20))
 
+				// guard the scenario: the answer must not fit 512 bytes on its own, otherwise
+				// this passes without the response ever needing compression.
+				uncompressed := resp.Res.Copy()
+				uncompressed.Compress = false
+				Expect(uncompressed.Len()).Should(BeNumerically(">", dns.MinMsgSize))
+
 				packed, err := resp.Res.Pack()
 				Expect(err).Should(Succeed())
 				Expect(len(packed)).Should(BeNumerically("<=", dns.MinMsgSize))
