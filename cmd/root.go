@@ -125,7 +125,9 @@ func initConfig() error {
 		}
 
 		if host != "" {
-			dnsHost = host
+			if ip := net.ParseIP(host); ip == nil || !ip.IsUnspecified() {
+				dnsHost = host
+			}
 		}
 
 		dnsPort = port
