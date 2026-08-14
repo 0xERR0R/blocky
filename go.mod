@@ -26,7 +26,7 @@ require (
 	github.com/miekg/dns v1.1.72
 	github.com/moby/moby/api v1.55.0
 	github.com/oapi-codegen/runtime v1.6.0
-	github.com/onsi/ginkgo/v2 v2.32.0
+	github.com/onsi/ginkgo/v2 v2.32.1
 	github.com/onsi/gomega v1.42.1
 	github.com/pires/go-proxyproto v0.15.0
 	github.com/prometheus/client_golang v1.24.1
