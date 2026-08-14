@@ -18,7 +18,16 @@ func NewHealthcheckCommand() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "healthcheck",
 		Short: "performs healthcheck",
-		RunE:  healthcheck,
+		// Load the configuration like every other subcommand, so the defaults below can
+		// follow `ports.dns`. A missing or unreadable config must not break the
+		// healthcheck: it then keeps working with the flag defaults, exactly as before.
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			_ = args
+			_ = initConfig()
+
+			return nil
+		},
+		RunE: healthcheck,
 	}
 
 	c.Flags().Uint16P("port", "p", defaultDNSPort, "blocky port")
@@ -31,6 +40,15 @@ func healthcheck(cmd *cobra.Command, args []string) error {
 	_ = args
 	port, _ := cmd.Flags().GetUint16("port")
 	bindIP, _ := cmd.Flags().GetString("bindip")
+
+	// An explicitly given flag always wins; otherwise follow the loaded configuration.
+	if !cmd.Flags().Changed("port") {
+		port = dnsPort
+	}
+
+	if !cmd.Flags().Changed("bindip") {
+		bindIP = dnsHost
+	}
 
 	c := new(dns.Client)
 	c.Net = "tcp"
