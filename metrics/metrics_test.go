@@ -57,6 +57,7 @@ func AssertRegistryComplete(t *testing.T, reg *prometheus.Registry) {
 		"blocky_query_total",
 		"blocky_request_duration_seconds",
 		"blocky_response_total",
+		"blocky_client_response_total",
 		// these should be default
 		"blocky_error_total",
 		"blocky_blocking_enabled",
