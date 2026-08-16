@@ -17,6 +17,7 @@ Following metrics will be exported:
 | blocky_query_total                               | Counter of total queries, partitioned by client and DNS request type (A, AAAA, PTR, etc) |
 | blocky_request_duration_seconds                  | Histogram of request duration, partitioned by response type (Blocked, cached, etc)  |
 | blocky_response_total                            | Counter of responses, partitioned by response type (Blocked, cached, etc), DNS response code, and reason |
+| blocky_client_response_total                     | Counter of responses, partitioned by client and response type (Blocked, cached, etc) |
 | blocky_blocking_enabled                          | Boolean 1 if blocking is enabled, 0 otherwise |
 | blocky_cache_entries                             | Gauge of entries in cache |
 | blocky_cache_hits_total                          | Counter of the number of cache hits |
@@ -41,6 +42,15 @@ Following metrics will be exported:
     group names only (e.g. `BLOCKED (ads)`), **not** the matched rule. The full reason including the
     matched rule (e.g. `BLOCKED (ads: *.docler.com)`) is still available in the [query log](configuration.md#query-log).
     This avoids unbounded metric cardinality when large deny lists are used.
+
+!!! note "`client` label cardinality"
+
+    The `client` label (used by `blocky_query_total` and `blocky_client_response_total`) is derived
+    from a reverse DNS lookup and is **not** bounded by configuration — it grows with the number of
+    distinct devices Blocky has seen. On networks with a stable, limited set of devices (a typical
+    home LAN) this stays small, but on networks with high device turnover (e.g. public or guest Wi-Fi)
+    the set of `client` label values can grow effectively unbounded over time. Consider this before
+    scraping/retaining these metrics on such networks.
 
 ### Grafana dashboard
 
