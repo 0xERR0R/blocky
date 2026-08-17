@@ -297,6 +297,55 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 			})
 		})
 
+		When("the mapped upstream fails and fallbackUpstream is set", func() {
+			BeforeEach(func() {
+				deadUpstream := NewMockUDPUpstreamServer().WithAnswerRR("dead.box. 123 IN A 1.2.3.4")
+				upstream := deadUpstream.Start()
+				deadUpstream.Close()
+
+				sutConfig.FallbackUpstream = true
+				sutConfig.Mapping.Upstreams["dead.box"] = []config.Upstream{upstream}
+				sutConfig.Rewrite = map[string]string{"source.test": "dead.box"}
+			})
+
+			It("should ask the next resolver with the original name", func() {
+				var seen string
+
+				m = &mockResolver{}
+				m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
+				m.ResolveFn = func(_ context.Context, req *Request) (*Response, error) {
+					seen = req.Req.Question[0].Name
+					resp, err := util.NewMsgWithAnswer(seen, 250, A, "192.192.192.192")
+					Expect(err).Should(Succeed())
+
+					return &Response{Res: resp, RType: ResponseTypeRESOLVED, Reason: "RESOLVED"}, nil
+				}
+				sut.Next(m)
+
+				Expect(sut.Resolve(ctx, newRequest("www.source.test.", A))).
+					Should(HaveResponseType(ResponseTypeRESOLVED))
+
+				Expect(seen).Should(Equal("www.source.test."))
+			})
+		})
+
+		When("the mapped upstream fails and fallbackUpstream is not set", func() {
+			BeforeEach(func() {
+				deadUpstream := NewMockUDPUpstreamServer().WithAnswerRR("dead.box. 123 IN A 1.2.3.4")
+				upstream := deadUpstream.Start()
+				deadUpstream.Close()
+
+				sutConfig.Mapping.Upstreams["dead.box"] = []config.Upstream{upstream}
+				sutConfig.Rewrite = map[string]string{"source.test": "dead.box"}
+			})
+
+			It("should return the error", func() {
+				_, err := sut.Resolve(ctx, newRequest("www.source.test.", A))
+				Expect(err).Should(HaveOccurred())
+				Expect(m.Calls).Should(BeEmpty())
+			})
+		})
+
 		When("the mapped upstream has no answer and fallbackUpstream is not set", func() {
 			BeforeEach(func() {
 				emptyUpstream := NewMockUDPUpstreamServer().WithAnswerFn(func(request *dns.Msg) (response *dns.Msg) {
