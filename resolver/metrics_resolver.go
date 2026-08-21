@@ -31,10 +31,11 @@ type MetricsResolver struct {
 	NextResolver
 	typed
 
-	totalQueries      *prometheus.CounterVec
-	totalResponse     *prometheus.CounterVec
-	totalErrors       prometheus.Counter
-	durationHistogram *prometheus.HistogramVec
+	totalQueries        *prometheus.CounterVec
+	totalResponse       *prometheus.CounterVec
+	totalClientResponse *prometheus.CounterVec
+	totalErrors         prometheus.Counter
+	durationHistogram   *prometheus.HistogramVec
 }
 
 // Resolve resolves the passed request
@@ -45,8 +46,10 @@ func (r *MetricsResolver) Resolve(ctx context.Context, request *model.Request) (
 		return response, err
 	}
 
+	clientLabel := strings.Join(request.ClientNames, ",")
+
 	r.totalQueries.With(prometheus.Labels{
-		labelClient: strings.Join(request.ClientNames, ","),
+		labelClient: clientLabel,
 		labelType:   dns.TypeToString[request.Req.Question[0].Qtype],
 	}).Inc()
 
@@ -58,6 +61,11 @@ func (r *MetricsResolver) Resolve(ctx context.Context, request *model.Request) (
 	}
 
 	r.durationHistogram.WithLabelValues(responseType).Observe(reqDuration.Seconds())
+
+	r.totalClientResponse.With(prometheus.Labels{
+		labelClient:       clientLabel,
+		labelResponseType: responseType,
+	}).Inc()
 
 	if err != nil {
 		r.totalErrors.Inc()
@@ -87,10 +95,11 @@ func NewMetricsResolver(cfg config.Metrics) *MetricsResolver {
 		configurable: withConfig(&cfg),
 		typed:        withType("metrics"),
 
-		durationHistogram: durationHistogram(),
-		totalQueries:      totalQueriesMetric(),
-		totalResponse:     totalResponseMetric(),
-		totalErrors:       totalErrorMetric(),
+		durationHistogram:   durationHistogram(),
+		totalQueries:        totalQueriesMetric(),
+		totalResponse:       totalResponseMetric(),
+		totalClientResponse: totalClientResponseMetric(),
+		totalErrors:         totalErrorMetric(),
 	}
 
 	m.registerMetrics()
@@ -102,6 +111,7 @@ func (r *MetricsResolver) registerMetrics() {
 	metrics.RegisterMetric(r.durationHistogram)
 	metrics.RegisterMetric(r.totalQueries)
 	metrics.RegisterMetric(r.totalResponse)
+	metrics.RegisterMetric(r.totalClientResponse)
 	metrics.RegisterMetric(r.totalErrors)
 }
 
@@ -141,5 +151,14 @@ func totalResponseMetric() *prometheus.CounterVec {
 			Name: "blocky_response_total",
 			Help: "Number of total responses",
 		}, []string{labelReason, labelResponseCode, labelResponseType},
+	)
+}
+
+func totalClientResponseMetric() *prometheus.CounterVec {
+	return prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "blocky_client_response_total",
+			Help: "Number of total responses per client and response type",
+		}, []string{labelClient, labelResponseType},
 	)
 }
