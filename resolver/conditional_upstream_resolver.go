@@ -94,12 +94,9 @@ func (r *ConditionalUpstreamResolver) Resolve(ctx context.Context, request *mode
 	resolved := false
 	if len(r.mapping) > 0 {
 		resolved, response, err = r.processRequest(ctx, request)
-		if err != nil {
-			return nil, err
-		}
 	}
 
-	if !resolved {
+	if !resolved && err == nil {
 		logger.WithField("next_resolver", Name(r.next)).Trace("go to next resolver")
 		response, err = r.next.Resolve(ctx, request)
 		if err != nil {
@@ -109,6 +106,18 @@ func (r *ConditionalUpstreamResolver) Resolve(ctx context.Context, request *mode
 
 	// Revert the request
 	request.Req = original
+
+	// The mapped resolver failed or had nothing: ask the rest of the chain,
+	// using the original name (`fallbackUpstream`).
+	if shouldFallbackUpstream(&r.cfg.RewriterConfig, resolved, response, err) {
+		logger.WithField("next_resolver", Name(r.next)).Trace("fallback to next resolver")
+
+		return r.next.Resolve(ctx, request)
+	}
+
+	if err != nil {
+		return nil, err
+	}
 
 	// Revert rewrites in the response
 	if rewritten != nil && response != NoResponse && response != nil && response.Res != nil {
