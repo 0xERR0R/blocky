@@ -757,6 +757,10 @@
 <td>Counter of responses, partitioned by response type (Blocked, cached, etc), <abbr title="Domain Name System">DNS</abbr> response code, and reason</td>
 </tr>
 <tr>
+<td>blocky_client_response_total</td>
+<td>Counter of responses, partitioned by client and response type (Blocked, cached, etc)</td>
+</tr>
+<tr>
 <td>blocky_blocking_enabled</td>
 <td>Boolean 1 if blocking is enabled, 0 otherwise</td>
 </tr>
@@ -832,6 +836,15 @@
 group names only (e.g. <code>BLOCKED (ads)</code>), <strong>not</strong> the matched rule. The full reason including the
 matched rule (e.g. <code>BLOCKED (ads: *.docler.com)</code>) is still available in the <a href="../configuration/#query-log">query log</a>.
 This avoids unbounded metric cardinality when large deny lists are used.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title"><code>client</code> label cardinality</p>
+<p>The <code>client</code> label (used by <code>blocky_query_total</code> and <code>blocky_client_response_total</code>) is derived
+from a reverse <abbr title="Domain Name System">DNS</abbr> lookup and is <strong>not</strong> bounded by configuration — it grows with the number of
+distinct devices Blocky has seen. On networks with a stable, limited set of devices (a typical
+home LAN) this stays small, but on networks with high device turnover (e.g. public or guest Wi-Fi)
+the set of <code>client</code> label values can grow effectively unbounded over time. Consider this before
+scraping/retaining these metrics on such networks.</p>
 </div>
 <h3 id="grafana-dashboard">Grafana dashboard</h3>
 <p>Example <a href="https://grafana.com/">Grafana</a> dashboard

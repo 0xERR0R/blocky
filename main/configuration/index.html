@@ -2849,7 +2849,7 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">    </span><span class="c1"># optional: keep-alive interval to maintain connection. Default: 15s</span>
 <span class="w">    </span><span class="nt">keepAlivePeriod</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15s</span>
 <span class="w">  </span><span class="c1"># optional: HTTP User Agent when connecting to upstreams. Default: none</span>
-<span class="w">  </span><span class="nt">userAgent</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;custom</span><span class="nv"> </span><span class="s">UA&quot;</span>
+<span class="w">  </span><span class="nt">userAgent</span><span class="p">:</span><span class="w"> </span><span class="s">"custom</span><span class="nv"> </span><span class="s">UA"</span>
 
 <span class="c1"># optional: Determines how blocky will create outgoing connections. This impacts both upstreams, and lists.</span>
 <span class="c1"># accepted: dual, v4, v6</span>
@@ -2857,7 +2857,7 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="nt">connectIPVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dual</span>
 
 <span class="c1"># optional: custom IP address(es) for domain name (with all sub-domains). Multiple addresses must be separated by a comma</span>
-<span class="c1"># example: query &quot;printer.lan&quot; or &quot;my.printer.lan&quot; will return 192.168.178.3</span>
+<span class="c1"># example: query "printer.lan" or "my.printer.lan" will return 192.168.178.3</span>
 <span class="nt">customDNS</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">customTTL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1h</span>
 <span class="w">  </span><span class="c1"># optional: if true (default), return empty result for unmapped query types (for example TXT, MX or AAAA if only IPv4 address is defined).</span>
@@ -2873,7 +2873,7 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="c1"># Example: Query client.fritz.box will ask DNS server 192.168.178.1. This is necessary for local network, to resolve clients by host name</span>
 <span class="nt">conditional</span><span class="p">:</span>
 <span class="w">  </span><span class="c1"># optional: if false (default), return empty result if after rewrite, the mapped resolver returned an empty answer. If true, the original query will be sent to the upstream resolver</span>
-<span class="w">  </span><span class="c1"># Example: The query &quot;blog.example.com&quot; will be rewritten to &quot;blog.fritz.box&quot; and also redirected to the resolver at 192.168.178.1. If not found and if `fallbackUpstream` was set to `true`, the original query &quot;blog.example.com&quot; will be sent upstream.</span>
+<span class="w">  </span><span class="c1"># Example: The query "blog.example.com" will be rewritten to "blog.fritz.box" and also redirected to the resolver at 192.168.178.1. If not found and if `fallbackUpstream` was set to `true`, the original query "blog.example.com" will be sent upstream.</span>
 <span class="w">  </span><span class="c1"># Usage: One usecase when having split DNS for internal and external (internet facing) users, but not all subdomains are listed in the internal domain.</span>
 <span class="w">  </span><span class="nt">fallbackUpstream</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
 <span class="w">  </span><span class="c1"># optional: replace domain in the query with other domain before resolver lookup in the mapping</span>
@@ -2928,9 +2928,9 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">      </span><span class="c1"># required: allowed values mon, tue, wed, thu, fri, sat, sun</span>
 <span class="w">      </span><span class="nt">weekdays</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">mon</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">tue</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">wed</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">thu</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">fri</span><span class="p p-Indicator">]</span>
 <span class="w">      </span><span class="c1"># optional: HH:MM (24h). Must be set together with end.</span>
-<span class="w">      </span><span class="nt">start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;08:00&quot;</span>
+<span class="w">      </span><span class="nt">start</span><span class="p">:</span><span class="w"> </span><span class="s">"08:00"</span>
 <span class="w">      </span><span class="c1"># optional: HH:MM (24h). If start &gt; end, schedule spans overnight.</span>
-<span class="w">      </span><span class="nt">end</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;18:00&quot;</span>
+<span class="w">      </span><span class="nt">end</span><span class="p">:</span><span class="w"> </span><span class="s">"18:00"</span>
 <span class="w">    </span><span class="nt">weekend</span><span class="p">:</span>
 <span class="w">      </span><span class="c1"># full-day schedule on selected weekdays (omit start/end)</span>
 <span class="w">      </span><span class="nt">weekdays</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">sat</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">sun</span><span class="p p-Indicator">]</span>
@@ -2944,7 +2944,7 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">  </span><span class="c1"># which response will be sent, if query is blocked:</span>
 <span class="w">  </span><span class="c1"># zeroIp: 0.0.0.0 will be returned (default)</span>
 <span class="w">  </span><span class="c1"># nxDomain: return NXDOMAIN as return code</span>
-<span class="w">  </span><span class="c1"># comma separated list of destination IP addresses (for example: 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344). Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the &quot;blocked&quot; page.</span>
+<span class="w">  </span><span class="c1"># comma separated list of destination IP addresses (for example: 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344). Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page.</span>
 <span class="w">  </span><span class="nt">blockType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">zeroIp</span>
 <span class="w">  </span><span class="c1"># optional: TTL for answers to blocked domains</span>
 <span class="w">  </span><span class="c1"># default: 6h</span>
@@ -2997,7 +2997,7 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="c1"># optional: configuration for caching of DNS responses</span>
 <span class="nt">caching</span><span class="p">:</span>
 <span class="w">  </span><span class="c1"># duration how long a response must be cached (min value).</span>
-<span class="w">  </span><span class="c1"># If &lt;=0, use response&#39;s TTL, if &gt;0 use this value, if TTL is smaller</span>
+<span class="w">  </span><span class="c1"># If &lt;=0, use response's TTL, if &gt;0 use this value, if TTL is smaller</span>
 <span class="w">  </span><span class="c1"># Default: 0</span>
 <span class="w">  </span><span class="nt">minTime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5m</span>
 <span class="w">  </span><span class="c1"># duration how long a response must be cached (max value).</span>
@@ -3044,7 +3044,7 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="nt">prometheus</span><span class="p">:</span>
 <span class="w">  </span><span class="c1"># enabled if true</span>
 <span class="w">  </span><span class="nt">enable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<span class="w">  </span><span class="c1"># url path, optional (default &#39;/metrics&#39;)</span>
+<span class="w">  </span><span class="c1"># url path, optional (default '/metrics')</span>
 <span class="w">  </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/metrics</span>
 
 <span class="c1"># optional: write query information (question, answer, client, duration etc.) to daily csv file</span>
@@ -3119,7 +3119,7 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">    </span><span class="nt">ips</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">185.95.218.42</span>
 <span class="w">  </span><span class="c1"># optional: read nameservers from a resolv.conf file instead of listing them inline.</span>
-<span class="w">  </span><span class="c1"># Useful where DHCP-provided resolvers live outside /etc/resolv.conf (e.g. OpenWrt&#39;s /tmp/resolv.conf.auto).</span>
+<span class="w">  </span><span class="c1"># Useful where DHCP-provided resolvers live outside /etc/resolv.conf (e.g. OpenWrt's /tmp/resolv.conf.auto).</span>
 <span class="w">  </span><span class="c1"># - resolvFile: /tmp/resolv.conf.auto</span>
 
 <span class="c1"># optional: drop all queries with following query types. Default: empty</span>
@@ -3356,9 +3356,9 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">  </span><span class="c1"># default: [] (use built-in root trust anchors)</span>
 <span class="w">  </span><span class="nt">trustAnchors</span><span class="p">:</span>
 <span class="w">    </span><span class="c1"># Example: Custom DNSKEY record for a private zone</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;example.com.</span><span class="nv"> </span><span class="s">86400</span><span class="nv"> </span><span class="s">IN</span><span class="nv"> </span><span class="s">DNSKEY</span><span class="nv"> </span><span class="s">257</span><span class="nv"> </span><span class="s">3</span><span class="nv"> </span><span class="s">8</span><span class="nv"> </span><span class="s">AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTO...&quot;</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"example.com.</span><span class="nv"> </span><span class="s">86400</span><span class="nv"> </span><span class="s">IN</span><span class="nv"> </span><span class="s">DNSKEY</span><span class="nv"> </span><span class="s">257</span><span class="nv"> </span><span class="s">3</span><span class="nv"> </span><span class="s">8</span><span class="nv"> </span><span class="s">AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTO..."</span>
 <span class="w">    </span><span class="c1"># Example: DS record format (for parent zone validation)</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;subdomain.example.com.</span><span class="nv"> </span><span class="s">3600</span><span class="nv"> </span><span class="s">IN</span><span class="nv"> </span><span class="s">DS</span><span class="nv"> </span><span class="s">12345</span><span class="nv"> </span><span class="s">8</span><span class="nv"> </span><span class="s">2</span><span class="nv"> </span><span class="s">1234567890ABCDEF...&quot;</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"subdomain.example.com.</span><span class="nv"> </span><span class="s">3600</span><span class="nv"> </span><span class="s">IN</span><span class="nv"> </span><span class="s">DS</span><span class="nv"> </span><span class="s">12345</span><span class="nv"> </span><span class="s">8</span><span class="nv"> </span><span class="s">2</span><span class="nv"> </span><span class="s">1234567890ABCDEF..."</span>
 
 <span class="c1"># optional: DNS64 configuration</span>
 <span class="c1"># DNS64 (RFC 6147) allows IPv6-only clients to access IPv4-only services by</span>
@@ -3574,7 +3574,7 @@ file in that folder (subfolders included) and merges them into one configuration
 <p class="admonition-title">Example</p>
 <div class="highlight"><pre><span></span><code><span class="nt">ports</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">dns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">53</span>
-<span class="w">  </span><span class="nt">tls</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">853</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;[::1]:853&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">tls</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">853</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"[::1]:853"</span><span class="p p-Indicator">]</span>
 <span class="w">  </span><span class="nt">http</span><span class="p">:</span>
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4000</span>
@@ -4474,12 +4474,12 @@ If client's IP address matches with the result, the defined group will be used.<
 <span class="w">  </span><span class="nt">schedules</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">workhours</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">weekdays</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">mon</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">tue</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">wed</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">thu</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">fri</span><span class="p p-Indicator">]</span>
-<span class="w">      </span><span class="nt">start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;08:00&quot;</span>
-<span class="w">      </span><span class="nt">end</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;18:00&quot;</span>
+<span class="w">      </span><span class="nt">start</span><span class="p">:</span><span class="w"> </span><span class="s">"08:00"</span>
+<span class="w">      </span><span class="nt">end</span><span class="p">:</span><span class="w"> </span><span class="s">"18:00"</span>
 <span class="w">    </span><span class="nt">nights</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">weekdays</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">sun</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">mon</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">tue</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">wed</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">thu</span><span class="p p-Indicator">]</span>
-<span class="w">      </span><span class="nt">start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;22:00&quot;</span>
-<span class="w">      </span><span class="nt">end</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;06:00&quot;</span>
+<span class="w">      </span><span class="nt">start</span><span class="p">:</span><span class="w"> </span><span class="s">"22:00"</span>
+<span class="w">      </span><span class="nt">end</span><span class="p">:</span><span class="w"> </span><span class="s">"06:00"</span>
 <span class="w">    </span><span class="nt">weekend-all-day</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">weekdays</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">sat</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">sun</span><span class="p p-Indicator">]</span>
 
@@ -5086,7 +5086,7 @@ queryLog:
 <p><strong>MySQL Database</strong></p>
 <div class="highlight"><pre><span></span><code><span class="nt">queryLog</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
-<span class="w">  </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;username:password@tcp(localhost:3306)/blocky_query_log?charset=utf8mb4&amp;parseTime=True&amp;loc=Local&amp;timeout=15s&#39;</span>
+<span class="w">  </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="s">'username:password@tcp(localhost:3306)/blocky_query_log?charset=utf8mb4&amp;parseTime=True&amp;loc=Local&amp;timeout=15s'</span>
 <span class="w">  </span><span class="nt">logRetentionDays</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">7</span>
 </code></pre></div>
 </div>
@@ -5110,10 +5110,10 @@ queryLog:
 <span class="w">  </span><span class="nt">ignore</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">sudn</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">    </span><span class="nt">domains</span><span class="p">:</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;*._dns-sd._udp.home&quot;</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;db._dns-sd._udp.home&quot;</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;/\\.in-addr\\.arpa$/&quot;</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;apple.com&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"*._dns-sd._udp.home"</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"db._dns-sd._udp.home"</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"/\\.in-addr\\.arpa$/"</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"apple.com"</span>
 </code></pre></div>
 </div>
 <h2 id="hosts-file">Hosts file</h2>
@@ -5596,9 +5596,9 @@ by response type shows <code>BLOCKED</code> and <code>BOGUS</code> side by side 
 <span class="w">  </span><span class="nt">validate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">  </span><span class="nt">trustAnchors</span><span class="p">:</span>
 <span class="w">    </span><span class="c1"># Root KSK-2024 (required for public domains)</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;.</span><span class="nv"> </span><span class="s">172800</span><span class="nv"> </span><span class="s">IN</span><span class="nv"> </span><span class="s">DNSKEY</span><span class="nv"> </span><span class="s">257</span><span class="nv"> </span><span class="s">3</span><span class="nv"> </span><span class="s">8</span><span class="nv"> </span><span class="s">AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTOiW1vkIbzxeF3...&quot;</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">".</span><span class="nv"> </span><span class="s">172800</span><span class="nv"> </span><span class="s">IN</span><span class="nv"> </span><span class="s">DNSKEY</span><span class="nv"> </span><span class="s">257</span><span class="nv"> </span><span class="s">3</span><span class="nv"> </span><span class="s">8</span><span class="nv"> </span><span class="s">AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTOiW1vkIbzxeF3..."</span>
 <span class="w">    </span><span class="c1"># Custom DNSKEY for internal zone</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;corp.internal.</span><span class="nv"> </span><span class="s">86400</span><span class="nv"> </span><span class="s">IN</span><span class="nv"> </span><span class="s">DNSKEY</span><span class="nv"> </span><span class="s">257</span><span class="nv"> </span><span class="s">3</span><span class="nv"> </span><span class="s">13</span><span class="nv"> </span><span class="s">mdsswUyr3DPW132mOi8V9xESWE8jTo0dxCjjnopKl+GqJxpVXckHAeF...&quot;</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"corp.internal.</span><span class="nv"> </span><span class="s">86400</span><span class="nv"> </span><span class="s">IN</span><span class="nv"> </span><span class="s">DNSKEY</span><span class="nv"> </span><span class="s">257</span><span class="nv"> </span><span class="s">3</span><span class="nv"> </span><span class="s">13</span><span class="nv"> </span><span class="s">mdsswUyr3DPW132mOi8V9xESWE8jTo0dxCjjnopKl+GqJxpVXckHAeF..."</span>
 </code></pre></div>
 <p>This configuration validates both public internet domains (using the root trust anchor) and a private <code>corp.internal</code> zone using a custom trust anchor.</p>
 </div>
@@ -5865,7 +5865,7 @@ test for <code>status: NOERROR</code>, not for any record content.</p>
 <p>A liveness probe should treat a <code>NOERROR</code> response as healthy.
 Example for Docker Compose:</p>
 <div class="highlight"><pre><span></span><code><span class="nt">healthcheck</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">test</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;CMD&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;dig&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;@127.0.0.1&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;-p&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;53&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;healthcheck.blocky&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;+short&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;+tries=1&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">test</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"CMD"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"dig"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"@127.0.0.1"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"-p"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"53"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"healthcheck.blocky"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"+short"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"+tries=1"</span><span class="p p-Indicator">]</span>
 <span class="w">  </span><span class="nt">interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30s</span>
 <span class="w">  </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5s</span>
 <span class="w">  </span><span class="nt">retries</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
