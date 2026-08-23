@@ -650,6 +650,7 @@ hostname belongs to which IP address, all DNS queries for the local network shou
 The optional parameter `rewrite` behaves the same as with custom DNS.
 
 The optional parameter `fallbackUpstream`, if false (default), return empty result if after rewrite, the mapped resolver returned an empty answer. If true, the original query will be sent to the upstream resolver.
+It only has an effect together with `rewrite`; without any rewrite rules it is ignored.
 
 **Usage:** One usecase when having split DNS for internal and external (internet facing) users, but not all subdomains are listed in the internal domain
 
