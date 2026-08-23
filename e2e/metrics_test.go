@@ -245,6 +245,9 @@ var _ = Describe("Metrics functional tests", func() {
 				g.Expect(metrics).Should(SatisfyAll(
 					ContainElement(MatchRegexp(`blocky_query_total\{[^}]*type="A"[^}]*\} \d+`)),
 					ContainElement(MatchRegexp(`blocky_response_total\{[^}]*\} \d+`)),
+					// blocked.com is on the ads denylist, so the per-client counter must show it
+					ContainElement(MatchRegexp(`blocky_client_response_total\{client="[^"]+",response_type="BLOCKED"\} \d+`)),
+					ContainElement(MatchRegexp(`blocky_client_response_total\{client="[^"]+",response_type="RESOLVED"\} \d+`)),
 					ContainElement(MatchRegexp(`blocky_request_duration_seconds_bucket\{[^}]*\}`)),
 					ContainElement(MatchRegexp(`blocky_request_duration_seconds_sum\{[^}]*\} [\d.]+`)),
 					ContainElement(MatchRegexp(`blocky_request_duration_seconds_count\{[^}]*\} \d+`)),
