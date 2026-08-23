@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"errors"
 
 	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
@@ -272,17 +273,9 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 			})
 
 			It("should ask the next resolver with the original name", func() {
-				var seen string
+				var seen *string
 
-				m = &mockResolver{}
-				m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
-				m.ResolveFn = func(_ context.Context, req *Request) (*Response, error) {
-					seen = req.Req.Question[0].Name
-					resp, err := util.NewMsgWithAnswer(seen, 250, A, "192.192.192.192")
-					Expect(err).Should(Succeed())
-
-					return &Response{Res: resp, RType: ResponseTypeRESOLVED, Reason: "RESOLVED"}, nil
-				}
+				m, seen = newRecordingResolver(A, "192.192.192.192")
 				sut.Next(m)
 
 				Expect(sut.Resolve(ctx, newRequest("www.source.test.", A))).
@@ -293,50 +286,34 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 							HaveReturnCode(dns.RcodeSuccess),
 						))
 
-				Expect(seen).Should(Equal("www.source.test."))
+				Expect(*seen).Should(Equal("www.source.test."))
 			})
 		})
 
 		When("the mapped upstream fails and fallbackUpstream is set", func() {
 			BeforeEach(func() {
-				deadUpstream := NewMockUDPUpstreamServer().WithAnswerRR("dead.box. 123 IN A 1.2.3.4")
-				upstream := deadUpstream.Start()
-				deadUpstream.Close()
-
 				sutConfig.FallbackUpstream = true
-				sutConfig.Mapping.Upstreams["dead.box"] = []config.Upstream{upstream}
-				sutConfig.Rewrite = map[string]string{"source.test": "dead.box"}
+				sutConfig.Mapping.Upstreams["broken.box"] = []config.Upstream{NewBrokenUDPUpstreamServer()}
+				sutConfig.Rewrite = map[string]string{"source.test": "broken.box"}
 			})
 
 			It("should ask the next resolver with the original name", func() {
-				var seen string
+				var seen *string
 
-				m = &mockResolver{}
-				m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
-				m.ResolveFn = func(_ context.Context, req *Request) (*Response, error) {
-					seen = req.Req.Question[0].Name
-					resp, err := util.NewMsgWithAnswer(seen, 250, A, "192.192.192.192")
-					Expect(err).Should(Succeed())
-
-					return &Response{Res: resp, RType: ResponseTypeRESOLVED, Reason: "RESOLVED"}, nil
-				}
+				m, seen = newRecordingResolver(A, "192.192.192.192")
 				sut.Next(m)
 
 				Expect(sut.Resolve(ctx, newRequest("www.source.test.", A))).
 					Should(HaveResponseType(ResponseTypeRESOLVED))
 
-				Expect(seen).Should(Equal("www.source.test."))
+				Expect(*seen).Should(Equal("www.source.test."))
 			})
 		})
 
 		When("the mapped upstream fails and fallbackUpstream is not set", func() {
 			BeforeEach(func() {
-				deadUpstream := NewMockUDPUpstreamServer().WithAnswerRR("dead.box. 123 IN A 1.2.3.4")
-				upstream := deadUpstream.Start()
-				deadUpstream.Close()
-
-				sutConfig.Mapping.Upstreams["dead.box"] = []config.Upstream{upstream}
-				sutConfig.Rewrite = map[string]string{"source.test": "dead.box"}
+				sutConfig.Mapping.Upstreams["broken.box"] = []config.Upstream{NewBrokenUDPUpstreamServer()}
+				sutConfig.Rewrite = map[string]string{"source.test": "broken.box"}
 			})
 
 			It("should return the error", func() {
@@ -369,6 +346,48 @@ var _ = Describe("ConditionalUpstreamResolver", Label("conditionalResolver"), fu
 						))
 
 				Expect(m.Calls).Should(BeEmpty())
+			})
+		})
+
+		When("the rewritten name matches no conditional mapping", func() {
+			BeforeEach(func() {
+				sutConfig.Rewrite = map[string]string{"source.test": "nomatch.example"}
+			})
+
+			It("should ask the next resolver with the original name", func() {
+				var seen *string
+
+				m, seen = newRecordingResolver(A, "192.192.192.192")
+				sut.Next(m)
+
+				Expect(sut.Resolve(ctx, newRequest("www.source.test.", A))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("www.source.test.", A, "192.192.192.192"),
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+
+				Expect(*seen).Should(Equal("www.source.test."))
+				Expect(m.Calls).Should(HaveLen(1))
+			})
+		})
+
+		When("the next resolver fails for a rewritten query", func() {
+			BeforeEach(func() {
+				sutConfig.Rewrite = map[string]string{"source.test": "nomatch.example"}
+			})
+
+			It("should restore the original request before returning", func() {
+				m = &mockResolver{}
+				m.On("Resolve", mock.Anything).Return(nil, errors.New("next resolver failed"))
+				sut.Next(m)
+
+				request := newRequest("www.source.test.", A)
+
+				_, err := sut.Resolve(ctx, request)
+				Expect(err).Should(HaveOccurred())
+				Expect(request.Req.Question[0].Name).Should(Equal("www.source.test."))
 			})
 		})
 

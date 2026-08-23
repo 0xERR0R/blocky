@@ -245,3 +245,35 @@ func (c *mockConn) SetReadDeadline(time.Time) error {
 func (c *mockConn) SetWriteDeadline(time.Time) error {
 	panic("not implemented")
 }
+
+// newRecordingResolver returns a resolver that answers every query with the given
+// record, and a pointer to the question name it was last asked for. Use it to
+// assert which name a resolver hands down the chain.
+func newRecordingResolver(qType dns.Type, address string) (*mockResolver, *string) {
+	var seen string
+
+	m := &mockResolver{}
+	m.On("Resolve", mock.Anything).Return(&model.Response{Res: new(dns.Msg)}, nil)
+	m.ResolveFn = func(_ context.Context, req *model.Request) (*model.Response, error) {
+		seen = req.Req.Question[0].Name
+
+		resp, err := util.NewMsgWithAnswer(seen, 250, qType, address)
+		if err != nil {
+			return nil, err
+		}
+
+		return &model.Response{Res: resp, RType: model.ResponseTypeRESOLVED, Reason: "RESOLVED"}, nil
+	}
+
+	return m, &seen
+}
+
+// NewBrokenUDPUpstreamServer returns a started upstream that answers every query with
+// data the client cannot parse, so resolving via it always fails. Unlike starting a
+// server and closing it, the port stays bound, so the OS cannot hand it to someone else
+// and turn the "broken" upstream into a working one.
+func NewBrokenUDPUpstreamServer() config.Upstream {
+	return NewMockUDPUpstreamServer().
+		WithAnswerFn(func(*dns.Msg) *dns.Msg { return nil }).
+		Start()
+}
