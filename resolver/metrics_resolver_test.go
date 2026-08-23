@@ -74,6 +74,14 @@ var _ = Describe("MetricResolver", func() {
 					Expect(err).Should(Succeed())
 
 					Expect(testutil.ToFloat64(cnt)).Should(BeNumerically("==", 1))
+
+					clientCnt, err := sut.totalClientResponse.GetMetricWith(prometheus.Labels{
+						"client":        "client",
+						"response_type": "RESOLVED",
+					})
+					Expect(err).Should(Succeed())
+					Expect(testutil.ToFloat64(clientCnt)).Should(BeNumerically("==", 1))
+
 					m.AssertExpectations(GinkgoT())
 				})
 			})
@@ -136,6 +144,13 @@ var _ = Describe("MetricResolver", func() {
 					Expect(err).Should(HaveOccurred())
 
 					Expect(testutil.ToFloat64(sut.totalErrors)).Should(BeNumerically("==", 1))
+
+					clientCnt, err := sut.totalClientResponse.GetMetricWith(prometheus.Labels{
+						"client":        "client",
+						"response_type": "err",
+					})
+					Expect(err).Should(Succeed())
+					Expect(testutil.ToFloat64(clientCnt)).Should(BeNumerically("==", 1))
 				})
 			})
 		})
