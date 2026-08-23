@@ -230,6 +230,16 @@ func (r *CustomDNSResolver) Resolve(ctx context.Context, request *model.Request)
 	// Revert the request
 	request.Req = original
 
+	// A response we produced ourselves without an answer means the mapping had
+	// nothing for this query: ask the rest of the chain, using the original
+	// name (`fallbackUpstream`).
+	answered := err == nil && response != nil && response.RType == model.ResponseTypeCUSTOMDNS
+	if shouldFallbackUpstream(&r.cfg.RewriterConfig, answered, response, nil) {
+		logger.WithField("next_resolver", Name(r.next)).Trace("fallback to next resolver")
+
+		return r.next.Resolve(ctx, request)
+	}
+
 	if err != nil {
 		return response, err
 	}

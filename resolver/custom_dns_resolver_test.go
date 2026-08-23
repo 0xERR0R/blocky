@@ -10,6 +10,7 @@ import (
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
+	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -590,6 +591,39 @@ var _ = Describe("CustomDNSResolver", func() {
 			m = &mockResolver{}
 			m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
 			sut.Next(m)
+		})
+
+		When("the mapping has no answer of the requested type and fallbackUpstream is set", func() {
+			BeforeEach(func() {
+				cfg.FallbackUpstream = true
+				sut = NewCustomDNSResolver(cfg)
+			})
+
+			It("should ask the next resolver with the original name", func() {
+				var seen string
+
+				m = &mockResolver{}
+				m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
+				m.ResolveFn = func(_ context.Context, req *Request) (*Response, error) {
+					seen = req.Req.Question[0].Name
+					resp, err := util.NewMsgWithAnswer(seen, uint(TTL), AAAA, "2001:db8::1")
+					Expect(err).Should(Succeed())
+
+					return &Response{Res: resp, RType: ResponseTypeRESOLVED, Reason: "RESOLVED"}, nil
+				}
+				sut.Next(m)
+
+				// custom.domain has an A record only, so the AAAA query ends up
+				// as an empty CUSTOM DNS answer
+				Expect(sut.Resolve(ctx, newRequest("www.source.test.", AAAA))).
+					Should(
+						SatisfyAll(
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+
+				Expect(seen).Should(Equal("www.source.test."))
+			})
 		})
 
 		When("request matches rewrite rule", func() {
