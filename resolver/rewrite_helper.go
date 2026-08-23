@@ -3,6 +3,8 @@ package resolver
 import (
 	"strings"
 
+	"github.com/0xERR0R/blocky/config"
+	"github.com/0xERR0R/blocky/model"
 	"github.com/0xERR0R/blocky/util"
 
 	"github.com/miekg/dns"
@@ -62,6 +64,24 @@ func rewriteDomain(domain string, rewriteMap map[string]string) (string, string)
 	}
 
 	return domain, ""
+}
+
+// shouldFallbackUpstream reports whether a rewritten query that ended without an
+// answer should be retried, with its original name, on the rest of the chain.
+// See `fallbackUpstream` in the documentation.
+//
+// answered tells whether the resolver produced the response itself: a response
+// it only passed through from the next resolver must not be retried there.
+func shouldFallbackUpstream(cfg *config.RewriterConfig, answered bool, response *model.Response, err error) bool {
+	if !cfg.FallbackUpstream || len(cfg.Rewrite) == 0 || !answered {
+		return false
+	}
+
+	if err != nil {
+		return true
+	}
+
+	return response != nil && response != NoResponse && response.Res != nil && len(response.Res.Answer) == 0
 }
 
 // revertRewritesInResponse reverts domain rewrites in the DNS response
