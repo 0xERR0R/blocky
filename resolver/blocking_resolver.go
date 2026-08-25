@@ -45,6 +45,8 @@ func createBlockHandler(cfg config.Blocking) (blockHandler, error) {
 		return zeroIPBlockHandler{
 			BlockTimeSec: blockTime,
 		}, nil
+	case "refused":
+		return refusedBlockHandler{}, nil
 	default:
 		// Try parsing as IP address(es)
 		var ips []net.IP
@@ -65,9 +67,10 @@ func createBlockHandler(cfg config.Blocking) (blockHandler, error) {
 			}, nil
 		}
 
-		return nil,
-			fmt.Errorf("unknown blockType '%s', please use one of: ZeroIP, NxDomain or specify destination IP address(es)",
-				cfgBlockType)
+		return nil, fmt.Errorf(
+			"unknown blockType '%s', please use one of: ZeroIP, NxDomain, Refused "+
+				"or specify destination IP address(es)",
+			cfgBlockType)
 	}
 }
 
@@ -756,6 +759,8 @@ type nxDomainBlockHandler struct {
 	BlockTimeSec uint32
 }
 
+type refusedBlockHandler struct{}
+
 type ipBlockHandler struct {
 	destinations    []net.IP
 	fallbackHandler blockHandler
@@ -787,6 +792,10 @@ func (b nxDomainBlockHandler) handleBlock(question dns.Question, response *dns.M
 	// Add SOA to authority section per RFC 2308
 	soa := util.CreateSOAForNegativeResponse(question, b.BlockTimeSec)
 	response.Ns = []dns.RR{soa}
+}
+
+func (b refusedBlockHandler) handleBlock(_ dns.Question, response *dns.Msg) {
+	response.Rcode = dns.RcodeRefused
 }
 
 func (b ipBlockHandler) handleBlock(question dns.Question, response *dns.Msg) {

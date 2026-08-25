@@ -925,6 +925,7 @@ queries, NXDOMAIN for other types):
 | ---------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | zeroIP     | zeroIP                                                  | This is the default block type. Server returns 0.0.0.0 (or :: for IPv6) as result for A and AAAA queries                                                                               |
 | nxDomain   | nxDomain                                                | return NXDOMAIN as return code                                                                                                                                                         |
+| refused    | refused                                                 | return REFUSED as return code, without any records                                                                                                                                    |
 | custom IPs | 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344 | comma separated list of destination IP addresses. Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page. |
 
 !!! example
@@ -946,6 +947,8 @@ time it could take for a client to be able to see the real IP address for a doma
 Blocky includes an SOA record in NXDOMAIN responses to enable proper negative caching by stub resolvers.
 The blockTTL value is used for both the SOA's TTL and its MINIMUM field, ensuring clients cache the
 NXDOMAIN response for the configured duration.
+
+**For `refused` mode:** The response carries no records, so blockTTL has no effect.
 
 !!! example
 
