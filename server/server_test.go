@@ -1267,6 +1267,26 @@ var _ = Describe("Running DNS server", func() {
 			})
 		})
 
+		When("the client used EDNS0 and the response has no OPT record", func() {
+			// RFC 6891 section 6.1.1: cache hits are served without the OPT record, and a client
+			// reads its absence as a server without EDNS0 support.
+			It("adds an OPT record mirroring the DO bit", func() {
+				s := newServerWithChain(func(req *model.Request) *dns.Msg {
+					return chainResponse.SetReply(req.Req)
+				})
+
+				clientMsg := util.NewMsgWithQuestion("example.com.", A)
+				clientMsg.SetEdns0(1232, true)
+
+				_, req := newRequest(ctx, net.ParseIP("1.2.3.4"), "", model.RequestProtocolUDP, clientMsg)
+
+				resp, err := s.resolve(ctx, req)
+				Expect(err).Should(Succeed())
+				Expect(resp.Res.IsEdns0()).ShouldNot(BeNil())
+				Expect(resp.Res.IsEdns0().Do()).Should(BeTrue())
+			})
+		})
+
 		When("the client left the DO bit clear", func() {
 			// RFC 4035 section 3.2.1: the DNSSEC records the chain requested upstream on the
 			// client's behalf must not be added to the response of a client that didn't ask.
