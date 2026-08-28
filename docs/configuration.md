@@ -184,7 +184,7 @@ following network protocols (net part of the resolver URL):
     Per default blocky uses the `parallel_best` upstream strategy where blocky picks 2 random resolvers from the list for each query and
     returns the answer from the fastest one.
 
-Each resolver must be defined as a string in following format: `[net:]host:[port][/path][#commonName]`.
+Each resolver must be defined as a string in following format: `[net:]host[:port][/path][#commonName]`.
 
 | Parameter  | Type                             | Mandatory | Default value                                     |
 | ---------- | -------------------------------- | --------- | ------------------------------------------------- |
