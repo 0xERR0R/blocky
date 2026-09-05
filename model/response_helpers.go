@@ -42,16 +42,3 @@ func NewResponseWithRcode(request *Request, rcode int, rtype ResponseType, reaso
 		Reason: reason,
 	}
 }
-
-// NewEmptyResponse creates a response with just the Rcode field set (no SetReply or SetRcode).
-// This is used for minimal responses where only the return code matters.
-func NewEmptyResponse(request *Request, rcode int, rtype ResponseType, reason string) *Response {
-	response := new(dns.Msg)
-	response.Rcode = rcode
-
-	return &Response{
-		Res:    response,
-		RType:  rtype,
-		Reason: reason,
-	}
-}
