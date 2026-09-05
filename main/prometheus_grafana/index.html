@@ -758,7 +758,7 @@
 </tr>
 <tr>
 <td>blocky_client_response_total</td>
-<td>Counter of responses, partitioned by client and response type (Blocked, cached, etc)</td>
+<td>Counter of query outcomes, partitioned by client and response type (Blocked, cached, etc); failed requests are counted as <code>response_type="err"</code></td>
 </tr>
 <tr>
 <td>blocky_blocking_enabled</td>
@@ -834,7 +834,7 @@
 <p class="admonition-title"><code>reason</code> label for blocked responses</p>
 <p>To keep the <code>reason</code> label of <code>blocky_response_total</code> bounded, blocked responses use the matched
 group names only (e.g. <code>BLOCKED (ads)</code>), <strong>not</strong> the matched rule. The full reason including the
-matched rule (e.g. <code>BLOCKED (ads: *.docler.com)</code>) is still available in the <a href="../configuration/#query-log">query log</a>.
+matched rule (e.g. <code>BLOCKED (ads: *.docler.com)</code>) is still available in the <a href="../configuration/#query-logging">query log</a>.
 This avoids unbounded metric cardinality when large deny lists are used.</p>
 </div>
 <div class="admonition note">
@@ -845,6 +845,30 @@ distinct devices Blocky has seen. On networks with a stable, limited set of devi
 home LAN) this stays small, but on networks with high device turnover (e.g. public or guest Wi-Fi)
 the set of <code>client</code> label values can grow effectively unbounded over time. Consider this before
 scraping/retaining these metrics on such networks.</p>
+<p>Blocky has no option to drop the label yet, so the mitigation is on the Prometheus side: drop the
+affected metrics at scrape time when you do not need the per-client breakdown.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">metric_relabel_configs</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">source_labels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">__name__</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">regex</span><span class="p">:</span><span class="w"> </span><span class="s">"blocky_(query|client_response)_total"</span>
+<span class="w">    </span><span class="nt">action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">drop</span>
+</code></pre></div>
+<p>Dropping only the <code>client</code> label (<code>labeldrop</code>) does <strong>not</strong> work: the remaining series of the
+different clients collapse into one, and Prometheus rejects the scrape with a duplicate-sample
+error.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title"><code>response_type</code> values of <code>blocky_client_response_total</code></p>
+<p>The counter is incremented once per query that reaches the metrics resolver, so it sums to
+<code>blocky_query_total</code> rather than to <code>blocky_response_total</code> — the latter counts only successful
+responses. Requests that produced no response at all are recorded as <code>response_type="err"</code>, which
+is not one of the regular response types.</p>
+<p><code>FILTERED</code> and <code>NOTFQDN</code> never appear: the <code>filtering</code> and <code>fqdnOnly</code> resolvers answer those
+queries above the metrics resolver in the chain, so they are missing from <code>blocky_query_total</code>,
+<code>blocky_response_total</code> and <code>blocky_request_duration_seconds</code> as well. The query log sits below
+them in the chain too, so those queries are only visible in the <a href="../configuration/#statistics">statistics</a>.</p>
+<p>Example — per-client rate of queries that were actually resolved rather than blocked:</p>
+<div class="highlight"><pre><span></span><code><span class="k">sum</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="o">(</span><span class="nv">client</span><span class="o">)</span><span class="w"> </span><span class="o">(</span><span class="kr">rate</span><span class="o">(</span><span class="nv">blocky_client_response_total</span><span class="p">{</span><span class="nl">response_type</span><span class="o">!~</span><span class="p">"</span><span class="s">BLOCKED|REBIND|err</span><span class="p">"}[</span><span class="s">5m</span><span class="p">]</span><span class="o">))</span>
+</code></pre></div>
 </div>
 <h3 id="grafana-dashboard">Grafana dashboard</h3>
 <p>Example <a href="https://grafana.com/">Grafana</a> dashboard
