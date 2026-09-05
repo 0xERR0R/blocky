@@ -4041,10 +4041,11 @@ them to the allowlist. Entries match the domain itself and all of its subdomains
 done on the name of the inspected query, so a <code>CNAME</code> inside an upstream answer pointing at an
 allowlisted name does not bypass the protection (for <code>customDNS</code> <code>CNAME</code> entries the inspected
 query is the lookup of the <abbr title="Canonical Name">CNAME</abbr> target, so allowlist the <strong>target</strong> name, not the entry's
-name). If <code>customDNS.rewrite</code> rules apply to the query, matching uses the rewritten name —
-allowlist the rewritten form (<code>conditional.rewrite</code> rules do not affect matching). Entries must
-be plain domain names: wildcards (<code>*.example.com</code>), regexes and whitespace are rejected at
-startup, and internationalized domains must be given in punycode (<code>xn--…</code>) form.</p>
+name). Rewrite rules do not affect matching: a <code>customDNS.rewrite</code> or <code>conditional.rewrite</code>
+target is used only for that resolver's own lookup and is never handed down the chain, so
+allowlist the name the client asks for. Entries must be plain domain names: wildcards
+(<code>*.example.com</code>), regexes and whitespace are rejected at startup, and internationalized domains
+must be given in punycode (<code>xn--…</code>) form.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><pre><span></span><code><span class="nt">rebindingProtection</span><span class="p">:</span>
@@ -4277,7 +4278,8 @@ private IP via the general upstreams, add the target name to its allowlist.</p>
 is for example useful, if you want to reach devices in your local network by the name. Since only your router know which
 hostname belongs to which IP address, all <abbr title="Domain Name System">DNS</abbr> queries for the local network should be redirected to the router.</p>
 <p>The optional parameter <code>rewrite</code> behaves the same as with custom <abbr title="Domain Name System">DNS</abbr>.</p>
-<p>The optional parameter <code>fallbackUpstream</code>, if false (default), return empty result if after rewrite, the mapped resolver returned an empty answer. If true, the original query will be sent to the upstream resolver.</p>
+<p>The optional parameter <code>fallbackUpstream</code>, if false (default), return empty result if after rewrite, the mapped resolver returned an empty answer. If true, the original query will be sent to the upstream resolver.
+It only has an effect together with <code>rewrite</code>; without any rewrite rules it is ignored.</p>
 <p><strong>Usage:</strong> One usecase when having split <abbr title="Domain Name System">DNS</abbr> for internal and external (internet facing) users, but not all subdomains are listed in the internal domain</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
