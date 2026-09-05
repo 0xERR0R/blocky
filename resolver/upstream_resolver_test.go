@@ -24,6 +24,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// dohTestURL is the upstream URL for DoH specs that answer at the transport
+// layer, where nothing ever dials it.
+const dohTestURL = "https://example.com/dns-query"
+
 // replyWithRR builds a reply to req whose answer section holds the single given record.
 func replyWithRR(req *dns.Msg, rr string) *dns.Msg {
 	resp := new(dns.Msg)
@@ -1257,6 +1261,47 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 			_, err := sut.Resolve(ctx, newRequest("example.com.", A))
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring("can't perform https request"))
+		})
+
+		// newStaleConnClient builds a DoH client whose first `stale` requests fail
+		// the way a query sent over a connection the upstream closed while it sat
+		// in the keep-alive pool does. See stalePooledConnTransport for why the
+		// httptest-based mock cannot reach a retry that is itself stale.
+		newStaleConnClient := func(stale int32) (*httpUpstreamClient, *stalePooledConnTransport) {
+			transport := &stalePooledConnTransport{
+				answerFn: rrAnswerFn("example.com 123 IN A 123.124.122.122"),
+			}
+			transport.staleAttempts.Store(stale)
+
+			return &httpUpstreamClient{
+				client:    &http.Client{Transport: transport},
+				host:      "example.com",
+				userAgent: "test",
+			}, transport
+		}
+
+		It("retries again when the retry itself lands on a stale pooled connection", func() {
+			client, transport := newStaleConnClient(2)
+
+			resp, _, err := client.callExternal(ctx, newRequest("example.com.", A).Req, dohTestURL)
+			Expect(err).Should(Succeed())
+			Expect(resp.Answer).Should(HaveLen(1))
+			Expect(resp.Answer[0].String()).Should(ContainSubstring("123.124.122.122"))
+
+			// Two attempts on stale connections, then a fresh one that is served.
+			Expect(transport.GetCallCount()).Should(Equal(3))
+		})
+
+		It("gives up once the attempt budget is spent, however many connections are stale", func() {
+			client, transport := newStaleConnClient(100)
+
+			_, _, err := client.callExternal(ctx, newRequest("example.com.", A).Req, dohTestURL)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("can't perform https request"))
+
+			// Bounded: the client stops after its attempt budget rather than
+			// working through the pool until something answers.
+			Expect(transport.GetCallCount()).Should(Equal(3))
 		})
 	})
 

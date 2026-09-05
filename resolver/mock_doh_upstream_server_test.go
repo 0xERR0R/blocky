@@ -1,12 +1,14 @@
 package resolver
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httptrace"
 	"sync"
 	"sync/atomic"
 
@@ -212,4 +214,58 @@ func (m *MockDoHUpstreamServer) Close() {
 	if m.server != nil {
 		m.server.Close()
 	}
+}
+
+// stalePooledConnTransport models, at the transport layer, a keep-alive
+// connection the upstream closed while it sat idle in the pool: GotConn reports
+// the connection as reused, and the round trip then fails with an unexpected
+// EOF without the query ever having been served. The first staleAttempts
+// requests fail that way; every later one goes out on a connection reported as
+// fresh and is answered normally.
+//
+// MockDoHUpstreamServer cannot cover a retry that is itself stale: blocky
+// empties its own keep-alive pool between attempts, so over HTTP/1.1 a retry
+// there always dials fresh. A retry lands on a stale connection only when a
+// connection is returned to the pool concurrently, or when HTTP/2 keeps a stale
+// connection alive because it still carries other streams - neither of which a
+// test can schedule on demand.
+type stalePooledConnTransport struct {
+	staleAttempts atomic.Int32
+	calls         atomic.Int32
+
+	answerFn func(request *dns.Msg) (response *dns.Msg)
+}
+
+func (t *stalePooledConnTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	t.calls.Add(1)
+
+	reused := t.staleAttempts.Add(-1) >= 0
+
+	if trace := httptrace.ContextClientTrace(req.Context()); trace != nil && trace.GotConn != nil {
+		trace.GotConn(httptrace.GotConnInfo{Reused: reused})
+	}
+
+	if reused {
+		return nil, io.ErrUnexpectedEOF
+	}
+
+	body, err := io.ReadAll(req.Body)
+	util.FatalOnError("can't read request: ", err)
+
+	msg := new(dns.Msg)
+	util.FatalOnError("can't deserialize message: ", msg.Unpack(body))
+
+	raw, err := mockReply(msg, t.answerFn(msg)).Pack()
+	util.FatalOnError("can't serialize message: ", err)
+
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{dnsContentType}},
+		Body:       io.NopCloser(bytes.NewReader(raw)),
+	}, nil
+}
+
+// GetCallCount returns how many round trips the client made, stale ones included.
+func (t *stalePooledConnTransport) GetCallCount() int {
+	return int(t.calls.Load())
 }
