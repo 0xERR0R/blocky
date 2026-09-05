@@ -147,9 +147,9 @@ var _ = Describe("Domain blocking functionality", func() {
 		})
 	})
 
-	// Note: Allowlist-only mode test (4.1) is not fully implemented here because
-	// allowlists in Blocky work as exceptions to denylists, not as standalone allow-only mode.
-	// The allowlist functionality is tested in conjunction with denylists in other tests.
+	// Note: standalone allow-only mode (a client whose groups are all allowlist-only)
+	// is covered by the resolver unit tests. Here we cover the mixed case, where an
+	// allowlist group supplements a denylist group for the same client.
 
 	Describe("Wildcard blocking", func() {
 		Context("with wildcard patterns in blocklist", func() {
@@ -865,6 +865,68 @@ var _ = Describe("Domain blocking functionality", func() {
 				Expect(doDNSRequest(ctx, blocky, msg)).
 					Should(BeDNSRecord("blockeddomain.com.", A, "5.6.7.8"))
 			})
+		})
+	})
+
+	// A client that is assigned a denylist group keeps resolving everything that is
+	// not denylisted, even when it is also assigned a group holding only allowlists:
+	// that allowlist supplies exceptions, it is not a whitelist (issue #2207).
+	Describe("Allowlist-only group combined with a denylist group", func() {
+		BeforeEach(func(ctx context.Context) {
+			// Upstream for the domains that must come back from the resolver rather
+			// than from the sinkhole.
+			_, err = createDNSMokkaContainer(ctx, "moka2", e2eNet,
+				`A unrelated.com/NOERROR("A 1.2.3.4 300")`,
+				`A social.example.com/NOERROR("A 5.6.7.8 300")`,
+			)
+			Expect(err).Should(Succeed())
+
+			_, err = createHTTPServerContainer(ctx, "httpserver1", e2eNet, "deny.txt",
+				"blockeddomain.com", "social.example.com")
+			Expect(err).Should(Succeed())
+
+			_, err = createHTTPServerContainer(ctx, "httpserver2", e2eNet, "allow.txt",
+				"social.example.com")
+			Expect(err).Should(Succeed())
+
+			blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+				log:
+				  level: warn
+				upstreams:
+				  groups:
+				    default:
+				      - moka2
+				blocking:
+				  denylists:
+				    ads:
+				      - http://httpserver1:8080/deny.txt
+				  allowlists:
+				    exceptions:
+				      - http://httpserver2:8080/allow.txt
+				  clientGroupsBlock:
+				    default:
+				      - ads
+				      - exceptions
+				`))
+			Expect(err).Should(Succeed())
+		})
+
+		It("resolves a domain that is on neither list", func(ctx context.Context) {
+			msg := util.NewMsgWithQuestion("unrelated.com.", A)
+			Expect(doDNSRequest(ctx, blocky, msg)).
+				Should(BeDNSRecord("unrelated.com.", A, "1.2.3.4"))
+		})
+
+		It("still blocks a denylisted domain", func(ctx context.Context) {
+			msg := util.NewMsgWithQuestion("blockeddomain.com.", A)
+			Expect(doDNSRequest(ctx, blocky, msg)).
+				Should(BeDNSRecord("blockeddomain.com.", A, "0.0.0.0"))
+		})
+
+		It("allows a denylisted domain that the allowlist group excepts", func(ctx context.Context) {
+			msg := util.NewMsgWithQuestion("social.example.com.", A)
+			Expect(doDNSRequest(ctx, blocky, msg)).
+				Should(BeDNSRecord("social.example.com.", A, "5.6.7.8"))
 		})
 	})
 })

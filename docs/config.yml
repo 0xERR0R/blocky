@@ -93,7 +93,8 @@ blocking:
       - https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
   # definition of allowlist groups.
   # Note: if the same group has both allow/denylists, allowlists take precedence. Meaning if a domain is both blocked and allowed, it will be allowed.
-  # If a group has only allowlist entries, only domains from this list are allowed, and all others be blocked.
+  # If every group assigned to a client has only allowlist entries, that client is in exclusive
+  # allow mode: only domains from those lists are allowed, and all others are blocked.
   allowlists:
     ads:
       - allowlist.txt

@@ -799,8 +799,10 @@ The supported list formats are:
 
 !!! warning
 
-    If the same group has **both** allow/denylists, allowlists take precedence. Meaning if a domain is both blocked and allowed, it will be allowed.
-    If a group has **only allowlist** entries, only domains from this list are allowed, and all others be blocked.
+    Allowlists take precedence over denylists: if a domain is both blocked and allowed, it will be allowed.
+    This holds across **all** groups assigned to a client, so an allowlist in one group also excepts a domain that another of the client's groups denies. That is how you add client-specific exceptions to a shared denylist without duplicating it.
+
+    If **every** group assigned to a client has only allowlist entries, that client switches to exclusive allow mode: only the domains on those allowlists are resolved, everything else is blocked. Giving the client at least one group with denylist entries keeps the normal behavior, where allowlists are exceptions.
 
 !!! warning
     You must also define a client group mapping, otherwise the allow/denylist definitions will have no effect.
@@ -870,6 +872,7 @@ Rules:
 2. If a list group has multiple schedules, they are combined with OR logic (any active schedule enables the list).
 3. Schedules use local server time. During daylight-saving transitions, only the specific skipped minutes are unobservable (a window overlapping the gap fires for its non-skipped portion); windows in the repeated hour fire twice.
 4. Scheduling an allowlist-only group (a group that has allowlist entries but no denylist entries) time-gates that group's allowlist enforcement: outside the schedule, that allowlist is not consulted. Other active groups for the client (denylists or other allowlist-only groups) are still evaluated normally.
+5. Whether a client is in exclusive allow mode (see [Definition allow/denylists](#definition-allowdenylists)) follows from its configured groups, not from which of them are currently active. A schedule that deactivates the client's denylist group therefore never turns the client's remaining allowlists into a whitelist.
 
 Each schedule supports:
 

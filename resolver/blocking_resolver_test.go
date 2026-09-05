@@ -1104,6 +1104,95 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			})
 		})
 
+		// A client that has a denylist group uses its allowlists as exceptions to that
+		// denylist, not as a whitelist: an allowlist-only group mixed into such a client
+		// must not put the whole client into "allow nothing else" mode (issue #2207).
+		When("An allowlist-only group is combined with a denylist group for the same client", func() {
+			var mixedDenyFile, mixedAllowFile *TmpFile
+
+			BeforeEach(func() {
+				mixedDenyFile = tmpDir.CreateStringFile("mixedDenyFile", "ads.example.com", "social.example.com")
+				mixedAllowFile = tmpDir.CreateStringFile("mixedAllowFile", "social.example.com")
+
+				sutConfig = config.Blocking{
+					BlockType: "ZEROIP",
+					BlockTTL:  config.Duration(60 * time.Second),
+					Denylists: map[string][]config.BytesSource{
+						"ads": config.NewBytesSources(mixedDenyFile.Path),
+					},
+					Allowlists: map[string][]config.BytesSource{
+						"exceptions": config.NewBytesSources(mixedAllowFile.Path),
+					},
+					ClientGroupsBlock: map[string][]string{
+						"default": {"ads"},
+						"laptop":  {"ads", "exceptions"},
+					},
+				}
+			})
+
+			It("resolves a domain that is on neither list", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("wikipedia.org.", A, "1.2.1.2", "laptop"))).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+
+				m.AssertExpectations(GinkgoT())
+			})
+
+			It("still blocks a denylisted domain, naming the group that blocked it", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("ads.example.com.", A, "1.2.1.2", "laptop"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("ads.example.com.", A, "0.0.0.0"),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeSuccess),
+							HaveReason("BLOCKED (ads: ads.example.com)"),
+						))
+			})
+
+			It("allows a domain the allowlist-only group excepts from the other group's denylist", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("social.example.com.", A, "1.2.1.2", "laptop"))).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+
+				m.AssertExpectations(GinkgoT())
+			})
+
+			It("leaves clients that do not have the allowlist-only group unaffected", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("social.example.com.", A, "1.2.1.3", "phone"))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("social.example.com.", A, "0.0.0.0"),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeSuccess),
+							HaveReason("BLOCKED (ads: social.example.com)"),
+						))
+			})
+
+			// Deactivating the denylist group must not promote the remaining allowlist
+			// into a whitelist: disabling blocking can only ever block less, never more.
+			It("does not switch to allowlist-only mode when the denylist group is disabled", func() {
+				Expect(sut.DisableBlocking(ctx, 0, []string{"ads"})).Should(Succeed())
+
+				Expect(sut.Resolve(ctx, newRequestWithClient("wikipedia.org.", A, "1.2.1.2", "laptop"))).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+
+				m.AssertExpectations(GinkgoT())
+			})
+		})
+
 		When("IP address is on black and allowlist", func() {
 			BeforeEach(func() {
 				sutConfig = config.Blocking{
