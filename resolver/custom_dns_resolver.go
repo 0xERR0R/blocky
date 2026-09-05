@@ -169,13 +169,13 @@ func (r *CustomDNSResolver) processRequest(
 				break
 			}
 
-			// return NOERROR/NODATA with an SOA record in the authority section (RFC 2308),  
-			// so caching resolvers know how long to cache the negative result  
-			response := model.NewResponseWithReason(request, model.ResponseTypeCUSTOMDNS, "CUSTOM DNS")  
-			soa := util.CreateSOAForNegativeResponse(question, r.cfg.CustomTTL.SecondsU32())  
-			response.Res.Ns = []dns.RR{soa}  
-  
-			return response, nil  
+			// return NOERROR/NODATA with an SOA record in the authority section (RFC 2308),
+			// so caching resolvers know how long to cache the negative result
+			response := model.NewResponseWithReason(request, model.ResponseTypeCUSTOMDNS, "CUSTOM DNS")
+			soa := util.CreateSOAForNegativeResponse(question, r.cfg.CustomTTL.SecondsU32())
+			response.Res.Ns = []dns.RR{soa}
+
+			return response, nil
 		}
 
 		if i := strings.IndexRune(domain, '.'); i >= 0 {

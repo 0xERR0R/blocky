@@ -173,11 +173,12 @@ var _ = Describe("CustomDNSResolver", func() {
 					// will not delegate to next resolver
 					m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
 				})
-				It("TXT query for defined mapping should return NOERROR and empty result", func() {
+				It("TXT query for defined mapping should return NOERROR with an SOA in the authority section", func() {
 					Expect(sut.Resolve(ctx, newRequest("custom.domain.", TXT))).
 						Should(
 							SatisfyAll(
 								HaveNoAnswer(),
+								HaveSOARecord(TTL, TTL),
 								HaveResponseType(ResponseTypeCUSTOMDNS),
 								HaveReason("CUSTOM DNS"),
 								HaveReturnCode(dns.RcodeSuccess),
@@ -185,11 +186,12 @@ var _ = Describe("CustomDNSResolver", func() {
 					// will not delegate to next resolver
 					m.AssertNotCalled(GinkgoT(), "Resolve", mock.Anything)
 				})
-				It("ip6 query should return NOERROR and empty result", func() {
+				It("ip6 query should return NOERROR with an SOA in the authority section", func() {
 					Expect(sut.Resolve(ctx, newRequest("custom.domain.", AAAA))).
 						Should(
 							SatisfyAll(
 								HaveNoAnswer(),
+								HaveSOARecord(TTL, TTL),
 								HaveResponseType(ResponseTypeCUSTOMDNS),
 								HaveReason("CUSTOM DNS"),
 								HaveReturnCode(dns.RcodeSuccess),
