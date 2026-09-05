@@ -12,8 +12,10 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/avast/retry-go/v4"
@@ -250,6 +252,94 @@ func (r *httpUpstreamClient) Close() error {
 	return nil
 }
 
+// dohMaxAttempts bounds how often a single DoH query is re-sent after failing on
+// a reused keep-alive connection. Two attempts cover the common case — the pool
+// held a dead connection, discard it and dial — and the third covers a stale
+// connection that discarding the pool did not reach (see do).
+const dohMaxAttempts = 3
+
+// do sends the packed query to the upstream, retrying on a fresh connection when
+// an attempt failed on a reused keep-alive connection.
+//
+// Public DoH resolvers close idle connections after a few seconds, and a
+// connection closed while it sits in the client's keep-alive pool cannot be
+// detected up front: the request is written into an already-closed socket and
+// the read then fails without the query ever being served (`EOF` over HTTP/1.1,
+// `unexpected EOF` over HTTP/2). net/http does not retry that itself — a POST
+// with a body is not replayable, and http2 does not count an unexpected EOF as
+// retryable — so without this the failure surfaces to the caller. This mirrors
+// what connPool.exchange does for DoT: reuse never surfaces a spurious error.
+//
+// Discarding the idle connections usually leaves nothing stale for the retry to
+// draw, but not always: a connection another in-flight query returns lands in
+// the pool afterwards, and over HTTP/2 a stale connection still carrying streams
+// is not idle, so it survives. A retry can therefore be stale in turn, which is
+// why attempts are repeated up to dohMaxAttempts times rather than once.
+//
+// Only a failure on a reused connection is retried. A fresh connection that
+// fails says the upstream itself is unhealthy, which is for the caller's retry
+// and IP rotation to handle, as are timeouts and a cancelled context
+// (see shouldRedial).
+func (r *httpUpstreamClient) do(
+	ctx context.Context, rawDNSMessage []byte, upstreamURL string,
+) (*http.Response, error) {
+	var (
+		resp   *http.Response
+		reused bool
+		err    error
+	)
+
+	for attempt := range dohMaxAttempts {
+		if attempt > 0 {
+			// The upstream turned out to be closing pooled connections, so every
+			// other idle connection to it is just as likely to be dead: discard them
+			// all, or this attempt could draw a second stale connection.
+			r.client.CloseIdleConnections()
+		}
+
+		resp, reused, err = r.attempt(ctx, rawDNSMessage, upstreamURL)
+		if err == nil || !reused || !shouldRedial(ctx, err) {
+			return resp, err
+		}
+
+		// Do only returns a response alongside an error when redirect handling
+		// failed, but that response still holds a body we're about to drop.
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+	}
+
+	return resp, err
+}
+
+// attempt performs a single DoH request, reporting whether it went out on a
+// connection reused from the keep-alive pool.
+func (r *httpUpstreamClient) attempt(
+	ctx context.Context, rawDNSMessage []byte, upstreamURL string,
+) (*http.Response, bool, error) {
+	// atomic because httptrace makes no promise about which goroutine calls the hook.
+	var reused atomic.Bool
+
+	ctx = httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
+		GotConn: func(info httptrace.GotConnInfo) { reused.Store(info.Reused) },
+	})
+
+	// The body is built per attempt: a retry cannot reuse the reader the failed
+	// attempt already consumed.
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, upstreamURL, bytes.NewReader(rawDNSMessage))
+	if err != nil {
+		return nil, false, fmt.Errorf("can't create the new request %w", err)
+	}
+
+	req.Header.Set("User-Agent", r.userAgent)
+	req.Header.Set("Content-Type", dnsContentType)
+	req.Host = r.host
+
+	resp, err := r.client.Do(req)
+
+	return resp, reused.Load(), err
+}
+
 func (r *httpUpstreamClient) callExternal(
 	ctx context.Context, msg *dns.Msg, upstreamURL string,
 ) (*dns.Msg, time.Duration, error) {
@@ -260,16 +350,7 @@ func (r *httpUpstreamClient) callExternal(
 		return nil, 0, fmt.Errorf("can't pack message: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, upstreamURL, bytes.NewReader(rawDNSMessage))
-	if err != nil {
-		return nil, 0, fmt.Errorf("can't create the new request %w", err)
-	}
-
-	req.Header.Set("User-Agent", r.userAgent)
-	req.Header.Set("Content-Type", dnsContentType)
-	req.Host = r.host
-
-	httpResponse, err := r.client.Do(req)
+	httpResponse, err := r.do(ctx, rawDNSMessage, upstreamURL)
 	if err != nil {
 		return nil, 0, fmt.Errorf("can't perform https request: %w", err)
 	}

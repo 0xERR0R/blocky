@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -30,6 +31,36 @@ var _ = Describe("HTTP Util", func() {
 				// Non nil func field comparers
 				cmp.Comparer(cmpAsPtrs[func(context.Context, string, string) (net.Conn, error)]),
 				cmp.Comparer(cmpAsPtrs[func(*http.Request) (*url.URL, error)]),
+			)).Should(BeEmpty())
+		})
+
+		It("copies every field from its namesake", func() {
+			// http.DefaultTransport leaves most fields at their zero value, so a
+			// field copied from the wrong source is invisible when comparing
+			// against it: 0 == 0. Compare against a base whose fields all hold
+			// distinct values instead, which pins each copy to its own namesake.
+			DeferCleanup(func(orig *http.Transport) { baseTransport = orig }, baseTransport)
+
+			baseTransport = &http.Transport{
+				DisableCompression:     true,
+				DisableKeepAlives:      false,
+				ForceAttemptHTTP2:      true,
+				ExpectContinueTimeout:  1 * time.Second,
+				IdleConnTimeout:        2 * time.Second,
+				ResponseHeaderTimeout:  3 * time.Second,
+				TLSHandshakeTimeout:    4 * time.Second,
+				MaxConnsPerHost:        11,
+				MaxIdleConns:           22,
+				MaxIdleConnsPerHost:    33,
+				MaxResponseHeaderBytes: 44,
+				ReadBufferSize:         55,
+				WriteBufferSize:        66,
+				ProxyConnectHeader:     http.Header{"X-Test": []string{"1"}},
+			}
+
+			Expect(cmp.Diff(
+				DefaultHTTPTransport(), baseTransport,
+				cmpopts.IgnoreUnexported(http.Transport{}),
 			)).Should(BeEmpty())
 		})
 	})
