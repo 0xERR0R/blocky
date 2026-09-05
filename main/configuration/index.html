@@ -2814,7 +2814,7 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fast</span>
 <span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
 <span class="w">    </span><span class="c1"># these external DNS resolvers will be used. Blocky picks 2 random resolvers from the list for each query</span>
-<span class="w">    </span><span class="c1"># format for resolver: [net:]host:[port][/path][#commonname]. net could be empty (default, shortcut for tcp+udp), tcp+udp, tcp, udp, tcp-tls or https (DoH). If port is empty, default port will be used (53 for udp and tcp, 853 for tcp-tls, 443 for https (Doh))</span>
+<span class="w">    </span><span class="c1"># format for resolver: [net:]host[:port][/path][#commonname]. net could be empty (default, shortcut for tcp+udp), tcp+udp, tcp-tls, https (DoH) or quic (DoQ). If port is empty, default port will be used (53 for tcp+udp, 853 for tcp-tls and quic, 443 for https (DoH))</span>
 <span class="w">    </span><span class="c1"># alternative format: DNS Stamp (sdns://...) - compact format that encodes all parameters including optional certificate hashes for automatic certificate pinning</span>
 <span class="w">    </span><span class="c1"># this configuration is mandatory, please define at least one external DNS resolver</span>
 <span class="w">    </span><span class="nt">default</span><span class="p">:</span>
@@ -3739,7 +3739,7 @@ following network protocols (net part of the resolver URL):</p>
 Per default blocky uses the <code>parallel_best</code> upstream strategy where blocky picks 2 random resolvers from the list for each query and
 returns the answer from the fastest one.</p>
 </div>
-<p>Each resolver must be defined as a string in following format: <code>[net:]host:[port][/path][#commonName]</code>.</p>
+<p>Each resolver must be defined as a string in following format: <code>[net:]host[:port][/path][#commonName]</code>.</p>
 <table>
 <thead>
 <tr>
@@ -3769,6 +3769,12 @@ returns the answer from the fastest one.</p>
 <td>53 for udp/tcp, 853 for tcp-tls and quic, 443 for https</td>
 </tr>
 <tr>
+<td>path</td>
+<td>string</td>
+<td>no</td>
+<td>only relevant for https (<abbr title="DNS-over-HTTPS">DoH</abbr>); ignored for other protocols</td>
+</tr>
+<tr>
 <td>commonName</td>
 <td>string</td>
 <td>no</td>
@@ -3777,6 +3783,8 @@ returns the answer from the fastest one.</p>
 </tbody>
 </table>
 <p>The <code>commonName</code> parameter overrides the expected certificate common name value used for verification.</p>
+<p>The <code>path</code> parameter is only used by the <code>https</code> (<abbr title="DNS-over-HTTPS">DoH</abbr>) protocol, where it is the URL path of the
+<abbr title="Domain Name System">DNS</abbr> endpoint (for example <code>/dns-query</code>). It is accepted but ignored for all other protocols.</p>
 <h4 id="dns-stamp-format"><abbr title="Domain Name System">DNS</abbr> Stamp Format</h4>
 <p>As an alternative to the traditional format, Blocky supports <strong><abbr title="Domain Name System">DNS</abbr> Stamps</strong> (<code>sdns://...</code>), which encode all connection parameters in a compact, shareable format.</p>
 <p><abbr title="Domain Name System">DNS</abbr> Stamps are standardized URIs (following IETF draft-denis-dns-stamps) that include protocol, address, hostname, path, and optional certificate hashes in a single string.</p>
