@@ -1176,7 +1176,7 @@ The `sqlite` target stores the query log in a single local file (set via `queryL
     - NetBSD other than `netbsd/amd64`, and OpenBSD other than `openbsd/amd64` and `openbsd/arm64`
     - Solaris and illumos
 
-    Among the official release builds this affects **`linux/mips`, `linux/mipsle`, `linux/mips64`, `linux/mips64le`, `netbsd/arm`, `netbsd/arm64` and `openbsd/arm`**. On those builds, selecting `sqlite` fails at startup with a clear error message — use the `csv`, `mysql` or `postgresql` query log target instead. All other targets (including `linux/amd64`, `linux/arm`, `linux/arm64`, `windows/amd64` and `darwin`) support `sqlite`.
+    Among the official release builds this affects **`linux/mips`, `linux/mipsle`, `linux/mips64`, `linux/mips64le`, `netbsd/arm`, `netbsd/arm64` and `openbsd/arm`**. On those builds, selecting `sqlite` fails at startup with a clear error message — use the `csv`, `mysql`, `postgresql` or `timescale` query log target instead. All other targets (including `linux/amd64`, `linux/arm`, `linux/arm64`, `windows/amd64` and `darwin`) support `sqlite`.
 
 Set `queryLog.target` to a **plain filesystem path**. Do **not** prefix it with `file:` — for query-log targets that prefix means "read the target value from this file" (see the [Redis tip](#redis)), so `file:/var/lib/blocky/querylog.db` would be treated as a file to read the path *from*, not as the database itself.
 
