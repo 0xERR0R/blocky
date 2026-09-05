@@ -525,11 +525,32 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 					Should(
 						SatisfyAll(
 							HaveNoAnswer(),
+							WithTransform(ToAuthority, BeEmpty()),
 							HaveResponseType(ResponseTypeBLOCKED),
 							HaveReturnCode(dns.RcodeRefused),
 							HaveReason("BLOCKED (defaultGroup: blocked3.com)"),
 						))
 			})
+
+			// Unlike zeroIP and custom IPs, which fall back to NXDOMAIN for anything
+			// but A/AAAA, refused answers every query type the same way.
+			DescribeTable("should return REFUSED for every query type",
+				func(qType dns.Type) {
+					Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", qType, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								HaveNoAnswer(),
+								WithTransform(ToAuthority, BeEmpty()),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReturnCode(dns.RcodeRefused),
+								HaveReason("BLOCKED (defaultGroup: blocked3.com)"),
+							))
+				},
+				Entry("AAAA", AAAA),
+				Entry("TXT", TXT),
+				Entry("MX", MX),
+				Entry("HTTPS", HTTPS),
+			)
 		})
 
 		When("BlockType is NXDOMAIN with custom BlockTTL", func() {
