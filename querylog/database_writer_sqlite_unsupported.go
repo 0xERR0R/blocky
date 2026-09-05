@@ -1,9 +1,10 @@
-//go:build mips || mipsle || mips64 || mips64le || loong64 || (netbsd && !amd64) || (openbsd && !amd64 && !arm64) || illumos
+//go:build mips || mipsle || mips64 || mips64le || loong64 || (netbsd && !amd64) || (openbsd && !amd64 && !arm64) || solaris
 
 // This is the exact complement of the constraint in database_writer_sqlite.go: the
 // GOOS/GOARCH targets where the pure-Go SQLite driver chain (github.com/glebarez/
 // sqlite -> modernc.org/sqlite) ships no generated code, e.g. linux/mips,
-// linux/mipsle, netbsd/arm and openbsd/arm. Keep the two constraints in sync.
+// linux/mipsle, netbsd/arm, openbsd/arm, solaris and illumos. Keep this constraint in
+// sync with the two in database_writer_sqlite.go and database_writer_test.go.
 
 package querylog
 
