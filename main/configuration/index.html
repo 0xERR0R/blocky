@@ -2944,6 +2944,8 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">  </span><span class="c1"># which response will be sent, if query is blocked:</span>
 <span class="w">  </span><span class="c1"># zeroIp: 0.0.0.0 will be returned (default)</span>
 <span class="w">  </span><span class="c1"># nxDomain: return NXDOMAIN as return code</span>
+<span class="w">  </span><span class="c1"># refused: return REFUSED as return code, for every query type. Note that stub resolvers commonly treat REFUSED</span>
+<span class="w">  </span><span class="c1">#   as a server failure and fall back to another configured DNS server, which bypasses blocking.</span>
 <span class="w">  </span><span class="c1"># comma separated list of destination IP addresses (for example: 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344). Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page.</span>
 <span class="w">  </span><span class="nt">blockType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">zeroIp</span>
 <span class="w">  </span><span class="c1"># optional: TTL for answers to blocked domains</span>
@@ -4494,8 +4496,9 @@ If client's IP address matches with the result, the defined group will be used.<
 <p>In this example, <code>ads</code> is always active (no schedule mapping), while <code>social</code> is active during work hours or night window.</p>
 </div>
 <h3 id="block-type">Block type</h3>
-<p>You can configure, which response should be sent to the client, if a requested query is blocked (only for A and AAAA
-queries, <abbr title="Non-Existence Domain">NXDOMAIN</abbr> for other types):</p>
+<p>You can configure, which response should be sent to the client, if a requested query is blocked. The <code>zeroIP</code> and
+custom IP modes answer only A and AAAA queries and return <abbr title="Non-Existence Domain">NXDOMAIN</abbr> for other types, while <code>nxDomain</code> and <code>refused</code>
+apply to every query type:</p>
 <table>
 <thead>
 <tr>
@@ -4516,6 +4519,11 @@ queries, <abbr title="Non-Existence Domain">NXDOMAIN</abbr> for other types):</p
 <td>return <abbr title="Non-Existence Domain">NXDOMAIN</abbr> as return code</td>
 </tr>
 <tr>
+<td>refused</td>
+<td>refused</td>
+<td>return REFUSED as return code for every query type, with no answer or authority records. <strong>Caveat:</strong> stub resolvers and forwarders commonly treat REFUSED as a server failure and fall back to another configured <abbr title="Domain Name System">DNS</abbr> server, which bypasses blocking.</td>
+</tr>
+<tr>
 <td>custom IPs</td>
 <td>192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344</td>
 <td>comma separated list of destination IP addresses. Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page.</td>
@@ -4530,13 +4538,16 @@ queries, <abbr title="Non-Existence Domain">NXDOMAIN</abbr> for other types):</p
 </div>
 <h3 id="block-ttl">Block <abbr title="Time-To-Live">TTL</abbr></h3>
 <p><abbr title="Time-To-Live">TTL</abbr> for answers to blocked domains can be set to customize the time (in <strong><abbr title="Example: &quot;300ms&quot;, &quot;1.5h&quot; or &quot;2h45m&quot;. Valid time units are &quot;ns&quot;, &quot;us&quot;, &quot;ms&quot;, &quot;s&quot;, &quot;m&quot;, &quot;h&quot;.">duration format</abbr></strong>) clients ask for those
-domains again. Default Block <abbr title="Time-To-Live">TTL</abbr> is <strong>6 hours</strong>. This setting applies to all blocking modes and will affect how much
-time it could take for a client to be able to see the real IP address for a domain after receiving the blocked response.</p>
+domains again. Default Block <abbr title="Time-To-Live">TTL</abbr> is <strong>6 hours</strong>. It applies to every blocking mode that returns records (<code>zeroIP</code>,
+<code>nxDomain</code> and custom IPs) and will affect how much time it could take for a client to be able to see the real IP
+address for a domain after receiving the blocked response.</p>
 <p><strong>For <code>zeroIP</code> and custom IP modes:</strong> The <abbr title="Time-To-Live">TTL</abbr> is applied to the returned A/AAAA records in the answer section.</p>
 <p><strong>For <code>nxDomain</code> mode:</strong> The <abbr title="Time-To-Live">TTL</abbr> is applied to the SOA record in the authority section. Per <a href="https://www.rfc-editor.org/rfc/rfc2308">RFC 2308</a>,
 Blocky includes an SOA record in <abbr title="Non-Existence Domain">NXDOMAIN</abbr> responses to enable proper negative caching by stub resolvers.
 The blockTTL value is used for both the SOA's <abbr title="Time-To-Live">TTL</abbr> and its MINIMUM field, ensuring clients cache the
 <abbr title="Non-Existence Domain">NXDOMAIN</abbr> response for the configured duration.</p>
+<p><strong>For <code>refused</code> mode:</strong> The response carries no answer or authority records, so blockTTL has no effect. An OPT
+record may still be present in the additional section for EDNS0 queries.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
 <div class="highlight"><pre><span></span><code><span class="nt">blocking</span><span class="p">:</span>
