@@ -438,10 +438,11 @@ them to the allowlist. Entries match the domain itself and all of its subdomains
 done on the name of the inspected query, so a `CNAME` inside an upstream answer pointing at an
 allowlisted name does not bypass the protection (for `customDNS` `CNAME` entries the inspected
 query is the lookup of the CNAME target, so allowlist the **target** name, not the entry's
-name). If `customDNS.rewrite` rules apply to the query, matching uses the rewritten name —
-allowlist the rewritten form (`conditional.rewrite` rules do not affect matching). Entries must
-be plain domain names: wildcards (`*.example.com`), regexes and whitespace are rejected at
-startup, and internationalized domains must be given in punycode (`xn--…`) form.
+name). Rewrite rules do not affect matching: a `customDNS.rewrite` or `conditional.rewrite`
+target is used only for that resolver's own lookup and is never handed down the chain, so
+allowlist the name the client asks for. Entries must be plain domain names: wildcards
+(`*.example.com`), regexes and whitespace are rejected at startup, and internationalized domains
+must be given in punycode (`xn--…`) form.
 
 !!! example
 
@@ -650,6 +651,7 @@ hostname belongs to which IP address, all DNS queries for the local network shou
 The optional parameter `rewrite` behaves the same as with custom DNS.
 
 The optional parameter `fallbackUpstream`, if false (default), return empty result if after rewrite, the mapped resolver returned an empty answer. If true, the original query will be sent to the upstream resolver.
+It only has an effect together with `rewrite`; without any rewrite rules it is ignored.
 
 **Usage:** One usecase when having split DNS for internal and external (internet facing) users, but not all subdomains are listed in the internal domain
 

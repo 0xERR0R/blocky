@@ -547,4 +547,65 @@ var _ = Describe("RebindingProtectionResolver", func() {
 			})
 		})
 	})
+
+	When("chained below a rewriting customDNS resolver", func() {
+		// customDNS sits above this resolver and hands the *original* name down the
+		// chain: a `customDNS.rewrite` target is used only for its own mapping lookup
+		// and never leaves the resolver. The allowlist therefore matches the name the
+		// client asked for, not the rewrite target.
+		var chained ChainedResolver
+
+		JustBeforeEach(func() {
+			customDNS := NewCustomDNSResolver(config.CustomDNS{
+				RewriterConfig: config.RewriterConfig{
+					Rewrite: map[string]string{"source.test": "target.test"},
+				},
+				// the rewritten name is not in the mapping, so the query continues
+				// down the chain and reaches the rebinding protection
+				Mapping: config.CustomDNSMapping{"unrelated.lan": nil},
+			})
+
+			m = &mockResolver{}
+			m.On("Resolve", mock.Anything).Return(nil, nil)
+			m.ResolveFn = func(_ context.Context, req *Request) (*Response, error) {
+				res, err := util.NewMsgWithAnswer(req.Req.Question[0].Name, 300, A, "192.168.1.5")
+				Expect(err).Should(Succeed())
+
+				return &Response{Res: res, RType: ResponseTypeRESOLVED, Reason: "RESOLVED"}, nil
+			}
+
+			chained = Chain(customDNS, sut, m)
+		})
+
+		When("the name the client asked for is allowlisted", func() {
+			BeforeEach(func() {
+				sutConfig = config.RebindingProtection{
+					Enable:         true,
+					AllowedDomains: []string{"source.test"},
+				}
+			})
+
+			It("passes the private answer through", func() {
+				Expect(chained.Resolve(ctx, newRequest("www.source.test.", A))).
+					Should(SatisfyAll(
+						BeDNSRecord("www.source.test.", A, "192.168.1.5"),
+						HaveResponseType(ResponseTypeRESOLVED),
+					))
+			})
+		})
+
+		When("only the rewrite target is allowlisted", func() {
+			BeforeEach(func() {
+				sutConfig = config.RebindingProtection{
+					Enable:         true,
+					AllowedDomains: []string{"target.test"},
+				}
+			})
+
+			It("filters the answer", func() {
+				Expect(chained.Resolve(ctx, newRequest("www.source.test.", A))).
+					Should(HaveResponseType(ResponseTypeREBIND))
+			})
+		})
+	})
 })
