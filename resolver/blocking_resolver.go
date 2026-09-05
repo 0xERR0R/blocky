@@ -480,24 +480,12 @@ func (r *BlockingResolver) LogConfig(logger *logrus.Entry) {
 	log.WithIndent(logger, "  ", r.allowlistMatcher.LogConfig)
 }
 
-func (r *BlockingResolver) hasAllowlistOnlyAllowed(groupsToCheck []string) bool {
-	for _, group := range groupsToCheck {
-		if _, found := r.allowlistOnlyGroups[group]; found {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (r *BlockingResolver) handleDenylist(ctx context.Context, groupsToCheck []string,
+func (r *BlockingResolver) handleDenylist(ctx context.Context, groupsToCheck []string, allowlistOnly bool,
 	request *model.Request, logger *logrus.Entry,
 ) (bool, *model.Response, error) {
 	if isDebugEnabled(logger) {
 		logger.WithField("groupsToCheck", strings.Join(groupsToCheck, "; ")).Debug("checking groups for request")
 	}
-
-	allowlistOnlyAllowed := r.hasAllowlistOnlyAllowed(groupsToCheck)
 
 	for _, question := range request.Req.Question {
 		domain := util.ExtractDomain(question)
@@ -514,7 +502,7 @@ func (r *BlockingResolver) handleDenylist(ctx context.Context, groupsToCheck []s
 			return true, resp, err
 		}
 
-		if allowlistOnlyAllowed {
+		if allowlistOnly {
 			resp, err := r.handleBlocked(logger, request, question, "BLOCKED (ALLOWLIST ONLY)", "")
 			if err != nil {
 				err = fmt.Errorf("failed to handle allowlist-only block for %s: %w", domain, err)
@@ -544,10 +532,10 @@ func (r *BlockingResolver) Resolve(ctx context.Context, request *model.Request) 
 	}
 
 	ctx, logger := r.log(ctx)
-	groupsToCheck := r.groupsToCheckForClient(request)
+	groupsToCheck, allowlistOnly := r.groupsToCheckForClient(request)
 
 	if len(groupsToCheck) > 0 {
-		handled, resp, err := r.handleDenylist(ctx, groupsToCheck, request, logger)
+		handled, resp, err := r.handleDenylist(ctx, groupsToCheck, allowlistOnly, request, logger)
 		if handled {
 			return resp, err
 		}
@@ -591,8 +579,10 @@ func extractEntryToCheckFromResponse(rr dns.RR) (entryToCheck, tName string) {
 	return entryToCheck, tName
 }
 
-// returns groups which should be checked for client's request
-func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []string {
+// groupsToCheckForClient returns the groups which should be checked for the client's
+// request, and whether those groups form an exclusive allowlist (block everything not
+// allowlisted).
+func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) ([]string, bool) {
 	// Snapshot disabledGroups under a brief read lock, then release it before the
 	// (lock-free) group collection and filtering below. The field's invariant
 	// (reassigned wholesale, never mutated in place) is what keeps the captured
@@ -608,6 +598,21 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 	if len(groups) == 0 {
 		// return default
 		groups = r.clientGroups.byID["default"]
+	}
+
+	// Exclusive mode is derived from the client's configured groups, not from the
+	// active ones filtered below: a client that also has a denylist group uses its
+	// allowlists as exceptions to that denylist, so deactivating the denylist group
+	// -- via a schedule or the disable API -- must not promote those exceptions into
+	// a whitelist that blocks everything else.
+	allowlistOnly := len(groups) > 0
+
+	for _, sg := range groups {
+		if !r.allowlistOnlyGroups[sg.group] {
+			allowlistOnly = false
+
+			break
+		}
 	}
 
 	now := time.Now()
@@ -635,7 +640,7 @@ func (r *BlockingResolver) groupsToCheckForClient(request *model.Request) []stri
 		sort.Strings(result)
 	}
 
-	return result
+	return result, allowlistOnly
 }
 
 func isAnyScheduleActive(schedules []*config.Schedule, now time.Time) bool {
