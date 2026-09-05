@@ -1329,6 +1329,74 @@ var _ = Describe("Running DNS server", func() {
 			})
 		})
 
+		When("the client sent a DNS Cookie", func() {
+			// Blocky doesn't implement DNS Cookies (RFC 7873): it can neither produce a Server
+			// Cookie of its own nor validate one a client returns. An upstream's cookie must
+			// therefore not reach the client, and the client's cookie must not reach an upstream.
+			const (
+				clientCookie = "0102030405060708"
+				serverCookie = "1112131415161718"
+			)
+
+			var upstreamRequest *dns.Msg
+
+			// chainWithUpstreamCookie records the request as the chain saw it and answers like a
+			// cookie-supporting upstream.
+			chainWithUpstreamCookie := func(req *model.Request) *dns.Msg {
+				upstreamRequest = req.Req.Copy()
+
+				res := chainResponse.SetReply(req.Req)
+				res.SetEdns0(4096, false)
+				util.SetEdns0Option(res, &dns.EDNS0_COOKIE{
+					Code: dns.EDNS0COOKIE, Cookie: clientCookie + serverCookie,
+				})
+
+				return res
+			}
+
+			resolveWithCookie := func(udpSize uint16, do bool) *model.Response {
+				s := newServerWithChain(chainWithUpstreamCookie)
+
+				clientMsg := util.NewMsgWithQuestion("example.com.", A)
+				clientMsg.SetEdns0(udpSize, do)
+				util.SetEdns0Option(clientMsg, &dns.EDNS0_COOKIE{Code: dns.EDNS0COOKIE, Cookie: clientCookie})
+
+				_, req := newRequest(ctx, net.ParseIP("1.2.3.4"), "", model.RequestProtocolUDP, clientMsg)
+
+				resp, err := s.resolve(ctx, req)
+				Expect(err).Should(Succeed())
+
+				return resp
+			}
+
+			BeforeEach(func() {
+				upstreamRequest = nil
+			})
+
+			It("removes the upstream's COOKIE option from the response", func() {
+				resp := resolveWithCookie(1232, false)
+
+				Expect(resp.Res).ShouldNot(HaveEdnsOption(dns.EDNS0COOKIE))
+				Expect(resp.Res.IsEdns0()).ShouldNot(BeNil())
+			})
+
+			It("does not forward the client's COOKIE option upstream", func() {
+				resolveWithCookie(1232, false)
+
+				Expect(upstreamRequest).ShouldNot(BeNil())
+				Expect(upstreamRequest).ShouldNot(HaveEdnsOption(dns.EDNS0COOKIE))
+			})
+
+			It("keeps the OPT record sent upstream when the cookie was the only option", func() {
+				resolveWithCookie(1232, true)
+
+				Expect(upstreamRequest).ShouldNot(BeNil())
+				Expect(upstreamRequest.IsEdns0()).ShouldNot(BeNil())
+				Expect(upstreamRequest.IsEdns0().Do()).Should(BeTrue())
+				Expect(upstreamRequest.IsEdns0().UDPSize()).Should(BeNumerically("==", 1232))
+			})
+		})
+
 		When("the client left the DO bit clear", func() {
 			// RFC 4035 section 3.2.1: the DNSSEC records the chain requested upstream on the
 			// client's behalf must not be added to the response of a client that didn't ask.

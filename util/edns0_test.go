@@ -167,6 +167,80 @@ var _ = Describe("EDNS0 utils", func() {
 		})
 	})
 
+	Describe("RemoveEdns0OptionKeepRecord", func() {
+		When("the removed option is the only one in the OPT record", func() {
+			BeforeEach(func() {
+				opt := new(dns.OPT)
+				opt.Hdr.Name = "."
+				opt.Hdr.Rrtype = dns.TypeOPT
+				opt.SetUDPSize(1232)
+				opt.SetDo(true)
+				opt.Option = append(opt.Option, new(dns.EDNS0_COOKIE))
+				baseMsg.Extra = append(baseMsg.Extra, opt)
+			})
+
+			It("should keep the OPT record with its UDP size and DO bit", func() {
+				Expect(RemoveEdns0OptionKeepRecord[*dns.EDNS0_COOKIE](baseMsg)).Should(BeTrue())
+
+				Expect(baseMsg).ShouldNot(HaveEdnsOption(dns.EDNS0COOKIE))
+
+				opt := baseMsg.IsEdns0()
+				Expect(opt).ShouldNot(BeNil())
+				Expect(opt.UDPSize()).Should(BeNumerically("==", 1232))
+				Expect(opt.Do()).Should(BeTrue())
+			})
+		})
+
+		When("other options are present", func() {
+			BeforeEach(func() {
+				opt := new(dns.OPT)
+				opt.Hdr.Name = "."
+				opt.Hdr.Rrtype = dns.TypeOPT
+				opt.Option = append(opt.Option, new(dns.EDNS0_COOKIE), new(dns.EDNS0_SUBNET))
+				baseMsg.Extra = append(baseMsg.Extra, opt)
+			})
+
+			It("should remove only the given option", func() {
+				Expect(RemoveEdns0OptionKeepRecord[*dns.EDNS0_COOKIE](baseMsg)).Should(BeTrue())
+
+				Expect(baseMsg).ShouldNot(HaveEdnsOption(dns.EDNS0COOKIE))
+				Expect(baseMsg).Should(HaveEdnsOption(dns.EDNS0SUBNET))
+			})
+		})
+
+		When("Option is not present", func() {
+			BeforeEach(func() {
+				opt := new(dns.OPT)
+				opt.Hdr.Name = "."
+				opt.Hdr.Rrtype = dns.TypeOPT
+				opt.Option = append(opt.Option, new(dns.EDNS0_EDE))
+				baseMsg.Extra = append(baseMsg.Extra, opt)
+			})
+
+			It("should return false and keep the OPT record", func() {
+				Expect(RemoveEdns0OptionKeepRecord[*dns.EDNS0_COOKIE](baseMsg)).Should(BeFalse())
+
+				Expect(baseMsg.IsEdns0()).ShouldNot(BeNil())
+			})
+		})
+
+		When("Extra is nil", func() {
+			BeforeEach(func() {
+				baseMsg.Extra = nil
+			})
+
+			It("should return false", func() {
+				Expect(RemoveEdns0OptionKeepRecord[*dns.EDNS0_COOKIE](baseMsg)).Should(BeFalse())
+			})
+		})
+
+		When("message is nil", func() {
+			It("should return false", func() {
+				Expect(RemoveEdns0OptionKeepRecord[*dns.EDNS0_COOKIE](nil)).Should(BeFalse())
+			})
+		})
+	})
+
 	Describe("SetEdns0Option", func() {
 		When("Option is not present", func() {
 			var eso *dns.EDNS0_SUBNET
