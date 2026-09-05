@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -1162,6 +1163,100 @@ var _ = Describe("UpstreamResolver connection pooling", Label("upstreamResolver"
 			// Closing the server must close accepted connections too, so handleConn
 			// unblocks from ReadMsg and exits instead of leaking.
 			Eventually(mock.openConnCount).Should(Equal(0))
+		})
+	})
+
+	Describe("DoH connection reuse (#2238)", func() {
+		// newDoHResolver builds a resolver pointing at the mock server and trusts
+		// its self-signed certificate.
+		newDoHResolver := func(upstream config.Upstream) *UpstreamResolver {
+			cfg := newUpstreamConfig(upstream, defaultUpstreamsConfig)
+			r := newUpstreamResolverUnchecked(cfg, systemResolverBootstrap)
+			client := r.upstreamClient.(*httpUpstreamClient)
+			client.client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify = true
+
+			DeferCleanup(client.Close)
+
+			return r
+		}
+
+		It("reuses a single connection across multiple queries", func() {
+			mock := NewMockDoHUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
+			sut := newDoHResolver(mock.Start())
+
+			for range 3 {
+				Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+					Should(HaveReturnCode(dns.RcodeSuccess))
+			}
+
+			Expect(mock.GetCallCount()).Should(Equal(3))
+			// A single keep-alive connection serves all three queries.
+			Expect(mock.GetConnCount()).Should(Equal(1))
+		})
+
+		It("transparently recovers when the upstream closed a pooled connection", func() {
+			mock := NewMockDoHUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
+			sut := newDoHResolver(mock.Start())
+
+			Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+				Should(HaveReturnCode(dns.RcodeSuccess))
+
+			// The upstream drops the idle connection blocky still has pooled. The
+			// next query goes out on it and fails without ever being served.
+			mock.KillOpenConns()
+
+			Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+				Should(SatisfyAll(
+					BeDNSRecord("example.com.", A, "123.124.122.122"),
+					HaveResponseType(ResponseTypeRESOLVED),
+					HaveReturnCode(dns.RcodeSuccess),
+				))
+
+			// Two queries served, on a fresh connection for the second.
+			Expect(mock.GetCallCount()).Should(Equal(2))
+			Expect(mock.GetConnCount()).Should(Equal(2))
+		})
+
+		It("recovers when every pooled connection was closed", func() {
+			// Fill the idle pool with more than one connection, so a single retry
+			// could otherwise pick a second dead connection. The barrier keeps both
+			// queries in flight at once, so they cannot share one connection.
+			mock := NewMockDoHUpstreamServer().
+				WithAnswerRR("example.com 123 IN A 123.124.122.122").
+				WithConcurrentRequests(2)
+			sut := newDoHResolver(mock.Start())
+
+			var wg sync.WaitGroup
+			for range 2 {
+				wg.Add(1)
+
+				go func() {
+					defer GinkgoRecover()
+					defer wg.Done()
+
+					Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+						Should(HaveReturnCode(dns.RcodeSuccess))
+				}()
+			}
+
+			wg.Wait()
+			Expect(mock.GetConnCount()).Should(Equal(2))
+
+			mock.KillOpenConns()
+
+			Expect(sut.Resolve(ctx, newRequest("example.com.", A))).
+				Should(HaveReturnCode(dns.RcodeSuccess))
+		})
+
+		It("gives up instead of retrying forever when the upstream never answers", func() {
+			mock := NewMockDoHUpstreamServer().WithAnswerRR("example.com 123 IN A 123.124.122.122")
+			sut := newDoHResolver(mock.Start())
+
+			mock.KillAll()
+
+			_, err := sut.Resolve(ctx, newRequest("example.com.", A))
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("can't perform https request"))
 		})
 	})
 
