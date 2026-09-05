@@ -82,6 +82,13 @@ func (q clientQuery) normalizeResponse(res *dns.Msg) {
 	} else if opt := res.IsEdns0(); opt != nil {
 		// RFC 3225 §3: the DO bit of the query is copied into the response
 		opt.SetDo(q.wantsDNSSEC)
+
+		// Not every OPT reaching this point is the upstream's: util.SetEdns0Option, which the EDE
+		// resolver uses to annotate cache hits and blocked answers, builds one without a class
+		// field. RFC 6891 §6.2.4 makes a peer read that zero as 512 and shrink its buffer to match.
+		if opt.UDPSize() == 0 {
+			opt.SetUDPSize(dns.DefaultMsgSize)
+		}
 	} else {
 		// RFC 6891 §6.1.1: a response to an EDNS0 query must carry an OPT record. Cache hits
 		// are served from bytes packed without one; resolvers such as systemd-resolved read

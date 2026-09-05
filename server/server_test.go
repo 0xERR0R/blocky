@@ -1284,6 +1284,48 @@ var _ = Describe("Running DNS server", func() {
 				Expect(err).Should(Succeed())
 				Expect(resp.Res.IsEdns0()).ShouldNot(BeNil())
 				Expect(resp.Res.IsEdns0().Do()).Should(BeTrue())
+				Expect(resp.Res.IsEdns0().UDPSize()).Should(BeNumerically(">", 0))
+			})
+
+			It("adds an OPT record with the DO bit clear when the client cleared it", func() {
+				s := newServerWithChain(func(req *model.Request) *dns.Msg {
+					return chainResponse.SetReply(req.Req)
+				})
+
+				clientMsg := util.NewMsgWithQuestion("example.com.", A)
+				clientMsg.SetEdns0(1232, false)
+
+				_, req := newRequest(ctx, net.ParseIP("1.2.3.4"), "", model.RequestProtocolUDP, clientMsg)
+
+				resp, err := s.resolve(ctx, req)
+				Expect(err).Should(Succeed())
+				Expect(resp.Res.IsEdns0()).ShouldNot(BeNil())
+				Expect(resp.Res.IsEdns0().Do()).Should(BeFalse())
+				Expect(resp.Res.IsEdns0().UDPSize()).Should(BeNumerically(">", 0))
+			})
+		})
+
+		When("the response carries an OPT record blocky added itself", func() {
+			// util.SetEdns0Option, which the EDE resolver uses on cache hits and blocked answers,
+			// leaves the class field zero. RFC 6891 section 6.2.4 makes a peer read that as 512.
+			It("advertises a usable buffer size instead of zero", func() {
+				s := newServerWithChain(func(req *model.Request) *dns.Msg {
+					res := chainResponse.SetReply(req.Req)
+					util.SetEdns0Option(res, &dns.EDNS0_EDE{InfoCode: dns.ExtendedErrorCodeCachedError})
+
+					return res
+				})
+
+				clientMsg := util.NewMsgWithQuestion("example.com.", A)
+				clientMsg.SetEdns0(1232, true)
+
+				_, req := newRequest(ctx, net.ParseIP("1.2.3.4"), "", model.RequestProtocolUDP, clientMsg)
+
+				resp, err := s.resolve(ctx, req)
+				Expect(err).Should(Succeed())
+				Expect(resp.Res.IsEdns0()).ShouldNot(BeNil())
+				Expect(resp.Res.IsEdns0().Do()).Should(BeTrue())
+				Expect(resp.Res.IsEdns0().UDPSize()).Should(BeNumerically(">", 0))
 			})
 		})
 
