@@ -19,9 +19,13 @@ builds:
       - arm64
       - mipsle
       - mips
+      - mips64le
+      - mips64
     goarm:
       - 6
       - 7
+    # Applies to both MIPS families: goreleaser maps this to GOMIPS for
+    # mips/mipsle and to GOMIPS64 for mips64/mips64le.
     gomips:
       - softfloat
     ignore:
@@ -33,10 +37,18 @@ builds:
         goarch: mipsle
       - goos: windows
         goarch: mips
+      - goos: windows
+        goarch: mips64le
+      - goos: windows
+        goarch: mips64
       - goos: darwin
         goarch: mipsle
       - goos: darwin
         goarch: mips
+      - goos: darwin
+        goarch: mips64le
+      - goos: darwin
+        goarch: mips64
     ldflags:
       - -w
       - -s
