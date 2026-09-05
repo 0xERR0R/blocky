@@ -41,14 +41,17 @@ var _ = Describe("FQDN only mode", func() {
 			Expect(err).Should(Succeed())
 		})
 
-		It("should reject non-FQDN queries", func(ctx context.Context) {
+		It("should reject non-FQDN queries with NXDOMAIN", func(ctx context.Context) {
 			msg := util.NewMsgWithQuestion("myserver.", A)
+
+			// the rejection must be a reply the client accepts: one that echoes the request id
+			// and question. A bare Rcode-only message is discarded as an id mismatch, leaving
+			// the client to time out instead of seeing the NXDOMAIN.
 			resp, err := doDNSRequest(ctx, blocky, msg)
-			if err != nil {
-				// Any DNS error (connection refused, id mismatch, etc.) is a valid rejection
-				return
-			}
+			Expect(err).Should(Succeed())
 			Expect(resp.Rcode).Should(Equal(dns.RcodeNameError))
+			Expect(resp.Question).Should(Equal(msg.Question))
+			Expect(resp.Answer).Should(BeEmpty())
 		})
 
 		It("should resolve FQDN queries normally", func(ctx context.Context) {
