@@ -60,7 +60,7 @@ func BenchmarkBlockingGroupsToCheckLiteralName(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		if got := r.groupsToCheckForClient(req); len(got) == 0 {
+		if got, _ := r.groupsToCheckForClient(req); len(got) == 0 {
 			b.Fatal("expected at least one group")
 		}
 	}
@@ -75,7 +75,7 @@ func BenchmarkBlockingGroupsToCheckGlobName(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		if got := r.groupsToCheckForClient(req); len(got) == 0 {
+		if got, _ := r.groupsToCheckForClient(req); len(got) == 0 {
 			b.Fatal("expected at least one group")
 		}
 	}

@@ -184,16 +184,20 @@ following network protocols (net part of the resolver URL):
     Per default blocky uses the `parallel_best` upstream strategy where blocky picks 2 random resolvers from the list for each query and
     returns the answer from the fastest one.
 
-Each resolver must be defined as a string in following format: `[net:]host:[port][/path][#commonName]`.
+Each resolver must be defined as a string in following format: `[net:]host[:port][/path][#commonName]`.
 
 | Parameter  | Type                             | Mandatory | Default value                                     |
 | ---------- | -------------------------------- | --------- | ------------------------------------------------- |
 | net        | enum (tcp+udp, tcp-tls, https or quic) | no        | tcp+udp                                                          |
 | host       | IP or hostname                         | yes       |                                                                  |
 | port       | int (1 - 65535)                        | no        | 53 for udp/tcp, 853 for tcp-tls and quic, 443 for https         |
+| path       | string                                 | no        | only relevant for https (DoH); ignored for other protocols       |
 | commonName | string                           | no        | the host value                                    |
 
 The `commonName` parameter overrides the expected certificate common name value used for verification.
+
+The `path` parameter is only used by the `https` (DoH) protocol, where it is the URL path of the
+DNS endpoint (for example `/dns-query`). It is accepted but ignored for all other protocols.
 
 #### DNS Stamp Format
 
@@ -799,8 +803,10 @@ The supported list formats are:
 
 !!! warning
 
-    If the same group has **both** allow/denylists, allowlists take precedence. Meaning if a domain is both blocked and allowed, it will be allowed.
-    If a group has **only allowlist** entries, only domains from this list are allowed, and all others be blocked.
+    Allowlists take precedence over denylists: if a domain is both blocked and allowed, it will be allowed.
+    This holds across **all** groups assigned to a client, so an allowlist in one group also excepts a domain that another of the client's groups denies. That is how you add client-specific exceptions to a shared denylist without duplicating it.
+
+    If **every** group assigned to a client has only allowlist entries, that client switches to exclusive allow mode: only the domains on those allowlists are resolved, everything else is blocked. Giving the client at least one group with denylist entries keeps the normal behavior, where allowlists are exceptions.
 
 !!! warning
     You must also define a client group mapping, otherwise the allow/denylist definitions will have no effect.
@@ -870,6 +876,7 @@ Rules:
 2. If a list group has multiple schedules, they are combined with OR logic (any active schedule enables the list).
 3. Schedules use local server time. During daylight-saving transitions, only the specific skipped minutes are unobservable (a window overlapping the gap fires for its non-skipped portion); windows in the repeated hour fire twice.
 4. Scheduling an allowlist-only group (a group that has allowlist entries but no denylist entries) time-gates that group's allowlist enforcement: outside the schedule, that allowlist is not consulted. Other active groups for the client (denylists or other allowlist-only groups) are still evaluated normally.
+5. Whether a client is in exclusive allow mode (see [Definition allow/denylists](#definition-allowdenylists)) follows from its configured groups, not from which of them are currently active. A schedule that deactivates the client's denylist group therefore never turns the client's remaining allowlists into a whitelist.
 
 Each schedule supports:
 
@@ -918,13 +925,15 @@ Time behavior:
 
 ### Block type
 
-You can configure, which response should be sent to the client, if a requested query is blocked (only for A and AAAA
-queries, NXDOMAIN for other types):
+You can configure, which response should be sent to the client, if a requested query is blocked. The `zeroIP` and
+custom IP modes answer only A and AAAA queries and return NXDOMAIN for other types, while `nxDomain` and `refused`
+apply to every query type:
 
 | blockType  | Example                                                 | Description                                                                                                                                                                            |
 | ---------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | zeroIP     | zeroIP                                                  | This is the default block type. Server returns 0.0.0.0 (or :: for IPv6) as result for A and AAAA queries                                                                               |
 | nxDomain   | nxDomain                                                | return NXDOMAIN as return code                                                                                                                                                         |
+| refused    | refused                                                 | return REFUSED as return code for every query type, with no answer or authority records. **Caveat:** stub resolvers and forwarders commonly treat REFUSED as a server failure and fall back to another configured DNS server, which bypasses blocking. |
 | custom IPs | 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344 | comma separated list of destination IP addresses. Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page. |
 
 !!! example
@@ -937,8 +946,9 @@ queries, NXDOMAIN for other types):
 ### Block TTL
 
 TTL for answers to blocked domains can be set to customize the time (in **duration format**) clients ask for those
-domains again. Default Block TTL is **6 hours**. This setting applies to all blocking modes and will affect how much
-time it could take for a client to be able to see the real IP address for a domain after receiving the blocked response.
+domains again. Default Block TTL is **6 hours**. It applies to every blocking mode that returns records (`zeroIP`,
+`nxDomain` and custom IPs) and will affect how much time it could take for a client to be able to see the real IP
+address for a domain after receiving the blocked response.
 
 **For `zeroIP` and custom IP modes:** The TTL is applied to the returned A/AAAA records in the answer section.
 
@@ -946,6 +956,9 @@ time it could take for a client to be able to see the real IP address for a doma
 Blocky includes an SOA record in NXDOMAIN responses to enable proper negative caching by stub resolvers.
 The blockTTL value is used for both the SOA's TTL and its MINIMUM field, ensuring clients cache the
 NXDOMAIN response for the configured duration.
+
+**For `refused` mode:** The response carries no answer or authority records, so blockTTL has no effect. An OPT
+record may still be present in the additional section for EDNS0 queries.
 
 !!! example
 
@@ -1155,7 +1168,13 @@ You can select one of following query log types:
 The `sqlite` target stores the query log in a single local file (set via `queryLog.target`, e.g. `/var/lib/blocky/querylog.db`) — no external database is required. Blocky creates the file and its parent directory automatically.
 
 !!! note
-    The `sqlite` target is not available on every platform. It relies on a pure-Go SQLite driver that does not support all CPU architectures, so it is **not** compiled into the official builds for **`linux/mips`, `linux/mipsle`, `netbsd/arm`, `netbsd/arm64` and `openbsd/arm`**. On those builds, selecting `sqlite` fails at startup with a clear error message — use the `csv`, `mysql` or `postgresql` query log target instead. All other targets (including `linux/amd64`, `linux/arm`, `linux/arm64`, `windows/amd64` and `darwin`) support `sqlite`.
+    The `sqlite` target is not available on every platform. It relies on a pure-Go SQLite driver that ships no code for some GOOS/GOARCH combinations, so it is **not** compiled in on:
+
+    - all MIPS architectures (`mips`, `mipsle`, `mips64`, `mips64le`) and `loong64`
+    - NetBSD other than `netbsd/amd64`, and OpenBSD other than `openbsd/amd64` and `openbsd/arm64`
+    - Solaris and illumos
+
+    Among the official release builds this affects **`linux/mips`, `linux/mipsle`, `freebsd/mips`, `freebsd/mipsle`, `netbsd/arm`, `netbsd/arm64`, `netbsd/mips`, `netbsd/mipsle`, `openbsd/arm`, `openbsd/mips` and `openbsd/mipsle`**. On those builds, selecting `sqlite` fails at startup with a clear error message — use the `csv`, `mysql` or `postgresql` query log target instead. All other targets (including `linux/amd64`, `linux/arm`, `linux/arm64`, `windows/amd64` and `darwin`) support `sqlite`.
 
 Set `queryLog.target` to a **plain filesystem path**. Do **not** prefix it with `file:` — for query-log targets that prefix means "read the target value from this file" (see the [Redis tip](#redis)), so `file:/var/lib/blocky/querylog.db` would be treated as a file to read the path *from*, not as the database itself.
 
