@@ -116,7 +116,7 @@ func (r *ECSResolver) Resolve(ctx context.Context, request *model.Request) (*mod
 		// and the forwardEcs option is not enabled
 		if r.cfg.IPv4Mask == 0 && r.cfg.IPv6Mask == 0 && so != nil && !r.cfg.Forward {
 			logger.Debug("remove edns0 subnet option")
-			util.RemoveEdns0Option[*dns.EDNS0_SUBNET](request.Req)
+			util.RemoveEdns0OptionKeepRecord[*dns.EDNS0_SUBNET](request.Req)
 		}
 	}
 

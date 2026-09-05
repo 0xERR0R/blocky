@@ -209,6 +209,43 @@ var _ = Describe("EcsResolver", func() {
 							HaveReason("Test")))
 			})
 		})
+
+		When("remove ECS information", func() {
+			// no mask configured and forwarding disabled: the option the client sent is dropped
+			BeforeEach(func() {
+				sutConfig.IPv4Mask = 0
+				sutConfig.IPv6Mask = 0
+				sutConfig.Forward = false
+			})
+
+			It("should keep the OPT record when the subnet was the only option", func(ctx context.Context) {
+				request := newRequest("example.com.", A)
+				request.ClientIP = origIP
+
+				request.Req.SetEdns0(1232, true)
+				addEcsOption(request.Req, ecsIP, 32)
+
+				m.ResolveFn = func(ctx context.Context, req *Request) (*Response, error) {
+					Expect(req.Req).ShouldNot(HaveEdnsOption(dns.EDNS0SUBNET))
+
+					// the OPT record still carries the DO bit and the buffer size the client advertised
+					opt := req.Req.IsEdns0()
+					Expect(opt).ShouldNot(BeNil())
+					Expect(opt.Do()).Should(BeTrue())
+					Expect(opt.UDPSize()).Should(BeNumerically("==", 1232))
+
+					return respondWith(mockAnswer), nil
+				}
+
+				Expect(sut.Resolve(ctx, request)).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+							HaveReason("Test")))
+			})
+		})
 	})
 
 	Context("maskIP", func() {

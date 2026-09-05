@@ -829,6 +829,14 @@ func (s *Server) resolve(ctx context.Context, request *model.Request) (response 
 	// up front: the response is normalized against that, not the mutated request.
 	query := newClientQuery(request)
 
+	// Blocky doesn't implement DNS Cookies (RFC 7873), so a Server Cookie a client returns is one
+	// an upstream issued and blocky can neither validate nor reissue it. Forwarding it is worse
+	// than dropping it: it is likely to reach a different upstream than the one that issued it
+	// (`parallel_best` picks at random), which can't validate it either and may answer BADCOOKIE.
+	// The OPT record itself is kept, since it still carries the DO bit and the buffer size the
+	// client advertised.
+	util.RemoveEdns0OptionKeepRecord[*dns.EDNS0_COOKIE](request.Req)
+
 	switch {
 	case len(request.Req.Question) == 0:
 		m := new(dns.Msg)
