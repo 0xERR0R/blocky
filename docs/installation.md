@@ -141,6 +141,7 @@ ports:
 ## Container configuration file
 
 You can define the location of the config file in the container with environment variable `BLOCKY_CONFIG_FILE`.
+Using this environment variable a folder containing configuration files can also be specified.
 Default value is `/app/config.yml`.
 
 !!! note "Legacy: `CONFIG_FILE`"

@@ -1,11 +1,13 @@
-//go:build !mips && !mipsle && !mips64 && !mips64le && !loong64 && !(netbsd && !amd64) && !(openbsd && !amd64 && !arm64)
+//go:build !mips && !mipsle && !mips64 && !mips64le && !loong64 && !(netbsd && !amd64) && !(openbsd && !amd64 && !arm64) && !solaris
 
 // SQLite support is compiled in only on the GOOS/GOARCH targets supported by the
 // pure-Go driver chain (github.com/glebarez/sqlite -> modernc.org/sqlite ->
-// modernc.org/libc). modernc ships no MIPS support at all and only a subset of the
-// BSD architectures (netbsd/amd64, openbsd/amd64+arm64), so the remaining release
-// targets compile the stub in database_writer_sqlite_unsupported.go instead. This
-// keeps the cross-compiled release build working (without SQLite query log there).
+// modernc.org/libc). modernc ships no MIPS, loong64 or Solaris support at all and
+// only a subset of the BSD architectures (netbsd/amd64, openbsd/amd64+arm64), so the
+// remaining release targets compile the stub in database_writer_sqlite_unsupported.go
+// instead. This keeps the cross-compiled release build working (without SQLite query
+// log there). Note that the solaris term also covers GOOS=illumos, which satisfies the
+// solaris build tag as well.
 // Revisit this list when the modernc.org/sqlite dependency is upgraded.
 
 package querylog
