@@ -191,9 +191,13 @@ Each resolver must be defined as a string in following format: `[net:]host[:port
 | net        | enum (tcp+udp, tcp-tls, https or quic) | no        | tcp+udp                                                          |
 | host       | IP or hostname                         | yes       |                                                                  |
 | port       | int (1 - 65535)                        | no        | 53 for udp/tcp, 853 for tcp-tls and quic, 443 for https         |
+| path       | string                                 | no        | only relevant for https (DoH); ignored for other protocols       |
 | commonName | string                           | no        | the host value                                    |
 
 The `commonName` parameter overrides the expected certificate common name value used for verification.
+
+The `path` parameter is only used by the `https` (DoH) protocol, where it is the URL path of the
+DNS endpoint (for example `/dns-query`). It is accepted but ignored for all other protocols.
 
 #### DNS Stamp Format
 

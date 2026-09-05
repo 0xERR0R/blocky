@@ -87,7 +87,7 @@ func (u *Upstream) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// ParseUpstream creates new Upstream from passed string in format [net]:host[:port][/path][#commonname]
+// ParseUpstream creates new Upstream from passed string in format [net:]host[:port][/path][#commonname]
 // or DNS Stamp format: sdns://...
 func ParseUpstream(upstream string) (Upstream, error) {
 	// Check if it's a DNS stamp

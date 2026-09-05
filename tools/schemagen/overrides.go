@@ -122,7 +122,7 @@ type enumValuer interface {
 func stringForms() map[reflect.Type]stringSpec {
 	return map[reflect.Type]stringSpec{
 		reflect.TypeFor[config.Upstream](): {
-			"Upstream DNS server: [net]:host[:port][/path][#commonName] or sdns://...",
+			"Upstream DNS server: [net:]host[:port][/path][#commonName] or sdns://...",
 			[]string{"tcp+udp:1.1.1.1", "https://dns.google/dns-query", "tcp-tls:1.1.1.1:853"},
 		},
 		reflect.TypeFor[config.BytesSource](): {
