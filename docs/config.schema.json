@@ -131,7 +131,7 @@
         },
         "fallbackUpstream": {
           "type": "boolean",
-          "description": "If true, the original query is sent upstream when the mapped resolver returns an empty answer.",
+          "description": "If true, the original query is sent upstream when the mapped resolver returns an empty answer.\nOnly has an effect together with Rewrite.",
           "default": false
         },
         "customTTL": {
@@ -193,7 +193,7 @@
         },
         "fallbackUpstream": {
           "type": "boolean",
-          "description": "If true, the original query is sent upstream when the mapped resolver returns an empty answer.",
+          "description": "If true, the original query is sent upstream when the mapped resolver returns an empty answer.\nOnly has an effect together with Rewrite.",
           "default": false
         },
         "mapping": {

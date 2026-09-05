@@ -10,7 +10,6 @@ import (
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/log"
 	. "github.com/0xERR0R/blocky/model"
-	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -598,21 +597,12 @@ var _ = Describe("CustomDNSResolver", func() {
 		When("the mapping has no answer of the requested type and fallbackUpstream is set", func() {
 			BeforeEach(func() {
 				cfg.FallbackUpstream = true
-				sut = NewCustomDNSResolver(cfg)
 			})
 
 			It("should ask the next resolver with the original name", func() {
-				var seen string
+				var seen *string
 
-				m = &mockResolver{}
-				m.On("Resolve", mock.Anything).Return(&Response{Res: new(dns.Msg)}, nil)
-				m.ResolveFn = func(_ context.Context, req *Request) (*Response, error) {
-					seen = req.Req.Question[0].Name
-					resp, err := util.NewMsgWithAnswer(seen, uint(TTL), AAAA, "2001:db8::1")
-					Expect(err).Should(Succeed())
-
-					return &Response{Res: resp, RType: ResponseTypeRESOLVED, Reason: "RESOLVED"}, nil
-				}
+				m, seen = newRecordingResolver(AAAA, "2001:db8::1")
 				sut.Next(m)
 
 				// custom.domain has an A record only, so the AAAA query ends up
@@ -624,7 +614,75 @@ var _ = Describe("CustomDNSResolver", func() {
 							HaveReturnCode(dns.RcodeSuccess),
 						))
 
-				Expect(seen).Should(Equal("www.source.test."))
+				Expect(*seen).Should(Equal("www.source.test."))
+			})
+		})
+
+		When("the rewritten domain is not in the mapping", func() {
+			BeforeEach(func() {
+				cfg.Rewrite["nomatch.test"] = "nomatch.example"
+			})
+
+			It("should ask the next resolver with the original name", func() {
+				var seen *string
+
+				m, seen = newRecordingResolver(A, "192.192.192.192")
+				sut.Next(m)
+
+				Expect(sut.Resolve(ctx, newRequest("www.nomatch.test.", A))).
+					Should(
+						SatisfyAll(
+							BeDNSRecord("www.nomatch.test.", A, "192.192.192.192"),
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+
+				Expect(*seen).Should(Equal("www.nomatch.test."))
+				Expect(m.Calls).Should(HaveLen(1))
+			})
+		})
+
+		When("the mapping has no answer of the requested type and filterUnmappedTypes is false", func() {
+			BeforeEach(func() {
+				cfg.FilterUnmappedTypes = false
+			})
+
+			It("should ask the next resolver with the original name", func() {
+				var seen *string
+
+				m, seen = newRecordingResolver(AAAA, "2001:db8::1")
+				sut.Next(m)
+
+				// custom.domain has an A record only, so the AAAA query is unmapped
+				Expect(sut.Resolve(ctx, newRequest("www.source.test.", AAAA))).
+					Should(
+						SatisfyAll(
+							HaveResponseType(ResponseTypeRESOLVED),
+							HaveReturnCode(dns.RcodeSuccess),
+						))
+
+				Expect(*seen).Should(Equal("www.source.test."))
+				Expect(m.Calls).Should(HaveLen(1))
+			})
+		})
+
+		When("the mapping itself fails and fallbackUpstream is set", func() {
+			BeforeEach(func() {
+				cfg.FallbackUpstream = true
+				cfg.Rewrite["loop.test"] = "cname.recursive"
+			})
+
+			It("should ask the next resolver with the original name", func() {
+				var seen *string
+
+				m, seen = newRecordingResolver(A, "192.192.192.192")
+				sut.Next(m)
+
+				// the rewrite target is a self-referential CNAME: processRequest errors
+				Expect(sut.Resolve(ctx, newRequest("www.loop.test.", A))).
+					Should(HaveResponseType(ResponseTypeRESOLVED))
+
+				Expect(*seen).Should(Equal("www.loop.test."))
 			})
 		})
 
