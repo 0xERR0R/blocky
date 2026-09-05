@@ -17,7 +17,7 @@ Following metrics will be exported:
 | blocky_query_total                               | Counter of total queries, partitioned by client and DNS request type (A, AAAA, PTR, etc) |
 | blocky_request_duration_seconds                  | Histogram of request duration, partitioned by response type (Blocked, cached, etc)  |
 | blocky_response_total                            | Counter of responses, partitioned by response type (Blocked, cached, etc), DNS response code, and reason |
-| blocky_client_response_total                     | Counter of responses, partitioned by client and response type (Blocked, cached, etc) |
+| blocky_client_response_total                     | Counter of query outcomes, partitioned by client and response type (Blocked, cached, etc); failed requests are counted as `response_type="err"` |
 | blocky_blocking_enabled                          | Boolean 1 if blocking is enabled, 0 otherwise |
 | blocky_cache_entries                             | Gauge of entries in cache |
 | blocky_cache_hits_total                          | Counter of the number of cache hits |
@@ -40,7 +40,7 @@ Following metrics will be exported:
 
     To keep the `reason` label of `blocky_response_total` bounded, blocked responses use the matched
     group names only (e.g. `BLOCKED (ads)`), **not** the matched rule. The full reason including the
-    matched rule (e.g. `BLOCKED (ads: *.docler.com)`) is still available in the [query log](configuration.md#query-log).
+    matched rule (e.g. `BLOCKED (ads: *.docler.com)`) is still available in the [query log](configuration.md#query-logging).
     This avoids unbounded metric cardinality when large deny lists are used.
 
 !!! note "`client` label cardinality"
@@ -51,6 +51,38 @@ Following metrics will be exported:
     home LAN) this stays small, but on networks with high device turnover (e.g. public or guest Wi-Fi)
     the set of `client` label values can grow effectively unbounded over time. Consider this before
     scraping/retaining these metrics on such networks.
+
+    Blocky has no option to drop the label yet, so the mitigation is on the Prometheus side: drop the
+    affected metrics at scrape time when you do not need the per-client breakdown.
+
+    ```yaml
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: "blocky_(query|client_response)_total"
+        action: drop
+    ```
+
+    Dropping only the `client` label (`labeldrop`) does **not** work: the remaining series of the
+    different clients collapse into one, and Prometheus rejects the scrape with a duplicate-sample
+    error.
+
+!!! note "`response_type` values of `blocky_client_response_total`"
+
+    The counter is incremented once per query that reaches the metrics resolver, so it sums to
+    `blocky_query_total` rather than to `blocky_response_total` — the latter counts only successful
+    responses. Requests that produced no response at all are recorded as `response_type="err"`, which
+    is not one of the regular response types.
+
+    `FILTERED` and `NOTFQDN` never appear: the `filtering` and `fqdnOnly` resolvers answer those
+    queries above the metrics resolver in the chain, so they are missing from `blocky_query_total`,
+    `blocky_response_total` and `blocky_request_duration_seconds` as well. The query log sits below
+    them in the chain too, so those queries are only visible in the [statistics](configuration.md#statistics).
+
+    Example — per-client rate of queries that were actually resolved rather than blocked:
+
+    ```promql
+    sum by (client) (rate(blocky_client_response_total{response_type!~"BLOCKED|REBIND|err"}[5m]))
+    ```
 
 ### Grafana dashboard
 

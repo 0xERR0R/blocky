@@ -23,6 +23,11 @@ const (
 	labelReason       = "reason"
 	labelResponseCode = "response_code"
 	labelResponseType = "response_type"
+
+	// responseTypeErr is the synthetic response_type used when the chain returned no
+	// response at all. It is not part of the model.ResponseType enum, so metrics using
+	// the response_type label can carry it in addition to the enum values.
+	responseTypeErr = "err"
 )
 
 // MetricsResolver resolver that records metrics about requests/response
@@ -48,13 +53,13 @@ func (r *MetricsResolver) Resolve(ctx context.Context, request *model.Request) (
 
 	clientLabel := strings.Join(request.ClientNames, ",")
 
-	r.totalQueries.With(prometheus.Labels{
-		labelClient: clientLabel,
-		labelType:   dns.TypeToString[request.Req.Question[0].Qtype],
-	}).Inc()
+	// WithLabelValues is used instead of With(prometheus.Labels{...}) throughout: the map
+	// literal costs an allocation per query on the hot path. The value order must match the
+	// label order of the corresponding metric constructor below.
+	r.totalQueries.WithLabelValues(clientLabel, dns.TypeToString[request.Req.Question[0].Qtype]).Inc()
 
 	reqDuration := time.Since(request.RequestTS)
-	responseType := "err"
+	responseType := responseTypeErr
 
 	if response != nil {
 		responseType = response.RType.String()
@@ -62,10 +67,7 @@ func (r *MetricsResolver) Resolve(ctx context.Context, request *model.Request) (
 
 	r.durationHistogram.WithLabelValues(responseType).Observe(reqDuration.Seconds())
 
-	r.totalClientResponse.With(prometheus.Labels{
-		labelClient:       clientLabel,
-		labelResponseType: responseType,
-	}).Inc()
+	r.totalClientResponse.WithLabelValues(clientLabel, responseType).Inc()
 
 	if err != nil {
 		r.totalErrors.Inc()
@@ -79,11 +81,11 @@ func (r *MetricsResolver) Resolve(ctx context.Context, request *model.Request) (
 			reasonLabel = response.Reason
 		}
 
-		r.totalResponse.With(prometheus.Labels{
-			labelReason:       reasonLabel,
-			labelResponseCode: dns.RcodeToString[response.Res.Rcode],
-			labelResponseType: response.RType.String(),
-		}).Inc()
+		r.totalResponse.WithLabelValues(
+			reasonLabel,
+			dns.RcodeToString[response.Res.Rcode],
+			response.RType.String(),
+		).Inc()
 	}
 
 	return response, err
@@ -158,7 +160,8 @@ func totalClientResponseMetric() *prometheus.CounterVec {
 	return prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "blocky_client_response_total",
-			Help: "Number of total responses per client and response type",
+			Help: "Number of total responses per client and response type, " +
+				"including failed requests as response_type=\"err\"",
 		}, []string{labelClient, labelResponseType},
 	)
 }

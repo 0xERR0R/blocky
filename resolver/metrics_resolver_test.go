@@ -108,6 +108,17 @@ var _ = Describe("MetricResolver", func() {
 					Expect(err).Should(Succeed())
 					Expect(testutil.ToFloat64(cnt)).Should(BeNumerically("==", 1))
 				})
+				It("records the blocked response per client, without the unbounded reason", func() {
+					_, err := sut.Resolve(ctx, newRequestWithClient("example.com.", A, "", "client"))
+					Expect(err).Should(Succeed())
+
+					clientCnt, err := sut.totalClientResponse.GetMetricWith(prometheus.Labels{
+						labelClient:       "client",
+						labelResponseType: ResponseTypeBLOCKED.String(),
+					})
+					Expect(err).Should(Succeed())
+					Expect(testutil.ToFloat64(clientCnt)).Should(BeNumerically("==", 1))
+				})
 			})
 			When("Response has no ReasonLabel", func() {
 				BeforeEach(func() {
@@ -132,6 +143,19 @@ var _ = Describe("MetricResolver", func() {
 					Expect(testutil.ToFloat64(cnt)).Should(BeNumerically("==", 1))
 				})
 			})
+			When("A client resolves to several names", func() {
+				It("joins them into a single client label, as blocky_query_total does", func() {
+					_, err := sut.Resolve(ctx, newRequestWithClient("example.com.", A, "", "name1", "name2"))
+					Expect(err).Should(Succeed())
+
+					clientCnt, err := sut.totalClientResponse.GetMetricWith(prometheus.Labels{
+						labelClient:       "name1,name2",
+						labelResponseType: ResponseTypeRESOLVED.String(),
+					})
+					Expect(err).Should(Succeed())
+					Expect(testutil.ToFloat64(clientCnt)).Should(BeNumerically("==", 1))
+				})
+			})
 			When("Error occurs while request processing", func() {
 				BeforeEach(func() {
 					m = &mockResolver{}
@@ -151,6 +175,20 @@ var _ = Describe("MetricResolver", func() {
 					})
 					Expect(err).Should(Succeed())
 					Expect(testutil.ToFloat64(clientCnt)).Should(BeNumerically("==", 1))
+				})
+			})
+			When("Metrics are disabled", func() {
+				BeforeEach(func() {
+					sut = NewMetricsResolver(config.Metrics{Enable: false})
+					sut.Next(m)
+				})
+				It("records nothing", func() {
+					_, err := sut.Resolve(ctx, newRequestWithClient("example.com.", A, "", "client"))
+					Expect(err).Should(Succeed())
+
+					Expect(testutil.CollectAndCount(sut.totalClientResponse)).Should(BeZero())
+					Expect(testutil.CollectAndCount(sut.totalQueries)).Should(BeZero())
+					Expect(testutil.CollectAndCount(sut.totalResponse)).Should(BeZero())
 				})
 			})
 		})
