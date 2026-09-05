@@ -918,13 +918,15 @@ Time behavior:
 
 ### Block type
 
-You can configure, which response should be sent to the client, if a requested query is blocked (only for A and AAAA
-queries, NXDOMAIN for other types):
+You can configure, which response should be sent to the client, if a requested query is blocked. The `zeroIP` and
+custom IP modes answer only A and AAAA queries and return NXDOMAIN for other types, while `nxDomain` and `refused`
+apply to every query type:
 
 | blockType  | Example                                                 | Description                                                                                                                                                                            |
 | ---------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | zeroIP     | zeroIP                                                  | This is the default block type. Server returns 0.0.0.0 (or :: for IPv6) as result for A and AAAA queries                                                                               |
 | nxDomain   | nxDomain                                                | return NXDOMAIN as return code                                                                                                                                                         |
+| refused    | refused                                                 | return REFUSED as return code for every query type, with no answer or authority records. **Caveat:** stub resolvers and forwarders commonly treat REFUSED as a server failure and fall back to another configured DNS server, which bypasses blocking. |
 | custom IPs | 192.100.100.15, 2001:0db8:85a3:08d3:1319:8a2e:0370:7344 | comma separated list of destination IP addresses. Should contain ipv4 and ipv6 to cover all query types. Useful with running web server on this address to display the "blocked" page. |
 
 !!! example
@@ -937,8 +939,9 @@ queries, NXDOMAIN for other types):
 ### Block TTL
 
 TTL for answers to blocked domains can be set to customize the time (in **duration format**) clients ask for those
-domains again. Default Block TTL is **6 hours**. This setting applies to all blocking modes and will affect how much
-time it could take for a client to be able to see the real IP address for a domain after receiving the blocked response.
+domains again. Default Block TTL is **6 hours**. It applies to every blocking mode that returns records (`zeroIP`,
+`nxDomain` and custom IPs) and will affect how much time it could take for a client to be able to see the real IP
+address for a domain after receiving the blocked response.
 
 **For `zeroIP` and custom IP modes:** The TTL is applied to the returned A/AAAA records in the answer section.
 
@@ -946,6 +949,9 @@ time it could take for a client to be able to see the real IP address for a doma
 Blocky includes an SOA record in NXDOMAIN responses to enable proper negative caching by stub resolvers.
 The blockTTL value is used for both the SOA's TTL and its MINIMUM field, ensuring clients cache the
 NXDOMAIN response for the configured duration.
+
+**For `refused` mode:** The response carries no answer or authority records, so blockTTL has no effect. An OPT
+record may still be present in the additional section for EDNS0 queries.
 
 !!! example
 

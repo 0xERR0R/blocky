@@ -506,6 +506,53 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 			})
 		})
 
+		When("BlockType is Refused", func() {
+			BeforeEach(func() {
+				sutConfig = config.Blocking{
+					BlockTTL: config.Duration(time.Minute),
+					Denylists: map[string][]config.BytesSource{
+						"defaultGroup": config.NewBytesSources(defaultGroupFile.Path),
+					},
+					ClientGroupsBlock: map[string][]string{
+						"default": {"defaultGroup"},
+					},
+					BlockType: "Refused",
+				}
+			})
+
+			It("should return REFUSED without any records if query is blocked", func() {
+				Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", A, "1.2.1.2", "unknown"))).
+					Should(
+						SatisfyAll(
+							HaveNoAnswer(),
+							WithTransform(ToAuthority, BeEmpty()),
+							HaveResponseType(ResponseTypeBLOCKED),
+							HaveReturnCode(dns.RcodeRefused),
+							HaveReason("BLOCKED (defaultGroup: blocked3.com)"),
+						))
+			})
+
+			// Unlike zeroIP and custom IPs, which fall back to NXDOMAIN for anything
+			// but A/AAAA, refused answers every query type the same way.
+			DescribeTable("should return REFUSED for every query type",
+				func(qType dns.Type) {
+					Expect(sut.Resolve(ctx, newRequestWithClient("blocked3.com.", qType, "1.2.1.2", "unknown"))).
+						Should(
+							SatisfyAll(
+								HaveNoAnswer(),
+								WithTransform(ToAuthority, BeEmpty()),
+								HaveResponseType(ResponseTypeBLOCKED),
+								HaveReturnCode(dns.RcodeRefused),
+								HaveReason("BLOCKED (defaultGroup: blocked3.com)"),
+							))
+				},
+				Entry("AAAA", AAAA),
+				Entry("TXT", TXT),
+				Entry("MX", MX),
+				Entry("HTTPS", HTTPS),
+			)
+		})
+
 		When("BlockType is NXDOMAIN with custom BlockTTL", func() {
 			BeforeEach(func() {
 				sutConfig = config.Blocking{
@@ -1497,7 +1544,7 @@ var _ = Describe("BlockingResolver", Label("blockingResolver"), func() {
 
 				Expect(err).Should(HaveOccurred())
 				Expect(err.Error()).Should(ContainSubstring(
-					"unknown blockType 'wrong', please use one of: ZeroIP, NxDomain or specify destination IP address(es)"))
+					"unknown blockType 'wrong', please use one of: ZeroIP, NxDomain, Refused or specify destination IP address(es)"))
 			})
 		})
 		When("strategy is failOnError", func() {
