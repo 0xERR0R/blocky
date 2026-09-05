@@ -76,17 +76,24 @@ func (q clientQuery) normalizeResponse(res *dns.Msg) {
 		util.StripDNSSECRecords(res, q.qType)
 	}
 
-	if opt := res.IsEdns0(); opt != nil {
-		// RFC 3225 §3: the DO bit of the query is copied into the response. The OPT record here is
-		// the upstream's, which answered a query whose DO bit the chain may have set. Responses
-		// blocky assembles itself carry no OPT and none is added here, so there is nothing to
-		// mirror onto - notably cache hits, which are served from bytes packed without the OPT.
-		opt.SetDo(q.wantsDNSSEC)
-	}
-
 	if !q.hadEdns0 {
 		// don't return an OPT record to a client that didn't use EDNS0 (RFC 6891 section 7)
 		util.RemoveEdns0Record(res)
+	} else if opt := res.IsEdns0(); opt != nil {
+		// RFC 3225 §3: the DO bit of the query is copied into the response
+		opt.SetDo(q.wantsDNSSEC)
+
+		// Not every OPT reaching this point is the upstream's: util.SetEdns0Option, which the EDE
+		// resolver uses to annotate cache hits and blocked answers, builds one without a class
+		// field. RFC 6891 §6.2.4 makes a peer read that zero as 512 and shrink its buffer to match.
+		if opt.UDPSize() == 0 {
+			opt.SetUDPSize(dns.DefaultMsgSize)
+		}
+	} else {
+		// RFC 6891 §6.1.1: a response to an EDNS0 query must carry an OPT record. Cache hits
+		// are served from bytes packed without one; resolvers such as systemd-resolved read
+		// its absence as a server without EDNS0 support and downgrade.
+		res.SetEdns0(dns.DefaultMsgSize, q.wantsDNSSEC)
 	}
 
 	// truncate if necessary; Truncate also disables compression when the message already fits

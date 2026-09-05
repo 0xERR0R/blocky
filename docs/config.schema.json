@@ -41,7 +41,7 @@
           "additionalProperties": {
             "items": {
               "type": "string",
-              "description": "Upstream DNS server: [net]:host[:port][/path][#commonName] or sdns://...",
+              "description": "Upstream DNS server: [net:]host[:port][/path][#commonName] or sdns://...",
               "examples": [
                 "tcp+udp:1.1.1.1",
                 "https://dns.google/dns-query",
@@ -293,7 +293,7 @@
         },
         "blockType": {
           "type": "string",
-          "description": "Response for blocked A/AAAA queries: zeroIP (0.0.0.0/::), nxDomain, or custom IPs; other types get NXDOMAIN.",
+          "description": "Response for blocked queries: zeroIP (0.0.0.0/:: for A/AAAA, NXDOMAIN for other types),\nnxDomain, refused (REFUSED for every query type), or custom IPs.",
           "default": "ZEROIP"
         },
         "blockTTL": {
@@ -1661,7 +1661,7 @@
       "additionalProperties": {
         "items": {
           "type": "string",
-          "description": "Upstream DNS server: [net]:host[:port][/path][#commonName] or sdns://...",
+          "description": "Upstream DNS server: [net:]host[:port][/path][#commonName] or sdns://...",
           "examples": [
             "tcp+udp:1.1.1.1",
             "https://dns.google/dns-query",
