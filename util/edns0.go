@@ -65,6 +65,19 @@ func GetEdns0Option[T EDNS0Option](msg *dns.Msg) T {
 // If there are no more options in the OPT record, the OPT record will be removed.
 // If the option is successfully removed, true will be returned.
 func RemoveEdns0Option[T EDNS0Option](msg *dns.Msg) bool {
+	return removeEdns0Option[T](msg, true)
+}
+
+// RemoveEdns0OptionKeepRecord removes the option according to the given type from the OPT record
+// in the Extra section of the given message, keeping the OPT record itself even when it becomes
+// empty: on a request its header still carries the DO bit and the UDP buffer size the client
+// advertised, and a response to an EDNS0 query must have one (RFC 6891 section 6.1.1).
+// If the option is successfully removed, true will be returned.
+func RemoveEdns0OptionKeepRecord[T EDNS0Option](msg *dns.Msg) bool {
+	return removeEdns0Option[T](msg, false)
+}
+
+func removeEdns0Option[T EDNS0Option](msg *dns.Msg, dropEmptyRecord bool) bool {
 	if msg == nil {
 		return false
 	}
@@ -88,7 +101,7 @@ func RemoveEdns0Option[T EDNS0Option](msg *dns.Msg) bool {
 		}
 	}
 
-	if len(opt.Option) == 0 {
+	if dropEmptyRecord && len(opt.Option) == 0 {
 		RemoveEdns0Record(msg)
 	}
 

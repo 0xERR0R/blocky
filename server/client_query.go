@@ -80,6 +80,14 @@ func (q clientQuery) normalizeResponse(res *dns.Msg) {
 		// don't return an OPT record to a client that didn't use EDNS0 (RFC 6891 section 7)
 		util.RemoveEdns0Record(res)
 	} else if opt := res.IsEdns0(); opt != nil {
+		// Blocky doesn't implement DNS Cookies (RFC 7873), so a Server Cookie in the response is
+		// one an upstream issued for blocky itself, and blocky can't validate it when the client
+		// returns it. Passing it on also makes the presence of a cookie depend on which upstream
+		// answered and on whether the answer came from the cache (stored without an OPT record),
+		// and a client that tracks cookie support per server address — c-ares does — discards the
+		// cookieless answers of such a flip-flopping server as spoofed.
+		util.RemoveEdns0OptionKeepRecord[*dns.EDNS0_COOKIE](res)
+
 		// RFC 3225 §3: the DO bit of the query is copied into the response
 		opt.SetDo(q.wantsDNSSEC)
 
