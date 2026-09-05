@@ -441,6 +441,57 @@ var _ = Describe("Domain blocking functionality", func() {
 			})
 		})
 
+		Context("with blockType: refused", func() {
+			BeforeEach(func(ctx context.Context) {
+				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blocked.com")
+				Expect(err).Should(Succeed())
+
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					log:
+					  level: warn
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					blocking:
+					  blockType: refused
+					  denylists:
+					    ads:
+					      - http://httpserver:8080/list.txt
+					  clientGroupsBlock:
+					    default:
+					      - ads
+					`))
+				Expect(err).Should(Succeed())
+			})
+
+			It("returns REFUSED without records for blocked domains", func(ctx context.Context) {
+				msg := util.NewMsgWithQuestion("blocked.com.", A)
+				resp, err := doDNSRequest(ctx, blocky, msg)
+				Expect(err).Should(Succeed())
+
+				By("returning REFUSED response code", func() {
+					Expect(resp.Rcode).Should(Equal(dns.RcodeRefused))
+				})
+
+				By("having no answer section", func() {
+					Expect(resp.Answer).Should(BeEmpty())
+				})
+
+				By("having no authority section", func() {
+					Expect(resp.Ns).Should(BeEmpty())
+				})
+			})
+
+			It("returns REFUSED for query types other than A/AAAA", func(ctx context.Context) {
+				msg := util.NewMsgWithQuestion("blocked.com.", TXT)
+				resp, err := doDNSRequest(ctx, blocky, msg)
+				Expect(err).Should(Succeed())
+				Expect(resp.Rcode).Should(Equal(dns.RcodeRefused))
+				Expect(resp.Answer).Should(BeEmpty())
+			})
+		})
+
 		Context("with blockType: custom IPs", func() {
 			BeforeEach(func(ctx context.Context) {
 				_, err = createHTTPServerContainer(ctx, "httpserver", e2eNet, "list.txt", "blocked.com")
