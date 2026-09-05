@@ -1168,7 +1168,13 @@ You can select one of following query log types:
 The `sqlite` target stores the query log in a single local file (set via `queryLog.target`, e.g. `/var/lib/blocky/querylog.db`) — no external database is required. Blocky creates the file and its parent directory automatically.
 
 !!! note
-    The `sqlite` target is not available on every platform. It relies on a pure-Go SQLite driver that does not support all CPU architectures, so it is **not** compiled into the official builds for **`linux/mips`, `linux/mipsle`, `netbsd/arm`, `netbsd/arm64` and `openbsd/arm`**. On those builds, selecting `sqlite` fails at startup with a clear error message — use the `csv`, `mysql` or `postgresql` query log target instead. All other targets (including `linux/amd64`, `linux/arm`, `linux/arm64`, `windows/amd64` and `darwin`) support `sqlite`.
+    The `sqlite` target is not available on every platform. It relies on a pure-Go SQLite driver that ships no code for some GOOS/GOARCH combinations, so it is **not** compiled in on:
+
+    - all MIPS architectures (`mips`, `mipsle`, `mips64`, `mips64le`) and `loong64`
+    - NetBSD other than `netbsd/amd64`, and OpenBSD other than `openbsd/amd64` and `openbsd/arm64`
+    - Solaris and illumos
+
+    Among the official release builds this affects **`linux/mips`, `linux/mipsle`, `freebsd/mips`, `freebsd/mipsle`, `netbsd/arm`, `netbsd/arm64`, `netbsd/mips`, `netbsd/mipsle`, `openbsd/arm`, `openbsd/mips` and `openbsd/mipsle`**. On those builds, selecting `sqlite` fails at startup with a clear error message — use the `csv`, `mysql` or `postgresql` query log target instead. All other targets (including `linux/amd64`, `linux/arm`, `linux/arm64`, `windows/amd64` and `darwin`) support `sqlite`.
 
 Set `queryLog.target` to a **plain filesystem path**. Do **not** prefix it with `file:` — for query-log targets that prefix means "read the target value from this file" (see the [Redis tip](#redis)), so `file:/var/lib/blocky/querylog.db` would be treated as a file to read the path *from*, not as the database itself.
 
