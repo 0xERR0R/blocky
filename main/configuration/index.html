@@ -2900,7 +2900,8 @@ editor autocomplete and validation (see <a href="#editor-support-and-validation"
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts</span>
 <span class="w">  </span><span class="c1"># definition of allowlist groups.</span>
 <span class="w">  </span><span class="c1"># Note: if the same group has both allow/denylists, allowlists take precedence. Meaning if a domain is both blocked and allowed, it will be allowed.</span>
-<span class="w">  </span><span class="c1"># If a group has only allowlist entries, only domains from this list are allowed, and all others be blocked.</span>
+<span class="w">  </span><span class="c1"># If every group assigned to a client has only allowlist entries, that client is in exclusive</span>
+<span class="w">  </span><span class="c1"># allow mode: only domains from those lists are allowed, and all others are blocked.</span>
 <span class="w">  </span><span class="nt">allowlists</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">ads</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">allowlist.txt</span>
@@ -4390,8 +4391,9 @@ the request, IP address from the response, and any <abbr title="Canonical Name">
 </div>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>If the same group has <strong>both</strong> allow/denylists, allowlists take precedence. Meaning if a domain is both blocked and allowed, it will be allowed.
-If a group has <strong>only allowlist</strong> entries, only domains from this list are allowed, and all others be blocked.</p>
+<p>Allowlists take precedence over denylists: if a domain is both blocked and allowed, it will be allowed.
+This holds across <strong>all</strong> groups assigned to a client, so an allowlist in one group also excepts a domain that another of the client's groups denies. That is how you add client-specific exceptions to a shared denylist without duplicating it.</p>
+<p>If <strong>every</strong> group assigned to a client has only allowlist entries, that client switches to exclusive allow mode: only the domains on those allowlists are resolved, everything else is blocked. Giving the client at least one group with denylist entries keeps the normal behavior, where allowlists are exceptions.</p>
 </div>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
@@ -4451,6 +4453,7 @@ If client's IP address matches with the result, the defined group will be used.<
 <li>If a list group has multiple schedules, they are combined with OR logic (any active schedule enables the list).</li>
 <li>Schedules use local server time. During daylight-saving transitions, only the specific skipped minutes are unobservable (a window overlapping the gap fires for its non-skipped portion); windows in the repeated hour fire twice.</li>
 <li>Scheduling an allowlist-only group (a group that has allowlist entries but no denylist entries) time-gates that group's allowlist enforcement: outside the schedule, that allowlist is not consulted. Other active groups for the client (denylists or other allowlist-only groups) are still evaluated normally.</li>
+<li>Whether a client is in exclusive allow mode (see <a href="#definition-allowdenylists">Definition allow/denylists</a>) follows from its configured groups, not from which of them are currently active. A schedule that deactivates the client's denylist group therefore never turns the client's remaining allowlists into a whitelist.</li>
 </ol>
 <p>Each schedule supports:</p>
 <ul>
