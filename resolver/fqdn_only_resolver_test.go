@@ -88,6 +88,18 @@ var _ = Describe("FqdnOnlyResolver", func() {
 			// no call of next resolver
 			Expect(m.Calls).Should(BeZero())
 		})
+		It("Should reply to the request, echoing its id and question", func() {
+			request := newRequest("example", AAAA)
+
+			resp, err := sut.Resolve(ctx, request)
+			Expect(err).Should(Succeed())
+
+			// a reply that carries neither the request id nor the question is rejected by the
+			// client as an id mismatch, so it sees a timeout instead of the NXDOMAIN
+			Expect(resp.Res.Response).Should(BeTrue())
+			Expect(resp.Res.Id).Should(Equal(request.Req.Id))
+			Expect(resp.Res.Question).Should(Equal(request.Req.Question))
+		})
 
 		Describe("IsEnabled", func() {
 			It("is true", func() {

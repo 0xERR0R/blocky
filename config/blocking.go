@@ -23,7 +23,8 @@ type Blocking struct {
 	ListSchedules map[string][]string `yaml:"listSchedules"`
 	// Maps client identifiers (name, IP, CIDR) to the list groups that apply to them.
 	ClientGroupsBlock map[string][]string `yaml:"clientGroupsBlock"`
-	// Response for blocked A/AAAA queries: zeroIP (0.0.0.0/::), nxDomain, or custom IPs; other types get NXDOMAIN.
+	// Response for blocked queries: zeroIP (0.0.0.0/:: for A/AAAA, NXDOMAIN for other types),
+	// nxDomain, refused (REFUSED for every query type), or custom IPs.
 	BlockType string `default:"ZEROIP" yaml:"blockType"`
 	// TTL of blocked responses; how long clients cache the block before querying the domain again.
 	BlockTTL Duration `default:"6h" yaml:"blockTTL"`
