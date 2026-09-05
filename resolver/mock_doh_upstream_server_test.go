@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -149,6 +150,14 @@ func (m *MockDoHUpstreamServer) handle(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	util.FatalOnError("can't read request: ", err)
 
+	// The mock is HTTP/1.1-only by construction (see Start). Both the kill path
+	// below, which needs Hijacker, and the one-request-per-connection assumption
+	// the specs rely on would break silently under HTTP/2 multiplexing, so say so
+	// loudly rather than failing in confusing ways.
+	if r.ProtoMajor != 1 {
+		util.FatalOnError("mock DoH upstream: ", fmt.Errorf("expected HTTP/1.1, got %s", r.Proto))
+	}
+
 	conn, _ := r.Context().Value(dohConnKey{}).(net.Conn)
 	if m.poisoned(conn) {
 		hijacked, _, hErr := w.(http.Hijacker).Hijack()
@@ -180,6 +189,12 @@ func (m *MockDoHUpstreamServer) handle(w http.ResponseWriter, r *http.Request) {
 // Start starts the server and returns its upstream config.
 func (m *MockDoHUpstreamServer) Start() config.Upstream {
 	m.server = httptest.NewUnstartedServer(http.HandlerFunc(m.handle))
+
+	// Explicitly HTTP/1.1: StartTLS then offers only http/1.1 over ALPN, so each
+	// query needs its own connection. Under HTTP/2 one connection would multiplex
+	// them all, and the connection-count assertions would no longer mean anything.
+	m.server.EnableHTTP2 = false
+
 	m.server.Config.ConnState = m.trackConn
 	m.server.Config.ConnContext = func(ctx context.Context, c net.Conn) context.Context {
 		return context.WithValue(ctx, dohConnKey{}, c)
