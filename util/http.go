@@ -36,7 +36,7 @@ func DefaultHTTPTransport() *http.Transport {
 		IdleConnTimeout:        baseTransport.IdleConnTimeout,
 		MaxConnsPerHost:        baseTransport.MaxConnsPerHost,
 		MaxIdleConns:           baseTransport.MaxIdleConns,
-		MaxIdleConnsPerHost:    baseTransport.MaxConnsPerHost,
+		MaxIdleConnsPerHost:    baseTransport.MaxIdleConnsPerHost,
 		MaxResponseHeaderBytes: baseTransport.MaxResponseHeaderBytes,
 		OnProxyConnectResponse: baseTransport.OnProxyConnectResponse,
 		Proxy:                  baseTransport.Proxy,
