@@ -9,6 +9,7 @@ import (
 )
 
 // New creates a new Redis connection. Returns nil if Redis is not configured.
+// A failed initial connection returns the client with the error so optional users can reconnect.
 func New(ctx context.Context, cfg *config.Redis) (*goredis.Client, error) {
 	if cfg == nil || len(cfg.Address) == 0 {
 		return nil, nil //nolint:nilnil
@@ -41,7 +42,7 @@ func New(ctx context.Context, cfg *config.Redis) (*goredis.Client, error) {
 	rdb := client.WithContext(ctx)
 
 	if _, err := rdb.Ping(ctx).Result(); err != nil {
-		return nil, fmt.Errorf("failed to connect to Redis at '%s': %w", cfg.Address, err)
+		return rdb, fmt.Errorf("failed to connect to Redis at '%s': %w", cfg.Address, err)
 	}
 
 	return rdb, nil

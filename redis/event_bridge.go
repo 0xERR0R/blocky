@@ -35,8 +35,9 @@ type EventBusBridge struct {
 }
 
 // NewEventBusBridge creates a new EventBusBridge that synchronizes blocking state
-// between local event bus and Redis pub/sub.
-func NewEventBusBridge(ctx context.Context, client *goredis.Client) (*EventBusBridge, error) {
+// between local event bus and Redis pub/sub. Without waitForConnection, the initial
+// subscription runs in the background so an optional Redis cannot delay startup.
+func NewEventBusBridge(ctx context.Context, client *goredis.Client, waitForConnection bool) (*EventBusBridge, error) {
 	ctx, cancel := context.WithCancel(ctx)
 
 	b := &EventBusBridge{
@@ -54,14 +55,15 @@ func NewEventBusBridge(ctx context.Context, client *goredis.Client) (*EventBusBr
 		return nil, err
 	}
 
-	ps := client.Subscribe(ctx, b.channel)
+	var ps *goredis.PubSub
+	if waitForConnection {
+		ps = client.Subscribe(ctx, b.channel)
+		if _, err := ps.Receive(ctx); err != nil {
+			_ = b.Close()
+			_ = ps.Close()
 
-	if _, err := ps.Receive(ctx); err != nil {
-		_ = ps.Close()
-		_ = evt.Bus().Unsubscribe(evt.BlockingStateChanged, b.onLocalStateChanged)
-		cancel()
-
-		return nil, err
+			return nil, err
+		}
 	}
 
 	loop := &PubSubLoop{
