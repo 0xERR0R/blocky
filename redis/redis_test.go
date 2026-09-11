@@ -33,7 +33,9 @@ var _ = Describe("Redis connection factory", func() {
 		})
 
 		It("should fail with error", func(ctx context.Context) {
-			_, err := New(ctx, redisConfig)
+			client, err := New(ctx, redisConfig)
+			Expect(client).ShouldNot(BeNil())
+			DeferCleanup(client.Close)
 			Expect(err).Should(HaveOccurred())
 		})
 	})
@@ -45,7 +47,9 @@ var _ = Describe("Redis connection factory", func() {
 		})
 
 		It("should fail with error", func(ctx context.Context) {
-			_, err := New(ctx, redisConfig)
+			client, err := New(ctx, redisConfig)
+			Expect(client).ShouldNot(BeNil())
+			DeferCleanup(client.Close)
 			Expect(err).Should(HaveOccurred())
 		})
 	})
@@ -62,6 +66,7 @@ var _ = Describe("Redis connection factory", func() {
 			client, err := New(ctx, redisConfig)
 			Expect(err).Should(Succeed())
 			Expect(client).ShouldNot(BeNil())
+			DeferCleanup(client.Close)
 		})
 	})
 
@@ -76,7 +81,9 @@ var _ = Describe("Redis connection factory", func() {
 		})
 
 		It("should fail with error", func(ctx context.Context) {
-			_, err := New(ctx, redisConfig)
+			client, err := New(ctx, redisConfig)
+			Expect(client).ShouldNot(BeNil())
+			DeferCleanup(client.Close)
 			Expect(err).Should(HaveOccurred())
 		})
 	})

@@ -50,6 +50,8 @@ type RedisOptions[T any] struct {
 	FlushInterval time.Duration
 	// SendBufSize is the capacity of the internal send buffer channel.
 	SendBufSize int
+	// SkipInitialLoad avoids another blocking dial when Redis already failed its startup check.
+	SkipInitialLoad bool
 }
 
 // ReloadPublishable is implemented by inner caches that reload entries internally
@@ -113,7 +115,8 @@ func NewRedisExpiringByteCache(
 // NewRedisExpiringCache creates a new RedisExpiringCache decorator.
 //
 // It performs a blocking startup scan of existing Redis keys and loads them
-// into inner before launching the background writer and subscriber goroutines.
+// into inner before launching the background writer and subscriber goroutines,
+// unless SkipInitialLoad is set.
 // The goroutines run until ctx is cancelled.
 func NewRedisExpiringCache[T any](
 	ctx context.Context,
@@ -153,9 +156,10 @@ func NewRedisExpiringCache[T any](
 		rp.SetReloadPublisher(c.publishWriteThrough)
 	}
 
-	// Blocking startup load.
-	if err := c.loadFromRedis(ctx); err != nil {
-		c.logger.WithError(err).Warn("startup Redis scan failed – starting with empty local cache")
+	if !opts.SkipInitialLoad {
+		if err := c.loadFromRedis(ctx); err != nil {
+			c.logger.WithError(err).Warn("startup Redis scan failed – starting with empty local cache")
+		}
 	}
 
 	go c.runSubscriber(ctx)

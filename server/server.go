@@ -146,20 +146,21 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		return nil, fmt.Errorf("failed to create bootstrap resolver: %w", err)
 	}
 
-	var redisConn *goredis.Client
-	if cfg.Redis.IsEnabled() {
-		redisConn, err = redis.New(ctx, &cfg.Redis)
-		if err != nil {
-			if cfg.Redis.Required {
-				return nil, fmt.Errorf("failed to create required Redis client: %w", err)
-			}
+	redisConn, err := redis.New(ctx, &cfg.Redis)
+	if err != nil {
+		if cfg.Redis.Required {
+			_ = redisConn.Close()
 
-			logger().WithError(err).Warn("Redis is enabled but optional and could not be initialized, continuing without Redis")
+			return nil, fmt.Errorf("failed to create required Redis client: %w", err)
 		}
+
+		logger().WithError(err).Warn("Redis is optional and unavailable; continuing with reconnection enabled")
 	}
 
-	redisResult, err := createRedisCacheDecorator(ctx, redisConn, cfg.Redis.Required)
+	redisResult, err := createRedisCacheDecorator(ctx, redisConn, cfg.Redis.Required, err == nil)
 	if err != nil {
+		_ = redisConn.Close()
+
 		return nil, err
 	}
 
@@ -460,13 +461,13 @@ type redisBridgeResult struct {
 }
 
 func createRedisCacheDecorator(
-	ctx context.Context, redisConn *goredis.Client, required bool,
+	ctx context.Context, redisConn *goredis.Client, required, connected bool,
 ) (*redisBridgeResult, error) {
 	if redisConn == nil {
 		return &redisBridgeResult{}, nil
 	}
 
-	bridge, err := redis.NewEventBusBridge(ctx, redisConn)
+	bridge, err := redis.NewEventBusBridge(ctx, redisConn, required)
 	if err != nil {
 		if required {
 			return nil, fmt.Errorf("failed to create required Redis event bridge: %w", err)
@@ -477,8 +478,9 @@ func createRedisCacheDecorator(
 
 	decorator := func(inner cache.ExpiringCache[[]byte]) (cache.ExpiringCache[[]byte], error) {
 		return cache.NewRedisExpiringByteCache(ctx, inner, redisConn, cache.RedisOptions[[]byte]{
-			Prefix:  "blocky:cache:",
-			Channel: "blocky_cache_sync",
+			Prefix:          "blocky:cache:",
+			Channel:         "blocky_cache_sync",
+			SkipInitialLoad: !connected,
 		})
 	}
 
