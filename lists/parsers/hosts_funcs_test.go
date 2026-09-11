@@ -6,8 +6,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-
-	"golang.org/x/net/idna"
 )
 
 // Plain table + fuzz tests for the helper functions in hosts.go. They live in a
@@ -61,26 +59,25 @@ func FuzzIsValidDomainName(f *testing.F) {
 
 // --- entry normalization (normalizeHostsListEntry) ---
 
-// normalizeReference is a verbatim copy of normalizeHostsListEntry as it was
-// before the ASCII fast-path was added. The fast-path must be equivalent to it
-// for every input (both the returned host and whether an error occurred).
+// normalizeReference is normalizeHostsListEntry without the ASCII fast-path:
+// every non-regex entry goes through idnaProfile. The fast-path must be
+// equivalent to it for every input: same error presence, and the same host up
+// to ASCII case (the IDNA mapping lowercases, the fast-path leaves case to the
+// caches, which fold it).
 func normalizeReference(host string) (string, error) {
-	var err error
-
-	var hostUnicode string
-
-	idnaProfile := idna.Punycode
-
 	host = strings.TrimPrefix(host, "||")
 	host = strings.TrimSuffix(host, "^")
 
+	if ip, ok := unwrapIPv6Literal(host); ok {
+		return ip, nil
+	}
+
 	if !isRegex(host) {
-		hostUnicode, err = idnaProfile.ToUnicode(host)
-		if err != nil || hostUnicode == host {
-			host, err = idnaProfile.ToASCII(host)
-			if err != nil {
-				return "", fmt.Errorf("%w: %s", err, host)
-			}
+		var err error
+
+		host, err = idnaProfile.ToASCII(host)
+		if err != nil {
+			return "", fmt.Errorf("%w: %s", err, host)
 		}
 	}
 
@@ -96,28 +93,34 @@ func TestNormalizeHostsListEntry_MatchesReference(t *testing.T) {
 		// pure ASCII (fast-path skips IDNA)
 		"example.com", "Example.COM", "under_score.example.org",
 		"trailing.dot.example.com.", "-leading.example.com",
-		"a.b.c", "single", "192.168.1.1",
+		"a.b.c", "single", "192.168.1.1", "DEAD::BEEF",
+		// IPv6 literals
+		"[2001:db8::1]", "||[::1]^", "[::ffff:1.2.3.4]",
+		"[1.2.3.4]", "[example.com]", "[::1", "::1]", "[]", "[", "[fe80::1%eth0]", "[::1]:53",
 		// ABP markers
 		"||abp.example.com^", "||abp.example.org",
 		// regex (IDNA always skipped)
-		"/^ads\\.example\\.com$/", "/café/",
+		"/^ads\\.example\\.com$/", "/café/", "/[A-Z]+/",
 		// already-encoded punycode (ASCII)
 		"xn--mnchen-3ya.example.de", "xn--bcher-kva.example.com",
-		"xn--invalid!!.example.com",
+		"XN--MNCHEN-3YA.example.de", "xn--invalid!!.example.com", "xn--",
 		// Unicode (must go through IDNA)
 		"münchen.example.de", "bücher.example.com", "пример.example.com",
 		"日本語.example.jp", "café.example.fr",
+		"MÜNCHEN.example.de", "u\u0308ber.example.de", "ｅｘａｍｐｌｅ.com", "ẞ.example.de",
 		// mixed punycode + Unicode (the subtle case)
 		"xn--mnchen-3ya.café.com", "café.xn--mnchen-3ya.com",
 		// Unicode with ABP markers
 		"||münchen.example.de^",
+		// junk that must stay rejected
+		"dGVzdA==", "YWJj+/==", "münchen..de", "\xff.example.com",
 	}
 
 	for _, in := range inputs {
 		gotHost, gotErr := normalizeHostsListEntry(in)
 		wantHost, wantErr := normalizeReference(in)
 
-		if gotHost != wantHost || (gotErr == nil) != (wantErr == nil) {
+		if !strings.EqualFold(gotHost, wantHost) || (gotErr == nil) != (wantErr == nil) {
 			t.Errorf("normalizeHostsListEntry(%q) = (%q, err=%v); reference = (%q, err=%v)",
 				in, gotHost, gotErr, wantHost, wantErr)
 		}
@@ -125,9 +128,12 @@ func TestNormalizeHostsListEntry_MatchesReference(t *testing.T) {
 }
 
 // FuzzNormalizeHostsListEntry checks the fast-path matches the reference for
-// arbitrary input (host value and error presence).
+// arbitrary input (host value up to ASCII case, and error presence).
 func FuzzNormalizeHostsListEntry(f *testing.F) {
-	for _, s := range []string{"example.com", "münchen.de", "xn--mnchen-3ya.de", "xn--a.café.com", "||x^", "/r/"} {
+	for _, s := range []string{
+		"example.com", "Example.COM", "münchen.de", "MÜNCHEN.de", "xn--mnchen-3ya.de", "xn--a.café.com",
+		"||x^", "/r/", "[::1]", "||[2001:db8::1]^", "[x]",
+	} {
 		f.Add(s)
 	}
 
@@ -135,7 +141,7 @@ func FuzzNormalizeHostsListEntry(f *testing.F) {
 		gotHost, gotErr := normalizeHostsListEntry(in)
 		wantHost, wantErr := normalizeReference(in)
 
-		if gotHost != wantHost || (gotErr == nil) != (wantErr == nil) {
+		if !strings.EqualFold(gotHost, wantHost) || (gotErr == nil) != (wantErr == nil) {
 			t.Errorf("normalizeHostsListEntry(%q) = (%q, err=%v); reference = (%q, err=%v)",
 				in, gotHost, gotErr, wantHost, wantErr)
 		}
@@ -195,9 +201,13 @@ func FuzzHostsUnmarshalText(f *testing.F) {
 		"::1 ip6-localhost",
 		"fe80::1%eth0 router.local",
 		"*.tracker.example.com",
+		"*.münchen.example.de",
 		`/^ads\.example\.com$/`,
 		"münchen.example.de",
+		"MÜNCHEN.example.de",
 		"xn--mnchen-3ya.example.de",
+		"0.0.0.0 münchen.example.de",
+		"[2001:db8::1]",
 		"", " ", "\t", "1.2.3.4",
 	} {
 		f.Add(s)

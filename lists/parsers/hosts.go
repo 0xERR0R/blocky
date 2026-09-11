@@ -20,6 +20,16 @@ const (
 	maxDNSLabelLength   = 63  // https://www.rfc-editor.org/rfc/rfc1034#section-3.1
 )
 
+// idnaProfile maps an entry to the form DNS clients put on the wire: the UTS #46
+// lookup mapping (case folding, NFC, width folding, ignored code points dropped),
+// then punycode encoding of non-ASCII labels. Malformed punycode labels fail.
+// The STD3 and label validity checks are off: they reject entries for reasons
+// that amount to "that domain should not be used", and that decision belongs
+// to the list.
+//
+//nolint:gochecknoglobals
+var idnaProfile = idna.New(idna.MapForLookup(), idna.StrictDomainName(false), idna.ValidateLabels(false))
+
 // Hosts parses `r` as a series of `HostsIterator`.
 // It supports both the hosts file and host list formats.
 //
@@ -170,7 +180,10 @@ func (e *HostsFileEntry) UnmarshalText(data []byte) error {
 	hosts := make([]string, 0, len(fields)-1) // there must be at least one host for the line to be valid
 
 	for _, field := range fields[1:] {
-		host := string(field)
+		host, err := toASCII(string(field))
+		if err != nil {
+			return err
+		}
 
 		if err := validateDomainName(host); err != nil {
 			return err
@@ -231,6 +244,11 @@ func (e *WildcardEntry) UnmarshalText(data []byte) error {
 		return fmt.Errorf("unsupported wildcard '%s': must start with '*.' and contain no other '*'", entry)
 	}
 
+	entry, err := toASCII(entry)
+	if err != nil {
+		return err
+	}
+
 	*e = WildcardEntry(entry)
 
 	return nil
@@ -241,28 +259,21 @@ func (e WildcardEntry) forEachHost(callback func(string) error) error {
 }
 
 func normalizeHostsListEntry(host string) (string, error) {
-	// Lookup is the profile preferred for DNS queries, we use Punycode here as it does less validation.
-	// That avoids rejecting domains in a list for reasons that amount to "that domain should not be used"
-	// since the goal of the list is to determine whether the domain should be used or not, we leave
-	// that decision to it.
-	idnaProfile := idna.Punycode
-
 	// remove optional start and end markers for ABP styled lists
 	host = strings.TrimPrefix(host, "||")
 	host = strings.TrimSuffix(host, "^")
 
-	// IDNA is only needed for entries that contain non-ASCII (Unicode) characters,
-	// or an "xn--" ACE prefix (which IDNA validates even when the input is already
-	// ASCII). For all other (pure-ASCII) entries the ToUnicode/ToASCII dance leaves
-	// the host unchanged, so skip it — IDNA is comparatively expensive and the vast
-	// majority of list entries are plain ASCII.
-	if !isRegex(host) && needsIDNA(host) {
-		hostUnicode, err := idnaProfile.ToUnicode(host)
-		if err != nil || hostUnicode == host {
-			host, err = idnaProfile.ToASCII(host)
-			if err != nil {
-				return "", fmt.Errorf("%w: %s", err, host)
-			}
+	// URL-style IPv6 literal, as in "||[2001:db8::1]^"
+	if ip, ok := unwrapIPv6Literal(host); ok {
+		return ip, nil
+	}
+
+	if !isRegex(host) {
+		var err error
+
+		host, err = toASCII(host)
+		if err != nil {
+			return "", err
 		}
 	}
 
@@ -273,11 +284,48 @@ func normalizeHostsListEntry(host string) (string, error) {
 	return host, nil
 }
 
+// unwrapIPv6Literal strips the brackets of a URL-style IPv6 literal such as
+// "[2001:db8::1]". Brackets only wrap IPv6 addresses (RFC 3986), so the domain
+// name validation rejects anything else between them.
+func unwrapIPv6Literal(s string) (string, bool) {
+	if len(s) < 2 || s[0] != '[' || s[len(s)-1] != ']' {
+		return "", false
+	}
+
+	ip := s[1 : len(s)-1]
+	if !strings.Contains(ip, ":") || net.ParseIP(ip) == nil {
+		return "", false
+	}
+
+	return ip, true
+}
+
+// toASCII returns host in the ASCII (A-label) form that DNS queries carry, so
+// an entry matches queries however the list spelled it. It keeps ASCII case:
+// the caches fold it, and error messages echo the entry as written.
+//
+// Only entries with non-ASCII (Unicode) characters or an "xn--" ACE prefix
+// (which IDNA validates even in ASCII input) need IDNA. Pure-ASCII entries come
+// back as is: IDNA is slow next to a byte scan, and most list entries are plain
+// ASCII.
+func toASCII(host string) (string, error) {
+	if !needsIDNA(host) {
+		return host, nil
+	}
+
+	ascii, err := idnaProfile.ToASCII(host)
+	if err != nil {
+		return "", fmt.Errorf("%w: %s", err, host)
+	}
+
+	return ascii, nil
+}
+
 // needsIDNA reports whether host requires IDNA processing: any non-ASCII byte
 // needs it, and so does an "xn--" ACE prefix (matched case-insensitively and
 // conservatively anywhere in the string), since IDNA validates punycode labels
-// even for ASCII input. Pure-ASCII input without an ACE prefix is left unchanged
-// by IDNA, so it can safely skip it.
+// even for ASCII input. Pure-ASCII input without an ACE prefix differs from its
+// IDNA mapping by ASCII case alone, which the caches fold, so it skips IDNA.
 func needsIDNA(host string) bool {
 	for i := range len(host) {
 		c := host[i]
