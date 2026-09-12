@@ -113,6 +113,12 @@ var _ = Describe("Hosts", func() {
 				// the same applies to hosts file names and wildcards
 				{"0.0.0.0 münchen.example.de bücher.example.de", []string{"xn--mnchen-3ya.example.de", "xn--bcher-kva.example.de"}},
 				{"*.münchen.example.de", []string{"*.xn--mnchen-3ya.example.de"}},
+				// trailing root dots survive, with and without IDNA
+				{"example.com.", []string{"example.com."}},
+				{"münchen.example.de.", []string{"xn--mnchen-3ya.example.de."}},
+				{"*.münchen.example.de.", []string{"*.xn--mnchen-3ya.example.de."}},
+				{"0.0.0.0 münchen.example.de.", []string{"xn--mnchen-3ya.example.de."}},
+				{"example\u3002com\u3002", []string{"example.com."}},
 				// regexes stay as written
 				{"/[A-Z]+\\.café/", []string{"/[A-Z]+\\.café/"}},
 			}
@@ -147,6 +153,23 @@ var _ = Describe("Hosts", func() {
 				"YWJj+/==",
 				"münchen..example.de",
 				"münchen/example.de",
+				// labels that vanish in the IDNA mapping (empty "xn--" payload, ignored
+				// code points only) would leave a trailing dot the cache folds away,
+				// turning "*.com.xn--" into a rule for every .com name
+				"xn--",
+				"com.xn--",
+				"0.0.0.0 com.xn--",
+				"*.com.xn--",
+				"*.xn--.com",
+				"*.com.\u00ad",
+				"*.\u200b.com",
+				"*.com\u3002xn--", // ideographic full stop as the separator
+				"com\uff0e\u00ad", // fullwidth full stop
+				"\ufeff",
+				// wildcard suffixes are validated like plain entries
+				"*.",
+				"*..com",
+				"*.com/path",
 			}
 
 			for _, line := range lines {

@@ -249,6 +249,12 @@ func (e *WildcardEntry) UnmarshalText(data []byte) error {
 		return err
 	}
 
+	// The cache strips the "*." and any surrounding dots, so an empty label here
+	// widens the rule: "*..com" would match every .com name.
+	if err := validateDomainName(entry[len("*."):]); err != nil {
+		return err
+	}
+
 	*e = WildcardEntry(entry)
 
 	return nil
@@ -313,12 +319,48 @@ func toASCII(host string) (string, error) {
 		return host, nil
 	}
 
+	return idnaToASCII(host)
+}
+
+// idnaToASCII maps host with idnaProfile and rejects it when a label vanishes
+// in the mapping. An empty "xn--" payload decodes to nothing, and a label made
+// only of ignored code points (soft hyphen, zero-width space) maps to nothing;
+// either turns "*.com.xn--" into "*.com.", which the cache widens to every
+// .com name. The mapping never removes a label separator, so a drop in the
+// number of non-empty labels is the sign of a vanished label. A trailing root
+// dot in the input stays legitimate.
+func idnaToASCII(host string) (string, error) {
 	ascii, err := idnaProfile.ToASCII(host)
 	if err != nil {
 		return "", fmt.Errorf("%w: %s", err, host)
 	}
 
+	if nonEmptyLabels(ascii) < nonEmptyLabels(host) {
+		return "", fmt.Errorf("label vanishes in IDNA mapping: %s", host)
+	}
+
 	return ascii, nil
+}
+
+// nonEmptyLabels counts the labels of s that have content. Besides '.', the
+// separators are the ideographic and fullwidth full stops that UTS #46 maps to
+// '.', so the count of an entry and of its mapping line up.
+func nonEmptyLabels(s string) int {
+	n, inLabel := 0, false
+
+	for _, r := range s {
+		switch r {
+		case '.', '\u3002', '\uff0e', '\uff61':
+			inLabel = false
+		default:
+			if !inLabel {
+				n++
+				inLabel = true
+			}
+		}
+	}
+
+	return n
 }
 
 // needsIDNA reports whether host requires IDNA processing: any non-ASCII byte
