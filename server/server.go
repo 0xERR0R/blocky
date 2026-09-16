@@ -467,7 +467,9 @@ func createRedisCacheDecorator(
 		return &redisBridgeResult{}, nil
 	}
 
-	bridge, err := redis.NewEventBusBridge(ctx, redisConn, required)
+	bridge, err := redis.NewEventBusBridgeWithOptions(ctx, redisConn, redis.EventBusBridgeOptions{
+		BackgroundConnect: !required,
+	})
 	if err != nil {
 		if required {
 			return nil, fmt.Errorf("failed to create required Redis event bridge: %w", err)

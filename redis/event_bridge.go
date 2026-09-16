@@ -34,10 +34,22 @@ type EventBusBridge struct {
 	once    sync.Once
 }
 
+// EventBusBridgeOptions configures the initial Redis subscription.
+type EventBusBridgeOptions struct {
+	// BackgroundConnect starts the subscription in the background instead of waiting for Redis.
+	BackgroundConnect bool
+}
+
 // NewEventBusBridge creates a new EventBusBridge that synchronizes blocking state
-// between local event bus and Redis pub/sub. Without waitForConnection, the initial
-// subscription runs in the background so an optional Redis cannot delay startup.
-func NewEventBusBridge(ctx context.Context, client *goredis.Client, waitForConnection bool) (*EventBusBridge, error) {
+// between local event bus and Redis pub/sub, waiting for the initial subscription.
+func NewEventBusBridge(ctx context.Context, client *goredis.Client) (*EventBusBridge, error) {
+	return NewEventBusBridgeWithOptions(ctx, client, EventBusBridgeOptions{})
+}
+
+// NewEventBusBridgeWithOptions creates an EventBusBridge with configurable startup behavior.
+func NewEventBusBridgeWithOptions(
+	ctx context.Context, client *goredis.Client, opts EventBusBridgeOptions,
+) (*EventBusBridge, error) {
 	ctx, cancel := context.WithCancel(ctx)
 
 	b := &EventBusBridge{
@@ -56,7 +68,7 @@ func NewEventBusBridge(ctx context.Context, client *goredis.Client, waitForConne
 	}
 
 	var ps *goredis.PubSub
-	if waitForConnection {
+	if !opts.BackgroundConnect {
 		ps = client.Subscribe(ctx, b.channel)
 		if _, err := ps.Receive(ctx); err != nil {
 			_ = b.Close()
