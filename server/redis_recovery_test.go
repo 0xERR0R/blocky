@@ -15,6 +15,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	miniserver "github.com/alicebob/miniredis/v2/server"
 	"github.com/creasty/defaults"
+	goredis "github.com/go-redis/redis/v8"
 	"github.com/miekg/dns"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -114,6 +115,62 @@ var _ = Describe("Optional Redis recovery", func() {
 		Expect(err).Should(Succeed())
 		DeferCleanup(func() { Expect(srv.Stop(ctx)).Should(Succeed()) })
 	}, SpecTimeout(2*time.Second))
+
+	DescribeTable("cleans up Redis when resolver construction fails", func(ctx context.Context, failPing bool) {
+		redisServer, err := miniredis.Run()
+		Expect(err).Should(Succeed())
+		DeferCleanup(redisServer.Close)
+		if failPing {
+			redisServer.Server().SetPreHook(func(peer *miniserver.Peer, command string, _ ...string) bool {
+				if command != "PING" {
+					return false
+				}
+				peer.WriteError("ERR unavailable")
+
+				return true
+			})
+		}
+		cfg.Redis.Address = redisServer.Addr()
+		cfg.DNSSEC.Validate = true
+		cfg.DNSSEC.TrustAnchors = []string{"invalid"}
+
+		srv, err := NewServer(ctx, &cfg)
+		Expect(srv).Should(BeNil())
+		Expect(err).Should(MatchError(ContainSubstring("failed to load trust anchors")))
+		Expect(ctx.Err()).ShouldNot(HaveOccurred())
+		Eventually(redisServer.CurrentConnectionCount).Should(BeZero())
+		Consistently(redisServer.CurrentConnectionCount).WithTimeout(time.Second).Should(BeZero())
+		Expect(evt.Bus().HasCallback(evt.BlockingStateChanged)).Should(BeFalse())
+	},
+		Entry("after a successful Ping", false),
+		Entry("after an optional Ping failure", true),
+	)
+
+	It("stops Redis subscriptions without cancelling the parent context", func(ctx context.Context) {
+		redisServer, err := miniredis.Run()
+		Expect(err).Should(Succeed())
+		DeferCleanup(redisServer.Close)
+		cfg.Redis.Address = redisServer.Addr()
+
+		srv, err := NewServer(ctx, &cfg)
+		Expect(err).Should(Succeed())
+		DeferCleanup(func() { Expect(srv.Stop(ctx)).Should(Succeed()) })
+		Eventually(func() int { return redisServer.Publish("blocky_cache_sync", "") }).Should(Equal(1))
+		Eventually(func() int { return redisServer.Publish(redis.EventBridgeChannel, "") }).Should(Equal(1))
+		var redisCtx context.Context
+		for _, closer := range srv.closers {
+			if client, ok := closer.(*goredis.Client); ok {
+				redisCtx = client.Context()
+			}
+		}
+		Expect(redisCtx).ShouldNot(BeNil())
+		Expect(redisCtx.Err()).ShouldNot(HaveOccurred())
+
+		Expect(srv.Stop(ctx)).Should(Succeed())
+		Expect(redisCtx.Err()).Should(MatchError(context.Canceled))
+		Expect(ctx.Err()).ShouldNot(HaveOccurred())
+		Eventually(redisServer.CurrentConnectionCount).Should(BeZero())
+	})
 
 	It("closes the client when a required startup Ping fails", func(ctx context.Context) {
 		redisServer, err := miniredis.Run()

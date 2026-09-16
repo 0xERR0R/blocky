@@ -54,6 +54,7 @@ type Server struct {
 	http3Server      *http3Server     // nil when disabled
 	http3PacketConns []net.PacketConn // one per address in ports.https
 	closers          []io.Closer
+	redisCancel      context.CancelFunc
 }
 
 func logger() *logrus.Entry {
@@ -146,22 +147,34 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		return nil, fmt.Errorf("failed to create bootstrap resolver: %w", err)
 	}
 
-	redisConn, err := redis.New(ctx, &cfg.Redis)
+	redisCtx, redisCancel := context.WithCancel(ctx)
+	var redisClosers []io.Closer
+	defer func() {
+		if err != nil {
+			redisCancel()
+			closeAll(redisClosers)
+		}
+	}()
+
+	redisConn, err := redis.New(redisCtx, &cfg.Redis)
+	if redisConn != nil {
+		redisClosers = append(redisClosers, redisConn)
+	}
 	if err != nil {
 		if cfg.Redis.Required {
-			_ = redisConn.Close()
-
 			return nil, fmt.Errorf("failed to create required Redis client: %w", err)
 		}
 
 		logger().WithError(err).Warn("Redis is optional and unavailable; continuing with reconnection enabled")
 	}
 
-	redisResult, err := createRedisCacheDecorator(ctx, redisConn, cfg.Redis.Required, err == nil)
+	redisResult, err := createRedisCacheDecorator(redisCtx, redisConn, cfg.Redis.Required, err == nil)
 	if err != nil {
-		_ = redisConn.Close()
-
 		return nil, err
+	}
+
+	if redisResult.bridge != nil {
+		redisClosers = append([]io.Closer{redisResult.bridge}, redisClosers...)
 	}
 
 	queryResolver, queryError := createQueryResolver(ctx, cfg, bootstrap, redisResult.decorator)
@@ -175,14 +188,8 @@ func NewServer(ctx context.Context, cfg *config.Config) (server *Server, err err
 		cfg:              cfg,
 		servers:          make(map[net.Listener]*httpServer),
 		http3PacketConns: http3PacketConns,
-	}
-
-	if redisResult.bridge != nil {
-		server.closers = append(server.closers, redisResult.bridge)
-	}
-
-	if redisConn != nil {
-		server.closers = append(server.closers, redisConn)
+		redisCancel:      redisCancel,
+		closers:          redisClosers,
 	}
 
 	server.printConfiguration()
@@ -703,6 +710,10 @@ func (s *Server) Stop(ctx context.Context) error {
 		if err := pc.Close(); err != nil {
 			logger().Warn("failed to close http3 packet conn: ", err)
 		}
+	}
+
+	if s.redisCancel != nil {
+		s.redisCancel()
 	}
 
 	for _, c := range s.closers {
