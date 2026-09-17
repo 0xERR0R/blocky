@@ -10,7 +10,7 @@ require (
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/avast/retry-go/v4 v4.7.0
 	github.com/breml/rootcerts v0.3.7
-	github.com/creasty/defaults v1.9.0
+	github.com/creasty/defaults v1.10.0
 	github.com/dnstap/golang-dnstap v0.4.0
 	github.com/glebarez/sqlite v1.11.0
 	github.com/go-chi/chi/v5 v5.3.2
