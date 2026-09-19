@@ -85,7 +85,7 @@ func normalizeReference(host string) (string, error) {
 		return "", err
 	}
 
-	return host, nil
+	return trimRootDot(host), nil
 }
 
 func TestNormalizeHostsListEntry_MatchesReference(t *testing.T) {
@@ -198,7 +198,8 @@ func FuzzMightBeIP(f *testing.F) {
 //     fixpoint, since a normalized entry is already in canonical form;
 //   - no label vanishes: an accepted host has at least as many non-empty labels
 //     as the field it came from. Dropping one ("*.com.xn--" to "*.com.") widens
-//     a wildcard, and the cache folds the trailing dot away.
+//     a wildcard, and the cache folds the trailing dot away;
+//   - no accepted host ends in a root dot, since lookups never carry one.
 func FuzzHostsUnmarshalText(f *testing.F) {
 	for _, s := range []string{
 		"example.com",
@@ -226,10 +227,14 @@ func FuzzHostsUnmarshalText(f *testing.F) {
 		fields := bytes.Fields(data)
 
 		// noVanishedLabel fails the test when host has fewer non-empty labels than
-		// the input field it was parsed from.
+		// the input field it was parsed from, or still carries a root dot.
 		noVanishedLabel := func(kind string, field []byte, host string) {
 			if nonEmptyLabels(host) < nonEmptyLabels(string(field)) {
 				t.Fatalf("%s parsed %q into %q, dropping a label", kind, field, host)
+			}
+
+			if strings.HasSuffix(host, ".") {
+				t.Fatalf("%s parsed %q into %q, keeping the root dot", kind, field, host)
 			}
 		}
 

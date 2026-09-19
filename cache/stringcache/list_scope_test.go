@@ -33,6 +33,10 @@ func TestListEntriesCannotWidenScope(t *testing.T) {
 		"*.example.org.",
 		"*.münchen.example.de",
 		"münchen.example.de",
+		// root dots: queries reach the cache without them
+		"rootdot.example.net.",
+		"bücher.example.de.",
+		"0.0.0.0 hosts.example.net.",
 	}
 
 	lines := strings.Join(append(append([]string{}, malformed...), legitimate...), "\n") + "\n"
@@ -76,7 +80,10 @@ func TestListEntriesCannotWidenScope(t *testing.T) {
 		}
 	}
 
-	for _, name := range []string{"sub.example.org", "sub.xn--mnchen-3ya.example.de", "xn--mnchen-3ya.example.de"} {
+	for _, name := range []string{
+		"sub.example.org", "sub.xn--mnchen-3ya.example.de", "xn--mnchen-3ya.example.de",
+		"rootdot.example.net", "xn--bcher-kva.example.de", "hosts.example.net",
+	} {
 		if got := chain.Contains(name, []string{group}); len(got) == 0 {
 			t.Errorf("%q did not match, a legitimate entry was lost", name)
 		}

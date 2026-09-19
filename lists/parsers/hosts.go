@@ -189,7 +189,7 @@ func (e *HostsFileEntry) UnmarshalText(data []byte) error {
 			return err
 		}
 
-		hosts = append(hosts, host)
+		hosts = append(hosts, trimRootDot(host))
 	}
 
 	if len(hosts) == 0 {
@@ -255,7 +255,7 @@ func (e *WildcardEntry) UnmarshalText(data []byte) error {
 		return err
 	}
 
-	*e = WildcardEntry(entry)
+	*e = WildcardEntry(trimRootDot(entry))
 
 	return nil
 }
@@ -287,7 +287,15 @@ func normalizeHostsListEntry(host string) (string, error) {
 		return "", err
 	}
 
-	return host, nil
+	return trimRootDot(host), nil
+}
+
+// trimRootDot drops the trailing root dot of a validated entry. Lookups strip
+// it from the query name (util.ExtractDomain), so a cache key or hosts file
+// name stored as "example.com." never matches. Callers validate first, which
+// keeps "example.com.." rejected.
+func trimRootDot(host string) string {
+	return strings.TrimSuffix(host, ".")
 }
 
 // unwrapIPv6Literal strips the brackets of a URL-style IPv6 literal such as
@@ -328,7 +336,7 @@ func toASCII(host string) (string, error) {
 // either turns "*.com.xn--" into "*.com.", which the cache widens to every
 // .com name. The mapping never removes a label separator, so a drop in the
 // number of non-empty labels is the sign of a vanished label. A trailing root
-// dot in the input stays legitimate.
+// dot in the input stays legitimate; the entry types drop it after validation.
 func idnaToASCII(host string) (string, error) {
 	ascii, err := idnaProfile.ToASCII(host)
 	if err != nil {

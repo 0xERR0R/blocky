@@ -113,12 +113,12 @@ var _ = Describe("Hosts", func() {
 				// the same applies to hosts file names and wildcards
 				{"0.0.0.0 münchen.example.de bücher.example.de", []string{"xn--mnchen-3ya.example.de", "xn--bcher-kva.example.de"}},
 				{"*.münchen.example.de", []string{"*.xn--mnchen-3ya.example.de"}},
-				// trailing root dots survive, with and without IDNA
-				{"example.com.", []string{"example.com."}},
-				{"münchen.example.de.", []string{"xn--mnchen-3ya.example.de."}},
-				{"*.münchen.example.de.", []string{"*.xn--mnchen-3ya.example.de."}},
-				{"0.0.0.0 münchen.example.de.", []string{"xn--mnchen-3ya.example.de."}},
-				{"example\u3002com\u3002", []string{"example.com."}},
+				// the parser drops trailing root dots: lookups strip them from the query
+				{"example.com.", []string{"example.com"}},
+				{"münchen.example.de.", []string{"xn--mnchen-3ya.example.de"}},
+				{"*.münchen.example.de.", []string{"*.xn--mnchen-3ya.example.de"}},
+				{"0.0.0.0 münchen.example.de. bücher.example.de.", []string{"xn--mnchen-3ya.example.de", "xn--bcher-kva.example.de"}},
+				{"example\u3002com\u3002", []string{"example.com"}},
 				// regexes stay as written
 				{"/[A-Z]+\\.café/", []string{"/[A-Z]+\\.café/"}},
 			}
@@ -170,6 +170,10 @@ var _ = Describe("Hosts", func() {
 				"*.",
 				"*..com",
 				"*.com/path",
+				// the grammar allows one root dot, so dropping it cannot leave another behind
+				"example.com..",
+				"0.0.0.0 example.com..",
+				"*.example.com..",
 			}
 
 			for _, line := range lines {
