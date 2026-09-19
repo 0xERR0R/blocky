@@ -96,23 +96,123 @@ var _ = Describe("Hosts", func() {
 		})
 	})
 
+	When("parsing entries that need normalization", func() {
+		It("emits the form DNS queries carry", func() {
+			cases := []struct {
+				line  string
+				hosts []string
+			}{
+				// URL-style IPv6 literals
+				{"[2001:db8::1]", []string{"2001:db8::1"}},
+				{"||[::1]^", []string{"::1"}},
+				// Unicode, punycode and mixed labels normalize to lowercase A-labels
+				{"MÜNCHEN.example.de", []string{"xn--mnchen-3ya.example.de"}},
+				{"XN--MNCHEN-3YA.example.de", []string{"xn--mnchen-3ya.example.de"}},
+				{"xn--mnchen-3ya.café.com", []string{"xn--mnchen-3ya.xn--caf-dma.com"}},
+				{"имяенн.010.xn--p1acf", []string{"xn--e1afmfa9h.010.xn--p1acf"}},
+				// the same applies to hosts file names and wildcards
+				{"0.0.0.0 münchen.example.de bücher.example.de", []string{"xn--mnchen-3ya.example.de", "xn--bcher-kva.example.de"}},
+				{"*.münchen.example.de", []string{"*.xn--mnchen-3ya.example.de"}},
+				// trailing root dots survive, with and without IDNA
+				{"example.com.", []string{"example.com."}},
+				{"münchen.example.de.", []string{"xn--mnchen-3ya.example.de."}},
+				{"*.münchen.example.de.", []string{"*.xn--mnchen-3ya.example.de."}},
+				{"0.0.0.0 münchen.example.de.", []string{"xn--mnchen-3ya.example.de."}},
+				{"example\u3002com\u3002", []string{"example.com."}},
+				// regexes stay as written
+				{"/[A-Z]+\\.café/", []string{"/[A-Z]+\\.café/"}},
+			}
+
+			for _, c := range cases {
+				sut := Hosts(strings.NewReader(c.line))
+
+				it, err := sut.Next(context.Background())
+				Expect(err).Should(Succeed(), c.line)
+				Expect(iteratorToList(it.ForEach)).Should(Equal(c.hosts), c.line)
+			}
+		})
+	})
+
 	When("parsing invalid lines", func() {
 		It("fails", func() {
 			lines := []string{
 				"invalidIP localhost",
 				"xn---mllerk1va.com",
+				"0.0.0.0 xn---mllerk1va.com",
+				"*.xn---mllerk1va.com",
 				`/invalid regex ??/`,
 				"invalid.*.wildcard",
+				// brackets are only valid around an IPv6 address
+				"[example.com]",
+				"[1.2.3.4]",
+				"[fe80::1%eth0]",
+				"[::1]:53",
+				"[::1",
+				// Base64-like junk and malformed IDNs stay rejected, not repaired into host names
+				"dGVzdA==",
+				"YWJj+/==",
+				"münchen..example.de",
+				"münchen/example.de",
+				// labels that vanish in the IDNA mapping (empty "xn--" payload, ignored
+				// code points only) would leave a trailing dot the cache folds away,
+				// turning "*.com.xn--" into a rule for every .com name
+				"xn--",
+				"com.xn--",
+				"0.0.0.0 com.xn--",
+				"*.com.xn--",
+				"*.xn--.com",
+				"*.com.\u00ad",
+				"*.\u200b.com",
+				"*.com\u3002xn--", // ideographic full stop as the separator
+				"com\uff0e\u00ad", // fullwidth full stop
+				"\ufeff",
+				// wildcard suffixes are validated like plain entries
+				"*.",
+				"*..com",
+				"*.com/path",
 			}
 
 			for _, line := range lines {
 				sut := Hosts(strings.NewReader(line))
 
 				_, err := sut.Next(context.Background())
-				Expect(err).Should(HaveOccurred())
+				Expect(err).Should(HaveOccurred(), line)
 				Expect(IsNonResumableErr(err)).ShouldNot(BeTrue())
 				Expect(sut.Position()).Should(Equal("line 1"))
 			}
+		})
+
+		It("reports them with their position and counts them against the error limit", func() {
+			sut := AllowErrors(Hosts(linesReader(
+				"[2001:db8::1]",
+				"dGVzdA==",
+				"MÜNCHEN.example.de",
+				"YWJj+/==",
+				"valid.example.com",
+			)), 1)
+
+			var errs []string
+
+			sut.OnErr(func(err error) {
+				errs = append(errs, err.Error())
+			})
+
+			it, err := sut.Next(context.Background())
+			Expect(err).Should(Succeed())
+			Expect(iteratorToList(it.ForEach)).Should(Equal([]string{"2001:db8::1"}))
+
+			it, err = sut.Next(context.Background())
+			Expect(err).Should(Succeed())
+			Expect(iteratorToList(it.ForEach)).Should(Equal([]string{"xn--mnchen-3ya.example.de"}))
+			Expect(sut.Position()).Should(Equal("line 3"))
+
+			_, err = sut.Next(context.Background())
+			Expect(err).Should(MatchError(ErrTooManyErrors))
+			Expect(sut.Position()).Should(Equal("line 4"))
+
+			Expect(errs).Should(HaveLen(2))
+			Expect(errs[0]).Should(SatisfyAll(HavePrefix("line 2: "), ContainSubstring("invalid domain name: dGVzdA==")))
+			Expect(errs[1]).Should(SatisfyAll(HavePrefix("line 4: "), ContainSubstring("invalid domain name: YWJj+/==")))
 		})
 	})
 

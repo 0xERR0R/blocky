@@ -1,13 +1,11 @@
 package parsers
 
 import (
-	"fmt"
+	"bytes"
 	"net"
 	"regexp"
 	"strings"
 	"testing"
-
-	"golang.org/x/net/idna"
 )
 
 // Plain table + fuzz tests for the helper functions in hosts.go. They live in a
@@ -61,26 +59,25 @@ func FuzzIsValidDomainName(f *testing.F) {
 
 // --- entry normalization (normalizeHostsListEntry) ---
 
-// normalizeReference is a verbatim copy of normalizeHostsListEntry as it was
-// before the ASCII fast-path was added. The fast-path must be equivalent to it
-// for every input (both the returned host and whether an error occurred).
+// normalizeReference is normalizeHostsListEntry without the ASCII fast-path:
+// every non-regex entry goes through idnaToASCII. The fast-path must be
+// equivalent to it for every input: same error presence, and the same host up
+// to ASCII case (the IDNA mapping lowercases, the fast-path leaves case to the
+// caches, which fold it).
 func normalizeReference(host string) (string, error) {
-	var err error
-
-	var hostUnicode string
-
-	idnaProfile := idna.Punycode
-
 	host = strings.TrimPrefix(host, "||")
 	host = strings.TrimSuffix(host, "^")
 
+	if ip, ok := unwrapIPv6Literal(host); ok {
+		return ip, nil
+	}
+
 	if !isRegex(host) {
-		hostUnicode, err = idnaProfile.ToUnicode(host)
-		if err != nil || hostUnicode == host {
-			host, err = idnaProfile.ToASCII(host)
-			if err != nil {
-				return "", fmt.Errorf("%w: %s", err, host)
-			}
+		var err error
+
+		host, err = idnaToASCII(host)
+		if err != nil {
+			return "", err
 		}
 	}
 
@@ -96,28 +93,38 @@ func TestNormalizeHostsListEntry_MatchesReference(t *testing.T) {
 		// pure ASCII (fast-path skips IDNA)
 		"example.com", "Example.COM", "under_score.example.org",
 		"trailing.dot.example.com.", "-leading.example.com",
-		"a.b.c", "single", "192.168.1.1",
+		"a.b.c", "single", "192.168.1.1", "DEAD::BEEF",
+		// IPv6 literals
+		"[2001:db8::1]", "||[::1]^", "[::ffff:1.2.3.4]",
+		"[1.2.3.4]", "[example.com]", "[::1", "::1]", "[]", "[", "[fe80::1%eth0]", "[::1]:53",
 		// ABP markers
 		"||abp.example.com^", "||abp.example.org",
 		// regex (IDNA always skipped)
-		"/^ads\\.example\\.com$/", "/café/",
+		"/^ads\\.example\\.com$/", "/café/", "/[A-Z]+/",
 		// already-encoded punycode (ASCII)
 		"xn--mnchen-3ya.example.de", "xn--bcher-kva.example.com",
-		"xn--invalid!!.example.com",
+		"XN--MNCHEN-3YA.example.de", "xn--invalid!!.example.com", "xn--",
 		// Unicode (must go through IDNA)
 		"münchen.example.de", "bücher.example.com", "пример.example.com",
 		"日本語.example.jp", "café.example.fr",
+		"MÜNCHEN.example.de", "u\u0308ber.example.de", "ｅｘａｍｐｌｅ.com", "ẞ.example.de",
 		// mixed punycode + Unicode (the subtle case)
 		"xn--mnchen-3ya.café.com", "café.xn--mnchen-3ya.com",
 		// Unicode with ABP markers
 		"||münchen.example.de^",
+		// trailing root dots and dot-like runes
+		"example.com.", "münchen.de.", "example。com", "example.com。",
+		// junk that must stay rejected
+		"dGVzdA==", "YWJj+/==", "münchen..de", "\xff.example.com",
+		// labels that vanish in the mapping
+		"com.xn--", "xn--", "xn--.com", "com.\u00ad", "\ufeff", "a.\u200b.b", "com\u3002xn--", "com\uff0e\u00ad",
 	}
 
 	for _, in := range inputs {
 		gotHost, gotErr := normalizeHostsListEntry(in)
 		wantHost, wantErr := normalizeReference(in)
 
-		if gotHost != wantHost || (gotErr == nil) != (wantErr == nil) {
+		if !strings.EqualFold(gotHost, wantHost) || (gotErr == nil) != (wantErr == nil) {
 			t.Errorf("normalizeHostsListEntry(%q) = (%q, err=%v); reference = (%q, err=%v)",
 				in, gotHost, gotErr, wantHost, wantErr)
 		}
@@ -125,9 +132,12 @@ func TestNormalizeHostsListEntry_MatchesReference(t *testing.T) {
 }
 
 // FuzzNormalizeHostsListEntry checks the fast-path matches the reference for
-// arbitrary input (host value and error presence).
+// arbitrary input (host value up to ASCII case, and error presence).
 func FuzzNormalizeHostsListEntry(f *testing.F) {
-	for _, s := range []string{"example.com", "münchen.de", "xn--mnchen-3ya.de", "xn--a.café.com", "||x^", "/r/"} {
+	for _, s := range []string{
+		"example.com", "Example.COM", "münchen.de", "MÜNCHEN.de", "xn--mnchen-3ya.de", "xn--a.café.com",
+		"||x^", "/r/", "[::1]", "||[2001:db8::1]^", "[x]", "com.xn--", "com.\u00ad", "example\u3002com",
+	} {
 		f.Add(s)
 	}
 
@@ -135,7 +145,7 @@ func FuzzNormalizeHostsListEntry(f *testing.F) {
 		gotHost, gotErr := normalizeHostsListEntry(in)
 		wantHost, wantErr := normalizeReference(in)
 
-		if gotHost != wantHost || (gotErr == nil) != (wantErr == nil) {
+		if !strings.EqualFold(gotHost, wantHost) || (gotErr == nil) != (wantErr == nil) {
 			t.Errorf("normalizeHostsListEntry(%q) = (%q, err=%v); reference = (%q, err=%v)",
 				in, gotHost, gotErr, wantHost, wantErr)
 		}
@@ -185,7 +195,10 @@ func FuzzMightBeIP(f *testing.F) {
 // document:
 //   - a successful HostsFileEntry has a non-nil IP and only valid host names;
 //   - HostListEntry normalization is idempotent: re-parsing its own output is a
-//     fixpoint, since a normalized entry is already in canonical form.
+//     fixpoint, since a normalized entry is already in canonical form;
+//   - no label vanishes: an accepted host has at least as many non-empty labels
+//     as the field it came from. Dropping one ("*.com.xn--" to "*.com.") widens
+//     a wildcard, and the cache folds the trailing dot away.
 func FuzzHostsUnmarshalText(f *testing.F) {
 	for _, s := range []string{
 		"example.com",
@@ -195,9 +208,14 @@ func FuzzHostsUnmarshalText(f *testing.F) {
 		"::1 ip6-localhost",
 		"fe80::1%eth0 router.local",
 		"*.tracker.example.com",
+		"*.münchen.example.de",
 		`/^ads\.example\.com$/`,
 		"münchen.example.de",
+		"MÜNCHEN.example.de",
 		"xn--mnchen-3ya.example.de",
+		"0.0.0.0 münchen.example.de",
+		"[2001:db8::1]",
+		"*.com.xn--", "*.com.\u00ad", "*.com\u3002xn--", "0.0.0.0 com.xn--", "example.com.",
 		"", " ", "\t", "1.2.3.4",
 	} {
 		f.Add(s)
@@ -205,6 +223,15 @@ func FuzzHostsUnmarshalText(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, in string) {
 		data := []byte(in)
+		fields := bytes.Fields(data)
+
+		// noVanishedLabel fails the test when host has fewer non-empty labels than
+		// the input field it was parsed from.
+		noVanishedLabel := func(kind string, field []byte, host string) {
+			if nonEmptyLabels(host) < nonEmptyLabels(string(field)) {
+				t.Fatalf("%s parsed %q into %q, dropping a label", kind, field, host)
+			}
+		}
 
 		// None of the parsers may panic, regardless of whether they accept the input.
 		var list HostListEntry
@@ -212,6 +239,9 @@ func FuzzHostsUnmarshalText(f *testing.F) {
 
 		var file HostsFileEntry
 		fileErr := file.UnmarshalText(data)
+
+		var wildcard WildcardEntry
+		wildcardErr := wildcard.UnmarshalText(data)
 
 		var iter HostsIterator
 		_ = iter.UnmarshalText(data)
@@ -222,17 +252,29 @@ func FuzzHostsUnmarshalText(f *testing.F) {
 				t.Fatalf("HostsFileEntry parsed %q but IP is nil", in)
 			}
 
+			i := 0
+
 			_ = file.forEachHost(func(host string) error {
 				if err := validateDomainName(host); err != nil {
 					t.Fatalf("HostsFileEntry parsed %q but emitted host %q is invalid: %v", in, host, err)
 				}
 
+				i++
+				noVanishedLabel("HostsFileEntry", fields[i], host)
+
 				return nil
 			})
 		}
 
+		if wildcardErr == nil {
+			noVanishedLabel("WildcardEntry", fields[0], wildcard.String())
+		}
+
 		// Normalizing an already-normalized host-list entry must be a fixpoint.
 		if listErr == nil {
+			abpTrimmed := bytes.TrimSuffix(bytes.TrimPrefix(fields[0], []byte("||")), []byte("^"))
+			noVanishedLabel("HostListEntry", abpTrimmed, list.String())
+
 			var reparsed HostListEntry
 			if err := reparsed.UnmarshalText([]byte(list.String())); err != nil {
 				t.Fatalf("HostListEntry %q normalized to %q which fails to re-parse: %v", in, list.String(), err)
