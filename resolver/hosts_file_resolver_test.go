@@ -151,6 +151,28 @@ var _ = Describe("HostsFileResolver", func() {
 			})
 		})
 
+		When("names carry a root dot or need IDNA mapping", func() {
+			BeforeEach(func() {
+				tmpFile = tmpDir.CreateStringFile("hosts-root-dot.txt",
+					"10.0.0.5 rootdot.example.de. münchen.example.de.",
+				)
+
+				sutConfig.Sources = config.NewBytesSources(tmpFile.Path)
+			})
+
+			It("resolves them the way clients query them", func() {
+				for _, name := range []string{"rootdot.example.de.", "xn--mnchen-3ya.example.de."} {
+					Expect(sut.Resolve(ctx, newRequest(name, A))).
+						Should(
+							SatisfyAll(
+								HaveResponseType(ResponseTypeHOSTSFILE),
+								HaveReturnCode(dns.RcodeSuccess),
+								BeDNSRecord(name, A, "10.0.0.5"),
+							), name)
+				}
+			})
+		})
+
 		When("Hosts file has too many errors", func() {
 			BeforeEach(func() {
 				tmpFile = tmpDir.CreateStringFile("hosts-too-many-errors.txt",
