@@ -126,12 +126,17 @@ All values in this section are optional.
 
 All logging options are optional.
 
-| Parameter     | Type                                   | Default value | Description                                                                                                                                       |
-| ------------- | -------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| log.level     | enum (trace, debug, info, warn, error) | info          | Log level                                                                                                                                         |
-| log.format    | enum (text, json)                      | text          | Log format (text or json).                                                                                                                        |
-| log.timestamp | bool                                   | true          | Log timestamps (true or false).                                                                                                                   |
-| log.privacy   | bool                                   | false         | Obfuscate log output (replace all alphanumeric characters with \*) for user sensitive data like request domains or responses to increase privacy. |
+| Parameter           | Type                                   | Default value | Description                                                                                                                                       |
+| ------------------- | -------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| log.level           | enum (trace, debug, info, warn, error) | info          | Log level                                                                                                                                         |
+| log.format          | enum (text, json)                      | text          | Log format (text or json).                                                                                                                        |
+| log.target          | enum (stdout, stderr, syslog)          | stdout        | Where log entries are written. `syslog` logs each entry at the priority matching its level.                                                       |
+| log.syslog.network  | string                                 |               | Empty for the local syslog socket, otherwise `udp` or `tcp`.                                                                                      |
+| log.syslog.address  | string                                 |               | `host:port` of the syslog server, used when `network` is set.                                                                                     |
+| log.syslog.tag      | string                                 | blocky        | Tag each entry is logged under.                                                                                                                   |
+| log.syslog.facility | enum (daemon, user, local0-local7)     | daemon        | Syslog facility.                                                                                                                                  |
+| log.timestamp       | bool                                   | true          | Log timestamps (true or false).                                                                                                                   |
+| log.privacy         | bool                                   | false         | Obfuscate log output (replace all alphanumeric characters with \*) for user sensitive data like request domains or responses to increase privacy. |
 
 !!! example
 
@@ -142,6 +147,22 @@ All logging options are optional.
       timestamp: false
       privacy: true
     ```
+
+!!! example "logging to syslog"
+
+    ```yaml
+    log:
+      target: syslog
+      syslog:
+        tag: blocky
+        facility: daemon
+    ```
+
+    Entries are mapped to syslog priorities: `error` to `err`, `warn` to `warning`,
+    `info` to `info`, `debug` and `trace` to `debug`, and `fatal` and `panic` to `crit`.
+    Each record carries the message alone: syslog supplies the timestamp and the
+    severity itself, so `log.timestamp` is ignored and the level is not repeated in
+    the text. Use `format: json` if you want the level in the message as well.
 
 ## Init Strategy
 
