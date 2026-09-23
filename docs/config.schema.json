@@ -901,6 +901,38 @@
           "description": "- `text`: Human-readable text.\n- `json`: Structured JSON.",
           "default": "text"
         },
+        "target": {
+          "type": "string",
+          "enum": [
+            "stdout",
+            "stderr",
+            "syslog"
+          ],
+          "description": "- `stdout`: Standard output.\n- `stderr`: Standard error.\n- `syslog`: System log, each entry at the priority matching its level.",
+          "default": "stdout"
+        },
+        "syslog": {
+          "properties": {
+            "network": {
+              "type": "string",
+              "default": ""
+            },
+            "address": {
+              "type": "string",
+              "default": ""
+            },
+            "tag": {
+              "type": "string",
+              "default": "blocky"
+            },
+            "facility": {
+              "type": "string",
+              "default": "daemon"
+            }
+          },
+          "additionalProperties": false,
+          "type": "object"
+        },
         "privacy": {
           "type": "boolean",
           "default": false

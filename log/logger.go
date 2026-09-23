@@ -3,9 +3,11 @@ package log
 //go:generate go tool go-enum -f=$GOFILE --marshal --names --template ../tools/schemagen/templates/enum_description.tmpl
 
 import (
+	"fmt"
 	"io"
 	"maps"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -32,12 +34,30 @@ var (
 // )
 type FormatType int
 
+// TargetType destination for logging ENUM(
+// stdout // Standard output.
+// stderr // Standard error.
+// syslog // System log, each entry at the priority matching its level.
+// )
+type TargetType int
+
 // Config defines all logging configurations
 type Config struct {
-	Level     logrus.Level `default:"info"  yaml:"level"`
-	Format    FormatType   `default:"text"  yaml:"format"`
-	Privacy   bool         `default:"false" yaml:"privacy"`
-	Timestamp bool         `default:"true"  yaml:"timestamp"`
+	Level     logrus.Level `default:"info"   yaml:"level"`
+	Format    FormatType   `default:"text"   yaml:"format"`
+	Target    TargetType   `default:"stdout" yaml:"target"`
+	Syslog    SyslogConfig `yaml:"syslog"`
+	Privacy   bool         `default:"false"  yaml:"privacy"`
+	Timestamp bool         `default:"true"   yaml:"timestamp"`
+}
+
+// SyslogConfig defines where and as what blocky logs when the target is syslog
+type SyslogConfig struct {
+	// Network is empty for the local syslog socket, otherwise "udp" or "tcp"
+	Network  string `default:""       yaml:"network"`
+	Address  string `default:""       yaml:"address"`
+	Tag      string `default:"blocky" yaml:"tag"`
+	Facility string `default:"daemon" yaml:"facility"`
 }
 
 // DefaultConfig returns a new Config initialized with default values.
@@ -109,38 +129,113 @@ func Configure(cfg *Config) {
 func ConfigureLogger(logger *logrus.Logger, cfg *Config) {
 	logger.SetLevel(cfg.Level)
 
-	switch cfg.Format {
-	case FormatTypeText:
-		// Respect NO_COLOR env var (https://no-color.org/)
-		noColor := os.Getenv("NO_COLOR") != ""
+	toSyslog := cfg.Target == TargetTypeSyslog
 
-		logFormatter := &prefixed.TextFormatter{
-			TimestampFormat:  "2006-01-02 15:04:05",
-			FullTimestamp:    true,
-			ForceFormatting:  true,
-			ForceColors:      false,
-			QuoteEmptyFields: true,
-			DisableTimestamp: !cfg.Timestamp,
-			DisableColors:    noColor,
-		}
+	formatter := newFormatter(cfg, toSyslog)
+	logger.SetFormatter(formatter)
 
-		logFormatter.SetColorScheme(&prefixed.ColorScheme{
-			PrefixStyle:    "blue+b",
-			TimestampStyle: "white+h",
-		})
+	if !toSyslog {
+		logger.SetOutput(newOutput(cfg.Target))
 
-		logger.SetFormatter(logFormatter)
-
-		if noColor {
-			logger.SetOutput(os.Stdout)
-		} else {
-			// Windows does not support ANSI colors
-			logger.SetOutput(colorable.NewColorableStdout())
-		}
-
-	case FormatTypeJson:
-		logger.SetFormatter(&logrus.JSONFormatter{})
+		return
 	}
+
+	hook, err := newSyslogHook(cfg.Syslog, formatter)
+	if err != nil {
+		logger.SetOutput(newOutput(TargetTypeStderr))
+		logger.Errorf("can't log to syslog, using stderr instead: %v", err)
+
+		return
+	}
+
+	// the hook does the writing, so the stream itself receives nothing
+	logger.SetOutput(io.Discard)
+	logger.ReplaceHooks(logrus.LevelHooks{})
+	logger.AddHook(hook)
+}
+
+// newFormatter returns the formatter for the configured format.
+func newFormatter(cfg *Config, toSyslog bool) logrus.Formatter {
+	if cfg.Format == FormatTypeJson {
+		return &logrus.JSONFormatter{}
+	}
+
+	if toSyslog {
+		return syslogFormatter{}
+	}
+
+	logFormatter := &prefixed.TextFormatter{
+		TimestampFormat:  "2006-01-02 15:04:05",
+		FullTimestamp:    true,
+		ForceFormatting:  true,
+		ForceColors:      false,
+		QuoteEmptyFields: true,
+		DisableTimestamp: !cfg.Timestamp,
+		DisableColors:    noColor(),
+	}
+
+	logFormatter.SetColorScheme(&prefixed.ColorScheme{
+		PrefixStyle:    "blue+b",
+		TimestampStyle: "white+h",
+	})
+
+	return logFormatter
+}
+
+// syslogFormatter renders an entry as plain text carrying neither timestamp nor
+// level: syslog records both itself, in the record's own header and priority.
+type syslogFormatter struct{}
+
+// Format implements `logrus.Formatter`.
+func (syslogFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+	var out strings.Builder
+
+	if prefix, ok := entry.Data[prefixField].(string); ok && prefix != "" {
+		out.WriteString(prefix)
+		out.WriteString(": ")
+	}
+
+	out.WriteString(entry.Message)
+
+	fields := make([]string, 0, len(entry.Data))
+
+	for field := range entry.Data {
+		if field != prefixField {
+			fields = append(fields, field)
+		}
+	}
+
+	slices.Sort(fields)
+
+	for _, field := range fields {
+		fmt.Fprintf(&out, " %s=%v", field, entry.Data[field])
+	}
+
+	out.WriteString("\n")
+
+	return []byte(out.String()), nil
+}
+
+func newOutput(target TargetType) io.Writer {
+	if target == TargetTypeStderr {
+		if noColor() {
+			return os.Stderr
+		}
+
+		return colorable.NewColorableStderr()
+	}
+
+	if noColor() {
+		return os.Stdout
+	}
+
+	// Windows does not support ANSI colors
+	return colorable.NewColorableStdout()
+}
+
+// Respect NO_COLOR env var (https://no-color.org/)
+func noColor() bool {
+	return os.Getenv("NO_COLOR") != ""
 }
 
 // Silence disables the logger output
@@ -172,7 +267,9 @@ func WithIndent(log *logrus.Entry, prefix string, callback func(*logrus.Entry)) 
 //
 // The returned function must be called to remove the prefix.
 func indentMessages(prefix string, logger *logrus.Logger) func() {
-	if _, ok := logger.Formatter.(*prefixed.TextFormatter); !ok {
+	switch logger.Formatter.(type) {
+	case *prefixed.TextFormatter, syslogFormatter:
+	default:
 		// log is not plaintext, do nothing
 		return func() {}
 	}
