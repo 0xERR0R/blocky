@@ -1656,6 +1656,90 @@ var _ = Describe("Running DNS server", func() {
 				Expect(len(packed)).Should(BeNumerically("<=", dns.MinMsgSize))
 			})
 		})
+
+		Describe("responseCompression", func() {
+			// Some embedded stub resolvers discard uncompressed answers, so compression can be
+			// forced for responses that fit the client buffer uncompressed.
+			resolveSingleA := func(cfg config.ResponseCompression, clientIP string, clientNames ...string) *dns.Msg {
+				Expect(cfg.ValidateForTest()).Should(Succeed())
+
+				res, err := util.NewMsgWithAnswer("example.com.", 123, A, "1.2.3.4")
+				Expect(err).Should(Succeed())
+
+				// client names are resolved by the chain, like the client names resolver does
+				m := resolver.NewMockChainedResolver(GinkgoT())
+				m.EXPECT().Resolve(mock.Anything, mock.Anything).RunAndReturn(
+					func(_ context.Context, req *model.Request) (*model.Response, error) {
+						req.ClientNames = clientNames
+						res.SetReply(req.Req)
+
+						return &model.Response{Res: res, RType: model.ResponseTypeRESOLVED, Reason: "RESOLVED"}, nil
+					})
+
+				s := &Server{
+					queryResolver: m,
+					cfg: &config.Config{
+						Upstreams:           config.Upstreams{Timeout: config.Duration(time.Second)},
+						ResponseCompression: cfg,
+					},
+				}
+
+				_, req := newRequest(ctx, net.ParseIP(clientIP), "", model.RequestProtocolUDP,
+					util.NewMsgWithQuestion("example.com.", A))
+
+				resp, err := s.resolve(ctx, req)
+				Expect(err).Should(Succeed())
+
+				return resp.Res
+			}
+
+			// the owner name of the answer is a pointer to the question name at offset 12
+			isCompressedOnTheWire := func(res *dns.Msg) bool {
+				packed, err := res.Pack()
+				Expect(err).Should(Succeed())
+
+				return bytes.Contains(packed, []byte{0xc0, 0x0c})
+			}
+
+			When("always is set", func() {
+				It("compresses a response that fits uncompressed", func() {
+					res := resolveSingleA(config.ResponseCompression{Always: true}, "1.2.3.4")
+
+					Expect(res.Compress).Should(BeTrue())
+					Expect(isCompressedOnTheWire(res)).Should(BeTrue())
+				})
+			})
+
+			When("the client's IP is in clients", func() {
+				It("compresses a response that fits uncompressed", func() {
+					cfg := config.ResponseCompression{Clients: []string{"1.2.3.0/24"}}
+					res := resolveSingleA(cfg, "1.2.3.4")
+
+					Expect(res.Compress).Should(BeTrue())
+					Expect(isCompressedOnTheWire(res)).Should(BeTrue())
+				})
+			})
+
+			When("the client's name is in clients", func() {
+				It("compresses a response that fits uncompressed", func() {
+					cfg := config.ResponseCompression{Clients: []string{"scale*"}}
+					res := resolveSingleA(cfg, "1.2.3.4", "scale-bathroom")
+
+					Expect(res.Compress).Should(BeTrue())
+					Expect(isCompressedOnTheWire(res)).Should(BeTrue())
+				})
+			})
+
+			When("the client isn't in clients", func() {
+				It("leaves compression disabled", func() {
+					cfg := config.ResponseCompression{Clients: []string{"1.2.3.5", "scale*"}}
+					res := resolveSingleA(cfg, "1.2.3.4", "laptop")
+
+					Expect(res.Compress).Should(BeFalse())
+					Expect(isCompressedOnTheWire(res)).Should(BeFalse())
+				})
+			})
+		})
 	})
 
 	Describe("secureHeadersMiddleware", func() {

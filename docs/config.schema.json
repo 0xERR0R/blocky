@@ -1657,6 +1657,25 @@
       "type": "object",
       "description": "DNS rebinding protection configuration."
     },
+    "responseCompression": {
+      "properties": {
+        "always": {
+          "type": "boolean",
+          "description": "If true, every response is compressed, as blocky did before v0.32.0.",
+          "default": false
+        },
+        "clients": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Clients whose responses are always compressed: IPs, CIDRs or client names (wildcards supported)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "Forces DNS name compression of responses, for all or selected clients."
+    },
     "upstream": {
       "additionalProperties": {
         "items": {

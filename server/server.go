@@ -860,6 +860,9 @@ func (s *Server) resolve(ctx context.Context, request *model.Request) (response 
 		}
 	}
 
+	// request.ClientNames is only populated by the chain, so this can't be part of newClientQuery
+	query.forceCompress = s.cfg.ResponseCompression.ForceFor(request.ClientIP, request.ClientNames)
+
 	query.normalizeResponse(response.Res)
 
 	return response, nil

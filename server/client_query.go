@@ -34,6 +34,11 @@ type clientQuery struct {
 	// qType is the QTYPE of the query, which drives the "explicitly requested" exception when
 	// DNSSEC records are stripped. Zero when the query carries no question at all.
 	qType uint16
+
+	// forceCompress makes normalizeResponse compress the response even if it fits the client's
+	// buffer uncompressed (see config.ResponseCompression). It depends on the client names, which
+	// the chain resolves, so it is set after resolution rather than by newClientQuery.
+	forceCompress bool
 }
 
 func newClientQuery(request *model.Request) clientQuery {
@@ -115,6 +120,12 @@ func (q clientQuery) normalizeResponse(res *dns.Msg) {
 	// survives that hop; below that there is nothing to gain and the compression map costs more
 	// than the bytes it would save.
 	if !res.Compress && res.Len() > dns.MinMsgSize {
+		res.Compress = true
+	}
+
+	// Some clients, typically embedded stub resolvers, discard responses without compressed
+	// names although RFC 1035 §4.1.4 requires receivers to understand both forms.
+	if q.forceCompress {
 		res.Compress = true
 	}
 }
