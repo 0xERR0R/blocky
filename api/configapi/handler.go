@@ -806,7 +806,7 @@ func validateCustomDNSEntry(input *CustomDNSEntryInput) error {
 
 	// The wire type is a plain integer but the record carries a uint32, so an
 	// out-of-range TTL would silently wrap on the way into the store.
-	if input.Ttl < 0 || input.Ttl > math.MaxUint32 {
+	if input.Ttl < 0 || int64(input.Ttl) > math.MaxUint32 {
 		return fmt.Errorf("ttl must be between 0 and %d", uint32(math.MaxUint32))
 	}
 

@@ -294,12 +294,12 @@ func (s *ConfigStore) BuildUpstreamsConfig(base config.Upstreams) (config.Upstre
 	}
 
 	// Apply settings
-	start, err := config.ParseUpstreamStrategy(settings.Strategy)
+	strategy, err := config.ParseUpstreamStrategy(settings.Strategy)
 	if err != nil {
 		return base, fmt.Errorf("invalid upstream strategy %q: %w", settings.Strategy, err)
 	}
 
-	initStrat, err := config.ParseInitStrategy(settings.InitStrategy)
+	initStrategy, err := config.ParseInitStrategy(settings.InitStrategy)
 	if err != nil {
 		return base, fmt.Errorf("invalid init strategy %q: %w", settings.InitStrategy, err)
 	}
@@ -309,8 +309,8 @@ func (s *ConfigStore) BuildUpstreamsConfig(base config.Upstreams) (config.Upstre
 		return base, fmt.Errorf("invalid upstream timeout %q: %w", settings.Timeout, err)
 	}
 
-	base.Strategy = start
-	base.Init.Strategy = initStrat
+	base.Strategy = strategy
+	base.Init.Strategy = initStrategy
 	base.Timeout = config.Duration(timeout)
 	base.UserAgent = settings.UserAgent
 

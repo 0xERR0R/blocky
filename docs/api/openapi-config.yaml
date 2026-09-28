@@ -679,6 +679,7 @@ components:
         ttl:
           type: integer
           minimum: 0
+          maximum: 4294967295
         enabled:
           type: boolean
 
@@ -696,6 +697,7 @@ components:
         ttl:
           type: integer
           minimum: 0
+          maximum: 4294967295
         enabled:
           type: boolean
 

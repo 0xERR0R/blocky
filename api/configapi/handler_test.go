@@ -249,7 +249,13 @@ var _ = Describe("ConfigAPI Handler", func() {
 		})
 
 		It("should reject a TTL that would not fit in a uint32", func() {
-			for _, ttl := range []int{-1, math.MaxUint32 + 1} {
+			// The over-the-top case is only representable where int is 64 bits.
+			rejected := []int{-1}
+			if overflow := int64(math.MaxUint32) + 1; overflow <= math.MaxInt {
+				rejected = append(rejected, int(overflow))
+			}
+
+			for _, ttl := range rejected {
 				resp, err := h.CreateCustomDNSEntry(ctx, configapi.CreateCustomDNSEntryRequestObject{
 					Body: &configapi.CustomDNSEntryInput{
 						Domain: "test.local", RecordType: configapi.CustomDNSEntryInputRecordTypeA,

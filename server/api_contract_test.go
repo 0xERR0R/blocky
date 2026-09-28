@@ -308,8 +308,7 @@ const methodValueSuffix = "-fm"
 func middlewareName(symbol string) string {
 	segments := strings.Split(symbol[strings.LastIndex(symbol, "/")+1:], ".")
 
-	for i, v := range slices.Backward(segments) {
-		seg := v
+	for i, seg := range slices.Backward(segments) {
 		if closureSegment(seg) {
 			continue
 		}
