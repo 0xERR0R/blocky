@@ -135,7 +135,7 @@ func (h *ConfigHandler) CreateBlocklistSource(_ context.Context, req CreateBlock
 		ListType:   string(req.Body.ListType),
 		SourceType: string(req.Body.SourceType),
 		Source:     req.Body.Source,
-		Enabled:    configstore.BoolPtr(req.Body.Enabled),
+		Enabled:    new(req.Body.Enabled),
 	}
 
 	if err := h.store.CreateBlocklistSource(src); err != nil {
@@ -176,7 +176,7 @@ func (h *ConfigHandler) UpdateBlocklistSource(_ context.Context, req UpdateBlock
 	existing.ListType = string(req.Body.ListType)
 	existing.SourceType = string(req.Body.SourceType)
 	existing.Source = req.Body.Source
-	existing.Enabled = configstore.BoolPtr(req.Body.Enabled)
+	existing.Enabled = new(req.Body.Enabled)
 
 	if err := h.store.UpdateBlocklistSource(existing); err != nil {
 		return nil, err
@@ -223,7 +223,7 @@ func (h *ConfigHandler) CreateCustomDNSEntry(_ context.Context, req CreateCustom
 		RecordType: string(req.Body.RecordType),
 		Value:      req.Body.Value,
 		TTL:        uint32(req.Body.Ttl),
-		Enabled:    configstore.BoolPtr(req.Body.Enabled),
+		Enabled:    new(req.Body.Enabled),
 	}
 
 	if err := h.store.CreateCustomDNSEntry(e); err != nil {
@@ -264,7 +264,7 @@ func (h *ConfigHandler) UpdateCustomDNSEntry(_ context.Context, req UpdateCustom
 	existing.RecordType = string(req.Body.RecordType)
 	existing.Value = req.Body.Value
 	existing.TTL = uint32(req.Body.Ttl)
-	existing.Enabled = configstore.BoolPtr(req.Body.Enabled)
+	existing.Enabled = new(req.Body.Enabled)
 
 	if err := h.store.UpdateCustomDNSEntry(existing); err != nil {
 		return nil, err
@@ -320,7 +320,7 @@ func (h *ConfigHandler) CreateDomainEntry(_ context.Context, req CreateDomainEnt
 		Domain:    req.Body.Domain,
 		EntryType: string(req.Body.EntryType),
 		Comment:   comment,
-		Enabled:   configstore.BoolPtr(req.Body.Enabled),
+		Enabled:   new(req.Body.Enabled),
 	}
 
 	if err := h.store.CreateDomainEntry(e); err != nil {
@@ -375,7 +375,7 @@ func (h *ConfigHandler) UpdateDomainEntry(_ context.Context, req UpdateDomainEnt
 	existing.Domain = req.Body.Domain
 	existing.EntryType = string(req.Body.EntryType)
 	existing.Comment = comment
-	existing.Enabled = configstore.BoolPtr(req.Body.Enabled)
+	existing.Enabled = new(req.Body.Enabled)
 	// GroupName is immutable — set on create, managed via client group assignments
 
 	if err := h.store.UpdateDomainEntry(existing); err != nil {
@@ -529,7 +529,7 @@ func (h *ConfigHandler) CreateUpstreamServer(_ context.Context, req CreateUpstre
 		GroupName: req.Name,
 		URL:       req.Body.Url,
 		Position:  pos,
-		Enabled:   configstore.BoolPtr(req.Body.Enabled),
+		Enabled:   new(req.Body.Enabled),
 	}
 
 	if err := h.store.CreateUpstreamServer(srv); err != nil {
@@ -558,7 +558,7 @@ func (h *ConfigHandler) UpdateUpstreamServer(_ context.Context, req UpdateUpstre
 	}
 
 	existing.URL = req.Body.Url
-	existing.Enabled = configstore.BoolPtr(req.Body.Enabled)
+	existing.Enabled = new(req.Body.Enabled)
 
 	if req.Body.Position != nil {
 		existing.Position = *req.Body.Position
@@ -725,11 +725,11 @@ func upstreamSettingsToAPI(us configstore.UpstreamSettings) UpstreamSettings {
 
 func validateUpstreamServer(input *UpstreamServerInput) error {
 	if input == nil {
-		return fmt.Errorf("request body is required")
+		return errors.New("request body is required")
 	}
 
 	if strings.TrimSpace(input.Url) == "" {
-		return fmt.Errorf("url is required")
+		return errors.New("url is required")
 	}
 
 	if _, err := config.ParseUpstream(input.Url); err != nil {
@@ -750,14 +750,14 @@ func blockSettingsToAPI(bs configstore.BlockSettings) BlockSettings {
 
 func validateClientGroup(input *ClientGroupInput) error {
 	if input == nil {
-		return fmt.Errorf("request body is required")
+		return errors.New("request body is required")
 	}
 
 	for _, c := range derefStringList(input.Clients) {
 		if _, _, err := net.ParseCIDR(c); err != nil && net.ParseIP(c) == nil {
 			// Not a CIDR or IP — treat as hostname (allow any non-empty string)
 			if strings.TrimSpace(c) == "" {
-				return fmt.Errorf("empty client entry")
+				return errors.New("empty client entry")
 			}
 		}
 	}
@@ -767,15 +767,15 @@ func validateClientGroup(input *ClientGroupInput) error {
 
 func validateBlocklistSource(input *BlocklistSourceInput) error {
 	if input == nil {
-		return fmt.Errorf("request body is required")
+		return errors.New("request body is required")
 	}
 
 	if strings.TrimSpace(input.GroupName) == "" {
-		return fmt.Errorf("group_name is required")
+		return errors.New("group_name is required")
 	}
 
 	if strings.TrimSpace(input.Source) == "" {
-		return fmt.Errorf("source is required")
+		return errors.New("source is required")
 	}
 
 	switch input.SourceType {
@@ -785,7 +785,7 @@ func validateBlocklistSource(input *BlocklistSourceInput) error {
 		}
 	case BlocklistSourceInputSourceTypeFile:
 		if !strings.HasPrefix(input.Source, "/") {
-			return fmt.Errorf("file source must be an absolute path")
+			return errors.New("file source must be an absolute path")
 		}
 	case BlocklistSourceInputSourceTypeText:
 		// Text sources are inline content, no validation needed
@@ -796,25 +796,26 @@ func validateBlocklistSource(input *BlocklistSourceInput) error {
 
 func validateCustomDNSEntry(input *CustomDNSEntryInput) error {
 	if input == nil {
-		return fmt.Errorf("request body is required")
+		return errors.New("request body is required")
 	}
 
 	if strings.TrimSpace(input.Domain) == "" {
-		return fmt.Errorf("domain is required")
+		return errors.New("domain is required")
 	}
 
 	switch input.RecordType {
 	case CustomDNSEntryInputRecordTypeA:
 		if ip := net.ParseIP(input.Value); ip == nil || ip.To4() == nil {
-			return fmt.Errorf("A record value must be a valid IPv4 address")
+			//nolint:staticcheck // "A record" is a DNS record type, not a capitalised sentence
+			return errors.New("A record value must be a valid IPv4 address")
 		}
 	case CustomDNSEntryInputRecordTypeAAAA:
 		if ip := net.ParseIP(input.Value); ip == nil || ip.To4() != nil {
-			return fmt.Errorf("AAAA record value must be a valid IPv6 address")
+			return errors.New("AAAA record value must be a valid IPv6 address")
 		}
 	case CustomDNSEntryInputRecordTypeCNAME:
 		if strings.TrimSpace(input.Value) == "" {
-			return fmt.Errorf("CNAME value must be a valid hostname")
+			return errors.New("CNAME value must be a valid hostname")
 		}
 	}
 
@@ -829,11 +830,11 @@ var hostnameChars = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 func validateDomainEntry(input *DomainEntryInput) error {
 	if input == nil {
-		return fmt.Errorf("request body is required")
+		return errors.New("request body is required")
 	}
 
 	if strings.TrimSpace(input.Domain) == "" {
-		return fmt.Errorf("domain is required")
+		return errors.New("domain is required")
 	}
 
 	switch input.EntryType {
@@ -843,7 +844,7 @@ func validateDomainEntry(input *DomainEntryInput) error {
 		}
 	case DomainEntryInputEntryTypeExactDeny, DomainEntryInputEntryTypeExactAllow:
 		if !hostnameChars.MatchString(strings.TrimSpace(input.Domain)) {
-			return fmt.Errorf("exact entries must be a plain hostname; use regex_deny/regex_allow for patterns")
+			return errors.New("exact entries must be a plain hostname; use regex_deny/regex_allow for patterns")
 		}
 	}
 
@@ -852,7 +853,7 @@ func validateDomainEntry(input *DomainEntryInput) error {
 
 func validateBlockSettings(input *BlockSettingsInput) error {
 	if input == nil {
-		return fmt.Errorf("request body is required")
+		return errors.New("request body is required")
 	}
 
 	switch input.BlockType {
@@ -860,7 +861,7 @@ func validateBlockSettings(input *BlockSettingsInput) error {
 		// valid
 	default:
 		if net.ParseIP(input.BlockType) == nil {
-			return fmt.Errorf("block_type must be ZEROIP, NXDOMAIN, or a valid IP address")
+			return errors.New("block_type must be ZEROIP, NXDOMAIN, or a valid IP address")
 		}
 	}
 

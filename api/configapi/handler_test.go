@@ -5,7 +5,7 @@ package configapi_test
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"path/filepath"
 
 	"github.com/0xERR0R/blocky/api/configapi"
@@ -352,7 +352,7 @@ var _ = Describe("ConfigAPI Handler", func() {
 		})
 
 		It("should return 500 on reconfigure failure", func() {
-			reconf.err = fmt.Errorf("chain build failed")
+			reconf.err = errors.New("chain build failed")
 
 			resp, err := h.ApplyConfig(ctx, configapi.ApplyConfigRequestObject{})
 			Expect(err).Should(Succeed())

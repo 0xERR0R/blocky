@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -141,7 +142,7 @@ func runServer(ctx context.Context) error {
 
 		log.Log().Info("Using database-backed configuration from ", cfg.DatabasePath)
 	} else {
-		return fmt.Errorf("databasePath is required: upstream configuration now lives in SQLite, " +
+		return errors.New("databasePath is required: upstream configuration now lives in SQLite, " +
 			"set databasePath in your YAML config (see docs/migration-upstreams.md)")
 	}
 

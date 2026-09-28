@@ -68,7 +68,7 @@ var _ = Describe("Broadcaster", func() {
 
 			msgs = nil
 
-			for i := 0; i < 2; i++ {
+			for range 2 {
 				select {
 				case e := <-ch:
 					msgs = append(msgs, e.Message)
@@ -85,7 +85,7 @@ var _ = Describe("Broadcaster", func() {
 		ch, _ := b.Subscribe()
 
 		// Flood well beyond subscriber buffer (256) + inbox buffer to ensure eviction
-		for i := 0; i < 5000; i++ {
+		for range 5000 {
 			b.Publish(entry("flood"))
 		}
 
@@ -111,6 +111,7 @@ var _ = Describe("Broadcaster", func() {
 
 		Eventually(func() bool {
 			_, ok := <-ch
+
 			return ok
 		}).Should(BeFalse())
 	})
@@ -122,6 +123,7 @@ var _ = Describe("Broadcaster", func() {
 		// Channel should be closed
 		Eventually(func() bool {
 			_, ok := <-ch
+
 			return ok
 		}).Should(BeFalse())
 	})

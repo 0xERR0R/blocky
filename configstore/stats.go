@@ -146,5 +146,6 @@ func (s *ConfigStore) PruneStatsBefore(t time.Time) error {
 	if err := s.db.Where("timestamp < ?", t.Unix()).Delete(&StatsBucket{}).Error; err != nil {
 		return fmt.Errorf("prune stats buckets: %w", err)
 	}
+
 	return nil
 }

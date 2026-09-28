@@ -13,9 +13,9 @@ import "time"
 
 // User is the persisted account row.
 type User struct {
-	ID           uint      `gorm:"primaryKey" json:"id"`
-	Username     string    `gorm:"uniqueIndex;not null" json:"username"`
-	PasswordHash string    `gorm:"not null" json:"-"`
+	ID           uint      `gorm:"primaryKey"                json:"id"`
+	Username     string    `gorm:"uniqueIndex;not null"      json:"username"`
+	PasswordHash string    `gorm:"not null"                  json:"-"`
 	Role         string    `gorm:"not null;default:'viewer'" json:"role"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
@@ -24,7 +24,7 @@ type User struct {
 // Session is the persisted session row keyed by an opaque token.
 type Session struct {
 	ID        string    `gorm:"primaryKey;size:64" json:"id"`
-	UserID    uint      `gorm:"index;not null" json:"user_id"`
-	ExpiresAt time.Time `gorm:"index;not null" json:"expires_at"`
+	UserID    uint      `gorm:"index;not null"     json:"user_id"`
+	ExpiresAt time.Time `gorm:"index;not null"     json:"expires_at"`
 	CreatedAt time.Time `json:"created_at"`
 }

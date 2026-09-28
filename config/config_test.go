@@ -1269,7 +1269,6 @@ bootstrapDns:
 			Expect(testUpstreams[0].Host).Should(Equal("1.1.1.1"))
 		})
 	})
-
 })
 
 func defaultTestFileConfig(config *Config) {

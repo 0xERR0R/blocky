@@ -1,6 +1,7 @@
 package querylog
 
 import (
+	"maps"
 	"reflect"
 	"strings"
 	"time"
@@ -34,9 +35,7 @@ func (d *LoggerWriter) Write(entry *LogEntry) {
 	// Publish directly to broadcaster (avoids logrus hook's fields map copy)
 	if d.broadcaster != nil {
 		anyFields := make(map[string]any, len(fields))
-		for k, v := range fields {
-			anyFields[k] = v
-		}
+		maps.Copy(anyFields, fields)
 
 		d.broadcaster.Publish(logstream.LogEntry{
 			Timestamp: entry.Start.UTC().Truncate(time.Millisecond),

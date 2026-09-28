@@ -114,8 +114,8 @@ type specParameter struct {
 //
 // Non-mappings are left zero here and dropped by the httpMethods filter in
 // specOperations.
-func (o *specOperation) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var probe map[string]interface{}
+func (o *specOperation) UnmarshalYAML(unmarshal func(any) error) error {
+	var probe map[string]any
 	if err := unmarshal(&probe); err != nil {
 		return nil //nolint:nilerr // not an operation; see doc comment
 	}
@@ -153,7 +153,7 @@ type specType struct {
 	Format               string              `yaml:"format"`
 	Ref                  string              `yaml:"$ref"`
 	Nullable             bool                `yaml:"nullable"`
-	Enum                 []interface{}       `yaml:"enum"`
+	Enum                 []any               `yaml:"enum"`
 	Required             []string            `yaml:"required"`
 	Items                *specType           `yaml:"items"`
 	AdditionalProperties *specType           `yaml:"additionalProperties"`
@@ -167,7 +167,7 @@ type specType struct {
 // failed to model is a different matter and stays a hard error: it means this
 // guard does not understand part of the contract it claims to lock, and
 // silently recording nothing would be worse than failing.
-func (t *specType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (t *specType) UnmarshalYAML(unmarshal func(any) error) error {
 	// Distinct type so this method is not inherited, which would recurse.
 	type schema specType
 
@@ -178,13 +178,13 @@ func (t *specType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return nil
 	}
 
-	var scalar interface{}
+	var scalar any
 	if err := unmarshal(&scalar); err != nil {
 		return err
 	}
 
 	switch scalar.(type) {
-	case map[interface{}]interface{}, []interface{}:
+	case map[any]any, []any:
 		return fmt.Errorf("unmodelled schema node: %T", scalar)
 	}
 
@@ -199,7 +199,7 @@ func (t *specType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // adopting the list form must not break the load.
 type specTypeName string
 
-func (n *specTypeName) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (n *specTypeName) UnmarshalYAML(unmarshal func(any) error) error {
 	var single string
 	if err := unmarshal(&single); err == nil {
 		*n = specTypeName(single)
@@ -218,7 +218,7 @@ func (n *specTypeName) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 func loadSpec(path string) (*openAPISpec, error) {
-	raw, err := os.ReadFile(path) //nolint:gosec // fixed in-repo spec path
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -403,7 +403,7 @@ func describeAll(types []specType) string {
 // enumMembers keeps declaration order: an enum's members are a set as far as
 // validation goes, but reordering them is churn we would rather see than hide,
 // and sorting would mask a value being replaced by one that sorts identically.
-func enumMembers(values []interface{}) string {
+func enumMembers(values []any) string {
 	parts := make([]string, 0, len(values))
 	for _, v := range values {
 		parts = append(parts, fmt.Sprintf("%v", v))

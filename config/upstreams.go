@@ -1,7 +1,7 @@
 package config
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/0xERR0R/blocky/log"
 	"github.com/sirupsen/logrus"
@@ -15,11 +15,9 @@ const UpstreamDefaultCfgName = "default"
 type upstreamsYAMLSentinel struct{}
 
 func (upstreamsYAMLSentinel) UnmarshalYAML(_ func(any) error) error {
-	return fmt.Errorf(
-		"the 'upstreams:' section has moved to the SQLite config store: " +
-			"remove the 'upstreams:' block from your YAML configuration and manage " +
-			"upstream groups + settings via the web UI (see docs/migration-upstreams.md)",
-	)
+	return errors.New("the 'upstreams:' section has moved to the SQLite config store: " +
+		"remove the 'upstreams:' block from your YAML configuration and manage " +
+		"upstream groups + settings via the web UI (see docs/migration-upstreams.md)")
 }
 
 // QUICConfig holds QUIC-specific upstream settings.

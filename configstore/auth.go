@@ -59,6 +59,7 @@ func (s *ConfigStore) HasUsers() bool {
 
 	if count > 0 {
 		s.hasUsersCache.Store(true)
+
 		return true
 	}
 
@@ -340,6 +341,7 @@ func (s *ConfigStore) BeginImmediate(ctx context.Context) (*sql.Conn, error) {
 
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
 		conn.Close()
+
 		return nil, fmt.Errorf("begin immediate: %w", err)
 	}
 

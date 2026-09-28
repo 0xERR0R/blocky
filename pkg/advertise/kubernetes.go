@@ -3,6 +3,7 @@ package advertise
 import (
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -37,8 +38,8 @@ func detectKubernetesIP() (net.IP, error) {
 	}
 
 	url := fmt.Sprintf(
-		"https://%s:%s/api/v1/namespaces/%s/services?labelSelector=app.kubernetes.io/name=blockasaurus",
-		host, port, string(ns),
+		"https://%s/api/v1/namespaces/%s/services?labelSelector=app.kubernetes.io/name=blockasaurus",
+		net.JoinHostPort(host, port), string(ns),
 	)
 
 	client := &http.Client{
@@ -115,5 +116,5 @@ func parseServiceListForLBIP(r io.Reader) (net.IP, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("no LoadBalancer service with port 53 and external IP found")
+	return nil, errors.New("no LoadBalancer service with port 53 and external IP found")
 }

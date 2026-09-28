@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -307,8 +308,8 @@ const methodValueSuffix = "-fm"
 func middlewareName(symbol string) string {
 	segments := strings.Split(symbol[strings.LastIndex(symbol, "/")+1:], ".")
 
-	for i := len(segments) - 1; i >= 0; i-- {
-		seg := segments[i]
+	for i, v := range slices.Backward(segments) {
+		seg := v
 		if closureSegment(seg) {
 			continue
 		}
@@ -401,7 +402,7 @@ func assertGolden(t *testing.T, path, got, what, regenCmd string) {
 		return
 	}
 
-	wantBytes, err := os.ReadFile(path) //nolint:gosec // fixed test fixture path
+	wantBytes, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read golden (regenerate with -update-api-contract): %v", err)
 	}
@@ -487,13 +488,13 @@ func lineAt(lines []string, i int) string {
 
 func diffLines(want, got string) (added, removed []string) {
 	inWant := map[string]bool{}
-	for _, l := range strings.Split(strings.TrimSpace(want), "\n") {
+	for l := range strings.SplitSeq(strings.TrimSpace(want), "\n") {
 		inWant[l] = true
 	}
 
 	inGot := map[string]bool{}
 
-	for _, l := range strings.Split(strings.TrimSpace(got), "\n") {
+	for l := range strings.SplitSeq(strings.TrimSpace(got), "\n") {
 		inGot[l] = true
 
 		if !inWant[l] {

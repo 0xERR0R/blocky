@@ -127,11 +127,13 @@ func handleMobileconfig(cfg *config.Config, store *configstore.ConfigStore) http
 		slug := chi.URLParam(r, "slug")
 		if slug == "" {
 			http.Error(w, "missing slug", http.StatusBadRequest)
+
 			return
 		}
 
 		if _, err := store.GetClientGroupBySlug(slug); err != nil {
 			http.NotFound(w, r)
+
 			return
 		}
 
@@ -156,6 +158,7 @@ func handleMobileconfig(cfg *config.Config, store *configstore.ConfigStore) http
 			ip, err := advertise.ResolveAddress(cfg.ClientGroupEndpoints.AdvertiseAddress)
 			if err != nil || ip == nil {
 				http.Error(w, "no encrypted DNS or advertise address configured", http.StatusServiceUnavailable)
+
 				return
 			}
 			serverAddress = ip.String()
@@ -196,12 +199,13 @@ func handleMobileconfig(cfg *config.Config, store *configstore.ConfigStore) http
 		if err := mobileconfigTmpl.Execute(&buf, data); err != nil {
 			http.Error(w, "template error", http.StatusInternalServerError)
 			logger().Errorf("mobileconfig template: %v", err)
+
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/x-apple-aspen-config")
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="blockasaurus-%s.mobileconfig"`, slug))
-		w.Write(buf.Bytes())
+		_, _ = w.Write(buf.Bytes())
 	}
 }
 
@@ -241,5 +245,6 @@ func extractRootCertDER(certFile string) ([]byte, error) {
 // contains a self-signed certificate (RawIssuer == RawSubject).
 func hasSelfSignedRoot(certFile string) bool {
 	der, err := extractRootCertDER(certFile)
+
 	return err == nil && der != nil
 }

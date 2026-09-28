@@ -1,6 +1,7 @@
 package statscollector
 
 import (
+	"maps"
 	"sort"
 	"sync"
 	"time"
@@ -256,9 +257,7 @@ func (c *Collector) snapshot() *StatsSnapshot {
 
 		if b.ClientCounts != nil {
 			bs.ClientCounts = make(map[string]int, len(b.ClientCounts))
-			for k, v := range b.ClientCounts {
-				bs.ClientCounts[k] = v
-			}
+			maps.Copy(bs.ClientCounts, b.ClientCounts)
 		}
 
 		snap.Buckets = append(snap.Buckets, bs)
@@ -271,6 +270,7 @@ func (c *Collector) loadFromStore() {
 	snap, err := c.store.LoadStats()
 	if err != nil {
 		log.WithError(err).Warn("Failed to load persisted stats, starting fresh")
+
 		return
 	}
 
@@ -463,9 +463,7 @@ func (c *Collector) OverTime() []TimeBucket {
 		// Deep-copy the client map
 		if c.buckets[idx].ClientCounts != nil {
 			m := make(map[string]int, len(c.buckets[idx].ClientCounts))
-			for k, v := range c.buckets[idx].ClientCounts {
-				m[k] = v
-			}
+			maps.Copy(m, c.buckets[idx].ClientCounts)
 
 			out[i].ClientCounts = m
 		}
@@ -548,9 +546,7 @@ func (c *Collector) TotalQueries() (total, blocked int) {
 
 func copyMap(m map[string]int) map[string]int {
 	out := make(map[string]int, len(m))
-	for k, v := range m {
-		out[k] = v
-	}
+	maps.Copy(out, m)
 
 	return out
 }

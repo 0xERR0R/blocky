@@ -5,6 +5,7 @@ package configstore
 
 import (
 	"fmt"
+	"slices"
 	"sync/atomic"
 	"time"
 
@@ -235,10 +236,8 @@ func (s *ConfigStore) AddGroupToClientGroup(clientGroupName, groupName string) e
 		return err
 	}
 
-	for _, existing := range g.Groups {
-		if existing == groupName {
-			return nil
-		}
+	if slices.Contains(g.Groups, groupName) {
+		return nil
 	}
 
 	g.Groups = append(g.Groups, groupName)

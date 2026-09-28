@@ -23,6 +23,7 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 	families, err := metrics.Reg.Gather()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+
 		return
 	}
 
@@ -51,7 +52,7 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	_ = json.NewEncoder(w).Encode(stats)
 }
 
 func sumCounter(ms []*dto.Metric) float64 {
@@ -76,35 +77,35 @@ func labelValue(labels []*dto.LabelPair, name string) string {
 func handleStatsOvertime(c *statscollector.Collector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"buckets": c.OverTime()})
+		_ = json.NewEncoder(w).Encode(map[string]any{"buckets": c.OverTime()})
 	}
 }
 
 func handleStatsOvertimeClients(c *statscollector.Collector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"buckets": c.OverTime()})
+		_ = json.NewEncoder(w).Encode(map[string]any{"buckets": c.OverTime()})
 	}
 }
 
 func handleStatsOvertimeLatency(c *statscollector.Collector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"buckets": c.OverTime()})
+		_ = json.NewEncoder(w).Encode(map[string]any{"buckets": c.OverTime()})
 	}
 }
 
 func handleStatsQueryTypes(c *statscollector.Collector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(c.QueryTypes())
+		_ = json.NewEncoder(w).Encode(c.QueryTypes())
 	}
 }
 
 func handleStatsResponseTypes(c *statscollector.Collector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(c.ResponseTypes())
+		_ = json.NewEncoder(w).Encode(c.ResponseTypes())
 	}
 }
 
@@ -113,7 +114,7 @@ func handleStatsTopDomains(c *statscollector.Collector) http.HandlerFunc {
 		permitted, blocked := c.TopDomains(statscollector.DefaultTopN)
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"permitted": permitted,
 			"blocked":   blocked,
 		})
@@ -125,7 +126,7 @@ func handleStatsTopClients(c *statscollector.Collector) http.HandlerFunc {
 		total, blocked := c.TopClients(statscollector.DefaultTopN)
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"total":   total,
 			"blocked": blocked,
 		})

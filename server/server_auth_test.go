@@ -134,6 +134,7 @@ func sessionCookieFromResponse(t *testing.T, w *httptest.ResponseRecorder) *http
 	}
 
 	t.Fatalf("no session cookie set; headers: %v", w.Header())
+
 	return nil
 }
 
@@ -265,7 +266,7 @@ func TestLogin_RateLimit(t *testing.T) {
 	ts.seedUser("alice", "correcthorsebattery", auth.RoleAdmin)
 
 	// 5 failed attempts -> all 401. 6th attempt -> 429 with Retry-After.
-	for i := 0; i < loginBucketCap; i++ {
+	for i := range loginBucketCap {
 		w := ts.do(http.MethodPost, "/api/auth/login",
 			loginRequest{Username: "alice", Password: "wrong!"})
 		if w.Code != http.StatusUnauthorized {
@@ -290,7 +291,7 @@ func TestLogin_ResetsRateLimitOnSuccess(t *testing.T) {
 	ts.seedUser("alice", "correcthorsebattery", auth.RoleAdmin)
 
 	// 4 failed attempts leaves 1 token.
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		_ = ts.do(http.MethodPost, "/api/auth/login",
 			loginRequest{Username: "alice", Password: "wrong!"})
 	}
@@ -303,7 +304,7 @@ func TestLogin_ResetsRateLimitOnSuccess(t *testing.T) {
 	}
 
 	// After reset, we should again get 5 failure attempts before 429.
-	for i := 0; i < loginBucketCap; i++ {
+	for i := range loginBucketCap {
 		w := ts.do(http.MethodPost, "/api/auth/login",
 			loginRequest{Username: "alice", Password: "wrong!"})
 		if w.Code != http.StatusUnauthorized {
@@ -404,13 +405,8 @@ func TestSetup_ConcurrentRace(t *testing.T) {
 		start    = make(chan struct{})
 	)
 
-	for i := 0; i < n; i++ {
-		i := i
-
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
+	for i := range n {
+		wg.Go(func() {
 			<-start
 
 			w := ts.do(http.MethodPost, "/api/auth/setup", setupRequest{
@@ -427,7 +423,7 @@ func TestSetup_ConcurrentRace(t *testing.T) {
 				t.Errorf("goroutine %d: unexpected status %d body=%s",
 					i, w.Code, w.Body.String())
 			}
-		}()
+		})
 	}
 
 	close(start)
@@ -553,6 +549,7 @@ func TestLogout_DeletesSessionAndClearsCookie(t *testing.T) {
 	for _, c := range w.Result().Cookies() {
 		if c.Name == auth.SessionCookieName && c.MaxAge < 0 {
 			found = true
+
 			break
 		}
 	}
@@ -797,7 +794,7 @@ func TestLoginLimiter_RefillsOverTime(t *testing.T) {
 	l := &loginLimiter{now: time.Now}
 
 	// Drain the bucket.
-	for i := 0; i < loginBucketCap; i++ {
+	for i := range loginBucketCap {
 		ok, _ := l.allow("1.2.3.4")
 		if !ok {
 			t.Fatalf("attempt %d should be allowed", i+1)
@@ -828,7 +825,7 @@ func TestLoginLimiter_PrunesStaleEntries(t *testing.T) {
 	l := &loginLimiter{now: time.Now}
 
 	// Drain.
-	for i := 0; i < loginBucketCap; i++ {
+	for range loginBucketCap {
 		l.allow("1.2.3.4")
 	}
 
@@ -836,7 +833,7 @@ func TestLoginLimiter_PrunesStaleEntries(t *testing.T) {
 	future := time.Now().Add(loginBucketExpire + time.Minute)
 	l.now = func() time.Time { return future }
 
-	for i := 0; i < loginBucketCap; i++ {
+	for i := range loginBucketCap {
 		ok, _ := l.allow("1.2.3.4")
 		if !ok {
 			t.Errorf("post-prune attempt %d should be allowed", i+1)
