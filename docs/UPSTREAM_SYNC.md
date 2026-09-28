@@ -566,7 +566,7 @@ Each phase ends at a gate. Do not start a phase before its gate passes.
 | 4. Resolver chain | `resolver/blocking_resolver.go`, `metrics_resolver.go`, `query_logging_resolver.go`, plus semantic review of the cleanly-merged `caching_resolver.go`, `dnssec/validator.go`, `querylog/*`, `util/edns0.go`, `model/models.go`. Re-establish our redis and broadcaster injection against upstream's new signatures (§3.2) and our client-group attribution against upstream's new matcher (§3.3). | `go test ./resolver/... ./querylog/... ./util/...` green. | 2–3d |
 | 5. Server + API | `server/server.go`, `http.go`, `server_endpoints.go`. Reconcile admin ports and the UI router with upstream's HTTP/3 and PROXY-protocol listeners. Apply D1. Regenerate `api/*.gen.go` and mocks. | `go build ./...`, `go test ./server/... ./api/...` green. Server starts without a route-registration panic. | 1–1.5d |
 | 6. Full verification | `go test ./...`, e2e suite, lint at upstream's v2.12.2 ruleset, `web/ui` build. | All green. | 0.5–1d |
-| 7. Behavioral smoke | Replay the Phase 0 DNS capture and diff. Manually exercise: login/session, dashboard, client groups, domain entries, blocklists, upstream groups, users, query log stream. | No unexplained delta vs Phase 0. | 0.5d |
+| 7. Behavioral smoke | Replay the Phase 0 DNS capture and diff. Manually exercise: login/session, dashboard, client groups, domain entries, blocklists, upstream groups, users, query log stream. | No unexplained delta vs Phase 0. **Done — `docs/upstream-sync/behavioral-replay-2026-09.md`.** Phase 0 left no capture to replay, so both trees were built and run side by side instead; six deltas, all attributable. | 0.5d |
 | 8. Port checklist | Walk §6 and confirm each upstream fix is actually present and effective in the merged tree. | Checklist complete. | 0.5d |
 | 9. Land | PR, review, merge. Update this document's "Last measured" line and §7. | Merged. | 0.5d |
 
@@ -578,6 +578,11 @@ which is where the extra time goes. Phases 4 and 5 carry essentially all of the 
 
 Verify each of these is present *and effective* in the merged tree — several land in files where
 our version won the conflict.
+
+Six are already ticked: Phase 7's side-by-side replay observed each one changing the wire answer
+between the pre-merge binary and post-merge `main`, which is stronger than reading the diff.
+Evidence per item is in `docs/upstream-sync/behavioral-replay-2026-09.md` §3. The rest are still
+open and belong to the port-checklist phase.
 
 **Security / correctness (must-have)**
 
@@ -591,20 +596,20 @@ our version won the conflict.
 
 **Protocol fixes**
 
-- [ ] `78d5367` don't pass EDNS0 DNS cookies through
-- [ ] `ff2aae4` always answer an EDNS0 query with an OPT record
-- [ ] `2e5d478` NOTFQDN → well-formed NXDOMAIN
-- [ ] `802869a` SOA record on custom-DNS NOERROR
+- [x] `78d5367` don't pass EDNS0 DNS cookies through — replay §3
+- [x] `ff2aae4` always answer an EDNS0 query with an OPT record — replay §3
+- [x] `2e5d478` NOTFQDN → well-formed NXDOMAIN — replay §3
+- [x] `802869a` SOA record on custom-DNS NOERROR — replay §3
 - [ ] `c46ed64` retry DoH queries failing on a stale pooled connection
 - [ ] `db8d889` compress responses larger than 512 bytes
-- [ ] `190d512` count down cached authority/additional TTLs
+- [x] `190d512` count down cached authority/additional TTLs — replay §3
 - [ ] `1d450af` case-insensitive custom-DNS PTR matching
 - [ ] `91a8f44` bootstrap: fall back to other resolved addresses on dial failure
 - [ ] `e2b40db` / `dcdd952` rewritten-query handling: original name to next resolver, fallbackUpstream
 
 **Blocking / resolver behavior**
 
-- [ ] `344de86` scope allowlist-only mode to the whole client
+- [x] `344de86` scope allowlist-only mode to the whole client — replay §3
 - [ ] `769d908` `refused` block type
 - [ ] `4b524e8` ECS `useAsClient` applied above cache and client-name lookup
 - [ ] `c851293` log the matched rule in the block reason
@@ -675,6 +680,17 @@ git merge upstream/main
 
 At that cadence each merge should be a handful of conflicts in the §7 patched-file list. After
 every sync, update §7 and the "Last measured" line at the top.
+
+Capture the behavioral "before" *first*, with the old binary still running — this sync's Phase 0
+skipped it and Phase 7 had to rebuild the pre-merge tree to recover it:
+
+```bash
+go run ./tools/dnsreplay 127.0.0.1:53 > before.txt   # then again after the merge, and diff
+```
+
+Seed the config store before capturing and restart once afterwards. The store's YAML sections are
+replaced by DB state at load, and the `default` client group's group list is repaired at open, so
+an unseeded or un-restarted instance is not measuring the configuration you think it is.
 
 ## 9. Lint baseline at golangci-lint v2.12.2
 

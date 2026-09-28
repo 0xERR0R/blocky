@@ -77,9 +77,16 @@ make check-fork-additions-sync                                # manifest in sync
 `check-fork-additions-sync` was verified against a real `upstream/main` fetch
 (`2bb9b70f6ddcd5a35d9c57c175690fd886aa3e72`), not just the skip path.
 
-## Not captured here
+## Not captured here — closed 2026-09-28
 
 Phase 0 in the plan also calls for a captured set of DNS answers
 (blocked/allowed/custom/conditional/DNSSEC/EDNS0) and dashboard screenshots, which Phase 7
-replays. Neither is in this document: both need a running server plus the same Docker that
-the e2e suite needs. They are the other half of the open item above.
+replays. Neither was captured at the time, so there was no recorded "before" to diff against.
+
+**Phase 7 closed this without them.** Rather than replay against a missing artifact, it built and
+ran *both* trees side by side — this tag and post-merge `main` — with byte-identical
+config-store contents, and diffed the answers directly. Neither needs Docker: the binary runs
+fine on the host, and the browser pass used headless Chromium. Results, including every
+explained delta, are in `behavioral-replay-2026-09.md`.
+
+The capture is reproducible for the next sync: `go run ./tools/dnsreplay <host:port>`.
