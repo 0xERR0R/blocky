@@ -690,7 +690,14 @@ go run ./tools/dnsreplay 127.0.0.1:53 > before.txt   # then again after the merg
 
 Seed the config store before capturing and restart once afterwards. The store's YAML sections are
 replaced by DB state at load, and the `default` client group's group list is repaired at open, so
-an unseeded or un-restarted instance is not measuring the configuration you think it is.
+an unseeded or un-restarted instance is not measuring the configuration you think it is. Pass
+`-block-ip` if the instance's `blockType` is a custom address, or blocked answers will read as
+resolved ones.
+
+`dnsreplay` exits non-zero when a probe gets no answer, so a capture taken against the wrong port
+cannot pass as a clean diff. A partial failure is ambiguous on purpose — the pre-merge tree
+genuinely returned nothing for single-label queries, so read the `ERROR:` lines before deciding
+whether it is a finding or a broken run.
 
 ## 9. Lint baseline at golangci-lint v2.12.2
 
@@ -725,7 +732,7 @@ runtime, and the store field is a `uint32` — so `ttl: 4294967296` wrapped to 0
 `modernize` inlined `configstore.BoolPtr` into `new(v)` at every call site, which left the helper
 dead; it was removed.
 
-### Left, and why — 154 findings
+### Left, and why — 156 findings
 
 | Linter | N | Disposition |
 | --- | --- | --- |
@@ -745,5 +752,8 @@ dead; it was removed.
 | `containedctx` | 1 | `logstream/broadcaster.go` stores the subscriber's context so a dropped websocket unsubscribes. |
 | `forcetypeassert` | 1 | `server_auth.go:141` — the `sync.Map` is written at exactly one site, always with `*loginBucket`. A checked assertion adds an unreachable branch. |
 | `nilnil` | 1 | `configstore/stats.go:109`. |
+| `canonicalheader` | 2 | `auth/middleware_test.go` sets `X-Test-Session-ID`, which is not a canonical header name. Test-only, and the point of the header is that it is not a real one. |
 
 Reproduce with `make lint`. If the count moves without this table moving, something changed.
+(The table read 154 until 2026-09-28, when Phase 7 re-ran the pin and found the two
+`canonicalheader` findings had never been listed. The count was wrong, not the tree.)
