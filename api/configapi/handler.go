@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/url"
 	"regexp"
@@ -222,7 +223,7 @@ func (h *ConfigHandler) CreateCustomDNSEntry(_ context.Context, req CreateCustom
 		Domain:     req.Body.Domain,
 		RecordType: string(req.Body.RecordType),
 		Value:      req.Body.Value,
-		TTL:        uint32(req.Body.Ttl),
+		TTL:        uint32(req.Body.Ttl), //nolint:gosec // range-checked in validateCustomDNSEntry
 		Enabled:    new(req.Body.Enabled),
 	}
 
@@ -263,7 +264,7 @@ func (h *ConfigHandler) UpdateCustomDNSEntry(_ context.Context, req UpdateCustom
 	existing.Domain = req.Body.Domain
 	existing.RecordType = string(req.Body.RecordType)
 	existing.Value = req.Body.Value
-	existing.TTL = uint32(req.Body.Ttl)
+	existing.TTL = uint32(req.Body.Ttl) //nolint:gosec // range-checked in validateCustomDNSEntry
 	existing.Enabled = new(req.Body.Enabled)
 
 	if err := h.store.UpdateCustomDNSEntry(existing); err != nil {
@@ -801,6 +802,12 @@ func validateCustomDNSEntry(input *CustomDNSEntryInput) error {
 
 	if strings.TrimSpace(input.Domain) == "" {
 		return errors.New("domain is required")
+	}
+
+	// The wire type is a plain integer but the record carries a uint32, so an
+	// out-of-range TTL would silently wrap on the way into the store.
+	if input.Ttl < 0 || input.Ttl > math.MaxUint32 {
+		return fmt.Errorf("ttl must be between 0 and %d", uint32(math.MaxUint32))
 	}
 
 	switch input.RecordType {

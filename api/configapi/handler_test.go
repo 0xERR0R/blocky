@@ -6,6 +6,7 @@ package configapi_test
 import (
 	"context"
 	"errors"
+	"math"
 	"path/filepath"
 
 	"github.com/0xERR0R/blocky/api/configapi"
@@ -245,6 +246,19 @@ var _ = Describe("ConfigAPI Handler", func() {
 			})
 			Expect(err).Should(Succeed())
 			Expect(resp).Should(BeAssignableToTypeOf(configapi.CreateCustomDNSEntry400JSONResponse{}))
+		})
+
+		It("should reject a TTL that would not fit in a uint32", func() {
+			for _, ttl := range []int{-1, math.MaxUint32 + 1} {
+				resp, err := h.CreateCustomDNSEntry(ctx, configapi.CreateCustomDNSEntryRequestObject{
+					Body: &configapi.CustomDNSEntryInput{
+						Domain: "test.local", RecordType: configapi.CustomDNSEntryInputRecordTypeA,
+						Value: "127.0.0.1", Ttl: ttl, Enabled: true,
+					},
+				})
+				Expect(err).Should(Succeed())
+				Expect(resp).Should(BeAssignableToTypeOf(configapi.CreateCustomDNSEntry400JSONResponse{}))
+			}
 		})
 
 		It("should reject IPv4 for AAAA record", func() {
