@@ -228,6 +228,23 @@ directory is the other half. If the suite fails at startup with a SQLite open or
 the seed to a writable directory — `/app/cache/config.db` is already `--chown=100:100` for exactly
 this kind of use — and pass that path to `ensureDatabasePath`.
 
+**Phase 6 amendment — confirm the premise before applying that recipe.** Phase 6 also had no
+container runtime, so the suite still has not been run. But the "root-owned `0755`" claim above is
+an assumption, not an observation, and it is the part most likely to be wrong: `USER 100` precedes
+`WORKDIR /app` in the Dockerfile, and both the classic builder and BuildKit chown a directory that
+`WORKDIR` has to create to the *current* `USER`. If that holds, `/app` is already `100:100`, WAL
+creates its siblings fine, and moving the seed to `/app/cache` would be churn that fixes nothing.
+So when the gate finally runs: if the suite comes up green, delete this section; if it fails, get
+the actual ownership first (`docker run --rm --entrypoint "" -u 0 blockasaurus-e2e ls -ld /app`, or
+read the layer metadata) before touching `e2e/upstream_seed.go`.
+
+What Phase 6 *could* establish without Docker: the suite compiles (`go vet ./e2e/`, `go test -c`),
+`ginkgo --dry-run --label-filter=e2e` enumerates all 162 specs with no tree errors, and every
+`blockasaurus_*` metric name asserted in `e2e/metrics_test.go` resolves to a name the fork actually
+registers (`blockasaurus_build_info` comes from `metrics/metrics_event_publisher.go`, not the
+`metrics/metrics_test.go` list). So the GRA-632 metrics rename is consistent; what remains unproven
+is everything that needs a container to start.
+
 ### 3.5 Toolchain and generated-artifact churn
 
 - Go 1.26.1 → 1.26.2; golangci-lint → v2.12.2, with additional linters enabled upstream (#2073).
