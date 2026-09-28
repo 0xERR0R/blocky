@@ -4,6 +4,7 @@
 package logstream
 
 import (
+	"maps"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -32,9 +33,7 @@ func (h *Hook) Fire(entry *logrus.Entry) error {
 	}
 
 	fields := make(map[string]any, len(entry.Data))
-	for k, v := range entry.Data {
-		fields[k] = v
-	}
+	maps.Copy(fields, entry.Data)
 
 	h.broadcaster.Publish(LogEntry{
 		Timestamp: entry.Time.UTC().Truncate(time.Millisecond),

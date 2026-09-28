@@ -30,7 +30,7 @@ func TestParseServiceListForLBIP_NoDNSPort(t *testing.T) {
 	}`
 
 	_, err := parseServiceListForLBIP(strings.NewReader(body))
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no LoadBalancer service")
 }
 
@@ -43,14 +43,14 @@ func TestParseServiceListForLBIP_NoIngress(t *testing.T) {
 	}`
 
 	_, err := parseServiceListForLBIP(strings.NewReader(body))
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestParseServiceListForLBIP_Empty(t *testing.T) {
 	body := `{"items": []}`
 
 	_, err := parseServiceListForLBIP(strings.NewReader(body))
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestParseServiceListForLBIP_MultipleServices(t *testing.T) {

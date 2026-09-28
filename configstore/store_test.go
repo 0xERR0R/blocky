@@ -109,7 +109,7 @@ var _ = Describe("ConfigStore", func() {
 				ListType:   "deny",
 				SourceType: "http",
 				Source:     "https://example.com/ads.txt",
-				Enabled:    BoolPtr(true),
+				Enabled:    new(true),
 			}
 			Expect(store.CreateBlocklistSource(src)).Should(Succeed())
 			Expect(src.ID).ShouldNot(BeZero())
@@ -121,13 +121,13 @@ var _ = Describe("ConfigStore", func() {
 
 		It("should filter by group and type", func() {
 			Expect(store.CreateBlocklistSource(&BlocklistSource{
-				GroupName: "ads", ListType: "deny", SourceType: "http", Source: "https://a.com", Enabled: BoolPtr(true),
+				GroupName: "ads", ListType: "deny", SourceType: "http", Source: "https://a.com", Enabled: new(true),
 			})).Should(Succeed())
 			Expect(store.CreateBlocklistSource(&BlocklistSource{
-				GroupName: "malware", ListType: "deny", SourceType: "http", Source: "https://b.com", Enabled: BoolPtr(true),
+				GroupName: "malware", ListType: "deny", SourceType: "http", Source: "https://b.com", Enabled: new(true),
 			})).Should(Succeed())
 			Expect(store.CreateBlocklistSource(&BlocklistSource{
-				GroupName: "ads", ListType: "allow", SourceType: "http", Source: "https://c.com", Enabled: BoolPtr(true),
+				GroupName: "ads", ListType: "allow", SourceType: "http", Source: "https://c.com", Enabled: new(true),
 			})).Should(Succeed())
 
 			byGroup, err := store.ListBlocklistSources("ads", "")
@@ -145,7 +145,7 @@ var _ = Describe("ConfigStore", func() {
 
 		It("should update a source", func() {
 			src := &BlocklistSource{
-				GroupName: "ads", ListType: "deny", SourceType: "http", Source: "https://old.com", Enabled: BoolPtr(true),
+				GroupName: "ads", ListType: "deny", SourceType: "http", Source: "https://old.com", Enabled: new(true),
 			}
 			Expect(store.CreateBlocklistSource(src)).Should(Succeed())
 
@@ -159,7 +159,7 @@ var _ = Describe("ConfigStore", func() {
 
 		It("should delete a source", func() {
 			src := &BlocklistSource{
-				GroupName: "ads", ListType: "deny", SourceType: "http", Source: "https://x.com", Enabled: BoolPtr(true),
+				GroupName: "ads", ListType: "deny", SourceType: "http", Source: "https://x.com", Enabled: new(true),
 			}
 			Expect(store.CreateBlocklistSource(src)).Should(Succeed())
 
@@ -178,7 +178,7 @@ var _ = Describe("ConfigStore", func() {
 	Describe("CustomDNSEntry CRUD", func() {
 		It("should create and list entries", func() {
 			e := &CustomDNSEntry{
-				Domain: "example.com", RecordType: "A", Value: "1.2.3.4", TTL: 3600, Enabled: BoolPtr(true),
+				Domain: "example.com", RecordType: "A", Value: "1.2.3.4", TTL: 3600, Enabled: new(true),
 			}
 			Expect(store.CreateCustomDNSEntry(e)).Should(Succeed())
 
@@ -190,12 +190,12 @@ var _ = Describe("ConfigStore", func() {
 
 		It("should enforce unique constraint on domain+type+value", func() {
 			e1 := &CustomDNSEntry{
-				Domain: "example.com", RecordType: "A", Value: "1.2.3.4", TTL: 3600, Enabled: BoolPtr(true),
+				Domain: "example.com", RecordType: "A", Value: "1.2.3.4", TTL: 3600, Enabled: new(true),
 			}
 			Expect(store.CreateCustomDNSEntry(e1)).Should(Succeed())
 
 			e2 := &CustomDNSEntry{
-				Domain: "example.com", RecordType: "A", Value: "1.2.3.4", TTL: 7200, Enabled: BoolPtr(true),
+				Domain: "example.com", RecordType: "A", Value: "1.2.3.4", TTL: 7200, Enabled: new(true),
 			}
 			err := store.CreateCustomDNSEntry(e2)
 			Expect(err).Should(HaveOccurred())
@@ -203,10 +203,10 @@ var _ = Describe("ConfigStore", func() {
 
 		It("should allow same domain with different record types", func() {
 			Expect(store.CreateCustomDNSEntry(&CustomDNSEntry{
-				Domain: "example.com", RecordType: "A", Value: "1.2.3.4", TTL: 3600, Enabled: BoolPtr(true),
+				Domain: "example.com", RecordType: "A", Value: "1.2.3.4", TTL: 3600, Enabled: new(true),
 			})).Should(Succeed())
 			Expect(store.CreateCustomDNSEntry(&CustomDNSEntry{
-				Domain: "example.com", RecordType: "AAAA", Value: "::1", TTL: 3600, Enabled: BoolPtr(true),
+				Domain: "example.com", RecordType: "AAAA", Value: "::1", TTL: 3600, Enabled: new(true),
 			})).Should(Succeed())
 
 			entries, err := store.ListCustomDNSEntries()
@@ -216,7 +216,7 @@ var _ = Describe("ConfigStore", func() {
 
 		It("should delete an entry", func() {
 			e := &CustomDNSEntry{
-				Domain: "del.com", RecordType: "A", Value: "5.6.7.8", TTL: 300, Enabled: BoolPtr(true),
+				Domain: "del.com", RecordType: "A", Value: "5.6.7.8", TTL: 300, Enabled: new(true),
 			}
 			Expect(store.CreateCustomDNSEntry(e)).Should(Succeed())
 			Expect(store.DeleteCustomDNSEntry(e.ID)).Should(Succeed())

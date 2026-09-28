@@ -12,7 +12,7 @@ type ClientGroupEndpoints struct {
 	Domains []string `yaml:"domains"`
 
 	// CpeID enables EDNS CPE-ID (option 65074) extraction for plain DNS queries.
-	CpeID bool `yaml:"cpeId" default:"true"`
+	CpeID bool `default:"true" yaml:"cpeId"`
 
 	// AdvertiseAddress controls automatic DNS record injection for configured domains.
 	// "auto" detects the IP (k8s LB service → outbound interface), an explicit IP uses

@@ -919,7 +919,7 @@ func (s *Server) Stop(ctx context.Context) error {
 // On error, the old chain stays active.
 func (s *Server) Reconfigure(ctx context.Context) error {
 	if s.configStore == nil {
-		return fmt.Errorf("no config store configured")
+		return errors.New("no config store configured")
 	}
 
 	// Snapshot config under read lock
@@ -1006,8 +1006,8 @@ func extractClientIDFromHost(hostName string, baseDomains []string) string {
 
 	for _, base := range baseDomains {
 		suffix := "." + strings.ToLower(base)
-		if strings.HasSuffix(host, suffix) {
-			label := strings.TrimSuffix(host, suffix)
+		if before, ok := strings.CutSuffix(host, suffix); ok {
+			label := before
 			if !strings.Contains(label, ".") && label != "" {
 				return label
 			}

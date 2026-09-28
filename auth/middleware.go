@@ -37,6 +37,7 @@ type SessionStore interface {
 // attached by RequireAuth.
 func UserFromContext(ctx context.Context) *authmodels.User {
 	u, _ := ctx.Value(userKey).(*authmodels.User)
+
 	return u
 }
 
@@ -46,6 +47,7 @@ func UserFromContext(ctx context.Context) *authmodels.User {
 // already-open socket beyond the true session expiry.
 func SessionFromContext(ctx context.Context) *authmodels.Session {
 	s, _ := ctx.Value(sessionKey).(*authmodels.Session)
+
 	return s
 }
 

@@ -6,6 +6,7 @@ package configapi_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -156,7 +157,7 @@ var _ = Describe("Config API HTTP integration", func() {
 	})
 
 	It("returns 500 when apply fails via HTTP", func() {
-		reconf.err = fmt.Errorf("build chain failed")
+		reconf.err = errors.New("build chain failed")
 
 		resp := httpDo("POST", srv.URL+"/api/config/apply", "")
 		Expect(resp.StatusCode).Should(Equal(500))

@@ -20,7 +20,7 @@ func TestReadFile(t *testing.T) {
 192.168.1.50     0x1         0x2         de:ad:be:ef:00:01     *        wlan0
 `
 	f := filepath.Join(t.TempDir(), "arp")
-	require.NoError(t, os.WriteFile(f, []byte(content), 0644))
+	require.NoError(t, os.WriteFile(f, []byte(content), 0o644))
 
 	entries, err := ReadFile(f)
 	require.NoError(t, err)
@@ -38,7 +38,7 @@ func TestReadFile_SkipsIncomplete(t *testing.T) {
 10.0.0.2         0x1         0x2         00:00:00:00:00:00     *        eth0
 `
 	f := filepath.Join(t.TempDir(), "arp")
-	require.NoError(t, os.WriteFile(f, []byte(content), 0644))
+	require.NoError(t, os.WriteFile(f, []byte(content), 0o644))
 
 	entries, err := ReadFile(f)
 	require.NoError(t, err)
@@ -55,7 +55,7 @@ func TestReadFile_Empty(t *testing.T) {
 	content := `IP address       HW type     Flags       HW address            Mask     Device
 `
 	f := filepath.Join(t.TempDir(), "arp")
-	require.NoError(t, os.WriteFile(f, []byte(content), 0644))
+	require.NoError(t, os.WriteFile(f, []byte(content), 0o644))
 
 	entries, err := ReadFile(f)
 	require.NoError(t, err)

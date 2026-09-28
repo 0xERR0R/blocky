@@ -35,16 +35,16 @@ var _ = Describe("Convert", func() {
 
 			Expect(store.CreateBlocklistSource(&BlocklistSource{
 				GroupName: "ads", ListType: "deny", SourceType: "http",
-				Source: "https://example.com/ads.txt", Enabled: BoolPtr(true),
+				Source: "https://example.com/ads.txt", Enabled: new(true),
 			})).Should(Succeed())
 			Expect(store.CreateBlocklistSource(&BlocklistSource{
 				GroupName: "ads", ListType: "allow", SourceType: "file",
-				Source: "/etc/blocky/whitelist.txt", Enabled: BoolPtr(true),
+				Source: "/etc/blocky/whitelist.txt", Enabled: new(true),
 			})).Should(Succeed())
 			// Disabled source should be excluded
 			Expect(store.CreateBlocklistSource(&BlocklistSource{
 				GroupName: "ads", ListType: "deny", SourceType: "http",
-				Source: "https://disabled.com/list.txt", Enabled: BoolPtr(false),
+				Source: "https://disabled.com/list.txt", Enabled: new(false),
 			})).Should(Succeed())
 
 			Expect(store.PutBlockSettings(&BlockSettings{
@@ -79,7 +79,7 @@ var _ = Describe("Convert", func() {
 			Expect(store.CreateDomainEntry(&DomainEntry{
 				Domain:    "evil.example.com",
 				EntryType: "exact_deny",
-				Enabled:   BoolPtr(true),
+				Enabled:   new(true),
 				GroupName: "_d_1",
 			})).Should(Succeed())
 
@@ -113,16 +113,16 @@ var _ = Describe("Convert", func() {
 		It("should build DNS mapping from DB entries", func() {
 			Expect(store.CreateCustomDNSEntry(&CustomDNSEntry{
 				Domain: "myhost.local", RecordType: "A", Value: "192.168.1.100",
-				TTL: 3600, Enabled: BoolPtr(true),
+				TTL: 3600, Enabled: new(true),
 			})).Should(Succeed())
 			Expect(store.CreateCustomDNSEntry(&CustomDNSEntry{
 				Domain: "myhost.local", RecordType: "AAAA", Value: "fd00::1",
-				TTL: 3600, Enabled: BoolPtr(true),
+				TTL: 3600, Enabled: new(true),
 			})).Should(Succeed())
 			// Disabled entry should be excluded
 			Expect(store.CreateCustomDNSEntry(&CustomDNSEntry{
 				Domain: "disabled.local", RecordType: "A", Value: "10.0.0.1",
-				TTL: 3600, Enabled: BoolPtr(false),
+				TTL: 3600, Enabled: new(false),
 			})).Should(Succeed())
 
 			base := config.CustomDNS{CustomTTL: config.Duration(time.Hour)}
@@ -149,7 +149,7 @@ var _ = Describe("Convert", func() {
 		It("should handle CNAME records", func() {
 			Expect(store.CreateCustomDNSEntry(&CustomDNSEntry{
 				Domain: "alias.local", RecordType: "CNAME", Value: "real.local",
-				TTL: 300, Enabled: BoolPtr(true),
+				TTL: 300, Enabled: new(true),
 			})).Should(Succeed())
 
 			result, err := store.BuildCustomDNSConfig(config.CustomDNS{})

@@ -42,6 +42,7 @@ func extractUpstreamYAML(lines []string) (upstreamSeedCfg, []string) {
 		if !inUpstreams {
 			if strings.HasPrefix(line, "upstreams:") {
 				inUpstreams = true
+
 				continue
 			}
 
@@ -134,12 +135,12 @@ func extractUpstreamYAML(lines []string) (upstreamSeedCfg, []string) {
 
 // yamlValue strips "key:" from a "key: value" fragment (after trimming).
 func yamlValue(trimmed string) string {
-	i := strings.Index(trimmed, ":")
-	if i < 0 {
+	_, after, ok := strings.Cut(trimmed, ":")
+	if !ok {
 		return ""
 	}
 
-	v := strings.TrimSpace(trimmed[i+1:])
+	v := strings.TrimSpace(after)
 	v = strings.Trim(v, "\"'")
 
 	return v
@@ -183,20 +184,6 @@ func seedUpstreamDB(seed upstreamSeedCfg) (string, error) {
 	// specified. If the test specified no groups at all, leave the built-in
 	// seed (1.1.1.1 / 1.0.0.1) in place.
 	if len(seed.groupOrder) > 0 {
-		// Wipe existing servers in default
-		existing, err := store.ListUpstreamServers("default")
-		if err != nil {
-			return "", err
-		}
-
-		for _, srv := range existing {
-			// Direct delete bypasses the "last server in default" guard by
-			// re-creating the desired servers afterward in the same seed pass.
-			if len(seed.groups["default"]) > 0 || srv.ID == 0 {
-				// no-op
-			}
-		}
-
 		// Rebuild default + any extra test groups from scratch.
 		if err := resetAndSeedGroups(store, seed); err != nil {
 			return "", err
@@ -266,7 +253,7 @@ func resetAndSeedGroups(store *configstore.ConfigStore, seed upstreamSeedCfg) er
 		GroupName: "default",
 		URL:       "127.0.0.1",
 		Position:  9999,
-		Enabled:   configstore.BoolPtr(true),
+		Enabled:   new(true),
 	}
 	if err := store.CreateUpstreamServer(placeholder); err != nil {
 		return err
@@ -291,7 +278,7 @@ func resetAndSeedGroups(store *configstore.ConfigStore, seed upstreamSeedCfg) er
 				GroupName: name,
 				URL:       url,
 				Position:  i,
-				Enabled:   configstore.BoolPtr(true),
+				Enabled:   new(true),
 			}
 			if err := store.CreateUpstreamServer(srv); err != nil {
 				return fmt.Errorf("seed server %q in group %q: %w", url, name, err)

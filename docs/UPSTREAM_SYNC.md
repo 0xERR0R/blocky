@@ -228,6 +228,23 @@ directory is the other half. If the suite fails at startup with a SQLite open or
 the seed to a writable directory — `/app/cache/config.db` is already `--chown=100:100` for exactly
 this kind of use — and pass that path to `ensureDatabasePath`.
 
+**Phase 6 amendment — confirm the premise before applying that recipe.** Phase 6 also had no
+container runtime, so the suite still has not been run. But the "root-owned `0755`" claim above is
+an assumption, not an observation, and it is the part most likely to be wrong: `USER 100` precedes
+`WORKDIR /app` in the Dockerfile, and both the classic builder and BuildKit chown a directory that
+`WORKDIR` has to create to the *current* `USER`. If that holds, `/app` is already `100:100`, WAL
+creates its siblings fine, and moving the seed to `/app/cache` would be churn that fixes nothing.
+So when the gate finally runs: if the suite comes up green, delete this section; if it fails, get
+the actual ownership first (`docker run --rm --entrypoint "" -u 0 blockasaurus-e2e ls -ld /app`, or
+read the layer metadata) before touching `e2e/upstream_seed.go`.
+
+What Phase 6 *could* establish without Docker: the suite compiles (`go vet ./e2e/`, `go test -c`),
+`ginkgo --dry-run --label-filter=e2e` enumerates all 162 specs with no tree errors, and every
+`blockasaurus_*` metric name asserted in `e2e/metrics_test.go` resolves to a name the fork actually
+registers (`blockasaurus_build_info` comes from `metrics/metrics_event_publisher.go`, not the
+`metrics/metrics_test.go` list). So the GRA-632 metrics rename is consistent; what remains unproven
+is everything that needs a container to start.
+
 ### 3.5 Toolchain and generated-artifact churn
 
 - Go 1.26.1 → 1.26.2; golangci-lint → v2.12.2, with additional linters enabled upstream (#2073).
@@ -658,3 +675,59 @@ git merge upstream/main
 
 At that cadence each merge should be a handful of conflicts in the §7 patched-file list. After
 every sync, update §7 and the "Last measured" line at the top.
+
+## 9. Lint baseline at golangci-lint v2.12.2
+
+Upstream's `2073` enabled a much larger linter set and `2062` moved the pin to `v2.12.2`
+(`GOLANG_LINT_VERSION` in the Makefile — `make lint` `go run`s that exact version, so whatever is
+on `PATH` is irrelevant). The fork's own packages had never been run against either. The first run
+after the sync reported **245 issues**.
+
+`make lint` is not a CI gate: `.github/workflows/ci.yml` runs the frontend build, `go build ./...`
+and `make test`. Lint is a local gate, which is why this drift accumulated silently.
+
+Of the 245, only six files with findings are shared with upstream — `cmd/cmd_suite_test.go`,
+`cmd/serve.go`, `config/config.go`, `resolver/blocking_resolver.go`, `server/server.go`,
+`server/server_endpoints.go` — and every finding in them is a style rule (`funlen`, `lll`, `mnd`,
+`goconst`, `tagalign`), not a merge artifact. **No lint finding is attributable to the merge.**
+
+### Cleared
+
+91 findings were fixed in the Phase 6 verification commit: the `--fix`-able mechanical set
+(`tagalign`, `misspell`, `modernize`, `copyloopvar`, `intrange`, `perfsprint`, `nlreturn`,
+`whitespace`, `unconvert`, `nolintlint`), plus by hand `nosprintfhostport` in `pkg/advertise`
+(an IPv6 `KUBERNETES_SERVICE_HOST` would have produced a malformed API-server URL), a dead
+no-op loop in `e2e/upstream_seed.go`, four dead helpers, the inert `omitempty` on
+`userResponse.CreatedAt`, and the `errcheck` / `errorlint` / `testifylint` findings.
+
+gosec's two G115 findings on the custom-DNS TTL turned out to be real rather than noise: the
+wire type is a plain `integer` with `minimum: 0` and no maximum, nothing enforced that bound at
+runtime, and the store field is a `uint32` — so `ttl: 4294967296` wrapped to 0 on the way in.
+`validateCustomDNSEntry` now rejects anything outside `[0, MaxUint32]`, the conversions carry a
+`//nolint:gosec` pointing at that check, and there is a spec for it.
+
+`modernize` inlined `configstore.BoolPtr` into `new(v)` at every call site, which left the helper
+dead; it was removed.
+
+### Left, and why — 154 findings
+
+| Linter | N | Disposition |
+| --- | --- | --- |
+| `staticcheck` | 22 | All SA1019: `nhooyr.io/websocket` is deprecated in favour of `github.com/coder/websocket`. **Not** a drop-in version bump — the fork's latest tag is `v1.8.15` and we are on `nhooyr.io/websocket v1.8.17`, so migrating moves *backwards* in version. Four files: `logstream/handler.go`, `logstream/handler_test.go`, `auth/wsrevoke.go`, `server/server_endpoints.go`. Worth its own change with the websocket paths actually exercised; not a verification-phase edit. |
+| `nilerr` | 19 | 18 are `api/configapi/handler.go` and structural: oapi-codegen's strict-handler pattern returns a typed `404`/`400` response value *and* a nil error, which is exactly what `nilerr` flags. The remaining one is `configstore/store.go:292`. |
+| `lll` | 29 | 13 in `api/configapi/handler.go`, the rest scattered. Generated-shaped handler signatures; wrapping them buys nothing. |
+| `funlen` / `gocognit` / `nestif` | 21 | `NewServer`, `runServer`, `Reconfigure`, `registerUIRoutes` and the configstore CRUD bodies. Splitting these is a refactor, not a lint fix, and `server.go` is the single worst file to churn between syncs. |
+| `goconst` | 20 | Mostly `"default"`, `"A"`, `"admin"` repeated across the configstore and API layers. A shared constant would be an improvement; it is a fork-wide rename, not sync work. |
+| `mnd` | 13 | Timeouts, buffer sizes, HTTP ports. |
+| `gosec` | 6 | Triaged as safe: 3× G124 cookies — the session cookie sets `HttpOnly` and `SameSite` and sets `Secure` only when the request is TLS, because the admin UI is reachable over plain HTTP on a LAN; G101 on a Kubernetes service-account *path* constant; 2× G704 "SSRF" on the in-cluster API-server URL built from `KUBERNETES_SERVICE_HOST`. |
+| `errchkjson` | 5 | Response-body encoders written after the status line is already committed, using the file-local `_ = json.NewEncoder(w).Encode(...)` idiom. `errchkjson` rejects the blank assignment for `any`-typed payloads specifically; there is nothing useful to do with the error at that point. |
+| `noctx` | 5 | 3 in `auth/middleware_test.go`/`server_auth_test.go` (`httptest.NewRequest`), 1 `net.Dial` in `pkg/advertise/detect.go` (outbound-IP probe, already dial-timeout bound), 1 `net.LookupAddr` in `server_endpoints.go`. |
+| `contextcheck` | 4 | Deliberate: shutdown and reconfigure paths intentionally build a fresh context so a cancelled request context cannot abort them. |
+| `gochecknoglobals` | 3 | `trustedProxyNets`, `mobileconfigNamespace`, `mobileconfigTmpl` — package-level constants in all but name. |
+| `unparam` | 2 | Test helpers (`seedUser`, `login`) whose extra parameter documents intent. |
+| `dupl` | 2 | `configstore/store.go:186-217` vs `configstore/upstreams.go:40-71`. Real duplication, worth folding, out of scope here. |
+| `containedctx` | 1 | `logstream/broadcaster.go` stores the subscriber's context so a dropped websocket unsubscribes. |
+| `forcetypeassert` | 1 | `server_auth.go:141` — the `sync.Map` is written at exactly one site, always with `*loginBucket`. A checked assertion adds an unreachable branch. |
+| `nilnil` | 1 | `configstore/stats.go:109`. |
+
+Reproduce with `make lint`. If the count moves without this table moving, something changed.

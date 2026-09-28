@@ -173,10 +173,7 @@ func (l *loginLimiter) allow(ip string) (ok bool, retryAfter int) {
 
 	// No token available — compute seconds until the next one arrives.
 	need := 1 - b.tokens
-	secs := int((need * float64(loginBucketWindow)) / float64(loginBucketCap) / float64(time.Second))
-	if secs < 1 {
-		secs = 1
-	}
+	secs := max(int((need*float64(loginBucketWindow))/float64(loginBucketCap)/float64(time.Second)), 1)
 
 	return false, secs
 }
@@ -237,11 +234,9 @@ func clientIP(r *http.Request) string {
 	if isTrustedProxy(peerIP) {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 			// Leftmost entry is the original client per RFC 7239 convention.
-			if comma := strings.IndexByte(xff, ','); comma >= 0 {
-				return strings.TrimSpace(xff[:comma])
-			}
+			first, _, _ := strings.Cut(xff, ",")
 
-			return strings.TrimSpace(xff)
+			return strings.TrimSpace(first)
 		}
 	}
 
@@ -346,7 +341,7 @@ type userResponse struct {
 	ID        uint      `json:"id"`
 	Username  string    `json:"username"`
 	Role      string    `json:"role"`
-	CreatedAt time.Time `json:"created_at,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 func userToResponse(u *configstore.User) userResponse {

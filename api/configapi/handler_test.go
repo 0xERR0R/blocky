@@ -5,7 +5,8 @@ package configapi_test
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"math"
 	"path/filepath"
 
 	"github.com/0xERR0R/blocky/api/configapi"
@@ -247,6 +248,25 @@ var _ = Describe("ConfigAPI Handler", func() {
 			Expect(resp).Should(BeAssignableToTypeOf(configapi.CreateCustomDNSEntry400JSONResponse{}))
 		})
 
+		It("should reject a TTL that would not fit in a uint32", func() {
+			// The over-the-top case is only representable where int is 64 bits.
+			rejected := []int{-1}
+			if overflow := int64(math.MaxUint32) + 1; overflow <= math.MaxInt {
+				rejected = append(rejected, int(overflow))
+			}
+
+			for _, ttl := range rejected {
+				resp, err := h.CreateCustomDNSEntry(ctx, configapi.CreateCustomDNSEntryRequestObject{
+					Body: &configapi.CustomDNSEntryInput{
+						Domain: "test.local", RecordType: configapi.CustomDNSEntryInputRecordTypeA,
+						Value: "127.0.0.1", Ttl: ttl, Enabled: true,
+					},
+				})
+				Expect(err).Should(Succeed())
+				Expect(resp).Should(BeAssignableToTypeOf(configapi.CreateCustomDNSEntry400JSONResponse{}))
+			}
+		})
+
 		It("should reject IPv4 for AAAA record", func() {
 			resp, err := h.CreateCustomDNSEntry(ctx, configapi.CreateCustomDNSEntryRequestObject{
 				Body: &configapi.CustomDNSEntryInput{
@@ -352,7 +372,7 @@ var _ = Describe("ConfigAPI Handler", func() {
 		})
 
 		It("should return 500 on reconfigure failure", func() {
-			reconf.err = fmt.Errorf("chain build failed")
+			reconf.err = errors.New("chain build failed")
 
 			resp, err := h.ApplyConfig(ctx, configapi.ApplyConfigRequestObject{})
 			Expect(err).Should(Succeed())

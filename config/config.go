@@ -276,7 +276,7 @@ type Config struct {
 	//
 	// It is excluded from the generated JSON schema (`jsonschema:"-"`): the schema
 	// describes what YAML accepts, and `upstreams:` is not accepted.
-	UpstreamsYAML upstreamsYAMLSentinel `yaml:"upstreams,omitempty" jsonschema:"-"`
+	UpstreamsYAML upstreamsYAMLSentinel `jsonschema:"-" yaml:"upstreams,omitempty"`
 	// IP version used for outgoing connections (dual, v4, v6).
 	ConnectIPVersion IPVersion `yaml:"connectIPVersion"`
 	// Custom static DNS mappings and zone definitions.

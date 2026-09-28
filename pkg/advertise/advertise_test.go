@@ -30,7 +30,7 @@ func TestResolveAddress_ExplicitIPv6(t *testing.T) {
 
 func TestResolveAddress_Invalid(t *testing.T) {
 	_, err := ResolveAddress("not-an-ip")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid advertiseAddress")
 }
 

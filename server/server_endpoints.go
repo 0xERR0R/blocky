@@ -217,6 +217,7 @@ func handleDiscoveredClients(w http.ResponseWriter, r *http.Request) {
 	entries, err := arp.Read()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+
 		return
 	}
 
@@ -239,7 +240,7 @@ func handleDiscoveredClients(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(clients)
+	_ = json.NewEncoder(w).Encode(clients)
 }
 
 // registerUIRoutes adds all admin routes: API, config, UI, static assets,

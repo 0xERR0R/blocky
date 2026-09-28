@@ -6,7 +6,6 @@ package configstore
 import (
 	"fmt"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/0xERR0R/blocky/config"
@@ -37,6 +36,7 @@ func (s *ConfigStore) BuildBlockingConfig(base config.Blocking) (config.Blocking
 	for _, g := range groups {
 		if g.Name == "default" {
 			base.ClientGroupsBlock["default"] = g.Groups
+
 			continue
 		}
 		for _, client := range g.Clients {
@@ -189,17 +189,4 @@ func entryToRR(e CustomDNSEntry) (dns.RR, error) {
 	default:
 		return nil, fmt.Errorf("unsupported record type %q", e.RecordType)
 	}
-}
-
-func splitKeyOnce(s, sep string) [2]string {
-	i := strings.Index(s, sep)
-	if i < 0 {
-		return [2]string{s, ""}
-	}
-
-	return [2]string{s[:i], s[i+len(sep):]}
-}
-
-func joinLines(lines []string) string {
-	return strings.Join(lines, "\n")
 }

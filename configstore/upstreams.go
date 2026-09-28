@@ -4,6 +4,7 @@
 package configstore
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -73,7 +74,7 @@ func (s *ConfigStore) PutUpstreamGroup(g *UpstreamGroup) error {
 // All servers belonging to the group are also deleted.
 func (s *ConfigStore) DeleteUpstreamGroup(name string) error {
 	if name == defaultUpstreamGroupName {
-		return fmt.Errorf("cannot delete the default upstream group")
+		return errors.New("cannot delete the default upstream group")
 	}
 
 	return s.db.Transaction(func(tx *gorm.DB) error {
@@ -157,7 +158,7 @@ func (s *ConfigStore) DeleteUpstreamServer(id uint) error {
 		}
 
 		if count <= 1 {
-			return fmt.Errorf("cannot delete the last server in the default upstream group")
+			return errors.New("cannot delete the last server in the default upstream group")
 		}
 	}
 
@@ -253,7 +254,7 @@ func (s *ConfigStore) seedDefaultUpstreams() error {
 				GroupName: defaultUpstreamGroupName,
 				URL:       url,
 				Position:  i,
-				Enabled:   BoolPtr(true),
+				Enabled:   new(true),
 			}
 			if err := s.db.Create(srv).Error; err != nil {
 				return fmt.Errorf("seed default upstream %q: %w", url, err)
@@ -293,12 +294,12 @@ func (s *ConfigStore) BuildUpstreamsConfig(base config.Upstreams) (config.Upstre
 	}
 
 	// Apply settings
-	strat, err := config.ParseUpstreamStrategy(settings.Strategy)
+	strategy, err := config.ParseUpstreamStrategy(settings.Strategy)
 	if err != nil {
 		return base, fmt.Errorf("invalid upstream strategy %q: %w", settings.Strategy, err)
 	}
 
-	initStrat, err := config.ParseInitStrategy(settings.InitStrategy)
+	initStrategy, err := config.ParseInitStrategy(settings.InitStrategy)
 	if err != nil {
 		return base, fmt.Errorf("invalid init strategy %q: %w", settings.InitStrategy, err)
 	}
@@ -308,8 +309,8 @@ func (s *ConfigStore) BuildUpstreamsConfig(base config.Upstreams) (config.Upstre
 		return base, fmt.Errorf("invalid upstream timeout %q: %w", settings.Timeout, err)
 	}
 
-	base.Strategy = strat
-	base.Init.Strategy = initStrat
+	base.Strategy = strategy
+	base.Init.Strategy = initStrategy
 	base.Timeout = config.Duration(timeout)
 	base.UserAgent = settings.UserAgent
 

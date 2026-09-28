@@ -6,10 +6,6 @@ import (
 	"time"
 )
 
-func fixedClock(t time.Time) func() time.Time {
-	return func() time.Time { return t }
-}
-
 func TestRecordAndTotalQueries(t *testing.T) {
 	c := New()
 
@@ -269,15 +265,9 @@ func TestConcurrentAccess(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// 10 goroutines writing
-	for i := range 10 {
-		wg.Add(1)
-
-		go func(id int) {
-			defer wg.Done()
-
-			for j := range 100 {
-				_ = j
-
+	for range 10 {
+		wg.Go(func() {
+			for range 100 {
 				c.Record(QueryRecord{
 					Client:       "client",
 					Domain:       "example.com",
@@ -285,16 +275,12 @@ func TestConcurrentAccess(t *testing.T) {
 					ResponseType: "RESOLVED",
 				})
 			}
-		}(i)
+		})
 	}
 
 	// 5 goroutines reading
 	for range 5 {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			for range 50 {
 				_ = c.OverTime()
 				_ = c.QueryTypes()
@@ -304,7 +290,7 @@ func TestConcurrentAccess(t *testing.T) {
 				c.TotalQueries()
 				c.ActiveClients()
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

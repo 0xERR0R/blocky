@@ -207,7 +207,7 @@ func TestGenerateSessionToken_Unique(t *testing.T) {
 
 	seen := make(map[string]struct{}, iterations)
 
-	for i := 0; i < iterations; i++ {
+	for i := range iterations {
 		tok, err := GenerateSessionToken()
 		if err != nil {
 			t.Fatalf("iter %d: %v", i, err)

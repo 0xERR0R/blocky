@@ -88,6 +88,7 @@ func newRouteShapeServerNoUsers(t *testing.T) http.Handler {
 	t.Helper()
 
 	h, _ := newRouteShapeServer(t)
+
 	return h
 }
 
@@ -274,8 +275,6 @@ func TestSameOriginFunc(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
-
 		t.Run(tc.name, func(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, "http://"+tc.host+"/", nil)
 			r.Host = tc.host

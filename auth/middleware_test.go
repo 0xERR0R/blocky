@@ -27,7 +27,7 @@ type fakeStore struct {
 	sessions map[string]*authmodels.Session
 	users    map[uint]*authmodels.User
 
-	extendCalls int32
+	extendCalls atomic.Int32
 	revokeCh    chan uint
 }
 
@@ -75,7 +75,7 @@ func (f *fakeStore) GetUser(id uint) (*authmodels.User, error) {
 }
 
 func (f *fakeStore) ExtendSession(id string, newExpiry time.Time) error {
-	atomic.AddInt32(&f.extendCalls, 1)
+	f.extendCalls.Add(1)
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -252,7 +252,7 @@ func TestRequireAuth_ValidSession_AttachesUser(t *testing.T) {
 		t.Fatalf("role not attached: got %q", got)
 	}
 
-	if n := atomic.LoadInt32(&s.extendCalls); n != 0 {
+	if n := s.extendCalls.Load(); n != 0 {
 		t.Fatalf("ExtendSession should not run outside threshold; got %d calls", n)
 	}
 }
@@ -278,7 +278,7 @@ func TestRequireAuth_SlidingRenewal_CallsExtendAndSetsCookie(t *testing.T) {
 		t.Fatalf("renewed request should succeed; got %d", rec.Code)
 	}
 
-	if n := atomic.LoadInt32(&s.extendCalls); n != 1 {
+	if n := s.extendCalls.Load(); n != 1 {
 		t.Fatalf("ExtendSession should be called exactly once; got %d", n)
 	}
 

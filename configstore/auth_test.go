@@ -4,6 +4,7 @@
 package configstore
 
 import (
+	"errors"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -116,7 +117,7 @@ var _ = Describe("Auth storage", func() {
 			_, err = store.GetSession(s2.ID)
 			Expect(err).Should(Succeed())
 
-			store.DeleteSessionsForUser(u.ID)
+			Expect(store.DeleteSessionsForUser(u.ID)).Should(Succeed())
 
 			// Revocation signal fires with the userID.
 			select {
@@ -147,8 +148,8 @@ var _ = Describe("Auth storage", func() {
 			done := make(chan struct{})
 			go func() {
 				defer close(done)
-				for i := 0; i < 64; i++ {
-					store.DeleteSessionsForUser(u.ID)
+				for range 64 {
+					_ = store.DeleteSessionsForUser(u.ID)
 				}
 			}()
 
@@ -254,7 +255,6 @@ var _ = Describe("Auth storage", func() {
 			wg.Add(2)
 
 			for _, id := range []uint{x.ID, y.ID} {
-				id := id
 				go func() {
 					defer wg.Done()
 					<-start
@@ -263,7 +263,7 @@ var _ = Describe("Auth storage", func() {
 					switch {
 					case err == nil:
 						successN.Add(1)
-					case err == ErrLastAdmin:
+					case errors.Is(err, ErrLastAdmin):
 						lastN.Add(1)
 					default:
 						GinkgoT().Errorf("unexpected DeleteUser error: %v", err)
@@ -359,7 +359,7 @@ var _ = Describe("Auth storage", func() {
 			Expect(store.db.Create(expired).Error).Should(Succeed())
 			Expect(store.db.Create(fresh).Error).Should(Succeed())
 
-			store.PruneExpiredSessions()
+			Expect(store.PruneExpiredSessions()).Should(Succeed())
 
 			var count int64
 			store.roDB.Model(&Session{}).Where("id = ?", "expired-token").Count(&count)
@@ -418,7 +418,7 @@ var _ = Describe("Auth storage", func() {
 			Expect(err).Should(Succeed())
 
 			seen := map[string]bool{}
-			for i := 0; i < 8; i++ {
+			for range 8 {
 				sess, err := store.CreateSession(u.ID)
 				Expect(err).Should(Succeed())
 				Expect(sess.ID).Should(HaveLen(64))

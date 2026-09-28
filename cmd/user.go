@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -49,7 +50,7 @@ func openStore() (*configstore.ConfigStore, error) {
 	}
 
 	if cfg.DatabasePath == "" {
-		return nil, fmt.Errorf("databasePath is not set in config")
+		return nil, errors.New("databasePath is not set in config")
 	}
 
 	store, err := configstore.Open(cfg.DatabasePath)
@@ -107,7 +108,7 @@ func newUserCreateCommand() *cobra.Command {
 			}
 
 			if password != confirm {
-				return fmt.Errorf("passwords do not match")
+				return errors.New("passwords do not match")
 			}
 
 			hash, err := auth.HashPassword(password)
@@ -166,6 +167,7 @@ func newUserListCommand() *cobra.Command {
 
 			if len(users) == 0 {
 				fmt.Fprintln(cmd.OutOrStdout(), "No users.")
+
 				return nil
 			}
 
@@ -212,6 +214,7 @@ func newUserDeleteCommand() *cobra.Command {
 
 				if !ok {
 					fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+
 					return nil
 				}
 			}
@@ -268,7 +271,7 @@ func newUserResetPasswordCommand() *cobra.Command {
 			}
 
 			if password != confirmPw {
-				return fmt.Errorf("passwords do not match")
+				return errors.New("passwords do not match")
 			}
 
 			hash, err := auth.HashPassword(password)
