@@ -22,6 +22,12 @@ jobs:
   test:
     name: Build and test
     runs-on: ubuntu-latest
+    # Normally ~2 minutes. The cap is here because this suite can hang rather
+    # than fail: several specs bind listeners, and when one collides with a port
+    # another spec already took it has been seen both to fail fast
+    # (`bind: address already in use`) and to wait forever. Without a cap a hang
+    # holds a runner for GitHub's 6-hour default. See GRA-650.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,6 +53,68 @@ jobs:
 
       # Runs the non-e2e suite, including TestAPIContract and
       # TestAPISpecContract, and depends on check-fork-additions. The e2e suite
-      # needs a built container image and is left to `make e2e-test`.
+      # needs a built container image and runs in the `e2e` job below.
       - name: Test
         run: make test
+
+  # The e2e suite had never run at all across four phases of the upstream sync,
+  # for one reason: no dev/agent runtime in the loop had a container runtime, so
+  # it kept being deferred to "the next phase". GitHub-hosted runners do have
+  # Docker, so it runs here.
+  #
+  # `make e2e-test-baseline` builds the image with `docker buildx` and runs the
+  # suite against it, so this also covers `make docker-build`'s Dockerfile —
+  # which had never been built either. It is NOT the release image: release.yml
+  # runs goreleaser against Dockerfile.goreleaser, which nothing exercises.
+  #
+  # The pass/fail decision comes from tools/e2ebaseline, not from ginkgo's exit
+  # status: the suite's first run was 43/162 red from causes that predate the
+  # job, so the recorded baseline is what keeps this a gate that can catch a
+  # regression instead of a permanently red X that trains people to ignore CI.
+  #
+  # Deliberately a separate job rather than more steps on `test`: the fast job
+  # stays a ~2 minute PR signal, and a red e2e does not hide a red unit suite.
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    # Docker image build + ~162 specs that each start containers. Generous on
+    # purpose: a job killed at the boundary reports as "broken" when it was only
+    # slow, and this suite's whole value is that its failures are attributable.
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      # No frontend build step: the e2e package does not import web/, and the
+      # image builds the SPA in its own Dockerfile stage.
+      #
+      # No docker/setup-buildx-action either. The preinstalled default builder
+      # uses the docker driver, which is what `-o type=docker` and
+      # `--network=host` in the Makefile target expect; a docker-container
+      # builder would need --load and an explicit network.host entitlement.
+      - name: e2e
+        # ubuntu-latest is 4 vCPU, so -procs=4 matches the Makefile's local
+        # default of -p. Pinned rather than oversubscribed for now: container
+        # readiness has a 30s startup timeout, and a starved postgres/mariadb
+        # spec failing that would be indistinguishable from a real regression.
+        # Raise it once the suite has a known-green baseline here.
+        env:
+          GINKGO_E2E_PROCS: -procs=4
+          GINKGO_E2E_TIMEOUT: 35m
+        run: make e2e-test-baseline
+
+      # The job log is ~7,800 lines when the suite is unhappy. The machine
+      # readable report is what makes a failure diagnosable, and what the
+      # baseline lines are copied out of.
+      - name: Upload ginkgo report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: e2e-report.json
+          if-no-files-found: warn

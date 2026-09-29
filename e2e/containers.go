@@ -52,7 +52,14 @@ const (
 	// modeWorldReadableDir is used for host directories bind-mounted into containers,
 	// so a container user with a different UID can traverse and read them.
 	modeWorldReadableDir = 0o755
-	startupTimeout       = 30 * time.Second
+	// containerConfigDBPath is where the seeded SQLite config store is mounted,
+	// and what `databasePath` in the generated YAML points at.
+	containerConfigDBPath = "/app/config.db"
+	// containerBinaryPath is the server binary inside the image. Upstream's is
+	// /app/blocky; the rebranded Dockerfile installs /app/blockasaurus, so an
+	// overridden healthcheck has to name this one or it can never go healthy.
+	containerBinaryPath = "/app/blockasaurus"
+	startupTimeout      = 30 * time.Second
 
 	// healthcheckStartInterval overrides Docker's 5s default start-interval so
 	// blocky (ready in <1s) is probed and marked healthy almost immediately.
@@ -338,14 +345,9 @@ func createBlockyContainerInternal(ctx context.Context, e2eNet *testcontainers.D
 	ctx, cancel := context.WithTimeout(ctx, 2*startupTimeout)
 	defer cancel()
 
-	seed, strippedLines := extractUpstreamYAML(lines)
-	strippedLines = ensureDatabasePath(strippedLines, "/app/config.db")
-
-	confFile := createTempFile(strippedLines...)
-
-	dbFile, err := seedUpstreamDB(seed)
+	confFile, storeFile, err := prepareBlockyConfig(lines)
 	if err != nil {
-		return nil, fmt.Errorf("seed e2e upstream db: %w", err)
+		return nil, err
 	}
 
 	cfg, err := config.LoadConfig(confFile, true)
@@ -354,14 +356,8 @@ func createBlockyContainerInternal(ctx context.Context, e2eNet *testcontainers.D
 	}
 
 	// The seeded config store travels on the same mechanism as a caller's own
-	// extraFiles rather than a second append to req.Files. Unlike config.yml it
-	// is mounted writable: the server opens it read-write (WAL journal,
-	// migrations) as a container user that does not own the copied file.
-	extraFiles = append([]testcontainers.ContainerFile{{
-		HostFilePath:      dbFile,
-		ContainerFilePath: "/app/config.db",
-		FileMode:          modeWorldWritable,
-	}}, extraFiles...)
+	// extraFiles rather than a second append to req.Files.
+	extraFiles = append([]testcontainers.ContainerFile{storeFile}, extraFiles...)
 
 	req := buildBlockyContainerRequest(confFile)
 	req.Files = append(req.Files, extraFiles...)
@@ -531,17 +527,22 @@ func createBlockyContainerWithCapDrop(ctx context.Context, e2eNet *testcontainer
 	ctx, cancel := context.WithTimeout(ctx, 2*startupTimeout)
 	defer cancel()
 
-	confFile := createTempFile(lines...)
+	confFile, storeFile, err := prepareBlockyConfig(lines)
+	if err != nil {
+		return nil, err
+	}
+
 	portStr := strconv.Itoa(dnsPort)
 
 	req := buildBlockyContainerRequest(confFile)
+	req.Files = append(req.Files, storeFile)
 	req.ExposedPorts = []string{portStr + "/tcp", portStr + "/udp"}
 
 	baseConfigModifier := req.ConfigModifier
 	req.ConfigModifier = func(c *container.Config) {
 		baseConfigModifier(c)
 		// Point the healthcheck at the configured DNS port (the image default is 53).
-		c.Healthcheck.Test = []string{"CMD", "/app/blocky", "healthcheck", "-p", portStr}
+		c.Healthcheck.Test = []string{"CMD", containerBinaryPath, "healthcheck", "-p", portStr}
 	}
 
 	baseHostConfigModifier := req.HostConfigModifier

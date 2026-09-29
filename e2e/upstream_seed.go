@@ -7,6 +7,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/testcontainers/testcontainers-go"
 
 	"github.com/0xERR0R/blocky/configstore"
 )
@@ -155,6 +156,57 @@ func ensureDatabasePath(lines []string, dbPath string) []string {
 	}
 
 	return append(lines, "databasePath: "+dbPath)
+}
+
+// splitYAMLLines flattens a fixture's config lines so that one element is one
+// line, whatever the caller passed.
+//
+// extractUpstreamYAML is prefix-matched and line-oriented, so an element holding
+// a whole multi-line document is not merely unparsed — it is *destroyed*. Such an
+// element starts with "upstreams:" (dedent trims the leading newline), which
+// matches, which drops the element and every other section inside it. That is
+// how the cap-drop spec ended up with a config of nothing but `databasePath:`,
+// silently, running on default ports against default upstreams.
+//
+// Most callers already split, via createBlockyContainerFromString. Normalising
+// here means the ones that do not are merely inconsistent rather than broken.
+func splitYAMLLines(lines []string) []string {
+	out := make([]string, 0, len(lines))
+
+	for _, l := range lines {
+		out = append(out, strings.Split(l, "\n")...)
+	}
+
+	return out
+}
+
+// prepareBlockyConfig turns a test fixture's YAML lines into the two files a
+// blocky container needs: the config.yml to mount, with any `upstreams:` block
+// stripped out, and the seeded SQLite config store that block was moved into.
+//
+// Every path that builds a blocky container request has to go through this.
+// `config/upstreams.go` rejects an `upstreams:` block in YAML, so a fixture that
+// reaches the loader unstripped makes the container exit 1 before it serves
+// anything. Two builders were missing the strip/seed step until the e2e suite
+// first ran in CI and they failed at startup; centralising it here is what keeps
+// the next one from being written the same way.
+func prepareBlockyConfig(lines []string) (confFile string, store testcontainers.ContainerFile, err error) {
+	seed, strippedLines := extractUpstreamYAML(splitYAMLLines(lines))
+	strippedLines = ensureDatabasePath(strippedLines, containerConfigDBPath)
+
+	dbFile, err := seedUpstreamDB(seed)
+	if err != nil {
+		return "", testcontainers.ContainerFile{}, fmt.Errorf("seed e2e upstream db: %w", err)
+	}
+
+	// Unlike config.yml the store is mounted writable: the server opens it
+	// read-write (WAL journal, migrations) as a container user that does not own
+	// the copied file.
+	return createTempFile(strippedLines...), testcontainers.ContainerFile{
+		HostFilePath:      dbFile,
+		ContainerFilePath: containerConfigDBPath,
+		FileMode:          modeWorldWritable,
+	}, nil
 }
 
 // seedUpstreamDB creates a temporary SQLite DB file and pre-populates it with

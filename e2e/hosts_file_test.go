@@ -37,7 +37,9 @@ var _ = Describe("Hosts file resolver", func() {
 					"10.0.0.1 server.example",
 				)
 
-				confFile := createTempFile(strings.Split(dedent(`
+				// Builds the request by hand to mount the hosts file, so it has
+				// to do the upstreams strip/seed itself - see prepareBlockyConfig.
+				confFile, storeFile, prepErr := prepareBlockyConfig(strings.Split(dedent(`
 					upstreams:
 					  groups:
 					    default:
@@ -46,13 +48,14 @@ var _ = Describe("Hosts file resolver", func() {
 					  sources:
 					    - /app/hosts.txt
 					  hostsTTL: 5m
-					`), "\n")...)
+					`), "\n"))
+				Expect(prepErr).Should(Succeed())
 
 				cfg, cfgErr := config.LoadConfig(confFile, true)
 				Expect(cfgErr).Should(Succeed())
 
 				req := buildBlockyContainerRequest(confFile)
-				req.Files = append(req.Files, testcontainers.ContainerFile{
+				req.Files = append(req.Files, storeFile, testcontainers.ContainerFile{
 					HostFilePath:      hostsFile,
 					ContainerFilePath: "/app/hosts.txt",
 					FileMode:          modeWorldReadable,

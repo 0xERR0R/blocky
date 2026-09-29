@@ -81,7 +81,9 @@ docs/handbook/upstreams.html
 docs/upstream-sync/baseline-v0.34.38.md
 docs/upstream-sync/behavioral-replay-2026-09.md
 docs/upstream-sync/port-checklist-2026-09.md
+e2e/failing-baseline.txt
 e2e/upstream_seed.go
+e2e/upstream_seed_test.go
 logstream/broadcaster.go
 logstream/broadcaster_test.go
 logstream/handler.go
@@ -133,6 +135,8 @@ server/server_version.go
 server/testdata/api_contract.golden
 server/testdata/api_spec_contract.golden
 tools/dnsreplay/main.go
+tools/e2ebaseline/main.go
+tools/e2ebaseline/main_test.go
 util/slug.go
 util/slug_test.go
 web/ui.go
