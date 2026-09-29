@@ -106,3 +106,241 @@ func (FormatType) EnumDescriptions() map[string]string {
 func (FormatType) EnumValues() []string {
 	return FormatTypeNames()
 }
+
+const (
+	// SyslogFacilityDaemon is a SyslogFacility of type daemon.
+	// System daemon messages.
+	SyslogFacilityDaemon SyslogFacility = "daemon"
+	// SyslogFacilityUser is a SyslogFacility of type user.
+	// User-level messages.
+	SyslogFacilityUser SyslogFacility = "user"
+	// SyslogFacilityLocal0 is a SyslogFacility of type local0.
+	// Local use facility 0.
+	SyslogFacilityLocal0 SyslogFacility = "local0"
+	// SyslogFacilityLocal1 is a SyslogFacility of type local1.
+	// Local use facility 1.
+	SyslogFacilityLocal1 SyslogFacility = "local1"
+	// SyslogFacilityLocal2 is a SyslogFacility of type local2.
+	// Local use facility 2.
+	SyslogFacilityLocal2 SyslogFacility = "local2"
+	// SyslogFacilityLocal3 is a SyslogFacility of type local3.
+	// Local use facility 3.
+	SyslogFacilityLocal3 SyslogFacility = "local3"
+	// SyslogFacilityLocal4 is a SyslogFacility of type local4.
+	// Local use facility 4.
+	SyslogFacilityLocal4 SyslogFacility = "local4"
+	// SyslogFacilityLocal5 is a SyslogFacility of type local5.
+	// Local use facility 5.
+	SyslogFacilityLocal5 SyslogFacility = "local5"
+	// SyslogFacilityLocal6 is a SyslogFacility of type local6.
+	// Local use facility 6.
+	SyslogFacilityLocal6 SyslogFacility = "local6"
+	// SyslogFacilityLocal7 is a SyslogFacility of type local7.
+	// Local use facility 7.
+	SyslogFacilityLocal7 SyslogFacility = "local7"
+)
+
+var ErrInvalidSyslogFacility = fmt.Errorf("not a valid SyslogFacility, try [%s]", strings.Join(_SyslogFacilityNames, ", "))
+
+var _SyslogFacilityNames = []string{
+	string(SyslogFacilityDaemon),
+	string(SyslogFacilityUser),
+	string(SyslogFacilityLocal0),
+	string(SyslogFacilityLocal1),
+	string(SyslogFacilityLocal2),
+	string(SyslogFacilityLocal3),
+	string(SyslogFacilityLocal4),
+	string(SyslogFacilityLocal5),
+	string(SyslogFacilityLocal6),
+	string(SyslogFacilityLocal7),
+}
+
+// SyslogFacilityNames returns a list of possible string values of SyslogFacility.
+func SyslogFacilityNames() []string {
+	tmp := make([]string, len(_SyslogFacilityNames))
+	copy(tmp, _SyslogFacilityNames)
+	return tmp
+}
+
+// String implements the Stringer interface.
+func (x SyslogFacility) String() string {
+	return string(x)
+}
+
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
+func (x SyslogFacility) IsValid() bool {
+	_, err := ParseSyslogFacility(string(x))
+	return err == nil
+}
+
+var _SyslogFacilityValue = map[string]SyslogFacility{
+	"daemon": SyslogFacilityDaemon,
+	"user":   SyslogFacilityUser,
+	"local0": SyslogFacilityLocal0,
+	"local1": SyslogFacilityLocal1,
+	"local2": SyslogFacilityLocal2,
+	"local3": SyslogFacilityLocal3,
+	"local4": SyslogFacilityLocal4,
+	"local5": SyslogFacilityLocal5,
+	"local6": SyslogFacilityLocal6,
+	"local7": SyslogFacilityLocal7,
+}
+
+// ParseSyslogFacility attempts to convert a string to a SyslogFacility.
+func ParseSyslogFacility(name string) (SyslogFacility, error) {
+	if x, ok := _SyslogFacilityValue[name]; ok {
+		return x, nil
+	}
+	return SyslogFacility(""), fmt.Errorf("%s is %w", name, ErrInvalidSyslogFacility)
+}
+
+// MarshalText implements the text marshaller method.
+func (x SyslogFacility) MarshalText() ([]byte, error) {
+	return []byte(string(x)), nil
+}
+
+// UnmarshalText implements the text unmarshaller method.
+func (x *SyslogFacility) UnmarshalText(text []byte) error {
+	tmp, err := ParseSyslogFacility(string(text))
+	if err != nil {
+		return err
+	}
+	*x = tmp
+	return nil
+}
+
+// AppendText appends the textual representation of itself to the end of b
+// (allocating a larger slice if necessary) and returns the updated slice.
+//
+// Implementations must not retain b, nor mutate any bytes within b[:len(b)].
+func (x *SyslogFacility) AppendText(b []byte) ([]byte, error) {
+	return append(b, x.String()...), nil
+}
+
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
+func (SyslogFacility) EnumDescriptions() map[string]string {
+	return map[string]string{
+		"daemon": "System daemon messages.",
+		"user":   "User-level messages.",
+		"local0": "Local use facility 0.",
+		"local1": "Local use facility 1.",
+		"local2": "Local use facility 2.",
+		"local3": "Local use facility 3.",
+		"local4": "Local use facility 4.",
+		"local5": "Local use facility 5.",
+		"local6": "Local use facility 6.",
+		"local7": "Local use facility 7.",
+	}
+}
+
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
+func (SyslogFacility) EnumValues() []string {
+	return SyslogFacilityNames()
+}
+
+const (
+	// TargetTypeStdout is a TargetType of type Stdout.
+	// Standard output.
+	TargetTypeStdout TargetType = iota
+	// TargetTypeStderr is a TargetType of type Stderr.
+	// Standard error.
+	TargetTypeStderr
+	// TargetTypeSyslog is a TargetType of type Syslog.
+	// System log, each entry at the priority matching its level.
+	TargetTypeSyslog
+)
+
+var ErrInvalidTargetType = fmt.Errorf("not a valid TargetType, try [%s]", strings.Join(_TargetTypeNames, ", "))
+
+const _TargetTypeName = "stdoutstderrsyslog"
+
+var _TargetTypeNames = []string{
+	_TargetTypeName[0:6],
+	_TargetTypeName[6:12],
+	_TargetTypeName[12:18],
+}
+
+// TargetTypeNames returns a list of possible string values of TargetType.
+func TargetTypeNames() []string {
+	tmp := make([]string, len(_TargetTypeNames))
+	copy(tmp, _TargetTypeNames)
+	return tmp
+}
+
+var _TargetTypeMap = map[TargetType]string{
+	TargetTypeStdout: _TargetTypeName[0:6],
+	TargetTypeStderr: _TargetTypeName[6:12],
+	TargetTypeSyslog: _TargetTypeName[12:18],
+}
+
+// String implements the Stringer interface.
+func (x TargetType) String() string {
+	if str, ok := _TargetTypeMap[x]; ok {
+		return str
+	}
+	return fmt.Sprintf("TargetType(%d)", x)
+}
+
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
+func (x TargetType) IsValid() bool {
+	_, ok := _TargetTypeMap[x]
+	return ok
+}
+
+var _TargetTypeValue = map[string]TargetType{
+	_TargetTypeName[0:6]:   TargetTypeStdout,
+	_TargetTypeName[6:12]:  TargetTypeStderr,
+	_TargetTypeName[12:18]: TargetTypeSyslog,
+}
+
+// ParseTargetType attempts to convert a string to a TargetType.
+func ParseTargetType(name string) (TargetType, error) {
+	if x, ok := _TargetTypeValue[name]; ok {
+		return x, nil
+	}
+	return TargetType(0), fmt.Errorf("%s is %w", name, ErrInvalidTargetType)
+}
+
+// MarshalText implements the text marshaller method.
+func (x TargetType) MarshalText() ([]byte, error) {
+	return []byte(x.String()), nil
+}
+
+// UnmarshalText implements the text unmarshaller method.
+func (x *TargetType) UnmarshalText(text []byte) error {
+	name := string(text)
+	tmp, err := ParseTargetType(name)
+	if err != nil {
+		return err
+	}
+	*x = tmp
+	return nil
+}
+
+// AppendText appends the textual representation of itself to the end of b
+// (allocating a larger slice if necessary) and returns the updated slice.
+//
+// Implementations must not retain b, nor mutate any bytes within b[:len(b)].
+func (x *TargetType) AppendText(b []byte) ([]byte, error) {
+	return append(b, x.String()...), nil
+}
+
+// EnumDescriptions returns each enum value's description, taken from the
+// `// comment` in the ENUM(...) declaration. Generated; do not edit.
+func (TargetType) EnumDescriptions() map[string]string {
+	return map[string]string{
+		"stdout": "Standard output.",
+		"stderr": "Standard error.",
+		"syslog": "System log, each entry at the priority matching its level.",
+	}
+}
+
+// EnumValues returns the enum's accepted string values, used to build the JSON
+// schema enum constraint. Generated; do not edit.
+func (TargetType) EnumValues() []string {
+	return TargetTypeNames()
+}
