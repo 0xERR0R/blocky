@@ -567,7 +567,7 @@ Each phase ends at a gate. Do not start a phase before its gate passes.
 | 5. Server + API | `server/server.go`, `http.go`, `server_endpoints.go`. Reconcile admin ports and the UI router with upstream's HTTP/3 and PROXY-protocol listeners. Apply D1. Regenerate `api/*.gen.go` and mocks. | `go build ./...`, `go test ./server/... ./api/...` green. Server starts without a route-registration panic. | 1–1.5d |
 | 6. Full verification | `go test ./...`, e2e suite, lint at upstream's v2.12.2 ruleset, `web/ui` build. | All green. | 0.5–1d |
 | 7. Behavioral smoke | Replay the Phase 0 DNS capture and diff. Manually exercise: login/session, dashboard, client groups, domain entries, blocklists, upstream groups, users, query log stream. | No unexplained delta vs Phase 0. **Done — `docs/upstream-sync/behavioral-replay-2026-09.md`.** Phase 0 left no capture to replay, so both trees were built and run side by side instead; six deltas, all attributable. | 0.5d |
-| 8. Port checklist | Walk §6 and confirm each upstream fix is actually present and effective in the merged tree. | Checklist complete. **Done — `docs/upstream-sync/port-checklist-2026-09.md`.** All 50 items settled — 6 by the Phase 7 replay, 40 newly by live probe or benchmark, 4 by code path with the reason stated. One (`769d908`) was present but unreachable through the fork's config surface and needed a fix. | 0.5d |
+| 8. Port checklist | Walk §6 and confirm each upstream fix is actually present and effective in the merged tree. | Checklist complete. **Done — `docs/upstream-sync/port-checklist-2026-09.md`.** All 50 items settled — 6 by the Phase 7 replay, 41 newly by live probe or benchmark, 3 by code path. Two block types (`769d908`'s `refused`, and the documented comma-separated custom-IP form) were present but unreachable through the fork's config surface and needed a fix. | 0.5d |
 | 9. Land | PR, review, merge. Update this document's "Last measured" line and §7. | Merged. | 0.5d |
 
 **Estimate: 7–9 focused days.** The earlier 3–4 day estimate assumed the fork was additive; the
@@ -584,8 +584,8 @@ Every item below is verified present *and effective* in the merged tree. Evidenc
 - **bench** — the upstream benchmark the fix was written against, run here and against upstream
   `2bb9b70`, with identical allocation counts.
 - **code path** — file byte-identical to `2bb9b70`, upstream's test for the fix present and
-  passing, caller read. Used only where a live probe is not constructible on this host; both such
-  items say why.
+  passing, caller read. Three items rest on this; `c46ed64`, the only one where a live probe is not
+  constructible on this host, says why.
 
 Ancestry was deliberately *not* accepted as evidence: every commit listed here is an ancestor of
 `main` because a merge makes it so, which says nothing about how the conflicts were resolved.
@@ -597,7 +597,7 @@ Ancestry was deliberately *not* accepted as evidence: every commit listed here i
 - [x] `d3a1fe5` DNSSEC: don't cache transient Indeterminate results — probe: chain lookups re-run on the identical second query
 - [x] `fc353a0` DNSSEC: only validate public-upstream answers — probe: custom-DNS answer with DO set is not validated
 - [x] `a42d656` DNSSEC: don't return records to clients with the DO bit clear — probe: RRSIG and OPT both absent without DO
-- [x] `2ffe18a` RFC 4034 canonical name ordering for NSEC coverage — probe: negative proof on a signed zone validates
+- [x] `2ffe18a` RFC 4034 canonical name ordering for NSEC coverage — probe (a genuine NXDOMAIN, which is the only rcode that reaches the fixed comparison) + code path for the comparison itself
 - [x] `e0ea9b3` eliminate recursive RLock deadlock in blocking group resolution — code path: our lock-holding helper removed (GRA-632/634); concurrency test passing
 
 **Protocol fixes**
@@ -606,17 +606,17 @@ Ancestry was deliberately *not* accepted as evidence: every commit listed here i
 - [x] `ff2aae4` always answer an EDNS0 query with an OPT record — replay §3
 - [x] `2e5d478` NOTFQDN → well-formed NXDOMAIN — replay §3
 - [x] `802869a` SOA record on custom-DNS NOERROR — replay §3
-- [x] `c46ed64` retry DoH queries failing on a stale pooled connection — code path; **not probeable here** (needs a local DoH upstream with a trusted certificate). DoH itself probed live
+- [x] `c46ed64` retry DoH queries failing on a stale pooled connection — code path; **not probeable here** (needs control of the server's connection-close timing between two requests). DoH itself probed live
 - [x] `db8d889` compress responses larger than 512 bytes — probe: 972-byte answer received in 692; an 83-byte answer left uncompressed
 - [x] `190d512` count down cached authority/additional TTLs — replay §3
 - [x] `1d450af` case-insensitive custom-DNS PTR matching — probe: uppercase `IN-ADDR.ARPA` resolves
-- [x] `91a8f44` bootstrap: fall back to other resolved addresses on dial failure — code path; **not probeable here** (needs a dial-level failure, i.e. a locally trusted DoT/DoH cert). Bootstrap itself probed live via `resolvFile`
+- [x] `91a8f44` bootstrap: fall back to other resolved addresses on dial failure — probe: a plain-HTTP blocklist download through a bootstrap that answers a dead address first; 6 of 11 imports dialed it and every one fell through
 - [x] `e2b40db` / `dcdd952` rewritten-query handling: original name to next resolver, fallbackUpstream — probe both, with `fallbackUpstream` toggled
 
 **Blocking / resolver behavior**
 
 - [x] `344de86` scope allowlist-only mode to the whole client — replay §3
-- [x] `769d908` `refused` block type — probe, **after fixing reachability**: the fork's block-settings API rejected `refused` and the store replaces `blocking.blockType`, so the merged handler was dead code. See checklist §2
+- [x] `769d908` `refused` block type — probe, **after fixing reachability**: the fork's block-settings API rejected `refused` and the store replaces `blocking.blockType`, so the merged handler was dead code. The same validator also made upstream's comma-separated custom-IP form unreachable. See checklist §2
 - [x] `4b524e8` ECS `useAsClient` applied above cache and client-name lookup — probe: ECS subnet reaches the client-group match, the metric label and no further
 - [x] `c851293` log the matched rule in the block reason — probe: exact, regex and list rules all rendered in the EDE text
 - [x] `99ae703` filter `ipv6hint` in HTTPS/SVCB when AAAA is filtered — probe: hint dropped, `ipv4hint`/`alpn`/`ech` kept
@@ -664,8 +664,8 @@ Keep this current — it is what makes the *next* sync cheap.
 `config/upstreams.go`, `cmd/root.go`, `cmd/serve.go`, `server/server.go`, `server/http.go`,
 `server/server_endpoints.go`, `api/api_interface_impl.go`, `resolver/blocking_resolver.go`,
 `resolver/query_logging_resolver.go`, `resolver/metrics_resolver.go`, `querylog/writer.go`,
-`model/models.go`, `util/edns0.go`, `web/index.html`, `Makefile`, `.goreleaser.yml`,
-`.github/workflows/release.yml`.
+`querylog/database_writer.go`, `model/models.go`, `util/edns0.go`, `e2e/containers.go`,
+`web/index.html`, `Makefile`, `.goreleaser.yml`, `.github/workflows/release.yml`.
 
 Plus the files patched **only** to carry the metric prefix: `resolver/caching_resolver.go`,
 `resolver/dnssec/validator.go`, `resolver/rate_limiting_resolver.go`,

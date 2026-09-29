@@ -23,15 +23,17 @@ it rests on.
   `2bb9b70` itself, with identical allocation counts. For the performance items "effective" *is*
   an allocation number, so parity with upstream is the measurement.
 - **code path** — the file is byte-identical to `2bb9b70`, the upstream test that covers the fix is
-  byte-identical and passing, and the caller that reaches it was read. Used where a live probe is
-  not constructible in this environment; each such row says why.
+  byte-identical and passing, and the caller that reaches it was read. Three items rest on this;
+  the one where a live probe is not constructible here says why.
 
 Nothing is closed on "the commit is an ancestor of HEAD". Every commit on the checklist is one,
 because a merge makes it so; that is exactly why it proves nothing about conflict resolution.
 
-Of the 50 items in §6, 6 were already closed by the Phase 7 replay. Of the 44 that were open, 40
-are settled below by probe or benchmark and 4 by code path — `e0ea9b3`, `c46ed64`, `91a8f44` and
-`77b0fe7`, each with its reason in place.
+Of the 50 items in §6, 6 were already closed by the Phase 7 replay. Of the 44 that were open, 41
+are settled below by probe or benchmark. Three rest on code path: `e0ea9b3` (settled earlier by
+GRA-632/634), `77b0fe7` (no benchmark of its own, and the change is the absence of an allocation in
+a read of nine lines), and `c46ed64` — the only item where a live probe is not constructible here,
+with the reason in its row.
 
 ## 1. File-level survival
 
@@ -79,7 +81,7 @@ upstream (the surrounding 60 lines differ only in the chain hot-swap line), and
 
 Upstream's own tests came through as well: of the 83 test files those commits touch, 73 are
 byte-identical, none were deleted, and in the 10 that carry fork edits every spec the commit added
-is still present — checked by name, including the `refused` block-type table, the 13 DO-bit
+is still present — checked by name, including the `refused` block-type table, the 9 DO-bit
 normalization specs, the bounded-`ReasonLabel` specs and the `queryLog type is none` skip spec.
 
 `go test ./...` minus e2e: all packages pass. e2e still needs a container runtime, and there is
@@ -104,6 +106,18 @@ unit tests pass, and the feature is still dead in this fork. Fixed on this branc
 documents it. `createBlockHandler` already lowercases, so no resolver change was needed. Verified
 by probe afterwards (§4).
 
+Reviewing that fix turned up the same defect one line away. `createBlockHandler` also accepts a
+**comma-separated list** of destination addresses, and `docs/configuration.md` advertises the
+"one IPv4 plus one IPv6, to cover every query type" form — but the validator ran a bare
+`net.ParseIP` on the whole string, so that form was unreachable too. It now accepts a list where
+every member parses, and rejects one where any member does not.
+
+Both gaps share one root cause worth naming for the next sync: the set of block types the API
+accepts and the set `resolver.createBlockHandler` implements are two independent lists that nothing
+forces to agree. They are now coupled only by a comment at each end, plus a `configstore` spec
+asserting a stored `REFUSED` survives `BuildBlockingConfig` — the seam that was silently discarding
+it.
+
 ## 3. Security and correctness
 
 | Item | Evidence | Observation |
@@ -113,17 +127,17 @@ by probe afterwards (§4).
 | `d3a1fe5` don't cache transient Indeterminate results | probe | Same mock, same question twice: the DNSKEY/DS attempts at the mock went 2 → 4, so validation was re-attempted rather than served from the validation cache |
 | `fc353a0` only validate public-upstream answers | probe | `printer.lan A` (custom DNS) with DO → NOERROR, `ad` clear, no SERVFAIL — a local answer is never dragged through the chain of trust |
 | `a42d656` no DNSSEC records for a client with DO clear | probe | `cloudflare.com A` `+dnssec` → 3 answers incl. RRSIG, `ad` set. Same name `+noedns` → 2 answers, **no RRSIG, ADDITIONAL: 0** (no OPT back to a client that sent none) |
-| `2ffe18a` RFC 4034 canonical name ordering for NSEC coverage | probe | `nonexistent-gra636.cloudflare.com A` with DO → the negative proof validates: NSEC + `RRSIG NSEC` in the authority section and `ad` set. A broken coverage comparison rejects a correct proof, so an accepted one exercises the ordering |
+| `2ffe18a` RFC 4034 canonical name ordering for NSEC coverage | probe + code path | `nonexistent-gra636.nlnetlabs.nl`, `zzz.aaa.nlnetlabs.nl`, `nonexistent-gra636.isc.org` and `zz.a.ripe.net` with DO → **NXDOMAIN**, NSEC + `RRSIG NSEC` in the authority, `ad` set. That rcode matters: `validateNSECDenialOfExistence` only routes to `validateNSECNXDOMAIN` — the caller of the fixed `nsecCoversName` — on `RcodeNameError`, so Cloudflare-style NSEC black lies (NOERROR/NODATA) never reach it. Multi-label qnames are the shape where byte and label ordering diverge, but which NSEC pair a zone hands back is not ours to choose, so the comparison itself rests on `nsec_test.go` — byte-identical and passing, with explicit specs for canonical ordering, differing label counts and underscore-prefixed names |
 | `e0ea9b3` recursive RLock in blocking group resolution | code path | Settled in GRA-632/634: our `isGroupDisabled` helper held the lock and was removed for upstream's snapshot-and-release. Re-read here: `groupsToCheckForClient` releases `status.lock` before calling `collectGroupsForClient`. `blocking_resolver_concurrency_test.go` byte-identical and passing |
 
 ## 4. Protocol and blocking
 
 | Item | Evidence | Observation |
 | --- | --- | --- |
-| `c46ed64` DoH stale pooled-connection retry | code path | **Not probeable here.** The retry only fires when the pool hands back a connection the server has already closed; reproducing that needs a local DoH upstream whose certificate this sandbox's trust store accepts. DoH itself is verified live — 12 queries answered by `https://cloudflare-dns.com/dns-query`. `resolver/upstream_resolver.go` and `util/http.go` byte-identical; upstream's `mock_doh_upstream_server_test.go`, `upstream_resolver_test.go` and `util/http_test.go` byte-identical and passing |
+| `c46ed64` DoH stale pooled-connection retry | code path | **Not probeable here.** The retry fires only when the connection pool hands back a connection the server has already closed, which means driving the server's close timing between two requests — upstream's `mock_doh_upstream_server_test.go` exists precisely because that cannot be arranged against a real upstream. (The TLS side is not the obstacle: Go honours `SSL_CERT_FILE`, so a local DoH server with a generated CA is reachable.) DoH itself is verified live — 12 queries answered by `https://cloudflare-dns.com/dns-query`. `resolver/upstream_resolver.go` and `util/http.go` byte-identical; that mock plus `upstream_resolver_test.go` and `util/http_test.go` byte-identical and passing |
 | `db8d889` compress responses larger than 512 bytes | probe | 40 A records for one name: **received 692 bytes**, repacked uncompressed 972. An 83-byte answer is received at 83 bytes even though compressing would save 11 — exactly the `res.Len() > dns.MinMsgSize` condition, not blanket compression |
 | `1d450af` case-insensitive custom-DNS PTR | probe | `5.178.168.192.IN-ADDR.ARPA. PTR` → `printer.lan.` (lower-case form answers identically) |
-| `91a8f44` bootstrap: fall back to other resolved addresses on dial failure | code path | **Not probeable here.** Needs a bootstrap that resolves an upstream hostname to a dead address followed by a live one over a transport where the *dial* fails — i.e. DoT/DoH, which again needs a locally trusted certificate; plain DNS over UDP fails at exchange time, not dial time. `resolver/bootstrap.go` byte-identical; `bootstrap_test.go` byte-identical and passing (it injects exactly that dialer). The bootstrap resolver is exercised live in §6 (`f457ec9`) |
+| `91a8f44` bootstrap: fall back to other resolved addresses on dial failure | probe | `Bootstrap.dialContext` is also the dialer behind `NewHTTPTransport`, so a **plain-HTTP blocklist download** reaches it with no TLS involved. A bootstrap stub answered `lists.test A` with `127.0.0.99` (nothing listening) followed by `127.0.0.1` (a local list server); `dialContext` shuffles, so across 11 list imports the dead address came first 6 times. Trace logging shows each of those dialing `127.0.0.99` then `127.0.0.1`, and **all 11 imports succeeded, 0 failed** — pre-fix the 6 would have failed. The downloaded rule is in effect: `BLOCKED (bootlist: blocked-via-bootstrap.example.org)` |
 | `e2b40db` original name to the next resolver for rewritten queries | probe | `customDNS.rewrite: {test-alias: com}`, mapping has nothing for `example.com`: `example.test-alias A` → **NXDOMAIN**, while `example.com A` resolves. Pre-fix the rewritten name leaked downstream and the client got `example.com`'s addresses |
 | `dcdd952` fallbackUpstream for rewritten queries | probe | `customDNS.rewrite: {home: lan}` + mapping `printer.lan A`. `printer.home TXT` (mapping matches the name, not the type): `fallbackUpstream: false` → NOERROR + SOA; `true` → the query goes upstream **under the original name** and comes back NXDOMAIN. Mapping hits still answer locally in both cases |
 | `769d908` `refused` block type | probe | After the §2 fix: `ads.example.org` answers **REFUSED for A, AAAA, TXT, MX and HTTPS**; an unblocked name still resolves NOERROR |
@@ -133,8 +147,9 @@ by probe afterwards (§4).
 
 ## 5. Metrics and performance
 
-The four correctness-shaped items were probed; the six allocation-shaped ones were measured
-against upstream `2bb9b70` in a worktree, `-count 3`, same host, same Go.
+Three of the four correctness-shaped items were probed — `77b0fe7` rests on code path, since it
+added no benchmark of its own. The five allocation-shaped ones were measured against upstream
+`2bb9b70` in a worktree, `-count 3`, same host, same Go.
 
 | Item | Evidence | Observation |
 | --- | --- | --- |
@@ -210,13 +225,12 @@ derives is not the one that was live before). Ports 554xx.
 | A | `dnssec.validate`, `ede.enable`, `prometheus.enable`, sqlite query log + `ignore.domains`, `blocking.schedules`/`listSchedules`, `blockType: REFUSED` via the API | §3 DNSSEC set, `db8d889`, `1d450af`, `c851293`, `06555e0`, `7dd039c`, `769d908`, `22b0bdd`, `e43b5e5`, `b82199b`, `c44017a`, `fdcf351`, `0de3fac`, `4cf62ce` |
 | B | `filtering.queryTypes: [AAAA]` | `99ae703` |
 | C | `customDNS.rewrite`, `fallbackUpstream` toggled | `e2b40db`, `dcdd952` |
-| D | `ecs.useAsClient: true`; upstreams swapped to DoH / DoQ / DoT | `4b524e8`, `c32863d`, `842dda9`†, `1b8e08a` |
+| D | `ecs.useAsClient: true`; upstreams swapped to DoH / DoQ / DoT | `4b524e8`, `c32863d`, `1b8e08a` |
 | F | `rebindingProtection`, `downloads.cachePath`, `rateLimit`; blocklist source served from a local HTTP server | `0b70e5c`, `e7958e0`, `e6b41db` |
 | G | `ports.https` + `http3.enable`, then `ports.proxyProtocol: [dns]`, then dnstap query log | `842dda9`, `7abca44`, `e9deb53` |
 | H | `--config <dir>` with two fragments, `bootstrapDns.resolvFile` | `7c6da15`, `f457ec9`, `bee2d8b` |
 | I | `dnssec.validate` against the unreachable-chain mock | `a191ad2`, `d3a1fe5` |
-
-† DoH3 was probed on G, not D.
+| J | `bootstrapDns` pointed at a stub that resolves the list host to a dead address and a live one, `log.level: trace` | `91a8f44` |
 
 Four throwaway helpers, none committed (they are twenty lines each and the fork does not need more
 surface):
@@ -233,9 +247,12 @@ surface):
   therefore never key. That pair of behaviors is what separates Indeterminate from Bogus.
 - **dnstap receiver** — `dnstap.NewFrameStreamSockInputFromPath` on a unix socket, counting frames.
   Use the library; a hand-rolled FrameStreams handshake fails with `decoding error`.
+- **two-address bootstrap stub** — answers one name with a dead loopback address followed by a live
+  one. `Bootstrap.dialContext` shuffles, so read the `TRACE bootstrap: dialing … ip=` lines rather
+  than inferring anything from a single success.
 
 `tools/dnsreplay` was *not* rebuilt or re-run: its matrix answers "did the merge change our
-answers", which Phase 7 already settled. This phase asks a different question about 26 specific
+answers", which Phase 7 already settled. This phase asks a different question about 44 specific
 commits, and every probe above is shaped to a single one of them.
 
 ## 9. Gates re-run
@@ -244,7 +261,8 @@ commits, and every probe above is shaped to a single one of them.
 | --- | --- |
 | `go test ./...` minus e2e | all packages pass |
 | `TestAPIContract`, `TestAPISpecContract` | pass — unchanged by this work |
-| `make check-fork-additions` | 155/155 present |
+| `make check-fork-additions` | 156/156 present — the manifest gained this document |
+| `make check-fork-additions-sync` | in sync with `upstream/main` |
 | `web/ui` build | succeeds; the Block Settings page carries the new option |
 | e2e suite | still not run anywhere — no container runtime on this host |
 | `golangci-lint` at the fork's v2.12.2 ruleset | **not run** — the binary on this host is v1.62.2, which refuses a `version: "2"` config and a go1.26 target. `gofmt -l` and `go vet` are clean on the changed packages |

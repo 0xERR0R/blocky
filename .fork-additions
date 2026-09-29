@@ -80,6 +80,7 @@ docs/handbook/tls.html
 docs/handbook/upstreams.html
 docs/upstream-sync/baseline-v0.34.38.md
 docs/upstream-sync/behavioral-replay-2026-09.md
+docs/upstream-sync/port-checklist-2026-09.md
 e2e/upstream_seed.go
 logstream/broadcaster.go
 logstream/broadcaster_test.go

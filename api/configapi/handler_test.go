@@ -335,13 +335,38 @@ var _ = Describe("ConfigAPI Handler", func() {
 			Expect(bs.BlockType).Should(Equal("NXDOMAIN"))
 		})
 
-		It("should accept the refused block type", func() {
+		It("should store the refused block type, not just echo it", func() {
 			resp, err := h.PutBlockSettings(ctx, configapi.PutBlockSettingsRequestObject{
 				Body: &configapi.BlockSettingsInput{BlockType: "REFUSED", BlockTtl: "1h"},
 			})
 			Expect(err).Should(Succeed())
-			bs := resp.(configapi.PutBlockSettings200JSONResponse)
-			Expect(bs.BlockType).Should(Equal("REFUSED"))
+			Expect(resp).Should(BeAssignableToTypeOf(configapi.PutBlockSettings200JSONResponse{}))
+
+			// PUT echoes the request body back, so read it again: what matters is
+			// that REFUSED reached the store, which is the only thing
+			// BuildBlockingConfig (and therefore the resolver) ever looks at.
+			got, err := h.GetBlockSettings(ctx, configapi.GetBlockSettingsRequestObject{})
+			Expect(err).Should(Succeed())
+			Expect(got.(configapi.GetBlockSettings200JSONResponse).BlockType).Should(Equal("REFUSED"))
+		})
+
+		It("should accept a comma-separated list of block IPs", func() {
+			// resolver.createBlockHandler builds an ipBlockHandler from this form,
+			// and the store is the only writer of blockType, so rejecting it here
+			// would make the documented v4+v6 pair unreachable.
+			resp, err := h.PutBlockSettings(ctx, configapi.PutBlockSettingsRequestObject{
+				Body: &configapi.BlockSettingsInput{BlockType: "192.0.2.10, 2001:db8::1", BlockTtl: "1h"},
+			})
+			Expect(err).Should(Succeed())
+			Expect(resp).Should(BeAssignableToTypeOf(configapi.PutBlockSettings200JSONResponse{}))
+		})
+
+		It("should reject a list with one unparseable member", func() {
+			resp, err := h.PutBlockSettings(ctx, configapi.PutBlockSettingsRequestObject{
+				Body: &configapi.BlockSettingsInput{BlockType: "192.0.2.10, nope", BlockTtl: "1h"},
+			})
+			Expect(err).Should(Succeed())
+			Expect(resp).Should(BeAssignableToTypeOf(configapi.PutBlockSettings400JSONResponse{}))
 		})
 
 		It("should reject invalid block type", func() {

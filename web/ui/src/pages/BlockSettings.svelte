@@ -6,10 +6,25 @@
   import { blockSettings } from '../lib/api.js'
   import { markDirty } from '../lib/dirty.svelte.js'
 
+  const namedBlockTypes = [
+    { value: 'ZEROIP', label: 'Zero IP (0.0.0.0)' },
+    { value: 'NXDOMAIN', label: 'NXDOMAIN' },
+    { value: 'REFUSED', label: 'REFUSED' },
+  ]
+
   let blockType = $state('ZEROIP')
   let blockTTL = $state('1m')
   let loading = $state(true)
   let saving = $state(false)
+
+  // The API also accepts a comma-separated list of block IP addresses, which no
+  // named option can represent. Keep a stored value like that selectable so
+  // saving an unrelated change doesn't silently rewrite the block type.
+  let blockTypeOptions = $derived(
+    namedBlockTypes.some((o) => o.value === blockType)
+      ? namedBlockTypes
+      : [...namedBlockTypes, { value: blockType, label: `${blockType} (custom)` }],
+  )
 
   async function load() {
     loading = true
@@ -44,11 +59,7 @@
       <div class="form-layout">
         <div class="form-field">
           <Label for="block-type">Block Type</Label>
-          <Select id="block-type" bind:value={blockType} options={[
-            { value: 'ZEROIP', label: 'Zero IP (0.0.0.0)' },
-            { value: 'NXDOMAIN', label: 'NXDOMAIN' },
-            { value: 'REFUSED', label: 'REFUSED' },
-          ]} />
+          <Select id="block-type" bind:value={blockType} options={blockTypeOptions} />
         </div>
         <div class="form-field">
           <Label for="block-ttl">Block TTL</Label>
