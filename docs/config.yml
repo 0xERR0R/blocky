@@ -422,8 +422,10 @@ http3:
 # optional: Go diagnostics endpoints (pprof under /debug/pprof/, expvar at /debug/vars).
 #           Served on their own listener, bound to 127.0.0.1 and [::1] only — the bind
 #           address is not configurable, because these endpoints are unauthenticated and
-#           heap/goroutine dumps carry query names and client addresses. Forward the port
-#           (ssh -L / kubectl port-forward) to reach it from another host.
+#           heap/goroutine dumps carry query names and client addresses. Requests must also
+#           carry a loopback Host header, which blocks DNS-rebinding access from a browser on
+#           the same host. Forward the port (ssh -L / kubectl port-forward) to reach it from
+#           another host.
 debug:
   # optional: enable the pprof/expvar listener. Default: false
   enable: false

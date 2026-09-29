@@ -1129,6 +1129,13 @@ Serve the Go runtime diagnostics endpoints — [pprof](https://pkg.go.dev/net/ht
 - **The bind address is loopback and is not configurable.** These endpoints are unauthenticated, and they are not
   harmless: heap and goroutine dumps carry in-flight query names and client addresses, `/debug/pprof/cmdline` leaks the
   process invocation, and `/debug/pprof/profile` lets any caller pin a CPU for the sampling duration.
+- **Requests must carry a loopback `Host` header** — `127.0.0.1`, `::1` or `localhost`, with or without a port.
+  Anything else gets `421 Misdirected Request`. Binding loopback stops packets from off-box but not a *browser* on the
+  box: a page whose hostname resolves to `127.0.0.1` (DNS rebinding) would otherwise reach this listener with a `Host`
+  of its own choosing. Every normal caller — `go tool pprof http://127.0.0.1:6060/...`, an SSH tunnel, a
+  `kubectl port-forward` — already sends a loopback `Host`. A reverse proxy that forwards its own `Host` does not, by
+  design.
+- The listener carries **no CORS policy**, so no browser page can read a response cross-origin even if it reaches one.
 - Both IP families are attempted. A host with IPv6 disabled binds IPv4 only and logs a warning; failing on *every*
   address is a startup error, so an enabled listener is never silently absent.
 - To reach it from another machine, forward the port — `ssh -L 6060:127.0.0.1:6060 blocky-host`, or

@@ -68,6 +68,10 @@ curl http://127.0.0.1:6060/debug/vars
     kubectl port-forward pod/blocky 6060:6060
     ```
 
+    Requests must also carry a loopback `Host` header (`127.0.0.1`, `::1` or `localhost`); anything else gets
+    `421 Misdirected Request`. That is what stops a browser page on the same host from reaching the listener via DNS
+    rebinding. Every normal caller already sends one.
+
     These endpoints were previously mounted on the HTTP API port. They were reachable there without a session, because
     the session guard only rejects `/api/*` paths — which is why they moved.
 

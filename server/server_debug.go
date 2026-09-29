@@ -24,65 +24,68 @@ const debugServerName = "http-debug"
 // subrouter — which also serves expvar at /debug/vars — mounted at /debug, so
 // the absolute paths net/http/pprof's own index page emits keep resolving.
 //
-// There is no auth middleware on this router by design. The listener binds
-// loopback only, so reaching it already requires local access, and a session
-// cookie in front of it would break `go tool pprof` for no gain.
+// There is no session check on this router by design: the listener binds
+// loopback only, so reaching it already requires local access, and a cookie in
+// front of it would break `go tool pprof`. requireLoopbackHost is what stands in
+// for that — see its comment for the attack it closes.
 func newDebugRouter() *chi.Mux {
 	router := chi.NewRouter()
+	router.Use(requireLoopbackHost)
 	router.Mount("/debug", middleware.Profiler())
 
 	return router
 }
 
-// newDebugHTTPServer is newHTTPServer with the write timeout lifted.
-// /debug/pprof/profile and /debug/pprof/trace stream for as long as the caller
-// asks — `go tool pprof -seconds=120` — and serverWriteTimeout would cut that
-// off mid-profile. Acceptable here and only here, because the listener is
-// loopback-only, so an idle response cannot be held open from the network.
-func newDebugHTTPServer(handler http.Handler) *httpServer {
-	srv := newHTTPServer(debugServerName, handler)
-	srv.inner.WriteTimeout = 0
-
-	return srv
-}
-
-// createDebugListeners binds the diagnostics listener on loopback, one listener
-// per IP family.
+// requireLoopbackHost rejects any request whose Host header does not name a
+// loopback address or `localhost`.
 //
-// Only one of the two has to succeed: a host with IPv6 disabled cannot bind
-// [::1] and an IPv6-only one cannot bind 127.0.0.1, and neither should stop the
-// server from starting. Failing on every address is an error — the operator
-// asked for this listener, and silently not having it is worse than not
-// starting.
-func createDebugListeners(ctx context.Context, cfg *config.Debug) ([]net.Listener, error) {
-	addresses := cfg.ListenAddresses()
+// Binding loopback stops packets from off-box, but it does not stop a *browser*
+// on the box: a page at attacker.example:6060 whose DNS rebinds to 127.0.0.1
+// reaches this listener with a Host of its own choosing, and the response is
+// then readable if any CORS policy accepts that origin. The debug server is
+// built with newBareHTTPServer precisely so no such policy exists — this check
+// is the second half, and it also covers the requests that need no CORS to do
+// damage, like a drive-by `GET /debug/pprof/profile?seconds=100000`.
+//
+// The hosts every legitimate caller sends pass: `go tool pprof
+// http://127.0.0.1:6060/...` directly, and `localhost:6060` or `127.0.0.1:6060`
+// through an SSH tunnel or `kubectl port-forward`.
+func requireLoopbackHost(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isLoopbackHost(r.Host) {
+			http.Error(w, "debug endpoints accept loopback Host headers only",
+				http.StatusMisdirectedRequest)
 
-	listeners := make([]net.Listener, 0, len(addresses))
-	lc := &net.ListenConfig{}
-
-	var errs []error
-
-	for _, address := range addresses {
-		listener, err := lc.Listen(ctx, networkTCP, address)
-		if err != nil {
-			errs = append(errs, err)
-
-			continue
+			return
 		}
 
-		listeners = append(listeners, listener)
+		next.ServeHTTP(w, r)
+	})
+}
+
+// isLoopbackHost reports whether a Host header names loopback. It accepts
+// `localhost` by name and any address in 127.0.0.0/8 or ::1/128, with or without
+// a port, so a caller is not forced to spell 127.0.0.1 when 127.0.0.2 is what
+// their tunnel bound.
+func isLoopbackHost(host string) bool {
+	if host == "" {
+		return false
 	}
 
-	if len(listeners) == 0 {
-		return nil, fmt.Errorf("start debug listener on %s failed: %w",
-			strings.Join(addresses, ", "), errors.Join(errs...))
+	hostname := host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		hostname = h
 	}
 
-	for _, err := range errs {
-		logger().Warnf("debug listener: %v; continuing on the address that did bind", err)
+	hostname = strings.Trim(hostname, "[]")
+
+	if strings.EqualFold(hostname, "localhost") {
+		return true
 	}
 
-	return listeners, nil
+	ip := net.ParseIP(hostname)
+
+	return ip != nil && ip.IsLoopback()
 }
 
 // addDebugListeners opens the loopback diagnostics listener and registers it in
@@ -103,10 +106,78 @@ func (s *Server) addDebugListeners(ctx context.Context, cfg *config.Config) erro
 		return err
 	}
 
-	srv := newDebugHTTPServer(newDebugRouter())
+	srv := newBareHTTPServer(debugServerName, newDebugRouter())
 	for _, l := range listeners {
 		s.servers[l] = srv
 	}
 
 	return nil
+}
+
+// createDebugListeners binds the diagnostics listener on loopback, one listener
+// per IP family.
+//
+// A host that simply lacks one of the two families is normal and must not stop
+// the server from starting, so that failure alone is tolerated with a warning.
+// Everything else — most usefully "address already in use", meaning a second
+// instance or another process on this port — is fatal: reporting a port conflict
+// as a warning would leave the listener half-present, on one family and not the
+// other, which is the state the operator is least likely to notice.
+func createDebugListeners(ctx context.Context, cfg *config.Debug) ([]net.Listener, error) {
+	addresses := cfg.ListenAddresses()
+
+	listeners := make([]net.Listener, 0, len(addresses))
+	lc := &net.ListenConfig{}
+
+	var absent []error
+
+	for _, address := range addresses {
+		listener, err := lc.Listen(ctx, networkTCP, address)
+
+		switch {
+		case err == nil:
+			listeners = append(listeners, listener)
+		case !familyAvailable(ctx, lc, address):
+			absent = append(absent, err)
+		default:
+			closeAll(listeners)
+
+			return nil, fmt.Errorf("start debug listener on %s failed: %w", address, err)
+		}
+	}
+
+	if len(listeners) == 0 {
+		return nil, fmt.Errorf("start debug listener on %s failed: %w",
+			strings.Join(addresses, ", "), errors.Join(absent...))
+	}
+
+	for _, err := range absent {
+		logger().Warnf("debug listener: %v; continuing on the address that did bind", err)
+	}
+
+	return listeners, nil
+}
+
+// familyAvailable reports whether the host can bind this address at all, by
+// retrying it on port 0.
+//
+// This is how "no IPv6 on this host" is told apart from "that port is taken"
+// without a per-platform errno table — the codes differ between unix and
+// Windows, and syscall exports no WSAE* names to compare against. If the address
+// binds once the OS picks the port, the family works and the original failure was
+// about the port.
+func familyAvailable(ctx context.Context, lc *net.ListenConfig, address string) bool {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return false
+	}
+
+	probe, err := lc.Listen(ctx, networkTCP, net.JoinHostPort(host, "0"))
+	if err != nil {
+		return false
+	}
+
+	_ = probe.Close()
+
+	return true
 }
