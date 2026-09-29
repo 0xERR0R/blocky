@@ -478,6 +478,13 @@ the build" meant "the merge fails if someone remembers to run the suite
 locally". If you delete or disable that workflow, these guardrails go back to
 being a convention.
 
+Both jobs are capped with `timeout-minutes`. That is not tidiness: the fast
+suite can *hang* rather than fail when two specs want the same port, and an
+uncapped hang holds a runner for GitHub's 6-hour default. The collisions
+themselves are pre-existing and tracked in **GRA-650** — worth knowing about,
+because a gate that goes red for reasons unrelated to the diff gets re-run until
+it passes, which is the same thing as not having it.
+
 The same workflow has a second job, `e2e`, added in Phase 9. It runs
 `make e2e-test-baseline`, which `docker buildx build`s the image and then runs
 the 162 e2e specs against it. Deleting it restores two gaps at once: the e2e

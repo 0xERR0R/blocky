@@ -22,6 +22,12 @@ jobs:
   test:
     name: Build and test
     runs-on: ubuntu-latest
+    # Normally ~2 minutes. The cap is here because this suite can hang rather
+    # than fail: several specs bind listeners, and when one collides with a port
+    # another spec already took it has been seen both to fail fast
+    # (`bind: address already in use`) and to wait forever. Without a cap a hang
+    # holds a runner for GitHub's 6-hour default. See GRA-650.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
