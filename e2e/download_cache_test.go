@@ -84,7 +84,12 @@ var _ = Describe("Download cache", func() {
 				host, port, gerr := getContainerHostPort(ctx, blocky, "4000/tcp")
 				Expect(gerr).Should(Succeed())
 
-				resp, perr := http.Post("http://"+net.JoinHostPort(host, port)+"/api/lists/refresh", "application/json", nil)
+				baseURL := "http://" + net.JoinHostPort(host, port)
+
+				api, aerr := newAPIClient(ctx, baseURL)
+				Expect(aerr).Should(Succeed())
+
+				resp, perr := api.Post(baseURL+"/api/lists/refresh", "application/json", nil)
 				Expect(perr).Should(Succeed())
 				defer resp.Body.Close()
 				Expect(resp.StatusCode).Should(Equal(http.StatusOK))
@@ -188,7 +193,13 @@ var _ = Describe("Download cache", func() {
 
 				host, port, gerr := getContainerHostPort(ctx, blocky, "4000/tcp")
 				Expect(gerr).Should(Succeed())
-				resp, perr := http.Post("http://"+net.JoinHostPort(host, port)+"/api/lists/refresh", "application/json", nil)
+
+				baseURL := "http://" + net.JoinHostPort(host, port)
+
+				api, aerr := newAPIClient(ctx, baseURL)
+				Expect(aerr).Should(Succeed())
+
+				resp, perr := api.Post(baseURL+"/api/lists/refresh", "application/json", nil)
 				Expect(perr).Should(Succeed())
 				defer resp.Body.Close()
 				Expect(resp.StatusCode).Should(Equal(http.StatusOK))

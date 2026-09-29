@@ -738,6 +738,9 @@ var _ = Describe("Domain blocking functionality", func() {
 				Expect(err).Should(Succeed())
 				baseURL := "http://" + net.JoinHostPort(host, port)
 
+				api, err := newAPIClient(ctx, baseURL)
+				Expect(err).Should(Succeed())
+
 				By("verifying blocking is enabled by default", func() {
 					msg := util.NewMsgWithQuestion("blocked.com.", A)
 					Expect(doDNSRequest(ctx, blocky, msg)).
@@ -745,7 +748,7 @@ var _ = Describe("Domain blocking functionality", func() {
 				})
 
 				By("disabling blocking via API", func() {
-					resp, err := http.Get(baseURL + "/api/blocking/disable")
+					resp, err := api.Get(baseURL + "/api/blocking/disable")
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()
 					Expect(resp.StatusCode).Should(Equal(http.StatusOK))
@@ -757,7 +760,7 @@ var _ = Describe("Domain blocking functionality", func() {
 				})
 
 				By("re-enabling blocking via API", func() {
-					resp, err := http.Get(baseURL + "/api/blocking/enable")
+					resp, err := api.Get(baseURL + "/api/blocking/enable")
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()
 					Expect(resp.StatusCode).Should(Equal(http.StatusOK))
@@ -769,7 +772,7 @@ var _ = Describe("Domain blocking functionality", func() {
 				})
 
 				By("checking blocking status via API", func() {
-					resp, err := http.Get(baseURL + "/api/blocking/status")
+					resp, err := api.Get(baseURL + "/api/blocking/status")
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()
 					Expect(resp.StatusCode).Should(Equal(http.StatusOK))
@@ -809,8 +812,11 @@ var _ = Describe("Domain blocking functionality", func() {
 				Expect(err).Should(Succeed())
 				baseURL := "http://" + net.JoinHostPort(host, port)
 
+				api, err := newAPIClient(ctx, baseURL)
+				Expect(err).Should(Succeed())
+
 				By("triggering list refresh via API", func() {
-					resp, err := http.Post(baseURL+"/api/lists/refresh", "application/json", nil)
+					resp, err := api.Post(baseURL+"/api/lists/refresh", "application/json", nil)
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()
 					Expect(resp.StatusCode).Should(Equal(http.StatusOK))

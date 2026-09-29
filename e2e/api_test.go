@@ -28,6 +28,76 @@ var _ = Describe("API endpoints", func() {
 		e2eNet = getRandomNetwork(ctx)
 	})
 
+	// The fork gates every /api/* route behind a session and every mutation
+	// behind the admin role — a divergence from upstream, and one the rest of
+	// this file now depends on rather than tests: the seeded store has users,
+	// so a regression that opened the API would make every other spec here
+	// pass a little more easily. These two are the guard on that.
+	Describe("Authentication", func() {
+		When("the HTTP API is enabled", func() {
+			BeforeEach(func(ctx context.Context) {
+				_, err = createDNSMokkaContainer(ctx, "moka", e2eNet,
+					`A example.com/NOERROR("A 93.184.216.34 300")`,
+				)
+				Expect(err).Should(Succeed())
+
+				blocky, err = createBlockyContainerFromString(ctx, e2eNet, dedent(`
+					upstreams:
+					  groups:
+					    default:
+					      - moka
+					ports:
+					  http: 4000
+					`))
+				Expect(err).Should(Succeed())
+			})
+
+			It("rejects an unauthenticated request", func(ctx context.Context) {
+				host, port, err := getContainerHostPort(ctx, blocky, "4000/tcp")
+				Expect(err).Should(Succeed())
+				baseURL := "http://" + net.JoinHostPort(host, port)
+
+				By("answering 401 without a session", func() {
+					Eventually(http.Get).WithArguments(baseURL + "/api/blocking/status").
+						Should(HaveHTTPStatus(http.StatusUnauthorized))
+				})
+
+				By("answering 200 with one", func() {
+					api, aerr := newAPIClient(ctx, baseURL)
+					Expect(aerr).Should(Succeed())
+
+					resp, gerr := api.Get(baseURL + "/api/blocking/status")
+					Expect(gerr).Should(Succeed())
+					defer resp.Body.Close()
+					Expect(resp.StatusCode).Should(Equal(http.StatusOK))
+				})
+			})
+
+			It("rejects a mutation from a viewer session", func(ctx context.Context) {
+				host, port, err := getContainerHostPort(ctx, blocky, "4000/tcp")
+				Expect(err).Should(Succeed())
+				baseURL := "http://" + net.JoinHostPort(host, port)
+
+				viewer, err := newAPIClientAs(ctx, baseURL, e2eViewerUsername)
+				Expect(err).Should(Succeed())
+
+				By("allowing a read", func() {
+					resp, gerr := viewer.Get(baseURL + "/api/blocking/status")
+					Expect(gerr).Should(Succeed())
+					defer resp.Body.Close()
+					Expect(resp.StatusCode).Should(Equal(http.StatusOK))
+				})
+
+				By("refusing a write", func() {
+					resp, perr := viewer.Post(baseURL+"/api/cache/flush", "application/json", nil)
+					Expect(perr).Should(Succeed())
+					defer resp.Body.Close()
+					Expect(resp.StatusCode).Should(Equal(http.StatusForbidden))
+				})
+			})
+		})
+	})
+
 	Describe("Cache flush", func() {
 		When("caching is enabled", func() {
 			BeforeEach(func(ctx context.Context) {
@@ -54,6 +124,9 @@ var _ = Describe("API endpoints", func() {
 				Expect(err).Should(Succeed())
 				baseURL := "http://" + net.JoinHostPort(host, port)
 
+				api, err := newAPIClient(ctx, baseURL)
+				Expect(err).Should(Succeed())
+
 				By("populating cache with a query", func() {
 					msg := util.NewMsgWithQuestion("cached.example.com.", A)
 					Expect(doDNSRequest(ctx, blocky, msg)).
@@ -71,7 +144,7 @@ var _ = Describe("API endpoints", func() {
 				})
 
 				By("flushing cache via API", func() {
-					resp, err := http.Post(baseURL+"/api/cache/flush", "application/json", nil)
+					resp, err := api.Post(baseURL+"/api/cache/flush", "application/json", nil)
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()
 					Expect(resp.StatusCode).Should(Equal(http.StatusOK))
@@ -112,6 +185,9 @@ var _ = Describe("API endpoints", func() {
 				Expect(err).Should(Succeed())
 				baseURL := "http://" + net.JoinHostPort(host, port)
 
+				api, err := newAPIClient(ctx, baseURL)
+				Expect(err).Should(Succeed())
+
 				By("querying an existing domain", func() {
 					reqBody, err := json.Marshal(map[string]string{
 						"query": "example.com",
@@ -119,7 +195,7 @@ var _ = Describe("API endpoints", func() {
 					})
 					Expect(err).Should(Succeed())
 
-					resp, err := http.Post(baseURL+"/api/query", "application/json", bytes.NewReader(reqBody))
+					resp, err := api.Post(baseURL+"/api/query", "application/json", bytes.NewReader(reqBody))
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()
 					Expect(resp.StatusCode).Should(Equal(http.StatusOK))
@@ -136,7 +212,7 @@ var _ = Describe("API endpoints", func() {
 					})
 					Expect(err).Should(Succeed())
 
-					resp, err := http.Post(baseURL+"/api/query", "application/json", bytes.NewReader(reqBody))
+					resp, err := api.Post(baseURL+"/api/query", "application/json", bytes.NewReader(reqBody))
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()
 					Expect(resp.StatusCode).Should(Equal(http.StatusOK))
@@ -183,6 +259,9 @@ var _ = Describe("API endpoints", func() {
 				Expect(err).Should(Succeed())
 				baseURL := "http://" + net.JoinHostPort(host, port)
 
+				api, err := newAPIClient(ctx, baseURL)
+				Expect(err).Should(Succeed())
+
 				By("verifying domain is blocked", func() {
 					msg := util.NewMsgWithQuestion("blocked.com.", A)
 					Expect(doDNSRequest(ctx, blocky, msg)).
@@ -190,7 +269,7 @@ var _ = Describe("API endpoints", func() {
 				})
 
 				By("disabling blocking for 3 seconds", func() {
-					resp, err := http.Get(baseURL + "/api/blocking/disable?duration=3s")
+					resp, err := api.Get(baseURL + "/api/blocking/disable?duration=3s")
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()
 					Expect(resp.StatusCode).Should(Equal(http.StatusOK))
@@ -255,6 +334,9 @@ var _ = Describe("API endpoints", func() {
 				Expect(err).Should(Succeed())
 				baseURL := "http://" + net.JoinHostPort(host, port)
 
+				api, err := newAPIClient(ctx, baseURL)
+				Expect(err).Should(Succeed())
+
 				By("verifying both groups are blocking", func() {
 					msg := util.NewMsgWithQuestion("ads-domain.com.", A)
 					Expect(doDNSRequest(ctx, blocky, msg)).
@@ -266,7 +348,7 @@ var _ = Describe("API endpoints", func() {
 				})
 
 				By("disabling only the ads group", func() {
-					resp, err := http.Get(baseURL + "/api/blocking/disable?groups=ads")
+					resp, err := api.Get(baseURL + "/api/blocking/disable?groups=ads")
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()
 					Expect(resp.StatusCode).Should(Equal(http.StatusOK))
@@ -285,7 +367,7 @@ var _ = Describe("API endpoints", func() {
 				})
 
 				By("re-enabling blocking", func() {
-					resp, err := http.Get(baseURL + "/api/blocking/enable")
+					resp, err := api.Get(baseURL + "/api/blocking/enable")
 					Expect(err).Should(Succeed())
 					defer resp.Body.Close()
 					Expect(resp.StatusCode).Should(Equal(http.StatusOK))

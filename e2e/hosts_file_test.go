@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/0xERR0R/blocky/config"
 	. "github.com/0xERR0R/blocky/helpertest"
 	"github.com/0xERR0R/blocky/util"
 	"github.com/miekg/dns"
@@ -39,7 +38,7 @@ var _ = Describe("Hosts file resolver", func() {
 
 				// Builds the request by hand to mount the hosts file, so it has
 				// to do the upstreams strip/seed itself - see prepareBlockyConfig.
-				confFile, storeFile, prepErr := prepareBlockyConfig(strings.Split(dedent(`
+				confFile, cfg, storeFile, prepErr := prepareBlockyConfig(strings.Split(dedent(`
 					upstreams:
 					  groups:
 					    default:
@@ -50,9 +49,6 @@ var _ = Describe("Hosts file resolver", func() {
 					  hostsTTL: 5m
 					`), "\n"))
 				Expect(prepErr).Should(Succeed())
-
-				cfg, cfgErr := config.LoadConfig(confFile, true)
-				Expect(cfgErr).Should(Succeed())
 
 				req := buildBlockyContainerRequest(confFile)
 				req.Files = append(req.Files, storeFile, testcontainers.ContainerFile{
