@@ -151,8 +151,12 @@ var _ = Describe("QueryLoggingResolver", func() {
 			var ignored *log.MockLoggerHook
 
 			JustBeforeEach(func() {
-				// Stop background goroutines
+				// Stop the background writer, and wait for it to have actually
+				// stopped: cancelling only signals it, and until it returns it is
+				// still a consumer of logChan competing with the specs below,
+				// which then observe an empty channel.
 				cancelFn()
+				Eventually(sut.writerDone, "5s").Should(BeClosed())
 
 				ctx, cancelFn = context.WithCancel(context.Background())
 				DeferCleanup(cancelFn)

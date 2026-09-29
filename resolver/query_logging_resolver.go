@@ -47,6 +47,11 @@ type QueryLoggingResolver struct {
 	writer        querylog.Writer
 	instanceID    string
 	ignoreDomains stringcache.GroupedStringCache
+
+	// writerDone is closed once the writeLog goroutine has returned. Cancelling
+	// the context only signals it; until it returns it is still a consumer of
+	// logChan, so anything that needs it gone has to wait for this.
+	writerDone chan struct{}
 }
 
 func GetQueryLoggingWriter(ctx context.Context, cfg config.QueryLog, instanceID string) (querylog.Writer, error) {
@@ -175,9 +180,14 @@ func NewQueryLoggingResolver(ctx context.Context, cfg config.QueryLog, broadcast
 		writer:        writer,
 		instanceID:    instanceID,
 		ignoreDomains: ignoreDomains,
+		writerDone:    make(chan struct{}),
 	}
 
-	go resolver.writeLog(ctx)
+	go func() {
+		defer close(resolver.writerDone)
+
+		resolver.writeLog(ctx)
+	}()
 
 	// Timescale uses database features for retention
 	if cfg.LogRetentionDays > 0 &&

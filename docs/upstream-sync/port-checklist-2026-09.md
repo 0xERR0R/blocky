@@ -190,7 +190,7 @@ added no benchmark of its own. The five allocation-shaped ones were measured aga
 | `0de3fac` `resolver.arpa` / DDR per RFC 9462 | probe | `_dns.resolver.arpa SVCB` and `resolver.arpa A` → NOERROR/NODATA answered locally with `EDE 17 (Filtered): Special-Use Domain Name`, i.e. not forwarded, so a stub cannot be upgraded past blockasaurus |
 | `4cf62ce` healthcheck follows `ports.dns` | probe | `blockasaurus healthcheck --config …` → `OK` against `127.0.0.1:55401`; the default port 53 has nothing listening |
 
-## 7. Two things worth recording
+## 7. Three things worth recording
 
 **Not adopted, deliberately.** Upstream's `resolver.NewStatsResolver(ctx, cfg.Statistics)` is the
 one chain member this fork drops: `pkg/statscollector` persists the same statistics instead, fed
@@ -212,6 +212,22 @@ printer.lan.  3600  IN  SOA  blocky.local. hostmaster.blocky.local. …
 `custom_dns_resolver.go` and `rewrite_helper.go` are byte-identical to upstream, so this is
 upstream behavior that arrived with `e2b40db`; the rewrite-back path only restores the answer
 section. Harmless (the SOA is advisory) but worth an upstream issue.
+
+**An upstream test race, found by CI on this branch.** `QueryLoggingResolver … ignore SUDN should
+log other responses` failed once in CI and never in ~200 local runs across four configurations
+(isolated, full suite, `GOMAXPROCS=2` under load, and with `-covermode=atomic`). The spec is
+upstream's — before this the fork's only delta in that file was the extra broadcaster argument — and
+the cause is in the harness, not the fix it guards: the `ignore` block cancels the context to stop
+the background `writeLog` goroutine, but cancelling only *signals* it. Until it returns it is still
+a consumer of `logChan`, and when both its select cases are ready the runtime picks one at random,
+so it can swallow the entry the spec then asserts on.
+
+Demonstrated rather than inferred: leaving the writer running fails the spec 10/10 with CI's exact
+message, and holding it parked in the select for 300ms past cancellation does the same. `writeLog`
+now closes a `writerDone` channel on return and the spec waits for it, which removes the window by
+construction rather than by timing — 10/10 pass under the same parked-writer condition. That adds a
+fork delta to `resolver/query_logging_resolver.go` (already on §7's patched list) and to its test;
+worth an upstream PR, since the race is entirely upstream's.
 
 ## 8. Reproducing this
 
