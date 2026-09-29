@@ -99,34 +99,45 @@ done
 #    `scratch` has no shell, so the check borrows one.
 # ---------------------------------------------------------------------------
 step "cap_net_bind_service on /app/blockasaurus"
-for img in "$IMAGE" ${ARM_IMAGE:+"$ARM_IMAGE"}; do
+cat > "$WORK_DIR/capcheck.Dockerfile" <<'DOCKERFILE'
+# SRC_PLATFORM has to be explicit. An unpinned FROM resolves at the build's
+# platform, so on an amd64 runner the arm64 image under test does not match,
+# BuildKit decides the local tag cannot be what was meant, and falls through to
+# a registry lookup that 404s.
+ARG SRC_PLATFORM
+FROM --platform=${SRC_PLATFORM} blockasaurus-smoke-src:under-test AS rel
+
+# Native, not ${SRC_PLATFORM}: this stage only reads a file, and an arm64
+# alpine would run getcap under emulation for nothing.
+FROM alpine:3
+RUN apk add --no-cache libcap
+COPY --from=rel /app/blockasaurus /check/blockasaurus
+RUN getcap /check/blockasaurus; getcap /check/blockasaurus | grep -q cap_net_bind_service
+DOCKERFILE
+
+for pair in "$IMAGE:linux/amd64" "${ARM_IMAGE:+$ARM_IMAGE:linux/arm64}"; do
+  [ -n "$pair" ] || continue
+  img="${pair%:*}"; plat="${pair##*:}"
+
   # Referenced through a local-only tag, never by its ghcr name. The snapshot
   # tag is identical to the real release tag, so a `FROM ghcr.io/...` that
   # missed the local image would quietly pull and check a *published* image and
   # go green. `blockasaurus-smoke-src` exists in no registry: if the local
   # image is gone, the build fails instead of finding a stand-in.
   docker tag "$img" blockasaurus-smoke-src:under-test
-  cat > "$WORK_DIR/capcheck.Dockerfile" <<'DOCKERFILE'
-FROM blockasaurus-smoke-src:under-test AS rel
-FROM alpine:3
-RUN apk add --no-cache libcap
-COPY --from=rel /app/blockasaurus /check/blockasaurus
-RUN getcap /check/blockasaurus; getcap /check/blockasaurus | grep -q cap_net_bind_service
-DOCKERFILE
+
   # --builder default is load-bearing. CI runs docker/setup-buildx-action, which
   # makes a `docker-container` builder current, and that builder has its own
   # image store: `FROM <image goreleaser just --load-ed>` would miss the local
   # image and go to the registry, where it either 404s (red for no reason) or —
   # worse, since the snapshot tag matches a real release tag — silently checks a
   # previously published image instead of the one under test.
-  #
-  # No --platform: this stage only reads the file, and an arm64 alpine would
-  # need emulation to run getcap for nothing.
   if ! docker buildx build --builder default --load \
+       --build-arg "SRC_PLATFORM=$plat" \
        -f "$WORK_DIR/capcheck.Dockerfile" -t blockasaurus-smoke-capcheck \
        "$WORK_DIR" > "$WORK_DIR/capcheck.log" 2>&1; then
     cat "$WORK_DIR/capcheck.log" >&2
-    fail "$img: /app/blockasaurus has no cap_net_bind_service — setcap was skipped, or the capability did not survive COPY --from"
+    fail "$img: capability check failed — either /app/blockasaurus has no cap_net_bind_service (setcap skipped, or lost by COPY --from) or the check itself could not build; the log above says which"
   fi
   echo "ok: $img $(grep -o 'cap_net_bind_service=[a-z+]*' "$WORK_DIR/capcheck.log" | tail -n1 || true)"
   docker rmi -f blockasaurus-smoke-capcheck blockasaurus-smoke-src:under-test >/dev/null 2>&1 || true
