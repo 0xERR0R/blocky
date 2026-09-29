@@ -46,11 +46,20 @@ GINKGO_PROCS?=
 FUZZ_TIME?=30s
 FUZZ_PKGS?=./config ./util ./lists/parsers
 
-# Parallelism for e2e tests. e2e specs are dominated by container startup and
-# health-check waits rather than CPU, so oversubscribing beyond the core count
-# improves wall-clock time. Defaults to -p (one process per core) for local
-# runs; CI overrides this to oversubscribe the runner.
+# Parallelism and suite deadline for the e2e tests. e2e specs are dominated by
+# container startup and health-check waits rather than CPU, so oversubscribing
+# beyond the core count improves wall-clock time. Both are overridable because
+# the CI runner is smaller and slower than a dev box: see the e2e job in
+# .github/workflows/ci.yml for what it pins and why.
 GINKGO_E2E_PROCS?=-p
+GINKGO_E2E_TIMEOUT?=15m
+
+# Image the e2e suite runs against. e2e/containers.go defaults to upstream's
+# `blocky-e2e` and only overrides it from BLOCKY_IMAGE, so the rebranded tag we
+# build here has to be exported, not just passed to `docker build` - otherwise
+# every spec asks the daemon for an image that was never built.
+E2E_IMAGE?=blockasaurus-e2e
+E2E_COVERAGE_IMAGE?=$(E2E_IMAGE)-coverage
 
 export PATH=$(shell go env GOPATH)/bin:$(shell echo $$PATH)
 
@@ -117,32 +126,33 @@ fuzz: check-go ## run each fuzz target for FUZZ_TIME (default 30s); e.g. make fu
 
 e2e-test: check-go check-docker ## run e2e tests
 	docker buildx build \
-		--build-arg VERSION=blockasaurus-e2e \
+		--build-arg VERSION=$(E2E_IMAGE) \
 		--build-arg BUILD_TIME=${BUILD_TIME} \
 		--build-arg GOPROXY \
 		--network=host \
 		-o type=docker \
-		-t blockasaurus-e2e \
+		-t $(E2E_IMAGE) \
 		.
-	go tool ginkgo ${GINKGO_E2E_PROCS} --label-filter="e2e" --timeout 15m --flake-attempts 1 e2e
+	BLOCKY_IMAGE=$(E2E_IMAGE) \
+		go tool ginkgo ${GINKGO_E2E_PROCS} --label-filter="e2e" --timeout $(GINKGO_E2E_TIMEOUT) --flake-attempts 1 e2e
 
 e2e-test-coverage: check-go check-docker ## run e2e tests with code coverage
 	@echo "Building coverage-instrumented Docker image..."
 	docker buildx build \
-		--build-arg VERSION=blockasaurus-e2e-coverage \
+		--build-arg VERSION=$(E2E_COVERAGE_IMAGE) \
 		--build-arg BUILD_TIME=${BUILD_TIME} \
 		--build-arg GOPROXY \
 		--build-arg OPTS="-cover" \
 		--network=host \
 		-o type=docker \
-		-t blockasaurus-e2e-coverage \
+		-t $(E2E_COVERAGE_IMAGE) \
 		.
 	@echo "Running e2e tests with coverage collection..."
 	@mkdir -p coverage/e2e
 	@rm -rf coverage/e2e/*
 	@chmod 777 coverage/e2e
-	BLOCKY_IMAGE=blockasaurus-e2e-coverage GOCOVERDIR=$(PWD)/coverage/e2e \
-		go tool ginkgo ${GINKGO_E2E_PROCS} --label-filter="e2e" --timeout 15m --flake-attempts 1 e2e
+	BLOCKY_IMAGE=$(E2E_COVERAGE_IMAGE) GOCOVERDIR=$(PWD)/coverage/e2e \
+		go tool ginkgo ${GINKGO_E2E_PROCS} --label-filter="e2e" --timeout $(GINKGO_E2E_TIMEOUT) --flake-attempts 1 e2e
 	@echo "Converting coverage data..."
 	go tool covdata textfmt -i=./coverage/e2e -o=coverage/e2e-coverage.out
 	@echo ""

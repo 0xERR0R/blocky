@@ -4,7 +4,12 @@ Blockasaurus is a fork of [0xERR0R/blocky](https://github.com/0xERR0R/blocky). T
 records the measured state of the divergence, the plan for the next sync, and the set of files
 we have intentionally forked so future syncs are cheaper.
 
-Last measured: 2026-09-23, against upstream `main` @ `2bb9b70` (2026-09-21).
+**Status: the sync is landed.** PRs #7–#10 merged; the merge itself is `9e12f21` on `main`.
+Phases 0–9 of §5 are complete. `VERSION` is deliberately still `0.34.38` — see §10.
+
+Last measured: 2026-09-23, against upstream `main` @ `2bb9b70` (2026-09-21). §1's table is that
+pre-merge measurement and is kept as the record of what the work was; **the merge base for the
+*next* sync is `2bb9b70`**, not `d459311`.
 
 ## 1. Measured divergence
 
@@ -16,6 +21,9 @@ Last measured: 2026-09-23, against upstream `main` @ `2bb9b70` (2026-09-21).
 | Our diff vs merge base | 214 files, +29,731 / −2,382 |
 | Upstream diff vs merge base | 305 files, +39,496 / −5,131 |
 | Files both sides touched | 57 |
+
+Measured before the merge. After `9e12f21` the "behind" column is zero and the merge base is
+`2bb9b70`; at the §8 cadence the next sync's numbers should be roughly 1/7th of these.
 
 Reproduce with:
 
@@ -407,6 +415,12 @@ the build" meant "the merge fails if someone remembers to run the suite
 locally". If you delete or disable that workflow, these guardrails go back to
 being a convention.
 
+The same workflow has a second job, `e2e`, added in Phase 9. It runs
+`make e2e-test`, which builds the container image from the release `Dockerfile`
+and then runs the 162 e2e specs against it. That job is the only thing in this
+repo that exercises the image at all, so deleting it silently restores two gaps
+at once: the e2e suite and "the container has never been built".
+
 ## 4. Decisions — settled
 
 Owner decisions, made 2026-09-23. Recorded here because resolving these at
@@ -420,7 +434,7 @@ conflict time produces arbitrary outcomes.
 | D4 | The 9 upstream GitHub workflows | **Re-delete.** |
 | D5 | New upstream features | **Merge the code at upstream defaults; no config-store or UI plumbing during the sync.** DoQ and DoH3 get UI work as dedicated follow-ups immediately after the sync lands (GRA-638, GRA-639). The remainder stay YAML-only until someone asks for them; see §4a. |
 | D6 | `docs/` branding | Take upstream content, re-apply Blockasaurus branding as a final pass. |
-| D7 | `GET /docs/config.schema.json` | **Provisionally accepted in Phase 5, pending owner confirmation.** See below — this is the one upstream route the sync adds to our HTTP surface, and §3a's rule is that such a route is dropped, not accepted. |
+| D7 | `GET /docs/config.schema.json` | **Still open** — provisionally accepted in Phase 5, never confirmed. The one decision the sync did not close. See below, including a correction to what the golden actually proves about its auth. |
 
 ### D7 — the one upstream route this sync adds
 
@@ -446,6 +460,34 @@ resolver's**, which is why it is written down here instead of being absorbed:
   `/debug/*` rows gained guards they always had at runtime). So keeping the route does not cost a
   golden change that would otherwise have been avoided.
 
+**Correction, Phase 9 — it is reachable without a session.** The third bullet above said the route
+is "inside the authenticated group", and the contract golden records it as:
+
+```text
+GET     /docs/config.schema.json                      [RequireAuth RequireCSRFHeader]
+```
+
+That row is chi reporting which middleware the chain *contains*. It is not a statement that either
+one rejects anything here, and for this route neither does:
+
+- `RequireAuth` only produces a 401 for paths under `/api/` — `isAPIPath` gates every error branch
+  (`auth/middleware.go:68`, used at :116, :137, :151, :165). For any other path a missing, unknown
+  or expired session falls through to `next.ServeHTTP`, by design, so the SPA can load and discover
+  its own auth state from `/api/auth/session`.
+- `RequireCSRFHeader` returns early for `GET`, `HEAD` and `OPTIONS` before it looks at
+  `X-Requested-With`.
+
+So the effective disposition is: an unauthenticated `GET /docs/config.schema.json` returns 200 with
+the schema. The spec at `server/server_test.go:406` demonstrates exactly that — a bare `http.Get`
+with no cookie jar, asserting 200 and the full body. This is the concrete case of §3a's "records
+the identity and order of a middleware chain, never what it does".
+
+It does not change the risk assessment — a checked-in generated artifact with no secrets — but it
+does change the question the owner is being asked, which is now "should an unauthenticated client
+be able to read our config schema", not "should an authenticated one". Related but separate:
+GRA-647 covers `/debug/pprof/*` and `/debug/vars`, which answer 200 with no session for the same
+middleware reason and are a materially worse exposure.
+
 **To reverse it** — drop `router.Get("/docs/config.schema.json", …)` from `configureDocsHandler`
 and its link from `configureRootHandler` in `server/server_endpoints.go`, re-point
 `server/server_test.go`'s "Docs endpoints" and PROXY-protocol specs at `/docs/openapi.yaml`, and
@@ -453,11 +495,13 @@ rerun `go test ./server -run TestAPIContract -update-api-contract`.
 
 ### 4a. Merged but not surfaced — and what happens to each
 
-These land in the tree as part of the sync and sit at upstream defaults — off,
-unless the operator sets them in YAML. None of them changes behavior by merging.
-The Disposition column records the owner's call (2026-09-23) so a future reader
-knows the capability exists, and whether it was wanted, without rediscovering it
-in a diff.
+These landed in the tree with the sync and sit at upstream defaults — off, unless
+the operator sets them in YAML. None of them changed behavior by merging, and
+every one was probed live in Phase 8 (§6, "Features") rather than merely read.
+The Disposition column is settled: it records the owner's call of 2026-09-23, and
+nothing in this table is waiting on anybody. Its purpose now is so a future
+reader knows the capability exists, and whether it was wanted, without
+rediscovering it in a diff.
 
 | Feature | What it does | Default | Disposition |
 | --- | --- | --- | --- |
@@ -565,10 +609,10 @@ Each phase ends at a gate. Do not start a phase before its gate passes.
 | 3. Config + CLI | `config/config.go`, `config/upstreams.go`, `cmd/root.go`, `cmd/serve.go`. Regenerate enums and `docs/config.schema.json`. | `go build ./config/... ./cmd/...`, config tests green. | 1d |
 | 4. Resolver chain | `resolver/blocking_resolver.go`, `metrics_resolver.go`, `query_logging_resolver.go`, plus semantic review of the cleanly-merged `caching_resolver.go`, `dnssec/validator.go`, `querylog/*`, `util/edns0.go`, `model/models.go`. Re-establish our redis and broadcaster injection against upstream's new signatures (§3.2) and our client-group attribution against upstream's new matcher (§3.3). | `go test ./resolver/... ./querylog/... ./util/...` green. | 2–3d |
 | 5. Server + API | `server/server.go`, `http.go`, `server_endpoints.go`. Reconcile admin ports and the UI router with upstream's HTTP/3 and PROXY-protocol listeners. Apply D1. Regenerate `api/*.gen.go` and mocks. | `go build ./...`, `go test ./server/... ./api/...` green. Server starts without a route-registration panic. | 1–1.5d |
-| 6. Full verification | `go test ./...`, e2e suite, lint at upstream's v2.12.2 ruleset, `web/ui` build. | All green. | 0.5–1d |
+| 6. Full verification | `go test ./...`, e2e suite, lint at upstream's v2.12.2 ruleset, `web/ui` build. | **Done, with one deferral.** Non-e2e suite, lint (§9) and the SPA build all green. The e2e suite was *not* run — no container runtime — and stayed deferred through Phases 7 and 8. Closed in Phase 9 by running it in CI instead of by hand. | 0.5–1d |
 | 7. Behavioral smoke | Replay the Phase 0 DNS capture and diff. Manually exercise: login/session, dashboard, client groups, domain entries, blocklists, upstream groups, users, query log stream. | No unexplained delta vs Phase 0. **Done — `docs/upstream-sync/behavioral-replay-2026-09.md`.** Phase 0 left no capture to replay, so both trees were built and run side by side instead; six deltas, all attributable. | 0.5d |
 | 8. Port checklist | Walk §6 and confirm each upstream fix is actually present and effective in the merged tree. | Checklist complete. **Done — `docs/upstream-sync/port-checklist-2026-09.md`.** All 50 items settled — 6 by the Phase 7 replay, 41 newly by live probe or benchmark, 3 by code path. Two block types (`769d908`'s `refused`, and the documented comma-separated custom-IP form) were present but unreachable through the fork's config surface and needed a fix. | 0.5d |
-| 9. Land | PR, review, merge. Update this document's "Last measured" line and §7. | Merged. | 0.5d |
+| 9. Land | PR, review, merge. Update this document's "Last measured" line and §7. Stand up the e2e gate in CI. Wire the §8 cadence. | **Done.** PRs #7–#10 merged as `9e12f21`. The e2e gate is a job in `.github/workflows/ci.yml` (§3a); the cadence is a scheduled Multica autopilot (§8). Deliberately *not* done: no `VERSION` bump, no tag — §10. | 0.5d |
 
 **Estimate: 7–9 focused days.** The earlier 3–4 day estimate assumed the fork was additive; the
 trial merge shows three of our integration points sit inside code upstream refactored (§3.2–3.4),
@@ -576,7 +620,8 @@ which is where the extra time goes. Phases 4 and 5 carry essentially all of the 
 
 ## 6. Upstream port checklist
 
-Every item below is verified present *and effective* in the merged tree. Evidence per item is in
+Complete — all 50 items settled in Phase 8, nothing here is outstanding. Every item below is
+verified present *and effective* in the merged tree. Evidence per item is in
 `docs/upstream-sync/port-checklist-2026-09.md`; each tick names how it was settled:
 
 - **probe** — a running instance answered a query (or served a metric, or wrote a log row) that
@@ -656,16 +701,67 @@ data instead (§4b). The rest of `createQueryResolver` is position-for-position 
 
 Keep this current — it is what makes the *next* sync cheap.
 
-**Additive, no upstream contact (safe):** `web/ui/` (Svelte SPA), `auth/`, `configstore/`,
-`logstream/`, `pkg/statscollector/`, `packaging/`, `assets/`, `VERSION`,
-`Dockerfile.goreleaser`, `api/configapi/`, `cmd/user.go`, `server/server_stats.go`.
+`.fork-additions` is the machine-checked half of this register: 156 paths, every one of them a file
+that exists here and not in upstream `2bb9b70`, verified present and non-empty by
+`make check-fork-additions` on every CI run. This section is the human-readable half — the same set
+grouped by *why* it exists, plus the part a file list cannot express: the upstream files we hold
+patches in. When they disagree, `.fork-additions` is right; `make check-fork-additions-sync`
+regenerates it against a fetched `upstream/main`.
 
-**Upstream files we carry patches in (the recurring cost):** `config/config.go`,
-`config/upstreams.go`, `cmd/root.go`, `cmd/serve.go`, `server/server.go`, `server/http.go`,
-`server/server_endpoints.go`, `api/api_interface_impl.go`, `resolver/blocking_resolver.go`,
-`resolver/query_logging_resolver.go`, `resolver/metrics_resolver.go`, `querylog/writer.go`,
-`querylog/database_writer.go`, `model/models.go`, `util/edns0.go`, `e2e/containers.go`,
-`web/index.html`, `Makefile`, `.goreleaser.yml`, `.github/workflows/release.yml`.
+**Manifest drift over the sync: 152 → 156.** Phase 0 locked 152 paths (`f3ed700`). The sync added
+four, all of them in the "evidence and tooling" group below: `tools/dnsreplay/main.go`,
+`docs/upstream-sync/behavioral-replay-2026-09.md`,
+`docs/upstream-sync/port-checklist-2026-09.md`, and `server/chain_wiring_test.go`. Not one upstream
+file was dropped.
+
+**Additive, no upstream contact (safe).** Nothing upstream touches these, so they never conflict.
+
+| Group | Paths | Files |
+| --- | --- | --- |
+| Svelte admin SPA | `web/ui/`, plus `web/ui.go` which embeds `web/ui/dist` | 34 |
+| Handbook | `docs/handbook/` (HTML, CSS, JS, screenshots) | 29 |
+| Packaging | `packaging/` (helm chart, systemd, wix, scripts, config), `Dockerfile.goreleaser` | 21 |
+| Sessions and users | `auth/`, `auth/authmodels/`, `cmd/user.go` (+test) | 8 |
+| SQLite config store | `configstore/` | 10 |
+| Config/stats/log HTTP surface | `api/configapi/`, `config/client_group_endpoints.go`, `server/server_auth.go`, `server/server_stats.go`, `server/server_endpoint_info.go`, `server/server_mobileconfig.go`, `server/server_version.go` | 14 |
+| Persisted statistics | `pkg/statscollector/` | 2 |
+| Live log streaming | `logstream/` | 6 |
+| LAN/k8s address advertisement | `pkg/advertise/`, `pkg/arp/` | 7 |
+| Windows service wrapper | `pkg/winservice/` | 2 |
+| Branding assets | `assets/` | 2 |
+| Misc | `VERSION`, `util/slug.go` (+test), `docs/api/openapi-config.yaml`, `docs/client_group_endpoints.md` | 5 |
+
+140 files. The remaining 16 are the guardrails and evidence below.
+
+**Guardrails and evidence (also fork-only, and the set most easily lost by accident).** These are
+listed separately because deleting one does not break a build — it silently removes a check or the
+record a future sync reads:
+
+- `.fork-additions` itself, and `.github/workflows/ci.yml` (the unit job *and*, since Phase 9, the
+  e2e job — §3a).
+- `server/api_contract_test.go`, `server/api_spec_contract_test.go`, `server/chain_wiring_test.go`,
+  and their goldens `server/testdata/api_contract.golden` / `api_spec_contract.golden`.
+- `server/server_auth_test.go`, `server/server_endpoints_test.go`, `server/server_lifecycle_test.go`.
+- `e2e/upstream_seed.go` — the YAML-to-config-store bridge that keeps upstream's e2e fixtures
+  working against our §3.4 design divergence. Without it the e2e suite does not run at all.
+- `tools/dnsreplay/main.go` — the DNS capture/replay tool §8 tells you to run *before* the merge.
+- `docs/UPSTREAM_SYNC.md` (this file) and `docs/upstream-sync/baseline-v0.34.38.md`,
+  `behavioral-replay-2026-09.md`, `port-checklist-2026-09.md` — the Phase 0/7/8 evidence.
+
+**Upstream files we carry patches in (the recurring cost).** `.fork-additions` cannot see these:
+the file exists on both sides, so a merge that reverts our hunk is invisible to it. This list is
+the one to walk with `git diff` after the next merge.
+
+`config/config.go`, `config/upstreams.go`, `cmd/root.go`, `cmd/serve.go`, `server/server.go`,
+`server/http.go`, `server/server_endpoints.go`, `api/api_interface_impl.go`,
+`resolver/blocking_resolver.go`, `resolver/query_logging_resolver.go`,
+`resolver/metrics_resolver.go`, `querylog/writer.go`, `querylog/database_writer.go`,
+`model/models.go`, `util/edns0.go`, `e2e/containers.go`, `web/index.html`, `Makefile`,
+`.goreleaser.yml`, `.github/workflows/release.yml`.
+
+Of these, `server/server_endpoints.go` and `server/http.go` are the only two whose content is
+pinned by a guardrail (`TestAPIContract`, for routes and middleware chains only). The rest rely on
+this list being read.
 
 Plus the files patched **only** to carry the metric prefix: `resolver/caching_resolver.go`,
 `resolver/dnssec/validator.go`, `resolver/rate_limiting_resolver.go`,
@@ -683,6 +779,12 @@ statistics are persisted rather than in-memory; every Prometheus metric is named
 three `rate_limit_*` metrics). `metrics/metrics_test.go` is the gate: it fails on any registered
 metric missing from its expected list, in either direction.
 
+One consequence of the rebranding that bit in Phase 9: the e2e suite resolves its image name from
+`BLOCKY_IMAGE`, falling back to upstream's `blocky-e2e` constant in `e2e/containers.go`, while our
+`Makefile` tags the image `blockasaurus-e2e`. The two had never been run together, so the mismatch
+sat unnoticed; `make e2e-test` now exports `BLOCKY_IMAGE` rather than patching the constant, to keep
+`e2e/containers.go` closer to upstream.
+
 ## 8. Cadence
 
 Seven months of drift is what turned this into a week of work. Sync every 4–6 weeks:
@@ -693,7 +795,25 @@ git merge upstream/main
 ```
 
 At that cadence each merge should be a handful of conflicts in the §7 patched-file list. After
-every sync, update §7 and the "Last measured" line at the top.
+every sync, update §7 and the "Last measured" line at the top. The merge base for the next one is
+`2bb9b70`.
+
+**Wired, not just intended.** A scheduled Multica autopilot titled "Blockasaurus upstream sync"
+(`1bf22366-3c1c-47c1-9b3e-50f0e97637fb`) fires `0 15 1 * *` UTC — the 1st of each month, i.e. every
+~4.3 weeks, at the fast end of the 4–6 week band. It opens an issue titled
+`Upstream sync — <date>` in the Blockasaurus project carrying an abbreviated form of the procedure
+below, assigned so the work starts rather than queues. First fire: 2026-10-01. Inspect or pause it
+with:
+
+```bash
+multica autopilot get 1bf22366-3c1c-47c1-9b3e-50f0e97637fb --output json
+multica autopilot runs 1bf22366-3c1c-47c1-9b3e-50f0e97637fb --output json
+multica autopilot update 1bf22366-3c1c-47c1-9b3e-50f0e97637fb --status paused
+```
+
+A month where upstream has not moved enough to be worth merging is a legitimate no-op: close the
+issue and say so. That is cheaper than the alternative failure mode, which is the one this document
+exists because of.
 
 Capture the behavioral "before" *first*, with the old binary still running — this sync's Phase 0
 skipped it and Phase 7 had to rebuild the pre-merge tree to recover it:
@@ -771,3 +891,21 @@ dead; it was removed.
 Reproduce with `make lint`. If the count moves without this table moving, something changed.
 (The table read 154 until 2026-09-28, when Phase 7 re-ran the pin and found the two
 `canonicalheader` findings had never been listed. The count was wrong, not the tree.)
+
+## 10. Release hold — `VERSION` stays at 0.34.38
+
+Phase 9 deliberately did **not** bump `VERSION` and did **not** tag. This is a hold, not an
+oversight.
+
+`.github/workflows/release.yml` is tag-triggered and runs goreleaser, and the resulting image is
+what the household's DNS runs. Until Phase 9 this 220-commit upstream merge had only ever been
+exercised as a host binary: `make docker-build` had never been run against the merged tree and the
+e2e suite had never run at all. Tagging it would have put the home network behind a container image
+nothing had ever started.
+
+`make bump-point` / `make bump-minor` commit, tag *and* push in one target, so there is no
+intermediate state to inspect — which is the other reason not to reach for it casually.
+
+The e2e job added in Phase 9 (§3a) is what clears this. Once it is green on `main`, the image builds
+and the suite passes on every push, and cutting `v0.34.39` becomes an ordinary decision — the
+owner's, not a resolver's. Nothing else in this document blocks it.
