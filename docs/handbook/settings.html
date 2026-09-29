@@ -84,6 +84,30 @@
                 confusing error messages.
               </td>
             </tr>
+            <tr>
+              <td><span class="badge info">REFUSED</span></td>
+              <td>REFUSED (server refuses to answer)</td>
+              <td>
+                Returns REFUSED for every query type, with no answer or
+                authority records. Stub resolvers and forwarders commonly treat
+                REFUSED as a server failure and fall back to another configured
+                DNS server, <strong>which bypasses blocking</strong> &mdash; so
+                use it only where blockasaurus is the client&rsquo;s sole
+                resolver.
+              </td>
+            </tr>
+            <tr>
+              <td><span class="badge info">Custom IP</span></td>
+              <td>The address(es) you name</td>
+              <td>
+                A comma-separated list of destination addresses, e.g.
+                <code>192.0.2.10, 2001:db8::1</code>. Include one IPv4 and one
+                IPv6 address to cover both A and AAAA queries. Useful when a web
+                server on that address serves a &ldquo;blocked&rdquo; page. Set
+                it through the API; the dropdown shows a stored custom value but
+                does not offer one.
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -111,6 +135,12 @@
     <p>
       Format is a duration string: <code>1m</code> (one minute),
       <code>30s</code>, <code>1h</code>. The default is <code>1m</code>.
+    </p>
+
+    <p>
+      It applies to the block types that return records &mdash; Zero IP,
+      NXDOMAIN and a custom IP. <strong>REFUSED</strong> returns no records at
+      all, so Block TTL has no effect there.
     </p>
 
     <div class="box">

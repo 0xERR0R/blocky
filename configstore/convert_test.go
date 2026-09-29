@@ -70,6 +70,20 @@ var _ = Describe("Convert", func() {
 			Expect(time.Duration(result.BlockTTL)).Should(Equal(30 * time.Minute))
 		})
 
+		It("should carry a refused block type through to the resolver config", func() {
+			// BuildBlockingConfig replaces base.BlockType unconditionally, so the
+			// store is the only way anything can select a block type. This is the
+			// seam that made upstream's refused handler dead code until the
+			// block-settings API accepted it.
+			Expect(store.PutBlockSettings(&BlockSettings{
+				BlockType: "REFUSED", BlockTTL: "6h",
+			})).Should(Succeed())
+
+			result, err := store.BuildBlockingConfig(config.Blocking{BlockType: "ZEROIP"})
+			Expect(err).Should(Succeed())
+			Expect(result.BlockType).Should(Equal("REFUSED"))
+		})
+
 		It("should add domain entries to denylists/allowlists by group_name", func() {
 			Expect(store.PutClientGroup(&ClientGroup{
 				Name:   "default",

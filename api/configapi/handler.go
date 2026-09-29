@@ -740,6 +740,20 @@ func validateUpstreamServer(input *UpstreamServerInput) error {
 	return nil
 }
 
+// isIPList reports whether every comma-separated part of s is an IP address,
+// which is what resolver.createBlockHandler needs to build an ipBlockHandler.
+func isIPList(s string) bool {
+	// An empty string splits into a single empty part, which ParseIP rejects,
+	// so it is covered by the loop.
+	for part := range strings.SplitSeq(s, ",") {
+		if net.ParseIP(strings.TrimSpace(part)) == nil {
+			return false
+		}
+	}
+
+	return true
+}
+
 func blockSettingsToAPI(bs configstore.BlockSettings) BlockSettings {
 	return BlockSettings{
 		BlockType: bs.BlockType,
@@ -864,11 +878,16 @@ func validateBlockSettings(input *BlockSettingsInput) error {
 	}
 
 	switch input.BlockType {
-	case "ZEROIP", "NXDOMAIN":
+	case "ZEROIP", "NXDOMAIN", "REFUSED":
 		// valid
 	default:
-		if net.ParseIP(input.BlockType) == nil {
-			return errors.New("block_type must be ZEROIP, NXDOMAIN, or a valid IP address")
+		// resolver.createBlockHandler accepts a comma-separated list of destination
+		// addresses, so accept one here too: a single-IP-only check left the
+		// documented "one v4 plus one v6, to cover every query type" form
+		// unreachable, since the config store is the only writer of blockType.
+		if !isIPList(input.BlockType) {
+			return errors.New(
+				"block_type must be ZEROIP, NXDOMAIN, REFUSED, or a comma-separated list of IP addresses")
 		}
 	}
 
