@@ -255,10 +255,14 @@ func handleDiscoveredClients(w http.ResponseWriter, r *http.Request) {
 //   - DoH is never mounted here — see the caller.
 //   - Everything else (API, config, UI, static, docs, websocket) goes behind
 //     RequireAuth + RequireCSRFHeader. Mutating API routes are further gated by
-//     RequireAdminForMutations so `viewer` users are read-only.
-//   - pprof/expvar is NOT here. RequireAuth only rejects /api/* paths, so a
-//     /debug group on this router would be readable without a session; it lives
-//     on its own loopback listener instead (server/server_debug.go).
+//     RequireAdminForMutations so `viewer` users are read-only. Of those, only
+//     the paths auth.EnforcesAuth covers are actually rejected without a
+//     session — the SPA shell and its assets must stay reachable so the login
+//     page can render.
+//   - pprof/expvar is NOT here. RequireAuth only rejects the paths
+//     auth.EnforcesAuth covers (/api/*, /docs/*), so a /debug group on this
+//     router would be readable without a session; it lives on its own loopback
+//     listener instead (server/server_debug.go).
 func registerUIRoutes(router *chi.Mux, cfg *config.Config,
 	openAPIImpl api.StrictServerInterface,
 	store *configstore.ConfigStore, reconfigurer configapi.Reconfigurer,
@@ -421,10 +425,21 @@ func configureRootHandler(cfg *config.Config, router chi.Router) {
 			BuildTime: util.BuildTime,
 			Links: []HandlerLink{
 				{URL: "/ui/", Title: "Web UI", Icon: "◆", Primary: true},
-				{URL: "/docs/openapi.yaml", Title: "REST API docs (OpenAPI)", Icon: "○"},
-				{URL: "/static/rapidoc.html", Title: "Interactive API explorer", Icon: "⚙"},
-				{URL: "/docs/config.schema.json", Title: "Configuration JSON Schema", Icon: "▤"},
 			},
+		}
+
+		// This page is public so the SPA's login screen is always reachable,
+		// but /docs/* is not (decision D7). Offering those links to a visitor
+		// with no session would hand them a raw 401 envelope, and the explorer
+		// an empty spec — so list them only once there is a session to fetch
+		// them with. configureRootHandler runs inside the authenticated group,
+		// so RequireAuth has already attached the user when there is one.
+		if auth.UserFromContext(request.Context()) != nil {
+			pd.Links = append(pd.Links,
+				HandlerLink{URL: "/docs/openapi.yaml", Title: "REST API docs (OpenAPI)", Icon: "○"},
+				HandlerLink{URL: "/static/rapidoc.html", Title: "Interactive API explorer", Icon: "⚙"},
+				HandlerLink{URL: "/docs/config.schema.json", Title: "Configuration JSON Schema", Icon: "▤"},
+			)
 		}
 
 		if cfg.Prometheus.Enable {

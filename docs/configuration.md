@@ -1141,7 +1141,7 @@ Serve the Go runtime diagnostics endpoints — [pprof](https://pkg.go.dev/net/ht
 - To reach it from another machine, forward the port — `ssh -L 6060:127.0.0.1:6060 blocky-host`, or
   `kubectl port-forward pod/blocky 6060:6060` — rather than exposing it.
 - These endpoints used to be served on `ports.http`/`ports.https`. They were reachable there **without a session**,
-  because the session guard only rejects `/api/*` paths, so they moved here.
+  because the session guard only rejects the paths it is scoped to (`/api/*`, `/docs/*`), so they moved here.
 
 **Example:**
 

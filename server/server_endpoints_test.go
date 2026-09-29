@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/0xERR0R/blocky/auth"
+	"github.com/0xERR0R/blocky/config"
 	"github.com/0xERR0R/blocky/configstore"
 
 	"github.com/go-chi/chi/v5"
@@ -24,6 +26,8 @@ import (
 //   - Public endpoints (metrics path, mobileconfig, login, setup) reachable
 //     without a session cookie.
 //   - /api/* routes under the auth group return 401 without a cookie.
+//   - /docs/* routes under the auth group return 401 without a cookie and
+//     serve with one (GRA-652 / decision D7).
 //
 // The intent is to catch route-group drift — someone accidentally moving a
 // public endpoint into the authenticated group or vice-versa.
@@ -77,6 +81,15 @@ func newRouteShapeServer(t *testing.T) (http.Handler, *configstore.ConfigStore) 
 			rr.Get("/api/stats", handleStats)
 			rr.Get("/api/version", handleVersion)
 		})
+
+		// The real docs routes. They sit outside /api/, so being inside this
+		// group is not on its own enough to gate them — auth.EnforcesAuth has
+		// to cover them too, which is what the docs specs below check.
+		configureDocsHandler(r)
+
+		// The index page. Public (RequireAuth passes / through), but its link
+		// list depends on whether a session was attached.
+		configureRootHandler(&config.Config{}, r)
 	})
 
 	return router, store
@@ -250,6 +263,132 @@ func TestRouteShape_SetupReachableFirstRun(t *testing.T) {
 
 	if body.Error == "unauthorized" {
 		t.Fatalf("POST /api/auth/setup during first-run is gated (should be open): code=%d body=%q", w.Code, w.Body.String())
+	}
+}
+
+// shapeAdminPassword is the password newRouteShapeServerWithAdmin seeds, so
+// specs that need a real session can log in through the public route rather
+// than forging a cookie.
+const shapeAdminPassword = "correct-horse-battery-staple"
+
+// loginCookie logs the seeded admin in and returns the session cookie.
+func loginCookie(t *testing.T, h http.Handler) *http.Cookie {
+	t.Helper()
+
+	body := `{"username":"admin","password":"` + shapeAdminPassword + `"}`
+
+	r := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("X-Requested-With", "test")
+	r.RemoteAddr = "127.0.0.1:55555"
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("login: want 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	for _, c := range w.Result().Cookies() {
+		if c.Name == auth.SessionCookieName || c.Name == auth.SessionCookieNameSecure {
+			return c
+		}
+	}
+
+	t.Fatalf("login returned no session cookie (set-cookie=%q)", w.Header().Values("Set-Cookie"))
+
+	return nil
+}
+
+// docsRoutes are the two routes decision D7 put behind authentication.
+var docsRoutes = []string{"/docs/openapi.yaml", "/docs/config.schema.json"}
+
+// TestRouteShape_DocsRequireAuth: the docs routes live outside /api/, so they
+// used to ride RequireAuth's passthrough and answer 200 to anyone. They must
+// now return the `unauthorized` envelope without a session (GRA-652 / D7).
+func TestRouteShape_DocsRequireAuth(t *testing.T) {
+	h := newRouteShapeServerWithAdmin(t)
+
+	for _, path := range docsRoutes {
+		w := doReq(t, h, http.MethodGet, path)
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("GET %s: want 401, got %d: %s", path, w.Code, w.Body.String())
+		}
+
+		var body struct {
+			Error string `json:"error"`
+		}
+
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatalf("decode envelope for %s: %v (body=%q)", path, err, w.Body.String())
+		}
+
+		if body.Error != "unauthorized" {
+			t.Fatalf("%s error code: want %q, got %q", path, "unauthorized", body.Error)
+		}
+	}
+}
+
+// TestRouteShape_DocsServedWithSession: gating them must not break the
+// logged-in case — rapidoc.html fetches /docs/openapi.yaml with the session
+// cookie the browser already carries.
+func TestRouteShape_DocsServedWithSession(t *testing.T) {
+	h := newRouteShapeServerWithAdmin(t)
+	cookie := loginCookie(t, h)
+
+	withSession := func(r *http.Request) { r.AddCookie(cookie) }
+
+	for _, path := range docsRoutes {
+		w := doReq(t, h, http.MethodGet, path, withSession)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET %s with session: want 200, got %d: %s", path, w.Code, w.Body.String())
+		}
+
+		if w.Body.Len() == 0 {
+			t.Fatalf("GET %s with session: empty body", path)
+		}
+	}
+}
+
+// TestRouteShape_IndexHidesGatedLinksWhenAnonymous: / stays public so the
+// login screen is reachable, but it must not advertise links that now answer
+// 401 to the visitor reading it.
+func TestRouteShape_IndexHidesGatedLinksWhenAnonymous(t *testing.T) {
+	h := newRouteShapeServerWithAdmin(t)
+
+	w := doReq(t, h, http.MethodGet, "/")
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /: want 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, `"/ui/"`) {
+		t.Fatalf("anonymous index should still link the web UI; body=%q", body)
+	}
+
+	for _, path := range docsRoutes {
+		if strings.Contains(body, path) {
+			t.Fatalf("anonymous index links %s, which answers 401 without a session", path)
+		}
+	}
+}
+
+// TestRouteShape_IndexShowsGatedLinksWithSession: with a session those links
+// work, so the page lists them again.
+func TestRouteShape_IndexShowsGatedLinksWithSession(t *testing.T) {
+	h := newRouteShapeServerWithAdmin(t)
+	cookie := loginCookie(t, h)
+
+	w := doReq(t, h, http.MethodGet, "/", func(r *http.Request) { r.AddCookie(cookie) })
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET / with session: want 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	for _, path := range docsRoutes {
+		if !strings.Contains(body, path) {
+			t.Fatalf("index with a session should link %s; body=%q", path, body)
+		}
 	}
 }
 

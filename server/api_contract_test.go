@@ -211,9 +211,10 @@ func walkRoutes(router *chi.Mux) ([]string, error) {
 		formatRoute("COMMON", "*", formatChain(common)),
 		"",
 		"# " + nonEnforcingMarker + " = registered on the chain but NOT enforcing on that path.",
-		"# RequireAuth only rejects /api/* (auth.EnforcesAuth); every other path passes",
-		"# through so the SPA shell can render and detect auth state via /api/auth/session.",
-		"# A route that must be protected therefore cannot live outside /api/.",
+		"# RequireAuth only rejects the paths auth.EnforcesAuth covers (/api/*, /docs/*);",
+		"# every other path passes through so the SPA shell can render and detect auth",
+		"# state via /api/auth/session. A route that must be protected therefore has to be",
+		"# covered by that predicate, not merely sit on a chain that contains RequireAuth.",
 		"",
 	}
 
@@ -272,8 +273,8 @@ const nonEnforcingMarker = "*"
 // annotateNonEnforcing marks RequireAuth on the routes where it is registered
 // but passes the request straight through.
 //
-// RequireAuth only rejects /api/* paths (auth.EnforcesAuth); on the SPA shell,
-// static assets and docs it is on the chain and does nothing. Without this the
+// RequireAuth only rejects the paths auth.EnforcesAuth covers; on the SPA shell
+// and static assets it is on the chain and does nothing. Without this the
 // guard column reads as protection on routes that have none, which is exactly
 // how /debug/pprof sat in this golden looking guarded while serving heap dumps
 // and cmdline to anyone who could reach the API port (GRA-647).

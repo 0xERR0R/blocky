@@ -93,9 +93,9 @@ func isLoopbackHost(host string) bool {
 // any other HTTP listener. A no-op unless debug.enable is set.
 //
 // Diagnostics get their own listener rather than a route group on the HTTP API
-// port: RequireAuth passes through every path that is not /api/* so the SPA
-// shell can render, which made /debug mounted there readable without a session
-// no matter which guards the route golden listed (GRA-647).
+// port: RequireAuth passes through every path auth.EnforcesAuth does not cover
+// so the SPA shell can render, which made /debug mounted there readable without
+// a session no matter which guards the route golden listed (GRA-647).
 func (s *Server) addDebugListeners(ctx context.Context, cfg *config.Config) error {
 	if !cfg.Debug.IsEnabled() {
 		return nil

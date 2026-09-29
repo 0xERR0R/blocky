@@ -15,8 +15,9 @@ import (
 // Debug holds the Go diagnostics listener (net/http/pprof and expvar).
 //
 // It gets its own listener rather than a route group on the HTTP API port
-// because RequireAuth only rejects /api/* paths — anything mounted outside
-// that prefix is readable without a session (auth/middleware.go). Heap and
+// because RequireAuth only rejects the paths auth.EnforcesAuth covers (/api/*,
+// /docs/*) — anything outside them is readable without a session
+// (auth/middleware.go). Heap and
 // goroutine dumps carry in-flight query names and client addresses, cmdline
 // leaks the invocation, and /debug/pprof/profile pins a CPU for the sampling
 // duration, so the bind address is loopback and deliberately not configurable.

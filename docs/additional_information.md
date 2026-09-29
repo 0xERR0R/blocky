@@ -73,7 +73,7 @@ curl http://127.0.0.1:6060/debug/vars
     rebinding. Every normal caller already sends one.
 
     These endpoints were previously mounted on the HTTP API port. They were reachable there without a session, because
-    the session guard only rejects `/api/*` paths — which is why they moved.
+    the session guard only rejects the paths it is scoped to (`/api/*`, `/docs/*`) — which is why they moved.
 
 ## List sources
 

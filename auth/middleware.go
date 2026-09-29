@@ -63,23 +63,35 @@ func writeJSONError(w http.ResponseWriter, status int, code, message string) {
 }
 
 // isAPIPath reports whether the request targets the JSON API surface.
-// /api/* paths receive JSON 401/403 responses; other paths pass through so
-// the SPA can render and detect auth state via /api/auth/session.
 func isAPIPath(p string) bool {
 	return strings.HasPrefix(p, "/api/")
 }
 
+// isDocsPath reports whether the request targets the generated API docs
+// surface — /docs/openapi.yaml and /docs/config.schema.json. Those describe the
+// admin API and its configuration; nothing in the login flow needs them, so
+// they are gated rather than public (owner decision D7, docs/UPSTREAM_SYNC.md).
+func isDocsPath(p string) bool {
+	return strings.HasPrefix(p, "/docs/")
+}
+
 // EnforcesAuth reports whether RequireAuth rejects an unauthenticated request to
-// the given path. It is false for every path outside /api/, which passes through
-// so the SPA shell can render and detect auth state via /api/auth/session — so
-// RequireAuth sitting on a non-API route's middleware chain is registration, not
-// enforcement.
+// the given path. It is true for /api/* and /docs/*; every other path passes
+// through so the SPA shell can render and detect auth state via
+// /api/auth/session — so RequireAuth sitting on such a route's middleware chain
+// is registration, not enforcement.
+//
+// /, /ui/* and /robots.txt must stay outside this predicate: they are the SPA
+// shell the login page renders from, so gating them serves a 401 in place of
+// the login screen. /static/* is out of scope by the owner's D7 scoping rather
+// than by that necessity — it holds only the rapidoc explorer, which the shell
+// does not load; with the spec itself gated, rapidoc renders empty chrome.
 //
 // Exported rather than inlined because server/api_contract_test.go annotates the
 // route golden from it: a hand-maintained copy of this predicate would drift and
 // the golden would go back to over-reading as protection (GRA-647).
 func EnforcesAuth(path string) bool {
-	return isAPIPath(path)
+	return isAPIPath(path) || isDocsPath(path)
 }
 
 // IsSecureRequest reports whether the incoming request is on a secure origin.
@@ -114,19 +126,19 @@ func ReadSessionCookie(r *http.Request) (value, name string) {
 
 // RequireAuth enforces authentication on the request. Behavior:
 //
-//   - No users configured: POST /api/auth/setup passes through; other /api/*
-//     routes receive 401 setup_required; non-API paths pass through so the
-//     SPA can render the setup wizard.
+//   - No users configured: POST /api/auth/setup passes through; other guarded
+//     paths (EnforcesAuth) receive 401 setup_required; the rest pass through so
+//     the SPA can render the setup wizard.
 //   - Valid session: user is attached to context; sliding renewal applied
 //     when expiry is within SessionSlidingThreshold.
-//   - Missing/invalid/expired: 401 unauthorized on /api/*, pass through on
-//     non-API (SPA detects state via /api/auth/session).
+//   - Missing/invalid/expired: 401 unauthorized on guarded paths, pass through
+//     elsewhere (SPA detects state via /api/auth/session).
 func RequireAuth(store SessionStore) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// First-run: no users. Setup endpoint is the only door open.
 			if !store.HasUsers() {
-				if isAPIPath(r.URL.Path) {
+				if EnforcesAuth(r.URL.Path) {
 					if r.Method == http.MethodPost && r.URL.Path == "/api/auth/setup" {
 						next.ServeHTTP(w, r)
 
@@ -139,7 +151,7 @@ func RequireAuth(store SessionStore) func(http.Handler) http.Handler {
 					return
 				}
 
-				// Non-API: SPA loads, discovers setup state, shows wizard.
+				// Ungated: SPA loads, discovers setup state, shows wizard.
 				next.ServeHTTP(w, r)
 
 				return
@@ -147,7 +159,7 @@ func RequireAuth(store SessionStore) func(http.Handler) http.Handler {
 
 			token, cookieName := ReadSessionCookie(r)
 			if token == "" {
-				if isAPIPath(r.URL.Path) {
+				if EnforcesAuth(r.URL.Path) {
 					writeJSONError(w, http.StatusUnauthorized,
 						"unauthorized", "authentication required")
 
@@ -161,7 +173,7 @@ func RequireAuth(store SessionStore) func(http.Handler) http.Handler {
 
 			sess, err := store.GetSession(token)
 			if err != nil || sess == nil {
-				if isAPIPath(r.URL.Path) {
+				if EnforcesAuth(r.URL.Path) {
 					writeJSONError(w, http.StatusUnauthorized,
 						"unauthorized", "authentication required")
 
@@ -175,7 +187,7 @@ func RequireAuth(store SessionStore) func(http.Handler) http.Handler {
 
 			user, err := store.GetUser(sess.UserID)
 			if err != nil || user == nil {
-				if isAPIPath(r.URL.Path) {
+				if EnforcesAuth(r.URL.Path) {
 					writeJSONError(w, http.StatusUnauthorized,
 						"unauthorized", "authentication required")
 
