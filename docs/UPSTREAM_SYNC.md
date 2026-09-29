@@ -620,9 +620,14 @@ above and answered that the route stays and the exposure does not. Implemented i
   `[RequireAuth RequireCSRFHeader]`. No other row moved. This is a deliberate contract change: both
   routes go 200 → 401 for an unauthenticated client. It moves the behavior *toward* what that row
   already claimed.
-- `/`, `/ui/*`, `/static/*` and `/robots.txt` are deliberately **not** covered. Gating them would
-  serve a 401 in place of the login page and lock the user out of their own server;
-  `TestEnforcesAuth_ShellStaysOpen` (`auth/middleware_test.go`) pins that both ways.
+- `/`, `/ui/*` and `/robots.txt` are deliberately **not** covered: they are the SPA shell the login
+  page renders from, so gating them would serve a 401 in place of the login screen and lock the user
+  out of their own server. `TestEnforcesAuth_ShellStaysOpen` (`auth/middleware_test.go`) pins that
+  both ways. `/static/*` is also uncovered, but for a different reason — the owner scoped D7 to the
+  two `/docs/*` routes. It holds only `rapidoc.html` and `rapidoc-min.js`; the shell loads neither
+  (`web/index.html` and `web/ui/dist/index.html` reference `/ui/*` only), so gating it would not
+  touch the login page. With the spec gated, an anonymous visitor who opens rapidoc gets empty
+  chrome. Whether the explorer page itself should follow is the owner's call, not this change's.
 - Verified against a running server, not inferred: with a user configured, unauthenticated
   `GET /docs/openapi.yaml` and `GET /docs/config.schema.json` return 401 `unauthorized`, the same
   requests with a session cookie return 200 with the artifact, and `/`, `/ui/`, the SPA's JS/CSS
@@ -634,6 +639,9 @@ above and answered that the route stays and the exposure does not. Implemented i
 - The risk assessment is unchanged and was re-checked: both routes serve checked-in generated
   artifacts with no secrets and no runtime values. The only `password` hits in the config schema are
   field definitions such as `redis.password → {type: string, default: ""}`.
+- The public index page (`configureRootHandler`) now lists the two docs links and the rapidoc
+  explorer only when a session is attached. `/` itself stays public, but advertising links that
+  answer a raw 401 envelope to the visitor reading them is worse than not listing them.
 - Blast radius is `web/static/rapidoc.html`, whose `spec-url` is `/docs/openapi.yaml`. It is a
   browser page carrying the session cookie, so a logged-in admin is unaffected; an unauthenticated
   visitor gets 401 on the spec, which is the intent. Nothing in `web/ui/src` fetches either path.

@@ -81,8 +81,11 @@ func isDocsPath(p string) bool {
 // /api/auth/session — so RequireAuth sitting on such a route's middleware chain
 // is registration, not enforcement.
 //
-// The SPA shell, its static assets and /robots.txt must stay outside this
-// predicate: gating them serves a 401 in place of the login page.
+// /, /ui/* and /robots.txt must stay outside this predicate: they are the SPA
+// shell the login page renders from, so gating them serves a 401 in place of
+// the login screen. /static/* is out of scope by the owner's D7 scoping rather
+// than by that necessity — it holds only the rapidoc explorer, which the shell
+// does not load; with the spec itself gated, rapidoc renders empty chrome.
 //
 // Exported rather than inlined because server/api_contract_test.go annotates the
 // route golden from it: a hand-maintained copy of this predicate would drift and

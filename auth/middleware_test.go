@@ -371,6 +371,27 @@ func TestRequireAuth_NoUsers_DocsReturnsSetupRequired(t *testing.T) {
 	}
 }
 
+func TestRequireAuth_ExpiredSession_DocsUnauthorized(t *testing.T) {
+	s := newFakeStore()
+	s.sessions["tok"] = &authmodels.Session{
+		ID:        "tok",
+		UserID:    1,
+		ExpiresAt: time.Now().Add(-1 * time.Hour),
+	}
+	s.users[1] = &authmodels.User{ID: 1, Username: "alice", Role: RoleAdmin}
+
+	h := RequireAuth(s)(passthrough)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/docs/openapi.yaml", nil)
+	req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: "tok"})
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expired session should 401 on /docs/*; got %d", rec.Code)
+	}
+}
+
 func TestRequireAuth_ValidSession_DocsPass(t *testing.T) {
 	s := newFakeStore()
 	s.sessions["tok"] = &authmodels.Session{
